@@ -45,3 +45,12 @@ export type CreateDataDestinationRequestDto =
       type: DataDestinationType.GOOGLE_CHAT;
       credentials: { type: DataDestinationCredentialsType.EMAIL_CREDENTIALS; to: string[] };
     };
+
+/**
+ * Request to create a destination by copying credentials from another destination
+ */
+export interface CreateDataDestinationCopyRequestDto {
+  title: string;
+  type: DataDestinationType;
+  sourceDestinationId: string;
+}

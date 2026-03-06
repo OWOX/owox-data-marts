@@ -248,6 +248,8 @@ import { SyncLegacyDataMartService } from './use-cases/legacy-data-marts/sync-le
 import { SyncLegacyDataMartsByGcpService } from './use-cases/legacy-data-marts/sync-legacy-data-marts-by-gcp.service';
 import { LegacyDataMartsSyncController } from './controllers/internal/legacy-data-marts-sync.controller';
 import { ValidateDataStorageAccessService } from './use-cases/validate-data-storage-access.service';
+import { ListDataStoragesByTypeService } from './use-cases/list-data-storages-by-type.service';
+import { ListDataDestinationsByTypeService } from './use-cases/list-data-destinations-by-type.service';
 import { BatchDataMartHealthStatusService } from './use-cases/batch-data-mart-health-status.service';
 import { GetStorageOAuthStatusService } from './use-cases/google-oauth/get-storage-oauth-status.service';
 import { GenerateStorageOAuthUrlService } from './use-cases/google-oauth/generate-storage-oauth-url.service';
@@ -263,6 +265,7 @@ import { DataStorageCredential } from './entities/data-storage-credential.entity
 import { DataDestinationCredential } from './entities/data-destination-credential.entity';
 import { DataStorageCredentialService } from './services/data-storage-credential.service';
 import { DataDestinationCredentialService } from './services/data-destination-credential.service';
+import { CopyCredentialService } from './services/copy-credential.service';
 import { GoogleOAuthFlowService } from './services/google-oauth/google-oauth-flow.service';
 import { GoogleOAuthClientService } from './services/google-oauth/google-oauth-client.service';
 import { GoogleOAuthConfigService } from './services/google-oauth/google-oauth-config.service';
@@ -503,6 +506,8 @@ import { GoogleOAuthConfigService } from './services/google-oauth/google-oauth-c
     SyncDataMartsByGcpTriggerHandler,
     SyncGcpStoragesForProjectTriggerHandler,
     ValidateDataStorageAccessService,
+    ListDataStoragesByTypeService,
+    ListDataDestinationsByTypeService,
     BatchDataMartHealthStatusService,
     AgentFlowService,
     AgentFlowAgent,
@@ -530,6 +535,7 @@ import { GoogleOAuthConfigService } from './services/google-oauth/google-oauth-c
     DataDestinationCredentialsResolver,
     DataStorageCredentialService,
     DataDestinationCredentialService,
+    CopyCredentialService,
     GoogleOAuthFlowService,
     GoogleOAuthClientService,
     GoogleOAuthConfigService,

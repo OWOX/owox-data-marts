@@ -1,6 +1,7 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
+import { Transactional } from 'typeorm-transactional';
 import { BigQueryConfig } from '../data-storage-types/bigquery/schemas/bigquery-config.schema';
 import { DataStorageCredentials } from '../data-storage-types/data-storage-credentials.type';
 import { DataStorageType } from '../data-storage-types/enums/data-storage-type.enum';
@@ -17,6 +18,7 @@ import {
   extractStorageIdentity,
 } from '../services/credential-type-resolver';
 import type { StoredStorageCredentials } from '../entities/stored-storage-credentials.type';
+import { CopyCredentialService } from '../services/copy-credential.service';
 
 @Injectable()
 export class UpdateDataStorageService {
@@ -26,14 +28,64 @@ export class UpdateDataStorageService {
     private readonly dataStorageService: DataStorageService,
     private readonly dataStorageMapper: DataStorageMapper,
     private readonly dataStorageAccessFacade: DataStorageAccessValidatorFacade,
-    private readonly dataStorageCredentialService: DataStorageCredentialService
+    private readonly dataStorageCredentialService: DataStorageCredentialService,
+    private readonly copyCredentialService: CopyCredentialService
   ) {}
 
+  @Transactional()
   async run(command: UpdateDataStorageCommand): Promise<DataStorageDto> {
     const dataStorageEntity = await this.dataStorageService.getByProjectIdAndId(
       command.projectId,
       command.id
     );
+
+    const isLegacyStorage = dataStorageEntity.type === DataStorageType.LEGACY_GOOGLE_BIGQUERY;
+
+    if (command.sourceStorageId && command.hasCredentials()) {
+      throw new BadRequestException(
+        'Cannot provide both sourceStorageId and credentials in the same request'
+      );
+    }
+
+    if (command.sourceStorageId && command.credentialId) {
+      throw new BadRequestException('Cannot provide both sourceStorageId and credentialId');
+    }
+
+    if (command.sourceStorageId === command.id) {
+      throw new BadRequestException('Cannot copy credentials from a storage to itself');
+    }
+
+    if (command.sourceStorageId) {
+      const source = await this.dataStorageService.getByProjectIdAndId(
+        command.projectId,
+        command.sourceStorageId
+      );
+      if (!source.credentialId || !source.credential) {
+        throw new BadRequestException('Source storage has no credentials to copy');
+      }
+      if (source.type !== dataStorageEntity.type) {
+        throw new BadRequestException(
+          `Cannot copy credentials from ${source.type} to ${dataStorageEntity.type} storage`
+        );
+      }
+
+      const newCredId = await this.copyCredentialService.copyStorageCredential(
+        command.projectId,
+        dataStorageEntity.credentialId ?? null,
+        source.credential
+      );
+      if (newCredId) {
+        dataStorageEntity.credentialId = newCredId;
+        dataStorageEntity.credential = null;
+      }
+
+      dataStorageEntity.config = command.config;
+      if (!isLegacyStorage) {
+        dataStorageEntity.title = command.title;
+      }
+      const updatedDataStorageEntity = await this.dataStorageRepository.save(dataStorageEntity);
+      return this.dataStorageMapper.toDomainDto(updatedDataStorageEntity);
+    }
 
     let credentialsToCheck: DataStorageCredentials | undefined = command.credentials;
     if (!command.hasCredentials() && dataStorageEntity.credential) {
@@ -41,8 +93,6 @@ export class UpdateDataStorageService {
         | DataStorageCredentials
         | undefined;
     }
-
-    const isLegacyStorage = dataStorageEntity.type === DataStorageType.LEGACY_GOOGLE_BIGQUERY;
     if (isLegacyStorage && command.hasConfig()) {
       (command.config as BigQueryConfig).projectId = (
         dataStorageEntity.config as BigQueryConfig

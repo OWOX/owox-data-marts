@@ -19,15 +19,17 @@ import { Combobox } from '../../../../../shared/components/Combobox/combobox.tsx
 import { getServiceAccountLink } from '../../../../../utils/google-cloud-utils';
 import { GoogleOAuthConnectButton, storageOAuthApi } from '../../../../../features/google-oauth';
 import type { LegacyGoogleBigQueryFormData } from '../../../shared';
-import { googleBigQueryLocationOptions } from '../../../shared';
+import { googleBigQueryLocationOptions, DataStorageType } from '../../../shared';
 import GoogleBigQueryOAuthDescription from './FormDescriptions/GoogleBigQueryOAuthDescription';
 import GoogleBigQueryServiceAccountDescription from './FormDescriptions/GoogleBigQueryServiceAccountDescription';
 import LegacyGoogleBigQueryLocationDescription from './FormDescriptions/LegacyGoogleBigQueryLocationDescription.tsx';
 import LegacyGoogleBigQueryProjectIdDescription from './FormDescriptions/LegacyGoogleBigQueryProjectIdDescription.tsx';
+import { AuthenticationSectionHeader } from '../../../../../shared/components/AuthenticationSectionHeader';
+import { CopyStorageCredentialsButton } from '../CopyStorageCredentialsButton';
+import { useCopyCredentialContext } from '../../model/context/useCopyCredentialContext';
 
 interface LegacyGoogleBigQueryFieldsProps {
   form: UseFormReturn<LegacyGoogleBigQueryFormData>;
-  storageId?: string;
 }
 
 const LEGACY_AUTODETECT_LOCATION = 'AUTODETECT';
@@ -41,10 +43,13 @@ const legacyGoogleBigQueryLocationOptions = [
   ...googleBigQueryLocationOptions,
 ];
 
-export const LegacyGoogleBigQueryFields = ({
-  form,
-  storageId,
-}: LegacyGoogleBigQueryFieldsProps) => {
+export const LegacyGoogleBigQueryFields = ({ form }: LegacyGoogleBigQueryFieldsProps) => {
+  const {
+    entityId: storageId,
+    onSourceSelect: onSourceStorageSelect,
+    selectedSource,
+    onSourceClear,
+  } = useCopyCredentialContext();
   const [isEditing, setIsEditing] = useState(false);
   const [isOAuthAvailable, setIsOAuthAvailable] = useState<boolean | null>(null);
   const [oauthRedirectUri, setOauthRedirectUri] = useState<string | undefined>(undefined);
@@ -173,99 +178,113 @@ export const LegacyGoogleBigQueryFields = ({
       </FormSection>
 
       {/* Authentication */}
-      <FormSection title='Authentication'>
-        <div className='space-y-4'>
-          {isOAuthAvailable && (
-            <FormItem>
-              <div className='flex items-center justify-between'>
-                <FormLabel>Authentication Method</FormLabel>
-                <Tabs
-                  value={authMethod}
-                  onValueChange={v => {
-                    handleAuthMethodChange(v as 'oauth' | 'service-account');
-                  }}
-                >
-                  <TabsList>
-                    <TabsTrigger value='oauth'>Connect with Google</TabsTrigger>
-                    <TabsTrigger value='service-account'>Service Account JSON</TabsTrigger>
-                  </TabsList>
-                </Tabs>
-              </div>
-            </FormItem>
-          )}
-
-          {isOAuthAvailable && authMethod === 'oauth' && storageId && (
-            <FormItem>
-              <div className='mb-4 flex items-center justify-between'>
-                <FormLabel tooltip='Authorize Owox to access your BigQuery datasets'>
-                  Connect with Google OAuth
-                </FormLabel>
-              </div>
-              <GoogleOAuthConnectButton
-                resourceType='storage'
-                resourceId={storageId}
-                redirectUri={oauthRedirectUri}
-                onSuccess={handleOAuthSuccess}
-                onStatusChange={handleOAuthStatusChange}
-              />
-              <FormDescription>
-                <GoogleBigQueryOAuthDescription />
-              </FormDescription>
-            </FormItem>
-          )}
-
-          {authMethod === 'service-account' && (
-            <FormField
-              control={form.control}
-              name='credentials.serviceAccount'
-              render={({ field }) => (
-                <FormItem>
-                  <div className='flex items-center justify-between'>
-                    <FormLabel tooltip='Paste a JSON key from a service account that has access to the selected storage provider'>
-                      Service Account
-                    </FormLabel>
-                    {!isEditing && serviceAccountValue && (
-                      <Button variant='ghost' size='sm' onClick={handleEdit} type='button'>
-                        Edit
-                      </Button>
-                    )}
-                    {isEditing && (
-                      <Button variant='ghost' size='sm' onClick={handleCancel} type='button'>
-                        Cancel
-                      </Button>
-                    )}
-                  </div>
-                  <FormControl>
-                    {!isEditing && serviceAccountLink ? (
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <ExternalAnchor href={serviceAccountLink.url}>
-                            {serviceAccountLink.email}
-                          </ExternalAnchor>
-                        </TooltipTrigger>
-                        <TooltipContent>
-                          <p>View in Google Cloud Console</p>
-                        </TooltipContent>
-                      </Tooltip>
-                    ) : (
-                      <Textarea
-                        {...field}
-                        className='min-h-[150px] font-mono'
-                        rows={8}
-                        placeholder='Paste your service account JSON here'
-                      />
-                    )}
-                  </FormControl>
-                  <FormDescription>
-                    <GoogleBigQueryServiceAccountDescription />
-                  </FormDescription>
-                  <FormMessage />
-                </FormItem>
-              )}
+      <section>
+        <AuthenticationSectionHeader
+          itemType='storage'
+          copyButton={
+            <CopyStorageCredentialsButton
+              storageType={DataStorageType.LEGACY_GOOGLE_BIGQUERY}
+              currentStorageId={storageId}
+              onSelect={onSourceStorageSelect}
             />
-          )}
-        </div>
-      </FormSection>
+          }
+          selectedSource={selectedSource}
+          onSourceClear={onSourceClear}
+        />
+        {!selectedSource && (
+          <div className='flex flex-col gap-2'>
+            {isOAuthAvailable && (
+              <FormItem>
+                <div className='flex items-center justify-between'>
+                  <FormLabel>Authentication Method</FormLabel>
+                  <Tabs
+                    value={authMethod}
+                    onValueChange={v => {
+                      handleAuthMethodChange(v as 'oauth' | 'service-account');
+                    }}
+                  >
+                    <TabsList>
+                      <TabsTrigger value='oauth'>Connect with Google</TabsTrigger>
+                      <TabsTrigger value='service-account'>Service Account JSON</TabsTrigger>
+                    </TabsList>
+                  </Tabs>
+                </div>
+              </FormItem>
+            )}
+
+            {isOAuthAvailable && authMethod === 'oauth' && storageId && (
+              <FormItem>
+                <div className='mb-4 flex items-center justify-between'>
+                  <FormLabel tooltip='Authorize Owox to access your BigQuery datasets'>
+                    Connect with Google OAuth
+                  </FormLabel>
+                </div>
+                <GoogleOAuthConnectButton
+                  resourceType='storage'
+                  resourceId={storageId}
+                  redirectUri={oauthRedirectUri}
+                  onSuccess={handleOAuthSuccess}
+                  onStatusChange={handleOAuthStatusChange}
+                />
+                <FormDescription>
+                  <GoogleBigQueryOAuthDescription />
+                </FormDescription>
+              </FormItem>
+            )}
+
+            {authMethod === 'service-account' && (
+              <FormField
+                control={form.control}
+                name='credentials.serviceAccount'
+                render={({ field }) => (
+                  <FormItem>
+                    <div className='flex items-center justify-between'>
+                      <FormLabel tooltip='Paste a JSON key from a service account that has access to the selected storage provider'>
+                        Service Account
+                      </FormLabel>
+                      {!isEditing && serviceAccountValue && (
+                        <Button variant='ghost' size='sm' onClick={handleEdit} type='button'>
+                          Edit
+                        </Button>
+                      )}
+                      {isEditing && (
+                        <Button variant='ghost' size='sm' onClick={handleCancel} type='button'>
+                          Cancel
+                        </Button>
+                      )}
+                    </div>
+                    <FormControl>
+                      {!isEditing && serviceAccountLink ? (
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <ExternalAnchor href={serviceAccountLink.url}>
+                              {serviceAccountLink.email}
+                            </ExternalAnchor>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <p>View in Google Cloud Console</p>
+                          </TooltipContent>
+                        </Tooltip>
+                      ) : (
+                        <Textarea
+                          {...field}
+                          className='min-h-[150px] font-mono'
+                          rows={8}
+                          placeholder='Paste your service account JSON here'
+                        />
+                      )}
+                    </FormControl>
+                    <FormDescription>
+                      <GoogleBigQueryServiceAccountDescription />
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            )}
+          </div>
+        )}
+      </section>
     </>
   );
 };

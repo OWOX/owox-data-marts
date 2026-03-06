@@ -1,5 +1,6 @@
 import { BadRequestException, ForbiddenException, Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
+import { Transactional } from 'typeorm-transactional';
 import { AvailableDestinationTypesService } from '../data-destination-types/available-destination-types.service';
 import { DataDestination } from '../entities/data-destination.entity';
 import { Repository } from 'typeorm';
@@ -18,6 +19,7 @@ import {
 } from '../services/credential-type-resolver';
 import type { StoredDestinationCredentials } from '../entities/stored-destination-credentials.type';
 import { DestinationCredentialType } from '../enums/destination-credential-type.enum';
+import { CopyCredentialService } from '../services/copy-credential.service';
 
 @Injectable()
 export class UpdateDataDestinationService {
@@ -30,9 +32,11 @@ export class UpdateDataDestinationService {
     private readonly credentialsProcessor: DataDestinationCredentialsProcessorFacade,
     private readonly availableDestinationTypesService: AvailableDestinationTypesService,
     private readonly dataDestinationCredentialService: DataDestinationCredentialService,
-    private readonly googleOAuthClientService: GoogleOAuthClientService
+    private readonly googleOAuthClientService: GoogleOAuthClientService,
+    private readonly copyCredentialService: CopyCredentialService
   ) {}
 
+  @Transactional()
   async run(command: UpdateDataDestinationCommand): Promise<DataDestinationDto> {
     const entity = await this.dataDestinationService.getByIdAndProjectId(
       command.id,
@@ -40,6 +44,51 @@ export class UpdateDataDestinationService {
     );
 
     this.availableDestinationTypesService.verifyIsAllowed(entity.type);
+
+    // Mutual exclusion: sourceDestinationId vs credentials
+    if (command.sourceDestinationId && command.hasCredentials()) {
+      throw new BadRequestException(
+        'Cannot provide both sourceDestinationId and credentials in the same request'
+      );
+    }
+
+    if (command.sourceDestinationId && command.credentialId) {
+      throw new BadRequestException('Cannot provide both sourceDestinationId and credentialId');
+    }
+
+    if (command.sourceDestinationId === command.id) {
+      throw new BadRequestException('Cannot copy credentials from a destination to itself');
+    }
+
+    if (command.sourceDestinationId) {
+      const source = await this.dataDestinationService.getByIdAndProjectId(
+        command.sourceDestinationId,
+        command.projectId
+      );
+      if (!source.credentialId || !source.credential) {
+        throw new BadRequestException('Source destination has no credentials to copy');
+      }
+      if (source.type !== entity.type) {
+        throw new BadRequestException(
+          `Cannot copy credentials from ${source.type} to ${entity.type} destination`
+        );
+      }
+
+      const newCredId = await this.copyCredentialService.copyDestinationCredential(
+        command.projectId,
+        entity.credentialId ?? null,
+        source.credential
+      );
+      if (newCredId) {
+        entity.credentialId = newCredId;
+        entity.credential = null;
+      }
+
+      // After copy, save title and return — skip credential validation/processing
+      entity.title = command.title;
+      const updatedEntity = await this.dataDestinationRepository.save(entity);
+      return this.dataDestinationMapper.toDomainDto(updatedEntity);
+    }
 
     // Handle OAuth credentialId disconnect (null = revoke)
     if (command.credentialId === null && entity.credentialId) {
@@ -69,7 +118,9 @@ export class UpdateDataDestinationService {
       entity.credential = null;
     } else if (command.hasCredentials()) {
       // Service account credentials — validate, process, and store
-      await this.credentialsValidator.checkCredentials(entity.type, command.credentials);
+      // Non-null assertion safe: guarded by hasCredentials() above
+      const credentials = command.credentials!;
+      await this.credentialsValidator.checkCredentials(entity.type, credentials);
 
       // Process credentials with existing data to preserve backend-managed fields
       let existingCredentials: DataDestinationCredentials | undefined;
@@ -80,7 +131,7 @@ export class UpdateDataDestinationService {
       }
       const processedCredentials = await this.credentialsProcessor.processCredentials(
         entity.type,
-        command.credentials,
+        credentials,
         existingCredentials
       );
 

@@ -86,10 +86,14 @@ export function useDataStorage() {
   );
 
   const updateDataStorage = useCallback(
-    async (id: DataStorage['id'], data: DataStorageFormData) => {
+    async (
+      id: DataStorage['id'],
+      data: DataStorageFormData,
+      source?: { id: string; title: string } | null
+    ) => {
       dispatch({ type: DataStorageActionType.UPDATE_STORAGE_START });
       try {
-        const request = mapToUpdateDataStorageRequest(data);
+        const request = mapToUpdateDataStorageRequest(data, source?.id);
         const response = await dataStorageApiService.updateDataStorage(id, request);
         const updatedStorage = mapDataStorageFromDto(response);
         dispatch({
@@ -103,7 +107,10 @@ export function useDataStorage() {
           label: updatedStorage.type,
           context: updatedStorage.id,
         });
-        toast.success('Storage updated');
+        const toastMessage = source
+          ? `Storage updated. Credentials copied from ${source.title}.`
+          : 'Storage updated';
+        toast.success(toastMessage);
         invalidateDataStorageHealthStatus(id);
         return updatedStorage;
       } catch (error) {

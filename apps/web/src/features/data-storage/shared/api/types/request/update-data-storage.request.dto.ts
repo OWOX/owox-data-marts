@@ -5,4 +5,5 @@ export interface UpdateDataStorageRequestDto {
   credentials?: DataStorageCredentialsDto | null;
   config: DataStorageConfigDto | null;
   credentialId?: string | null;
+  sourceStorageId?: string; // for credential copy
 }

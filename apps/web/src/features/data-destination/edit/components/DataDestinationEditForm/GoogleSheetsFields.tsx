@@ -6,12 +6,11 @@ import {
   FormItem,
   FormLabel,
   FormMessage,
-  FormSection,
 } from '@owox/ui/components/form';
 import { Textarea } from '@owox/ui/components/textarea';
 import { useState, useEffect } from 'react';
 import { type UseFormReturn } from 'react-hook-form';
-import { type DataDestinationFormData } from '../../../shared';
+import { type DataDestinationFormData, DataDestinationType } from '../../../shared';
 import GoogleSheetsServiceAccountDescription from './FormDescriptions/GoogleSheetsServiceAccountDescription';
 import GoogleSheetsOAuthDescription from './FormDescriptions/GoogleSheetsOAuthDescription';
 import GoogleSheetsAuthMethodDescription from './FormDescriptions/GoogleSheetsAuthMethodDescription';
@@ -23,13 +22,21 @@ import {
   destinationOAuthApi,
 } from '../../../../../features/google-oauth';
 import { Tabs, TabsList, TabsTrigger } from '@owox/ui/components/tabs';
+import { AuthenticationSectionHeader } from '../../../../../shared/components/AuthenticationSectionHeader';
+import { CopyDestinationCredentialsButton } from '../CopyDestinationCredentialsButton';
+import { useCopyCredentialContext } from '../../model/context/useCopyCredentialContext';
 
 interface GoogleSheetsFieldsProps {
   form: UseFormReturn<DataDestinationFormData>;
-  destinationId?: string;
 }
 
-export function GoogleSheetsFields({ form, destinationId }: GoogleSheetsFieldsProps) {
+export function GoogleSheetsFields({ form }: GoogleSheetsFieldsProps) {
+  const {
+    entityId: destinationId,
+    onSourceSelect: onSourceDestinationSelect,
+    selectedSource,
+    onSourceClear,
+  } = useCopyCredentialContext();
   const [isEditing, setIsEditing] = useState(false);
   const [isOAuthAvailable, setIsOAuthAvailable] = useState<boolean | null>(null);
   const [oauthRedirectUri, setOauthRedirectUri] = useState<string | undefined>(undefined);
@@ -111,102 +118,116 @@ export function GoogleSheetsFields({ form, destinationId }: GoogleSheetsFieldsPr
   };
 
   return (
-    <FormSection title='Authentication'>
-      <div className='space-y-4'>
-        {isOAuthAvailable && (
-          <FormItem>
-            <div className='flex items-center justify-between'>
-              <FormLabel>Authentication Method</FormLabel>
-              <Tabs
-                value={authMethod}
-                onValueChange={v => {
-                  handleAuthMethodChange(v as 'oauth' | 'service-account');
-                }}
-              >
-                <TabsList>
-                  <TabsTrigger value='oauth'>Connect with Google</TabsTrigger>
-                  <TabsTrigger value='service-account'>Service Account JSON</TabsTrigger>
-                </TabsList>
-              </Tabs>
-            </div>
-            <FormDescription>
-              <GoogleSheetsAuthMethodDescription />
-            </FormDescription>
-          </FormItem>
-        )}
-
-        {isOAuthAvailable && authMethod === 'oauth' && (
-          <FormItem>
-            <div className='mb-4 flex items-center justify-between'>
-              <FormLabel tooltip='Authorize OWOX to access your Google Sheets'>
-                Connect with Google OAuth
-              </FormLabel>
-            </div>
-            <GoogleOAuthConnectButton
-              resourceType='destination'
-              resourceId={destinationId}
-              credentialId={credentialIdValue ?? undefined}
-              redirectUri={oauthRedirectUri}
-              onSuccess={handleOAuthSuccess}
-              onStatusChange={handleOAuthStatusChange}
-            />
-            <FormDescription>
-              <GoogleSheetsOAuthDescription />
-            </FormDescription>
-          </FormItem>
-        )}
-
-        {authMethod === 'service-account' && (
-          <FormField
-            control={form.control}
-            name='credentials.serviceAccount'
-            render={({ field }) => (
-              <FormItem>
-                <div className='flex items-center justify-between'>
-                  <FormLabel tooltip='Paste a JSON key from a service account that has access to the selected destination provider'>
-                    Service Account
-                  </FormLabel>
-                  {!isEditing && serviceAccountValue && (
-                    <Button variant='ghost' size='sm' onClick={handleEdit} type='button'>
-                      Edit
-                    </Button>
-                  )}
-                  {isEditing && (
-                    <Button variant='ghost' size='sm' onClick={handleCancel} type='button'>
-                      Cancel
-                    </Button>
-                  )}
-                </div>
-                <FormControl>
-                  {!isEditing && serviceAccountLink ? (
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <ExternalAnchor href={serviceAccountLink.url}>
-                          {serviceAccountLink.email}
-                        </ExternalAnchor>
-                      </TooltipTrigger>
-                      <TooltipContent>
-                        <p>View in Google Cloud Console</p>
-                      </TooltipContent>
-                    </Tooltip>
-                  ) : (
-                    <Textarea
-                      {...field}
-                      className='min-h-[150px] font-mono'
-                      rows={8}
-                      placeholder='Paste your service account JSON here'
-                    />
-                  )}
-                </FormControl>
-                <FormDescription>
-                  <GoogleSheetsServiceAccountDescription />
-                </FormDescription>
-                <FormMessage />
-              </FormItem>
-            )}
+    <section>
+      <AuthenticationSectionHeader
+        itemType='destination'
+        copyButton={
+          <CopyDestinationCredentialsButton
+            destinationType={DataDestinationType.GOOGLE_SHEETS}
+            currentDestinationId={destinationId}
+            onSelect={onSourceDestinationSelect}
           />
-        )}
-      </div>
-    </FormSection>
+        }
+        selectedSource={selectedSource}
+        onSourceClear={onSourceClear}
+      />
+      {!selectedSource && (
+        <div className='space-y-4'>
+          {isOAuthAvailable && (
+            <FormItem>
+              <div className='flex items-center justify-between'>
+                <FormLabel>Authentication Method</FormLabel>
+                <Tabs
+                  value={authMethod}
+                  onValueChange={v => {
+                    handleAuthMethodChange(v as 'oauth' | 'service-account');
+                  }}
+                >
+                  <TabsList>
+                    <TabsTrigger value='oauth'>Connect with Google</TabsTrigger>
+                    <TabsTrigger value='service-account'>Service Account JSON</TabsTrigger>
+                  </TabsList>
+                </Tabs>
+              </div>
+              <FormDescription>
+                <GoogleSheetsAuthMethodDescription />
+              </FormDescription>
+            </FormItem>
+          )}
+
+          {isOAuthAvailable && authMethod === 'oauth' && (
+            <FormItem>
+              <div className='mb-4 flex items-center justify-between'>
+                <FormLabel tooltip='Authorize OWOX to access your Google Sheets'>
+                  Connect with Google OAuth
+                </FormLabel>
+              </div>
+              <GoogleOAuthConnectButton
+                resourceType='destination'
+                resourceId={destinationId}
+                credentialId={credentialIdValue ?? undefined}
+                redirectUri={oauthRedirectUri}
+                onSuccess={handleOAuthSuccess}
+                onStatusChange={handleOAuthStatusChange}
+              />
+              <FormDescription>
+                <GoogleSheetsOAuthDescription />
+              </FormDescription>
+            </FormItem>
+          )}
+
+          {authMethod === 'service-account' && (
+            <FormField
+              control={form.control}
+              name='credentials.serviceAccount'
+              render={({ field }) => (
+                <FormItem>
+                  <div className='flex items-center justify-between'>
+                    <FormLabel tooltip='Paste a JSON key from a service account that has access to the selected destination provider'>
+                      Service Account
+                    </FormLabel>
+                    {!isEditing && serviceAccountValue && (
+                      <Button variant='ghost' size='sm' onClick={handleEdit} type='button'>
+                        Edit
+                      </Button>
+                    )}
+                    {isEditing && (
+                      <Button variant='ghost' size='sm' onClick={handleCancel} type='button'>
+                        Cancel
+                      </Button>
+                    )}
+                  </div>
+                  <FormControl>
+                    {!isEditing && serviceAccountLink ? (
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <ExternalAnchor href={serviceAccountLink.url}>
+                            {serviceAccountLink.email}
+                          </ExternalAnchor>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p>View in Google Cloud Console</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    ) : (
+                      <Textarea
+                        {...field}
+                        className='min-h-[150px] font-mono'
+                        rows={8}
+                        placeholder='Paste your service account JSON here'
+                      />
+                    )}
+                  </FormControl>
+                  <FormDescription>
+                    <GoogleSheetsServiceAccountDescription />
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          )}
+        </div>
+      )}
+    </section>
   );
 }

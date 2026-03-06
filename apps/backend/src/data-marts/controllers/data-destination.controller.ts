@@ -1,4 +1,14 @@
-import { Body, Controller, Delete, Get, HttpCode, Param, Post, Put } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  HttpCode,
+  Param,
+  ParseEnumPipe,
+  Post,
+  Put,
+} from '@nestjs/common';
 import { CreateDataDestinationApiDto } from '../dto/presentation/create-data-destination-api.dto';
 import { CreateDataDestinationService } from '../use-cases/create-data-destination.service';
 import { DataDestinationMapper } from '../mappers/data-destination.mapper';
@@ -7,6 +17,10 @@ import { DataDestinationResponseApiDto } from '../dto/presentation/data-destinat
 import { UpdateDataDestinationService } from '../use-cases/update-data-destination.service';
 import { GetDataDestinationService } from '../use-cases/get-data-destination.service';
 import { ListDataDestinationsService } from '../use-cases/list-data-destinations.service';
+import { ListDataDestinationsByTypeService } from '../use-cases/list-data-destinations-by-type.service';
+import { DataDestinationByTypeResponseApiDto } from '../dto/presentation/data-destination-by-type-response-api.dto';
+import { ListDataDestinationsByTypeCommand } from '../dto/domain/list-data-destinations-by-type.command';
+import { DataDestinationType } from '../data-destination-types/enums/data-destination-type.enum';
 import { Auth, AuthContext, AuthorizationContext } from '../../idp';
 import { Role, Strategy } from '../../idp/types/role-config.types';
 import { GenerateAuthorizationUrlRequestDto } from '../dto/presentation/google-oauth/generate-authorization-url-request.dto';
@@ -21,6 +35,7 @@ import {
   DeleteDataDestinationSpec,
   GetDataDestinationSpec,
   ListDataDestinationsSpec,
+  ListDataDestinationsByTypeSpec,
   RotateSecretKeySpec,
   UpdateDataDestinationSpec,
   OAuthSettingsSpec,
@@ -56,7 +71,8 @@ export class DataDestinationController {
     private readonly getOAuthCredentialStatusService: GetDestinationOAuthCredentialStatusService,
     private readonly generateOAuthUrlService: GenerateDestinationOAuthUrlService,
     private readonly revokeOAuthService: RevokeDestinationOAuthService,
-    private readonly exchangeOAuthCodeService: ExchangeOAuthCodeService
+    private readonly exchangeOAuthCodeService: ExchangeOAuthCodeService,
+    private readonly listByTypeService: ListDataDestinationsByTypeService
   ) {}
 
   @Auth(Role.editor(Strategy.INTROSPECT))
@@ -69,6 +85,18 @@ export class DataDestinationController {
     const command = this.mapper.toCreateCommand(context, dto);
     const dataDestinationDto = await this.createService.run(command);
     return await this.mapper.toApiResponse(dataDestinationDto);
+  }
+
+  @Auth(Role.viewer(Strategy.PARSE))
+  @Get('by-type/:type')
+  @ListDataDestinationsByTypeSpec()
+  async getByType(
+    @AuthContext() context: AuthorizationContext,
+    @Param('type', new ParseEnumPipe(DataDestinationType)) type: DataDestinationType
+  ): Promise<DataDestinationByTypeResponseApiDto[]> {
+    const command = new ListDataDestinationsByTypeCommand(context.projectId, type);
+    const items = await this.listByTypeService.run(command);
+    return this.mapper.toByTypeResponse(items);
   }
 
   @Auth(Role.editor(Strategy.INTROSPECT))

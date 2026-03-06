@@ -8,10 +8,17 @@ export function mapDataStorageFromDto(dto: DataStorageResponseDto): DataStorage 
   return mapper.mapFromDto(dto);
 }
 
-export function mapToUpdateDataStorageRequest(formData: DataStorageFormData) {
+export function mapToUpdateDataStorageRequest(
+  formData: DataStorageFormData,
+  sourceStorageId?: string
+) {
   const mapper = StorageMapperFactory.getMapper(formData.type);
-  return {
+  const base = {
     title: formData.title,
     ...mapper.mapToUpdateRequest(formData),
   };
+  if (sourceStorageId) {
+    return { ...base, sourceStorageId };
+  }
+  return base;
 }

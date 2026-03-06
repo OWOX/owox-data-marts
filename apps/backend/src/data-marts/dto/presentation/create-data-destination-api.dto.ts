@@ -16,13 +16,24 @@ export class CreateDataDestinationApiDto {
   @ApiProperty({
     type: 'object',
     additionalProperties: true,
-    description: 'Credentials required for the selected destination type',
+    description:
+      'Credentials required for the selected destination type (optional when sourceDestinationId is provided)',
   })
   @IsObject()
-  credentials: DataDestinationCredentials;
+  @IsOptional()
+  credentials?: DataDestinationCredentials;
 
   @ApiProperty({ required: false, description: 'Pre-created OAuth credential ID' })
   @IsUUID()
   @IsOptional()
   credentialId?: string;
+
+  @ApiProperty({
+    required: false,
+    description:
+      'Source Destination ID to copy credentials from (mutually exclusive with credentials)',
+  })
+  @IsUUID()
+  @IsOptional()
+  sourceDestinationId?: string;
 }

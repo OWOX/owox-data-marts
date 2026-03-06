@@ -19,4 +19,9 @@ export interface UpdateDataDestinationRequestDto {
    * Credential ID for OAuth-based authentication (null to disconnect)
    */
   credentialId?: string | null;
+
+  /**
+   * Source destination ID for credential copy
+   */
+  sourceDestinationId?: string;
 }

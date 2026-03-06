@@ -11,7 +11,7 @@ import {
   SheetTitle,
 } from '@owox/ui/components/sheet';
 import { useDataDestination } from '../../../shared';
-import { DestinationMapperFactory } from '../../../shared/model/mappers/destination-mapper.factory.ts';
+import { DestinationMapperFactory } from '../../../shared/model/mappers/destination-mapper.factory';
 import { trackEvent } from '../../../../../utils';
 import { useUnsavedGuard } from '../../../../../hooks/useUnsavedGuard';
 import { useIntercomLauncher } from '../../../../../shared/hooks/useIntercomLauncher';
@@ -46,18 +46,37 @@ export function DataDestinationConfigSheet({
 
   useIntercomLauncher(isOpen);
 
-  const onSave = async (data: DataDestinationFormData) => {
+  const onSave = async (
+    data: DataDestinationFormData,
+    source?: { id: string; title: string } | null
+  ) => {
     const mapper = DestinationMapperFactory.getMapper(data.type);
 
     if (!dataDestination) {
-      const createData = mapper.mapToCreateRequest(data);
-      const newDestination = await createDataDestination(createData);
-      if (newDestination) {
-        onSaveSuccess(newDestination);
+      if (source) {
+        const createData = {
+          title: data.title,
+          type: data.type,
+          sourceDestinationId: source.id,
+        };
+        const newDestination = await createDataDestination(createData);
+        if (newDestination) {
+          onSaveSuccess(newDestination);
+        }
+      } else {
+        const createData = mapper.mapToCreateRequest(data);
+        const newDestination = await createDataDestination(createData);
+        if (newDestination) {
+          onSaveSuccess(newDestination);
+        }
       }
     } else {
       const updateData = mapper.mapToUpdateRequest(data);
-      const updatedDestination = await updateDataDestination(dataDestination.id, updateData);
+      const updatedDestination = await updateDataDestination(
+        dataDestination.id,
+        updateData,
+        source
+      );
       if (updatedDestination) {
         onSaveSuccess(updatedDestination);
       }

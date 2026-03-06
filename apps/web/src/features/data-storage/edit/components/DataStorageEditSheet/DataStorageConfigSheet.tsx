@@ -41,9 +41,12 @@ export function DataStorageConfigSheet({
     handleFormSubmitSuccess,
   } = useUnsavedGuard(onClose);
 
-  const onSave = async (data: DataStorageFormData) => {
+  const onSave = async (
+    data: DataStorageFormData,
+    source?: { id: string; title: string } | null
+  ) => {
     if (dataStorage) {
-      const updatedStorage = await updateDataStorage(dataStorage.id, data);
+      const updatedStorage = await updateDataStorage(dataStorage.id, data, source);
       if (updatedStorage) {
         onSaveSuccess(updatedStorage);
         handleFormSubmitSuccess();

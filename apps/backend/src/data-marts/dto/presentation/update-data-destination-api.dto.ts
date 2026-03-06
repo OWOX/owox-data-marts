@@ -15,7 +15,7 @@ export class UpdateDataDestinationApiDto {
   })
   @IsObject()
   @IsOptional()
-  credentials: DataDestinationCredentials;
+  credentials?: DataDestinationCredentials;
 
   @ApiProperty({
     example: 'abc123e4-5678-90ab-cdef-1234567890ab',
@@ -26,4 +26,13 @@ export class UpdateDataDestinationApiDto {
   @IsUUID()
   @IsOptional()
   credentialId?: string | null;
+
+  @ApiProperty({
+    required: false,
+    description:
+      'Source Destination ID to copy credentials from (mutually exclusive with credentials)',
+  })
+  @IsUUID()
+  @IsOptional()
+  sourceDestinationId?: string;
 }

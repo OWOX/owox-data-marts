@@ -5,6 +5,7 @@ import { dataDestinationService } from '../../services';
 import { mapDataDestinationFromDto } from '../mappers/data-destination.mapper';
 import type {
   CreateDataDestinationRequestDto,
+  CreateDataDestinationCopyRequestDto,
   UpdateDataDestinationRequestDto,
 } from '../../services/types';
 import toast from 'react-hot-toast';
@@ -64,7 +65,7 @@ export function useDataDestination() {
   );
 
   const createDataDestination = useCallback(
-    async (requestData: CreateDataDestinationRequestDto) => {
+    async (requestData: CreateDataDestinationRequestDto | CreateDataDestinationCopyRequestDto) => {
       dispatch({ type: DataDestinationActionType.CREATE_DESTINATION_START });
       try {
         const response = await dataDestinationService.createDataDestination(requestData);
@@ -101,10 +102,17 @@ export function useDataDestination() {
   );
 
   const updateDataDestination = useCallback(
-    async (id: DataDestination['id'], requestData: UpdateDataDestinationRequestDto) => {
+    async (
+      id: DataDestination['id'],
+      requestData: UpdateDataDestinationRequestDto,
+      source?: { id: string; title: string } | null
+    ) => {
       dispatch({ type: DataDestinationActionType.UPDATE_DESTINATION_START });
       try {
-        const response = await dataDestinationService.updateDataDestination(id, requestData);
+        const dataToSend = source
+          ? { ...requestData, sourceDestinationId: source.id }
+          : requestData;
+        const response = await dataDestinationService.updateDataDestination(id, dataToSend);
         const mappedDestination = mapDataDestinationFromDto(response);
         dispatch({
           type: DataDestinationActionType.UPDATE_DESTINATION_SUCCESS,
@@ -116,7 +124,10 @@ export function useDataDestination() {
           action: 'Update',
           label: mappedDestination.type,
         });
-        toast.success('Destination updated');
+        const toastMessage = source
+          ? `Destination updated. Credentials copied from ${source.title}.`
+          : 'Destination updated';
+        toast.success(toastMessage);
         return mappedDestination;
       } catch (error) {
         const message = error instanceof Error ? error.message : 'Failed to update destination';
