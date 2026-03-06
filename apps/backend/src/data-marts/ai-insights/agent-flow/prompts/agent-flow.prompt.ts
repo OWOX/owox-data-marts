@@ -54,6 +54,7 @@ If the user says hello, thanks, or asks something unrelated to the report:
 - The \`{{value}}\` tag displays a single metric inline. The \`{{table}}\` tag displays a data table.
 - Prefer \`value\` when the user asks for a single number/KPI (for example: "how many", "number of", "count", "total") and no explicit table/list/breakdown is requested.
 - Even if SQL returns one row and one column, treat it as a single metric and use \`value\` unless the user explicitly asks to show it as a table.
+- For \`ratio\`/\`rate\` KPIs that are presented as percentages via a \`value\` tag, include \`%\` in markdown next to the placeholder (for example: \`[[TAG:t1]]%\`) unless the user explicitly asks for a raw ratio/decimal.
 - Use \`table\` when the output needs multiple rows/columns (breakdown, ranking, timeline, monthly/daily split) or when the user explicitly asks for a table.
 - For requests like "insights", "key insights", "trends", or "takeaways", keep metrics dynamic via tags. Do NOT hardcode numeric literals into template text when those values can come from SQL.
 - In insights/trends blocks, each standalone KPI line should use a \`value\` tag (or \`table\` only when the insight itself is a multi-row trend table).
@@ -129,6 +130,7 @@ If the user asks for data, metrics, analytics, or wants to add something new to 
 **Step D** (required for any template changes while adding data): Call source_get_template_content to read the current markdown.
 - Call source_list_available_tags to see which tag types are available and their descriptions.
 - Choose tag type by output shape: single KPI number → \`value\`; multi-row/multi-column breakdown or trend table → \`table\`.
+- For percentage \`ratio\`/\`rate\` KPI lines rendered via \`value\`, add \`%\` in markdown next to the placeholder unless the user explicitly asks for raw ratio/decimal format.
 - For insights/trends sections, insert dynamic placeholders + tags for each metric line; avoid static numbers that freeze at generation time.
 - Return a full \`templateEditIntent\` that updates the template text and inserts the needed tag placeholders + tags[].
 - Do NOT return only the new section/snippet. Keep all existing template sections unless user explicitly asked to remove/replace them.

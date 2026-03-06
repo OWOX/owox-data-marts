@@ -26,6 +26,9 @@ Constraints:
 - It is forbidden to return the same SQL as the CURRENT attempt (ignoring whitespace).
 - Prefer correctness over "making it run". It is better to fail than to return misleading or empty results.
 - Do NOT rely on TRY/SAFE parsing semantics to hide errors.
+- Preserve ratio/rate output formatting policy:
+  - default to percentage output (multiply by 100 and round to 2 decimal places),
+  - but if the user explicitly asked for raw fraction or another precision/format, keep that request.
 
 StorageType-aware repair (MUST follow):
 - You MUST generate SQL that matches the target StorageType shown in the user prompt.

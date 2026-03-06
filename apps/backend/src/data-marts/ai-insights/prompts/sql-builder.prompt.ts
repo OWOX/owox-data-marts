@@ -73,6 +73,11 @@ SQL construction rules (MUST follow):
 - Use plan.grouping as the final set of GROUP BY expressions (if present).
 - Apply structured sorting from plan.orderBySpecs (if present). Required specs must be implemented.
 - Always limit the number of result rows to ${maxRows} using LIMIT (or engine equivalent).
+- For computed ratio/rate metrics, default output format is percentage:
+  - multiply by 100 and round to 2 decimal places.
+  - if the user explicitly asks for raw fraction or another precision/format, follow the user request.
+- Return human-readable formatted SQL (line breaks + indentation), not a one-line query.
+- Formatting must be whitespace-only: do NOT change identifiers, quoting, expressions, or query logic.
 
 Plan metadata contract (MUST follow):
 - plan.requiredColumnsMeta is an executable contract for column handling.
