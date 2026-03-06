@@ -91,6 +91,7 @@ export const AwsAthenaFields = ({ form }: AwsAthenaFieldsProps) => {
       {/* Authentication */}
       <section>
         <AuthenticationSectionHeader
+          itemType='storage'
           copyButton={
             <CopyStorageCredentialsButton
               storageType={DataStorageType.AWS_ATHENA}

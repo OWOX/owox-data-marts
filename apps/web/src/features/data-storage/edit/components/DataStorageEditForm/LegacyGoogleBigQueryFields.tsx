@@ -180,6 +180,7 @@ export const LegacyGoogleBigQueryFields = ({ form }: LegacyGoogleBigQueryFieldsP
       {/* Authentication */}
       <section>
         <AuthenticationSectionHeader
+          itemType='storage'
           copyButton={
             <CopyStorageCredentialsButton
               storageType={DataStorageType.LEGACY_GOOGLE_BIGQUERY}

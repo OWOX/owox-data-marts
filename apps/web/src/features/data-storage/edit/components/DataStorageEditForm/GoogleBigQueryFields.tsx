@@ -170,6 +170,7 @@ export const GoogleBigQueryFields = ({ form }: GoogleBigQueryFieldsProps) => {
       {/* Authentication */}
       <section>
         <AuthenticationSectionHeader
+          itemType='storage'
           copyButton={
             <CopyStorageCredentialsButton
               storageType={DataStorageType.GOOGLE_BIGQUERY}

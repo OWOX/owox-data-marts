@@ -120,6 +120,7 @@ export function GoogleSheetsFields({ form }: GoogleSheetsFieldsProps) {
   return (
     <section>
       <AuthenticationSectionHeader
+        itemType='destination'
         copyButton={
           <CopyDestinationCredentialsButton
             destinationType={DataDestinationType.GOOGLE_SHEETS}

@@ -165,6 +165,7 @@ export const RedshiftFields = ({ form }: RedshiftFieldsProps) => {
       {/* Authentication */}
       <section>
         <AuthenticationSectionHeader
+          itemType='storage'
           copyButton={
             <CopyStorageCredentialsButton
               storageType={DataStorageType.AWS_REDSHIFT}

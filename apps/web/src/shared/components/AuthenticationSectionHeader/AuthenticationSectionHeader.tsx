@@ -12,6 +12,7 @@ import { getAuthTypeLabel, getIdentityDisplayString } from '../../utils/credenti
 
 interface AuthenticationSectionHeaderProps {
   copyButton?: ReactNode;
+  itemType: 'storage' | 'destination';
   selectedSource?: {
     id: string;
     title: string;
@@ -22,6 +23,7 @@ interface AuthenticationSectionHeaderProps {
 
 export function AuthenticationSectionHeader({
   copyButton,
+  itemType,
   selectedSource,
   onSourceClear,
 }: AuthenticationSectionHeaderProps) {
@@ -39,7 +41,7 @@ export function AuthenticationSectionHeader({
       {selectedSource && onSourceClear && (
         <div className='group border-border flex flex-col gap-2 rounded-md border-b bg-white px-4 py-3 transition-shadow duration-200 hover:shadow-sm dark:border-transparent dark:bg-white/4'>
           <span className='text-foreground flex items-center justify-between gap-2 text-sm font-medium'>
-            <span>Credentials copied from</span>
+            <span>Credentials will be copied from</span>
             <Tooltip>
               <TooltipTrigger asChild>
                 <button
@@ -90,9 +92,10 @@ export function AuthenticationSectionHeader({
                 <AccordionContent>
                   <p>
                     When you copy credentials, the authentication details (such as API keys, service
-                    accounts, or access tokens) from an existing item are reused for this one. This
-                    means you don't need to enter them again manually. The credentials are linked at
-                    save time — any future changes to the source won't affect this copy.
+                    accounts, or access tokens) from an existing {itemType} are reused for this one.
+                    This means you don't need to enter them again manually. The credentials are
+                    copied at save time — any future changes to the original {itemType} won't affect
+                    this copy.
                   </p>
                 </AccordionContent>
               </AccordionItem>
