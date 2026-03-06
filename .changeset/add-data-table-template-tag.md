@@ -4,7 +4,7 @@
 
 # Data table support in email-based report templates
 
-You can now embed data mart results as a Markdown table in your email report message using the `{{#data-table}}{{/data-table}}` tag.
+You can now embed data mart results as a Markdown table in your email report message using the `{{table}}` tag.
 
 ## Supported parameters
 
@@ -17,13 +17,13 @@ You can now embed data mart results as a Markdown table in your email report mes
 Basic table (first 10 rows, all columns):
 
 ```handlebars
-{{#data-table}}{{/data-table}}
+{{table}}
 ```
 
 Last 20 rows with specific columns:
 
 ```handlebars
-{{#data-table limit=20 from="end" columns="date, revenue, sessions"}}{{/data-table}}
+{{table limit=20 from="end" columns="date, revenue, sessions"}}
 ```
 
 You can also use `{{dataHeadersCount}}` and `{{dataRowsCount}}` variables in your message template.

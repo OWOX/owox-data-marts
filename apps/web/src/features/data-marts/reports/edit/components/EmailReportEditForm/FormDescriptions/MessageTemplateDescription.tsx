@@ -44,13 +44,13 @@ export default function MessageTemplateDescription() {
         <AccordionTrigger>How can I add data into my message?</AccordionTrigger>
         <AccordionContent>
           <p className='mb-2'>
-            Use the <code>{'{{#table}}{{/table}}'}</code> tag to render your data mart results as a
-            table. Type <code>/</code> in the editor to insert it quickly, or paste it manually.
+            Use the <code>{'{{table}}'}</code> tag to render your data mart results as a table. Type{' '}
+            <code>/</code> in the editor to insert it quickly, or paste it manually.
           </p>
           <p className='mb-2'>
             Optional parameters:
             <br />
-            <code>limit</code> — max rows to display. Accepts 1 to 100. Default: <code>100</code>.
+            <code>limit</code> — max rows to display. Accepts 1 to 100. Default: <code>10</code>.
             Example: <code>limit=20</code>
             <br />
             <code>from</code> — start from the beginning or end of the table. Accepts{' '}
@@ -62,7 +62,7 @@ export default function MessageTemplateDescription() {
           <p className='mb-2'>
             Example:
             <br />
-            <code>{'{{#table limit=20 from="end" columns="id, revenue"}}{{/table}}'}</code>
+            <code>{'{{table limit=20 from="end" columns="id, revenue"}}'}</code>
           </p>
           <p className='mb-2'>
             You can also use <code>{'{{dataHeadersCount}}'}</code> and{' '}
