@@ -12,13 +12,16 @@ describe('AgentFlowPolicySanitizerService', () => {
   const createRequest = () => ({
     projectId: 'project-1',
     dataMartId: 'data-mart-1',
-    history: [
-      {
-        role: AiAssistantMessageRole.USER,
-        content: 'Please build SQL for purchases',
-        createdAt: '2026-02-21T10:00:00.000Z',
-      },
-    ],
+    conversationContext: {
+      turns: [
+        {
+          role: AiAssistantMessageRole.USER,
+          content: 'Please build SQL for purchases',
+          createdAt: '2026-02-21T10:00:00.000Z',
+        },
+      ],
+      conversationSnapshot: null,
+    },
     sessionContext: {
       sessionId: 'session-1',
       scope: AiAssistantScope.TEMPLATE,
@@ -27,14 +30,16 @@ describe('AgentFlowPolicySanitizerService', () => {
   });
 
   const createPromptContext = (): AgentFlowPromptContext => ({
-    recentTurns: [
-      {
-        role: AiAssistantMessageRole.USER,
-        content: 'Please build SQL for purchases',
-        createdAt: '2026-02-21T10:00:00.000Z',
-      },
-    ],
-    conversationSnapshot: null,
+    conversationContext: {
+      turns: [
+        {
+          role: AiAssistantMessageRole.USER,
+          content: 'Please build SQL for purchases',
+          createdAt: '2026-02-21T10:00:00.000Z',
+        },
+      ],
+      conversationSnapshot: null,
+    },
     stateSnapshot: {
       sessionId: 'session-1',
       templateId: 'template-1',
@@ -53,18 +58,18 @@ describe('AgentFlowPolicySanitizerService', () => {
     };
     const service = new AgentFlowPolicySanitizerService(promptSanitizer as never);
     const request = createRequest();
-    request.history.push({
+    request.conversationContext.turns.push({
       role: AiAssistantMessageRole.ASSISTANT,
       content: 'assistant reply',
       createdAt: '2026-02-21T10:01:00.000Z',
     });
-    request.history.push({
+    request.conversationContext.turns.push({
       role: AiAssistantMessageRole.USER,
       content: 'refine SQL',
       createdAt: '2026-02-21T10:02:00.000Z',
     });
     const promptContext = createPromptContext();
-    promptContext.recentTurns = [...request.history];
+    promptContext.conversationContext.turns = [...request.conversationContext.turns];
 
     const result = await service.sanitizeLastUserMessageForRetry({
       request,
@@ -128,8 +133,10 @@ describe('AgentFlowPolicySanitizerService', () => {
     }
 
     expect(result.sanitizedLastUserMessage).toBe('Build monthly SQL for purchases in 2025');
-    expect(result.request.history[0].content).toBe('Build monthly SQL for purchases in 2025');
-    expect(result.promptContext.recentTurns[0].content).toBe(
+    expect(result.request.conversationContext.turns[0].content).toBe(
+      'Build monthly SQL for purchases in 2025'
+    );
+    expect(result.promptContext.conversationContext.turns[0].content).toBe(
       'Build monthly SQL for purchases in 2025'
     );
     expect(telemetry.llmCalls).toEqual([

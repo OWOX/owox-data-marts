@@ -1,7 +1,7 @@
 import { HelperOptions } from 'handlebars';
 import { wrapCautionBlock } from '../../../markdown/helpers/blockquote-alert-wrapper';
 import { DataTableHeader } from './table-tag.handler';
-import { TagHandler } from '../tag-handler.interface';
+import { DEFAULT_SOURCE_KEY, TagHandler } from '../tag-handler.interface';
 import { TagRenderedResult } from '../../types/render-template.types';
 
 interface SingleValueSourceContext {
@@ -19,7 +19,6 @@ interface SingleValueTagPayload {
   error?: string;
 }
 
-const DEFAULT_SOURCE_KEY = 'main';
 const DEFAULT_ROW = '1';
 const DEFAULT_COLUMN = '1';
 const PATH_PATTERN = /^\.(?<column>[A-Za-z_][A-Za-z0-9_]*)(?:\[(?<row>\d+)\])?$/;
@@ -35,13 +34,15 @@ export class ValueTagHandler
   tagMetaInfo(): TagMeta {
     return {
       name: 'value',
-      description: 'Inserts a single metric value from the specified source. Usually used inline.',
+      description:
+        'Inserts one scalar metric from the specified source. Prefer this for KPI questions like "how many", "count", and "total".',
       parameters: [
         {
           name: 'source',
           type: 'string',
-          required: true,
-          description: `The source key of the data. Default is ${DEFAULT_SOURCE_KEY}`,
+          required: false,
+          default: DEFAULT_SOURCE_KEY,
+          description: `The source key of the data. Default is "${DEFAULT_SOURCE_KEY}".`,
         },
         {
           name: 'path',

@@ -1,6 +1,11 @@
 import { AssistantChatMessage } from './ai-assistant-types';
 
-export function getLastUserMessage(history: AssistantChatMessage[]): string {
+export interface TextConversationTurn {
+  role: 'system' | 'user' | 'assistant';
+  content: string;
+}
+
+export function getLastUserMessage<T extends TextConversationTurn>(history: T[]): string {
   const lastUser = [...history].reverse().find(message => message.role === 'user');
   return lastUser?.content ?? '';
 }

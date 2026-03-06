@@ -1,7 +1,9 @@
 import { z } from 'zod';
+import { AiRole } from '../../../common/ai-insights/agent/ai-core';
 import { AiAssistantMessageRole } from '../../enums/ai-assistant-message-role.enum';
 import { AiAssistantScope } from '../../enums/ai-assistant-scope.enum';
 import { TemplateEditPlaceholderTagSchema } from '../../services/template-edit-placeholder-tags/template-edit-placeholder-tags.contracts';
+import { AgentFlowConversationSnapshotSchema } from './conversation-snapshot.schema';
 
 export const AssistantOrchestratorScopeSchema = z.nativeEnum(AiAssistantScope);
 
@@ -36,6 +38,20 @@ export const AssistantChatMessageSchema = z.object({
   createdAt: z.string().optional(),
 });
 export type AssistantChatMessage = z.infer<typeof AssistantChatMessageSchema>;
+
+export const AssistantConversationTurnSchema = z.object({
+  role: z.enum([AiRole.SYSTEM, AiRole.USER, AiRole.ASSISTANT]),
+  content: z.string().min(1, 'content is required'),
+});
+export type AssistantConversationTurn = z.infer<typeof AssistantConversationTurnSchema>;
+
+export const AssistantConversationContextSchema = z.object({
+  mode: z.enum(['create_new_source_sql', 'refine_existing_sql']),
+  turns: z.array(AssistantConversationTurnSchema).min(1, 'turns must contain at least one message'),
+  currentSourceSql: z.string().nullable().optional(),
+  conversationSnapshot: AgentFlowConversationSnapshotSchema.nullable().optional(),
+});
+export type AssistantConversationContext = z.infer<typeof AssistantConversationContextSchema>;
 
 export const TurnPromptTypeSchema = z.enum(['template_edit', 'explain_or_status', 'source_task']);
 
@@ -202,27 +218,15 @@ export const AssistantOrchestratorRequestSchema = z
   .object({
     projectId: z.string().min(1, 'projectId is required'),
     dataMartId: z.string().min(1, 'dataMartId is required'),
-    history: z
-      .array(AssistantChatMessageSchema)
-      .min(1, 'history must contain at least one message'),
+    conversationContext: AssistantConversationContextSchema,
     sessionContext: z.object({
       sessionId: z.string().min(1, 'sessionId is required'),
       scope: AssistantOrchestratorScopeSchema,
       templateId: z.string().min(1),
-      currentSourceSql: z.string().optional(),
     }),
     options: AiFlowOptionsSchema.optional(),
   })
-  .superRefine((request, ctx) => {
-    const hasUserMessage = request.history.some(message => message.role === 'user');
-    if (!hasUserMessage) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ['history'],
-        message: 'history must contain at least one user message',
-      });
-    }
-  });
+  .strict();
 export type AssistantOrchestratorRequest = z.infer<typeof AssistantOrchestratorRequestSchema>;
 
 export const AssistantOrchestratorResponseSchema = z.object({

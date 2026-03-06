@@ -101,7 +101,7 @@ export class RunAiAssistantService {
       const agentFlowRequest: AgentFlowRequest = {
         projectId: command.projectId,
         dataMartId: command.dataMartId,
-        history: promptContext.recentTurns,
+        conversationContext: promptContext.conversationContext,
         sessionContext: {
           sessionId: session.id,
           scope: session.scope,

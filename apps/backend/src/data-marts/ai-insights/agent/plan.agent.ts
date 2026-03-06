@@ -1,23 +1,37 @@
 import { Agent, DataMartInsightsContext, SharedAgentContext } from '../ai-insights-types';
 import { Injectable, Logger } from '@nestjs/common';
-import { AiMessage, AiRole } from '../../../common/ai-insights/agent/ai-core';
 import { DataMartsAiInsightsTools } from '../tools/data-marts-ai-insights-tools.registrar';
 import { ToolRegistry } from '../../../common/ai-insights/agent/tool-registry';
 import { PlanAgentInput, PlanAgentResult, PlanModelJsonSchema } from './types';
 import { runAgentLoop } from '../../../common/ai-insights/llm-tool-runner';
-import { buildPlanSystemPrompt, buildPlanUserPrompt } from '../prompts/plan.prompt';
+import {
+  buildPlanContextSystemPrompt,
+  buildPlanSystemPrompt,
+  buildPlanUserPrompt,
+} from '../prompts/plan.prompt';
+import { buildAgentInitialMessages } from '../utils/build-agent-initial-messages';
+import { StorageRelatedPromptResolver } from '../prompts/storage-related-prompt.resolver';
+import { StorageRelatedPromptSection } from '../prompts/storage-related-prompt.types';
 
 @Injectable()
 export class PlanAgent implements Agent<PlanAgentInput, PlanAgentResult> {
   readonly name = 'PlanAgent';
   private readonly logger = new Logger(PlanAgent.name);
 
-  constructor(private readonly toolRegistry: ToolRegistry) {}
+  constructor(
+    private readonly toolRegistry: ToolRegistry,
+    private readonly storageRelatedPromptResolver: StorageRelatedPromptResolver
+  ) {}
 
   async run(input: PlanAgentInput, shared: SharedAgentContext): Promise<PlanAgentResult> {
     const { aiProvider, telemetry, budgets, projectId, dataMartId } = shared;
 
-    const system = buildPlanSystemPrompt(input);
+    const storageRelatedPrompt = this.storageRelatedPromptResolver.resolve(
+      StorageRelatedPromptSection.PLAN_SYSTEM,
+      input.rawSchema?.storageType
+    );
+    const system = buildPlanSystemPrompt(input, storageRelatedPrompt);
+    const contextSystem = buildPlanContextSystemPrompt(input);
     const user = buildPlanUserPrompt(input);
 
     const tools = this.toolRegistry.findToolByNames([
@@ -25,10 +39,12 @@ export class PlanAgent implements Agent<PlanAgentInput, PlanAgentResult> {
       DataMartsAiInsightsTools.SAMPLE_TABLE_DATA,
     ]);
 
-    const initialMessages: AiMessage[] = [
-      { role: AiRole.SYSTEM, content: system },
-      { role: AiRole.USER, content: user },
-    ];
+    const initialMessages = buildAgentInitialMessages({
+      systemPrompt: system,
+      contextSystemPrompt: contextSystem,
+      conversationTurns: input.conversationContext?.turns,
+      userPrompt: user,
+    });
 
     const context: DataMartInsightsContext = {
       projectId,

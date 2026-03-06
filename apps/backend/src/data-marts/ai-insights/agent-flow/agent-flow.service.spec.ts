@@ -15,13 +15,16 @@ describe('AgentFlowService', () => {
   const createRequest = () => ({
     projectId: 'project-1',
     dataMartId: 'data-mart-1',
-    history: [
-      {
-        role: AiAssistantMessageRole.USER,
-        content: 'Build SQL',
-        createdAt: '2026-02-21T10:00:00.000Z',
-      },
-    ],
+    conversationContext: {
+      turns: [
+        {
+          role: AiAssistantMessageRole.USER,
+          content: 'Build SQL',
+          createdAt: '2026-02-21T10:00:00.000Z',
+        },
+      ],
+      conversationSnapshot: null,
+    },
     sessionContext: {
       sessionId: 'session-1',
       scope: AiAssistantScope.TEMPLATE,
@@ -30,14 +33,16 @@ describe('AgentFlowService', () => {
   });
 
   const createPromptContext = (): AgentFlowPromptContext => ({
-    recentTurns: [
-      {
-        role: AiAssistantMessageRole.USER,
-        content: 'Build SQL',
-        createdAt: '2026-02-21T10:00:00.000Z',
-      },
-    ],
-    conversationSnapshot: null,
+    conversationContext: {
+      turns: [
+        {
+          role: AiAssistantMessageRole.USER,
+          content: 'Build SQL',
+          createdAt: '2026-02-21T10:00:00.000Z',
+        },
+      ],
+      conversationSnapshot: null,
+    },
     stateSnapshot: {
       sessionId: 'session-1',
       templateId: 'template-1',
@@ -73,7 +78,6 @@ describe('AgentFlowService', () => {
         context: {
           request: createRequest(),
           telemetry: { llmCalls: [], toolCalls: [], messageHistory: [] },
-          collectedProposedActions: [],
           sanitizedLastUserMessage: 'safe text',
         },
       }),
@@ -104,7 +108,6 @@ describe('AgentFlowService', () => {
         context: {
           request,
           telemetry: { llmCalls: [], toolCalls: [], messageHistory: [] },
-          collectedProposedActions: [],
           sanitizedLastUserMessage: null,
         },
       }),

@@ -1,26 +1,38 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Agent, DataMartInsightsContext, SharedAgentContext } from '../ai-insights-types';
-import { AiMessage, AiRole } from '../../../common/ai-insights/agent/ai-core';
+import { AiMessage } from '../../../common/ai-insights/agent/ai-core';
 import { SqlAgentInput, SqlBuilderResponse, SqlBuilderResponseSchema } from './types';
 import { runAgentLoop } from '../../../common/ai-insights/llm-tool-runner';
 import {
+  buildSqlBuilderContextSystemPrompt,
   buildSqlBuilderSystemPrompt,
   buildSqlBuilderUserPrompt,
 } from '../prompts/sql-builder.prompt';
+import { buildAgentInitialMessages } from '../utils/build-agent-initial-messages';
+import { StorageRelatedPromptResolver } from '../prompts/storage-related-prompt.resolver';
+import { StorageRelatedPromptSection } from '../prompts/storage-related-prompt.types';
 
 @Injectable()
 export class SqlBuilderAgent implements Agent<SqlAgentInput, SqlBuilderResponse> {
   readonly name = 'SqlBuilderAgent';
   private readonly logger = new Logger(SqlBuilderAgent.name);
 
-  async run(input: SqlAgentInput, shared: SharedAgentContext): Promise<SqlBuilderResponse> {
-    const system = buildSqlBuilderSystemPrompt(shared.budgets);
-    const user = buildSqlBuilderUserPrompt(input);
+  constructor(private readonly storageRelatedPromptResolver: StorageRelatedPromptResolver) {}
 
-    const initialMessages: AiMessage[] = [
-      { role: AiRole.SYSTEM, content: system },
-      { role: AiRole.USER, content: user },
-    ];
+  async run(input: SqlAgentInput, shared: SharedAgentContext): Promise<SqlBuilderResponse> {
+    const storageRelatedPrompt = this.storageRelatedPromptResolver.resolve(
+      StorageRelatedPromptSection.SQL_BUILDER_SYSTEM,
+      input.rawSchema?.storageType
+    );
+    const system = buildSqlBuilderSystemPrompt(shared.budgets, storageRelatedPrompt);
+    const contextSystem = buildSqlBuilderContextSystemPrompt(input);
+    const user = buildSqlBuilderUserPrompt(input);
+    const initialMessages = buildAgentInitialMessages({
+      systemPrompt: system,
+      contextSystemPrompt: contextSystem,
+      conversationTurns: input.conversationContext?.turns,
+      userPrompt: user,
+    });
 
     return this.runLoop(shared, input, initialMessages);
   }

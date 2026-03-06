@@ -18,20 +18,22 @@ describe('GenerateSqlTool', () => {
     request: {
       projectId: 'project-1',
       dataMartId: 'data-mart-1',
-      history: [
-        {
-          role: AiAssistantMessageRole.USER,
-          content: 'original user message',
-          createdAt: '2026-02-21T10:00:00.000Z',
-        },
-      ],
+      conversationContext: {
+        turns: [
+          {
+            role: AiAssistantMessageRole.USER,
+            content: 'original user message',
+            createdAt: '2026-02-21T10:00:00.000Z',
+          },
+        ],
+        conversationSnapshot: null,
+      },
       sessionContext: {
         sessionId: 'session-1',
         scope: AiAssistantScope.TEMPLATE,
         templateId: 'template-1',
       },
     },
-    collectedProposedActions: [],
   });
 
   const createService = () => {
@@ -89,14 +91,15 @@ describe('GenerateSqlTool', () => {
     );
     expect(orchestrator.run).toHaveBeenCalledWith(
       expect.objectContaining({
-        history: [
-          expect.objectContaining({
-            role: AiAssistantMessageRole.USER,
-            content: 'add alias',
-          }),
-        ],
-        sessionContext: expect.objectContaining({
+        conversationContext: expect.objectContaining({
+          mode: 'refine_existing_sql',
           currentSourceSql: 'SELECT 42',
+          turns: [
+            expect.objectContaining({
+              role: 'user',
+              content: 'add alias',
+            }),
+          ],
         }),
       }),
       'refine'
@@ -263,7 +266,8 @@ describe('GenerateSqlTool', () => {
     );
     expect(orchestrator.run).toHaveBeenCalledWith(
       expect.objectContaining({
-        sessionContext: expect.objectContaining({
+        conversationContext: expect.objectContaining({
+          mode: 'refine_existing_sql',
           currentSourceSql: 'SELECT * FROM artifact_source',
         }),
       }),
@@ -305,7 +309,8 @@ describe('GenerateSqlTool', () => {
     );
     expect(orchestrator.run).toHaveBeenCalledWith(
       expect.objectContaining({
-        sessionContext: expect.objectContaining({
+        conversationContext: expect.objectContaining({
+          mode: 'refine_existing_sql',
           currentSourceSql: 'SELECT * FROM raw_artifact',
         }),
       }),
@@ -338,7 +343,8 @@ describe('GenerateSqlTool', () => {
     expect(baseSqlHandleResolverService.resolve).not.toHaveBeenCalled();
     expect(orchestrator.run).toHaveBeenCalledWith(
       expect.objectContaining({
-        sessionContext: expect.objectContaining({
+        conversationContext: expect.objectContaining({
+          mode: 'refine_existing_sql',
           currentSourceSql: 'SELECT 1',
         }),
       }),
@@ -398,7 +404,16 @@ describe('GenerateSqlTool', () => {
     const result = await service.execute({ mode: 'create' }, context);
 
     expect(baseSqlHandleResolverService.resolve).not.toHaveBeenCalled();
-    expect(orchestrator.run).toHaveBeenCalledWith(context.request, 'create');
+    expect(orchestrator.run).toHaveBeenCalledWith(
+      expect.objectContaining({
+        conversationContext: expect.objectContaining({
+          mode: 'create_new_source_sql',
+          currentSourceSql: null,
+          turns: [expect.objectContaining({ role: 'user', content: 'original user message' })],
+        }),
+      }),
+      'create'
+    );
     expect(result).toEqual({
       sqlCandidate: 'SELECT 1',
       dryRunValid: true,
@@ -432,12 +447,15 @@ describe('GenerateSqlTool', () => {
 
     expect(orchestrator.run).toHaveBeenCalledWith(
       expect.objectContaining({
-        history: [
-          expect.objectContaining({
-            role: AiAssistantMessageRole.USER,
-            content: 'What is total consumption in 2025? Monthly breakdown as table.',
-          }),
-        ],
+        conversationContext: expect.objectContaining({
+          mode: 'create_new_source_sql',
+          turns: [
+            expect.objectContaining({
+              role: 'user',
+              content: 'What is total consumption in 2025? Monthly breakdown as table.',
+            }),
+          ],
+        }),
       }),
       'create'
     );

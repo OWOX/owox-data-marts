@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { BusinessViolationException } from '../../common/exceptions/business-violation.exception';
 import { DataTableHeader } from '../../common/template/handlers/base/table-tag.handler';
 import {
@@ -12,8 +12,10 @@ import { DataMart } from '../entities/data-mart.entity';
 import { InsightArtifactService } from './insight-artifact.service';
 import { InsightTemplateValidationService } from './insight-template-validation.service';
 import { DataMartSqlTableService } from './data-mart-sql-table.service';
+import { DEFAULT_SOURCE_KEY } from '../../common/template/handlers/tag-handler.interface';
+import { ReportHeadersGeneratorFacade } from '../data-storage-types/facades/report-headers-generator.facade';
+import { castError } from '@owox/internal-helpers';
 
-const DEFAULT_SOURCE_KEY = 'main';
 const MAX_LOADED_SOURCE = 100;
 
 export interface InsightTemplateTableSourceContext {
@@ -25,10 +27,13 @@ export interface InsightTemplateTableSourceContext {
 
 @Injectable()
 export class InsightTemplateSourceDataService {
+  private readonly logger = new Logger(InsightTemplateSourceDataService.name);
+
   constructor(
     private readonly dataMartSqlTableService: DataMartSqlTableService,
     private readonly insightArtifactService: InsightArtifactService,
-    private readonly validationService: InsightTemplateValidationService
+    private readonly validationService: InsightTemplateValidationService,
+    private readonly reportHeadersGeneratorFacade: ReportHeadersGeneratorFacade
   ) {}
 
   async buildRenderContext(
@@ -41,7 +46,7 @@ export class InsightTemplateSourceDataService {
     });
 
     const tableSources: Record<string, InsightTemplateTableSourceContext> = {};
-    tableSources[DEFAULT_SOURCE_KEY] = await this.resolveCurrentDataMartSourceContext(dataMart);
+    tableSources[DEFAULT_SOURCE_KEY] = await this.resolveMainDataMartSourceContext(dataMart);
 
     for (const source of insightTemplate.sources ?? []) {
       tableSources[source.key] = await this.resolveSourceContext(source, dataMart);
@@ -91,7 +96,7 @@ export class InsightTemplateSourceDataService {
 
       return context;
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
+      const message = castError(error).message;
       await this.insightArtifactService.markValidationStatus(
         artifact.id,
         InsightArtifactValidationStatus.ERROR,
@@ -104,7 +109,8 @@ export class InsightTemplateSourceDataService {
   }
 
   private async resolveCurrentDataMartSourceContext(
-    dataMart: DataMart
+    dataMart: DataMart,
+    aliasByName?: ReadonlyMap<string, string>
   ): Promise<InsightTemplateTableSourceContext> {
     const { columns, rows } = await this.dataMartSqlTableService.executeSqlToTable(
       dataMart,
@@ -114,15 +120,22 @@ export class InsightTemplateSourceDataService {
       }
     );
 
-    return this.buildContext(columns, rows);
+    return this.buildContext(columns, rows, aliasByName);
   }
 
   private async prepareArtifactSql(artifact: InsightArtifact, dataMart: DataMart): Promise<string> {
     return this.dataMartSqlTableService.resolveDataMartTableMacro(dataMart, artifact.sql ?? '');
   }
 
-  private buildContext(columns: string[], rows: unknown[][]): InsightTemplateTableSourceContext {
-    const dataHeaders: DataTableHeader[] = columns.map(name => ({ name }));
+  private buildContext(
+    columns: string[],
+    rows: unknown[][],
+    aliasByName?: ReadonlyMap<string, string>
+  ): InsightTemplateTableSourceContext {
+    const dataHeaders: DataTableHeader[] = columns.map(name => {
+      const alias = aliasByName?.get(name);
+      return alias ? { name, alias } : { name };
+    });
     const dataRows = rows;
 
     return {
@@ -131,5 +144,41 @@ export class InsightTemplateSourceDataService {
       dataHeadersCount: dataHeaders.length,
       dataRowsCount: dataRows.length,
     };
+  }
+
+  private async resolveMainDataMartSourceContext(
+    dataMart: DataMart
+  ): Promise<InsightTemplateTableSourceContext> {
+    const aliasByName = await this.resolveMainSourceAliases(dataMart);
+    return this.resolveCurrentDataMartSourceContext(dataMart, aliasByName);
+  }
+
+  private async resolveMainSourceAliases(
+    dataMart: DataMart
+  ): Promise<ReadonlyMap<string, string> | undefined> {
+    if (!dataMart.schema || !dataMart.storage?.type) {
+      return undefined;
+    }
+
+    try {
+      const headers = await this.reportHeadersGeneratorFacade.generateHeadersFromSchema(
+        dataMart.storage.type,
+        dataMart.schema
+      );
+      const aliases = headers
+        .filter(header => typeof header.alias === 'string' && header.alias.trim().length > 0)
+        .map(header => [header.name, header.alias!.trim()] as const);
+
+      if (!aliases.length) {
+        return undefined;
+      }
+
+      return new Map(aliases);
+    } catch (error) {
+      this.logger.warn(
+        `Alias enrichment for source="${DEFAULT_SOURCE_KEY}" failed for dataMart="${dataMart.id}": ${castError(error).stack}`
+      );
+      return undefined;
+    }
   }
 }

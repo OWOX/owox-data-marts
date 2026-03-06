@@ -101,22 +101,24 @@ describe('RunAiAssistantService', () => {
   };
 
   const promptContext = {
-    recentTurns: [
-      {
-        role: AiAssistantMessageRole.USER,
-        content: userMessage.content,
-        createdAt: userMessage.createdAt.toISOString(),
+    conversationContext: {
+      turns: [
+        {
+          role: AiAssistantMessageRole.USER,
+          content: userMessage.content,
+          createdAt: userMessage.createdAt.toISOString(),
+        },
+      ],
+      conversationSnapshot: {
+        goal: 'Generate source for purchases',
+        decisions: [],
+        appliedChanges: [],
+        openQuestions: [],
+        importantFacts: [],
+        lastUserIntent: 'Generate source for purchases',
+        compressedTurns: 2,
+        updatedAt: now.toISOString(),
       },
-    ],
-    conversationSnapshot: {
-      goal: 'Generate source for purchases',
-      decisions: [],
-      appliedChanges: [],
-      openQuestions: [],
-      importantFacts: [],
-      lastUserIntent: 'Generate source for purchases',
-      compressedTurns: 2,
-      updatedAt: now.toISOString(),
     },
     stateSnapshot: {
       sessionId: 'session-1',

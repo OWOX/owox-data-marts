@@ -1,12 +1,10 @@
 import { SourceResolverToolsService } from './source-resolver-tools.service';
-import { AiAssistantMessageRole } from '../../enums/ai-assistant-message-role.enum';
 import { AiAssistantScope } from '../../enums/ai-assistant-scope.enum';
-import { AssistantOrchestratorRequest } from './ai-assistant-types';
+import { SourceResolverRequestContext } from './source-resolver-tools.service';
 
-const buildTemplateRequest = (message: string): AssistantOrchestratorRequest => ({
+const buildTemplateRequest = (_message: string): SourceResolverRequestContext => ({
   projectId: 'project-1',
   dataMartId: 'data-mart-1',
-  history: [{ role: AiAssistantMessageRole.USER, content: message }],
   sessionContext: {
     sessionId: 'session-1',
     scope: AiAssistantScope.TEMPLATE,

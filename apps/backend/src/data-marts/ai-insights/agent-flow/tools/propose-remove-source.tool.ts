@@ -1,6 +1,5 @@
 import { z } from 'zod';
 import { Injectable } from '@nestjs/common';
-import { randomUUID } from 'crypto';
 import { AgentFlowContext } from '../types';
 import { InsightTemplateService } from '../../../services/insight-template.service';
 import { findTemplateTagBySourceKey } from '../../../services/template-source-key-in-template.util';
@@ -47,15 +46,6 @@ export class ProposeRemoveSourceTool {
     const templateText = templateEntity.template ?? '';
 
     const tagToRemove = findTemplateTagBySourceKey(templateText, args.sourceKey);
-
-    context.collectedProposedActions.push({
-      type: 'remove_source_from_template',
-      id: `act_${randomUUID().replace(/-/g, '')}`,
-      confidence: 0.95,
-      payload: {
-        sourceKey: args.sourceKey,
-      },
-    });
 
     return {
       proposedActionType: 'remove_source_from_template',

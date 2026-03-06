@@ -1,5 +1,6 @@
 import { DataMartsAiInsightsTools } from '../tools/data-marts-ai-insights-tools.registrar';
-import { TriageModelJsonSchema } from '../agent/types';
+import { AgentConversationContext, TriageModelJsonSchema } from '../agent/types';
+import { getLastUserMessage } from '../agent-flow/ai-assistant-orchestrator.utils';
 import { buildJsonFormatSection, buildOutputRules } from './json-format.prompt';
 
 export function buildTriageSystemPrompt(): string {
@@ -20,12 +21,55 @@ ${buildJsonFormatSection(TriageModelJsonSchema)}
 `.trim();
 }
 
-export function buildTriageUserPrompt(prompt: string): string {
+export function buildTriageContextSystemPrompt(input: {
+  conversationContext?: AgentConversationContext;
+}): string | null {
+  const context = input.conversationContext;
+  if (!context) {
+    return null;
+  }
+
+  const modeBlock = context.mode ? `SQL task mode: ${context.mode}` : 'SQL task mode: unspecified';
+  const currentSourceSqlBlock = context.currentSourceSql
+    ? `
+Current source SQL context:
+--- CURRENT SQL START ---
+${context.currentSourceSql}
+--- CURRENT SQL END ---
+`.trim()
+    : 'Current source SQL context: none';
+  const snapshotBlock =
+    context.conversationSnapshot != null
+      ? `
+Conversation snapshot (non-user memory context):
+--- CONVERSATION SNAPSHOT START ---
+${JSON.stringify(context.conversationSnapshot)}
+--- CONVERSATION SNAPSHOT END ---
+`.trim()
+      : '';
+
   return `
-User question(prompt):
+${modeBlock}
+
+${currentSourceSqlBlock}
+${snapshotBlock ? `\n\n${snapshotBlock}` : ''}
+`.trim();
+}
+
+export function buildTriageUserPrompt(input: {
+  prompt: string;
+  conversationContext?: AgentConversationContext;
+}): string {
+  const turns = input.conversationContext?.turns;
+  const latestUserMessage = getLastUserMessage(turns ?? []) || input.prompt;
+
+  return `
+Latest user request to triage:
 --- START ---
-${prompt}
+${latestUserMessage}
 --- END ---
+
+Conversation turns are provided as separate chat messages above.
 
 What you must do:
 - Detect the language of the user's question(prompt), you MUST use the same language for "reasonText".

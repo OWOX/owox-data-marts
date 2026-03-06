@@ -26,6 +26,20 @@ describe('ValueTagHandler', () => {
   const createOptions = (hash: Record<string, unknown>): HelperOptions =>
     ({ hash }) as unknown as HelperOptions;
 
+  it('returns metadata for scalar KPI usage', () => {
+    const meta = handler.tagMetaInfo();
+    const sourceParam = meta.parameters.find(param => param.name === 'source');
+
+    expect(meta.name).toBe('value');
+    expect(meta.description).toContain('scalar metric');
+    expect(sourceParam).toEqual(
+      expect.objectContaining({
+        required: false,
+        default: 'main',
+      })
+    );
+  });
+
   it('renders single value by path syntax', () => {
     const payload = handler.buildPayload(
       [],
