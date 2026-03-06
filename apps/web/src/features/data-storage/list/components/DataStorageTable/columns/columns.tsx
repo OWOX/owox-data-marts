@@ -44,6 +44,7 @@ export const getDataStorageColumns = ({
         storageId={row.original.id}
         storageTitle={row.original.title}
         hovercardSide='right'
+        variant='compact'
       />
     ),
   },
