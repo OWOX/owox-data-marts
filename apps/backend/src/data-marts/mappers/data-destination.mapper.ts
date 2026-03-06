@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { AuthorizationContext } from '../../idp';
 import { CreateDataDestinationCommand } from '../dto/domain/create-data-destination.command';
 import { DataDestinationDto } from '../dto/domain/data-destination.dto';
@@ -26,6 +26,8 @@ import { DataDestinationCredentials } from '../data-destination-types/data-desti
 
 @Injectable()
 export class DataDestinationMapper {
+  private readonly logger = new Logger(DataDestinationMapper.name);
+
   constructor(
     private readonly credentialsUtils: DataDestinationCredentialsUtils,
     private readonly publicOriginService: PublicOriginService,
@@ -154,12 +156,16 @@ export class DataDestinationMapper {
     dto: DataDestinationDto
   ): Promise<DataDestinationResponseApiDto['credentials']> {
     if (!dto.credentialId) {
-      throw new Error(`Destination ${dto.id} has no credentialId`);
+      this.logger.warn(`Destination ${dto.id} has no credentialId`);
+      return {} as DataDestinationCredentials;
     }
 
     const credential = await this.dataDestinationCredentialService.getById(dto.credentialId);
     if (!credential) {
-      throw new Error(`Credential ${dto.credentialId} not found for destination ${dto.id}`);
+      this.logger.warn(
+        `Credential ${dto.credentialId} not found for destination ${dto.id} (possibly orphaned after soft-delete)`
+      );
+      return {} as DataDestinationCredentials;
     }
 
     switch (credential.type) {
