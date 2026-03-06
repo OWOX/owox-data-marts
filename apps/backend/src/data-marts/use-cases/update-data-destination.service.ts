@@ -45,6 +45,9 @@ export class UpdateDataDestinationService {
     if (command.credentialId === null && entity.credentialId) {
       await this.dataDestinationCredentialService.softDelete(entity.credentialId);
       entity.credentialId = null;
+      // Clear the eagerly-loaded relation so TypeORM save() does not
+      // overwrite credentialId with the stale (soft-deleted) relation id.
+      entity.credential = null;
     }
 
     if (command.credentialId) {
@@ -63,6 +66,7 @@ export class UpdateDataDestinationService {
         throw new BadRequestException('OAuth token verification failed. Please re-authenticate.');
       }
       entity.credentialId = command.credentialId;
+      entity.credential = null;
     } else if (command.hasCredentials()) {
       // Service account credentials — validate, process, and store
       await this.credentialsValidator.checkCredentials(entity.type, command.credentials);
@@ -103,6 +107,7 @@ export class UpdateDataDestinationService {
           identity,
         });
         entity.credentialId = newCredential.id;
+        entity.credential = null;
       }
     } else if (!command.hasCredentials() && entity.credential) {
       if (entity.credential.type === DestinationCredentialType.GOOGLE_OAUTH) {

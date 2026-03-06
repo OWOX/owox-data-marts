@@ -56,6 +56,9 @@ export class UpdateDataStorageService {
         await this.dataStorageCredentialService.softDelete(dataStorageEntity.credential.id);
       }
       dataStorageEntity.credentialId = null;
+      // Clear the eagerly-loaded relation so TypeORM save() does not
+      // overwrite credentialId with the stale (soft-deleted) relation id.
+      dataStorageEntity.credential = null;
     }
 
     // Skip access validation for OAuth-configured storages (tokens are validated during OAuth exchange).
@@ -94,6 +97,7 @@ export class UpdateDataStorageService {
           identity,
         });
         dataStorageEntity.credentialId = newCredential.id;
+        dataStorageEntity.credential = null;
       }
     }
 
