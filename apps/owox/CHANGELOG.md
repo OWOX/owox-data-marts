@@ -1,5 +1,22 @@
 # owox
 
+## 0.21.0
+
+### Minor Changes 0.21.0
+
+- d906258: # Add copy credentials button to Storage and Destination
+
+  Added a "Copy Credentials" button to Storage and Destination edit forms, allowing users to copy credential configuration from other storages or destinations of the same type. Includes new backend endpoints for listing storages and destinations by type with credential identity information.
+
+### Patch Changes 0.21.0
+
+- @owox/internal-helpers@0.21.0
+- @owox/idp-protocol@0.21.0
+- @owox/idp-better-auth@0.21.0
+- @owox/idp-owox-better-auth@0.21.0
+- @owox/backend@0.21.0
+- @owox/web@0.21.0
+
 ## 0.20.0
 
 ### Minor Changes 0.20.0
@@ -9,7 +26,7 @@
 - cc5553d: # **New Sign Up options**: Email/Password and Microsoft Authentication in the Cloud edition on app.owox.com
 
   Users can now sign up using their email and password, or through Microsoft account integration for seamless access.
-  
+
 - 55ecd48: # **Table Filters** for Data Marts and Data Storages
 
   We’ve overhauled the table filtering experience to help you navigate large datasets with precision and speed:
@@ -66,7 +83,7 @@
   - String timestamps are now parsed and formatted to `YYYY-MM-DD HH:MM:SS` before being written to Snowflake
   - Invalid timestamp strings fall back to the existing special-character obfuscation path
 
-### Patch Changes
+### Patch Changes 0.20.0
 
 - @owox/internal-helpers@0.20.0
 - @owox/idp-protocol@0.20.0
