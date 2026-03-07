@@ -60,7 +60,7 @@ export class BigQueryApiAdapter {
    */
   public async executeDryRunQuery(
     query: string
-  ): Promise<{ totalBytesProcessed: number; schema?: TableSchema }> {
+  ): Promise<{ totalBytesProcessed: number; schema?: TableSchema; location?: string }> {
     const [job] = await this.bigQuery.createQueryJob({
       query,
       dryRun: true,
@@ -70,6 +70,7 @@ export class BigQueryApiAdapter {
     return {
       totalBytesProcessed: Number(job.metadata.statistics.totalBytesProcessed),
       schema: job.metadata.statistics.query.schema ?? undefined,
+      location: this.location,
     };
   }
 
