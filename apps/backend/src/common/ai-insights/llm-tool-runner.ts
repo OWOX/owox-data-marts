@@ -4,6 +4,7 @@ import { AiChatProvider, AiChatRequest, AiMessage, AiRole, AiToolCall } from './
 import {
   AgentTelemetry,
   AiContext,
+  ToolExecutionPolicy,
   ToolExecutionRecord,
   ToolLoopOptions,
   ToolLoopOutput,
@@ -35,8 +36,16 @@ export async function runAgentLoop<TSchema extends ZodTypeAny, TResult = z.infer
     maxTokens,
     logger,
     resultSchema,
+    executionPolicy,
     messageProcessors,
   } = options;
+
+  if (shouldUseExecutionPolicy(executionPolicy)) {
+    validateExecutionPolicy({
+      tools,
+      executionPolicy,
+    });
+  }
 
   const messages: AiMessage[] = [...initialMessages];
   const toolExecutions: ToolExecutionRecord[] = [];
@@ -95,6 +104,7 @@ export async function runAgentLoop<TSchema extends ZodTypeAny, TResult = z.infer
       logger,
       messageProcessors,
       toolExecutions,
+      executionPolicy,
     });
   }
 
@@ -206,6 +216,181 @@ async function ensureValidJson(params: {
   }
 }
 
+interface ScheduledToolCall {
+  index: number;
+  toolCall: AiToolCall;
+  argsJson: string;
+  dependsOnIndices: Set<number>;
+  runAlone: boolean;
+}
+
+interface ExecutedToolCallResult {
+  scheduled: ScheduledToolCall;
+  status: 'success' | 'error';
+  toolResult?: ToolRunResult;
+  error?: Error;
+}
+
+function shouldUseExecutionPolicy(
+  executionPolicy?: ToolExecutionPolicy
+): executionPolicy is ToolExecutionPolicy {
+  if (!executionPolicy) {
+    return false;
+  }
+
+  return Object.keys(executionPolicy.rules).length > 0;
+}
+
+function validateExecutionPolicy(params: {
+  tools: ReturnType<ToolRegistry['getAiTools']>;
+  executionPolicy: ToolExecutionPolicy;
+}): void {
+  const { tools, executionPolicy } = params;
+  const availableToolNames = new Set(tools.map(tool => tool.name));
+  const ruleNames = Object.keys(executionPolicy.rules);
+
+  const missingRules = [...availableToolNames].filter(
+    toolName => !(toolName in executionPolicy.rules)
+  );
+  if (missingRules.length > 0) {
+    throw new Error(`Execution policy is missing rules for tools: ${missingRules.join(', ')}`);
+  }
+
+  const unknownRules = ruleNames.filter(ruleName => !availableToolNames.has(ruleName));
+  if (unknownRules.length > 0) {
+    throw new Error(`Execution policy has unknown tool rules: ${unknownRules.join(', ')}`);
+  }
+
+  for (const [toolName, rule] of Object.entries(executionPolicy.rules)) {
+    const dependsOn = rule.dependsOn ?? [];
+    for (const dependency of dependsOn) {
+      if (!availableToolNames.has(dependency)) {
+        throw new Error(
+          `Execution policy for "${toolName}" depends on unknown tool "${dependency}"`
+        );
+      }
+
+      if (dependency === toolName) {
+        throw new Error(`Execution policy for "${toolName}" cannot depend on itself`);
+      }
+    }
+  }
+
+  validateExecutionPolicyCycles(executionPolicy, [...availableToolNames]);
+}
+
+function validateExecutionPolicyCycles(
+  executionPolicy: ToolExecutionPolicy,
+  tools: string[]
+): void {
+  const visiting = new Set<string>();
+  const visited = new Set<string>();
+
+  const visit = (toolName: string) => {
+    if (visited.has(toolName)) {
+      return;
+    }
+
+    if (visiting.has(toolName)) {
+      throw new Error(`Execution policy contains dependency cycle involving "${toolName}"`);
+    }
+
+    visiting.add(toolName);
+    const dependencies = executionPolicy.rules[toolName]?.dependsOn ?? [];
+    for (const dependency of dependencies) {
+      visit(dependency);
+    }
+    visiting.delete(toolName);
+    visited.add(toolName);
+  };
+
+  for (const toolName of tools) {
+    visit(toolName);
+  }
+}
+
+function buildScheduledToolCalls(
+  toolCalls: AiToolCall[],
+  executionPolicy?: ToolExecutionPolicy
+): ScheduledToolCall[] {
+  if (!shouldUseExecutionPolicy(executionPolicy)) {
+    return toolCalls.map((toolCall, index) => ({
+      index,
+      toolCall,
+      argsJson: toolCall.argumentsJson ?? '{}',
+      dependsOnIndices: index > 0 ? new Set([index - 1]) : new Set<number>(),
+      runAlone: false,
+    }));
+  }
+
+  const callIndexesByToolName = new Map<string, number[]>();
+
+  toolCalls.forEach((toolCall, index) => {
+    const indexes = callIndexesByToolName.get(toolCall.name) ?? [];
+    indexes.push(index);
+    callIndexesByToolName.set(toolCall.name, indexes);
+  });
+
+  return toolCalls.map((toolCall, index) => {
+    const rule = executionPolicy.rules[toolCall.name];
+    if (!rule) {
+      throw new Error(`Execution policy rule is not defined for tool "${toolCall.name}"`);
+    }
+
+    const dependsOnIndices = new Set<number>();
+    const dependencies = rule.dependsOn ?? [];
+
+    for (const dependencyToolName of dependencies) {
+      const dependencyIndexes = callIndexesByToolName.get(dependencyToolName) ?? [];
+      for (const dependencyIndex of dependencyIndexes) {
+        dependsOnIndices.add(dependencyIndex);
+      }
+    }
+
+    return {
+      index,
+      toolCall,
+      argsJson: toolCall.argumentsJson ?? '{}',
+      dependsOnIndices,
+      runAlone: rule.runAlone === true,
+    };
+  });
+}
+
+function selectReadyBatch(
+  pendingCalls: ScheduledToolCall[],
+  completedIndexes: Set<number>
+): ScheduledToolCall[] {
+  const readyCalls = pendingCalls
+    .filter(call => [...call.dependsOnIndices].every(index => completedIndexes.has(index)))
+    .sort((left, right) => left.index - right.index);
+
+  if (readyCalls.length === 0) {
+    return [];
+  }
+
+  const runAloneCall = readyCalls.find(call => call.runAlone);
+  if (runAloneCall) {
+    return [runAloneCall];
+  }
+
+  return readyCalls;
+}
+
+function unresolvedCallsDebugString(
+  pendingCalls: ScheduledToolCall[],
+  completedIndexes: Set<number>
+): string {
+  return pendingCalls
+    .map(call => {
+      const unresolvedDeps = [...call.dependsOnIndices]
+        .filter(index => !completedIndexes.has(index))
+        .join(', ');
+      return `${call.toolCall.name}#${call.index}${unresolvedDeps ? ` <- [${unresolvedDeps}]` : ''}`;
+    })
+    .join('; ');
+}
+
 async function executeToolCalls(params: {
   toolCalls: AiToolCall[];
   toolRegistry: ToolRegistry;
@@ -214,6 +399,7 @@ async function executeToolCalls(params: {
   telemetry: AgentTelemetry;
   logger: Logger;
   toolExecutions: ToolExecutionRecord[];
+  executionPolicy?: ToolExecutionPolicy;
   messageProcessors?: Record<string, ToolMessageProcessor>;
 }) {
   const {
@@ -224,72 +410,128 @@ async function executeToolCalls(params: {
     telemetry,
     logger,
     toolExecutions,
+    executionPolicy,
     messageProcessors,
   } = params;
 
-  for (const toolCall of toolCalls) {
-    const argsJson = toolCall.argumentsJson ?? '{}';
+  const scheduledCalls = buildScheduledToolCalls(toolCalls, executionPolicy);
+  const completedIndexes = new Set<number>();
+  const pendingCalls = new Map(scheduledCalls.map(call => [call.index, call] as const));
 
-    try {
-      const toolResult: ToolRunResult = await toolRegistry.executeToToolMessage(
-        toolCall.name,
-        argsJson,
-        context
+  while (pendingCalls.size > 0) {
+    const readyBatch = selectReadyBatch([...pendingCalls.values()], completedIndexes);
+    if (readyBatch.length === 0) {
+      throw new Error(
+        `Unable to resolve tool execution order. Unresolved calls: ${unresolvedCallsDebugString(
+          [...pendingCalls.values()],
+          completedIndexes
+        )}`
       );
+    }
 
-      telemetry.toolCalls.push({
-        turn: telemetry.llmCalls.length - 1,
-        name: toolCall.name,
-        argsJson,
-        success: true,
-        toolResult: toolResult.content,
-      });
-      toolExecutions.push({
-        name: toolCall.name,
-        callId: toolCall.id,
-        argsJson,
-        result: toolResult,
-      });
+    if (readyBatch.length > 1) {
+      const parallelTools = readyBatch
+        .map(call => `${call.toolCall.name}#${call.index}`)
+        .join(', ');
+      logger.log(`Executing tools in parallel: ${parallelTools}`);
+    }
 
-      logger.log(`Executed tool: ${toolCall.name}`, { arguments: argsJson });
-
-      const processor = messageProcessors?.[toolCall.name];
-
-      const messageContent =
-        processor?.({
-          toolName: toolCall.name,
+    const settledBatch = await Promise.allSettled(
+      readyBatch.map(async scheduled => {
+        const toolResult = await toolRegistry.executeToToolMessage(
+          scheduled.toolCall.name,
+          scheduled.argsJson,
+          context
+        );
+        return {
+          scheduled,
+          status: 'success' as const,
           toolResult,
+        };
+      })
+    );
+
+    const executedResults: ExecutedToolCallResult[] = settledBatch.map((result, index) => {
+      const scheduled = readyBatch[index];
+      if (result.status === 'fulfilled') {
+        return result.value;
+      }
+
+      return {
+        scheduled,
+        status: 'error',
+        error: castError(result.reason),
+      };
+    });
+
+    executedResults.sort((left, right) => left.scheduled.index - right.scheduled.index);
+
+    for (const execution of executedResults) {
+      const { scheduled } = execution;
+      const { toolCall, argsJson } = scheduled;
+
+      if (execution.status === 'success' && execution.toolResult) {
+        const toolResult = execution.toolResult;
+
+        telemetry.toolCalls.push({
+          turn: telemetry.llmCalls.length - 1,
+          name: toolCall.name,
           argsJson,
-          context,
-          messages,
-        }) ?? JSON.stringify(toolResult.content);
+          success: true,
+          toolResult: toolResult.content,
+        });
+        toolExecutions.push({
+          name: toolCall.name,
+          callId: toolCall.id,
+          argsJson,
+          result: toolResult,
+        });
 
-      messages.push({
-        role: AiRole.TOOL,
-        toolName: toolCall.name,
-        callId: toolCall.id,
-        content: messageContent,
-      });
-      telemetry.messageHistory.push(messages[messages.length - 1]);
-    } catch (error: unknown) {
-      const castedError = castError(error);
+        logger.log(`Executed tool: ${toolCall.name}`, { arguments: argsJson });
 
-      telemetry.toolCalls.push({
-        turn: telemetry.llmCalls.length - 1,
-        name: toolCall.name,
-        argsJson,
-        success: false,
-        errorMessage: castedError.message,
-      });
-      logger.warn(`Tool execution failed for ${toolCall.name}`, { stack: castedError.stack });
+        const processor = messageProcessors?.[toolCall.name];
 
-      messages.push({
-        role: AiRole.TOOL,
-        toolName: toolCall.name,
-        callId: toolCall.id,
-        content: `Tool ${toolCall.name} failed with error: ${castedError.message}. Please adjust and try again.`,
-      });
-      telemetry.messageHistory.push(messages[messages.length - 1]);
+        const messageContent =
+          processor?.({
+            toolName: toolCall.name,
+            toolResult,
+            argsJson,
+            context,
+            messages,
+          }) ?? JSON.stringify(toolResult.content);
+
+        messages.push({
+          role: AiRole.TOOL,
+          toolName: toolCall.name,
+          callId: toolCall.id,
+          content: messageContent,
+        });
+        telemetry.messageHistory.push(messages[messages.length - 1]);
+      } else {
+        const errorMessage = execution.error?.message ?? 'Unknown tool execution error';
+
+        telemetry.toolCalls.push({
+          turn: telemetry.llmCalls.length - 1,
+          name: toolCall.name,
+          argsJson,
+          success: false,
+          errorMessage,
+        });
+        logger.warn(`Tool execution failed for ${toolCall.name}`, {
+          stack: execution.error?.stack,
+        });
+
+        messages.push({
+          role: AiRole.TOOL,
+          toolName: toolCall.name,
+          callId: toolCall.id,
+          content: `Tool ${toolCall.name} failed with error: ${errorMessage}. Please adjust and try again.`,
+        });
+        telemetry.messageHistory.push(messages[messages.length - 1]);
+      }
+
+      completedIndexes.add(scheduled.index);
+      pendingCalls.delete(scheduled.index);
     }
   }
 }

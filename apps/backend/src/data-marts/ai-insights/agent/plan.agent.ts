@@ -66,6 +66,12 @@ export class PlanAgent implements Agent<PlanAgentInput, PlanAgentResult> {
       maxTokens: 3000,
       resultSchema: PlanModelJsonSchema,
       logger: this.logger,
+      executionPolicy: {
+        rules: {
+          [DataMartsAiInsightsTools.GET_TABLE_FULLY_QUALIFIED_NAME]: {},
+          [DataMartsAiInsightsTools.SAMPLE_TABLE_DATA]: {},
+        },
+      },
     });
 
     return {

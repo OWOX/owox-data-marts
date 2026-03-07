@@ -68,6 +68,11 @@ export class TriageAgent implements Agent<TriageAgentInput, TriageResult> {
       maxTokens: 3000,
       resultSchema: TriageModelJsonSchema,
       logger: this.logger,
+      executionPolicy: {
+        rules: {
+          [DataMartsAiInsightsTools.GET_DATAMART_METADATA]: {},
+        },
+      },
     });
 
     const schema: GetMetadataOutput = extractToolResult(

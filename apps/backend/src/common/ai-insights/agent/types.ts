@@ -19,6 +19,15 @@ export type ToolRunResult = {
 
 export type ToolNameBase = string;
 
+export interface ToolExecutionRule {
+  dependsOn?: ToolNameBase[];
+  runAlone?: boolean;
+}
+
+export interface ToolExecutionPolicy {
+  rules: Record<ToolNameBase, ToolExecutionRule>;
+}
+
 export interface LlmCallTelemetry {
   turn: number;
   model?: string;
@@ -69,6 +78,7 @@ export interface ToolLoopOptions {
   maxTurns: number;
   resultSchema: ZodTypeAny;
   logger: Logger;
+  executionPolicy?: ToolExecutionPolicy;
   messageProcessors?: Record<string, ToolMessageProcessor>;
   temperature?: number;
   maxTokens?: number;
