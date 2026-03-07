@@ -3,6 +3,7 @@ import { SqlAgentInput, SqlBuilderResponseSchema } from '../agent/types';
 import { getLastUserMessage } from '../agent-flow/ai-assistant-orchestrator.utils';
 import { buildJsonFormatSection, buildOutputRules } from './json-format.prompt';
 import { buildStorageRelatedRulesBlock } from './storage-related-prompt.utils';
+import { sanitizeSchema } from '../utils/sanitize-schema';
 
 export function buildSqlBuilderContextSystemPrompt(input: SqlAgentInput): string | null {
   const context = input.conversationContext;
@@ -144,7 +145,7 @@ ${JSON.stringify(plan)}
     ? `
 Authoritative schema (for reference; do not override plan contracts):
 --- SCHEMA START ---
-${JSON.stringify(rawSchema)}
+${JSON.stringify(sanitizeSchema(rawSchema))}
 --- SCHEMA END ---
 `.trim()
     : '';

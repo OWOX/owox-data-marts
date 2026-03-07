@@ -20,11 +20,14 @@ export class DataMartSampleDataService {
     dataMartId: string,
     projectId: string,
     columns: string[],
+    fullyQualifiedTableName?: string,
     limit = 5
   ): Promise<SampleTableDataResult> {
     const dataMart = await this.dataMartService.getByIdAndProjectId(dataMartId, projectId);
 
-    const fqn = await this.dataMartTableReferenceService.resolveTableName(dataMartId, projectId);
+    const fqn =
+      fullyQualifiedTableName ??
+      (await this.dataMartTableReferenceService.resolveTableName(dataMartId, projectId));
 
     const columnList = columns.join(', ');
     const sql = `SELECT ${columnList} FROM ${fqn} LIMIT ${limit}`;

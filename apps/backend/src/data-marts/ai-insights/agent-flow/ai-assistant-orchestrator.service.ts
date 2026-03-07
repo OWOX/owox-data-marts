@@ -8,9 +8,10 @@ import { TriageAgent } from '../agent/triage.agent';
 import { PlanAgent } from '../agent/plan.agent';
 import { QueryRepairAgent } from '../agent/query-repair.agent';
 import { SqlBuilderAgent } from '../agent/sql-builder.agent';
+import { AiAssistantSqlContextPrefetchService } from '../agent/sql-context-prefetch.service';
 import { QueryRepairAction, QueryRepairAttempt, QueryPlan, TriageOutcome } from '../agent/types';
 import {
-  DataMartInsightsContext,
+  DataMartInsightsAgentLoopContext,
   GetMetadataOutput,
   SharedAgentContext,
   SqlErrorKind,
@@ -59,7 +60,8 @@ export class AiAssistantOrchestratorService {
     private readonly planAgent: PlanAgent,
     private readonly sqlBuilderAgent: SqlBuilderAgent,
     private readonly queryRepairAgent: QueryRepairAgent,
-    private readonly sqlDryRunService: SqlDryRunService
+    private readonly sqlDryRunService: SqlDryRunService,
+    private readonly sqlContextPrefetchService: AiAssistantSqlContextPrefetchService
   ) {}
 
   async run(
@@ -104,9 +106,16 @@ export class AiAssistantOrchestratorService {
     const conversationContext = request.conversationContext;
     const prompt = getLastUserMessage(conversationContext.turns ?? []) || '';
     const shared = this.createSharedContext(request, prompt, telemetry);
+    const prefetchedContext = await this.sqlContextPrefetchService.prefetch({
+      projectId: request.projectId,
+      dataMartId: request.dataMartId,
+    });
+    telemetry.prefetch = prefetchedContext.telemetry;
+
     const triage = await this.triageAgent.run(
       {
         prompt,
+        prefetchedMetadata: prefetchedContext.metadata,
         conversationContext,
       },
       shared
@@ -134,6 +143,7 @@ export class AiAssistantOrchestratorService {
         promptLanguage: triage.promptLanguage,
         schemaSummary: triage.schemaSummary,
         rawSchema: triage.rawSchema,
+        fullyQualifiedTableName: prefetchedContext.fullyQualifiedTableName,
         conversationContext,
       },
       shared
@@ -155,7 +165,7 @@ export class AiAssistantOrchestratorService {
 
     const narrowedMetadata: GetMetadataOutput = buildNarrowMetadata(
       planResult.plan,
-      triage.rawSchema!
+      triage.rawSchema
     );
     const sqlCandidateResult = await this.buildSqlCandidate({
       prompt,
@@ -429,7 +439,7 @@ export class AiAssistantOrchestratorService {
       maxBytesProcessed: request.options?.maxBytesProcessed,
     };
 
-    const context: DataMartInsightsContext = {
+    const context: DataMartInsightsAgentLoopContext = {
       projectId: request.projectId,
       dataMartId: request.dataMartId,
       prompt,

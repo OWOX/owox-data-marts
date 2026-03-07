@@ -45,10 +45,20 @@ export interface ToolCallTelemetry {
   errorMessage?: string;
 }
 
+export interface PrefetchStepTelemetry {
+  name: string;
+}
+
+export interface PrefetchTelemetry {
+  totalMs: number;
+  steps: PrefetchStepTelemetry[];
+}
+
 export interface AgentTelemetry {
   llmCalls: LlmCallTelemetry[];
   toolCalls: ToolCallTelemetry[];
   messageHistory: AiMessage[];
+  prefetch?: PrefetchTelemetry;
 }
 
 export interface AiContext {

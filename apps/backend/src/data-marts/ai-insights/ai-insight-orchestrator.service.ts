@@ -28,6 +28,7 @@ import {
   PromptSanitizeResult,
 } from '../../common/ai-insights/services/prompt-sanitizer.service';
 import { AiContentFilterError } from '../../common/ai-insights/services/error';
+import { AiAssistantSqlContextPrefetchService } from './agent/sql-context-prefetch.service';
 
 @Injectable()
 export class AiInsightsOrchestratorService {
@@ -39,7 +40,8 @@ export class AiInsightsOrchestratorService {
     private readonly planAgent: PlanAgent,
     private readonly sqlAgent: SqlAgent,
     private readonly finalizeAgent: FinalizeAgent,
-    private readonly promptSanitizer: PromptSanitizerService
+    private readonly promptSanitizer: PromptSanitizerService,
+    private readonly sqlContextPrefetchService: AiAssistantSqlContextPrefetchService
   ) {}
 
   async answerPrompt(request: AnswerPromptRequest): Promise<AnswerPromptResponse> {
@@ -97,7 +99,16 @@ export class AiInsightsOrchestratorService {
       dataMartId: request.dataMartId,
     };
 
-    const triage = await this.triageAgent.run({ prompt: request.prompt }, shared);
+    const prefetchedContext = await this.sqlContextPrefetchService.prefetch({
+      projectId: request.projectId,
+      dataMartId: request.dataMartId,
+    });
+    telemetry.prefetch = prefetchedContext.telemetry;
+
+    const triage = await this.triageAgent.run(
+      { prompt: request.prompt, prefetchedMetadata: prefetchedContext.metadata },
+      shared
+    );
 
     if (isTriageOutcomeNotOk(triage.outcome)) {
       const finalizeStruct: FinalizeResult = {
@@ -122,6 +133,7 @@ export class AiInsightsOrchestratorService {
         promptLanguage: triage.promptLanguage,
         schemaSummary: triage.schemaSummary,
         rawSchema: triage.rawSchema,
+        fullyQualifiedTableName: prefetchedContext.fullyQualifiedTableName,
       },
       shared
     );
@@ -142,7 +154,7 @@ export class AiInsightsOrchestratorService {
 
     const narrowedMetadata: GetMetadataOutput = buildNarrowMetadata(
       planResult.plan,
-      triage.rawSchema!
+      triage.rawSchema
     );
 
     const sqlResult: SqlAgentResult = await this.sqlAgent.run(

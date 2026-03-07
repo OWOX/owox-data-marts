@@ -32,11 +32,13 @@ import { SqlErrorAdvisorAgent } from './agent/sql-error-advisor.agent';
 import { QueryRepairAgent } from './agent/query-repair.agent';
 import { PromptProcessedEventsService } from './prompt-processed-events.service';
 import { StorageRelatedPromptResolver } from './prompts/storage-related-prompt.resolver';
+import { AiAssistantSqlContextPrefetchService } from './agent/sql-context-prefetch.service';
 
 export const aiInsightsProviders = [
   OpenAiChatProvider,
   OpenRouterChatProvider,
   PromptSanitizerService,
+  AiAssistantSqlContextPrefetchService,
   StorageRelatedPromptResolver,
   AiInsightsFacadeImpl,
   AiInsightsOrchestratorService,

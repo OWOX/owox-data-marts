@@ -1,5 +1,6 @@
 import { InsightGenerationAgentInput, InsightGenerationAgentResponseSchema } from '../agent/types';
 import { buildJsonFormatSection, buildOutputRules } from './json-format.prompt';
+import { sanitizeSchema } from '../utils/sanitize-schema';
 
 export function buildGenerateInsightSystemPrompt(): string {
   return `
@@ -54,7 +55,7 @@ Data Mart Information:
 - Description: ${dataMartDescription || '(not provided)'}
 
 Data Mart Schema:
-${schema ? JSON.stringify(schema, null, 2) : '(schema not available)'}
+${JSON.stringify(sanitizeSchema(schema), null, 2)}
 
 Instructions:
 - Analyze the schema to understand what data is available (tables, columns, metrics, dimensions)

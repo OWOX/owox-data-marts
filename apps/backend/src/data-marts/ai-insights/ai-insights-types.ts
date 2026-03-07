@@ -1,4 +1,9 @@
-import { AgentBudgets, AgentTelemetry, AiContext } from '../../common/ai-insights/agent/types';
+import {
+  AgentBudgets,
+  AgentTelemetry,
+  AiContext,
+  PrefetchTelemetry,
+} from '../../common/ai-insights/agent/types';
 import { z } from 'zod';
 import { DataMartSchema, DataMartSchemaSchema } from '../data-storage-types/data-mart-schema.type';
 import { AiChatProvider } from '../../common/ai-insights/agent/ai-core';
@@ -8,10 +13,15 @@ import { DataStorageType } from '../data-storage-types/enums/data-storage-type.e
 
 export const AI_INSIGHTS_FACADE = Symbol('AI_INSIGHTS_FACADE');
 
-export interface DataMartInsightsContext extends AiContext {
+export interface DataMartInsightsPrefetchContext {
+  fullyQualifiedTableName?: string;
+}
+
+export interface DataMartInsightsAgentLoopContext extends AiContext {
   projectId: string;
   dataMartId: string;
   prompt: string;
+  prefetch?: DataMartInsightsPrefetchContext;
   telemetry?: AgentTelemetry;
   budgets?: AgentBudgets;
 }
@@ -108,6 +118,12 @@ export interface SharedAgentContext {
   telemetry: AgentTelemetry;
   projectId: string;
   dataMartId: string;
+}
+
+export interface PrefetchedSqlContext {
+  metadata: GetMetadataOutput;
+  fullyQualifiedTableName: string;
+  telemetry: PrefetchTelemetry;
 }
 
 export enum SqlErrorKind {

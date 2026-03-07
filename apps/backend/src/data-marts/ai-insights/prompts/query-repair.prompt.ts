@@ -3,6 +3,7 @@ import { buildJsonFormatSection, buildOutputRules } from './json-format.prompt';
 import { QueryPlan, QueryRepairResponseSchema } from '../agent/types';
 import { GetMetadataOutput, SqlStepError } from '../ai-insights-types';
 import { buildStorageRelatedRulesBlock } from './storage-related-prompt.utils';
+import { sanitizeSchema } from '../utils/sanitize-schema';
 
 export function buildQueryRepairSystemPrompt(
   budgets: AgentBudgets,
@@ -90,7 +91,7 @@ ${JSON.stringify(input.plan)}
   const schemaBlock = `
 Raw schema (user controlled metadata):
 --- SCHEMA START ---
-${input.rawSchema ? JSON.stringify(input.rawSchema) : '(no schema provided)'}
+${JSON.stringify(sanitizeSchema(input.rawSchema))}
 --- SCHEMA END ---
 
 Schema guidance:

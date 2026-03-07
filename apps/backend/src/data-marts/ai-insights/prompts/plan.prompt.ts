@@ -3,6 +3,7 @@ import { DataMartsAiInsightsTools } from '../tools/data-marts-ai-insights-tools.
 import { buildJsonFormatSection, buildOutputRules } from './json-format.prompt';
 import { getLastUserMessage } from '../agent-flow/ai-assistant-orchestrator.utils';
 import { buildStorageRelatedRulesBlock } from './storage-related-prompt.utils';
+import { sanitizeSchema } from '../utils/sanitize-schema';
 
 export function buildPlanContextSystemPrompt(input: PlanAgentInput): string | null {
   const context = input.conversationContext;
@@ -52,13 +53,14 @@ Your role:
 - Choose the appropriate fact table(s), dimensions, metrics, filters, and date field.
 
 Tool usage:
-- To resolve physical table names, you MAY call ${DataMartsAiInsightsTools.GET_TABLE_FULLY_QUALIFIED_NAME}.
-- Use this tool only to obtain correct fullyQualifiedName values for tables.
+- You are provided an authoritative fully qualified table name in context.
+- Do NOT call tools to resolve physical table names.
 - Do NOT generate or output SQL yourself.
-- Do NOT add any symbols, quoting, or formatting to table names obtained from the tool; use them byte-to-byte as returned.
+- Do NOT add any symbols, quoting, or formatting to the provided fully qualified table name; use it byte-to-byte.
 
 StorageType-aware planning:
-- Target storageType (authoritative): ${input.rawSchema?.storageType ?? 'unknown'}
+- Target storageType (authoritative): ${input.rawSchema.storageType}
+- Authoritative fully qualified table name: ${input.fullyQualifiedTableName}
 - You MUST take this storageType into account when producing requiredColumnsMeta.
 - You MUST produce metricSpecs/whereSpecs/orderBySpecs as structured SQL contracts.
 - Provide requiredColumnsMeta for every column in requiredColumns using rawSchema:
@@ -174,9 +176,10 @@ Schema summary (primary reference):
 ${schemaSummary ?? '(not provided)'}
 
 Raw table schema (columns):
-${rawSchema ? JSON.stringify(rawSchema) : '(omitted)'}
+${JSON.stringify(sanitizeSchema(rawSchema))}
 
-StorageType is ${input.rawSchema?.storageType ?? 'unknown'}.
+StorageType is ${input.rawSchema.storageType}.
+Authoritative fully qualified table name is ${input.fullyQualifiedTableName}.
 
 - If the user question is ambiguous, provide an ambiguityExplanation.
 - The ambiguityExplanation MUST be written in the same language as the user question (detected language: ${input.promptLanguage}).
@@ -188,7 +191,8 @@ StorageType is ${input.rawSchema?.storageType ?? 'unknown'}.
 
 Instructions:
 - Use the schema summary as the main source of truth for available tables, dimensions, and metrics.
-- If you need exact physical table names, you MAY call ${DataMartsAiInsightsTools.GET_TABLE_FULLY_QUALIFIED_NAME} to obtain fullyQualifiedName values.
+- Use the authoritative fully qualified table name from context when filling plan.tables[*].fullyQualifiedName.
+- Do not invent alternative table names.
 - Construct ONE coherent query plan that could be translated into a single SQL query.
 - Carefully choose:
   - the main fact table(s),

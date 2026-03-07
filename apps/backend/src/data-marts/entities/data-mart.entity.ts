@@ -40,6 +40,9 @@ export class DataMart implements CreatorAwareEntity {
   })
   schema?: DataMartSchema;
 
+  @Column({ type: 'datetime', nullable: true })
+  schemaActualizedAt?: Date;
+
   @Column({ nullable: true })
   definitionType?: DataMartDefinitionType;
 

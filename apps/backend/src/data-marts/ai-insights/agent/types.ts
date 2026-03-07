@@ -38,7 +38,7 @@ export interface TriageResult {
   outcome: TriageOutcome;
   promptLanguage: string;
   reasonText?: string;
-  rawSchema?: GetMetadataOutput;
+  rawSchema: GetMetadataOutput;
   schemaSummary?: string;
 }
 
@@ -93,7 +93,7 @@ export const QueryPlanTableSchema = z.object({
     .min(1, 'fullyQualifiedName must be non-empty')
     .describe(
       'Required. Fully qualified physical table or view name in the warehouse. ' +
-        'This value is usually obtained via the GET_TABLE_FULLY_QUALIFIED_NAME tool.'
+        'This value must match the fully qualified table name provided in planning context.'
     ),
   role: z
     .string()
@@ -404,7 +404,8 @@ export interface PlanAgentInput {
   prompt: string;
   promptLanguage: string;
   schemaSummary?: string;
-  rawSchema?: GetMetadataOutput;
+  rawSchema: GetMetadataOutput;
+  fullyQualifiedTableName: string;
   conversationContext?: AgentConversationContext;
 }
 
