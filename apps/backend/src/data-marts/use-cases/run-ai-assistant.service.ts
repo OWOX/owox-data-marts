@@ -20,6 +20,10 @@ import { DataMartRunService } from '../services/data-mart-run.service';
 import { AiAssistantSessionService } from '../services/ai-assistant-session.service';
 import { AgentFlowContextManager } from '../services/agent-flow-context-manager.service';
 import { castError } from '@owox/internal-helpers';
+import {
+  measureExecutionTime,
+  toMeasuredExecutionBaseResult,
+} from '../../common/utils/measure-execution-time';
 
 export class RunAiAssistantCommand {
   constructor(
@@ -51,6 +55,22 @@ export class RunAiAssistantService {
   ) {}
 
   async run(command: RunAiAssistantCommand): Promise<RunAiAssistantResult> {
+    const measured = await measureExecutionTime(() => this.runCommand(command), {
+      onMeasured: measuredExecution => {
+        this.logger.log('ai_assistant_run_time', {
+          projectId: command.projectId,
+          dataMartId: command.dataMartId,
+          sessionId: command.sessionId,
+          userMessageId: command.userMessageId,
+          measured: toMeasuredExecutionBaseResult(measuredExecution),
+        });
+      },
+    });
+
+    return measured.result;
+  }
+
+  private async runCommand(command: RunAiAssistantCommand): Promise<RunAiAssistantResult> {
     const dataMart = await this.dataMartService.getByIdAndProjectId(
       command.dataMartId,
       command.projectId
@@ -84,7 +104,7 @@ export class RunAiAssistantService {
 
     runLogger.pushLog({
       type: 'log',
-      message: 'AI Source turn started',
+      message: 'AI assistant started',
       sessionId: command.sessionId,
       turnId: command.userMessageId,
     });
@@ -156,7 +176,7 @@ export class RunAiAssistantService {
           agentResponse.meta.reasonDescription ??
           (agentResponse.status === 'ok'
             ? 'SQL candidate is ready.'
-            : 'Unable to process request.'),
+            : 'Unable to process request. Try again later.'),
         proposedActions: validatedProposedActions,
         sqlCandidate: agentResponse.result?.sqlCandidate ?? null,
         meta: {
@@ -171,13 +191,13 @@ export class RunAiAssistantService {
       const isSuccess = agentResponse.status !== 'error';
       if (!isSuccess) {
         runLogger.pushError({
-          error: agentResponse.meta.reasonDescription ?? 'AI source orchestration failed',
+          error: agentResponse.meta.reasonDescription ?? 'AI assistant failed',
         });
       }
 
       runLogger.pushLog({
         type: 'log',
-        message: 'AI flow completed',
+        message: 'AI assistant completed',
         status: agentResponse.status,
       });
 
@@ -193,11 +213,11 @@ export class RunAiAssistantService {
         assistantMessageId,
       };
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      runLogger.pushError({ error: message });
+      const castedError = castError(error);
+      runLogger.pushError({ error: castedError.message });
       runLogger.pushLog({
         type: 'log',
-        message: 'AI Source heavy turn failed',
+        message: 'AI assistant failed',
       });
 
       await this.dataMartRunService.markAiSourceRunAsFinished(run, {
@@ -206,7 +226,7 @@ export class RunAiAssistantService {
         errors: runLogger.errors,
       });
 
-      this.logger.error(`AI Source heavy turn failed: ${message}`, castError(error).stack, {
+      this.logger.error(`AI assistant failed`, castedError.stack, {
         dataMartId: command.dataMartId,
         projectId: command.projectId,
         sessionId: command.sessionId,

@@ -61,10 +61,10 @@ export class CreateAiAssistantMessageService {
       userMessageId: userMessage.id,
     });
 
-    this.logger.log('ai_session_run', {
-      correlationId: command.correlationId ?? null,
+    this.logger.log('ai_assistant_run', {
+      correlationId: command.correlationId,
       sessionId: session.id,
-      templateId: session.templateId ?? null,
+      templateId: session.templateId,
       userMessageId: userMessage.id,
       runId,
     });

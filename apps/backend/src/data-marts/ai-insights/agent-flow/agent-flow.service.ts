@@ -39,7 +39,7 @@ export class AgentFlowService {
         context.lastGeneratedSqlReasonDescription ?? result.reasonDescription ?? result.explanation;
       const diagnostics = context.lastGeneratedSqlDiagnostics;
 
-      this.logger.log('AgentFlowService: completed', { context, result });
+      this.logger.log('ai_assistant_completed', { context, result });
 
       return {
         status: 'ok',

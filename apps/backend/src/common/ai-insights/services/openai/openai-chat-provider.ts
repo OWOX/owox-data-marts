@@ -32,6 +32,7 @@ import {
   GPT5_CHAT_COMPLETIONS_MODEL_OPTIONS_ADAPTER,
   OpenAiModelRequestOptionsAdapter,
 } from './openai-model-request-options.adapter';
+import { measureExecutionTime } from '../../../utils/measure-execution-time';
 
 /**
  * OpenAI-specific adapter that maps our domain-level request/response
@@ -95,31 +96,32 @@ export class OpenAiChatProvider implements AiChatProvider {
   private async executeChat(request: AiChatRequest): Promise<AiChatResponse> {
     const body = this.buildRequestBody(request);
 
-    const start = performance.now();
-    const res = await fetchWithBackoff(
-      `${this.baseUrl}/chat/completions`,
-      {
-        method: 'POST',
-        headers: {
-          'content-type': 'application/json; charset=utf-8',
-          authorization: `Bearer ${this.apiKey}`,
+    const measuredFetch = await measureExecutionTime(() =>
+      fetchWithBackoff(
+        `${this.baseUrl}/chat/completions`,
+        {
+          method: 'POST',
+          headers: {
+            'content-type': 'application/json; charset=utf-8',
+            authorization: `Bearer ${this.apiKey}`,
+          },
+          body: JSON.stringify(body),
         },
-        body: JSON.stringify(body),
-      },
-      this.requestTimeout
+        this.requestTimeout
+      )
     );
-    const end = performance.now();
-    const executionMs = end - start;
+    const response = measuredFetch.result;
+    const executionMs = measuredFetch.executionTimeMs;
 
-    if (!res.ok) {
-      const text = await res.text();
-      if (this.isContentFilterResponse(res.status, text)) {
-        throw new AiContentFilterError(this.getProviderName(), res.status, text);
+    if (!response.ok) {
+      const text = await response.text();
+      if (this.isContentFilterResponse(response.status, text)) {
+        throw new AiContentFilterError(this.getProviderName(), response.status, text);
       }
-      throw new AiChatHttpError(this.getProviderName(), res.status, res.statusText, text);
+      throw new AiChatHttpError(this.getProviderName(), response.status, response.statusText, text);
     }
 
-    const data: RawResponse = await res.json();
+    const data: RawResponse = await response.json();
     const choice = data.choices?.[0];
     if (!choice || !choice.message) {
       throw new Error(`${this.getProviderName()} returned no message`);
