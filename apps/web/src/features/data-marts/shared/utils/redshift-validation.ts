@@ -11,16 +11,13 @@
 export const isValidRedshiftFullyQualifiedName = (value: string): boolean => {
   if (!value) return false;
 
-  // Identifier can be:
-  // - Unquoted: [a-zA-Z0-9_-]+
-  // - Quoted: "[^"]+"
-  const identifier = '(?:[a-zA-Z0-9_-]+|"[^"]+")';
-
+  // Only alphanumeric characters, underscores, and hyphens are allowed
+  // Quoted identifiers are NOT allowed to prevent SQL injection
   // Two formats are valid:
   // 1. schema.object (2-level hierarchy)
   // 2. database.schema.object (3-level hierarchy)
-  const twoLevelPattern = new RegExp(`^${identifier}\\.${identifier}$`);
-  const threeLevelPattern = new RegExp(`^${identifier}\\.${identifier}\\.${identifier}$`);
+  const twoLevelPattern = /^[a-zA-Z0-9_-]+\.[a-zA-Z0-9_-]+$/;
+  const threeLevelPattern = /^[a-zA-Z0-9_-]+\.[a-zA-Z0-9_-]+\.[a-zA-Z0-9_-]+$/;
 
   return twoLevelPattern.test(value) || threeLevelPattern.test(value);
 };
@@ -34,19 +31,13 @@ export const isValidRedshiftFullyQualifiedName = (value: string): boolean => {
 export const isValidRedshiftTablePattern = (value: string): boolean => {
   if (!value) return false;
 
-  // Identifier can be:
-  // - Unquoted: [a-zA-Z0-9_-]+ (with optional wildcards for table names)
-  // - Quoted: "[^"]+"
-  const identifier = '(?:[a-zA-Z0-9_-]+|"[^"]+")';
-  const identifierWithWildcard = '(?:[a-zA-Z0-9_\\-*]+|"[^"]+")';
-
+  // Only alphanumeric characters, underscores, hyphens, and wildcards are allowed
+  // Quoted identifiers are NOT allowed to prevent SQL injection
   // Two formats are valid:
   // 1. schema.table_* (2-level hierarchy with wildcards)
   // 2. database.schema.table_* (3-level hierarchy with wildcards)
-  const twoLevelPatternRegex = new RegExp(`^${identifier}\\.${identifierWithWildcard}$`);
-  const threeLevelPatternRegex = new RegExp(
-    `^${identifier}\\.${identifier}\\.${identifierWithWildcard}$`
-  );
+  const twoLevelPatternRegex = /^[a-zA-Z0-9_-]+\.[a-zA-Z0-9_\-*]+$/;
+  const threeLevelPatternRegex = /^[a-zA-Z0-9_-]+\.[a-zA-Z0-9_-]+\.[a-zA-Z0-9_\-*]+$/;
 
   return twoLevelPatternRegex.test(value) || threeLevelPatternRegex.test(value);
 };

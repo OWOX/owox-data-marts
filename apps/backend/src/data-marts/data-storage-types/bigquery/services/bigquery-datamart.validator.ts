@@ -11,6 +11,12 @@ import {
 } from '../../interfaces/data-mart-validator.interface';
 import { BigQueryApiAdapterFactory } from '../adapters/bigquery-api-adapter.factory';
 import { BigQueryQueryBuilder } from './bigquery-query.builder';
+import {
+  isConnectorDefinition,
+  isTableDefinition,
+  isViewDefinition,
+} from '../../../dto/schemas/data-mart-table-definitions/data-mart-definition.guards';
+import { isValidBigQueryFullyQualifiedName } from '../utils/bigquery-validation.utils';
 
 @Injectable()
 export class BigQueryDataMartValidator implements DataMartValidator {
@@ -27,6 +33,12 @@ export class BigQueryDataMartValidator implements DataMartValidator {
     config: DataStorageConfig,
     credentials: DataStorageCredentials
   ): Promise<ValidationResult> {
+    // Validate fullyQualifiedName for table/view/connector definitions to prevent SQL injection
+    const identifierValidation = this.validateIdentifiers(definition);
+    if (!identifierValidation.valid) {
+      return identifierValidation;
+    }
+
     if (!isBigQueryCredentials(credentials)) {
       return ValidationResult.failure('Invalid credentials');
     }
@@ -42,5 +54,26 @@ export class BigQueryDataMartValidator implements DataMartValidator {
       this.logger.warn('Dry run failed', error);
       return ValidationResult.failure(error instanceof Error ? error.message : String(error));
     }
+  }
+
+  /**
+   * Validates identifiers in the data mart definition to prevent SQL injection
+   * @param definition - The data mart definition
+   * @returns ValidationResult indicating success or failure
+   */
+  private validateIdentifiers(definition: DataMartDefinition): ValidationResult {
+    let identifierToValidate: string | undefined;
+
+    if (isTableDefinition(definition) || isViewDefinition(definition)) {
+      identifierToValidate = definition.fullyQualifiedName;
+    } else if (isConnectorDefinition(definition)) {
+      identifierToValidate = definition.connector.storage.fullyQualifiedName;
+    }
+
+    if (identifierToValidate && !isValidBigQueryFullyQualifiedName(identifierToValidate)) {
+      return ValidationResult.failure('Invalid identifier format. Expected: project.dataset.table');
+    }
+
+    return ValidationResult.success();
   }
 }
