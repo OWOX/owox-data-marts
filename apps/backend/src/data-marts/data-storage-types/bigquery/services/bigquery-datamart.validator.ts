@@ -20,7 +20,7 @@ import { isValidBigQueryFullyQualifiedName } from '../utils/bigquery-validation.
 
 @Injectable()
 export class BigQueryDataMartValidator implements DataMartValidator {
-  readonly logger = new Logger(BigQueryDataMartValidator.name);
+  protected readonly logger = new Logger(BigQueryDataMartValidator.name);
   readonly type: DataStorageType = DataStorageType.GOOGLE_BIGQUERY;
 
   constructor(

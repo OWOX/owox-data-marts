@@ -20,3 +20,20 @@ export const isValidBigQueryFullyQualifiedName = (value: string): boolean => {
   const pattern = /^[a-zA-Z0-9_-]+\.[a-zA-Z0-9_-]+\.[a-zA-Z0-9_-]+$/;
   return pattern.test(value);
 };
+
+/**
+ * Validates if a string matches the BigQuery table pattern format
+ * Format: project.dataset.table_* (with wildcard)
+ * Only alphanumeric characters, underscores, hyphens, and wildcards are allowed
+ * Quoted identifiers are NOT allowed to prevent SQL injection
+ * @param value - The string to validate
+ * @returns Boolean indicating if the string is valid
+ * @see {@link https://cloud.google.com/bigquery/docs/reference/standard-sql/lexical} BigQuery Identifier Syntax
+ */
+export const isValidBigQueryTablePattern = (value: string): boolean => {
+  if (!value) return false;
+  // Format: project.dataset.table_*
+  // Project and dataset must be specified explicitly, but table name can have wildcards
+  const patternRegex = /^[a-zA-Z0-9_-]+\.[a-zA-Z0-9_-]+\.[a-zA-Z0-9_*]+$/;
+  return patternRegex.test(value);
+};

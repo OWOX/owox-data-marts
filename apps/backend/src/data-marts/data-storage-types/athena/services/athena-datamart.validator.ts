@@ -48,10 +48,10 @@ export class AthenaDataMartValidator implements DataMartValidator {
     }
 
     if (!isAthenaCredentials(credentials)) {
-      return new ValidationResult(false, 'Invalid credentials');
+      return ValidationResult.failure('Invalid credentials');
     }
     if (!isAthenaConfig(config)) {
-      return new ValidationResult(false, 'Invalid config');
+      return ValidationResult.failure('Invalid config');
     }
     try {
       const adapter = this.adapterFactory.create(credentials, config);
@@ -59,10 +59,10 @@ export class AthenaDataMartValidator implements DataMartValidator {
       const query = this.athenaQueryBuilder.buildQuery(definition);
       await adapter.executeDryRunQuery(query, config.outputBucket);
 
-      return new ValidationResult(true);
+      return ValidationResult.success();
     } catch (error) {
       this.logger.log('Athena dry run failed', error);
-      return new ValidationResult(false, error.message);
+      return ValidationResult.failure(error instanceof Error ? error.message : String(error));
     }
   }
 
