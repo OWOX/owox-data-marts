@@ -8,7 +8,7 @@ describe('isValidSnowflakeFullyQualifiedName', () => {
     expect(isValidSnowflakeFullyQualifiedName('db.schema.table')).toBe(true);
     expect(isValidSnowflakeFullyQualifiedName('my_db.my_schema.my_table')).toBe(true);
     expect(isValidSnowflakeFullyQualifiedName('DB_1.SCHEMA_1.TABLE_1')).toBe(true);
-    expect(isValidSnowflakeFullyQualifiedName('db$schema$table')).toBe(true);
+    expect(isValidSnowflakeFullyQualifiedName('db.$schema.$table')).toBe(true); // dollar signs allowed in Snowflake
   });
 
   it('should return false for SQL injection attempts with double quotes', () => {
@@ -49,7 +49,7 @@ describe('isValidSnowflakeTablePattern', () => {
     expect(isValidSnowflakeTablePattern('db.schema.table_*')).toBe(true);
     expect(isValidSnowflakeTablePattern('my_db.my_schema.my_table_*')).toBe(true);
     expect(isValidSnowflakeTablePattern('db.schema.*')).toBe(true);
-    expect(isValidSnowflakeTablePattern('db$schema$table_*')).toBe(true);
+    expect(isValidSnowflakeTablePattern('db.$schema.$table_*')).toBe(true); // dollar signs allowed in Snowflake
   });
 
   it('should return false for SQL injection attempts', () => {

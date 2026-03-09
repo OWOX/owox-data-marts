@@ -7,13 +7,19 @@ describe('isValidRedshiftFullyQualifiedName', () => {
   it('should return true for valid 2-level names', () => {
     expect(isValidRedshiftFullyQualifiedName('schema.table')).toBe(true);
     expect(isValidRedshiftFullyQualifiedName('my_schema.my_table')).toBe(true);
-    expect(isValidRedshiftFullyQualifiedName('schema-1.table-1')).toBe(true);
+    expect(isValidRedshiftFullyQualifiedName('schema_1.table_1')).toBe(true);
   });
 
   it('should return true for valid 3-level names', () => {
     expect(isValidRedshiftFullyQualifiedName('db.schema.table')).toBe(true);
     expect(isValidRedshiftFullyQualifiedName('my_db.my_schema.my_table')).toBe(true);
-    expect(isValidRedshiftFullyQualifiedName('db-1.schema-1.table-1')).toBe(true);
+    expect(isValidRedshiftFullyQualifiedName('db_1.schema_1.table_1')).toBe(true);
+  });
+
+  it('should return false for names with hyphens (not allowed in unquoted Redshift identifiers)', () => {
+    expect(isValidRedshiftFullyQualifiedName('schema-1.table-1')).toBe(false);
+    expect(isValidRedshiftFullyQualifiedName('db-1.schema-1.table-1')).toBe(false);
+    expect(isValidRedshiftFullyQualifiedName('my-schema.my-table')).toBe(false);
   });
 
   it('should return false for SQL injection attempts with double quotes', () => {

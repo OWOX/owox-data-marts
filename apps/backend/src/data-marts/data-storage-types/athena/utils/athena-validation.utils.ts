@@ -1,6 +1,8 @@
 /**
  * Backend validation utilities for Athena fully qualified names
  * Format: database.table or catalog.database.table
+ *
+ * @see {@link https://docs.aws.amazon.com/athena/latest/ug/tables-databases-columns-names.html} Athena Naming Rules
  */
 
 /**
@@ -10,6 +12,7 @@
  * Quoted identifiers are NOT allowed to prevent SQL injection
  * @param value - The string to validate
  * @returns Boolean indicating if the string is valid
+ * @see {@link https://docs.aws.amazon.com/athena/latest/ug/tables-databases-columns-names.html} Athena Naming Rules
  */
 export const isValidAthenaFullyQualifiedName = (value: string): boolean => {
   if (!value) return false;
@@ -30,6 +33,7 @@ export const isValidAthenaFullyQualifiedName = (value: string): boolean => {
  * Quoted identifiers are NOT allowed to prevent SQL injection
  * @param value - The string to validate
  * @returns Boolean indicating if the string is valid
+ * @see {@link https://docs.aws.amazon.com/athena/latest/ug/tables-databases-columns-names.html} Athena Naming Rules
  */
 export const isValidAthenaTablePattern = (value: string): boolean => {
   if (!value) return false;

@@ -1,6 +1,8 @@
 /**
  * Backend validation utilities for Snowflake fully qualified names
  * Format: database.schema.table
+ *
+ * @see {@link https://docs.snowflake.com/en/sql-reference/identifiers.html} Snowflake Identifier Syntax
  */
 
 /**
@@ -10,6 +12,7 @@
  * Quoted identifiers are NOT allowed to prevent SQL injection
  * @param value - The string to validate
  * @returns Boolean indicating if the string is valid
+ * @see {@link https://docs.snowflake.com/en/sql-reference/identifiers.html} Snowflake Identifier Syntax
  */
 export const isValidSnowflakeFullyQualifiedName = (value: string): boolean => {
   if (!value) return false;
@@ -25,6 +28,7 @@ export const isValidSnowflakeFullyQualifiedName = (value: string): boolean => {
  * Quoted identifiers are NOT allowed to prevent SQL injection
  * @param value - The string to validate
  * @returns Boolean indicating if the string is valid
+ * @see {@link https://docs.snowflake.com/en/sql-reference/identifiers.html} Snowflake Identifier Syntax
  */
 export const isValidSnowflakeTablePattern = (value: string): boolean => {
   if (!value) return false;

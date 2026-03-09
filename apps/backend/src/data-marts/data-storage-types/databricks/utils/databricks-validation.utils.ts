@@ -1,6 +1,8 @@
 /**
  * Backend validation utilities for Databricks fully qualified names
  * Format: catalog.schema.table
+ *
+ * @see {@link https://docs.databricks.com/en/sql/language-manual/sql-ref-names.html} Databricks Naming Rules
  */
 
 /**
@@ -10,6 +12,7 @@
  * Backtick quoting is NOT allowed to prevent SQL injection
  * @param value - The string to validate
  * @returns Boolean indicating if the string is valid
+ * @see {@link https://docs.databricks.com/en/sql/language-manual/sql-ref-names.html} Databricks Unity Catalog Naming Rules
  */
 export const isValidDatabricksFullyQualifiedName = (value: string): boolean => {
   if (!value) return false;
@@ -25,6 +28,7 @@ export const isValidDatabricksFullyQualifiedName = (value: string): boolean => {
  * Backtick quoting is NOT allowed to prevent SQL injection
  * @param value - The string to validate
  * @returns Boolean indicating if the string is valid
+ * @see {@link https://docs.databricks.com/en/sql/language-manual/sql-ref-names.html} Databricks Unity Catalog Naming Rules
  */
 export const isValidDatabricksTablePattern = (value: string): boolean => {
   if (!value) return false;
