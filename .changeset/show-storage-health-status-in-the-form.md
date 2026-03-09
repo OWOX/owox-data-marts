@@ -8,7 +8,7 @@ This update improves visibility of the storage connection status when configurin
 
 Users can now see whether the storage access is valid directly in the **General** section of the configuration form. This provides immediate feedback that the storage is correctly configured and ready to be used by Data Marts.
 
-## Benefits
+**Benefits:**
 
 - Instantly understand if the storage connection is working
 - Quickly detect configuration issues
