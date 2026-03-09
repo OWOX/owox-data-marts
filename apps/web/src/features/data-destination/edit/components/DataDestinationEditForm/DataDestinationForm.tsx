@@ -100,7 +100,7 @@ export function DataDestinationForm({
       selectedSource,
       onSourceClear: handleSourceClear,
     }),
-    [destinationId, selectedSource]
+    [destinationId, selectedSource, handleSourceSelect, handleSourceClear]
   );
 
   const handleSubmit = async (data: DataDestinationFormData) => {

@@ -123,7 +123,7 @@ export function DataStorageForm({
       selectedSource,
       onSourceClear: handleSourceClear,
     }),
-    [storageId, selectedSource]
+    [storageId, selectedSource, handleSourceSelect, handleSourceClear]
   );
 
   const handleSubmit = async (data: DataStorageFormData) => {

@@ -104,7 +104,7 @@ apiClient.interceptors.response.use(
       }
     }
 
-    const skipErrorToast = (error.config as AxiosRequestConfig)?.skipErrorToast;
+    const skipErrorToast = (error.config as AxiosRequestConfig | undefined)?.skipErrorToast;
 
     if (error.response?.status === 404 && !skipErrorToast) {
       showApiErrorToast(error, 'Resource not found');
