@@ -2,6 +2,7 @@ import {
   DataMartStatus,
   DataMartValidationError,
   DATA_MART_VALIDATION_ERROR_MESSAGES,
+  DATA_MART_REQUIRED_ACTIONS,
 } from '../enums';
 import type { DataMart } from '../../edit';
 import { isDataStorageConfigValid } from '../../../data-storage';
@@ -39,6 +40,15 @@ export const validateDataMartForPublishing = (dataMart: DataMart): DataMartValid
  */
 export const getValidationErrorMessages = (errors: DataMartValidationError[]): string[] => {
   return errors.map(error => DATA_MART_VALIDATION_ERROR_MESSAGES[error]);
+};
+
+/**
+ * Get required setup actions from error codes
+ * @param errors - Array of validation error codes
+ * @returns Array of required setup actions
+ */
+export const getRequiredSetupActions = (errors: DataMartValidationError[]): string[] => {
+  return errors.map(error => DATA_MART_REQUIRED_ACTIONS[error]);
 };
 
 /**

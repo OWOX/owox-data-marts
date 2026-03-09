@@ -15,3 +15,12 @@ export const DATA_MART_VALIDATION_ERROR_MESSAGES: Record<DataMartValidationError
   [DataMartValidationError.INVALID_STORAGE]: 'Data mart must have a valid storage',
   [DataMartValidationError.MISSING_DEFINITION]: 'Data Mart must have an input source configured',
 };
+
+/**
+ * Data mart required setup actions
+ */
+export const DATA_MART_REQUIRED_ACTIONS: Record<DataMartValidationError, string> = {
+  [DataMartValidationError.ALREADY_PUBLISHED]: 'Data Mart is already published',
+  [DataMartValidationError.INVALID_STORAGE]: 'complete storage configuration',
+  [DataMartValidationError.MISSING_DEFINITION]: 'configure an input source',
+};
