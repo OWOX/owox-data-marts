@@ -12,22 +12,13 @@ import {
   FormMessage,
 } from '@owox/ui/components/form';
 import { Input } from '@owox/ui/components/input';
-import {
-  Select,
-  SelectContent,
-  SelectGroup,
-  SelectItem,
-  SelectSeparator,
-  SelectTrigger,
-  SelectValue,
-} from '@owox/ui/components/select';
 import { Plus } from 'lucide-react';
 import { useEffect, useState } from 'react';
+import { Combobox } from '../../../../shared/components/Combobox/combobox';
 import { useForm } from 'react-hook-form';
 import { DataStorageHealthIndicator, DataStorageType } from '../../../data-storage';
 import { DataStorageTypeDialog } from '../../../data-storage/shared/components/DataStorageTypeDialog';
 import { useDataStorage } from '../../../data-storage/shared/model/hooks/useDataStorage';
-import { DataStorageTypeModel } from '../../../data-storage/shared/types/data-storage-type.model.ts';
 import { type DataMart, type DataMartFormData, dataMartSchema, useDataMartForm } from '../model';
 
 interface DataMartFormProps {
@@ -87,7 +78,15 @@ export function DataMartCreateForm({ initialData, onSuccess }: DataMartFormProps
     setIsDataStorageTypeDialogOpen(false);
     setIsCreatingDataStorage(false);
   };
-
+  const storageOptions = [
+    ...[...dataStorages]
+      .sort((a, b) => a.title.localeCompare(b.title))
+      .map(storage => ({
+        value: storage.id,
+        label: storage.title,
+      })),
+    { value: 'create_new', label: 'Create new storage' },
+  ];
   return (
     <>
       <Form {...form}>
@@ -127,7 +126,9 @@ export function DataMartCreateForm({ initialData, onSuccess }: DataMartFormProps
                 <FormItem>
                   <FormLabel>Storage</FormLabel>
                   <FormControl>
-                    <Select
+                    <Combobox
+                      options={storageOptions}
+                      value={field.value}
                       onValueChange={value => {
                         if (value === 'create_new') {
                           selectDataStorageType();
@@ -135,48 +136,30 @@ export function DataMartCreateForm({ initialData, onSuccess }: DataMartFormProps
                           field.onChange(value);
                         }
                       }}
-                      value={field.value}
+                      placeholder={loadingStorages ? 'Loading...' : 'Select a storage'}
+                      emptyMessage='No storages found'
                       disabled={isSubmitting || loadingStorages}
-                    >
-                      <SelectTrigger className='w-full'>
-                        <SelectValue placeholder='Select a storage' />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectGroup>
-                          {loadingStorages && (
-                            <SelectItem value='loading' disabled>
-                              Loading...
-                            </SelectItem>
-                          )}
-                          {!loadingStorages &&
-                            dataStorages.map(storage => {
-                              const Icon = DataStorageTypeModel.getInfo(storage.type).icon;
-                              return (
-                                <SelectItem key={storage.id} value={storage.id}>
-                                  <div className='flex items-center gap-2'>
-                                    <DataStorageHealthIndicator
-                                      storageId={storage.id}
-                                      storageTitle={storage.title}
-                                      hovercardSide='left'
-                                    />
-                                    <Icon size={20} />
-                                    <span>{storage.title}</span>
-                                  </div>
-                                </SelectItem>
-                              );
-                            })}
-                          {!loadingStorages && dataStorages.length > 0 && <SelectSeparator />}
-                          <SelectItem value='create_new'>
-                            <div className='flex items-center gap-2'>
-                              <div className='flex h-5 w-5 items-center justify-center'>
-                                <Plus size={20} />
-                              </div>
-                              <span>Create new storage</span>
+                      className='w-full'
+                      renderLabel={option =>
+                        option.value === 'create_new' ? (
+                          <div className='flex min-w-0 items-center gap-2'>
+                            <div className='flex h-6 w-6 items-center justify-center'>
+                              <Plus size={16} />
                             </div>
-                          </SelectItem>
-                        </SelectGroup>
-                      </SelectContent>
-                    </Select>
+                            <span className='truncate'>{option.label}</span>
+                          </div>
+                        ) : (
+                          <div className='flex min-w-0 items-center gap-2'>
+                            <DataStorageHealthIndicator
+                              storageId={option.value}
+                              storageTitle={option.label}
+                              hovercardSide='left'
+                            />
+                            <span className='truncate'>{option.label}</span>
+                          </div>
+                        )
+                      }
+                    />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
