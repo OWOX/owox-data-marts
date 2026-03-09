@@ -52,34 +52,3 @@ export function escapeAthenaIdentifier(identifier: string): string {
     })
     .join('.');
 }
-
-/**
- * Validates if a string is a safe Athena identifier without dangerous characters
- * This is a defense-in-depth check to catch potential injection attempts
- * @param identifier - The identifier to validate
- * @returns Boolean indicating if the identifier is safe
- */
-export function isValidAthenaIdentifier(identifier: string): boolean {
-  if (!identifier || identifier.length === 0) {
-    return false;
-  }
-
-  // Check for potentially dangerous characters/patterns that could indicate SQL injection
-  const dangerousPatterns = [
-    /;.*(?:SELECT|INSERT|UPDATE|DELETE|DROP|CREATE|ALTER|EXEC|UNION)/i, // SQL keywords after semicolon
-    /\b(?:SELECT|INSERT|UPDATE|DELETE|DROP|CREATE|ALTER|EXEC)\b/i, // Standalone SQL keywords
-    /\bUNION\b.*\bSELECT\b/i, // UNION SELECT pattern
-    /--/, // SQL comment
-    /\/\*/, // Multi-line comment start
-    /\\x/, // Hex encoding attempt
-    /(?:\b|\s+)(?:OR|AND)\s+["']?[\d\w]+["']?\s*=\s*["']?[\d\w]+["']?/i, // Boolean-based injection
-  ];
-
-  for (const pattern of dangerousPatterns) {
-    if (pattern.test(identifier)) {
-      return false;
-    }
-  }
-
-  return true;
-}

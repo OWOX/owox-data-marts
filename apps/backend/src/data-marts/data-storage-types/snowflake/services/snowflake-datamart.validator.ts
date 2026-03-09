@@ -33,7 +33,6 @@ export class SnowflakeDataMartValidator implements DataMartValidator {
     config: DataStorageConfig,
     credentials: DataStorageCredentials
   ): Promise<ValidationResult> {
-    // Validate fullyQualifiedName for table/view/connector definitions to prevent SQL injection
     const identifierValidation = this.validateIdentifiers(definition);
     if (!identifierValidation.valid) {
       return identifierValidation;

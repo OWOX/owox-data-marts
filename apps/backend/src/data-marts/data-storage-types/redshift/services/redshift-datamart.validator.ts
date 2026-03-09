@@ -41,7 +41,6 @@ export class RedshiftDataMartValidator implements DataMartValidator {
       return ValidationResult.failure('Incompatible data storage credentials');
     }
 
-    // Validate fullyQualifiedName for table/view/connector definitions to prevent SQL injection
     const identifierValidation = this.validateIdentifiers(dataMartDefinition);
     if (!identifierValidation.valid) {
       return identifierValidation;
