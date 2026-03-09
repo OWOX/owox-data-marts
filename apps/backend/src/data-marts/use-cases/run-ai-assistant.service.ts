@@ -21,9 +21,15 @@ import { AiAssistantSessionService } from '../services/ai-assistant-session.serv
 import { AgentFlowContextManager } from '../services/agent-flow-context-manager.service';
 import { castError } from '@owox/internal-helpers';
 import {
+  MeasuredExecutionResult,
   measureExecutionTime,
   toMeasuredExecutionBaseResult,
 } from '../../common/utils/measure-execution-time';
+import { ClsContextService } from '../../common/logger/cls-context.service';
+import {
+  AI_ASSISTANT_LOG_CONTEXT,
+  AiAssistantLogContext,
+} from '../ai-insights/ai-assistant-log-context';
 
 export class RunAiAssistantCommand {
   constructor(
@@ -51,23 +57,16 @@ export class RunAiAssistantService {
     private readonly aiAssistantSessionService: AiAssistantSessionService,
     private readonly agentFlowService: AgentFlowService,
     private readonly agentFlowContextManager: AgentFlowContextManager,
-    private readonly systemTimeService: SystemTimeService
+    private readonly systemTimeService: SystemTimeService,
+    private readonly clsContextService: ClsContextService
   ) {}
 
   async run(command: RunAiAssistantCommand): Promise<RunAiAssistantResult> {
-    const measured = await measureExecutionTime(() => this.runCommand(command), {
-      onMeasured: measuredExecution => {
-        this.logger.log('ai_assistant_run_time', {
-          projectId: command.projectId,
-          dataMartId: command.dataMartId,
-          sessionId: command.sessionId,
-          userMessageId: command.userMessageId,
-          measured: toMeasuredExecutionBaseResult(measuredExecution),
-        });
-      },
-    });
-
-    return measured.result;
+    return this.clsContextService.runWithContext(
+      AI_ASSISTANT_LOG_CONTEXT,
+      this.buildInitialLogContext(command),
+      () => this.runMeasured(() => this.runCommand(command))
+    );
   }
 
   private async runCommand(command: RunAiAssistantCommand): Promise<RunAiAssistantResult> {
@@ -90,12 +89,14 @@ export class RunAiAssistantService {
         command.projectId,
         command.userId
       );
+    this.clsContextService.update(AI_ASSISTANT_LOG_CONTEXT, { templateId: session.templateId });
 
     const run = await this.dataMartRunService.createAndMarkAiSourceRunAsPending(dataMart, session, {
       createdById: command.userId,
       runType: RunType.manual,
       turnId: command.userMessageId,
     });
+    this.clsContextService.update(AI_ASSISTANT_LOG_CONTEXT, { runId: run.id });
 
     await this.dataMartRunService.markAiSourceRunAsStarted(run);
 
@@ -187,6 +188,7 @@ export class RunAiAssistantService {
         },
       });
       assistantMessageId = assistantMessage.id;
+      this.clsContextService.update(AI_ASSISTANT_LOG_CONTEXT, { assistantMessageId });
 
       const isSuccess = agentResponse.status !== 'error';
       if (!isSuccess) {
@@ -226,15 +228,33 @@ export class RunAiAssistantService {
         errors: runLogger.errors,
       });
 
-      this.logger.error(`AI assistant failed`, castedError.stack, {
-        dataMartId: command.dataMartId,
-        projectId: command.projectId,
-        sessionId: command.sessionId,
-        runId: run.id,
-        userId: command.userId,
+      this.logger.error('AI assistant failed', castedError.stack, {
+        errorMessage: castedError.message,
       });
 
       throw error;
     }
+  }
+
+  private buildInitialLogContext(command: RunAiAssistantCommand): AiAssistantLogContext {
+    return {
+      projectId: command.projectId,
+      dataMartId: command.dataMartId,
+      userId: command.userId,
+      sessionId: command.sessionId,
+      userMessageId: command.userMessageId,
+    };
+  }
+
+  private async runMeasured<T>(callable: () => Promise<T>): Promise<T> {
+    const measured = await measureExecutionTime(callable, {
+      onMeasured: (measuredExecution: MeasuredExecutionResult<T>) => {
+        this.logger.log('AiAssistantRunTime', {
+          measured: toMeasuredExecutionBaseResult(measuredExecution),
+        });
+      },
+    });
+
+    return measured.result;
   }
 }

@@ -433,7 +433,7 @@ async function executeToolCalls(params: {
       const parallelTools = readyBatch
         .map(call => `${call.toolCall.name}#${call.index}`)
         .join(', ');
-      logger.log(`Executing tools in parallel: ${parallelTools}`);
+      logger.log(`AiAssistantTools | Run in parallel: ${parallelTools}`);
     }
 
     const settledBatch = await Promise.allSettled(
@@ -487,7 +487,7 @@ async function executeToolCalls(params: {
           result: toolResult,
         });
 
-        logger.log(`Executed tool: ${toolCall.name}`, { arguments: argsJson });
+        logger.log(`AiAssistantTools | Executed tool: ${toolCall.name}`, { arguments: argsJson });
 
         const processor = messageProcessors?.[toolCall.name];
 

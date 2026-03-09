@@ -13,8 +13,7 @@ describe('CreateAiAssistantMessageService', () => {
     'data-mart-1',
     'project-1',
     'user-1',
-    'Build source',
-    null
+    'Build source'
   );
 
   const session = {

@@ -419,7 +419,7 @@ describe('runAgentLoop', () => {
     expect(events).toContain('B_start');
     expect(telemetry.toolCalls.every(call => call.success)).toBe(true);
     expect((loggerMock.log as jest.Mock).mock.calls).toEqual(
-      expect.arrayContaining([[expect.stringContaining('Executing tools in parallel:')]])
+      expect.arrayContaining([[expect.stringContaining('AiAssistantTools | Run in parallel:')]])
     );
   });
 

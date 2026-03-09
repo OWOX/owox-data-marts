@@ -9,6 +9,7 @@ import { SchedulerModule } from './scheduler/scheduler.module';
 import { ProducerModule } from './producer/producer.module.js';
 import { AppEditionLicenseRefresherService } from './config/app-edition-license-refresher.service';
 import { AiInsightsConfigService } from './ai-insights/services/ai-insights-config.service';
+import { ClsContextService } from './logger/cls-context.service';
 
 @Module({
   imports: [SchedulerModule, ProducerModule, EmailModule],
@@ -27,6 +28,7 @@ import { AiInsightsConfigService } from './ai-insights/services/ai-insights-conf
     AppEditionLicenseRefresherService,
     MarkdownParser,
     AiInsightsConfigService,
+    ClsContextService,
     InternalApiGuard,
   ],
   exports: [
@@ -36,6 +38,7 @@ import { AiInsightsConfigService } from './ai-insights/services/ai-insights-conf
     PublicOriginService,
     AppEditionConfig,
     AiInsightsConfigService,
+    ClsContextService,
     MarkdownParser,
     InternalApiGuard,
   ],

@@ -39,7 +39,7 @@ export class AiInsightsFacadeImpl implements AiInsightsFacade {
         () => this.aiInsightsAgentService.answerPrompt(request),
         {
           onMeasured: measuredExecution => {
-            this.logger.log('ai_insights_answer_prompt_time', {
+            this.logger.log('AiInsightsAnswerPromptTime', {
               projectId: request.projectId,
               dataMartId: request.dataMartId,
               measure: toMeasuredExecutionBaseResult(measuredExecution),

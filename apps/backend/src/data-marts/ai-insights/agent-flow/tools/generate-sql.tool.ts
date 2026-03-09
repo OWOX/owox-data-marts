@@ -129,11 +129,11 @@ export class GenerateSqlTool {
 
     const { delegatedRequest, baseAssistantMessageId, hasBaseSql, refineBaseOrigin } =
       await this.buildDelegatedRequest(args, request);
-    this.logger.debug('GenerateSqlTool: orchestrator request', { request, delegatedRequest });
+    this.logger.debug('AiAssistant | Request', { request, delegatedRequest });
 
     const response = await this.orchestrator.run(delegatedRequest, args.mode);
 
-    this.logger.log('GenerateSqlTool: orchestrator response', {
+    this.logger.log('AiAssistant | Response', {
       status: response.status,
       decision: response.decision,
       mode: args.mode,
