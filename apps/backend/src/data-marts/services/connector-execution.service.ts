@@ -559,7 +559,7 @@ export class ConnectorExecutionService {
       );
 
       const runnerPath = require.resolve('@owox/connectors/runner');
-      const node = spawn('node', [runnerPath], {
+      const node = spawn('node', ['--no-deprecation', runnerPath], {
         stdio: spawnStdio,
         env,
         detached: true,
