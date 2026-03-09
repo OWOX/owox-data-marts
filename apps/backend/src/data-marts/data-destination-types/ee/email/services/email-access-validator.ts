@@ -8,7 +8,7 @@ import {
   DataDestinationAccessValidator,
   ValidationResult,
 } from '../../../interfaces/data-destination-access-validator.interface';
-import { EmailConfigSchema } from '../schemas/email-config.schema';
+import { EmailConfigInputSchema } from '../schemas/email-config.schema';
 import { EmailCredentialsSchema } from '../schemas/email-credentials.schema';
 
 /**
@@ -43,7 +43,7 @@ abstract class BaseEmailAccessValidator implements DataDestinationAccessValidato
       });
     }
 
-    const configOpt = EmailConfigSchema.safeParse(destinationConfig);
+    const configOpt = EmailConfigInputSchema.safeParse(destinationConfig);
     if (!configOpt.success) {
       this.logger.warn('Invalid configuration format', configOpt.error);
       return new ValidationResult(false, 'Invalid configuration', {

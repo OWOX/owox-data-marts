@@ -10,6 +10,27 @@ export class InsightTemplateService {
     private readonly repository: Repository<InsightTemplate>
   ) {}
 
+  async getByIdAndDataMartIdWithSourceEntities(
+    id: string,
+    dataMartId: string
+  ): Promise<InsightTemplate> {
+    const insightTemplate = await this.repository.findOne({
+      where: {
+        id,
+        dataMart: {
+          id: dataMartId,
+        },
+      },
+      relations: ['sourceEntities'],
+    });
+
+    if (!insightTemplate) {
+      throw new NotFoundException(`InsightTemplate with id ${id} not found`);
+    }
+
+    return insightTemplate;
+  }
+
   async getByIdAndDataMartIdAndProjectId(
     id: string,
     dataMartId: string,

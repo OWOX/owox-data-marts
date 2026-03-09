@@ -84,3 +84,15 @@ export function UpdateReportSpec() {
     })
   );
 }
+
+export function ListReportsByInsightTemplateSpec() {
+  return applyDecorators(
+    ApiOperation({ summary: 'Get all reports for an insight template' }),
+    ApiParam({ name: 'dataMartId', description: 'Data mart ID' }),
+    ApiParam({ name: 'insightTemplateId', description: 'Insight template ID' }),
+    ApiOkResponse({
+      description: 'List of reports for the insight template',
+      type: [ReportResponseApiDto],
+    })
+  );
+}

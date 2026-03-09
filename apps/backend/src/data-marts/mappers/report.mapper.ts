@@ -9,6 +9,7 @@ import { ReportResponseApiDto } from '../dto/presentation/report-response-api.dt
 import { GetReportCommand } from '../dto/domain/get-report.command';
 import { ListReportsByDataMartCommand } from '../dto/domain/list-reports-by-data-mart.command';
 import { ListReportsByProjectCommand } from '../dto/domain/list-reports-by-project.command';
+import { ListReportsByInsightTemplateCommand } from '../dto/domain/list-reports-by-insight-template.command';
 import { RunReportCommand } from '../dto/domain/run-report.command';
 import { AuthorizationContext } from '../../idp';
 import { DataMartMapper } from './data-mart.mapper';
@@ -87,6 +88,18 @@ export class ReportMapper {
     context: AuthorizationContext
   ): ListReportsByDataMartCommand {
     return new ListReportsByDataMartCommand(dataMartId, context.projectId);
+  }
+
+  toListByInsightTemplateCommand(
+    dataMartId: string,
+    insightTemplateId: string,
+    context: AuthorizationContext
+  ): ListReportsByInsightTemplateCommand {
+    return new ListReportsByInsightTemplateCommand(
+      dataMartId,
+      insightTemplateId,
+      context.projectId
+    );
   }
 
   toListByProjectCommand(context: AuthorizationContext): ListReportsByProjectCommand {

@@ -45,6 +45,7 @@ import { CreateReportService } from './use-cases/create-report.service';
 import { GetReportService } from './use-cases/get-report.service';
 import { ListReportsByDataMartService } from './use-cases/list-reports-by-data-mart.service';
 import { ListReportsByProjectService } from './use-cases/list-reports-by-project.service';
+import { ListReportsByInsightTemplateService } from './use-cases/list-reports-by-insight-template.service';
 import { DeleteReportService } from './use-cases/delete-report.service';
 import { RunReportService } from './use-cases/run-report.service';
 import { UpdateReportService } from './use-cases/update-report.service';
@@ -371,6 +372,7 @@ import { GoogleOAuthConfigService } from './services/google-oauth/google-oauth-c
     GetReportService,
     ListReportsByDataMartService,
     ListReportsByProjectService,
+    ListReportsByInsightTemplateService,
     DeleteReportService,
     RunReportService,
     UpdateReportService,
