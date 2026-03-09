@@ -1,3 +1,4 @@
+import { Logger } from '@nestjs/common';
 import { BIGQUERY_AUTODETECT_LOCATION, BigQueryConfig } from '../schemas/bigquery-config.schema';
 import { BigQueryApiAdapterFactory } from '../adapters/bigquery-api-adapter.factory';
 import { BigQueryCreateViewExecutor } from './bigquery-create-view.executor';
@@ -25,6 +26,7 @@ describe('BigQueryCreateViewExecutor', () => {
   } as unknown as jest.Mocked<BigQueryApiAdapterFactory>;
 
   let service: BigQueryCreateViewExecutor;
+  let loggerWarnSpy: jest.SpyInstance;
 
   beforeEach(() => {
     mockAdapter.executeDryRunQuery.mockReset();
@@ -37,8 +39,13 @@ describe('BigQueryCreateViewExecutor', () => {
 
     (mockAdapterFactory.create as jest.Mock).mockReset();
     (mockAdapterFactory.create as jest.Mock).mockReturnValue(mockAdapter);
+    loggerWarnSpy = jest.spyOn(Logger.prototype, 'warn').mockImplementation();
 
     service = new BigQueryCreateViewExecutor(mockAdapterFactory);
+  });
+
+  afterEach(() => {
+    loggerWarnSpy.mockRestore();
   });
 
   it('should skip dry run when location is explicitly configured', async () => {
@@ -50,13 +57,13 @@ describe('BigQueryCreateViewExecutor', () => {
     expect(mockAdapterFactory.create).toHaveBeenCalledWith(credentials, config);
     expect(mockAdapter.executeQuery).toHaveBeenNthCalledWith(
       1,
-      "CREATE SCHEMA IF NOT EXISTS `test-project.owox_internal` OPTIONS(location='EU')"
+      "CREATE SCHEMA IF NOT EXISTS `test-project.owox_internal_eu` OPTIONS(location='EU')"
     );
     expect(mockAdapter.executeQuery).toHaveBeenNthCalledWith(
       2,
-      'CREATE OR REPLACE VIEW `test-project.owox_internal.my_view` AS SELECT 1'
+      'CREATE OR REPLACE VIEW `test-project.owox_internal_eu.my_view` AS SELECT 1'
     );
-    expect(result).toEqual({ fullyQualifiedName: 'test-project.owox_internal.my_view' });
+    expect(result).toEqual({ fullyQualifiedName: 'test-project.owox_internal_eu.my_view' });
   });
 
   it('should execute dry run first when location is AUTODETECT', async () => {
@@ -72,7 +79,7 @@ describe('BigQueryCreateViewExecutor', () => {
     expect(mockAdapter.executeQuery).toHaveBeenCalledTimes(2);
     expect(mockAdapter.executeQuery).toHaveBeenNthCalledWith(
       1,
-      "CREATE SCHEMA IF NOT EXISTS `test-project.owox_internal` OPTIONS(location='EU')"
+      "CREATE SCHEMA IF NOT EXISTS `test-project.owox_internal_eu` OPTIONS(location='EU')"
     );
     expect(mockAdapter.executeDryRunQuery.mock.invocationCallOrder[0]).toBeLessThan(
       mockAdapter.executeQuery.mock.invocationCallOrder[0]
@@ -91,7 +98,81 @@ describe('BigQueryCreateViewExecutor', () => {
     expect(mockAdapter.executeDryRunQuery).toHaveBeenCalledWith(sql);
     expect(mockAdapter.executeQuery).toHaveBeenNthCalledWith(
       1,
-      "CREATE SCHEMA IF NOT EXISTS `test-project.owox_internal` OPTIONS(location='EU')"
+      "CREATE SCHEMA IF NOT EXISTS `test-project.owox_internal_eu` OPTIONS(location='EU')"
     );
+  });
+
+  it('should execute dry run when location is empty', async () => {
+    const configWithEmptyLocation = { projectId: 'test-project', location: '' } as BigQueryConfig;
+
+    await service.createView(credentials, configWithEmptyLocation, 'my_view', sql);
+
+    expect(mockAdapter.executeDryRunQuery).toHaveBeenCalledWith(sql);
+    expect(mockAdapter.executeQuery).toHaveBeenNthCalledWith(
+      1,
+      "CREATE SCHEMA IF NOT EXISTS `test-project.owox_internal_eu` OPTIONS(location='EU')"
+    );
+  });
+
+  it('should execute dry run when location is null', async () => {
+    const configWithNullLocation = {
+      projectId: 'test-project',
+      location: null,
+    } as unknown as BigQueryConfig;
+
+    await service.createView(credentials, configWithNullLocation, 'my_view', sql);
+
+    expect(mockAdapterFactory.create).toHaveBeenCalledWith(credentials, {
+      projectId: 'test-project',
+      location: BIGQUERY_AUTODETECT_LOCATION,
+    });
+    expect(mockAdapter.executeDryRunQuery).toHaveBeenCalledWith(sql);
+  });
+
+  it('should normalize location in internal dataset name', async () => {
+    mockAdapter.executeDryRunQuery.mockResolvedValueOnce({
+      totalBytesProcessed: 0,
+      location: 'us-central1',
+    });
+
+    const config: BigQueryConfig = {
+      projectId: 'test-project',
+      location: BIGQUERY_AUTODETECT_LOCATION,
+    };
+
+    const result = await service.createView(credentials, config, 'my_view', sql);
+
+    expect(mockAdapter.executeQuery).toHaveBeenNthCalledWith(
+      1,
+      "CREATE SCHEMA IF NOT EXISTS `test-project.owox_internal_us_central1` OPTIONS(location='us-central1')"
+    );
+    expect(result).toEqual({
+      fullyQualifiedName: 'test-project.owox_internal_us_central1.my_view',
+    });
+  });
+
+  it('should fallback to US when dry run location cannot be resolved', async () => {
+    mockAdapter.executeDryRunQuery.mockResolvedValueOnce({
+      totalBytesProcessed: 0,
+      location: undefined,
+    });
+
+    const config: BigQueryConfig = {
+      projectId: 'test-project',
+      location: BIGQUERY_AUTODETECT_LOCATION,
+    };
+
+    const result = await service.createView(credentials, config, 'my_view', sql);
+
+    expect(loggerWarnSpy).toHaveBeenCalledWith(
+      'BigQuery dry run did not return location. Falling back to default location US.'
+    );
+    expect(mockAdapter.executeQuery).toHaveBeenNthCalledWith(
+      1,
+      "CREATE SCHEMA IF NOT EXISTS `test-project.owox_internal_us` OPTIONS(location='US')"
+    );
+    expect(result).toEqual({
+      fullyQualifiedName: 'test-project.owox_internal_us.my_view',
+    });
   });
 });

@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import {
   CreateViewExecutor,
   CreateViewResult,
@@ -17,7 +17,10 @@ import {
 
 @Injectable()
 export class BigQueryCreateViewExecutor implements CreateViewExecutor {
+  private static readonly DEFAULT_LOCATION = 'US';
+
   readonly type = DataStorageType.GOOGLE_BIGQUERY;
+  private readonly logger = new Logger(BigQueryCreateViewExecutor.name);
 
   constructor(private readonly adapterFactory: BigQueryApiAdapterFactory) {}
 
@@ -56,13 +59,18 @@ export class BigQueryCreateViewExecutor implements CreateViewExecutor {
     adapter: ReturnType<BigQueryApiAdapterFactory['create']>,
     config: BigQueryConfig,
     sql: string
-  ): Promise<string | undefined> {
-    if (config.location !== BIGQUERY_AUTODETECT_LOCATION) {
-      return config.location;
+  ): Promise<string> {
+    const configuredLocation = config.location;
+    if (configuredLocation && configuredLocation !== BIGQUERY_AUTODETECT_LOCATION) {
+      return configuredLocation;
     }
 
-    // for location auto-detection
+    // Location can be autodetect or empty, so rely on dry-run metadata.
     const dryRunResult = await adapter.executeDryRunQuery(sql);
+    if (!dryRunResult.location) {
+      this.logger.warn('BigQuery dry run did not return location. Use default location US.');
+      return BigQueryCreateViewExecutor.DEFAULT_LOCATION;
+    }
     return dryRunResult.location;
   }
 
@@ -74,7 +82,7 @@ export class BigQueryCreateViewExecutor implements CreateViewExecutor {
     adapter: ReturnType<BigQueryApiAdapterFactory['create']>,
     config: BigQueryConfig,
     viewName: string,
-    location?: string
+    location: string
   ): Promise<string> {
     const projectId = config.projectId;
 
@@ -83,8 +91,8 @@ export class BigQueryCreateViewExecutor implements CreateViewExecutor {
       return viewName;
     }
 
-    // CASE 2 — not fully qualified → use owox_internal as default dataset
-    const datasetId = 'owox_internal';
+    // CASE 2 — not fully qualified → use internal dataset per location
+    const datasetId = this.buildInternalDatasetId(location);
 
     const ddlDataset = this.buildCreateSchemaQuery(projectId, datasetId, location);
     await adapter.executeQuery(ddlDataset);
@@ -92,12 +100,24 @@ export class BigQueryCreateViewExecutor implements CreateViewExecutor {
     return `${projectId}.${datasetId}.${viewName}`;
   }
 
-  private buildCreateSchemaQuery(projectId: string, datasetId: string, location?: string): string {
-    const escapedDataset = `\`${projectId}.${datasetId}\``;
-    if (!location) {
-      return `CREATE SCHEMA IF NOT EXISTS ${escapedDataset}`;
-    }
+  private buildInternalDatasetId(location: string): string {
+    const locationSuffix = this.normalizeLocationForDatasetId(location);
+    return `owox_internal_${locationSuffix}`;
+  }
 
+  private normalizeLocationForDatasetId(location: string): string {
+    const normalizedLocation = location
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9_]+/g, '_')
+      .replace(/_+/g, '_')
+      .replace(/^_+|_+$/g, '');
+
+    return normalizedLocation || BigQueryCreateViewExecutor.DEFAULT_LOCATION.toLowerCase();
+  }
+
+  private buildCreateSchemaQuery(projectId: string, datasetId: string, location: string): string {
+    const escapedDataset = `\`${projectId}.${datasetId}\``;
     return `CREATE SCHEMA IF NOT EXISTS ${escapedDataset} OPTIONS(location='${location}')`;
   }
 }
