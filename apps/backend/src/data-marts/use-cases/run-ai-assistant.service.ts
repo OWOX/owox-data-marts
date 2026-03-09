@@ -31,6 +31,8 @@ import {
   AiAssistantLogContext,
 } from '../ai-insights/ai-assistant-log-context';
 
+const DEFAULT_AI_ASSISTANT_MAX_ROWS = 100;
+
 export class RunAiAssistantCommand {
   constructor(
     public readonly dataMartId: string,
@@ -127,6 +129,9 @@ export class RunAiAssistantService {
           sessionId: session.id,
           scope: session.scope,
           templateId: session.templateId,
+        },
+        options: {
+          maxRows: DEFAULT_AI_ASSISTANT_MAX_ROWS,
         },
       };
 

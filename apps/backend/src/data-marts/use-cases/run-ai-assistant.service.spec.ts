@@ -236,6 +236,14 @@ describe('RunAiAssistantService', () => {
 
     expect(result.runId).toBe('run-1');
     expect(result.assistantMessageId).toBe('assistant-message-1');
+    expect(agentFlowService.run).toHaveBeenCalledWith(
+      expect.objectContaining({
+        options: {
+          maxRows: 100,
+        },
+      }),
+      promptContext
+    );
 
     expect(dataMartRunService.createAndMarkAiSourceRunAsPending).toHaveBeenCalledWith(
       dataMart,

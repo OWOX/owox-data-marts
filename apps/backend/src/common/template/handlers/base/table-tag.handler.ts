@@ -20,8 +20,8 @@ interface TableSourceContext {
   dataRows?: DataTablePayload['dataRows'];
 }
 
-const DEFAULT_TABLE_ROWS = 10;
-const MAX_TABLE_ROWS = 100;
+const DEFAULT_TABLE_ROWS = 100;
+const MAX_TABLE_ROWS = 200;
 
 type SliceFrom = 'start' | 'end';
 
@@ -33,7 +33,7 @@ type SliceFrom = 'start' | 'end';
  *
  * Supported hash parameters:
  *  - `source`  - key in tableSources (default: 'main')
- *  - `limit`   - max rows to display (default: 10, cap: 100)
+ *  - `limit`   - max rows to display (default: 100, cap: 100)
  *  - `from`    - slice origin: "start" (default) or "end"
  *  - `columns` - comma-separated column names/aliases to include
  */

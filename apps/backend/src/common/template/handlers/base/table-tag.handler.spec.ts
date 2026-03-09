@@ -82,6 +82,18 @@ describe('DataTableTagHandler', () => {
       expect(payload.dataRows[0]).toEqual(['0']);
     });
 
+    it('should default to 100 rows and cap the output at 100 rows', () => {
+      const manyRows = Array.from({ length: 120 }, (_, i) => [String(i)]);
+      const context = {
+        tableSources: { main: { dataHeaders: [{ name: 'a' }], dataRows: manyRows } },
+      };
+      const payload = handler.buildPayload([], makeOptions({}), context);
+
+      expect(payload.dataRows).toHaveLength(100);
+      expect(payload.dataRows[0]).toEqual(['0']);
+      expect(payload.dataRows[99]).toEqual(['99']);
+    });
+
     it('should respect from="end"', () => {
       const context = { tableSources: { main: { dataHeaders: headers, dataRows: rows } } };
       const payload = handler.buildPayload([], makeOptions({ limit: 2, from: 'end' }), context);
