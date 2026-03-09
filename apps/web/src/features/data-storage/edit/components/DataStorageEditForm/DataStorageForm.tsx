@@ -138,6 +138,8 @@ export function DataStorageForm({
     return onSubmit(payload, selectedSource);
   };
 
+  const isLegacyGoogleBigQuery = selectedType === DataStorageType.LEGACY_GOOGLE_BIGQUERY;
+
   return (
     <Form {...form}>
       <AppForm
@@ -147,7 +149,7 @@ export function DataStorageForm({
         noValidate
       >
         <FormLayout>
-          <FormSection title='General'>
+          <FormSection title='General' defaultOpen={!isLegacyGoogleBigQuery}>
             <FormField
               control={control}
               name='title'
@@ -158,10 +160,10 @@ export function DataStorageForm({
                     <Input
                       {...field}
                       placeholder='Storage title'
-                      disabled={selectedType === DataStorageType.LEGACY_GOOGLE_BIGQUERY}
+                      disabled={isLegacyGoogleBigQuery}
                     />
                   </FormControl>
-                  {selectedType === DataStorageType.LEGACY_GOOGLE_BIGQUERY && (
+                  {isLegacyGoogleBigQuery && (
                     <FormDescription>
                       <LegacyGoogleBigQueryTitleDescription />
                     </FormDescription>

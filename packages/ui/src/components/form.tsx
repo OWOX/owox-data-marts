@@ -16,7 +16,12 @@ import {
 import { cn } from '@owox/ui/lib/utils';
 import { Label } from '@owox/ui/components/label';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@owox/ui/components/tooltip';
-import { Info } from 'lucide-react';
+import { ChevronRight, Info } from 'lucide-react';
+import {
+  Collapsible,
+  CollapsibleTrigger,
+  CollapsibleContent,
+} from '@owox/ui/components/collapsible';
 
 /**
  * Form context provider for React Hook Form.
@@ -261,16 +266,64 @@ function FormActions({
 /**
  * Section for grouping form fields with optional title.
  */
-function FormSection({ title, children }: { title?: string; children: React.ReactNode }) {
+interface FormSectionProps {
+  title?: string;
+  children: React.ReactNode;
+  defaultOpen?: boolean;
+  collapsible?: boolean;
+}
+
+function FormSection({
+  title,
+  children,
+  defaultOpen = true,
+  collapsible = true,
+}: FormSectionProps) {
+  const [isOpen, setIsOpen] = React.useState(defaultOpen);
+
+  const content = <div className='flex flex-col gap-2'>{children}</div>;
+
+  // Non-collapsible section
+  if (!collapsible) {
+    return (
+      <div data-slot='form-section' className='mb-4'>
+        {title && (
+          <h3 className='text-muted-foreground/75 mb-2 text-xs font-semibold tracking-wide uppercase'>
+            {title}
+          </h3>
+        )}
+        {content}
+      </div>
+    );
+  }
+
   return (
-    <section className='mb-4'>
+    <Collapsible
+      open={isOpen}
+      onOpenChange={setIsOpen}
+      data-slot='form-section'
+      className='mb-4 flex flex-col gap-2'
+    >
       {title && (
-        <h3 className='text-muted-foreground/75 mb-2 text-xs font-semibold tracking-wide uppercase'>
-          {title}
-        </h3>
+        <CollapsibleTrigger asChild>
+          <button type='button' className='flex cursor-pointer items-center gap-1'>
+            <span className='text-muted-foreground/75 text-xs font-semibold tracking-wide uppercase'>
+              {title}
+            </span>
+            <ChevronRight
+              className={cn(
+                'text-foreground/75 h-3.5 w-3.5 transition-transform duration-200',
+                isOpen && 'rotate-90'
+              )}
+            />
+          </button>
+        </CollapsibleTrigger>
       )}
-      <div className='flex flex-col gap-2'>{children}</div>
-    </section>
+
+      <CollapsibleContent className='data-[state=open]:animate-collapsible-down data-[state=closed]:animate-collapsible-up overflow-hidden'>
+        {content}
+      </CollapsibleContent>
+    </Collapsible>
   );
 }
 
