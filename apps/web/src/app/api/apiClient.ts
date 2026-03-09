@@ -14,6 +14,7 @@ import { getTokenProvider } from './token-provider';
 export interface AxiosRequestConfig extends OriginalAxiosRequestConfig {
   skipLoadingIndicator?: boolean;
   skipAuthHeader?: boolean;
+  skipErrorToast?: boolean;
 }
 
 // Extend InternalAxiosRequestConfig to include our custom properties
@@ -103,15 +104,17 @@ apiClient.interceptors.response.use(
       }
     }
 
-    if (error.response?.status === 404) {
+    const skipErrorToast = (error.config as AxiosRequestConfig)?.skipErrorToast;
+
+    if (error.response?.status === 404 && !skipErrorToast) {
       showApiErrorToast(error, 'Resource not found');
     }
 
-    if (error.response?.status === 403) {
+    if (error.response?.status === 403 && !skipErrorToast) {
       showApiErrorToast(error, 'Access forbidden - insufficient permissions');
     }
 
-    if (error.response?.status === 400) {
+    if (error.response?.status === 400 && !skipErrorToast) {
       showApiErrorToast(error, 'Bad request');
     }
     return Promise.reject(error);

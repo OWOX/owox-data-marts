@@ -203,7 +203,7 @@ export class DataMartService extends ApiService {
     const response = await this.get<TaskStatusResponseDto>(
       `/${id}/sql-dry-run-triggers/${triggerId}/status`,
       undefined,
-      { skipLoadingIndicator: true } as AxiosRequestConfig
+      { skipLoadingIndicator: true, skipErrorToast: true } as AxiosRequestConfig
     );
     return response.status;
   }
@@ -221,7 +221,7 @@ export class DataMartService extends ApiService {
     return this.get<SqlValidationResponseDto>(
       `/${id}/sql-dry-run-triggers/${triggerId}`,
       undefined,
-      { skipLoadingIndicator: true } as AxiosRequestConfig
+      { skipLoadingIndicator: true, skipErrorToast: true } as AxiosRequestConfig
     );
   }
 
@@ -234,6 +234,7 @@ export class DataMartService extends ApiService {
   async abortSqlDryRunTrigger(id: string, triggerId: string): Promise<void> {
     await this.delete(`/${id}/sql-dry-run-triggers/${triggerId}`, {
       skipLoadingIndicator: true,
+      skipErrorToast: true,
     } as AxiosRequestConfig);
   }
 
@@ -248,7 +249,7 @@ export class DataMartService extends ApiService {
     const response = await this.get<TaskStatusResponseDto>(
       `/${id}/schema-actualize-triggers/${triggerId}/status`,
       undefined,
-      { skipLoadingIndicator: true } as AxiosRequestConfig
+      { skipLoadingIndicator: true, skipErrorToast: true } as AxiosRequestConfig
     );
     return response.status;
   }
@@ -260,13 +261,14 @@ export class DataMartService extends ApiService {
     return this.get<{ success: boolean; error?: string }>(
       `/${id}/schema-actualize-triggers/${triggerId}`,
       undefined,
-      { skipLoadingIndicator: true } as AxiosRequestConfig
+      { skipLoadingIndicator: true, skipErrorToast: true } as AxiosRequestConfig
     );
   }
 
   async abortSchemaActualizeTrigger(id: string, triggerId: string): Promise<void> {
     await this.delete(`/${id}/schema-actualize-triggers/${triggerId}`, {
       skipLoadingIndicator: true,
+      skipErrorToast: true,
     } as AxiosRequestConfig);
   }
 
