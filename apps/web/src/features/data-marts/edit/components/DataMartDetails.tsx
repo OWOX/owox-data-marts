@@ -9,7 +9,7 @@ import { Skeleton } from '@owox/ui/components/skeleton';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@owox/ui/components/tooltip';
 import { cn } from '@owox/ui/lib/utils';
 import { ArrowLeft, CircleCheckBig, Rocket, MoreVertical, Play, Trash2, Info } from 'lucide-react';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { toast } from 'react-hot-toast';
 import { NavLink, Outlet } from 'react-router-dom';
 import { useFlags } from '../../../../app/store/hooks';
@@ -104,16 +104,6 @@ export function DataMartDetails({ id }: DataMartDetailsProps) {
 
   const shouldShowInsights = checkVisible('INSIGHTS_ENABLED', 'true', flags);
 
-  const shouldShowNextInsights = useMemo(() => {
-    if (!shouldShowInsights) return false;
-    const allowedIds = flags?.INSIGHT_ASSISTANT_ENABLED_PROJECT_IDS;
-    if (typeof allowedIds !== 'string' || !allowedIds) return false;
-    return allowedIds
-      .split(',')
-      .map(id => id.trim())
-      .includes(projectId);
-  }, [shouldShowInsights, flags, projectId]);
-
   const { showPromo, dismissAllPromos } = useDataMartNextStepPromo();
 
   // Show promo every time a published data mart page is opened.
@@ -153,8 +143,7 @@ export function DataMartDetails({ id }: DataMartDetailsProps) {
   const navigation = [
     { name: 'Overview', path: 'overview' },
     { name: 'Data Setup', path: 'data-setup' },
-    ...(shouldShowInsights ? [{ name: 'Insights', path: 'insights' }] : []),
-    ...(shouldShowNextInsights ? [{ name: 'Insights V2', path: 'insights-v2' }] : []),
+    ...(shouldShowInsights ? [{ name: 'Insights', path: 'insights-v2' }] : []),
     { name: 'Destinations', path: 'reports' },
     { name: 'Triggers', path: 'triggers' },
     { name: 'Run History', path: 'run-history' },
