@@ -160,9 +160,9 @@ export function useDataMartNextStepPromo() {
                       asChild
                       onClick={() => toast.dismiss(toastId)}
                     >
-                      <Link to={`/ui/${projectId}/data-marts/${dataMartId}/insights`}>
+                      <Link to={`/ui/${projectId}/data-marts/${dataMartId}/insights-v2`}>
                         <Sparkles className='h-4 w-4' />
-                        Generate Insights…
+                        Create Insights…
                       </Link>
                     </Button>
                   )}
