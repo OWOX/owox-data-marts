@@ -70,6 +70,50 @@ Switch to **Preview** to check how the email will appear to recipients.
 
 ![OWOX Data Marts interface showing a report creation dialog for Marketing Team with a TEMPLATE section containing two fields: Subject field displays The Awesome Data Mart report has been updated, and below is a Message field with Markdown and Preview tabs in the top right corner outlined in red. The message text reads: Dear Marketing Team, We're happy to let you know that the Awesome Data Mart report has been updated. If you have questions, contact the Analytics team or mention us in Slack using analytics-support. Best regards, The Analytics Team](res/email_message.png)
 
+##### Tags and Variables
+
+You can use the `{{table}}` tag to render your Data Mart results as a table in the email. Type `/` in the editor to insert a tag quickly, or paste it manually.
+
+**Options available when you type `/` in the editor:**
+
+**Table** — Inserts a data table for the specified source.
+Default: `{{table}}`
+
+> If you use the `{{table}}` tag without additional parameters, the row limit defaults to 10. Add an explicit `limit` parameter to display more rows.
+
+**Table with limit** — Inserts a data table with an explicit row limit.
+Default: `{{table source="main" limit="100"}}`
+
+> You can set `limit` to any value from 1 to 100.
+
+**Value (Path)** — Inserts a single cell value using path syntax.
+Default: `{{value source="main" path=".column_name[1]"}}`
+
+> Replace `column_name` with the actual column name and `1` with the target row number.
+
+**Value (Column/Row)** — Inserts a single cell value using column/row index syntax.
+Default: `{{value source="main" column="1" row="1"}}`
+
+> This syntax preserves report accuracy when the schema changes — no updates are needed if a column is renamed.
+
+![OWOX Data Marts dialog titled Main Destination with subtitle Update details of an existing report. The Template section shows a Subject field containing Last Marketing Data, and a Message field in Markdown mode with a forward slash typed on line 1. A dropdown autocomplete menu is open below the cursor showing four options: Table (highlighted in blue, with the description Insert a table tag with source binding), Table with limit, Value (Path), and Value (Column/Row). Each option has a blue tag icon. At the bottom of the dialog are a blue Save changes to report button and a Cancel button.](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/4deb6f02-9018-46e9-ea7b-c7f790eb8200/public)
+
+**Optional parameters for `{{table}}`:**
+
+- `limit` — Maximum number of rows to display. Accepts 1 to 100. Default: `10`.
+  Example: `limit=20`
+- `from` — Whether to read rows from the beginning or end of the table. Accepts `"start"` or `"end"`. Default: `start`.
+  Example: `from="end"`
+- `columns` — Comma-separated list of columns to include.
+  Example: `columns="id, revenue"`
+- `source` — Source key to read from. Default: `main`.
+  Example: `source="main"`
+
+> 💡 To display 20 rows from the end of the table, showing only `id` and `revenue`:  
+> `{{table limit=20 from="end" columns="id, revenue"}}`
+
+You can also use `{{dataHeadersCount}}` and `{{dataRowsCount}}` to display the total number of columns and rows.
+
 #### 2.5. Set sending conditions
 
 Decide when the report should be sent based on the Data Mart run result:
