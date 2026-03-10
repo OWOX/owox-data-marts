@@ -154,7 +154,7 @@ export function DataMartDetails({ id }: DataMartDetailsProps) {
     { name: 'Overview', path: 'overview' },
     { name: 'Data Setup', path: 'data-setup' },
     ...(shouldShowInsights ? [{ name: 'Insights', path: 'insights' }] : []),
-    ...(shouldShowNextInsights ? [{ name: 'Next Insights', path: 'next-insights' }] : []),
+    ...(shouldShowNextInsights ? [{ name: 'Insights V2', path: 'insights-v2' }] : []),
     { name: 'Destinations', path: 'reports' },
     { name: 'Triggers', path: 'triggers' },
     { name: 'Run History', path: 'run-history' },
