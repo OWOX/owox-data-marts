@@ -2,7 +2,8 @@
 
 ## Why This Matters
 
-You already use the [OWOX Reports Google Sheets Extension](https://workspace.google.com/marketplace/app/owox_bigquery_data_marts/263000453832). You have Data Marts defined with SQL queries — running within your BigQuery project and sending data to Google Sheets. While this is a powerful way to handle ad-hoc reporting, you can do more with **[OWOX Data Marts](https://app.owox.com)** while keeping your current setups fully functional: 
+You already use the [OWOX Reports Google Sheets Extension](https://workspace.google.com/marketplace/app/owox_bigquery_data_marts/263000453832). You have Data Marts defined with SQL queries — running within your BigQuery project and sending data to Google Sheets. While this is a powerful way to handle ad-hoc reporting, you can do more with **[OWOX Data Marts](https://app.owox.com)** while keeping your current setups fully functional:
+
 - get reusable Insights defined by SQL with AI assistance
 - unlock new delivery destinations like Looker Studio, Email, Slack, MS Teams or Google Chat for your data
 - simplify access and scheduling management at the organizational level—all
