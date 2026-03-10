@@ -64,8 +64,10 @@ export class LegacyGoogleBigQueryMapper implements StorageMapper {
           throw err;
         }
       }
-      // null = user explicitly disconnected OAuth; pass it so backend can revoke
-      if (creds.credentialId === null) {
+      if (creds.credentialId) {
+        result.credentialId = creds.credentialId;
+      } else if (creds.credentialId === null) {
+        // null = user explicitly disconnected OAuth; pass it so backend can revoke
         result.credentialId = null;
       }
     }
