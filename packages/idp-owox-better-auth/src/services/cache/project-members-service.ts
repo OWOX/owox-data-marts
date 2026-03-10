@@ -197,7 +197,6 @@ export class ProjectMembersService {
           if (!freshMemberIds.has(storedMember.userId) && !storedMember.isOutbound) {
             mergedMembers.push({
               ...storedMember,
-              userStatus: 'outbound',
               isOutbound: true,
             });
           }

@@ -134,7 +134,7 @@ describe('ProjectMembersService', () => {
       const projectId = 'project-1';
       const storedMembers = [
         createMockMember({ userId: '1', isOutbound: false }),
-        createMockMember({ userId: '2', isOutbound: true, userStatus: 'outbound' }),
+        createMockMember({ userId: '2', isOutbound: true, userStatus: 'active' }),
       ];
 
       store.getProjectMembers.mockResolvedValue(storedMembers);
@@ -252,7 +252,7 @@ describe('ProjectMembersService', () => {
       const projectId = 'project-1';
       const storedMembers = [
         createMockMember({ userId: 'active-user', isOutbound: false }),
-        createMockMember({ userId: 'outbound-user', isOutbound: true, userStatus: 'outbound' }),
+        createMockMember({ userId: 'outbound-user', isOutbound: true, userStatus: 'active' }),
       ];
 
       store.getProjectMembers.mockResolvedValue(storedMembers);
@@ -293,7 +293,7 @@ describe('ProjectMembersService', () => {
       const projectId = 'project-1';
       const staleMembers = [
         createMockMember({ userId: 'stale-user', isOutbound: false }),
-        createMockMember({ userId: 'outbound-stale', isOutbound: true, userStatus: 'outbound' }),
+        createMockMember({ userId: 'outbound-stale', isOutbound: true, userStatus: 'active' }),
       ];
 
       store.getProjectMembers.mockResolvedValue(staleMembers);
@@ -365,7 +365,7 @@ describe('ProjectMembersService', () => {
 
       expect(outboundMember).toBeDefined();
       expect(outboundMember?.isOutbound).toBe(true);
-      expect(outboundMember?.userStatus).toBe('outbound');
+      expect(outboundMember?.userStatus).toBe('active');
 
       // Result should return ALL members (including outbound)
       expect(result).toHaveLength(2);
@@ -424,7 +424,7 @@ describe('ProjectMembersService', () => {
       expect(currentMember?.projectRole).toBe('admin');
       expect(formerMember).toBeDefined();
       expect(formerMember?.isOutbound).toBe(true);
-      expect(formerMember?.userStatus).toBe('outbound');
+      expect(formerMember?.userStatus).toBe('active');
 
       // Result should return ALL members
       expect(result).toHaveLength(2);
