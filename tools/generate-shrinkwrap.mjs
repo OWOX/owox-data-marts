@@ -215,9 +215,7 @@ function getSearchPaths(fromPath, depName) {
   let current = fromPath;
 
   while (true) {
-    const candidate = current
-      ? `${current}/node_modules/${depName}`
-      : `node_modules/${depName}`;
+    const candidate = current ? `${current}/node_modules/${depName}` : `node_modules/${depName}`;
     paths.push(candidate);
 
     if (!current) break;
