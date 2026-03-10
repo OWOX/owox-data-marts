@@ -71,7 +71,7 @@ export default function PageNotificationLegacyStorageSetup() {
                 </Button>
                 <Button variant='outline' asChild>
                   <Link
-                    to='https://docs.owox.com/docs/storages/supported-storages/google-bigquery-used-in-owox-extension?utm_source=owox-data-marts&utm_medium=ui&utm_campaign=legacy-storage-info-block'
+                    to='https://docs.owox.com/docs/getting-started/setup-guide/extension-data-mart/?utm_source=owox-data-marts&utm_medium=ui&utm_campaign=legacy-storage-info-block'
                     target='_blank'
                     rel='noopener noreferrer'
                   >
