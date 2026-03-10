@@ -1,3 +1,4 @@
+import type { AxiosRequestConfig } from '../../../../../../app/api';
 import { ApiService } from '../../../../../../services';
 import type {
   CreateInsightTemplateSourceRequestDto,
@@ -69,7 +70,9 @@ export class InsightTemplateSourcesService extends ApiService {
     triggerId: string
   ): Promise<{ status: string }> {
     return this.get<{ status: string }>(
-      `/${dataMartId}/insight-artifacts/${artifactId}/sql-preview-triggers/${triggerId}/status`
+      `/${dataMartId}/insight-artifacts/${artifactId}/sql-preview-triggers/${triggerId}/status`,
+      undefined,
+      { skipErrorToast: true } as AxiosRequestConfig
     );
   }
 
@@ -79,7 +82,9 @@ export class InsightTemplateSourcesService extends ApiService {
     triggerId: string
   ): Promise<InsightArtifactSqlPreviewTriggerResponseDto> {
     return this.get<InsightArtifactSqlPreviewTriggerResponseDto>(
-      `/${dataMartId}/insight-artifacts/${artifactId}/sql-preview-triggers/${triggerId}`
+      `/${dataMartId}/insight-artifacts/${artifactId}/sql-preview-triggers/${triggerId}`,
+      undefined,
+      { skipErrorToast: true } as AxiosRequestConfig
     );
   }
 
@@ -89,7 +94,8 @@ export class InsightTemplateSourcesService extends ApiService {
     triggerId: string
   ): Promise<void> {
     await this.delete(
-      `/${dataMartId}/insight-artifacts/${artifactId}/sql-preview-triggers/${triggerId}`
+      `/${dataMartId}/insight-artifacts/${artifactId}/sql-preview-triggers/${triggerId}`,
+      { skipErrorToast: true } as AxiosRequestConfig
     );
   }
 }

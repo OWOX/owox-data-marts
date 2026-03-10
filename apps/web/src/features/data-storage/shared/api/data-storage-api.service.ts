@@ -113,7 +113,7 @@ export class DataStorageApiService extends ApiService {
     const response = await this.get<TaskStatusResponseDto>(
       `/${id}/publish-drafts-triggers/${triggerId}/status`,
       undefined,
-      { skipLoadingIndicator: true } as AxiosRequestConfig
+      { skipLoadingIndicator: true, skipErrorToast: true } as AxiosRequestConfig
     );
     return response.status;
   }
@@ -125,13 +125,14 @@ export class DataStorageApiService extends ApiService {
     return this.get<PublishDataStorageDraftsResponseDto>(
       `/${id}/publish-drafts-triggers/${triggerId}`,
       undefined,
-      { skipLoadingIndicator: true } as AxiosRequestConfig
+      { skipLoadingIndicator: true, skipErrorToast: true } as AxiosRequestConfig
     );
   }
 
   async abortPublishDraftsTrigger(id: string, triggerId: string): Promise<void> {
     await this.delete(`/${id}/publish-drafts-triggers/${triggerId}`, {
       skipLoadingIndicator: true,
+      skipErrorToast: true,
     } as AxiosRequestConfig);
   }
 }
