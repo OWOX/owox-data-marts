@@ -161,9 +161,9 @@ export abstract class AbstractTriggerRunnerService<
     trigger: T,
     repository: Repository<T>
   ): Promise<void> {
-    if (this.isOptimisticLockError(error)) {
-      this.logger.debug(
-        `[${this.handlerName}] Optimistic lock conflict for trigger ${trigger.id}. Skipping as likely processed by another instance.`
+    if (this.isTransientConcurrencyError(error)) {
+      this.logger.warn(
+        `[${this.handlerName}] Transient concurrency error for trigger ${trigger.id} (${error instanceof Error ? error.message : 'unknown'}). Skipping — will be retried.`
       );
       return;
     }
@@ -210,15 +210,40 @@ export abstract class AbstractTriggerRunnerService<
   }
 
   /**
-   * Checks if an error is an optimistic lock error.
+   * Checks if an error is a transient concurrency error that should be retried
+   * rather than marking the trigger as failed.
+   *
+   * This includes:
+   * - Optimistic lock version conflicts (another instance processed the trigger)
+   * - MySQL deadlocks (concurrent transactions competing for locks)
    *
    * @param error The error to check
-   * @returns True if the error is an optimistic lock error, false otherwise
+   * @returns True if the error is a transient concurrency error, false otherwise
    */
-  private isOptimisticLockError(error: unknown): boolean {
-    return (
-      error instanceof QueryFailedError &&
-      (error.message.includes('version') || error.message.includes('optimistic lock'))
-    );
+  private isTransientConcurrencyError(error: unknown): boolean {
+    if (!(error instanceof QueryFailedError)) {
+      return false;
+    }
+
+    // TypeORM optimistic lock version mismatch
+    if (error.message.includes('version') || error.message.includes('optimistic lock')) {
+      return true;
+    }
+
+    // MySQL deadlock (errno 1213, code ER_LOCK_DEADLOCK)
+    const driverError = (
+      error as QueryFailedError & {
+        driverError?: { code?: string | number; errno?: string | number };
+      }
+    ).driverError;
+    if (driverError?.code === 'ER_LOCK_DEADLOCK' || driverError?.errno === 1213) {
+      return true;
+    }
+
+    if (error.message.includes('Deadlock found')) {
+      return true;
+    }
+
+    return false;
   }
 }
