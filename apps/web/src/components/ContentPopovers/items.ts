@@ -2,6 +2,7 @@ import {
   Video1GoogleSheetsReport,
   Video2LookerAsDestination,
   Video3GettingStartedDataMarts,
+  Video4LegacyStorageSetup,
 } from './popovers';
 import type { PopoverConfig, PopoverId } from './types';
 
@@ -26,5 +27,12 @@ export const popoverItems: Record<PopoverId, PopoverConfig> = {
     position: 'bottom-left',
     title: 'Getting Started with Data Marts',
     content: Video3GettingStartedDataMarts,
+  },
+  'video-4-legacy-storage-setup': {
+    width: 500,
+    height: 355,
+    position: 'bottom-left',
+    title: 'Complete BigQuery storage setup to publish Data Marts',
+    content: Video4LegacyStorageSetup,
   },
 };
