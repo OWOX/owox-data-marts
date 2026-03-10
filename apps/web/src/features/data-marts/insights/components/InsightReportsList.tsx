@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { Plus, MoreVertical, Pencil, Trash2, Calendar, Clock } from 'lucide-react';
+import { useState, type MouseEvent } from 'react';
+import { Plus, MoreVertical, Pencil, Trash2, Calendar, Clock, Play } from 'lucide-react';
 import { Button } from '@owox/ui/components/button';
 import {
   DropdownMenu,
@@ -18,11 +18,13 @@ import { StatusIcon } from '../../reports/list';
 import {
   useReportsByInsightTemplate,
   useDeleteReport,
+  useRunReport,
 } from '../../reports/list/model/hooks/useReportsByInsightTemplate';
 import type { DataMartReport } from '../../reports/shared/model/types/data-mart-report';
 import { toast } from 'react-hot-toast';
 import { DataDestinationType, DataDestinationTypeModel } from '../../../data-destination';
 import { ConfirmationDialog } from '../../../../shared/components/ConfirmationDialog';
+import { ReportStatusEnum } from '../../reports/shared/enums';
 
 interface InsightReportsListProps {
   dataMartId: string;
@@ -44,6 +46,7 @@ export function InsightReportsList({
     refetch,
   } = useReportsByInsightTemplate(dataMartId, insightId);
   const deleteReport = useDeleteReport();
+  const runReport = useRunReport();
   const getDestinationIcon = (type: string) => {
     const info = DataDestinationTypeModel.getInfo(type as DataDestinationType);
     const Icon = info.icon;
@@ -60,6 +63,16 @@ export function InsightReportsList({
       void refetch();
     } catch {
       toast.error('Failed to delete report');
+    }
+  };
+
+  const handleRun = async (reportId: string, event?: MouseEvent) => {
+    event?.stopPropagation();
+    try {
+      await runReport.mutateAsync(reportId);
+      await refetch();
+    } catch {
+      toast.error('Failed to run report');
     }
   };
 
@@ -126,7 +139,7 @@ export function InsightReportsList({
             {reports.map(report => (
               <div
                 key={report.id}
-                className='bg-background relative mb-3 flex cursor-pointer flex-col overflow-hidden rounded-lg border shadow-xs transition-all last:mb-0 hover:shadow-md'
+                className='bg-background group relative mb-3 flex cursor-pointer flex-col overflow-hidden rounded-lg border shadow-xs transition-all last:mb-0 hover:shadow-md'
                 onClick={() => {
                   onEditReport(report);
                 }}
@@ -174,6 +187,26 @@ export function InsightReportsList({
                     </div>
                   </div>
                   <div className='flex shrink-0 gap-1'>
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button
+                            variant='ghost'
+                            size='icon'
+                            className='h-8 w-8 opacity-0 transition-opacity group-hover:opacity-100 hover:opacity-100 disabled:opacity-60'
+                            disabled={
+                              runReport.isPending ||
+                              report.lastRunStatus === ReportStatusEnum.RUNNING
+                            }
+                            aria-label='Run report'
+                            onClick={e => void handleRun(report.id, e)}
+                          >
+                            <Play className='h-4 w-4' />
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent side='top'>Run report</TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
                         <Button
@@ -188,6 +221,15 @@ export function InsightReportsList({
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align='end' className='w-40'>
+                        <DropdownMenuItem
+                          onClick={e => void handleRun(report.id, e)}
+                          disabled={
+                            runReport.isPending || report.lastRunStatus === ReportStatusEnum.RUNNING
+                          }
+                        >
+                          <Play className='mr-2 h-4 w-4' />
+                          Run report
+                        </DropdownMenuItem>
                         <DropdownMenuItem
                           onClick={e => {
                             e.stopPropagation();
