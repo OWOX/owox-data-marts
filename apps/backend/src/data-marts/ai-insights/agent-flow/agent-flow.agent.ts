@@ -180,6 +180,17 @@ export class AgentFlowAgent {
       maxTokens: 4000,
       resultSchema: AgentFlowResultSchema,
       logger: this.logger,
+      executionPolicy: {
+        rules: {
+          [AgentFlowTools.LIST_TEMPLATE_SOURCES]: {},
+          [AgentFlowTools.GET_TEMPLATE_CONTENT]: {},
+          [AgentFlowTools.LIST_AVAILABLE_TAGS]: {},
+          [AgentFlowTools.PROPOSE_REMOVE_SOURCE]: {
+            dependsOn: [AgentFlowTools.LIST_TEMPLATE_SOURCES],
+          },
+          [AgentFlowTools.GENERATE_SQL]: {},
+        },
+      },
     });
   }
 

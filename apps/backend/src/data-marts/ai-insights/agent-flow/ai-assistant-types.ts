@@ -5,9 +5,9 @@ import { AiAssistantScope } from '../../enums/ai-assistant-scope.enum';
 import { TemplateEditPlaceholderTagSchema } from '../../services/template-edit-placeholder-tags/template-edit-placeholder-tags.contracts';
 import { AgentFlowConversationSnapshotSchema } from './conversation-snapshot.schema';
 
-export const AssistantOrchestratorScopeSchema = z.nativeEnum(AiAssistantScope);
+export const AiAssistantScopeSchema = z.nativeEnum(AiAssistantScope);
 
-export const AssistantOrchestratorDecisionSchema = z.enum([
+export const AiAssistantDecisionSchema = z.enum([
   'full_generation',
   'refine_existing_sql',
   'explain_or_status',
@@ -20,9 +20,9 @@ export const AssistantOrchestratorDecisionSchema = z.enum([
   'edit_template',
   'propose_action',
 ]);
-export type AssistantOrchestratorDecision = z.infer<typeof AssistantOrchestratorDecisionSchema>;
+export type AiAssistantDecision = z.infer<typeof AiAssistantDecisionSchema>;
 
-export const AssistantOrchestratorStatusSchema = z.enum([
+export const AiAssistantStatusSchema = z.enum([
   'ok',
   'not_relevant',
   'cannot_answer',
@@ -30,7 +30,7 @@ export const AssistantOrchestratorStatusSchema = z.enum([
   'restricted',
   'error',
 ]);
-export type AssistantOrchestratorStatus = z.infer<typeof AssistantOrchestratorStatusSchema>;
+export type AiAssistantStatus = z.infer<typeof AiAssistantStatusSchema>;
 
 export const AssistantChatMessageSchema = z.object({
   role: z.nativeEnum(AiAssistantMessageRole),
@@ -214,24 +214,24 @@ export const AiFlowOptionsSchema = z.object({
 });
 export type AiFlowOptions = z.infer<typeof AiFlowOptionsSchema>;
 
-export const AssistantOrchestratorRequestSchema = z
+export const AssistantSqlOrchestratorRequestSchema = z
   .object({
     projectId: z.string().min(1, 'projectId is required'),
     dataMartId: z.string().min(1, 'dataMartId is required'),
     conversationContext: AssistantConversationContextSchema,
     sessionContext: z.object({
       sessionId: z.string().min(1, 'sessionId is required'),
-      scope: AssistantOrchestratorScopeSchema,
+      scope: AiAssistantScopeSchema,
       templateId: z.string().min(1),
     }),
     options: AiFlowOptionsSchema.optional(),
   })
   .strict();
-export type AssistantOrchestratorRequest = z.infer<typeof AssistantOrchestratorRequestSchema>;
+export type AssistantSqlOrchestratorRequest = z.infer<typeof AssistantSqlOrchestratorRequestSchema>;
 
-export const AssistantOrchestratorResponseSchema = z.object({
-  status: AssistantOrchestratorStatusSchema,
-  decision: AssistantOrchestratorDecisionSchema,
+export const AiAssistantResponseSchema = z.object({
+  status: AiAssistantStatusSchema,
+  decision: AiAssistantDecisionSchema,
   result: z
     .object({
       sqlCandidate: z.string().min(1).optional(),
@@ -259,4 +259,4 @@ export const AssistantOrchestratorResponseSchema = z.object({
       .optional(),
   }),
 });
-export type AssistantOrchestratorResponse = z.infer<typeof AssistantOrchestratorResponseSchema>;
+export type AiAssistantResponse = z.infer<typeof AiAssistantResponseSchema>;

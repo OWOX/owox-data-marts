@@ -27,10 +27,7 @@ import {
   AiAssistantExecutionModeApi,
   CreateAiAssistantMessageResponseApiDto,
 } from '../dto/presentation/create-ai-assistant-message-response-api.dto';
-import {
-  CreateAiAssistantMessageRequestApiDto,
-  CreateAiAssistantMessageTurnContextApiDto,
-} from '../dto/presentation/create-ai-assistant-message-request-api.dto';
+import { CreateAiAssistantMessageRequestApiDto } from '../dto/presentation/create-ai-assistant-message-request-api.dto';
 import { CreateAiAssistantSessionRequestApiDto } from '../dto/presentation/create-ai-assistant-session-request-api.dto';
 import { CreateAiAssistantSessionResponseApiDto } from '../dto/presentation/create-ai-assistant-session-response-api.dto';
 import { UpdateAiAssistantSessionTitleRequestApiDto } from '../dto/presentation/update-ai-assistant-session-title-request-api.dto';
@@ -150,9 +147,7 @@ export class AiAssistantMapper {
       dataMartId,
       context.projectId,
       context.userId,
-      dto.text,
-      dto.correlationId ?? null,
-      dto.turnContext ? this.toCreateMessageTurnContext(dto.turnContext) : null
+      dto.text
     );
   }
 
@@ -296,16 +291,6 @@ export class AiAssistantMapper {
       sourceKey: dto.sourceKey,
       status: dto.status,
       reason: dto.reason,
-    };
-  }
-
-  private toCreateMessageTurnContext(dto: CreateAiAssistantMessageTurnContextApiDto): {
-    sourceKeyHint?: string;
-    preferredSnippetType?: 'table' | 'single_value';
-  } {
-    return {
-      sourceKeyHint: dto.sourceKeyHint,
-      preferredSnippetType: dto.preferredSnippetType,
     };
   }
 

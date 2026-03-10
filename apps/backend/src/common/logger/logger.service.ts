@@ -3,6 +3,7 @@ import { LoggerFactory, type Logger } from '@owox/internal-helpers';
 import * as process from 'node:process';
 import { ClsService, ClsServiceManager } from 'nestjs-cls';
 import { AUTH_CONTEXT } from '../../idp/guards/idp.guard';
+import { AI_ASSISTANT_LOG_CONTEXT } from './context-keys';
 
 /**
  * Custom NestJS logger service that implements the LoggerService interface
@@ -149,6 +150,10 @@ export class CustomLoggerService implements LoggerService {
     const authContext = this.cls.get<Record<string, unknown>>(AUTH_CONTEXT);
     if (authContext) {
       output.metadata.authContext = authContext;
+    }
+    const aiAssistantLogContext = this.cls.get<Record<string, unknown>>(AI_ASSISTANT_LOG_CONTEXT);
+    if (aiAssistantLogContext) {
+      output.metadata.aiAssistantContext = aiAssistantLogContext;
     }
 
     return output;

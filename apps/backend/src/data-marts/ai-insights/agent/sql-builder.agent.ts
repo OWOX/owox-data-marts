@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { Agent, DataMartInsightsContext, SharedAgentContext } from '../ai-insights-types';
+import { Agent, DataMartInsightsAgentLoopContext, SharedAgentContext } from '../ai-insights-types';
 import { AiMessage } from '../../../common/ai-insights/agent/ai-core';
 import { SqlAgentInput, SqlBuilderResponse, SqlBuilderResponseSchema } from './types';
 import { runAgentLoop } from '../../../common/ai-insights/llm-tool-runner';
@@ -44,7 +44,7 @@ export class SqlBuilderAgent implements Agent<SqlAgentInput, SqlBuilderResponse>
   ): Promise<SqlBuilderResponse> {
     const { aiProvider, telemetry, budgets, projectId, dataMartId } = shared;
 
-    const context: DataMartInsightsContext = {
+    const context: DataMartInsightsAgentLoopContext = {
       projectId,
       dataMartId,
       prompt: input.prompt,

@@ -216,7 +216,7 @@ import { ApplyAiAssistantSessionService } from './use-cases/apply-ai-assistant-s
 
 import { SourceResolverToolsService } from './ai-insights/agent-flow/source-resolver-tools.service';
 import { BaseSqlHandleResolverService } from './ai-insights/agent-flow/base-sql-handle-resolver.service';
-import { AiAssistantOrchestratorService } from './ai-insights/agent-flow/ai-assistant-orchestrator.service';
+import { AiAssistantSqlOrchestratorService } from './ai-insights/agent-flow/ai-assistant-sql-orchestrator.service';
 import { AiAssistantRunTriggerHandlerService } from './services/ai-assistant-run-trigger-handler.service';
 import { RunAiAssistantService } from './use-cases/run-ai-assistant.service';
 import { InsightArtifactRepository } from './repositories/insight-artifact.repository';
@@ -496,7 +496,7 @@ import { GoogleOAuthConfigService } from './services/google-oauth/google-oauth-c
 
     SourceResolverToolsService,
     BaseSqlHandleResolverService,
-    AiAssistantOrchestratorService,
+    AiAssistantSqlOrchestratorService,
     ConnectorOauthService,
     UserProjectionsFetcherService,
     DeleteLegacyDataMartService,

@@ -25,7 +25,6 @@ export type AssistantOrchestratorStatus =
   | 'high_ambiguity'
   | 'restricted'
   | 'error';
-export type AssistantSnippetType = 'table' | 'single_value';
 export type AiAssistantApplyStatus =
   | 'updated'
   | 'already_present'
@@ -276,12 +275,6 @@ export interface ListAiAssistantSessionsRequestDto {
 
 export interface CreateAiAssistantMessageRequestDto {
   text: string;
-  correlationId?: string;
-  turnContext?: {
-    sourceKeyHint?: string;
-    artifactIdHint?: string;
-    preferredSnippetType?: AssistantSnippetType;
-  };
 }
 
 export interface CreateAiAssistantMessageResponseDto {

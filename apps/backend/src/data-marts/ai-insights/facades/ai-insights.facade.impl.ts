@@ -16,6 +16,10 @@ import { AiChatProvider } from '../../../common/ai-insights/agent/ai-core';
 import { ToolRegistry } from '../../../common/ai-insights/agent/tool-registry';
 import { AiContentFilterError } from '../../../common/ai-insights/services/error';
 import { castError } from '@owox/internal-helpers';
+import {
+  measureExecutionTime,
+  toMeasuredExecutionBaseResult,
+} from '../../../common/utils/measure-execution-time';
 
 @Injectable()
 export class AiInsightsFacadeImpl implements AiInsightsFacade {
@@ -31,7 +35,20 @@ export class AiInsightsFacadeImpl implements AiInsightsFacade {
 
   async answerPrompt(request: AnswerPromptRequest): Promise<AnswerPromptResponse> {
     try {
-      return await this.aiInsightsAgentService.answerPrompt(request);
+      const measured = await measureExecutionTime(
+        () => this.aiInsightsAgentService.answerPrompt(request),
+        {
+          onMeasured: measuredExecution => {
+            this.logger.log('AiInsightsAnswerPromptTime', {
+              projectId: request.projectId,
+              dataMartId: request.dataMartId,
+              measure: toMeasuredExecutionBaseResult(measuredExecution),
+            });
+          },
+        }
+      );
+
+      return measured.result;
     } catch (e: unknown) {
       this.logger.error(`Unhandled error when processing prompt`, e, {
         projectId: request.projectId,

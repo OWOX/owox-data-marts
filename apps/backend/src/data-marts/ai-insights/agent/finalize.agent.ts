@@ -1,4 +1,4 @@
-import { Agent, DataMartInsightsContext, SharedAgentContext } from '../ai-insights-types';
+import { Agent, DataMartInsightsAgentLoopContext, SharedAgentContext } from '../ai-insights-types';
 import { Injectable, Logger } from '@nestjs/common';
 import { AiMessage, AiRole } from '../../../common/ai-insights/agent/ai-core';
 import {
@@ -30,7 +30,7 @@ export class FinalizeAgent implements Agent<FinalizeAgentInput, FinalizeResult> 
       { role: AiRole.USER, content: user },
     ];
 
-    const context: DataMartInsightsContext = {
+    const context: DataMartInsightsAgentLoopContext = {
       projectId,
       dataMartId,
       prompt: input.prompt,

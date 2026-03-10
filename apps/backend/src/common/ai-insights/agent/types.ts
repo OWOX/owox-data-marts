@@ -19,6 +19,15 @@ export type ToolRunResult = {
 
 export type ToolNameBase = string;
 
+export interface ToolExecutionRule {
+  dependsOn?: ToolNameBase[];
+  runAlone?: boolean;
+}
+
+export interface ToolExecutionPolicy {
+  rules: Record<ToolNameBase, ToolExecutionRule>;
+}
+
 export interface LlmCallTelemetry {
   turn: number;
   model?: string;
@@ -36,10 +45,20 @@ export interface ToolCallTelemetry {
   errorMessage?: string;
 }
 
+export interface PrefetchStepTelemetry {
+  name: string;
+}
+
+export interface PrefetchTelemetry {
+  totalMs: number;
+  steps: PrefetchStepTelemetry[];
+}
+
 export interface AgentTelemetry {
   llmCalls: LlmCallTelemetry[];
   toolCalls: ToolCallTelemetry[];
   messageHistory: AiMessage[];
+  prefetch?: PrefetchTelemetry;
 }
 
 export interface AiContext {
@@ -69,6 +88,7 @@ export interface ToolLoopOptions {
   maxTurns: number;
   resultSchema: ZodTypeAny;
   logger: Logger;
+  executionPolicy?: ToolExecutionPolicy;
   messageProcessors?: Record<string, ToolMessageProcessor>;
   temperature?: number;
   maxTokens?: number;

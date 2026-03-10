@@ -33,10 +33,6 @@ export class CreateAiAssistantMessageService {
       sessionId: session.id,
       role: AiAssistantMessageRole.USER,
       content: command.text,
-      meta: {
-        correlationId: command.correlationId,
-        turnContext: command.turnContext,
-      },
     });
 
     if (!session.title?.trim()) {
@@ -61,10 +57,12 @@ export class CreateAiAssistantMessageService {
       userMessageId: userMessage.id,
     });
 
-    this.logger.log('ai_session_run', {
-      correlationId: command.correlationId ?? null,
+    this.logger.log('AiAssistantRun', {
+      projectId: command.projectId,
+      dataMartId: command.dataMartId,
+      userId: command.userId,
       sessionId: session.id,
-      templateId: session.templateId ?? null,
+      templateId: session.templateId,
       userMessageId: userMessage.id,
       runId,
     });

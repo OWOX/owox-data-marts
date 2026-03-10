@@ -1,7 +1,8 @@
-import { DataMartsAiInsightsTools } from '../tools/data-marts-ai-insights-tools.registrar';
 import { AgentConversationContext, TriageModelJsonSchema } from '../agent/types';
 import { getLastUserMessage } from '../agent-flow/ai-assistant-orchestrator.utils';
 import { buildJsonFormatSection, buildOutputRules } from './json-format.prompt';
+import { GetMetadataOutput } from '../ai-insights-types';
+import { sanitizeSchema } from '../utils/sanitize-schema';
 
 export function buildTriageSystemPrompt(): string {
   return `
@@ -12,10 +13,6 @@ Your goal:
 - Determine whether it is an analytics/data question about this specific data-mart.
 - If analytics → evaluate whether this data-mart contains the information needed.
 - Produce only the JSON result described in the schema below.
-
-Allowed tooling:
-- You MAY call ${DataMartsAiInsightsTools.GET_DATAMART_METADATA} once to inspect the schema.
-- Do NOT copy raw schema into the output.
 
 ${buildJsonFormatSection(TriageModelJsonSchema)}
 `.trim();
@@ -58,6 +55,7 @@ ${snapshotBlock ? `\n\n${snapshotBlock}` : ''}
 
 export function buildTriageUserPrompt(input: {
   prompt: string;
+  prefetchedMetadata: GetMetadataOutput;
   conversationContext?: AgentConversationContext;
 }): string {
   const turns = input.conversationContext?.turns;
@@ -71,10 +69,14 @@ ${latestUserMessage}
 
 Conversation turns are provided as separate chat messages above.
 
+Authoritative data-mart metadata (preloaded):
+--- METADATA START ---
+${JSON.stringify(sanitizeSchema(input.prefetchedMetadata))}
+--- METADATA END ---
+
 What you must do:
 - Detect the language of the user's question(prompt), you MUST use the same language for "reasonText".
 - Decide whether this question is an analytics/data question specifically about this data-mart(by metadata: schema, description).
-- If needed, you MAY call the schema metadata tool (once at most) to understand available tables/fields.
 - If the question can be answered with the available data — produce schemaSummary (short, English, 1–3 paragraphs).
 - If the dataset does not support the question — reflect that in the response based on the schema definitions.
 

@@ -1,26 +1,5 @@
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { Type } from 'class-transformer';
-import { IsIn, IsNotEmpty, IsOptional, IsString, MaxLength, ValidateNested } from 'class-validator';
-
-export class CreateAiAssistantMessageTurnContextApiDto {
-  @ApiPropertyOptional({
-    description: 'Explicit source key hint from UI context',
-    example: 'consumption_2025',
-  })
-  @IsOptional()
-  @IsString()
-  @MaxLength(128)
-  sourceKeyHint?: string;
-
-  @ApiPropertyOptional({
-    description: 'Preferred snippet type for template insertion',
-    enum: ['table', 'single_value'],
-    example: 'table',
-  })
-  @IsOptional()
-  @IsIn(['table', 'single_value'])
-  preferredSnippetType?: 'table' | 'single_value';
-}
+import { ApiProperty } from '@nestjs/swagger';
+import { IsNotEmpty, IsString, MaxLength } from 'class-validator';
 
 export class CreateAiAssistantMessageRequestApiDto {
   @ApiProperty({
@@ -31,22 +10,4 @@ export class CreateAiAssistantMessageRequestApiDto {
   @IsNotEmpty()
   @MaxLength(8000)
   text: string;
-
-  @ApiPropertyOptional({
-    description: 'Correlation id for client-side request tracking',
-    example: 'd8302a9b-95b7-4334-a6f8-14944d89eb8b',
-  })
-  @IsOptional()
-  @IsString()
-  @MaxLength(255)
-  correlationId?: string;
-
-  @ApiPropertyOptional({
-    description: 'Optional turn context hints for template-first routing',
-    type: CreateAiAssistantMessageTurnContextApiDto,
-  })
-  @IsOptional()
-  @ValidateNested()
-  @Type(() => CreateAiAssistantMessageTurnContextApiDto)
-  turnContext?: CreateAiAssistantMessageTurnContextApiDto;
 }

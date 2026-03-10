@@ -1,5 +1,5 @@
-jest.mock('../ai-assistant-orchestrator.service', () => ({
-  AiSourceOrchestratorService: function AiSourceOrchestratorServiceMock() {},
+jest.mock('../ai-assistant-sql-orchestrator.service', () => ({
+  AiAssistantSqlOrchestratorService: function AiAssistantSqlOrchestratorServiceMock() {},
 }));
 
 import { AiAssistantMessageRole } from '../../../enums/ai-assistant-message-role.enum';

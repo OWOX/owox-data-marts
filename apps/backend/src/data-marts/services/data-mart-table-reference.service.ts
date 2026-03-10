@@ -48,6 +48,6 @@ export class DataMartTableReferenceService {
   }
 
   private computeViewName(dataMartId: string): string {
-    return `ai_insights_view_${dataMartId.replace(/-/g, '_')}`;
+    return `view_${dataMartId.replace(/-/g, '_')}`;
   }
 }

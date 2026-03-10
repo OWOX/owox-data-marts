@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { Agent, DataMartInsightsContext, SharedAgentContext } from '../ai-insights-types';
+import { Agent, DataMartInsightsAgentLoopContext, SharedAgentContext } from '../ai-insights-types';
 import { AiMessage, AiRole } from '../../../common/ai-insights/agent/ai-core';
 import { runAgentLoop } from '../../../common/ai-insights/llm-tool-runner';
 import { ToolRegistry } from '../../../common/ai-insights/agent/tool-registry';
@@ -42,7 +42,7 @@ export class QueryRepairAgent implements Agent<QueryRepairInput, QueryRepairResp
       { role: AiRole.USER, content: user },
     ];
 
-    const context: DataMartInsightsContext = {
+    const context: DataMartInsightsAgentLoopContext = {
       projectId,
       dataMartId,
       prompt: input.prompt,

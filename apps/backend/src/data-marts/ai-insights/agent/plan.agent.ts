@@ -1,4 +1,4 @@
-import { Agent, DataMartInsightsContext, SharedAgentContext } from '../ai-insights-types';
+import { Agent, DataMartInsightsAgentLoopContext, SharedAgentContext } from '../ai-insights-types';
 import { Injectable, Logger } from '@nestjs/common';
 import { DataMartsAiInsightsTools } from '../tools/data-marts-ai-insights-tools.registrar';
 import { ToolRegistry } from '../../../common/ai-insights/agent/tool-registry';
@@ -34,10 +34,7 @@ export class PlanAgent implements Agent<PlanAgentInput, PlanAgentResult> {
     const contextSystem = buildPlanContextSystemPrompt(input);
     const user = buildPlanUserPrompt(input);
 
-    const tools = this.toolRegistry.findToolByNames([
-      DataMartsAiInsightsTools.GET_TABLE_FULLY_QUALIFIED_NAME,
-      DataMartsAiInsightsTools.SAMPLE_TABLE_DATA,
-    ]);
+    const tools = this.toolRegistry.findToolByNames([DataMartsAiInsightsTools.SAMPLE_TABLE_DATA]);
 
     const initialMessages = buildAgentInitialMessages({
       systemPrompt: system,
@@ -46,10 +43,13 @@ export class PlanAgent implements Agent<PlanAgentInput, PlanAgentResult> {
       userPrompt: user,
     });
 
-    const context: DataMartInsightsContext = {
+    const context: DataMartInsightsAgentLoopContext = {
       projectId,
       dataMartId,
       prompt: input.prompt,
+      prefetch: {
+        fullyQualifiedTableName: input.fullyQualifiedTableName,
+      },
       telemetry,
       budgets,
     };
@@ -66,6 +66,11 @@ export class PlanAgent implements Agent<PlanAgentInput, PlanAgentResult> {
       maxTokens: 3000,
       resultSchema: PlanModelJsonSchema,
       logger: this.logger,
+      executionPolicy: {
+        rules: {
+          [DataMartsAiInsightsTools.SAMPLE_TABLE_DATA]: {},
+        },
+      },
     });
 
     return {

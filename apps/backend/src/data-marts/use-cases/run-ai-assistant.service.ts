@@ -10,7 +10,7 @@ import { AiAssistantRunLogger } from '../ai-insights/agent-flow/ai-assistant-run
 import { AgentFlowService } from '../ai-insights/agent-flow/agent-flow.service';
 import { AgentFlowRequest } from '../ai-insights/agent-flow/types';
 import {
-  AssistantOrchestratorResponse,
+  AiAssistantResponse,
   AssistantProposedActionsSchema,
 } from '../ai-insights/agent-flow/ai-assistant-types';
 import { DataMartRunStatus } from '../enums/data-mart-run-status.enum';
@@ -20,6 +20,18 @@ import { DataMartRunService } from '../services/data-mart-run.service';
 import { AiAssistantSessionService } from '../services/ai-assistant-session.service';
 import { AgentFlowContextManager } from '../services/agent-flow-context-manager.service';
 import { castError } from '@owox/internal-helpers';
+import {
+  MeasuredExecutionResult,
+  measureExecutionTime,
+  toMeasuredExecutionBaseResult,
+} from '../../common/utils/measure-execution-time';
+import { ClsContextService } from '../../common/logger/cls-context.service';
+import {
+  AI_ASSISTANT_LOG_CONTEXT,
+  AiAssistantLogContext,
+} from '../ai-insights/ai-assistant-log-context';
+
+const DEFAULT_AI_ASSISTANT_MAX_ROWS = 100;
 
 export class RunAiAssistantCommand {
   constructor(
@@ -33,7 +45,7 @@ export class RunAiAssistantCommand {
 
 export interface RunAiAssistantResult {
   runId: string;
-  response: AssistantOrchestratorResponse;
+  response: AiAssistantResponse;
   assistantMessageId: string | null;
 }
 
@@ -47,10 +59,19 @@ export class RunAiAssistantService {
     private readonly aiAssistantSessionService: AiAssistantSessionService,
     private readonly agentFlowService: AgentFlowService,
     private readonly agentFlowContextManager: AgentFlowContextManager,
-    private readonly systemTimeService: SystemTimeService
+    private readonly systemTimeService: SystemTimeService,
+    private readonly clsContextService: ClsContextService
   ) {}
 
   async run(command: RunAiAssistantCommand): Promise<RunAiAssistantResult> {
+    return this.clsContextService.runWithContext(
+      AI_ASSISTANT_LOG_CONTEXT,
+      this.buildInitialLogContext(command),
+      () => this.runMeasured(() => this.runCommand(command))
+    );
+  }
+
+  private async runCommand(command: RunAiAssistantCommand): Promise<RunAiAssistantResult> {
     const dataMart = await this.dataMartService.getByIdAndProjectId(
       command.dataMartId,
       command.projectId
@@ -70,12 +91,14 @@ export class RunAiAssistantService {
         command.projectId,
         command.userId
       );
+    this.clsContextService.update(AI_ASSISTANT_LOG_CONTEXT, { templateId: session.templateId });
 
     const run = await this.dataMartRunService.createAndMarkAiSourceRunAsPending(dataMart, session, {
       createdById: command.userId,
       runType: RunType.manual,
       turnId: command.userMessageId,
     });
+    this.clsContextService.update(AI_ASSISTANT_LOG_CONTEXT, { runId: run.id });
 
     await this.dataMartRunService.markAiSourceRunAsStarted(run);
 
@@ -84,7 +107,7 @@ export class RunAiAssistantService {
 
     runLogger.pushLog({
       type: 'log',
-      message: 'AI Source turn started',
+      message: 'AI assistant started',
       sessionId: command.sessionId,
       turnId: command.userMessageId,
     });
@@ -106,6 +129,9 @@ export class RunAiAssistantService {
           sessionId: session.id,
           scope: session.scope,
           templateId: session.templateId,
+        },
+        options: {
+          maxRows: DEFAULT_AI_ASSISTANT_MAX_ROWS,
         },
       };
 
@@ -156,7 +182,7 @@ export class RunAiAssistantService {
           agentResponse.meta.reasonDescription ??
           (agentResponse.status === 'ok'
             ? 'SQL candidate is ready.'
-            : 'Unable to process request.'),
+            : 'Unable to process request. Try again later.'),
         proposedActions: validatedProposedActions,
         sqlCandidate: agentResponse.result?.sqlCandidate ?? null,
         meta: {
@@ -167,17 +193,18 @@ export class RunAiAssistantService {
         },
       });
       assistantMessageId = assistantMessage.id;
+      this.clsContextService.update(AI_ASSISTANT_LOG_CONTEXT, { assistantMessageId });
 
       const isSuccess = agentResponse.status !== 'error';
       if (!isSuccess) {
         runLogger.pushError({
-          error: agentResponse.meta.reasonDescription ?? 'AI source orchestration failed',
+          error: agentResponse.meta.reasonDescription ?? 'AI assistant failed',
         });
       }
 
       runLogger.pushLog({
         type: 'log',
-        message: 'AI flow completed',
+        message: 'AI assistant completed',
         status: agentResponse.status,
       });
 
@@ -193,11 +220,11 @@ export class RunAiAssistantService {
         assistantMessageId,
       };
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      runLogger.pushError({ error: message });
+      const castedError = castError(error);
+      runLogger.pushError({ error: castedError.message });
       runLogger.pushLog({
         type: 'log',
-        message: 'AI Source heavy turn failed',
+        message: 'AI assistant failed',
       });
 
       await this.dataMartRunService.markAiSourceRunAsFinished(run, {
@@ -206,15 +233,33 @@ export class RunAiAssistantService {
         errors: runLogger.errors,
       });
 
-      this.logger.error(`AI Source heavy turn failed: ${message}`, castError(error).stack, {
-        dataMartId: command.dataMartId,
-        projectId: command.projectId,
-        sessionId: command.sessionId,
-        runId: run.id,
-        userId: command.userId,
+      this.logger.error('AI assistant failed', castedError.stack, {
+        errorMessage: castedError.message,
       });
 
       throw error;
     }
+  }
+
+  private buildInitialLogContext(command: RunAiAssistantCommand): AiAssistantLogContext {
+    return {
+      projectId: command.projectId,
+      dataMartId: command.dataMartId,
+      userId: command.userId,
+      sessionId: command.sessionId,
+      userMessageId: command.userMessageId,
+    };
+  }
+
+  private async runMeasured<T>(callable: () => Promise<T>): Promise<T> {
+    const measured = await measureExecutionTime(callable, {
+      onMeasured: (measuredExecution: MeasuredExecutionResult<T>) => {
+        this.logger.log('AiAssistantRunTime', {
+          measured: toMeasuredExecutionBaseResult(measuredExecution),
+        });
+      },
+    });
+
+    return measured.result;
   }
 }

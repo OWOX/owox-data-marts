@@ -50,7 +50,6 @@ describe('RunAiAssistantService', () => {
     role: AiAssistantMessageRole.USER,
     content: 'Generate source for purchases',
     meta: {
-      correlationId: 'corr-1',
       routeTrace: {
         route: 'refine_existing_source_sql',
         finalRoute: 'refine_existing_source_sql',
@@ -153,6 +152,10 @@ describe('RunAiAssistantService', () => {
     const systemTimeService = {
       now: jest.fn(),
     };
+    const clsContextService = {
+      runWithContext: jest.fn((_key, _context, callback: () => unknown) => callback()),
+      update: jest.fn(),
+    };
 
     const service = new RunAiAssistantService(
       dataMartService as never,
@@ -160,7 +163,8 @@ describe('RunAiAssistantService', () => {
       aiAssistantSessionService as never,
       agentFlowService as never,
       agentFlowContextManager as never,
-      systemTimeService as never
+      systemTimeService as never,
+      clsContextService as never
     );
 
     return {
@@ -171,6 +175,7 @@ describe('RunAiAssistantService', () => {
       agentFlowService,
       agentFlowContextManager,
       systemTimeService,
+      clsContextService,
     };
   };
 
@@ -231,6 +236,14 @@ describe('RunAiAssistantService', () => {
 
     expect(result.runId).toBe('run-1');
     expect(result.assistantMessageId).toBe('assistant-message-1');
+    expect(agentFlowService.run).toHaveBeenCalledWith(
+      expect.objectContaining({
+        options: {
+          maxRows: 100,
+        },
+      }),
+      promptContext
+    );
 
     expect(dataMartRunService.createAndMarkAiSourceRunAsPending).toHaveBeenCalledWith(
       dataMart,

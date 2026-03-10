@@ -441,7 +441,6 @@ export function useAiAssistant({
       try {
         const response = await aiAssistantService.createMessage(dataMartId, session.id, {
           text: prompt,
-          correlationId: crypto.randomUUID(),
         });
         const userRouteTrace = parseRouteTraceMeta(response.response?.meta?.routeTrace ?? null);
 

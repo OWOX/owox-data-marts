@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import {
   CreateViewExecutor,
   CreateViewResult,
@@ -9,11 +9,18 @@ import { DataStorageConfig } from '../../data-storage-config.type';
 import { isBigQueryCredentials } from '../../data-storage-credentials.guards';
 import { isBigQueryConfig } from '../../data-storage-config.guards';
 import { BigQueryApiAdapterFactory } from '../adapters/bigquery-api-adapter.factory';
-import { BigQueryConfig } from '../schemas/bigquery-config.schema';
+import {
+  BIGQUERY_AUTODETECT_LOCATION,
+  BigQueryConfig,
+  BigQueryConfigSchema,
+} from '../schemas/bigquery-config.schema';
 
 @Injectable()
 export class BigQueryCreateViewExecutor implements CreateViewExecutor {
+  private static readonly DEFAULT_LOCATION = 'US';
+
   readonly type = DataStorageType.GOOGLE_BIGQUERY;
+  private readonly logger = new Logger(BigQueryCreateViewExecutor.name);
 
   constructor(private readonly adapterFactory: BigQueryApiAdapterFactory) {}
 
@@ -30,15 +37,41 @@ export class BigQueryCreateViewExecutor implements CreateViewExecutor {
       throw new Error('BigQuery storage config expected');
     }
 
-    const adapter = this.adapterFactory.create(credentials, config);
-    await adapter.executeDryRunQuery(sql); // for location auto-detection
+    const normalizedConfig = BigQueryConfigSchema.parse(config);
 
-    const fullyQualifiedName = await this.normalizeViewName(adapter, config, viewName);
+    const adapter = this.adapterFactory.create(credentials, normalizedConfig);
+    const resolvedLocation = await this.resolveLocation(adapter, normalizedConfig, sql);
+
+    const fullyQualifiedName = await this.normalizeViewName(
+      adapter,
+      normalizedConfig,
+      viewName,
+      resolvedLocation
+    );
 
     const ddl = `CREATE OR REPLACE VIEW \`${fullyQualifiedName}\` AS ${sql}`;
     await adapter.executeQuery(ddl);
 
     return { fullyQualifiedName: fullyQualifiedName };
+  }
+
+  private async resolveLocation(
+    adapter: ReturnType<BigQueryApiAdapterFactory['create']>,
+    config: BigQueryConfig,
+    sql: string
+  ): Promise<string> {
+    const configuredLocation = config.location;
+    if (configuredLocation && configuredLocation !== BIGQUERY_AUTODETECT_LOCATION) {
+      return configuredLocation;
+    }
+
+    // Location can be autodetect or empty, so rely on dry-run metadata.
+    const dryRunResult = await adapter.executeDryRunQuery(sql);
+    if (!dryRunResult.location) {
+      this.logger.warn('BigQuery dry run did not return location. Use default location US.');
+      return BigQueryCreateViewExecutor.DEFAULT_LOCATION;
+    }
+    return dryRunResult.location;
   }
 
   /**
@@ -48,7 +81,8 @@ export class BigQueryCreateViewExecutor implements CreateViewExecutor {
   private async normalizeViewName(
     adapter: ReturnType<BigQueryApiAdapterFactory['create']>,
     config: BigQueryConfig,
-    viewName: string
+    viewName: string,
+    location: string
   ): Promise<string> {
     const projectId = config.projectId;
 
@@ -57,12 +91,33 @@ export class BigQueryCreateViewExecutor implements CreateViewExecutor {
       return viewName;
     }
 
-    // CASE 2 — not fully qualified → use owox_internal as default dataset
-    const datasetId = 'owox_internal';
+    // CASE 2 — not fully qualified → use internal dataset per location
+    const datasetId = this.buildInternalDatasetId(location);
 
-    const ddlDataset = `CREATE SCHEMA IF NOT EXISTS \`${projectId}.${datasetId}\``;
+    const ddlDataset = this.buildCreateSchemaQuery(projectId, datasetId, location);
     await adapter.executeQuery(ddlDataset);
 
     return `${projectId}.${datasetId}.${viewName}`;
+  }
+
+  private buildInternalDatasetId(location: string): string {
+    const locationSuffix = this.normalizeLocationForDatasetId(location);
+    return `owox_internal_${locationSuffix}`;
+  }
+
+  private normalizeLocationForDatasetId(location: string): string {
+    const normalizedLocation = location
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9_]+/g, '_')
+      .replace(/_+/g, '_')
+      .replace(/^_+|_+$/g, '');
+
+    return normalizedLocation || BigQueryCreateViewExecutor.DEFAULT_LOCATION.toLowerCase();
+  }
+
+  private buildCreateSchemaQuery(projectId: string, datasetId: string, location: string): string {
+    const escapedDataset = `\`${projectId}.${datasetId}\``;
+    return `CREATE SCHEMA IF NOT EXISTS ${escapedDataset} OPTIONS(location='${location}')`;
   }
 }

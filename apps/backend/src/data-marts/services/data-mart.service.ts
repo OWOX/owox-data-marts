@@ -143,6 +143,21 @@ export class DataMartService {
     return dataMart;
   }
 
+  async actualizeSchemaIfExpired(
+    id: string,
+    projectId: string,
+    expiresAfterMs: number
+  ): Promise<DataMart> {
+    const dataMart = await this.getByIdAndProjectId(id, projectId);
+    if (!this.isSchemaExpired(dataMart, expiresAfterMs)) {
+      return dataMart;
+    }
+
+    await this.actualizeSchemaInEntity(dataMart);
+    await this.dataMartRepository.save(dataMart);
+    return dataMart;
+  }
+
   async actualizeSchemaInEntity(dataMart: DataMart): Promise<DataMart> {
     // Get the new schema from the provider
     const newSchema = await this.dataMartSchemaProviderFacade.getActualDataMartSchema(dataMart);
@@ -153,8 +168,17 @@ export class DataMartService {
       dataMart.schema,
       newSchema
     );
+    dataMart.schemaActualizedAt = new Date();
 
     return dataMart;
+  }
+
+  private isSchemaExpired(dataMart: DataMart, expiresAfterMs: number): boolean {
+    if (!dataMart.schemaActualizedAt) {
+      return true;
+    }
+
+    return Date.now() - dataMart.schemaActualizedAt.getTime() >= expiresAfterMs;
   }
 
   async save(dataMart: DataMart): Promise<DataMart> {
