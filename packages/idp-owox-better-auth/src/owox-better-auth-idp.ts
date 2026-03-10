@@ -1,4 +1,3 @@
-import { createMailingProvider } from '@owox/internal-helpers';
 import {
   AuthResult,
   GetProjectMembersOptions,
@@ -8,11 +7,13 @@ import {
   Projects,
   ProtocolRoute,
 } from '@owox/idp-protocol';
+import { createMailingProvider } from '@owox/internal-helpers';
+import { getMigrations } from 'better-auth/db/migration';
 import cookieParser from 'cookie-parser';
 import e, { Express, NextFunction } from 'express';
 import { IdentityOwoxClient, TokenResponse } from './client/index.js';
-import { createBetterAuthConfig } from './config/index.js';
 import type { BetterAuthProviderConfig } from './config/index.js';
+import { createBetterAuthConfig } from './config/index.js';
 import { AuthErrorController } from './controllers/auth-error-controller.js';
 import { PageController } from './controllers/page-controller.js';
 import { PasswordFlowController } from './controllers/password-flow-controller.js';
@@ -27,9 +28,9 @@ import { PlatformAuthFlowClient } from './services/auth/platform-auth-flow-clien
 import {
   ProjectMembersService,
   ProjectMembersServiceOptions,
-} from './services/cache/project-members-service.js';
-import { UserAuthInfoPersistenceService } from './services/core/user-auth-info-persistence-service.js';
+} from './services/core/project-members-service.js';
 import { UserAccountResolver } from './services/core/user-account-resolver.js';
+import { UserAuthInfoPersistenceService } from './services/core/user-auth-info-persistence-service.js';
 import { UserContextService } from './services/core/user-context-service.js';
 import { EmailValidationService } from './services/email/email-validation-service.js';
 import { MagicLinkEmailService } from './services/email/magic-link-email-service.js';
@@ -47,7 +48,6 @@ import {
   getStateManager,
   persistPlatformParams,
 } from './utils/request-utils.js';
-import { getMigrations } from 'better-auth/db/migration';
 
 /**
  * Main IdP implementation that wires core PKCE flow and Better Auth.
