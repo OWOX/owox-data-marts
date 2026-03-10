@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import { zodResolver } from '@hookform/resolvers/zod';
 import type { CredentialIdentity } from '../../../../../shared/types/credential-identity';
@@ -69,22 +69,25 @@ export function DataDestinationForm({
     identity: CredentialIdentity | null;
   } | null>(null);
 
-  const handleSourceSelect = (id: string, title: string, identity: CredentialIdentity | null) => {
-    setSelectedSource({ id, title, identity });
-    // Set placeholder credentialId so Zod validation passes.
-    // Credentials are copied server-side; this value is stripped from the payload
-    // because dirtyFields.credentials is not set (shouldDirty: false).
-    form.setValue('credentials.credentialId', COPY_SOURCE_CREDENTIAL_PLACEHOLDER, {
-      shouldDirty: false,
-      shouldValidate: true,
-    });
-  };
+  const handleSourceSelect = useCallback(
+    (id: string, title: string, identity: CredentialIdentity | null) => {
+      setSelectedSource({ id, title, identity });
+      // Set placeholder credentialId so Zod validation passes.
+      // Credentials are copied server-side; this value is stripped from the payload
+      // because dirtyFields.credentials is not set (shouldDirty: false).
+      form.setValue('credentials.credentialId', COPY_SOURCE_CREDENTIAL_PLACEHOLDER, {
+        shouldDirty: false,
+        shouldValidate: true,
+      });
+    },
+    [form]
+  );
 
-  const handleSourceClear = () => {
+  const handleSourceClear = useCallback(() => {
     setSelectedSource(null);
     // Restore credential field to its original value from initialData
     form.resetField('credentials.credentialId');
-  };
+  }, [form]);
 
   // Get the current destination type
   const destinationType = form.watch('type');
@@ -100,7 +103,7 @@ export function DataDestinationForm({
       selectedSource,
       onSourceClear: handleSourceClear,
     }),
-    [destinationId, selectedSource]
+    [destinationId, selectedSource, handleSourceSelect, handleSourceClear]
   );
 
   const handleSubmit = async (data: DataDestinationFormData) => {
