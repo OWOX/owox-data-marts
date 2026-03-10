@@ -18,7 +18,7 @@ export class AddDataMartCompositeIndex1771023180001 implements MigrationInterfac
 
   public async up(queryRunner: QueryRunner): Promise<void> {
     await queryRunner.query(
-      `CREATE INDEX IF NOT EXISTS \`${this.indexName}\` ON \`${this.tableName}\` (projectId, deletedAt, createdAt DESC, id ASC)`
+      `CREATE INDEX \`${this.indexName}\` ON \`${this.tableName}\` (projectId, deletedAt, createdAt DESC, id ASC)`
     );
   }
 
