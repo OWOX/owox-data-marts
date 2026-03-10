@@ -557,32 +557,28 @@ export default function InsightDetailsView() {
             )}
             {isRunPending ? 'Running…' : 'Run'}
           </Button>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                variant='outline'
-                disabled={!canRun || isRunPending || isDirty}
-                onClick={handleSendAndSchedule}
-                className='relative gap-2'
-              >
-                <Send className='h-4 w-4' />
-                Send & Schedule
-                {reports.length > 0 && (
+          <Button
+            variant='outline'
+            disabled={!canRun || isRunPending || isDirty}
+            onClick={handleSendAndSchedule}
+            className='relative gap-2'
+          >
+            <Send className='h-4 w-4' />
+            Send & Schedule
+            {reports.length > 0 && (
+              <Tooltip>
+                <TooltipTrigger asChild>
                   <Badge
                     variant='secondary'
                     className='bg-primary text-primary-foreground absolute top-0 right-0 h-5 w-5 translate-x-1/2 -translate-y-1/2 justify-center rounded-full p-0 text-[10px]'
                   >
                     {reports.length}
                   </Badge>
-                )}
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>
-              {reports.length > 0
-                ? getReportsTooltipText(reports)
-                : 'Send this insight via Email, Slack, and other channels'}
-            </TooltipContent>
-          </Tooltip>
+                </TooltipTrigger>
+                <TooltipContent>{getReportsTooltipText(reports)}</TooltipContent>
+              </Tooltip>
+            )}
+          </Button>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant='ghost' size='icon'>

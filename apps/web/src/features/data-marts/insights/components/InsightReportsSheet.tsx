@@ -1,3 +1,4 @@
+import { useRef } from 'react';
 import {
   Sheet,
   SheetContent,
@@ -25,9 +26,19 @@ export function InsightReportsSheet({
   onEditReport,
   onCreateReport,
 }: InsightReportsSheetProps) {
+  const contentRef = useRef<HTMLDivElement | null>(null);
+
   return (
     <Sheet open={isOpen} onOpenChange={onClose}>
-      <SheetContent className='flex flex-col gap-0 sm:max-w-[600px]'>
+      <SheetContent
+        className='flex flex-col gap-0 sm:max-w-[600px]'
+        ref={contentRef}
+        tabIndex={-1}
+        onOpenAutoFocus={event => {
+          event.preventDefault();
+          contentRef.current?.focus();
+        }}
+      >
         <SheetHeader>
           <div className='flex flex-col gap-1.5 pr-8'>
             <SheetTitle>Insight Reports</SheetTitle>
