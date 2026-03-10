@@ -2,7 +2,8 @@ import { beforeEach, describe, expect, it, jest } from '@jest/globals';
 import type { ProjectMember } from '@owox/idp-protocol';
 import type { IdentityOwoxClient } from '../../client/index.js';
 import type { DatabaseStore } from '../../store/database-store.js';
-import { ProjectMembersService, ProjectMembersServiceOptions } from './project-members-service.js';
+import type { ProjectMembersServiceOptions } from '../../types/project-members.js';
+import { ProjectMembersService } from './project-members-service.js';
 
 // Mock types
 interface MockOwoxProjectMembersResponse {

@@ -25,10 +25,8 @@ import { BetterAuthSessionService } from './services/auth/better-auth-session-se
 import { MagicLinkService } from './services/auth/magic-link-service.js';
 import { PkceFlowOrchestrator } from './services/auth/pkce-flow-orchestrator.js';
 import { PlatformAuthFlowClient } from './services/auth/platform-auth-flow-client.js';
-import {
-  ProjectMembersService,
-  ProjectMembersServiceOptions,
-} from './services/core/project-members-service.js';
+import { ProjectMembersService } from './services/core/project-members-service.js';
+import type { ProjectMembersServiceOptions } from './types/project-members.js';
 import { UserAccountResolver } from './services/core/user-account-resolver.js';
 import { UserAuthInfoPersistenceService } from './services/core/user-auth-info-persistence-service.js';
 import { UserContextService } from './services/core/user-context-service.js';

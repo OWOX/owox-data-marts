@@ -1,29 +1,18 @@
 import type { GetProjectMembersOptions, ProjectMember } from '@owox/idp-protocol';
 import type { IdentityOwoxClient } from '../../client/index.js';
+import {
+  DEFAULT_OWOX_CLIENT_TIMEOUT_MS,
+  DEFAULT_PROJECT_MEMBERS_CACHE_TTL_SECONDS,
+} from '../../core/constants.js';
 import { createServiceLogger } from '../../core/logger.js';
 import type { DatabaseStore } from '../../store/database-store.js';
-
-export interface ProjectMembersServiceOptions {
-  /**
-   * TTL for data in seconds
-   * @default 900 (15 minutes)
-   */
-  ttlSeconds?: number;
-
-  /**
-   * Request timeout to OWOX Client in milliseconds
-   * @default 5000 (5 seconds)
-   */
-  owoxClientTimeoutMs?: number;
-}
+import type { ProjectMembersServiceOptions } from '../../types/project-members.js';
 
 /**
  * Service for managing project members with persistent storage.
  * Implements TTL-based refresh and graceful degradation when OWOX Client is unavailable.
  */
 export class ProjectMembersService {
-  private readonly DEFAULT_TTL_SECONDS = 15 * 60; // 15 minutes
-  private readonly DEFAULT_OWOX_CLIENT_TIMEOUT_MS = 5000; // 5 seconds
   private readonly logger = createServiceLogger(ProjectMembersService.name);
 
   private readonly ttlSeconds: number;
@@ -34,8 +23,8 @@ export class ProjectMembersService {
     private readonly identityClient: IdentityOwoxClient,
     options: ProjectMembersServiceOptions = {}
   ) {
-    this.ttlSeconds = options.ttlSeconds ?? this.DEFAULT_TTL_SECONDS;
-    this.owoxClientTimeoutMs = options.owoxClientTimeoutMs ?? this.DEFAULT_OWOX_CLIENT_TIMEOUT_MS;
+    this.ttlSeconds = options.ttlSeconds ?? DEFAULT_PROJECT_MEMBERS_CACHE_TTL_SECONDS;
+    this.owoxClientTimeoutMs = options.owoxClientTimeoutMs ?? DEFAULT_OWOX_CLIENT_TIMEOUT_MS;
   }
 
   /**

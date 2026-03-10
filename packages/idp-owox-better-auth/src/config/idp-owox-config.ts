@@ -209,12 +209,12 @@ const JwtEnvSchema = z
 
 const ProjectMembersCacheEnvSchema = z
   .object({
-    IDP_PROJECT_MEMBERS_CACHE_TTL: zMsString.optional(),
+    IDP_OWOX_PROJECT_MEMBERS_CACHE_TTL: zMsString.optional(),
   })
   .transform(e => ({
     // Convert to seconds immediately
     projectMembersCacheTtlSeconds: Math.floor(
-      ms(e.IDP_PROJECT_MEMBERS_CACHE_TTL ?? ('15m' as ms.StringValue)) / 1000
+      ms(e.IDP_OWOX_PROJECT_MEMBERS_CACHE_TTL ?? ('15m' as ms.StringValue)) / 1000
     ),
   }));
 

@@ -82,3 +82,4 @@ export interface BetterAuthConfig {
 export * from './auth-session.js';
 export * from './database-models.js';
 export * from './magic-link.js';
+export * from './project-members.js';
