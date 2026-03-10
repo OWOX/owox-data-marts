@@ -154,17 +154,6 @@ export default function InsightsListView() {
         ),
       },
       {
-        accessorKey: 'sourcesCount',
-        size: 150,
-        meta: { title: 'Data Artifacts' },
-        header: ({ column }) => <SortableHeader column={column}>Data Artifacts</SortableHeader>,
-        cell: ({ row }) => (
-          <div className='text-muted-foreground text-xs'>
-            Data Artifacts: {row.original.sourcesCount}
-          </div>
-        ),
-      },
-      {
         accessorKey: 'modifiedAt',
         size: 170,
         sortDescFirst: true,
@@ -271,15 +260,16 @@ export default function InsightsListView() {
               </EmptyMedia>
               <EmptyTitle>Create your first Insight</EmptyTitle>
               <EmptyDescription>
-                Create insights to build reports and deliver them to your preferred channels (Email,
-                Slack, etc.)
+                Create insights to build scheduled reports and deliver them to your preferred
+                channels (Email, Slack, etc.)
               </EmptyDescription>
             </EmptyHeader>
+
             <EmptyContent>
               <div className='inline-flex'>
                 <Button onClick={() => void handleCreate()}>
-                  <Sparkles className='h-4 w-4' />
-                  Create Insight
+                  <Plus className='h-4 w-4' />
+                  New Insight
                 </Button>
               </div>
             </EmptyContent>

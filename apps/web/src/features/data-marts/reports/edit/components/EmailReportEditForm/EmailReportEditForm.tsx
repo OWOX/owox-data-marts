@@ -450,7 +450,7 @@ export const EmailReportEditForm = forwardRef<HTMLFormElement, EmailReportEditFo
                                 Custom
                               </TabsTrigger>
                               <TabsTrigger value={TemplateSourceTypeEnum.INSIGHT_TEMPLATE}>
-                                Insight Template
+                                Insight
                               </TabsTrigger>
                             </TabsList>
                           </div>
@@ -578,13 +578,13 @@ export const EmailReportEditForm = forwardRef<HTMLFormElement, EmailReportEditFo
                                       >
                                         <FormControl>
                                           <SelectTrigger className='w-full max-w-full overflow-hidden'>
-                                            <SelectValue placeholder='Select an insight template'>
+                                            <SelectValue placeholder='Select an insight'>
                                               <span className='block truncate'>
                                                 {insightField.value
                                                   ? insightTemplates.find(
                                                       t => t.id === insightField.value
                                                     )?.title
-                                                  : 'Select an insight template'}
+                                                  : 'Select an insight'}
                                               </span>
                                             </SelectValue>
                                           </SelectTrigger>
@@ -600,7 +600,7 @@ export const EmailReportEditForm = forwardRef<HTMLFormElement, EmailReportEditFo
                                           {insightTemplates.length === 0 &&
                                             !loadingInsightTemplates && (
                                               <div className='text-muted-foreground p-2 text-sm'>
-                                                No insight templates available
+                                                No insight available
                                               </div>
                                             )}
                                         </SelectContent>
@@ -643,7 +643,7 @@ export const EmailReportEditForm = forwardRef<HTMLFormElement, EmailReportEditFo
                             <FormLabel className='mt-0!'>Message</FormLabel>
                             <TabsList className='grid grid-cols-1'>
                               <TabsTrigger value={TemplateSourceTypeEnum.INSIGHT_TEMPLATE} disabled>
-                                Insight Template
+                                Insight
                               </TabsTrigger>
                             </TabsList>
                           </div>
@@ -658,8 +658,8 @@ export const EmailReportEditForm = forwardRef<HTMLFormElement, EmailReportEditFo
                                           {form.watch('insightTemplateId')
                                             ? (insightTemplates.find(
                                                 t => t.id === form.watch('insightTemplateId')
-                                              )?.title ?? 'Selected Insight Template')
-                                            : 'No Insight Template selected'}
+                                              )?.title ?? 'Selected Insight')
+                                            : 'No Insight selected'}
                                         </p>
                                         {!isInsightContext &&
                                           dataMart &&
@@ -677,7 +677,7 @@ export const EmailReportEditForm = forwardRef<HTMLFormElement, EmailReportEditFo
                                           )}
                                       </div>
                                       <p className='text-muted-foreground mt-1 text-xs'>
-                                        The Insight template will be used when the report runs
+                                        The Insight will be used when the report runs
                                       </p>
                                     </div>
                                   </div>

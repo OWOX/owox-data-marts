@@ -7,6 +7,7 @@ import {
   ChevronUp,
   Circle,
   Copy,
+  FileText,
   History,
   Loader2,
   MessageSquare,
@@ -93,13 +94,10 @@ import { AiAssistantPanel } from './AiAssistantPanel.tsx';
 import { InsightTemplateEditor } from './InsightTemplateEditor';
 import { InsightSourcesPanel } from './InsightSourcesPanel';
 import { InsightLoader } from './InsightLoader';
-import { Badge } from '@owox/ui/components/badge';
 import { InsightReportsSheet } from './InsightReportsSheet';
 import { useReportsByInsightTemplate } from '../../reports/list/model/hooks/useReportsByInsightTemplate';
 import type { AiAssistantPanelHandle } from '../model/ai-assistant/types/ai-assistant-panel.types.ts';
 import type { DataMartReport } from '../../reports/shared/model/types/data-mart-report';
-
-// ─────────────────────────────────────────────────────────────────────────────
 
 export default function InsightDetailsView() {
   const navigate = useNavigate();
@@ -131,8 +129,8 @@ export default function InsightDetailsView() {
 
     const typesString = typeLabels.join(', ');
     return reports.length === 1
-      ? `This insight is used in 1 report (${typesString})`
-      : `This insight is used in ${String(reports.length)} reports (${typesString})`;
+      ? `This Insight is used in 1 report (${typesString})`
+      : `This Insight is used in ${String(reports.length)} reports (${typesString})`;
   }, []);
 
   // ── Preview panel ──────────────────────────────────────────────────────────
@@ -532,30 +530,32 @@ export default function InsightDetailsView() {
 
         <div className='ml-auto flex items-center gap-2 pr-1'>
           {isDirty && (
-            <span className='flex items-center gap-1.5 text-xs font-medium text-yellow-600'>
-              <Circle className='h-2 w-2 fill-current' />
-              Unsaved changes
-            </span>
+            <>
+              <span className='flex items-center gap-1.5 text-xs font-medium text-yellow-600'>
+                <Circle className='h-2 w-2 fill-current' />
+                Unsaved changes
+              </span>
+              <Button
+                variant='default'
+                disabled={saving || !canEdit}
+                onClick={() => void handleSave()}
+              >
+                {saving ? <Loader2 className='mr-2 h-4 w-4 animate-spin' /> : null}
+                Save
+              </Button>
+            </>
           )}
-          <Button
-            variant='secondary'
-            disabled={!isDirty || saving || !canEdit}
-            onClick={() => void handleSave()}
-          >
-            {saving ? <Loader2 className='mr-2 h-4 w-4 animate-spin' /> : null}
-            Save
-          </Button>
           <Button
             disabled={!canRun || isRunPending || isDirty}
             onClick={() => void handleRun()}
-            variant='default'
+            variant={!isDirty ? 'default' : 'outline'}
           >
             {isRunPending ? (
-              <Loader2 className='mr-2 h-4 w-4 animate-spin' />
+              <Loader2 className='mr-1 h-4 w-4 animate-spin' />
             ) : (
-              <Play className='mr-2 h-4 w-4' />
+              <Play className='mr-1h-4 w-4' />
             )}
-            {isRunPending ? 'Running…' : 'Run'}
+            {isRunPending ? 'Running…' : 'Run Insight'}
           </Button>
           <Button
             variant='outline'
@@ -565,19 +565,6 @@ export default function InsightDetailsView() {
           >
             <Send className='h-4 w-4' />
             Send & Schedule
-            {reports.length > 0 && (
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Badge
-                    variant='secondary'
-                    className='bg-primary text-primary-foreground absolute top-0 right-0 h-5 w-5 translate-x-1/2 -translate-y-1/2 justify-center rounded-full p-0 text-[10px]'
-                  >
-                    {reports.length}
-                  </Badge>
-                </TooltipTrigger>
-                <TooltipContent>{getReportsTooltipText(reports)}</TooltipContent>
-              </Tooltip>
-            )}
           </Button>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -723,7 +710,7 @@ export default function InsightDetailsView() {
             >
               <div className='flex h-full flex-col'>
                 <div className='flex h-12 shrink-0 items-center justify-between border-b px-4'>
-                  <div className='text-sm font-medium'>Insight Template</div>
+                  <div className='text-sm font-medium'>Insight</div>
                   <Tooltip>
                     <TooltipTrigger asChild>
                       <Button
@@ -734,14 +721,14 @@ export default function InsightDetailsView() {
                           setIsReportsListOpen(true);
                         }}
                       >
-                        <History className='h-3.5 w-3.5' />
+                        <FileText className='h-4 w-4' />
                         {reports.length > 0 ? `${String(reports.length)} reports` : 'No reports'}
                       </Button>
                     </TooltipTrigger>
                     <TooltipContent>
                       {reports.length > 0
                         ? getReportsTooltipText(reports)
-                        : 'No reports configured for this insight yet'}
+                        : 'No reports configured for this Insight yet'}
                     </TooltipContent>
                   </Tooltip>
                 </div>

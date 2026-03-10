@@ -19,11 +19,11 @@ export default function MessageTemplateDescription({ type }: MessageTemplateDesc
     return (
       <Accordion variant='common' type='single' collapsible>
         <AccordionItem value='insight-template-details' className='border-none'>
-          <AccordionTrigger>How does Insight Template work?</AccordionTrigger>
+          <AccordionTrigger>How does Insight work?</AccordionTrigger>
           <AccordionContent className='text-muted-foreground'>
             <p>
-              Insight templates allow you to use predefined layouts and data visualizations. Select
-              a template from the list to use it in your report.
+              Insight allow you to use predefined layouts and data visualizations. Select an Insight
+              from the list to use it in your report.
             </p>
           </AccordionContent>
         </AccordionItem>

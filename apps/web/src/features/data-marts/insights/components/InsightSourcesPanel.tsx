@@ -34,6 +34,7 @@ import {
   Database,
   CheckCircle,
   XCircle,
+  CodeIcon,
 } from 'lucide-react';
 import {
   DropdownMenu,
@@ -141,8 +142,8 @@ export function InsightSourcesPanel({
                   onClick={handleAdd}
                   disabled={!canEdit || isRunning || isLimitReached}
                 >
-                  <Plus className='mr-2 h-4 w-4' />
-                  Add Data Artifact
+                  <Plus className='h-4 w-4' />
+                  Data Artifact
                 </Button>
               </span>
             </TooltipTrigger>
@@ -163,7 +164,7 @@ export function InsightSourcesPanel({
         ) : sources.length === 0 ? (
           <div className='flex h-full flex-col items-center justify-center gap-3 px-6 py-4 text-center'>
             <div className='bg-muted flex h-10 w-10 items-center justify-center rounded-full'>
-              <Database className='text-muted-foreground h-5 w-5' />
+              <CodeIcon className='text-muted-foreground h-5 w-5' />
             </div>
             <div className='space-y-1'>
               <p className='text-sm font-medium'>No data artifacts yet</p>
@@ -178,7 +179,7 @@ export function InsightSourcesPanel({
               disabled={!canEdit || isRunning}
             >
               <Plus className='mr-2 h-4 w-4' />
-              Add Data Artifact
+              Data Artifact
             </Button>
           </div>
         ) : (
