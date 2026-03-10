@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { TemplateSourceTypeEnum } from '../../../../enums/template-source-type.enum';
 import { ReportCondition } from '../../../enums/report-condition.enum';
 import { TemplateSourceSchema } from './template-source.schema';
 
@@ -33,7 +34,7 @@ export const EmailConfigInputSchema = z.union([
     subject: legacy.subject,
     reportCondition: legacy.reportCondition,
     templateSource: {
-      type: 'CUSTOM_MESSAGE' as const,
+      type: TemplateSourceTypeEnum.CUSTOM_MESSAGE,
       config: {
         messageTemplate: legacy.messageTemplate,
       },

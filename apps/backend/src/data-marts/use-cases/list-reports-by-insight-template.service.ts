@@ -6,7 +6,7 @@ import { ReportMapper } from '../mappers/report.mapper';
 import { ReportDto } from '../dto/domain/report.dto';
 import { ListReportsByInsightTemplateCommand } from '../dto/domain/list-reports-by-insight-template.command';
 import { EmailConfigType } from '../data-destination-types/ee/email/schemas/email-config.schema';
-import { TemplateSourceType } from '../data-destination-types/ee/email/schemas/template-source.schema';
+import { TemplateSourceTypeEnum } from '../enums/template-source-type.enum';
 
 @Injectable()
 export class ListReportsByInsightTemplateService {
@@ -28,7 +28,7 @@ export class ListReportsByInsightTemplateService {
         type: EmailConfigType,
       })
       .andWhere(`JSON_EXTRACT(report.destinationConfig, '$.templateSource.type') = :sourceType`, {
-        sourceType: TemplateSourceType.INSIGHT_TEMPLATE,
+        sourceType: TemplateSourceTypeEnum.INSIGHT_TEMPLATE,
       })
       .andWhere(
         `JSON_EXTRACT(report.destinationConfig, '$.templateSource.config.insightTemplateId') = :insightTemplateId`,

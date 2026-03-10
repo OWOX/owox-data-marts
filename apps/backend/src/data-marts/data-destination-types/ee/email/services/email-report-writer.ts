@@ -37,6 +37,7 @@ import { InsightTemplateService } from '../../../../services/insight-template.se
 import { DataDestinationCredentialsResolver } from '../../../data-destination-credentials-resolver.service';
 import { isEmailConfig } from '../../../data-destination-config.guards';
 import { DataDestinationType } from '../../../enums/data-destination-type.enum';
+import { TemplateSourceTypeEnum } from '../../../../enums/template-source-type.enum';
 import { ReportCondition } from '../../../enums/report-condition.enum';
 import { DataDestinationReportWriter } from '../../../interfaces/data-destination-report-writer.interface';
 import { EmailConfig } from '../schemas/email-config.schema';
@@ -158,7 +159,7 @@ abstract class BaseEmailReportWriter implements DataDestinationReportWriter {
 
     const templateSourceType = this.emailConfig.templateSource.type;
 
-    if (templateSourceType === 'INSIGHT_TEMPLATE') {
+    if (templateSourceType === TemplateSourceTypeEnum.INSIGHT_TEMPLATE) {
       const insightTemplateId = this.emailConfig.templateSource.config.insightTemplateId;
       try {
         insightTemplate = await this.insightTemplateService.getByIdAndDataMartIdWithSourceEntities(
@@ -188,7 +189,7 @@ abstract class BaseEmailReportWriter implements DataDestinationReportWriter {
 
     let renderContext: Record<string, unknown> | undefined;
 
-    if (insightTemplate && templateSourceType === 'INSIGHT_TEMPLATE') {
+    if (insightTemplate && templateSourceType === TemplateSourceTypeEnum.INSIGHT_TEMPLATE) {
       renderContext = await this.sourceDataService.buildRenderContext(
         this.report.dataMart,
         insightTemplate

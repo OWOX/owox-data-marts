@@ -1,14 +1,7 @@
 import { z } from 'zod';
+import { TemplateSourceTypeEnum } from '../../../../enums/template-source-type.enum';
 
-/**
- * Template source types for email-based reports
- */
-export const TemplateSourceType = {
-  CUSTOM_MESSAGE: 'CUSTOM_MESSAGE',
-  INSIGHT_TEMPLATE: 'INSIGHT_TEMPLATE',
-} as const;
-
-export type TemplateSourceType = (typeof TemplateSourceType)[keyof typeof TemplateSourceType];
+export type TemplateSourceType = TemplateSourceTypeEnum;
 
 /**
  * Configuration for CUSTOM_MESSAGE template source
@@ -33,11 +26,11 @@ export type InsightTemplateConfig = z.infer<typeof InsightTemplateConfigSchema>;
  */
 export const TemplateSourceSchema = z.discriminatedUnion('type', [
   z.object({
-    type: z.literal(TemplateSourceType.CUSTOM_MESSAGE),
+    type: z.literal(TemplateSourceTypeEnum.CUSTOM_MESSAGE),
     config: CustomMessageTemplateConfigSchema,
   }),
   z.object({
-    type: z.literal(TemplateSourceType.INSIGHT_TEMPLATE),
+    type: z.literal(TemplateSourceTypeEnum.INSIGHT_TEMPLATE),
     config: InsightTemplateConfigSchema,
   }),
 ]);
