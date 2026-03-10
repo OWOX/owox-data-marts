@@ -2,15 +2,19 @@
 
 ## Why This Matters
 
-You already use the OWOX Reports Google Sheets Extension. You have Data Marts — SQL queries or table references — running in your BigQuery project and sending data to spreadsheets. But your data is limited to one channel (Google Sheets), with no visibility into run history and no way to deliver it elsewhere.
+You already use the [OWOX Reports Google Sheets Extension](https://workspace.google.com/marketplace/app/owox_bigquery_data_marts/263000453832). You have Data Marts — SQL queries or table references — running in your BigQuery project and sending data to spreadsheets. But your data is limited to one channel (Google Sheets), with no visibility into run history and no way to deliver it elsewhere.
 
-OWOX Data Marts connects to that same BigQuery project and unlocks new capabilities — without rewriting your existing logic.
+**OWOX Data Marts** connects to that same BigQuery project and unlocks new capabilities — without rewriting your existing logic.
 
 > 💡 OWOX Data Marts detects your existing Extension Data Marts and automatically
-> creates a storage called "Google BigQuery (used in OWOX extension)" linked to
-> your GCP project ID. This storage cannot be manually added, edited, or deleted.
+> creates a system storage called like your GCP project ID with the type "Google BigQuery (used in OWOX extension)".
+> This storage cannot be manually added, edited, or deleted.
 
-## Setup
+## Easy three-step Setup
+
+Follow the steps below to complete the setup:
+
+<https://customer-4geatlj66rtkaxtz.cloudflarestream.com/c2c31d3821d2e0c910fb1d9260323cb4/iframe>
 
 1. [Select a storage](#step-1-select-your-storage)
 2. [Grant access to Google BigQuery](#step-2-grant-access-to-google-bigquery)

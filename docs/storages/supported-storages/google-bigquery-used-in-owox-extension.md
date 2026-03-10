@@ -14,6 +14,8 @@ They remain in Draft because OWOX Data Marts requires a one-time BigQuery access
 
 Follow the steps below to finish the setup.
 
+<https://customer-4geatlj66rtkaxtz.cloudflarestream.com/c2c31d3821d2e0c910fb1d9260323cb4/iframe>
+
 ### Step 1. Review the Storage Settings
 
 In the OWOX Data Marts web application, navigate to **Storages**.  
