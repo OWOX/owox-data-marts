@@ -13,7 +13,7 @@ export const MicrosoftTeamsIcon = ({ className, size = 24 }: MicrosoftTeamsIconP
       className={className}
       xmlns='http://www.w3.org/2000/svg'
     >
-      <g clip-path='url(#clip0_377_3451)'>
+      <g clipPath='url(#clip0_377_3451)'>
         <path
           d='M16.4954 9.25H22.6042C23.1814 9.25 23.6492 9.71786 23.6492 10.295V15.8593C23.6492 17.9805 21.9297 19.7 19.8086 19.7H19.7904C17.6693 19.7003 15.9495 17.981 15.9492 15.8599C15.9492 15.8597 15.9492 15.8595 15.9492 15.8593V9.79616C15.9492 9.49452 16.1937 9.25 16.4954 9.25Z'
           fill='#5059C9'

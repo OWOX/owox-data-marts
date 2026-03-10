@@ -29,7 +29,7 @@ export const dataMartDetailsRoutes: RouteObject[] = [
     ],
   },
   {
-    path: 'next-insights',
+    path: 'insights-v2',
     element: <DataMartNextInsightsContent />,
     children: [
       { index: true, element: <InsightsListView /> },

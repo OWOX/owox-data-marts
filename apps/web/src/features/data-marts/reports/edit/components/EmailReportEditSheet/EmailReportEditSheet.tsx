@@ -9,7 +9,7 @@ import { useCallback } from 'react';
 import { ConfirmationDialog } from '../../../../../../shared/components/ConfirmationDialog';
 import { DataDestinationProvider } from '../../../../../data-destination';
 import type { DataDestination } from '../../../../../data-destination';
-import { ReportFormMode } from '../../../shared';
+import { ReportFormMode, TemplateSourceTypeEnum } from '../../../shared';
 import type { DataMartReport } from '../../../shared/model/types/data-mart-report';
 import { EmailReportEditForm } from '../EmailReportEditForm';
 import type { DataDestinationType } from '../../../../../data-destination';
@@ -28,8 +28,12 @@ interface EmailReportEditSheetProps {
     title?: string;
     subject?: string;
     messageTemplate?: string;
+    insightTemplateId?: string;
+    templateSourceType?: TemplateSourceTypeEnum;
   };
   allowedDestinationTypes?: DataDestinationType[];
+  isInsightContext?: boolean;
+  isReadOnly?: boolean;
 }
 
 export function EmailReportEditSheet({
@@ -40,6 +44,8 @@ export function EmailReportEditSheet({
   preSelectedDestination,
   prefill,
   allowedDestinationTypes,
+  isInsightContext = false,
+  isReadOnly = false,
 }: EmailReportEditSheetProps) {
   const { projectId, id: dataMartId } = useParams<{ projectId: string; id: string }>();
   const { pathname } = useLocation();
@@ -87,7 +93,10 @@ export function EmailReportEditSheet({
       >
         <SheetContent>
           <SheetHeader>
-            <SheetTitle>{preSelectedDestination?.title ?? 'Report'}</SheetTitle>
+            <SheetTitle>
+              {preSelectedDestination?.title ??
+                (mode === ReportFormMode.CREATE ? 'Create Report' : 'Report')}
+            </SheetTitle>
             <SheetDescription>
               {mode === ReportFormMode.CREATE
                 ? 'Fill in the details to create a new report'
@@ -105,6 +114,8 @@ export function EmailReportEditSheet({
               preSelectedDestination={preSelectedDestination}
               prefill={prefill}
               allowedDestinationTypes={allowedDestinationTypes}
+              isInsightContext={isInsightContext}
+              isReadOnly={isReadOnly}
             />
           </DataDestinationProvider>
         </SheetContent>

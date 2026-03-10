@@ -55,7 +55,7 @@ export function AiAssistantMessage({
         <Sparkles className='text-muted-foreground h-3 w-3' />
       </div>
       <div className='min-w-0 flex-1'>
-        <div className='bg-muted rounded-2xl rounded-tl-sm px-3 py-2.5 text-sm'>
+        <div className='border-border/60 bg-muted/10 rounded-2xl rounded-tl-sm border px-3 py-2.5 text-sm'>
           <div className='break-words whitespace-pre-wrap'>{message.content}</div>
 
           {details?.sqlCandidate && (

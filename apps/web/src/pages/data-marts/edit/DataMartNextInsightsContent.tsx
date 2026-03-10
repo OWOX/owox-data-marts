@@ -24,7 +24,7 @@ export default function DataMartNextInsightsContent() {
   }, []);
 
   return (
-    <div ref={ref} className='overflow-hidden'>
+    <div ref={ref} className='overflow-visible'>
       <Outlet />
     </div>
   );

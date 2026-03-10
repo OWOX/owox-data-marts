@@ -12,7 +12,7 @@ export const DestinationOptionContent = ({ destination }: DestinationOptionConte
     <div className='flex w-full min-w-0 items-center gap-2'>
       <IconComponent className='flex-shrink-0' size={18} />
       <div className='flex min-w-0 flex-col'>
-        <span className='truncate'>{destination.title}</span>
+        <span className='truncate pr-1'>{destination.title}</span>
       </div>
     </div>
   );

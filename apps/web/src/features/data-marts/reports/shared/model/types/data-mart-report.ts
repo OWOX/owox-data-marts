@@ -1,4 +1,8 @@
-import { DestinationTypeConfigEnum, type ReportStatusEnum } from '../../enums';
+import {
+  DestinationTypeConfigEnum,
+  TemplateSourceTypeEnum,
+  type ReportStatusEnum,
+} from '../../enums';
 import { type DataDestination } from '../../../../../data-destination';
 import type { DataMart } from '../../../../edit';
 import type { ReportConditionEnum } from '../../enums/report-condition.enum.ts';
@@ -14,11 +18,42 @@ export interface LookerStudioDestinationConfig {
   cacheLifetime: number; // in seconds
 }
 
+export type TemplateSourceType = TemplateSourceTypeEnum;
+
+/**
+ * Configuration for CUSTOM_MESSAGE template source
+ */
+export interface CustomMessageTemplateConfig {
+  messageTemplate: string;
+}
+
+/**
+ * Configuration for INSIGHT_TEMPLATE template source
+ */
+export interface InsightTemplateConfig {
+  insightTemplateId: string;
+}
+
+/**
+ * Template source configuration
+ */
+export interface CustomMessageTemplateSource {
+  type: TemplateSourceTypeEnum.CUSTOM_MESSAGE;
+  config: CustomMessageTemplateConfig;
+}
+
+export interface InsightTemplateSource {
+  type: TemplateSourceTypeEnum.INSIGHT_TEMPLATE;
+  config: InsightTemplateConfig;
+}
+
+export type TemplateSource = CustomMessageTemplateSource | InsightTemplateSource;
+
 export interface EmailDestinationConfig {
   type: DestinationTypeConfigEnum.EMAIL_CONFIG;
   reportCondition: ReportConditionEnum;
   subject: string;
-  messageTemplate: string;
+  templateSource: TemplateSource;
 }
 
 export type DestinationConfig =
@@ -42,6 +77,18 @@ export function isEmailDestinationConfig(
   config: DestinationConfig
 ): config is EmailDestinationConfig {
   return config.type === DestinationTypeConfigEnum.EMAIL_CONFIG;
+}
+
+export function isInsightTemplateSource(
+  templateSource: TemplateSource
+): templateSource is InsightTemplateSource {
+  return templateSource.type === TemplateSourceTypeEnum.INSIGHT_TEMPLATE;
+}
+
+export function isCustomMessageTemplateSource(
+  templateSource: TemplateSource
+): templateSource is CustomMessageTemplateSource {
+  return templateSource.type === TemplateSourceTypeEnum.CUSTOM_MESSAGE;
 }
 
 export interface DataMartReport {

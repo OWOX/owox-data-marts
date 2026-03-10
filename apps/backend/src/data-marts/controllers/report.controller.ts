@@ -10,6 +10,7 @@ import { CreateReportService } from '../use-cases/create-report.service';
 import { GetReportService } from '../use-cases/get-report.service';
 import { ListReportsByDataMartService } from '../use-cases/list-reports-by-data-mart.service';
 import { ListReportsByProjectService } from '../use-cases/list-reports-by-project.service';
+import { ListReportsByInsightTemplateService } from '../use-cases/list-reports-by-insight-template.service';
 import { DeleteReportService } from '../use-cases/delete-report.service';
 import { RunReportService } from '../use-cases/run-report.service';
 import { UpdateReportService } from '../use-cases/update-report.service';
@@ -21,6 +22,7 @@ import {
   DeleteReportSpec,
   RunReportSpec,
   UpdateReportSpec,
+  ListReportsByInsightTemplateSpec,
 } from './spec/report.api';
 import { RunType } from '../../common/scheduler/shared/types';
 
@@ -32,6 +34,7 @@ export class ReportController {
     private readonly getReportService: GetReportService,
     private readonly listReportsByDataMartService: ListReportsByDataMartService,
     private readonly listReportsByProjectService: ListReportsByProjectService,
+    private readonly listReportsByInsightTemplateService: ListReportsByInsightTemplateService,
     private readonly deleteReportService: DeleteReportService,
     private readonly runReportService: RunReportService,
     private readonly updateReportService: UpdateReportService,
@@ -71,6 +74,23 @@ export class ReportController {
   ): Promise<ReportResponseApiDto[]> {
     const command = this.mapper.toListByDataMartCommand(dataMartId, context);
     const reports = await this.listReportsByDataMartService.run(command);
+    return this.mapper.toResponseList(reports);
+  }
+
+  @Auth(Role.viewer(Strategy.PARSE))
+  @Get('data-mart/:dataMartId/insight-template/:insightTemplateId')
+  @ListReportsByInsightTemplateSpec()
+  async listByInsightTemplate(
+    @AuthContext() context: AuthorizationContext,
+    @Param('dataMartId') dataMartId: string,
+    @Param('insightTemplateId') insightTemplateId: string
+  ): Promise<ReportResponseApiDto[]> {
+    const command = this.mapper.toListByInsightTemplateCommand(
+      dataMartId,
+      insightTemplateId,
+      context
+    );
+    const reports = await this.listReportsByInsightTemplateService.run(command);
     return this.mapper.toResponseList(reports);
   }
 

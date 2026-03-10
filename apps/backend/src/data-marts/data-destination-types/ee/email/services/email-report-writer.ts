@@ -1,4 +1,4 @@
-import { Inject, Injectable, Logger, Scope } from '@nestjs/common';
+import { Inject, Injectable, Logger, NotFoundException, Scope } from '@nestjs/common';
 import { OwoxProducer } from '@owox/internal-helpers';
 import { PublicOriginService } from '../../../../../common/config/public-origin.service';
 import {
@@ -32,14 +32,18 @@ import {
   ReportRunLogger,
 } from '../../../../report-run-logging/report-run-logger';
 import { ConsumptionTrackingService } from '../../../../services/consumption-tracking.service';
+import { InsightTemplateSourceDataService } from '../../../../services/insight-template-source-data.service';
+import { InsightTemplateService } from '../../../../services/insight-template.service';
 import { DataDestinationCredentialsResolver } from '../../../data-destination-credentials-resolver.service';
 import { isEmailConfig } from '../../../data-destination-config.guards';
 import { DataDestinationType } from '../../../enums/data-destination-type.enum';
+import { TemplateSourceTypeEnum } from '../../../../enums/template-source-type.enum';
 import { ReportCondition } from '../../../enums/report-condition.enum';
 import { DataDestinationReportWriter } from '../../../interfaces/data-destination-report-writer.interface';
 import { EmailConfig } from '../schemas/email-config.schema';
-import { EmailCredentialsSchema, type EmailCredentials } from '../schemas/email-credentials.schema';
+import { type EmailCredentials, EmailCredentialsSchema } from '../schemas/email-credentials.schema';
 import { renderEmailReportTemplate } from '../templates/email-report.template';
+import { InsightTemplate } from '../../../../entities/insight-template.entity';
 
 /**
  * An abstract class that provides a base implementation for writing email reports.
@@ -74,7 +78,9 @@ abstract class BaseEmailReportWriter implements DataDestinationReportWriter {
     private readonly insightTemplateFacade: DataMartInsightTemplateFacadeImpl,
     private readonly consumptionTrackingService: ConsumptionTrackingService,
     private readonly producer: OwoxProducer,
-    private readonly credentialsResolver: DataDestinationCredentialsResolver
+    private readonly credentialsResolver: DataDestinationCredentialsResolver,
+    private readonly sourceDataService: InsightTemplateSourceDataService,
+    protected readonly insightTemplateService: InsightTemplateService
   ) {}
 
   public setExecutionContext(ctx: ReportRunExecutionContext): void {
@@ -148,12 +154,71 @@ abstract class BaseEmailReportWriter implements DataDestinationReportWriter {
       message: BaseEmailReportWriter.MESSAGES.REPORT_STARTED,
     });
 
+    let templateToRender: string;
+    let insightTemplate: InsightTemplate | null = null;
+
+    const templateSourceType = this.emailConfig.templateSource.type;
+
+    if (templateSourceType === TemplateSourceTypeEnum.INSIGHT_TEMPLATE) {
+      const insightTemplateId = this.emailConfig.templateSource.config.insightTemplateId;
+      try {
+        insightTemplate = await this.insightTemplateService.getByIdAndDataMartIdWithSourceEntities(
+          insightTemplateId,
+          this.report.dataMart.id
+        );
+      } catch (error) {
+        if (error instanceof NotFoundException) {
+          throw new BusinessViolationException(
+            `Insight template with ID ${insightTemplateId} not found for this DataMart`
+          );
+        }
+
+        throw error;
+      }
+
+      if (!insightTemplate.template) {
+        throw new BusinessViolationException(
+          `Insight template with ID ${insightTemplateId} has no template content`
+        );
+      }
+
+      templateToRender = insightTemplate.template;
+    } else {
+      templateToRender = this.emailConfig.templateSource.config.messageTemplate;
+    }
+
+    let renderContext: Record<string, unknown> | undefined;
+
+    if (insightTemplate && templateSourceType === TemplateSourceTypeEnum.INSIGHT_TEMPLATE) {
+      renderContext = await this.sourceDataService.buildRenderContext(
+        this.report.dataMart,
+        insightTemplate
+      );
+    } else {
+      renderContext = {
+        dataHeaders: this.reportDataDescription.dataHeaders,
+        dataHeadersCount: this.reportDataDescription.dataHeaders.length,
+        dataRows: this.reportDataRows,
+        dataRowsCount: this.reportDataRows.length,
+        tableSources: {
+          main: {
+            dataHeaders: this.reportDataDescription.dataHeaders.map(h => ({
+              name: h.name,
+              alias: h.alias,
+              description: h.description,
+            })),
+            dataRows: this.reportDataRows,
+          },
+        },
+      };
+    }
+
     const {
       rendered = '',
       status,
       prompts = [] as DataMartPromptMetaEntry[],
     } = await this.insightTemplateFacade.render({
-      template: this.emailConfig.messageTemplate,
+      template: templateToRender,
       params: {
         projectId: this.report.dataMart.projectId,
         dataMartId: this.report.dataMart.id,
@@ -170,18 +235,7 @@ abstract class BaseEmailReportWriter implements DataDestinationReportWriter {
         contextTitle: this.report.title,
         dataMart: this.report.dataMart,
       },
-      context: {
-        dataHeaders: this.reportDataDescription.dataHeaders,
-        dataHeadersCount: this.reportDataDescription.dataHeaders.length,
-        dataRows: this.reportDataRows,
-        dataRowsCount: this.reportDataRows.length,
-        tableSources: {
-          main: {
-            dataHeaders: this.reportDataDescription.dataHeaders,
-            dataRows: this.reportDataRows,
-          },
-        },
-      },
+      context: renderContext,
       disableBaseTagHandlers: false,
     });
 
@@ -338,7 +392,9 @@ export class EmailReportWriter extends BaseEmailReportWriter {
     consumptionTrackingService: ConsumptionTrackingService,
     @Inject(OWOX_PRODUCER)
     producer: OwoxProducer,
-    credentialsResolver: DataDestinationCredentialsResolver
+    credentialsResolver: DataDestinationCredentialsResolver,
+    sourceDataService: InsightTemplateSourceDataService,
+    insightTemplateService: InsightTemplateService
   ) {
     super(
       emailProvider,
@@ -347,7 +403,9 @@ export class EmailReportWriter extends BaseEmailReportWriter {
       insightTemplateFacade,
       consumptionTrackingService,
       producer,
-      credentialsResolver
+      credentialsResolver,
+      sourceDataService,
+      insightTemplateService
     );
   }
 }
@@ -365,7 +423,9 @@ export class SlackReportWriter extends BaseEmailReportWriter {
     consumptionTrackingService: ConsumptionTrackingService,
     @Inject(OWOX_PRODUCER)
     producer: OwoxProducer,
-    credentialsResolver: DataDestinationCredentialsResolver
+    credentialsResolver: DataDestinationCredentialsResolver,
+    sourceDataService: InsightTemplateSourceDataService,
+    insightTemplateService: InsightTemplateService
   ) {
     super(
       emailProvider,
@@ -374,7 +434,9 @@ export class SlackReportWriter extends BaseEmailReportWriter {
       insightTemplateFacade,
       consumptionTrackingService,
       producer,
-      credentialsResolver
+      credentialsResolver,
+      sourceDataService,
+      insightTemplateService
     );
   }
 }
@@ -392,7 +454,9 @@ export class MsTeamsReportWriter extends BaseEmailReportWriter {
     consumptionTrackingService: ConsumptionTrackingService,
     @Inject(OWOX_PRODUCER)
     producer: OwoxProducer,
-    credentialsResolver: DataDestinationCredentialsResolver
+    credentialsResolver: DataDestinationCredentialsResolver,
+    sourceDataService: InsightTemplateSourceDataService,
+    insightTemplateService: InsightTemplateService
   ) {
     super(
       emailProvider,
@@ -401,7 +465,9 @@ export class MsTeamsReportWriter extends BaseEmailReportWriter {
       insightTemplateFacade,
       consumptionTrackingService,
       producer,
-      credentialsResolver
+      credentialsResolver,
+      sourceDataService,
+      insightTemplateService
     );
   }
 }
@@ -419,7 +485,9 @@ export class GoogleChatReportWriter extends BaseEmailReportWriter {
     consumptionTrackingService: ConsumptionTrackingService,
     @Inject(OWOX_PRODUCER)
     producer: OwoxProducer,
-    credentialsResolver: DataDestinationCredentialsResolver
+    credentialsResolver: DataDestinationCredentialsResolver,
+    sourceDataService: InsightTemplateSourceDataService,
+    insightTemplateService: InsightTemplateService
   ) {
     super(
       emailProvider,
@@ -428,7 +496,9 @@ export class GoogleChatReportWriter extends BaseEmailReportWriter {
       insightTemplateFacade,
       consumptionTrackingService,
       producer,
-      credentialsResolver
+      credentialsResolver,
+      sourceDataService,
+      insightTemplateService
     );
   }
 }

@@ -13,7 +13,7 @@ export class EmailConfigMapper implements DestinationConfigMapperInterface {
       type: DestinationTypeConfigEnum.EMAIL_CONFIG,
       reportCondition: dto.reportCondition,
       subject: dto.subject,
-      messageTemplate: dto.messageTemplate,
+      templateSource: dto.templateSource,
     };
   }
 }

@@ -30,10 +30,11 @@ import {
   MoreVertical,
   Table as TableIcon,
   Copy,
-  PlusSquare,
+  Grid2x2Plus,
   Database,
   CheckCircle,
   XCircle,
+  CodeIcon,
 } from 'lucide-react';
 import {
   DropdownMenu,
@@ -141,8 +142,8 @@ export function InsightSourcesPanel({
                   onClick={handleAdd}
                   disabled={!canEdit || isRunning || isLimitReached}
                 >
-                  <Plus className='mr-2 h-4 w-4' />
-                  Add Data Artifact
+                  <Plus className='h-4 w-4' />
+                  Data Artifact
                 </Button>
               </span>
             </TooltipTrigger>
@@ -163,7 +164,7 @@ export function InsightSourcesPanel({
         ) : sources.length === 0 ? (
           <div className='flex h-full flex-col items-center justify-center gap-3 px-6 py-4 text-center'>
             <div className='bg-muted flex h-10 w-10 items-center justify-center rounded-full'>
-              <Database className='text-muted-foreground h-5 w-5' />
+              <CodeIcon className='text-muted-foreground h-5 w-5' />
             </div>
             <div className='space-y-1'>
               <p className='text-sm font-medium'>No data artifacts yet</p>
@@ -178,7 +179,7 @@ export function InsightSourcesPanel({
               disabled={!canEdit || isRunning}
             >
               <Plus className='mr-2 h-4 w-4' />
-              Add Data Artifact
+              Data Artifact
             </Button>
           </div>
         ) : (
@@ -189,14 +190,14 @@ export function InsightSourcesPanel({
                   <TableRow className='bg-muted/60 hover:bg-muted/60'>
                     <TableHead className='text-xs font-semibold'>
                       <div className='flex items-center gap-1.5'>
-                        Name
+                        Id
                         <Tooltip delayDuration={700}>
                           <TooltipTrigger asChild>
                             <Info className='text-muted-foreground/60 h-3.5 w-3.5' />
                           </TooltipTrigger>
                           <TooltipContent side='bottom' align='start' className='max-w-xs'>
-                            The name of the data artifact, which is used as a unique identifier in
-                            the template.
+                            The id of the data artifact, which is used as a unique identifier in the
+                            template. This field cannot be changed after creation.
                           </TooltipContent>
                         </Tooltip>
                       </div>
@@ -207,7 +208,13 @@ export function InsightSourcesPanel({
                 </TableHeader>
                 <TableBody>
                   {sources.map((source: InsightTemplateSourceEntity) => (
-                    <TableRow key={source.id} className='hover:bg-muted/30 select-none'>
+                    <TableRow
+                      key={source.id}
+                      className='hover:bg-muted/30 cursor-pointer select-none'
+                      onClick={() => {
+                        handleEdit(source);
+                      }}
+                    >
                       <TableCell className='group font-mono text-xs'>
                         <div className='flex items-center gap-2'>
                           {source.key}
@@ -220,14 +227,14 @@ export function InsightSourcesPanel({
                                 onClick={e => {
                                   e.stopPropagation();
                                   void navigator.clipboard.writeText(source.key);
-                                  toast.success('Copied Data Artifact name to clipboard');
+                                  toast.success('Copied Data Artifact id to clipboard');
                                 }}
                               >
                                 <Copy className='h-3 w-3' />
                               </Button>
                             </TooltipTrigger>
                             <TooltipContent className='max-w-xs'>
-                              Copy the data artifact name to your clipboard
+                              Copy the data artifact id to your clipboard
                             </TooltipContent>
                           </Tooltip>
                         </div>
@@ -243,11 +250,12 @@ export function InsightSourcesPanel({
                                   variant='ghost'
                                   className='h-8 w-8'
                                   disabled={!canEdit || isRunning}
-                                  onClick={() => {
+                                  onClick={e => {
+                                    e.stopPropagation();
                                     onInsertTemplate(source.key);
                                   }}
                                 >
-                                  <PlusSquare className='h-3.5 w-3.5' />
+                                  <Grid2x2Plus className='h-3.5 w-3.5' />
                                 </Button>
                               </TooltipTrigger>
                               <TooltipContent>Insert into template</TooltipContent>
@@ -260,7 +268,8 @@ export function InsightSourcesPanel({
                                 variant='ghost'
                                 className='h-8 w-8'
                                 disabled={!canEdit || isRunning}
-                                onClick={() => {
+                                onClick={e => {
+                                  e.stopPropagation();
                                   handleEdit(source);
                                 }}
                               >
@@ -270,7 +279,12 @@ export function InsightSourcesPanel({
                             <TooltipContent>Edit</TooltipContent>
                           </Tooltip>
                           <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
+                            <DropdownMenuTrigger
+                              asChild
+                              onClick={e => {
+                                e.stopPropagation();
+                              }}
+                            >
                               <Button
                                 size='icon'
                                 variant='ghost'
@@ -622,7 +636,7 @@ function SourceEditSheet({
                 control={form.control}
                 name='key'
                 rules={{
-                  required: 'Name is required',
+                  required: 'Id is required',
                   pattern: {
                     value: /^[a-zA-Z0-9_]+$/,
                     message: 'Only letters, digits, and underscores are allowed',
@@ -630,8 +644,8 @@ function SourceEditSheet({
                 }}
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel tooltip='Enter a unique key that will be used to reference this source in the insight template.'>
-                      Name
+                    <FormLabel tooltip='Enter a unique id that will be used to reference this source in the insight template. This field cannot be changed after creation.'>
+                      Id
                     </FormLabel>
                     <FormControl>
                       <Input {...field} placeholder='e.g. active_users' disabled={!!source} />

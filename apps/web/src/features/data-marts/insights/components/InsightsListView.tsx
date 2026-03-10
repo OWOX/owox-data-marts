@@ -6,6 +6,7 @@ import { Button } from '@owox/ui/components/button';
 import type { ColumnDef } from '@tanstack/react-table';
 import {
   Empty,
+  EmptyContent,
   EmptyDescription,
   EmptyHeader,
   EmptyMedia,
@@ -153,17 +154,6 @@ export default function InsightsListView() {
         ),
       },
       {
-        accessorKey: 'sourcesCount',
-        size: 150,
-        meta: { title: 'Data Artifacts' },
-        header: ({ column }) => <SortableHeader column={column}>Data Artifacts</SortableHeader>,
-        cell: ({ row }) => (
-          <div className='text-muted-foreground text-xs'>
-            Data Artifacts: {row.original.sourcesCount}
-          </div>
-        ),
-      },
-      {
         accessorKey: 'modifiedAt',
         size: 170,
         sortDescFirst: true,
@@ -237,14 +227,18 @@ export default function InsightsListView() {
   return (
     <CollapsibleCard>
       <CollapsibleCardHeader>
-        <CollapsibleCardHeaderTitle icon={Sparkles} tooltip='Manage insights'>
+        <CollapsibleCardHeaderTitle icon={Sparkles} tooltip='Manage and review your insights'>
           Insights
         </CollapsibleCardHeaderTitle>
         <CollapsibleCardHeaderActions>
           <Tooltip>
             <TooltipTrigger asChild>
-              <div>
-                <Button onClick={() => void handleCreate()} disabled={!canCreate || creating}>
+              <div className='inline-flex'>
+                <Button
+                  variant='outline'
+                  onClick={() => void handleCreate()}
+                  disabled={!canCreate || creating}
+                >
                   <Plus className='h-4 w-4' />
                   New insight
                 </Button>
@@ -266,9 +260,19 @@ export default function InsightsListView() {
               </EmptyMedia>
               <EmptyTitle>Create your first Insight</EmptyTitle>
               <EmptyDescription>
-                Create your first insight and render it with data artifacts
+                Create insights to build scheduled reports and deliver them to your preferred
+                channels (Email, Slack, etc.)
               </EmptyDescription>
             </EmptyHeader>
+
+            <EmptyContent>
+              <div className='inline-flex'>
+                <Button onClick={() => void handleCreate()}>
+                  <Plus className='h-4 w-4' />
+                  New Insight
+                </Button>
+              </div>
+            </EmptyContent>
           </Empty>
         ) : (
           <BaseTable

@@ -7,7 +7,7 @@ import {
   useState,
   type KeyboardEvent,
 } from 'react';
-import { Loader2, SendHorizonal, Sparkles } from 'lucide-react';
+import { Loader2, ArrowUp, Sparkles } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { Button } from '@owox/ui/components/button';
 import { Textarea } from '@owox/ui/components/textarea';
@@ -424,7 +424,7 @@ export const AiAssistantPanel = forwardRef<AiAssistantPanelHandle, AiAssistantPa
                     setPrompt(event.target.value);
                   }}
                   onKeyDown={handlePromptInputKeyDown}
-                  placeholder='Start typing...'
+                  placeholder='Ask a question about your data…'
                   rows={2}
                   disabled={!canEdit || isSending || isHeavyProcessing}
                 />
@@ -436,7 +436,7 @@ export const AiAssistantPanel = forwardRef<AiAssistantPanelHandle, AiAssistantPa
                         <Button
                           variant='default'
                           size='icon'
-                          className='h-8 w-8'
+                          className='h-8 w-8 rounded-full'
                           onClick={() => {
                             void handleSend();
                           }}
@@ -445,7 +445,7 @@ export const AiAssistantPanel = forwardRef<AiAssistantPanelHandle, AiAssistantPa
                           {isSending ? (
                             <Loader2 className='h-4 w-4 animate-spin' />
                           ) : (
-                            <SendHorizonal className='h-4 w-4' />
+                            <ArrowUp className='h-4 w-4' />
                           )}
                         </Button>
                       </div>
