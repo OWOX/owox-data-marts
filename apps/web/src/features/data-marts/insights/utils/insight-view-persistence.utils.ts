@@ -1,7 +1,6 @@
-// ─── Preview panel persistence ───────────────────────────────────────────────
 const PREVIEW_PREF_KEY = 'owox.insight.preview.closed';
 const PREVIEW_SIZE_KEY = 'owox.insight.preview.size';
-const PREVIEW_COLLAPSED_SIZE = 4;
+const PREVIEW_COLLAPSED_SIZE = 0;
 const PREVIEW_DEFAULT_SIZE = 45;
 
 export function readPreviewPref(): boolean {
@@ -40,10 +39,9 @@ export function savePreviewSize(size: number) {
   }
 }
 
-// ─── AI Assistant panel persistence ──────────────────────────────────────────
 const AI_PREF_KEY = 'owox.insight.ai.closed';
 const AI_SIZE_KEY = 'owox.insight.ai.size';
-const AI_COLLAPSED_SIZE = 3;
+const AI_COLLAPSED_SIZE = 0;
 const AI_DEFAULT_SIZE = 28;
 
 export function readAiPref(): boolean {
@@ -91,3 +89,22 @@ export const AI_CONSTANTS = {
   COLLAPSED_SIZE: AI_COLLAPSED_SIZE,
   DEFAULT_SIZE: AI_DEFAULT_SIZE,
 };
+
+const ARTIFACTS_PREF_KEY = 'owox.insight.artifacts.closed';
+
+export function readArtifactsPref(): boolean {
+  try {
+    const val = localStorage.getItem(ARTIFACTS_PREF_KEY);
+    return val !== 'false'; // default: closed
+  } catch {
+    return true;
+  }
+}
+
+export function saveArtifactsPref(closed: boolean) {
+  try {
+    localStorage.setItem(ARTIFACTS_PREF_KEY, String(closed));
+  } catch (err) {
+    console.warn('Failed to save artifacts preference to localStorage', err);
+  }
+}

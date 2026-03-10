@@ -4,17 +4,44 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import type { DataMartReport } from '../../shared/model/types/data-mart-report';
 import { isEmailDestinationConfig } from '../../shared/model/types/data-mart-report';
-import { DestinationTypeConfigEnum, ReportFormMode, useReport } from '../../shared';
+import {
+  DestinationTypeConfigEnum,
+  ReportFormMode,
+  TemplateSourceTypeEnum,
+  useReport,
+} from '../../shared';
+import type {
+  EmailDestinationConfigDto,
+  TemplateSourceDto,
+} from '../../shared/services/types/update-report.request.dto';
 import type { DataDestination } from '../../../../data-destination';
 import { ReportConditionEnum } from '../../shared/enums/report-condition.enum';
 
-export const EmailReportEditFormSchema = z.object({
-  title: z.string().min(1, 'Title is required'),
-  dataDestinationId: z.string().min(1, 'Destination is required'),
-  reportCondition: z.nativeEnum(ReportConditionEnum),
-  subject: z.string().min(1, 'Subject is required'),
-  messageTemplate: z.string().min(1, 'Message body is required'),
-});
+export const EmailReportEditFormSchema = z
+  .object({
+    title: z.string().min(1, 'Title is required'),
+    dataDestinationId: z.string().min(1, 'Destination is required'),
+    reportCondition: z.nativeEnum(ReportConditionEnum),
+    subject: z.string().min(1, 'Subject is required'),
+    // messageTemplate is required only for CUSTOM_MESSAGE
+    messageTemplate: z.string().optional(),
+    insightTemplateId: z.string().optional(),
+    // Track which template source type is selected
+    templateSourceType: z.nativeEnum(TemplateSourceTypeEnum),
+  })
+  .refine(
+    data => {
+      if (data.templateSourceType === TemplateSourceTypeEnum.CUSTOM_MESSAGE) {
+        return !!data.messageTemplate && data.messageTemplate.length > 0;
+      }
+      // For INSIGHT_TEMPLATE, check insightTemplateId
+      return !!data.insightTemplateId && data.insightTemplateId.length > 0;
+    },
+    {
+      message: 'Message template is required for custom messages',
+      path: ['messageTemplate'],
+    }
+  );
 
 export type EmailReportEditFormValues = z.infer<typeof EmailReportEditFormSchema>;
 
@@ -63,9 +90,28 @@ export function useEmailReportForm({
           : '',
       messageTemplate:
         initialReport?.destinationConfig &&
+        isEmailDestinationConfig(initialReport.destinationConfig) &&
+        initialReport.destinationConfig.templateSource.type ===
+          TemplateSourceTypeEnum.CUSTOM_MESSAGE
+          ? initialReport.destinationConfig.templateSource.config.messageTemplate
+          : initialReport?.destinationConfig &&
+              isEmailDestinationConfig(initialReport.destinationConfig) &&
+              initialReport.destinationConfig.templateSource.type ===
+                TemplateSourceTypeEnum.INSIGHT_TEMPLATE
+            ? initialReport.destinationConfig.templateSource.config.insightTemplateId
+            : '',
+      insightTemplateId:
+        initialReport?.destinationConfig &&
+        isEmailDestinationConfig(initialReport.destinationConfig) &&
+        initialReport.destinationConfig.templateSource.type ===
+          TemplateSourceTypeEnum.INSIGHT_TEMPLATE
+          ? initialReport.destinationConfig.templateSource.config.insightTemplateId
+          : undefined,
+      templateSourceType:
+        initialReport?.destinationConfig &&
         isEmailDestinationConfig(initialReport.destinationConfig)
-          ? initialReport.destinationConfig.messageTemplate
-          : '',
+          ? (initialReport.destinationConfig.templateSource.type as TemplateSourceTypeEnum)
+          : TemplateSourceTypeEnum.CUSTOM_MESSAGE,
     },
     mode: 'onTouched',
   });
@@ -81,11 +127,27 @@ export function useEmailReportForm({
         setIsSubmitting(true);
 
         let result;
-        const destinationConfig = {
-          type: DestinationTypeConfigEnum.EMAIL_CONFIG as const,
+        // Build templateSource from flat form fields
+        const templateSource: TemplateSourceDto =
+          data.templateSourceType === TemplateSourceTypeEnum.INSIGHT_TEMPLATE
+            ? {
+                type: TemplateSourceTypeEnum.INSIGHT_TEMPLATE,
+                config: {
+                  insightTemplateId: data.insightTemplateId ?? '',
+                },
+              }
+            : {
+                type: TemplateSourceTypeEnum.CUSTOM_MESSAGE,
+                config: {
+                  messageTemplate: data.messageTemplate ?? '',
+                },
+              };
+
+        const destinationConfig: EmailDestinationConfigDto = {
+          type: DestinationTypeConfigEnum.EMAIL_CONFIG,
           reportCondition: data.reportCondition,
           subject: data.subject,
-          messageTemplate: data.messageTemplate,
+          templateSource,
         };
 
         if (mode === ReportFormMode.CREATE) {

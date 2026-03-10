@@ -1,3 +1,4 @@
+import { TemplateSourceTypeEnum } from '../../../../shared';
 import {
   Accordion,
   AccordionContent,
@@ -6,15 +7,35 @@ import {
 } from '@owox/ui/components/accordion';
 import { ExternalAnchor } from '@owox/ui/components/common/external-anchor';
 
+export interface MessageTemplateDescriptionProps {
+  type: TemplateSourceTypeEnum;
+}
+
 /**
- * Accordion with instructions for formatting Markdown.
+ * Accordion with instructions for formatting Markdown or Insight Template.
  */
-export default function MessageTemplateDescription() {
+export default function MessageTemplateDescription({ type }: MessageTemplateDescriptionProps) {
+  if (type === TemplateSourceTypeEnum.INSIGHT_TEMPLATE) {
+    return (
+      <Accordion variant='common' type='single' collapsible>
+        <AccordionItem value='insight-template-details' className='border-none'>
+          <AccordionTrigger>How does Insight Template work?</AccordionTrigger>
+          <AccordionContent className='text-muted-foreground'>
+            <p>
+              Insight templates allow you to use predefined layouts and data visualizations. Select
+              a template from the list to use it in your report.
+            </p>
+          </AccordionContent>
+        </AccordionItem>
+      </Accordion>
+    );
+  }
+
   return (
-    <Accordion variant='common' type='single' collapsible>
-      <AccordionItem value='message-details'>
+    <Accordion variant='common' type='single' collapsible className='space-y-1'>
+      <AccordionItem value='message-details' className='border-none'>
         <AccordionTrigger>How can I format my message?</AccordionTrigger>
-        <AccordionContent>
+        <AccordionContent className='text-muted-foreground'>
           <p className='mb-2'>
             You can format your message using Markdown — a simple text formatting syntax that lets
             you add structure and style without using complex editors.
@@ -40,9 +61,9 @@ export default function MessageTemplateDescription() {
           </p>
         </AccordionContent>
       </AccordionItem>
-      <AccordionItem value='data-table-details'>
+      <AccordionItem value='data-table-details' className='border-none'>
         <AccordionTrigger>How can I add data into my message?</AccordionTrigger>
-        <AccordionContent>
+        <AccordionContent className='text-muted-foreground'>
           <p className='mb-2'>
             Use the <code>{'{{#data-table}}{{/data-table}}'}</code> tag to render data mart data as
             a table.

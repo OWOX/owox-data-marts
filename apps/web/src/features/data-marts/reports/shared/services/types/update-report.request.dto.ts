@@ -1,4 +1,4 @@
-import { DestinationTypeConfigEnum } from '../../enums';
+import { DestinationTypeConfigEnum, TemplateSourceTypeEnum } from '../../enums';
 import type { ReportConditionEnum } from '../../enums/report-condition.enum.ts';
 
 /**
@@ -18,11 +18,42 @@ export interface LookerStudioDestinationConfigDto {
   cacheLifetime: number;
 }
 
+export type TemplateSourceType = TemplateSourceTypeEnum;
+
+/**
+ * Configuration for CUSTOM_MESSAGE template source
+ */
+export interface CustomMessageTemplateConfigDto {
+  messageTemplate: string;
+}
+
+/**
+ * Configuration for INSIGHT_TEMPLATE template source
+ */
+export interface InsightTemplateConfigDto {
+  insightTemplateId: string;
+}
+
+/**
+ * Template source configuration
+ */
+export interface CustomMessageTemplateSourceDto {
+  type: TemplateSourceTypeEnum.CUSTOM_MESSAGE;
+  config: CustomMessageTemplateConfigDto;
+}
+
+export interface InsightTemplateSourceDto {
+  type: TemplateSourceTypeEnum.INSIGHT_TEMPLATE;
+  config: InsightTemplateConfigDto;
+}
+
+export type TemplateSourceDto = CustomMessageTemplateSourceDto | InsightTemplateSourceDto;
+
 export interface EmailDestinationConfigDto {
   type: DestinationTypeConfigEnum.EMAIL_CONFIG;
   reportCondition: ReportConditionEnum;
   subject: string;
-  messageTemplate: string;
+  templateSource: TemplateSourceDto;
 }
 
 /**

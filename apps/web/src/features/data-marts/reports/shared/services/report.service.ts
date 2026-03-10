@@ -46,6 +46,25 @@ export class ReportService extends ApiService {
   }
 
   /**
+   * List reports by insight template ID
+   * @param dataMartId Data mart ID
+   * @param insightTemplateId Insight template ID
+   * @param config
+   * @returns Promise with list of reports for the insight template
+   */
+  async getReportsByInsightTemplateId(
+    dataMartId: string,
+    insightTemplateId: string,
+    config?: AxiosRequestConfig
+  ): Promise<ReportResponseDto[]> {
+    return this.get<ReportResponseDto[]>(
+      `/data-mart/${dataMartId}/insight-template/${insightTemplateId}`,
+      undefined,
+      config
+    );
+  }
+
+  /**
    * List reports by project
    * @returns Promise with list of reports
    */

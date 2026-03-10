@@ -11,6 +11,7 @@ import { ReportStatusEnum } from '../../../shared/enums/report-status.enum';
 interface StatusIconProps {
   status: ReportStatusEnum | null;
   error: string | null;
+  className?: string;
 }
 
 const statusConfig = {
@@ -41,7 +42,7 @@ const statusConfig = {
   },
 } as const;
 
-export function StatusIcon({ status, error }: StatusIconProps) {
+export function StatusIcon({ status, error, className }: StatusIconProps) {
   if (!status) return null;
   const config = statusConfig[status];
   const { icon: Icon, color, label } = config;
@@ -60,7 +61,7 @@ export function StatusIcon({ status, error }: StatusIconProps) {
       <Tooltip>
         <TooltipTrigger asChild>
           <Icon
-            className={cn('h-5 w-5', color)}
+            className={cn('h-5 w-5', color, className)}
             role='img'
             aria-label={getAccessibleDescription()}
             aria-describedby={tooltipId}

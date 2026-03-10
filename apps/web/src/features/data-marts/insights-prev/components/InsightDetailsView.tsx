@@ -526,6 +526,7 @@ export default function InsightDetailsView() {
             setIsReportSheetOpen(false);
           }}
           mode={ReportFormMode.CREATE}
+          isInsightContext={true}
           preSelectedDestination={null}
           prefill={{
             title: insight.title || titleValue || 'New report',
