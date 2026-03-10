@@ -122,6 +122,7 @@ export const EmailReportEditForm = forwardRef<HTMLFormElement, EmailReportEditFo
     const [isCreatingInsight, setIsCreatingInsight] = useState(false);
     const [useInsightTemplateMode, setUseInsightTemplateMode] = useState(isInsightContext);
     const [isDestinationSelectOpen, setIsDestinationSelectOpen] = useState(false);
+    const lastCustomMessageRef = useRef<string>('');
     const { runReport } = useReport();
 
     useEffect(() => {
@@ -272,6 +273,14 @@ export const EmailReportEditForm = forwardRef<HTMLFormElement, EmailReportEditFo
 
     // Watch markdown content from form
     const messageTemplate = form.watch('messageTemplate') ?? '';
+    const templateSourceType = form.watch('templateSourceType');
+
+    // Remember the last custom message so switching tabs doesn't lose content
+    useEffect(() => {
+      if (templateSourceType === TemplateSourceTypeEnum.CUSTOM_MESSAGE) {
+        lastCustomMessageRef.current = messageTemplate;
+      }
+    }, [templateSourceType, messageTemplate]);
 
     const {
       html: previewHtml,
@@ -419,10 +428,15 @@ export const EmailReportEditForm = forwardRef<HTMLFormElement, EmailReportEditFo
                               val === TemplateSourceTypeEnum.INSIGHT_TEMPLATE
                             );
                             if (val === TemplateSourceTypeEnum.CUSTOM_MESSAGE) {
+                              form.setValue('messageTemplate', lastCustomMessageRef.current, {
+                                shouldDirty: true,
+                              });
                               form.setValue('insightTemplateId', undefined, {
                                 shouldDirty: true,
                               });
                             } else {
+                              lastCustomMessageRef.current =
+                                form.getValues('messageTemplate') ?? '';
                               form.setValue('messageTemplate', '', {
                                 shouldDirty: true,
                               });
