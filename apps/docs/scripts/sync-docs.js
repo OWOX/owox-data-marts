@@ -303,6 +303,24 @@ function processGithubVideoLinks(fileContent) {
   Your browser does not support the video tag.
 </video>`;
     }
+    // Cloudflare Stream URLs are not supported by markdownlint, so we need to return the original line.
+    if (
+      trimmedLine.startsWith('<https://customer-4geatlj66rtkaxtz.cloudflarestream.com/') ||
+      trimmedLine.startsWith('https://customer-4geatlj66rtkaxtz.cloudflarestream.com/')
+    ) {
+      // Extract clean URL by removing angle brackets if present
+      const cleanUrl = trimmedLine.replace(/^<|>$/g, '');
+      return `<!-- markdownlint-disable-next-line MD033 MD034 -->
+<div style="position: relative; padding-top: 56.25%;">
+  <iframe
+    src="${cleanUrl}"
+    loading="lazy"
+    style="border: none; position: absolute; top: 0; left: 0; height: 100%; width: 100%;"
+    allow="accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture;"
+    allowfullscreen="true"
+  ></iframe>
+</div>`;
+    }
     return line;
   });
 
