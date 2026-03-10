@@ -22,7 +22,7 @@ export interface ProjectMembersServiceOptions {
  * Implements TTL-based refresh and graceful degradation when OWOX Client is unavailable.
  */
 export class ProjectMembersService {
-  private readonly DEFAULT_TTL_SECONDS = 60; //15 * 60; // 15 minutes
+  private readonly DEFAULT_TTL_SECONDS = 15 * 60; // 15 minutes
   private readonly DEFAULT_OWOX_CLIENT_TIMEOUT_MS = 5000; // 5 seconds
   private readonly logger = createServiceLogger(ProjectMembersService.name);
 
@@ -62,19 +62,29 @@ export class ProjectMembersService {
   ): Promise<ProjectMember[]> {
     const forceFresh = options?.forceFresh ?? false;
 
-    // If forceFresh is true, always fetch from OWOX Client
-    if (forceFresh) {
-      this.logger.debug('Force fresh requested, fetching from OWOX Client', { projectId });
-      return this.refreshFromOwoxClient(projectId);
-    }
-
     // Try to get from storage first
     const storedMembers = await this.store.getProjectMembers(projectId);
+
+    // If forceFresh is true and we have data, skip freshness check
+    if (forceFresh && storedMembers) {
+      this.logger.debug('Force fresh requested with existing data, fetching from OWOX Client', {
+        projectId,
+      });
+      return this.refreshWithFallback(projectId, storedMembers);
+    }
+
+    // If forceFresh is true but no data exists, fetch without fallback
+    if (forceFresh) {
+      this.logger.debug('Force fresh requested, no stored data, fetching from OWOX Client', {
+        projectId,
+      });
+      return this.refreshFromOwoxClient(projectId, undefined);
+    }
 
     if (!storedMembers) {
       // No data exists, fetch from OWOX Client
       this.logger.debug('No stored data found, fetching from OWOX Client', { projectId });
-      return this.refreshFromOwoxClient(projectId);
+      return this.refreshFromOwoxClient(projectId, undefined);
     }
 
     // Check if data is expired based on project sync info (expires_at from project table)
@@ -114,8 +124,8 @@ export class ProjectMembersService {
     staleMembers: ProjectMember[]
   ): Promise<ProjectMember[]> {
     try {
-      // Try to fetch from OWOX Client with timeout
-      const freshMembers = await this.fetchFromOwoxClientWithTimeout(projectId);
+      // Try to fetch from OWOX Client with timeout, passing existing members for soft-delete
+      const freshMembers = await this.fetchFromOwoxClientWithTimeout(projectId, staleMembers);
       return freshMembers;
     } catch (error) {
       // Log warning and return stale data (graceful degradation)
@@ -132,18 +142,24 @@ export class ProjectMembersService {
   /**
    * Fetch members from OWOX Client with timeout support.
    */
-  private async fetchFromOwoxClientWithTimeout(projectId: string): Promise<ProjectMember[]> {
-    // Create a timeout promise
+  private async fetchFromOwoxClientWithTimeout(
+    projectId: string,
+    existingMembers?: ProjectMember[]
+  ): Promise<ProjectMember[]> {
+    let timeoutId: ReturnType<typeof setTimeout>;
     const timeoutPromise = new Promise<never>((_, reject) => {
-      setTimeout(() => {
+      timeoutId = setTimeout(() => {
         reject(new Error(`OWOX Client request timeout after ${this.owoxClientTimeoutMs}ms`));
       }, this.owoxClientTimeoutMs);
     });
-
-    // Race between OWOX Client fetch and timeout
-    const fetchPromise = this.refreshFromOwoxClient(projectId);
-
-    return Promise.race([fetchPromise, timeoutPromise]);
+    try {
+      return await Promise.race([
+        this.refreshFromOwoxClient(projectId, existingMembers),
+        timeoutPromise,
+      ]);
+    } finally {
+      clearTimeout(timeoutId!);
+    }
   }
 
   /**
@@ -151,25 +167,15 @@ export class ProjectMembersService {
    * Implements soft-delete: members not in OWOX Client get status=outbound.
    * Returns ALL members (including outbound).
    */
-  private async refreshFromOwoxClient(projectId: string): Promise<ProjectMember[]> {
+  private async refreshFromOwoxClient(
+    projectId: string,
+    existingMembers?: ProjectMember[]
+  ): Promise<ProjectMember[]> {
     try {
       const response = await this.identityClient.getProjectMembers(projectId);
 
-      if (!response.projectMembers) {
-        // No members in OWOX Client, save empty list
-        await this.store.saveProjectMembers(projectId, [], this.ttlSeconds);
-        return [];
-      }
-
-      // response.projectMembers = response.projectMembers.filter(m => m.email !== 'a.laskevych@owox.com');
-      // for (const member of response.projectMembers) {
-      //   if (member.email === 'a.laskevych@owox.com') {
-      //     member.projectRole = 'viewer';
-      //   }
-      // }
-
-      // Get current stored data for soft-delete logic
-      const currentData = await this.store.getProjectMembers(projectId);
+      // Use provided existing members or fetch from store if not provided
+      const currentData = existingMembers ?? (await this.store.getProjectMembers(projectId));
       const freshMemberIds = new Set(response.projectMembers.map(m => String(m.userId)));
 
       // Build merged members list with soft-delete support

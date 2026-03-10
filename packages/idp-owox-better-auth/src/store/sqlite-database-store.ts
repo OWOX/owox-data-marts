@@ -344,44 +344,38 @@ export class SqliteDatabaseStore implements DatabaseStore {
     // Project table - stores project-level metadata
     db.prepare(
       `CREATE TABLE IF NOT EXISTS project (
-        project_id TEXT NOT NULL PRIMARY KEY,
-        updated_at TEXT NOT NULL DEFAULT (CURRENT_TIMESTAMP),
-        expires_at TEXT NOT NULL
+        projectId TEXT NOT NULL PRIMARY KEY,
+        updatedAt TEXT NOT NULL DEFAULT (CURRENT_TIMESTAMP),
+        expiresAt TEXT NOT NULL
       )`
     ).run();
 
     // Project member table - stores individual member details
     db.prepare(
       `CREATE TABLE IF NOT EXISTS project_member (
-        project_id TEXT NOT NULL,
-        user_id TEXT NOT NULL,
+        projectId TEXT NOT NULL,
+        userId TEXT NOT NULL,
         email TEXT NOT NULL,
-        full_name TEXT,
+        fullName TEXT,
         avatar TEXT,
-        project_role TEXT NOT NULL,
-        user_status TEXT NOT NULL,
-        has_notifications_enabled INTEGER NOT NULL DEFAULT 1,
-        is_outbound INTEGER NOT NULL DEFAULT 0,
-        created_at TEXT NOT NULL DEFAULT (CURRENT_TIMESTAMP),
-        updated_at TEXT NOT NULL DEFAULT (CURRENT_TIMESTAMP),
-        PRIMARY KEY (project_id, user_id),
-        FOREIGN KEY (project_id) REFERENCES project(project_id) ON DELETE CASCADE
+        projectRole TEXT NOT NULL,
+        userStatus TEXT NOT NULL,
+        hasNotificationsEnabled INTEGER NOT NULL DEFAULT 1,
+        isOutbound INTEGER NOT NULL DEFAULT 0,
+        createdAt TEXT NOT NULL DEFAULT (CURRENT_TIMESTAMP),
+        updatedAt TEXT NOT NULL DEFAULT (CURRENT_TIMESTAMP),
+        PRIMARY KEY (projectId, userId),
+        FOREIGN KEY (projectId) REFERENCES project(projectId) ON DELETE CASCADE
       )`
     ).run();
 
-    // Indexes for performance
     try {
-      db.prepare(`CREATE INDEX idx_project_member_project_id ON project_member(project_id)`).run();
+      db.prepare(`CREATE INDEX idx_project_member_user ON project_member(userId)`).run();
     } catch {
       // index already exists
     }
     try {
-      db.prepare(`CREATE INDEX idx_project_member_user_id ON project_member(user_id)`).run();
-    } catch {
-      // index already exists
-    }
-    try {
-      db.prepare(`CREATE INDEX idx_project_expires_at ON project(expires_at)`).run();
+      db.prepare(`CREATE INDEX idx_project_expires ON project(expiresAt)`).run();
     } catch {
       // index already exists
     }
@@ -402,11 +396,11 @@ export class SqliteDatabaseStore implements DatabaseStore {
 
     // Update project table with sync timestamp
     const projectUpsertStmt = db.prepare(
-      `INSERT INTO project (project_id, updated_at, expires_at)
+      `INSERT INTO project (projectId, updatedAt, expiresAt)
        VALUES (?, CURRENT_TIMESTAMP, ?)
-       ON CONFLICT(project_id) DO UPDATE SET
-         updated_at = CURRENT_TIMESTAMP,
-         expires_at = excluded.expires_at`
+       ON CONFLICT(projectId) DO UPDATE SET
+         updatedAt = CURRENT_TIMESTAMP,
+         expiresAt = excluded.expiresAt`
     );
     projectUpsertStmt.run(projectId, expiresAt);
 
@@ -414,17 +408,17 @@ export class SqliteDatabaseStore implements DatabaseStore {
     // This preserves historical data - members not in the update remain with their current status
     const memberUpsertStmt = db.prepare(
       `INSERT INTO project_member
-       (project_id, user_id, email, full_name, avatar, project_role, user_status, has_notifications_enabled, is_outbound, updated_at)
+       (projectId, userId, email, fullName, avatar, projectRole, userStatus, hasNotificationsEnabled, isOutbound, updatedAt)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
-       ON CONFLICT(project_id, user_id) DO UPDATE SET
+       ON CONFLICT(projectId, userId) DO UPDATE SET
          email = excluded.email,
-         full_name = excluded.full_name,
+         fullName = excluded.fullName,
          avatar = excluded.avatar,
-         project_role = excluded.project_role,
-         user_status = excluded.user_status,
-         has_notifications_enabled = excluded.has_notifications_enabled,
-         is_outbound = excluded.is_outbound,
-         updated_at = CURRENT_TIMESTAMP`
+         projectRole = excluded.projectRole,
+         userStatus = excluded.userStatus,
+         hasNotificationsEnabled = excluded.hasNotificationsEnabled,
+         isOutbound = excluded.isOutbound,
+         updatedAt = CURRENT_TIMESTAMP`
     );
 
     for (const member of members) {

@@ -64,7 +64,7 @@ function createIdentityClientMock(): jest.Mocked<IdentityOwoxClient> {
 
 function createMockMember(overrides: Partial<ProjectMember> = {}): ProjectMember {
   return {
-    userId: 'user-1',
+    userId: '1',
     email: 'user@example.com',
     fullName: 'Test User',
     avatar: 'https://example.com/avatar.png',
@@ -133,8 +133,8 @@ describe('ProjectMembersService', () => {
       // Arrange
       const projectId = 'project-1';
       const storedMembers = [
-        createMockMember({ userId: 'user-1', isOutbound: false }),
-        createMockMember({ userId: 'user-2', isOutbound: true, userStatus: 'outbound' }),
+        createMockMember({ userId: '1', isOutbound: false }),
+        createMockMember({ userId: '2', isOutbound: true, userStatus: 'outbound' }),
       ];
 
       store.getProjectMembers.mockResolvedValue(storedMembers);
@@ -153,8 +153,8 @@ describe('ProjectMembersService', () => {
       expect(identityClient.getProjectMembers).not.toHaveBeenCalled();
       // Should return ALL members including outbound
       expect(result).toHaveLength(2);
-      expect(result[0]?.userId).toBe('user-1');
-      expect(result[1]?.userId).toBe('user-2');
+      expect(result[0]?.userId).toBe('1');
+      expect(result[1]?.userId).toBe('2');
     });
 
     it('should fetch from OWOX Client when data is expired (expires_at in past)', async () => {
@@ -189,9 +189,14 @@ describe('ProjectMembersService', () => {
       expect(store.getProjectSyncInfo).toHaveBeenCalledWith(projectId);
       expect(identityClient.getProjectMembers).toHaveBeenCalledWith(projectId);
       expect(store.saveProjectMembers).toHaveBeenCalled();
-      // Should return new data from OWOX Client
-      expect(result).toHaveLength(1);
-      expect(result[0]?.userId).toBe('999');
+      // Should return ALL members including the new active member and the old outbound member
+      expect(result).toHaveLength(2);
+      const activeMember = result.find(m => m.userId === '999');
+      const outboundMember = result.find(m => m.userId === 'old-user');
+      expect(activeMember).toBeDefined();
+      expect(activeMember?.isOutbound).toBe(false);
+      expect(outboundMember).toBeDefined();
+      expect(outboundMember?.isOutbound).toBe(true);
     });
 
     it('should fetch from OWOX Client when no stored data exists', async () => {
@@ -220,7 +225,7 @@ describe('ProjectMembersService', () => {
       const owoxResponse = createMockOwoxResponse();
 
       store.getProjectMembers.mockResolvedValue(storedMembers);
-      // Even though data is fresh, forceFresh should override
+      // Even though data is fresh, forceFresh should override and trigger refresh with fallback
       store.getProjectSyncInfo.mockResolvedValue({
         expiresAt: createFutureDate(10),
         updatedAt: new Date(),
@@ -228,13 +233,18 @@ describe('ProjectMembersService', () => {
       identityClient.getProjectMembers.mockResolvedValue(owoxResponse as never);
 
       // Act
-      await service.getMembers(projectId, { forceFresh: true });
+      const result = await service.getMembers(projectId, { forceFresh: true });
 
       // Assert
-      expect(store.getProjectMembers).not.toHaveBeenCalled();
+      // getProjectMembers is called to get existing data for soft-delete logic
+      expect(store.getProjectMembers).toHaveBeenCalledWith(projectId);
+      // getProjectSyncInfo is NOT called when forceFresh is true with existing data
       expect(store.getProjectSyncInfo).not.toHaveBeenCalled();
       expect(identityClient.getProjectMembers).toHaveBeenCalledWith(projectId);
       expect(store.saveProjectMembers).toHaveBeenCalled();
+      // Returns fresh data
+      expect(result).toHaveLength(1);
+      expect(result[0]?.userId).toBe('1');
     });
 
     it('should return all members including outbound when data is fresh', async () => {
@@ -310,10 +320,10 @@ describe('ProjectMembersService', () => {
       // Arrange
       const projectId = 'project-1';
       const storedMembers = [
-        createMockMember({ userId: 'user-1', isOutbound: false }),
-        createMockMember({ userId: 'user-2', isOutbound: false, email: 'user2@example.com' }),
+        createMockMember({ userId: '1', isOutbound: false }),
+        createMockMember({ userId: '2', isOutbound: false, email: 'user2@example.com' }),
       ];
-      // OWOX Client response only has user-1
+      // OWOX Client response only has user-1 (userId: 1)
       const owoxResponse = createMockOwoxResponse({
         projectMembers: [
           {
@@ -347,7 +357,7 @@ describe('ProjectMembersService', () => {
       expect(savedMembers).toHaveLength(2);
 
       const activeMember = savedMembers.find(m => m.userId === '1');
-      const outboundMember = savedMembers.find(m => m.userId === 'user-2');
+      const outboundMember = savedMembers.find(m => m.userId === '2');
 
       expect(activeMember).toBeDefined();
       expect(activeMember?.isOutbound).toBe(false);
@@ -366,11 +376,14 @@ describe('ProjectMembersService', () => {
     it('should preserve all historical members including outbound ones', async () => {
       // Arrange
       const projectId = 'project-1';
+      // Current user with userId '1' (matching OWOX Client response)
+      // Former-user is initially active but will be marked outbound since not in OWOX response
       const storedMembers = [
-        createMockMember({ userId: 'current-user', isOutbound: false }),
-        createMockMember({ userId: 'former-user', isOutbound: true, userStatus: 'outbound' }),
+        createMockMember({ userId: '1', email: 'current@example.com', isOutbound: false }),
+        createMockMember({ userId: 'former-user', email: 'former@example.com', isOutbound: false }),
       ];
-      // OWOX Client response only has current-user
+      // OWOX Client response has userId 1 (becomes '1' after String())
+      // Note: former-user is NOT in the OWOX response, so should become outbound
       const owoxResponse = createMockOwoxResponse({
         projectMembers: [
           {
@@ -394,16 +407,16 @@ describe('ProjectMembersService', () => {
       const result = await service.getMembers(projectId);
 
       // Assert
-      // Verify that saveProjectMembers preserves the former-user as outbound
-      // while updating/adding the current-user
+      // Verify that saveProjectMembers marks the former-user as outbound
+      // while updating the current-user (userId '1' matches OWOX response)
       const saveCall = store.saveProjectMembers.mock.calls[0];
       expect(saveCall).toBeDefined();
       const savedMembers = saveCall![1] as ProjectMember[];
 
-      // Should have both members: current (updated) + former (outbound)
+      // Should have both members: current (updated) + former (now outbound)
       expect(savedMembers).toHaveLength(2);
 
-      const currentMember = savedMembers.find(m => m.email === 'current@example.com');
+      const currentMember = savedMembers.find(m => m.userId === '1');
       const formerMember = savedMembers.find(m => m.userId === 'former-user');
 
       expect(currentMember).toBeDefined();
@@ -421,7 +434,7 @@ describe('ProjectMembersService', () => {
       // Arrange
       const projectId = 'project-1';
       const existingMember = createMockMember({
-        userId: 'user-1',
+        userId: '1',
         email: 'user@example.com',
         projectRole: 'viewer',
         isOutbound: false,

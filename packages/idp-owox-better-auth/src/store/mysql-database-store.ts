@@ -381,30 +381,29 @@ export class MysqlDatabaseStore implements DatabaseStore {
     // Project table - stores project-level metadata
     await pool.query(`
       CREATE TABLE IF NOT EXISTS project (
-        project_id VARCHAR(255) NOT NULL PRIMARY KEY,
-        updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-        expires_at TIMESTAMP NOT NULL
+        projectId VARCHAR(255) NOT NULL PRIMARY KEY,
+        updatedAt TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        expiresAt TIMESTAMP NOT NULL
       )
     `);
 
     // Project member table - stores individual member details
     await pool.query(`
       CREATE TABLE IF NOT EXISTS project_member (
-        project_id VARCHAR(255) NOT NULL,
-        user_id VARCHAR(255) NOT NULL,
+        projectId VARCHAR(255) NOT NULL,
+        userId VARCHAR(255) NOT NULL,
         email VARCHAR(255) NOT NULL,
-        full_name VARCHAR(255),
+        fullName VARCHAR(255),
         avatar TEXT,
-        project_role VARCHAR(50) NOT NULL,
-        user_status VARCHAR(50) NOT NULL,
-        has_notifications_enabled BOOLEAN NOT NULL DEFAULT TRUE,
-        is_outbound BOOLEAN NOT NULL DEFAULT FALSE,
-        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-        PRIMARY KEY (project_id, user_id),
-        INDEX idx_project_member_project_id (project_id),
-        INDEX idx_project_member_user_id (user_id),
-        FOREIGN KEY (project_id) REFERENCES project(project_id) ON DELETE CASCADE
+        projectRole VARCHAR(50) NOT NULL,
+        userStatus VARCHAR(50) NOT NULL,
+        hasNotificationsEnabled BOOLEAN NOT NULL DEFAULT TRUE,
+        isOutbound BOOLEAN NOT NULL DEFAULT FALSE,
+        createdAt TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updatedAt TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        PRIMARY KEY (projectId, userId),
+        INDEX idx_project_member_user (userId),
+        FOREIGN KEY (projectId) REFERENCES project(projectId) ON DELETE CASCADE
       )
     `);
 
@@ -423,11 +422,11 @@ export class MysqlDatabaseStore implements DatabaseStore {
 
     // Update project table with sync timestamp
     await pool.execute(
-      `INSERT INTO project (project_id, updated_at, expires_at)
+      `INSERT INTO project (projectId, updatedAt, expiresAt)
        VALUES (?, CURRENT_TIMESTAMP, ?)
        ON DUPLICATE KEY UPDATE
-         updated_at = CURRENT_TIMESTAMP,
-         expires_at = VALUES(expires_at)`,
+         updatedAt = CURRENT_TIMESTAMP,
+         expiresAt = VALUES(expiresAt)`,
       [projectId, expiresAt]
     );
 
@@ -436,16 +435,16 @@ export class MysqlDatabaseStore implements DatabaseStore {
     for (const member of members) {
       await pool.execute(
         `INSERT INTO project_member
-         (project_id, user_id, email, full_name, avatar, project_role, user_status, has_notifications_enabled, is_outbound)
+         (projectId, userId, email, fullName, avatar, projectRole, userStatus, hasNotificationsEnabled, isOutbound)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
          ON DUPLICATE KEY UPDATE
            email = VALUES(email),
-           full_name = VALUES(full_name),
+           fullName = VALUES(fullName),
            avatar = VALUES(avatar),
-           project_role = VALUES(project_role),
-           user_status = VALUES(user_status),
-           has_notifications_enabled = VALUES(has_notifications_enabled),
-           is_outbound = VALUES(is_outbound)`,
+           projectRole = VALUES(projectRole),
+           userStatus = VALUES(userStatus),
+           hasNotificationsEnabled = VALUES(hasNotificationsEnabled),
+           isOutbound = VALUES(isOutbound)`,
         [
           projectId,
           member.userId,
@@ -466,20 +465,20 @@ export class MysqlDatabaseStore implements DatabaseStore {
     await this.ensureProjectTables(pool);
 
     const [rows] = (await pool.execute(
-      `SELECT user_id, email, full_name, avatar, project_role, user_status, has_notifications_enabled, is_outbound
+      `SELECT userId, email, fullName, avatar, projectRole, userStatus, hasNotificationsEnabled, isOutbound
        FROM project_member
-       WHERE project_id = ?`,
+       WHERE projectId = ?`,
       [projectId]
     )) as [
       Array<{
-        user_id: string;
+        userId: string;
         email: string;
-        full_name: string | null;
+        fullName: string | null;
         avatar: string | null;
-        project_role: string;
-        user_status: string;
-        has_notifications_enabled: number | boolean;
-        is_outbound: number | boolean;
+        projectRole: string;
+        userStatus: string;
+        hasNotificationsEnabled: number | boolean;
+        isOutbound: number | boolean;
       }>,
       unknown,
     ];
@@ -489,17 +488,17 @@ export class MysqlDatabaseStore implements DatabaseStore {
     }
 
     const members: ProjectMember[] = rows.map(row => ({
-      userId: row.user_id,
+      userId: row.userId,
       email: row.email,
-      fullName: row.full_name ?? undefined,
+      fullName: row.fullName ?? undefined,
       avatar: row.avatar ?? undefined,
-      projectRole: row.project_role,
-      userStatus: row.user_status as ProjectMember['userStatus'],
+      projectRole: row.projectRole,
+      userStatus: row.userStatus as ProjectMember['userStatus'],
       hasNotificationsEnabled:
-        typeof row.has_notifications_enabled === 'boolean'
-          ? row.has_notifications_enabled
-          : row.has_notifications_enabled === 1,
-      isOutbound: typeof row.is_outbound === 'boolean' ? row.is_outbound : row.is_outbound === 1,
+        typeof row.hasNotificationsEnabled === 'boolean'
+          ? row.hasNotificationsEnabled
+          : row.hasNotificationsEnabled === 1,
+      isOutbound: typeof row.isOutbound === 'boolean' ? row.isOutbound : row.isOutbound === 1,
     }));
 
     return members;
@@ -512,11 +511,11 @@ export class MysqlDatabaseStore implements DatabaseStore {
     await this.ensureProjectTables(pool);
 
     const [rows] = (await pool.execute(
-      `SELECT expires_at, updated_at
+      `SELECT expiresAt, updatedAt
        FROM project
-       WHERE project_id = ?`,
+       WHERE projectId = ?`,
       [projectId]
-    )) as [Array<{ expires_at: Date | string | null; updated_at: Date | string | null }>, unknown];
+    )) as [Array<{ expiresAt: Date | string | null; updatedAt: Date | string | null }>, unknown];
 
     const row = rows[0];
     if (!row) {
@@ -525,16 +524,16 @@ export class MysqlDatabaseStore implements DatabaseStore {
 
     return {
       expiresAt:
-        row.expires_at instanceof Date
-          ? row.expires_at
-          : row.expires_at
-            ? new Date(row.expires_at)
+        row.expiresAt instanceof Date
+          ? row.expiresAt
+          : row.expiresAt
+            ? new Date(row.expiresAt)
             : null,
       updatedAt:
-        row.updated_at instanceof Date
-          ? row.updated_at
-          : row.updated_at
-            ? new Date(row.updated_at)
+        row.updatedAt instanceof Date
+          ? row.updatedAt
+          : row.updatedAt
+            ? new Date(row.updatedAt)
             : null,
     };
   }
