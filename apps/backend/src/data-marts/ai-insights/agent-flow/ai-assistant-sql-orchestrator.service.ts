@@ -21,9 +21,9 @@ import { SqlDryRunCommand } from '../../dto/domain/sql-dry-run.command';
 import { SqlDryRunService } from '../../use-cases/sql-dry-run.service';
 import {
   AssistantMatchDebug,
-  AssistantOrchestratorRequest,
-  AssistantOrchestratorResponse,
-  AssistantOrchestratorStatus,
+  AssistantSqlOrchestratorRequest,
+  AiAssistantResponse,
+  AiAssistantStatus,
 } from './ai-assistant-types';
 
 import { getLastUserMessage } from './ai-assistant-orchestrator.utils';
@@ -36,7 +36,7 @@ interface SqlDryRunValidationFailure {
 }
 
 interface SqlCandidateBuildResult {
-  status: AssistantOrchestratorStatus;
+  status: AiAssistantStatus;
   sqlCandidate: string;
   dryRun: { isValid: boolean; error?: string; bytes?: number };
   repairAttempts: number;
@@ -50,8 +50,8 @@ interface SqlCandidateBuildResult {
 type SqlOrchestratorMode = 'refine' | 'create';
 
 @Injectable()
-export class AiAssistantOrchestratorService {
-  private readonly logger = new Logger(AiAssistantOrchestratorService.name);
+export class AiAssistantSqlOrchestratorService {
+  private readonly logger = new Logger(AiAssistantSqlOrchestratorService.name);
 
   constructor(
     @Inject(AI_CHAT_PROVIDER) private readonly aiProvider: AiChatProvider,
@@ -65,10 +65,10 @@ export class AiAssistantOrchestratorService {
   ) {}
 
   async run(
-    request: AssistantOrchestratorRequest,
+    request: AssistantSqlOrchestratorRequest,
     mode: SqlOrchestratorMode,
     options?: { prefillTelemetry?: AgentTelemetry }
-  ): Promise<AssistantOrchestratorResponse> {
+  ): Promise<AiAssistantResponse> {
     const prefillTelemetry = options?.prefillTelemetry;
     const telemetry = createTelemetry();
     mergeTelemetry(telemetry, prefillTelemetry);
@@ -96,11 +96,11 @@ export class AiAssistantOrchestratorService {
   }
 
   private async runFlow(params: {
-    request: AssistantOrchestratorRequest;
+    request: AssistantSqlOrchestratorRequest;
     mode: SqlOrchestratorMode;
     telemetry: AgentTelemetry;
     sanitizedLastUserMessage: string | null;
-  }): Promise<AssistantOrchestratorResponse> {
+  }): Promise<AiAssistantResponse> {
     const { request, mode, telemetry, sanitizedLastUserMessage } = params;
     const decision = this.toDecision(mode);
     const conversationContext = request.conversationContext;
@@ -115,13 +115,13 @@ export class AiAssistantOrchestratorService {
     const triage = await this.triageAgent.run(
       {
         prompt,
-        prefetchedMetadata: prefetchedContext.metadata,
+        prefetchedMetadata: prefetchedContext.result.metadata,
         conversationContext,
       },
       shared
     );
     if (triage.outcome !== TriageOutcome.OK) {
-      const status: AssistantOrchestratorStatus =
+      const status: AiAssistantStatus =
         triage.outcome === TriageOutcome.NOT_RELEVANT ? 'not_relevant' : 'cannot_answer';
 
       return {
@@ -143,7 +143,7 @@ export class AiAssistantOrchestratorService {
         promptLanguage: triage.promptLanguage,
         schemaSummary: triage.schemaSummary,
         rawSchema: triage.rawSchema,
-        fullyQualifiedTableName: prefetchedContext.fullyQualifiedTableName,
+        fullyQualifiedTableName: prefetchedContext.result.fullyQualifiedTableName,
         conversationContext,
       },
       shared
@@ -223,8 +223,8 @@ export class AiAssistantOrchestratorService {
     schemaSummary?: string;
     rawSchema: GetMetadataOutput;
     shared: SharedAgentContext;
-    request: AssistantOrchestratorRequest;
-    conversationContext: AssistantOrchestratorRequest['conversationContext'];
+    request: AssistantSqlOrchestratorRequest;
+    conversationContext: AssistantSqlOrchestratorRequest['conversationContext'];
   }): Promise<SqlCandidateBuildResult> {
     const { prompt, plan, schemaSummary, rawSchema, shared, request, conversationContext } = params;
     const maxRepairAttempts = 4;
@@ -333,7 +333,7 @@ export class AiAssistantOrchestratorService {
   private async validateSqlDryRun(
     shared: SharedAgentContext,
     sql: string,
-    request: AssistantOrchestratorRequest
+    request: AssistantSqlOrchestratorRequest
   ): Promise<{ ok: true; bytes?: number } | { ok: false; error: SqlDryRunValidationFailure }> {
     const dryRun = await this.sqlDryRunService.run(
       new SqlDryRunCommand(request.dataMartId, request.projectId, sql)
@@ -372,12 +372,12 @@ export class AiAssistantOrchestratorService {
   }
 
   private buildErrorResponse(
-    request: AssistantOrchestratorRequest,
+    request: AssistantSqlOrchestratorRequest,
     mode: SqlOrchestratorMode,
     sanitizedLastUserMessage: string | null,
     telemetry: AgentTelemetry,
     message: string
-  ): AssistantOrchestratorResponse {
+  ): AiAssistantResponse {
     const decision = this.toDecision(mode);
     this.logger.error(`AI source orchestration error: ${message}`);
     return {
@@ -394,11 +394,11 @@ export class AiAssistantOrchestratorService {
   }
 
   private buildRestrictedResponse(
-    request: AssistantOrchestratorRequest,
+    request: AssistantSqlOrchestratorRequest,
     mode: SqlOrchestratorMode,
     sanitizedLastUserMessage: string | null,
     telemetry: AgentTelemetry
-  ): AssistantOrchestratorResponse {
+  ): AiAssistantResponse {
     const decision = this.toDecision(mode);
     return {
       status: 'restricted',
@@ -414,7 +414,7 @@ export class AiAssistantOrchestratorService {
   }
 
   private buildDebugPayload(
-    _request: AssistantOrchestratorRequest,
+    _request: AssistantSqlOrchestratorRequest,
     extras?: AssistantMatchDebug
   ): AssistantMatchDebug | undefined {
     const hasExtras = Boolean(extras && Object.keys(extras).length > 0);
@@ -430,7 +430,7 @@ export class AiAssistantOrchestratorService {
   }
 
   private createSharedContext(
-    request: AssistantOrchestratorRequest,
+    request: AssistantSqlOrchestratorRequest,
     prompt: string,
     telemetry: AgentTelemetry
   ): SharedAgentContext {

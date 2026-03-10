@@ -1,3 +1,4 @@
+import { Logger } from '@nestjs/common';
 import { DataMartSchemaFieldStatus } from '../../data-storage-types/enums/data-mart-schema-field-status.enum';
 import { AiAssistantSqlContextPrefetchService } from './sql-context-prefetch.service';
 
@@ -21,6 +22,7 @@ describe('AiAssistantSqlContextPrefetchService', () => {
   };
 
   it('prefetches metadata and fqn in parallel and returns prefetch telemetry', async () => {
+    const logSpy = jest.spyOn(Logger.prototype, 'log').mockImplementation();
     const { service, dataMartService, tableNameRetrieverTool } = createService();
 
     let metadataStarted = false;
@@ -75,9 +77,9 @@ describe('AiAssistantSqlContextPrefetchService', () => {
 
     const result = await prefetchPromise;
 
-    expect(result.fullyQualifiedTableName).toBe('project.dataset.table_name');
-    expect(result.metadata.storageType).toBe('bigquery');
-    expect(result.metadata.schema.fields).toEqual([
+    expect(result.result.fullyQualifiedTableName).toBe('project.dataset.table_name');
+    expect(result.result.metadata.storageType).toBe('bigquery');
+    expect(result.result.metadata.schema.fields).toEqual([
       { name: 'connected_field', status: DataMartSchemaFieldStatus.CONNECTED },
     ]);
 
@@ -87,5 +89,17 @@ describe('AiAssistantSqlContextPrefetchService', () => {
       'load_fqn',
       'load_metadata',
     ]);
+
+    expect(logSpy).toHaveBeenCalledWith(
+      'AiAssistantSqlContextPrefetch',
+      expect.objectContaining({
+        measured: expect.objectContaining({
+          executionTimeMs: expect.any(Number),
+          status: 'ok',
+        }),
+      })
+    );
+
+    logSpy.mockRestore();
   });
 });

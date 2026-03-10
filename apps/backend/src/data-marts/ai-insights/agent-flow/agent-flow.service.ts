@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { AgentFlowAgent } from './agent-flow.agent';
-import { AssistantOrchestratorResponse } from './ai-assistant-types';
+import { AiAssistantResponse } from './ai-assistant-types';
 import { AiContentFilterError } from '../../../common/ai-insights/services/error';
 import { AgentFlowPromptContext, AgentFlowRequest } from './types';
 import { createTelemetry } from './agent-telemetry.utils';
@@ -12,7 +12,7 @@ import { castError } from '@owox/internal-helpers';
  * AgentFlowService — public facade for the agent-flow approach.
  *
  * This is the entry point for the new LLM+tools based source assistant flow.
- * It runs the agent loop and translates the result back into a SourceOrchestratorResponse
+ * It runs the agent loop and translates the result back into an AiAssistantResponse
  * so it is compatible with the existing API contract.
  */
 @Injectable()
@@ -24,7 +24,7 @@ export class AgentFlowService {
   async run(
     request: AgentFlowRequest,
     promptContext: AgentFlowPromptContext
-  ): Promise<AssistantOrchestratorResponse> {
+  ): Promise<AiAssistantResponse> {
     const telemetry = createTelemetry();
 
     try {

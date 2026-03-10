@@ -3,8 +3,8 @@ import { AiContext, AgentTelemetry } from '../../../common/ai-insights/agent/typ
 import {
   AiFlowOptions,
   AssistantChatMessage,
-  AssistantOrchestratorRequest,
-  AssistantOrchestratorResponse,
+  AssistantSqlOrchestratorRequest,
+  AiAssistantResponse,
   AssistantProposedActionSchema,
 } from './ai-assistant-types';
 import {
@@ -25,9 +25,9 @@ export interface AgentFlowRequest {
   dataMartId: string;
   conversationContext: AgentFlowConversationContext;
   sessionContext: {
-    sessionId: AssistantOrchestratorRequest['sessionContext']['sessionId'];
-    scope: AssistantOrchestratorRequest['sessionContext']['scope'];
-    templateId: AssistantOrchestratorRequest['sessionContext']['templateId'];
+    sessionId: AssistantSqlOrchestratorRequest['sessionContext']['sessionId'];
+    scope: AssistantSqlOrchestratorRequest['sessionContext']['scope'];
+    templateId: AssistantSqlOrchestratorRequest['sessionContext']['templateId'];
   };
   options?: AiFlowOptions;
 }
@@ -55,7 +55,7 @@ export interface AgentFlowContext extends AiContext {
   /** Internal SQL pipeline reason text from source orchestrator response meta. */
   lastGeneratedSqlReasonDescription?: string;
   /** Internal SQL pipeline diagnostics from source orchestrator response meta. */
-  lastGeneratedSqlDiagnostics?: AssistantOrchestratorResponse['meta']['diagnostics'];
+  lastGeneratedSqlDiagnostics?: AiAssistantResponse['meta']['diagnostics'];
   /** Sanitized user message used after policy recovery (if any). */
   sanitizedLastUserMessage?: string | null;
 }

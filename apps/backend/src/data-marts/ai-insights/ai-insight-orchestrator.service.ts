@@ -106,7 +106,7 @@ export class AiInsightsOrchestratorService {
     telemetry.prefetch = prefetchedContext.telemetry;
 
     const triage = await this.triageAgent.run(
-      { prompt: request.prompt, prefetchedMetadata: prefetchedContext.metadata },
+      { prompt: request.prompt, prefetchedMetadata: prefetchedContext.result.metadata },
       shared
     );
 
@@ -133,7 +133,7 @@ export class AiInsightsOrchestratorService {
         promptLanguage: triage.promptLanguage,
         schemaSummary: triage.schemaSummary,
         rawSchema: triage.rawSchema,
-        fullyQualifiedTableName: prefetchedContext.fullyQualifiedTableName,
+        fullyQualifiedTableName: prefetchedContext.result.fullyQualifiedTableName,
       },
       shared
     );

@@ -3,7 +3,7 @@ import { AiRole } from '../../common/ai-insights/agent/ai-core';
 import {
   AssistantChatMessage,
   AssistantConversationContext,
-  AssistantOrchestratorRequest,
+  AssistantSqlOrchestratorRequest,
 } from '../ai-insights/agent-flow/ai-assistant-types';
 import { AgentFlowRequest } from '../ai-insights/agent-flow/types';
 import { AiAssistantMessageRole } from '../enums/ai-assistant-message-role.enum';
@@ -12,10 +12,10 @@ type ConversationRole = AiRole.SYSTEM | AiRole.USER | AiRole.ASSISTANT;
 
 @Injectable()
 export class AgentFlowRequestMapper {
-  toAssistantOrchestratorRequest(params: {
+  toAssistantSqlOrchestratorRequest(params: {
     request: AgentFlowRequest;
     conversationContext: AssistantConversationContext;
-  }): AssistantOrchestratorRequest {
+  }): AssistantSqlOrchestratorRequest {
     const { request, conversationContext } = params;
 
     return {

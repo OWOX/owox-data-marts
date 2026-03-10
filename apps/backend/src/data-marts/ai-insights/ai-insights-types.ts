@@ -120,9 +120,13 @@ export interface SharedAgentContext {
   dataMartId: string;
 }
 
-export interface PrefetchedSqlContext {
+export interface PrefetchSqlResult {
   metadata: GetMetadataOutput;
   fullyQualifiedTableName: string;
+}
+
+export interface PrefetchedSqlContext {
+  result: PrefetchSqlResult;
   telemetry: PrefetchTelemetry;
 }
 

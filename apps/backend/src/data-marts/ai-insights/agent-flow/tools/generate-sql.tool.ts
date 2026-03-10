@@ -1,8 +1,8 @@
 import { z } from 'zod';
 import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import { AgentFlowContext } from '../types';
-import { AiAssistantOrchestratorService } from '../ai-assistant-orchestrator.service';
-import { AssistantChatMessage, AssistantOrchestratorResponse } from '../ai-assistant-types';
+import { AiAssistantSqlOrchestratorService } from '../ai-assistant-sql-orchestrator.service';
+import { AssistantChatMessage, AiAssistantResponse } from '../ai-assistant-types';
 import { appendNormalizedTelemetry } from '../agent-telemetry.utils';
 import { AgentFlowRequestMapper } from '../../../mappers/agent-flow-request.mapper';
 import {
@@ -105,7 +105,7 @@ export interface GenerateSqlOutput {
   dryRunError: string | null;
   repairAttempts: number;
   reasonDescription?: string;
-  diagnostics?: AssistantOrchestratorResponse['meta']['diagnostics'];
+  diagnostics?: AiAssistantResponse['meta']['diagnostics'];
 }
 
 interface ResolvedBaseSql {
@@ -119,7 +119,7 @@ export class GenerateSqlTool {
   private readonly logger = new Logger(GenerateSqlTool.name);
 
   constructor(
-    private readonly orchestrator: AiAssistantOrchestratorService,
+    private readonly orchestrator: AiAssistantSqlOrchestratorService,
     private readonly agentFlowRequestMapper: AgentFlowRequestMapper,
     private readonly baseSqlHandleResolverService: BaseSqlHandleResolverService
   ) {}
@@ -169,7 +169,7 @@ export class GenerateSqlTool {
     args: GenerateSqlInput,
     request: AgentFlowContext['request']
   ): Promise<{
-    delegatedRequest: ReturnType<AgentFlowRequestMapper['toAssistantOrchestratorRequest']>;
+    delegatedRequest: ReturnType<AgentFlowRequestMapper['toAssistantSqlOrchestratorRequest']>;
     baseAssistantMessageId?: string;
     hasBaseSql: boolean;
     refineBaseOrigin?: ResolvedBaseSql['origin'];
@@ -188,7 +188,7 @@ export class GenerateSqlTool {
       });
 
       return {
-        delegatedRequest: this.agentFlowRequestMapper.toAssistantOrchestratorRequest({
+        delegatedRequest: this.agentFlowRequestMapper.toAssistantSqlOrchestratorRequest({
           request,
           conversationContext,
         }),
@@ -208,7 +208,7 @@ export class GenerateSqlTool {
     });
 
     return {
-      delegatedRequest: this.agentFlowRequestMapper.toAssistantOrchestratorRequest({
+      delegatedRequest: this.agentFlowRequestMapper.toAssistantSqlOrchestratorRequest({
         request,
         conversationContext,
       }),

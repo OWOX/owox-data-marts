@@ -10,7 +10,7 @@ import { AiAssistantRunLogger } from '../ai-insights/agent-flow/ai-assistant-run
 import { AgentFlowService } from '../ai-insights/agent-flow/agent-flow.service';
 import { AgentFlowRequest } from '../ai-insights/agent-flow/types';
 import {
-  AssistantOrchestratorResponse,
+  AiAssistantResponse,
   AssistantProposedActionsSchema,
 } from '../ai-insights/agent-flow/ai-assistant-types';
 import { DataMartRunStatus } from '../enums/data-mart-run-status.enum';
@@ -45,7 +45,7 @@ export class RunAiAssistantCommand {
 
 export interface RunAiAssistantResult {
   runId: string;
-  response: AssistantOrchestratorResponse;
+  response: AiAssistantResponse;
   assistantMessageId: string | null;
 }
 

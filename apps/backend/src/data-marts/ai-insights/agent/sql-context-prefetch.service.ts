@@ -1,9 +1,13 @@
-import { Injectable } from '@nestjs/common';
-import { PrefetchStepTelemetry } from '../../../common/ai-insights/agent/types';
-import { PrefetchedSqlContext, GetMetadataOutput } from '../ai-insights-types';
+import { Injectable, Logger } from '@nestjs/common';
+import { PrefetchedSqlContext, GetMetadataOutput, PrefetchSqlResult } from '../ai-insights-types';
 import { filterConnectedSchema } from '../utils/narrow-datamart-metadata';
 import { DataMartService } from '../../services/data-mart.service';
 import { TableNameRetrieverTool } from '../tools/table-name-retriever.tool';
+import {
+  MeasuredExecutionSuccessResult,
+  measureExecutionTime,
+  toMeasuredExecutionBaseResult,
+} from '../../../common/utils/measure-execution-time';
 
 export interface SqlContextPrefetchInput {
   projectId: string;
@@ -14,22 +18,35 @@ const SCHEMA_EXPIRES_AFTER_MS = 30 * 60 * 1000;
 
 @Injectable()
 export class AiAssistantSqlContextPrefetchService {
+  private readonly logger = new Logger(AiAssistantSqlContextPrefetchService.name);
+
   constructor(
     private readonly dataMartService: DataMartService,
     private readonly tableNameRetrieverTool: TableNameRetrieverTool
   ) {}
 
   async prefetch(input: SqlContextPrefetchInput): Promise<PrefetchedSqlContext> {
-    const startedAt = Date.now();
-    const steps: PrefetchStepTelemetry[] = [
+    const measured: MeasuredExecutionSuccessResult<PrefetchSqlResult> = await measureExecutionTime(
+      () => this.runPrefetch(input),
       {
-        name: 'load_metadata',
-      },
-      {
-        name: 'load_fqn',
-      },
-    ];
+        onMeasured: measuredExecution => {
+          this.logger.log('AiAssistantSqlContextPrefetch', {
+            measured: toMeasuredExecutionBaseResult(measuredExecution),
+          });
+        },
+      }
+    );
 
+    return {
+      result: measured.result,
+      telemetry: {
+        totalMs: measured.executionTimeMs,
+        steps: [{ name: 'load_metadata' }, { name: 'load_fqn' }],
+      },
+    };
+  }
+
+  private async runPrefetch(input: SqlContextPrefetchInput): Promise<PrefetchSqlResult> {
     const metadataPromise = this.loadMetadata(input);
     const fqnPromise = this.tableNameRetrieverTool.retrieveTableName(
       input.dataMartId,
@@ -41,10 +58,6 @@ export class AiAssistantSqlContextPrefetchService {
     return {
       metadata,
       fullyQualifiedTableName,
-      telemetry: {
-        totalMs: Date.now() - startedAt,
-        steps,
-      },
     };
   }
 

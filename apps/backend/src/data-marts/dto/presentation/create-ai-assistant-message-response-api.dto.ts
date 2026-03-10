@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import type { AssistantOrchestratorResponse } from '../../ai-insights/agent-flow/ai-assistant-types';
+import type { AiAssistantResponse } from '../../ai-insights/agent-flow/ai-assistant-types';
 import { AiAssistantMessageResponseApiDto } from './ai-assistant-message-response-api.dto';
 
 export enum AiAssistantExecutionModeApi {
@@ -37,7 +37,7 @@ export class CreateAiAssistantMessageResponseApiDto {
       },
     },
   })
-  response?: AssistantOrchestratorResponse | null;
+  response?: AiAssistantResponse | null;
 
   @ApiProperty({ type: AiAssistantMessageResponseApiDto })
   userMessage: AiAssistantMessageResponseApiDto;

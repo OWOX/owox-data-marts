@@ -165,7 +165,7 @@ describe('BigQueryCreateViewExecutor', () => {
     const result = await service.createView(credentials, config, 'my_view', sql);
 
     expect(loggerWarnSpy).toHaveBeenCalledWith(
-      'BigQuery dry run did not return location. Falling back to default location US.'
+      'BigQuery dry run did not return location. Use default location US.'
     );
     expect(mockAdapter.executeQuery).toHaveBeenNthCalledWith(
       1,
