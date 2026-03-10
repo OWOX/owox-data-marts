@@ -145,33 +145,47 @@ export class RunReportService {
     signal?: AbortSignal,
     reportRunLogger?: ReportRunLogger
   ): Promise<void> {
+    this.logger.log(`REPORT_DEBUG_0 ${report.id}`);
     signal?.throwIfAborted();
+    this.logger.log(`REPORT_DEBUG_1 ${report.id}`);
     const { dataMart, dataDestination } = report;
     const reportReader = await this.reportReaderResolver.resolve(dataMart.storage.type);
+    this.logger.log(`REPORT_DEBUG_2 ${report.id}`);
     const reportWriter = await this.reportWriterResolver.resolve(dataDestination.type);
+    this.logger.log(`REPORT_DEBUG_3 ${report.id}`);
     let processingError: Error | undefined = undefined;
     try {
       signal?.throwIfAborted();
+      this.logger.log(`REPORT_DEBUG_4 ${report.id}`);
       await this.projectBalanceService.verifyCanPerformOperations(dataMart.projectId);
+      this.logger.log(`REPORT_DEBUG_5 ${report.id}`);
       const reportDataDescription = await reportReader.prepareReportData(report);
+      this.logger.log(`REPORT_DEBUG_6 ${report.id}`);
       this.logger.debug(`Report data prepared for ${report.id}:`, reportDataDescription);
       reportWriter.setExecutionContext?.({
         runId: report.id,
         logger: reportRunLogger!,
       });
+      this.logger.log(`REPORT_DEBUG_7 ${report.id}`);
       await reportWriter.prepareToWriteReport(report, reportDataDescription);
+      this.logger.log(`REPORT_DEBUG_8 ${report.id}`);
       let nextReportDataBatch: string | undefined | null = undefined;
       do {
         signal?.throwIfAborted();
+        this.logger.log(`REPORT_DEBUG_9 ${report.id}`);
         const batch = await reportReader.readReportDataBatch(nextReportDataBatch);
+        this.logger.log(`REPORT_DEBUG_10 ${report.id}`);
         await reportWriter.writeReportDataBatch(batch);
+        this.logger.log(`REPORT_DEBUG_11 ${report.id}`);
         nextReportDataBatch = batch.nextDataBatchId;
         this.logger.debug(`${batch.dataRows.length} data rows written for report ${report.id}`);
       } while (nextReportDataBatch);
     } catch (error) {
+      this.logger.error(`REPORT_DEBUG_11', ${report.id}`);
       processingError = error;
       throw error;
     } finally {
+      this.logger.log(`REPORT_DEBUG_12 ${report.id}`);
       await reportWriter.finalize(processingError);
       await reportReader.finalize();
     }
