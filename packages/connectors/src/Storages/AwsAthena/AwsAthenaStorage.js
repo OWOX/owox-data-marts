@@ -200,8 +200,9 @@ var AwsAthenaStorage = class AwsAthenaStorage extends AbstractStorage {
       
       // Use AthenaType if specified, otherwise fallback to schema type, default to string
       let columnType = this.getColumnType(columnName);
+      let columnComment = this.getColumnComment(columnName);
       
-      columnDefinitions.push(`${columnName} ${columnType}`);
+      columnDefinitions.push(`${columnName} ${columnType}${columnComment}`);
       existingColumns[columnName] = columnType;
     }
 
@@ -212,8 +213,9 @@ var AwsAthenaStorage = class AwsAthenaStorage extends AbstractStorage {
       if (!this.uniqueKeyColumns.includes(columnName) && selectedFields.includes(columnName)) {
         // Use AthenaType if specified, otherwise fallback to schema type, default to string
         let columnType = this.getColumnType(columnName);
+        let columnComment = this.getColumnComment(columnName);
         
-        columnDefinitions.push(`${columnName} ${columnType}`);
+        columnDefinitions.push(`${columnName} ${columnType}${columnComment}`);
         existingColumns[columnName] = columnType;
       }
     }
@@ -261,8 +263,9 @@ var AwsAthenaStorage = class AwsAthenaStorage extends AbstractStorage {
     for (let columnName of newColumns) {
       if (columnName in this.schema) {
         let columnType = this.getColumnType(columnName);
+        let columnComment = this.getColumnComment(columnName);
  
-        columnsToAdd.push(`${columnName} ${columnType}`);
+        columnsToAdd.push(`${columnName} ${columnType}${columnComment}`);
         this.existingColumns[columnName] = columnType;  
       }
     }
@@ -677,6 +680,37 @@ var AwsAthenaStorage = class AwsAthenaStorage extends AbstractStorage {
    */
   getColumnType(columnName) {
     return this._convertTypeToStorageType(this.schema[columnName]["type"]);
+  }
+
+  //---- getColumnComment -----------------------------------------------
+  /**
+   * Get COMMENT clause for a column if description exists in schema
+   * @param {string} columnName - Name of the column
+   * @returns {string} COMMENT clause or empty string
+   */
+  getColumnComment(columnName) {
+    if (columnName in this.schema && "description" in this.schema[columnName]) {
+      const escapedDescription = this.obfuscateSpecialCharacters(this.schema[columnName]["description"]);
+      return ` COMMENT '${escapedDescription}'`;
+    }
+    return '';
+  }
+
+  //---- obfuscateSpecialCharacters ------------------------------------
+  /**
+   * Escape special characters for SQL string literals
+   * @param {string} inputString - String to escape
+   * @returns {string} Escaped string
+   */
+  obfuscateSpecialCharacters(inputString) {
+    return String(inputString)
+      .replace(/\\/g, '\\\\')          // Escape backslashes
+      .replace(/\r\n/g, ' ')           // Replace Windows line breaks with space
+      .replace(/\n/g, ' ')             // Replace Unix line breaks with space
+      .replace(/\r/g, ' ')             // Replace Mac line breaks with space
+      .replace(/'/g, "''")             // Escape single quotes
+      .replace(/"/g, '\\"')            // Escape double quotes
+      .replace(/[\x00-\x1F]/g, ' ');   // Replace control chars with space
   }
 
   //---- _convertTypeToStorageType ------------------------------------
