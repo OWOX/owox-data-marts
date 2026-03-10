@@ -22,7 +22,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@owox/ui/components/select';
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import type { CredentialIdentity } from '../../../../../shared/types/credential-identity';
 import { CopyCredentialContext } from '../../model/context/copy-credential-context';
@@ -80,29 +80,32 @@ export function DataStorageForm({
     identity: CredentialIdentity | null;
   } | null>(null);
 
-  const handleSourceSelect = (id: string, title: string, identity: CredentialIdentity | null) => {
-    setSelectedSource({ id, title, identity });
-    // For Google types, set a placeholder credentialId so Zod validation passes.
-    // Non-Google types don't have credentialId in their schemas, so we skip this.
-    // Credentials are copied server-side via sourceStorageId; the placeholder is
-    // stripped from the payload in handleSubmit.
-    const currentType = form.getValues('type');
-    if (
-      currentType === DataStorageType.GOOGLE_BIGQUERY ||
-      currentType === DataStorageType.LEGACY_GOOGLE_BIGQUERY
-    ) {
-      form.setValue('credentials.credentialId', COPY_SOURCE_CREDENTIAL_PLACEHOLDER, {
-        shouldDirty: false,
-        shouldValidate: true,
-      });
-    }
-  };
+  const handleSourceSelect = useCallback(
+    (id: string, title: string, identity: CredentialIdentity | null) => {
+      setSelectedSource({ id, title, identity });
+      // For Google types, set a placeholder credentialId so Zod validation passes.
+      // Non-Google types don't have credentialId in their schemas, so we skip this.
+      // Credentials are copied server-side via sourceStorageId; the placeholder is
+      // stripped from the payload in handleSubmit.
+      const currentType = form.getValues('type');
+      if (
+        currentType === DataStorageType.GOOGLE_BIGQUERY ||
+        currentType === DataStorageType.LEGACY_GOOGLE_BIGQUERY
+      ) {
+        form.setValue('credentials.credentialId', COPY_SOURCE_CREDENTIAL_PLACEHOLDER, {
+          shouldDirty: false,
+          shouldValidate: true,
+        });
+      }
+    },
+    [form]
+  );
 
-  const handleSourceClear = () => {
+  const handleSourceClear = useCallback(() => {
     setSelectedSource(null);
     // Restore credential field to its original value from initialData
     form.resetField('credentials.credentialId');
-  };
+  }, [form]);
 
   const {
     watch,
@@ -123,7 +126,7 @@ export function DataStorageForm({
       selectedSource,
       onSourceClear: handleSourceClear,
     }),
-    [storageId, selectedSource]
+    [storageId, selectedSource, handleSourceSelect, handleSourceClear]
   );
 
   const handleSubmit = async (data: DataStorageFormData) => {
