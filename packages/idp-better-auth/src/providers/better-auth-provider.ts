@@ -240,7 +240,10 @@ export class BetterAuthProvider
     return this.userManagementService.removeUser(userId);
   }
 
-  async getProjectMembers(_projectId: string): Promise<ProjectMember[]> {
+  async getProjectMembers(
+    _projectId: string,
+    _options?: { forceFresh?: boolean }
+  ): Promise<ProjectMember[]> {
     const users = await this.userManagementService.listUsers();
 
     return users.map(user => ({
@@ -251,6 +254,7 @@ export class BetterAuthProvider
       projectRole: user.roles?.[0] ?? 'viewer',
       userStatus: 'active',
       hasNotificationsEnabled: true, // No preference table yet
+      isOutbound: false,
     }));
   }
 }

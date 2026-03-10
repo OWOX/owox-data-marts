@@ -46,6 +46,17 @@ export interface AuthResult {
 }
 
 /**
+ * Status of a project member
+ */
+export type ProjectMemberStatus =
+  | 'active'
+  | 'blocked'
+  | 'deleted'
+  | 'locked'
+  | 'erased'
+  | 'outbound';
+
+/**
  * Project member information
  */
 export type ProjectMember = {
@@ -54,6 +65,7 @@ export type ProjectMember = {
   fullName?: string;
   avatar?: string;
   projectRole: string; // 'admin' | 'editor' | 'viewer'
-  userStatus: string; // 'active' | 'blocked' | 'deleted' | 'locked' | 'erased'
+  userStatus: ProjectMemberStatus;
   hasNotificationsEnabled: boolean; // from subscriptions.serviceNotifications
+  isOutbound?: boolean; // user is not in the project anymore
 };

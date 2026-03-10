@@ -1,6 +1,7 @@
 import { createMailingProvider } from '@owox/internal-helpers';
 import {
   AuthResult,
+  GetProjectMembersOptions,
   IdpProvider,
   Payload,
   ProjectMember,
@@ -23,6 +24,10 @@ import { BetterAuthSessionService } from './services/auth/better-auth-session-se
 import { MagicLinkService } from './services/auth/magic-link-service.js';
 import { PkceFlowOrchestrator } from './services/auth/pkce-flow-orchestrator.js';
 import { PlatformAuthFlowClient } from './services/auth/platform-auth-flow-client.js';
+import {
+  ProjectMembersService,
+  ProjectMembersServiceOptions,
+} from './services/cache/project-members-service.js';
 import { UserAuthInfoPersistenceService } from './services/core/user-auth-info-persistence-service.js';
 import { UserAccountResolver } from './services/core/user-account-resolver.js';
 import { UserContextService } from './services/core/user-context-service.js';
@@ -63,6 +68,7 @@ export class OwoxBetterAuthIdp implements IdpProvider {
   private readonly userAuthInfoPersistenceService: UserAuthInfoPersistenceService;
   private readonly platformAuthFlowClient: PlatformAuthFlowClient;
   private readonly pkceFlowOrchestrator: PkceFlowOrchestrator;
+  private readonly projectMembersService: ProjectMembersService;
 
   private constructor(
     auth: Awaited<ReturnType<typeof createBetterAuthConfig>>,
@@ -118,22 +124,23 @@ export class OwoxBetterAuthIdp implements IdpProvider {
       this.store,
       this.pkceFlowOrchestrator
     );
-  }
-  async getProjectMembers(projectId: string): Promise<ProjectMember[]> {
-    const response = await this.identityClient.getProjectMembers(projectId);
 
-    if (!response.projectMembers || response.projectMembers.length === 0) {
-      return [];
-    }
-    return response.projectMembers.map(member => ({
-      userId: String(member.userId),
-      email: member.email,
-      fullName: member.fullName || undefined,
-      avatar: member.avatar || undefined,
-      projectRole: member.projectRole,
-      userStatus: member.userStatus,
-      hasNotificationsEnabled: member.subscriptions?.serviceNotifications ?? true,
-    }));
+    // Initialize project members service
+    const serviceOptions: ProjectMembersServiceOptions = {
+      ttlSeconds: this.config.idpOwox.projectMembersCacheTtlSeconds,
+    };
+    this.projectMembersService = new ProjectMembersService(
+      this.store,
+      this.identityClient,
+      serviceOptions
+    );
+  }
+
+  async getProjectMembers(
+    projectId: string,
+    options?: GetProjectMembersOptions
+  ): Promise<ProjectMember[]> {
+    return this.projectMembersService.getMembers(projectId, options);
   }
 
   static async create(config: BetterAuthProviderConfig): Promise<OwoxBetterAuthIdp> {

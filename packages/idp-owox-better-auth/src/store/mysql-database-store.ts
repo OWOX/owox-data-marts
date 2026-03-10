@@ -1,3 +1,4 @@
+import type { ProjectMember } from '@owox/idp-protocol';
 import { createServiceLogger } from '../core/logger.js';
 import type { DatabaseAccount, DatabaseOperationResult, DatabaseUser } from '../types/index.js';
 import type { DatabaseStore } from './database-store.js';
@@ -29,6 +30,7 @@ export class MysqlDatabaseStore implements DatabaseStore {
   private pool?: MysqlPool;
   private readonly logger = createServiceLogger(MysqlDatabaseStore.name);
   private authTableReady = false;
+  private projectTablesReady = false;
 
   constructor(private readonly config: MysqlConnectionConfig) {}
 
@@ -368,6 +370,172 @@ export class MysqlDatabaseStore implements DatabaseStore {
       id: String(row.id),
       createdAt: createdAt && !Number.isNaN(createdAt.getTime()) ? createdAt : null,
       expiresAt: expiresAt && !Number.isNaN(expiresAt.getTime()) ? expiresAt : null,
+    };
+  }
+
+  // Project Members Storage methods
+
+  private async ensureProjectTables(pool: MysqlPool): Promise<void> {
+    if (this.projectTablesReady) return;
+
+    // Project table - stores project-level metadata
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS project (
+        project_id VARCHAR(255) NOT NULL PRIMARY KEY,
+        updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        expires_at TIMESTAMP NOT NULL
+      )
+    `);
+
+    // Project member table - stores individual member details
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS project_member (
+        project_id VARCHAR(255) NOT NULL,
+        user_id VARCHAR(255) NOT NULL,
+        email VARCHAR(255) NOT NULL,
+        full_name VARCHAR(255),
+        avatar TEXT,
+        project_role VARCHAR(50) NOT NULL,
+        user_status VARCHAR(50) NOT NULL,
+        has_notifications_enabled BOOLEAN NOT NULL DEFAULT TRUE,
+        is_outbound BOOLEAN NOT NULL DEFAULT FALSE,
+        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        PRIMARY KEY (project_id, user_id),
+        INDEX idx_project_member_project_id (project_id),
+        INDEX idx_project_member_user_id (user_id),
+        FOREIGN KEY (project_id) REFERENCES project(project_id) ON DELETE CASCADE
+      )
+    `);
+
+    this.projectTablesReady = true;
+  }
+
+  async saveProjectMembers(
+    projectId: string,
+    members: ProjectMember[],
+    ttlSeconds: number
+  ): Promise<void> {
+    const pool = await this.getPool();
+    await this.ensureProjectTables(pool);
+
+    const expiresAt = new Date(Date.now() + ttlSeconds * 1000);
+
+    // Update project table with sync timestamp
+    await pool.execute(
+      `INSERT INTO project (project_id, updated_at, expires_at)
+       VALUES (?, CURRENT_TIMESTAMP, ?)
+       ON DUPLICATE KEY UPDATE
+         updated_at = CURRENT_TIMESTAMP,
+         expires_at = VALUES(expires_at)`,
+      [projectId, expiresAt]
+    );
+
+    // UPSERT members: Insert new or update existing without deleting anything
+    // This preserves historical data - members not in the update remain with their current status
+    for (const member of members) {
+      await pool.execute(
+        `INSERT INTO project_member
+         (project_id, user_id, email, full_name, avatar, project_role, user_status, has_notifications_enabled, is_outbound)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+         ON DUPLICATE KEY UPDATE
+           email = VALUES(email),
+           full_name = VALUES(full_name),
+           avatar = VALUES(avatar),
+           project_role = VALUES(project_role),
+           user_status = VALUES(user_status),
+           has_notifications_enabled = VALUES(has_notifications_enabled),
+           is_outbound = VALUES(is_outbound)`,
+        [
+          projectId,
+          member.userId,
+          member.email,
+          member.fullName ?? null,
+          member.avatar ?? null,
+          member.projectRole,
+          member.userStatus,
+          member.hasNotificationsEnabled ? 1 : 0,
+          member.isOutbound ? 1 : 0,
+        ]
+      );
+    }
+  }
+
+  async getProjectMembers(projectId: string): Promise<ProjectMember[] | null> {
+    const pool = await this.getPool();
+    await this.ensureProjectTables(pool);
+
+    const [rows] = (await pool.execute(
+      `SELECT user_id, email, full_name, avatar, project_role, user_status, has_notifications_enabled, is_outbound
+       FROM project_member
+       WHERE project_id = ?`,
+      [projectId]
+    )) as [
+      Array<{
+        user_id: string;
+        email: string;
+        full_name: string | null;
+        avatar: string | null;
+        project_role: string;
+        user_status: string;
+        has_notifications_enabled: number | boolean;
+        is_outbound: number | boolean;
+      }>,
+      unknown,
+    ];
+
+    if (!rows || rows.length === 0) {
+      return null;
+    }
+
+    const members: ProjectMember[] = rows.map(row => ({
+      userId: row.user_id,
+      email: row.email,
+      fullName: row.full_name ?? undefined,
+      avatar: row.avatar ?? undefined,
+      projectRole: row.project_role,
+      userStatus: row.user_status as ProjectMember['userStatus'],
+      hasNotificationsEnabled:
+        typeof row.has_notifications_enabled === 'boolean'
+          ? row.has_notifications_enabled
+          : row.has_notifications_enabled === 1,
+      isOutbound: typeof row.is_outbound === 'boolean' ? row.is_outbound : row.is_outbound === 1,
+    }));
+
+    return members;
+  }
+
+  async getProjectSyncInfo(
+    projectId: string
+  ): Promise<{ expiresAt: Date | null; updatedAt: Date | null } | null> {
+    const pool = await this.getPool();
+    await this.ensureProjectTables(pool);
+
+    const [rows] = (await pool.execute(
+      `SELECT expires_at, updated_at
+       FROM project
+       WHERE project_id = ?`,
+      [projectId]
+    )) as [Array<{ expires_at: Date | string | null; updated_at: Date | string | null }>, unknown];
+
+    const row = rows[0];
+    if (!row) {
+      return null;
+    }
+
+    return {
+      expiresAt:
+        row.expires_at instanceof Date
+          ? row.expires_at
+          : row.expires_at
+            ? new Date(row.expires_at)
+            : null,
+      updatedAt:
+        row.updated_at instanceof Date
+          ? row.updated_at
+          : row.updated_at
+            ? new Date(row.updated_at)
+            : null,
     };
   }
 }
