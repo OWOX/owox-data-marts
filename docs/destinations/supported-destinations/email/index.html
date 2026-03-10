@@ -152,6 +152,46 @@ You can also view and copy the list of report recipients.</p>
 <p>Add a <strong>Subject</strong> and write the <strong>Message</strong> using Markdown.<br>
 Switch to <strong>Preview</strong> to check how the email will appear to recipients.</p>
 <p><img alt="OWOX Data Marts interface showing a report creation dialog for Marketing Team with a TEMPLATE section containing two fields: Subject field displays The Awesome Data Mart report has been updated, and below is a Message field with Markdown and Preview tabs in the top right corner outlined in red. The message text reads: Dear Marketing Team, We&amp;#x27;re happy to let you know that the Awesome Data Mart report has been updated. If you have questions, contact the Analytics team or mention us in Slack using analytics-support. Best regards, The Analytics Team" loading="lazy" decoding="async" fetchpriority="auto" width="2858" height="1848" src="/_astro/email-message.FWCI8qU0_Z1ysq3E.webp" ></p>
+<div class="sl-heading-wrapper level-h5"><h5 id="tags-and-variables">Tags and Variables</h5><a class="sl-anchor-link" href="#tags-and-variables"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24"><path fill="currentcolor" d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 0 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 1 0-1.42-1.42Zm8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 0 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 1 0 1.42 1.42l3.88-3.89a4.49 4.49 0 0 0 0-6.33ZM8.83 15.17a1 1 0 0 0 1.1.22 1 1 0 0 0 .32-.22l4.92-4.92a1 1 0 0 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42Z"></path></svg></span><span class="sr-only">Section titled “Tags and Variables”</span></a></div>
+<p>You can use the <code dir="auto">{{table}}</code> tag to render your Data Mart results as a table in the email. Type <code dir="auto">/</code> in the editor to insert a tag quickly, or paste it manually.</p>
+<p><strong>Options available when you type <code dir="auto">/</code> in the editor:</strong></p>
+<p><strong>Table</strong> — Inserts a data table for the specified source.
+Default: <code dir="auto">{{table}}</code></p>
+<blockquote>
+<p>If you use the <code dir="auto">{{table}}</code> tag without additional parameters, the row limit defaults to 10. Add an explicit <code dir="auto">limit</code> parameter to display more rows.</p>
+</blockquote>
+<p><strong>Table with limit</strong> — Inserts a data table with an explicit row limit.
+Default: <code dir="auto">{{table source="main" limit="100"}}</code></p>
+<blockquote>
+<p>You can set <code dir="auto">limit</code> to any value from 1 to 100.</p>
+</blockquote>
+<p><strong>Value (Path)</strong> — Inserts a single cell value using path syntax.
+Default: <code dir="auto">{{value source="main" path=".column_name[1]"}}</code></p>
+<blockquote>
+<p>Replace <code dir="auto">column_name</code> with the actual column name and <code dir="auto">1</code> with the target row number.</p>
+</blockquote>
+<p><strong>Value (Column/Row)</strong> — Inserts a single cell value using column/row index syntax.
+Default: <code dir="auto">{{value source="main" column="1" row="1"}}</code></p>
+<blockquote>
+<p>This syntax preserves report accuracy when the schema changes — no updates are needed if a column is renamed.</p>
+</blockquote>
+<p><img src="https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/4deb6f02-9018-46e9-ea7b-c7f790eb8200/public" alt="OWOX Data Marts dialog titled Main Destination with subtitle Update details of an existing report. The Template section shows a Subject field containing Last Marketing Data, and a Message field in Markdown mode with a forward slash typed on line 1. A dropdown autocomplete menu is open below the cursor showing four options: Table (highlighted in blue, with the description Insert a table tag with source binding), Table with limit, Value (Path), and Value (Column/Row). Each option has a blue tag icon. At the bottom of the dialog are a blue Save changes to report button and a Cancel button."></p>
+<p><strong>Optional parameters for <code dir="auto">{{table}}</code>:</strong></p>
+<ul>
+<li><code dir="auto">limit</code> — Maximum number of rows to display. Accepts 1 to 100. Default: <code dir="auto">10</code>.
+Example: <code dir="auto">limit=20</code></li>
+<li><code dir="auto">from</code> — Whether to read rows from the beginning or end of the table. Accepts <code dir="auto">"start"</code> or <code dir="auto">"end"</code>. Default: <code dir="auto">start</code>.
+Example: <code dir="auto">from="end"</code></li>
+<li><code dir="auto">columns</code> — Comma-separated list of columns to include.
+Example: <code dir="auto">columns="id, revenue"</code></li>
+<li><code dir="auto">source</code> — Source key to read from. Default: <code dir="auto">main</code>.
+Example: <code dir="auto">source="main"</code></li>
+</ul>
+<blockquote>
+<p>💡 To display 20 rows from the end of the table, showing only <code dir="auto">id</code> and <code dir="auto">revenue</code>:<br>
+<code dir="auto">{{table limit=20 from="end" columns="id, revenue"}}</code></p>
+</blockquote>
+<p>You can also use <code dir="auto">{{dataHeadersCount}}</code> and <code dir="auto">{{dataRowsCount}}</code> to display the total number of columns and rows.</p>
 <div class="sl-heading-wrapper level-h4"><h4 id="25-set-sending-conditions">2.5. Set sending conditions</h4><a class="sl-anchor-link" href="#25-set-sending-conditions"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24"><path fill="currentcolor" d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 0 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 1 0-1.42-1.42Zm8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 0 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 1 0 1.42 1.42l3.88-3.89a4.49 4.49 0 0 0 0-6.33ZM8.83 15.17a1 1 0 0 0 1.1.22 1 1 0 0 0 .32-.22l4.92-4.92a1 1 0 0 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42Z"></path></svg></span><span class="sr-only">Section titled “2.5. Set sending conditions”</span></a></div>
 <p>Decide when the report should be sent based on the Data Mart run result:</p>
 <ul>
