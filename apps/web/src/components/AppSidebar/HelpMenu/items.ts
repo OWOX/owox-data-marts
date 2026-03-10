@@ -55,6 +55,13 @@ export function helpMenuItems(openPopover: (id: string) => void): HelpMenuItem[]
               openPopover('video-2-looker');
             },
           },
+          {
+            label: 'Complete BigQuery storage setup to publish Data Marts',
+            icon: Airplay,
+            onClick: () => {
+              openPopover('video-4-legacy-storage-setup');
+            },
+          },
         ],
       },
     },
