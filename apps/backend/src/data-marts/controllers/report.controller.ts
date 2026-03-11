@@ -124,7 +124,7 @@ export class ReportController {
     @Param('id') id: string
   ): Promise<void> {
     const command = this.mapper.toRunReportCommand(id, context, RunType.manual);
-    this.runReportService.runInBackground(command);
+    await this.runReportService.run(command);
   }
 
   @Auth(Role.editor(Strategy.INTROSPECT))

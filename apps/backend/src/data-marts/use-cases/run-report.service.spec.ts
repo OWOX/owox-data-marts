@@ -37,7 +37,8 @@ describe('RunReportService', () => {
       {} as never,
       {} as never,
       projectBalanceService as never,
-      new ReportExecutionPolicyResolver()
+      new ReportExecutionPolicyResolver(),
+      {} as never
     );
 
     return {

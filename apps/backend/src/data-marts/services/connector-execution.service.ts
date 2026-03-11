@@ -1,8 +1,9 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
+import { Transactional } from 'typeorm-transactional';
 import { BusinessViolationException } from '../../common/exceptions/business-violation.exception';
 import { ProjectOperationBlockedException } from '../../common/exceptions/project-operation-blocked.exception';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { In, Repository } from 'typeorm';
 
 // @ts-expect-error - Package lacks TypeScript declarations
 import { Core } from '@owox/connectors';
@@ -57,6 +58,7 @@ import { ProjectBalanceService } from './project-balance.service';
 import { DataStorageCredentialsResolver } from '../data-storage-types/data-storage-credentials-resolver.service';
 import { DataStorageCredentials } from '../data-storage-types/data-storage-credentials.type';
 import { GoogleOAuthConfigService } from './google-oauth/google-oauth-config.service';
+import { ConnectorRunTriggerService } from './connector-run-trigger.service';
 
 interface ConfigurationExecutionResult {
   configIndex: number;
@@ -86,7 +88,8 @@ export class ConnectorExecutionService {
     private readonly connectorService: ConnectorService,
     private readonly projectBalanceService: ProjectBalanceService,
     private readonly storageCredentialsResolver: DataStorageCredentialsResolver,
-    private readonly googleOAuthConfigService: GoogleOAuthConfigService
+    private readonly googleOAuthConfigService: GoogleOAuthConfigService,
+    private readonly connectorRunTriggerService: ConnectorRunTriggerService
   ) {}
 
   async cancelRun(dataMartId: string, runId: string): Promise<void> {
@@ -129,8 +132,11 @@ export class ConnectorExecutionService {
   }
 
   /**
-   * Start a connector run
+   * Start a connector run.
+   * Creates a DataMartRun in PENDING status and a ConnectorRunTrigger for worker processing.
+   * Both operations are wrapped in a transaction to ensure atomicity.
    */
+  @Transactional()
   async run(
     dataMart: DataMart,
     createdById: string,
@@ -147,17 +153,28 @@ export class ConnectorExecutionService {
 
     const dataMartRun = await this.createDataMartRun(dataMart, createdById, runType, payload);
 
-    this.executeInBackground(dataMart, dataMartRun, dataMartRun.additionalParams).catch(error => {
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      this.logger.error(`Background execution failed: ${errorMessage}`, error?.stack, {
-        dataMartId: dataMart.id,
-        projectId: dataMart.projectId,
-        runId: dataMartRun.id,
-        error: errorMessage,
-      });
+    await this.connectorRunTriggerService.createTrigger({
+      dataMartId: dataMart.id,
+      projectId: dataMart.projectId,
+      createdById,
+      dataMartRunId: dataMartRun.id,
+      runType,
+      payload,
     });
 
     return dataMartRun.id;
+  }
+
+  /**
+   * Execute a pre-created connector run. Called by ConnectorRunTriggerHandler on worker.
+   */
+  async executeExistingRun(
+    dataMart: DataMart,
+    run: DataMartRun,
+    payload?: Record<string, unknown> | null,
+    _signal?: AbortSignal
+  ): Promise<void> {
+    return this.executeInBackground(dataMart, run, payload);
   }
 
   private validateDataMartForConnector(dataMart: DataMart): void {
@@ -180,7 +197,7 @@ export class ConnectorExecutionService {
     const dataMartRun = await this.dataMartRunRepository.findOne({
       where: {
         dataMartId: dataMart.id,
-        status: DataMartRunStatus.RUNNING,
+        status: In([DataMartRunStatus.RUNNING, DataMartRunStatus.PENDING]),
         type: DataMartRunType.CONNECTOR,
       },
     });
