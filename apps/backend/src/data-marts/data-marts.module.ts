@@ -271,6 +271,12 @@ import { CopyCredentialService } from './services/copy-credential.service';
 import { GoogleOAuthFlowService } from './services/google-oauth/google-oauth-flow.service';
 import { GoogleOAuthClientService } from './services/google-oauth/google-oauth-client.service';
 import { GoogleOAuthConfigService } from './services/google-oauth/google-oauth-config.service';
+import { ConnectorRunTrigger } from './entities/connector-run-trigger.entity';
+import { ConnectorRunTriggerService } from './services/connector-run-trigger.service';
+import { ConnectorRunTriggerHandlerService } from './services/connector-run-trigger-handler.service';
+import { ReportRunTrigger } from './entities/report-run-trigger.entity';
+import { ReportRunTriggerService } from './services/report-run-trigger.service';
+import { ReportRunTriggerHandlerService } from './services/report-run-trigger-handler.service';
 
 @Module({
   imports: [
@@ -303,6 +309,8 @@ import { GoogleOAuthConfigService } from './services/google-oauth/google-oauth-c
       AiAssistantContext,
       AiAssistantRunTrigger,
       AiAssistantApplyAction,
+      ConnectorRunTrigger,
+      ReportRunTrigger,
     ]),
     CommonModule,
     IdpModule,
@@ -452,6 +460,10 @@ import { GoogleOAuthConfigService } from './services/google-oauth/google-oauth-c
     ScheduledTriggersHandlerService,
     SqlDryRunTriggerService,
     SqlDryRunTriggerHandlerService,
+    ConnectorRunTriggerService,
+    ConnectorRunTriggerHandlerService,
+    ReportRunTriggerService,
+    ReportRunTriggerHandlerService,
     SchemaActualizeTriggerService,
     SchemaActualizeTriggerHandlerService,
     PublishDraftsTriggerService,
