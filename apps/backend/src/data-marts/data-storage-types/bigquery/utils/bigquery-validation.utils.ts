@@ -34,6 +34,6 @@ export const isValidBigQueryTablePattern = (value: string): boolean => {
   if (!value) return false;
   // Format: project.dataset.table_*
   // Project and dataset must be specified explicitly, but table name can have wildcards
-  const patternRegex = /^[a-zA-Z0-9_-]+\.[a-zA-Z0-9_-]+\.[a-zA-Z0-9_*]+$/;
+  const patternRegex = /^[a-zA-Z0-9_-]+\.[a-zA-Z0-9_-]+\.[a-zA-Z0-9_*-]+$/;
   return patternRegex.test(value);
 };
