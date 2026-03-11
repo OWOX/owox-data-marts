@@ -3,6 +3,7 @@ import { TypeResolver } from '../../../common/resolver/type-resolver';
 import { DataStorageType } from '../enums/data-storage-type.enum';
 import { DataMartValidator, ValidationResult } from '../interfaces/data-mart-validator.interface';
 import { DATA_MART_VALIDATOR_RESOLVER } from '../data-storage-providers';
+import { isConnectorDefinition } from '../../dto/schemas/data-mart-table-definitions/data-mart-definition.guards';
 import { DataMart } from '../../entities/data-mart.entity';
 import { BusinessViolationException } from '../../../common/exceptions/business-violation.exception';
 import { DataStorageCredentialsResolver } from '../data-storage-credentials-resolver.service';
@@ -19,6 +20,10 @@ export class DataMartDefinitionValidatorFacade {
     const definition = dataMart.definition;
     if (!definition) {
       return new ValidationResult(false, 'DataMart definition not found');
+    }
+
+    if (isConnectorDefinition(definition)) {
+      return new ValidationResult(true);
     }
 
     const config = dataMart.storage.config;

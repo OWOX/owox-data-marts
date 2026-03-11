@@ -5,26 +5,26 @@
 
 /**
  * Validates if a string matches the Databricks fully qualified name format (catalog.schema.table)
- * Only alphanumeric and underscores are allowed
- * Backtick quoting is NOT allowed to prevent SQL injection
  */
 export const isValidDatabricksFullyQualifiedName = (value: string): boolean => {
   if (!value) return false;
 
-  const pattern = /^[a-zA-Z0-9_]+\.[a-zA-Z0-9_]+\.[a-zA-Z0-9_]+$/;
+  // Format: catalog.schema.table
+  // Allow alphanumeric, underscore, and backticks for quoting
+  const pattern = /^[a-zA-Z0-9_`]+\.[a-zA-Z0-9_`]+\.[a-zA-Z0-9_`]+$/;
   return pattern.test(value);
 };
 
 /**
  * Validates if a string matches the Databricks table pattern format
  * Supports wildcards (*) for pattern matching
- * Only alphanumeric, underscores, and wildcards are allowed
- * Backtick quoting is NOT allowed to prevent SQL injection
  */
 export const isValidDatabricksTablePattern = (value: string): boolean => {
   if (!value) return false;
 
-  const pattern = /^[a-zA-Z0-9_]+\.[a-zA-Z0-9_]+\.[a-zA-Z0-9_*]+$/;
+  // Format: catalog.schema.table_pattern
+  // Allow wildcards for pattern matching
+  const pattern = /^[a-zA-Z0-9_`]+\.[a-zA-Z0-9_`]+\.[a-zA-Z0-9_*`]+$/;
   return pattern.test(value);
 };
 

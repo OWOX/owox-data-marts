@@ -10,7 +10,6 @@ import { isAthenaCredentials } from '../../data-storage-credentials.guards';
 import { isAthenaConfig } from '../../data-storage-config.guards';
 import { AthenaApiAdapterFactory } from '../adapters/athena-api-adapter.factory';
 import { S3ApiAdapterFactory } from '../adapters/s3-api-adapter.factory';
-import { escapeAthenaIdentifier } from '../utils/athena-identifier.utils';
 
 /**
  * Athena implementation for creating or replacing a View from a SQL query.
@@ -43,7 +42,7 @@ export class AthenaCreateViewExecutor implements CreateViewExecutor {
       throw new Error('View name and SQL must be provided');
     }
 
-    const viewIdent = escapeAthenaIdentifier(fullyQualifiedViewName);
+    const viewIdent = this.escapeTablePath(fullyQualifiedViewName);
     const ddl = `CREATE OR REPLACE VIEW ${viewIdent} AS ${sql}`;
 
     const athena = this.athenaAdapterFactory.create(credentials, config);
@@ -65,5 +64,15 @@ export class AthenaCreateViewExecutor implements CreateViewExecutor {
     }
 
     return { fullyQualifiedName: fullyQualifiedViewName };
+  }
+
+  // Escape each identifier segment for Athena (Trino/Presto dialect) using double quotes
+  private escapeTablePath(tablePath: string): string {
+    return tablePath
+      .split('.')
+      .map(identifier =>
+        identifier.startsWith('"') && identifier.endsWith('"') ? identifier : `"${identifier}"`
+      )
+      .join('.');
   }
 }

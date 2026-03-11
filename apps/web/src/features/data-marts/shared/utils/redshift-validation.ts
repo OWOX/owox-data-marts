@@ -11,14 +11,16 @@
 export const isValidRedshiftFullyQualifiedName = (value: string): boolean => {
   if (!value) return false;
 
-  // Only alphanumeric characters and underscores are allowed
-  // Hyphens are NOT allowed in unquoted Redshift identifiers
-  // Quoted identifiers are NOT allowed to prevent SQL injection
+  // Identifier can be:
+  // - Unquoted: [a-zA-Z0-9_-]+
+  // - Quoted: "[^"]+"
+  const identifier = '(?:[a-zA-Z0-9_-]+|"[^"]+")';
+
   // Two formats are valid:
   // 1. schema.object (2-level hierarchy)
   // 2. database.schema.object (3-level hierarchy)
-  const twoLevelPattern = /^[a-zA-Z0-9_]+\.[a-zA-Z0-9_]+$/;
-  const threeLevelPattern = /^[a-zA-Z0-9_]+\.[a-zA-Z0-9_]+\.[a-zA-Z0-9_]+$/;
+  const twoLevelPattern = new RegExp(`^${identifier}\\.${identifier}$`);
+  const threeLevelPattern = new RegExp(`^${identifier}\\.${identifier}\\.${identifier}$`);
 
   return twoLevelPattern.test(value) || threeLevelPattern.test(value);
 };
@@ -32,14 +34,19 @@ export const isValidRedshiftFullyQualifiedName = (value: string): boolean => {
 export const isValidRedshiftTablePattern = (value: string): boolean => {
   if (!value) return false;
 
-  // Only alphanumeric characters, underscores, and wildcards are allowed
-  // Hyphens are NOT allowed in unquoted Redshift identifiers
-  // Quoted identifiers are NOT allowed to prevent SQL injection
+  // Identifier can be:
+  // - Unquoted: [a-zA-Z0-9_-]+ (with optional wildcards for table names)
+  // - Quoted: "[^"]+"
+  const identifier = '(?:[a-zA-Z0-9_-]+|"[^"]+")';
+  const identifierWithWildcard = '(?:[a-zA-Z0-9_\\-*]+|"[^"]+")';
+
   // Two formats are valid:
   // 1. schema.table_* (2-level hierarchy with wildcards)
   // 2. database.schema.table_* (3-level hierarchy with wildcards)
-  const twoLevelPatternRegex = /^[a-zA-Z0-9_]+\.[a-zA-Z0-9_*]+$/;
-  const threeLevelPatternRegex = /^[a-zA-Z0-9_]+\.[a-zA-Z0-9_]+\.[a-zA-Z0-9_*]+$/;
+  const twoLevelPatternRegex = new RegExp(`^${identifier}\\.${identifierWithWildcard}$`);
+  const threeLevelPatternRegex = new RegExp(
+    `^${identifier}\\.${identifier}\\.${identifierWithWildcard}$`
+  );
 
   return twoLevelPatternRegex.test(value) || threeLevelPatternRegex.test(value);
 };
