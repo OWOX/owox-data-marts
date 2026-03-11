@@ -148,6 +148,15 @@ export class DataMartRunService {
   }
 
   /**
+   * Returns a run by id.
+   */
+  public async findById(runId: string): Promise<DataMartRun | null> {
+    return this.dataMartRunRepository.findOne({
+      where: { id: runId },
+    });
+  }
+
+  /**
    * Returns a run by id that belongs to specified Data Mart.
    */
   public async getByIdAndDataMartId(
