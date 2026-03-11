@@ -100,7 +100,7 @@ Default: `{{value source="main" column="1" row="1"}}`
 
 **Optional parameters for `{{table}}`:**
 
-- `limit` — Maximum number of rows to display. Accepts 1 to 100. Default: `100`.
+- `limit` — Maximum number of rows to display. Accepts 1 to 100. Default: `100` (this is also the hard maximum).
   Example: `limit=20`
 - `columns` — Comma-separated list of columns to include.
   Example: `columns="id, revenue"`

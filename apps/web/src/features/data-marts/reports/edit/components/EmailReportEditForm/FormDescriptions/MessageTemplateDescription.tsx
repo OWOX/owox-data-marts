@@ -71,8 +71,8 @@ export default function MessageTemplateDescription({ type }: MessageTemplateDesc
           <p className='mb-2'>
             Optional parameters:
             <br />
-            <code>limit</code> — max rows to display. Accepts 1 to 100. Default: <code>100</code>.
-            Example: <code>limit=20</code>
+            <code>limit</code> — max rows to display. Accepts 1 to 100. Default: <code>100</code>{' '}
+            (also the hard maximum). Example: <code>limit=20</code>
             <br />
             <code>columns</code> — comma-separated list of columns to show. Example:{' '}
             <code>{'columns="id, revenue"'}</code>
