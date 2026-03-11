@@ -62,6 +62,7 @@ import {
   isTaskFinalStatus,
 } from '../../shared';
 import { NO_PERMISSION_MESSAGE, usePermissions } from '../../../../app/permissions';
+import { trackEvent } from '../../../../utils';
 import {
   MarkdownEditorPreview,
   useMarkdownPreview,
@@ -164,11 +165,18 @@ export default function InsightDetailsView() {
     if (!markdown) return;
     void navigator.clipboard.writeText(markdown).then(() => {
       setIsCopied(true);
+      trackEvent({
+        event: 'insight_markdown_copied',
+        category: 'Insights',
+        action: 'Copy Markdown',
+        label: entity.id,
+        context: dataMart?.id ?? '',
+      });
       setTimeout(() => {
         setIsCopied(false);
       }, 2000);
     });
-  }, [entity?.lastRenderedTemplate]);
+  }, [entity?.lastRenderedTemplate, entity?.id, dataMart?.id]);
 
   // ── Artifacts panel handlers ───────────────────────────────────────────────
   const [isArtifactsCollapsed, setIsArtifactsCollapsed] = useState(readArtifactsPref);
@@ -388,9 +396,24 @@ export default function InsightDetailsView() {
       const updated = mapInsightTemplateFromDto(dto);
       setEntity(updated);
       setTemplate(updated.template ?? '');
+      trackEvent({
+        event: 'insight_updated',
+        category: 'Insights',
+        action: 'Update',
+        label: updated.id,
+        details: updated.title,
+        context: dataMart.id,
+      });
       toast.success('Insight saved');
       return updated;
     } catch {
+      trackEvent({
+        event: 'insight_error',
+        category: 'Insights',
+        action: 'UpdateError',
+        label: entity.id,
+        context: dataMart.id,
+      });
       toast.error('Failed to save insight');
       return null;
     } finally {
@@ -408,8 +431,22 @@ export default function InsightDetailsView() {
     try {
       const { triggerId: nextTriggerId } =
         await insightTemplatesService.startInsightTemplateExecution(dataMart.id, insightId);
+      trackEvent({
+        event: 'insight_run',
+        category: 'Insights',
+        action: 'Run',
+        label: insightId,
+        context: dataMart.id,
+      });
       setTriggerId(nextTriggerId);
     } catch {
+      trackEvent({
+        event: 'insight_error',
+        category: 'Insights',
+        action: 'RunError',
+        label: insightId,
+        context: dataMart.id,
+      });
       setIsRunning(false);
       toast.error('Failed to start insight run');
     }
@@ -423,8 +460,22 @@ export default function InsightDetailsView() {
         insightId,
         triggerId
       );
+      trackEvent({
+        event: 'insight_run_cancelled',
+        category: 'Insights',
+        action: 'Cancel Run',
+        label: insightId,
+        context: dataMart.id,
+      });
       toast.success('Run cancelled');
     } catch {
+      trackEvent({
+        event: 'insight_error',
+        category: 'Insights',
+        action: 'CancelRunError',
+        label: insightId,
+        context: dataMart.id,
+      });
       toast.error('Failed to cancel run');
     }
   }, [dataMart?.id, insightId, triggerId]);
@@ -433,9 +484,23 @@ export default function InsightDetailsView() {
     if (!dataMart?.id || !insightId || !canDelete) return;
     try {
       await insightTemplatesService.deleteInsightTemplate(dataMart.id, insightId);
+      trackEvent({
+        event: 'insight_deleted',
+        category: 'Insights',
+        action: 'Delete',
+        label: insightId,
+        context: dataMart.id,
+      });
       toast.success('Insight deleted');
       void navigate('..');
     } catch {
+      trackEvent({
+        event: 'insight_error',
+        category: 'Insights',
+        action: 'DeleteError',
+        label: insightId,
+        context: dataMart.id,
+      });
       toast.error('Failed to delete insight');
     }
   }, [canDelete, dataMart?.id, insightId, navigate]);
@@ -450,12 +515,22 @@ export default function InsightDetailsView() {
     void refetchSources();
   }, [loadEntity, refetchSources]);
 
-  const handleAddReport = useCallback((fromList = false) => {
-    setReportToEdit(undefined);
-    setReportFormMode(ReportFormMode.CREATE);
-    setShouldReopenReportsList(fromList);
-    setIsReportSheetOpen(true);
-  }, []);
+  const handleAddReport = useCallback(
+    (fromList = false) => {
+      setReportToEdit(undefined);
+      setReportFormMode(ReportFormMode.CREATE);
+      setShouldReopenReportsList(fromList);
+      setIsReportSheetOpen(true);
+      trackEvent({
+        event: 'report_create_started',
+        category: 'Insights',
+        action: 'Create Report',
+        label: insightId ?? '',
+        context: dataMart?.id ?? '',
+      });
+    },
+    [insightId, dataMart?.id]
+  );
 
   const handleSendAndSchedule = useCallback(() => {
     if (reports.length > 0) {
@@ -465,12 +540,22 @@ export default function InsightDetailsView() {
     }
   }, [reports.length, handleAddReport]);
 
-  const handleEditReport = useCallback((report: DataMartReport, fromList = false) => {
-    setReportToEdit(report);
-    setReportFormMode(ReportFormMode.EDIT);
-    setShouldReopenReportsList(fromList);
-    setIsReportSheetOpen(true);
-  }, []);
+  const handleEditReport = useCallback(
+    (report: DataMartReport, fromList = false) => {
+      setReportToEdit(report);
+      setReportFormMode(ReportFormMode.EDIT);
+      setShouldReopenReportsList(fromList);
+      setIsReportSheetOpen(true);
+      trackEvent({
+        event: 'report_edit_started',
+        category: 'Insights',
+        action: 'Edit Report',
+        label: report.id,
+        context: dataMart?.id ?? '',
+      });
+    },
+    [dataMart?.id]
+  );
 
   const canRun = !isDraft;
   const isRunPending = isRunning || triggerId !== null;
@@ -519,6 +604,14 @@ export default function InsightDetailsView() {
                       value
                     );
                     setEntity({ ...entity, title: value });
+                    trackEvent({
+                      event: 'insight_title_updated',
+                      category: 'Insights',
+                      action: 'Update title',
+                      label: entity.id,
+                      context: dataMart.id,
+                      details: value,
+                    });
                     toast.success('Title updated');
                   }}
                   readOnly={!canEdit}
