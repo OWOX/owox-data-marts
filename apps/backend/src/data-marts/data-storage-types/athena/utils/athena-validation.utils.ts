@@ -5,6 +5,17 @@
  * @see {@link https://docs.aws.amazon.com/athena/latest/ug/tables-databases-columns-names.html} Athena Naming Rules
  */
 
+import {
+  createFullyQualifiedNameValidator,
+  createTablePatternValidator,
+  StorageValidationConfig,
+} from '../../utils/validation.utils';
+
+export const ATHENA_VALIDATION_CONFIG: StorageValidationConfig = {
+  allowedChars: 'a-zA-Z0-9_\\-',
+  allowTwoLevel: true,
+};
+
 /**
  * Validates if a string matches the AWS Athena fully qualified name pattern
  * Format: database.table or catalog.database.table
@@ -14,17 +25,8 @@
  * @returns Boolean indicating if the string is valid
  * @see {@link https://docs.aws.amazon.com/athena/latest/ug/tables-databases-columns-names.html} Athena Naming Rules
  */
-export const isValidAthenaFullyQualifiedName = (value: string): boolean => {
-  if (!value) return false;
-
-  // Two formats are valid:
-  // 1. database.table (2-level hierarchy)
-  // 2. catalog.database.table (3-level hierarchy)
-  const twoLevelPattern = /^[a-zA-Z0-9_-]+\.[a-zA-Z0-9_-]+$/;
-  const threeLevelPattern = /^[a-zA-Z0-9_-]+\.[a-zA-Z0-9_-]+\.[a-zA-Z0-9_-]+$/;
-
-  return twoLevelPattern.test(value) || threeLevelPattern.test(value);
-};
+export const isValidAthenaFullyQualifiedName =
+  createFullyQualifiedNameValidator(ATHENA_VALIDATION_CONFIG);
 
 /**
  * Validates if a string matches the AWS Athena table pattern format
@@ -35,14 +37,4 @@ export const isValidAthenaFullyQualifiedName = (value: string): boolean => {
  * @returns Boolean indicating if the string is valid
  * @see {@link https://docs.aws.amazon.com/athena/latest/ug/tables-databases-columns-names.html} Athena Naming Rules
  */
-export const isValidAthenaTablePattern = (value: string): boolean => {
-  if (!value) return false;
-
-  // Two formats are valid:
-  // 1. database.table_* (2-level hierarchy with wildcards)
-  // 2. catalog.database.table_* (3-level hierarchy with wildcards)
-  const twoLevelPatternRegex = /^[a-zA-Z0-9_-]+\.[a-zA-Z0-9_\-*]+$/;
-  const threeLevelPatternRegex = /^[a-zA-Z0-9_-]+\.[a-zA-Z0-9_-]+\.[a-zA-Z0-9_\-*]+$/;
-
-  return twoLevelPatternRegex.test(value) || threeLevelPatternRegex.test(value);
-};
+export const isValidAthenaTablePattern = createTablePatternValidator(ATHENA_VALIDATION_CONFIG);

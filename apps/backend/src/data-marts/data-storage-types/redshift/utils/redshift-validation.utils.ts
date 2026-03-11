@@ -5,6 +5,17 @@
  * @see {@link https://docs.aws.amazon.com/redshift/latest/dg/r_names.html} AWS Redshift Identifier Rules
  */
 
+import {
+  createFullyQualifiedNameValidator,
+  createTablePatternValidator,
+  StorageValidationConfig,
+} from '../../utils/validation.utils';
+
+export const REDSHIFT_VALIDATION_CONFIG: StorageValidationConfig = {
+  allowedChars: 'a-zA-Z0-9_',
+  allowTwoLevel: true,
+};
+
 /**
  * Validates if a string matches the AWS Redshift fully qualified name pattern
  * Format: schema.table or database.schema.table
@@ -15,17 +26,9 @@
  * @returns Boolean indicating if the string is valid
  * @see {@link https://docs.aws.amazon.com/redshift/latest/dg/r_names.html} AWS Redshift Naming Rules
  */
-export const isValidRedshiftFullyQualifiedName = (value: string): boolean => {
-  if (!value) return false;
-
-  // Two formats are valid:
-  // 1. schema.table (2-level hierarchy)
-  // 2. database.schema.table (3-level hierarchy)
-  const twoLevelPattern = /^[a-zA-Z0-9_]+\.[a-zA-Z0-9_]+$/;
-  const threeLevelPattern = /^[a-zA-Z0-9_]+\.[a-zA-Z0-9_]+\.[a-zA-Z0-9_]+$/;
-
-  return twoLevelPattern.test(value) || threeLevelPattern.test(value);
-};
+export const isValidRedshiftFullyQualifiedName = createFullyQualifiedNameValidator(
+  REDSHIFT_VALIDATION_CONFIG
+);
 
 /**
  * Validates if a string matches the AWS Redshift table pattern format
@@ -37,14 +40,4 @@ export const isValidRedshiftFullyQualifiedName = (value: string): boolean => {
  * @returns Boolean indicating if the string is valid
  * @see {@link https://docs.aws.amazon.com/redshift/latest/dg/r_names.html} AWS Redshift Naming Rules
  */
-export const isValidRedshiftTablePattern = (value: string): boolean => {
-  if (!value) return false;
-
-  // Two formats are valid:
-  // 1. schema.table_* (2-level hierarchy with wildcards)
-  // 2. database.schema.table_* (3-level hierarchy with wildcards)
-  const twoLevelPatternRegex = /^[a-zA-Z0-9_]+\.[a-zA-Z0-9_*]+$/;
-  const threeLevelPatternRegex = /^[a-zA-Z0-9_]+\.[a-zA-Z0-9_]+\.[a-zA-Z0-9_*]+$/;
-
-  return twoLevelPatternRegex.test(value) || threeLevelPatternRegex.test(value);
-};
+export const isValidRedshiftTablePattern = createTablePatternValidator(REDSHIFT_VALIDATION_CONFIG);

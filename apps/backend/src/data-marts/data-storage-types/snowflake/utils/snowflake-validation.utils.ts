@@ -5,6 +5,17 @@
  * @see {@link https://docs.snowflake.com/en/sql-reference/identifiers.html} Snowflake Identifier Syntax
  */
 
+import {
+  createFullyQualifiedNameValidator,
+  createTablePatternValidator,
+  StorageValidationConfig,
+} from '../../utils/validation.utils';
+
+export const SNOWFLAKE_VALIDATION_CONFIG: StorageValidationConfig = {
+  allowedChars: 'a-zA-Z0-9_$',
+  allowTwoLevel: false,
+};
+
 /**
  * Validates if a string matches the Snowflake fully qualified name pattern
  * Format: database.schema.table
@@ -14,12 +25,9 @@
  * @returns Boolean indicating if the string is valid
  * @see {@link https://docs.snowflake.com/en/sql-reference/identifiers.html} Snowflake Identifier Syntax
  */
-export const isValidSnowflakeFullyQualifiedName = (value: string): boolean => {
-  if (!value) return false;
-
-  const pattern = /^[a-zA-Z0-9_$]+\.[a-zA-Z0-9_$]+\.[a-zA-Z0-9_$]+$/;
-  return pattern.test(value);
-};
+export const isValidSnowflakeFullyQualifiedName = createFullyQualifiedNameValidator(
+  SNOWFLAKE_VALIDATION_CONFIG
+);
 
 /**
  * Validates if a string matches the Snowflake table pattern format
@@ -30,9 +38,6 @@ export const isValidSnowflakeFullyQualifiedName = (value: string): boolean => {
  * @returns Boolean indicating if the string is valid
  * @see {@link https://docs.snowflake.com/en/sql-reference/identifiers.html} Snowflake Identifier Syntax
  */
-export const isValidSnowflakeTablePattern = (value: string): boolean => {
-  if (!value) return false;
-
-  const patternRegex = /^[a-zA-Z0-9_$]+\.[a-zA-Z0-9_$]+\.[a-zA-Z0-9_$*]+$/;
-  return patternRegex.test(value);
-};
+export const isValidSnowflakeTablePattern = createTablePatternValidator(
+  SNOWFLAKE_VALIDATION_CONFIG
+);

@@ -5,6 +5,17 @@
  * @see {@link https://docs.databricks.com/en/sql/language-manual/sql-ref-names.html} Databricks Naming Rules
  */
 
+import {
+  createFullyQualifiedNameValidator,
+  createTablePatternValidator,
+  StorageValidationConfig,
+} from '../../utils/validation.utils';
+
+export const DATABRICKS_VALIDATION_CONFIG: StorageValidationConfig = {
+  allowedChars: 'a-zA-Z0-9_',
+  allowTwoLevel: false,
+};
+
 /**
  * Validates if a string matches the Databricks fully qualified name pattern
  * Format: catalog.schema.table
@@ -14,12 +25,9 @@
  * @returns Boolean indicating if the string is valid
  * @see {@link https://docs.databricks.com/en/sql/language-manual/sql-ref-names.html} Databricks Unity Catalog Naming Rules
  */
-export const isValidDatabricksFullyQualifiedName = (value: string): boolean => {
-  if (!value) return false;
-
-  const pattern = /^[a-zA-Z0-9_]+\.[a-zA-Z0-9_]+\.[a-zA-Z0-9_]+$/;
-  return pattern.test(value);
-};
+export const isValidDatabricksFullyQualifiedName = createFullyQualifiedNameValidator(
+  DATABRICKS_VALIDATION_CONFIG
+);
 
 /**
  * Validates if a string matches the Databricks table pattern format
@@ -30,9 +38,6 @@ export const isValidDatabricksFullyQualifiedName = (value: string): boolean => {
  * @returns Boolean indicating if the string is valid
  * @see {@link https://docs.databricks.com/en/sql/language-manual/sql-ref-names.html} Databricks Unity Catalog Naming Rules
  */
-export const isValidDatabricksTablePattern = (value: string): boolean => {
-  if (!value) return false;
-
-  const pattern = /^[a-zA-Z0-9_]+\.[a-zA-Z0-9_]+\.[a-zA-Z0-9_*]+$/;
-  return pattern.test(value);
-};
+export const isValidDatabricksTablePattern = createTablePatternValidator(
+  DATABRICKS_VALIDATION_CONFIG
+);

@@ -5,6 +5,17 @@
  * @see {@link https://cloud.google.com/bigquery/docs/reference/standard-sql/lexical} BigQuery Lexical Structure
  */
 
+import {
+  createFullyQualifiedNameValidator,
+  createTablePatternValidator,
+  StorageValidationConfig,
+} from '../../utils/validation.utils';
+
+export const BIGQUERY_VALIDATION_CONFIG: StorageValidationConfig = {
+  allowedChars: 'a-zA-Z0-9_\\-',
+  allowTwoLevel: false,
+};
+
 /**
  * Validates if a string matches the BigQuery fully qualified name pattern
  * Format: project.dataset.table
@@ -14,12 +25,9 @@
  * @returns Boolean indicating if the string is valid
  * @see {@link https://cloud.google.com/bigquery/docs/reference/standard-sql/lexical} BigQuery Identifier Syntax
  */
-export const isValidBigQueryFullyQualifiedName = (value: string): boolean => {
-  if (!value) return false;
-  // Format: project.dataset.table
-  const pattern = /^[a-zA-Z0-9_-]+\.[a-zA-Z0-9_-]+\.[a-zA-Z0-9_-]+$/;
-  return pattern.test(value);
-};
+export const isValidBigQueryFullyQualifiedName = createFullyQualifiedNameValidator(
+  BIGQUERY_VALIDATION_CONFIG
+);
 
 /**
  * Validates if a string matches the BigQuery table pattern format
@@ -30,10 +38,4 @@ export const isValidBigQueryFullyQualifiedName = (value: string): boolean => {
  * @returns Boolean indicating if the string is valid
  * @see {@link https://cloud.google.com/bigquery/docs/reference/standard-sql/lexical} BigQuery Identifier Syntax
  */
-export const isValidBigQueryTablePattern = (value: string): boolean => {
-  if (!value) return false;
-  // Format: project.dataset.table_*
-  // Project and dataset must be specified explicitly, but table name can have wildcards
-  const patternRegex = /^[a-zA-Z0-9_-]+\.[a-zA-Z0-9_-]+\.[a-zA-Z0-9_*-]+$/;
-  return patternRegex.test(value);
-};
+export const isValidBigQueryTablePattern = createTablePatternValidator(BIGQUERY_VALIDATION_CONFIG);
