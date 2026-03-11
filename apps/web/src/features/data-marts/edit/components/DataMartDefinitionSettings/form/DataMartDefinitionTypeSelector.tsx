@@ -9,8 +9,6 @@ import {
   SelectValue,
 } from '@owox/ui/components/select';
 import { Label } from '@owox/ui/components/label';
-import { AlertTriangle } from 'lucide-react';
-import { cn } from '@owox/ui/lib/utils';
 
 interface DataMartDefinitionTypeSelectorProps {
   initialType?: DataMartDefinitionType | null;
@@ -80,10 +78,7 @@ export function DataMartDefinitionTypeSelector({
             handleTypeChange(value as DataMartDefinitionType);
           }}
         >
-          <SelectTrigger
-            className={cn('dm-card-formcontrol w-full', !selectedType && 'border-red-500/50')}
-            aria-label='Definition Type'
-          >
+          <SelectTrigger className='dm-card-formcontrol w-full' aria-label='Definition Type'>
             <SelectValue placeholder='Select definition type'>
               {selectedType && typeOptions.find(opt => opt.type === selectedType)?.label}
             </SelectValue>
@@ -99,12 +94,6 @@ export function DataMartDefinitionTypeSelector({
             </SelectGroup>
           </SelectContent>
         </Select>
-        {!selectedType && (
-          <div className='mt-2 flex items-center gap-1 text-sm text-red-500'>
-            <AlertTriangle className='h-4 w-4 shrink-0' />
-            <span className=''>Definition configuration is incomplete</span>
-          </div>
-        )}
       </div>
     </div>
   );
