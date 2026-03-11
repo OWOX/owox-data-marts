@@ -27,3 +27,12 @@ export function toHumanReadable(type: DataDestinationType): string {
       return type;
   }
 }
+
+export function isEmailBasedDataDestinationType(type: DataDestinationType): boolean {
+  return (
+    type === DataDestinationType.EMAIL ||
+    type === DataDestinationType.SLACK ||
+    type === DataDestinationType.MS_TEAMS ||
+    type === DataDestinationType.GOOGLE_CHAT
+  );
+}

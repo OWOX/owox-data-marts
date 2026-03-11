@@ -199,7 +199,6 @@ abstract class BaseEmailReportWriter implements DataDestinationReportWriter {
         dataHeaders: this.reportDataDescription.dataHeaders,
         dataHeadersCount: this.reportDataDescription.dataHeaders.length,
         dataRows: this.reportDataRows,
-        dataRowsCount: this.reportDataRows.length,
         tableSources: {
           main: {
             dataHeaders: this.reportDataDescription.dataHeaders.map(h => ({

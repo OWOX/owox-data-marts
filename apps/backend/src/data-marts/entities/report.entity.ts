@@ -93,4 +93,8 @@ export class Report implements CreatorAwareEntity {
     }
     // For other types, use automatic generation via @PrimaryGeneratedColumn
   }
+
+  isEmailBasedDestination(): boolean {
+    return this.dataDestination.isEmailBased();
+  }
 }

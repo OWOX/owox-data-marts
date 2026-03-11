@@ -21,7 +21,7 @@ describe('TemplateTagRenderer', () => {
 
     expect(result).toEqual({
       ok: true,
-      value: '{{table source="main" columns="date,credits" limit="25" from="end"}}',
+      value: '{{table source="main" columns="date,credits" limit="25"}}',
     });
   });
 

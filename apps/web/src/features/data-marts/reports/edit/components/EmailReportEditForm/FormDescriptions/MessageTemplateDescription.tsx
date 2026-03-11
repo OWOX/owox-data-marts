@@ -71,11 +71,8 @@ export default function MessageTemplateDescription({ type }: MessageTemplateDesc
           <p className='mb-2'>
             Optional parameters:
             <br />
-            <code>limit</code> — max rows to display. Accepts 1 to 100. Default: <code>10</code>.
-            Example: <code>limit=20</code>
-            <br />
-            <code>from</code> — start from the beginning or end of the table. Accepts{' '}
-            <code>"start"</code> or <code>"end"</code>. Example: <code>{'from="end"'}</code>
+            <code>limit</code> — max rows to display. Accepts 1 to 100. Default: <code>100</code>{' '}
+            (also the hard maximum). Example: <code>limit=20</code>
             <br />
             <code>columns</code> — comma-separated list of columns to show. Example:{' '}
             <code>{'columns="id, revenue"'}</code>
@@ -83,12 +80,11 @@ export default function MessageTemplateDescription({ type }: MessageTemplateDesc
           <p className='mb-2'>
             Example:
             <br />
-            <code>{'{{table limit=20 from="end" columns="id, revenue"}}'}</code>
+            <code>{'{{table limit=20 columns="id, revenue"}}'}</code>
           </p>
           <p className='mb-2'>
-            You can also use <code>{'{{dataHeadersCount}}'}</code> and{' '}
-            <code>{'{{dataRowsCount}}'}</code> variables to display the total number of columns and
-            rows.
+            You can also use <code>{'{{dataHeadersCount}}'}</code> variable to display the total
+            number of columns.
           </p>
         </AccordionContent>
       </AccordionItem>

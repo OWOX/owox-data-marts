@@ -72,10 +72,14 @@ describe('InsightTemplateSourceDataService', () => {
       DataStorageType.GOOGLE_BIGQUERY,
       dataMart.schema
     );
+    expect(dataMartSqlTableService.executeSqlToTable).toHaveBeenCalledWith(dataMart, undefined, {
+      limit: 101,
+    });
     expect(result.tableSources.main.dataHeaders).toEqual([
       { name: 'credits', alias: 'Credits' },
       { name: 'units' },
     ]);
+    expect(result.tableSources.main.hasMoreRowsThanLimit).toBe(false);
   });
 
   it('does not add aliases for non-main sources', async () => {
@@ -107,6 +111,10 @@ describe('InsightTemplateSourceDataService', () => {
 
     expect(result.tableSources.main.dataHeaders).toEqual([{ name: 'credits', alias: 'Credits' }]);
     expect(result.tableSources.secondary.dataHeaders).toEqual([{ name: 'credits' }]);
+    expect(dataMartSqlTableService.executeSqlToTable).toHaveBeenCalledTimes(2);
+    for (const call of dataMartSqlTableService.executeSqlToTable.mock.calls) {
+      expect(call[2]).toEqual({ limit: 101 });
+    }
   });
 
   it('falls back to plain headers when alias enrichment fails', async () => {
@@ -125,5 +133,26 @@ describe('InsightTemplateSourceDataService', () => {
     const result = await service.buildRenderContext(dataMart, insightTemplate);
 
     expect(result.tableSources.main.dataHeaders).toEqual([{ name: 'credits' }]);
+  });
+
+  it('truncates source rows to 100 and marks overflow when probe row is present', async () => {
+    const { service, dataMartSqlTableService, reportHeadersGeneratorFacade } = createService();
+    const dataMart = createDataMart();
+    const insightTemplate = createInsightTemplate([]);
+
+    reportHeadersGeneratorFacade.generateHeadersFromSchema.mockResolvedValue([
+      new ReportDataHeader('credits', 'Credits'),
+    ]);
+    dataMartSqlTableService.executeSqlToTable.mockResolvedValue({
+      columns: ['credits'],
+      rows: Array.from({ length: 101 }, (_, i) => [i]),
+    });
+
+    const result = await service.buildRenderContext(dataMart, insightTemplate);
+
+    expect(result.tableSources.main.dataRows).toHaveLength(100);
+    expect(result.tableSources.main.dataRows[0]).toEqual([0]);
+    expect(result.tableSources.main.dataRows[99]).toEqual([99]);
+    expect(result.tableSources.main.hasMoreRowsThanLimit).toBe(true);
   });
 });

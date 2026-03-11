@@ -18,6 +18,10 @@ import { createReportRunLogger, ReportRunLogger } from '../report-run-logging/re
 import { DataMartService } from '../services/data-mart.service';
 import { ProjectBalanceService } from '../services/project-balance.service';
 import { ReportRunService } from '../services/report-run.service';
+import {
+  ReportExecutionPolicy,
+  ReportExecutionPolicyResolver,
+} from './report-execution-policy.resolver';
 
 const ERROR_NAMES = {
   ABORT: 'AbortError',
@@ -77,7 +81,8 @@ export class RunReportService {
     private readonly systemTimeService: SystemTimeService,
     private readonly reportRunService: ReportRunService,
     private readonly availableDestinationTypesService: AvailableDestinationTypesService,
-    private readonly projectBalanceService: ProjectBalanceService
+    private readonly projectBalanceService: ProjectBalanceService,
+    private readonly reportExecutionPolicyResolver: ReportExecutionPolicyResolver
   ) {}
 
   /**
@@ -149,6 +154,7 @@ export class RunReportService {
     const { dataMart, dataDestination } = report;
     const reportReader = await this.reportReaderResolver.resolve(dataMart.storage.type);
     const reportWriter = await this.reportWriterResolver.resolve(dataDestination.type);
+    const executionPolicy = this.reportExecutionPolicyResolver.resolve(report);
     let processingError: Error | undefined = undefined;
     try {
       signal?.throwIfAborted();
@@ -160,14 +166,16 @@ export class RunReportService {
         logger: reportRunLogger!,
       });
       await reportWriter.prepareToWriteReport(report, reportDataDescription);
-      let nextReportDataBatch: string | undefined | null = undefined;
-      do {
+      for await (const batch of this.readReportBatches(
+        reportReader,
+        executionPolicy,
+        report.id,
+        signal
+      )) {
         signal?.throwIfAborted();
-        const batch = await reportReader.readReportDataBatch(nextReportDataBatch);
         await reportWriter.writeReportDataBatch(batch);
-        nextReportDataBatch = batch.nextDataBatchId;
         this.logger.debug(`${batch.dataRows.length} data rows written for report ${report.id}`);
-      } while (nextReportDataBatch);
+      }
     } catch (error) {
       processingError = error;
       throw error;
@@ -229,6 +237,64 @@ export class RunReportService {
       throw new BusinessViolationException(
         'Application is shutting down, cannot start new reports'
       );
+    }
+  }
+
+  private async readReportDataBatchWithPolicy(
+    reportReader: DataStorageReportReader,
+    nextReportDataBatch: string | undefined | null,
+    executionPolicy: ReportExecutionPolicy
+  ) {
+    const batchId = nextReportDataBatch ?? undefined;
+    const maxDataRows = executionPolicy.getMaxDataRowsPerBatch();
+    if (maxDataRows == null) {
+      return reportReader.readReportDataBatch(batchId);
+    }
+
+    return reportReader.readReportDataBatch(batchId, maxDataRows);
+  }
+
+  private logPolicyStop(reportId: string, executionPolicy: ReportExecutionPolicy): void {
+    const stopReason = executionPolicy.getStopReason();
+    if (!stopReason) {
+      return;
+    }
+
+    this.logger.debug(`${stopReason} for report ${reportId}`);
+  }
+
+  private async *readReportBatches(
+    reportReader: DataStorageReportReader,
+    executionPolicy: ReportExecutionPolicy,
+    reportId: string,
+    signal?: AbortSignal
+  ): AsyncGenerator<Awaited<ReturnType<RunReportService['readReportDataBatchWithPolicy']>>> {
+    let nextReportDataBatch: string | undefined | null = undefined;
+
+    while (true) {
+      signal?.throwIfAborted();
+      if (!executionPolicy.canReadNextBatch()) {
+        this.logPolicyStop(reportId, executionPolicy);
+        return;
+      }
+
+      const readBatch = await this.readReportDataBatchWithPolicy(
+        reportReader,
+        nextReportDataBatch,
+        executionPolicy
+      );
+      const batch = executionPolicy.mapReadBatch(readBatch);
+      yield batch;
+
+      if (executionPolicy.shouldStopAfterBatch()) {
+        this.logPolicyStop(reportId, executionPolicy);
+        return;
+      }
+
+      nextReportDataBatch = batch.nextDataBatchId;
+      if (!nextReportDataBatch) {
+        return;
+      }
     }
   }
 

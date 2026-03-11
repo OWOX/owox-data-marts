@@ -94,12 +94,12 @@ describe('DataTableTagHandler', () => {
       expect(payload.dataRows[99]).toEqual(['99']);
     });
 
-    it('should respect from="end"', () => {
+    it('should ignore from and always read from start', () => {
       const context = { tableSources: { main: { dataHeaders: headers, dataRows: rows } } };
       const payload = handler.buildPayload([], makeOptions({ limit: 2, from: 'end' }), context);
       expect(payload.dataRows).toEqual([
+        ['1', '2'],
         ['3', '4'],
-        ['5', '6'],
       ]);
     });
 

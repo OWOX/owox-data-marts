@@ -16,13 +16,14 @@ import { DEFAULT_SOURCE_KEY } from '../../common/template/handlers/tag-handler.i
 import { ReportHeadersGeneratorFacade } from '../data-storage-types/facades/report-headers-generator.facade';
 import { castError } from '@owox/internal-helpers';
 
-const MAX_LOADED_SOURCE = 100;
+const MAX_RENDERABLE_SOURCE_ROWS = 100;
+const MAX_LOADED_SOURCE_PROBE_ROWS = MAX_RENDERABLE_SOURCE_ROWS + 1;
 
 export interface InsightTemplateTableSourceContext {
   dataHeaders: DataTableHeader[];
   dataRows: unknown[][];
   dataHeadersCount: number;
-  dataRowsCount: number;
+  hasMoreRowsThanLimit: boolean;
 }
 
 @Injectable()
@@ -81,7 +82,7 @@ export class InsightTemplateSourceDataService {
         dataMart,
         sql,
         {
-          limit: MAX_LOADED_SOURCE,
+          limit: MAX_LOADED_SOURCE_PROBE_ROWS,
         }
       );
       const context = this.buildContext(columns, rows);
@@ -116,7 +117,7 @@ export class InsightTemplateSourceDataService {
       dataMart,
       undefined,
       {
-        limit: MAX_LOADED_SOURCE,
+        limit: MAX_LOADED_SOURCE_PROBE_ROWS,
       }
     );
 
@@ -136,13 +137,14 @@ export class InsightTemplateSourceDataService {
       const alias = aliasByName?.get(name);
       return alias ? { name, alias } : { name };
     });
-    const dataRows = rows;
+    const hasMoreRowsThanLimit = rows.length > MAX_RENDERABLE_SOURCE_ROWS;
+    const dataRows = rows.slice(0, MAX_RENDERABLE_SOURCE_ROWS);
 
     return {
       dataHeaders,
       dataRows,
       dataHeadersCount: dataHeaders.length,
-      dataRowsCount: dataRows.length,
+      hasMoreRowsThanLimit,
     };
   }
 
