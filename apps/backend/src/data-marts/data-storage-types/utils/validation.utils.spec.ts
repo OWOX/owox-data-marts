@@ -1,4 +1,5 @@
 import {
+<<<<<<< Updated upstream
   createFullyQualifiedNameValidator,
   createTablePatternValidator,
   StorageValidationConfig,
@@ -13,6 +14,20 @@ export function describeFullyQualifiedNameValidator(
   config: StorageValidationConfig,
   validator: (value: string) => boolean,
   extraTests?: () => void
+=======
+  createIdentifierValidator,
+  IdentifierValidatorConfig,
+} from './validation.utils';
+
+/**
+ * Shared test suite for fully qualified name validators (allowWildcard: false).
+ */
+export function describeFullyQualifiedNameValidator(
+  storageName: string,
+  config: Omit<IdentifierValidatorConfig, 'allowWildcard'>,
+  validator: (value: string) => boolean,
+  extraTests?: () => void,
+>>>>>>> Stashed changes
 ): void {
   describe(`isValid${storageName}FullyQualifiedName`, () => {
     it('should return true for valid 3-level names', () => {
@@ -69,6 +84,7 @@ export function describeFullyQualifiedNameValidator(
 }
 
 /**
+<<<<<<< Updated upstream
  * Shared test suite for table pattern validators.
  */
 export function describeTablePatternValidator(
@@ -76,6 +92,15 @@ export function describeTablePatternValidator(
   config: StorageValidationConfig,
   validator: (value: string) => boolean,
   extraTests?: () => void
+=======
+ * Shared test suite for table pattern validators (allowWildcard: true).
+ */
+export function describeTablePatternValidator(
+  storageName: string,
+  config: Omit<IdentifierValidatorConfig, 'allowWildcard'>,
+  validator: (value: string) => boolean,
+  extraTests?: () => void,
+>>>>>>> Stashed changes
 ): void {
   describe(`isValid${storageName}TablePattern`, () => {
     it('should return true for valid 3-level patterns', () => {
@@ -113,27 +138,49 @@ export function describeTablePatternValidator(
   });
 }
 
+<<<<<<< Updated upstream
 // Self-tests for the factory functions themselves
 describe('createFullyQualifiedNameValidator', () => {
   it('should create a working 3-level-only validator', () => {
     const validator = createFullyQualifiedNameValidator({
       allowedChars: 'a-zA-Z0-9_',
       allowTwoLevel: false,
+=======
+// Self-tests for createIdentifierValidator
+describe('createIdentifierValidator', () => {
+  it('should create a 3-level-only validator without wildcards', () => {
+    const validator = createIdentifierValidator({
+      allowedChars: 'a-zA-Z0-9_',
+      allowTwoLevel: false,
+      allowWildcard: false,
+>>>>>>> Stashed changes
     });
     expect(validator('a.b.c')).toBe(true);
     expect(validator('a.b')).toBe(false);
     expect(validator('')).toBe(false);
+<<<<<<< Updated upstream
   });
 
   it('should create a working 2-or-3-level validator', () => {
     const validator = createFullyQualifiedNameValidator({
       allowedChars: 'a-zA-Z0-9_',
       allowTwoLevel: true,
+=======
+    expect(validator('a.b.c*')).toBe(false);
+  });
+
+  it('should create a 2-or-3-level validator without wildcards', () => {
+    const validator = createIdentifierValidator({
+      allowedChars: 'a-zA-Z0-9_',
+      allowTwoLevel: true,
+      allowWildcard: false,
+>>>>>>> Stashed changes
     });
     expect(validator('a.b.c')).toBe(true);
     expect(validator('a.b')).toBe(true);
     expect(validator('a')).toBe(false);
   });
+<<<<<<< Updated upstream
 });
 
 describe('createTablePatternValidator', () => {
@@ -141,16 +188,32 @@ describe('createTablePatternValidator', () => {
     const validator = createTablePatternValidator({
       allowedChars: 'a-zA-Z0-9_',
       allowTwoLevel: false,
+=======
+
+  it('should create a 3-level-only validator with wildcards', () => {
+    const validator = createIdentifierValidator({
+      allowedChars: 'a-zA-Z0-9_',
+      allowTwoLevel: false,
+      allowWildcard: true,
+>>>>>>> Stashed changes
     });
     expect(validator('a.b.c_*')).toBe(true);
     expect(validator('a.b.*')).toBe(true);
     expect(validator('a.b_*')).toBe(false);
   });
 
+<<<<<<< Updated upstream
   it('should create a working 2-or-3-level validator with wildcards', () => {
     const validator = createTablePatternValidator({
       allowedChars: 'a-zA-Z0-9_',
       allowTwoLevel: true,
+=======
+  it('should create a 2-or-3-level validator with wildcards', () => {
+    const validator = createIdentifierValidator({
+      allowedChars: 'a-zA-Z0-9_',
+      allowTwoLevel: true,
+      allowWildcard: true,
+>>>>>>> Stashed changes
     });
     expect(validator('a.b.c_*')).toBe(true);
     expect(validator('a.b_*')).toBe(true);

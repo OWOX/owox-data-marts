@@ -5,6 +5,7 @@
  * @see {@link https://docs.aws.amazon.com/redshift/latest/dg/r_names.html} AWS Redshift Identifier Rules
  */
 
+<<<<<<< Updated upstream
 import {
   createFullyQualifiedNameValidator,
   createTablePatternValidator,
@@ -15,6 +16,11 @@ export const REDSHIFT_VALIDATION_CONFIG: StorageValidationConfig = {
   allowedChars: 'a-zA-Z0-9_',
   allowTwoLevel: true,
 };
+=======
+import { createIdentifierValidator } from '../../utils/validation.utils';
+
+const ALLOWED_CHARS = 'a-zA-Z0-9_';
+>>>>>>> Stashed changes
 
 /**
  * Validates if a string matches the AWS Redshift fully qualified name pattern
@@ -22,13 +28,19 @@ export const REDSHIFT_VALIDATION_CONFIG: StorageValidationConfig = {
  * Only alphanumeric characters and underscores are allowed
  * Hyphens are NOT allowed in unquoted Redshift identifiers
  * Quoted identifiers are NOT allowed to prevent SQL injection
- * @param value - The string to validate
- * @returns Boolean indicating if the string is valid
  * @see {@link https://docs.aws.amazon.com/redshift/latest/dg/r_names.html} AWS Redshift Naming Rules
  */
+<<<<<<< Updated upstream
 export const isValidRedshiftFullyQualifiedName = createFullyQualifiedNameValidator(
   REDSHIFT_VALIDATION_CONFIG
 );
+=======
+export const isValidRedshiftFullyQualifiedName = createIdentifierValidator({
+  allowedChars: ALLOWED_CHARS,
+  allowTwoLevel: true,
+  allowWildcard: false,
+});
+>>>>>>> Stashed changes
 
 /**
  * Validates if a string matches the AWS Redshift table pattern format
@@ -36,8 +48,14 @@ export const isValidRedshiftFullyQualifiedName = createFullyQualifiedNameValidat
  * Only alphanumeric characters, underscores, and wildcards are allowed
  * Hyphens are NOT allowed in unquoted Redshift identifiers
  * Quoted identifiers are NOT allowed to prevent SQL injection
- * @param value - The string to validate
- * @returns Boolean indicating if the string is valid
  * @see {@link https://docs.aws.amazon.com/redshift/latest/dg/r_names.html} AWS Redshift Naming Rules
  */
+<<<<<<< Updated upstream
 export const isValidRedshiftTablePattern = createTablePatternValidator(REDSHIFT_VALIDATION_CONFIG);
+=======
+export const isValidRedshiftTablePattern = createIdentifierValidator({
+  allowedChars: ALLOWED_CHARS,
+  allowTwoLevel: true,
+  allowWildcard: true,
+});
+>>>>>>> Stashed changes
