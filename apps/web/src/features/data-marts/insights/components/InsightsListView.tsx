@@ -36,7 +36,7 @@ import { useBaseTable } from '../../../../shared/hooks';
 import { useDataMartContext } from '../../edit/model';
 import { NO_PERMISSION_MESSAGE, usePermissions } from '../../../../app/permissions';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@owox/ui/components/tooltip';
-import { formatDateShort } from '../../../../utils';
+import { formatDateShort, trackEvent } from '../../../../utils';
 import type { InsightTemplateEntity } from '../model';
 import {
   insightTemplatesService,
@@ -199,9 +199,24 @@ export default function InsightsListView() {
       });
       const insight = mapInsightTemplateFromDto(dto);
       setItems(prev => [insight, ...prev]);
+      trackEvent({
+        event: 'insight_created',
+        category: 'Insights',
+        action: 'Create',
+        label: insight.id,
+        details: insight.title,
+        context: dataMart.id,
+      });
       toast.success('Insight created');
       void navigate(insight.id);
     } catch {
+      trackEvent({
+        event: 'insight_error',
+        category: 'Insights',
+        action: 'CreateError',
+        label: 'Untitled insight',
+        context: dataMart.id,
+      });
       toast.error('Failed to create insight');
     } finally {
       setCreating(false);
@@ -214,9 +229,23 @@ export default function InsightsListView() {
 
       try {
         await insightTemplatesService.deleteInsightTemplate(dataMart.id, deleteId);
+        trackEvent({
+          event: 'insight_deleted',
+          category: 'Insights',
+          action: 'Delete',
+          label: deleteId,
+          context: dataMart.id,
+        });
         setItems(prev => prev.filter(item => item.id !== deleteId));
         toast.success('Insight deleted');
       } catch {
+        trackEvent({
+          event: 'insight_error',
+          category: 'Insights',
+          action: 'DeleteError',
+          label: deleteId,
+          context: dataMart.id,
+        });
         toast.error('Failed to delete insight');
       } finally {
         setDeleteId(null);

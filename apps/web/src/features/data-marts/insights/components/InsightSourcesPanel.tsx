@@ -44,6 +44,7 @@ import {
 } from '@owox/ui/components/dropdown-menu';
 import { Tooltip, TooltipTrigger, TooltipContent } from '@owox/ui/components/tooltip';
 import { toast } from 'react-hot-toast';
+import { trackEvent } from '../../../../utils';
 import { cn } from '@owox/ui/lib/utils';
 import {
   AppForm,
@@ -116,8 +117,23 @@ export function InsightSourcesPanel({
   const handleDelete = async (source: InsightTemplateSourceEntity) => {
     try {
       await deleteSource(source.id);
+      trackEvent({
+        event: 'data_artifact_deleted',
+        category: 'Insights',
+        action: 'Delete Data Artifact',
+        label: source.id,
+        context: `${dataMartId}:${insightId}`,
+        details: source.key,
+      });
       toast.success('Data Artifact deleted');
     } catch {
+      trackEvent({
+        event: 'data_artifact_error',
+        category: 'Insights',
+        action: 'DeleteDataArtifactError',
+        label: source.id,
+        context: `${dataMartId}:${insightId}`,
+      });
       toast.error('Failed to delete data artifact');
     } finally {
       setSourceToDelete(null);
@@ -325,13 +341,41 @@ export function InsightSourcesPanel({
         source={editingSource}
         dataMartId={dataMartId}
         onSave={async data => {
-          if (editingSource) {
-            const updateData = { title: data.title, sql: data.sql };
-            await updateSource({ sourceId: editingSource.id, data: updateData });
-          } else {
-            await createSource(data);
+          try {
+            if (editingSource) {
+              const updateData = { title: data.title, sql: data.sql };
+              await updateSource({ sourceId: editingSource.id, data: updateData });
+              trackEvent({
+                event: 'data_artifact_updated',
+                category: 'Insights',
+                action: 'Update Data Artifact',
+                label: editingSource.id,
+                context: `${dataMartId}:${insightId}`,
+                details: data.key,
+              });
+            } else {
+              const result = await createSource(data);
+              trackEvent({
+                event: 'data_artifact_created',
+                category: 'Insights',
+                action: 'Create Data Artifact',
+                label: result.templateSourceId,
+                context: `${dataMartId}:${insightId}`,
+                details: data.key,
+              });
+            }
+            setIsSheetOpen(false);
+          } catch (error) {
+            trackEvent({
+              event: 'data_artifact_error',
+              category: 'Insights',
+              action: editingSource ? 'UpdateDataArtifactError' : 'CreateDataArtifactError',
+              label: editingSource?.id ?? 'new',
+              context: `${dataMartId}:${insightId}`,
+              error: error instanceof Error ? error.message : String(error),
+            });
+            throw error;
           }
-          setIsSheetOpen(false);
         }}
         isSaving={isCreating || isUpdating}
       />

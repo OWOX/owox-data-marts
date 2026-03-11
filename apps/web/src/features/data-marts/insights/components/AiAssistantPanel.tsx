@@ -8,7 +8,8 @@ import {
   type KeyboardEvent,
 } from 'react';
 import { Loader2, ArrowUp, Sparkles } from 'lucide-react';
-import toast from 'react-hot-toast';
+import { toast } from 'react-hot-toast';
+import { trackEvent } from '../../../../utils';
 import { Button } from '@owox/ui/components/button';
 import { Textarea } from '@owox/ui/components/textarea';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@owox/ui/components/tooltip';
@@ -188,6 +189,14 @@ export const AiAssistantPanel = forwardRef<AiAssistantPanelHandle, AiAssistantPa
       if (!text) return;
       setLastApplyResult(null);
       await sendMessage(text);
+      trackEvent({
+        event: 'ai_assistant_message_sent',
+        category: 'Insights',
+        action: 'Send Message',
+        label: session?.id ?? 'new',
+        context: dataMartId,
+        details: scope,
+      });
       setPrompt('');
     };
 
@@ -198,6 +207,14 @@ export const AiAssistantPanel = forwardRef<AiAssistantPanelHandle, AiAssistantPa
       if (result.status === 'validation_failed') {
         toast.error(statusMessage);
       } else if (result.status === 'updated') {
+        trackEvent({
+          event: 'ai_assistant_changes_applied',
+          category: 'Insights',
+          action: 'Apply Changes',
+          label: session?.id ?? '',
+          context: dataMartId,
+          details: result.status,
+        });
         toast.success(statusMessage);
       } else {
         toast(statusMessage);
@@ -254,6 +271,14 @@ export const AiAssistantPanel = forwardRef<AiAssistantPanelHandle, AiAssistantPa
 
     const handleStartNewConversation = async () => {
       await startNewConversation();
+      trackEvent({
+        event: 'ai_assistant_new_conversation',
+        category: 'Insights',
+        action: 'New Conversation',
+        label: session?.id ?? 'new',
+        context: dataMartId,
+        details: scope,
+      });
       isFirstMessagesLoadRef.current = true;
       setLastApplyResult(null);
       setPrompt('');
@@ -266,6 +291,13 @@ export const AiAssistantPanel = forwardRef<AiAssistantPanelHandle, AiAssistantPa
 
     const handleSessionSelect = async (sessionId: string) => {
       await selectSession(sessionId);
+      trackEvent({
+        event: 'ai_assistant_session_selected',
+        category: 'Insights',
+        action: 'View History',
+        label: sessionId,
+        context: dataMartId,
+      });
       isFirstMessagesLoadRef.current = true;
       setLastApplyResult(null);
       onHistoryViewChange(false);
@@ -295,12 +327,27 @@ export const AiAssistantPanel = forwardRef<AiAssistantPanelHandle, AiAssistantPa
         return;
       }
 
+      trackEvent({
+        event: 'ai_assistant_session_renamed',
+        category: 'Insights',
+        action: 'Rename Chat',
+        label: sessionId,
+        context: dataMartId,
+        details: nextTitle,
+      });
       toast.success('Chat renamed');
       handleCancelRename();
     };
 
     const handleDeleteSession = async (sessionId: string) => {
       await deleteSession(sessionId);
+      trackEvent({
+        event: 'ai_assistant_session_deleted',
+        category: 'Insights',
+        action: 'Delete Chat',
+        label: sessionId,
+        context: dataMartId,
+      });
       toast.success('Chat deleted');
       if (session?.id === sessionId) {
         onHistoryViewChange(false);

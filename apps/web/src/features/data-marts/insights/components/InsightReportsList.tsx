@@ -24,7 +24,8 @@ import type { DataMartReport } from '../../reports/shared/model/types/data-mart-
 import { toast } from 'react-hot-toast';
 import { DataDestinationType, DataDestinationTypeModel } from '../../../data-destination';
 import { ConfirmationDialog } from '../../../../shared/components/ConfirmationDialog';
-import { ReportStatusEnum } from '../../reports/shared/enums';
+import { ReportStatusEnum } from '../../reports/shared';
+import { trackEvent } from '../../../../utils';
 
 interface InsightReportsListProps {
   dataMartId: string;
@@ -58,10 +59,24 @@ export function InsightReportsList({
 
     try {
       await deleteReport.mutateAsync(reportToDelete);
+      trackEvent({
+        event: 'report_deleted',
+        category: 'Insights',
+        action: 'Delete Report',
+        label: reportToDelete,
+        context: `${dataMartId}:${insightId}`,
+      });
       toast.success('Report deleted');
       setReportToDelete(null);
       void refetch();
     } catch {
+      trackEvent({
+        event: 'report_error',
+        category: 'Insights',
+        action: 'DeleteReportError',
+        label: reportToDelete,
+        context: `${dataMartId}:${insightId}`,
+      });
       toast.error('Failed to delete report');
     }
   };
@@ -70,8 +85,22 @@ export function InsightReportsList({
     event?.stopPropagation();
     try {
       await runReport.mutateAsync(reportId);
+      trackEvent({
+        event: 'report_run',
+        category: 'Insights',
+        action: 'Run Report',
+        label: reportId,
+        context: `${dataMartId}:${insightId}`,
+      });
       await refetch();
     } catch {
+      trackEvent({
+        event: 'report_error',
+        category: 'Insights',
+        action: 'RunReportError',
+        label: reportId,
+        context: `${dataMartId}:${insightId}`,
+      });
       toast.error('Failed to run report');
     }
   };
