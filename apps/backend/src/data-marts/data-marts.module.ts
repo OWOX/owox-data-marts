@@ -48,6 +48,7 @@ import { ListReportsByProjectService } from './use-cases/list-reports-by-project
 import { ListReportsByInsightTemplateService } from './use-cases/list-reports-by-insight-template.service';
 import { DeleteReportService } from './use-cases/delete-report.service';
 import { RunReportService } from './use-cases/run-report.service';
+import { ReportExecutionPolicyResolver } from './use-cases/report-execution-policy.resolver';
 import { UpdateReportService } from './use-cases/update-report.service';
 import { CreateScheduledTriggerService } from './use-cases/create-scheduled-trigger.service';
 import { GetScheduledTriggerService } from './use-cases/get-scheduled-trigger.service';
@@ -374,6 +375,7 @@ import { GoogleOAuthConfigService } from './services/google-oauth/google-oauth-c
     ListReportsByProjectService,
     ListReportsByInsightTemplateService,
     DeleteReportService,
+    ReportExecutionPolicyResolver,
     RunReportService,
     UpdateReportService,
     InsightMapper,

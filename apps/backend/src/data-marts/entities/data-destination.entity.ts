@@ -8,7 +8,10 @@ import {
   PrimaryGeneratedColumn,
   UpdateDateColumn,
 } from 'typeorm';
-import { DataDestinationType } from '../data-destination-types/enums/data-destination-type.enum';
+import {
+  DataDestinationType,
+  isEmailBasedDataDestinationType,
+} from '../data-destination-types/enums/data-destination-type.enum';
 import { DataDestinationCredential } from './data-destination-credential.entity';
 
 @Entity()
@@ -40,4 +43,8 @@ export class DataDestination {
 
   @UpdateDateColumn()
   modifiedAt: Date;
+
+  isEmailBased(): boolean {
+    return isEmailBasedDataDestinationType(this.type);
+  }
 }

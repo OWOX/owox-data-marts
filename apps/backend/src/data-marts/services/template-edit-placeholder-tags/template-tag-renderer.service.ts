@@ -62,9 +62,6 @@ export class TemplateTagRenderer {
       attrs.push(`limit="${String(Math.trunc(limit))}"`);
     }
 
-    const from = this.readOptionalString(params.from);
-    if (from) attrs.push(`from="${this.escapeAttribute(from)}"`);
-
     return okTemplatePlaceholderTagValidation(`{{table ${attrs.join(' ')}}}`);
   }
 

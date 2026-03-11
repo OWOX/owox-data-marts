@@ -23,8 +23,6 @@ interface TableSourceContext {
 const DEFAULT_TABLE_ROWS = 100;
 const MAX_TABLE_ROWS = 200;
 
-type SliceFrom = 'start' | 'end';
-
 /**
  * Tag handler for rendering data tables as Markdown.
  *
@@ -34,7 +32,6 @@ type SliceFrom = 'start' | 'end';
  * Supported hash parameters:
  *  - `source`  - key in tableSources (default: 'main')
  *  - `limit`   - max rows to display (default: 100, cap: 100)
- *  - `from`    - slice origin: "start" (default) or "end"
  *  - `columns` - comma-separated column names/aliases to include
  */
 export class TableTagHandler
@@ -79,10 +76,9 @@ export class TableTagHandler
     const dataRows = (tableSource.dataRows ?? []) as unknown[][];
 
     const limit = Math.min((hash['limit'] as number) ?? DEFAULT_TABLE_ROWS, MAX_TABLE_ROWS);
-    const from = this.resolveFrom(hash);
     const columns = hash['columns'] as string | undefined;
 
-    const slicedRows = this.sliceRows(dataRows, limit, from);
+    const slicedRows = this.sliceRows(dataRows, limit);
 
     return columns
       ? this.filterColumns(dataHeaders, slicedRows, columns)
@@ -116,16 +112,8 @@ export class TableTagHandler
     return tableSources[source] ?? null;
   }
 
-  private resolveFrom(hash: Record<string, unknown>): SliceFrom {
-    const from = (hash['from'] as string) ?? 'start';
-    if (from !== 'start' && from !== 'end') {
-      throw new TagHandlerException(`[${this.tag}] "from" must be "start" or "end", got "${from}"`);
-    }
-    return from;
-  }
-
-  private sliceRows(rows: unknown[][], limit: number, from: SliceFrom): unknown[][] {
-    return from === 'end' ? rows.slice(-limit) : rows.slice(0, limit);
+  private sliceRows(rows: unknown[][], limit: number): unknown[][] {
+    return rows.slice(0, limit);
   }
 
   private filterColumns(

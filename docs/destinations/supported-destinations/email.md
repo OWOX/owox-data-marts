@@ -79,7 +79,7 @@ You can use the `{{table}}` tag to render your Data Mart results as a table in t
 **Table** — Inserts a data table for the specified source.
 Default: `{{table}}`
 
-> If you use the `{{table}}` tag without additional parameters, the row limit defaults to 10. Add an explicit `limit` parameter to display more rows.
+> If you use the `{{table}}` tag without additional parameters, the row limit defaults to 100.
 
 **Table with limit** — Inserts a data table with an explicit row limit.
 Default: `{{table source="main" limit="100"}}`
@@ -100,19 +100,17 @@ Default: `{{value source="main" column="1" row="1"}}`
 
 **Optional parameters for `{{table}}`:**
 
-- `limit` — Maximum number of rows to display. Accepts 1 to 100. Default: `10`.
+- `limit` — Maximum number of rows to display. Accepts 1 to 100. Default: `100`.
   Example: `limit=20`
-- `from` — Whether to read rows from the beginning or end of the table. Accepts `"start"` or `"end"`. Default: `start`.
-  Example: `from="end"`
 - `columns` — Comma-separated list of columns to include.
   Example: `columns="id, revenue"`
 - `source` — Source key to read from. Default: `main`.
   Example: `source="main"`
 
-> 💡 To display 20 rows from the end of the table, showing only `id` and `revenue`:  
-> `{{table limit=20 from="end" columns="id, revenue"}}`
+> 💡 To display 20 rows showing only `id` and `revenue`:  
+> `{{table limit=20 columns="id, revenue"}}`
 
-You can also use `{{dataHeadersCount}}` and `{{dataRowsCount}}` to display the total number of columns and rows.
+You can also use `{{dataHeadersCount}}` to display the total number of columns.
 
 #### 2.5. Set sending conditions
 
