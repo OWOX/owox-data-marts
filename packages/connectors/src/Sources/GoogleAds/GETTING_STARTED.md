@@ -26,12 +26,30 @@ Before proceeding, please make sure that:
 4. Fill in the required fields depending on your chosen authentication type.  
 (If you need help obtaining any of these values, please refer to the detailed instructions in the [CREDENTIALS](CREDENTIALS.md) guide.)
 
-### For **OAuth2 Authentication** (without service account)
+### For **OAuth2 Authentication** (with OAuth button)
 
-- **Customer ID** – enter the ID of the **ad account** you want to retrieve data from.  
-  You can find it in the top-right corner when viewing the specific ad account in Google Ads.  
+If your OWOX Data Marts instance has OAuth pre-configured by an administrator, you will see a **"Sign in with Google"** button. This is the recommended approach — it handles token exchange automatically.
+
+1. Click **Sign in with Google**.
+2. In the popup, select your Google account and grant access.
+3. The following OAuth scopes are requested:
+   - `https://www.googleapis.com/auth/adwords` — access to Google Ads data
+   - `https://www.googleapis.com/auth/userinfo.email` — to display your connected email
+4. After successful authorization, you will see **"Connected as your-email\@example.com"**.
+5. Fill in the remaining fields:
+   - **Customer ID** – the ID of the **ad account** you want to retrieve data from *(format: `12345678` without dashes)*.
+   - **Login Customer ID** *(optional)* – the ID of your **Manager (MCC)** account, if accessing data through a manager account.
+
+> ℹ️ The Developer Token, Client ID, and Client Secret are managed by your instance administrator via environment variables and do not need to be entered manually.
+
+### For **OAuth2 Authentication** (manual credentials)
+
+If OAuth is not pre-configured, you can enter credentials manually:
+
+- **Customer ID** – enter the ID of the **ad account** you want to retrieve data from.
+  You can find it in the top-right corner when viewing the specific ad account in Google Ads.
   *(Format: `12345678` without dashes.)*
-- **Login Customer ID** – enter the ID of your **Manager (MCC)** account.  
+- **Login Customer ID** – enter the ID of your **Manager (MCC)** account.
   You can find it in the top-right corner when you are logged into your MCC account.
    *(Format: `12345678` without dashes.)*
 - **Refresh Token** – paste the refresh token you generated using **OAuth Playground** in the Credentials guide.

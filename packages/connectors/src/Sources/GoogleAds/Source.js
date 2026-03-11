@@ -24,6 +24,71 @@ var GoogleAdsSource = class GoogleAdsSource extends AbstractSource {
             label: "OAuth2",
             value: "oauth2",
             requiredType: "object",
+            attributes: [CONFIG_ATTRIBUTES.OAUTH_FLOW],
+            oauthParams: {
+              vars: {
+                ClientId: {
+                  type: 'string',
+                  required: true,
+                  store: 'env',
+                  key: 'OAUTH_GOOGLE_ADS_CLIENT_ID',
+                  attributes: [OAUTH_CONSTANTS.UI, OAUTH_CONSTANTS.SECRET, OAUTH_CONSTANTS.REQUIRED]
+                },
+                ClientSecret: {
+                  type: 'string',
+                  required: true,
+                  store: 'env',
+                  key: 'OAUTH_GOOGLE_ADS_CLIENT_SECRET',
+                  attributes: [OAUTH_CONSTANTS.SECRET, OAUTH_CONSTANTS.REQUIRED]
+                },
+                RedirectUri: {
+                  type: 'string',
+                  required: true,
+                  store: 'env',
+                  key: 'OAUTH_GOOGLE_ADS_REDIRECT_URI',
+                  attributes: [OAUTH_CONSTANTS.UI, OAUTH_CONSTANTS.REQUIRED]
+                },
+                DeveloperToken: {
+                  type: 'string',
+                  required: true,
+                  store: 'env',
+                  key: 'OAUTH_GOOGLE_ADS_DEVELOPER_TOKEN',
+                  attributes: [OAUTH_CONSTANTS.SECRET, OAUTH_CONSTANTS.REQUIRED]
+                }
+              },
+              mapping: {
+                RefreshToken: {
+                  type: 'string',
+                  required: true,
+                  store: 'secret',
+                  key: 'refresh_token'
+                },
+                AccessToken: {
+                  type: 'string',
+                  required: true,
+                  store: 'secret',
+                  key: 'access_token'
+                },
+                ClientId: {
+                  type: 'string',
+                  required: true,
+                  store: 'secret',
+                  key: 'client_id'
+                },
+                ClientSecret: {
+                  type: 'string',
+                  required: true,
+                  store: 'secret',
+                  key: 'client_secret'
+                },
+                DeveloperToken: {
+                  type: 'string',
+                  required: true,
+                  store: 'secret',
+                  key: 'developer_token'
+                }
+              }
+            },
             items: {
               LoginCustomerId: {
                 requiredType: "string",
@@ -131,6 +196,85 @@ var GoogleAdsSource = class GoogleAdsSource extends AbstractSource {
     this.fieldsSchema = GoogleAdsFieldsSchema;
     this.accessToken = null;
     this.tokenExpiryTime = null;
+  }
+
+  async exchangeOauthCredentials(credentials, variables) {
+    try {
+      const tokenUrl = "https://oauth2.googleapis.com/token";
+
+      const payload = {
+        client_id: variables.ClientId,
+        client_secret: variables.ClientSecret,
+        grant_type: 'authorization_code',
+        code: credentials.code,
+        redirect_uri: variables.RedirectUri,
+      };
+
+      const options = {
+        method: 'post',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: Object.entries(payload)
+          .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v)}`)
+          .join('&')
+      };
+
+      const resp = await HttpUtils.fetch(tokenUrl, options);
+      const data = await resp.getAsJson();
+
+      if (data.error) {
+        throw new OauthFlowException({
+          message: `Token exchange failed: ${data.error_description || data.error}`,
+          payload: data
+        });
+      }
+
+      // Guard: refuse to store credentials without refresh_token
+      if (!data.refresh_token) {
+        throw new OauthFlowException({
+          message: 'No refresh_token returned. Please revoke access at https://myaccount.google.com/permissions and try again.',
+          payload: data
+        });
+      }
+
+      // Fetch user email (graceful fallback if fails)
+      let userData = { id: 'unknown', name: null };
+      try {
+        const userResp = await HttpUtils.fetch(
+          'https://www.googleapis.com/oauth2/v2/userinfo',
+          { headers: { Authorization: `Bearer ${data.access_token}` } }
+        );
+        const userInfo = await userResp.getAsJson();
+        if (userInfo.id) {
+          userData = { id: userInfo.id, name: userInfo.email };
+        }
+      } catch (_) {
+        // userinfo failure is non-fatal — credentials still work without email
+      }
+
+      const expiresIn = data.expires_in ?? 3600;
+
+      return OauthCredentialsDto.builder()
+        .withUser(userData)
+        .withSecret({
+          refresh_token: data.refresh_token,
+          access_token: data.access_token,
+          client_id: variables.ClientId,
+          client_secret: variables.ClientSecret,
+          developer_token: variables.DeveloperToken
+        })
+        .withExpiresIn(expiresIn)
+        .build()
+        .toObject();
+
+    } catch (error) {
+      if (error instanceof OauthFlowException) {
+        throw error;
+      }
+      throw new OauthFlowException({
+        message: 'Failed to exchange Google Ads tokens',
+        payload: error.message
+      });
+    }
   }
 
   /**
@@ -296,7 +440,7 @@ var GoogleAdsSource = class GoogleAdsSource extends AbstractSource {
         loginCustomerId && loginCustomerId !== customerId;
       const headers = {
         'Authorization': `Bearer ${accessToken}`,
-        'developer-token': this.config.AuthType.items?.DeveloperToken?.value,
+        'developer-token': this.config.AuthType.items?.DeveloperToken?.value || process.env.OAUTH_GOOGLE_ADS_DEVELOPER_TOKEN,
         'Content-Type': 'application/json'
       };
 
