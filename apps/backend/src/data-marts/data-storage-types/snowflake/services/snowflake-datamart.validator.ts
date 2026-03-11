@@ -11,12 +11,6 @@ import { isSnowflakeConfig } from '../../data-storage-config.guards';
 import { DataStorageConfig } from '../../data-storage-config.type';
 import { DataStorageCredentials } from '../../data-storage-credentials.type';
 import { SnowflakeQueryBuilder } from './snowflake-query.builder';
-import {
-  isConnectorDefinition,
-  isTableDefinition,
-  isViewDefinition,
-} from '../../../dto/schemas/data-mart-table-definitions/data-mart-definition.guards';
-import { isValidSnowflakeFullyQualifiedName } from '../utils/snowflake-validation.utils';
 
 @Injectable()
 export class SnowflakeDataMartValidator implements DataMartValidator {
@@ -33,11 +27,6 @@ export class SnowflakeDataMartValidator implements DataMartValidator {
     config: DataStorageConfig,
     credentials: DataStorageCredentials
   ): Promise<ValidationResult> {
-    const identifierValidation = this.validateIdentifiers(definition);
-    if (!identifierValidation.valid) {
-      return identifierValidation;
-    }
-
     if (!isSnowflakeCredentials(credentials)) {
       return ValidationResult.failure('Invalid credentials');
     }
@@ -60,26 +49,5 @@ export class SnowflakeDataMartValidator implements DataMartValidator {
       this.logger.warn('Dry run failed', error);
       return ValidationResult.failure(error instanceof Error ? error.message : String(error));
     }
-  }
-
-  /**
-   * Validates identifiers in the data mart definition to prevent SQL injection
-   * @param definition - The data mart definition
-   * @returns ValidationResult indicating success or failure
-   */
-  private validateIdentifiers(definition: DataMartDefinition): ValidationResult {
-    let identifierToValidate: string | undefined;
-
-    if (isTableDefinition(definition) || isViewDefinition(definition)) {
-      identifierToValidate = definition.fullyQualifiedName;
-    } else if (isConnectorDefinition(definition)) {
-      identifierToValidate = definition.connector.storage.fullyQualifiedName;
-    }
-
-    if (identifierToValidate && !isValidSnowflakeFullyQualifiedName(identifierToValidate)) {
-      return ValidationResult.failure('Invalid identifier format. Expected: database.schema.table');
-    }
-
-    return ValidationResult.success();
   }
 }

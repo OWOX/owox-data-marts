@@ -12,7 +12,6 @@ import {
   isTablePatternDefinition,
   isViewDefinition,
 } from '../../../dto/schemas/data-mart-table-definitions/data-mart-definition.guards';
-import { escapeAthenaIdentifier } from '../utils/athena-identifier.utils';
 
 @Injectable()
 export class AthenaQueryBuilder implements DataMartQueryBuilder {
@@ -22,9 +21,9 @@ export class AthenaQueryBuilder implements DataMartQueryBuilder {
     let query: string;
 
     if (isTableDefinition(definition) || isViewDefinition(definition)) {
-      query = `SELECT * FROM ${escapeAthenaIdentifier(definition.fullyQualifiedName)}`;
+      query = `SELECT * FROM ${this.escapeTablePath(definition.fullyQualifiedName)}`;
     } else if (isConnectorDefinition(definition)) {
-      query = `SELECT * FROM ${escapeAthenaIdentifier(definition.connector.storage.fullyQualifiedName)}`;
+      query = `SELECT * FROM ${this.escapeTablePath(definition.connector.storage.fullyQualifiedName)}`;
     } else if (isSqlDefinition(definition)) {
       query = definition.sqlQuery.trim();
     } else if (isTablePatternDefinition(definition)) {
@@ -41,5 +40,14 @@ export class AthenaQueryBuilder implements DataMartQueryBuilder {
     }
 
     return query;
+  }
+
+  private escapeTablePath(tablePath: string): string {
+    return tablePath
+      .split('.')
+      .map(identifier =>
+        identifier.startsWith('"') && identifier.endsWith('"') ? identifier : `"${identifier}"`
+      )
+      .join('.');
   }
 }
