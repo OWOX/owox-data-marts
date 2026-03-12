@@ -8,6 +8,7 @@ import {
   Payload,
   Projects,
   ProjectMember,
+  GetProjectMembersOptions,
 } from '@owox/idp-protocol';
 import { Express, type Request, Response, NextFunction } from 'express';
 import express from 'express';
@@ -242,7 +243,7 @@ export class BetterAuthProvider
 
   async getProjectMembers(
     _projectId: string,
-    _options?: { forceFresh?: boolean }
+    _options?: GetProjectMembersOptions
   ): Promise<ProjectMember[]> {
     const users = await this.userManagementService.listUsers();
 

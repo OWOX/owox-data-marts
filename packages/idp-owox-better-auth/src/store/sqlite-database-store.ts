@@ -443,19 +443,19 @@ export class SqliteDatabaseStore implements DatabaseStore {
     const db = this.getDb();
     const rows = db
       .prepare(
-        `SELECT user_id, email, full_name, avatar, project_role, user_status, has_notifications_enabled, is_outbound
+        `SELECT userId, email, fullName, avatar, projectRole, userStatus, hasNotificationsEnabled, isOutbound
          FROM project_member
-         WHERE project_id = ?`
+         WHERE projectId = ?`
       )
       .all(projectId) as Array<{
-      user_id: string;
+      userId: string;
       email: string;
-      full_name: string | null;
+      fullName: string | null;
       avatar: string | null;
-      project_role: string;
-      user_status: string;
-      has_notifications_enabled: number;
-      is_outbound: number;
+      projectRole: string;
+      userStatus: string;
+      hasNotificationsEnabled: number;
+      isOutbound: number;
     }>;
 
     if (!rows || rows.length === 0) {
@@ -463,14 +463,14 @@ export class SqliteDatabaseStore implements DatabaseStore {
     }
 
     const members: ProjectMember[] = rows.map(row => ({
-      userId: row.user_id,
+      userId: row.userId,
       email: row.email,
-      fullName: row.full_name ?? undefined,
+      fullName: row.fullName ?? undefined,
       avatar: row.avatar ?? undefined,
-      projectRole: row.project_role,
-      userStatus: row.user_status as ProjectMember['userStatus'],
-      hasNotificationsEnabled: row.has_notifications_enabled === 1,
-      isOutbound: row.is_outbound === 1,
+      projectRole: row.projectRole,
+      userStatus: row.userStatus as ProjectMember['userStatus'],
+      hasNotificationsEnabled: row.hasNotificationsEnabled === 1,
+      isOutbound: row.isOutbound === 1,
     }));
 
     return members;
@@ -485,19 +485,19 @@ export class SqliteDatabaseStore implements DatabaseStore {
     const db = this.getDb();
     const row = db
       .prepare(
-        `SELECT expires_at, updated_at
+        `SELECT expiresAt, updatedAt
          FROM project
-         WHERE project_id = ?`
+         WHERE projectId = ?`
       )
-      .get(projectId) as { expires_at: string | null; updated_at: string | null } | undefined;
+      .get(projectId) as { expiresAt: string | null; updatedAt: string | null } | undefined;
 
     if (!row) {
       return null;
     }
 
     return {
-      expiresAt: row.expires_at ? new Date(row.expires_at) : null,
-      updatedAt: row.updated_at ? new Date(row.updated_at) : null,
+      expiresAt: row.expiresAt ? new Date(row.expiresAt) : null,
+      updatedAt: row.updatedAt ? new Date(row.updatedAt) : null,
     };
   }
 }

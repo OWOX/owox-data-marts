@@ -7,7 +7,7 @@ import { Express, NextFunction, Request, Response } from 'express';
 export interface GetProjectMembersOptions {
   /**
    * If true, always try return fresh data.
-   * @default false
+   * @default true
    */
   forceFresh?: boolean;
 }

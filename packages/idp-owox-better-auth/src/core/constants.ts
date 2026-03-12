@@ -37,5 +37,5 @@ export const SOURCE = {
 /** Default TTL for project members cache in seconds (15 minutes). */
 export const DEFAULT_PROJECT_MEMBERS_CACHE_TTL_SECONDS = 15 * 60;
 
-/** Default timeout for OWOX Client requests in milliseconds (5 seconds). */
-export const DEFAULT_OWOX_CLIENT_TIMEOUT_MS = 5000;
+/** Default timeout for OWOX Client requests in milliseconds (10 seconds). */
+export const DEFAULT_OWOX_CLIENT_TIMEOUT_MS = 10000;

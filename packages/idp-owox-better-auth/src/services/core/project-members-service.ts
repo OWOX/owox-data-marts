@@ -49,7 +49,7 @@ export class ProjectMembersService {
     projectId: string,
     options?: GetProjectMembersOptions
   ): Promise<ProjectMember[]> {
-    const forceFresh = options?.forceFresh ?? false;
+    const forceFresh = options?.forceFresh ?? true;
 
     // Try to get from storage first
     const storedMembers = await this.store.getProjectMembers(projectId);
