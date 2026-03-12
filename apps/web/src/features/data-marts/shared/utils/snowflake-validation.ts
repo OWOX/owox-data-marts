@@ -1,15 +1,8 @@
 /**
- * Utility functions for validating Snowflake object names and formats
+ * Validation utilities for Snowflake object names
  */
 
-/**
- * Validates if a string matches the Snowflake fully qualified name pattern
- * Format: database.schema.object
- * Only alphanumeric, underscores, and dollar signs are allowed
- * Quoted identifiers are NOT allowed to prevent SQL injection
- * @param value - The string to validate
- * @returns Boolean indicating if the string is valid
- */
+/** Format: database.schema.object */
 export const isValidSnowflakeFullyQualifiedName = (value: string): boolean => {
   if (!value) return false;
 
@@ -17,27 +10,14 @@ export const isValidSnowflakeFullyQualifiedName = (value: string): boolean => {
   return snowflakePattern.test(value);
 };
 
-/**
- * Validates if a string matches the Snowflake table pattern format
- * Format: database.schema.table_* (with wildcard)
- * Only alphanumeric, underscores, dollar signs, and wildcards are allowed
- * Quoted identifiers are NOT allowed to prevent SQL injection
- * @param value - The string to validate
- * @returns Boolean indicating if the string is valid
- */
+/** Format: database.schema.table_* (with wildcard) */
 export const isValidSnowflakeTablePattern = (value: string): boolean => {
   if (!value) return false;
 
-  // Database and schema must be specified explicitly, but table name can have wildcards
   const patternRegex = /^[a-zA-Z0-9_$]+\.[a-zA-Z0-9_$]+\.[a-zA-Z0-9_$*]+$/;
   return patternRegex.test(value);
 };
 
-/**
- * Returns validation error message for Snowflake fully qualified name
- * @param value - The string to validate
- * @returns Error message or empty string if valid
- */
 export const getSnowflakeFullyQualifiedNameError = (value: string): string => {
   if (!value) return 'Fully qualified name is required';
   if (!isValidSnowflakeFullyQualifiedName(value)) {
@@ -46,11 +26,6 @@ export const getSnowflakeFullyQualifiedNameError = (value: string): string => {
   return '';
 };
 
-/**
- * Returns validation error message for Snowflake table pattern
- * @param value - The string to validate
- * @returns Error message or empty string if valid
- */
 export const getSnowflakeTablePatternError = (value: string): string => {
   if (!value) return 'Table pattern is required';
   if (!isValidSnowflakeTablePattern(value)) {

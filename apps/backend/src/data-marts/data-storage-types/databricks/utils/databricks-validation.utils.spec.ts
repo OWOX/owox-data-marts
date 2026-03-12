@@ -29,4 +29,31 @@ describeFullyQualifiedNameValidator(
   }
 );
 
+const CONNECTOR_CONFIG = { allowedChars: 'a-zA-Z0-9_', allowTwoLevel: true };
+
+describeFullyQualifiedNameValidator(
+  'DatabricksConnector',
+  CONNECTOR_CONFIG,
+  value => isValidDatabricksFullyQualifiedName(value, { allowTwoLevel: true }),
+  () => {
+    it('should return true for 2-level names (default catalog)', () => {
+      expect(
+        isValidDatabricksFullyQualifiedName('my_schema.my_table', { allowTwoLevel: true })
+      ).toBe(true);
+    });
+
+    it('should return true for 3-level names', () => {
+      expect(
+        isValidDatabricksFullyQualifiedName('catalog.schema.table', { allowTwoLevel: true })
+      ).toBe(true);
+    });
+
+    it('should return false for names with hyphens', () => {
+      expect(
+        isValidDatabricksFullyQualifiedName('schema.table-name', { allowTwoLevel: true })
+      ).toBe(false);
+    });
+  }
+);
+
 describeTablePatternValidator('Databricks', BASE_CONFIG, isValidDatabricksTablePattern);

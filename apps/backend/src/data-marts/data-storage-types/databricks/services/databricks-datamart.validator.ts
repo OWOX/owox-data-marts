@@ -64,22 +64,23 @@ export class DatabricksDataMartValidator implements DataMartValidator {
     }
   }
 
-  /**
-   * Validates identifiers in the data mart definition to prevent SQL injection
-   * @param definition - The data mart definition
-   * @returns ValidationResult indicating success or failure
-   */
   private validateIdentifiers(definition: DataMartDefinition): ValidationResult {
-    let identifierToValidate: string | undefined;
-
     if (isTableDefinition(definition) || isViewDefinition(definition)) {
-      identifierToValidate = definition.fullyQualifiedName;
+      if (!isValidDatabricksFullyQualifiedName(definition.fullyQualifiedName)) {
+        return ValidationResult.failure(
+          'Invalid identifier format. Expected: catalog.schema.table'
+        );
+      }
     } else if (isConnectorDefinition(definition)) {
-      identifierToValidate = definition.connector.storage.fullyQualifiedName;
-    }
-
-    if (identifierToValidate && !isValidDatabricksFullyQualifiedName(identifierToValidate)) {
-      return ValidationResult.failure('Invalid identifier format. Expected: catalog.schema.table');
+      if (
+        !isValidDatabricksFullyQualifiedName(definition.connector.storage.fullyQualifiedName, {
+          allowTwoLevel: true,
+        })
+      ) {
+        return ValidationResult.failure(
+          'Invalid identifier format. Expected: schema.table or catalog.schema.table'
+        );
+      }
     }
 
     return ValidationResult.success();

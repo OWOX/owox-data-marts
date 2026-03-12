@@ -16,13 +16,8 @@ export interface IdentifierValidatorConfig {
 }
 
 /**
- * Creates a validator for dot-separated identifiers.
- *
- * - `allowWildcard: false` — validates fully qualified names (e.g. project.dataset.table)
- * - `allowWildcard: true`  — validates table patterns (e.g. project.dataset.table_*)
- *
- * @param config - Storage-specific validation configuration
- * @returns A function that validates whether a string matches the identifier format
+ * - `allowWildcard: false` — fully qualified names (e.g. project.dataset.table)
+ * - `allowWildcard: true`  — table patterns (e.g. project.dataset.table_*)
  */
 export function createIdentifierValidator(
   config: IdentifierValidatorConfig

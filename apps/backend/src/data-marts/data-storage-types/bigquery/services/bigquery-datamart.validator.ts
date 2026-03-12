@@ -55,22 +55,23 @@ export class BigQueryDataMartValidator implements DataMartValidator {
     }
   }
 
-  /**
-   * Validates identifiers in the data mart definition to prevent SQL injection
-   * @param definition - The data mart definition
-   * @returns ValidationResult indicating success or failure
-   */
   private validateIdentifiers(definition: DataMartDefinition): ValidationResult {
-    let identifierToValidate: string | undefined;
-
     if (isTableDefinition(definition) || isViewDefinition(definition)) {
-      identifierToValidate = definition.fullyQualifiedName;
+      if (!isValidBigQueryFullyQualifiedName(definition.fullyQualifiedName)) {
+        return ValidationResult.failure(
+          'Invalid identifier format. Expected: project.dataset.table'
+        );
+      }
     } else if (isConnectorDefinition(definition)) {
-      identifierToValidate = definition.connector.storage.fullyQualifiedName;
-    }
-
-    if (identifierToValidate && !isValidBigQueryFullyQualifiedName(identifierToValidate)) {
-      return ValidationResult.failure('Invalid identifier format. Expected: project.dataset.table');
+      if (
+        !isValidBigQueryFullyQualifiedName(definition.connector.storage.fullyQualifiedName, {
+          allowTwoLevel: true,
+        })
+      ) {
+        return ValidationResult.failure(
+          'Invalid identifier format. Expected: dataset.table or project.dataset.table'
+        );
+      }
     }
 
     return ValidationResult.success();

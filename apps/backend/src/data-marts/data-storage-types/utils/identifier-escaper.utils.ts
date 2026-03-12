@@ -13,10 +13,6 @@ export interface IdentifierEscaperConfig {
   quoteChar: '`' | '"';
 }
 
-/**
- * Escapes a single identifier part by wrapping it in the quote character
- * and escaping inner occurrences by doubling them.
- */
 function escapeIdentifierPart(part: string, quoteChar: string): string {
   const escaped = part.replace(
     new RegExp(quoteChar.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'),
@@ -26,15 +22,8 @@ function escapeIdentifierPart(part: string, quoteChar: string): string {
 }
 
 /**
- * Creates an identifier escaper for a given quote character.
- *
- * The returned function:
- * - Splits a dotted identifier (e.g. "schema.table") into parts
- * - Handles already-quoted parts (strips outer quotes, re-escapes)
- * - Wraps each part in the configured quote character
- *
- * @param config - Storage-specific escaper configuration
- * @returns A function that escapes a full identifier string
+ * Splits a dotted identifier into parts, handles already-quoted parts,
+ * and wraps each part in the configured quote character.
  */
 export function createIdentifierEscaper(
   config: IdentifierEscaperConfig

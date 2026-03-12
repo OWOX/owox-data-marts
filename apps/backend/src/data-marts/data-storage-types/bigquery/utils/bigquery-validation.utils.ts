@@ -1,7 +1,5 @@
 /**
  * Backend validation utilities for BigQuery fully qualified names
- * Format: project.dataset.table
- *
  * @see {@link https://cloud.google.com/bigquery/docs/reference/standard-sql/lexical} BigQuery Lexical Structure
  */
 
@@ -9,26 +7,28 @@ import { createIdentifierValidator } from '../../utils/validation.utils';
 
 const ALLOWED_CHARS = 'a-zA-Z0-9_\\-';
 
-/**
- * Validates if a string matches the BigQuery fully qualified name pattern
- * Format: project.dataset.table
- * Only alphanumeric characters, underscores, and hyphens are allowed
- * Quoted identifiers are NOT allowed to prevent SQL injection
- * @see {@link https://cloud.google.com/bigquery/docs/reference/standard-sql/lexical} BigQuery Identifier Syntax
- */
-export const isValidBigQueryFullyQualifiedName = createIdentifierValidator({
+const threeLevelValidator = createIdentifierValidator({
   allowedChars: ALLOWED_CHARS,
   allowTwoLevel: false,
   allowWildcard: false,
 });
 
-/**
- * Validates if a string matches the BigQuery table pattern format
- * Format: project.dataset.table_* (with wildcard)
- * Only alphanumeric characters, underscores, hyphens, and wildcards are allowed
- * Quoted identifiers are NOT allowed to prevent SQL injection
- * @see {@link https://cloud.google.com/bigquery/docs/reference/standard-sql/lexical} BigQuery Identifier Syntax
- */
+const twoOrThreeLevelValidator = createIdentifierValidator({
+  allowedChars: ALLOWED_CHARS,
+  allowTwoLevel: true,
+  allowWildcard: false,
+});
+
+/** Format: project.dataset.table or dataset.table (with allowTwoLevel) */
+export function isValidBigQueryFullyQualifiedName(
+  value: string,
+  options?: { allowTwoLevel?: boolean }
+): boolean {
+  const validator = options?.allowTwoLevel ? twoOrThreeLevelValidator : threeLevelValidator;
+  return validator(value);
+}
+
+/** Format: project.dataset.table_* (with wildcard) */
 export const isValidBigQueryTablePattern = createIdentifierValidator({
   allowedChars: ALLOWED_CHARS,
   allowTwoLevel: false,
