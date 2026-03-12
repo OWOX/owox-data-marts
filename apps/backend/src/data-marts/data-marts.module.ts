@@ -24,6 +24,7 @@ import { ReportDataCacheService } from './services/report-data-cache.service';
 import { UserProjectionsFetcherService } from './services/user-projections-fetcher.service';
 import { CreateDataMartService } from './use-cases/create-data-mart.service';
 import { DeleteLegacyDataMartService } from './use-cases/legacy-data-marts/delete-legacy-data-mart.service';
+import { MoveLegacyDataStorageService } from './use-cases/legacy-data-marts/move-legacy-data-storage.service';
 import { SyncLegacyGcpStoragesForProjectService } from './use-cases/legacy-data-marts/sync-legacy-gcp-storages-for-project.service';
 import { ListDataMartsService } from './use-cases/list-data-marts.service';
 import { ListDataMartsByConnectorNameService } from './use-cases/list-data-marts-by-connector-name.service';
@@ -502,6 +503,7 @@ import { GoogleOAuthConfigService } from './services/google-oauth/google-oauth-c
     ConnectorOauthService,
     UserProjectionsFetcherService,
     DeleteLegacyDataMartService,
+    MoveLegacyDataStorageService,
     SyncLegacyDataMartService,
     SyncLegacyDataMartsByGcpService,
     SyncLegacyGcpStoragesForProjectService,

@@ -3,6 +3,7 @@ import { SyncLegacyGcpStoragesForProjectCommand } from '../../dto/domain/legacy-
 import { LegacyDataMartsService } from '../../services/legacy-data-marts/legacy-data-marts.service';
 import { LegacyDataStorageService } from '../../services/legacy-data-marts/legacy-data-storage.service';
 import { LegacySyncTriggersService } from '../../services/legacy-data-marts/legacy-sync-triggers.service';
+import { MoveLegacyDataStorageService } from './move-legacy-data-storage.service';
 
 @Injectable()
 export class SyncLegacyGcpStoragesForProjectService {
@@ -11,7 +12,8 @@ export class SyncLegacyGcpStoragesForProjectService {
   constructor(
     private readonly legacyDataMartsService: LegacyDataMartsService,
     private readonly legacyDataStorageService: LegacyDataStorageService,
-    private readonly legacySyncTriggersService: LegacySyncTriggersService
+    private readonly legacySyncTriggersService: LegacySyncTriggersService,
+    private readonly moveLegacyDataStorageService: MoveLegacyDataStorageService
   ) {}
 
   async run(command: SyncLegacyGcpStoragesForProjectCommand): Promise<number> {
@@ -26,9 +28,10 @@ export class SyncLegacyGcpStoragesForProjectService {
       const existingStorage = await this.legacyDataStorageService.findByGcpProjectId(gcpProjectId);
       if (existingStorage) {
         if (existingStorage.projectId !== command.projectId) {
-          this.logger.error(
-            `GCP ${gcpProjectId} already linked to project ${existingStorage.projectId}, skipping`
+          this.logger.warn(
+            `GCP ${gcpProjectId} changed project from ${existingStorage.projectId} to ${command.projectId}`
           );
+          await this.moveLegacyDataStorageService.run(existingStorage, command.projectId);
         } else {
           this.logger.log(
             `GCP ${gcpProjectId} already linked to project ${command.projectId}, skipping`
