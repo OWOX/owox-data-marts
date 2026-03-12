@@ -132,4 +132,41 @@ describe('MoveLegacyDataStorageService', () => {
     await expect(service.run(storage, 'new_project')).rejects.toThrow(dbError);
     expect(storage.projectId).toBe('old_project');
   });
+
+  it('should update credential projectId and save credential when storage has a credential', async () => {
+    // Arrange
+    const credential = { id: 'cred1', projectId: 'old_project' };
+    const storage = {
+      id: 'st1',
+      projectId: 'old_project',
+      credential,
+    } as DataStorage;
+    const newProjectId = 'new_project';
+
+    // Act
+    const result = await service.run(storage, newProjectId);
+
+    // Assert
+    expect(credential.projectId).toBe(newProjectId);
+    expect(mockManager.save).toHaveBeenCalledTimes(2);
+    expect(mockManager.save).toHaveBeenCalledWith(credential);
+    expect(mockManager.save).toHaveBeenCalledWith(storage);
+    expect(result.projectId).toBe(newProjectId);
+  });
+
+  it('should not save credential when storage.credential is null', async () => {
+    // Arrange
+    const storage = {
+      id: 'st1',
+      projectId: 'old_project',
+      credential: null,
+    } as DataStorage;
+
+    // Act
+    await service.run(storage, 'new_project');
+
+    // Assert: only 1 save call (for storage), no save for credential
+    expect(mockManager.save).toHaveBeenCalledTimes(1);
+    expect(mockManager.save).toHaveBeenCalledWith(storage);
+  });
 });
