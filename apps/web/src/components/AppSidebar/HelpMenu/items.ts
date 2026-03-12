@@ -62,6 +62,13 @@ export function helpMenuItems(openPopover: (id: string) => void): HelpMenuItem[]
               openPopover('video-4-legacy-storage-setup');
             },
           },
+          {
+            label: 'Insights: how to get automated reports from questions',
+            icon: Airplay,
+            onClick: () => {
+              openPopover('video-5-try-insights');
+            },
+          },
         ],
       },
     },

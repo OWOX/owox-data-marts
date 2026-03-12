@@ -61,7 +61,9 @@ Once published, each Data Mart is live: its output schema is visible and it can 
 
 ## What You Can Do After Publishing
 
-### Try AI Insights
+### Try Insights
+
+<https://customer-4geatlj66rtkaxtz.cloudflarestream.com/f60275036c0c0cb3c7e83edd50d57d19/iframe>
 
 OWOX can analyze the output schema and run history of a Data Mart to surface anomalies, trends, or suggestions — using your existing data, with no additional pipeline required.
 
