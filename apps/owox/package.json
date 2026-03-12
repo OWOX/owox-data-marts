@@ -42,7 +42,7 @@
   "engines": {
     "node": ">=22.16.0"
   },
-  "files": ["./bin", "./dist/**/*.js", "./oclif.manifest.json"],
+  "files": ["./bin", "./dist/**/*.js", "./oclif.manifest.json", "./npm-shrinkwrap.json"],
   "homepage": "https://github.com/OWOX/owox-data-marts",
   "keywords": [
     "data-marts",
@@ -89,7 +89,7 @@
     "format": "prettier --write \"**/*.{ts,js,json}\" --ignore-path ../../.prettierignore",
     "format:check": "prettier --check \"**/*.{ts,js,json}\" --ignore-path ../../.prettierignore",
     "prebuild": "npm run build:clean && npm run build:dep",
-    "prepack": "oclif manifest",
+    "prepack": "oclif manifest && node ../../tools/generate-shrinkwrap.mjs",
     "prepublishOnly": "npm run lint",
     "pretest": "oclif manifest",
     "test": "mocha --forbid-only \"test/**/*.test.ts\"",
