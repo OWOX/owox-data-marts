@@ -57,12 +57,9 @@ export class RedshiftDataMartValidator implements DataMartValidator {
 
       return ValidationResult.success();
     } catch (error) {
-      // Sanitize error messages to prevent information leakage
-      // Do not return raw SQL errors to the client
       const errorMessage = error instanceof Error ? error.message : String(error);
 
-      // Log the full error internally (for debugging) but return generic message to client
-      this.logger.error(`Redshift validation error (internal): ${errorMessage}`);
+      this.logger.error(`Redshift validation error: ${errorMessage}`);
 
       return ValidationResult.failure(
         'Data mart validation failed: Invalid query or database error'
