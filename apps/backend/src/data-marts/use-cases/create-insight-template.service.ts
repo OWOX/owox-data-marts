@@ -8,6 +8,7 @@ import { InsightTemplateMapper } from '../mappers/insight-template.mapper';
 import { DataMartService } from '../services/data-mart.service';
 import { InsightTemplateValidationService } from '../services/insight-template-validation.service';
 import { DEFAULT_INSIGHT_TEMPLATE } from '../template/default-insight-template';
+import { DEFAULT_INSIGHT_TITLE } from './utils/generate-ai-assistant-session-title-from-message.util';
 
 @Injectable()
 export class CreateInsightTemplateService {
@@ -38,7 +39,7 @@ export class CreateInsightTemplateService {
     );
 
     const insightTemplate = this.repository.create({
-      title: command.title,
+      title: command.title ?? DEFAULT_INSIGHT_TITLE,
       template,
       sources: command.sources,
       dataMart,

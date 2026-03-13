@@ -43,6 +43,7 @@ interface AiAssistantPanelProps {
   onHistoryViewChange: (show: boolean) => void;
   onBusyChange?: (isBusy: boolean) => void;
   onApplied?: (result: ApplyAiAssistantSessionResponseDto) => void;
+  onMessageSent?: (text: string) => void | Promise<void>;
   onRun?: () => void | Promise<void>;
 }
 
@@ -57,6 +58,7 @@ export const AiAssistantPanel = forwardRef<AiAssistantPanelHandle, AiAssistantPa
       onHistoryViewChange,
       onBusyChange,
       onApplied,
+      onMessageSent,
       onRun,
     },
     ref
@@ -188,7 +190,10 @@ export const AiAssistantPanel = forwardRef<AiAssistantPanelHandle, AiAssistantPa
       const text = prompt.trim();
       if (!text) return;
       setLastApplyResult(null);
-      await sendMessage(text);
+      const sent = await sendMessage(text);
+      if (!sent) {
+        return;
+      }
       trackEvent({
         event: 'ai_assistant_message_sent',
         category: 'Insights',
@@ -197,6 +202,7 @@ export const AiAssistantPanel = forwardRef<AiAssistantPanelHandle, AiAssistantPa
         context: dataMartId,
         details: scope,
       });
+      await onMessageSent?.(text);
       setPrompt('');
     };
 

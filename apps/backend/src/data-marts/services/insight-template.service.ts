@@ -2,6 +2,7 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { InsightTemplate } from '../entities/insight-template.entity';
+import { DEFAULT_INSIGHT_TITLE } from '../use-cases/utils/generate-ai-assistant-session-title-from-message.util';
 
 @Injectable()
 export class InsightTemplateService {
@@ -68,6 +69,21 @@ export class InsightTemplateService {
       relations: ['dataMart'],
       order: { createdAt: 'DESC' },
     });
+  }
+
+  async updateTitleOnlyIfHasDefaultTitle(
+    id: string,
+    dataMartId: string,
+    projectId: string,
+    title: string
+  ): Promise<InsightTemplate> {
+    const insightTemplate = await this.getByIdAndDataMartIdAndProjectId(id, dataMartId, projectId);
+    if (insightTemplate.title === DEFAULT_INSIGHT_TITLE || !insightTemplate.title) {
+      insightTemplate.title = title;
+      return this.repository.save(insightTemplate);
+    }
+
+    return insightTemplate;
   }
 
   async softDelete(insightTemplateId: string): Promise<void> {

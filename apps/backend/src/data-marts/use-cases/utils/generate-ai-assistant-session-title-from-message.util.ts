@@ -1,3 +1,5 @@
+export const DEFAULT_INSIGHT_TITLE = 'Untitled insight';
+
 export function generateAiAssistantSessionTitleFromMessage(message: string): string {
   const normalized = message
     .replace(/[^\w\s-]/g, ' ')

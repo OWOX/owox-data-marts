@@ -63,6 +63,7 @@ describe('CreateAiAssistantMessageService', () => {
     const service = new CreateAiAssistantMessageService(
       aiAssistantSessionService as never,
       aiAssistantRunTriggerService as never,
+      insightTemplateService as never,
       mapper as never
     );
 
@@ -70,6 +71,7 @@ describe('CreateAiAssistantMessageService', () => {
       service,
       aiAssistantSessionService,
       aiAssistantRunTriggerService,
+      insightTemplateService,
       mapper,
     };
   };

@@ -15,9 +15,10 @@ import { InsightTemplateSourceApiDto } from './insight-template-source-api.dto';
 export class CreateInsightTemplateRequestApiDto {
   @ApiProperty({ example: 'Summary', maxLength: 255 })
   @IsString()
+  @IsOptional()
   @IsNotEmpty()
   @MaxLength(255)
-  title: string;
+  title?: string;
 
   @ApiProperty({ example: '### Summary\n{{table source="main"}}', required: false })
   @IsString()

@@ -194,9 +194,7 @@ export default function InsightsListView() {
     if (!dataMart?.id || creating) return;
     setCreating(true);
     try {
-      const dto = await insightTemplatesService.createInsightTemplate(dataMart.id, {
-        title: 'Untitled insight',
-      });
+      const dto = await insightTemplatesService.createInsightTemplate(dataMart.id, {});
       const insight = mapInsightTemplateFromDto(dto);
       setItems(prev => [insight, ...prev]);
       trackEvent({
@@ -214,7 +212,7 @@ export default function InsightsListView() {
         event: 'insight_error',
         category: 'Insights',
         action: 'CreateError',
-        label: 'Untitled insight',
+        label: 'Creating insight',
         context: dataMart.id,
       });
       toast.error('Failed to create insight');
