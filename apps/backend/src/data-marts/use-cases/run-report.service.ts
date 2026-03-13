@@ -18,6 +18,7 @@ import { createReportRunLogger, ReportRunLogger } from '../report-run-logging/re
 import { DataMartService } from '../services/data-mart.service';
 import { ProjectBalanceService } from '../services/project-balance.service';
 import { ReportRunService } from '../services/report-run.service';
+import { ReportRunTriggerService } from '../services/report-run-trigger.service';
 import {
   ReportExecutionPolicy,
   ReportExecutionPolicyResolver,
@@ -82,39 +83,20 @@ export class RunReportService {
     private readonly reportRunService: ReportRunService,
     private readonly availableDestinationTypesService: AvailableDestinationTypesService,
     private readonly projectBalanceService: ProjectBalanceService,
-    private readonly reportExecutionPolicyResolver: ReportExecutionPolicyResolver
+    private readonly reportExecutionPolicyResolver: ReportExecutionPolicyResolver,
+    private readonly reportRunTriggerService: ReportRunTriggerService
   ) {}
 
   /**
-   * Executes report run in background (fire-and-forget).
-   * Errors are logged but not propagated to caller.
-   *
-   * Used for async execution from schedulers or message queues.
+   * Creates a pending report run and enqueues it via trigger for worker processing.
    *
    * @param command - Report run command with reportId, userId, runType
+   * @param signal - Unused, kept for backward compatibility with scheduled processors
    */
-  runInBackground(command: RunReportCommand): void {
-    this.run(command).catch(error => {
-      this.logger.error(`Error running report ${command.reportId} asynchronously:`, error);
-    });
-  }
-
-  /**
-   * Executes report run synchronously.
-   *
-   * Steps:
-   * 1. Validates system can run (not in shutdown)
-   * 2. Creates pending run (returns null if already running)
-   * 3. Executes report with cleanup and error handling
-   *
-   * @param command - Report run command with reportId, userId, runType
-   * @param signal - Optional AbortSignal for cancellation support
-   * @returns Promise that resolves when run completes or is skipped
-   */
-  async run(command: RunReportCommand, signal?: AbortSignal): Promise<void> {
+  async run(command: RunReportCommand, _signal?: AbortSignal): Promise<void> {
     this.validateCanRun();
 
-    this.logger.log(`Starting report run ${command.reportId}`);
+    this.logger.log(`Creating report run trigger for report ${command.reportId}`);
 
     const reportRun = await this.reportRunService.createPending(command);
     if (!reportRun) {
@@ -124,6 +106,23 @@ export class RunReportService {
       return;
     }
 
+    await this.reportRunTriggerService.createTrigger({
+      reportId: command.reportId,
+      userId: command.userId,
+      projectId: reportRun.getDataMart().projectId,
+      dataMartRunId: reportRun.getDataMartRun().id,
+      runType: command.runType,
+    });
+  }
+
+  /**
+   * Execute a pre-created report run. Called by ReportRunTriggerHandler on worker.
+   */
+  async executeExistingRun(dataMartRunId: string, signal?: AbortSignal): Promise<void> {
+    const reportRun = await this.reportRunService.loadByDataMartRunId(dataMartRunId);
+    if (!reportRun) {
+      throw new Error(`Report run not found for dataMartRunId: ${dataMartRunId}`);
+    }
     await this.executeReportRunWithCleanup(reportRun, signal);
   }
 
