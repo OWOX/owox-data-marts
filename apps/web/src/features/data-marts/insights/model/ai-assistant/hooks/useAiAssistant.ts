@@ -51,7 +51,7 @@ interface UseAiAssistantResult {
   isHeavyProcessing: boolean;
   isApplying: boolean;
   error: string | null;
-  sendMessage: (text: string) => Promise<void>;
+  sendMessage: (text: string) => Promise<boolean>;
   selectSession: (sessionId: string) => Promise<void>;
   startNewConversation: () => Promise<void>;
   renameSession: (sessionId: string, title: string) => Promise<boolean>;
@@ -429,10 +429,10 @@ export function useAiAssistant({
   );
 
   const sendMessage = useCallback(
-    async (text: string): Promise<void> => {
+    async (text: string): Promise<boolean> => {
       const prompt = text.trim();
       if (!prompt || !session?.id || !dataMartId) {
-        return;
+        return false;
       }
 
       setIsSending(true);
@@ -471,11 +471,13 @@ export function useAiAssistant({
         }
 
         void refreshSessionList();
+        return true;
       } catch (cause) {
         const apiError = extractApiError(cause);
         safeSetState(() => {
           setError(apiError.message ?? 'Failed to send AI assistant message');
         });
+        return false;
       } finally {
         safeSetState(() => {
           setIsSending(false);

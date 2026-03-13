@@ -56,6 +56,9 @@ describe('CreateAiAssistantMessageService', () => {
     const aiAssistantRunTriggerService = {
       createTrigger: jest.fn().mockResolvedValue('trigger-1'),
     };
+    const insightTemplateService = {
+      updateTitleOnlyIfHasDefaultTitle: jest.fn(),
+    };
     const mapper = {
       toDomainMessageDto: jest.fn(),
     };
@@ -63,6 +66,7 @@ describe('CreateAiAssistantMessageService', () => {
     const service = new CreateAiAssistantMessageService(
       aiAssistantSessionService as never,
       aiAssistantRunTriggerService as never,
+      insightTemplateService as never,
       mapper as never
     );
 
@@ -70,6 +74,7 @@ describe('CreateAiAssistantMessageService', () => {
       service,
       aiAssistantSessionService,
       aiAssistantRunTriggerService,
+      insightTemplateService,
       mapper,
     };
   };

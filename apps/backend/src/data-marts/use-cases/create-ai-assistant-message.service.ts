@@ -9,6 +9,7 @@ import { AiAssistantMessageRole } from '../enums/ai-assistant-message-role.enum'
 import { AiAssistantMapper } from '../mappers/ai-assistant.mapper';
 import { AiAssistantRunTriggerService } from '../services/ai-assistant-run-trigger.service';
 import { AiAssistantSessionService } from '../services/ai-assistant-session.service';
+import { InsightTemplateService } from '../services/insight-template.service';
 import { generateAiAssistantSessionTitleFromMessage } from './utils/generate-ai-assistant-session-title-from-message.util';
 
 @Injectable()
@@ -18,6 +19,7 @@ export class CreateAiAssistantMessageService {
   constructor(
     private readonly aiAssistantSessionService: AiAssistantSessionService,
     private readonly aiAssistantRunTriggerService: AiAssistantRunTriggerService,
+    private readonly insightTemplateService: InsightTemplateService,
     private readonly mapper: AiAssistantMapper
   ) {}
 
@@ -35,8 +37,8 @@ export class CreateAiAssistantMessageService {
       content: command.text,
     });
 
+    const generatedTitle = generateAiAssistantSessionTitleFromMessage(command.text);
     if (!session.title?.trim()) {
-      const generatedTitle = generateAiAssistantSessionTitleFromMessage(command.text);
       if (generatedTitle) {
         session =
           await this.aiAssistantSessionService.updateSessionTitleByIdAndDataMartIdAndProjectId(
@@ -48,6 +50,12 @@ export class CreateAiAssistantMessageService {
           );
       }
     }
+    await this.insightTemplateService.updateTitleOnlyIfHasDefaultTitle(
+      session.templateId,
+      command.dataMartId,
+      command.projectId,
+      generatedTitle
+    );
 
     const runId = await this.aiAssistantRunTriggerService.createTrigger({
       userId: command.userId,

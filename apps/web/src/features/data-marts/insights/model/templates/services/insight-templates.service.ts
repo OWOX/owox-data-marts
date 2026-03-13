@@ -20,9 +20,14 @@ export class InsightTemplatesService extends ApiService {
 
   async getInsightTemplateById(
     dataMartId: string,
-    id: string
+    id: string,
+    options?: { skipLoadingIndicator?: boolean; signal?: AbortSignal }
   ): Promise<InsightTemplateResponseDto> {
-    return this.get<InsightTemplateResponseDto>(`/${dataMartId}/insight-templates/${id}`);
+    return this.get<InsightTemplateResponseDto>(
+      `/${dataMartId}/insight-templates/${id}`,
+      null,
+      options as AxiosRequestConfig
+    );
   }
 
   async createInsightTemplate(

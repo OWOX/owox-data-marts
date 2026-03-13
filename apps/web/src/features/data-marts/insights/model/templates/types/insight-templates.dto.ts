@@ -39,7 +39,7 @@ export interface InsightTemplateListResponseDto {
 }
 
 export interface CreateInsightTemplateRequestDto {
-  title: string;
+  title?: string;
   template?: string | null;
 }
 

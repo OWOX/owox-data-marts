@@ -515,6 +515,32 @@ export default function InsightDetailsView() {
     void refetchSources();
   }, [loadEntity, refetchSources]);
 
+  const refreshInsightTitle = useCallback(async () => {
+    if (!dataMart?.id || !insightId) {
+      return;
+    }
+
+    try {
+      const templateDto = await insightTemplatesService.getInsightTemplateById(
+        dataMart.id,
+        insightId,
+        { skipLoadingIndicator: true }
+      );
+      const nextTitle = templateDto.title.trim();
+      if (!nextTitle) {
+        return;
+      }
+
+      setEntity(prev => (prev ? { ...prev, title: nextTitle } : prev));
+    } catch {
+      // non-blocking: if title refresh fails, the page remains usable
+    }
+  }, [dataMart?.id, insightId]);
+
+  const handleAiMessageSent = useCallback(async () => {
+    await refreshInsightTitle();
+  }, [refreshInsightTitle]);
+
   const handleAddReport = useCallback(
     (fromList = false) => {
       setReportToEdit(undefined);
@@ -781,6 +807,7 @@ export default function InsightDetailsView() {
                     onHistoryViewChange={setIsAiHistoryView}
                     onBusyChange={setIsAiBusy}
                     onApplied={handleApplied}
+                    onMessageSent={handleAiMessageSent}
                     onRun={handleRun}
                   />
                 ) : (
