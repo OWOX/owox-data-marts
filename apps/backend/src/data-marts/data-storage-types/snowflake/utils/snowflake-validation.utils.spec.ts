@@ -7,7 +7,11 @@ import {
   describeTablePatternValidator,
 } from '../../utils/validation.utils.spec';
 
-const BASE_CONFIG = { allowedChars: 'a-zA-Z0-9_$', allowTwoLevel: false };
+const BASE_CONFIG = {
+  allowedChars: 'a-zA-Z0-9_$',
+  allowTwoLevel: false,
+  allowQuotedSegments: true,
+};
 
 describeFullyQualifiedNameValidator(
   'Snowflake',
@@ -25,6 +29,20 @@ describeFullyQualifiedNameValidator(
     it('should return false for SQL injection attempts with comments', () => {
       expect(isValidSnowflakeFullyQualifiedName('db.schema.table--')).toBe(false);
       expect(isValidSnowflakeFullyQualifiedName('db.schema.table/*comment*/')).toBe(false);
+    });
+
+    it('should return true for production CONNECTOR formats with quoted identifiers', () => {
+      expect(
+        isValidSnowflakeFullyQualifiedName('ads_owox."PUBLIC"."google_ads_ad_group_ads_stats"')
+      ).toBe(true);
+      expect(
+        isValidSnowflakeFullyQualifiedName(
+          'facebook_ads_owox."PUBLIC"."facebook_ads_ad_account_insights"'
+        )
+      ).toBe(true);
+      expect(
+        isValidSnowflakeFullyQualifiedName('shopify_owox_2026."PUBLIC"."shopify_orders"')
+      ).toBe(true);
     });
   }
 );

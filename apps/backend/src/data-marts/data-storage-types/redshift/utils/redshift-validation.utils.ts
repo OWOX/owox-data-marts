@@ -7,11 +7,12 @@ import { createIdentifierValidator } from '../../utils/validation.utils';
 
 const ALLOWED_CHARS = 'a-zA-Z0-9_';
 
-/** Format: schema.table or database.schema.table (hyphens NOT allowed) */
+/** Format: schema.table or "schema"."table" (quoted segments allowed) */
 export const isValidRedshiftFullyQualifiedName = createIdentifierValidator({
   allowedChars: ALLOWED_CHARS,
   allowTwoLevel: true,
   allowWildcard: false,
+  allowQuotedSegments: true,
 });
 
 /** Format: schema.table_* or database.schema.table_* (with wildcard) */

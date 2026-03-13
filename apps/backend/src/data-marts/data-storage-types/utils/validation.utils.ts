@@ -13,6 +13,8 @@ export interface IdentifierValidatorConfig {
   allowTwoLevel: boolean;
   /** Whether `*` wildcard is allowed in the last segment (for table patterns) */
   allowWildcard: boolean;
+  /** Whether segments wrapped in double-quotes are accepted (e.g. "PUBLIC") */
+  allowQuotedSegments?: boolean;
 }
 
 /**
@@ -22,8 +24,9 @@ export interface IdentifierValidatorConfig {
 export function createIdentifierValidator(
   config: IdentifierValidatorConfig
 ): (value: string) => boolean {
-  const { allowedChars, allowTwoLevel, allowWildcard } = config;
-  const segment = `[${allowedChars}]+`;
+  const { allowedChars, allowTwoLevel, allowWildcard, allowQuotedSegments } = config;
+  const unquoted = `[${allowedChars}]+`;
+  const segment = allowQuotedSegments ? `(?:${unquoted}|"${unquoted}")` : unquoted;
   const lastSegment = allowWildcard ? `[${allowedChars}*]+` : segment;
   const threeLevel = new RegExp(`^${segment}\\.${segment}\\.${lastSegment}$`);
   const twoLevel = allowTwoLevel ? new RegExp(`^${segment}\\.${lastSegment}$`) : null;
