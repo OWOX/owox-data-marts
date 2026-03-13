@@ -1,5 +1,68 @@
 # owox
 
+## 0.21.0
+
+### Minor Changes 0.21.0
+
+- d906258: # Add copy credentials button to Storage and Destination
+
+  Added a "Copy Credentials" button to Storage and Destination edit forms, allowing users to copy credential configuration from other storages or destinations of the same type. Includes new backend endpoints for listing storages and destinations by type with credential identity information.
+
+- a7bbb8c: # Add OAuth for Google Ads connector
+
+  Added OAuth2 authentication flow for Google Ads connector. Users can now authorize access using a "Sign in with Google" button instead of manually entering RefreshToken, ClientId, and ClientSecret. The DeveloperToken is managed via environment variable and stored securely with other OAuth credentials. Also fixed a COOP SecurityError in the OAuth popup polling that affected all OAuth connectors.
+
+- cb57600: # Add video about completing storage setup and publishing Data Marts
+
+  Added a video about how to complete the Google BigQuery (used in OWOX extension) storage setup to publish Data Marts from the OWOX Reports (Google Sheets extension).
+
+- 27e5af8: # AWS Athena storage descriptions
+
+  Added support for column descriptions (comments) in AWS Athena storage and Output Schema.
+
+- e68ca61: # Improve Data Mart publish status message
+
+  The publish status message for data marts has been improved to provide more clarity and actionable information.
+
+  ## More actionable information
+
+  - **Publish after:** The publish status message now shows what you need to do to publish the data mart. For example, if you need to complete storage configuration or configure an input source.
+  - **Ready to publish:** The publish status message now shows that the data mart is ready to publish.
+
+- 1a7b5f8: # Improve form UI with collapsible sections
+
+  This update introduces collapsible sections in forms to make configuration flows easier to complete.
+
+  Less important or advanced settings can now be hidden by default, allowing users to focus on the most important fields first. By reducing visual clutter and guiding attention to key inputs, we aim to improve the completion rate of configuration forms.
+
+  For example, this approach can help increase conversion when configuring system storages that are automatically created during integration with the OWOX Reports extension for Google Sheets.
+
+  The interaction follows the same collapsible pattern used in wizard screens, keeping the experience consistent across the product.
+
+  Existing forms remain unchanged and continue to appear expanded by default.
+
+- 6f1f61a: # Show storage health status in the configuration form
+
+  This update improves visibility of the storage connection status when configuring a Data Storage.
+
+  Users can now see whether the storage access is valid directly in the **General** section of the configuration form. This provides immediate feedback that the storage is correctly configured and ready to be used by Data Marts.
+
+  **Benefits:**
+  - Instantly understand if the storage connection is working
+  - Quickly detect configuration issues
+  - Maintain a consistent status indicator between the **Data Storage list** and the **configuration form**
+
+  This makes the setup experience clearer and helps users configure their storage with more confidence.
+
+### Patch Changes
+
+- @owox/internal-helpers@0.21.0
+- @owox/idp-protocol@0.21.0
+- @owox/idp-better-auth@0.21.0
+- @owox/idp-owox-better-auth@0.21.0
+- @owox/backend@0.21.0
+- @owox/web@0.21.0
+
 ## 0.20.0
 
 ### Minor Changes 0.20.0
@@ -9,7 +72,7 @@
 - cc5553d: # **New Sign Up options**: Email/Password and Microsoft Authentication in the Cloud edition on app.owox.com
 
   Users can now sign up using their email and password, or through Microsoft account integration for seamless access.
-  
+
 - 55ecd48: # **Table Filters** for Data Marts and Data Storages
 
   We’ve overhauled the table filtering experience to help you navigate large datasets with precision and speed:
@@ -66,7 +129,7 @@
   - String timestamps are now parsed and formatted to `YYYY-MM-DD HH:MM:SS` before being written to Snowflake
   - Invalid timestamp strings fall back to the existing special-character obfuscation path
 
-### Patch Changes
+### Patch Changes 0.20.0
 
 - @owox/internal-helpers@0.20.0
 - @owox/idp-protocol@0.20.0
