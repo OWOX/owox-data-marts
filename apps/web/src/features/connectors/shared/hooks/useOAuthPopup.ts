@@ -121,15 +121,22 @@ export function useOAuthPopup<TResponse, TAuthMessage>({
       clearInterval(pollTimerRef.current);
     }
     pollTimerRef.current = setInterval(() => {
-      if (popup.closed) {
-        if (pollTimerRef.current) {
-          clearInterval(pollTimerRef.current);
-          pollTimerRef.current = null;
+      try {
+        if (popup.closed) {
+          if (pollTimerRef.current) {
+            clearInterval(pollTimerRef.current);
+            pollTimerRef.current = null;
+          }
+          setIsLoading(false);
+          if (!authCompletedRef.current) {
+            stateRef.current = null;
+          }
         }
-        setIsLoading(false);
-        if (!authCompletedRef.current) {
-          stateRef.current = null;
-        }
+      } catch {
+        // Cross-Origin-Opener-Policy on accounts.google.com (and potentially
+        // other OAuth providers) blocks access to popup.closed while the popup
+        // is on a cross-origin page. The postMessage listener handles
+        // success/failure when the popup returns to our origin.
       }
     }, 500);
   };

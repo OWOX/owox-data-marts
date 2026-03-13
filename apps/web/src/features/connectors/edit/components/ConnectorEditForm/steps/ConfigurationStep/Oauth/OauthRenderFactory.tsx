@@ -6,6 +6,7 @@ import { useOAuth } from '../../../../../../shared/model/hooks/useOAuth';
 import { FacebookOauthRender } from './impl/FacebookOauthRender';
 import { TikTokOauthRender } from './impl/TikTokOauthRender';
 import { MicrosoftOauthRender } from './impl/MicrosoftOauthRender';
+import { GoogleAdsOauthRender } from './impl/GoogleAdsOauthRender';
 import { useState, useEffect, useMemo } from 'react';
 import type {
   OAuthStatusResponseDto,
@@ -316,6 +317,20 @@ export function OauthRenderFactory({
       case 'MicrosoftAds':
         return (
           <MicrosoftOauthRender
+            isLoading={isLoading}
+            status={status}
+            settings={settings}
+            onOAuthSuccess={handleOAuthSuccess}
+          />
+        );
+      case 'GoogleAds':
+        return (
+          <GoogleAdsOauthRender
+            specification={specification}
+            option={option}
+            configuration={configuration}
+            onValueChange={onValueChange}
+            connectorName={connectorName}
             isLoading={isLoading}
             status={status}
             settings={settings}
