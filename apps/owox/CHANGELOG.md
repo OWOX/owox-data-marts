@@ -2,7 +2,7 @@
 
 ## 0.21.0
 
-### Minor Changes
+### Minor Changes 0.21.0
 
 - d906258: # Add copy credentials button to Storage and Destination
 
@@ -25,6 +25,7 @@
   The publish status message for data marts has been improved to provide more clarity and actionable information.
 
   ## More actionable information
+
   - **Publish after:** The publish status message now shows what you need to do to publish the data mart. For example, if you need to complete storage configuration or configure an input source.
   - **Ready to publish:** The publish status message now shows that the data mart is ready to publish.
 
@@ -128,7 +129,7 @@
   - String timestamps are now parsed and formatted to `YYYY-MM-DD HH:MM:SS` before being written to Snowflake
   - Invalid timestamp strings fall back to the existing special-character obfuscation path
 
-### Patch Changes
+### Patch Changes 0.20.0
 
 - @owox/internal-helpers@0.20.0
 - @owox/idp-protocol@0.20.0
@@ -1309,6 +1310,7 @@
   We're excited to introduce **Time Triggers** - a powerful new feature that allows you to schedule your reports and connectors to run automatically at specified times!
 
   ## Benefits
+
   - ✅ **Save Time**: Automate routine data refreshes without manual intervention
   - 🔄 **Stay Updated**: Keep your data fresh with regular scheduled updates
   - 📊 **Consistent Reporting**: Ensure your reports are generated on a reliable schedule
@@ -1316,6 +1318,7 @@
   - 🔧 **Flexible Scheduling Options**: Choose from daily, weekly, monthly, or interval-based schedules
 
   ## Scheduling Options
+
   - **Daily**: Run your reports or connectors at the same time every day
   - **Weekly**: Select specific days of the week for execution
   - **Monthly**: Schedule runs on specific days of the month
