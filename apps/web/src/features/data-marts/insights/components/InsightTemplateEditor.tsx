@@ -2,17 +2,23 @@ import { useRef } from 'react';
 import { Editor, type OnMount } from '@monaco-editor/react';
 import { useTheme } from 'next-themes';
 import { registerTemplateSlashCommandProvider } from '../utils/monaco-template-commands.util';
+import { useMarkdownToolbar } from '../hooks';
+import { MarkdownToolbar } from './MarkdownToolbar';
 import type { InsightTemplateSourceEntity } from '../model';
 import type * as monacoEditor from 'monaco-editor';
 
-interface InsightTemplateEditorProps {
+export interface InsightTemplateEditorProps {
   value: string;
   onChange: (value: string) => void;
   sources?: InsightTemplateSourceEntity[];
   readOnly?: boolean;
   height?: string | number;
   onMount?: OnMount;
+  showToolbar?: boolean;
+  collapsibleToolbar?: boolean;
+  defaultToolbarCollapsed?: boolean;
 }
+
 export function InsightTemplateEditor({
   value,
   onChange,
@@ -20,18 +26,28 @@ export function InsightTemplateEditor({
   readOnly = false,
   height = '100%',
   onMount,
+  showToolbar = true,
+  collapsibleToolbar = false,
+  defaultToolbarCollapsed = false,
 }: InsightTemplateEditorProps) {
   const { resolvedTheme } = useTheme();
   const monacoRef = useRef<typeof monacoEditor | null>(null);
-
+  const editorRef = useRef<monacoEditor.editor.IStandaloneCodeEditor | null>(null);
   const sourcesRef = useRef<InsightTemplateSourceEntity[]>(sources);
   sourcesRef.current = sources;
 
-  const handleMount: OnMount = (editor, monaco) => {
-    monacoRef.current = monaco as unknown as typeof monacoEditor;
+  const { applyAction, applyHeadingLevel } = useMarkdownToolbar({
+    editorRef,
+    monacoRef,
+    readOnly,
+  });
+
+  const handleMount: OnMount = (editor, monacoInstance) => {
+    editorRef.current = editor;
+    monacoRef.current = monacoInstance as unknown as typeof monacoEditor;
 
     const cleanupProviders = registerTemplateSlashCommandProvider(
-      monaco as unknown as typeof monacoEditor,
+      monacoInstance as unknown as typeof monacoEditor,
       'markdown',
       () => sourcesRef.current
     );
@@ -60,13 +76,11 @@ export function InsightTemplateEditor({
       const tagNameMatch = /^(\w+)/.exec(tagContent);
       if (!tagNameMatch || (tagNameMatch[1] !== 'table' && tagNameMatch[1] !== 'value')) return;
 
-      // Case 1: cursor is right after the opening quote — source="|  or  source="partial|
       if (/(?:\s|^)source\s*=\s*"([^"]*)$/i.test(tagContent)) {
         editor.trigger('cursor', 'editor.action.triggerSuggest', {});
         return;
       }
 
-      // Case 2: cursor is inside a complete source="value" attribute (user clicked inside quotes)
       const fullLine = model.getLineContent(lineNumber);
       const sourceAttrFullMatch = /(?:\s|^)source\s*=\s*"([^"]*)"/gi;
       let match;
@@ -82,29 +96,42 @@ export function InsightTemplateEditor({
       }
     });
 
-    onMount?.(editor, monaco);
+    onMount?.(editor, monacoInstance);
   };
 
   return (
-    <Editor
-      className='h-full overflow-hidden rounded-tl-md'
-      language='markdown'
-      value={value}
-      onChange={v => {
-        onChange(v ?? '');
-      }}
-      onMount={handleMount}
-      height={height}
-      theme={resolvedTheme === 'dark' ? 'vs-dark' : 'light'}
-      options={{
-        minimap: { enabled: false },
-        scrollBeyondLastLine: false,
-        wordWrap: 'on',
-        automaticLayout: true,
-        overviewRulerBorder: false,
-        overviewRulerLanes: 0,
-        readOnly,
-      }}
-    />
+    <div className='flex h-full flex-col overflow-hidden rounded-tl-md' style={{ height }}>
+      <MarkdownToolbar
+        readOnly={readOnly}
+        showToolbar={showToolbar}
+        collapsible={collapsibleToolbar}
+        defaultCollapsed={defaultToolbarCollapsed}
+        onActionClick={applyAction}
+        onHeadingClick={applyHeadingLevel}
+      />
+
+      <div className='min-h-0 flex-1'>
+        <Editor
+          className='h-full overflow-hidden'
+          language='markdown'
+          value={value}
+          onChange={v => {
+            onChange(v ?? '');
+          }}
+          onMount={handleMount}
+          height='100%'
+          theme={resolvedTheme === 'dark' ? 'vs-dark' : 'light'}
+          options={{
+            minimap: { enabled: false },
+            scrollBeyondLastLine: false,
+            wordWrap: 'on',
+            automaticLayout: true,
+            overviewRulerBorder: false,
+            overviewRulerLanes: 0,
+            readOnly,
+          }}
+        />
+      </div>
+    </div>
   );
 }
