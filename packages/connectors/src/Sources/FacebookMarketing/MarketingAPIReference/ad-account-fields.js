@@ -224,7 +224,7 @@ var adAccountFields = {
 },
 'rf_spec': {
   'description': 'Reach and Frequency limits configuration. See Reach and Frequency',
-  'type': 'ReachFrequencySpec'
+  'type': DATA_TYPES.OBJECT
 },
 // Commented out because this field can cause confusion or errors.
 // 'show_checkout_experience': {
