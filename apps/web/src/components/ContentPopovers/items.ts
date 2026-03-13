@@ -3,6 +3,7 @@ import {
   Video2LookerAsDestination,
   Video3GettingStartedDataMarts,
   Video4LegacyStorageSetup,
+  Video5TryInsights,
 } from './popovers';
 import type { PopoverConfig, PopoverId } from './types';
 
@@ -34,5 +35,12 @@ export const popoverItems: Record<PopoverId, PopoverConfig> = {
     position: 'bottom-left',
     title: 'Complete BigQuery storage setup to publish Data Marts',
     content: Video4LegacyStorageSetup,
+  },
+  'video-5-try-insights': {
+    width: 500,
+    height: 355,
+    position: 'bottom-left',
+    title: 'Insights: how to get automated reports from questions',
+    content: Video5TryInsights,
   },
 };
