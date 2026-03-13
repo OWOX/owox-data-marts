@@ -64,6 +64,7 @@
   },
   "dependencies": {
     "@aws-sdk/client-athena": "^3.983.0",
+    "cls-hooked": "^4.2.2",
     "@aws-sdk/client-redshift-data": "^3.983.0",
     "@aws-sdk/client-s3": "^3.983.0",
     "@databricks/sql": "^1.12.0",
