@@ -1,13 +1,12 @@
 /**
- * Escapes a Databricks identifier using backticks
- * @param identifier - The identifier to escape (table name, column name, etc.)
- * @returns Escaped identifier
+ * Utility functions for escaping Databricks identifiers to prevent SQL injection
+ *
+ * @see {@link https://docs.databricks.com/en/sql/language-manual/sql-ref-names.html} Databricks Naming Rules
  */
-export function escapeDatabricksIdentifier(identifier: string): string {
-  // Escape backticks within the identifier by doubling them
-  const escaped = identifier.replace(/`/g, '``');
-  return `\`${escaped}\``;
-}
+
+import { createIdentifierEscaper } from '../../utils/identifier-escaper.utils';
+
+const escapeDatabricksIdentifier = createIdentifierEscaper({ quoteChar: '`' });
 
 /**
  * Escapes a fully qualified Databricks identifier (catalog.schema.table)
@@ -15,5 +14,5 @@ export function escapeDatabricksIdentifier(identifier: string): string {
  * @returns Escaped fully qualified identifier
  */
 export function escapeFullyQualifiedIdentifier(parts: string[]): string {
-  return parts.map(escapeDatabricksIdentifier).join('.');
+  return escapeDatabricksIdentifier(parts.join('.'));
 }

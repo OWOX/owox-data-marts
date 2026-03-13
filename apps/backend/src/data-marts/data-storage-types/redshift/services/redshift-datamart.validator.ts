@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import {
   DataMartValidator,
   ValidationResult,
@@ -11,10 +11,17 @@ import { RedshiftApiAdapterFactory } from '../adapters/redshift-api-adapter.fact
 import { RedshiftQueryBuilder } from './redshift-query.builder';
 import { isRedshiftConfig } from '../../data-storage-config.guards';
 import { isRedshiftCredentials } from '../../data-storage-credentials.guards';
+import { isValidRedshiftFullyQualifiedName } from '../utils/redshift-validation.utils';
+import {
+  isTableDefinition,
+  isViewDefinition,
+  isConnectorDefinition,
+} from '../../../dto/schemas/data-mart-table-definitions/data-mart-definition.guards';
 
 @Injectable()
 export class RedshiftDataMartValidator implements DataMartValidator {
   readonly type = DataStorageType.AWS_REDSHIFT;
+  private readonly logger = new Logger(RedshiftDataMartValidator.name);
 
   constructor(
     private readonly adapterFactory: RedshiftApiAdapterFactory,
@@ -34,6 +41,11 @@ export class RedshiftDataMartValidator implements DataMartValidator {
       return ValidationResult.failure('Incompatible data storage credentials');
     }
 
+    const identifierValidation = this.validateIdentifiers(dataMartDefinition);
+    if (!identifierValidation.valid) {
+      return identifierValidation;
+    }
+
     const adapter = this.adapterFactory.create(credentials, config);
 
     try {
@@ -45,9 +57,31 @@ export class RedshiftDataMartValidator implements DataMartValidator {
 
       return ValidationResult.success();
     } catch (error) {
-      return ValidationResult.failure('Data mart validation failed', {
-        error: error instanceof Error ? error.message : String(error),
-      });
+      const errorMessage = error instanceof Error ? error.message : String(error);
+
+      this.logger.error(`Redshift validation error: ${errorMessage}`);
+
+      return ValidationResult.failure(
+        'Data mart validation failed: Invalid query or database error'
+      );
     }
+  }
+
+  private validateIdentifiers(definition: DataMartDefinition): ValidationResult {
+    let identifierToValidate: string | undefined;
+
+    if (isTableDefinition(definition) || isViewDefinition(definition)) {
+      identifierToValidate = definition.fullyQualifiedName;
+    } else if (isConnectorDefinition(definition)) {
+      identifierToValidate = definition.connector.storage.fullyQualifiedName;
+    }
+
+    if (identifierToValidate && !isValidRedshiftFullyQualifiedName(identifierToValidate)) {
+      return ValidationResult.failure(
+        'Invalid identifier format. Expected: schema.table or database.schema.table'
+      );
+    }
+
+    return ValidationResult.success();
   }
 }
