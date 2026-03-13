@@ -4,6 +4,8 @@ The **Insights** tab lets you create reusable, narrative reports tied to a Data 
 
 > Use Insights to turn raw data mart output into recurring, narrative-style reports for stakeholders — without writing new queries every time.
 
+<https://customer-4geatlj66rtkaxtz.cloudflarestream.com/ac0673d19f6eddc08b09a87dc012b8fa/iframe>
+
 ---
 
 ## Prerequisites
