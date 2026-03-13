@@ -3,7 +3,7 @@ import { SqlAgentInput, SqlBuilderResponseSchema } from '../agent/types';
 import { getLastUserMessage } from '../agent-flow/ai-assistant-orchestrator.utils';
 import { buildJsonFormatSection, buildOutputRules } from './json-format.prompt';
 import { buildStorageRelatedRulesBlock } from './storage-related-prompt.utils';
-import { sanitizeSchema } from '../utils/sanitize-schema';
+import { prepareSchema } from '../utils/prepare-schema';
 
 export function buildSqlBuilderContextSystemPrompt(input: SqlAgentInput): string | null {
   const context = input.conversationContext;
@@ -77,6 +77,11 @@ SQL construction rules (MUST follow):
 - For computed ratio/rate metrics, default output format is percentage:
   - multiply by 100 and round to 2 decimal places.
   - if the user explicitly asks for raw fraction or another precision/format, follow the user request.
+- Output column naming policy (MUST follow plan contract):
+  - Use plan.dimensionSpecs[*].alias for selected dimension output columns when dimensionSpecs are provided.
+  - Use plan.metricSpecs[*].alias for metric output columns.
+  - Do NOT invent new output aliases from schema text or heuristics.
+  - If a selected dimension has no matching dimensionSpec, keep its original selected column name.
 - Return human-readable formatted SQL (line breaks + indentation), not a one-line query.
 - Formatting must be whitespace-only: do NOT change identifiers, quoting, expressions, or query logic.
 
@@ -113,6 +118,7 @@ Correctness rule:
 - [important] Do not use safe casting/parsing functions (e.g., TRY_CAST, TRY_TO_DATE, SAFE_CAST, SAFE_PARSE etc.) to hide errors.
 - SAFE_DIVIDE (or storageType equivalent) is allowed for divide-by-zero protection.
 - Internal self-check before final output:
+  - required dimensionSpecs aliases are implemented in SELECT (when dimensionSpecs are present);
   - all required metricSpecs are implemented with correct aggregation;
   - GROUP BY matches plan.grouping;
   - required whereSpecs are implemented;
@@ -145,7 +151,7 @@ ${JSON.stringify(plan)}
     ? `
 Authoritative schema (for reference; do not override plan contracts):
 --- SCHEMA START ---
-${JSON.stringify(sanitizeSchema(rawSchema))}
+${JSON.stringify(prepareSchema(rawSchema))}
 --- SCHEMA END ---
 `.trim()
     : '';
@@ -165,7 +171,7 @@ ${schemaBlock}
 Your task:
 - The SQL must implement the plan exactly and be executable.
 - Apply required transforms and use resolvedIdentifier as instructed.
-- Implement metricSpecs/whereSpecs/orderBySpecs when present and required.
+- Implement dimensionSpecs/metricSpecs/whereSpecs/orderBySpecs when present and required.
 - Always enforce the row limit.
 
 ${buildOutputRules()}

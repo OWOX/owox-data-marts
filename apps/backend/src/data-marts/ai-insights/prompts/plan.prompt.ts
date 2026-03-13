@@ -3,7 +3,7 @@ import { DataMartsAiInsightsTools } from '../tools/data-marts-ai-insights-tools.
 import { buildJsonFormatSection, buildOutputRules } from './json-format.prompt';
 import { getLastUserMessage } from '../agent-flow/ai-assistant-orchestrator.utils';
 import { buildStorageRelatedRulesBlock } from './storage-related-prompt.utils';
-import { sanitizeSchema } from '../utils/sanitize-schema';
+import { prepareSchema } from '../utils/prepare-schema';
 
 export function buildPlanContextSystemPrompt(input: PlanAgentInput): string | null {
   const context = input.conversationContext;
@@ -62,7 +62,19 @@ StorageType-aware planning:
 - Target storageType (authoritative): ${input.rawSchema.storageType}
 - Authoritative fully qualified table name: ${input.fullyQualifiedTableName}
 - You MUST take this storageType into account when producing requiredColumnsMeta.
-- You MUST produce metricSpecs/whereSpecs/orderBySpecs as structured SQL contracts.
+- You MUST produce dimensionSpecs/metricSpecs/whereSpecs/orderBySpecs as structured SQL contracts.
+- dimensionSpecs[*].alias and metricSpecs[*].alias naming policy:
+  - If the user explicitly requests output names, use those names.
+  - Otherwise, aliases should be business-friendly by default.
+  - businessName is strict first priority:
+    - If schema field businessName exists and is non-empty, you MUST use it as alias.
+    - In this case, do NOT replace it with any generated variant.
+  - If businessName is missing, derive alias from source column name in Title Case with spaces:
+    - month_consumption -> Month Consumption
+    - total_revenue_usd -> Total Revenue Usd
+  - Do NOT use schema description as an alias source.
+- For each selected dimension in plan.dimensions, provide a matching item in plan.dimensionSpecs
+  with sourceColumn and alias.
 - Provide requiredColumnsMeta for every column in requiredColumns using rawSchema:
   - rawType
   - semanticType
@@ -176,7 +188,7 @@ Schema summary (primary reference):
 ${schemaSummary ?? '(not provided)'}
 
 Raw table schema (columns):
-${JSON.stringify(sanitizeSchema(rawSchema))}
+${JSON.stringify(prepareSchema(rawSchema))}
 
 StorageType is ${input.rawSchema.storageType}.
 Authoritative fully qualified table name is ${input.fullyQualifiedTableName}.
@@ -197,6 +209,7 @@ Instructions:
 - Carefully choose:
   - the main fact table(s),
   - relevant dimensions and metrics,
+  - dimensionSpecs[] with required source/alias for every selected dimension,
   - metricSpecs[] with required aggregation/source/alias for every metric used,
   - the primary dateField and dateFilterDescription (if the question implies a time range),
   - whereConditions + whereSpecs (structured filters),
@@ -204,6 +217,8 @@ Instructions:
   - orderBySpecs (structured sorting when needed),
   - requiredColumns so that the SQL agent has all necessary fields.
 - When schema column descriptions include example values or format hints, use them to define parsing/casting transforms.
+- For dimensionSpecs[].alias and metricSpecs[].alias, if the user did not request specific output names,
+  if schema field businessName exists and is non-empty, you MUST use it as alias; otherwise derive alias from source column name in Title Case with spaces.
 - If filtering or sorting is needed by user intent, corresponding whereSpecs/orderBySpecs MUST be non-empty.
 
 ${buildOutputRules()}
