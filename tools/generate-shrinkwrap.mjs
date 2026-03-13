@@ -41,7 +41,7 @@ function main() {
     execSync('npm install --package-lock-only --ignore-scripts', {
       cwd: tmpDir,
       stdio: ['pipe', 'pipe', 'pipe'],
-      timeout: 120_000,
+      timeout: 1000 * 60 * 10,
     });
 
     const result = JSON.parse(fs.readFileSync(path.join(tmpDir, 'package-lock.json'), 'utf8'));
