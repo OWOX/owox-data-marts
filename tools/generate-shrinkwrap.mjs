@@ -38,11 +38,7 @@ function main() {
     fs.writeFileSync(path.join(tmpDir, 'package-lock.json'), JSON.stringify(seedLock, null, 2));
 
     console.log('Running npm install --package-lock-only ...');
-    execSync('npm install --package-lock-only --ignore-scripts', {
-      cwd: tmpDir,
-      stdio: ['pipe', 'pipe', 'pipe'],
-      timeout: 1000 * 60 * 10,
-    });
+    runNpmInstallWithRetry(tmpDir);
 
     const result = JSON.parse(fs.readFileSync(path.join(tmpDir, 'package-lock.json'), 'utf8'));
 
@@ -330,6 +326,31 @@ function resolveWorkspaceDeps(deps, workspaceVersions) {
     }
   }
   return resolved;
+}
+
+const NPM_RETRY_DELAY_MS = 15 * 1000;
+const NPM_MAX_RETRIES = 12;
+
+function runNpmInstallWithRetry(cwd) {
+  for (let attempt = 1; attempt <= NPM_MAX_RETRIES; attempt++) {
+    try {
+      execSync('npm install --package-lock-only --ignore-scripts', {
+        cwd,
+        stdio: ['pipe', 'pipe', 'pipe'],
+        timeout: 1000 * 60 * 10,
+      });
+      return;
+    } catch (err) {
+      const stderr = err.stderr?.toString() || '';
+      if (!stderr.includes('ETARGET') || attempt === NPM_MAX_RETRIES) {
+        throw err;
+      }
+      const match = stderr.match(/No matching version found for (.+?)\./);
+      const pkg = match ? match[1] : 'unknown';
+      console.log(`Waiting for ${pkg} to appear on npm (attempt ${attempt}/${NPM_MAX_RETRIES})...`);
+      execSync(`sleep ${NPM_RETRY_DELAY_MS / 1000}`);
+    }
+  }
 }
 
 main();
