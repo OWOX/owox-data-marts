@@ -104,6 +104,8 @@
     "serialize-javascript": "^7.0.4",
     "@angular-devkit/core": {
       "ajv": "^8.18.0"
-    }
+    },
+    "whatwg-url": "^14.1.1",
+    "tr46": "^5.1.1"
   }
 }
