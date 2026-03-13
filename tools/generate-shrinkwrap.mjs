@@ -1,4 +1,6 @@
+import { execSync } from 'child_process';
 import fs from 'fs';
+import os from 'os';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
@@ -7,209 +9,247 @@ const ROOT_DIR = path.resolve(__dirname, '..');
 const OWOX_DIR = path.join(ROOT_DIR, 'apps/owox');
 
 /**
- * Generates npm-shrinkwrap.json for the owox package by extracting
- * its complete dependency tree from the root package-lock.json.
+ * Generates npm-shrinkwrap.json for the owox CLI package.
  *
- * This ensures deterministic dependency resolution when users install
- * the CLI globally via `npm install -g owox`.
+ * Approach:
+ *   1. Build a standalone package.json (workspace deps → published versions)
+ *   2. Seed a package-lock.json with pinned versions from monorepo lockfile
+ *   3. Run `npm install --package-lock-only` — npm validates the tree,
+ *      fixes hoisting/nesting, adds missing packages, but respects pins
+ *
+ * This gives us both correctness (npm's resolver) and determinism
+ * (pinned versions from CI-tested monorepo lockfile).
  */
 function main() {
   console.log('Generating npm-shrinkwrap.json for owox package...');
 
-  const lockfilePath = path.join(ROOT_DIR, 'package-lock.json');
-  if (!fs.existsSync(lockfilePath)) {
-    console.error('package-lock.json not found at root. Run npm install first.');
-    process.exit(1);
-  }
-
-  const lockfile = JSON.parse(fs.readFileSync(lockfilePath, 'utf8'));
+  const lockfile = loadLockfile();
   const owoxPkgJson = JSON.parse(fs.readFileSync(path.join(OWOX_DIR, 'package.json'), 'utf8'));
+  const workspaceVersions = collectWorkspaceVersions(lockfile);
+  const standalonePkg = buildStandalonePackageJson(owoxPkgJson, workspaceVersions);
 
-  // Load publishable packages from changeset config
-  const changesetConfig = JSON.parse(
-    fs.readFileSync(path.join(ROOT_DIR, '.changeset', 'config.json'), 'utf8')
-  );
-  const publishablePackages = new Set();
-  if (changesetConfig.fixed) {
-    changesetConfig.fixed.forEach(group => group.forEach(pkg => publishablePackages.add(pkg)));
-  }
+  // Build seed lockfile from monorepo
+  const seedLock = buildSeedLock(standalonePkg, lockfile, workspaceVersions);
 
-  // Build workspace path -> npm name mapping from lockfile link entries
-  const wsPathToName = new Map();
-  for (const [key, val] of Object.entries(lockfile.packages)) {
-    if (key.startsWith('node_modules/') && val.link && val.resolved) {
-      wsPathToName.set(val.resolved, key.replace('node_modules/', ''));
-    }
-  }
+  // Let npm validate and fix the tree
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'owox-shrinkwrap-'));
+  try {
+    fs.writeFileSync(path.join(tmpDir, 'package.json'), JSON.stringify(standalonePkg, null, 2));
+    fs.writeFileSync(path.join(tmpDir, 'package-lock.json'), JSON.stringify(seedLock, null, 2));
 
-  // Initialize shrinkwrap
-  const shrinkwrapRoot = {
-    name: owoxPkgJson.name,
-    version: owoxPkgJson.version,
-    dependencies: { ...owoxPkgJson.dependencies },
-  };
-  if (owoxPkgJson.peerDependencies) {
-    shrinkwrapRoot.peerDependencies = { ...owoxPkgJson.peerDependencies };
-  }
-  if (owoxPkgJson.engines) {
-    shrinkwrapRoot.engines = { ...owoxPkgJson.engines };
-  }
-  if (owoxPkgJson.bin) {
-    shrinkwrapRoot.bin = { ...owoxPkgJson.bin };
-  }
+    console.log('Running npm install --package-lock-only ...');
+    execSync('npm install --package-lock-only --ignore-scripts', {
+      cwd: tmpDir,
+      stdio: ['pipe', 'pipe', 'pipe'],
+      timeout: 120_000,
+    });
 
-  const shrinkwrap = {
-    name: owoxPkgJson.name,
-    version: owoxPkgJson.version,
+    const result = JSON.parse(fs.readFileSync(path.join(tmpDir, 'package-lock.json'), 'utf8'));
+
+    // Report drift
+    reportDrift(seedLock, result);
+
+    const outputPath = path.join(OWOX_DIR, 'npm-shrinkwrap.json');
+    fs.writeFileSync(outputPath, JSON.stringify(result, null, 2) + '\n');
+
+    const totalPackages = Object.keys(result.packages).length - 1;
+    console.log(`Generated npm-shrinkwrap.json with ${totalPackages} packages`);
+    console.log(`Output: ${outputPath}`);
+  } finally {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Seed lockfile builder
+// ---------------------------------------------------------------------------
+
+/**
+ * Build a seed package-lock.json from the monorepo lockfile.
+ *
+ * Extracts all npm (non-workspace, non-dev) packages reachable from owox's
+ * dependency tree and maps them to top-level node_modules/ paths.
+ * npm will then re-hoist/nest as needed.
+ */
+function buildSeedLock(standalonePkg, lockfile, workspaceVersions) {
+  const seed = {
+    name: standalonePkg.name,
+    version: standalonePkg.version,
     lockfileVersion: 3,
     requires: true,
     packages: {
-      '': shrinkwrapRoot,
+      '': {
+        name: standalonePkg.name,
+        version: standalonePkg.version,
+        dependencies: standalonePkg.dependencies,
+        peerDependencies: standalonePkg.peerDependencies,
+        engines: standalonePkg.engines,
+      },
     },
   };
 
-  // Track claimed shrinkwrap paths to handle version conflicts
-  // swPath -> { version, lockPath }
-  const claimedPaths = new Map();
-  // Track processed lockfile paths to avoid cycles
-  const processedLockPaths = new Set();
-
-  // BFS queue: { depName, fromLockPath, parentSwPath }
+  // Collect all non-dev, non-link packages from monorepo lockfile
+  // and remap workspace-nested paths to flat node_modules/ paths.
+  //
+  // We traverse from owox's deps, following production dependencies only.
+  const visited = new Set();
   const queue = [];
 
-  // Seed with owox's production dependencies and peer dependencies
-  const startDeps = {
-    ...owoxPkgJson.dependencies,
-    ...owoxPkgJson.peerDependencies,
+  // Seed queue with owox's direct deps
+  const allDeps = {
+    ...standalonePkg.dependencies,
+    ...standalonePkg.peerDependencies,
   };
-  for (const depName of Object.keys(startDeps)) {
-    queue.push({ depName, fromLockPath: 'apps/owox', parentSwPath: '' });
+  for (const depName of Object.keys(allDeps)) {
+    queue.push({ depName, fromLockPath: 'apps/owox' });
   }
 
   while (queue.length > 0) {
-    const { depName, fromLockPath, parentSwPath } = queue.shift();
-
-    // Resolve dependency in the lockfile
+    const { depName, fromLockPath } = queue.shift();
     const resolved = findInLockfile(lockfile, depName, fromLockPath);
-    if (!resolved) {
-      console.warn(`Could not resolve "${depName}" from "${fromLockPath}" — skipping`);
-      continue;
-    }
+    if (!resolved) continue;
 
     const { lockPath, entry } = resolved;
 
     if (entry.link) {
-      // Workspace link — resolve to actual workspace entry
+      // Workspace package — resolve to workspace entry, queue its deps
       const wsPath = entry.resolved;
       const wsEntry = lockfile.packages[wsPath];
-      if (!wsEntry) {
-        console.warn(`Workspace "${wsPath}" not found in lockfile — skipping`);
-        continue;
+      if (!wsEntry) continue;
+
+      const visitKey = `ws:${wsPath}`;
+      if (visited.has(visitKey)) continue;
+      visited.add(visitKey);
+
+      // Add workspace package to seed with its published version
+      // Include dependencies so npm knows the tree structure
+      const wsName = lockPath.replace(/^node_modules\//, '');
+      const version = workspaceVersions.get(wsName) || wsEntry.version;
+      if (version) {
+        const seedEntry = { version };
+        // Resolve workspace deps to concrete versions for the seed
+        const wsDeps = wsEntry.dependencies || {};
+        const resolvedDeps = {};
+        for (const [dep, range] of Object.entries(wsDeps)) {
+          if (range === '*' && workspaceVersions.has(dep)) {
+            resolvedDeps[dep] = workspaceVersions.get(dep);
+          } else {
+            resolvedDeps[dep] = range;
+          }
+        }
+        if (Object.keys(resolvedDeps).length > 0) {
+          seedEntry.dependencies = resolvedDeps;
+        }
+        const wsPeers = wsEntry.peerDependencies || {};
+        if (Object.keys(wsPeers).length > 0) {
+          seedEntry.peerDependencies = { ...wsPeers };
+          if (wsEntry.peerDependenciesMeta) {
+            seedEntry.peerDependenciesMeta = { ...wsEntry.peerDependenciesMeta };
+          }
+        }
+        seed.packages[`node_modules/${wsName}`] = seedEntry;
       }
 
-      const wsName = wsPathToName.get(wsPath) || depName;
-
-      // Skip non-publishable workspace packages (e.g., @owox/ui)
-      // Their code is bundled into the packages that depend on them
-      if (!publishablePackages.has(wsName)) {
-        console.log(`Skipping non-publishable workspace "${wsName}" — bundled at build time`);
-        continue;
+      // Queue workspace production + peer deps
+      for (const subDep of Object.keys(wsEntry.dependencies || {})) {
+        queue.push({ depName: subDep, fromLockPath: wsPath });
       }
-
-      // Compute shrinkwrap path
-      const swPath = claimSwPath(depName, wsEntry.version, lockPath, parentSwPath, claimedPaths);
-      if (!swPath) continue; // already claimed with same version
-
-      if (processedLockPaths.has(wsPath)) continue;
-      processedLockPaths.add(wsPath);
-
-      // Add workspace package entry (without resolved/integrity — will be fetched from npm)
-      const wsSwEntry = { version: wsEntry.version };
-      if (wsEntry.dependencies) wsSwEntry.dependencies = { ...wsEntry.dependencies };
-      if (wsEntry.peerDependencies) wsSwEntry.peerDependencies = { ...wsEntry.peerDependencies };
-      if (wsEntry.engines) wsSwEntry.engines = { ...wsEntry.engines };
-      if (wsEntry.bin) wsSwEntry.bin = { ...wsEntry.bin };
-
-      shrinkwrap.packages[swPath] = wsSwEntry;
-
-      // Queue workspace's production deps
-      const wsDeps = { ...wsEntry.dependencies };
-      for (const subDep of Object.keys(wsDeps)) {
-        queue.push({ depName: subDep, fromLockPath: wsPath, parentSwPath: swPath });
-      }
-      // Queue workspace's peer deps
-      if (wsEntry.peerDependencies) {
-        for (const subDep of Object.keys(wsEntry.peerDependencies)) {
-          queue.push({ depName: subDep, fromLockPath: wsPath, parentSwPath: swPath });
+      for (const subDep of Object.keys(wsEntry.peerDependencies || {})) {
+        const meta = wsEntry.peerDependenciesMeta?.[subDep];
+        if (!meta?.optional) {
+          queue.push({ depName: subDep, fromLockPath: wsPath });
         }
       }
     } else {
       // Regular npm package
-      const swPath = claimSwPath(depName, entry.version, lockPath, parentSwPath, claimedPaths);
-      if (!swPath) continue;
+      if (visited.has(lockPath)) continue;
+      visited.add(lockPath);
 
-      if (processedLockPaths.has(lockPath)) continue;
-      processedLockPaths.add(lockPath);
+      // Extract the package's node_modules path (may be deeply nested in monorepo)
+      // For the seed, we put it at top-level — npm will re-nest if needed
+      const swPath = `node_modules/${depName}`;
 
-      // Copy entry, cleaning up monorepo-specific fields
-      const cleanEntry = { ...entry };
-      delete cleanEntry.dev;
-      delete cleanEntry.devOptional;
-      // Remove inBundle as it's monorepo-specific
-      delete cleanEntry.inBundle;
-
-      shrinkwrap.packages[swPath] = cleanEntry;
-
-      // Queue this package's production dependencies
-      if (entry.dependencies) {
-        for (const subDep of Object.keys(entry.dependencies)) {
-          queue.push({ depName: subDep, fromLockPath: lockPath, parentSwPath: swPath });
-        }
+      // Only add if not already claimed (first occurrence wins, typically the hoisted one)
+      if (!seed.packages[swPath]) {
+        const cleanEntry = { ...entry };
+        delete cleanEntry.dev;
+        delete cleanEntry.devOptional;
+        delete cleanEntry.inBundle;
+        seed.packages[swPath] = cleanEntry;
       }
-      // Queue peer dependencies (npm v7+ auto-installs peers)
-      if (entry.peerDependencies) {
-        for (const subDep of Object.keys(entry.peerDependencies)) {
-          // Skip optional peer deps that might not be present
-          const meta = entry.peerDependenciesMeta?.[subDep];
-          if (meta?.optional) continue;
-          queue.push({ depName: subDep, fromLockPath: lockPath, parentSwPath: swPath });
+
+      // Queue this package's production + non-optional peer deps
+      for (const subDep of Object.keys(entry.dependencies || {})) {
+        queue.push({ depName: subDep, fromLockPath: lockPath });
+      }
+      for (const subDep of Object.keys(entry.peerDependencies || {})) {
+        const meta = entry.peerDependenciesMeta?.[subDep];
+        if (!meta?.optional) {
+          queue.push({ depName: subDep, fromLockPath: lockPath });
         }
       }
     }
   }
 
-  // Write shrinkwrap
-  const outputPath = path.join(OWOX_DIR, 'npm-shrinkwrap.json');
-  fs.writeFileSync(outputPath, JSON.stringify(shrinkwrap, null, 2) + '\n');
-
-  const totalPackages = Object.keys(shrinkwrap.packages).length - 1; // minus root
-  console.log(`Generated npm-shrinkwrap.json with ${totalPackages} packages`);
-  console.log(`Output: ${outputPath}`);
+  return seed;
 }
 
-/**
- * Find a dependency in the lockfile by walking up from the given context path.
- * Mimics Node.js module resolution: checks nearest node_modules first, then parent.
- */
-function findInLockfile(lockfile, depName, fromPath) {
-  const searchPaths = getSearchPaths(fromPath, depName);
+// ---------------------------------------------------------------------------
+// Drift reporting
+// ---------------------------------------------------------------------------
 
-  for (const p of searchPaths) {
-    const entry = lockfile.packages[p];
-    if (entry) {
-      return { lockPath: p, entry };
+function reportDrift(seedLock, result) {
+  let pinned = 0;
+  let drifted = 0;
+  const driftedList = [];
+
+  for (const [swPath, entry] of Object.entries(result.packages)) {
+    if (!swPath || !entry.version) continue;
+
+    // Find this package in the seed
+    const name = swPath.split('node_modules/').pop();
+
+    // Check if seed had any entry for this package name (at any path)
+    let foundInSeed = false;
+    for (const [seedPath, seedEntry] of Object.entries(seedLock.packages)) {
+      if (!seedPath) continue;
+      const seedName = seedPath.split('node_modules/').pop();
+      if (seedName === name && seedEntry.version === entry.version) {
+        foundInSeed = true;
+        break;
+      }
+    }
+
+    if (foundInSeed) {
+      pinned++;
+    } else {
+      drifted++;
+      driftedList.push(`  ${name}: ${entry.version}`);
     }
   }
 
+  console.log(`Pinned: ${pinned}, Drifted: ${drifted}`);
+  if (drifted > 0 && driftedList.length <= 20) {
+    driftedList.forEach(l => console.log(l));
+  } else if (drifted > 0) {
+    driftedList.slice(0, 10).forEach(l => console.log(l));
+    console.log(`  ... and ${drifted - 10} more`);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Lockfile resolution helpers (from monorepo lockfile)
+// ---------------------------------------------------------------------------
+
+function findInLockfile(lockfile, depName, fromPath) {
+  const searchPaths = getSearchPaths(fromPath, depName);
+  for (const p of searchPaths) {
+    const entry = lockfile.packages[p];
+    if (entry) return { lockPath: p, entry };
+  }
   return null;
 }
 
-/**
- * Generate lockfile search paths for a dependency, walking up from the context path.
- * E.g., from "apps/owox" looking for "@oclif/core":
- *   - "apps/owox/node_modules/@oclif/core"
- *   - "node_modules/@oclif/core"
- */
 function getSearchPaths(fromPath, depName) {
   const paths = [];
   let current = fromPath;
@@ -220,16 +260,12 @@ function getSearchPaths(fromPath, depName) {
 
     if (!current) break;
 
-    // Walk up to parent
     const nmIdx = current.lastIndexOf('/node_modules/');
     if (nmIdx >= 0) {
-      // Inside nested node_modules — go up one level
       current = current.substring(0, nmIdx);
     } else if (current.startsWith('node_modules/')) {
-      // At top-level node_modules entry — go to root
       current = '';
     } else {
-      // Workspace path (e.g., "apps/owox") — go to root
       current = '';
     }
   }
@@ -237,44 +273,63 @@ function getSearchPaths(fromPath, depName) {
   return paths;
 }
 
-/**
- * Claim a shrinkwrap path for a package, handling version conflicts via nesting.
- * Returns the assigned shrinkwrap path, or null if already processed with same version.
- */
-function claimSwPath(depName, version, lockPath, parentSwPath, claimedPaths) {
-  // Try hoisted path first
-  const hoistedPath = `node_modules/${depName}`;
-  const existing = claimedPaths.get(hoistedPath);
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
 
-  if (!existing) {
-    // Hoisted spot is free
-    claimedPaths.set(hoistedPath, { version, lockPath });
-    return hoistedPath;
+function loadLockfile() {
+  const lockfilePath = path.join(ROOT_DIR, 'package-lock.json');
+  if (!fs.existsSync(lockfilePath)) {
+    console.error('package-lock.json not found at root. Run npm install first.');
+    process.exit(1);
   }
+  return JSON.parse(fs.readFileSync(lockfilePath, 'utf8'));
+}
 
-  if (existing.version === version) {
-    // Same version already hoisted — reuse (no duplicate entry needed)
-    return null;
+function collectWorkspaceVersions(lockfile) {
+  const versions = new Map();
+  for (const [key, val] of Object.entries(lockfile.packages)) {
+    if (!key.startsWith('node_modules/') || !val.link || !val.resolved) continue;
+    const pkgName = key.replace('node_modules/', '');
+    const wsEntry = lockfile.packages[val.resolved];
+    if (wsEntry?.version) versions.set(pkgName, wsEntry.version);
   }
+  return versions;
+}
 
-  // Version conflict — nest under parent
-  const nestedPath = parentSwPath
-    ? `${parentSwPath}/node_modules/${depName}`
-    : `node_modules/${depName}`;
+function buildStandalonePackageJson(owoxPkgJson, workspaceVersions) {
+  const rootPkgJson = JSON.parse(fs.readFileSync(path.join(ROOT_DIR, 'package.json'), 'utf8'));
 
-  const existingNested = claimedPaths.get(nestedPath);
-  if (existingNested) {
-    if (existingNested.version === version) return null;
-    // Deep nesting conflict — very rare, just warn
-    console.warn(
-      `Deep nesting conflict for "${depName}" at "${nestedPath}" ` +
-        `(existing: ${existingNested.version}, new: ${version})`
-    );
-    return null;
+  const pkg = {
+    name: owoxPkgJson.name,
+    version: owoxPkgJson.version,
+    type: owoxPkgJson.type,
+  };
+  if (owoxPkgJson.dependencies) {
+    pkg.dependencies = resolveWorkspaceDeps(owoxPkgJson.dependencies, workspaceVersions);
   }
+  if (owoxPkgJson.peerDependencies) {
+    pkg.peerDependencies = { ...owoxPkgJson.peerDependencies };
+  }
+  if (owoxPkgJson.engines) {
+    pkg.engines = { ...owoxPkgJson.engines };
+  }
+  if (rootPkgJson.overrides) {
+    pkg.overrides = { ...rootPkgJson.overrides };
+  }
+  return pkg;
+}
 
-  claimedPaths.set(nestedPath, { version, lockPath });
-  return nestedPath;
+function resolveWorkspaceDeps(deps, workspaceVersions) {
+  const resolved = {};
+  for (const [name, range] of Object.entries(deps)) {
+    if (range === '*' && workspaceVersions.has(name)) {
+      resolved[name] = workspaceVersions.get(name);
+    } else {
+      resolved[name] = range;
+    }
+  }
+  return resolved;
 }
 
 main();
