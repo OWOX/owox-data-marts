@@ -45,8 +45,9 @@ jobs:
       - name: Build all internal packages
         run: npm run build -w owox
 
-      - name: Generate npm-shrinkwrap.json for owox
-        run: node tools/generate-shrinkwrap.mjs
+      # TODO: re-enable after fixing shrinkwrap generation for snapshot publishes
+      # - name: Generate npm-shrinkwrap.json for owox
+      #   run: node tools/generate-shrinkwrap.mjs
 
       - name: Publish to "latest"
         run: |

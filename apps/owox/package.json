@@ -89,7 +89,7 @@
     "format": "prettier --write \"**/*.{ts,js,json}\" --ignore-path ../../.prettierignore",
     "format:check": "prettier --check \"**/*.{ts,js,json}\" --ignore-path ../../.prettierignore",
     "prebuild": "npm run build:clean && npm run build:dep",
-    "prepack": "oclif manifest && node ../../tools/generate-shrinkwrap.mjs",
+    "prepack": "oclif manifest",
     "prepublishOnly": "npm run lint",
     "pretest": "oclif manifest",
     "test": "mocha --forbid-only \"test/**/*.test.ts\"",
