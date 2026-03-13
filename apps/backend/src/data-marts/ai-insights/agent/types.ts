@@ -195,6 +195,13 @@ export const QueryPlanMetricSpecSchema = z.object({
   required: z.boolean().default(true),
 });
 
+export const QueryPlanDimensionSpecSchema = z.object({
+  name: z.string().min(1),
+  sourceColumn: z.string().min(1),
+  alias: z.string().min(1),
+  required: z.boolean().default(true),
+});
+
 export const QueryPlanWhereOperatorSchema = z.enum([
   '=',
   '!=',
@@ -249,6 +256,17 @@ export const QueryPlanSchema = z.object({
     .describe(
       'Columns used as dimensions/grouping keys (for GROUP BY or breakdown). ' +
         'These are typically categorical fields like campaign, channel, country, etc.'
+    ),
+
+  dimensionSpecs: z
+    .array(QueryPlanDimensionSpecSchema)
+    .default([])
+    .describe(
+      [
+        'Required dimension contract for SQL generation when dimensions are selected.',
+        'Each selected dimension should define source column and output alias.',
+        'SQL builder should follow these specs exactly.',
+      ].join('\n')
     ),
 
   metrics: z
@@ -320,6 +338,7 @@ export const QueryPlanSchema = z.object({
       [
         'Structured sorting contract for SQL generation.',
         'When user intent requires sorting, this field must include required ordering specs.',
+        'fieldOrAlias may reference a source field name or alias from metricSpecs/dimensionSpecs.',
       ].join('\n')
     ),
 

@@ -54,7 +54,7 @@ export class RedshiftSchemaMerger implements DataMartSchemaMerger {
 
       mergedFields.push({
         ...newField,
-        alias: existingField.alias ?? newField.alias,
+        alias: existingField.alias || newField.alias,
         isPrimaryKey: existingField.isPrimaryKey ?? newField.isPrimaryKey ?? false,
         description: existingField.description ?? newField.description,
         status: hasTypeMismatch

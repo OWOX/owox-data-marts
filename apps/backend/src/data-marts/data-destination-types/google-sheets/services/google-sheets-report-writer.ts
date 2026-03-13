@@ -283,7 +283,7 @@ export class GoogleSheetsReportWriter implements DataDestinationReportWriter {
 
       // Write header values
       await this.adapter.updateValues(spreadsheetId, `'${this.sheetTitle}'`, [
-        headers.map(h => h.alias ?? h.name),
+        headers.map(h => h.alias || h.name),
       ]);
 
       // Format headers

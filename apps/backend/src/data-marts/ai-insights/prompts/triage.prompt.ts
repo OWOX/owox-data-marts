@@ -2,7 +2,7 @@ import { AgentConversationContext, TriageModelJsonSchema } from '../agent/types'
 import { getLastUserMessage } from '../agent-flow/ai-assistant-orchestrator.utils';
 import { buildJsonFormatSection, buildOutputRules } from './json-format.prompt';
 import { GetMetadataOutput } from '../ai-insights-types';
-import { sanitizeSchema } from '../utils/sanitize-schema';
+import { prepareSchema } from '../utils/prepare-schema';
 
 export function buildTriageSystemPrompt(): string {
   return `
@@ -71,7 +71,7 @@ Conversation turns are provided as separate chat messages above.
 
 Authoritative data-mart metadata (preloaded):
 --- METADATA START ---
-${JSON.stringify(sanitizeSchema(input.prefetchedMetadata))}
+${JSON.stringify(prepareSchema(input.prefetchedMetadata))}
 --- METADATA END ---
 
 What you must do:

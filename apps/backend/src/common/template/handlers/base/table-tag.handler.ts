@@ -92,7 +92,7 @@ export class TableTagHandler
       return { rendered: '', meta: undefined as void };
     }
 
-    const headerCells = dataHeaders.map(h => h.alias ?? h.name);
+    const headerCells = dataHeaders.map(h => h.alias || h.name);
     const headerLine = `| ${headerCells.join(' | ')} |`;
     const separatorLine = `| ${dataHeaders.map(() => '---').join(' | ')} |`;
     const bodyLines = dataRows.map(row => {
