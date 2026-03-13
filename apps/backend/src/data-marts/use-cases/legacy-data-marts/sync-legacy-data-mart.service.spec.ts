@@ -10,6 +10,7 @@ import { LegacyDataStorageService } from '../../services/legacy-data-marts/legac
 import { LegacySyncTriggersService } from '../../services/legacy-data-marts/legacy-sync-triggers.service';
 import { DeleteLegacyDataMartService } from './delete-legacy-data-mart.service';
 import { SyncLegacyDataMartService } from './sync-legacy-data-mart.service';
+import { MoveLegacyDataStorageService } from './move-legacy-data-storage.service';
 
 // Mock external dependencies to avoid ESM import issues
 jest.mock('@owox/internal-helpers', () => ({
@@ -29,6 +30,7 @@ describe('SyncLegacyDataMartService', () => {
   let legacyDataStorageService: jest.Mocked<LegacyDataStorageService>;
   let legacySyncTriggersService: jest.Mocked<LegacySyncTriggersService>;
   let deleteLegacyDataMartService: jest.Mocked<DeleteLegacyDataMartService>;
+  let moveLegacyDataStorageService: jest.Mocked<MoveLegacyDataStorageService>;
 
   const mockProjection: DataMartsDetailsOdmResponseDto = {
     id: 'dm-123',
@@ -71,6 +73,10 @@ describe('SyncLegacyDataMartService', () => {
       run: jest.fn(),
     } as unknown as jest.Mocked<DeleteLegacyDataMartService>;
 
+    moveLegacyDataStorageService = {
+      run: jest.fn(),
+    } as unknown as jest.Mocked<MoveLegacyDataStorageService>;
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         SyncLegacyDataMartService,
@@ -79,6 +85,7 @@ describe('SyncLegacyDataMartService', () => {
         { provide: LegacyDataStorageService, useValue: legacyDataStorageService },
         { provide: LegacySyncTriggersService, useValue: legacySyncTriggersService },
         { provide: DeleteLegacyDataMartService, useValue: deleteLegacyDataMartService },
+        { provide: MoveLegacyDataStorageService, useValue: moveLegacyDataStorageService },
       ],
     }).compile();
 
@@ -115,6 +122,27 @@ describe('SyncLegacyDataMartService', () => {
       await service.run({ dataMartId: 'dm-123' });
 
       expect(legacyDataStorageService.findByGcpProjectId).toHaveBeenCalledWith('gcp-project');
+      expect(legacyDataStorageService.create).not.toHaveBeenCalled();
+      expect(dataMartService.save).toHaveBeenCalled();
+    });
+
+    it('should find existing storage by GCP project ID and migrate when project ID differs', async () => {
+      legacyDataMartsService.getDataMartDetails.mockResolvedValue(mockProjection);
+      legacyDataStorageService.findByGcpProjectId.mockResolvedValue({
+        ...mockStorage,
+        projectId: 'different-project',
+      } as DataStorage);
+      moveLegacyDataStorageService.run.mockResolvedValue(mockStorage);
+      dataMartService.findById.mockResolvedValue(null);
+      dataMartService.create.mockReturnValue({ id: 'dm-123' } as DataMart);
+
+      await service.run({ dataMartId: 'dm-123' });
+
+      expect(legacyDataStorageService.findByGcpProjectId).toHaveBeenCalledWith('gcp-project');
+      expect(moveLegacyDataStorageService.run).toHaveBeenCalledWith(
+        expect.objectContaining({ projectId: 'different-project' }),
+        'project-id'
+      );
       expect(legacyDataStorageService.create).not.toHaveBeenCalled();
       expect(dataMartService.save).toHaveBeenCalled();
     });
