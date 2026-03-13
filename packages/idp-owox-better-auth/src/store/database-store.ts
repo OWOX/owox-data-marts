@@ -1,5 +1,4 @@
 import { DatabaseAccount, DatabaseOperationResult, DatabaseUser } from '../types/index.js';
-import type { ProjectMember } from '@owox/idp-protocol';
 import { StoreResult } from './store-result.js';
 
 /**
@@ -54,30 +53,4 @@ export interface DatabaseStore {
   getAuthState(state: string): Promise<StoreResult>;
   deleteAuthState(state: string): Promise<void>;
   purgeExpiredAuthStates(): Promise<number>;
-
-  // Project Members Storage
-  /**
-   * Save project members to persistent storage.
-   * Uses UPSERT logic: updates existing members, adds new ones.
-   * Members not present in the update remain in storage with their current status.
-   */
-  saveProjectMembers(
-    projectId: string,
-    members: ProjectMember[],
-    ttlSeconds: number
-  ): Promise<void>;
-
-  /**
-   * Get all project members for a specific project.
-   * Returns all members including those marked as outbound.
-   */
-  getProjectMembers(projectId: string): Promise<ProjectMember[] | null>;
-
-  /**
-   * Get project sync info (expires_at and updated_at) from the project table.
-   * Used to determine if project members data needs to be refreshed.
-   */
-  getProjectSyncInfo(
-    projectId: string
-  ): Promise<{ expiresAt: Date | null; updatedAt: Date | null } | null>;
 }

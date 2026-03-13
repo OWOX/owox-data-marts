@@ -104,7 +104,6 @@ export class NullIdpProvider implements IdpProvider {
         projectRole: 'admin',
         userStatus: 'active',
         hasNotificationsEnabled: true,
-        isOutbound: false,
       },
     ];
   }

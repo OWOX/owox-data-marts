@@ -56,5 +56,4 @@ export type ProjectMember = {
   projectRole: string; // 'admin' | 'editor' | 'viewer'
   userStatus: string; // 'active' | 'blocked' | 'deleted' | 'locked' | 'erased'
   hasNotificationsEnabled: boolean; // from subscriptions.serviceNotifications
-  isOutbound?: boolean; // user is not in the project anymore
 };

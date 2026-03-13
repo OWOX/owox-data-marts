@@ -1,19 +1,17 @@
+import { createMailingProvider } from '@owox/internal-helpers';
 import {
   AuthResult,
-  GetProjectMembersOptions,
   IdpProvider,
   Payload,
   ProjectMember,
   Projects,
   ProtocolRoute,
 } from '@owox/idp-protocol';
-import { createMailingProvider } from '@owox/internal-helpers';
-import { getMigrations } from 'better-auth/db/migration';
 import cookieParser from 'cookie-parser';
 import e, { Express, NextFunction } from 'express';
 import { IdentityOwoxClient, TokenResponse } from './client/index.js';
-import type { BetterAuthProviderConfig } from './config/index.js';
 import { createBetterAuthConfig } from './config/index.js';
+import type { BetterAuthProviderConfig } from './config/index.js';
 import { AuthErrorController } from './controllers/auth-error-controller.js';
 import { PageController } from './controllers/page-controller.js';
 import { PasswordFlowController } from './controllers/password-flow-controller.js';
@@ -25,10 +23,8 @@ import { BetterAuthSessionService } from './services/auth/better-auth-session-se
 import { MagicLinkService } from './services/auth/magic-link-service.js';
 import { PkceFlowOrchestrator } from './services/auth/pkce-flow-orchestrator.js';
 import { PlatformAuthFlowClient } from './services/auth/platform-auth-flow-client.js';
-import { ProjectMembersService } from './services/core/project-members-service.js';
-import type { ProjectMembersServiceOptions } from './types/project-members.js';
-import { UserAccountResolver } from './services/core/user-account-resolver.js';
 import { UserAuthInfoPersistenceService } from './services/core/user-auth-info-persistence-service.js';
+import { UserAccountResolver } from './services/core/user-account-resolver.js';
 import { UserContextService } from './services/core/user-context-service.js';
 import { EmailValidationService } from './services/email/email-validation-service.js';
 import { MagicLinkEmailService } from './services/email/magic-link-email-service.js';
@@ -46,6 +42,7 @@ import {
   getStateManager,
   persistPlatformParams,
 } from './utils/request-utils.js';
+import { getMigrations } from 'better-auth/db/migration';
 
 /**
  * Main IdP implementation that wires core PKCE flow and Better Auth.
@@ -66,7 +63,6 @@ export class OwoxBetterAuthIdp implements IdpProvider {
   private readonly userAuthInfoPersistenceService: UserAuthInfoPersistenceService;
   private readonly platformAuthFlowClient: PlatformAuthFlowClient;
   private readonly pkceFlowOrchestrator: PkceFlowOrchestrator;
-  private readonly projectMembersService: ProjectMembersService;
 
   private constructor(
     auth: Awaited<ReturnType<typeof createBetterAuthConfig>>,
@@ -122,23 +118,22 @@ export class OwoxBetterAuthIdp implements IdpProvider {
       this.store,
       this.pkceFlowOrchestrator
     );
-
-    // Initialize project members service
-    const serviceOptions: ProjectMembersServiceOptions = {
-      ttlSeconds: this.config.idpOwox.projectMembersCacheTtlSeconds,
-    };
-    this.projectMembersService = new ProjectMembersService(
-      this.store,
-      this.identityClient,
-      serviceOptions
-    );
   }
+  async getProjectMembers(projectId: string): Promise<ProjectMember[]> {
+    const response = await this.identityClient.getProjectMembers(projectId);
 
-  async getProjectMembers(
-    projectId: string,
-    options?: GetProjectMembersOptions
-  ): Promise<ProjectMember[]> {
-    return this.projectMembersService.getMembers(projectId, options);
+    if (!response.projectMembers || response.projectMembers.length === 0) {
+      return [];
+    }
+    return response.projectMembers.map(member => ({
+      userId: String(member.userId),
+      email: member.email,
+      fullName: member.fullName || undefined,
+      avatar: member.avatar || undefined,
+      projectRole: member.projectRole,
+      userStatus: member.userStatus,
+      hasNotificationsEnabled: member.subscriptions?.serviceNotifications ?? true,
+    }));
   }
 
   static async create(config: BetterAuthProviderConfig): Promise<OwoxBetterAuthIdp> {

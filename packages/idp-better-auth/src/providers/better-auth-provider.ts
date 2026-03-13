@@ -8,7 +8,6 @@ import {
   Payload,
   Projects,
   ProjectMember,
-  GetProjectMembersOptions,
 } from '@owox/idp-protocol';
 import { Express, type Request, Response, NextFunction } from 'express';
 import express from 'express';
@@ -241,10 +240,7 @@ export class BetterAuthProvider
     return this.userManagementService.removeUser(userId);
   }
 
-  async getProjectMembers(
-    _projectId: string,
-    _options?: GetProjectMembersOptions
-  ): Promise<ProjectMember[]> {
+  async getProjectMembers(_projectId: string): Promise<ProjectMember[]> {
     const users = await this.userManagementService.listUsers();
 
     return users.map(user => ({
@@ -255,7 +251,6 @@ export class BetterAuthProvider
       projectRole: user.roles?.[0] ?? 'viewer',
       userStatus: 'active',
       hasNotificationsEnabled: true, // No preference table yet
-      isOutbound: false,
     }));
   }
 }

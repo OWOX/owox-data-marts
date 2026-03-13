@@ -2,17 +2,6 @@ import { Payload, AuthResult, Projects, ProjectMember } from './models.js';
 import { Express, NextFunction, Request, Response } from 'express';
 
 /**
- * Options for getting project members
- */
-export interface GetProjectMembersOptions {
-  /**
-   * If true, always try return fresh data.
-   * @default true
-   */
-  forceFresh?: boolean;
-}
-
-/**
  * Simplified IDP Provider interface.
  */
 export interface IdpProvider {
@@ -114,11 +103,7 @@ export interface IdpProvider {
   /**
    * Get list of project members for a specific project
    * @param projectId - The project ID to get members for
-   * @param options - Optional settings for controlling freshness
    * @returns Array of project members with their details
    */
-  getProjectMembers(
-    projectId: string,
-    options?: GetProjectMembersOptions
-  ): Promise<ProjectMember[]>;
+  getProjectMembers(projectId: string): Promise<ProjectMember[]>;
 }
