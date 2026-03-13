@@ -86,7 +86,7 @@ export class IdpProjectionsService {
       await this.updateUserProjections(members);
 
       return members
-        .filter(m => m.userStatus !== 'locked' && m.userStatus !== 'erased')
+        .filter(m => m.userStatus !== 'locked' && m.userStatus !== 'erased' && !m.isOutbound)
         .map(m => ({
           userId: m.userId,
           email: m.email,

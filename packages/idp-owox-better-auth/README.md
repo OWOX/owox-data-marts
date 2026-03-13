@@ -75,6 +75,7 @@ IDP_OWOX_SENDGRID_VERIFIED_SENDER_NAME=OWOX Data Marts
 | `IDP_OWOX_JWT_ISSUER`                     | **Yes**  |                      –                      | Expected JWT issuer                                                                                           |
 | `IDP_OWOX_JWT_CACHE_TTL`                  |    No    |                    `1h`                     | JWKS cache TTL                                                                                                |
 | `IDP_OWOX_JWT_CLOCK_TOLERANCE`            |    No    |                    `5s`                     | Clock skew tolerance                                                                                          |
+| `IDP_OWOX_PROJECT_MEMBERS_CACHE_TTL`      |    No    |                    `15m`                    | Project members cache TTL (ms string like `15m`, `1h`)                                                        |
 | `IDP_BETTER_AUTH_SECRET`                  | **Yes**  |                      –                      | Secret key for signing (min. 32 characters)                                                                   |
 | `PUBLIC_ORIGIN`                           |    No    |           `http://localhost:3000`           | Base URL for callbacks                                                                                        |
 | `IDP_BETTER_AUTH_SESSION_MAX_AGE`         |    No    |              `1800` (30 mins)               | Session duration (seconds)                                                                                    |

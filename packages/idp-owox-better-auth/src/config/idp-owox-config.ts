@@ -205,6 +205,19 @@ const JwtEnvSchema = z
     algorithm: e.IDP_OWOX_JWT_ALGORITHM,
   }));
 
+/** ---------- Project Members Cache config ---------- */
+
+const ProjectMembersCacheEnvSchema = z
+  .object({
+    IDP_OWOX_PROJECT_MEMBERS_CACHE_TTL: zMsString.optional(),
+  })
+  .transform(e => ({
+    // Convert to seconds immediately
+    projectMembersCacheTtlSeconds: Math.floor(
+      ms(e.IDP_OWOX_PROJECT_MEMBERS_CACHE_TTL ?? ('15m' as ms.StringValue)) / 1000
+    ),
+  }));
+
 export type DbConfig = z.infer<typeof DbEnvSchema>;
 export type MysqlConfig = Extract<DbConfig, { type: 'mysql' }>;
 export type SqliteConfig = Extract<DbConfig, { type: 'sqlite' }>;
@@ -219,6 +232,7 @@ export type IdpOwoxConfig = {
   identityOwoxClientConfig: IdentityOwoxClientConfig;
   jwtConfig: JwtConfig;
   dbConfig: DbConfig;
+  projectMembersCacheTtlSeconds: number;
 };
 
 /** ---------- Better Auth (UI/auth) config ---------- */
@@ -363,6 +377,7 @@ export function loadIdpOwoxConfigFromEnv(env: NodeJS.ProcessEnv = process.env): 
   const identityOwoxClientConfig = IdentityOwoxClientEnvSchema.parse(env);
   const idpConfig = IdpEnvSchema.parse(env);
   const jwtConfig = JwtEnvSchema.parse(env);
+  const projectMembersCacheConfig = ProjectMembersCacheEnvSchema.parse(env);
   const baseUrl = resolveBaseUrl(env);
 
   if (jwtConfig.algorithm !== 'RS256') {
@@ -375,6 +390,7 @@ export function loadIdpOwoxConfigFromEnv(env: NodeJS.ProcessEnv = process.env): 
     identityOwoxClientConfig,
     jwtConfig,
     dbConfig,
+    projectMembersCacheTtlSeconds: projectMembersCacheConfig.projectMembersCacheTtlSeconds,
   };
 }
 

@@ -1,3 +1,4 @@
+import type { ProjectMember } from '@owox/idp-protocol';
 import { createServiceLogger } from '../core/logger.js';
 import type { DatabaseAccount, DatabaseOperationResult, DatabaseUser } from '../types/index.js';
 import type { DatabaseStore } from './database-store.js';
@@ -22,6 +23,7 @@ export class SqliteDatabaseStore implements DatabaseStore {
   private db?: SqliteDb;
   private readonly logger = createServiceLogger(SqliteDatabaseStore.name);
   private authTableReady = false;
+  private projectTablesReady = false;
 
   constructor(private readonly dbPath: string) {}
 
@@ -330,6 +332,172 @@ export class SqliteDatabaseStore implements DatabaseStore {
       id: String(row.id),
       createdAt: createdAt && !Number.isNaN(createdAt.getTime()) ? createdAt : null,
       expiresAt: expiresAt && !Number.isNaN(expiresAt.getTime()) ? expiresAt : null,
+    };
+  }
+
+  // Project Members Cache methods
+
+  private ensureProjectTables(): void {
+    if (this.projectTablesReady) return;
+    const db = this.getDb();
+
+    // Project table - stores project-level metadata
+    db.prepare(
+      `CREATE TABLE IF NOT EXISTS project (
+        projectId TEXT NOT NULL PRIMARY KEY,
+        updatedAt TEXT NOT NULL DEFAULT (CURRENT_TIMESTAMP),
+        expiresAt TEXT NOT NULL
+      )`
+    ).run();
+
+    // Project member table - stores individual member details
+    db.prepare(
+      `CREATE TABLE IF NOT EXISTS project_member (
+        projectId TEXT NOT NULL,
+        userId TEXT NOT NULL,
+        email TEXT NOT NULL,
+        fullName TEXT,
+        avatar TEXT,
+        projectRole TEXT NOT NULL,
+        userStatus TEXT NOT NULL,
+        hasNotificationsEnabled INTEGER NOT NULL DEFAULT 1,
+        isOutbound INTEGER NOT NULL DEFAULT 0,
+        createdAt TEXT NOT NULL DEFAULT (CURRENT_TIMESTAMP),
+        updatedAt TEXT NOT NULL DEFAULT (CURRENT_TIMESTAMP),
+        PRIMARY KEY (projectId, userId),
+        FOREIGN KEY (projectId) REFERENCES project(projectId) ON DELETE CASCADE
+      )`
+    ).run();
+
+    try {
+      db.prepare(`CREATE INDEX idx_project_member_user ON project_member(userId)`).run();
+    } catch {
+      // index already exists
+    }
+    try {
+      db.prepare(`CREATE INDEX idx_project_expires ON project(expiresAt)`).run();
+    } catch {
+      // index already exists
+    }
+
+    this.projectTablesReady = true;
+  }
+
+  async saveProjectMembers(
+    projectId: string,
+    members: ProjectMember[],
+    ttlSeconds: number
+  ): Promise<void> {
+    await this.connect();
+    this.ensureProjectTables();
+
+    const db = this.getDb();
+    const expiresAt = new Date(Date.now() + ttlSeconds * 1000).toISOString();
+
+    // Update project table with sync timestamp
+    const projectUpsertStmt = db.prepare(
+      `INSERT INTO project (projectId, updatedAt, expiresAt)
+       VALUES (?, CURRENT_TIMESTAMP, ?)
+       ON CONFLICT(projectId) DO UPDATE SET
+         updatedAt = CURRENT_TIMESTAMP,
+         expiresAt = excluded.expiresAt`
+    );
+    projectUpsertStmt.run(projectId, expiresAt);
+
+    // UPSERT members: Insert new or update existing without deleting anything
+    // This preserves historical data - members not in the update remain with their current status
+    const memberUpsertStmt = db.prepare(
+      `INSERT INTO project_member
+       (projectId, userId, email, fullName, avatar, projectRole, userStatus, hasNotificationsEnabled, isOutbound, updatedAt)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+       ON CONFLICT(projectId, userId) DO UPDATE SET
+         email = excluded.email,
+         fullName = excluded.fullName,
+         avatar = excluded.avatar,
+         projectRole = excluded.projectRole,
+         userStatus = excluded.userStatus,
+         hasNotificationsEnabled = excluded.hasNotificationsEnabled,
+         isOutbound = excluded.isOutbound,
+         updatedAt = CURRENT_TIMESTAMP`
+    );
+
+    for (const member of members) {
+      memberUpsertStmt.run(
+        projectId,
+        member.userId,
+        member.email,
+        member.fullName ?? null,
+        member.avatar ?? null,
+        member.projectRole,
+        member.userStatus,
+        member.hasNotificationsEnabled ? 1 : 0,
+        member.isOutbound ? 1 : 0
+      );
+    }
+  }
+
+  async getProjectMembers(projectId: string): Promise<ProjectMember[] | null> {
+    await this.connect();
+    this.ensureProjectTables();
+
+    const db = this.getDb();
+    const rows = db
+      .prepare(
+        `SELECT userId, email, fullName, avatar, projectRole, userStatus, hasNotificationsEnabled, isOutbound
+         FROM project_member
+         WHERE projectId = ?`
+      )
+      .all(projectId) as Array<{
+      userId: string;
+      email: string;
+      fullName: string | null;
+      avatar: string | null;
+      projectRole: string;
+      userStatus: string;
+      hasNotificationsEnabled: number;
+      isOutbound: number;
+    }>;
+
+    if (!rows || rows.length === 0) {
+      return null;
+    }
+
+    const members: ProjectMember[] = rows.map(row => ({
+      userId: row.userId,
+      email: row.email,
+      fullName: row.fullName ?? undefined,
+      avatar: row.avatar ?? undefined,
+      projectRole: row.projectRole,
+      userStatus: row.userStatus as ProjectMember['userStatus'],
+      hasNotificationsEnabled: row.hasNotificationsEnabled === 1,
+      isOutbound: row.isOutbound === 1,
+    }));
+
+    return members;
+  }
+
+  async getProjectSyncInfo(
+    projectId: string
+  ): Promise<{ expiresAt: Date | null; updatedAt: Date | null } | null> {
+    await this.connect();
+    this.ensureProjectTables();
+
+    const db = this.getDb();
+    const row = db
+      .prepare(
+        `SELECT expiresAt, updatedAt
+         FROM project
+         WHERE projectId = ?`
+      )
+      .get(projectId) as { expiresAt: string | null; updatedAt: string | null } | undefined;
+
+    if (!row) {
+      return null;
+    }
+
+    return {
+      expiresAt: row.expiresAt ? new Date(row.expiresAt) : null,
+      updatedAt: row.updatedAt ? new Date(row.updatedAt) : null,
     };
   }
 }
