@@ -265,6 +265,18 @@ export function useMarkdownToolbar({
     [applyEdit]
   );
 
+  const applySlashCommand = useCallback(
+    (ctx: EditorContext) => {
+      const { editor, selection } = ctx;
+      const insert = '/';
+      applyEdit(editor, selection, insert);
+      setTimeout(() => {
+        editor.trigger('keyboard', 'editor.action.triggerSuggest', {});
+      }, 50);
+    },
+    [applyEdit]
+  );
+
   const applyAction = useCallback(
     (actionId: MarkdownAction['id']) => {
       const ctx = getEditorContext();
@@ -301,6 +313,9 @@ export function useMarkdownToolbar({
         case 'table':
           applyTable(ctx);
           break;
+        case 'slash-command':
+          applySlashCommand(ctx);
+          break;
         default:
           break;
       }
@@ -319,6 +334,7 @@ export function useMarkdownToolbar({
       applyQuote,
       applyCodeBlock,
       applyTable,
+      applySlashCommand,
     ]
   );
 

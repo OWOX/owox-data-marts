@@ -35,7 +35,7 @@ export function MarkdownToolbar({
   if (!showToolbar) return null;
 
   return (
-    <div className='bg-muted/40 flex items-center gap-2 border-b px-3 py-1.5 text-xs'>
+    <div className='bg-muted/40 flex items-center gap-2 border-b px-3 py-1 text-xs'>
       <div className='text-muted-foreground flex items-center gap-2'>
         <Badge variant='outline' className='border-dashed px-2 py-0.5 text-[11px]'>
           Markdown
