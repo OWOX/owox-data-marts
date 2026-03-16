@@ -44,7 +44,7 @@ If a member manually removes themselves from the receivers list (via the UI), th
 | New Admin/Editor joins the project | Automatically subscribed |
 | Member leaves the project and returns as Admin/Editor | Automatically subscribed (treated as new) |
 | Admin/Editor manually unsubscribes via the UI | Stays unsubscribed |
-| Member's role changes from Viewer to Editor | Not auto-subscribed (already known to the project) |
+| Member's role changes from Viewer to Editor | Automatically subscribed |
 | Member's role changes from Editor to Viewer | Removed from receivers |
 
 #### Role-Based Cleanup

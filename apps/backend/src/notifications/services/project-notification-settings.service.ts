@@ -85,7 +85,19 @@ export class ProjectNotificationSettingsService {
       const beingEnabled = data.enabled === true && wasDisabled;
 
       if (data.enabled !== undefined) settings.enabled = data.enabled;
-      if (data.receivers !== undefined) settings.receivers = data.receivers;
+      if (data.receivers !== undefined) {
+        const oldReceivers = new Set(settings.receivers);
+        const newReceivers = new Set(data.receivers);
+        const removed = [...oldReceivers].filter(id => !newReceivers.has(id));
+        const added = [...newReceivers].filter(id => !oldReceivers.has(id));
+
+        const optedOut = new Set(settings.optedOutReceivers);
+        for (const id of removed) optedOut.add(id);
+        for (const id of added) optedOut.delete(id);
+        settings.optedOutReceivers = [...optedOut];
+
+        settings.receivers = data.receivers;
+      }
       if (data.webhookUrl !== undefined) settings.webhookUrl = data.webhookUrl;
 
       const cronChanged =
@@ -121,10 +133,9 @@ export class ProjectNotificationSettingsService {
   /**
    * Synchronize receivers with the current project member list:
    * - Remove receivers who left the project or whose role downgraded to viewer
-   * - Auto-subscribe new eligible (admin/editor) members not yet seen by the system
-   * - Respect manual unsubscriptions: members still in the project AND in knownMembers
-   *   but not in receivers are treated as manually removed and are NOT re-added
-   * - Clean knownMembers of users who left the project, so that if they return
+   * - Auto-subscribe eligible (admin/editor) members who haven't manually opted out
+   * - Respect manual unsubscriptions tracked in optedOutReceivers
+   * - Clean optedOutReceivers of users who left the project, so that if they return
    *   they are treated as new and auto-subscribed again
    */
   async syncReceivers(
@@ -138,14 +149,14 @@ export class ProjectNotificationSettingsService {
       members.filter(m => m.role === 'admin' || m.role === 'editor').map(m => m.userId)
     );
 
-    // Clean knownMembers: remove users who left the project so that
-    // re-joining is treated as a fresh addition (auto-subscribe again).
-    // Users who are still in the project but removed from receivers
-    // (manual unsubscription) remain in knownMembers.
-    const activeKnown = new Set(settings.knownMembers.filter(id => memberIds.has(id)));
+    // Clean optedOutReceivers: remove users who left the project so that
+    // re-joining is treated as a fresh start (auto-subscribe again).
+    const activeOptedOut = new Set(settings.optedOutReceivers.filter(id => memberIds.has(id)));
 
-    // New eligible members not yet tracked in knownMembers → auto-subscribe
-    const newEligible = [...eligibleIds].filter(id => !activeKnown.has(id));
+    // Auto-subscribe eligible members who haven't manually opted out
+    const newEligible = [...eligibleIds].filter(
+      id => !settings.receivers.includes(id) && !activeOptedOut.has(id)
+    );
 
     // Retain only receivers who are still project members AND still eligible
     const retainedReceivers = settings.receivers.filter(
@@ -153,22 +164,21 @@ export class ProjectNotificationSettingsService {
     );
 
     const updatedReceivers = [...retainedReceivers, ...newEligible];
-    // knownMembers = active known members (still in project) + all current eligible
-    const updatedKnown = [...new Set([...activeKnown, ...eligibleIds])];
+    const updatedOptedOut = [...activeOptedOut];
 
     const receiversChanged =
       updatedReceivers.length !== settings.receivers.length ||
       updatedReceivers.some((id, i) => id !== settings.receivers[i]);
-    const knownChanged =
-      updatedKnown.length !== settings.knownMembers.length ||
-      updatedKnown.some((id, i) => id !== settings.knownMembers[i]);
+    const optedOutChanged =
+      updatedOptedOut.length !== settings.optedOutReceivers.length ||
+      updatedOptedOut.some((id, i) => id !== settings.optedOutReceivers[i]);
 
-    if (receiversChanged || knownChanged) {
+    if (receiversChanged || optedOutChanged) {
       settings.receivers = updatedReceivers;
-      settings.knownMembers = updatedKnown;
+      settings.optedOutReceivers = updatedOptedOut;
       await this.repository.update(settings.id, {
         ...(receiversChanged ? { receivers: updatedReceivers } : {}),
-        ...(knownChanged ? { knownMembers: updatedKnown } : {}),
+        ...(optedOutChanged ? { optedOutReceivers: updatedOptedOut } : {}),
       });
     }
   }
@@ -196,7 +206,7 @@ export class ProjectNotificationSettingsService {
         notificationType,
         enabled: defaultEnabled,
         receivers,
-        knownMembers: [...receivers],
+        optedOutReceivers: [],
         webhookUrl: null,
         groupingDelayCron: DEFAULT_GROUPING_DELAY_CRON,
         lastRunAt: defaultEnabled ? now : null,

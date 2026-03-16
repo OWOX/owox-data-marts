@@ -41,7 +41,7 @@ export class ProjectNotificationSettings {
     default: [],
     transformer: createZodTransformer<string[]>(z.array(z.string())),
   })
-  knownMembers: string[];
+  optedOutReceivers: string[];
 
   @Column({ type: 'varchar', nullable: true })
   webhookUrl?: string | null;
