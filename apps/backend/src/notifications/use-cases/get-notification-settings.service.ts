@@ -16,22 +16,16 @@ export class GetNotificationSettingsService {
 
   async run(command: GetNotificationSettingsCommand): Promise<NotificationSettingsResponseApiDto> {
     const members = await this.idpProjectionsFacade.getProjectMembers(command.projectId);
-    const memberIds = new Set(members.map(m => m.userId));
 
     const settings = await this.settingsService.getOrCreateDefaultSettings(
       command.projectId,
       type => NOTIFICATION_DEFINITIONS[type].getDefaultReceivers(members)
     );
 
-    // Remove receivers who are no longer project members.
-    // Skip cleanup when member list is empty — likely an IDP failure, not an empty project.
+    // Sync receivers: remove departed/downgraded members, auto-subscribe new admins/editors.
     if (members.length > 0) {
       for (const s of settings) {
-        const validReceivers = s.receivers.filter(id => memberIds.has(id));
-        if (validReceivers.length !== s.receivers.length) {
-          s.receivers = validReceivers;
-          await this.settingsService.updateReceivers(s.id, validReceivers);
-        }
+        await this.settingsService.syncReceivers(s, members);
       }
     }
 

@@ -74,6 +74,7 @@ export class SendNotificationProcessor extends BaseSystemTaskProcessor {
         email: m.email,
         fullName: m.displayName ?? undefined,
         hasNotificationsEnabled: m.hasNotificationsEnabled,
+        role: m.role,
       }));
   }
 }

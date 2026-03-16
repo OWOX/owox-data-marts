@@ -118,6 +118,61 @@ export class ProjectNotificationSettingsService {
     await this.repository.update(id, { receivers });
   }
 
+  /**
+   * Synchronize receivers with the current project member list:
+   * - Remove receivers who left the project or whose role downgraded to viewer
+   * - Auto-subscribe new eligible (admin/editor) members not yet seen by the system
+   * - Respect manual unsubscriptions: members still in the project AND in knownMembers
+   *   but not in receivers are treated as manually removed and are NOT re-added
+   * - Clean knownMembers of users who left the project, so that if they return
+   *   they are treated as new and auto-subscribed again
+   */
+  async syncReceivers(
+    settings: ProjectNotificationSettings,
+    members: { userId: string; role: string }[]
+  ): Promise<void> {
+    if (members.length === 0) return; // IDP failure guard — don't touch receivers
+
+    const memberIds = new Set(members.map(m => m.userId));
+    const eligibleIds = new Set(
+      members.filter(m => m.role === 'admin' || m.role === 'editor').map(m => m.userId)
+    );
+
+    // Clean knownMembers: remove users who left the project so that
+    // re-joining is treated as a fresh addition (auto-subscribe again).
+    // Users who are still in the project but removed from receivers
+    // (manual unsubscription) remain in knownMembers.
+    const activeKnown = new Set(settings.knownMembers.filter(id => memberIds.has(id)));
+
+    // New eligible members not yet tracked in knownMembers → auto-subscribe
+    const newEligible = [...eligibleIds].filter(id => !activeKnown.has(id));
+
+    // Retain only receivers who are still project members AND still eligible
+    const retainedReceivers = settings.receivers.filter(
+      id => memberIds.has(id) && eligibleIds.has(id)
+    );
+
+    const updatedReceivers = [...retainedReceivers, ...newEligible];
+    // knownMembers = active known members (still in project) + all current eligible
+    const updatedKnown = [...new Set([...activeKnown, ...eligibleIds])];
+
+    const receiversChanged =
+      updatedReceivers.length !== settings.receivers.length ||
+      updatedReceivers.some((id, i) => id !== settings.receivers[i]);
+    const knownChanged =
+      updatedKnown.length !== settings.knownMembers.length ||
+      updatedKnown.some((id, i) => id !== settings.knownMembers[i]);
+
+    if (receiversChanged || knownChanged) {
+      settings.receivers = updatedReceivers;
+      settings.knownMembers = updatedKnown;
+      await this.repository.update(settings.id, {
+        ...(receiversChanged ? { receivers: updatedReceivers } : {}),
+        ...(knownChanged ? { knownMembers: updatedKnown } : {}),
+      });
+    }
+  }
+
   async getOrCreateDefaultSettings(
     projectId: string,
     resolveDefaultReceivers?: (type: NotificationType) => string[]
@@ -141,6 +196,7 @@ export class ProjectNotificationSettingsService {
         notificationType,
         enabled: defaultEnabled,
         receivers,
+        knownMembers: [...receivers],
         webhookUrl: null,
         groupingDelayCron: DEFAULT_GROUPING_DELAY_CRON,
         lastRunAt: defaultEnabled ? now : null,
