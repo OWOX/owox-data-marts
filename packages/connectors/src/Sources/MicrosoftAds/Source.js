@@ -42,6 +42,13 @@ var MicrosoftAdsSource = class MicrosoftAdsSource extends AbstractSource {
                   store: 'env',
                   key: 'OAUTH_MICROSOFT_ADS_REDIRECT_URI',
                   attributes: [OAUTH_CONSTANTS.UI, OAUTH_CONSTANTS.REQUIRED]
+                },
+                DeveloperToken: {
+                  type: 'string',
+                  required: true,
+                  store: 'env',
+                  key: 'OAUTH_MICROSOFT_ADS_DEVELOPER_TOKEN',
+                  attributes: [OAUTH_CONSTANTS.SECRET, OAUTH_CONSTANTS.REQUIRED]
                 }
               },
               mapping: {
@@ -62,6 +69,12 @@ var MicrosoftAdsSource = class MicrosoftAdsSource extends AbstractSource {
                   required: true,
                   store: 'secret',
                   key: 'client_secret'
+                },
+                DeveloperToken: {
+                  type: 'string',
+                  required: true,
+                  store: 'secret',
+                  key: 'developer_token'
                 }
               }
             },
@@ -85,17 +98,24 @@ var MicrosoftAdsSource = class MicrosoftAdsSource extends AbstractSource {
                 label: "Client Secret",
                 description: "Microsoft Ads Client Secret",
                 attributes: [CONFIG_ATTRIBUTES.SECRET]
+              },
+              DeveloperToken: {
+                isRequired: true,
+                requiredType: "string",
+                label: "Developer Token",
+                description: "Microsoft Ads Developer Token",
+                attributes: [CONFIG_ATTRIBUTES.SECRET]
               }
             }
           }
         ]
       },
       DeveloperToken: {
-        isRequired: true,
+        isRequired: false,
         requiredType: "string",
         label: "Developer Token",
         description: "Your Microsoft Ads API Developer Token",
-        attributes: [CONFIG_ATTRIBUTES.SECRET]
+        attributes: [CONFIG_ATTRIBUTES.SECRET, CONFIG_ATTRIBUTES.DEPRECATED, CONFIG_ATTRIBUTES.HIDE_IN_CONFIG_FORM]
       },
       ClientID: {
         isRequired: false,
@@ -218,7 +238,8 @@ var MicrosoftAdsSource = class MicrosoftAdsSource extends AbstractSource {
           refresh_token: data.refresh_token,
           access_token: data.access_token,
           client_id: variables.ClientId,
-          client_secret: variables.ClientSecret
+          client_secret: variables.ClientSecret,
+          developer_token: variables.DeveloperToken
         })
         .withExpiresIn(expiresIn)
         .build()
@@ -287,6 +308,10 @@ var MicrosoftAdsSource = class MicrosoftAdsSource extends AbstractSource {
     }
   }
 
+  _getDeveloperToken() {
+    return this.config.AuthType?.items?.DeveloperToken?.value || this.config.DeveloperToken?.value || process.env.OAUTH_MICROSOFT_ADS_DEVELOPER_TOKEN;
+  }
+
   /**
    * Single entry point for all fetches
    * @param {Object} opts
@@ -331,6 +356,8 @@ var MicrosoftAdsSource = class MicrosoftAdsSource extends AbstractSource {
   async _fetchCampaignData({ accountId, fields, onBatchReady }) {
     await this.getAccessToken();
 
+    const developerToken = this._getDeveloperToken();
+
     this.config.logMessage(`Fetching Campaigns, AssetGroups and AdGroups for account ${accountId}...`);
 
     const entityTypes = ['Campaigns', 'AssetGroups', 'AdGroups'];
@@ -345,7 +372,7 @@ var MicrosoftAdsSource = class MicrosoftAdsSource extends AbstractSource {
           contentType: 'application/json',
           headers: {
             Authorization: `Bearer ${this.config.AccessToken.value}`,
-            DeveloperToken: this.config.DeveloperToken.value,
+            DeveloperToken: developerToken,
             CustomerId: this.config.CustomerID.value,
             CustomerAccountId: accountId,
             'Content-Type': 'application/json'
@@ -519,6 +546,8 @@ var MicrosoftAdsSource = class MicrosoftAdsSource extends AbstractSource {
    * @private
    */
   async _downloadEntityBatch({ accountId, entityType, campaignBatch }) {
+    const developerToken = this._getDeveloperToken();
+
     const downloadBody = {
       Campaigns: campaignBatch.map(id => ({
         CampaignId: Number(id),
@@ -536,7 +565,7 @@ var MicrosoftAdsSource = class MicrosoftAdsSource extends AbstractSource {
       contentType: 'application/json',
       headers: {
         Authorization: `Bearer ${this.config.AccessToken.value}`,
-        DeveloperToken: this.config.DeveloperToken.value,
+        DeveloperToken: developerToken,
         CustomerId: this.config.CustomerID.value,
         CustomerAccountId: accountId,
         'Content-Type': 'application/json'
@@ -616,6 +645,8 @@ var MicrosoftAdsSource = class MicrosoftAdsSource extends AbstractSource {
       Scope: { AccountIds: [Number(accountId)] },
       Time: dateRange
     };
+    const developerToken = this._getDeveloperToken();
+
     const submitOpts = {
       method: 'post',
       contentType: 'application/json',
@@ -623,7 +654,7 @@ var MicrosoftAdsSource = class MicrosoftAdsSource extends AbstractSource {
         Authorization: `Bearer ${this.config.AccessToken.value}`,
         CustomerAccountId: `${this.config.CustomerID.value}|${accountId}`,
         CustomerId: this.config.CustomerID.value,
-        DeveloperToken: this.config.DeveloperToken.value,
+        DeveloperToken: developerToken,
         'Content-Type': 'application/json'
       },
       payload: JSON.stringify({ ReportRequest: requestBody }),
@@ -660,6 +691,8 @@ var MicrosoftAdsSource = class MicrosoftAdsSource extends AbstractSource {
   async _pollReportStatus({ submitResponse, accountId }) {
     const pollUrl = 'https://reporting.api.bingads.microsoft.com/Reporting/v13/GenerateReport/Poll';
     const submitResponseText = JSON.stringify(submitResponse);
+    const developerToken = this._getDeveloperToken();
+
     const pollOpts = {
       method: 'post',
       contentType: 'application/json',
@@ -667,7 +700,7 @@ var MicrosoftAdsSource = class MicrosoftAdsSource extends AbstractSource {
         Authorization: `Bearer ${this.config.AccessToken.value}`,
         CustomerAccountId: submitResponse.CustomerAccountId || `${this.config.CustomerID.value}|${accountId}`,
         CustomerId: this.config.CustomerID.value,
-        DeveloperToken: this.config.DeveloperToken.value,
+        DeveloperToken: developerToken,
         'Content-Type': 'application/json'
       },
       payload: submitResponseText,
