@@ -12,6 +12,7 @@ import {
   isSqlDefinition,
   isTablePatternDefinition,
 } from '../../../dto/schemas/data-mart-table-definitions/data-mart-definition.guards';
+import { escapeRedshiftIdentifier } from '../utils/redshift-identifier.utils';
 
 @Injectable()
 export class RedshiftQueryBuilder implements DataMartQueryBuilder {
@@ -21,9 +22,9 @@ export class RedshiftQueryBuilder implements DataMartQueryBuilder {
     let query: string;
 
     if (isTableDefinition(definition) || isViewDefinition(definition)) {
-      query = `SELECT * FROM ${this.escapeTablePath(definition.fullyQualifiedName)}`;
+      query = `SELECT * FROM ${escapeRedshiftIdentifier(definition.fullyQualifiedName)}`;
     } else if (isConnectorDefinition(definition)) {
-      query = `SELECT * FROM ${this.escapeTablePath(definition.connector.storage.fullyQualifiedName)}`;
+      query = `SELECT * FROM ${escapeRedshiftIdentifier(definition.connector.storage.fullyQualifiedName)}`;
     } else if (isSqlDefinition(definition)) {
       query = definition.sqlQuery.trim();
     } else if (isTablePatternDefinition(definition)) {
@@ -38,14 +39,5 @@ export class RedshiftQueryBuilder implements DataMartQueryBuilder {
     }
 
     return query;
-  }
-
-  private escapeTablePath(tablePath: string): string {
-    return tablePath
-      .split('.')
-      .map(identifier =>
-        identifier.startsWith('"') && identifier.endsWith('"') ? identifier : `"${identifier}"`
-      )
-      .join('.');
   }
 }

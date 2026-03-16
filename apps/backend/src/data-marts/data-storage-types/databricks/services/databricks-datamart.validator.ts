@@ -11,6 +11,12 @@ import { isDatabricksConfig } from '../../data-storage-config.guards';
 import { DataStorageConfig } from '../../data-storage-config.type';
 import { DataStorageCredentials } from '../../data-storage-credentials.type';
 import { DatabricksQueryBuilder } from './databricks-query.builder';
+import {
+  isConnectorDefinition,
+  isTableDefinition,
+  isViewDefinition,
+} from '../../../dto/schemas/data-mart-table-definitions/data-mart-definition.guards';
+import { isValidDatabricksFullyQualifiedName } from '../utils/databricks-validation.utils';
 
 @Injectable()
 export class DatabricksDataMartValidator implements DataMartValidator {
@@ -27,6 +33,11 @@ export class DatabricksDataMartValidator implements DataMartValidator {
     config: DataStorageConfig,
     credentials: DataStorageCredentials
   ): Promise<ValidationResult> {
+    const identifierValidation = this.validateIdentifiers(definition);
+    if (!identifierValidation.valid) {
+      return identifierValidation;
+    }
+
     if (!isDatabricksCredentials(credentials)) {
       return ValidationResult.failure('Invalid credentials');
     }
@@ -51,5 +62,27 @@ export class DatabricksDataMartValidator implements DataMartValidator {
       this.logger.warn('Dry run failed', error);
       return ValidationResult.failure(error instanceof Error ? error.message : String(error));
     }
+  }
+
+  private validateIdentifiers(definition: DataMartDefinition): ValidationResult {
+    if (isTableDefinition(definition) || isViewDefinition(definition)) {
+      if (!isValidDatabricksFullyQualifiedName(definition.fullyQualifiedName)) {
+        return ValidationResult.failure(
+          'Invalid identifier format. Expected: catalog.schema.table'
+        );
+      }
+    } else if (isConnectorDefinition(definition)) {
+      if (
+        !isValidDatabricksFullyQualifiedName(definition.connector.storage.fullyQualifiedName, {
+          allowTwoLevel: true,
+        })
+      ) {
+        return ValidationResult.failure(
+          'Invalid identifier format. Expected: schema.table or catalog.schema.table'
+        );
+      }
+    }
+
+    return ValidationResult.success();
   }
 }

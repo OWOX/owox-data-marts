@@ -11,10 +11,16 @@ import {
 } from '../../interfaces/data-mart-validator.interface';
 import { BigQueryApiAdapterFactory } from '../adapters/bigquery-api-adapter.factory';
 import { BigQueryQueryBuilder } from './bigquery-query.builder';
+import {
+  isConnectorDefinition,
+  isTableDefinition,
+  isViewDefinition,
+} from '../../../dto/schemas/data-mart-table-definitions/data-mart-definition.guards';
+import { isValidBigQueryFullyQualifiedName } from '../utils/bigquery-validation.utils';
 
 @Injectable()
 export class BigQueryDataMartValidator implements DataMartValidator {
-  readonly logger = new Logger(BigQueryDataMartValidator.name);
+  protected readonly logger = new Logger(BigQueryDataMartValidator.name);
   readonly type: DataStorageType = DataStorageType.GOOGLE_BIGQUERY;
 
   constructor(
@@ -27,6 +33,11 @@ export class BigQueryDataMartValidator implements DataMartValidator {
     config: DataStorageConfig,
     credentials: DataStorageCredentials
   ): Promise<ValidationResult> {
+    const identifierValidation = this.validateIdentifiers(definition);
+    if (!identifierValidation.valid) {
+      return identifierValidation;
+    }
+
     if (!isBigQueryCredentials(credentials)) {
       return ValidationResult.failure('Invalid credentials');
     }
@@ -42,5 +53,27 @@ export class BigQueryDataMartValidator implements DataMartValidator {
       this.logger.warn('Dry run failed', error);
       return ValidationResult.failure(error instanceof Error ? error.message : String(error));
     }
+  }
+
+  private validateIdentifiers(definition: DataMartDefinition): ValidationResult {
+    if (isTableDefinition(definition) || isViewDefinition(definition)) {
+      if (!isValidBigQueryFullyQualifiedName(definition.fullyQualifiedName)) {
+        return ValidationResult.failure(
+          'Invalid identifier format. Expected: project.dataset.table'
+        );
+      }
+    } else if (isConnectorDefinition(definition)) {
+      if (
+        !isValidBigQueryFullyQualifiedName(definition.connector.storage.fullyQualifiedName, {
+          allowTwoLevel: true,
+        })
+      ) {
+        return ValidationResult.failure(
+          'Invalid identifier format. Expected: dataset.table or project.dataset.table'
+        );
+      }
+    }
+
+    return ValidationResult.success();
   }
 }
