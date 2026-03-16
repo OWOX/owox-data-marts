@@ -13,9 +13,9 @@ import {
 } from '@owox/ui/components/form';
 import { Input } from '@owox/ui/components/input';
 import { Plus } from 'lucide-react';
-import { useEffect, useState } from 'react';
-import { Combobox } from '../../../../shared/components/Combobox/combobox';
+import { useEffect, useMemo, useState } from 'react';
 import { useForm } from 'react-hook-form';
+import { Combobox } from '../../../../shared/components/Combobox/combobox';
 import { DataStorageHealthIndicator, DataStorageType } from '../../../data-storage';
 import { DataStorageTypeDialog } from '../../../data-storage/shared/components/DataStorageTypeDialog';
 import { useDataStorage } from '../../../data-storage/shared/model/hooks/useDataStorage';
@@ -27,6 +27,8 @@ interface DataMartFormProps {
   };
   onSuccess?: (response: Pick<DataMart, 'id' | 'title'>) => void;
 }
+
+const CREATE_NEW_STORAGE_VALUE = 'create_new';
 
 export function DataMartCreateForm({ initialData, onSuccess }: DataMartFormProps) {
   const { handleCreate, isSubmitting, serverError } = useDataMartForm();
@@ -78,15 +80,19 @@ export function DataMartCreateForm({ initialData, onSuccess }: DataMartFormProps
     setIsDataStorageTypeDialogOpen(false);
     setIsCreatingDataStorage(false);
   };
-  const storageOptions = [
-    ...[...dataStorages]
-      .sort((a, b) => a.title.localeCompare(b.title))
-      .map(storage => ({
-        value: storage.id,
-        label: storage.title,
-      })),
-    { value: 'create_new', label: 'Create new storage' },
-  ];
+
+  const storageOptions = useMemo(
+    () => [
+      ...[...dataStorages]
+        .sort((a, b) => a.title.localeCompare(b.title))
+        .map(storage => ({
+          value: storage.id,
+          label: storage.title,
+        })),
+      { value: CREATE_NEW_STORAGE_VALUE, label: 'Create new storage', separator: true },
+    ],
+    [dataStorages]
+  );
   return (
     <>
       <Form {...form}>
@@ -130,7 +136,7 @@ export function DataMartCreateForm({ initialData, onSuccess }: DataMartFormProps
                       options={storageOptions}
                       value={field.value}
                       onValueChange={value => {
-                        if (value === 'create_new') {
+                        if (value === CREATE_NEW_STORAGE_VALUE) {
                           selectDataStorageType();
                         } else {
                           field.onChange(value);
@@ -141,21 +147,23 @@ export function DataMartCreateForm({ initialData, onSuccess }: DataMartFormProps
                       disabled={isSubmitting || loadingStorages}
                       className='w-full'
                       renderLabel={option =>
-                        option.value === 'create_new' ? (
-                          <div className='flex min-w-0 items-center gap-2'>
+                        option.value === CREATE_NEW_STORAGE_VALUE ? (
+                          <div className='flex min-w-0 flex-1 items-center gap-2'>
                             <div className='flex h-6 w-6 items-center justify-center'>
                               <Plus size={16} />
                             </div>
-                            <span className='truncate'>{option.label}</span>
+                            <span className='min-w-0 truncate'>{option.label}</span>
                           </div>
                         ) : (
-                          <div className='flex min-w-0 items-center gap-2'>
-                            <DataStorageHealthIndicator
-                              storageId={option.value}
-                              storageTitle={option.label}
-                              hovercardSide='left'
-                            />
-                            <span className='truncate'>{option.label}</span>
+                          <div className='flex min-w-0 flex-1 items-center gap-2'>
+                            <div className='shrink-0'>
+                              <DataStorageHealthIndicator
+                                storageId={option.value}
+                                storageTitle={option.label}
+                                hovercardSide='left'
+                              />
+                            </div>
+                            <span className='min-w-0 truncate'>{option.label}</span>
                           </div>
                         )
                       }
