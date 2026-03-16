@@ -3,7 +3,7 @@ import { buildJsonFormatSection, buildOutputRules } from './json-format.prompt';
 import { QueryPlan, QueryRepairResponseSchema } from '../agent/types';
 import { GetMetadataOutput, SqlStepError } from '../ai-insights-types';
 import { buildStorageRelatedRulesBlock } from './storage-related-prompt.utils';
-import { sanitizeSchema } from '../utils/sanitize-schema';
+import { prepareSchema } from '../utils/prepare-schema';
 
 export function buildQueryRepairSystemPrompt(
   budgets: AgentBudgets,
@@ -45,6 +45,9 @@ Plan contract (MUST follow):
 - Use only columns from plan.requiredColumnsMeta.
 - Use requiredColumnsMeta[column].resolvedIdentifier exactly as provided.
 - Apply transforms in real expressions (WHERE, metrics), not just notes.
+- Preserve output alias contract:
+  - keep plan.dimensionSpecs[*].alias for dimensions when dimensionSpecs are provided;
+  - keep plan.metricSpecs[*].alias for metrics.
 
 Mandatory change rule:
 - The repaired SQL MUST remove or change the failing expression/pattern that triggered the CURRENT error.
@@ -91,7 +94,7 @@ ${JSON.stringify(input.plan)}
   const schemaBlock = `
 Raw schema (user controlled metadata):
 --- SCHEMA START ---
-${JSON.stringify(sanitizeSchema(input.rawSchema))}
+${JSON.stringify(prepareSchema(input.rawSchema))}
 --- SCHEMA END ---
 
 Schema guidance:

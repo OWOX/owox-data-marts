@@ -1,7 +1,7 @@
 import { buildJsonFormatSection, buildOutputRules } from './json-format.prompt';
 import { QueryPlan, SqlErrorAdvisorResponseSchema } from '../agent/types';
 import { GetMetadataOutput } from '../ai-insights-types';
-import { sanitizeSchema } from '../utils/sanitize-schema';
+import { prepareSchema } from '../utils/prepare-schema';
 
 export function buildSqlErrorAdvisorSystemPrompt(): string {
   return `
@@ -76,7 +76,7 @@ ${JSON.stringify(input.plan)}
   const schemaBlock = `
 Raw schema (user controlled):
 --- SCHEMA START ---
-${JSON.stringify(sanitizeSchema(input.rawSchema))}
+${JSON.stringify(prepareSchema(input.rawSchema))}
 --- SCHEMA END ---
 `.trim();
 
