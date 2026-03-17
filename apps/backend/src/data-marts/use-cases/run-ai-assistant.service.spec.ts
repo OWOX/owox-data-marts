@@ -239,7 +239,7 @@ describe('RunAiAssistantService', () => {
     expect(agentFlowService.run).toHaveBeenCalledWith(
       expect.objectContaining({
         options: {
-          maxRows: 100,
+          maxRows: 101,
         },
       }),
       promptContext

@@ -3,6 +3,10 @@ import { TagRenderedResult } from '../../types/render-template.types';
 import { TagHandlerException } from '../tag-handler.exception';
 import { DEFAULT_SOURCE_KEY, TagHandler } from '../tag-handler.interface';
 import { TagHandlerMetaAware, TagMeta } from '../tag-handler-meta-aware.interface';
+import {
+  TABLE_TRUNCATION_NOTICE_MARKER,
+  TABLE_TRUNCATION_NOTICE_TEMPLATE,
+} from '../../constants/table-truncation-notice.constants';
 
 export interface DataTableHeader {
   name: string;
@@ -13,11 +17,15 @@ export interface DataTableHeader {
 export interface DataTablePayload {
   dataHeaders: DataTableHeader[];
   dataRows: unknown[][];
+  hasMoreRowsThanLimit?: boolean;
+  rowsLimit?: number;
 }
 
 interface TableSourceContext {
   dataHeaders?: DataTablePayload['dataHeaders'];
   dataRows?: DataTablePayload['dataRows'];
+  hasMoreRowsThanLimit?: boolean;
+  rowsLimit?: number;
 }
 
 const DEFAULT_TABLE_ROWS = 100;
@@ -79,24 +87,42 @@ export class TableTagHandler
     const columns = hash['columns'] as string | undefined;
 
     const slicedRows = this.sliceRows(dataRows, limit);
-
-    return columns
+    const payload = columns
       ? this.filterColumns(dataHeaders, slicedRows, columns)
       : { dataHeaders, dataRows: slicedRows };
+
+    const hasMoreRowsThanLimit = tableSource.hasMoreRowsThanLimit === true;
+    const rowsLimit = tableSource.rowsLimit ?? DEFAULT_TABLE_ROWS;
+
+    return {
+      ...payload,
+      hasMoreRowsThanLimit,
+      rowsLimit,
+    };
   }
 
   handle(input: DataTablePayload): TagRenderedResult<void> {
-    const { dataHeaders, dataRows } = input;
+    const {
+      dataHeaders,
+      dataRows,
+      hasMoreRowsThanLimit = false,
+      rowsLimit = DEFAULT_TABLE_ROWS,
+    } = input;
 
     if (!dataRows.length || !dataHeaders.length) {
       return { rendered: '', meta: undefined as void };
     }
+    const rowsToRender = hasMoreRowsThanLimit
+      ? this.appendTruncationNoticeRow(dataHeaders.length, dataRows, rowsLimit)
+      : dataRows;
 
     const headerCells = dataHeaders.map(h => h.alias || h.name);
     const headerLine = `| ${headerCells.join(' | ')} |`;
     const separatorLine = `| ${dataHeaders.map(() => '---').join(' | ')} |`;
-    const bodyLines = dataRows.map(row => {
-      const cells = row.map(cell => (cell == null ? '' : String(cell).replaceAll('|', '\\|')));
+    const bodyLines = rowsToRender.map(row => {
+      const cells = dataHeaders.map((_, index) =>
+        this.formatMarkdownCell((row as unknown[])[index] ?? null)
+      );
       return `| ${cells.join(' | ')} |`;
     });
 
@@ -138,5 +164,26 @@ export class TableTagHandler
       dataHeaders: indices.map(i => headers[i]),
       dataRows: rows.map(row => indices.map(i => (row as unknown[])[i])),
     };
+  }
+
+  private appendTruncationNoticeRow(
+    dataHeadersCount: number,
+    dataRows: unknown[][],
+    rowsLimit: number
+  ): unknown[][] {
+    const noticeText = TABLE_TRUNCATION_NOTICE_TEMPLATE.replace('{limit}', String(rowsLimit));
+    const noticeRow: unknown[] = [
+      `${TABLE_TRUNCATION_NOTICE_MARKER}${noticeText}`,
+      ...Array.from({ length: Math.max(dataHeadersCount - 1, 0) }, () => ''),
+    ];
+    return [...dataRows, noticeRow];
+  }
+
+  private formatMarkdownCell(cell: unknown): string {
+    return this.formatTextCell(cell).replaceAll('|', '\\|');
+  }
+
+  private formatTextCell(cell: unknown): string {
+    return cell == null ? '' : String(cell);
   }
 }
