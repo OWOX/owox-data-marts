@@ -11,6 +11,7 @@ import {
 } from '@owox/ui/components/dropdown-menu';
 import { MARKDOWN_ACTIONS, HEADING_LEVELS } from './InsightTemplateEditor.constants';
 import type { MarkdownAction } from './InsightTemplateEditor.constants';
+import { ExternalAnchor } from '@owox/ui/components/common/external-anchor';
 
 export interface MarkdownToolbarProps {
   readOnly?: boolean;
@@ -36,37 +37,8 @@ export function MarkdownToolbar({
 
   return (
     <div className='bg-muted/40 flex items-center gap-2 border-b px-3 py-1 text-xs'>
-      <div className='text-muted-foreground flex items-center gap-2'>
-        <Badge variant='outline' className='border-dashed px-2 py-0.5 text-[11px]'>
-          Markdown
-        </Badge>
-      </div>
-
-      {collapsible && (
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button
-              variant='ghost'
-              size='icon'
-              className='h-8 w-8'
-              onClick={() => {
-                setIsCollapsed(!isCollapsed);
-              }}
-              aria-label={isCollapsed ? 'Expand toolbar' : 'Collapse toolbar'}
-            >
-              {isCollapsed ? (
-                <ChevronDown className='h-4 w-4' />
-              ) : (
-                <ChevronUp className='h-4 w-4' />
-              )}
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent>{isCollapsed ? 'Expand toolbar' : 'Collapse toolbar'}</TooltipContent>
-        </Tooltip>
-      )}
-
       {!isCollapsed && (
-        <div className='ml-auto flex items-center gap-1'>
+        <div className='flex flex-1 items-center gap-1'>
           <DropdownMenu open={headingMenuOpen} onOpenChange={setHeadingMenuOpen}>
             <Tooltip>
               <TooltipTrigger asChild>
@@ -128,6 +100,51 @@ export function MarkdownToolbar({
           })}
         </div>
       )}
+      <div className='flex items-center gap-2'>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Badge
+              variant='outline'
+              className='text-muted-foreground cursor-help px-2 py-0.5 font-normal'
+            >
+              Markdown
+            </Badge>
+          </TooltipTrigger>
+          <TooltipContent>
+            <p>
+              This editor uses Markdown formatting.{' '}
+              <ExternalAnchor
+                href='https://www.markdownguide.org/basic-syntax/'
+                className='hover:text-foreground text-tooltip underline'
+              >
+                Learn more
+              </ExternalAnchor>
+            </p>
+          </TooltipContent>
+        </Tooltip>
+        {collapsible && (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant='ghost'
+                size='icon'
+                className='h-8 w-8'
+                onClick={() => {
+                  setIsCollapsed(!isCollapsed);
+                }}
+                aria-label={isCollapsed ? 'Expand toolbar' : 'Collapse toolbar'}
+              >
+                {isCollapsed ? (
+                  <ChevronDown className='h-4 w-4' />
+                ) : (
+                  <ChevronUp className='h-4 w-4' />
+                )}
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>{isCollapsed ? 'Expand toolbar' : 'Collapse toolbar'}</TooltipContent>
+          </Tooltip>
+        )}
+      </div>
     </div>
   );
 }

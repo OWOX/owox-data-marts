@@ -31,7 +31,12 @@ export function MarkdownEditorPreview({
   const [colors, setColors] = useState(() => readThemeColors());
 
   useEffect(() => {
-    setColors(readThemeColors());
+    const raf = requestAnimationFrame(() => {
+      setColors(readThemeColors());
+    });
+    return () => {
+      cancelAnimationFrame(raf);
+    };
   }, [resolvedTheme]);
 
   return (
@@ -44,6 +49,7 @@ export function MarkdownEditorPreview({
       {!loading && !error && !html && emptyState}
       {!loading && !error && !!html && (
         <iframe
+          key={`${String(resolvedTheme)}-${colors.bg}-${colors.fg}`}
           title='Markdown preview'
           sandbox='allow-popups allow-popups-to-escape-sandbox'
           srcDoc={`<!doctype html>
