@@ -161,6 +161,7 @@ export function DataMartCreateForm({ initialData, onSuccess }: DataMartFormProps
                                 storageId={option.value}
                                 storageTitle={option.label}
                                 hovercardSide='left'
+                                variant='compact'
                               />
                             </div>
                             <span className='min-w-0 truncate'>{option.label}</span>
