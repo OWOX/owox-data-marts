@@ -21,6 +21,7 @@ import {
   Send,
   Sparkles,
   Trash2,
+  OctagonX,
 } from 'lucide-react';
 import type { ImperativePanelHandle } from 'react-resizable-panels';
 import {
@@ -41,6 +42,7 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@owox/ui/components/dropdown-menu';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@owox/ui/components/tooltip';
@@ -692,6 +694,15 @@ export default function InsightDetailsView() {
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align='end'>
+              {isRunPending && (
+                <>
+                  <DropdownMenuItem onClick={() => void handleCancelRun()}>
+                    <OctagonX className='h-4 w-4' />
+                    <span>Cancel insight run</span>
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                </>
+              )}
               <DropdownMenuItem
                 disabled={!canDelete}
                 onClick={() => {
@@ -702,11 +713,8 @@ export default function InsightDetailsView() {
                   setIsDeleteDialogOpen(true);
                 }}
               >
-                <Trash2 className='mr-2 h-4 w-4 text-red-600' />
+                <Trash2 className='h-4 w-4 text-red-600' />
                 <span className='text-red-600'>Delete insight</span>
-              </DropdownMenuItem>
-              <DropdownMenuItem disabled={!isRunPending} onClick={() => void handleCancelRun()}>
-                Cancel run
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
