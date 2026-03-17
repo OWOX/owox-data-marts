@@ -24,6 +24,7 @@ export interface InsightTemplateTableSourceContext {
   dataRows: unknown[][];
   dataHeadersCount: number;
   hasMoreRowsThanLimit: boolean;
+  rowsLimit: number;
 }
 
 @Injectable()
@@ -145,6 +146,7 @@ export class InsightTemplateSourceDataService {
       dataRows,
       dataHeadersCount: dataHeaders.length,
       hasMoreRowsThanLimit,
+      rowsLimit: MAX_RENDERABLE_SOURCE_ROWS,
     };
   }
 

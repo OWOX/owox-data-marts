@@ -31,7 +31,7 @@ import {
   AiAssistantLogContext,
 } from '../ai-insights/ai-assistant-log-context';
 
-const DEFAULT_AI_ASSISTANT_MAX_ROWS = 100;
+const DEFAULT_AI_ASSISTANT_MAX_ROWS = 101;
 
 export class RunAiAssistantCommand {
   constructor(
