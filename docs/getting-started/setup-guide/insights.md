@@ -24,14 +24,16 @@ An Insight is composed of two parts: a **template** (the Markdown document) and 
 
 ### Template Syntax
 
-The template is a Markdown document. You control how data is embedded using the `{{table}}` tag.
+The template is a Markdown document. You control how data is embedded using the tags.
 
 | Tag | Description |
 |---|---|
 | `{{table}}` | Renders the full output of the Data Mart's Input Source as a Markdown table |
-| `{{table source="key"}}` | Renders the result of a specific Data Artifact identified by `key` |
+| `{{table source="data_artifact_id"}}` | Renders the result of a specific Data Artifact identified by `data_artifact_id` |
+| `{{value}}` | Inserts a single scalar value from the default source (row 1, column 1) |
+| `{{value source="data_artifact_id" path=".columnName[row]"}}` | Inserts a single scalar value from a specific Data Artifact and cell |
 
-Example template:
+Use `{{table}}` when you want to render a complete result set as a Markdown table — for example, a ranked list of channels or a weekly breakdown by campaign.
 
 ```markdown
 ## Weekly Campaign Performance
@@ -44,6 +46,30 @@ Example template:
 ```
 
 When the Insight is run, each `{{table}}` tag is replaced with a live Markdown table containing up to 100 rows from the corresponding query result.
+
+### `{{value}}` — embed a single metric
+
+Use `{{value}}` when you need to pull one number or label out of a query result — ideal for KPIs and summary sentences.
+
+There are three ways to address the cell:
+
+| Parameter | Description |
+|---|---|
+| _(none)_ | Returns row 1, column 1 of the source |
+| `path=".columnName"` or `path=".columnName[row]"` | Addresses a cell by column name and optional row index |
+| `column="name"` and `row="number"` | Addresses a cell by column name (or 1-based index) and row number |
+
+`path` and `column`/`row` are mutually exclusive. Row and column indexes are 1-based.
+
+Example — a summary sentence using values from a `kpis` Data Artifact:
+
+```markdown
+## This Week at a Glance
+
+Total spend: **{{value source="kpis" path=".total_spend"}}**
+Top channel: **{{value source="kpis" column="top_channel"}}**
+Cost per click: **{{value source="kpis" path=".cost_per_click[1]"}}**
+```
 
 ![Insight template editor showing a Markdown document with {{table source}} placeholders and a live rendered preview panel](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/2b520660-d627-4794-5184-7fd6b2033200/public)
 
