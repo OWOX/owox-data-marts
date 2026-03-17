@@ -11,18 +11,16 @@ import {
 import { Button } from '@owox/ui/components/button';
 import { type ColumnDef, type Row } from '@tanstack/react-table';
 import { Check, CircleCheckBig, Plus, Trash2 } from 'lucide-react';
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { toast } from 'react-hot-toast';
 import { Link, useParams } from 'react-router-dom';
-import { useContentPopovers } from '../../../../../app/store/hooks/useContentPopovers';
-import { storageService } from '../../../../../services';
 import { CardSkeleton } from '../../../../../shared/components/CardSkeleton';
 import {
   BaseTable,
   TableColumnSearch,
   TableCTAButton,
 } from '../../../../../shared/components/Table';
-import { useBaseTable, useProjectRoute } from '../../../../../shared/hooks';
+import { useBaseTable, useOnboardingVideo, useProjectRoute } from '../../../../../shared/hooks';
 import { usePersistentFilters } from '../../../../../shared/hooks/usePersistentFilters';
 import { applyFiltersToData } from '../../../../../shared/components/TableFilters/filter-utils';
 import { DataStorageType } from '../../../../data-storage';
@@ -89,22 +87,13 @@ export function DataMartTable<TData, TValue>({
   const [showPublishConfirmation, setShowPublishConfirmation] = useState(false);
   const [isPublishing, setIsPublishing] = useState(false);
 
-  const ONBOARDING_VIDEO_KEY = 'data-mart-empty-state-onboarding-video-shown';
-  const { open } = useContentPopovers();
-
-  /**
-   * Show onboarding video if the user has not seen it yet
-   */
-  useEffect(() => {
-    if (!isLoading && data.length === 0) {
-      const wasShown = storageService.get(ONBOARDING_VIDEO_KEY, 'boolean');
-
-      if (!wasShown) {
-        open('video-3-getting-started-with-data-marts');
-        storageService.set(ONBOARDING_VIDEO_KEY, true);
-      }
-    }
-  }, [isLoading, data.length, open]);
+  // Show onboarding video if the user has not seen it yet
+  const shouldShowOnboarding = !isLoading && data.length === 0;
+  useOnboardingVideo({
+    storageKey: 'data-mart-empty-state-onboarding-video-shown',
+    popoverId: 'video-3-getting-started-with-data-marts',
+    shouldShow: shouldShowOnboarding,
+  });
 
   // Compose columns with selection column (feature-specific)
   const columnsWithSelection = useMemo<ColumnDef<TData>[]>(
