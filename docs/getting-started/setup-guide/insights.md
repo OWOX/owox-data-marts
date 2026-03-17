@@ -1,4 +1,4 @@
-# AI Insights
+# Insights
 
 The **Insights** tab lets you create reusable, narrative reports tied to a Data Mart. Each Insight is a Markdown document with embedded data placeholders. When you run an Insight, OWOX executes the underlying SQL queries against your data warehouse and renders the results inline — producing a ready-to-read analysis document you can share or deliver on a schedule.
 
@@ -28,7 +28,7 @@ The template is a Markdown document. You control how data is embedded using the 
 
 | Tag | Description |
 |---|---|
-| `{{table}}` | Renders the full output of the Data Mart's default query as a Markdown table |
+| `{{table}}` | Renders the full output of the Data Mart's Input Source as a Markdown table |
 | `{{table source="key"}}` | Renders the result of a specific Data Artifact identified by `key` |
 
 Example template:
