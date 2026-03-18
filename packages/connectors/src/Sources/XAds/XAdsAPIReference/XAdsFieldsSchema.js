@@ -57,6 +57,15 @@ var XAdsFieldsSchema = {
     destinationName: "x_ads_stats",
     isTimeSeries: true
   },
+  stats_by_country: {
+    overview: "X Ads Stats by Country",
+    description: "Daily stats for promoted tweets broken down by location segment (country-level).",
+    documentation: "https://developer.x.com/en/docs/x-ads-api/analytics/api-reference/asynchronous",
+    fields: statsByCountryFields,
+    uniqueKeys: ["id", "date", "placement", "country"],
+    destinationName: "x_ads_stats_by_country",
+    isTimeSeries: true
+},
   cards: {
     overview: "X Ads Cards",
     description: "Website cards and app cards for X Ads.",
