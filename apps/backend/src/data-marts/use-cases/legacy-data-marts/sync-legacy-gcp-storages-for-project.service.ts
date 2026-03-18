@@ -31,7 +31,14 @@ export class SyncLegacyGcpStoragesForProjectService {
           this.logger.warn(
             `GCP ${gcpProjectId} changed project from ${existingStorage.projectId} to ${command.projectId}`
           );
-          await this.moveLegacyDataStorageService.run(existingStorage, command.projectId);
+          try {
+            await this.moveLegacyDataStorageService.run(existingStorage, command.projectId);
+          } catch (error) {
+            this.logger.error(
+              `Failed to move storage for GCP ${gcpProjectId}: ${error.message}`,
+              error.stack
+            );
+          }
         } else {
           this.logger.log(
             `GCP ${gcpProjectId} already linked to project ${command.projectId}, skipping`

@@ -42,7 +42,12 @@ describe('MoveLegacyDataStorageService', () => {
 
     mockManager = {
       createQueryBuilder: jest.fn().mockReturnValue(mockQueryBuilder),
-      save: jest.fn().mockImplementation(async entity => entity),
+      update: jest.fn().mockResolvedValue({ affected: 1 }),
+      findOneOrFail: jest.fn().mockImplementation(async (_entity, options) => ({
+        id: options.where.id,
+        projectId: 'new_project',
+        credential: null,
+      })),
     };
 
     dataSource = {
@@ -80,7 +85,7 @@ describe('MoveLegacyDataStorageService', () => {
       newProjectId
     );
     expect(dataSource.transaction).toHaveBeenCalled();
-    expect(storage.projectId).toBe(newProjectId);
+    expect(storage.projectId).toBe('old_project'); // input object should NOT be mutated
     expect(result.projectId).toBe(newProjectId);
   });
 
@@ -91,11 +96,13 @@ describe('MoveLegacyDataStorageService', () => {
     // Act
     await service.run(storage, 'new_project');
 
-    // Assert: 3 deletes (reports, triggers, runs) + 1 update (data marts) + 1 save (storage)
+    // Assert: 3 deletes (reports, triggers, runs) + 1 update (data marts)
     expect(mockQueryBuilder.execute).toHaveBeenCalledTimes(4);
     expect(mockQueryBuilder.delete).toHaveBeenCalledTimes(3);
     expect(mockQueryBuilder.update).toHaveBeenCalledTimes(1);
-    expect(mockManager.save).toHaveBeenCalledTimes(1);
+    // manager.update for storage + findOneOrFail to return fresh entity
+    expect(mockManager.update).toHaveBeenCalledTimes(1);
+    expect(mockManager.findOneOrFail).toHaveBeenCalledTimes(1);
   });
 
   it('should use subquery builder in where conditions', async () => {
@@ -133,7 +140,7 @@ describe('MoveLegacyDataStorageService', () => {
     expect(storage.projectId).toBe('old_project');
   });
 
-  it('should update credential projectId and save credential when storage has a credential', async () => {
+  it('should update credential projectId when storage has a credential', async () => {
     // Arrange
     const credential = { id: 'cred1', projectId: 'old_project' };
     const storage = {
@@ -143,18 +150,24 @@ describe('MoveLegacyDataStorageService', () => {
     } as DataStorage;
     const newProjectId = 'new_project';
 
+    mockManager.findOneOrFail.mockResolvedValue({
+      id: 'st1',
+      projectId: newProjectId,
+      credential: { id: 'cred1', projectId: newProjectId },
+    });
+
     // Act
     const result = await service.run(storage, newProjectId);
 
-    // Assert
-    expect(credential.projectId).toBe(newProjectId);
-    expect(mockManager.save).toHaveBeenCalledTimes(2);
-    expect(mockManager.save).toHaveBeenCalledWith(credential);
-    expect(mockManager.save).toHaveBeenCalledWith(storage);
+    // Assert: credential should NOT be mutated in memory
+    expect(credential.projectId).toBe('old_project');
+    // manager.update called for both storage and credential
+    expect(mockManager.update).toHaveBeenCalledTimes(2);
+    expect(mockManager.findOneOrFail).toHaveBeenCalledTimes(1);
     expect(result.projectId).toBe(newProjectId);
   });
 
-  it('should not save credential when storage.credential is null', async () => {
+  it('should not update credential when storage.credential is null', async () => {
     // Arrange
     const storage = {
       id: 'st1',
@@ -165,8 +178,8 @@ describe('MoveLegacyDataStorageService', () => {
     // Act
     await service.run(storage, 'new_project');
 
-    // Assert: only 1 save call (for storage), no save for credential
-    expect(mockManager.save).toHaveBeenCalledTimes(1);
-    expect(mockManager.save).toHaveBeenCalledWith(storage);
+    // Assert: only 1 manager.update call (for storage), no update for credential
+    expect(mockManager.update).toHaveBeenCalledTimes(1);
+    expect(mockManager.findOneOrFail).toHaveBeenCalledTimes(1);
   });
 });
