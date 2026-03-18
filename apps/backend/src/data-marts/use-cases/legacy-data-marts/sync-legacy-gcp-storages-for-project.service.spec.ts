@@ -114,7 +114,7 @@ describe('SyncLegacyGcpStoragesForProjectService', () => {
       expect(moveLegacyDataStorageService.run).toHaveBeenCalledWith(existingStorage, projectId);
     });
 
-    it('should propagate error if moveLegacyDataStorageService throws during migration', async () => {
+    it('should catch error and continue if moveLegacyDataStorageService throws during migration', async () => {
       const gcpProjects = ['gcp-1'];
       const existingStorage = { id: 'storage-id', projectId: 'other-project' } as DataStorage;
       const migrationError = new Error('Migration failed');
@@ -123,8 +123,9 @@ describe('SyncLegacyGcpStoragesForProjectService', () => {
       legacyDataStorageService.findByGcpProjectId.mockResolvedValue(existingStorage);
       moveLegacyDataStorageService.run.mockRejectedValue(migrationError);
 
-      await expect(service.run({ projectId })).rejects.toThrow(migrationError);
+      const result = await service.run({ projectId });
 
+      expect(result).toBe(1);
       expect(legacyDataStorageService.create).not.toHaveBeenCalled();
       expect(legacySyncTriggersService.scheduleDataMartsSyncForStorageByGcp).not.toHaveBeenCalled();
     });
