@@ -46,6 +46,10 @@ export class RedshiftDataMartValidator implements DataMartValidator {
       return identifierValidation;
     }
 
+    if (isConnectorDefinition(dataMartDefinition)) {
+      return ValidationResult.success();
+    }
+
     const adapter = this.adapterFactory.create(credentials, config);
 
     try {

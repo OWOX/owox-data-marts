@@ -38,6 +38,10 @@ export class BigQueryDataMartValidator implements DataMartValidator {
       return identifierValidation;
     }
 
+    if (isConnectorDefinition(definition)) {
+      return ValidationResult.success();
+    }
+
     if (!isBigQueryCredentials(credentials)) {
       return ValidationResult.failure('Invalid credentials');
     }
