@@ -32,7 +32,7 @@ import {
   SortableHeader,
   ToggleColumnsHeader,
 } from '../../../../shared/components/Table';
-import { useBaseTable } from '../../../../shared/hooks';
+import { useBaseTable, useOnboardingVideo } from '../../../../shared/hooks';
 import { useDataMartContext } from '../../edit/model';
 import { NO_PERMISSION_MESSAGE, usePermissions } from '../../../../app/permissions';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@owox/ui/components/tooltip';
@@ -250,6 +250,14 @@ export default function InsightsListView() {
       }
     })();
   }, [dataMart?.id, deleteId]);
+
+  // Show onboarding video about insights if the user has not seen it yet
+  const shouldShowOnboarding = !loading && items.length === 0;
+  useOnboardingVideo({
+    storageKey: 'data-mart-insights-onboarding-video-shown',
+    popoverId: 'video-5-try-insights',
+    shouldShow: shouldShowOnboarding,
+  });
 
   return (
     <CollapsibleCard>

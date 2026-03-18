@@ -20,7 +20,7 @@ In the **Input Source** panel, select **Definition Type – Connector**. Click *
 
 ![Create Data Mart-2](../../res/screens/Connector-Based-DataMart-2.png)
 
-Select the platform you want to connect to (e.g., [Facebook Ads](../../packages/connectors/src/Sources/FacebookMarketing/README.md), [TikTok Ads](../../packages/connectors/src/Sources/TikTokAds/README.md)) from the list of [available connectors](../../packages/connectors/src/Sources) and click **Next** (or add a custom connector code below).
+Select the platform you want to connect to (e.g., [Facebook Ads](../../../packages/connectors/src/Sources/FacebookMarketing/README.md), [TikTok Ads](../../../packages/connectors/src/Sources/TikTokAds/README.md)) from the list of available connectors and click **Next** (or add a custom connector code below).
 
 ![Create Data Mart-3](../../res/screens/Connector-Based-DataMart-Platform-Select.png)
 
