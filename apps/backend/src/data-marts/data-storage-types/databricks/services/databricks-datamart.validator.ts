@@ -38,6 +38,10 @@ export class DatabricksDataMartValidator implements DataMartValidator {
       return identifierValidation;
     }
 
+    if (isConnectorDefinition(definition)) {
+      return ValidationResult.success();
+    }
+
     if (!isDatabricksCredentials(credentials)) {
       return ValidationResult.failure('Invalid credentials');
     }
