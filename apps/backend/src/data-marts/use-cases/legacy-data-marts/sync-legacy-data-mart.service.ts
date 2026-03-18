@@ -11,6 +11,7 @@ import { LegacyDataMartsService } from '../../services/legacy-data-marts/legacy-
 import { LegacyDataStorageService } from '../../services/legacy-data-marts/legacy-data-storage.service';
 import { LegacySyncTriggersService } from '../../services/legacy-data-marts/legacy-sync-triggers.service';
 import { DeleteLegacyDataMartService } from './delete-legacy-data-mart.service';
+import { MoveLegacyDataStorageService } from './move-legacy-data-storage.service';
 
 @Injectable()
 export class SyncLegacyDataMartService {
@@ -21,7 +22,8 @@ export class SyncLegacyDataMartService {
     private readonly legacyDataMartsService: LegacyDataMartsService,
     private readonly legacyDataStorageService: LegacyDataStorageService,
     private readonly legacySyncTriggersService: LegacySyncTriggersService,
-    private readonly deleteLegacyDataMartService: DeleteLegacyDataMartService
+    private readonly deleteLegacyDataMartService: DeleteLegacyDataMartService,
+    private readonly moveLegacyDataStorageService: MoveLegacyDataStorageService
   ) {}
 
   async run(command: SyncLegacyDataMartCommand): Promise<void> {
@@ -70,10 +72,10 @@ export class SyncLegacyDataMartService {
 
     if (existingStorage) {
       if (existingStorage.projectId !== projection.projectId) {
-        // projects mapping should be updated manually
-        this.logger.error(
-          `Storage for ${projection.gcpProjectId} is already linked to another project`
+        this.logger.warn(
+          `Storage for ${projection.gcpProjectId} changed project from ${existingStorage.projectId} to ${projection.projectId}`
         );
+        return await this.moveLegacyDataStorageService.run(existingStorage, projection.projectId);
       }
       return existingStorage;
     }

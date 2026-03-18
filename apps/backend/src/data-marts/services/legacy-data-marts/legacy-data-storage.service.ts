@@ -75,7 +75,7 @@ export class LegacyDataStorageService {
    * @param {string} projectId - The unique identifier of the project to validate.
    * @return {void} This method does not return any value.
    */
-  private validateSyncPermissionForProject(projectId: string): void {
+  public validateSyncPermissionForProject(projectId: string): void {
     if (this.whitelistProjects === null) {
       return;
     }
