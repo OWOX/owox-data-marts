@@ -368,6 +368,83 @@ var XAdsSource = class XAdsSource extends AbstractSource {
     return JSON.parse(text);
   }
 
+  /** 
+   * Added methods for async operations needed for get the country data 
+   */
+  async _rawPostFetch(path, params = {}) {
+    const url = `${this.BASE_URL}${this.config.Version.value}/${path}`;
+
+      // Encode params as form body (key=value&key=value)
+  const body = Object.entries(params)
+    .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v)}`)
+    .join('&');
+
+      // OAuth signature must include body params — pass them into the signer
+  const oauth = this._generateOAuthHeader({ method: 'POST', url, params });
+
+  await AsyncUtils.delay(1000);
+
+  const resp = await this.urlFetchWithRetry(url, {
+    method: 'POST',
+    headers: {
+      Authorization: oauth,
+      'Content-Type': 'application/x-www-form-urlencoded'
+    },
+    body,
+    muteHttpExceptions: true
+  });
+
+  const text = await resp.getContentText();
+  return JSON.parse(text);
+  }
+  async _submitAsyncStatsJob({ accountId, entityIds, placement, start_time, end_time }) {
+  const params = {
+    entity: 'PROMOTED_TWEET',
+    entity_ids: entityIds.join(','),
+    placement,
+    granularity: 'DAY',
+    metric_groups: 'ENGAGEMENT,BILLING',
+    segmentation_type: 'COUNTRY',
+    start_time: `${start_time}T00:00:00Z`,
+    end_time: `${end_time}T00:00:00Z`
+  };
+
+  const resp = await this._rawPostFetch(`stats/jobs/accounts/${accountId}`, params);
+
+  if (!resp.data?.id) {
+    throw new Error(`Failed to submit async stats job: ${JSON.stringify(resp)}`);
+  }
+
+  return resp.data.id;
+  }
+
+  async _pollAsyncJobUntilComplete({ accountId, jobId }) {
+  const MAX_ATTEMPTS = 20;
+  const POLL_INTERVAL_MS = 5000;
+
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+    await AsyncUtils.delay(POLL_INTERVAL_MS);
+
+    const resp = await this._rawFetch(`stats/jobs/accounts/${accountId}/${jobId}`);
+    const status = resp.data?.status;
+
+    console.log(`Job ${jobId} status: ${status} (attempt ${attempt}/${MAX_ATTEMPTS})`);
+
+    if (status === 'complete') {
+      return resp.data.url;
+    }
+
+    if (status === 'failed') {
+      throw new Error(`Async stats job ${jobId} failed: ${JSON.stringify(resp)}`);
+    }
+
+    // status is 'queued' or 'processing' — loop continues
+  }
+
+  throw new Error(`Async stats job ${jobId} did not complete after ${MAX_ATTEMPTS} attempts`);
+  }
+
+
   /**
    * Determines if a X Ads API error is valid for retry
    * Based on X Ads API error codes and HTTP status codes
