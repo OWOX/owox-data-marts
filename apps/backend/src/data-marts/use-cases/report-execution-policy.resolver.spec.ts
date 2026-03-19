@@ -19,6 +19,10 @@ describe('ReportExecutionPolicyResolver', () => {
 
     expect(policy.canReadNextBatch()).toBe(true);
     expect(policy.getMaxDataRowsPerBatch()).toBe(101);
+    expect(policy.getRowsTruncationInfo()).toEqual({
+      rowsLimit: 100,
+      hasMoreRowsThanLimit: false,
+    });
 
     const first = policy.mapReadBatch(
       new ReportDataBatch(
@@ -29,6 +33,10 @@ describe('ReportExecutionPolicyResolver', () => {
     expect(first.dataRows).toHaveLength(70);
     expect(policy.getMaxDataRowsPerBatch()).toBe(31);
     expect(policy.shouldStopAfterBatch()).toBe(false);
+    expect(policy.getRowsTruncationInfo()).toEqual({
+      rowsLimit: 100,
+      hasMoreRowsThanLimit: false,
+    });
 
     const second = policy.mapReadBatch(
       new ReportDataBatch(
@@ -40,6 +48,10 @@ describe('ReportExecutionPolicyResolver', () => {
     expect(policy.shouldStopAfterBatch()).toBe(true);
     expect(policy.canReadNextBatch()).toBe(false);
     expect(policy.getStopReason()).toContain('row probe limit (101)');
+    expect(policy.getRowsTruncationInfo()).toEqual({
+      rowsLimit: 100,
+      hasMoreRowsThanLimit: true,
+    });
   });
 
   it('returns unbounded policy for non-email destinations', () => {
@@ -54,5 +66,6 @@ describe('ReportExecutionPolicyResolver', () => {
     expect(mapped).toBe(input);
     expect(policy.shouldStopAfterBatch()).toBe(false);
     expect(policy.getStopReason()).toBeNull();
+    expect(policy.getRowsTruncationInfo()).toBeNull();
   });
 });

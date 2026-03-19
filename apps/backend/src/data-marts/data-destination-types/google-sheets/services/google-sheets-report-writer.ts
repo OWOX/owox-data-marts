@@ -1,6 +1,9 @@
 import { ReportDataHeader } from '../../../dto/domain/report-data-header.dto';
 import { ConsumptionTrackingService } from '../../../services/consumption-tracking.service';
-import { DataDestinationReportWriter } from '../../interfaces/data-destination-report-writer.interface';
+import {
+  DataDestinationReportWriter,
+  ReportWriteFinalizeMeta,
+} from '../../interfaces/data-destination-report-writer.interface';
 import { DataDestinationType } from '../../enums/data-destination-type.enum';
 import { Inject, Injectable, Logger, Scope } from '@nestjs/common';
 import { isGoogleSheetsConfig } from '../../data-destination-config.guards';
@@ -121,7 +124,7 @@ export class GoogleSheetsReportWriter implements DataDestinationReportWriter {
   /**
    * Finalizes the report by setting tab color, freezing header row, and adding metadata
    */
-  public async finalize(processingError?: Error): Promise<void> {
+  public async finalize(processingError?: Error, _meta?: ReportWriteFinalizeMeta): Promise<void> {
     await this.executeWithErrorHandling(async () => {
       if (this.writtenRowsCount > 0 && this.reportDataHeaders?.[0]) {
         const dateNow = DateTime.now().setZone(this.spreadsheetTimeZone);

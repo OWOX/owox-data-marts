@@ -27,6 +27,10 @@ export interface InsightTemplateTableSourceContext {
   rowsLimit: number;
 }
 
+export interface InsightTemplateRenderContextOptions {
+  preloadedSources?: Partial<Record<string, InsightTemplateTableSourceContext>>;
+}
+
 @Injectable()
 export class InsightTemplateSourceDataService {
   private readonly logger = new Logger(InsightTemplateSourceDataService.name);
@@ -40,7 +44,8 @@ export class InsightTemplateSourceDataService {
 
   async buildRenderContext(
     dataMart: DataMart,
-    insightTemplate: InsightTemplate
+    insightTemplate: InsightTemplate,
+    options: InsightTemplateRenderContextOptions = {}
   ): Promise<{ tableSources: Record<string, InsightTemplateTableSourceContext> }> {
     await this.validationService.validateSources(insightTemplate.sources, {
       dataMartId: dataMart.id,
@@ -48,10 +53,14 @@ export class InsightTemplateSourceDataService {
     });
 
     const tableSources: Record<string, InsightTemplateTableSourceContext> = {};
-    tableSources[DEFAULT_SOURCE_KEY] = await this.resolveMainDataMartSourceContext(dataMart);
+    tableSources[DEFAULT_SOURCE_KEY] =
+      options.preloadedSources?.[DEFAULT_SOURCE_KEY] ??
+      (await this.resolveMainDataMartSourceContext(dataMart));
 
     for (const source of insightTemplate.sources ?? []) {
-      tableSources[source.key] = await this.resolveSourceContext(source, dataMart);
+      tableSources[source.key] =
+        options.preloadedSources?.[source.key] ??
+        (await this.resolveSourceContext(source, dataMart));
     }
 
     return { tableSources };

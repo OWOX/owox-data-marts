@@ -4,12 +4,18 @@ import { Report } from '../entities/report.entity';
 
 const EMAIL_BASED_ROWS_LIMIT = 100;
 
+export interface RowsTruncationInfo {
+  rowsLimit: number;
+  hasMoreRowsThanLimit: boolean;
+}
+
 export interface ReportExecutionPolicy {
   canReadNextBatch(): boolean;
   getMaxDataRowsPerBatch(): number | undefined;
   mapReadBatch(batch: ReportDataBatch): ReportDataBatch;
   shouldStopAfterBatch(): boolean;
   getStopReason(): string | null;
+  getRowsTruncationInfo(): RowsTruncationInfo | null;
 }
 
 @Injectable()
@@ -63,6 +69,13 @@ class ProbeLimitedRowsExecutionPolicy implements ReportExecutionPolicy {
 
     return `Execution policy reached row probe limit (${this.probeLimit})`;
   }
+
+  getRowsTruncationInfo(): RowsTruncationInfo | null {
+    return {
+      rowsLimit: this.renderLimit,
+      hasMoreRowsThanLimit: this.rowsRead > this.renderLimit,
+    };
+  }
 }
 
 class UnboundedExecutionPolicy implements ReportExecutionPolicy {
@@ -83,6 +96,10 @@ class UnboundedExecutionPolicy implements ReportExecutionPolicy {
   }
 
   getStopReason(): string | null {
+    return null;
+  }
+
+  getRowsTruncationInfo(): RowsTruncationInfo | null {
     return null;
   }
 }
