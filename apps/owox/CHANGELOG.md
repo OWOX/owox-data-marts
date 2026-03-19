@@ -1,5 +1,13 @@
 # owox
 
+## 0.21.1
+
+### Patch Changes
+
+- b3befb4: # Fixed build failure issue
+
+  Fixed build error caused by ESLint configuration issue
+
 ## 0.21.0
 
 ### Minor Changes 0.21.0
@@ -9,7 +17,7 @@
 - 7494cd6: # Introducing reusable **Insights with AI assistance**
 
   Insights is now available in OWOX! Use it to analyze your data mart results directly — create reports, explore your data, and share findings with your team. To get started, check out the [Insights setup guide](../../docs/getting-started/setup-guide/insights.md).
-  
+
 - a7bbb8c: # Add **OAuth for Google Ads** connector
 
   Added OAuth2 authentication flow for Google Ads connector. Users can now authorize access using a "Sign in with Google" button instead of manually entering RefreshToken, ClientId, and ClientSecret. The DeveloperToken is managed via environment variable and stored securely with other OAuth credentials. Also fixed a COOP SecurityError in the OAuth popup polling that affected all OAuth connectors.
@@ -21,7 +29,6 @@
 - e68ca61: # **Improve Data Mart publish** status message
 
   The publish status message for data marts has been improved to provide more clarity and actionable information.
-
   - **Publish after:** The publish status message now shows what you need to do to publish the data mart. For example, if you need to complete storage configuration or configure an input source.
   - **Ready to publish:** The publish status message now shows that the data mart is ready to publish.
 
@@ -1317,7 +1324,6 @@
   We're excited to introduce **Time Triggers** - a powerful new feature that allows you to schedule your reports and connectors to run automatically at specified times!
 
   ## Benefits
-
   - ✅ **Save Time**: Automate routine data refreshes without manual intervention
   - 🔄 **Stay Updated**: Keep your data fresh with regular scheduled updates
   - 📊 **Consistent Reporting**: Ensure your reports are generated on a reliable schedule
@@ -1325,7 +1331,6 @@
   - 🔧 **Flexible Scheduling Options**: Choose from daily, weekly, monthly, or interval-based schedules
 
   ## Scheduling Options
-
   - **Daily**: Run your reports or connectors at the same time every day
   - **Weekly**: Select specific days of the week for execution
   - **Monthly**: Schedule runs on specific days of the month
