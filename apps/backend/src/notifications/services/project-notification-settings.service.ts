@@ -75,6 +75,7 @@ export class ProjectNotificationSettingsService {
         notificationType,
         enabled: data.enabled ?? false,
         receivers: data.receivers ?? [],
+        optedOutReceivers: [],
         webhookUrl: data.webhookUrl ?? null,
         groupingDelayCron: cron,
         lastRunAt: beingEnabled ? new Date() : null,
@@ -91,7 +92,8 @@ export class ProjectNotificationSettingsService {
         const removed = [...oldReceivers].filter(id => !newReceivers.has(id));
         const added = [...newReceivers].filter(id => !oldReceivers.has(id));
 
-        const optedOut = new Set(settings.optedOutReceivers);
+        // Initialize optedOutReceivers on first manual edit (legacy rows have null)
+        const optedOut = new Set(settings.optedOutReceivers ?? []);
         for (const id of removed) optedOut.add(id);
         for (const id of added) optedOut.delete(id);
         settings.optedOutReceivers = [...optedOut];
@@ -149,29 +151,44 @@ export class ProjectNotificationSettingsService {
       members.filter(m => m.role === 'admin' || m.role === 'editor').map(m => m.userId)
     );
 
-    // Clean optedOutReceivers: remove users who left the project so that
-    // re-joining is treated as a fresh start (auto-subscribe again).
-    const activeOptedOut = new Set(settings.optedOutReceivers.filter(id => memberIds.has(id)));
-
-    // Auto-subscribe eligible members who haven't manually opted out
-    const newEligible = [...eligibleIds].filter(
-      id => !settings.receivers.includes(id) && !activeOptedOut.has(id)
-    );
+    // Legacy mode: optedOutReceivers is null (migrated row, never manually edited).
+    // Only remove receivers who left or lost eligibility — do NOT auto-subscribe anyone.
+    // Auto-subscription activates after the first manual edit via upsert().
+    const isLegacy = settings.optedOutReceivers === null;
 
     // Retain only receivers who are still project members AND still eligible
     const retainedReceivers = settings.receivers.filter(
       id => memberIds.has(id) && eligibleIds.has(id)
     );
 
-    const updatedReceivers = [...retainedReceivers, ...newEligible];
-    const updatedOptedOut = [...activeOptedOut];
+    let updatedReceivers: string[];
+    let updatedOptedOut: string[] | null;
 
-    const receiversChanged =
-      updatedReceivers.length !== settings.receivers.length ||
-      updatedReceivers.some((id, i) => id !== settings.receivers[i]);
-    const optedOutChanged =
-      updatedOptedOut.length !== settings.optedOutReceivers.length ||
-      updatedOptedOut.some((id, i) => id !== settings.optedOutReceivers[i]);
+    if (isLegacy) {
+      updatedReceivers = retainedReceivers;
+      updatedOptedOut = null; // keep null until first manual edit
+    } else {
+      // Clean optedOutReceivers: remove users who left the project so that
+      // re-joining is treated as a fresh start (auto-subscribe again).
+      const activeOptedOut = new Set(settings.optedOutReceivers!.filter(id => memberIds.has(id)));
+
+      // Auto-subscribe eligible members who haven't manually opted out
+      const newEligible = [...eligibleIds].filter(
+        id => !settings.receivers.includes(id) && !activeOptedOut.has(id)
+      );
+
+      updatedReceivers = [...retainedReceivers, ...newEligible];
+      updatedOptedOut = [...activeOptedOut];
+    }
+
+    const sortedUpdated = [...updatedReceivers].sort();
+    const sortedCurrent = [...settings.receivers].sort();
+    const receiversChanged = JSON.stringify(sortedUpdated) !== JSON.stringify(sortedCurrent);
+
+    const optedOutChanged = isLegacy
+      ? false
+      : JSON.stringify([...(updatedOptedOut ?? [])].sort()) !==
+        JSON.stringify([...(settings.optedOutReceivers ?? [])].sort());
 
     if (receiversChanged || optedOutChanged) {
       settings.receivers = updatedReceivers;

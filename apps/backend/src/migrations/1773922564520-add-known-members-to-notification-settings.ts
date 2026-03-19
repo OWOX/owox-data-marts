@@ -1,7 +1,7 @@
 import { MigrationInterface, QueryRunner, TableColumn } from 'typeorm';
 
-export class AddOptedOutReceiversToNotificationSettings1773000000001 implements MigrationInterface {
-  public readonly name = 'AddOptedOutReceiversToNotificationSettings1773000000001';
+export class AddOptedOutReceiversToNotificationSettings1773922564520 implements MigrationInterface {
+  public readonly name = 'AddOptedOutReceiversToNotificationSettings1773922564520';
 
   public async up(queryRunner: QueryRunner): Promise<void> {
     const hasColumn = await queryRunner.hasColumn(
@@ -17,8 +17,8 @@ export class AddOptedOutReceiversToNotificationSettings1773000000001 implements 
       new TableColumn({
         name: 'optedOutReceivers',
         type: 'json',
-        isNullable: false,
-        default: "'[]'",
+        isNullable: true,
+        default: null,
       })
     );
   }
