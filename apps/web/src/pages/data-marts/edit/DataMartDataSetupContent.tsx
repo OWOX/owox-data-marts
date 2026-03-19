@@ -21,6 +21,7 @@ export default function DataMartDataSetupContent() {
   const [definitionType, setDefinitionType] = useState<DataMartDefinitionType | null>(
     initialDefinitionType
   );
+  const [sqlRevalidateVersion, setSqlRevalidateVersion] = useState(0);
 
   return (
     <div className={'flex flex-col gap-4'}>
@@ -38,6 +39,13 @@ export default function DataMartDataSetupContent() {
             <DataMartDataStorageView
               dataStorage={dataMart.storage}
               onDataStorageChange={updateDataMartStorage}
+              onEditSheetClose={({ hasChanges }) => {
+                // We use an incrementing token instead of a boolean flag because
+                // repeated close events must trigger repeated SQL validator re-runs.
+                if (hasChanges) {
+                  setSqlRevalidateVersion(version => version + 1);
+                }
+              }}
             ></DataMartDataStorageView>
           )}
         </CollapsibleCardContent>
@@ -59,6 +67,7 @@ export default function DataMartDataSetupContent() {
               definitionType={definitionType}
               initialDefinitionType={initialDefinitionType}
               setDefinitionType={setDefinitionType}
+              sqlRevalidateVersion={sqlRevalidateVersion}
             />
           )}
         </CollapsibleCardContent>

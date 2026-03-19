@@ -20,6 +20,7 @@ interface DataMartDefinitionSettingsProps {
   definitionType: DataMartDefinitionType | null;
   initialDefinitionType: DataMartDefinitionType | null;
   setDefinitionType: (type: DataMartDefinitionType) => void;
+  sqlRevalidateVersion?: number;
 }
 
 interface SqlValidationState {
@@ -53,6 +54,7 @@ export function DataMartDefinitionSettings({
   definitionType,
   initialDefinitionType,
   setDefinitionType,
+  sqlRevalidateVersion,
 }: DataMartDefinitionSettingsProps) {
   const { dataMart, updateDataMartDefinition, runSchemaActualization } =
     useOutletContext<DataMartContextType>();
@@ -209,6 +211,9 @@ export function DataMartDefinitionSettings({
               <>
                 <div className='h-6 w-px bg-gray-300'></div>
                 <SqlValidator
+                  // We remount validator by key when storage-change token increments,
+                  // so SQL dry-run is re-triggered after storage edit sheet closes.
+                  key={`${dataMartId}-${String(sqlRevalidateVersion ?? 0)}`}
                   sql={sqlCode}
                   dataMartId={dataMartId}
                   onValidationStateChange={handleValidationStateChange}
