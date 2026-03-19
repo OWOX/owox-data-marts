@@ -58,6 +58,12 @@ export class DataMart implements CreatorAwareEntity {
   @Column()
   projectId: string;
 
+  @Column({ type: 'json', nullable: true })
+  businessOwnerIds?: string[];
+
+  @Column({ type: 'json', nullable: true })
+  technicalOwnerIds?: string[];
+
   @Column()
   createdById: string;
 

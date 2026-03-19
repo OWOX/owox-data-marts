@@ -8,4 +8,6 @@ export enum DataMartColumnKey {
   CREATED_AT = 'createdAt',
   CREATED_BY_USER = 'createdByUser',
   HEALTH_STATUS = 'healthStatus',
+  BUSINESS_OWNERS = 'businessOwnerUsers',
+  TECHNICAL_OWNERS = 'technicalOwnerUsers',
 }

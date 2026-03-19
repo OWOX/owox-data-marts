@@ -1,3 +1,4 @@
+import type { UserProjectionDto } from '../../../../../shared/types/api';
 import type { DataStorage } from '../../../../data-storage/shared/model/types/data-storage.ts';
 import type { DataMartStatusInfo, DataMartValidationError } from '../../../shared';
 import type { DataMartDefinitionConfig } from './data-mart-definition-config.ts';
@@ -78,4 +79,19 @@ export interface DataMart {
    * Connector state (if Data Mart is CONNECTOR-based)
    */
   connectorState?: ConnectorStateResponseDto | null;
+
+  /**
+   * Created by user projection
+   */
+  createdByUser: UserProjectionDto | null;
+
+  /**
+   * Business owner user projections
+   */
+  businessOwnerUsers: UserProjectionDto[];
+
+  /**
+   * Technical owner user projections
+   */
+  technicalOwnerUsers: UserProjectionDto[];
 }

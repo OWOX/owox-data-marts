@@ -54,6 +54,8 @@ export class DataMartService {
         'dm.status',
         'dm.definitionType',
         'dm.createdById',
+        'dm.businessOwnerIds',
+        'dm.technicalOwnerIds',
         'dm.createdAt',
         'dm.modifiedAt',
         'storage.type',

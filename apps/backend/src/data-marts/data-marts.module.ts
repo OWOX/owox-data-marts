@@ -75,6 +75,7 @@ import { DataMartService } from './services/data-mart.service';
 import { ScheduledTriggerService } from './services/scheduled-trigger.service';
 import { PublishDataMartService } from './use-cases/publish-data-mart.service';
 import { UpdateDataMartDescriptionService } from './use-cases/update-data-mart-description.service';
+import { UpdateDataMartOwnersService } from './use-cases/update-data-mart-owners.service';
 import { UpdateDataMartTitleService } from './use-cases/update-data-mart-title.service';
 import { ListDataStoragesService } from './use-cases/list-data-storages.service';
 import { ListDataDestinationsService } from './use-cases/list-data-destinations.service';
@@ -346,6 +347,7 @@ import { GoogleOAuthConfigService } from './services/google-oauth/google-oauth-c
     UpdateDataMartDefinitionService,
     PublishDataMartService,
     UpdateDataMartDescriptionService,
+    UpdateDataMartOwnersService,
     UpdateDataMartTitleService,
     DataMartMapper,
     DataStorageService,

@@ -26,6 +26,16 @@ export function collectUniqueValues<T>(data: T[], accessor: ValueAccessor<T>): S
 
   for (const row of data) {
     const raw = accessor(row);
+
+    if (Array.isArray(raw)) {
+      for (const item of raw) {
+        if (item != null) {
+          result.add(String(item));
+        }
+      }
+      continue;
+    }
+
     if (typeof raw !== 'string' && typeof raw !== 'number' && typeof raw !== 'boolean') {
       continue;
     }

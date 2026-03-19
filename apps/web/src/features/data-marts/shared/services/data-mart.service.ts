@@ -273,6 +273,19 @@ export class DataMartService extends ApiService {
   }
 
   /**
+   * Update data mart owners
+   * @param id Data mart ID
+   * @param data Owner IDs
+   * @returns Promise with updated data mart
+   */
+  async updateDataMartOwners(
+    id: string,
+    data: { businessOwnerIds: string[]; technicalOwnerIds: string[] }
+  ): Promise<DataMartResponseDto> {
+    return this.put<DataMartResponseDto>(`/${id}/owners`, data);
+  }
+
+  /**
    * Get run history for a data mart
    * @param id Data mart ID
    * @param limit Number of runs to fetch (default: 5)

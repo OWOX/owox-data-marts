@@ -46,6 +46,9 @@ describe('data-mart-validation', () => {
     createdAt: new Date(),
     modifiedAt: new Date(),
     schema: null,
+    createdByUser: null,
+    businessOwnerUsers: [],
+    technicalOwnerUsers: [],
     ...overrides,
   });
 

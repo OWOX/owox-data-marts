@@ -1,28 +1,24 @@
 import { Injectable } from '@nestjs/common';
 import { DataMartDto } from '../dto/domain/data-mart.dto';
-import { GetDataMartCommand } from '../dto/domain/get-data-mart.command';
+import { UpdateDataMartOwnersCommand } from '../dto/domain/update-data-mart-owners.command';
 import { DataMartMapper } from '../mappers/data-mart.mapper';
 import { DataMartService } from '../services/data-mart.service';
-import { LegacyDataMartsService } from '../services/legacy-data-marts/legacy-data-marts.service';
 import { UserProjectionsFetcherService } from '../services/user-projections-fetcher.service';
-import { SyncLegacyDataMartService } from './legacy-data-marts/sync-legacy-data-mart.service';
 
 @Injectable()
-export class GetDataMartService {
+export class UpdateDataMartOwnersService {
   constructor(
     private readonly dataMartService: DataMartService,
-    private readonly userProjectionsFetcherService: UserProjectionsFetcherService,
     private readonly mapper: DataMartMapper,
-    private readonly legacyDataMartService: LegacyDataMartsService,
-    private readonly syncLegacyDataMartService: SyncLegacyDataMartService
+    private readonly userProjectionsFetcherService: UserProjectionsFetcherService
   ) {}
 
-  async run(command: GetDataMartCommand): Promise<DataMartDto> {
-    if (this.legacyDataMartService.isDataMartIdLooksLikeLegacy(command.id)) {
-      await this.syncLegacyDataMartService.run({ dataMartId: command.id });
-    }
-
+  async run(command: UpdateDataMartOwnersCommand): Promise<DataMartDto> {
     const dataMart = await this.dataMartService.getByIdAndProjectId(command.id, command.projectId);
+
+    dataMart.businessOwnerIds = command.businessOwnerIds;
+    dataMart.technicalOwnerIds = command.technicalOwnerIds;
+    await this.dataMartService.save(dataMart);
 
     const userProjections =
       await this.userProjectionsFetcherService.fetchAllRelevantUserProjections([dataMart]);

@@ -65,6 +65,9 @@ export type DataMartAction =
   | { type: 'LOAD_MORE_DATA_MART_RUNS_START' }
   | { type: 'LOAD_MORE_DATA_MART_RUNS_SUCCESS'; payload: DataMartRunItem[] }
   | { type: 'LOAD_MORE_DATA_MART_RUNS_ERROR'; payload: ApiError }
+  | { type: 'UPDATE_DATA_MART_OWNERS_START' }
+  | { type: 'UPDATE_DATA_MART_OWNERS_SUCCESS'; payload: DataMart }
+  | { type: 'UPDATE_DATA_MART_OWNERS_ERROR'; payload: ApiError }
   | { type: 'RESET_MANUAL_RUN_TRIGGERED' }
   | { type: 'RESET' };
 
@@ -94,6 +97,11 @@ export interface DataMartContextType extends DataMartState {
   ) => Promise<DataMartRunItem[]>;
   getDataMartRunById: (dataMartId: string, runId: string) => Promise<DataMartRunItem>;
   loadMoreDataMartRuns: (id: string, offset: number, limit?: number) => Promise<DataMartRunItem[]>;
+  updateDataMartOwners: (
+    id: string,
+    businessOwnerIds: string[],
+    technicalOwnerIds: string[]
+  ) => Promise<void>;
   runSchemaActualization?: () => Promise<void>;
   isSchemaActualizationLoading?: boolean;
   error: ApiError | null;

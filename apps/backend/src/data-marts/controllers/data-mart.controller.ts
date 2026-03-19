@@ -13,6 +13,7 @@ import { PaginatedDataMartsResponseApiDto } from '../dto/presentation/paginated-
 import { RunDataMartRequestApiDto } from '../dto/presentation/run-data-mart-request-api.dto';
 import { UpdateDataMartDefinitionApiDto } from '../dto/presentation/update-data-mart-definition-api.dto';
 import { UpdateDataMartDescriptionApiDto } from '../dto/presentation/update-data-mart-description-api.dto';
+import { UpdateDataMartOwnersApiDto } from '../dto/presentation/update-data-mart-owners-api.dto';
 import { UpdateDataMartSchemaApiDto } from '../dto/presentation/update-data-mart-schema-api.dto';
 import { UpdateDataMartTitleApiDto } from '../dto/presentation/update-data-mart-title-api.dto';
 import { DataMartMapper } from '../mappers/data-mart.mapper';
@@ -30,6 +31,7 @@ import { RunDataMartService } from '../use-cases/run-data-mart.service';
 import { UpdateDataMartDefinitionService } from '../use-cases/update-data-mart-definition.service';
 import { UpdateDataMartDescriptionService } from '../use-cases/update-data-mart-description.service';
 import { UpdateDataMartSchemaService } from '../use-cases/update-data-mart-schema.service';
+import { UpdateDataMartOwnersService } from '../use-cases/update-data-mart-owners.service';
 import { UpdateDataMartTitleService } from '../use-cases/update-data-mart-title.service';
 import { ValidateDataMartDefinitionService } from '../use-cases/validate-data-mart-definition.service';
 import {
@@ -71,7 +73,8 @@ export class DataMartController {
     private readonly getDataMartRunService: GetDataMartRunService,
     private readonly cancelDataMartRunService: CancelDataMartRunService,
     private readonly listDataMartsByConnectorNameService: ListDataMartsByConnectorNameService,
-    private readonly batchDataMartHealthStatusService: BatchDataMartHealthStatusService
+    private readonly batchDataMartHealthStatusService: BatchDataMartHealthStatusService,
+    private readonly updateOwnersService: UpdateDataMartOwnersService
   ) {}
 
   @Auth(Role.editor(Strategy.INTROSPECT))
@@ -158,6 +161,18 @@ export class DataMartController {
   ): Promise<DataMartResponseApiDto> {
     const command = this.mapper.toUpdateDescriptionCommand(id, context, dto);
     const dataMart = await this.updateDescriptionService.run(command);
+    return this.mapper.toResponse(dataMart);
+  }
+
+  @Auth(Role.editor(Strategy.INTROSPECT))
+  @Put(':id/owners')
+  async updateOwners(
+    @AuthContext() context: AuthorizationContext,
+    @Param('id') id: string,
+    @Body() dto: UpdateDataMartOwnersApiDto
+  ): Promise<DataMartResponseApiDto> {
+    const command = this.mapper.toUpdateOwnersCommand(id, context, dto);
+    const dataMart = await this.updateOwnersService.run(command);
     return this.mapper.toResponse(dataMart);
   }
 

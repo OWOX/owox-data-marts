@@ -28,7 +28,10 @@ export type DataMartFilterKey =
   | AdditionalFilterKeys.STORAGE_TITLE
   | DataMartColumnKey.TITLE
   | DataMartColumnKey.DEFINITION_TYPE
-  | AdditionalFilterKeys.INPUT_SOURCE;
+  | AdditionalFilterKeys.INPUT_SOURCE
+  | DataMartColumnKey.CREATED_BY_USER
+  | DataMartColumnKey.BUSINESS_OWNERS
+  | DataMartColumnKey.TECHNICAL_OWNERS;
 
 /* ---------------------------------------------------------------------------
  * Accessors (used both for filtering and option collection)
@@ -46,6 +49,12 @@ export const dataMartsFilterAccessors: FilterAccessors<DataMartFilterKey, DataMa
     }
     return 'OTHER';
   },
+  [DataMartColumnKey.CREATED_BY_USER]: row =>
+    row.createdByUser?.fullName ?? row.createdByUser?.email,
+  [DataMartColumnKey.BUSINESS_OWNERS]: row =>
+    row.businessOwnerUsers.map(u => u.fullName ?? u.email),
+  [DataMartColumnKey.TECHNICAL_OWNERS]: row =>
+    row.technicalOwnerUsers.map(u => u.fullName ?? u.email),
 };
 
 /* ---------------------------------------------------------------------------
@@ -184,6 +193,36 @@ export function buildDataMartsTableFilters(
       dataType: 'enum',
       operators: ['eq', 'neq'],
       options: statusOptions,
+    },
+    {
+      id: DataMartColumnKey.CREATED_BY_USER,
+      label: dataMartColumnLabels[DataMartColumnKey.CREATED_BY_USER],
+      dataType: 'enum',
+      operators: ['eq', 'neq'],
+      options: collectOptionsFromData(
+        data,
+        dataMartsFilterAccessors[DataMartColumnKey.CREATED_BY_USER]
+      ),
+    },
+    {
+      id: DataMartColumnKey.BUSINESS_OWNERS,
+      label: dataMartColumnLabels[DataMartColumnKey.BUSINESS_OWNERS],
+      dataType: 'enum',
+      operators: ['eq', 'neq'],
+      options: collectOptionsFromData(
+        data,
+        dataMartsFilterAccessors[DataMartColumnKey.BUSINESS_OWNERS]
+      ),
+    },
+    {
+      id: DataMartColumnKey.TECHNICAL_OWNERS,
+      label: dataMartColumnLabels[DataMartColumnKey.TECHNICAL_OWNERS],
+      dataType: 'enum',
+      operators: ['eq', 'neq'],
+      options: collectOptionsFromData(
+        data,
+        dataMartsFilterAccessors[DataMartColumnKey.TECHNICAL_OWNERS]
+      ),
     },
   ];
 }

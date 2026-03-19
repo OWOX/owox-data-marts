@@ -20,6 +20,8 @@ export interface DataMartResponseDto {
   triggersCount: number;
   reportsCount: number;
   createdByUser: UserProjectionDto | null;
+  businessOwnerUsers: UserProjectionDto[];
+  technicalOwnerUsers: UserProjectionDto[];
   createdAt: Date;
   modifiedAt: Date;
   schema: DataMartSchema | null;

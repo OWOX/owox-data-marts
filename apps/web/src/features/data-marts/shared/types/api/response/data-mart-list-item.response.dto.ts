@@ -15,6 +15,8 @@ export interface DataMartListItemResponseDto {
   triggersCount: number;
   reportsCount: number;
   createdByUser: UserProjectionDto | null;
+  businessOwnerUsers: UserProjectionDto[];
+  technicalOwnerUsers: UserProjectionDto[];
   createdAt: Date;
   modifiedAt: Date;
 }

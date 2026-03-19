@@ -21,6 +21,30 @@ export function isFilterRowValid(row: {
  * contains/not_contains use only the first element.
  */
 function matchOperator(rowValue: unknown, operator: string, filterValues: string[]): boolean {
+  // Handle array row values (e.g. owner lists) — match if any element satisfies the condition
+  if (Array.isArray(rowValue)) {
+    switch (operator) {
+      case 'eq':
+        return rowValue.some(v => filterValues.includes(String(v)));
+      case 'neq':
+        return !rowValue.some(v => filterValues.includes(String(v)));
+      case 'contains':
+        return rowValue.some(v =>
+          String(v)
+            .toLowerCase()
+            .includes((filterValues[0] ?? '').toLowerCase())
+        );
+      case 'not_contains':
+        return !rowValue.some(v =>
+          String(v)
+            .toLowerCase()
+            .includes((filterValues[0] ?? '').toLowerCase())
+        );
+      default:
+        return true;
+    }
+  }
+
   const str = String(rowValue);
   switch (operator) {
     case 'eq':

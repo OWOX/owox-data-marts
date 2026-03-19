@@ -17,11 +17,13 @@ import { Button } from '../../../../shared/components/Button';
 import { ConfirmationDialog } from '../../../../shared/components/ConfirmationDialog';
 import { InlineEditTitle } from '../../../../shared/components/InlineEditTitle/InlineEditTitle.tsx';
 import { StatusLabel, StatusTypeEnum } from '../../../../shared/components/StatusLabel';
+import { UserReference } from '../../../../shared/components/UserReference/UserReference';
 import { useProjectRoute } from '../../../../shared/hooks';
 import { checkVisible } from '../../../../utils';
 import { ConnectorRunView } from '../../../connectors/edit/components/ConnectorRunSheet/ConnectorRunView.tsx';
 import { DataStorageType } from '../../../data-storage';
 import { useAuth } from '../../../idp';
+import { OwnersEditor } from './OwnersEditor';
 import {
   DataMartDefinitionType,
   DataMartRunStatus,
@@ -50,6 +52,7 @@ export function DataMartDetails({ id }: DataMartDetailsProps) {
     deleteDataMart,
     updateDataMartTitle,
     updateDataMartDescription,
+    updateDataMartOwners,
     updateDataMartDefinition,
     actualizeDataMartSchema,
     updateDataMartSchema,
@@ -423,6 +426,50 @@ export function DataMartDetails({ id }: DataMartDetailsProps) {
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
+      </div>
+
+      {/* Owners section */}
+      <div className='mb-4 flex flex-wrap items-center gap-4'>
+        {dataMart.createdByUser && (
+          <div className='flex items-center gap-2'>
+            <span className='text-muted-foreground text-sm whitespace-nowrap'>Created by:</span>
+            <UserReference
+              userProjection={{
+                userId: dataMart.createdByUser.userId,
+                fullName: dataMart.createdByUser.fullName,
+                email: dataMart.createdByUser.email,
+                avatar: dataMart.createdByUser.avatar,
+              }}
+              variant='full'
+            />
+          </div>
+        )}
+        <OwnersEditor
+          label='Business Owner'
+          ownerUsers={dataMart.businessOwnerUsers}
+          projectId={projectId}
+          onSave={userIds => {
+            if (!dataMartId) return;
+            void updateDataMartOwners(
+              dataMartId,
+              userIds,
+              dataMart.technicalOwnerUsers.map(u => u.userId)
+            );
+          }}
+        />
+        <OwnersEditor
+          label='Technical Owner'
+          ownerUsers={dataMart.technicalOwnerUsers}
+          projectId={projectId}
+          onSave={userIds => {
+            if (!dataMartId) return;
+            void updateDataMartOwners(
+              dataMartId,
+              dataMart.businessOwnerUsers.map(u => u.userId),
+              userIds
+            );
+          }}
+        />
       </div>
 
       <div>
