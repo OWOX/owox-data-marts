@@ -1,6 +1,8 @@
 import { MigrationInterface, QueryRunner } from 'typeorm';
 
 export class MigrateMicrosoftAdsDeveloperTokenToOauth21773661280757 implements MigrationInterface {
+  public readonly name = 'MigrateMicrosoftAdsDeveloperTokenToOauth21773661280757';
+
   public async up(queryRunner: QueryRunner): Promise<void> {
     const rows = await queryRunner.query(`
             SELECT id, definition
