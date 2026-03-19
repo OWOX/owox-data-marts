@@ -568,8 +568,8 @@ export class DataMartsModule {
       .exclude(
         { path: 'data-marts/:id/definition', method: RequestMethod.PUT },
         { path: 'data-marts/:id/publish', method: RequestMethod.PUT },
-        { path: 'external/*', method: RequestMethod.ALL }
+        { path: 'external/{*path}', method: RequestMethod.ALL }
       )
-      .forRoutes({ path: '*', method: RequestMethod.ALL });
+      .forRoutes({ path: '{*path}', method: RequestMethod.ALL });
   }
 }
