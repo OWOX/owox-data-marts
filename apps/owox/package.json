@@ -33,7 +33,7 @@
     "@types/mocha": "^10",
     "@types/node": "^18",
     "chai": "^4",
-    "eslint-config-oclif": "^6",
+    "eslint-config-oclif": "6.0.146",
     "eslint-config-prettier": "~10.1.0",
     "mocha": "^11",
     "oclif": "^4",
