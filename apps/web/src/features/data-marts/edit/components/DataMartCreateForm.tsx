@@ -81,18 +81,23 @@ export function DataMartCreateForm({ initialData, onSuccess }: DataMartFormProps
     setIsCreatingDataStorage(false);
   };
 
-  const storageOptions = useMemo(
-    () => [
-      ...[...dataStorages]
-        .sort((a, b) => a.title.localeCompare(b.title))
-        .map(storage => ({
-          value: storage.id,
-          label: storage.title,
-        })),
-      { value: CREATE_NEW_STORAGE_VALUE, label: 'Create new storage', separator: true },
-    ],
-    [dataStorages]
-  );
+  const storageOptions = useMemo(() => {
+    const sortedMappedStorages = [...dataStorages]
+      .sort((a, b) => a.title.localeCompare(b.title))
+      .map(storage => ({
+        value: storage.id,
+        label: storage.title,
+      }));
+
+    return [
+      ...sortedMappedStorages,
+      {
+        value: CREATE_NEW_STORAGE_VALUE,
+        label: 'Create new storage',
+        separator: true,
+      },
+    ];
+  }, [dataStorages]);
   return (
     <>
       <Form {...form}>

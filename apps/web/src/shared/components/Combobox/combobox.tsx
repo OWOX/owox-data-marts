@@ -98,7 +98,10 @@ export function Combobox({
         align='start'
         sideOffset={5}
       >
-        <Command filter={filterOptions}>
+        <Command
+          filter={filterOptions}
+          className='[&_[data-slot=command-input-wrapper]]:gap-3 [&_[data-slot=command-input-wrapper]]:px-4'
+        >
           <CommandInput
             placeholder='Search...'
             value={searchQuery}
