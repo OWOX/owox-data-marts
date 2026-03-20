@@ -12,6 +12,7 @@ import { DataMartRunStatus } from '../enums/data-mart-run-status.enum';
 import { DataMartStatus } from '../enums/data-mart-status.enum';
 import { DataMartRunService } from './data-mart-run.service';
 import { InsightTemplateSourceDataService } from './insight-template-source-data.service';
+import { InsightTemplateSourceUsageService } from './insight-template-source-usage.service';
 
 @Injectable()
 export class InsightTemplateExecutionService {
@@ -23,7 +24,8 @@ export class InsightTemplateExecutionService {
     private readonly insightTemplateRepository: Repository<InsightTemplate>,
     private readonly systemTimeService: SystemTimeService,
     private readonly templateFacade: DataMartTemplateFacadeImpl,
-    private readonly sourceDataService: InsightTemplateSourceDataService
+    private readonly sourceDataService: InsightTemplateSourceDataService,
+    private readonly sourceUsageService: InsightTemplateSourceUsageService
   ) {}
 
   async run(
@@ -104,7 +106,12 @@ export class InsightTemplateExecutionService {
     try {
       pushLog({ type: 'log', message: 'Insight Template run started' });
 
-      const context = await this.sourceDataService.buildRenderContext(dataMart, insightTemplate);
+      const usedSourceKeys = new Set(
+        this.sourceUsageService.getUsedSourceKeys(insightTemplate.template)
+      );
+      const context = await this.sourceDataService.buildRenderContext(dataMart, insightTemplate, {
+        usedSourceKeys,
+      });
       const result = await this.templateFacade.render({
         template: insightTemplate.template ?? '',
         context,

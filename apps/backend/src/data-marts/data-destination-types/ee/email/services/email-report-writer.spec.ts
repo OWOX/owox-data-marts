@@ -9,6 +9,7 @@ import { TemplateSourceTypeEnum } from '../../../../enums/template-source-type.e
 import { InsightTemplate } from '../../../../entities/insight-template.entity';
 import { InsightTemplateSourceDataService } from '../../../../services/insight-template-source-data.service';
 import { InsightTemplateService } from '../../../../services/insight-template.service';
+import { InsightTemplateSourceUsageService } from '../../../../services/insight-template-source-usage.service';
 import { DataDestinationCredentialsResolver } from '../../../data-destination-credentials-resolver.service';
 import { DataDestinationType } from '../../../enums/data-destination-type.enum';
 import { ReportCondition } from '../../../enums/report-condition.enum';
@@ -61,6 +62,9 @@ describe('EmailReportWriter', () => {
         sources: [],
       } satisfies Partial<InsightTemplate>),
     };
+    const sourceUsageService = {
+      getUsedSourceKeys: jest.fn().mockReturnValue(['main']),
+    };
 
     return {
       writer: new EmailReportWriter(
@@ -72,13 +76,15 @@ describe('EmailReportWriter', () => {
         producer as never,
         credentialsResolver as never as DataDestinationCredentialsResolver,
         sourceDataService as never as InsightTemplateSourceDataService,
-        insightTemplateService as never as InsightTemplateService
+        insightTemplateService as never as InsightTemplateService,
+        sourceUsageService as never as InsightTemplateSourceUsageService
       ),
       emailProvider,
       markdownParser,
       insightTemplateFacade,
       sourceDataService,
       insightTemplateService,
+      sourceUsageService,
       credentialsResolver,
       consumptionTrackingService,
       producer,
@@ -112,8 +118,25 @@ describe('EmailReportWriter', () => {
       },
     }) as Report;
 
+  const createCustomMessageReport = (): Report =>
+    ({
+      ...createReport(),
+      destinationConfig: {
+        type: 'email-config',
+        subject: 'Weekly report',
+        reportCondition: ReportCondition.ALWAYS,
+        templateSource: {
+          type: TemplateSourceTypeEnum.CUSTOM_MESSAGE,
+          config: {
+            messageTemplate: 'Credits: {{table}}',
+          },
+        },
+      },
+    }) as Report;
+
   it('passes preloaded main source to buildRenderContext for insight template reports', async () => {
-    const { writer, sourceDataService, insightTemplateFacade, emailProvider } = createWriter();
+    const { writer, sourceDataService, insightTemplateFacade, emailProvider, sourceUsageService } =
+      createWriter();
     const report = createReport();
     const reportDataDescription = new ReportDataDescription([
       new ReportDataHeader('credits', 'Credits', 'Credits description'),
@@ -128,12 +151,14 @@ describe('EmailReportWriter', () => {
       },
     });
 
+    expect(sourceUsageService.getUsedSourceKeys).toHaveBeenCalledWith('{{table}}');
     expect(sourceDataService.buildRenderContext).toHaveBeenCalledWith(
       report.dataMart,
       expect.objectContaining({
         id: 'template-1',
       }),
       {
+        usedSourceKeys: new Set(['main']),
         preloadedSources: {
           main: {
             dataHeaders: [
@@ -151,6 +176,62 @@ describe('EmailReportWriter', () => {
         },
       }
     );
+    expect(insightTemplateFacade.render).toHaveBeenCalled();
+    expect(emailProvider.sendEmail).toHaveBeenCalled();
+  });
+
+  it('passes empty usedSourceKeys set when insight template has no supported data tags', async () => {
+    const { writer, sourceDataService, sourceUsageService, insightTemplateService } =
+      createWriter();
+    const report = createReport();
+
+    sourceUsageService.getUsedSourceKeys.mockReturnValue([]);
+    insightTemplateService.getByIdAndDataMartIdWithSourceEntities.mockResolvedValue({
+      id: 'template-1',
+      template: '# Report without data tags',
+      sources: [],
+    } satisfies Partial<InsightTemplate>);
+
+    await writer.prepareToWriteReport(report, new ReportDataDescription([]));
+    await writer.finalize();
+
+    expect(sourceDataService.buildRenderContext).toHaveBeenCalledWith(
+      report.dataMart,
+      expect.objectContaining({
+        id: 'template-1',
+      }),
+      {
+        usedSourceKeys: new Set(),
+        preloadedSources: {
+          main: {
+            dataHeaders: [],
+            dataRows: [],
+            dataHeadersCount: 0,
+            hasMoreRowsThanLimit: false,
+            rowsLimit: 0,
+          },
+        },
+      }
+    );
+  });
+
+  it('does not use source analyzer or source-data service for CUSTOM_MESSAGE flow', async () => {
+    const {
+      writer,
+      sourceDataService,
+      sourceUsageService,
+      insightTemplateService,
+      emailProvider,
+      insightTemplateFacade,
+    } = createWriter();
+    const report = createCustomMessageReport();
+
+    await writer.prepareToWriteReport(report, new ReportDataDescription([]));
+    await writer.finalize();
+
+    expect(sourceUsageService.getUsedSourceKeys).not.toHaveBeenCalled();
+    expect(sourceDataService.buildRenderContext).not.toHaveBeenCalled();
+    expect(insightTemplateService.getByIdAndDataMartIdWithSourceEntities).not.toHaveBeenCalled();
     expect(insightTemplateFacade.render).toHaveBeenCalled();
     expect(emailProvider.sendEmail).toHaveBeenCalled();
   });
