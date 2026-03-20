@@ -5,7 +5,7 @@
  * file that was distributed with this source code.
  */
 
-var statsFields = {
+var statsByCountryFields = {
   'id': {
     'description': 'The unique identifier for the stats record.',
     'type': DATA_TYPES.STRING

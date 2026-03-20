@@ -5,6 +5,8 @@
  * file that was distributed with this source code.
  */
 
+const zlib = require('zlib');
+
 var XAdsSource = class XAdsSource extends AbstractSource {
   constructor(config) {
     super(config.mergeParameters({
@@ -160,8 +162,11 @@ var XAdsSource = class XAdsSource extends AbstractSource {
       case 'stats':
         return await this._timeSeriesFetch({ nodeName, accountId, fields, start_time, end_time });
 
+      case 'stats_by_country':
+        return await this._timeSeriesAsyncFetch({ nodeName, accountId, fields, start_time, end_time });
+
       default:
-        throw new ConfigurationError(`Unknown node: ${nodeName}`);
+        throw new Error(`Unknown node: ${nodeName}`);
     }
   }
 
@@ -374,76 +379,167 @@ var XAdsSource = class XAdsSource extends AbstractSource {
   async _rawPostFetch(path, params = {}) {
     const url = `${this.BASE_URL}${this.config.Version.value}/${path}`;
 
-      // Encode params as form body (key=value&key=value)
-  const body = Object.entries(params)
-    .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v)}`)
-    .join('&');
+    // X Ads API requires POST bodies as application/x-www-form-urlencoded, not JSON.
+    const body = Object.entries(params)
+      .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v)}`)
+      .join('&');
 
-      // OAuth signature must include body params — pass them into the signer
-  const oauth = this._generateOAuthHeader({ method: 'POST', url, params });
+    // OAuth 1.0a requires body params in the signature base string for POST requests.
+    const oauth = this._generateOAuthHeader({ method: 'POST', url, params });
 
-  await AsyncUtils.delay(1000);
+    await AsyncUtils.delay(1000);
 
-  const resp = await this.urlFetchWithRetry(url, {
-    method: 'POST',
-    headers: {
-      Authorization: oauth,
-      'Content-Type': 'application/x-www-form-urlencoded'
-    },
-    body,
-    muteHttpExceptions: true
-  });
+    const resp = await this.urlFetchWithRetry(url, {
+      method: 'POST',
+      headers: {
+        Authorization: oauth,
+        'Content-Type': 'application/x-www-form-urlencoded'
+      },
+      body,
+      muteHttpExceptions: true
+    });
 
-  const text = await resp.getContentText();
-  return JSON.parse(text);
+    const text = await resp.getContentText();
+    return JSON.parse(text);
   }
+
   async _submitAsyncStatsJob({ accountId, entityIds, placement, start_time, end_time }) {
-  const params = {
-    entity: 'PROMOTED_TWEET',
-    entity_ids: entityIds.join(','),
-    placement,
-    granularity: 'DAY',
-    metric_groups: 'ENGAGEMENT,BILLING',
-    segmentation_type: 'COUNTRY',
-    start_time: `${start_time}T00:00:00Z`,
-    end_time: `${end_time}T00:00:00Z`
-  };
+    const params = {
+      entity: 'PROMOTED_TWEET',
+      entity_ids: entityIds.join(','),
+      placement,
+      granularity: 'DAY',
+      metric_groups: 'ENGAGEMENT,BILLING',
+      segmentation_type: 'LOCATIONS',
+      start_time,
+      end_time
+    };
 
-  const resp = await this._rawPostFetch(`stats/jobs/accounts/${accountId}`, params);
+    const resp = await this._rawPostFetch(`stats/jobs/accounts/${accountId}`, params);
 
-  if (!resp.data?.id) {
-    throw new Error(`Failed to submit async stats job: ${JSON.stringify(resp)}`);
-  }
+    if (!resp.data?.id) {
+      throw new Error(`Failed to submit async stats job: ${JSON.stringify(resp)}`);
+    }
 
-  return resp.data.id;
+    return resp.data.id;
   }
 
   async _pollAsyncJobUntilComplete({ accountId, jobId }) {
-  const MAX_ATTEMPTS = 20;
-  const POLL_INTERVAL_MS = 5000;
+    const MAX_ATTEMPTS = 60;
+    const POLL_INTERVAL_MS = 10000;
 
-  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
-    await AsyncUtils.delay(POLL_INTERVAL_MS);
+    for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+      const resp = await this._rawFetch(`stats/jobs/accounts/${accountId}`, { job_ids: jobId });
+      const job = resp.data?.[0];
+      const status = job?.status;
 
-    const resp = await this._rawFetch(`stats/jobs/accounts/${accountId}/${jobId}`);
-    const status = resp.data?.status;
+      if (status === 'SUCCESS') {
+        if (!job.url) throw new Error(`[XAds] Job ${jobId} succeeded but url is null`);
+        return job.url;
+      }
 
-    console.log(`Job ${jobId} status: ${status} (attempt ${attempt}/${MAX_ATTEMPTS})`);
+      if (status === 'FAILED') {
+        throw new Error(`Async stats job ${jobId} failed: ${JSON.stringify(resp)}`);
+      }
 
-    if (status === 'complete') {
-      return resp.data.url;
+      // status is PROCESSING or QUEUED — wait before next attempt
+      await AsyncUtils.delay(POLL_INTERVAL_MS);
     }
 
-    if (status === 'failed') {
-      throw new Error(`Async stats job ${jobId} failed: ${JSON.stringify(resp)}`);
+    throw new Error(`Async stats job ${jobId} did not complete after ${MAX_ATTEMPTS} attempts`);
+  }
+
+  async _downloadAndParseJobResults({ downloadUrl, placement, start_time, fields }) {
+    // No OAuth header — downloadUrl is a pre-signed CDN URL served as raw gzip binary
+    // (no Content-Encoding header), so we decompress manually with zlib.
+    // 60s timeout guards against a stalled CDN connection hanging the import indefinitely.
+    const resp = await HttpUtils.fetch(downloadUrl, { signal: AbortSignal.timeout(60000) });
+    const buffer = await resp.getBlob();
+    const text = await new Promise((resolve, reject) =>
+      zlib.gunzip(buffer, (err, result) => err ? reject(err) : resolve(result.toString('utf8')))
+    );
+    const json = JSON.parse(text);
+
+    const arr = Array.isArray(json.data) ? json.data : [json.data];
+    const rawResult = [];
+
+    for (const h of arr) {
+      const segments = h.id_data || [];
+      for (const segment of segments) {
+        const country = segment.segment?.segment_value || null;
+        const m = segment.metrics || {};
+        rawResult.push({
+          id:                         h.id,
+          date:                       start_time,
+          placement,
+          country,
+          impressions:                m.impressions?.[0]                || 0,
+          tweets_send:                m.tweets_send?.[0]                || 0,
+          billed_charge_local_micro:  m.billed_charge_local_micro?.[0]  || 0,
+          qualified_impressions:      m.qualified_impressions?.[0]      || 0,
+          follows:                    m.follows?.[0]                    || 0,
+          app_clicks:                 m.app_clicks?.[0]                 || 0,
+          retweets:                   m.retweets?.[0]                   || 0,
+          unfollows:                  m.unfollows?.[0]                  || 0,
+          likes:                      m.likes?.[0]                      || 0,
+          engagements:                m.engagements?.[0]                || 0,
+          clicks:                     m.clicks?.[0]                     || 0,
+          card_engagements:           m.card_engagements?.[0]           || 0,
+          poll_card_vote:             m.poll_card_vote?.[0]             || 0,
+          replies:                    m.replies?.[0]                    || 0,
+          url_clicks:                 m.url_clicks?.[0]                 || 0,
+          billed_engagements:         m.billed_engagements?.[0]         || 0,
+          carousel_swipes:            m.carousel_swipes?.[0]            || 0,
+        });
+      }
     }
 
-    // status is 'queued' or 'processing' — loop continues
+    return this._filterBySchema(rawResult, 'stats_by_country', fields);
   }
 
-  throw new Error(`Async stats job ${jobId} did not complete after ${MAX_ATTEMPTS} attempts`);
-  }
+  async _timeSeriesAsyncFetch({ nodeName, accountId, fields, start_time, end_time }) {
+    const uniqueKeys = this.fieldsSchema[nodeName].uniqueKeys || [];
+    const missingKeys = uniqueKeys.filter(key => !fields.includes(key));
 
+    if (missingKeys.length > 0) {
+      throw new Error(`Missing required unique fields for '${nodeName}'. Missing: ${missingKeys.join(', ')}`);
+    }
+
+    const promos = await this.fetchData({ nodeName: 'promoted_tweets', accountId, fields: ['id'] });
+    const ids = promos.map(r => r.id);
+    if (!ids.length) return [];
+
+    // end_time is exclusive — extend by one day to match the sync stats behaviour
+    const e = new Date(end_time);
+    e.setDate(e.getDate() + 1);
+    const endStr = DateUtils.formatDate(e);
+
+    const result = [];
+
+    for (let i = 0; i < ids.length; i += this.config.StatsMaxEntityIds.value) {
+      const entityIds = ids.slice(i, i + this.config.StatsMaxEntityIds.value);
+
+      // Submit both placements in parallel — cuts per-batch time roughly in half.
+      // allSettled (vs all) lets the other placement finish even if one fails,
+      // and surfaces a clear error listing which placements failed.
+      const batchResults = await Promise.allSettled(
+        ['ALL_ON_TWITTER', 'PUBLISHER_NETWORK'].map(async placement => {
+          const jobId = await this._submitAsyncStatsJob({ accountId, entityIds, placement, start_time, end_time: endStr });
+          const downloadUrl = await this._pollAsyncJobUntilComplete({ accountId, jobId });
+          return this._downloadAndParseJobResults({ downloadUrl, placement, start_time, fields });
+        })
+      );
+
+      const failures = batchResults.filter(r => r.status === 'rejected');
+      if (failures.length) {
+        throw new Error(`[XAds] ${failures.length} placement job(s) failed for batch [${entityIds.join(',')}]: ${failures.map(f => f.reason).join('; ')}`);
+      }
+
+      result.push(...batchResults.map(r => r.value).flat());
+    }
+
+    return result;
+  }
 
   /**
    * Determines if a X Ads API error is valid for retry
