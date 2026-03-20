@@ -1,5 +1,4 @@
 import * as React from 'react';
-import { useCallback } from 'react';
 import { Check, ChevronsUpDown } from 'lucide-react';
 
 import { Button } from '@owox/ui/components/button';
@@ -9,6 +8,8 @@ import {
   CommandGroup,
   CommandInput,
   CommandItem,
+  CommandList,
+  CommandSeparator,
 } from '@owox/ui/components/command';
 import { Popover, PopoverContent, PopoverTrigger } from '@owox/ui/components/popover';
 import { cn } from '@owox/ui/lib/utils';
@@ -17,6 +18,7 @@ export interface ComboboxOption {
   value: string;
   label: string;
   group?: string;
+  separator?: boolean;
 }
 
 interface ComboboxProps {
@@ -27,6 +29,12 @@ interface ComboboxProps {
   emptyMessage?: string;
   className?: string;
   disabled?: boolean;
+  renderLabel?: (option: ComboboxOption) => React.ReactNode;
+}
+
+function filterOptions(value: string, search: string, keywords?: string[]): number {
+  const searchTarget = keywords?.join(' ') ?? value;
+  return searchTarget.toLowerCase().includes(search.toLowerCase()) ? 1 : 0;
 }
 
 export function Combobox({
@@ -37,6 +45,7 @@ export function Combobox({
   emptyMessage = 'No results found.',
   className,
   disabled = false,
+  renderLabel,
 }: ComboboxProps) {
   const [open, setOpen] = React.useState(false);
   const [searchQuery, setSearchQuery] = React.useState('');
@@ -57,7 +66,7 @@ export function Combobox({
 
   const selectedOption = options.find(option => option.value === value);
 
-  const handleSelect = useCallback(
+  const handleSelect = React.useCallback(
     (optionValue: string) => {
       onValueChange(optionValue);
       requestAnimationFrame(() => {
@@ -85,42 +94,53 @@ export function Combobox({
         </Button>
       </PopoverTrigger>
       <PopoverContent
-        className='max-h-[300px] min-w-[300px] overflow-auto p-0'
+        className='w-[var(--radix-popover-trigger-width)] p-0'
         align='start'
         sideOffset={5}
       >
-        <Command>
+        <Command
+          filter={filterOptions}
+          className='[&_[data-slot=command-input-wrapper]]:gap-3 [&_[data-slot=command-input-wrapper]]:px-4'
+        >
           <CommandInput
-            placeholder={`Search ${placeholder.toLowerCase()}...`}
+            placeholder='Search...'
             value={searchQuery}
             onValueChange={setSearchQuery}
           />
-          <CommandEmpty>{emptyMessage}</CommandEmpty>
-          {Object.entries(groupedOptions).map(([groupName, groupOptions]) => {
-            return (
-              <CommandGroup key={groupName || 'default'} heading={groupName}>
-                {groupOptions.map(option => (
-                  <CommandItem
-                    key={option.value}
-                    value={option.value}
-                    onSelect={() => {
-                      handleSelect(option.value);
-                    }}
-                    keywords={[option.label]}
-                    className='min-w-0'
-                  >
-                    <Check
-                      className={cn(
-                        'mr-2 h-4 w-4',
-                        value === option.value ? 'opacity-100' : 'opacity-0'
-                      )}
-                    />
-                    <span className='truncate'>{option.label}</span>
-                  </CommandItem>
-                ))}
-              </CommandGroup>
-            );
-          })}
+          <CommandList className='max-h-[300px] overflow-auto'>
+            <CommandEmpty>{emptyMessage}</CommandEmpty>
+            {Object.entries(groupedOptions).map(([groupName, groupOptions]) => {
+              return (
+                <CommandGroup key={groupName || 'default'} heading={groupName}>
+                  {groupOptions.map(option => (
+                    <React.Fragment key={option.value}>
+                      {option.separator && <CommandSeparator />}
+                      <CommandItem
+                        value={option.value}
+                        onSelect={() => {
+                          handleSelect(option.value);
+                        }}
+                        keywords={[option.label]}
+                        className='min-w-0 justify-between'
+                      >
+                        {renderLabel ? (
+                          renderLabel(option)
+                        ) : (
+                          <span className='min-w-0 flex-1 truncate'>{option.label}</span>
+                        )}
+                        <Check
+                          className={cn(
+                            'ml-2 h-4 w-4 shrink-0',
+                            value === option.value ? 'opacity-100' : 'opacity-0'
+                          )}
+                        />
+                      </CommandItem>
+                    </React.Fragment>
+                  ))}
+                </CommandGroup>
+              );
+            })}
+          </CommandList>
         </Command>
       </PopoverContent>
     </Popover>
