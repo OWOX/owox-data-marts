@@ -205,7 +205,7 @@ export class LookerStudioConnectorApiService {
           )
         );
       } else {
-        await this.handleSuccessfulReportRun(reportRun);
+        await this.handleSuccessfulReportRun(reportRun, cachedReader);
       }
     } catch (e) {
       await this.handleFailedReportRun(reportRun, e);
@@ -362,7 +362,7 @@ export class LookerStudioConnectorApiService {
           )
         );
       } else {
-        await this.handleSuccessfulReportRun(reportRun);
+        await this.handleSuccessfulReportRun(reportRun, cachedReader);
       }
 
       return response;
@@ -382,8 +382,12 @@ export class LookerStudioConnectorApiService {
    * 4. Publishes LookerReportRunSuccessfullyEvent
    *
    * @param reportRun - Completed report run
+   * @param cachedReader - Cached reader data
    */
-  private async handleSuccessfulReportRun(reportRun: LookerStudioReportRun) {
+  private async handleSuccessfulReportRun(
+    reportRun: LookerStudioReportRun,
+    cachedReader: CachedReaderData
+  ) {
     reportRun.markAsSuccess();
 
     const saved = await this.saveReportRunResultSafely(reportRun);
@@ -392,7 +396,9 @@ export class LookerStudioConnectorApiService {
     }
 
     const report = reportRun.getReport();
-    await this.consumptionTrackingService.registerLookerReportRunConsumption(report);
+    if (!cachedReader.fromCache) {
+      await this.consumptionTrackingService.registerLookerReportRunConsumption(report);
+    }
 
     const {
       id: reportId,

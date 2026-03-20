@@ -13,6 +13,7 @@ import {
   GITHUB_MARKDOWN_CSS,
 } from './github-markdown-css';
 import remarkAlert from 'remark-github-blockquote-alert';
+import { rehypeNormalizeTableTruncationNoticeRows } from './plugins/rehype-normalize-table-truncation-notice.plugin';
 
 const EXTENDED_SCHEMA_FOR_SANITIZE = {
   ...defaultSchema,
@@ -62,6 +63,7 @@ export class MarkdownParser {
       .use(remarkAlert, { tagName: 'blockquote' })
       .use(remarkRehype)
       .use(rehypeSanitize, EXTENDED_SCHEMA_FOR_SANITIZE) // filter out potentially dangerous HTML
+      .use(rehypeNormalizeTableTruncationNoticeRows)
       .use(rehypeStringify)
       .process(markdown);
 

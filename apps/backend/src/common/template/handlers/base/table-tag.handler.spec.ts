@@ -1,9 +1,13 @@
 import { TableTagHandler } from './table-tag.handler';
 import { HelperOptions } from 'handlebars';
+import { TABLE_TRUNCATION_NOTICE_MARKER } from '../../constants/table-truncation-notice.constants';
 
 function makeOptions(hash: Record<string, unknown>): HelperOptions {
   return { hash } as HelperOptions;
 }
+
+const DEFAULT_TRUNCATION_NOTICE =
+  "Showing only first 100 rows. Make sure you set the correct LIMIT in the Data Artifact's SQL.";
 
 describe('DataTableTagHandler', () => {
   let handler: TableTagHandler;
@@ -109,6 +113,76 @@ describe('DataTableTagHandler', () => {
       expect(payload.dataHeaders).toEqual([{ name: 'b' }]);
       expect(payload.dataRows).toEqual([['2'], ['4'], ['6']]);
     });
+
+    it('should expose truncation metadata when source has more rows than limit', () => {
+      const context = {
+        tableSources: {
+          main: {
+            dataHeaders: headers,
+            dataRows: rows,
+            hasMoreRowsThanLimit: true,
+          },
+        },
+      };
+
+      const payload = handler.buildPayload([], makeOptions({}), context);
+
+      expect(payload.dataRows).toEqual(rows);
+      expect(payload.hasMoreRowsThanLimit).toBe(true);
+      expect(payload.rowsLimit).toBe(100);
+    });
+
+    it('should preserve truncation metadata after columns filtering', () => {
+      const context = {
+        tableSources: {
+          main: {
+            dataHeaders: headers,
+            dataRows: rows,
+            hasMoreRowsThanLimit: true,
+          },
+        },
+      };
+
+      const payload = handler.buildPayload([], makeOptions({ columns: 'b' }), context);
+
+      expect(payload.dataHeaders).toEqual([{ name: 'b' }]);
+      expect(payload.dataRows).toEqual([['2'], ['4'], ['6']]);
+      expect(payload.hasMoreRowsThanLimit).toBe(true);
+    });
+
+    it('should use source rowsLimit for truncation notice text', () => {
+      const context = {
+        tableSources: {
+          main: {
+            dataHeaders: headers,
+            dataRows: rows,
+            hasMoreRowsThanLimit: true,
+            rowsLimit: 75,
+          },
+        },
+      };
+
+      const payload = handler.buildPayload([], makeOptions({}), context);
+
+      expect(payload.rowsLimit).toBe(75);
+    });
+
+    it('should preserve empty rows after slice and keep truncation metadata', () => {
+      const context = {
+        tableSources: {
+          main: {
+            dataHeaders: headers,
+            dataRows: rows,
+            hasMoreRowsThanLimit: true,
+          },
+        },
+      };
+
+      const payload = handler.buildPayload([], makeOptions({ limit: 0 }), context);
+
+      expect(payload.dataRows).toEqual([]);
+      expect(payload.hasMoreRowsThanLimit).toBe(true);
+    });
   });
 
   describe('handle', () => {
@@ -156,6 +230,22 @@ describe('DataTableTagHandler', () => {
       });
       expect(result.rendered).toContain('| Column One |');
       expect(result.rendered).not.toContain('| col1 |');
+    });
+
+    it('should render truncation notice as the last markdown row with service marker', () => {
+      const result = handler.handle({
+        dataHeaders: [{ name: 'Name' }, { name: 'Value' }],
+        dataRows: [['foo', '1']],
+        hasMoreRowsThanLimit: true,
+        rowsLimit: 100,
+      });
+
+      const lines = result.rendered.split('\n');
+      const lastLine = lines[lines.length - 1];
+
+      expect(lastLine).toContain(TABLE_TRUNCATION_NOTICE_MARKER);
+      expect(lastLine).toContain(DEFAULT_TRUNCATION_NOTICE);
+      expect(lastLine).toContain('|  |');
     });
   });
 });

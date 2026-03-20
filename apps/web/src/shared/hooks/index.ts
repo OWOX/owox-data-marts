@@ -5,3 +5,4 @@ export { useProjectRoute } from './useProjectRoute';
 export { useActionLock } from './useActionLock';
 export { useUrlParam } from './useUrlParam';
 export { usePersistentFilters } from './usePersistentFilters';
+export { useOnboardingVideo } from './useOnboardingVideo';

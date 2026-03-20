@@ -38,6 +38,10 @@ export class SnowflakeDataMartValidator implements DataMartValidator {
       return identifierValidation;
     }
 
+    if (isConnectorDefinition(definition)) {
+      return ValidationResult.success();
+    }
+
     if (!isSnowflakeCredentials(credentials)) {
       return ValidationResult.failure('Invalid credentials');
     }

@@ -64,6 +64,7 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
             {
               label: 'Setup Guide',
               items: [
+                'docs/getting-started/setup-guide/insights',
                 'docs/getting-started/setup-guide/extension-data-marts',
                 'docs/getting-started/setup-guide/connector-data-mart',
                 'docs/getting-started/setup-guide/sql-data-mart',

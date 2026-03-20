@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import type { DataStorage } from '../../../data-storage/shared/model/types/data-storage.ts';
 import {
   DataStorageType,
@@ -16,12 +16,15 @@ import { trackEvent } from '../../../../utils';
 interface DataMartDataStorageViewProps {
   dataStorage: DataStorage;
   onDataStorageChange?: (updatedStorage: DataStorage) => void;
+  onEditSheetClose?: (payload: { hasChanges: boolean }) => void;
 }
 export const DataMartDataStorageView = ({
   dataStorage,
   onDataStorageChange,
+  onEditSheetClose,
 }: DataMartDataStorageViewProps) => {
   const [isEditSheetOpen, setIsEditSheetOpen] = useState(false);
+  const hasChangesRef = useRef(false);
   const dataStorageInfo = DataStorageTypeModel.getInfo(dataStorage.type);
   const handleCardClick = () => {
     setIsEditSheetOpen(true);
@@ -29,6 +32,11 @@ export const DataMartDataStorageView = ({
 
   const handleClose = () => {
     setIsEditSheetOpen(false);
+
+    // We emit a close event with a change flag so parent components can trigger
+    // follow-up actions (e.g. SQL revalidation) only when storage was actually updated.
+    onEditSheetClose?.({ hasChanges: hasChangesRef.current });
+    hasChangesRef.current = false;
   };
 
   const getSubtitle = () => {
@@ -169,6 +177,8 @@ export const DataMartDataStorageView = ({
           onClose={handleClose}
           dataStorage={dataStorage}
           onSaveSuccess={updatedStorage => {
+            hasChangesRef.current = true;
+
             if (onDataStorageChange) {
               onDataStorageChange(updatedStorage);
             }

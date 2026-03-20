@@ -1,5 +1,82 @@
 # owox
 
+## 0.21.1
+
+### Patch Changes
+
+- b3befb4: # Fixed build failure issue
+
+  Fixed build error caused by ESLint configuration issue
+
+## 0.21.0
+
+### Minor Changes 0.21.0
+
+![OWOX Data Marts – v0.21.0](https://github.com/user-attachments/assets/01f4ddd8-5eb0-4407-8ba2-07dcc5cf9946)
+
+- 7494cd6: # Introducing reusable **Insights with AI assistance**
+
+  Insights is now available in OWOX! Use it to analyze your data mart results directly — create reports, explore your data, and share findings with your team. To get started, check out the [Insights setup guide](../../docs/getting-started/setup-guide/insights.md).
+
+- a7bbb8c: # Add **OAuth for Google Ads** connector
+
+  Added OAuth2 authentication flow for Google Ads connector. Users can now authorize access using a "Sign in with Google" button instead of manually entering RefreshToken, ClientId, and ClientSecret. The DeveloperToken is managed via environment variable and stored securely with other OAuth credentials. Also fixed a COOP SecurityError in the OAuth popup polling that affected all OAuth connectors.
+
+- d906258: # Add **"Copy Credentials" button** to Storage and Destination
+
+  Added a "Copy Credentials" button to Storage and Destination edit forms, allowing users to copy credential configuration from other storages or destinations of the same type. Includes new backend endpoints for listing storages and destinations by type with credential identity information.
+
+- e68ca61: # **Improve Data Mart publish** status message
+
+  The publish status message for data marts has been improved to provide more clarity and actionable information.
+  - **Publish after:** The publish status message now shows what you need to do to publish the data mart. For example, if you need to complete storage configuration or configure an input source.
+  - **Ready to publish:** The publish status message now shows that the data mart is ready to publish.
+
+- cb57600: # Add **video tutorials** about completing storage setup and insights
+
+  In the Help menu, we added two new video tutorials:
+  - how to complete the Google BigQuery (used in OWOX extension) storage setup to publish Data Marts from OWOX Reports (Google Sheets extension)
+  - how to get started with Insights
+
+- 27e5af8: # **AWS Athena storage descriptions**
+
+  Added support for column descriptions (comments) in AWS Athena storage and Output Schema.
+
+- 90b7ee7: # Implement **destination name validation** for all data storage types
+
+  Implements comprehensive destination name validation for `CONNECTOR` and `TABLE` definition types across BigQuery, Snowflake, Athena, Redshift, and Databricks. This update strengthens security by preventing malformed table names and ensuring all storage configurations are properly validated before processing.
+
+- 1a7b5f8: # Improve form UI with **collapsible sections**
+
+  This update introduces collapsible sections in forms to make configuration flows easier to complete. Less important or advanced settings can now be hidden by default, allowing users to focus on the most important fields first. For example, this approach can help when configuring storages that are automatically created during [integration](../../docs/getting-started/setup-guide/extension-data-marts.md) with the OWOX Reports extension for Google Sheets.
+
+  The interaction follows the same collapsible pattern used in wizard screens, keeping the experience consistent across the product. Existing forms remain unchanged and continue to appear expanded by default.
+
+- 6f1f61a: # Show **storage health status** in the configuration form
+
+  This update improves visibility of the storage connection status when configuring a Data Storage. Users can now see whether the storage access is valid directly in the General section of the configuration form. This provides immediate feedback that the storage is correctly configured and ready to be used by Data Marts. This makes the setup experience clearer and helps users configure their storage with more confidence.
+
+  **Benefits:**
+  - Instantly understand if the storage connection is working
+  - Quickly detect configuration issues
+  - Maintain a consistent status indicator between the Data Storage list and the configuration form
+
+- 7494cd6: # **Bug fixes and improvements**
+  - Fix data storage validation for Google Legacy BigQuery connector
+  - Fix missing dependencies for data destination and storage forms to avoid errors
+  - Fix duplicate trigger runs caused by MySQL deadlocks not being handled as transient errors
+  - Fix Google BigQuery storage not saving OAuth credentials and blocking OAuth-authenticated users from saving storage settings
+  - Fix field descriptions and primary key flags being lost after schema sync in Redshift and Snowflake data marts
+
+### Patch Changes
+
+- @owox/internal-helpers@0.21.0
+- @owox/idp-protocol@0.21.0
+- @owox/idp-better-auth@0.21.0
+- @owox/idp-owox-better-auth@0.21.0
+- @owox/backend@0.21.0
+- @owox/web@0.21.0
+
 ## 0.20.0
 
 ### Minor Changes 0.20.0
@@ -9,7 +86,7 @@
 - cc5553d: # **New Sign Up options**: Email/Password and Microsoft Authentication in the Cloud edition on app.owox.com
 
   Users can now sign up using their email and password, or through Microsoft account integration for seamless access.
-  
+
 - 55ecd48: # **Table Filters** for Data Marts and Data Storages
 
   We’ve overhauled the table filtering experience to help you navigate large datasets with precision and speed:
@@ -66,7 +143,7 @@
   - String timestamps are now parsed and formatted to `YYYY-MM-DD HH:MM:SS` before being written to Snowflake
   - Invalid timestamp strings fall back to the existing special-character obfuscation path
 
-### Patch Changes
+### Patch Changes 0.20.0
 
 - @owox/internal-helpers@0.20.0
 - @owox/idp-protocol@0.20.0
@@ -1247,7 +1324,6 @@
   We're excited to introduce **Time Triggers** - a powerful new feature that allows you to schedule your reports and connectors to run automatically at specified times!
 
   ## Benefits
-
   - ✅ **Save Time**: Automate routine data refreshes without manual intervention
   - 🔄 **Stay Updated**: Keep your data fresh with regular scheduled updates
   - 📊 **Consistent Reporting**: Ensure your reports are generated on a reliable schedule
@@ -1255,7 +1331,6 @@
   - 🔧 **Flexible Scheduling Options**: Choose from daily, weekly, monthly, or interval-based schedules
 
   ## Scheduling Options
-
   - **Daily**: Run your reports or connectors at the same time every day
   - **Weekly**: Select specific days of the week for execution
   - **Monthly**: Schedule runs on specific days of the month

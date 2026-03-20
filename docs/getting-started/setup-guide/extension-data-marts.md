@@ -59,6 +59,40 @@ Once published, each Data Mart is live: its output schema is visible and it can 
 > in the web app also removes it from the extension. New Data Marts created in the
 > web app do not sync back to the extension.
 
+## Manage Data Marts in the List
+
+If you have many data marts, use filters to quickly find the ones you need.
+
+### Filter by Storage Type
+
+![Filter by Storage Type](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/d4e17ce7-860d-42a3-932a-fd00bfb5e900/public)
+
+To view only data marts created for the OWOX extension:
+
+1. Click **Filters** above the list.
+2. In the filter panel:
+   - Select **Storage type**
+   - Choose the operator **is**
+   - Select **Google BigQuery (used in OWOX extension)**
+3. Click **Apply filter**
+
+This helps you focus on data marts used in the extension, especially if you also create data marts in the main app.
+
+### Filter by Storage Title (GCP Project)
+
+![Filter by Storage Title](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/75c9071f-43b0-48c6-8f00-8e4eb6390c00/public)
+
+You can filter data marts by the GCP project:
+
+- Use **Storage title** with the **contains** operator to search by project name  
+- Use **Storage title** with the **is** operator to select a specific project from the list
+
+### Combine Filters
+
+![Filters combination](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/f8fe1030-00a7-4666-9c71-5553dfb61d00/public)
+
+You can combine multiple filters to narrow the list, even if you have hundreds or thousands of data marts. As shown in the screenshot above, you can filter by Storage title, status, and Data Mart title to find the data marts you need.
+
 ## What You Can Do After Publishing
 
 ### Try Insights
