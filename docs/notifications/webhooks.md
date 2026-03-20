@@ -137,3 +137,9 @@ Your endpoint must return a `2xx` HTTP status code within **10 seconds**. Any ot
 ## Testing Your Endpoint
 
 Use the **Test** button in the notification settings to send a sample event to your endpoint. Test events have `"isTest": true` in the payload and use the same structure as real events, so you can use them to validate your integration immediately.
+
+---
+
+## Receiver Changes and Webhooks
+
+Webhooks are sent independently of the receiver list — as long as a webhook URL is configured and the notification is enabled, events will be delivered to your endpoint regardless of whether any email receivers are configured. See [Notification Settings](./notification-settings.md) for how receivers are managed, including [automatic subscription](./notification-settings.md#automatic-subscription) of new project members.

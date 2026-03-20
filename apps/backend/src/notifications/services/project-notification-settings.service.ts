@@ -75,6 +75,7 @@ export class ProjectNotificationSettingsService {
         notificationType,
         enabled: data.enabled ?? false,
         receivers: data.receivers ?? [],
+        optedOutReceivers: [],
         webhookUrl: data.webhookUrl ?? null,
         groupingDelayCron: cron,
         lastRunAt: beingEnabled ? new Date() : null,
@@ -85,7 +86,20 @@ export class ProjectNotificationSettingsService {
       const beingEnabled = data.enabled === true && wasDisabled;
 
       if (data.enabled !== undefined) settings.enabled = data.enabled;
-      if (data.receivers !== undefined) settings.receivers = data.receivers;
+      if (data.receivers !== undefined) {
+        const oldReceivers = new Set(settings.receivers);
+        const newReceivers = new Set(data.receivers);
+        const removed = [...oldReceivers].filter(id => !newReceivers.has(id));
+        const added = [...newReceivers].filter(id => !oldReceivers.has(id));
+
+        // Initialize optedOutReceivers on first manual edit (legacy rows have null)
+        const optedOut = new Set(settings.optedOutReceivers ?? []);
+        for (const id of removed) optedOut.add(id);
+        for (const id of added) optedOut.delete(id);
+        settings.optedOutReceivers = [...optedOut];
+
+        settings.receivers = data.receivers;
+      }
       if (data.webhookUrl !== undefined) settings.webhookUrl = data.webhookUrl;
 
       const cronChanged =
@@ -118,6 +132,74 @@ export class ProjectNotificationSettingsService {
     await this.repository.update(id, { receivers });
   }
 
+  /**
+   * Synchronize receivers with the current project member list:
+   * - Remove receivers who left the project or whose role downgraded to viewer
+   * - Auto-subscribe eligible (admin/editor) members who haven't manually opted out
+   * - Respect manual unsubscriptions tracked in optedOutReceivers
+   * - Clean optedOutReceivers of users who left the project, so that if they return
+   *   they are treated as new and auto-subscribed again
+   */
+  async syncReceivers(
+    settings: ProjectNotificationSettings,
+    members: { userId: string; role: string }[]
+  ): Promise<void> {
+    if (members.length === 0) return; // IDP failure guard — don't touch receivers
+
+    const memberIds = new Set(members.map(m => m.userId));
+    const eligibleIds = new Set(
+      members.filter(m => m.role === 'admin' || m.role === 'editor').map(m => m.userId)
+    );
+
+    // Legacy mode: optedOutReceivers is null (migrated row, never manually edited).
+    // Only remove receivers who left or lost eligibility — do NOT auto-subscribe anyone.
+    // Auto-subscription activates after the first manual edit via upsert().
+    const isLegacy = settings.optedOutReceivers === null;
+
+    // Retain only receivers who are still project members AND still eligible
+    const retainedReceivers = settings.receivers.filter(
+      id => memberIds.has(id) && eligibleIds.has(id)
+    );
+
+    let updatedReceivers: string[];
+    let updatedOptedOut: string[] | null;
+
+    if (isLegacy) {
+      updatedReceivers = retainedReceivers;
+      updatedOptedOut = null; // keep null until first manual edit
+    } else {
+      // Clean optedOutReceivers: remove users who left the project so that
+      // re-joining is treated as a fresh start (auto-subscribe again).
+      const activeOptedOut = new Set(settings.optedOutReceivers!.filter(id => memberIds.has(id)));
+
+      // Auto-subscribe eligible members who haven't manually opted out
+      const newEligible = [...eligibleIds].filter(
+        id => !settings.receivers.includes(id) && !activeOptedOut.has(id)
+      );
+
+      updatedReceivers = [...retainedReceivers, ...newEligible];
+      updatedOptedOut = [...activeOptedOut];
+    }
+
+    const sortedUpdated = [...updatedReceivers].sort();
+    const sortedCurrent = [...settings.receivers].sort();
+    const receiversChanged = JSON.stringify(sortedUpdated) !== JSON.stringify(sortedCurrent);
+
+    const optedOutChanged = isLegacy
+      ? false
+      : JSON.stringify([...(updatedOptedOut ?? [])].sort()) !==
+        JSON.stringify([...(settings.optedOutReceivers ?? [])].sort());
+
+    if (receiversChanged || optedOutChanged) {
+      settings.receivers = updatedReceivers;
+      settings.optedOutReceivers = updatedOptedOut;
+      await this.repository.update(settings.id, {
+        ...(receiversChanged ? { receivers: updatedReceivers } : {}),
+        ...(optedOutChanged ? { optedOutReceivers: updatedOptedOut } : {}),
+      });
+    }
+  }
+
   async getOrCreateDefaultSettings(
     projectId: string,
     resolveDefaultReceivers?: (type: NotificationType) => string[]
@@ -141,6 +223,7 @@ export class ProjectNotificationSettingsService {
         notificationType,
         enabled: defaultEnabled,
         receivers,
+        optedOutReceivers: [],
         webhookUrl: null,
         groupingDelayCron: DEFAULT_GROUPING_DELAY_CRON,
         lastRunAt: defaultEnabled ? now : null,

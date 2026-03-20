@@ -36,6 +36,14 @@ export class ProjectNotificationSettings {
   })
   receivers: string[];
 
+  @Column({
+    type: 'json',
+    nullable: true,
+    default: null,
+    transformer: createZodTransformer<string[] | null>(z.array(z.string()).nullable()),
+  })
+  optedOutReceivers: string[] | null;
+
   @Column({ type: 'varchar', nullable: true })
   webhookUrl?: string | null;
 

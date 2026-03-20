@@ -58,15 +58,9 @@ export class NotificationService {
     try {
       const projectMembers = await getProjectMembers(projectId);
 
-      // Remove receivers who are no longer project members from the database.
-      // Skip cleanup when member list is empty — likely an IDP failure, not an empty project.
+      // Sync receivers: remove departed/downgraded members, auto-subscribe new admins/editors.
       if (projectMembers.length > 0) {
-        const memberIds = new Set(projectMembers.map(m => m.userId));
-        const currentReceivers = settings.receivers.filter(id => memberIds.has(id));
-        if (currentReceivers.length !== settings.receivers.length) {
-          settings.receivers = currentReceivers;
-          await this.settingsService.updateReceivers(settings.id, currentReceivers);
-        }
+        await this.settingsService.syncReceivers(settings, projectMembers);
       }
 
       const validReceivers = this.getValidReceivers(settings, projectMembers);
