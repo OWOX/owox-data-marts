@@ -7,6 +7,8 @@ import { DataMart } from '../../entities/data-mart.entity';
 import { DataStorageCredential } from '../../entities/data-storage-credential.entity';
 import { DataStorage } from '../../entities/data-storage.entity';
 import { Report } from '../../entities/report.entity';
+import { ConnectorRunTrigger } from '../../entities/connector-run-trigger.entity';
+import { ReportRunTrigger } from '../../entities/report-run-trigger.entity';
 import { LegacyDataStorageService } from '../../services/legacy-data-marts/legacy-data-storage.service';
 
 @Injectable()
@@ -36,6 +38,22 @@ export class MoveLegacyDataStorageService {
         .where('dm.storageId = :storageId AND dm.projectId = :oldProjectId')
         .getQuery();
 
+      const reportSubQuery = manager
+        .createQueryBuilder()
+        .subQuery()
+        .select('r.id')
+        .from(Report, 'r')
+        .where(`r.dataMartId IN ${dataMartSubQuery}`)
+        .getQuery();
+
+      // Delete ReportRunTriggers first (references reportId)
+      const reportTriggerResult = await manager
+        .createQueryBuilder()
+        .delete()
+        .from(ReportRunTrigger)
+        .where(`reportId IN ${reportSubQuery}`, subQueryParams)
+        .execute();
+
       const reportResult = await manager
         .createQueryBuilder()
         .delete()
@@ -47,6 +65,13 @@ export class MoveLegacyDataStorageService {
         .createQueryBuilder()
         .delete()
         .from(DataMartScheduledTrigger)
+        .where(`dataMartId IN ${dataMartSubQuery}`, subQueryParams)
+        .execute();
+
+      const connectorTriggerResult = await manager
+        .createQueryBuilder()
+        .delete()
+        .from(ConnectorRunTrigger)
         .where(`dataMartId IN ${dataMartSubQuery}`, subQueryParams)
         .execute();
 
@@ -76,7 +101,11 @@ export class MoveLegacyDataStorageService {
       }
 
       this.logger.log(
-        `Moved storage ${storage.id}: deleted ${reportResult.affected ?? 0} reports, ${triggerResult.affected ?? 0} triggers, ${runResult.affected ?? 0} runs; updated ${dataMartResult.affected ?? 0} data marts`
+        `Moved storage ${storage.id}: deleted ${reportResult.affected ?? 0} reports, ` +
+          `${triggerResult.affected ?? 0} scheduled triggers, ` +
+          `${connectorTriggerResult.affected ?? 0} connector triggers, ` +
+          `${reportTriggerResult.affected ?? 0} report triggers, ` +
+          `${runResult.affected ?? 0} runs; updated ${dataMartResult.affected ?? 0} data marts`
       );
 
       return await manager.findOneOrFail(DataStorage, {

@@ -123,7 +123,7 @@ export class ConnectorExecutionService {
       });
     }
 
-    if (run.status === DataMartRunStatus.RUNNING) {
+    if (run.status === DataMartRunStatus.PENDING || run.status === DataMartRunStatus.RUNNING) {
       await this.dataMartRunRepository.update(runId, {
         status: DataMartRunStatus.CANCELLED,
         finishedAt: this.systemTimeService.now(),
@@ -1011,13 +1011,9 @@ export class ConnectorExecutionService {
   }
 
   /**
-   * Executes background connector for data mart runs that are in the INTERRUPTED status.
-   * Retrieves the list of interrupted runs, validates each run, checks if the respective data marts are already running,
-   * and attempts to resume their execution in the background. Runs that are already executing will be skipped,
-   * and runs that fail validation or execution will be logged with appropriate error messages.
-   *
-   * @return {Promise<void>} A promise that resolves when all interrupted runs have been processed,
-   *                         with execution statistics logged (started, skipped, failed counts).
+   * Schedules interrupted connector runs for resumption via the trigger system.
+   * Sets INTERRUPTED runs back to PENDING and creates ConnectorRunTriggers for worker processing.
+   * This ensures interrupted runs go through the same concurrency control as new runs.
    */
   public async executeInterruptedRuns(): Promise<void> {
     const interruptedRuns = await this.getDataMartConnectorRunsByStatus(
@@ -1028,36 +1024,39 @@ export class ConnectorExecutionService {
       return;
     }
 
-    this.logger.log(`Starting execution of ${interruptedRuns.length} interrupted runs...`);
-    for (const run of interruptedRuns) {
-      this.validateDataMartForConnector(run.dataMart);
-      const isRunning = await this.checkDataMartIsRunning(run.dataMart);
-      if (isRunning) {
-        this.logger.warn(`Skipping interrupted run ${run.id}: DataMart is already running`, {
-          dataMartId: run.dataMart.id,
-          projectId: run.dataMart.projectId,
-          runId: run.id,
-        });
-        continue;
-      } else {
-        this.logger.log(`Starting execution of interrupted run ${run.id}`, {
-          dataMartId: run.dataMart.id,
-          projectId: run.dataMart.projectId,
-          runId: run.id,
-        });
-      }
+    this.logger.log(`Scheduling ${interruptedRuns.length} interrupted runs for resumption...`);
 
-      this.executeInBackground(run.dataMart, run, run.additionalParams).catch(error => {
+    for (const run of interruptedRuns) {
+      try {
+        await this.dataMartRunRepository.update(run.id, {
+          status: DataMartRunStatus.PENDING,
+        });
+
+        await this.connectorRunTriggerService.createTrigger({
+          dataMartId: run.dataMartId,
+          projectId: run.dataMart.projectId,
+          createdById: run.createdById ?? 'system',
+          dataMartRunId: run.id,
+          runType: run.runType,
+          payload: run.additionalParams ?? undefined,
+        });
+
+        this.logger.log(`Created trigger for interrupted run ${run.id}`, {
+          dataMartId: run.dataMartId,
+          projectId: run.dataMart.projectId,
+          runId: run.id,
+        });
+      } catch (error) {
         this.logger.error(
-          `Interrupted background execution failed for run ${run.id}:`,
-          error?.stack,
+          `Failed to schedule interrupted run ${run.id}: ${error instanceof Error ? error.message : String(error)}`,
+          error instanceof Error ? error.stack : undefined,
           {
-            dataMartId: run.dataMart.id,
+            dataMartId: run.dataMartId,
             projectId: run.dataMart.projectId,
             runId: run.id,
           }
         );
-      });
+      }
     }
   }
 
