@@ -631,7 +631,9 @@ var XAdsSource = class XAdsSource extends AbstractSource {
       throw new Error(`${pendingIds.length} async job(s) did not complete after ${MAX_POLL_ATTEMPTS} poll attempts`);
     }
 
-    // Phase 3: Download all result files in parallel (pre-signed CDN URLs).
+    // Phase 3: Download all result files in parallel and apply schema filter.
+    // Pre-signed CDN URLs have no rate limit, so all downloads run concurrently.
+    // Filtering happens here so Phase 4 only needs to group already-clean rows.
     const settled = await Promise.allSettled(
       pendingJobs.map(async ({ date, placement, jobId }) => {
         const rows = await this._downloadAndParseJobResults({
@@ -639,7 +641,7 @@ var XAdsSource = class XAdsSource extends AbstractSource {
           placement,
           start_time: date
         });
-        return { date, rows };
+        return { date, rows: this._filterBySchema(rows, nodeName, fields) };
       })
     );
 
@@ -648,13 +650,10 @@ var XAdsSource = class XAdsSource extends AbstractSource {
       throw new Error(`${failures.length} result download(s) failed: ${failures.map(f => f.reason).join('; ')}`);
     }
 
-    // Phase 4: Group rows by date and apply schema filter.
+    // Phase 4: Group filtered rows by date.
     const byDate = new Map(dates.map(d => [d, []]));
     for (const { value } of settled) {
       byDate.get(value.date).push(...value.rows);
-    }
-    for (const [date, rows] of byDate) {
-      byDate.set(date, this._filterBySchema(rows, nodeName, fields));
     }
 
     return byDate;
