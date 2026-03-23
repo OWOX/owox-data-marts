@@ -4,7 +4,7 @@
 
 OWOX Data Marts is your way to create a data mart library and empower business users with spreadsheet reports and dashboards — in minutes.
 
-[📘 Quick Start Guide](./docs/getting-started/quick-start.md) | [📚 Documentation](https://docs.owox.com?utm_source=github&utm_medium=referral&utm_campaign=readme) | [🌐 Website](https://www.owox.com?utm_source=github&utm_medium=referral&utm_campaign=readme) | [💬 Slack Community](https://join.slack.com/t/owox-data-marts/shared_invite/zt-3fffrsau9-UlobJVlXzRLpXmvs0ffvoQ) | [🆘 Create an Issue](https://github.com/OWOX/owox-data-marts/issues)
+[📘 Quick Start Guide](./docs/getting-started/quick-start.md) | [📚 Documentation](https://docs.owox.com?utm_source=github&utm_medium=referral&utm_campaign=readme) | [🌐 Website](https://www.owox.com?utm_source=github&utm_medium=referral&utm_campaign=readme) | [💬 Slack Community](https://join.slack.com/t/owox-data-marts/shared_invite/zt-3tnigd08g-f2uU_7oNNwzCyTB2tITnqA) | [🆘 Create an Issue](https://github.com/OWOX/owox-data-marts/issues)
 
 ![OWOX Data Marts - Open-Source Self-Service Analytics Platform](./docs/res/owox-data-marts-schema.svg)
 
@@ -135,7 +135,7 @@ Want to build a connector? We'd love your help.
 - Read the [Contributor Guide](packages/connectors/CONTRIBUTING.md)
 - Check [Issues](https://github.com/OWOX/owox-data-marts/issues)
 - Join [Discussions](https://github.com/OWOX/owox-data-marts/discussions)
-- Join [Slack Community](https://join.slack.com/t/owox-data-marts/shared_invite/zt-3fffrsau9-UlobJVlXzRLpXmvs0ffvoQ)
+- Join [Slack Community](https://join.slack.com/t/owox-data-marts/shared_invite/zt-3tnigd08g-f2uU_7oNNwzCyTB2tITnqA)
 
 Whether you're adding a new platform, tweaking an existing connector, or improving docs, we'll support and **spotlight you**.
 
