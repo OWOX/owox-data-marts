@@ -24,10 +24,15 @@ export class GetDataMartService {
 
     const dataMart = await this.dataMartService.getByIdAndProjectId(command.id, command.projectId);
 
-    const userProjection = await this.userProjectionsFetcherService.fetchUserProjection(
-      dataMart.createdById
-    );
+    const userProjections =
+      await this.userProjectionsFetcherService.fetchAllRelevantUserProjections([dataMart]);
 
-    return this.mapper.toDomainDto(dataMart, undefined, userProjection);
+    return this.mapper.toDomainDto(
+      dataMart,
+      undefined,
+      userProjections.getByUserId(dataMart.createdById),
+      this.mapper.resolveOwnerUsers(dataMart.businessOwnerIds, userProjections),
+      this.mapper.resolveOwnerUsers(dataMart.technicalOwnerIds, userProjections)
+    );
   }
 }

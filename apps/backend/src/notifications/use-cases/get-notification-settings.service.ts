@@ -15,17 +15,19 @@ export class GetNotificationSettingsService {
   ) {}
 
   async run(command: GetNotificationSettingsCommand): Promise<NotificationSettingsResponseApiDto> {
-    const members = await this.idpProjectionsFacade.getProjectMembers(command.projectId);
+    const allMembers = await this.idpProjectionsFacade.getProjectMembers(command.projectId);
+    const activeMembers = allMembers.filter(m => !m.isOutbound);
 
     const settings = await this.settingsService.getOrCreateDefaultSettings(
       command.projectId,
-      type => NOTIFICATION_DEFINITIONS[type].getDefaultReceivers(members)
+      type => NOTIFICATION_DEFINITIONS[type].getDefaultReceivers(activeMembers)
     );
 
-    // Sync receivers: remove departed/downgraded members, auto-subscribe new admins/editors.
-    if (members.length > 0) {
+    // Remove receivers who are no longer project members.
+    // Skip cleanup when member list is empty — likely an IDP failure, not an empty project.
+    if (activeMembers.length > 0) {
       for (const s of settings) {
-        await this.settingsService.syncReceivers(s, members);
+        await this.settingsService.syncReceivers(s, activeMembers);
       }
     }
 
@@ -52,7 +54,7 @@ export class GetNotificationSettingsService {
     >(userProjectionList.projections.map(u => [u.userId, u]));
 
     // Overlay hasNotificationsEnabled from the IDP members response.
-    const membersMap = new Map(members.map(m => [m.userId, m]));
+    const membersMap = new Map(activeMembers.map(m => [m.userId, m]));
     for (const [userId, projection] of userMap) {
       const member = membersMap.get(userId);
       if (member) {

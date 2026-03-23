@@ -37,6 +37,7 @@ export interface ProjectMember {
   avatarUrl?: string;
   role: string;
   hasNotificationsEnabled: boolean;
+  isOutbound: boolean;
 }
 
 export interface NotificationSettingsItem {

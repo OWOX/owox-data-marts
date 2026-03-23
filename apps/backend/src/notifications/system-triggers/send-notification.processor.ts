@@ -68,7 +68,7 @@ export class SendNotificationProcessor extends BaseSystemTaskProcessor {
     const members = await this.idpProjectionsFacade.getProjectMembers(projectId);
 
     return members
-      .filter(m => !!m.email)
+      .filter(m => !m.isOutbound && !!m.email)
       .map(m => ({
         userId: m.userId,
         email: m.email,

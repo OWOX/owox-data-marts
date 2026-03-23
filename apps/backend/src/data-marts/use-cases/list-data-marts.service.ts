@@ -64,7 +64,7 @@ export class ListDataMartsService {
     );
 
     const userProjections =
-      await this.userProjectionsFetcherService.fetchRelevantUserProjections(dataMarts);
+      await this.userProjectionsFetcherService.fetchAllRelevantUserProjections(dataMarts);
 
     const items = dataMarts.map(dm =>
       this.mapper.toListItemDto(
@@ -73,7 +73,9 @@ export class ListDataMartsService {
           triggersCount: triggerCountMap.get(dm.id) ?? 0,
           reportsCount: reportCountMap.get(dm.id) ?? 0,
         },
-        userProjections.getByUserId(dm.createdById)
+        userProjections.getByUserId(dm.createdById),
+        this.mapper.resolveOwnerUsers(dm.businessOwnerIds, userProjections),
+        this.mapper.resolveOwnerUsers(dm.technicalOwnerIds, userProjections)
       )
     );
 

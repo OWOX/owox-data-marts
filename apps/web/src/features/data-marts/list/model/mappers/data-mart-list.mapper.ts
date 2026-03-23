@@ -16,6 +16,8 @@ export function mapDataMartListFromDto(
     triggersCount: dmart.triggersCount,
     reportsCount: dmart.reportsCount,
     createdByUser: dmart.createdByUser,
+    businessOwnerUsers: dmart.businessOwnerUsers,
+    technicalOwnerUsers: dmart.technicalOwnerUsers,
     createdAt: new Date(dmart.createdAt),
     modifiedAt: new Date(dmart.modifiedAt),
   }));

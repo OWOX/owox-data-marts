@@ -15,4 +15,6 @@ export interface DataMartListItem {
   modifiedAt: Date;
   definitionType: DataMartDefinitionType | null;
   connectorSourceName: string | null;
+  businessOwnerUsers: UserProjectionDto[];
+  technicalOwnerUsers: UserProjectionDto[];
 }

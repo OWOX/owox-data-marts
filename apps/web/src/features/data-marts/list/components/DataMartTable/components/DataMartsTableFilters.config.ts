@@ -28,7 +28,10 @@ export type DataMartFilterKey =
   | AdditionalFilterKeys.STORAGE_TITLE
   | DataMartColumnKey.TITLE
   | DataMartColumnKey.DEFINITION_TYPE
-  | AdditionalFilterKeys.INPUT_SOURCE;
+  | AdditionalFilterKeys.INPUT_SOURCE
+  | DataMartColumnKey.CREATED_BY_USER
+  | DataMartColumnKey.BUSINESS_OWNERS
+  | DataMartColumnKey.TECHNICAL_OWNERS;
 
 /* ---------------------------------------------------------------------------
  * Accessors (used both for filtering and option collection)
@@ -46,6 +49,9 @@ export const dataMartsFilterAccessors: FilterAccessors<DataMartFilterKey, DataMa
     }
     return 'OTHER';
   },
+  [DataMartColumnKey.CREATED_BY_USER]: row => row.createdByUser?.userId,
+  [DataMartColumnKey.BUSINESS_OWNERS]: row => row.businessOwnerUsers.map(u => u.userId),
+  [DataMartColumnKey.TECHNICAL_OWNERS]: row => row.technicalOwnerUsers.map(u => u.userId),
 };
 
 /* ---------------------------------------------------------------------------
@@ -142,6 +148,24 @@ export function buildDataMartsTableFilters(
     };
   });
 
+  /* -----------------------------
+   * User label map (userId → display name)
+   * --------------------------- */
+  const userLabelMap = new Map<string, string>();
+  for (const item of data) {
+    if (item.createdByUser) {
+      const u = item.createdByUser;
+      userLabelMap.set(u.userId, u.fullName ?? u.email ?? u.userId);
+    }
+    for (const u of item.businessOwnerUsers) {
+      userLabelMap.set(u.userId, u.fullName ?? u.email ?? u.userId);
+    }
+    for (const u of item.technicalOwnerUsers) {
+      userLabelMap.set(u.userId, u.fullName ?? u.email ?? u.userId);
+    }
+  }
+  const userLabelMapper = (userId: string) => userLabelMap.get(userId) ?? userId;
+
   return [
     {
       id: DataMartColumnKey.TITLE,
@@ -184,6 +208,39 @@ export function buildDataMartsTableFilters(
       dataType: 'enum',
       operators: ['eq', 'neq'],
       options: statusOptions,
+    },
+    {
+      id: DataMartColumnKey.CREATED_BY_USER,
+      label: dataMartColumnLabels[DataMartColumnKey.CREATED_BY_USER],
+      dataType: 'enum',
+      operators: ['eq', 'neq'],
+      options: collectOptionsFromData(
+        data,
+        dataMartsFilterAccessors[DataMartColumnKey.CREATED_BY_USER],
+        { labelMapper: userLabelMapper }
+      ),
+    },
+    {
+      id: DataMartColumnKey.BUSINESS_OWNERS,
+      label: dataMartColumnLabels[DataMartColumnKey.BUSINESS_OWNERS],
+      dataType: 'enum',
+      operators: ['eq', 'neq'],
+      options: collectOptionsFromData(
+        data,
+        dataMartsFilterAccessors[DataMartColumnKey.BUSINESS_OWNERS],
+        { labelMapper: userLabelMapper }
+      ),
+    },
+    {
+      id: DataMartColumnKey.TECHNICAL_OWNERS,
+      label: dataMartColumnLabels[DataMartColumnKey.TECHNICAL_OWNERS],
+      dataType: 'enum',
+      operators: ['eq', 'neq'],
+      options: collectOptionsFromData(
+        data,
+        dataMartsFilterAccessors[DataMartColumnKey.TECHNICAL_OWNERS],
+        { labelMapper: userLabelMapper }
+      ),
     },
   ];
 }

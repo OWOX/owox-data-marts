@@ -10,4 +10,6 @@ export const dataMartColumnLabels: Record<DataMartColumnKey, string> = {
   [DataMartColumnKey.CREATED_AT]: 'Created At',
   [DataMartColumnKey.CREATED_BY_USER]: 'Created By',
   [DataMartColumnKey.HEALTH_STATUS]: 'Health Status',
+  [DataMartColumnKey.BUSINESS_OWNERS]: 'Business Owner',
+  [DataMartColumnKey.TECHNICAL_OWNERS]: 'Technical Owner',
 };

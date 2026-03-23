@@ -1,4 +1,5 @@
 import { type ColumnDef } from '@tanstack/react-table';
+import { UserAvatarGroup } from '../../../../../../shared/components/UserAvatarGroup/UserAvatarGroup';
 import { UserReference } from '../../../../../../shared/components/UserReference';
 import type { DataMartListItem } from '../../../model/types';
 import { type DataMartStatusInfo, getDataMartStatusType } from '../../../../shared';
@@ -220,6 +221,52 @@ export const getDataMartColumns = ({
       const reportsCountValue =
         row.getValue<number>('reportsCount') > 0 ? row.getValue<string>('reportsCount') : '—';
       return <div className='text-muted-foreground'>{reportsCountValue}</div>;
+    },
+  },
+  {
+    id: DataMartColumnKey.BUSINESS_OWNERS,
+    size: 200,
+    accessorFn: row => row.businessOwnerUsers.map(u => u.fullName ?? u.email).join(', '),
+    meta: {
+      title: dataMartColumnLabels[DataMartColumnKey.BUSINESS_OWNERS],
+    },
+    header: ({ column }) => (
+      <SortableHeader column={column}>
+        {dataMartColumnLabels[DataMartColumnKey.BUSINESS_OWNERS]}
+      </SortableHeader>
+    ),
+    cell: ({ row }) => {
+      const users = row.original.businessOwnerUsers;
+      if (users.length === 1) {
+        return <UserReference userProjection={users[0]} />;
+      }
+      if (users.length > 1) {
+        return <UserAvatarGroup users={users} />;
+      }
+      return <div className='text-muted-foreground'>—</div>;
+    },
+  },
+  {
+    id: DataMartColumnKey.TECHNICAL_OWNERS,
+    size: 200,
+    accessorFn: row => row.technicalOwnerUsers.map(u => u.fullName ?? u.email).join(', '),
+    meta: {
+      title: dataMartColumnLabels[DataMartColumnKey.TECHNICAL_OWNERS],
+    },
+    header: ({ column }) => (
+      <SortableHeader column={column}>
+        {dataMartColumnLabels[DataMartColumnKey.TECHNICAL_OWNERS]}
+      </SortableHeader>
+    ),
+    cell: ({ row }) => {
+      const users = row.original.technicalOwnerUsers;
+      if (users.length === 1) {
+        return <UserReference userProjection={users[0]} />;
+      }
+      if (users.length > 1) {
+        return <UserAvatarGroup users={users} />;
+      }
+      return <div className='text-muted-foreground'>—</div>;
     },
   },
   {

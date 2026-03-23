@@ -32,6 +32,12 @@ export class DataMartListItemResponseApiDto {
   @ApiProperty()
   createdByUser: UserProjection | null;
 
+  @ApiProperty({ type: [Object] })
+  businessOwnerUsers: UserProjection[];
+
+  @ApiProperty({ type: [Object] })
+  technicalOwnerUsers: UserProjection[];
+
   @ApiProperty({ example: '2024-01-01T12:00:00.000Z' })
   createdAt: Date;
 

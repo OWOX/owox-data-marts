@@ -86,15 +86,19 @@ export class IdpProjectionsService {
       await this.updateUserProjections(members);
 
       return members
-        .filter(m => m.userStatus !== 'locked' && m.userStatus !== 'erased' && !m.isOutbound)
-        .map(m => ({
-          userId: m.userId,
-          email: m.email,
-          displayName: m.fullName,
-          avatarUrl: m.avatar,
-          role: m.projectRole,
-          hasNotificationsEnabled: m.hasNotificationsEnabled,
-        }));
+        .filter(m => m.userStatus !== 'locked' && m.userStatus !== 'erased')
+        .map(
+          m =>
+            new ProjectMemberDto(
+              m.userId,
+              m.email,
+              m.fullName,
+              m.avatar,
+              m.projectRole,
+              m.hasNotificationsEnabled,
+              m.isOutbound ?? false
+            )
+        );
     } catch (error) {
       this.logger.error(`Failed to get project members for project ${projectId}`, error);
       return [];

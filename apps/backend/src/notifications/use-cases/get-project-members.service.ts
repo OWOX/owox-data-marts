@@ -15,6 +15,7 @@ export class GetProjectMembersService {
       avatarUrl: m.avatarUrl,
       role: m.role,
       hasNotificationsEnabled: m.hasNotificationsEnabled,
+      isOutbound: m.isOutbound,
     }));
   }
 }

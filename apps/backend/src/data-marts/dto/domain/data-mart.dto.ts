@@ -21,6 +21,8 @@ export class DataMartDto {
     public readonly connectorState?: ConnectorStateData,
     public readonly triggersCount: number = 0,
     public readonly reportsCount: number = 0,
-    public readonly createdByUser: UserProjectionDto | null = null
+    public readonly createdByUser: UserProjectionDto | null = null,
+    public readonly businessOwnerUsers: UserProjectionDto[] = [],
+    public readonly technicalOwnerUsers: UserProjectionDto[] = []
   ) {}
 }

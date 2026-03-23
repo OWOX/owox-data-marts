@@ -56,6 +56,8 @@ import { DataMart } from '../entities/data-mart.entity';
 import { DataMartDefinitionType } from '../enums/data-mart-definition-type.enum';
 import { DataMartRunType } from '../enums/data-mart-run-type.enum';
 import { ConnectorSecretService } from '../services/connector-secret.service';
+import { UpdateDataMartOwnersApiDto } from '../dto/presentation/update-data-mart-owners-api.dto';
+import { UpdateDataMartOwnersCommand } from '../dto/domain/update-data-mart-owners.command';
 import { DataStorageMapper } from './data-storage.mapper';
 
 @Injectable()
@@ -78,7 +80,9 @@ export class DataMartMapper {
       triggersCount?: number;
       reportsCount?: number;
     },
-    createdByUser?: UserProjectionDto
+    createdByUser?: UserProjectionDto,
+    businessOwnerUsers: UserProjectionDto[] = [],
+    technicalOwnerUsers: UserProjectionDto[] = []
   ): DataMartDto {
     return new DataMartDto(
       entity.id,
@@ -94,7 +98,9 @@ export class DataMartMapper {
       entity.connectorState?.state as ConnectorStateData | undefined,
       counters?.triggersCount ?? 0,
       counters?.reportsCount ?? 0,
-      createdByUser ?? null
+      createdByUser ?? null,
+      businessOwnerUsers,
+      technicalOwnerUsers
     );
   }
 
@@ -127,6 +133,8 @@ export class DataMartMapper {
       triggersCount: dto.triggersCount,
       reportsCount: dto.reportsCount,
       createdByUser: dto.createdByUser,
+      businessOwnerUsers: dto.businessOwnerUsers,
+      technicalOwnerUsers: dto.technicalOwnerUsers,
       createdAt: dto.createdAt,
       modifiedAt: dto.modifiedAt,
     };
@@ -228,7 +236,9 @@ export class DataMartMapper {
   toListItemDto(
     entity: DataMart,
     counters: { triggersCount: number; reportsCount: number },
-    createdByUser?: UserProjectionDto
+    createdByUser?: UserProjectionDto,
+    businessOwnerUsers: UserProjectionDto[] = [],
+    technicalOwnerUsers: UserProjectionDto[] = []
   ): DataMartListItemDto {
     return new DataMartListItemDto(
       entity.id,
@@ -242,7 +252,9 @@ export class DataMartMapper {
       entity.definition,
       counters.triggersCount,
       counters.reportsCount,
-      createdByUser ?? null
+      createdByUser ?? null,
+      businessOwnerUsers,
+      technicalOwnerUsers
     );
   }
 
@@ -260,6 +272,8 @@ export class DataMartMapper {
       triggersCount: dto.triggersCount,
       reportsCount: dto.reportsCount,
       createdByUser: dto.createdByUser,
+      businessOwnerUsers: dto.businessOwnerUsers,
+      technicalOwnerUsers: dto.technicalOwnerUsers,
       createdAt: dto.createdAt,
       modifiedAt: dto.modifiedAt,
     };
@@ -469,6 +483,32 @@ export class DataMartMapper {
       startedAt: run.startedAt,
       finishedAt: run.finishedAt,
     };
+  }
+
+  resolveOwnerUsers(
+    ownerIds: string[] | undefined,
+    userProjections: UserProjectionsListDto
+  ): UserProjectionDto[] {
+    if (!ownerIds || ownerIds.length === 0) {
+      return [];
+    }
+    return ownerIds.map(
+      userId =>
+        userProjections.getByUserId(userId) ?? new UserProjectionDto(userId, null, null, null)
+    );
+  }
+
+  toUpdateOwnersCommand(
+    id: string,
+    context: AuthorizationContext,
+    dto: UpdateDataMartOwnersApiDto
+  ): UpdateDataMartOwnersCommand {
+    return new UpdateDataMartOwnersCommand(
+      id,
+      context.projectId,
+      dto.businessOwnerIds,
+      dto.technicalOwnerIds
+    );
   }
 
   private async maskDefinitionRun(

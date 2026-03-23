@@ -5,6 +5,7 @@ export class ProjectMemberDto {
     public readonly displayName: string | undefined,
     public readonly avatarUrl: string | undefined,
     public readonly role: string,
-    public readonly hasNotificationsEnabled: boolean
+    public readonly hasNotificationsEnabled: boolean,
+    public readonly isOutbound: boolean = false
   ) {}
 }

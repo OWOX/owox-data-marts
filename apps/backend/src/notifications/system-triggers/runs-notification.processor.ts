@@ -130,9 +130,10 @@ export class RunsNotificationProcessor extends BaseSystemTaskProcessor {
 
     for (const { projectId } of rows) {
       try {
-        const members = await this.idpProjectionsFacade.getProjectMembers(projectId);
+        const allMembers = await this.idpProjectionsFacade.getProjectMembers(projectId);
+        const activeMembers = allMembers.filter(m => !m.isOutbound);
         await this.settingsService.getOrCreateDefaultSettings(projectId, type =>
-          NOTIFICATION_DEFINITIONS[type].getDefaultReceivers(members)
+          NOTIFICATION_DEFINITIONS[type].getDefaultReceivers(activeMembers)
         );
       } catch (error) {
         this.logger.warn(

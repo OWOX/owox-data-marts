@@ -218,6 +218,29 @@ export function DataMartProvider({ children }: DataMartProviderProps) {
     }
   }, []);
 
+  // Update data mart owners
+  const updateDataMartOwners = useCallback(
+    async (id: string, businessOwnerIds: string[], technicalOwnerIds: string[]) => {
+      try {
+        dispatch({ type: 'UPDATE_DATA_MART_OWNERS_START' });
+        const response = await dataMartService.updateDataMartOwners(id, {
+          businessOwnerIds,
+          technicalOwnerIds,
+        });
+        const dataMart = await mapDataMartFromDto(response);
+        dispatch({ type: 'UPDATE_DATA_MART_OWNERS_SUCCESS', payload: dataMart });
+        toast.success('Owners updated');
+      } catch (error) {
+        const apiError = extractApiError(error);
+        dispatch({
+          type: 'UPDATE_DATA_MART_OWNERS_ERROR',
+          payload: apiError,
+        });
+      }
+    },
+    []
+  );
+
   // Update data mart storage
   const updateDataMartStorage = useCallback((storage: DataStorage) => {
     dispatch({ type: 'UPDATE_DATA_MART_STORAGE', payload: storage });
@@ -611,6 +634,7 @@ export function DataMartProvider({ children }: DataMartProviderProps) {
     deleteDataMart,
     updateDataMartTitle,
     updateDataMartDescription,
+    updateDataMartOwners,
     updateDataMartStorage,
     updateDataMartDefinition,
     publishDataMart,

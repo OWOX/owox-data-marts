@@ -50,6 +50,7 @@ export function DataMartDetails({ id }: DataMartDetailsProps) {
     deleteDataMart,
     updateDataMartTitle,
     updateDataMartDescription,
+    updateDataMartOwners,
     updateDataMartDefinition,
     actualizeDataMartSchema,
     updateDataMartSchema,
@@ -464,6 +465,7 @@ export function DataMartDetails({ id }: DataMartDetailsProps) {
             getErrorMessage,
             updateDataMartDescription,
             updateDataMartDefinition,
+            updateDataMartOwners,
             actualizeDataMartSchema,
             updateDataMartSchema,
             runDataMart,
@@ -474,6 +476,7 @@ export function DataMartDetails({ id }: DataMartDetailsProps) {
             getDataMart,
             runSchemaActualization,
             isSchemaActualizationLoading,
+            projectId,
           }}
         />
       </div>
