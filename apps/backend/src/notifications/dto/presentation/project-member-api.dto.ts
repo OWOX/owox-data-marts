@@ -18,4 +18,7 @@ export class ProjectMemberApiDto {
 
   @ApiProperty()
   hasNotificationsEnabled: boolean;
+
+  @ApiProperty()
+  isOutbound: boolean;
 }

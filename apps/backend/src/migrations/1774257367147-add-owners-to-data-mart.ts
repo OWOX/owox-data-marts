@@ -1,7 +1,7 @@
 import { MigrationInterface, QueryRunner, TableColumn } from 'typeorm';
 
-export class AddOwnersToDataMart1773000000000 implements MigrationInterface {
-  public readonly name = 'AddOwnersToDataMart1773000000000';
+export class AddOwnersToDataMart1774257367147 implements MigrationInterface {
+  public readonly name = 'AddOwnersToDataMart1774257367147';
 
   public async up(queryRunner: QueryRunner): Promise<void> {
     const hasBusinessOwnerIds = await queryRunner.hasColumn('data_mart', 'businessOwnerIds');
