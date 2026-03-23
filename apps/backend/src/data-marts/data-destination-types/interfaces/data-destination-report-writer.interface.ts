@@ -4,6 +4,11 @@ import { ReportDataDescription } from '../../dto/domain/report-data-description.
 import { ReportDataBatch } from '../../dto/domain/report-data-batch.dto';
 import { Report } from '../../entities/report.entity';
 import { ReportRunExecutionContext } from '../../report-run-logging/report-run-logger';
+import type { RowsTruncationInfo } from '../../use-cases/report-execution-policy.resolver';
+
+export interface ReportWriteFinalizeMeta {
+  mainRowsTruncationInfo?: RowsTruncationInfo | null;
+}
 
 /**
  * Interface for writing reports to data destinations
@@ -35,6 +40,7 @@ export interface DataDestinationReportWriter extends TypedComponent<DataDestinat
    * Performs any necessary cleanup or finalization steps
    *
    * @param processingError - Optional error that occurred during report processing
+   * @param meta - Optional report-level metadata computed during execution
    */
-  finalize(processingError?: Error): Promise<void>;
+  finalize(processingError?: Error, meta?: ReportWriteFinalizeMeta): Promise<void>;
 }

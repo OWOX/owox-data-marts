@@ -180,7 +180,9 @@ export class RunReportService {
       processingError = error;
       throw error;
     } finally {
-      await reportWriter.finalize(processingError);
+      await reportWriter.finalize(processingError, {
+        mainRowsTruncationInfo: executionPolicy.getRowsTruncationInfo(),
+      });
       await reportReader.finalize();
     }
   }

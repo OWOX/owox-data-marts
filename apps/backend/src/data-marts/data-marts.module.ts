@@ -113,6 +113,7 @@ import { InsightArtifactService } from './services/insight-artifact.service';
 import { InsightArtifactSqlPreviewTriggerHandlerService } from './services/insight-artifact-sql-preview-trigger-handler.service';
 import { InsightArtifactSqlPreviewTriggerService } from './services/insight-artifact-sql-preview-trigger.service';
 import { InsightTemplateService } from './services/insight-template.service';
+import { InsightTemplateSourceUsageService } from './services/insight-template-source-usage.service';
 import { InsightTemplateValidationService } from './services/insight-template-validation.service';
 import { TemplatePlaceholderValidator } from './services/template-edit-placeholder-tags/template-placeholder-validator.service';
 import { TemplateTagContractValidator } from './services/template-edit-placeholder-tags/template-tag-contract-validator.service';
@@ -394,6 +395,7 @@ import { GoogleOAuthConfigService } from './services/google-oauth/google-oauth-c
     InsightArtifactSqlPreviewTriggerHandlerService,
     InsightTemplateService,
     InsightTemplateSourceService,
+    InsightTemplateSourceUsageService,
     InsightTemplateValidationService,
     TemplatePlaceholderValidator,
     TemplateTagContractValidator,

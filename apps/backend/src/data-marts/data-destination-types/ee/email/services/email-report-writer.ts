@@ -34,12 +34,18 @@ import {
 import { ConsumptionTrackingService } from '../../../../services/consumption-tracking.service';
 import { InsightTemplateSourceDataService } from '../../../../services/insight-template-source-data.service';
 import { InsightTemplateService } from '../../../../services/insight-template.service';
+import { InsightTemplateSourceUsageService } from '../../../../services/insight-template-source-usage.service';
+import { InsightTemplateTableSourceContext } from '../../../../services/insight-template-source-data.service';
 import { DataDestinationCredentialsResolver } from '../../../data-destination-credentials-resolver.service';
 import { isEmailConfig } from '../../../data-destination-config.guards';
 import { DataDestinationType } from '../../../enums/data-destination-type.enum';
 import { TemplateSourceTypeEnum } from '../../../../enums/template-source-type.enum';
 import { ReportCondition } from '../../../enums/report-condition.enum';
-import { DataDestinationReportWriter } from '../../../interfaces/data-destination-report-writer.interface';
+import {
+  DataDestinationReportWriter,
+  ReportWriteFinalizeMeta,
+} from '../../../interfaces/data-destination-report-writer.interface';
+import { RowsTruncationInfo } from '../../../../use-cases/report-execution-policy.resolver';
 import { EmailConfig } from '../schemas/email-config.schema';
 import { type EmailCredentials, EmailCredentialsSchema } from '../schemas/email-credentials.schema';
 import { renderEmailReportTemplate } from '../templates/email-report.template';
@@ -69,6 +75,7 @@ abstract class BaseEmailReportWriter implements DataDestinationReportWriter {
   private reportDataDescription: ReportDataDescription;
   private report: Report;
   private reportDataRows: unknown[][] = [];
+  private mainRowsTruncationInfo: RowsTruncationInfo | null = null;
   private executionLogger?: ReportRunLogger;
 
   protected constructor(
@@ -80,7 +87,8 @@ abstract class BaseEmailReportWriter implements DataDestinationReportWriter {
     private readonly producer: OwoxProducer,
     private readonly credentialsResolver: DataDestinationCredentialsResolver,
     private readonly sourceDataService: InsightTemplateSourceDataService,
-    protected readonly insightTemplateService: InsightTemplateService
+    protected readonly insightTemplateService: InsightTemplateService,
+    private readonly sourceUsageService: InsightTemplateSourceUsageService
   ) {}
 
   public setExecutionContext(ctx: ReportRunExecutionContext): void {
@@ -111,7 +119,9 @@ abstract class BaseEmailReportWriter implements DataDestinationReportWriter {
     this.reportDataRows.push(...reportDataBatch.dataRows);
   }
 
-  public async finalize(processingError?: Error): Promise<void> {
+  public async finalize(processingError?: Error, meta?: ReportWriteFinalizeMeta): Promise<void> {
+    this.mainRowsTruncationInfo = meta?.mainRowsTruncationInfo ?? null;
+
     if (processingError) {
       this.handleProcessingError(processingError);
       return;
@@ -190,9 +200,16 @@ abstract class BaseEmailReportWriter implements DataDestinationReportWriter {
     let renderContext: Record<string, unknown> | undefined;
 
     if (insightTemplate && templateSourceType === TemplateSourceTypeEnum.INSIGHT_TEMPLATE) {
+      const usedSourceKeys = new Set(this.sourceUsageService.getUsedSourceKeys(templateToRender));
       renderContext = await this.sourceDataService.buildRenderContext(
         this.report.dataMart,
-        insightTemplate
+        insightTemplate,
+        {
+          usedSourceKeys,
+          preloadedSources: {
+            main: this.buildPreloadedMainSource(),
+          },
+        }
       );
     } else {
       renderContext = {
@@ -259,6 +276,20 @@ abstract class BaseEmailReportWriter implements DataDestinationReportWriter {
     });
 
     return rendered;
+  }
+
+  private buildPreloadedMainSource(): InsightTemplateTableSourceContext {
+    return {
+      dataHeaders: this.reportDataDescription.dataHeaders.map(h => ({
+        name: h.name,
+        alias: h.alias,
+        description: h.description,
+      })),
+      dataRows: this.reportDataRows,
+      dataHeadersCount: this.reportDataDescription.dataHeaders.length,
+      hasMoreRowsThanLimit: this.mainRowsTruncationInfo?.hasMoreRowsThanLimit ?? false,
+      rowsLimit: this.mainRowsTruncationInfo?.rowsLimit ?? this.reportDataRows.length,
+    };
   }
 
   private logPromptsMeta(prompts: DataMartPromptMetaEntry[]): void {
@@ -393,7 +424,8 @@ export class EmailReportWriter extends BaseEmailReportWriter {
     producer: OwoxProducer,
     credentialsResolver: DataDestinationCredentialsResolver,
     sourceDataService: InsightTemplateSourceDataService,
-    insightTemplateService: InsightTemplateService
+    insightTemplateService: InsightTemplateService,
+    sourceUsageService: InsightTemplateSourceUsageService
   ) {
     super(
       emailProvider,
@@ -404,7 +436,8 @@ export class EmailReportWriter extends BaseEmailReportWriter {
       producer,
       credentialsResolver,
       sourceDataService,
-      insightTemplateService
+      insightTemplateService,
+      sourceUsageService
     );
   }
 }
@@ -424,7 +457,8 @@ export class SlackReportWriter extends BaseEmailReportWriter {
     producer: OwoxProducer,
     credentialsResolver: DataDestinationCredentialsResolver,
     sourceDataService: InsightTemplateSourceDataService,
-    insightTemplateService: InsightTemplateService
+    insightTemplateService: InsightTemplateService,
+    sourceUsageService: InsightTemplateSourceUsageService
   ) {
     super(
       emailProvider,
@@ -435,7 +469,8 @@ export class SlackReportWriter extends BaseEmailReportWriter {
       producer,
       credentialsResolver,
       sourceDataService,
-      insightTemplateService
+      insightTemplateService,
+      sourceUsageService
     );
   }
 }
@@ -455,7 +490,8 @@ export class MsTeamsReportWriter extends BaseEmailReportWriter {
     producer: OwoxProducer,
     credentialsResolver: DataDestinationCredentialsResolver,
     sourceDataService: InsightTemplateSourceDataService,
-    insightTemplateService: InsightTemplateService
+    insightTemplateService: InsightTemplateService,
+    sourceUsageService: InsightTemplateSourceUsageService
   ) {
     super(
       emailProvider,
@@ -466,7 +502,8 @@ export class MsTeamsReportWriter extends BaseEmailReportWriter {
       producer,
       credentialsResolver,
       sourceDataService,
-      insightTemplateService
+      insightTemplateService,
+      sourceUsageService
     );
   }
 }
@@ -486,7 +523,8 @@ export class GoogleChatReportWriter extends BaseEmailReportWriter {
     producer: OwoxProducer,
     credentialsResolver: DataDestinationCredentialsResolver,
     sourceDataService: InsightTemplateSourceDataService,
-    insightTemplateService: InsightTemplateService
+    insightTemplateService: InsightTemplateService,
+    sourceUsageService: InsightTemplateSourceUsageService
   ) {
     super(
       emailProvider,
@@ -497,7 +535,8 @@ export class GoogleChatReportWriter extends BaseEmailReportWriter {
       producer,
       credentialsResolver,
       sourceDataService,
-      insightTemplateService
+      insightTemplateService,
+      sourceUsageService
     );
   }
 }

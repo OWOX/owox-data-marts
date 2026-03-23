@@ -86,6 +86,148 @@ describe('InsightTemplateSourceDataService', () => {
     expect(result.tableSources.main.hasMoreRowsThanLimit).toBe(false);
   });
 
+  it('uses preloaded source for main without executing main SQL', async () => {
+    const { service, dataMartSqlTableService, reportHeadersGeneratorFacade } = createService();
+    const dataMart = createDataMart();
+    const insightTemplate = createInsightTemplate([]);
+    const preloadedMain = {
+      dataHeaders: [{ name: 'credits', alias: 'Credits' }],
+      dataRows: [[100]],
+      dataHeadersCount: 1,
+      hasMoreRowsThanLimit: true,
+      rowsLimit: 100,
+    };
+
+    reportHeadersGeneratorFacade.generateHeadersFromSchema.mockResolvedValue([
+      new ReportDataHeader('credits', 'Credits'),
+    ]);
+
+    const result = await service.buildRenderContext(dataMart, insightTemplate, {
+      preloadedSources: { main: preloadedMain },
+    });
+
+    expect(dataMartSqlTableService.executeSqlToTable).not.toHaveBeenCalled();
+    expect(result.tableSources.main).toEqual(preloadedMain);
+  });
+
+  it('loads only main when usedSourceKeys contains only main', async () => {
+    const {
+      service,
+      dataMartSqlTableService,
+      validationService,
+      reportHeadersGeneratorFacade,
+      insightArtifactService,
+    } = createService();
+    const dataMart = createDataMart();
+    const secondarySource = {
+      templateSourceId: '11111111-1111-1111-1111-111111111111',
+      key: 'secondary',
+      type: InsightTemplateSourceType.INSIGHT_ARTIFACT,
+      artifactId: '22222222-2222-2222-2222-222222222222',
+    };
+    const insightTemplate = createInsightTemplate([secondarySource]);
+
+    reportHeadersGeneratorFacade.generateHeadersFromSchema.mockResolvedValue([
+      new ReportDataHeader('credits', 'Credits'),
+    ]);
+    dataMartSqlTableService.executeSqlToTable.mockResolvedValue({
+      columns: ['credits'],
+      rows: [[100]],
+    });
+
+    const result = await service.buildRenderContext(dataMart, insightTemplate, {
+      usedSourceKeys: new Set(['main']),
+    });
+
+    expect(validationService.validateSources).toHaveBeenCalledWith([], {
+      dataMartId: dataMart.id,
+      projectId: dataMart.projectId,
+    });
+    expect(insightArtifactService.getByIdAndDataMartIdAndProjectId).not.toHaveBeenCalled();
+    expect(dataMartSqlTableService.executeSqlToTable).toHaveBeenCalledTimes(1);
+    expect(result.tableSources).toEqual({
+      main: {
+        dataHeaders: [{ name: 'credits', alias: 'Credits' }],
+        dataRows: [[100]],
+        dataHeadersCount: 1,
+        hasMoreRowsThanLimit: false,
+        rowsLimit: 100,
+      },
+    });
+  });
+
+  it('loads only selected secondary source when usedSourceKeys excludes main', async () => {
+    const { service, dataMartSqlTableService, validationService, reportHeadersGeneratorFacade } =
+      createService();
+    const dataMart = createDataMart();
+    const secondarySource = {
+      templateSourceId: '11111111-1111-1111-1111-111111111111',
+      key: 'secondary',
+      type: InsightTemplateSourceType.CURRENT_DATA_MART,
+      artifactId: '22222222-2222-2222-2222-222222222222',
+    };
+    const insightTemplate = createInsightTemplate([secondarySource]);
+
+    dataMartSqlTableService.executeSqlToTable.mockResolvedValue({
+      columns: ['credits'],
+      rows: [[200]],
+    });
+
+    const result = await service.buildRenderContext(dataMart, insightTemplate, {
+      usedSourceKeys: new Set(['secondary']),
+    });
+
+    expect(validationService.validateSources).toHaveBeenCalledWith([secondarySource], {
+      dataMartId: dataMart.id,
+      projectId: dataMart.projectId,
+    });
+    expect(reportHeadersGeneratorFacade.generateHeadersFromSchema).not.toHaveBeenCalled();
+    expect(dataMartSqlTableService.executeSqlToTable).toHaveBeenCalledTimes(1);
+    expect(result.tableSources).toEqual({
+      secondary: {
+        dataHeaders: [{ name: 'credits' }],
+        dataRows: [[200]],
+        dataHeadersCount: 1,
+        hasMoreRowsThanLimit: false,
+        rowsLimit: 100,
+      },
+    });
+  });
+
+  it('does not load or expose any source when usedSourceKeys is empty, even with preloaded main', async () => {
+    const { service, dataMartSqlTableService, validationService, reportHeadersGeneratorFacade } =
+      createService();
+    const dataMart = createDataMart();
+    const insightTemplate = createInsightTemplate([
+      {
+        templateSourceId: '11111111-1111-1111-1111-111111111111',
+        key: 'secondary',
+        type: InsightTemplateSourceType.CURRENT_DATA_MART,
+        artifactId: '22222222-2222-2222-2222-222222222222',
+      },
+    ]);
+    const preloadedMain = {
+      dataHeaders: [{ name: 'credits', alias: 'Credits' }],
+      dataRows: [[100]],
+      dataHeadersCount: 1,
+      hasMoreRowsThanLimit: false,
+      rowsLimit: 100,
+    };
+
+    const result = await service.buildRenderContext(dataMart, insightTemplate, {
+      usedSourceKeys: new Set(),
+      preloadedSources: { main: preloadedMain },
+    });
+
+    expect(validationService.validateSources).toHaveBeenCalledWith([], {
+      dataMartId: dataMart.id,
+      projectId: dataMart.projectId,
+    });
+    expect(reportHeadersGeneratorFacade.generateHeadersFromSchema).not.toHaveBeenCalled();
+    expect(dataMartSqlTableService.executeSqlToTable).not.toHaveBeenCalled();
+    expect(result.tableSources).toEqual({});
+  });
+
   it('does not add aliases for non-main sources', async () => {
     const { service, dataMartSqlTableService, reportHeadersGeneratorFacade } = createService();
     const dataMart = createDataMart();
@@ -120,6 +262,141 @@ describe('InsightTemplateSourceDataService', () => {
     for (const call of dataMartSqlTableService.executeSqlToTable.mock.calls) {
       expect(call[2]).toEqual({ limit: 101 });
     }
+  });
+
+  it('still loads secondary sources when main is provided via preloadedSources', async () => {
+    const { service, dataMartSqlTableService } = createService();
+    const dataMart = createDataMart();
+    const insightTemplate = createInsightTemplate([
+      {
+        templateSourceId: '11111111-1111-1111-1111-111111111111',
+        key: 'secondary',
+        type: InsightTemplateSourceType.CURRENT_DATA_MART,
+        artifactId: '22222222-2222-2222-2222-222222222222',
+      },
+    ]);
+    const preloadedMain = {
+      dataHeaders: [{ name: 'credits', alias: 'Credits' }],
+      dataRows: [[100]],
+      dataHeadersCount: 1,
+      hasMoreRowsThanLimit: false,
+      rowsLimit: 100,
+    };
+
+    dataMartSqlTableService.executeSqlToTable.mockResolvedValue({
+      columns: ['credits'],
+      rows: [[200]],
+    });
+
+    const result = await service.buildRenderContext(dataMart, insightTemplate, {
+      preloadedSources: { main: preloadedMain },
+    });
+
+    expect(result.tableSources.main).toEqual(preloadedMain);
+    expect(result.tableSources.secondary).toEqual({
+      dataHeaders: [{ name: 'credits' }],
+      dataRows: [[200]],
+      dataHeadersCount: 1,
+      hasMoreRowsThanLimit: false,
+      rowsLimit: 100,
+    });
+    expect(dataMartSqlTableService.executeSqlToTable).toHaveBeenCalledTimes(1);
+    expect(dataMartSqlTableService.executeSqlToTable).toHaveBeenCalledWith(dataMart, undefined, {
+      limit: 101,
+    });
+  });
+
+  it('loads only requested main and secondary sources when usedSourceKeys is provided', async () => {
+    const { service, dataMartSqlTableService, validationService, reportHeadersGeneratorFacade } =
+      createService();
+    const dataMart = createDataMart();
+    const firstSource = {
+      templateSourceId: '11111111-1111-1111-1111-111111111111',
+      key: 'secondary',
+      type: InsightTemplateSourceType.CURRENT_DATA_MART,
+      artifactId: '22222222-2222-2222-2222-222222222222',
+    };
+    const secondSource = {
+      templateSourceId: '33333333-3333-3333-3333-333333333333',
+      key: 'unused',
+      type: InsightTemplateSourceType.CURRENT_DATA_MART,
+      artifactId: '44444444-4444-4444-4444-444444444444',
+    };
+    const insightTemplate = createInsightTemplate([firstSource, secondSource]);
+
+    reportHeadersGeneratorFacade.generateHeadersFromSchema.mockResolvedValue([
+      new ReportDataHeader('credits', 'Credits'),
+    ]);
+    dataMartSqlTableService.executeSqlToTable
+      .mockResolvedValueOnce({
+        columns: ['credits'],
+        rows: [[100]],
+      })
+      .mockResolvedValueOnce({
+        columns: ['credits'],
+        rows: [[200]],
+      });
+
+    const result = await service.buildRenderContext(dataMart, insightTemplate, {
+      usedSourceKeys: new Set(['main', 'secondary']),
+    });
+
+    expect(validationService.validateSources).toHaveBeenCalledWith([firstSource], {
+      dataMartId: dataMart.id,
+      projectId: dataMart.projectId,
+    });
+    expect(result.tableSources.main).toEqual({
+      dataHeaders: [{ name: 'credits', alias: 'Credits' }],
+      dataRows: [[100]],
+      dataHeadersCount: 1,
+      hasMoreRowsThanLimit: false,
+      rowsLimit: 100,
+    });
+    expect(result.tableSources.secondary).toEqual({
+      dataHeaders: [{ name: 'credits' }],
+      dataRows: [[200]],
+      dataHeadersCount: 1,
+      hasMoreRowsThanLimit: false,
+      rowsLimit: 100,
+    });
+    expect(result.tableSources.unused).toBeUndefined();
+    expect(dataMartSqlTableService.executeSqlToTable).toHaveBeenCalledTimes(2);
+  });
+
+  it('keeps eager behavior when usedSourceKeys is not provided', async () => {
+    const { service, dataMartSqlTableService, validationService, reportHeadersGeneratorFacade } =
+      createService();
+    const dataMart = createDataMart();
+    const secondarySource = {
+      templateSourceId: '11111111-1111-1111-1111-111111111111',
+      key: 'secondary',
+      type: InsightTemplateSourceType.CURRENT_DATA_MART,
+      artifactId: '22222222-2222-2222-2222-222222222222',
+    };
+    const insightTemplate = createInsightTemplate([secondarySource]);
+
+    reportHeadersGeneratorFacade.generateHeadersFromSchema.mockResolvedValue([
+      new ReportDataHeader('credits', 'Credits'),
+    ]);
+    dataMartSqlTableService.executeSqlToTable
+      .mockResolvedValueOnce({
+        columns: ['credits'],
+        rows: [[100]],
+      })
+      .mockResolvedValueOnce({
+        columns: ['credits'],
+        rows: [[200]],
+      });
+
+    const result = await service.buildRenderContext(dataMart, insightTemplate);
+
+    expect(validationService.validateSources).toHaveBeenCalledWith([secondarySource], {
+      dataMartId: dataMart.id,
+      projectId: dataMart.projectId,
+    });
+    expect(result.tableSources.main).toBeDefined();
+    expect(result.tableSources.secondary).toBeDefined();
+    expect(dataMartSqlTableService.executeSqlToTable).toHaveBeenCalledTimes(2);
   });
 
   it('falls back to plain headers when alias enrichment fails', async () => {

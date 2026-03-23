@@ -125,7 +125,12 @@ describe('RunReportService', () => {
     expect(firstBatch.nextDataBatchId).toBe('b2');
     expect(secondBatch.dataRows).toHaveLength(30);
     expect(secondBatch.nextDataBatchId).toBe('b3');
-    expect(writer.finalize).toHaveBeenCalledWith(undefined);
+    expect(writer.finalize).toHaveBeenCalledWith(undefined, {
+      mainRowsTruncationInfo: {
+        rowsLimit: 100,
+        hasMoreRowsThanLimit: true,
+      },
+    });
     expect(reader.finalize).toHaveBeenCalled();
   });
 
@@ -154,5 +159,8 @@ describe('RunReportService', () => {
     const secondBatch = writer.writeReportDataBatch.mock.calls[1][0] as ReportDataBatch;
     expect(firstBatch.dataRows).toEqual([[1], [2]]);
     expect(secondBatch.dataRows).toEqual([[3], [4], [5]]);
+    expect(writer.finalize).toHaveBeenCalledWith(undefined, {
+      mainRowsTruncationInfo: null,
+    });
   });
 });
