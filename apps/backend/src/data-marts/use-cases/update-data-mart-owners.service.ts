@@ -23,7 +23,7 @@ export class UpdateDataMartOwnersService {
 
     if (allOwnerIds.length > 0) {
       const members = await this.idpProjectionsFacade.getProjectMembers(command.projectId);
-      const memberIds = new Set(members.map(m => m.userId));
+      const memberIds = new Set(members.filter(m => !m.isOutbound).map(m => m.userId));
 
       const invalidIds = allOwnerIds.filter(id => !memberIds.has(id));
       if (invalidIds.length > 0) {
