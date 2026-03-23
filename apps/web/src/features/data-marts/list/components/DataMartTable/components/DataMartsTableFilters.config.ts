@@ -49,12 +49,9 @@ export const dataMartsFilterAccessors: FilterAccessors<DataMartFilterKey, DataMa
     }
     return 'OTHER';
   },
-  [DataMartColumnKey.CREATED_BY_USER]: row =>
-    row.createdByUser?.fullName ?? row.createdByUser?.email,
-  [DataMartColumnKey.BUSINESS_OWNERS]: row =>
-    row.businessOwnerUsers.map(u => u.fullName ?? u.email),
-  [DataMartColumnKey.TECHNICAL_OWNERS]: row =>
-    row.technicalOwnerUsers.map(u => u.fullName ?? u.email),
+  [DataMartColumnKey.CREATED_BY_USER]: row => row.createdByUser?.userId,
+  [DataMartColumnKey.BUSINESS_OWNERS]: row => row.businessOwnerUsers.map(u => u.userId),
+  [DataMartColumnKey.TECHNICAL_OWNERS]: row => row.technicalOwnerUsers.map(u => u.userId),
 };
 
 /* ---------------------------------------------------------------------------
@@ -151,6 +148,24 @@ export function buildDataMartsTableFilters(
     };
   });
 
+  /* -----------------------------
+   * User label map (userId → display name)
+   * --------------------------- */
+  const userLabelMap = new Map<string, string>();
+  for (const item of data) {
+    if (item.createdByUser) {
+      const u = item.createdByUser;
+      userLabelMap.set(u.userId, u.fullName ?? u.email ?? u.userId);
+    }
+    for (const u of item.businessOwnerUsers) {
+      userLabelMap.set(u.userId, u.fullName ?? u.email ?? u.userId);
+    }
+    for (const u of item.technicalOwnerUsers) {
+      userLabelMap.set(u.userId, u.fullName ?? u.email ?? u.userId);
+    }
+  }
+  const userLabelMapper = (userId: string) => userLabelMap.get(userId) ?? userId;
+
   return [
     {
       id: DataMartColumnKey.TITLE,
@@ -201,7 +216,8 @@ export function buildDataMartsTableFilters(
       operators: ['eq', 'neq'],
       options: collectOptionsFromData(
         data,
-        dataMartsFilterAccessors[DataMartColumnKey.CREATED_BY_USER]
+        dataMartsFilterAccessors[DataMartColumnKey.CREATED_BY_USER],
+        { labelMapper: userLabelMapper }
       ),
     },
     {
@@ -211,7 +227,8 @@ export function buildDataMartsTableFilters(
       operators: ['eq', 'neq'],
       options: collectOptionsFromData(
         data,
-        dataMartsFilterAccessors[DataMartColumnKey.BUSINESS_OWNERS]
+        dataMartsFilterAccessors[DataMartColumnKey.BUSINESS_OWNERS],
+        { labelMapper: userLabelMapper }
       ),
     },
     {
@@ -221,7 +238,8 @@ export function buildDataMartsTableFilters(
       operators: ['eq', 'neq'],
       options: collectOptionsFromData(
         data,
-        dataMartsFilterAccessors[DataMartColumnKey.TECHNICAL_OWNERS]
+        dataMartsFilterAccessors[DataMartColumnKey.TECHNICAL_OWNERS],
+        { labelMapper: userLabelMapper }
       ),
     },
   ];

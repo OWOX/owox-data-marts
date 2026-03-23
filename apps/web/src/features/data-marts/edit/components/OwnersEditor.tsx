@@ -14,13 +14,12 @@ import type { ProjectMember } from '../../../notifications/project/types';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@owox/ui/components/tooltip';
 
 interface OwnersEditorProps {
-  label: string;
   ownerUsers: UserProjectionDto[];
   onSave: (userIds: string[]) => void;
   projectId: string;
 }
 
-export function OwnersEditor({ label, ownerUsers, onSave, projectId }: OwnersEditorProps) {
+export function OwnersEditor({ ownerUsers, onSave, projectId }: OwnersEditorProps) {
   const { members, isLoading: isMembersLoading } = useProjectMembers(projectId);
   const [isOpen, setIsOpen] = useState(false);
 
@@ -34,27 +33,17 @@ export function OwnersEditor({ label, ownerUsers, onSave, projectId }: OwnersEdi
     [selectedIds, onSave]
   );
 
-  // Render removed members (not in project members but still in owners)
+  // Owners who are no longer active project members
   const memberIds = useMemo(() => new Set(members.map(m => m.userId)), [members]);
   const removedOwners = useMemo(
-    () =>
-      ownerUsers.filter(u => !memberIds.has(u.userId) && u.fullName === null && u.email === null),
+    () => ownerUsers.filter(u => !memberIds.has(u.userId)),
     [ownerUsers, memberIds]
   );
 
   return (
     <div className='flex items-center gap-2'>
-      <span className='text-muted-foreground text-sm whitespace-nowrap'>{label}:</span>
       {ownerUsers.length === 1 ? (
-        <UserReference
-          userProjection={{
-            userId: ownerUsers[0].userId,
-            fullName: ownerUsers[0].fullName,
-            email: ownerUsers[0].email,
-            avatar: ownerUsers[0].avatar,
-          }}
-          variant='full'
-        />
+        <UserReference userProjection={ownerUsers[0]} variant='full' />
       ) : ownerUsers.length > 1 ? (
         <UserAvatarGroup
           users={ownerUsers.map(u => ({
@@ -64,7 +53,9 @@ export function OwnersEditor({ label, ownerUsers, onSave, projectId }: OwnersEdi
             avatar: u.avatar,
           }))}
         />
-      ) : null}
+      ) : (
+        <span className='text-muted-foreground text-sm'>—</span>
+      )}
       <Popover open={isOpen} onOpenChange={setIsOpen}>
         <PopoverTrigger asChild>
           <Button variant='ghost' size='sm' className='h-7 w-7 p-0'>
@@ -72,7 +63,7 @@ export function OwnersEditor({ label, ownerUsers, onSave, projectId }: OwnersEdi
           </Button>
         </PopoverTrigger>
         <PopoverContent align='start' className='w-80 p-3'>
-          <div className='mb-2 text-sm font-medium'>{label}</div>
+          <div className='mb-2 text-sm font-medium'>Select owners</div>
           {isMembersLoading ? (
             <div className='space-y-2'>
               {[1, 2, 3].map(i => (
@@ -99,13 +90,23 @@ export function OwnersEditor({ label, ownerUsers, onSave, projectId }: OwnersEdi
                           handleToggle(user.userId, false);
                         }}
                       />
-                      <div className='bg-muted flex h-6 w-6 items-center justify-center rounded-full'>
-                        <User className='h-3 w-3' />
-                      </div>
-                      <span className='text-muted-foreground text-sm italic'>Removed user</span>
+                      {user.avatar ? (
+                        <img
+                          src={user.avatar}
+                          alt={user.fullName ?? 'Removed user'}
+                          className='h-6 w-6 rounded-full object-cover opacity-50'
+                        />
+                      ) : (
+                        <div className='bg-muted flex h-6 w-6 items-center justify-center rounded-full'>
+                          <User className='h-3 w-3' />
+                        </div>
+                      )}
+                      <span className='text-muted-foreground text-sm'>
+                        {user.fullName ?? user.email ?? 'Removed user'}
+                      </span>
                     </div>
                   </TooltipTrigger>
-                  <TooltipContent>This user is not a part of the project now</TooltipContent>
+                  <TooltipContent>This user is no longer a member of the project</TooltipContent>
                 </Tooltip>
               ))}
               {members.length === 0 && removedOwners.length === 0 && (
