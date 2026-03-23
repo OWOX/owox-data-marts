@@ -12,7 +12,7 @@ var GoogleAdsSource = class GoogleAdsSource extends AbstractSource {
         isRequired: true,
         requiredType: "string", 
         label: "Customer ID",
-        description: "Google Ads Customer ID (format: 1234567890)"
+        description: "Google Ads Customer ID (format: 123-456-7890 or 1234567890)"
       },
       AuthType: {
         requiredType: "object",
