@@ -20,7 +20,7 @@ Before proceeding, please make sure that:
 1. Select **Connector** as the input source type.  
 2. Click **Set up connector** and choose **Google Ads**.  
 
-3. Enter your **Customer ID** in the format `12345678` (without dashes).  
+3. Enter your **Customer ID**.
    > ⚠️ This is the ID of the account from which you want to retrieve data.
 
 4. Fill in the required fields depending on your chosen authentication type.  
@@ -37,7 +37,7 @@ If your OWOX Data Marts instance has OAuth pre-configured by an administrator, y
    - `https://www.googleapis.com/auth/userinfo.email` — to display your connected email
 4. After successful authorization, you will see **"Connected as your-email\@example.com"**.
 5. Fill in the remaining fields:
-   - **Customer ID** – the ID of the **ad account** you want to retrieve data from *(format: `12345678` without dashes)*.
+   - **Customer ID** – the ID of the **ad account** you want to retrieve data from.
    - **Login Customer ID** *(optional)* – the ID of your **Manager (MCC)** account, if accessing data through a manager account.
 
 > ℹ️ The Developer Token, Client ID, and Client Secret are managed by your instance administrator via environment variables and do not need to be entered manually.
@@ -48,7 +48,6 @@ If OAuth is not pre-configured, you can enter credentials manually:
 
 - **Customer ID** – enter the ID of the **ad account** you want to retrieve data from.
   You can find it in the top-right corner when viewing the specific ad account in Google Ads.
-  *(Format: `12345678` without dashes.)*
 - **Login Customer ID** – enter the ID of your **Manager (MCC)** account.
   You can find it in the top-right corner when you are logged into your MCC account.
    *(Format: `12345678` without dashes.)*
@@ -59,9 +58,8 @@ If OAuth is not pre-configured, you can enter credentials manually:
 
 ### For **Service Account Authentication**
 
-- **Customer ID** – enter the ID of the **ad account** you want to retrieve data from.  
-  You can find it in the top-right corner when viewing the specific ad account in Google Ads.  
-  *(Format: `12345678` without dashes.)*
+- **Customer ID** – enter the ID of the **ad account** you want to retrieve data from.
+  You can find it in the top-right corner when viewing the specific ad account in Google Ads.
 - **Service Account Key** – paste the full JSON key file content you created in **Google Cloud Console → IAM & Admin → Service Accounts → Manage Keys**.
 - **Developer Token** – paste the Developer Token from your **Google Ads API Center** in your MCC account.
 - **Login Customer ID** – enter the ID of your **Manager (MCC)** account, found in the top-right corner of your MCC dashboard.
