@@ -1,9 +1,10 @@
 import { useCallback, useMemo, useState } from 'react';
 import { Checkbox } from '@owox/ui/components/checkbox';
+import { Input } from '@owox/ui/components/input';
 import { Label } from '@owox/ui/components/label';
 import { Popover, PopoverContent, PopoverTrigger } from '@owox/ui/components/popover';
 import { Skeleton } from '@owox/ui/components/skeleton';
-import { AlertTriangle, Pencil, User } from 'lucide-react';
+import { AlertTriangle, Pencil, Search, User } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { Button } from '../../../../shared/components/Button';
 import { UserAvatarGroup } from '../../../../shared/components/UserAvatarGroup/UserAvatarGroup';
@@ -22,6 +23,7 @@ interface OwnersEditorProps {
 export function OwnersEditor({ ownerUsers, onSave, projectId }: OwnersEditorProps) {
   const { members, isLoading: isMembersLoading } = useProjectMembers(projectId);
   const [isOpen, setIsOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
 
   const selectedIds = useMemo(() => ownerUsers.map(u => u.userId), [ownerUsers]);
 
@@ -47,6 +49,15 @@ export function OwnersEditor({ ownerUsers, onSave, projectId }: OwnersEditorProp
     [ownerUsers, memberIds]
   );
 
+  // Filter active members by search query
+  const filteredActiveMembers = useMemo(() => {
+    if (!searchQuery.trim()) return activeMembers;
+    const q = searchQuery.toLowerCase();
+    return activeMembers.filter(
+      m => (m.displayName?.toLowerCase().includes(q) ?? false) || m.email.toLowerCase().includes(q)
+    );
+  }, [activeMembers, searchQuery]);
+
   // Detect which displayed owners are outbound (for rendering warning in display)
   const outboundIds = useMemo(
     () => new Set(members.filter(m => m.isOutbound).map(m => m.userId)),
@@ -55,6 +66,12 @@ export function OwnersEditor({ ownerUsers, onSave, projectId }: OwnersEditorProp
   const hasOutboundOwner = ownerUsers.some(
     u => outboundIds.has(u.userId) || !memberIds.has(u.userId)
   );
+
+  // Reset search when popover closes
+  const handleOpenChange = useCallback((open: boolean) => {
+    setIsOpen(open);
+    if (!open) setSearchQuery('');
+  }, []);
 
   return (
     <div className='flex items-center gap-2'>
@@ -92,7 +109,7 @@ export function OwnersEditor({ ownerUsers, onSave, projectId }: OwnersEditorProp
       ) : (
         <span className='text-muted-foreground text-sm'>—</span>
       )}
-      <Popover open={isOpen} onOpenChange={setIsOpen}>
+      <Popover open={isOpen} onOpenChange={handleOpenChange}>
         <PopoverTrigger asChild>
           <Button variant='ghost' size='sm' className='h-7 w-7 p-0'>
             <Pencil className='h-3.5 w-3.5' />
@@ -107,33 +124,54 @@ export function OwnersEditor({ ownerUsers, onSave, projectId }: OwnersEditorProp
               ))}
             </div>
           ) : (
-            <div className='max-h-60 space-y-1 overflow-y-auto'>
-              {activeMembers.map((member: ProjectMember) => (
-                <MemberCheckbox
-                  key={member.userId}
-                  member={member}
-                  isSelected={selectedIds.includes(member.userId)}
-                  onToggle={handleToggle}
-                />
-              ))}
-              {outboundMembers.map((member: ProjectMember) => (
-                <OutboundMemberCheckbox
-                  key={member.userId}
-                  member={member}
-                  onToggle={handleToggle}
-                />
-              ))}
-              {unknownOwners.map(user => (
-                <OutboundOwnerRow key={user.userId} user={user} onToggle={handleToggle} />
-              ))}
-              {activeMembers.length === 0 &&
-                outboundMembers.length === 0 &&
-                unknownOwners.length === 0 && (
+            <>
+              {activeMembers.length > 5 && (
+                <div className='relative mb-2'>
+                  <Search className='text-muted-foreground absolute top-1/2 left-2.5 h-3.5 w-3.5 -translate-y-1/2' />
+                  <Input
+                    placeholder='Search by name or email...'
+                    value={searchQuery}
+                    onChange={e => {
+                      setSearchQuery(e.target.value);
+                    }}
+                    className='h-8 pl-8 text-sm'
+                  />
+                </div>
+              )}
+              <div className='max-h-60 space-y-1 overflow-y-auto'>
+                {filteredActiveMembers.map((member: ProjectMember) => (
+                  <MemberCheckbox
+                    key={member.userId}
+                    member={member}
+                    isSelected={selectedIds.includes(member.userId)}
+                    onToggle={handleToggle}
+                  />
+                ))}
+                {filteredActiveMembers.length === 0 && searchQuery.trim() !== '' && (
                   <div className='text-muted-foreground py-2 text-center text-sm'>
-                    No project members found
+                    No members match &quot;{searchQuery}&quot;
                   </div>
                 )}
-            </div>
+                {outboundMembers.map((member: ProjectMember) => (
+                  <OutboundMemberCheckbox
+                    key={member.userId}
+                    member={member}
+                    onToggle={handleToggle}
+                  />
+                ))}
+                {unknownOwners.map(user => (
+                  <OutboundOwnerRow key={user.userId} user={user} onToggle={handleToggle} />
+                ))}
+                {filteredActiveMembers.length === 0 &&
+                  outboundMembers.length === 0 &&
+                  unknownOwners.length === 0 &&
+                  searchQuery.trim() === '' && (
+                    <div className='text-muted-foreground py-2 text-center text-sm'>
+                      No project members found
+                    </div>
+                  )}
+              </div>
+            </>
           )}
           <Link
             to={`/${projectId}/settings/members`}
@@ -176,8 +214,14 @@ function MemberCheckbox({
           <User className='h-3 w-3' />
         </div>
       )}
-      <Label htmlFor={`owner-${member.userId}`} className='flex-1 cursor-pointer text-sm'>
-        {member.displayName ?? member.email}
+      <Label
+        htmlFor={`owner-${member.userId}`}
+        className='flex flex-1 cursor-pointer items-center justify-between text-sm'
+      >
+        <span className='truncate'>{member.displayName ?? member.email}</span>
+        <span className='text-muted-foreground ml-1 text-xs font-normal capitalize'>
+          {member.role}
+        </span>
       </Label>
     </div>
   );
@@ -211,9 +255,12 @@ function OutboundMemberCheckbox({
               <User className='h-3 w-3' />
             </div>
           )}
-          <span className='text-muted-foreground flex items-center gap-1 text-sm'>
-            {member.displayName ?? member.email}
-            <AlertTriangle className='h-3.5 w-3.5 text-yellow-500' />
+          <span className='text-muted-foreground flex flex-1 items-center justify-between text-sm'>
+            <span className='flex items-center gap-1 truncate'>
+              {member.displayName ?? member.email}
+              <AlertTriangle className='h-3.5 w-3.5 shrink-0 text-yellow-500' />
+            </span>
+            <span className='ml-1 text-xs capitalize'>{member.role}</span>
           </span>
         </div>
       </TooltipTrigger>
@@ -252,7 +299,7 @@ function OutboundOwnerRow({
           )}
           <span className='text-muted-foreground flex items-center gap-1 text-sm'>
             {user.fullName ?? user.email ?? 'Removed user'}
-            <AlertTriangle className='h-3.5 w-3.5 text-yellow-500' />
+            <AlertTriangle className='h-3.5 w-3.5 shrink-0 text-yellow-500' />
           </span>
         </div>
       </TooltipTrigger>
