@@ -89,16 +89,16 @@ describe('MoveLegacyDataStorageService', () => {
     expect(result.projectId).toBe(newProjectId);
   });
 
-  it('should perform 3 delete queries and 1 update query inside transaction', async () => {
+  it('should perform 5 delete queries and 1 update query inside transaction', async () => {
     // Arrange
     const storage = { id: 'st1', projectId: 'old_project' } as DataStorage;
 
     // Act
     await service.run(storage, 'new_project');
 
-    // Assert: 3 deletes (reports, triggers, runs) + 1 update (data marts)
-    expect(mockQueryBuilder.execute).toHaveBeenCalledTimes(4);
-    expect(mockQueryBuilder.delete).toHaveBeenCalledTimes(3);
+    // Assert: 5 deletes (reportRunTriggers, reports, scheduledTriggers, connectorRunTriggers, runs) + 1 update (data marts)
+    expect(mockQueryBuilder.execute).toHaveBeenCalledTimes(6);
+    expect(mockQueryBuilder.delete).toHaveBeenCalledTimes(5);
     expect(mockQueryBuilder.update).toHaveBeenCalledTimes(1);
     // manager.update for storage + findOneOrFail to return fresh entity
     expect(mockManager.update).toHaveBeenCalledTimes(1);
@@ -112,8 +112,8 @@ describe('MoveLegacyDataStorageService', () => {
     // Act
     await service.run(storage, 'new_project');
 
-    // Assert: subQuery() called once (reused for all deletes)
-    expect(mockQueryBuilder.subQuery).toHaveBeenCalledTimes(1);
+    // Assert: subQuery() called twice (dataMartSubQuery + reportSubQuery)
+    expect(mockQueryBuilder.subQuery).toHaveBeenCalledTimes(2);
   });
 
   it('should throw and not start transaction if validateSyncPermissionForProject throws', async () => {
