@@ -1,8 +1,9 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
+import { Transactional } from 'typeorm-transactional';
 import { BusinessViolationException } from '../../common/exceptions/business-violation.exception';
 import { ProjectOperationBlockedException } from '../../common/exceptions/project-operation-blocked.exception';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { In, Repository } from 'typeorm';
 
 // @ts-expect-error - Package lacks TypeScript declarations
 import { Core } from '@owox/connectors';
@@ -57,6 +58,7 @@ import { ProjectBalanceService } from './project-balance.service';
 import { DataStorageCredentialsResolver } from '../data-storage-types/data-storage-credentials-resolver.service';
 import { DataStorageCredentials } from '../data-storage-types/data-storage-credentials.type';
 import { GoogleOAuthConfigService } from './google-oauth/google-oauth-config.service';
+import { ConnectorRunTriggerService } from './connector-run-trigger.service';
 
 interface ConfigurationExecutionResult {
   configIndex: number;
@@ -86,7 +88,8 @@ export class ConnectorExecutionService {
     private readonly connectorService: ConnectorService,
     private readonly projectBalanceService: ProjectBalanceService,
     private readonly storageCredentialsResolver: DataStorageCredentialsResolver,
-    private readonly googleOAuthConfigService: GoogleOAuthConfigService
+    private readonly googleOAuthConfigService: GoogleOAuthConfigService,
+    private readonly connectorRunTriggerService: ConnectorRunTriggerService
   ) {}
 
   async cancelRun(dataMartId: string, runId: string): Promise<void> {
@@ -120,7 +123,7 @@ export class ConnectorExecutionService {
       });
     }
 
-    if (run.status === DataMartRunStatus.RUNNING) {
+    if (run.status === DataMartRunStatus.PENDING || run.status === DataMartRunStatus.RUNNING) {
       await this.dataMartRunRepository.update(runId, {
         status: DataMartRunStatus.CANCELLED,
         finishedAt: this.systemTimeService.now(),
@@ -129,8 +132,11 @@ export class ConnectorExecutionService {
   }
 
   /**
-   * Start a connector run
+   * Start a connector run.
+   * Creates a DataMartRun in PENDING status and a ConnectorRunTrigger for worker processing.
+   * Both operations are wrapped in a transaction to ensure atomicity.
    */
+  @Transactional()
   async run(
     dataMart: DataMart,
     createdById: string,
@@ -147,17 +153,28 @@ export class ConnectorExecutionService {
 
     const dataMartRun = await this.createDataMartRun(dataMart, createdById, runType, payload);
 
-    this.executeInBackground(dataMart, dataMartRun, dataMartRun.additionalParams).catch(error => {
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      this.logger.error(`Background execution failed: ${errorMessage}`, error?.stack, {
-        dataMartId: dataMart.id,
-        projectId: dataMart.projectId,
-        runId: dataMartRun.id,
-        error: errorMessage,
-      });
+    await this.connectorRunTriggerService.createTrigger({
+      dataMartId: dataMart.id,
+      projectId: dataMart.projectId,
+      createdById,
+      dataMartRunId: dataMartRun.id,
+      runType,
+      payload,
     });
 
     return dataMartRun.id;
+  }
+
+  /**
+   * Execute a pre-created connector run. Called by ConnectorRunTriggerHandler on worker.
+   */
+  async executeExistingRun(
+    dataMart: DataMart,
+    run: DataMartRun,
+    payload?: Record<string, unknown> | null,
+    _signal?: AbortSignal
+  ): Promise<void> {
+    return this.executeInBackground(dataMart, run, payload);
   }
 
   private validateDataMartForConnector(dataMart: DataMart): void {
@@ -180,7 +197,7 @@ export class ConnectorExecutionService {
     const dataMartRun = await this.dataMartRunRepository.findOne({
       where: {
         dataMartId: dataMart.id,
-        status: DataMartRunStatus.RUNNING,
+        status: In([DataMartRunStatus.RUNNING, DataMartRunStatus.PENDING]),
         type: DataMartRunType.CONNECTOR,
       },
     });
@@ -994,13 +1011,9 @@ export class ConnectorExecutionService {
   }
 
   /**
-   * Executes background connector for data mart runs that are in the INTERRUPTED status.
-   * Retrieves the list of interrupted runs, validates each run, checks if the respective data marts are already running,
-   * and attempts to resume their execution in the background. Runs that are already executing will be skipped,
-   * and runs that fail validation or execution will be logged with appropriate error messages.
-   *
-   * @return {Promise<void>} A promise that resolves when all interrupted runs have been processed,
-   *                         with execution statistics logged (started, skipped, failed counts).
+   * Schedules interrupted connector runs for resumption via the trigger system.
+   * Sets INTERRUPTED runs back to PENDING and creates ConnectorRunTriggers for worker processing.
+   * This ensures interrupted runs go through the same concurrency control as new runs.
    */
   public async executeInterruptedRuns(): Promise<void> {
     const interruptedRuns = await this.getDataMartConnectorRunsByStatus(
@@ -1011,36 +1024,39 @@ export class ConnectorExecutionService {
       return;
     }
 
-    this.logger.log(`Starting execution of ${interruptedRuns.length} interrupted runs...`);
-    for (const run of interruptedRuns) {
-      this.validateDataMartForConnector(run.dataMart);
-      const isRunning = await this.checkDataMartIsRunning(run.dataMart);
-      if (isRunning) {
-        this.logger.warn(`Skipping interrupted run ${run.id}: DataMart is already running`, {
-          dataMartId: run.dataMart.id,
-          projectId: run.dataMart.projectId,
-          runId: run.id,
-        });
-        continue;
-      } else {
-        this.logger.log(`Starting execution of interrupted run ${run.id}`, {
-          dataMartId: run.dataMart.id,
-          projectId: run.dataMart.projectId,
-          runId: run.id,
-        });
-      }
+    this.logger.log(`Scheduling ${interruptedRuns.length} interrupted runs for resumption...`);
 
-      this.executeInBackground(run.dataMart, run, run.additionalParams).catch(error => {
+    for (const run of interruptedRuns) {
+      try {
+        await this.dataMartRunRepository.update(run.id, {
+          status: DataMartRunStatus.PENDING,
+        });
+
+        await this.connectorRunTriggerService.createTrigger({
+          dataMartId: run.dataMartId,
+          projectId: run.dataMart.projectId,
+          createdById: run.createdById ?? 'system',
+          dataMartRunId: run.id,
+          runType: run.runType,
+          payload: run.additionalParams ?? undefined,
+        });
+
+        this.logger.log(`Created trigger for interrupted run ${run.id}`, {
+          dataMartId: run.dataMartId,
+          projectId: run.dataMart.projectId,
+          runId: run.id,
+        });
+      } catch (error) {
         this.logger.error(
-          `Interrupted background execution failed for run ${run.id}:`,
-          error?.stack,
+          `Failed to schedule interrupted run ${run.id}: ${error instanceof Error ? error.message : String(error)}`,
+          error instanceof Error ? error.stack : undefined,
           {
-            dataMartId: run.dataMart.id,
+            dataMartId: run.dataMartId,
             projectId: run.dataMart.projectId,
             runId: run.id,
           }
         );
-      });
+      }
     }
   }
 

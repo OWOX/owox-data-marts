@@ -17,7 +17,6 @@ export class GetNotificationSettingsService {
   async run(command: GetNotificationSettingsCommand): Promise<NotificationSettingsResponseApiDto> {
     const allMembers = await this.idpProjectionsFacade.getProjectMembers(command.projectId);
     const activeMembers = allMembers.filter(m => !m.isOutbound);
-    const memberIds = new Set(activeMembers.map(m => m.userId));
 
     const settings = await this.settingsService.getOrCreateDefaultSettings(
       command.projectId,
@@ -28,11 +27,7 @@ export class GetNotificationSettingsService {
     // Skip cleanup when member list is empty — likely an IDP failure, not an empty project.
     if (activeMembers.length > 0) {
       for (const s of settings) {
-        const validReceivers = s.receivers.filter(id => memberIds.has(id));
-        if (validReceivers.length !== s.receivers.length) {
-          s.receivers = validReceivers;
-          await this.settingsService.updateReceivers(s.id, validReceivers);
-        }
+        await this.settingsService.syncReceivers(s, activeMembers);
       }
     }
 

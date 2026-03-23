@@ -1,7 +1,7 @@
 {
   "name": "owox",
   "description": "OWOX Data Marts CLI: Simple command-line interface to start the OWOX Data Marts application with backend and frontend components.",
-  "version": "0.20.0",
+  "version": "0.21.1",
   "publishConfig": {
     "access": "public"
   },
@@ -33,7 +33,7 @@
     "@types/mocha": "^10",
     "@types/node": "^18",
     "chai": "^4",
-    "eslint-config-oclif": "^6",
+    "eslint-config-oclif": "6.0.146",
     "eslint-config-prettier": "~10.1.0",
     "mocha": "^11",
     "oclif": "^4",

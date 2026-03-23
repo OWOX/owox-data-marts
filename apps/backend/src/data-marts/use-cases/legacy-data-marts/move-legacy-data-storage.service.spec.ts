@@ -1,0 +1,185 @@
+import { Logger } from '@nestjs/common';
+import { Test, TestingModule } from '@nestjs/testing';
+import { DataSource } from 'typeorm';
+import { getDataSourceToken } from '@nestjs/typeorm';
+import { DataStorage } from '../../entities/data-storage.entity';
+import { LegacyDataStorageService } from '../../services/legacy-data-marts/legacy-data-storage.service';
+import { MoveLegacyDataStorageService } from './move-legacy-data-storage.service';
+
+describe('MoveLegacyDataStorageService', () => {
+  let service: MoveLegacyDataStorageService;
+  let legacyDataStorageService: jest.Mocked<LegacyDataStorageService>;
+  let dataSource: jest.Mocked<DataSource>;
+  let mockQueryBuilder: Record<string, jest.Mock>;
+  let mockManager: Record<string, jest.Mock>;
+
+  beforeEach(async () => {
+    legacyDataStorageService = {
+      validateSyncPermissionForProject: jest.fn(),
+    } as unknown as jest.Mocked<LegacyDataStorageService>;
+
+    const mockSubQueryBuilder = {
+      select: jest.fn().mockReturnThis(),
+      from: jest.fn().mockReturnThis(),
+      where: jest.fn().mockReturnThis(),
+      getQuery: jest.fn().mockReturnValue('(SELECT "id" FROM "data_mart" "dm")'),
+    };
+
+    mockQueryBuilder = {
+      delete: jest.fn().mockReturnThis(),
+      update: jest.fn().mockReturnThis(),
+      from: jest.fn().mockReturnThis(),
+      set: jest.fn().mockReturnThis(),
+      where: jest.fn().mockImplementation((conditionOrFn, _params) => {
+        if (typeof conditionOrFn === 'function') {
+          conditionOrFn(mockQueryBuilder);
+        }
+        return mockQueryBuilder;
+      }),
+      subQuery: jest.fn().mockReturnValue(mockSubQueryBuilder),
+      execute: jest.fn().mockResolvedValue({ affected: 1 }),
+    };
+
+    mockManager = {
+      createQueryBuilder: jest.fn().mockReturnValue(mockQueryBuilder),
+      update: jest.fn().mockResolvedValue({ affected: 1 }),
+      findOneOrFail: jest.fn().mockImplementation(async (_entity, options) => ({
+        id: options.where.id,
+        projectId: 'new_project',
+        credential: null,
+      })),
+    };
+
+    dataSource = {
+      transaction: jest.fn().mockImplementation(async cb => cb(mockManager)),
+    } as unknown as jest.Mocked<DataSource>;
+
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [
+        MoveLegacyDataStorageService,
+        { provide: LegacyDataStorageService, useValue: legacyDataStorageService },
+        { provide: DataSource, useValue: dataSource },
+        { provide: getDataSourceToken(), useValue: dataSource },
+      ],
+    })
+      .setLogger(new Logger()) // disable error logging in console
+      .compile();
+
+    service = module.get<MoveLegacyDataStorageService>(MoveLegacyDataStorageService);
+  });
+
+  afterEach(() => {
+    jest.clearAllMocks();
+  });
+
+  it('should validate permission, clean up non-movable entities by storage directly, and update projectId for data marts and storage within a transaction', async () => {
+    // Arrange
+    const storage = { id: 'st1', projectId: 'old_project' } as DataStorage;
+    const newProjectId = 'new_project';
+
+    // Act
+    const result = await service.run(storage, newProjectId);
+
+    // Assert
+    expect(legacyDataStorageService.validateSyncPermissionForProject).toHaveBeenCalledWith(
+      newProjectId
+    );
+    expect(dataSource.transaction).toHaveBeenCalled();
+    expect(storage.projectId).toBe('old_project'); // input object should NOT be mutated
+    expect(result.projectId).toBe(newProjectId);
+  });
+
+  it('should perform 5 delete queries and 1 update query inside transaction', async () => {
+    // Arrange
+    const storage = { id: 'st1', projectId: 'old_project' } as DataStorage;
+
+    // Act
+    await service.run(storage, 'new_project');
+
+    // Assert: 5 deletes (reportRunTriggers, reports, scheduledTriggers, connectorRunTriggers, runs) + 1 update (data marts)
+    expect(mockQueryBuilder.execute).toHaveBeenCalledTimes(6);
+    expect(mockQueryBuilder.delete).toHaveBeenCalledTimes(5);
+    expect(mockQueryBuilder.update).toHaveBeenCalledTimes(1);
+    // manager.update for storage + findOneOrFail to return fresh entity
+    expect(mockManager.update).toHaveBeenCalledTimes(1);
+    expect(mockManager.findOneOrFail).toHaveBeenCalledTimes(1);
+  });
+
+  it('should use subquery builder in where conditions', async () => {
+    // Arrange
+    const storage = { id: 'st1', projectId: 'old_project' } as DataStorage;
+
+    // Act
+    await service.run(storage, 'new_project');
+
+    // Assert: subQuery() called twice (dataMartSubQuery + reportSubQuery)
+    expect(mockQueryBuilder.subQuery).toHaveBeenCalledTimes(2);
+  });
+
+  it('should throw and not start transaction if validateSyncPermissionForProject throws', async () => {
+    // Arrange
+    const storage = { id: 'st1', projectId: 'old_project' } as DataStorage;
+    const permissionError = new Error('No sync permission');
+    legacyDataStorageService.validateSyncPermissionForProject.mockImplementation(() => {
+      throw permissionError;
+    });
+
+    // Act & Assert
+    await expect(service.run(storage, 'new_project')).rejects.toThrow(permissionError);
+    expect(dataSource.transaction).not.toHaveBeenCalled();
+  });
+
+  it('should propagate error and not update storage projectId if transaction fails', async () => {
+    // Arrange
+    const storage = { id: 'st1', projectId: 'old_project' } as DataStorage;
+    const dbError = new Error('DB connection lost');
+    dataSource.transaction.mockRejectedValue(dbError);
+
+    // Act & Assert
+    await expect(service.run(storage, 'new_project')).rejects.toThrow(dbError);
+    expect(storage.projectId).toBe('old_project');
+  });
+
+  it('should update credential projectId when storage has a credential', async () => {
+    // Arrange
+    const credential = { id: 'cred1', projectId: 'old_project' };
+    const storage = {
+      id: 'st1',
+      projectId: 'old_project',
+      credential,
+    } as DataStorage;
+    const newProjectId = 'new_project';
+
+    mockManager.findOneOrFail.mockResolvedValue({
+      id: 'st1',
+      projectId: newProjectId,
+      credential: { id: 'cred1', projectId: newProjectId },
+    });
+
+    // Act
+    const result = await service.run(storage, newProjectId);
+
+    // Assert: credential should NOT be mutated in memory
+    expect(credential.projectId).toBe('old_project');
+    // manager.update called for both storage and credential
+    expect(mockManager.update).toHaveBeenCalledTimes(2);
+    expect(mockManager.findOneOrFail).toHaveBeenCalledTimes(1);
+    expect(result.projectId).toBe(newProjectId);
+  });
+
+  it('should not update credential when storage.credential is null', async () => {
+    // Arrange
+    const storage = {
+      id: 'st1',
+      projectId: 'old_project',
+      credential: null,
+    } as DataStorage;
+
+    // Act
+    await service.run(storage, 'new_project');
+
+    // Assert: only 1 manager.update call (for storage), no update for credential
+    expect(mockManager.update).toHaveBeenCalledTimes(1);
+    expect(mockManager.findOneOrFail).toHaveBeenCalledTimes(1);
+  });
+});

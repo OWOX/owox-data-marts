@@ -33,6 +33,24 @@ Receivers are project members who will receive email notifications. Select one o
 
 > ☝️ A member will only receive emails if their account has email notifications enabled. Members with notifications disabled are shown with a warning badge.
 
+#### Automatic Subscription
+
+When a new member joins the project with an **Admin** or **Editor** role, they are automatically added as a receiver to all existing notification settings. This also applies to members who previously left the project and have been re-added.
+
+If a member manually removes themselves from the receivers list (via the UI), they will **not** be re-subscribed automatically — their choice is respected as long as they remain in the project.
+
+| Scenario | Result |
+|---|---|
+| New Admin/Editor joins the project | Automatically subscribed |
+| Member leaves the project and returns as Admin/Editor | Automatically subscribed (treated as new) |
+| Admin/Editor manually unsubscribes via the UI | Stays unsubscribed |
+| Member's role changes from Viewer to Editor | Automatically subscribed |
+| Member's role changes from Editor to Viewer | Removed from receivers |
+
+#### Role-Based Cleanup
+
+Members whose role is downgraded to **Viewer** are automatically removed from the receivers list, since only Admins and Editors are eligible to receive notifications. Similarly, members who are removed from the project entirely are cleaned up from the receivers list.
+
 ### Grouping Delay
 
 The **Grouping Delay** controls how often notifications are batched and sent.

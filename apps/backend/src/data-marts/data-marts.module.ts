@@ -24,6 +24,7 @@ import { ReportDataCacheService } from './services/report-data-cache.service';
 import { UserProjectionsFetcherService } from './services/user-projections-fetcher.service';
 import { CreateDataMartService } from './use-cases/create-data-mart.service';
 import { DeleteLegacyDataMartService } from './use-cases/legacy-data-marts/delete-legacy-data-mart.service';
+import { MoveLegacyDataStorageService } from './use-cases/legacy-data-marts/move-legacy-data-storage.service';
 import { SyncLegacyGcpStoragesForProjectService } from './use-cases/legacy-data-marts/sync-legacy-gcp-storages-for-project.service';
 import { ListDataMartsService } from './use-cases/list-data-marts.service';
 import { ListDataMartsByConnectorNameService } from './use-cases/list-data-marts-by-connector-name.service';
@@ -113,6 +114,7 @@ import { InsightArtifactService } from './services/insight-artifact.service';
 import { InsightArtifactSqlPreviewTriggerHandlerService } from './services/insight-artifact-sql-preview-trigger-handler.service';
 import { InsightArtifactSqlPreviewTriggerService } from './services/insight-artifact-sql-preview-trigger.service';
 import { InsightTemplateService } from './services/insight-template.service';
+import { InsightTemplateSourceUsageService } from './services/insight-template-source-usage.service';
 import { InsightTemplateValidationService } from './services/insight-template-validation.service';
 import { TemplatePlaceholderValidator } from './services/template-edit-placeholder-tags/template-placeholder-validator.service';
 import { TemplateTagContractValidator } from './services/template-edit-placeholder-tags/template-tag-contract-validator.service';
@@ -272,6 +274,12 @@ import { CopyCredentialService } from './services/copy-credential.service';
 import { GoogleOAuthFlowService } from './services/google-oauth/google-oauth-flow.service';
 import { GoogleOAuthClientService } from './services/google-oauth/google-oauth-client.service';
 import { GoogleOAuthConfigService } from './services/google-oauth/google-oauth-config.service';
+import { ConnectorRunTrigger } from './entities/connector-run-trigger.entity';
+import { ConnectorRunTriggerService } from './services/connector-run-trigger.service';
+import { ConnectorRunTriggerHandlerService } from './services/connector-run-trigger-handler.service';
+import { ReportRunTrigger } from './entities/report-run-trigger.entity';
+import { ReportRunTriggerService } from './services/report-run-trigger.service';
+import { ReportRunTriggerHandlerService } from './services/report-run-trigger-handler.service';
 
 @Module({
   imports: [
@@ -304,6 +312,8 @@ import { GoogleOAuthConfigService } from './services/google-oauth/google-oauth-c
       AiAssistantContext,
       AiAssistantRunTrigger,
       AiAssistantApplyAction,
+      ConnectorRunTrigger,
+      ReportRunTrigger,
     ]),
     CommonModule,
     IdpModule,
@@ -395,6 +405,7 @@ import { GoogleOAuthConfigService } from './services/google-oauth/google-oauth-c
     InsightArtifactSqlPreviewTriggerHandlerService,
     InsightTemplateService,
     InsightTemplateSourceService,
+    InsightTemplateSourceUsageService,
     InsightTemplateValidationService,
     TemplatePlaceholderValidator,
     TemplateTagContractValidator,
@@ -454,6 +465,10 @@ import { GoogleOAuthConfigService } from './services/google-oauth/google-oauth-c
     ScheduledTriggersHandlerService,
     SqlDryRunTriggerService,
     SqlDryRunTriggerHandlerService,
+    ConnectorRunTriggerService,
+    ConnectorRunTriggerHandlerService,
+    ReportRunTriggerService,
+    ReportRunTriggerHandlerService,
     SchemaActualizeTriggerService,
     SchemaActualizeTriggerHandlerService,
     PublishDraftsTriggerService,
@@ -506,6 +521,7 @@ import { GoogleOAuthConfigService } from './services/google-oauth/google-oauth-c
     ConnectorOauthService,
     UserProjectionsFetcherService,
     DeleteLegacyDataMartService,
+    MoveLegacyDataStorageService,
     SyncLegacyDataMartService,
     SyncLegacyDataMartsByGcpService,
     SyncLegacyGcpStoragesForProjectService,
@@ -568,8 +584,8 @@ export class DataMartsModule {
       .exclude(
         { path: 'data-marts/:id/definition', method: RequestMethod.PUT },
         { path: 'data-marts/:id/publish', method: RequestMethod.PUT },
-        { path: 'external/*', method: RequestMethod.ALL }
+        { path: 'external/{*path}', method: RequestMethod.ALL }
       )
-      .forRoutes({ path: '*', method: RequestMethod.ALL });
+      .forRoutes({ path: '{*path}', method: RequestMethod.ALL });
   }
 }

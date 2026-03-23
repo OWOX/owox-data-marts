@@ -47,6 +47,10 @@ export class AthenaDataMartValidator implements DataMartValidator {
       return identifierValidation;
     }
 
+    if (isConnectorDefinition(definition)) {
+      return ValidationResult.success();
+    }
+
     if (!isAthenaCredentials(credentials)) {
       return ValidationResult.failure('Invalid credentials');
     }

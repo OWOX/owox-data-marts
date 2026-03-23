@@ -13,6 +13,7 @@ export interface UserInfo {
   email: string;
   fullName?: string;
   hasNotificationsEnabled: boolean;
+  role: string;
 }
 
 @Injectable()

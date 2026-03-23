@@ -27,6 +27,11 @@ export interface InsightTemplateTableSourceContext {
   rowsLimit: number;
 }
 
+export interface InsightTemplateRenderContextOptions {
+  preloadedSources?: Partial<Record<string, InsightTemplateTableSourceContext>>;
+  usedSourceKeys?: ReadonlySet<string>;
+}
+
 @Injectable()
 export class InsightTemplateSourceDataService {
   private readonly logger = new Logger(InsightTemplateSourceDataService.name);
@@ -40,18 +45,29 @@ export class InsightTemplateSourceDataService {
 
   async buildRenderContext(
     dataMart: DataMart,
-    insightTemplate: InsightTemplate
+    insightTemplate: InsightTemplate,
+    options: InsightTemplateRenderContextOptions = {}
   ): Promise<{ tableSources: Record<string, InsightTemplateTableSourceContext> }> {
-    await this.validationService.validateSources(insightTemplate.sources, {
+    const selectedConfiguredSources = (insightTemplate.sources ?? []).filter(source =>
+      this.shouldLoadSourceKey(source.key, options)
+    );
+
+    await this.validationService.validateSources(selectedConfiguredSources, {
       dataMartId: dataMart.id,
       projectId: dataMart.projectId,
     });
 
     const tableSources: Record<string, InsightTemplateTableSourceContext> = {};
-    tableSources[DEFAULT_SOURCE_KEY] = await this.resolveMainDataMartSourceContext(dataMart);
+    if (this.shouldLoadSourceKey(DEFAULT_SOURCE_KEY, options)) {
+      tableSources[DEFAULT_SOURCE_KEY] =
+        options.preloadedSources?.[DEFAULT_SOURCE_KEY] ??
+        (await this.resolveMainDataMartSourceContext(dataMart));
+    }
 
-    for (const source of insightTemplate.sources ?? []) {
-      tableSources[source.key] = await this.resolveSourceContext(source, dataMart);
+    for (const source of selectedConfiguredSources) {
+      tableSources[source.key] =
+        options.preloadedSources?.[source.key] ??
+        (await this.resolveSourceContext(source, dataMart));
     }
 
     return { tableSources };
@@ -184,5 +200,16 @@ export class InsightTemplateSourceDataService {
       );
       return undefined;
     }
+  }
+
+  private shouldLoadSourceKey(
+    sourceKey: string,
+    options: InsightTemplateRenderContextOptions
+  ): boolean {
+    if (!options.usedSourceKeys) {
+      return true;
+    }
+
+    return options.usedSourceKeys.has(sourceKey);
   }
 }

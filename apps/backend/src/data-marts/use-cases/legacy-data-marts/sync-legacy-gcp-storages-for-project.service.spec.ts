@@ -4,6 +4,7 @@ import { LegacyDataMartsService } from '../../services/legacy-data-marts/legacy-
 import { LegacyDataStorageService } from '../../services/legacy-data-marts/legacy-data-storage.service';
 import { LegacySyncTriggersService } from '../../services/legacy-data-marts/legacy-sync-triggers.service';
 import { SyncLegacyGcpStoragesForProjectService } from './sync-legacy-gcp-storages-for-project.service';
+import { MoveLegacyDataStorageService } from './move-legacy-data-storage.service';
 
 // Mock external dependencies to avoid ESM import issues
 jest.mock('@owox/internal-helpers', () => ({
@@ -21,6 +22,7 @@ describe('SyncLegacyGcpStoragesForProjectService', () => {
   let legacyDataMartsService: jest.Mocked<LegacyDataMartsService>;
   let legacyDataStorageService: jest.Mocked<LegacyDataStorageService>;
   let legacySyncTriggersService: jest.Mocked<LegacySyncTriggersService>;
+  let moveLegacyDataStorageService: jest.Mocked<MoveLegacyDataStorageService>;
 
   const projectId = 'test-project';
 
@@ -38,12 +40,17 @@ describe('SyncLegacyGcpStoragesForProjectService', () => {
       scheduleDataMartsSyncForStorageByGcp: jest.fn(),
     } as unknown as jest.Mocked<LegacySyncTriggersService>;
 
+    moveLegacyDataStorageService = {
+      run: jest.fn(),
+    } as unknown as jest.Mocked<MoveLegacyDataStorageService>;
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         SyncLegacyGcpStoragesForProjectService,
         { provide: LegacyDataMartsService, useValue: legacyDataMartsService },
         { provide: LegacyDataStorageService, useValue: legacyDataStorageService },
         { provide: LegacySyncTriggersService, useValue: legacySyncTriggersService },
+        { provide: MoveLegacyDataStorageService, useValue: moveLegacyDataStorageService },
       ],
     }).compile();
 
@@ -94,7 +101,7 @@ describe('SyncLegacyGcpStoragesForProjectService', () => {
       expect(legacySyncTriggersService.scheduleDataMartsSyncForStorageByGcp).not.toHaveBeenCalled();
     });
 
-    it('should skip GCP project linked to different project', async () => {
+    it('should migrate GCP project linked to different project', async () => {
       const gcpProjects = ['gcp-1'];
       const existingStorage = { id: 'storage-id', projectId: 'other-project' } as DataStorage;
 
@@ -104,6 +111,23 @@ describe('SyncLegacyGcpStoragesForProjectService', () => {
       await service.run({ projectId });
 
       expect(legacyDataStorageService.create).not.toHaveBeenCalled();
+      expect(moveLegacyDataStorageService.run).toHaveBeenCalledWith(existingStorage, projectId);
+    });
+
+    it('should catch error and continue if moveLegacyDataStorageService throws during migration', async () => {
+      const gcpProjects = ['gcp-1'];
+      const existingStorage = { id: 'storage-id', projectId: 'other-project' } as DataStorage;
+      const migrationError = new Error('Migration failed');
+
+      legacyDataMartsService.getGcpProjectsList.mockResolvedValue(gcpProjects);
+      legacyDataStorageService.findByGcpProjectId.mockResolvedValue(existingStorage);
+      moveLegacyDataStorageService.run.mockRejectedValue(migrationError);
+
+      const result = await service.run({ projectId });
+
+      expect(result).toBe(1);
+      expect(legacyDataStorageService.create).not.toHaveBeenCalled();
+      expect(legacySyncTriggersService.scheduleDataMartsSyncForStorageByGcp).not.toHaveBeenCalled();
     });
 
     it('should handle empty GCP projects list', async () => {

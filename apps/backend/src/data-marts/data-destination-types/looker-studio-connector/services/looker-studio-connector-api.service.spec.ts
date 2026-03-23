@@ -209,6 +209,64 @@ describe('LookerStudioConnectorApiService', () => {
         expect(res.json).toHaveBeenCalledWith(mockResult);
         expect(dataService.streamData).not.toHaveBeenCalled();
       });
+
+      it('should not register consumption when data is from cache (non-streaming)', async () => {
+        delete process.env.LOOKER_STREAMING_ENABLED;
+        const request = createMockRequest(false);
+        const res = createMockResponse();
+        const mockResult = { schema: [], rows: [], filtersApplied: [] };
+        const mockReportRun = {
+          markAsSuccess: jest.fn(),
+          markAsUnsuccessful: jest.fn(),
+          getReport: jest.fn().mockReturnValue(createMockReport()),
+          getReportId: jest.fn().mockReturnValue('report-1'),
+        };
+
+        reportRunService.create.mockResolvedValue(mockReportRun as any);
+        dataService.getData.mockResolvedValue({
+          response: mockResult,
+          meta: { limitExceeded: false, rowsSent: 0, bytesSent: undefined, limitReason: undefined },
+        } as any);
+
+        // beforeEach sets fromCache: true
+        await service.getDataStreaming(request, res as Response);
+
+        expect(mockReportRun.markAsSuccess).toHaveBeenCalled();
+        expect(
+          consumptionTrackingService.registerLookerReportRunConsumption
+        ).not.toHaveBeenCalled();
+        expect(producer.produceEvent).toHaveBeenCalled();
+      });
+
+      it('should register consumption when data is not from cache (non-streaming)', async () => {
+        delete process.env.LOOKER_STREAMING_ENABLED;
+        cacheService.getOrCreateCachedReader.mockResolvedValue({
+          fromCache: false,
+          reader: {},
+          dataDescription: { dataHeaders: [] },
+        } as any);
+        const request = createMockRequest(false);
+        const res = createMockResponse();
+        const mockResult = { schema: [], rows: [], filtersApplied: [] };
+        const mockReportRun = {
+          markAsSuccess: jest.fn(),
+          markAsUnsuccessful: jest.fn(),
+          getReport: jest.fn().mockReturnValue(createMockReport()),
+          getReportId: jest.fn().mockReturnValue('report-1'),
+        };
+
+        reportRunService.create.mockResolvedValue(mockReportRun as any);
+        dataService.getData.mockResolvedValue({
+          response: mockResult,
+          meta: { limitExceeded: false, rowsSent: 0, bytesSent: undefined, limitReason: undefined },
+        } as any);
+
+        await service.getDataStreaming(request, res as Response);
+
+        expect(mockReportRun.markAsSuccess).toHaveBeenCalled();
+        expect(consumptionTrackingService.registerLookerReportRunConsumption).toHaveBeenCalled();
+        expect(producer.produceEvent).toHaveBeenCalled();
+      });
     });
 
     describe('full extraction with streaming enabled', () => {
@@ -240,8 +298,44 @@ describe('LookerStudioConnectorApiService', () => {
         expect(res.json).not.toHaveBeenCalled();
       });
 
-      it('should track report run on successful streaming', async () => {
+      it('should not register consumption when data is from cache', async () => {
         process.env.LOOKER_STREAMING_ENABLED = 'true';
+        const request = createMockRequest(false);
+        const res = createMockResponse();
+        const mockReportRun = {
+          markAsSuccess: jest.fn(),
+          markAsUnsuccessful: jest.fn(),
+          getReport: jest.fn().mockReturnValue(createMockReport()),
+          getReportId: jest.fn().mockReturnValue('report-1'),
+        };
+
+        reportRunService.create.mockResolvedValue(mockReportRun as any);
+        dataService.prepareStreamingContext.mockResolvedValue({} as any);
+        dataService.streamData.mockResolvedValue({
+          rowCount: 100,
+          limitExceeded: false,
+          bytesWritten: 10,
+          limitReason: undefined,
+        } as any);
+
+        // beforeEach sets fromCache: true
+        await service.getDataStreaming(request, res as Response);
+
+        expect(mockReportRun.markAsSuccess).toHaveBeenCalled();
+        expect(reportRunService.finish).toHaveBeenCalled();
+        expect(
+          consumptionTrackingService.registerLookerReportRunConsumption
+        ).not.toHaveBeenCalled();
+        expect(producer.produceEvent).toHaveBeenCalled();
+      });
+
+      it('should register consumption when data is not from cache', async () => {
+        process.env.LOOKER_STREAMING_ENABLED = 'true';
+        cacheService.getOrCreateCachedReader.mockResolvedValue({
+          fromCache: false,
+          reader: {},
+          dataDescription: { dataHeaders: [] },
+        } as any);
         const request = createMockRequest(false);
         const res = createMockResponse();
         const mockReportRun = {
