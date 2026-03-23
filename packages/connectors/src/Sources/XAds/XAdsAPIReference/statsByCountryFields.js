@@ -18,8 +18,8 @@ var statsByCountryFields = {
     'description': 'The placement type (ALL_ON_TWITTER or PUBLISHER_NETWORK).',
     'type': DATA_TYPES.STRING
   },
-    'country': {
-    'description': 'Location targeting value from X Ads targeting_criteria/locations API. Identifies the geographic location segment (country or sub-country level).',
+  'country': {
+    'description': 'Location ID from X Ads (hex string, e.g. 96683cc9126741d1). Join with the targeting_locations node to get the human-readable name and country code.',
     'type': DATA_TYPES.STRING
   },
   'impressions': {

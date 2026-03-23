@@ -165,6 +165,9 @@ var XAdsSource = class XAdsSource extends AbstractSource {
       case 'stats_by_country':
         return await this._timeSeriesAsyncFetch({ nodeName, accountId, fields, start_time, end_time });
 
+      case 'targeting_locations':
+        return await this._fetchTargetingLocations(fields);
+
       default:
         throw new Error(`Unknown node: ${nodeName}`);
     }
@@ -183,7 +186,7 @@ var XAdsSource = class XAdsSource extends AbstractSource {
 
     // Check cache for promoted_tweets (used internally by stats for each day)
     if (nodeName === 'promoted_tweets' && this._promotedTweetsCache.has(accountId)) {
-      console.log(`[XAdsSource] Using cached promoted_tweets for account ${accountId}`);
+      console.log(`Using cached promoted_tweets for account ${accountId}`);
       return this._promotedTweetsCache.get(accountId);
     }
 
@@ -205,7 +208,7 @@ var XAdsSource = class XAdsSource extends AbstractSource {
     }
 
     if (nodeName === 'promoted_tweets') {
-      console.log(`[XAdsSource] Fetched promoted_tweets from API for account ${accountId}`);
+      console.log(`Fetched promoted_tweets from API for account ${accountId}`);
       this._promotedTweetsCache.set(accountId, all);
     }
 
@@ -434,7 +437,7 @@ var XAdsSource = class XAdsSource extends AbstractSource {
       const status = job?.status;
 
       if (status === 'SUCCESS') {
-        if (!job.url) throw new Error(`[XAds] Job ${jobId} succeeded but url is null`);
+        if (!job.url) throw new Error(`Job ${jobId} succeeded but url is null`);
         return job.url;
       }
 
@@ -449,7 +452,7 @@ var XAdsSource = class XAdsSource extends AbstractSource {
     throw new Error(`Async stats job ${jobId} did not complete after ${MAX_ATTEMPTS} attempts`);
   }
 
-  async _downloadAndParseJobResults({ downloadUrl, placement, start_time, fields }) {
+  async _downloadAndParseJobResults({ downloadUrl, placement, start_time }) {
     // No OAuth header — downloadUrl is a pre-signed CDN URL served as raw gzip binary
     // (no Content-Encoding header), so we decompress manually with zlib.
     // 60s timeout guards against a stalled CDN connection hanging the import indefinitely.
@@ -494,7 +497,7 @@ var XAdsSource = class XAdsSource extends AbstractSource {
       }
     }
 
-    return this._filterBySchema(rawResult, 'stats_by_country', fields);
+    return rawResult;
   }
 
   async _timeSeriesAsyncFetch({ nodeName, accountId, fields, start_time, end_time }) {
@@ -526,19 +529,135 @@ var XAdsSource = class XAdsSource extends AbstractSource {
         ['ALL_ON_TWITTER', 'PUBLISHER_NETWORK'].map(async placement => {
           const jobId = await this._submitAsyncStatsJob({ accountId, entityIds, placement, start_time, end_time: endStr });
           const downloadUrl = await this._pollAsyncJobUntilComplete({ accountId, jobId });
-          return this._downloadAndParseJobResults({ downloadUrl, placement, start_time, fields });
+          return this._downloadAndParseJobResults({ downloadUrl, placement, start_time });
         })
       );
 
       const failures = batchResults.filter(r => r.status === 'rejected');
       if (failures.length) {
-        throw new Error(`[XAds] ${failures.length} placement job(s) failed for batch [${entityIds.join(',')}]: ${failures.map(f => f.reason).join('; ')}`);
+        throw new Error(`${failures.length} placement job(s) failed for batch [${entityIds.join(',')}]: ${failures.map(f => f.reason).join('; ')}`);
       }
 
       result.push(...batchResults.map(r => r.value).flat());
     }
 
-    return result;
+    return this._filterBySchema(result, 'stats_by_country', fields);
+  }
+
+  /**
+   * Batch variant of _timeSeriesAsyncFetch: submits async jobs for ALL dates at once,
+   * polls all jobs in a single request per interval, then downloads results in parallel.
+   *
+   * Flow:
+   *   1. Submit one job per (date × entityBatch × placement) — sequential, 1 s apart.
+   *   2. Poll all pending jobs in a single API call every 10 s until all succeed.
+   *   3. Download all result files in parallel (pre-signed CDN URLs, no rate limit).
+   *   4. Return a Map<dateString, filteredRows[]>.
+   *
+   * With 7 days this cuts total runtime from ~21 min to ~3–4 min because X Ads
+   * processes all submitted jobs concurrently on their side.
+   *
+   * @param {string} nodeName
+   * @param {string} accountId
+   * @param {Array<string>} fields
+   * @param {Array<string>} dates - Array of 'YYYY-MM-DD' strings to fetch
+   * @returns {Promise<Map<string, Array<Object>>>} date → filtered rows
+   */
+  async _batchTimeSeriesAsyncFetch({ nodeName, accountId, fields, dates }) {
+    const uniqueKeys = this.fieldsSchema[nodeName].uniqueKeys || [];
+    const missingKeys = uniqueKeys.filter(key => !fields.includes(key));
+    if (missingKeys.length > 0) {
+      throw new Error(`Missing required unique fields for '${nodeName}'. Missing: ${missingKeys.join(', ')}`);
+    }
+
+    const promos = await this.fetchData({ nodeName: 'promoted_tweets', accountId, fields: ['id'] });
+    const ids = promos.map(r => r.id);
+    if (!ids.length) return new Map(dates.map(d => [d, []]));
+
+    // Phase 1: Submit all jobs sequentially.
+    // _rawPostFetch has a built-in 1 s delay, so submissions are naturally spaced
+    // and we stay within X Ads rate limits without extra throttling logic.
+    const pendingJobs = []; // { date, placement, jobId }
+    for (const date of dates) {
+      // The async stats API treats end_time as exclusive, so advance by one day
+      // to include the full target date in the result set.
+      const e = new Date(date);
+      e.setDate(e.getDate() + 1);
+      const endStr = DateUtils.formatDate(e);
+
+      for (let i = 0; i < ids.length; i += this.config.StatsMaxEntityIds.value) {
+        const entityIds = ids.slice(i, i + this.config.StatsMaxEntityIds.value);
+        for (const placement of ['ALL_ON_TWITTER', 'PUBLISHER_NETWORK']) {
+          const jobId = await this._submitAsyncStatsJob({ accountId, entityIds, placement, start_time: date, end_time: endStr });
+          pendingJobs.push({ date, placement, jobId });
+        }
+      }
+    }
+
+    console.log(`Submitted ${pendingJobs.length} async jobs across ${dates.length} days — polling all in parallel`);
+
+    // Phase 2: Poll all jobs in a single API request per interval.
+    // GET /stats/jobs/accounts/:id accepts comma-separated job_ids, so we can
+    // check every pending job in one round-trip instead of N concurrent polling loops.
+    // Each iteration removes completed jobs from pendingIds, so the request shrinks
+    // over time and stops entirely once all jobs have resolved.
+    const MAX_POLL_ATTEMPTS = 60;
+    const POLL_INTERVAL_MS = 10000;
+    const downloadUrls = new Map(); // jobId → pre-signed CDN URL returned on SUCCESS
+    let pendingIds = pendingJobs.map(j => j.jobId);
+
+    for (let attempt = 0; attempt < MAX_POLL_ATTEMPTS && pendingIds.length > 0; attempt++) {
+      await AsyncUtils.delay(POLL_INTERVAL_MS);
+
+      const resp = await this._rawFetch(`stats/jobs/accounts/${accountId}`, { job_ids: pendingIds.join(',') });
+      const jobs = Array.isArray(resp.data) ? resp.data : (resp.data ? [resp.data] : []);
+
+      const stillPending = [];
+      for (const job of jobs) {
+        if (job.status === 'SUCCESS') {
+          if (!job.url) throw new Error(`Job ${job.id} succeeded but url is null`);
+          downloadUrls.set(job.id, job.url);
+        } else if (job.status === 'FAILED') {
+          throw new Error(`Async stats job ${job.id} failed: ${JSON.stringify(job)}`);
+        } else {
+          // PROCESSING or QUEUED — keep in the next poll cycle
+          stillPending.push(job.id);
+        }
+      }
+      pendingIds = stillPending;
+    }
+
+    if (pendingIds.length > 0) {
+      throw new Error(`${pendingIds.length} async job(s) did not complete after ${MAX_POLL_ATTEMPTS} poll attempts`);
+    }
+
+    // Phase 3: Download all result files in parallel (pre-signed CDN URLs).
+    const settled = await Promise.allSettled(
+      pendingJobs.map(async ({ date, placement, jobId }) => {
+        const rows = await this._downloadAndParseJobResults({
+          downloadUrl: downloadUrls.get(jobId),
+          placement,
+          start_time: date
+        });
+        return { date, rows };
+      })
+    );
+
+    const failures = settled.filter(r => r.status === 'rejected');
+    if (failures.length) {
+      throw new Error(`${failures.length} result download(s) failed: ${failures.map(f => f.reason).join('; ')}`);
+    }
+
+    // Phase 4: Group rows by date and apply schema filter.
+    const byDate = new Map(dates.map(d => [d, []]));
+    for (const { value } of settled) {
+      byDate.get(value.date).push(...value.rows);
+    }
+    for (const [date, rows] of byDate) {
+      byDate.set(date, this._filterBySchema(rows, nodeName, fields));
+    }
+
+    return byDate;
   }
 
   /**
@@ -602,6 +721,49 @@ var XAdsSource = class XAdsSource extends AbstractSource {
       }
       return result;
     });
+  }
+
+  /**
+   * Fetch all country-level locations from the X Ads targeting API.
+   * Returns a reference/lookup table mapping targeting_value (hex ID) to
+   * human-readable name and country code. Intended to be run once and stored
+   * as a guide table so users can JOIN stats_by_country.country → targeting_value.
+   *
+   * @param {Array<string>} fields - Fields to return per the schema
+   * @returns {Promise<Array<Object>>}
+   */
+  async _fetchTargetingLocations(fields) {
+    const all = [];
+    let cursor = null;
+    // X Ads returns ~250 countries in 1–2 pages (count=1000). Fetching other
+    // location_types (REGIONS, CITIES, POSTAL_CODES) would require thousands of
+    // pages and is impractical for a reference table — COUNTRIES is sufficient
+    // for joining with stats_by_country.country.
+    // MAX_PAGES is a safety cap against unexpected API pagination behaviour.
+    const MAX_PAGES = 20;
+
+    for (let page = 0; page < MAX_PAGES; page++) {
+      const params = { location_type: 'COUNTRIES', count: 1000 };
+      if (cursor) params.cursor = cursor;
+
+      const resp = await this._rawFetch('targeting_criteria/locations', params);
+      const arr = Array.isArray(resp.data) ? resp.data : (resp.data ? [resp.data] : []);
+
+      for (const loc of arr) {
+        all.push({
+          targeting_value: loc.targeting_value || null,
+          name: loc.name || null,
+          location_type: loc.location_type || null,
+          country_code: loc.country_code || null
+        });
+      }
+
+      cursor = resp.next_cursor || null;
+      if (!cursor) break;
+    }
+
+    console.log(`Fetched ${all.length} targeting locations`);
+    return this._filterBySchema(all, 'targeting_locations', fields);
   }
 
   /**
