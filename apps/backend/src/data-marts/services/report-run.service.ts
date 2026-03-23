@@ -72,6 +72,20 @@ export class ReportRunService {
   }
 
   /**
+   * Loads an existing ReportRun by DataMartRun ID.
+   * Used by trigger handler to resume execution of a pre-created run.
+   */
+  async loadByDataMartRunId(dataMartRunId: string): Promise<ReportRun | null> {
+    const dataMartRun = await this.dataMartRunService.findById(dataMartRunId);
+    if (!dataMartRun || !dataMartRun.reportId) {
+      return null;
+    }
+
+    const report = await this.reportService.getById(dataMartRun.reportId);
+    return ReportRun.create(report, dataMartRun);
+  }
+
+  /**
    * Marks report run as started.
    * Persists STARTED status to database.
    *
