@@ -16,6 +16,7 @@ interface OutletContextType {
   dataMart: {
     id: string;
     description: string;
+    createdAt: Date;
     createdByUser: UserProjectionDto | null;
     businessOwnerUsers: UserProjectionDto[];
     technicalOwnerUsers: UserProjectionDto[];
@@ -41,6 +42,18 @@ export default function DataMartOverviewContent() {
         </CollapsibleCardHeader>
         <CollapsibleCardContent>
           <div className='flex flex-col gap-4 pb-4'>
+            <div className='flex items-center gap-2'>
+              <span className='text-muted-foreground w-36 text-sm whitespace-nowrap'>
+                Created at
+              </span>
+              <span className='text-sm'>
+                {new Intl.DateTimeFormat('en-US', {
+                  year: 'numeric',
+                  month: 'short',
+                  day: 'numeric',
+                }).format(new Date(dataMart.createdAt))}
+              </span>
+            </div>
             {dataMart.createdByUser && (
               <div className='flex items-center gap-2'>
                 <span className='text-muted-foreground w-36 text-sm whitespace-nowrap'>
