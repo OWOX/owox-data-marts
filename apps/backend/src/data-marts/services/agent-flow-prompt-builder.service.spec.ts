@@ -94,6 +94,17 @@ describe('AgentFlowPromptBuilder', () => {
     expect(initialMessages[0].content).toContain(
       'For requests like "insights", "key insights", "trends", or "takeaways"'
     );
+    expect(initialMessages[0].content).toContain(
+      'If a tool/output indicates an access or permission error while creating a view'
+    );
+    expect(initialMessages[0].content).toContain(
+      'the system creates a technical view/object so it can query the SQL result'
+    );
+    expect(initialMessages[0].content).toContain('which makes answers more accurate and reliable');
+    expect(initialMessages[0].content).toContain(
+      'that the user needs to grant the required warehouse access'
+    );
+    expect(initialMessages[0].content).toContain('include it in the user-facing explanation as-is');
     expect(initialMessages[0].content).not.toContain('"const": "apply_template_text_patch"');
     expect(initialMessages[1].content).toContain('State snapshot:');
     expect(initialMessages[1].content).toContain('"sqlRevisions":[]');
