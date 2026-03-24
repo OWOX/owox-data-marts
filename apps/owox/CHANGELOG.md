@@ -2,7 +2,7 @@
 
 ## 0.22.0
 
-### Minor Changes
+### Minor Changes 0.22.0
 
 - 85abd92: # Add trigger-based execution for connector and report runs
 
@@ -48,7 +48,7 @@
 
   New team members with Admin or Editor roles are now automatically subscribed to existing notification settings when they join a project. Members who leave and rejoin a project are also re-subscribed automatically. If a member manually unsubscribes from notifications, their choice is respected and they will not be re-added. Members whose role is downgraded to Viewer are automatically removed from the receivers list.
 
-### Patch Changes
+### Patch Changes 0.22.0
 
 - @owox/internal-helpers@0.22.0
 - @owox/idp-protocol@0.22.0
@@ -125,7 +125,7 @@
   - Fix Google BigQuery storage not saving OAuth credentials and blocking OAuth-authenticated users from saving storage settings
   - Fix field descriptions and primary key flags being lost after schema sync in Redshift and Snowflake data marts
 
-### Patch Changes
+### Patch Changes 0.21.0
 
 - @owox/internal-helpers@0.21.0
 - @owox/idp-protocol@0.21.0
@@ -1381,6 +1381,7 @@
   We're excited to introduce **Time Triggers** - a powerful new feature that allows you to schedule your reports and connectors to run automatically at specified times!
 
   ## Benefits
+
   - ✅ **Save Time**: Automate routine data refreshes without manual intervention
   - 🔄 **Stay Updated**: Keep your data fresh with regular scheduled updates
   - 📊 **Consistent Reporting**: Ensure your reports are generated on a reliable schedule
@@ -1388,6 +1389,7 @@
   - 🔧 **Flexible Scheduling Options**: Choose from daily, weekly, monthly, or interval-based schedules
 
   ## Scheduling Options
+
   - **Daily**: Run your reports or connectors at the same time every day
   - **Weekly**: Select specific days of the week for execution
   - **Monthly**: Schedule runs on specific days of the month
