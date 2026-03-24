@@ -17,7 +17,8 @@
     "@owox/idp-owox-better-auth": "*",
     "@owox/idp-protocol": "*",
     "@owox/internal-helpers": "*",
-    "@owox/web": "*"
+    "@owox/web": "*",
+    "cors": "^2.8.6"
   },
   "peerDependencies": {
     "@nestjs/platform-express": "^11",
@@ -29,6 +30,7 @@
     "@oclif/test": "^4",
     "@owox/prettier-config": "*",
     "@types/chai": "^4",
+    "@types/cors": "^2.8.19",
     "@types/express": "^5",
     "@types/mocha": "^10",
     "@types/node": "^18",
