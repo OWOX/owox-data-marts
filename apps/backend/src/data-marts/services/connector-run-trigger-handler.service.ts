@@ -60,7 +60,7 @@ export class ConnectorRunTriggerHandlerService extends BaseRunTriggerHandlerServ
       );
     } catch (error) {
       if (error instanceof ConcurrencyLimitExceededException) {
-        this.logger.warn(
+        this.logger.log(
           `Concurrency limit reached for project ${trigger.projectId}, trigger ${trigger.id} will retry`
         );
         trigger.status = TriggerStatus.IDLE;
