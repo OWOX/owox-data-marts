@@ -23,7 +23,7 @@ function DataMartDestinationsContentInner() {
   if (!dataMart) return null;
 
   return (
-    <div className='flex flex-col gap-4' data-testid="destTab">
+    <div className='flex flex-col gap-4' data-testid='destTab'>
       {isLoading ? (
         <SkeletonList />
       ) : dataDestinations.length === 0 ? (

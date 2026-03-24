@@ -32,9 +32,7 @@ describe('DataMart Extended Operations (e2e)', () => {
 
   // DMART-01: Filter by connector -- SQL-type DataMarts are excluded by the service filter
   it('GET /api/data-marts/by-connector/GOOGLE_BIGQUERY - returns empty array for SQL-type DataMarts', async () => {
-    const res = await agent
-      .get('/api/data-marts/by-connector/GOOGLE_BIGQUERY')
-      .set(AUTH_HEADER);
+    const res = await agent.get('/api/data-marts/by-connector/GOOGLE_BIGQUERY').set(AUTH_HEADER);
 
     expect(res.status).toBe(200);
     expect(Array.isArray(res.body)).toBe(true);
@@ -90,7 +88,7 @@ describe('DataMart Extended Operations (e2e)', () => {
   it('POST /api/data-marts/health-status - returns 400 for more than 200 IDs', async () => {
     const fakeIds = Array.from(
       { length: 201 },
-      (_, i) => `00000000-0000-0000-0000-${String(i).padStart(12, '0')}`,
+      (_, i) => `00000000-0000-0000-0000-${String(i).padStart(12, '0')}`
     );
 
     const res = await agent
@@ -114,11 +112,7 @@ describe('DataMart Extended Operations (e2e)', () => {
     const dataMartRes = await agent
       .post('/api/data-marts')
       .set(AUTH_HEADER)
-      .send(
-        new DataMartBuilder()
-          .withStorageId(storageRes.body.id)
-          .build(),
-      );
+      .send(new DataMartBuilder().withStorageId(storageRes.body.id).build());
     expect(dataMartRes.status).toBe(201);
     const targetDataMartId = dataMartRes.body.id;
 

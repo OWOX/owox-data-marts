@@ -130,7 +130,7 @@ export function ScheduledTriggerFormSheet({
           }
         }}
       >
-        <SheetContent data-testid="triggerEditSheet">
+        <SheetContent data-testid='triggerEditSheet'>
           <SheetHeader>
             <SheetTitle>{isEditMode ? 'Edit' : 'Create'} Scheduled Trigger</SheetTitle>
             <SheetDescription>

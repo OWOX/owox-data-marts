@@ -7,7 +7,7 @@ export function EmptyDataDestinationsState({
   onOpenTypeDialog?: () => void;
 }) {
   return (
-    <div className='dm-empty-state' data-testid="destEmptyState">
+    <div className='dm-empty-state' data-testid='destEmptyState'>
       <ArchiveRestore className='dm-empty-state-ico' strokeWidth={1} />
       <h2 className='dm-empty-state-title'>Create your first Destination</h2>
       <p className='dm-empty-state-subtitle'>

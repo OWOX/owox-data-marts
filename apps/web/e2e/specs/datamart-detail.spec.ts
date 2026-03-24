@@ -20,9 +20,7 @@ test.describe('DataMart Detail - Title Edit', () => {
     await page.goto(`/ui/0/data-marts/${datamartId}/overview`);
     await expect(page.getByTestId(TESTIDS.datamartDetails)).toBeVisible();
 
-    const titleTextarea = page
-      .getByTestId(TESTIDS.datamartTitleInput)
-      .locator('textarea');
+    const titleTextarea = page.getByTestId(TESTIDS.datamartTitleInput).locator('textarea');
 
     // Clear and type the new title
     await titleTextarea.click();
@@ -54,10 +52,7 @@ test.describe('DataMart Detail - Delete', () => {
     datamartId = dm.id;
   });
 
-  test('deletes datamart from detail page (DDET-02)', async ({
-    page,
-    radix,
-  }) => {
+  test('deletes datamart from detail page (DDET-02)', async ({ page, radix }) => {
     await page.goto(`/ui/0/data-marts/${datamartId}/overview`);
     await expect(page.getByTestId(TESTIDS.datamartDetails)).toBeVisible();
 
@@ -65,9 +60,7 @@ test.describe('DataMart Detail - Delete', () => {
     // a MoreVertical icon with no aria-label. Locate it within the details
     // container by targeting the last button that contains an SVG.
     const detailsContainer = page.getByTestId(TESTIDS.datamartDetails);
-    await detailsContainer
-      .locator('button:has(svg.lucide-ellipsis-vertical)')
-      .click();
+    await detailsContainer.locator('button:has(svg.lucide-ellipsis-vertical)').click();
 
     // Click the Delete Data Mart menu item (has datamartDeleteButton testid)
     await page.getByTestId(TESTIDS.datamartDeleteButton).click();
@@ -87,10 +80,7 @@ test.describe('DataMart Detail - Delete', () => {
 // DDET-03: Manual Run trigger on connector DM + negative case for SQL DM.
 // ---------------------------------------------------------------------------
 test.describe('DataMart Detail - Manual Run', () => {
-  test('triggers manual run on connector DM (DDET-03)', async ({
-    page,
-    apiHelpers,
-  }) => {
+  test('triggers manual run on connector DM (DDET-03)', async ({ page, apiHelpers }) => {
     const title = `Connector Run DM ${Date.now()}`;
     const { datamart } = await apiHelpers.createPublishedConnectorDataMart(title);
 
@@ -99,9 +89,7 @@ test.describe('DataMart Detail - Manual Run', () => {
 
     // Open the 3-dot dropdown menu
     const detailsContainer = page.getByTestId(TESTIDS.datamartDetails);
-    await detailsContainer
-      .locator('button:has(svg.lucide-ellipsis-vertical)')
-      .click();
+    await detailsContainer.locator('button:has(svg.lucide-ellipsis-vertical)').click();
 
     // Click "Manual Run..." menu item
     await page.getByRole('menuitem', { name: /Manual Run/ }).click();
@@ -116,15 +104,10 @@ test.describe('DataMart Detail - Manual Run', () => {
     // Navigate to Run History tab to verify a run entry appeared.
     // Run History uses div-based RunItem components (not table rows).
     await page.goto(`/ui/0/data-marts/${datamart.id}/run-history`);
-    await expect(
-      page.getByTestId(TESTIDS.runHistoryTable),
-    ).toBeVisible({ timeout: 15000 });
+    await expect(page.getByTestId(TESTIDS.runHistoryTable)).toBeVisible({ timeout: 15000 });
   });
 
-  test('manual run absent for SQL DM (DDET-03 negative)', async ({
-    page,
-    apiHelpers,
-  }) => {
+  test('manual run absent for SQL DM (DDET-03 negative)', async ({ page, apiHelpers }) => {
     const title = `SQL DM ${Date.now()}`;
     const storage = await apiHelpers.createStorage();
     const dm = await apiHelpers.createDataMart(storage.id, title);
@@ -136,14 +119,10 @@ test.describe('DataMart Detail - Manual Run', () => {
 
     // Open the 3-dot dropdown menu
     const detailsContainer = page.getByTestId(TESTIDS.datamartDetails);
-    await detailsContainer
-      .locator('button:has(svg.lucide-ellipsis-vertical)')
-      .click();
+    await detailsContainer.locator('button:has(svg.lucide-ellipsis-vertical)').click();
 
     // Verify "Manual Run..." is NOT present in the menu
-    await expect(
-      page.getByRole('menuitem', { name: /Manual Run/ }),
-    ).not.toBeVisible();
+    await expect(page.getByRole('menuitem', { name: /Manual Run/ })).not.toBeVisible();
 
     // Close the dropdown
     await page.keyboard.press('Escape');
@@ -160,15 +139,12 @@ test.describe('DataMart Detail - Status Badge', () => {
   test.beforeEach(async ({ apiHelpers }) => {
     // Create a draft DM
     const storage = await apiHelpers.createStorage();
-    const draftDm = await apiHelpers.createDataMart(
-      storage.id,
-      `Draft Badge DM ${Date.now()}`,
-    );
+    const draftDm = await apiHelpers.createDataMart(storage.id, `Draft Badge DM ${Date.now()}`);
     draftDmId = draftDm.id;
 
     // Create a published DM
     const { datamart: publishedDm } = await apiHelpers.createPublishedDataMart(
-      `Published Badge DM ${Date.now()}`,
+      `Published Badge DM ${Date.now()}`
     );
     publishedDmId = publishedDm.id;
   });
@@ -180,9 +156,7 @@ test.describe('DataMart Detail - Status Badge', () => {
 
     // Use exact match to avoid collisions with tooltip text that mentions "Draft"
     await expect(details.getByText('Draft', { exact: true })).toBeVisible();
-    await expect(
-      page.getByTestId(TESTIDS.datamartPublishButton),
-    ).toBeVisible();
+    await expect(page.getByTestId(TESTIDS.datamartPublishButton)).toBeVisible();
   });
 
   test('shows Published badge on published DM (DDET-04)', async ({ page }) => {
@@ -192,9 +166,7 @@ test.describe('DataMart Detail - Status Badge', () => {
 
     // Use exact match to avoid collisions with tooltip text that mentions "published"
     await expect(details.getByText('Published', { exact: true })).toBeVisible();
-    await expect(
-      page.getByTestId(TESTIDS.datamartPublishButton),
-    ).not.toBeVisible();
+    await expect(page.getByTestId(TESTIDS.datamartPublishButton)).not.toBeVisible();
   });
 });
 
@@ -205,17 +177,10 @@ describeIfCredentials(
   ['BIGQUERY_PROJECT_ID', 'BIGQUERY_CREDENTIALS_JSON'],
   'DataMart Publish Flow (DDET-05)',
   () => {
-    test('publishes datamart via full UI flow (DDET-05)', async ({
-      page,
-      apiHelpers,
-      radix,
-    }) => {
+    test('publishes datamart via full UI flow (DDET-05)', async ({ page, apiHelpers, radix }) => {
       // Create storage + DM via API (storage type is already BigQuery)
       const storage = await apiHelpers.createStorage();
-      const dm = await apiHelpers.createDataMart(
-        storage.id,
-        `Publish UI DM ${Date.now()}`,
-      );
+      const dm = await apiHelpers.createDataMart(storage.id, `Publish UI DM ${Date.now()}`);
 
       // Navigate to Data Setup tab to set definition via UI
       await page.goto(`/ui/0/data-marts/${dm.id}/data-setup`);
@@ -246,16 +211,12 @@ describeIfCredentials(
       await page.getByTestId(TESTIDS.datamartPublishButton).click();
 
       // Verify status changes to Published
-      await expect(
-        page
-          .getByTestId(TESTIDS.datamartDetails)
-          .getByText('Published'),
-      ).toBeVisible({ timeout: 10000 });
+      await expect(page.getByTestId(TESTIDS.datamartDetails).getByText('Published')).toBeVisible({
+        timeout: 10000,
+      });
 
       // Verify the publish button disappears
-      await expect(
-        page.getByTestId(TESTIDS.datamartPublishButton),
-      ).not.toBeVisible();
+      await expect(page.getByTestId(TESTIDS.datamartPublishButton)).not.toBeVisible();
     });
-  },
+  }
 );

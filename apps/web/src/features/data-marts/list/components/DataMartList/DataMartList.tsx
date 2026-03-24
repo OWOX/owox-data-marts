@@ -15,7 +15,7 @@ export function DataMartList() {
   if (error) return <div>Error: {error}</div>;
 
   return (
-    <div data-testid="datamartList">
+    <div data-testid='datamartList'>
       {items.map(item => (
         <DataMartListItemComponent key={item.id} item={item} />
       ))}

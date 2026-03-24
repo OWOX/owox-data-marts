@@ -53,7 +53,7 @@ export function ScheduledTriggerTable({
 
   return (
     <>
-      <div data-testid="triggerTable">
+      <div data-testid='triggerTable'>
         <BaseTable
           tableId={tableId}
           table={table}
@@ -63,7 +63,7 @@ export function ScheduledTriggerTable({
             displaySelected: false,
           }}
           renderEmptyState={() => (
-            <span role='status' aria-live='polite' data-testid="triggerEmptyState">
+            <span role='status' aria-live='polite' data-testid='triggerEmptyState'>
               No scheduled triggers yet. Create a trigger to automate data updates
             </span>
           )}

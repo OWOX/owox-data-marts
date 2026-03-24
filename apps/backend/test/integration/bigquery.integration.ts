@@ -72,9 +72,7 @@ describeIfCredentials('BigQuery Integration Tests', () => {
 
   afterAll(async () => {
     try {
-      await adapter.executeQuery(
-        `DROP TABLE IF EXISTS \`${fullyQualifiedName}\``
-      );
+      await adapter.executeQuery(`DROP TABLE IF EXISTS \`${fullyQualifiedName}\``);
     } catch (error) {
       console.warn('Failed to drop test table during teardown:', error);
     }
@@ -102,16 +100,12 @@ describeIfCredentials('BigQuery Integration Tests', () => {
 
   describe('SQL Dry Run', () => {
     it('should validate correct query syntax', async () => {
-      const result = await adapter.executeDryRunQuery(
-        `SELECT * FROM \`${fullyQualifiedName}\``
-      );
+      const result = await adapter.executeDryRunQuery(`SELECT * FROM \`${fullyQualifiedName}\``);
       expect(result.totalBytesProcessed).toBeGreaterThanOrEqual(0);
     }, 30000);
 
     it('should reject invalid SQL syntax', async () => {
-      await expect(
-        adapter.executeDryRunQuery('SELEKT * FORM invalid')
-      ).rejects.toThrow();
+      await expect(adapter.executeDryRunQuery('SELEKT * FORM invalid')).rejects.toThrow();
     }, 30000);
 
     it('should reject query on non-existent table', async () => {
@@ -126,37 +120,20 @@ describeIfCredentials('BigQuery Integration Tests', () => {
   describe('Schema Actualization', () => {
     it('should read real table schema with correct field names and types', async () => {
       const queryBuilder = new BigQueryQueryBuilder();
-      const adapterFactory = new BigQueryApiAdapterFactory(
-        {} as DataStorageCredentialsResolver
-      );
-      const schemaProvider = new BigQueryDataMartSchemaProvider(
-        adapterFactory,
-        queryBuilder
-      );
+      const adapterFactory = new BigQueryApiAdapterFactory({} as DataStorageCredentialsResolver);
+      const schemaProvider = new BigQueryDataMartSchemaProvider(adapterFactory, queryBuilder);
 
       const definition: TableDefinition = {
         fullyQualifiedName,
       };
 
-      const result = await schemaProvider.getActualDataMartSchema(
-        definition,
-        config,
-        credentials
-      );
+      const result = await schemaProvider.getActualDataMartSchema(definition, config, credentials);
 
       expect(result.type).toBe('bigquery-data-mart-schema');
       expect(result.fields).toHaveLength(5);
 
-      const fieldNames = result.fields.map(
-        (f: { name: string }) => f.name
-      );
-      expect(fieldNames).toEqual([
-        'id',
-        'name',
-        'active',
-        'created_at',
-        'amount',
-      ]);
+      const fieldNames = result.fields.map((f: { name: string }) => f.name);
+      expect(fieldNames).toEqual(['id', 'name', 'active', 'created_at', 'amount']);
 
       for (const field of result.fields) {
         expect(typeof (field as { type: string }).type).toBe('string');

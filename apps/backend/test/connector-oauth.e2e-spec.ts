@@ -10,10 +10,7 @@ import { createTestApp, closeTestApp, AUTH_HEADER } from '@owox/test-utils';
  *
  * Example: For GoogleAds, returns 'AuthType.oauth2'.
  */
-async function getOAuthFieldPath(
-  agent: supertest.Agent,
-  connectorName: string
-): Promise<string> {
+async function getOAuthFieldPath(agent: supertest.Agent, connectorName: string): Promise<string> {
   const specRes = await agent
     .get(`/api/connectors/${connectorName}/specification`)
     .set(AUTH_HEADER);
@@ -22,7 +19,7 @@ async function getOAuthFieldPath(
 
   const oauthField = specRes.body.find((field: Record<string, unknown>) => {
     const oneOf = field.oneOf as Array<Record<string, unknown>> | undefined;
-    return oneOf?.some((variant) => {
+    return oneOf?.some(variant => {
       const attrs = variant.attributes as string[] | undefined;
       return attrs?.includes('OAUTH_FLOW');
     });
@@ -31,12 +28,10 @@ async function getOAuthFieldPath(
   expect(oauthField).toBeDefined();
   expect(oauthField.name).toBeDefined();
 
-  const oauthVariant = oauthField.oneOf.find(
-    (variant: Record<string, unknown>) => {
-      const attrs = variant.attributes as string[] | undefined;
-      return attrs?.includes('OAUTH_FLOW');
-    }
-  );
+  const oauthVariant = oauthField.oneOf.find((variant: Record<string, unknown>) => {
+    const attrs = variant.attributes as string[] | undefined;
+    return attrs?.includes('OAUTH_FLOW');
+  });
 
   expect(oauthVariant).toBeDefined();
   expect(oauthVariant.value).toBeDefined();
@@ -75,7 +70,7 @@ describe('Connector OAuth Settings (e2e)', () => {
   describe('OAuth connectors settings (CAPI-08)', () => {
     it.each(OAUTH_CONNECTORS)(
       'GET /api/connectors/%s/oauth/settings - returns vars and isEnabled',
-      async (connectorName) => {
+      async connectorName => {
         // Step 1: Dynamically discover the OAuth field path from specification
         const path = await getOAuthFieldPath(agent, connectorName);
 

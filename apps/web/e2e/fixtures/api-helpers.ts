@@ -21,11 +21,13 @@ function seedStorageConfig(storageId: string): void {
     const credentialId = randomUUID();
     db.prepare(
       `INSERT INTO data_storage_credentials (id, projectId, type, credentials, createdAt, modifiedAt)
-       VALUES (?, '0', 'google_service_account', '{"type":"test-credentials"}', datetime('now'), datetime('now'))`,
+       VALUES (?, '0', 'google_service_account', '{"type":"test-credentials"}', datetime('now'), datetime('now'))`
     ).run(credentialId);
-    db.prepare(
-      `UPDATE data_storage SET config = ?, credentialId = ? WHERE id = ?`,
-    ).run(JSON.stringify({ projectId: 'test-project', dataset: 'test_dataset' }), credentialId, storageId);
+    db.prepare(`UPDATE data_storage SET config = ?, credentialId = ? WHERE id = ?`).run(
+      JSON.stringify({ projectId: 'test-project', dataset: 'test_dataset' }),
+      credentialId,
+      storageId
+    );
   } finally {
     db.close();
   }
@@ -75,7 +77,7 @@ export class ApiHelpers {
    * Mirrors the backend setupPublishedDataMart pattern.
    */
   async createPublishedDataMart(
-    title?: string,
+    title?: string
   ): Promise<{ storage: { id: string }; datamart: { id: string } }> {
     const storage = await this.createStorage();
     const datamart = await this.createDataMart(storage.id, title);
@@ -89,27 +91,24 @@ export class ApiHelpers {
    * PUT /api/data-marts/{id}/definition endpoint.
    */
   async setConnectorDefinition(dataMartId: string): Promise<void> {
-    const res = await this.page.request.put(
-      `/api/data-marts/${dataMartId}/definition`,
-      {
-        data: {
-          definitionType: 'CONNECTOR',
-          definition: {
-            connector: {
-              source: {
-                name: 'BankOfCanada',
-                configuration: [{ ReimportLookbackWindow: 2 }],
-                node: 'observations/group',
-                fields: ['date', 'label', 'rate'],
-              },
-              storage: {
-                fullyQualifiedName: 'test_dataset.bank_of_canada_rates',
-              },
+    const res = await this.page.request.put(`/api/data-marts/${dataMartId}/definition`, {
+      data: {
+        definitionType: 'CONNECTOR',
+        definition: {
+          connector: {
+            source: {
+              name: 'BankOfCanada',
+              configuration: [{ ReimportLookbackWindow: 2 }],
+              node: 'observations/group',
+              fields: ['date', 'label', 'rate'],
+            },
+            storage: {
+              fullyQualifiedName: 'test_dataset.bank_of_canada_rates',
             },
           },
         },
       },
-    );
+    });
     expect(res.ok()).toBeTruthy();
   }
 
@@ -119,7 +118,7 @@ export class ApiHelpers {
    * for manual run tests.
    */
   async createPublishedConnectorDataMart(
-    title?: string,
+    title?: string
   ): Promise<{ storage: { id: string }; datamart: { id: string } }> {
     const storage = await this.createStorage();
     // Seed config + credentials directly in DB — the update-storage API
@@ -137,9 +136,7 @@ export class ApiHelpers {
    * email-credentials schema; LOOKER_STUDIO has its own; GOOGLE_SHEETS
    * requires OAuth/service-account and is left undefined here.
    */
-  private getCredentialsForType(
-    type: string,
-  ): Record<string, unknown> | undefined {
+  private getCredentialsForType(type: string): Record<string, unknown> | undefined {
     switch (type) {
       case 'LOOKER_STUDIO':
         return { type: 'looker-studio-credentials' };
@@ -174,7 +171,7 @@ export class ApiHelpers {
   async createReport(
     dataMartId: string,
     dataDestinationId: string,
-    title?: string,
+    title?: string
   ): Promise<{ id: string }> {
     const res = await this.page.request.post('/api/reports', {
       data: {
@@ -189,17 +186,14 @@ export class ApiHelpers {
   }
 
   async createTrigger(dataMartId: string): Promise<{ id: string }> {
-    const res = await this.page.request.post(
-      `/api/data-marts/${dataMartId}/scheduled-triggers`,
-      {
-        data: {
-          type: 'CONNECTOR_RUN',
-          cronExpression: '0 9 * * *',
-          timeZone: 'UTC',
-          isActive: true,
-        },
+    const res = await this.page.request.post(`/api/data-marts/${dataMartId}/scheduled-triggers`, {
+      data: {
+        type: 'CONNECTOR_RUN',
+        cronExpression: '0 9 * * *',
+        timeZone: 'UTC',
+        isActive: true,
       },
-    );
+    });
     expect(res.ok()).toBeTruthy();
     return res.json();
   }
@@ -209,7 +203,7 @@ export class ApiHelpers {
    * Mirrors the backend setupReportPrerequisites pattern.
    */
   async setupDestinationWithReport(
-    dataMartId: string,
+    dataMartId: string
   ): Promise<{ destinationId: string; reportId: string }> {
     const dest = await this.createDestination();
     const report = await this.createReport(dataMartId, dest.id);

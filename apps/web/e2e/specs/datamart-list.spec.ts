@@ -27,9 +27,9 @@ test.describe('DataMart List - Empty State', () => {
     // The heading uses non-breaking spaces (&nbsp;). Match via role to avoid text-matching pitfalls.
     // Use heading role to target the specific EmptyStateCardTitle element.
     // Allow generous timeout: first navigation triggers auth redirect -> sign-in -> data fetch -> render.
-    await expect(
-      page.getByRole('heading', { name: /Build Your First/ }),
-    ).toBeVisible({ timeout: 25000 });
+    await expect(page.getByRole('heading', { name: /Build Your First/ })).toBeVisible({
+      timeout: 25000,
+    });
   });
 });
 
@@ -71,9 +71,7 @@ test.describe('DataMart List with data', () => {
     await expect(page.getByTestId(TESTIDS.datamartTable)).toBeVisible();
 
     // Type the unique part of draftTitle into the search input
-    const searchInput = page
-      .getByTestId(TESTIDS.datamartSearchInput)
-      .getByPlaceholder('Search');
+    const searchInput = page.getByTestId(TESTIDS.datamartSearchInput).getByPlaceholder('Search');
     await searchInput.fill(draftTitle);
 
     // Only the draft datamart should be visible
@@ -86,9 +84,7 @@ test.describe('DataMart List with data', () => {
     await expect(page.getByText(publishedTitle)).toBeVisible();
   });
 
-  test('filter by status shows matching datamarts (DLIST-03)', async ({
-    page,
-  }) => {
+  test('filter by status shows matching datamarts (DLIST-03)', async ({ page }) => {
     await page.goto('/ui/0/data-marts');
     await expect(page.getByTestId(TESTIDS.datamartTable)).toBeVisible();
 
@@ -124,9 +120,7 @@ test.describe('DataMart List with data', () => {
     await expect(page.getByText(publishedTitle)).not.toBeVisible();
   });
 
-  test('click row navigates to datamart detail (DLIST-05)', async ({
-    page,
-  }) => {
+  test('click row navigates to datamart detail (DLIST-05)', async ({ page }) => {
     await page.goto('/ui/0/data-marts');
     await expect(page.getByTestId(TESTIDS.datamartTable)).toBeVisible();
 
@@ -135,9 +129,7 @@ test.describe('DataMart List with data', () => {
     await page.getByText(draftTitle).click();
 
     // Should navigate to the detail page (data-setup tab)
-    await expect(page).toHaveURL(
-      new RegExp(`/data-marts/${draftDatamartId}/data-setup`),
-    );
+    await expect(page).toHaveURL(new RegExp(`/data-marts/${draftDatamartId}/data-setup`));
   });
 });
 
@@ -157,10 +149,7 @@ test.describe('DataMart List - Delete', () => {
     await page.close();
   });
 
-  test('delete datamart via row menu with confirmation (DLIST-06)', async ({
-    page,
-    radix,
-  }) => {
+  test('delete datamart via row menu with confirmation (DLIST-06)', async ({ page, radix }) => {
     await page.goto('/ui/0/data-marts');
     await expect(page.getByTestId(TESTIDS.datamartTable)).toBeVisible();
 

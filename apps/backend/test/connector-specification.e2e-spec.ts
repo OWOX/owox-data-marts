@@ -22,7 +22,7 @@ describe('Connector Specification (e2e)', () => {
   describe('Public API connectors (CAPI-02)', () => {
     it.each(['OpenHolidays', 'BankOfCanada'])(
       'GET /api/connectors/%s/specification - returns well-formed schema',
-      async (connectorName) => {
+      async connectorName => {
         const res = await agent
           .get(`/api/connectors/${connectorName}/specification`)
           .set(AUTH_HEADER);
@@ -39,7 +39,7 @@ describe('Connector Specification (e2e)', () => {
         // Public API connectors should NOT have OAUTH_FLOW attribute on any oneOf variant
         const hasOAuthFlow = res.body.some((item: Record<string, unknown>) => {
           const oneOf = item.oneOf as Array<Record<string, unknown>> | undefined;
-          return oneOf?.some((v) => {
+          return oneOf?.some(v => {
             const attrs = v.attributes as string[] | undefined;
             return attrs?.includes('OAUTH_FLOW');
           });
@@ -55,7 +55,7 @@ describe('Connector Specification (e2e)', () => {
   describe('API key connectors (CAPI-03)', () => {
     it.each(['OpenExchangeRates', 'GitHub'])(
       'GET /api/connectors/%s/specification - returns well-formed schema',
-      async (connectorName) => {
+      async connectorName => {
         const res = await agent
           .get(`/api/connectors/${connectorName}/specification`)
           .set(AUTH_HEADER);
@@ -73,15 +73,13 @@ describe('Connector Specification (e2e)', () => {
         const hasSecret = res.body.some((item: Record<string, unknown>) => {
           const oneOf = item.oneOf as Array<Record<string, unknown>> | undefined;
           if (oneOf) {
-            return oneOf.some((v) => {
+            return oneOf.some(v => {
               const items = v.items as Record<string, Record<string, unknown>> | undefined;
               if (items) {
-                return Object.values(items).some(
-                  (field) => {
-                    const attrs = field.attributes as string[] | undefined;
-                    return attrs?.includes('SECRET');
-                  }
-                );
+                return Object.values(items).some(field => {
+                  const attrs = field.attributes as string[] | undefined;
+                  return attrs?.includes('SECRET');
+                });
               }
               return false;
             });
@@ -100,7 +98,7 @@ describe('Connector Specification (e2e)', () => {
   describe('OAuth connectors (CAPI-04)', () => {
     it.each(['GoogleAds', 'FacebookMarketing'])(
       'GET /api/connectors/%s/specification - returns schema with OAUTH_FLOW attribute',
-      async (connectorName) => {
+      async connectorName => {
         const res = await agent
           .get(`/api/connectors/${connectorName}/specification`)
           .set(AUTH_HEADER);
@@ -112,7 +110,7 @@ describe('Connector Specification (e2e)', () => {
         // Must have at least one field with oneOf containing OAUTH_FLOW attribute
         const oauthField = res.body.find((item: Record<string, unknown>) => {
           const oneOf = item.oneOf as Array<Record<string, unknown>> | undefined;
-          return oneOf?.some((v) => {
+          return oneOf?.some(v => {
             const attrs = v.attributes as string[] | undefined;
             return attrs?.includes('OAUTH_FLOW');
           });
@@ -122,12 +120,10 @@ describe('Connector Specification (e2e)', () => {
         expect(oauthField.name).toBe('AuthType');
 
         // Verify the OAUTH_FLOW variant has a value (for constructing the oauth/settings path)
-        const oauthVariant = oauthField.oneOf.find(
-          (v: Record<string, unknown>) => {
-            const attrs = v.attributes as string[] | undefined;
-            return attrs?.includes('OAUTH_FLOW');
-          }
-        );
+        const oauthVariant = oauthField.oneOf.find((v: Record<string, unknown>) => {
+          const attrs = v.attributes as string[] | undefined;
+          return attrs?.includes('OAUTH_FLOW');
+        });
         expect(oauthVariant).toBeDefined();
         expect(typeof oauthVariant.value).toBe('string');
       }
@@ -154,7 +150,7 @@ describe('Connector Specification (e2e)', () => {
   describe('All connectors well-formed (CAPI-09)', () => {
     it.each([...ALL_CONNECTORS])(
       'GET /api/connectors/%s/specification - returns well-formed schema',
-      async (connectorName) => {
+      async connectorName => {
         const res = await agent
           .get(`/api/connectors/${connectorName}/specification`)
           .set(AUTH_HEADER);

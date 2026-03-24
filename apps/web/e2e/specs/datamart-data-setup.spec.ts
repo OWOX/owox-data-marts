@@ -10,20 +10,13 @@ test.describe('Data Setup - Storage Card & Output Schema', () => {
 
   test.beforeEach(async ({ apiHelpers }) => {
     const storage = await apiHelpers.createStorage();
-    const dm = await apiHelpers.createDataMart(
-      storage.id,
-      `DataSetup DM ${Date.now()}`,
-    );
+    const dm = await apiHelpers.createDataMart(storage.id, `DataSetup DM ${Date.now()}`);
     datamartId = dm.id;
   });
 
-  test('renders storage card with assigned storage info (DSET-01)', async ({
-    page,
-  }) => {
+  test('renders storage card with assigned storage info (DSET-01)', async ({ page }) => {
     await page.goto(`/ui/0/data-marts/${datamartId}/data-setup`);
-    await expect(
-      page.getByTestId(TESTIDS.datamartTabDataSetup),
-    ).toBeVisible();
+    await expect(page.getByTestId(TESTIDS.datamartTabDataSetup)).toBeVisible();
 
     // Verify Storage CollapsibleCard section is visible.
     // CardTitle renders as a <div>, not an <h1>-<h6>, so use getByText.
@@ -37,18 +30,14 @@ test.describe('Data Setup - Storage Card & Output Schema', () => {
 
   test('renders output schema section (DSET-04)', async ({ page }) => {
     await page.goto(`/ui/0/data-marts/${datamartId}/data-setup`);
-    await expect(
-      page.getByTestId(TESTIDS.datamartTabDataSetup),
-    ).toBeVisible();
+    await expect(page.getByTestId(TESTIDS.datamartTabDataSetup)).toBeVisible();
 
     // Verify Output Schema CollapsibleCard section is visible.
     // CardTitle renders as a <div>, not a heading role.
     // Use { exact: true } because "Output Schema" also appears in tooltip
     // text and the empty state message "Output schema has no configured fields".
     const dataSetupContent = page.getByTestId(TESTIDS.datamartTabDataSetup);
-    await expect(
-      dataSetupContent.getByText('Output Schema', { exact: true }),
-    ).toBeVisible();
+    await expect(dataSetupContent.getByText('Output Schema', { exact: true })).toBeVisible();
 
     // For a fresh DM with no definition, the schema section renders without errors.
     // The empty state shows a table with "Output schema has no configured fields".
@@ -64,21 +53,13 @@ test.describe('Data Setup - SQL Definition', () => {
 
   test.beforeEach(async ({ apiHelpers }) => {
     const storage = await apiHelpers.createStorage();
-    const dm = await apiHelpers.createDataMart(
-      storage.id,
-      `SQL DM ${Date.now()}`,
-    );
+    const dm = await apiHelpers.createDataMart(storage.id, `SQL DM ${Date.now()}`);
     datamartId = dm.id;
   });
 
-  test('selects SQL type and editor renders (DSET-02)', async ({
-    page,
-    radix,
-  }) => {
+  test('selects SQL type and editor renders (DSET-02)', async ({ page, radix }) => {
     await page.goto(`/ui/0/data-marts/${datamartId}/data-setup`);
-    await expect(
-      page.getByTestId(TESTIDS.datamartTabDataSetup),
-    ).toBeVisible();
+    await expect(page.getByTestId(TESTIDS.datamartTabDataSetup)).toBeVisible();
 
     // Locate the definition type selector (only shows for DMs with no definition)
     const typeSelector = page.getByLabel('Definition Type');
@@ -96,9 +77,7 @@ test.describe('Data Setup - SQL Definition', () => {
     radix,
   }) => {
     await page.goto(`/ui/0/data-marts/${datamartId}/data-setup`);
-    await expect(
-      page.getByTestId(TESTIDS.datamartTabDataSetup),
-    ).toBeVisible();
+    await expect(page.getByTestId(TESTIDS.datamartTabDataSetup)).toBeVisible();
 
     // Select SQL type
     await radix.selectOption(page.getByLabel('Definition Type'), 'SQL');
@@ -151,9 +130,7 @@ test.describe('Data Setup - SQL Definition', () => {
 
     // Navigate to data-setup tab
     await page.goto(`/ui/0/data-marts/${datamartId}/data-setup`);
-    await expect(
-      page.getByTestId(TESTIDS.datamartTabDataSetup),
-    ).toBeVisible();
+    await expect(page.getByTestId(TESTIDS.datamartTabDataSetup)).toBeVisible();
 
     // The definition type selector will NOT appear since the DM already has a definition.
     // The SQL form renders directly with Monaco editor showing the SQL text.
@@ -175,10 +152,7 @@ test.describe('Data Setup - Connector Definition', () => {
     const storage = await apiHelpers.createStorage();
     // Seed storage config — CONNECTOR definitions require storage.config + credentialId
     apiHelpers.seedStorageConfig(storage.id);
-    const dm = await apiHelpers.createDataMart(
-      storage.id,
-      `Connector DM ${Date.now()}`,
-    );
+    const dm = await apiHelpers.createDataMart(storage.id, `Connector DM ${Date.now()}`);
     datamartId = dm.id;
   });
 
@@ -187,15 +161,10 @@ test.describe('Data Setup - Connector Definition', () => {
     radix,
   }) => {
     await page.goto(`/ui/0/data-marts/${datamartId}/data-setup`);
-    await expect(
-      page.getByTestId(TESTIDS.datamartTabDataSetup),
-    ).toBeVisible();
+    await expect(page.getByTestId(TESTIDS.datamartTabDataSetup)).toBeVisible();
 
     // Select Connector type
-    await radix.selectOption(
-      page.getByLabel('Definition Type'),
-      'Connector',
-    );
+    await radix.selectOption(page.getByLabel('Definition Type'), 'Connector');
 
     // When Connector type is selected for a new DM, the ConnectorEditForm
     // auto-opens via autoOpen prop (no separate "Setup Connector" click needed).
@@ -205,9 +174,7 @@ test.describe('Data Setup - Connector Definition', () => {
     });
 
     // Verify "Bank of Canada" is available in the connector grid
-    await expect(
-      page.getByText('Bank of Canada', { exact: true }),
-    ).toBeVisible();
+    await expect(page.getByText('Bank of Canada', { exact: true })).toBeVisible();
 
     // Verify the step indicator shows "Step 1 of 5"
     await expect(page.getByText('Step 1 of 5')).toBeVisible();
@@ -221,15 +188,10 @@ test.describe('Data Setup - Connector Definition', () => {
     test.setTimeout(90000);
 
     await page.goto(`/ui/0/data-marts/${datamartId}/data-setup`);
-    await expect(
-      page.getByTestId(TESTIDS.datamartTabDataSetup),
-    ).toBeVisible();
+    await expect(page.getByTestId(TESTIDS.datamartTabDataSetup)).toBeVisible();
 
     // Select Connector type -- the wizard auto-opens
-    await radix.selectOption(
-      page.getByLabel('Definition Type'),
-      'Connector',
-    );
+    await radix.selectOption(page.getByLabel('Definition Type'), 'Connector');
 
     // -----------------------------------------------------------------------
     // Step 1 of 5: Select Connector -- choose "Bank of Canada" from the grid
@@ -259,9 +221,7 @@ test.describe('Data Setup - Connector Definition', () => {
     // Step 3 of 5: Select Nodes -- click "Bank of Canada Exchange Rates"
     // -----------------------------------------------------------------------
     // The node label uses the "overview" field from BankOfCanadaFieldsSchema
-    await expect(
-      page.getByText('Bank of Canada Exchange Rates'),
-    ).toBeVisible({ timeout: 10000 });
+    await expect(page.getByText('Bank of Canada Exchange Rates')).toBeVisible({ timeout: 10000 });
     // The node is rendered as AppWizardStepCardItem with type='radio'
     await page.getByText('Bank of Canada Exchange Rates').click();
     await expect(nextButton).toBeEnabled();
@@ -289,9 +249,7 @@ test.describe('Data Setup - Connector Definition', () => {
     // Step 5 of 5: Target Setup -- for GOOGLE_BIGQUERY, needs Dataset name
     // and Table name. Both are pre-filled with defaults from the wizard.
     // -----------------------------------------------------------------------
-    await expect(
-      page.getByText('Choose where to store your data'),
-    ).toBeVisible({ timeout: 10000 });
+    await expect(page.getByText('Choose where to store your data')).toBeVisible({ timeout: 10000 });
 
     // The Dataset name and Table name inputs should be pre-filled with defaults:
     // Dataset name: "bank_of_canada_owox"
@@ -312,23 +270,17 @@ test.describe('Data Setup - Connector Definition', () => {
     // After saving, the Input Source section shows the connector configuration.
     // The ConnectorConfigurationItem renders the connector's internal name "BankOfCanada".
     const dataSetupContent = page.getByTestId(TESTIDS.datamartTabDataSetup);
-    await expect(
-      dataSetupContent.getByText('BankOfCanada'),
-    ).toBeVisible({ timeout: 10000 });
+    await expect(dataSetupContent.getByText('BankOfCanada')).toBeVisible({ timeout: 10000 });
 
     // -----------------------------------------------------------------------
     // DSET-07: Verify persistence after reload
     // -----------------------------------------------------------------------
     await page.reload();
-    await expect(
-      page.getByTestId(TESTIDS.datamartTabDataSetup),
-    ).toBeVisible();
+    await expect(page.getByTestId(TESTIDS.datamartTabDataSetup)).toBeVisible();
 
     // After reload, the connector definition should still be displayed.
     // The definition type selector will NOT appear since definition exists.
-    await expect(
-      dataSetupContent.getByText('BankOfCanada'),
-    ).toBeVisible({ timeout: 10000 });
+    await expect(dataSetupContent.getByText('BankOfCanada')).toBeVisible({ timeout: 10000 });
 
     // Verify via API that the definition was saved with connector type
     const apiRes = await page.request.get(`/api/data-marts/${datamartId}`);

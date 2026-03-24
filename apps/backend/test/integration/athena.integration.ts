@@ -39,9 +39,7 @@ const ATHENA_CREDENTIALS_AVAILABLE = !!(
 );
 
 if (!ATHENA_CREDENTIALS_AVAILABLE) {
-  console.log(
-    'Skipping Athena integration tests: AWS credentials or Athena config not set'
-  );
+  console.log('Skipping Athena integration tests: AWS credentials or Athena config not set');
 }
 
 const describeIfCredentials = ATHENA_CREDENTIALS_AVAILABLE ? describe : describe.skip;
@@ -173,12 +171,8 @@ AS SELECT
   describe('Schema Actualization', () => {
     it('should read real table schema with correct field names and types', async () => {
       const queryBuilder = new AthenaQueryBuilder();
-      const adapterFactory = new AthenaApiAdapterFactory(
-        {} as DataStorageCredentialsResolver
-      );
-      const s3AdapterFactory = new S3ApiAdapterFactory(
-        {} as DataStorageCredentialsResolver
-      );
+      const adapterFactory = new AthenaApiAdapterFactory({} as DataStorageCredentialsResolver);
+      const s3AdapterFactory = new S3ApiAdapterFactory({} as DataStorageCredentialsResolver);
       const schemaProvider = new AthenaDataMartSchemaProvider(
         adapterFactory,
         s3AdapterFactory,
@@ -189,18 +183,12 @@ AS SELECT
         fullyQualifiedName: `${database}.${TEST_TABLE_SUFFIX}`,
       };
 
-      const result = await schemaProvider.getActualDataMartSchema(
-        definition,
-        config,
-        credentials
-      );
+      const result = await schemaProvider.getActualDataMartSchema(definition, config, credentials);
 
       expect(result.type).toBe('athena-data-mart-schema');
       expect(result.fields).toHaveLength(4);
 
-      const fieldNames = result.fields.map(
-        (f: { name: string }) => f.name
-      );
+      const fieldNames = result.fields.map((f: { name: string }) => f.name);
       expect(fieldNames).toEqual(['id', 'name', 'active', 'created_at']);
 
       for (const field of result.fields) {

@@ -21,10 +21,7 @@ describe('DataStorage API (e2e)', () => {
   it('POST /api/data-storages - creates a storage', async () => {
     const payload = new StorageBuilder().withType('GOOGLE_BIGQUERY' as any).build();
 
-    const response = await agent
-      .post('/api/data-storages')
-      .set(AUTH_HEADER)
-      .send(payload);
+    const response = await agent.post('/api/data-storages').set(AUTH_HEADER).send(payload);
 
     expect(response.status).toBe(201);
     expect(response.body).toMatchObject({
@@ -36,25 +33,19 @@ describe('DataStorage API (e2e)', () => {
 
   // API-02: List
   it('GET /api/data-storages - lists storages including the created one', async () => {
-    const response = await agent
-      .get('/api/data-storages')
-      .set(AUTH_HEADER);
+    const response = await agent.get('/api/data-storages').set(AUTH_HEADER);
 
     expect(response.status).toBe(200);
     expect(Array.isArray(response.body)).toBe(true);
 
-    const found = response.body.find(
-      (item: any) => item.id === createdStorageId,
-    );
+    const found = response.body.find((item: any) => item.id === createdStorageId);
     expect(found).toBeDefined();
     expect(found).toMatchObject({ type: 'GOOGLE_BIGQUERY' });
   });
 
   // API-03: Get by ID
   it('GET /api/data-storages/:id - returns the created storage', async () => {
-    const response = await agent
-      .get(`/api/data-storages/${createdStorageId}`)
-      .set(AUTH_HEADER);
+    const response = await agent.get(`/api/data-storages/${createdStorageId}`).set(AUTH_HEADER);
 
     expect(response.status).toBe(200);
     expect(response.body).toMatchObject({
@@ -82,9 +73,7 @@ describe('DataStorage API (e2e)', () => {
 
   // API-04: Verify that a failed update does not corrupt existing data
   it('GET /api/data-storages/:id - storage unchanged after failed update', async () => {
-    const response = await agent
-      .get(`/api/data-storages/${createdStorageId}`)
-      .set(AUTH_HEADER);
+    const response = await agent.get(`/api/data-storages/${createdStorageId}`).set(AUTH_HEADER);
 
     expect(response.status).toBe(200);
     expect(response.body).toMatchObject({
@@ -106,28 +95,21 @@ describe('DataStorage API (e2e)', () => {
 
   // API-05: Delete
   it('DELETE /api/data-storages/:id - soft deletes the storage', async () => {
-    const response = await agent
-      .delete(`/api/data-storages/${createdStorageId}`)
-      .set(AUTH_HEADER);
+    const response = await agent.delete(`/api/data-storages/${createdStorageId}`).set(AUTH_HEADER);
 
     expect(response.status).toBe(200);
   });
 
   // Verify delete
   it('GET /api/data-storages/:id - returns 404 after deletion', async () => {
-    const response = await agent
-      .get(`/api/data-storages/${createdStorageId}`)
-      .set(AUTH_HEADER);
+    const response = await agent.get(`/api/data-storages/${createdStorageId}`).set(AUTH_HEADER);
 
     expect(response.status).toBe(404);
   });
 
   // API-12: Validation - missing type field
   it('POST /api/data-storages - returns 400 for missing type field', async () => {
-    const response = await agent
-      .post('/api/data-storages')
-      .set(AUTH_HEADER)
-      .send({});
+    const response = await agent.post('/api/data-storages').set(AUTH_HEADER).send({});
 
     expect(response.status).toBe(400);
     expect(response.body.statusCode).toBe(400);

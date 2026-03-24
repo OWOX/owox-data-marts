@@ -21,7 +21,7 @@ test.describe('Storage Type Creation', () => {
     await page.keyboard.press('Escape');
 
     await expect(
-      page.getByTestId(TESTIDS.storageTable).getByText('Google BigQuery').first(),
+      page.getByTestId(TESTIDS.storageTable).getByText('Google BigQuery').first()
     ).toBeVisible();
   });
 
@@ -39,7 +39,7 @@ test.describe('Storage Type Creation', () => {
     await page.keyboard.press('Escape');
 
     await expect(
-      page.getByTestId(TESTIDS.storageTable).getByText('AWS Redshift').first(),
+      page.getByTestId(TESTIDS.storageTable).getByText('AWS Redshift').first()
     ).toBeVisible();
   });
 
@@ -57,7 +57,7 @@ test.describe('Storage Type Creation', () => {
     await page.keyboard.press('Escape');
 
     await expect(
-      page.getByTestId(TESTIDS.storageTable).getByText('Snowflake').first(),
+      page.getByTestId(TESTIDS.storageTable).getByText('Snowflake').first()
     ).toBeVisible();
   });
 
@@ -75,7 +75,7 @@ test.describe('Storage Type Creation', () => {
     await page.keyboard.press('Escape');
 
     await expect(
-      page.getByTestId(TESTIDS.storageTable).getByText('Databricks').first(),
+      page.getByTestId(TESTIDS.storageTable).getByText('Databricks').first()
     ).toBeVisible();
   });
 
@@ -93,7 +93,7 @@ test.describe('Storage Type Creation', () => {
     await page.keyboard.press('Escape');
 
     await expect(
-      page.getByTestId(TESTIDS.storageTable).getByText('AWS Athena').first(),
+      page.getByTestId(TESTIDS.storageTable).getByText('AWS Athena').first()
     ).toBeVisible();
   });
 });
@@ -199,41 +199,37 @@ describeIfCredentials(
         timeout: 10000,
       });
     });
-  },
+  }
 );
 
 // ---------------------------------------------------------------------------
 // STOR-05: Athena config save with real credentials (credential-gated)
 // ---------------------------------------------------------------------------
 
-describeIfCredentials(
-  ['AWS_ACCESS_KEY_ID', 'AWS_REGION'],
-  'Athena Config Save',
-  () => {
-    test('saves Athena config with real credentials', async ({ page, apiHelpers }) => {
-      await apiHelpers.createStorage('AWS_ATHENA');
-      await page.goto('/ui/0/data-storages');
-      await expect(page.getByTestId(TESTIDS.storageListPage)).toBeVisible();
+describeIfCredentials(['AWS_ACCESS_KEY_ID', 'AWS_REGION'], 'Athena Config Save', () => {
+  test('saves Athena config with real credentials', async ({ page, apiHelpers }) => {
+    await apiHelpers.createStorage('AWS_ATHENA');
+    await page.goto('/ui/0/data-storages');
+    await expect(page.getByTestId(TESTIDS.storageListPage)).toBeVisible();
 
-      // Open config sheet
-      await page.getByRole('button', { name: 'Open menu' }).first().click();
-      await page.getByRole('menuitem', { name: 'Edit' }).click();
-      await expect(page.getByTestId(TESTIDS.storageEditForm)).toBeVisible();
+    // Open config sheet
+    await page.getByRole('button', { name: 'Open menu' }).first().click();
+    await page.getByRole('menuitem', { name: 'Edit' }).click();
+    await expect(page.getByTestId(TESTIDS.storageEditForm)).toBeVisible();
 
-      const form = page.getByTestId(TESTIDS.storageEditForm);
+    const form = page.getByTestId(TESTIDS.storageEditForm);
 
-      // Fill Athena-specific fields from env vars
-      const region = process.env.AWS_REGION!;
-      await form.getByLabel('Region').fill(region);
+    // Fill Athena-specific fields from env vars
+    const region = process.env.AWS_REGION!;
+    await form.getByLabel('Region').fill(region);
 
-      // Save and verify sheet closes (indicating success)
-      await page.getByRole('button', { name: 'Save' }).click();
-      await expect(page.getByTestId(TESTIDS.storageConfigSheet)).not.toBeVisible({
-        timeout: 10000,
-      });
+    // Save and verify sheet closes (indicating success)
+    await page.getByRole('button', { name: 'Save' }).click();
+    await expect(page.getByTestId(TESTIDS.storageConfigSheet)).not.toBeVisible({
+      timeout: 10000,
     });
-  },
-);
+  });
+});
 
 // ---------------------------------------------------------------------------
 // STOR-06: Delete storage with confirmation dialog

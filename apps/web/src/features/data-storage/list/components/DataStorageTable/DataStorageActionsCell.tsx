@@ -76,7 +76,7 @@ export const DataStorageActionsCell: FC<DataStorageActionsCellProps> = ({
           {canDelete && (
             <>
               <DropdownMenuSeparator />
-              <DropdownMenuItem data-testid="storageDeleteButton" onClick={() => onDelete?.(id)}>
+              <DropdownMenuItem data-testid='storageDeleteButton' onClick={() => onDelete?.(id)}>
                 <Trash2 className='h-4 w-4 text-red-600' aria-hidden='true' />
                 <span className='text-red-600'>Delete</span>
               </DropdownMenuItem>

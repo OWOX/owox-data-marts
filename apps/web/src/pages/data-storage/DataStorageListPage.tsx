@@ -6,7 +6,7 @@ export const DataStorageListPage = () => {
   const [shouldOpenDialog, setShouldOpenDialog] = useState(false);
 
   return (
-    <div className='dm-page' data-testid="storageListPage">
+    <div className='dm-page' data-testid='storageListPage'>
       <header className='dm-page-header'>
         <h1 className='dm-page-header-title'>Storages</h1>
       </header>

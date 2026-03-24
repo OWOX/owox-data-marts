@@ -16,7 +16,7 @@ test.describe('Google Sheets OAuth', () => {
   //   7. Verify spreadsheet URL field is editable
   test.skip(
     true,
-    'Requires GOOGLE_SHEETS_REFRESH_TOKEN. Steps: create destination -> trigger OAuth flow -> verify connected status',
+    'Requires GOOGLE_SHEETS_REFRESH_TOKEN. Steps: create destination -> trigger OAuth flow -> verify connected status'
   );
 });
 
@@ -35,7 +35,7 @@ test.describe('Microsoft / TikTok OAuth', () => {
   //   6. Verify each destination can be edited and deleted
   test.skip(
     true,
-    'Requires MICROSOFT_CLIENT_ID + TIKTOK_ACCESS_TOKEN. Steps: create destination -> trigger OAuth -> verify card',
+    'Requires MICROSOFT_CLIENT_ID + TIKTOK_ACCESS_TOKEN. Steps: create destination -> trigger OAuth -> verify card'
   );
 });
 
@@ -54,6 +54,6 @@ test.describe('OAuth-requiring Connectors', () => {
   //   7. Save connector definition and verify persistence
   test.skip(
     true,
-    'Requires connector-specific OAuth credentials. Steps: select connector -> trigger OAuth -> verify connected -> save definition',
+    'Requires connector-specific OAuth credentials. Steps: select connector -> trigger OAuth -> verify connected -> save definition'
   );
 });

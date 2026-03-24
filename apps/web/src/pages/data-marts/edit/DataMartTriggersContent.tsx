@@ -30,40 +30,45 @@ export default function DataMartTriggersContent() {
   }, []);
 
   return (
-    <div data-testid="triggerTab">
-    <CollapsibleCard>
-      <CollapsibleCardHeader>
-        <CollapsibleCardHeaderTitle
-          icon={CalendarClock}
-          tooltip='Time triggers allow you to schedule Data Mart runs at specific times'
-        >
-          Time triggers
-        </CollapsibleCardHeaderTitle>
-        <CollapsibleCardHeaderActions>
-          <Button variant='outline' onClick={handleOpenFormSheet} aria-label='Add new trigger' data-testid="triggerCreateButton">
-            <Plus className='h-4 w-4' aria-hidden='true' />
-            Add Trigger
-          </Button>
-        </CollapsibleCardHeaderActions>
-      </CollapsibleCardHeader>
-      <CollapsibleCardContent>
-        <ConnectorContextProvider>
-          <ScheduledTriggerProvider>
-            {dataMart && (
-              <>
-                <ScheduledTriggerList dataMartId={dataMart.id} />
-                <ScheduledTriggerFormSheet
-                  isOpen={isFormSheetOpen}
-                  onClose={handleCloseFormSheet}
-                  dataMartId={dataMart.id}
-                />
-              </>
-            )}
-          </ScheduledTriggerProvider>
-        </ConnectorContextProvider>
-      </CollapsibleCardContent>
-      <CollapsibleCardFooter></CollapsibleCardFooter>
-    </CollapsibleCard>
+    <div data-testid='triggerTab'>
+      <CollapsibleCard>
+        <CollapsibleCardHeader>
+          <CollapsibleCardHeaderTitle
+            icon={CalendarClock}
+            tooltip='Time triggers allow you to schedule Data Mart runs at specific times'
+          >
+            Time triggers
+          </CollapsibleCardHeaderTitle>
+          <CollapsibleCardHeaderActions>
+            <Button
+              variant='outline'
+              onClick={handleOpenFormSheet}
+              aria-label='Add new trigger'
+              data-testid='triggerCreateButton'
+            >
+              <Plus className='h-4 w-4' aria-hidden='true' />
+              Add Trigger
+            </Button>
+          </CollapsibleCardHeaderActions>
+        </CollapsibleCardHeader>
+        <CollapsibleCardContent>
+          <ConnectorContextProvider>
+            <ScheduledTriggerProvider>
+              {dataMart && (
+                <>
+                  <ScheduledTriggerList dataMartId={dataMart.id} />
+                  <ScheduledTriggerFormSheet
+                    isOpen={isFormSheetOpen}
+                    onClose={handleCloseFormSheet}
+                    dataMartId={dataMart.id}
+                  />
+                </>
+              )}
+            </ScheduledTriggerProvider>
+          </ConnectorContextProvider>
+        </CollapsibleCardContent>
+        <CollapsibleCardFooter></CollapsibleCardFooter>
+      </CollapsibleCard>
     </div>
   );
 }

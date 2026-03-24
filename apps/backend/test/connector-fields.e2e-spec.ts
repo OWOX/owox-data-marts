@@ -21,12 +21,17 @@ describe('Connector Fields (e2e)', () => {
   // Test 6 representative connectors (same as specification: 2 public API, 2 API key, 2 OAuth)
   // ---------------------------------------------------------------------------
   describe('Representative connectors deep validation (CAPI-05)', () => {
-    it.each(['OpenHolidays', 'BankOfCanada', 'OpenExchangeRates', 'GitHub', 'GoogleAds', 'FacebookMarketing'])(
+    it.each([
+      'OpenHolidays',
+      'BankOfCanada',
+      'OpenExchangeRates',
+      'GitHub',
+      'GoogleAds',
+      'FacebookMarketing',
+    ])(
       'GET /api/connectors/%s/fields - returns nodes with fields and uniqueKeys',
-      async (connectorName) => {
-        const res = await agent
-          .get(`/api/connectors/${connectorName}/fields`)
-          .set(AUTH_HEADER);
+      async connectorName => {
+        const res = await agent.get(`/api/connectors/${connectorName}/fields`).set(AUTH_HEADER);
 
         expect(res.status).toBe(200);
         expect(Array.isArray(res.body)).toBe(true);
@@ -44,7 +49,7 @@ describe('Connector Fields (e2e)', () => {
           expect(fields.length).toBeGreaterThan(0);
 
           // Each field has name (string) and type (string)
-          fields.forEach((field) => {
+          fields.forEach(field => {
             expect(typeof field.name).toBe('string');
             // type should be present (the mapper maps it from source)
             if (field.type !== undefined) {
@@ -67,9 +72,7 @@ describe('Connector Fields (e2e)', () => {
   // ---------------------------------------------------------------------------
   describe('404 error handling (CAPI-07)', () => {
     it('GET /api/connectors/nonexistent-connector/fields - returns 404', async () => {
-      const res = await agent
-        .get('/api/connectors/nonexistent-connector/fields')
-        .set(AUTH_HEADER);
+      const res = await agent.get('/api/connectors/nonexistent-connector/fields').set(AUTH_HEADER);
 
       expect(res.status).toBe(404);
       expect(res.body.statusCode).toBe(404);
@@ -82,10 +85,8 @@ describe('Connector Fields (e2e)', () => {
   describe('All connectors well-formed (CAPI-10)', () => {
     it.each([...ALL_CONNECTORS])(
       'GET /api/connectors/%s/fields - returns well-formed fields schema',
-      async (connectorName) => {
-        const res = await agent
-          .get(`/api/connectors/${connectorName}/fields`)
-          .set(AUTH_HEADER);
+      async connectorName => {
+        const res = await agent.get(`/api/connectors/${connectorName}/fields`).set(AUTH_HEADER);
 
         expect(res.status).toBe(200);
         expect(Array.isArray(res.body)).toBe(true);

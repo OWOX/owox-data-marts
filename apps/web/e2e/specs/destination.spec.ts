@@ -7,10 +7,7 @@ import { describeIfCredentials } from '../helpers/credentials';
 // Deletes all existing destinations via API first (Phase 9 cleanup pattern).
 // ---------------------------------------------------------------------------
 test.describe('Destinations - Empty State', () => {
-  test('shows empty state on fresh DM (DEST-01)', async ({
-    page,
-    apiHelpers,
-  }) => {
+  test('shows empty state on fresh DM (DEST-01)', async ({ page, apiHelpers }) => {
     // Clean up ALL existing reports first (destinations with reports
     // cannot be deleted -- backend throws BusinessViolationException).
     const reportsRes = await page.request.get('/api/reports');
@@ -70,9 +67,7 @@ for (const { type, label, prefix } of DESTINATION_TYPES) {
       const destTab = page.getByTestId(TESTIDS.destTab);
       await expect(destTab).toBeVisible();
 
-      const card = destTab
-        .getByTestId(TESTIDS.destCard)
-        .filter({ hasText: destTitle });
+      const card = destTab.getByTestId(TESTIDS.destCard).filter({ hasText: destTitle });
       await expect(card).toBeVisible();
     });
 
@@ -118,10 +113,7 @@ describeIfCredentials(
   ['GOOGLE_SHEETS_SERVICE_ACCOUNT_JSON'],
   'Destinations - Google Sheets CRUD (DEST-04)',
   () => {
-    test('creates Google Sheets destination via UI (DEST-04)', async ({
-      page,
-      radix,
-    }) => {
+    test('creates Google Sheets destination via UI (DEST-04)', async ({ page, radix }) => {
       await page.goto('/ui/0/data-destinations');
       await expect(page.getByTestId(TESTIDS.destTab)).toBeVisible();
 
@@ -147,19 +139,14 @@ describeIfCredentials(
       await expect(page.getByText(gsTitle)).toBeVisible();
     });
 
-    test('edits Google Sheets destination title (DEST-07)', async ({
-      page,
-    }) => {
+    test('edits Google Sheets destination title (DEST-07)', async ({ page }) => {
       // TODO: Full UI flow for Google Sheets edit when credentials available
       test.skip();
     });
 
-    test('deletes Google Sheets destination (DEST-08)', async ({
-      page,
-      radix,
-    }) => {
+    test('deletes Google Sheets destination (DEST-08)', async ({ page, radix }) => {
       // TODO: Full UI flow for Google Sheets delete when credentials available
       test.skip();
     });
-  },
+  }
 );

@@ -14,34 +14,24 @@ test.describe('Reports - Looker Studio Pattern (Card UI)', () => {
   let destId: string;
 
   test.beforeEach(async ({ apiHelpers }) => {
-    const { datamart } =
-      await apiHelpers.createPublishedConnectorDataMart();
+    const { datamart } = await apiHelpers.createPublishedConnectorDataMart();
     datamartId = datamart.id;
     destTitle = `LS Dest ${Date.now()}`;
-    const dest = await apiHelpers.createDestination(
-      'LOOKER_STUDIO',
-      destTitle,
-    );
+    const dest = await apiHelpers.createDestination('LOOKER_STUDIO', destTitle);
     destId = dest.id;
   });
 
-  test('creates report by toggling Looker Studio card on (RPT-01)', async ({
-    page,
-  }) => {
+  test('creates report by toggling Looker Studio card on (RPT-01)', async ({ page }) => {
     await page.goto(`/ui/0/data-marts/${datamartId}/reports`);
     const destTab = page.getByTestId(TESTIDS.destTab);
     await expect(destTab).toBeVisible();
 
     // Find the specific destination card
-    const card = destTab
-      .getByTestId(TESTIDS.destCard)
-      .filter({ hasText: destTitle });
+    const card = destTab.getByTestId(TESTIDS.destCard).filter({ hasText: destTitle });
     await expect(card).toBeVisible();
 
     // Before toggle: card shows "Not available in Looker Studio"
-    await expect(
-      card.getByText('Not available in Looker Studio'),
-    ).toBeVisible();
+    await expect(card.getByText('Not available in Looker Studio')).toBeVisible();
 
     // Toggle the switch ON to create the report
     const toggle = card.getByRole('switch');
@@ -49,9 +39,7 @@ test.describe('Reports - Looker Studio Pattern (Card UI)', () => {
     await toggle.click();
 
     // After toggle: card shows "Available in Looker Studio"
-    await expect(
-      card.getByText('Available in Looker Studio'),
-    ).toBeVisible({ timeout: 10000 });
+    await expect(card.getByText('Available in Looker Studio')).toBeVisible({ timeout: 10000 });
   });
 
   test('edits Looker Studio report cache lifetime (RPT-03)', async ({
@@ -67,15 +55,11 @@ test.describe('Reports - Looker Studio Pattern (Card UI)', () => {
     await expect(destTab).toBeVisible();
 
     // Find the destination card
-    const card = destTab
-      .getByTestId(TESTIDS.destCard)
-      .filter({ hasText: destTitle });
+    const card = destTab.getByTestId(TESTIDS.destCard).filter({ hasText: destTitle });
     await expect(card).toBeVisible();
 
     // Card should show "Available in Looker Studio" (report exists)
-    await expect(
-      card.getByText('Available in Looker Studio'),
-    ).toBeVisible({ timeout: 10000 });
+    await expect(card.getByText('Available in Looker Studio')).toBeVisible({ timeout: 10000 });
 
     // Click the card to open edit sheet (LookerStudioReportCard has onClick)
     await card.click();
@@ -109,15 +93,11 @@ test.describe('Reports - Looker Studio Pattern (Card UI)', () => {
     const destTab = page.getByTestId(TESTIDS.destTab);
     await expect(destTab).toBeVisible();
 
-    const card = destTab
-      .getByTestId(TESTIDS.destCard)
-      .filter({ hasText: destTitle });
+    const card = destTab.getByTestId(TESTIDS.destCard).filter({ hasText: destTitle });
     await expect(card).toBeVisible();
 
     // Card should show "Available in Looker Studio" (report exists)
-    await expect(
-      card.getByText('Available in Looker Studio'),
-    ).toBeVisible({ timeout: 10000 });
+    await expect(card.getByText('Available in Looker Studio')).toBeVisible({ timeout: 10000 });
 
     // Toggle the switch OFF to delete the report
     const toggle = card.getByRole('switch');
@@ -125,9 +105,7 @@ test.describe('Reports - Looker Studio Pattern (Card UI)', () => {
     await toggle.click();
 
     // After toggle: card should revert to "Not available in Looker Studio"
-    await expect(
-      card.getByText('Not available in Looker Studio'),
-    ).toBeVisible({ timeout: 10000 });
+    await expect(card.getByText('Not available in Looker Studio')).toBeVisible({ timeout: 10000 });
   });
 });
 
@@ -142,25 +120,20 @@ test.describe('Reports - Email Pattern (Table UI)', () => {
   let destId: string;
 
   test.beforeEach(async ({ apiHelpers }) => {
-    const { datamart } =
-      await apiHelpers.createPublishedConnectorDataMart();
+    const { datamart } = await apiHelpers.createPublishedConnectorDataMart();
     datamartId = datamart.id;
     destTitle = `Email Dest ${Date.now()}`;
     const dest = await apiHelpers.createDestination('EMAIL', destTitle);
     destId = dest.id;
   });
 
-  test('creates report within Email destination (RPT-01)', async ({
-    page,
-  }) => {
+  test('creates report within Email destination (RPT-01)', async ({ page }) => {
     await page.goto(`/ui/0/data-marts/${datamartId}/reports`);
     const destTab = page.getByTestId(TESTIDS.destTab);
     await expect(destTab).toBeVisible();
 
     // Find the specific Email destination card
-    const card = destTab
-      .getByTestId(TESTIDS.destCard)
-      .filter({ hasText: destTitle });
+    const card = destTab.getByTestId(TESTIDS.destCard).filter({ hasText: destTitle });
     await expect(card).toBeVisible();
 
     // Click Add Report button within the card
@@ -189,9 +162,7 @@ test.describe('Reports - Email Pattern (Table UI)', () => {
     // Use the dropdown "Create new report" to save without running
     const chevronButton = sheet.getByRole('button', { name: 'More actions' });
     await chevronButton.click();
-    await page
-      .getByRole('menuitem', { name: 'Create new report' })
-      .click();
+    await page.getByRole('menuitem', { name: 'Create new report' }).click();
 
     // Wait for the form to submit and sheet to close
     await expect(sheet).not.toBeVisible({ timeout: 30000 });
@@ -203,10 +174,7 @@ test.describe('Reports - Email Pattern (Table UI)', () => {
     });
   });
 
-  test('edits Email report (RPT-03)', async ({
-    page,
-    apiHelpers,
-  }) => {
+  test('edits Email report (RPT-03)', async ({ page, apiHelpers }) => {
     // Create report via direct API with email-config
     const reportTitle = `E2E Email Report ${Date.now()}`;
     const reportRes = await page.request.post('/api/reports', {
@@ -228,9 +196,7 @@ test.describe('Reports - Email Pattern (Table UI)', () => {
     const destTab = page.getByTestId(TESTIDS.destTab);
     await expect(destTab).toBeVisible();
 
-    const card = destTab
-      .getByTestId(TESTIDS.destCard)
-      .filter({ hasText: destTitle });
+    const card = destTab.getByTestId(TESTIDS.destCard).filter({ hasText: destTitle });
     await expect(card).toBeVisible();
 
     // Click the report row to open edit sheet
@@ -256,10 +222,7 @@ test.describe('Reports - Email Pattern (Table UI)', () => {
     await expect(sheet).not.toBeVisible({ timeout: 15000 });
   });
 
-  test('deletes Email report with confirmation (RPT-04)', async ({
-    page,
-    radix,
-  }) => {
+  test('deletes Email report with confirmation (RPT-04)', async ({ page, radix }) => {
     // Create report via direct API with email-config
     const reportTitle = `E2E Delete Report ${Date.now()}`;
     const reportRes = await page.request.post('/api/reports', {
@@ -281,9 +244,7 @@ test.describe('Reports - Email Pattern (Table UI)', () => {
     const destTab = page.getByTestId(TESTIDS.destTab);
     await expect(destTab).toBeVisible();
 
-    const card = destTab
-      .getByTestId(TESTIDS.destCard)
-      .filter({ hasText: destTitle });
+    const card = destTab.getByTestId(TESTIDS.destCard).filter({ hasText: destTitle });
     await expect(card).toBeVisible();
 
     // Verify the report row is visible
@@ -294,9 +255,7 @@ test.describe('Reports - Email Pattern (Table UI)', () => {
     await reportRow.hover();
 
     // Open the actions dropdown (MoreHorizontal button)
-    await reportRow
-      .getByRole('button', { name: /Actions for report/ })
-      .click();
+    await reportRow.getByRole('button', { name: /Actions for report/ }).click();
 
     // Click "Delete report" menu item
     await page.getByRole('menuitem', { name: /Delete report/ }).click();
@@ -321,8 +280,7 @@ test.describe('Reports - List Rendering', () => {
     page,
     apiHelpers,
   }) => {
-    const { datamart } =
-      await apiHelpers.createPublishedConnectorDataMart();
+    const { datamart } = await apiHelpers.createPublishedConnectorDataMart();
     const datamartId = datamart.id;
     const destTitle = `Email List Dest ${Date.now()}`;
     const dest = await apiHelpers.createDestination('EMAIL', destTitle);
@@ -365,9 +323,7 @@ test.describe('Reports - List Rendering', () => {
     const destTab = page.getByTestId(TESTIDS.destTab);
     await expect(destTab).toBeVisible();
 
-    const card = destTab
-      .getByTestId(TESTIDS.destCard)
-      .filter({ hasText: destTitle });
+    const card = destTab.getByTestId(TESTIDS.destCard).filter({ hasText: destTitle });
     await expect(card).toBeVisible();
 
     // Verify both report titles are visible in the table
@@ -386,12 +342,8 @@ test.describe('Reports - List Rendering', () => {
 // LOOKER_STUDIO reports don't have an explicit Run action in the UI.
 // ---------------------------------------------------------------------------
 test.describe('Reports - Fire and Forget Run', () => {
-  test('triggers report run and verifies in Run History (RPT-05)', async ({
-    page,
-    apiHelpers,
-  }) => {
-    const { datamart } =
-      await apiHelpers.createPublishedConnectorDataMart();
+  test('triggers report run and verifies in Run History (RPT-05)', async ({ page, apiHelpers }) => {
+    const { datamart } = await apiHelpers.createPublishedConnectorDataMart();
     const datamartId = datamart.id;
     const destTitle = `Email Run Dest ${Date.now()}`;
     const dest = await apiHelpers.createDestination('EMAIL', destTitle);
@@ -418,9 +370,7 @@ test.describe('Reports - Fire and Forget Run', () => {
     const destTab = page.getByTestId(TESTIDS.destTab);
     await expect(destTab).toBeVisible();
 
-    const card = destTab
-      .getByTestId(TESTIDS.destCard)
-      .filter({ hasText: destTitle });
+    const card = destTab.getByTestId(TESTIDS.destCard).filter({ hasText: destTitle });
     await expect(card).toBeVisible();
 
     // Find the report row and hover to reveal action buttons
@@ -430,11 +380,9 @@ test.describe('Reports - Fire and Forget Run', () => {
 
     // Click the Run button and wait for the API response confirming the run was accepted
     const runResponsePromise = page.waitForResponse(
-      resp => resp.url().includes('/run') && resp.status() === 201,
+      resp => resp.url().includes('/run') && resp.status() === 201
     );
-    await reportRow
-      .getByRole('button', { name: /Run report/ })
-      .click();
+    await reportRow.getByRole('button', { name: /Run report/ }).click();
     await runResponsePromise;
 
     // Navigate to Run History tab
@@ -445,8 +393,6 @@ test.describe('Reports - Fire and Forget Run', () => {
     await expect(runContainer).toBeVisible({ timeout: 15000 });
 
     // Verify at least one run entry appeared
-    await expect(
-      runContainer.locator('.dm-card-block').first(),
-    ).toBeVisible({ timeout: 15000 });
+    await expect(runContainer.locator('.dm-card-block').first()).toBeVisible({ timeout: 15000 });
   });
 });

@@ -104,11 +104,7 @@ describe('Validation & Schema API (e2e)', () => {
       const dataMartRes = await agent
         .post('/api/data-marts')
         .set(AUTH_HEADER)
-        .send(
-          new DataMartBuilder()
-            .withStorageId(storageRes.body.id)
-            .build(),
-        );
+        .send(new DataMartBuilder().withStorageId(storageRes.body.id).build());
       expect(dataMartRes.status).toBe(201);
 
       draftDataMartId = dataMartRes.body.id;

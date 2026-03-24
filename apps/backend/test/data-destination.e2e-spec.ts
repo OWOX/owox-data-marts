@@ -32,10 +32,7 @@ describe('DataDestination API (e2e)', () => {
       .withCredentials(LOOKER_STUDIO_CREDENTIALS)
       .build();
 
-    const res = await agent
-      .post('/api/data-destinations')
-      .set(AUTH_HEADER)
-      .send(payload);
+    const res = await agent.post('/api/data-destinations').set(AUTH_HEADER).send(payload);
 
     expect(res.status).toBe(201);
     expect(res.body).toMatchObject({
@@ -53,9 +50,7 @@ describe('DataDestination API (e2e)', () => {
 
   // DEST-02: Get data destination by ID
   it('GET /api/data-destinations/:id - returns the created destination', async () => {
-    const res = await agent
-      .get(`/api/data-destinations/${createdId}`)
-      .set(AUTH_HEADER);
+    const res = await agent.get(`/api/data-destinations/${createdId}`).set(AUTH_HEADER);
 
     expect(res.status).toBe(200);
     expect(res.body).toMatchObject({
@@ -71,9 +66,7 @@ describe('DataDestination API (e2e)', () => {
 
   // DEST-03: List all data destinations
   it('GET /api/data-destinations - lists all destinations including the created one', async () => {
-    const res = await agent
-      .get('/api/data-destinations')
-      .set(AUTH_HEADER);
+    const res = await agent.get('/api/data-destinations').set(AUTH_HEADER);
 
     expect(res.status).toBe(200);
     expect(Array.isArray(res.body)).toBe(true);
@@ -84,9 +77,7 @@ describe('DataDestination API (e2e)', () => {
 
   // DEST-04: List by type (simplified response shape)
   it('GET /api/data-destinations/by-type/LOOKER_STUDIO - returns simplified shape', async () => {
-    const res = await agent
-      .get('/api/data-destinations/by-type/LOOKER_STUDIO')
-      .set(AUTH_HEADER);
+    const res = await agent.get('/api/data-destinations/by-type/LOOKER_STUDIO').set(AUTH_HEADER);
 
     expect(res.status).toBe(200);
     expect(Array.isArray(res.body)).toBe(true);
@@ -116,17 +107,13 @@ describe('DataDestination API (e2e)', () => {
       .set(AUTH_HEADER);
 
     expect(res.status).toBe(201);
-    expect(res.body.credentials.destinationSecretKey).toEqual(
-      expect.any(String),
-    );
+    expect(res.body.credentials.destinationSecretKey).toEqual(expect.any(String));
   });
 
   // DEST-07: Rotate secret key (second rotation produces different key)
   it('POST /api/data-destinations/:id/rotate-secret-key - second rotation produces different key', async () => {
     // First get the current key
-    const before = await agent
-      .get(`/api/data-destinations/${createdId}`)
-      .set(AUTH_HEADER);
+    const before = await agent.get(`/api/data-destinations/${createdId}`).set(AUTH_HEADER);
 
     const firstKey = before.body.credentials.destinationSecretKey;
 
@@ -143,28 +130,21 @@ describe('DataDestination API (e2e)', () => {
 
   // DEST-06: Delete data destination
   it('DELETE /api/data-destinations/:id - soft deletes the destination', async () => {
-    const res = await agent
-      .delete(`/api/data-destinations/${createdId}`)
-      .set(AUTH_HEADER);
+    const res = await agent.delete(`/api/data-destinations/${createdId}`).set(AUTH_HEADER);
 
     expect(res.status).toBe(200);
   });
 
   // DEST-06 verify: Get after delete returns 404
   it('GET /api/data-destinations/:id - returns 404 after deletion', async () => {
-    const res = await agent
-      .get(`/api/data-destinations/${createdId}`)
-      .set(AUTH_HEADER);
+    const res = await agent.get(`/api/data-destinations/${createdId}`).set(AUTH_HEADER);
 
     expect(res.status).toBe(404);
   });
 
   // DEST-08: Validation - missing required fields
   it('POST /api/data-destinations - returns 400 for empty body', async () => {
-    const res = await agent
-      .post('/api/data-destinations')
-      .set(AUTH_HEADER)
-      .send({});
+    const res = await agent.post('/api/data-destinations').set(AUTH_HEADER).send({});
 
     expect(res.status).toBe(400);
     expect(res.body).toMatchObject({
@@ -174,9 +154,7 @@ describe('DataDestination API (e2e)', () => {
 
   // DEST-09: Validation - invalid destination type enum
   it('GET /api/data-destinations/by-type/INVALID_TYPE - returns 400', async () => {
-    const res = await agent
-      .get('/api/data-destinations/by-type/INVALID_TYPE')
-      .set(AUTH_HEADER);
+    const res = await agent.get('/api/data-destinations/by-type/INVALID_TYPE').set(AUTH_HEADER);
 
     expect(res.status).toBe(400);
   });

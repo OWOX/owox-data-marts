@@ -21,7 +21,7 @@ function assertPortFree(port: number, label: string): void {
         `\n\n` +
           `Port ${port} is already in use (${label}).\n` +
           `Stop the running server before running e2e tests, otherwise tests will use the wrong environment.\n\n` +
-          `  kill $(lsof -ti:${port})\n`,
+          `  kill $(lsof -ti:${port})\n`
       );
     }
   } catch (e) {

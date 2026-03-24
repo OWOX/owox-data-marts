@@ -24,13 +24,11 @@ export class RadixHelpers {
   async selectComboboxOption(
     trigger: Locator,
     optionText: string,
-    searchText?: string,
+    searchText?: string
   ): Promise<void> {
     await trigger.click();
     // cmdk Combobox uses Popover which portals content
-    const popover = this.page
-      .locator('[data-slot="select-content"], [role="dialog"]')
-      .last();
+    const popover = this.page.locator('[data-slot="select-content"], [role="dialog"]').last();
     await expect(popover).toBeVisible();
     if (searchText) {
       await popover.getByRole('textbox').fill(searchText);

@@ -26,7 +26,7 @@ export function AddReportButton({ dataMartStatus, onAddReport }: AddReportButton
             size='sm'
             aria-label='Add new report'
             disabled={isDisabled}
-            data-testid="reportCreateButton"
+            data-testid='reportCreateButton'
           >
             <PlusIcon className='h-4 w-4' />
             Add Report

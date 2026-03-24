@@ -50,7 +50,7 @@ export function LookerStudioReportEditSheet({
           }
         }}
       >
-        <SheetContent data-testid="reportEditSheet">
+        <SheetContent data-testid='reportEditSheet'>
           <SheetHeader>
             <SheetTitle>{preSelectedDestination?.title ?? 'Looker Studio'}</SheetTitle>
             <SheetDescription>

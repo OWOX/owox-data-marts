@@ -38,10 +38,7 @@ describe('Report API (e2e)', () => {
       .withDataDestinationId(dataDestinationId)
       .build();
 
-    const res = await agent
-      .post('/api/reports')
-      .set(AUTH_HEADER)
-      .send(payload);
+    const res = await agent.post('/api/reports').set(AUTH_HEADER).send(payload);
 
     expect(res.status).toBe(201);
     expect(res.body).toMatchObject({
@@ -56,9 +53,7 @@ describe('Report API (e2e)', () => {
 
   // RPT-02: Get report by ID
   it('GET /api/reports/:id - returns the created report', async () => {
-    const res = await agent
-      .get(`/api/reports/${createdId}`)
-      .set(AUTH_HEADER);
+    const res = await agent.get(`/api/reports/${createdId}`).set(AUTH_HEADER);
 
     expect(res.status).toBe(200);
     expect(res.body).toMatchObject({
@@ -69,9 +64,7 @@ describe('Report API (e2e)', () => {
 
   // RPT-03: List reports by DataMart
   it('GET /api/reports/data-mart/:dataMartId - lists reports for the DataMart', async () => {
-    const res = await agent
-      .get(`/api/reports/data-mart/${dataMartId}`)
-      .set(AUTH_HEADER);
+    const res = await agent.get(`/api/reports/data-mart/${dataMartId}`).set(AUTH_HEADER);
 
     expect(res.status).toBe(200);
     expect(Array.isArray(res.body)).toBe(true);
@@ -82,9 +75,7 @@ describe('Report API (e2e)', () => {
 
   // RPT-04: List all reports for project
   it('GET /api/reports - lists all reports including the created one', async () => {
-    const res = await agent
-      .get('/api/reports')
-      .set(AUTH_HEADER);
+    const res = await agent.get('/api/reports').set(AUTH_HEADER);
 
     expect(res.status).toBe(200);
     expect(Array.isArray(res.body)).toBe(true);
@@ -110,37 +101,28 @@ describe('Report API (e2e)', () => {
 
   // RPT-07: Fire-and-forget report run
   it('POST /api/reports/:id/run - triggers a fire-and-forget run', async () => {
-    const res = await agent
-      .post(`/api/reports/${createdId}/run`)
-      .set(AUTH_HEADER);
+    const res = await agent.post(`/api/reports/${createdId}/run`).set(AUTH_HEADER);
 
     expect(res.status).toBe(201);
   });
 
   // RPT-06: Delete report
   it('DELETE /api/reports/:id - deletes the report', async () => {
-    const res = await agent
-      .delete(`/api/reports/${createdId}`)
-      .set(AUTH_HEADER);
+    const res = await agent.delete(`/api/reports/${createdId}`).set(AUTH_HEADER);
 
     expect(res.status).toBe(200);
   });
 
   // RPT-06 verify: Get after delete returns 404
   it('GET /api/reports/:id - returns 404 after deletion', async () => {
-    const res = await agent
-      .get(`/api/reports/${createdId}`)
-      .set(AUTH_HEADER);
+    const res = await agent.get(`/api/reports/${createdId}`).set(AUTH_HEADER);
 
     expect(res.status).toBe(404);
   });
 
   // RPT-08: Validation - missing required fields
   it('POST /api/reports - returns 400 for empty body', async () => {
-    const res = await agent
-      .post('/api/reports')
-      .set(AUTH_HEADER)
-      .send({});
+    const res = await agent.post('/api/reports').set(AUTH_HEADER).send({});
 
     expect(res.status).toBe(400);
     expect(res.body).toMatchObject({
@@ -155,10 +137,7 @@ describe('Report API (e2e)', () => {
       .withDataDestinationId(dataDestinationId)
       .build();
 
-    const res = await agent
-      .post('/api/reports')
-      .set(AUTH_HEADER)
-      .send(payload);
+    const res = await agent.post('/api/reports').set(AUTH_HEADER).send(payload);
 
     expect(res.status).toBe(404);
   });

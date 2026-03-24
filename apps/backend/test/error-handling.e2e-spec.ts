@@ -23,10 +23,7 @@ const MALFORMED_UUID = 'not-a-valid-uuid';
  * - BaseExceptionFilter: { statusCode, timestamp, path, message, errorDetails }
  * NOTE: `message` is NOT universally present -- only on BusinessViolationException.
  */
-function expectErrorShape(
-  res: supertest.Response,
-  expectedStatus: number,
-): void {
+function expectErrorShape(res: supertest.Response, expectedStatus: number): void {
   expect(res.status).toBe(expectedStatus);
   expect(res.body.statusCode).toBe(expectedStatus);
 }
@@ -64,26 +61,20 @@ describe('Cross-Cutting Error Handling (e2e)', () => {
   // =========================================================================
   describe('ERR-01: Non-existent UUID returns 404', () => {
     it('GET /api/reports/:id - returns 404 for non-existent UUID', async () => {
-      const res = await agent
-        .get(`/api/reports/${NONEXISTENT_UUID}`)
-        .set(AUTH_HEADER);
+      const res = await agent.get(`/api/reports/${NONEXISTENT_UUID}`).set(AUTH_HEADER);
 
       expectErrorShape(res, 404);
     });
 
     it('GET /api/data-destinations/:id - returns 404 for non-existent UUID', async () => {
-      const res = await agent
-        .get(`/api/data-destinations/${NONEXISTENT_UUID}`)
-        .set(AUTH_HEADER);
+      const res = await agent.get(`/api/data-destinations/${NONEXISTENT_UUID}`).set(AUTH_HEADER);
 
       expectErrorShape(res, 404);
     });
 
     it('GET /api/data-marts/:dataMartId/scheduled-triggers/:id - returns 404 for non-existent UUID', async () => {
       const res = await agent
-        .get(
-          `/api/data-marts/${connectorDataMartId}/scheduled-triggers/${NONEXISTENT_UUID}`,
-        )
+        .get(`/api/data-marts/${connectorDataMartId}/scheduled-triggers/${NONEXISTENT_UUID}`)
         .set(AUTH_HEADER);
 
       expectErrorShape(res, 404);
@@ -95,9 +86,7 @@ describe('Cross-Cutting Error Handling (e2e)', () => {
   // =========================================================================
   describe('ERR-02: Malformed UUID handling', () => {
     it('GET /api/reports/:id - returns consistent error for malformed UUID', async () => {
-      const res = await agent
-        .get(`/api/reports/${MALFORMED_UUID}`)
-        .set(AUTH_HEADER);
+      const res = await agent.get(`/api/reports/${MALFORMED_UUID}`).set(AUTH_HEADER);
 
       // No ParseUUIDPipe on controllers -- malformed string passes to TypeORM.
       // SQLite string comparison returns no match -> service throws NotFoundException -> 404.
@@ -106,9 +95,7 @@ describe('Cross-Cutting Error Handling (e2e)', () => {
     });
 
     it('GET /api/data-destinations/:id - returns consistent error for malformed UUID', async () => {
-      const res = await agent
-        .get(`/api/data-destinations/${MALFORMED_UUID}`)
-        .set(AUTH_HEADER);
+      const res = await agent.get(`/api/data-destinations/${MALFORMED_UUID}`).set(AUTH_HEADER);
 
       // Same behavior: malformed string -> no DB match -> NotFoundException -> 404.
       expectErrorShape(res, 404);
@@ -116,9 +103,7 @@ describe('Cross-Cutting Error Handling (e2e)', () => {
 
     it('GET /api/data-marts/:dataMartId/scheduled-triggers/:id - returns consistent error for malformed UUID', async () => {
       const res = await agent
-        .get(
-          `/api/data-marts/${connectorDataMartId}/scheduled-triggers/${MALFORMED_UUID}`,
-        )
+        .get(`/api/data-marts/${connectorDataMartId}/scheduled-triggers/${MALFORMED_UUID}`)
         .set(AUTH_HEADER);
 
       // Same behavior: malformed string -> no DB match -> NotFoundException -> 404.
@@ -136,10 +121,7 @@ describe('Cross-Cutting Error Handling (e2e)', () => {
         .withDataDestinationId(NONEXISTENT_UUID)
         .build();
 
-      const res = await agent
-        .post('/api/reports')
-        .set(AUTH_HEADER)
-        .send(payload);
+      const res = await agent.post('/api/reports').set(AUTH_HEADER).send(payload);
 
       // CreateReportService calls dataDestinationService.getByIdAndProjectId()
       // which throws NotFoundException before INSERT.
@@ -150,9 +132,7 @@ describe('Cross-Cutting Error Handling (e2e)', () => {
       const payload = new ScheduledTriggerBuilder().build();
 
       const res = await agent
-        .post(
-          `/api/data-marts/${NONEXISTENT_UUID}/scheduled-triggers`,
-        )
+        .post(`/api/data-marts/${NONEXISTENT_UUID}/scheduled-triggers`)
         .set(AUTH_HEADER)
         .send(payload);
 
@@ -186,25 +166,18 @@ describe('Cross-Cutting Error Handling (e2e)', () => {
         .withDataDestinationId(setup.dataDestinationId)
         .build();
 
-      const createRes = await agent
-        .post('/api/reports')
-        .set(AUTH_HEADER)
-        .send(payload);
+      const createRes = await agent.post('/api/reports').set(AUTH_HEADER).send(payload);
 
       expect(createRes.status).toBe(201);
       const reportId = createRes.body.id;
 
       // 3. Delete the DataMart (cascade delete per DeleteDataMartService)
-      const deleteRes = await agent
-        .delete(`/api/data-marts/${setup.dataMartId}`)
-        .set(AUTH_HEADER);
+      const deleteRes = await agent.delete(`/api/data-marts/${setup.dataMartId}`).set(AUTH_HEADER);
 
       expect(deleteRes.status).toBe(200);
 
       // 4. Verify child report is gone
-      const checkRes = await agent
-        .get(`/api/reports/${reportId}`)
-        .set(AUTH_HEADER);
+      const checkRes = await agent.get(`/api/reports/${reportId}`).set(AUTH_HEADER);
 
       expectErrorShape(checkRes, 404);
     });
@@ -225,17 +198,13 @@ describe('Cross-Cutting Error Handling (e2e)', () => {
       const triggerId = createRes.body.id;
 
       // 3. Delete the DataMart
-      const deleteRes = await agent
-        .delete(`/api/data-marts/${setup.dataMartId}`)
-        .set(AUTH_HEADER);
+      const deleteRes = await agent.delete(`/api/data-marts/${setup.dataMartId}`).set(AUTH_HEADER);
 
       expect(deleteRes.status).toBe(200);
 
       // 4. Verify child trigger is gone
       const checkRes = await agent
-        .get(
-          `/api/data-marts/${setup.dataMartId}/scheduled-triggers/${triggerId}`,
-        )
+        .get(`/api/data-marts/${setup.dataMartId}/scheduled-triggers/${triggerId}`)
         .set(AUTH_HEADER);
 
       expectErrorShape(checkRes, 404);
@@ -255,9 +224,7 @@ describe('Cross-Cutting Error Handling (e2e)', () => {
       const runId = runRes.body.runId;
 
       // 3. Delete the DataMart
-      const deleteRes = await agent
-        .delete(`/api/data-marts/${setup.dataMartId}`)
-        .set(AUTH_HEADER);
+      const deleteRes = await agent.delete(`/api/data-marts/${setup.dataMartId}`).set(AUTH_HEADER);
 
       expect(deleteRes.status).toBe(200);
 
@@ -283,17 +250,11 @@ describe('Cross-Cutting Error Handling (e2e)', () => {
         .withCredentials(LOOKER_STUDIO_CREDENTIALS)
         .build();
 
-      const res1 = await agent
-        .post('/api/data-destinations')
-        .set(AUTH_HEADER)
-        .send(payload);
+      const res1 = await agent.post('/api/data-destinations').set(AUTH_HEADER).send(payload);
 
       expect(res1.status).toBe(201);
 
-      const res2 = await agent
-        .post('/api/data-destinations')
-        .set(AUTH_HEADER)
-        .send(payload);
+      const res2 = await agent.post('/api/data-destinations').set(AUTH_HEADER).send(payload);
 
       // Both creations succeed with auto-generated UUIDs
       expect(res2.status).toBe(201);
@@ -307,17 +268,11 @@ describe('Cross-Cutting Error Handling (e2e)', () => {
         .withDataDestinationId(dataDestinationId)
         .build();
 
-      const res1 = await agent
-        .post('/api/reports')
-        .set(AUTH_HEADER)
-        .send(payload);
+      const res1 = await agent.post('/api/reports').set(AUTH_HEADER).send(payload);
 
       expect(res1.status).toBe(201);
 
-      const res2 = await agent
-        .post('/api/reports')
-        .set(AUTH_HEADER)
-        .send(payload);
+      const res2 = await agent.post('/api/reports').set(AUTH_HEADER).send(payload);
 
       // LOOKER_STUDIO reports use deterministic UUID v5 from @BeforeInsert hook.
       // Same (dataMartId + dataDestinationId) = same UUID.
@@ -332,18 +287,14 @@ describe('Cross-Cutting Error Handling (e2e)', () => {
       const payload = new ScheduledTriggerBuilder().build();
 
       const res1 = await agent
-        .post(
-          `/api/data-marts/${connectorDataMartId}/scheduled-triggers`,
-        )
+        .post(`/api/data-marts/${connectorDataMartId}/scheduled-triggers`)
         .set(AUTH_HEADER)
         .send(payload);
 
       expect(res1.status).toBe(201);
 
       const res2 = await agent
-        .post(
-          `/api/data-marts/${connectorDataMartId}/scheduled-triggers`,
-        )
+        .post(`/api/data-marts/${connectorDataMartId}/scheduled-triggers`)
         .set(AUTH_HEADER)
         .send(payload);
 

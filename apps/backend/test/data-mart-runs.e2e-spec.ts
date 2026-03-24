@@ -87,9 +87,7 @@ describe('DataMart Manual Runs API (e2e)', () => {
 
   // RUN-02: List run history
   it('GET /api/data-marts/:id/runs - lists run history with at least 2 entries', async () => {
-    const res = await agent
-      .get(`/api/data-marts/${dataMartId}/runs`)
-      .set(AUTH_HEADER);
+    const res = await agent.get(`/api/data-marts/${dataMartId}/runs`).set(AUTH_HEADER);
 
     expect(res.status).toBe(200);
     // Response is wrapped: { runs: [...] }

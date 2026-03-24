@@ -35,10 +35,7 @@ test.describe('Notification Settings', () => {
 
     // Click on a row (NOT the switch) to open the edit sheet.
     // Click on the first row's text content (title/name area).
-    const firstRow = page
-      .getByTestId(TESTIDS.notifSettingsTable)
-      .locator('tbody tr')
-      .first();
+    const firstRow = page.getByTestId(TESTIDS.notifSettingsTable).locator('tbody tr').first();
     // Click on a text cell, avoiding the switch
     await firstRow.locator('td').first().click();
 

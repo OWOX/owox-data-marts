@@ -328,7 +328,7 @@ export function DataMartDetails({ id }: DataMartDetailsProps) {
           >
             <ArrowLeft className='h-5 w-5' />
           </Button>
-          <div data-testid="datamartTitleInput">
+          <div data-testid='datamartTitleInput'>
             <InlineEditTitle
               title={dataMartTitle}
               onUpdate={handleTitleUpdate}
@@ -372,12 +372,12 @@ export function DataMartDetails({ id }: DataMartDetailsProps) {
                   }}
                   disabled={isPublishing || !canPublish}
                   className='relative z-10'
-                      data-testid='datamartPublishButton'
-                    >
-                      <CircleCheckBig className='h-4 w-4' />
-                      Publish Data Mart
-                    </Button>
-                  <div
+                  data-testid='datamartPublishButton'
+                >
+                  <CircleCheckBig className='h-4 w-4' />
+                  Publish Data Mart
+                </Button>
+                <div
                   className={cn(
                     'bg-brand-blue-500/15 absolute -top-1.5 -right-1.5 -bottom-1.5 -left-1.5 z-0 rounded-lg',
                     !canPublish ? '' : 'dark:bg-brand-blue-500/50 animate-pulse'
@@ -417,7 +417,7 @@ export function DataMartDetails({ id }: DataMartDetailsProps) {
                 </>
               )}
               <DropdownMenuItem
-                data-testid="datamartDeleteButton"
+                data-testid='datamartDeleteButton'
                 onClick={() => {
                   setIsDeleteDialogOpen(true);
                 }}

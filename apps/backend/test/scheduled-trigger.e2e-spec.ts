@@ -139,9 +139,7 @@ describe('Scheduled Trigger API (e2e)', () => {
 
   // TRIG-08: Invalid trigger type enum
   it('POST /api/data-marts/:dataMartId/scheduled-triggers - returns 400 for invalid type enum', async () => {
-    const payload = new ScheduledTriggerBuilder()
-      .withType('INVALID_TYPE' as any)
-      .build();
+    const payload = new ScheduledTriggerBuilder().withType('INVALID_TYPE' as any).build();
 
     const res = await agent
       .post(`/api/data-marts/${dataMartId}/scheduled-triggers`)

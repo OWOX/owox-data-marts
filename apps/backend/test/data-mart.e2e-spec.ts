@@ -1,6 +1,12 @@
 import { INestApplication } from '@nestjs/common';
 import * as supertest from 'supertest';
-import { createTestApp, closeTestApp, StorageBuilder, DataMartBuilder, AUTH_HEADER } from '@owox/test-utils';
+import {
+  createTestApp,
+  closeTestApp,
+  StorageBuilder,
+  DataMartBuilder,
+  AUTH_HEADER,
+} from '@owox/test-utils';
 
 // Tests are order-dependent: Create -> List -> Get -> Update title -> Verify -> Publish -> Verify -> Delete -> Verify -> Validation
 describe('DataMart API (e2e)', () => {
@@ -16,10 +22,7 @@ describe('DataMart API (e2e)', () => {
 
     // Create a DataStorage first -- DataMart requires a valid storageId (FK constraint)
     const storagePayload = new StorageBuilder().build();
-    const storageRes = await agent
-      .post('/api/data-storages')
-      .set(AUTH_HEADER)
-      .send(storagePayload);
+    const storageRes = await agent.post('/api/data-storages').set(AUTH_HEADER).send(storagePayload);
 
     expect(storageRes.status).toBe(201);
     storageId = storageRes.body.id;
@@ -36,10 +39,7 @@ describe('DataMart API (e2e)', () => {
       .withStorageId(storageId)
       .build();
 
-    const res = await agent
-      .post('/api/data-marts')
-      .set(AUTH_HEADER)
-      .send(payload);
+    const res = await agent.post('/api/data-marts').set(AUTH_HEADER).send(payload);
 
     expect(res.status).toBe(201);
     // Create response only returns id and title (CreateDataMartResponseApiDto)
@@ -53,9 +53,7 @@ describe('DataMart API (e2e)', () => {
 
   // API-07: List DataMarts
   it('GET /api/data-marts - lists data marts including the created one', async () => {
-    const res = await agent
-      .get('/api/data-marts')
-      .set(AUTH_HEADER);
+    const res = await agent.get('/api/data-marts').set(AUTH_HEADER);
 
     expect(res.status).toBe(200);
     expect(res.body).toMatchObject({
@@ -63,18 +61,14 @@ describe('DataMart API (e2e)', () => {
       total: expect.any(Number),
     });
 
-    const found = res.body.items.find(
-      (item: any) => item.id === createdDataMartId,
-    );
+    const found = res.body.items.find((item: any) => item.id === createdDataMartId);
     expect(found).toBeDefined();
     expect(found.status).toBe('DRAFT');
   });
 
   // API-08: Get DataMart by ID
   it('GET /api/data-marts/:id - returns the created data mart', async () => {
-    const res = await agent
-      .get(`/api/data-marts/${createdDataMartId}`)
-      .set(AUTH_HEADER);
+    const res = await agent.get(`/api/data-marts/${createdDataMartId}`).set(AUTH_HEADER);
 
     expect(res.status).toBe(200);
     expect(res.body).toMatchObject({
@@ -99,9 +93,7 @@ describe('DataMart API (e2e)', () => {
 
   // Verify title update persisted
   it('GET /api/data-marts/:id - returns updated title after update', async () => {
-    const res = await agent
-      .get(`/api/data-marts/${createdDataMartId}`)
-      .set(AUTH_HEADER);
+    const res = await agent.get(`/api/data-marts/${createdDataMartId}`).set(AUTH_HEADER);
 
     expect(res.status).toBe(200);
     expect(res.body).toMatchObject({
@@ -124,9 +116,7 @@ describe('DataMart API (e2e)', () => {
     expect(defRes.status).toBe(200);
 
     // Now publish
-    const res = await agent
-      .put(`/api/data-marts/${createdDataMartId}/publish`)
-      .set(AUTH_HEADER);
+    const res = await agent.put(`/api/data-marts/${createdDataMartId}/publish`).set(AUTH_HEADER);
 
     expect(res.status).toBe(200);
     expect(res.body).toMatchObject({
@@ -136,9 +126,7 @@ describe('DataMart API (e2e)', () => {
 
   // Verify publish persisted
   it('GET /api/data-marts/:id - returns PUBLISHED status after publish', async () => {
-    const res = await agent
-      .get(`/api/data-marts/${createdDataMartId}`)
-      .set(AUTH_HEADER);
+    const res = await agent.get(`/api/data-marts/${createdDataMartId}`).set(AUTH_HEADER);
 
     expect(res.status).toBe(200);
     expect(res.body).toMatchObject({
@@ -148,9 +136,7 @@ describe('DataMart API (e2e)', () => {
 
   // API-10: Delete DataMart
   it('DELETE /api/data-marts/:id - soft deletes the data mart', async () => {
-    const res = await agent
-      .delete(`/api/data-marts/${createdDataMartId}`)
-      .set(AUTH_HEADER);
+    const res = await agent.delete(`/api/data-marts/${createdDataMartId}`).set(AUTH_HEADER);
 
     // Delete returns 200 (void response)
     expect(res.status).toBe(200);
@@ -158,19 +144,14 @@ describe('DataMart API (e2e)', () => {
 
   // Verify delete - soft-deleted should not be found
   it('GET /api/data-marts/:id - returns 404 after deletion', async () => {
-    const res = await agent
-      .get(`/api/data-marts/${createdDataMartId}`)
-      .set(AUTH_HEADER);
+    const res = await agent.get(`/api/data-marts/${createdDataMartId}`).set(AUTH_HEADER);
 
     expect(res.status).toBe(404);
   });
 
   // API-13: Validation - missing all fields
   it('POST /api/data-marts - returns 400 for missing required fields', async () => {
-    const res = await agent
-      .post('/api/data-marts')
-      .set(AUTH_HEADER)
-      .send({});
+    const res = await agent.post('/api/data-marts').set(AUTH_HEADER).send({});
 
     expect(res.status).toBe(400);
     expect(res.body).toMatchObject({
@@ -180,20 +161,14 @@ describe('DataMart API (e2e)', () => {
 
   // API-13: Validation - missing storageId
   it('POST /api/data-marts - returns 400 for missing storageId', async () => {
-    const res = await agent
-      .post('/api/data-marts')
-      .set(AUTH_HEADER)
-      .send({ title: 'No Storage' });
+    const res = await agent.post('/api/data-marts').set(AUTH_HEADER).send({ title: 'No Storage' });
 
     expect(res.status).toBe(400);
   });
 
   // API-13: Validation - empty title
   it('POST /api/data-marts - returns 400 for empty title', async () => {
-    const res = await agent
-      .post('/api/data-marts')
-      .set(AUTH_HEADER)
-      .send({ title: '', storageId });
+    const res = await agent.post('/api/data-marts').set(AUTH_HEADER).send({ title: '', storageId });
 
     expect(res.status).toBe(400);
   });

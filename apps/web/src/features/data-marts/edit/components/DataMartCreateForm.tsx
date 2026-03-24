@@ -102,7 +102,7 @@ export function DataMartCreateForm({ initialData, onSuccess }: DataMartFormProps
     <>
       <Form {...form}>
         <AppForm
-          data-testid="datamartCreateForm"
+          data-testid='datamartCreateForm'
           onSubmit={e => {
             void form.handleSubmit(onSubmit)(e);
           }}

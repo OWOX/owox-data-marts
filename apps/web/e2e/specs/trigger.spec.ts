@@ -5,19 +5,14 @@ import { TESTIDS } from '../selectors/testids';
 // TRIG-01: Empty state renders on Triggers tab when no triggers exist.
 // ---------------------------------------------------------------------------
 test.describe('Triggers - Empty State', () => {
-  test('shows empty state when no triggers exist (TRIG-01)', async ({
-    page,
-    apiHelpers,
-  }) => {
+  test('shows empty state when no triggers exist (TRIG-01)', async ({ page, apiHelpers }) => {
     const { datamart } = await apiHelpers.createPublishedConnectorDataMart();
     await page.goto(`/ui/0/data-marts/${datamart.id}/triggers`);
     await expect(page.getByTestId(TESTIDS.triggerTab)).toBeVisible();
 
     // ScheduledTriggerTable renders empty state with triggerEmptyState testid
     await expect(page.getByTestId(TESTIDS.triggerEmptyState)).toBeVisible();
-    await expect(
-      page.getByText('No scheduled triggers yet'),
-    ).toBeVisible();
+    await expect(page.getByText('No scheduled triggers yet')).toBeVisible();
   });
 });
 
@@ -28,15 +23,11 @@ test.describe('Triggers - CONNECTOR_RUN Type', () => {
   let datamartId: string;
 
   test.beforeEach(async ({ apiHelpers }) => {
-    const { datamart } =
-      await apiHelpers.createPublishedConnectorDataMart();
+    const { datamart } = await apiHelpers.createPublishedConnectorDataMart();
     datamartId = datamart.id;
   });
 
-  test('creates CONNECTOR_RUN trigger via UI (TRIG-02)', async ({
-    page,
-    radix,
-  }) => {
+  test('creates CONNECTOR_RUN trigger via UI (TRIG-02)', async ({ page, radix }) => {
     await page.goto(`/ui/0/data-marts/${datamartId}/triggers`);
     await expect(page.getByTestId(TESTIDS.triggerTab)).toBeVisible();
 
@@ -48,10 +39,7 @@ test.describe('Triggers - CONNECTOR_RUN Type', () => {
     await expect(sheet).toBeVisible();
 
     // Select trigger type: Connector Run (first combobox in the form is Trigger Type)
-    await radix.selectOption(
-      sheet.getByRole('combobox').first(),
-      'Connector Run',
-    );
+    await radix.selectOption(sheet.getByRole('combobox').first(), 'Connector Run');
 
     // Schedule is pre-configured with defaults (daily at 09:00)
     // Create trigger button should be enabled after type selection (form is dirty)
@@ -68,10 +56,7 @@ test.describe('Triggers - CONNECTOR_RUN Type', () => {
     await expect(table.getByText('Connector Run')).toBeVisible();
   });
 
-  test('shows trigger in list with schedule info (TRIG-03)', async ({
-    page,
-    apiHelpers,
-  }) => {
+  test('shows trigger in list with schedule info (TRIG-03)', async ({ page, apiHelpers }) => {
     // Create trigger via API
     await apiHelpers.createTrigger(datamartId);
 
@@ -86,11 +71,7 @@ test.describe('Triggers - CONNECTOR_RUN Type', () => {
     await expect(table.locator('tbody tr').first()).toBeVisible();
   });
 
-  test('edits trigger schedule (TRIG-04)', async ({
-    page,
-    apiHelpers,
-    radix,
-  }) => {
+  test('edits trigger schedule (TRIG-04)', async ({ page, apiHelpers, radix }) => {
     // Create trigger via API
     await apiHelpers.createTrigger(datamartId);
 
@@ -122,11 +103,7 @@ test.describe('Triggers - CONNECTOR_RUN Type', () => {
     await expect(sheet).not.toBeVisible({ timeout: 10000 });
   });
 
-  test('deletes trigger with confirmation (TRIG-05)', async ({
-    page,
-    apiHelpers,
-    radix,
-  }) => {
+  test('deletes trigger with confirmation (TRIG-05)', async ({ page, apiHelpers, radix }) => {
     // Create trigger via API
     await apiHelpers.createTrigger(datamartId);
 
@@ -166,8 +143,7 @@ test.describe('Triggers - REPORT_RUN Type', () => {
   let datamartId: string;
 
   test.beforeEach(async ({ page, apiHelpers }) => {
-    const { datamart } =
-      await apiHelpers.createPublishedConnectorDataMart();
+    const { datamart } = await apiHelpers.createPublishedConnectorDataMart();
     datamartId = datamart.id;
 
     // Create EMAIL destination via API (CLOUD_ONLY in UI but API allows it)
@@ -191,10 +167,7 @@ test.describe('Triggers - REPORT_RUN Type', () => {
     expect(reportRes.ok()).toBeTruthy();
   });
 
-  test('creates REPORT_RUN trigger with report selection (TRIG-02)', async ({
-    page,
-    radix,
-  }) => {
+  test('creates REPORT_RUN trigger with report selection (TRIG-02)', async ({ page, radix }) => {
     await page.goto(`/ui/0/data-marts/${datamartId}/triggers`);
     await expect(page.getByTestId(TESTIDS.triggerTab)).toBeVisible();
 
@@ -206,10 +179,7 @@ test.describe('Triggers - REPORT_RUN Type', () => {
     await expect(sheet).toBeVisible();
 
     // Select trigger type: Report Run (first combobox is Trigger Type)
-    await radix.selectOption(
-      sheet.getByRole('combobox').first(),
-      'Report Run',
-    );
+    await radix.selectOption(sheet.getByRole('combobox').first(), 'Report Run');
 
     // Report selector should now be visible as the second combobox
     // Wait for report list to load, then select the report
@@ -240,8 +210,7 @@ test.describe('Triggers - Toggle Enabled/Disabled', () => {
     page,
     apiHelpers,
   }) => {
-    const { datamart } =
-      await apiHelpers.createPublishedConnectorDataMart();
+    const { datamart } = await apiHelpers.createPublishedConnectorDataMart();
     const datamartId = datamart.id;
 
     // Create trigger via API (starts enabled by default)
@@ -297,9 +266,9 @@ test.describe('Triggers - Toggle Enabled/Disabled', () => {
     // Verify trigger still shows "Disabled" (persistence verification)
     const tableAfterReload = page.getByTestId(TESTIDS.triggerTable);
     await expect(tableAfterReload).toBeVisible();
-    await expect(
-      tableAfterReload.getByText('Disabled', { exact: true }),
-    ).toBeVisible({ timeout: 5000 });
+    await expect(tableAfterReload.getByText('Disabled', { exact: true })).toBeVisible({
+      timeout: 5000,
+    });
   });
 });
 
@@ -316,8 +285,7 @@ test.describe('Triggers - Validation', () => {
     apiHelpers,
     radix,
   }) => {
-    const { datamart } =
-      await apiHelpers.createPublishedConnectorDataMart();
+    const { datamart } = await apiHelpers.createPublishedConnectorDataMart();
 
     await page.goto(`/ui/0/data-marts/${datamart.id}/triggers`);
     await expect(page.getByTestId(TESTIDS.triggerTab)).toBeVisible();
@@ -329,10 +297,7 @@ test.describe('Triggers - Validation', () => {
     await expect(sheet).toBeVisible();
 
     // Select trigger type: Report Run (requires report selection)
-    await radix.selectOption(
-      sheet.getByRole('combobox').first(),
-      'Report Run',
-    );
+    await radix.selectOption(sheet.getByRole('combobox').first(), 'Report Run');
 
     // The Create trigger button is enabled (form is dirty after type selection)
     // but submitting without a report should show validation error
@@ -342,9 +307,7 @@ test.describe('Triggers - Validation', () => {
 
     // Verify the form shows a validation error for missing report
     // FormMessage renders with data-slot="form-message" (Phase 9 pattern)
-    await expect(
-      sheet.locator('[data-slot="form-message"]'),
-    ).toBeVisible({ timeout: 5000 });
+    await expect(sheet.locator('[data-slot="form-message"]')).toBeVisible({ timeout: 5000 });
 
     // Cancel to dismiss
     const cancelButton = sheet.getByRole('button', { name: 'Cancel' });
