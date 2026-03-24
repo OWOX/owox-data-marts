@@ -1,5 +1,62 @@
 # owox
 
+## 0.22.0
+
+### Minor Changes
+
+- 85abd92: # Add trigger-based execution for connector and report runs
+
+  Connector and report runs are now processed through a task queue instead of running immediately in the background. This improves reliability by ensuring runs are not lost if the server restarts, and adds per-project concurrency limits to prevent overloading. Runs that cannot start due to concurrency limits are automatically retried. Includes a safety mechanism to detect and fail runs that were stuck waiting in the queue for too long.
+
+- 9395757: # Improve auth screen conversion with product-focused brand panel
+
+  Redesigned the auth screen to better communicate product value and reduce friction during sign-in or sign-up.
+
+  **Brand panel changes:**
+  - Replaced placeholder with **carousel of product use cases**
+  - Added headline: **“Build once. Share anywhere.”**
+  - 3 scenarios: Google Sheets, Looker Studio, Email delivery
+
+  **Messaging changes:**
+  - Shifted to **outcome-driven copy**
+  - Added short supporting text per slide
+
+  **Product preview changes:**
+  - Introduced visual workflows directly on auth screen
+
+  **Carousel changes:**
+  - Auto-rotation with lightweight JS
+  - Lazy-loaded images
+
+  **Why this matters:**
+  - Improves clarity before login
+  - Reduces friction for new users
+  - Reinforces product value with real scenarios
+
+- ae03152: # Fix undefined data mart title in delete confirmation dialog
+
+  The delete confirmation dialog was referencing an undefined variable `dataMartTitle`. Replaced it with `row.original.title` so the actual data mart name is displayed in the dialog message.
+
+- 2399254: # Alphabetically Sorted Storage Selector in Data Mart Form
+
+  The storage picker in the Create Data Mart form has been upgraded from a plain dropdown to a searchable combobox.
+  - Storages are now listed in **alphabetical order** by title, making it easier to locate the right one at a glance.
+  - A **typeahead search** lets you filter the list by typing, which is especially useful when many storages exist.
+  - The **Create new storage** option remains accessible at the bottom of the list.
+
+- 62f435a: # Auto-subscribe new project members to notification settings
+
+  New team members with Admin or Editor roles are now automatically subscribed to existing notification settings when they join a project. Members who leave and rejoin a project are also re-subscribed automatically. If a member manually unsubscribes from notifications, their choice is respected and they will not be re-added. Members whose role is downgraded to Viewer are automatically removed from the receivers list.
+
+### Patch Changes
+
+- @owox/internal-helpers@0.22.0
+- @owox/idp-protocol@0.22.0
+- @owox/idp-better-auth@0.22.0
+- @owox/idp-owox-better-auth@0.22.0
+- @owox/backend@0.22.0
+- @owox/web@0.22.0
+
 ## 0.21.1
 
 ### Patch Changes 0.21.1
@@ -1324,7 +1381,6 @@
   We're excited to introduce **Time Triggers** - a powerful new feature that allows you to schedule your reports and connectors to run automatically at specified times!
 
   ## Benefits
-
   - ✅ **Save Time**: Automate routine data refreshes without manual intervention
   - 🔄 **Stay Updated**: Keep your data fresh with regular scheduled updates
   - 📊 **Consistent Reporting**: Ensure your reports are generated on a reliable schedule
@@ -1332,7 +1388,6 @@
   - 🔧 **Flexible Scheduling Options**: Choose from daily, weekly, monthly, or interval-based schedules
 
   ## Scheduling Options
-
   - **Daily**: Run your reports or connectors at the same time every day
   - **Weekly**: Select specific days of the week for execution
   - **Monthly**: Schedule runs on specific days of the month
