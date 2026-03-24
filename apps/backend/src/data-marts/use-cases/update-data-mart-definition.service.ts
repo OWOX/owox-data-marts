@@ -45,6 +45,9 @@ export class UpdateDataMartDefinitionService {
     dataMart.definitionType = command.definitionType;
 
     if (command.definitionType === DataMartDefinitionType.CONNECTOR && command.definition) {
+      const connectorDefinition = command.definition as ConnectorDefinition;
+      let mergedDefinition: ConnectorDefinition;
+
       if (command.sourceDataMartId) {
         const sourceDataMart = await this.dataMartService.getByIdAndProjectId(
           command.sourceDataMartId,
@@ -60,8 +63,8 @@ export class UpdateDataMartDefinitionService {
           );
         }
 
-        let mergedDefinition = await this.connectorSecretService.mergeDefinitionSecretsFromSource(
-          command.definition as ConnectorDefinition,
+        mergedDefinition = await this.connectorSecretService.mergeDefinitionSecretsFromSource(
+          connectorDefinition,
           sourceDataMart.definition as ConnectorDefinition
         );
 
@@ -69,14 +72,20 @@ export class UpdateDataMartDefinitionService {
           mergedDefinition,
           dataMart.definition as ConnectorDefinition | undefined
         );
-
-        dataMart.definition = mergedDefinition;
       } else {
-        dataMart.definition = await this.connectorSecretService.mergeDefinitionSecrets(
-          command.definition as ConnectorDefinition,
+        mergedDefinition = await this.connectorSecretService.mergeDefinitionSecrets(
+          connectorDefinition,
           dataMart.definition as ConnectorDefinition | undefined
         );
       }
+
+      // Extract non-OAuth secrets and save them to a separate table
+      dataMart.definition = await this.connectorSecretService.extractAndSaveSecrets(
+        dataMart.id,
+        command.projectId,
+        connectorDefinition.connector.source.name,
+        mergedDefinition
+      );
     } else {
       dataMart.definition = command.definition;
     }

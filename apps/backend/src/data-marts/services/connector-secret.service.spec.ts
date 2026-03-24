@@ -1,6 +1,7 @@
-import type { ConnectorDefinition } from '../dto/schemas/data-mart-table-definitions/connector-definition.schema';
+import { ConnectorDefinition } from '../dto/schemas/data-mart-table-definitions/connector-definition.schema';
 import { ConnectorService } from './connector.service';
 import { ConnectorSecretService, SECRET_MASK } from './connector-secret.service';
+import { ConnectorSourceCredentialsService } from './connector-source-credentials.service';
 
 describe('ConnectorSecretService', () => {
   const createService = (
@@ -31,8 +32,14 @@ describe('ConnectorSecretService', () => {
       getConnectorSpecification: jest.fn().mockResolvedValue([...baseFields, ...fieldsWithOneOf]),
     } as unknown as ConnectorService;
 
-    const service = new ConnectorSecretService(specService);
-    return { service, specService };
+    const credentialsService = {
+      getCredentialsById: jest.fn().mockResolvedValue(null),
+      createSecretsForConfig: jest.fn().mockResolvedValue({ id: 'mock-secrets-id' }),
+      updateSecretsForConfig: jest.fn().mockResolvedValue({}),
+    } as unknown as ConnectorSourceCredentialsService;
+
+    const service = new ConnectorSecretService(specService, credentialsService);
+    return { service, specService, credentialsService };
   };
 
   const makeDefinition = (configItems: Array<Record<string, unknown>>): ConnectorDefinition => {

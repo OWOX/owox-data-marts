@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { randomUUID } from 'crypto';
 import { ConnectorDefinition } from '../dto/schemas/data-mart-table-definitions/connector-definition.schema';
 import { ConnectorService } from './connector.service';
+import { ConnectorSourceCredentialsService } from './connector-source-credentials.service';
 // @ts-expect-error - Package lacks TypeScript declarations
 import { Core } from '@owox/connectors';
 
@@ -14,10 +15,14 @@ export const SECRET_MASK = '**********' as const;
  * The source of truth for which fields are secret is the connector specification
  * (attribute `SECRET`). Based on it, the service:
  * - masks secret fields in persisted definitions before returning them to clients;
- * - merges secret fields during updates to avoid overwriting stored values with placeholders.
+ * - merges secret fields during updates to avoid overwriting stored values with placeholders;
+ * - extracts and saves non-OAuth secrets to a separate table for security.
  */
 export class ConnectorSecretService {
-  constructor(private readonly connectorService: ConnectorService) {}
+  constructor(
+    private readonly connectorService: ConnectorService,
+    private readonly connectorSourceCredentialsService: ConnectorSourceCredentialsService
+  ) {}
 
   /**
    * Checks whether a value is a secret mask.
@@ -70,6 +75,257 @@ export class ConnectorSecretService {
   }
 
   /**
+   * Collects all secret field names from connector specification (including nested oneOf items).
+   * Returns field names without path - used for masking.
+   *
+   * @param connectorName Connector name
+   * @returns Set of all secret field names
+   */
+  private async getAllSecretFieldNamesIncludingNested(connectorName: string): Promise<Set<string>> {
+    const specification = await this.connectorService.getConnectorSpecification(connectorName);
+    const secretFields = new Set<string>();
+
+    const collectSecretFields = (fields: unknown[]): void => {
+      for (const field of fields as Array<{
+        name: string;
+        attributes?: string[];
+        oneOf?: unknown;
+      }>) {
+        const attributes = field.attributes || [];
+        if (attributes.includes(Core.CONFIG_ATTRIBUTES.SECRET)) {
+          secretFields.add(field.name);
+        }
+
+        if (field.oneOf && Array.isArray(field.oneOf)) {
+          for (const oneOfOption of field.oneOf) {
+            if (oneOfOption.items) {
+              const nestedFields = Object.values(oneOfOption.items);
+              collectSecretFields(
+                nestedFields as Array<{ name: string; attributes?: string[]; oneOf?: unknown }>
+              );
+            }
+          }
+        }
+      }
+    };
+
+    collectSecretFields(specification);
+    return secretFields;
+  }
+
+  /**
+   * Recursively extracts secret values from a configuration object.
+   * Returns secrets with their full path (e.g., "AuthType.oauth2.RefreshToken")
+   *
+   * @param obj Object to extract secrets from
+   * @param secretFieldNames Set of secret field names to look for
+   * @param path Current path prefix
+   * @returns Object with path -> value pairs for found secrets
+   */
+  private extractSecretsRecursively(
+    obj: Record<string, unknown>,
+    secretFieldNames: Set<string>,
+    path: string = ''
+  ): Record<string, unknown> {
+    const secrets: Record<string, unknown> = {};
+
+    for (const [key, value] of Object.entries(obj)) {
+      // Skip internal fields
+      if (key.startsWith('_')) {
+        continue;
+      }
+
+      const currentPath = path ? `${path}.${key}` : key;
+
+      if (secretFieldNames.has(key)) {
+        // Found a secret field
+        if (value !== undefined && value !== null && !this.isSecretMask(value)) {
+          secrets[currentPath] = value;
+        }
+      } else if (value && typeof value === 'object' && !Array.isArray(value)) {
+        // Recurse into nested objects
+        const nestedSecrets = this.extractSecretsRecursively(
+          value as Record<string, unknown>,
+          secretFieldNames,
+          currentPath
+        );
+        Object.assign(secrets, nestedSecrets);
+      }
+    }
+
+    return secrets;
+  }
+
+  /**
+   * Removes secret values from a configuration object (recursively).
+   *
+   * @param obj Object to remove secrets from (mutates in place)
+   * @param secretFieldNames Set of secret field names to remove
+   */
+  private removeSecretsRecursively(
+    obj: Record<string, unknown>,
+    secretFieldNames: Set<string>
+  ): void {
+    for (const [key, value] of Object.entries(obj)) {
+      if (key.startsWith('_')) {
+        continue;
+      }
+
+      if (secretFieldNames.has(key)) {
+        delete obj[key];
+      } else if (value && typeof value === 'object' && !Array.isArray(value)) {
+        this.removeSecretsRecursively(value as Record<string, unknown>, secretFieldNames);
+      }
+    }
+  }
+
+  /**
+   * Checks if object has _source_credential_id anywhere (recursively).
+   * This indicates OAuth flow is used and secrets are already externalized.
+   */
+  private hasSourceCredentialIdRecursively(obj: Record<string, unknown>): boolean {
+    for (const [key, value] of Object.entries(obj)) {
+      if (key === '_source_credential_id') {
+        return true;
+      }
+      if (value && typeof value === 'object' && !Array.isArray(value)) {
+        if (this.hasSourceCredentialIdRecursively(value as Record<string, unknown>)) {
+          return true;
+        }
+      }
+    }
+    return false;
+  }
+
+  /**
+   * Injects secrets back into a configuration object at their original paths.
+   *
+   * @param obj Object to inject secrets into (mutates in place)
+   * @param secrets Object with path -> value pairs
+   */
+  private injectSecretsAtPaths(
+    obj: Record<string, unknown>,
+    secrets: Record<string, unknown>
+  ): void {
+    for (const [path, value] of Object.entries(secrets)) {
+      const parts = path.split('.');
+      let current = obj;
+
+      // Navigate to the parent object
+      for (let i = 0; i < parts.length - 1; i++) {
+        const part = parts[i];
+        if (!current[part] || typeof current[part] !== 'object') {
+          current[part] = {};
+        }
+        current = current[part] as Record<string, unknown>;
+      }
+
+      // Set the value
+      const lastPart = parts[parts.length - 1];
+      current[lastPart] = value;
+    }
+  }
+
+  /**
+   * Extracts secrets from configuration and saves them to a separate table.
+   * Handles nested structures like AuthType.oauth2.{secrets}.
+   * Updates the definition to reference the stored secrets via _secrets_id.
+   *
+   * This method:
+   * 1. Gets all SECRET field names from connector specification (including nested)
+   * 2. For each configuration item:
+   *    - Recursively extracts secret values with their paths
+   *    - If it has _secrets_id, updates the existing secrets record
+   *    - If it has secrets but no _secrets_id, creates a new record
+   *    - Removes secret values from the configuration (recursively)
+   *    - Adds _secrets_id reference to the stored secrets
+   *
+   * @param dataMartId DataMart ID
+   * @param projectId Project ID
+   * @param connectorName Connector name
+   * @param definition Connector definition with merged secrets
+   * @param userId Optional user ID
+   * @returns Definition with secrets extracted and _secrets_id references added
+   */
+  async extractAndSaveSecrets(
+    dataMartId: string,
+    projectId: string,
+    connectorName: string,
+    definition: ConnectorDefinition,
+    userId?: string
+  ): Promise<ConnectorDefinition> {
+    const secretFieldNames = await this.getAllSecretFieldNamesIncludingNested(connectorName);
+
+    // If no secrets in spec, return definition as-is
+    if (secretFieldNames.size === 0) {
+      return definition;
+    }
+
+    const processedConfiguration = await Promise.all(
+      definition.connector.source.configuration.map(async item => {
+        const configItem = JSON.parse(JSON.stringify(item)) as Record<string, unknown>;
+        const configId = configItem._id as string;
+
+        if (!configId) {
+          return configItem;
+        }
+
+        // Skip items that use OAuth flow (they have _source_credential_id anywhere)
+        // OAuth secrets are managed separately
+        if (this.hasSourceCredentialIdRecursively(configItem)) {
+          return configItem;
+        }
+
+        // Recursively extract secret values with their paths
+        const secrets = this.extractSecretsRecursively(configItem, secretFieldNames);
+
+        // If no secrets found, return as-is
+        if (Object.keys(secrets).length === 0) {
+          return configItem;
+        }
+
+        const existingSecretsId = configItem._secrets_id as string | undefined;
+
+        if (existingSecretsId) {
+          // Update existing secrets record
+          await this.connectorSourceCredentialsService.updateSecretsForConfig(
+            existingSecretsId,
+            secrets
+          );
+        } else {
+          // Create new secrets record
+          const credentialsEntity =
+            await this.connectorSourceCredentialsService.createSecretsForConfig(
+              projectId,
+              connectorName,
+              dataMartId,
+              configId,
+              secrets,
+              userId
+            );
+          configItem._secrets_id = credentialsEntity.id;
+        }
+
+        // Remove secret values from configuration (recursively)
+        this.removeSecretsRecursively(configItem, secretFieldNames);
+
+        return configItem;
+      })
+    );
+
+    return {
+      ...definition,
+      connector: {
+        ...definition.connector,
+        source: {
+          ...definition.connector.source,
+          configuration: processedConfiguration,
+        },
+      },
+    } as ConnectorDefinition;
+  }
+
+  /**
    * Recursively masks secret fields in an object, including nested oneOf fields.
    *
    * @param item Item to mask
@@ -88,27 +344,33 @@ export class ConnectorSecretService {
     const maskedItem = { ...(item as Record<string, unknown>) };
 
     // If this item has _source_credential_id, don't mask OAuth-related fields
-    // because the actual secrets are stored separately in ConnectorSourceSecrets
+    // because the actual secrets are stored separately in ConnectorSourceCredentials
     const hasOAuthSecrets = maskedItem._source_credential_id !== undefined;
 
+    // If this item has _secrets_id, secrets are already externalized
+    // No need to mask - they're not in the definition
+    const hasExternalizedSecrets = maskedItem._secrets_id !== undefined;
+
     for (const [key, value] of Object.entries(maskedItem)) {
-      // Skip masking if:
-      // 1. This is the _source_credential_id field itself (always keep it)
-      // 2. This config uses OAuth and this is a secret field (OAuth fields are stored separately)
-      if (key === '_source_credential_id') {
-        // Keep _source_credential_id as is
+      // Skip masking if this is the credential reference field itself
+      if (key === '_source_credential_id' || key === '_secrets_id') {
+        // Keep credential references as-is
         continue;
       }
 
       if (secretFieldNames.has(key)) {
         if (hasOAuthSecrets) {
-          // Don't mask OAuth-managed secrets - they're stored separately
-          // Set to undefined to indicate they're managed by OAuth
-          maskedItem[key] = undefined;
-        } else {
-          // Mask regular secrets
+          // OAuth secrets are stored separately, show mask to indicate value exists
+          maskedItem[key] = SECRET_MASK;
+        } else if (hasExternalizedSecrets) {
+          // Secrets are externalized via _secrets_id
+          // Show mask to indicate value exists in credentials table
+          maskedItem[key] = SECRET_MASK;
+        } else if (value !== undefined && value !== null && value !== '') {
+          // Mask regular inline secrets that have values
           maskedItem[key] = SECRET_MASK;
         }
+        // If value is empty/undefined and not externalized, leave it as-is
       } else if (value && typeof value === 'object') {
         maskedItem[key] = this.maskRecursively(value, secretFieldNames);
       }
@@ -193,8 +455,28 @@ export class ConnectorSecretService {
       return definition;
     }
 
-    const maskedConfiguration = definition.connector.source.configuration.map(item =>
-      this.maskRecursively(item, secretFieldNames)
+    const maskedConfiguration = await Promise.all(
+      definition.connector.source.configuration.map(async item => {
+        const configItem = item as Record<string, unknown>;
+        let maskedItem = this.maskRecursively(configItem, secretFieldNames) as Record<
+          string,
+          unknown
+        >;
+
+        // If secrets are externalized, inject masks for fields that exist in credentials
+        const secretsId = configItem._secrets_id as string | undefined;
+        if (secretsId) {
+          const secretsEntity =
+            await this.connectorSourceCredentialsService.getCredentialsById(secretsId);
+          if (secretsEntity?.credentials) {
+            // Inject masks for each secret field path that exists in credentials
+            maskedItem = JSON.parse(JSON.stringify(maskedItem)) as Record<string, unknown>;
+            this.injectMasksAtPaths(maskedItem, secretsEntity.credentials);
+          }
+        }
+
+        return maskedItem;
+      })
     );
 
     return {
@@ -207,6 +489,33 @@ export class ConnectorSecretService {
         },
       },
     } as ConnectorDefinition;
+  }
+
+  /**
+   * Injects SECRET_MASK values at the paths specified by the secrets object.
+   * Used to show masked values in UI for externalized secrets.
+   *
+   * @param obj Object to inject masks into (mutates in place)
+   * @param secrets Object with path -> value pairs from credentials table
+   */
+  private injectMasksAtPaths(obj: Record<string, unknown>, secrets: Record<string, unknown>): void {
+    for (const path of Object.keys(secrets)) {
+      const parts = path.split('.');
+
+      // Navigate to the parent object, creating intermediate objects if needed
+      let current = obj;
+      for (let i = 0; i < parts.length - 1; i++) {
+        const part = parts[i];
+        if (!current[part] || typeof current[part] !== 'object') {
+          current[part] = {};
+        }
+        current = current[part] as Record<string, unknown>;
+      }
+
+      // Set the masked value at the final key
+      const lastPart = parts[parts.length - 1];
+      current[lastPart] = SECRET_MASK;
+    }
   }
 
   /**
@@ -224,6 +533,9 @@ export class ConnectorSecretService {
    *
    * If there are no secret fields in the specification — returns the incoming definition as is.
    *
+   * If previous item has `_secrets_id`, loads secrets from the credentials table
+   * and merges them with incoming values. The `_secrets_id` is preserved in the result.
+   *
    * @param incoming New definition coming from the client
    * @param previous Previously stored definition used as a source of truth for secrets
    * @returns Definition with correctly merged secret values
@@ -235,26 +547,46 @@ export class ConnectorSecretService {
     const secretFieldNames = await this.getAllSecretFieldNames(incoming.connector.source.name);
     const previousConfiguration = previous?.connector?.source?.configuration || [];
 
-    const mergedConfiguration = incoming.connector.source.configuration.map(item => {
-      const incomingItem = (item || {}) as Record<string, unknown>;
+    const mergedConfiguration = await Promise.all(
+      incoming.connector.source.configuration.map(async item => {
+        const incomingItem = (item || {}) as Record<string, unknown>;
 
-      const itemId = incomingItem._id;
-      if (typeof itemId !== 'string' || itemId.length === 0) {
-        incomingItem._id = randomUUID();
-        return incomingItem;
-      }
+        const itemId = incomingItem._id;
+        if (typeof itemId !== 'string' || itemId.length === 0) {
+          incomingItem._id = randomUUID();
+          return incomingItem;
+        }
 
-      const previousItem = previousConfiguration.find(prevItem => {
-        const prevObj = (prevItem || {}) as Record<string, unknown>;
-        return typeof prevObj._id === 'string' && prevObj._id === itemId;
-      }) as Record<string, unknown> | undefined;
+        const previousItem = previousConfiguration.find(prevItem => {
+          const prevObj = (prevItem || {}) as Record<string, unknown>;
+          return typeof prevObj._id === 'string' && prevObj._id === itemId;
+        }) as Record<string, unknown> | undefined;
 
-      if (!previousItem) {
-        return incomingItem;
-      }
+        if (!previousItem) {
+          return incomingItem;
+        }
 
-      return this.mergeSecretsRecursively(incomingItem, previousItem, secretFieldNames);
-    });
+        // If previous item has externalized secrets, load them for merging
+        let previousWithSecrets = previousItem;
+        const secretsId = previousItem._secrets_id as string | undefined;
+        if (secretsId) {
+          const secretsEntity =
+            await this.connectorSourceCredentialsService.getCredentialsById(secretsId);
+          if (secretsEntity) {
+            // Clone previous item and inject secrets at their original paths
+            previousWithSecrets = JSON.parse(JSON.stringify(previousItem)) as Record<
+              string,
+              unknown
+            >;
+            this.injectSecretsAtPaths(previousWithSecrets, secretsEntity.credentials);
+          }
+          // Preserve the _secrets_id reference
+          incomingItem._secrets_id = secretsId;
+        }
+
+        return this.mergeSecretsRecursively(incomingItem, previousWithSecrets, secretFieldNames);
+      })
+    );
 
     return {
       ...incoming,

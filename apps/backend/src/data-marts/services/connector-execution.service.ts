@@ -678,7 +678,6 @@ export class ConnectorExecutionService {
     });
   }
 
-  //TODO
   private async getSourceConfig(
     dataMartId: string,
     projectId: string,
@@ -692,8 +691,12 @@ export class ConnectorExecutionService {
 
     const state = await this.connectorStateService.getState(dataMartId, configId);
 
+    // First inject externalized secrets (non-OAuth secrets stored in connector_source_credentials)
+    const configWithSecrets = await this.injectSecrets(config, projectId);
+
+    // Then inject OAuth credentials
     const configWithCredentials = await this.injectOAuthCredentials(
-      config,
+      configWithSecrets,
       connector.source.name,
       projectId
     );
@@ -1057,6 +1060,92 @@ export class ConnectorExecutionService {
           }
         );
       }
+    }
+  }
+
+  /**
+   * Inject externalized secrets into configuration if _secrets_id is present.
+   * Secrets are stored with their full paths (e.g., "AuthType.oauth2.RefreshToken")
+   * and need to be injected at the correct nested location.
+   *
+   * @param config - Configuration object that may contain _secrets_id
+   * @param projectId - Project ID for credential validation
+   * @returns Configuration with secrets injected at their original paths
+   */
+  private async injectSecrets(
+    config: Record<string, unknown>,
+    projectId: string
+  ): Promise<Record<string, unknown>> {
+    const secretsId = config._secrets_id as string | undefined;
+
+    if (!secretsId) {
+      // No externalized secrets, return config as-is (backward compatibility)
+      return config;
+    }
+
+    try {
+      const secretsEntity =
+        await this.connectorSourceCredentialsService.getCredentialsById(secretsId);
+
+      if (!secretsEntity) {
+        this.logger.warn(
+          `Secrets not found for ID: ${secretsId}. Using config without externalized secrets.`
+        );
+        return config;
+      }
+
+      if (secretsEntity.projectId !== projectId) {
+        this.logger.warn(
+          `Secrets ${secretsId} belong to project ${secretsEntity.projectId}, not ${projectId}. Skipping injection.`
+        );
+        return config;
+      }
+
+      // Remove _secrets_id and inject actual secret values at their paths
+      const { _secrets_id: _, ...restConfig } = config;
+      const result = JSON.parse(JSON.stringify(restConfig)) as Record<string, unknown>;
+
+      // Inject secrets at their original paths
+      this.injectSecretsAtPaths(result, secretsEntity.credentials);
+
+      return result;
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      this.logger.error(
+        `Failed to inject secrets for ID: ${secretsId}: ${errorMessage}`,
+        error instanceof Error ? error.stack : undefined
+      );
+      return config;
+    }
+  }
+
+  /**
+   * Injects secrets back into a configuration object at their original paths.
+   * Secrets are stored with path keys like "AuthType.oauth2.RefreshToken".
+   *
+   * @param obj Object to inject secrets into (mutates in place)
+   * @param secrets Object with path -> value pairs
+   */
+  private injectSecretsAtPaths(
+    obj: Record<string, unknown>,
+    secrets: Record<string, unknown>
+  ): void {
+    for (const [path, value] of Object.entries(secrets)) {
+      const parts = path.split('.');
+
+      // Navigate to the parent object, creating intermediate objects if needed
+      let current = obj;
+      for (let i = 0; i < parts.length - 1; i++) {
+        const part = parts[i];
+        if (!current[part] || typeof current[part] !== 'object') {
+          current[part] = {};
+        }
+        current = current[part] as Record<string, unknown>;
+      }
+
+      // Set the value at the final key
+      const lastPart = parts[parts.length - 1];
+      current[lastPart] = value;
     }
   }
 

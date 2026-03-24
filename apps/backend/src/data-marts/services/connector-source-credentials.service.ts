@@ -139,4 +139,90 @@ export class ConnectorSourceCredentialsService {
       .andWhere('credentials.deletedAt IS NULL')
       .getMany();
   }
+
+  /**
+   * Create secrets record for a specific DataMart configuration
+   * Used for non-OAuth secrets that are extracted from DataMart definition
+   * @param projectId - Project ID
+   * @param connectorName - Connector name
+   * @param dataMartId - DataMart ID
+   * @param configId - Configuration item _id from definition
+   * @param secrets - Secret field values
+   * @param userId - Optional user ID
+   * @returns Created ConnectorSourceCredentials entity
+   */
+  async createSecretsForConfig(
+    projectId: string,
+    connectorName: string,
+    dataMartId: string,
+    configId: string,
+    secrets: Record<string, unknown>,
+    userId?: string
+  ): Promise<ConnectorSourceCredentials> {
+    const entity = this.connectorSourceCredentialsRepository.create({
+      projectId,
+      connectorName,
+      dataMartId,
+      configId,
+      credentials: secrets,
+      userId,
+    });
+
+    return await this.connectorSourceCredentialsRepository.save(entity);
+  }
+
+  /**
+   * Get secrets by DataMart ID and configuration ID
+   * @param dataMartId - DataMart ID
+   * @param configId - Configuration item _id
+   * @returns ConnectorSourceCredentials entity or null
+   */
+  async getSecretsByDataMartAndConfig(
+    dataMartId: string,
+    configId: string
+  ): Promise<ConnectorSourceCredentials | null> {
+    return await this.connectorSourceCredentialsRepository.findOne({
+      where: { dataMartId, configId },
+    });
+  }
+
+  /**
+   * Update secrets for a specific configuration
+   * @param id - ConnectorSourceCredentials ID
+   * @param secrets - Updated secret values
+   * @returns Updated ConnectorSourceCredentials entity
+   */
+  async updateSecretsForConfig(
+    id: string,
+    secrets: Record<string, unknown>
+  ): Promise<ConnectorSourceCredentials> {
+    const existing = await this.getCredentialsById(id);
+
+    if (!existing) {
+      throw new Error(`ConnectorSourceCredentials with id ${id} not found`);
+    }
+
+    existing.credentials = secrets;
+    return await this.connectorSourceCredentialsRepository.save(existing);
+  }
+
+  /**
+   * Delete all secrets associated with a DataMart (soft delete)
+   * Called when DataMart is deleted
+   * @param dataMartId - DataMart ID
+   */
+  async deleteSecretsByDataMart(dataMartId: string): Promise<void> {
+    await this.connectorSourceCredentialsRepository.softDelete({ dataMartId });
+  }
+
+  /**
+   * Get all secrets for a DataMart
+   * @param dataMartId - DataMart ID
+   * @returns Array of ConnectorSourceCredentials entities
+   */
+  async getSecretsByDataMart(dataMartId: string): Promise<ConnectorSourceCredentials[]> {
+    return await this.connectorSourceCredentialsRepository.find({
+      where: { dataMartId },
+    });
+  }
 }
