@@ -4,7 +4,7 @@ End-to-end tests that drive a real Chromium browser against the full running sta
 
 ## Directory Structure
 
-```
+```text
 e2e/
 ├── README.md                        # This file
 ├── fixtures/
@@ -272,6 +272,7 @@ Deletes all existing datamarts via API, navigates to `/ui/0/data-marts`, verifie
 
 **Table + Search + Filter + Navigation (4 tests):**
 `beforeAll` seeds a draft and a published datamart. Tests verify:
+
 - Both datamarts appear in the table
 - Search filters by title (typing draft title hides published, clearing restores both)
 - Status filter (select "Status" field, pick "Draft", apply) shows only draft datamarts
@@ -325,7 +326,7 @@ Tests that all DataMart detail tabs render correctly and produce no JavaScript e
 
 **`beforeAll`:** Creates a DataMart via `ApiHelpers` (manual instantiation with `browser.newPage()`).
 
-**Single test: All 5 visible tabs render without console errors**
+#### Single test: All 5 visible tabs render without console errors
 
 | Tab Name | URL Path | Content Verification |
 |----------|----------|---------------------|
@@ -460,27 +461,10 @@ Placeholder test suites for OAuth-dependent features. All tests are unconditiona
 
 ### Selector Strategy (in priority order)
 
-1. **`getByTestId`** -- for page containers, sections, regions
-   ```typescript
-   page.getByTestId(TESTIDS.storageListPage)
-   ```
-
-2. **`getByRole`** -- for interactive elements (buttons, links, inputs)
-   ```typescript
-   page.getByRole('button', { name: 'New Storage' })
-   page.getByRole('combobox')
-   page.getByRole('option').first()
-   ```
-
-3. **`getByText`** -- for verifying visible text content
-   ```typescript
-   page.getByText('Published')
-   ```
-
-4. **`getByPlaceholder`** -- for form inputs with placeholder text
-   ```typescript
-   page.getByPlaceholder('Enter title')
-   ```
+1. **`getByTestId`** -- for page containers, sections, regions (`page.getByTestId(TESTIDS.storageListPage)`)
+2. **`getByRole`** -- for interactive elements: `page.getByRole('button', { name: 'New Storage' })`, `page.getByRole('combobox')`, `page.getByRole('option').first()`
+3. **`getByText`** -- for verifying visible text content (`page.getByText('Published')`)
+4. **`getByPlaceholder`** -- for form inputs with placeholder text (`page.getByPlaceholder('Enter title')`)
 
 ### Scoping to Avoid Ambiguity
 
@@ -500,35 +484,37 @@ await tabNav.getByRole('link', { name: 'Overview', exact: true }).click();
 Checklist for adding a new spec file:
 
 1. **Create file in `e2e/specs/`** -- all spec files live in this directory
-2. **Import from fixtures** -- use `../fixtures/base`, not `@playwright/test`:
-   ```typescript
-   import { test, expect } from '../fixtures/base';
-   ```
-3. **Use `apiHelpers` for test data setup** -- avoid creating prerequisite data through UI clicks:
-   ```typescript
-   test.beforeEach(async ({ apiHelpers }) => {
-     await apiHelpers.createStorage();
-   });
-   ```
-4. **Use `radix` for Radix UI component interactions** -- handles portals and animations:
-   ```typescript
-   test('example', async ({ page, radix }) => {
-     await radix.selectOption(trigger, 'Option Text');
-   });
-   ```
-5. **Use `TESTIDS` for selectors** -- import from `../selectors/testids`:
-   ```typescript
-   import { TESTIDS } from '../selectors/testids';
-   await page.getByTestId(TESTIDS.storageListPage);
-   ```
+2. **Import from fixtures** -- use `../fixtures/base`, not `@playwright/test`
+3. **Use `apiHelpers` for test data setup** -- avoid creating prerequisite data through UI clicks
+4. **Use `radix` for Radix UI component interactions** -- handles portals and animations
+5. **Use `TESTIDS` for selectors** -- import from `../selectors/testids`
 6. **Add `data-testid` attributes** to React components in `apps/web/src/` as needed, and add entries to `selectors/testids.ts`
-7. **Use `describeIfCredentials`** if your test requires cloud credentials:
-   ```typescript
-   import { describeIfCredentials } from '../helpers/credentials';
-   describeIfCredentials(['GCP_PROJECT_ID'], 'GCP Tests', () => { ... });
-   ```
+7. **Use `describeIfCredentials`** if your test requires cloud credentials
 8. **Run your spec:** `npx playwright test e2e/specs/your-feature.spec.ts`
 9. **Debug failures:** `npx playwright test e2e/specs/your-feature.spec.ts --ui`
+
+Examples:
+
+```typescript
+// Import from fixtures (step 2)
+import { test, expect } from '../fixtures/base';
+import { TESTIDS } from '../selectors/testids';
+import { describeIfCredentials } from '../helpers/credentials';
+
+// Use apiHelpers for setup (step 3)
+test.beforeEach(async ({ apiHelpers }) => {
+  await apiHelpers.createStorage();
+});
+
+// Use radix for Radix UI interactions (step 4)
+test('example', async ({ page, radix }) => {
+  await radix.selectOption(trigger, 'Option Text');
+  await page.getByTestId(TESTIDS.storageListPage);
+});
+
+// Credential-gated suites (step 7)
+describeIfCredentials(['GCP_PROJECT_ID'], 'GCP Tests', () => { /* ... */ });
+```
 
 ## Troubleshooting
 

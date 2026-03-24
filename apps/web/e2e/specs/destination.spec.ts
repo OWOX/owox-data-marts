@@ -113,7 +113,7 @@ describeIfCredentials(
   ['GOOGLE_SHEETS_SERVICE_ACCOUNT_JSON'],
   'Destinations - Google Sheets CRUD (DEST-04)',
   () => {
-    test('creates Google Sheets destination via UI (DEST-04)', async ({ page, radix }) => {
+    test('creates Google Sheets destination via UI (DEST-04)', async ({ page }) => {
       await page.goto('/ui/0/data-destinations');
       await expect(page.getByTestId(TESTIDS.destTab)).toBeVisible();
 
@@ -139,12 +139,12 @@ describeIfCredentials(
       await expect(page.getByText(gsTitle)).toBeVisible();
     });
 
-    test('edits Google Sheets destination title (DEST-07)', async ({ page }) => {
+    test('edits Google Sheets destination title (DEST-07)', async () => {
       // TODO: Full UI flow for Google Sheets edit when credentials available
       test.skip();
     });
 
-    test('deletes Google Sheets destination (DEST-08)', async ({ page, radix }) => {
+    test('deletes Google Sheets destination (DEST-08)', async () => {
       // TODO: Full UI flow for Google Sheets delete when credentials available
       test.skip();
     });

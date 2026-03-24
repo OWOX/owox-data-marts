@@ -10,5 +10,17 @@ export default tseslint.config(
   {
     files: ['*.config.{js,mjs,ts}'],
     extends: [tseslint.configs.disableTypeChecked],
+  },
+  // E2E tests: disable type-checked rules and React hooks (Playwright `use` triggers false positives)
+  {
+    files: ['e2e/**/*.ts'],
+    extends: [tseslint.configs.disableTypeChecked],
+    rules: {
+      'react-hooks/rules-of-hooks': 'off',
+      '@typescript-eslint/no-unused-vars': [
+        'error',
+        { argsIgnorePattern: '^_', varsIgnorePattern: '^_' },
+      ],
+    },
   }
 );

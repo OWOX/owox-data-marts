@@ -174,7 +174,7 @@ test.describe('Reports - Email Pattern (Table UI)', () => {
     });
   });
 
-  test('edits Email report (RPT-03)', async ({ page, apiHelpers }) => {
+  test('edits Email report (RPT-03)', async ({ page }) => {
     // Create report via direct API with email-config
     const reportTitle = `E2E Email Report ${Date.now()}`;
     const reportRes = await page.request.post('/api/reports', {
