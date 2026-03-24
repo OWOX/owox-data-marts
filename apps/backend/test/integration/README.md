@@ -4,7 +4,7 @@ Tests that validate cloud database adapters against real APIs. These catch SDK v
 
 ## Directory Structure
 
-```
+```text
 integration/
 ├── README.md                      # This file
 ├── setup-env.ts                   # Loads root .env.tests via dotenv (Jest setupFiles)
@@ -51,11 +51,13 @@ ATHENA_DATABASE=my_test_database
 ### Minimum Cloud Permissions
 
 **BigQuery service account:**
+
 - `bigquery.tables.create` / `bigquery.tables.delete` (on dataset)
 - `bigquery.jobs.create` (on project)
 - `bigquery.tables.getData` / `bigquery.tables.get` (on dataset)
 
 **AWS IAM user:**
+
 - `athena:StartQueryExecution`, `athena:GetQueryExecution`, `athena:GetQueryResults`
 - `s3:GetObject`, `s3:PutObject`, `s3:DeleteObject`, `s3:ListBucket` (on output bucket)
 - `glue:GetTable`, `glue:CreateTable`, `glue:DeleteTable`, `glue:GetDatabase` (on Glue catalog)
@@ -69,27 +71,30 @@ Loaded by Jest via `setupFiles` in `jest-integration.json`. Runs before any test
 ### `bigquery.integration.ts` — 6 tests
 
 **Setup (`beforeAll`, 60s timeout):**
+
 - Parse `BQ_SERVICE_ACCOUNT_KEY` JSON into credentials
 - Create `BigQueryApiAdapter` with real credentials
-- Create temp table: `` CREATE TABLE `project.dataset.integration_test_<timestamp>` (...) ``
+- Create temp table: ``CREATE TABLE `project.dataset.integration_test_<timestamp>` (...)``
 - Table has 5 columns: `id INT64`, `name STRING`, `active BOOL`, `created_at TIMESTAMP`, `amount NUMERIC`
 
 **Teardown (`afterAll`, 30s timeout):**
+
 - `` DROP TABLE IF EXISTS `project.dataset.integration_test_<timestamp>` ``
 - Wrapped in `try/catch` — cleanup failure doesn't fail the test run
 
 **Tests:**
 
-| # | Group | Test | What It Validates |
-|---|-------|------|-------------------|
-| 1 | Access Validation | Valid credentials accepted | `adapter.checkAccess()` resolves without error |
-| 2 | Access Validation | Invalid credentials rejected | Adapter with corrupted `private_key` throws |
-| 3 | SQL Dry Run | Valid query passes | `executeDryRunQuery(SELECT * FROM table)` returns `totalBytesProcessed >= 0` |
-| 4 | SQL Dry Run | Invalid syntax rejected | `SELEKT * FORM invalid` throws |
-| 5 | SQL Dry Run | Non-existent table rejected | `SELECT * FROM nonexistent_table_xxx` throws |
-| 6 | Schema Actualization | Reads real schema | `schemaProvider.getActualDataMartSchema()` returns type `bigquery-data-mart-schema`, 5 fields with correct names and non-empty type strings |
+| #   | Group                | Test                         | What It Validates                                                                                                                           |
+| --- | -------------------- | ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | Access Validation    | Valid credentials accepted   | `adapter.checkAccess()` resolves without error                                                                                              |
+| 2   | Access Validation    | Invalid credentials rejected | Adapter with corrupted `private_key` throws                                                                                                 |
+| 3   | SQL Dry Run          | Valid query passes           | `executeDryRunQuery(SELECT * FROM table)` returns `totalBytesProcessed >= 0`                                                                |
+| 4   | SQL Dry Run          | Invalid syntax rejected      | `SELEKT * FORM invalid` throws                                                                                                              |
+| 5   | SQL Dry Run          | Non-existent table rejected  | `SELECT * FROM nonexistent_table_xxx` throws                                                                                                |
+| 6   | Schema Actualization | Reads real schema            | `schemaProvider.getActualDataMartSchema()` returns type `bigquery-data-mart-schema`, 5 fields with correct names and non-empty type strings |
 
 **Key patterns:**
+
 - Identifier quoting: Backticks for all BigQuery SQL (`` `project.dataset.table` ``)
 - Manual dependency wiring: `BigQueryApiAdapterFactory`, `BigQueryQueryBuilder`, `BigQueryDataMartSchemaProvider` instantiated directly (no NestJS DI)
 - `{} as DataStorageCredentialsResolver` as dummy — factory `.create()` never uses the resolver in this context
@@ -97,12 +102,14 @@ Loaded by Jest via `setupFiles` in `jest-integration.json`. Runs before any test
 ### `athena.integration.ts` — 6 tests
 
 **Setup (`beforeAll`, 120s timeout):**
+
 - Create `AthenaApiAdapter` and `S3ApiAdapter` with real credentials
 - **Pre-cleanup:** `DROP TABLE IF EXISTS` to handle leftover tables from crashed previous runs
 - **CTAS table creation:** Creates a Parquet table on S3 via `CREATE TABLE ... AS SELECT`
 - Table has 4 columns: `id INTEGER`, `name VARCHAR`, `active BOOLEAN`, `created_at TIMESTAMP(3)`
 
 **Teardown (`afterAll`, 60s timeout):**
+
 - Drop the test table via DDL
 - Clean up S3 data at CTAS external location
 - Clean up all S3 output files under `integration-test/` prefix (covers ctas, cleanup, drop, dry-run, schema-fetch query outputs)
@@ -110,14 +117,14 @@ Loaded by Jest via `setupFiles` in `jest-integration.json`. Runs before any test
 
 **Tests:**
 
-| # | Group | Test | What It Validates |
-|---|-------|------|-------------------|
-| 1 | Access Validation | Valid credentials accepted | `adapter.checkAccess(outputBucket)` resolves (runs `SELECT 1`) |
-| 2 | Access Validation | Invalid credentials rejected | Adapter with fake AWS keys throws |
-| 3 | SQL Dry Run | Valid query passes (EXPLAIN) | `executeDryRunQuery(SELECT * FROM table)` runs `EXPLAIN` successfully |
-| 4 | SQL Dry Run | Invalid syntax rejected | `SELEKT * FORM invalid` throws |
-| 5 | SQL Dry Run | Non-existent table rejected | `SELECT * FROM "db"."nonexistent_table_xxx"` throws |
-| 6 | Schema Actualization | Reads real schema | `schemaProvider.getActualDataMartSchema()` returns type `athena-data-mart-schema`, 4 fields with correct names |
+| #   | Group                | Test                         | What It Validates                                                                                              |
+| --- | -------------------- | ---------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| 1   | Access Validation    | Valid credentials accepted   | `adapter.checkAccess(outputBucket)` resolves (runs `SELECT 1`)                                                 |
+| 2   | Access Validation    | Invalid credentials rejected | Adapter with fake AWS keys throws                                                                              |
+| 3   | SQL Dry Run          | Valid query passes (EXPLAIN) | `executeDryRunQuery(SELECT * FROM table)` runs `EXPLAIN` successfully                                          |
+| 4   | SQL Dry Run          | Invalid syntax rejected      | `SELEKT * FORM invalid` throws                                                                                 |
+| 5   | SQL Dry Run          | Non-existent table rejected  | `SELECT * FROM "db"."nonexistent_table_xxx"` throws                                                            |
+| 6   | Schema Actualization | Reads real schema            | `schemaProvider.getActualDataMartSchema()` returns type `athena-data-mart-schema`, 4 fields with correct names |
 
 **Key patterns:**
 
@@ -137,7 +144,7 @@ Loaded by Jest via `setupFiles` in `jest-integration.json`. Runs before any test
 3. Follow credential gating pattern:
 
 ```typescript
-const CREDENTIALS_AVAILABLE = !!(process.env.YOUR_API_KEY);
+const CREDENTIALS_AVAILABLE = !!process.env.YOUR_API_KEY;
 
 if (!CREDENTIALS_AVAILABLE) {
   console.log('Skipping YourService tests: YOUR_API_KEY not set');
@@ -150,10 +157,10 @@ describeIfCredentials('YourService Integration Tests', () => {
 });
 ```
 
-4. Add env vars to root `.env.tests` (for local) and `test-integration.yml` (for CI)
-5. Use appropriate timeouts: `beforeAll` 120s, `afterAll` 60s, tests 30s
-6. Always clean up test resources in `afterAll` (wrapped in `try/catch`)
-7. Use unique names with timestamps to avoid collisions
+1. Add env vars to root `.env.tests` (for local) and `test-integration.yml` (for CI)
+2. Use appropriate timeouts: `beforeAll` 120s, `afterAll` 60s, tests 30s
+3. Always clean up test resources in `afterAll` (wrapped in `try/catch`)
+4. Use unique names with timestamps to avoid collisions
 
 ## Troubleshooting
 
@@ -162,6 +169,7 @@ Check that `.env.tests` exists at the project root and has correct values.
 
 **"Database X not found" (Athena):**
 The Athena database must be created beforehand. Run in Athena console:
+
 ```sql
 CREATE DATABASE your_database_name;
 ```
