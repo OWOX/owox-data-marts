@@ -44,22 +44,6 @@ export default function DataMartOverviewContent() {
           <div className='flex flex-col gap-4 pb-4'>
             <div className='flex items-center gap-2'>
               <span className='text-muted-foreground w-36 text-sm whitespace-nowrap'>
-                Business Owner
-              </span>
-              <OwnersEditor
-                ownerUsers={dataMart.businessOwnerUsers}
-                projectId={projectId}
-                onSave={userIds => {
-                  void updateDataMartOwners(
-                    dataMart.id,
-                    userIds,
-                    dataMart.technicalOwnerUsers.map(u => u.userId)
-                  );
-                }}
-              />
-            </div>
-            <div className='flex items-center gap-2'>
-              <span className='text-muted-foreground w-36 text-sm whitespace-nowrap'>
                 Technical Owner
               </span>
               <OwnersEditor
@@ -70,6 +54,22 @@ export default function DataMartOverviewContent() {
                     dataMart.id,
                     dataMart.businessOwnerUsers.map(u => u.userId),
                     userIds
+                  );
+                }}
+              />
+            </div>
+            <div className='flex items-center gap-2'>
+              <span className='text-muted-foreground w-36 text-sm whitespace-nowrap'>
+                Business Owner
+              </span>
+              <OwnersEditor
+                ownerUsers={dataMart.businessOwnerUsers}
+                projectId={projectId}
+                onSave={userIds => {
+                  void updateDataMartOwners(
+                    dataMart.id,
+                    userIds,
+                    dataMart.technicalOwnerUsers.map(u => u.userId)
                   );
                 }}
               />
