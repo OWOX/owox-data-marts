@@ -78,8 +78,8 @@ export const DataMartActionsCell = ({ row, onDeleteSuccess }: DataMartActionsCel
         description={
           <span className='mt-2 block space-y-2'>
             <span className='block'>
-              Are you sure you want to delete <strong>this data mart</strong>? This action cannot be
-              undone.
+              Are you sure you want to delete <strong>{row.original.title}</strong>? This action
+              cannot be undone.
             </span>
             {row.original.storageType === DataStorageType.LEGACY_GOOGLE_BIGQUERY && (
               <span className='text-destructive block'>
