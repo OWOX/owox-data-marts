@@ -34,6 +34,7 @@ describe('ConnectorSecretService', () => {
 
     const credentialsService = {
       getCredentialsById: jest.fn().mockResolvedValue(null),
+      getCredentialsByIds: jest.fn().mockResolvedValue(new Map()),
       createSecretsForConfig: jest.fn().mockResolvedValue({ id: 'mock-secrets-id' }),
       updateSecretsForConfig: jest.fn().mockResolvedValue({}),
     } as unknown as ConnectorSourceCredentialsService;

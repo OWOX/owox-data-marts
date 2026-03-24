@@ -75,45 +75,6 @@ export class ConnectorSecretService {
   }
 
   /**
-   * Collects all secret field names from connector specification (including nested oneOf items).
-   * Returns field names without path - used for masking.
-   *
-   * @param connectorName Connector name
-   * @returns Set of all secret field names
-   */
-  private async getAllSecretFieldNamesIncludingNested(connectorName: string): Promise<Set<string>> {
-    const specification = await this.connectorService.getConnectorSpecification(connectorName);
-    const secretFields = new Set<string>();
-
-    const collectSecretFields = (fields: unknown[]): void => {
-      for (const field of fields as Array<{
-        name: string;
-        attributes?: string[];
-        oneOf?: unknown;
-      }>) {
-        const attributes = field.attributes || [];
-        if (attributes.includes(Core.CONFIG_ATTRIBUTES.SECRET)) {
-          secretFields.add(field.name);
-        }
-
-        if (field.oneOf && Array.isArray(field.oneOf)) {
-          for (const oneOfOption of field.oneOf) {
-            if (oneOfOption.items) {
-              const nestedFields = Object.values(oneOfOption.items);
-              collectSecretFields(
-                nestedFields as Array<{ name: string; attributes?: string[]; oneOf?: unknown }>
-              );
-            }
-          }
-        }
-      }
-    };
-
-    collectSecretFields(specification);
-    return secretFields;
-  }
-
-  /**
    * Recursively extracts secret values from a configuration object.
    * Returns secrets with their full path (e.g., "AuthType.oauth2.RefreshToken")
    *
@@ -254,7 +215,7 @@ export class ConnectorSecretService {
     definition: ConnectorDefinition,
     userId?: string
   ): Promise<ConnectorDefinition> {
-    const secretFieldNames = await this.getAllSecretFieldNamesIncludingNested(connectorName);
+    const secretFieldNames = await this.getAllSecretFieldNames(connectorName);
 
     // If no secrets in spec, return definition as-is
     if (secretFieldNames.size === 0) {
@@ -287,11 +248,27 @@ export class ConnectorSecretService {
         const existingSecretsId = configItem._secrets_id as string | undefined;
 
         if (existingSecretsId) {
-          // Update existing secrets record
-          await this.connectorSourceCredentialsService.updateSecretsForConfig(
-            existingSecretsId,
-            secrets
-          );
+          const existingSecrets =
+            await this.connectorSourceCredentialsService.getCredentialsById(existingSecretsId);
+
+          if (!existingSecrets || existingSecrets.projectId !== projectId) {
+            const credentialsEntity =
+              await this.connectorSourceCredentialsService.createSecretsForConfig(
+                projectId,
+                connectorName,
+                dataMartId,
+                configId,
+                secrets,
+                userId
+              );
+            configItem._secrets_id = credentialsEntity.id;
+          } else {
+            await this.connectorSourceCredentialsService.updateSecretsForConfig(
+              existingSecretsId,
+              projectId,
+              secrets
+            );
+          }
         } else {
           // Create new secrets record
           const credentialsEntity =
@@ -455,29 +432,30 @@ export class ConnectorSecretService {
       return definition;
     }
 
-    const maskedConfiguration = await Promise.all(
-      definition.connector.source.configuration.map(async item => {
-        const configItem = item as Record<string, unknown>;
-        let maskedItem = this.maskRecursively(configItem, secretFieldNames) as Record<
-          string,
-          unknown
-        >;
+    const secretsIds = definition.connector.source.configuration
+      .map(item => (item as Record<string, unknown>)._secrets_id as string | undefined)
+      .filter((id): id is string => !!id);
 
-        // If secrets are externalized, inject masks for fields that exist in credentials
-        const secretsId = configItem._secrets_id as string | undefined;
-        if (secretsId) {
-          const secretsEntity =
-            await this.connectorSourceCredentialsService.getCredentialsById(secretsId);
-          if (secretsEntity?.credentials) {
-            // Inject masks for each secret field path that exists in credentials
-            maskedItem = JSON.parse(JSON.stringify(maskedItem)) as Record<string, unknown>;
-            this.injectMasksAtPaths(maskedItem, secretsEntity.credentials);
-          }
+    const secretsMap = await this.connectorSourceCredentialsService.getCredentialsByIds(secretsIds);
+
+    const maskedConfiguration = definition.connector.source.configuration.map(item => {
+      const configItem = item as Record<string, unknown>;
+      let maskedItem = this.maskRecursively(configItem, secretFieldNames) as Record<
+        string,
+        unknown
+      >;
+
+      const secretsId = configItem._secrets_id as string | undefined;
+      if (secretsId) {
+        const secretsEntity = secretsMap.get(secretsId);
+        if (secretsEntity?.credentials) {
+          maskedItem = JSON.parse(JSON.stringify(maskedItem)) as Record<string, unknown>;
+          this.injectMasksAtPaths(maskedItem, secretsEntity.credentials);
         }
+      }
 
-        return maskedItem;
-      })
-    );
+      return maskedItem;
+    });
 
     return {
       ...definition,

@@ -189,17 +189,24 @@ export class ConnectorSourceCredentialsService {
   /**
    * Update secrets for a specific configuration
    * @param id - ConnectorSourceCredentials ID
+   * @param projectId - Project ID for ownership validation
    * @param secrets - Updated secret values
    * @returns Updated ConnectorSourceCredentials entity
+   * @throws Error if not found or projectId doesn't match (IDOR protection)
    */
   async updateSecretsForConfig(
     id: string,
+    projectId: string,
     secrets: Record<string, unknown>
   ): Promise<ConnectorSourceCredentials> {
     const existing = await this.getCredentialsById(id);
 
     if (!existing) {
       throw new Error(`ConnectorSourceCredentials with id ${id} not found`);
+    }
+
+    if (existing.projectId !== projectId) {
+      throw new Error(`Unauthorized: secrets do not belong to this project`);
     }
 
     existing.credentials = secrets;
@@ -224,5 +231,25 @@ export class ConnectorSourceCredentialsService {
     return await this.connectorSourceCredentialsRepository.find({
       where: { dataMartId },
     });
+  }
+
+  /**
+   * Get credentials by multiple IDs (batch fetch to avoid N+1)
+   * @param ids - Array of ConnectorSourceCredentials IDs
+   * @returns Map of ID to ConnectorSourceCredentials entity
+   */
+  async getCredentialsByIds(ids: string[]): Promise<Map<string, ConnectorSourceCredentials>> {
+    if (ids.length === 0) {
+      return new Map();
+    }
+
+    const entities = await this.connectorSourceCredentialsRepository.find({
+      where: ids.map(id => ({ id })),
+    });
+    const map = new Map<string, ConnectorSourceCredentials>();
+    for (const entity of entities) {
+      map.set(entity.id, entity);
+    }
+    return map;
   }
 }

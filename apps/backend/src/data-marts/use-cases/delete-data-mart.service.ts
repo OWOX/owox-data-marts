@@ -5,6 +5,7 @@ import { LegacyDataMartsService } from '../services/legacy-data-marts/legacy-dat
 import { ScheduledTriggerService } from '../services/scheduled-trigger.service';
 import { ReportService } from '../services/report.service';
 import { DataMartService } from '../services/data-mart.service';
+import { ConnectorSourceCredentialsService } from '../services/connector-source-credentials.service';
 
 @Injectable()
 export class DeleteDataMartService {
@@ -12,7 +13,8 @@ export class DeleteDataMartService {
     private readonly dataMartService: DataMartService,
     private readonly scheduledTriggerService: ScheduledTriggerService,
     private readonly reportService: ReportService,
-    private readonly legacyDataMartsService: LegacyDataMartsService
+    private readonly legacyDataMartsService: LegacyDataMartsService,
+    private readonly connectorSourceCredentialsService: ConnectorSourceCredentialsService
   ) {}
 
   async run(command: DeleteDataMartCommand): Promise<void> {
@@ -34,7 +36,8 @@ export class DeleteDataMartService {
       command.projectId
     );
 
-    // Soft delete the data mart
+    await this.connectorSourceCredentialsService.deleteSecretsByDataMart(command.id);
+
     await this.dataMartService.softDeleteByIdAndProjectId(command.id, command.projectId);
   }
 }
