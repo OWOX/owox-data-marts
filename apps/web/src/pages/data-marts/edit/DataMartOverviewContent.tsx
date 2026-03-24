@@ -9,7 +9,7 @@ import {
   CollapsibleCardContent,
   CollapsibleCardFooter,
 } from '../../../shared/components/CollapsibleCard';
-import { BookOpenIcon, Users } from 'lucide-react';
+import { BookOpenIcon, Clock, Users } from 'lucide-react';
 import type { UserProjectionDto } from '../../../shared/types/api';
 
 interface OutletContextType {
@@ -44,6 +44,63 @@ export default function DataMartOverviewContent() {
           <div className='flex flex-col gap-4 pb-4'>
             <div className='flex items-center gap-2'>
               <span className='text-muted-foreground w-36 text-sm whitespace-nowrap'>
+                Technical Owner
+              </span>
+              <OwnersEditor
+                ownerUsers={dataMart.technicalOwnerUsers}
+                projectId={projectId}
+                onSave={userIds => {
+                  void updateDataMartOwners(
+                    dataMart.id,
+                    dataMart.businessOwnerUsers.map(u => u.userId),
+                    userIds
+                  );
+                }}
+              />
+            </div>
+            <div className='flex items-center gap-2'>
+              <span className='text-muted-foreground w-36 text-sm whitespace-nowrap'>
+                Business Owner
+              </span>
+              <OwnersEditor
+                ownerUsers={dataMart.businessOwnerUsers}
+                projectId={projectId}
+                onSave={userIds => {
+                  void updateDataMartOwners(
+                    dataMart.id,
+                    userIds,
+                    dataMart.technicalOwnerUsers.map(u => u.userId)
+                  );
+                }}
+              />
+            </div>
+          </div>
+        </CollapsibleCardContent>
+        <CollapsibleCardFooter></CollapsibleCardFooter>
+      </CollapsibleCard>
+
+      <CollapsibleCard>
+        <CollapsibleCardHeader>
+          <CollapsibleCardHeaderTitle icon={BookOpenIcon} tooltip='Description of the Data Mart'>
+            Description
+          </CollapsibleCardHeaderTitle>
+        </CollapsibleCardHeader>
+        <CollapsibleCardContent>
+          <DataMartOverview />
+        </CollapsibleCardContent>
+        <CollapsibleCardFooter></CollapsibleCardFooter>
+      </CollapsibleCard>
+
+      <CollapsibleCard collapsible name='created'>
+        <CollapsibleCardHeader>
+          <CollapsibleCardHeaderTitle icon={Clock} tooltip='Data mart creation details'>
+            Created
+          </CollapsibleCardHeaderTitle>
+        </CollapsibleCardHeader>
+        <CollapsibleCardContent>
+          <div className='flex flex-col gap-4 pb-4'>
+            <div className='flex items-center gap-2'>
+              <span className='text-muted-foreground w-36 text-sm whitespace-nowrap'>
                 Created at
               </span>
               <span className='text-sm'>
@@ -62,51 +119,7 @@ export default function DataMartOverviewContent() {
                 <UserReference userProjection={dataMart.createdByUser} variant='full' />
               </div>
             )}
-            <div className='flex items-center gap-2'>
-              <span className='text-muted-foreground w-36 text-sm whitespace-nowrap'>
-                Business Owner
-              </span>
-              <OwnersEditor
-                ownerUsers={dataMart.businessOwnerUsers}
-                projectId={projectId}
-                onSave={userIds => {
-                  void updateDataMartOwners(
-                    dataMart.id,
-                    userIds,
-                    dataMart.technicalOwnerUsers.map(u => u.userId)
-                  );
-                }}
-              />
-            </div>
-            <div className='flex items-center gap-2'>
-              <span className='text-muted-foreground w-36 text-sm whitespace-nowrap'>
-                Technical Owner
-              </span>
-              <OwnersEditor
-                ownerUsers={dataMart.technicalOwnerUsers}
-                projectId={projectId}
-                onSave={userIds => {
-                  void updateDataMartOwners(
-                    dataMart.id,
-                    dataMart.businessOwnerUsers.map(u => u.userId),
-                    userIds
-                  );
-                }}
-              />
-            </div>
           </div>
-        </CollapsibleCardContent>
-        <CollapsibleCardFooter></CollapsibleCardFooter>
-      </CollapsibleCard>
-
-      <CollapsibleCard>
-        <CollapsibleCardHeader>
-          <CollapsibleCardHeaderTitle icon={BookOpenIcon} tooltip='Description of the Data Mart'>
-            Description
-          </CollapsibleCardHeaderTitle>
-        </CollapsibleCardHeader>
-        <CollapsibleCardContent>
-          <DataMartOverview />
         </CollapsibleCardContent>
         <CollapsibleCardFooter></CollapsibleCardFooter>
       </CollapsibleCard>

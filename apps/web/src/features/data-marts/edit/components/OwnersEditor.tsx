@@ -5,7 +5,7 @@ import { Label } from '@owox/ui/components/label';
 import { Popover, PopoverContent, PopoverTrigger } from '@owox/ui/components/popover';
 import { Skeleton } from '@owox/ui/components/skeleton';
 import { AlertTriangle, Pencil, Search, User } from 'lucide-react';
-import { Link } from 'react-router-dom';
+
 import { Button } from '../../../../shared/components/Button';
 import { UserAvatarGroup } from '../../../../shared/components/UserAvatarGroup/UserAvatarGroup';
 import { UserReference } from '../../../../shared/components/UserReference/UserReference';
@@ -13,6 +13,8 @@ import { useProjectMembers } from '../../../notifications/project/hooks/useNotif
 import type { UserProjectionDto } from '../../../../shared/types/api';
 import type { ProjectMember } from '../../../notifications/project/types';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@owox/ui/components/tooltip';
+import { useFlags } from '../../../../app/store/hooks/useFlags';
+import { checkVisible } from '../../../../utils/check-visible';
 
 interface OwnersEditorProps {
   ownerUsers: UserProjectionDto[];
@@ -22,8 +24,19 @@ interface OwnersEditorProps {
 
 export function OwnersEditor({ ownerUsers, onSave, projectId }: OwnersEditorProps) {
   const { members, isLoading: isMembersLoading } = useProjectMembers(projectId);
+  const { flags } = useFlags();
   const [isOpen, setIsOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+
+  const addColleaguesHref = useMemo(() => {
+    if (checkVisible('IDP_PROVIDER', ['owox-better-auth'], flags)) {
+      return `https://platform.owox.com/ui/p/${projectId}/settings/members`;
+    }
+    if (checkVisible('IDP_PROVIDER', ['better-auth'], flags)) {
+      return '/auth';
+    }
+    return null;
+  }, [flags, projectId]);
 
   const selectedIds = useMemo(() => ownerUsers.map(u => u.userId), [ownerUsers]);
 
@@ -173,12 +186,16 @@ export function OwnersEditor({ ownerUsers, onSave, projectId }: OwnersEditorProp
               </div>
             </>
           )}
-          <Link
-            to={`/${projectId}/settings/members`}
-            className='text-primary mt-2 block text-xs hover:underline'
-          >
-            Add colleagues
-          </Link>
+          {addColleaguesHref && (
+            <a
+              href={addColleaguesHref}
+              target={addColleaguesHref.startsWith('http') ? '_blank' : undefined}
+              rel={addColleaguesHref.startsWith('http') ? 'noopener noreferrer' : undefined}
+              className='text-primary mt-2 block text-xs hover:underline'
+            >
+              Add colleagues
+            </a>
+          )}
         </PopoverContent>
       </Popover>
     </div>
