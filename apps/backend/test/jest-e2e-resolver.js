@@ -3,6 +3,7 @@
  * in TypeScript source files. When a .js import fails to resolve,
  * it retries with .ts extension.
  */
+/* global module */
 module.exports = (request, options) => {
   const defaultResolver = options.defaultResolver;
 

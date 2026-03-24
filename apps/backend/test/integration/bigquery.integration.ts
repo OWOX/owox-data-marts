@@ -30,6 +30,7 @@ const BQ_DATASET = process.env.BQ_DATASET;
 const BQ_CREDENTIALS_AVAILABLE = !!(BQ_SERVICE_ACCOUNT_KEY && BQ_PROJECT_ID && BQ_DATASET);
 
 if (!BQ_CREDENTIALS_AVAILABLE) {
+  // eslint-disable-next-line no-console
   console.log(
     'Skipping BigQuery integration tests: BQ_SERVICE_ACCOUNT_KEY, BQ_PROJECT_ID, or BQ_DATASET not set'
   );
@@ -74,6 +75,7 @@ describeIfCredentials('BigQuery Integration Tests', () => {
     try {
       await adapter.executeQuery(`DROP TABLE IF EXISTS \`${fullyQualifiedName}\``);
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.warn('Failed to drop test table during teardown:', error);
     }
   }, 30000);

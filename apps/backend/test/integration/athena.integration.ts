@@ -39,6 +39,7 @@ const ATHENA_CREDENTIALS_AVAILABLE = !!(
 );
 
 if (!ATHENA_CREDENTIALS_AVAILABLE) {
+  // eslint-disable-next-line no-console
   console.log('Skipping Athena integration tests: AWS credentials or Athena config not set');
 }
 
@@ -108,6 +109,7 @@ AS SELECT
       );
       await adapter.waitForQueryToComplete(queryExecutionId);
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.warn('Failed to drop test table during teardown:', error);
     }
 
@@ -115,6 +117,7 @@ AS SELECT
       // Clean up S3 data at CTAS external location
       await s3Adapter.cleanupOutputFiles(config.outputBucket, `${TEST_S3_PREFIX}data/`);
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.warn('Failed to clean up S3 test data:', error);
     }
 
@@ -123,6 +126,7 @@ AS SELECT
       // (covers ctas, cleanup, drop, dry-run, schema query outputs)
       await s3Adapter.cleanupOutputFiles(config.outputBucket, 'integration-test/');
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.warn('Failed to clean up S3 output files:', error);
     }
   }, 60000);

@@ -7,6 +7,7 @@ import {
   ScheduledTriggerBuilder,
   AUTH_HEADER,
 } from '@owox/test-utils';
+import { ScheduledTriggerType } from '../src/data-marts/scheduled-trigger-types/enums/scheduled-trigger-type.enum';
 
 // Tests are order-dependent: Create -> Get -> List -> Update -> Delete -> Verify -> Validation -> Isolation
 describe('Scheduled Trigger API (e2e)', () => {
@@ -72,7 +73,7 @@ describe('Scheduled Trigger API (e2e)', () => {
     expect(res.status).toBe(200);
     expect(Array.isArray(res.body)).toBe(true);
 
-    const found = res.body.find((item: any) => item.id === createdId);
+    const found = res.body.find((item: Record<string, unknown>) => item.id === createdId);
     expect(found).toBeDefined();
   });
 
@@ -139,7 +140,9 @@ describe('Scheduled Trigger API (e2e)', () => {
 
   // TRIG-08: Invalid trigger type enum
   it('POST /api/data-marts/:dataMartId/scheduled-triggers - returns 400 for invalid type enum', async () => {
-    const payload = new ScheduledTriggerBuilder().withType('INVALID_TYPE' as any).build();
+    const payload = new ScheduledTriggerBuilder()
+      .withType('INVALID_TYPE' as ScheduledTriggerType)
+      .build();
 
     const res = await agent
       .post(`/api/data-marts/${dataMartId}/scheduled-triggers`)

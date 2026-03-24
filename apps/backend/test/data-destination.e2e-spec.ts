@@ -71,7 +71,7 @@ describe('DataDestination API (e2e)', () => {
     expect(res.status).toBe(200);
     expect(Array.isArray(res.body)).toBe(true);
 
-    const found = res.body.find((item: any) => item.id === createdId);
+    const found = res.body.find((item: Record<string, unknown>) => item.id === createdId);
     expect(found).toBeDefined();
   });
 
@@ -82,7 +82,7 @@ describe('DataDestination API (e2e)', () => {
     expect(res.status).toBe(200);
     expect(Array.isArray(res.body)).toBe(true);
 
-    const found = res.body.find((item: any) => item.id === createdId);
+    const found = res.body.find((item: Record<string, unknown>) => item.id === createdId);
     expect(found).toBeDefined();
     // DataDestinationByTypeResponseApiDto has id, title, dataMartName, identity
     expect(found).toHaveProperty('id');

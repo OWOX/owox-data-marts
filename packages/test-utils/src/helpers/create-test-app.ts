@@ -12,7 +12,10 @@ import * as supertest from 'supertest';
  *   .set('x-owox-authorization', 'test-token')
  * NullIdpProvider accepts any token value.
  */
-export async function createTestApp(): Promise<{
+export async function createTestApp(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  overrides?: Array<{ provide: any; useValue: any }>,
+): Promise<{
   app: INestApplication;
   agent: supertest.Agent;
 }> {
@@ -72,9 +75,17 @@ export async function createTestApp(): Promise<{
     /* webpackIgnore: true */ '../../../../apps/backend/src/common/exceptions/base-exception.filter'
   );
 
-  const moduleRef = await Test.createTestingModule({
+  let builder = Test.createTestingModule({
     imports: [AppModule],
-  }).compile();
+  });
+
+  if (overrides) {
+    for (const o of overrides) {
+      builder = builder.overrideProvider(o.provide).useValue(o.useValue);
+    }
+  }
+
+  const moduleRef = await builder.compile();
 
   const app: INestApplication = moduleRef.createNestApplication(
     new ExpressAdapter(expressApp)
@@ -82,6 +93,10 @@ export async function createTestApp(): Promise<{
   app.setGlobalPrefix('api');
   setupGlobalPipes(app);
   app.useGlobalFilters(new GlobalExceptionFilter(), new BaseExceptionFilter());
+
+  // Parse JWT bodies as text (mirrors bootstrap.ts: app.use(text({ type: 'application/jwt' })))
+  const { text: textParser } = resolveFromBackend('express');
+  app.use(textParser({ type: 'application/jwt' }));
 
   // Run migrations BEFORE app.init() because OnModuleInit hooks (e.g., SystemTriggerHandlerService)
   // query the database during init. Without tables, those queries fail.

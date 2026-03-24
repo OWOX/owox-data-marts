@@ -61,7 +61,9 @@ describe('DataMart API (e2e)', () => {
       total: expect.any(Number),
     });
 
-    const found = res.body.items.find((item: any) => item.id === createdDataMartId);
+    const found = res.body.items.find(
+      (item: Record<string, unknown>) => item.id === createdDataMartId
+    );
     expect(found).toBeDefined();
     expect(found.status).toBe('DRAFT');
   });

@@ -1,6 +1,7 @@
 import { INestApplication } from '@nestjs/common';
 import * as supertest from 'supertest';
 import { createTestApp, closeTestApp, StorageBuilder, AUTH_HEADER } from '@owox/test-utils';
+import { DataStorageType } from '../src/data-marts/data-storage-types/enums/data-storage-type.enum';
 
 describe('DataStorage API (e2e)', () => {
   let app: INestApplication;
@@ -19,7 +20,7 @@ describe('DataStorage API (e2e)', () => {
 
   // API-01: Create
   it('POST /api/data-storages - creates a storage', async () => {
-    const payload = new StorageBuilder().withType('GOOGLE_BIGQUERY' as any).build();
+    const payload = new StorageBuilder().withType('GOOGLE_BIGQUERY' as DataStorageType).build();
 
     const response = await agent.post('/api/data-storages').set(AUTH_HEADER).send(payload);
 
@@ -38,7 +39,9 @@ describe('DataStorage API (e2e)', () => {
     expect(response.status).toBe(200);
     expect(Array.isArray(response.body)).toBe(true);
 
-    const found = response.body.find((item: any) => item.id === createdStorageId);
+    const found = response.body.find(
+      (item: Record<string, unknown>) => item.id === createdStorageId
+    );
     expect(found).toBeDefined();
     expect(found).toMatchObject({ type: 'GOOGLE_BIGQUERY' });
   });
@@ -65,6 +68,7 @@ describe('DataStorage API (e2e)', () => {
       .send({ title: 'Updated Title', config: {} });
 
     if (response.status !== 400) {
+      // eslint-disable-next-line no-console
       console.log('UPDATE response:', response.status, JSON.stringify(response.body));
     }
     expect(response.status).toBe(400);

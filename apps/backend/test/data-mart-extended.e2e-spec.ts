@@ -13,7 +13,6 @@ import {
 describe('DataMart Extended Operations (e2e)', () => {
   let app: INestApplication;
   let agent: supertest.Agent;
-  let storageId: string;
   let dataMartId: string;
 
   beforeAll(async () => {
@@ -22,7 +21,6 @@ describe('DataMart Extended Operations (e2e)', () => {
     agent = testApp.agent;
 
     const setup = await setupPublishedDataMart(agent);
-    storageId = setup.storageId;
     dataMartId = setup.dataMartId;
   });
 

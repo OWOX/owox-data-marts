@@ -94,7 +94,7 @@ describe('DataMart Manual Runs API (e2e)', () => {
     expect(Array.isArray(res.body.runs)).toBe(true);
     expect(res.body.runs.length).toBeGreaterThanOrEqual(2);
 
-    const runIds = res.body.runs.map((r: any) => r.id);
+    const runIds = res.body.runs.map((r: Record<string, unknown>) => r.id);
     expect(runIds).toContain(firstRunId);
     expect(runIds).toContain(secondRunId);
   });
