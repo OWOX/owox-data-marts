@@ -9,7 +9,7 @@ import {
   CollapsibleCardContent,
   CollapsibleCardFooter,
 } from '../../../shared/components/CollapsibleCard';
-import { BookOpenIcon, Users } from 'lucide-react';
+import { BookOpenIcon, Clock, Users } from 'lucide-react';
 import type { UserProjectionDto } from '../../../shared/types/api';
 
 interface OutletContextType {
@@ -42,26 +42,6 @@ export default function DataMartOverviewContent() {
         </CollapsibleCardHeader>
         <CollapsibleCardContent>
           <div className='flex flex-col gap-4 pb-4'>
-            <div className='flex items-center gap-2'>
-              <span className='text-muted-foreground w-36 text-sm whitespace-nowrap'>
-                Created at
-              </span>
-              <span className='text-sm'>
-                {new Intl.DateTimeFormat('en-US', {
-                  year: 'numeric',
-                  month: 'short',
-                  day: 'numeric',
-                }).format(new Date(dataMart.createdAt))}
-              </span>
-            </div>
-            {dataMart.createdByUser && (
-              <div className='flex items-center gap-2'>
-                <span className='text-muted-foreground w-36 text-sm whitespace-nowrap'>
-                  Created by
-                </span>
-                <UserReference userProjection={dataMart.createdByUser} variant='full' />
-              </div>
-            )}
             <div className='flex items-center gap-2'>
               <span className='text-muted-foreground w-36 text-sm whitespace-nowrap'>
                 Business Owner
@@ -107,6 +87,39 @@ export default function DataMartOverviewContent() {
         </CollapsibleCardHeader>
         <CollapsibleCardContent>
           <DataMartOverview />
+        </CollapsibleCardContent>
+        <CollapsibleCardFooter></CollapsibleCardFooter>
+      </CollapsibleCard>
+
+      <CollapsibleCard collapsible name='created'>
+        <CollapsibleCardHeader>
+          <CollapsibleCardHeaderTitle icon={Clock} tooltip='Data mart creation details'>
+            Created
+          </CollapsibleCardHeaderTitle>
+        </CollapsibleCardHeader>
+        <CollapsibleCardContent>
+          <div className='flex flex-col gap-4 pb-4'>
+            <div className='flex items-center gap-2'>
+              <span className='text-muted-foreground w-36 text-sm whitespace-nowrap'>
+                Created at
+              </span>
+              <span className='text-sm'>
+                {new Intl.DateTimeFormat('en-US', {
+                  year: 'numeric',
+                  month: 'short',
+                  day: 'numeric',
+                }).format(new Date(dataMart.createdAt))}
+              </span>
+            </div>
+            {dataMart.createdByUser && (
+              <div className='flex items-center gap-2'>
+                <span className='text-muted-foreground w-36 text-sm whitespace-nowrap'>
+                  Created by
+                </span>
+                <UserReference userProjection={dataMart.createdByUser} variant='full' />
+              </div>
+            )}
+          </div>
         </CollapsibleCardContent>
         <CollapsibleCardFooter></CollapsibleCardFooter>
       </CollapsibleCard>
