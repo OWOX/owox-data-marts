@@ -7,7 +7,7 @@ export class RadixHelpers {
    * Select an option from a Radix Select component.
    * Clicks trigger, waits for content to appear in portal, clicks option.
    */
-  async selectOption(trigger: Locator, optionText: string): Promise<void> {
+  async selectOption(trigger: Locator, optionText: string | RegExp): Promise<void> {
     await trigger.click();
     // Radix Select portals content to body with role="listbox"
     const listbox = this.page.getByRole('listbox');

@@ -2,12 +2,12 @@
 
 This project uses a three-level testing strategy. Each level catches different categories of bugs and runs independently with its own CI pipeline.
 
-| Level | What | Framework | Command | CI Trigger |
-|-------|------|-----------|---------|------------|
-| Unit | Functions, components, services | Jest / Vitest | `npm test` | Every PR |
-| API E2E | HTTP endpoints against real NestJS + SQLite | Jest + Supertest | `npm run test:e2e -w @owox/backend` | Manual dispatch |
-| Browser E2E | Full-stack UI flows in Chromium | Playwright | `cd apps/web && npx playwright test` | Manual dispatch |
-| Integration | Real cloud databases (BigQuery, Athena) | Jest | `npm run test:integration -w @owox/backend` | Nightly + manual |
+| Level       | What                                        | Framework        | Command                                     | CI Trigger       |
+| ----------- | ------------------------------------------- | ---------------- | ------------------------------------------- | ---------------- |
+| Unit        | Functions, components, services             | Jest / Vitest    | `npm test`                                  | Every PR         |
+| API E2E     | HTTP endpoints against real NestJS + SQLite | Jest + Supertest | `npm run test:e2e -w @owox/backend`         | Manual dispatch  |
+| Browser E2E | Full-stack UI flows in Chromium             | Playwright       | `cd apps/web && npx playwright test`        | Manual dispatch  |
+| Integration | Real cloud databases (BigQuery, Athena)     | Jest             | `npm run test:integration -w @owox/backend` | Nightly + manual |
 
 ---
 
@@ -42,6 +42,7 @@ npm run test:cov -w @owox/backend   # with coverage
 ```
 
 **Config:** Inline in `apps/backend/package.json` (`jest` section)
+
 - Test regex: `.*\.spec\.ts$`
 - Environment: `node`
 
@@ -56,6 +57,7 @@ npm run test:coverage -w @owox/web   # with coverage
 ```
 
 **Config:** `apps/web/vitest.config.ts`
+
 - Environment: `happy-dom`
 - Globals: `true` (no need to import `describe`, `it`, `expect`)
 - Setup file loads `@testing-library/jest-dom` matchers
@@ -74,9 +76,9 @@ npm run test:e2e -w @owox/backend
 
 No external dependencies required. Works offline.
 
-### Architecture
+### E2E Architecture
 
-```
+```text
 packages/test-utils/
   src/
     constants.ts                          # AUTH_HEADER, NONEXISTENT_UUID, connector list
@@ -115,6 +117,7 @@ apps/backend/test/
 ### Test App (`createTestApp`)
 
 Creates a production-equivalent NestJS app with:
+
 - SQLite `:memory:` database (no file system, no cleanup)
 - Real migrations applied via `dataSource.runMigrations()`
 - `PRAGMA foreign_keys = ON` for referential integrity
@@ -157,14 +160,9 @@ Use builders to create test data payloads with sensible defaults:
 import { StorageBuilder, DataMartBuilder } from '@owox/test-utils';
 
 // Create a storage
-const storagePayload = new StorageBuilder()
-  .withType('GOOGLE_BIGQUERY')
-  .build();
+const storagePayload = new StorageBuilder().withType('GOOGLE_BIGQUERY').build();
 
-const storageRes = await agent
-  .post('/api/data-storages')
-  .set(AUTH_HEADER)
-  .send(storagePayload);
+const storageRes = await agent.post('/api/data-storages').set(AUTH_HEADER).send(storagePayload);
 
 // Create a data mart (requires storageId from above)
 const dataMartPayload = new DataMartBuilder()
@@ -172,15 +170,13 @@ const dataMartPayload = new DataMartBuilder()
   .withStorageId(storageRes.body.id)
   .build();
 
-const dmRes = await agent
-  .post('/api/data-marts')
-  .set(AUTH_HEADER)
-  .send(dataMartPayload);
+const dmRes = await agent.post('/api/data-marts').set(AUTH_HEADER).send(dataMartPayload);
 ```
 
 ### CI Workflow
 
 **File:** `.github/workflows/e2e-api.yml`
+
 - **Trigger:** `workflow_dispatch` (manual)
 - **Timeout:** 15 minutes
 - **Command:** `npm run test:e2e -w @owox/backend`
@@ -191,7 +187,7 @@ const dmRes = await agent
 
 Playwright drives a real Chromium browser against the full running stack (backend + Vite frontend).
 
-### Running
+### Running Browser Tests
 
 ```bash
 # First time: install browser
@@ -208,6 +204,7 @@ cd apps/web && npx playwright show-report
 ```
 
 Playwright auto-starts both servers:
+
 1. **Backend:** `node dist/src/main.js` on port 3000 (must be built first: `npm run build -w @owox/backend`)
 2. **Frontend:** Vite dev server on `https://localhost:5173`
 
@@ -217,20 +214,20 @@ Playwright always starts its own servers (`reuseExistingServer: false`). If port
 
 **File:** `apps/web/playwright.config.ts`
 
-| Setting | Value | Why |
-|---------|-------|-----|
-| `fullyParallel` | `false` | Tests share DB state, order matters |
-| `workers` | `1` | Sequential execution for data consistency |
-| `retries` | `1` in CI, `0` local | One retry to handle flaky browser startup |
-| `trace` | `on-first-retry` | Captures trace only on failure |
-| `screenshot` | `only-on-failure` | Saves screenshots on failure |
-| `viewport` | `1280x720` | Standard desktop resolution |
-| `baseURL` | `https://localhost:5173` | Vite dev server with self-signed certs |
-| `ignoreHTTPSErrors` | `true` | Self-signed cert in dev |
+| Setting             | Value                    | Why                                       |
+| ------------------- | ------------------------ | ----------------------------------------- |
+| `fullyParallel`     | `false`                  | Tests share DB state, order matters       |
+| `workers`           | `1`                      | Sequential execution for data consistency |
+| `retries`           | `1` in CI, `0` local     | One retry to handle flaky browser startup |
+| `trace`             | `on-first-retry`         | Captures trace only on failure            |
+| `screenshot`        | `only-on-failure`        | Saves screenshots on failure              |
+| `viewport`          | `1280x720`               | Standard desktop resolution               |
+| `baseURL`           | `https://localhost:5173` | Vite dev server with self-signed certs    |
+| `ignoreHTTPSErrors` | `true`                   | Self-signed cert in dev                   |
 
 ### Test Files
 
-```
+```text
 apps/web/e2e/specs/
   storage.spec.ts             # DataStorage creation via UI
   datamart-create.spec.ts     # DataMart creation form + validation
@@ -259,83 +256,84 @@ Current testids (41 total, defined in `apps/web/e2e/selectors/testids.ts`):
 
 **Storage (6):**
 
-| testid | Purpose |
-|--------|---------|
-| `storageListPage` | Page container |
-| `storageTypeDialog` | Type selection dialog visibility |
-| `storageTable` | Verify data rows |
-| `storageConfigSheet` | Config sheet visibility |
-| `storageEditForm` | Edit form container |
-| `storageDeleteButton` | Delete action in context menu |
+| testid                | Purpose                          |
+| --------------------- | -------------------------------- |
+| `storageListPage`     | Page container                   |
+| `storageTypeDialog`   | Type selection dialog visibility |
+| `storageTable`        | Verify data rows                 |
+| `storageConfigSheet`  | Config sheet visibility          |
+| `storageEditForm`     | Edit form container              |
+| `storageDeleteButton` | Delete action in context menu    |
 
 **DataMart (13):**
 
-| testid | Purpose |
-|--------|---------|
-| `datamartList` | List wrapper |
-| `datamartTable` | Table container |
-| `datamartCreateForm` | Create form container |
-| `datamartCreatePage` | Create page wrapper |
-| `datamartDetails` | Detail page loaded check |
-| `datamartTabNav` | Scope tab link selectors |
-| `datamartTabOverview` | Overview tab content |
-| `datamartTabDataSetup` | Data Setup tab content |
-| `datamartPublishButton` | Verify publish state |
-| `datamartDeleteButton` | Delete action |
-| `datamartTitleInput` | Inline title editing |
-| `datamartSearchInput` | List search input |
-| `datamartStatusFilter` | Status filter dropdown |
+| testid                  | Purpose                  |
+| ----------------------- | ------------------------ |
+| `datamartList`          | List wrapper             |
+| `datamartTable`         | Table container          |
+| `datamartCreateForm`    | Create form container    |
+| `datamartCreatePage`    | Create page wrapper      |
+| `datamartDetails`       | Detail page loaded check |
+| `datamartTabNav`        | Scope tab link selectors |
+| `datamartTabOverview`   | Overview tab content     |
+| `datamartTabDataSetup`  | Data Setup tab content   |
+| `datamartPublishButton` | Verify publish state     |
+| `datamartDeleteButton`  | Delete action            |
+| `datamartTitleInput`    | Inline title editing     |
+| `datamartSearchInput`   | List search input        |
+| `datamartStatusFilter`  | Status filter dropdown   |
 
 **Destination (5):**
 
-| testid | Purpose |
-|--------|---------|
-| `destTab` | Destinations tab content |
-| `destEmptyState` | Empty state placeholder |
-| `destCreateButton` | New Destination button |
-| `destEditSheet` | Edit sheet visibility |
-| `destCard` | Destination card wrapper |
+| testid             | Purpose                  |
+| ------------------ | ------------------------ |
+| `destTab`          | Destinations tab content |
+| `destEmptyState`   | Empty state placeholder  |
+| `destCreateButton` | New Destination button   |
+| `destEditSheet`    | Edit sheet visibility    |
+| `destCard`         | Destination card wrapper |
 
 **Report (3):**
 
-| testid | Purpose |
-|--------|---------|
-| `reportCreateButton` | Add Report button |
-| `reportEditSheet` | Edit sheet visibility |
-| `reportCard` | Report card wrapper |
+| testid               | Purpose               |
+| -------------------- | --------------------- |
+| `reportCreateButton` | Add Report button     |
+| `reportEditSheet`    | Edit sheet visibility |
+| `reportCard`         | Report card wrapper   |
 
 **Trigger (6):**
 
-| testid | Purpose |
-|--------|---------|
-| `triggerTab` | Triggers tab content |
-| `triggerEmptyState` | Empty state placeholder |
-| `triggerCreateButton` | Add Trigger button |
-| `triggerEditSheet` | Edit sheet visibility |
-| `triggerTable` | Trigger table container |
-| `triggerToggle` | Enable/disable toggle |
+| testid                | Purpose                 |
+| --------------------- | ----------------------- |
+| `triggerTab`          | Triggers tab content    |
+| `triggerEmptyState`   | Empty state placeholder |
+| `triggerCreateButton` | Add Trigger button      |
+| `triggerEditSheet`    | Edit sheet visibility   |
+| `triggerTable`        | Trigger table container |
+| `triggerToggle`       | Enable/disable toggle   |
 
 **Run History (4):**
 
-| testid | Purpose |
-|--------|---------|
-| `runHistoryTab` | Run History tab content |
-| `runHistoryTable` | Run list container |
+| testid                 | Purpose                 |
+| ---------------------- | ----------------------- |
+| `runHistoryTab`        | Run History tab content |
+| `runHistoryTable`      | Run list container      |
 | `runHistoryEmptyState` | Empty state placeholder |
-| `runLogView` | Expanded log viewer |
+| `runLogView`           | Expanded log viewer     |
 
 **Notifications (4):**
 
-| testid | Purpose |
-|--------|---------|
-| `notifPage` | Notifications page container |
-| `notifSettingsTable` | Settings table container |
-| `notifToggle` | Enable/disable toggle |
-| `notifEditSheet` | Edit sheet visibility |
+| testid               | Purpose                      |
+| -------------------- | ---------------------------- |
+| `notifPage`          | Notifications page container |
+| `notifSettingsTable` | Settings table container     |
+| `notifToggle`        | Enable/disable toggle        |
+| `notifEditSheet`     | Edit sheet visibility        |
 
 ### Selector Strategy
 
 Prefer in this order:
+
 1. `page.getByTestId('storageTable')` — for containers, pages, sections
 2. `page.getByRole('button', { name: 'New Storage' })` — for interactive elements
 3. `page.getByText('Published')` — for verifying visible text
@@ -404,9 +402,10 @@ page.on('console', (msg: ConsoleMessage) => {
 expect(consoleErrors).toEqual([]);
 ```
 
-### CI Workflow
+### Browser CI Workflow
 
 **File:** `.github/workflows/e2e-browser.yml`
+
 - **Trigger:** `workflow_dispatch` (manual)
 - **Timeout:** 30 minutes
 - **Artifacts:** HTML report (always), trace files (on failure)
@@ -418,7 +417,7 @@ expect(consoleErrors).toEqual([]);
 
 Tests that validate cloud database adapters (BigQuery, Athena) against real cloud APIs. These catch SDK version issues, permission problems, and SQL dialect bugs that mocks cannot detect.
 
-### Running
+### Running Integration Tests
 
 ```bash
 npm run test:integration -w @owox/backend
@@ -446,6 +445,7 @@ ATHENA_DATABASE=your_existing_database
 ```
 
 **Prerequisites:**
+
 - BigQuery dataset must already exist
 - Athena database must already exist (create via `CREATE DATABASE name` in Athena console)
 - S3 bucket must exist and be accessible by the IAM user
@@ -453,9 +453,9 @@ ATHENA_DATABASE=your_existing_database
 
 The `setup-env.ts` file (loaded via Jest's `setupFiles`) first loads root `.env` for base configuration, then loads root `.env.tests` with `override: true` so test values take priority over `.env` defaults.
 
-### Architecture
+### Integration Test Architecture
 
-```
+```text
 apps/backend/test/
   jest-integration.json            # Jest config (60s timeout, setupFiles)
   integration/
@@ -494,6 +494,7 @@ describeIfCredentials('BigQuery Integration Tests', () => {
 ```
 
 This ensures:
+
 - `npm run test:integration` never fails for contributors without credentials
 - CI with secrets runs the real tests
 - Clear skip message in console output
@@ -528,7 +529,8 @@ const TEST_S3_PREFIX = `integration-test/${TEST_TABLE_SUFFIX}/`;
 // beforeAll: Pre-cleanup (handles crashed previous runs)
 await adapter.executeQuery(
   `DROP TABLE IF EXISTS \`${database}\`.\`${TEST_TABLE_SUFFIX}\``,
-  outputBucket, 'integration-test/cleanup/'
+  outputBucket,
+  'integration-test/cleanup/'
 );
 
 // beforeAll: Create test table via CTAS
@@ -538,13 +540,15 @@ await adapter.executeQuery(
    AS SELECT
      1 AS id, 'test_name' AS name, true AS active,
      TIMESTAMP '2024-01-01 00:00:00.000' AS created_at`,
-  outputBucket, 'integration-test/ctas/'
+  outputBucket,
+  'integration-test/ctas/'
 );
 
 // afterAll: Drop table + S3 cleanup
 await adapter.executeQuery(
   `DROP TABLE IF EXISTS \`${database}\`.\`${TEST_TABLE_SUFFIX}\``,
-  outputBucket, 'integration-test/drop/'
+  outputBucket,
+  'integration-test/drop/'
 );
 await s3Adapter.cleanupOutputFiles(outputBucket, `${TEST_S3_PREFIX}data/`);
 await s3Adapter.cleanupOutputFiles(outputBucket, 'integration-test/');
@@ -554,11 +558,11 @@ await s3Adapter.cleanupOutputFiles(outputBucket, 'integration-test/');
 
 Athena uses different SQL parsers for different statement types:
 
-| Statement Type | Parser | Quoting | Example |
-|---------------|--------|---------|---------|
-| `DROP TABLE IF EXISTS` | Hive | Backticks | `` DROP TABLE IF EXISTS `db`.`table` `` |
-| `CREATE TABLE ... AS SELECT` | Trino | Double quotes | `CREATE TABLE "db"."table" WITH ...` |
-| `SELECT`, `EXPLAIN` | Trino | Double quotes | `SELECT * FROM "db"."table"` |
+| Statement Type               | Parser | Quoting       | Example                                 |
+| ---------------------------- | ------ | ------------- | --------------------------------------- |
+| `DROP TABLE IF EXISTS`       | Hive   | Backticks     | `` DROP TABLE IF EXISTS `db`.`table` `` |
+| `CREATE TABLE ... AS SELECT` | Trino  | Double quotes | `CREATE TABLE "db"."table" WITH ...`    |
+| `SELECT`, `EXPLAIN`          | Trino  | Double quotes | `SELECT * FROM "db"."table"`            |
 
 #### Athena TIMESTAMP Precision
 
@@ -576,16 +580,17 @@ TIMESTAMP '2024-01-01 00:00:00.000'
 
 Cloud API calls are slow. Use appropriate timeouts:
 
-| Context | Timeout | Reason |
-|---------|---------|--------|
-| Jest global | 60,000ms | Default for all tests |
-| `beforeAll` (setup) | 120,000ms | Table creation, CTAS |
-| `afterAll` (teardown) | 60,000ms | Table drop, S3 cleanup |
-| Individual tests | 30,000ms | Single API call |
+| Context               | Timeout   | Reason                 |
+| --------------------- | --------- | ---------------------- |
+| Jest global           | 60,000ms  | Default for all tests  |
+| `beforeAll` (setup)   | 120,000ms | Table creation, CTAS   |
+| `afterAll` (teardown) | 60,000ms  | Table drop, S3 cleanup |
+| Individual tests      | 30,000ms  | Single API call        |
 
-### CI Workflow
+### Integration CI Workflow
 
 **File:** `.github/workflows/test-integration.yml`
+
 - **Triggers:** `workflow_dispatch` (manual) + nightly cron at 3 AM UTC
 - **Timeout:** 30 minutes
 - **Secrets required:** `BQ_PROJECT_ID`, `BQ_DATASET`, `BQ_SERVICE_ACCOUNT_KEY`, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `ATHENA_REGION`, `ATHENA_OUTPUT_BUCKET`, `ATHENA_DATABASE`
@@ -662,20 +667,14 @@ describe('YourFeature API (e2e)', () => {
   });
 
   it('POST /api/your-endpoint - creates a resource', async () => {
-    const res = await agent
-      .post('/api/your-endpoint')
-      .set(AUTH_HEADER)
-      .send({ field: 'value' });
+    const res = await agent.post('/api/your-endpoint').set(AUTH_HEADER).send({ field: 'value' });
 
     expect(res.status).toBe(201);
     expect(res.body).toMatchObject({ field: 'value' });
   });
 
   it('POST /api/your-endpoint - returns 400 for invalid payload', async () => {
-    const res = await agent
-      .post('/api/your-endpoint')
-      .set(AUTH_HEADER)
-      .send({});
+    const res = await agent.post('/api/your-endpoint').set(AUTH_HEADER).send({});
 
     expect(res.status).toBe(400);
     expect(res.body.statusCode).toBe(400);
@@ -723,6 +722,7 @@ test.describe('Your Feature', () => {
 ```
 
 **When to use `beforeAll` vs `beforeEach`:**
+
 - `beforeEach` — lightweight per-test setup (check prerequisites)
 - `beforeAll` — expensive one-time setup (use separate browser context: `browser.newPage()`)
 
@@ -732,9 +732,11 @@ If a UI action requires external service configuration (cloud credentials, third
 ### Adding a data-testid
 
 1. Add to the React component in `apps/web`:
+
    ```tsx
    <div data-testid="yourFeaturePage">
    ```
+
 2. Never add testids to `packages/ui` components
 3. Use camelCase naming
 4. Only add testids that tests actually use
@@ -789,8 +791,8 @@ describeIfCredentials('YourService Integration Tests', () => {
 });
 ```
 
-3. Add env vars to root `.env.tests`
-4. Add secrets to `.github/workflows/test-integration.yml`
+1. Add env vars to root `.env.tests`
+2. Add secrets to `.github/workflows/test-integration.yml`
 
 ### Integration Test Checklist
 
@@ -807,45 +809,45 @@ describeIfCredentials('YourService Integration Tests', () => {
 
 ## CI Workflows Summary
 
-| Workflow | File | Trigger | What |
-|----------|------|---------|------|
-| Unit Tests | `test-owox.yml` | PR, push to main | Backend + Web + CLI unit tests |
-| API E2E | `e2e-api.yml` | Manual dispatch | Backend API integration tests (SQLite) |
-| Browser E2E | `e2e-browser.yml` | Manual dispatch | Playwright browser tests |
-| Integration | `test-integration.yml` | Manual + nightly 3 AM UTC | BigQuery + Athena real database tests |
-| Docs Build | `test-docs.yml` | PR to docs | Documentation build verification |
+| Workflow    | File                   | Trigger                   | What                                   |
+| ----------- | ---------------------- | ------------------------- | -------------------------------------- |
+| Unit Tests  | `test-owox.yml`        | PR, push to main          | Backend + Web + CLI unit tests         |
+| API E2E     | `e2e-api.yml`          | Manual dispatch           | Backend API integration tests (SQLite) |
+| Browser E2E | `e2e-browser.yml`      | Manual dispatch           | Playwright browser tests               |
+| Integration | `test-integration.yml` | Manual + nightly 3 AM UTC | BigQuery + Athena real database tests  |
+| Docs Build  | `test-docs.yml`        | PR to docs                | Documentation build verification       |
 
 ### GitHub Secrets for Integration Tests
 
 Configure in: Repository Settings > Secrets and variables > Actions
 
-| Secret | Service | Description |
-|--------|---------|-------------|
+| Secret                   | Service  | Description                            |
+| ------------------------ | -------- | -------------------------------------- |
 | `BQ_SERVICE_ACCOUNT_KEY` | BigQuery | JSON string of GCP service account key |
-| `BQ_PROJECT_ID` | BigQuery | GCP project ID |
-| `BQ_DATASET` | BigQuery | BigQuery dataset name (must exist) |
-| `AWS_ACCESS_KEY_ID` | Athena | AWS IAM access key |
-| `AWS_SECRET_ACCESS_KEY` | Athena | AWS IAM secret key |
-| `ATHENA_REGION` | Athena | AWS region (e.g., `eu-west-1`) |
-| `ATHENA_OUTPUT_BUCKET` | Athena | S3 bucket for query results |
-| `ATHENA_DATABASE` | Athena | Athena database name (must exist) |
+| `BQ_PROJECT_ID`          | BigQuery | GCP project ID                         |
+| `BQ_DATASET`             | BigQuery | BigQuery dataset name (must exist)     |
+| `AWS_ACCESS_KEY_ID`      | Athena   | AWS IAM access key                     |
+| `AWS_SECRET_ACCESS_KEY`  | Athena   | AWS IAM secret key                     |
+| `ATHENA_REGION`          | Athena   | AWS region (e.g., `eu-west-1`)         |
+| `ATHENA_OUTPUT_BUCKET`   | Athena   | S3 bucket for query results            |
+| `ATHENA_DATABASE`        | Athena   | Athena database name (must exist)      |
 
 ---
 
 ## File Reference
 
-| File | Purpose |
-|------|---------|
-| `apps/backend/package.json` | Jest unit config (inline), npm scripts |
-| `apps/backend/test/jest-e2e.json` | Jest config for API E2E tests |
-| `apps/backend/test/jest-integration.json` | Jest config for real DB tests |
-| `apps/backend/test/jest-e2e-resolver.js` | ESM `.js` -> `.ts` import resolver |
-| `apps/backend/test/integration/setup-env.ts` | Loads root `.env` then `.env.tests` (override) via dotenv |
-| `apps/backend/test/*.e2e-spec.ts` | API E2E test files |
-| `apps/backend/test/integration/*.integration.ts` | Real DB integration tests |
-| `apps/web/playwright.config.ts` | Playwright configuration |
-| `apps/web/e2e/specs/*.spec.ts` | Browser E2E test files |
-| `apps/web/vitest.config.ts` | Vitest config for frontend unit tests |
-| `packages/test-utils/src/` | Shared test utilities (app bootstrap, builders) |
-| `.github/workflows/test-*.yml` | CI workflow definitions |
-| `.github/workflows/e2e-*.yml` | E2E CI workflow definitions |
+| File                                             | Purpose                                                   |
+| ------------------------------------------------ | --------------------------------------------------------- |
+| `apps/backend/package.json`                      | Jest unit config (inline), npm scripts                    |
+| `apps/backend/test/jest-e2e.json`                | Jest config for API E2E tests                             |
+| `apps/backend/test/jest-integration.json`        | Jest config for real DB tests                             |
+| `apps/backend/test/jest-e2e-resolver.js`         | ESM `.js` -> `.ts` import resolver                        |
+| `apps/backend/test/integration/setup-env.ts`     | Loads root `.env` then `.env.tests` (override) via dotenv |
+| `apps/backend/test/*.e2e-spec.ts`                | API E2E test files                                        |
+| `apps/backend/test/integration/*.integration.ts` | Real DB integration tests                                 |
+| `apps/web/playwright.config.ts`                  | Playwright configuration                                  |
+| `apps/web/e2e/specs/*.spec.ts`                   | Browser E2E test files                                    |
+| `apps/web/vitest.config.ts`                      | Vitest config for frontend unit tests                     |
+| `packages/test-utils/src/`                       | Shared test utilities (app bootstrap, builders)           |
+| `.github/workflows/test-*.yml`                   | CI workflow definitions                                   |
+| `.github/workflows/e2e-*.yml`                    | E2E CI workflow definitions                               |
