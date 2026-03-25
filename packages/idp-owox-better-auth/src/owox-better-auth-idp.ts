@@ -34,6 +34,8 @@ import { EmailValidationService } from './services/email/email-validation-servic
 import { MagicLinkEmailService } from './services/email/magic-link-email-service.js';
 import { AuthFlowMiddleware } from './services/middleware/auth-flow-middleware.js';
 import { BetterAuthProxyHandler } from './services/middleware/better-auth-proxy-handler.js';
+import { OnboardingService } from './services/onboarding/onboarding-service.js';
+import { OnboardingController } from './controllers/onboarding-controller.js';
 import { createDatabaseStore } from './store/database-store-factory.js';
 import type { DatabaseStore } from './store/database-store.js';
 import { clearCookie } from './utils/cookie-policy.js';
@@ -67,6 +69,8 @@ export class OwoxBetterAuthIdp implements IdpProvider {
   private readonly platformAuthFlowClient: PlatformAuthFlowClient;
   private readonly pkceFlowOrchestrator: PkceFlowOrchestrator;
   private readonly projectMembersService: ProjectMembersService;
+  private readonly onboardingService: OnboardingService;
+  private readonly onboardingController: OnboardingController;
 
   private constructor(
     auth: Awaited<ReturnType<typeof createBetterAuthConfig>>,
@@ -94,6 +98,18 @@ export class OwoxBetterAuthIdp implements IdpProvider {
     );
     this.platformAuthFlowClient = new PlatformAuthFlowClient(this.identityClient);
 
+    // Initialize project members service (before onboarding, which depends on it)
+    const serviceOptions: ProjectMembersServiceOptions = {
+      ttlSeconds: this.config.idpOwox.projectMembersCacheTtlSeconds,
+    };
+    this.projectMembersService = new ProjectMembersService(
+      this.store,
+      this.identityClient,
+      serviceOptions
+    );
+
+    this.onboardingService = new OnboardingService(this.store, this.projectMembersService);
+
     this.betterAuthSessionService = new BetterAuthSessionService(
       this.auth,
       this.store,
@@ -110,6 +126,11 @@ export class OwoxBetterAuthIdp implements IdpProvider {
     this.betterAuthProxyHandler = new BetterAuthProxyHandler(this.auth, this.pkceFlowOrchestrator);
     this.authErrorController = new AuthErrorController(this.config.gtmContainerId);
     this.pageController = new PageController(this.config.uiProviders, this.config.gtmContainerId);
+    this.onboardingController = new OnboardingController(
+      this.onboardingService,
+      this.tokenFacade,
+      this.config.gtmContainerId
+    );
     this.passwordFlowController = new PasswordFlowController(
       this.auth,
       this.betterAuthSessionService,
@@ -121,16 +142,6 @@ export class OwoxBetterAuthIdp implements IdpProvider {
       this.config.idpOwox,
       this.store,
       this.pkceFlowOrchestrator
-    );
-
-    // Initialize project members service
-    const serviceOptions: ProjectMembersServiceOptions = {
-      ttlSeconds: this.config.idpOwox.projectMembersCacheTtlSeconds,
-    };
-    this.projectMembersService = new ProjectMembersService(
-      this.store,
-      this.identityClient,
-      serviceOptions
     );
   }
 
@@ -180,6 +191,7 @@ export class OwoxBetterAuthIdp implements IdpProvider {
 
     this.betterAuthProxyHandler.setupBetterAuthHandler(app);
     this.authErrorController.registerRoutes(app);
+    this.onboardingController.registerRoutes(app);
     this.pageController.registerRoutes(app);
     this.passwordFlowController.registerRoutes(app);
 
@@ -215,6 +227,26 @@ export class OwoxBetterAuthIdp implements IdpProvider {
         );
 
         clearPlatformCookies(res, req);
+
+        // Check if onboarding questionnaire should be shown
+        const payload = await this.tokenFacade.parseToken(response.accessToken);
+        if (payload) {
+          try {
+            const shouldOnboard = await this.onboardingService.shouldShowQuestionnaire(
+              payload.userId,
+              payload.projectId
+            );
+            if (shouldOnboard) {
+              const onboardingUrl = new URL('/auth/onboarding', this.config.idpOwox.baseUrl);
+              onboardingUrl.searchParams.set('redirect', '/');
+              if (payload.email) onboardingUrl.searchParams.set('email', payload.email);
+              return res.redirect(onboardingUrl.toString());
+            }
+          } catch {
+            // Onboarding check failed, proceed normally
+          }
+        }
+
         res.redirect('/');
       } catch (error: unknown) {
         if (error instanceof AuthenticationException) {
@@ -280,6 +312,33 @@ export class OwoxBetterAuthIdp implements IdpProvider {
     }
 
     return this.redirectToPlatform(req, res, this.config.idpOwox.idpConfig.platformSignInUrl);
+  }
+
+  /**
+   * Fetches onboarding answers for a user/project and deserializes JSON arrays.
+   * Returns an empty array on any error.
+   */
+  private async getOnboardingForPayload(
+    userId: string,
+    projectId: string
+  ): Promise<{ questionId: string; answerValue: string | string[] }[]> {
+    try {
+      const answers = await this.store.getOnboardingAnswers(userId, projectId);
+      return answers.map(a => {
+        let parsed: string | string[] = a.answerValue;
+        if (a.answerValue.startsWith('[')) {
+          try {
+            parsed = JSON.parse(a.answerValue) as string[];
+          } catch {
+            // keep as string if parsing fails
+          }
+        }
+        return { questionId: a.questionId, answerValue: parsed };
+      });
+    } catch {
+      this.log.warn('Failed to get onboarding answers for user/project', { userId, projectId });
+      return [];
+    }
   }
 
   /**
@@ -372,7 +431,10 @@ export class OwoxBetterAuthIdp implements IdpProvider {
     if (!payload) {
       return res.status(401).json({ message: 'Unauthorized', reason: 'uam2' });
     }
-    return res.json(payload);
+
+    const onboarding = await this.getOnboardingForPayload(payload.userId, payload.projectId);
+
+    return res.json({ ...payload, onboarding });
   }
 
   async projectsApiMiddleware(

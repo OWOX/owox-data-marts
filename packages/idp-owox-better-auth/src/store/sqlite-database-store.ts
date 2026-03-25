@@ -1,6 +1,11 @@
 import type { ProjectMember } from '@owox/idp-protocol';
 import { createServiceLogger } from '../core/logger.js';
-import type { DatabaseAccount, DatabaseOperationResult, DatabaseUser } from '../types/index.js';
+import type {
+  DatabaseAccount,
+  DatabaseOperationResult,
+  DatabaseUser,
+  OnboardingAnswer,
+} from '../types/index.js';
 import type { DatabaseStore } from './database-store.js';
 import { StoreResult } from './store-result.js';
 
@@ -24,6 +29,7 @@ export class SqliteDatabaseStore implements DatabaseStore {
   private readonly logger = createServiceLogger(SqliteDatabaseStore.name);
   private authTableReady = false;
   private projectTablesReady = false;
+  private onboardingTableReady = false;
 
   constructor(private readonly dbPath: string) {}
 
@@ -173,6 +179,13 @@ export class SqliteDatabaseStore implements DatabaseStore {
     await this.connect();
     const stmt = this.getDb().prepare('SELECT * FROM user WHERE id = ?');
     const row = stmt.get(userId) as Record<string, unknown> | undefined;
+    return row ? this.mapUser(row) : null;
+  }
+
+  async getUserByBiUserId(biUserId: string): Promise<DatabaseUser | null> {
+    await this.connect();
+    const stmt = this.getDb().prepare('SELECT * FROM user WHERE biUserId = ?');
+    const row = stmt.get(biUserId) as Record<string, unknown> | undefined;
     return row ? this.mapUser(row) : null;
   }
 
@@ -499,5 +512,101 @@ export class SqliteDatabaseStore implements DatabaseStore {
       expiresAt: row.expiresAt ? new Date(row.expiresAt) : null,
       updatedAt: row.updatedAt ? new Date(row.updatedAt) : null,
     };
+  }
+
+  // Onboarding Questionnaire methods
+
+  private ensureOnboardingTable(): void {
+    if (this.onboardingTableReady) return;
+    const db = this.getDb();
+
+    db.prepare(
+      `CREATE TABLE IF NOT EXISTS onboarding_answer (
+        id TEXT NOT NULL PRIMARY KEY,
+        userId TEXT NOT NULL,
+        projectId TEXT NOT NULL,
+        biUserId TEXT NOT NULL,
+        questionId TEXT NOT NULL,
+        answerValue TEXT NOT NULL,
+        otherText TEXT NULL,
+        userRole TEXT NOT NULL,
+        createdAt TEXT NOT NULL DEFAULT (CURRENT_TIMESTAMP),
+        UNIQUE (userId, projectId, questionId)
+      )`
+    ).run();
+
+    try {
+      db.prepare(
+        `CREATE INDEX idx_onboarding_user_project ON onboarding_answer(userId, projectId)`
+      ).run();
+    } catch {
+      // index already exists
+    }
+    this.onboardingTableReady = true;
+  }
+
+  async saveOnboardingAnswers(answers: OnboardingAnswer[]): Promise<void> {
+    await this.connect();
+    this.ensureOnboardingTable();
+
+    const db = this.getDb();
+    const stmt = db.prepare(
+      `INSERT INTO onboarding_answer (id, userId, projectId, biUserId, questionId, answerValue, otherText, userRole)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+       ON CONFLICT(userId, projectId, questionId) DO UPDATE SET
+         answerValue = excluded.answerValue,
+         otherText = excluded.otherText,
+         userRole = excluded.userRole,
+         biUserId = excluded.biUserId`
+    );
+
+    for (const answer of answers) {
+      stmt.run(
+        answer.id,
+        answer.userId,
+        answer.projectId,
+        answer.biUserId,
+        answer.questionId,
+        answer.answerValue,
+        answer.otherText ?? null,
+        answer.userRole
+      );
+    }
+  }
+
+  async hasOnboardingAnswers(userId: string, projectId: string): Promise<boolean> {
+    await this.connect();
+    this.ensureOnboardingTable();
+
+    const row = this.getDb()
+      .prepare(`SELECT COUNT(*) AS cnt FROM onboarding_answer WHERE userId = ? AND projectId = ?`)
+      .get(userId, projectId) as { cnt: number } | undefined;
+
+    return (row?.cnt ?? 0) > 0;
+  }
+
+  async getOnboardingAnswers(userId: string, projectId: string): Promise<OnboardingAnswer[]> {
+    await this.connect();
+    this.ensureOnboardingTable();
+
+    const rows = this.getDb()
+      .prepare(
+        `SELECT id, userId, projectId, biUserId, questionId, answerValue, otherText, userRole, createdAt
+         FROM onboarding_answer
+         WHERE userId = ? AND projectId = ?`
+      )
+      .all(userId, projectId) as Array<Record<string, unknown>>;
+
+    return rows.map(row => ({
+      id: String(row.id),
+      userId: String(row.userId),
+      projectId: String(row.projectId),
+      biUserId: String(row.biUserId),
+      questionId: String(row.questionId),
+      answerValue: String(row.answerValue),
+      otherText: row.otherText != null ? String(row.otherText) : null,
+      userRole: String(row.userRole),
+      createdAt: this.toIso(row.createdAt),
+    }));
   }
 }

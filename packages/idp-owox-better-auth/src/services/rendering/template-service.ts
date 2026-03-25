@@ -143,4 +143,15 @@ export class TemplateService {
       gtmContainerId: data.gtmContainerId,
     });
   }
+
+  public static renderOnboarding(
+    data: Record<string, unknown> & { gtmContainerId?: string } = {}
+  ): string {
+    return this.renderWithLayout('pages/onboarding.ejs', 'layouts/onboarding.ejs', {
+      pageTitle: 'Welcome - OWOX Data Marts',
+      heading: 'Help us personalize your experience',
+      ...data,
+      gtmContainerId: data.gtmContainerId,
+    });
+  }
 }
