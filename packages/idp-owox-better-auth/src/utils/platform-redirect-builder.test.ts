@@ -84,4 +84,48 @@ describe('platform-redirect-builder', () => {
     expect(sanitizeRedirectParam('https://platform.test/path', undefined)).toBeUndefined();
     expect(sanitizeRedirectParam('/relative', undefined)).toBe('/relative');
   });
+
+  it('forwards extraParams to entry url', () => {
+    const url = buildPlatformEntryUrl({
+      authUrl: 'https://platform.test/ui/p/signup',
+      defaultSource: SOURCE.APP,
+      params: {
+        extraParams: {
+          utm_source: 'source',
+          utm_medium: 'referral',
+          utm_campaign: 'campaign',
+        },
+      },
+    });
+
+    expect(url.searchParams.get('utm_source')).toBe('source');
+    expect(url.searchParams.get('utm_medium')).toBe('referral');
+    expect(url.searchParams.get('utm_campaign')).toBe('campaign');
+  });
+
+  it('does not overwrite existing params with extraParams', () => {
+    const url = buildPlatformEntryUrl({
+      authUrl: 'https://platform.test/ui/p/signup?utm_source=existing',
+      defaultSource: SOURCE.APP,
+      params: {
+        extraParams: { utm_source: 'should-not-overwrite' },
+      },
+    });
+
+    expect(url.searchParams.get('utm_source')).toBe('existing');
+  });
+
+  it('forwards extraParams in redirect url', () => {
+    const url = buildPlatformRedirectUrl({
+      baseUrl: 'https://platform.test/ui/p/signin',
+      code: 'CODE',
+      state: 'STATE',
+      params: {
+        extraParams: { utm_source: 'source', utm_term: 'sheets' },
+      },
+    });
+
+    expect(url?.searchParams.get('utm_source')).toBe('source');
+    expect(url?.searchParams.get('utm_term')).toBe('sheets');
+  });
 });

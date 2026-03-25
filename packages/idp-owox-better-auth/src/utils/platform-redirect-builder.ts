@@ -55,6 +55,13 @@ function applyPlatformParams(
   if (params?.clientId) url.searchParams.set('clientId', params.clientId);
   if (params?.codeChallenge) url.searchParams.set('codeChallenge', params.codeChallenge);
   if (params?.projectId) url.searchParams.set('projectId', params.projectId);
+  if (params?.extraParams) {
+    for (const [key, value] of Object.entries(params.extraParams)) {
+      if (!url.searchParams.has(key)) {
+        url.searchParams.set(key, value);
+      }
+    }
+  }
 }
 
 function resolveBaseUrl(baseUrl?: string | null, signInUrl?: string | null): string | null {
