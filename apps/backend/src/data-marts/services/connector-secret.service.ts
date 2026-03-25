@@ -251,7 +251,13 @@ export class ConnectorSecretService {
           const existingSecrets =
             await this.connectorSourceCredentialsService.getCredentialsById(existingSecretsId);
 
-          if (!existingSecrets || existingSecrets.projectId !== projectId) {
+          if (existingSecrets && existingSecrets.projectId !== projectId) {
+            throw new Error(
+              `Unauthorized: secrets ${existingSecretsId} do not belong to project ${projectId}`
+            );
+          }
+
+          if (!existingSecrets) {
             const credentialsEntity =
               await this.connectorSourceCredentialsService.createSecretsForConfig(
                 projectId,
@@ -576,6 +582,47 @@ export class ConnectorSecretService {
         },
       },
     } as ConnectorDefinition;
+  }
+
+  /**
+   * Deletes secrets for configuration items that were removed from DataMart.
+   *
+   * This method compares the current configuration item IDs with the previous ones
+   * and deletes secrets for items that no longer exist.
+   *
+   * @param dataMartId DataMart ID
+   * @param currentConfigIds Set of current configuration item _ids
+   * @param previousDefinition Previous connector definition (if exists)
+   */
+  async deleteOrphanedSecrets(
+    dataMartId: string,
+    currentConfigIds: Set<string>,
+    previousDefinition: ConnectorDefinition | undefined
+  ): Promise<void> {
+    if (!previousDefinition) {
+      return;
+    }
+
+    const previousConfigItems = previousDefinition.connector?.source?.configuration || [];
+
+    // Find config items that existed before but are not in the current configuration
+    const orphanedSecretsIds: string[] = [];
+
+    for (const item of previousConfigItems) {
+      const configItem = item as Record<string, unknown>;
+      const configId = configItem._id as string | undefined;
+      const secretsId = configItem._secrets_id as string | undefined;
+
+      // If this config item had secrets and is no longer in the current configuration
+      if (configId && secretsId && !currentConfigIds.has(configId)) {
+        orphanedSecretsIds.push(secretsId);
+      }
+    }
+
+    // Delete orphaned secrets
+    for (const secretsId of orphanedSecretsIds) {
+      await this.connectorSourceCredentialsService.deleteCredentials(secretsId);
+    }
   }
 
   /**

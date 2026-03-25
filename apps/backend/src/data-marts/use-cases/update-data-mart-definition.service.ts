@@ -79,12 +79,27 @@ export class UpdateDataMartDefinitionService {
         );
       }
 
+      // Store previous definition for orphaned secrets cleanup
+      const previousDefinition = dataMart.definition as ConnectorDefinition | undefined;
+
       // Extract non-OAuth secrets and save them to a separate table
       dataMart.definition = await this.connectorSecretService.extractAndSaveSecrets(
         dataMart.id,
         command.projectId,
         connectorDefinition.connector.source.name,
         mergedDefinition
+      );
+
+      // Delete secrets for configuration items that were removed
+      const currentConfigIds = new Set(
+        (dataMart.definition as ConnectorDefinition).connector.source.configuration
+          .map(item => (item as Record<string, unknown>)._id as string)
+          .filter((id): id is string => !!id)
+      );
+      await this.connectorSecretService.deleteOrphanedSecrets(
+        dataMart.id,
+        currentConfigIds,
+        previousDefinition
       );
     } else {
       dataMart.definition = command.definition;

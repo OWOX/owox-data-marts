@@ -37,6 +37,7 @@ describe('ConnectorSecretService', () => {
       getCredentialsByIds: jest.fn().mockResolvedValue(new Map()),
       createSecretsForConfig: jest.fn().mockResolvedValue({ id: 'mock-secrets-id' }),
       updateSecretsForConfig: jest.fn().mockResolvedValue({}),
+      deleteCredentials: jest.fn().mockResolvedValue(undefined),
     } as unknown as ConnectorSourceCredentialsService;
 
     const service = new ConnectorSecretService(specService, credentialsService);
@@ -588,6 +589,93 @@ describe('ConnectorSecretService', () => {
       expect(cfg[2]._copiedFrom).toBeUndefined();
       expect(typeof cfg[2]._id).toBe('string');
       expect(cfg[2]._id).not.toBe('source-id-2');
+    });
+  });
+
+  describe('deleteOrphanedSecrets', () => {
+    it('deletes secrets for configuration items that were removed', async () => {
+      const { service, credentialsService } = createService(['AccessToken']);
+
+      const previousDefinition = makeDefinition([
+        { _id: 'config-1', _secrets_id: 'secrets-1', AccountIDs: '1' },
+        { _id: 'config-2', _secrets_id: 'secrets-2', AccountIDs: '2' },
+        { _id: 'config-3', _secrets_id: 'secrets-3', AccountIDs: '3' },
+      ]);
+
+      // Current configuration only has config-1 and config-3
+      const currentConfigIds = new Set(['config-1', 'config-3']);
+
+      await service.deleteOrphanedSecrets('datamart-1', currentConfigIds, previousDefinition);
+
+      // secrets-2 should be deleted because config-2 was removed
+      expect(credentialsService.deleteCredentials).toHaveBeenCalledTimes(1);
+      expect(credentialsService.deleteCredentials).toHaveBeenCalledWith('secrets-2');
+    });
+
+    it('does not delete secrets when no configuration items were removed', async () => {
+      const { service, credentialsService } = createService(['AccessToken']);
+
+      const previousDefinition = makeDefinition([
+        { _id: 'config-1', _secrets_id: 'secrets-1', AccountIDs: '1' },
+        { _id: 'config-2', _secrets_id: 'secrets-2', AccountIDs: '2' },
+      ]);
+
+      // Current configuration has both items
+      const currentConfigIds = new Set(['config-1', 'config-2']);
+
+      await service.deleteOrphanedSecrets('datamart-1', currentConfigIds, previousDefinition);
+
+      expect(credentialsService.deleteCredentials).not.toHaveBeenCalled();
+    });
+
+    it('does nothing when previous definition is undefined', async () => {
+      const { service, credentialsService } = createService(['AccessToken']);
+
+      const currentConfigIds = new Set(['config-1']);
+
+      await service.deleteOrphanedSecrets('datamart-1', currentConfigIds, undefined);
+
+      expect(credentialsService.deleteCredentials).not.toHaveBeenCalled();
+    });
+
+    it('ignores configuration items without _secrets_id', async () => {
+      const { service, credentialsService } = createService(['AccessToken']);
+
+      const previousDefinition = makeDefinition([
+        { _id: 'config-1', _secrets_id: 'secrets-1', AccountIDs: '1' },
+        { _id: 'config-2', AccountIDs: '2' }, // No _secrets_id (inline secrets or no secrets)
+      ]);
+
+      // Both configs removed
+      const currentConfigIds = new Set<string>();
+
+      await service.deleteOrphanedSecrets('datamart-1', currentConfigIds, previousDefinition);
+
+      // Only secrets-1 should be deleted, config-2 had no externalized secrets
+      expect(credentialsService.deleteCredentials).toHaveBeenCalledTimes(1);
+      expect(credentialsService.deleteCredentials).toHaveBeenCalledWith('secrets-1');
+    });
+
+    it('deletes multiple orphaned secrets when multiple configs removed', async () => {
+      const { service, credentialsService } = createService(['AccessToken']);
+
+      const previousDefinition = makeDefinition([
+        { _id: 'config-1', _secrets_id: 'secrets-1', AccountIDs: '1' },
+        { _id: 'config-2', _secrets_id: 'secrets-2', AccountIDs: '2' },
+        { _id: 'config-3', _secrets_id: 'secrets-3', AccountIDs: '3' },
+        { _id: 'config-4', _secrets_id: 'secrets-4', AccountIDs: '4' },
+      ]);
+
+      // Only config-2 remains
+      const currentConfigIds = new Set(['config-2']);
+
+      await service.deleteOrphanedSecrets('datamart-1', currentConfigIds, previousDefinition);
+
+      // secrets-1, secrets-3, secrets-4 should be deleted
+      expect(credentialsService.deleteCredentials).toHaveBeenCalledTimes(3);
+      expect(credentialsService.deleteCredentials).toHaveBeenCalledWith('secrets-1');
+      expect(credentialsService.deleteCredentials).toHaveBeenCalledWith('secrets-3');
+      expect(credentialsService.deleteCredentials).toHaveBeenCalledWith('secrets-4');
     });
   });
 });
