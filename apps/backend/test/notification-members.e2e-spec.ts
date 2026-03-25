@@ -7,9 +7,33 @@ import { ProjectMemberDto } from '../src/idp/dto/domain/project-member.dto';
 // ---------------------------------------------------------------------------
 // Mock: 3 project members with different roles
 // ---------------------------------------------------------------------------
-const ADMIN = new ProjectMemberDto('user-admin', 'admin@test.com', 'Admin User', undefined, 'admin', true, false);
-const EDITOR = new ProjectMemberDto('user-editor', 'editor@test.com', 'Editor User', undefined, 'editor', true, false);
-const VIEWER = new ProjectMemberDto('user-viewer', 'viewer@test.com', 'Viewer User', undefined, 'viewer', true, false);
+const ADMIN = new ProjectMemberDto(
+  'user-admin',
+  'admin@test.com',
+  'Admin User',
+  undefined,
+  'admin',
+  true,
+  false
+);
+const EDITOR = new ProjectMemberDto(
+  'user-editor',
+  'editor@test.com',
+  'Editor User',
+  undefined,
+  'editor',
+  true,
+  false
+);
+const VIEWER = new ProjectMemberDto(
+  'user-viewer',
+  'viewer@test.com',
+  'Viewer User',
+  undefined,
+  'viewer',
+  true,
+  false
+);
 
 const ALL_MEMBERS = [ADMIN, EDITOR, VIEWER];
 
@@ -58,7 +82,7 @@ describe('Notification Settings — Multi-Member (e2e)', () => {
       await dataSource.query(
         `INSERT INTO user_projection (userId, email, fullName, avatar, createdAt, modifiedAt)
          VALUES (?, ?, ?, ?, datetime('now'), datetime('now'))`,
-        [m.userId, m.email, m.displayName, m.avatarUrl ?? null],
+        [m.userId, m.email, m.displayName, m.avatarUrl ?? null]
       );
     }
   });
@@ -121,7 +145,7 @@ describe('Notification Settings — Multi-Member (e2e)', () => {
 
       expect(res.status).toBe(200);
       const setting = res.body.settings.find(
-        (s: Record<string, unknown>) => s.notificationType === 'FAILED_RUNS_ALL_DM',
+        (s: Record<string, unknown>) => s.notificationType === 'FAILED_RUNS_ALL_DM'
       );
       expect(setting).toBeDefined();
 
@@ -140,7 +164,7 @@ describe('Notification Settings — Multi-Member (e2e)', () => {
       const setting = res.body.settings[0];
 
       const adminReceiver = setting.receivers.find(
-        (r: Record<string, unknown>) => r.userId === 'user-admin',
+        (r: Record<string, unknown>) => r.userId === 'user-admin'
       );
       expect(adminReceiver).toBeDefined();
       expect(adminReceiver.email).toBe('admin@test.com');
@@ -212,7 +236,7 @@ describe('Notification Settings — Multi-Member (e2e)', () => {
       expect(res.status).toBe(200);
 
       const setting = res.body.settings.find(
-        (s: Record<string, unknown>) => s.notificationType === 'FAILED_RUNS_ALL_DM',
+        (s: Record<string, unknown>) => s.notificationType === 'FAILED_RUNS_ALL_DM'
       );
       const receiverIds = setting.receivers.map((r: Record<string, unknown>) => r.userId);
       expect(receiverIds).toContain('user-admin');
@@ -246,7 +270,7 @@ describe('Notification Settings — Multi-Member (e2e)', () => {
       expect(res.status).toBe(200);
 
       const setting = res.body.settings.find(
-        (s: Record<string, unknown>) => s.notificationType === 'FAILED_RUNS_ALL_DM',
+        (s: Record<string, unknown>) => s.notificationType === 'FAILED_RUNS_ALL_DM'
       );
       const receiverIds = setting.receivers.map((r: Record<string, unknown>) => r.userId);
       expect(receiverIds).toContain('user-admin');
@@ -263,7 +287,7 @@ describe('Notification Settings — Multi-Member (e2e)', () => {
       expect(res.status).toBe(200);
 
       const setting = res.body.settings.find(
-        (s: Record<string, unknown>) => s.notificationType === 'FAILED_RUNS_ALL_DM',
+        (s: Record<string, unknown>) => s.notificationType === 'FAILED_RUNS_ALL_DM'
       );
       const receiverIds = setting.receivers.map((r: Record<string, unknown>) => r.userId);
       expect(receiverIds).not.toContain('user-viewer');
@@ -281,7 +305,7 @@ describe('Notification Settings — Multi-Member (e2e)', () => {
       expect(res.status).toBe(200);
 
       const setting = res.body.settings.find(
-        (s: Record<string, unknown>) => s.notificationType === 'FAILED_RUNS_ALL_DM',
+        (s: Record<string, unknown>) => s.notificationType === 'FAILED_RUNS_ALL_DM'
       );
       const receiverIds = setting.receivers.map((r: Record<string, unknown>) => r.userId);
       expect(receiverIds).toContain('user-admin');
@@ -299,7 +323,13 @@ describe('Notification Settings — Multi-Member (e2e)', () => {
     //   → not returned in members list
     it('excludes outbound members from receivers and member list', async () => {
       const OUTBOUND = new ProjectMemberDto(
-        'user-outbound', 'outbound@test.com', 'Outbound User', undefined, 'editor', true, true,
+        'user-outbound',
+        'outbound@test.com',
+        'Outbound User',
+        undefined,
+        'editor',
+        true,
+        true
       );
       mockIdpProjectionsFacade.getProjectMembers.mockResolvedValue([...ALL_MEMBERS, OUTBOUND]);
 
@@ -308,7 +338,7 @@ describe('Notification Settings — Multi-Member (e2e)', () => {
 
       // Outbound member IS returned in members list (controller maps all members)
       const outboundMember = membersRes.body.members.find(
-        (m: Record<string, unknown>) => m.userId === 'user-outbound',
+        (m: Record<string, unknown>) => m.userId === 'user-outbound'
       );
       expect(outboundMember).toBeDefined();
       expect(outboundMember.isOutbound).toBe(true);
@@ -319,7 +349,7 @@ describe('Notification Settings — Multi-Member (e2e)', () => {
       expect(settingsRes.status).toBe(200);
 
       const setting = settingsRes.body.settings.find(
-        (s: Record<string, unknown>) => s.notificationType === 'FAILED_RUNS_ALL_DM',
+        (s: Record<string, unknown>) => s.notificationType === 'FAILED_RUNS_ALL_DM'
       );
       const receiverIds = setting.receivers.map((r: Record<string, unknown>) => r.userId);
       expect(receiverIds).not.toContain('user-outbound');

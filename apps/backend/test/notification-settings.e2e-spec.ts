@@ -48,13 +48,13 @@ describe('Notification Settings (e2e)', () => {
 
       // FAILED_RUNS_ALL_DM defaults to enabled, SUCCESSFUL_RUNS_ALL_DM defaults to disabled
       const failedSetting = res.body.settings.find(
-        (s: Record<string, unknown>) => s.notificationType === 'FAILED_RUNS_ALL_DM',
+        (s: Record<string, unknown>) => s.notificationType === 'FAILED_RUNS_ALL_DM'
       );
       expect(failedSetting.enabled).toBe(true);
       expect(failedSetting.title).toBe('Failed runs for all Data Marts');
 
       const successSetting = res.body.settings.find(
-        (s: Record<string, unknown>) => s.notificationType === 'SUCCESSFUL_RUNS_ALL_DM',
+        (s: Record<string, unknown>) => s.notificationType === 'SUCCESSFUL_RUNS_ALL_DM'
       );
       expect(successSetting.enabled).toBe(false);
       expect(successSetting.title).toBe('Success runs for all Data Marts');
@@ -100,9 +100,7 @@ describe('Notification Settings (e2e)', () => {
       expect(Array.isArray(res.body.members)).toBe(true);
       expect(res.body.members.length).toBeGreaterThanOrEqual(1);
 
-      const admin = res.body.members.find(
-        (m: Record<string, unknown>) => m.userId === '0',
-      );
+      const admin = res.body.members.find((m: Record<string, unknown>) => m.userId === '0');
       expect(admin).toBeDefined();
       expect(admin.email).toBe('admin@localhost');
       expect(admin.role).toBe('admin');
@@ -235,14 +233,11 @@ describe('Notification Settings (e2e)', () => {
     //   → saves all fields atomically
     //   → 200 with all updated fields
     it('updates multiple fields in a single request', async () => {
-      const res = await agent
-        .put(`${BASE_URL}/SUCCESSFUL_RUNS_ALL_DM`)
-        .set(AUTH_HEADER)
-        .send({
-          enabled: true,
-          webhookUrl: 'https://hooks.example.com/success',
-          groupingDelayCron: '0 */2 * * *',
-        });
+      const res = await agent.put(`${BASE_URL}/SUCCESSFUL_RUNS_ALL_DM`).set(AUTH_HEADER).send({
+        enabled: true,
+        webhookUrl: 'https://hooks.example.com/success',
+        groupingDelayCron: '0 */2 * * *',
+      });
 
       expect(res.status).toBe(200);
       expect(res.body.enabled).toBe(true);
@@ -259,7 +254,7 @@ describe('Notification Settings (e2e)', () => {
 
       expect(res.status).toBe(200);
       const successSetting = res.body.settings.find(
-        (s: Record<string, unknown>) => s.notificationType === 'SUCCESSFUL_RUNS_ALL_DM',
+        (s: Record<string, unknown>) => s.notificationType === 'SUCCESSFUL_RUNS_ALL_DM'
       );
       expect(successSetting.enabled).toBe(true);
       expect(successSetting.webhookUrl).toBe('https://hooks.example.com/success');
