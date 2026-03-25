@@ -259,7 +259,7 @@ export class ConnectorExecutionService {
 
       await this.dataMartRunRepository.update(runId, {
         status: DataMartRunStatus.RUNNING,
-        startedAt: this.systemTimeService.now(),
+        ...(mergeWithExisting ? {} : { startedAt: this.systemTimeService.now() }),
         finishedAt: null,
       });
 
