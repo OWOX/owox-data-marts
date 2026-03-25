@@ -62,7 +62,7 @@ export class OwoxBetterAuthIdp implements IdpProvider {
   private readonly betterAuthSessionService: BetterAuthSessionService;
   private readonly authFlowMiddleware: AuthFlowMiddleware;
   private readonly identityClient: IdentityOwoxClient;
-  private readonly log = createServiceLogger(OwoxBetterAuthIdp.name);
+  private readonly logger = createServiceLogger(OwoxBetterAuthIdp.name);
   private readonly tokenFacade: OwoxTokenFacade;
   private readonly userContextService: UserContextService;
   private readonly userAuthInfoPersistenceService: UserAuthInfoPersistenceService;
@@ -98,7 +98,6 @@ export class OwoxBetterAuthIdp implements IdpProvider {
     );
     this.platformAuthFlowClient = new PlatformAuthFlowClient(this.identityClient);
 
-    // Initialize project members service (before onboarding, which depends on it)
     const serviceOptions: ProjectMembersServiceOptions = {
       ttlSeconds: this.config.idpOwox.projectMembersCacheTtlSeconds,
     };
@@ -204,12 +203,12 @@ export class OwoxBetterAuthIdp implements IdpProvider {
       const code = req.query.code as string | undefined;
       const state = req.query.state as string | undefined;
       if (!code) {
-        this.log.warn('Redirect url should contain code param', { path: req.path });
+        this.logger.warn('Redirect url should contain code param', { path: req.path });
         return res.redirect(`${AUTH_BASE_PATH}${ProtocolRoute.SIGN_IN}`);
       }
 
       if (!state) {
-        this.log.warn('Redirect url should contain state param', { path: req.path });
+        this.logger.warn('Redirect url should contain state param', { path: req.path });
         clearPlatformCookies(res, req);
         return res.redirect(`${AUTH_BASE_PATH}${ProtocolRoute.SIGN_IN}`);
       }
@@ -242,26 +241,30 @@ export class OwoxBetterAuthIdp implements IdpProvider {
               if (payload.email) onboardingUrl.searchParams.set('email', payload.email);
               return res.redirect(onboardingUrl.toString());
             }
-          } catch {
-            // Onboarding check failed, proceed normally
+          } catch (error: unknown) {
+            this.logger.error(
+              'Failed to check if onboarding questionnaire should be shown',
+              { path: req.path, userId: payload.userId, projectId: payload.projectId },
+              error instanceof Error ? error : undefined
+            );
           }
         }
 
         res.redirect('/');
       } catch (error: unknown) {
         if (error instanceof AuthenticationException) {
-          this.log.info('Token exchange callback rejected', {
+          this.logger.info('Token exchange callback rejected', {
             path: req.path,
             ...error.context,
           });
         } else if (error instanceof IdpFailedException) {
-          this.log.error(
+          this.logger.error(
             'Token exchange callback failed with unexpected code',
             { path: req.path, ...error.context },
             error
           );
         } else {
-          this.log.error(
+          this.logger.error(
             'Token exchange callback failed',
             { path: req.path },
             error instanceof Error ? error : undefined
@@ -281,7 +284,7 @@ export class OwoxBetterAuthIdp implements IdpProvider {
     const queryState = typeof req.query?.state === 'string' ? req.query.state : '';
 
     if (stateManager.hasMismatch()) {
-      this.log.warn('State mismatch detected during sign-in', { path: req.path, queryState });
+      this.logger.warn('State mismatch detected during sign-in', { path: req.path, queryState });
       clearPlatformCookies(res, req);
       return this.redirectToPlatform(req, res, this.config.idpOwox.idpConfig.platformSignInUrl);
     }
@@ -327,16 +330,16 @@ export class OwoxBetterAuthIdp implements IdpProvider {
       return answers.map(a => {
         let parsed: string | string[] = a.answerValue;
         if (a.answerValue.startsWith('[')) {
-          try {
-            parsed = JSON.parse(a.answerValue) as string[];
-          } catch {
-            // keep as string if parsing fails
-          }
+          parsed = JSON.parse(a.answerValue) as string[];
         }
         return { questionId: a.questionId, answerValue: parsed };
       });
-    } catch {
-      this.log.warn('Failed to get onboarding answers for user/project', { userId, projectId });
+    } catch (error: unknown) {
+      this.logger.warn('Failed to get onboarding answers for user/project', {
+        userId,
+        projectId,
+        error: error instanceof Error ? error.message : 'Unknown error',
+      });
       return [];
     }
   }
@@ -360,17 +363,17 @@ export class OwoxBetterAuthIdp implements IdpProvider {
     } catch (error: unknown) {
       if (error instanceof AuthenticationException) {
         clearCookie(res, CORE_REFRESH_TOKEN_COOKIE, req);
-        this.log.warn('Refresh token rejected during sign-in, cookie cleared', {
+        this.logger.warn('Refresh token rejected during sign-in, cookie cleared', {
           path: req.path,
           ...error.context,
         });
       } else if (error instanceof IdpFailedException) {
-        this.log.warn('Sign-in refresh failed due to upstream IdP error', {
+        this.logger.warn('Sign-in refresh failed due to upstream IdP error', {
           path: req.path,
           ...error.context,
         });
       } else {
-        this.log.error(
+        this.logger.error(
           'Sign-in refresh failed unexpectedly',
           { path: req.path },
           error instanceof Error ? error : undefined
@@ -388,7 +391,7 @@ export class OwoxBetterAuthIdp implements IdpProvider {
     const stateManager = getStateManager(req);
     const queryState = typeof req.query?.state === 'string' ? req.query.state : '';
     if (stateManager.hasMismatch()) {
-      this.log.warn('State mismatch detected during sign-up', { path: req.path });
+      this.logger.warn('State mismatch detected during sign-up', { path: req.path });
       clearPlatformCookies(res, req);
       return this.redirectToPlatform(req, res, this.config.idpOwox.idpConfig.platformSignUpUrl);
     }
@@ -484,7 +487,7 @@ export class OwoxBetterAuthIdp implements IdpProvider {
     try {
       await this.store.shutdown();
     } catch (error) {
-      this.log.error(
+      this.logger.error(
         'Failed to shutdown BetterAuth store',
         undefined,
         error instanceof Error ? error : undefined
