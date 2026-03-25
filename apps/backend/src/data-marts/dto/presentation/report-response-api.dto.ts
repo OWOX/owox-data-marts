@@ -3,6 +3,7 @@ import { DataMartResponseApiDto } from './data-mart-response-api.dto';
 import { DataDestinationResponseApiDto } from './data-destination-response-api.dto';
 import { ReportRunStatus } from '../../enums/report-run-status.enum';
 import { DataDestinationConfig } from '../../data-destination-types/data-destination-config.type';
+import { UserProjectionDto } from '../../../idp/dto/domain/user-projection.dto';
 
 export class ReportResponseApiDto {
   @ApiProperty({ example: '9cabc24e-1234-4a5a-8b12-abcdef123456' })
@@ -37,4 +38,7 @@ export class ReportResponseApiDto {
 
   @ApiProperty({ example: '2024-01-02T15:30:00.000Z' })
   modifiedAt: Date;
+
+  @ApiProperty({ type: UserProjectionDto, required: false, nullable: true })
+  createdByUser?: UserProjectionDto | null;
 }

@@ -1,6 +1,7 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { DataDestinationCredentials } from '../../data-destination-types/data-destination-credentials.type';
 import { DataDestinationType } from '../../data-destination-types/enums/data-destination-type.enum';
+import { UserProjectionDto } from '../../../idp/dto/domain/user-projection.dto';
 
 export type DataDestinationCredentialsPublic = {
   type: 'google-sheets-credentials';
@@ -47,4 +48,7 @@ export class DataDestinationResponseApiDto {
 
   @ApiProperty({ example: 'abc123e4-5678-90ab-cdef-1234567890ab', nullable: true, required: false })
   credentialId?: string | null;
+
+  @ApiProperty({ type: UserProjectionDto, required: false, nullable: true })
+  createdByUser?: UserProjectionDto | null;
 }

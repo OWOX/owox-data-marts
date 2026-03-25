@@ -1,5 +1,6 @@
 import { DataStorageType } from '../../data-storage-types/enums/data-storage-type.enum';
 import { DataStorageConfig } from '../../data-storage-types/data-storage-config.type';
+import { UserProjectionDto } from '../../../idp/dto/domain/user-projection.dto';
 
 export class DataStorageDto {
   constructor(
@@ -12,6 +13,7 @@ export class DataStorageDto {
     public readonly modifiedAt: Date,
     public readonly dataMartsCount: number = 0,
     public readonly draftsCount: number = 0,
-    public readonly credentialId: string | null | undefined = undefined
+    public readonly credentialId: string | null | undefined = undefined,
+    public readonly createdByUser: UserProjectionDto | null = null
   ) {}
 }

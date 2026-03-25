@@ -1,6 +1,7 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { DataMartRunResponseApiDto } from './data-mart-run-response-api.dto';
 import { InsightTemplateSourceApiDto } from './insight-template-source-api.dto';
+import { UserProjectionDto } from '../../../idp/dto/domain/user-projection.dto';
 
 export class InsightTemplateResponseApiDto {
   @ApiProperty({ example: 'b1b2c3d4-e5f6-7890-a1b2-c3d4e5f67890' })
@@ -32,4 +33,7 @@ export class InsightTemplateResponseApiDto {
 
   @ApiProperty({ nullable: true, type: () => DataMartRunResponseApiDto })
   lastManualDataMartRun: DataMartRunResponseApiDto | null;
+
+  @ApiProperty({ type: UserProjectionDto, required: false, nullable: true })
+  createdByUser?: UserProjectionDto | null;
 }
