@@ -5,6 +5,6 @@ export enum ScheduledTriggerColumnKey {
   NEXT_RUN = 'nextRun',
   LAST_RUN = 'lastRun',
   CREATED_AT = 'createdAt',
-  CREATED_BY_USER = 'createdByUser',
+  CREATED_BY = 'createdByUser',
   IS_ACTIVE = 'isActive',
 }

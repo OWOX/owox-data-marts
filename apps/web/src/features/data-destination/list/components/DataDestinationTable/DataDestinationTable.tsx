@@ -1,12 +1,22 @@
 import { type ColumnDef, type Row } from '@tanstack/react-table';
-import { EmptyDataDestinationsState } from './EmptyDataDestinationsState';
-import { useBaseTable } from '../../../../../shared/hooks';
+import { useMemo } from 'react';
+import { useParams } from 'react-router-dom';
 import {
   BaseTable,
-  TableCTAButton,
   TableColumnSearch,
+  TableCTAButton,
 } from '../../../../../shared/components/Table';
-import { DataDestinationColumnKey } from './columns/columnKeys';
+import { applyFiltersToData } from '../../../../../shared/components/TableFilters';
+import { useBaseTable, usePersistentFilters } from '../../../../../shared/hooks';
+import type { DataDestinationTableItem } from './columns';
+import { DataDestinationColumnKey } from './columns';
+import { DataDestinationTableFilters } from './DataDestinationTableFilters';
+import {
+  buildDataDestinationTableFilters,
+  dataDestinationFilterAccessors,
+  type DataDestinationFilterKey,
+} from './DataDestinationTableFilters.config';
+import { EmptyDataDestinationsState } from './EmptyDataDestinationsState';
 
 interface DataDestinationTableProps<TData, TValue> {
   columns: ColumnDef<TData, TValue>[];
@@ -24,9 +34,34 @@ export function DataDestinationTable<TData, TValue>({
   onEdit,
   onOpenTypeDialog,
 }: DataDestinationTableProps<TData, TValue>) {
+  const { projectId = '' } = useParams<{ projectId: string }>();
+  const tableId = 'data-destinations-table';
+
+  const filtersConfig = useMemo(
+    () => buildDataDestinationTableFilters(data as DataDestinationTableItem[]),
+    [data]
+  );
+
+  const { appliedState, apply, clear } = usePersistentFilters<DataDestinationFilterKey>({
+    projectId,
+    tableId,
+    urlParam: 'filters',
+    config: filtersConfig,
+  });
+
+  const filteredData = useMemo(
+    () =>
+      applyFiltersToData<DataDestinationFilterKey, DataDestinationTableItem>(
+        data as DataDestinationTableItem[],
+        appliedState,
+        dataDestinationFilterAccessors
+      ) as TData[],
+    [data, appliedState]
+  );
+
   // Initialize table with shared hook
   const { table } = useBaseTable<TData>({
-    data,
+    data: filteredData,
     columns: columns as ColumnDef<TData>[],
     storageKeyPrefix: 'data-destination-list',
     enableRowSelection: false,
@@ -56,8 +91,6 @@ export function DataDestinationTable<TData, TValue>({
     );
   }
 
-  const tableId = 'data-destinations-table';
-
   return (
     <div className='dm-card'>
       <BaseTable
@@ -66,12 +99,20 @@ export function DataDestinationTable<TData, TValue>({
         onRowClick={handleRowClick}
         ariaLabel='Destinations table'
         paginationProps={{ displaySelected: false }}
-        renderToolbarLeft={table => (
-          <TableColumnSearch
-            table={table}
-            columnId={DataDestinationColumnKey.TITLE}
-            placeholder='Search'
-          />
+        renderToolbarLeft={() => (
+          <>
+            <DataDestinationTableFilters
+              appliedState={appliedState}
+              config={filtersConfig}
+              onApply={apply}
+              onClear={clear}
+            />
+            <TableColumnSearch
+              table={table}
+              columnId={DataDestinationColumnKey.TITLE}
+              placeholder='Search'
+            />
+          </>
         )}
         renderToolbarRight={() => (
           <TableCTAButton onClick={onOpenTypeDialog}>New Destination</TableCTAButton>

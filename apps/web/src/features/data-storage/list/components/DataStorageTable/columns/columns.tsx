@@ -5,6 +5,8 @@ import { DataStorageTypeModel } from '../../../../shared/types/data-storage-type
 import { DataStorageActionsCell } from '../DataStorageActionsCell';
 import { DataStorageColumnKey } from './columnKeys';
 import { dataStorageColumnLabels } from './columnLabels';
+import { type UserProjection } from '../../../../../../shared/types';
+import { UserReference } from '../../../../../../shared/components/UserReference';
 
 export interface DataStorageTableItem {
   id: string;
@@ -14,6 +16,7 @@ export interface DataStorageTableItem {
   modifiedAt: Date;
   publishedDataMartsCount: number;
   draftDataMartsCount: number;
+  createdByUser?: UserProjection | null;
 }
 
 interface DataStorageColumnsProps {
@@ -140,6 +143,27 @@ export const getDataStorageColumns = ({
     cell: ({ row }) => {
       const count = row.getValue<string>(DataStorageColumnKey.DRAFTS_COUNT);
       return <div>{count}</div>;
+    },
+  },
+  {
+    id: DataStorageColumnKey.CREATED_BY,
+    accessorFn: row => {
+      const u = row.createdByUser;
+      return u?.fullName ?? u?.email;
+    },
+    size: 200,
+    meta: {
+      title: dataStorageColumnLabels[DataStorageColumnKey.CREATED_BY],
+    },
+    header: ({ column }) => (
+      <SortableHeader column={column}>
+        {dataStorageColumnLabels[DataStorageColumnKey.CREATED_BY]}
+      </SortableHeader>
+    ),
+    cell: ({ row }) => {
+      const user = row.original.createdByUser;
+      if (!user) return <span className='text-muted-foreground'>-</span>;
+      return <UserReference userProjection={user} />;
     },
   },
   {

@@ -5,4 +5,5 @@ export enum DataStorageColumnKey {
   CREATED_AT = 'createdAt',
   DATA_MARTS_COUNT = 'publishedDataMartsCount',
   DRAFTS_COUNT = 'draftDataMartsCount',
+  CREATED_BY = 'createdByUser',
 }

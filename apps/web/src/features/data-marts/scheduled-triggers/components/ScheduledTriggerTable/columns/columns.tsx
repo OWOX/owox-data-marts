@@ -10,6 +10,7 @@ import { ScheduledTriggerRunTarget } from '../ScheduledTriggerRunTarget';
 import { SortableHeader, ToggleColumnsHeader } from '../../../../../../shared/components/Table';
 import { ScheduledTriggerColumnLabels } from './columnLabels';
 import { ScheduledTriggerColumnKey } from './columnKeys';
+import { UserReference } from '../../../../../../shared/components/UserReference';
 
 interface ScheduledTriggerTableColumnsProps {
   onEditTrigger: (id: string) => void;
@@ -128,6 +129,25 @@ export const getScheduledTriggerColumns = ({
           {isActive ? 'Enabled' : 'Disabled'}
         </StatusLabel>
       );
+    },
+  },
+  {
+    id: ScheduledTriggerColumnKey.CREATED_BY,
+    accessorFn: row => {
+      const u = row.createdByUser;
+      return u?.fullName ?? u?.email;
+    },
+    meta: { title: ScheduledTriggerColumnLabels[ScheduledTriggerColumnKey.CREATED_BY] },
+    size: 200,
+    header: ({ column }) => (
+      <SortableHeader column={column}>
+        {ScheduledTriggerColumnLabels[ScheduledTriggerColumnKey.CREATED_BY]}
+      </SortableHeader>
+    ),
+    cell: ({ row }) => {
+      const user = row.original.createdByUser;
+      if (!user) return <span className='text-muted-foreground'>-</span>;
+      return <UserReference userProjection={user} />;
     },
   },
   {

@@ -5,6 +5,8 @@ import { DataDestinationActionsCell } from '../DataDestinationActionsCell';
 import { SortableHeader, ToggleColumnsHeader } from '../../../../../../shared/components/Table';
 import { DataDestinationColumnKey } from './columnKeys';
 import { dataDestinationColumnLabels } from './columnLabels';
+import { type UserProjection } from '../../../../../../shared/types';
+import { UserReference } from '../../../../../../shared/components/UserReference';
 
 export interface DataDestinationTableItem {
   id: string;
@@ -13,6 +15,7 @@ export interface DataDestinationTableItem {
   createdAt: Date;
   modifiedAt: Date;
   credentials?: DataDestination['credentials'];
+  createdByUser?: UserProjection | null;
 }
 
 interface DataDestinationColumnsProps {
@@ -86,6 +89,27 @@ export const getDataDestinationColumns = ({
       }).format(date);
 
       return <div className='text-muted-foreground'>{formatted}</div>;
+    },
+  },
+  {
+    id: DataDestinationColumnKey.CREATED_BY,
+    accessorFn: row => {
+      const u = row.createdByUser;
+      return u?.fullName ?? u?.email;
+    },
+    meta: {
+      title: dataDestinationColumnLabels[DataDestinationColumnKey.CREATED_BY],
+    },
+    size: 200,
+    header: ({ column }) => (
+      <SortableHeader column={column}>
+        {dataDestinationColumnLabels[DataDestinationColumnKey.CREATED_BY]}
+      </SortableHeader>
+    ),
+    cell: ({ row }) => {
+      const user = row.original.createdByUser;
+      if (!user) return <span className='text-muted-foreground'>-</span>;
+      return <UserReference userProjection={user} />;
     },
   },
   {

@@ -4,4 +4,5 @@ export const dataDestinationColumnLabels: Record<DataDestinationColumnKey, strin
   [DataDestinationColumnKey.TITLE]: 'Title',
   [DataDestinationColumnKey.TYPE]: 'Type',
   [DataDestinationColumnKey.CREATED_AT]: 'Created At',
+  [DataDestinationColumnKey.CREATED_BY]: 'Created By',
 };

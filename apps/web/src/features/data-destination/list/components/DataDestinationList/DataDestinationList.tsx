@@ -147,6 +147,7 @@ export const DataDestinationList = ({
     createdAt: destination.createdAt,
     modifiedAt: destination.modifiedAt,
     credentials: destination.credentials,
+    createdByUser: destination.createdByUser,
   }));
 
   const columns = getDataDestinationColumns({

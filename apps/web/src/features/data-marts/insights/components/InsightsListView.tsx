@@ -27,6 +27,7 @@ import {
   CollapsibleCardHeaderTitle,
 } from '../../../../shared/components/CollapsibleCard';
 import { ConfirmationDialog } from '../../../../shared/components/ConfirmationDialog';
+import { UserReference } from '../../../../shared/components/UserReference';
 import {
   BaseTable,
   SortableHeader,
@@ -49,6 +50,8 @@ interface InsightTableItem {
   title: string;
   sourcesCount: number;
   modifiedAt: Date;
+  createdById: string;
+  createdByUser?: import('../../../../shared/types').UserProjection | null;
 }
 
 interface RowActionsProps {
@@ -138,6 +141,8 @@ export default function InsightsListView() {
         title: item.title,
         sourcesCount: item.sourcesCount ?? item.sources.length,
         modifiedAt: item.modifiedAt,
+        createdById: item.createdById,
+        createdByUser: item.createdByUser,
       })),
     [items]
   );
@@ -162,6 +167,19 @@ export default function InsightsListView() {
         cell: ({ row }) => (
           <div className='text-muted-foreground'>{formatDateShort(row.original.modifiedAt)}</div>
         ),
+      },
+      {
+        id: 'createdBy',
+        size: 150,
+        enableSorting: false,
+        meta: { title: 'Created By' },
+        header: 'Created By',
+        cell: ({ row }) =>
+          row.original.createdByUser ? (
+            <UserReference userProjection={row.original.createdByUser} />
+          ) : (
+            <span className='text-muted-foreground'>-</span>
+          ),
       },
       {
         id: 'actions',
