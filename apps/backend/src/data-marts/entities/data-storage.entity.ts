@@ -11,9 +11,10 @@ import {
 import { DataStorageType } from '../data-storage-types/enums/data-storage-type.enum';
 import { DataStorageConfig } from '../data-storage-types/data-storage-config.type';
 import { DataStorageCredential } from './data-storage-credential.entity';
+import { CreatorAwareEntity } from './creator-aware-entity.interface';
 
 @Entity()
-export class DataStorage {
+export class DataStorage implements CreatorAwareEntity {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
@@ -38,6 +39,9 @@ export class DataStorage {
 
   @DeleteDateColumn({ nullable: true })
   deletedAt?: Date;
+
+  @Column({ type: 'varchar', nullable: true })
+  createdById?: string;
 
   @CreateDateColumn()
   createdAt: Date;
