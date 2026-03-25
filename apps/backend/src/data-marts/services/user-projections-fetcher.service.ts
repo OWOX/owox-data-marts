@@ -13,7 +13,7 @@ export class UserProjectionsFetcherService {
     entities: CreatorAwareEntity[]
   ): Promise<UserProjectionsListDto> {
     return await this.idpProjectionsFacade.getUserProjectionList(
-      entities.map(e => e.createdById).filter(id => id !== undefined)
+      entities.map(e => e.createdById).filter((id): id is string => typeof id === 'string')
     );
   }
 
