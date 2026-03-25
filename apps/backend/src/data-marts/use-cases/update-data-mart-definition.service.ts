@@ -8,7 +8,7 @@ import { ConnectorDefinition } from '../dto/schemas/data-mart-table-definitions/
 import { SqlDefinition } from '../dto/schemas/data-mart-table-definitions/sql-definition.schema';
 import { DataMartDefinitionType } from '../enums/data-mart-definition-type.enum';
 import { DataMartMapper } from '../mappers/data-mart.mapper';
-import { ConnectorSecretService } from '../services/connector-secret.service';
+import { ConnectorSecretService } from '../services/connector/connector-secret.service';
 import { DataMartService } from '../services/data-mart.service';
 import { LegacyDataMartsService } from '../services/legacy-data-marts/legacy-data-marts.service';
 

@@ -2,18 +2,21 @@ import { Inject, Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, Repository } from 'typeorm';
 import { ConfigService } from '@nestjs/config';
-import { SCHEDULER_FACADE, SchedulerFacade } from '../../common/scheduler/shared/scheduler.facade';
-import { TriggerStatus } from '../../common/scheduler/shared/entities/trigger-status';
-import { ConcurrencyLimitExceededException } from '../../common/exceptions/concurrency-limit-exceeded.exception';
-import { ConnectorRunTrigger } from '../entities/connector-run-trigger.entity';
-import { DataMartRun } from '../entities/data-mart-run.entity';
-import { DataMart } from '../entities/data-mart.entity';
-import { DataMartRunStatus } from '../enums/data-mart-run-status.enum';
-import { DataMartRunType } from '../enums/data-mart-run-type.enum';
+import {
+  SCHEDULER_FACADE,
+  SchedulerFacade,
+} from '../../../common/scheduler/shared/scheduler.facade';
+import { TriggerStatus } from '../../../common/scheduler/shared/entities/trigger-status';
+import { ConcurrencyLimitExceededException } from '../../../common/exceptions/concurrency-limit-exceeded.exception';
+import { ConnectorRunTrigger } from '../../entities/connector-run-trigger.entity';
+import { DataMartRun } from '../../entities/data-mart-run.entity';
+import { DataMart } from '../../entities/data-mart.entity';
+import { DataMartRunStatus } from '../../enums/data-mart-run-status.enum';
+import { DataMartRunType } from '../../enums/data-mart-run-type.enum';
 import { ConnectorExecutionService } from './connector-execution.service';
-import { DataMartRunService } from './data-mart-run.service';
-import { DataMartService } from './data-mart.service';
-import { BaseRunTriggerHandlerService } from './base-run-trigger-handler.service';
+import { DataMartRunService } from '../data-mart-run.service';
+import { DataMartService } from '../data-mart.service';
+import { BaseRunTriggerHandlerService } from '../base-run-trigger-handler.service';
 
 @Injectable()
 export class ConnectorRunTriggerHandlerService extends BaseRunTriggerHandlerService<ConnectorRunTrigger> {

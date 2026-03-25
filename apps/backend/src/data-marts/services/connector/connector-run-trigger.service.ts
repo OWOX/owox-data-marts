@@ -1,9 +1,9 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { ConnectorRunTrigger } from '../entities/connector-run-trigger.entity';
-import { TriggerStatus } from '../../common/scheduler/shared/entities/trigger-status';
-import { RunType } from '../../common/scheduler/shared/types';
+import { ConnectorRunTrigger } from '../../entities/connector-run-trigger.entity';
+import { TriggerStatus } from '../../../common/scheduler/shared/entities/trigger-status';
+import { RunType } from '../../../common/scheduler/shared/types';
 
 export interface CreateConnectorRunTriggerParams {
   dataMartId: string;

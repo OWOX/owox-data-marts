@@ -1,6 +1,6 @@
 import { ConflictException, Injectable } from '@nestjs/common';
 import { DataMartService } from '../services/data-mart.service';
-import { ConnectorExecutionService } from '../services/connector-execution.service';
+import { ConnectorExecutionService } from '../services/connector/connector-execution.service';
 import { CancelDataMartRunCommand } from '../dto/domain/cancel-data-mart-run.command';
 import { DataMartDefinitionType } from '../enums/data-mart-definition-type.enum';
 import { ConnectorExecutionError } from '../errors/connector-execution.error';

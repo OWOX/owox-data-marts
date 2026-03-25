@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { randomUUID } from 'crypto';
-import { ConnectorDefinition } from '../dto/schemas/data-mart-table-definitions/connector-definition.schema';
+import { ConnectorDefinition } from '../../dto/schemas/data-mart-table-definitions/connector-definition.schema';
 import { ConnectorService } from './connector.service';
 import { ConnectorSourceCredentialsService } from './connector-source-credentials.service';
 // @ts-expect-error - Package lacks TypeScript declarations

@@ -5,7 +5,7 @@ import { LegacyDataMartsService } from '../services/legacy-data-marts/legacy-dat
 import { ScheduledTriggerService } from '../services/scheduled-trigger.service';
 import { ReportService } from '../services/report.service';
 import { DataMartService } from '../services/data-mart.service';
-import { ConnectorSourceCredentialsService } from '../services/connector-source-credentials.service';
+import { ConnectorSourceCredentialsService } from '../services/connector/connector-source-credentials.service';
 
 @Injectable()
 export class DeleteDataMartService {

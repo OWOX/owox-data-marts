@@ -1,4 +1,4 @@
-import { ConnectorDefinition } from '../dto/schemas/data-mart-table-definitions/connector-definition.schema';
+import type { ConnectorDefinition } from '../../dto/schemas/data-mart-table-definitions/connector-definition.schema';
 import { ConnectorService } from './connector.service';
 import { ConnectorSecretService, SECRET_MASK } from './connector-secret.service';
 import { ConnectorSourceCredentialsService } from './connector-source-credentials.service';

@@ -2,7 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { SystemTrigger } from '../../../common/scheduler/shared/entities/system-trigger.entity';
 import { BaseSystemTaskProcessor } from '../../../common/scheduler/system-tasks/base-system-task.processor';
 import { SystemTriggerType } from '../../../common/scheduler/system-tasks/system-trigger-type';
-import { ConnectorExecutionService } from '../../services/connector-execution.service';
+import { ConnectorExecutionService } from '../../services/connector/connector-execution.service';
 
 @Injectable()
 export class RetryInterruptedConnectorRunsProcessor extends BaseSystemTaskProcessor {

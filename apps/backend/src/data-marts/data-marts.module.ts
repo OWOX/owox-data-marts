@@ -94,8 +94,14 @@ import { InsightTemplate } from './entities/insight-template.entity';
 import { InsightTemplateSourceEntity } from './entities/insight-template-source.entity';
 import { ConnectorController } from './controllers/connector.controller';
 import { AvailableConnectorService } from './use-cases/connector/available-connector.service';
-import { ConnectorService } from './services/connector.service';
-import { ConnectorExecutionService } from './services/connector-execution.service';
+import { ConnectorService } from './services/connector/connector.service';
+import { ConnectorExecutionService } from './services/connector/connector-execution.service';
+import { ConnectorRunService } from './services/connector/connector-run.service';
+import { ConnectorExecutorService } from './services/connector/connector-executor.service';
+import { ConnectorProcessSpawnerService } from './services/connector/connector-process-spawner.service';
+import { ConnectorStorageConfigService } from './services/connector/connector-storage-config.service';
+import { ConnectorSourceConfigService } from './services/connector/connector-source-config.service';
+import { ConnectorCredentialInjectorService } from './services/connector/connector-credential-injector.service';
 import { ConnectorMapper } from './mappers/connector.mapper';
 import { SpecificationConnectorService } from './use-cases/connector/specification-connector.service';
 import { FieldsConnectorService } from './use-cases/connector/fields-connector.service';
@@ -132,7 +138,7 @@ import { ReportDataCache } from './entities/report-data-cache.entity';
 import { IdpModule } from '../idp/idp.module';
 import { createOperationTimeoutMiddleware } from '../common/middleware/operation-timeout.middleware';
 import { CommonModule } from '../common/common.module';
-import { ConnectorSecretService } from './services/connector-secret.service';
+import { ConnectorSecretService } from './services/connector/connector-secret.service';
 import { DataMartRunService } from './services/data-mart-run.service';
 import { SqlDryRunTrigger } from './entities/sql-dry-run-trigger.entity';
 import { SqlDryRunTriggerService } from './services/sql-dry-run-trigger.service';
@@ -199,7 +205,7 @@ import { InsightTemplateRunTriggerService } from './services/insight-template-ru
 import { InsightTemplateRunTriggerHandlerService } from './services/insight-template-run-trigger-handler.service';
 import { InsightTemplateExecutionService } from './services/insight-template-execution.service';
 import { ConnectorSourceCredentials } from './entities/connector-source-credentials.entity';
-import { ConnectorSourceCredentialsService } from './services/connector-source-credentials.service';
+import { ConnectorSourceCredentialsService } from './services/connector/connector-source-credentials.service';
 import { ConnectorOauthService } from './services/connector/connector-oauth.service';
 import { DataMartTableReferenceService } from './services/data-mart-table-reference.service';
 import { InsightTemplateSourceDataService } from './services/insight-template-source-data.service';
@@ -275,8 +281,8 @@ import { GoogleOAuthFlowService } from './services/google-oauth/google-oauth-flo
 import { GoogleOAuthClientService } from './services/google-oauth/google-oauth-client.service';
 import { GoogleOAuthConfigService } from './services/google-oauth/google-oauth-config.service';
 import { ConnectorRunTrigger } from './entities/connector-run-trigger.entity';
-import { ConnectorRunTriggerService } from './services/connector-run-trigger.service';
-import { ConnectorRunTriggerHandlerService } from './services/connector-run-trigger-handler.service';
+import { ConnectorRunTriggerService } from './services/connector/connector-run-trigger.service';
+import { ConnectorRunTriggerHandlerService } from './services/connector/connector-run-trigger-handler.service';
 import { ReportRunTrigger } from './entities/report-run-trigger.entity';
 import { ReportRunTriggerService } from './services/report-run-trigger.service';
 import { ReportRunTriggerHandlerService } from './services/report-run-trigger-handler.service';
@@ -452,6 +458,12 @@ import { ReportRunTriggerHandlerService } from './services/report-run-trigger-ha
     AvailableConnectorService,
     ConnectorService,
     ConnectorExecutionService,
+    ConnectorRunService,
+    ConnectorExecutorService,
+    ConnectorProcessSpawnerService,
+    ConnectorStorageConfigService,
+    ConnectorSourceConfigService,
+    ConnectorCredentialInjectorService,
     ConnectorMapper,
     SpecificationConnectorService,
     FieldsConnectorService,
