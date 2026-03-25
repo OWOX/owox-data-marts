@@ -1,12 +1,35 @@
 <script>
+  let socialAuthInProcess = false;
+
+  function getSocialButtons() {
+    return Array.from(document.querySelectorAll('[data-social-auth-button]'));
+  }
+
+  function setSocialButtonsDisabled(disabled) {
+    getSocialButtons().forEach((button) => {
+      button.disabled = disabled;
+      button.setAttribute('aria-busy', disabled ? 'true' : 'false');
+      button.classList.toggle('opacity-60', disabled);
+      button.classList.toggle('cursor-not-allowed', disabled);
+    });
+  }
+
   /**
    * Submits a social sign-in/sign-up request to Better Auth.
    * Shared across sign-in and sign-up pages.
    */
   async function submitSocial(provider) {
+    if (socialAuthInProcess) {
+      return;
+    }
+
+    socialAuthInProcess = true;
+    setSocialButtonsDisabled(true);
+
     const urlParams = new URLSearchParams(window.location.search);
     const redirect = urlParams.get('redirect');
     const callbackURL = redirect || '/';
+    let navigating = false;
 
     // Save last used provider (if available)
     try {
@@ -27,6 +50,7 @@
       });
 
       if (response.redirected) {
+        navigating = true;
         window.location.href = response.url;
         return;
       }
@@ -35,14 +59,21 @@
       if (contentType.includes('application/json')) {
         const data = await response.json();
         if (data?.url) {
+          navigating = true;
           window.location.href = data.url;
           return;
         }
       }
 
+      navigating = true;
       window.location.reload();
     } catch (error) {
       console.error('Social sign-in failed', error);
+    } finally {
+      if (!navigating) {
+        socialAuthInProcess = false;
+        setSocialButtonsDisabled(false);
+      }
     }
   }
 </script>
