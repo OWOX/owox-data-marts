@@ -30,6 +30,7 @@ export class RedshiftMapper implements StorageMapper {
       type: DataStorageType.AWS_REDSHIFT,
       createdAt: new Date(dto.createdAt),
       modifiedAt: new Date(dto.modifiedAt),
+      createdByUser: dto.createdByUser,
       credentials: credentials
         ? {
             accessKeyId: credentials.accessKeyId ?? '',

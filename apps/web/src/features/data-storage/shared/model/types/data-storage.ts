@@ -24,6 +24,7 @@ export interface BaseDataStorage<T extends DataStorageCredentials, C extends Dat
   config: C;
   createdAt: Date;
   modifiedAt: Date;
+  createdByUser?: import('../../../../../shared/types').UserProjection | null;
 }
 
 export interface GoogleBigQueryDataStorage extends BaseDataStorage<

@@ -8,5 +8,6 @@ export interface DataStorageListItem {
   modifiedAt: Date;
   publishedDataMartsCount: number;
   draftDataMartsCount: number;
+  createdByUser?: import('../../../../../shared/types').UserProjection | null;
 }
 export type DataStorageList = DataStorageListItem[];

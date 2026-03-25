@@ -34,6 +34,7 @@ export class SnowflakeMapper implements StorageMapper {
       type: DataStorageType.SNOWFLAKE,
       createdAt: new Date(dto.createdAt),
       modifiedAt: new Date(dto.modifiedAt),
+      createdByUser: dto.createdByUser,
       credentials: mappedCredentials ?? {
         authMethod: SnowflakeAuthMethod.PASSWORD,
         username: '',

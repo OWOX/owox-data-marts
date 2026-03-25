@@ -1,5 +1,6 @@
 import { ScheduledTriggerType } from '../enums';
 import type { ScheduledConnectorRunConfig, ScheduledReportRunConfig } from './trigger-config.types';
+import type { UserProjection } from '../../../../shared/types';
 
 /**
  * Scheduled Trigger model interface
@@ -59,6 +60,11 @@ export interface ScheduledTrigger {
    * Last modification timestamp
    */
   modifiedAt: Date;
+
+  /**
+   * User who created the trigger
+   */
+  createdByUser?: UserProjection | null;
 }
 
 /**

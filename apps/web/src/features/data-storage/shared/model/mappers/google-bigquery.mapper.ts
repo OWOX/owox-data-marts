@@ -24,6 +24,7 @@ export class GoogleBigQueryMapper implements StorageMapper {
       type: DataStorageType.GOOGLE_BIGQUERY,
       createdAt: new Date(dto.createdAt),
       modifiedAt: new Date(dto.modifiedAt),
+      createdByUser: dto.createdByUser,
       credentials: {
         serviceAccount: serviceAccountJson,
         credentialId: dto.credentialId,

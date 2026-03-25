@@ -13,4 +13,5 @@ export interface InsightTemplateEntity {
   createdById: string;
   createdAt: Date;
   modifiedAt: Date;
+  createdByUser?: import('../../../../../../shared/types').UserProjection | null;
 }

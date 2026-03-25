@@ -26,6 +26,7 @@ export class ConnectorRunTriggerMapper implements TriggerMapper {
       createdById: dto.createdById,
       createdAt: new Date(dto.createdAt),
       modifiedAt: new Date(dto.modifiedAt),
+      createdByUser: dto.createdByUser ?? null,
     };
   }
 

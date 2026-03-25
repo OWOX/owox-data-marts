@@ -6,6 +6,7 @@ import {
 import { type DataDestination } from '../../../../../data-destination';
 import type { DataMart } from '../../../../edit';
 import type { ReportConditionEnum } from '../../enums/report-condition.enum.ts';
+import type { UserProjection } from '../../../../../../shared/types';
 
 export interface GoogleSheetsDestinationConfig {
   type: DestinationTypeConfigEnum.GOOGLE_SHEETS_CONFIG;
@@ -103,4 +104,5 @@ export interface DataMartReport {
   runsCount: number;
   createdAt: Date;
   modifiedAt: Date;
+  createdByUser?: UserProjection | null;
 }

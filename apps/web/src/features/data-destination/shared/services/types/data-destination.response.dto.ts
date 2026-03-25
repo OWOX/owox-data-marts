@@ -75,4 +75,9 @@ export interface DataDestinationResponseDto {
    * Credential ID (references data_destination_credentials table)
    */
   credentialId?: string;
+
+  /**
+   * Details about the user who created this destination
+   */
+  createdByUser?: import('../../../../../shared/types').UserProjection | null;
 }

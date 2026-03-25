@@ -13,6 +13,7 @@ export function mapDataStorageListFromDto(
     modifiedAt: new Date(dto.modifiedAt),
     publishedDataMartsCount: dto.publishedDataMartsCount,
     draftDataMartsCount: dto.draftDataMartsCount,
+    createdByUser: dto.createdByUser,
   };
 }
 

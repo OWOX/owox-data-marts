@@ -34,5 +34,6 @@ export function mapReportDtoToEntity(reportDto: ReportResponseDto): DataMartRepo
     runsCount: reportDto.runsCount,
     createdAt: new Date(reportDto.createdAt),
     modifiedAt: new Date(reportDto.modifiedAt),
+    createdByUser: reportDto.createdByUser ?? null,
   };
 }

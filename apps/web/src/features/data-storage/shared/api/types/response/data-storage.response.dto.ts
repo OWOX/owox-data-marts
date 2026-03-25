@@ -48,4 +48,5 @@ export interface DataStorageResponseDto {
   publishedDataMartsCount: number;
   draftDataMartsCount: number;
   credentialId?: string;
+  createdByUser?: import('../../../../../../shared/types').UserProjection | null;
 }

@@ -28,6 +28,7 @@ export const mapInsightTemplateFromDto = (
   createdById: dto.createdById,
   createdAt: new Date(dto.createdAt),
   modifiedAt: new Date(dto.modifiedAt),
+  createdByUser: dto.createdByUser,
 });
 
 export const mapInsightTemplateListItemFromDto = (
@@ -46,6 +47,7 @@ export const mapInsightTemplateListItemFromDto = (
   createdById: dto.createdById,
   createdAt: new Date(dto.createdAt),
   modifiedAt: new Date(dto.modifiedAt),
+  createdByUser: dto.createdByUser,
 });
 
 export const mapInsightTemplateListFromDto = (
