@@ -18,7 +18,27 @@ export interface PlatformParams {
   clientId?: string;
   codeChallenge?: string;
   projectId?: string;
+  extraParams?: Record<string, string>;
 }
+
+const AUTH_PARAMS = new Set([
+  'state',
+  'code',
+  'source',
+  'app-redirect-to',
+  'appRedirectTo',
+  'redirect-to',
+  'redirectTo',
+  'clientId',
+  'codeChallenge',
+  'codechallenge',
+  'projectId',
+  'error',
+  'info',
+  'token',
+  'callbackURL',
+  'intent',
+]);
 
 const STATE_COOKIE = 'idp-owox-state';
 const PLATFORM_PARAMS_COOKIE = 'idp-owox-params';
@@ -218,7 +238,22 @@ export function extractPlatformParams(req: Request): PlatformParams {
     (typeof req.query?.codechallenge === 'string' && req.query.codechallenge) ||
     undefined;
 
-  return { redirectTo, appRedirectTo, source, clientId, codeChallenge, projectId };
+  const extraParams: Record<string, string> = {};
+  for (const [key, value] of Object.entries(req.query)) {
+    if (!AUTH_PARAMS.has(key) && typeof value === 'string') {
+      extraParams[key] = value;
+    }
+  }
+
+  return {
+    redirectTo,
+    appRedirectTo,
+    source,
+    clientId,
+    codeChallenge,
+    projectId,
+    extraParams: Object.keys(extraParams).length > 0 ? extraParams : undefined,
+  };
 }
 
 /**
