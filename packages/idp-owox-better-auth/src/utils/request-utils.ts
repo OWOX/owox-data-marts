@@ -205,6 +205,14 @@ export function extractPlatformParams(req: Request): PlatformParams {
     typeof req.query?.projectId === 'string' ? req.query.projectId : undefined
   );
 
+  const extraParams: Record<string, string> = {};
+  for (const [key, value] of Object.entries(req.query)) {
+    if (!AUTH_PARAMS.has(key) && typeof value === 'string') {
+      extraParams[key] = value;
+    }
+  }
+  const resolvedExtraParams = Object.keys(extraParams).length > 0 ? extraParams : undefined;
+
   if (cookiePayload) {
     try {
       const parsed = JSON.parse(decodeURIComponent(cookiePayload)) as Record<
@@ -218,6 +226,7 @@ export function extractPlatformParams(req: Request): PlatformParams {
         clientId: parsed.clientId,
         codeChallenge: parsed.codeChallenge,
         projectId: projectId || parsed.projectId,
+        extraParams: resolvedExtraParams,
       };
     } catch {
       // ignore malformed cookie
@@ -238,13 +247,6 @@ export function extractPlatformParams(req: Request): PlatformParams {
     (typeof req.query?.codechallenge === 'string' && req.query.codechallenge) ||
     undefined;
 
-  const extraParams: Record<string, string> = {};
-  for (const [key, value] of Object.entries(req.query)) {
-    if (!AUTH_PARAMS.has(key) && typeof value === 'string') {
-      extraParams[key] = value;
-    }
-  }
-
   return {
     redirectTo,
     appRedirectTo,
@@ -252,7 +254,7 @@ export function extractPlatformParams(req: Request): PlatformParams {
     clientId,
     codeChallenge,
     projectId,
-    extraParams: Object.keys(extraParams).length > 0 ? extraParams : undefined,
+    extraParams: resolvedExtraParams,
   };
 }
 
