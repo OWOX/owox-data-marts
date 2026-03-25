@@ -17,6 +17,7 @@ import {
 import type { StoredDestinationCredentials } from '../entities/stored-destination-credentials.type';
 import { DataDestinationService } from '../services/data-destination.service';
 import { CopyCredentialService } from '../services/copy-credential.service';
+import { UserProjectionsFetcherService } from '../services/user-projections-fetcher.service';
 
 @Injectable()
 export class CreateDataDestinationService {
@@ -30,11 +31,15 @@ export class CreateDataDestinationService {
     private readonly dataDestinationCredentialService: DataDestinationCredentialService,
     private readonly googleOAuthClientService: GoogleOAuthClientService,
     private readonly dataDestinationService: DataDestinationService,
-    private readonly copyCredentialService: CopyCredentialService
+    private readonly copyCredentialService: CopyCredentialService,
+    private readonly userProjectionsFetcherService: UserProjectionsFetcherService
   ) {}
 
   async run(command: CreateDataDestinationCommand): Promise<DataDestinationDto> {
     this.availableDestinationTypesService.verifyIsAllowed(command.type);
+
+    const createdByUser =
+      (await this.userProjectionsFetcherService.fetchUserProjection(command.userId)) ?? null;
 
     // Mutual exclusion: sourceDestinationId vs credentials/credentialId
     if (command.sourceDestinationId && command.hasCredentials()) {
@@ -72,10 +77,11 @@ export class CreateDataDestinationService {
         type: command.type,
         projectId: command.projectId,
         credentialId: newCredId,
+        createdById: command.userId,
       });
 
       const savedEntity = await this.repository.save(entity);
-      return this.mapper.toDomainDto(savedEntity);
+      return this.mapper.toDomainDto(savedEntity, createdByUser);
     }
 
     // If a pre-created OAuth credential ID is provided, validate it by getting a fresh access token
@@ -91,10 +97,11 @@ export class CreateDataDestinationService {
         type: command.type,
         projectId: command.projectId,
         credentialId: command.credentialId,
+        createdById: command.userId,
       });
 
       const savedEntity = await this.repository.save(entity);
-      return this.mapper.toDomainDto(savedEntity);
+      return this.mapper.toDomainDto(savedEntity, createdByUser);
     }
 
     if (!command.credentials) {
@@ -130,9 +137,10 @@ export class CreateDataDestinationService {
       type: command.type,
       projectId: command.projectId,
       credentialId: credentialRecord.id,
+      createdById: command.userId,
     });
 
     const savedEntity = await this.repository.save(entity);
-    return this.mapper.toDomainDto(savedEntity);
+    return this.mapper.toDomainDto(savedEntity, createdByUser);
   }
 }

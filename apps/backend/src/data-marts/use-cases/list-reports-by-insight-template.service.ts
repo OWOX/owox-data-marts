@@ -7,13 +7,15 @@ import { ReportDto } from '../dto/domain/report.dto';
 import { ListReportsByInsightTemplateCommand } from '../dto/domain/list-reports-by-insight-template.command';
 import { EmailConfigType } from '../data-destination-types/ee/email/schemas/email-config.schema';
 import { TemplateSourceTypeEnum } from '../enums/template-source-type.enum';
+import { UserProjectionsFetcherService } from '../services/user-projections-fetcher.service';
 
 @Injectable()
 export class ListReportsByInsightTemplateService {
   constructor(
     @InjectRepository(Report)
     private readonly reportRepository: Repository<Report>,
-    private readonly mapper: ReportMapper
+    private readonly mapper: ReportMapper,
+    private readonly userProjectionsFetcherService: UserProjectionsFetcherService
   ) {}
 
   async run(command: ListReportsByInsightTemplateCommand): Promise<ReportDto[]> {
@@ -38,6 +40,9 @@ export class ListReportsByInsightTemplateService {
       )
       .getMany();
 
-    return this.mapper.toDomainDtoList(reports);
+    const userProjectionsList =
+      await this.userProjectionsFetcherService.fetchRelevantUserProjections(reports);
+
+    return this.mapper.toDomainDtoList(reports, userProjectionsList);
   }
 }

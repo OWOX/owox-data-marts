@@ -5,13 +5,15 @@ import { Report } from '../entities/report.entity';
 import { ReportMapper } from '../mappers/report.mapper';
 import { GetReportCommand } from '../dto/domain/get-report.command';
 import { ReportDto } from '../dto/domain/report.dto';
+import { UserProjectionsFetcherService } from '../services/user-projections-fetcher.service';
 
 @Injectable()
 export class GetReportService {
   constructor(
     @InjectRepository(Report)
     private readonly reportRepository: Repository<Report>,
-    private readonly mapper: ReportMapper
+    private readonly mapper: ReportMapper,
+    private readonly userProjectionsFetcherService: UserProjectionsFetcherService
   ) {}
 
   async run(command: GetReportCommand): Promise<ReportDto> {
@@ -29,6 +31,10 @@ export class GetReportService {
       throw new NotFoundException(`Report with ID ${command.id} not found`);
     }
 
-    return this.mapper.toDomainDto(report);
+    const createdByUser = report.createdById
+      ? ((await this.userProjectionsFetcherService.fetchUserProjection(report.createdById)) ?? null)
+      : null;
+
+    return this.mapper.toDomainDto(report, createdByUser);
   }
 }

@@ -1,5 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { AuthorizationContext } from '../../idp';
+import { UserProjectionDto } from '../../idp/dto/domain/user-projection.dto';
+import { UserProjectionsListDto } from '../../idp/dto/domain/user-projections-list.dto';
 import { CreateInsightTemplateCommand } from '../dto/domain/create-insight-template.command';
 import { DeleteInsightTemplateSourceCommand } from '../dto/domain/delete-insight-template-source.command';
 import { DeleteInsightTemplateCommand } from '../dto/domain/delete-insight-template.command';
@@ -42,7 +44,8 @@ export class InsightTemplateMapper {
 
   toDomainDto(
     entity: InsightTemplate,
-    lastManualDataMartRun?: DataMartRun | null
+    lastManualDataMartRun?: DataMartRun | null,
+    createdByUser?: UserProjectionDto | null
   ): InsightTemplateDto {
     const lastManualDataMartRunDto = lastManualDataMartRun
       ? this.dataMartMapper.toDataMartRunDto(lastManualDataMartRun)
@@ -58,12 +61,22 @@ export class InsightTemplateMapper {
       entity.createdById,
       entity.createdAt,
       entity.modifiedAt,
-      lastManualDataMartRunDto
+      lastManualDataMartRunDto,
+      createdByUser
     );
   }
 
-  toDomainDtoList(entities: InsightTemplate[]): InsightTemplateDto[] {
-    return entities.map(entity => this.toDomainDto(entity, null));
+  toDomainDtoList(
+    entities: InsightTemplate[],
+    userProjectionsList?: UserProjectionsListDto
+  ): InsightTemplateDto[] {
+    return entities.map(entity =>
+      this.toDomainDto(
+        entity,
+        null,
+        entity.createdById ? (userProjectionsList?.getByUserId(entity.createdById) ?? null) : null
+      )
+    );
   }
 
   async toResponse(dto: InsightTemplateDto): Promise<InsightTemplateResponseApiDto> {
@@ -80,6 +93,7 @@ export class InsightTemplateMapper {
       lastManualDataMartRun: dto.lastManualDataMartRun
         ? await this.dataMartMapper.toRunResponse(dto.lastManualDataMartRun)
         : null,
+      createdByUser: dto.createdByUser,
     };
   }
 
@@ -92,6 +106,7 @@ export class InsightTemplateMapper {
       createdById: dto.createdById,
       createdAt: dto.createdAt,
       modifiedAt: dto.modifiedAt,
+      createdByUser: dto.createdByUser,
     };
   }
 

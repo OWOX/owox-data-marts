@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { AuthorizationContext } from '../../idp';
+import { UserProjectionsListDto } from '../../idp/dto/domain/user-projections-list.dto';
 import { CreateDataDestinationCommand } from '../dto/domain/create-data-destination.command';
 import { DataDestinationDto } from '../dto/domain/data-destination.dto';
 import { DeleteDataDestinationCommand } from '../dto/domain/delete-data-destination.command';
@@ -25,6 +26,7 @@ import { DestinationCredentialType } from '../enums/destination-credential-type.
 import { DataDestinationCredentials } from '../data-destination-types/data-destination-credentials.type';
 import { DataDestinationByTypeResponseApiDto } from '../dto/presentation/data-destination-by-type-response-api.dto';
 import { ListDataDestinationsByTypeItemDto } from '../dto/domain/list-data-destinations-by-type-item.dto';
+import { UserProjectionDto } from '../../idp/dto/domain/user-projection.dto';
 
 @Injectable()
 export class DataDestinationMapper {
@@ -43,6 +45,7 @@ export class DataDestinationMapper {
       context.projectId,
       dto.title,
       dto.type,
+      context.userId,
       dto.credentials,
       dto.credentialId,
       dto.sourceDestinationId
@@ -64,7 +67,10 @@ export class DataDestinationMapper {
     );
   }
 
-  toDomainDto(dataDestination: DataDestination): DataDestinationDto {
+  toDomainDto(
+    dataDestination: DataDestination,
+    createdByUser: UserProjectionDto | null = null
+  ): DataDestinationDto {
     return new DataDestinationDto(
       dataDestination.id,
       dataDestination.title,
@@ -72,12 +78,23 @@ export class DataDestinationMapper {
       dataDestination.projectId,
       dataDestination.createdAt,
       dataDestination.modifiedAt,
-      dataDestination.credentialId
+      dataDestination.credentialId,
+      createdByUser
     );
   }
 
-  toDomainDtoList(dataDestinations: DataDestination[]): DataDestinationDto[] {
-    return dataDestinations.map(dataDestination => this.toDomainDto(dataDestination));
+  toDomainDtoList(
+    dataDestinations: DataDestination[],
+    userProjectionsList?: UserProjectionsListDto
+  ): DataDestinationDto[] {
+    return dataDestinations.map(dataDestination =>
+      this.toDomainDto(
+        dataDestination,
+        dataDestination.createdById
+          ? (userProjectionsList?.getByUserId(dataDestination.createdById) ?? null)
+          : null
+      )
+    );
   }
 
   async toApiResponse(
@@ -94,6 +111,7 @@ export class DataDestinationMapper {
       createdAt: dataDestinationDto.createdAt,
       modifiedAt: dataDestinationDto.modifiedAt,
       credentialId: dataDestinationDto.credentialId,
+      createdByUser: dataDestinationDto.createdByUser,
     };
   }
 

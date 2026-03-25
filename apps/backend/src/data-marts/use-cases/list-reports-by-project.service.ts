@@ -5,13 +5,15 @@ import { Report } from '../entities/report.entity';
 import { ReportMapper } from '../mappers/report.mapper';
 import { ListReportsByProjectCommand } from '../dto/domain/list-reports-by-project.command';
 import { ReportDto } from '../dto/domain/report.dto';
+import { UserProjectionsFetcherService } from '../services/user-projections-fetcher.service';
 
 @Injectable()
 export class ListReportsByProjectService {
   constructor(
     @InjectRepository(Report)
     private readonly reportRepository: Repository<Report>,
-    private readonly mapper: ReportMapper
+    private readonly mapper: ReportMapper,
+    private readonly userProjectionsFetcherService: UserProjectionsFetcherService
   ) {}
 
   async run(command: ListReportsByProjectCommand): Promise<ReportDto[]> {
@@ -25,6 +27,9 @@ export class ListReportsByProjectService {
       relations: ['dataMart', 'dataDestination'],
     });
 
-    return this.mapper.toDomainDtoList(reports);
+    const userProjectionsList =
+      await this.userProjectionsFetcherService.fetchRelevantUserProjections(reports);
+
+    return this.mapper.toDomainDtoList(reports, userProjectionsList);
   }
 }

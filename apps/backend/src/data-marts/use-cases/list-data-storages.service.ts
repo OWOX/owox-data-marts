@@ -7,6 +7,7 @@ import { DataStorageDto } from '../dto/domain/data-storage.dto';
 import { ListDataStoragesCommand } from '../dto/domain/list-data-storages.command';
 import { DataMart } from '../entities/data-mart.entity';
 import { DataMartStatus } from '../enums/data-mart-status.enum';
+import { UserProjectionsFetcherService } from '../services/user-projections-fetcher.service';
 
 @Injectable()
 export class ListDataStoragesService {
@@ -15,7 +16,8 @@ export class ListDataStoragesService {
     private readonly dataStorageRepo: Repository<DataStorage>,
     @InjectRepository(DataMart)
     private readonly dataMartRepo: Repository<DataMart>,
-    private readonly mapper: DataStorageMapper
+    private readonly mapper: DataStorageMapper,
+    private readonly userProjectionsFetcherService: UserProjectionsFetcherService
   ) {}
 
   async run(command: ListDataStoragesCommand): Promise<DataStorageDto[]> {
@@ -55,9 +57,17 @@ export class ListDataStoragesService {
       ])
     );
 
+    const userProjectionsList =
+      await this.userProjectionsFetcherService.fetchRelevantUserProjections(dataStorages);
+
     return dataStorages.map(s => {
       const counts = countMap.get(s.id);
-      return this.mapper.toDomainDto(s, counts?.published ?? 0, counts?.drafts ?? 0);
+      return this.mapper.toDomainDto(
+        s,
+        counts?.published ?? 0,
+        counts?.drafts ?? 0,
+        s.createdById ? (userProjectionsList?.getByUserId(s.createdById) ?? null) : null
+      );
     });
   }
 }

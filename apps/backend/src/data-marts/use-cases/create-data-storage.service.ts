@@ -7,13 +7,15 @@ import { CreateDataStorageCommand } from '../dto/domain/create-data-storage.comm
 import { DataStorageDto } from '../dto/domain/data-storage.dto';
 import { DataStorage } from '../entities/data-storage.entity';
 import { DataStorageMapper } from '../mappers/data-storage.mapper';
+import { UserProjectionsFetcherService } from '../services/user-projections-fetcher.service';
 
 @Injectable()
 export class CreateDataStorageService {
   constructor(
     @InjectRepository(DataStorage)
     private readonly dataStorageRepository: Repository<DataStorage>,
-    private readonly dataStorageMapper: DataStorageMapper
+    private readonly dataStorageMapper: DataStorageMapper,
+    private readonly userProjectionsFetcherService: UserProjectionsFetcherService
   ) {}
 
   async run(command: CreateDataStorageCommand): Promise<DataStorageDto> {
@@ -26,9 +28,12 @@ export class CreateDataStorageService {
     const entity = this.dataStorageRepository.create({
       type: command.type,
       projectId: command.projectId,
+      createdById: command.userId,
     });
 
     const savedEntity = await this.dataStorageRepository.save(entity);
-    return this.dataStorageMapper.toDomainDto(savedEntity);
+    const createdByUser =
+      (await this.userProjectionsFetcherService.fetchUserProjection(command.userId)) ?? null;
+    return this.dataStorageMapper.toDomainDto(savedEntity, 0, 0, createdByUser);
   }
 }
