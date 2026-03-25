@@ -84,6 +84,7 @@ packages/test-utils/
     constants.ts                          # AUTH_HEADER, NONEXISTENT_UUID, connector list
     helpers/
       create-test-app.ts                  # Bootstraps NestJS app with SQLite :memory:
+      create-looker-jwt.ts                # JWT signing + Google JWK fetch mock for Looker Studio
       setup-published-data-mart.ts        # Creates storage + data mart + publishes
       setup-connector-data-mart.ts        # Creates storage + connector-type data mart
       setup-report-prerequisites.ts       # Creates storage + data mart + destination
@@ -112,6 +113,9 @@ apps/backend/test/
   connector-fields.e2e-spec.ts           # Connector field metadata
   connector-specification.e2e-spec.ts    # Connector specification endpoints
   connector-oauth.e2e-spec.ts            # Connector OAuth flow
+  looker-studio-connector.e2e-spec.ts   # Looker Studio external API (JWT auth + mocked reader)
+  notification-settings.e2e-spec.ts     # Notification settings CRUD + webhook + validation
+  notification-members.e2e-spec.ts      # Multi-member receiver logic (overridden IdpProjectionsFacade)
 ```
 
 ### Test App (`createTestApp`)
@@ -122,15 +126,28 @@ Creates a production-equivalent NestJS app with:
 - Real migrations applied via `dataSource.runMigrations()`
 - `PRAGMA foreign_keys = ON` for referential integrity
 - `NullIdpProvider` for auth (accepts any `x-owox-authorization` header)
-- Global pipes and exception filters matching production `main.ts`
+- `express.text({ type: 'application/jwt' })` for Looker Studio JWT body parsing
+- Global pipes and exception filters matching production `bootstrap.ts`
+- Optional provider overrides for mocking external dependencies
 
 ```typescript
 import { createTestApp, closeTestApp } from '@owox/test-utils';
 
 let app, agent;
 
+// Basic usage (no overrides)
 beforeAll(async () => {
   const testApp = await createTestApp();
+  app = testApp.app;
+  agent = testApp.agent;
+});
+
+// With provider overrides (e.g., mock IDP, mock storage reader)
+beforeAll(async () => {
+  const testApp = await createTestApp([
+    { provide: IdpProjectionsFacade, useValue: mockIdpFacade },
+    { provide: ReportDataCacheService, useValue: mockCacheService },
+  ]);
   app = testApp.app;
   agent = testApp.agent;
 });
@@ -848,6 +865,6 @@ Configure in: Repository Settings > Secrets and variables > Actions
 | `apps/web/playwright.config.ts`                  | Playwright configuration                                  |
 | `apps/web/e2e/specs/*.spec.ts`                   | Browser E2E test files                                    |
 | `apps/web/vitest.config.ts`                      | Vitest config for frontend unit tests                     |
-| `packages/test-utils/src/`                       | Shared test utilities (app bootstrap, builders)           |
+| `packages/test-utils/src/`                       | Shared test utilities (app bootstrap, builders, JWT mock) |
 | `.github/workflows/test-*.yml`                   | CI workflow definitions                                   |
 | `.github/workflows/e2e-*.yml`                    | E2E CI workflow definitions                               |
