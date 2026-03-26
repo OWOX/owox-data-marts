@@ -33,8 +33,10 @@ jobs:
       - name: Install dependencies
         run: npm ci --prefer-offline --no-audit --ignore-scripts --no-fund --loglevel error
 
-      - name: Build all workspace packages (backend dist/ required by Playwright webServer)
-        run: npm run build --workspaces --if-present
+      # Playwright webServer needs backend dist/. Build backend + its workspace deps.
+      # Avoids building unrelated packages (e.g. @owox/internal-helpers) that may fail.
+      - name: Build backend and dependencies
+        run: npm run build -w @owox/connectors && npm run build -w @owox/backend
 
       - name: Install Playwright Chromium
         run: cd apps/web && npx playwright install --with-deps chromium

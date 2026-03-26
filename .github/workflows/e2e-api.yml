@@ -33,9 +33,10 @@ jobs:
         run: npm ci --prefer-offline --no-audit --ignore-scripts --no-fund --loglevel error
 
       # ts-jest resolves TypeScript directly, so backend build is not needed.
-      # Only shared packages (e.g. @owox/test-utils) must be compiled.
-      - name: Build all workspace packages
-        run: npm run build --workspaces --if-present
+      # Only @owox/connectors must be compiled (connector definitions used at runtime).
+      # @owox/test-utils has no build step — ts-jest resolves it from source.
+      - name: Build connectors package
+        run: npm run build -w @owox/connectors
 
       - name: Run API E2E tests
         run: npm run test:e2e -w @owox/backend
