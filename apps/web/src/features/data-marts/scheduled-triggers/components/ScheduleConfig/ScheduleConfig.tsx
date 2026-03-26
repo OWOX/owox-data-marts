@@ -432,6 +432,61 @@ export function ScheduleConfig({
       )}
       <div className='space-y-4 pt-0'>
         <div className={`space-y-4 ${!isEnabled ? 'opacity-50' : ''}`}>
+          {/* Quick Presets */}
+          <div className='space-y-2'>
+            <Label className='text-muted-foreground text-xs'>Quick presets</Label>
+            <div className='flex flex-wrap gap-2'>
+              {[
+                {
+                  label: 'Daily 9:00',
+                  type: 'daily' as ScheduleType,
+                  time: '09:00',
+                  cron: '0 9 * * *',
+                },
+                {
+                  label: 'Every hour',
+                  type: 'interval' as ScheduleType,
+                  intervalType: 'hours' as const,
+                  intervalValue: 1,
+                  cron: '0 */1 * * *',
+                },
+                {
+                  label: 'Every 6h',
+                  type: 'interval' as ScheduleType,
+                  intervalType: 'hours' as const,
+                  intervalValue: 6,
+                  cron: '0 */6 * * *',
+                },
+                {
+                  label: 'Weekdays 9:00',
+                  type: 'weekly' as ScheduleType,
+                  time: '09:00',
+                  weekdays: [1, 2, 3, 4, 5],
+                  cron: '0 9 * * 1,2,3,4,5',
+                },
+              ].map(preset => (
+                <Badge
+                  key={preset.label}
+                  variant='outline'
+                  className='hover:bg-accent cursor-pointer transition-colors select-none'
+                  onClick={() => {
+                    if (!isEnabled) return;
+                    setConfig(prev => ({
+                      ...prev,
+                      type: preset.type,
+                      ...(preset.time && { time: preset.time }),
+                      ...(preset.weekdays && { weekdays: preset.weekdays }),
+                      ...(preset.intervalType && { intervalType: preset.intervalType }),
+                      ...(preset.intervalValue && { intervalValue: preset.intervalValue }),
+                    }));
+                  }}
+                >
+                  {preset.label}
+                </Badge>
+              ))}
+            </div>
+          </div>
+
           {/* Schedule Type */}
           <ScheduleTypeField
             value={config.type}

@@ -4,9 +4,10 @@ import { ScheduledTriggerTable } from '../ScheduledTriggerTable';
 import { ScheduledTriggerFormSheet } from '../ScheduledTriggerFormSheet/ScheduledTriggerFormSheet';
 interface ScheduledTriggerListProps {
   dataMartId: string;
+  onRequestCreate?: () => void;
 }
 
-export function ScheduledTriggerList({ dataMartId }: ScheduledTriggerListProps) {
+export function ScheduledTriggerList({ dataMartId, onRequestCreate }: ScheduledTriggerListProps) {
   const { triggers, deleteScheduledTrigger, selectScheduledTrigger, selectedTrigger } =
     useScheduledTrigger(dataMartId);
   const [isFormSheetOpen, setIsFormSheetOpen] = useState(false);
@@ -50,6 +51,7 @@ export function ScheduledTriggerList({ dataMartId }: ScheduledTriggerListProps) 
         dataMartId={dataMartId}
         onEditTrigger={handleEditTrigger}
         onDeleteTrigger={id => void handleDeleteTrigger(id)}
+        onRequestCreate={onRequestCreate}
       />
       <ScheduledTriggerFormSheet
         isOpen={isFormSheetOpen}
