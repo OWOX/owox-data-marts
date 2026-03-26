@@ -38,9 +38,6 @@ export class CreateDataDestinationService {
   async run(command: CreateDataDestinationCommand): Promise<DataDestinationDto> {
     this.availableDestinationTypesService.verifyIsAllowed(command.type);
 
-    const createdByUser =
-      (await this.userProjectionsFetcherService.fetchUserProjection(command.userId)) ?? null;
-
     // Mutual exclusion: sourceDestinationId vs credentials/credentialId
     if (command.sourceDestinationId && command.hasCredentials()) {
       throw new BadRequestException(
@@ -81,6 +78,8 @@ export class CreateDataDestinationService {
       });
 
       const savedEntity = await this.repository.save(entity);
+      const createdByUser =
+        await this.userProjectionsFetcherService.fetchCreatedByUser(savedEntity);
       return this.mapper.toDomainDto(savedEntity, createdByUser);
     }
 
@@ -101,6 +100,8 @@ export class CreateDataDestinationService {
       });
 
       const savedEntity = await this.repository.save(entity);
+      const createdByUser =
+        await this.userProjectionsFetcherService.fetchCreatedByUser(savedEntity);
       return this.mapper.toDomainDto(savedEntity, createdByUser);
     }
 
@@ -141,6 +142,7 @@ export class CreateDataDestinationService {
     });
 
     const savedEntity = await this.repository.save(entity);
+    const createdByUser = await this.userProjectionsFetcherService.fetchCreatedByUser(savedEntity);
     return this.mapper.toDomainDto(savedEntity, createdByUser);
   }
 }

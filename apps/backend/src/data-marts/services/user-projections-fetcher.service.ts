@@ -12,9 +12,12 @@ export class UserProjectionsFetcherService {
   public async fetchRelevantUserProjections(
     entities: CreatorAwareEntity[]
   ): Promise<UserProjectionsListDto> {
-    return await this.idpProjectionsFacade.getUserProjectionList(
-      entities.map(e => e.createdById).filter((id): id is string => typeof id === 'string')
-    );
+    const userIds = [
+      ...new Set(
+        entities.map(e => e.createdById).filter((id): id is string => typeof id === 'string')
+      ),
+    ];
+    return await this.idpProjectionsFacade.getUserProjectionList(userIds);
   }
 
   public async fetchAllRelevantUserProjections(

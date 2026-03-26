@@ -32,8 +32,7 @@ export class CreateDataStorageService {
     });
 
     const savedEntity = await this.dataStorageRepository.save(entity);
-    const createdByUser =
-      (await this.userProjectionsFetcherService.fetchUserProjection(command.userId)) ?? null;
+    const createdByUser = await this.userProjectionsFetcherService.fetchCreatedByUser(savedEntity);
     return this.dataStorageMapper.toDomainDto(savedEntity, 0, 0, createdByUser);
   }
 }
