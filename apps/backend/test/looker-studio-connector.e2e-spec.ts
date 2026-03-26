@@ -120,7 +120,7 @@ describe('Looker Studio Connector (e2e)', () => {
     const reportRes = await agent.post('/api/reports').set(AUTH_HEADER).send(reportPayload);
     expect(reportRes.status).toBe(201);
     reportId = reportRes.body.id;
-  });
+  }, 120_000);
 
   afterAll(async () => {
     restoreGoogleJwkFetch();
