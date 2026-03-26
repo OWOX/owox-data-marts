@@ -2,7 +2,7 @@ import { INestApplication } from '@nestjs/common';
 import * as supertest from 'supertest';
 import { createTestApp, closeTestApp } from '@owox/test-utils';
 
-//Smoke test to check if the app boots and responds to GET /api/data-storages
+//Smoke test to check if the app boots and responds with 200
 describe('Smoke Test', () => {
   let app: INestApplication;
   let agent: supertest.Agent;

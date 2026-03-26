@@ -33,19 +33,21 @@ jobs:
       - name: Install dependencies
         run: npm ci --prefer-offline --no-audit --no-fund --loglevel error
 
-      # Playwright webServer needs backend dist/. Build backend + its workspace deps.
-      # Avoids building unrelated packages (e.g. @owox/internal-helpers) that may fail.
-      - name: Build backend and dependencies
-        run: npm run build -w @owox/connectors && npm run build -w @owox/backend
+      - name: Build all workspace packages
+        run: npm run build --workspaces --if-present
 
       - name: Install Playwright Chromium
         run: cd apps/web && npx playwright install --with-deps chromium
+
+      - name: Create temp directory for SQLite
+        run: mkdir -p tmp
 
       - name: Run Browser E2E tests
         run: cd apps/web && npx playwright test
         env:
           CI: true
           NODE_ENV: test
+          SQLITE_DB_PATH: ${{ github.workspace }}/tmp/tests.db
           SERVER_TIMEOUT_MS: '180000'
           KEEP_ALIVE_TIMEOUT_MS: '180000'
           HEADERS_TIMEOUT_MS: '185000'
