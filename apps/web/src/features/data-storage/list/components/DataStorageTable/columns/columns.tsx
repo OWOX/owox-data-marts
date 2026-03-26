@@ -114,6 +114,27 @@ export const getDataStorageColumns = ({
     },
   },
   {
+    id: DataStorageColumnKey.CREATED_BY,
+    accessorFn: row => {
+      const u = row.createdByUser;
+      return u?.fullName ?? u?.email;
+    },
+    size: 200,
+    meta: {
+      title: dataStorageColumnLabels[DataStorageColumnKey.CREATED_BY],
+    },
+    header: ({ column }) => (
+      <SortableHeader column={column}>
+        {dataStorageColumnLabels[DataStorageColumnKey.CREATED_BY]}
+      </SortableHeader>
+    ),
+    cell: ({ row }) => {
+      const user = row.original.createdByUser;
+      if (!user) return <span className='text-muted-foreground'>-</span>;
+      return <UserReference userProjection={user} />;
+    },
+  },
+  {
     accessorKey: DataStorageColumnKey.DATA_MARTS_COUNT,
     size: 120,
     meta: {
@@ -143,27 +164,6 @@ export const getDataStorageColumns = ({
     cell: ({ row }) => {
       const count = row.getValue<string>(DataStorageColumnKey.DRAFTS_COUNT);
       return <div>{count}</div>;
-    },
-  },
-  {
-    id: DataStorageColumnKey.CREATED_BY,
-    accessorFn: row => {
-      const u = row.createdByUser;
-      return u?.fullName ?? u?.email;
-    },
-    size: 200,
-    meta: {
-      title: dataStorageColumnLabels[DataStorageColumnKey.CREATED_BY],
-    },
-    header: ({ column }) => (
-      <SortableHeader column={column}>
-        {dataStorageColumnLabels[DataStorageColumnKey.CREATED_BY]}
-      </SortableHeader>
-    ),
-    cell: ({ row }) => {
-      const user = row.original.createdByUser;
-      if (!user) return <span className='text-muted-foreground'>-</span>;
-      return <UserReference userProjection={user} />;
     },
   },
   {
