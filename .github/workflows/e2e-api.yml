@@ -1,6 +1,12 @@
 name: E2E API Tests
 
 on:
+  pull_request:
+    paths:
+      - 'apps/backend/**'
+      - 'packages/**'
+  push:
+    branches: [main]
   workflow_dispatch:
 
 concurrency:

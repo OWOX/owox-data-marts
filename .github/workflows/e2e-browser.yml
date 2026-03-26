@@ -1,6 +1,13 @@
 name: E2E Browser Tests
 
 on:
+  pull_request:
+    paths:
+      - 'apps/backend/**'
+      - 'apps/web/**'
+      - 'packages/**'
+  push:
+    branches: [main]
   workflow_dispatch:
 
 concurrency:
