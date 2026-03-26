@@ -535,13 +535,6 @@ export class SqliteDatabaseStore implements DatabaseStore {
       )`
     ).run();
 
-    try {
-      db.prepare(
-        `CREATE INDEX idx_onboarding_user_project ON onboarding_answer(userId, projectId)`
-      ).run();
-    } catch {
-      // index already exists
-    }
     this.onboardingTableReady = true;
   }
 

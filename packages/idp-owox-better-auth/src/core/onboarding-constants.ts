@@ -45,3 +45,42 @@ export const PRIMARY_STORAGE_ANSWER = {
 export const VALID_USE_CASE_VALUES = new Set(Object.values(USE_CASE_ANSWER));
 export const VALID_PRIMARY_ROLE_VALUES = new Set(Object.values(PRIMARY_ROLE_ANSWER));
 export const VALID_PRIMARY_STORAGE_VALUES = new Set(Object.values(PRIMARY_STORAGE_ANSWER));
+
+/** Option definitions with labels for rendering in templates. */
+export interface OnboardingOption {
+  value: string;
+  label: string;
+}
+
+export const USE_CASE_OPTIONS: OnboardingOption[] = [
+  { value: USE_CASE_ANSWER.SYNC_DWH_SHEETS, label: 'Sync live DWH data into Sheets' },
+  { value: USE_CASE_ANSWER.SYNC_DWH_LOOKER, label: 'Sync live DWH data to Looker Studio' },
+  { value: USE_CASE_ANSWER.AI_INSIGHTS, label: 'Deliver AI Insights to Slack / Teams / Email' },
+  {
+    value: USE_CASE_ANSWER.IMPORT_EXTERNAL_DWH,
+    label: 'Import external data into our data warehouse',
+  },
+  {
+    value: USE_CASE_ANSWER.IMPORT_EXTERNAL_SHEETS,
+    label: 'Import external data directly into Sheets',
+  },
+  { value: USE_CASE_ANSWER.OTHER, label: 'Something else' },
+];
+
+export const PRIMARY_ROLE_OPTIONS: OnboardingOption[] = [
+  { value: PRIMARY_ROLE_ANSWER.DATA_ANALYST_ENGINEER, label: 'Data Analyst / Engineer' },
+  { value: PRIMARY_ROLE_ANSWER.DIGITAL_MARKETER, label: 'Digital Marketer' },
+  { value: PRIMARY_ROLE_ANSWER.HEAD_OF_ANALYTICS, label: 'Head of Analytics / Data' },
+  { value: PRIMARY_ROLE_ANSWER.C_LEVEL, label: 'C-level' },
+  { value: PRIMARY_ROLE_ANSWER.OTHER, label: 'Other' },
+];
+
+export const PRIMARY_STORAGE_OPTIONS: OnboardingOption[] = [
+  { value: PRIMARY_STORAGE_ANSWER.GBQ, label: 'Google BigQuery' },
+  { value: PRIMARY_STORAGE_ANSWER.AWS_ATHENA, label: 'AWS Athena' },
+  { value: PRIMARY_STORAGE_ANSWER.AWS_REDSHIFT, label: 'AWS Redshift' },
+  { value: PRIMARY_STORAGE_ANSWER.SNOWFLAKE, label: 'Snowflake' },
+  { value: PRIMARY_STORAGE_ANSWER.DATABRICKS, label: 'Databricks' },
+  { value: PRIMARY_STORAGE_ANSWER.DONT_KNOW, label: "Don't know" },
+  { value: PRIMARY_STORAGE_ANSWER.OTHER, label: 'Other' },
+];

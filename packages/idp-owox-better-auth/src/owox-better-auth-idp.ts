@@ -238,7 +238,9 @@ export class OwoxBetterAuthIdp implements IdpProvider {
             if (shouldOnboard) {
               const onboardingUrl = new URL('/auth/onboarding', this.config.idpOwox.baseUrl);
               onboardingUrl.searchParams.set('redirect', '/');
-              if (payload.email) onboardingUrl.searchParams.set('email', payload.email);
+              if (payload.email?.includes('@')) {
+                onboardingUrl.searchParams.set('domain', payload.email.split('@')[1]!);
+              }
               return res.redirect(onboardingUrl.toString());
             }
           } catch (error: unknown) {
@@ -315,33 +317,6 @@ export class OwoxBetterAuthIdp implements IdpProvider {
     }
 
     return this.redirectToPlatform(req, res, this.config.idpOwox.idpConfig.platformSignInUrl);
-  }
-
-  /**
-   * Fetches onboarding answers for a user/project and deserializes JSON arrays.
-   * Returns an empty array on any error.
-   */
-  private async getOnboardingForPayload(
-    userId: string,
-    projectId: string
-  ): Promise<{ questionId: string; answerValue: string | string[] }[]> {
-    try {
-      const answers = await this.store.getOnboardingAnswers(userId, projectId);
-      return answers.map(a => {
-        let parsed: string | string[] = a.answerValue;
-        if (a.answerValue.startsWith('[')) {
-          parsed = JSON.parse(a.answerValue) as string[];
-        }
-        return { questionId: a.questionId, answerValue: parsed };
-      });
-    } catch (error: unknown) {
-      this.logger.warn('Failed to get onboarding answers for user/project', {
-        userId,
-        projectId,
-        error: error instanceof Error ? error.message : 'Unknown error',
-      });
-      return [];
-    }
   }
 
   /**
@@ -435,7 +410,10 @@ export class OwoxBetterAuthIdp implements IdpProvider {
       return res.status(401).json({ message: 'Unauthorized', reason: 'uam2' });
     }
 
-    const onboarding = await this.getOnboardingForPayload(payload.userId, payload.projectId);
+    const onboarding = await this.onboardingService.getAnswersForPayload(
+      payload.userId,
+      payload.projectId
+    );
 
     return res.json({ ...payload, onboarding });
   }

@@ -573,13 +573,6 @@ export class MysqlDatabaseStore implements DatabaseStore {
       )
     `);
 
-    try {
-      await pool.query(
-        `CREATE INDEX idx_onboarding_user_project ON onboarding_answer (userId, projectId)`
-      );
-    } catch {
-      // index already exists
-    }
     this.onboardingTableReady = true;
   }
 

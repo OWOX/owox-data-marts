@@ -163,7 +163,7 @@ describe('OnboardingService', () => {
 
       expect(result).toBe(true);
       expect(projectMembersService.getMembers).toHaveBeenCalledWith('project-1', {
-        forceFresh: true,
+        forceFresh: false,
       });
     });
 
@@ -265,7 +265,7 @@ describe('OnboardingService', () => {
         service.saveAnswers('user-1', 'project-1', 'bi-user-1', 'viewer', {
           answers: [{ questionId: 'invalid_question', answerValue: 'something' }],
         })
-      ).rejects.toThrow('Invalid questionId');
+      ).rejects.toThrow('Invalid question identifier');
     });
 
     it('throws on invalid answerValue', async () => {
@@ -273,7 +273,7 @@ describe('OnboardingService', () => {
         service.saveAnswers('user-1', 'project-1', 'bi-user-1', 'viewer', {
           answers: [{ questionId: 'primary_role', answerValue: 'not_a_valid_role' }],
         })
-      ).rejects.toThrow('Invalid answer value');
+      ).rejects.toThrow('Invalid answer value for question');
     });
 
     it('saves org_domain as sanitized text', async () => {
@@ -292,7 +292,73 @@ describe('OnboardingService', () => {
         service.saveAnswers('user-1', 'project-1', 'bi-user-1', 'viewer', {
           answers: [{ questionId: 'org_domain', answerValue: 'not a domain <script>' }],
         })
-      ).rejects.toThrow('Invalid organization domain');
+      ).rejects.toThrow('Invalid organization domain format');
+    });
+
+    it('does not double-encode ampersands in otherText', async () => {
+      await service.saveAnswers('user-1', 'project-1', 'bi-user-1', 'viewer', {
+        answers: [
+          {
+            questionId: 'primary_role',
+            answerValue: 'other',
+            otherText: 'AT&T Company',
+          },
+        ],
+      });
+
+      const saved = (store.saveOnboardingAnswers as jest.Mock).mock.calls[0]![0] as Array<{
+        otherText: string | null;
+      }>;
+      expect(saved[0]!.otherText).toBe('AT&T Company');
+    });
+  });
+
+  describe('getAnswersForPayload', () => {
+    it('returns empty array when no answers exist', async () => {
+      (store.hasOnboardingAnswers as jest.Mock).mockResolvedValue(false);
+
+      const result = await service.getAnswersForPayload('user-1', 'project-1');
+
+      expect(result).toEqual([]);
+      expect(store.getOnboardingAnswers).not.toHaveBeenCalled();
+    });
+
+    it('returns deserialized answers with JSON arrays', async () => {
+      (store.hasOnboardingAnswers as jest.Mock).mockResolvedValue(true);
+      (store.getOnboardingAnswers as jest.Mock).mockResolvedValue([
+        { questionId: 'use_case', answerValue: '["sync_dwh_sheets","ai_insights"]' },
+        { questionId: 'primary_role', answerValue: 'data_analyst_engineer' },
+      ]);
+
+      const result = await service.getAnswersForPayload('user-1', 'project-1');
+
+      expect(result).toEqual([
+        { questionId: 'use_case', answerValue: ['sync_dwh_sheets', 'ai_insights'] },
+        { questionId: 'primary_role', answerValue: 'data_analyst_engineer' },
+      ]);
+    });
+
+    it('keeps malformed JSON as raw string instead of failing', async () => {
+      (store.hasOnboardingAnswers as jest.Mock).mockResolvedValue(true);
+      (store.getOnboardingAnswers as jest.Mock).mockResolvedValue([
+        { questionId: 'use_case', answerValue: '[broken json' },
+        { questionId: 'primary_role', answerValue: 'c_level' },
+      ]);
+
+      const result = await service.getAnswersForPayload('user-1', 'project-1');
+
+      expect(result).toEqual([
+        { questionId: 'use_case', answerValue: '[broken json' },
+        { questionId: 'primary_role', answerValue: 'c_level' },
+      ]);
+    });
+
+    it('returns empty array on store error', async () => {
+      (store.hasOnboardingAnswers as jest.Mock).mockRejectedValue(new Error('DB error'));
+
+      const result = await service.getAnswersForPayload('user-1', 'project-1');
+
+      expect(result).toEqual([]);
     });
   });
 });

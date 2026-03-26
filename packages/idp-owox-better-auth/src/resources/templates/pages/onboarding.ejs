@@ -62,30 +62,12 @@
     <h2 class="text-xl font-semibold text-foreground mb-1">What are you planning to use OWOX for?</h2>
     <p class="text-sm text-muted-foreground mb-5">Select all that apply</p>
     <div class="space-y-2" id="q-use-case">
+      <% useCaseOptions.forEach(function(opt) { %>
       <label class="option-card flex items-center gap-3 rounded-md border border-border px-4 py-3 text-sm text-foreground">
-        <input type="checkbox" value="sync_dwh_sheets" class="accent-[oklch(var(--primary))] w-4 h-4" />
-        <span>Sync live DWH data into Sheets</span>
+        <input type="checkbox" value="<%= opt.value %>"<% if (opt.value === 'other') { %> id="use-case-other-cb"<% } %> class="accent-[oklch(var(--primary))] w-4 h-4" />
+        <span><%= opt.label %></span>
       </label>
-      <label class="option-card flex items-center gap-3 rounded-md border border-border px-4 py-3 text-sm text-foreground">
-        <input type="checkbox" value="sync_dwh_looker" class="accent-[oklch(var(--primary))] w-4 h-4" />
-        <span>Sync live DWH data to Looker Studio</span>
-      </label>
-      <label class="option-card flex items-center gap-3 rounded-md border border-border px-4 py-3 text-sm text-foreground">
-        <input type="checkbox" value="ai_insights" class="accent-[oklch(var(--primary))] w-4 h-4" />
-        <span>Deliver AI Insights to Slack / Teams / Email</span>
-      </label>
-      <label class="option-card flex items-center gap-3 rounded-md border border-border px-4 py-3 text-sm text-foreground">
-        <input type="checkbox" value="import_external_dwh" class="accent-[oklch(var(--primary))] w-4 h-4" />
-        <span>Import external data into our data warehouse</span>
-      </label>
-      <label class="option-card flex items-center gap-3 rounded-md border border-border px-4 py-3 text-sm text-foreground">
-        <input type="checkbox" value="import_external_sheets" class="accent-[oklch(var(--primary))] w-4 h-4" />
-        <span>Import external data directly into Sheets</span>
-      </label>
-      <label class="option-card flex items-center gap-3 rounded-md border border-border px-4 py-3 text-sm text-foreground">
-        <input type="checkbox" value="other" id="use-case-other-cb" class="accent-[oklch(var(--primary))] w-4 h-4" />
-        <span>Something else</span>
-      </label>
+      <% }); %>
       <div class="other-text-input" id="use-case-other-wrap">
         <input
           type="text"
@@ -117,26 +99,12 @@
     <h2 class="text-xl font-semibold text-foreground mb-1">What is your primary role?</h2>
     <p class="text-sm text-muted-foreground mb-5">Choose the option that best describes you</p>
     <div class="space-y-2" id="q-primary-role">
+      <% primaryRoleOptions.forEach(function(opt) { %>
       <label class="option-card flex items-center gap-3 rounded-md border border-border px-4 py-3 text-sm text-foreground">
-        <input type="radio" name="primary_role" value="data_analyst_engineer" class="accent-[oklch(var(--primary))] w-4 h-4" />
-        <span>Data Analyst / Engineer</span>
+        <input type="radio" name="primary_role" value="<%= opt.value %>"<% if (opt.value === 'other') { %> id="role-other-rb"<% } %> class="accent-[oklch(var(--primary))] w-4 h-4" />
+        <span><%= opt.label %></span>
       </label>
-      <label class="option-card flex items-center gap-3 rounded-md border border-border px-4 py-3 text-sm text-foreground">
-        <input type="radio" name="primary_role" value="digital_marketer" class="accent-[oklch(var(--primary))] w-4 h-4" />
-        <span>Digital Marketer</span>
-      </label>
-      <label class="option-card flex items-center gap-3 rounded-md border border-border px-4 py-3 text-sm text-foreground">
-        <input type="radio" name="primary_role" value="head_of_analytics" class="accent-[oklch(var(--primary))] w-4 h-4" />
-        <span>Head of Analytics / Data</span>
-      </label>
-      <label class="option-card flex items-center gap-3 rounded-md border border-border px-4 py-3 text-sm text-foreground">
-        <input type="radio" name="primary_role" value="c_level" class="accent-[oklch(var(--primary))] w-4 h-4" />
-        <span>C-level</span>
-      </label>
-      <label class="option-card flex items-center gap-3 rounded-md border border-border px-4 py-3 text-sm text-foreground">
-        <input type="radio" name="primary_role" value="other" id="role-other-rb" class="accent-[oklch(var(--primary))] w-4 h-4" />
-        <span>Other</span>
-      </label>
+      <% }); %>
       <div class="other-text-input" id="role-other-wrap">
         <input
           type="text"
@@ -154,34 +122,12 @@
     <h2 class="text-xl font-semibold text-foreground mb-1">Your primary Storage</h2>
     <p class="text-sm text-muted-foreground mb-5">Where does your data live?</p>
     <div class="space-y-2" id="q-primary-storage">
+      <% primaryStorageOptions.forEach(function(opt) { %>
       <label class="option-card flex items-center gap-3 rounded-md border border-border px-4 py-3 text-sm text-foreground">
-        <input type="radio" name="primary_storage" value="gbq" class="accent-[oklch(var(--primary))] w-4 h-4" />
-        <span>Google BigQuery</span>
+        <input type="radio" name="primary_storage" value="<%= opt.value %>"<% if (opt.value === 'other') { %> id="storage-other-rb"<% } %> class="accent-[oklch(var(--primary))] w-4 h-4" />
+        <span><%= opt.label %></span>
       </label>
-      <label class="option-card flex items-center gap-3 rounded-md border border-border px-4 py-3 text-sm text-foreground">
-        <input type="radio" name="primary_storage" value="aws_athena" class="accent-[oklch(var(--primary))] w-4 h-4" />
-        <span>AWS Athena</span>
-      </label>
-      <label class="option-card flex items-center gap-3 rounded-md border border-border px-4 py-3 text-sm text-foreground">
-        <input type="radio" name="primary_storage" value="aws_redshift" class="accent-[oklch(var(--primary))] w-4 h-4" />
-        <span>AWS Redshift</span>
-      </label>
-      <label class="option-card flex items-center gap-3 rounded-md border border-border px-4 py-3 text-sm text-foreground">
-        <input type="radio" name="primary_storage" value="snowflake" class="accent-[oklch(var(--primary))] w-4 h-4" />
-        <span>Snowflake</span>
-      </label>
-      <label class="option-card flex items-center gap-3 rounded-md border border-border px-4 py-3 text-sm text-foreground">
-        <input type="radio" name="primary_storage" value="databricks" class="accent-[oklch(var(--primary))] w-4 h-4" />
-        <span>Databricks</span>
-      </label>
-      <label class="option-card flex items-center gap-3 rounded-md border border-border px-4 py-3 text-sm text-foreground">
-        <input type="radio" name="primary_storage" value="dont_know" class="accent-[oklch(var(--primary))] w-4 h-4" />
-        <span>Don't know</span>
-      </label>
-      <label class="option-card flex items-center gap-3 rounded-md border border-border px-4 py-3 text-sm text-foreground">
-        <input type="radio" name="primary_storage" value="other" id="storage-other-rb" class="accent-[oklch(var(--primary))] w-4 h-4" />
-        <span>Other</span>
-      </label>
+      <% }); %>
       <div class="other-text-input" id="storage-other-wrap">
         <input
           type="text"
@@ -230,8 +176,10 @@
   const btnNext = document.getElementById('btn-next');
   const errorEl = document.getElementById('onboarding-error');
 
+  // Validate redirect is a safe relative path
   const urlParams = new URLSearchParams(window.location.search);
-  const redirectUrl = urlParams.get('redirect') || '/';
+  const rawRedirect = urlParams.get('redirect') || '/';
+  const redirectUrl = (rawRedirect.startsWith('/') && !rawRedirect.startsWith('//')) ? rawRedirect : '/';
 
   function showStep(step) {
     slides.forEach((slide, i) => {
@@ -430,9 +378,10 @@
     if (currentStep > 0) showStep(currentStep - 1);
   });
 
-  // Keyboard navigation
+  // Keyboard navigation — skip when focus is in a text input (let it behave normally)
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Enter' && !e.shiftKey) {
+      if (e.target && e.target.tagName === 'INPUT' && e.target.type === 'text') return;
       e.preventDefault();
       btnNext.click();
     }

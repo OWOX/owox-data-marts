@@ -52,7 +52,7 @@ export class OnboardingService {
 
     // Check project members: exactly 1 admin and it must be this user
     try {
-      const members = await this.projectMembersService.getMembers(projectId, { forceFresh: true });
+      const members = await this.projectMembersService.getMembers(projectId, { forceFresh: false });
       if (!members) return false;
 
       const activeMembers = members.filter(m => !m.isOutbound);
@@ -109,9 +109,44 @@ export class OnboardingService {
     await this.store.saveOnboardingAnswers(answers);
   }
 
+  /**
+   * Fetches onboarding answers for a user/project and deserializes JSON arrays.
+   * Uses hasOnboardingAnswers as a cheap check first to avoid unnecessary SELECT.
+   * Returns an empty array if no answers exist or on any error.
+   */
+  async getAnswersForPayload(
+    userId: string,
+    projectId: string
+  ): Promise<{ questionId: string; answerValue: string | string[] }[]> {
+    try {
+      const hasAnswers = await this.store.hasOnboardingAnswers(userId, projectId);
+      if (!hasAnswers) return [];
+
+      const answers = await this.store.getOnboardingAnswers(userId, projectId);
+      return answers.map(a => {
+        let parsed: string | string[] = a.answerValue;
+        if (a.answerValue.startsWith('[')) {
+          try {
+            parsed = JSON.parse(a.answerValue) as string[];
+          } catch {
+            // keep as raw string if JSON is malformed
+          }
+        }
+        return { questionId: a.questionId, answerValue: parsed };
+      });
+    } catch (error) {
+      this.logger.warn(
+        'Failed to get onboarding answers for payload',
+        undefined,
+        error instanceof Error ? error : undefined
+      );
+      return [];
+    }
+  }
+
   private validateQuestionId(questionId: string): void {
     if (!QUESTION_IDS.has(questionId)) {
-      throw new Error(`Invalid questionId: ${questionId}`);
+      throw new Error('Invalid question identifier');
     }
   }
 
@@ -122,27 +157,27 @@ export class OnboardingService {
     if (questionId === ONBOARDING_QUESTION.ORG_DOMAIN) {
       const domain = String(answerValue).trim();
       if (domain && !ORG_DOMAIN_PATTERN.test(domain)) {
-        throw new Error(`Invalid organization domain: ${domain}`);
+        throw new Error('Invalid organization domain format');
       }
       return this.sanitizeText(domain);
     }
 
     const validSet = ANSWER_VALIDATORS[questionId];
     if (!validSet) {
-      throw new Error(`No validator for questionId: ${questionId}`);
+      throw new Error('Invalid question identifier');
     }
 
     if (Array.isArray(answerValue)) {
       for (const val of answerValue) {
         if (!validSet.has(val)) {
-          throw new Error(`Invalid answer value "${val}" for question "${questionId}"`);
+          throw new Error('Invalid answer value for question');
         }
       }
       return JSON.stringify(answerValue);
     }
 
     if (!validSet.has(answerValue)) {
-      throw new Error(`Invalid answer value "${answerValue}" for question "${questionId}"`);
+      throw new Error('Invalid answer value for question');
     }
     return answerValue;
   }
@@ -150,23 +185,16 @@ export class OnboardingService {
   /**
    * Sanitizes free-text input:
    * - Trims and limits length
-   * - Strips HTML tags
-   * - Escapes HTML entities
+   * - Iteratively strips HTML tags (handles nested patterns)
+   * HTML entity escaping is NOT done at storage time — it should be done at render time.
    */
   private sanitizeText(text: string): string {
-    return text
-      .trim()
-      .slice(0, OTHER_TEXT_MAX_LENGTH)
-      .replace(/<[^>]*>/g, '')
-      .replace(/[<>&"']/g, char => {
-        const entities: Record<string, string> = {
-          '<': '&lt;',
-          '>': '&gt;',
-          '&': '&amp;',
-          '"': '&quot;',
-          "'": '&#x27;',
-        };
-        return entities[char] || char;
-      });
+    let sanitized = text.trim().slice(0, OTHER_TEXT_MAX_LENGTH);
+    let prev = '';
+    while (prev !== sanitized) {
+      prev = sanitized;
+      sanitized = sanitized.replace(/<[^>]*>/g, '');
+    }
+    return sanitized;
   }
 }

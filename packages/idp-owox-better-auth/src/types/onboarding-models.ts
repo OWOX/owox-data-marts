@@ -18,4 +18,5 @@ export interface SaveOnboardingAnswerItem {
 
 export interface SaveOnboardingAnswersRequest {
   answers: SaveOnboardingAnswerItem[];
+  redirect?: string;
 }

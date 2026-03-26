@@ -33,8 +33,7 @@ export class OnboardingController {
       return res.redirect('/');
     }
 
-    const email = typeof req.query?.email === 'string' ? req.query.email : '';
-    const emailDomain = email.includes('@') ? email.split('@')[1] : '';
+    const emailDomain = typeof req.query?.domain === 'string' ? req.query.domain : '';
 
     res.send(
       TemplateService.renderOnboarding({
@@ -61,7 +60,7 @@ export class OnboardingController {
         return;
       }
 
-      const body = req.body as SaveOnboardingAnswersRequest & { redirect?: string };
+      const body = req.body as SaveOnboardingAnswersRequest;
       if (!body?.answers || !Array.isArray(body.answers) || body.answers.length === 0) {
         res.status(400).json({ error: 'No answers provided' });
         return;
@@ -71,7 +70,7 @@ export class OnboardingController {
         answers: body.answers,
       });
 
-      const redirect = typeof body.redirect === 'string' ? body.redirect : '/';
+      const redirect = this.sanitizeRedirect(body.redirect);
       res.json({ redirect });
     } catch (error) {
       this.logger.warn(
@@ -79,8 +78,7 @@ export class OnboardingController {
         undefined,
         error instanceof Error ? error : undefined
       );
-      const message = error instanceof Error ? error.message : 'Failed to save answers';
-      res.status(400).json({ error: message });
+      res.status(400).json({ error: 'Failed to save answers' });
     }
   }
 
@@ -125,6 +123,7 @@ export class OnboardingController {
         return {
           userId: payload.userId,
           projectId: payload.projectId,
+          // biUserId is the same as userId in the refresh token payload
           biUserId: payload.userId,
           userRole: role,
         };
@@ -137,6 +136,16 @@ export class OnboardingController {
       );
     }
     return { userId: '', projectId: '', biUserId: '', userRole: 'viewer' };
+  }
+
+  /**
+   * Validates redirect is a safe relative path. Returns '/' for any suspicious value.
+   */
+  private sanitizeRedirect(value: unknown): string {
+    if (typeof value !== 'string') return '/';
+    const trimmed = value.trim();
+    if (!trimmed.startsWith('/') || trimmed.startsWith('//')) return '/';
+    return trimmed;
   }
 
   registerRoutes(app: Express): void {
