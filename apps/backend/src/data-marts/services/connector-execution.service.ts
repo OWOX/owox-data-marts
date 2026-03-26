@@ -54,6 +54,7 @@ import { RunType } from '../../common/scheduler/shared/types';
 import { DataMartRunType } from '../enums/data-mart-run-type.enum';
 import { ConnectorSourceCredentialsService } from './connector-source-credentials.service';
 import { ConnectorService } from './connector.service';
+import { ConnectorSecretService } from './connector-secret.service';
 import { ProjectBalanceService } from './project-balance.service';
 import { DataStorageCredentialsResolver } from '../data-storage-types/data-storage-credentials-resolver.service';
 import { DataStorageCredentials } from '../data-storage-types/data-storage-credentials.type';
@@ -86,6 +87,7 @@ export class ConnectorExecutionService {
     private readonly producer: OwoxProducer,
     private readonly connectorSourceCredentialsService: ConnectorSourceCredentialsService,
     private readonly connectorService: ConnectorService,
+    private readonly connectorSecretService: ConnectorSecretService,
     private readonly projectBalanceService: ProjectBalanceService,
     private readonly storageCredentialsResolver: DataStorageCredentialsResolver,
     private readonly googleOAuthConfigService: GoogleOAuthConfigService,
@@ -1106,7 +1108,7 @@ export class ConnectorExecutionService {
       const result = JSON.parse(JSON.stringify(restConfig)) as Record<string, unknown>;
 
       // Inject secrets at their original paths
-      this.injectSecretsAtPaths(result, secretsEntity.credentials);
+      this.connectorSecretService.injectSecretsAtPaths(result, secretsEntity.credentials);
 
       return result;
     } catch (error) {
@@ -1116,36 +1118,6 @@ export class ConnectorExecutionService {
         error instanceof Error ? error.stack : undefined
       );
       return config;
-    }
-  }
-
-  /**
-   * Injects secrets back into a configuration object at their original paths.
-   * Secrets are stored with path keys like "AuthType.oauth2.RefreshToken".
-   *
-   * @param obj Object to inject secrets into (mutates in place)
-   * @param secrets Object with path -> value pairs
-   */
-  private injectSecretsAtPaths(
-    obj: Record<string, unknown>,
-    secrets: Record<string, unknown>
-  ): void {
-    for (const [path, value] of Object.entries(secrets)) {
-      const parts = path.split('.');
-
-      // Navigate to the parent object, creating intermediate objects if needed
-      let current = obj;
-      for (let i = 0; i < parts.length - 1; i++) {
-        const part = parts[i];
-        if (!current[part] || typeof current[part] !== 'object') {
-          current[part] = {};
-        }
-        current = current[part] as Record<string, unknown>;
-      }
-
-      // Set the value at the final key
-      const lastPart = parts[parts.length - 1];
-      current[lastPart] = value;
     }
   }
 

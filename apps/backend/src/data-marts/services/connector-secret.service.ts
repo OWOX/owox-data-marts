@@ -160,14 +160,12 @@ export class ConnectorSecretService {
 
   /**
    * Injects secrets back into a configuration object at their original paths.
+   * Paths are dot-separated strings like "AuthType.oauth2.RefreshToken".
    *
    * @param obj Object to inject secrets into (mutates in place)
    * @param secrets Object with path -> value pairs
    */
-  private injectSecretsAtPaths(
-    obj: Record<string, unknown>,
-    secrets: Record<string, unknown>
-  ): void {
+  injectSecretsAtPaths(obj: Record<string, unknown>, secrets: Record<string, unknown>): void {
     for (const [path, value] of Object.entries(secrets)) {
       const parts = path.split('.');
       let current = obj;

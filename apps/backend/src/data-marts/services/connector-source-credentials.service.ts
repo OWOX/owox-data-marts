@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { In, Repository } from 'typeorm';
 import { ConnectorSourceCredentials } from '../entities/connector-source-credentials.entity';
 
 @Injectable()
@@ -244,7 +244,7 @@ export class ConnectorSourceCredentialsService {
     }
 
     const entities = await this.connectorSourceCredentialsRepository.find({
-      where: ids.map(id => ({ id })),
+      where: { id: In(ids) },
     });
     const map = new Map<string, ConnectorSourceCredentials>();
     for (const entity of entities) {
