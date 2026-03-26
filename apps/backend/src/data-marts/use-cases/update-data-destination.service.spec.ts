@@ -12,6 +12,10 @@ jest.mock('../../common/markdown/markdown-parser.service', () => ({
   GITHUB_MARKDOWN_CSS: '',
 }));
 
+jest.mock('../services/user-projections-fetcher.service', () => ({
+  UserProjectionsFetcherService: jest.fn(),
+}));
+
 import { NotFoundException } from '@nestjs/common';
 import { UpdateDataDestinationCommand } from '../dto/domain/update-data-destination.command';
 import { UpdateDataDestinationService } from './update-data-destination.service';
