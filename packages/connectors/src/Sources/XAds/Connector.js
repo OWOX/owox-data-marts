@@ -41,13 +41,7 @@ var XAdsConnector = class XAdsConnector extends AbstractConnector {
    * @param {Array<string>} options.fields - Array of fields to fetch
    */
   async processNode({ nodeName, accountId, fields }) {
-    const schema = this.source.fieldsSchema[nodeName];
-    // batchAsync nodes (e.g. stats_by_country) use the X Ads asynchronous stats API,
-    // which requires submitting jobs and polling for results. Batching all dates together
-    // before polling is ~5× faster than the sequential day-by-day approach.
-    if (schema.isTimeSeries && schema.batchAsync) {
-      await this.processBatchAsyncNode({ nodeName, accountId, fields });
-    } else if (schema.isTimeSeries) {
+    if (this.source.fieldsSchema[nodeName].isTimeSeries) {
       await this.processTimeSeriesNode({ nodeName, accountId, fields });
     } else {
       await this.processCatalogNode({ nodeName, accountId, fields });
@@ -114,14 +108,18 @@ var XAdsConnector = class XAdsConnector extends AbstractConnector {
   }
 
   /**
-   * Process a time series node (e.g., analytics)
-   * @param {Object} options - Processing options
-   * @param {string} options.nodeName - Name of the node
-   * @param {string} options.accountId - Account ID
-   * @param {Array<string>} options.fields - Array of fields to fetch
-   * @param {Object} options.storage - Storage instance
+   * Process a time series node (e.g., analytics).
+   * Delegates to processBatchAsyncNode for nodes with batchAsync: true — those use
+   * the X Ads async jobs API and benefit from submitting all dates upfront (~5× faster).
+   * All other time series nodes are processed day-by-day via fetchData.
    */
   async processTimeSeriesNode({ nodeName, accountId, fields }) {
+    // batchAsync nodes submit all jobs for the full date range upfront before polling,
+    // instead of the default day-by-day sequential approach.
+    if (this.source.fieldsSchema[nodeName].batchAsync) {
+      await this.processBatchAsyncNode({ nodeName, accountId, fields });
+      return;
+    }
     const [startDate, daysToFetch] = this.getStartDateAndDaysToFetch();
 
     if (daysToFetch <= 0) {

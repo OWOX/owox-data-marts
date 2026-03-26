@@ -7,6 +7,8 @@
 
 const zlib = require('zlib');
 
+const PLACEMENTS = ['ALL_ON_TWITTER', 'PUBLISHER_NETWORK'];
+
 var XAdsSource = class XAdsSource extends AbstractSource {
   constructor(config) {
     super(config.mergeParameters({
@@ -587,7 +589,7 @@ var XAdsSource = class XAdsSource extends AbstractSource {
 
       for (let i = 0; i < ids.length; i += this.config.StatsMaxEntityIds.value) {
         const entityIds = ids.slice(i, i + this.config.StatsMaxEntityIds.value);
-        for (const placement of ['ALL_ON_TWITTER', 'PUBLISHER_NETWORK']) {
+        for (const placement of PLACEMENTS) {
           const jobId = await this._submitAsyncStatsJob({ accountId, entityIds, placement, start_time: date, end_time: endStr });
           pendingJobs.push({ date, placement, jobId });
         }
@@ -610,7 +612,7 @@ var XAdsSource = class XAdsSource extends AbstractSource {
       await AsyncUtils.delay(POLL_INTERVAL_MS);
 
       const resp = await this._rawFetch(`stats/jobs/accounts/${accountId}`, { job_ids: pendingIds.join(',') });
-      const jobs = Array.isArray(resp.data) ? resp.data : (resp.data ? [resp.data] : []);
+      const jobs = this._toDataArray(resp.data);
 
       const stillPending = [];
       for (const job of jobs) {
@@ -746,7 +748,7 @@ var XAdsSource = class XAdsSource extends AbstractSource {
       if (cursor) params.cursor = cursor;
 
       const resp = await this._rawFetch('targeting_criteria/locations', params);
-      const arr = Array.isArray(resp.data) ? resp.data : (resp.data ? [resp.data] : []);
+      const arr = this._toDataArray(resp.data);
 
       for (const loc of arr) {
         all.push({
@@ -763,6 +765,15 @@ var XAdsSource = class XAdsSource extends AbstractSource {
 
     console.log(`Fetched ${all.length} targeting locations`);
     return this._filterBySchema(all, 'targeting_locations', fields);
+  }
+
+  /**
+   * Normalises an API response value to an array.
+   * Handles three cases: already an array, a single object, or null/undefined.
+   * Used when the API may return a single item or a list depending on the result count.
+   */
+  _toDataArray(data) {
+    return Array.isArray(data) ? data : (data ? [data] : []);
   }
 
   /**
