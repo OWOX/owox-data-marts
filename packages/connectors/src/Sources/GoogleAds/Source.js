@@ -378,6 +378,8 @@ var GoogleAdsSource = class GoogleAdsSource extends AbstractSource {
         return 'keyword_view';
       case 'criterion':
         return 'ad_group_criterion';
+      case 'geo_stats':
+        return 'geographic_view';
       default:
         throw new Error(`Unknown resource name for nodeName: ${nodeName}`);
     }
@@ -435,7 +437,10 @@ var GoogleAdsSource = class GoogleAdsSource extends AbstractSource {
         requestBody.pageToken = nextPageToken;
       }
       
-      const loginCustomerId = this.config.AuthType.items?.LoginCustomerId?.value;
+      const loginCustomerIdRaw = this.config.AuthType.items?.LoginCustomerId?.value;
+      const loginCustomerId = loginCustomerIdRaw
+        ? FormatUtils.parseIds(loginCustomerIdRaw, { stripCharacters: '-' })[0]
+        : null;
       const shouldIncludeLoginCustomerIdHeader =
         loginCustomerId && loginCustomerId !== customerId;
       const headers = {

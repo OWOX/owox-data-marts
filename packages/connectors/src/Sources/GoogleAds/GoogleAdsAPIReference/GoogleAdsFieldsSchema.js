@@ -68,5 +68,14 @@ const GoogleAdsFieldsSchema = {
     uniqueKeys: ['criterion_id', 'ad_group_id', 'campaign_id'],
     destinationName: 'google_ads_criterion',
     isTimeSeries: false
+  },
+  geo_stats: {
+    overview: "Google Ads Geo Stats",
+    description: "Geographic daily performance metrics by country and targeting type",
+    documentation: "https://developers.google.com/google-ads/api/fields/v21/geographic_view",
+    fields: geoTargetFields,
+    uniqueKeys: ['campaign_id', 'country_criterion_id', 'location_type', 'date'],
+    destinationName: 'google_ads_geo_stats',
+    isTimeSeries: true
   }
 };
