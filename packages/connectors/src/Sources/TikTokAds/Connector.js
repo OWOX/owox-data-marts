@@ -10,9 +10,15 @@ var TikTokAdsConnector = class TikTokAdsConnector extends AbstractConnector {
     super(config, source, null, runConfig);
 
     this.storageName = storageName;
+    this.advertiserErrors = new Map(); // advertiserId -> [errors]
+    this.advertiserSuccesses = new Map(); // advertiserId -> boolean
   }
 
   async startImportProcess() {
+
+    this.advertiserErrors = new Map();
+    this.advertiserSuccesses = new Map();
+
     try {
       let advertiserIds = TikTokAdsHelper.parseAdvertiserIds(this.config.AdvertiserIDs.value || "");
 
@@ -81,9 +87,12 @@ var TikTokAdsConnector = class TikTokAdsConnector extends AbstractConnector {
         this.config.logMessage(`Error during data cleanup: ${error.message}`);
         console.error(error.stack);
       }
+
+      this._checkAndReportErrors(advertiserIds);
     } catch (error) {
       this.config.logMessage(`Error during import process: ${error.message}`);
       console.error(error.stack);
+      throw error;
     }
   }
 
@@ -126,11 +135,16 @@ var TikTokAdsConnector = class TikTokAdsConnector extends AbstractConnector {
           } catch (storageError) {
             this.config.logMessage(`Error saving data to storage: ${storageError.message}`);
             console.error(`Error details: ${storageError.stack}`);
+            this._trackAdvertiserError(advertiserId, storageError);
           }
         }
+
+        // Mark this advertiser as having at least one successful operation
+        this.advertiserSuccesses.set(advertiserId, true);
       } catch (error) {
         this.config.logMessage(`Error fetching ${nodeName} for advertiser ${advertiserId}: ${error.message}`);
         console.error(`Error details: ${error.stack}`);
+        this._trackAdvertiserError(advertiserId, error);
         // Continue with other advertisers rather than stopping the whole process
       }
     }
@@ -174,11 +188,16 @@ var TikTokAdsConnector = class TikTokAdsConnector extends AbstractConnector {
               } catch (storageError) {
                 this.config.logMessage(`Error saving data to storage: ${storageError.message}`);
                 console.error(`Error details: ${storageError.stack}`);
+                this._trackAdvertiserError(advertiserId, storageError);
               }
             }
+
+            // Mark this advertiser as having at least one successful operation
+            this.advertiserSuccesses.set(advertiserId, true);
           } catch (error) {
             this.config.logMessage(`Error fetching ${nodeName} for advertiser ${advertiserId} on ${formattedDate}: ${error.message}`);
             console.error(`Error details: ${error.stack}`);
+            this._trackAdvertiserError(advertiserId, error);
             // Continue with other nodes rather than stopping the whole process
           }
         }
@@ -239,29 +258,87 @@ var TikTokAdsConnector = class TikTokAdsConnector extends AbstractConnector {
     if (!this.config.CleanUpToKeepWindow || !this.config.CleanUpToKeepWindow.value) {
       return;
     }
-    
+
     const keepDays = parseInt(this.config.CleanUpToKeepWindow.value, 10);
     if (isNaN(keepDays) || keepDays <= 0) {
       return;
     }
-    
+
     this.config.logMessage(`Cleaning up data older than ${keepDays} days...`);
-    
+
     // Get cutoff date
     const cutoffDate = new Date();
     cutoffDate.setDate(cutoffDate.getDate() - keepDays);
-    const formattedCutoffDate = DateUtils.formatDate(cutoffDate);
-    
+
     // Initialize storages for all time series nodes
     for (var nodeName in this.source.fieldsSchema) {
       // Check if it's a time series node
       if ("fields" in this.source.fieldsSchema[nodeName] &&
           ("date_start" in this.source.fieldsSchema[nodeName]["fields"] ||
            "stat_time_day" in this.source.fieldsSchema[nodeName]["fields"])) {
-        
+
         // Note: Cleanup is not supported for current storage types
         // This functionality was previously available for GoogleSheetsStorage
       }
+    }
+  }
+
+  /**
+   * Track an error for a specific advertiser
+   * @param {string} advertiserId - The advertiser ID
+   * @param {Error} error - The error that occurred
+   * @private
+   */
+  _trackAdvertiserError(advertiserId, error) {
+    if (!this.advertiserErrors.has(advertiserId)) {
+      this.advertiserErrors.set(advertiserId, []);
+    }
+    this.advertiserErrors.get(advertiserId).push(error);
+  }
+
+  /**
+   * Check for errors after import and throw if all advertisers failed
+   * @param {array} advertiserIds - List of all advertiser IDs
+   * @private
+   */
+  _checkAndReportErrors(advertiserIds) {
+    const totalAdvertisers = advertiserIds.length;
+    const failedAdvertisers = [];
+    const successfulAdvertisers = [];
+
+    for (const advertiserId of advertiserIds) {
+      const hasErrors = this.advertiserErrors.has(advertiserId) &&
+                        this.advertiserErrors.get(advertiserId).length > 0;
+      const hasSuccess = this.advertiserSuccesses.get(advertiserId) === true;
+
+      if (hasErrors && !hasSuccess) {
+        failedAdvertisers.push(advertiserId);
+      } else if (hasSuccess) {
+        successfulAdvertisers.push(advertiserId);
+      } else {
+        successfulAdvertisers.push(advertiserId);
+      }
+    }
+
+    if (failedAdvertisers.length === totalAdvertisers && totalAdvertisers > 0) {
+      const errorMessages = [];
+      for (const advertiserId of failedAdvertisers) {
+        const errors = this.advertiserErrors.get(advertiserId) || [];
+        const firstError = errors[0];
+        if (firstError) {
+          errorMessages.push(`Advertiser ${advertiserId}: ${firstError.message}`);
+        }
+      }
+      throw new Error(`All advertisers failed to import data. Errors: ${errorMessages.join('; ')}`);
+    }
+
+    if (failedAdvertisers.length > 0 && successfulAdvertisers.length > 0) {
+      this.config.addWarningToCurrentStatus();
+      this.config.logMessage(
+        `Warning: ${failedAdvertisers.length} out of ${totalAdvertisers} advertisers had errors. ` +
+        `Failed advertisers: ${failedAdvertisers.join(', ')}. ` +
+        `Successful advertisers: ${successfulAdvertisers.join(', ')}`
+      );
     }
   }
 };
