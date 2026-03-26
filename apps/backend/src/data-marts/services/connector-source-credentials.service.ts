@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { In, Repository } from 'typeorm';
 import { ConnectorSourceCredentials } from '../entities/connector-source-credentials.entity';
 
 @Injectable()
@@ -138,5 +138,118 @@ export class ConnectorSourceCredentialsService {
       .where('credentials.expiresAt < :now', { now: new Date() })
       .andWhere('credentials.deletedAt IS NULL')
       .getMany();
+  }
+
+  /**
+   * Create secrets record for a specific DataMart configuration
+   * Used for non-OAuth secrets that are extracted from DataMart definition
+   * @param projectId - Project ID
+   * @param connectorName - Connector name
+   * @param dataMartId - DataMart ID
+   * @param configId - Configuration item _id from definition
+   * @param secrets - Secret field values
+   * @param userId - Optional user ID
+   * @returns Created ConnectorSourceCredentials entity
+   */
+  async createSecretsForConfig(
+    projectId: string,
+    connectorName: string,
+    dataMartId: string,
+    configId: string,
+    secrets: Record<string, unknown>,
+    userId?: string
+  ): Promise<ConnectorSourceCredentials> {
+    const entity = this.connectorSourceCredentialsRepository.create({
+      projectId,
+      connectorName,
+      dataMartId,
+      configId,
+      credentials: secrets,
+      userId,
+    });
+
+    return await this.connectorSourceCredentialsRepository.save(entity);
+  }
+
+  /**
+   * Get secrets by DataMart ID and configuration ID
+   * @param dataMartId - DataMart ID
+   * @param configId - Configuration item _id
+   * @returns ConnectorSourceCredentials entity or null
+   */
+  async getSecretsByDataMartAndConfig(
+    dataMartId: string,
+    configId: string
+  ): Promise<ConnectorSourceCredentials | null> {
+    return await this.connectorSourceCredentialsRepository.findOne({
+      where: { dataMartId, configId },
+    });
+  }
+
+  /**
+   * Update secrets for a specific configuration
+   * @param id - ConnectorSourceCredentials ID
+   * @param projectId - Project ID for ownership validation
+   * @param secrets - Updated secret values
+   * @returns Updated ConnectorSourceCredentials entity
+   * @throws Error if not found or projectId doesn't match (IDOR protection)
+   */
+  async updateSecretsForConfig(
+    id: string,
+    projectId: string,
+    secrets: Record<string, unknown>
+  ): Promise<ConnectorSourceCredentials> {
+    const existing = await this.getCredentialsById(id);
+
+    if (!existing) {
+      throw new Error(`ConnectorSourceCredentials with id ${id} not found`);
+    }
+
+    if (existing.projectId !== projectId) {
+      throw new Error(`Unauthorized: secrets do not belong to this project`);
+    }
+
+    existing.credentials = secrets;
+    return await this.connectorSourceCredentialsRepository.save(existing);
+  }
+
+  /**
+   * Delete all secrets associated with a DataMart (soft delete)
+   * Called when DataMart is deleted
+   * @param dataMartId - DataMart ID
+   */
+  async deleteSecretsByDataMart(dataMartId: string): Promise<void> {
+    await this.connectorSourceCredentialsRepository.softDelete({ dataMartId });
+  }
+
+  /**
+   * Get all secrets for a DataMart
+   * @param dataMartId - DataMart ID
+   * @returns Array of ConnectorSourceCredentials entities
+   */
+  async getSecretsByDataMart(dataMartId: string): Promise<ConnectorSourceCredentials[]> {
+    return await this.connectorSourceCredentialsRepository.find({
+      where: { dataMartId },
+    });
+  }
+
+  /**
+   * Get credentials by multiple IDs (batch fetch to avoid N+1)
+   * @param ids - Array of ConnectorSourceCredentials IDs
+   * @returns Map of ID to ConnectorSourceCredentials entity
+   */
+  async getCredentialsByIds(ids: string[]): Promise<Map<string, ConnectorSourceCredentials>> {
+    if (ids.length === 0) {
+      return new Map();
+    }
+
+    const entities = await this.connectorSourceCredentialsRepository.find({
+      where: { id: In(ids) },
+    });
+    const map = new Map<string, ConnectorSourceCredentials>();
+    for (const entity of entities) {
+      map.set(entity.id, entity);
+    }
+    return map;
   }
 }

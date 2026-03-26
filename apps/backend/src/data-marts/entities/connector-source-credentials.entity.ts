@@ -21,6 +21,12 @@ export class ConnectorSourceCredentials {
   @Column()
   connectorName: string;
 
+  @Column({ nullable: true })
+  dataMartId?: string;
+
+  @Column({ nullable: true })
+  configId?: string;
+
   @Column({ type: 'json' })
   credentials: Record<string, unknown>;
 
