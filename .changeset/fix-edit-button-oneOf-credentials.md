@@ -1,5 +1,5 @@
 ---
-'owox': patch
+'owox': minor
 ---
 
 # Fix Edit button clearing sibling credential fields in oneOf config
