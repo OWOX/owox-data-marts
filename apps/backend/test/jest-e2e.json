@@ -31,7 +31,8 @@
   ],
   "moduleNameMapper": {
     "^src/(.*)$": "<rootDir>/../src/$1",
-    "^@owox/test-utils$": "<rootDir>/../../../packages/test-utils/src"
+    "^@owox/test-utils$": "<rootDir>/../../../packages/test-utils/src",
+    "^@owox/internal-helpers$": "<rootDir>/../../../packages/internal-helpers/src"
   },
   "testTimeout": 60000,
   "resolver": "<rootDir>/jest-e2e-resolver.js"
