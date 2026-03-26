@@ -22,7 +22,8 @@ export class ConnectorProcessSpawnerService {
     stdio: {
       logCapture?: { onStdout?: (message: string) => void; onStderr?: (message: string) => void };
       onSpawn?: (pid: number | undefined) => void;
-    }
+    },
+    signal?: AbortSignal
   ): Promise<void> {
     return new Promise((resolve, reject) => {
       let spawnStdio: 'inherit' | 'pipe' | Array<string | number> = 'inherit';
@@ -32,11 +33,9 @@ export class ConnectorProcessSpawnerService {
       } | null = null;
       let onSpawn: ((pid: number | undefined) => void) | null = null;
 
-      if (stdio && typeof stdio === 'object') {
-        if (stdio.logCapture) {
-          logCapture = stdio.logCapture;
-          spawnStdio = 'pipe';
-        }
+      if (stdio && typeof stdio === 'object' && stdio.logCapture) {
+        logCapture = stdio.logCapture;
+        spawnStdio = 'pipe';
         if (typeof stdio.onSpawn === 'function') {
           onSpawn = stdio.onSpawn;
         }
@@ -88,15 +87,48 @@ export class ConnectorProcessSpawnerService {
         });
       }
 
-      node.on('close', (code, signal) => {
+      if (signal) {
+        const onAbort = () => {
+          this.logger.log(`Aborting connector process for datamart ${datamartId}, run ${runId}`, {
+            datamartId,
+            runId,
+            pid: node.pid,
+          });
+          if (node.pid) {
+            try {
+              process.kill(-node.pid, 'SIGTERM');
+            } catch {
+              // Process may have already exited
+            }
+          }
+        };
+
+        if (signal.aborted) {
+          onAbort();
+        } else {
+          signal.addEventListener('abort', onAbort, { once: true });
+          node.on('close', () => signal.removeEventListener('abort', onAbort));
+        }
+      }
+
+      node.on('close', (code, closeSignal) => {
         if (code === 0) {
           resolve();
           return;
         }
 
+        if (signal?.aborted) {
+          this.logger.log(
+            `Connector process aborted: code=${String(code)}, signal=${String(closeSignal)}`,
+            { datamartId, runId }
+          );
+          reject(new Error('Connector process was aborted'));
+          return;
+        }
+
         if (this.gracefulShutdownService.isInShutdownMode()) {
           this.logger.log(
-            `Connector process terminated during graceful shutdown: code=${String(code)}, signal=${String(signal)}`
+            `Connector process terminated during graceful shutdown: code=${String(code)}, signal=${String(closeSignal)}`
           );
           resolve();
           return;

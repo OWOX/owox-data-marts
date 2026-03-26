@@ -64,7 +64,8 @@ export class ConnectorExecutorService {
   async executeInBackground(
     dataMart: DataMart,
     run: DataMartRun,
-    payload?: Record<string, unknown> | null
+    payload?: Record<string, unknown> | null,
+    signal?: AbortSignal
   ): Promise<void> {
     const runId = run.id;
     const processId = `connector-run-${runId}`;
@@ -98,7 +99,8 @@ export class ConnectorExecutorService {
         runId,
         processId,
         dataMart,
-        payload
+        payload,
+        signal
       );
 
       configurationResults.forEach(result => {
@@ -117,7 +119,7 @@ export class ConnectorExecutorService {
       const errorMessage = error instanceof Error ? error.message : String(error);
       addMessageToArray(capturedErrors, {
         type: ConnectorMessageType.ERROR,
-        at: new Date().toISOString(),
+        at: this.systemTimeService.now().toISOString(),
         error: errorMessage,
         toFormattedString: () => `[ERROR] ${errorMessage}`,
       });
@@ -156,8 +158,8 @@ export class ConnectorExecutorService {
             dataMart.id,
             runId,
             dataMart.projectId,
-            run.createdById!,
-            run.runType!
+            run.createdById ?? 'system',
+            run.runType
           )
         );
       }
@@ -188,7 +190,8 @@ export class ConnectorExecutorService {
     runId: string,
     processId: string,
     dataMart: DataMart,
-    payload?: Record<string, unknown> | null
+    payload?: Record<string, unknown> | null,
+    signal?: AbortSignal
   ): Promise<ConfigurationExecutionResult[]> {
     const definition = dataMart.definition as DataMartConnectorDefinition;
     const { connector } = definition;
@@ -286,6 +289,8 @@ export class ConnectorExecutorService {
           config as Record<string, unknown>
         );
 
+        const configState = await this.connectorStateService.getState(dataMart.id, configId);
+
         const configuration = new ConfigDto({
           name: connector.source.name,
           datamartId: dataMart.id,
@@ -294,12 +299,12 @@ export class ConnectorExecutorService {
             dataMart.projectId,
             connector,
             refreshedConfig,
-            configId
+            configId,
+            configState
           ),
           storage: await this.storageConfigService.buildStorageConfig(dataMart),
         });
 
-        const configState = await this.connectorStateService.getState(dataMart.id, configId);
         const runConfig = this.sourceConfigService.buildRunConfig(payload, configState);
 
         await this.processSpawner.spawnConnector(
@@ -307,7 +312,8 @@ export class ConnectorExecutorService {
           runId,
           configuration,
           runConfig,
-          logCaptureConfig
+          logCaptureConfig,
+          signal
         );
 
         if (success) {
@@ -324,7 +330,7 @@ export class ConnectorExecutorService {
         const errorMessage = error instanceof Error ? error.message : String(error);
         addMessageToArray(configErrors, {
           type: ConnectorMessageType.ERROR,
-          at: new Date().toISOString(),
+          at: this.systemTimeService.now().toISOString(),
           error: errorMessage,
           toFormattedString: () =>
             `[ERROR] Configuration ${configIndex + 1} failed: ${errorMessage}`,

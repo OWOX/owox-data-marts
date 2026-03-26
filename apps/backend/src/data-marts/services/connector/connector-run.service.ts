@@ -30,6 +30,7 @@ export class ConnectorRunService {
   async cancelRun(dataMartId: string, runId: string): Promise<void> {
     const run = await this.dataMartRunRepository.findOne({
       where: { id: runId, dataMartId },
+      relations: ['dataMart'],
     });
 
     if (!run) {
@@ -96,17 +97,16 @@ export class ConnectorRunService {
     dataMart: DataMart,
     run: DataMartRun,
     payload?: Record<string, unknown> | null,
-    _signal?: AbortSignal
+    signal?: AbortSignal
   ): Promise<void> {
-    return this.connectorExecutorService.executeInBackground(dataMart, run, payload);
+    return this.connectorExecutorService.executeInBackground(dataMart, run, payload, signal);
   }
 
   async getDataMartConnectorRunsByStatus(status: DataMartRunStatus): Promise<DataMartRun[]> {
-    const runs = await this.dataMartRunRepository.find({
-      where: { status },
+    return this.dataMartRunRepository.find({
+      where: { status, type: DataMartRunType.CONNECTOR },
       relations: ['dataMart', 'dataMart.storage', 'dataMart.storage.credential'],
     });
-    return runs.filter(run => run.type === DataMartRunType.CONNECTOR);
   }
 
   async executeInterruptedRuns(): Promise<void> {

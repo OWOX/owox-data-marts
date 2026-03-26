@@ -11,29 +11,24 @@ type RunConfigDto = InstanceType<typeof Core.RunConfigDto>;
 import { ConnectorDefinition as DataMartConnectorDefinition } from '../../dto/schemas/data-mart-table-definitions/connector-definition.schema';
 import { ConnectorStateItem } from '../../connector-types/interfaces/connector-state';
 import { ConnectorCredentialInjectorService } from './connector-credential-injector.service';
-import { ConnectorStateService } from '../../connector-types/connector-message/services/connector-state.service';
 
 @Injectable()
 export class ConnectorSourceConfigService {
   private readonly logger = new Logger(ConnectorSourceConfigService.name);
 
-  constructor(
-    private readonly credentialInjector: ConnectorCredentialInjectorService,
-    private readonly connectorStateService: ConnectorStateService
-  ) {}
+  constructor(private readonly credentialInjector: ConnectorCredentialInjectorService) {}
 
   async buildSourceConfig(
     dataMartId: string,
     projectId: string,
     connector: DataMartConnectorDefinition['connector'],
     config: Record<string, unknown>,
-    configId: string
+    configId: string,
+    state?: ConnectorStateItem
   ): Promise<SourceConfigDto> {
     const fieldsConfig = connector.source.fields
       .map(field => `${connector.source.node} ${field}`)
       .join(', ');
-
-    const state = await this.connectorStateService.getState(dataMartId, configId);
 
     // First inject externalized secrets (non-OAuth secrets stored in connector_source_credentials)
     const configWithSecrets = await this.credentialInjector.injectSecrets(config, projectId);

@@ -157,6 +157,7 @@ describe('ConnectorProcessSpawnerService', () => {
       configMock as unknown,
       runConfigMock as unknown,
       {
+        logCapture: { onStdout: jest.fn(), onStderr: jest.fn() },
         onSpawn,
       }
     );

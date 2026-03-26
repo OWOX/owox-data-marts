@@ -217,10 +217,26 @@ export class ConnectorStorageConfigService {
     }
 
     if (!schema || !schema.trim()) {
-      throw new Error('Schema name is required in connector configuration');
+      throw new ConnectorExecutionError(
+        'Schema name is required in connector configuration',
+        undefined,
+        {
+          dataMartId: dataMart.id,
+          projectId: dataMart.projectId,
+          storageType: dataMart.storage.type,
+        }
+      );
     }
     if (!tableName || !tableName.trim()) {
-      throw new Error('Table name is required in connector configuration');
+      throw new ConnectorExecutionError(
+        'Table name is required in connector configuration',
+        undefined,
+        {
+          dataMartId: dataMart.id,
+          projectId: dataMart.projectId,
+          storageType: dataMart.storage.type,
+        }
+      );
     }
 
     return new StorageConfigDto({
@@ -258,13 +274,37 @@ export class ConnectorStorageConfigService {
     const tableName = fqnParts[2];
 
     if (!catalog || !catalog.trim()) {
-      throw new Error('Catalog name is required in connector configuration');
+      throw new ConnectorExecutionError(
+        'Catalog name is required in connector configuration',
+        undefined,
+        {
+          dataMartId: dataMart.id,
+          projectId: dataMart.projectId,
+          storageType: dataMart.storage.type,
+        }
+      );
     }
     if (!schema || !schema.trim()) {
-      throw new Error('Schema name is required in connector configuration');
+      throw new ConnectorExecutionError(
+        'Schema name is required in connector configuration',
+        undefined,
+        {
+          dataMartId: dataMart.id,
+          projectId: dataMart.projectId,
+          storageType: dataMart.storage.type,
+        }
+      );
     }
     if (!tableName || !tableName.trim()) {
-      throw new Error('Table name is required in connector configuration');
+      throw new ConnectorExecutionError(
+        'Table name is required in connector configuration',
+        undefined,
+        {
+          dataMartId: dataMart.id,
+          projectId: dataMart.projectId,
+          storageType: dataMart.storage.type,
+        }
+      );
     }
 
     return new StorageConfigDto({

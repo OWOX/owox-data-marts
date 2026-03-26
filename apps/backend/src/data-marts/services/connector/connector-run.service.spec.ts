@@ -183,7 +183,12 @@ describe('ConnectorRunService', () => {
 
       await service.executeExistingRun(dm, run, null);
 
-      expect(connectorExecutorService.executeInBackground).toHaveBeenCalledWith(dm, run, null);
+      expect(connectorExecutorService.executeInBackground).toHaveBeenCalledWith(
+        dm,
+        run,
+        null,
+        undefined
+      );
     });
   });
 

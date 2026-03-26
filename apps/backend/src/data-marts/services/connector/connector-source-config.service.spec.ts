@@ -1,7 +1,6 @@
 // connector-source-config.service.spec.ts
 import { ConnectorSourceConfigService } from './connector-source-config.service';
 import { ConnectorCredentialInjectorService } from './connector-credential-injector.service';
-import { ConnectorStateService } from '../../connector-types/connector-message/services/connector-state.service';
 
 describe('ConnectorSourceConfigService', () => {
   const createService = () => {
@@ -10,13 +9,9 @@ describe('ConnectorSourceConfigService', () => {
       injectSecrets: jest.fn().mockImplementation(config => Promise.resolve(config)),
     } as unknown as ConnectorCredentialInjectorService;
 
-    const connectorStateService = {
-      getState: jest.fn().mockResolvedValue(null),
-    } as unknown as ConnectorStateService;
+    const service = new ConnectorSourceConfigService(credentialInjector);
 
-    const service = new ConnectorSourceConfigService(credentialInjector, connectorStateService);
-
-    return { service, credentialInjector, connectorStateService };
+    return { service, credentialInjector };
   };
 
   describe('buildSourceConfig', () => {
@@ -34,10 +29,10 @@ describe('ConnectorSourceConfigService', () => {
       const { service } = createService();
       const config = { param1: 'val1' };
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const result = await service.buildSourceConfig(
         'dm-1',
         'proj-1',
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         connector as any,
         config,
         'cfg-1'
@@ -47,19 +42,22 @@ describe('ConnectorSourceConfigService', () => {
     });
 
     it('includes LastRequestedDate when state has date', async () => {
-      const { service, connectorStateService } = createService();
-      (connectorStateService.getState as jest.Mock).mockResolvedValue({
-        state: { date: '2025-01-15T00:00:00.000Z' },
-      });
+      const { service } = createService();
       const config = { param1: 'val1' };
+      const state = {
+        _id: 'cfg-1',
+        state: { date: '2025-01-15T00:00:00.000Z' },
+        at: '2025-01-15T00:00:00Z',
+      };
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const result = await service.buildSourceConfig(
         'dm-1',
         'proj-1',
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         connector as any,
         config,
-        'cfg-1'
+        'cfg-1',
+        state
       );
 
       expect(result).toBeDefined();
