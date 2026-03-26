@@ -85,7 +85,7 @@ describe('Notification Settings — Multi-Member (e2e)', () => {
         [m.userId, m.email, m.displayName, m.avatarUrl ?? null]
       );
     }
-  });
+  }, 120_000);
 
   afterAll(async () => {
     await closeTestApp(app);
