@@ -31,11 +31,8 @@ export class GetInsightTemplateService {
       );
     }
 
-    const createdByUser = insightTemplate.createdById
-      ? ((await this.userProjectionsFetcherService.fetchUserProjection(
-          insightTemplate.createdById
-        )) ?? null)
-      : null;
+    const createdByUser =
+      await this.userProjectionsFetcherService.fetchCreatedByUser(insightTemplate);
 
     return this.mapper.toDomainDto(insightTemplate, lastRun ?? null, createdByUser);
   }

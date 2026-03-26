@@ -19,11 +19,8 @@ export class GetDataStorageService {
       command.id
     );
 
-    const createdByUser = dataStorageEntity.createdById
-      ? ((await this.userProjectionsFetcherService.fetchUserProjection(
-          dataStorageEntity.createdById
-        )) ?? null)
-      : null;
+    const createdByUser =
+      await this.userProjectionsFetcherService.fetchCreatedByUser(dataStorageEntity);
 
     return this.dataStorageMapper.toDomainDto(dataStorageEntity, 0, 0, createdByUser);
   }

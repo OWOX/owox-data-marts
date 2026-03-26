@@ -31,9 +31,7 @@ export class GetReportService {
       throw new NotFoundException(`Report with ID ${command.id} not found`);
     }
 
-    const createdByUser = report.createdById
-      ? ((await this.userProjectionsFetcherService.fetchUserProjection(report.createdById)) ?? null)
-      : null;
+    const createdByUser = await this.userProjectionsFetcherService.fetchCreatedByUser(report);
 
     return this.mapper.toDomainDto(report, createdByUser);
   }

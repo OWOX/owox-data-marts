@@ -19,11 +19,8 @@ export class GetDataDestinationService {
       command.projectId
     );
 
-    const createdByUser = dataDestinationEntity.createdById
-      ? ((await this.userProjectionsFetcherService.fetchUserProjection(
-          dataDestinationEntity.createdById
-        )) ?? null)
-      : null;
+    const createdByUser =
+      await this.userProjectionsFetcherService.fetchCreatedByUser(dataDestinationEntity);
 
     return this.dataDestinationMapper.toDomainDto(dataDestinationEntity, createdByUser);
   }

@@ -122,6 +122,10 @@ describe('UpdateDataDestinationService - credential copy (sourceDestinationId)',
       dataDestinationCredentialService as never
     );
 
+    const userProjectionsFetcherService = {
+      fetchCreatedByUser: jest.fn().mockResolvedValue(null),
+    };
+
     const service = new UpdateDataDestinationService(
       dataDestinationRepository as never,
       dataDestinationService as never,
@@ -131,7 +135,8 @@ describe('UpdateDataDestinationService - credential copy (sourceDestinationId)',
       availableDestinationTypesService as never,
       dataDestinationCredentialService as never,
       googleOAuthClientService as never,
-      copyCredentialService
+      copyCredentialService,
+      userProjectionsFetcherService as never
     );
 
     return {

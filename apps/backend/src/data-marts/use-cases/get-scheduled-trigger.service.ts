@@ -20,10 +20,7 @@ export class GetScheduledTriggerService {
       command.projectId
     );
 
-    const createdByUser = trigger.createdById
-      ? ((await this.userProjectionsFetcherService.fetchUserProjection(trigger.createdById)) ??
-        null)
-      : null;
+    const createdByUser = await this.userProjectionsFetcherService.fetchCreatedByUser(trigger);
 
     return this.mapper.toDomainDto(trigger, createdByUser);
   }

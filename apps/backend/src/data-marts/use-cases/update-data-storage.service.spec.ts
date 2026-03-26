@@ -106,13 +106,18 @@ describe('UpdateDataStorageService - credential copy (sourceStorageId)', () => {
       {} as never
     );
 
+    const userProjectionsFetcherService = {
+      fetchCreatedByUser: jest.fn().mockResolvedValue(null),
+    };
+
     const service = new UpdateDataStorageService(
       dataStorageRepository as never,
       dataStorageService as never,
       dataStorageMapper as never,
       dataStorageAccessFacade as never,
       dataStorageCredentialService as never,
-      copyCredentialService
+      copyCredentialService,
+      userProjectionsFetcherService as never
     );
 
     return {
