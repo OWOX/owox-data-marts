@@ -138,8 +138,13 @@ test.describe('Triggers - CONNECTOR_RUN Type', () => {
 // The ReportSelector only shows reports linked to EMAIL, GOOGLE_SHEETS,
 // SLACK, MS_TEAMS, or GOOGLE_CHAT destinations (not LOOKER_STUDIO).
 // We create an EMAIL destination + report via direct API to ensure visibility.
+// Enterprise edition only — EMAIL destination requires LICENSE_KEY.
 // ---------------------------------------------------------------------------
 test.describe('Triggers - REPORT_RUN Type', () => {
+  test.skip(
+    !process.env.LICENSE_KEY,
+    'Skipping: EMAIL destination requires LICENSE_KEY (Enterprise edition)'
+  );
   let datamartId: string;
 
   test.beforeEach(async ({ page, apiHelpers }) => {

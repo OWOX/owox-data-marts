@@ -42,13 +42,22 @@ test.describe('Destinations - Empty State', () => {
 
 // ---------------------------------------------------------------------------
 // DEST-02..06: Destination CRUD per type (parameterized)
+// Enterprise-only types (EMAIL, MS_TEAMS, GOOGLE_CHAT) require LICENSE_KEY.
 // ---------------------------------------------------------------------------
-const DESTINATION_TYPES = [
+const COMMUNITY_DESTINATION_TYPES = [
   { type: 'LOOKER_STUDIO', label: 'Looker Studio', prefix: 'LS' },
+] as const;
+
+const ENTERPRISE_DESTINATION_TYPES = [
   { type: 'EMAIL', label: 'Email', prefix: 'Email' },
   { type: 'MS_TEAMS', label: 'Microsoft Teams', prefix: 'Teams' },
   { type: 'GOOGLE_CHAT', label: 'Google Chat', prefix: 'Chat' },
 ] as const;
+
+const hasLicense = !!process.env.LICENSE_KEY;
+const DESTINATION_TYPES = hasLicense
+  ? [...COMMUNITY_DESTINATION_TYPES, ...ENTERPRISE_DESTINATION_TYPES]
+  : COMMUNITY_DESTINATION_TYPES;
 
 for (const { type, label, prefix } of DESTINATION_TYPES) {
   test.describe(`Destinations - ${label} CRUD`, () => {
