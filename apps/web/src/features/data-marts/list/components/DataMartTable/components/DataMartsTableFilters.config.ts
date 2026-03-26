@@ -12,6 +12,8 @@ import type { ConnectorListItem } from '../../../../../connectors/shared/model/t
 import { DataMartColumnKey } from '../columns/columnKeys';
 import { DataMartStatus } from '../../../../shared/enums/data-mart-status.enum';
 import { DataMartStatusModel } from '../../../../shared/types/data-mart-status.model';
+import { DataMartHealthStatus } from '../../../../shared/types';
+import { getCachedHealthStatus } from '../../../../shared/services/data-mart-health-status.service';
 import { dataMartColumnLabels } from '../columns/columnLabels';
 
 /* ---------------------------------------------------------------------------
@@ -31,7 +33,8 @@ export type DataMartFilterKey =
   | AdditionalFilterKeys.INPUT_SOURCE
   | DataMartColumnKey.CREATED_BY_USER
   | DataMartColumnKey.BUSINESS_OWNERS
-  | DataMartColumnKey.TECHNICAL_OWNERS;
+  | DataMartColumnKey.TECHNICAL_OWNERS
+  | DataMartColumnKey.HEALTH_STATUS;
 
 /* ---------------------------------------------------------------------------
  * Accessors (used both for filtering and option collection)
@@ -52,6 +55,8 @@ export const dataMartsFilterAccessors: FilterAccessors<DataMartFilterKey, DataMa
   [DataMartColumnKey.CREATED_BY_USER]: row => row.createdByUser?.userId,
   [DataMartColumnKey.BUSINESS_OWNERS]: row => row.businessOwnerUsers.map(u => u.userId),
   [DataMartColumnKey.TECHNICAL_OWNERS]: row => row.technicalOwnerUsers.map(u => u.userId),
+  [DataMartColumnKey.HEALTH_STATUS]: row =>
+    getCachedHealthStatus(row.id)?.healthStatus ?? DataMartHealthStatus.NO_RUNS,
 };
 
 /* ---------------------------------------------------------------------------
@@ -149,6 +154,22 @@ export function buildDataMartsTableFilters(
   });
 
   /* -----------------------------
+   * Health status options
+   * --------------------------- */
+  const healthStatusLabels: Record<DataMartHealthStatus, string> = {
+    [DataMartHealthStatus.NO_RUNS]: 'No Runs',
+    [DataMartHealthStatus.ALL_RUNS_SUCCESS]: 'All Succeeded',
+    [DataMartHealthStatus.MIXED_RUNS]: 'Mixed Results',
+    [DataMartHealthStatus.ALL_RUNS_FAILED]: 'All Failed',
+    [DataMartHealthStatus.RUNS_IN_PROGRESS]: 'In Progress',
+  };
+
+  const healthStatusOptions: SelectOption[] = Object.values(DataMartHealthStatus).map(value => ({
+    value,
+    label: healthStatusLabels[value],
+  }));
+
+  /* -----------------------------
    * User label map (userId → display name)
    * --------------------------- */
   const userLabelMap = new Map<string, string>();
@@ -208,6 +229,13 @@ export function buildDataMartsTableFilters(
       dataType: 'enum',
       operators: ['eq', 'neq'],
       options: statusOptions,
+    },
+    {
+      id: DataMartColumnKey.HEALTH_STATUS,
+      label: dataMartColumnLabels[DataMartColumnKey.HEALTH_STATUS],
+      dataType: 'enum',
+      operators: ['eq', 'neq'],
+      options: healthStatusOptions,
     },
     {
       id: DataMartColumnKey.CREATED_BY_USER,
