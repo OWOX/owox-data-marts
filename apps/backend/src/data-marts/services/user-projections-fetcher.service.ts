@@ -38,4 +38,9 @@ export class UserProjectionsFetcherService {
   public async fetchUserProjection(userId: string): Promise<UserProjectionDto | undefined> {
     return await this.idpProjectionsFacade.getUserProjection(userId);
   }
+
+  public async fetchCreatedByUser(entity: CreatorAwareEntity): Promise<UserProjectionDto | null> {
+    if (!entity.createdById) return null;
+    return (await this.fetchUserProjection(entity.createdById)) ?? null;
+  }
 }
