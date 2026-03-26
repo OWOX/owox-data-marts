@@ -1,6 +1,11 @@
 import type { ProjectMember } from '@owox/idp-protocol';
 import { createServiceLogger } from '../core/logger.js';
-import type { DatabaseAccount, DatabaseOperationResult, DatabaseUser } from '../types/index.js';
+import type {
+  DatabaseAccount,
+  DatabaseOperationResult,
+  DatabaseUser,
+  OnboardingAnswer,
+} from '../types/index.js';
 import type { DatabaseStore } from './database-store.js';
 import { StoreResult } from './store-result.js';
 
@@ -31,6 +36,7 @@ export class MysqlDatabaseStore implements DatabaseStore {
   private readonly logger = createServiceLogger(MysqlDatabaseStore.name);
   private authTableReady = false;
   private projectTablesReady = false;
+  private onboardingTableReady = false;
 
   constructor(private readonly config: MysqlConnectionConfig) {}
 
@@ -156,6 +162,15 @@ export class MysqlDatabaseStore implements DatabaseStore {
       Array<Record<string, unknown>>,
       unknown,
     ];
+    const row = (rows as Array<Record<string, unknown>>)[0];
+    return row ? this.mapUser(row) : null;
+  }
+
+  async getUserByBiUserId(biUserId: string): Promise<DatabaseUser | null> {
+    const pool = await this.getPool();
+    const [rows] = (await pool.execute('SELECT * FROM user WHERE biUserId = ? LIMIT 1', [
+      biUserId,
+    ])) as [Array<Record<string, unknown>>, unknown];
     const row = (rows as Array<Record<string, unknown>>)[0];
     return row ? this.mapUser(row) : null;
   }
@@ -536,5 +551,92 @@ export class MysqlDatabaseStore implements DatabaseStore {
             ? new Date(row.updatedAt)
             : null,
     };
+  }
+
+  // Onboarding Questionnaire methods
+
+  private async ensureOnboardingTable(pool: MysqlPool): Promise<void> {
+    if (this.onboardingTableReady) return;
+
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS onboarding_answer (
+        id VARCHAR(36) NOT NULL PRIMARY KEY,
+        userId VARCHAR(255) NOT NULL,
+        projectId VARCHAR(255) NOT NULL,
+        biUserId VARCHAR(255) NOT NULL,
+        questionId VARCHAR(50) NOT NULL,
+        answerValue VARCHAR(500) NOT NULL,
+        otherText TEXT NULL,
+        userRole VARCHAR(50) NOT NULL,
+        createdAt TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE KEY uq_user_project_question (userId, projectId, questionId)
+      )
+    `);
+
+    this.onboardingTableReady = true;
+  }
+
+  async saveOnboardingAnswers(answers: OnboardingAnswer[]): Promise<void> {
+    const pool = await this.getPool();
+    await this.ensureOnboardingTable(pool);
+
+    for (const answer of answers) {
+      await pool.execute(
+        `INSERT INTO onboarding_answer (id, userId, projectId, biUserId, questionId, answerValue, otherText, userRole)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+         ON DUPLICATE KEY UPDATE
+           answerValue = VALUES(answerValue),
+           otherText = VALUES(otherText),
+           userRole = VALUES(userRole),
+           biUserId = VALUES(biUserId)`,
+        [
+          answer.id,
+          answer.userId,
+          answer.projectId,
+          answer.biUserId,
+          answer.questionId,
+          answer.answerValue,
+          answer.otherText ?? null,
+          answer.userRole,
+        ]
+      );
+    }
+  }
+
+  async hasOnboardingAnswers(userId: string, projectId: string): Promise<boolean> {
+    const pool = await this.getPool();
+    await this.ensureOnboardingTable(pool);
+
+    const [rows] = (await pool.execute(
+      `SELECT COUNT(*) AS cnt FROM onboarding_answer WHERE userId = ? AND projectId = ?`,
+      [userId, projectId]
+    )) as [Array<{ cnt: number | bigint }>, unknown];
+
+    const count = Number(rows[0]?.cnt ?? 0);
+    return count > 0;
+  }
+
+  async getOnboardingAnswers(userId: string, projectId: string): Promise<OnboardingAnswer[]> {
+    const pool = await this.getPool();
+    await this.ensureOnboardingTable(pool);
+
+    const [rows] = (await pool.execute(
+      `SELECT id, userId, projectId, biUserId, questionId, answerValue, otherText, userRole, createdAt
+       FROM onboarding_answer
+       WHERE userId = ? AND projectId = ?`,
+      [userId, projectId]
+    )) as [Array<Record<string, unknown>>, unknown];
+
+    return (rows as Array<Record<string, unknown>>).map(row => ({
+      id: String(row.id),
+      userId: String(row.userId),
+      projectId: String(row.projectId),
+      biUserId: String(row.biUserId),
+      questionId: String(row.questionId),
+      answerValue: String(row.answerValue),
+      otherText: row.otherText != null ? String(row.otherText) : null,
+      userRole: String(row.userRole),
+      createdAt: this.toIso(row.createdAt),
+    }));
   }
 }

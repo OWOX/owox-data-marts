@@ -23,6 +23,12 @@ function createStoreMock(): jest.Mocked<DatabaseStore> {
     getAuthState: jest.fn(),
     deleteAuthState: jest.fn(),
     purgeExpiredAuthStates: jest.fn(),
+    saveProjectMembers: jest.fn(),
+    getProjectMembers: jest.fn(),
+    getProjectSyncInfo: jest.fn(),
+    saveOnboardingAnswers: jest.fn(),
+    hasOnboardingAnswers: jest.fn(),
+    getOnboardingAnswers: jest.fn(),
   } as unknown as jest.Mocked<DatabaseStore>;
 }
 

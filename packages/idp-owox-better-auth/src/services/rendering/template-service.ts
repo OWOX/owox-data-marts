@@ -1,6 +1,11 @@
 import ejs from 'ejs';
 import { readFileSync } from 'fs';
 import { MAGIC_LINK_INTENT } from '../../core/constants.js';
+import {
+  USE_CASE_OPTIONS,
+  PRIMARY_ROLE_OPTIONS,
+  PRIMARY_STORAGE_OPTIONS,
+} from '../../core/onboarding-constants.js';
 import type { UiAuthProviders } from '../../types/index.js';
 import { resolveResourcePath } from '../../utils/template-paths.js';
 
@@ -139,6 +144,20 @@ export class TemplateService {
       pageTitle: 'Forgot password',
       heading: 'Reset your password',
       magicLinkResetIntent: MAGIC_LINK_INTENT.RESET,
+      ...data,
+      gtmContainerId: data.gtmContainerId,
+    });
+  }
+
+  public static renderOnboarding(
+    data: Record<string, unknown> & { gtmContainerId?: string } = {}
+  ): string {
+    return this.renderWithLayout('pages/onboarding.ejs', 'layouts/onboarding.ejs', {
+      pageTitle: 'Welcome - OWOX Data Marts',
+      heading: 'Help us personalize your experience',
+      useCaseOptions: USE_CASE_OPTIONS,
+      primaryRoleOptions: PRIMARY_ROLE_OPTIONS,
+      primaryStorageOptions: PRIMARY_STORAGE_OPTIONS,
       ...data,
       gtmContainerId: data.gtmContainerId,
     });

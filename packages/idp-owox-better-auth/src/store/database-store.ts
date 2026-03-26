@@ -1,4 +1,5 @@
 import { DatabaseAccount, DatabaseOperationResult, DatabaseUser } from '../types/index.js';
+import type { OnboardingAnswer } from '../types/index.js';
 import type { ProjectMember } from '@owox/idp-protocol';
 import { StoreResult } from './store-result.js';
 
@@ -18,6 +19,7 @@ export interface DatabaseStore {
 
   // Users
   getUserById(userId: string): Promise<DatabaseUser | null>;
+  getUserByBiUserId(biUserId: string): Promise<DatabaseUser | null>;
   getUserByEmail(email: string): Promise<DatabaseUser | null>;
   getAccountByUserId(userId: string): Promise<DatabaseAccount | null>;
   /**
@@ -80,4 +82,20 @@ export interface DatabaseStore {
   getProjectSyncInfo(
     projectId: string
   ): Promise<{ expiresAt: Date | null; updatedAt: Date | null } | null>;
+
+  // Onboarding Questionnaire
+  /**
+   * Save onboarding answers using UPSERT logic (userId + projectId + questionId).
+   */
+  saveOnboardingAnswers(answers: OnboardingAnswer[]): Promise<void>;
+
+  /**
+   * Check if a user has already completed the onboarding questionnaire for a project.
+   */
+  hasOnboardingAnswers(userId: string, projectId: string): Promise<boolean>;
+
+  /**
+   * Get all onboarding answers for a user within a project.
+   */
+  getOnboardingAnswers(userId: string, projectId: string): Promise<OnboardingAnswer[]>;
 }

@@ -48,6 +48,10 @@ function createStoreMock(): jest.Mocked<DatabaseStore> {
     saveProjectMembers: jest.fn(), // Uses UPSERT, preserves historical data
     getProjectMembers: jest.fn(), // Returns all members including outbound
     getProjectSyncInfo: jest.fn(), // Returns expires_at and updated_at from project table
+    // Onboarding questionnaire
+    saveOnboardingAnswers: jest.fn(),
+    hasOnboardingAnswers: jest.fn(),
+    getOnboardingAnswers: jest.fn(),
   } as unknown as jest.Mocked<DatabaseStore>;
 }
 

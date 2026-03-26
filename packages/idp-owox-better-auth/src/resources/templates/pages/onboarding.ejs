@@ -1,0 +1,435 @@
+<!-- Onboarding Questionnaire (TypeForm-style) -->
+<style>
+  .question-slide {
+    transition: opacity 0.35s ease, transform 0.35s ease;
+  }
+  .question-slide.slide-hidden {
+    opacity: 0;
+    transform: translateX(30px);
+    position: absolute;
+    pointer-events: none;
+  }
+  .question-slide.slide-hidden-left {
+    opacity: 0;
+    transform: translateX(-30px);
+    position: absolute;
+    pointer-events: none;
+  }
+  .option-card {
+    cursor: pointer;
+    transition: border-color 0.15s ease, background-color 0.15s ease;
+  }
+  .option-card:hover {
+    border-color: oklch(var(--primary));
+    background-color: oklch(var(--muted));
+  }
+  .option-card.selected {
+    border-color: oklch(var(--primary));
+    background-color: oklch(var(--primary) / 0.08);
+  }
+  .other-text-input {
+    transition: max-height 0.25s ease, opacity 0.25s ease, margin-top 0.25s ease;
+    max-height: 0;
+    opacity: 0;
+    overflow: hidden;
+    margin-top: 0;
+  }
+  .other-text-input.visible {
+    max-height: 60px;
+    opacity: 1;
+    margin-top: 0.5rem;
+  }
+</style>
+
+<div class="relative min-w-[300px] max-w-lg w-full">
+  <!-- Header -->
+  <h1 class="text-2xl font-bold text-foreground mb-1">Help us personalize your experience</h1>
+  <p class="text-sm text-muted-foreground mb-8">Answer 4 quick questions so we can tailor Data Marts to your workflow.</p>
+
+  <!-- Progress dots -->
+  <div class="flex items-center gap-2 mb-8">
+    <% for (let i = 0; i < 4; i++) { %>
+      <div
+        class="progress-dot h-1.5 rounded-full transition-all duration-300 <%= i === 0 ? 'bg-primary w-8' : 'bg-border w-6' %>"
+        data-step="<%= i %>"
+      ></div>
+    <% } %>
+    <span class="ml-auto text-xs text-muted-foreground" id="step-counter">1 / 4</span>
+  </div>
+
+  <!-- Question 1: Use Case (multi-select) -->
+  <div class="question-slide" data-question="0">
+    <h2 class="text-xl font-semibold text-foreground mb-1">What are you planning to use OWOX for?</h2>
+    <p class="text-sm text-muted-foreground mb-5">Select all that apply</p>
+    <div class="space-y-2" id="q-use-case">
+      <% useCaseOptions.forEach(function(opt) { %>
+      <label class="option-card flex items-center gap-3 rounded-md border border-border px-4 py-3 text-sm text-foreground">
+        <input type="checkbox" value="<%= opt.value %>"<% if (opt.value === 'other') { %> id="use-case-other-cb"<% } %> class="accent-[oklch(var(--primary))] w-4 h-4" />
+        <span><%= opt.label %></span>
+      </label>
+      <% }); %>
+      <div class="other-text-input" id="use-case-other-wrap">
+        <input
+          type="text"
+          id="use-case-other-text"
+          maxlength="500"
+          placeholder="Tell us more..."
+          class="w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
+        />
+      </div>
+    </div>
+  </div>
+
+  <!-- Question 2: Organization domain -->
+  <div class="question-slide slide-hidden" data-question="1">
+    <h2 class="text-xl font-semibold text-foreground mb-1">Organization domain</h2>
+    <p class="text-sm text-muted-foreground mb-5">Your company or team domain</p>
+    <input
+      type="text"
+      id="org-domain"
+      value="<%= typeof emailDomain !== 'undefined' ? emailDomain : '' %>"
+      placeholder="example.com"
+      maxlength="255"
+      class="w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
+    />
+  </div>
+
+  <!-- Question 3: Primary role (single-select) -->
+  <div class="question-slide slide-hidden" data-question="2">
+    <h2 class="text-xl font-semibold text-foreground mb-1">What is your primary role?</h2>
+    <p class="text-sm text-muted-foreground mb-5">Choose the option that best describes you</p>
+    <div class="space-y-2" id="q-primary-role">
+      <% primaryRoleOptions.forEach(function(opt) { %>
+      <label class="option-card flex items-center gap-3 rounded-md border border-border px-4 py-3 text-sm text-foreground">
+        <input type="radio" name="primary_role" value="<%= opt.value %>"<% if (opt.value === 'other') { %> id="role-other-rb"<% } %> class="accent-[oklch(var(--primary))] w-4 h-4" />
+        <span><%= opt.label %></span>
+      </label>
+      <% }); %>
+      <div class="other-text-input" id="role-other-wrap">
+        <input
+          type="text"
+          id="role-other-text"
+          maxlength="500"
+          placeholder="Tell us your role..."
+          class="w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
+        />
+      </div>
+    </div>
+  </div>
+
+  <!-- Question 4: Primary Storage (single-select) -->
+  <div class="question-slide slide-hidden" data-question="3">
+    <h2 class="text-xl font-semibold text-foreground mb-1">Your primary Storage</h2>
+    <p class="text-sm text-muted-foreground mb-5">Where does your data live?</p>
+    <div class="space-y-2" id="q-primary-storage">
+      <% primaryStorageOptions.forEach(function(opt) { %>
+      <label class="option-card flex items-center gap-3 rounded-md border border-border px-4 py-3 text-sm text-foreground">
+        <input type="radio" name="primary_storage" value="<%= opt.value %>"<% if (opt.value === 'other') { %> id="storage-other-rb"<% } %> class="accent-[oklch(var(--primary))] w-4 h-4" />
+        <span><%= opt.label %></span>
+      </label>
+      <% }); %>
+      <div class="other-text-input" id="storage-other-wrap">
+        <input
+          type="text"
+          id="storage-other-text"
+          maxlength="500"
+          placeholder="Tell us which storage..."
+          class="w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
+        />
+      </div>
+    </div>
+  </div>
+
+  <!-- Error message -->
+  <p id="onboarding-error" class="text-sm text-red-600 min-h-[20px] mt-4" aria-live="polite"></p>
+
+  <!-- Navigation -->
+  <div class="flex items-center justify-between mt-6">
+    <button
+      id="btn-back"
+      type="button"
+      class="hidden text-sm font-medium text-muted-foreground hover:text-foreground transition-colors px-3 py-2"
+    >
+      &larr; Back
+    </button>
+    <div class="flex items-center gap-3 ml-auto">
+      <button
+        id="btn-next"
+        type="button"
+        class="inline-flex justify-center items-center gap-2 py-2 px-5 rounded-md text-sm font-medium text-primary-foreground bg-primary hover:bg-primary/90 transition-colors disabled:opacity-60"
+      >
+        Next &rarr;
+      </button>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  const TOTAL_STEPS = 4;
+  let currentStep = 0;
+
+  const slides = document.querySelectorAll('.question-slide');
+  const dots = document.querySelectorAll('.progress-dot');
+  const counter = document.getElementById('step-counter');
+  const btnBack = document.getElementById('btn-back');
+  const btnNext = document.getElementById('btn-next');
+  const errorEl = document.getElementById('onboarding-error');
+
+  // Validate redirect is a safe relative path
+  const urlParams = new URLSearchParams(window.location.search);
+  const rawRedirect = urlParams.get('redirect') || '/';
+  const redirectUrl = (rawRedirect.startsWith('/') && !rawRedirect.startsWith('//')) ? rawRedirect : '/';
+
+  function showStep(step) {
+    slides.forEach((slide, i) => {
+      slide.classList.remove('slide-hidden', 'slide-hidden-left');
+      if (i < step) slide.classList.add('slide-hidden-left');
+      else if (i > step) slide.classList.add('slide-hidden');
+    });
+    dots.forEach((dot, i) => {
+      dot.classList.toggle('bg-primary', i <= step);
+      dot.classList.toggle('w-8', i === step);
+      dot.classList.toggle('bg-border', i > step);
+      dot.classList.toggle('w-6', i !== step);
+    });
+    counter.textContent = (step + 1) + ' / ' + TOTAL_STEPS;
+    btnBack.classList.toggle('hidden', step === 0);
+
+    if (step === TOTAL_STEPS - 1) {
+      btnNext.innerHTML = 'Finish';
+    } else {
+      btnNext.innerHTML = 'Next &rarr;';
+    }
+    errorEl.textContent = '';
+    currentStep = step;
+  }
+
+  // Validate current step — returns true if valid
+  function validateStep(step) {
+    if (step === 0) {
+      // Use case: at least one checkbox must be selected
+      const checked = document.querySelectorAll('#q-use-case input[type="checkbox"]:checked');
+      if (checked.length === 0) {
+        errorEl.textContent = 'Please select at least one option.';
+        return false;
+      }
+      return true;
+    }
+    if (step === 1) {
+      // Org domain: must not be empty
+      const val = document.getElementById('org-domain').value.trim();
+      if (!val) {
+        errorEl.textContent = 'Please enter your organization domain.';
+        return false;
+      }
+      return true;
+    }
+    if (step === 2) {
+      // Primary role: one radio must be selected
+      const checked = document.querySelector('#q-primary-role input[type="radio"]:checked');
+      if (!checked) {
+        errorEl.textContent = 'Please select your primary role.';
+        return false;
+      }
+      return true;
+    }
+    if (step === 3) {
+      // Primary storage: one radio must be selected
+      const checked = document.querySelector('#q-primary-storage input[type="radio"]:checked');
+      if (!checked) {
+        errorEl.textContent = 'Please select your primary storage.';
+        return false;
+      }
+      return true;
+    }
+    return true;
+  }
+
+  // Option card highlight on selection
+  function setupOptionCards() {
+    document.querySelectorAll('.option-card input[type="checkbox"]').forEach(cb => {
+      cb.addEventListener('change', () => {
+        cb.closest('.option-card').classList.toggle('selected', cb.checked);
+      });
+    });
+    document.querySelectorAll('.option-card input[type="radio"]').forEach(rb => {
+      rb.addEventListener('change', () => {
+        const group = rb.closest('.space-y-2');
+        group.querySelectorAll('.option-card').forEach(card => card.classList.remove('selected'));
+        rb.closest('.option-card').classList.add('selected');
+      });
+    });
+  }
+
+  // "Other" text field toggle
+  function setupOtherToggles() {
+    const toggles = [
+      { trigger: 'use-case-other-cb', wrap: 'use-case-other-wrap', type: 'checkbox' },
+      { trigger: 'role-other-rb', wrap: 'role-other-wrap', type: 'radio' },
+      { trigger: 'storage-other-rb', wrap: 'storage-other-wrap', type: 'radio' },
+    ];
+    toggles.forEach(({ trigger, wrap, type }) => {
+      const el = document.getElementById(trigger);
+      const wrapEl = document.getElementById(wrap);
+      if (!el || !wrapEl) return;
+      if (type === 'checkbox') {
+        el.addEventListener('change', () => {
+          wrapEl.classList.toggle('visible', el.checked);
+        });
+      } else {
+        const name = el.getAttribute('name');
+        document.querySelectorAll('input[name="' + name + '"]').forEach(rb => {
+          rb.addEventListener('change', () => {
+            wrapEl.classList.toggle('visible', el.checked);
+          });
+        });
+      }
+    });
+  }
+
+  function collectAnswers() {
+    const answers = [];
+
+    // Q1: Use case (multi-select)
+    const useCaseChecked = Array.from(
+      document.querySelectorAll('#q-use-case input[type="checkbox"]:checked')
+    ).map(cb => cb.value);
+    if (useCaseChecked.length > 0) {
+      const item = { questionId: 'use_case', answerValue: useCaseChecked };
+      const otherText = document.getElementById('use-case-other-text');
+      if (useCaseChecked.includes('other') && otherText?.value?.trim()) {
+        item.otherText = otherText.value.trim();
+      }
+      answers.push(item);
+    }
+
+    // Q2: Org domain
+    const domainInput = document.getElementById('org-domain');
+    if (domainInput?.value?.trim()) {
+      answers.push({ questionId: 'org_domain', answerValue: domainInput.value.trim() });
+    }
+
+    // Q3: Primary role (single-select)
+    const roleChecked = document.querySelector('#q-primary-role input[type="radio"]:checked');
+    if (roleChecked) {
+      const item = { questionId: 'primary_role', answerValue: roleChecked.value };
+      const otherText = document.getElementById('role-other-text');
+      if (roleChecked.value === 'other' && otherText?.value?.trim()) {
+        item.otherText = otherText.value.trim();
+      }
+      answers.push(item);
+    }
+
+    // Q4: Primary storage (single-select)
+    const storageChecked = document.querySelector('#q-primary-storage input[type="radio"]:checked');
+    if (storageChecked) {
+      const item = { questionId: 'primary_storage', answerValue: storageChecked.value };
+      const otherText = document.getElementById('storage-other-text');
+      if (storageChecked.value === 'other' && otherText?.value?.trim()) {
+        item.otherText = otherText.value.trim();
+      }
+      answers.push(item);
+    }
+
+    return answers;
+  }
+
+  async function submitAnswers() {
+    const answers = collectAnswers();
+    if (answers.length < TOTAL_STEPS) {
+      errorEl.textContent = 'Please answer all questions before submitting.';
+      return;
+    }
+
+    btnNext.disabled = true;
+    errorEl.textContent = '';
+
+    try {
+      const resp = await fetch('/auth/onboarding', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ answers, redirect: redirectUrl }),
+      });
+      if (resp.ok) {
+        const data = await resp.json().catch(() => null);
+        window.location.href = (data && data.redirect) || redirectUrl;
+      } else {
+        const data = await resp.json().catch(() => null);
+        errorEl.textContent = (data && data.error) || 'Failed to save answers. Please try again.';
+      }
+    } catch (err) {
+      errorEl.textContent = 'Network error. Please try again.';
+    } finally {
+      btnNext.disabled = false;
+    }
+  }
+
+  btnNext.addEventListener('click', () => {
+    if (!validateStep(currentStep)) return;
+    if (currentStep < TOTAL_STEPS - 1) {
+      showStep(currentStep + 1);
+    } else {
+      submitAnswers();
+    }
+  });
+
+  btnBack.addEventListener('click', () => {
+    if (currentStep > 0) showStep(currentStep - 1);
+  });
+
+  // Keyboard navigation — skip when focus is in a text input (let it behave normally)
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      if (e.target && e.target.tagName === 'INPUT' && e.target.type === 'text') return;
+      e.preventDefault();
+      btnNext.click();
+    }
+  });
+
+  // Shuffle option cards within a container, keeping "Other" (value="other") last.
+  function shuffleOptions(containerId) {
+    const container = document.getElementById(containerId);
+    if (!container) return;
+    const cards = Array.from(container.querySelectorAll(':scope > label.option-card'));
+    if (cards.length < 2) return;
+
+    // Separate "other" card from the rest
+    const otherCard = cards.find(function (label) {
+      var input = label.querySelector('input');
+      return input && input.value === 'other';
+    });
+    var shuffleable = cards.filter(function (c) { return c !== otherCard; });
+
+    // Fisher-Yates shuffle
+    for (var i = shuffleable.length - 1; i > 0; i--) {
+      var j = Math.floor(Math.random() * (i + 1));
+      var tmp = shuffleable[i];
+      shuffleable[i] = shuffleable[j];
+      shuffleable[j] = tmp;
+    }
+
+    // Remove only option-card labels from DOM (keep other-text-input divs)
+    cards.forEach(function (c) { container.removeChild(c); });
+
+    // Re-insert: shuffled cards first, then "other" card (before the other-text-input div if present)
+    var otherWrap = container.querySelector('.other-text-input');
+    shuffleable.forEach(function (c) {
+      if (otherWrap) container.insertBefore(c, otherWrap);
+      else container.appendChild(c);
+    });
+    if (otherCard) {
+      if (otherWrap) container.insertBefore(otherCard, otherWrap);
+      else container.appendChild(otherCard);
+    }
+  }
+
+  shuffleOptions('q-use-case');
+  shuffleOptions('q-primary-role');
+  shuffleOptions('q-primary-storage');
+
+  setupOptionCards();
+  setupOtherToggles();
+  showStep(0);
+})();
+</script>
