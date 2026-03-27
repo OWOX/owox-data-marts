@@ -164,9 +164,6 @@ var XAdsSource = class XAdsSource extends AbstractSource {
       case 'stats':
         return await this._timeSeriesFetch({ nodeName, accountId, fields, start_time, end_time });
 
-      case 'stats_by_country':
-        return await this._timeSeriesAsyncFetch({ nodeName, accountId, fields, start_time, end_time });
-
       case 'targeting_locations':
         return await this._fetchTargetingLocations(fields);
 
@@ -429,31 +426,6 @@ var XAdsSource = class XAdsSource extends AbstractSource {
     return resp.data.id;
   }
 
-  async _pollAsyncJobUntilComplete({ accountId, jobId }) {
-    const MAX_ATTEMPTS = 60;
-    const POLL_INTERVAL_MS = 10000;
-
-    for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
-      const resp = await this._rawFetch(`stats/jobs/accounts/${accountId}`, { job_ids: jobId });
-      const job = resp.data?.[0];
-      const status = job?.status;
-
-      if (status === 'SUCCESS') {
-        if (!job.url) throw new Error(`Job ${jobId} succeeded but url is null`);
-        return job.url;
-      }
-
-      if (status === 'FAILED') {
-        throw new Error(`Async stats job ${jobId} failed: ${JSON.stringify(resp)}`);
-      }
-
-      // status is PROCESSING or QUEUED — wait before next attempt
-      await AsyncUtils.delay(POLL_INTERVAL_MS);
-    }
-
-    throw new Error(`Async stats job ${jobId} did not complete after ${MAX_ATTEMPTS} attempts`);
-  }
-
   async _downloadAndParseJobResults({ downloadUrl, placement, start_time }) {
     // No OAuth header — downloadUrl is a pre-signed CDN URL served as raw gzip binary
     // (no Content-Encoding header), so we decompress manually with zlib.
@@ -502,50 +474,6 @@ var XAdsSource = class XAdsSource extends AbstractSource {
     return rawResult;
   }
 
-  async _timeSeriesAsyncFetch({ nodeName, accountId, fields, start_time, end_time }) {
-    const uniqueKeys = this.fieldsSchema[nodeName].uniqueKeys || [];
-    const missingKeys = uniqueKeys.filter(key => !fields.includes(key));
-
-    if (missingKeys.length > 0) {
-      throw new Error(`Missing required unique fields for '${nodeName}'. Missing: ${missingKeys.join(', ')}`);
-    }
-
-    const promos = await this.fetchData({ nodeName: 'promoted_tweets', accountId, fields: ['id'] });
-    const ids = promos.map(r => r.id);
-    if (!ids.length) return [];
-
-    // end_time is exclusive — extend by one day to match the sync stats behaviour
-    const e = new Date(end_time);
-    e.setDate(e.getDate() + 1);
-    const endStr = DateUtils.formatDate(e);
-
-    const result = [];
-
-    for (let i = 0; i < ids.length; i += this.config.StatsMaxEntityIds.value) {
-      const entityIds = ids.slice(i, i + this.config.StatsMaxEntityIds.value);
-
-      // Submit both placements in parallel — cuts per-batch time roughly in half.
-      // allSettled (vs all) lets the other placement finish even if one fails,
-      // and surfaces a clear error listing which placements failed.
-      const batchResults = await Promise.allSettled(
-        ['ALL_ON_TWITTER', 'PUBLISHER_NETWORK'].map(async placement => {
-          const jobId = await this._submitAsyncStatsJob({ accountId, entityIds, placement, start_time, end_time: endStr });
-          const downloadUrl = await this._pollAsyncJobUntilComplete({ accountId, jobId });
-          return this._downloadAndParseJobResults({ downloadUrl, placement, start_time });
-        })
-      );
-
-      const failures = batchResults.filter(r => r.status === 'rejected');
-      if (failures.length) {
-        throw new Error(`${failures.length} placement job(s) failed for batch [${entityIds.join(',')}]: ${failures.map(f => f.reason).join('; ')}`);
-      }
-
-      result.push(...batchResults.map(r => r.value).flat());
-    }
-
-    return this._filterBySchema(result, 'stats_by_country', fields);
-  }
-
   /**
    * Batch variant of _timeSeriesAsyncFetch: submits async jobs for ALL dates at once,
    * polls all jobs in a single request per interval, then downloads results in parallel.
@@ -576,86 +504,101 @@ var XAdsSource = class XAdsSource extends AbstractSource {
     const ids = promos.map(r => r.id);
     if (!ids.length) return new Map(dates.map(d => [d, []]));
 
-    // Phase 1: Submit all jobs sequentially.
-    // _rawPostFetch has a built-in 1 s delay, so submissions are naturally spaced
-    // and we stay within X Ads rate limits without extra throttling logic.
-    const pendingJobs = []; // { date, placement, jobId }
-    for (const date of dates) {
-      // The async stats API treats end_time as exclusive, so advance by one day
-      // to include the full target date in the result set.
-      const e = new Date(date);
-      e.setDate(e.getDate() + 1);
-      const endStr = DateUtils.formatDate(e);
+    // X Ads enforces a hard limit of 100 concurrent async jobs per account.
+    // Jobs per day = entity batches × placements (e.g. 10 batches × 2 = 20 jobs/day).
+    // We use 90 as the ceiling to leave a small safety margin for any jobs already
+    // running from other sources, then split dates into chunks that stay within it.
+    const jobsPerDay = Math.ceil(ids.length / this.config.StatsMaxEntityIds.value) * PLACEMENTS.length;
+    const MAX_CONCURRENT_JOBS = 90;
+    const chunkSize = Math.max(1, Math.floor(MAX_CONCURRENT_JOBS / jobsPerDay));
 
-      for (let i = 0; i < ids.length; i += this.config.StatsMaxEntityIds.value) {
-        const entityIds = ids.slice(i, i + this.config.StatsMaxEntityIds.value);
-        for (const placement of PLACEMENTS) {
-          const jobId = await this._submitAsyncStatsJob({ accountId, entityIds, placement, start_time: date, end_time: endStr });
-          pendingJobs.push({ date, placement, jobId });
-        }
-      }
-    }
+    console.log(`${dates.length} days to fetch, ${jobsPerDay} jobs/day → processing in chunks of ${chunkSize} day(s)`);
 
-    console.log(`Submitted ${pendingJobs.length} async jobs across ${dates.length} days — polling all in parallel`);
-
-    // Phase 2: Poll all jobs in a single API request per interval.
-    // GET /stats/jobs/accounts/:id accepts comma-separated job_ids, so we can
-    // check every pending job in one round-trip instead of N concurrent polling loops.
-    // Each iteration removes completed jobs from pendingIds, so the request shrinks
-    // over time and stops entirely once all jobs have resolved.
-    const MAX_POLL_ATTEMPTS = 60;
-    const POLL_INTERVAL_MS = 10000;
-    const downloadUrls = new Map(); // jobId → pre-signed CDN URL returned on SUCCESS
-    let pendingIds = pendingJobs.map(j => j.jobId);
-
-    for (let attempt = 0; attempt < MAX_POLL_ATTEMPTS && pendingIds.length > 0; attempt++) {
-      await AsyncUtils.delay(POLL_INTERVAL_MS);
-
-      const resp = await this._rawFetch(`stats/jobs/accounts/${accountId}`, { job_ids: pendingIds.join(',') });
-      const jobs = this._toDataArray(resp.data);
-
-      const stillPending = [];
-      for (const job of jobs) {
-        if (job.status === 'SUCCESS') {
-          if (!job.url) throw new Error(`Job ${job.id} succeeded but url is null`);
-          downloadUrls.set(job.id, job.url);
-        } else if (job.status === 'FAILED') {
-          throw new Error(`Async stats job ${job.id} failed: ${JSON.stringify(job)}`);
-        } else {
-          // PROCESSING or QUEUED — keep in the next poll cycle
-          stillPending.push(job.id);
-        }
-      }
-      pendingIds = stillPending;
-    }
-
-    if (pendingIds.length > 0) {
-      throw new Error(`${pendingIds.length} async job(s) did not complete after ${MAX_POLL_ATTEMPTS} poll attempts`);
-    }
-
-    // Phase 3: Download all result files in parallel and apply schema filter.
-    // Pre-signed CDN URLs have no rate limit, so all downloads run concurrently.
-    // Filtering happens here so Phase 4 only needs to group already-clean rows.
-    const settled = await Promise.allSettled(
-      pendingJobs.map(async ({ date, placement, jobId }) => {
-        const rows = await this._downloadAndParseJobResults({
-          downloadUrl: downloadUrls.get(jobId),
-          placement,
-          start_time: date
-        });
-        return { date, rows: this._filterBySchema(rows, nodeName, fields) };
-      })
-    );
-
-    const failures = settled.filter(r => r.status === 'rejected');
-    if (failures.length) {
-      throw new Error(`${failures.length} result download(s) failed: ${failures.map(f => f.reason).join('; ')}`);
-    }
-
-    // Phase 4: Group filtered rows by date.
     const byDate = new Map(dates.map(d => [d, []]));
-    for (const { value } of settled) {
-      byDate.get(value.date).push(...value.rows);
+
+    for (let chunkStart = 0; chunkStart < dates.length; chunkStart += chunkSize) {
+      const dateChunk = dates.slice(chunkStart, chunkStart + chunkSize);
+
+      // Phase 1: Submit all jobs for this chunk sequentially.
+      // _rawPostFetch has a built-in 1 s delay, so submissions are naturally spaced
+      // and we stay within X Ads rate limits without extra throttling logic.
+      const pendingJobs = []; // { date, placement, jobId }
+      for (const date of dateChunk) {
+        // The async stats API treats end_time as exclusive, so advance by one day
+        // to include the full target date in the result set.
+        const e = new Date(date);
+        e.setDate(e.getDate() + 1);
+        const endStr = DateUtils.formatDate(e);
+
+        for (let i = 0; i < ids.length; i += this.config.StatsMaxEntityIds.value) {
+          const entityIds = ids.slice(i, i + this.config.StatsMaxEntityIds.value);
+          for (const placement of PLACEMENTS) {
+            const jobId = await this._submitAsyncStatsJob({ accountId, entityIds, placement, start_time: date, end_time: endStr });
+            pendingJobs.push({ date, placement, jobId });
+          }
+        }
+      }
+
+      console.log(`Submitted ${pendingJobs.length} async jobs for days ${dateChunk[0]}–${dateChunk[dateChunk.length - 1]} — polling`);
+
+      // Phase 2: Poll all jobs in a single API request per interval.
+      // GET /stats/jobs/accounts/:id accepts comma-separated job_ids, so we can
+      // check every pending job in one round-trip instead of N concurrent polling loops.
+      // Each iteration removes completed jobs from pendingIds, so the request shrinks
+      // over time and stops entirely once all jobs have resolved.
+      const MAX_POLL_ATTEMPTS = 60;
+      const POLL_INTERVAL_MS = 10000;
+      const downloadUrls = new Map(); // jobId → pre-signed CDN URL returned on SUCCESS
+      let pendingIds = pendingJobs.map(j => j.jobId);
+
+      for (let attempt = 0; attempt < MAX_POLL_ATTEMPTS && pendingIds.length > 0; attempt++) {
+        await AsyncUtils.delay(POLL_INTERVAL_MS);
+
+        const resp = await this._rawFetch(`stats/jobs/accounts/${accountId}`, { job_ids: pendingIds.join(',') });
+        const jobs = this._toDataArray(resp.data);
+
+        const stillPending = [];
+        for (const job of jobs) {
+          if (job.status === 'SUCCESS') {
+            if (!job.url) throw new Error(`Job ${job.id} succeeded but url is null`);
+            downloadUrls.set(job.id, job.url);
+          } else if (job.status === 'FAILED') {
+            throw new Error(`Async stats job ${job.id} failed: ${JSON.stringify(job)}`);
+          } else {
+            // PROCESSING or QUEUED — keep in the next poll cycle
+            stillPending.push(job.id);
+          }
+        }
+        pendingIds = stillPending;
+      }
+
+      if (pendingIds.length > 0) {
+        throw new Error(`${pendingIds.length} async job(s) did not complete after ${MAX_POLL_ATTEMPTS} poll attempts`);
+      }
+
+      // Phase 3: Download all result files in parallel and apply schema filter.
+      // Pre-signed CDN URLs have no rate limit, so all downloads run concurrently.
+      // Filtering happens here so Phase 4 only needs to group already-clean rows.
+      const settled = await Promise.allSettled(
+        pendingJobs.map(async ({ date, placement, jobId }) => {
+          const rows = await this._downloadAndParseJobResults({
+            downloadUrl: downloadUrls.get(jobId),
+            placement,
+            start_time: date
+          });
+          return { date, rows: this._filterBySchema(rows, nodeName, fields) };
+        })
+      );
+
+      const failures = settled.filter(r => r.status === 'rejected');
+      if (failures.length) {
+        throw new Error(`${failures.length} result download(s) failed: ${failures.map(f => f.reason).join('; ')}`);
+      }
+
+      // Phase 4: Group filtered rows into the shared byDate map.
+      for (const { value } of settled) {
+        byDate.get(value.date).push(...value.rows);
+      }
     }
 
     return byDate;
