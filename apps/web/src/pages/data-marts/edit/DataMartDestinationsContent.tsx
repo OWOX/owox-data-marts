@@ -11,14 +11,22 @@ import {
   type DataDestination,
 } from '../../../features/data-destination/shared';
 import { ReportsProvider } from '../../../features/data-marts/reports/shared/model/context';
-
 import { useDataMartReportsAutoRefresh } from '../../../features/data-marts/reports/shared/model/hooks/useDataMartReportsAutoRefresh';
+import { useOnboardingVideo } from '../../../shared/hooks/useOnboardingVideo';
 
 function DataMartDestinationsContentInner() {
   const { dataMart } = useOutletContext<DataMartContextType>();
   const { dataDestinations, isLoading } = useDataDestinationsWithReports();
   // Centralized reports polling for this Data Mart
   useDataMartReportsAutoRefresh({ enabled: true, intervalMs: 5000 });
+
+  // Show onboarding video about email reports if the user has not seen it yet
+  const shouldShowOnboarding = !isLoading && dataDestinations.length === 0;
+  useOnboardingVideo({
+    storageKey: 'email-reports-onboarding-video-shown',
+    popoverId: 'video-6-email-reports',
+    shouldShow: shouldShowOnboarding,
+  });
 
   if (!dataMart) return null;
 
