@@ -291,7 +291,11 @@ var AbstractConnector = class AbstractConnector {
       }
 
       // First run: no state exists
-      // Start from the 1st of last month
+      // Use StartDate if configured, otherwise start from the 1st of last month
+      if (this.config.StartDate && this.config.StartDate.value) {
+        return this.config.StartDate.value;
+      }
+
       const today = new Date();
       return new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth() - 1, 1));
     }
