@@ -1,4 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
+import { UserProjectionDto } from '../../../idp/dto/domain/user-projection.dto';
 
 export class InsightTemplateListItemResponseApiDto {
   @ApiProperty({ example: 'b1b2c3d4-e5f6-7890-a1b2-c3d4e5f67890' })
@@ -21,4 +22,7 @@ export class InsightTemplateListItemResponseApiDto {
 
   @ApiProperty({ example: '2026-02-14T15:13:06.930Z' })
   modifiedAt: string | Date;
+
+  @ApiProperty({ type: UserProjectionDto, required: false, nullable: true })
+  createdByUser?: UserProjectionDto | null;
 }

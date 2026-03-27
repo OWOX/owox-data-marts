@@ -7,6 +7,6 @@ export const ScheduledTriggerColumnLabels: Record<ScheduledTriggerColumnKey, str
   [ScheduledTriggerColumnKey.NEXT_RUN]: 'Next Run',
   [ScheduledTriggerColumnKey.LAST_RUN]: 'Last Run',
   [ScheduledTriggerColumnKey.CREATED_AT]: 'Created At',
-  [ScheduledTriggerColumnKey.CREATED_BY_USER]: 'Created By',
+  [ScheduledTriggerColumnKey.CREATED_BY]: 'Created By',
   [ScheduledTriggerColumnKey.IS_ACTIVE]: 'Trigger Status',
 };

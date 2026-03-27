@@ -12,6 +12,10 @@ jest.mock('../../common/markdown/markdown-parser.service', () => ({
   GITHUB_MARKDOWN_CSS: '',
 }));
 
+jest.mock('../services/user-projections-fetcher.service', () => ({
+  UserProjectionsFetcherService: jest.fn(),
+}));
+
 import { NotFoundException } from '@nestjs/common';
 import { UpdateDataDestinationCommand } from '../dto/domain/update-data-destination.command';
 import { UpdateDataDestinationService } from './update-data-destination.service';
@@ -122,6 +126,10 @@ describe('UpdateDataDestinationService - credential copy (sourceDestinationId)',
       dataDestinationCredentialService as never
     );
 
+    const userProjectionsFetcherService = {
+      fetchCreatedByUser: jest.fn().mockResolvedValue(null),
+    };
+
     const service = new UpdateDataDestinationService(
       dataDestinationRepository as never,
       dataDestinationService as never,
@@ -131,7 +139,8 @@ describe('UpdateDataDestinationService - credential copy (sourceDestinationId)',
       availableDestinationTypesService as never,
       dataDestinationCredentialService as never,
       googleOAuthClientService as never,
-      copyCredentialService
+      copyCredentialService,
+      userProjectionsFetcherService as never
     );
 
     return {

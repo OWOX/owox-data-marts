@@ -8,6 +8,7 @@ import { UpdateScheduledTriggerCommand } from '../dto/domain/update-scheduled-tr
 import { ScheduledTriggerDto } from '../dto/domain/scheduled-trigger.dto';
 import { BusinessViolationException } from '../../common/exceptions/business-violation.exception';
 import { DataMartStatus } from '../enums/data-mart-status.enum';
+import { UserProjectionsFetcherService } from '../services/user-projections-fetcher.service';
 
 @Injectable()
 export class UpdateScheduledTriggerService {
@@ -15,7 +16,8 @@ export class UpdateScheduledTriggerService {
     @InjectRepository(DataMartScheduledTrigger)
     private readonly triggerRepository: Repository<DataMartScheduledTrigger>,
     private readonly scheduledTriggerService: ScheduledTriggerService,
-    private readonly mapper: ScheduledTriggerMapper
+    private readonly mapper: ScheduledTriggerMapper,
+    private readonly userProjectionsFetcherService: UserProjectionsFetcherService
   ) {}
 
   async run(command: UpdateScheduledTriggerCommand): Promise<ScheduledTriggerDto> {
@@ -41,6 +43,9 @@ export class UpdateScheduledTriggerService {
 
     const updatedTrigger = await this.triggerRepository.save(trigger);
 
-    return this.mapper.toDomainDto(updatedTrigger);
+    const createdByUser =
+      await this.userProjectionsFetcherService.fetchCreatedByUser(updatedTrigger);
+
+    return this.mapper.toDomainDto(updatedTrigger, createdByUser);
   }
 }

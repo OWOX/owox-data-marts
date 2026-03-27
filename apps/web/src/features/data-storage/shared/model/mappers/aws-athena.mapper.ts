@@ -19,6 +19,7 @@ export class AwsAthenaMapper implements StorageMapper {
       type: DataStorageType.AWS_ATHENA,
       createdAt: new Date(dto.createdAt),
       modifiedAt: new Date(dto.modifiedAt),
+      createdByUser: dto.createdByUser,
       credentials: {
         accessKeyId: credentials?.accessKeyId ?? '',
         secretAccessKey: credentials?.secretAccessKey ?? '',

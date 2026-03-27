@@ -13,9 +13,10 @@ import {
   isEmailBasedDataDestinationType,
 } from '../data-destination-types/enums/data-destination-type.enum';
 import { DataDestinationCredential } from './data-destination-credential.entity';
+import { CreatorAwareEntity } from './creator-aware-entity.interface';
 
 @Entity()
-export class DataDestination {
+export class DataDestination implements CreatorAwareEntity {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
@@ -37,6 +38,9 @@ export class DataDestination {
 
   @DeleteDateColumn({ nullable: true })
   deletedAt?: Date;
+
+  @Column({ type: 'varchar', nullable: true })
+  createdById?: string;
 
   @CreateDateColumn()
   createdAt: Date;

@@ -9,6 +9,7 @@ import { UpdateReportCommand } from '../dto/domain/update-report.command';
 import { ReportDto } from '../dto/domain/report.dto';
 import { DataDestinationAccessValidatorFacade } from '../data-destination-types/facades/data-destination-access-validator.facade';
 import { DataDestinationService } from '../services/data-destination.service';
+import { UserProjectionsFetcherService } from '../services/user-projections-fetcher.service';
 
 @Injectable()
 export class UpdateReportService {
@@ -18,7 +19,8 @@ export class UpdateReportService {
     private readonly dataDestinationService: DataDestinationService,
     private readonly dataDestinationAccessValidationFacade: DataDestinationAccessValidatorFacade,
     private readonly mapper: ReportMapper,
-    private readonly availableDestinationTypesService: AvailableDestinationTypesService
+    private readonly availableDestinationTypesService: AvailableDestinationTypesService,
+    private readonly userProjectionsFetcherService: UserProjectionsFetcherService
   ) {}
 
   async run(command: UpdateReportCommand): Promise<ReportDto> {
@@ -62,6 +64,9 @@ export class UpdateReportService {
 
     const updatedReport = await this.reportRepository.save(report);
 
-    return this.mapper.toDomainDto(updatedReport);
+    const createdByUser =
+      await this.userProjectionsFetcherService.fetchCreatedByUser(updatedReport);
+
+    return this.mapper.toDomainDto(updatedReport, createdByUser);
   }
 }

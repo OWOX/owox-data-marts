@@ -22,6 +22,7 @@ export interface InsightTemplateResponseDto {
   createdById: string;
   createdAt: string;
   modifiedAt: string;
+  createdByUser?: import('../../../../../../shared/types').UserProjection | null;
 }
 
 export interface InsightTemplateListItemDto {
@@ -32,6 +33,7 @@ export interface InsightTemplateListItemDto {
   createdById: string;
   createdAt: string;
   modifiedAt: string;
+  createdByUser?: import('../../../../../../shared/types').UserProjection | null;
 }
 
 export interface InsightTemplateListResponseDto {

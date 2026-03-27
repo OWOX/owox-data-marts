@@ -30,6 +30,7 @@ import { PublishDataStorageDraftsResponseApiDto } from '../dto/presentation/publ
 import { DataStorageByTypeResponseApiDto } from '../dto/presentation/data-storage-by-type-response-api.dto';
 import { ListDataStoragesByTypeItemDto } from '../dto/domain/list-data-storages-by-type-item.dto';
 import { DataStorage } from '../entities/data-storage.entity';
+import { UserProjectionDto } from '../../idp/dto/domain/user-projection.dto';
 
 @Injectable()
 export class DataStorageMapper {
@@ -42,7 +43,7 @@ export class DataStorageMapper {
     context: AuthorizationContext,
     dto: CreateDataStorageApiDto
   ): CreateDataStorageCommand {
-    return new CreateDataStorageCommand(context.projectId, dto.type);
+    return new CreateDataStorageCommand(context.projectId, dto.type, context.userId);
   }
 
   toUpdateCommand(
@@ -61,7 +62,12 @@ export class DataStorageMapper {
     );
   }
 
-  toDomainDto(dataStorage: DataStorage, publishedCount = 0, draftsCount = 0): DataStorageDto {
+  toDomainDto(
+    dataStorage: DataStorage,
+    publishedCount = 0,
+    draftsCount = 0,
+    createdByUser: UserProjectionDto | null = null
+  ): DataStorageDto {
     return new DataStorageDto(
       dataStorage.id,
       dataStorage.title || toHumanReadable(dataStorage.type),
@@ -72,12 +78,9 @@ export class DataStorageMapper {
       dataStorage.modifiedAt,
       publishedCount,
       draftsCount,
-      dataStorage.credentialId
+      dataStorage.credentialId,
+      createdByUser
     );
-  }
-
-  toDomainDtoList(dataStorages: DataStorage[]): DataStorageDto[] {
-    return dataStorages.map(dataStorage => this.toDomainDto(dataStorage));
   }
 
   async toApiResponse(dataStorageDto: DataStorageDto): Promise<DataStorageResponseApiDto> {
@@ -107,6 +110,7 @@ export class DataStorageMapper {
       createdAt: dataStorageDto.createdAt,
       modifiedAt: dataStorageDto.modifiedAt,
       credentialId: dataStorageDto.credentialId,
+      createdByUser: dataStorageDto.createdByUser,
     };
   }
 
@@ -127,6 +131,7 @@ export class DataStorageMapper {
       modifiedAt: dataStorageDto.modifiedAt,
       publishedDataMartsCount: dataStorageDto.dataMartsCount,
       draftDataMartsCount: dataStorageDto.draftsCount,
+      createdByUser: dataStorageDto.createdByUser,
     }));
   }
 

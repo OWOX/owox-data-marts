@@ -15,6 +15,8 @@ import { AuthorizationContext } from '../../idp';
 import { DataMartMapper } from './data-mart.mapper';
 import { DataDestinationMapper } from './data-destination.mapper';
 import { RunType } from '../../common/scheduler/shared/types';
+import { UserProjectionDto } from '../../idp/dto/domain/user-projection.dto';
+import { UserProjectionsListDto } from '../../idp/dto/domain/user-projections-list.dto';
 
 @Injectable()
 export class ReportMapper {
@@ -37,7 +39,7 @@ export class ReportMapper {
     );
   }
 
-  toDomainDto(entity: Report): ReportDto {
+  toDomainDto(entity: Report, createdByUser: UserProjectionDto | null = null): ReportDto {
     return new ReportDto(
       entity.id,
       entity.title,
@@ -49,12 +51,18 @@ export class ReportMapper {
       entity.lastRunAt,
       entity.lastRunError,
       entity.lastRunStatus,
-      entity.runsCount
+      entity.runsCount,
+      createdByUser
     );
   }
 
-  toDomainDtoList(entities: Report[]): ReportDto[] {
-    return entities.map(entity => this.toDomainDto(entity));
+  toDomainDtoList(entities: Report[], userProjectionsList?: UserProjectionsListDto): ReportDto[] {
+    return entities.map(entity =>
+      this.toDomainDto(
+        entity,
+        entity.createdById ? (userProjectionsList?.getByUserId(entity.createdById) ?? null) : null
+      )
+    );
   }
 
   async toResponse(dto: ReportDto): Promise<ReportResponseApiDto> {
@@ -72,6 +80,7 @@ export class ReportMapper {
       runsCount: dto.runsCount,
       createdAt: dto.createdAt,
       modifiedAt: dto.modifiedAt,
+      createdByUser: dto.createdByUser,
     };
   }
 

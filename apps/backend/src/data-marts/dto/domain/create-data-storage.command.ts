@@ -3,6 +3,7 @@ import { DataStorageType } from '../../data-storage-types/enums/data-storage-typ
 export class CreateDataStorageCommand {
   constructor(
     public readonly projectId: string,
-    public readonly type: DataStorageType
+    public readonly type: DataStorageType,
+    public readonly userId: string
   ) {}
 }

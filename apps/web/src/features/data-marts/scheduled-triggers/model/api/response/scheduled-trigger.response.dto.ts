@@ -1,5 +1,6 @@
 import { ScheduledTriggerType } from '../../../enums';
 import { type ScheduledTriggerConfig } from '../../trigger-config.types';
+import type { UserProjection } from '../../../../../../shared/types';
 
 /**
  * Response DTO for a scheduled trigger
@@ -69,4 +70,9 @@ export interface ScheduledTriggerResponseApiDto {
    * @example 2024-01-02T15:30:00.000Z
    */
   modifiedAt: string;
+
+  /**
+   * User who created the trigger
+   */
+  createdByUser?: UserProjection | null;
 }

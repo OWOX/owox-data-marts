@@ -2,6 +2,7 @@ import { DataMartDto } from './data-mart.dto';
 import { DataDestinationDto } from './data-destination.dto';
 import { ReportRunStatus } from '../../enums/report-run-status.enum';
 import { DataDestinationConfig } from '../../data-destination-types/data-destination-config.type';
+import { UserProjectionDto } from '../../../idp/dto/domain/user-projection.dto';
 
 export class ReportDto {
   constructor(
@@ -15,6 +16,7 @@ export class ReportDto {
     public readonly lastRunAt?: Date,
     public readonly lastRunError?: string,
     public readonly lastRunStatus?: ReportRunStatus,
-    public readonly runsCount: number = 0
+    public readonly runsCount: number = 0,
+    public readonly createdByUser: UserProjectionDto | null = null
   ) {}
 }

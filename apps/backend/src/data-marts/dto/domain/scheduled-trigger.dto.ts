@@ -1,5 +1,6 @@
 import { ScheduledTriggerConfig } from '../../scheduled-trigger-types/scheduled-trigger-config.type';
 import { ScheduledTriggerType } from '../../scheduled-trigger-types/enums/scheduled-trigger-type.enum';
+import { UserProjectionDto } from '../../../idp/dto/domain/user-projection.dto';
 
 export class ScheduledTriggerDto {
   constructor(
@@ -13,6 +14,7 @@ export class ScheduledTriggerDto {
     public readonly createdById: string,
     public readonly createdAt: Date,
     public readonly modifiedAt: Date,
-    public readonly triggerConfig?: ScheduledTriggerConfig
+    public readonly triggerConfig?: ScheduledTriggerConfig,
+    public readonly createdByUser: UserProjectionDto | null = null
   ) {}
 }

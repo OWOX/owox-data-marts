@@ -20,6 +20,7 @@ import {
 import type { StoredDestinationCredentials } from '../entities/stored-destination-credentials.type';
 import { DestinationCredentialType } from '../enums/destination-credential-type.enum';
 import { CopyCredentialService } from '../services/copy-credential.service';
+import { UserProjectionsFetcherService } from '../services/user-projections-fetcher.service';
 
 @Injectable()
 export class UpdateDataDestinationService {
@@ -33,7 +34,8 @@ export class UpdateDataDestinationService {
     private readonly availableDestinationTypesService: AvailableDestinationTypesService,
     private readonly dataDestinationCredentialService: DataDestinationCredentialService,
     private readonly googleOAuthClientService: GoogleOAuthClientService,
-    private readonly copyCredentialService: CopyCredentialService
+    private readonly copyCredentialService: CopyCredentialService,
+    private readonly userProjectionsFetcherService: UserProjectionsFetcherService
   ) {}
 
   @Transactional()
@@ -87,7 +89,9 @@ export class UpdateDataDestinationService {
       // After copy, save title and return — skip credential validation/processing
       entity.title = command.title;
       const updatedEntity = await this.dataDestinationRepository.save(entity);
-      return this.dataDestinationMapper.toDomainDto(updatedEntity);
+      const createdByUser =
+        await this.userProjectionsFetcherService.fetchCreatedByUser(updatedEntity);
+      return this.dataDestinationMapper.toDomainDto(updatedEntity, createdByUser);
     }
 
     // Handle OAuth credentialId disconnect (null = revoke)
@@ -177,6 +181,8 @@ export class UpdateDataDestinationService {
     entity.title = command.title;
 
     const updatedEntity = await this.dataDestinationRepository.save(entity);
-    return this.dataDestinationMapper.toDomainDto(updatedEntity);
+    const createdByUser =
+      await this.userProjectionsFetcherService.fetchCreatedByUser(updatedEntity);
+    return this.dataDestinationMapper.toDomainDto(updatedEntity, createdByUser);
   }
 }

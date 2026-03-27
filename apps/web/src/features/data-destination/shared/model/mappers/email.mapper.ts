@@ -28,6 +28,7 @@ export class EmailMapper<T extends DataDestination> implements DestinationMapper
       credentials,
       createdAt: new Date(dto.createdAt),
       modifiedAt: new Date(dto.modifiedAt),
+      createdByUser: dto.createdByUser,
     } as T;
   }
 

@@ -12,9 +12,12 @@ export class UserProjectionsFetcherService {
   public async fetchRelevantUserProjections(
     entities: CreatorAwareEntity[]
   ): Promise<UserProjectionsListDto> {
-    return await this.idpProjectionsFacade.getUserProjectionList(
-      entities.map(e => e.createdById).filter(id => id !== undefined)
-    );
+    const userIds = [
+      ...new Set(
+        entities.map(e => e.createdById).filter((id): id is string => typeof id === 'string')
+      ),
+    ];
+    return await this.idpProjectionsFacade.getUserProjectionList(userIds);
   }
 
   public async fetchAllRelevantUserProjections(
@@ -37,5 +40,10 @@ export class UserProjectionsFetcherService {
 
   public async fetchUserProjection(userId: string): Promise<UserProjectionDto | undefined> {
     return await this.idpProjectionsFacade.getUserProjection(userId);
+  }
+
+  public async fetchCreatedByUser(entity: CreatorAwareEntity): Promise<UserProjectionDto | null> {
+    if (!entity.createdById) return null;
+    return (await this.fetchUserProjection(entity.createdById)) ?? null;
   }
 }

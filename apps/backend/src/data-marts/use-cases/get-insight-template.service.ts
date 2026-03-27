@@ -5,13 +5,15 @@ import type { DataMartRun } from '../entities/data-mart-run.entity';
 import { InsightTemplateMapper } from '../mappers/insight-template.mapper';
 import { DataMartRunService } from '../services/data-mart-run.service';
 import { InsightTemplateService } from '../services/insight-template.service';
+import { UserProjectionsFetcherService } from '../services/user-projections-fetcher.service';
 
 @Injectable()
 export class GetInsightTemplateService {
   constructor(
     private readonly insightTemplateService: InsightTemplateService,
     private readonly mapper: InsightTemplateMapper,
-    private readonly dataMartRunService: DataMartRunService
+    private readonly dataMartRunService: DataMartRunService,
+    private readonly userProjectionsFetcherService: UserProjectionsFetcherService
   ) {}
 
   async run(command: GetInsightTemplateCommand): Promise<InsightTemplateDto> {
@@ -29,6 +31,9 @@ export class GetInsightTemplateService {
       );
     }
 
-    return this.mapper.toDomainDto(insightTemplate, lastRun ?? null);
+    const createdByUser =
+      await this.userProjectionsFetcherService.fetchCreatedByUser(insightTemplate);
+
+    return this.mapper.toDomainDto(insightTemplate, lastRun ?? null, createdByUser);
   }
 }

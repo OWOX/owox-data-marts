@@ -26,10 +26,8 @@ export class GetDataMartRunService {
       throw new NotFoundException('Run not found');
     }
 
-    const userProjection = run.createdById
-      ? await this.userProjectionsFetcherService.fetchUserProjection(run.createdById)
-      : undefined;
+    const createdByUser = await this.userProjectionsFetcherService.fetchCreatedByUser(run);
 
-    return this.mapper.toDataMartRunDto(run, userProjection);
+    return this.mapper.toDataMartRunDto(run, createdByUser);
   }
 }

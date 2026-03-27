@@ -1,5 +1,6 @@
 import { DataMartRunDto } from './data-mart-run.dto';
 import { InsightTemplateSources } from '../schemas/insight-template/insight-template-source.schema';
+import { UserProjectionDto } from '../../../idp/dto/domain/user-projection.dto';
 
 export class InsightTemplateDto {
   constructor(
@@ -12,6 +13,7 @@ export class InsightTemplateDto {
     public readonly createdById: string,
     public readonly createdAt: Date,
     public readonly modifiedAt: Date,
-    public readonly lastManualDataMartRun: DataMartRunDto | null
+    public readonly lastManualDataMartRun: DataMartRunDto | null,
+    public readonly createdByUser?: UserProjectionDto | null
   ) {}
 }

@@ -11,6 +11,7 @@ export interface BaseDataDestination<T extends DataDestinationCredentials> {
   credentials: T;
   createdAt: Date;
   modifiedAt: Date;
+  createdByUser?: import('../../../../../shared/types').UserProjection | null;
 }
 
 export interface GoogleSheetsCredentials {

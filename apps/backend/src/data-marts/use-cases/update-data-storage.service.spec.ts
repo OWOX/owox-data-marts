@@ -2,6 +2,10 @@ jest.mock('typeorm-transactional', () => ({
   Transactional: () => () => undefined,
 }));
 
+jest.mock('../services/user-projections-fetcher.service', () => ({
+  UserProjectionsFetcherService: jest.fn(),
+}));
+
 import { NotFoundException } from '@nestjs/common';
 import { UpdateDataStorageCommand } from '../dto/domain/update-data-storage.command';
 import { UpdateDataStorageService } from './update-data-storage.service';
@@ -106,13 +110,18 @@ describe('UpdateDataStorageService - credential copy (sourceStorageId)', () => {
       {} as never
     );
 
+    const userProjectionsFetcherService = {
+      fetchCreatedByUser: jest.fn().mockResolvedValue(null),
+    };
+
     const service = new UpdateDataStorageService(
       dataStorageRepository as never,
       dataStorageService as never,
       dataStorageMapper as never,
       dataStorageAccessFacade as never,
       dataStorageCredentialService as never,
-      copyCredentialService
+      copyCredentialService,
+      userProjectionsFetcherService as never
     );
 
     return {

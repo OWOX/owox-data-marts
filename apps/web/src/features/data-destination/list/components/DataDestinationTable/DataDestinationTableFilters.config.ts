@@ -6,56 +6,56 @@ import {
   collectOptionsFromData,
   type SelectOption,
 } from '../../../../../shared/components/TableFilters/collectOptions.utils';
-import { DataStorageTypeModel } from '../../../shared/types/data-storage-type.model';
-import type { DataStorageTableItem } from './columns';
-import { DataStorageColumnKey, dataStorageColumnLabels } from './columns';
+import { DataDestinationTypeModel } from '../../../shared';
+import type { DataDestinationTableItem } from './columns';
+import { DataDestinationColumnKey, dataDestinationColumnLabels } from './columns';
 
 /* ---------------------------------------------------------------------------
  * Filter keys
  * ------------------------------------------------------------------------ */
 
-export type DataStorageFilterKey =
-  | DataStorageColumnKey.TITLE
-  | DataStorageColumnKey.TYPE
-  | DataStorageColumnKey.CREATED_BY;
+export type DataDestinationFilterKey =
+  | DataDestinationColumnKey.TITLE
+  | DataDestinationColumnKey.TYPE
+  | DataDestinationColumnKey.CREATED_BY;
 
 /* ---------------------------------------------------------------------------
  * Accessors (used both for filtering and option collection)
  * ------------------------------------------------------------------------ */
 
-export const dataStorageFilterAccessors: FilterAccessors<
-  DataStorageFilterKey,
-  DataStorageTableItem
+export const dataDestinationFilterAccessors: FilterAccessors<
+  DataDestinationFilterKey,
+  DataDestinationTableItem
 > = {
-  [DataStorageColumnKey.TITLE]: row => row.title,
-  [DataStorageColumnKey.TYPE]: row => row.type,
-  [DataStorageColumnKey.CREATED_BY]: row => row.createdByUser?.userId,
+  [DataDestinationColumnKey.TITLE]: row => row.title,
+  [DataDestinationColumnKey.TYPE]: row => row.type,
+  [DataDestinationColumnKey.CREATED_BY]: row => row.createdByUser?.userId,
 };
 
 /* ---------------------------------------------------------------------------
  * Builder
  * ------------------------------------------------------------------------ */
 
-export function buildDataStorageTableFilters(
-  data: DataStorageTableItem[]
-): FilterConfigItem<DataStorageFilterKey>[] {
+export function buildDataDestinationTableFilters(
+  data: DataDestinationTableItem[]
+): FilterConfigItem<DataDestinationFilterKey>[] {
   /* -----------------------------
-   * Storage title options
+   * Destination title options
    * --------------------------- */
-  const storageTitleOptions: SelectOption[] = collectOptionsFromData(
+  const titleOptions: SelectOption[] = collectOptionsFromData(
     data,
-    dataStorageFilterAccessors[DataStorageColumnKey.TITLE]
+    dataDestinationFilterAccessors[DataDestinationColumnKey.TITLE]
   );
 
   /* -----------------------------
-   * Storage type options
+   * Destination type options
    * --------------------------- */
   const typeOptions: SelectOption[] = collectOptionsFromData(
     data,
-    dataStorageFilterAccessors[DataStorageColumnKey.TYPE],
+    dataDestinationFilterAccessors[DataDestinationColumnKey.TYPE],
     {
       labelMapper: value => {
-        const info = DataStorageTypeModel.getInfo(value as never);
+        const info = DataDestinationTypeModel.getInfo(value as never);
         return info.displayName;
       },
     }
@@ -75,27 +75,27 @@ export function buildDataStorageTableFilters(
 
   return [
     {
-      id: DataStorageColumnKey.TITLE,
-      label: dataStorageColumnLabels[DataStorageColumnKey.TITLE],
+      id: DataDestinationColumnKey.TITLE,
+      label: dataDestinationColumnLabels[DataDestinationColumnKey.TITLE],
       dataType: 'string',
       operators: ['contains', 'not_contains', 'eq', 'neq'],
-      options: storageTitleOptions,
+      options: titleOptions,
     },
     {
-      id: DataStorageColumnKey.TYPE,
-      label: dataStorageColumnLabels[DataStorageColumnKey.TYPE],
+      id: DataDestinationColumnKey.TYPE,
+      label: dataDestinationColumnLabels[DataDestinationColumnKey.TYPE],
       dataType: 'enum',
       operators: ['eq', 'neq'],
       options: typeOptions,
     },
     {
-      id: DataStorageColumnKey.CREATED_BY,
-      label: dataStorageColumnLabels[DataStorageColumnKey.CREATED_BY],
+      id: DataDestinationColumnKey.CREATED_BY,
+      label: dataDestinationColumnLabels[DataDestinationColumnKey.CREATED_BY],
       dataType: 'enum',
       operators: ['eq', 'neq'],
       options: collectOptionsFromData(
         data,
-        dataStorageFilterAccessors[DataStorageColumnKey.CREATED_BY],
+        dataDestinationFilterAccessors[DataDestinationColumnKey.CREATED_BY],
         { labelMapper: userLabelMapper }
       ),
     },

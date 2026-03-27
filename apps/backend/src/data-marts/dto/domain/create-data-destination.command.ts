@@ -6,6 +6,7 @@ export class CreateDataDestinationCommand {
     public readonly projectId: string,
     public readonly title: string,
     public readonly type: DataDestinationType,
+    public readonly userId: string,
     public readonly credentials?: DataDestinationCredentials,
     public readonly credentialId?: string,
     public readonly sourceDestinationId?: string

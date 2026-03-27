@@ -19,6 +19,7 @@ import {
 } from '../services/credential-type-resolver';
 import type { StoredStorageCredentials } from '../entities/stored-storage-credentials.type';
 import { CopyCredentialService } from '../services/copy-credential.service';
+import { UserProjectionsFetcherService } from '../services/user-projections-fetcher.service';
 
 @Injectable()
 export class UpdateDataStorageService {
@@ -29,7 +30,8 @@ export class UpdateDataStorageService {
     private readonly dataStorageMapper: DataStorageMapper,
     private readonly dataStorageAccessFacade: DataStorageAccessValidatorFacade,
     private readonly dataStorageCredentialService: DataStorageCredentialService,
-    private readonly copyCredentialService: CopyCredentialService
+    private readonly copyCredentialService: CopyCredentialService,
+    private readonly userProjectionsFetcherService: UserProjectionsFetcherService
   ) {}
 
   @Transactional()
@@ -84,7 +86,9 @@ export class UpdateDataStorageService {
         dataStorageEntity.title = command.title;
       }
       const updatedDataStorageEntity = await this.dataStorageRepository.save(dataStorageEntity);
-      return this.dataStorageMapper.toDomainDto(updatedDataStorageEntity);
+      const createdByUser =
+        await this.userProjectionsFetcherService.fetchCreatedByUser(updatedDataStorageEntity);
+      return this.dataStorageMapper.toDomainDto(updatedDataStorageEntity, 0, 0, createdByUser);
     }
 
     let credentialsToCheck: DataStorageCredentials | undefined = command.credentials;
@@ -158,6 +162,8 @@ export class UpdateDataStorageService {
     }
 
     const updatedDataStorageEntity = await this.dataStorageRepository.save(dataStorageEntity);
-    return this.dataStorageMapper.toDomainDto(updatedDataStorageEntity);
+    const createdByUser =
+      await this.userProjectionsFetcherService.fetchCreatedByUser(updatedDataStorageEntity);
+    return this.dataStorageMapper.toDomainDto(updatedDataStorageEntity, 0, 0, createdByUser);
   }
 }

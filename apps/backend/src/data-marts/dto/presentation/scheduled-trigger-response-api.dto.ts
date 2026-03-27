@@ -1,6 +1,7 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { ScheduledTriggerConfig } from '../../scheduled-trigger-types/scheduled-trigger-config.type';
 import { ScheduledTriggerType } from '../../scheduled-trigger-types/enums/scheduled-trigger-type.enum';
+import { UserProjectionDto } from '../../../idp/dto/domain/user-projection.dto';
 
 export class ScheduledTriggerResponseApiDto {
   @ApiProperty({ example: '9cabc24e-1234-4a5a-8b12-abcdef123456' })
@@ -35,4 +36,7 @@ export class ScheduledTriggerResponseApiDto {
 
   @ApiProperty({ example: '2024-01-02T15:30:00.000Z' })
   modifiedAt: Date;
+
+  @ApiProperty({ type: UserProjectionDto, required: false, nullable: true })
+  createdByUser?: UserProjectionDto | null;
 }

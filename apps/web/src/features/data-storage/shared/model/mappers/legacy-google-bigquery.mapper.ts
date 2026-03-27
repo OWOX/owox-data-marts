@@ -24,6 +24,7 @@ export class LegacyGoogleBigQueryMapper implements StorageMapper {
       type: DataStorageType.LEGACY_GOOGLE_BIGQUERY,
       createdAt: new Date(dto.createdAt),
       modifiedAt: new Date(dto.modifiedAt),
+      createdByUser: dto.createdByUser,
       credentials: {
         serviceAccount: serviceAccountJson,
         credentialId: dto.credentialId,

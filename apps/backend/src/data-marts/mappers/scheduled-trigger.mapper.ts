@@ -10,13 +10,18 @@ import { CreateScheduledTriggerRequestApiDto } from '../dto/presentation/create-
 import { ScheduledTriggerResponseApiDto } from '../dto/presentation/scheduled-trigger-response-api.dto';
 import { UpdateScheduledTriggerRequestApiDto } from '../dto/presentation/update-scheduled-trigger-request-api.dto';
 import { DataMartScheduledTrigger } from '../entities/data-mart-scheduled-trigger.entity';
+import { UserProjectionDto } from '../../idp/dto/domain/user-projection.dto';
+import { UserProjectionsListDto } from '../../idp/dto/domain/user-projections-list.dto';
 
 /**
  * Mapper for scheduled trigger entities and DTOs
  */
 @Injectable()
 export class ScheduledTriggerMapper {
-  toDomainDto(entity: DataMartScheduledTrigger): ScheduledTriggerDto {
+  toDomainDto(
+    entity: DataMartScheduledTrigger,
+    createdByUser: UserProjectionDto | null = null
+  ): ScheduledTriggerDto {
     return new ScheduledTriggerDto(
       entity.id,
       entity.type,
@@ -28,12 +33,21 @@ export class ScheduledTriggerMapper {
       entity.createdById,
       entity.createdAt,
       entity.modifiedAt,
-      entity.triggerConfig
+      entity.triggerConfig,
+      createdByUser
     );
   }
 
-  toDomainDtoList(entities: DataMartScheduledTrigger[]): ScheduledTriggerDto[] {
-    return entities.map(entity => this.toDomainDto(entity));
+  toDomainDtoList(
+    entities: DataMartScheduledTrigger[],
+    userProjectionsList?: UserProjectionsListDto
+  ): ScheduledTriggerDto[] {
+    return entities.map(entity =>
+      this.toDomainDto(
+        entity,
+        entity.createdById ? (userProjectionsList?.getByUserId(entity.createdById) ?? null) : null
+      )
+    );
   }
 
   toResponse(dto: ScheduledTriggerDto): ScheduledTriggerResponseApiDto {
@@ -49,6 +63,7 @@ export class ScheduledTriggerMapper {
       createdById: dto.createdById,
       createdAt: dto.createdAt,
       modifiedAt: dto.modifiedAt,
+      createdByUser: dto.createdByUser,
     };
   }
 

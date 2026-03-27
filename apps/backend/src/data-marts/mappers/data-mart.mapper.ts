@@ -379,7 +379,7 @@ export class DataMartMapper {
 
   toDataMartRunDto(
     entity: DataMartRun,
-    userProjection?: UserProjectionDto | undefined
+    userProjection: UserProjectionDto | null = null
   ): DataMartRunDto {
     return new DataMartRunDto(
       entity.id,
@@ -400,7 +400,7 @@ export class DataMartMapper {
       entity.createdAt,
       entity.startedAt || null,
       entity.finishedAt || null,
-      userProjection || null
+      userProjection
     );
   }
 
@@ -410,8 +410,8 @@ export class DataMartMapper {
   ): DataMartRunDto[] {
     return entities.map(entity => {
       const projection = entity.createdById
-        ? userProjections.getByUserId(entity.createdById)
-        : undefined;
+        ? (userProjections.getByUserId(entity.createdById) ?? null)
+        : null;
       return this.toDataMartRunDto(entity, projection);
     });
   }

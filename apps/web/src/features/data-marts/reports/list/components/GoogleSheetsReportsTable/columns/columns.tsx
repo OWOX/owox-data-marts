@@ -6,6 +6,7 @@ import { GoogleSheetsActionsCell } from '../GoogleSheetsActionsCell';
 import type { DataMartReport } from '../../../../shared/model/types/data-mart-report';
 import { ReportColumnKey } from './columnKeys';
 import { ReportColumnLabels } from './columnLabels';
+import { UserReference } from '../../../../../../../shared/components/UserReference';
 
 interface GoogleSheetsTableColumnsProps {
   onDeleteSuccess?: () => void;
@@ -65,6 +66,27 @@ export const getGoogleSheetsColumns = ({
       ) : (
         <span className='text-muted-foreground text-sm'>&mdash;</span>
       ),
+  },
+  {
+    id: ReportColumnKey.CREATED_BY,
+    accessorFn: row => {
+      const u = row.createdByUser;
+      return u?.fullName ?? u?.email;
+    },
+    size: 200,
+    meta: {
+      title: ReportColumnLabels[ReportColumnKey.CREATED_BY],
+    },
+    header: ({ column }) => (
+      <SortableHeader column={column}>
+        {ReportColumnLabels[ReportColumnKey.CREATED_BY]}
+      </SortableHeader>
+    ),
+    cell: ({ row }) => {
+      const user = row.original.createdByUser;
+      if (!user) return <span className='text-muted-foreground'>-</span>;
+      return <UserReference userProjection={user} />;
+    },
   },
   {
     id: 'actions',
