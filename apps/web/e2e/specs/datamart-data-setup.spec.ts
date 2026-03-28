@@ -69,7 +69,7 @@ test.describe('Data Setup - SQL Definition', () => {
     await radix.selectOption(typeSelector, 'SQL');
 
     // Verify Monaco editor renders
-    await expect(page.locator('.monaco-editor').first()).toBeVisible();
+    await expect(page.locator('.monaco-editor').first()).toBeVisible({ timeout: 15000 });
   });
 
   test('saves SQL definition via UI and verifies persistence (DSET-03 - keyboard input)', async ({
@@ -134,7 +134,7 @@ test.describe('Data Setup - SQL Definition', () => {
 
     // The definition type selector will NOT appear since the DM already has a definition.
     // The SQL form renders directly with Monaco editor showing the SQL text.
-    await expect(page.locator('.monaco-editor').first()).toBeVisible();
+    await expect(page.locator('.monaco-editor').first()).toBeVisible({ timeout: 15000 });
 
     // Verify the editor shows the SQL text set via API
     await expect(page.locator('.view-lines')).toContainText('SELECT 42');

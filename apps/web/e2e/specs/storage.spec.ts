@@ -244,20 +244,19 @@ test.describe('Storage Delete', () => {
     await page.goto('/ui/0/data-storages');
     await expect(page.getByTestId(TESTIDS.storageListPage)).toBeVisible();
 
-    // Capture the total row count from the pagination info (e.g., "1-15 of 45 rows")
-    const paginationText = page.getByText(/of \d+ rows/);
-    const textBefore = await paginationText.textContent();
-    const totalBefore = Number(textBefore!.match(/of (\d+) rows/)![1]);
+    // Verify the storage row exists (UI renders human-readable "Google BigQuery")
+    const row = page.locator('tr', { hasText: 'Google BigQuery' }).first();
+    await expect(row).toBeVisible();
 
-    // Open 3-dot menu and click Delete
-    await page.getByRole('button', { name: 'Open menu' }).first().click();
+    // Hover to reveal the 3-dot menu, then click Delete
+    await row.hover();
+    await row.getByRole('button', { name: 'Open menu' }).click();
     await page.getByTestId(TESTIDS.storageDeleteButton).click();
 
     // Confirm deletion in the dialog
     await radix.confirmDialog('Delete');
 
-    // Verify the total row count decreased by one (handles pagination)
-    const expectedTotal = totalBefore - 1;
-    await expect(paginationText).toContainText(`of ${expectedTotal} rows`);
+    // Verify the row disappears
+    await expect(row).not.toBeVisible({ timeout: 10000 });
   });
 });

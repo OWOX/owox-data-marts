@@ -150,6 +150,7 @@
     "collectCoverageFrom": ["**/*.(t|j)s"],
     "coverageDirectory": "../coverage",
     "testEnvironment": "node",
+    "workerIdleMemoryLimit": "512MB",
     "moduleNameMapper": {
       "^src/(.*)$": "<rootDir>/$1"
     }

@@ -4,6 +4,42 @@ import { randomUUID } from 'crypto';
 import { createRequire } from 'module';
 
 /**
+ * Deletes all rows from all non-system tables in the SQLite DB.
+ * Prevents data leakage between spec files that causes flaky tests.
+ */
+export function resetDatabase(): void {
+  const dbPath = process.env.SQLITE_DB_PATH;
+  if (!dbPath) return; // skip if no DB path (e.g. :memory:)
+
+  const absPath = resolve(dbPath);
+  const esmRequire = createRequire(import.meta.url);
+  const Database = esmRequire('better-sqlite3');
+
+  let db;
+  try {
+    db = new Database(absPath);
+  } catch {
+    return; // DB file doesn't exist yet
+  }
+
+  try {
+    const tables = db
+      .prepare(
+        "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' AND name != 'migrations'"
+      )
+      .all() as { name: string }[];
+
+    db.pragma('foreign_keys = OFF');
+    for (const { name } of tables) {
+      db.prepare(`DELETE FROM "${name}"`).run();
+    }
+    db.pragma('foreign_keys = ON');
+  } finally {
+    db.close();
+  }
+}
+
+/**
  * Seeds storage config and a dummy credential directly in the SQLite DB.
  * Required for CONNECTOR definitions — the update-storage API validates
  * against real cloud services, so we bypass it by writing to the DB file.
