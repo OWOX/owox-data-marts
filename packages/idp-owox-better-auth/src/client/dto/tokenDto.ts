@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
 /** OAuth grant types supported by Identity OWOX. */
-export type GrantType = 'authorization_code' | 'refresh_token' | 'google_sheets_extension';
+export type GrantType = 'authorization_code' | 'refresh_token';
 
 /** Token request payload for Identity OWOX. */
 export interface TokenRequest {
