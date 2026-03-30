@@ -53,23 +53,25 @@ export function ScheduledTriggerTable({
 
   return (
     <>
-      <BaseTable
-        tableId={tableId}
-        table={table}
-        ariaLabel='Scheduled Triggers'
-        showPagination={true}
-        paginationProps={{
-          displaySelected: false,
-        }}
-        renderEmptyState={() => (
-          <span role='status' aria-live='polite'>
-            No scheduled triggers yet. Create a trigger to automate data updates
-          </span>
-        )}
-        onRowClick={row => {
-          onEditTrigger(row.original.id);
-        }}
-      />
+      <div data-testid='triggerTable'>
+        <BaseTable
+          tableId={tableId}
+          table={table}
+          ariaLabel='Scheduled Triggers'
+          showPagination={true}
+          paginationProps={{
+            displaySelected: false,
+          }}
+          renderEmptyState={() => (
+            <span role='status' aria-live='polite' data-testid='triggerEmptyState'>
+              No scheduled triggers yet. Create a trigger to automate data updates
+            </span>
+          )}
+          onRowClick={row => {
+            onEditTrigger(row.original.id);
+          }}
+        />
+      </div>
       <ScheduledTriggerFormSheet
         isOpen={isFormSheetOpen}
         onClose={handleCloseFormSheet}

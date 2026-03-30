@@ -39,7 +39,7 @@ export function NotificationSettingsTable({
   };
 
   return (
-    <div className='dm-card'>
+    <div className='dm-card' data-testid='notifSettingsTable'>
       <BaseTable
         tableId='notification-settings-table'
         table={table}

@@ -115,7 +115,9 @@ export function DataDestinationTable<TData, TValue>({
           </>
         )}
         renderToolbarRight={() => (
-          <TableCTAButton onClick={onOpenTypeDialog}>New Destination</TableCTAButton>
+          <TableCTAButton data-testid='destCreateButton' onClick={onOpenTypeDialog}>
+            New Destination
+          </TableCTAButton>
         )}
       />
     </div>

@@ -122,6 +122,7 @@ export function getNotificationSettingsColumns({
       ),
       cell: ({ row }) => (
         <Switch
+          data-testid='notifToggle'
           checked={row.original.enabled}
           onCheckedChange={checked => {
             void onToggleEnabled(row.original, checked);

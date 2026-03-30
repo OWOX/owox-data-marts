@@ -159,7 +159,7 @@ export function RunItem({
       </div>
 
       {isExpanded && (
-        <div className='border-border bg-muted/30 space-y-4 border-t p-4'>
+        <div className='border-border bg-muted/30 space-y-4 border-t p-4' data-testid='runLogView'>
           <div className='flex items-center'>
             <h3 className='text-foreground mr-2 font-medium'>Run ID: {run.id}</h3>
             <CopyButton

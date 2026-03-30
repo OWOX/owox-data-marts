@@ -14,7 +14,7 @@
   "scripts": {
     "build": "tsc",
     "clean": "shx rm -rf dist",
-    "test": "jest",
+    "test": "jest --passWithNoTests",
     "lint": "eslint . --config ./eslint.config.js",
     "lint:fix": "eslint . --fix --config ./eslint.config.js",
     "format": "prettier --write \"**/*.{ts,js,json,md}\" --ignore-path ../../.prettierignore",

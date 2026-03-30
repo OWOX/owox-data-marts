@@ -58,7 +58,8 @@
     "prepare": "husky",
     "setup:husky": "node tools/setup-husky.mjs",
     "test": "npm run test --workspaces --if-present",
-    "test:coverage": "npm run test:coverage --workspaces --if-present"
+    "test:coverage": "npm run test:coverage --workspaces --if-present",
+    "test:clean": "npx -y shx rm -rf apps/web/playwright-report apps/web/test-results coverage apps/*/coverage packages/*/coverage"
   },
   "devDependencies": {
     "@changesets/cli": "^2.29.5",

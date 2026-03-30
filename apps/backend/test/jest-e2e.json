@@ -4,6 +4,36 @@
   "testEnvironment": "node",
   "testRegex": ".e2e-spec.ts$",
   "transform": {
-    "^.+\\.(t|j)s$": "ts-jest"
-  }
+    "^.+\\.(t|j)s$": [
+      "ts-jest",
+      {
+        "diagnostics": false,
+        "tsconfig": {
+          "module": "commonjs",
+          "moduleResolution": "node",
+          "declaration": true,
+          "emitDecoratorMetadata": true,
+          "experimentalDecorators": true,
+          "allowSyntheticDefaultImports": true,
+          "target": "ES2023",
+          "sourceMap": true,
+          "skipLibCheck": true,
+          "strictNullChecks": true,
+          "esModuleInterop": true,
+          "allowJs": true,
+          "resolveJsonModule": true
+        }
+      }
+    ]
+  },
+  "transformIgnorePatterns": [
+    "<rootDir>/../../../node_modules/(?!(rehype-|remark|hast-util-|unified|unist-|mdast-util-|micromark|vfile|bail|is-plain-obj|trough|devlop|property-information|comma-separated-tokens|space-separated-tokens|zwitch|html-void-elements|web-namespaces|ccount|character-entities|decode-named-character-reference|stringify-entities|longest-streak|markdown-table|trim-lines|env-paths|@owox)/)"
+  ],
+  "moduleNameMapper": {
+    "^src/(.*)$": "<rootDir>/../src/$1",
+    "^@owox/test-utils$": "<rootDir>/../../../packages/test-utils/src",
+    "^@owox/internal-helpers$": "<rootDir>/../../../packages/internal-helpers/src"
+  },
+  "testTimeout": 120000,
+  "resolver": "<rootDir>/jest-e2e-resolver.js"
 }

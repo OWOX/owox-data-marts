@@ -24,7 +24,7 @@ export default function DataMartDataSetupContent() {
   const [sqlRevalidateVersion, setSqlRevalidateVersion] = useState(0);
 
   return (
-    <div className={'flex flex-col gap-4'}>
+    <div className={'flex flex-col gap-4'} data-testid='datamartTabDataSetup'>
       <CollapsibleCard collapsible name={'data-storage'}>
         <CollapsibleCardHeader>
           <CollapsibleCardHeaderTitle

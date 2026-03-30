@@ -9,7 +9,7 @@ import { HistoryIcon } from 'lucide-react';
 
 export default function DataMartRunHistoryContent() {
   return (
-    <div className='flex flex-col gap-4'>
+    <div className='flex flex-col gap-4' data-testid='runHistoryTab'>
       <CollapsibleCard collapsible={false} name='run-history'>
         <CollapsibleCardHeader>
           <CollapsibleCardHeaderTitle

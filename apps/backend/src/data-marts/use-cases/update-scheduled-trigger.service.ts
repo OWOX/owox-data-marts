@@ -36,7 +36,13 @@ export class UpdateScheduledTriggerService {
     trigger.cronExpression = command.cronExpression;
     trigger.timeZone = command.timeZone;
     if (command.isActive) {
-      trigger.scheduleNextRun();
+      try {
+        trigger.scheduleNextRun();
+      } catch {
+        throw new BusinessViolationException('Invalid cron expression', {
+          cronExpression: command.cronExpression,
+        });
+      }
     } else {
       trigger.discardNextRun();
     }

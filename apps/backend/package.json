@@ -58,6 +58,7 @@
     "test:cov": "jest --coverage",
     "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
     "test:e2e": "jest --config ./test/jest-e2e.json",
+    "test:integration": "jest --config ./test/jest-integration.json",
     "migrations:create-template": "ts-node commands/create-migration-template-command.ts",
     "dump:create": "ts-node commands/create-dump-command.ts",
     "dump:apply": "ts-node commands/apply-dump-command.ts"
@@ -136,7 +137,8 @@
     "ts-loader": "^9.5.2",
     "ts-node": "^10.9.2",
     "tsconfig-paths": "^4.2.0",
-    "typeorm-ts-node-commonjs": "^0.3.20"
+    "typeorm-ts-node-commonjs": "^0.3.20",
+    "@owox/test-utils": "*"
   },
   "jest": {
     "moduleFileExtensions": ["js", "json", "ts"],

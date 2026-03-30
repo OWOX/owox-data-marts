@@ -33,7 +33,7 @@ export default function DataMartOverviewContent() {
   const { dataMart, updateDataMartOwners, projectId } = useOutletContext<OutletContextType>();
 
   return (
-    <div className='flex flex-col gap-4'>
+    <div data-testid='datamartTabOverview' className='flex flex-col gap-4'>
       <CollapsibleCard collapsible name='owners'>
         <CollapsibleCardHeader>
           <CollapsibleCardHeaderTitle icon={Users} tooltip='Data mart ownership and responsibility'>

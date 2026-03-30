@@ -47,29 +47,31 @@ export function DestinationCard({ destination, dataMartStatus }: DestinationCard
   return (
     <>
       {/* Collapsible card container for a single destination */}
-      <CollapsibleCard name={destination.id} collapsible defaultCollapsed={false}>
-        <CollapsibleCardHeader>
-          {/* Card title with destination icon */}
-          <CollapsibleCardHeaderTitle icon={destinationInfo.icon}>
-            {destination.title}
-          </CollapsibleCardHeaderTitle>
+      <div data-testid='destCard'>
+        <CollapsibleCard name={destination.id} collapsible defaultCollapsed={false}>
+          <CollapsibleCardHeader>
+            {/* Card title with destination icon */}
+            <CollapsibleCardHeaderTitle icon={destinationInfo.icon}>
+              {destination.title}
+            </CollapsibleCardHeaderTitle>
 
-          {/* Actions */}
-          <CollapsibleCardHeaderActions>
-            {/* Render AddReportButton only for Google Sheets*/}
-            {reportDestinationTypes.includes(destination.type) && (
-              <AddReportButton dataMartStatus={dataMartStatus} onAddReport={handleAddReport} />
-            )}
-          </CollapsibleCardHeaderActions>
-        </CollapsibleCardHeader>
+            {/* Actions */}
+            <CollapsibleCardHeaderActions>
+              {/* Render AddReportButton only for Google Sheets*/}
+              {reportDestinationTypes.includes(destination.type) && (
+                <AddReportButton dataMartStatus={dataMartStatus} onAddReport={handleAddReport} />
+              )}
+            </CollapsibleCardHeaderActions>
+          </CollapsibleCardHeader>
 
-        {/* Reports list table */}
-        <CollapsibleCardContent>
-          <ReportListRenderer destination={destination} onEditReport={handleEditReport} />
-        </CollapsibleCardContent>
+          {/* Reports list table */}
+          <CollapsibleCardContent>
+            <ReportListRenderer destination={destination} onEditReport={handleEditReport} />
+          </CollapsibleCardContent>
 
-        <CollapsibleCardFooter />
-      </CollapsibleCard>
+          <CollapsibleCardFooter />
+        </CollapsibleCard>
+      </div>
 
       {/* Single Report Modal (used for both Add and Edit modes) */}
       <ReportEditSheetRenderer
