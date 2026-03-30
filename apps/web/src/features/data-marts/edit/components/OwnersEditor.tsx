@@ -4,7 +4,7 @@ import { Input } from '@owox/ui/components/input';
 import { Label } from '@owox/ui/components/label';
 import { Popover, PopoverContent, PopoverTrigger } from '@owox/ui/components/popover';
 import { Skeleton } from '@owox/ui/components/skeleton';
-import { AlertTriangle, Pencil, Search, User } from 'lucide-react';
+import { AlertTriangle, Pencil, Plus, Search, User } from 'lucide-react';
 
 import { Button } from '../../../../shared/components/Button';
 import { UserAvatarGroup } from '../../../../shared/components/UserAvatarGroup/UserAvatarGroup';
@@ -120,16 +120,31 @@ export function OwnersEditor({ ownerUsers, onSave, projectId }: OwnersEditorProp
           )}
         </div>
       ) : (
-        <span className='text-muted-foreground text-sm'>—</span>
+        <></>
       )}
       <Popover open={isOpen} onOpenChange={handleOpenChange}>
         <PopoverTrigger asChild>
-          <Button variant='ghost' size='sm' className='h-7 w-7 p-0'>
-            <Pencil className='h-3.5 w-3.5' />
-          </Button>
+          {ownerUsers.length > 0 ? (
+            <Button
+              variant='ghost'
+              size='sm'
+              className='text-muted-foreground hover:text-foreground rounded-full'
+            >
+              <Pencil className='size-4' />
+            </Button>
+          ) : (
+            <Button
+              variant='outline'
+              size='sm'
+              className='text-muted-foreground hover:text-foreground rounded-full'
+            >
+              <Plus className='size-4' />
+              Add owner
+            </Button>
+          )}
         </PopoverTrigger>
-        <PopoverContent align='start' className='w-80 p-3'>
-          <div className='mb-2 text-sm font-medium'>Select owners</div>
+        <PopoverContent align='start' className='w-96 p-4'>
+          <div className='mb-3 border-b pb-3 text-sm font-medium'>Owners</div>
           {isMembersLoading ? (
             <div className='space-y-2'>
               {[1, 2, 3].map(i => (
@@ -151,7 +166,7 @@ export function OwnersEditor({ ownerUsers, onSave, projectId }: OwnersEditorProp
                   />
                 </div>
               )}
-              <div className='max-h-60 space-y-1 overflow-y-auto'>
+              <div className='max-h-64 space-y-2 overflow-y-auto'>
                 {filteredActiveMembers.map((member: ProjectMember) => (
                   <MemberCheckbox
                     key={member.userId}
@@ -187,14 +202,19 @@ export function OwnersEditor({ ownerUsers, onSave, projectId }: OwnersEditorProp
             </>
           )}
           {addColleaguesHref && (
-            <a
-              href={addColleaguesHref}
-              target={addColleaguesHref.startsWith('http') ? '_blank' : undefined}
-              rel={addColleaguesHref.startsWith('http') ? 'noopener noreferrer' : undefined}
-              className='text-primary mt-2 block text-xs hover:underline'
-            >
-              Add colleagues
-            </a>
+            <div className='mt-3 border-t pt-2'>
+              <div className='flex'>
+                <a
+                  href={addColleaguesHref}
+                  target={addColleaguesHref.startsWith('http') ? '_blank' : undefined}
+                  rel={addColleaguesHref.startsWith('http') ? 'noopener noreferrer' : undefined}
+                  className='text-muted-foreground hover:text-foreground hover:bg-muted/80 dark:hover:bg-muted/20 flex items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors'
+                >
+                  <Plus className='size-4' />
+                  Add members to project
+                </a>
+              </div>
+            </div>
           )}
         </PopoverContent>
       </Popover>
@@ -212,7 +232,7 @@ function MemberCheckbox({
   onToggle: (userId: string, checked: boolean) => void;
 }) {
   return (
-    <div className='hover:bg-muted/50 flex items-center gap-2 rounded-md p-1.5'>
+    <div className='hover:bg-muted/80 dark:hover:bg-muted/20 flex w-full items-center gap-2 rounded-md px-2 py-1.5'>
       <Checkbox
         id={`owner-${member.userId}`}
         checked={isSelected}
@@ -228,7 +248,7 @@ function MemberCheckbox({
         />
       ) : (
         <div className='bg-muted text-muted-foreground flex h-6 w-6 items-center justify-center rounded-full text-xs'>
-          <User className='h-3 w-3' />
+          <User className='h-4 w-4' />
         </div>
       )}
       <Label
@@ -236,7 +256,7 @@ function MemberCheckbox({
         className='flex flex-1 cursor-pointer items-center justify-between text-sm'
       >
         <span className='truncate'>{member.displayName ?? member.email}</span>
-        <span className='text-muted-foreground ml-1 text-xs font-normal capitalize'>
+        <span className='text-muted-foreground/75 ml-1 text-xs font-normal capitalize'>
           {member.role}
         </span>
       </Label>

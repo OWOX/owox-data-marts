@@ -9,8 +9,9 @@ import {
   CollapsibleCardContent,
   CollapsibleCardFooter,
 } from '../../../shared/components/CollapsibleCard';
-import { BookOpenIcon, Clock, Users } from 'lucide-react';
+import { BookOpenIcon, CalendarIcon, Info, Users } from 'lucide-react';
 import type { UserProjectionDto } from '../../../shared/types/api';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@owox/ui/components/tooltip';
 
 interface OutletContextType {
   dataMart: {
@@ -34,18 +35,39 @@ export default function DataMartOverviewContent() {
 
   return (
     <div data-testid='datamartTabOverview' className='flex flex-col gap-4'>
-      <CollapsibleCard collapsible name='owners'>
+      <CollapsibleCard collapsible name='dm-owners'>
         <CollapsibleCardHeader>
-          <CollapsibleCardHeaderTitle icon={Users} tooltip='Data mart ownership and responsibility'>
-            Owners
+          <CollapsibleCardHeaderTitle
+            icon={Users}
+            tooltip='Define who owns and maintains this Data Mart'
+          >
+            Ownership
           </CollapsibleCardHeaderTitle>
         </CollapsibleCardHeader>
         <CollapsibleCardContent>
-          <div className='flex flex-col gap-4 pb-4'>
-            <div className='flex items-center gap-2'>
-              <span className='text-muted-foreground w-36 text-sm whitespace-nowrap'>
-                Technical Owner
-              </span>
+          <div className='flex gap-4'>
+            <div className='group flex w-full flex-col gap-4 rounded-md border-b border-gray-200 bg-white p-4 transition-shadow duration-200 hover:shadow-xs dark:border-0 dark:bg-white/2'>
+              <div className='text-foreground flex items-center justify-between gap-2 text-sm font-medium'>
+                <span>Technical Owner</span>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button
+                      type='button'
+                      tabIndex={-1}
+                      className='pointer-events-none opacity-0 transition group-hover:pointer-events-auto group-hover:opacity-100'
+                      aria-label='Help information'
+                    >
+                      <Info
+                        className='text-muted-foreground/50 hover:text-muted-foreground size-4 shrink-0 transition-colors'
+                        aria-hidden='true'
+                      />
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent side='top' align='center' role='tooltip'>
+                    Responsible for data sources and schema
+                  </TooltipContent>
+                </Tooltip>
+              </div>
               <OwnersEditor
                 ownerUsers={dataMart.technicalOwnerUsers}
                 projectId={projectId}
@@ -58,10 +80,28 @@ export default function DataMartOverviewContent() {
                 }}
               />
             </div>
-            <div className='flex items-center gap-2'>
-              <span className='text-muted-foreground w-36 text-sm whitespace-nowrap'>
-                Business Owner
-              </span>
+            <div className='group flex w-full flex-col gap-4 rounded-md border-b border-gray-200 bg-white p-4 transition-shadow duration-200 hover:shadow-xs dark:border-0 dark:bg-white/2'>
+              <div className='text-foreground flex items-center justify-between gap-2 text-sm font-medium'>
+                <span>Business Owner</span>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button
+                      type='button'
+                      tabIndex={-1}
+                      className='pointer-events-none opacity-0 transition group-hover:pointer-events-auto group-hover:opacity-100'
+                      aria-label='Help information'
+                    >
+                      <Info
+                        className='text-muted-foreground/50 hover:text-muted-foreground size-4 shrink-0 transition-colors'
+                        aria-hidden='true'
+                      />
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent side='top' align='center' role='tooltip'>
+                    Responsible for business requirements
+                  </TooltipContent>
+                </Tooltip>
+              </div>
               <OwnersEditor
                 ownerUsers={dataMart.businessOwnerUsers}
                 projectId={projectId}
@@ -79,9 +119,9 @@ export default function DataMartOverviewContent() {
         <CollapsibleCardFooter></CollapsibleCardFooter>
       </CollapsibleCard>
 
-      <CollapsibleCard>
+      <CollapsibleCard collapsible name='dm-description'>
         <CollapsibleCardHeader>
-          <CollapsibleCardHeaderTitle icon={BookOpenIcon} tooltip='Description of the Data Mart'>
+          <CollapsibleCardHeaderTitle icon={BookOpenIcon} tooltip='Description of this Data Mart'>
             Description
           </CollapsibleCardHeaderTitle>
         </CollapsibleCardHeader>
@@ -91,32 +131,80 @@ export default function DataMartOverviewContent() {
         <CollapsibleCardFooter></CollapsibleCardFooter>
       </CollapsibleCard>
 
-      <CollapsibleCard collapsible name='created'>
+      <CollapsibleCard collapsible name='dm-details'>
         <CollapsibleCardHeader>
-          <CollapsibleCardHeaderTitle icon={Clock} tooltip='Data mart creation details'>
-            Created
+          <CollapsibleCardHeaderTitle icon={Info} tooltip='Metadata and additional details'>
+            Details
           </CollapsibleCardHeaderTitle>
         </CollapsibleCardHeader>
         <CollapsibleCardContent>
-          <div className='flex flex-col gap-4 pb-4'>
-            <div className='flex items-center gap-2'>
-              <span className='text-muted-foreground w-36 text-sm whitespace-nowrap'>
-                Created at
-              </span>
-              <span className='text-sm'>
-                {new Intl.DateTimeFormat('en-US', {
-                  year: 'numeric',
-                  month: 'short',
-                  day: 'numeric',
-                }).format(new Date(dataMart.createdAt))}
-              </span>
+          <div className='flex gap-4'>
+            <div className='group flex w-full flex-col gap-4 rounded-md border-b border-gray-200 bg-white p-4 transition-shadow duration-200 hover:shadow-xs dark:border-0 dark:bg-white/2'>
+              <div className='text-foreground flex items-center justify-between gap-2 text-sm font-medium'>
+                <span>Created On</span>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button
+                      type='button'
+                      tabIndex={-1}
+                      className='pointer-events-none opacity-0 transition group-hover:pointer-events-auto group-hover:opacity-100'
+                      aria-label='Help information'
+                    >
+                      <Info
+                        className='text-muted-foreground/50 hover:text-muted-foreground size-4 shrink-0 transition-colors'
+                        aria-hidden='true'
+                      />
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent side='top' align='center' role='tooltip'>
+                    When this Data Mart was created
+                  </TooltipContent>
+                </Tooltip>
+              </div>
+              <div className='flex items-center gap-2'>
+                <div className='inline-flex max-w-full items-center gap-1 rounded-full bg-neutral-100 py-1 pr-3 pl-1 dark:bg-neutral-900'>
+                  <div className='flex aspect-square h-7 w-7 items-center justify-center rounded-full border bg-white dark:bg-white/10'>
+                    <CalendarIcon
+                      className='text-muted-foreground size-3.5 shrink-0 transition-colors'
+                      aria-hidden='true'
+                    />
+                  </div>
+                  <div className='text-muted-foreground min-w-0 truncate text-sm leading-tight'>
+                    {new Intl.DateTimeFormat('en-US', {
+                      year: 'numeric',
+                      month: 'short',
+                      day: 'numeric',
+                    }).format(new Date(dataMart.createdAt))}
+                  </div>
+                </div>
+              </div>
             </div>
             {dataMart.createdByUser && (
-              <div className='flex items-center gap-2'>
-                <span className='text-muted-foreground w-36 text-sm whitespace-nowrap'>
-                  Created by
-                </span>
-                <UserReference userProjection={dataMart.createdByUser} variant='full' />
+              <div className='group flex w-full flex-col gap-4 rounded-md border-b border-gray-200 bg-white p-4 transition-shadow duration-200 hover:shadow-xs dark:border-0 dark:bg-white/2'>
+                <div className='text-foreground flex items-center justify-between gap-2 text-sm font-medium'>
+                  <span>Created By</span>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <button
+                        type='button'
+                        tabIndex={-1}
+                        className='pointer-events-none opacity-0 transition group-hover:pointer-events-auto group-hover:opacity-100'
+                        aria-label='Help information'
+                      >
+                        <Info
+                          className='text-muted-foreground/50 hover:text-muted-foreground size-4 shrink-0 transition-colors'
+                          aria-hidden='true'
+                        />
+                      </button>
+                    </TooltipTrigger>
+                    <TooltipContent side='top' align='center' role='tooltip'>
+                      The user who created this Data Mart
+                    </TooltipContent>
+                  </Tooltip>
+                </div>
+                <div className='flex items-center gap-2'>
+                  <UserReference userProjection={dataMart.createdByUser} variant='full' />
+                </div>
               </div>
             )}
           </div>
