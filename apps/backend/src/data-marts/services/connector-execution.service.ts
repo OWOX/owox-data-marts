@@ -161,7 +161,7 @@ export class ConnectorExecutionService {
       createdById,
       dataMartRunId: dataMartRun.id,
       runType,
-      payload,
+      payload: payload ? { payload } : undefined,
     });
 
     return dataMartRun.id;
