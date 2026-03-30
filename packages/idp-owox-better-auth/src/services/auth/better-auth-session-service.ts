@@ -1,7 +1,9 @@
 import { type Request } from 'express';
 import { createBetterAuthConfig } from '../../config/idp-better-auth-config.js';
-import { BETTER_AUTH_SESSION_COOKIE } from '../../core/constants.js';
+import { BETTER_AUTH_SESSION_COOKIE, SESSION_ERROR_MESSAGES } from '../../core/constants.js';
+import { SessionException } from '../../core/exceptions.js';
 import { createServiceLogger } from '../../core/logger.js';
+import { OwoxTokenFacade } from '../../facades/owox-token-facade.js';
 import { buildUserInfoPayload } from '../../mappers/user-info-payload-builder.js';
 import type { DatabaseStore } from '../../store/database-store.js';
 import { AuthSession } from '../../types/auth-session.js';
@@ -22,7 +24,8 @@ export class BetterAuthSessionService {
     private readonly auth: Awaited<ReturnType<typeof createBetterAuthConfig>>,
     private readonly store: DatabaseStore,
     private readonly platformAuthFlowClient: PlatformAuthFlowClient,
-    private readonly userAccountResolver: UserAccountResolver
+    private readonly userAccountResolver: UserAccountResolver,
+    private readonly owoxTokenFacade?: OwoxTokenFacade
   ) {}
 
   async buildUserInfoPayload(req: Request): Promise<UserInfoPayload> {
@@ -32,7 +35,12 @@ export class BetterAuthSessionService {
       const userAccountPair = await this.userAccountResolver.resolveByUserId(session.user.id);
 
       if (!userAccountPair) {
-        throw new Error(`User or account not found for session ${session.user.id}`);
+        throw new SessionException(
+          `${SESSION_ERROR_MESSAGES.USER_ACCOUNT_NOT_FOUND} ${session.user.id}`,
+          {
+            context: { userId: session.user.id },
+          }
+        );
       }
 
       const { user, account } = userAccountPair;
@@ -43,7 +51,7 @@ export class BetterAuthSessionService {
         account,
       });
     }
-    throw new Error('No session found for user info');
+    throw new SessionException(SESSION_ERROR_MESSAGES.NOT_FOUND);
   }
 
   async completeAuthFlow(req: Request): Promise<{ code: string; payload: UserInfoPayload }> {
@@ -77,7 +85,7 @@ export class BetterAuthSessionService {
     }
 
     if (!session || !session.user || !session.session) {
-      throw new Error('Failed to resolve session from Better Auth token');
+      throw new SessionException(SESSION_ERROR_MESSAGES.RESOLVE_FAILED);
     }
 
     const userAccountPair = await this.userAccountResolver.resolveByUserId(
@@ -86,7 +94,12 @@ export class BetterAuthSessionService {
     );
 
     if (!userAccountPair) {
-      throw new Error(`User or account not found for session ${session.user.id}`);
+      throw new SessionException(
+        `${SESSION_ERROR_MESSAGES.USER_ACCOUNT_NOT_FOUND} ${session.user.id}`,
+        {
+          context: { userId: session.user.id, callbackProviderId },
+        }
+      );
     }
 
     const { user, account } = userAccountPair;
@@ -149,11 +162,13 @@ export class BetterAuthSessionService {
       };
     } catch (error) {
       this.logger.error(
-        'Failed to get Better Auth session',
+        SESSION_ERROR_MESSAGES.GET_SESSION_FAILED,
         undefined,
         error instanceof Error ? error : undefined
       );
-      throw new Error('Failed to get Better Auth session');
+      throw new SessionException(SESSION_ERROR_MESSAGES.GET_SESSION_FAILED, {
+        cause: error,
+      });
     }
   }
 }

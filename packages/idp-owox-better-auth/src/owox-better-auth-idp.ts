@@ -17,6 +17,7 @@ import { createBetterAuthConfig } from './config/index.js';
 import { AuthErrorController } from './controllers/auth-error-controller.js';
 import { PageController } from './controllers/page-controller.js';
 import { PasswordFlowController } from './controllers/password-flow-controller.js';
+import { GoogleSheetsExtensionAuthController } from './controllers/google-sheets-auth.controller.js';
 import { AUTH_BASE_PATH, CORE_REFRESH_TOKEN_COOKIE, SOURCE } from './core/constants.js';
 import { AuthenticationException, IdpFailedException } from './core/exceptions.js';
 import { createServiceLogger } from './core/logger.js';
@@ -59,6 +60,7 @@ export class OwoxBetterAuthIdp implements IdpProvider {
   private readonly authErrorController: AuthErrorController;
   private readonly pageController: PageController;
   private readonly passwordFlowController: PasswordFlowController;
+  private readonly googleSheetsAuthController: GoogleSheetsExtensionAuthController;
   private readonly betterAuthSessionService: BetterAuthSessionService;
   private readonly authFlowMiddleware: AuthFlowMiddleware;
   private readonly identityClient: IdentityOwoxClient;
@@ -115,6 +117,7 @@ export class OwoxBetterAuthIdp implements IdpProvider {
       this.platformAuthFlowClient,
       userAccountResolver
     );
+    this.googleSheetsAuthController = new GoogleSheetsExtensionAuthController(this.tokenFacade);
     this.pkceFlowOrchestrator = new PkceFlowOrchestrator(
       this.config.idpOwox,
       this.tokenFacade,
@@ -193,6 +196,7 @@ export class OwoxBetterAuthIdp implements IdpProvider {
     this.onboardingController.registerRoutes(app);
     this.pageController.registerRoutes(app);
     this.passwordFlowController.registerRoutes(app);
+    this.googleSheetsAuthController.registerRoutes(app);
 
     app.get(
       `${AUTH_BASE_PATH}/idp-start`,

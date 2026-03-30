@@ -8,16 +8,19 @@ export {
   loadIdpOwoxConfigFromEnv,
   type BetterAuthProviderConfig,
 } from './config/index.js';
-export {
-  OwoxBetterAuthIdp,
-  OwoxBetterAuthIdp as OwoxBetterAuthProvider,
-  OwoxBetterAuthIdp as OwoxIdp,
-} from './owox-better-auth-idp.js';
+export { OwoxBetterAuthIdp } from './owox-better-auth-idp.js';
 
 // Services
 export { AuthErrorController } from './controllers/auth-error-controller.js';
 export { PageController } from './controllers/page-controller.js';
 export { PasswordFlowController } from './controllers/password-flow-controller.js';
+export { GoogleSheetsExtensionAuthController } from './controllers/google-sheets-auth.controller.js';
+export {
+  BaseException,
+  AuthenticationException,
+  ForbiddenException,
+  IdpFailedException,
+} from './core/exceptions.js';
 export { BetterAuthSessionService } from './services/auth/better-auth-session-service.js';
 export { AuthFlowMiddleware } from './services/middleware/auth-flow-middleware.js';
 export { BetterAuthProxyHandler } from './services/middleware/better-auth-proxy-handler.js';

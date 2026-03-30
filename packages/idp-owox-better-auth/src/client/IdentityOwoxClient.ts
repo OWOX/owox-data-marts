@@ -12,6 +12,7 @@ import {
   AuthFlowRequest,
   AuthFlowResponse,
   AuthFlowResponseSchema,
+  GoogleIdentityExchangeRequest,
   IntrospectionRequest,
   IntrospectionResponse,
   IntrospectionResponseSchema,
@@ -67,30 +68,44 @@ export class IdentityOwoxClient {
       const { data } = await this.http.post<TokenResponse>('/api/idp/token', req);
       return TokenResponseSchema.parse(data);
     } catch (err) {
-      if (axios.isAxiosError(err)) {
-        const status = err.response?.status;
+      this.handleAxiosError(err, { req }, 'Failed to get token');
+    }
+  }
 
-        if (status === 401) {
-          throw new AuthenticationException('Invalid or expired credentials', {
-            cause: err,
-            context: { req },
-          });
+  /**
+   * POST auth-flow/extension/identity
+   */
+  async exchangeGoogleIdentityToken(req: GoogleIdentityExchangeRequest): Promise<TokenResponse> {
+    if (
+      !this.impersonatedIdTokenFetcher ||
+      !this.c2cServiceAccountEmail ||
+      !this.c2cTargetAudience ||
+      !this.clientBackchannelPrefix
+    ) {
+      throw new IdpFailedException(
+        'C2C authentication is not configured. Cannot exchange Google identity token.',
+        { context: { req } }
+      );
+    }
+
+    try {
+      const idToken = await this.impersonatedIdTokenFetcher.getIdToken(
+        this.c2cServiceAccountEmail,
+        this.c2cTargetAudience
+      );
+
+      const { data } = await this.http.post<TokenResponse>(
+        `${this.clientBackchannelPrefix}/idp/auth-flow/extension/identity`,
+        req,
+        {
+          headers: {
+            Authorization: `Bearer ${idToken}`,
+          },
         }
-
-        if (status === 403) {
-          throw new ForbiddenException('Identity inactive or blocked', {
-            cause: err,
-            context: { req },
-          });
-        }
-
-        throw new IdpFailedException(`Failed to get token: ${status}`, {
-          cause: err,
-          context: { req },
-        });
-      }
-
-      throw err;
+      );
+      return TokenResponseSchema.parse(data);
+    } catch (err) {
+      this.handleAxiosError(err, { req }, 'Failed to exchange Google identity token');
     }
   }
 
@@ -178,17 +193,7 @@ export class IdentityOwoxClient {
       // Validate and return response
       return AuthFlowResponseSchema.parse(data);
     } catch (err) {
-      if (axios.isAxiosError(err)) {
-        const status = err.response?.status;
-        const responseData = err.response?.data;
-
-        throw new IdpFailedException(`Failed to complete auth flow: ${status}`, {
-          cause: err,
-          context: { request, status, responseData },
-        });
-      }
-
-      throw err;
+      this.handleAxiosError(err, { request }, 'Failed to complete auth flow');
     }
   }
 
@@ -224,14 +229,49 @@ export class IdentityOwoxClient {
       );
       return OwoxProjectMembersResponseSchema.parse(data);
     } catch (err) {
-      if (axios.isAxiosError(err)) {
-        const status = err.response?.status;
-        throw new IdpFailedException(`Failed to fetch project members: ${status}`, {
-          cause: err,
-          context: { projectId, status },
-        });
-      }
-      throw err;
+      this.handleAxiosError(err, { projectId }, 'Failed to fetch project members');
     }
+  }
+
+  private handleAxiosError(
+    error: unknown,
+    context: Record<string, unknown>,
+    defaultMessage: string
+  ): never {
+    if (!axios.isAxiosError(error)) {
+      throw error;
+    }
+
+    const status = error.response?.status;
+    const errorMap: Record<
+      number,
+      {
+        Exception: new (
+          message: string,
+          opts?: { cause?: unknown; context?: Record<string, unknown>; status?: number }
+        ) => Error;
+        message: string;
+      }
+    > = {
+      400: { Exception: AuthenticationException, message: 'Invalid request' },
+      401: { Exception: AuthenticationException, message: 'Invalid or expired credentials' },
+      403: { Exception: ForbiddenException, message: 'Identity inactive or blocked' },
+    };
+
+    const mapped = status ? errorMap[status] : null;
+
+    if (mapped) {
+      throw new mapped.Exception(mapped.message, {
+        cause: error,
+        context,
+        status,
+      });
+    }
+
+    throw new IdpFailedException(`${defaultMessage}${status ? `: ${status}` : ''}`, {
+      cause: error,
+      context: { ...context, responseData: error.response?.data },
+      status,
+    });
   }
 }
