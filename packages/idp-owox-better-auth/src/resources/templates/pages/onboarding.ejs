@@ -214,6 +214,14 @@
         errorEl.textContent = 'Please select at least one option.';
         return false;
       }
+      const otherCb = document.getElementById('use-case-other-cb');
+      if (otherCb && otherCb.checked) {
+        const otherText = document.getElementById('use-case-other-text');
+        if (!otherText || !otherText.value.trim()) {
+          errorEl.textContent = 'Please specify your use case in the "Other" field.';
+          return false;
+        }
+      }
       return true;
     }
     if (step === 1) {
@@ -232,6 +240,13 @@
         errorEl.textContent = 'Please select your primary role.';
         return false;
       }
+      if (checked.value === 'other') {
+        const otherText = document.getElementById('role-other-text');
+        if (!otherText || !otherText.value.trim()) {
+          errorEl.textContent = 'Please specify your role in the "Other" field.';
+          return false;
+        }
+      }
       return true;
     }
     if (step === 3) {
@@ -240,6 +255,13 @@
       if (!checked) {
         errorEl.textContent = 'Please select your primary storage.';
         return false;
+      }
+      if (checked.value === 'other') {
+        const otherText = document.getElementById('storage-other-text');
+        if (!otherText || !otherText.value.trim()) {
+          errorEl.textContent = 'Please specify your storage in the "Other" field.';
+          return false;
+        }
       }
       return true;
     }

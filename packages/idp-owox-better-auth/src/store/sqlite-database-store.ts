@@ -30,6 +30,7 @@ export class SqliteDatabaseStore implements DatabaseStore {
   private authTableReady = false;
   private projectTablesReady = false;
   private onboardingTableReady = false;
+  private userProjectOnboardingTableReady = false;
 
   constructor(private readonly dbPath: string) {}
 
@@ -601,5 +602,60 @@ export class SqliteDatabaseStore implements DatabaseStore {
       userRole: String(row.userRole),
       createdAt: this.toIso(row.createdAt),
     }));
+  }
+
+  // User Project Onboarding Status methods
+
+  private ensureUserProjectOnboardingTable(): void {
+    if (this.userProjectOnboardingTableReady) return;
+    const db = this.getDb();
+
+    db.prepare(
+      `CREATE TABLE IF NOT EXISTS onboarding_user_project (
+        biUserId TEXT NOT NULL,
+        projectId TEXT NOT NULL,
+        onboardingStatus TEXT NOT NULL,
+        createdAt TEXT NOT NULL DEFAULT (CURRENT_TIMESTAMP),
+        updatedAt TEXT NOT NULL DEFAULT (CURRENT_TIMESTAMP),
+        PRIMARY KEY (biUserId, projectId)
+      )`
+    ).run();
+
+    this.userProjectOnboardingTableReady = true;
+  }
+
+  async getUserProjectOnboardingStatus(
+    biUserId: string,
+    projectId: string
+  ): Promise<string | null> {
+    await this.connect();
+    this.ensureUserProjectOnboardingTable();
+
+    const row = this.getDb()
+      .prepare(
+        'SELECT onboardingStatus FROM onboarding_user_project WHERE biUserId = ? AND projectId = ?'
+      )
+      .get(biUserId, projectId) as { onboardingStatus: string } | undefined;
+
+    return row?.onboardingStatus ?? null;
+  }
+
+  async setUserProjectOnboardingStatus(
+    biUserId: string,
+    projectId: string,
+    status: string
+  ): Promise<void> {
+    await this.connect();
+    this.ensureUserProjectOnboardingTable();
+
+    this.getDb()
+      .prepare(
+        `INSERT INTO onboarding_user_project (biUserId, projectId, onboardingStatus)
+         VALUES (?, ?, ?)
+         ON CONFLICT(biUserId, projectId) DO UPDATE SET
+           onboardingStatus = excluded.onboardingStatus,
+           updatedAt = CURRENT_TIMESTAMP`
+      )
+      .run(biUserId, projectId, status);
   }
 }

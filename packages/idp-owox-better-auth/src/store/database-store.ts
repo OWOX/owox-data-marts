@@ -90,6 +90,22 @@ export interface DatabaseStore {
   saveOnboardingAnswers(answers: OnboardingAnswer[]): Promise<void>;
 
   /**
+   * Get the onboarding status for a specific user-project pair.
+   * Returns null if no status has been set yet.
+   */
+  getUserProjectOnboardingStatus(biUserId: string, projectId: string): Promise<string | null>;
+
+  /**
+   * Set the onboarding status for a specific user-project pair.
+   * Uses UPSERT logic: creates new record or updates existing.
+   */
+  setUserProjectOnboardingStatus(
+    biUserId: string,
+    projectId: string,
+    status: string
+  ): Promise<void>;
+
+  /**
    * Check if a user has already completed the onboarding questionnaire for a project.
    */
   hasOnboardingAnswers(userId: string, projectId: string): Promise<boolean>;

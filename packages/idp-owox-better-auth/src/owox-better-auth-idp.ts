@@ -19,6 +19,7 @@ import { PageController } from './controllers/page-controller.js';
 import { PasswordFlowController } from './controllers/password-flow-controller.js';
 import { AUTH_BASE_PATH, CORE_REFRESH_TOKEN_COOKIE, SOURCE } from './core/constants.js';
 import { AuthenticationException, IdpFailedException } from './core/exceptions.js';
+import { isPersonalEmailDomain } from './core/personal-email-domains.js';
 import { createServiceLogger } from './core/logger.js';
 import { OwoxTokenFacade } from './facades/owox-token-facade.js';
 import { BetterAuthSessionService } from './services/auth/better-auth-session-service.js';
@@ -231,6 +232,10 @@ export class OwoxBetterAuthIdp implements IdpProvider {
         const payload = await this.tokenFacade.parseToken(response.accessToken);
         if (payload) {
           try {
+            await this.onboardingService.evaluateAndSetOnboardingStatus(
+              payload.userId,
+              payload.projectId
+            );
             const shouldOnboard = await this.onboardingService.shouldShowQuestionnaire(
               payload.userId,
               payload.projectId
@@ -239,7 +244,10 @@ export class OwoxBetterAuthIdp implements IdpProvider {
               const onboardingUrl = new URL('/auth/onboarding', this.config.idpOwox.baseUrl);
               onboardingUrl.searchParams.set('redirect', '/');
               if (payload.email?.includes('@')) {
-                onboardingUrl.searchParams.set('domain', payload.email.split('@')[1]!);
+                const domain = payload.email.split('@')[1]!;
+                if (!isPersonalEmailDomain(domain)) {
+                  onboardingUrl.searchParams.set('domain', domain);
+                }
               }
               return res.redirect(onboardingUrl.toString());
             }
