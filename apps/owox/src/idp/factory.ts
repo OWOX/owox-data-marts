@@ -4,10 +4,7 @@ import {
   MySqlConfig,
   SqliteConfig,
 } from '@owox/idp-better-auth';
-import {
-  loadBetterAuthProviderConfigFromEnv,
-  OwoxBetterAuthProvider,
-} from '@owox/idp-owox-better-auth';
+import { loadBetterAuthProviderConfigFromEnv, OwoxBetterAuthIdp } from '@owox/idp-owox-better-auth';
 import { IdpConfig, IdpProvider, NullIdpProvider } from '@owox/idp-protocol';
 import { parseMysqlSslEnv } from '@owox/internal-helpers';
 
@@ -186,14 +183,14 @@ export class IdpFactory {
    * loaded from the environment. On error, logs it and exits the command.
    *
    * @param {BaseCommand} command - Command instance for logging and exiting with an error.
-   * @returns {Promise<OwoxBetterAuthProvider>} Promise resolving to an initialized OwoxBetterAuth provider.
+   * @returns {Promise<OwoxBetterAuthIdp>} Promise resolving to an initialized OwoxBetterAuth provider.
    */
   private static async createOwoxBetterAuthProvider(
     command: BaseCommand
-  ): Promise<OwoxBetterAuthProvider> {
+  ): Promise<OwoxBetterAuthIdp> {
     try {
       const config = loadBetterAuthProviderConfigFromEnv();
-      return OwoxBetterAuthProvider.create(config);
+      return OwoxBetterAuthIdp.create(config);
     } catch (error: unknown) {
       if (error instanceof Error) {
         command.error(error, { exit: 1 });
