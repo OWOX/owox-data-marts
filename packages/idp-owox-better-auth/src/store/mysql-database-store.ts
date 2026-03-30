@@ -37,6 +37,7 @@ export class MysqlDatabaseStore implements DatabaseStore {
   private authTableReady = false;
   private projectTablesReady = false;
   private onboardingTableReady = false;
+  private userProjectOnboardingTableReady = false;
 
   constructor(private readonly config: MysqlConnectionConfig) {}
 
@@ -638,5 +639,58 @@ export class MysqlDatabaseStore implements DatabaseStore {
       userRole: String(row.userRole),
       createdAt: this.toIso(row.createdAt),
     }));
+  }
+
+  // User Project Onboarding Status methods
+
+  private async ensureUserProjectOnboardingTable(pool: MysqlPool): Promise<void> {
+    if (this.userProjectOnboardingTableReady) return;
+
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS onboarding_user_project (
+        biUserId VARCHAR(255) NOT NULL,
+        projectId VARCHAR(255) NOT NULL,
+        onboardingStatus VARCHAR(20) NOT NULL,
+        createdAt TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updatedAt TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        PRIMARY KEY (biUserId, projectId)
+      )
+    `);
+
+    this.userProjectOnboardingTableReady = true;
+  }
+
+  async getUserProjectOnboardingStatus(
+    biUserId: string,
+    projectId: string
+  ): Promise<string | null> {
+    const pool = await this.getPool();
+    await this.ensureUserProjectOnboardingTable(pool);
+
+    const [rows] = (await pool.execute(
+      `SELECT onboardingStatus FROM onboarding_user_project WHERE biUserId = ? AND projectId = ?`,
+      [biUserId, projectId]
+    )) as [Array<{ onboardingStatus: string }>, unknown];
+
+    const row = (rows as Array<{ onboardingStatus: string }>)[0];
+    return row?.onboardingStatus ?? null;
+  }
+
+  async setUserProjectOnboardingStatus(
+    biUserId: string,
+    projectId: string,
+    status: string
+  ): Promise<void> {
+    const pool = await this.getPool();
+    await this.ensureUserProjectOnboardingTable(pool);
+
+    await pool.execute(
+      `INSERT INTO onboarding_user_project (biUserId, projectId, onboardingStatus)
+       VALUES (?, ?, ?)
+       ON DUPLICATE KEY UPDATE
+         onboardingStatus = VALUES(onboardingStatus),
+         updatedAt = CURRENT_TIMESTAMP`,
+      [biUserId, projectId, status]
+    );
   }
 }

@@ -32,43 +32,58 @@ export class OnboardingService {
 
   /**
    * Returns true if the onboarding questionnaire should be shown to the user.
-   *
-   * Conditions (all must be true):
-   * 1. User has NOT already answered for this project
-   * 2. Project has exactly 1 member with ADMIN role and it is the current user
-   * 3. User was created in Better Auth within the last 1 day
+   * Checks if onboardingStatus is PENDING for the specific project.
    */
   async shouldShowQuestionnaire(userId: string, projectId: string): Promise<boolean> {
-    const hasAnswers = await this.store.hasOnboardingAnswers(userId, projectId);
-    if (hasAnswers) return false;
+    const status = await this.store.getUserProjectOnboardingStatus(userId, projectId);
+    return status === 'PENDING';
+  }
 
-    // Check if user was created recently (within 1 day)
-    const user = await this.store.getUserByBiUserId(userId);
-    if (!user?.createdAt) return false;
-
-    const createdAt = new Date(user.createdAt).getTime();
-    const now = Date.now();
-    if (now - createdAt > USER_AGE_THRESHOLD_MS) return false;
-
-    // Check project members: exactly 1 admin and it must be this user
+  /**
+   * Evaluates whether the user qualifies for onboarding and sets the status accordingly.
+   * Called from the callback handler on each login.
+   *
+   * Only processes users with NULL/undefined status for this specific project.
+   * If status is already set (PENDING, NOT_REQUIRE, or DONE) — no-op.
+   * Checks eligibility: created within 1 day + sole admin in project.
+   * If eligible → sets PENDING; otherwise sets NOT_REQUIRE.
+   */
+  async evaluateAndSetOnboardingStatus(userId: string, projectId: string): Promise<void> {
     try {
-      const members = await this.projectMembersService.getMembers(projectId, { forceFresh: false });
-      if (!members) return false;
+      const user = await this.store.getUserByBiUserId(userId);
+      if (!user) return;
 
-      const activeMembers = members.filter(m => !m.isOutbound);
-      const admins = activeMembers.filter(m => m.projectRole === 'admin');
+      const status = await this.store.getUserProjectOnboardingStatus(userId, projectId);
+      // Only process if status is not yet set (NULL/undefined)
+      if (status === 'DONE' || status === 'PENDING' || status === 'NOT_REQUIRE') return;
 
-      if (admins.length !== 1) return false;
-      if (admins[0]!.userId !== userId) return false;
+      // Check eligibility: created within 1 day
+      let isEligible = false;
+      if (user.createdAt) {
+        const createdAt = new Date(user.createdAt).getTime();
+        if (Date.now() - createdAt <= USER_AGE_THRESHOLD_MS) {
+          // Check project members: exactly 1 admin and it must be this user
+          const members = await this.projectMembersService.getMembers(projectId, {
+            forceFresh: false,
+          });
+          if (members) {
+            const activeMembers = members.filter(m => !m.isOutbound);
+            const admins = activeMembers.filter(m => m.projectRole === 'admin');
+            if (admins.length === 1 && admins[0]!.userId === userId) {
+              isEligible = true;
+            }
+          }
+        }
+      }
 
-      return true;
+      const newStatus = isEligible ? 'PENDING' : 'NOT_REQUIRE';
+      await this.store.setUserProjectOnboardingStatus(userId, projectId, newStatus);
     } catch (error) {
       this.logger.warn(
-        'Failed to check project members for onboarding',
+        'Failed to evaluate onboarding status',
         undefined,
         error instanceof Error ? error : undefined
       );
-      return false;
     }
   }
 
@@ -107,6 +122,7 @@ export class OnboardingService {
     }
 
     await this.store.saveOnboardingAnswers(answers);
+    await this.store.setUserProjectOnboardingStatus(userId, projectId, 'DONE');
   }
 
   /**

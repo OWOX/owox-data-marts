@@ -28,6 +28,7 @@ function createStoreMock(): jest.Mocked<DatabaseStore> {
     saveProjectMembers: jest.fn(),
     getProjectMembers: jest.fn(),
     getProjectSyncInfo: jest.fn(),
+    updateUserOnboardingStatus: jest.fn(),
     saveOnboardingAnswers: jest.fn(),
     hasOnboardingAnswers: jest.fn(),
     getOnboardingAnswers: jest.fn(),
@@ -82,45 +83,113 @@ describe('OnboardingService', () => {
   });
 
   describe('shouldShowQuestionnaire', () => {
-    it('returns false if user has answers in DB', async () => {
-      (store.hasOnboardingAnswers as jest.Mock).mockResolvedValue(true);
+    it('returns true if onboardingStatus is PENDING', async () => {
+      (store.getUserByBiUserId as jest.Mock).mockResolvedValue({
+        id: 'user-1',
+        email: 'test@test.com',
+        onboardingStatus: 'PENDING',
+      });
+
+      const result = await service.shouldShowQuestionnaire('user-1', 'project-1');
+
+      expect(result).toBe(true);
+    });
+
+    it('returns false if onboardingStatus is DONE', async () => {
+      (store.getUserByBiUserId as jest.Mock).mockResolvedValue({
+        id: 'user-1',
+        email: 'test@test.com',
+        onboardingStatus: 'DONE',
+      });
 
       const result = await service.shouldShowQuestionnaire('user-1', 'project-1');
 
       expect(result).toBe(false);
-      expect(store.hasOnboardingAnswers).toHaveBeenCalledWith('user-1', 'project-1');
     });
 
-    it('returns false if user was created more than 1 day ago', async () => {
-      (store.hasOnboardingAnswers as jest.Mock).mockResolvedValue(false);
+    it('returns false if onboardingStatus is NOT_REQUIRE', async () => {
       (store.getUserByBiUserId as jest.Mock).mockResolvedValue({
         id: 'user-1',
         email: 'test@test.com',
+        onboardingStatus: 'NOT_REQUIRE',
+      });
+
+      const result = await service.shouldShowQuestionnaire('user-1', 'project-1');
+
+      expect(result).toBe(false);
+    });
+
+    it('returns false if user not found', async () => {
+      (store.getUserByBiUserId as jest.Mock).mockResolvedValue(null);
+
+      const result = await service.shouldShowQuestionnaire('user-1', 'project-1');
+
+      expect(result).toBe(false);
+    });
+  });
+
+  describe('evaluateAndSetOnboardingStatus', () => {
+    it('sets PENDING if user is eligible (recent, sole admin)', async () => {
+      (store.getUserByBiUserId as jest.Mock).mockResolvedValue({
+        id: 'user-1',
+        email: 'test@test.com',
+        onboardingStatus: 'NOT_REQUIRE',
+        createdAt: recentDate(),
+      });
+      (projectMembersService.getMembers as jest.Mock).mockResolvedValue([makeAdmin('user-1')]);
+
+      await service.evaluateAndSetOnboardingStatus('user-1', 'project-1');
+
+      expect(store.updateUserOnboardingStatus).toHaveBeenCalledWith('user-1', 'PENDING');
+      expect(projectMembersService.getMembers).toHaveBeenCalledWith('project-1', {
+        forceFresh: false,
+      });
+    });
+
+    it('does nothing if status is already DONE', async () => {
+      (store.getUserByBiUserId as jest.Mock).mockResolvedValue({
+        id: 'user-1',
+        email: 'test@test.com',
+        onboardingStatus: 'DONE',
+        createdAt: recentDate(),
+      });
+
+      await service.evaluateAndSetOnboardingStatus('user-1', 'project-1');
+
+      expect(store.updateUserOnboardingStatus).not.toHaveBeenCalled();
+    });
+
+    it('does nothing if status is already PENDING', async () => {
+      (store.getUserByBiUserId as jest.Mock).mockResolvedValue({
+        id: 'user-1',
+        email: 'test@test.com',
+        onboardingStatus: 'PENDING',
+        createdAt: recentDate(),
+      });
+
+      await service.evaluateAndSetOnboardingStatus('user-1', 'project-1');
+
+      expect(store.updateUserOnboardingStatus).not.toHaveBeenCalled();
+    });
+
+    it('does not set PENDING if user was created more than 1 day ago', async () => {
+      (store.getUserByBiUserId as jest.Mock).mockResolvedValue({
+        id: 'user-1',
+        email: 'test@test.com',
+        onboardingStatus: 'NOT_REQUIRE',
         createdAt: oldDate(),
       });
 
-      const result = await service.shouldShowQuestionnaire('user-1', 'project-1');
+      await service.evaluateAndSetOnboardingStatus('user-1', 'project-1');
 
-      expect(result).toBe(false);
+      expect(store.updateUserOnboardingStatus).not.toHaveBeenCalled();
     });
 
-    it('returns false if user has no createdAt', async () => {
-      (store.hasOnboardingAnswers as jest.Mock).mockResolvedValue(false);
+    it('does not set PENDING if project has multiple admins', async () => {
       (store.getUserByBiUserId as jest.Mock).mockResolvedValue({
         id: 'user-1',
         email: 'test@test.com',
-      });
-
-      const result = await service.shouldShowQuestionnaire('user-1', 'project-1');
-
-      expect(result).toBe(false);
-    });
-
-    it('returns false if project has multiple admins', async () => {
-      (store.hasOnboardingAnswers as jest.Mock).mockResolvedValue(false);
-      (store.getUserByBiUserId as jest.Mock).mockResolvedValue({
-        id: 'user-1',
-        email: 'test@test.com',
+        onboardingStatus: 'NOT_REQUIRE',
         createdAt: recentDate(),
       });
       (projectMembersService.getMembers as jest.Mock).mockResolvedValue([
@@ -128,16 +197,16 @@ describe('OnboardingService', () => {
         makeAdmin('user-2'),
       ]);
 
-      const result = await service.shouldShowQuestionnaire('user-1', 'project-1');
+      await service.evaluateAndSetOnboardingStatus('user-1', 'project-1');
 
-      expect(result).toBe(false);
+      expect(store.updateUserOnboardingStatus).not.toHaveBeenCalled();
     });
 
-    it('returns false if user is not the sole admin', async () => {
-      (store.hasOnboardingAnswers as jest.Mock).mockResolvedValue(false);
+    it('does not set PENDING if user is not the sole admin', async () => {
       (store.getUserByBiUserId as jest.Mock).mockResolvedValue({
         id: 'user-1',
         email: 'test@test.com',
+        onboardingStatus: 'NOT_REQUIRE',
         createdAt: recentDate(),
       });
       (projectMembersService.getMembers as jest.Mock).mockResolvedValue([
@@ -145,33 +214,16 @@ describe('OnboardingService', () => {
         makeViewer('user-1'),
       ]);
 
-      const result = await service.shouldShowQuestionnaire('user-1', 'project-1');
+      await service.evaluateAndSetOnboardingStatus('user-1', 'project-1');
 
-      expect(result).toBe(false);
-    });
-
-    it('returns true if user is the sole admin, recently created, no answers', async () => {
-      (store.hasOnboardingAnswers as jest.Mock).mockResolvedValue(false);
-      (store.getUserByBiUserId as jest.Mock).mockResolvedValue({
-        id: 'user-1',
-        email: 'test@test.com',
-        createdAt: recentDate(),
-      });
-      (projectMembersService.getMembers as jest.Mock).mockResolvedValue([makeAdmin('user-1')]);
-
-      const result = await service.shouldShowQuestionnaire('user-1', 'project-1');
-
-      expect(result).toBe(true);
-      expect(projectMembersService.getMembers).toHaveBeenCalledWith('project-1', {
-        forceFresh: false,
-      });
+      expect(store.updateUserOnboardingStatus).not.toHaveBeenCalled();
     });
 
     it('ignores outbound members when checking admins', async () => {
-      (store.hasOnboardingAnswers as jest.Mock).mockResolvedValue(false);
       (store.getUserByBiUserId as jest.Mock).mockResolvedValue({
         id: 'user-1',
         email: 'test@test.com',
+        onboardingStatus: 'NOT_REQUIRE',
         createdAt: recentDate(),
       });
       const outboundAdmin: ProjectMember = {
@@ -183,28 +235,29 @@ describe('OnboardingService', () => {
         outboundAdmin,
       ]);
 
-      const result = await service.shouldShowQuestionnaire('user-1', 'project-1');
+      await service.evaluateAndSetOnboardingStatus('user-1', 'project-1');
 
-      expect(result).toBe(true);
+      expect(store.updateUserOnboardingStatus).toHaveBeenCalledWith('user-1', 'PENDING');
     });
 
-    it('returns false if getMembers throws', async () => {
-      (store.hasOnboardingAnswers as jest.Mock).mockResolvedValue(false);
+    it('does not throw if getMembers fails', async () => {
       (store.getUserByBiUserId as jest.Mock).mockResolvedValue({
         id: 'user-1',
         email: 'test@test.com',
+        onboardingStatus: 'NOT_REQUIRE',
         createdAt: recentDate(),
       });
       (projectMembersService.getMembers as jest.Mock).mockRejectedValue(new Error('Network error'));
 
-      const result = await service.shouldShowQuestionnaire('user-1', 'project-1');
-
-      expect(result).toBe(false);
+      await expect(
+        service.evaluateAndSetOnboardingStatus('user-1', 'project-1')
+      ).resolves.not.toThrow();
+      expect(store.updateUserOnboardingStatus).not.toHaveBeenCalled();
     });
   });
 
   describe('saveAnswers', () => {
-    it('saves valid single-select answer', async () => {
+    it('saves valid single-select answer and sets status to DONE', async () => {
       await service.saveAnswers('user-1', 'project-1', 'bi-user-1', 'admin', {
         answers: [{ questionId: 'primary_role', answerValue: 'data_analyst_engineer' }],
       });
@@ -223,6 +276,7 @@ describe('OnboardingService', () => {
       expect(saved[0]!.userRole).toBe('admin');
       expect(saved[0]!.projectId).toBe('project-1');
       expect(saved[0]!.biUserId).toBe('bi-user-1');
+      expect(store.updateUserOnboardingStatus).toHaveBeenCalledWith('user-1', 'DONE');
     });
 
     it('saves valid multi-select answer as JSON array', async () => {
