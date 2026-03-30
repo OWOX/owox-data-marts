@@ -4,8 +4,8 @@ import {
   Video3GettingStartedDataMarts,
   Video4LegacyStorageSetup,
   Video5TryInsights,
+  Video6EmailReports,
 } from './popovers';
-import { Video6EmailReports } from './popovers/Video6EmailReports';
 import type { PopoverConfig, PopoverId } from './types';
 
 export const popoverItems: Record<PopoverId, PopoverConfig> = {
