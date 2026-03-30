@@ -58,6 +58,7 @@ import {
   FormActions,
 } from '@owox/ui/components/form';
 import { ConfirmationDialog } from '../../../../shared/components/ConfirmationDialog';
+import { useUnsavedGuard } from '../../../../hooks/useUnsavedGuard';
 import { useSqlDryRunTrigger } from '../../shared/hooks/useSqlDryRunTrigger';
 import { formatBytes } from '../../../../utils';
 
@@ -364,7 +365,6 @@ export function InsightSourcesPanel({
                 details: data.key,
               });
             }
-            setIsSheetOpen(false);
           } catch (error) {
             trackEvent({
               event: 'data_artifact_error',
@@ -521,6 +521,12 @@ interface SourceEditSheetProps {
   isSaving: boolean;
 }
 
+interface SourceFormData {
+  key: string;
+  title: string;
+  sql: string;
+}
+
 function SourceEditSheet({
   isOpen,
   onClose,
@@ -536,6 +542,14 @@ function SourceEditSheet({
   const isResizingRef = useRef(false);
   const resizeStartY = useRef(0);
   const resizeStartHeight = useRef(0);
+  const {
+    showUnsavedDialog,
+    setShowUnsavedDialog,
+    handleClose,
+    confirmClose,
+    handleFormDirtyChange,
+    handleFormSubmitSuccess,
+  } = useUnsavedGuard(onClose);
 
   const handleResizeMouseDown = (e: React.MouseEvent) => {
     e.preventDefault();
@@ -592,7 +606,7 @@ function SourceEditSheet({
     editorRef.current = editor;
   };
 
-  const form = useForm({
+  const form = useForm<SourceFormData>({
     mode: 'onChange',
     defaultValues: {
       key: source?.key ?? '',
@@ -604,6 +618,7 @@ function SourceEditSheet({
   const sqlValue = form.watch('sql');
   const keyValue = form.watch('key');
   const sqlTrimmed = sqlValue.trim();
+  const isFormDirty = form.formState.isDirty;
 
   const preview = useInsightTemplateSourceSqlPreviewTrigger(dataMartId, source?.artifactId ?? '');
   const validation = useSqlDryRunTrigger(dataMartId);
@@ -615,11 +630,17 @@ function SourceEditSheet({
         title: source?.title ?? 'New Data Artifact',
         sql: source?.sql ?? '',
       });
+      handleFormDirtyChange(false);
     }
+    setShowUnsavedDialog(false);
     preview.reset();
     void validation.cancel();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen]);
+
+  useEffect(() => {
+    handleFormDirtyChange(isFormDirty);
+  }, [isFormDirty, handleFormDirtyChange]);
 
   // Auto-validate SQL with debounce when it changes
   useEffect(() => {
@@ -645,207 +666,221 @@ function SourceEditSheet({
     !validation.isLoading &&
     !isSqlKnownInvalid;
 
-  const handleSave = async (data: { key: string; title: string; sql: string }) => {
+  const handleSave = async (data: SourceFormData) => {
     try {
       await onSave(data);
       toast.success(source ? 'Data Artifact updated' : 'Data Artifact created');
+      handleFormSubmitSuccess();
     } catch {
       toast.error('Failed to save data artifact');
     }
   };
 
   return (
-    <Sheet
-      open={isOpen}
-      onOpenChange={open => {
-        if (!open) {
-          onClose();
-        }
-      }}
-    >
-      <SheetContent className='flex flex-col p-0 sm:max-w-xl md:max-w-2xl'>
-        <SheetHeader className='px-6 pt-6 pb-4'>
-          <SheetTitle>{source ? 'Edit Data Artifact' : 'Add Data Artifact'}</SheetTitle>
-          <SheetDescription>Configure the data artifact for your insight.</SheetDescription>
-        </SheetHeader>
+    <>
+      <Sheet
+        open={isOpen}
+        onOpenChange={open => {
+          if (!open) {
+            handleClose();
+          }
+        }}
+      >
+        <SheetContent className='flex flex-col p-0 sm:max-w-xl md:max-w-2xl'>
+          <SheetHeader className='px-6 pt-6 pb-4'>
+            <SheetTitle>{source ? 'Edit Data Artifact' : 'Add Data Artifact'}</SheetTitle>
+            <SheetDescription>Configure the data artifact for your insight.</SheetDescription>
+          </SheetHeader>
 
-        <Form {...form}>
-          <AppForm
-            onSubmit={event => {
-              void form.handleSubmit(handleSave)(event);
-            }}
-          >
-            <FormLayout>
-              <FormField
-                control={form.control}
-                name='key'
-                rules={{
-                  required: 'Id is required',
-                  pattern: {
-                    value: /^[a-zA-Z0-9_]+$/,
-                    message: 'Only letters, digits, and underscores are allowed',
-                  },
-                }}
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel tooltip='Enter a unique id that will be used to reference this source in the insight template. This field cannot be changed after creation.'>
-                      Id
-                    </FormLabel>
-                    <FormControl>
-                      <Input {...field} placeholder='e.g. active_users' disabled={!!source} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={form.control}
-                name='title'
-                rules={{ required: 'Title is required' }}
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel tooltip='Enter a human-readable title for this data source.'>
-                      Title
-                    </FormLabel>
-                    <FormControl>
-                      <Input {...field} placeholder='Visible title' />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <FormItem className='flex-1 overflow-hidden'>
-                <div className='flex items-center justify-between'>
-                  <FormLabel tooltip='Write the SQL query to fetch data. You can use parameters defined in the template.'>
-                    SQL Query
-                  </FormLabel>
-                  <div className='flex gap-2'>
-                    <Button
-                      type='button'
-                      variant='outline'
-                      size='sm'
-                      onClick={() => {
-                        void preview.runPreview(sqlValue);
-                      }}
-                      disabled={preview.isLoading}
-                    >
-                      {preview.isLoading ? (
-                        <>
-                          <Loader2 className='mr-2 h-4 w-4 animate-spin' />
-                          Preview
-                        </>
-                      ) : (
-                        'Preview'
-                      )}
-                    </Button>
-                    <Button
-                      type='button'
-                      variant='ghost'
-                      size='icon'
-                      className='h-8 w-8'
-                      onClick={() => {
-                        setIsFullScreen(!isFullScreen);
-                      }}
-                    >
-                      {isFullScreen ? (
-                        <Minimize2 className='h-4 w-4' />
-                      ) : (
-                        <Maximize2 className='h-4 w-4' />
-                      )}
-                    </Button>
-                  </div>
-                </div>
-
-                <div
-                  className={cn(
-                    'flex flex-1 flex-col overflow-hidden',
-                    isFullScreen && 'bg-background fixed inset-0 z-50 h-full overflow-auto p-4'
+          <Form {...form}>
+            <AppForm
+              onSubmit={event => {
+                void form.handleSubmit(handleSave)(event);
+              }}
+            >
+              <FormLayout>
+                <FormField
+                  control={form.control}
+                  name='key'
+                  rules={{
+                    required: 'Id is required',
+                    pattern: {
+                      value: /^[a-zA-Z0-9_]+$/,
+                      message: 'Only letters, digits, and underscores are allowed',
+                    },
+                  }}
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel tooltip='Enter a unique id that will be used to reference this source in the insight template. This field cannot be changed after creation.'>
+                        Id
+                      </FormLabel>
+                      <FormControl>
+                        <Input {...field} placeholder='e.g. active_users' disabled={!!source} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
                   )}
-                  key={isOpen ? 'open' : 'closed'}
-                >
-                  {isFullScreen && (
-                    <div className='mb-4 flex items-center justify-between'>
-                      <h3 className='text-lg font-medium'>SQL Editor</h3>
-                      <div className='flex gap-2'>
-                        <Button
-                          type='button'
-                          variant='outline'
-                          size='sm'
-                          onClick={() => {
-                            void preview.runPreview(sqlValue);
-                          }}
-                          disabled={preview.isLoading}
-                        >
-                          {preview.isLoading ? (
-                            <>
-                              <Loader2 className='mr-2 h-4 w-4 animate-spin' />
-                              Preview
-                            </>
-                          ) : (
-                            'Preview'
-                          )}
-                        </Button>
-                        <Button
-                          type='button'
-                          variant='ghost'
-                          size='icon'
-                          onClick={() => {
-                            setIsFullScreen(false);
-                          }}
-                        >
-                          <Minimize2 className='h-5 w-5' />
-                        </Button>
-                      </div>
+                />
+
+                <FormField
+                  control={form.control}
+                  name='title'
+                  rules={{ required: 'Title is required' }}
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel tooltip='Enter a human-readable title for this data source.'>
+                        Title
+                      </FormLabel>
+                      <FormControl>
+                        <Input {...field} placeholder='Visible title' />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormItem className='flex-1 overflow-hidden'>
+                  <div className='flex items-center justify-between'>
+                    <FormLabel tooltip='Write the SQL query to fetch data. You can use parameters defined in the template.'>
+                      SQL Query
+                    </FormLabel>
+                    <div className='flex gap-2'>
+                      <Button
+                        type='button'
+                        variant='outline'
+                        size='sm'
+                        onClick={() => {
+                          void preview.runPreview(sqlValue);
+                        }}
+                        disabled={preview.isLoading}
+                      >
+                        {preview.isLoading ? (
+                          <>
+                            <Loader2 className='mr-2 h-4 w-4 animate-spin' />
+                            Preview
+                          </>
+                        ) : (
+                          'Preview'
+                        )}
+                      </Button>
+                      <Button
+                        type='button'
+                        variant='ghost'
+                        size='icon'
+                        className='h-8 w-8'
+                        onClick={() => {
+                          setIsFullScreen(!isFullScreen);
+                        }}
+                      >
+                        {isFullScreen ? (
+                          <Minimize2 className='h-4 w-4' />
+                        ) : (
+                          <Maximize2 className='h-4 w-4' />
+                        )}
+                      </Button>
                     </div>
-                  )}
+                  </div>
+
                   <div
                     className={cn(
-                      'relative flex min-h-[200px] flex-col overflow-hidden rounded-md border',
-                      isFullScreen ? 'h-full flex-1' : undefined
+                      'flex flex-1 flex-col overflow-hidden',
+                      isFullScreen && 'bg-background fixed inset-0 z-50 h-full overflow-auto p-4'
                     )}
-                    style={isFullScreen ? undefined : { height: editorHeight }}
+                    key={isOpen ? 'open' : 'closed'}
                   >
-                    <Editor
-                      key={isFullScreen ? 'full' : 'normal'}
-                      height='100%'
-                      language='sql'
-                      value={sqlValue}
-                      onMount={handleEditorDidMount}
-                      onChange={v => {
-                        form.setValue('sql', v ?? '');
-                      }}
-                      theme={resolvedTheme === 'dark' ? 'vs-dark' : 'light'}
-                      options={{
-                        minimap: { enabled: false },
-                        scrollBeyondLastLine: false,
-                        automaticLayout: true,
-                        wordWrap: 'on',
-                        stickyScroll: {
-                          enabled: true,
-                        },
-                        fontSize: 12,
-                      }}
-                    />
-                    {!isFullScreen && (
-                      <div
-                        className='absolute right-0 bottom-0 left-0 z-10 flex h-2.5 cursor-ns-resize items-center justify-center'
-                        onMouseDown={handleResizeMouseDown}
-                      >
-                        <div className='bg-muted-foreground/30 h-0.5 w-10 rounded-full' />
+                    {isFullScreen && (
+                      <div className='mb-4 flex items-center justify-between'>
+                        <h3 className='text-lg font-medium'>SQL Editor</h3>
+                        <div className='flex gap-2'>
+                          <Button
+                            type='button'
+                            variant='outline'
+                            size='sm'
+                            onClick={() => {
+                              void preview.runPreview(sqlValue);
+                            }}
+                            disabled={preview.isLoading}
+                          >
+                            {preview.isLoading ? (
+                              <>
+                                <Loader2 className='mr-2 h-4 w-4 animate-spin' />
+                                Preview
+                              </>
+                            ) : (
+                              'Preview'
+                            )}
+                          </Button>
+                          <Button
+                            type='button'
+                            variant='ghost'
+                            size='icon'
+                            onClick={() => {
+                              setIsFullScreen(false);
+                            }}
+                          >
+                            <Minimize2 className='h-5 w-5' />
+                          </Button>
+                        </div>
+                      </div>
+                    )}
+                    <div
+                      className={cn(
+                        'relative flex min-h-[200px] flex-col overflow-hidden rounded-md border',
+                        isFullScreen ? 'h-full flex-1' : undefined
+                      )}
+                      style={isFullScreen ? undefined : { height: editorHeight }}
+                    >
+                      <Editor
+                        key={isFullScreen ? 'full' : 'normal'}
+                        height='100%'
+                        language='sql'
+                        value={sqlValue}
+                        onMount={handleEditorDidMount}
+                        onChange={v => {
+                          form.setValue('sql', v ?? '', { shouldDirty: true });
+                        }}
+                        theme={resolvedTheme === 'dark' ? 'vs-dark' : 'light'}
+                        options={{
+                          minimap: { enabled: false },
+                          scrollBeyondLastLine: false,
+                          automaticLayout: true,
+                          wordWrap: 'on',
+                          stickyScroll: {
+                            enabled: true,
+                          },
+                          fontSize: 12,
+                        }}
+                      />
+                      {!isFullScreen && (
+                        <div
+                          className='absolute right-0 bottom-0 left-0 z-10 flex h-2.5 cursor-ns-resize items-center justify-center'
+                          onMouseDown={handleResizeMouseDown}
+                        >
+                          <div className='bg-muted-foreground/30 h-0.5 w-10 rounded-full' />
+                        </div>
+                      )}
+                    </div>
+                    <div className='mt-2'>
+                      <SqlValidationStatus
+                        sqlTrimmed={sqlTrimmed}
+                        isLoading={validation.isLoading}
+                        result={validation.result}
+                      />
+                    </div>
+                    {isFullScreen && (
+                      <div className='mt-4 flex shrink-0 flex-col gap-2'>
+                        {preview.result && <SqlPreviewTable result={preview.result} />}
+                        {preview.error && (
+                          <div className='border-destructive/50 bg-destructive/10 text-destructive h-40 shrink-0 overflow-auto rounded-md border p-2 font-mono text-xs'>
+                            {preview.error}
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>
-                  <div className='mt-2'>
-                    <SqlValidationStatus
-                      sqlTrimmed={sqlTrimmed}
-                      isLoading={validation.isLoading}
-                      result={validation.result}
-                    />
-                  </div>
-                  {isFullScreen && (
-                    <div className='mt-4 flex shrink-0 flex-col gap-2'>
+
+                  {!isFullScreen && (
+                    <div className='flex shrink-0 flex-col gap-2 overflow-hidden'>
                       {preview.result && <SqlPreviewTable result={preview.result} />}
                       {preview.error && (
                         <div className='border-destructive/50 bg-destructive/10 text-destructive h-40 shrink-0 overflow-auto rounded-md border p-2 font-mono text-xs'>
@@ -854,33 +889,33 @@ function SourceEditSheet({
                       )}
                     </div>
                   )}
-                </div>
+                </FormItem>
+              </FormLayout>
 
-                {!isFullScreen && (
-                  <div className='flex shrink-0 flex-col gap-2 overflow-hidden'>
-                    {preview.result && <SqlPreviewTable result={preview.result} />}
-                    {preview.error && (
-                      <div className='border-destructive/50 bg-destructive/10 text-destructive h-40 shrink-0 overflow-auto rounded-md border p-2 font-mono text-xs'>
-                        {preview.error}
-                      </div>
-                    )}
-                  </div>
-                )}
-              </FormItem>
-            </FormLayout>
+              <FormActions>
+                <Button type='submit' disabled={!canSave} className='w-full'>
+                  {isSaving && <Loader2 className='mr-2 h-4 w-4 animate-spin' />}
+                  {source ? 'Update Data Artifact' : 'Create Data Artifact'}
+                </Button>
+                <Button type='button' variant='outline' onClick={handleClose} className='w-full'>
+                  Cancel
+                </Button>
+              </FormActions>
+            </AppForm>
+          </Form>
+        </SheetContent>
+      </Sheet>
 
-            <FormActions>
-              <Button type='submit' disabled={!canSave} className='w-full'>
-                {isSaving && <Loader2 className='mr-2 h-4 w-4 animate-spin' />}
-                {source ? 'Update Data Artifact' : 'Create Data Artifact'}
-              </Button>
-              <Button type='button' variant='outline' onClick={onClose} className='w-full'>
-                Cancel
-              </Button>
-            </FormActions>
-          </AppForm>
-        </Form>
-      </SheetContent>
-    </Sheet>
+      <ConfirmationDialog
+        open={showUnsavedDialog}
+        onOpenChange={setShowUnsavedDialog}
+        title='Unsaved Changes'
+        description='You have unsaved changes. Exit without saving?'
+        confirmLabel='Yes, leave now'
+        cancelLabel='No, stay here'
+        onConfirm={confirmClose}
+        variant='destructive'
+      />
+    </>
   );
 }
