@@ -7,7 +7,6 @@ import { IdpProtocolMiddleware } from '@owox/idp-protocol';
 import cors, { CorsOptions } from 'cors';
 import express from 'express';
 
-import { CORS_CONFIG } from '../config/cors.js';
 import { IdpFactory } from '../idp/factory.js';
 import { getPackageInfo } from '../utils/package-info.js';
 import {
@@ -118,11 +117,11 @@ export default class Serve extends BaseCommand {
       : [];
 
     return {
-      allowedHeaders: CORS_CONFIG.ALLOWED_HEADERS,
+      allowedHeaders: ['content-Type', 'authorization', 'x-owox-authorization'],
       credentials: true,
-      maxAge: CORS_CONFIG.MAX_AGE,
-      methods: CORS_CONFIG.METHODS,
-      optionsSuccessStatus: CORS_CONFIG.OPTIONS_SUCCESS_STATUS,
+      maxAge: 86_400,
+      methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+      optionsSuccessStatus: 204,
       origin: allowedOrigins,
     };
   }
