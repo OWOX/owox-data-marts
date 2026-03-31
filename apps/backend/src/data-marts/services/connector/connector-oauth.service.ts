@@ -1,6 +1,6 @@
-import { ConnectorService } from '../connector.service';
+import { ConnectorService } from './connector.service';
 import { Injectable, BadRequestException } from '@nestjs/common';
-import { ConnectorSourceCredentialsService } from '../connector-source-credentials.service';
+import { ConnectorSourceCredentialsService } from './connector-source-credentials.service';
 import {
   ConnectorOAuthStatusSchema,
   ConnectorOAuthSettingsSchema,

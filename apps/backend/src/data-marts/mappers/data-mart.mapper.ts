@@ -55,7 +55,7 @@ import { DataMartRun } from '../entities/data-mart-run.entity';
 import { DataMart } from '../entities/data-mart.entity';
 import { DataMartDefinitionType } from '../enums/data-mart-definition-type.enum';
 import { DataMartRunType } from '../enums/data-mart-run-type.enum';
-import { ConnectorSecretService } from '../services/connector-secret.service';
+import { ConnectorSecretService } from '../services/connector/connector-secret.service';
 import { UpdateDataMartOwnersApiDto } from '../dto/presentation/update-data-mart-owners-api.dto';
 import { UpdateDataMartOwnersCommand } from '../dto/domain/update-data-mart-owners.command';
 import { DataStorageMapper } from './data-storage.mapper';

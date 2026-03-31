@@ -1,7 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { DataMartMapper } from './data-mart.mapper';
 import { DataStorageMapper } from './data-storage.mapper';
-import { ConnectorSecretService } from '../services/connector-secret.service';
+import { ConnectorSecretService } from '../services/connector/connector-secret.service';
 import { DataMartRun as DataMartRunEntity } from '../entities/data-mart-run.entity';
 import { UserProjectionsListDto } from '../../idp/dto/domain/user-projections-list.dto';
 import { DataMartRunType } from '../enums/data-mart-run-type.enum';

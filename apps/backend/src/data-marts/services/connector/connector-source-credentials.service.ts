@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, Repository } from 'typeorm';
-import { ConnectorSourceCredentials } from '../entities/connector-source-credentials.entity';
+import { ConnectorSourceCredentials } from '../../entities/connector-source-credentials.entity';
 
 @Injectable()
 export class ConnectorSourceCredentialsService {
