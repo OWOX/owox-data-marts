@@ -3,6 +3,7 @@ import {
   AiAssistantMessageResultDto,
 } from '../dto/domain/ai-assistant-message-result.dto';
 import { CreateAiAssistantMessageCommand } from '../dto/domain/create-ai-assistant-message.command';
+import { AiAssistantTurnRequestedEvent } from '../events/ai-assistant-turn-requested.event';
 import { AiAssistantMessageRole } from '../enums/ai-assistant-message-role.enum';
 import { AiAssistantScope } from '../enums/ai-assistant-scope.enum';
 import { CreateAiAssistantMessageService } from './create-ai-assistant-message.service';
@@ -56,6 +57,9 @@ describe('CreateAiAssistantMessageService', () => {
     const aiAssistantRunTriggerService = {
       createTrigger: jest.fn().mockResolvedValue('trigger-1'),
     };
+    const producer = {
+      produceEvent: jest.fn().mockResolvedValue(undefined),
+    };
     const insightTemplateService = {
       updateTitleOnlyIfHasDefaultTitle: jest.fn(),
     };
@@ -66,6 +70,7 @@ describe('CreateAiAssistantMessageService', () => {
     const service = new CreateAiAssistantMessageService(
       aiAssistantSessionService as never,
       aiAssistantRunTriggerService as never,
+      producer as never,
       insightTemplateService as never,
       mapper as never
     );
@@ -74,13 +79,15 @@ describe('CreateAiAssistantMessageService', () => {
       service,
       aiAssistantSessionService,
       aiAssistantRunTriggerService,
+      producer,
       insightTemplateService,
       mapper,
     };
   };
 
   it('enqueues a routing job', async () => {
-    const { service, aiAssistantSessionService, aiAssistantRunTriggerService } = createService();
+    const { service, aiAssistantSessionService, aiAssistantRunTriggerService, producer } =
+      createService();
 
     aiAssistantSessionService.getSessionByIdAndDataMartIdAndProjectId.mockResolvedValue(session);
     aiAssistantSessionService.addMessage
@@ -99,10 +106,23 @@ describe('CreateAiAssistantMessageService', () => {
     expect(result.triggerId).toBe('trigger-1');
     expect(result.response).toBeNull();
     expect(aiAssistantRunTriggerService.createTrigger).toHaveBeenCalled();
+    expect(producer.produceEvent).toHaveBeenCalledWith(
+      new AiAssistantTurnRequestedEvent({
+        projectId: 'project-1',
+        dataMartId: 'data-mart-1',
+        userId: 'user-1',
+        sessionId: 'session-1',
+        templateId: 'template-1',
+        turnId: 'message-user-1',
+        userMessageId: 'message-user-1',
+        message: 'Build source',
+      })
+    );
   });
 
   it('enqueues a run for non-template session scope too', async () => {
-    const { service, aiAssistantSessionService, aiAssistantRunTriggerService } = createService();
+    const { service, aiAssistantSessionService, aiAssistantRunTriggerService, producer } =
+      createService();
     aiAssistantSessionService.getSessionByIdAndDataMartIdAndProjectId.mockResolvedValue({
       ...session,
       scope: 'artifact' as AiAssistantScope,
@@ -116,5 +136,13 @@ describe('CreateAiAssistantMessageService', () => {
 
     await expect(service.run(command)).resolves.toBeInstanceOf(AiAssistantMessageResultDto);
     expect(aiAssistantRunTriggerService.createTrigger).toHaveBeenCalled();
+    expect(producer.produceEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        payload: expect.objectContaining({
+          templateId: null,
+          message: 'Build source',
+        }),
+      })
+    );
   });
 });
