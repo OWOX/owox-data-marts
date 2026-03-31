@@ -12,7 +12,7 @@ import {
 import { Badge } from '@owox/ui/components/badge';
 import { Switch } from '@owox/ui/components/switch';
 import { Separator } from '@owox/ui/components/separator';
-import { Settings, AlertCircle, ChevronDown, ChevronUp } from 'lucide-react';
+import { Settings, AlertCircle, ChevronDown, ChevronUp, Zap, Check } from 'lucide-react';
 import { cronToScheduleConfig } from './cron-parser';
 import { MultiSelect } from '@owox/ui/components/common/multi-select';
 import { timezoneService } from '../../../../../services';
@@ -44,6 +44,16 @@ interface ScheduleConfigProps {
   hideEnableSwitch?: boolean;
 }
 
+interface SchedulePreset {
+  label: string;
+  type: ScheduleType;
+  time?: string;
+  weekdays?: number[];
+  intervalType?: 'minutes' | 'hours';
+  intervalValue?: number;
+  cron?: string;
+}
+
 const MONTH_DAYS = Array.from({ length: 31 }, (_, i) => ({
   value: i + 1,
   label: `${String(i + 1)}${i === 0 ? 'st' : i === 1 ? 'nd' : i === 2 ? 'rd' : 'th'}`,
@@ -51,18 +61,85 @@ const MONTH_DAYS = Array.from({ length: 31 }, (_, i) => ({
 
 const MINUTE_INTERVALS = [5, 10, 15, 30];
 const HOUR_INTERVALS = [1, 2, 3, 4, 6, 8, 12];
+const SCHEDULE_PRESETS: SchedulePreset[] = [
+  {
+    label: 'Weekdays 9:00',
+    type: 'weekly' as ScheduleType,
+    time: '09:00',
+    weekdays: [1, 2, 3, 4, 5],
+    cron: '0 9 * * 1,2,3,4,5',
+  },
+  {
+    label: 'Every hour',
+    type: 'interval' as ScheduleType,
+    intervalType: 'hours' as const,
+    intervalValue: 1,
+    cron: '0 */1 * * *',
+  },
+  {
+    label: 'Every 6 hours',
+    type: 'interval' as ScheduleType,
+    intervalType: 'hours' as const,
+    intervalValue: 6,
+    cron: '0 */6 * * *',
+  },
+];
 
 // Form Field Components
 interface ScheduleTypeFieldProps {
   value: ScheduleType;
   onChange: (value: ScheduleType) => void;
+  onPresetSelect?: (preset: SchedulePreset) => void;
   disabled?: boolean;
 }
 
-const ScheduleTypeField: FC<ScheduleTypeFieldProps> = ({ value, onChange, disabled }) => {
+const ScheduleTypeField: FC<ScheduleTypeFieldProps> = ({
+  value,
+  onChange,
+  onPresetSelect,
+  disabled,
+}) => {
+  const [flashPreset, setFlashPreset] = useState<string | null>(null);
+  const timeoutRef = useRef<NodeJS.Timeout | null>(null);
+
   return (
     <div className='space-y-2'>
-      <Label>Type</Label>
+      <div className='flex items-center justify-between'>
+        <Label>Type</Label>
+        {/* Quick presets */}
+        {!disabled && (
+          <div className='flex gap-1'>
+            {SCHEDULE_PRESETS.map(preset => (
+              <kbd
+                key={preset.label}
+                className='border-border text-muted-foreground hover:text-foreground group hover:border-foreground/20 relative flex cursor-pointer items-center gap-1 rounded border py-0.5 pr-1.5 pl-5 font-sans text-xs transition-all duration-200 ease-out select-none hover:bg-neutral-50 active:scale-95'
+                onClick={() => {
+                  onPresetSelect?.(preset);
+                  setFlashPreset(preset.label);
+                  if (timeoutRef.current) {
+                    clearTimeout(timeoutRef.current);
+                  }
+                  timeoutRef.current = setTimeout(() => {
+                    setFlashPreset(null);
+                  }, 500);
+                }}
+              >
+                <Zap
+                  className={`text-muted-foreground absolute top-1/2 left-1 h-3 w-3 -translate-y-1/2 transition-all duration-200 ease-out ${
+                    flashPreset === preset.label ? 'scale-75 opacity-0' : 'scale-100 opacity-100'
+                  } `}
+                />
+                <Check
+                  className={`text-muted-foreground absolute top-1/2 left-1 h-3 w-3 -translate-y-1/2 transition-all duration-200 ease-out ${
+                    flashPreset === preset.label ? 'scale-100 opacity-100' : 'scale-75 opacity-0'
+                  } `}
+                />
+                {preset.label}
+              </kbd>
+            ))}
+          </div>
+        )}
+      </div>
       <Select
         value={value}
         onValueChange={(type: ScheduleType) => {
@@ -415,17 +492,17 @@ export function ScheduleConfig({
   return (
     <div className={className}>
       {!hideEnableSwitch && (
-        <div className='mb-4 space-y-4 pt-0'>
-          <div className='flex items-center justify-end'>
+        <div className='mb-4 space-y-4 pt-2'>
+          <div className='flex items-center'>
             <div className='flex items-center gap-2'>
-              <Label htmlFor='schedule-enabled' className='text-sm font-normal'>
-                {isEnabled ? 'Enabled' : 'Disabled'}
-              </Label>
               <Switch
                 id='schedule-enabled'
                 checked={isEnabled}
                 onCheckedChange={handleEnabledChange}
               />
+              <Label htmlFor='schedule-enabled' className='cursor-pointer text-sm font-normal'>
+                {isEnabled ? 'Enabled' : 'Disabled'}
+              </Label>
             </div>
           </div>
         </div>
@@ -437,6 +514,16 @@ export function ScheduleConfig({
             value={config.type}
             onChange={type => {
               setConfig(prev => ({ ...prev, type }));
+            }}
+            onPresetSelect={preset => {
+              setConfig(prev => ({
+                ...prev,
+                type: preset.type,
+                ...(preset.time && { time: preset.time }),
+                ...(preset.weekdays && { weekdays: preset.weekdays }),
+                ...(preset.intervalType && { intervalType: preset.intervalType }),
+                ...(preset.intervalValue && { intervalValue: preset.intervalValue }),
+              }));
             }}
             disabled={!isEnabled}
           />
