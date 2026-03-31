@@ -154,6 +154,7 @@ import { InsightTemplateMapper } from './mappers/insight-template.mapper';
 import { InsightTemplateSourceMapper } from './mappers/insight-template-source.mapper';
 import { AiAssistantMapper } from './mappers/ai-assistant.mapper';
 import { AiAssistantRunTriggerMapper } from './mappers/ai-assistant-run-trigger.mapper';
+import { AiAssistantTurnProcessedEventMapper } from './mappers/ai-assistant-turn-processed-event.mapper';
 import { AiAssistantApplyActionMapper } from './mappers/ai-assistant-apply-action.mapper';
 import { AgentFlowRequestMapper } from './mappers/agent-flow-request.mapper';
 import { CreateInsightService } from './use-cases/create-insight.service';
@@ -396,6 +397,7 @@ import { ReportRunTriggerHandlerService } from './services/report-run-trigger-ha
     InsightTemplateSourceMapper,
     AiAssistantMapper,
     AiAssistantRunTriggerMapper,
+    AiAssistantTurnProcessedEventMapper,
     AiAssistantApplyActionMapper,
     AgentFlowRequestMapper,
     InsightService,
