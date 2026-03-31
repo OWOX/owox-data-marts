@@ -17,7 +17,7 @@ export function InlineEditDescription({
   className,
   placeholder = 'Add description...',
   minWidth = '100%',
-  minHeight = '100px',
+  minHeight = '256px',
 }: InlineEditDescriptionProps) {
   const [editedDescription, setEditedDescription] = useState(description ?? '');
   const [isEditing, setIsEditing] = useState(false);
@@ -107,7 +107,7 @@ export function InlineEditDescription({
           }}
           disabled={isLoading}
         />
-        <div className='mt-2 text-xs text-gray-500'>
+        <div className='mt-2 text-xs text-neutral-500'>
           <span>
             Press{' '}
             <kbd className='rounded border border-neutral-200 bg-neutral-100 px-1 py-0.5 font-sans dark:border-neutral-900 dark:bg-neutral-900'>
@@ -128,15 +128,15 @@ export function InlineEditDescription({
   }
 
   return (
-    <div className='flex w-full items-center gap-4 rounded-md border-b border-gray-200 bg-white transition-shadow duration-200 hover:shadow-sm dark:border-0 dark:bg-white/4'>
+    <div className='flex w-full items-center gap-4 rounded-md border-b border-neutral-200 bg-white transition-shadow duration-200 hover:shadow-sm dark:border-0 dark:bg-white/4'>
       <div
         onClick={() => {
           setIsEditing(true);
         }}
         className={cn(
-          'min-h-24 cursor-pointer rounded p-2 whitespace-pre-wrap',
+          'min-h-64 cursor-pointer rounded p-2 whitespace-pre-wrap',
           'transition-colors duration-150',
-          !description && 'text-gray-400 italic',
+          !description && 'text-muted-foreground/50',
           className
         )}
         style={{ minWidth: minWidth }}
