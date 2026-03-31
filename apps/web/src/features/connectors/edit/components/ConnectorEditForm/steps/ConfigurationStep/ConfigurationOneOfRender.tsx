@@ -5,6 +5,7 @@ import { configurationFieldRender } from './ConfigurationFieldRender';
 import { TabsContent } from '@owox/ui/components/tabs';
 import { Button } from '@owox/ui/components/button';
 import { OauthRenderFactory } from './Oauth/OauthRenderFactory';
+import { SECRET_MASK } from '../../../../../../../shared/constants/secrets';
 
 interface ConfigurationOneOfRenderProps {
   specification: ConnectorSpecificationResponseApiDto;
@@ -37,6 +38,7 @@ export function ConfigurationOneOfRender({
   }, [configuration, specification.name, specification.oneOf]);
 
   const [selectedOption, setSelectedOption] = useState(detectSelectedOption);
+  const [fieldSecretEditing, setFieldSecretEditing] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     setSelectedOption(detectSelectedOption);
@@ -82,6 +84,11 @@ export function ConfigurationOneOfRender({
     });
   };
 
+  const handleFieldSecretEditToggle = (option: string, itemName: string, enable: boolean) => {
+    setFieldSecretEditing(prev => ({ ...prev, [itemName]: enable }));
+    handleNestedValueChange(option, itemName, enable ? '' : SECRET_MASK);
+  };
+
   return (
     <AppWizardStepItemOneOf
       key={specification.name}
@@ -119,9 +126,9 @@ export function ConfigurationOneOfRender({
                 ) as Record<string, unknown>;
                 const isSecret =
                   Array.isArray(itemSpec.attributes) &&
-                  Object.keys(currentObjectValue)[0] === option.value
-                    ? itemSpec.attributes.includes('SECRET')
-                    : false;
+                  itemSpec.attributes.includes('SECRET') &&
+                  Object.keys(currentObjectValue)[0] === option.value;
+                const isFieldSecretEditing = fieldSecretEditing[itemName] ?? false;
                 const optionConfiguration =
                   typeof configuration[specification.name] === 'object' &&
                   configuration[specification.name] !== null
@@ -149,10 +156,14 @@ export function ConfigurationOneOfRender({
                           size='sm'
                           type='button'
                           onClick={() => {
-                            onSecretEditToggle(specification.name, !isSecretEditing);
+                            handleFieldSecretEditToggle(
+                              option.value,
+                              itemName,
+                              !isFieldSecretEditing
+                            );
                           }}
                         >
-                          {isSecretEditing ? 'Cancel' : 'Edit'}
+                          {isFieldSecretEditing ? 'Cancel' : 'Edit'}
                         </Button>
                       )}
                     </div>
@@ -165,7 +176,7 @@ export function ConfigurationOneOfRender({
                       flags: {
                         isEditingExisting: isEditingExisting,
                         isSecret: isSecret,
-                        isSecretEditing: isSecretEditing,
+                        isSecretEditing: isFieldSecretEditing,
                       },
                       connectorName: connectorName,
                     })}
