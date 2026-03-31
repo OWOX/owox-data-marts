@@ -24,8 +24,7 @@ export class BetterAuthSessionService {
     private readonly auth: Awaited<ReturnType<typeof createBetterAuthConfig>>,
     private readonly store: DatabaseStore,
     private readonly platformAuthFlowClient: PlatformAuthFlowClient,
-    private readonly userAccountResolver: UserAccountResolver,
-    private readonly owoxTokenFacade?: OwoxTokenFacade
+    private readonly userAccountResolver: UserAccountResolver
   ) {}
 
   async buildUserInfoPayload(req: Request): Promise<UserInfoPayload> {
