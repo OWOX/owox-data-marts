@@ -3,7 +3,6 @@ import { createBetterAuthConfig } from '../../config/idp-better-auth-config.js';
 import { BETTER_AUTH_SESSION_COOKIE, SESSION_ERROR_MESSAGES } from '../../core/constants.js';
 import { SessionException } from '../../core/exceptions.js';
 import { createServiceLogger } from '../../core/logger.js';
-import { OwoxTokenFacade } from '../../facades/owox-token-facade.js';
 import { buildUserInfoPayload } from '../../mappers/user-info-payload-builder.js';
 import type { DatabaseStore } from '../../store/database-store.js';
 import { AuthSession } from '../../types/auth-session.js';
