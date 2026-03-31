@@ -69,6 +69,13 @@ export function helpMenuItems(openPopover: (id: string) => void): HelpMenuItem[]
               openPopover('video-5-try-insights');
             },
           },
+          {
+            label: 'Email reports: how to send reports by email',
+            icon: Airplay,
+            onClick: () => {
+              openPopover('video-6-email-reports');
+            },
+          },
         ],
       },
     },

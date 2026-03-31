@@ -4,7 +4,7 @@ Configure **Email** as a Destination in OWOX Data Marts to allow business users 
 
 For example, you may want to notify a stakeholder every time a scheduled run produces updated data (such as new results from the Facebook Ads connector). You can also choose to receive an email only when the run result is empty.
 
-![Email example](../../res/screens/destinations-email-example.png)
+<https://customer-4geatlj66rtkaxtz.cloudflarestream.com/0419a9dee38a7bc1bac5063dbf754efd/iframe>
 
 > ☝️ Make sure that the `insights@e.owox.com` address is not in your block list, and that emails do not end up in your spam folder.
 

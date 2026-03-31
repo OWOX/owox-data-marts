@@ -4,6 +4,7 @@ import {
   Video3GettingStartedDataMarts,
   Video4LegacyStorageSetup,
   Video5TryInsights,
+  Video6EmailReports,
 } from './popovers';
 import type { PopoverConfig, PopoverId } from './types';
 
@@ -42,5 +43,12 @@ export const popoverItems: Record<PopoverId, PopoverConfig> = {
     position: 'bottom-left',
     title: 'Insights: how to get automated reports from questions',
     content: Video5TryInsights,
+  },
+  'video-6-email-reports': {
+    width: 500,
+    height: 355,
+    position: 'bottom-left',
+    title: 'Email reports: how to send reports by email',
+    content: Video6EmailReports,
   },
 };
