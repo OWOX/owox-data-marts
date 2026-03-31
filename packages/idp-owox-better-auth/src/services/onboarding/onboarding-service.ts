@@ -171,7 +171,7 @@ export class OnboardingService {
     answerValue: string | string[]
   ): string {
     if (questionId === ONBOARDING_QUESTION.ORG_DOMAIN) {
-      const domain = String(answerValue).trim();
+      const domain = String(answerValue).trim().toLowerCase();
       if (domain && !ORG_DOMAIN_PATTERN.test(domain)) {
         throw new Error('Invalid organization domain format');
       }

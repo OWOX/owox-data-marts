@@ -169,6 +169,9 @@
   const TOTAL_STEPS = 4;
   let currentStep = 0;
 
+  // Domain validation pattern
+  const ORG_DOMAIN_PATTERN = /^[a-zA-Z0-9][a-zA-Z0-9.-]*\.[a-zA-Z]{2,}$/;
+
   const slides = document.querySelectorAll('.question-slide');
   const dots = document.querySelectorAll('.progress-dot');
   const counter = document.getElementById('step-counter');
@@ -225,10 +228,14 @@
       return true;
     }
     if (step === 1) {
-      // Org domain: must not be empty
-      const val = document.getElementById('org-domain').value.trim();
+      // Org domain: must not be empty and match valid domain format (case-insensitive)
+      const val = document.getElementById('org-domain').value.trim().toLowerCase();
       if (!val) {
         errorEl.textContent = 'Please enter your organization domain.';
+        return false;
+      }
+      if (!ORG_DOMAIN_PATTERN.test(val)) {
+        errorEl.textContent = 'Please enter a valid domain (e.g., example.com or sub.example.com).';
         return false;
       }
       return true;
@@ -326,10 +333,10 @@
       answers.push(item);
     }
 
-    // Q2: Org domain
+    // Q2: Org domain (normalized to lowercase)
     const domainInput = document.getElementById('org-domain');
     if (domainInput?.value?.trim()) {
-      answers.push({ questionId: 'org_domain', answerValue: domainInput.value.trim() });
+      answers.push({ questionId: 'org_domain', answerValue: domainInput.value.trim().toLowerCase() });
     }
 
     // Q3: Primary role (single-select)
