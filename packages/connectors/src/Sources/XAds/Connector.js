@@ -49,77 +49,11 @@ var XAdsConnector = class XAdsConnector extends AbstractConnector {
   }
 
   /**
-   * Process a batch-async time series node (e.g., stats_by_country).
-   * Submits all async jobs for the full date range upfront, polls them together,
-   * then saves results day by day — cutting total runtime vs. the sequential approach.
-   *
-   * @param {string} options.nodeName
-   * @param {string} options.accountId
-   * @param {Array<string>} options.fields
-   */
-  async processBatchAsyncNode({ nodeName, accountId, fields }) {
-    const [startDate, daysToFetch] = this.getStartDateAndDaysToFetch();
-
-    if (daysToFetch <= 0) {
-      console.log('No days to fetch for time series data');
-      return;
-    }
-
-    // Build the date list upfront. Each entry keeps both forms:
-    //   - formatted (string) → used as Map key in resultsByDate and for API calls
-    //   - date (Date object) → required by updateLastRequstedDate for incremental runs
-    const days = [];
-    for (let i = 0; i < daysToFetch; i++) {
-      const date = new Date(startDate);
-      date.setDate(date.getDate() + i);
-      days.push({ date, formatted: DateUtils.formatDate(date) });
-    }
-
-    // All jobs for all dates are submitted and resolved inside _batchTimeSeriesAsyncFetch.
-    // It returns a Map<dateString, rows[]> so we can save each day independently below.
-    const resultsByDate = await this.source._batchTimeSeriesAsyncFetch({
-      nodeName,
-      accountId,
-      fields,
-      dates: days.map(d => d.formatted)
-    });
-
-    // Initialise the storage once outside the loop — getStorageByNode is idempotent
-    // (lazy-init with internal cache), but calling it once makes the intent clear.
-    const storage = await this.getStorageByNode(nodeName);
-
-    for (const { date, formatted } of days) {
-      const data = resultsByDate.get(formatted) || [];
-
-      this.config.logMessage(data.length
-        ? `${data.length} rows of ${nodeName} were fetched for ${accountId} on ${formatted}`
-        : 'No records have been fetched'
-      );
-
-      if (data.length || this.config.CreateEmptyTables?.value) {
-        const preparedData = data.length ? this.addMissingFieldsToData(data, fields) : data;
-        await storage.saveData(preparedData);
-      }
-
-      if (this.runConfig.type === RUN_CONFIG_TYPE.INCREMENTAL) {
-        this.config.updateLastRequstedDate(date);
-      }
-    }
-  }
-
-  /**
-   * Process a time series node (e.g., analytics).
-   * Delegates to processBatchAsyncNode for nodes with batchAsync: true — those use
-   * the X Ads async jobs API and benefit from submitting all dates upfront (~5× faster).
-   * All other time series nodes are processed day-by-day via fetchData.
+   * Process a time series node (e.g., stats, stats_by_country).
+   * Fetches and saves data day-by-day via fetchData — fully sequential,
+   * one loading stream at a time (ODM architectural requirement).
    */
   async processTimeSeriesNode({ nodeName, accountId, fields }) {
-    // batchAsync nodes submit all jobs for the full date range upfront before polling,
-    // instead of the default day-by-day sequential approach.
-    if (this.source.fieldsSchema[nodeName].batchAsync) {
-      await this.processBatchAsyncNode({ nodeName, accountId, fields });
-      return;
-    }
     const [startDate, daysToFetch] = this.getStartDateAndDaysToFetch();
 
     if (daysToFetch <= 0) {

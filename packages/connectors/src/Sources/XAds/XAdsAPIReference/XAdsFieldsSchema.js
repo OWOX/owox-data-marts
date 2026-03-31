@@ -64,11 +64,7 @@ var XAdsFieldsSchema = {
     fields: statsByCountryFields,
     uniqueKeys: ["id", "date", "placement", "country"],
     destinationName: "x_ads_stats_by_country",
-    isTimeSeries: true,
-    // batchAsync: instructs processBatchAsyncNode in Connector.js to submit all
-    // async jobs for the full date range upfront before polling, instead of the
-    // default day-by-day sequential approach. Results in ~5× faster imports.
-    batchAsync: true
+    isTimeSeries: true
   },
   targeting_locations: {
     overview: "X Ads Targeting Locations",
