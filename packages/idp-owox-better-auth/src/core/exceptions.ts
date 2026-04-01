@@ -1,30 +1,54 @@
 /**
- * Error for authentication flow failures with context.
+ * Common properties for exceptions.
  */
-export class AuthenticationException extends Error {
+interface ExceptionOpts {
+  cause?: unknown;
+  context?: Record<string, unknown>;
+  status?: number;
+}
+
+/**
+ * Base class for exceptions with context.
+ */
+export class BaseException extends Error {
   readonly cause?: unknown;
   readonly context?: Record<string, unknown>;
+  readonly status?: number;
+  readonly publicMessage?: string;
 
-  constructor(message: string, opts?: { cause?: unknown; context?: Record<string, unknown> }) {
+  constructor(name: string, message: string, opts?: ExceptionOpts & { publicMessage?: string }) {
     super(message);
-    this.name = 'AuthenticationException';
+    this.name = name;
     this.cause = opts?.cause;
     this.context = opts?.context;
+    this.status = opts?.status;
+    this.publicMessage = opts?.publicMessage;
+  }
+}
+
+/**
+ * Error for authentication flow failures with context.
+ */
+export class AuthenticationException extends BaseException {
+  constructor(message: string, opts?: ExceptionOpts) {
+    super('AuthenticationException', message, {
+      status: 401,
+      publicMessage: 'Invalid or expired token',
+      ...opts,
+    });
   }
 }
 
 /**
  * Error for forbidden/blocked identities (HTTP 403).
  */
-export class ForbiddenException extends Error {
-  readonly cause?: unknown;
-  readonly context?: Record<string, unknown>;
-
-  constructor(message: string, opts?: { cause?: unknown; context?: Record<string, unknown> }) {
-    super(message);
-    this.name = 'ForbiddenException';
-    this.cause = opts?.cause;
-    this.context = opts?.context;
+export class ForbiddenException extends BaseException {
+  constructor(message: string, opts?: ExceptionOpts) {
+    super('ForbiddenException', message, {
+      status: 403,
+      publicMessage: 'Access forbidden',
+      ...opts,
+    });
   }
 }
 
@@ -42,14 +66,25 @@ export function isStateExpiredError(error: unknown): boolean {
 /**
  * Error for failed requests to Identity OWOX.
  */
-export class IdpFailedException extends Error {
-  readonly cause?: unknown;
-  readonly context?: Record<string, unknown>;
+export class IdpFailedException extends BaseException {
+  constructor(message: string, opts?: ExceptionOpts) {
+    super('IdpFailedException', message, {
+      status: 500,
+      publicMessage: 'Internal server error',
+      ...opts,
+    });
+  }
+}
 
-  constructor(message: string, opts?: { cause?: unknown; context?: Record<string, unknown> }) {
-    super(message);
-    this.name = 'IdpFailedException';
-    this.cause = opts?.cause;
-    this.context = opts?.context;
+/**
+ * Error for session resolution and authentication failures.
+ */
+export class SessionException extends BaseException {
+  constructor(message: string, opts?: ExceptionOpts) {
+    super('SessionException', message, {
+      status: 401,
+      publicMessage: 'Authentication session error',
+      ...opts,
+    });
   }
 }

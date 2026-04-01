@@ -12,6 +12,12 @@ export interface TokenRequest {
   codeVerifier?: string;
 }
 
+/** Google ID Token exchange request for Google Sheets Extension. */
+export interface GoogleIdentityExchangeRequest {
+  googleIdentityToken: string;
+  biProjectId?: string;
+}
+
 /** Token response schema for Identity OWOX. */
 export const TokenResponseSchema = z.object({
   accessToken: z.string().min(10),

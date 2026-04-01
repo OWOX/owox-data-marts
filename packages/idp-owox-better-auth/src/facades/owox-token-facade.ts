@@ -99,6 +99,23 @@ export class OwoxTokenFacade {
     };
   }
 
+  /**
+   * Exchange Google ID Token from Google Sheets Extension for OWOX access and refresh tokens
+   */
+  async exchangeGoogleIdToken(googleIdToken: string, projectId?: string): Promise<AuthResult> {
+    const response = await this.identityClient.exchangeGoogleIdentityToken({
+      googleIdentityToken: googleIdToken,
+      ...(projectId && { biProjectId: projectId }),
+    });
+
+    return {
+      accessToken: response.accessToken,
+      refreshToken: response.refreshToken,
+      accessTokenExpiresIn: response.accessTokenExpiresIn,
+      refreshTokenExpiresIn: response.refreshTokenExpiresIn,
+    };
+  }
+
   async revokeToken(token: string): Promise<void> {
     const request: RevocationRequest = { token: token, tokenType: 'refresh_token' };
     await this.identityClient.revokeToken(request);
@@ -150,7 +167,7 @@ export class OwoxTokenFacade {
           { path: req.path, ...error.context },
           error
         );
-        return res.json({ reason: 'atm5' });
+        return res.status(error.status || 500).json({ reason: 'atm5' });
       }
 
       return res.status(502).json({ reason: 'atm6' });

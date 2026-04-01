@@ -1,7 +1,8 @@
 import { beforeEach, describe, expect, it, jest } from '@jest/globals';
 import type { Request } from 'express';
 import { createBetterAuthConfig } from '../../config/idp-better-auth-config.js';
-import { BETTER_AUTH_SESSION_COOKIE } from '../../core/constants.js';
+import { BETTER_AUTH_SESSION_COOKIE, SESSION_ERROR_MESSAGES } from '../../core/constants.js';
+import { SessionException } from '../../core/exceptions.js';
 import type { DatabaseStore } from '../../store/database-store.js';
 import type { DatabaseAccount, DatabaseUser } from '../../types/database-models.js';
 import { UserAccountResolver } from '../core/user-account-resolver.js';
@@ -190,7 +191,11 @@ describe('BetterAuthSessionService', () => {
 
       await expect(
         service.completeAuthFlowWithSessionToken('session-token', 'state-1')
-      ).rejects.toThrow('User or account not found for session u1');
+      ).rejects.toThrow(SessionException);
+
+      await expect(
+        service.completeAuthFlowWithSessionToken('session-token', 'state-1')
+      ).rejects.toThrow(`${SESSION_ERROR_MESSAGES.USER_ACCOUNT_NOT_FOUND} u1`);
     });
 
     it('throws when session cannot be resolved', async () => {
@@ -198,7 +203,11 @@ describe('BetterAuthSessionService', () => {
 
       await expect(
         service.completeAuthFlowWithSessionToken('invalid-token', 'state-1')
-      ).rejects.toThrow('Failed to resolve session from Better Auth token');
+      ).rejects.toThrow(SessionException);
+
+      await expect(
+        service.completeAuthFlowWithSessionToken('invalid-token', 'state-1')
+      ).rejects.toThrow(SESSION_ERROR_MESSAGES.RESOLVE_FAILED);
 
       expect(userAccountResolver.resolveByUserId).not.toHaveBeenCalled();
     });
@@ -212,8 +221,9 @@ describe('BetterAuthSessionService', () => {
 
       (auth.api.getSession as unknown as jest.Mock).mockImplementation(() => Promise.resolve(null));
 
+      await expect(service.buildUserInfoPayload(mockReq)).rejects.toThrow(SessionException);
       await expect(service.buildUserInfoPayload(mockReq)).rejects.toThrow(
-        'No session found for user info'
+        SESSION_ERROR_MESSAGES.NOT_FOUND
       );
     });
 
@@ -233,8 +243,9 @@ describe('BetterAuthSessionService', () => {
 
       userAccountResolver.resolveByUserId.mockResolvedValue(null);
 
+      await expect(service.buildUserInfoPayload(mockReq)).rejects.toThrow(SessionException);
       await expect(service.buildUserInfoPayload(mockReq)).rejects.toThrow(
-        'User or account not found for session u1'
+        `${SESSION_ERROR_MESSAGES.USER_ACCOUNT_NOT_FOUND} u1`
       );
     });
   });
