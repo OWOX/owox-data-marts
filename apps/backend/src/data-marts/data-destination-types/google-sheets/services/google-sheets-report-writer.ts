@@ -17,7 +17,7 @@ import { SheetMetadataFormatter } from './sheet-formatters/sheet-metadata-format
 import { GoogleSheetsApiAdapter } from '../adapters/google-sheets-api.adapter';
 import { GoogleSheetsApiAdapterFactory } from '../adapters/google-sheets-api-adapter.factory';
 import { SheetValuesFormatter } from './sheet-formatters/sheet-values-formatter';
-import { SheetsReportRunSuccessfullyEvent } from '../../../events/sheets-report-run-successfully.event';
+import { SheetsReportRunEvent } from '../../../events/sheets-report-run.event';
 import { OWOX_PRODUCER } from '../../../../common/producer/producer.module';
 import { OwoxProducer } from '@owox/internal-helpers';
 import { GoogleSheetNotFound } from '../../../errors/google-sheet-not-found.error';
@@ -162,11 +162,23 @@ export class GoogleSheetsReportWriter implements DataDestinationReportWriter {
 
       const dataMart = this.report.dataMart;
       await this.producer.produceEvent(
-        new SheetsReportRunSuccessfullyEvent(
+        new SheetsReportRunEvent(
           dataMart.id,
           this.report.id,
           dataMart.projectId,
-          this.report.createdById
+          this.report.createdById,
+          'successfully'
+        )
+      );
+    } else {
+      const dataMart = this.report.dataMart;
+      await this.producer.produceEvent(
+        new SheetsReportRunEvent(
+          dataMart.id,
+          this.report.id,
+          dataMart.projectId,
+          this.report.createdById,
+          'unsuccessfully'
         )
       );
     }

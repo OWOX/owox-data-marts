@@ -13,7 +13,7 @@ import { DataMart } from '../entities/data-mart.entity';
 import { Insight } from '../entities/insight.entity';
 import { DataMartRunStatus } from '../enums/data-mart-run-status.enum';
 import { DataMartStatus } from '../enums/data-mart-status.enum';
-import { InsightRunSuccessfullyEvent } from '../events/insight-run-successfully.event';
+import { InsightRunEvent } from '../events/insight-run.event';
 import { DataMartRunService } from './data-mart-run.service';
 import {
   getPromptTotalUsage,
@@ -253,12 +253,24 @@ export class InsightExecutionService {
 
       if (isNotError) {
         await this.producer.produceEvent(
-          new InsightRunSuccessfullyEvent(
+          new InsightRunEvent(
             dataMart.id,
             runId,
             dataMart.projectId,
             run.createdById!,
-            run.runType!
+            run.runType!,
+            'successfully'
+          )
+        );
+      } else {
+        await this.producer.produceEvent(
+          new InsightRunEvent(
+            dataMart.id,
+            runId,
+            dataMart.projectId,
+            run.createdById!,
+            run.runType!,
+            'unsuccessfully'
           )
         );
       }
@@ -276,6 +288,16 @@ export class InsightExecutionService {
         logs,
         errors,
       });
+      await this.producer.produceEvent(
+        new InsightRunEvent(
+          dataMart.id,
+          runId,
+          dataMart.projectId,
+          run.createdById!,
+          run.runType!,
+          'unsuccessfully'
+        )
+      );
       this.logger.error(`Insight run failed: ${message}`, (e as Error)?.stack, {
         dataMartId: dataMart.id,
         projectId: dataMart.projectId,

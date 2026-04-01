@@ -24,7 +24,7 @@ import { SystemTimeService } from '../../../common/scheduler/services/system-tim
 import { ConnectorExecutionError } from '../../errors/connector-execution.error';
 import { OWOX_PRODUCER } from '../../../common/producer/producer.module';
 import { OwoxProducer } from '@owox/internal-helpers';
-import { ConnectorRunSuccessfullyEvent } from '../../events/connector-run-successfully.event';
+import { ConnectorRunEvent } from '../../events/connector-run.event';
 import { ProjectBalanceService } from '../project-balance.service';
 import { ConnectorProcessSpawnerService } from './connector-process-spawner.service';
 import { ConnectorStorageConfigService } from './connector-storage-config.service';
@@ -154,12 +154,24 @@ export class ConnectorExecutorService {
       if (hasSuccessfulRun) {
         await this.consumptionTracker.registerConnectorRunConsumption(dataMart, runId);
         await this.producer.produceEvent(
-          new ConnectorRunSuccessfullyEvent(
+          new ConnectorRunEvent(
             dataMart.id,
             runId,
             dataMart.projectId,
             run.createdById ?? 'system',
-            run.runType
+            run.runType,
+            'successfully'
+          )
+        );
+      } else if (!this.gracefulShutdownService.isInShutdownMode()) {
+        await this.producer.produceEvent(
+          new ConnectorRunEvent(
+            dataMart.id,
+            runId,
+            dataMart.projectId,
+            run.createdById ?? 'system',
+            run.runType,
+            'unsuccessfully'
           )
         );
       }

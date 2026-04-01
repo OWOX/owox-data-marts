@@ -6,7 +6,7 @@ import { ProjectOperationBlockedException } from '../../../../common/exceptions/
 import { OWOX_PRODUCER } from '../../../../common/producer/producer.module';
 import { CachedReaderData } from '../../../dto/domain/cached-reader-data.dto';
 import { Report } from '../../../entities/report.entity';
-import { LookerReportRunSuccessfullyEvent } from '../../../events/looker-report-run-successfully.event';
+import { LookerReportRunEvent } from '../../../events/looker-report-run.event';
 import { LookerStudioReportRun } from '../../../models/looker-studio-report-run.model';
 import { ConsumptionTrackingService } from '../../../services/consumption-tracking.service';
 import { LookerStudioReportRunService } from '../../../services/looker-studio-report-run.service';
@@ -379,7 +379,7 @@ export class LookerStudioConnectorApiService {
    * 1. Marks run as successful
    * 2. Persists run results in transaction
    * 3. Tracks consumption for billing
-   * 4. Publishes LookerReportRunSuccessfullyEvent
+   * 4. Publishes LookerReportRunEvent
    *
    * @param reportRun - Completed report run
    * @param cachedReader - Cached reader data
@@ -407,7 +407,7 @@ export class LookerStudioConnectorApiService {
     } = report;
 
     await this.producer.produceEvent(
-      new LookerReportRunSuccessfullyEvent(dataMartId, reportId, projectId, userId)
+      new LookerReportRunEvent(dataMartId, reportId, projectId, userId, 'successfully')
     );
   }
 
@@ -426,6 +426,17 @@ export class LookerStudioConnectorApiService {
     } else {
       this.logger.error(`Report ${reportRun.getReportId()} execution failed:`, error);
     }
+
+    const report = reportRun.getReport();
+    const {
+      id: reportId,
+      dataMart: { id: dataMartId, projectId },
+      createdById: userId,
+    } = report;
+
+    await this.producer.produceEvent(
+      new LookerReportRunEvent(dataMartId, reportId, projectId, userId, 'unsuccessfully')
+    );
   }
 
   /**
