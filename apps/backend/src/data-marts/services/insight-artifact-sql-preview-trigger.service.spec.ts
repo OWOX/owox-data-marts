@@ -9,6 +9,7 @@ describe('InsightArtifactSqlPreviewTriggerService', () => {
     };
     const producer = {
       produceEvent: jest.fn().mockResolvedValue(undefined),
+      produceEventSafely: jest.fn(),
     };
 
     const service = new InsightArtifactSqlPreviewTriggerService(
@@ -50,8 +51,8 @@ describe('InsightArtifactSqlPreviewTriggerService', () => {
         isActive: true,
       })
     );
-    expect(producer.produceEvent).toHaveBeenCalledTimes(1);
-    const [event] = producer.produceEvent.mock.calls[0];
+    expect(producer.produceEventSafely).toHaveBeenCalledTimes(1);
+    const [event] = producer.produceEventSafely.mock.calls[0];
     expect(event).toBeInstanceOf(InsightArtifactSqlPreviewRequestedEvent);
     expect(event.payload).toEqual({
       projectId: 'project-1',
@@ -60,5 +61,21 @@ describe('InsightArtifactSqlPreviewTriggerService', () => {
       insightArtifactId: 'artifact-1',
       triggerId: 'trigger-1',
     });
+  });
+
+  it('does not fail when sql_preview_requested event publish fails', async () => {
+    const { service, repository, producer } = createService();
+    repository.save.mockImplementation(async trigger => ({
+      ...trigger,
+      id: 'trigger-1',
+    }));
+    producer.produceEventSafely.mockImplementation(() => undefined);
+
+    await expect(
+      service.createTrigger('user-1', 'project-1', 'data-mart-1', 'artifact-1')
+    ).resolves.toBe('trigger-1');
+
+    expect(repository.save).toHaveBeenCalledTimes(1);
+    expect(producer.produceEventSafely).toHaveBeenCalledTimes(1);
   });
 });

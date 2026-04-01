@@ -37,7 +37,7 @@ export class InsightArtifactSqlPreviewTriggerService extends UiTriggerService<In
     trigger.status = TriggerStatus.IDLE;
 
     const saved = await this.triggerRepository.save(trigger);
-    await this.producer.produceEvent(
+    this.producer.produceEventSafely(
       new InsightArtifactSqlPreviewRequestedEvent({
         projectId,
         dataMartId,

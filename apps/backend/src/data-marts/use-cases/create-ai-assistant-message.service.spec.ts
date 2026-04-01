@@ -59,6 +59,7 @@ describe('CreateAiAssistantMessageService', () => {
     };
     const producer = {
       produceEvent: jest.fn().mockResolvedValue(undefined),
+      produceEventSafely: jest.fn(),
     };
     const insightTemplateService = {
       updateTitleOnlyIfHasDefaultTitle: jest.fn(),
@@ -106,7 +107,7 @@ describe('CreateAiAssistantMessageService', () => {
     expect(result.triggerId).toBe('trigger-1');
     expect(result.response).toBeNull();
     expect(aiAssistantRunTriggerService.createTrigger).toHaveBeenCalled();
-    expect(producer.produceEvent).toHaveBeenCalledWith(
+    expect(producer.produceEventSafely).toHaveBeenCalledWith(
       new AiAssistantTurnRequestedEvent({
         projectId: 'project-1',
         dataMartId: 'data-mart-1',
@@ -136,7 +137,7 @@ describe('CreateAiAssistantMessageService', () => {
 
     await expect(service.run(command)).resolves.toBeInstanceOf(AiAssistantMessageResultDto);
     expect(aiAssistantRunTriggerService.createTrigger).toHaveBeenCalled();
-    expect(producer.produceEvent).toHaveBeenCalledWith(
+    expect(producer.produceEventSafely).toHaveBeenCalledWith(
       expect.objectContaining({
         payload: expect.objectContaining({
           templateId: null,
@@ -144,5 +145,20 @@ describe('CreateAiAssistantMessageService', () => {
         }),
       })
     );
+  });
+
+  it('does not fail when turn_requested event publish fails', async () => {
+    const { service, aiAssistantSessionService, aiAssistantRunTriggerService, producer } =
+      createService();
+
+    producer.produceEventSafely.mockImplementation(() => undefined);
+    aiAssistantSessionService.getSessionByIdAndDataMartIdAndProjectId.mockResolvedValue(session);
+    aiAssistantSessionService.addMessage.mockResolvedValue(userMessageEntity);
+    aiAssistantRunTriggerService.createTrigger.mockResolvedValue('trigger-1');
+
+    await expect(service.run(command)).resolves.toBeInstanceOf(AiAssistantMessageResultDto);
+
+    expect(aiAssistantRunTriggerService.createTrigger).toHaveBeenCalledTimes(1);
+    expect(producer.produceEventSafely).toHaveBeenCalledTimes(1);
   });
 });

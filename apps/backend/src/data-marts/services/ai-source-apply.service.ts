@@ -28,7 +28,6 @@ import { AiAssistantApplyAction } from '../entities/ai-assistant-apply-action.en
 import { AiAssistantApplyActionMapper } from '../mappers/ai-assistant-apply-action.mapper';
 import { AiSourceApplyExecutionService } from './ai-source-apply-execution.service';
 import { AiAssistantSessionService } from './ai-assistant-session.service';
-import { InsightTemplateService } from './insight-template.service';
 
 interface LoadedApplyAction {
   entity: AiAssistantApplyAction;
@@ -51,7 +50,6 @@ export class AiSourceApplyService {
     private readonly applyExecutionService: AiSourceApplyExecutionService,
     private readonly applyActionMapper: AiAssistantApplyActionMapper,
     private readonly aiAssistantSessionService: AiAssistantSessionService,
-    private readonly insightTemplateService: InsightTemplateService,
     @Inject(OWOX_PRODUCER)
     private readonly producer: OwoxProducer
   ) {}
@@ -157,7 +155,7 @@ export class AiSourceApplyService {
       });
 
       const templateId = result.templateId ?? action.templateId ?? null;
-      await this.producer.produceEvent(
+      this.producer.produceEventSafely(
         this.applyActionMapper.toActionAppliedEvent({
           projectId: command.projectId,
           dataMartId: command.dataMartId,
@@ -170,7 +168,6 @@ export class AiSourceApplyService {
           artifactId: result.artifactId,
           artifactTitle: result.sourceTitle,
           templateId,
-          template: await this.getTemplateContent(templateId, command),
           sourceKey: result.sourceKey ?? action.sourceKey ?? null,
           templateUpdated: result.templateUpdated,
           status: result.status,
@@ -184,7 +181,7 @@ export class AiSourceApplyService {
       const action = loadedAction?.action ?? null;
       const templateId = loadedAction?.response.templateId ?? action?.templateId ?? null;
 
-      await this.producer.produceEvent(
+      this.producer.produceEventSafely(
         this.applyActionMapper.toActionAppliedEvent({
           projectId: command.projectId,
           dataMartId: command.dataMartId,
@@ -348,22 +345,5 @@ export class AiSourceApplyService {
       resultStatus: params.resultStatus,
       reason: params.reason,
     });
-  }
-
-  private async getTemplateContent(
-    templateId: string | null,
-    command: Pick<ApplyAiAssistantSessionCommand, 'dataMartId' | 'projectId'>
-  ): Promise<string | undefined> {
-    if (!templateId) {
-      return undefined;
-    }
-
-    const template = await this.insightTemplateService.getByIdAndDataMartIdAndProjectId(
-      templateId,
-      command.dataMartId,
-      command.projectId
-    );
-
-    return template.template ?? undefined;
   }
 }

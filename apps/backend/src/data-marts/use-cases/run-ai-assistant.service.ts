@@ -249,7 +249,7 @@ export class RunAiAssistantService {
         errors: runLogger.errors,
       });
 
-      await this.producer.produceEvent(
+      this.producer.produceEventSafely(
         this.aiAssistantTurnProcessedEventMapper.toEvent({
           projectId: command.projectId,
           dataMartId: command.dataMartId,
@@ -297,7 +297,7 @@ export class RunAiAssistantService {
         assistantMessageContent ??
         this.getFallbackAssistantErrorText();
 
-      await this.producer.produceEvent(
+      this.producer.produceEventSafely(
         this.aiAssistantTurnProcessedEventMapper.toEvent({
           projectId: command.projectId,
           dataMartId: command.dataMartId,

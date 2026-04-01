@@ -70,7 +70,7 @@ export class CreateAiAssistantMessageService {
       userMessageId: userMessage.id,
     });
 
-    await this.producer.produceEvent(
+    this.producer.produceEventSafely(
       new AiAssistantTurnRequestedEvent({
         projectId: command.projectId,
         dataMartId: command.dataMartId,

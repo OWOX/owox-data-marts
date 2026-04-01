@@ -21,6 +21,10 @@ import { InsightArtifactService } from './insight-artifact.service';
 import { InsightTemplateService } from './insight-template.service';
 
 describe('AiSourceApplyService', () => {
+  const flushAsyncTasks = async (): Promise<void> => {
+    await new Promise(resolve => setImmediate(resolve));
+  };
+
   const createService = () => {
     const sessionRepository = {
       findOne: jest.fn(),
@@ -68,6 +72,7 @@ describe('AiSourceApplyService', () => {
     const applyActionMapper = new AiAssistantApplyActionMapper();
     const producer = {
       produceEvent: jest.fn().mockResolvedValue(undefined),
+      produceEventSafely: jest.fn(),
     };
     let lastRequestedRequestId: string | null = null;
 
@@ -212,7 +217,6 @@ describe('AiSourceApplyService', () => {
       applyExecutionService as never,
       applyActionMapper as never,
       aiAssistantSessionService as never,
-      insightTemplateService as never,
       producer as never
     );
 
@@ -321,8 +325,8 @@ describe('AiSourceApplyService', () => {
         }),
       })
     );
-    expect(producer.produceEvent).toHaveBeenCalledTimes(1);
-    const [event] = producer.produceEvent.mock.calls[0];
+    expect(producer.produceEventSafely).toHaveBeenCalledTimes(1);
+    const [event] = producer.produceEventSafely.mock.calls[0];
     expect(event).toBeInstanceOf(AiAssistantActionAppliedEvent);
     expect(event.payload).toEqual({
       projectId: 'project-1',
@@ -483,6 +487,7 @@ describe('AiSourceApplyService', () => {
     });
 
     const result = await service.apply(command);
+    await flushAsyncTasks();
 
     expect(result.templateUpdated).toBe(true);
     expect(result.templateId).toBe('template-1');
@@ -499,8 +504,8 @@ describe('AiSourceApplyService', () => {
         ],
       })
     );
-    expect(producer.produceEvent).toHaveBeenCalledTimes(1);
-    const [event] = producer.produceEvent.mock.calls[0];
+    expect(producer.produceEventSafely).toHaveBeenCalledTimes(1);
+    const [event] = producer.produceEventSafely.mock.calls[0];
     expect(event).toBeInstanceOf(AiAssistantActionAppliedEvent);
     expect(event.payload).toEqual({
       projectId: 'project-1',
@@ -514,7 +519,6 @@ describe('AiSourceApplyService', () => {
       artifactId: 'artifact-new',
       artifactTitle: 'Untitled source',
       templateId: 'template-1',
-      template: '## Report',
       sourceKey: 'source_new',
       templateUpdated: true,
     });
@@ -787,7 +791,59 @@ describe('AiSourceApplyService', () => {
     expect(result.artifactId).toBe('artifact-3');
     expect(result.status).toBe('updated');
     expect(sessionRepository.findOne).not.toHaveBeenCalled();
-    expect(producer.produceEvent).not.toHaveBeenCalled();
+    expect(producer.produceEventSafely).not.toHaveBeenCalled();
+  });
+
+  it('does not fail successful apply when action_applied event publish fails', async () => {
+    const { service, sessionRepository, applyActionRepository, artifactRepository, producer } =
+      createService();
+
+    const command = new ApplyAiAssistantSessionCommand(
+      'session-1',
+      'data-mart-1',
+      'project-1',
+      'user-1',
+      'request-1',
+      'assistant-message-1',
+      'select 1',
+      'Source A'
+    );
+
+    const session = {
+      id: 'session-1',
+      dataMartId: 'data-mart-1',
+      createdById: 'user-1',
+      scope: AiAssistantScope.TEMPLATE,
+      templateId: 'template-1',
+      artifactId: null,
+    };
+    applyActionRepository.create.mockReturnValue({});
+    applyActionRepository.insert.mockResolvedValue(undefined);
+    sessionRepository.findOne.mockResolvedValue(session);
+    artifactRepository.create.mockReturnValue({
+      title: 'Source A',
+      sql: 'select 1',
+      dataMart: { id: 'data-mart-1' },
+      createdById: 'user-1',
+      validationStatus: InsightArtifactValidationStatus.VALID,
+      validationError: null,
+    });
+    artifactRepository.save.mockResolvedValueOnce({
+      id: 'artifact-1',
+      title: 'Source A',
+      sql: 'select 1',
+    });
+    producer.produceEventSafely.mockImplementation(() => undefined);
+
+    await expect(service.apply(command)).resolves.toMatchObject({
+      requestId: 'request-1',
+      artifactId: 'artifact-1',
+      status: 'updated',
+    });
+    await flushAsyncTasks();
+
+    expect(applyActionRepository.update).toHaveBeenCalledTimes(1);
+    expect(producer.produceEventSafely).toHaveBeenCalledTimes(1);
   });
 
   it('rejects outdated apply action when a newer action exists in the same session', async () => {
@@ -831,8 +887,8 @@ describe('AiSourceApplyService', () => {
 
     await expect(service.apply(command)).rejects.toBeInstanceOf(BadRequestException);
     expect(applyActionRepository.update).not.toHaveBeenCalled();
-    expect(producer.produceEvent).toHaveBeenCalledTimes(1);
-    const [event] = producer.produceEvent.mock.calls[0];
+    expect(producer.produceEventSafely).toHaveBeenCalledTimes(1);
+    const [event] = producer.produceEventSafely.mock.calls[0];
     expect(event).toBeInstanceOf(AiAssistantActionAppliedEvent);
     expect(event.payload).toEqual({
       projectId: 'project-1',
@@ -850,6 +906,51 @@ describe('AiSourceApplyService', () => {
       templateUpdated: false,
       error: 'Apply action is outdated. Please apply the latest action from the session.',
     });
+  });
+
+  it('preserves original apply error when action_applied event publish fails', async () => {
+    const { service, sessionRepository, messageRepository, producer } = createService();
+
+    const command = new ApplyAiAssistantSessionCommand(
+      'session-1',
+      'data-mart-1',
+      'project-1',
+      'user-1',
+      'request-1',
+      'assistant-message-1',
+      'select 1'
+    );
+
+    sessionRepository.findOne.mockResolvedValue({
+      id: 'session-1',
+      dataMartId: 'data-mart-1',
+      createdById: 'user-1',
+      scope: AiAssistantScope.TEMPLATE,
+      templateId: 'template-1',
+      artifactId: null,
+    });
+    messageRepository.find.mockResolvedValue([
+      {
+        id: 'assistant-message-2',
+        sessionId: 'session-1',
+        role: AiAssistantMessageRole.ASSISTANT,
+        createdAt: new Date('2026-01-02T00:00:00.000Z'),
+        proposedActions: [
+          {
+            id: 'request-newer',
+            type: 'apply_changes_to_source',
+            confidence: 0.9,
+            payload: {},
+          },
+        ],
+      },
+    ]);
+    producer.produceEventSafely.mockImplementation(() => undefined);
+
+    await expect(service.apply(command)).rejects.toBeInstanceOf(BadRequestException);
+    await flushAsyncTasks();
+
+    expect(producer.produceEventSafely).toHaveBeenCalledTimes(1);
   });
 
   it('emits failed action_applied event for validation_failed result', async () => {
@@ -893,10 +994,11 @@ describe('AiSourceApplyService', () => {
     });
 
     const result = await service.apply(command);
+    await flushAsyncTasks();
 
     expect(result.status).toBe('validation_failed');
-    expect(producer.produceEvent).toHaveBeenCalledTimes(1);
-    const [event] = producer.produceEvent.mock.calls[0];
+    expect(producer.produceEventSafely).toHaveBeenCalledTimes(1);
+    const [event] = producer.produceEventSafely.mock.calls[0];
     expect(event).toBeInstanceOf(AiAssistantActionAppliedEvent);
     expect(event.payload).toEqual({
       projectId: 'project-1',
@@ -910,7 +1012,6 @@ describe('AiSourceApplyService', () => {
       artifactId: null,
       artifactTitle: null,
       templateId: 'template-1',
-      template: '# Current Report',
       sourceKey: null,
       templateUpdated: false,
       error: 'template validation failed',

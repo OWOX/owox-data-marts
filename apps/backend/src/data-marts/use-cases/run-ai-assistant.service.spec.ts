@@ -119,6 +119,7 @@ describe('RunAiAssistantService', () => {
     const aiAssistantTurnProcessedEventMapper = new AiAssistantTurnProcessedEventMapper();
     const producer = {
       produceEvent: jest.fn().mockResolvedValue(undefined),
+      produceEventSafely: jest.fn(),
     };
     const systemTimeService = {
       now: jest.fn(),
@@ -266,8 +267,8 @@ describe('RunAiAssistantService', () => {
       })
     );
 
-    expect(producer.produceEvent).toHaveBeenCalledTimes(1);
-    const [event] = producer.produceEvent.mock.calls[0];
+    expect(producer.produceEventSafely).toHaveBeenCalledTimes(1);
+    const [event] = producer.produceEventSafely.mock.calls[0];
     expect(event).toBeInstanceOf(AiAssistantTurnProcessedEvent);
     expect(event.name).toBe('ai_assistant.turn_processed');
     expect(event.payload).toEqual({
@@ -446,8 +447,8 @@ describe('RunAiAssistantService', () => {
       })
     );
 
-    expect(producer.produceEvent).toHaveBeenCalledTimes(1);
-    const [event] = producer.produceEvent.mock.calls[0];
+    expect(producer.produceEventSafely).toHaveBeenCalledTimes(1);
+    const [event] = producer.produceEventSafely.mock.calls[0];
     expect(event).toBeInstanceOf(AiAssistantTurnProcessedEvent);
     expect(event.payload).toEqual({
       projectId: 'project-1',
@@ -580,8 +581,8 @@ describe('RunAiAssistantService', () => {
         errors: expect.arrayContaining([expect.stringContaining('orchestrator failed')]),
       })
     );
-    expect(producer.produceEvent).toHaveBeenCalledTimes(1);
-    const [event] = producer.produceEvent.mock.calls[0];
+    expect(producer.produceEventSafely).toHaveBeenCalledTimes(1);
+    const [event] = producer.produceEventSafely.mock.calls[0];
     expect(event).toBeInstanceOf(AiAssistantTurnProcessedEvent);
     expect(event.payload).toEqual({
       projectId: 'project-1',
@@ -628,6 +629,97 @@ describe('RunAiAssistantService', () => {
       llmCalls: [],
       toolCalls: [],
     });
+  });
+
+  it('keeps SUCCESS run when turn_processed event publish fails', async () => {
+    const {
+      service,
+      dataMartService,
+      dataMartRunService,
+      aiAssistantSessionService,
+      agentFlowService,
+      producer,
+      systemTimeService,
+    } = createService();
+
+    dataMartService.getByIdAndProjectId.mockResolvedValue(dataMart);
+    aiAssistantSessionService.getSessionByIdAndDataMartIdAndProjectId.mockResolvedValue(session);
+    dataMartRunService.createAndMarkAiSourceRunAsPending.mockResolvedValue(run);
+    dataMartRunService.markAiSourceRunAsStarted.mockResolvedValue({
+      ...run,
+      status: DataMartRunStatus.RUNNING,
+    });
+    aiAssistantSessionService.listMessagesBySessionIdAndDataMartIdAndProjectId.mockResolvedValue([
+      userMessage,
+    ]);
+    agentFlowService.run.mockResolvedValue({
+      status: 'ok',
+      decision: 'propose_action',
+      result: {
+        sqlCandidate: 'select * from users',
+      },
+      proposedActions: [],
+      explanation: 'SQL candidate is ready.',
+      meta: {
+        sanitizedLastUserMessage: 'Generate source for purchases',
+        reasonDescription: 'Ready',
+        telemetry: {
+          llmCalls: [],
+          toolCalls: [],
+          messageHistory: [],
+        },
+      },
+    });
+    aiAssistantSessionService.addMessage.mockResolvedValue(assistantMessage);
+    producer.produceEventSafely.mockImplementation(() => undefined);
+    systemTimeService.now.mockReturnValue(now);
+
+    await expect(service.run(command)).resolves.toMatchObject({
+      runId: 'run-1',
+      assistantMessageId: 'assistant-message-1',
+    });
+
+    expect(dataMartRunService.markAiSourceRunAsFinished).toHaveBeenCalledWith(
+      run,
+      expect.objectContaining({
+        status: DataMartRunStatus.SUCCESS,
+      })
+    );
+  });
+
+  it('preserves original assistant error when failed turn_processed publish fails', async () => {
+    const {
+      service,
+      dataMartService,
+      dataMartRunService,
+      aiAssistantSessionService,
+      agentFlowService,
+      producer,
+      systemTimeService,
+    } = createService();
+
+    dataMartService.getByIdAndProjectId.mockResolvedValue(dataMart);
+    aiAssistantSessionService.getSessionByIdAndDataMartIdAndProjectId.mockResolvedValue(session);
+    dataMartRunService.createAndMarkAiSourceRunAsPending.mockResolvedValue(run);
+    dataMartRunService.markAiSourceRunAsStarted.mockResolvedValue({
+      ...run,
+      status: DataMartRunStatus.RUNNING,
+    });
+    aiAssistantSessionService.listMessagesBySessionIdAndDataMartIdAndProjectId.mockResolvedValue([
+      userMessage,
+    ]);
+    agentFlowService.run.mockRejectedValue(new Error('orchestrator failed'));
+    producer.produceEventSafely.mockImplementation(() => undefined);
+    systemTimeService.now.mockReturnValue(now);
+
+    await expect(service.run(command)).rejects.toThrow('orchestrator failed');
+
+    expect(dataMartRunService.markAiSourceRunAsFinished).toHaveBeenCalledWith(
+      run,
+      expect.objectContaining({
+        status: DataMartRunStatus.FAILED,
+      })
+    );
   });
 
   it('fails before saving assistant message when proposedActions are invalid and emits failed turn_processed event', async () => {
@@ -684,8 +776,8 @@ describe('RunAiAssistantService', () => {
         status: DataMartRunStatus.FAILED,
       })
     );
-    expect(producer.produceEvent).toHaveBeenCalledTimes(1);
-    const [event] = producer.produceEvent.mock.calls[0];
+    expect(producer.produceEventSafely).toHaveBeenCalledTimes(1);
+    const [event] = producer.produceEventSafely.mock.calls[0];
     expect(event).toBeInstanceOf(AiAssistantTurnProcessedEvent);
     expect(event.payload).toEqual({
       projectId: 'project-1',
