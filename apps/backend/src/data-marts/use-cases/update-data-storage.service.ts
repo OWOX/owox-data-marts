@@ -1,13 +1,16 @@
-import { Injectable, BadRequestException } from '@nestjs/common';
+import { Inject, Injectable, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
+import { OwoxProducer } from '@owox/internal-helpers';
 import { Repository } from 'typeorm';
 import { Transactional } from 'typeorm-transactional';
+import { OWOX_PRODUCER } from '../../common/producer/producer.module';
 import { BigQueryConfig } from '../data-storage-types/bigquery/schemas/bigquery-config.schema';
 import { DataStorageCredentials } from '../data-storage-types/data-storage-credentials.type';
 import { DataStorageType } from '../data-storage-types/enums/data-storage-type.enum';
 import { DataStorageDto } from '../dto/domain/data-storage.dto';
 import { UpdateDataStorageCommand } from '../dto/domain/update-data-storage.command';
 import { DataStorage } from '../entities/data-storage.entity';
+import { StorageConfigSetEvent } from '../events/storage-config-set.event';
 import { DataStorageMapper } from '../mappers/data-storage.mapper';
 import { DataStorageService } from '../services/data-storage.service';
 import { DataStorageAccessValidatorFacade } from '../data-storage-types/facades/data-storage-access-validator-facade.service';
@@ -31,7 +34,9 @@ export class UpdateDataStorageService {
     private readonly dataStorageAccessFacade: DataStorageAccessValidatorFacade,
     private readonly dataStorageCredentialService: DataStorageCredentialService,
     private readonly copyCredentialService: CopyCredentialService,
-    private readonly userProjectionsFetcherService: UserProjectionsFetcherService
+    private readonly userProjectionsFetcherService: UserProjectionsFetcherService,
+    @Inject(OWOX_PRODUCER)
+    private readonly producer: OwoxProducer
   ) {}
 
   @Transactional()
@@ -42,6 +47,7 @@ export class UpdateDataStorageService {
     );
 
     const isLegacyStorage = dataStorageEntity.type === DataStorageType.LEGACY_GOOGLE_BIGQUERY;
+    const configWasEmpty = !dataStorageEntity.config;
 
     if (command.sourceStorageId && command.hasCredentials()) {
       throw new BadRequestException(
@@ -86,6 +92,17 @@ export class UpdateDataStorageService {
         dataStorageEntity.title = command.title;
       }
       const updatedDataStorageEntity = await this.dataStorageRepository.save(dataStorageEntity);
+
+      if (configWasEmpty && updatedDataStorageEntity.config) {
+        await this.producer.produceEvent(
+          new StorageConfigSetEvent(
+            updatedDataStorageEntity.id,
+            updatedDataStorageEntity.projectId,
+            updatedDataStorageEntity.createdById ?? ''
+          )
+        );
+      }
+
       const createdByUser =
         await this.userProjectionsFetcherService.fetchCreatedByUser(updatedDataStorageEntity);
       return this.dataStorageMapper.toDomainDto(updatedDataStorageEntity, 0, 0, createdByUser);
@@ -162,6 +179,17 @@ export class UpdateDataStorageService {
     }
 
     const updatedDataStorageEntity = await this.dataStorageRepository.save(dataStorageEntity);
+
+    if (configWasEmpty && updatedDataStorageEntity.config) {
+      await this.producer.produceEvent(
+        new StorageConfigSetEvent(
+          updatedDataStorageEntity.id,
+          updatedDataStorageEntity.projectId,
+          updatedDataStorageEntity.createdById ?? ''
+        )
+      );
+    }
+
     const createdByUser =
       await this.userProjectionsFetcherService.fetchCreatedByUser(updatedDataStorageEntity);
     return this.dataStorageMapper.toDomainDto(updatedDataStorageEntity, 0, 0, createdByUser);

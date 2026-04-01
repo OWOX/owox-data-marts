@@ -1,8 +1,11 @@
 import { Repository } from 'typeorm';
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
+import { OwoxProducer } from '@owox/internal-helpers';
+import { OWOX_PRODUCER } from '../../common/producer/producer.module';
 import { AvailableDestinationTypesService } from '../data-destination-types/available-destination-types.service';
 import { Report } from '../entities/report.entity';
+import { ReportCreatedEvent } from '../events/report-created.event';
 import { ReportMapper } from '../mappers/report.mapper';
 import { CreateReportCommand } from '../dto/domain/create-report.command';
 import { ReportDto } from '../dto/domain/report.dto';
@@ -21,7 +24,9 @@ export class CreateReportService {
     private readonly dataDestinationService: DataDestinationService,
     private readonly dataDestinationAccessValidationFacade: DataDestinationAccessValidatorFacade,
     private readonly mapper: ReportMapper,
-    private readonly availableDestinationTypesService: AvailableDestinationTypesService
+    private readonly availableDestinationTypesService: AvailableDestinationTypesService,
+    @Inject(OWOX_PRODUCER)
+    private readonly producer: OwoxProducer
   ) {}
 
   async run(command: CreateReportCommand): Promise<ReportDto> {
@@ -59,6 +64,16 @@ export class CreateReportService {
     });
 
     const newReport = await this.reportRepository.save(report);
+
+    await this.producer.produceEvent(
+      new ReportCreatedEvent(
+        newReport.id,
+        dataMart.id,
+        command.projectId,
+        dataDestination.type,
+        command.userId
+      )
+    );
 
     return this.mapper.toDomainDto(newReport);
   }

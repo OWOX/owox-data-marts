@@ -1,5 +1,7 @@
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
+import { OwoxProducer } from '@owox/internal-helpers';
 import { BusinessViolationException } from '../../common/exceptions/business-violation.exception';
+import { OWOX_PRODUCER } from '../../common/producer/producer.module';
 import { DataStorageType } from '../data-storage-types/enums/data-storage-type.enum';
 import { DataMartDefinitionValidatorFacade } from '../data-storage-types/facades/data-mart-definition-validator-facade.service';
 import { DataMartDto } from '../dto/domain/data-mart.dto';
@@ -7,6 +9,8 @@ import { UpdateDataMartDefinitionCommand } from '../dto/domain/update-data-mart-
 import { ConnectorDefinition } from '../dto/schemas/data-mart-table-definitions/connector-definition.schema';
 import { SqlDefinition } from '../dto/schemas/data-mart-table-definitions/sql-definition.schema';
 import { DataMartDefinitionType } from '../enums/data-mart-definition-type.enum';
+import { DataMartDefinitionSetEvent } from '../events/data-mart-definition-set.event';
+import { DataMartDefinitionTypeSetEvent } from '../events/data-mart-definition-type-set.event';
 import { DataMartMapper } from '../mappers/data-mart.mapper';
 import { ConnectorSecretService } from '../services/connector/connector-secret.service';
 import { DataMartService } from '../services/data-mart.service';
@@ -19,11 +23,16 @@ export class UpdateDataMartDefinitionService {
     private readonly definitionValidatorFacade: DataMartDefinitionValidatorFacade,
     private readonly mapper: DataMartMapper,
     private readonly connectorSecretService: ConnectorSecretService,
-    private readonly legacyDataMartsService: LegacyDataMartsService
+    private readonly legacyDataMartsService: LegacyDataMartsService,
+    @Inject(OWOX_PRODUCER)
+    private readonly producer: OwoxProducer
   ) {}
 
   async run(command: UpdateDataMartDefinitionCommand): Promise<DataMartDto> {
     const dataMart = await this.dataMartService.getByIdAndProjectId(command.id, command.projectId);
+
+    const definitionTypeWasEmpty = !dataMart.definitionType;
+    const definitionWasEmpty = !dataMart.definition;
 
     if (dataMart.definitionType && dataMart.definitionType !== command.definitionType) {
       throw new BusinessViolationException('DataMart already has definition');
@@ -110,6 +119,28 @@ export class UpdateDataMartDefinitionService {
     }
 
     await this.dataMartService.save(dataMart);
+
+    if (definitionTypeWasEmpty && dataMart.definitionType) {
+      await this.producer.produceEvent(
+        new DataMartDefinitionTypeSetEvent(
+          dataMart.id,
+          command.projectId,
+          dataMart.definitionType,
+          dataMart.createdById
+        )
+      );
+    }
+
+    if (definitionWasEmpty && dataMart.definition) {
+      await this.producer.produceEvent(
+        new DataMartDefinitionSetEvent(
+          dataMart.id,
+          command.projectId,
+          dataMart.createdById,
+          dataMart.definitionType
+        )
+      );
+    }
 
     return this.mapper.toDomainDto(dataMart);
   }
