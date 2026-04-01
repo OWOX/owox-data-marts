@@ -164,9 +164,6 @@ var XAdsSource = class XAdsSource extends AbstractSource {
       case 'stats':
         return await this._timeSeriesFetch({ nodeName, accountId, fields, start_time, end_time });
 
-      case 'stats_by_country':
-        return await this._timeSeriesAsyncFetch({ nodeName, accountId, fields, start_time, end_time });
-
       case 'targeting_locations':
         return await this._fetchTargetingLocations(fields);
 
@@ -298,9 +295,9 @@ var XAdsSource = class XAdsSource extends AbstractSource {
     const ids = promos.map(r => r.id);
     if (!ids.length) return [];
 
-    // extend end_time by one day
+    // Extend end_time by one day. Use UTC methods to avoid DST shifts.
     const e = new Date(end_time);
-    e.setDate(e.getDate() + 1);
+    e.setUTCDate(e.getUTCDate() + 1);
     const endStr = DateUtils.formatDate(e);
 
     const result = [];
@@ -478,17 +475,26 @@ var XAdsSource = class XAdsSource extends AbstractSource {
   }
 
   /**
-   * Fetch country-segmented async stats for a single day.
-   * Called once per day by processTimeSeriesNode (same pattern as Microsoft Ads).
+   * Process async stats for multiple dates in chunks.
    *
-   * Flow (fully sequential — ODM supports only one loading stream):
-   *   1. Submit one async job per (entityBatch × placement).
-   *   2. Poll all submitted jobs in a single API call every 10 s until all succeed.
-   *   3. Download and parse each result file one at a time.
+   * For each chunk of dates (sized to stay within the 100-job API limit):
+   *   1. Submit all jobs sequentially (one POST at a time).
+   *   2. Poll all jobs in a single GET per interval until all complete.
+   *   3. Download each result file sequentially.
+   *   4. Call onChunkReady(dateChunkDates, rowsByDate) so the Connector can
+   *      save to BigQuery and update the incremental cursor immediately.
    *
-   * @returns {Array<Object>} Flat array of filtered rows for the given day.
+   * This way, if chunk N+1 fails, chunks 1–N are already persisted.
+   * All operations are strictly sequential (ODM requirement).
+   *
+   * @param {Object} opts
+   * @param {string} opts.nodeName
+   * @param {string} opts.accountId
+   * @param {Array<string>} opts.fields
+   * @param {Array<string>} opts.dates - 'YYYY-MM-DD' strings
+   * @param {Function} opts.onChunkReady - async callback(rowsByDate: Map<string, Array>)
    */
-  async _timeSeriesAsyncFetch({ nodeName, accountId, fields, start_time, end_time }) {
+  async processAsyncStatsByChunk({ nodeName, accountId, fields, dates, onChunkReady }) {
     const uniqueKeys = this.fieldsSchema[nodeName].uniqueKeys || [];
     const missingKeys = uniqueKeys.filter(key => !fields.includes(key));
     if (missingKeys.length > 0) {
@@ -497,71 +503,101 @@ var XAdsSource = class XAdsSource extends AbstractSource {
 
     const promos = await this.fetchData({ nodeName: 'promoted_tweets', accountId, fields: ['id'] });
     const ids = promos.map(r => r.id);
-    if (!ids.length) return [];
-
-    // The async stats API treats end_time as exclusive, so advance by one day
-    // to include the full target date in the result set.
-    const e = new Date(end_time);
-    e.setDate(e.getDate() + 1);
-    const endStr = DateUtils.formatDate(e);
-
-    // Phase 1: Submit all jobs for this day sequentially.
-    // _rawPostFetch has a built-in 1 s delay, so submissions are naturally spaced.
-    const pendingJobs = []; // { placement, jobId }
-    for (let i = 0; i < ids.length; i += this.config.StatsMaxEntityIds.value) {
-      const entityIds = ids.slice(i, i + this.config.StatsMaxEntityIds.value);
-      for (const placement of PLACEMENTS) {
-        const jobId = await this._submitAsyncStatsJob({ accountId, entityIds, placement, start_time, end_time: endStr });
-        pendingJobs.push({ placement, jobId });
-      }
+    if (!ids.length) {
+      // No promoted tweets — call onChunkReady with empty data so the Connector
+      // can still create empty tables and update the cursor.
+      await onChunkReady(new Map(dates.map(d => [d, []])));
+      return;
     }
 
-    // Phase 2: Poll all jobs in a single API request per interval.
-    // GET /stats/jobs/accounts/:id accepts comma-separated job_ids, so we check
-    // every pending job in one round-trip instead of polling each individually.
-    // 30-minute timeout (180 × 10 s), matching the Microsoft Ads connector.
-    // X Ads jobs can take longer under server load (e.g. after a 503 retry).
-    const MAX_POLL_ATTEMPTS = 180;
-    const POLL_INTERVAL_MS = 10000;
-    const downloadUrls = new Map(); // jobId → pre-signed CDN URL
-    let pendingIds = pendingJobs.map(j => j.jobId);
+    // X Ads enforces a hard limit of 100 concurrent async jobs per account.
+    // Jobs per day = entity batches × placements (e.g. 10 batches × 2 = 20 jobs/day).
+    // We use 90 as the ceiling to leave a safety margin, then split dates into chunks.
+    const jobsPerDay = Math.ceil(ids.length / this.config.StatsMaxEntityIds.value) * PLACEMENTS.length;
+    const MAX_CONCURRENT_JOBS = 90;
+    const chunkSize = Math.max(1, Math.floor(MAX_CONCURRENT_JOBS / jobsPerDay));
 
-    for (let attempt = 0; attempt < MAX_POLL_ATTEMPTS && pendingIds.length > 0; attempt++) {
-      await AsyncUtils.delay(POLL_INTERVAL_MS);
+    console.log(`${dates.length} days to fetch, ${jobsPerDay} jobs/day → processing in chunks of ${chunkSize} day(s)`);
 
-      const resp = await this._rawFetch(`stats/jobs/accounts/${accountId}`, { job_ids: pendingIds.join(',') });
-      const jobs = this._toDataArray(resp.data);
+    for (let chunkStart = 0; chunkStart < dates.length; chunkStart += chunkSize) {
+      const dateChunk = dates.slice(chunkStart, chunkStart + chunkSize);
 
-      const stillPending = [];
-      for (const job of jobs) {
-        if (job.status === 'SUCCESS') {
-          if (!job.url) throw new Error(`Job ${job.id} succeeded but url is null`);
-          downloadUrls.set(job.id, job.url);
-        } else if (job.status === 'FAILED') {
-          throw new Error(`Async stats job ${job.id} failed: ${JSON.stringify(job)}`);
-        } else {
-          stillPending.push(job.id);
+      // Phase 1: Submit all jobs for this chunk sequentially (one POST at a time).
+      // _rawPostFetch has a built-in 1 s delay, so submissions are naturally spaced.
+      const pendingJobs = []; // { date, placement, jobId }
+      for (const date of dateChunk) {
+        // The async stats API treats end_time as exclusive, so advance by one day.
+        // Use UTC methods to avoid DST shifts eating the +1 day on transition dates.
+        const e = new Date(date);
+        e.setUTCDate(e.getUTCDate() + 1);
+        const endStr = DateUtils.formatDate(e);
+
+        for (let i = 0; i < ids.length; i += this.config.StatsMaxEntityIds.value) {
+          const entityIds = ids.slice(i, i + this.config.StatsMaxEntityIds.value);
+          for (const placement of PLACEMENTS) {
+            const jobId = await this._submitAsyncStatsJob({ accountId, entityIds, placement, start_time: date, end_time: endStr });
+            pendingJobs.push({ date, placement, jobId });
+          }
         }
       }
-      pendingIds = stillPending;
-    }
 
-    if (pendingIds.length > 0) {
-      throw new Error(`${pendingIds.length} async job(s) did not complete after ${MAX_POLL_ATTEMPTS} poll attempts`);
-    }
+      console.log(`Submitted ${pendingJobs.length} async jobs for days ${dateChunk[0]}–${dateChunk[dateChunk.length - 1]} — polling`);
 
-    // Phase 3: Download and parse each result file sequentially.
-    const result = [];
-    for (const { placement, jobId } of pendingJobs) {
-      const rows = await this._downloadAndParseJobResults({
-        downloadUrl: downloadUrls.get(jobId),
-        placement,
-        start_time
-      });
-      result.push(...rows);
-    }
+      // Phase 2: Poll all jobs in a single API request per interval (one GET at a time).
+      // Progressive backoff: start fast (3 s) to catch quick jobs, then widen to 15 s.
+      // Total budget still ~30 min (sum of all intervals across MAX_POLL_ATTEMPTS).
+      const POLL_INTERVALS = [3000, 5000, 5000, 10000, 10000];
+      const POLL_INTERVAL_DEFAULT = 15000;
+      const MAX_POLL_ATTEMPTS = 180;
+      const downloadUrls = new Map();
+      let pendingIds = pendingJobs.map(j => j.jobId);
 
-    return this._filterBySchema(result, nodeName, fields);
+      for (let attempt = 0; attempt < MAX_POLL_ATTEMPTS && pendingIds.length > 0; attempt++) {
+        await AsyncUtils.delay(POLL_INTERVALS[attempt] || POLL_INTERVAL_DEFAULT);
+
+        const resp = await this._rawFetch(`stats/jobs/accounts/${accountId}`, { job_ids: pendingIds.join(',') });
+        const jobs = this._toDataArray(resp.data);
+
+        const stillPending = [];
+        for (const job of jobs) {
+          if (job.status === 'SUCCESS') {
+            if (!job.url) throw new Error(`Job ${job.id} succeeded but url is null`);
+            downloadUrls.set(job.id, job.url);
+          } else if (job.status === 'FAILED') {
+            throw new Error(`Async stats job ${job.id} failed: ${JSON.stringify(job)}`);
+          } else {
+            stillPending.push(job.id);
+          }
+        }
+        pendingIds = stillPending;
+      }
+
+      if (pendingIds.length > 0) {
+        throw new Error(`${pendingIds.length} async job(s) did not complete after ${MAX_POLL_ATTEMPTS} poll attempts`);
+      }
+
+      // Phase 3: Download each result file sequentially, group by date.
+      const rowsByDate = new Map(dateChunk.map(d => [d, []]));
+      for (const { date, placement, jobId } of pendingJobs) {
+        const rows = await this._downloadAndParseJobResults({
+          downloadUrl: downloadUrls.get(jobId),
+          placement,
+          start_time: date
+        });
+        rowsByDate.get(date).push(...this._filterBySchema(rows, nodeName, fields));
+      }
+
+      // Phase 4: Hand results to the Connector for immediate save + cursor update.
+      const chunkHasData = await onChunkReady(rowsByDate);
+
+      // Early exit: if every day in this chunk had zero rows, skip remaining chunks.
+      // Ad activity doesn't usually resume after a gap, so this avoids submitting
+      // hundreds of jobs for dates that will return nothing.
+      if (!chunkHasData) {
+        console.log(`Chunk ${dateChunk[0]}–${dateChunk[dateChunk.length - 1]} returned no data — skipping remaining days`);
+        break;
+      }
+    }
   }
 
   /**

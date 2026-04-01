@@ -50,10 +50,15 @@ var XAdsConnector = class XAdsConnector extends AbstractConnector {
 
   /**
    * Process a time series node (e.g., stats, stats_by_country).
-   * Fetches and saves data day-by-day via fetchData — fully sequential,
-   * one loading stream at a time (ODM architectural requirement).
+   * asyncTimeSeries nodes are routed to processAsyncTimeSeriesNode, which submits
+   * all jobs upfront for speed. All other nodes use the day-by-day fetchData loop.
    */
   async processTimeSeriesNode({ nodeName, accountId, fields }) {
+    if (this.source.fieldsSchema[nodeName].asyncTimeSeries) {
+      await this.processAsyncTimeSeriesNode({ nodeName, accountId, fields });
+      return;
+    }
+
     const [startDate, daysToFetch] = this.getStartDateAndDaysToFetch();
 
     if (daysToFetch <= 0) {
@@ -81,6 +86,72 @@ var XAdsConnector = class XAdsConnector extends AbstractConnector {
         this.config.updateLastRequstedDate(currentDate);
       }
     }
+  }
+
+  /**
+   * Process an async time series node (e.g., stats_by_country).
+   *
+   * Jobs for each chunk of dates are submitted upfront so X Ads processes them
+   * concurrently on their side. After each chunk completes, results are downloaded
+   * and saved to BigQuery immediately (one at a time, per ODM requirement).
+   * This means if chunk N+1 fails, chunks 1–N are already persisted and the
+   * incremental cursor reflects their progress — the next run resumes from there.
+   */
+  async processAsyncTimeSeriesNode({ nodeName, accountId, fields }) {
+    const [startDate, daysToFetch] = this.getStartDateAndDaysToFetch();
+
+    if (daysToFetch <= 0) {
+      console.log('No days to fetch for time series data');
+      return;
+    }
+
+    // Build date list with both forms needed downstream.
+    // Use UTC to avoid DST shifts when advancing dates.
+    const days = [];
+    for (let i = 0; i < daysToFetch; i++) {
+      const date = new Date(startDate);
+      date.setUTCDate(date.getUTCDate() + i);
+      days.push({ date, formatted: DateUtils.formatDate(date) });
+    }
+
+    const storage = await this.getStorageByNode(nodeName);
+
+    // processAsyncStatsByChunk handles submit → poll → download per chunk,
+    // then calls this callback so we can save and update the cursor immediately.
+    await this.source.processAsyncStatsByChunk({
+      nodeName,
+      accountId,
+      fields,
+      dates: days.map(d => d.formatted),
+      // Returns true if any day in this chunk had data — used by processAsyncStatsByChunk
+      // to skip remaining chunks when ad activity has ended.
+      onChunkReady: async (rowsByDate) => {
+        let chunkHasData = false;
+
+        for (const { date, formatted } of days) {
+          if (!rowsByDate.has(formatted)) continue;
+
+          const data = rowsByDate.get(formatted);
+          if (data.length) chunkHasData = true;
+
+          this.config.logMessage(data.length
+            ? `${data.length} rows of ${nodeName} were fetched for ${accountId} on ${formatted}`
+            : 'No records have been fetched'
+          );
+
+          if (data.length || this.config.CreateEmptyTables?.value) {
+            const preparedData = data.length ? this.addMissingFieldsToData(data, fields) : data;
+            await storage.saveData(preparedData);
+          }
+
+          if (this.runConfig.type === RUN_CONFIG_TYPE.INCREMENTAL) {
+            this.config.updateLastRequstedDate(date);
+          }
+        }
+
+        return chunkHasData;
+      }
+    });
   }
 
   /**

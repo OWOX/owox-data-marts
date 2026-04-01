@@ -64,7 +64,11 @@ var XAdsFieldsSchema = {
     fields: statsByCountryFields,
     uniqueKeys: ["id", "date", "placement", "country"],
     destinationName: "x_ads_stats_by_country",
-    isTimeSeries: true
+    isTimeSeries: true,
+    // asyncTimeSeries: uses the X Ads async jobs API. The Connector submits all
+    // jobs for the full date range upfront (so X Ads processes them concurrently),
+    // then downloads and saves results one at a time (ODM sequential requirement).
+    asyncTimeSeries: true
   },
   targeting_locations: {
     overview: "X Ads Targeting Locations",
