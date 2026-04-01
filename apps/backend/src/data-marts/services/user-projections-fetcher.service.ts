@@ -28,14 +28,19 @@ export class UserProjectionsFetcherService {
       if (dm.createdById) {
         userIds.add(dm.createdById);
       }
-      for (const id of dm.businessOwnerIds ?? []) {
-        userIds.add(id);
+      for (const owner of dm.businessOwners ?? []) {
+        userIds.add(owner.userId);
       }
-      for (const id of dm.technicalOwnerIds ?? []) {
-        userIds.add(id);
+      for (const owner of dm.technicalOwners ?? []) {
+        userIds.add(owner.userId);
       }
     }
     return await this.idpProjectionsFacade.getUserProjectionList(Array.from(userIds));
+  }
+
+  public async fetchUserProjectionsList(userIds: string[]): Promise<UserProjectionsListDto> {
+    const uniqueIds = [...new Set(userIds.filter(id => typeof id === 'string'))];
+    return await this.idpProjectionsFacade.getUserProjectionList(uniqueIds);
   }
 
   public async fetchUserProjection(userId: string): Promise<UserProjectionDto | undefined> {

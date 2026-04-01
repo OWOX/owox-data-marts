@@ -22,9 +22,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@owox/ui/components/select';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import type { CredentialIdentity } from '../../../../../shared/types/credential-identity';
+import { OwnersSection } from '../../../../../shared/components/OwnersSection/OwnersSection';
+import type { UserProjectionDto } from '../../../../../shared/types/api';
+import type { UserProjection } from '../../../../../shared/types';
 import { CopyCredentialContext } from '../../model/context/copy-credential-context';
 import { createFormPayload } from '../../../../../utils/form-utils';
 import { COPY_SOURCE_CREDENTIAL_PLACEHOLDER } from '../../../../../shared/utils/credential-identity-utils';
@@ -54,7 +57,7 @@ import { RedshiftFields } from './RedshiftFields';
 import { SnowflakeFields } from './SnowflakeFields';
 
 interface DataStorageFormProps {
-  initialData?: DataStorageFormData & { id?: string };
+  initialData?: DataStorageFormData & { id?: string; ownerUsers?: UserProjection[] };
   onSubmit: (
     data: DataStorageFormData,
     source?: { id: string; title: string } | null
@@ -73,6 +76,26 @@ export function DataStorageForm({
     resolver: zodResolver(dataStorageSchema),
     defaultValues: initialData,
   });
+
+  const initialOwnerUsers = (initialData?.ownerUsers as UserProjectionDto[] | undefined) ?? [];
+  const [ownerUsers, setOwnerUsers] = useState<UserProjectionDto[]>(initialOwnerUsers);
+  const [pendingOwnerIds, setPendingOwnerIds] = useState<string[] | null>(null);
+  const pendingOwnerIdsRef = useRef<string[] | null>(null);
+  const ownersDirty = pendingOwnerIds !== null;
+
+  const handleOwnersChange = (newOwnerIds: string[]) => {
+    setPendingOwnerIds(newOwnerIds);
+    pendingOwnerIdsRef.current = newOwnerIds;
+    // Update displayed users optimistically from current ownerUsers + members
+    const knownUsers = new Map(ownerUsers.map(u => [u.userId, u]));
+    setOwnerUsers(
+      newOwnerIds.map(
+        id =>
+          knownUsers.get(id) ??
+          ({ userId: id, fullName: null, email: null, avatar: null } as UserProjectionDto)
+      )
+    );
+  };
 
   const [selectedSource, setSelectedSource] = useState<{
     id: string;
@@ -116,8 +139,8 @@ export function DataStorageForm({
   const storageId = initialData?.id;
 
   useEffect(() => {
-    onDirtyChange?.(isDirty || selectedSource !== null);
-  }, [isDirty, selectedSource, onDirtyChange]);
+    onDirtyChange?.(isDirty || selectedSource !== null || ownersDirty);
+  }, [isDirty, selectedSource, ownersDirty, onDirtyChange]);
 
   const copyCredentialCtx = useMemo(
     () => ({
@@ -139,7 +162,13 @@ export function DataStorageForm({
       delete (payload as Partial<DataStorageFormData>).credentials;
     }
 
-    return onSubmit(payload, selectedSource);
+    if (pendingOwnerIdsRef.current !== null) {
+      (payload as Record<string, unknown>).ownerIds = pendingOwnerIdsRef.current;
+      pendingOwnerIdsRef.current = null;
+      setPendingOwnerIds(null);
+    }
+
+    await onSubmit(payload, selectedSource);
   };
 
   const isLegacyGoogleBigQuery = selectedType === DataStorageType.LEGACY_GOOGLE_BIGQUERY;
@@ -243,6 +272,12 @@ export function DataStorageForm({
                 </FormItem>
               )}
             />
+            {storageId && (
+              <FormItem>
+                <FormLabel>Owners</FormLabel>
+                <OwnersSection ownerUsers={ownerUsers} onSave={handleOwnersChange} />
+              </FormItem>
+            )}
           </FormSection>
           <CopyCredentialContext.Provider value={copyCredentialCtx}>
             {selectedType === DataStorageType.GOOGLE_BIGQUERY && (
@@ -265,7 +300,7 @@ export function DataStorageForm({
             type='submit'
             className='w-full'
             aria-label='Save'
-            disabled={(!isDirty && !selectedSource) || isSubmitting}
+            disabled={(!isDirty && !selectedSource && !ownersDirty) || isSubmitting}
           >
             Save
           </Button>

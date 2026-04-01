@@ -23,6 +23,9 @@ import {
 import type { StoredStorageCredentials } from '../entities/stored-storage-credentials.type';
 import { CopyCredentialService } from '../services/copy-credential.service';
 import { UserProjectionsFetcherService } from '../services/user-projections-fetcher.service';
+import { StorageOwner } from '../entities/storage-owner.entity';
+import { resolveOwnerUsers } from '../utils/resolve-owner-users';
+import { IdpProjectionsFacade } from '../../idp/facades/idp-projections.facade';
 
 @Injectable()
 export class UpdateDataStorageService {
@@ -35,6 +38,9 @@ export class UpdateDataStorageService {
     private readonly dataStorageCredentialService: DataStorageCredentialService,
     private readonly copyCredentialService: CopyCredentialService,
     private readonly userProjectionsFetcherService: UserProjectionsFetcherService,
+    private readonly idpProjectionsFacade: IdpProjectionsFacade,
+    @InjectRepository(StorageOwner)
+    private readonly storageOwnerRepository: Repository<StorageOwner>,
     @Inject(OWOX_PRODUCER)
     private readonly producer: OwoxProducer
   ) {}
@@ -103,9 +109,7 @@ export class UpdateDataStorageService {
         );
       }
 
-      const createdByUser =
-        await this.userProjectionsFetcherService.fetchCreatedByUser(updatedDataStorageEntity);
-      return this.dataStorageMapper.toDomainDto(updatedDataStorageEntity, 0, 0, createdByUser);
+      return this.buildResponse(updatedDataStorageEntity, command.ownerIds);
     }
 
     let credentialsToCheck: DataStorageCredentials | undefined = command.credentials;
@@ -190,8 +194,46 @@ export class UpdateDataStorageService {
       );
     }
 
-    const createdByUser =
-      await this.userProjectionsFetcherService.fetchCreatedByUser(updatedDataStorageEntity);
-    return this.dataStorageMapper.toDomainDto(updatedDataStorageEntity, 0, 0, createdByUser);
+    return this.buildResponse(updatedDataStorageEntity, command.ownerIds);
+  }
+
+  private async buildResponse(entity: DataStorage, ownerIds?: string[]): Promise<DataStorageDto> {
+    if (ownerIds !== undefined) {
+      const uniqueOwnerIds = [...new Set(ownerIds)];
+      if (uniqueOwnerIds.length > 0) {
+        const members = await this.idpProjectionsFacade.getProjectMembers(entity.projectId);
+        const memberIds = new Set(members.filter(m => !m.isOutbound).map(m => m.userId));
+        const invalidIds = uniqueOwnerIds.filter(id => !memberIds.has(id));
+        if (invalidIds.length > 0) {
+          throw new BadRequestException(
+            `The following user IDs are not members of this project: ${invalidIds.join(', ')}`
+          );
+        }
+      }
+      await this.storageOwnerRepository.delete({ storageId: entity.id });
+      const owners = uniqueOwnerIds.map(userId => {
+        const o = new StorageOwner();
+        o.storageId = entity.id;
+        o.userId = userId;
+        return o;
+      });
+      await this.storageOwnerRepository.save(owners);
+    }
+
+    // Reload to get fresh owners
+    const fresh = await this.dataStorageService.getByProjectIdAndId(entity.projectId, entity.id);
+    const allUserIds = [...(fresh.createdById ? [fresh.createdById] : []), ...fresh.ownerIds];
+    const userProjections =
+      await this.userProjectionsFetcherService.fetchUserProjectionsList(allUserIds);
+    const createdByUser = fresh.createdById
+      ? (userProjections.getByUserId(fresh.createdById) ?? null)
+      : null;
+    return this.dataStorageMapper.toDomainDto(
+      fresh,
+      0,
+      0,
+      createdByUser,
+      resolveOwnerUsers(fresh.ownerIds, userProjections)
+    );
   }
 }

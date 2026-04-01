@@ -6,6 +6,10 @@ jest.mock('../services/user-projections-fetcher.service', () => ({
   UserProjectionsFetcherService: jest.fn(),
 }));
 
+jest.mock('../../idp/facades/idp-projections.facade', () => ({
+  IdpProjectionsFacade: jest.fn(),
+}));
+
 import { NotFoundException } from '@nestjs/common';
 import { UpdateDataStorageCommand } from '../dto/domain/update-data-storage.command';
 import { UpdateDataStorageService } from './update-data-storage.service';
@@ -53,6 +57,8 @@ describe('UpdateDataStorageService - credential copy (sourceStorageId)', () => {
     credential: 'credential' in overrides ? overrides.credential : null,
     config: makeConfig(),
     title: 'Target Storage',
+    createdById: null,
+    ownerIds: [],
   });
 
   interface FakeCred {
@@ -112,6 +118,18 @@ describe('UpdateDataStorageService - credential copy (sourceStorageId)', () => {
 
     const userProjectionsFetcherService = {
       fetchCreatedByUser: jest.fn().mockResolvedValue(null),
+      fetchUserProjectionsList: jest.fn().mockResolvedValue({
+        getByUserId: jest.fn().mockReturnValue(null),
+      }),
+    };
+
+    const storageOwnerRepository = {
+      delete: jest.fn().mockResolvedValue(undefined),
+      save: jest.fn().mockResolvedValue([]),
+    };
+
+    const idpProjectionsFacade = {
+      getProjectMembers: jest.fn().mockResolvedValue([]),
     };
 
     const producer = {
@@ -126,6 +144,8 @@ describe('UpdateDataStorageService - credential copy (sourceStorageId)', () => {
       dataStorageCredentialService as never,
       copyCredentialService,
       userProjectionsFetcherService as never,
+      idpProjectionsFacade as never,
+      storageOwnerRepository as never,
       producer as never
     );
 
@@ -149,7 +169,8 @@ describe('UpdateDataStorageService - credential copy (sourceStorageId)', () => {
 
     dataStorageService.getByProjectIdAndId
       .mockResolvedValueOnce(targetStorage)
-      .mockResolvedValueOnce(sourceStorage);
+      .mockResolvedValueOnce(sourceStorage)
+      .mockResolvedValueOnce(targetStorage); // reload in buildResponse
     dataStorageCredentialService.create.mockResolvedValue(newCred);
     dataStorageRepository.save.mockResolvedValue({ ...targetStorage, credentialId: 'cred-new' });
 
@@ -176,7 +197,8 @@ describe('UpdateDataStorageService - credential copy (sourceStorageId)', () => {
 
     dataStorageService.getByProjectIdAndId
       .mockResolvedValueOnce(targetStorage)
-      .mockResolvedValueOnce(sourceStorage);
+      .mockResolvedValueOnce(sourceStorage)
+      .mockResolvedValueOnce(targetStorage); // reload in buildResponse
     dataStorageCredentialService.update.mockResolvedValue(undefined);
     dataStorageRepository.save.mockResolvedValue(targetStorage);
 
@@ -269,7 +291,8 @@ describe('UpdateDataStorageService - credential copy (sourceStorageId)', () => {
 
     dataStorageService.getByProjectIdAndId
       .mockResolvedValueOnce(targetStorage)
-      .mockResolvedValueOnce(sourceStorage);
+      .mockResolvedValueOnce(sourceStorage)
+      .mockResolvedValueOnce(targetStorage); // reload in buildResponse
     dataStorageCredentialService.update.mockResolvedValue(undefined);
     dataStorageRepository.save.mockResolvedValue(targetStorage);
 
@@ -296,7 +319,8 @@ describe('UpdateDataStorageService - credential copy (sourceStorageId)', () => {
 
     dataStorageService.getByProjectIdAndId
       .mockResolvedValueOnce(targetStorage)
-      .mockResolvedValueOnce(sourceStorage);
+      .mockResolvedValueOnce(sourceStorage)
+      .mockResolvedValueOnce(targetStorage); // reload in buildResponse
     dataStorageCredentialService.create.mockResolvedValue({ id: 'cred-new-oauth' });
     dataStorageRepository.save.mockResolvedValue(targetStorage);
 

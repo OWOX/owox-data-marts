@@ -1,4 +1,4 @@
-import { forwardRef, useEffect } from 'react';
+import { forwardRef, useEffect, useRef, useState } from 'react';
 
 import {
   type DataMartReport,
@@ -31,6 +31,8 @@ import { type DataDestination } from '../../../../../data-destination';
 import { ReportFormMode } from '../../../shared';
 import { Button } from '@owox/ui/components/button';
 import LookerStudioCacheLifetimeDescription from './LookerStudioCacheLifetimeDescription.tsx';
+import { OwnersSection } from '../../../../../../shared/components/OwnersSection/OwnersSection';
+import type { UserProjectionDto } from '../../../../../../shared/types/api';
 
 interface LookerStudioReportEditFormProps {
   initialReport?: DataMartReport;
@@ -78,6 +80,25 @@ export const LookerStudioReportEditForm = forwardRef<
 
     const { dataMart } = useOutletContext<DataMartContextType>();
 
+    const initialOwnerUsers = (initialReport?.ownerUsers as UserProjectionDto[] | undefined) ?? [];
+    const [ownerUsers, setOwnerUsers] = useState<UserProjectionDto[]>(initialOwnerUsers);
+    const [pendingOwnerIds, setPendingOwnerIds] = useState<string[] | null>(null);
+    const pendingOwnerIdsRef = useRef<string[] | null>(null);
+    const ownersDirty = pendingOwnerIds !== null;
+
+    const handleOwnersChange = (newOwnerIds: string[]) => {
+      setPendingOwnerIds(newOwnerIds);
+      pendingOwnerIdsRef.current = newOwnerIds;
+      const knownUsers = new Map(ownerUsers.map(u => [u.userId, u]));
+      setOwnerUsers(
+        newOwnerIds.map(
+          id =>
+            knownUsers.get(id) ??
+            ({ userId: id, fullName: null, email: null, avatar: null } as UserProjectionDto)
+        )
+      );
+    };
+
     const {
       isDirty,
       reset,
@@ -88,7 +109,9 @@ export const LookerStudioReportEditForm = forwardRef<
     } = useLookerStudioReportForm({
       initialReport,
       dataMartId: dataMart?.id ?? '',
+      pendingOwnerIdsRef,
       onSuccess: () => {
+        setPendingOwnerIds(null);
         onSubmit?.();
       },
       preSelectedDestination,
@@ -116,8 +139,8 @@ export const LookerStudioReportEditForm = forwardRef<
     }, [initialReport, mode, reset]);
 
     useEffect(() => {
-      onDirtyChange?.(isDirty);
-    }, [isDirty, onDirtyChange]);
+      onDirtyChange?.(isDirty || ownersDirty);
+    }, [isDirty, ownersDirty, onDirtyChange]);
 
     return (
       <Form {...form}>
@@ -128,7 +151,12 @@ export const LookerStudioReportEditForm = forwardRef<
           onSubmit={e => void form.handleSubmit(handleFormSubmit)(e)}
         >
           <FormLayout>
-            {/* Connection Information - Show JSON config for the existing destination */}
+            {initialReport && mode === ReportFormMode.EDIT && (
+              <FormItem>
+                <FormLabel>Owners</FormLabel>
+                <OwnersSection ownerUsers={ownerUsers} onSave={handleOwnersChange} />
+              </FormItem>
+            )}
 
             <FormSection title='Cache Configuration'>
               <FormField
@@ -174,7 +202,7 @@ export const LookerStudioReportEditForm = forwardRef<
               type='submit'
               className='w-full'
               aria-label={mode === ReportFormMode.CREATE ? 'Create' : 'Save changes'}
-              disabled={!isDirty || isSubmitting}
+              disabled={(!isDirty && !ownersDirty) || isSubmitting}
             >
               {isSubmitting
                 ? mode === ReportFormMode.CREATE

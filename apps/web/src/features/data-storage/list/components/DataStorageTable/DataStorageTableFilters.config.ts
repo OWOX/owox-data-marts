@@ -17,7 +17,8 @@ import { DataStorageColumnKey, dataStorageColumnLabels } from './columns';
 export type DataStorageFilterKey =
   | DataStorageColumnKey.TITLE
   | DataStorageColumnKey.TYPE
-  | DataStorageColumnKey.CREATED_BY;
+  | DataStorageColumnKey.CREATED_BY
+  | DataStorageColumnKey.OWNERS;
 
 /* ---------------------------------------------------------------------------
  * Accessors (used both for filtering and option collection)
@@ -30,6 +31,7 @@ export const dataStorageFilterAccessors: FilterAccessors<
   [DataStorageColumnKey.TITLE]: row => row.title,
   [DataStorageColumnKey.TYPE]: row => row.type,
   [DataStorageColumnKey.CREATED_BY]: row => row.createdByUser?.userId,
+  [DataStorageColumnKey.OWNERS]: row => (row.ownerUsers ?? []).map(u => u.userId),
 };
 
 /* ---------------------------------------------------------------------------
@@ -62,12 +64,15 @@ export function buildDataStorageTableFilters(
   );
 
   /* -----------------------------
-   * Created by options
+   * User label mapper (shared by Created By and Owners)
    * --------------------------- */
   const userLabelMap = new Map<string, string>();
   for (const item of data) {
     if (item.createdByUser) {
       const u = item.createdByUser;
+      userLabelMap.set(u.userId, u.fullName ?? u.email ?? u.userId);
+    }
+    for (const u of item.ownerUsers ?? []) {
       userLabelMap.set(u.userId, u.fullName ?? u.email ?? u.userId);
     }
   }
@@ -96,6 +101,17 @@ export function buildDataStorageTableFilters(
       options: collectOptionsFromData(
         data,
         dataStorageFilterAccessors[DataStorageColumnKey.CREATED_BY],
+        { labelMapper: userLabelMapper }
+      ),
+    },
+    {
+      id: DataStorageColumnKey.OWNERS,
+      label: dataStorageColumnLabels[DataStorageColumnKey.OWNERS],
+      dataType: 'enum',
+      operators: ['eq', 'neq'],
+      options: collectOptionsFromData(
+        data,
+        dataStorageFilterAccessors[DataStorageColumnKey.OWNERS],
         { labelMapper: userLabelMapper }
       ),
     },

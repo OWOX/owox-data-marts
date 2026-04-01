@@ -7,6 +7,7 @@ import { DataStorageColumnKey } from './columnKeys';
 import { dataStorageColumnLabels } from './columnLabels';
 import { type UserProjection } from '../../../../../../shared/types';
 import { UserReference } from '../../../../../../shared/components/UserReference';
+import { UserAvatarGroup } from '../../../../../../shared/components/UserAvatarGroup/UserAvatarGroup';
 
 export interface DataStorageTableItem {
   id: string;
@@ -17,6 +18,7 @@ export interface DataStorageTableItem {
   publishedDataMartsCount: number;
   draftDataMartsCount: number;
   createdByUser?: UserProjection | null;
+  ownerUsers?: UserProjection[];
 }
 
 interface DataStorageColumnsProps {
@@ -132,6 +134,26 @@ export const getDataStorageColumns = ({
       const user = row.original.createdByUser;
       if (!user) return <span className='text-muted-foreground'>-</span>;
       return <UserReference userProjection={user} />;
+    },
+  },
+  {
+    id: DataStorageColumnKey.OWNERS,
+    accessorFn: row => (row.ownerUsers ?? []).map(u => u.fullName ?? u.email).join(', '),
+    size: 200,
+    meta: {
+      title: dataStorageColumnLabels[DataStorageColumnKey.OWNERS],
+    },
+    header: ({ column }) => (
+      <SortableHeader column={column}>
+        {dataStorageColumnLabels[DataStorageColumnKey.OWNERS]}
+      </SortableHeader>
+    ),
+    cell: ({ row }) => {
+      const users = row.original.ownerUsers ?? [];
+      if (users.length === 0)
+        return <span className='text-muted-foreground text-sm'>Not assigned</span>;
+      if (users.length === 1) return <UserReference userProjection={users[0]} />;
+      return <UserAvatarGroup users={users} />;
     },
   },
   {

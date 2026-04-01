@@ -71,10 +71,12 @@ export function DataDestinationConfigSheet({
         }
       }
     } else {
-      const updateData = mapper.mapToUpdateRequest(data);
+      const { ownerIds, ...formFields } = data as DataDestinationFormData & { ownerIds?: string[] };
+      const updateData = mapper.mapToUpdateRequest(formFields);
+      const requestWithOwners = ownerIds !== undefined ? { ...updateData, ownerIds } : updateData;
       const updatedDestination = await updateDataDestination(
         dataDestination.id,
-        updateData,
+        requestWithOwners,
         source
       );
       if (updatedDestination) {

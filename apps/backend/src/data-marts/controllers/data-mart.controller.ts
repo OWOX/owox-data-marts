@@ -16,6 +16,7 @@ import { UpdateDataMartDescriptionApiDto } from '../dto/presentation/update-data
 import { UpdateDataMartOwnersApiDto } from '../dto/presentation/update-data-mart-owners-api.dto';
 import { UpdateDataMartSchemaApiDto } from '../dto/presentation/update-data-mart-schema-api.dto';
 import { UpdateDataMartTitleApiDto } from '../dto/presentation/update-data-mart-title-api.dto';
+import { OwnerFilter } from '../enums/owner-filter.enum';
 import { DataMartMapper } from '../mappers/data-mart.mapper';
 import { BatchDataMartHealthStatusService } from '../use-cases/batch-data-mart-health-status.service';
 import { CancelDataMartRunService } from '../use-cases/cancel-data-mart-run.service';
@@ -94,9 +95,10 @@ export class DataMartController {
   @ListDataMartsSpec()
   async list(
     @AuthContext() context: AuthorizationContext,
-    @Query('offset') offset?: number
+    @Query('offset') offset?: number,
+    @Query('ownerFilter') ownerFilter?: OwnerFilter
   ): Promise<PaginatedDataMartsResponseApiDto> {
-    const command = this.mapper.toListCommand(context, offset);
+    const command = this.mapper.toListCommand(context, offset, ownerFilter);
     const result = await this.listDataMartsService.run(command);
     return this.mapper.toPaginatedResponse(result);
   }

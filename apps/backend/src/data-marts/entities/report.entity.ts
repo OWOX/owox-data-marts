@@ -5,6 +5,7 @@ import {
   Entity,
   JoinColumn,
   ManyToOne,
+  OneToMany,
   PrimaryGeneratedColumn,
   UpdateDateColumn,
   VersionColumn,
@@ -20,6 +21,7 @@ import { ReportRunStatus } from '../enums/report-run-status.enum';
 import { CreatorAwareEntity } from './creator-aware-entity.interface';
 import { DataDestination } from './data-destination.entity';
 import { DataMart } from './data-mart.entity';
+import { ReportOwner } from './report-owner.entity';
 
 const REPORT_ID_NAMESPACE = '550e8400-e29b-41d4-a716-446655440000';
 
@@ -60,6 +62,11 @@ export class Report implements CreatorAwareEntity {
   @Column()
   createdById: string;
 
+  @OneToMany(() => ReportOwner, owner => owner.report, {
+    eager: true,
+  })
+  owners: ReportOwner[];
+
   @CreateDateColumn()
   createdAt: Date;
 
@@ -92,6 +99,10 @@ export class Report implements CreatorAwareEntity {
       this.title = '';
     }
     // For other types, use automatic generation via @PrimaryGeneratedColumn
+  }
+
+  get ownerIds(): string[] {
+    return (this.owners ?? []).map(o => o.userId);
   }
 
   isEmailBasedDestination(): boolean {

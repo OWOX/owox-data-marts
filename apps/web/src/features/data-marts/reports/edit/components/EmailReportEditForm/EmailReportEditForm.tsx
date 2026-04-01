@@ -47,6 +47,8 @@ import {
 } from '../../../../scheduled-triggers/components/ReportSchedulesInlineList/ReportSchedulesInlineList';
 import type { DataMartReport } from '../../../shared/model/types/data-mart-report';
 import { ReportFormMode, TemplateSourceTypeEnum } from '../../../shared';
+import { OwnersSection } from '../../../../../../shared/components/OwnersSection/OwnersSection';
+import type { UserProjectionDto } from '../../../../../../shared/types/api';
 import { useEmailReportForm } from '../../hooks/useEmailReportForm';
 import { ReportConditionEnum } from '../../../shared/enums/report-condition.enum';
 import {
@@ -173,6 +175,25 @@ export const EmailReportEditForm = forwardRef<HTMLFormElement, EmailReportEditFo
       }
     }, [dataDestinations, preSelectedDestination?.type, allowedDestinationTypes]);
 
+    const initialOwnerUsers = (initialReport?.ownerUsers as UserProjectionDto[] | undefined) ?? [];
+    const [ownerUsers, setOwnerUsers] = useState<UserProjectionDto[]>(initialOwnerUsers);
+    const [pendingOwnerIds, setPendingOwnerIds] = useState<string[] | null>(null);
+    const pendingOwnerIdsRef = useRef<string[] | null>(null);
+    const ownersDirty = pendingOwnerIds !== null;
+
+    const handleOwnersChange = (newOwnerIds: string[]) => {
+      setPendingOwnerIds(newOwnerIds);
+      pendingOwnerIdsRef.current = newOwnerIds;
+      const knownUsers = new Map(ownerUsers.map(u => [u.userId, u]));
+      setOwnerUsers(
+        newOwnerIds.map(
+          id =>
+            knownUsers.get(id) ??
+            ({ userId: id, fullName: null, email: null, avatar: null } as UserProjectionDto)
+        )
+      );
+    };
+
     const {
       isDirty,
       reset,
@@ -184,6 +205,7 @@ export const EmailReportEditForm = forwardRef<HTMLFormElement, EmailReportEditFo
       initialReport,
       mode,
       dataMartId: dataMart?.id ?? '',
+      pendingOwnerIdsRef,
       onAfterSubmit: async report => {
         try {
           await scheduleRef.current?.persist(report.id);
@@ -191,6 +213,7 @@ export const EmailReportEditForm = forwardRef<HTMLFormElement, EmailReportEditFo
           // ignore UI errors here; hook will handle formError
           console.error('Failed to persist schedule for report', e);
         }
+        setPendingOwnerIds(null);
         if (runAfterSaveRef.current) {
           try {
             await runReport(report.id);
@@ -253,8 +276,8 @@ export const EmailReportEditForm = forwardRef<HTMLFormElement, EmailReportEditFo
     ]);
 
     useEffect(() => {
-      onDirtyChange?.(isDirty || triggersDirty);
-    }, [isDirty, triggersDirty, onDirtyChange]);
+      onDirtyChange?.(isDirty || triggersDirty || ownersDirty);
+    }, [isDirty, triggersDirty, ownersDirty, onDirtyChange]);
 
     const reportConditionOptions = useMemo(
       () => [
@@ -344,6 +367,13 @@ export const EmailReportEditForm = forwardRef<HTMLFormElement, EmailReportEditFo
                     </FormItem>
                   )}
                 />
+
+                {initialReport && mode === ReportFormMode.EDIT && !isReadOnly && (
+                  <FormItem>
+                    <FormLabel>Owners</FormLabel>
+                    <OwnersSection ownerUsers={ownerUsers} onSave={handleOwnersChange} />
+                  </FormItem>
+                )}
 
                 <FormField
                   control={form.control}
@@ -823,6 +853,7 @@ export const EmailReportEditForm = forwardRef<HTMLFormElement, EmailReportEditFo
               isSubmitting={isSubmitting}
               isDirty={isDirty}
               triggersDirty={triggersDirty}
+              ownersDirty={ownersDirty}
               runAfterSaveRef={runAfterSaveRef}
               onSubmit={() => void form.handleSubmit(handleFormSubmit)()}
               onCancel={onCancel}

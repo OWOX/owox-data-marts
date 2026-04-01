@@ -1,10 +1,15 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
 import { IdpProjectionsFacade } from '../../idp/facades/idp-projections.facade';
 import { DataMartDto } from '../dto/domain/data-mart.dto';
 import { UpdateDataMartOwnersCommand } from '../dto/domain/update-data-mart-owners.command';
+import { DataMartBusinessOwner } from '../entities/data-mart-business-owner.entity';
+import { DataMartTechnicalOwner } from '../entities/data-mart-technical-owner.entity';
 import { DataMartMapper } from '../mappers/data-mart.mapper';
 import { DataMartService } from '../services/data-mart.service';
 import { UserProjectionsFetcherService } from '../services/user-projections-fetcher.service';
+import { resolveOwnerUsers } from '../utils/resolve-owner-users';
 
 @Injectable()
 export class UpdateDataMartOwnersService {
@@ -12,13 +17,16 @@ export class UpdateDataMartOwnersService {
     private readonly dataMartService: DataMartService,
     private readonly mapper: DataMartMapper,
     private readonly userProjectionsFetcherService: UserProjectionsFetcherService,
-    private readonly idpProjectionsFacade: IdpProjectionsFacade
+    private readonly idpProjectionsFacade: IdpProjectionsFacade,
+    @InjectRepository(DataMartBusinessOwner)
+    private readonly businessOwnerRepository: Repository<DataMartBusinessOwner>,
+    @InjectRepository(DataMartTechnicalOwner)
+    private readonly technicalOwnerRepository: Repository<DataMartTechnicalOwner>
   ) {}
 
   async run(command: UpdateDataMartOwnersCommand): Promise<DataMartDto> {
-    const dataMart = await this.dataMartService.getByIdAndProjectId(command.id, command.projectId);
+    await this.dataMartService.getByIdAndProjectId(command.id, command.projectId);
 
-    // Validate that all provided owner IDs belong to project members
     const allOwnerIds = [...new Set([...command.businessOwnerIds, ...command.technicalOwnerIds])];
 
     if (allOwnerIds.length > 0) {
@@ -33,9 +41,35 @@ export class UpdateDataMartOwnersService {
       }
     }
 
-    dataMart.businessOwnerIds = command.businessOwnerIds;
-    dataMart.technicalOwnerIds = command.technicalOwnerIds;
-    await this.dataMartService.save(dataMart);
+    await Promise.all([
+      this.businessOwnerRepository.delete({ dataMartId: command.id }),
+      this.technicalOwnerRepository.delete({ dataMartId: command.id }),
+    ]);
+
+    const uniqueBusinessIds = [...new Set(command.businessOwnerIds)];
+    const uniqueTechnicalIds = [...new Set(command.technicalOwnerIds)];
+
+    const businessOwners = uniqueBusinessIds.map(userId => {
+      const owner = new DataMartBusinessOwner();
+      owner.dataMartId = command.id;
+      owner.userId = userId;
+      return owner;
+    });
+
+    const technicalOwners = uniqueTechnicalIds.map(userId => {
+      const owner = new DataMartTechnicalOwner();
+      owner.dataMartId = command.id;
+      owner.userId = userId;
+      return owner;
+    });
+
+    await Promise.all([
+      this.businessOwnerRepository.save(businessOwners),
+      this.technicalOwnerRepository.save(technicalOwners),
+    ]);
+
+    // Reload data mart with fresh owner relations
+    const dataMart = await this.dataMartService.getByIdAndProjectId(command.id, command.projectId);
 
     const userProjections =
       await this.userProjectionsFetcherService.fetchAllRelevantUserProjections([dataMart]);
@@ -44,8 +78,8 @@ export class UpdateDataMartOwnersService {
       dataMart,
       undefined,
       userProjections.getByUserId(dataMart.createdById),
-      this.mapper.resolveOwnerUsers(dataMart.businessOwnerIds, userProjections),
-      this.mapper.resolveOwnerUsers(dataMart.technicalOwnerIds, userProjections)
+      resolveOwnerUsers(dataMart.businessOwnerIds, userProjections),
+      resolveOwnerUsers(dataMart.technicalOwnerIds, userProjections)
     );
   }
 }

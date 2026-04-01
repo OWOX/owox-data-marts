@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { type RefObject, useCallback, useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -52,6 +52,7 @@ interface UseEmailReportFormOptions {
   onAfterSubmit?: (report: DataMartReport) => Promise<void> | void;
   onSuccess?: () => void;
   preSelectedDestination?: DataDestination | null;
+  pendingOwnerIdsRef?: RefObject<string[] | null>;
 }
 
 export function useEmailReportForm({
@@ -61,6 +62,7 @@ export function useEmailReportForm({
   onAfterSubmit,
   onSuccess,
   preSelectedDestination,
+  pendingOwnerIdsRef,
 }: UseEmailReportFormOptions) {
   const [formError, setFormError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -166,6 +168,9 @@ export function useEmailReportForm({
             title: data.title,
             dataDestinationId: data.dataDestinationId,
             destinationConfig,
+            ...(pendingOwnerIdsRef?.current != null
+              ? { ownerIds: pendingOwnerIdsRef.current }
+              : {}),
           });
         }
 
@@ -196,6 +201,7 @@ export function useEmailReportForm({
       onSuccess,
       clearError,
       reportError,
+      pendingOwnerIdsRef,
     ]
   );
 

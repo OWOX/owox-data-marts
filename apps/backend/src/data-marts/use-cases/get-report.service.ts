@@ -6,6 +6,7 @@ import { ReportMapper } from '../mappers/report.mapper';
 import { GetReportCommand } from '../dto/domain/get-report.command';
 import { ReportDto } from '../dto/domain/report.dto';
 import { UserProjectionsFetcherService } from '../services/user-projections-fetcher.service';
+import { resolveOwnerUsers } from '../utils/resolve-owner-users';
 
 @Injectable()
 export class GetReportService {
@@ -31,8 +32,16 @@ export class GetReportService {
       throw new NotFoundException(`Report with ID ${command.id} not found`);
     }
 
-    const createdByUser = await this.userProjectionsFetcherService.fetchCreatedByUser(report);
+    const allUserIds = [report.createdById, ...report.ownerIds];
+    const userProjections =
+      await this.userProjectionsFetcherService.fetchUserProjectionsList(allUserIds);
 
-    return this.mapper.toDomainDto(report, createdByUser);
+    const createdByUser = userProjections.getByUserId(report.createdById) ?? null;
+
+    return this.mapper.toDomainDto(
+      report,
+      createdByUser,
+      resolveOwnerUsers(report.ownerIds, userProjections)
+    );
   }
 }

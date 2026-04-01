@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Put, Body, Param, Delete } from '@nestjs/common';
+import { Controller, Get, Post, Put, Body, Param, Delete, Query } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { AuthContext, AuthorizationContext, Auth } from '../../idp';
 import { Role, Strategy } from '../../idp/types/role-config.types';
@@ -25,6 +25,7 @@ import {
   ListReportsByInsightTemplateSpec,
 } from './spec/report.api';
 import { RunType } from '../../common/scheduler/shared/types';
+import { OwnerFilter } from '../enums/owner-filter.enum';
 
 @Controller('reports')
 @ApiTags('Reports')
@@ -98,9 +99,10 @@ export class ReportController {
   @Get()
   @ListReportsByProjectSpec()
   async listByProject(
-    @AuthContext() context: AuthorizationContext
+    @AuthContext() context: AuthorizationContext,
+    @Query('ownerFilter') ownerFilter?: OwnerFilter
   ): Promise<ReportResponseApiDto[]> {
-    const command = this.mapper.toListByProjectCommand(context);
+    const command = this.mapper.toListByProjectCommand(context, ownerFilter);
     const reports = await this.listReportsByProjectService.run(command);
     return this.mapper.toResponseList(reports);
   }

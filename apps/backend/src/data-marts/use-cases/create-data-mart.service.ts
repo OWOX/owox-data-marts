@@ -1,9 +1,12 @@
 import { Injectable } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
 import { BigQueryConfig } from '../data-storage-types/bigquery/schemas/bigquery-config.schema';
 import { DataStorageType } from '../data-storage-types/enums/data-storage-type.enum';
 import { CreateDataMartCommand } from '../dto/domain/create-data-mart.command';
 import { DataMartDto } from '../dto/domain/data-mart.dto';
 import { SqlDefinition } from '../dto/schemas/data-mart-table-definitions/sql-definition.schema';
+import { DataMartTechnicalOwner } from '../entities/data-mart-technical-owner.entity';
 import { DataMartDefinitionType } from '../enums/data-mart-definition-type.enum';
 import { DataMartMapper } from '../mappers/data-mart.mapper';
 import { DataMartService } from '../services/data-mart.service';
@@ -18,7 +21,9 @@ export class CreateDataMartService {
     private readonly dataMartService: DataMartService,
     private readonly dataStorageService: DataStorageService,
     private readonly mapper: DataMartMapper,
-    private readonly legacyDataMartService: LegacyDataMartsService
+    private readonly legacyDataMartService: LegacyDataMartsService,
+    @InjectRepository(DataMartTechnicalOwner)
+    private readonly technicalOwnerRepository: Repository<DataMartTechnicalOwner>
   ) {}
 
   async run(command: CreateDataMartCommand): Promise<DataMartDto> {
@@ -42,7 +47,6 @@ export class CreateDataMartService {
       title: command.title,
       projectId: command.projectId,
       createdById: command.userId,
-      technicalOwnerIds: [command.userId],
       storage: dataStorage,
       ...(isLegacyDataMart
         ? {
@@ -54,6 +58,14 @@ export class CreateDataMartService {
     });
 
     const newDataMart = await this.dataMartService.save(dataMart);
+
+    const technicalOwner = new DataMartTechnicalOwner();
+    technicalOwner.dataMartId = newDataMart.id;
+    technicalOwner.userId = command.userId;
+    await this.technicalOwnerRepository.save(technicalOwner);
+
+    newDataMart.technicalOwners = [technicalOwner];
+    newDataMart.businessOwners = [];
 
     return this.mapper.toDomainDto(newDataMart);
   }

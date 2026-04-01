@@ -4,6 +4,7 @@ import { DataStorageDto } from '../dto/domain/data-storage.dto';
 import { DataStorageService } from '../services/data-storage.service';
 import { GetDataStorageCommand } from '../dto/domain/get-data-storage.command';
 import { UserProjectionsFetcherService } from '../services/user-projections-fetcher.service';
+import { resolveOwnerUsers } from '../utils/resolve-owner-users';
 
 @Injectable()
 export class GetDataStorageService {
@@ -19,9 +20,23 @@ export class GetDataStorageService {
       command.id
     );
 
-    const createdByUser =
-      await this.userProjectionsFetcherService.fetchCreatedByUser(dataStorageEntity);
+    const allUserIds = [
+      ...(dataStorageEntity.createdById ? [dataStorageEntity.createdById] : []),
+      ...dataStorageEntity.ownerIds,
+    ];
+    const userProjections =
+      await this.userProjectionsFetcherService.fetchUserProjectionsList(allUserIds);
 
-    return this.dataStorageMapper.toDomainDto(dataStorageEntity, 0, 0, createdByUser);
+    const createdByUser = dataStorageEntity.createdById
+      ? (userProjections.getByUserId(dataStorageEntity.createdById) ?? null)
+      : null;
+
+    return this.dataStorageMapper.toDomainDto(
+      dataStorageEntity,
+      0,
+      0,
+      createdByUser,
+      resolveOwnerUsers(dataStorageEntity.ownerIds, userProjections)
+    );
   }
 }

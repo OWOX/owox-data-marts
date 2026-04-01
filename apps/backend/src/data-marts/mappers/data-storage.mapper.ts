@@ -31,6 +31,7 @@ import { DataStorageByTypeResponseApiDto } from '../dto/presentation/data-storag
 import { ListDataStoragesByTypeItemDto } from '../dto/domain/list-data-storages-by-type-item.dto';
 import { DataStorage } from '../entities/data-storage.entity';
 import { UserProjectionDto } from '../../idp/dto/domain/user-projection.dto';
+import { OwnerFilter } from '../enums/owner-filter.enum';
 
 @Injectable()
 export class DataStorageMapper {
@@ -58,7 +59,8 @@ export class DataStorageMapper {
       dto.title.trim(),
       dto.credentials,
       dto.credentialId,
-      dto.sourceStorageId
+      dto.sourceStorageId,
+      dto.ownerIds
     );
   }
 
@@ -66,7 +68,8 @@ export class DataStorageMapper {
     dataStorage: DataStorage,
     publishedCount = 0,
     draftsCount = 0,
-    createdByUser: UserProjectionDto | null = null
+    createdByUser: UserProjectionDto | null = null,
+    ownerUsers: UserProjectionDto[] = []
   ): DataStorageDto {
     return new DataStorageDto(
       dataStorage.id,
@@ -79,7 +82,8 @@ export class DataStorageMapper {
       publishedCount,
       draftsCount,
       dataStorage.credentialId,
-      createdByUser
+      createdByUser,
+      ownerUsers
     );
   }
 
@@ -111,6 +115,7 @@ export class DataStorageMapper {
       modifiedAt: dataStorageDto.modifiedAt,
       credentialId: dataStorageDto.credentialId,
       createdByUser: dataStorageDto.createdByUser,
+      ownerUsers: dataStorageDto.ownerUsers,
     };
   }
 
@@ -118,8 +123,8 @@ export class DataStorageMapper {
     return new GetDataStorageCommand(id, context.projectId);
   }
 
-  toListCommand(context: AuthorizationContext) {
-    return new ListDataStoragesCommand(context.projectId);
+  toListCommand(context: AuthorizationContext, ownerFilter?: OwnerFilter) {
+    return new ListDataStoragesCommand(context.projectId, ownerFilter);
   }
 
   toResponseList(dataStorages: DataStorageDto[]): DataStorageListResponseApiDto[] {
@@ -132,6 +137,7 @@ export class DataStorageMapper {
       publishedDataMartsCount: dataStorageDto.dataMartsCount,
       draftDataMartsCount: dataStorageDto.draftsCount,
       createdByUser: dataStorageDto.createdByUser,
+      ownerUsers: dataStorageDto.ownerUsers,
     }));
   }
 

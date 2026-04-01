@@ -8,6 +8,7 @@ import { Report } from '../entities/report.entity';
 import { DataMartMapper } from '../mappers/data-mart.mapper';
 import { DataMartService } from '../services/data-mart.service';
 import { UserProjectionsFetcherService } from '../services/user-projections-fetcher.service';
+import { resolveOwnerUsers } from '../utils/resolve-owner-users';
 
 const DATA_MARTS_PAGE_SIZE = 1000;
 
@@ -28,7 +29,7 @@ export class ListDataMartsService {
 
     const { items: dataMarts, total } = await this.dataMartService.findByProjectIdForList(
       command.projectId,
-      { offset, limit: DATA_MARTS_PAGE_SIZE }
+      { offset, limit: DATA_MARTS_PAGE_SIZE, ownerFilter: command.ownerFilter }
     );
 
     if (dataMarts.length === 0) {
@@ -74,8 +75,8 @@ export class ListDataMartsService {
           reportsCount: reportCountMap.get(dm.id) ?? 0,
         },
         userProjections.getByUserId(dm.createdById),
-        this.mapper.resolveOwnerUsers(dm.businessOwnerIds, userProjections),
-        this.mapper.resolveOwnerUsers(dm.technicalOwnerIds, userProjections)
+        resolveOwnerUsers(dm.businessOwnerIds, userProjections),
+        resolveOwnerUsers(dm.technicalOwnerIds, userProjections)
       )
     );
 

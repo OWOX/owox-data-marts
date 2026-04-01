@@ -27,8 +27,9 @@ export class ListReportsByDataMartService {
       relations: ['dataMart', 'dataDestination'],
     });
 
+    const allUserIds = reports.flatMap(r => [r.createdById, ...r.ownerIds]);
     const userProjectionsList =
-      await this.userProjectionsFetcherService.fetchRelevantUserProjections(reports);
+      await this.userProjectionsFetcherService.fetchUserProjectionsList(allUserIds);
 
     return this.mapper.toDomainDtoList(reports, userProjectionsList);
   }

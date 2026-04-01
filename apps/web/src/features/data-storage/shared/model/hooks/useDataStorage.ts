@@ -93,8 +93,10 @@ export function useDataStorage() {
     ) => {
       dispatch({ type: DataStorageActionType.UPDATE_STORAGE_START });
       try {
-        const request = mapToUpdateDataStorageRequest(data, source?.id);
-        const response = await dataStorageApiService.updateDataStorage(id, request);
+        const { ownerIds, ...formData } = data as DataStorageFormData & { ownerIds?: string[] };
+        const request = mapToUpdateDataStorageRequest(formData, source?.id);
+        const requestWithOwners = ownerIds !== undefined ? { ...request, ownerIds } : request;
+        const response = await dataStorageApiService.updateDataStorage(id, requestWithOwners);
         const updatedStorage = mapDataStorageFromDto(response);
         dispatch({
           type: DataStorageActionType.UPDATE_STORAGE_SUCCESS,

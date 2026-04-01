@@ -3,6 +3,7 @@ import {
   CreateDateColumn,
   Entity,
   JoinColumn,
+  OneToMany,
   OneToOne,
   PrimaryGeneratedColumn,
   UpdateDateColumn,
@@ -12,6 +13,7 @@ import { DataStorageType } from '../data-storage-types/enums/data-storage-type.e
 import { DataStorageConfig } from '../data-storage-types/data-storage-config.type';
 import { DataStorageCredential } from './data-storage-credential.entity';
 import { CreatorAwareEntity } from './creator-aware-entity.interface';
+import { StorageOwner } from './storage-owner.entity';
 
 @Entity()
 export class DataStorage implements CreatorAwareEntity {
@@ -43,9 +45,18 @@ export class DataStorage implements CreatorAwareEntity {
   @Column({ type: 'varchar', nullable: true })
   createdById?: string;
 
+  @OneToMany(() => StorageOwner, owner => owner.storage, {
+    eager: true,
+  })
+  owners: StorageOwner[];
+
   @CreateDateColumn()
   createdAt: Date;
 
   @UpdateDateColumn()
   modifiedAt: Date;
+
+  get ownerIds(): string[] {
+    return (this.owners ?? []).map(o => o.userId);
+  }
 }

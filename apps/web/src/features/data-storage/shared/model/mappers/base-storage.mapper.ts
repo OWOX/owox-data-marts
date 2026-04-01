@@ -14,6 +14,7 @@ export function mapDataStorageListFromDto(
     publishedDataMartsCount: dto.publishedDataMartsCount,
     draftDataMartsCount: dto.draftDataMartsCount,
     createdByUser: dto.createdByUser,
+    ownerUsers: dto.ownerUsers ?? [],
   };
 }
 

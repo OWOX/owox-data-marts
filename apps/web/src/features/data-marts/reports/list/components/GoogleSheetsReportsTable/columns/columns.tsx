@@ -7,6 +7,7 @@ import type { DataMartReport } from '../../../../shared/model/types/data-mart-re
 import { ReportColumnKey } from './columnKeys';
 import { ReportColumnLabels } from './columnLabels';
 import { UserReference } from '../../../../../../../shared/components/UserReference';
+import { UserAvatarGroup } from '../../../../../../../shared/components/UserAvatarGroup/UserAvatarGroup';
 
 interface GoogleSheetsTableColumnsProps {
   onDeleteSuccess?: () => void;
@@ -86,6 +87,24 @@ export const getGoogleSheetsColumns = ({
       const user = row.original.createdByUser;
       if (!user) return <span className='text-muted-foreground'>-</span>;
       return <UserReference userProjection={user} />;
+    },
+  },
+  {
+    id: ReportColumnKey.OWNERS,
+    accessorFn: row => (row.ownerUsers ?? []).map(u => u.fullName ?? u.email).join(', '),
+    size: 200,
+    meta: {
+      title: ReportColumnLabels[ReportColumnKey.OWNERS],
+    },
+    header: ({ column }) => (
+      <SortableHeader column={column}>{ReportColumnLabels[ReportColumnKey.OWNERS]}</SortableHeader>
+    ),
+    cell: ({ row }) => {
+      const users = row.original.ownerUsers ?? [];
+      if (users.length === 0)
+        return <span className='text-muted-foreground text-sm'>Not assigned</span>;
+      if (users.length === 1) return <UserReference userProjection={users[0]} />;
+      return <UserAvatarGroup users={users} />;
     },
   },
   {

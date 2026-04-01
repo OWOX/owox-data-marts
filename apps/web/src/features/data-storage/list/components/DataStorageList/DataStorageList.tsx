@@ -200,6 +200,7 @@ export const DataStorageList = ({
     publishedDataMartsCount: storage.publishedDataMartsCount,
     draftDataMartsCount: storage.draftDataMartsCount,
     createdByUser: storage.createdByUser,
+    ownerUsers: storage.ownerUsers,
   }));
 
   const columns = getDataStorageColumns({

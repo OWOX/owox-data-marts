@@ -21,6 +21,9 @@ import type { StoredDestinationCredentials } from '../entities/stored-destinatio
 import { DestinationCredentialType } from '../enums/destination-credential-type.enum';
 import { CopyCredentialService } from '../services/copy-credential.service';
 import { UserProjectionsFetcherService } from '../services/user-projections-fetcher.service';
+import { DestinationOwner } from '../entities/destination-owner.entity';
+import { resolveOwnerUsers } from '../utils/resolve-owner-users';
+import { IdpProjectionsFacade } from '../../idp/facades/idp-projections.facade';
 
 @Injectable()
 export class UpdateDataDestinationService {
@@ -35,7 +38,10 @@ export class UpdateDataDestinationService {
     private readonly dataDestinationCredentialService: DataDestinationCredentialService,
     private readonly googleOAuthClientService: GoogleOAuthClientService,
     private readonly copyCredentialService: CopyCredentialService,
-    private readonly userProjectionsFetcherService: UserProjectionsFetcherService
+    private readonly userProjectionsFetcherService: UserProjectionsFetcherService,
+    private readonly idpProjectionsFacade: IdpProjectionsFacade,
+    @InjectRepository(DestinationOwner)
+    private readonly destinationOwnerRepository: Repository<DestinationOwner>
   ) {}
 
   @Transactional()
@@ -89,9 +95,7 @@ export class UpdateDataDestinationService {
       // After copy, save title and return — skip credential validation/processing
       entity.title = command.title;
       const updatedEntity = await this.dataDestinationRepository.save(entity);
-      const createdByUser =
-        await this.userProjectionsFetcherService.fetchCreatedByUser(updatedEntity);
-      return this.dataDestinationMapper.toDomainDto(updatedEntity, createdByUser);
+      return this.buildResponse(updatedEntity, command.ownerIds);
     }
 
     // Handle OAuth credentialId disconnect (null = revoke)
@@ -181,8 +185,50 @@ export class UpdateDataDestinationService {
     entity.title = command.title;
 
     const updatedEntity = await this.dataDestinationRepository.save(entity);
-    const createdByUser =
-      await this.userProjectionsFetcherService.fetchCreatedByUser(updatedEntity);
-    return this.dataDestinationMapper.toDomainDto(updatedEntity, createdByUser);
+    return this.buildResponse(updatedEntity, command.ownerIds);
+  }
+
+  private async buildResponse(
+    entity: DataDestination,
+    ownerIds?: string[]
+  ): Promise<DataDestinationDto> {
+    if (ownerIds !== undefined) {
+      const uniqueOwnerIds = [...new Set(ownerIds)];
+      if (uniqueOwnerIds.length > 0) {
+        const members = await this.idpProjectionsFacade.getProjectMembers(entity.projectId);
+        const memberIds = new Set(members.filter(m => !m.isOutbound).map(m => m.userId));
+        const invalidIds = uniqueOwnerIds.filter(id => !memberIds.has(id));
+        if (invalidIds.length > 0) {
+          throw new BadRequestException(
+            `The following user IDs are not members of this project: ${invalidIds.join(', ')}`
+          );
+        }
+      }
+      await this.destinationOwnerRepository.delete({ destinationId: entity.id });
+      const owners = uniqueOwnerIds.map(userId => {
+        const o = new DestinationOwner();
+        o.destinationId = entity.id;
+        o.userId = userId;
+        return o;
+      });
+      await this.destinationOwnerRepository.save(owners);
+    }
+
+    // Reload to get fresh owners
+    const fresh = await this.dataDestinationService.getByIdAndProjectId(
+      entity.id,
+      entity.projectId
+    );
+    const allUserIds = [...(fresh.createdById ? [fresh.createdById] : []), ...fresh.ownerIds];
+    const userProjections =
+      await this.userProjectionsFetcherService.fetchUserProjectionsList(allUserIds);
+    const createdByUser = fresh.createdById
+      ? (userProjections.getByUserId(fresh.createdById) ?? null)
+      : null;
+    return this.dataDestinationMapper.toDomainDto(
+      fresh,
+      createdByUser,
+      resolveOwnerUsers(fresh.ownerIds, userProjections)
+    );
   }
 }

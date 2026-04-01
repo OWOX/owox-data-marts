@@ -17,6 +17,8 @@ import { DataDestinationMapper } from './data-destination.mapper';
 import { RunType } from '../../common/scheduler/shared/types';
 import { UserProjectionDto } from '../../idp/dto/domain/user-projection.dto';
 import { UserProjectionsListDto } from '../../idp/dto/domain/user-projections-list.dto';
+import { OwnerFilter } from '../enums/owner-filter.enum';
+import { resolveOwnerUsers } from '../utils/resolve-owner-users';
 
 @Injectable()
 export class ReportMapper {
@@ -39,7 +41,11 @@ export class ReportMapper {
     );
   }
 
-  toDomainDto(entity: Report, createdByUser: UserProjectionDto | null = null): ReportDto {
+  toDomainDto(
+    entity: Report,
+    createdByUser: UserProjectionDto | null = null,
+    ownerUsers: UserProjectionDto[] = []
+  ): ReportDto {
     return new ReportDto(
       entity.id,
       entity.title,
@@ -52,7 +58,8 @@ export class ReportMapper {
       entity.lastRunError,
       entity.lastRunStatus,
       entity.runsCount,
-      createdByUser
+      createdByUser,
+      ownerUsers
     );
   }
 
@@ -60,7 +67,8 @@ export class ReportMapper {
     return entities.map(entity =>
       this.toDomainDto(
         entity,
-        entity.createdById ? (userProjectionsList?.getByUserId(entity.createdById) ?? null) : null
+        entity.createdById ? (userProjectionsList?.getByUserId(entity.createdById) ?? null) : null,
+        userProjectionsList ? resolveOwnerUsers(entity.ownerIds, userProjectionsList) : []
       )
     );
   }
@@ -81,6 +89,7 @@ export class ReportMapper {
       createdAt: dto.createdAt,
       modifiedAt: dto.modifiedAt,
       createdByUser: dto.createdByUser,
+      ownerUsers: dto.ownerUsers,
     };
   }
 
@@ -111,8 +120,11 @@ export class ReportMapper {
     );
   }
 
-  toListByProjectCommand(context: AuthorizationContext): ListReportsByProjectCommand {
-    return new ListReportsByProjectCommand(context.projectId);
+  toListByProjectCommand(
+    context: AuthorizationContext,
+    ownerFilter?: OwnerFilter
+  ): ListReportsByProjectCommand {
+    return new ListReportsByProjectCommand(context.projectId, ownerFilter);
   }
 
   toRunReportCommand(
@@ -137,7 +149,8 @@ export class ReportMapper {
       context.projectId,
       dto.title,
       dto.dataDestinationId,
-      dto.destinationConfig
+      dto.destinationConfig,
+      dto.ownerIds
     );
   }
 }

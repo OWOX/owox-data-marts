@@ -6,6 +6,7 @@ import { DataMartService } from '../services/data-mart.service';
 import { LegacyDataMartsService } from '../services/legacy-data-marts/legacy-data-marts.service';
 import { UserProjectionsFetcherService } from '../services/user-projections-fetcher.service';
 import { SyncLegacyDataMartService } from './legacy-data-marts/sync-legacy-data-mart.service';
+import { resolveOwnerUsers } from '../utils/resolve-owner-users';
 
 @Injectable()
 export class GetDataMartService {
@@ -31,8 +32,8 @@ export class GetDataMartService {
       dataMart,
       undefined,
       userProjections.getByUserId(dataMart.createdById),
-      this.mapper.resolveOwnerUsers(dataMart.businessOwnerIds, userProjections),
-      this.mapper.resolveOwnerUsers(dataMart.technicalOwnerIds, userProjections)
+      resolveOwnerUsers(dataMart.businessOwnerIds, userProjections),
+      resolveOwnerUsers(dataMart.technicalOwnerIds, userProjections)
     );
   }
 }

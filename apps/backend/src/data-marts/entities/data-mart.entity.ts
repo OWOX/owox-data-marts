@@ -4,6 +4,7 @@ import {
   PrimaryGeneratedColumn,
   ManyToOne,
   OneToOne,
+  OneToMany,
   JoinColumn,
   CreateDateColumn,
   UpdateDateColumn,
@@ -17,6 +18,8 @@ import { DataMartDefinition } from '../dto/schemas/data-mart-table-definitions/d
 import { DataMartSchema, DataMartSchemaSchema } from '../data-storage-types/data-mart-schema.type';
 import { createZodTransformer } from '../../common/zod/zod-transformer';
 import { ConnectorState } from './connector-state.entity';
+import { DataMartTechnicalOwner } from './data-mart-technical-owner.entity';
+import { DataMartBusinessOwner } from './data-mart-business-owner.entity';
 
 @Entity()
 export class DataMart implements CreatorAwareEntity {
@@ -58,11 +61,15 @@ export class DataMart implements CreatorAwareEntity {
   @Column()
   projectId: string;
 
-  @Column({ type: 'json', nullable: true })
-  businessOwnerIds?: string[];
+  @OneToMany(() => DataMartBusinessOwner, owner => owner.dataMart, {
+    eager: true,
+  })
+  businessOwners: DataMartBusinessOwner[];
 
-  @Column({ type: 'json', nullable: true })
-  technicalOwnerIds?: string[];
+  @OneToMany(() => DataMartTechnicalOwner, owner => owner.dataMart, {
+    eager: true,
+  })
+  technicalOwners: DataMartTechnicalOwner[];
 
   @Column()
   createdById: string;
@@ -75,4 +82,12 @@ export class DataMart implements CreatorAwareEntity {
 
   @UpdateDateColumn()
   modifiedAt: Date;
+
+  get businessOwnerIds(): string[] {
+    return (this.businessOwners ?? []).map(o => o.userId);
+  }
+
+  get technicalOwnerIds(): string[] {
+    return (this.technicalOwners ?? []).map(o => o.userId);
+  }
 }

@@ -8,6 +8,7 @@ import {
   ParseEnumPipe,
   Post,
   Put,
+  Query,
 } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { Auth, AuthContext, AuthorizationContext } from '../../idp';
@@ -39,6 +40,7 @@ import { ListDataStoragesByTypeService } from '../use-cases/list-data-storages-b
 import { ListDataStoragesByTypeCommand } from '../dto/domain/list-data-storages-by-type.command';
 import { DataStorageByTypeResponseApiDto } from '../dto/presentation/data-storage-by-type-response-api.dto';
 import { DataStorageType } from '../data-storage-types/enums/data-storage-type.enum';
+import { OwnerFilter } from '../enums/owner-filter.enum';
 import {
   CreateDataStorageSpec,
   DeleteDataStorageSpec,
@@ -77,9 +79,10 @@ export class DataStorageController {
   @Get()
   @ListDataStoragesSpec()
   async getAll(
-    @AuthContext() context: AuthorizationContext
+    @AuthContext() context: AuthorizationContext,
+    @Query('ownerFilter') ownerFilter?: OwnerFilter
   ): Promise<DataStorageListResponseApiDto[]> {
-    const command = this.mapper.toListCommand(context);
+    const command = this.mapper.toListCommand(context, ownerFilter);
     const dataStoragesDto = await this.listService.run(command);
     return this.mapper.toResponseList(dataStoragesDto);
   }

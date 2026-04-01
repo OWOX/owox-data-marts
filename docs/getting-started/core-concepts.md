@@ -46,6 +46,7 @@ Unlike raw data inside your data warehouse, each Data Mart is:
 - **Reusable** across BI tools: Google Sheets, Looker Studio, Excel, and more
 - **Trustworthy** - no more asking “Whose report is right?”
 - **Modeled** (optional) by setting up relationships with other data marts
+- **Owned** — each Data Mart has explicit **Technical Owners** (responsible for data sources and schema) and **Business Owners** (responsible for business requirements)
 
 > ☝️ Think of it as a **source of truth for a specific business question**, like:
 
@@ -81,6 +82,8 @@ You can configure multiple **Storages**, but each **Data Mart** must be linked t
 
 > ☝️ By specifying a Data Mart’s **Storage**, a Data Analyst ensures data ownership and controls where the data is stored and processed.
 
+Each Storage has **Owners** — the team members responsible for its configuration and credentials. The creator is automatically assigned as an owner.
+
 ### Destination
 
 ![Destinations](../res/screens/destinations-table.png)
@@ -98,10 +101,14 @@ Each **Data Mart** can be linked to multiple **Destinations**.
 
 > ☝️ **Destinations** allow Data Analysts to control and monitor which services business users consume data in.
 
+Each Destination has **Owners** — the team members responsible for its configuration. The creator is automatically assigned as an owner.
+
 ### Report
 
 A **Report** defines a specific sheet within a Google Sheets document where the Data Mart’s data is exported.
 Different Google Sheets Reports of the same Data Mart may have different scheduled triggers.
+
+Each Report has **Owners** — the team members responsible for its configuration. The creator is automatically assigned as an owner.
 
 ### Trigger
 

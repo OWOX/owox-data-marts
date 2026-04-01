@@ -16,6 +16,10 @@ jest.mock('../services/user-projections-fetcher.service', () => ({
   UserProjectionsFetcherService: jest.fn(),
 }));
 
+jest.mock('../../idp/facades/idp-projections.facade', () => ({
+  IdpProjectionsFacade: jest.fn(),
+}));
+
 import { NotFoundException } from '@nestjs/common';
 import { UpdateDataDestinationCommand } from '../dto/domain/update-data-destination.command';
 import { UpdateDataDestinationService } from './update-data-destination.service';
@@ -59,6 +63,8 @@ describe('UpdateDataDestinationService - credential copy (sourceDestinationId)',
     credentialId: 'credentialId' in overrides ? overrides.credentialId : null,
     credential: 'credential' in overrides ? overrides.credential : null,
     title: 'Target Destination',
+    createdById: null,
+    ownerIds: [],
   });
 
   interface FakeCred {
@@ -128,6 +134,18 @@ describe('UpdateDataDestinationService - credential copy (sourceDestinationId)',
 
     const userProjectionsFetcherService = {
       fetchCreatedByUser: jest.fn().mockResolvedValue(null),
+      fetchUserProjectionsList: jest.fn().mockResolvedValue({
+        getByUserId: jest.fn().mockReturnValue(null),
+      }),
+    };
+
+    const destinationOwnerRepository = {
+      delete: jest.fn().mockResolvedValue(undefined),
+      save: jest.fn().mockResolvedValue([]),
+    };
+
+    const idpProjectionsFacade = {
+      getProjectMembers: jest.fn().mockResolvedValue([]),
     };
 
     const service = new UpdateDataDestinationService(
@@ -140,7 +158,9 @@ describe('UpdateDataDestinationService - credential copy (sourceDestinationId)',
       dataDestinationCredentialService as never,
       googleOAuthClientService as never,
       copyCredentialService,
-      userProjectionsFetcherService as never
+      userProjectionsFetcherService as never,
+      idpProjectionsFacade as never,
+      destinationOwnerRepository as never
     );
 
     return {
@@ -170,7 +190,8 @@ describe('UpdateDataDestinationService - credential copy (sourceDestinationId)',
 
     dataDestinationService.getByIdAndProjectId
       .mockResolvedValueOnce(targetDestination)
-      .mockResolvedValueOnce(sourceDestination);
+      .mockResolvedValueOnce(sourceDestination)
+      .mockResolvedValueOnce(targetDestination); // reload in buildResponse
     dataDestinationCredentialService.create.mockResolvedValue(newCred);
     dataDestinationRepository.save.mockResolvedValue({
       ...targetDestination,
@@ -204,7 +225,8 @@ describe('UpdateDataDestinationService - credential copy (sourceDestinationId)',
 
     dataDestinationService.getByIdAndProjectId
       .mockResolvedValueOnce(targetDestination)
-      .mockResolvedValueOnce(sourceDestination);
+      .mockResolvedValueOnce(sourceDestination)
+      .mockResolvedValueOnce(targetDestination); // reload in buildResponse
     dataDestinationCredentialService.update.mockResolvedValue(undefined);
     dataDestinationRepository.save.mockResolvedValue(targetDestination);
 
@@ -299,7 +321,8 @@ describe('UpdateDataDestinationService - credential copy (sourceDestinationId)',
 
     dataDestinationService.getByIdAndProjectId
       .mockResolvedValueOnce(targetDestination)
-      .mockResolvedValueOnce(sourceDestination);
+      .mockResolvedValueOnce(sourceDestination)
+      .mockResolvedValueOnce(targetDestination); // reload in buildResponse
     dataDestinationCredentialService.update.mockResolvedValue(undefined);
     dataDestinationRepository.save.mockResolvedValue(targetDestination);
 
@@ -333,7 +356,8 @@ describe('UpdateDataDestinationService - credential copy (sourceDestinationId)',
 
     dataDestinationService.getByIdAndProjectId
       .mockResolvedValueOnce(targetDestination)
-      .mockResolvedValueOnce(sourceDestination);
+      .mockResolvedValueOnce(sourceDestination)
+      .mockResolvedValueOnce(targetDestination); // reload in buildResponse
     dataDestinationCredentialService.create.mockResolvedValue({ id: 'cred-new-oauth' });
     dataDestinationRepository.save.mockResolvedValue(targetDestination);
 

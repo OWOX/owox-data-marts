@@ -5,4 +5,5 @@ export const ReportColumnLabels: Record<ReportColumnKey, string> = {
   [ReportColumnKey.LAST_RUN_DATE]: 'Last Run Date',
   [ReportColumnKey.LAST_RUN_STATUS]: 'Last Run Status',
   [ReportColumnKey.CREATED_BY]: 'Created By',
+  [ReportColumnKey.OWNERS]: 'Owners',
 };

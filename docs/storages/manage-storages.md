@@ -48,6 +48,20 @@ To remove an existing **Storage** configuration:
 
 ---
 
+## Managing Owners
+
+Each Storage has an **Owners** list — the team members responsible for its configuration and credentials.
+
+- When a new Storage is created, the **creator is automatically assigned as an owner**.
+- You can add or remove owners in the Storage configuration sheet (the **Owners** field in the General section).
+- Only project members can be assigned as owners.
+- Owners are saved together with the rest of the Storage configuration when you click **Save**.
+- You can filter Storages by owner in the list view using the **Owners** filter.
+
+> ☝️ Ownership is currently informational — it does not affect access control. Any user with edit access can modify any Storage regardless of ownership.
+
+---
+
 ## Key Considerations
 
 - Each **Data Mart** requires a single **Storage** association. Verify your selection during **Data Mart** setup.

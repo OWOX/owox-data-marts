@@ -7,7 +7,7 @@ import { RunType } from '../../common/scheduler/shared/types';
 
 export interface CreateReportRunTriggerParams {
   reportId: string;
-  userId: string;
+  createdById: string;
   projectId: string;
   dataMartRunId: string;
   runType: RunType;
@@ -23,7 +23,7 @@ export class ReportRunTriggerService {
   async createTrigger(params: CreateReportRunTriggerParams): Promise<string> {
     const trigger = this.repository.create({
       reportId: params.reportId,
-      userId: params.userId,
+      createdById: params.createdById,
       projectId: params.projectId,
       dataMartRunId: params.dataMartRunId,
       runType: params.runType,

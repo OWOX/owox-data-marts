@@ -52,6 +52,20 @@ To remove an existing **Destination** configuration:
 
 ---
 
+## Managing Owners
+
+Each Destination has an **Owners** list — the team members responsible for its configuration.
+
+- When a new Destination is created, the **creator is automatically assigned as an owner**.
+- You can add or remove owners in the Destination configuration sheet (the **Owners** field after the Title).
+- Only project members can be assigned as owners.
+- Owners are saved together with the rest of the Destination configuration when you click **Save**.
+- You can filter Destinations by owner in the list view using the **Owners** filter.
+
+> ☝️ Ownership is currently informational — it does not affect access control. Any user with edit access can modify any Destination regardless of ownership.
+
+---
+
 ## Key Considerations
 
 - Each **Report** requires a single **Destination** association.

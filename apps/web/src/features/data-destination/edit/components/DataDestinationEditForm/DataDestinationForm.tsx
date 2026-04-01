@@ -1,7 +1,10 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { zodResolver } from '@hookform/resolvers/zod';
 import type { CredentialIdentity } from '../../../../../shared/types/credential-identity';
+import type { UserProjection } from '../../../../../shared/types';
+import type { UserProjectionDto } from '../../../../../shared/types/api';
+import { OwnersSection } from '../../../../../shared/components/OwnersSection/OwnersSection';
 import { CopyCredentialContext } from '../../model/context/copy-credential-context';
 import { Loader2 } from 'lucide-react';
 import { useForm } from 'react-hook-form';
@@ -33,7 +36,7 @@ import { GoogleSheetsFields } from './GoogleSheetsFields';
 import { LookerStudioFields } from './LookerStudioFields';
 
 interface DataDestinationFormProps {
-  initialData: DataDestinationFormData | null;
+  initialData: (DataDestinationFormData & { ownerUsers?: UserProjection[] }) | null;
   onSubmit: (
     data: DataDestinationFormData,
     source?: { id: string; title: string } | null
@@ -62,6 +65,25 @@ export function DataDestinationForm({
     },
     mode: 'onTouched',
   });
+
+  const initialOwnerUsers = (initialData?.ownerUsers as UserProjectionDto[] | undefined) ?? [];
+  const [ownerUsers, setOwnerUsers] = useState<UserProjectionDto[]>(initialOwnerUsers);
+  const [pendingOwnerIds, setPendingOwnerIds] = useState<string[] | null>(null);
+  const pendingOwnerIdsRef = useRef<string[] | null>(null);
+  const ownersDirty = pendingOwnerIds !== null;
+
+  const handleOwnersChange = (newOwnerIds: string[]) => {
+    setPendingOwnerIds(newOwnerIds);
+    pendingOwnerIdsRef.current = newOwnerIds;
+    const knownUsers = new Map(ownerUsers.map(u => [u.userId, u]));
+    setOwnerUsers(
+      newOwnerIds.map(
+        id =>
+          knownUsers.get(id) ??
+          ({ userId: id, fullName: null, email: null, avatar: null } as UserProjectionDto)
+      )
+    );
+  };
 
   const [selectedSource, setSelectedSource] = useState<{
     id: string;
@@ -93,8 +115,8 @@ export function DataDestinationForm({
   const destinationType = form.watch('type');
 
   useEffect(() => {
-    onDirtyChange?.(form.formState.isDirty || selectedSource !== null);
-  }, [form.formState.isDirty, selectedSource, onDirtyChange]);
+    onDirtyChange?.(form.formState.isDirty || selectedSource !== null || ownersDirty);
+  }, [form.formState.isDirty, selectedSource, ownersDirty, onDirtyChange]);
 
   const copyCredentialCtx = useMemo(
     () => ({
@@ -116,7 +138,13 @@ export function DataDestinationForm({
       delete (payload as Partial<DataDestinationFormData>).credentials;
     }
 
-    return onSubmit(payload, selectedSource);
+    if (pendingOwnerIdsRef.current !== null) {
+      (payload as Record<string, unknown>).ownerIds = pendingOwnerIdsRef.current;
+      pendingOwnerIdsRef.current = null;
+      setPendingOwnerIds(null);
+    }
+
+    await onSubmit(payload, selectedSource);
   };
 
   return (
@@ -140,6 +168,13 @@ export function DataDestinationForm({
               </FormItem>
             )}
           />
+
+          {destinationId && (
+            <FormItem>
+              <FormLabel>Owners</FormLabel>
+              <OwnersSection ownerUsers={ownerUsers} onSave={handleOwnersChange} />
+            </FormItem>
+          )}
 
           <DestinationTypeField
             form={form}
@@ -182,7 +217,10 @@ export function DataDestinationForm({
             type='submit'
             className='w-full'
             aria-label='Save'
-            disabled={(!form.formState.isDirty && !selectedSource) || form.formState.isSubmitting}
+            disabled={
+              (!form.formState.isDirty && !selectedSource && !ownersDirty) ||
+              form.formState.isSubmitting
+            }
           >
             {form.formState.isSubmitting && <Loader2 className='mr-2 h-4 w-4 animate-spin' />}
             Save

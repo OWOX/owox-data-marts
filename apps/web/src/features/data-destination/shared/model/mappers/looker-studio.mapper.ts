@@ -21,6 +21,7 @@ export class LookerStudioMapper implements DestinationMapper {
       createdAt: new Date(dto.createdAt),
       modifiedAt: new Date(dto.modifiedAt),
       createdByUser: dto.createdByUser,
+      ownerUsers: dto.ownerUsers ?? [],
     };
   }
 

@@ -18,6 +18,7 @@ import type { StoredDestinationCredentials } from '../entities/stored-destinatio
 import { DataDestinationService } from '../services/data-destination.service';
 import { CopyCredentialService } from '../services/copy-credential.service';
 import { UserProjectionsFetcherService } from '../services/user-projections-fetcher.service';
+import { DestinationOwner } from '../entities/destination-owner.entity';
 
 @Injectable()
 export class CreateDataDestinationService {
@@ -32,7 +33,9 @@ export class CreateDataDestinationService {
     private readonly googleOAuthClientService: GoogleOAuthClientService,
     private readonly dataDestinationService: DataDestinationService,
     private readonly copyCredentialService: CopyCredentialService,
-    private readonly userProjectionsFetcherService: UserProjectionsFetcherService
+    private readonly userProjectionsFetcherService: UserProjectionsFetcherService,
+    @InjectRepository(DestinationOwner)
+    private readonly destinationOwnerRepository: Repository<DestinationOwner>
   ) {}
 
   async run(command: CreateDataDestinationCommand): Promise<DataDestinationDto> {
@@ -78,9 +81,16 @@ export class CreateDataDestinationService {
       });
 
       const savedEntity = await this.repository.save(entity);
+
+      const owner = new DestinationOwner();
+      owner.destinationId = savedEntity.id;
+      owner.userId = command.userId;
+      await this.destinationOwnerRepository.save(owner);
+
       const createdByUser =
         await this.userProjectionsFetcherService.fetchCreatedByUser(savedEntity);
-      return this.mapper.toDomainDto(savedEntity, createdByUser);
+      const ownerUsers = createdByUser ? [createdByUser] : [];
+      return this.mapper.toDomainDto(savedEntity, createdByUser, ownerUsers);
     }
 
     // If a pre-created OAuth credential ID is provided, validate it by getting a fresh access token
@@ -100,9 +110,16 @@ export class CreateDataDestinationService {
       });
 
       const savedEntity = await this.repository.save(entity);
+
+      const oauthOwner = new DestinationOwner();
+      oauthOwner.destinationId = savedEntity.id;
+      oauthOwner.userId = command.userId;
+      await this.destinationOwnerRepository.save(oauthOwner);
+
       const createdByUser =
         await this.userProjectionsFetcherService.fetchCreatedByUser(savedEntity);
-      return this.mapper.toDomainDto(savedEntity, createdByUser);
+      const ownerUsers = createdByUser ? [createdByUser] : [];
+      return this.mapper.toDomainDto(savedEntity, createdByUser, ownerUsers);
     }
 
     if (!command.credentials) {
@@ -142,7 +159,14 @@ export class CreateDataDestinationService {
     });
 
     const savedEntity = await this.repository.save(entity);
+
+    const credOwner = new DestinationOwner();
+    credOwner.destinationId = savedEntity.id;
+    credOwner.userId = command.userId;
+    await this.destinationOwnerRepository.save(credOwner);
+
     const createdByUser = await this.userProjectionsFetcherService.fetchCreatedByUser(savedEntity);
-    return this.mapper.toDomainDto(savedEntity, createdByUser);
+    const ownerUsers = createdByUser ? [createdByUser] : [];
+    return this.mapper.toDomainDto(savedEntity, createdByUser, ownerUsers);
   }
 }

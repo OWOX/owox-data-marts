@@ -17,7 +17,8 @@ import { DataDestinationColumnKey, dataDestinationColumnLabels } from './columns
 export type DataDestinationFilterKey =
   | DataDestinationColumnKey.TITLE
   | DataDestinationColumnKey.TYPE
-  | DataDestinationColumnKey.CREATED_BY;
+  | DataDestinationColumnKey.CREATED_BY
+  | DataDestinationColumnKey.OWNERS;
 
 /* ---------------------------------------------------------------------------
  * Accessors (used both for filtering and option collection)
@@ -30,6 +31,7 @@ export const dataDestinationFilterAccessors: FilterAccessors<
   [DataDestinationColumnKey.TITLE]: row => row.title,
   [DataDestinationColumnKey.TYPE]: row => row.type,
   [DataDestinationColumnKey.CREATED_BY]: row => row.createdByUser?.userId,
+  [DataDestinationColumnKey.OWNERS]: row => (row.ownerUsers ?? []).map(u => u.userId),
 };
 
 /* ---------------------------------------------------------------------------
@@ -62,12 +64,15 @@ export function buildDataDestinationTableFilters(
   );
 
   /* -----------------------------
-   * Created by options
+   * User label mapper (shared by Created By and Owners)
    * --------------------------- */
   const userLabelMap = new Map<string, string>();
   for (const item of data) {
     if (item.createdByUser) {
       const u = item.createdByUser;
+      userLabelMap.set(u.userId, u.fullName ?? u.email ?? u.userId);
+    }
+    for (const u of item.ownerUsers ?? []) {
       userLabelMap.set(u.userId, u.fullName ?? u.email ?? u.userId);
     }
   }
@@ -96,6 +101,17 @@ export function buildDataDestinationTableFilters(
       options: collectOptionsFromData(
         data,
         dataDestinationFilterAccessors[DataDestinationColumnKey.CREATED_BY],
+        { labelMapper: userLabelMapper }
+      ),
+    },
+    {
+      id: DataDestinationColumnKey.OWNERS,
+      label: dataDestinationColumnLabels[DataDestinationColumnKey.OWNERS],
+      dataType: 'enum',
+      operators: ['eq', 'neq'],
+      options: collectOptionsFromData(
+        data,
+        dataDestinationFilterAccessors[DataDestinationColumnKey.OWNERS],
         { labelMapper: userLabelMapper }
       ),
     },

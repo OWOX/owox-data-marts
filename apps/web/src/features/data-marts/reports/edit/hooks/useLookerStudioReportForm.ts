@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { type RefObject, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -23,6 +23,7 @@ interface UseLookerStudioReportFormProps {
   dataMartId: string;
   onSuccess?: () => void;
   preSelectedDestination?: DataDestination | null;
+  pendingOwnerIdsRef?: RefObject<string[] | null>;
 }
 
 export function useLookerStudioReportForm({
@@ -30,6 +31,7 @@ export function useLookerStudioReportForm({
   dataMartId,
   onSuccess,
   preSelectedDestination,
+  pendingOwnerIdsRef,
 }: UseLookerStudioReportFormProps) {
   const [formError, setFormError] = useState<string | null>(null);
   const { createReport, updateReport } = useReport();
@@ -62,6 +64,7 @@ export function useLookerStudioReportForm({
           title: `Looker Studio Report`, // Keep existing
           dataDestinationId: initialReport.dataDestination.id, // Keep existing
           destinationConfig,
+          ...(pendingOwnerIdsRef?.current != null ? { ownerIds: pendingOwnerIdsRef.current } : {}),
         });
       } else {
         // This shouldn't happen in our use case, but keeping for compatibility

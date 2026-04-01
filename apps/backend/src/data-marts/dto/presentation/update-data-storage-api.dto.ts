@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsObject, IsString, MaxLength, IsOptional, IsUUID } from 'class-validator';
+import { IsObject, IsString, MaxLength, IsOptional, IsUUID, IsArray } from 'class-validator';
 import { DataStorageConfig } from '../../data-storage-types/data-storage-config.type';
 import { DataStorageCredentials } from '../../data-storage-types/data-storage-credentials.type';
 
@@ -43,4 +43,10 @@ export class UpdateDataStorageApiDto {
   @IsUUID()
   @IsOptional()
   sourceStorageId?: string;
+
+  @ApiProperty({ type: [String], required: false })
+  @IsArray()
+  @IsString({ each: true })
+  @IsOptional()
+  ownerIds?: string[];
 }

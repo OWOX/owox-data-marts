@@ -53,6 +53,8 @@ import { isGoogleServiceAccountCredentials } from '../../../../../../shared/type
 import { CopyableField } from '@owox/ui/components/common/copyable-field';
 import { useReport } from '../../../shared';
 import { ReportFormActions } from '../shared/ReportFormActions';
+import { OwnersSection } from '../../../../../../shared/components/OwnersSection/OwnersSection';
+import type { UserProjectionDto } from '../../../../../../shared/types/api';
 
 interface GoogleSheetsReportEditFormProps {
   initialReport?: DataMartReport;
@@ -117,6 +119,25 @@ export const GoogleSheetsReportEditForm = forwardRef<
     const [triggersDirty, setTriggersDirty] = useState(false);
     const { runReport } = useReport();
 
+    const initialOwnerUsers = (initialReport?.ownerUsers as UserProjectionDto[] | undefined) ?? [];
+    const [ownerUsers, setOwnerUsers] = useState<UserProjectionDto[]>(initialOwnerUsers);
+    const [pendingOwnerIds, setPendingOwnerIds] = useState<string[] | null>(null);
+    const pendingOwnerIdsRef = useRef<string[] | null>(null);
+    const ownersDirty = pendingOwnerIds !== null;
+
+    const handleOwnersChange = (newOwnerIds: string[]) => {
+      setPendingOwnerIds(newOwnerIds);
+      pendingOwnerIdsRef.current = newOwnerIds;
+      const knownUsers = new Map(ownerUsers.map(u => [u.userId, u]));
+      setOwnerUsers(
+        newOwnerIds.map(
+          id =>
+            knownUsers.get(id) ??
+            ({ userId: id, fullName: null, email: null, avatar: null } as UserProjectionDto)
+        )
+      );
+    };
+
     const {
       isDirty,
       reset,
@@ -128,6 +149,7 @@ export const GoogleSheetsReportEditForm = forwardRef<
       initialReport,
       mode,
       dataMartId: dataMart?.id ?? '',
+      pendingOwnerIdsRef,
       onAfterSubmit: async report => {
         try {
           await scheduleRef.current?.persist(report.id);
@@ -135,6 +157,7 @@ export const GoogleSheetsReportEditForm = forwardRef<
           // ignore UI errors here; hook will handle formError
           console.error('Failed to persist schedule for report', e);
         }
+        setPendingOwnerIds(null);
         if (runAfterSaveRef.current) {
           try {
             await runReport(report.id);
@@ -180,8 +203,8 @@ export const GoogleSheetsReportEditForm = forwardRef<
     }, [initialReport, mode, reset, preSelectedDestination]);
 
     useEffect(() => {
-      onDirtyChange?.(isDirty || triggersDirty);
-    }, [isDirty, triggersDirty, onDirtyChange]);
+      onDirtyChange?.(isDirty || triggersDirty || ownersDirty);
+    }, [isDirty, triggersDirty, ownersDirty, onDirtyChange]);
 
     const documentUrl = form.watch('documentUrl');
     const isValidDocumentUrl = documentUrl && isValidGoogleSheetsUrl(documentUrl.trim());
@@ -211,6 +234,12 @@ export const GoogleSheetsReportEditForm = forwardRef<
                   </FormItem>
                 )}
               />
+              {initialReport && mode === ReportFormMode.EDIT && (
+                <FormItem>
+                  <FormLabel>Owners</FormLabel>
+                  <OwnersSection ownerUsers={ownerUsers} onSave={handleOwnersChange} />
+                </FormItem>
+              )}
               <FormField
                 control={form.control}
                 name='dataDestinationId'
@@ -401,6 +430,7 @@ export const GoogleSheetsReportEditForm = forwardRef<
             isSubmitting={isSubmitting}
             isDirty={isDirty}
             triggersDirty={triggersDirty}
+            ownersDirty={ownersDirty}
             runAfterSaveRef={runAfterSaveRef}
             onSubmit={() => void form.handleSubmit(handleFormSubmit)()}
             onCancel={onCancel}
