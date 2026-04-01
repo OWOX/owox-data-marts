@@ -12,6 +12,7 @@ import { InsightTemplateSourceType } from '../dto/schemas/insight-template/insig
 import { AiAssistantMessageRole } from '../enums/ai-assistant-message-role.enum';
 import { AiAssistantScope } from '../enums/ai-assistant-scope.enum';
 import { InsightArtifactValidationStatus } from '../enums/insight-artifact-validation-status.enum';
+import { AiAssistantActionAppliedEvent } from '../events/ai-assistant-action-applied.event';
 import { AiAssistantApplyActionMapper } from '../mappers/ai-assistant-apply-action.mapper';
 import { AiSourceApplyExecutionService } from './ai-source-apply-execution.service';
 import { AiSourceApplyService } from './ai-source-apply.service';
@@ -65,6 +66,9 @@ describe('AiSourceApplyService', () => {
       apply: jest.fn(),
     };
     const applyActionMapper = new AiAssistantApplyActionMapper();
+    const producer = {
+      produceEvent: jest.fn().mockResolvedValue(undefined),
+    };
     let lastRequestedRequestId: string | null = null;
 
     const storedActionsByRequestId: Record<string, ApplyAiAssistantActionPayload> = {
@@ -130,6 +134,11 @@ describe('AiSourceApplyService', () => {
         templateId: 'template-1',
         sourceKey: 'source_conflict',
         insertTag: true,
+      },
+      'request-replace-template-1': {
+        type: 'replace_template_document',
+        text: '# Updated Report',
+        tags: [],
       },
     };
 
@@ -202,7 +211,9 @@ describe('AiSourceApplyService', () => {
       applyActionRepository as never,
       applyExecutionService as never,
       applyActionMapper as never,
-      aiAssistantSessionService as never
+      aiAssistantSessionService as never,
+      insightTemplateService as never,
+      producer as never
     );
 
     messageRepository.findOne.mockResolvedValue({
@@ -245,12 +256,13 @@ describe('AiSourceApplyService', () => {
       insightTemplateValidationService,
       templateFullReplaceApplyService,
       applyActionMapper,
+      producer,
       createStoredAction,
     };
   };
 
   it('creates artifact, binds session and stores idempotent response', async () => {
-    const { service, sessionRepository, applyActionRepository, artifactRepository } =
+    const { service, sessionRepository, applyActionRepository, artifactRepository, producer } =
       createService();
 
     const command = new ApplyAiAssistantSessionCommand(
@@ -309,6 +321,24 @@ describe('AiSourceApplyService', () => {
         }),
       })
     );
+    expect(producer.produceEvent).toHaveBeenCalledTimes(1);
+    const [event] = producer.produceEvent.mock.calls[0];
+    expect(event).toBeInstanceOf(AiAssistantActionAppliedEvent);
+    expect(event.payload).toEqual({
+      projectId: 'project-1',
+      dataMartId: 'data-mart-1',
+      userId: 'user-1',
+      sessionId: 'session-1',
+      assistantMessageId: 'assistant-message-1',
+      requestId: 'request-1',
+      actionType: 'update_existing_source',
+      resultStatus: 'successful',
+      artifactId: 'artifact-1',
+      artifactTitle: 'Source A',
+      templateId: null,
+      sourceKey: null,
+      templateUpdated: false,
+    });
   });
 
   it('uses suggested artifact title from latest assistant proposed actions', async () => {
@@ -394,6 +424,7 @@ describe('AiSourceApplyService', () => {
       artifactRepository,
       templateRepository,
       insightTemplateValidationService,
+      producer,
     } = createService();
 
     const command = new ApplyAiAssistantSessionCommand(
@@ -468,6 +499,25 @@ describe('AiSourceApplyService', () => {
         ],
       })
     );
+    expect(producer.produceEvent).toHaveBeenCalledTimes(1);
+    const [event] = producer.produceEvent.mock.calls[0];
+    expect(event).toBeInstanceOf(AiAssistantActionAppliedEvent);
+    expect(event.payload).toEqual({
+      projectId: 'project-1',
+      dataMartId: 'data-mart-1',
+      userId: 'user-1',
+      sessionId: 'session-1',
+      assistantMessageId: 'assistant-message-1',
+      requestId: 'request-2',
+      actionType: 'create_and_attach_source',
+      resultStatus: 'successful',
+      artifactId: 'artifact-new',
+      artifactTitle: 'Untitled source',
+      templateId: 'template-1',
+      template: '## Report',
+      sourceKey: 'source_new',
+      templateUpdated: true,
+    });
   });
 
   it('reuses existing template source key on create_and_attach_source without creating new artifact', async () => {
@@ -698,7 +748,7 @@ describe('AiSourceApplyService', () => {
   });
 
   it('returns stored response for duplicate requestId without new mutations', async () => {
-    const { service, applyActionRepository, sessionRepository } = createService();
+    const { service, applyActionRepository, sessionRepository, producer } = createService();
 
     const command = new ApplyAiAssistantSessionCommand(
       'session-1',
@@ -737,10 +787,11 @@ describe('AiSourceApplyService', () => {
     expect(result.artifactId).toBe('artifact-3');
     expect(result.status).toBe('updated');
     expect(sessionRepository.findOne).not.toHaveBeenCalled();
+    expect(producer.produceEvent).not.toHaveBeenCalled();
   });
 
   it('rejects outdated apply action when a newer action exists in the same session', async () => {
-    const { service, sessionRepository, messageRepository, applyActionRepository } =
+    const { service, sessionRepository, messageRepository, applyActionRepository, producer } =
       createService();
 
     const command = new ApplyAiAssistantSessionCommand(
@@ -780,6 +831,90 @@ describe('AiSourceApplyService', () => {
 
     await expect(service.apply(command)).rejects.toBeInstanceOf(BadRequestException);
     expect(applyActionRepository.update).not.toHaveBeenCalled();
+    expect(producer.produceEvent).toHaveBeenCalledTimes(1);
+    const [event] = producer.produceEvent.mock.calls[0];
+    expect(event).toBeInstanceOf(AiAssistantActionAppliedEvent);
+    expect(event.payload).toEqual({
+      projectId: 'project-1',
+      dataMartId: 'data-mart-1',
+      userId: 'user-1',
+      sessionId: 'session-1',
+      assistantMessageId: 'assistant-message-1',
+      requestId: 'request-1',
+      actionType: 'update_existing_source',
+      resultStatus: 'failed',
+      artifactId: null,
+      artifactTitle: null,
+      templateId: null,
+      sourceKey: null,
+      templateUpdated: false,
+      error: 'Apply action is outdated. Please apply the latest action from the session.',
+    });
+  });
+
+  it('emits failed action_applied event for validation_failed result', async () => {
+    const {
+      service,
+      sessionRepository,
+      applyActionRepository,
+      templateFullReplaceApplyService,
+      templateRepository,
+      producer,
+    } = createService();
+
+    const command = new ApplyAiAssistantSessionCommand(
+      'session-1',
+      'data-mart-1',
+      'project-1',
+      'user-1',
+      'request-replace-template-1',
+      'assistant-message-1'
+    );
+
+    sessionRepository.findOne.mockResolvedValue({
+      id: 'session-1',
+      dataMartId: 'data-mart-1',
+      createdById: 'user-1',
+      scope: AiAssistantScope.TEMPLATE,
+      templateId: 'template-1',
+      artifactId: null,
+    });
+    applyActionRepository.insert.mockResolvedValue(undefined);
+    templateFullReplaceApplyService.apply.mockResolvedValue({
+      templateUpdated: false,
+      templateId: 'template-1',
+      status: 'validation_failed',
+      reason: 'template validation failed',
+    });
+    templateRepository.findOne.mockResolvedValue({
+      id: 'template-1',
+      template: '# Current Report',
+      dataMart: { id: 'data-mart-1', projectId: 'project-1' },
+    });
+
+    const result = await service.apply(command);
+
+    expect(result.status).toBe('validation_failed');
+    expect(producer.produceEvent).toHaveBeenCalledTimes(1);
+    const [event] = producer.produceEvent.mock.calls[0];
+    expect(event).toBeInstanceOf(AiAssistantActionAppliedEvent);
+    expect(event.payload).toEqual({
+      projectId: 'project-1',
+      dataMartId: 'data-mart-1',
+      userId: 'user-1',
+      sessionId: 'session-1',
+      assistantMessageId: 'assistant-message-1',
+      requestId: 'request-replace-template-1',
+      actionType: 'replace_template_document',
+      resultStatus: 'failed',
+      artifactId: null,
+      artifactTitle: null,
+      templateId: 'template-1',
+      template: '# Current Report',
+      sourceKey: null,
+      templateUpdated: false,
+      error: 'template validation failed',
+    });
   });
 
   it('allows apply for any action id from the latest message actions list', async () => {
