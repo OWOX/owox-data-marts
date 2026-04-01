@@ -76,18 +76,10 @@ export class GoogleSheetsExtensionAuthController {
   }
 
   registerRoutes(express: Express): void {
-    try {
-      express.post(
-        `${AUTH_BASE_PATH}/api/google-sheets-extension`,
-        validateBody(GoogleSheetsExtensionAuthRequestSchema),
-        this.authenticate.bind(this)
-      );
-    } catch (error) {
-      this.logger.error(
-        'Failed to register Google Sheets Extension auth routes',
-        {},
-        error instanceof Error ? error : undefined
-      );
-    }
+    express.post(
+      `${AUTH_BASE_PATH}/api/google-sheets-extension`,
+      validateBody(GoogleSheetsExtensionAuthRequestSchema),
+      this.authenticate.bind(this)
+    );
   }
 }
