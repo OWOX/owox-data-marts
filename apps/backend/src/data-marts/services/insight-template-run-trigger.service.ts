@@ -1,16 +1,30 @@
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
+import type { OwoxProducer } from '@owox/internal-helpers';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
+import { OWOX_PRODUCER } from '../../common/producer/producer.module';
 import { TriggerStatus } from '../../common/scheduler/shared/entities/trigger-status';
 import { UiTriggerService } from '../../common/scheduler/shared/ui-trigger.service';
 import { InsightTemplateRunResponseApiDto } from '../dto/presentation/insight-template-run-response-api.dto';
 import { InsightTemplateRunTrigger } from '../entities/insight-template-run-trigger.entity';
+import { InsightTemplateRunRequestedEvent } from '../events/insight-template-run-requested.event';
+
+interface CreateInsightTemplateRunTriggerParams {
+  userId: string;
+  projectId: string;
+  dataMartId: string;
+  insightTemplateId: string;
+  type: 'manual' | 'chat';
+  assistantMessageId?: string;
+}
 
 @Injectable()
 export class InsightTemplateRunTriggerService extends UiTriggerService<InsightTemplateRunResponseApiDto> {
   constructor(
     @InjectRepository(InsightTemplateRunTrigger)
-    triggerRepository: Repository<InsightTemplateRunTrigger>
+    triggerRepository: Repository<InsightTemplateRunTrigger>,
+    @Inject(OWOX_PRODUCER)
+    private readonly producer: OwoxProducer
   ) {
     super(triggerRepository);
   }
@@ -27,21 +41,33 @@ export class InsightTemplateRunTriggerService extends UiTriggerService<InsightTe
     });
   }
 
-  async createTrigger(
-    userId: string,
-    projectId: string,
-    dataMartId: string,
-    insightTemplateId: string
-  ): Promise<string> {
+  async createTrigger(params: CreateInsightTemplateRunTriggerParams): Promise<string> {
     const trigger = new InsightTemplateRunTrigger();
-    trigger.userId = userId;
-    trigger.projectId = projectId;
-    trigger.dataMartId = dataMartId;
-    trigger.insightTemplateId = insightTemplateId;
+    trigger.userId = params.userId;
+    trigger.projectId = params.projectId;
+    trigger.dataMartId = params.dataMartId;
+    trigger.insightTemplateId = params.insightTemplateId;
     trigger.isActive = true;
     trigger.status = TriggerStatus.IDLE;
 
     const saved = await this.triggerRepository.save(trigger);
+
+    this.producer.produceEventSafely(
+      new InsightTemplateRunRequestedEvent({
+        projectId: params.projectId,
+        dataMartId: params.dataMartId,
+        userId: params.userId,
+        insightTemplateId: params.insightTemplateId,
+        triggerId: saved.id,
+        type: params.type,
+        ...(params.type === 'chat'
+          ? {
+              assistantMessageId: params.assistantMessageId,
+            }
+          : {}),
+      })
+    );
+
     return saved.id;
   }
 }

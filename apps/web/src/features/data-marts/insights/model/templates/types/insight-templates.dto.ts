@@ -50,6 +50,13 @@ export interface UpdateInsightTemplateRequestDto {
   template?: string | null;
 }
 
+export type StartInsightTemplateExecutionRequestDto =
+  | { type: 'manual' }
+  | {
+      type: 'chat';
+      assistantMessageId: string;
+    };
+
 export interface InsightTemplateExecutionStatusResponseDto {
   status: TaskStatusCode;
 }
