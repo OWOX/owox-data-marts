@@ -11,6 +11,7 @@ import { createEventBusFromEnv, EventBus } from './event-bus.js';
 export type OwoxProducer = {
   readonly transports: readonly string[];
   produceEvent<TPayload extends object>(event: BaseEvent<TPayload>): Promise<void>;
+  produceEventSafely<TPayload extends object>(event: BaseEvent<TPayload>): void;
 };
 
 export function createProducer(bus: EventBus = createEventBusFromEnv()): OwoxProducer {
@@ -20,6 +21,9 @@ export function createProducer(bus: EventBus = createEventBusFromEnv()): OwoxPro
     },
     produceEvent(event) {
       return bus.produceEvent(event);
+    },
+    produceEventSafely(event) {
+      bus.produceEventSafely(event);
     },
   } as const;
 }

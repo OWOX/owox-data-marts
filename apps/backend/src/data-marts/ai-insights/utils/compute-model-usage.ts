@@ -6,6 +6,7 @@ export interface ModelUsageTotals {
   calls: number;
   promptTokens: number;
   completionTokens: number;
+  reasoningTokens: number;
   totalTokens: number;
 }
 
@@ -19,6 +20,7 @@ export function getTemplateTotalUsage(promptsEntry: DataMartPromptMetaEntry[]): 
     calls: 0,
     promptTokens: 0,
     completionTokens: 0,
+    reasoningTokens: 0,
     totalTokens: 0,
   };
   for (const promptEntry of promptsEntry) {
@@ -28,6 +30,7 @@ export function getTemplateTotalUsage(promptsEntry: DataMartPromptMetaEntry[]): 
     templateTotalUsage.calls += promptTotalUsage.calls;
     templateTotalUsage.promptTokens += promptTotalUsage.promptTokens;
     templateTotalUsage.completionTokens += promptTotalUsage.completionTokens;
+    templateTotalUsage.reasoningTokens += promptTotalUsage.reasoningTokens;
     templateTotalUsage.totalTokens += promptTotalUsage.totalTokens;
   }
 
@@ -40,6 +43,7 @@ export function getPromptTotalUsage(llmCallTelemetry: LlmCallTelemetry[]): Model
     calls: 0,
     promptTokens: 0,
     completionTokens: 0,
+    reasoningTokens: 0,
     totalTokens: 0,
   };
 
@@ -51,12 +55,14 @@ export function getPromptTotalUsage(llmCallTelemetry: LlmCallTelemetry[]): Model
     const executionTime = usage.executionTime ?? 0;
     const promptTokens = usage.promptTokens ?? 0;
     const completionTokens = usage.completionTokens ?? 0;
+    const reasoningTokens = usage.reasoningTokens ?? 0;
     const totalTokens = usage.totalTokens ?? 0;
 
     totals.executionTime += executionTime;
     totals.calls += 1;
     totals.promptTokens += promptTokens;
     totals.completionTokens += completionTokens;
+    totals.reasoningTokens += reasoningTokens;
     totals.totalTokens += totalTokens;
   }
 
@@ -81,18 +87,21 @@ export function getPromptTotalUsageByModels(
         calls: 0,
         promptTokens: 0,
         completionTokens: 0,
+        reasoningTokens: 0,
         totalTokens: 0,
       } satisfies ModelUsageByModel);
 
     const executionTime = usage.executionTime ?? 0;
     const promptTokens = usage.promptTokens ?? 0;
     const completionTokens = usage.completionTokens ?? 0;
+    const reasoningTokens = usage.reasoningTokens ?? 0;
     const totalTokens = usage.totalTokens ?? 0;
 
     existing.executionTime += executionTime;
     existing.calls += 1;
     existing.promptTokens += promptTokens;
     existing.completionTokens += completionTokens;
+    existing.reasoningTokens += reasoningTokens;
     existing.totalTokens += totalTokens;
 
     totalsByModel.set(model, existing);

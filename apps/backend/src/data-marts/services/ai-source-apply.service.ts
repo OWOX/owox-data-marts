@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   ConflictException,
+  Inject,
   Injectable,
   Logger,
   NotFoundException,
@@ -8,7 +9,9 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Transactional } from 'typeorm-transactional';
+import { castError, type OwoxProducer } from '@owox/internal-helpers';
 import { BusinessViolationException } from '../../common/exceptions/business-violation.exception';
+import { OWOX_PRODUCER } from '../../common/producer/producer.module';
 import { isUniqueConstraintViolation } from '../../common/typeorm/query-error.utils';
 import type { AssistantProposedAction } from '../ai-insights/agent-flow/ai-assistant-types';
 import {
@@ -46,7 +49,9 @@ export class AiSourceApplyService {
     private readonly applyActionRepository: Repository<AiAssistantApplyAction>,
     private readonly applyExecutionService: AiSourceApplyExecutionService,
     private readonly applyActionMapper: AiAssistantApplyActionMapper,
-    private readonly aiAssistantSessionService: AiAssistantSessionService
+    private readonly aiAssistantSessionService: AiAssistantSessionService,
+    @Inject(OWOX_PRODUCER)
+    private readonly producer: OwoxProducer
   ) {}
 
   async listAppliedBySession(
@@ -79,74 +84,124 @@ export class AiSourceApplyService {
 
   @Transactional()
   async apply(command: ApplyAiAssistantSessionCommand): Promise<AiAssistantApplyResultDto> {
-    let loadedAction = await this.loadApplyAction(command);
-    if (loadedAction?.response.lifecycleStatus === 'applied') {
-      const existing: FinalizedApplyResult = {
-        dto: this.applyActionMapper.toResult(loadedAction.response),
-        response: loadedAction.response,
-      };
+    let loadedAction: LoadedApplyAction | null = null;
+
+    try {
+      loadedAction = await this.loadApplyAction(command);
+      if (loadedAction?.response.lifecycleStatus === 'applied') {
+        const existing: FinalizedApplyResult = {
+          dto: this.applyActionMapper.toResult(loadedAction.response),
+          response: loadedAction.response,
+        };
+        this.logApplyDecision({
+          command,
+          resultStatus: existing.dto.status,
+          reason: existing.dto.reason,
+          actionType: existing.response.actionType ?? loadedAction.action.type,
+          templateSourceId: existing.response.templateSourceId ?? null,
+          sourceKey: existing.response.sourceKey ?? loadedAction.action.sourceKey ?? null,
+        });
+        return existing.dto;
+      }
+
+      const session = await this.applyExecutionService.getSession(command);
+      await this.ensureLatestSessionAction(command);
+      if (!loadedAction) {
+        loadedAction = await this.createApplyActionFromAssistantMessage(command);
+      }
+      if (
+        loadedAction.response.assistantMessageId &&
+        loadedAction.response.assistantMessageId !== command.assistantMessageId
+      ) {
+        throw new ConflictException({
+          message: 'assistantMessageId conflicts with selected action',
+        });
+      }
+
+      const action = loadedAction.action;
+      const executionResult = await this.applyExecutionService.execute(session, command, action);
+
+      const result = new AiAssistantApplyResultDto(
+        command.requestId,
+        executionResult.artifactId,
+        executionResult.sourceTitle,
+        executionResult.templateUpdated,
+        executionResult.templateId,
+        executionResult.sourceKey,
+        executionResult.status,
+        executionResult.reason
+      );
+
+      await this.applyActionRepository.update(
+        { id: loadedAction.entity.id },
+        {
+          response: this.applyActionMapper.toStoredResponse(result, {
+            lifecycleStatus: 'applied',
+            assistantMessageId:
+              loadedAction.response.assistantMessageId ?? command.assistantMessageId,
+            action,
+            templateSourceId: loadedAction.response.templateSourceId,
+          }) as unknown as never,
+        }
+      );
+
       this.logApplyDecision({
         command,
-        resultStatus: existing.dto.status,
-        reason: existing.dto.reason,
-        actionType: existing.response.actionType ?? loadedAction.action.type,
-        templateSourceId: existing.response.templateSourceId ?? null,
-        sourceKey: existing.response.sourceKey ?? loadedAction.action.sourceKey ?? null,
+        resultStatus: result.status,
+        reason: result.reason,
+        actionType: action.type,
+        templateSourceId: loadedAction.response.templateSourceId ?? null,
+        sourceKey: result.sourceKey ?? action.sourceKey ?? null,
       });
-      return existing.dto;
-    }
 
-    const session = await this.applyExecutionService.getSession(command);
-    await this.ensureLatestSessionAction(command);
-    if (!loadedAction) {
-      loadedAction = await this.createApplyActionFromAssistantMessage(command);
-    }
-    if (
-      loadedAction.response.assistantMessageId &&
-      loadedAction.response.assistantMessageId !== command.assistantMessageId
-    ) {
-      throw new ConflictException({
-        message: 'assistantMessageId conflicts with selected action',
-      });
-    }
-
-    const action = loadedAction.action;
-    const executionResult = await this.applyExecutionService.execute(session, command, action);
-
-    const result = new AiAssistantApplyResultDto(
-      command.requestId,
-      executionResult.artifactId,
-      executionResult.sourceTitle,
-      executionResult.templateUpdated,
-      executionResult.templateId,
-      executionResult.sourceKey,
-      executionResult.status,
-      executionResult.reason
-    );
-
-    await this.applyActionRepository.update(
-      { id: loadedAction.entity.id },
-      {
-        response: this.applyActionMapper.toStoredResponse(result, {
-          lifecycleStatus: 'applied',
+      const templateId = result.templateId ?? action.templateId ?? null;
+      this.producer.produceEventSafely(
+        this.applyActionMapper.toActionAppliedEvent({
+          projectId: command.projectId,
+          dataMartId: command.dataMartId,
+          userId: command.userId,
+          sessionId: command.sessionId,
           assistantMessageId:
             loadedAction.response.assistantMessageId ?? command.assistantMessageId,
-          action,
-          templateSourceId: loadedAction.response.templateSourceId,
-        }) as unknown as never,
-      }
-    );
+          requestId: command.requestId,
+          actionType: action.type,
+          artifactId: result.artifactId,
+          artifactTitle: result.sourceTitle,
+          templateId,
+          sourceKey: result.sourceKey ?? action.sourceKey ?? null,
+          templateUpdated: result.templateUpdated,
+          status: result.status,
+          reason: result.reason,
+        })
+      );
 
-    this.logApplyDecision({
-      command,
-      resultStatus: result.status,
-      reason: result.reason,
-      actionType: action.type,
-      templateSourceId: loadedAction.response.templateSourceId ?? null,
-      sourceKey: result.sourceKey ?? action.sourceKey ?? null,
-    });
+      return result;
+    } catch (error) {
+      const castedError = castError(error);
+      const action = loadedAction?.action ?? null;
+      const templateId = loadedAction?.response.templateId ?? action?.templateId ?? null;
 
-    return result;
+      this.producer.produceEventSafely(
+        this.applyActionMapper.toActionAppliedEvent({
+          projectId: command.projectId,
+          dataMartId: command.dataMartId,
+          userId: command.userId,
+          sessionId: command.sessionId,
+          assistantMessageId:
+            loadedAction?.response.assistantMessageId ?? command.assistantMessageId,
+          requestId: command.requestId,
+          actionType: loadedAction?.response.actionType ?? action?.type ?? null,
+          artifactId: null,
+          artifactTitle: null,
+          templateId,
+          sourceKey: loadedAction?.response.sourceKey ?? action?.sourceKey ?? null,
+          templateUpdated: false,
+          error: castedError.message,
+        })
+      );
+
+      throw error;
+    }
   }
 
   private async loadApplyAction(

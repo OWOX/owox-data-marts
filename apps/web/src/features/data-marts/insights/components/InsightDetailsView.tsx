@@ -101,6 +101,7 @@ import { InsightReportsSheet } from './InsightReportsSheet';
 import { useReportsByInsightTemplate } from '../../reports/list/model/hooks/useReportsByInsightTemplate';
 import type { AiAssistantPanelHandle } from '../model/ai-assistant/types/ai-assistant-panel.types.ts';
 import type { DataMartReport } from '../../reports/shared/model/types/data-mart-report';
+import type { StartInsightTemplateExecutionRequestDto } from '../model/templates/types/insight-templates.dto';
 
 export default function InsightDetailsView() {
   const navigate = useNavigate();
@@ -423,36 +424,43 @@ export default function InsightDetailsView() {
     }
   }, [canEdit, dataMart?.id, entity, insightId, template]);
 
-  const handleRun = useCallback(async () => {
-    if (!dataMart?.id || !insightId || isRunning || isDraft) return;
-    setRunErrorMessage(null);
-    setIsRunning(true);
+  const handleRun = useCallback(
+    async (request: StartInsightTemplateExecutionRequestDto) => {
+      if (!dataMart?.id || !insightId || isRunning || isDraft) return;
+      setRunErrorMessage(null);
+      setIsRunning(true);
 
-    expandPreview(true);
+      expandPreview(true);
 
-    try {
-      const { triggerId: nextTriggerId } =
-        await insightTemplatesService.startInsightTemplateExecution(dataMart.id, insightId);
-      trackEvent({
-        event: 'insight_run',
-        category: 'Insights',
-        action: 'Run',
-        label: insightId,
-        context: dataMart.id,
-      });
-      setTriggerId(nextTriggerId);
-    } catch {
-      trackEvent({
-        event: 'insight_error',
-        category: 'Insights',
-        action: 'RunError',
-        label: insightId,
-        context: dataMart.id,
-      });
-      setIsRunning(false);
-      toast.error('Failed to start insight run');
-    }
-  }, [dataMart?.id, expandPreview, insightId, isDraft, isRunning]);
+      try {
+        const { triggerId: nextTriggerId } =
+          await insightTemplatesService.startInsightTemplateExecution(
+            dataMart.id,
+            insightId,
+            request
+          );
+        trackEvent({
+          event: 'insight_run',
+          category: 'Insights',
+          action: 'Run',
+          label: insightId,
+          context: dataMart.id,
+        });
+        setTriggerId(nextTriggerId);
+      } catch {
+        trackEvent({
+          event: 'insight_error',
+          category: 'Insights',
+          action: 'RunError',
+          label: insightId,
+          context: dataMart.id,
+        });
+        setIsRunning(false);
+        toast.error('Failed to start insight run');
+      }
+    },
+    [dataMart?.id, expandPreview, insightId, isDraft, isRunning]
+  );
 
   const handleCancelRun = useCallback(async () => {
     if (!dataMart?.id || !insightId || !triggerId) return;
@@ -600,7 +608,7 @@ export default function InsightDetailsView() {
         if (isDirty && !saving) void handleSave();
       } else if (event.key === 'Enter') {
         event.preventDefault();
-        if (canRun && !isRunPending) void handleRun();
+        if (canRun && !isRunPending) void handleRun({ type: 'manual' });
       }
     };
     window.addEventListener('keydown', handler);
@@ -668,7 +676,7 @@ export default function InsightDetailsView() {
           )}
           <Button
             disabled={!canRun || isRunPending || isDirty}
-            onClick={() => void handleRun()}
+            onClick={() => void handleRun({ type: 'manual' })}
             variant={!isDirty ? 'default' : 'outline'}
           >
             {isRunPending ? (

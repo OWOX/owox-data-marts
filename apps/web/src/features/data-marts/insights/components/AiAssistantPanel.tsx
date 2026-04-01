@@ -21,6 +21,7 @@ import type {
   AiAssistantSessionListItemDto,
   ApplyAiAssistantSessionResponseDto,
 } from '../model/ai-assistant/types/ai-assistant.dto.ts';
+import type { StartInsightTemplateExecutionRequestDto } from '../model/templates/types/insight-templates.dto.ts';
 import type {
   AiAssistantPanelHandle,
   AssistantMessageDetails,
@@ -44,7 +45,7 @@ interface AiAssistantPanelProps {
   onBusyChange?: (isBusy: boolean) => void;
   onApplied?: (result: ApplyAiAssistantSessionResponseDto) => void;
   onMessageSent?: (text: string) => void | Promise<void>;
-  onRun?: () => void | Promise<void>;
+  onRun?: (params: StartInsightTemplateExecutionRequestDto) => void | Promise<void>;
 }
 
 export const AiAssistantPanel = forwardRef<AiAssistantPanelHandle, AiAssistantPanelProps>(
@@ -245,7 +246,10 @@ export const AiAssistantPanel = forwardRef<AiAssistantPanelHandle, AiAssistantPa
       completeApply(result);
 
       if (params.shouldRun && result.status === 'updated') {
-        void onRun?.();
+        void onRun?.({
+          type: 'chat',
+          assistantMessageId: params.assistantMessageId,
+        });
       }
     };
 

@@ -1,7 +1,8 @@
-import { Controller, Get, Param, Post } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { UiTriggerController } from '../../common/scheduler/shared/ui-trigger-controller';
 import { Auth, AuthContext, AuthorizationContext, Role, Strategy } from '../../idp';
+import { CreateInsightTemplateRunTriggerRequestApiDto } from '../dto/presentation/create-insight-template-run-trigger-request-api.dto';
 import { InsightTemplateRunResponseApiDto } from '../dto/presentation/insight-template-run-response-api.dto';
 import { InsightTemplateRunTriggerListItemResponseApiDto } from '../dto/presentation/insight-template-run-trigger-list-item-response-api.dto';
 import { InsightTemplateRunTriggerService } from '../services/insight-template-run-trigger.service';
@@ -23,13 +24,18 @@ export class InsightTemplateRunTriggerController extends UiTriggerController<Ins
   async createTrigger(
     @AuthContext() context: AuthorizationContext,
     @Param('dataMartId') dataMartId: string,
-    @Param('insightTemplateId') insightTemplateId: string
+    @Param('insightTemplateId') insightTemplateId: string,
+    @Body() dto: CreateInsightTemplateRunTriggerRequestApiDto
   ): Promise<{ triggerId: string }> {
     const triggerId = await (this.triggerService as InsightTemplateRunTriggerService).createTrigger(
-      context.userId,
-      context.projectId,
-      dataMartId,
-      insightTemplateId
+      {
+        userId: context.userId,
+        projectId: context.projectId,
+        dataMartId,
+        insightTemplateId,
+        type: dto.type,
+        assistantMessageId: dto.assistantMessageId,
+      }
     );
 
     return { triggerId };

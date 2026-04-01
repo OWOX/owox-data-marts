@@ -6,6 +6,7 @@ import type {
   InsightTemplateListResponseDto,
   InsightTemplateResponseDto,
   InsightTemplateRunTriggersListResponseDto,
+  StartInsightTemplateExecutionRequestDto,
   UpdateInsightTemplateRequestDto,
 } from '../types/insight-templates.dto';
 
@@ -61,11 +62,12 @@ export class InsightTemplatesService extends ApiService {
 
   async startInsightTemplateExecution(
     dataMartId: string,
-    insightTemplateId: string
+    insightTemplateId: string,
+    data: StartInsightTemplateExecutionRequestDto
   ): Promise<{ triggerId: string }> {
     return this.post<{ triggerId: string }>(
       `/${dataMartId}/insight-templates/${insightTemplateId}/run-triggers`,
-      {}
+      data
     );
   }
 
