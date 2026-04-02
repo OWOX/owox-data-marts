@@ -1,5 +1,14 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { ArrayMaxSize, IsNotEmpty, IsObject, IsString, MaxLength, IsOptional, IsUUID, IsArray } from 'class-validator';
+import {
+  ArrayMaxSize,
+  IsNotEmpty,
+  IsObject,
+  IsString,
+  MaxLength,
+  IsOptional,
+  IsUUID,
+  IsArray,
+} from 'class-validator';
 import { DataStorageConfig } from '../../data-storage-types/data-storage-config.type';
 import { DataStorageCredentials } from '../../data-storage-types/data-storage-credentials.type';
 

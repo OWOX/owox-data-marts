@@ -61,6 +61,7 @@ import {
   UpdateDataMartDefinitionSpec,
   UpdateDataMartDescriptionSpec,
   UpdateDataMartSchemaSpec,
+  UpdateDataMartOwnersSpec,
   UpdateDataMartTitleSpec,
   ValidateDataMartDefinitionSpec,
 } from './spec/data-mart.api';
@@ -180,6 +181,7 @@ export class DataMartController {
 
   @Auth(Role.editor(Strategy.INTROSPECT))
   @Put(':id/owners')
+  @UpdateDataMartOwnersSpec()
   async updateOwners(
     @AuthContext() context: AuthorizationContext,
     @Param('id') id: string,
