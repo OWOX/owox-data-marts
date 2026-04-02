@@ -8,4 +8,5 @@ export interface CreateReportRequestDto {
   dataMartId: string;
   dataDestinationId: string;
   destinationConfig: DestinationConfigDto;
+  columnConfig?: string[] | null;
 }

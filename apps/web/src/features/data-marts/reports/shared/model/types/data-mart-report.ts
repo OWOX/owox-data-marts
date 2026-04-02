@@ -98,6 +98,7 @@ export interface DataMartReport {
   dataMart: Pick<DataMart, 'id'>;
   dataDestination: DataDestination;
   destinationConfig: DestinationConfig;
+  columnConfig: string[] | null;
   lastRunDate: Date | null;
   lastRunStatus: ReportStatusEnum | null;
   lastRunError: string | null;

@@ -28,6 +28,7 @@ export function mapReportDtoToEntity(reportDto: ReportResponseDto): DataMartRepo
     dataMart: { id: reportDto.dataMart.id },
     dataDestination: mapDataDestinationFromDto(reportDto.dataDestinationAccess),
     destinationConfig,
+    columnConfig: reportDto.columnConfig ?? null,
     lastRunDate: reportDto.lastRunAt ? new Date(reportDto.lastRunAt) : null,
     lastRunStatus: reportDto.lastRunStatus,
     lastRunError: reportDto.lastRunError,

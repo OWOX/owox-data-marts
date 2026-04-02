@@ -53,6 +53,8 @@ import { isGoogleServiceAccountCredentials } from '../../../../../../shared/type
 import { CopyableField } from '@owox/ui/components/common/copyable-field';
 import { useReport } from '../../../shared';
 import { ReportFormActions } from '../shared/ReportFormActions';
+import { ReportColumnPicker } from '../../../../edit/components/ReportColumnPicker/ReportColumnPicker';
+import { GeneratedSqlViewer } from '../../../../edit/components/ReportColumnPicker/GeneratedSqlViewer';
 
 interface GoogleSheetsReportEditFormProps {
   initialReport?: DataMartReport;
@@ -171,11 +173,12 @@ export const GoogleSheetsReportEditForm = forwardRef<
             initialReport.destinationConfig.sheetId
           ),
           dataDestinationId: initialReport.dataDestination.id,
+          columnConfig: initialReport.columnConfig ?? null,
         });
       } else if (mode === ReportFormMode.CREATE) {
         // Pre-select destination if provided
         const destinationId = preSelectedDestination?.id ?? '';
-        reset({ title: '', documentUrl: '', dataDestinationId: destinationId });
+        reset({ title: '', documentUrl: '', dataDestinationId: destinationId, columnConfig: null });
       }
     }, [initialReport, mode, reset, preSelectedDestination]);
 
@@ -381,6 +384,27 @@ export const GoogleSheetsReportEditForm = forwardRef<
                   </FormItem>
                 )}
               />
+            </FormSection>
+            <FormSection
+              title='Columns'
+              description='Select which columns to include in the report'
+            >
+              {dataMart?.id && (
+                <div className='space-y-3'>
+                  <ReportColumnPicker
+                    dataMartId={dataMart.id}
+                    value={form.watch('columnConfig')}
+                    onChange={value => {
+                      form.setValue('columnConfig', value, { shouldDirty: true });
+                    }}
+                  />
+                  {mode === ReportFormMode.EDIT && initialReport?.id && (
+                    <div className='pt-1'>
+                      <GeneratedSqlViewer reportId={initialReport.id} />
+                    </div>
+                  )}
+                </div>
+              )}
             </FormSection>
             <FormSection title='Automate Report Runs'>
               {dataMart?.id ? (

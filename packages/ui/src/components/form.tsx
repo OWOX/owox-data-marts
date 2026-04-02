@@ -268,6 +268,7 @@ function FormActions({
  */
 interface FormSectionProps {
   title?: string;
+  description?: string;
   children: React.ReactNode;
   defaultOpen?: boolean;
   collapsible?: boolean;
@@ -275,6 +276,7 @@ interface FormSectionProps {
 
 function FormSection({
   title,
+  description,
   children,
   defaultOpen = true,
   collapsible = true,
@@ -292,6 +294,7 @@ function FormSection({
             {title}
           </h3>
         )}
+        {description && <p className='text-muted-foreground mb-2 text-sm'>{description}</p>}
         {content}
       </div>
     );
@@ -321,6 +324,7 @@ function FormSection({
       )}
 
       <CollapsibleContent className='data-[state=open]:animate-collapsible-down data-[state=closed]:animate-collapsible-up overflow-hidden'>
+        {description && <p className='text-muted-foreground text-sm'>{description}</p>}
         {content}
       </CollapsibleContent>
     </Collapsible>
