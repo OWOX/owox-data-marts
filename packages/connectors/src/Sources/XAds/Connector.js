@@ -50,8 +50,8 @@ var XAdsConnector = class XAdsConnector extends AbstractConnector {
 
   /**
    * Process a time series node (e.g., stats, stats_by_country).
-   * asyncTimeSeries nodes are routed to processAsyncTimeSeriesNode, which submits
-   * all jobs upfront for speed. All other nodes use the day-by-day fetchData loop.
+   * asyncTimeSeries nodes are routed to processAsyncTimeSeriesNode.
+   * All other nodes use the day-by-day fetchData loop.
    */
   async processTimeSeriesNode({ nodeName, accountId, fields }) {
     if (this.source.fieldsSchema[nodeName].asyncTimeSeries) {
@@ -91,11 +91,10 @@ var XAdsConnector = class XAdsConnector extends AbstractConnector {
   /**
    * Process an async time series node (e.g., stats_by_country).
    *
-   * The Connector drives the chunk loop: it asks the Source for chunk boundaries,
-   * then calls the Source once per chunk to submit/poll/download, and saves results
-   * to BigQuery and updates the incremental cursor immediately after each chunk.
-   * This means if chunk N+1 fails, chunks 1–N are already persisted and the
-   * incremental cursor reflects their progress — the next run resumes from there.
+   * Dates are split into fixed-size chunks. For each chunk, the Source processes
+   * one job at a time (submit → poll → download) and calls onBatchReady after
+   * each date so the Connector can save to BigQuery and advance the cursor
+   * immediately. If the run fails on date N, dates 1–(N-1) are already persisted.
    *
    * Early exit: two consecutive empty chunks are required before skipping remaining
    * days. One empty chunk may occur mid-campaign (paused days); two consecutive

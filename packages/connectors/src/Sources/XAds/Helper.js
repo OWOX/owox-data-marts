@@ -26,6 +26,7 @@ const XAdsHelper = {
    * @param {string} fieldsString - Fields string in format "nodeName fieldName, nodeName fieldName"
    * @return {Object} Object with node names as keys and arrays of field names as values
    */
+  
   parseFields(fieldsString) {
     return fieldsString.split(", ").reduce((acc, pair) => {
       let [key, value] = pair.split(" ");

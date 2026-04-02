@@ -65,9 +65,9 @@ var XAdsFieldsSchema = {
     uniqueKeys: ["id", "date", "placement", "country"],
     destinationName: "x_ads_stats_by_country",
     isTimeSeries: true,
-    // asyncTimeSeries: uses the X Ads async jobs API. The Connector submits all
-    // jobs for the full date range upfront (so X Ads processes them concurrently),
-    // then downloads and saves results one at a time (ODM sequential requirement).
+    // asyncTimeSeries: uses the X Ads async jobs API (submit → poll → download
+    // per job, sequentially). The Connector saves and advances the cursor after
+    // each date completes via the onBatchReady callback.
     asyncTimeSeries: true,
     // segmentationType: the value sent to the X Ads API as segmentation_type.
     // segmentField: the output field name where segment_value is stored in the row.

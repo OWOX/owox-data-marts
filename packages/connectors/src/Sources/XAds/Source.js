@@ -164,9 +164,6 @@ var XAdsSource = class XAdsSource extends AbstractSource {
       case 'stats':
         return await this._timeSeriesFetch({ nodeName, accountId, fields, start_time, end_time });
 
-       case 'stats_by_country':
-        return await this.fetchAsyncStatsChunk({ nodeName, accountId, fields, dateChunk: XAdsHelper.splitDatesIntoChunks(XAdsHelper.generateDateRange(start_time, end_time)) });
-       
       case 'targeting_locations':
         return await this._fetchTargetingLocations(fields);
 
@@ -378,9 +375,6 @@ var XAdsSource = class XAdsSource extends AbstractSource {
     return JSON.parse(text);
   }
 
-  /** 
-   * Added methods for async operations needed for get the country data 
-   */
   async _rawPostFetch(path, params = {}) {
     const url = `${this.BASE_URL}${this.config.Version.value}/${path}`;
 
