@@ -6,6 +6,27 @@ import { DataMartSchema } from '../data-storage-types/data-mart-schema.type';
 
 const MAX_TRANSITIVE_DEPTH = 10;
 
+interface RawSchemaField {
+  name: string;
+  type: string;
+  fields?: RawSchemaField[];
+}
+
+function flattenSchemaFields(
+  fields: RawSchemaField[],
+  prefix = ''
+): { name: string; type: string }[] {
+  const result: { name: string; type: string }[] = [];
+  for (const field of fields) {
+    const fullName = prefix ? `${prefix}.${field.name}` : field.name;
+    result.push({ name: fullName, type: field.type });
+    if (field.fields && Array.isArray(field.fields)) {
+      result.push(...flattenSchemaFields(field.fields, fullName));
+    }
+  }
+  return result;
+}
+
 @Injectable()
 export class BlendableSchemaService {
   constructor(
@@ -47,9 +68,10 @@ export class BlendableSchemaService {
       visited.add(targetDataMartId);
 
       const targetSchemaFields: DataMartSchema['fields'] = rel.targetDataMart.schema?.fields ?? [];
+      const flatTargetFields = flattenSchemaFields(targetSchemaFields);
 
       for (const blendedFieldConfig of rel.blendedFields) {
-        const schemaField = targetSchemaFields.find(
+        const schemaField = flatTargetFields.find(
           f => f.name === blendedFieldConfig.targetFieldName
         );
 

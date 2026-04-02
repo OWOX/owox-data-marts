@@ -17,6 +17,19 @@ type ColumnMode = 'default' | 'custom';
 interface NativeField {
   name: string;
   type?: string;
+  fields?: NativeField[];
+}
+
+function flattenNativeFields(fields: NativeField[], prefix = ''): NativeField[] {
+  const result: NativeField[] = [];
+  for (const field of fields) {
+    const fullName = prefix ? `${prefix}.${field.name}` : field.name;
+    result.push({ name: fullName, type: field.type });
+    if (field.fields && Array.isArray(field.fields)) {
+      result.push(...flattenNativeFields(field.fields, fullName));
+    }
+  }
+  return result;
 }
 
 export interface ReportColumnPickerProps {
@@ -45,7 +58,7 @@ export function ReportColumnPicker({ dataMartId, value, onChange }: ReportColumn
       onChange(null);
     } else {
       // Start with all native fields selected
-      const nativeFields = (schema?.nativeFields ?? []) as NativeField[];
+      const nativeFields = flattenNativeFields((schema?.nativeFields ?? []) as NativeField[]);
       onChange(nativeFields.map(f => f.name));
     }
   }
@@ -65,14 +78,16 @@ export function ReportColumnPicker({ dataMartId, value, onChange }: ReportColumn
 
   function selectAllNative() {
     if (!schema) return;
-    const nativeNames = (schema.nativeFields as NativeField[]).map(f => f.name);
+    const nativeNames = flattenNativeFields(schema.nativeFields as NativeField[]).map(f => f.name);
     const currentBlended = (value ?? []).filter(name => !nativeNames.includes(name));
     onChange([...nativeNames, ...currentBlended]);
   }
 
   function deselectAllNative() {
     if (!schema) return;
-    const nativeNames = new Set((schema.nativeFields as NativeField[]).map(f => f.name));
+    const nativeNames = new Set(
+      flattenNativeFields(schema.nativeFields as NativeField[]).map(f => f.name)
+    );
     onChange((value ?? []).filter(name => !nativeNames.has(name)));
   }
 
@@ -90,7 +105,7 @@ export function ReportColumnPicker({ dataMartId, value, onChange }: ReportColumn
   }
 
   const nativeFields: NativeField[] =
-    mode === 'custom' && schema ? (schema.nativeFields as NativeField[]) : [];
+    mode === 'custom' && schema ? flattenNativeFields(schema.nativeFields as NativeField[]) : [];
 
   const blendedFields: BlendedField[] = mode === 'custom' && schema ? schema.blendedFields : [];
 

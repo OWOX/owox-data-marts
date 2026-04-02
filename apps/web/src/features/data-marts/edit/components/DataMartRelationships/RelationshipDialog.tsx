@@ -34,7 +34,6 @@ import { dataMartRelationshipService } from '../../../shared/services/data-mart-
 import { dataMartService } from '../../../shared/services/data-mart.service';
 import type { DataMartRelationship } from '../../../shared/types/relationship.types';
 import type { DataMartResponseDto } from '../../../shared/types/api';
-import type { BaseSchemaField } from '../../../shared/types/data-mart-schema.types';
 
 const AGGREGATE_FUNCTIONS = ['STRING_AGG', 'MAX', 'MIN', 'SUM', 'COUNT', 'ANY_VALUE'] as const;
 
@@ -72,9 +71,32 @@ function slugify(text: string): string {
     .replace(/^_+|_+$/g, '');
 }
 
-function getSchemaFields(dm: DataMartResponseDto | null): BaseSchemaField[] {
+interface FlatField {
+  name: string;
+  type: string;
+}
+
+interface RawSchemaField {
+  name: string;
+  type: string;
+  fields?: RawSchemaField[];
+}
+
+function flattenFields(fields: RawSchemaField[], prefix = ''): FlatField[] {
+  const result: FlatField[] = [];
+  for (const field of fields) {
+    const fullName = prefix ? `${prefix}.${field.name}` : field.name;
+    result.push({ name: fullName, type: field.type });
+    if (field.fields && Array.isArray(field.fields)) {
+      result.push(...flattenFields(field.fields, fullName));
+    }
+  }
+  return result;
+}
+
+function getSchemaFields(dm: DataMartResponseDto | null): FlatField[] {
   if (dm?.schema == null) return [];
-  return dm.schema.fields as BaseSchemaField[];
+  return flattenFields(dm.schema.fields as RawSchemaField[]);
 }
 
 interface RelationshipDialogProps {
@@ -259,7 +281,7 @@ export function RelationshipDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className='max-h-[90vh] max-w-4xl overflow-y-auto'>
+      <DialogContent className='max-h-[90vh] !max-w-4xl overflow-y-auto'>
         <DialogHeader>
           <DialogTitle>{isEdit ? 'Edit Relationship' : 'Add Relationship'}</DialogTitle>
         </DialogHeader>
