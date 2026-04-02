@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsNotEmpty, IsObject, IsString, IsOptional, IsUUID, IsArray } from 'class-validator';
+import { ArrayMaxSize, IsNotEmpty, IsObject, IsString, IsOptional, IsUUID, IsArray } from 'class-validator';
 import { DataDestinationCredentials } from '../../data-destination-types/data-destination-credentials.type';
 
 export class UpdateDataDestinationApiDto {
@@ -37,8 +37,10 @@ export class UpdateDataDestinationApiDto {
   sourceDestinationId?: string;
 
   @ApiProperty({ type: [String], required: false })
-  @IsArray()
-  @IsString({ each: true })
   @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(100)
+  @IsString({ each: true })
+  @IsNotEmpty({ each: true })
   ownerIds?: string[];
 }

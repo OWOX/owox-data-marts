@@ -25,7 +25,8 @@ export class ListReportsByProjectService {
       .leftJoinAndSelect('dataMart.storage', 'storage')
       .leftJoinAndSelect('r.dataDestination', 'dataDestination')
       .leftJoinAndSelect('r.owners', 'owners')
-      .where('dataMart.projectId = :projectId', { projectId: command.projectId });
+      .where('dataMart.projectId = :projectId', { projectId: command.projectId })
+      .andWhere('dataMart.deletedAt IS NULL');
 
     if (command.ownerFilter === OwnerFilter.HAS_OWNERS) {
       qb = qb.andWhere('EXISTS (SELECT 1 FROM report_owners o WHERE o.report_id = r.id)');

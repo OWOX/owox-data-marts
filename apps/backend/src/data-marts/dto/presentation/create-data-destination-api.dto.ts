@@ -1,6 +1,7 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { DataDestinationType } from '../../data-destination-types/enums/data-destination-type.enum';
 import {
+  ArrayMaxSize,
   IsArray,
   IsEnum,
   IsNotEmpty,
@@ -48,6 +49,8 @@ export class CreateDataDestinationApiDto {
   @ApiProperty({ type: [String], required: false })
   @IsOptional()
   @IsArray()
+  @ArrayMaxSize(100)
   @IsString({ each: true })
+  @IsNotEmpty({ each: true })
   ownerIds?: string[];
 }

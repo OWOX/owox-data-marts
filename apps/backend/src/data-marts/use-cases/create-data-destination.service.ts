@@ -88,37 +88,7 @@ export class CreateDataDestinationService {
 
       const savedEntity = await this.repository.save(entity);
 
-      const ownerIdsToSave = command.ownerIds ?? [command.userId];
-      await syncOwners(
-        this.destinationOwnerRepository,
-        'destinationId',
-        savedEntity.id,
-        command.projectId,
-        ownerIdsToSave,
-        this.idpProjectionsFacade,
-        userId => {
-          const o = new DestinationOwner();
-          o.destinationId = savedEntity.id;
-          o.userId = userId;
-          return o;
-        }
-      );
-
-      savedEntity.owners = ownerIdsToSave.map(uid => {
-        const o = new DestinationOwner();
-        o.destinationId = savedEntity.id;
-        o.userId = uid;
-        return o;
-      });
-      const allUserIds = [command.userId, ...ownerIdsToSave];
-      const userProjections =
-        await this.userProjectionsFetcherService.fetchUserProjectionsList(allUserIds);
-      const createdByUser = userProjections.getByUserId(command.userId) ?? null;
-      return this.mapper.toDomainDto(
-        savedEntity,
-        createdByUser,
-        resolveOwnerUsers(ownerIdsToSave, userProjections)
-      );
+      return this.saveOwnersAndBuildResponse(savedEntity, command);
     }
 
     // If a pre-created OAuth credential ID is provided, validate it by getting a fresh access token
@@ -139,37 +109,7 @@ export class CreateDataDestinationService {
 
       const savedEntity = await this.repository.save(entity);
 
-      const oauthOwnerIdsToSave = command.ownerIds ?? [command.userId];
-      await syncOwners(
-        this.destinationOwnerRepository,
-        'destinationId',
-        savedEntity.id,
-        command.projectId,
-        oauthOwnerIdsToSave,
-        this.idpProjectionsFacade,
-        userId => {
-          const o = new DestinationOwner();
-          o.destinationId = savedEntity.id;
-          o.userId = userId;
-          return o;
-        }
-      );
-
-      savedEntity.owners = oauthOwnerIdsToSave.map(uid => {
-        const o = new DestinationOwner();
-        o.destinationId = savedEntity.id;
-        o.userId = uid;
-        return o;
-      });
-      const oauthAllUserIds = [command.userId, ...oauthOwnerIdsToSave];
-      const oauthUserProjections =
-        await this.userProjectionsFetcherService.fetchUserProjectionsList(oauthAllUserIds);
-      const oauthCreatedByUser = oauthUserProjections.getByUserId(command.userId) ?? null;
-      return this.mapper.toDomainDto(
-        savedEntity,
-        oauthCreatedByUser,
-        resolveOwnerUsers(oauthOwnerIdsToSave, oauthUserProjections)
-      );
+      return this.saveOwnersAndBuildResponse(savedEntity, command);
     }
 
     if (!command.credentials) {
@@ -210,13 +150,20 @@ export class CreateDataDestinationService {
 
     const savedEntity = await this.repository.save(entity);
 
-    const credOwnerIdsToSave = command.ownerIds ?? [command.userId];
+    return this.saveOwnersAndBuildResponse(savedEntity, command);
+  }
+
+  private async saveOwnersAndBuildResponse(
+    savedEntity: DataDestination,
+    command: CreateDataDestinationCommand
+  ): Promise<DataDestinationDto> {
+    const ownerIdsToSave = command.ownerIds ?? [command.userId];
     await syncOwners(
       this.destinationOwnerRepository,
       'destinationId',
       savedEntity.id,
       command.projectId,
-      credOwnerIdsToSave,
+      ownerIdsToSave,
       this.idpProjectionsFacade,
       userId => {
         const o = new DestinationOwner();
@@ -226,20 +173,20 @@ export class CreateDataDestinationService {
       }
     );
 
-    savedEntity.owners = credOwnerIdsToSave.map(uid => {
+    savedEntity.owners = ownerIdsToSave.map(uid => {
       const o = new DestinationOwner();
       o.destinationId = savedEntity.id;
       o.userId = uid;
       return o;
     });
-    const credAllUserIds = [command.userId, ...credOwnerIdsToSave];
-    const credUserProjections =
-      await this.userProjectionsFetcherService.fetchUserProjectionsList(credAllUserIds);
-    const credCreatedByUser = credUserProjections.getByUserId(command.userId) ?? null;
+    const allUserIds = [command.userId, ...ownerIdsToSave];
+    const userProjections =
+      await this.userProjectionsFetcherService.fetchUserProjectionsList(allUserIds);
+    const createdByUser = userProjections.getByUserId(command.userId) ?? null;
     return this.mapper.toDomainDto(
       savedEntity,
-      credCreatedByUser,
-      resolveOwnerUsers(credOwnerIdsToSave, credUserProjections)
+      createdByUser,
+      resolveOwnerUsers(ownerIdsToSave, userProjections)
     );
   }
 }
