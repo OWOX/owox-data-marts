@@ -4,90 +4,78 @@
 
 ### Minor Changes 0.22.0
 
+![OWOX Data Marts – v0.22.0](https://github.com/user-attachments/assets/dcd8ad37-7feb-4cc1-b8f8-a3309d9ee1c2)
+
+### Minor Changes 0.22.0
+
 - 4c9b96d: # **Business Owner & Technical Owner** for Data Marts
 
-  You can now assign **Business Owner** and **Technical Owner** to each Data Mart, making it easy to track who is responsible for the data and who maintains the implementation.
-  - ****Owners section**** on the Data Mart edit page lets you assign one or more project members as Business or Technical Owners with an inline selector.
-  - **Search and role display** — the member selector shows each user's project role and includes a search input for quick filtering when the project has many members.
-  - **Outbound member warnings** — if a previously assigned owner has been removed from the project, they are shown with a warning icon so you can reassign ownership.
-  - **Business Owner and Technical Owner columns** are available in the Data Marts list table (hidden by default — enable them via column settings).
-  - **Filter by owner** in the Data Marts list to quickly find data marts owned by a specific team member.
-  - **Auto-assigned Technical Owner** — when a new Data Mart is created, the creator is automatically set as the Technical Owner.
+  Assign Business and Technical Owners to each Data Mart to track accountability and maintainability.
 
-- b178723: # **Created By visibility** across major entities
+  - **Owners section** on the Data Mart edit page — assign one or more project members per role via an inline selector.
+  - **Search and role display** — the member selector shows each user's project role with a search input for quick filtering.
+  - **Outbound member warnings** — previously assigned owners who have been removed from the project are shown with a warning icon for easy reassignment.
+  - **Business Owner and Technical Owner columns** in the Data Marts list table (hidden by default — enable via column settings).
+  - **Filter by owner** in the Data Marts list to quickly find data marts by a specific team member.
+  - **Auto-assigned Technical Owner** — the creator is automatically set as Technical Owner when a new Data Mart is created.
 
-  You can now see who created each entity directly in the list views.
-  - **Created By column** is now displayed in Data Storages, Data Destinations, Reports, Scheduled Triggers, and Insights tables.
-  - **Filter by creator** is available in the Data Destinations and Data Storages lists, so you can quickly find entities created by a specific team member.
+- b178723: # **Created By** visibility across major entities
 
-- 85abd92: # Add **trigger-based execution** for connector and report runs
+  See who created each entity directly in the list views.
 
-  Connector and report runs are now processed through a task queue instead of running immediately in the background. This improves reliability by ensuring runs are not lost if the server restarts, and adds per-project concurrency limits to prevent overloading. Runs that cannot start due to concurrency limits are automatically retried. Includes a safety mechanism to detect and fail runs that were stuck waiting in the queue for too long.
+  - **Created By column** is now available in Data Storages, Data Destinations, Reports, Scheduled Triggers, and Insights tables.
+  - **Filter by creator** is available in Data Destinations and Data Storages lists.
 
-- 2406874: # Add **onboarding video for Email-based Reports**
+- 85abd92: # **Trigger-based execution** for connector and report runs
 
-  Added a new onboarding video to improve adoption of Email-based Reports in Data Marts.
+  Connector and report runs are now processed through a task queue instead of running immediately in the background. This improves reliability by ensuring runs are not lost on server restart, adds per-project concurrency limits, and automatically retries runs that cannot start due to concurrency limits. Includes a safety mechanism to detect and fail runs stuck in the queue for too long.
 
-  What's included:
-  - Show the video once to new users on the **Destinations** tab in Data Mart
-  - Added video to **Help menu → Video tutorials**
-  - Embedded video in **Email Reports documentation**
+- 2406874: # **Onboarding video** for Email-based Reports
 
-  This helps users quickly understand how to create and use email-based reports.
+  A new onboarding video to improve adoption of Email-based Reports in Data Marts.
 
-- 9395757: # **Improve Sign In page** screen with product-focused brand panel
+  - Shown once to new users on the **Destinations** tab in Data Mart.
+  - Available in **Help menu → Video tutorials**.
+  - Embedded in **Email Reports documentation**.
 
-  Redesigned the auth screen to better communicate product value and reduce friction during sign-in or sign-up.
+- 9395757: # **Sign In page** redesign with product-focused brand panel
 
-  **Brand panel changes:**
-  - Replaced placeholder with **carousel of product use cases**
-  - Added headline: **“Build once. Share anywhere.”**
-  - 3 scenarios: Google Sheets, Looker Studio, Email delivery
+  Redesigned the auth screen to better communicate product value and reduce sign-in friction.
 
-  **Messaging changes:**
-  - Shifted to **outcome-driven copy**
-  - Added short supporting text per slide
+  - **Brand panel** — replaced placeholder with a carousel of product use cases (Google Sheets, Looker Studio, Email delivery).
+  - **Headline** — "Build once. Share anywhere." with outcome-driven copy and short supporting text per slide.
+  - **Product preview** — visual workflows introduced directly on the auth screen.
+  - **Carousel** — auto-rotation with lazy-loaded images.
 
-  **Product preview changes:**
-  - Introduced visual workflows directly on auth screen
+- 737f292: # **Externalized connector secrets** from Data Mart definitions
 
-  **Carousel changes:**
-  - Auto-rotation with lightweight JS
-  - Lazy-loaded images
+  Non-OAuth secrets are moved from inline storage in Data Mart definitions to a separate `connector_source_credentials` table. Centralizes credential storage and reduces secret exposure in definition JSONs.
 
-  **Why this matters:**
-  - Improves clarity before login
-  - Reduces friction for new users
-  - Reinforces product value with real scenarios
+  - Added `_secrets_id` reference pattern (aligned with existing `_source_credential_id` for OAuth).
+  - Secrets are extracted on save and injected during connector execution.
+  - Includes data migration for existing Data Marts.
 
-- 737f292: # **Externalize connector secrets** from Data Mart definitions
+- a258b72: # **Improved UX for setting triggers**
 
-  Moved non-OAuth secrets from inline storage in DataMart definitions to a separate
-  `connector_source_credentials` table. This improves security by centralizing
-  credential storage and reducing secret exposure in definition JSONs.
-  - Added `_secrets_id` reference pattern (similar to existing `_source_credential_id` for OAuth)
-  - Secrets are extracted on save and injected during connector execution
-  - Includes data migration for existing DataMarts
+  Reduced friction in the trigger setup flow: smart default type based on Data Mart configuration, improved empty state with a CTA button, and one-click schedule presets (Daily 9:00, Every hour, Every 6h, Weekdays 9:00).
 
-- a258b72: # **Improve UX for setting triggers**
+- 2399254: # **Searchable Storage Selector** in Data Mart form
 
-  Reduced friction in trigger setup flow: smart default type based on data mart configuration, improved empty state with CTA button, and one-click schedule presets (Daily 9:00, Every hour, Every 6h, Weekdays 9:00).
+  The storage picker in the Create Data Mart form is upgraded to a searchable combobox.
 
-- 2399254: # Alphabetically **Sorted Storage Selector** in Data Mart Form
+  - Storages are listed in **alphabetical order** by title.
+  - **Typeahead search** filters the list by typing — useful when many storages exist.
+  - **Create new storage** option remains accessible at the bottom of the list.
 
-  The storage picker in the Create Data Mart form has been upgraded from a plain dropdown to a searchable combobox.
-  - Storages are now listed in **alphabetical order** by title, making it easier to locate the right one at a glance.
-  - A **typeahead search** lets you filter the list by typing, which is especially useful when many storages exist.
-  - The **Create new storage** option remains accessible at the bottom of the list.
+- 62f435a: # **Auto-subscribe new project members** to notification settings
 
-- 62f435a: # **Auto-subscribe new project members to notification** settings
-
-  New team members with Admin or Editor roles are now automatically subscribed to existing notification settings when they join a project. Members who leave and rejoin a project are also re-subscribed automatically. If a member manually unsubscribes from notifications, their choice is respected and they will not be re-added. Members whose role is downgraded to Viewer are automatically removed from the receivers list.
+  New team members with Admin or Editor roles are automatically subscribed to existing notification settings when joining a project. Members who leave and rejoin are re-subscribed automatically. Manual unsubscribes are respected and not overridden. Members downgraded to Viewer are automatically removed from the receivers list.
 
 - 6d53e58: # **Bug fixes and improvements**
-  - Fix validation for connector definitions in data marts. Fixed data mart validators to allow early validation success for connector definitions. Connector definitions no longer require credential validation during publish, resolving validation failures for Athena, BigQuery, Databricks, Redshift, and Snowflake data storage types.
-  - Fix undefined data mart title in delete confirmation dialog. The delete confirmation dialog was referencing an undefined variable `dataMartTitle`. Replaced it with `row.original.title` so the actual data mart name is displayed in the dialog message.
-  - Fix Edit button clearing sibling credential fields in oneOf config. Secret editing state is now per-field within oneOf configurations, preventing unintended resets of sibling fields and auth type switches.
+
+  - **Connector definition validation** — fixed validators to allow early validation success; connector definitions no longer require credential validation during publish, resolving failures for Athena, BigQuery, Databricks, Redshift, and Snowflake.
+  - **Delete confirmation dialog** — fixed undefined Data Mart title; dialog now correctly displays the actual data mart name.
+  - **Edit button in oneOf config** — secret editing state is now tracked per-field, preventing unintended resets of sibling fields and auth type switches.
 
 ### Patch Changes 0.22.0
 
