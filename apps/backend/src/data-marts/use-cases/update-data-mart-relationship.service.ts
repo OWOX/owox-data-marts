@@ -26,6 +26,14 @@ export class UpdateDataMartRelationshipService {
       );
     }
 
+    if (command.joinConditions !== undefined) {
+      this.relationshipService.validateJoinFieldTypes(
+        relationship.sourceDataMart.schema,
+        relationship.targetDataMart.schema,
+        command.joinConditions
+      );
+    }
+
     return this.relationshipService.update(relationship, command);
   }
 }

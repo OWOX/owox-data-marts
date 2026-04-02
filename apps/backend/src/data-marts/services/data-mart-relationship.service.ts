@@ -4,9 +4,15 @@ import { Repository } from 'typeorm';
 import { BusinessViolationException } from '../../common/exceptions/business-violation.exception';
 import { CreateRelationshipCommand } from '../dto/domain/create-relationship.command';
 import { UpdateRelationshipCommand } from '../dto/domain/update-relationship.command';
+import {
+  areTypesCompatible,
+  isPrimitiveFieldType,
+} from '../data-storage-types/field-type-compatibility';
+import { DataMartSchema } from '../data-storage-types/data-mart-schema.type';
 import { DataMart } from '../entities/data-mart.entity';
 import { DataMartRelationship } from '../entities/data-mart-relationship.entity';
 import { DataStorage } from '../entities/data-storage.entity';
+import { JoinCondition } from '../dto/schemas/relationship-schemas';
 
 const MAX_CYCLE_DEPTH = 10;
 
@@ -75,6 +81,50 @@ export class DataMartRelationshipService {
 
   async delete(relationship: DataMartRelationship): Promise<void> {
     await this.repository.remove(relationship);
+  }
+
+  validateJoinFieldTypes(
+    sourceSchema: DataMartSchema | undefined,
+    targetSchema: DataMartSchema | undefined,
+    joinConditions: JoinCondition[]
+  ): { warnings: string[] } {
+    const warnings: string[] = [];
+
+    if (!sourceSchema || !targetSchema) return { warnings };
+
+    const sourceFields = sourceSchema.fields ?? [];
+    const targetFields = targetSchema.fields ?? [];
+
+    for (const condition of joinConditions) {
+      const sourceField = sourceFields.find(f => f.name === condition.sourceFieldName);
+      const targetField = targetFields.find(f => f.name === condition.targetFieldName);
+
+      if (!sourceField || !targetField) {
+        const missing = !sourceField ? condition.sourceFieldName : condition.targetFieldName;
+        warnings.push(`Field not found in schema: ${missing}`);
+        continue;
+      }
+
+      if (!isPrimitiveFieldType(sourceField.type)) {
+        throw new BusinessViolationException(
+          `Field "${condition.sourceFieldName}" has complex type "${sourceField.type}" which cannot be used in join conditions`
+        );
+      }
+
+      if (!isPrimitiveFieldType(targetField.type)) {
+        throw new BusinessViolationException(
+          `Field "${condition.targetFieldName}" has complex type "${targetField.type}" which cannot be used in join conditions`
+        );
+      }
+
+      if (!areTypesCompatible(sourceField.type, targetField.type)) {
+        throw new BusinessViolationException(
+          `Incompatible types: "${condition.sourceFieldName}" (${sourceField.type}) and "${condition.targetFieldName}" (${targetField.type})`
+        );
+      }
+    }
+
+    return { warnings };
   }
 
   validateNoSelfReference(sourceId: string, targetId: string): void {

@@ -51,6 +51,12 @@ export class CreateDataMartRelationshipService {
       );
     }
 
+    this.relationshipService.validateJoinFieldTypes(
+      sourceDataMart.schema,
+      targetDataMart.schema,
+      command.joinConditions
+    );
+
     return this.relationshipService.create(command, sourceDataMart);
   }
 }
