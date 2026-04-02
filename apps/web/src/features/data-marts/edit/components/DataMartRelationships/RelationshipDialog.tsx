@@ -474,18 +474,18 @@ export function RelationshipDialog({
               {blendedFields.length > 0 && (
                 <div className='rounded-md border'>
                   {/* Header */}
-                  <div className='grid grid-cols-[auto_1fr_1fr_auto_auto] items-center gap-2 border-b px-3 py-2 text-xs font-medium text-gray-500'>
-                    <span className='w-4' />
+                  <div className='grid grid-cols-[24px_minmax(0,1fr)_minmax(0,1.5fr)_120px_48px] items-center gap-3 border-b px-3 py-2 text-xs font-medium text-gray-500'>
+                    <span />
                     <span>Field name</span>
                     <span>Output alias</span>
                     <span>Aggregate</span>
-                    <span>Hidden</span>
+                    <span className='text-center'>Hidden</span>
                   </div>
 
                   {blendedFields.map((bf, index) => (
                     <div
                       key={bf.id}
-                      className='grid grid-cols-[auto_1fr_1fr_auto_auto] items-center gap-2 border-b px-3 py-2 last:border-b-0'
+                      className='grid grid-cols-[24px_minmax(0,1fr)_minmax(0,1.5fr)_120px_48px] items-center gap-3 border-b px-3 py-2 last:border-b-0'
                     >
                       {/* Select checkbox */}
                       <FormField
@@ -526,7 +526,7 @@ export function RelationshipDialog({
                             onValueChange={field.onChange}
                             disabled={!watchedBlendedFields[index].selected}
                           >
-                            <SelectTrigger size='sm' className='w-28'>
+                            <SelectTrigger size='sm' className='w-full'>
                               <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
@@ -549,6 +549,7 @@ export function RelationshipDialog({
                             checked={field.value}
                             onCheckedChange={field.onChange}
                             disabled={!watchedBlendedFields[index].selected}
+                            className='mx-auto'
                             aria-label={`Hide field ${bf.targetFieldName}`}
                           />
                         )}
