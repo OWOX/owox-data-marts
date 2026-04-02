@@ -281,7 +281,7 @@ export function RelationshipDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className='max-h-[90vh] !max-w-4xl overflow-y-auto'>
+      <DialogContent className='flex max-h-[90vh] !max-w-4xl flex-col overflow-hidden'>
         <DialogHeader>
           <DialogTitle>{isEdit ? 'Edit Relationship' : 'Add Relationship'}</DialogTitle>
         </DialogHeader>
@@ -291,7 +291,7 @@ export function RelationshipDialog({
             onSubmit={e => {
               void handleSubmit(e);
             }}
-            className='flex flex-col gap-6'
+            className='flex min-h-0 flex-col gap-6 overflow-y-auto'
           >
             {/* Target Data Mart */}
             <FormField
@@ -349,7 +349,7 @@ export function RelationshipDialog({
 
             {/* Join Conditions */}
             <div className='flex flex-col gap-3'>
-              <div className='flex items-center justify-between'>
+              <div className='flex shrink-0 items-center justify-between'>
                 <p className='text-sm font-medium'>Join Conditions</p>
                 <Button
                   type='button'
@@ -482,85 +482,87 @@ export function RelationshipDialog({
                     <span className='text-center'>Hidden</span>
                   </div>
 
-                  {blendedFields.map((bf, index) => (
-                    <div
-                      key={bf.id}
-                      className='grid grid-cols-[24px_minmax(0,1fr)_minmax(0,1.5fr)_160px_48px] items-center gap-3 border-b px-3 py-2 last:border-b-0'
-                    >
-                      {/* Select checkbox */}
-                      <FormField
-                        control={form.control}
-                        name={`blendedFields.${index}.selected`}
-                        render={({ field }) => (
-                          <Checkbox
-                            checked={field.value}
-                            onCheckedChange={field.onChange}
-                            aria-label={`Include field ${bf.targetFieldName}`}
-                          />
-                        )}
-                      />
+                  <div className='max-h-[300px] overflow-y-auto'>
+                    {blendedFields.map((bf, index) => (
+                      <div
+                        key={bf.id}
+                        className='grid grid-cols-[24px_minmax(0,1fr)_minmax(0,1.5fr)_160px_48px] items-center gap-3 border-b px-3 py-2 last:border-b-0'
+                      >
+                        {/* Select checkbox */}
+                        <FormField
+                          control={form.control}
+                          name={`blendedFields.${index}.selected`}
+                          render={({ field }) => (
+                            <Checkbox
+                              checked={field.value}
+                              onCheckedChange={field.onChange}
+                              aria-label={`Include field ${bf.targetFieldName}`}
+                            />
+                          )}
+                        />
 
-                      {/* Field name */}
-                      <span className='truncate text-sm'>{bf.targetFieldName}</span>
+                        {/* Field name */}
+                        <span className='truncate text-sm'>{bf.targetFieldName}</span>
 
-                      {/* Output alias */}
-                      <FormField
-                        control={form.control}
-                        name={`blendedFields.${index}.outputAlias`}
-                        render={({ field }) => (
-                          <Input
-                            {...field}
-                            className='h-7 text-xs'
-                            disabled={!watchedBlendedFields[index].selected}
-                          />
-                        )}
-                      />
+                        {/* Output alias */}
+                        <FormField
+                          control={form.control}
+                          name={`blendedFields.${index}.outputAlias`}
+                          render={({ field }) => (
+                            <Input
+                              {...field}
+                              className='h-7 text-xs'
+                              disabled={!watchedBlendedFields[index].selected}
+                            />
+                          )}
+                        />
 
-                      {/* Aggregate function */}
-                      <FormField
-                        control={form.control}
-                        name={`blendedFields.${index}.aggregateFunction`}
-                        render={({ field }) => (
-                          <Select
-                            value={field.value}
-                            onValueChange={field.onChange}
-                            disabled={!watchedBlendedFields[index].selected}
-                          >
-                            <SelectTrigger size='sm' className='w-full'>
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {AGGREGATE_FUNCTIONS.map(fn => (
-                                <SelectItem key={fn} value={fn}>
-                                  {fn}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        )}
-                      />
+                        {/* Aggregate function */}
+                        <FormField
+                          control={form.control}
+                          name={`blendedFields.${index}.aggregateFunction`}
+                          render={({ field }) => (
+                            <Select
+                              value={field.value}
+                              onValueChange={field.onChange}
+                              disabled={!watchedBlendedFields[index].selected}
+                            >
+                              <SelectTrigger size='sm' className='w-full'>
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {AGGREGATE_FUNCTIONS.map(fn => (
+                                  <SelectItem key={fn} value={fn}>
+                                    {fn}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          )}
+                        />
 
-                      {/* Hidden toggle */}
-                      <FormField
-                        control={form.control}
-                        name={`blendedFields.${index}.isHidden`}
-                        render={({ field }) => (
-                          <Checkbox
-                            checked={field.value}
-                            onCheckedChange={field.onChange}
-                            disabled={!watchedBlendedFields[index].selected}
-                            className='mx-auto'
-                            aria-label={`Hide field ${bf.targetFieldName}`}
-                          />
-                        )}
-                      />
-                    </div>
-                  ))}
+                        {/* Hidden toggle */}
+                        <FormField
+                          control={form.control}
+                          name={`blendedFields.${index}.isHidden`}
+                          render={({ field }) => (
+                            <Checkbox
+                              checked={field.value}
+                              onCheckedChange={field.onChange}
+                              disabled={!watchedBlendedFields[index].selected}
+                              className='mx-auto'
+                              aria-label={`Hide field ${bf.targetFieldName}`}
+                            />
+                          )}
+                        />
+                      </div>
+                    ))}
+                  </div>
                 </div>
               )}
             </div>
 
-            <DialogFooter>
+            <DialogFooter className='bg-background sticky bottom-0 shrink-0 border-t pt-4'>
               <Button
                 type='button'
                 variant='outline'

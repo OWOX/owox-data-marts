@@ -1,236 +1,522 @@
-import { useCallback, useEffect, useState } from 'react';
-import {
-  ReactFlow,
-  Background,
-  Controls,
-  type Node,
-  type Edge,
-  useNodesState,
-  useEdgesState,
-  MarkerType,
-} from '@xyflow/react';
-import '@xyflow/react/dist/style.css';
-import dagre from 'dagre';
-import { LayoutGrid, Table2 } from 'lucide-react';
+import { useCallback, useEffect, useRef } from 'react';
+import { NodeEditor, ClassicPreset } from 'rete';
+import type { GetSchemes } from 'rete';
+import { AreaPlugin, AreaExtensions } from 'rete-area-plugin';
+import { ConnectionPlugin, Presets as ConnectionPresets } from 'rete-connection-plugin';
+import { ReactPlugin, Presets as ReactPresets, type ReactArea2D } from 'rete-react-plugin';
+import { MinimapPlugin, type MinimapExtra } from 'rete-minimap-plugin';
+import { createRoot } from 'react-dom/client';
+import { Badge } from '@owox/ui/components/badge';
+import { ExternalLink, Locate } from 'lucide-react';
 import { Button } from '../../../../../shared/components/Button';
+import { dataMartRelationshipService } from '../../../shared/services/data-mart-relationship.service';
 import type { DataMartRelationship } from '../../../shared/types/relationship.types';
-import { useProjectRoute } from '../../../../../shared/hooks';
+
+/* ---------- props ---------- */
 
 interface RelationshipCanvasProps {
   dataMartId: string;
   dataMartTitle: string;
   relationships: DataMartRelationship[];
+  onRelationshipSelect: (relationship: DataMartRelationship) => void;
 }
 
-const NODE_WIDTH = 180;
-const NODE_HEIGHT = 60;
-const FIELD_ROW_HEIGHT = 28;
+/* ---------- constants ---------- */
 
-function getLayoutedElements(
-  nodes: Node[],
-  edges: Edge[],
-  direction = 'LR'
-): { nodes: Node[]; edges: Edge[] } {
-  const dagreGraph = new dagre.graphlib.Graph();
-  dagreGraph.setDefaultEdgeLabel(() => ({}));
-  dagreGraph.setGraph({ rankdir: direction, ranksep: 80, nodesep: 40 });
+const SOCKET = new ClassicPreset.Socket('rel');
+const NODE_W = 240;
+const SRC_H = 48;
+const TGT_H = 74;
+const H_GAP = 280;
+const V_GAP = 24;
+const MAX_DEPTH = 5;
+const NODE_BORDER = '#9ca3af'; // gray-400, visible in both themes
 
-  nodes.forEach(node => {
-    dagreGraph.setNode(node.id, {
-      width: node.width ?? NODE_WIDTH,
-      height: node.height ?? NODE_HEIGHT,
-    });
-  });
+/* ---------- custom node class ---------- */
 
-  edges.forEach(edge => {
-    dagreGraph.setEdge(edge.source, edge.target);
-  });
+class DMNode extends ClassicPreset.Node {
+  width = NODE_W;
+  height = SRC_H;
+  isSource: boolean;
+  dmId: string;
+  depth: number;
+  targetAlias?: string;
+  joinCount?: number;
+  fieldCount?: number;
+  onOpenExternal?: () => void;
 
-  dagre.layout(dagreGraph);
+  constructor(
+    label: string,
+    dmId: string,
+    isSource: boolean,
+    depth: number,
+    opts?: {
+      targetAlias?: string;
+      joinCount?: number;
+      fieldCount?: number;
+      onOpenExternal?: () => void;
+    }
+  ) {
+    super(label);
+    this.dmId = dmId;
+    this.isSource = isSource;
+    this.depth = depth;
+    this.targetAlias = opts?.targetAlias;
+    this.joinCount = opts?.joinCount;
+    this.fieldCount = opts?.fieldCount;
+    this.onOpenExternal = opts?.onOpenExternal;
+    if (!isSource) this.height = TGT_H;
+  }
+}
 
-  const layoutedNodes = nodes.map(node => {
-    const nodeWithPosition = dagreGraph.node(node.id);
-    return {
-      ...node,
-      position: {
-        x: nodeWithPosition.x - (node.width ?? NODE_WIDTH) / 2,
-        y: nodeWithPosition.y - (node.height ?? NODE_HEIGHT) / 2,
+/* ---------- schemes ---------- */
+
+type Schemes = GetSchemes<DMNode, ClassicPreset.Connection<ClassicPreset.Node, ClassicPreset.Node>>;
+type AreaExtra = ReactArea2D<Schemes> | MinimapExtra;
+
+/* ---------- custom node component ---------- */
+
+const { RefSocket } = ReactPresets.classic;
+
+function NodeComponent(props: { data: Schemes['Node']; emit: (e: ReactArea2D<Schemes>) => void }) {
+  const n = props.data;
+
+  const handleExtClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    e.preventDefault();
+    n.onOpenExternal?.();
+  };
+
+  const outputs = Object.entries(n.outputs);
+  const inputs = Object.entries(n.inputs);
+
+  if (n.isSource) {
+    return (
+      <div
+        className='text-primary flex items-center'
+        style={{
+          width: n.width,
+          height: n.height,
+          borderRadius: 8,
+          border: `2px solid ${NODE_BORDER}`,
+          boxShadow: '0 1px 4px 0 rgba(0,0,0,0.12)',
+          background: '#eff6ff',
+          fontSize: 13,
+          fontWeight: 600,
+          position: 'relative',
+        }}
+      >
+        <div style={{ flex: 1, padding: '0 14px' }}>{n.label}</div>
+        {outputs.map(
+          ([key, output]) =>
+            output && (
+              <div key={key} style={{ position: 'absolute', right: -5, top: '50%', marginTop: -5 }}>
+                <RefSocket
+                  name='output-socket'
+                  side='output'
+                  socketKey={key}
+                  nodeId={n.id}
+                  emit={props.emit}
+                  payload={output.socket}
+                />
+              </div>
+            )
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <div
+      style={{
+        width: n.width,
+        height: n.height,
+        borderRadius: 8,
+        border: `2px solid ${NODE_BORDER}`,
+        background: 'var(--background)',
+        boxShadow: '0 1px 4px 0 rgba(0,0,0,0.12)',
+        cursor: 'pointer',
+        position: 'relative',
+      }}
+    >
+      {/* Input socket – absolutely positioned at left edge */}
+      {inputs.map(
+        ([key, input]) =>
+          input && (
+            <div
+              key={key}
+              style={{ position: 'absolute', left: -5, top: '50%', marginTop: -5, zIndex: 1 }}
+            >
+              <RefSocket
+                name='input-socket'
+                side='input'
+                socketKey={key}
+                nodeId={n.id}
+                emit={props.emit}
+                payload={input.socket}
+              />
+            </div>
+          )
+      )}
+      {/* Content – full width, no socket columns */}
+      <div
+        className='bg-muted flex items-center justify-between'
+        style={{
+          padding: '8px 10px 8px 14px',
+          fontSize: 13,
+          fontWeight: 600,
+          borderRadius: '6px 6px 0 0',
+        }}
+      >
+        <span className='truncate'>{n.label}</span>
+        <button
+          className='text-muted-foreground hover:text-foreground ml-2 shrink-0 rounded p-0.5 transition-colors'
+          onPointerDown={e => {
+            e.stopPropagation();
+          }}
+          onClick={handleExtClick}
+          aria-label='Open in new tab'
+        >
+          <ExternalLink style={{ width: 14, height: 14 }} />
+        </button>
+      </div>
+      <div
+        className='text-muted-foreground flex items-center gap-2'
+        style={{ padding: '6px 14px 8px', fontSize: 11 }}
+      >
+        {n.targetAlias && (
+          <Badge variant='secondary' className='px-1.5 py-0 text-[10px]'>
+            {n.targetAlias}
+          </Badge>
+        )}
+        <span>
+          {n.joinCount ?? 0} join{n.joinCount !== 1 ? 's' : ''} &middot; {n.fieldCount ?? 0} field
+          {n.fieldCount !== 1 ? 's' : ''}
+        </span>
+      </div>
+      {/* Output socket – absolutely positioned at right edge */}
+      {outputs.map(
+        ([key, output]) =>
+          output && (
+            <div
+              key={key}
+              style={{ position: 'absolute', right: -5, top: '50%', marginTop: -5, zIndex: 1 }}
+            >
+              <RefSocket
+                name='output-socket'
+                side='output'
+                socketKey={key}
+                nodeId={n.id}
+                emit={props.emit}
+                payload={output.socket}
+              />
+            </div>
+          )
+      )}
+    </div>
+  );
+}
+
+function SocketComponent() {
+  return (
+    <div
+      style={{
+        width: 10,
+        height: 10,
+        borderRadius: '50%',
+        background: NODE_BORDER,
+        border: '2px solid var(--background)',
+      }}
+    />
+  );
+}
+
+/* ---------- editor setup ---------- */
+
+interface EditorHandle {
+  destroy: () => void;
+  fitView: () => Promise<void>;
+}
+
+async function setupEditor(
+  container: HTMLElement,
+  dataMartId: string,
+  dataMartTitle: string,
+  initialRelationships: DataMartRelationship[],
+  onNodeSelect: (targetDmId: string) => void,
+  onOpenExternal: (targetDmId: string) => void
+): Promise<EditorHandle> {
+  const editor = new NodeEditor<Schemes>();
+  const area = new AreaPlugin<Schemes, AreaExtra>(container);
+  const connPlugin = new ConnectionPlugin<Schemes, AreaExtra>();
+  const render = new ReactPlugin<Schemes, AreaExtra>({ createRoot });
+  const minimap = new MinimapPlugin<Schemes>();
+
+  render.addPreset(
+    ReactPresets.classic.setup({
+      customize: {
+        node() {
+          return NodeComponent;
+        },
+        socket() {
+          return SocketComponent;
+        },
       },
-    };
+    })
+  );
+  render.addPreset(ReactPresets.minimap.setup());
+  connPlugin.addPreset(ConnectionPresets.classic.setup());
+
+  editor.use(area);
+  area.use(connPlugin);
+  area.use(render);
+  area.use(minimap);
+
+  // --- Pass 1: collect full graph data ---
+  interface NodeInfo {
+    id: string;
+    title: string;
+    depth: number;
+    isSource: boolean;
+    targetAlias?: string;
+    joinCount?: number;
+    fieldCount?: number;
+  }
+  interface EdgeInfo {
+    sourceId: string;
+    targetId: string;
+  }
+
+  const nodeInfos = new Map<string, NodeInfo>();
+  const edges: EdgeInfo[] = [];
+  const hasOutgoing = new Set<string>(); // nodes that have children
+
+  nodeInfos.set(dataMartId, {
+    id: dataMartId,
+    title: dataMartTitle,
+    depth: 0,
+    isSource: true,
   });
 
-  return { nodes: layoutedNodes, edges };
+  async function collectGraph(parentId: string, rels: DataMartRelationship[], depth: number) {
+    if (rels.length > 0) hasOutgoing.add(parentId);
+
+    for (const rel of rels) {
+      const tid = rel.targetDataMart.id;
+      edges.push({ sourceId: parentId, targetId: tid });
+
+      if (!nodeInfos.has(tid)) {
+        nodeInfos.set(tid, {
+          id: tid,
+          title: rel.targetDataMart.title,
+          depth,
+          isSource: false,
+          targetAlias: rel.targetAlias,
+          joinCount: rel.joinConditions.length,
+          fieldCount: rel.blendedFields.length,
+        });
+
+        if (depth < MAX_DEPTH) {
+          try {
+            const childRels = await dataMartRelationshipService.getRelationships(tid);
+            if (childRels.length > 0) {
+              await collectGraph(tid, childRels, depth + 1);
+            }
+          } catch {
+            // skip
+          }
+        }
+      }
+    }
+  }
+
+  await collectGraph(dataMartId, initialRelationships, 1);
+
+  // --- Pass 2: create nodes with correct sockets ---
+  const nodeMap = new Map<string, DMNode>();
+  const columns = new Map<number, DMNode[]>();
+
+  for (const [dmId, info] of nodeInfos) {
+    const node = new DMNode(info.title, dmId, info.isSource, info.depth, {
+      targetAlias: info.targetAlias,
+      joinCount: info.joinCount,
+      fieldCount: info.fieldCount,
+      onOpenExternal: () => {
+        onOpenExternal(dmId);
+      },
+    });
+
+    // Source and intermediate nodes get output socket
+    if (hasOutgoing.has(dmId)) {
+      node.addOutput('out', new ClassicPreset.Output(SOCKET));
+    }
+    // Non-source nodes get input socket
+    if (!info.isSource) {
+      node.addInput('in', new ClassicPreset.Input(SOCKET));
+    }
+
+    await editor.addNode(node);
+    nodeMap.set(dmId, node);
+
+    if (!columns.has(info.depth)) columns.set(info.depth, []);
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion -- guaranteed by the line above
+    columns.get(info.depth)!.push(node);
+  }
+
+  // --- Pass 3: create connections ---
+  for (const edge of edges) {
+    const src = nodeMap.get(edge.sourceId);
+    const tgt = nodeMap.get(edge.targetId);
+    if (src && tgt) {
+      await editor.addConnection(
+        new ClassicPreset.Connection(
+          src as ClassicPreset.Node,
+          'out',
+          tgt as ClassicPreset.Node,
+          'in'
+        )
+      );
+    }
+  }
+
+  // --- Layout: position each column ---
+  const maxDepth = Math.max(...Array.from(columns.keys()));
+
+  for (let d = 0; d <= maxDepth; d++) {
+    const col = columns.get(d) ?? [];
+    let y = 0;
+
+    for (const node of col) {
+      await area.translate(node.id, { x: d * (NODE_W + H_GAP), y });
+      y += node.height + V_GAP;
+    }
+
+    // Center source column vertically relative to first target column
+    if (d === 0 && col.length === 1) {
+      const nextCol = columns.get(1) ?? [];
+      const nextH = nextCol.reduce((s, n) => s + n.height + V_GAP, -V_GAP);
+      await area.translate(col[0].id, {
+        x: 0,
+        y: Math.max(0, nextH / 2 - col[0].height / 2),
+      });
+    }
+  }
+
+  // --- Dynamic grid background (syncs with zoom/pan) ---
+  const BASE_GRID = 16;
+  const updateGrid = () => {
+    const { x, y, k } = area.area.transform;
+    const size = BASE_GRID * k;
+    container.style.backgroundSize = `${size}px ${size}px`;
+    container.style.backgroundPosition = `${x}px ${y}px`;
+  };
+
+  // --- Fit view ---
+  const fitView = async () => {
+    await AreaExtensions.zoomAt(area, editor.getNodes(), { scale: 0.85 });
+    updateGrid();
+  };
+  await fitView();
+
+  // --- Lock dragging, handle clicks, sync grid ---
+  area.addPipe(ctx => {
+    if (ctx.type === 'nodetranslate') return undefined;
+    if (ctx.type === 'nodepicked') {
+      const node = editor.getNode(ctx.data.id);
+      if (node && !node.isSource) {
+        onNodeSelect(node.dmId);
+      }
+    }
+    if (ctx.type === 'translated' || ctx.type === 'zoomed') {
+      updateGrid();
+    }
+    return ctx;
+  });
+
+  return {
+    destroy: () => {
+      area.destroy();
+    },
+    fitView,
+  };
 }
+
+/* ---------- React component ---------- */
 
 export function RelationshipCanvas({
   dataMartId,
   dataMartTitle,
   relationships,
+  onRelationshipSelect,
 }: RelationshipCanvasProps) {
-  const { navigate } = useProjectRoute();
-  const [showFields, setShowFields] = useState(false);
-  const [nodes, setNodes, onNodesChange] = useNodesState<Node>([]);
-  const [edges, setEdges, onEdgesChange] = useEdgesState([] as Edge[]);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const editorRef = useRef<EditorHandle | null>(null);
 
-  const buildGraph = useCallback(() => {
-    const nodeMap = new Map<string, Node>();
-    const edgeList: Edge[] = [];
-
-    const sourceNodeHeight = showFields
-      ? NODE_HEIGHT + relationships.length * FIELD_ROW_HEIGHT
-      : NODE_HEIGHT;
-
-    nodeMap.set(dataMartId, {
-      id: dataMartId,
-      type: 'default',
-      position: { x: 0, y: 0 },
-      width: NODE_WIDTH,
-      height: sourceNodeHeight,
-      data: {
-        label: (
-          <div className='flex h-full flex-col'>
-            <div className='bg-primary/10 text-primary rounded-t px-3 py-2 text-xs font-semibold'>
-              {dataMartTitle}
-            </div>
-          </div>
-        ),
-      },
-      style: {
-        width: NODE_WIDTH,
-        height: sourceNodeHeight,
-        padding: 0,
-        border: '2px solid var(--color-primary)',
-        borderRadius: 8,
-        background: 'var(--color-background)',
-        cursor: 'default',
-      },
-    });
-
-    relationships.forEach(rel => {
-      const targetId = rel.targetDataMart.id;
-      const targetTitle = rel.targetDataMart.title;
-      const targetNodeHeight = showFields
-        ? NODE_HEIGHT + rel.blendedFields.length * FIELD_ROW_HEIGHT
-        : NODE_HEIGHT;
-
-      if (!nodeMap.has(targetId)) {
-        nodeMap.set(targetId, {
-          id: targetId,
-          type: 'default',
-          position: { x: 0, y: 0 },
-          width: NODE_WIDTH,
-          height: targetNodeHeight,
-          data: {
-            label: (
-              <div className='flex h-full flex-col'>
-                <div className='rounded-t bg-gray-100 px-3 py-2 text-xs font-semibold text-gray-700 dark:bg-gray-800 dark:text-gray-300'>
-                  {targetTitle}
-                </div>
-                {showFields && (
-                  <div className='flex flex-col'>
-                    {rel.blendedFields.map(field => (
-                      <div
-                        key={field.targetFieldName}
-                        className='border-t border-gray-100 px-3 py-1 text-xs text-gray-500 dark:border-gray-700'
-                      >
-                        {field.outputAlias || field.targetFieldName}
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            ),
-          },
-          style: {
-            width: NODE_WIDTH,
-            height: targetNodeHeight,
-            padding: 0,
-            border: '1.5px solid var(--color-border)',
-            borderRadius: 8,
-            background: 'var(--color-background)',
-            cursor: 'pointer',
-          },
-        });
-      }
-
-      const joinLabel = rel.joinConditions
-        .map(c => `${c.sourceFieldName} = ${c.targetFieldName}`)
-        .join(', ');
-
-      edgeList.push({
-        id: rel.id,
-        source: dataMartId,
-        target: targetId,
-        label: joinLabel,
-        labelStyle: { fontSize: 10 },
-        markerEnd: { type: MarkerType.ArrowClosed },
-        style: { strokeWidth: 1.5 },
-      });
-    });
-
-    const rawNodes = Array.from(nodeMap.values());
-    const { nodes: layoutedNodes, edges: layoutedEdges } = getLayoutedElements(rawNodes, edgeList);
-
-    setNodes(layoutedNodes);
-    setEdges(layoutedEdges);
-  }, [dataMartId, dataMartTitle, relationships, showFields, setNodes, setEdges]);
-
-  useEffect(() => {
-    buildGraph();
-  }, [buildGraph]);
-
-  const handleNodeClick = useCallback(
-    (_: React.MouseEvent, node: Node) => {
-      if (node.id !== dataMartId) {
-        navigate(`/data-marts/${node.id}/overview`);
-      }
+  const handleNodeSelect = useCallback(
+    (targetId: string) => {
+      const rel = relationships.find(r => r.targetDataMart.id === targetId);
+      if (rel) onRelationshipSelect(rel);
     },
-    [dataMartId, navigate]
+    [relationships, onRelationshipSelect]
   );
 
-  if (relationships.length === 0) {
-    return null;
-  }
+  const handleOpenExternal = useCallback((targetId: string) => {
+    const basePath = window.location.pathname.replace(/\/data-marts\/.*/, '');
+    window.open(`${basePath}/data-marts/${targetId}/overview`, '_blank');
+  }, []);
+
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el || relationships.length === 0) return;
+
+    void setupEditor(
+      el,
+      dataMartId,
+      dataMartTitle,
+      relationships,
+      handleNodeSelect,
+      handleOpenExternal
+    ).then(h => {
+      editorRef.current = h;
+    });
+
+    return () => {
+      editorRef.current?.destroy();
+      editorRef.current = null;
+    };
+  }, [dataMartId, dataMartTitle, relationships, handleNodeSelect, handleOpenExternal]);
+
+  if (relationships.length === 0) return null;
 
   return (
-    <div className='relative rounded-lg border' style={{ height: 320 }}>
+    <div className='rel-canvas relative overflow-hidden rounded-lg border' style={{ height: 480 }}>
+      <style>{`
+        .rel-canvas svg path { stroke-width: 1.5px !important; }
+        .rel-canvas [data-testid="minimap"] { transform: scale(0.5); transform-origin: bottom right; }
+      `}</style>
       <div className='absolute top-3 right-3 z-10'>
         <Button
           variant='outline'
-          size='sm'
+          size='icon'
+          className='h-8 w-8'
           onClick={() => {
-            setShowFields(prev => !prev);
+            void editorRef.current?.fitView();
           }}
+          aria-label='Fit to view'
         >
-          {showFields ? (
-            <>
-              <LayoutGrid className='mr-1 h-3.5 w-3.5' />
-              Blocks only
-            </>
-          ) : (
-            <>
-              <Table2 className='mr-1 h-3.5 w-3.5' />
-              Show fields
-            </>
-          )}
+          <Locate className='h-4 w-4' />
         </Button>
       </div>
-      <ReactFlow
-        nodes={nodes}
-        edges={edges}
-        onNodesChange={onNodesChange}
-        onEdgesChange={onEdgesChange}
-        onNodeClick={handleNodeClick}
-        fitView
-        fitViewOptions={{ padding: 0.2 }}
-        nodesDraggable={false}
-        nodesConnectable={false}
-        elementsSelectable={false}
-        zoomOnDoubleClick={false}
-      >
-        <Background gap={16} size={1} />
-        <Controls showInteractive={false} />
-      </ReactFlow>
+      <div
+        ref={containerRef}
+        style={{
+          width: '100%',
+          height: '100%',
+          backgroundImage:
+            'linear-gradient(rgba(0,0,0,0.06) 1px, transparent 1px), linear-gradient(90deg, rgba(0,0,0,0.06) 1px, transparent 1px)',
+          backgroundSize: '16px 16px',
+        }}
+      />
     </div>
   );
 }

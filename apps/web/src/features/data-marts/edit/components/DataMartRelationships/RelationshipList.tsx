@@ -1,10 +1,4 @@
 import { useState } from 'react';
-import {
-  Accordion,
-  AccordionItem,
-  AccordionTrigger,
-  AccordionContent,
-} from '@owox/ui/components/accordion';
 import { Badge } from '@owox/ui/components/badge';
 import {
   Empty,
@@ -13,7 +7,15 @@ import {
   EmptyTitle,
   EmptyDescription,
 } from '@owox/ui/components/empty';
-import { Separator } from '@owox/ui/components/separator';
+import {
+  Table,
+  TableHeader,
+  TableHead,
+  TableBody,
+  TableRow,
+  TableCell,
+} from '@owox/ui/components/table';
+import { Tooltip, TooltipTrigger, TooltipContent } from '@owox/ui/components/tooltip';
 import { GitMerge, Pencil, Trash2 } from 'lucide-react';
 import { Button } from '../../../../../shared/components/Button';
 import { ConfirmationDialog } from '../../../../../shared/components/ConfirmationDialog';
@@ -58,26 +60,69 @@ export function RelationshipList({ relationships, onEdit, onDelete }: Relationsh
 
   return (
     <>
-      <Accordion type='multiple' className='rounded-lg border'>
-        {relationships.map((rel, index) => (
-          <AccordionItem key={rel.id} value={rel.id}>
-            <AccordionTrigger className='px-4 hover:no-underline'>
-              <div className='flex flex-1 items-center gap-3 text-left'>
-                <div className='flex flex-col gap-1'>
-                  <div className='flex items-center gap-2'>
-                    <span className='text-sm font-medium'>{rel.targetDataMart.title}</span>
-                    <Badge variant='secondary' className='text-xs'>
-                      {rel.targetAlias}
-                    </Badge>
-                  </div>
-                  <div className='text-muted-foreground text-xs'>
-                    {rel.joinConditions.length} join condition
-                    {rel.joinConditions.length !== 1 ? 's' : ''} &middot; {rel.blendedFields.length}{' '}
-                    blended field
-                    {rel.blendedFields.length !== 1 ? 's' : ''}
-                  </div>
-                </div>
-                <div className='mr-2 ml-auto flex items-center gap-1'>
+      <Table>
+        <TableHeader className='bg-transparent'>
+          <TableRow className='hover:bg-transparent'>
+            <TableHead className='bg-secondary dark:bg-background'>
+              <Tooltip>
+                <TooltipTrigger className='cursor-default'>Target Data Mart</TooltipTrigger>
+                <TooltipContent>The data mart this relationship joins to</TooltipContent>
+              </Tooltip>
+            </TableHead>
+            <TableHead className='bg-secondary dark:bg-background'>
+              <Tooltip>
+                <TooltipTrigger className='cursor-default'>Alias</TooltipTrigger>
+                <TooltipContent>
+                  Short name used to prefix blended fields in the output schema
+                </TooltipContent>
+              </Tooltip>
+            </TableHead>
+            <TableHead className='bg-secondary dark:bg-background'>
+              <Tooltip>
+                <TooltipTrigger className='cursor-default'>Join Conditions</TooltipTrigger>
+                <TooltipContent>
+                  Field pairs used to match rows between source and target data marts
+                </TooltipContent>
+              </Tooltip>
+            </TableHead>
+            <TableHead className='bg-secondary dark:bg-background'>
+              <Tooltip>
+                <TooltipTrigger className='cursor-default'>Blended Fields</TooltipTrigger>
+                <TooltipContent>
+                  Fields from the target data mart included in the output schema
+                </TooltipContent>
+              </Tooltip>
+            </TableHead>
+            <TableHead className='bg-secondary dark:bg-background w-24 text-right'>
+              Actions
+            </TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody className='bg-background'>
+          {relationships.map(rel => (
+            <TableRow
+              key={rel.id}
+              className='cursor-pointer'
+              onClick={() => {
+                onEdit(rel);
+              }}
+            >
+              <TableCell className='font-medium'>{rel.targetDataMart.title}</TableCell>
+              <TableCell>
+                <Badge variant='secondary' className='text-xs'>
+                  {rel.targetAlias}
+                </Badge>
+              </TableCell>
+              <TableCell className='text-muted-foreground'>
+                {rel.joinConditions.length} condition
+                {rel.joinConditions.length !== 1 ? 's' : ''}
+              </TableCell>
+              <TableCell className='text-muted-foreground'>
+                {rel.blendedFields.length} field
+                {rel.blendedFields.length !== 1 ? 's' : ''}
+              </TableCell>
+              <TableCell className='text-right'>
+                <div className='flex items-center justify-end gap-1'>
                   <Button
                     variant='ghost'
                     size='sm'
@@ -102,59 +147,11 @@ export function RelationshipList({ relationships, onEdit, onDelete }: Relationsh
                     <Trash2 className='h-3.5 w-3.5' />
                   </Button>
                 </div>
-              </div>
-            </AccordionTrigger>
-            <AccordionContent className='px-4'>
-              <div className='grid gap-4 pt-2 md:grid-cols-2'>
-                {/* Join Conditions */}
-                <div>
-                  <p className='text-muted-foreground mb-2 text-xs font-medium tracking-wider uppercase'>
-                    Join Conditions
-                  </p>
-                  <div className='flex flex-col gap-1.5'>
-                    {rel.joinConditions.map((cond, i) => (
-                      <div key={i} className='flex items-center gap-2 text-sm'>
-                        <code className='bg-muted rounded px-1.5 py-0.5 text-xs'>
-                          {cond.sourceFieldName}
-                        </code>
-                        <span className='text-muted-foreground text-xs'>=</span>
-                        <code className='bg-muted rounded px-1.5 py-0.5 text-xs'>
-                          {cond.targetFieldName}
-                        </code>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Blended Fields */}
-                <div>
-                  <p className='text-muted-foreground mb-2 text-xs font-medium tracking-wider uppercase'>
-                    Blended Fields
-                  </p>
-                  <div className='flex flex-col gap-1.5'>
-                    {rel.blendedFields.map(field => (
-                      <div key={field.targetFieldName} className='flex items-center gap-2 text-sm'>
-                        <code className='bg-muted rounded px-1.5 py-0.5 text-xs'>
-                          {field.outputAlias || field.targetFieldName}
-                        </code>
-                        <Badge variant='outline' className='text-xs'>
-                          {field.aggregateFunction}
-                        </Badge>
-                        {field.isHidden && (
-                          <Badge variant='secondary' className='text-xs'>
-                            hidden
-                          </Badge>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
-              {index < relationships.length - 1 && <Separator className='mt-4' />}
-            </AccordionContent>
-          </AccordionItem>
-        ))}
-      </Accordion>
+              </TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
 
       <ConfirmationDialog
         open={deletingId !== null}

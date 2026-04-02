@@ -1,5 +1,4 @@
 import { useQuery } from '@tanstack/react-query';
-import { Button } from '@owox/ui/components/button';
 import { Checkbox } from '@owox/ui/components/checkbox';
 import { Skeleton } from '@owox/ui/components/skeleton';
 import {
@@ -17,6 +16,7 @@ type ColumnMode = 'default' | 'custom';
 interface NativeField {
   name: string;
   type?: string;
+  alias?: string;
   fields?: NativeField[];
 }
 
@@ -24,7 +24,7 @@ function flattenNativeFields(fields: NativeField[], prefix = ''): NativeField[] 
   const result: NativeField[] = [];
   for (const field of fields) {
     const fullName = prefix ? `${prefix}.${field.name}` : field.name;
-    result.push({ name: fullName, type: field.type });
+    result.push({ name: fullName, type: field.type, alias: field.alias });
     if (field.fields && Array.isArray(field.fields)) {
       result.push(...flattenNativeFields(field.fields, fullName));
     }
@@ -50,7 +50,7 @@ export function ReportColumnPicker({ dataMartId, value, onChange }: ReportColumn
   const { data: schema, isLoading } = useQuery({
     queryKey: [BLENDABLE_SCHEMA_QUERY_KEY, dataMartId],
     queryFn: () => dataMartRelationshipService.getBlendableSchema(dataMartId),
-    enabled: !!dataMartId && mode === 'custom',
+    enabled: !!dataMartId,
   });
 
   function handleModeChange(newMode: ColumnMode) {
@@ -118,7 +118,7 @@ export function ReportColumnPicker({ dataMartId, value, onChange }: ReportColumn
             handleModeChange(v as ColumnMode);
           }}
         >
-          <SelectTrigger className='w-56'>
+          <SelectTrigger className='bg-background w-56'>
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -128,16 +128,15 @@ export function ReportColumnPicker({ dataMartId, value, onChange }: ReportColumn
         </Select>
 
         {mode === 'custom' && value !== null && (
-          <Button
+          <button
             type='button'
-            variant='ghost'
-            size='sm'
+            className='text-muted-foreground hover:text-foreground text-sm underline transition-colors'
             onClick={() => {
               onChange(null);
             }}
           >
             Reset to Default
-          </Button>
+          </button>
         )}
       </div>
 
@@ -185,7 +184,7 @@ export function ReportColumnPicker({ dataMartId, value, onChange }: ReportColumn
               <p className='text-muted-foreground text-xs'>No native fields available.</p>
             )}
 
-            <div className='space-y-1'>
+            <div className='max-h-48 space-y-1 overflow-y-auto'>
               {nativeFields.map(field => (
                 <label
                   key={field.name}
@@ -197,7 +196,7 @@ export function ReportColumnPicker({ dataMartId, value, onChange }: ReportColumn
                       toggleField(field.name, checked === true);
                     }}
                   />
-                  <span className='font-mono text-xs'>{field.name}</span>
+                  <span className='font-mono text-xs'>{field.alias ?? field.name}</span>
                   {field.type && (
                     <span className='text-muted-foreground text-xs'>({field.type})</span>
                   )}
@@ -230,7 +229,7 @@ export function ReportColumnPicker({ dataMartId, value, onChange }: ReportColumn
                 </div>
               </div>
 
-              <div className='space-y-1'>
+              <div className='max-h-48 space-y-1 overflow-y-auto'>
                 {blendedFields.map(field => (
                   <label
                     key={field.name}
