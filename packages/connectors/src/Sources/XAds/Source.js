@@ -164,6 +164,9 @@ var XAdsSource = class XAdsSource extends AbstractSource {
       case 'stats':
         return await this._timeSeriesFetch({ nodeName, accountId, fields, start_time, end_time });
 
+       case 'stats_by_country':
+        return await this.fetchAsyncStatsChunk({ nodeName, accountId, fields, dateChunk: XAdsHelper.splitDatesIntoChunks(XAdsHelper.generateDateRange(start_time, end_time)) });
+       
       case 'targeting_locations':
         return await this._fetchTargetingLocations(fields);
 
@@ -405,14 +408,14 @@ var XAdsSource = class XAdsSource extends AbstractSource {
     return JSON.parse(text);
   }
 
-  async _submitAsyncStatsJob({ accountId, entityIds, placement, start_time, end_time }) {
+  async _submitAsyncStatsJob({ accountId, entityIds, placement, start_time, end_time, segmentation_type = 'LOCATIONS' }) {
     const params = {
       entity: 'PROMOTED_TWEET',
       entity_ids: entityIds.join(','),
       placement,
       granularity: 'DAY',
       metric_groups: 'ENGAGEMENT,BILLING',
-      segmentation_type: 'LOCATIONS',
+      segmentation_type,
       start_time,
       end_time
     };
@@ -437,10 +440,11 @@ var XAdsSource = class XAdsSource extends AbstractSource {
     );
     const json = JSON.parse(text);
 
-    // Derive metric field names from the schema so that adding a field to
-    // statsByCountryFields.js is sufficient — no change needed here.
-    const NON_METRIC_FIELDS = new Set(['id', 'date', 'placement', 'country']);
-    const metricFields = Object.keys(this.fieldsSchema[nodeName]).filter(k => !NON_METRIC_FIELDS.has(k));
+    // Derive metric field names and segment field from the schema so that adding
+    // a new segmentation type requires only a new schema entry, not code changes.
+    const { segmentField } = this.fieldsSchema[nodeName];
+    const NON_METRIC_FIELDS = new Set(['id', 'date', 'placement', segmentField]);
+    const metricFields = Object.keys(this.fieldsSchema[nodeName].fields).filter(k => !NON_METRIC_FIELDS.has(k));
 
     const arr = Array.isArray(json.data) ? json.data : [json.data];
     const rawResult = [];
@@ -448,9 +452,9 @@ var XAdsSource = class XAdsSource extends AbstractSource {
     for (const h of arr) {
       const segments = h.id_data || [];
       for (const segment of segments) {
-        const country = segment.segment?.segment_value || null;
+        const segmentValue = segment.segment?.segment_value || null;
         const m = segment.metrics || {};
-        const row = { id: h.id, date: start_time, placement, country };
+        const row = { id: h.id, date: start_time, placement, [segmentField]: segmentValue };
         for (const field of metricFields) {
           row[field] = m[field]?.[0] || 0;
         }
@@ -475,59 +479,46 @@ var XAdsSource = class XAdsSource extends AbstractSource {
   }
 
   /**
-   * Splits a flat list of 'YYYY-MM-DD' date strings into chunks sized to stay
-   * within the X Ads 90-job ceiling (100 hard limit, 10-job safety margin).
-   *
-   * X Ads enforces a hard limit of 100 concurrent async jobs per account.
-   * Jobs per day = entity batches × placements (e.g. 10 batches × 2 = 20 jobs/day).
-   *
-   * @param {string} accountId
-   * @param {Array<string>} dates - 'YYYY-MM-DD' strings
-   * @returns {Array<Array<string>>} - date chunks
-   */
-  async computeAsyncDateChunks(accountId, dates) {
-    const ids = await this._getPromotedTweetIds(accountId);
-    if (!ids.length) return [dates];
-    const jobsPerDay = Math.ceil(ids.length / this.config.StatsMaxEntityIds.value) * PLACEMENTS.length;
-    const MAX_CONCURRENT_JOBS = 90;
-    const chunkSize = Math.max(1, Math.floor(MAX_CONCURRENT_JOBS / jobsPerDay));
-    console.log(`${dates.length} days to fetch, ${jobsPerDay} jobs/day → processing in chunks of ${chunkSize} day(s)`);
-    const chunks = [];
-    for (let i = 0; i < dates.length; i += chunkSize) {
-      chunks.push(dates.slice(i, i + chunkSize));
-    }
-    return chunks;
-  }
-
-  /**
    * Submits, polls, and downloads async stats jobs for one date chunk.
-   * Returns a Map<date, rows[]> so the Connector can save and update the cursor
-   * immediately after each chunk without this method knowing about persistence.
    *
-   * All operations are strictly sequential (ODM requirement):
-   *   Phase 1 — one POST per job
-   *   Phase 2 — one GET per poll interval (progressive backoff)
-   *   Phase 3 — one download per job result
+   * For each job the flow is: submit → poll until ready → download immediately.
+   * After all jobs for a single date are done, calls onBatchReady with that
+   * date's rows so the Connector can save and update the cursor right away.
+   * This mirrors the onBatchReady pattern from the Microsoft connector.
+   *
+   * All operations are strictly sequential (ODM requirement).
    *
    * @param {Object} opts
    * @param {string} opts.nodeName
    * @param {string} opts.accountId
    * @param {Array<string>} opts.fields
    * @param {Array<string>} opts.dateChunk - 'YYYY-MM-DD' strings for this chunk
-   * @returns {Map<string, Array>} rowsByDate
+   * @param {Function} opts.onBatchReady - async callback(date, rows) called after each date completes
    */
-  async fetchAsyncStatsChunk({ nodeName, accountId, fields, dateChunk }) {
+  async fetchAsyncStatsChunk({ nodeName, accountId, fields, dateChunk, onBatchReady }) {
     // Apply the same inter-request delay as fetchData to respect rate-limit config.
     await AsyncUtils.delay(this.config.AdsApiDelay.value * 1000);
+    const { segmentationType } = this.fieldsSchema[nodeName];
 
     const ids = await this._getPromotedTweetIds(accountId); // cached, no extra API call
     if (!ids.length) {
-      return new Map(dateChunk.map(d => [d, []]));
+      for (const date of dateChunk) {
+        await onBatchReady(date, []);
+      }
+      return;
     }
 
-    // Phase 1: Submit all jobs for this chunk sequentially (one POST at a time).
-    // _rawPostFetch has a built-in 1 s delay, so submissions are naturally spaced.
-    const pendingJobs = []; // { date, placement, jobId }
+    // Guard: ensure the chunk won't exceed the X Ads 100-job account limit.
+    const ACCOUNT_JOB_LIMIT = 100;
+    const jobsRequiredPerDay = Math.ceil(ids.length / this.config.StatsMaxEntityIds.value) * PLACEMENTS.length;
+    const totalJobs = dateChunk.length * jobsRequiredPerDay;
+    if (totalJobs > ACCOUNT_JOB_LIMIT) {
+      throw new Error(
+        `Chunk of ${dateChunk.length} days would submit ${totalJobs} jobs, exceeding the X Ads account limit of ${ACCOUNT_JOB_LIMIT}. ` +
+        `Reduce DAYS_PER_CHUNK or increase StatsMaxEntityIds.`
+      );
+    }
+
     for (const date of dateChunk) {
       // The async stats API treats end_time as exclusive, so advance by one day.
       // Use UTC methods to avoid DST shifts eating the +1 day on transition dates.
@@ -535,63 +526,52 @@ var XAdsSource = class XAdsSource extends AbstractSource {
       e.setUTCDate(e.getUTCDate() + 1);
       const endStr = DateUtils.formatDate(e);
 
+      const dateRows = [];
       for (let i = 0; i < ids.length; i += this.config.StatsMaxEntityIds.value) {
         const entityIds = ids.slice(i, i + this.config.StatsMaxEntityIds.value);
         for (const placement of PLACEMENTS) {
-          const jobId = await this._submitAsyncStatsJob({ accountId, entityIds, placement, start_time: date, end_time: endStr });
-          pendingJobs.push({ date, placement, jobId });
+          // Submit → poll → download for each job immediately.
+          const jobId = await this._submitAsyncStatsJob({ accountId, entityIds, placement, start_time: date, end_time: endStr, segmentation_type: segmentationType });
+          const downloadUrl = await this._pollUntilReady(accountId, jobId);
+          const rows = await this._downloadAndParseJobResults({ nodeName, downloadUrl, placement, start_time: date });
+          dateRows.push(...this._filterBySchema(rows, nodeName, fields));
         }
       }
+
+      await onBatchReady(date, dateRows);
     }
+  }
 
-    console.log(`Submitted ${pendingJobs.length} async jobs for days ${dateChunk[0]}–${dateChunk[dateChunk.length - 1]} — polling`);
-
-    // Phase 2: Poll all jobs in a single API request per interval (one GET at a time).
-    // Progressive backoff: start fast (3 s) to catch quick jobs, then widen to 15 s.
-    // Total budget still ~30 min (sum of all intervals across MAX_POLL_ATTEMPTS).
+  /**
+   * Polls a single async stats job until it reaches SUCCESS or FAILED.
+   * Uses progressive backoff: 3s → 5s → 5s → 10s → 10s → 15s thereafter.
+   *
+   * @param {string} accountId
+   * @param {string} jobId
+   * @returns {string} downloadUrl - pre-signed CDN URL for the result file
+   */
+  async _pollUntilReady(accountId, jobId) {
     const POLL_INTERVALS = [3000, 5000, 5000, 10000, 10000];
     const POLL_INTERVAL_DEFAULT = 15000;
     const MAX_POLL_ATTEMPTS = 180;
-    const downloadUrls = new Map();
-    let pendingIds = pendingJobs.map(j => j.jobId);
 
-    for (let attempt = 0; attempt < MAX_POLL_ATTEMPTS && pendingIds.length > 0; attempt++) {
+    for (let attempt = 0; attempt < MAX_POLL_ATTEMPTS; attempt++) {
       await AsyncUtils.delay(POLL_INTERVALS[attempt] || POLL_INTERVAL_DEFAULT);
 
-      const resp = await this._rawFetch(`stats/jobs/accounts/${accountId}`, { job_ids: pendingIds.join(',') });
+      const resp = await this._rawFetch(`stats/jobs/accounts/${accountId}`, { job_ids: jobId });
       const jobs = this._toDataArray(resp.data);
+      const job = jobs[0];
 
-      const stillPending = [];
-      for (const job of jobs) {
-        if (job.status === 'SUCCESS') {
-          if (!job.url) throw new Error(`Job ${job.id} succeeded but url is null`);
-          downloadUrls.set(job.id, job.url);
-        } else if (job.status === 'FAILED') {
-          throw new Error(`Async stats job ${job.id} failed: ${JSON.stringify(job)}`);
-        } else {
-          stillPending.push(job.id);
-        }
+      if (job.status === 'SUCCESS') {
+        if (!job.url) throw new Error(`Job ${jobId} succeeded but url is null`);
+        return job.url;
       }
-      pendingIds = stillPending;
+      if (job.status === 'FAILED') {
+        throw new Error(`Async stats job ${jobId} failed: ${JSON.stringify(job)}`);
+      }
     }
 
-    if (pendingIds.length > 0) {
-      throw new Error(`${pendingIds.length} async job(s) did not complete after ${MAX_POLL_ATTEMPTS} poll attempts`);
-    }
-
-    // Phase 3: Download each result file sequentially, group by date.
-    const rowsByDate = new Map(dateChunk.map(d => [d, []]));
-    for (const { date, placement, jobId } of pendingJobs) {
-      const rows = await this._downloadAndParseJobResults({
-        nodeName,
-        downloadUrl: downloadUrls.get(jobId),
-        placement,
-        start_time: date
-      });
-      rowsByDate.get(date).push(...this._filterBySchema(rows, nodeName, fields));
-    }
-
-    return rowsByDate;
+    throw new Error(`Async stats job ${jobId} did not complete after ${MAX_POLL_ATTEMPTS} poll attempts`);
   }
 
   /**

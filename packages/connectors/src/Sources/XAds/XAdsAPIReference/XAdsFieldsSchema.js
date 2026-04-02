@@ -68,7 +68,13 @@ var XAdsFieldsSchema = {
     // asyncTimeSeries: uses the X Ads async jobs API. The Connector submits all
     // jobs for the full date range upfront (so X Ads processes them concurrently),
     // then downloads and saves results one at a time (ODM sequential requirement).
-    asyncTimeSeries: true
+    asyncTimeSeries: true,
+    // segmentationType: the value sent to the X Ads API as segmentation_type.
+    // segmentField: the output field name where segment_value is stored in the row.
+    // To add a new segmentation (e.g. stats_by_device), create a new schema entry
+    // with segmentationType: 'DEVICES' and segmentField: 'device'.
+    segmentationType: 'LOCATIONS',
+    segmentField: 'country'
   },
   targeting_locations: {
     overview: "X Ads Targeting Locations",

@@ -125,33 +125,36 @@ var XAdsConnector = class XAdsConnector extends AbstractConnector {
     }
 
     const storage = await this.getStorageByNode(nodeName);
-    const chunks = await this.source.computeAsyncDateChunks(accountId, days.map(d => d.formatted));
+    const chunks = XAdsHelper.splitDatesIntoChunks(days.map(d => d.formatted));
+    const dayLookup = new Map(days.map(d => [d.formatted, d.date]));
 
     let emptyChunks = 0;
     for (const dateChunk of chunks) {
-      const rowsByDate = await this.source.fetchAsyncStatsChunk({ nodeName, accountId, fields, dateChunk });
-
       let chunkHasData = false;
-      for (const { date, formatted } of days) {
-        if (!rowsByDate.has(formatted)) continue;
 
-        const data = rowsByDate.get(formatted);
-        if (data.length) chunkHasData = true;
+      await this.source.fetchAsyncStatsChunk({
+        nodeName,
+        accountId,
+        fields,
+        dateChunk,
+        onBatchReady: async (formatted, data) => {
+          if (data.length) chunkHasData = true;
 
-        this.config.logMessage(data.length
-          ? `${data.length} rows of ${nodeName} were fetched for ${accountId} on ${formatted}`
-          : 'No records have been fetched'
-        );
+          this.config.logMessage(data.length
+            ? `${data.length} rows of ${nodeName} were fetched for ${accountId} on ${formatted}`
+            : 'No records have been fetched'
+          );
 
-        if (data.length || this.config.CreateEmptyTables?.value) {
-          const preparedData = data.length ? this.addMissingFieldsToData(data, fields) : data;
-          await storage.saveData(preparedData);
+          if (data.length || this.config.CreateEmptyTables?.value) {
+            const preparedData = data.length ? this.addMissingFieldsToData(data, fields) : data;
+            await storage.saveData(preparedData);
+          }
+
+          if (this.runConfig.type === RUN_CONFIG_TYPE.INCREMENTAL) {
+            this.config.updateLastRequstedDate(dayLookup.get(formatted));
+          }
         }
-
-        if (this.runConfig.type === RUN_CONFIG_TYPE.INCREMENTAL) {
-          this.config.updateLastRequstedDate(date);
-        }
-      }
+      });
 
       if (!chunkHasData) {
         emptyChunks++;
