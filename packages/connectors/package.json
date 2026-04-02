@@ -1,6 +1,6 @@
 {
   "name": "@owox/connectors",
-  "version": "0.21.1",
+  "version": "0.22.0",
   "description": "Connectors and storages for different data sources",
   "license": "MIT",
   "publishConfig": {
