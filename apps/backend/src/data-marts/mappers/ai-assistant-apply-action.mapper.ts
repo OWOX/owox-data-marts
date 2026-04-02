@@ -3,10 +3,16 @@ import type { AssistantProposedAction } from '../ai-insights/agent-flow/ai-assis
 import { AiAssistantApplyResultDto } from '../dto/domain/ai-assistant-apply-result.dto';
 import type {
   AiAssistantApplyLifecycleStatus,
+  AiAssistantApplyStatus,
   ApplyAiAssistantActionType,
 } from '../dto/domain/ai-assistant-apply.types';
 import type { ApplyAiAssistantActionPayload } from '../dto/domain/apply-ai-assistant-session.command';
 import type { AiAssistantApplyActionResponse } from '../dto/domain/ai-assistant-apply-action-response.dto';
+import {
+  AiAssistantActionAppliedEvent,
+  type AiAssistantActionAppliedEventPayload,
+  type AiAssistantActionAppliedResultStatus,
+} from '../events/ai-assistant-action-applied.event';
 import type { TemplateEditPlaceholderTag } from '../services/template-edit-placeholder-tags/template-edit-placeholder-tags.contracts';
 
 export interface AiAssistantApplyDecisionActionSnapshot {
@@ -30,6 +36,25 @@ export interface BuildStoredApplyActionResponseContext {
   assistantMessageId: string | null;
   templateSourceId?: string | null;
   action: ApplyAiAssistantActionPayload | null;
+}
+
+export interface BuildActionAppliedEventParams {
+  projectId: string;
+  dataMartId: string;
+  userId: string;
+  sessionId: string;
+  assistantMessageId: string;
+  requestId: string;
+  actionType: ApplyAiAssistantActionType | null;
+  artifactId: string | null;
+  artifactTitle: string | null;
+  templateId: string | null;
+  template?: string;
+  sourceKey: string | null;
+  templateUpdated: boolean;
+  status?: AiAssistantApplyStatus | null;
+  reason?: string | null;
+  error?: string;
 }
 
 @Injectable()
@@ -167,6 +192,43 @@ export class AiAssistantApplyActionMapper {
       status: result.status,
       reason: result.reason,
     };
+  }
+
+  toActionAppliedEvent(params: BuildActionAppliedEventParams): AiAssistantActionAppliedEvent {
+    const resultStatus = this.normalizeActionAppliedResultStatus(params.status, params.error);
+    const error =
+      params.error ??
+      (resultStatus === 'failed' ? (params.reason ?? 'AI assistant apply failed') : undefined);
+    const payload: AiAssistantActionAppliedEventPayload = {
+      projectId: params.projectId,
+      dataMartId: params.dataMartId,
+      userId: params.userId,
+      sessionId: params.sessionId,
+      assistantMessageId: params.assistantMessageId,
+      requestId: params.requestId,
+      actionType: params.actionType,
+      resultStatus,
+      artifactId: params.artifactId,
+      artifactTitle: params.artifactTitle,
+      templateId: params.templateId,
+      sourceKey: params.sourceKey,
+      templateUpdated: params.templateUpdated,
+      ...(params.template !== undefined ? { template: params.template } : {}),
+      ...(error ? { error } : {}),
+    };
+
+    return new AiAssistantActionAppliedEvent(payload);
+  }
+
+  private normalizeActionAppliedResultStatus(
+    status?: AiAssistantApplyStatus | null,
+    error?: string
+  ): AiAssistantActionAppliedResultStatus {
+    if (error || status === 'validation_failed') {
+      return 'failed';
+    }
+
+    return 'successful';
   }
 
   private mapProposedActionToSnapshotAction(

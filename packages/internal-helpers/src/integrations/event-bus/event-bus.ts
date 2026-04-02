@@ -3,12 +3,14 @@ import type { BaseEvent } from './base-event.js';
 import { LoggerFactory } from '../../logging/logger-factory.js';
 import { LoggerTransport } from './transports/logger-transport.js';
 import { resolveEventBusConfig } from './config.js';
+import { castError } from '../../utils/castError.js';
 
 /**
  * Non-transactional fan-out event bus
  */
 export class EventBus {
   private readonly transports: readonly EventTransport[];
+  private readonly logger = LoggerFactory.createNamedLogger('EventBusTransport');
 
   constructor(transports: readonly EventTransport[]) {
     this.transports = transports;
@@ -38,6 +40,12 @@ export class EventBus {
         `Failed to send via ${errors.length} transports — ${details}`
       );
     }
+  }
+
+  produceEventSafely<TPayload extends object>(event: BaseEvent<TPayload>): void {
+    void this.produceEvent(event).catch(error => {
+      this.logger.error(`Failed to produce ${event.name}`, {}, castError(error));
+    });
   }
 
   getEnabledTransportNames(): readonly string[] {

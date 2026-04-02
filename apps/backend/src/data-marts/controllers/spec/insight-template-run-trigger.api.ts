@@ -1,5 +1,6 @@
 import { applyDecorators } from '@nestjs/common';
 import {
+  ApiBody,
   ApiCreatedResponse,
   ApiExtraModels,
   ApiOkResponse,
@@ -7,6 +8,7 @@ import {
   ApiParam,
   getSchemaPath,
 } from '@nestjs/swagger';
+import { CreateInsightTemplateRunTriggerRequestApiDto } from '../../dto/presentation/create-insight-template-run-trigger-request-api.dto';
 import { InsightTemplateRunTriggerListItemResponseApiDto } from '../../dto/presentation/insight-template-run-trigger-list-item-response-api.dto';
 
 export function CreateInsightTemplateRunTriggerSpec() {
@@ -18,6 +20,7 @@ export function CreateInsightTemplateRunTriggerSpec() {
     }),
     ApiParam({ name: 'dataMartId', description: 'DataMart ID' }),
     ApiParam({ name: 'insightTemplateId', description: 'Insight Template ID' }),
+    ApiBody({ type: CreateInsightTemplateRunTriggerRequestApiDto }),
     ApiCreatedResponse({
       description: 'Trigger created successfully',
       schema: {

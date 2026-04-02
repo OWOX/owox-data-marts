@@ -91,7 +91,7 @@ export function ScheduledTriggerForm({
                     handleTypeChange(value as ScheduledTriggerType);
                   }}
                   defaultValue={field.value}
-                  disabled={!!preSelectedType || !!initialData || !!watch('triggerConfig.reportId')}
+                  disabled={!!initialData || !!watch('triggerConfig.reportId')}
                 >
                   <FormControl>
                     <SelectTrigger className={'w-full'}>

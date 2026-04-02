@@ -103,13 +103,18 @@ export default class Serve extends BaseCommand {
   }
 
   /**
-   * Builds CORS configuration based on environment variables
-   * @returns CORS middleware options
+   * Builds CORS configuration based on environment variables.
+   * @returns CORS middleware options with validated origins
    * @private
    */
   private buildCorsConfig(): CorsOptions {
     const googleSheetsExtensionOrigin = process.env.GOOGLE_SHEETS_EXTENSION_ORIGIN;
-    const allowedOrigins = googleSheetsExtensionOrigin ? [googleSheetsExtensionOrigin] : [];
+    const allowedOrigins = googleSheetsExtensionOrigin
+      ? googleSheetsExtensionOrigin
+          .split(',')
+          .map(origin => origin.trim())
+          .filter(origin => origin.length > 0)
+      : [];
 
     return {
       allowedHeaders: ['content-Type', 'authorization', 'x-owox-authorization'],

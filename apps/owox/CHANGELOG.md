@@ -1,5 +1,89 @@
 # owox
 
+## 0.22.0
+
+### Minor Changes 0.22.0
+
+![OWOX Data Marts – v0.22.0](https://github.com/user-attachments/assets/dcd8ad37-7feb-4cc1-b8f8-a3309d9ee1c2)
+
+- 4c9b96d: # **Business Owner & Technical Owner** for Data Marts
+
+  Assign Business and Technical Owners to each Data Mart to track accountability and maintainability.
+
+  - **Owners section** on the Data Mart edit page — assign one or more project members per role via an inline selector.
+  - **Search and role display** — the member selector shows each user's project role with a search input for quick filtering.
+  - **Outbound member warnings** — previously assigned owners who have been removed from the project are shown with a warning icon for easy reassignment.
+  - **Business Owner and Technical Owner columns** in the Data Marts list table (hidden by default — enable via column settings).
+  - **Filter by owner** in the Data Marts list to quickly find data marts by a specific team member.
+  - **Auto-assigned Technical Owner** — the creator is automatically set as Technical Owner when a new Data Mart is created.
+
+- b178723: # **Created By** visibility across major entities
+
+  See who created each entity directly in the list views.
+
+  - **Created By column** is now available in Data Storages, Data Destinations, Reports, Scheduled Triggers, and Insights tables.
+  - **Filter by creator** is available in Data Destinations and Data Storages lists.
+
+- 85abd92: # **Trigger-based execution** for connector and report runs
+
+  Connector and report runs are now processed through a task queue instead of running immediately in the background. This improves reliability by ensuring runs are not lost on server restart, adds per-project concurrency limits, and automatically retries runs that cannot start due to concurrency limits. Includes a safety mechanism to detect and fail runs stuck in the queue for too long.
+
+- 2406874: # **Onboarding video** for Email-based Reports
+
+  A new onboarding video to improve adoption of Email-based Reports in Data Marts.
+
+  - Shown once to new users on the **Destinations** tab in Data Mart.
+  - Available in **Help menu → Video tutorials**.
+  - Embedded in **Email Reports documentation**.
+
+- 9395757: # **Sign In page** redesign with product-focused brand panel
+
+  Redesigned the auth screen to better communicate product value and reduce sign-in friction.
+
+  - **Brand panel** — replaced placeholder with a carousel of product use cases (Google Sheets, Looker Studio, Email delivery).
+  - **Headline** — "Build once. Share anywhere." with outcome-driven copy and short supporting text per slide.
+  - **Product preview** — visual workflows introduced directly on the auth screen.
+  - **Carousel** — auto-rotation with lazy-loaded images.
+
+- 737f292: # **Externalized connector secrets** from Data Mart definitions
+
+  Non-OAuth secrets are moved from inline storage in Data Mart definitions to a separate `connector_source_credentials` table. Centralizes credential storage and reduces secret exposure in definition JSONs.
+
+  - Added `_secrets_id` reference pattern (aligned with existing `_source_credential_id` for OAuth).
+  - Secrets are extracted on save and injected during connector execution.
+  - Includes data migration for existing Data Marts.
+
+- a258b72: # **Improved UX for setting triggers**
+
+  Reduced friction in the trigger setup flow: smart default type based on Data Mart configuration, improved empty state with a CTA button, and one-click schedule presets (Daily 9:00, Every hour, Every 6h, Weekdays 9:00).
+
+- 2399254: # **Searchable Storage Selector** in Data Mart form
+
+  The storage picker in the Create Data Mart form is upgraded to a searchable combobox.
+
+  - Storages are listed in **alphabetical order** by title.
+  - **Typeahead search** filters the list by typing — useful when many storages exist.
+  - **Create new storage** option remains accessible at the bottom of the list.
+
+- 62f435a: # **Auto-subscribe new project members** to notification settings
+
+  New team members with Admin or Editor roles are automatically subscribed to existing notification settings when joining a project. Members who leave and rejoin are re-subscribed automatically. Manual unsubscribes are respected and not overridden. Members downgraded to Viewer are automatically removed from the receivers list.
+
+- 6d53e58: # **Bug fixes and improvements**
+
+  - **Connector definition validation** — fixed validators to allow early validation success; connector definitions no longer require credential validation during publish, resolving failures for Athena, BigQuery, Databricks, Redshift, and Snowflake.
+  - **Delete confirmation dialog** — fixed undefined Data Mart title; dialog now correctly displays the actual data mart name.
+  - **Edit button in oneOf config** — secret editing state is now tracked per-field, preventing unintended resets of sibling fields and auth type switches.
+
+### Patch Changes 0.22.0
+
+- @owox/internal-helpers@0.22.0
+- @owox/idp-protocol@0.22.0
+- @owox/idp-better-auth@0.22.0
+- @owox/idp-owox-better-auth@0.22.0
+- @owox/backend@0.22.0
+- @owox/web@0.22.0
+
 ## 0.21.1
 
 ### Patch Changes 0.21.1
@@ -68,7 +152,7 @@
   - Fix Google BigQuery storage not saving OAuth credentials and blocking OAuth-authenticated users from saving storage settings
   - Fix field descriptions and primary key flags being lost after schema sync in Redshift and Snowflake data marts
 
-### Patch Changes
+### Patch Changes 0.21.0
 
 - @owox/internal-helpers@0.21.0
 - @owox/idp-protocol@0.21.0

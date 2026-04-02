@@ -39,3 +39,11 @@ export const DEFAULT_PROJECT_MEMBERS_CACHE_TTL_SECONDS = 15 * 60;
 
 /** Default timeout for OWOX Client requests in milliseconds (10 seconds). */
 export const DEFAULT_OWOX_CLIENT_TIMEOUT_MS = 10000;
+
+/** Error messages for session and user resolution. */
+export const SESSION_ERROR_MESSAGES = {
+  NOT_FOUND: 'No session found for user info',
+  RESOLVE_FAILED: 'Failed to resolve session from Better Auth token',
+  USER_ACCOUNT_NOT_FOUND: 'User or account not found for session',
+  GET_SESSION_FAILED: 'Failed to get Better Auth session',
+} as const;

@@ -256,9 +256,6 @@ export const ReportSchedulesInlineList = forwardRef<
           >
             <div className='mb-2 flex items-center justify-between'>
               <div className='flex items-center gap-2'>
-                <Label htmlFor={`trigger-enabled-${String(idx)}`} className='text-sm font-normal'>
-                  {it.enabled ? 'Enabled' : 'Disabled'}
-                </Label>
                 <Switch
                   id={`trigger-enabled-${String(idx)}`}
                   checked={it.enabled}
@@ -266,6 +263,12 @@ export const ReportSchedulesInlineList = forwardRef<
                     updateItem(idx, { enabled: checked });
                   }}
                 />
+                <Label
+                  htmlFor={`trigger-enabled-${String(idx)}`}
+                  className='cursor-pointer text-sm font-normal'
+                >
+                  {it.enabled ? 'Enabled' : 'Disabled'}
+                </Label>
               </div>
               <div>
                 <Button

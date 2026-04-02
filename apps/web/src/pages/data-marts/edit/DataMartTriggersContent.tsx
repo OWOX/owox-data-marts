@@ -16,10 +16,13 @@ import {
 } from '../../../features/data-marts/scheduled-triggers';
 import { useDataMartContext } from '../../../features/data-marts/edit/model';
 import { ConnectorContextProvider } from '../../../features/connectors/shared/model/context';
+import { DataMartDefinitionType } from '../../../features/data-marts/shared';
+import { ScheduledTriggerType } from '../../../features/data-marts/scheduled-triggers/enums';
 
 export default function DataMartTriggersContent() {
   const { dataMart } = useDataMartContext();
   const [isFormSheetOpen, setIsFormSheetOpen] = useState(false);
+  const hasConnector = dataMart?.definitionType === DataMartDefinitionType.CONNECTOR;
 
   const handleOpenFormSheet = useCallback(() => {
     setIsFormSheetOpen(true);
@@ -56,11 +59,15 @@ export default function DataMartTriggersContent() {
             <ScheduledTriggerProvider>
               {dataMart && (
                 <>
-                  <ScheduledTriggerList dataMartId={dataMart.id} />
+                  <ScheduledTriggerList
+                    dataMartId={dataMart.id}
+                    onRequestCreate={handleOpenFormSheet}
+                  />
                   <ScheduledTriggerFormSheet
                     isOpen={isFormSheetOpen}
                     onClose={handleCloseFormSheet}
                     dataMartId={dataMart.id}
+                    preSelectedType={hasConnector ? ScheduledTriggerType.CONNECTOR_RUN : undefined}
                   />
                 </>
               )}

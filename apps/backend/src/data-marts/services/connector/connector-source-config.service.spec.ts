@@ -84,30 +84,44 @@ describe('ConnectorSourceConfigService', () => {
 
       const result = service.buildRunConfig(null, undefined);
 
-      expect(result).toBeDefined();
+      expect(result.toObject()).toEqual({
+        type: 'INCREMENTAL',
+        data: [],
+        state: {},
+      });
     });
 
-    it('extracts runType from payload', () => {
+    it('extracts runType from direct payload body', () => {
       const { service } = createService();
-      const payload = { payload: { runType: 'FULL', data: {} } };
+      const payload = { runType: 'MANUAL_BACKFILL', data: {} };
 
       const result = service.buildRunConfig(payload, undefined);
 
-      expect(result).toBeDefined();
+      expect(result.toObject().type).toBe('MANUAL_BACKFILL');
+    });
+
+    it('extracts runType from nested legacy payload body', () => {
+      const { service } = createService();
+      const payload = { payload: { runType: 'MANUAL_BACKFILL', data: {} } };
+
+      const result = service.buildRunConfig(payload, undefined);
+
+      expect(result.toObject().type).toBe('MANUAL_BACKFILL');
     });
 
     it('extracts data entries from payload', () => {
       const { service } = createService();
       const payload = {
-        payload: {
-          runType: 'INCREMENTAL',
-          data: { startDate: '2025-01-01', endDate: '2025-01-31' },
-        },
+        runType: 'MANUAL_BACKFILL',
+        data: { StartDate: '2025-01-01', EndDate: '2025-01-31' },
       };
 
       const result = service.buildRunConfig(payload, undefined);
 
-      expect(result).toBeDefined();
+      expect(result.toObject().data).toEqual([
+        { configField: 'StartDate', value: '2025-01-01' },
+        { configField: 'EndDate', value: '2025-01-31' },
+      ]);
     });
 
     it('includes state when provided', () => {
@@ -116,7 +130,7 @@ describe('ConnectorSourceConfigService', () => {
 
       const result = service.buildRunConfig(null, state);
 
-      expect(result).toBeDefined();
+      expect(result.toObject().state).toEqual({ date: '2025-01-15' });
     });
   });
 });

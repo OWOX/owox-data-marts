@@ -37,6 +37,7 @@ export const PRIMARY_STORAGE_ANSWER = {
   AWS_REDSHIFT: 'aws_redshift',
   SNOWFLAKE: 'snowflake',
   DATABRICKS: 'databricks',
+  AZURE_SYNAPSE: 'azure_synapse',
   DONT_KNOW: 'dont_know',
   OTHER: 'other',
 } as const;
@@ -81,6 +82,7 @@ export const PRIMARY_STORAGE_OPTIONS: OnboardingOption[] = [
   { value: PRIMARY_STORAGE_ANSWER.AWS_REDSHIFT, label: 'AWS Redshift' },
   { value: PRIMARY_STORAGE_ANSWER.SNOWFLAKE, label: 'Snowflake' },
   { value: PRIMARY_STORAGE_ANSWER.DATABRICKS, label: 'Databricks' },
+  { value: PRIMARY_STORAGE_ANSWER.AZURE_SYNAPSE, label: 'Azure Synapse' },
   { value: PRIMARY_STORAGE_ANSWER.DONT_KNOW, label: "Don't know" },
   { value: PRIMARY_STORAGE_ANSWER.OTHER, label: 'Other' },
 ];

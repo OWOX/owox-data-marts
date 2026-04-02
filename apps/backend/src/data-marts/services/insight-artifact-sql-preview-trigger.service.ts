@@ -1,16 +1,21 @@
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
+import type { OwoxProducer } from '@owox/internal-helpers';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
+import { OWOX_PRODUCER } from '../../common/producer/producer.module';
 import { TriggerStatus } from '../../common/scheduler/shared/entities/trigger-status';
 import { UiTriggerService } from '../../common/scheduler/shared/ui-trigger.service';
 import { InsightArtifactSqlPreviewTriggerResponseApiDto } from '../dto/presentation/insight-artifact-sql-preview-trigger-response-api.dto';
 import { InsightArtifactSqlPreviewTrigger } from '../entities/insight-artifact-sql-preview-trigger.entity';
+import { InsightArtifactSqlPreviewRequestedEvent } from '../events/insight-artifact-sql-preview-requested.event';
 
 @Injectable()
 export class InsightArtifactSqlPreviewTriggerService extends UiTriggerService<InsightArtifactSqlPreviewTriggerResponseApiDto> {
   constructor(
     @InjectRepository(InsightArtifactSqlPreviewTrigger)
-    triggerRepository: Repository<InsightArtifactSqlPreviewTrigger>
+    triggerRepository: Repository<InsightArtifactSqlPreviewTrigger>,
+    @Inject(OWOX_PRODUCER)
+    private readonly producer: OwoxProducer
   ) {
     super(triggerRepository);
   }
@@ -32,6 +37,16 @@ export class InsightArtifactSqlPreviewTriggerService extends UiTriggerService<In
     trigger.status = TriggerStatus.IDLE;
 
     const saved = await this.triggerRepository.save(trigger);
+    this.producer.produceEventSafely(
+      new InsightArtifactSqlPreviewRequestedEvent({
+        projectId,
+        dataMartId,
+        userId,
+        insightArtifactId,
+        triggerId: saved.id,
+      })
+    );
+
     return saved.id;
   }
 }
