@@ -289,6 +289,7 @@ import { ReportRunTriggerService } from './services/report-run-trigger.service';
 import { ReportRunTriggerHandlerService } from './services/report-run-trigger-handler.service';
 import { DataMartRelationship } from './entities/data-mart-relationship.entity';
 import { DataMartRelationshipService } from './services/data-mart-relationship.service';
+import { BlendableSchemaService } from './services/blendable-schema.service';
 import { RelationshipMapper } from './mappers/relationship.mapper';
 import { CreateDataMartRelationshipService } from './use-cases/create-data-mart-relationship.service';
 import { UpdateDataMartRelationshipService } from './use-cases/update-data-mart-relationship.service';
@@ -595,6 +596,7 @@ import { DataStorageRelationshipController } from './controllers/data-storage-re
     GenerateDestinationOAuthUrlService,
     RevokeDestinationOAuthService,
     DataMartRelationshipService,
+    BlendableSchemaService,
     RelationshipMapper,
     CreateDataMartRelationshipService,
     UpdateDataMartRelationshipService,

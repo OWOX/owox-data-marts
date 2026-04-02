@@ -1,6 +1,8 @@
 import { Body, Controller, Delete, Get, HttpCode, Param, Post, Put, Query } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { Auth, AuthContext, AuthorizationContext, Role, Strategy } from '../../idp';
+import { BlendableSchemaDto } from '../dto/domain/blendable-schema.dto';
+import { BlendableSchemaService } from '../services/blendable-schema.service';
 import { BatchDataMartHealthStatusRequestApiDto } from '../dto/presentation/batch-data-mart-health-status-request-api.dto';
 import { BatchDataMartHealthStatusResponseApiDto } from '../dto/presentation/batch-data-mart-health-status-response-api.dto';
 import { CreateDataMartRequestApiDto } from '../dto/presentation/create-data-mart-request-api.dto';
@@ -74,7 +76,8 @@ export class DataMartController {
     private readonly cancelDataMartRunService: CancelDataMartRunService,
     private readonly listDataMartsByConnectorNameService: ListDataMartsByConnectorNameService,
     private readonly batchDataMartHealthStatusService: BatchDataMartHealthStatusService,
-    private readonly updateOwnersService: UpdateDataMartOwnersService
+    private readonly updateOwnersService: UpdateDataMartOwnersService,
+    private readonly blendableSchemaService: BlendableSchemaService
   ) {}
 
   @Auth(Role.editor(Strategy.INTROSPECT))
@@ -288,5 +291,14 @@ export class DataMartController {
     const command = this.mapper.toBatchHealthStatusCommand(context, dto);
     const domainDto = await this.batchDataMartHealthStatusService.run(command);
     return this.mapper.toBatchHealthStatusResponse(domainDto);
+  }
+
+  @Auth(Role.viewer(Strategy.PARSE))
+  @Get(':id/blendable-schema')
+  async getBlendableSchema(
+    @AuthContext() context: AuthorizationContext,
+    @Param('id') dataMartId: string
+  ): Promise<BlendableSchemaDto> {
+    return this.blendableSchemaService.computeBlendableSchema(dataMartId, context.projectId);
   }
 }
