@@ -1,0 +1,137 @@
+import { useCallback, useEffect, useState } from 'react';
+import { useOutletContext } from 'react-router-dom';
+import { toast } from 'react-hot-toast';
+import { GitMerge, Plus } from 'lucide-react';
+import { Skeleton } from '@owox/ui/components/skeleton';
+import { Button } from '../../../../../shared/components/Button';
+import { dataMartRelationshipService } from '../../../shared/services/data-mart-relationship.service';
+import type { DataMartRelationship } from '../../../shared/types/relationship.types';
+import type { DataMartContextType } from '../../model/context/types';
+import { RelationshipCanvas } from './RelationshipCanvas';
+import { RelationshipList } from './RelationshipList';
+import { RelationshipDialog } from './RelationshipDialog';
+
+export function DataMartRelationshipsContent() {
+  const { dataMart } = useOutletContext<DataMartContextType>();
+
+  const [relationships, setRelationships] = useState<DataMartRelationship[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [editingRelationship, setEditingRelationship] = useState<DataMartRelationship | null>(null);
+
+  const dataMartId = dataMart?.id ?? '';
+  const storageId = dataMart?.storage.id ?? '';
+
+  const loadRelationships = useCallback(async () => {
+    if (!dataMartId) return;
+    setIsLoading(true);
+    try {
+      const data = await dataMartRelationshipService.getRelationships(dataMartId);
+      setRelationships(data);
+    } catch {
+      toast.error('Failed to load relationships');
+    } finally {
+      setIsLoading(false);
+    }
+  }, [dataMartId]);
+
+  useEffect(() => {
+    void loadRelationships();
+  }, [loadRelationships]);
+
+  const handleEdit = useCallback((relationship: DataMartRelationship) => {
+    setEditingRelationship(relationship);
+    setIsDialogOpen(true);
+  }, []);
+
+  const handleDelete = useCallback(
+    async (id: string) => {
+      try {
+        await dataMartRelationshipService.deleteRelationship(dataMartId, id);
+        toast.success('Relationship deleted');
+        setRelationships(prev => prev.filter(r => r.id !== id));
+      } catch {
+        toast.error('Failed to delete relationship');
+        throw new Error('Delete failed');
+      }
+    },
+    [dataMartId]
+  );
+
+  const handleDialogClose = useCallback((open: boolean) => {
+    setIsDialogOpen(open);
+    if (!open) {
+      setEditingRelationship(null);
+    }
+  }, []);
+
+  const handleSaved = useCallback(() => {
+    toast.success(editingRelationship ? 'Relationship updated' : 'Relationship added');
+    void loadRelationships();
+  }, [editingRelationship, loadRelationships]);
+
+  if (!dataMart) return null;
+
+  return (
+    <div className='flex flex-col gap-6'>
+      {/* Header */}
+      <div className='flex items-center justify-between'>
+        <div className='flex items-center gap-2'>
+          <GitMerge className='text-muted-foreground h-5 w-5' />
+          <h2 className='text-base font-medium'>Relationships</h2>
+          {relationships.length > 0 && (
+            <span className='bg-muted text-muted-foreground rounded-full px-2 py-0.5 text-xs'>
+              {relationships.length}
+            </span>
+          )}
+        </div>
+        <Button
+          variant='default'
+          size='sm'
+          onClick={() => {
+            setEditingRelationship(null);
+            setIsDialogOpen(true);
+          }}
+        >
+          <Plus className='mr-1 h-4 w-4' />
+          Add Relationship
+        </Button>
+      </div>
+
+      {/* Canvas */}
+      {isLoading ? (
+        <Skeleton className='h-[320px] w-full rounded-lg' />
+      ) : (
+        <RelationshipCanvas
+          dataMartId={dataMartId}
+          dataMartTitle={dataMart.title}
+          relationships={relationships}
+        />
+      )}
+
+      {/* List */}
+      {isLoading ? (
+        <div className='flex flex-col gap-2'>
+          <Skeleton className='h-16 w-full' />
+          <Skeleton className='h-16 w-full' />
+        </div>
+      ) : (
+        <RelationshipList
+          relationships={relationships}
+          onEdit={handleEdit}
+          onDelete={handleDelete}
+        />
+      )}
+
+      {/* Add / Edit Dialog */}
+      <RelationshipDialog
+        open={isDialogOpen}
+        onOpenChange={handleDialogClose}
+        dataMartId={dataMartId}
+        storageId={storageId}
+        relationship={editingRelationship}
+        onSaved={handleSaved}
+      />
+    </div>
+  );
+}
