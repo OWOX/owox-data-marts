@@ -474,7 +474,7 @@ export function RelationshipDialog({
               {blendedFields.length > 0 && (
                 <div className='rounded-md border'>
                   {/* Header */}
-                  <div className='grid grid-cols-[24px_minmax(0,1fr)_minmax(0,1.5fr)_120px_48px] items-center gap-3 border-b px-3 py-2 text-xs font-medium text-gray-500'>
+                  <div className='grid grid-cols-[24px_minmax(0,1fr)_minmax(0,1.5fr)_160px_48px] items-center gap-3 border-b px-3 py-2 text-xs font-medium text-gray-500'>
                     <span />
                     <span>Field name</span>
                     <span>Output alias</span>
@@ -485,7 +485,7 @@ export function RelationshipDialog({
                   {blendedFields.map((bf, index) => (
                     <div
                       key={bf.id}
-                      className='grid grid-cols-[24px_minmax(0,1fr)_minmax(0,1.5fr)_120px_48px] items-center gap-3 border-b px-3 py-2 last:border-b-0'
+                      className='grid grid-cols-[24px_minmax(0,1fr)_minmax(0,1.5fr)_160px_48px] items-center gap-3 border-b px-3 py-2 last:border-b-0'
                     >
                       {/* Select checkbox */}
                       <FormField
