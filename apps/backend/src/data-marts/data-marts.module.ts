@@ -290,10 +290,13 @@ import { ReportRunTriggerHandlerService } from './services/report-run-trigger-ha
 import { DataMartRelationship } from './entities/data-mart-relationship.entity';
 import { DataMartRelationshipService } from './services/data-mart-relationship.service';
 import { BlendableSchemaService } from './services/blendable-schema.service';
+import { BlendedReportDataService } from './services/blended-report-data.service';
 import { RelationshipMapper } from './mappers/relationship.mapper';
 import { CreateDataMartRelationshipService } from './use-cases/create-data-mart-relationship.service';
 import { UpdateDataMartRelationshipService } from './use-cases/update-data-mart-relationship.service';
 import { DeleteDataMartRelationshipService } from './use-cases/delete-data-mart-relationship.service';
+import { GetReportGeneratedSqlService } from './use-cases/get-report-generated-sql.service';
+import { CopyReportAsDataMartService } from './use-cases/copy-report-as-data-mart.service';
 import { DataMartRelationshipController } from './controllers/data-mart-relationship.controller';
 import { DataStorageRelationshipController } from './controllers/data-storage-relationship.controller';
 
@@ -597,10 +600,13 @@ import { DataStorageRelationshipController } from './controllers/data-storage-re
     RevokeDestinationOAuthService,
     DataMartRelationshipService,
     BlendableSchemaService,
+    BlendedReportDataService,
     RelationshipMapper,
     CreateDataMartRelationshipService,
     UpdateDataMartRelationshipService,
     DeleteDataMartRelationshipService,
+    GetReportGeneratedSqlService,
+    CopyReportAsDataMartService,
   ],
 })
 export class DataMartsModule {

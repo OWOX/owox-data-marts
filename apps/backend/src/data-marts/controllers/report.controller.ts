@@ -14,6 +14,8 @@ import { ListReportsByInsightTemplateService } from '../use-cases/list-reports-b
 import { DeleteReportService } from '../use-cases/delete-report.service';
 import { RunReportService } from '../use-cases/run-report.service';
 import { UpdateReportService } from '../use-cases/update-report.service';
+import { GetReportGeneratedSqlService } from '../use-cases/get-report-generated-sql.service';
+import { CopyReportAsDataMartService } from '../use-cases/copy-report-as-data-mart.service';
 import {
   CreateReportSpec,
   GetReportSpec,
@@ -23,6 +25,8 @@ import {
   RunReportSpec,
   UpdateReportSpec,
   ListReportsByInsightTemplateSpec,
+  GetReportGeneratedSqlSpec,
+  CopyReportAsDataMartSpec,
 } from './spec/report.api';
 import { RunType } from '../../common/scheduler/shared/types';
 
@@ -38,6 +42,8 @@ export class ReportController {
     private readonly deleteReportService: DeleteReportService,
     private readonly runReportService: RunReportService,
     private readonly updateReportService: UpdateReportService,
+    private readonly getReportGeneratedSqlService: GetReportGeneratedSqlService,
+    private readonly copyReportAsDataMartService: CopyReportAsDataMartService,
     private readonly mapper: ReportMapper
   ) {}
 
@@ -138,5 +144,30 @@ export class ReportController {
     const command = this.mapper.toUpdateDomainCommand(id, context, dto);
     const report = await this.updateReportService.run(command);
     return this.mapper.toResponse(report);
+  }
+
+  @Auth(Role.viewer(Strategy.PARSE))
+  @Get(':id/generated-sql')
+  @GetReportGeneratedSqlSpec()
+  async getGeneratedSql(
+    @AuthContext() context: AuthorizationContext,
+    @Param('id') id: string
+  ): Promise<{ sql: string }> {
+    return this.getReportGeneratedSqlService.run(id, context.projectId);
+  }
+
+  @Auth(Role.editor(Strategy.INTROSPECT))
+  @Post(':id/copy-as-data-mart')
+  @CopyReportAsDataMartSpec()
+  async copyAsDataMart(
+    @AuthContext() context: AuthorizationContext,
+    @Param('id') id: string
+  ): Promise<{ dataMartId: string }> {
+    const dataMart = await this.copyReportAsDataMartService.run(
+      id,
+      context.userId,
+      context.projectId
+    );
+    return { dataMartId: dataMart.id };
   }
 }
