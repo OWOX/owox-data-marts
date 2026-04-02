@@ -18,15 +18,21 @@ export class ListDataDestinationsService {
   ) {}
 
   async run(command: ListDataDestinationsCommand): Promise<DataDestinationDto[]> {
-    let dataDestinations = await this.dataDestinationRepo.find({
-      where: { projectId: command.projectId },
-    });
+    let qb = this.dataDestinationRepo
+      .createQueryBuilder('d')
+      .leftJoinAndSelect('d.owners', 'owners')
+      .where('d.projectId = :projectId', { projectId: command.projectId })
+      .andWhere('d.deletedAt IS NULL');
 
     if (command.ownerFilter === OwnerFilter.HAS_OWNERS) {
-      dataDestinations = dataDestinations.filter(d => d.ownerIds.length > 0);
+      qb = qb.andWhere('EXISTS (SELECT 1 FROM destination_owners o WHERE o.destination_id = d.id)');
     } else if (command.ownerFilter === OwnerFilter.NO_OWNERS) {
-      dataDestinations = dataDestinations.filter(d => d.ownerIds.length === 0);
+      qb = qb.andWhere(
+        'NOT EXISTS (SELECT 1 FROM destination_owners o WHERE o.destination_id = d.id)'
+      );
     }
+
+    const dataDestinations = await qb.getMany();
 
     const allUserIds = dataDestinations.flatMap(d => [
       ...(d.createdById ? [d.createdById] : []),

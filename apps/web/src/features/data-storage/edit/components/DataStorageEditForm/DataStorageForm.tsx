@@ -22,11 +22,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@owox/ui/components/select';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import type { CredentialIdentity } from '../../../../../shared/types/credential-identity';
 import { OwnersSection } from '../../../../../shared/components/OwnersSection/OwnersSection';
 import type { UserProjectionDto } from '../../../../../shared/types/api';
+import { useOwnerState } from '../../../../../shared/hooks/useOwnerState';
 import type { UserProjection } from '../../../../../shared/types';
 import { CopyCredentialContext } from '../../model/context/copy-credential-context';
 import { createFormPayload } from '../../../../../utils/form-utils';
@@ -78,24 +79,8 @@ export function DataStorageForm({
   });
 
   const initialOwnerUsers = (initialData?.ownerUsers as UserProjectionDto[] | undefined) ?? [];
-  const [ownerUsers, setOwnerUsers] = useState<UserProjectionDto[]>(initialOwnerUsers);
-  const [pendingOwnerIds, setPendingOwnerIds] = useState<string[] | null>(null);
-  const pendingOwnerIdsRef = useRef<string[] | null>(null);
-  const ownersDirty = pendingOwnerIds !== null;
-
-  const handleOwnersChange = (newOwnerIds: string[]) => {
-    setPendingOwnerIds(newOwnerIds);
-    pendingOwnerIdsRef.current = newOwnerIds;
-    // Update displayed users optimistically from current ownerUsers + members
-    const knownUsers = new Map(ownerUsers.map(u => [u.userId, u]));
-    setOwnerUsers(
-      newOwnerIds.map(
-        id =>
-          knownUsers.get(id) ??
-          ({ userId: id, fullName: null, email: null, avatar: null } as UserProjectionDto)
-      )
-    );
-  };
+  const { ownerUsers, ownersDirty, handleOwnersChange, consumePendingOwnerIds } =
+    useOwnerState(initialOwnerUsers);
 
   const [selectedSource, setSelectedSource] = useState<{
     id: string;
@@ -162,10 +147,9 @@ export function DataStorageForm({
       delete (payload as Partial<DataStorageFormData>).credentials;
     }
 
-    if (pendingOwnerIdsRef.current !== null) {
-      (payload as Record<string, unknown>).ownerIds = pendingOwnerIdsRef.current;
-      pendingOwnerIdsRef.current = null;
-      setPendingOwnerIds(null);
+    const ownerIds = consumePendingOwnerIds();
+    if (ownerIds !== null) {
+      (payload as Record<string, unknown>).ownerIds = ownerIds;
     }
 
     await onSubmit(payload, selectedSource);

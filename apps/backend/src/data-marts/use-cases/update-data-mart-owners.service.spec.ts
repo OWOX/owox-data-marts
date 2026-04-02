@@ -11,6 +11,11 @@ jest.mock('../../idp/facades/idp-projections.facade', () => ({
   IdpProjectionsFacade: jest.fn(),
 }));
 
+jest.mock('typeorm-transactional', () => ({
+  Transactional: () => (_target: unknown, _key: string, descriptor: PropertyDescriptor) =>
+    descriptor,
+}));
+
 describe('UpdateDataMartOwnersService', () => {
   const createService = () => {
     const dataMartService = {
@@ -144,8 +149,9 @@ describe('UpdateDataMartOwnersService', () => {
 
     expect(businessOwnerRepository.delete).toHaveBeenCalledWith({ dataMartId: 'dm-1' });
     expect(technicalOwnerRepository.delete).toHaveBeenCalledWith({ dataMartId: 'dm-1' });
-    expect(businessOwnerRepository.save).toHaveBeenCalledWith([]);
-    expect(technicalOwnerRepository.save).toHaveBeenCalledWith([]);
+    // syncOwners skips save when there are no owners to save
+    expect(businessOwnerRepository.save).not.toHaveBeenCalled();
+    expect(technicalOwnerRepository.save).not.toHaveBeenCalled();
   });
 
   it('should deduplicate owner IDs before validation', async () => {
@@ -160,8 +166,8 @@ describe('UpdateDataMartOwnersService', () => {
     const command = new UpdateDataMartOwnersCommand('dm-1', 'proj-1', ['user-1'], ['user-1']);
     await service.run(command);
 
-    // Validation should only check unique IDs
-    expect(idpProjectionsFacade.getProjectMembers).toHaveBeenCalledTimes(1);
+    // syncOwners is called once per owner type, so getProjectMembers is called twice
+    expect(idpProjectionsFacade.getProjectMembers).toHaveBeenCalledTimes(2);
   });
 
   it('should reload data mart with owners after update and return DTO', async () => {

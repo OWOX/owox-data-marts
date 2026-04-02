@@ -44,9 +44,7 @@ export class DataDestination implements CreatorAwareEntity {
   @Column({ type: 'varchar', nullable: true })
   createdById?: string;
 
-  @OneToMany(() => DestinationOwner, owner => owner.destination, {
-    eager: true,
-  })
+  @OneToMany(() => DestinationOwner, owner => owner.destination)
   owners: DestinationOwner[];
 
   @CreateDateColumn()

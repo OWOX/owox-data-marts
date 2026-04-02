@@ -61,14 +61,10 @@ export class DataMart implements CreatorAwareEntity {
   @Column()
   projectId: string;
 
-  @OneToMany(() => DataMartBusinessOwner, owner => owner.dataMart, {
-    eager: true,
-  })
+  @OneToMany(() => DataMartBusinessOwner, owner => owner.dataMart)
   businessOwners: DataMartBusinessOwner[];
 
-  @OneToMany(() => DataMartTechnicalOwner, owner => owner.dataMart, {
-    eager: true,
-  })
+  @OneToMany(() => DataMartTechnicalOwner, owner => owner.dataMart)
   technicalOwners: DataMartTechnicalOwner[];
 
   @Column()

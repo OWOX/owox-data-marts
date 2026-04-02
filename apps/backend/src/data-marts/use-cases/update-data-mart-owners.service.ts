@@ -1,6 +1,7 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
+import { Transactional } from 'typeorm-transactional';
 import { IdpProjectionsFacade } from '../../idp/facades/idp-projections.facade';
 import { DataMartDto } from '../dto/domain/data-mart.dto';
 import { UpdateDataMartOwnersCommand } from '../dto/domain/update-data-mart-owners.command';
@@ -10,6 +11,7 @@ import { DataMartMapper } from '../mappers/data-mart.mapper';
 import { DataMartService } from '../services/data-mart.service';
 import { UserProjectionsFetcherService } from '../services/user-projections-fetcher.service';
 import { resolveOwnerUsers } from '../utils/resolve-owner-users';
+import { syncOwners } from '../utils/sync-owners';
 
 @Injectable()
 export class UpdateDataMartOwnersService {
@@ -24,48 +26,39 @@ export class UpdateDataMartOwnersService {
     private readonly technicalOwnerRepository: Repository<DataMartTechnicalOwner>
   ) {}
 
+  @Transactional()
   async run(command: UpdateDataMartOwnersCommand): Promise<DataMartDto> {
     await this.dataMartService.getByIdAndProjectId(command.id, command.projectId);
 
-    const allOwnerIds = [...new Set([...command.businessOwnerIds, ...command.technicalOwnerIds])];
-
-    if (allOwnerIds.length > 0) {
-      const members = await this.idpProjectionsFacade.getProjectMembers(command.projectId);
-      const memberIds = new Set(members.filter(m => !m.isOutbound).map(m => m.userId));
-
-      const invalidIds = allOwnerIds.filter(id => !memberIds.has(id));
-      if (invalidIds.length > 0) {
-        throw new BadRequestException(
-          `The following user IDs are not members of this project: ${invalidIds.join(', ')}`
-        );
-      }
-    }
-
     await Promise.all([
-      this.businessOwnerRepository.delete({ dataMartId: command.id }),
-      this.technicalOwnerRepository.delete({ dataMartId: command.id }),
-    ]);
-
-    const uniqueBusinessIds = [...new Set(command.businessOwnerIds)];
-    const uniqueTechnicalIds = [...new Set(command.technicalOwnerIds)];
-
-    const businessOwners = uniqueBusinessIds.map(userId => {
-      const owner = new DataMartBusinessOwner();
-      owner.dataMartId = command.id;
-      owner.userId = userId;
-      return owner;
-    });
-
-    const technicalOwners = uniqueTechnicalIds.map(userId => {
-      const owner = new DataMartTechnicalOwner();
-      owner.dataMartId = command.id;
-      owner.userId = userId;
-      return owner;
-    });
-
-    await Promise.all([
-      this.businessOwnerRepository.save(businessOwners),
-      this.technicalOwnerRepository.save(technicalOwners),
+      syncOwners(
+        this.businessOwnerRepository,
+        'dataMartId',
+        command.id,
+        command.projectId,
+        command.businessOwnerIds,
+        this.idpProjectionsFacade,
+        userId => {
+          const owner = new DataMartBusinessOwner();
+          owner.dataMartId = command.id;
+          owner.userId = userId;
+          return owner;
+        }
+      ),
+      syncOwners(
+        this.technicalOwnerRepository,
+        'dataMartId',
+        command.id,
+        command.projectId,
+        command.technicalOwnerIds,
+        this.idpProjectionsFacade,
+        userId => {
+          const owner = new DataMartTechnicalOwner();
+          owner.dataMartId = command.id;
+          owner.userId = userId;
+          return owner;
+        }
+      ),
     ]);
 
     // Reload data mart with fresh owner relations

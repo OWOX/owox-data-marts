@@ -9,6 +9,8 @@ import {
   AUTH_HEADER,
 } from '@owox/test-utils';
 import { DataStorageType } from '../src/data-marts/data-storage-types/enums/data-storage-type.enum';
+import { IdpProjectionsFacade } from '../src/idp/facades/idp-projections.facade';
+import { ProjectMemberDto } from '../src/idp/dto/domain/project-member.dto';
 
 /**
  * Ownership Foundations E2E Tests
@@ -31,6 +33,17 @@ describe('Ownership (e2e)', () => {
     const testApp = await createTestApp();
     app = testApp.app;
     agent = testApp.agent;
+
+    // Mock getProjectMembers to return multiple test users.
+    // NullIdpProvider only has a single admin user; ownership tests need extra members.
+    const facade = app.get(IdpProjectionsFacade);
+    jest
+      .spyOn(facade, 'getProjectMembers')
+      .mockResolvedValue([
+        new ProjectMemberDto('0', 'admin@localhost', 'Admin', undefined, 'admin', true, false),
+        new ProjectMemberDto('1', 'alice@localhost', 'Alice', undefined, 'editor', true, false),
+        new ProjectMemberDto('2', 'bob@localhost', 'Bob', undefined, 'editor', true, false),
+      ]);
   });
 
   afterAll(async () => {
@@ -319,13 +332,6 @@ describe('Ownership (e2e)', () => {
     let dataDestinationId: string;
 
     beforeAll(async () => {
-      // Create storage for tests
-      const storageRes = await agent
-        .post('/api/data-storages')
-        .set(AUTH_HEADER)
-        .send(new StorageBuilder().withType('GOOGLE_BIGQUERY' as DataStorageType).build());
-      storageId = storageRes.body.id;
-
       // Setup report prerequisites
       const prerequisites = await setupReportPrerequisites(agent);
       dataMartId = prerequisites.dataMartId;

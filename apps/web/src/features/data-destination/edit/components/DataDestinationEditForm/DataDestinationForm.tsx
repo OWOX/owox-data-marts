@@ -1,9 +1,10 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import { zodResolver } from '@hookform/resolvers/zod';
 import type { CredentialIdentity } from '../../../../../shared/types/credential-identity';
 import type { UserProjection } from '../../../../../shared/types';
 import type { UserProjectionDto } from '../../../../../shared/types/api';
+import { useOwnerState } from '../../../../../shared/hooks/useOwnerState';
 import { OwnersSection } from '../../../../../shared/components/OwnersSection/OwnersSection';
 import { CopyCredentialContext } from '../../model/context/copy-credential-context';
 import { Loader2 } from 'lucide-react';
@@ -67,23 +68,8 @@ export function DataDestinationForm({
   });
 
   const initialOwnerUsers = (initialData?.ownerUsers as UserProjectionDto[] | undefined) ?? [];
-  const [ownerUsers, setOwnerUsers] = useState<UserProjectionDto[]>(initialOwnerUsers);
-  const [pendingOwnerIds, setPendingOwnerIds] = useState<string[] | null>(null);
-  const pendingOwnerIdsRef = useRef<string[] | null>(null);
-  const ownersDirty = pendingOwnerIds !== null;
-
-  const handleOwnersChange = (newOwnerIds: string[]) => {
-    setPendingOwnerIds(newOwnerIds);
-    pendingOwnerIdsRef.current = newOwnerIds;
-    const knownUsers = new Map(ownerUsers.map(u => [u.userId, u]));
-    setOwnerUsers(
-      newOwnerIds.map(
-        id =>
-          knownUsers.get(id) ??
-          ({ userId: id, fullName: null, email: null, avatar: null } as UserProjectionDto)
-      )
-    );
-  };
+  const { ownerUsers, ownersDirty, handleOwnersChange, consumePendingOwnerIds } =
+    useOwnerState(initialOwnerUsers);
 
   const [selectedSource, setSelectedSource] = useState<{
     id: string;
@@ -138,10 +124,9 @@ export function DataDestinationForm({
       delete (payload as Partial<DataDestinationFormData>).credentials;
     }
 
-    if (pendingOwnerIdsRef.current !== null) {
-      (payload as Record<string, unknown>).ownerIds = pendingOwnerIdsRef.current;
-      pendingOwnerIdsRef.current = null;
-      setPendingOwnerIds(null);
+    const ownerIds = consumePendingOwnerIds();
+    if (ownerIds !== null) {
+      (payload as Record<string, unknown>).ownerIds = ownerIds;
     }
 
     await onSubmit(payload, selectedSource);

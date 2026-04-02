@@ -80,7 +80,8 @@ export class DataStorageController {
   @ListDataStoragesSpec()
   async getAll(
     @AuthContext() context: AuthorizationContext,
-    @Query('ownerFilter') ownerFilter?: OwnerFilter
+    @Query('ownerFilter', new ParseEnumPipe(OwnerFilter, { optional: true }))
+    ownerFilter?: OwnerFilter
   ): Promise<DataStorageListResponseApiDto[]> {
     const command = this.mapper.toListCommand(context, ownerFilter);
     const dataStoragesDto = await this.listService.run(command);

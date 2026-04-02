@@ -90,8 +90,9 @@ export class RefactorDataMartOwnersToJoinTables1774700000000 implements Migratio
             }
           }
         }
-      } catch {
-        // Skip rows with invalid JSON
+      } catch (e) {
+        // eslint-disable-next-line no-console
+        console.warn(`Skipping data_mart ${row.id}: invalid JSON in technicalOwnerIds`, e);
       }
     }
 
@@ -119,8 +120,9 @@ export class RefactorDataMartOwnersToJoinTables1774700000000 implements Migratio
             }
           }
         }
-      } catch {
-        // Skip rows with invalid JSON
+      } catch (e) {
+        // eslint-disable-next-line no-console
+        console.warn(`Skipping data_mart ${row.id}: invalid JSON in businessOwnerIds`, e);
       }
     }
 

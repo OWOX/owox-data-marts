@@ -25,6 +25,7 @@ import { CopyCredentialService } from '../services/copy-credential.service';
 import { UserProjectionsFetcherService } from '../services/user-projections-fetcher.service';
 import { StorageOwner } from '../entities/storage-owner.entity';
 import { resolveOwnerUsers } from '../utils/resolve-owner-users';
+import { syncOwners } from '../utils/sync-owners';
 import { IdpProjectionsFacade } from '../../idp/facades/idp-projections.facade';
 
 @Injectable()
@@ -109,7 +110,7 @@ export class UpdateDataStorageService {
         );
       }
 
-      return this.buildResponse(updatedDataStorageEntity, command.ownerIds);
+      return this.replaceOwnersAndBuildResponse(updatedDataStorageEntity, command.ownerIds);
     }
 
     let credentialsToCheck: DataStorageCredentials | undefined = command.credentials;
@@ -194,30 +195,28 @@ export class UpdateDataStorageService {
       );
     }
 
-    return this.buildResponse(updatedDataStorageEntity, command.ownerIds);
+    return this.replaceOwnersAndBuildResponse(updatedDataStorageEntity, command.ownerIds);
   }
 
-  private async buildResponse(entity: DataStorage, ownerIds?: string[]): Promise<DataStorageDto> {
+  private async replaceOwnersAndBuildResponse(
+    entity: DataStorage,
+    ownerIds?: string[]
+  ): Promise<DataStorageDto> {
     if (ownerIds !== undefined) {
-      const uniqueOwnerIds = [...new Set(ownerIds)];
-      if (uniqueOwnerIds.length > 0) {
-        const members = await this.idpProjectionsFacade.getProjectMembers(entity.projectId);
-        const memberIds = new Set(members.filter(m => !m.isOutbound).map(m => m.userId));
-        const invalidIds = uniqueOwnerIds.filter(id => !memberIds.has(id));
-        if (invalidIds.length > 0) {
-          throw new BadRequestException(
-            `The following user IDs are not members of this project: ${invalidIds.join(', ')}`
-          );
+      await syncOwners(
+        this.storageOwnerRepository,
+        'storageId',
+        entity.id,
+        entity.projectId,
+        ownerIds,
+        this.idpProjectionsFacade,
+        userId => {
+          const o = new StorageOwner();
+          o.storageId = entity.id;
+          o.userId = userId;
+          return o;
         }
-      }
-      await this.storageOwnerRepository.delete({ storageId: entity.id });
-      const owners = uniqueOwnerIds.map(userId => {
-        const o = new StorageOwner();
-        o.storageId = entity.id;
-        o.userId = userId;
-        return o;
-      });
-      await this.storageOwnerRepository.save(owners);
+      );
     }
 
     // Reload to get fresh owners

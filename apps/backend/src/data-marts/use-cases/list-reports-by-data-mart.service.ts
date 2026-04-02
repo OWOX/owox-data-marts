@@ -24,10 +24,13 @@ export class ListReportsByDataMartService {
           id: command.dataMartId,
         },
       },
-      relations: ['dataMart', 'dataDestination'],
+      relations: ['dataMart', 'dataDestination', 'owners'],
     });
 
-    const allUserIds = reports.flatMap(r => [r.createdById, ...r.ownerIds]);
+    const allUserIds = reports.flatMap(r => [
+      ...(r.createdById ? [r.createdById] : []),
+      ...r.ownerIds,
+    ]);
     const userProjectionsList =
       await this.userProjectionsFetcherService.fetchUserProjectionsList(allUserIds);
 

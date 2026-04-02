@@ -1,4 +1,5 @@
-import { forwardRef, useEffect, useRef, useState } from 'react';
+import { forwardRef, useEffect } from 'react';
+import { useOwnerState } from '../../../../../../shared/hooks/useOwnerState';
 
 import {
   type DataMartReport,
@@ -81,23 +82,13 @@ export const LookerStudioReportEditForm = forwardRef<
     const { dataMart } = useOutletContext<DataMartContextType>();
 
     const initialOwnerUsers = (initialReport?.ownerUsers as UserProjectionDto[] | undefined) ?? [];
-    const [ownerUsers, setOwnerUsers] = useState<UserProjectionDto[]>(initialOwnerUsers);
-    const [pendingOwnerIds, setPendingOwnerIds] = useState<string[] | null>(null);
-    const pendingOwnerIdsRef = useRef<string[] | null>(null);
-    const ownersDirty = pendingOwnerIds !== null;
-
-    const handleOwnersChange = (newOwnerIds: string[]) => {
-      setPendingOwnerIds(newOwnerIds);
-      pendingOwnerIdsRef.current = newOwnerIds;
-      const knownUsers = new Map(ownerUsers.map(u => [u.userId, u]));
-      setOwnerUsers(
-        newOwnerIds.map(
-          id =>
-            knownUsers.get(id) ??
-            ({ userId: id, fullName: null, email: null, avatar: null } as UserProjectionDto)
-        )
-      );
-    };
+    const {
+      ownerUsers,
+      ownersDirty,
+      pendingOwnerIdsRef,
+      handleOwnersChange,
+      consumePendingOwnerIds,
+    } = useOwnerState(initialOwnerUsers);
 
     const {
       isDirty,
@@ -111,7 +102,7 @@ export const LookerStudioReportEditForm = forwardRef<
       dataMartId: dataMart?.id ?? '',
       pendingOwnerIdsRef,
       onSuccess: () => {
-        setPendingOwnerIds(null);
+        consumePendingOwnerIds();
         onSubmit?.();
       },
       preSelectedDestination,
@@ -152,10 +143,12 @@ export const LookerStudioReportEditForm = forwardRef<
         >
           <FormLayout>
             {initialReport && mode === ReportFormMode.EDIT && (
-              <FormItem>
-                <FormLabel>Owners</FormLabel>
-                <OwnersSection ownerUsers={ownerUsers} onSave={handleOwnersChange} />
-              </FormItem>
+              <FormSection title='General'>
+                <FormItem>
+                  <FormLabel>Owners</FormLabel>
+                  <OwnersSection ownerUsers={ownerUsers} onSave={handleOwnersChange} />
+                </FormItem>
+              </FormSection>
             )}
 
             <FormSection title='Cache Configuration'>

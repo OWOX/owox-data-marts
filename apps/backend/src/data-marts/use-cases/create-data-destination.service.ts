@@ -1,6 +1,7 @@
 import { AvailableDestinationTypesService } from '../data-destination-types/available-destination-types.service';
 import { CreateDataDestinationCommand } from '../dto/domain/create-data-destination.command';
 import { Repository } from 'typeorm';
+import { Transactional } from 'typeorm-transactional';
 import { DataDestination } from '../entities/data-destination.entity';
 import { InjectRepository } from '@nestjs/typeorm';
 import { BadRequestException, Injectable } from '@nestjs/common';
@@ -38,6 +39,7 @@ export class CreateDataDestinationService {
     private readonly destinationOwnerRepository: Repository<DestinationOwner>
   ) {}
 
+  @Transactional()
   async run(command: CreateDataDestinationCommand): Promise<DataDestinationDto> {
     this.availableDestinationTypesService.verifyIsAllowed(command.type);
 

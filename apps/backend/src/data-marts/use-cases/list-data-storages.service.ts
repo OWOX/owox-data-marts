@@ -23,15 +23,19 @@ export class ListDataStoragesService {
   ) {}
 
   async run(command: ListDataStoragesCommand): Promise<DataStorageDto[]> {
-    let dataStorages = await this.dataStorageRepo.find({
-      where: { projectId: command.projectId },
-    });
+    let qb = this.dataStorageRepo
+      .createQueryBuilder('s')
+      .leftJoinAndSelect('s.owners', 'owners')
+      .where('s.projectId = :projectId', { projectId: command.projectId })
+      .andWhere('s.deletedAt IS NULL');
 
     if (command.ownerFilter === OwnerFilter.HAS_OWNERS) {
-      dataStorages = dataStorages.filter(s => s.ownerIds.length > 0);
+      qb = qb.andWhere('EXISTS (SELECT 1 FROM storage_owners o WHERE o.storage_id = s.id)');
     } else if (command.ownerFilter === OwnerFilter.NO_OWNERS) {
-      dataStorages = dataStorages.filter(s => s.ownerIds.length === 0);
+      qb = qb.andWhere('NOT EXISTS (SELECT 1 FROM storage_owners o WHERE o.storage_id = s.id)');
     }
+
+    const dataStorages = await qb.getMany();
 
     if (dataStorages.length === 0) {
       return [];

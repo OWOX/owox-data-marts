@@ -1,4 +1,14 @@
-import { Controller, Get, Post, Put, Body, Param, Delete, Query } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Put,
+  Body,
+  Param,
+  Delete,
+  ParseEnumPipe,
+  Query,
+} from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { AuthContext, AuthorizationContext, Auth } from '../../idp';
 import { Role, Strategy } from '../../idp/types/role-config.types';
@@ -100,7 +110,8 @@ export class ReportController {
   @ListReportsByProjectSpec()
   async listByProject(
     @AuthContext() context: AuthorizationContext,
-    @Query('ownerFilter') ownerFilter?: OwnerFilter
+    @Query('ownerFilter', new ParseEnumPipe(OwnerFilter, { optional: true }))
+    ownerFilter?: OwnerFilter
   ): Promise<ReportResponseApiDto[]> {
     const command = this.mapper.toListByProjectCommand(context, ownerFilter);
     const reports = await this.listReportsByProjectService.run(command);

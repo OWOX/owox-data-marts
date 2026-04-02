@@ -1,4 +1,5 @@
 import { forwardRef, useEffect, useMemo, useState, useRef } from 'react';
+import { useOwnerState } from '../../../../../../shared/hooks/useOwnerState';
 import { useNavigate, Link } from 'react-router-dom';
 import { Edit2, Eye, FileCode, ExternalLink, Sparkles, Plus } from 'lucide-react';
 import { cn } from '@owox/ui/lib/utils';
@@ -176,23 +177,13 @@ export const EmailReportEditForm = forwardRef<HTMLFormElement, EmailReportEditFo
     }, [dataDestinations, preSelectedDestination?.type, allowedDestinationTypes]);
 
     const initialOwnerUsers = (initialReport?.ownerUsers as UserProjectionDto[] | undefined) ?? [];
-    const [ownerUsers, setOwnerUsers] = useState<UserProjectionDto[]>(initialOwnerUsers);
-    const [pendingOwnerIds, setPendingOwnerIds] = useState<string[] | null>(null);
-    const pendingOwnerIdsRef = useRef<string[] | null>(null);
-    const ownersDirty = pendingOwnerIds !== null;
-
-    const handleOwnersChange = (newOwnerIds: string[]) => {
-      setPendingOwnerIds(newOwnerIds);
-      pendingOwnerIdsRef.current = newOwnerIds;
-      const knownUsers = new Map(ownerUsers.map(u => [u.userId, u]));
-      setOwnerUsers(
-        newOwnerIds.map(
-          id =>
-            knownUsers.get(id) ??
-            ({ userId: id, fullName: null, email: null, avatar: null } as UserProjectionDto)
-        )
-      );
-    };
+    const {
+      ownerUsers,
+      ownersDirty,
+      pendingOwnerIdsRef,
+      handleOwnersChange,
+      consumePendingOwnerIds,
+    } = useOwnerState(initialOwnerUsers);
 
     const {
       isDirty,
@@ -213,7 +204,7 @@ export const EmailReportEditForm = forwardRef<HTMLFormElement, EmailReportEditFo
           // ignore UI errors here; hook will handle formError
           console.error('Failed to persist schedule for report', e);
         }
-        setPendingOwnerIds(null);
+        consumePendingOwnerIds();
         if (runAfterSaveRef.current) {
           try {
             await runReport(report.id);

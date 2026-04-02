@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
+import { Transactional } from 'typeorm-transactional';
 import { BusinessViolationException } from '../../common/exceptions/business-violation.exception';
 import { DataStorageType } from '../data-storage-types/enums/data-storage-type.enum';
 import { CreateDataStorageCommand } from '../dto/domain/create-data-storage.command';
@@ -21,6 +22,7 @@ export class CreateDataStorageService {
     private readonly userProjectionsFetcherService: UserProjectionsFetcherService
   ) {}
 
+  @Transactional()
   async run(command: CreateDataStorageCommand): Promise<DataStorageDto> {
     if (command.type === DataStorageType.LEGACY_GOOGLE_BIGQUERY) {
       throw new BusinessViolationException(

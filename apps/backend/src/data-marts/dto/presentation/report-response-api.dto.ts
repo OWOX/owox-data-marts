@@ -42,6 +42,6 @@ export class ReportResponseApiDto {
   @ApiProperty({ type: UserProjectionDto, required: false, nullable: true })
   createdByUser?: UserProjectionDto | null;
 
-  @ApiProperty({ type: [Object] })
+  @ApiProperty({ type: [UserProjectionDto] })
   ownerUsers: UserProjectionDto[];
 }

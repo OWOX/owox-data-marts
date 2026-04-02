@@ -62,9 +62,7 @@ export class Report implements CreatorAwareEntity {
   @Column()
   createdById: string;
 
-  @OneToMany(() => ReportOwner, owner => owner.report, {
-    eager: true,
-  })
+  @OneToMany(() => ReportOwner, owner => owner.report)
   owners: ReportOwner[];
 
   @CreateDateColumn()

@@ -28,7 +28,13 @@ export class DataMartService {
   async getByIdAndProjectId(id: string, projectId: string): Promise<DataMart> {
     const entity = await this.dataMartRepository.findOne({
       where: { id, projectId },
-      relations: ['connectorState', 'storage', 'storage.credential'],
+      relations: [
+        'connectorState',
+        'storage',
+        'storage.credential',
+        'businessOwners',
+        'technicalOwners',
+      ],
     });
 
     if (!entity) {

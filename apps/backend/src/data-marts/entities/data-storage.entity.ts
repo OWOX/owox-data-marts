@@ -45,9 +45,7 @@ export class DataStorage implements CreatorAwareEntity {
   @Column({ type: 'varchar', nullable: true })
   createdById?: string;
 
-  @OneToMany(() => StorageOwner, owner => owner.storage, {
-    eager: true,
-  })
+  @OneToMany(() => StorageOwner, owner => owner.storage)
   owners: StorageOwner[];
 
   @CreateDateColumn()

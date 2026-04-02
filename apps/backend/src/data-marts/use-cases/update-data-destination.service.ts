@@ -23,6 +23,7 @@ import { CopyCredentialService } from '../services/copy-credential.service';
 import { UserProjectionsFetcherService } from '../services/user-projections-fetcher.service';
 import { DestinationOwner } from '../entities/destination-owner.entity';
 import { resolveOwnerUsers } from '../utils/resolve-owner-users';
+import { syncOwners } from '../utils/sync-owners';
 import { IdpProjectionsFacade } from '../../idp/facades/idp-projections.facade';
 
 @Injectable()
@@ -95,7 +96,7 @@ export class UpdateDataDestinationService {
       // After copy, save title and return — skip credential validation/processing
       entity.title = command.title;
       const updatedEntity = await this.dataDestinationRepository.save(entity);
-      return this.buildResponse(updatedEntity, command.ownerIds);
+      return this.replaceOwnersAndBuildResponse(updatedEntity, command.ownerIds);
     }
 
     // Handle OAuth credentialId disconnect (null = revoke)
@@ -185,33 +186,28 @@ export class UpdateDataDestinationService {
     entity.title = command.title;
 
     const updatedEntity = await this.dataDestinationRepository.save(entity);
-    return this.buildResponse(updatedEntity, command.ownerIds);
+    return this.replaceOwnersAndBuildResponse(updatedEntity, command.ownerIds);
   }
 
-  private async buildResponse(
+  private async replaceOwnersAndBuildResponse(
     entity: DataDestination,
     ownerIds?: string[]
   ): Promise<DataDestinationDto> {
     if (ownerIds !== undefined) {
-      const uniqueOwnerIds = [...new Set(ownerIds)];
-      if (uniqueOwnerIds.length > 0) {
-        const members = await this.idpProjectionsFacade.getProjectMembers(entity.projectId);
-        const memberIds = new Set(members.filter(m => !m.isOutbound).map(m => m.userId));
-        const invalidIds = uniqueOwnerIds.filter(id => !memberIds.has(id));
-        if (invalidIds.length > 0) {
-          throw new BadRequestException(
-            `The following user IDs are not members of this project: ${invalidIds.join(', ')}`
-          );
+      await syncOwners(
+        this.destinationOwnerRepository,
+        'destinationId',
+        entity.id,
+        entity.projectId,
+        ownerIds,
+        this.idpProjectionsFacade,
+        userId => {
+          const o = new DestinationOwner();
+          o.destinationId = entity.id;
+          o.userId = userId;
+          return o;
         }
-      }
-      await this.destinationOwnerRepository.delete({ destinationId: entity.id });
-      const owners = uniqueOwnerIds.map(userId => {
-        const o = new DestinationOwner();
-        o.destinationId = entity.id;
-        o.userId = userId;
-        return o;
-      });
-      await this.destinationOwnerRepository.save(owners);
+      );
     }
 
     // Reload to get fresh owners

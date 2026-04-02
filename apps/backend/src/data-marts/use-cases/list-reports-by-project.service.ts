@@ -19,22 +19,26 @@ export class ListReportsByProjectService {
 
   async run(command: ListReportsByProjectCommand): Promise<ReportDto[]> {
     // Get all data reports for the project
-    let reports = await this.reportRepository.find({
-      where: {
-        dataMart: {
-          projectId: command.projectId,
-        },
-      },
-      relations: ['dataMart', 'dataDestination'],
-    });
+    let qb = this.reportRepository
+      .createQueryBuilder('r')
+      .leftJoinAndSelect('r.dataMart', 'dataMart')
+      .leftJoinAndSelect('dataMart.storage', 'storage')
+      .leftJoinAndSelect('r.dataDestination', 'dataDestination')
+      .leftJoinAndSelect('r.owners', 'owners')
+      .where('dataMart.projectId = :projectId', { projectId: command.projectId });
 
     if (command.ownerFilter === OwnerFilter.HAS_OWNERS) {
-      reports = reports.filter(r => r.ownerIds.length > 0);
+      qb = qb.andWhere('EXISTS (SELECT 1 FROM report_owners o WHERE o.report_id = r.id)');
     } else if (command.ownerFilter === OwnerFilter.NO_OWNERS) {
-      reports = reports.filter(r => r.ownerIds.length === 0);
+      qb = qb.andWhere('NOT EXISTS (SELECT 1 FROM report_owners o WHERE o.report_id = r.id)');
     }
 
-    const allUserIds = reports.flatMap(r => [r.createdById, ...r.ownerIds]);
+    const reports = await qb.getMany();
+
+    const allUserIds = reports.flatMap(r => [
+      ...(r.createdById ? [r.createdById] : []),
+      ...r.ownerIds,
+    ]);
     const userProjectionsList =
       await this.userProjectionsFetcherService.fetchUserProjectionsList(allUserIds);
 

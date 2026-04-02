@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
+import { Transactional } from 'typeorm-transactional';
 import { BigQueryConfig } from '../data-storage-types/bigquery/schemas/bigquery-config.schema';
 import { DataStorageType } from '../data-storage-types/enums/data-storage-type.enum';
 import { CreateDataMartCommand } from '../dto/domain/create-data-mart.command';
@@ -26,6 +27,7 @@ export class CreateDataMartService {
     private readonly technicalOwnerRepository: Repository<DataMartTechnicalOwner>
   ) {}
 
+  @Transactional()
   async run(command: CreateDataMartCommand): Promise<DataMartDto> {
     const dataStorage = await this.dataStorageService.getByProjectIdAndId(
       command.projectId,

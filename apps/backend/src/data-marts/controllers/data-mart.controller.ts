@@ -1,4 +1,15 @@
-import { Body, Controller, Delete, Get, HttpCode, Param, Post, Put, Query } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  HttpCode,
+  Param,
+  ParseEnumPipe,
+  Post,
+  Put,
+  Query,
+} from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { Auth, AuthContext, AuthorizationContext, Role, Strategy } from '../../idp';
 import { BatchDataMartHealthStatusRequestApiDto } from '../dto/presentation/batch-data-mart-health-status-request-api.dto';
@@ -96,7 +107,8 @@ export class DataMartController {
   async list(
     @AuthContext() context: AuthorizationContext,
     @Query('offset') offset?: number,
-    @Query('ownerFilter') ownerFilter?: OwnerFilter
+    @Query('ownerFilter', new ParseEnumPipe(OwnerFilter, { optional: true }))
+    ownerFilter?: OwnerFilter
   ): Promise<PaginatedDataMartsResponseApiDto> {
     const command = this.mapper.toListCommand(context, offset, ownerFilter);
     const result = await this.listDataMartsService.run(command);

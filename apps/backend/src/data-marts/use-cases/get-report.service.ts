@@ -25,14 +25,14 @@ export class GetReportService {
           projectId: command.projectId,
         },
       },
-      relations: ['dataMart', 'dataDestination'],
+      relations: ['dataMart', 'dataDestination', 'owners'],
     });
 
     if (!report) {
       throw new NotFoundException(`Report with ID ${command.id} not found`);
     }
 
-    const allUserIds = [report.createdById, ...report.ownerIds];
+    const allUserIds = [...(report.createdById ? [report.createdById] : []), ...report.ownerIds];
     const userProjections =
       await this.userProjectionsFetcherService.fetchUserProjectionsList(allUserIds);
 

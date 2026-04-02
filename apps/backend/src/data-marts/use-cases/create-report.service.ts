@@ -1,4 +1,5 @@
 import { Repository } from 'typeorm';
+import { Transactional } from 'typeorm-transactional';
 import { Inject, Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { OwoxProducer } from '@owox/internal-helpers';
@@ -35,6 +36,7 @@ export class CreateReportService {
     private readonly producer: OwoxProducer
   ) {}
 
+  @Transactional()
   async run(command: CreateReportCommand): Promise<ReportDto> {
     // Get the data mart and verify it's in published status
     const dataMart = await this.dataMartService.getByIdAndProjectId(

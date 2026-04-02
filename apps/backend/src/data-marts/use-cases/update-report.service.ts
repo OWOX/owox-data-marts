@@ -1,6 +1,6 @@
 import { Repository } from 'typeorm';
 import { Transactional } from 'typeorm-transactional';
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { AvailableDestinationTypesService } from '../data-destination-types/available-destination-types.service';
 import { Report } from '../entities/report.entity';
@@ -13,6 +13,7 @@ import { DataDestinationService } from '../services/data-destination.service';
 import { UserProjectionsFetcherService } from '../services/user-projections-fetcher.service';
 import { ReportOwner } from '../entities/report-owner.entity';
 import { resolveOwnerUsers } from '../utils/resolve-owner-users';
+import { syncOwners } from '../utils/sync-owners';
 import { IdpProjectionsFacade } from '../../idp/facades/idp-projections.facade';
 
 @Injectable()
@@ -40,7 +41,7 @@ export class UpdateReportService {
           projectId: command.projectId,
         },
       },
-      relations: ['dataMart', 'dataDestination'],
+      relations: ['dataMart', 'dataDestination', 'owners'],
     });
 
     if (!report) {
@@ -73,32 +74,26 @@ export class UpdateReportService {
     const updatedReport = await this.reportRepository.save(report);
 
     if (command.ownerIds !== undefined) {
-      const uniqueOwnerIds = [...new Set(command.ownerIds)];
-      if (uniqueOwnerIds.length > 0) {
-        const projectId = report.dataMart.projectId;
-        const members = await this.idpProjectionsFacade.getProjectMembers(projectId);
-        const memberIds = new Set(members.filter(m => !m.isOutbound).map(m => m.userId));
-        const invalidIds = uniqueOwnerIds.filter(id => !memberIds.has(id));
-        if (invalidIds.length > 0) {
-          throw new BadRequestException(
-            `The following user IDs are not members of this project: ${invalidIds.join(', ')}`
-          );
+      await syncOwners(
+        this.reportOwnerRepository,
+        'reportId',
+        updatedReport.id,
+        report.dataMart.projectId,
+        command.ownerIds,
+        this.idpProjectionsFacade,
+        userId => {
+          const o = new ReportOwner();
+          o.reportId = updatedReport.id;
+          o.userId = userId;
+          return o;
         }
-      }
-      await this.reportOwnerRepository.delete({ reportId: updatedReport.id });
-      const owners = uniqueOwnerIds.map(userId => {
-        const o = new ReportOwner();
-        o.reportId = updatedReport.id;
-        o.userId = userId;
-        return o;
-      });
-      await this.reportOwnerRepository.save(owners);
+      );
     }
 
     // Reload to get fresh owners
     const fresh = await this.reportRepository.findOne({
       where: { id: updatedReport.id },
-      relations: ['dataMart', 'dataDestination'],
+      relations: ['dataMart', 'dataDestination', 'owners'],
     });
 
     if (!fresh) {
