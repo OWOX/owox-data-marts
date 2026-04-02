@@ -259,7 +259,7 @@ export function RelationshipDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className='max-h-[90vh] max-w-2xl overflow-y-auto'>
+      <DialogContent className='max-h-[90vh] max-w-4xl overflow-y-auto'>
         <DialogHeader>
           <DialogTitle>{isEdit ? 'Edit Relationship' : 'Add Relationship'}</DialogTitle>
         </DialogHeader>
