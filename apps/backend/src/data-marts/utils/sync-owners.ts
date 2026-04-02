@@ -4,7 +4,7 @@ import { IdpProjectionsFacade } from '../../idp/facades/idp-projections.facade';
 
 export async function syncOwners<T extends ObjectLiteral>(
   repository: Repository<T>,
-  entityIdField: string,
+  entityIdField: string & keyof T,
   entityId: string,
   projectId: string,
   ownerIds: string[],
