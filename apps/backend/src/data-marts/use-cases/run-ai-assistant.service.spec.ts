@@ -297,7 +297,7 @@ describe('RunAiAssistantService', () => {
       },
       meta: {
         reasonDescription: 'Ready',
-        telemetry: {
+        telemetryData: {
           llmCalls: [
             {
               turn: 1,
@@ -346,7 +346,7 @@ describe('RunAiAssistantService', () => {
         lastFinishReason: 'stop',
       },
     });
-    expect(event.payload.meta.telemetry).toEqual({
+    expect(event.payload.meta.telemetryData).toEqual({
       llmCalls: [
         {
           turn: 1,
@@ -471,7 +471,7 @@ describe('RunAiAssistantService', () => {
       proposedActionCount: 0,
       meta: {
         reasonDescription: 'orchestrator degraded',
-        telemetry: {
+        telemetryData: {
           llmCalls: [
             {
               turn: 1,
@@ -521,7 +521,7 @@ describe('RunAiAssistantService', () => {
         lastFinishReason: 'length',
       },
     });
-    expect(event.payload.meta.telemetry).toEqual({
+    expect(event.payload.meta.telemetryData).toEqual({
       llmCalls: [
         {
           turn: 1,
@@ -606,7 +606,7 @@ describe('RunAiAssistantService', () => {
       proposedActionCount: 0,
       meta: {
         reasonDescription: 'orchestrator failed',
-        telemetry: {
+        telemetryData: {
           llmCalls: [],
           toolCalls: [],
         },
@@ -625,7 +625,7 @@ describe('RunAiAssistantService', () => {
         lastFinishReason: undefined,
       },
     });
-    expect(event.payload.meta.telemetry).toEqual({
+    expect(event.payload.meta.telemetryData).toEqual({
       llmCalls: [],
       toolCalls: [],
     });
@@ -804,7 +804,7 @@ describe('RunAiAssistantService', () => {
       meta: {
         reasonDescription:
           '[\n  {\n    "code": "custom",\n    "path": [\n      0,\n      "payload",\n      "sourceKey"\n    ],\n    "message": "Either payload.sourceKey or payload.sourceId must be provided"\n  }\n]',
-        telemetry: {
+        telemetryData: {
           llmCalls: [],
           toolCalls: [],
         },
@@ -823,7 +823,7 @@ describe('RunAiAssistantService', () => {
         lastFinishReason: undefined,
       },
     });
-    expect(event.payload.meta.telemetry).toEqual({
+    expect(event.payload.meta.telemetryData).toEqual({
       llmCalls: [],
       toolCalls: [],
     });

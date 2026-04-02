@@ -29,7 +29,7 @@ export interface AiAssistantTurnProcessedEventTelemetry {
 
 export interface AiAssistantTurnProcessedEventMeta {
   reasonDescription?: string;
-  telemetry: AiAssistantTurnProcessedEventTelemetry;
+  telemetryData: AiAssistantTurnProcessedEventTelemetry;
   totalUsage: ModelUsageTotals;
   totalUsageByModel: ModelUsageByModel[];
   llmCalls: number;

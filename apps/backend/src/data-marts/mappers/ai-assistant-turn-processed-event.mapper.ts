@@ -77,7 +77,7 @@ export class AiAssistantTurnProcessedEventMapper {
       proposedActionCount: params.proposedActions.length,
       meta: {
         reasonDescription,
-        telemetry: this.mapTelemetry(params.telemetry),
+        telemetryData: this.mapTelemetry(params.telemetry),
         totalUsage: params.telemetrySummary.totalUsage,
         totalUsageByModel: getPromptTotalUsageByModels(params.telemetry.llmCalls),
         llmCalls: params.telemetrySummary.llmCalls,
