@@ -45,6 +45,13 @@ export class Report implements CreatorAwareEntity {
   })
   destinationConfig: DataDestinationConfig;
 
+  @Column({
+    type: 'json',
+    nullable: true,
+    default: null,
+  })
+  columnConfig?: string[] | null;
+
   @Column({ nullable: true })
   lastRunAt?: Date;
 
