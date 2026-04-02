@@ -287,6 +287,14 @@ import { ConnectorRunTriggerHandlerService } from './services/connector/connecto
 import { ReportRunTrigger } from './entities/report-run-trigger.entity';
 import { ReportRunTriggerService } from './services/report-run-trigger.service';
 import { ReportRunTriggerHandlerService } from './services/report-run-trigger-handler.service';
+import { DataMartRelationship } from './entities/data-mart-relationship.entity';
+import { DataMartRelationshipService } from './services/data-mart-relationship.service';
+import { RelationshipMapper } from './mappers/relationship.mapper';
+import { CreateDataMartRelationshipService } from './use-cases/create-data-mart-relationship.service';
+import { UpdateDataMartRelationshipService } from './use-cases/update-data-mart-relationship.service';
+import { DeleteDataMartRelationshipService } from './use-cases/delete-data-mart-relationship.service';
+import { DataMartRelationshipController } from './controllers/data-mart-relationship.controller';
+import { DataStorageRelationshipController } from './controllers/data-storage-relationship.controller';
 
 @Module({
   imports: [
@@ -321,6 +329,7 @@ import { ReportRunTriggerHandlerService } from './services/report-run-trigger-ha
       AiAssistantApplyAction,
       ConnectorRunTrigger,
       ReportRunTrigger,
+      DataMartRelationship,
     ]),
     CommonModule,
     IdpModule,
@@ -346,6 +355,8 @@ import { ReportRunTriggerHandlerService } from './services/report-run-trigger-ha
     InsightTemplateRunTriggerController,
     MarkdownParserController,
     LegacyDataMartsSyncController,
+    DataMartRelationshipController,
+    DataStorageRelationshipController,
   ],
   providers: [
     ...dataStorageResolverProviders,
@@ -583,6 +594,11 @@ import { ReportRunTriggerHandlerService } from './services/report-run-trigger-ha
     GetDestinationOAuthCredentialStatusService,
     GenerateDestinationOAuthUrlService,
     RevokeDestinationOAuthService,
+    DataMartRelationshipService,
+    RelationshipMapper,
+    CreateDataMartRelationshipService,
+    UpdateDataMartRelationshipService,
+    DeleteDataMartRelationshipService,
   ],
 })
 export class DataMartsModule {
