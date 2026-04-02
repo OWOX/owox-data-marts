@@ -126,16 +126,18 @@ function NodeComponent(props: { data: Schemes['Node']; emit: (e: ReactArea2D<Sch
     );
   }
 
+  const isDeep = n.depth >= 2;
+
   return (
     <div
       style={{
         width: n.width,
         height: n.height,
         borderRadius: 8,
-        border: `2px solid ${NODE_BORDER}`,
+        border: `${isDeep ? '2px dashed' : '2px solid'} ${NODE_BORDER}`,
         background: 'var(--background)',
-        boxShadow: '0 1px 4px 0 rgba(0,0,0,0.12)',
-        cursor: 'pointer',
+        boxShadow: isDeep ? 'none' : '0 1px 4px 0 rgba(0,0,0,0.12)',
+        cursor: isDeep ? 'default' : 'pointer',
         position: 'relative',
       }}
     >
@@ -170,7 +172,7 @@ function NodeComponent(props: { data: Schemes['Node']; emit: (e: ReactArea2D<Sch
       >
         <span className='truncate'>{n.label}</span>
         <button
-          className='text-muted-foreground hover:text-foreground ml-2 shrink-0 rounded p-0.5 transition-colors'
+          className='text-muted-foreground hover:text-foreground ml-2 shrink-0 cursor-pointer rounded p-0.5 transition-colors'
           onPointerDown={e => {
             e.stopPropagation();
           }}
@@ -423,7 +425,7 @@ async function setupEditor(
     if (ctx.type === 'nodetranslate') return undefined;
     if (ctx.type === 'nodepicked') {
       const node = editor.getNode(ctx.data.id);
-      if (node && !node.isSource) {
+      if (node?.depth === 1) {
         onNodeSelect(node.dmId);
       }
     }
