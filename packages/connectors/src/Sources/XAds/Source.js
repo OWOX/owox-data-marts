@@ -508,17 +508,6 @@ var XAdsSource = class XAdsSource extends AbstractSource {
       return;
     }
 
-    // Guard: ensure the chunk won't exceed the X Ads 100-job account limit.
-    const ACCOUNT_JOB_LIMIT = 100;
-    const jobsRequiredPerDay = Math.ceil(ids.length / this.config.StatsMaxEntityIds.value) * PLACEMENTS.length;
-    const totalJobs = dateChunk.length * jobsRequiredPerDay;
-    if (totalJobs > ACCOUNT_JOB_LIMIT) {
-      throw new Error(
-        `Chunk of ${dateChunk.length} days would submit ${totalJobs} jobs, exceeding the X Ads account limit of ${ACCOUNT_JOB_LIMIT}. ` +
-        `Reduce DAYS_PER_CHUNK or increase StatsMaxEntityIds.`
-      );
-    }
-
     for (const date of dateChunk) {
       // The async stats API treats end_time as exclusive, so advance by one day.
       // Use UTC methods to avoid DST shifts eating the +1 day on transition dates.
