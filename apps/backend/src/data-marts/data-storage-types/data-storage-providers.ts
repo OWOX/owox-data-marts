@@ -15,6 +15,7 @@ import { AthenaSqlDryRunExecutor } from './athena/services/athena-sql-dry-run.ex
 import { AthenaSqlRunExecutor } from './athena/services/athena-sql-run.executor';
 import { BigQueryApiAdapterFactory } from './bigquery/adapters/bigquery-api-adapter.factory';
 import { BigQueryAccessValidator } from './bigquery/services/bigquery-access.validator';
+import { BigQueryBlendedQueryBuilder } from './bigquery/services/bigquery-blended-query-builder';
 import { BigQueryCreateViewExecutor } from './bigquery/services/bigquery-create-view.executor';
 import { BigQueryDataMartSchemaParser } from './bigquery/services/bigquery-data-mart-schema.parser';
 import { BigQueryDataMartSchemaProvider } from './bigquery/services/bigquery-data-mart-schema.provider';
@@ -52,6 +53,7 @@ import { DatabricksSqlDryRunExecutor } from './databricks/services/databricks-sq
 import { DatabricksSqlRunExecutor } from './databricks/services/databricks-sql-run.executor';
 import { DataStorageType } from './enums/data-storage-type.enum';
 import { DataStoragePublicCredentialsFactory } from './factories/data-storage-public-credentials.factory';
+import { BlendedQueryBuilder } from './interfaces/blended-query-builder.interface';
 import { CreateViewExecutor } from './interfaces/create-view-executor.interface';
 import {
   DataMartQueryBuilder,
@@ -91,6 +93,7 @@ import { SnowflakeSchemaMerger } from './snowflake/services/snowflake-schema-mer
 import { SnowflakeSqlDryRunExecutor } from './snowflake/services/snowflake-sql-dry-run.executor';
 import { SnowflakeSqlRunExecutor } from './snowflake/services/snowflake-sql-run.executor';
 
+export const BLENDED_QUERY_BUILDER_RESOLVER = Symbol('BLENDED_QUERY_BUILDER_RESOLVER');
 export const DATA_STORAGE_ACCESS_VALIDATOR_RESOLVER = Symbol(
   'DATA_STORAGE_ACCESS_VALIDATOR_RESOLVER'
 );
@@ -206,6 +209,7 @@ const publicCredentialsProviders = [
   DataStorageCredentialsUtils,
 ];
 const legacyBigQueryProviders = [LegacyBigQuerySqlPreprocessor];
+const blendedQueryBuilderProviders = [BigQueryBlendedQueryBuilder];
 
 export const dataStorageResolverProviders = [
   ...accessValidatorProviders,
@@ -222,6 +226,7 @@ export const dataStorageResolverProviders = [
   ...createViewExecutorProviders,
   ...publicCredentialsProviders,
   ...legacyBigQueryProviders,
+  ...blendedQueryBuilderProviders,
   {
     provide: DATA_MART_QUERY_BUILDER_RESOLVER,
     useFactory: async (...builders: (DataMartQueryBuilder | DataMartQueryBuilderAsync)[]) =>
@@ -287,5 +292,11 @@ export const dataStorageResolverProviders = [
     useFactory: (...executors: CreateViewExecutor[]) =>
       new TypeResolver<DataStorageType, CreateViewExecutor>(executors),
     inject: createViewExecutorProviders,
+  },
+  {
+    provide: BLENDED_QUERY_BUILDER_RESOLVER,
+    useFactory: (...builders: BlendedQueryBuilder[]) =>
+      new TypeResolver<DataStorageType, BlendedQueryBuilder>(builders),
+    inject: blendedQueryBuilderProviders,
   },
 ];
