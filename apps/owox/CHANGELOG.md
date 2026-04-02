@@ -6,8 +6,6 @@
 
 ![OWOX Data Marts – v0.22.0](https://github.com/user-attachments/assets/dcd8ad37-7feb-4cc1-b8f8-a3309d9ee1c2)
 
-### Minor Changes 0.22.0
-
 - 4c9b96d: # **Business Owner & Technical Owner** for Data Marts
 
   Assign Business and Technical Owners to each Data Mart to track accountability and maintainability.
