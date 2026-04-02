@@ -69,7 +69,7 @@ export function RelationshipCanvas({
 }: RelationshipCanvasProps) {
   const { navigate } = useProjectRoute();
   const [showFields, setShowFields] = useState(false);
-  const [nodes, setNodes, onNodesChange] = useNodesState([]);
+  const [nodes, setNodes, onNodesChange] = useNodesState<Node>([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState([]);
 
   const buildGraph = useCallback(() => {

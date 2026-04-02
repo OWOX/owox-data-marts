@@ -128,6 +128,7 @@ export function RelationshipDialog({
   });
 
   const watchedTargetId = form.watch('targetDataMartId');
+  const watchedBlendedFields = form.watch('blendedFields');
 
   // Load available DMs and source DM schema
   useEffect(() => {
@@ -345,7 +346,7 @@ export function RelationshipDialog({
                 <div key={jf.id} className='flex items-start gap-2'>
                   <FormField
                     control={form.control}
-                    name={`joinConditions.${String(index)}.sourceFieldName`}
+                    name={`joinConditions.${String(index)}.sourceFieldName` as const}
                     render={({ field }) => (
                       <FormItem variant='light' className='flex-1'>
                         {index === 0 && <FormLabel>Source field</FormLabel>}
@@ -374,7 +375,7 @@ export function RelationshipDialog({
 
                   <FormField
                     control={form.control}
-                    name={`joinConditions.${String(index)}.targetFieldName`}
+                    name={`joinConditions.${String(index)}.targetFieldName` as const}
                     render={({ field }) => (
                       <FormItem variant='light' className='flex-1'>
                         {index === 0 && <FormLabel>Target field</FormLabel>}
@@ -467,7 +468,7 @@ export function RelationshipDialog({
                       {/* Select checkbox */}
                       <FormField
                         control={form.control}
-                        name={`blendedFields.${String(index)}.selected`}
+                        name={`blendedFields.${String(index)}.selected` as const}
                         render={({ field }) => (
                           <Checkbox
                             checked={field.value}
@@ -483,12 +484,12 @@ export function RelationshipDialog({
                       {/* Output alias */}
                       <FormField
                         control={form.control}
-                        name={`blendedFields.${String(index)}.outputAlias`}
+                        name={`blendedFields.${String(index)}.outputAlias` as const}
                         render={({ field }) => (
                           <Input
                             {...field}
                             className='h-7 text-xs'
-                            disabled={!form.watch(`blendedFields.${String(index)}.selected`)}
+                            disabled={!watchedBlendedFields[index].selected}
                           />
                         )}
                       />
@@ -496,12 +497,12 @@ export function RelationshipDialog({
                       {/* Aggregate function */}
                       <FormField
                         control={form.control}
-                        name={`blendedFields.${String(index)}.aggregateFunction`}
+                        name={`blendedFields.${String(index)}.aggregateFunction` as const}
                         render={({ field }) => (
                           <Select
                             value={field.value}
                             onValueChange={field.onChange}
-                            disabled={!form.watch(`blendedFields.${String(index)}.selected`)}
+                            disabled={!watchedBlendedFields[index].selected}
                           >
                             <SelectTrigger size='sm' className='w-28'>
                               <SelectValue />
@@ -520,12 +521,12 @@ export function RelationshipDialog({
                       {/* Hidden toggle */}
                       <FormField
                         control={form.control}
-                        name={`blendedFields.${String(index)}.isHidden`}
+                        name={`blendedFields.${String(index)}.isHidden` as const}
                         render={({ field }) => (
                           <Checkbox
                             checked={field.value}
                             onCheckedChange={field.onChange}
-                            disabled={!form.watch(`blendedFields.${String(index)}.selected`)}
+                            disabled={!watchedBlendedFields[index].selected}
                             aria-label={`Hide field ${bf.targetFieldName}`}
                           />
                         )}
