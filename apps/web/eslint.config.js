@@ -11,6 +11,13 @@ export default tseslint.config(
     files: ['*.config.{js,mjs,ts}'],
     extends: [tseslint.configs.disableTypeChecked],
   },
+  // Allow numbers in template literals (e.g. field array index paths like `items.${index}.name`)
+  {
+    files: ['**/*.{ts,tsx}'],
+    rules: {
+      '@typescript-eslint/restrict-template-expressions': ['error', { allowNumber: true }],
+    },
+  },
   // E2E tests: disable type-checked rules and React hooks (Playwright `use` triggers false positives)
   {
     files: ['e2e/**/*.ts'],

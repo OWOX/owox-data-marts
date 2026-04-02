@@ -346,7 +346,7 @@ export function RelationshipDialog({
                 <div key={jf.id} className='flex items-start gap-2'>
                   <FormField
                     control={form.control}
-                    name={`joinConditions.${String(index)}.sourceFieldName` as const}
+                    name={`joinConditions.${index}.sourceFieldName`}
                     render={({ field }) => (
                       <FormItem variant='light' className='flex-1'>
                         {index === 0 && <FormLabel>Source field</FormLabel>}
@@ -375,7 +375,7 @@ export function RelationshipDialog({
 
                   <FormField
                     control={form.control}
-                    name={`joinConditions.${String(index)}.targetFieldName` as const}
+                    name={`joinConditions.${index}.targetFieldName`}
                     render={({ field }) => (
                       <FormItem variant='light' className='flex-1'>
                         {index === 0 && <FormLabel>Target field</FormLabel>}
@@ -468,7 +468,7 @@ export function RelationshipDialog({
                       {/* Select checkbox */}
                       <FormField
                         control={form.control}
-                        name={`blendedFields.${String(index)}.selected` as const}
+                        name={`blendedFields.${index}.selected`}
                         render={({ field }) => (
                           <Checkbox
                             checked={field.value}
@@ -484,7 +484,7 @@ export function RelationshipDialog({
                       {/* Output alias */}
                       <FormField
                         control={form.control}
-                        name={`blendedFields.${String(index)}.outputAlias` as const}
+                        name={`blendedFields.${index}.outputAlias`}
                         render={({ field }) => (
                           <Input
                             {...field}
@@ -497,7 +497,7 @@ export function RelationshipDialog({
                       {/* Aggregate function */}
                       <FormField
                         control={form.control}
-                        name={`blendedFields.${String(index)}.aggregateFunction` as const}
+                        name={`blendedFields.${index}.aggregateFunction`}
                         render={({ field }) => (
                           <Select
                             value={field.value}
@@ -521,7 +521,7 @@ export function RelationshipDialog({
                       {/* Hidden toggle */}
                       <FormField
                         control={form.control}
-                        name={`blendedFields.${String(index)}.isHidden` as const}
+                        name={`blendedFields.${index}.isHidden`}
                         render={({ field }) => (
                           <Checkbox
                             checked={field.value}
