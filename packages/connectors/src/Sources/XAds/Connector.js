@@ -91,13 +91,23 @@ var XAdsConnector = class XAdsConnector extends AbstractConnector {
   /**
    * Process an async time series node (e.g., stats_by_country).
    *
-   * Jobs for each chunk of dates are submitted upfront so X Ads processes them
-   * concurrently on their side. After each chunk completes, results are downloaded
-   * and saved to BigQuery immediately (one at a time, per ODM requirement).
+   * The Connector drives the chunk loop: it asks the Source for chunk boundaries,
+   * then calls the Source once per chunk to submit/poll/download, and saves results
+   * to BigQuery and updates the incremental cursor immediately after each chunk.
    * This means if chunk N+1 fails, chunks 1–N are already persisted and the
    * incremental cursor reflects their progress — the next run resumes from there.
+   *
+   * Early exit: two consecutive empty chunks are required before skipping remaining
+   * days. One empty chunk may occur mid-campaign (paused days); two consecutive
+   * empties is a reliable signal that ad activity has ended for the period.
    */
   async processAsyncTimeSeriesNode({ nodeName, accountId, fields }) {
+    const uniqueKeys = this.source.fieldsSchema[nodeName].uniqueKeys || [];
+    const missingKeys = uniqueKeys.filter(key => !fields.includes(key));
+    if (missingKeys.length > 0) {
+      throw new Error(`Missing required unique fields for '${nodeName}'. Missing: ${missingKeys.join(', ')}`);
+    }
+
     const [startDate, daysToFetch] = this.getStartDateAndDaysToFetch();
 
     if (daysToFetch <= 0) {
@@ -115,43 +125,44 @@ var XAdsConnector = class XAdsConnector extends AbstractConnector {
     }
 
     const storage = await this.getStorageByNode(nodeName);
+    const chunks = await this.source.computeAsyncDateChunks(accountId, days.map(d => d.formatted));
 
-    // processAsyncStatsByChunk handles submit → poll → download per chunk,
-    // then calls this callback so we can save and update the cursor immediately.
-    await this.source.processAsyncStatsByChunk({
-      nodeName,
-      accountId,
-      fields,
-      dates: days.map(d => d.formatted),
-      // Returns true if any day in this chunk had data — used by processAsyncStatsByChunk
-      // to skip remaining chunks when ad activity has ended.
-      onChunkReady: async (rowsByDate) => {
-        let chunkHasData = false;
+    let emptyChunks = 0;
+    for (const dateChunk of chunks) {
+      const rowsByDate = await this.source.fetchAsyncStatsChunk({ nodeName, accountId, fields, dateChunk });
 
-        for (const { date, formatted } of days) {
-          if (!rowsByDate.has(formatted)) continue;
+      let chunkHasData = false;
+      for (const { date, formatted } of days) {
+        if (!rowsByDate.has(formatted)) continue;
 
-          const data = rowsByDate.get(formatted);
-          if (data.length) chunkHasData = true;
+        const data = rowsByDate.get(formatted);
+        if (data.length) chunkHasData = true;
 
-          this.config.logMessage(data.length
-            ? `${data.length} rows of ${nodeName} were fetched for ${accountId} on ${formatted}`
-            : 'No records have been fetched'
-          );
+        this.config.logMessage(data.length
+          ? `${data.length} rows of ${nodeName} were fetched for ${accountId} on ${formatted}`
+          : 'No records have been fetched'
+        );
 
-          if (data.length || this.config.CreateEmptyTables?.value) {
-            const preparedData = data.length ? this.addMissingFieldsToData(data, fields) : data;
-            await storage.saveData(preparedData);
-          }
-
-          if (this.runConfig.type === RUN_CONFIG_TYPE.INCREMENTAL) {
-            this.config.updateLastRequstedDate(date);
-          }
+        if (data.length || this.config.CreateEmptyTables?.value) {
+          const preparedData = data.length ? this.addMissingFieldsToData(data, fields) : data;
+          await storage.saveData(preparedData);
         }
 
-        return chunkHasData;
+        if (this.runConfig.type === RUN_CONFIG_TYPE.INCREMENTAL) {
+          this.config.updateLastRequstedDate(date);
+        }
       }
-    });
+
+      if (!chunkHasData) {
+        emptyChunks++;
+        if (emptyChunks >= 2) {
+          console.log(`Two consecutive empty chunks — skipping remaining days`);
+          break;
+        }
+      } else {
+        emptyChunks = 0;
+      }
+    }
   }
 
   /**
