@@ -158,6 +158,9 @@ export function useEmailReportForm({
             dataMartId,
             dataDestinationId: data.dataDestinationId,
             destinationConfig,
+            ...(pendingOwnerIdsRef?.current != null
+              ? { ownerIds: pendingOwnerIdsRef.current }
+              : {}),
           });
         } else {
           if (!initialReport) {

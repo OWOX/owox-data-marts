@@ -73,6 +73,7 @@ export function useLookerStudioReportForm({
           dataMartId,
           dataDestinationId: preSelectedDestination?.id ?? '',
           destinationConfig,
+          ...(pendingOwnerIdsRef?.current != null ? { ownerIds: pendingOwnerIdsRef.current } : {}),
         });
       }
       onSuccess?.();

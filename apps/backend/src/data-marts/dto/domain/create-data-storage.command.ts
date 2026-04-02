@@ -4,6 +4,7 @@ export class CreateDataStorageCommand {
   constructor(
     public readonly projectId: string,
     public readonly type: DataStorageType,
-    public readonly userId: string
+    public readonly userId: string,
+    public readonly ownerIds?: string[]
   ) {}
 }

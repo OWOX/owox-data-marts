@@ -95,6 +95,9 @@ export function useGoogleSheetsReportForm({
               spreadsheetId,
               sheetId,
             },
+            ...(pendingOwnerIdsRef?.current != null
+              ? { ownerIds: pendingOwnerIdsRef.current }
+              : {}),
           });
         } else {
           if (!initialReport) {

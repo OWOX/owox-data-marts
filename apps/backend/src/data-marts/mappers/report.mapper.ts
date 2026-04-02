@@ -37,7 +37,8 @@ export class ReportMapper {
       dto.title,
       dto.dataMartId,
       dto.dataDestinationId,
-      dto.destinationConfig
+      dto.destinationConfig,
+      dto.ownerIds
     );
   }
 

@@ -1,4 +1,4 @@
-import { IsNotEmpty, IsString, IsObject } from 'class-validator';
+import { IsArray, IsNotEmpty, IsOptional, IsString, IsObject } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 import { DataDestinationConfig } from '../../data-destination-types/data-destination-config.type';
 
@@ -22,4 +22,10 @@ export class CreateReportRequestApiDto {
   @IsObject()
   @IsNotEmpty()
   destinationConfig: DataDestinationConfig;
+
+  @ApiProperty({ type: [String], required: false })
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  ownerIds?: string[];
 }

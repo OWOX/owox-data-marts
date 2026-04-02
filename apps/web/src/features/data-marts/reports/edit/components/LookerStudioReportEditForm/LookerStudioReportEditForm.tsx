@@ -1,5 +1,7 @@
 import { forwardRef, useEffect } from 'react';
 import { useOwnerState } from '../../../../../../shared/hooks/useOwnerState';
+import { UserReference } from '../../../../../../shared/components/UserReference/UserReference';
+import { useUser } from '../../../../../idp/hooks/useAuthState';
 
 import {
   type DataMartReport,
@@ -81,7 +83,19 @@ export const LookerStudioReportEditForm = forwardRef<
 
     const { dataMart } = useOutletContext<DataMartContextType>();
 
-    const initialOwnerUsers = (initialReport?.ownerUsers as UserProjectionDto[] | undefined) ?? [];
+    const currentUser = useUser();
+    const initialOwnerUsers =
+      (initialReport?.ownerUsers as UserProjectionDto[] | undefined) ??
+      (currentUser
+        ? [
+            {
+              userId: currentUser.id,
+              fullName: currentUser.fullName ?? null,
+              email: currentUser.email ?? null,
+              avatar: currentUser.avatar ?? null,
+            },
+          ]
+        : []);
     const {
       ownerUsers,
       ownersDirty,
@@ -142,15 +156,6 @@ export const LookerStudioReportEditForm = forwardRef<
           onSubmit={e => void form.handleSubmit(handleFormSubmit)(e)}
         >
           <FormLayout>
-            {initialReport && mode === ReportFormMode.EDIT && (
-              <FormSection title='General'>
-                <FormItem>
-                  <FormLabel>Owners</FormLabel>
-                  <OwnersSection ownerUsers={ownerUsers} onSave={handleOwnersChange} />
-                </FormItem>
-              </FormSection>
-            )}
-
             <FormSection title='Cache Configuration'>
               <FormField
                 control={form.control}
@@ -188,6 +193,38 @@ export const LookerStudioReportEditForm = forwardRef<
                 )}
               />
             </FormSection>
+
+            <FormSection title='Ownership'>
+              <FormItem>
+                <FormLabel tooltip='Team members responsible for this report'>Owners</FormLabel>
+                <OwnersSection ownerUsers={ownerUsers} onSave={handleOwnersChange} />
+              </FormItem>
+            </FormSection>
+
+            {initialReport?.createdAt && (
+              <FormSection title='Details'>
+                <FormItem>
+                  <FormLabel>Created By</FormLabel>
+                  <div className='text-sm'>
+                    {initialReport.createdByUser ? (
+                      <UserReference userProjection={initialReport.createdByUser} variant='full' />
+                    ) : (
+                      <span className='text-muted-foreground'>Unknown</span>
+                    )}
+                  </div>
+                </FormItem>
+                <FormItem>
+                  <FormLabel>Created At</FormLabel>
+                  <div className='text-muted-foreground text-sm'>
+                    {new Date(initialReport.createdAt).toLocaleDateString('en-US', {
+                      year: 'numeric',
+                      month: 'short',
+                      day: 'numeric',
+                    })}
+                  </div>
+                </FormItem>
+              </FormSection>
+            )}
           </FormLayout>
           <FormActions>
             <Button

@@ -28,7 +28,9 @@ import type { CredentialIdentity } from '../../../../../shared/types/credential-
 import { OwnersSection } from '../../../../../shared/components/OwnersSection/OwnersSection';
 import type { UserProjectionDto } from '../../../../../shared/types/api';
 import { useOwnerState } from '../../../../../shared/hooks/useOwnerState';
+import { useUser } from '../../../../idp/hooks/useAuthState';
 import type { UserProjection } from '../../../../../shared/types';
+import { UserReference } from '../../../../../shared/components/UserReference/UserReference';
 import { CopyCredentialContext } from '../../model/context/copy-credential-context';
 import { createFormPayload } from '../../../../../utils/form-utils';
 import { COPY_SOURCE_CREDENTIAL_PLACEHOLDER } from '../../../../../shared/utils/credential-identity-utils';
@@ -58,7 +60,12 @@ import { RedshiftFields } from './RedshiftFields';
 import { SnowflakeFields } from './SnowflakeFields';
 
 interface DataStorageFormProps {
-  initialData?: DataStorageFormData & { id?: string; ownerUsers?: UserProjection[] };
+  initialData?: DataStorageFormData & {
+    id?: string;
+    ownerUsers?: UserProjection[];
+    createdAt?: Date;
+    createdByUser?: UserProjection | null;
+  };
   onSubmit: (
     data: DataStorageFormData,
     source?: { id: string; title: string } | null
@@ -78,7 +85,19 @@ export function DataStorageForm({
     defaultValues: initialData,
   });
 
-  const initialOwnerUsers = (initialData?.ownerUsers as UserProjectionDto[] | undefined) ?? [];
+  const currentUser = useUser();
+  const initialOwnerUsers =
+    (initialData?.ownerUsers as UserProjectionDto[] | undefined) ??
+    (currentUser
+      ? [
+          {
+            userId: currentUser.id,
+            fullName: currentUser.fullName ?? null,
+            email: currentUser.email ?? null,
+            avatar: currentUser.avatar ?? null,
+          },
+        ]
+      : []);
   const { ownerUsers, ownersDirty, handleOwnersChange, consumePendingOwnerIds } =
     useOwnerState(initialOwnerUsers);
 
@@ -256,12 +275,6 @@ export function DataStorageForm({
                 </FormItem>
               )}
             />
-            {storageId && (
-              <FormItem>
-                <FormLabel>Owners</FormLabel>
-                <OwnersSection ownerUsers={ownerUsers} onSave={handleOwnersChange} />
-              </FormItem>
-            )}
           </FormSection>
           <CopyCredentialContext.Provider value={copyCredentialCtx}>
             {selectedType === DataStorageType.GOOGLE_BIGQUERY && (
@@ -277,6 +290,38 @@ export function DataStorageForm({
             {selectedType === DataStorageType.AWS_REDSHIFT && <RedshiftFields form={form} />}
             {selectedType === DataStorageType.DATABRICKS && <DatabricksFields form={form} />}
           </CopyCredentialContext.Provider>
+
+          <FormSection title='Ownership'>
+            <FormItem>
+              <FormLabel tooltip='Team members responsible for this storage'>Owners</FormLabel>
+              <OwnersSection ownerUsers={ownerUsers} onSave={handleOwnersChange} />
+            </FormItem>
+          </FormSection>
+
+          {initialData?.createdAt && (
+            <FormSection title='Details'>
+              <FormItem>
+                <FormLabel>Created By</FormLabel>
+                <div className='text-sm'>
+                  {initialData.createdByUser ? (
+                    <UserReference userProjection={initialData.createdByUser} variant='full' />
+                  ) : (
+                    <span className='text-muted-foreground'>Unknown</span>
+                  )}
+                </div>
+              </FormItem>
+              <FormItem>
+                <FormLabel>Created At</FormLabel>
+                <div className='text-muted-foreground text-sm'>
+                  {new Date(initialData.createdAt).toLocaleDateString('en-US', {
+                    year: 'numeric',
+                    month: 'short',
+                    day: 'numeric',
+                  })}
+                </div>
+              </FormItem>
+            </FormSection>
+          )}
         </FormLayout>
         <FormActions>
           <Button

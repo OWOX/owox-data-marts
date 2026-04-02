@@ -10,6 +10,9 @@ import { DataStorage } from '../entities/data-storage.entity';
 import { StorageOwner } from '../entities/storage-owner.entity';
 import { DataStorageMapper } from '../mappers/data-storage.mapper';
 import { UserProjectionsFetcherService } from '../services/user-projections-fetcher.service';
+import { syncOwners } from '../utils/sync-owners';
+import { resolveOwnerUsers } from '../utils/resolve-owner-users';
+import { IdpProjectionsFacade } from '../../idp/facades/idp-projections.facade';
 
 @Injectable()
 export class CreateDataStorageService {
@@ -19,7 +22,8 @@ export class CreateDataStorageService {
     @InjectRepository(StorageOwner)
     private readonly storageOwnerRepository: Repository<StorageOwner>,
     private readonly dataStorageMapper: DataStorageMapper,
-    private readonly userProjectionsFetcherService: UserProjectionsFetcherService
+    private readonly userProjectionsFetcherService: UserProjectionsFetcherService,
+    private readonly idpProjectionsFacade: IdpProjectionsFacade
   ) {}
 
   @Transactional()
@@ -38,12 +42,38 @@ export class CreateDataStorageService {
 
     const savedEntity = await this.dataStorageRepository.save(entity);
 
-    const owner = new StorageOwner();
-    owner.storageId = savedEntity.id;
-    owner.userId = command.userId;
-    await this.storageOwnerRepository.save(owner);
-    const createdByUser = await this.userProjectionsFetcherService.fetchCreatedByUser(savedEntity);
-    const ownerUsers = createdByUser ? [createdByUser] : [];
-    return this.dataStorageMapper.toDomainDto(savedEntity, 0, 0, createdByUser, ownerUsers);
+    const ownerIdsToSave = command.ownerIds ?? [command.userId];
+    await syncOwners(
+      this.storageOwnerRepository,
+      'storageId',
+      savedEntity.id,
+      command.projectId,
+      ownerIdsToSave,
+      this.idpProjectionsFacade,
+      userId => {
+        const o = new StorageOwner();
+        o.storageId = savedEntity.id;
+        o.userId = userId;
+        return o;
+      }
+    );
+
+    savedEntity.owners = ownerIdsToSave.map(uid => {
+      const o = new StorageOwner();
+      o.storageId = savedEntity.id;
+      o.userId = uid;
+      return o;
+    });
+    const allUserIds = [command.userId, ...ownerIdsToSave];
+    const userProjections =
+      await this.userProjectionsFetcherService.fetchUserProjectionsList(allUserIds);
+    const createdByUser = userProjections.getByUserId(command.userId) ?? null;
+    return this.dataStorageMapper.toDomainDto(
+      savedEntity,
+      0,
+      0,
+      createdByUser,
+      resolveOwnerUsers(ownerIdsToSave, userProjections)
+    );
   }
 }

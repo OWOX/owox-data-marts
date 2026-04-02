@@ -6,6 +6,8 @@ import type { UserProjection } from '../../../../../shared/types';
 import type { UserProjectionDto } from '../../../../../shared/types/api';
 import { useOwnerState } from '../../../../../shared/hooks/useOwnerState';
 import { OwnersSection } from '../../../../../shared/components/OwnersSection/OwnersSection';
+import { UserReference } from '../../../../../shared/components/UserReference/UserReference';
+import { useUser } from '../../../../idp/hooks/useAuthState';
 import { CopyCredentialContext } from '../../model/context/copy-credential-context';
 import { Loader2 } from 'lucide-react';
 import { useForm } from 'react-hook-form';
@@ -21,6 +23,7 @@ import {
   FormLabel,
   FormLayout,
   FormMessage,
+  FormSection,
 } from '@owox/ui/components/form';
 import { Input } from '@owox/ui/components/input';
 
@@ -37,7 +40,13 @@ import { GoogleSheetsFields } from './GoogleSheetsFields';
 import { LookerStudioFields } from './LookerStudioFields';
 
 interface DataDestinationFormProps {
-  initialData: (DataDestinationFormData & { ownerUsers?: UserProjection[] }) | null;
+  initialData:
+    | (DataDestinationFormData & {
+        ownerUsers?: UserProjection[];
+        createdAt?: Date;
+        createdByUser?: UserProjection | null;
+      })
+    | null;
   onSubmit: (
     data: DataDestinationFormData,
     source?: { id: string; title: string } | null
@@ -67,7 +76,19 @@ export function DataDestinationForm({
     mode: 'onTouched',
   });
 
-  const initialOwnerUsers = (initialData?.ownerUsers as UserProjectionDto[] | undefined) ?? [];
+  const currentUser = useUser();
+  const initialOwnerUsers =
+    (initialData?.ownerUsers as UserProjectionDto[] | undefined) ??
+    (currentUser
+      ? [
+          {
+            userId: currentUser.id,
+            fullName: currentUser.fullName ?? null,
+            email: currentUser.email ?? null,
+            avatar: currentUser.avatar ?? null,
+          },
+        ]
+      : []);
   const { ownerUsers, ownersDirty, handleOwnersChange, consumePendingOwnerIds } =
     useOwnerState(initialOwnerUsers);
 
@@ -154,13 +175,6 @@ export function DataDestinationForm({
             )}
           />
 
-          {destinationId && (
-            <FormItem>
-              <FormLabel>Owners</FormLabel>
-              <OwnersSection ownerUsers={ownerUsers} onSave={handleOwnersChange} />
-            </FormItem>
-          )}
-
           <DestinationTypeField
             form={form}
             isEditMode={isEditMode}
@@ -194,6 +208,38 @@ export function DataDestinationForm({
 
           {destinationType === DataDestinationType.GOOGLE_CHAT && (
             <EmailFields form={form} emailsFieldTitle={'Enter Google Chat channel emails list'} />
+          )}
+
+          <FormSection title='Ownership'>
+            <FormItem>
+              <FormLabel tooltip='Team members responsible for this destination'>Owners</FormLabel>
+              <OwnersSection ownerUsers={ownerUsers} onSave={handleOwnersChange} />
+            </FormItem>
+          </FormSection>
+
+          {initialData?.createdAt && (
+            <FormSection title='Details'>
+              <FormItem>
+                <FormLabel>Created By</FormLabel>
+                <div className='text-sm'>
+                  {initialData.createdByUser ? (
+                    <UserReference userProjection={initialData.createdByUser} variant='full' />
+                  ) : (
+                    <span className='text-muted-foreground'>Unknown</span>
+                  )}
+                </div>
+              </FormItem>
+              <FormItem>
+                <FormLabel>Created At</FormLabel>
+                <div className='text-muted-foreground text-sm'>
+                  {new Date(initialData.createdAt).toLocaleDateString('en-US', {
+                    year: 'numeric',
+                    month: 'short',
+                    day: 'numeric',
+                  })}
+                </div>
+              </FormItem>
+            </FormSection>
           )}
         </FormLayout>
         <FormActions>

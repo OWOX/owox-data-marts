@@ -4,7 +4,7 @@ import type { UserProjectionDto } from '../../types/api';
 
 interface OwnersSectionProps {
   ownerUsers: UserProjectionDto[];
-  onSave: (ownerIds: string[]) => void;
+  onSave: (ownerUsers: UserProjectionDto[]) => void;
   label?: string;
 }
 

@@ -50,7 +50,8 @@ export class DataDestinationMapper {
       context.userId,
       dto.credentials,
       dto.credentialId,
-      dto.sourceDestinationId
+      dto.sourceDestinationId,
+      dto.ownerIds
     );
   }
 

@@ -44,7 +44,7 @@ export class DataStorageMapper {
     context: AuthorizationContext,
     dto: CreateDataStorageApiDto
   ): CreateDataStorageCommand {
-    return new CreateDataStorageCommand(context.projectId, dto.type, context.userId);
+    return new CreateDataStorageCommand(context.projectId, dto.type, context.userId, dto.ownerIds);
   }
 
   toUpdateCommand(

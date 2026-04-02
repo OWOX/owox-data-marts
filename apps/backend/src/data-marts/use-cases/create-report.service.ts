@@ -18,6 +18,8 @@ import { BusinessViolationException } from '../../common/exceptions/business-vio
 import { ReportOwner } from '../entities/report-owner.entity';
 import { UserProjectionsFetcherService } from '../services/user-projections-fetcher.service';
 import { resolveOwnerUsers } from '../utils/resolve-owner-users';
+import { syncOwners } from '../utils/sync-owners';
+import { IdpProjectionsFacade } from '../../idp/facades/idp-projections.facade';
 
 @Injectable()
 export class CreateReportService {
@@ -32,6 +34,7 @@ export class CreateReportService {
     private readonly mapper: ReportMapper,
     private readonly availableDestinationTypesService: AvailableDestinationTypesService,
     private readonly userProjectionsFetcherService: UserProjectionsFetcherService,
+    private readonly idpProjectionsFacade: IdpProjectionsFacade,
     @Inject(OWOX_PRODUCER)
     private readonly producer: OwoxProducer
   ) {}
@@ -73,12 +76,28 @@ export class CreateReportService {
 
     const newReport = await this.reportRepository.save(report);
 
-    const owner = new ReportOwner();
-    owner.reportId = newReport.id;
-    owner.userId = command.userId;
-    await this.reportOwnerRepository.save(owner);
+    const ownerIdsToSave = command.ownerIds ?? [command.userId];
+    await syncOwners(
+      this.reportOwnerRepository,
+      'reportId',
+      newReport.id,
+      command.projectId,
+      ownerIdsToSave,
+      this.idpProjectionsFacade,
+      userId => {
+        const o = new ReportOwner();
+        o.reportId = newReport.id;
+        o.userId = userId;
+        return o;
+      }
+    );
 
-    newReport.owners = [owner];
+    newReport.owners = ownerIdsToSave.map(uid => {
+      const o = new ReportOwner();
+      o.reportId = newReport.id;
+      o.userId = uid;
+      return o;
+    });
 
     await this.producer.produceEvent(
       new ReportCreatedEvent(
@@ -90,15 +109,15 @@ export class CreateReportService {
       )
     );
 
-    const allUserIds = [newReport.createdById, ...newReport.ownerIds];
+    const allUserIds = [command.userId, ...ownerIdsToSave];
     const userProjections =
       await this.userProjectionsFetcherService.fetchUserProjectionsList(allUserIds);
-    const createdByUser = userProjections.getByUserId(newReport.createdById) ?? null;
+    const createdByUser = userProjections.getByUserId(command.userId) ?? null;
 
     return this.mapper.toDomainDto(
       newReport,
       createdByUser,
-      resolveOwnerUsers(newReport.ownerIds, userProjections)
+      resolveOwnerUsers(ownerIdsToSave, userProjections)
     );
   }
 }

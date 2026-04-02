@@ -18,7 +18,7 @@ import { checkVisible } from '../../../../utils/check-visible';
 
 interface OwnersEditorProps {
   ownerUsers: UserProjectionDto[];
-  onSave: (userIds: string[]) => void;
+  onSave: (ownerUsers: UserProjectionDto[]) => void;
   projectId: string;
 }
 
@@ -40,12 +40,25 @@ export function OwnersEditor({ ownerUsers, onSave, projectId }: OwnersEditorProp
 
   const selectedIds = useMemo(() => ownerUsers.map(u => u.userId), [ownerUsers]);
 
+  const memberMap = useMemo(() => new Map(members.map(m => [m.userId, m])), [members]);
+
   const handleToggle = useCallback(
     (userId: string, checked: boolean) => {
       const newIds = checked ? [...selectedIds, userId] : selectedIds.filter(id => id !== userId);
-      onSave(newIds);
+      const newUsers: UserProjectionDto[] = newIds.map(id => {
+        const existing = ownerUsers.find(u => u.userId === id);
+        if (existing) return existing;
+        const member = memberMap.get(id);
+        return {
+          userId: id,
+          fullName: member?.displayName ?? null,
+          email: member?.email ?? null,
+          avatar: member?.avatarUrl ?? null,
+        };
+      });
+      onSave(newUsers);
     },
-    [selectedIds, onSave]
+    [selectedIds, ownerUsers, memberMap, onSave]
   );
 
   // Split members into active and outbound

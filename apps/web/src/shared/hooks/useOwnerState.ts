@@ -7,17 +7,11 @@ export function useOwnerState(initialOwnerUsers: UserProjectionDto[]) {
   const pendingOwnerIdsRef = useRef<string[] | null>(null);
   const ownersDirty = pendingOwnerIds !== null;
 
-  const handleOwnersChange = (newOwnerIds: string[]) => {
-    setPendingOwnerIds(newOwnerIds);
-    pendingOwnerIdsRef.current = newOwnerIds;
-    const knownUsers = new Map(ownerUsers.map(u => [u.userId, u]));
-    setOwnerUsers(
-      newOwnerIds.map(
-        id =>
-          knownUsers.get(id) ??
-          ({ userId: id, fullName: null, email: null, avatar: null } as UserProjectionDto)
-      )
-    );
+  const handleOwnersChange = (newOwnerUsers: UserProjectionDto[]) => {
+    const newIds = newOwnerUsers.map(u => u.userId);
+    setPendingOwnerIds(newIds);
+    pendingOwnerIdsRef.current = newIds;
+    setOwnerUsers(newOwnerUsers);
   };
 
   const consumePendingOwnerIds = (): string[] | null => {

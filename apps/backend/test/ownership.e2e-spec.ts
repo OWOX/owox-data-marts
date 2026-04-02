@@ -324,6 +324,138 @@ describe('Ownership (e2e)', () => {
     });
   });
 
+  // ─── Create with ownerIds ───────────────────────────────
+
+  describe('Create with ownerIds', () => {
+    it('POST /api/data-destinations with ownerIds - saves specified owners', async () => {
+      const res = await agent
+        .post('/api/data-destinations')
+        .set(AUTH_HEADER)
+        .send({
+          title: 'Dest with owners',
+          type: 'LOOKER_STUDIO',
+          credentials: { type: 'looker-studio-credentials' },
+          ownerIds: ['1', '2'],
+        });
+
+      expect(res.status).toBe(201);
+      expect(res.body.ownerUsers).toHaveLength(2);
+      const userIds = res.body.ownerUsers.map((u: Record<string, unknown>) => u.userId);
+      expect(userIds).toContain('1');
+      expect(userIds).toContain('2');
+    });
+
+    it('POST /api/data-destinations without ownerIds - defaults to creator', async () => {
+      const res = await agent
+        .post('/api/data-destinations')
+        .set(AUTH_HEADER)
+        .send({
+          title: 'Dest default owner',
+          type: 'LOOKER_STUDIO',
+          credentials: { type: 'looker-studio-credentials' },
+        });
+
+      expect(res.status).toBe(201);
+      expect(res.body.ownerUsers).toHaveLength(1);
+      expect(res.body.ownerUsers[0]).toMatchObject({ userId: '0' });
+    });
+
+    it('POST /api/data-destinations with ownerIds - rejects non-member', async () => {
+      const res = await agent
+        .post('/api/data-destinations')
+        .set(AUTH_HEADER)
+        .send({
+          title: 'Dest bad owner',
+          type: 'LOOKER_STUDIO',
+          credentials: { type: 'looker-studio-credentials' },
+          ownerIds: ['nonexistent-user'],
+        });
+
+      expect(res.status).toBe(400);
+    });
+
+    it('POST /api/data-storages with ownerIds - saves specified owners', async () => {
+      const payload = {
+        ...new StorageBuilder().withType('GOOGLE_BIGQUERY' as DataStorageType).build(),
+        ownerIds: ['0', '1'],
+      };
+      const res = await agent.post('/api/data-storages').set(AUTH_HEADER).send(payload);
+
+      expect(res.status).toBe(201);
+      expect(res.body.ownerUsers).toHaveLength(2);
+      const userIds = res.body.ownerUsers.map((u: Record<string, unknown>) => u.userId);
+      expect(userIds).toContain('0');
+      expect(userIds).toContain('1');
+    });
+
+    it('POST /api/data-storages without ownerIds - defaults to creator', async () => {
+      const payload = new StorageBuilder().withType('GOOGLE_BIGQUERY' as DataStorageType).build();
+      const res = await agent.post('/api/data-storages').set(AUTH_HEADER).send(payload);
+
+      expect(res.status).toBe(201);
+      expect(res.body.ownerUsers).toHaveLength(1);
+      expect(res.body.ownerUsers[0]).toMatchObject({ userId: '0' });
+    });
+
+    it('POST /api/data-storages with ownerIds - rejects non-member', async () => {
+      const payload = {
+        ...new StorageBuilder().withType('GOOGLE_BIGQUERY' as DataStorageType).build(),
+        ownerIds: ['nonexistent-user'],
+      };
+      const res = await agent.post('/api/data-storages').set(AUTH_HEADER).send(payload);
+
+      expect(res.status).toBe(400);
+    });
+
+    it('POST /api/reports with ownerIds - saves specified owners', async () => {
+      const prerequisites = await setupReportPrerequisites(agent);
+
+      const payload = {
+        ...new ReportBuilder()
+          .withDataMartId(prerequisites.dataMartId)
+          .withDataDestinationId(prerequisites.dataDestinationId)
+          .build(),
+        ownerIds: ['1', '2'],
+      };
+      const res = await agent.post('/api/reports').set(AUTH_HEADER).send(payload);
+
+      expect(res.status).toBe(201);
+      expect(res.body.ownerUsers).toHaveLength(2);
+      const userIds = res.body.ownerUsers.map((u: Record<string, unknown>) => u.userId);
+      expect(userIds).toContain('1');
+      expect(userIds).toContain('2');
+    });
+
+    it('POST /api/reports without ownerIds - defaults to creator', async () => {
+      const prerequisites = await setupReportPrerequisites(agent);
+
+      const payload = new ReportBuilder()
+        .withDataMartId(prerequisites.dataMartId)
+        .withDataDestinationId(prerequisites.dataDestinationId)
+        .build();
+      const res = await agent.post('/api/reports').set(AUTH_HEADER).send(payload);
+
+      expect(res.status).toBe(201);
+      expect(res.body.ownerUsers).toHaveLength(1);
+      expect(res.body.ownerUsers[0]).toMatchObject({ userId: '0' });
+    });
+
+    it('POST /api/reports with ownerIds - rejects non-member', async () => {
+      const prerequisites = await setupReportPrerequisites(agent);
+
+      const payload = {
+        ...new ReportBuilder()
+          .withDataMartId(prerequisites.dataMartId)
+          .withDataDestinationId(prerequisites.dataDestinationId)
+          .build(),
+        ownerIds: ['nonexistent-user'],
+      };
+      const res = await agent.post('/api/reports').set(AUTH_HEADER).send(payload);
+
+      expect(res.status).toBe(400);
+    });
+  });
+
   // ─── Edge Cases ─────────────────────────────────────────
 
   describe('Edge Cases', () => {

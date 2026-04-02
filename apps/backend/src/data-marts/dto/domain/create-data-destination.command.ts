@@ -9,7 +9,8 @@ export class CreateDataDestinationCommand {
     public readonly userId: string,
     public readonly credentials?: DataDestinationCredentials,
     public readonly credentialId?: string,
-    public readonly sourceDestinationId?: string
+    public readonly sourceDestinationId?: string,
+    public readonly ownerIds?: string[]
   ) {}
 
   hasCredentials(): boolean {
