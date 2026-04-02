@@ -109,7 +109,6 @@ export class AiAssistantTurnProcessedEventMapper {
       name: toolCall.name,
       args: this.parseJsonString(toolCall.argsJson),
       success: toolCall.success,
-      ...(toolCall.toolResult !== undefined ? { toolResult: toolCall.toolResult } : {}),
       ...(toolCall.errorMessage ? { errorMessage: toolCall.errorMessage } : {}),
     };
   }

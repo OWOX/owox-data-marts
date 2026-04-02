@@ -18,7 +18,6 @@ export interface AiAssistantTurnProcessedEventToolCall {
   name: string;
   args: unknown;
   success: boolean;
-  toolResult?: unknown;
   errorMessage?: string;
 }
 
