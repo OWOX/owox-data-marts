@@ -102,7 +102,7 @@ function FormItem({ className = '', variant = 'default', ...props }: FormItemPro
         className={cn(
           variant === 'default' &&
             'group border-border flex flex-col gap-2 rounded-md border-b bg-white px-4 py-3 transition-shadow duration-200 hover:shadow-sm dark:border-transparent dark:bg-white/4',
-          variant === 'light' && '',
+          variant === 'light' && 'flex flex-col gap-1.5',
           className
         )}
         {...props}
