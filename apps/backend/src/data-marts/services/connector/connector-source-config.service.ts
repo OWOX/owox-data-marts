@@ -56,16 +56,25 @@ export class ConnectorSourceConfigService {
     payload?: Record<string, unknown> | null,
     state?: ConnectorStateItem
   ): RunConfigDto {
-    const bodyRaw = (payload as { payload?: unknown } | null)?.payload;
-    const body =
-      bodyRaw !== null && typeof bodyRaw === 'object'
-        ? (bodyRaw as { runType?: string; data?: Record<string, unknown> })
-        : undefined;
+    const payloadObject =
+      payload !== null && typeof payload === 'object' ? (payload as Record<string, unknown>) : {};
+    const nestedPayload = payloadObject.payload;
+    const bodyObject =
+      nestedPayload !== null && typeof nestedPayload === 'object'
+        ? (nestedPayload as Record<string, unknown>)
+        : payloadObject;
 
-    const type = body?.runType ?? 'INCREMENTAL';
-    const data = body?.data
-      ? Object.entries(body.data).map(([configField, value]) => ({ configField, value }))
-      : [];
+    const runTypeRaw = bodyObject.runType;
+    const dataRaw = bodyObject.data;
+
+    const type = typeof runTypeRaw === 'string' ? runTypeRaw : 'INCREMENTAL';
+    const data =
+      dataRaw !== null && typeof dataRaw === 'object'
+        ? Object.entries(dataRaw as Record<string, unknown>).map(([configField, value]) => ({
+            configField,
+            value,
+          }))
+        : [];
 
     this.logger.debug(`Creating run config`, { payload, state });
     this.logger.debug(`Returning run config`, { type, data, state: state?.state || {} });
