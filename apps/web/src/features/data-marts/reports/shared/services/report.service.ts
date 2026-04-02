@@ -97,6 +97,24 @@ export class ReportService extends ApiService {
   async runReport(id: string): Promise<void> {
     return this.post(`/${id}/run`);
   }
+
+  /**
+   * Get the generated SQL for a report
+   * @param id Report ID
+   * @returns Object containing the generated SQL string
+   */
+  async getGeneratedSql(id: string): Promise<{ sql: string }> {
+    return this.get<{ sql: string }>(`/${id}/generated-sql`);
+  }
+
+  /**
+   * Copy a report as a new Data Mart
+   * @param id Report ID
+   * @returns Promise with the created data mart response
+   */
+  async copyAsDataMart(id: string): Promise<unknown> {
+    return this.post<unknown>(`/${id}/copy-as-data-mart`);
+  }
 }
 
 // Create a singleton instance
