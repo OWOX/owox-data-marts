@@ -12,6 +12,7 @@ import { AthenaReportHeadersGenerator } from './athena/services/athena-report-he
 import { AthenaReportReader } from './athena/services/athena-report-reader.service';
 import { AthenaSchemaMerger } from './athena/services/athena-schema-merger';
 import { AthenaSqlDryRunExecutor } from './athena/services/athena-sql-dry-run.executor';
+import { AthenaBlendedQueryBuilder } from './athena/services/athena-blended-query-builder';
 import { AthenaSqlRunExecutor } from './athena/services/athena-sql-run.executor';
 import { BigQueryApiAdapterFactory } from './bigquery/adapters/bigquery-api-adapter.factory';
 import { BigQueryAccessValidator } from './bigquery/services/bigquery-access.validator';
@@ -50,6 +51,7 @@ import { DatabricksReportHeadersGenerator } from './databricks/services/databric
 import { DatabricksReportReader } from './databricks/services/databricks-report-reader.service';
 import { DatabricksSchemaMerger } from './databricks/services/databricks-schema-merger';
 import { DatabricksSqlDryRunExecutor } from './databricks/services/databricks-sql-dry-run.executor';
+import { DatabricksBlendedQueryBuilder } from './databricks/services/databricks-blended-query-builder';
 import { DatabricksSqlRunExecutor } from './databricks/services/databricks-sql-run.executor';
 import { DataStorageType } from './enums/data-storage-type.enum';
 import { DataStoragePublicCredentialsFactory } from './factories/data-storage-public-credentials.factory';
@@ -79,6 +81,7 @@ import { RedshiftReportHeadersGenerator } from './redshift/services/redshift-rep
 import { RedshiftReportReader } from './redshift/services/redshift-report-reader.service';
 import { RedshiftSchemaMerger } from './redshift/services/redshift-schema-merger';
 import { RedshiftSqlDryRunExecutor } from './redshift/services/redshift-sql-dry-run.executor';
+import { RedshiftBlendedQueryBuilder } from './redshift/services/redshift-blended-query-builder';
 import { RedshiftSqlRunExecutor } from './redshift/services/redshift-sql-run.executor';
 import { SnowflakeApiAdapterFactory } from './snowflake/adapters/snowflake-api-adapter.factory';
 import { SnowflakeAccessValidator } from './snowflake/services/snowflake-access.validator';
@@ -91,6 +94,7 @@ import { SnowflakeReportHeadersGenerator } from './snowflake/services/snowflake-
 import { SnowflakeReportReader } from './snowflake/services/snowflake-report-reader.service';
 import { SnowflakeSchemaMerger } from './snowflake/services/snowflake-schema-merger';
 import { SnowflakeSqlDryRunExecutor } from './snowflake/services/snowflake-sql-dry-run.executor';
+import { SnowflakeBlendedQueryBuilder } from './snowflake/services/snowflake-blended-query-builder';
 import { SnowflakeSqlRunExecutor } from './snowflake/services/snowflake-sql-run.executor';
 
 export const BLENDED_QUERY_BUILDER_RESOLVER = Symbol('BLENDED_QUERY_BUILDER_RESOLVER');
@@ -209,7 +213,13 @@ const publicCredentialsProviders = [
   DataStorageCredentialsUtils,
 ];
 const legacyBigQueryProviders = [LegacyBigQuerySqlPreprocessor];
-const blendedQueryBuilderProviders = [BigQueryBlendedQueryBuilder];
+const blendedQueryBuilderProviders = [
+  BigQueryBlendedQueryBuilder,
+  SnowflakeBlendedQueryBuilder,
+  RedshiftBlendedQueryBuilder,
+  AthenaBlendedQueryBuilder,
+  DatabricksBlendedQueryBuilder,
+];
 
 export const dataStorageResolverProviders = [
   ...accessValidatorProviders,
