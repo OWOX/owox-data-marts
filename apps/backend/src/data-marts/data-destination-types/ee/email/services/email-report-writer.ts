@@ -23,10 +23,11 @@ import {
 import { ReportDataBatch } from '../../../../dto/domain/report-data-batch.dto';
 import { ReportDataDescription } from '../../../../dto/domain/report-data-description.dto';
 import { Report } from '../../../../entities/report.entity';
-import { EmailReportRunSuccessfullyEvent } from '../../../../events/email-report-run-successfully.event';
-import { GoogleChatReportRunSuccessfullyEvent } from '../../../../events/google-chat-report-run-successfully.event';
-import { MsTeamsReportRunSuccessfullyEvent } from '../../../../events/ms-teams-report-run-successfully.event';
-import { SlackReportRunSuccessfullyEvent } from '../../../../events/slack-report-run-successfully.event';
+import { EmailReportRunEvent } from '../../../../events/email-report-run.event';
+import { GoogleChatReportRunEvent } from '../../../../events/google-chat-report-run.event';
+import { MsTeamsReportRunEvent } from '../../../../events/ms-teams-report-run.event';
+import { RunEventStatus } from '../../../../events/run-event-status.type';
+import { SlackReportRunEvent } from '../../../../events/slack-report-run.event';
 import {
   ReportRunExecutionContext,
   ReportRunLogger,
@@ -123,7 +124,7 @@ abstract class BaseEmailReportWriter implements DataDestinationReportWriter {
     this.mainRowsTruncationInfo = meta?.mainRowsTruncationInfo ?? null;
 
     if (processingError) {
-      this.handleProcessingError(processingError);
+      await this.handleProcessingError(processingError);
       return;
     }
 
@@ -140,12 +141,13 @@ abstract class BaseEmailReportWriter implements DataDestinationReportWriter {
     }
 
     await this.consumptionTrackingService.registerEmailBasedReportRunConsumption(this.report);
-    await this.produceSuccessEvent();
+    await this.produceRunEvent('successfully');
   }
 
-  private handleProcessingError(error: Error): void {
+  private async handleProcessingError(error: Error): Promise<void> {
     this.executionLogger?.error(error);
     this.logger.warn(BaseEmailReportWriter.MESSAGES.ERROR_SENDING, error);
+    await this.produceRunEvent('unsuccessfully');
   }
 
   private shouldSkipEmailDueToCondition(): boolean {
@@ -379,7 +381,7 @@ abstract class BaseEmailReportWriter implements DataDestinationReportWriter {
     this.executionLogger?.log({ type: 'email_sent', to: this.emailCredentials.to });
   }
 
-  private async produceSuccessEvent(): Promise<void> {
+  private async produceRunEvent(status: RunEventStatus): Promise<void> {
     const dataMart = this.report.dataMart;
     const runId = this.report.id;
     const userId = this.report.createdById;
@@ -387,22 +389,22 @@ abstract class BaseEmailReportWriter implements DataDestinationReportWriter {
     switch (this.type) {
       case DataDestinationType.EMAIL:
         await this.producer.produceEvent(
-          new EmailReportRunSuccessfullyEvent(dataMart.id, runId, dataMart.projectId, userId)
+          new EmailReportRunEvent(dataMart.id, runId, dataMart.projectId, userId, status)
         );
         break;
       case DataDestinationType.SLACK:
         await this.producer.produceEvent(
-          new SlackReportRunSuccessfullyEvent(dataMart.id, runId, dataMart.projectId, userId)
+          new SlackReportRunEvent(dataMart.id, runId, dataMart.projectId, userId, status)
         );
         break;
       case DataDestinationType.MS_TEAMS:
         await this.producer.produceEvent(
-          new MsTeamsReportRunSuccessfullyEvent(dataMart.id, runId, dataMart.projectId, userId)
+          new MsTeamsReportRunEvent(dataMart.id, runId, dataMart.projectId, userId, status)
         );
         break;
       case DataDestinationType.GOOGLE_CHAT:
         await this.producer.produceEvent(
-          new GoogleChatReportRunSuccessfullyEvent(dataMart.id, runId, dataMart.projectId, userId)
+          new GoogleChatReportRunEvent(dataMart.id, runId, dataMart.projectId, userId, status)
         );
         break;
     }

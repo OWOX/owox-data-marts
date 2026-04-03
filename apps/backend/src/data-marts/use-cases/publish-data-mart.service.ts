@@ -1,10 +1,13 @@
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
+import { OwoxProducer } from '@owox/internal-helpers';
 import { BusinessViolationException } from '../../common/exceptions/business-violation.exception';
+import { OWOX_PRODUCER } from '../../common/producer/producer.module';
 import { DataMartDefinitionValidatorFacade } from '../data-storage-types/facades/data-mart-definition-validator-facade.service';
 import { DataMartDto } from '../dto/domain/data-mart.dto';
 import { PublishDataMartCommand } from '../dto/domain/publish-data-mart.command';
 import { DataMartDefinitionType } from '../enums/data-mart-definition-type.enum';
 import { DataMartStatus } from '../enums/data-mart-status.enum';
+import { DataMartPublishedEvent } from '../events/data-mart-published.event';
 import { DataMartMapper } from '../mappers/data-mart.mapper';
 import { DataMartService } from '../services/data-mart.service';
 
@@ -13,7 +16,9 @@ export class PublishDataMartService {
   constructor(
     private readonly dataMartService: DataMartService,
     private readonly definitionValidatorFacade: DataMartDefinitionValidatorFacade,
-    private readonly mapper: DataMartMapper
+    private readonly mapper: DataMartMapper,
+    @Inject(OWOX_PRODUCER)
+    private readonly producer: OwoxProducer
   ) {}
 
   async run(command: PublishDataMartCommand): Promise<DataMartDto> {
@@ -31,9 +36,20 @@ export class PublishDataMartService {
       await this.definitionValidatorFacade.checkIsValid(dataMart);
     }
 
+    const previousStatus = dataMart.status;
     dataMart.status = DataMartStatus.PUBLISHED;
 
     await this.dataMartService.save(dataMart);
+
+    await this.producer.produceEvent(
+      new DataMartPublishedEvent(
+        dataMart.id,
+        command.projectId,
+        dataMart.createdById,
+        previousStatus
+      )
+    );
+
     return this.mapper.toDomainDto(dataMart);
   }
 }
