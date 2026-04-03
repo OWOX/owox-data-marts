@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { NodeEditor, ClassicPreset } from 'rete';
 import type { GetSchemes } from 'rete';
 import { AreaPlugin, AreaExtensions } from 'rete-area-plugin';
@@ -7,6 +7,8 @@ import { ReactPlugin, Presets as ReactPresets, type ReactArea2D } from 'rete-rea
 import { MinimapPlugin, type MinimapExtra } from 'rete-minimap-plugin';
 import { createRoot } from 'react-dom/client';
 import { Badge } from '@owox/ui/components/badge';
+import { Switch } from '@owox/ui/components/switch';
+import { Label } from '@owox/ui/components/label';
 import { ExternalLink, Info, Locate } from 'lucide-react';
 import { Button } from '../../../../../shared/components/Button';
 import { dataMartRelationshipService } from '../../../shared/services/data-mart-relationship.service';
@@ -266,7 +268,8 @@ async function setupEditor(
   dataMartDescription: string | null | undefined,
   initialRelationships: DataMartRelationship[],
   onNodeSelect: (targetDmId: string) => void,
-  onOpenExternal: (targetDmId: string) => void
+  onOpenExternal: (targetDmId: string) => void,
+  showTransient: boolean
 ): Promise<EditorHandle> {
   const editor = new NodeEditor<Schemes>();
   const area = new AreaPlugin<Schemes, AreaExtra>(container);
@@ -341,7 +344,7 @@ async function setupEditor(
           fieldCount: rel.blendedFields.length,
         });
 
-        if (depth < MAX_DEPTH) {
+        if (showTransient && depth < MAX_DEPTH) {
           try {
             const childRels = await dataMartRelationshipService.getRelationships(tid);
             if (childRels.length > 0) {
@@ -478,6 +481,7 @@ export function RelationshipCanvas({
 }: RelationshipCanvasProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const editorRef = useRef<EditorHandle | null>(null);
+  const [showTransient, setShowTransient] = useState(false);
 
   const handleNodeSelect = useCallback(
     (targetId: string) => {
@@ -503,7 +507,8 @@ export function RelationshipCanvas({
       dataMartDescription,
       relationships,
       handleNodeSelect,
-      handleOpenExternal
+      handleOpenExternal,
+      showTransient
     ).then(h => {
       editorRef.current = h;
     });
@@ -519,6 +524,7 @@ export function RelationshipCanvas({
     relationships,
     handleNodeSelect,
     handleOpenExternal,
+    showTransient,
   ]);
 
   if (relationships.length === 0) return null;
@@ -529,7 +535,13 @@ export function RelationshipCanvas({
         .rel-canvas svg path { stroke-width: 1.5px !important; }
         .rel-canvas [data-testid="minimap"] { transform: scale(0.5); transform-origin: bottom right; }
       `}</style>
-      <div className='absolute top-3 right-3 z-10'>
+      <div className='absolute top-3 right-3 z-10 flex items-center gap-2'>
+        <div className='bg-background/80 flex items-center gap-2 rounded-md border px-2.5 py-1 backdrop-blur-sm'>
+          <Switch id='show-transient' checked={showTransient} onCheckedChange={setShowTransient} />
+          <Label htmlFor='show-transient' className='cursor-pointer text-xs whitespace-nowrap'>
+            Show transient relations
+          </Label>
+        </div>
         <Button
           variant='outline'
           size='icon'
