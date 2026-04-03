@@ -89,15 +89,13 @@ jobs:
         run: npm run build -w owox
 
       - name: Run coverage for @owox/idp-better-auth
-        run: NODE_OPTIONS=--experimental-vm-modules npx jest --config packages/idp-better-auth/jest.config.js --coverage --coverageReporters json-summary --coverageDirectory coverage/idp-better-auth
+        working-directory: packages/idp-better-auth
+        run: NODE_OPTIONS=--experimental-vm-modules npx jest --coverage --coverageReporters json-summary
         continue-on-error: true
 
       - name: Run coverage for @owox/idp-owox-better-auth
-        run: NODE_OPTIONS=--experimental-vm-modules npx jest --config packages/idp-owox-better-auth/jest.config.js --coverage --coverageReporters json-summary --coverageDirectory coverage/idp-owox-better-auth
-        continue-on-error: true
-
-      - name: Run coverage for @owox/backend
-        run: npm run test -w @owox/backend -- --coverage --coverageReporters json-summary --coverageDirectory ../../coverage/backend
+        working-directory: packages/idp-owox-better-auth
+        run: NODE_OPTIONS=--experimental-vm-modules npx jest --coverage --coverageReporters json-summary
         continue-on-error: true
 
       - name: Jest Coverage Comment
@@ -105,6 +103,5 @@ jobs:
         with:
           title: Test Coverage
           multiple-files: |
-            @owox/idp-better-auth, ./coverage/idp-better-auth/coverage-summary.json
-            @owox/idp-owox-better-auth, ./coverage/idp-owox-better-auth/coverage-summary.json
-            @owox/backend, ./coverage/backend/coverage-summary.json
+            @owox/idp-better-auth, packages/idp-better-auth/coverage/coverage-summary.json
+            @owox/idp-owox-better-auth, packages/idp-owox-better-auth/coverage/coverage-summary.json
