@@ -22,6 +22,7 @@ export async function main() {
     const app = express();
     app.set('trust proxy', 1);
     app.get('/api/flags', (_req, res) => {
+      res.setHeader('Cache-Control', 'no-store');
       res.json({});
     });
     await setupIdp(app);
