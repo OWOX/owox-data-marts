@@ -205,11 +205,11 @@ export function ReportColumnPicker({ dataMartId, value, onChange }: ReportColumn
             </div>
           </div>
 
-          {/* Blended Fields group */}
+          {/* Blendable Fields group */}
           {blendedFields.length > 0 && (
             <div className='space-y-2'>
               <div className='flex items-center justify-between'>
-                <span className='text-sm font-medium'>Blended Fields</span>
+                <span className='text-sm font-medium'>Blendable Fields</span>
                 <div className='flex gap-2'>
                   <button
                     type='button'

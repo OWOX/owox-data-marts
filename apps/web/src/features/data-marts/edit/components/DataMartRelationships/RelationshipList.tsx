@@ -87,7 +87,7 @@ export function RelationshipList({ relationships, onEdit, onDelete }: Relationsh
             </TableHead>
             <TableHead className='bg-secondary dark:bg-background'>
               <Tooltip>
-                <TooltipTrigger className='cursor-default'>Blended Fields</TooltipTrigger>
+                <TooltipTrigger className='cursor-default'>Blendable Fields</TooltipTrigger>
                 <TooltipContent>
                   Fields from the target data mart included in the output schema
                 </TooltipContent>

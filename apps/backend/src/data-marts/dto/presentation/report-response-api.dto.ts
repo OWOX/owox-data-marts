@@ -21,6 +21,9 @@ export class ReportResponseApiDto {
   @ApiProperty()
   destinationConfig: DataDestinationConfig;
 
+  @ApiProperty({ nullable: true, required: false, type: [String] })
+  columnConfig?: string[] | null;
+
   @ApiProperty({ nullable: true })
   lastRunAt?: Date;
 

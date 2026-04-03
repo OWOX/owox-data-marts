@@ -7,7 +7,7 @@ import { ReactPlugin, Presets as ReactPresets, type ReactArea2D } from 'rete-rea
 import { MinimapPlugin, type MinimapExtra } from 'rete-minimap-plugin';
 import { createRoot } from 'react-dom/client';
 import { Badge } from '@owox/ui/components/badge';
-import { ExternalLink, Locate } from 'lucide-react';
+import { ExternalLink, Info, Locate } from 'lucide-react';
 import { Button } from '../../../../../shared/components/Button';
 import { dataMartRelationshipService } from '../../../shared/services/data-mart-relationship.service';
 import type { DataMartRelationship } from '../../../shared/types/relationship.types';
@@ -17,6 +17,7 @@ import type { DataMartRelationship } from '../../../shared/types/relationship.ty
 interface RelationshipCanvasProps {
   dataMartId: string;
   dataMartTitle: string;
+  dataMartDescription?: string | null;
   relationships: DataMartRelationship[];
   onRelationshipSelect: (relationship: DataMartRelationship) => void;
 }
@@ -43,6 +44,7 @@ class DMNode extends ClassicPreset.Node {
   targetAlias?: string;
   joinCount?: number;
   fieldCount?: number;
+  description?: string | null;
   onOpenExternal?: () => void;
 
   constructor(
@@ -54,6 +56,7 @@ class DMNode extends ClassicPreset.Node {
       targetAlias?: string;
       joinCount?: number;
       fieldCount?: number;
+      description?: string | null;
       onOpenExternal?: () => void;
     }
   ) {
@@ -64,6 +67,7 @@ class DMNode extends ClassicPreset.Node {
     this.targetAlias = opts?.targetAlias;
     this.joinCount = opts?.joinCount;
     this.fieldCount = opts?.fieldCount;
+    this.description = opts?.description;
     this.onOpenExternal = opts?.onOpenExternal;
     if (!isSource) this.height = TGT_H;
   }
@@ -106,7 +110,9 @@ function NodeComponent(props: { data: Schemes['Node']; emit: (e: ReactArea2D<Sch
           position: 'relative',
         }}
       >
-        <div style={{ flex: 1, padding: '0 14px' }}>{n.label}</div>
+        <div className='truncate' style={{ flex: 1, padding: '0 14px' }} title={n.label}>
+          {n.label}
+        </div>
         {outputs.map(
           ([key, output]) =>
             output && (
@@ -170,17 +176,30 @@ function NodeComponent(props: { data: Schemes['Node']; emit: (e: ReactArea2D<Sch
           borderRadius: '6px 6px 0 0',
         }}
       >
-        <span className='truncate'>{n.label}</span>
-        <button
-          className='text-muted-foreground hover:text-foreground ml-2 shrink-0 cursor-pointer rounded p-0.5 transition-colors'
-          onPointerDown={e => {
-            e.stopPropagation();
-          }}
-          onClick={handleExtClick}
-          aria-label='Open in new tab'
-        >
-          <ExternalLink style={{ width: 14, height: 14 }} />
-        </button>
+        <span className='truncate' title={n.label}>
+          {n.label}
+        </span>
+        <div className='ml-2 flex shrink-0 items-center gap-0.5'>
+          {n.description && (
+            <span
+              className='text-muted-foreground hover:text-foreground inline-flex cursor-default rounded p-0.5 transition-colors'
+              title={n.description}
+            >
+              <Info style={{ width: 14, height: 14 }} />
+            </span>
+          )}
+          <button
+            className='text-muted-foreground hover:text-foreground shrink-0 cursor-pointer rounded p-0.5 transition-colors'
+            onPointerDown={e => {
+              e.stopPropagation();
+            }}
+            onClick={handleExtClick}
+            title='Open in new tab'
+            aria-label='Open in new tab'
+          >
+            <ExternalLink style={{ width: 14, height: 14 }} />
+          </button>
+        </div>
       </div>
       <div
         className='text-muted-foreground flex items-center gap-2'
@@ -244,6 +263,7 @@ async function setupEditor(
   container: HTMLElement,
   dataMartId: string,
   dataMartTitle: string,
+  dataMartDescription: string | null | undefined,
   initialRelationships: DataMartRelationship[],
   onNodeSelect: (targetDmId: string) => void,
   onOpenExternal: (targetDmId: string) => void
@@ -278,6 +298,7 @@ async function setupEditor(
   interface NodeInfo {
     id: string;
     title: string;
+    description?: string | null;
     depth: number;
     isSource: boolean;
     targetAlias?: string;
@@ -296,6 +317,7 @@ async function setupEditor(
   nodeInfos.set(dataMartId, {
     id: dataMartId,
     title: dataMartTitle,
+    description: dataMartDescription,
     depth: 0,
     isSource: true,
   });
@@ -311,6 +333,7 @@ async function setupEditor(
         nodeInfos.set(tid, {
           id: tid,
           title: rel.targetDataMart.title,
+          description: rel.targetDataMart.description,
           depth,
           isSource: false,
           targetAlias: rel.targetAlias,
@@ -343,6 +366,7 @@ async function setupEditor(
       targetAlias: info.targetAlias,
       joinCount: info.joinCount,
       fieldCount: info.fieldCount,
+      description: info.description,
       onOpenExternal: () => {
         onOpenExternal(dmId);
       },
@@ -448,6 +472,7 @@ async function setupEditor(
 export function RelationshipCanvas({
   dataMartId,
   dataMartTitle,
+  dataMartDescription,
   relationships,
   onRelationshipSelect,
 }: RelationshipCanvasProps) {
@@ -464,7 +489,7 @@ export function RelationshipCanvas({
 
   const handleOpenExternal = useCallback((targetId: string) => {
     const basePath = window.location.pathname.replace(/\/data-marts\/.*/, '');
-    window.open(`${basePath}/data-marts/${targetId}/overview`, '_blank');
+    window.open(`${basePath}/data-marts/${targetId}/data-setup`, '_blank');
   }, []);
 
   useEffect(() => {
@@ -475,6 +500,7 @@ export function RelationshipCanvas({
       el,
       dataMartId,
       dataMartTitle,
+      dataMartDescription,
       relationships,
       handleNodeSelect,
       handleOpenExternal
@@ -486,7 +512,14 @@ export function RelationshipCanvas({
       editorRef.current?.destroy();
       editorRef.current = null;
     };
-  }, [dataMartId, dataMartTitle, relationships, handleNodeSelect, handleOpenExternal]);
+  }, [
+    dataMartId,
+    dataMartTitle,
+    dataMartDescription,
+    relationships,
+    handleNodeSelect,
+    handleOpenExternal,
+  ]);
 
   if (relationships.length === 0) return null;
 

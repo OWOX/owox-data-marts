@@ -1,20 +1,68 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { CircleCheck, GitMerge } from 'lucide-react';
+import { CircleCheck, Combine, GitMerge, MoreHorizontal } from 'lucide-react';
 import { SearchInput } from '@owox/ui/components/common/search-input';
 import { Button } from '@owox/ui/components/button';
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@owox/ui/components/table';
+  DropdownMenu,
+  DropdownMenuCheckboxItem,
+  DropdownMenuContent,
+  DropdownMenuTrigger,
+} from '@owox/ui/components/dropdown-menu';
+import {
+  Empty,
+  EmptyContent,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from '@owox/ui/components/empty';
+import { TableBody, TableCell, TableHead, TableHeader, TableRow } from '@owox/ui/components/table';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@owox/ui/components/tooltip';
 import { dataMartRelationshipService } from '../../../shared/services/data-mart-relationship.service';
 import type { BlendableSchema, BlendedField } from '../../../shared/types/relationship.types';
 import { Skeleton } from '@owox/ui/components/skeleton';
+
+type ColumnId = 'sourceDm' | 'dmAlias' | 'outputAlias' | 'type' | 'description';
+
+const TOGGLEABLE_COLUMNS: { id: ColumnId; title: string; tooltip: string }[] = [
+  { id: 'sourceDm', title: 'Source Data Mart', tooltip: 'Title of the related data mart' },
+  {
+    id: 'dmAlias',
+    title: 'Data Mart Alias',
+    tooltip: 'Alias used for the related data mart in blending',
+  },
+  {
+    id: 'outputAlias',
+    title: 'Name',
+    tooltip: 'Alias of the field in the blended output schema',
+  },
+  { id: 'type', title: 'Type', tooltip: 'Data type of the field' },
+  { id: 'description', title: 'Description', tooltip: 'Field description' },
+];
+
+const CELL_CLASSES: Record<ColumnId, string> = {
+  sourceDm: 'bg-background dark:bg-muted',
+  dmAlias: 'bg-background text-muted-foreground dark:bg-muted font-mono text-xs',
+  outputAlias: 'bg-background dark:bg-muted font-mono text-xs',
+  type: 'bg-background text-muted-foreground dark:bg-muted',
+  description: 'bg-background text-muted-foreground dark:bg-muted',
+};
+
+function getFieldValue(field: BlendedField, columnId: ColumnId): string {
+  switch (columnId) {
+    case 'sourceDm':
+      return field.sourceDataMartTitle;
+    case 'dmAlias':
+      return field.targetAlias;
+    case 'outputAlias':
+      return field.alias || field.name;
+    case 'type':
+      return field.type;
+    case 'description':
+      return field.description;
+  }
+}
 
 interface BlendedFieldsSectionProps {
   dataMartId: string;
@@ -24,6 +72,13 @@ export function BlendedFieldsSection({ dataMartId }: BlendedFieldsSectionProps) 
   const [schema, setSchema] = useState<BlendableSchema | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [filterValue, setFilterValue] = useState('');
+  const [columnVisibility, setColumnVisibility] = useState<Record<ColumnId, boolean>>({
+    sourceDm: true,
+    dmAlias: true,
+    outputAlias: true,
+    type: true,
+    description: true,
+  });
 
   useEffect(() => {
     if (!dataMartId) return;
@@ -56,6 +111,15 @@ export function BlendedFieldsSection({ dataMartId }: BlendedFieldsSectionProps) 
     );
   }, [schema, filterValue]);
 
+  const visibleColumns = TOGGLEABLE_COLUMNS.filter(col => columnVisibility[col.id]);
+  const visibleColumnCount = 1 + visibleColumns.length + 1;
+
+  const toggleColumn = (id: ColumnId) => {
+    setColumnVisibility(prev => ({ ...prev, [id]: !prev[id] }));
+  };
+
+  const cellStyle: React.CSSProperties = { whiteSpace: 'pre', paddingTop: 8, paddingBottom: 8 };
+
   if (isLoading) {
     return (
       <div className='space-y-3'>
@@ -68,7 +132,27 @@ export function BlendedFieldsSection({ dataMartId }: BlendedFieldsSectionProps) 
   }
 
   if (!schema || schema.blendedFields.length === 0) {
-    return null;
+    return (
+      <Empty className='border'>
+        <EmptyHeader>
+          <EmptyMedia variant='icon'>
+            <Combine />
+          </EmptyMedia>
+          <EmptyTitle>No blendable fields yet</EmptyTitle>
+          <EmptyDescription>
+            Add relationships to blend fields from other Data Marts into this one.
+          </EmptyDescription>
+        </EmptyHeader>
+        <EmptyContent>
+          <Button variant='outline' size='sm' asChild>
+            <Link to='../relationships'>
+              <GitMerge className='mr-1 h-3.5 w-3.5' />
+              Go to Relationships
+            </Link>
+          </Button>
+        </EmptyContent>
+      </Empty>
+    );
   }
 
   return (
@@ -103,13 +187,13 @@ export function BlendedFieldsSection({ dataMartId }: BlendedFieldsSectionProps) 
         </div>
       </div>
 
-      <div className='w-full'>
-        <Table className='w-full table-auto'>
-          <TableHeader className='bg-transparent'>
+      <div className='max-h-[400px] overflow-auto'>
+        <table className='w-full table-auto caption-bottom text-sm'>
+          <TableHeader className='bg-secondary dark:bg-background sticky top-0 z-10'>
             <TableRow className='hover:bg-transparent'>
               <TableHead
                 className='bg-secondary dark:bg-background'
-                style={{ width: 36, whiteSpace: 'nowrap', cursor: 'default' }}
+                style={{ width: 56, paddingLeft: 36, whiteSpace: 'nowrap', cursor: 'default' }}
               >
                 <Tooltip>
                   <TooltipTrigger asChild>
@@ -118,113 +202,82 @@ export function BlendedFieldsSection({ dataMartId }: BlendedFieldsSectionProps) 
                   <TooltipContent>Field connection status</TooltipContent>
                 </Tooltip>
               </TableHead>
+              {visibleColumns.map(col => (
+                <TableHead
+                  key={col.id}
+                  className='bg-secondary dark:bg-background'
+                  style={{ whiteSpace: 'nowrap', cursor: 'default' }}
+                >
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <span>{col.title}</span>
+                    </TooltipTrigger>
+                    <TooltipContent>{col.tooltip}</TooltipContent>
+                  </Tooltip>
+                </TableHead>
+              ))}
               <TableHead
                 className='bg-secondary dark:bg-background'
-                style={{ whiteSpace: 'nowrap', cursor: 'default' }}
+                style={{ width: 40, cursor: 'default' }}
               >
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <span>Source DM</span>
-                  </TooltipTrigger>
-                  <TooltipContent>Title of the related data mart</TooltipContent>
-                </Tooltip>
-              </TableHead>
-              <TableHead
-                className='bg-secondary dark:bg-background'
-                style={{ whiteSpace: 'nowrap', cursor: 'default' }}
-              >
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <span>DM Alias</span>
-                  </TooltipTrigger>
-                  <TooltipContent>Alias used for the related data mart in blending</TooltipContent>
-                </Tooltip>
-              </TableHead>
-              <TableHead
-                className='bg-secondary dark:bg-background'
-                style={{ whiteSpace: 'nowrap', cursor: 'default' }}
-              >
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <span>Field</span>
-                  </TooltipTrigger>
-                  <TooltipContent>Original field name in the source data mart</TooltipContent>
-                </Tooltip>
-              </TableHead>
-              <TableHead
-                className='bg-secondary dark:bg-background'
-                style={{ whiteSpace: 'nowrap', cursor: 'default' }}
-              >
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <span>Output Name</span>
-                  </TooltipTrigger>
-                  <TooltipContent>Name of the field in the blended output schema</TooltipContent>
-                </Tooltip>
-              </TableHead>
-              <TableHead
-                className='bg-secondary dark:bg-background'
-                style={{ whiteSpace: 'nowrap', cursor: 'default' }}
-              >
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <span>Type</span>
-                  </TooltipTrigger>
-                  <TooltipContent>Data type of the field</TooltipContent>
-                </Tooltip>
+                <div className='text-right'>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button
+                        variant='ghost'
+                        className='dm-card-table-body-row-actionbtn'
+                        aria-label='Toggle columns'
+                      >
+                        <MoreHorizontal className='dm-card-table-body-row-actionbtn-icon' />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align='end'>
+                      {TOGGLEABLE_COLUMNS.map(col => (
+                        <DropdownMenuCheckboxItem
+                          key={col.id}
+                          checked={columnVisibility[col.id]}
+                          onCheckedChange={() => {
+                            toggleColumn(col.id);
+                          }}
+                        >
+                          {col.title}
+                        </DropdownMenuCheckboxItem>
+                      ))}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
               </TableHead>
             </TableRow>
           </TableHeader>
           <TableBody className='border-b border-gray-200 bg-white dark:border-white/4 dark:bg-white/1'>
             {filteredFields.map((field: BlendedField) => (
-              <TableRow key={field.name}>
+              <TableRow key={field.name} className='h-12'>
                 <TableCell
                   className='bg-background dark:bg-muted'
-                  style={{ paddingTop: 8, paddingBottom: 8 }}
+                  style={{ ...cellStyle, paddingLeft: 24 }}
                 >
                   <Tooltip>
                     <TooltipTrigger asChild>
-                      <CircleCheck className='h-4 w-4 text-green-500' />
+                      <CircleCheck className='h-5 w-5 text-green-500' />
                     </TooltipTrigger>
                     <TooltipContent>Connected</TooltipContent>
                   </Tooltip>
                 </TableCell>
+                {visibleColumns.map(col => (
+                  <TableCell key={col.id} className={CELL_CLASSES[col.id]} style={cellStyle}>
+                    {getFieldValue(field, col.id)}
+                  </TableCell>
+                ))}
                 <TableCell
                   className='bg-background dark:bg-muted'
-                  style={{ paddingTop: 8, paddingBottom: 8 }}
-                >
-                  {field.sourceDataMartTitle}
-                </TableCell>
-                <TableCell
-                  className='bg-background text-muted-foreground dark:bg-muted font-mono text-xs'
-                  style={{ paddingTop: 8, paddingBottom: 8 }}
-                >
-                  {field.targetAlias}
-                </TableCell>
-                <TableCell
-                  className='bg-background dark:bg-muted font-mono text-xs'
-                  style={{ paddingTop: 8, paddingBottom: 8 }}
-                >
-                  {field.originalFieldName}
-                </TableCell>
-                <TableCell
-                  className='bg-background dark:bg-muted font-mono text-xs'
-                  style={{ paddingTop: 8, paddingBottom: 8 }}
-                >
-                  {field.name}
-                </TableCell>
-                <TableCell
-                  className='bg-background text-muted-foreground dark:bg-muted'
-                  style={{ paddingTop: 8, paddingBottom: 8 }}
-                >
-                  {field.type}
-                </TableCell>
+                  style={{ ...cellStyle, width: 40 }}
+                />
               </TableRow>
             ))}
             {filteredFields.length === 0 && filterValue && (
               <TableRow>
                 <TableCell
-                  colSpan={6}
+                  colSpan={visibleColumnCount}
                   className='text-center text-gray-400'
                   style={{ whiteSpace: 'nowrap' }}
                 >
@@ -233,7 +286,7 @@ export function BlendedFieldsSection({ dataMartId }: BlendedFieldsSectionProps) 
               </TableRow>
             )}
           </TableBody>
-        </Table>
+        </table>
       </div>
     </div>
   );

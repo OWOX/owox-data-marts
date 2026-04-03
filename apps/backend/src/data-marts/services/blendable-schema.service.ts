@@ -9,17 +9,28 @@ const MAX_TRANSITIVE_DEPTH = 10;
 interface RawSchemaField {
   name: string;
   type: string;
+  alias?: string;
+  description?: string;
   fields?: RawSchemaField[];
 }
 
-function flattenSchemaFields(
-  fields: RawSchemaField[],
-  prefix = ''
-): { name: string; type: string }[] {
-  const result: { name: string; type: string }[] = [];
+interface FlatSchemaField {
+  name: string;
+  type: string;
+  alias?: string;
+  description?: string;
+}
+
+function flattenSchemaFields(fields: RawSchemaField[], prefix = ''): FlatSchemaField[] {
+  const result: FlatSchemaField[] = [];
   for (const field of fields) {
     const fullName = prefix ? `${prefix}.${field.name}` : field.name;
-    result.push({ name: fullName, type: field.type });
+    result.push({
+      name: fullName,
+      type: field.type,
+      alias: field.alias,
+      description: field.description,
+    });
     if (field.fields && Array.isArray(field.fields)) {
       result.push(...flattenSchemaFields(field.fields, fullName));
     }
@@ -83,6 +94,8 @@ export class BlendableSchemaService {
         dto.targetAlias = rel.targetAlias;
         dto.originalFieldName = blendedFieldConfig.targetFieldName;
         dto.type = schemaField?.type ?? 'UNKNOWN';
+        dto.alias = schemaField?.alias ?? '';
+        dto.description = schemaField?.description ?? '';
         dto.isHidden = blendedFieldConfig.isHidden;
         dto.aggregateFunction = blendedFieldConfig.aggregateFunction;
         dto.transitiveDepth = depth;

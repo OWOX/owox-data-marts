@@ -13,6 +13,7 @@ export interface BlendedFieldConfig {
 export interface RelatedDataMart {
   id: string;
   title: string;
+  description?: string;
 }
 
 export interface DataMartRelationship {
@@ -52,6 +53,8 @@ export interface BlendedField {
   targetAlias: string;
   originalFieldName: string;
   type: string;
+  alias: string;
+  description: string;
   isHidden: boolean;
   aggregateFunction: string;
   transitiveDepth: number;

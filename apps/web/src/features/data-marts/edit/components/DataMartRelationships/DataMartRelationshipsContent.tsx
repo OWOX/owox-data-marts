@@ -119,6 +119,7 @@ export function DataMartRelationshipsContent() {
               <RelationshipCanvas
                 dataMartId={dataMartId}
                 dataMartTitle={dataMart.title}
+                dataMartDescription={dataMart.description}
                 relationships={relationships}
                 onRelationshipSelect={handleEdit}
               />

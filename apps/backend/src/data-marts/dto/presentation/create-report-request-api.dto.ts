@@ -1,4 +1,4 @@
-import { IsNotEmpty, IsString, IsObject } from 'class-validator';
+import { IsNotEmpty, IsString, IsObject, IsOptional, IsArray } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 import { DataDestinationConfig } from '../../data-destination-types/data-destination-config.type';
 
@@ -22,4 +22,15 @@ export class CreateReportRequestApiDto {
   @IsObject()
   @IsNotEmpty()
   destinationConfig: DataDestinationConfig;
+
+  @ApiProperty({
+    description: 'Selected columns for the report (null = all native columns)',
+    nullable: true,
+    required: false,
+    type: [String],
+  })
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  columnConfig?: string[] | null;
 }

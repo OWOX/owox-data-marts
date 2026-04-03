@@ -61,6 +61,7 @@ export class UpdateReportService {
     report.title = command.title;
     report.dataDestination = dataDestination;
     report.destinationConfig = command.destinationConfig;
+    report.columnConfig = command.columnConfig ?? null;
 
     const updatedReport = await this.reportRepository.save(report);
 

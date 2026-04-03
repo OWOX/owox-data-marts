@@ -31,6 +31,8 @@ import { type DataDestination } from '../../../../../data-destination';
 import { ReportFormMode } from '../../../shared';
 import { Button } from '@owox/ui/components/button';
 import LookerStudioCacheLifetimeDescription from './LookerStudioCacheLifetimeDescription.tsx';
+import { ReportColumnPicker } from '../../../../edit/components/ReportColumnPicker/ReportColumnPicker';
+import { GeneratedSqlViewer } from '../../../../edit/components/ReportColumnPicker/GeneratedSqlViewer';
 
 interface LookerStudioReportEditFormProps {
   initialReport?: DataMartReport;
@@ -108,10 +110,11 @@ export const LookerStudioReportEditForm = forwardRef<
       ) {
         reset({
           cacheLifetime: initialReport.destinationConfig.cacheLifetime,
+          columnConfig: initialReport.columnConfig ?? null,
         });
       } else if (mode === ReportFormMode.CREATE) {
         // Pre-select destination if provided
-        reset({ cacheLifetime: 300 });
+        reset({ cacheLifetime: 300, columnConfig: null });
       }
     }, [initialReport, mode, reset]);
 
@@ -166,6 +169,27 @@ export const LookerStudioReportEditForm = forwardRef<
                   </FormItem>
                 )}
               />
+            </FormSection>
+            <FormSection
+              title='Columns'
+              description='Select which columns to include in the report'
+            >
+              {dataMart?.id && (
+                <div className='space-y-3'>
+                  <ReportColumnPicker
+                    dataMartId={dataMart.id}
+                    value={form.watch('columnConfig')}
+                    onChange={value => {
+                      form.setValue('columnConfig', value, { shouldDirty: true });
+                    }}
+                  />
+                  {mode === ReportFormMode.EDIT && initialReport?.id && (
+                    <div className='pt-1'>
+                      <GeneratedSqlViewer reportId={initialReport.id} />
+                    </div>
+                  )}
+                </div>
+              )}
             </FormSection>
           </FormLayout>
           <FormActions>

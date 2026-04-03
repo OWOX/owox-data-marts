@@ -8,6 +8,8 @@ export class BlendedFieldDto {
   targetAlias: string;
   originalFieldName: string;
   type: string;
+  alias: string;
+  description: string;
   isHidden: boolean;
   aggregateFunction: string;
   transitiveDepth: number;

@@ -66,6 +66,8 @@ import type { DataDestinationFormData } from '../../../../../data-destination';
 import { useReport } from '../../../shared';
 import { isEmailDestinationConfig } from '../../../shared/model/types/data-mart-report';
 import { ReportFormActions } from '../shared/ReportFormActions';
+import { ReportColumnPicker } from '../../../../edit/components/ReportColumnPicker/ReportColumnPicker';
+import { GeneratedSqlViewer } from '../../../../edit/components/ReportColumnPicker/GeneratedSqlViewer';
 
 export interface EmailReportEditFormProps {
   initialReport?: DataMartReport;
@@ -237,6 +239,7 @@ export const EmailReportEditForm = forwardRef<HTMLFormElement, EmailReportEditFo
           messageTemplate: prefill?.messageTemplate ?? '',
           insightTemplateId: prefill?.insightTemplateId,
           templateSourceType,
+          columnConfig: null,
         });
       }
     }, [
@@ -803,6 +806,28 @@ export const EmailReportEditForm = forwardRef<HTMLFormElement, EmailReportEditFo
                     </FormItem>
                   )}
                 />
+              </FormSection>
+
+              <FormSection
+                title='Columns'
+                description='Select which columns to include in the report'
+              >
+                {dataMart?.id && (
+                  <div className='space-y-3'>
+                    <ReportColumnPicker
+                      dataMartId={dataMart.id}
+                      value={form.watch('columnConfig')}
+                      onChange={value => {
+                        form.setValue('columnConfig', value, { shouldDirty: true });
+                      }}
+                    />
+                    {mode === ReportFormMode.EDIT && initialReport?.id && (
+                      <div className='pt-1'>
+                        <GeneratedSqlViewer reportId={initialReport.id} />
+                      </div>
+                    )}
+                  </div>
+                )}
               </FormSection>
 
               <FormSection title='Automate Report Runs'>

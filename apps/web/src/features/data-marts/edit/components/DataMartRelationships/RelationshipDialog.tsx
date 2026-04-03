@@ -451,9 +451,9 @@ export function RelationshipDialog({
 
             <Separator />
 
-            {/* Blended Fields */}
+            {/* Blendable Fields */}
             <div className='flex flex-col gap-3'>
-              <p className='text-sm font-medium'>Blended Fields</p>
+              <p className='text-sm font-medium'>Blendable Fields</p>
 
               {isLoadingTarget && (
                 <p className='text-muted-foreground text-sm'>Loading target schema...</p>

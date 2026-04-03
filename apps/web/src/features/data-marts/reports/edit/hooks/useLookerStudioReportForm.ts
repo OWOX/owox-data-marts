@@ -13,6 +13,7 @@ import type { DataDestination } from '../../../../data-destination/shared/model/
 // Define the form schema - simplified for editing existing reports
 const lookerStudioReportFormSchema = z.object({
   cacheLifetime: z.number().min(300, 'Cache time must be at least 5 minutes (300 seconds)'),
+  columnConfig: z.array(z.string()).nullable(),
 });
 
 // Define the form data type
@@ -42,6 +43,7 @@ export function useLookerStudioReportForm({
         isLookerStudioDestinationConfig(initialReport.destinationConfig)
           ? initialReport.destinationConfig.cacheLifetime
           : 300,
+      columnConfig: initialReport?.columnConfig ?? null,
     },
     mode: 'onTouched',
   });
@@ -62,6 +64,7 @@ export function useLookerStudioReportForm({
           title: `Looker Studio Report`, // Keep existing
           dataDestinationId: initialReport.dataDestination.id, // Keep existing
           destinationConfig,
+          columnConfig: data.columnConfig,
         });
       } else {
         // This shouldn't happen in our use case, but keeping for compatibility
@@ -70,6 +73,7 @@ export function useLookerStudioReportForm({
           dataMartId,
           dataDestinationId: preSelectedDestination?.id ?? '',
           destinationConfig,
+          columnConfig: data.columnConfig,
         });
       }
       onSuccess?.();

@@ -94,9 +94,9 @@ export default function DataMartDataSetupContent() {
         <CollapsibleCardHeader>
           <CollapsibleCardHeaderTitle
             icon={Combine}
-            tooltip='Fields blended from related data marts'
+            tooltip='Fields available for blending from related data marts'
           >
-            Blended Fields
+            Blendable Fields
           </CollapsibleCardHeaderTitle>
         </CollapsibleCardHeader>
         <CollapsibleCardContent>

@@ -7,6 +7,7 @@ export class CreateReportCommand {
     public readonly title: string,
     public readonly dataMartId: string,
     public readonly dataDestinationId: string,
-    public readonly destinationConfig: DataDestinationConfig
+    public readonly destinationConfig: DataDestinationConfig,
+    public readonly columnConfig?: string[] | null
   ) {}
 }

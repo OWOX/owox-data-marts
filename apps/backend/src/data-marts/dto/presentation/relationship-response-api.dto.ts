@@ -7,6 +7,9 @@ export class DataMartRefApiDto {
 
   @ApiProperty({ example: 'My Data Mart' })
   title: string;
+
+  @ApiProperty({ example: 'Revenue by channel', required: false })
+  description?: string;
 }
 
 export class RelationshipResponseApiDto {

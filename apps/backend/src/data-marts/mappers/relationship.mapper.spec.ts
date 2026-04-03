@@ -146,8 +146,16 @@ describe('RelationshipMapper', () => {
 
       expect(response.id).toBe('rel-1');
       expect(response.dataStorageId).toBe('storage-1');
-      expect(response.sourceDataMart).toEqual({ id: 'source-dm-1', title: 'Source Mart' });
-      expect(response.targetDataMart).toEqual({ id: 'target-dm-2', title: 'Target Mart' });
+      expect(response.sourceDataMart).toEqual({
+        id: 'source-dm-1',
+        title: 'Source Mart',
+        description: undefined,
+      });
+      expect(response.targetDataMart).toEqual({
+        id: 'target-dm-2',
+        title: 'Target Mart',
+        description: undefined,
+      });
       expect(response.targetAlias).toBe('orders');
       expect(response.joinConditions).toEqual([
         { sourceFieldName: 'user_id', targetFieldName: 'user_id' },
