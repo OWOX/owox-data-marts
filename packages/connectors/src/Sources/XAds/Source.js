@@ -645,10 +645,8 @@ var XAdsSource = class XAdsSource extends AbstractSource {
     // location_types (REGIONS, CITIES, POSTAL_CODES) would require thousands of
     // pages and is impractical for a reference table — COUNTRIES is sufficient
     // for joining with stats_by_country.country.
-    // MAX_PAGES is a safety cap against unexpected API pagination behaviour.
-    const MAX_PAGES = 20;
 
-    for (let page = 0; page < MAX_PAGES; page++) {
+    while (true) {
       const params = { location_type: 'COUNTRIES', count: 1000 };
       if (cursor) params.cursor = cursor;
 
