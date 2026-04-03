@@ -12,7 +12,7 @@ export class SchemaActualizeTriggerController extends UiTriggerController<Schema
     super(triggerService);
   }
 
-  @Auth(Role.editor(Strategy.INTROSPECT))
+  @Auth(Role.viewer(Strategy.INTROSPECT))
   @Post()
   async createTrigger(
     @AuthContext() context: AuthorizationContext,

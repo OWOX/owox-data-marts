@@ -84,7 +84,8 @@ export class ScheduledTriggerMapper {
       dto.cronExpression,
       dto.timeZone,
       dto.isActive ?? false,
-      dto.triggerConfig
+      dto.triggerConfig,
+      context.roles ?? []
     );
   }
 
@@ -98,6 +99,8 @@ export class ScheduledTriggerMapper {
       id,
       dataMartId,
       context.projectId,
+      context.userId,
+      context.roles ?? [],
       dto.cronExpression,
       dto.timeZone,
       dto.isActive
@@ -117,7 +120,13 @@ export class ScheduledTriggerMapper {
     dataMartId: string,
     context: AuthorizationContext
   ): DeleteScheduledTriggerCommand {
-    return new DeleteScheduledTriggerCommand(id, dataMartId, context.projectId);
+    return new DeleteScheduledTriggerCommand(
+      id,
+      dataMartId,
+      context.projectId,
+      context.userId,
+      context.roles ?? []
+    );
   }
 
   toListCommand(dataMartId: string, context: AuthorizationContext): ListScheduledTriggersCommand {

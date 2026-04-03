@@ -136,8 +136,8 @@ The admin dashboard (`/auth/dashboard`) provides:
 ### User Roles
 
 - **Admin**: Full access, can manage all users, reset passwords, and invite any role
-- **Editor**: Can invite editors and viewers
-- **Viewer**: Can only invite other viewers
+- **Technical User**: Can invite Technical Users and Business Users
+- **Business User**: Can only invite other Business Users
 
 ### Password Reset
 

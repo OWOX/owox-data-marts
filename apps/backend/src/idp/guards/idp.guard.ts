@@ -113,6 +113,12 @@ export class IdpGuard implements CanActivate {
     return tokenPayload;
   }
 
+  private static readonly ROLE_DISPLAY_NAMES: Record<string, string> = {
+    admin: 'Project Admin',
+    editor: 'Technical User',
+    viewer: 'Business User',
+  };
+
   private checkRoleAuthorization(request: AuthenticatedRequest, requiredRole: RoleType): void {
     if (!request.idpContext?.roles) {
       throw new AuthorizationError('Access denied: No roles information available');
@@ -130,7 +136,8 @@ export class IdpGuard implements CanActivate {
     );
 
     if (!hasRequiredRole) {
-      throw new AuthorizationError(`Access denied. Required role: ${requiredRole}`);
+      const displayName = IdpGuard.ROLE_DISPLAY_NAMES[requiredRole] ?? requiredRole;
+      throw new AuthorizationError(`Access denied. Required role: ${displayName}`);
     }
   }
 }

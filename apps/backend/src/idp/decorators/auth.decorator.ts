@@ -3,6 +3,12 @@ import { ApiBearerAuth, ApiUnauthorizedResponse, ApiForbiddenResponse } from '@n
 import type { RoleConfig } from '../types/role-config.types';
 import { IdpGuard } from '../guards/idp.guard';
 
+const ROLE_DISPLAY_NAMES: Record<string, string> = {
+  admin: 'Project Admin',
+  editor: 'Technical User',
+  viewer: 'Business User',
+};
+
 /**
  * Decorator to require authentication and/or authorization for a route
  *
@@ -41,7 +47,7 @@ export const Auth = (roleConfig: RoleConfig) => {
   if (roleConfig.role) {
     decorators.push(
       ApiForbiddenResponse({
-        description: `Forbidden. Required role: ${roleConfig.role}`,
+        description: `Forbidden. Required role: ${ROLE_DISPLAY_NAMES[roleConfig.role] ?? roleConfig.role}`,
       })
     );
   }

@@ -1,4 +1,4 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, ForbiddenException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { OwoxProducer } from '@owox/internal-helpers';
 import { Repository } from 'typeorm';
@@ -12,6 +12,8 @@ import { TriggerCreatedEvent } from '../events/trigger-created.event';
 import { ScheduledTriggerMapper } from '../mappers/scheduled-trigger.mapper';
 import { DataMartService } from '../services/data-mart.service';
 import { ScheduledTriggerValidatorFacade } from '../scheduled-trigger-types/facades/scheduled-trigger-validator.facade';
+import { ReportAccessService } from '../services/report-access.service';
+import { ScheduledTriggerType } from '../scheduled-trigger-types/enums/scheduled-trigger-type.enum';
 
 @Injectable()
 export class CreateScheduledTriggerService {
@@ -22,10 +24,13 @@ export class CreateScheduledTriggerService {
     private readonly dataMartService: DataMartService,
     private readonly mapper: ScheduledTriggerMapper,
     @Inject(OWOX_PRODUCER)
-    private readonly producer: OwoxProducer
+    private readonly producer: OwoxProducer,
+    private readonly reportAccessService: ReportAccessService
   ) {}
 
   async run(command: CreateScheduledTriggerCommand): Promise<ScheduledTriggerDto> {
+    await this.checkAccess(command);
+
     const dataMart = await this.dataMartService.getByIdAndProjectId(
       command.dataMartId,
       command.projectId
@@ -73,5 +78,32 @@ export class CreateScheduledTriggerService {
     );
 
     return this.mapper.toDomainDto(newTrigger);
+  }
+
+  private async checkAccess(command: CreateScheduledTriggerCommand): Promise<void> {
+    if (command.type === ScheduledTriggerType.REPORT_RUN) {
+      const reportId = (command.triggerConfig as { reportId?: string })?.reportId;
+      if (!reportId) {
+        throw new ForbiddenException('Report ID is required for REPORT_RUN triggers');
+      }
+
+      const canMutate = await this.reportAccessService.canMutate(
+        command.userId,
+        command.roles,
+        reportId,
+        command.projectId
+      );
+
+      if (!canMutate) {
+        throw new ForbiddenException(
+          'You do not have permission to create triggers for this report. Only report owners can manage report triggers.'
+        );
+      }
+    } else {
+      // CONNECTOR_RUN requires editor role
+      if (!command.roles.includes('editor') && !command.roles.includes('admin')) {
+        throw new ForbiddenException('Only Technical Users can create connector run triggers.');
+      }
+    }
   }
 }

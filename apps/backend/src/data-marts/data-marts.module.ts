@@ -3,6 +3,7 @@ import { Module, MiddlewareConsumer, RequestMethod } from '@nestjs/common';
 import { DataMartController } from './controllers/data-mart.controller';
 import { DataStorageController } from './controllers/data-storage.controller';
 import { DataDestinationController } from './controllers/data-destination.controller';
+import { ReportAccessService } from './services/report-access.service';
 import { LookerStudioConnectorController } from './controllers/external/looker-studio-connector.controller';
 import { MarkdownParserController } from './controllers/markdown-parser.controller';
 import { ReportController } from './controllers/report.controller';
@@ -506,6 +507,7 @@ import { ReportRunTriggerHandlerService } from './services/report-run-trigger-ha
     UpdateScheduledTriggerService,
     DeleteScheduledTriggerService,
     ReportService,
+    ReportAccessService,
     ReportDataCacheService,
     ConnectorOutputCaptureService,
     ConnectorMessageParserService,

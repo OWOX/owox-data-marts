@@ -46,7 +46,7 @@ For **Successful runs** emails, each Data Mart section shows:
 
 > ☝️ Only project members with email notifications enabled will receive emails. If a member has notifications disabled in their account settings, they will appear with a warning badge in the receivers list.
 
-New project members with **Admin** or **Editor** roles are automatically added as receivers. Members who manually unsubscribe will not be re-added automatically. See [Automatic Subscription](./notification-settings.md#automatic-subscription) for details.
+New project members with **Admin** or **Technical User** roles are automatically added as receivers. Members who manually unsubscribe will not be re-added automatically. See [Automatic Subscription](./notification-settings.md#automatic-subscription) for details.
 
 ---
 

@@ -24,6 +24,7 @@ import {
   ReportExecutionPolicy,
   ReportExecutionPolicyResolver,
 } from './report-execution-policy.resolver';
+import { ReportAccessService } from '../services/report-access.service';
 
 const ERROR_NAMES = {
   ABORT: 'AbortError',
@@ -85,7 +86,8 @@ export class RunReportService {
     private readonly availableDestinationTypesService: AvailableDestinationTypesService,
     private readonly projectBalanceService: ProjectBalanceService,
     private readonly reportExecutionPolicyResolver: ReportExecutionPolicyResolver,
-    private readonly reportRunTriggerService: ReportRunTriggerService
+    private readonly reportRunTriggerService: ReportRunTriggerService,
+    private readonly reportAccessService: ReportAccessService
   ) {}
 
   /**
@@ -98,6 +100,15 @@ export class RunReportService {
   @Transactional()
   async run(command: RunReportCommand, _signal?: AbortSignal): Promise<void> {
     this.validateCanRun();
+
+    if (command.projectId) {
+      await this.reportAccessService.checkMutateAccess(
+        command.userId,
+        command.roles ?? [],
+        command.reportId,
+        command.projectId
+      );
+    }
 
     this.logger.log(`Creating report run trigger for report ${command.reportId}`);
 

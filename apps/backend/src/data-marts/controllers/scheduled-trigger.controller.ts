@@ -34,7 +34,7 @@ export class ScheduledTriggerController {
     private readonly mapper: ScheduledTriggerMapper
   ) {}
 
-  @Auth(Role.editor(Strategy.INTROSPECT))
+  @Auth(Role.viewer(Strategy.INTROSPECT))
   @Post()
   @CreateScheduledTriggerSpec()
   async create(
@@ -72,7 +72,7 @@ export class ScheduledTriggerController {
     return this.mapper.toResponse(trigger);
   }
 
-  @Auth(Role.editor(Strategy.INTROSPECT))
+  @Auth(Role.viewer(Strategy.INTROSPECT))
   @Put(':id')
   @UpdateScheduledTriggerSpec()
   async update(
@@ -86,7 +86,7 @@ export class ScheduledTriggerController {
     return this.mapper.toResponse(trigger);
   }
 
-  @Auth(Role.editor(Strategy.INTROSPECT))
+  @Auth(Role.viewer(Strategy.INTROSPECT))
   @Delete(':id')
   @DeleteScheduledTriggerSpec()
   async delete(

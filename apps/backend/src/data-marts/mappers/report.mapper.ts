@@ -7,6 +7,7 @@ import { CreateReportRequestApiDto } from '../dto/presentation/create-report-req
 import { UpdateReportRequestApiDto } from '../dto/presentation/update-report-request-api.dto';
 import { ReportResponseApiDto } from '../dto/presentation/report-response-api.dto';
 import { GetReportCommand } from '../dto/domain/get-report.command';
+import { DeleteReportCommand } from '../dto/domain/delete-report.command';
 import { ListReportsByDataMartCommand } from '../dto/domain/list-reports-by-data-mart.command';
 import { ListReportsByProjectCommand } from '../dto/domain/list-reports-by-project.command';
 import { ListReportsByInsightTemplateCommand } from '../dto/domain/list-reports-by-insight-template.command';
@@ -102,6 +103,10 @@ export class ReportMapper {
     return new GetReportCommand(id, context.projectId);
   }
 
+  toDeleteCommand(id: string, context: AuthorizationContext): DeleteReportCommand {
+    return new DeleteReportCommand(id, context.projectId, context.userId, context.roles ?? []);
+  }
+
   toListByDataMartCommand(
     dataMartId: string,
     context: AuthorizationContext
@@ -136,7 +141,9 @@ export class ReportMapper {
     return {
       reportId: id,
       userId: context.userId,
+      roles: context.roles ?? [],
       runType,
+      projectId: context.projectId,
     };
   }
 
@@ -148,6 +155,8 @@ export class ReportMapper {
     return new UpdateReportCommand(
       id,
       context.projectId,
+      context.userId,
+      context.roles ?? [],
       dto.title,
       dto.dataDestinationId,
       dto.destinationConfig,

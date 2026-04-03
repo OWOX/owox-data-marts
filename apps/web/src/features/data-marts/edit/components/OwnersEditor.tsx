@@ -15,6 +15,7 @@ import type { ProjectMember } from '../../../notifications/project/types';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@owox/ui/components/tooltip';
 import { useFlags } from '../../../../app/store/hooks/useFlags';
 import { checkVisible } from '../../../../utils/check-visible';
+import { getRoleDisplayName } from '../../../idp/utils/role-display-name';
 
 interface OwnersEditorProps {
   ownerUsers: UserProjectionDto[];
@@ -269,8 +270,8 @@ function MemberCheckbox({
         className='flex flex-1 cursor-pointer items-center justify-between text-sm'
       >
         <span className='truncate'>{member.displayName ?? member.email}</span>
-        <span className='text-muted-foreground/75 ml-1 text-xs font-normal capitalize'>
-          {member.role}
+        <span className='text-muted-foreground/75 ml-1 text-xs font-normal'>
+          {getRoleDisplayName(member.role)}
         </span>
       </Label>
     </div>
@@ -310,7 +311,7 @@ function OutboundMemberCheckbox({
               {member.displayName ?? member.email}
               <AlertTriangle className='h-3.5 w-3.5 shrink-0 text-yellow-500' />
             </span>
-            <span className='ml-1 text-xs capitalize'>{member.role}</span>
+            <span className='ml-1 text-xs'>{getRoleDisplayName(member.role)}</span>
           </span>
         </div>
       </TooltipTrigger>

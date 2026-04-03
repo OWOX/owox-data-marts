@@ -1,6 +1,10 @@
 import { Repository } from 'typeorm';
 import { Transactional } from 'typeorm-transactional';
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { AvailableDestinationTypesService } from '../data-destination-types/available-destination-types.service';
 import { Report } from '../entities/report.entity';
@@ -15,6 +19,7 @@ import { ReportOwner } from '../entities/report-owner.entity';
 import { resolveOwnerUsers } from '../utils/resolve-owner-users';
 import { syncOwners } from '../utils/sync-owners';
 import { IdpProjectionsFacade } from '../../idp/facades/idp-projections.facade';
+import { ReportAccessService } from '../services/report-access.service';
 
 @Injectable()
 export class UpdateReportService {
@@ -28,7 +33,8 @@ export class UpdateReportService {
     private readonly userProjectionsFetcherService: UserProjectionsFetcherService,
     private readonly idpProjectionsFacade: IdpProjectionsFacade,
     @InjectRepository(ReportOwner)
-    private readonly reportOwnerRepository: Repository<ReportOwner>
+    private readonly reportOwnerRepository: Repository<ReportOwner>,
+    private readonly reportAccessService: ReportAccessService
   ) {}
 
   @Transactional()
@@ -47,6 +53,13 @@ export class UpdateReportService {
     if (!report) {
       throw new NotFoundException(`Report with ID ${command.id} not found`);
     }
+
+    await this.reportAccessService.checkMutateAccess(
+      command.userId,
+      command.roles,
+      command.id,
+      command.projectId
+    );
 
     // Get the data destination if it's being changed
     let dataDestination: DataDestination | null = report.dataDestination;
@@ -74,6 +87,19 @@ export class UpdateReportService {
     const updatedReport = await this.reportRepository.save(report);
 
     if (command.ownerIds !== undefined) {
+      for (const ownerId of command.ownerIds) {
+        const canOwn = await this.reportAccessService.canBeOwner(
+          ownerId,
+          report,
+          command.projectId
+        );
+        if (!canOwn) {
+          throw new BadRequestException(
+            `User ${ownerId} cannot be added as report owner — not a valid project member or lacks required access.`
+          );
+        }
+      }
+
       await syncOwners(
         this.reportOwnerRepository,
         'reportId',
