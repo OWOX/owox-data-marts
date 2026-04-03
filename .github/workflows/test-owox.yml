@@ -98,6 +98,11 @@ jobs:
         run: NODE_OPTIONS=--experimental-vm-modules npx jest --coverage --coverageReporters json-summary
         continue-on-error: true
 
+      - name: Run coverage for @owox/web
+        working-directory: apps/web
+        run: npx vitest run --coverage.reporter=json-summary --coverage.reportOnFailure
+        continue-on-error: true
+
       - name: Jest Coverage Comment
         uses: MishaKav/jest-coverage-comment@main
         with:
@@ -105,3 +110,4 @@ jobs:
           multiple-files: |
             @owox/idp-better-auth, packages/idp-better-auth/coverage/coverage-summary.json
             @owox/idp-owox-better-auth, packages/idp-owox-better-auth/coverage/coverage-summary.json
+            @owox/web, apps/web/coverage/coverage-summary.json
