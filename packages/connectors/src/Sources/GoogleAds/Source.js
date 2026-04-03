@@ -380,6 +380,8 @@ var GoogleAdsSource = class GoogleAdsSource extends AbstractSource {
         return 'ad_group_criterion';
       case 'geo_stats':
         return 'geographic_view';
+      case 'geo_target_constants':
+        return 'geo_target_constant';
       default:
         throw new Error(`Unknown resource name for nodeName: ${nodeName}`);
     }
@@ -387,6 +389,8 @@ var GoogleAdsSource = class GoogleAdsSource extends AbstractSource {
 
   /**
    * Build GAQL query based on node type
+   * For time series nodes, adds a WHERE segments.date filter for the given date.
+   * For catalog nodes with a whereClause defined in the schema, appends it as a static WHERE filter.
    * @param {Object} options - Query options
    * @param {string} options.nodeName - Name of the node
    * @param {Array<string>} options.fields - Field names to fetch
@@ -402,6 +406,8 @@ var GoogleAdsSource = class GoogleAdsSource extends AbstractSource {
     if (startDate && this.fieldsSchema[nodeName].isTimeSeries) {
       const formattedDate = DateUtils.formatDate(startDate);
       query += ` WHERE segments.date = '${formattedDate}'`;
+    } else if (this.fieldsSchema[nodeName].whereClause) {
+      query += ` WHERE ${this.fieldsSchema[nodeName].whereClause}`;
     }
     
     return query;

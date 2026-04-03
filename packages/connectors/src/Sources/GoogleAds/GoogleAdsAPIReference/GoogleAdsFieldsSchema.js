@@ -77,5 +77,15 @@ const GoogleAdsFieldsSchema = {
     uniqueKeys: ['campaign_id', 'country_criterion_id', 'location_type', 'date'],
     destinationName: 'google_ads_geo_stats',
     isTimeSeries: true
+  },
+  geo_target_constants: {
+    overview: "Google Ads Geo Target Constants",
+    description: "Geographic target constant dimension table - join with geo_stats on country_criterion_id",
+    documentation: "https://developers.google.com/google-ads/api/fields/v21/geo_target_constant",
+    fields: geoTargetConstantFields,
+    uniqueKeys: ['geo_target_constant_id'],
+    destinationName: 'google_ads_geo_target_constants',
+    whereClause: "geo_target_constant.target_type = 'Country'",
+    isTimeSeries: false
   }
 };

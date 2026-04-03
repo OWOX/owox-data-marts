@@ -7,9 +7,9 @@
 
 var geoTargetFields = {
   'country_criterion_id': {
-    'description': 'Criterion ID for the country (integer ID mapping to GeoTargetConstant)',
+    'description': 'Criterion ID for the country (maps to geo_target_constant_id in geo_target_constants table)',
     'apiName': 'geographic_view.country_criterion_id',
-    'type': DATA_TYPES.NUMBER
+    'type': DATA_TYPES.STRING
   },
   'location_type': {
     'description': 'Geo targeting type: AREA_OF_INTEREST (user searched for this location) or LOCATION_OF_PRESENCE (user was physically in this location)',
