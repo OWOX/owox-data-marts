@@ -246,14 +246,18 @@ function NodeComponent(props: { data: Schemes['Node']; emit: (e: ReactArea2D<Sch
       </div>
       <div
         className='text-muted-foreground flex items-center gap-2'
-        style={{ padding: '6px 14px 8px', fontSize: 11 }}
+        style={{ padding: '6px 14px 8px', fontSize: 11, minWidth: 0 }}
       >
         {n.targetAlias && (
-          <Badge variant='secondary' className='px-1.5 py-0 text-[10px]'>
+          <Badge
+            variant='secondary'
+            className='inline-block max-w-[120px] truncate px-1.5 py-0 text-[10px]'
+            title={n.targetAlias}
+          >
             {n.targetAlias}
           </Badge>
         )}
-        <span>
+        <span className='ml-auto shrink-0'>
           {n.joinCount ?? 0} join{n.joinCount !== 1 ? 's' : ''} &middot; {n.fieldCount ?? 0} field
           {n.fieldCount !== 1 ? 's' : ''}
         </span>
@@ -561,8 +565,29 @@ async function setupEditor(
   };
   await fitView();
 
-  // --- Lock dragging, handle clicks, sync grid ---
+  // --- Restrict panning so content always stays partially visible ---
+  AreaExtensions.restrictor(area, {
+    translation: () => {
+      const { k } = area.area.transform;
+      const bb = AreaExtensions.getBoundingBox(area, editor.getNodes());
+      const rect = container.getBoundingClientRect();
+      const pad = 150;
+      return {
+        left: pad - bb.right * k,
+        right: rect.width - pad - bb.left * k,
+        top: pad - bb.bottom * k,
+        bottom: rect.height - pad - bb.top * k,
+      };
+    },
+  });
+
+  // --- Lock dragging, handle clicks, limit zoom, sync grid ---
   area.addPipe(ctx => {
+    if (ctx.type === 'zoom') {
+      if (ctx.data.source === 'dblclick') return undefined;
+      const nextK = area.area.transform.k * ctx.data.zoom;
+      if (nextK < 0.33 || nextK > 3) return undefined;
+    }
     if (ctx.type === 'nodetranslate') return undefined;
     if (ctx.type === 'nodepicked') {
       const node = editor.getNode(ctx.data.id);
@@ -656,7 +681,7 @@ export function RelationshipCanvas({
         .rel-canvas [data-testid="minimap"] { transform: scale(0.5); transform-origin: bottom right; }
       `}</style>
       <div className='absolute top-3 right-3 z-10 flex items-center gap-2'>
-        <div className='bg-background/80 flex items-center gap-2 rounded-md border px-2.5 py-1 backdrop-blur-sm'>
+        <div className='bg-background/80 flex h-8 items-center gap-2 rounded-md border px-2.5 backdrop-blur-sm'>
           <Switch id='show-transient' checked={showTransient} onCheckedChange={setShowTransient} />
           <Label htmlFor='show-transient' className='cursor-pointer text-xs whitespace-nowrap'>
             Show transient relations
