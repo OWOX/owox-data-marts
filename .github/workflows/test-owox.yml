@@ -37,6 +37,12 @@ jobs:
           - name: 'Overall test owox'
             command: 'npm run test -w owox'
             timeout: 10
+          - name: 'Overall test @owox/idp-better-auth'
+            command: 'npm run test -w @owox/idp-better-auth'
+            timeout: 10
+          - name: 'Overall test @owox/idp-owox-better-auth'
+            command: 'npm run test -w @owox/idp-owox-better-auth'
+            timeout: 10
 
     steps:
       - name: Checkout repository
@@ -58,3 +64,47 @@ jobs:
         run: ${{ matrix.test.command }}
         env:
           NODE_ENV: test
+
+  # Coverage comment on PRs
+  coverage:
+    name: Coverage Report
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci --prefer-offline --no-audit --ignore-scripts --no-fund --loglevel error
+
+      - name: Build all internal packages
+        run: npm run build -w owox
+
+      - name: Run coverage for @owox/idp-better-auth
+        run: NODE_OPTIONS=--experimental-vm-modules npx jest --config packages/idp-better-auth/jest.config.js --coverage --coverageReporters json-summary --coverageDirectory coverage/idp-better-auth
+        continue-on-error: true
+
+      - name: Run coverage for @owox/idp-owox-better-auth
+        run: NODE_OPTIONS=--experimental-vm-modules npx jest --config packages/idp-owox-better-auth/jest.config.js --coverage --coverageReporters json-summary --coverageDirectory coverage/idp-owox-better-auth
+        continue-on-error: true
+
+      - name: Run coverage for @owox/backend
+        run: npm run test -w @owox/backend -- --coverage --coverageReporters json-summary --coverageDirectory ../../coverage/backend
+        continue-on-error: true
+
+      - name: Jest Coverage Comment
+        uses: MishaKav/jest-coverage-comment@main
+        with:
+          title: Test Coverage
+          multiple-files: |
+            @owox/idp-better-auth, ./coverage/idp-better-auth/coverage-summary.json
+            @owox/idp-owox-better-auth, ./coverage/idp-owox-better-auth/coverage-summary.json
+            @owox/backend, ./coverage/backend/coverage-summary.json

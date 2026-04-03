@@ -90,17 +90,19 @@ export class AuthenticationService {
         throw new Error('No session found');
       }
 
-      const cookies = req.headers.cookie || '';
-      const sessionTokenMatch = cookies.match(/refreshToken=([^;]+)/);
-      const sessionToken =
-        sessionTokenMatch && sessionTokenMatch[1] ? decodeURIComponent(sessionTokenMatch[1]) : null;
+      const userRole = this.userManagementService
+        ? await this.userManagementService.getUserRole(session.user.id)
+        : null;
 
-      if (!sessionToken) {
-        logger.error('No session token found in cookies');
-        throw new Error('No session token found');
-      }
+      const payload = {
+        userId: session.user.id,
+        projectId: '0',
+        email: session.user.email,
+        fullName: session.user.name || session.user.email,
+        ...(userRole ? { roles: [userRole] } : {}),
+      };
 
-      return await this.cryptoService.encrypt(sessionToken);
+      return await this.cryptoService.encrypt(JSON.stringify(payload));
     } catch (error) {
       logger.error('Failed to generate access token', {}, error as Error);
       throw new Error('Failed to generate access token');

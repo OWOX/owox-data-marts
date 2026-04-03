@@ -179,6 +179,9 @@ export class BetterAuthProvider
         return;
       }
 
+      // Always ensure the primary admin is in the default organization
+      await this.userManagementService.ensureUserInDefaultOrganization(existingUser.id, 'admin');
+
       const hasPassword = await this.store.userHasPassword(existingUser.id);
 
       if (!hasPassword) {
