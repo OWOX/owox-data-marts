@@ -75,6 +75,8 @@ const GoogleAdsFieldsSchema = {
     documentation: "https://developers.google.com/google-ads/api/fields/v21/geographic_view",
     fields: geoTargetFields,
     uniqueKeys: ['campaign_id', 'country_criterion_id', 'location_type', 'date'],
+    defaultFields: ['campaign_id', 'country_criterion_id', 'location_type', 'date',
+    'impressions', 'clicks', 'cost_micros', 'conversions'],
     destinationName: 'google_ads_geo_stats',
     isTimeSeries: true
   },
@@ -84,8 +86,10 @@ const GoogleAdsFieldsSchema = {
     documentation: "https://developers.google.com/google-ads/api/fields/v21/geo_target_constant",
     fields: geoTargetConstantFields,
     uniqueKeys: ['geo_target_constant_id'],
+    defaultFields: ['geo_target_constant_id', 'name', 'country_code', 'canonical_name'],
     destinationName: 'google_ads_geo_target_constants',
     whereClause: "geo_target_constant.target_type = 'Country'",
+    isGlobalResource: true,
     isTimeSeries: false
   }
 };
