@@ -279,6 +279,16 @@ export function RelationshipDialog({
   const sourceFields = getSchemaFields(sourceDM);
   const targetFields = getSchemaFields(targetDM);
 
+  const watchedJoinConditions = form.watch('joinConditions');
+  const joinTypeMismatches = watchedJoinConditions.map(jc => {
+    if (!jc.sourceFieldName || !jc.targetFieldName) return null;
+    const sourceType = sourceFields.find(f => f.name === jc.sourceFieldName)?.type;
+    const targetType = targetFields.find(f => f.name === jc.targetFieldName)?.type;
+    if (!sourceType || !targetType) return null;
+    return sourceType !== targetType ? { sourceType, targetType } : null;
+  });
+  const hasTypeMismatch = joinTypeMismatches.some(Boolean);
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className='flex max-h-[90vh] !max-w-4xl flex-col overflow-hidden'>
@@ -364,84 +374,110 @@ export function RelationshipDialog({
                 </Button>
               </div>
 
-              {joinFields.map((jf, index) => (
-                <div key={jf.id} className='flex items-start gap-2'>
-                  <FormField
-                    control={form.control}
-                    name={`joinConditions.${index}.sourceFieldName`}
-                    render={({ field }) => (
-                      <FormItem variant='light' className='flex-1'>
-                        {index === 0 && <FormLabel>Source field</FormLabel>}
-                        <FormControl>
-                          <Select value={field.value} onValueChange={field.onChange}>
-                            <SelectTrigger className='w-full'>
-                              <SelectValue placeholder='Select field...' />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {sourceFields.map(f => (
-                                <SelectItem key={f.name} value={f.name}>
-                                  {f.name}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
+              {joinFields.map((jf, index) => {
+                const mismatch = joinTypeMismatches[index];
+                return (
+                  <div key={jf.id} className='flex flex-col gap-1'>
+                    <div className='flex items-start gap-2'>
+                      <FormField
+                        control={form.control}
+                        name={`joinConditions.${index}.sourceFieldName`}
+                        render={({ field }) => (
+                          <FormItem variant='light' className='flex-1'>
+                            {index === 0 && <FormLabel>Source field</FormLabel>}
+                            <FormControl>
+                              <Select value={field.value} onValueChange={field.onChange}>
+                                <SelectTrigger
+                                  className={cn('w-full', mismatch && 'border-destructive')}
+                                >
+                                  <SelectValue placeholder='Select field...' />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {sourceFields.map(f => (
+                                    <SelectItem key={f.name} value={f.name}>
+                                      <span className='flex w-full items-center justify-between gap-2'>
+                                        <span className='truncate'>{f.name}</span>
+                                        <span className='text-muted-foreground shrink-0 text-xs'>
+                                          {f.type}
+                                        </span>
+                                      </span>
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
 
-                  <div className={cn('flex items-center', index === 0 ? 'mt-7' : 'mt-2')}>
-                    <span className='text-muted-foreground text-sm'>=</span>
+                      <div className={cn('flex items-center', index === 0 ? 'mt-8' : 'mt-2')}>
+                        <span className='text-muted-foreground text-sm'>=</span>
+                      </div>
+
+                      <FormField
+                        control={form.control}
+                        name={`joinConditions.${index}.targetFieldName`}
+                        render={({ field }) => (
+                          <FormItem variant='light' className='flex-1'>
+                            {index === 0 && <FormLabel>Target field</FormLabel>}
+                            <FormControl>
+                              <Select
+                                value={field.value}
+                                onValueChange={field.onChange}
+                                disabled={!watchedTargetId || isLoadingTarget}
+                              >
+                                <SelectTrigger
+                                  className={cn('w-full', mismatch && 'border-destructive')}
+                                >
+                                  <SelectValue placeholder='Select field...' />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {targetFields.map(f => (
+                                    <SelectItem key={f.name} value={f.name}>
+                                      <span className='flex w-full items-center justify-between gap-2'>
+                                        <span className='truncate'>{f.name}</span>
+                                        <span className='text-muted-foreground shrink-0 text-xs'>
+                                          {f.type}
+                                        </span>
+                                      </span>
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+
+                      <Button
+                        type='button'
+                        variant='ghost'
+                        size='sm'
+                        onClick={() => {
+                          removeJoin(index);
+                        }}
+                        disabled={joinFields.length === 1}
+                        className={cn(
+                          'text-destructive hover:text-destructive',
+                          index === 0 ? 'mt-7' : 'mt-2'
+                        )}
+                        aria-label='Remove join condition'
+                      >
+                        <Trash2 className='h-3.5 w-3.5' />
+                      </Button>
+                    </div>
+
+                    {mismatch != null && (
+                      <p className='text-destructive text-xs'>
+                        Type mismatch: source is {mismatch.sourceType}, target is{' '}
+                        {mismatch.targetType}
+                      </p>
+                    )}
                   </div>
-
-                  <FormField
-                    control={form.control}
-                    name={`joinConditions.${index}.targetFieldName`}
-                    render={({ field }) => (
-                      <FormItem variant='light' className='flex-1'>
-                        {index === 0 && <FormLabel>Target field</FormLabel>}
-                        <FormControl>
-                          <Select
-                            value={field.value}
-                            onValueChange={field.onChange}
-                            disabled={!watchedTargetId || isLoadingTarget}
-                          >
-                            <SelectTrigger className='w-full'>
-                              <SelectValue placeholder='Select field...' />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {targetFields.map(f => (
-                                <SelectItem key={f.name} value={f.name}>
-                                  {f.name}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  <Button
-                    type='button'
-                    variant='ghost'
-                    size='sm'
-                    onClick={() => {
-                      removeJoin(index);
-                    }}
-                    disabled={joinFields.length === 1}
-                    className={cn(
-                      'text-destructive hover:text-destructive',
-                      index === 0 ? 'mt-7' : 'mt-2'
-                    )}
-                    aria-label='Remove join condition'
-                  >
-                    <Trash2 className='h-3.5 w-3.5' />
-                  </Button>
-                </div>
-              ))}
+                );
+              })}
               {form.formState.errors.joinConditions?.root && (
                 <p className='text-destructive text-sm'>
                   {form.formState.errors.joinConditions.root.message}
@@ -573,7 +609,7 @@ export function RelationshipDialog({
               >
                 Cancel
               </Button>
-              <Button type='submit' disabled={isSaving}>
+              <Button type='submit' disabled={isSaving || hasTypeMismatch}>
                 {isSaving ? 'Saving...' : isEdit ? 'Save Changes' : 'Add Relationship'}
               </Button>
             </DialogFooter>
