@@ -16,6 +16,8 @@ import { Button } from '@owox/ui/components/button';
 import { configurationFieldRender } from '../ConfigurationFieldRender';
 import { AppWizardStepLabel } from '@owox/ui/components/common/wizard';
 
+const SOURCE_CREDENTIAL_KEY = '_source_credential_id';
+
 interface OauthRenderFactoryProps {
   specification: ConnectorSpecificationResponseApiDto;
   option?: ConnectorSpecificationOneOfResponseApiDto;
@@ -60,7 +62,7 @@ export function OauthRenderFactory({
       option?.value && savedConfig
         ? (savedConfig[option.value] as Record<string, unknown>)
         : savedConfig;
-    return configValue?._source_credential_id as string | undefined;
+    return configValue?.[SOURCE_CREDENTIAL_KEY] as string | undefined;
   }, [configuration, specification.name, option?.value]);
 
   const fieldPath = useMemo(() => {
@@ -86,7 +88,7 @@ export function OauthRenderFactory({
   const detectedMode = useMemo(() => {
     const savedConfig = nestedConfiguration;
 
-    if ('_source_credential_id' in savedConfig) {
+    if (SOURCE_CREDENTIAL_KEY in savedConfig) {
       return false;
     }
 
@@ -105,7 +107,13 @@ export function OauthRenderFactory({
   const [isManualMode, setIsManualMode] = useState(detectedMode);
 
   useEffect(() => {
-    const hasOAuthCredential = '_source_credential_id' in nestedConfiguration;
+    const hasOAuthCredential = SOURCE_CREDENTIAL_KEY in nestedConfiguration;
+
+    if (hasOAuthCredential) {
+      setIsManualMode(false);
+      return;
+    }
+
     const hasManualFields =
       option?.items &&
       Object.keys(option.items).some(
@@ -115,12 +123,10 @@ export function OauthRenderFactory({
           nestedConfiguration[key] !== ''
       );
 
-    if (hasOAuthCredential && isManualMode) {
-      setIsManualMode(false);
-    } else if (hasManualFields && !isManualMode) {
+    if (hasManualFields) {
       setIsManualMode(true);
     }
-  }, [nestedConfiguration, option, isManualMode]);
+  }, [nestedConfiguration, option]);
 
   const handleNestedValueChange = (itemName: string, value: unknown) => {
     if (!option?.value) return;
@@ -158,12 +164,12 @@ export function OauthRenderFactory({
         onValueChange(specification.name, {
           ...currentConfig,
           [option.value]: {
-            _source_credential_id: exchanged.credentialId,
+            [SOURCE_CREDENTIAL_KEY]: exchanged.credentialId,
           },
         });
       } else {
         onValueChange(specification.name, {
-          _source_credential_id: exchanged.credentialId,
+          [SOURCE_CREDENTIAL_KEY]: exchanged.credentialId,
         });
       }
     } catch (err) {
