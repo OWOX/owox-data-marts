@@ -1,4 +1,4 @@
-import { forwardRef, useEffect } from 'react';
+import { forwardRef, useEffect, useState } from 'react';
 
 import {
   type DataMartReport,
@@ -79,6 +79,7 @@ export const LookerStudioReportEditForm = forwardRef<
     const formId = 'looker-studio-edit-form';
 
     const { dataMart } = useOutletContext<DataMartContextType>();
+    const [hasBlendedSelection, setHasBlendedSelection] = useState(false);
 
     const {
       isDirty,
@@ -170,20 +171,18 @@ export const LookerStudioReportEditForm = forwardRef<
                 )}
               />
             </FormSection>
-            <FormSection
-              title='Columns'
-              description='Select which columns to include in the report'
-            >
+            <FormSection title='Columns' tooltip='Select which columns to include in the report'>
               {dataMart?.id && (
-                <div className='space-y-3'>
+                <div className='border-border space-y-3 rounded-md border-b bg-white px-4 py-3 dark:border-transparent dark:bg-white/4'>
                   <ReportColumnPicker
                     dataMartId={dataMart.id}
                     value={form.watch('columnConfig')}
                     onChange={value => {
                       form.setValue('columnConfig', value, { shouldDirty: true });
                     }}
+                    onBlendedSelectionChange={setHasBlendedSelection}
                   />
-                  {mode === ReportFormMode.EDIT && initialReport?.id && (
+                  {hasBlendedSelection && mode === ReportFormMode.EDIT && initialReport?.id && (
                     <div className='pt-1'>
                       <GeneratedSqlViewer reportId={initialReport.id} />
                     </div>

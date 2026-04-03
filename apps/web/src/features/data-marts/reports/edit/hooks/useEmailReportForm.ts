@@ -28,7 +28,10 @@ export const EmailReportEditFormSchema = z
     insightTemplateId: z.string().optional(),
     // Track which template source type is selected
     templateSourceType: z.nativeEnum(TemplateSourceTypeEnum),
-    columnConfig: z.array(z.string()).nullable(),
+    columnConfig: z
+      .array(z.string())
+      .nullable()
+      .refine(val => val === null || val.length > 0, 'At least one column must be selected'),
   })
   .refine(
     data => {

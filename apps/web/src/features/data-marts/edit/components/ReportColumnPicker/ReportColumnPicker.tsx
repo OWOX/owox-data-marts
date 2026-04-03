@@ -1,4 +1,6 @@
+import { useEffect, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { cn } from '@owox/ui/lib/utils';
 import { Checkbox } from '@owox/ui/components/checkbox';
 import { Skeleton } from '@owox/ui/components/skeleton';
 import {
@@ -36,6 +38,7 @@ export interface ReportColumnPickerProps {
   dataMartId: string;
   value: string[] | null;
   onChange: (value: string[] | null) => void;
+  onBlendedSelectionChange?: (hasBlendedSelection: boolean) => void;
 }
 
 const BLENDABLE_SCHEMA_QUERY_KEY = 'blendable-schema';
@@ -44,7 +47,12 @@ const BLENDABLE_SCHEMA_QUERY_KEY = 'blendable-schema';
  * Column picker for report configuration.
  * Allows selecting which columns to export: all native (default) or a custom subset.
  */
-export function ReportColumnPicker({ dataMartId, value, onChange }: ReportColumnPickerProps) {
+export function ReportColumnPicker({
+  dataMartId,
+  value,
+  onChange,
+  onBlendedSelectionChange,
+}: ReportColumnPickerProps) {
   const mode: ColumnMode = value === null ? 'default' : 'custom';
 
   const { data: schema, isLoading } = useQuery({
@@ -52,6 +60,16 @@ export function ReportColumnPicker({ dataMartId, value, onChange }: ReportColumn
     queryFn: () => dataMartRelationshipService.getBlendableSchema(dataMartId),
     enabled: !!dataMartId,
   });
+
+  const hasBlendedSelection = useMemo(() => {
+    if (!schema || value === null) return false;
+    const blendedNames = new Set(schema.blendedFields.map(f => f.name));
+    return value.some(name => blendedNames.has(name));
+  }, [schema, value]);
+
+  useEffect(() => {
+    onBlendedSelectionChange?.(hasBlendedSelection);
+  }, [hasBlendedSelection, onBlendedSelectionChange]);
 
   function handleModeChange(newMode: ColumnMode) {
     if (newMode === 'default') {
@@ -109,6 +127,18 @@ export function ReportColumnPicker({ dataMartId, value, onChange }: ReportColumn
 
   const blendedFields: BlendedField[] = mode === 'custom' && schema ? schema.blendedFields : [];
 
+  const selectedNativeCount = nativeFields.filter(f => isChecked(f.name)).length;
+  const selectedBlendedCount = blendedFields.filter(f => isChecked(f.name)).length;
+
+  const [showSelectedOnly, setShowSelectedOnly] = useState(false);
+
+  const visibleNativeFields = showSelectedOnly
+    ? nativeFields.filter(f => isChecked(f.name))
+    : nativeFields;
+  const visibleBlendedFields = showSelectedOnly
+    ? blendedFields.filter(f => isChecked(f.name))
+    : blendedFields;
+
   return (
     <div className='space-y-3'>
       <div className='flex items-center gap-3'>
@@ -127,6 +157,12 @@ export function ReportColumnPicker({ dataMartId, value, onChange }: ReportColumn
           </SelectContent>
         </Select>
 
+        {mode === 'default' && (
+          <span className='text-muted-foreground text-sm'>
+            All native columns will be exported.
+          </span>
+        )}
+
         {mode === 'custom' && value !== null && (
           <button
             type='button'
@@ -140,12 +176,6 @@ export function ReportColumnPicker({ dataMartId, value, onChange }: ReportColumn
         )}
       </div>
 
-      {mode === 'default' && (
-        <p className='text-muted-foreground text-sm'>
-          All native columns will be exported. No blended columns.
-        </p>
-      )}
-
       {mode === 'custom' && isLoading && (
         <div className='space-y-2'>
           <Skeleton className='h-4 w-32' />
@@ -157,10 +187,25 @@ export function ReportColumnPicker({ dataMartId, value, onChange }: ReportColumn
 
       {mode === 'custom' && !isLoading && (
         <div className='space-y-4'>
+          <label className='text-muted-foreground hover:text-foreground flex cursor-pointer items-center gap-2 text-xs transition-colors'>
+            <Checkbox
+              checked={showSelectedOnly}
+              onCheckedChange={checked => {
+                setShowSelectedOnly(checked === true);
+              }}
+            />
+            Selected only
+          </label>
+
           {/* Native Fields group */}
           <div className='space-y-2'>
             <div className='flex items-center justify-between'>
-              <span className='text-sm font-medium'>Native Fields</span>
+              <span className='text-sm font-medium'>
+                Native Fields{' '}
+                <span className='text-muted-foreground font-normal'>
+                  ({selectedNativeCount}/{nativeFields.length})
+                </span>
+              </span>
               <div className='flex gap-2'>
                 <button
                   type='button'
@@ -184,8 +229,13 @@ export function ReportColumnPicker({ dataMartId, value, onChange }: ReportColumn
               <p className='text-muted-foreground text-xs'>No native fields available.</p>
             )}
 
-            <div className='max-h-48 space-y-1 overflow-y-auto'>
-              {nativeFields.map(field => (
+            <div
+              className={cn(
+                'max-h-48 space-y-1 overflow-y-auto rounded-md border p-1',
+                selectedNativeCount === 0 ? 'border-destructive' : 'border-border'
+              )}
+            >
+              {visibleNativeFields.map(field => (
                 <label
                   key={field.name}
                   className='hover:bg-muted/50 flex cursor-pointer items-center gap-2 rounded px-1 py-1'
@@ -203,13 +253,23 @@ export function ReportColumnPicker({ dataMartId, value, onChange }: ReportColumn
                 </label>
               ))}
             </div>
+            {selectedNativeCount === 0 && (
+              <p className='text-destructive text-xs'>
+                At least one native field must be selected.
+              </p>
+            )}
           </div>
 
           {/* Blendable Fields group */}
-          {blendedFields.length > 0 && (
+          {blendedFields.length > 0 && (!showSelectedOnly || selectedBlendedCount > 0) && (
             <div className='space-y-2'>
               <div className='flex items-center justify-between'>
-                <span className='text-sm font-medium'>Blendable Fields</span>
+                <span className='text-sm font-medium'>
+                  Blendable Fields{' '}
+                  <span className='text-muted-foreground font-normal'>
+                    ({selectedBlendedCount}/{blendedFields.length})
+                  </span>
+                </span>
                 <div className='flex gap-2'>
                   <button
                     type='button'
@@ -229,8 +289,8 @@ export function ReportColumnPicker({ dataMartId, value, onChange }: ReportColumn
                 </div>
               </div>
 
-              <div className='max-h-48 space-y-1 overflow-y-auto'>
-                {blendedFields.map(field => (
+              <div className='border-border max-h-48 space-y-1 overflow-y-auto rounded-md border p-1'>
+                {visibleBlendedFields.map(field => (
                   <label
                     key={field.name}
                     className='hover:bg-muted/50 flex cursor-pointer items-center gap-2 rounded px-1 py-1'

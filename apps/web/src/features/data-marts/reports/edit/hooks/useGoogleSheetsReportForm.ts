@@ -17,7 +17,10 @@ export const GoogleSheetsReportEditFormSchema = z.object({
   title: z.string().min(1, 'Title is required'),
   documentUrl: z.string().refine(isValidGoogleSheetsUrl, 'Enter a valid Google Sheets URL'),
   dataDestinationId: z.string().min(1, 'Destination is required'),
-  columnConfig: z.array(z.string()).nullable(),
+  columnConfig: z
+    .array(z.string())
+    .nullable()
+    .refine(val => val === null || val.length > 0, 'At least one column must be selected'),
 });
 
 export type GoogleSheetsReportEditFormValues = z.infer<typeof GoogleSheetsReportEditFormSchema>;

@@ -13,7 +13,10 @@ import type { DataDestination } from '../../../../data-destination/shared/model/
 // Define the form schema - simplified for editing existing reports
 const lookerStudioReportFormSchema = z.object({
   cacheLifetime: z.number().min(300, 'Cache time must be at least 5 minutes (300 seconds)'),
-  columnConfig: z.array(z.string()).nullable(),
+  columnConfig: z
+    .array(z.string())
+    .nullable()
+    .refine(val => val === null || val.length > 0, 'At least one column must be selected'),
 });
 
 // Define the form data type
