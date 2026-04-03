@@ -20,6 +20,7 @@ interface RelationshipCanvasProps {
   dataMartId: string;
   dataMartTitle: string;
   dataMartDescription?: string | null;
+  dataMartStatus: string;
   relationships: DataMartRelationship[];
   onRelationshipSelect: (relationship: DataMartRelationship) => void;
 }
@@ -34,6 +35,7 @@ const H_GAP = 280;
 const V_GAP = 24;
 const MAX_DEPTH = 5;
 const NODE_BORDER = '#9ca3af'; // gray-400, visible in both themes
+const DRAFT_COLOR = '#f97316'; // orange-500
 
 /* ---------- custom node class ---------- */
 
@@ -48,6 +50,8 @@ class DMNode extends ClassicPreset.Node {
   fieldCount?: number;
   description?: string | null;
   onOpenExternal?: () => void;
+  isDraft: boolean;
+  isBlocked: boolean;
 
   constructor(
     label: string,
@@ -60,6 +64,8 @@ class DMNode extends ClassicPreset.Node {
       fieldCount?: number;
       description?: string | null;
       onOpenExternal?: () => void;
+      isDraft?: boolean;
+      isBlocked?: boolean;
     }
   ) {
     super(label);
@@ -71,6 +77,8 @@ class DMNode extends ClassicPreset.Node {
     this.fieldCount = opts?.fieldCount;
     this.description = opts?.description;
     this.onOpenExternal = opts?.onOpenExternal;
+    this.isDraft = opts?.isDraft ?? false;
+    this.isBlocked = opts?.isBlocked ?? false;
     if (!isSource) this.height = TGT_H;
   }
 }
@@ -104,7 +112,7 @@ function NodeComponent(props: { data: Schemes['Node']; emit: (e: ReactArea2D<Sch
           width: n.width,
           height: n.height,
           borderRadius: 8,
-          border: `2px solid ${NODE_BORDER}`,
+          border: `2px solid ${n.isDraft ? DRAFT_COLOR : NODE_BORDER}`,
           boxShadow: '0 1px 4px 0 rgba(0,0,0,0.12)',
           background: '#eff6ff',
           fontSize: 13,
@@ -112,6 +120,21 @@ function NodeComponent(props: { data: Schemes['Node']; emit: (e: ReactArea2D<Sch
           position: 'relative',
         }}
       >
+        {n.isDraft && (
+          <span
+            style={{
+              position: 'absolute',
+              top: -18,
+              right: 4,
+              fontSize: 10,
+              fontWeight: 600,
+              color: DRAFT_COLOR,
+              lineHeight: 1,
+            }}
+          >
+            Draft
+          </span>
+        )}
         <div className='truncate' style={{ flex: 1, padding: '0 14px' }} title={n.label}>
           {n.label}
         </div>
@@ -135,6 +158,8 @@ function NodeComponent(props: { data: Schemes['Node']; emit: (e: ReactArea2D<Sch
   }
 
   const isDeep = n.depth >= 2;
+  const isOrange = n.isDraft || n.isBlocked;
+  const borderColor = isOrange ? DRAFT_COLOR : NODE_BORDER;
 
   return (
     <div
@@ -142,13 +167,29 @@ function NodeComponent(props: { data: Schemes['Node']; emit: (e: ReactArea2D<Sch
         width: n.width,
         height: n.height,
         borderRadius: 8,
-        border: `${isDeep ? '2px dashed' : '2px solid'} ${NODE_BORDER}`,
+        border: `${isDeep ? '2px dashed' : '2px solid'} ${borderColor}`,
         background: 'var(--background)',
         boxShadow: isDeep ? 'none' : '0 1px 4px 0 rgba(0,0,0,0.12)',
         cursor: isDeep ? 'default' : 'pointer',
         position: 'relative',
       }}
     >
+      {/* Draft / Blocked label */}
+      {isOrange && (
+        <span
+          style={{
+            position: 'absolute',
+            top: -18,
+            right: 4,
+            fontSize: 10,
+            fontWeight: 600,
+            color: DRAFT_COLOR,
+            lineHeight: 1,
+          }}
+        >
+          {n.isDraft ? 'Draft' : 'Blocked'}
+        </span>
+      )}
       {/* Input socket – absolutely positioned at left edge */}
       {inputs.map(
         ([key, input]) =>
@@ -266,6 +307,7 @@ async function setupEditor(
   dataMartId: string,
   dataMartTitle: string,
   dataMartDescription: string | null | undefined,
+  dataMartStatus: string,
   initialRelationships: DataMartRelationship[],
   onNodeSelect: (targetDmId: string) => void,
   onOpenExternal: (targetDmId: string) => void,
@@ -277,6 +319,45 @@ async function setupEditor(
   const render = new ReactPlugin<Schemes, AreaExtra>({ createRoot });
   const minimap = new MinimapPlugin<Schemes>();
 
+  const { useConnection } = ReactPresets.classic;
+
+  function DraftAwareConnection(props: {
+    data: Schemes['Connection'] & { isLoop?: boolean };
+    styles?: () => unknown;
+  }) {
+    const { path } = useConnection();
+    if (!path) return null;
+    const src = editor.getNode(props.data.source);
+    const tgt = editor.getNode(props.data.target);
+    const orange =
+      src?.isDraft === true ||
+      src?.isBlocked === true ||
+      tgt?.isDraft === true ||
+      tgt?.isBlocked === true;
+
+    return (
+      <svg
+        data-testid='connection'
+        style={{
+          overflow: 'visible',
+          position: 'absolute',
+          pointerEvents: 'none',
+          width: 9999,
+          height: 9999,
+        }}
+      >
+        <path
+          d={path}
+          fill='none'
+          strokeWidth='5px'
+          stroke={orange ? DRAFT_COLOR : 'steelblue'}
+          strokeDasharray={orange ? '8 4' : undefined}
+          style={{ pointerEvents: 'auto' }}
+        />
+      </svg>
+    );
+  }
+
   render.addPreset(
     ReactPresets.classic.setup({
       customize: {
@@ -285,6 +366,9 @@ async function setupEditor(
         },
         socket() {
           return SocketComponent;
+        },
+        connection() {
+          return DraftAwareConnection;
         },
       },
     })
@@ -300,6 +384,7 @@ async function setupEditor(
   // --- Pass 1: collect full graph data ---
   interface NodeInfo {
     id: string;
+    dmId: string;
     title: string;
     description?: string | null;
     depth: number;
@@ -307,6 +392,8 @@ async function setupEditor(
     targetAlias?: string;
     joinCount?: number;
     fieldCount?: number;
+    isDraft?: boolean;
+    isBlocked?: boolean;
   }
   interface EdgeInfo {
     sourceId: string;
@@ -317,66 +404,93 @@ async function setupEditor(
   const edges: EdgeInfo[] = [];
   const hasOutgoing = new Set<string>(); // nodes that have children
 
+  const rootIsDraft = dataMartStatus === 'DRAFT';
+
   nodeInfos.set(dataMartId, {
     id: dataMartId,
+    dmId: dataMartId,
     title: dataMartTitle,
     description: dataMartDescription,
     depth: 0,
     isSource: true,
+    isDraft: rootIsDraft,
   });
 
-  async function collectGraph(parentId: string, rels: DataMartRelationship[], depth: number) {
-    if (rels.length > 0) hasOutgoing.add(parentId);
+  let nodeCounter = 0;
+
+  async function collectGraph(
+    parentNodeKey: string,
+    rels: DataMartRelationship[],
+    depth: number,
+    ancestorDmIds: Set<string>,
+    parentBlocked: boolean
+  ) {
+    if (rels.length > 0) hasOutgoing.add(parentNodeKey);
 
     for (const rel of rels) {
-      const tid = rel.targetDataMart.id;
-      edges.push({ sourceId: parentId, targetId: tid });
+      const dmId = rel.targetDataMart.id;
+      const nodeKey = `${dmId}-${nodeCounter++}`;
+      const isDraft = rel.targetDataMart.status === 'DRAFT';
+      const isBlocked = parentBlocked;
 
-      if (!nodeInfos.has(tid)) {
-        nodeInfos.set(tid, {
-          id: tid,
-          title: rel.targetDataMart.title,
-          description: rel.targetDataMart.description,
-          depth,
-          isSource: false,
-          targetAlias: rel.targetAlias,
-          joinCount: rel.joinConditions.length,
-          fieldCount: rel.blendedFields.length,
-        });
+      edges.push({ sourceId: parentNodeKey, targetId: nodeKey });
 
-        if (showTransient && depth < MAX_DEPTH) {
-          try {
-            const childRels = await dataMartRelationshipService.getRelationships(tid);
-            if (childRels.length > 0) {
-              await collectGraph(tid, childRels, depth + 1);
-            }
-          } catch {
-            // skip
+      nodeInfos.set(nodeKey, {
+        id: nodeKey,
+        dmId,
+        title: rel.targetDataMart.title,
+        description: rel.targetDataMart.description,
+        depth,
+        isSource: false,
+        targetAlias: rel.targetAlias,
+        joinCount: rel.joinConditions.length,
+        fieldCount: rel.blendedFields.length,
+        isDraft,
+        isBlocked,
+      });
+
+      if (showTransient && depth < MAX_DEPTH && !ancestorDmIds.has(dmId)) {
+        try {
+          const childRels = await dataMartRelationshipService.getRelationships(dmId);
+          if (childRels.length > 0) {
+            const newAncestors = new Set(ancestorDmIds);
+            newAncestors.add(dmId);
+            await collectGraph(
+              nodeKey,
+              childRels,
+              depth + 1,
+              newAncestors,
+              parentBlocked || isDraft
+            );
           }
+        } catch {
+          // skip
         }
       }
     }
   }
 
-  await collectGraph(dataMartId, initialRelationships, 1);
+  await collectGraph(dataMartId, initialRelationships, 1, new Set([dataMartId]), rootIsDraft);
 
   // --- Pass 2: create nodes with correct sockets ---
   const nodeMap = new Map<string, DMNode>();
   const columns = new Map<number, DMNode[]>();
 
-  for (const [dmId, info] of nodeInfos) {
-    const node = new DMNode(info.title, dmId, info.isSource, info.depth, {
+  for (const [nodeKey, info] of nodeInfos) {
+    const node = new DMNode(info.title, info.dmId, info.isSource, info.depth, {
       targetAlias: info.targetAlias,
       joinCount: info.joinCount,
       fieldCount: info.fieldCount,
       description: info.description,
+      isDraft: info.isDraft,
+      isBlocked: info.isBlocked,
       onOpenExternal: () => {
-        onOpenExternal(dmId);
+        onOpenExternal(info.dmId);
       },
     });
 
     // Source and intermediate nodes get output socket
-    if (hasOutgoing.has(dmId)) {
+    if (hasOutgoing.has(nodeKey)) {
       node.addOutput('out', new ClassicPreset.Output(SOCKET));
     }
     // Non-source nodes get input socket
@@ -385,7 +499,7 @@ async function setupEditor(
     }
 
     await editor.addNode(node);
-    nodeMap.set(dmId, node);
+    nodeMap.set(nodeKey, node);
 
     if (!columns.has(info.depth)) columns.set(info.depth, []);
     // eslint-disable-next-line @typescript-eslint/no-non-null-assertion -- guaranteed by the line above
@@ -476,6 +590,7 @@ export function RelationshipCanvas({
   dataMartId,
   dataMartTitle,
   dataMartDescription,
+  dataMartStatus,
   relationships,
   onRelationshipSelect,
 }: RelationshipCanvasProps) {
@@ -505,6 +620,7 @@ export function RelationshipCanvas({
       dataMartId,
       dataMartTitle,
       dataMartDescription,
+      dataMartStatus,
       relationships,
       handleNodeSelect,
       handleOpenExternal,
@@ -516,11 +632,15 @@ export function RelationshipCanvas({
     return () => {
       editorRef.current?.destroy();
       editorRef.current = null;
+      // rete's area.destroy() does not clear the container DOM — flush leftover
+      // minimap / node / connection elements so the next editor starts clean
+      while (el.firstChild) el.removeChild(el.firstChild);
     };
   }, [
     dataMartId,
     dataMartTitle,
     dataMartDescription,
+    dataMartStatus,
     relationships,
     handleNodeSelect,
     handleOpenExternal,

@@ -1,5 +1,6 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { JoinCondition, BlendedFieldConfig } from '../schemas/relationship-schemas';
+import { DataMartStatus } from '../../enums/data-mart-status.enum';
 
 export class DataMartRefApiDto {
   @ApiProperty({ example: '9cabc24e-1234-4a5a-8b12-abcdef123456' })
@@ -10,6 +11,9 @@ export class DataMartRefApiDto {
 
   @ApiProperty({ example: 'Revenue by channel', required: false })
   description?: string;
+
+  @ApiProperty({ enum: DataMartStatus, example: DataMartStatus.PUBLISHED })
+  status: DataMartStatus;
 }
 
 export class RelationshipResponseApiDto {

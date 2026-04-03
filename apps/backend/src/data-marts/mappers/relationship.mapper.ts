@@ -69,11 +69,13 @@ export class RelationshipMapper {
         id: entity.sourceDataMart.id,
         title: entity.sourceDataMart.title,
         description: entity.sourceDataMart.description,
+        status: entity.sourceDataMart.status,
       },
       targetDataMart: {
         id: entity.targetDataMart.id,
         title: entity.targetDataMart.title,
         description: entity.targetDataMart.description,
+        status: entity.targetDataMart.status,
       },
       targetAlias: entity.targetAlias,
       joinConditions: entity.joinConditions,

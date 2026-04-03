@@ -120,6 +120,7 @@ export function DataMartRelationshipsContent() {
                 dataMartId={dataMartId}
                 dataMartTitle={dataMart.title}
                 dataMartDescription={dataMart.description}
+                dataMartStatus={dataMart.status.code}
                 relationships={relationships}
                 onRelationshipSelect={handleEdit}
               />

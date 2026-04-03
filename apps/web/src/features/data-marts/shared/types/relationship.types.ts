@@ -14,6 +14,7 @@ export interface RelatedDataMart {
   id: string;
   title: string;
   description?: string;
+  status: string;
 }
 
 export interface DataMartRelationship {
