@@ -68,7 +68,7 @@ var XAdsConnector = class XAdsConnector extends AbstractConnector {
 
     for (let i = 0; i < daysToFetch; i++) {
       const currentDate = new Date(startDate);
-      currentDate.setDate(currentDate.getDate() + i);
+      currentDate.setUTCDate(currentDate.getUTCDate() + i);
 
       const formattedDate = DateUtils.formatDate(currentDate);
 
@@ -131,7 +131,7 @@ var XAdsConnector = class XAdsConnector extends AbstractConnector {
     for (const dateChunk of chunks) {
       let chunkHasData = false;
 
-      await this.source.fetchAsyncStatsChunk({
+      await this.source.fetchData({
         nodeName,
         accountId,
         fields,

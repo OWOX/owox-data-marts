@@ -123,15 +123,22 @@ var XAdsSource = class XAdsSource extends AbstractSource {
 
   /**
    * Single entry point for *all* fetches.
+   *
+   * Most nodes return an array of rows. Async nodes (stats_by_country) stream
+   * results via the onBatchReady callback and return an empty array — matching
+   * the pattern used by the Microsoft Ads connector.
+   *
    * @param {Object} opts
    * @param {string} opts.nodeName
    * @param {string} opts.accountId
    * @param {Array<string>} opts.fields
    * @param {string} [opts.start_time]
    * @param {string} [opts.end_time]
+   * @param {Array<string>} [opts.dateChunk] - 'YYYY-MM-DD' strings (async nodes only)
+   * @param {Function} [opts.onBatchReady] - async callback(date, rows) (async nodes only)
    * @returns {Array<Object>}
    */
-  async fetchData({ nodeName, accountId, fields = [], start_time, end_time }) {
+  async fetchData({ nodeName, accountId, fields = [], start_time, end_time, dateChunk, onBatchReady }) {
     await AsyncUtils.delay(this.config.AdsApiDelay.value * 1000);
 
     switch (nodeName) {
@@ -163,6 +170,10 @@ var XAdsSource = class XAdsSource extends AbstractSource {
 
       case 'stats':
         return await this._timeSeriesFetch({ nodeName, accountId, fields, start_time, end_time });
+
+      case 'stats_by_country':
+        await this._fetchAsyncStats({ nodeName, accountId, fields, dateChunk, onBatchReady });
+        return [];
 
       case 'targeting_locations':
         return await this._fetchTargetingLocations(fields);
@@ -460,7 +471,7 @@ var XAdsSource = class XAdsSource extends AbstractSource {
   }
 
   /**
-   * Returns the promoted tweet IDs for an account (used to size async job chunks).
+   * Returns the promoted tweet IDs for an account.
    * IDs are cached by _catalogFetch via _promotedTweetsCache, so repeated calls
    * within the same run do not incur extra API requests.
    *
@@ -478,9 +489,9 @@ var XAdsSource = class XAdsSource extends AbstractSource {
    * For each job the flow is: submit → poll until ready → download immediately.
    * After all jobs for a single date are done, calls onBatchReady with that
    * date's rows so the Connector can save and update the cursor right away.
-   * This mirrors the onBatchReady pattern from the Microsoft connector.
    *
    * All operations are strictly sequential (ODM requirement).
+   * Called from fetchData (which already applies AdsApiDelay).
    *
    * @param {Object} opts
    * @param {string} opts.nodeName
@@ -489,9 +500,7 @@ var XAdsSource = class XAdsSource extends AbstractSource {
    * @param {Array<string>} opts.dateChunk - 'YYYY-MM-DD' strings for this chunk
    * @param {Function} opts.onBatchReady - async callback(date, rows) called after each date completes
    */
-  async fetchAsyncStatsChunk({ nodeName, accountId, fields, dateChunk, onBatchReady }) {
-    // Apply the same inter-request delay as fetchData to respect rate-limit config.
-    await AsyncUtils.delay(this.config.AdsApiDelay.value * 1000);
+  async _fetchAsyncStats({ nodeName, accountId, fields, dateChunk, onBatchReady }) {
     const { segmentationType } = this.fieldsSchema[nodeName];
 
     const ids = await this._getPromotedTweetIds(accountId); // cached, no extra API call
