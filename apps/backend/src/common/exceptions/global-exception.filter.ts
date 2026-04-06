@@ -45,7 +45,7 @@ export class GlobalExceptionFilter implements ExceptionFilter {
 
     const responseBody: Record<string, unknown> = {
       statusCode: status,
-      message: exception instanceof Error ? exception.message : undefined,
+      message: isHttp && exception instanceof Error ? exception.message : undefined,
       timestamp: new Date().toISOString(),
       path: request?.originalUrl || request?.url,
       requestId: (request?.headers?.['x-request-id'] as string) || undefined,

@@ -27,7 +27,7 @@ jest.mock('../utils/resolve-owner-users', () => ({
   resolveOwnerUsers: jest.fn().mockReturnValue([]),
 }));
 
-import { ForbiddenException } from '@nestjs/common';
+import { ForbiddenException, BadRequestException } from '@nestjs/common';
 import { UpdateReportService } from './update-report.service';
 import { UpdateReportCommand } from '../dto/domain/update-report.command';
 
@@ -157,7 +157,7 @@ describe('UpdateReportService', () => {
     expect(reportAccessService.canBeOwner).toHaveBeenCalledWith('user-3', report, 'proj-1');
   });
 
-  it('should throw ForbiddenException when canBeOwner returns false', async () => {
+  it('should throw BadRequestException when canBeOwner returns false', async () => {
     const { service, reportAccessService } = createService();
     reportAccessService.canBeOwner.mockResolvedValue(false);
 
@@ -172,6 +172,6 @@ describe('UpdateReportService', () => {
       ['user-2']
     );
 
-    await expect(service.run(command)).rejects.toThrow(ForbiddenException);
+    await expect(service.run(command)).rejects.toThrow(BadRequestException);
   });
 });

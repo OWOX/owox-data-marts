@@ -11,6 +11,7 @@ import { DataMartStatus } from '../enums/data-mart-status.enum';
 import { UserProjectionsFetcherService } from '../services/user-projections-fetcher.service';
 import { ReportAccessService } from '../services/report-access.service';
 import { ScheduledTriggerType } from '../scheduled-trigger-types/enums/scheduled-trigger-type.enum';
+import { isScheduledReportRunConfig } from '../scheduled-trigger-types/scheduled-trigger-config.guards';
 
 @Injectable()
 export class UpdateScheduledTriggerService {
@@ -65,20 +66,21 @@ export class UpdateScheduledTriggerService {
     trigger: DataMartScheduledTrigger
   ): Promise<void> {
     if (trigger.type === ScheduledTriggerType.REPORT_RUN) {
-      const reportId = (trigger.triggerConfig as { reportId?: string })?.reportId;
-      if (reportId) {
-        const canMutate = await this.reportAccessService.canMutate(
-          command.userId,
-          command.roles,
-          reportId,
-          command.projectId
-        );
+      if (!isScheduledReportRunConfig(trigger.triggerConfig)) {
+        throw new ForbiddenException('Report ID is required for REPORT_RUN triggers');
+      }
 
-        if (!canMutate) {
-          throw new ForbiddenException(
-            'You do not have permission to update triggers for this report. Only report owners can manage report triggers.'
-          );
-        }
+      const canMutate = await this.reportAccessService.canMutate(
+        command.userId,
+        command.roles,
+        trigger.triggerConfig.reportId,
+        command.projectId
+      );
+
+      if (!canMutate) {
+        throw new ForbiddenException(
+          'You do not have permission to update triggers for this report. Only report owners can manage report triggers.'
+        );
       }
     } else {
       if (!command.roles.includes('editor') && !command.roles.includes('admin')) {

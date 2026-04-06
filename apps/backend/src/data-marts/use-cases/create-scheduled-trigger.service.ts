@@ -1,4 +1,4 @@
-import { Inject, Injectable, ForbiddenException } from '@nestjs/common';
+import { Inject, Injectable, ForbiddenException, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { OwoxProducer } from '@owox/internal-helpers';
 import { Repository } from 'typeorm';
@@ -14,6 +14,7 @@ import { DataMartService } from '../services/data-mart.service';
 import { ScheduledTriggerValidatorFacade } from '../scheduled-trigger-types/facades/scheduled-trigger-validator.facade';
 import { ReportAccessService } from '../services/report-access.service';
 import { ScheduledTriggerType } from '../scheduled-trigger-types/enums/scheduled-trigger-type.enum';
+import { isScheduledReportRunConfig } from '../scheduled-trigger-types/scheduled-trigger-config.guards';
 
 @Injectable()
 export class CreateScheduledTriggerService {
@@ -82,10 +83,12 @@ export class CreateScheduledTriggerService {
 
   private async checkAccess(command: CreateScheduledTriggerCommand): Promise<void> {
     if (command.type === ScheduledTriggerType.REPORT_RUN) {
-      const reportId = (command.triggerConfig as { reportId?: string })?.reportId;
-      if (!reportId) {
-        throw new ForbiddenException('Report ID is required for REPORT_RUN triggers');
+      if (!command.triggerConfig || !isScheduledReportRunConfig(command.triggerConfig)) {
+        throw new BadRequestException(
+          'Valid report run config with reportId is required for REPORT_RUN triggers'
+        );
       }
+      const reportId = command.triggerConfig.reportId;
 
       const canMutate = await this.reportAccessService.canMutate(
         command.userId,

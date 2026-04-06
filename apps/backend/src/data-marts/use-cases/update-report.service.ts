@@ -1,10 +1,6 @@
 import { Repository } from 'typeorm';
 import { Transactional } from 'typeorm-transactional';
-import {
-  Injectable,
-  NotFoundException,
-  BadRequestException,
-} from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { AvailableDestinationTypesService } from '../data-destination-types/available-destination-types.service';
 import { Report } from '../entities/report.entity';
@@ -79,13 +75,7 @@ export class UpdateReportService {
       dataDestination
     );
 
-    // Update the report
-    report.title = command.title;
-    report.dataDestination = dataDestination;
-    report.destinationConfig = command.destinationConfig;
-
-    const updatedReport = await this.reportRepository.save(report);
-
+    // Validate owners BEFORE mutating
     if (command.ownerIds !== undefined) {
       for (const ownerId of command.ownerIds) {
         const canOwn = await this.reportAccessService.canBeOwner(
@@ -99,7 +89,16 @@ export class UpdateReportService {
           );
         }
       }
+    }
 
+    // Update the report
+    report.title = command.title;
+    report.dataDestination = dataDestination;
+    report.destinationConfig = command.destinationConfig;
+
+    const updatedReport = await this.reportRepository.save(report);
+
+    if (command.ownerIds !== undefined) {
       await syncOwners(
         this.reportOwnerRepository,
         'reportId',
