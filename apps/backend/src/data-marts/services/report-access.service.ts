@@ -6,6 +6,17 @@ import { ReportOwner } from '../entities/report-owner.entity';
 import { DataDestination } from '../entities/data-destination.entity';
 import { IdpProjectionsFacade } from '../../idp/facades/idp-projections.facade';
 
+type MutateDeniedReason = 'not-owner' | 'ineffective' | 'not-found';
+
+type MutateResult = { allowed: true } | { allowed: false; reason: MutateDeniedReason };
+
+const MUTATE_DENIED_MESSAGES: Record<MutateDeniedReason, string> = {
+  'not-owner': 'You are not an owner of this report. Only report owners can modify it.',
+  'not-found': 'Report not found.',
+  ineffective:
+    'The destination for this report has been deleted. The report cannot be modified or run until a Technical User updates the destination or reassigns ownership.',
+};
+
 @Injectable()
 export class ReportAccessService {
   constructor(
@@ -19,19 +30,17 @@ export class ReportAccessService {
   ) {}
 
   /**
-   * Check if a user can mutate (edit/delete/run) a Report.
-   * Editor and Admin have project-wide access in Stage 2.
-   * Viewer must be an effective owner.
+   * Evaluate whether a user can mutate a Report. Single source of truth for access logic.
    */
-  async canMutate(
+  private async evaluateMutateAccess(
     userId: string,
     roles: string[],
     reportId: string,
     projectId: string
-  ): Promise<boolean> {
+  ): Promise<MutateResult> {
     // TODO Stage 3: narrow editor to owned + shared only
     if (roles.includes('editor') || roles.includes('admin')) {
-      return true;
+      return { allowed: true };
     }
 
     const ownerCount = await this.reportOwnerRepository.count({
@@ -39,7 +48,7 @@ export class ReportAccessService {
     });
 
     if (ownerCount === 0) {
-      return false;
+      return { allowed: false, reason: 'not-owner' };
     }
 
     const report = await this.reportRepository.findOne({
@@ -48,19 +57,48 @@ export class ReportAccessService {
     });
 
     if (!report) {
-      return false;
+      return { allowed: false, reason: 'not-found' };
     }
 
-    return this.isEffective(userId, report);
+    const effective = await this.isEffective(userId, report);
+    return effective ? { allowed: true } : { allowed: false, reason: 'ineffective' };
+  }
+
+  /**
+   * Check if a user can mutate (edit/delete/run) a Report. Returns boolean.
+   */
+  async canMutate(
+    userId: string,
+    roles: string[],
+    reportId: string,
+    projectId: string
+  ): Promise<boolean> {
+    const result = await this.evaluateMutateAccess(userId, roles, reportId, projectId);
+    return result.allowed;
+  }
+
+  /**
+   * Assert that a user can mutate a Report, throwing descriptive ForbiddenException if not.
+   */
+  async checkMutateAccess(
+    userId: string,
+    roles: string[],
+    reportId: string,
+    projectId: string
+  ): Promise<void> {
+    const result = await this.evaluateMutateAccess(userId, roles, reportId, projectId);
+    if (!result.allowed) {
+      throw new ForbiddenException(MUTATE_DENIED_MESSAGES[result.reason]);
+    }
   }
 
   /**
    * Check if an owner is effective — can actually mutate/run the Report.
    * Ineffective = lost access to DataMart or Destination.
    */
-  async isEffective(userId: string, report: Report): Promise<boolean> {
+  async isEffective(_userId: string, report: Report): Promise<boolean> {
     // Stage 2: DM access = always true for project members
-    // TODO Stage 3: check DataMart access via sharing/ownership
+    // TODO Stage 3: check DataMart access via sharing/ownership for _userId
     const dmAccessible = true;
 
     if (!report.dataDestination) {
@@ -72,48 +110,6 @@ export class ReportAccessService {
     });
 
     return dmAccessible && destinationCount > 0;
-  }
-
-  /**
-   * Assert that a user can mutate a Report, throwing descriptive ForbiddenException if not.
-   * Use this in use-cases for specific error messages (not-owner vs ineffective-owner).
-   */
-  async checkMutateAccess(
-    userId: string,
-    roles: string[],
-    reportId: string,
-    projectId: string
-  ): Promise<void> {
-    // TODO Stage 3: narrow editor to owned + shared only
-    if (roles.includes('editor') || roles.includes('admin')) {
-      return;
-    }
-
-    const ownerCount = await this.reportOwnerRepository.count({
-      where: { reportId, userId },
-    });
-
-    if (ownerCount === 0) {
-      throw new ForbiddenException(
-        'You are not an owner of this report. Only report owners can modify it.'
-      );
-    }
-
-    const report = await this.reportRepository.findOne({
-      where: { id: reportId, dataMart: { projectId } },
-      relations: ['dataMart', 'dataDestination'],
-    });
-
-    if (!report) {
-      throw new ForbiddenException('Report not found.');
-    }
-
-    const effective = await this.isEffective(userId, report);
-    if (!effective) {
-      throw new ForbiddenException(
-        'The destination for this report has been deleted. The report cannot be modified or run until a Technical User updates the destination or reassigns ownership.'
-      );
-    }
   }
 
   /**

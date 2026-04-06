@@ -1,4 +1,4 @@
-import { Inject, Injectable, Logger } from '@nestjs/common';
+import { Inject, Injectable, Logger, ForbiddenException } from '@nestjs/common';
 import { Transactional } from 'typeorm-transactional';
 import { BusinessViolationException } from '../../common/exceptions/business-violation.exception';
 import { TypeResolver } from '../../common/resolver/type-resolver';
@@ -12,6 +12,7 @@ import { DATA_STORAGE_REPORT_READER_RESOLVER } from '../data-storage-types/data-
 import { DataStorageType } from '../data-storage-types/enums/data-storage-type.enum';
 import { DataStorageReportReader } from '../data-storage-types/interfaces/data-storage-report-reader.interface';
 import { RunReportCommand } from '../dto/domain/run-report.command';
+import { RunType } from '../../common/scheduler/shared/types';
 import { DataMart } from '../entities/data-mart.entity';
 import { Report } from '../entities/report.entity';
 import { ReportRun } from '../models/report-run.model';
@@ -101,7 +102,10 @@ export class RunReportService {
   async run(command: RunReportCommand, _signal?: AbortSignal): Promise<void> {
     this.validateCanRun();
 
-    if (command.projectId) {
+    if (command.runType === RunType.manual) {
+      if (!command.projectId) {
+        throw new ForbiddenException('Manual report runs require project context');
+      }
       await this.reportAccessService.checkMutateAccess(
         command.userId,
         command.roles ?? [],

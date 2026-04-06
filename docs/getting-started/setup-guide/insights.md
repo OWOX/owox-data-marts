@@ -180,7 +180,8 @@ On each scheduled run, OWOX will execute the Insight and send the rendered Markd
 | Create, edit, delete Insights | Technical User |
 | Add or remove Data Artifacts | Technical User |
 | Run or cancel an Insight | Technical User |
-| Create or manage Reports | Technical User |
+| Create and manage own Reports | Business User (owner) |
+| Manage any Report (project-wide) | Technical User |
 
 ## Limits
 
