@@ -144,9 +144,27 @@ export default class Serve extends BaseCommand {
 
     try {
       if (this.app) {
-        // Additional protection for graceful shutdown
-        // Give a brief moment for any pending operations to complete
-        await new Promise(resolve => setTimeout(resolve, 500)); // eslint-disable-line no-promise-executor-return
+        // 1. Stop accepting new connections and close idle keep-alive sockets
+        const httpServer = this.app.getHttpServer();
+        httpServer.closeIdleConnections();
+        const serverClosePromise = new Promise<void>((resolve, reject) => {
+          httpServer.close((err?: Error) => (err ? reject(err) : resolve()));
+        });
+        this.log('HTTP server stopped accepting new connections');
+
+        // 2. Initiate graceful shutdown for tracked processes (HTTP requests + scheduler).
+        //    Run in parallel with server close — initiateShutdown must start BEFORE
+        //    httpServer.close resolves, so it sees active HTTP processes while they
+        //    are still registered by the interceptor.
+        const { GracefulShutdownService } = await import('@owox/backend');
+        const shutdownService = this.app.get(GracefulShutdownService);
+        const shutdownPromise = shutdownService.initiateShutdown(signal);
+
+        // 3. Wait for both: HTTP connections drained AND all tracked processes completed
+        await Promise.all([serverClosePromise, shutdownPromise]);
+        this.log('All active processes completed');
+
+        // 4. Now safe to close app (destroys TypeORM connections, etc.)
         await this.app.close();
         this.log('Application stopped successfully.');
       }
