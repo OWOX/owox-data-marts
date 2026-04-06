@@ -1,6 +1,6 @@
 import { createBetterAuthConfig } from '../auth/auth-config.js';
 import { CryptoService } from './crypto-service.js';
-import { Payload, AuthResult, Role } from '@owox/idp-protocol';
+import { Payload, AuthResult } from '@owox/idp-protocol';
 import type { UserManagementService } from './user-management-service.js';
 import { logger } from '../logger.js';
 
@@ -16,36 +16,11 @@ export class TokenService {
   async introspectToken(token: string): Promise<Payload | null> {
     try {
       const cleanToken = token.replace('Bearer ', '');
-      const decryptedToken = await this.cryptoService.decrypt(cleanToken);
+      const decrypted = await this.cryptoService.decrypt(cleanToken);
+      const payload = JSON.parse(decrypted) as Payload;
 
-      const encodedToken = encodeURIComponent(decryptedToken);
-      const betterAuthTokenPrefix = this.auth.options.advanced?.cookies?.session_token?.attributes
-        ?.secure
-        ? '__Secure-'
-        : '';
-      const session = await this.auth.api.getSession({
-        headers: new Headers({
-          Cookie: `${betterAuthTokenPrefix}refreshToken=${encodedToken}`,
-        }),
-      });
-
-      if (!session || !session.user) {
+      if (!payload || !payload.userId) {
         return null;
-      }
-
-      // Get the user role from the database
-      const userRole = await this.userManagementService.getUserRole(session.user.id);
-
-      const payload: Payload = {
-        userId: session.user.id,
-        projectId: TokenService.DEFAULT_ORGANIZATION_ID,
-        email: session.user.email,
-        fullName: session.user.name || session.user.email,
-      };
-
-      // Only include the role if the user has a role assigned
-      if (userRole) {
-        payload.roles = [userRole as Role];
       }
 
       return payload;
@@ -75,7 +50,17 @@ export class TokenService {
         throw new Error('Invalid refresh token');
       }
 
-      const encryptedToken = await this.cryptoService.encrypt(session.session.token);
+      const userRole = await this.userManagementService.getUserRole(session.user.id);
+
+      const payload = {
+        userId: session.user.id,
+        projectId: TokenService.DEFAULT_ORGANIZATION_ID,
+        email: session.user.email,
+        fullName: session.user.name || session.user.email,
+        ...(userRole ? { roles: [userRole] } : {}),
+      };
+
+      const encryptedToken = await this.cryptoService.encrypt(JSON.stringify(payload));
       return {
         accessToken: encryptedToken,
       };

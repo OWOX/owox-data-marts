@@ -131,21 +131,14 @@ describe('GoogleSheetsExtensionAuthController', () => {
       );
     });
 
-    it('logs error if registration fails', () => {
+    it('throws if registration fails', () => {
       const app = {
         post: jest.fn(() => {
           throw new Error('Registration failed');
         }),
       } as unknown as Express;
-      const loggerSpy = jest.spyOn((controller as any).logger, 'error');
 
-      controller.registerRoutes(app);
-
-      expect(loggerSpy).toHaveBeenCalledWith(
-        'Failed to register Google Sheets Extension auth routes',
-        {},
-        expect.any(Error)
-      );
+      expect(() => controller.registerRoutes(app)).toThrow('Registration failed');
     });
   });
 });

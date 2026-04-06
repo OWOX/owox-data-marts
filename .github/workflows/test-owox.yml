@@ -37,6 +37,12 @@ jobs:
           - name: 'Overall test owox'
             command: 'npm run test -w owox'
             timeout: 10
+          - name: 'Overall test @owox/idp-better-auth'
+            command: 'npm run test -w @owox/idp-better-auth'
+            timeout: 10
+          - name: 'Overall test @owox/idp-owox-better-auth'
+            command: 'npm run test -w @owox/idp-owox-better-auth'
+            timeout: 10
 
     steps:
       - name: Checkout repository

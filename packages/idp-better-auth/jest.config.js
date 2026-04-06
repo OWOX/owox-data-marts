@@ -2,7 +2,7 @@
 export default {
   preset: 'ts-jest/presets/default-esm',
   extensionsToTreatAsEsm: ['.ts'],
-  moduleNameMapping: {
+  moduleNameMapper: {
     '^(\\.{1,2}/.*)\\.js$': '$1',
   },
   transform: {
@@ -18,4 +18,5 @@ export default {
   testMatch: ['<rootDir>/src/**/__tests__/**/*.test.ts', '<rootDir>/src/**/*.test.ts'],
   moduleFileExtensions: ['ts', 'js', 'json'],
   roots: ['<rootDir>/src'],
+  setupFiles: ['<rootDir>/jest.setup.ts'],
 };

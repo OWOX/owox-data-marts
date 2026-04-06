@@ -149,8 +149,8 @@ describe('ProjectMembersService', () => {
         updatedAt: new Date(),
       });
 
-      // Act
-      const result = await service.getMembers(projectId);
+      // Act - forceFresh: false to check TTL-based logic
+      const result = await service.getMembers(projectId, { forceFresh: false });
 
       // Assert
       expect(store.getProjectMembers).toHaveBeenCalledWith(projectId);
@@ -186,8 +186,8 @@ describe('ProjectMembersService', () => {
       });
       identityClient.getProjectMembers.mockResolvedValue(owoxResponse as never);
 
-      // Act
-      const result = await service.getMembers(projectId);
+      // Act - forceFresh: false to check TTL-based logic
+      const result = await service.getMembers(projectId, { forceFresh: false });
 
       // Assert
       expect(store.getProjectMembers).toHaveBeenCalledWith(projectId);
