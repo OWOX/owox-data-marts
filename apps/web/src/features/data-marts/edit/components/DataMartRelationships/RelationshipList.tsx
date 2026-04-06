@@ -1,22 +1,22 @@
-import { useState } from 'react';
 import { Badge } from '@owox/ui/components/badge';
 import {
   Empty,
+  EmptyDescription,
   EmptyHeader,
   EmptyMedia,
   EmptyTitle,
-  EmptyDescription,
 } from '@owox/ui/components/empty';
 import {
   Table,
-  TableHeader,
-  TableHead,
   TableBody,
-  TableRow,
   TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
 } from '@owox/ui/components/table';
-import { Tooltip, TooltipTrigger, TooltipContent } from '@owox/ui/components/tooltip';
-import { GitMerge, Pencil, Trash2 } from 'lucide-react';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@owox/ui/components/tooltip';
+import { GitMerge, Trash2 } from 'lucide-react';
+import { useState } from 'react';
 import { Button } from '../../../../../shared/components/Button';
 import { ConfirmationDialog } from '../../../../../shared/components/ConfirmationDialog';
 import type { DataMartRelationship } from '../../../shared/types/relationship.types';
@@ -65,13 +65,13 @@ export function RelationshipList({ relationships, onEdit, onDelete }: Relationsh
           <TableRow className='hover:bg-transparent'>
             <TableHead className='bg-secondary dark:bg-background'>
               <Tooltip>
-                <TooltipTrigger className='cursor-default'>Target Data Mart</TooltipTrigger>
-                <TooltipContent>The data mart this relationship joins to</TooltipContent>
+                <TooltipTrigger className='cursor-default'>Data Mart</TooltipTrigger>
+                <TooltipContent>The related data mart this relationship joins to</TooltipContent>
               </Tooltip>
             </TableHead>
             <TableHead className='bg-secondary dark:bg-background'>
               <Tooltip>
-                <TooltipTrigger className='cursor-default'>Alias</TooltipTrigger>
+                <TooltipTrigger className='cursor-default'>Field Prefix</TooltipTrigger>
                 <TooltipContent>
                   Short name used to prefix blended fields in the output schema
                 </TooltipContent>
@@ -79,9 +79,9 @@ export function RelationshipList({ relationships, onEdit, onDelete }: Relationsh
             </TableHead>
             <TableHead className='bg-secondary dark:bg-background'>
               <Tooltip>
-                <TooltipTrigger className='cursor-default'>Join Conditions</TooltipTrigger>
+                <TooltipTrigger className='cursor-default'>Join Fields</TooltipTrigger>
                 <TooltipContent>
-                  Field pairs used to match rows between source and target data marts
+                  Field pairs used to match rows between the source and related data marts
                 </TooltipContent>
               </Tooltip>
             </TableHead>
@@ -89,20 +89,18 @@ export function RelationshipList({ relationships, onEdit, onDelete }: Relationsh
               <Tooltip>
                 <TooltipTrigger className='cursor-default'>Blendable Fields</TooltipTrigger>
                 <TooltipContent>
-                  Fields from the target data mart included in the output schema
+                  Fields from the related data mart available in the output schema
                 </TooltipContent>
               </Tooltip>
             </TableHead>
-            <TableHead className='bg-secondary dark:bg-background w-24 text-right'>
-              Actions
-            </TableHead>
+            <TableHead className='bg-secondary dark:bg-background w-12' />
           </TableRow>
         </TableHeader>
         <TableBody className='bg-background'>
           {relationships.map(rel => (
             <TableRow
               key={rel.id}
-              className='cursor-pointer'
+              className='group cursor-pointer'
               onClick={() => {
                 onEdit(rel);
               }}
@@ -114,39 +112,30 @@ export function RelationshipList({ relationships, onEdit, onDelete }: Relationsh
                 </Badge>
               </TableCell>
               <TableCell className='text-muted-foreground'>
-                {rel.joinConditions.length} condition
-                {rel.joinConditions.length !== 1 ? 's' : ''}
+                {rel.joinConditions.length} {rel.joinConditions.length !== 1 ? 'pairs' : 'pair'}
               </TableCell>
               <TableCell className='text-muted-foreground'>
                 {rel.blendedFields.length} field
                 {rel.blendedFields.length !== 1 ? 's' : ''}
               </TableCell>
-              <TableCell className='text-right'>
-                <div className='flex items-center justify-end gap-1'>
-                  <Button
-                    variant='ghost'
-                    size='sm'
-                    onClick={e => {
-                      e.stopPropagation();
-                      onEdit(rel);
-                    }}
-                    aria-label='Edit relationship'
-                  >
-                    <Pencil className='h-3.5 w-3.5' />
-                  </Button>
-                  <Button
-                    variant='ghost'
-                    size='sm'
-                    onClick={e => {
-                      e.stopPropagation();
-                      setDeletingId(rel.id);
-                    }}
-                    aria-label='Delete relationship'
-                    className='text-destructive hover:text-destructive'
-                  >
-                    <Trash2 className='h-3.5 w-3.5' />
-                  </Button>
-                </div>
+              <TableCell>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant='ghost'
+                      size='sm'
+                      onClick={e => {
+                        e.stopPropagation();
+                        setDeletingId(rel.id);
+                      }}
+                      aria-label='Delete relationship'
+                      className='text-destructive hover:text-destructive cursor-pointer opacity-0 transition-opacity group-hover:opacity-100'
+                    >
+                      <Trash2 className='h-3.5 w-3.5' />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Delete relationship</TooltipContent>
+                </Tooltip>
               </TableCell>
             </TableRow>
           ))}

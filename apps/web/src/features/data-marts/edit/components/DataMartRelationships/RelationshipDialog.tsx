@@ -1,22 +1,20 @@
-import { useCallback, useEffect, useState } from 'react';
-import { useForm, useFieldArray } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { z } from 'zod';
 import {
   Dialog,
   DialogContent,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogFooter,
 } from '@owox/ui/components/dialog';
 import {
   Form,
+  FormControl,
   FormField,
   FormItem,
   FormLabel,
-  FormControl,
   FormMessage,
 } from '@owox/ui/components/form';
+import { Input } from '@owox/ui/components/input';
 import {
   Select,
   SelectContent,
@@ -24,42 +22,33 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@owox/ui/components/select';
-import { Input } from '@owox/ui/components/input';
-import { Checkbox } from '@owox/ui/components/checkbox';
 import { Separator } from '@owox/ui/components/separator';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@owox/ui/components/tooltip';
 import { cn } from '@owox/ui/lib/utils';
-import { Plus, Trash2 } from 'lucide-react';
+import { Info, Plus, Trash2 } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { useFieldArray, useForm } from 'react-hook-form';
+import { z } from 'zod';
 import { Button } from '../../../../../shared/components/Button';
+import type { DataMartResponseDto } from '../../../shared';
+import { dataMartService } from '../../../shared';
 import { dataMartRelationshipService } from '../../../shared/services/data-mart-relationship.service';
-import { dataMartService } from '../../../shared/services/data-mart.service';
 import type { DataMartRelationship } from '../../../shared/types/relationship.types';
-import type { DataMartResponseDto } from '../../../shared/types/api';
-
-const AGGREGATE_FUNCTIONS = ['STRING_AGG', 'MAX', 'MIN', 'SUM', 'COUNT', 'ANY_VALUE'] as const;
 
 const joinConditionSchema = z.object({
   sourceFieldName: z.string().min(1, 'Source field is required'),
-  targetFieldName: z.string().min(1, 'Target field is required'),
-});
-
-const blendedFieldSchema = z.object({
-  targetFieldName: z.string(),
-  outputAlias: z.string().min(1, 'Output alias is required'),
-  isHidden: z.boolean(),
-  aggregateFunction: z.string(),
-  selected: z.boolean(),
+  targetFieldName: z.string().min(1, 'Related field is required'),
 });
 
 const relationshipFormSchema = z.object({
-  targetDataMartId: z.string().min(1, 'Target Data Mart is required'),
+  targetDataMartId: z.string().min(1, 'Data Mart is required'),
   targetAlias: z
     .string()
-    .min(1, 'Alias is required')
+    .min(1, 'Field prefix is required')
     .regex(/^[a-z0-9_]+$/, {
-      message: 'Alias must contain only lowercase letters, numbers, and underscores',
+      message: 'Field prefix must contain only lowercase letters, numbers, and underscores',
     }),
   joinConditions: z.array(joinConditionSchema).min(1, 'At least one join condition is required'),
-  blendedFields: z.array(blendedFieldSchema),
 });
 
 type RelationshipFormValues = z.infer<typeof relationshipFormSchema>;
@@ -131,7 +120,6 @@ export function RelationshipDialog({
       targetDataMartId: '',
       targetAlias: '',
       joinConditions: [{ sourceFieldName: '', targetFieldName: '' }],
-      blendedFields: [],
     },
   });
 
@@ -144,13 +132,7 @@ export function RelationshipDialog({
     name: 'joinConditions',
   });
 
-  const { fields: blendedFields } = useFieldArray({
-    control: form.control,
-    name: 'blendedFields',
-  });
-
   const watchedTargetId = form.watch('targetDataMartId');
-  const watchedBlendedFields = form.watch('blendedFields');
 
   // Load available DMs and source DM schema
   useEffect(() => {
@@ -177,19 +159,24 @@ export function RelationshipDialog({
     })();
   }, [open, dataMartId, storageId]);
 
-  // Populate form when editing
+  // Populate form when opening
   useEffect(() => {
-    if (!open || relationship == null) return;
+    if (!open) return;
 
-    form.reset({
-      targetDataMartId: relationship.targetDataMart.id,
-      targetAlias: relationship.targetAlias,
-      joinConditions: relationship.joinConditions,
-      blendedFields: relationship.blendedFields.map(f => ({
-        ...f,
-        selected: true,
-      })),
-    });
+    if (relationship != null) {
+      form.reset({
+        targetDataMartId: relationship.targetDataMart.id,
+        targetAlias: relationship.targetAlias,
+        joinConditions: relationship.joinConditions,
+      });
+    } else {
+      form.reset({
+        targetDataMartId: '',
+        targetAlias: '',
+        joinConditions: [{ sourceFieldName: '', targetFieldName: '' }],
+      });
+      setTargetDM(null);
+    }
   }, [open, relationship, form]);
 
   // Load target DM schema when target changes
@@ -205,25 +192,9 @@ export function RelationshipDialog({
         const dm = await dataMartService.getDataMartById(watchedTargetId);
         setTargetDM(dm);
 
-        // Only rebuild blended fields for new relationship or when target changes
-        const isTargetChanged = relationship?.targetDataMart.id !== watchedTargetId;
-        if (relationship == null || isTargetChanged) {
-          const alias = form.getValues('targetAlias') || slugify(dm.title);
-          if (!form.getValues('targetAlias')) {
-            form.setValue('targetAlias', alias);
-          }
-
-          const fields = getSchemaFields(dm);
-          form.setValue(
-            'blendedFields',
-            fields.map(f => ({
-              targetFieldName: f.name,
-              outputAlias: `${alias}_${f.name}`,
-              isHidden: false,
-              aggregateFunction: 'STRING_AGG',
-              selected: true,
-            }))
-          );
+        // Auto-fill alias when target changes
+        if (!isEdit) {
+          form.setValue('targetAlias', slugify(dm.title));
         }
       } finally {
         setIsLoadingTarget(false);
@@ -231,35 +202,23 @@ export function RelationshipDialog({
     })();
   }, [watchedTargetId, relationship, form]);
 
-  // Auto-update output aliases when alias changes (only for new relationship)
-  const handleAliasChange = useCallback(
-    (newAlias: string) => {
-      if (isEdit) return;
-      const current = form.getValues('blendedFields');
-      if (!current.length) return;
-
-      const updated = current.map(f => ({
-        ...f,
-        outputAlias: `${newAlias}_${f.targetFieldName}`,
-      }));
-      form.setValue('blendedFields', updated);
-    },
-    [form, isEdit]
-  );
-
   const handleSubmit = form.handleSubmit(async values => {
     setIsSaving(true);
     try {
-      const selectedBlended = values.blendedFields
-        .filter(f => f.selected)
-        // eslint-disable-next-line @typescript-eslint/no-unused-vars
-        .map(({ selected: _selected, ...rest }) => rest);
+      const alias = values.targetAlias;
+      const fields = getSchemaFields(targetDM);
+      const blendedFields = fields.map(f => ({
+        targetFieldName: f.name,
+        outputAlias: `${alias}_${f.name}`,
+        isHidden: false,
+        aggregateFunction: 'STRING_AGG',
+      }));
 
       const payload = {
         targetDataMartId: values.targetDataMartId,
         targetAlias: values.targetAlias,
         joinConditions: values.joinConditions,
-        blendedFields: selectedBlended,
+        blendedFields,
       };
 
       if (isEdit && relationship != null) {
@@ -290,8 +249,22 @@ export function RelationshipDialog({
   const hasTypeMismatch = joinTypeMismatches.some(Boolean);
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className='flex max-h-[90vh] !max-w-4xl flex-col overflow-hidden'>
+    <Dialog
+      open={open}
+      onOpenChange={value => {
+        onOpenChange(value);
+        if (!value) {
+          form.reset();
+          setTargetDM(null);
+        }
+      }}
+    >
+      <DialogContent
+        className='flex max-h-[90vh] !max-w-2xl flex-col overflow-hidden'
+        onOpenAutoFocus={e => {
+          e.preventDefault();
+        }}
+      >
         <DialogHeader>
           <DialogTitle>{isEdit ? 'Edit Relationship' : 'Add Relationship'}</DialogTitle>
         </DialogHeader>
@@ -301,15 +274,25 @@ export function RelationshipDialog({
             onSubmit={e => {
               void handleSubmit(e);
             }}
-            className='flex min-h-0 flex-col gap-6 overflow-y-auto'
+            className='flex min-h-0 flex-col gap-6 overflow-y-auto px-1'
           >
-            {/* Target Data Mart */}
+            {/* Data Mart */}
             <FormField
               control={form.control}
               name='targetDataMartId'
               render={({ field }) => (
                 <FormItem variant='light'>
-                  <FormLabel>Target Data Mart</FormLabel>
+                  <FormLabel>
+                    Data Mart{' '}
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Info className='text-muted-foreground inline h-3.5 w-3.5 align-text-bottom' />
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        Select the data mart whose fields you want to blend into this one
+                      </TooltipContent>
+                    </Tooltip>
+                  </FormLabel>
                   <FormControl>
                     <Select
                       value={field.value}
@@ -329,26 +312,37 @@ export function RelationshipDialog({
                     </Select>
                   </FormControl>
                   <FormMessage />
+                  {watchedTargetId && !isLoadingTarget && targetDM && (
+                    <p className='text-muted-foreground text-xs'>
+                      {getSchemaFields(targetDM).length} fields available for blending
+                    </p>
+                  )}
+                  {isLoadingTarget && (
+                    <p className='text-muted-foreground text-xs'>Loading schema...</p>
+                  )}
                 </FormItem>
               )}
             />
 
-            {/* Alias */}
+            {/* Field Prefix */}
             <FormField
               control={form.control}
               name='targetAlias'
               render={({ field }) => (
                 <FormItem variant='light'>
-                  <FormLabel>Alias</FormLabel>
+                  <FormLabel>
+                    Field Prefix{' '}
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Info className='text-muted-foreground inline h-3.5 w-3.5 align-text-bottom' />
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        Short name added before each blended field in the output schema
+                      </TooltipContent>
+                    </Tooltip>
+                  </FormLabel>
                   <FormControl>
-                    <Input
-                      {...field}
-                      placeholder='e.g. orders'
-                      onChange={e => {
-                        field.onChange(e);
-                        handleAliasChange(e.target.value);
-                      }}
-                    />
+                    <Input {...field} placeholder='e.g. orders' />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -357,10 +351,20 @@ export function RelationshipDialog({
 
             <Separator />
 
-            {/* Join Conditions */}
+            {/* Join Fields */}
             <div className='flex flex-col gap-3'>
               <div className='flex shrink-0 items-center justify-between'>
-                <p className='text-sm font-medium'>Join Conditions</p>
+                <p className='flex items-center gap-1 text-sm font-medium'>
+                  Join Fields
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Info className='text-muted-foreground h-3.5 w-3.5' />
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      Define how rows are matched between the source and related data marts
+                    </TooltipContent>
+                  </Tooltip>
+                </p>
                 <Button
                   type='button'
                   variant='outline'
@@ -370,7 +374,7 @@ export function RelationshipDialog({
                   }}
                 >
                   <Plus className='mr-1 h-3.5 w-3.5' />
-                  Add Condition
+                  Add Join Field
                 </Button>
               </div>
 
@@ -383,12 +387,15 @@ export function RelationshipDialog({
                         control={form.control}
                         name={`joinConditions.${index}.sourceFieldName`}
                         render={({ field }) => (
-                          <FormItem variant='light' className='flex-1'>
-                            {index === 0 && <FormLabel>Source field</FormLabel>}
+                          <FormItem variant='light' className='min-w-0 flex-1'>
+                            <FormLabel className={cn(index > 0 && 'sr-only')}>
+                              Source field
+                            </FormLabel>
                             <FormControl>
                               <Select value={field.value} onValueChange={field.onChange}>
                                 <SelectTrigger
                                   className={cn('w-full', mismatch && 'border-destructive')}
+                                  title={field.value || undefined}
                                 >
                                   <SelectValue placeholder='Select field...' />
                                 </SelectTrigger>
@@ -412,15 +419,17 @@ export function RelationshipDialog({
                       />
 
                       <div className={cn('flex items-center', index === 0 ? 'mt-8' : 'mt-2')}>
-                        <span className='text-muted-foreground text-sm'>=</span>
+                        <span className='text-muted-foreground text-sm'>→</span>
                       </div>
 
                       <FormField
                         control={form.control}
                         name={`joinConditions.${index}.targetFieldName`}
                         render={({ field }) => (
-                          <FormItem variant='light' className='flex-1'>
-                            {index === 0 && <FormLabel>Target field</FormLabel>}
+                          <FormItem variant='light' className='min-w-0 flex-1'>
+                            <FormLabel className={cn(index > 0 && 'sr-only')}>
+                              Related field
+                            </FormLabel>
                             <FormControl>
                               <Select
                                 value={field.value}
@@ -429,6 +438,7 @@ export function RelationshipDialog({
                               >
                                 <SelectTrigger
                                   className={cn('w-full', mismatch && 'border-destructive')}
+                                  title={field.value || undefined}
                                 >
                                   <SelectValue placeholder='Select field...' />
                                 </SelectTrigger>
@@ -451,22 +461,23 @@ export function RelationshipDialog({
                         )}
                       />
 
-                      <Button
-                        type='button'
-                        variant='ghost'
-                        size='sm'
-                        onClick={() => {
-                          removeJoin(index);
-                        }}
-                        disabled={joinFields.length === 1}
-                        className={cn(
-                          'text-destructive hover:text-destructive',
-                          index === 0 ? 'mt-7' : 'mt-2'
-                        )}
-                        aria-label='Remove join condition'
-                      >
-                        <Trash2 className='h-3.5 w-3.5' />
-                      </Button>
+                      {joinFields.length > 1 && (
+                        <Button
+                          type='button'
+                          variant='ghost'
+                          size='sm'
+                          onClick={() => {
+                            removeJoin(index);
+                          }}
+                          className={cn(
+                            'text-destructive hover:text-destructive',
+                            index === 0 ? 'mt-7' : 'mt-2'
+                          )}
+                          aria-label='Remove join condition'
+                        >
+                          <Trash2 className='h-3.5 w-3.5' />
+                        </Button>
+                      )}
                     </div>
 
                     {mismatch != null && (
@@ -485,120 +496,7 @@ export function RelationshipDialog({
               )}
             </div>
 
-            <Separator />
-
-            {/* Blendable Fields */}
-            <div className='flex flex-col gap-3'>
-              <p className='text-sm font-medium'>Blendable Fields</p>
-
-              {isLoadingTarget && (
-                <p className='text-muted-foreground text-sm'>Loading target schema...</p>
-              )}
-
-              {!isLoadingTarget && blendedFields.length === 0 && watchedTargetId && (
-                <p className='text-muted-foreground text-sm'>
-                  No fields available in the target Data Mart schema.
-                </p>
-              )}
-
-              {!watchedTargetId && (
-                <p className='text-muted-foreground text-sm'>
-                  Select a target Data Mart to configure blended fields.
-                </p>
-              )}
-
-              {blendedFields.length > 0 && (
-                <div className='rounded-md border'>
-                  {/* Header */}
-                  <div className='grid grid-cols-[24px_minmax(0,1fr)_minmax(0,1.5fr)_160px_48px] items-center gap-3 border-b px-3 py-2 text-xs font-medium text-gray-500'>
-                    <span />
-                    <span>Field name</span>
-                    <span>Output alias</span>
-                    <span>Aggregate</span>
-                    <span className='text-center'>Hidden</span>
-                  </div>
-
-                  <div className='max-h-[300px] overflow-y-auto'>
-                    {blendedFields.map((bf, index) => (
-                      <div
-                        key={bf.id}
-                        className='grid grid-cols-[24px_minmax(0,1fr)_minmax(0,1.5fr)_160px_48px] items-center gap-3 border-b px-3 py-2 last:border-b-0'
-                      >
-                        {/* Select checkbox */}
-                        <FormField
-                          control={form.control}
-                          name={`blendedFields.${index}.selected`}
-                          render={({ field }) => (
-                            <Checkbox
-                              checked={field.value}
-                              onCheckedChange={field.onChange}
-                              aria-label={`Include field ${bf.targetFieldName}`}
-                            />
-                          )}
-                        />
-
-                        {/* Field name */}
-                        <span className='truncate text-sm'>{bf.targetFieldName}</span>
-
-                        {/* Output alias */}
-                        <FormField
-                          control={form.control}
-                          name={`blendedFields.${index}.outputAlias`}
-                          render={({ field }) => (
-                            <Input
-                              {...field}
-                              className='h-7 text-xs'
-                              disabled={!watchedBlendedFields[index].selected}
-                            />
-                          )}
-                        />
-
-                        {/* Aggregate function */}
-                        <FormField
-                          control={form.control}
-                          name={`blendedFields.${index}.aggregateFunction`}
-                          render={({ field }) => (
-                            <Select
-                              value={field.value}
-                              onValueChange={field.onChange}
-                              disabled={!watchedBlendedFields[index].selected}
-                            >
-                              <SelectTrigger size='sm' className='w-full'>
-                                <SelectValue />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {AGGREGATE_FUNCTIONS.map(fn => (
-                                  <SelectItem key={fn} value={fn}>
-                                    {fn}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                          )}
-                        />
-
-                        {/* Hidden toggle */}
-                        <FormField
-                          control={form.control}
-                          name={`blendedFields.${index}.isHidden`}
-                          render={({ field }) => (
-                            <Checkbox
-                              checked={field.value}
-                              onCheckedChange={field.onChange}
-                              disabled={!watchedBlendedFields[index].selected}
-                              className='mx-auto'
-                              aria-label={`Hide field ${bf.targetFieldName}`}
-                            />
-                          )}
-                        />
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-
-            <DialogFooter className='bg-background sticky bottom-0 shrink-0 border-t pt-4'>
+            <DialogFooter className='bg-background sticky bottom-0 shrink-0 pt-4'>
               <Button
                 type='button'
                 variant='outline'
