@@ -13,7 +13,7 @@ import {
 } from '@owox/ui/components/form';
 import { Input } from '@owox/ui/components/input';
 import { Plus } from 'lucide-react';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { Combobox } from '../../../../shared/components/Combobox/combobox';
 import { DataStorageHealthIndicator, DataStorageType } from '../../../data-storage';
@@ -41,6 +41,7 @@ export function DataMartCreateForm({ initialData, onSuccess }: DataMartFormProps
   } = useDataStorage();
   const [isDataStorageTypeDialogOpen, setIsDataStorageTypeDialogOpen] = useState(false);
   const [isCreatingDataStorage, setIsCreatingDataStorage] = useState(false);
+  const hasAppliedSingleStorageAutoSelectRef = useRef(false);
 
   useEffect(() => {
     void fetchDataStorages();
@@ -54,6 +55,19 @@ export function DataMartCreateForm({ initialData, onSuccess }: DataMartFormProps
     },
     mode: 'onTouched',
   });
+
+  useEffect(() => {
+    if (loadingStorages) return;
+    if (dataStorages.length !== 1) return;
+    if (hasAppliedSingleStorageAutoSelectRef.current) return;
+    if (form.getValues('storageId')) return;
+
+    const id = dataStorages[0].id;
+    if (!id) return;
+
+    hasAppliedSingleStorageAutoSelectRef.current = true;
+    form.setValue('storageId', id, { shouldValidate: true, shouldDirty: false });
+  }, [dataStorages, loadingStorages, form]);
 
   const onSubmit = async (data: DataMartFormData) => {
     const response = await handleCreate(data);
