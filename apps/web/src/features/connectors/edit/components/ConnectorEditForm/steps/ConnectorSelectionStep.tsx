@@ -12,6 +12,7 @@ import {
 } from '@owox/ui/components/common/wizard';
 import { trackEvent } from '../../../../../../utils';
 import { useEffect } from 'react';
+import { InviteTeammatesCard } from '../../../../../../shared/components/InviteTeammatesCard';
 
 interface ConnectorSelectionStepProps {
   connectors: ConnectorListItem[];
@@ -76,6 +77,12 @@ export function ConnectorSelectionStep({
             />
           ))}
         </AppWizardGrid>
+        <InviteTeammatesCard
+          variant='inline'
+          hint='— Ask someone with access to help you'
+          docsLabel='Learn more about Connectors'
+          docsHref='https://docs.owox.com/docs/getting-started/setup-guide/connector-data-mart/'
+        />
       </AppWizardStepSection>
 
       {connectors.length === 0 && (

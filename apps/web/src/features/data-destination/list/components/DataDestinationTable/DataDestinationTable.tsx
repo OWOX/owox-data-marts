@@ -17,6 +17,7 @@ import {
   type DataDestinationFilterKey,
 } from './DataDestinationTableFilters.config';
 import { EmptyDataDestinationsState } from './EmptyDataDestinationsState';
+import { InviteTeammatesCard } from '../../../../../shared/components/InviteTeammatesCard';
 
 interface DataDestinationTableProps<TData, TValue> {
   columns: ColumnDef<TData, TValue>[];
@@ -85,8 +86,15 @@ export function DataDestinationTable<TData, TValue>({
   // Show custom empty state when no data
   if (!data.length) {
     return (
-      <div className='dm-card'>
-        <EmptyDataDestinationsState onOpenTypeDialog={onOpenTypeDialog} />
+      <div className='flex flex-col gap-0.5'>
+        <div className='dm-card'>
+          <EmptyDataDestinationsState onOpenTypeDialog={onOpenTypeDialog} />
+        </div>
+        <InviteTeammatesCard
+          hint='— Not sure which destination to connect? Ask someone with access to help you'
+          docsLabel='Learn more about Destinations'
+          docsHref='https://docs.owox.com/docs/destinations/manage-destinations/'
+        />
       </div>
     );
   }
