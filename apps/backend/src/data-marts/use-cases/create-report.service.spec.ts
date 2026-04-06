@@ -64,6 +64,9 @@ describe('CreateReportService', () => {
       }),
     };
     const idpProjectionsFacade = {};
+    const producer = {
+      produceEvent: jest.fn().mockResolvedValue(undefined),
+    };
 
     const service = new CreateReportService(
       reportRepository as never,
@@ -74,7 +77,8 @@ describe('CreateReportService', () => {
       mapper as never,
       availableDestinationTypesService as never,
       userProjectionsFetcherService as never,
-      idpProjectionsFacade as never
+      idpProjectionsFacade as never,
+      producer as never
     );
 
     return { service };

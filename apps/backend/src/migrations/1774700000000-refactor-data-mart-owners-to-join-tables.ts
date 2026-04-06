@@ -1,4 +1,5 @@
-import { MigrationInterface, QueryRunner, Table, TableIndex } from 'typeorm';
+import { MigrationInterface, QueryRunner, Table, TableColumn, TableIndex } from 'typeorm';
+import { getTable } from './migration-utils';
 
 export class RefactorDataMartOwnersToJoinTables1774700000000 implements MigrationInterface {
   public readonly name = 'RefactorDataMartOwnersToJoinTables1774700000000';
@@ -140,17 +141,31 @@ export class RefactorDataMartOwnersToJoinTables1774700000000 implements Migratio
 
   public async down(queryRunner: QueryRunner): Promise<void> {
     // Step 1: Re-add JSON columns
+    const table = await getTable(queryRunner, 'data_mart');
+
     const hasBizCol = await queryRunner.hasColumn('data_mart', 'businessOwnerIds');
     if (!hasBizCol) {
-      await queryRunner.query(
-        `ALTER TABLE data_mart ADD COLUMN businessOwnerIds json DEFAULT NULL`
+      await queryRunner.addColumn(
+        table,
+        new TableColumn({
+          name: 'businessOwnerIds',
+          type: 'json',
+          isNullable: true,
+          default: null,
+        })
       );
     }
 
     const hasTechCol = await queryRunner.hasColumn('data_mart', 'technicalOwnerIds');
     if (!hasTechCol) {
-      await queryRunner.query(
-        `ALTER TABLE data_mart ADD COLUMN technicalOwnerIds json DEFAULT NULL`
+      await queryRunner.addColumn(
+        table,
+        new TableColumn({
+          name: 'technicalOwnerIds',
+          type: 'json',
+          isNullable: true,
+          default: null,
+        })
       );
     }
 
