@@ -427,6 +427,10 @@ var XAdsSource = class XAdsSource extends AbstractSource {
 
     const resp = await this._rawPostFetch(`stats/jobs/accounts/${accountId}`, params);
 
+    if (resp.errors) {
+      throw new Error(`X Ads API error when submitting async stats job: ${JSON.stringify(resp.errors)}`);
+    }
+
     if (!resp.data?.id) {
       throw new Error(`Failed to submit async stats job: ${JSON.stringify(resp)}`);
     }
@@ -437,8 +441,20 @@ var XAdsSource = class XAdsSource extends AbstractSource {
   async _downloadAndParseJobResults({ nodeName, downloadUrl, placement, start_time }) {
     // No OAuth header — downloadUrl is a pre-signed CDN URL served as raw gzip binary
     // (no Content-Encoding header), so we decompress manually with zlib.
-    // 60s timeout guards against a stalled CDN connection hanging the import indefinitely.
-    const resp = await HttpUtils.fetch(downloadUrl, { signal: AbortSignal.timeout(60000) });
+    // Uses urlFetchWithRetry for transient CDN failure resilience.
+    // 60s timeout guards against a stalled CDN connection hanging the import.
+    const resp = await this.urlFetchWithRetry(downloadUrl, {
+      method: 'GET',
+      signal: AbortSignal.timeout(60000),
+      muteHttpExceptions: true
+    });
+
+    const statusCode = resp.getResponseCode();
+    if (statusCode < 200 || statusCode > 299) {
+      const errorText = await resp.getContentText();
+      throw new Error(`CDN download failed (HTTP ${statusCode}) for job results at ${start_time}: ${errorText.substring(0, 500)}`);
+    }
+
     const buffer = await resp.getBlob();
     const text = await new Promise((resolve, reject) =>
       zlib.gunzip(buffer, (err, result) => err ? reject(err) : resolve(result.toString('utf8')))
@@ -552,6 +568,12 @@ var XAdsSource = class XAdsSource extends AbstractSource {
 
       const resp = await this._rawFetch(`stats/jobs/accounts/${accountId}`, { job_ids: jobId });
       const jobs = this._toDataArray(resp.data);
+
+      if (!jobs.length) {
+        console.log(`Poll attempt ${attempt + 1}: empty response for job ${jobId}, retrying`);
+        continue;
+      }
+
       const job = jobs[0];
 
       if (job.status === 'SUCCESS') {
@@ -641,12 +663,15 @@ var XAdsSource = class XAdsSource extends AbstractSource {
   async _fetchTargetingLocations(fields) {
     const all = [];
     let cursor = null;
+    const MAX_PAGES = 20;
+    let page = 0;
     // X Ads returns ~250 countries in 1–2 pages (count=1000). Fetching other
     // location_types (REGIONS, CITIES, POSTAL_CODES) would require thousands of
     // pages and is impractical for a reference table — COUNTRIES is sufficient
     // for joining with stats_by_country.country.
 
-    while (true) {
+    while (page < MAX_PAGES) {
+      page++;
       const params = { location_type: 'COUNTRIES', count: 1000 };
       if (cursor) params.cursor = cursor;
 

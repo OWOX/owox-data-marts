@@ -51,6 +51,10 @@ var HttpUtils = class HttpUtils {
             fetchOptions.redirect = options.redirect;
         }
 
+        if (options.signal) {
+            fetchOptions.signal = options.signal;
+        }
+
         const response = await fetch(url, fetchOptions);
         return this._wrapNodeResponse(response, url);
     }
