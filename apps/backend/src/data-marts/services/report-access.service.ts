@@ -1,4 +1,4 @@
-import { Injectable, ForbiddenException } from '@nestjs/common';
+import { Injectable, ForbiddenException, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Report } from '../entities/report.entity';
@@ -19,6 +19,8 @@ const MUTATE_DENIED_MESSAGES: Record<MutateDeniedReason, string> = {
 
 @Injectable()
 export class ReportAccessService {
+  private readonly logger = new Logger(ReportAccessService.name);
+
   constructor(
     @InjectRepository(Report)
     private readonly reportRepository: Repository<Report>,
@@ -88,6 +90,7 @@ export class ReportAccessService {
   ): Promise<void> {
     const result = await this.evaluateMutateAccess(userId, roles, reportId, projectId);
     if (!result.allowed) {
+      this.logger.warn(`Access denied: ${result.reason}`, { userId, reportId, projectId });
       throw new ForbiddenException(MUTATE_DENIED_MESSAGES[result.reason]);
     }
   }
