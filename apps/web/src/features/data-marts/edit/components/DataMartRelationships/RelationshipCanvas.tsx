@@ -14,8 +14,6 @@ import { Button } from '../../../../../shared/components/Button';
 import { dataMartRelationshipService } from '../../../shared/services/data-mart-relationship.service';
 import type { DataMartRelationship } from '../../../shared/types/relationship.types';
 
-/* ---------- props ---------- */
-
 interface RelationshipCanvasProps {
   dataMartId: string;
   dataMartTitle: string;
@@ -24,8 +22,6 @@ interface RelationshipCanvasProps {
   relationships: DataMartRelationship[];
   onRelationshipSelect: (relationship: DataMartRelationship) => void;
 }
-
-/* ---------- constants ---------- */
 
 const SOCKET = new ClassicPreset.Socket('rel');
 const NODE_W = 240;
@@ -36,8 +32,6 @@ const V_GAP = 24;
 const MAX_DEPTH = 5;
 const NODE_BORDER = '#9ca3af'; // gray-400, visible in both themes
 const DRAFT_COLOR = '#f97316'; // orange-500
-
-/* ---------- custom node class ---------- */
 
 class DMNode extends ClassicPreset.Node {
   width = NODE_W;
@@ -83,23 +77,19 @@ class DMNode extends ClassicPreset.Node {
   }
 }
 
-/* ---------- schemes ---------- */
-
 type Schemes = GetSchemes<DMNode, ClassicPreset.Connection<ClassicPreset.Node, ClassicPreset.Node>>;
 type AreaExtra = ReactArea2D<Schemes> | MinimapExtra;
-
-/* ---------- custom node component ---------- */
 
 const { RefSocket } = ReactPresets.classic;
 
 function NodeComponent(props: { data: Schemes['Node']; emit: (e: ReactArea2D<Schemes>) => void }) {
   const n = props.data;
 
-  const handleExtClick = (e: React.MouseEvent) => {
+  function handleExtClick(e: React.MouseEvent) {
     e.stopPropagation();
     e.preventDefault();
     n.onOpenExternal?.();
-  };
+  }
 
   const outputs = Object.entries(n.outputs);
   const inputs = Object.entries(n.inputs);
@@ -174,7 +164,6 @@ function NodeComponent(props: { data: Schemes['Node']; emit: (e: ReactArea2D<Sch
         position: 'relative',
       }}
     >
-      {/* Draft / Blocked label */}
       {isOrange && (
         <span
           style={{
@@ -190,7 +179,6 @@ function NodeComponent(props: { data: Schemes['Node']; emit: (e: ReactArea2D<Sch
           {n.isDraft ? 'Draft' : 'Blocked'}
         </span>
       )}
-      {/* Input socket – absolutely positioned at left edge */}
       {inputs.map(
         ([key, input]) =>
           input && (
@@ -209,7 +197,6 @@ function NodeComponent(props: { data: Schemes['Node']; emit: (e: ReactArea2D<Sch
             </div>
           )
       )}
-      {/* Content – full width, no socket columns */}
       <div
         className='bg-muted flex items-center justify-between'
         style={{
@@ -262,7 +249,6 @@ function NodeComponent(props: { data: Schemes['Node']; emit: (e: ReactArea2D<Sch
           {n.fieldCount !== 1 ? 's' : ''}
         </span>
       </div>
-      {/* Output socket – absolutely positioned at right edge */}
       {outputs.map(
         ([key, output]) =>
           output && (
@@ -298,8 +284,6 @@ function SocketComponent() {
     />
   );
 }
-
-/* ---------- editor setup ---------- */
 
 interface EditorHandle {
   destroy: () => void;
@@ -386,7 +370,6 @@ async function setupEditor(
   area.use(render);
   area.use(minimap);
 
-  // --- Pass 1: collect full graph data ---
   interface NodeInfo {
     id: string;
     dmId: string;
@@ -407,7 +390,7 @@ async function setupEditor(
 
   const nodeInfos = new Map<string, NodeInfo>();
   const edges: EdgeInfo[] = [];
-  const hasOutgoing = new Set<string>(); // nodes that have children
+  const hasOutgoing = new Set<string>();
 
   const rootIsDraft = dataMartStatus === 'DRAFT';
 
@@ -477,7 +460,6 @@ async function setupEditor(
 
   await collectGraph(dataMartId, initialRelationships, 1, new Set([dataMartId]), rootIsDraft);
 
-  // --- Pass 2: create nodes with correct sockets ---
   const nodeMap = new Map<string, DMNode>();
   const columns = new Map<number, DMNode[]>();
 
@@ -494,11 +476,9 @@ async function setupEditor(
       },
     });
 
-    // Source and intermediate nodes get output socket
     if (hasOutgoing.has(nodeKey)) {
       node.addOutput('out', new ClassicPreset.Output(SOCKET));
     }
-    // Non-source nodes get input socket
     if (!info.isSource) {
       node.addInput('in', new ClassicPreset.Input(SOCKET));
     }
@@ -506,12 +486,11 @@ async function setupEditor(
     await editor.addNode(node);
     nodeMap.set(nodeKey, node);
 
-    if (!columns.has(info.depth)) columns.set(info.depth, []);
-    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion -- guaranteed by the line above
-    columns.get(info.depth)!.push(node);
+    const col = columns.get(info.depth) ?? [];
+    if (!columns.has(info.depth)) columns.set(info.depth, col);
+    col.push(node);
   }
 
-  // --- Pass 3: create connections ---
   for (const edge of edges) {
     const src = nodeMap.get(edge.sourceId);
     const tgt = nodeMap.get(edge.targetId);
@@ -527,7 +506,6 @@ async function setupEditor(
     }
   }
 
-  // --- Layout: position each column ---
   const maxDepth = Math.max(...Array.from(columns.keys()));
 
   for (let d = 0; d <= maxDepth; d++) {
@@ -539,7 +517,6 @@ async function setupEditor(
       y += node.height + V_GAP;
     }
 
-    // Center source column vertically relative to first target column
     if (d === 0 && col.length === 1) {
       const nextCol = columns.get(1) ?? [];
       const nextH = nextCol.reduce((s, n) => s + n.height + V_GAP, -V_GAP);
@@ -550,7 +527,6 @@ async function setupEditor(
     }
   }
 
-  // --- Dynamic grid background (syncs with zoom/pan) ---
   const BASE_GRID = 16;
   const updateGrid = () => {
     const { x, y, k } = area.area.transform;
@@ -559,14 +535,12 @@ async function setupEditor(
     container.style.backgroundPosition = `${x}px ${y}px`;
   };
 
-  // --- Fit view ---
   const fitView = async () => {
     await AreaExtensions.zoomAt(area, editor.getNodes(), { scale: 0.85 });
     updateGrid();
   };
   await fitView();
 
-  // --- Zoom by relative delta around viewport center ---
   const zoomBy = async (delta: number) => {
     const cx = container.clientWidth / 2;
     const cy = container.clientHeight / 2;
@@ -577,7 +551,6 @@ async function setupEditor(
     updateGrid();
   };
 
-  // --- Restrict panning so content always stays partially visible ---
   AreaExtensions.restrictor(area, {
     translation: () => {
       const { k } = area.area.transform;
@@ -593,7 +566,6 @@ async function setupEditor(
     },
   });
 
-  // --- Lock dragging, handle clicks, limit zoom, sync grid ---
   area.addPipe(ctx => {
     if (ctx.type === 'zoom') {
       if (ctx.data.source === 'dblclick') return undefined;
@@ -621,8 +593,6 @@ async function setupEditor(
     zoomBy,
   };
 }
-
-/* ---------- React component ---------- */
 
 export function RelationshipCanvas({
   dataMartId,
@@ -670,9 +640,7 @@ export function RelationshipCanvas({
     return () => {
       editorRef.current?.destroy();
       editorRef.current = null;
-      // rete's area.destroy() does not clear the container DOM — flush leftover
-      // minimap / node / connection elements so the next editor starts clean
-      while (el.firstChild) el.removeChild(el.firstChild);
+      el.replaceChildren();
     };
   }, [
     dataMartId,

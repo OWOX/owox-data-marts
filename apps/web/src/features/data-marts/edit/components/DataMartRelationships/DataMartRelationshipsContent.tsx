@@ -68,7 +68,6 @@ export function DataMartRelationshipsContent() {
         setRelationships(prev => prev.filter(r => r.id !== id));
       } catch {
         toast.error('Failed to delete relationship');
-        throw new Error('Delete failed');
       }
     },
     [dataMartId]
@@ -98,9 +97,43 @@ export function DataMartRelationshipsContent() {
 
   if (!dataMart) return null;
 
+  function renderDiagramContent() {
+    if (isLoading) {
+      return <Skeleton className='h-[480px] w-full rounded-lg' />;
+    }
+
+    if (relationships.length === 0) {
+      return (
+        <Empty>
+          <EmptyHeader>
+            <EmptyMedia variant='icon'>
+              <GitMerge />
+            </EmptyMedia>
+            <EmptyTitle>No relationships yet</EmptyTitle>
+            <EmptyDescription>
+              Add a relationship to see how your data marts connect to each other.
+            </EmptyDescription>
+          </EmptyHeader>
+        </Empty>
+      );
+    }
+
+    if (!dataMart) return null;
+
+    return (
+      <RelationshipCanvas
+        dataMartId={dataMartId}
+        dataMartTitle={dataMart.title}
+        dataMartDescription={dataMart.description}
+        dataMartStatus={dataMart.status.code}
+        relationships={relationships}
+        onRelationshipSelect={handleEdit}
+      />
+    );
+  }
+
   return (
     <div className='flex flex-col gap-4'>
-      {/* Diagram */}
       <CollapsibleCard collapsible name='relationship-diagram'>
         <CollapsibleCardHeader>
           <CollapsibleCardHeaderTitle
@@ -111,37 +144,11 @@ export function DataMartRelationshipsContent() {
           </CollapsibleCardHeaderTitle>
         </CollapsibleCardHeader>
         <CollapsibleCardContent>
-          <div className='bg-background rounded-md'>
-            {isLoading ? (
-              <Skeleton className='h-[480px] w-full rounded-lg' />
-            ) : relationships.length === 0 ? (
-              <Empty>
-                <EmptyHeader>
-                  <EmptyMedia variant='icon'>
-                    <GitMerge />
-                  </EmptyMedia>
-                  <EmptyTitle>No relationships yet</EmptyTitle>
-                  <EmptyDescription>
-                    Add a relationship to see how your data marts connect to each other.
-                  </EmptyDescription>
-                </EmptyHeader>
-              </Empty>
-            ) : (
-              <RelationshipCanvas
-                dataMartId={dataMartId}
-                dataMartTitle={dataMart.title}
-                dataMartDescription={dataMart.description}
-                dataMartStatus={dataMart.status.code}
-                relationships={relationships}
-                onRelationshipSelect={handleEdit}
-              />
-            )}
-          </div>
+          <div className='bg-background rounded-md'>{renderDiagramContent()}</div>
         </CollapsibleCardContent>
         <CollapsibleCardFooter />
       </CollapsibleCard>
 
-      {/* List */}
       <CollapsibleCard collapsible name='relationship-list'>
         <CollapsibleCardHeader>
           <CollapsibleCardHeaderTitle
@@ -195,7 +202,6 @@ export function DataMartRelationshipsContent() {
         <CollapsibleCardFooter />
       </CollapsibleCard>
 
-      {/* Add / Edit Dialog */}
       <RelationshipDialog
         open={isDialogOpen}
         onOpenChange={handleDialogClose}

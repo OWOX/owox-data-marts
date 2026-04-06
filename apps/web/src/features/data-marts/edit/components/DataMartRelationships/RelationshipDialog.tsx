@@ -134,7 +134,6 @@ export function RelationshipDialog({
 
   const watchedTargetId = form.watch('targetDataMartId');
 
-  // Load available DMs and source DM schema
   useEffect(() => {
     if (!open) return;
 
@@ -159,7 +158,6 @@ export function RelationshipDialog({
     })();
   }, [open, dataMartId, storageId]);
 
-  // Populate form when opening
   useEffect(() => {
     if (!open) return;
 
@@ -179,7 +177,6 @@ export function RelationshipDialog({
     }
   }, [open, relationship, form]);
 
-  // Load target DM schema when target changes
   useEffect(() => {
     if (!watchedTargetId) {
       setTargetDM(null);
@@ -192,8 +189,7 @@ export function RelationshipDialog({
         const dm = await dataMartService.getDataMartById(watchedTargetId);
         setTargetDM(dm);
 
-        // Auto-fill alias when target changes
-        if (!isEdit) {
+        if (!relationship) {
           form.setValue('targetAlias', slugify(dm.title));
         }
       } finally {
@@ -221,7 +217,7 @@ export function RelationshipDialog({
         blendedFields,
       };
 
-      if (isEdit && relationship != null) {
+      if (relationship) {
         await dataMartRelationshipService.updateRelationship(dataMartId, relationship.id, payload);
       } else {
         await dataMartRelationshipService.createRelationship(dataMartId, payload);
@@ -247,6 +243,12 @@ export function RelationshipDialog({
     return sourceType !== targetType ? { sourceType, targetType } : null;
   });
   const hasTypeMismatch = joinTypeMismatches.some(Boolean);
+
+  function getSubmitLabel(): string {
+    if (isSaving) return 'Saving...';
+    if (isEdit) return 'Save Changes';
+    return 'Add Relationship';
+  }
 
   return (
     <Dialog
@@ -276,7 +278,6 @@ export function RelationshipDialog({
             }}
             className='flex min-h-0 flex-col gap-6 overflow-y-auto px-1'
           >
-            {/* Data Mart */}
             <FormField
               control={form.control}
               name='targetDataMartId'
@@ -324,7 +325,6 @@ export function RelationshipDialog({
               )}
             />
 
-            {/* Field Prefix */}
             <FormField
               control={form.control}
               name='targetAlias'
@@ -351,7 +351,6 @@ export function RelationshipDialog({
 
             <Separator />
 
-            {/* Join Fields */}
             <div className='flex flex-col gap-3'>
               <div className='flex shrink-0 items-center justify-between'>
                 <p className='flex items-center gap-1 text-sm font-medium'>
@@ -508,7 +507,7 @@ export function RelationshipDialog({
                 Cancel
               </Button>
               <Button type='submit' disabled={isSaving || hasTypeMismatch}>
-                {isSaving ? 'Saving...' : isEdit ? 'Save Changes' : 'Add Relationship'}
+                {getSubmitLabel()}
               </Button>
             </DialogFooter>
           </form>

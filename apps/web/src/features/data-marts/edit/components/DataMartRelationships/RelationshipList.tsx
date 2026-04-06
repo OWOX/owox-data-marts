@@ -31,6 +31,17 @@ export function RelationshipList({ relationships, onEdit, onDelete }: Relationsh
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
 
+  async function handleDeleteConfirm() {
+    if (!deletingId) return;
+    setIsDeleting(true);
+    try {
+      await onDelete(deletingId);
+    } finally {
+      setIsDeleting(false);
+      setDeletingId(null);
+    }
+  }
+
   if (relationships.length === 0) {
     return (
       <Empty className='border'>
@@ -46,17 +57,6 @@ export function RelationshipList({ relationships, onEdit, onDelete }: Relationsh
       </Empty>
     );
   }
-
-  const handleDeleteConfirm = async () => {
-    if (!deletingId) return;
-    setIsDeleting(true);
-    try {
-      await onDelete(deletingId);
-    } finally {
-      setIsDeleting(false);
-      setDeletingId(null);
-    }
-  };
 
   return (
     <>
