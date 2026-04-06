@@ -150,6 +150,7 @@ The OWOX team, with over 20 years of experience developing data products, stays 
 <li><strong>Reusable</strong> across BI tools: Google Sheets, Looker Studio, Excel, and more</li>
 <li><strong>Trustworthy</strong> - no more asking “Whose report is right?”</li>
 <li><strong>Modeled</strong> (optional) by setting up relationships with other data marts</li>
+<li><strong>Owned</strong> — each Data Mart has explicit <strong>Technical Owners</strong> (responsible for data sources and schema) and <strong>Business Owners</strong> (responsible for business requirements)</li>
 </ul>
 <blockquote>
 <p>☝️ Think of it as a <strong>source of truth for a specific business question</strong>, like:</p>
@@ -184,6 +185,7 @@ You can configure multiple <strong>Storages</strong>, but each <strong>Data Mart
 <blockquote>
 <p>☝️ By specifying a Data Mart’s <strong>Storage</strong>, a Data Analyst ensures data ownership and controls where the data is stored and processed.</p>
 </blockquote>
+<p>Each Storage has <strong>Owners</strong> — the team members responsible for its configuration and credentials. The creator is automatically assigned as an owner.</p>
 <div class="sl-heading-wrapper level-h3"><h3 id="destination">Destination</h3><a class="sl-anchor-link" href="#destination"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24"><path fill="currentcolor" d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 0 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 1 0-1.42-1.42Zm8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 0 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 1 0 1.42 1.42l3.88-3.89a4.49 4.49 0 0 0 0-6.33ZM8.83 15.17a1 1 0 0 0 1.1.22 1 1 0 0 0 .32-.22l4.92-4.92a1 1 0 0 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42Z"></path></svg></span><span class="sr-only">Section titled “Destination”</span></a></div>
 <p><img alt="Destinations" loading="lazy" decoding="async" fetchpriority="auto" width="2684" height="1170" src="/_astro/destinations-table.CJz-amZS_25bTyV.webp" ></p>
 <p>A <a href="/docs/destinations/manage-destinations/"><strong>Destination</strong></a> is an interface or application used by business users to access the data. Supported destinations include:</p>
@@ -200,9 +202,11 @@ You can configure multiple <strong>Storages</strong>, but each <strong>Data Mart
 <blockquote>
 <p>☝️ <strong>Destinations</strong> allow Data Analysts to control and monitor which services business users consume data in.</p>
 </blockquote>
+<p>Each Destination has <strong>Owners</strong> — the team members responsible for its configuration. The creator is automatically assigned as an owner.</p>
 <div class="sl-heading-wrapper level-h3"><h3 id="report">Report</h3><a class="sl-anchor-link" href="#report"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24"><path fill="currentcolor" d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 0 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 1 0-1.42-1.42Zm8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 0 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 1 0 1.42 1.42l3.88-3.89a4.49 4.49 0 0 0 0-6.33ZM8.83 15.17a1 1 0 0 0 1.1.22 1 1 0 0 0 .32-.22l4.92-4.92a1 1 0 0 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42Z"></path></svg></span><span class="sr-only">Section titled “Report”</span></a></div>
 <p>A <strong>Report</strong> defines a specific sheet within a Google Sheets document where the Data Mart’s data is exported.
 Different Google Sheets Reports of the same Data Mart may have different scheduled triggers.</p>
+<p>Each Report has <strong>Owners</strong> — the team members responsible for its configuration. The creator is automatically assigned as an owner.</p>
 <div class="sl-heading-wrapper level-h3"><h3 id="trigger">Trigger</h3><a class="sl-anchor-link" href="#trigger"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24"><path fill="currentcolor" d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 0 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 1 0-1.42-1.42Zm8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 0 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 1 0 1.42 1.42l3.88-3.89a4.49 4.49 0 0 0 0-6.33ZM8.83 15.17a1 1 0 0 0 1.1.22 1 1 0 0 0 .32-.22l4.92-4.92a1 1 0 0 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42Z"></path></svg></span><span class="sr-only">Section titled “Trigger”</span></a></div>
 <p><strong>Triggers</strong> automate data movement on a schedule. There are 2 types of triggers in OWOX Data Marts:</p>
 <ul>
