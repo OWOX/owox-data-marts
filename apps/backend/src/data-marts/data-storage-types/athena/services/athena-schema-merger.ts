@@ -60,6 +60,7 @@ export class AthenaSchemaMerger implements DataMartSchemaMerger {
           ...existingField,
           description: newField.description || existingField.description,
           alias: existingField.alias || newField.alias,
+          isHiddenForReporting: existingField.isHiddenForReporting ?? false,
           status:
             existingField.type === newField.type
               ? DataMartSchemaFieldStatus.CONNECTED

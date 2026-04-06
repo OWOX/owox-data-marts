@@ -63,11 +63,13 @@ function slugify(text: string): string {
 interface FlatField {
   name: string;
   type: string;
+  isHiddenForReporting?: boolean;
 }
 
 interface RawSchemaField {
   name: string;
   type: string;
+  isHiddenForReporting?: boolean;
   fields?: RawSchemaField[];
 }
 
@@ -75,7 +77,11 @@ function flattenFields(fields: RawSchemaField[], prefix = ''): FlatField[] {
   const result: FlatField[] = [];
   for (const field of fields) {
     const fullName = prefix ? `${prefix}.${field.name}` : field.name;
-    result.push({ name: fullName, type: field.type });
+    result.push({
+      name: fullName,
+      type: field.type,
+      isHiddenForReporting: field.isHiddenForReporting,
+    });
     if (field.fields && Array.isArray(field.fields)) {
       result.push(...flattenFields(field.fields, fullName));
     }
@@ -202,7 +208,7 @@ export function RelationshipDialog({
     setIsSaving(true);
     try {
       const alias = values.targetAlias;
-      const fields = getSchemaFields(targetDM);
+      const fields = getSchemaFields(targetDM).filter(f => !f.isHiddenForReporting);
       const blendedFields = fields.map(f => ({
         targetFieldName: f.name,
         outputAlias: `${alias}_${f.name}`,
@@ -320,7 +326,8 @@ export function RelationshipDialog({
                   <FormMessage />
                   {watchedTargetId && !isLoadingTarget && targetDM && (
                     <p className='text-muted-foreground text-xs'>
-                      {getSchemaFields(targetDM).length} fields available for blending
+                      {getSchemaFields(targetDM).filter(f => !f.isHiddenForReporting).length} fields
+                      available for blending
                     </p>
                   )}
                   {isLoadingTarget && (

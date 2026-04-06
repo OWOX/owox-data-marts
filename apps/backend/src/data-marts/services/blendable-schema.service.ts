@@ -47,7 +47,9 @@ export class BlendableSchemaService {
 
   async computeBlendableSchema(dataMartId: string, projectId: string): Promise<BlendableSchemaDto> {
     const dataMart = await this.dataMartService.getByIdAndProjectId(dataMartId, projectId);
-    const nativeFields = dataMart.schema?.fields ?? [];
+    const nativeFields = (dataMart.schema?.fields ?? []).filter(
+      f => !f.isHiddenForReporting
+    ) as DataMartSchema['fields'];
 
     const blendedFields: BlendedFieldDto[] = [];
     const visited = new Set<string>([dataMartId]);
@@ -78,7 +80,9 @@ export class BlendableSchemaService {
 
       visited.add(targetDataMartId);
 
-      const targetSchemaFields: DataMartSchema['fields'] = rel.targetDataMart.schema?.fields ?? [];
+      const targetSchemaFields = (rel.targetDataMart.schema?.fields ?? []).filter(
+        f => !f.isHiddenForReporting
+      );
       const flatTargetFields = flattenSchemaFields(targetSchemaFields);
 
       for (const blendedFieldConfig of rel.blendedFields) {

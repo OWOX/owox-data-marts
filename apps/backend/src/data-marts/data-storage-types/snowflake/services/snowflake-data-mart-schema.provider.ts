@@ -71,6 +71,7 @@ export class SnowflakeDataMartSchemaProvider implements DataMartSchemaProvider {
             name: fieldName,
             type: SnowflakeFieldType.STRING,
             isPrimaryKey: false,
+            isHiddenForReporting: false,
             status: DataMartSchemaFieldStatus.CONNECTED,
           })),
         };
@@ -197,6 +198,7 @@ export class SnowflakeDataMartSchemaProvider implements DataMartSchemaProvider {
       type: parseSnowflakeFieldType(type) || SnowflakeFieldType.STRING,
       description: description || undefined,
       isPrimaryKey,
+      isHiddenForReporting: false,
       status: DataMartSchemaFieldStatus.CONNECTED,
     };
   }

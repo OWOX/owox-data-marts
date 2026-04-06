@@ -6,6 +6,7 @@ import { ExpandButton } from '@owox/ui/components/common/expand-button';
 import { SortableTableRow } from '@owox/ui/components/common/sortable-table-row';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@owox/ui/components/tooltip';
 import type { Row, Table } from '@tanstack/react-table';
+import { EyeOff } from 'lucide-react';
 import { useCallback, useMemo } from 'react';
 import { DataStorageType } from '../../../../../data-storage';
 import type { BigQuerySchemaField } from '../../../../shared/types/data-mart-schema.types';
@@ -183,6 +184,14 @@ export function BigQuerySchemaTable({ fields, onFieldsChange }: BigQuerySchemaTa
             placeholder={'Field name is required'}
             isBold={true}
           />
+          {level === 0 && row.original.isHiddenForReporting && (
+            <Tooltip>
+              <TooltipTrigger>
+                <EyeOff className='text-muted-foreground h-3.5 w-3.5 flex-shrink-0' />
+              </TooltipTrigger>
+              <TooltipContent>Hidden from reports</TooltipContent>
+            </Tooltip>
+          )}
         </div>
       );
     },
@@ -261,15 +270,36 @@ export function BigQuerySchemaTable({ fields, onFieldsChange }: BigQuerySchemaTa
 
   // Custom actions column cell with add nested field option for record types
   const actionsColumnCell = useCallback(
-    ({ row }: { row: Row<BigQuerySchemaField>; table: Table<BigQuerySchemaField> }) => (
-      <SchemaFieldActionsButton
-        row={row}
-        onDeleteRow={onFieldsChange ? handleDeleteRow : undefined}
-        onAddNestedField={onFieldsChange ? handleAddNestedField : undefined}
-        isRecordType={isRecordType}
-      />
-    ),
-    [onFieldsChange, handleDeleteRow, handleAddNestedField, isRecordType]
+    ({ row }: { row: Row<BigQuerySchemaField>; table: Table<BigQuerySchemaField> }) => {
+      const field = flattenedFields[row.index];
+      const isTopLevel = (field.level ?? 0) === 0;
+      return (
+        <SchemaFieldActionsButton
+          row={row}
+          onDeleteRow={onFieldsChange ? handleDeleteRow : undefined}
+          onAddNestedField={onFieldsChange ? handleAddNestedField : undefined}
+          isRecordType={isRecordType}
+          isHiddenForReporting={isTopLevel ? !!row.original.isHiddenForReporting : undefined}
+          onToggleHiddenForReporting={
+            onFieldsChange && isTopLevel
+              ? (index: number) => {
+                  updateField(index, {
+                    isHiddenForReporting: !flattenedFields[index].isHiddenForReporting,
+                  });
+                }
+              : undefined
+          }
+        />
+      );
+    },
+    [
+      onFieldsChange,
+      handleDeleteRow,
+      handleAddNestedField,
+      isRecordType,
+      flattenedFields,
+      updateField,
+    ]
   );
 
   // Use the drag-and-drop hook

@@ -126,6 +126,7 @@ export class BigQueryDataMartSchemaProvider implements DataMartSchemaProvider {
         mode: parsedFieldMode,
         description: field.description,
         isPrimaryKey: primaryKeyColumns?.includes(field.name!) || false,
+        isHiddenForReporting: false,
         status: DataMartSchemaFieldStatus.CONNECTED,
       };
 

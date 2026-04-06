@@ -78,6 +78,7 @@ export class SnowflakeSchemaMerger implements DataMartSchemaMerger {
       alias: existingField.alias,
       description: existingField.description ?? newField.description,
       isPrimaryKey: existingField.isPrimaryKey ?? newField.isPrimaryKey ?? false,
+      isHiddenForReporting: existingField.isHiddenForReporting ?? false,
       status: this.getConnectedFieldStatus(hasTypeMismatch),
     };
   }

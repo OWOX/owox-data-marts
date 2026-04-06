@@ -132,6 +132,7 @@ export class AthenaDataMartSchemaProvider implements DataMartSchemaProvider {
       type,
       description,
       isPrimaryKey: false,
+      isHiddenForReporting: false,
       status: DataMartSchemaFieldStatus.CONNECTED,
     };
   }
