@@ -14,7 +14,7 @@ export function isValidScheduledTriggerConfig(
 }
 
 export function isScheduledReportRunConfig(
-  triggerConfig: ScheduledTriggerConfig
+  triggerConfig: ScheduledTriggerConfig | undefined
 ): triggerConfig is ScheduledReportRunConfig {
-  return triggerConfig.type === ScheduledReportRunConfigType;
+  return triggerConfig != null && triggerConfig.type === ScheduledReportRunConfigType;
 }
