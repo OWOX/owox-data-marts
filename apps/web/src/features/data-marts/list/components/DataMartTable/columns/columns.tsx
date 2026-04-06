@@ -103,6 +103,15 @@ export const getDataMartColumns = ({
     meta: {
       title: dataMartColumnLabels[DataMartColumnKey.STORAGE_TYPE],
     },
+    sortingFn: (rowA, rowB) => {
+      const labelA =
+        rowA.original.storageTitle ??
+        DataStorageTypeModel.getInfo(rowA.original.storageType).displayName;
+      const labelB =
+        rowB.original.storageTitle ??
+        DataStorageTypeModel.getInfo(rowB.original.storageType).displayName;
+      return labelA.localeCompare(labelB);
+    },
     header: ({ column }) => (
       <SortableHeader column={column}>
         {dataMartColumnLabels[DataMartColumnKey.STORAGE_TYPE]}
