@@ -1,3 +1,5 @@
+import type { UserProjection } from '../../../../shared/types';
+
 export interface JoinCondition {
   sourceFieldName: string;
   targetFieldName: string;
@@ -28,6 +30,7 @@ export interface DataMartRelationship {
   createdById: string;
   createdAt: string;
   modifiedAt: string;
+  createdByUser?: UserProjection | null;
 }
 
 export interface CreateRelationshipRequest {

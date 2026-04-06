@@ -1,6 +1,7 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { JoinCondition, BlendedFieldConfig } from '../schemas/relationship-schemas';
 import { DataMartStatus } from '../../enums/data-mart-status.enum';
+import { UserProjectionDto } from '../../../idp/dto/domain/user-projection.dto';
 
 export class DataMartRefApiDto {
   @ApiProperty({ example: '9cabc24e-1234-4a5a-8b12-abcdef123456' })
@@ -46,4 +47,7 @@ export class RelationshipResponseApiDto {
 
   @ApiProperty({ example: '2024-01-02T15:30:00.000Z' })
   modifiedAt: Date;
+
+  @ApiProperty({ type: UserProjectionDto, required: false, nullable: true })
+  createdByUser?: UserProjectionDto | null;
 }

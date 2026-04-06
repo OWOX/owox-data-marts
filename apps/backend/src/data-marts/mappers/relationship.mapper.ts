@@ -12,6 +12,8 @@ import {
 import { UpdateRelationshipRequestApiDto } from '../dto/presentation/update-relationship-request-api.dto';
 import { RelationshipResponseApiDto } from '../dto/presentation/relationship-response-api.dto';
 import { BlendedFieldConfig, JoinCondition } from '../dto/schemas/relationship-schemas';
+import { UserProjectionDto } from '../../idp/dto/domain/user-projection.dto';
+import { UserProjectionsListDto } from '../../idp/dto/domain/user-projections-list.dto';
 
 @Injectable()
 export class RelationshipMapper {
@@ -61,7 +63,10 @@ export class RelationshipMapper {
     );
   }
 
-  toResponse(entity: DataMartRelationship): RelationshipResponseApiDto {
+  toResponse(
+    entity: DataMartRelationship,
+    createdByUser: UserProjectionDto | null = null
+  ): RelationshipResponseApiDto {
     return {
       id: entity.id,
       dataStorageId: entity.dataStorage.id,
@@ -83,11 +88,20 @@ export class RelationshipMapper {
       createdById: entity.createdById,
       createdAt: entity.createdAt,
       modifiedAt: entity.modifiedAt,
+      createdByUser,
     };
   }
 
-  toResponseList(entities: DataMartRelationship[]): RelationshipResponseApiDto[] {
-    return entities.map(entity => this.toResponse(entity));
+  toResponseList(
+    entities: DataMartRelationship[],
+    userProjectionsList?: UserProjectionsListDto
+  ): RelationshipResponseApiDto[] {
+    return entities.map(entity =>
+      this.toResponse(
+        entity,
+        entity.createdById ? (userProjectionsList?.getByUserId(entity.createdById) ?? null) : null
+      )
+    );
   }
 
   private toJoinCondition(dto: JoinConditionApiDto): JoinCondition {

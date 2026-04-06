@@ -19,6 +19,7 @@ import { GitMerge, Trash2 } from 'lucide-react';
 import { useState } from 'react';
 import { Button } from '../../../../../shared/components/Button';
 import { ConfirmationDialog } from '../../../../../shared/components/ConfirmationDialog';
+import { UserReference } from '../../../../../shared/components/UserReference';
 import type { DataMartRelationship } from '../../../shared/types/relationship.types';
 
 interface RelationshipListProps {
@@ -93,6 +94,8 @@ export function RelationshipList({ relationships, onEdit, onDelete }: Relationsh
                 </TooltipContent>
               </Tooltip>
             </TableHead>
+            <TableHead className='bg-secondary dark:bg-background'>Created At</TableHead>
+            <TableHead className='bg-secondary dark:bg-background'>Created By</TableHead>
             <TableHead className='bg-secondary dark:bg-background w-12' />
           </TableRow>
         </TableHeader>
@@ -117,6 +120,20 @@ export function RelationshipList({ relationships, onEdit, onDelete }: Relationsh
               <TableCell className='text-muted-foreground'>
                 {rel.blendedFields.length} field
                 {rel.blendedFields.length !== 1 ? 's' : ''}
+              </TableCell>
+              <TableCell className='text-muted-foreground'>
+                {new Intl.DateTimeFormat('en-US', {
+                  year: 'numeric',
+                  month: 'short',
+                  day: 'numeric',
+                }).format(new Date(rel.createdAt))}
+              </TableCell>
+              <TableCell>
+                {rel.createdByUser ? (
+                  <UserReference userProjection={rel.createdByUser} />
+                ) : (
+                  <span className='text-muted-foreground'>-</span>
+                )}
               </TableCell>
               <TableCell>
                 <Tooltip>

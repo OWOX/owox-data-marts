@@ -1,13 +1,4 @@
-import {
-  Controller,
-  Get,
-  Post,
-  Patch,
-  Delete,
-  Body,
-  Param,
-  NotFoundException,
-} from '@nestjs/common';
+import { Controller, Get, Post, Patch, Delete, Body, Param } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { AuthContext, AuthorizationContext, Auth } from '../../idp';
 import { Role, Strategy } from '../../idp/types/role-config.types';
@@ -18,7 +9,8 @@ import { RelationshipResponseApiDto } from '../dto/presentation/relationship-res
 import { CreateDataMartRelationshipService } from '../use-cases/create-data-mart-relationship.service';
 import { UpdateDataMartRelationshipService } from '../use-cases/update-data-mart-relationship.service';
 import { DeleteDataMartRelationshipService } from '../use-cases/delete-data-mart-relationship.service';
-import { DataMartRelationshipService } from '../services/data-mart-relationship.service';
+import { ListDataMartRelationshipsService } from '../use-cases/list-data-mart-relationships.service';
+import { GetDataMartRelationshipService } from '../use-cases/get-data-mart-relationship.service';
 import {
   CreateRelationshipSpec,
   ListRelationshipsByDataMartSpec,
@@ -34,7 +26,8 @@ export class DataMartRelationshipController {
     private readonly createService: CreateDataMartRelationshipService,
     private readonly updateService: UpdateDataMartRelationshipService,
     private readonly deleteService: DeleteDataMartRelationshipService,
-    private readonly relationshipService: DataMartRelationshipService,
+    private readonly listService: ListDataMartRelationshipsService,
+    private readonly getService: GetDataMartRelationshipService,
     private readonly mapper: RelationshipMapper
   ) {}
 
@@ -55,8 +48,7 @@ export class DataMartRelationshipController {
   @Get()
   @ListRelationshipsByDataMartSpec()
   async list(@Param('dataMartId') dataMartId: string): Promise<RelationshipResponseApiDto[]> {
-    const relationships = await this.relationshipService.findBySourceDataMartId(dataMartId);
-    return this.mapper.toResponseList(relationships);
+    return this.listService.run(dataMartId);
   }
 
   @Auth(Role.viewer(Strategy.PARSE))
@@ -66,15 +58,7 @@ export class DataMartRelationshipController {
     @Param('dataMartId') dataMartId: string,
     @Param('id') id: string
   ): Promise<RelationshipResponseApiDto> {
-    const relationship = await this.relationshipService.findById(id);
-
-    if (!relationship || relationship.sourceDataMart.id !== dataMartId) {
-      throw new NotFoundException(
-        `Relationship with ID ${id} not found for data mart ${dataMartId}`
-      );
-    }
-
-    return this.mapper.toResponse(relationship);
+    return this.getService.run(id, dataMartId);
   }
 
   @Auth(Role.editor(Strategy.INTROSPECT))
