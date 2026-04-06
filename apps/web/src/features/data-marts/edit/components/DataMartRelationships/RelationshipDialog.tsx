@@ -210,22 +210,27 @@ export function RelationshipDialog({
         aggregateFunction: 'STRING_AGG',
       }));
 
-      const payload = {
-        targetDataMartId: values.targetDataMartId,
-        targetAlias: values.targetAlias,
-        joinConditions: values.joinConditions,
-        blendedFields,
-      };
-
       if (relationship) {
-        await dataMartRelationshipService.updateRelationship(dataMartId, relationship.id, payload);
+        await dataMartRelationshipService.updateRelationship(dataMartId, relationship.id, {
+          targetAlias: values.targetAlias,
+          joinConditions: values.joinConditions,
+          blendedFields,
+        });
       } else {
-        await dataMartRelationshipService.createRelationship(dataMartId, payload);
+        await dataMartRelationshipService.createRelationship(dataMartId, {
+          targetDataMartId: values.targetDataMartId,
+          targetAlias: values.targetAlias,
+          joinConditions: values.joinConditions,
+          blendedFields,
+        });
       }
 
       onSaved();
       onOpenChange(false);
       form.reset();
+    } catch (e) {
+      // Error toast is shown by the global axios interceptor
+      console.error('Error saving relationship', e);
     } finally {
       setIsSaving(false);
     }
