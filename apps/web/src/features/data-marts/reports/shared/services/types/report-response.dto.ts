@@ -20,4 +20,5 @@ export interface ReportResponseDto {
   createdAt: string;
   modifiedAt: string;
   createdByUser?: UserProjection | null;
+  ownerUsers?: UserProjection[];
 }

@@ -1,4 +1,7 @@
 import { forwardRef, useEffect } from 'react';
+import { useOwnerState } from '../../../../../../shared/hooks/useOwnerState';
+import { UserReference } from '../../../../../../shared/components/UserReference/UserReference';
+import { useUser } from '../../../../../idp/hooks/useAuthState';
 
 import {
   type DataMartReport,
@@ -31,6 +34,8 @@ import { type DataDestination } from '../../../../../data-destination';
 import { ReportFormMode } from '../../../shared';
 import { Button } from '@owox/ui/components/button';
 import LookerStudioCacheLifetimeDescription from './LookerStudioCacheLifetimeDescription.tsx';
+import { OwnersSection } from '../../../../../../shared/components/OwnersSection/OwnersSection';
+import type { UserProjectionDto } from '../../../../../../shared/types/api';
 
 interface LookerStudioReportEditFormProps {
   initialReport?: DataMartReport;
@@ -78,6 +83,27 @@ export const LookerStudioReportEditForm = forwardRef<
 
     const { dataMart } = useOutletContext<DataMartContextType>();
 
+    const currentUser = useUser();
+    const initialOwnerUsers =
+      (initialReport?.ownerUsers as UserProjectionDto[] | undefined) ??
+      (currentUser
+        ? [
+            {
+              userId: currentUser.id,
+              fullName: currentUser.fullName ?? null,
+              email: currentUser.email ?? null,
+              avatar: currentUser.avatar ?? null,
+            },
+          ]
+        : []);
+    const {
+      ownerUsers,
+      ownersDirty,
+      pendingOwnerIdsRef,
+      handleOwnersChange,
+      consumePendingOwnerIds,
+    } = useOwnerState(initialOwnerUsers);
+
     const {
       isDirty,
       reset,
@@ -88,7 +114,9 @@ export const LookerStudioReportEditForm = forwardRef<
     } = useLookerStudioReportForm({
       initialReport,
       dataMartId: dataMart?.id ?? '',
+      pendingOwnerIdsRef,
       onSuccess: () => {
+        consumePendingOwnerIds();
         onSubmit?.();
       },
       preSelectedDestination,
@@ -116,8 +144,8 @@ export const LookerStudioReportEditForm = forwardRef<
     }, [initialReport, mode, reset]);
 
     useEffect(() => {
-      onDirtyChange?.(isDirty);
-    }, [isDirty, onDirtyChange]);
+      onDirtyChange?.(isDirty || ownersDirty);
+    }, [isDirty, ownersDirty, onDirtyChange]);
 
     return (
       <Form {...form}>
@@ -128,8 +156,6 @@ export const LookerStudioReportEditForm = forwardRef<
           onSubmit={e => void form.handleSubmit(handleFormSubmit)(e)}
         >
           <FormLayout>
-            {/* Connection Information - Show JSON config for the existing destination */}
-
             <FormSection title='Cache Configuration'>
               <FormField
                 control={form.control}
@@ -167,6 +193,38 @@ export const LookerStudioReportEditForm = forwardRef<
                 )}
               />
             </FormSection>
+
+            <FormSection title='Ownership'>
+              <FormItem>
+                <FormLabel tooltip='Team members responsible for this report'>Owners</FormLabel>
+                <OwnersSection ownerUsers={ownerUsers} onSave={handleOwnersChange} />
+              </FormItem>
+            </FormSection>
+
+            {initialReport?.createdAt && (
+              <FormSection title='Details'>
+                <FormItem>
+                  <FormLabel>Created By</FormLabel>
+                  <div className='text-sm'>
+                    {initialReport.createdByUser ? (
+                      <UserReference userProjection={initialReport.createdByUser} variant='full' />
+                    ) : (
+                      <span className='text-muted-foreground'>Unknown</span>
+                    )}
+                  </div>
+                </FormItem>
+                <FormItem>
+                  <FormLabel>Created At</FormLabel>
+                  <div className='text-muted-foreground text-sm'>
+                    {new Date(initialReport.createdAt).toLocaleDateString('en-US', {
+                      year: 'numeric',
+                      month: 'short',
+                      day: 'numeric',
+                    })}
+                  </div>
+                </FormItem>
+              </FormSection>
+            )}
           </FormLayout>
           <FormActions>
             <Button
@@ -174,7 +232,7 @@ export const LookerStudioReportEditForm = forwardRef<
               type='submit'
               className='w-full'
               aria-label={mode === ReportFormMode.CREATE ? 'Create' : 'Save changes'}
-              disabled={!isDirty || isSubmitting}
+              disabled={(!isDirty && !ownersDirty) || isSubmitting}
             >
               {isSubmitting
                 ? mode === ReportFormMode.CREATE

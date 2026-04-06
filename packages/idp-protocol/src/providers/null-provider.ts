@@ -99,7 +99,7 @@ export class NullIdpProvider implements IdpProvider {
       {
         userId: '0',
         email: 'admin@localhost',
-        fullName: 'Admin User',
+        fullName: 'Admin',
         avatar: undefined,
         projectRole: 'admin',
         userStatus: 'active',

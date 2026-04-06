@@ -54,6 +54,7 @@ import { isConnectorDefinition } from '../dto/schemas/data-mart-table-definition
 import { DataMartRun } from '../entities/data-mart-run.entity';
 import { DataMart } from '../entities/data-mart.entity';
 import { DataMartDefinitionType } from '../enums/data-mart-definition-type.enum';
+import { OwnerFilter } from '../enums/owner-filter.enum';
 import { DataMartRunType } from '../enums/data-mart-run-type.enum';
 import { ConnectorSecretService } from '../services/connector/connector-secret.service';
 import { UpdateDataMartOwnersApiDto } from '../dto/presentation/update-data-mart-owners-api.dto';
@@ -229,8 +230,12 @@ export class DataMartMapper {
     return new GetDataMartRunsCommand(id, context.projectId, limit, offset);
   }
 
-  toListCommand(context: AuthorizationContext, offset?: number): ListDataMartsCommand {
-    return new ListDataMartsCommand(context.projectId, offset);
+  toListCommand(
+    context: AuthorizationContext,
+    offset?: number,
+    ownerFilter?: OwnerFilter
+  ): ListDataMartsCommand {
+    return new ListDataMartsCommand(context.projectId, offset, ownerFilter);
   }
 
   toListItemDto(
@@ -483,19 +488,6 @@ export class DataMartMapper {
       startedAt: run.startedAt,
       finishedAt: run.finishedAt,
     };
-  }
-
-  resolveOwnerUsers(
-    ownerIds: string[] | undefined,
-    userProjections: UserProjectionsListDto
-  ): UserProjectionDto[] {
-    if (!ownerIds || ownerIds.length === 0) {
-      return [];
-    }
-    return ownerIds.map(
-      userId =>
-        userProjections.getByUserId(userId) ?? new UserProjectionDto(userId, null, null, null)
-    );
   }
 
   toUpdateOwnersCommand(

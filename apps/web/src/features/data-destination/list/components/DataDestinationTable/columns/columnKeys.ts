@@ -3,4 +3,5 @@ export enum DataDestinationColumnKey {
   TYPE = 'type',
   CREATED_AT = 'createdAt',
   CREATED_BY = 'createdByUser',
+  OWNERS = 'owners',
 }

@@ -80,4 +80,6 @@ export interface DataDestinationResponseDto {
    * Details about the user who created this destination
    */
   createdByUser?: import('../../../../../shared/types').UserProjection | null;
+
+  ownerUsers?: import('../../../../../shared/types').UserProjection[];
 }

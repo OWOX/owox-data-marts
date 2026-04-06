@@ -4,6 +4,7 @@ import { DataDestinationDto } from '../dto/domain/data-destination.dto';
 import { DataDestinationService } from '../services/data-destination.service';
 import { GetDataDestinationCommand } from '../dto/domain/get-data-destination.command';
 import { UserProjectionsFetcherService } from '../services/user-projections-fetcher.service';
+import { resolveOwnerUsers } from '../utils/resolve-owner-users';
 
 @Injectable()
 export class GetDataDestinationService {
@@ -19,9 +20,21 @@ export class GetDataDestinationService {
       command.projectId
     );
 
-    const createdByUser =
-      await this.userProjectionsFetcherService.fetchCreatedByUser(dataDestinationEntity);
+    const allUserIds = [
+      ...(dataDestinationEntity.createdById ? [dataDestinationEntity.createdById] : []),
+      ...dataDestinationEntity.ownerIds,
+    ];
+    const userProjections =
+      await this.userProjectionsFetcherService.fetchUserProjectionsList(allUserIds);
 
-    return this.dataDestinationMapper.toDomainDto(dataDestinationEntity, createdByUser);
+    const createdByUser = dataDestinationEntity.createdById
+      ? (userProjections.getByUserId(dataDestinationEntity.createdById) ?? null)
+      : null;
+
+    return this.dataDestinationMapper.toDomainDto(
+      dataDestinationEntity,
+      createdByUser,
+      resolveOwnerUsers(dataDestinationEntity.ownerIds, userProjections)
+    );
   }
 }

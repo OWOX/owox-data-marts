@@ -13,6 +13,7 @@ export class DataStorageService {
   async getByProjectIdAndId(projectId: string, id: string): Promise<DataStorage> {
     const entity = await this.dataStorageRepository.findOne({
       where: { id, projectId },
+      relations: ['owners'],
     });
 
     if (!entity) {

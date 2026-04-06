@@ -7,7 +7,9 @@ import { DataStorageDto } from '../dto/domain/data-storage.dto';
 import { ListDataStoragesCommand } from '../dto/domain/list-data-storages.command';
 import { DataMart } from '../entities/data-mart.entity';
 import { DataMartStatus } from '../enums/data-mart-status.enum';
+import { OwnerFilter } from '../enums/owner-filter.enum';
 import { UserProjectionsFetcherService } from '../services/user-projections-fetcher.service';
+import { resolveOwnerUsers } from '../utils/resolve-owner-users';
 
 @Injectable()
 export class ListDataStoragesService {
@@ -21,9 +23,19 @@ export class ListDataStoragesService {
   ) {}
 
   async run(command: ListDataStoragesCommand): Promise<DataStorageDto[]> {
-    const dataStorages = await this.dataStorageRepo.find({
-      where: { projectId: command.projectId },
-    });
+    let qb = this.dataStorageRepo
+      .createQueryBuilder('s')
+      .leftJoinAndSelect('s.owners', 'owners')
+      .where('s.projectId = :projectId', { projectId: command.projectId })
+      .andWhere('s.deletedAt IS NULL');
+
+    if (command.ownerFilter === OwnerFilter.HAS_OWNERS) {
+      qb = qb.andWhere('EXISTS (SELECT 1 FROM storage_owners o WHERE o.storage_id = s.id)');
+    } else if (command.ownerFilter === OwnerFilter.NO_OWNERS) {
+      qb = qb.andWhere('NOT EXISTS (SELECT 1 FROM storage_owners o WHERE o.storage_id = s.id)');
+    }
+
+    const dataStorages = await qb.getMany();
 
     if (dataStorages.length === 0) {
       return [];
@@ -57,8 +69,12 @@ export class ListDataStoragesService {
       ])
     );
 
+    const allUserIds = dataStorages.flatMap(s => [
+      ...(s.createdById ? [s.createdById] : []),
+      ...s.ownerIds,
+    ]);
     const userProjectionsList =
-      await this.userProjectionsFetcherService.fetchRelevantUserProjections(dataStorages);
+      await this.userProjectionsFetcherService.fetchUserProjectionsList(allUserIds);
 
     return dataStorages.map(s => {
       const counts = countMap.get(s.id);
@@ -66,7 +82,8 @@ export class ListDataStoragesService {
         s,
         counts?.published ?? 0,
         counts?.drafts ?? 0,
-        s.createdById ? (userProjectionsList?.getByUserId(s.createdById) ?? null) : null
+        s.createdById ? (userProjectionsList?.getByUserId(s.createdById) ?? null) : null,
+        resolveOwnerUsers(s.ownerIds, userProjectionsList)
       );
     });
   }

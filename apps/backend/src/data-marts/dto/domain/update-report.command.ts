@@ -6,6 +6,7 @@ export class UpdateReportCommand {
     public readonly projectId: string,
     public readonly title: string,
     public readonly dataDestinationId: string,
-    public readonly destinationConfig: DataDestinationConfig
+    public readonly destinationConfig: DataDestinationConfig,
+    public readonly ownerIds?: string[]
   ) {}
 }

@@ -10,5 +10,6 @@ export type DataStorageListItemResponseDto = Pick<
   | 'publishedDataMartsCount'
   | 'draftDataMartsCount'
   | 'createdByUser'
+  | 'ownerUsers'
 >;
 export type DataStorageListResponseDto = DataStorageListItemResponseDto[];

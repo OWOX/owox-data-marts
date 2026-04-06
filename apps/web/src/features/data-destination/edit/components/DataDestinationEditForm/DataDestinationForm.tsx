@@ -2,6 +2,12 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import { zodResolver } from '@hookform/resolvers/zod';
 import type { CredentialIdentity } from '../../../../../shared/types/credential-identity';
+import type { UserProjection } from '../../../../../shared/types';
+import type { UserProjectionDto } from '../../../../../shared/types/api';
+import { useOwnerState } from '../../../../../shared/hooks/useOwnerState';
+import { OwnersSection } from '../../../../../shared/components/OwnersSection/OwnersSection';
+import { UserReference } from '../../../../../shared/components/UserReference/UserReference';
+import { useUser } from '../../../../idp/hooks/useAuthState';
 import { CopyCredentialContext } from '../../model/context/copy-credential-context';
 import { Loader2 } from 'lucide-react';
 import { useForm } from 'react-hook-form';
@@ -17,6 +23,7 @@ import {
   FormLabel,
   FormLayout,
   FormMessage,
+  FormSection,
 } from '@owox/ui/components/form';
 import { Input } from '@owox/ui/components/input';
 
@@ -33,7 +40,13 @@ import { GoogleSheetsFields } from './GoogleSheetsFields';
 import { LookerStudioFields } from './LookerStudioFields';
 
 interface DataDestinationFormProps {
-  initialData: DataDestinationFormData | null;
+  initialData:
+    | (DataDestinationFormData & {
+        ownerUsers?: UserProjection[];
+        createdAt?: Date;
+        createdByUser?: UserProjection | null;
+      })
+    | null;
   onSubmit: (
     data: DataDestinationFormData,
     source?: { id: string; title: string } | null
@@ -62,6 +75,22 @@ export function DataDestinationForm({
     },
     mode: 'onTouched',
   });
+
+  const currentUser = useUser();
+  const initialOwnerUsers =
+    (initialData?.ownerUsers as UserProjectionDto[] | undefined) ??
+    (currentUser
+      ? [
+          {
+            userId: currentUser.id,
+            fullName: currentUser.fullName ?? null,
+            email: currentUser.email ?? null,
+            avatar: currentUser.avatar ?? null,
+          },
+        ]
+      : []);
+  const { ownerUsers, ownersDirty, handleOwnersChange, consumePendingOwnerIds } =
+    useOwnerState(initialOwnerUsers);
 
   const [selectedSource, setSelectedSource] = useState<{
     id: string;
@@ -93,8 +122,8 @@ export function DataDestinationForm({
   const destinationType = form.watch('type');
 
   useEffect(() => {
-    onDirtyChange?.(form.formState.isDirty || selectedSource !== null);
-  }, [form.formState.isDirty, selectedSource, onDirtyChange]);
+    onDirtyChange?.(form.formState.isDirty || selectedSource !== null || ownersDirty);
+  }, [form.formState.isDirty, selectedSource, ownersDirty, onDirtyChange]);
 
   const copyCredentialCtx = useMemo(
     () => ({
@@ -116,7 +145,12 @@ export function DataDestinationForm({
       delete (payload as Partial<DataDestinationFormData>).credentials;
     }
 
-    return onSubmit(payload, selectedSource);
+    const ownerIds = consumePendingOwnerIds();
+    if (ownerIds !== null) {
+      (payload as Record<string, unknown>).ownerIds = ownerIds;
+    }
+
+    await onSubmit(payload, selectedSource);
   };
 
   return (
@@ -175,6 +209,38 @@ export function DataDestinationForm({
           {destinationType === DataDestinationType.GOOGLE_CHAT && (
             <EmailFields form={form} emailsFieldTitle={'Enter Google Chat channel emails list'} />
           )}
+
+          <FormSection title='Ownership'>
+            <FormItem>
+              <FormLabel tooltip='Team members responsible for this destination'>Owners</FormLabel>
+              <OwnersSection ownerUsers={ownerUsers} onSave={handleOwnersChange} />
+            </FormItem>
+          </FormSection>
+
+          {initialData?.createdAt && (
+            <FormSection title='Details'>
+              <FormItem>
+                <FormLabel>Created By</FormLabel>
+                <div className='text-sm'>
+                  {initialData.createdByUser ? (
+                    <UserReference userProjection={initialData.createdByUser} variant='full' />
+                  ) : (
+                    <span className='text-muted-foreground'>Unknown</span>
+                  )}
+                </div>
+              </FormItem>
+              <FormItem>
+                <FormLabel>Created At</FormLabel>
+                <div className='text-muted-foreground text-sm'>
+                  {new Date(initialData.createdAt).toLocaleDateString('en-US', {
+                    year: 'numeric',
+                    month: 'short',
+                    day: 'numeric',
+                  })}
+                </div>
+              </FormItem>
+            </FormSection>
+          )}
         </FormLayout>
         <FormActions>
           <Button
@@ -182,7 +248,10 @@ export function DataDestinationForm({
             type='submit'
             className='w-full'
             aria-label='Save'
-            disabled={(!form.formState.isDirty && !selectedSource) || form.formState.isSubmitting}
+            disabled={
+              (!form.formState.isDirty && !selectedSource && !ownersDirty) ||
+              form.formState.isSubmitting
+            }
           >
             {form.formState.isSubmitting && <Loader2 className='mr-2 h-4 w-4 animate-spin' />}
             Save

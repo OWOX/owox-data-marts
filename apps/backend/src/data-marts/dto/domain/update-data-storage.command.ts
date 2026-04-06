@@ -9,7 +9,8 @@ export class UpdateDataStorageCommand {
     public readonly title: string,
     public readonly credentials?: DataStorageCredentials,
     public readonly credentialId?: string | null,
-    public readonly sourceStorageId?: string
+    public readonly sourceStorageId?: string,
+    public readonly ownerIds?: string[]
   ) {}
 
   hasCredentials(): boolean {

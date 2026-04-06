@@ -20,6 +20,7 @@ export class AwsAthenaMapper implements StorageMapper {
       createdAt: new Date(dto.createdAt),
       modifiedAt: new Date(dto.modifiedAt),
       createdByUser: dto.createdByUser,
+      ownerUsers: dto.ownerUsers ?? [],
       credentials: {
         accessKeyId: credentials?.accessKeyId ?? '',
         secretAccessKey: credentials?.secretAccessKey ?? '',

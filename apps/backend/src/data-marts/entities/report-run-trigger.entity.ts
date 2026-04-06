@@ -22,7 +22,7 @@ export class ReportRunTrigger extends Trigger {
   reportId: string;
 
   @Column()
-  userId: string;
+  createdById: string;
 
   @Column()
   projectId: string;

@@ -8,7 +8,9 @@ import {
   ParseEnumPipe,
   Post,
   Put,
+  Query,
 } from '@nestjs/common';
+import { OwnerFilter } from '../enums/owner-filter.enum';
 import { CreateDataDestinationApiDto } from '../dto/presentation/create-data-destination-api.dto';
 import { CreateDataDestinationService } from '../use-cases/create-data-destination.service';
 import { DataDestinationMapper } from '../mappers/data-destination.mapper';
@@ -116,9 +118,11 @@ export class DataDestinationController {
   @Get()
   @ListDataDestinationsSpec()
   async getAll(
-    @AuthContext() context: AuthorizationContext
+    @AuthContext() context: AuthorizationContext,
+    @Query('ownerFilter', new ParseEnumPipe(OwnerFilter, { optional: true }))
+    ownerFilter?: OwnerFilter
   ): Promise<DataDestinationResponseApiDto[]> {
-    const command = this.mapper.toListCommand(context);
+    const command = this.mapper.toListCommand(context, ownerFilter);
     const dataDestinationsDto = await this.listService.run(command);
     return await this.mapper.toResponseList(dataDestinationsDto);
   }

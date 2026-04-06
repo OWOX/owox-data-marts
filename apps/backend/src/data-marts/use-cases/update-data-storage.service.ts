@@ -23,6 +23,10 @@ import {
 import type { StoredStorageCredentials } from '../entities/stored-storage-credentials.type';
 import { CopyCredentialService } from '../services/copy-credential.service';
 import { UserProjectionsFetcherService } from '../services/user-projections-fetcher.service';
+import { StorageOwner } from '../entities/storage-owner.entity';
+import { resolveOwnerUsers } from '../utils/resolve-owner-users';
+import { syncOwners } from '../utils/sync-owners';
+import { IdpProjectionsFacade } from '../../idp/facades/idp-projections.facade';
 
 @Injectable()
 export class UpdateDataStorageService {
@@ -35,6 +39,9 @@ export class UpdateDataStorageService {
     private readonly dataStorageCredentialService: DataStorageCredentialService,
     private readonly copyCredentialService: CopyCredentialService,
     private readonly userProjectionsFetcherService: UserProjectionsFetcherService,
+    private readonly idpProjectionsFacade: IdpProjectionsFacade,
+    @InjectRepository(StorageOwner)
+    private readonly storageOwnerRepository: Repository<StorageOwner>,
     @Inject(OWOX_PRODUCER)
     private readonly producer: OwoxProducer
   ) {}
@@ -103,9 +110,7 @@ export class UpdateDataStorageService {
         );
       }
 
-      const createdByUser =
-        await this.userProjectionsFetcherService.fetchCreatedByUser(updatedDataStorageEntity);
-      return this.dataStorageMapper.toDomainDto(updatedDataStorageEntity, 0, 0, createdByUser);
+      return this.replaceOwnersAndBuildResponse(updatedDataStorageEntity, command.ownerIds);
     }
 
     let credentialsToCheck: DataStorageCredentials | undefined = command.credentials;
@@ -190,8 +195,44 @@ export class UpdateDataStorageService {
       );
     }
 
-    const createdByUser =
-      await this.userProjectionsFetcherService.fetchCreatedByUser(updatedDataStorageEntity);
-    return this.dataStorageMapper.toDomainDto(updatedDataStorageEntity, 0, 0, createdByUser);
+    return this.replaceOwnersAndBuildResponse(updatedDataStorageEntity, command.ownerIds);
+  }
+
+  private async replaceOwnersAndBuildResponse(
+    entity: DataStorage,
+    ownerIds?: string[]
+  ): Promise<DataStorageDto> {
+    if (ownerIds !== undefined) {
+      await syncOwners(
+        this.storageOwnerRepository,
+        'storageId',
+        entity.id,
+        entity.projectId,
+        ownerIds,
+        this.idpProjectionsFacade,
+        userId => {
+          const o = new StorageOwner();
+          o.storageId = entity.id;
+          o.userId = userId;
+          return o;
+        }
+      );
+    }
+
+    // Reload to get fresh owners
+    const fresh = await this.dataStorageService.getByProjectIdAndId(entity.projectId, entity.id);
+    const allUserIds = [...(fresh.createdById ? [fresh.createdById] : []), ...fresh.ownerIds];
+    const userProjections =
+      await this.userProjectionsFetcherService.fetchUserProjectionsList(allUserIds);
+    const createdByUser = fresh.createdById
+      ? (userProjections.getByUserId(fresh.createdById) ?? null)
+      : null;
+    return this.dataStorageMapper.toDomainDto(
+      fresh,
+      0,
+      0,
+      createdByUser,
+      resolveOwnerUsers(fresh.ownerIds, userProjections)
+    );
   }
 }

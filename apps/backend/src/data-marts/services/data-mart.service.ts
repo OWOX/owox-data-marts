@@ -8,6 +8,7 @@ import { DataMart } from '../entities/data-mart.entity';
 import { DataStorage } from '../entities/data-storage.entity';
 import { DataMartDefinitionType } from '../enums/data-mart-definition-type.enum';
 import { DataMartStatus } from '../enums/data-mart-status.enum';
+import { OwnerFilter } from '../enums/owner-filter.enum';
 
 @Injectable()
 export class DataMartService {
@@ -27,7 +28,13 @@ export class DataMartService {
   async getByIdAndProjectId(id: string, projectId: string): Promise<DataMart> {
     const entity = await this.dataMartRepository.findOne({
       where: { id, projectId },
-      relations: ['connectorState', 'storage', 'storage.credential'],
+      relations: [
+        'connectorState',
+        'storage',
+        'storage.credential',
+        'businessOwners',
+        'technicalOwners',
+      ],
     });
 
     if (!entity) {
@@ -43,23 +50,25 @@ export class DataMartService {
 
   async findByProjectIdForList(
     projectId: string,
-    options?: { limit?: number; offset?: number }
+    options?: { limit?: number; offset?: number; ownerFilter?: OwnerFilter }
   ): Promise<{ items: DataMart[]; total: number }> {
     const qb = this.dataMartRepository
       .createQueryBuilder('dm')
       .leftJoin('dm.storage', 'storage')
+      .leftJoinAndSelect('dm.businessOwners', 'businessOwners')
+      .leftJoinAndSelect('dm.technicalOwners', 'technicalOwners')
       .select([
         'dm.id',
         'dm.title',
         'dm.status',
         'dm.definitionType',
         'dm.createdById',
-        'dm.businessOwnerIds',
-        'dm.technicalOwnerIds',
         'dm.createdAt',
         'dm.modifiedAt',
         'storage.type',
         'storage.title',
+        'businessOwners.userId',
+        'technicalOwners.userId',
       ])
       .addSelect(
         'CASE WHEN dm.definitionType = :connectorDefinitionType THEN dm.definition ELSE NULL END',
@@ -67,8 +76,21 @@ export class DataMartService {
       )
       .setParameter('connectorDefinitionType', DataMartDefinitionType.CONNECTOR)
       .where('dm.projectId = :projectId', { projectId })
-      .andWhere('dm.deletedAt IS NULL')
-      .orderBy('dm.createdAt', 'DESC')
+      .andWhere('dm.deletedAt IS NULL');
+
+    if (options?.ownerFilter === OwnerFilter.HAS_OWNERS) {
+      qb.andWhere(
+        `(EXISTS (SELECT 1 FROM data_mart_technical_owners t WHERE t.data_mart_id = dm.id)
+          OR EXISTS (SELECT 1 FROM data_mart_business_owners b WHERE b.data_mart_id = dm.id))`
+      );
+    } else if (options?.ownerFilter === OwnerFilter.NO_OWNERS) {
+      qb.andWhere(
+        `NOT EXISTS (SELECT 1 FROM data_mart_technical_owners t WHERE t.data_mart_id = dm.id)
+         AND NOT EXISTS (SELECT 1 FROM data_mart_business_owners b WHERE b.data_mart_id = dm.id)`
+      );
+    }
+
+    qb.orderBy('dm.createdAt', 'DESC')
       .addOrderBy('dm.id', 'ASC')
       .limit(options?.limit)
       .offset(options?.offset);

@@ -27,6 +27,7 @@ export class DatabricksMapper implements StorageMapper {
       createdAt: new Date(dto.createdAt),
       modifiedAt: new Date(dto.modifiedAt),
       createdByUser: dto.createdByUser,
+      ownerUsers: dto.ownerUsers ?? [],
       credentials: mappedCredentials ?? {
         authMethod: DatabricksAuthMethod.PERSONAL_ACCESS_TOKEN,
         token: '',

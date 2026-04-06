@@ -1,6 +1,7 @@
 import { AvailableDestinationTypesService } from '../data-destination-types/available-destination-types.service';
 import { CreateDataDestinationCommand } from '../dto/domain/create-data-destination.command';
 import { Repository } from 'typeorm';
+import { Transactional } from 'typeorm-transactional';
 import { DataDestination } from '../entities/data-destination.entity';
 import { InjectRepository } from '@nestjs/typeorm';
 import { BadRequestException, Injectable } from '@nestjs/common';
@@ -18,6 +19,10 @@ import type { StoredDestinationCredentials } from '../entities/stored-destinatio
 import { DataDestinationService } from '../services/data-destination.service';
 import { CopyCredentialService } from '../services/copy-credential.service';
 import { UserProjectionsFetcherService } from '../services/user-projections-fetcher.service';
+import { DestinationOwner } from '../entities/destination-owner.entity';
+import { syncOwners } from '../utils/sync-owners';
+import { resolveOwnerUsers } from '../utils/resolve-owner-users';
+import { IdpProjectionsFacade } from '../../idp/facades/idp-projections.facade';
 
 @Injectable()
 export class CreateDataDestinationService {
@@ -32,9 +37,13 @@ export class CreateDataDestinationService {
     private readonly googleOAuthClientService: GoogleOAuthClientService,
     private readonly dataDestinationService: DataDestinationService,
     private readonly copyCredentialService: CopyCredentialService,
-    private readonly userProjectionsFetcherService: UserProjectionsFetcherService
+    private readonly userProjectionsFetcherService: UserProjectionsFetcherService,
+    @InjectRepository(DestinationOwner)
+    private readonly destinationOwnerRepository: Repository<DestinationOwner>,
+    private readonly idpProjectionsFacade: IdpProjectionsFacade
   ) {}
 
+  @Transactional()
   async run(command: CreateDataDestinationCommand): Promise<DataDestinationDto> {
     this.availableDestinationTypesService.verifyIsAllowed(command.type);
 
@@ -78,9 +87,8 @@ export class CreateDataDestinationService {
       });
 
       const savedEntity = await this.repository.save(entity);
-      const createdByUser =
-        await this.userProjectionsFetcherService.fetchCreatedByUser(savedEntity);
-      return this.mapper.toDomainDto(savedEntity, createdByUser);
+
+      return this.saveOwnersAndBuildResponse(savedEntity, command);
     }
 
     // If a pre-created OAuth credential ID is provided, validate it by getting a fresh access token
@@ -100,9 +108,8 @@ export class CreateDataDestinationService {
       });
 
       const savedEntity = await this.repository.save(entity);
-      const createdByUser =
-        await this.userProjectionsFetcherService.fetchCreatedByUser(savedEntity);
-      return this.mapper.toDomainDto(savedEntity, createdByUser);
+
+      return this.saveOwnersAndBuildResponse(savedEntity, command);
     }
 
     if (!command.credentials) {
@@ -142,7 +149,44 @@ export class CreateDataDestinationService {
     });
 
     const savedEntity = await this.repository.save(entity);
-    const createdByUser = await this.userProjectionsFetcherService.fetchCreatedByUser(savedEntity);
-    return this.mapper.toDomainDto(savedEntity, createdByUser);
+
+    return this.saveOwnersAndBuildResponse(savedEntity, command);
+  }
+
+  private async saveOwnersAndBuildResponse(
+    savedEntity: DataDestination,
+    command: CreateDataDestinationCommand
+  ): Promise<DataDestinationDto> {
+    const ownerIdsToSave = command.ownerIds ?? [command.userId];
+    await syncOwners(
+      this.destinationOwnerRepository,
+      'destinationId',
+      savedEntity.id,
+      command.projectId,
+      ownerIdsToSave,
+      this.idpProjectionsFacade,
+      userId => {
+        const o = new DestinationOwner();
+        o.destinationId = savedEntity.id;
+        o.userId = userId;
+        return o;
+      }
+    );
+
+    savedEntity.owners = ownerIdsToSave.map(uid => {
+      const o = new DestinationOwner();
+      o.destinationId = savedEntity.id;
+      o.userId = uid;
+      return o;
+    });
+    const allUserIds = [command.userId, ...ownerIdsToSave];
+    const userProjections =
+      await this.userProjectionsFetcherService.fetchUserProjectionsList(allUserIds);
+    const createdByUser = userProjections.getByUserId(command.userId) ?? null;
+    return this.mapper.toDomainDto(
+      savedEntity,
+      createdByUser,
+      resolveOwnerUsers(ownerIdsToSave, userProjections)
+    );
   }
 }

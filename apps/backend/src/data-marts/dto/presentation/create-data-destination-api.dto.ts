@@ -1,6 +1,15 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { DataDestinationType } from '../../data-destination-types/enums/data-destination-type.enum';
-import { IsEnum, IsNotEmpty, IsObject, IsOptional, IsString, IsUUID } from 'class-validator';
+import {
+  ArrayMaxSize,
+  IsArray,
+  IsEnum,
+  IsNotEmpty,
+  IsObject,
+  IsOptional,
+  IsString,
+  IsUUID,
+} from 'class-validator';
 import { DataDestinationCredentials } from '../../data-destination-types/data-destination-credentials.type';
 
 export class CreateDataDestinationApiDto {
@@ -36,4 +45,12 @@ export class CreateDataDestinationApiDto {
   @IsUUID()
   @IsOptional()
   sourceDestinationId?: string;
+
+  @ApiProperty({ type: [String], required: false })
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(100)
+  @IsString({ each: true })
+  @IsNotEmpty({ each: true })
+  ownerIds?: string[];
 }

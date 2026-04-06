@@ -1,4 +1,7 @@
 import { forwardRef, useEffect, useState, useRef } from 'react';
+import { useOwnerState } from '../../../../../../shared/hooks/useOwnerState';
+import { UserReference } from '../../../../../../shared/components/UserReference/UserReference';
+import { useUser } from '../../../../../idp/hooks/useAuthState';
 import { Input } from '@owox/ui/components/input';
 import { useAutoFocus } from '../../../../../../hooks/useAutoFocus.ts';
 import {
@@ -53,6 +56,8 @@ import { isGoogleServiceAccountCredentials } from '../../../../../../shared/type
 import { CopyableField } from '@owox/ui/components/common/copyable-field';
 import { useReport } from '../../../shared';
 import { ReportFormActions } from '../shared/ReportFormActions';
+import { OwnersSection } from '../../../../../../shared/components/OwnersSection/OwnersSection';
+import type { UserProjectionDto } from '../../../../../../shared/types/api';
 
 interface GoogleSheetsReportEditFormProps {
   initialReport?: DataMartReport;
@@ -117,6 +122,27 @@ export const GoogleSheetsReportEditForm = forwardRef<
     const [triggersDirty, setTriggersDirty] = useState(false);
     const { runReport } = useReport();
 
+    const currentUser = useUser();
+    const initialOwnerUsers =
+      (initialReport?.ownerUsers as UserProjectionDto[] | undefined) ??
+      (currentUser
+        ? [
+            {
+              userId: currentUser.id,
+              fullName: currentUser.fullName ?? null,
+              email: currentUser.email ?? null,
+              avatar: currentUser.avatar ?? null,
+            },
+          ]
+        : []);
+    const {
+      ownerUsers,
+      ownersDirty,
+      pendingOwnerIdsRef,
+      handleOwnersChange,
+      consumePendingOwnerIds,
+    } = useOwnerState(initialOwnerUsers);
+
     const {
       isDirty,
       reset,
@@ -128,6 +154,7 @@ export const GoogleSheetsReportEditForm = forwardRef<
       initialReport,
       mode,
       dataMartId: dataMart?.id ?? '',
+      pendingOwnerIdsRef,
       onAfterSubmit: async report => {
         try {
           await scheduleRef.current?.persist(report.id);
@@ -135,6 +162,7 @@ export const GoogleSheetsReportEditForm = forwardRef<
           // ignore UI errors here; hook will handle formError
           console.error('Failed to persist schedule for report', e);
         }
+        consumePendingOwnerIds();
         if (runAfterSaveRef.current) {
           try {
             await runReport(report.id);
@@ -180,8 +208,8 @@ export const GoogleSheetsReportEditForm = forwardRef<
     }, [initialReport, mode, reset, preSelectedDestination]);
 
     useEffect(() => {
-      onDirtyChange?.(isDirty || triggersDirty);
-    }, [isDirty, triggersDirty, onDirtyChange]);
+      onDirtyChange?.(isDirty || triggersDirty || ownersDirty);
+    }, [isDirty, triggersDirty, ownersDirty, onDirtyChange]);
 
     const documentUrl = form.watch('documentUrl');
     const isValidDocumentUrl = documentUrl && isValidGoogleSheetsUrl(documentUrl.trim());
@@ -394,6 +422,38 @@ export const GoogleSheetsReportEditForm = forwardRef<
                 <TimeTriggerAnnouncement />
               )}
             </FormSection>
+
+            <FormSection title='Ownership'>
+              <FormItem>
+                <FormLabel tooltip='Team members responsible for this report'>Owners</FormLabel>
+                <OwnersSection ownerUsers={ownerUsers} onSave={handleOwnersChange} />
+              </FormItem>
+            </FormSection>
+
+            {initialReport?.createdAt && (
+              <FormSection title='Details'>
+                <FormItem>
+                  <FormLabel>Created By</FormLabel>
+                  <div className='text-sm'>
+                    {initialReport.createdByUser ? (
+                      <UserReference userProjection={initialReport.createdByUser} variant='full' />
+                    ) : (
+                      <span className='text-muted-foreground'>Unknown</span>
+                    )}
+                  </div>
+                </FormItem>
+                <FormItem>
+                  <FormLabel>Created At</FormLabel>
+                  <div className='text-muted-foreground text-sm'>
+                    {new Date(initialReport.createdAt).toLocaleDateString('en-US', {
+                      year: 'numeric',
+                      month: 'short',
+                      day: 'numeric',
+                    })}
+                  </div>
+                </FormItem>
+              </FormSection>
+            )}
           </FormLayout>
 
           <ReportFormActions
@@ -401,6 +461,7 @@ export const GoogleSheetsReportEditForm = forwardRef<
             isSubmitting={isSubmitting}
             isDirty={isDirty}
             triggersDirty={triggersDirty}
+            ownersDirty={ownersDirty}
             runAfterSaveRef={runAfterSaveRef}
             onSubmit={() => void form.handleSubmit(handleFormSubmit)()}
             onCancel={onCancel}

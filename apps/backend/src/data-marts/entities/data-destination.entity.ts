@@ -4,6 +4,7 @@ import {
   DeleteDateColumn,
   Entity,
   JoinColumn,
+  OneToMany,
   OneToOne,
   PrimaryGeneratedColumn,
   UpdateDateColumn,
@@ -14,6 +15,7 @@ import {
 } from '../data-destination-types/enums/data-destination-type.enum';
 import { DataDestinationCredential } from './data-destination-credential.entity';
 import { CreatorAwareEntity } from './creator-aware-entity.interface';
+import { DestinationOwner } from './destination-owner.entity';
 
 @Entity()
 export class DataDestination implements CreatorAwareEntity {
@@ -42,11 +44,18 @@ export class DataDestination implements CreatorAwareEntity {
   @Column({ type: 'varchar', nullable: true })
   createdById?: string;
 
+  @OneToMany(() => DestinationOwner, owner => owner.destination)
+  owners: DestinationOwner[];
+
   @CreateDateColumn()
   createdAt: Date;
 
   @UpdateDateColumn()
   modifiedAt: Date;
+
+  get ownerIds(): string[] {
+    return (this.owners ?? []).map(o => o.userId);
+  }
 
   isEmailBased(): boolean {
     return isEmailBasedDataDestinationType(this.type);

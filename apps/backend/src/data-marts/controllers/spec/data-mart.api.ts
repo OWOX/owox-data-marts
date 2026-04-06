@@ -22,6 +22,7 @@ import { SqlDryRunRequestApiDto } from '../../dto/presentation/sql-dry-run-reque
 import { SqlDryRunResponseApiDto } from '../../dto/presentation/sql-dry-run-response-api.dto';
 import { DataMartRunsResponseApiDto } from '../../dto/presentation/data-mart-runs-response-api.dto';
 import { DataMartRunResponseApiDto } from '../../dto/presentation/data-mart-run-response-api.dto';
+import { UpdateDataMartOwnersApiDto } from '../../dto/presentation/update-data-mart-owners-api.dto';
 
 export function CreateDataMartSpec() {
   return applyDecorators(
@@ -85,6 +86,15 @@ export function UpdateDataMartTitleSpec() {
     ApiOperation({ summary: 'Update DataMart title' }),
     ApiParam({ name: 'id', description: 'DataMart ID' }),
     ApiBody({ type: UpdateDataMartTitleApiDto }),
+    ApiOkResponse({ type: DataMartResponseApiDto })
+  );
+}
+
+export function UpdateDataMartOwnersSpec() {
+  return applyDecorators(
+    ApiOperation({ summary: 'Update DataMart owners' }),
+    ApiParam({ name: 'id', description: 'DataMart ID' }),
+    ApiBody({ type: UpdateDataMartOwnersApiDto }),
     ApiOkResponse({ type: DataMartResponseApiDto })
   );
 }

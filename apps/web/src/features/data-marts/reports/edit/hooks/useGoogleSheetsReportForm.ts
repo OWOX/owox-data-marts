@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState, type RefObject } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -28,6 +28,7 @@ interface UseGoogleSheetsReportFormOptions {
   onAfterSubmit?: (report: DataMartReport) => Promise<void> | void;
   onSuccess?: () => void;
   preSelectedDestination?: DataDestination | null;
+  pendingOwnerIdsRef?: RefObject<string[] | null>;
 }
 
 export function useGoogleSheetsReportForm({
@@ -37,6 +38,7 @@ export function useGoogleSheetsReportForm({
   onAfterSubmit,
   onSuccess,
   preSelectedDestination,
+  pendingOwnerIdsRef,
 }: UseGoogleSheetsReportFormOptions) {
   const [formError, setFormError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -93,6 +95,9 @@ export function useGoogleSheetsReportForm({
               spreadsheetId,
               sheetId,
             },
+            ...(pendingOwnerIdsRef?.current != null
+              ? { ownerIds: pendingOwnerIdsRef.current }
+              : {}),
           });
         } else {
           if (!initialReport) {
@@ -107,6 +112,9 @@ export function useGoogleSheetsReportForm({
               spreadsheetId,
               sheetId,
             },
+            ...(pendingOwnerIdsRef?.current != null
+              ? { ownerIds: pendingOwnerIdsRef.current }
+              : {}),
           });
         }
 
@@ -140,6 +148,7 @@ export function useGoogleSheetsReportForm({
       onSuccess,
       clearError,
       reportError,
+      pendingOwnerIdsRef,
     ]
   );
 

@@ -1,6 +1,9 @@
 import { UserProjectionDto } from '../../idp/dto/domain/user-projection.dto';
 import { UserProjectionsListDto } from '../../idp/dto/domain/user-projections-list.dto';
 import { CreatorAwareEntity } from '../entities/creator-aware-entity.interface';
+import { DataMart } from '../entities/data-mart.entity';
+import { DataMartBusinessOwner } from '../entities/data-mart-business-owner.entity';
+import { DataMartTechnicalOwner } from '../entities/data-mart-technical-owner.entity';
 import { UserProjectionsFetcherService } from './user-projections-fetcher.service';
 
 jest.mock('../../idp/facades/idp-projections.facade', () => ({
@@ -93,6 +96,87 @@ describe('UserProjectionsFetcherService', () => {
       await service.fetchRelevantUserProjections([]);
 
       expect(idpProjectionsFacade.getUserProjectionList).toHaveBeenCalledWith([]);
+    });
+  });
+
+  describe('fetchAllRelevantUserProjections', () => {
+    const createDataMart = (overrides: Partial<DataMart> = {}): DataMart => {
+      const dm = new DataMart();
+      dm.createdById = 'creator-1';
+      dm.businessOwners = [];
+      dm.technicalOwners = [];
+      return Object.assign(dm, overrides);
+    };
+
+    it('should collect user IDs from createdById, businessOwners, and technicalOwners', async () => {
+      const { service, idpProjectionsFacade } = createService();
+      idpProjectionsFacade.getUserProjectionList.mockResolvedValue(new UserProjectionsListDto([]));
+
+      const dm = createDataMart({
+        createdById: 'creator-1',
+        businessOwners: [{ dataMartId: 'dm-1', userId: 'biz-owner-1' } as DataMartBusinessOwner],
+        technicalOwners: [
+          { dataMartId: 'dm-1', userId: 'tech-owner-1' } as DataMartTechnicalOwner,
+          { dataMartId: 'dm-1', userId: 'tech-owner-2' } as DataMartTechnicalOwner,
+        ],
+      });
+
+      await service.fetchAllRelevantUserProjections([dm]);
+
+      expect(idpProjectionsFacade.getUserProjectionList).toHaveBeenCalledWith(
+        expect.arrayContaining(['creator-1', 'biz-owner-1', 'tech-owner-1', 'tech-owner-2'])
+      );
+    });
+
+    it('should deduplicate user IDs across multiple data marts', async () => {
+      const { service, idpProjectionsFacade } = createService();
+      idpProjectionsFacade.getUserProjectionList.mockResolvedValue(new UserProjectionsListDto([]));
+
+      const dm1 = createDataMart({
+        createdById: 'user-1',
+        technicalOwners: [{ dataMartId: 'dm-1', userId: 'user-1' } as DataMartTechnicalOwner],
+      });
+      const dm2 = createDataMart({
+        createdById: 'user-1',
+        businessOwners: [{ dataMartId: 'dm-2', userId: 'user-2' } as DataMartBusinessOwner],
+      });
+
+      await service.fetchAllRelevantUserProjections([dm1, dm2]);
+
+      const calledWith = idpProjectionsFacade.getUserProjectionList.mock.calls[0][0] as string[];
+      expect(calledWith).toHaveLength(2);
+      expect(calledWith).toContain('user-1');
+      expect(calledWith).toContain('user-2');
+    });
+
+    it('should handle data marts with empty owner arrays', async () => {
+      const { service, idpProjectionsFacade } = createService();
+      idpProjectionsFacade.getUserProjectionList.mockResolvedValue(new UserProjectionsListDto([]));
+
+      const dm = createDataMart({
+        createdById: 'user-1',
+        businessOwners: [],
+        technicalOwners: [],
+      });
+
+      await service.fetchAllRelevantUserProjections([dm]);
+
+      expect(idpProjectionsFacade.getUserProjectionList).toHaveBeenCalledWith(['user-1']);
+    });
+
+    it('should handle data marts with null/undefined owner arrays', async () => {
+      const { service, idpProjectionsFacade } = createService();
+      idpProjectionsFacade.getUserProjectionList.mockResolvedValue(new UserProjectionsListDto([]));
+
+      const dm = createDataMart({
+        createdById: 'user-1',
+        businessOwners: undefined as unknown as DataMartBusinessOwner[],
+        technicalOwners: undefined as unknown as DataMartTechnicalOwner[],
+      });
+
+      await service.fetchAllRelevantUserProjections([dm]);
+
+      expect(idpProjectionsFacade.getUserProjectionList).toHaveBeenCalledWith(['user-1']);
     });
   });
 });

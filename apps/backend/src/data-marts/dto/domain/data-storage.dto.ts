@@ -14,6 +14,7 @@ export class DataStorageDto {
     public readonly dataMartsCount: number = 0,
     public readonly draftsCount: number = 0,
     public readonly credentialId: string | null | undefined = undefined,
-    public readonly createdByUser: UserProjectionDto | null = null
+    public readonly createdByUser: UserProjectionDto | null = null,
+    public readonly ownerUsers: UserProjectionDto[] = []
   ) {}
 }

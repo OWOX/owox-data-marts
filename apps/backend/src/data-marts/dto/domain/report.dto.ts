@@ -17,6 +17,7 @@ export class ReportDto {
     public readonly lastRunError?: string,
     public readonly lastRunStatus?: ReportRunStatus,
     public readonly runsCount: number = 0,
-    public readonly createdByUser: UserProjectionDto | null = null
+    public readonly createdByUser: UserProjectionDto | null = null,
+    public readonly ownerUsers: UserProjectionDto[] = []
   ) {}
 }

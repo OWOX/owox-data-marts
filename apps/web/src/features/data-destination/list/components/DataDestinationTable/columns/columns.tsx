@@ -7,6 +7,7 @@ import { DataDestinationColumnKey } from './columnKeys';
 import { dataDestinationColumnLabels } from './columnLabels';
 import { type UserProjection } from '../../../../../../shared/types';
 import { UserReference } from '../../../../../../shared/components/UserReference';
+import { UserAvatarGroup } from '../../../../../../shared/components/UserAvatarGroup/UserAvatarGroup';
 
 export interface DataDestinationTableItem {
   id: string;
@@ -16,6 +17,7 @@ export interface DataDestinationTableItem {
   modifiedAt: Date;
   credentials?: DataDestination['credentials'];
   createdByUser?: UserProjection | null;
+  ownerUsers?: UserProjection[];
 }
 
 interface DataDestinationColumnsProps {
@@ -110,6 +112,26 @@ export const getDataDestinationColumns = ({
       const user = row.original.createdByUser;
       if (!user) return <span className='text-muted-foreground'>-</span>;
       return <UserReference userProjection={user} />;
+    },
+  },
+  {
+    id: DataDestinationColumnKey.OWNERS,
+    accessorFn: row => (row.ownerUsers ?? []).map(u => u.fullName ?? u.email).join(', '),
+    meta: {
+      title: dataDestinationColumnLabels[DataDestinationColumnKey.OWNERS],
+    },
+    size: 200,
+    header: ({ column }) => (
+      <SortableHeader column={column}>
+        {dataDestinationColumnLabels[DataDestinationColumnKey.OWNERS]}
+      </SortableHeader>
+    ),
+    cell: ({ row }) => {
+      const users = row.original.ownerUsers ?? [];
+      if (users.length === 0)
+        return <span className='text-muted-foreground text-sm'>Not assigned</span>;
+      if (users.length === 1) return <UserReference userProjection={users[0]} />;
+      return <UserAvatarGroup users={users} />;
     },
   },
   {

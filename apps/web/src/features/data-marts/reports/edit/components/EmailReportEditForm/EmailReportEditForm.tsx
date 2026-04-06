@@ -1,4 +1,7 @@
 import { forwardRef, useEffect, useMemo, useState, useRef } from 'react';
+import { useOwnerState } from '../../../../../../shared/hooks/useOwnerState';
+import { UserReference } from '../../../../../../shared/components/UserReference/UserReference';
+import { useUser } from '../../../../../idp/hooks/useAuthState';
 import { useNavigate, Link } from 'react-router-dom';
 import { Edit2, Eye, FileCode, ExternalLink, Sparkles, Plus } from 'lucide-react';
 import { cn } from '@owox/ui/lib/utils';
@@ -47,6 +50,8 @@ import {
 } from '../../../../scheduled-triggers/components/ReportSchedulesInlineList/ReportSchedulesInlineList';
 import type { DataMartReport } from '../../../shared/model/types/data-mart-report';
 import { ReportFormMode, TemplateSourceTypeEnum } from '../../../shared';
+import { OwnersSection } from '../../../../../../shared/components/OwnersSection/OwnersSection';
+import type { UserProjectionDto } from '../../../../../../shared/types/api';
 import { useEmailReportForm } from '../../hooks/useEmailReportForm';
 import { ReportConditionEnum } from '../../../shared/enums/report-condition.enum';
 import {
@@ -173,6 +178,27 @@ export const EmailReportEditForm = forwardRef<HTMLFormElement, EmailReportEditFo
       }
     }, [dataDestinations, preSelectedDestination?.type, allowedDestinationTypes]);
 
+    const currentUser = useUser();
+    const initialOwnerUsers =
+      (initialReport?.ownerUsers as UserProjectionDto[] | undefined) ??
+      (currentUser
+        ? [
+            {
+              userId: currentUser.id,
+              fullName: currentUser.fullName ?? null,
+              email: currentUser.email ?? null,
+              avatar: currentUser.avatar ?? null,
+            },
+          ]
+        : []);
+    const {
+      ownerUsers,
+      ownersDirty,
+      pendingOwnerIdsRef,
+      handleOwnersChange,
+      consumePendingOwnerIds,
+    } = useOwnerState(initialOwnerUsers);
+
     const {
       isDirty,
       reset,
@@ -184,6 +210,7 @@ export const EmailReportEditForm = forwardRef<HTMLFormElement, EmailReportEditFo
       initialReport,
       mode,
       dataMartId: dataMart?.id ?? '',
+      pendingOwnerIdsRef,
       onAfterSubmit: async report => {
         try {
           await scheduleRef.current?.persist(report.id);
@@ -191,6 +218,7 @@ export const EmailReportEditForm = forwardRef<HTMLFormElement, EmailReportEditFo
           // ignore UI errors here; hook will handle formError
           console.error('Failed to persist schedule for report', e);
         }
+        consumePendingOwnerIds();
         if (runAfterSaveRef.current) {
           try {
             await runReport(report.id);
@@ -253,8 +281,8 @@ export const EmailReportEditForm = forwardRef<HTMLFormElement, EmailReportEditFo
     ]);
 
     useEffect(() => {
-      onDirtyChange?.(isDirty || triggersDirty);
-    }, [isDirty, triggersDirty, onDirtyChange]);
+      onDirtyChange?.(isDirty || triggersDirty || ownersDirty);
+    }, [isDirty, triggersDirty, ownersDirty, onDirtyChange]);
 
     const reportConditionOptions = useMemo(
       () => [
@@ -817,12 +845,50 @@ export const EmailReportEditForm = forwardRef<HTMLFormElement, EmailReportEditFo
                   <TimeTriggerAnnouncement />
                 )}
               </FormSection>
+
+              {!isReadOnly && (
+                <FormSection title='Ownership'>
+                  <FormItem>
+                    <FormLabel tooltip='Team members responsible for this report'>Owners</FormLabel>
+                    <OwnersSection ownerUsers={ownerUsers} onSave={handleOwnersChange} />
+                  </FormItem>
+                </FormSection>
+              )}
+
+              {initialReport?.createdAt && (
+                <FormSection title='Details'>
+                  <FormItem>
+                    <FormLabel>Created By</FormLabel>
+                    <div className='text-sm'>
+                      {initialReport.createdByUser ? (
+                        <UserReference
+                          userProjection={initialReport.createdByUser}
+                          variant='full'
+                        />
+                      ) : (
+                        <span className='text-muted-foreground'>Unknown</span>
+                      )}
+                    </div>
+                  </FormItem>
+                  <FormItem>
+                    <FormLabel>Created At</FormLabel>
+                    <div className='text-muted-foreground text-sm'>
+                      {new Date(initialReport.createdAt).toLocaleDateString('en-US', {
+                        year: 'numeric',
+                        month: 'short',
+                        day: 'numeric',
+                      })}
+                    </div>
+                  </FormItem>
+                </FormSection>
+              )}
             </FormLayout>
             <ReportFormActions
               mode={mode}
               isSubmitting={isSubmitting}
               isDirty={isDirty}
               triggersDirty={triggersDirty}
+              ownersDirty={ownersDirty}
               runAfterSaveRef={runAfterSaveRef}
               onSubmit={() => void form.handleSubmit(handleFormSubmit)()}
               onCancel={onCancel}

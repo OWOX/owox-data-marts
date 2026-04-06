@@ -7,7 +7,8 @@ export class UpdateDataDestinationCommand {
     public readonly title: string,
     public readonly credentials?: DataDestinationCredentials,
     public readonly credentialId?: string | null,
-    public readonly sourceDestinationId?: string
+    public readonly sourceDestinationId?: string,
+    public readonly ownerIds?: string[]
   ) {}
 
   hasCredentials(): boolean {

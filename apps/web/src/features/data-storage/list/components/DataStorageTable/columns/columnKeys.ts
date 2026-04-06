@@ -3,7 +3,8 @@ export enum DataStorageColumnKey {
   TITLE = 'title',
   TYPE = 'type',
   CREATED_AT = 'createdAt',
+  CREATED_BY = 'createdByUser',
+  OWNERS = 'owners',
   DATA_MARTS_COUNT = 'publishedDataMartsCount',
   DRAFTS_COUNT = 'draftDataMartsCount',
-  CREATED_BY = 'createdByUser',
 }

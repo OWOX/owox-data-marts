@@ -25,6 +25,12 @@ import {
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import type { CredentialIdentity } from '../../../../../shared/types/credential-identity';
+import { OwnersSection } from '../../../../../shared/components/OwnersSection/OwnersSection';
+import type { UserProjectionDto } from '../../../../../shared/types/api';
+import { useOwnerState } from '../../../../../shared/hooks/useOwnerState';
+import { useUser } from '../../../../idp/hooks/useAuthState';
+import type { UserProjection } from '../../../../../shared/types';
+import { UserReference } from '../../../../../shared/components/UserReference/UserReference';
 import { CopyCredentialContext } from '../../model/context/copy-credential-context';
 import { createFormPayload } from '../../../../../utils/form-utils';
 import { COPY_SOURCE_CREDENTIAL_PLACEHOLDER } from '../../../../../shared/utils/credential-identity-utils';
@@ -54,7 +60,12 @@ import { RedshiftFields } from './RedshiftFields';
 import { SnowflakeFields } from './SnowflakeFields';
 
 interface DataStorageFormProps {
-  initialData?: DataStorageFormData & { id?: string };
+  initialData?: DataStorageFormData & {
+    id?: string;
+    ownerUsers?: UserProjection[];
+    createdAt?: Date;
+    createdByUser?: UserProjection | null;
+  };
   onSubmit: (
     data: DataStorageFormData,
     source?: { id: string; title: string } | null
@@ -73,6 +84,22 @@ export function DataStorageForm({
     resolver: zodResolver(dataStorageSchema),
     defaultValues: initialData,
   });
+
+  const currentUser = useUser();
+  const initialOwnerUsers =
+    (initialData?.ownerUsers as UserProjectionDto[] | undefined) ??
+    (currentUser
+      ? [
+          {
+            userId: currentUser.id,
+            fullName: currentUser.fullName ?? null,
+            email: currentUser.email ?? null,
+            avatar: currentUser.avatar ?? null,
+          },
+        ]
+      : []);
+  const { ownerUsers, ownersDirty, handleOwnersChange, consumePendingOwnerIds } =
+    useOwnerState(initialOwnerUsers);
 
   const [selectedSource, setSelectedSource] = useState<{
     id: string;
@@ -116,8 +143,8 @@ export function DataStorageForm({
   const storageId = initialData?.id;
 
   useEffect(() => {
-    onDirtyChange?.(isDirty || selectedSource !== null);
-  }, [isDirty, selectedSource, onDirtyChange]);
+    onDirtyChange?.(isDirty || selectedSource !== null || ownersDirty);
+  }, [isDirty, selectedSource, ownersDirty, onDirtyChange]);
 
   const copyCredentialCtx = useMemo(
     () => ({
@@ -139,7 +166,12 @@ export function DataStorageForm({
       delete (payload as Partial<DataStorageFormData>).credentials;
     }
 
-    return onSubmit(payload, selectedSource);
+    const ownerIds = consumePendingOwnerIds();
+    if (ownerIds !== null) {
+      (payload as Record<string, unknown>).ownerIds = ownerIds;
+    }
+
+    await onSubmit(payload, selectedSource);
   };
 
   const isLegacyGoogleBigQuery = selectedType === DataStorageType.LEGACY_GOOGLE_BIGQUERY;
@@ -258,6 +290,38 @@ export function DataStorageForm({
             {selectedType === DataStorageType.AWS_REDSHIFT && <RedshiftFields form={form} />}
             {selectedType === DataStorageType.DATABRICKS && <DatabricksFields form={form} />}
           </CopyCredentialContext.Provider>
+
+          <FormSection title='Ownership'>
+            <FormItem>
+              <FormLabel tooltip='Team members responsible for this storage'>Owners</FormLabel>
+              <OwnersSection ownerUsers={ownerUsers} onSave={handleOwnersChange} />
+            </FormItem>
+          </FormSection>
+
+          {initialData?.createdAt && (
+            <FormSection title='Details'>
+              <FormItem>
+                <FormLabel>Created By</FormLabel>
+                <div className='text-sm'>
+                  {initialData.createdByUser ? (
+                    <UserReference userProjection={initialData.createdByUser} variant='full' />
+                  ) : (
+                    <span className='text-muted-foreground'>Unknown</span>
+                  )}
+                </div>
+              </FormItem>
+              <FormItem>
+                <FormLabel>Created At</FormLabel>
+                <div className='text-muted-foreground text-sm'>
+                  {new Date(initialData.createdAt).toLocaleDateString('en-US', {
+                    year: 'numeric',
+                    month: 'short',
+                    day: 'numeric',
+                  })}
+                </div>
+              </FormItem>
+            </FormSection>
+          )}
         </FormLayout>
         <FormActions>
           <Button
@@ -265,7 +329,7 @@ export function DataStorageForm({
             type='submit'
             className='w-full'
             aria-label='Save'
-            disabled={(!isDirty && !selectedSource) || isSubmitting}
+            disabled={(!isDirty && !selectedSource && !ownersDirty) || isSubmitting}
           >
             Save
           </Button>

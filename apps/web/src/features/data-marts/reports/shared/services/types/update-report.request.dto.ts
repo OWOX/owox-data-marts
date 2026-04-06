@@ -71,4 +71,5 @@ export interface UpdateReportRequestDto {
   title: string;
   dataDestinationId: string;
   destinationConfig: DestinationConfigDto;
+  ownerIds?: string[];
 }

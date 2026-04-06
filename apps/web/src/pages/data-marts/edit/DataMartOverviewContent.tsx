@@ -71,11 +71,11 @@ export default function DataMartOverviewContent() {
               <OwnersEditor
                 ownerUsers={dataMart.technicalOwnerUsers}
                 projectId={projectId}
-                onSave={userIds => {
+                onSave={users => {
                   void updateDataMartOwners(
                     dataMart.id,
                     dataMart.businessOwnerUsers.map(u => u.userId),
-                    userIds
+                    users.map(u => u.userId)
                   );
                 }}
               />
@@ -105,10 +105,10 @@ export default function DataMartOverviewContent() {
               <OwnersEditor
                 ownerUsers={dataMart.businessOwnerUsers}
                 projectId={projectId}
-                onSave={userIds => {
+                onSave={users => {
                   void updateDataMartOwners(
                     dataMart.id,
-                    userIds,
+                    users.map(u => u.userId),
                     dataMart.technicalOwnerUsers.map(u => u.userId)
                   );
                 }}

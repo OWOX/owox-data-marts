@@ -9,5 +9,6 @@ export interface DataStorageListItem {
   publishedDataMartsCount: number;
   draftDataMartsCount: number;
   createdByUser?: import('../../../../../shared/types').UserProjection | null;
+  ownerUsers?: import('../../../../../shared/types').UserProjection[];
 }
 export type DataStorageList = DataStorageListItem[];

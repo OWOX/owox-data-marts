@@ -24,4 +24,6 @@ export interface UpdateDataDestinationRequestDto {
    * Source destination ID for credential copy
    */
   sourceDestinationId?: string;
+
+  ownerIds?: string[];
 }

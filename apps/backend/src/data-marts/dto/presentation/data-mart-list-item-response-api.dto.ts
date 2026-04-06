@@ -2,6 +2,7 @@ import { ApiProperty } from '@nestjs/swagger';
 import { DataMartDefinitionType } from '../../enums/data-mart-definition-type.enum';
 import { DataMartStatus } from '../../enums/data-mart-status.enum';
 import { UserProjection } from '../schemas/user-projection.schema';
+import { UserProjectionDto } from '../../../idp/dto/domain/user-projection.dto';
 import { DataMartListItemStorageApiDto } from './data-mart-list-item-storage-api.dto';
 
 export class DataMartListItemResponseApiDto {
@@ -32,10 +33,10 @@ export class DataMartListItemResponseApiDto {
   @ApiProperty()
   createdByUser: UserProjection | null;
 
-  @ApiProperty({ type: [Object] })
+  @ApiProperty({ type: [UserProjectionDto] })
   businessOwnerUsers: UserProjection[];
 
-  @ApiProperty({ type: [Object] })
+  @ApiProperty({ type: [UserProjectionDto] })
   technicalOwnerUsers: UserProjection[];
 
   @ApiProperty({ example: '2024-01-01T12:00:00.000Z' })

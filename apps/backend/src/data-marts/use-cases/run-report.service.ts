@@ -111,7 +111,7 @@ export class RunReportService {
 
     await this.reportRunTriggerService.createTrigger({
       reportId: command.reportId,
-      userId: command.userId,
+      createdById: command.userId,
       projectId: reportRun.getDataMart().projectId,
       dataMartRunId: reportRun.getDataMartRun().id,
       runType: command.runType,

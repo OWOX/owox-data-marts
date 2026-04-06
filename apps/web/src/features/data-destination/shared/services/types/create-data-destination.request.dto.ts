@@ -16,6 +16,7 @@ export type CreateDataDestinationRequestDto =
         | { type: DataDestinationCredentialsType.GOOGLE_SHEETS_CREDENTIALS };
       /** Pre-created OAuth credential ID from standalone OAuth flow */
       credentialId?: string;
+      ownerIds?: string[];
     }
   | {
       /** Title of the data destination */
@@ -24,26 +25,31 @@ export type CreateDataDestinationRequestDto =
       type: DataDestinationType.LOOKER_STUDIO;
       /** Minimal credentials object for Looker Studio */
       credentials: { type: DataDestinationCredentialsType.LOOKER_STUDIO_CREDENTIALS };
+      ownerIds?: string[];
     }
   | {
       title: string;
       type: DataDestinationType.EMAIL;
       credentials: { type: DataDestinationCredentialsType.EMAIL_CREDENTIALS; to: string[] };
+      ownerIds?: string[];
     }
   | {
       title: string;
       type: DataDestinationType.SLACK;
       credentials: { type: DataDestinationCredentialsType.EMAIL_CREDENTIALS; to: string[] };
+      ownerIds?: string[];
     }
   | {
       title: string;
       type: DataDestinationType.MS_TEAMS;
       credentials: { type: DataDestinationCredentialsType.EMAIL_CREDENTIALS; to: string[] };
+      ownerIds?: string[];
     }
   | {
       title: string;
       type: DataDestinationType.GOOGLE_CHAT;
       credentials: { type: DataDestinationCredentialsType.EMAIL_CREDENTIALS; to: string[] };
+      ownerIds?: string[];
     };
 
 /**
@@ -53,4 +59,5 @@ export interface CreateDataDestinationCopyRequestDto {
   title: string;
   type: DataDestinationType;
   sourceDestinationId: string;
+  ownerIds?: string[];
 }

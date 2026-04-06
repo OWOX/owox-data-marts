@@ -27,6 +27,8 @@ import { DataDestinationCredentials } from '../data-destination-types/data-desti
 import { DataDestinationByTypeResponseApiDto } from '../dto/presentation/data-destination-by-type-response-api.dto';
 import { ListDataDestinationsByTypeItemDto } from '../dto/domain/list-data-destinations-by-type-item.dto';
 import { UserProjectionDto } from '../../idp/dto/domain/user-projection.dto';
+import { OwnerFilter } from '../enums/owner-filter.enum';
+import { resolveOwnerUsers } from '../utils/resolve-owner-users';
 
 @Injectable()
 export class DataDestinationMapper {
@@ -48,7 +50,8 @@ export class DataDestinationMapper {
       context.userId,
       dto.credentials,
       dto.credentialId,
-      dto.sourceDestinationId
+      dto.sourceDestinationId,
+      dto.ownerIds
     );
   }
 
@@ -63,13 +66,15 @@ export class DataDestinationMapper {
       dto.title,
       dto.credentials,
       dto.credentialId,
-      dto.sourceDestinationId
+      dto.sourceDestinationId,
+      dto.ownerIds
     );
   }
 
   toDomainDto(
     dataDestination: DataDestination,
-    createdByUser: UserProjectionDto | null = null
+    createdByUser: UserProjectionDto | null = null,
+    ownerUsers: UserProjectionDto[] = []
   ): DataDestinationDto {
     return new DataDestinationDto(
       dataDestination.id,
@@ -79,7 +84,8 @@ export class DataDestinationMapper {
       dataDestination.createdAt,
       dataDestination.modifiedAt,
       dataDestination.credentialId,
-      createdByUser
+      createdByUser,
+      ownerUsers
     );
   }
 
@@ -92,7 +98,8 @@ export class DataDestinationMapper {
         dataDestination,
         dataDestination.createdById
           ? (userProjectionsList?.getByUserId(dataDestination.createdById) ?? null)
-          : null
+          : null,
+        userProjectionsList ? resolveOwnerUsers(dataDestination.ownerIds, userProjectionsList) : []
       )
     );
   }
@@ -112,6 +119,7 @@ export class DataDestinationMapper {
       modifiedAt: dataDestinationDto.modifiedAt,
       credentialId: dataDestinationDto.credentialId,
       createdByUser: dataDestinationDto.createdByUser,
+      ownerUsers: dataDestinationDto.ownerUsers,
     };
   }
 
@@ -119,8 +127,8 @@ export class DataDestinationMapper {
     return new GetDataDestinationCommand(id, context.projectId);
   }
 
-  toListCommand(context: AuthorizationContext) {
-    return new ListDataDestinationsCommand(context.projectId);
+  toListCommand(context: AuthorizationContext, ownerFilter?: OwnerFilter) {
+    return new ListDataDestinationsCommand(context.projectId, ownerFilter);
   }
 
   toResponseList(dataDestinations: DataDestinationDto[]): Promise<DataDestinationResponseApiDto[]> {

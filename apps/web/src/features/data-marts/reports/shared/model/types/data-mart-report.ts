@@ -105,4 +105,5 @@ export interface DataMartReport {
   createdAt: Date;
   modifiedAt: Date;
   createdByUser?: UserProjection | null;
+  ownerUsers?: UserProjection[];
 }

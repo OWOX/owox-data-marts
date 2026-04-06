@@ -57,6 +57,11 @@ import { ListScheduledTriggersService } from './use-cases/list-scheduled-trigger
 import { UpdateScheduledTriggerService } from './use-cases/update-scheduled-trigger.service';
 import { DeleteScheduledTriggerService } from './use-cases/delete-scheduled-trigger.service';
 import { DataMart } from './entities/data-mart.entity';
+import { DataMartBusinessOwner } from './entities/data-mart-business-owner.entity';
+import { DataMartTechnicalOwner } from './entities/data-mart-technical-owner.entity';
+import { StorageOwner } from './entities/storage-owner.entity';
+import { DestinationOwner } from './entities/destination-owner.entity';
+import { ReportOwner } from './entities/report-owner.entity';
 import { DataStorage } from './entities/data-storage.entity';
 import { DataMartRun } from './entities/data-mart-run.entity';
 import { AiAssistantSession } from './entities/ai-assistant-session.entity';
@@ -292,6 +297,11 @@ import { ReportRunTriggerHandlerService } from './services/report-run-trigger-ha
   imports: [
     TypeOrmModule.forFeature([
       DataMart,
+      DataMartBusinessOwner,
+      DataMartTechnicalOwner,
+      StorageOwner,
+      DestinationOwner,
+      ReportOwner,
       DataStorage,
       DataDestination,
       Report,

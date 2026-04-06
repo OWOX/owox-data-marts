@@ -53,28 +53,35 @@ export function DataDestinationConfigSheet({
     const mapper = DestinationMapperFactory.getMapper(data.type);
 
     if (!dataDestination) {
+      const { ownerIds, ...formFields } = data as DataDestinationFormData & { ownerIds?: string[] };
       if (source) {
         const createData = {
-          title: data.title,
-          type: data.type,
+          title: formFields.title,
+          type: formFields.type,
           sourceDestinationId: source.id,
+          ...(ownerIds !== undefined && { ownerIds }),
         };
         const newDestination = await createDataDestination(createData);
         if (newDestination) {
           onSaveSuccess(newDestination);
         }
       } else {
-        const createData = mapper.mapToCreateRequest(data);
+        const createData = {
+          ...mapper.mapToCreateRequest(formFields),
+          ...(ownerIds !== undefined && { ownerIds }),
+        };
         const newDestination = await createDataDestination(createData);
         if (newDestination) {
           onSaveSuccess(newDestination);
         }
       }
     } else {
-      const updateData = mapper.mapToUpdateRequest(data);
+      const { ownerIds, ...formFields } = data as DataDestinationFormData & { ownerIds?: string[] };
+      const updateData = mapper.mapToUpdateRequest(formFields);
+      const requestWithOwners = ownerIds !== undefined ? { ...updateData, ownerIds } : updateData;
       const updatedDestination = await updateDataDestination(
         dataDestination.id,
-        updateData,
+        requestWithOwners,
         source
       );
       if (updatedDestination) {
