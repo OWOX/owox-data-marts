@@ -44,7 +44,7 @@ test.describe('Storage Ownership', () => {
 
     // Owners section should be visible in the form
     const sheet = page.getByTestId(TESTIDS.storageConfigSheet);
-    await expect(sheet.getByText('Owners')).toBeVisible();
+    await expect(sheet.getByText('Owners', { exact: true })).toBeVisible();
   });
 
   test('owners filter available in storage filters (OWN-04)', async ({ page, apiHelpers }) => {
@@ -85,7 +85,7 @@ test.describe('Destination Ownership', () => {
     await expect(sheet).toBeVisible();
 
     // Owners label should be visible
-    await expect(sheet.getByText('Owners')).toBeVisible();
+    await expect(sheet.getByText('Owners', { exact: true })).toBeVisible();
   });
 
   test('owners filter available in destination filters (OWN-07)', async ({ page, apiHelpers }) => {
