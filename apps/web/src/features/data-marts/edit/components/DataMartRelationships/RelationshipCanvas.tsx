@@ -9,7 +9,7 @@ import { createRoot } from 'react-dom/client';
 import { Badge } from '@owox/ui/components/badge';
 import { Switch } from '@owox/ui/components/switch';
 import { Label } from '@owox/ui/components/label';
-import { ExternalLink, Info, Locate } from 'lucide-react';
+import { ExternalLink, Info, Locate, ZoomIn, ZoomOut } from 'lucide-react';
 import { Button } from '../../../../../shared/components/Button';
 import { dataMartRelationshipService } from '../../../shared/services/data-mart-relationship.service';
 import type { DataMartRelationship } from '../../../shared/types/relationship.types';
@@ -304,6 +304,7 @@ function SocketComponent() {
 interface EditorHandle {
   destroy: () => void;
   fitView: () => Promise<void>;
+  zoomBy: (delta: number) => Promise<void>;
 }
 
 async function setupEditor(
@@ -565,6 +566,17 @@ async function setupEditor(
   };
   await fitView();
 
+  // --- Zoom by relative delta around viewport center ---
+  const zoomBy = async (delta: number) => {
+    const cx = container.clientWidth / 2;
+    const cy = container.clientHeight / 2;
+    const { k } = area.area.transform;
+    const nextK = k * (1 + delta);
+    if (nextK < 0.33 || nextK > 3) return;
+    await area.area.zoom(nextK, cx * delta, cy * delta);
+    updateGrid();
+  };
+
   // --- Restrict panning so content always stays partially visible ---
   AreaExtensions.restrictor(area, {
     translation: () => {
@@ -585,7 +597,7 @@ async function setupEditor(
   area.addPipe(ctx => {
     if (ctx.type === 'zoom') {
       if (ctx.data.source === 'dblclick') return undefined;
-      const nextK = area.area.transform.k * ctx.data.zoom;
+      const nextK = ctx.data.zoom;
       if (nextK < 0.33 || nextK > 3) return undefined;
     }
     if (ctx.type === 'nodetranslate') return undefined;
@@ -606,6 +618,7 @@ async function setupEditor(
       area.destroy();
     },
     fitView,
+    zoomBy,
   };
 }
 
@@ -680,24 +693,48 @@ export function RelationshipCanvas({
         .rel-canvas svg path { stroke-width: 1.5px !important; }
         .rel-canvas [data-testid="minimap"] { transform: scale(0.5); transform-origin: bottom right; }
       `}</style>
-      <div className='absolute top-3 right-3 z-10 flex items-center gap-2'>
+      <div className='absolute top-3 right-3 z-10 flex items-start gap-2'>
         <div className='bg-background/80 flex h-8 items-center gap-2 rounded-md border px-2.5 backdrop-blur-sm'>
           <Switch id='show-transient' checked={showTransient} onCheckedChange={setShowTransient} />
           <Label htmlFor='show-transient' className='cursor-pointer text-xs whitespace-nowrap'>
             Show transient relations
           </Label>
         </div>
-        <Button
-          variant='outline'
-          size='icon'
-          className='h-8 w-8'
-          onClick={() => {
-            void editorRef.current?.fitView();
-          }}
-          aria-label='Fit to view'
-        >
-          <Locate className='h-4 w-4' />
-        </Button>
+        <div className='flex flex-col gap-1'>
+          <Button
+            variant='outline'
+            size='icon'
+            className='h-8 w-8'
+            onClick={() => {
+              void editorRef.current?.fitView();
+            }}
+            aria-label='Fit to view'
+          >
+            <Locate className='h-4 w-4' />
+          </Button>
+          <Button
+            variant='outline'
+            size='icon'
+            className='h-8 w-8'
+            onClick={() => {
+              void editorRef.current?.zoomBy(0.25);
+            }}
+            aria-label='Zoom in'
+          >
+            <ZoomIn className='h-4 w-4' />
+          </Button>
+          <Button
+            variant='outline'
+            size='icon'
+            className='h-8 w-8'
+            onClick={() => {
+              void editorRef.current?.zoomBy(-0.25);
+            }}
+            aria-label='Zoom out'
+          >
+            <ZoomOut className='h-4 w-4' />
+          </Button>
+        </div>
       </div>
       <div
         ref={containerRef}
