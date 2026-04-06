@@ -202,7 +202,7 @@ function FilterBlock({
             <X className='size-3.5' />
           </button>
         )}
-        <div className='flex flex-wrap items-start gap-2 rounded-md border-b bg-white px-4 py-3 transition-shadow duration-200 hover:shadow-sm dark:border-transparent dark:bg-white/4'>
+        <div className='flex flex-wrap items-start gap-2 rounded-md border-b bg-white px-4 py-3 transition-shadow duration-200 hover:shadow-sm dark:border-white/4 dark:bg-white/4'>
           {/* Field selector */}
           <FormField
             control={control}

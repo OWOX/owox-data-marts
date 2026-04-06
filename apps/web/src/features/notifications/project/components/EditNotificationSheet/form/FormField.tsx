@@ -4,7 +4,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@owox/ui/components/too
 
 export function FieldItem({ children }: { children: React.ReactNode }) {
   return (
-    <div className='group border-border flex flex-col gap-2 rounded-md border-b bg-white px-4 py-3 transition-shadow duration-200 hover:shadow-sm dark:border-transparent dark:bg-white/4'>
+    <div className='group border-border flex flex-col gap-2 rounded-md border-b bg-white px-4 py-3 transition-shadow duration-200 hover:shadow-sm dark:border-white/4 dark:bg-white/4'>
       {children}
     </div>
   );
