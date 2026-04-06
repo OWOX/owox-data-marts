@@ -1,4 +1,5 @@
 import cookieParser from 'cookie-parser';
+import { disableConditionalCaching } from '@owox/internal-helpers';
 import { Express, Request, Response, NextFunction } from 'express';
 
 import { IdpProvider } from '../types/provider.js';
@@ -156,6 +157,11 @@ export class IdpProtocolMiddleware {
    */
   register(app: Express): void {
     app.use(cookieParser());
+    app.use(this.basePath, (req: Request, res: Response, next: NextFunction) => {
+      disableConditionalCaching(req, res);
+      next();
+    });
+
     const routeConfigs = [
       {
         path: this.routes.signIn,

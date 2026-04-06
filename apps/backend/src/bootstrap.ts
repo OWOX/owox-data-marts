@@ -2,8 +2,9 @@ import 'reflect-metadata';
 import { ConfigService } from '@nestjs/config';
 import { NestFactory } from '@nestjs/core';
 import { ExpressAdapter, NestExpressApplication } from '@nestjs/platform-express';
+import { disableConditionalCaching } from '@owox/internal-helpers';
 import compression from 'compression';
-import { Express, text } from 'express';
+import { Express, NextFunction, Request, Response, text } from 'express';
 import { initializeTransactionalContext, StorageDriver } from 'typeorm-transactional';
 import { AppModule } from './app.module';
 import { BaseExceptionFilter } from './common/exceptions/base-exception.filter';
@@ -31,6 +32,10 @@ export async function bootstrap(options: BootstrapOptions): Promise<NestExpressA
   await runMigrationsIfNeeded();
 
   initializeTransactionalContext({ storageDriver: StorageDriver.AUTO });
+  options.express.use(`/${PATH_PREFIX}`, (req: Request, res: Response, next: NextFunction) => {
+    disableConditionalCaching(req, res);
+    next();
+  });
 
   // Create NestJS app with existing Express instance using ExpressAdapter
   const app = await NestFactory.create<NestExpressApplication>(
