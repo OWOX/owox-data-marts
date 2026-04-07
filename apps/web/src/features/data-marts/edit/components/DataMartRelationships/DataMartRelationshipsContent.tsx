@@ -9,7 +9,7 @@ import {
 } from '@owox/ui/components/empty';
 import { Skeleton } from '@owox/ui/components/skeleton';
 import { Tabs, TabsList, TabsTrigger } from '@owox/ui/components/tabs';
-import { List, Network, Plus, Route } from 'lucide-react';
+import { GitMerge, List, Network, Plus, Route } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'react-hot-toast';
 import { useDataMartContext } from '../../model/context/useDataMartContext';
@@ -153,6 +153,12 @@ export function DataMartRelationshipsContent() {
           aria-label='Search relationships'
         />
         <div className='flex items-center gap-2'>
+          {relationships.length > 0 && (
+            <span className='text-muted-foreground mr-2 flex items-center gap-1 text-sm'>
+              <GitMerge className='h-3.5 w-3.5' />
+              {relationships.length}
+            </span>
+          )}
           <Tabs
             value={viewMode}
             onValueChange={v => {
@@ -272,11 +278,6 @@ export function DataMartRelationshipsContent() {
             tooltip='Relationships between this data mart and others'
           >
             Relationships
-            {relationships.length > 0 && (
-              <span className='bg-muted text-muted-foreground ml-2 rounded-full px-2 py-0.5 text-xs font-normal'>
-                {relationships.length}
-              </span>
-            )}
           </CollapsibleCardHeaderTitle>
         </CollapsibleCardHeader>
         <CollapsibleCardContent>{renderContent()}</CollapsibleCardContent>
