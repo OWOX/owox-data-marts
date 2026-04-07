@@ -57,6 +57,34 @@ var XAdsFieldsSchema = {
     destinationName: "x_ads_stats",
     isTimeSeries: true
   },
+  stats_by_country: {
+    overview: "X Ads Stats by Country",
+    description: "Daily stats for promoted tweets broken down by location segment (country-level).",
+    documentation: "https://developer.x.com/en/docs/x-ads-api/analytics/api-reference/asynchronous",
+    fields: statsByCountryFields,
+    uniqueKeys: ["id", "date", "placement", "country"],
+    destinationName: "x_ads_stats_by_country",
+    isTimeSeries: true,
+    // asyncTimeSeries: uses the X Ads async jobs API (submit → poll → download
+    // per job, sequentially). The Connector saves and advances the cursor after
+    // each date completes via the onBatchReady callback.
+    asyncTimeSeries: true,
+    // segmentationType: the value sent to the X Ads API as segmentation_type.
+    // segmentField: the output field name where segment_value is stored in the row.
+    // To add a new segmentation (e.g. stats_by_device), create a new schema entry
+    // with segmentationType: 'DEVICES' and segmentField: 'device'.
+    segmentationType: 'LOCATIONS',
+    segmentField: 'country'
+  },
+  targeting_locations: {
+    overview: "X Ads Targeting Locations",
+    description: "Reference table mapping location hex IDs to human-readable names and country codes. Run once to get a lookup table; join targeting_value with the country field in stats_by_country.",
+    documentation: "https://developer.x.com/en/docs/x-ads-api/campaign-management/api-reference/targeting-criteria",
+    fields: targetingLocationsFields,
+    defaultFields: ["targeting_value", "name", "location_type", "country_code"],
+    uniqueKeys: ["targeting_value"],
+    destinationName: "x_ads_targeting_locations"
+  },
   cards: {
     overview: "X Ads Cards",
     description: "Website cards and app cards for X Ads.",

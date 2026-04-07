@@ -5,7 +5,22 @@
  * file that was distributed with this source code.
  */
 
+const DAYS_PER_CHUNK = 15;
+
 const XAdsHelper = {
+  /**
+   * Split an array of date strings into fixed-size chunks.
+   * @param {Array<string>} dates - 'YYYY-MM-DD' strings
+   * @param {number} [chunkSize=DAYS_PER_CHUNK] - max days per chunk
+   * @returns {Array<Array<string>>}
+   */
+  splitDatesIntoChunks(dates, chunkSize = DAYS_PER_CHUNK) {
+    const chunks = [];
+    for (let i = 0; i < dates.length; i += chunkSize) {
+      chunks.push(dates.slice(i, i + chunkSize));
+    }
+    return chunks;
+  },
   /**
    * Parse fields string into a structured object
    * @param {string} fieldsString - Fields string in format "nodeName fieldName, nodeName fieldName"
