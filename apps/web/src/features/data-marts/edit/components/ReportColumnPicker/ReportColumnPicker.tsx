@@ -139,6 +139,27 @@ export function ReportColumnPicker({
     ? blendedFields.filter(f => isChecked(f.name))
     : blendedFields;
 
+  const groupedBlendedFields = useMemo(() => {
+    const groupMap = new Map<
+      string,
+      { sourceRelationshipId: string; title: string; alias: string; fields: BlendedField[] }
+    >();
+    for (const field of visibleBlendedFields) {
+      let group = groupMap.get(field.sourceRelationshipId);
+      if (!group) {
+        group = {
+          sourceRelationshipId: field.sourceRelationshipId,
+          title: field.sourceDataMartTitle,
+          alias: field.targetAlias,
+          fields: [],
+        };
+        groupMap.set(field.sourceRelationshipId, group);
+      }
+      group.fields.push(field);
+    }
+    return Array.from(groupMap.values());
+  }, [visibleBlendedFields]);
+
   return (
     <div className='space-y-3'>
       <div className='flex items-center gap-3'>
@@ -290,22 +311,42 @@ export function ReportColumnPicker({
               </div>
 
               <div className='border-border max-h-48 space-y-1 overflow-y-auto rounded-md border p-1'>
-                {visibleBlendedFields.map(field => (
-                  <label
-                    key={field.name}
-                    className='hover:bg-muted/50 flex cursor-pointer items-center gap-2 rounded px-1 py-1'
-                  >
-                    <Checkbox
-                      checked={isChecked(field.name)}
-                      onCheckedChange={checked => {
-                        toggleField(field.name, checked === true);
-                      }}
-                    />
-                    <span className='font-mono text-xs'>{field.name}</span>
-                    {field.type && (
-                      <span className='text-muted-foreground text-xs'>({field.type})</span>
-                    )}
-                  </label>
+                {groupedBlendedFields.map(group => (
+                  <div key={group.sourceRelationshipId}>
+                    <div className='bg-secondary/50 dark:bg-muted/50 rounded px-1 py-1'>
+                      <div className='truncate text-xs font-semibold' title={group.title}>
+                        {group.title}
+                      </div>
+                      <div className='flex items-center gap-1'>
+                        <span
+                          className='text-muted-foreground truncate font-mono text-xs'
+                          title={group.alias}
+                        >
+                          {group.alias}
+                        </span>
+                        <span className='text-muted-foreground shrink-0 text-xs'>
+                          · {group.fields.length} {group.fields.length === 1 ? 'field' : 'fields'}
+                        </span>
+                      </div>
+                    </div>
+                    {group.fields.map(field => (
+                      <label
+                        key={field.name}
+                        className='hover:bg-muted/50 flex cursor-pointer items-center gap-2 rounded px-1 py-1'
+                      >
+                        <Checkbox
+                          checked={isChecked(field.name)}
+                          onCheckedChange={checked => {
+                            toggleField(field.name, checked === true);
+                          }}
+                        />
+                        <span className='font-mono text-xs'>{field.name}</span>
+                        {field.type && (
+                          <span className='text-muted-foreground text-xs'>({field.type})</span>
+                        )}
+                      </label>
+                    ))}
+                  </div>
                 ))}
               </div>
             </div>
