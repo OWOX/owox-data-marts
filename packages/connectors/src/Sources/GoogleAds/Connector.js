@@ -31,13 +31,19 @@ var GoogleAdsConnector = class GoogleAdsConnector extends AbstractConnector {
 
   /**
    * Process a single node for all customer IDs
+   * Global resources (isGlobalResource: true) return identical data for any customer ID,
+   * so only the first customer ID is used to avoid redundant fetches.
    * @param {Object} options - Processing options
    * @param {string} options.nodeName - Name of the node to process
    * @param {Array<string>} options.customerIds - Array of customer IDs to process
    * @param {Array<string>} options.fields - Array of fields to fetch
    */
   async processNode({ nodeName, customerIds, fields }) {
-    for (const customerId of customerIds) {
+    const idsToProcess = this.source.fieldsSchema[nodeName].isGlobalResource
+      ? customerIds.slice(0, 1)
+      : customerIds;
+
+    for (const customerId of idsToProcess) {
       if (this.source.fieldsSchema[nodeName].isTimeSeries) {
         await this.processTimeSeriesNode({
           nodeName,
