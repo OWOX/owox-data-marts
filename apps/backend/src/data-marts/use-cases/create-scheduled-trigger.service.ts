@@ -104,7 +104,7 @@ export class CreateScheduledTriggerService {
       }
     } else {
       // CONNECTOR_RUN requires editor role
-      if (!command.roles.includes('editor') && !command.roles.includes('admin')) {
+      if (!this.reportAccessService.isTechnicalUser(command.roles)) {
         throw new ForbiddenException('Only Technical Users can create connector run triggers.');
       }
     }

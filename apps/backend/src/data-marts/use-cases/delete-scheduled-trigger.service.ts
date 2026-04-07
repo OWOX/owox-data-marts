@@ -1,4 +1,4 @@
-import { Injectable, ForbiddenException } from '@nestjs/common';
+import { Injectable, ForbiddenException, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { DeleteScheduledTriggerCommand } from '../dto/domain/delete-scheduled-trigger.command';
@@ -41,7 +41,7 @@ export class DeleteScheduledTriggerService {
   ): Promise<void> {
     if (trigger.type === ScheduledTriggerType.REPORT_RUN) {
       if (!isScheduledReportRunConfig(trigger.triggerConfig)) {
-        throw new ForbiddenException('Report ID is required for REPORT_RUN triggers');
+        throw new BadRequestException('Report ID is required for REPORT_RUN triggers');
       }
 
       const canMutate = await this.reportAccessService.canMutate(
@@ -57,7 +57,7 @@ export class DeleteScheduledTriggerService {
         );
       }
     } else {
-      if (!command.roles.includes('editor') && !command.roles.includes('admin')) {
+      if (!this.reportAccessService.isTechnicalUser(command.roles)) {
         throw new ForbiddenException('Only Technical Users can delete connector run triggers.');
       }
     }

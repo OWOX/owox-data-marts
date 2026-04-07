@@ -41,7 +41,7 @@ export class ReportAccessService {
     projectId: string
   ): Promise<MutateResult> {
     // TODO Stage 3: narrow editor to owned + shared only
-    if (roles.includes('editor') || roles.includes('admin')) {
+    if (this.isTechnicalUser(roles)) {
       return { allowed: true };
     }
 
@@ -113,6 +113,10 @@ export class ReportAccessService {
     });
 
     return dmAccessible && destinationCount > 0;
+  }
+
+  isTechnicalUser(roles: string[]): boolean {
+    return roles.includes('editor') || roles.includes('admin');
   }
 
   /**
