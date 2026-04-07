@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 // Using 'any' type to access private properties for testing purposes
 import { Test, TestingModule } from '@nestjs/testing';
 import { GracefulShutdownService } from './graceful-shutdown.service';

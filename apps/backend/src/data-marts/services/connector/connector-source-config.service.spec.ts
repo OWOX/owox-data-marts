@@ -32,7 +32,6 @@ describe('ConnectorSourceConfigService', () => {
       const result = await service.buildSourceConfig(
         'dm-1',
         'proj-1',
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         connector as any,
         config,
         'cfg-1'
@@ -53,7 +52,6 @@ describe('ConnectorSourceConfigService', () => {
       const result = await service.buildSourceConfig(
         'dm-1',
         'proj-1',
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         connector as any,
         config,
         'cfg-1',
@@ -67,7 +65,6 @@ describe('ConnectorSourceConfigService', () => {
       const { service, credentialInjector } = createService();
       const config = { _source_credential_id: 'cred-1' };
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       await service.buildSourceConfig('dm-1', 'proj-1', connector as any, config, 'cfg-1');
 
       expect(credentialInjector.injectOAuthCredentials).toHaveBeenCalledWith(
