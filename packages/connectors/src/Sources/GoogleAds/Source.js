@@ -93,7 +93,7 @@ var GoogleAdsSource = class GoogleAdsSource extends AbstractSource {
               LoginCustomerId: {
                 requiredType: "string",
                 label: "Login Customer ID",
-                description: "Optional when authenticating as the same account. Provide the manager account ID (without dashes) when acting on behalf of other accounts."
+                description: "Optional when authenticating as the same account. Provide the manager account ID (format: 123-456-7890 or 1234567890) when acting on behalf of other accounts."
               },
               RefreshToken: {
                 isRequired: true,
@@ -147,7 +147,7 @@ var GoogleAdsSource = class GoogleAdsSource extends AbstractSource {
                 isRequired: true,
                 requiredType: "string",
                 label: "Login Customer ID",
-                description: "ID of manager account (must be provided without dashes, e.g., '1234567890' not '123-456-7890'). Required for accessing client accounts through a manager account."
+                description: "ID of manager account (format: 123-456-7890 or 1234567890). Required for accessing client accounts through a manager account."
               }
             }
           }
