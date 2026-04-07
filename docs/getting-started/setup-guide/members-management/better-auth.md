@@ -24,8 +24,8 @@ Better Auth supports three role levels with different permissions:
 | Role | Permissions in Better Auth | Permissions in OWOX Data Marts |
 |------|-------------|-------------|
 | **Admin** | Full access: can manage all users, invite any role, reset passwords, and delete users | Full access: can create, edit, delete any data mart, storage, destination, report, trigger, run |
-| **Editor** | Can invite editors and viewers | Can create, edit, delete self-created data mart, storage, destination, report, trigger, run |
-| **Viewer** | Can only invite other viewers | Can only view data mart, storage, destination, report, trigger, run |
+| **Technical User** | Can invite Technical Users and Business Users | Can create, edit, delete self-created data mart, storage, destination, report, trigger, run |
+| **Business User** | Can only invite other Business Users | Can only view data mart, storage, destination, report, trigger, run |
 
 ## Automatic Primary Admin Setup
 

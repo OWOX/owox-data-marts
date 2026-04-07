@@ -1,3 +1,7 @@
+jest.mock('../../idp/facades/idp-projections.facade', () => ({
+  IdpProjectionsFacade: jest.fn(),
+}));
+
 import { DataDestinationType } from '../data-destination-types/enums/data-destination-type.enum';
 import { DataStorageType } from '../data-storage-types/enums/data-storage-type.enum';
 import { ReportDataBatch } from '../dto/domain/report-data-batch.dto';
@@ -38,7 +42,8 @@ describe('RunReportService', () => {
       {} as never,
       projectBalanceService as never,
       new ReportExecutionPolicyResolver(),
-      {} as never
+      {} as never,
+      { checkMutateAccess: jest.fn().mockResolvedValue(undefined) } as never
     );
 
     return {

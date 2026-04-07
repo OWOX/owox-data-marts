@@ -77,7 +77,7 @@ export class DataDestinationController {
     private readonly listByTypeService: ListDataDestinationsByTypeService
   ) {}
 
-  @Auth(Role.editor(Strategy.INTROSPECT))
+  @Auth(Role.viewer(Strategy.INTROSPECT))
   @Post()
   @CreateDataDestinationSpec()
   async create(
@@ -101,7 +101,7 @@ export class DataDestinationController {
     return this.mapper.toByTypeResponse(items);
   }
 
-  @Auth(Role.editor(Strategy.INTROSPECT))
+  @Auth(Role.viewer(Strategy.INTROSPECT))
   @Put(':id')
   @UpdateDataDestinationSpec()
   async update(
@@ -147,7 +147,7 @@ export class DataDestinationController {
     return this.getOAuthCredentialStatusService.run(command);
   }
 
-  @Auth(Role.editor())
+  @Auth(Role.viewer())
   @Post('oauth/authorize')
   @HttpCode(200)
   @OAuthAuthorizeSpec()
@@ -159,7 +159,7 @@ export class DataDestinationController {
     return this.generateOAuthUrlService.run(command);
   }
 
-  @Auth(Role.editor())
+  @Auth(Role.viewer())
   @Post('oauth/exchange')
   @HttpCode(200)
   @OAuthExchangeSpec()
@@ -185,7 +185,7 @@ export class DataDestinationController {
     return await this.mapper.toApiResponse(dataDestinationDto);
   }
 
-  @Auth(Role.editor(Strategy.INTROSPECT))
+  @Auth(Role.viewer(Strategy.INTROSPECT))
   @Delete(':id')
   @DeleteDataDestinationSpec()
   async delete(
@@ -196,7 +196,7 @@ export class DataDestinationController {
     await this.deleteService.run(command);
   }
 
-  @Auth(Role.editor(Strategy.INTROSPECT))
+  @Auth(Role.viewer(Strategy.INTROSPECT))
   @Post(':id/rotate-secret-key')
   @RotateSecretKeySpec()
   async rotateSecretKey(
@@ -208,7 +208,7 @@ export class DataDestinationController {
     return await this.mapper.toApiResponse(dataDestinationDto);
   }
 
-  @Auth(Role.editor())
+  @Auth(Role.viewer())
   @Post(':id/oauth/authorize')
   @HttpCode(200)
   @OAuthAuthorizeSpec()
@@ -232,7 +232,7 @@ export class DataDestinationController {
     return this.getOAuthStatusService.run(command);
   }
 
-  @Auth(Role.editor())
+  @Auth(Role.viewer())
   @Delete(':id/oauth')
   @HttpCode(204)
   @OAuthRevokeSpec()

@@ -14,7 +14,7 @@ Before creating an Insight, make sure the following conditions are met:
 
 - **The Data Mart is Published.** Insights can only run against a published Data Mart. Draft Data Marts will block execution.
 - **The Data Mart has an Output Schema.** The schema is required for the AI Assistant to understand the available fields and generate accurate queries. The schema is populated automatically once the Data Mart is saved and its source is valid.
-- **Your role is Editor or higher.** Viewers can read and preview Insights, but creating, editing, running, and deleting Insights requires the **Editor** role.
+- **Your role is Technical User or higher.** Business Users can read and preview Insights, but creating, editing, running, and deleting Insights requires the **Technical User** role.
 
 ---
 
@@ -176,11 +176,12 @@ On each scheduled run, OWOX will execute the Insight and send the rendered Markd
 
 | Action | Required Role |
 |---|---|
-| View Insights and preview output | Viewer |
-| Create, edit, delete Insights | Editor |
-| Add or remove Data Artifacts | Editor |
-| Run or cancel an Insight | Editor |
-| Create or manage Reports | Editor |
+| View Insights and preview output | Business User |
+| Create, edit, delete Insights | Technical User |
+| Add or remove Data Artifacts | Technical User |
+| Run or cancel an Insight | Technical User |
+| Create and manage own Reports | Business User (owner) |
+| Manage any Report (project-wide) | Technical User |
 
 ## Limits
 

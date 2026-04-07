@@ -5,6 +5,7 @@ import { Skeleton } from '@owox/ui/components/skeleton';
 import { AlertTriangle, User } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@owox/ui/components/tooltip';
 import type { ProjectMember } from '../../../types';
+import { getRoleDisplayName } from '../../../../../idp/utils/role-display-name';
 
 interface RecipientsSelectorProps {
   members: ProjectMember[];
@@ -106,7 +107,7 @@ export function RecipientsSelector({
                 )}
               </span>
               <span className='text-muted-foreground flex flex-col items-end text-xs font-normal'>
-                <span className='font-semibold capitalize'>{member.role}</span>
+                <span className='font-semibold'>{getRoleDisplayName(member.role)}</span>
                 <span className=''>{member.email}</span>
               </span>
             </Label>

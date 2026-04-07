@@ -3,6 +3,12 @@ import { join } from 'path';
 import { fileURLToPath } from 'url';
 import { dirname } from 'path';
 
+const ROLE_DISPLAY_NAMES: Record<string, string> = {
+  admin: 'Project Admin',
+  editor: 'Technical User',
+  viewer: 'Business User',
+};
+
 export class TemplateService {
   private static getTemplatePath(templateName: string): string {
     const currentDir = dirname(fileURLToPath(import.meta.url));
@@ -152,7 +158,7 @@ export class TemplateService {
           </td>
           <td class="px-6 py-4 whitespace-nowrap">
             <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${roleBadgeClasses}">
-              ${user.role}
+              ${ROLE_DISPLAY_NAMES[user.role] ?? user.role}
             </span>
           </td>
           <td class="px-6 py-4 whitespace-nowrap text-sm text-foreground">${formattedCreatedAt}</td>
@@ -223,7 +229,7 @@ export class TemplateService {
       .replace(/{{USER_ID}}/g, user.id)
       .replace(/{{USER_NAME}}/g, user.name || 'No name set')
       .replace(/{{USER_EMAIL}}/g, user.email)
-      .replace(/{{USER_ROLE}}/g, user.role)
+      .replace(/{{USER_ROLE}}/g, ROLE_DISPLAY_NAMES[user.role] ?? user.role)
       .replace(/{{ROLE_BADGE_CLASSES}}/g, roleBadgeClasses)
       .replace('{{ORGANIZATION_ID}}', user.organizationId || 'Default Organization')
       .replace('{{CREATED_AT}}', this.formatDate(user.createdAt))
@@ -243,7 +249,8 @@ export class TemplateService {
     // Generate role options based on allowed roles
     const roleOptions = allowedRoles
       .map(
-        role => `<option value="${role}">${role.charAt(0).toUpperCase() + role.slice(1)}</option>`
+        role =>
+          `<option value="${role}">${ROLE_DISPLAY_NAMES[role] ?? role.charAt(0).toUpperCase() + role.slice(1)}</option>`
       )
       .join('');
 

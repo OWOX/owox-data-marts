@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, ForbiddenException, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { DataMartScheduledTrigger } from '../entities/data-mart-scheduled-trigger.entity';
@@ -9,6 +9,9 @@ import { ScheduledTriggerDto } from '../dto/domain/scheduled-trigger.dto';
 import { BusinessViolationException } from '../../common/exceptions/business-violation.exception';
 import { DataMartStatus } from '../enums/data-mart-status.enum';
 import { UserProjectionsFetcherService } from '../services/user-projections-fetcher.service';
+import { ReportAccessService } from '../services/report-access.service';
+import { ScheduledTriggerType } from '../scheduled-trigger-types/enums/scheduled-trigger-type.enum';
+import { isScheduledReportRunConfig } from '../scheduled-trigger-types/scheduled-trigger-config.guards';
 
 @Injectable()
 export class UpdateScheduledTriggerService {
@@ -17,7 +20,8 @@ export class UpdateScheduledTriggerService {
     private readonly triggerRepository: Repository<DataMartScheduledTrigger>,
     private readonly scheduledTriggerService: ScheduledTriggerService,
     private readonly mapper: ScheduledTriggerMapper,
-    private readonly userProjectionsFetcherService: UserProjectionsFetcherService
+    private readonly userProjectionsFetcherService: UserProjectionsFetcherService,
+    private readonly reportAccessService: ReportAccessService
   ) {}
 
   async run(command: UpdateScheduledTriggerCommand): Promise<ScheduledTriggerDto> {
@@ -26,6 +30,8 @@ export class UpdateScheduledTriggerService {
       command.dataMartId,
       command.projectId
     );
+
+    await this.checkAccess(command, trigger);
 
     if (trigger.dataMart.status !== DataMartStatus.PUBLISHED) {
       throw new BusinessViolationException(
@@ -53,5 +59,33 @@ export class UpdateScheduledTriggerService {
       await this.userProjectionsFetcherService.fetchCreatedByUser(updatedTrigger);
 
     return this.mapper.toDomainDto(updatedTrigger, createdByUser);
+  }
+
+  private async checkAccess(
+    command: UpdateScheduledTriggerCommand,
+    trigger: DataMartScheduledTrigger
+  ): Promise<void> {
+    if (trigger.type === ScheduledTriggerType.REPORT_RUN) {
+      if (!isScheduledReportRunConfig(trigger.triggerConfig)) {
+        throw new BadRequestException('Report ID is required for REPORT_RUN triggers');
+      }
+
+      const canMutate = await this.reportAccessService.canMutate(
+        command.userId,
+        command.roles,
+        trigger.triggerConfig.reportId,
+        command.projectId
+      );
+
+      if (!canMutate) {
+        throw new ForbiddenException(
+          'You do not have permission to update triggers for this report. Only report owners can manage report triggers.'
+        );
+      }
+    } else {
+      if (!this.reportAccessService.isTechnicalUser(command.roles)) {
+        throw new ForbiddenException('Only Technical Users can update connector run triggers.');
+      }
+    }
   }
 }

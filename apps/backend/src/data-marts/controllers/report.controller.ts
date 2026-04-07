@@ -52,7 +52,7 @@ export class ReportController {
     private readonly mapper: ReportMapper
   ) {}
 
-  @Auth(Role.editor(Strategy.INTROSPECT))
+  @Auth(Role.viewer(Strategy.INTROSPECT))
   @Post()
   @CreateReportSpec()
   async create(
@@ -118,18 +118,18 @@ export class ReportController {
     return this.mapper.toResponseList(reports);
   }
 
-  @Auth(Role.editor(Strategy.INTROSPECT))
+  @Auth(Role.viewer(Strategy.INTROSPECT))
   @Delete(':id')
   @DeleteReportSpec()
   async delete(
     @AuthContext() context: AuthorizationContext,
     @Param('id') id: string
   ): Promise<void> {
-    const command = this.mapper.toGetCommand(id, context);
+    const command = this.mapper.toDeleteCommand(id, context);
     await this.deleteReportService.run(command);
   }
 
-  @Auth(Role.editor(Strategy.INTROSPECT))
+  @Auth(Role.viewer(Strategy.INTROSPECT))
   @Post(':id/run')
   @RunReportSpec()
   async runReport(
@@ -140,7 +140,7 @@ export class ReportController {
     await this.runReportService.run(command);
   }
 
-  @Auth(Role.editor(Strategy.INTROSPECT))
+  @Auth(Role.viewer(Strategy.INTROSPECT))
   @Put(':id')
   @UpdateReportSpec()
   async update(
