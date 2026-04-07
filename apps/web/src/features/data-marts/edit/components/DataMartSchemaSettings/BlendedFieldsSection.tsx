@@ -23,32 +23,36 @@ import { dataMartRelationshipService } from '../../../shared/services/data-mart-
 import type { BlendableSchema, BlendedField } from '../../../shared/types/relationship.types';
 import { Skeleton } from '@owox/ui/components/skeleton';
 
-type ColumnId = 'outputAlias' | 'type' | 'description';
+type ColumnId = 'name' | 'type' | 'alias' | 'description';
 
 const TOGGLEABLE_COLUMNS: { id: ColumnId; title: string; tooltip: string }[] = [
   {
-    id: 'outputAlias',
+    id: 'name',
     title: 'Name',
-    tooltip: 'Alias of the field in the blended output schema',
+    tooltip: 'Field name in the blended output schema',
   },
   { id: 'type', title: 'Type', tooltip: 'Data type of the field' },
+  { id: 'alias', title: 'Alias', tooltip: 'Alternative name for the field' },
   { id: 'description', title: 'Description', tooltip: 'Field description' },
 ];
 
 const CELL_CLASSES: Record<ColumnId, string> = {
-  outputAlias: 'bg-background dark:bg-muted font-mono text-xs',
+  name: 'bg-background dark:bg-muted font-mono text-xs',
   type: 'bg-background text-muted-foreground dark:bg-muted',
+  alias: 'bg-background text-muted-foreground dark:bg-muted',
   description: 'bg-background text-muted-foreground dark:bg-muted',
 };
 
 function getFieldValue(field: BlendedField, columnId: ColumnId): string {
   switch (columnId) {
-    case 'outputAlias':
-      return field.alias || field.name;
+    case 'name':
+      return field.name;
     case 'type':
       return field.type;
+    case 'alias':
+      return field.alias || '-';
     case 'description':
-      return field.description;
+      return field.description || '-';
   }
 }
 
@@ -68,8 +72,9 @@ export function BlendedFieldsSection({ dataMartId }: BlendedFieldsSectionProps) 
   const [isLoading, setIsLoading] = useState(false);
   const [filterValue, setFilterValue] = useState('');
   const [columnVisibility, setColumnVisibility] = useState<Record<ColumnId, boolean>>({
-    outputAlias: true,
+    name: true,
     type: true,
+    alias: true,
     description: true,
   });
 
@@ -101,7 +106,8 @@ export function BlendedFieldsSection({ dataMartId }: BlendedFieldsSectionProps) 
             field.targetAlias.toLowerCase().includes(query) ||
             field.originalFieldName.toLowerCase().includes(query) ||
             field.name.toLowerCase().includes(query) ||
-            field.type.toLowerCase().includes(query)
+            field.type.toLowerCase().includes(query) ||
+            field.alias.toLowerCase().includes(query)
           );
         })
       : schema.blendedFields;
