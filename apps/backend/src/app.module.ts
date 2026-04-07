@@ -1,9 +1,11 @@
 import { Module } from '@nestjs/common';
+import { APP_INTERCEPTOR } from '@nestjs/core';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { ScheduleModule } from '@nestjs/schedule';
 import { DataMartsModule } from './data-marts/data-marts.module';
 import { CommonModule } from './common/common.module';
+import { ActiveRequestInterceptor } from './common/interceptors/active-request.interceptor';
 import { IdpModule } from './idp/idp.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { createDataSourceOptions } from './config/data-source-options.config';
@@ -44,6 +46,12 @@ import { addTransactionalDataSource } from 'typeorm-transactional';
     CommonModule,
     IdpModule,
     NotificationsModule,
+  ],
+  providers: [
+    {
+      provide: APP_INTERCEPTOR,
+      useClass: ActiveRequestInterceptor,
+    },
   ],
 })
 export class AppModule {}
