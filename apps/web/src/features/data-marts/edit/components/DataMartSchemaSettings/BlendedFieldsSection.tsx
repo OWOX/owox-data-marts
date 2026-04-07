@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { Fragment, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { CircleCheck, Combine, GitMerge, MoreHorizontal } from 'lucide-react';
 import { SearchInput } from '@owox/ui/components/common/search-input';
@@ -23,15 +23,9 @@ import { dataMartRelationshipService } from '../../../shared/services/data-mart-
 import type { BlendableSchema, BlendedField } from '../../../shared/types/relationship.types';
 import { Skeleton } from '@owox/ui/components/skeleton';
 
-type ColumnId = 'sourceDm' | 'dmAlias' | 'outputAlias' | 'type' | 'description';
+type ColumnId = 'outputAlias' | 'type' | 'description';
 
 const TOGGLEABLE_COLUMNS: { id: ColumnId; title: string; tooltip: string }[] = [
-  { id: 'sourceDm', title: 'Source Data Mart', tooltip: 'Title of the related data mart' },
-  {
-    id: 'dmAlias',
-    title: 'Data Mart Alias',
-    tooltip: 'Alias used for the related data mart in blending',
-  },
   {
     id: 'outputAlias',
     title: 'Name',
@@ -42,8 +36,6 @@ const TOGGLEABLE_COLUMNS: { id: ColumnId; title: string; tooltip: string }[] = [
 ];
 
 const CELL_CLASSES: Record<ColumnId, string> = {
-  sourceDm: 'bg-background dark:bg-muted',
-  dmAlias: 'bg-background text-muted-foreground dark:bg-muted font-mono text-xs',
   outputAlias: 'bg-background dark:bg-muted font-mono text-xs',
   type: 'bg-background text-muted-foreground dark:bg-muted',
   description: 'bg-background text-muted-foreground dark:bg-muted',
@@ -51,10 +43,6 @@ const CELL_CLASSES: Record<ColumnId, string> = {
 
 function getFieldValue(field: BlendedField, columnId: ColumnId): string {
   switch (columnId) {
-    case 'sourceDm':
-      return field.sourceDataMartTitle;
-    case 'dmAlias':
-      return field.targetAlias;
     case 'outputAlias':
       return field.alias || field.name;
     case 'type':
@@ -62,6 +50,13 @@ function getFieldValue(field: BlendedField, columnId: ColumnId): string {
     case 'description':
       return field.description;
   }
+}
+
+interface BlendedFieldGroup {
+  sourceRelationshipId: string;
+  sourceDataMartTitle: string;
+  targetAlias: string;
+  fields: BlendedField[];
 }
 
 interface BlendedFieldsSectionProps {
@@ -73,8 +68,6 @@ export function BlendedFieldsSection({ dataMartId }: BlendedFieldsSectionProps) 
   const [isLoading, setIsLoading] = useState(false);
   const [filterValue, setFilterValue] = useState('');
   const [columnVisibility, setColumnVisibility] = useState<Record<ColumnId, boolean>>({
-    sourceDm: true,
-    dmAlias: true,
     outputAlias: true,
     type: true,
     description: true,
@@ -97,18 +90,37 @@ export function BlendedFieldsSection({ dataMartId }: BlendedFieldsSectionProps) 
       });
   }, [dataMartId]);
 
-  const filteredFields = useMemo(() => {
+  const groupedFields = useMemo(() => {
     if (!schema) return [];
-    if (!filterValue.trim()) return schema.blendedFields;
-    const query = filterValue.toLowerCase();
-    return schema.blendedFields.filter(
-      (field: BlendedField) =>
-        field.sourceDataMartTitle.toLowerCase().includes(query) ||
-        field.targetAlias.toLowerCase().includes(query) ||
-        field.originalFieldName.toLowerCase().includes(query) ||
-        field.name.toLowerCase().includes(query) ||
-        field.type.toLowerCase().includes(query)
-    );
+
+    const fields = filterValue.trim()
+      ? schema.blendedFields.filter((field: BlendedField) => {
+          const query = filterValue.toLowerCase();
+          return (
+            field.sourceDataMartTitle.toLowerCase().includes(query) ||
+            field.targetAlias.toLowerCase().includes(query) ||
+            field.originalFieldName.toLowerCase().includes(query) ||
+            field.name.toLowerCase().includes(query) ||
+            field.type.toLowerCase().includes(query)
+          );
+        })
+      : schema.blendedFields;
+
+    const groupMap = new Map<string, BlendedFieldGroup>();
+    for (const field of fields) {
+      let group = groupMap.get(field.sourceRelationshipId);
+      if (!group) {
+        group = {
+          sourceRelationshipId: field.sourceRelationshipId,
+          sourceDataMartTitle: field.sourceDataMartTitle,
+          targetAlias: field.targetAlias,
+          fields: [],
+        };
+        groupMap.set(field.sourceRelationshipId, group);
+      }
+      group.fields.push(field);
+    }
+    return Array.from(groupMap.values());
   }, [schema, filterValue]);
 
   const visibleColumns = TOGGLEABLE_COLUMNS.filter(col => columnVisibility[col.id]);
@@ -250,31 +262,50 @@ export function BlendedFieldsSection({ dataMartId }: BlendedFieldsSectionProps) 
             </TableRow>
           </TableHeader>
           <TableBody className='border-b border-gray-200 bg-white dark:border-white/4 dark:bg-white/1'>
-            {filteredFields.map((field: BlendedField) => (
-              <TableRow key={field.name} className='h-12'>
-                <TableCell
-                  className='bg-background dark:bg-muted'
-                  style={{ ...cellStyle, paddingLeft: 24 }}
-                >
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <CircleCheck className='h-5 w-5 text-green-500' />
-                    </TooltipTrigger>
-                    <TooltipContent>Connected</TooltipContent>
-                  </Tooltip>
-                </TableCell>
-                {visibleColumns.map(col => (
-                  <TableCell key={col.id} className={CELL_CLASSES[col.id]} style={cellStyle}>
-                    {getFieldValue(field, col.id)}
+            {groupedFields.map(group => (
+              <Fragment key={group.sourceRelationshipId}>
+                <TableRow className='h-12 hover:bg-transparent'>
+                  <TableCell
+                    colSpan={visibleColumnCount}
+                    className='bg-secondary/50 dark:bg-muted/50 border-t'
+                    style={{ paddingTop: 8, paddingBottom: 8, paddingLeft: 24 }}
+                  >
+                    <span className='text-sm font-semibold'>{group.sourceDataMartTitle}</span>
+                    <span className='text-muted-foreground ml-2 font-mono text-xs'>
+                      {group.targetAlias}
+                    </span>
+                    <span className='text-muted-foreground ml-2 text-xs'>
+                      · {group.fields.length} {group.fields.length === 1 ? 'field' : 'fields'}
+                    </span>
                   </TableCell>
+                </TableRow>
+                {group.fields.map((field: BlendedField) => (
+                  <TableRow key={field.name} className='h-12'>
+                    <TableCell
+                      className='bg-background dark:bg-muted'
+                      style={{ ...cellStyle, paddingLeft: 24 }}
+                    >
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <CircleCheck className='h-5 w-5 text-green-500' />
+                        </TooltipTrigger>
+                        <TooltipContent>Connected</TooltipContent>
+                      </Tooltip>
+                    </TableCell>
+                    {visibleColumns.map(col => (
+                      <TableCell key={col.id} className={CELL_CLASSES[col.id]} style={cellStyle}>
+                        {getFieldValue(field, col.id)}
+                      </TableCell>
+                    ))}
+                    <TableCell
+                      className='bg-background dark:bg-muted'
+                      style={{ ...cellStyle, width: 40 }}
+                    />
+                  </TableRow>
                 ))}
-                <TableCell
-                  className='bg-background dark:bg-muted'
-                  style={{ ...cellStyle, width: 40 }}
-                />
-              </TableRow>
+              </Fragment>
             ))}
-            {filteredFields.length === 0 && filterValue && (
+            {groupedFields.length === 0 && filterValue && (
               <TableRow>
                 <TableCell
                   colSpan={visibleColumnCount}
