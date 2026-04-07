@@ -3,8 +3,8 @@
 Tests that validate cloud database adapters against real APIs. These catch SDK version issues, permission problems, SQL dialect bugs, and data type mismatches that mocks and in-memory tests cannot detect.
 
 ## Directory Structure
-```
-text
+
+```text
 integration/
 ├── README.md                      # This file
 ├── setup-env.ts                   # Loads root .env.tests via dotenv (Jest setupFiles)
