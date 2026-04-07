@@ -39,6 +39,12 @@ export class DataStorage implements CreatorAwareEntity {
   @JoinColumn({ name: 'credentialId' })
   credential?: DataStorageCredential | null;
 
+  @Column({ type: 'boolean', default: true })
+  sharedForUse: boolean;
+
+  @Column({ type: 'boolean', default: true })
+  sharedForMaintenance: boolean;
+
   @DeleteDateColumn({ nullable: true })
   deletedAt?: Date;
 

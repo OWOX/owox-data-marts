@@ -56,6 +56,8 @@ import { GetDestinationOAuthCredentialStatusService } from '../use-cases/google-
 import { GenerateDestinationOAuthUrlService } from '../use-cases/google-oauth/generate-destination-oauth-url.service';
 import { RevokeDestinationOAuthService } from '../use-cases/google-oauth/revoke-destination-oauth.service';
 import { ExchangeOAuthCodeService } from '../use-cases/google-oauth/exchange-oauth-code.service';
+import { UpdateSharingService } from '../use-cases/update-sharing.service';
+import { UpdateDestinationAvailabilityApiDto } from '../dto/presentation/update-sharing-api.dto';
 
 @Controller('data-destinations')
 @ApiTags('DataDestinations')
@@ -74,7 +76,8 @@ export class DataDestinationController {
     private readonly generateOAuthUrlService: GenerateDestinationOAuthUrlService,
     private readonly revokeOAuthService: RevokeDestinationOAuthService,
     private readonly exchangeOAuthCodeService: ExchangeOAuthCodeService,
-    private readonly listByTypeService: ListDataDestinationsByTypeService
+    private readonly listByTypeService: ListDataDestinationsByTypeService,
+    private readonly updateSharingService: UpdateSharingService
   ) {}
 
   @Auth(Role.viewer(Strategy.INTROSPECT))
@@ -242,5 +245,23 @@ export class DataDestinationController {
   ): Promise<void> {
     const command = this.mapper.toRevokeOAuthCommand(id, context);
     await this.revokeOAuthService.run(command);
+  }
+
+  @Auth(Role.viewer(Strategy.INTROSPECT))
+  @Put(':id/availability')
+  @HttpCode(204)
+  async updateAvailability(
+    @AuthContext() context: AuthorizationContext,
+    @Param('id') id: string,
+    @Body() dto: UpdateDestinationAvailabilityApiDto
+  ): Promise<void> {
+    await this.updateSharingService.updateDestinationSharing(
+      id,
+      context.projectId,
+      context.userId,
+      context.roles ?? [],
+      dto.availableForUse,
+      dto.availableForMaintenance
+    );
   }
 }

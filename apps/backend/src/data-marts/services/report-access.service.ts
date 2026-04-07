@@ -5,8 +5,9 @@ import { Report } from '../entities/report.entity';
 import { ReportOwner } from '../entities/report-owner.entity';
 import { DataDestination } from '../entities/data-destination.entity';
 import { IdpProjectionsFacade } from '../../idp/facades/idp-projections.facade';
+import { AccessDecisionService, EntityType, Action } from './access-decision';
 
-type MutateDeniedReason = 'not-owner' | 'ineffective' | 'not-found';
+type MutateDeniedReason = 'not-owner' | 'ineffective' | 'not-found' | 'dm-invisible';
 
 type MutateResult = { allowed: true } | { allowed: false; reason: MutateDeniedReason };
 
@@ -15,6 +16,7 @@ const MUTATE_DENIED_MESSAGES: Record<MutateDeniedReason, string> = {
   'not-found': 'Report not found.',
   ineffective:
     'The destination for this report has been deleted. The report cannot be modified or run until a Technical User updates the destination or reassigns ownership.',
+  'dm-invisible': 'You do not have access to the DataMart for this report.',
 };
 
 @Injectable()
@@ -28,11 +30,15 @@ export class ReportAccessService {
     private readonly reportOwnerRepository: Repository<ReportOwner>,
     @InjectRepository(DataDestination)
     private readonly dataDestinationRepository: Repository<DataDestination>,
-    private readonly idpProjectionsFacade: IdpProjectionsFacade
+    private readonly idpProjectionsFacade: IdpProjectionsFacade,
+    private readonly accessDecisionService: AccessDecisionService
   ) {}
 
   /**
    * Evaluate whether a user can mutate a Report. Single source of truth for access logic.
+   *
+   * Stage 3: Editor no longer has project-wide bypass.
+   * Access requires: DM visible + (DM maintenance access OR Report ownership with effective dest).
    */
   private async evaluateMutateAccess(
     userId: string,
@@ -40,19 +46,6 @@ export class ReportAccessService {
     reportId: string,
     projectId: string
   ): Promise<MutateResult> {
-    // TODO Stage 3: narrow editor to owned + shared only
-    if (this.isTechnicalUser(roles)) {
-      return { allowed: true };
-    }
-
-    const ownerCount = await this.reportOwnerRepository.count({
-      where: { reportId, userId },
-    });
-
-    if (ownerCount === 0) {
-      return { allowed: false, reason: 'not-owner' };
-    }
-
     const report = await this.reportRepository.findOne({
       where: { id: reportId, dataMart: { projectId } },
       relations: ['dataMart', 'dataDestination'],
@@ -62,7 +55,42 @@ export class ReportAccessService {
       return { allowed: false, reason: 'not-found' };
     }
 
-    const effective = await this.isEffective(userId, report);
+    // Stage 3: DM must be visible to the user
+    const canSeeDm = await this.accessDecisionService.canAccess(
+      userId,
+      roles,
+      EntityType.DATA_MART,
+      report.dataMart.id,
+      Action.SEE,
+      projectId
+    );
+    if (!canSeeDm) {
+      return { allowed: false, reason: 'dm-invisible' };
+    }
+
+    // DM maintenance access = can mutate any report on this DM
+    const hasDmMaintenance = await this.accessDecisionService.canAccess(
+      userId,
+      roles,
+      EntityType.DATA_MART,
+      report.dataMart.id,
+      Action.EDIT,
+      projectId
+    );
+    if (hasDmMaintenance) {
+      return { allowed: true };
+    }
+
+    // Otherwise: must be report owner + effective
+    const ownerCount = await this.reportOwnerRepository.count({
+      where: { reportId, userId },
+    });
+
+    if (ownerCount === 0) {
+      return { allowed: false, reason: 'not-owner' };
+    }
+
+    const effective = await this.isEffective(userId, report, roles, projectId);
     return effective ? { allowed: true } : { allowed: false, reason: 'ineffective' };
   }
 
@@ -97,13 +125,14 @@ export class ReportAccessService {
 
   /**
    * Check if an owner is effective — can actually mutate/run the Report.
-   * Ineffective = lost access to DataMart or Destination.
+   * Ineffective = Destination deleted or inaccessible.
    */
-  async isEffective(_userId: string, report: Report): Promise<boolean> {
-    // Stage 2: DM access = always true for project members
-    // TODO Stage 3: check DataMart access via sharing/ownership for _userId
-    const dmAccessible = true;
-
+  async isEffective(
+    _userId: string,
+    report: Report,
+    _roles?: string[],
+    _projectId?: string
+  ): Promise<boolean> {
     if (!report.dataDestination) {
       return false;
     }
@@ -112,7 +141,7 @@ export class ReportAccessService {
       where: { id: report.dataDestination.id },
     });
 
-    return dmAccessible && destinationCount > 0;
+    return destinationCount > 0;
   }
 
   isTechnicalUser(roles: string[]): boolean {
@@ -121,7 +150,7 @@ export class ReportAccessService {
 
   /**
    * Check if a user can be added as an owner of a Report.
-   * Must be an active project member with access to the Report's DataMart and Destination.
+   * Must be an active project member with access to the Report's DataMart.
    */
   async canBeOwner(userId: string, report: Report, projectId: string): Promise<boolean> {
     const members = await this.idpProjectionsFacade.getProjectMembers(projectId);
@@ -133,8 +162,21 @@ export class ReportAccessService {
       return false;
     }
 
-    // Stage 2: member with any role has access to all DataMarts and Destinations
-    // TODO Stage 3: check DataMart and Destination access specifically
+    // Stage 3: check DataMart visibility for this user
+    if (report.dataMart) {
+      const canSeeDm = await this.accessDecisionService.canAccess(
+        userId,
+        [member.role ?? 'viewer'],
+        EntityType.DATA_MART,
+        report.dataMart.id,
+        Action.SEE,
+        projectId
+      );
+      if (!canSeeDm) {
+        return false;
+      }
+    }
+
     return true;
   }
 }

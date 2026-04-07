@@ -26,6 +26,13 @@ import {
   FormSection,
 } from '@owox/ui/components/form';
 import { Input } from '@owox/ui/components/input';
+import { Switch } from '@owox/ui/components/switch';
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from '@owox/ui/components/accordion';
 
 import { createFormPayload } from '../../../../../utils';
 import { COPY_SOURCE_CREDENTIAL_PLACEHOLDER } from '../../../../../shared/utils/credential-identity-utils';
@@ -92,6 +99,19 @@ export function DataDestinationForm({
   const { ownerUsers, ownersDirty, handleOwnersChange, consumePendingOwnerIds } =
     useOwnerState(initialOwnerUsers);
 
+  const sharingInitial = initialData as {
+    sharedForUse?: boolean;
+    sharedForMaintenance?: boolean;
+  } | null;
+  const [sharingState, setSharingState] = useState({
+    sharedForUse: sharingInitial?.sharedForUse ?? true,
+    sharedForMaintenance: sharingInitial?.sharedForMaintenance ?? true,
+  });
+
+  const sharingDirty =
+    sharingState.sharedForUse !== (sharingInitial?.sharedForUse ?? true) ||
+    sharingState.sharedForMaintenance !== (sharingInitial?.sharedForMaintenance ?? true);
+
   const [selectedSource, setSelectedSource] = useState<{
     id: string;
     title: string;
@@ -122,8 +142,10 @@ export function DataDestinationForm({
   const destinationType = form.watch('type');
 
   useEffect(() => {
-    onDirtyChange?.(form.formState.isDirty || selectedSource !== null || ownersDirty);
-  }, [form.formState.isDirty, selectedSource, ownersDirty, onDirtyChange]);
+    onDirtyChange?.(
+      form.formState.isDirty || selectedSource !== null || ownersDirty || sharingDirty
+    );
+  }, [form.formState.isDirty, selectedSource, ownersDirty, sharingDirty, onDirtyChange]);
 
   const copyCredentialCtx = useMemo(
     () => ({
@@ -148,6 +170,11 @@ export function DataDestinationForm({
     const ownerIds = consumePendingOwnerIds();
     if (ownerIds !== null) {
       (payload as Record<string, unknown>).ownerIds = ownerIds;
+    }
+
+    if (sharingDirty) {
+      (payload as Record<string, unknown>).sharedForUse = sharingState.sharedForUse;
+      (payload as Record<string, unknown>).sharedForMaintenance = sharingState.sharedForMaintenance;
     }
 
     await onSubmit(payload, selectedSource);
@@ -210,15 +237,76 @@ export function DataDestinationForm({
             <EmailFields form={form} emailsFieldTitle={'Enter Google Chat channel emails list'} />
           )}
 
-          <FormSection title='Ownership'>
+          <FormSection title='Ownership' defaultOpen={false} name='destination-ownership'>
             <FormItem>
               <FormLabel tooltip='Team members responsible for this destination'>Owners</FormLabel>
               <OwnersSection ownerUsers={ownerUsers} onSave={handleOwnersChange} />
             </FormItem>
           </FormSection>
 
+          {isEditMode && (
+            <FormSection title='Availability' defaultOpen={false} name='destination-availability'>
+              <FormItem>
+                <div className='flex items-center justify-between gap-4'>
+                  <FormLabel>Available for use</FormLabel>
+                  <Switch
+                    checked={sharingState.sharedForUse}
+                    onCheckedChange={v => {
+                      setSharingState(prev => ({ ...prev, sharedForUse: v }));
+                    }}
+                  />
+                </div>
+                <p className='text-muted-foreground text-sm'>
+                  Project members can use this destination in their reports
+                </p>
+                <Accordion variant='common' type='single' collapsible>
+                  <AccordionItem value='sharing-use-help'>
+                    <AccordionTrigger className='text-sm'>
+                      What does "Available for use" mean?
+                    </AccordionTrigger>
+                    <AccordionContent>
+                      <p className='text-muted-foreground text-sm'>
+                        When enabled, project members can select this destination when configuring
+                        reports. Without this, only destination owners and admins can use it.
+                      </p>
+                    </AccordionContent>
+                  </AccordionItem>
+                </Accordion>
+              </FormItem>
+              <FormItem>
+                <div className='flex items-center justify-between gap-4'>
+                  <FormLabel>Available for maintenance</FormLabel>
+                  <Switch
+                    checked={sharingState.sharedForMaintenance}
+                    onCheckedChange={v => {
+                      setSharingState(prev => ({ ...prev, sharedForMaintenance: v }));
+                    }}
+                  />
+                </div>
+                <p className='text-muted-foreground text-xs'>
+                  Project members with access can copy credentials, edit, and delete this
+                  destination
+                </p>
+                <Accordion variant='common' type='single' collapsible>
+                  <AccordionItem value='sharing-maintenance-help'>
+                    <AccordionTrigger className='text-sm'>
+                      What does "Available for maintenance" mean?
+                    </AccordionTrigger>
+                    <AccordionContent>
+                      <p className='text-muted-foreground text-sm'>
+                        When enabled, project members can copy credentials from this destination,
+                        edit its configuration, and delete it. Without this, only owners and admins
+                        can perform these actions.
+                      </p>
+                    </AccordionContent>
+                  </AccordionItem>
+                </Accordion>
+              </FormItem>
+            </FormSection>
+          )}
+
           {initialData?.createdAt && (
-            <FormSection title='Details'>
+            <FormSection title='Details' defaultOpen={false} name='destination-details'>
               <FormItem>
                 <FormLabel>Created By</FormLabel>
                 <div className='text-sm'>
@@ -249,7 +337,7 @@ export function DataDestinationForm({
             className='w-full'
             aria-label='Save'
             disabled={
-              (!form.formState.isDirty && !selectedSource && !ownersDirty) ||
+              (!form.formState.isDirty && !selectedSource && !ownersDirty && !sharingDirty) ||
               form.formState.isSubmitting
             }
           >

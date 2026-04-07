@@ -1,7 +1,8 @@
 import { useState, useCallback } from 'react';
 import { Alert, AlertDescription, AlertTitle } from '@owox/ui/components/alert';
-import { AlertCircle } from 'lucide-react';
+import { AlertCircle, AlertTriangle } from 'lucide-react';
 import { useProjectId } from '../../../shared/hooks';
+import { useMemberOwnershipWarnings } from '../../../features/data-marts/shared/hooks/useMemberOwnershipWarnings';
 import {
   useNotificationSettings,
   NotificationSettingsTable,
@@ -16,6 +17,7 @@ import type {
 export function ProjectNotificationsPage() {
   const projectId = useProjectId();
   const { settings, error, updateSetting } = useNotificationSettings(projectId);
+  const { warnings: ownershipWarnings } = useMemberOwnershipWarnings();
 
   const [editingSetting, setEditingSetting] = useState<NotificationSettingsItem | null>(null);
   const [isSheetOpen, setIsSheetOpen] = useState(false);
@@ -67,6 +69,17 @@ export function ProjectNotificationsPage() {
         <h1 className='dm-page-header-title'>Notification settings</h1>
       </header>
       <div className='dm-page-content'>
+        {ownershipWarnings.length > 0 && (
+          <Alert variant='default' className='mb-4'>
+            <AlertTriangle className='h-4 w-4' />
+            <AlertTitle>Ownership warnings</AlertTitle>
+            <AlertDescription>
+              Some project members are assigned as Technical Owners but have a Business User role.
+              Their ownership permissions will not be effective until their role is changed to
+              Technical User.
+            </AlertDescription>
+          </Alert>
+        )}
         <NotificationSettingsTable
           settings={settings}
           onRowClick={handleRowClick}

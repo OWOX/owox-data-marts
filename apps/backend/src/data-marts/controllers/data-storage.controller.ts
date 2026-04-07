@@ -37,6 +37,8 @@ import { GenerateStorageOAuthUrlService } from '../use-cases/google-oauth/genera
 import { RevokeStorageOAuthService } from '../use-cases/google-oauth/revoke-storage-oauth.service';
 import { ExchangeOAuthCodeService } from '../use-cases/google-oauth/exchange-oauth-code.service';
 import { ListDataStoragesByTypeService } from '../use-cases/list-data-storages-by-type.service';
+import { UpdateSharingService } from '../use-cases/update-sharing.service';
+import { UpdateStorageAvailabilityApiDto } from '../dto/presentation/update-sharing-api.dto';
 import { ListDataStoragesByTypeCommand } from '../dto/domain/list-data-storages-by-type.command';
 import { DataStorageByTypeResponseApiDto } from '../dto/presentation/data-storage-by-type-response-api.dto';
 import { DataStorageType } from '../data-storage-types/enums/data-storage-type.enum';
@@ -72,7 +74,8 @@ export class DataStorageController {
     private readonly generateOAuthUrlService: GenerateStorageOAuthUrlService,
     private readonly revokeOAuthService: RevokeStorageOAuthService,
     private readonly exchangeOAuthCodeService: ExchangeOAuthCodeService,
-    private readonly listByTypeService: ListDataStoragesByTypeService
+    private readonly listByTypeService: ListDataStoragesByTypeService,
+    private readonly updateSharingService: UpdateSharingService
   ) {}
 
   @Auth(Role.viewer(Strategy.PARSE))
@@ -217,5 +220,23 @@ export class DataStorageController {
   ): Promise<void> {
     const command = this.mapper.toRevokeOAuthCommand(id, context);
     await this.revokeOAuthService.run(command);
+  }
+
+  @Auth(Role.viewer(Strategy.INTROSPECT))
+  @Put(':id/availability')
+  @HttpCode(204)
+  async updateAvailability(
+    @AuthContext() context: AuthorizationContext,
+    @Param('id') id: string,
+    @Body() dto: UpdateStorageAvailabilityApiDto
+  ): Promise<void> {
+    await this.updateSharingService.updateStorageSharing(
+      id,
+      context.projectId,
+      context.userId,
+      context.roles ?? [],
+      dto.availableForUse,
+      dto.availableForMaintenance
+    );
   }
 }

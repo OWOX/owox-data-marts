@@ -79,6 +79,24 @@ describe('CreateDataStorageService', () => {
     );
   });
 
+  it('should set sharing defaults to false for new storage', async () => {
+    const { service, dataStorageRepository } = createService();
+    const command = new CreateDataStorageCommand(
+      'proj-1',
+      DataStorageType.GOOGLE_BIGQUERY,
+      'user-0'
+    );
+
+    await service.run(command);
+
+    expect(dataStorageRepository.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        sharedForUse: false,
+        sharedForMaintenance: false,
+      })
+    );
+  });
+
   it('should call syncOwners with provided ownerIds', async () => {
     const { service } = createService();
     const command = new CreateDataStorageCommand(

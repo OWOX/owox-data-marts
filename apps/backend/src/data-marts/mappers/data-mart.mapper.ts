@@ -72,7 +72,13 @@ export class DataMartMapper {
     context: AuthorizationContext,
     dto: CreateDataMartRequestApiDto
   ): CreateDataMartCommand {
-    return new CreateDataMartCommand(context.projectId, context.userId, dto.title, dto.storageId);
+    return new CreateDataMartCommand(
+      context.projectId,
+      context.userId,
+      dto.title,
+      dto.storageId,
+      context.roles ?? []
+    );
   }
 
   toDomainDto(
@@ -101,7 +107,9 @@ export class DataMartMapper {
       counters?.reportsCount ?? 0,
       createdByUser ?? null,
       businessOwnerUsers,
-      technicalOwnerUsers
+      technicalOwnerUsers,
+      entity.sharedForReporting ?? true,
+      entity.sharedForMaintenance ?? true
     );
   }
 
@@ -138,6 +146,8 @@ export class DataMartMapper {
       technicalOwnerUsers: dto.technicalOwnerUsers,
       createdAt: dto.createdAt,
       modifiedAt: dto.modifiedAt,
+      sharedForReporting: dto.sharedForReporting,
+      sharedForMaintenance: dto.sharedForMaintenance,
     };
   }
 
@@ -235,7 +245,13 @@ export class DataMartMapper {
     offset?: number,
     ownerFilter?: OwnerFilter
   ): ListDataMartsCommand {
-    return new ListDataMartsCommand(context.projectId, offset, ownerFilter);
+    return new ListDataMartsCommand(
+      context.projectId,
+      context.userId,
+      context.roles ?? [],
+      offset,
+      ownerFilter
+    );
   }
 
   toListItemDto(
@@ -499,7 +515,9 @@ export class DataMartMapper {
       id,
       context.projectId,
       dto.businessOwnerIds,
-      dto.technicalOwnerIds
+      dto.technicalOwnerIds,
+      context.userId,
+      context.roles ?? []
     );
   }
 

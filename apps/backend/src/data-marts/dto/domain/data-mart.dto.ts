@@ -23,6 +23,8 @@ export class DataMartDto {
     public readonly reportsCount: number = 0,
     public readonly createdByUser: UserProjectionDto | null = null,
     public readonly businessOwnerUsers: UserProjectionDto[] = [],
-    public readonly technicalOwnerUsers: UserProjectionDto[] = []
+    public readonly technicalOwnerUsers: UserProjectionDto[] = [],
+    public readonly sharedForReporting: boolean = true,
+    public readonly sharedForMaintenance: boolean = true
   ) {}
 }

@@ -51,7 +51,8 @@ export class DataDestinationMapper {
       dto.credentials,
       dto.credentialId,
       dto.sourceDestinationId,
-      dto.ownerIds
+      dto.ownerIds,
+      context.roles ?? []
     );
   }
 
@@ -67,7 +68,11 @@ export class DataDestinationMapper {
       dto.credentials,
       dto.credentialId,
       dto.sourceDestinationId,
-      dto.ownerIds
+      dto.ownerIds,
+      context.userId,
+      context.roles ?? [],
+      dto.availableForUse,
+      dto.availableForMaintenance
     );
   }
 
@@ -85,7 +90,9 @@ export class DataDestinationMapper {
       dataDestination.modifiedAt,
       dataDestination.credentialId,
       createdByUser,
-      ownerUsers
+      ownerUsers,
+      dataDestination.sharedForUse,
+      dataDestination.sharedForMaintenance
     );
   }
 
@@ -120,6 +127,8 @@ export class DataDestinationMapper {
       credentialId: dataDestinationDto.credentialId,
       createdByUser: dataDestinationDto.createdByUser,
       ownerUsers: dataDestinationDto.ownerUsers,
+      sharedForUse: dataDestinationDto.sharedForUse,
+      sharedForMaintenance: dataDestinationDto.sharedForMaintenance,
     };
   }
 
@@ -128,7 +137,12 @@ export class DataDestinationMapper {
   }
 
   toListCommand(context: AuthorizationContext, ownerFilter?: OwnerFilter) {
-    return new ListDataDestinationsCommand(context.projectId, ownerFilter);
+    return new ListDataDestinationsCommand(
+      context.projectId,
+      context.userId,
+      context.roles ?? [],
+      ownerFilter
+    );
   }
 
   toResponseList(dataDestinations: DataDestinationDto[]): Promise<DataDestinationResponseApiDto[]> {

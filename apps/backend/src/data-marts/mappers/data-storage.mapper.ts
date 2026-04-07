@@ -60,7 +60,11 @@ export class DataStorageMapper {
       dto.credentials,
       dto.credentialId,
       dto.sourceStorageId,
-      dto.ownerIds
+      dto.ownerIds,
+      context.userId,
+      context.roles ?? [],
+      dto.availableForUse,
+      dto.availableForMaintenance
     );
   }
 
@@ -83,7 +87,9 @@ export class DataStorageMapper {
       draftsCount,
       dataStorage.credentialId,
       createdByUser,
-      ownerUsers
+      ownerUsers,
+      dataStorage.sharedForUse,
+      dataStorage.sharedForMaintenance
     );
   }
 
@@ -116,6 +122,8 @@ export class DataStorageMapper {
       credentialId: dataStorageDto.credentialId,
       createdByUser: dataStorageDto.createdByUser,
       ownerUsers: dataStorageDto.ownerUsers,
+      sharedForUse: dataStorageDto.sharedForUse,
+      sharedForMaintenance: dataStorageDto.sharedForMaintenance,
     };
   }
 
@@ -124,7 +132,12 @@ export class DataStorageMapper {
   }
 
   toListCommand(context: AuthorizationContext, ownerFilter?: OwnerFilter) {
-    return new ListDataStoragesCommand(context.projectId, ownerFilter);
+    return new ListDataStoragesCommand(
+      context.projectId,
+      context.userId,
+      context.roles ?? [],
+      ownerFilter
+    );
   }
 
   toResponseList(dataStorages: DataStorageDto[]): DataStorageListResponseApiDto[] {

@@ -26,4 +26,7 @@ export interface UpdateDataDestinationRequestDto {
   sourceDestinationId?: string;
 
   ownerIds?: string[];
+
+  availableForUse?: boolean;
+  availableForMaintenance?: boolean;
 }

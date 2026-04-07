@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, ForbiddenException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Transactional } from 'typeorm-transactional';
@@ -12,6 +12,7 @@ import { DataMartService } from '../services/data-mart.service';
 import { UserProjectionsFetcherService } from '../services/user-projections-fetcher.service';
 import { resolveOwnerUsers } from '../utils/resolve-owner-users';
 import { syncOwners } from '../utils/sync-owners';
+import { AccessDecisionService, EntityType, Action } from '../services/access-decision';
 
 @Injectable()
 export class UpdateDataMartOwnersService {
@@ -23,12 +24,28 @@ export class UpdateDataMartOwnersService {
     @InjectRepository(DataMartBusinessOwner)
     private readonly businessOwnerRepository: Repository<DataMartBusinessOwner>,
     @InjectRepository(DataMartTechnicalOwner)
-    private readonly technicalOwnerRepository: Repository<DataMartTechnicalOwner>
+    private readonly technicalOwnerRepository: Repository<DataMartTechnicalOwner>,
+    private readonly accessDecisionService: AccessDecisionService
   ) {}
 
   @Transactional()
   async run(command: UpdateDataMartOwnersCommand): Promise<DataMartDto> {
     await this.dataMartService.getByIdAndProjectId(command.id, command.projectId);
+
+    // Stage 3: only existing owners or admin can manage owners
+    if (command.userId) {
+      const canManage = await this.accessDecisionService.canAccess(
+        command.userId,
+        command.roles,
+        EntityType.DATA_MART,
+        command.id,
+        Action.MANAGE_OWNERS,
+        command.projectId
+      );
+      if (!canManage) {
+        throw new ForbiddenException('You cannot manage owners of this DataMart');
+      }
+    }
 
     await Promise.all([
       syncOwners(

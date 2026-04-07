@@ -27,6 +27,8 @@ import { StorageOwner } from '../entities/storage-owner.entity';
 import { resolveOwnerUsers } from '../utils/resolve-owner-users';
 import { syncOwners } from '../utils/sync-owners';
 import { IdpProjectionsFacade } from '../../idp/facades/idp-projections.facade';
+import { AccessDecisionService, EntityType, Action } from '../services/access-decision';
+import { ForbiddenException } from '@nestjs/common';
 
 @Injectable()
 export class UpdateDataStorageService {
@@ -43,11 +45,45 @@ export class UpdateDataStorageService {
     @InjectRepository(StorageOwner)
     private readonly storageOwnerRepository: Repository<StorageOwner>,
     @Inject(OWOX_PRODUCER)
-    private readonly producer: OwoxProducer
+    private readonly producer: OwoxProducer,
+    private readonly accessDecisionService: AccessDecisionService
   ) {}
 
   @Transactional()
   async run(command: UpdateDataStorageCommand): Promise<DataStorageDto> {
+    // Stage 3: if ownerIds are being changed, check MANAGE_OWNERS permission
+    if (command.ownerIds !== undefined && command.userId) {
+      const canManage = await this.accessDecisionService.canAccess(
+        command.userId,
+        command.roles,
+        EntityType.STORAGE,
+        command.id,
+        Action.MANAGE_OWNERS,
+        command.projectId
+      );
+      if (!canManage) {
+        throw new ForbiddenException('You cannot manage owners of this Storage');
+      }
+    }
+
+    // Stage 3: if availability is being changed, check CONFIGURE_SHARING permission
+    if (
+      (command.availableForUse !== undefined || command.availableForMaintenance !== undefined) &&
+      command.userId
+    ) {
+      const canConfigure = await this.accessDecisionService.canAccess(
+        command.userId,
+        command.roles,
+        EntityType.STORAGE,
+        command.id,
+        Action.CONFIGURE_SHARING,
+        command.projectId
+      );
+      if (!canConfigure) {
+        throw new ForbiddenException('You cannot configure sharing for this Storage');
+      }
+    }
+
     const dataStorageEntity = await this.dataStorageService.getByProjectIdAndId(
       command.projectId,
       command.id
@@ -71,6 +107,23 @@ export class UpdateDataStorageService {
     }
 
     if (command.sourceStorageId) {
+      // Stage 3: copy credentials requires COPY_CREDENTIALS access to source storage
+      if (command.userId) {
+        const canCopy = await this.accessDecisionService.canAccess(
+          command.userId,
+          command.roles,
+          EntityType.STORAGE,
+          command.sourceStorageId,
+          Action.COPY_CREDENTIALS,
+          command.projectId
+        );
+        if (!canCopy) {
+          throw new ForbiddenException(
+            'You do not have permission to copy credentials from this storage'
+          );
+        }
+      }
+
       const source = await this.dataStorageService.getByProjectIdAndId(
         command.projectId,
         command.sourceStorageId
@@ -97,6 +150,12 @@ export class UpdateDataStorageService {
       dataStorageEntity.config = command.config;
       if (!isLegacyStorage) {
         dataStorageEntity.title = command.title;
+      }
+      if (command.availableForUse !== undefined) {
+        dataStorageEntity.sharedForUse = command.availableForUse;
+      }
+      if (command.availableForMaintenance !== undefined) {
+        dataStorageEntity.sharedForMaintenance = command.availableForMaintenance;
       }
       const updatedDataStorageEntity = await this.dataStorageRepository.save(dataStorageEntity);
 
@@ -181,6 +240,13 @@ export class UpdateDataStorageService {
 
     if (!isLegacyStorage) {
       dataStorageEntity.title = command.title;
+    }
+
+    if (command.availableForUse !== undefined) {
+      dataStorageEntity.sharedForUse = command.availableForUse;
+    }
+    if (command.availableForMaintenance !== undefined) {
+      dataStorageEntity.sharedForMaintenance = command.availableForMaintenance;
     }
 
     const updatedDataStorageEntity = await this.dataStorageRepository.save(dataStorageEntity);

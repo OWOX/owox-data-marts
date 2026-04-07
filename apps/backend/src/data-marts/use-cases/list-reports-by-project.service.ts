@@ -18,7 +18,10 @@ export class ListReportsByProjectService {
   ) {}
 
   async run(command: ListReportsByProjectCommand): Promise<ReportDto[]> {
-    // Get all data reports for the project
+    const isAdmin = command.roles.includes('admin');
+    const isTu = command.roles.includes('editor') || isAdmin;
+
+    // Get all data reports for the project — filtered by DM visibility
     let qb = this.reportRepository
       .createQueryBuilder('r')
       .leftJoinAndSelect('r.dataMart', 'dataMart')
@@ -27,6 +30,26 @@ export class ListReportsByProjectService {
       .leftJoinAndSelect('r.owners', 'owners')
       .where('dataMart.projectId = :projectId', { projectId: command.projectId })
       .andWhere('dataMart.deletedAt IS NULL');
+
+    // Reports inherit DM visibility: only show reports on visible DataMarts
+    if (!isAdmin) {
+      if (isTu) {
+        qb = qb.andWhere(
+          `(EXISTS (SELECT 1 FROM data_mart_technical_owners t WHERE t.data_mart_id = dataMart.id AND t.user_id = :userId)
+            OR EXISTS (SELECT 1 FROM data_mart_business_owners b WHERE b.data_mart_id = dataMart.id AND b.user_id = :userId)
+            OR dataMart.sharedForReporting = 1
+            OR dataMart.sharedForMaintenance = 1)`,
+          { userId: command.userId }
+        );
+      } else {
+        qb = qb.andWhere(
+          `(EXISTS (SELECT 1 FROM data_mart_technical_owners t WHERE t.data_mart_id = dataMart.id AND t.user_id = :userId)
+            OR EXISTS (SELECT 1 FROM data_mart_business_owners b WHERE b.data_mart_id = dataMart.id AND b.user_id = :userId)
+            OR dataMart.sharedForReporting = 1)`,
+          { userId: command.userId }
+        );
+      }
+    }
 
     if (command.ownerFilter === OwnerFilter.HAS_OWNERS) {
       qb = qb.andWhere('EXISTS (SELECT 1 FROM report_owners o WHERE o.report_id = r.id)');

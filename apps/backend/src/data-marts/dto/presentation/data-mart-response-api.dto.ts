@@ -57,4 +57,10 @@ export class DataMartResponseApiDto {
 
   @ApiProperty({ example: '2024-01-02T15:30:00.000Z' })
   modifiedAt: Date;
+
+  @ApiProperty({ example: true })
+  sharedForReporting?: boolean;
+
+  @ApiProperty({ example: true })
+  sharedForMaintenance?: boolean;
 }

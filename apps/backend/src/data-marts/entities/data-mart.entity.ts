@@ -61,6 +61,12 @@ export class DataMart implements CreatorAwareEntity {
   @Column()
   projectId: string;
 
+  @Column({ type: 'boolean', default: true })
+  sharedForReporting: boolean;
+
+  @Column({ type: 'boolean', default: true })
+  sharedForMaintenance: boolean;
+
   @OneToMany(() => DataMartBusinessOwner, owner => owner.dataMart)
   businessOwners: DataMartBusinessOwner[];
 

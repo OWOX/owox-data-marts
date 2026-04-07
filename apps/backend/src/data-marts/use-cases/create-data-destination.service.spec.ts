@@ -85,6 +85,9 @@ describe('CreateDataDestinationService', () => {
     };
     const destinationOwnerRepository = {};
     const idpProjectionsFacade = {};
+    const accessDecisionService = {
+      canAccess: jest.fn().mockResolvedValue(true),
+    };
 
     const service = new CreateDataDestinationService(
       repository as never,
@@ -98,7 +101,8 @@ describe('CreateDataDestinationService', () => {
       copyCredentialService as never,
       userProjectionsFetcherService as never,
       destinationOwnerRepository as never,
-      idpProjectionsFacade as never
+      idpProjectionsFacade as never,
+      accessDecisionService as never
     );
 
     return { service };
@@ -128,6 +132,27 @@ describe('CreateDataDestinationService', () => {
       ['user-0'],
       expect.anything(),
       expect.any(Function)
+    );
+  });
+
+  it('should set sharing defaults to false for new destination', async () => {
+    const { service } = createService();
+    const command = new CreateDataDestinationCommand(
+      'proj-1',
+      'Test Dest',
+      DataDestinationType.LOOKER_STUDIO,
+      'user-0',
+      { type: 'looker-studio-credentials' } as never
+    );
+
+    await service.run(command);
+
+    const repository = (service as unknown as { repository: { create: jest.Mock } }).repository;
+    expect(repository.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        sharedForUse: false,
+        sharedForMaintenance: false,
+      })
     );
   });
 

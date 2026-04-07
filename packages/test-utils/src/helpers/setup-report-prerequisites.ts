@@ -31,5 +31,21 @@ export async function setupReportPrerequisites(
     );
   expect(destRes.status).toBe(201);
 
-  return { storageId, dataMartId, dataDestinationId: destRes.body.id };
+  const dataDestinationId = destRes.body.id;
+
+  // Stage 3: new entities default to Not Available — make them available for test compatibility
+  await agent
+    .put(`/api/data-storages/${storageId}/availability`)
+    .set(AUTH_HEADER)
+    .send({ availableForUse: true, availableForMaintenance: true });
+  await agent
+    .put(`/api/data-marts/${dataMartId}/availability`)
+    .set(AUTH_HEADER)
+    .send({ availableForReporting: true, availableForMaintenance: true });
+  await agent
+    .put(`/api/data-destinations/${dataDestinationId}/availability`)
+    .set(AUTH_HEADER)
+    .send({ availableForUse: true, availableForMaintenance: true });
+
+  return { storageId, dataMartId, dataDestinationId };
 }

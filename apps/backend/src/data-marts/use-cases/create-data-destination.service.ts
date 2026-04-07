@@ -18,6 +18,7 @@ import {
 import type { StoredDestinationCredentials } from '../entities/stored-destination-credentials.type';
 import { DataDestinationService } from '../services/data-destination.service';
 import { CopyCredentialService } from '../services/copy-credential.service';
+import { AccessDecisionService, EntityType, Action } from '../services/access-decision';
 import { UserProjectionsFetcherService } from '../services/user-projections-fetcher.service';
 import { DestinationOwner } from '../entities/destination-owner.entity';
 import { syncOwners } from '../utils/sync-owners';
@@ -40,7 +41,8 @@ export class CreateDataDestinationService {
     private readonly userProjectionsFetcherService: UserProjectionsFetcherService,
     @InjectRepository(DestinationOwner)
     private readonly destinationOwnerRepository: Repository<DestinationOwner>,
-    private readonly idpProjectionsFacade: IdpProjectionsFacade
+    private readonly idpProjectionsFacade: IdpProjectionsFacade,
+    private readonly accessDecisionService: AccessDecisionService
   ) {}
 
   @Transactional()
@@ -57,8 +59,22 @@ export class CreateDataDestinationService {
       throw new BadRequestException('Cannot provide both sourceDestinationId and credentialId');
     }
 
-    // Copy credentials from another destination
+    // Copy credentials from another destination — requires COPY_CREDENTIALS access
     if (command.sourceDestinationId) {
+      const canCopy = await this.accessDecisionService.canAccess(
+        command.userId,
+        command.roles,
+        EntityType.DESTINATION,
+        command.sourceDestinationId,
+        Action.COPY_CREDENTIALS,
+        command.projectId
+      );
+      if (!canCopy) {
+        throw new BadRequestException(
+          'You do not have permission to copy credentials from this destination'
+        );
+      }
+
       const source = await this.dataDestinationService.getByIdAndProjectId(
         command.sourceDestinationId,
         command.projectId
@@ -84,6 +100,8 @@ export class CreateDataDestinationService {
         projectId: command.projectId,
         credentialId: newCredId,
         createdById: command.userId,
+        sharedForUse: false,
+        sharedForMaintenance: false,
       });
 
       const savedEntity = await this.repository.save(entity);
@@ -105,6 +123,8 @@ export class CreateDataDestinationService {
         projectId: command.projectId,
         credentialId: command.credentialId,
         createdById: command.userId,
+        sharedForUse: false,
+        sharedForMaintenance: false,
       });
 
       const savedEntity = await this.repository.save(entity);
@@ -146,6 +166,8 @@ export class CreateDataDestinationService {
       projectId: command.projectId,
       credentialId: credentialRecord.id,
       createdById: command.userId,
+      sharedForUse: false,
+      sharedForMaintenance: false,
     });
 
     const savedEntity = await this.repository.save(entity);

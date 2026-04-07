@@ -25,6 +25,7 @@ import { DestinationOwner } from '../entities/destination-owner.entity';
 import { resolveOwnerUsers } from '../utils/resolve-owner-users';
 import { syncOwners } from '../utils/sync-owners';
 import { IdpProjectionsFacade } from '../../idp/facades/idp-projections.facade';
+import { AccessDecisionService, EntityType, Action } from '../services/access-decision';
 
 @Injectable()
 export class UpdateDataDestinationService {
@@ -42,11 +43,45 @@ export class UpdateDataDestinationService {
     private readonly userProjectionsFetcherService: UserProjectionsFetcherService,
     private readonly idpProjectionsFacade: IdpProjectionsFacade,
     @InjectRepository(DestinationOwner)
-    private readonly destinationOwnerRepository: Repository<DestinationOwner>
+    private readonly destinationOwnerRepository: Repository<DestinationOwner>,
+    private readonly accessDecisionService: AccessDecisionService
   ) {}
 
   @Transactional()
   async run(command: UpdateDataDestinationCommand): Promise<DataDestinationDto> {
+    // Stage 3: if ownerIds are being changed, check MANAGE_OWNERS permission
+    if (command.ownerIds !== undefined && command.userId) {
+      const canManage = await this.accessDecisionService.canAccess(
+        command.userId,
+        command.roles,
+        EntityType.DESTINATION,
+        command.id,
+        Action.MANAGE_OWNERS,
+        command.projectId
+      );
+      if (!canManage) {
+        throw new ForbiddenException('You cannot manage owners of this Destination');
+      }
+    }
+
+    // Stage 3: if availability is being changed, check CONFIGURE_SHARING permission
+    if (
+      (command.availableForUse !== undefined || command.availableForMaintenance !== undefined) &&
+      command.userId
+    ) {
+      const canConfigure = await this.accessDecisionService.canAccess(
+        command.userId,
+        command.roles,
+        EntityType.DESTINATION,
+        command.id,
+        Action.CONFIGURE_SHARING,
+        command.projectId
+      );
+      if (!canConfigure) {
+        throw new ForbiddenException('You cannot configure sharing for this Destination');
+      }
+    }
+
     const entity = await this.dataDestinationService.getByIdAndProjectId(
       command.id,
       command.projectId
@@ -95,6 +130,12 @@ export class UpdateDataDestinationService {
 
       // After copy, save title and return — skip credential validation/processing
       entity.title = command.title;
+      if (command.availableForUse !== undefined) {
+        entity.sharedForUse = command.availableForUse;
+      }
+      if (command.availableForMaintenance !== undefined) {
+        entity.sharedForMaintenance = command.availableForMaintenance;
+      }
       const updatedEntity = await this.dataDestinationRepository.save(entity);
       return this.replaceOwnersAndBuildResponse(updatedEntity, command.ownerIds);
     }
@@ -184,6 +225,13 @@ export class UpdateDataDestinationService {
     }
 
     entity.title = command.title;
+
+    if (command.availableForUse !== undefined) {
+      entity.sharedForUse = command.availableForUse;
+    }
+    if (command.availableForMaintenance !== undefined) {
+      entity.sharedForMaintenance = command.availableForMaintenance;
+    }
 
     const updatedEntity = await this.dataDestinationRepository.save(entity);
     return this.replaceOwnersAndBuildResponse(updatedEntity, command.ownerIds);

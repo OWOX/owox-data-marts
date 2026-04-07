@@ -4,6 +4,9 @@ import { DataMartController } from './controllers/data-mart.controller';
 import { DataStorageController } from './controllers/data-storage.controller';
 import { DataDestinationController } from './controllers/data-destination.controller';
 import { ReportAccessService } from './services/report-access.service';
+import { AccessDecisionService } from './services/access-decision';
+import { UpdateSharingService } from './use-cases/update-sharing.service';
+import { MemberOwnershipWarningsService } from './services/member-ownership-warnings.service';
 import { LookerStudioConnectorController } from './controllers/external/looker-studio-connector.controller';
 import { MarkdownParserController } from './controllers/markdown-parser.controller';
 import { ReportController } from './controllers/report.controller';
@@ -508,6 +511,9 @@ import { ReportRunTriggerHandlerService } from './services/report-run-trigger-ha
     DeleteScheduledTriggerService,
     ReportService,
     ReportAccessService,
+    AccessDecisionService,
+    UpdateSharingService,
+    MemberOwnershipWarningsService,
     ReportDataCacheService,
     ConnectorOutputCaptureService,
     ConnectorMessageParserService,

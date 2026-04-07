@@ -129,6 +129,13 @@ export class DataStorageApiService extends ApiService {
     );
   }
 
+  async updateAvailability(
+    id: string,
+    data: { availableForUse: boolean; availableForMaintenance: boolean }
+  ): Promise<void> {
+    await this.put(`/${id}/availability`, data);
+  }
+
   async abortPublishDraftsTrigger(id: string, triggerId: string): Promise<void> {
     await this.delete(`/${id}/publish-drafts-triggers/${triggerId}`, {
       skipLoadingIndicator: true,

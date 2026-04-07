@@ -204,6 +204,39 @@ export class ApiHelpers {
     expect(res.ok()).toBeTruthy();
   }
 
+  async setStorageAvailability(
+    id: string,
+    availableForUse: boolean,
+    availableForMaintenance: boolean
+  ): Promise<void> {
+    const res = await this.page.request.put(`/api/data-storages/${id}/availability`, {
+      data: { availableForUse, availableForMaintenance },
+    });
+    expect(res.status()).toBe(204);
+  }
+
+  async setDestinationAvailability(
+    id: string,
+    availableForUse: boolean,
+    availableForMaintenance: boolean
+  ): Promise<void> {
+    const res = await this.page.request.put(`/api/data-destinations/${id}/availability`, {
+      data: { availableForUse, availableForMaintenance },
+    });
+    expect(res.status()).toBe(204);
+  }
+
+  async setDataMartAvailability(
+    id: string,
+    availableForReporting: boolean,
+    availableForMaintenance: boolean
+  ): Promise<void> {
+    const res = await this.page.request.put(`/api/data-marts/${id}/availability`, {
+      data: { availableForReporting, availableForMaintenance },
+    });
+    expect(res.status()).toBe(204);
+  }
+
   async createReport(
     dataMartId: string,
     dataDestinationId: string,
