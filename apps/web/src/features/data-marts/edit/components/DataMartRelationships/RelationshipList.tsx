@@ -20,15 +20,18 @@ import { useState } from 'react';
 import { Button } from '../../../../../shared/components/Button';
 import { ConfirmationDialog } from '../../../../../shared/components/ConfirmationDialog';
 import { UserReference } from '../../../../../shared/components/UserReference';
-import type { DataMartRelationship } from '../../../shared/types/relationship.types';
+import type {
+  DataMartRelationship,
+  TransientRelationshipRow,
+} from '../../../shared/types/relationship.types';
 
 interface RelationshipListProps {
-  relationships: DataMartRelationship[];
+  rows: TransientRelationshipRow[];
   onEdit: (relationship: DataMartRelationship) => void;
   onDelete: (id: string) => Promise<void>;
 }
 
-export function RelationshipList({ relationships, onEdit, onDelete }: RelationshipListProps) {
+export function RelationshipList({ rows, onEdit, onDelete }: RelationshipListProps) {
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
 
@@ -43,17 +46,15 @@ export function RelationshipList({ relationships, onEdit, onDelete }: Relationsh
     }
   }
 
-  if (relationships.length === 0) {
+  if (rows.length === 0) {
     return (
       <Empty className='border'>
         <EmptyHeader>
           <EmptyMedia variant='icon'>
             <GitMerge />
           </EmptyMedia>
-          <EmptyTitle>No relationships yet</EmptyTitle>
-          <EmptyDescription>
-            Add a relationship to blend fields from another Data Mart into this one.
-          </EmptyDescription>
+          <EmptyTitle>No relationships match your search</EmptyTitle>
+          <EmptyDescription>Try a different search term.</EmptyDescription>
         </EmptyHeader>
       </Empty>
     );
@@ -104,62 +105,88 @@ export function RelationshipList({ relationships, onEdit, onDelete }: Relationsh
           </TableRow>
         </TableHeader>
         <TableBody className='bg-background'>
-          {relationships.map(rel => (
-            <TableRow
-              key={rel.id}
-              className='group cursor-pointer'
-              onClick={() => {
-                onEdit(rel);
-              }}
-            >
-              <TableCell className='font-medium'>{rel.targetDataMart.title}</TableCell>
-              <TableCell>
-                <Badge variant='secondary' className='text-xs'>
-                  {rel.targetAlias}
-                </Badge>
-              </TableCell>
-              <TableCell className='text-muted-foreground'>
-                {rel.joinConditions.length} {rel.joinConditions.length !== 1 ? 'pairs' : 'pair'}
-              </TableCell>
-              <TableCell className='text-muted-foreground'>
-                {rel.blendedFields.length} field
-                {rel.blendedFields.length !== 1 ? 's' : ''}
-              </TableCell>
-              <TableCell className='text-muted-foreground'>
-                {new Intl.DateTimeFormat('en-US', {
-                  year: 'numeric',
-                  month: 'short',
-                  day: 'numeric',
-                }).format(new Date(rel.createdAt))}
-              </TableCell>
-              <TableCell>
-                {rel.createdByUser ? (
-                  <UserReference userProjection={rel.createdByUser} />
-                ) : (
-                  <span className='text-muted-foreground'>-</span>
-                )}
-              </TableCell>
-              <TableCell>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button
-                      variant='ghost'
-                      size='sm'
-                      onClick={e => {
-                        e.stopPropagation();
-                        setDeletingId(rel.id);
-                      }}
-                      aria-label='Delete relationship'
-                      className='text-destructive hover:text-destructive cursor-pointer opacity-0 transition-opacity group-hover:opacity-100'
-                    >
-                      <Trash2 className='h-3.5 w-3.5' />
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent>Delete relationship</TooltipContent>
-                </Tooltip>
-              </TableCell>
-            </TableRow>
-          ))}
+          {rows.map((row, idx) => {
+            const rel = row.relationship;
+            const isTransient = row.depth >= 2;
+
+            return (
+              <TableRow
+                key={`${rel.id}-${idx}`}
+                className={isTransient ? 'cursor-default opacity-60' : 'group cursor-pointer'}
+                onClick={
+                  isTransient
+                    ? undefined
+                    : () => {
+                        onEdit(rel);
+                      }
+                }
+              >
+                <TableCell className='font-medium'>
+                  <span style={{ paddingLeft: isTransient ? (row.depth - 1) * 24 : 0 }}>
+                    {isTransient && (
+                      <span className='text-muted-foreground mr-1.5 text-xs'>{'\u21B3'}</span>
+                    )}
+                    {rel.targetDataMart.title}
+                    {(row.isBlocked || rel.targetDataMart.status === 'DRAFT') && (
+                      <Badge
+                        variant='outline'
+                        className='ml-2 border-orange-400 text-[10px] text-orange-500'
+                      >
+                        {rel.targetDataMart.status === 'DRAFT' ? 'Draft' : 'Blocked'}
+                      </Badge>
+                    )}
+                  </span>
+                </TableCell>
+                <TableCell>
+                  <Badge variant='secondary' className='text-xs'>
+                    {rel.targetAlias}
+                  </Badge>
+                </TableCell>
+                <TableCell className='text-muted-foreground'>
+                  {rel.joinConditions.length} {rel.joinConditions.length !== 1 ? 'pairs' : 'pair'}
+                </TableCell>
+                <TableCell className='text-muted-foreground'>
+                  {rel.blendedFields.length} field
+                  {rel.blendedFields.length !== 1 ? 's' : ''}
+                </TableCell>
+                <TableCell className='text-muted-foreground'>
+                  {new Intl.DateTimeFormat('en-US', {
+                    year: 'numeric',
+                    month: 'short',
+                    day: 'numeric',
+                  }).format(new Date(rel.createdAt))}
+                </TableCell>
+                <TableCell>
+                  {rel.createdByUser ? (
+                    <UserReference userProjection={rel.createdByUser} />
+                  ) : (
+                    <span className='text-muted-foreground'>-</span>
+                  )}
+                </TableCell>
+                <TableCell>
+                  {!isTransient && (
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          variant='ghost'
+                          size='sm'
+                          onClick={e => {
+                            e.stopPropagation();
+                            setDeletingId(rel.id);
+                          }}
+                          aria-label='Delete relationship'
+                          className='text-destructive hover:text-destructive cursor-pointer opacity-0 transition-opacity group-hover:opacity-100'
+                        >
+                          <Trash2 className='h-3.5 w-3.5' />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>Delete relationship</TooltipContent>
+                    </Tooltip>
+                  )}
+                </TableCell>
+              </TableRow>
+            );
+          })}
         </TableBody>
       </Table>
 

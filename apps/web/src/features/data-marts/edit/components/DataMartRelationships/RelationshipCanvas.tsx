@@ -1,8 +1,6 @@
 import { Badge } from '@owox/ui/components/badge';
-import { Label } from '@owox/ui/components/label';
-import { Switch } from '@owox/ui/components/switch';
-import { ExternalLink, Info, Locate, ZoomIn, ZoomOut } from 'lucide-react';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { ExternalLink, Info, Locate, Maximize2, ZoomIn, ZoomOut } from 'lucide-react';
+import { useCallback, useEffect, useRef } from 'react';
 import { createRoot } from 'react-dom/client';
 import type { GetSchemes } from 'rete';
 import { ClassicPreset, NodeEditor } from 'rete';
@@ -21,6 +19,11 @@ interface RelationshipCanvasProps {
   dataMartStatus: string;
   relationships: DataMartRelationship[];
   onRelationshipSelect: (relationship: DataMartRelationship) => void;
+  searchQuery: string;
+  showTransient: boolean;
+  onRequestFullscreen?: () => void;
+  className?: string;
+  style?: React.CSSProperties;
 }
 
 const SOCKET = new ClassicPreset.Socket('rel');
@@ -31,6 +34,7 @@ const H_GAP = 280;
 const V_GAP = 24;
 const MAX_DEPTH = 5;
 const NODE_BORDER = '#9ca3af'; // gray-400, visible in both themes
+const HIGHLIGHT_COLOR = '#3b82f6'; // blue-500
 const DRAFT_COLOR = '#f97316'; // orange-500
 
 class DMNode extends ClassicPreset.Node {
@@ -46,6 +50,8 @@ class DMNode extends ClassicPreset.Node {
   onOpenExternal?: () => void;
   isDraft: boolean;
   isBlocked: boolean;
+  highlighted = false;
+  dimmed = false;
 
   constructor(
     label: string,
@@ -102,12 +108,18 @@ function NodeComponent(props: { data: Schemes['Node']; emit: (e: ReactArea2D<Sch
           width: n.width,
           height: n.height,
           borderRadius: 8,
-          border: `2px solid ${n.isDraft ? DRAFT_COLOR : NODE_BORDER}`,
-          boxShadow: '0 1px 4px 0 rgba(0,0,0,0.12)',
+          border: `2px solid ${n.highlighted ? HIGHLIGHT_COLOR : n.isDraft ? DRAFT_COLOR : NODE_BORDER}`,
+          boxShadow: n.highlighted
+            ? `0 0 0 3px ${HIGHLIGHT_COLOR}40, 0 0 12px ${HIGHLIGHT_COLOR}60`
+            : '0 1px 4px 0 rgba(0,0,0,0.12)',
           background: '#eff6ff',
           fontSize: 13,
           fontWeight: 600,
           position: 'relative',
+          opacity: n.dimmed ? 0.15 : 1,
+          filter: n.dimmed ? 'grayscale(0.8)' : undefined,
+          animation: n.highlighted ? 'node-pulse 1.5s ease-in-out infinite' : undefined,
+          transition: 'opacity 0.2s, filter 0.2s',
         }}
       >
         {n.isDraft && (
@@ -157,11 +169,19 @@ function NodeComponent(props: { data: Schemes['Node']; emit: (e: ReactArea2D<Sch
         width: n.width,
         height: n.height,
         borderRadius: 8,
-        border: `${isDeep ? '2px dashed' : '2px solid'} ${borderColor}`,
+        border: `${isDeep ? '2px dashed' : '2px solid'} ${n.highlighted ? HIGHLIGHT_COLOR : borderColor}`,
         background: 'var(--background)',
-        boxShadow: isDeep ? 'none' : '0 1px 4px 0 rgba(0,0,0,0.12)',
+        boxShadow: n.highlighted
+          ? `0 0 0 3px ${HIGHLIGHT_COLOR}40, 0 0 12px ${HIGHLIGHT_COLOR}60`
+          : isDeep
+            ? 'none'
+            : '0 1px 4px 0 rgba(0,0,0,0.12)',
         cursor: isDeep ? 'default' : 'pointer',
         position: 'relative',
+        opacity: n.dimmed ? 0.15 : 1,
+        filter: n.dimmed ? 'grayscale(0.8)' : undefined,
+        animation: n.highlighted ? 'node-pulse 1.5s ease-in-out infinite' : undefined,
+        transition: 'opacity 0.2s, filter 0.2s',
       }}
     >
       {isOrange && (
@@ -289,6 +309,7 @@ interface EditorHandle {
   destroy: () => void;
   fitView: () => Promise<void>;
   zoomBy: (delta: number) => Promise<void>;
+  highlightNodes: (query: string) => void;
 }
 
 async function setupEditor(
@@ -323,6 +344,8 @@ async function setupEditor(
       src?.isBlocked === true ||
       tgt?.isDraft === true ||
       tgt?.isBlocked === true;
+    const bothDimmed =
+      (src?.dimmed === true || src === undefined) && (tgt?.dimmed === true || tgt === undefined);
 
     return (
       <svg
@@ -341,7 +364,8 @@ async function setupEditor(
           strokeWidth='5px'
           stroke={orange ? DRAFT_COLOR : 'steelblue'}
           strokeDasharray={orange ? '8 4' : undefined}
-          style={{ pointerEvents: 'auto' }}
+          opacity={bothDimmed ? 0.15 : 1}
+          style={{ pointerEvents: 'auto', transition: 'opacity 0.2s' }}
         />
       </svg>
     );
@@ -585,12 +609,37 @@ async function setupEditor(
     return ctx;
   });
 
+  const highlightNodes = (query: string) => {
+    const q = query.toLowerCase();
+    const matching: DMNode[] = [];
+
+    for (const node of editor.getNodes()) {
+      const prev = { h: node.highlighted, d: node.dimmed };
+      node.highlighted = q !== '' && node.label.toLowerCase().includes(q);
+      node.dimmed = q !== '' && !node.highlighted;
+      if (node.highlighted) matching.push(node);
+      if (prev.h !== node.highlighted || prev.d !== node.dimmed) {
+        void area.update('node', node.id);
+      }
+    }
+
+    // Also update connections so they dim when both endpoints are dimmed
+    for (const conn of editor.getConnections()) {
+      void area.update('connection', conn.id);
+    }
+
+    if (matching.length > 0) {
+      void AreaExtensions.zoomAt(area, matching, { scale: 0.85 });
+    }
+  };
+
   return {
     destroy: () => {
       area.destroy();
     },
     fitView,
     zoomBy,
+    highlightNodes,
   };
 }
 
@@ -601,10 +650,16 @@ export function RelationshipCanvas({
   dataMartStatus,
   relationships,
   onRelationshipSelect,
+  searchQuery,
+  showTransient,
+  onRequestFullscreen,
+  className,
+  style,
 }: RelationshipCanvasProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const editorRef = useRef<EditorHandle | null>(null);
-  const [showTransient, setShowTransient] = useState(false);
+  const searchQueryRef = useRef(searchQuery);
+  searchQueryRef.current = searchQuery;
 
   const handleNodeSelect = useCallback(
     (targetId: string) => {
@@ -635,6 +690,9 @@ export function RelationshipCanvas({
       showTransient
     ).then(h => {
       editorRef.current = h;
+      if (searchQueryRef.current) {
+        h.highlightNodes(searchQueryRef.current);
+      }
     });
 
     return () => {
@@ -653,54 +711,70 @@ export function RelationshipCanvas({
     showTransient,
   ]);
 
+  useEffect(() => {
+    editorRef.current?.highlightNodes(searchQuery);
+  }, [searchQuery]);
+
   if (relationships.length === 0) return null;
 
   return (
-    <div className='rel-canvas relative overflow-hidden rounded-lg border' style={{ height: 480 }}>
+    <div
+      className={`rel-canvas relative overflow-hidden rounded-lg border ${className ?? ''}`}
+      style={style ?? { height: 480 }}
+    >
       <style>{`
         .rel-canvas svg path { stroke-width: 1.5px !important; }
         .rel-canvas [data-testid="minimap"] { transform: scale(0.5); transform-origin: bottom right; }
+        @keyframes node-pulse {
+          0%, 100% { box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.25), 0 0 12px rgba(59, 130, 246, 0.4); }
+          50% { box-shadow: 0 0 0 6px rgba(59, 130, 246, 0.15), 0 0 20px rgba(59, 130, 246, 0.5); }
+        }
       `}</style>
       <div className='absolute top-3 right-3 z-10 flex items-start gap-2'>
-        <div className='bg-background/80 flex h-8 items-center gap-2 rounded-md border px-2.5 backdrop-blur-sm'>
-          <Switch id='show-transient' checked={showTransient} onCheckedChange={setShowTransient} />
-          <Label htmlFor='show-transient' className='cursor-pointer text-xs whitespace-nowrap'>
-            Show transient relations
-          </Label>
-        </div>
-        <div className='flex flex-col gap-1'>
+        <div className='flex flex-col gap-1.5'>
+          {onRequestFullscreen && (
+            <Button
+              variant='outline'
+              size='icon'
+              className='h-12 w-12'
+              onClick={onRequestFullscreen}
+              aria-label='Expand diagram'
+            >
+              <Maximize2 className='h-6 w-6' />
+            </Button>
+          )}
           <Button
             variant='outline'
             size='icon'
-            className='h-8 w-8'
+            className='h-12 w-12'
             onClick={() => {
               void editorRef.current?.fitView();
             }}
             aria-label='Fit to view'
           >
-            <Locate className='h-4 w-4' />
+            <Locate className='h-6 w-6' />
           </Button>
           <Button
             variant='outline'
             size='icon'
-            className='h-8 w-8'
+            className='h-12 w-12'
             onClick={() => {
               void editorRef.current?.zoomBy(0.25);
             }}
             aria-label='Zoom in'
           >
-            <ZoomIn className='h-4 w-4' />
+            <ZoomIn className='h-6 w-6' />
           </Button>
           <Button
             variant='outline'
             size='icon'
-            className='h-8 w-8'
+            className='h-12 w-12'
             onClick={() => {
               void editorRef.current?.zoomBy(-0.25);
             }}
             aria-label='Zoom out'
           >
-            <ZoomOut className='h-4 w-4' />
+            <ZoomOut className='h-6 w-6' />
           </Button>
         </div>
       </div>

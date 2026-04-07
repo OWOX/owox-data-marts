@@ -49,6 +49,14 @@ export interface UpdateRelationshipRequest {
   blendedFields?: BlendedFieldConfig[];
 }
 
+export interface TransientRelationshipRow {
+  relationship: DataMartRelationship;
+  depth: number;
+  parentDataMartTitle: string;
+  sourceDmId: string;
+  isBlocked: boolean;
+}
+
 export interface BlendedField {
   name: string;
   sourceRelationshipId: string;
