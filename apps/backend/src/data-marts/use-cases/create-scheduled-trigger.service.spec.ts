@@ -35,6 +35,11 @@ describe('CreateScheduledTriggerService', () => {
     };
     const reportAccessService = {
       canMutate: jest.fn().mockResolvedValue(true),
+      isTechnicalUser: jest
+        .fn()
+        .mockImplementation(
+          (roles: string[]) => roles.includes('editor') || roles.includes('admin')
+        ),
     };
 
     const producer = { produceEvent: jest.fn().mockResolvedValue(undefined) };
