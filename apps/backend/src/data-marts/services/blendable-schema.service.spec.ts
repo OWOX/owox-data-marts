@@ -244,6 +244,64 @@ describe('BlendableSchemaService', () => {
       expect(relationshipService.findBySourceDataMartId).toHaveBeenCalledTimes(2);
     });
 
+    it('should return blended fields from multiple relationships to the same target data mart', async () => {
+      dataMartService.getByIdAndProjectId.mockResolvedValue(makeDataMart({ id: 'dm-1' }));
+
+      const targetSchema = {
+        type: 'bigquery-data-mart-schema',
+        fields: [
+          { name: 'revenue', type: 'FLOAT' },
+          { name: 'country', type: 'STRING' },
+        ],
+      };
+      const targetDm = makeDataMart({
+        id: 'dm-2',
+        title: 'Orders DM',
+        schema: targetSchema as unknown as DataMart['schema'],
+      });
+
+      const rel1 = makeRelationship({
+        id: 'rel-1',
+        targetAlias: 'orders',
+        targetDataMart: targetDm,
+        blendedFields: [
+          {
+            targetFieldName: 'revenue',
+            outputAlias: 'orders_revenue',
+            isHidden: false,
+            aggregateFunction: 'SUM',
+          },
+        ],
+      });
+
+      const rel2 = makeRelationship({
+        id: 'rel-2',
+        targetAlias: 'orders_v2',
+        targetDataMart: targetDm,
+        blendedFields: [
+          {
+            targetFieldName: 'country',
+            outputAlias: 'orders_v2_country',
+            isHidden: false,
+            aggregateFunction: 'STRING_AGG',
+          },
+        ],
+      });
+
+      relationshipService.findBySourceDataMartId.mockImplementation(async (id: string) => {
+        if (id === 'dm-1') return [rel1, rel2];
+        return [];
+      });
+
+      const result = await service.computeBlendableSchema('dm-1', 'project-1');
+
+      expect(result.blendedFields).toHaveLength(2);
+      expect(result.blendedFields[0].name).toBe('orders_revenue');
+      expect(result.blendedFields[0].targetAlias).toBe('orders');
+      expect(result.blendedFields[1].name).toBe('orders_v2_country');
+      expect(result.blendedFields[1].targetAlias).toBe('orders_v2');
+    });
+
     it('should use UNKNOWN type when schema field is not found in target schema', async () => {
       dataMartService.getByIdAndProjectId.mockResolvedValue(makeDataMart({ id: 'dm-1' }));
 

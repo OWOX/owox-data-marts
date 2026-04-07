@@ -74,12 +74,6 @@ export class BlendableSchemaService {
     for (const rel of relationships) {
       const targetDataMartId = rel.targetDataMart.id;
 
-      if (visited.has(targetDataMartId)) {
-        continue;
-      }
-
-      visited.add(targetDataMartId);
-
       const targetSchemaFields = (rel.targetDataMart.schema?.fields ?? []).filter(
         f => !f.isHiddenForReporting
       );
@@ -107,7 +101,10 @@ export class BlendableSchemaService {
         result.push(dto);
       }
 
-      await this.collectBlendedFields(targetDataMartId, result, visited, depth + 1);
+      if (!visited.has(targetDataMartId)) {
+        visited.add(targetDataMartId);
+        await this.collectBlendedFields(targetDataMartId, result, visited, depth + 1);
+      }
     }
   }
 }

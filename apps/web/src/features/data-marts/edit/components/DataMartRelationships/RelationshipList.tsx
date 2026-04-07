@@ -94,8 +94,12 @@ export function RelationshipList({ relationships, onEdit, onDelete }: Relationsh
                 </TooltipContent>
               </Tooltip>
             </TableHead>
-            <TableHead className='bg-secondary dark:bg-background'>Created At</TableHead>
-            <TableHead className='bg-secondary dark:bg-background'>Created By</TableHead>
+            <TableHead className='bg-secondary dark:bg-background cursor-default'>
+              Created At
+            </TableHead>
+            <TableHead className='bg-secondary dark:bg-background cursor-default'>
+              Created By
+            </TableHead>
             <TableHead className='bg-secondary dark:bg-background w-12' />
           </TableRow>
         </TableHeader>
