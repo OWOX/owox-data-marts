@@ -50,7 +50,7 @@ If OAuth is not pre-configured, you can enter credentials manually:
   You can find it in the top-right corner when viewing the specific ad account in Google Ads.
 - **Login Customer ID** – enter the ID of your **Manager (MCC)** account.
   You can find it in the top-right corner when you are logged into your MCC account.
-   *(Format: `12345678` without dashes.)*
+   *(Format: `123-456-7890` or `1234567890`)*
 - **Refresh Token** – paste the refresh token you generated using **OAuth Playground** in the Credentials guide.
 - **Client ID** – enter the Client ID from the OAuth client you created in **Google Cloud Console → Google Auth Platform → Clients**.
 - **Client Secret** – enter the Client Secret shown when creating your OAuth client, or use the value stored in the downloaded JSON.
@@ -63,7 +63,7 @@ If OAuth is not pre-configured, you can enter credentials manually:
 - **Service Account Key** – paste the full JSON key file content you created in **Google Cloud Console → IAM & Admin → Service Accounts → Manage Keys**.
 - **Developer Token** – paste the Developer Token from your **Google Ads API Center** in your MCC account.
 - **Login Customer ID** – enter the ID of your **Manager (MCC)** account, found in the top-right corner of your MCC dashboard.
- *(Format: `12345678` without dashes.)*
+ *(Format: `123-456-7890` or `1234567890`)*
 
 Leave all other fields as default, then click **Next** to continue.  
 
