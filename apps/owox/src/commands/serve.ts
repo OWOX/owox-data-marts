@@ -74,6 +74,8 @@ export default class Serve extends BaseCommand {
   } as const;
   /** The NestJS application instance, available after successful bootstrap */
   private app?: NestExpressApplication;
+  /** Bound reference to the shutdown handler, used to identify our listener when removing NestJS's */
+  private boundShutdownHandler = (signal: NodeJS.Signals) => this.handleShutdownSignal(signal);
   /** Flag to prevent multiple shutdown attempts */
   private isShuttingDown = false;
 
@@ -189,7 +191,7 @@ export default class Serve extends BaseCommand {
     const shutdownSignals: NodeJS.Signals[] = ['SIGINT', 'SIGTERM'];
 
     for (const signal of shutdownSignals) {
-      process.on(signal, () => this.handleShutdownSignal(signal));
+      process.on(signal, this.boundShutdownHandler);
     }
   }
 
@@ -257,6 +259,21 @@ export default class Serve extends BaseCommand {
 
     try {
       this.app = await bootstrap({ express: expressApp } as BootstrapOptions);
+
+      // Remove NestJS's own SIGTERM/SIGINT listeners registered by enableShutdownHooks().
+      // serve.ts manages the shutdown sequence itself (drain requests → wait for processes → close app),
+      // so NestJS must not call app.close() independently on signal.
+      // enableShutdownHooks() remains in bootstrap.ts for other entry points (e.g., main.ts).
+      for (const signal of ['SIGTERM', 'SIGINT'] as const) {
+        const listeners = process.listeners(signal);
+        for (const listener of listeners) {
+          // Keep our own listener (registered in setupGracefulShutdown), remove NestJS's
+          if (listener !== this.boundShutdownHandler) {
+            process.removeListener(signal, listener as NodeJS.SignalsListener);
+          }
+        }
+      }
+
       currentBackendApp = createHealthProbe(this.app);
 
       this.log(`Process ID: ${process.pid}`);

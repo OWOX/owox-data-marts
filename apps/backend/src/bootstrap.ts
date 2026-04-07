@@ -60,6 +60,8 @@ export async function bootstrap(options: BootstrapOptions): Promise<NestExpressA
   setupGlobalPipes(app);
   setupSwagger(app, SWAGGER_PATH);
 
+  app.enableShutdownHooks();
+
   // Get ConfigService from the DI container to ensure it has access to all env variables
   const appConfigService = app.get(ConfigService);
   const port = appConfigService.get<number>('PORT') || DEFAULT_PORT;
