@@ -10,7 +10,6 @@ import PrevInsightsListView from '../../features/data-marts/insights-prev/compon
 import PrevInsightDetailsView from '../../features/data-marts/insights-prev/components/InsightDetailsView.tsx';
 import InsightsListView from '../../features/data-marts/insights/components/InsightsListView.tsx';
 import InsightDetailsView from '../../features/data-marts/insights/components/InsightDetailsView.tsx';
-import { DataMartRelationshipsContent } from '../../features/data-marts/edit/components/DataMartRelationships/DataMartRelationshipsContent.tsx';
 
 export const dataMartDetailsRoutes: RouteObject[] = [
   {
@@ -20,10 +19,6 @@ export const dataMartDetailsRoutes: RouteObject[] = [
   {
     path: 'data-setup',
     element: <DataMartDataSetupContent />,
-  },
-  {
-    path: 'relationships',
-    element: <DataMartRelationshipsContent />,
   },
   {
     path: 'insights',

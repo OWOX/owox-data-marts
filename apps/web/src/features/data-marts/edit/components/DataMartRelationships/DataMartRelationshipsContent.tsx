@@ -12,7 +12,7 @@ import { Tabs, TabsList, TabsTrigger } from '@owox/ui/components/tabs';
 import { List, Network, Plus, Route } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'react-hot-toast';
-import { useOutletContext } from 'react-router-dom';
+import { useDataMartContext } from '../../model/context/useDataMartContext';
 import { Button } from '../../../../../shared/components/Button';
 import {
   CollapsibleCard,
@@ -23,7 +23,7 @@ import {
 } from '../../../../../shared/components/CollapsibleCard';
 import { dataMartRelationshipService } from '../../../shared/services/data-mart-relationship.service';
 import type { DataMartRelationship } from '../../../shared/types/relationship.types';
-import type { DataMartContextType } from '../../model/context/types';
+
 import { RelationshipCanvas } from './RelationshipCanvas';
 import { RelationshipDialog } from './RelationshipDialog';
 import { RelationshipList } from './RelationshipList';
@@ -33,7 +33,7 @@ const VIEW_MODE_KEY = 'relationship-view-mode';
 const CONTENT_MIN_H = 480;
 
 export function DataMartRelationshipsContent() {
-  const { dataMart } = useOutletContext<DataMartContextType>();
+  const { dataMart } = useDataMartContext();
 
   const [relationships, setRelationships] = useState<DataMartRelationship[]>([]);
   const [isLoading, setIsLoading] = useState(false);

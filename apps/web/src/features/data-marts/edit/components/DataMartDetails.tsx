@@ -144,7 +144,6 @@ export function DataMartDetails({ id }: DataMartDetailsProps) {
   const navigation = [
     { name: 'Overview', path: 'overview' },
     { name: 'Data Setup', path: 'data-setup' },
-    { name: 'Relationships', path: 'relationships' },
     ...(shouldShowInsights ? [{ name: 'Insights', path: 'insights-v2' }] : []),
     { name: 'Destinations', path: 'reports' },
     { name: 'Triggers', path: 'triggers' },
