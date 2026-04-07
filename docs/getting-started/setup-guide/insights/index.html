@@ -125,7 +125,7 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
 <ul>
 <li><strong>The Data Mart is Published.</strong> Insights can only run against a published Data Mart. Draft Data Marts will block execution.</li>
 <li><strong>The Data Mart has an Output Schema.</strong> The schema is required for the AI Assistant to understand the available fields and generate accurate queries. The schema is populated automatically once the Data Mart is saved and its source is valid.</li>
-<li><strong>Your role is Editor or higher.</strong> Viewers can read and preview Insights, but creating, editing, running, and deleting Insights requires the <strong>Editor</strong> role.</li>
+<li><strong>Your role is Technical User or higher.</strong> Business Users can read and preview Insights, but creating, editing, running, and deleting Insights requires the <strong>Technical User</strong> role.</li>
 </ul>
 <hr>
 <div class="sl-heading-wrapper level-h2"><h2 id="how-insights-work">How Insights Work</h2><a class="sl-anchor-link" href="#how-insights-work"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24"><path fill="currentcolor" d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 0 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 1 0-1.42-1.42Zm8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 0 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 1 0 1.42 1.42l3.88-3.89a4.49 4.49 0 0 0 0-6.33ZM8.83 15.17a1 1 0 0 0 1.1.22 1 1 0 0 0 .32-.22l4.92-4.92a1 1 0 0 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42Z"></path></svg></span><span class="sr-only">Section titled “How Insights Work”</span></a></div>
@@ -265,7 +265,11 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
 
 
 
-<table><thead><tr><th>Action</th><th>Required Role</th></tr></thead><tbody><tr><td>View Insights and preview output</td><td>Viewer</td></tr><tr><td>Create, edit, delete Insights</td><td>Editor</td></tr><tr><td>Add or remove Data Artifacts</td><td>Editor</td></tr><tr><td>Run or cancel an Insight</td><td>Editor</td></tr><tr><td>Create or manage Reports</td><td>Editor</td></tr></tbody></table>
+
+
+
+
+<table><thead><tr><th>Action</th><th>Required Role</th></tr></thead><tbody><tr><td>View Insights and preview output</td><td>Business User</td></tr><tr><td>Create, edit, delete Insights</td><td>Technical User</td></tr><tr><td>Add or remove Data Artifacts</td><td>Technical User</td></tr><tr><td>Run or cancel an Insight</td><td>Technical User</td></tr><tr><td>Create and manage own Reports</td><td>Business User (owner)</td></tr><tr><td>Manage any Report (project-wide)</td><td>Technical User</td></tr></tbody></table>
 <div class="sl-heading-wrapper level-h2"><h2 id="limits">Limits</h2><a class="sl-anchor-link" href="#limits"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24"><path fill="currentcolor" d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 0 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 1 0-1.42-1.42Zm8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 0 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 1 0 1.42 1.42l3.88-3.89a4.49 4.49 0 0 0 0-6.33ZM8.83 15.17a1 1 0 0 0 1.1.22 1 1 0 0 0 .32-.22l4.92-4.92a1 1 0 0 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42Z"></path></svg></span><span class="sr-only">Section titled “Limits”</span></a></div>
 
 
