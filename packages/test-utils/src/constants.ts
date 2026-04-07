@@ -15,6 +15,16 @@ export const LOOKER_STUDIO_CREDENTIALS = {
 
 export const DEFAULT_CRON = '0 * * * *';
 
+export const GOOGLE_SHEETS_TEST_CONFIG = {
+  serviceAccountJson: process.env.GOOGLE_SHEETS_SERVICE_ACCOUNT_JSON,
+  spreadsheetId: process.env.TEST_GOOGLE_SPREADSHEET_ID,
+  sheetId: parseInt(process.env.TEST_GOOGLE_SHEET_ID ?? '0', 10),
+  sheetId2: parseInt(process.env.TEST_GOOGLE_SHEET_ID_2 ?? '1', 10),
+  isConfigured: !!(
+    process.env.GOOGLE_SHEETS_SERVICE_ACCOUNT_JSON && process.env.TEST_GOOGLE_SPREADSHEET_ID
+  ),
+} as const;
+
 export const ALL_CONNECTORS = [
   'BankOfCanada',
   'CriteoAds',

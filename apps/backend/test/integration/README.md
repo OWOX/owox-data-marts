@@ -3,13 +3,14 @@
 Tests that validate cloud database adapters against real APIs. These catch SDK version issues, permission problems, SQL dialect bugs, and data type mismatches that mocks and in-memory tests cannot detect.
 
 ## Directory Structure
-
-```text
+```
+text
 integration/
 ├── README.md                      # This file
 ├── setup-env.ts                   # Loads root .env.tests via dotenv (Jest setupFiles)
 ├── bigquery.integration.ts        # Google BigQuery: 6 tests (access, dry run, schema)
-└── athena.integration.ts          # AWS Athena: 6 tests (access, dry run, schema)
+├── athena.integration.ts          # AWS Athena: 6 tests (access, dry run, schema)
+└── google-sheets.integration.ts   # Google Sheets: 4 tests (metadata CRUD operations) - [NOT WORKING, DO NOT ENABLE ON CI]
 ```
 
 ## Running
@@ -18,10 +19,11 @@ integration/
 npm run test:integration -w @owox/backend
 ```
 
-- **Without credentials:** All 12 tests skip gracefully, exit code 0
-- **With BigQuery only:** 6 BQ pass, 6 Athena skip
-- **With Athena only:** 6 BQ skip, 6 Athena pass
-- **With both:** All 12 pass
+- **Without credentials:** All 16 tests skip gracefully, exit code 0
+- **With BigQuery only:** 6 BQ pass, 10 skip
+- **With Athena only:** 6 Athena pass, 10 skip
+- **With Google Sheets only:** 4 GS pass, 12 skip [Warning: These tests are currently not in working condition]
+- **With all credentials:** All 16 pass
 
 ## Credential Setup
 
@@ -46,6 +48,15 @@ ATHENA_REGION=eu-west-1
 ATHENA_OUTPUT_BUCKET=my-athena-results-bucket
 # Athena database name (must already exist — create via: CREATE DATABASE name)
 ATHENA_DATABASE=my_test_database
+
+# === Google Sheets ===
+# JSON string of a GCP service account key with Google Sheets API access
+GOOGLE_SHEETS_SERVICE_ACCOUNT_JSON={"type":"service_account","project_id":"...","private_key":"-----BEGIN PRIVATE KEY-----\n...","client_email":"...@...iam.gserviceaccount.com","token_uri":"https://oauth2.googleapis.com/token"}
+# Google Spreadsheet ID for testing (must be accessible by the service account)
+TEST_GOOGLE_SPREADSHEET_ID=your_spreadsheet_id_here
+# Sheet IDs within the spreadsheet (typically 0, 1, 2, etc.)
+TEST_GOOGLE_SHEET_ID=0
+TEST_GOOGLE_SHEET_ID_2=1
 ```
 
 ### Minimum Cloud Permissions
@@ -56,7 +67,13 @@ ATHENA_DATABASE=my_test_database
 - `bigquery.jobs.create` (on project)
 - `bigquery.tables.getData` / `bigquery.tables.get` (on dataset)
 
-**AWS IAM user:**
+**Google Sheets service account:**
+
+- `sheets.spreadsheets.get` (read metadata)
+- `sheets.spreadsheets.batchUpdate` (create/update/delete developer metadata)
+- Share the test spreadsheet with the service account email
+
+**Athena IAM user:**
 
 - `athena:StartQueryExecution`, `athena:GetQueryExecution`, `athena:GetQueryResults`
 - `s3:GetObject`, `s3:PutObject`, `s3:DeleteObject`, `s3:ListBucket` (on output bucket)
@@ -137,6 +154,39 @@ Loaded by Jest via `setupFiles` in `jest-integration.json`. Runs before any test
 - **Pre-cleanup:** Always `DROP TABLE IF EXISTS` before creating — handles leftover state from crashed/interrupted test runs
 - **Manual dependency wiring:** Same as BigQuery — `AthenaApiAdapterFactory`, `S3ApiAdapterFactory`, `AthenaQueryBuilder`, `AthenaDataMartSchemaProvider` instantiated directly
 
+### `google-sheets.integration.ts` — 4 tests
+
+> [!WARNING]
+> These tests are currently not in working condition and should not be enabled on CI. They require additional setup and configuration.
+
+**Setup (`beforeAll`, 60s timeout):**
+
+- Create Google Sheets destination via API with service account credentials
+- Store destination ID for use in report creation
+
+**Teardown (`afterAll`, 60s timeout):**
+
+- Fetch all `OWOX_REPORT_META` developer metadata from the test spreadsheet
+- Delete each metadata entry via `batchUpdate` API
+- Wrapped in `try/catch` — cleanup failure doesn't fail the test run
+
+**Tests:**
+
+| #   | Test                                             | What It Validates                                                                                          |
+| --- | ------------------------------------------------ | ---------------------------------------------------------------------------------------------------------- |
+| 1   | Create developer metadata on report run          | Running a report creates `OWOX_REPORT_META` with correct `reportId`, `dataMartId`, `projectId`            |
+| 2   | Update metadata on re-run                        | Re-running the same report maintains metadata integrity                                                    |
+| 3   | Handle multiple reports on different sheets      | Multiple reports on different sheets create separate metadata entries with correct sheet IDs               |
+| 4   | Delete metadata when report is deleted           | Deleting a report removes its corresponding developer metadata from Google Sheets                          |
+
+**Key patterns:**
+
+- **Async processing wait:** Tests include `setTimeout(5000)` to allow async report execution to complete
+- **Metadata structure:** `OWOX_REPORT_META` contains JSON with `reportId`, `dataMartId`, `projectId`
+- **Sheet-specific metadata:** Each sheet has its own metadata entry identified by `location.sheetId`
+- **Automatic cleanup:** `afterAll` removes all test metadata to avoid accumulation
+- **Graceful skip:** If credentials not configured, entire suite skips with console message
+
 ## Adding a New Integration Test
 
 1. Create `your-service.integration.ts` in this directory
@@ -185,3 +235,12 @@ Use backticks for DROP TABLE: `` `database`.`table` ``. Double quotes are only f
 
 **Leftover test tables:**
 If a test run crashes mid-execution, tables may remain. The pre-cleanup in `beforeAll` handles this on the next run. To manually clean up, run `DROP TABLE IF EXISTS ...` in the respective console.
+
+**Google Sheets "Spreadsheet not found":**
+Ensure the spreadsheet ID is correct and the service account has been granted access to the spreadsheet (share it with the service account email).
+
+**Google Sheets "Insufficient permissions":**
+Verify the service account has the `https://www.googleapis.com/auth/spreadsheets` scope and the Sheets API is enabled in the GCP project.
+
+**Google Sheets metadata not appearing:**
+The report run is async. Increase the `setTimeout` wait time if tests fail due to timing issues. Check backend logs for report execution errors.

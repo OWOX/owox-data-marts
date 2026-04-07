@@ -76,6 +76,71 @@ export class GoogleSheetsApiAdapter {
   }
 
   /**
+   * Retrieves developer metadata from a spreadsheet
+   *
+   * @param spreadsheetId - ID of the spreadsheet
+   * @param sheetId - Optional sheet ID to filter metadata
+   * @returns Array of developer metadata objects
+   */
+  public async getDeveloperMetadata(
+    spreadsheetId: string,
+    sheetId?: number
+  ): Promise<sheets_v4.Schema$DeveloperMetadata[]> {
+    const metadataFields = 'metadataId,metadataKey,metadataValue,location,visibility';
+    const response = await this.executeWithRetry(() =>
+      this.service.spreadsheets.get({
+        spreadsheetId,
+        includeGridData: false,
+        fields: [
+          `developerMetadata(${metadataFields})`,
+          `sheets(properties.sheetId,developerMetadata(${metadataFields}))`,
+        ].join(','),
+      })
+    );
+
+    // Merge spreadsheet-level and sheet-level metadata
+    const spreadsheetMetadata = response.data.developerMetadata ?? [];
+    const sheetMetadata = (response.data.sheets ?? []).flatMap(s => s.developerMetadata ?? []);
+
+    let metadata = [...spreadsheetMetadata, ...sheetMetadata];
+
+    if (sheetId !== undefined) {
+      metadata = metadata.filter(m => m.location?.sheetId === sheetId);
+    }
+
+    return metadata;
+  }
+
+  /**
+   * Finds OWOX report metadata by key and sheet
+   *
+   * @param metadata - Array of developer metadata
+   * @returns Found OWOX metadata or undefined
+   */
+  public findOwoxReportMetadata(
+    metadata: sheets_v4.Schema$DeveloperMetadata[]
+  ): sheets_v4.Schema$DeveloperMetadata | undefined {
+    return metadata.find(m => m.metadataKey === 'OWOX_REPORT_META');
+  }
+
+  /**
+   * Finds ALL OWOX report metadata entries for a specific sheet
+   * Used to detect and clean up duplicate metadata entries
+   *
+   * @param metadata - Array of developer metadata
+   * @param sheetId - Sheet ID to filter by
+   * @returns Array of all OWOX metadata entries for the specified sheet
+   */
+  public findAllOwoxReportMetadataForSheet(
+    metadata: sheets_v4.Schema$DeveloperMetadata[],
+    sheetId: number
+  ): sheets_v4.Schema$DeveloperMetadata[] {
+    return metadata.filter(
+      m => m.metadataKey === 'OWOX_REPORT_META' && m.location?.sheetId === sheetId
+    );
+  }
+
+  /**
    * Finds a sheet by its ID within a spreadsheet
    */
   public findSheetById(
@@ -151,6 +216,37 @@ export class GoogleSheetsApiAdapter {
         requestBody: { requests },
       })
     );
+  }
+
+  /**
+   * Builds delete requests for developer metadata without executing them.
+   * Use this to combine deletion with other operations in a single batchUpdate call.
+   *
+   * @param metadataIds - Array of metadata IDs to delete
+   */
+  public buildDeleteDeveloperMetadataRequests(metadataIds: number[]): sheets_v4.Schema$Request[] {
+    return metadataIds.map(metadataId => ({
+      deleteDeveloperMetadata: {
+        dataFilter: {
+          developerMetadataLookup: {
+            metadataId,
+          },
+        },
+      },
+    }));
+  }
+
+  /**
+   * Deletes developer metadata from a spreadsheet
+   *
+   * @param spreadsheetId - ID of the spreadsheet
+   * @param metadataIds - Array of metadata IDs to delete
+   */
+  public async deleteDeveloperMetadata(
+    spreadsheetId: string,
+    metadataIds: number[]
+  ): Promise<void> {
+    await this.batchUpdate(spreadsheetId, this.buildDeleteDeveloperMetadataRequests(metadataIds));
   }
 
   /**
