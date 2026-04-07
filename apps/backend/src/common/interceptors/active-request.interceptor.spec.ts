@@ -1,3 +1,4 @@
+import { EventEmitter } from 'events';
 import { ExecutionContext, CallHandler } from '@nestjs/common';
 import { Observable, of, throwError } from 'rxjs';
 import { ActiveRequestInterceptor } from './active-request.interceptor';
@@ -21,15 +22,23 @@ describe('ActiveRequestInterceptor', () => {
     );
   });
 
-  function createMockContext(method = 'GET', url = '/test'): ExecutionContext {
+  function createMockRequest(
+    method = 'GET',
+    path = '/test'
+  ): EventEmitter & { method: string; path: string } {
+    const emitter = new EventEmitter();
+    return Object.assign(emitter, { method, path });
+  }
+
+  function createMockContext(request: ReturnType<typeof createMockRequest>): ExecutionContext {
     return {
       switchToHttp: () => ({
-        getRequest: () => ({ method, url }),
+        getRequest: () => request,
       }),
     } as unknown as ExecutionContext;
   }
 
-  // Use Observable constructor to avoid rxjs version mismatch between
+  // Use Observable constructor to work around rxjs version mismatch between
   // root (7.8.2) and backend (7.8.1) node_modules for CallHandler typing
   function createCallHandler(source: Observable<unknown>): CallHandler {
     return {
@@ -44,8 +53,9 @@ describe('ActiveRequestInterceptor', () => {
     } as unknown as CallHandler;
   }
 
-  it('should register active process on intercept', done => {
-    const context = createMockContext('POST', '/api/external/looker/get-data');
+  it('should register active process with request path (not url) on intercept', done => {
+    const request = createMockRequest('POST', '/api/external/looker/get-data');
+    const context = createMockContext(request);
     const handler = createCallHandler(of('ok'));
 
     interceptor.intercept(context, handler).subscribe({
@@ -59,7 +69,8 @@ describe('ActiveRequestInterceptor', () => {
   });
 
   it('should unregister active process on successful completion', done => {
-    const context = createMockContext();
+    const request = createMockRequest();
+    const context = createMockContext(request);
     const handler = createCallHandler(of('ok'));
 
     interceptor.intercept(context, handler).subscribe({
@@ -73,7 +84,8 @@ describe('ActiveRequestInterceptor', () => {
   });
 
   it('should unregister active process on error', done => {
-    const context = createMockContext();
+    const request = createMockRequest();
+    const context = createMockContext(request);
     const error = new Error('test error');
     const handler = createCallHandler(throwError(() => error));
 
@@ -87,8 +99,44 @@ describe('ActiveRequestInterceptor', () => {
     });
   });
 
+  it('should unregister active process on client disconnect', () => {
+    const request = createMockRequest();
+    const context = createMockContext(request);
+    // Create a handler that never completes (simulates long-running streaming)
+    const handler = createCallHandler(new Observable(() => {}));
+
+    interceptor.intercept(context, handler).subscribe();
+
+    expect(shutdownService.registerActiveProcess).toHaveBeenCalledTimes(1);
+    expect(shutdownService.unregisterActiveProcess).not.toHaveBeenCalled();
+
+    // Simulate client disconnect
+    request.emit('close');
+
+    expect(shutdownService.unregisterActiveProcess).toHaveBeenCalledTimes(1);
+  });
+
+  it('should only unregister once even if both close event and complete fire', done => {
+    const request = createMockRequest();
+    const context = createMockContext(request);
+    const handler = createCallHandler(of('ok'));
+
+    interceptor.intercept(context, handler).subscribe({
+      complete: () => {
+        // Observable completed → cleanup called once
+        // Now simulate close event firing after completion
+        request.emit('close');
+
+        // Should still be called only once due to the cleaned flag
+        expect(shutdownService.unregisterActiveProcess).toHaveBeenCalledTimes(1);
+        done();
+      },
+    });
+  });
+
   it('should generate unique process IDs for concurrent requests', () => {
-    const context = createMockContext();
+    const request = createMockRequest();
+    const context = createMockContext(request);
     const handler = createCallHandler(of('ok'));
 
     interceptor.intercept(context, handler).subscribe();
