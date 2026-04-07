@@ -15,13 +15,7 @@ import {
   FormMessage,
 } from '@owox/ui/components/form';
 import { Input } from '@owox/ui/components/input';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@owox/ui/components/select';
+import { Combobox } from '../../../../../shared/components/Combobox/combobox';
 import { Separator } from '@owox/ui/components/separator';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@owox/ui/components/tooltip';
 import { cn } from '@owox/ui/lib/utils';
@@ -306,22 +300,16 @@ export function RelationshipDialog({
                     </Tooltip>
                   </FormLabel>
                   <FormControl>
-                    <Select
+                    <Combobox
+                      options={availableDMs.map(dm => ({
+                        value: dm.id,
+                        label: dm.title,
+                      }))}
                       value={field.value}
                       onValueChange={field.onChange}
+                      placeholder='Select a Data Mart...'
                       disabled={isEdit || isLoadingDMs}
-                    >
-                      <SelectTrigger className='w-full'>
-                        <SelectValue placeholder='Select a Data Mart...' />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {availableDMs.map(dm => (
-                          <SelectItem key={dm.id} value={dm.id}>
-                            {dm.title}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    />
                   </FormControl>
                   <FormMessage />
                   {watchedTargetId && !isLoadingTarget && targetDM && (
@@ -403,26 +391,29 @@ export function RelationshipDialog({
                               Source field
                             </FormLabel>
                             <FormControl>
-                              <Select value={field.value} onValueChange={field.onChange}>
-                                <SelectTrigger
-                                  className={cn('w-full', mismatch && 'border-destructive')}
-                                  title={field.value || undefined}
-                                >
-                                  <SelectValue placeholder='Select field...' />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  {sourceFields.map(f => (
-                                    <SelectItem key={f.name} value={f.name}>
-                                      <span className='flex w-full items-center justify-between gap-2'>
-                                        <span className='truncate'>{f.name}</span>
+                              <Combobox
+                                options={sourceFields.map(f => ({
+                                  value: f.name,
+                                  label: f.name,
+                                }))}
+                                value={field.value}
+                                onValueChange={field.onChange}
+                                placeholder='Select field...'
+                                className={cn(mismatch && 'border-destructive')}
+                                renderLabel={option => {
+                                  const f = sourceFields.find(sf => sf.name === option.value);
+                                  return (
+                                    <span className='flex min-w-0 flex-1 items-center justify-between gap-2'>
+                                      <span className='truncate'>{option.label}</span>
+                                      {f && (
                                         <span className='text-muted-foreground shrink-0 text-xs'>
                                           {f.type}
                                         </span>
-                                      </span>
-                                    </SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
+                                      )}
+                                    </span>
+                                  );
+                                }}
+                              />
                             </FormControl>
                             <FormMessage />
                           </FormItem>
@@ -442,30 +433,30 @@ export function RelationshipDialog({
                               Related field
                             </FormLabel>
                             <FormControl>
-                              <Select
+                              <Combobox
+                                options={targetFields.map(f => ({
+                                  value: f.name,
+                                  label: f.name,
+                                }))}
                                 value={field.value}
                                 onValueChange={field.onChange}
+                                placeholder='Select field...'
                                 disabled={!watchedTargetId || isLoadingTarget}
-                              >
-                                <SelectTrigger
-                                  className={cn('w-full', mismatch && 'border-destructive')}
-                                  title={field.value || undefined}
-                                >
-                                  <SelectValue placeholder='Select field...' />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  {targetFields.map(f => (
-                                    <SelectItem key={f.name} value={f.name}>
-                                      <span className='flex w-full items-center justify-between gap-2'>
-                                        <span className='truncate'>{f.name}</span>
+                                className={cn(mismatch && 'border-destructive')}
+                                renderLabel={option => {
+                                  const f = targetFields.find(tf => tf.name === option.value);
+                                  return (
+                                    <span className='flex min-w-0 flex-1 items-center justify-between gap-2'>
+                                      <span className='truncate'>{option.label}</span>
+                                      {f && (
                                         <span className='text-muted-foreground shrink-0 text-xs'>
                                           {f.type}
                                         </span>
-                                      </span>
-                                    </SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
+                                      )}
+                                    </span>
+                                  );
+                                }}
+                              />
                             </FormControl>
                             <FormMessage />
                           </FormItem>
