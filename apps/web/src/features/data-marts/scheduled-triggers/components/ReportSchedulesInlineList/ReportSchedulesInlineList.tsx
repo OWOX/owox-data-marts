@@ -251,7 +251,7 @@ export const ReportSchedulesInlineList = forwardRef<
           <div
             key={`${it.id ?? 'new'}:${String(idx)}`}
             className={
-              'border-border flex flex-col gap-1.5 rounded-md border-b bg-white px-4 py-3 transition-shadow duration-200 hover:shadow-sm dark:border-transparent dark:bg-white/4'
+              'border-border flex flex-col gap-1.5 rounded-md border-b bg-white px-4 py-3 transition-shadow duration-200 hover:shadow-sm dark:border-white/4 dark:bg-white/4'
             }
           >
             <div className='mb-2 flex items-center justify-between'>
@@ -351,7 +351,7 @@ export const ReportSchedulesInlineList = forwardRef<
       ) : (
         <div
           className={
-            'border-border flex flex-col gap-1.5 rounded-md border-b bg-white px-4 py-3 transition-shadow duration-200 hover:shadow-sm dark:border-transparent dark:bg-white/4'
+            'border-border flex flex-col gap-1.5 rounded-md border-b bg-white px-4 py-3 transition-shadow duration-200 hover:shadow-sm dark:border-white/4 dark:bg-white/4'
           }
         >
           <ScheduleConfig

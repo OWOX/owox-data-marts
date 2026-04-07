@@ -101,7 +101,7 @@ function FormItem({ className = '', variant = 'default', ...props }: FormItemPro
         data-slot='form-item'
         className={cn(
           variant === 'default' &&
-            'group border-border flex flex-col gap-2 rounded-md border-b bg-white px-4 py-3 transition-shadow duration-200 hover:shadow-sm dark:border-transparent dark:bg-white/4',
+            'group border-border flex flex-col gap-2 rounded-md border-b bg-white px-4 py-3 transition-shadow duration-200 hover:shadow-sm dark:border-white/4 dark:bg-white/4',
           variant === 'light' && '',
           className
         )}

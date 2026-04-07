@@ -19,6 +19,7 @@ import {
 } from './DataStorageTableFilters.config';
 import { DataStorageTableFilters } from './DataStorageTableFilters';
 import { useParams } from 'react-router-dom';
+import { InviteTeammatesCard } from '../../../../../shared/components/InviteTeammatesCard';
 
 interface DataStorageTableProps<TData, TValue> {
   columns: ColumnDef<TData, TValue>[];
@@ -87,8 +88,15 @@ export function DataStorageTable<TData, TValue>({
 
   if (!data.length) {
     return (
-      <div className='dm-card'>
-        <EmptyDataStoragesState onOpenTypeDialog={onOpenTypeDialog} />
+      <div className='flex flex-col gap-0.5'>
+        <div className='dm-card'>
+          <EmptyDataStoragesState onOpenTypeDialog={onOpenTypeDialog} />
+        </div>
+        <InviteTeammatesCard
+          hint='— Not sure which storage to connect? Ask someone with access to help you'
+          docsLabel='Learn more about Storages'
+          docsHref='https://docs.owox.com/docs/storages/manage-storages/'
+        />
       </div>
     );
   }

@@ -107,7 +107,7 @@ function AppWizardStepItem({
     <div
       data-slot='wizard-step-item'
       className={cn(
-        'group border-border flex flex-col gap-2 rounded-md border-b bg-white px-4 py-3 transition-shadow duration-200 hover:shadow-sm dark:border-transparent dark:bg-white/4',
+        'group border-border flex flex-col gap-2 rounded-md border-b bg-white px-4 py-3 transition-shadow duration-200 hover:shadow-sm dark:border-white/4 dark:bg-white/4',
         className
       )}
       {...props}
@@ -141,7 +141,7 @@ function AppWizardStepItemOneOf({
     <div
       data-slot='wizard-step-item-one-of'
       className={cn(
-        'group border-border flex flex-col gap-2 rounded-md border-b bg-white px-4 py-3 transition-shadow duration-200 hover:shadow-sm dark:border-transparent dark:bg-white/4',
+        'group border-border flex flex-col gap-2 rounded-md border-b bg-white px-4 py-3 transition-shadow duration-200 hover:shadow-sm dark:border-white/4 dark:bg-white/4',
         className
       )}
       {...props}
@@ -435,7 +435,7 @@ function AppWizardGridItem({
   return (
     <div
       className={cn(
-        'border-border flex items-center gap-4 rounded-md border-b bg-white px-4 py-3 transition-shadow duration-200 select-none hover:shadow-sm dark:border-transparent dark:bg-white/4',
+        'border-border flex items-center gap-4 rounded-md border-b bg-white px-4 py-3 transition-shadow duration-200 select-none hover:shadow-sm dark:border-white/4 dark:bg-white/4',
         disabled
           ? 'cursor-not-allowed opacity-50 hover:shadow-none'
           : 'cursor-pointer hover:shadow-sm dark:hover:bg-white/8',

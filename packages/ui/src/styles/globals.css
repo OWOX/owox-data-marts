@@ -238,7 +238,7 @@
 
 /* DM Card */
 .dm-card {
-  @apply bg-muted/50 rounded-md border-b border-gray-200 p-4 dark:border-white/8 dark:bg-white/4;
+  @apply bg-muted/50 rounded-md border-b border-gray-200 p-4 dark:border-white/4 dark:bg-white/4;
 }
 .dm-card-table-body-row-actionbtn {
   @apply h-8 transition-colors transition-shadow duration-200 hover:bg-white hover:shadow-xs dark:hover:bg-white/4;
@@ -249,7 +249,7 @@
 
 /* DM Empty State Block */
 .dm-empty-state {
-  @apply flex flex-col items-center justify-center px-4 pt-22 pb-24;
+  @apply flex flex-col items-center justify-center px-4 py-24;
 }
 .dm-empty-state-ico {
   @apply mb-6 h-16 w-16 text-neutral-400 dark:text-neutral-300;

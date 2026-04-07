@@ -39,7 +39,7 @@ export function AuthenticationSectionHeader({
         {copyButton}
       </div>
       {selectedSource && onSourceClear && (
-        <div className='group border-border flex flex-col gap-2 rounded-md border-b bg-white px-4 py-3 transition-shadow duration-200 hover:shadow-sm dark:border-transparent dark:bg-white/4'>
+        <div className='group border-border flex flex-col gap-2 rounded-md border-b bg-white px-4 py-3 transition-shadow duration-200 hover:shadow-sm dark:border-white/4 dark:bg-white/4'>
           <span className='text-foreground flex items-center justify-between gap-2 text-sm font-medium'>
             <span>Credentials will be copied from</span>
             <Tooltip>

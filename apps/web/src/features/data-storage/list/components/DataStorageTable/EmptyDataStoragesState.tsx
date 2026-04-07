@@ -5,10 +5,9 @@ export function EmptyDataStoragesState({ onOpenTypeDialog }: { onOpenTypeDialog?
   return (
     <div className='dm-empty-state'>
       <DatabaseZap className='dm-empty-state-ico' strokeWidth={1} />
-      <h2 className='dm-empty-state-title'>Create your first Storage</h2>
+      <h2 className='dm-empty-state-title'>Connect your data warehouse</h2>
       <p className='dm-empty-state-subtitle'>
-        A Storage combines your data warehouse and access credentials — both required to start
-        building Data Marts.
+        Centralize access to raw data by connecting data warehouse to build Data Marts and reports.
       </p>
       <Button variant='outline' onClick={onOpenTypeDialog}>
         <Plus className='h-4 w-4' />

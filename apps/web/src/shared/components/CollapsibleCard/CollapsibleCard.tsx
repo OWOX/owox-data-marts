@@ -67,9 +67,9 @@ export function CollapsibleCard({
 
   const cardVariants = {
     default:
-      'rounded-md p-0 gap-0 bg-muted/50 dark:bg-white/4 border-0 border-b border-gray-200 dark:border-white/8 shadow-none',
+      'rounded-md p-0 gap-0 bg-muted/50 dark:bg-white/4 border-0 border-b border-gray-200 dark:border-white/4 shadow-none',
     dense:
-      'rounded-md p-0 gap-0 bg-muted/50 dark:bg-white/4 border-0 border-b border-gray-200 dark:border-white/8 shadow-none text-sm',
+      'rounded-md p-0 gap-0 bg-muted/50 dark:bg-white/4 border-0 border-b border-gray-200 dark:border-white/4 shadow-none text-sm',
     flat: 'rounded-md p-0 gap-0 border-0 border-b-0 shadow-none',
   };
 
