@@ -19,7 +19,7 @@ export function DataStorageHealthStatusView({ status, errorMessage }: Props) {
   return (
     <div className='flex items-center gap-2 text-sm text-red-500'>
       <TriangleAlert className='size-4' />
-      <span>{errorMessage}</span>
+      <span>{errorMessage ?? 'Access validation failed'}</span>
     </div>
   );
 }
