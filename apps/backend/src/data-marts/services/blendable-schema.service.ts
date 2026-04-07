@@ -25,14 +25,15 @@ function flattenSchemaFields(fields: RawSchemaField[], prefix = ''): FlatSchemaF
   const result: FlatSchemaField[] = [];
   for (const field of fields) {
     const fullName = prefix ? `${prefix}.${field.name}` : field.name;
-    result.push({
-      name: fullName,
-      type: field.type,
-      alias: field.alias,
-      description: field.description,
-    });
-    if (field.fields && Array.isArray(field.fields)) {
+    if (field.fields && field.fields.length > 0) {
       result.push(...flattenSchemaFields(field.fields, fullName));
+    } else {
+      result.push({
+        name: fullName,
+        type: field.type,
+        alias: field.alias,
+        description: field.description,
+      });
     }
   }
   return result;

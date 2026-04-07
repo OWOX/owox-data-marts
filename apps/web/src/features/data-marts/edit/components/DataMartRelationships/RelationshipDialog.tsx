@@ -71,13 +71,14 @@ function flattenFields(fields: RawSchemaField[], prefix = ''): FlatField[] {
   const result: FlatField[] = [];
   for (const field of fields) {
     const fullName = prefix ? `${prefix}.${field.name}` : field.name;
-    result.push({
-      name: fullName,
-      type: field.type,
-      isHiddenForReporting: field.isHiddenForReporting,
-    });
-    if (field.fields && Array.isArray(field.fields)) {
+    if (field.fields && field.fields.length > 0) {
       result.push(...flattenFields(field.fields, fullName));
+    } else {
+      result.push({
+        name: fullName,
+        type: field.type,
+        isHiddenForReporting: field.isHiddenForReporting,
+      });
     }
   }
   return result;
