@@ -15,11 +15,12 @@ import {
   TableRow,
 } from '@owox/ui/components/table';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@owox/ui/components/tooltip';
-import { GitMerge, Trash2 } from 'lucide-react';
+import { ExternalLink, GitMerge, Info, Trash2 } from 'lucide-react';
 import { useState } from 'react';
 import { Button } from '../../../../../shared/components/Button';
 import { ConfirmationDialog } from '../../../../../shared/components/ConfirmationDialog';
 import { UserReference } from '../../../../../shared/components/UserReference';
+import { useProjectRoute } from '../../../../../shared/hooks/useProjectRoute';
 import type {
   DataMartRelationship,
   TransientRelationshipRow,
@@ -32,6 +33,7 @@ interface RelationshipListProps {
 }
 
 export function RelationshipList({ rows, onEdit, onDelete }: RelationshipListProps) {
+  const { scope } = useProjectRoute();
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
 
@@ -101,7 +103,7 @@ export function RelationshipList({ rows, onEdit, onDelete }: RelationshipListPro
             <TableHead className='bg-secondary dark:bg-background cursor-default'>
               Created By
             </TableHead>
-            <TableHead className='bg-secondary dark:bg-background w-12' />
+            <TableHead className='bg-secondary dark:bg-background w-20' />
           </TableRow>
         </TableHeader>
         <TableBody className='bg-background'>
@@ -112,7 +114,7 @@ export function RelationshipList({ rows, onEdit, onDelete }: RelationshipListPro
             return (
               <TableRow
                 key={`${rel.id}-${idx}`}
-                className={isTransient ? 'cursor-default opacity-60' : 'group cursor-pointer'}
+                className={isTransient ? 'group cursor-default opacity-60' : 'group cursor-pointer'}
                 onClick={
                   isTransient
                     ? undefined
@@ -122,7 +124,10 @@ export function RelationshipList({ rows, onEdit, onDelete }: RelationshipListPro
                 }
               >
                 <TableCell className='font-medium'>
-                  <span style={{ paddingLeft: isTransient ? (row.depth - 1) * 24 : 0 }}>
+                  <span
+                    className='inline-flex items-center'
+                    style={{ paddingLeft: isTransient ? (row.depth - 1) * 24 : 0 }}
+                  >
                     {isTransient && (
                       <span className='text-muted-foreground mr-1.5 text-xs'>{'\u21B3'}</span>
                     )}
@@ -134,6 +139,23 @@ export function RelationshipList({ rows, onEdit, onDelete }: RelationshipListPro
                       >
                         {rel.targetDataMart.status === 'DRAFT' ? 'Draft' : 'Blocked'}
                       </Badge>
+                    )}
+                    {rel.targetDataMart.description && (
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <span
+                            className='text-muted-foreground ml-1.5 inline-flex cursor-default'
+                            onClick={e => {
+                              e.stopPropagation();
+                            }}
+                          >
+                            <Info className='h-3.5 w-3.5' />
+                          </span>
+                        </TooltipTrigger>
+                        <TooltipContent side='top' className='max-w-xs'>
+                          {rel.targetDataMart.description}
+                        </TooltipContent>
+                      </Tooltip>
                     )}
                   </span>
                 </TableCell>
@@ -164,7 +186,7 @@ export function RelationshipList({ rows, onEdit, onDelete }: RelationshipListPro
                   )}
                 </TableCell>
                 <TableCell>
-                  {!isTransient && (
+                  <div className='flex items-center justify-end gap-0.5 opacity-0 transition-opacity group-hover:opacity-100'>
                     <Tooltip>
                       <TooltipTrigger asChild>
                         <Button
@@ -172,17 +194,39 @@ export function RelationshipList({ rows, onEdit, onDelete }: RelationshipListPro
                           size='sm'
                           onClick={e => {
                             e.stopPropagation();
-                            setDeletingId(rel.id);
+                            window.open(
+                              scope(`/data-marts/${rel.targetDataMart.id}/data-setup`),
+                              '_blank'
+                            );
                           }}
-                          aria-label='Delete relationship'
-                          className='text-destructive hover:text-destructive cursor-pointer opacity-0 transition-opacity group-hover:opacity-100'
+                          aria-label='Open data mart'
+                          className='cursor-pointer'
                         >
-                          <Trash2 className='h-3.5 w-3.5' />
+                          <ExternalLink className='h-3.5 w-3.5' />
                         </Button>
                       </TooltipTrigger>
-                      <TooltipContent>Delete relationship</TooltipContent>
+                      <TooltipContent>Open data mart</TooltipContent>
                     </Tooltip>
-                  )}
+                    {!isTransient && (
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button
+                            variant='ghost'
+                            size='sm'
+                            onClick={e => {
+                              e.stopPropagation();
+                              setDeletingId(rel.id);
+                            }}
+                            aria-label='Delete relationship'
+                            className='text-destructive hover:text-destructive cursor-pointer'
+                          >
+                            <Trash2 className='h-3.5 w-3.5' />
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>Delete relationship</TooltipContent>
+                      </Tooltip>
+                    )}
+                  </div>
                 </TableCell>
               </TableRow>
             );
