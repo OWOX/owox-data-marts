@@ -43,10 +43,6 @@ export interface ReportColumnPickerProps {
 
 const BLENDABLE_SCHEMA_QUERY_KEY = 'blendable-schema';
 
-/**
- * Column picker for report configuration.
- * Allows selecting which columns to export: all native (default) or a custom subset.
- */
 export function ReportColumnPicker({
   dataMartId,
   value,
@@ -61,11 +57,24 @@ export function ReportColumnPicker({
     enabled: !!dataMartId,
   });
 
+  // Only show blended fields from included sources
+  const includedPaths = useMemo(() => {
+    if (!schema?.availableSources) return new Set<string>();
+    return new Set(schema.availableSources.filter(s => s.isIncluded).map(s => s.aliasPath));
+  }, [schema]);
+
+  const includedBlendedFields = useMemo(() => {
+    if (!schema) return [];
+    return schema.blendedFields.filter(
+      f => includedPaths.has(f.aliasPath) && !f.isHidden
+    );
+  }, [schema, includedPaths]);
+
   const hasBlendedSelection = useMemo(() => {
     if (!schema || value === null) return false;
-    const blendedNames = new Set(schema.blendedFields.map(f => f.name));
+    const blendedNames = new Set(includedBlendedFields.map(f => f.name));
     return value.some(name => blendedNames.has(name));
-  }, [schema, value]);
+  }, [schema, value, includedBlendedFields]);
 
   useEffect(() => {
     onBlendedSelectionChange?.(hasBlendedSelection);
@@ -75,7 +84,6 @@ export function ReportColumnPicker({
     if (newMode === 'default') {
       onChange(null);
     } else {
-      // Start with all native fields selected
       const nativeFields = flattenNativeFields((schema?.nativeFields ?? []) as NativeField[]);
       onChange(nativeFields.map(f => f.name));
     }
@@ -111,21 +119,21 @@ export function ReportColumnPicker({
 
   function selectAllBlended() {
     if (!schema) return;
-    const blendedNames = schema.blendedFields.map(f => f.name);
+    const blendedNames = includedBlendedFields.map(f => f.name);
     const currentNative = (value ?? []).filter(name => !blendedNames.includes(name));
     onChange([...currentNative, ...blendedNames]);
   }
 
   function deselectAllBlended() {
     if (!schema) return;
-    const blendedNames = new Set(schema.blendedFields.map(f => f.name));
+    const blendedNames = new Set(includedBlendedFields.map(f => f.name));
     onChange((value ?? []).filter(name => !blendedNames.has(name)));
   }
 
   const nativeFields: NativeField[] =
     mode === 'custom' && schema ? flattenNativeFields(schema.nativeFields as NativeField[]) : [];
 
-  const blendedFields: BlendedField[] = mode === 'custom' && schema ? schema.blendedFields : [];
+  const blendedFields: BlendedField[] = mode === 'custom' ? includedBlendedFields : [];
 
   const selectedNativeCount = nativeFields.filter(f => isChecked(f.name)).length;
   const selectedBlendedCount = blendedFields.filter(f => isChecked(f.name)).length;
@@ -142,18 +150,18 @@ export function ReportColumnPicker({
   const groupedBlendedFields = useMemo(() => {
     const groupMap = new Map<
       string,
-      { sourceRelationshipId: string; title: string; alias: string; fields: BlendedField[] }
+      { aliasPath: string; title: string; alias: string; fields: BlendedField[] }
     >();
     for (const field of visibleBlendedFields) {
-      let group = groupMap.get(field.sourceRelationshipId);
+      let group = groupMap.get(field.aliasPath);
       if (!group) {
         group = {
-          sourceRelationshipId: field.sourceRelationshipId,
+          aliasPath: field.aliasPath,
           title: field.sourceDataMartTitle,
-          alias: field.targetAlias,
+          alias: field.outputPrefix,
           fields: [],
         };
-        groupMap.set(field.sourceRelationshipId, group);
+        groupMap.set(field.aliasPath, group);
       }
       group.fields.push(field);
     }
@@ -218,7 +226,6 @@ export function ReportColumnPicker({
             Selected only
           </label>
 
-          {/* Native Fields group */}
           <div className='space-y-2'>
             <div className='flex items-center justify-between'>
               <span className='text-sm font-medium'>
@@ -281,7 +288,6 @@ export function ReportColumnPicker({
             )}
           </div>
 
-          {/* Blendable Fields group */}
           {blendedFields.length > 0 && (!showSelectedOnly || selectedBlendedCount > 0) && (
             <div className='space-y-2'>
               <div className='flex items-center justify-between'>
@@ -312,7 +318,7 @@ export function ReportColumnPicker({
 
               <div className='border-border max-h-48 space-y-1 overflow-y-auto rounded-md border p-1'>
                 {groupedBlendedFields.map(group => (
-                  <div key={group.sourceRelationshipId}>
+                  <div key={group.aliasPath}>
                     <div className='bg-secondary/50 dark:bg-muted/50 rounded px-1 py-1'>
                       <div className='truncate text-xs font-semibold' title={group.title}>
                         {group.title}

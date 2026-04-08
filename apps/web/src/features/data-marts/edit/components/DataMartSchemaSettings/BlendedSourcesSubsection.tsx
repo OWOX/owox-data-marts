@@ -117,9 +117,9 @@ export function BlendedSourcesSubsection({ dataMartId }: BlendedSourcesSubsectio
   };
 
   useEffect(() => {
-    if (isExpanded) fetchSchema();
+    fetchSchema();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isExpanded, dataMartId]);
+  }, [dataMartId]);
 
   const sourceTree = useMemo(() => {
     if (!schema) return [];
