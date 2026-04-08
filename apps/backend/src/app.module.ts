@@ -3,6 +3,7 @@ import { APP_INTERCEPTOR } from '@nestjs/core';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { ScheduleModule } from '@nestjs/schedule';
+import { EventEmitterModule } from '@nestjs/event-emitter';
 import { DataMartsModule } from './data-marts/data-marts.module';
 import { CommonModule } from './common/common.module';
 import { ActiveRequestInterceptor } from './common/interceptors/active-request.interceptor';
@@ -41,6 +42,7 @@ import { addTransactionalDataSource } from 'typeorm-transactional';
       },
     }),
     ScheduleModule.forRoot(),
+    EventEmitterModule.forRoot(),
 
     DataMartsModule,
     CommonModule,

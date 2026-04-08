@@ -9,7 +9,9 @@ import { DeleteReportCommand } from '../dto/domain/delete-report.command';
 describe('DeleteReportService', () => {
   const report = {
     id: 'report-1',
-    dataMart: { projectId: 'proj-1' },
+    dataMart: { id: 'dm-1', projectId: 'proj-1' },
+    dataDestination: { id: 'dest-1', type: 'GOOGLE_SHEETS' },
+    destinationConfig: {},
   };
 
   const createService = () => {
@@ -22,14 +24,18 @@ describe('DeleteReportService', () => {
     const reportAccessService = {
       checkMutateAccess: jest.fn().mockResolvedValue(undefined),
     };
+    const eventEmitter = {
+      emit: jest.fn(),
+    };
 
     const service = new DeleteReportService(
       reportRepository as never,
       reportService as never,
-      reportAccessService as never
+      reportAccessService as never,
+      eventEmitter as never
     );
 
-    return { service, reportRepository, reportService, reportAccessService };
+    return { service, reportRepository, reportService, reportAccessService, eventEmitter };
   };
 
   beforeEach(() => {

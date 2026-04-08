@@ -9,6 +9,7 @@ import { Inject, Injectable, Logger, Scope } from '@nestjs/common';
 import { isGoogleSheetsConfig } from '../../data-destination-config.guards';
 import { GoogleSheetsConfig } from '../schemas/google-sheets-config.schema';
 import { DateTime } from 'luxon';
+import { sheets_v4 } from 'googleapis';
 import { Report } from '../../../entities/report.entity';
 import { ReportDataDescription } from '../../../dto/domain/report-data-description.dto';
 import { ReportDataBatch } from '../../../dto/domain/report-data-batch.dto';
@@ -141,7 +142,23 @@ export class GoogleSheetsReportWriter implements DataDestinationReportWriter {
           '/data-setup'
         );
 
-        await this.adapter.batchUpdate(this.destination.spreadsheetId, [
+        // Check if developer metadata already exists for this sheet
+        const existingMetadata = await this.adapter.getDeveloperMetadata(
+          this.destination.spreadsheetId,
+          this.destination.sheetId
+        );
+
+        // Find ALL OWOX metadata entries for this sheet (to handle duplicates)
+        const allOwoxMetadataForSheet = this.adapter.findAllOwoxReportMetadataForSheet(
+          existingMetadata,
+          this.destination.sheetId
+        );
+
+        // Get the first one for potential update (if no duplicates exist)
+        const owoxMetadata =
+          allOwoxMetadataForSheet.length > 0 ? allOwoxMetadataForSheet[0] : undefined;
+
+        const requests: sheets_v4.Schema$Request[] = [
           this.metadataFormatter.createTabColorAndFreezeHeaderRequest(this.destination.sheetId),
           this.metadataFormatter.createMetadataNoteRequest(
             this.destination.sheetId,
@@ -151,7 +168,75 @@ export class GoogleSheetsReportWriter implements DataDestinationReportWriter {
             isCommunityEdition,
             firstColumnDescription
           ),
-        ]);
+        ];
+
+        if (allOwoxMetadataForSheet.length > 1) {
+          // Multiple metadata entries found - delete all duplicates first
+          this.logger.warn(
+            `Found ${allOwoxMetadataForSheet.length} duplicate metadata entries for report ${this.report.id}. ` +
+              `Cleaning up duplicates before creating new entry.`
+          );
+
+          const duplicateIds = allOwoxMetadataForSheet
+            .map(m => m.metadataId)
+            .filter((id): id is number => id !== undefined && id !== null);
+
+          if (duplicateIds.length > 0) {
+            // Delete all duplicates and create new entry in the SAME batch operation (atomic)
+            requests.push(...this.adapter.buildDeleteDeveloperMetadataRequests(duplicateIds));
+
+            this.logger.debug(
+              `Scheduling deletion of ${duplicateIds.length} duplicate metadata entries for report ${this.report.id}`
+            );
+          }
+
+          requests.push(
+            this.metadataFormatter.createDeveloperMetadataRequest(
+              this.destination.sheetId,
+              dataMart.projectId,
+              dataMart.id,
+              this.report.id
+            )
+          );
+        } else if (owoxMetadata && owoxMetadata.metadataId) {
+          // Single metadata entry exists - update it
+          try {
+            const existingReportId = JSON.parse(owoxMetadata.metadataValue ?? '{}').reportId;
+            if (existingReportId !== this.report.id) {
+              this.logger.warn(
+                `Sheet ${this.destination.sheetId} already has metadata for report ${existingReportId}. ` +
+                  `Overwriting with report ${this.report.id} as the new source of truth.`
+              );
+            }
+          } catch {
+            /* ignore parse error */
+          }
+          requests.push(
+            this.metadataFormatter.updateDeveloperMetadataRequest(
+              owoxMetadata.metadataId,
+              dataMart.projectId,
+              dataMart.id,
+              this.report.id
+            )
+          );
+        } else {
+          // No metadata exists - create new
+          requests.push(
+            this.metadataFormatter.createDeveloperMetadataRequest(
+              this.destination.sheetId,
+              dataMart.projectId,
+              dataMart.id,
+              this.report.id
+            )
+          );
+        }
+
+        await this.adapter.batchUpdate(this.destination.spreadsheetId, requests);
+
+        this.logger.debug(
+          `Developer metadata written for report ${this.report.id} ` +
+            `(project: ${dataMart.projectId}, datamart: ${dataMart.id})`
+        );
       }
     }, 'Finalizing report with metadata and formatting');
     if (!processingError) {

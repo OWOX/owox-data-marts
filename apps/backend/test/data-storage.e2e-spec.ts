@@ -68,7 +68,6 @@ describe('DataStorage API (e2e)', () => {
       .send({ title: 'Updated Title', config: {} });
 
     if (response.status !== 400) {
-      // eslint-disable-next-line no-console
       console.log('UPDATE response:', response.status, JSON.stringify(response.body));
     }
     expect(response.status).toBe(400);

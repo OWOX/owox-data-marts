@@ -70,7 +70,7 @@ export class ReportService {
           projectId,
         },
       },
-      relations: ['dataMart', 'dataDestination'],
+      relations: ['dataMart', 'dataDestination', 'dataDestination.credential'],
     });
 
     if (!report) {

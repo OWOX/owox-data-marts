@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 import { Response } from 'express';
 import { PassThrough } from 'stream';
 import * as zlib from 'zlib';
