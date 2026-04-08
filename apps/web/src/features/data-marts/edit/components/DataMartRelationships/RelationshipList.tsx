@@ -30,9 +30,15 @@ interface RelationshipListProps {
   rows: TransientRelationshipRow[];
   onEdit: (relationship: DataMartRelationship) => void;
   onDelete: (id: string) => Promise<void>;
+  connectedFieldCounts: Map<string, number>;
 }
 
-export function RelationshipList({ rows, onEdit, onDelete }: RelationshipListProps) {
+export function RelationshipList({
+  rows,
+  onEdit,
+  onDelete,
+  connectedFieldCounts,
+}: RelationshipListProps) {
   const { scope } = useProjectRoute();
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -75,9 +81,9 @@ export function RelationshipList({ rows, onEdit, onDelete }: RelationshipListPro
             </TableHead>
             <TableHead className='bg-secondary dark:bg-background'>
               <Tooltip>
-                <TooltipTrigger className='cursor-default'>Field Prefix</TooltipTrigger>
+                <TooltipTrigger className='cursor-default'>Alias</TooltipTrigger>
                 <TooltipContent>
-                  Short name used to prefix blended fields in the output schema
+                  Alias used to reference this relationship in the output schema
                 </TooltipContent>
               </Tooltip>
             </TableHead>
@@ -110,6 +116,7 @@ export function RelationshipList({ rows, onEdit, onDelete }: RelationshipListPro
           {rows.map((row, idx) => {
             const rel = row.relationship;
             const isTransient = row.depth >= 2;
+            const topLevelFieldCount = connectedFieldCounts.get(rel.id) ?? 0;
 
             return (
               <TableRow
@@ -168,8 +175,7 @@ export function RelationshipList({ rows, onEdit, onDelete }: RelationshipListPro
                   {rel.joinConditions.length} {rel.joinConditions.length !== 1 ? 'pairs' : 'pair'}
                 </TableCell>
                 <TableCell className='text-muted-foreground'>
-                  {rel.blendedFields.length} field
-                  {rel.blendedFields.length !== 1 ? 's' : ''}
+                  {topLevelFieldCount} field{topLevelFieldCount !== 1 ? 's' : ''}
                 </TableCell>
                 <TableCell className='text-muted-foreground'>
                   {new Intl.DateTimeFormat('en-US', {

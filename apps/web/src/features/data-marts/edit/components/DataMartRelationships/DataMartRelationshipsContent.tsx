@@ -22,7 +22,10 @@ import {
   CollapsibleCardHeaderTitle,
 } from '../../../../../shared/components/CollapsibleCard';
 import { dataMartRelationshipService } from '../../../shared/services/data-mart-relationship.service';
-import type { DataMartRelationship } from '../../../shared/types/relationship.types';
+import type {
+  BlendableSchema,
+  DataMartRelationship,
+} from '../../../shared/types/relationship.types';
 
 import { RelationshipCanvas } from './RelationshipCanvas';
 import { RelationshipDialog } from './RelationshipDialog';
@@ -80,6 +83,37 @@ export function DataMartRelationshipsContent() {
   useEffect(() => {
     void loadRelationships();
   }, [loadRelationships]);
+
+  const [blendableSchema, setBlendableSchema] = useState<BlendableSchema | null>(null);
+
+  useEffect(() => {
+    if (!dataMartId) return;
+    dataMartRelationshipService
+      .getBlendableSchema(dataMartId)
+      .then(data => {
+        setBlendableSchema(data);
+      })
+      .catch(() => {
+        setBlendableSchema(null);
+      });
+  }, [dataMartId, relationships]);
+
+  const connectedFieldCounts = useMemo(() => {
+    const counts = new Map<string, number>();
+    if (!blendableSchema) return counts;
+    const topLevelSets = new Map<string, Set<string>>();
+    for (const field of blendableSchema.blendedFields) {
+      if (field.type === 'UNKNOWN') continue;
+      const relId = field.sourceRelationshipId;
+      if (!topLevelSets.has(relId)) topLevelSets.set(relId, new Set());
+      const set = topLevelSets.get(relId);
+      if (set) set.add(field.originalFieldName.split('.')[0]);
+    }
+    for (const [relId, names] of topLevelSets) {
+      counts.set(relId, names.size);
+    }
+    return counts;
+  }, [blendableSchema]);
 
   const { rows: transientRows, isLoading: isLoadingTransient } = useTransientRelationships(
     dataMartId,
@@ -153,10 +187,10 @@ export function DataMartRelationshipsContent() {
           aria-label='Search relationships'
         />
         <div className='flex items-center gap-2'>
-          {relationships.length > 0 && (
+          {transientRows.length > 0 && (
             <span className='text-muted-foreground mr-2 flex items-center gap-1 text-sm'>
               <GitMerge className='h-3.5 w-3.5' />
-              {relationships.length}
+              {transientRows.length}
             </span>
           )}
           <Tabs
@@ -233,7 +267,14 @@ export function DataMartRelationshipsContent() {
       );
     }
 
-    return <RelationshipList rows={filteredRows} onEdit={handleEdit} onDelete={handleDelete} />;
+    return (
+      <RelationshipList
+        rows={filteredRows}
+        onEdit={handleEdit}
+        onDelete={handleDelete}
+        connectedFieldCounts={connectedFieldCounts}
+      />
+    );
   }
 
   function renderContent() {

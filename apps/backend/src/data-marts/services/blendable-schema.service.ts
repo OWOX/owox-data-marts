@@ -3,12 +3,14 @@ import { BlendableSchemaDto, BlendedFieldDto } from '../dto/domain/blendable-sch
 import { DataMartRelationshipService } from './data-mart-relationship.service';
 import { DataMartService } from './data-mart.service';
 import { DataMartSchema } from '../data-storage-types/data-mart-schema.type';
+import { DataMartSchemaFieldStatus } from '../data-storage-types/enums/data-mart-schema-field-status.enum';
 
 const MAX_TRANSITIVE_DEPTH = 10;
 
 interface RawSchemaField {
   name: string;
   type: string;
+  status?: string;
   alias?: string;
   description?: string;
   fields?: RawSchemaField[];
@@ -24,6 +26,7 @@ interface FlatSchemaField {
 function flattenSchemaFields(fields: RawSchemaField[], prefix = ''): FlatSchemaField[] {
   const result: FlatSchemaField[] = [];
   for (const field of fields) {
+    if (field.status === DataMartSchemaFieldStatus.DISCONNECTED) continue;
     const fullName = prefix ? `${prefix}.${field.name}` : field.name;
     if (field.fields && field.fields.length > 0) {
       result.push(...flattenSchemaFields(field.fields, fullName));
