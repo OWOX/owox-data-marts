@@ -68,8 +68,11 @@ export class GoogleSheetsAccessValidator implements DataDestinationAccessValidat
         sheetTitle: sheet.properties?.title,
       });
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Access check failed';
+      const rawMessage = error instanceof Error ? error.message : '';
       this.logger.warn('Access check failed', error);
+      const message = rawMessage.toLowerCase().includes('does not have permission')
+        ? 'The service account does not have access to this Google Sheet. Please share the spreadsheet with your service account email and grant Editor permission.'
+        : rawMessage || 'Access check failed';
       return new ValidationResult(false, message);
     }
   }
