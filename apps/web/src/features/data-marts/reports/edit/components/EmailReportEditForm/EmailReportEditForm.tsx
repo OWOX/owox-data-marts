@@ -100,6 +100,15 @@ const MESSAGE_DESTINATION_TYPES: DataDestinationType[] = [
   DataDestinationType.MS_TEAMS,
 ];
 
+function buildDefaultEmailReportLabel(dataMartTitle?: string | null): string {
+  const normalizedTitle = dataMartTitle?.trim();
+  return normalizedTitle ? `Report: ${normalizedTitle}` : 'New report';
+}
+
+function buildDefaultEmailMessageTemplate(): string {
+  return '{{table}}';
+}
+
 export const EmailReportEditForm = forwardRef<HTMLFormElement, EmailReportEditFormProps>(
   (
     {
@@ -235,6 +244,16 @@ export const EmailReportEditForm = forwardRef<HTMLFormElement, EmailReportEditFo
       },
       preSelectedDestination,
     });
+    const messageTemplate = form.watch('messageTemplate') ?? '';
+    const templateSourceType = form.watch('templateSourceType');
+    const messageTemplateError = form.formState.errors.messageTemplate?.message;
+    const insightTemplateError = form.formState.errors.insightTemplateId?.message;
+    const customMessageHasError =
+      templateSourceType === TemplateSourceTypeEnum.CUSTOM_MESSAGE && !!messageTemplateError;
+    const insightTemplateHasError =
+      templateSourceType === TemplateSourceTypeEnum.INSIGHT_TEMPLATE && !!insightTemplateError;
+    const defaultEmailReportLabel = buildDefaultEmailReportLabel(dataMart?.title);
+    const defaultEmailMessageTemplate = buildDefaultEmailMessageTemplate();
 
     useEffect(() => {
       if (onFormErrorChange) onFormErrorChange(internalFormError);
@@ -250,19 +269,26 @@ export const EmailReportEditForm = forwardRef<HTMLFormElement, EmailReportEditFo
         }
       } else if (mode === ReportFormMode.CREATE) {
         const destinationId = preSelectedDestination?.id ?? '';
+        const defaultEmailMetadata =
+          preSelectedDestination?.type === DataDestinationType.EMAIL ? defaultEmailReportLabel : '';
         const templateSourceType =
           prefill?.templateSourceType ??
           (isInsightContext
             ? TemplateSourceTypeEnum.INSIGHT_TEMPLATE
             : TemplateSourceTypeEnum.CUSTOM_MESSAGE);
+        const defaultMessageTemplate =
+          preSelectedDestination?.type === DataDestinationType.EMAIL &&
+          templateSourceType === TemplateSourceTypeEnum.CUSTOM_MESSAGE
+            ? defaultEmailMessageTemplate
+            : '';
         const hasInsightTemplate = templateSourceType === TemplateSourceTypeEnum.INSIGHT_TEMPLATE;
         setUseInsightTemplateMode(hasInsightTemplate);
         reset({
-          title: prefill?.title ?? '',
+          title: prefill?.title ?? defaultEmailMetadata,
           dataDestinationId: destinationId,
           reportCondition: ReportConditionEnum.ALWAYS,
-          subject: prefill?.subject ?? '',
-          messageTemplate: prefill?.messageTemplate ?? '',
+          subject: prefill?.subject ?? defaultEmailMetadata,
+          messageTemplate: prefill?.messageTemplate ?? defaultMessageTemplate,
           insightTemplateId: prefill?.insightTemplateId,
           templateSourceType,
         });
@@ -278,6 +304,8 @@ export const EmailReportEditForm = forwardRef<HTMLFormElement, EmailReportEditFo
       prefill?.insightTemplateId,
       prefill?.templateSourceType,
       isInsightContext,
+      defaultEmailReportLabel,
+      defaultEmailMessageTemplate,
     ]);
 
     useEffect(() => {
@@ -298,10 +326,6 @@ export const EmailReportEditForm = forwardRef<HTMLFormElement, EmailReportEditFo
 
     // Tabs for Message editor/preview
     const [messageTab, setMessageTab] = useState<'markdown' | 'preview'>('markdown');
-
-    // Watch markdown content from form
-    const messageTemplate = form.watch('messageTemplate') ?? '';
-    const templateSourceType = form.watch('templateSourceType');
 
     // Remember the last custom message so switching tabs doesn't lose content
     useEffect(() => {
@@ -474,10 +498,22 @@ export const EmailReportEditForm = forwardRef<HTMLFormElement, EmailReportEditFo
                           <div className='flex items-center justify-between gap-4'>
                             <FormLabel className='mt-0!'>Message</FormLabel>
                             <TabsList className='grid grid-cols-2'>
-                              <TabsTrigger value={TemplateSourceTypeEnum.CUSTOM_MESSAGE}>
+                              <TabsTrigger
+                                value={TemplateSourceTypeEnum.CUSTOM_MESSAGE}
+                                className={cn(
+                                  customMessageHasError &&
+                                    'border-destructive text-destructive data-[state=active]:border-destructive data-[state=active]:text-destructive'
+                                )}
+                              >
                                 Custom
                               </TabsTrigger>
-                              <TabsTrigger value={TemplateSourceTypeEnum.INSIGHT_TEMPLATE}>
+                              <TabsTrigger
+                                value={TemplateSourceTypeEnum.INSIGHT_TEMPLATE}
+                                className={cn(
+                                  insightTemplateHasError &&
+                                    'border-destructive text-destructive data-[state=active]:border-destructive data-[state=active]:text-destructive'
+                                )}
+                              >
                                 Insight
                               </TabsTrigger>
                             </TabsList>
@@ -487,117 +523,140 @@ export const EmailReportEditForm = forwardRef<HTMLFormElement, EmailReportEditFo
                             value={TemplateSourceTypeEnum.CUSTOM_MESSAGE}
                             className='mt-1'
                           >
-                            <div className='flex items-stretch overflow-hidden rounded-md border'>
-                              <div className='flex-1 border-r'>
-                                {messageTab === 'markdown' ? (
-                                  <InsightsProvider>
-                                    <InsightTemplateEditor
-                                      value={form.watch('messageTemplate') ?? ''}
-                                      onChange={(v: string) => {
-                                        form.setValue('messageTemplate', v, { shouldDirty: true });
-                                      }}
-                                      height={240}
+                            <FormField
+                              control={form.control}
+                              name='messageTemplate'
+                              render={({ field: messageField }) => (
+                                <FormItem variant='light' className='gap-4'>
+                                  <FormControl>
+                                    <div
+                                      className={cn(
+                                        'border-input focus-within:border-ring focus-within:ring-ring/50 flex items-stretch overflow-hidden rounded-md border shadow-xs transition-[color,box-shadow] focus-within:ring-[3px]',
+                                        customMessageHasError &&
+                                          'border-destructive focus-within:border-destructive focus-within:ring-destructive/20'
+                                      )}
+                                    >
+                                      <div className='flex-1 border-r'>
+                                        {messageTab === 'markdown' ? (
+                                          <InsightsProvider>
+                                            <InsightTemplateEditor
+                                              value={messageField.value ?? ''}
+                                              onChange={(v: string) => {
+                                                messageField.onChange(v);
+                                              }}
+                                              height={240}
+                                            />
+                                          </InsightsProvider>
+                                        ) : (
+                                          <MarkdownEditorPreview
+                                            html={previewHtml}
+                                            loading={previewLoading}
+                                            error={previewError}
+                                            height={240}
+                                          />
+                                        )}
+                                      </div>
+                                      <div className='bg-muted/30 flex flex-col justify-start border-l'>
+                                        <TooltipProvider>
+                                          <Tooltip>
+                                            <TooltipTrigger asChild>
+                                              <Button
+                                                variant='ghost'
+                                                size='icon'
+                                                type='button'
+                                                onClick={() => {
+                                                  setMessageTab('markdown');
+                                                }}
+                                                className={cn(
+                                                  'h-10 w-10 shrink-0 rounded-none transition-colors',
+                                                  messageTab === 'markdown'
+                                                    ? 'bg-background shadow-xs'
+                                                    : 'text-muted-foreground hover:bg-muted/50'
+                                                )}
+                                              >
+                                                <Edit2 className='size-4' />
+                                              </Button>
+                                            </TooltipTrigger>
+                                            <TooltipContent side='left'>Edit</TooltipContent>
+                                          </Tooltip>
+                                        </TooltipProvider>
+                                        <div className='border-t' />
+                                        <TooltipProvider>
+                                          <Tooltip>
+                                            <TooltipTrigger asChild>
+                                              <Button
+                                                variant='ghost'
+                                                size='icon'
+                                                type='button'
+                                                onClick={() => {
+                                                  setMessageTab('preview');
+                                                }}
+                                                className={cn(
+                                                  'h-10 w-10 shrink-0 rounded-none transition-colors',
+                                                  messageTab === 'preview'
+                                                    ? 'bg-background shadow-xs'
+                                                    : 'text-muted-foreground hover:bg-muted/50'
+                                                )}
+                                              >
+                                                <Eye className='size-4' />
+                                              </Button>
+                                            </TooltipTrigger>
+                                            <TooltipContent side='left'>Preview</TooltipContent>
+                                          </Tooltip>
+                                        </TooltipProvider>
+                                      </div>
+                                    </div>
+                                  </FormControl>
+                                  <FormDescription>
+                                    <MessageTemplateDescription
+                                      type={TemplateSourceTypeEnum.CUSTOM_MESSAGE}
                                     />
-                                  </InsightsProvider>
-                                ) : (
-                                  <MarkdownEditorPreview
-                                    html={previewHtml}
-                                    loading={previewLoading}
-                                    error={previewError}
-                                    height={240}
-                                  />
-                                )}
-                              </div>
-                              <div className='bg-muted/30 flex flex-col justify-start border-l'>
-                                <TooltipProvider>
-                                  <Tooltip>
-                                    <TooltipTrigger asChild>
-                                      <Button
-                                        variant='ghost'
-                                        size='icon'
-                                        type='button'
-                                        onClick={() => {
-                                          setMessageTab('markdown');
-                                        }}
-                                        className={cn(
-                                          'h-10 w-10 shrink-0 rounded-none transition-colors',
-                                          messageTab === 'markdown'
-                                            ? 'bg-background shadow-xs'
-                                            : 'text-muted-foreground hover:bg-muted/50'
-                                        )}
-                                      >
-                                        <Edit2 className='size-4' />
-                                      </Button>
-                                    </TooltipTrigger>
-                                    <TooltipContent side='left'>Edit</TooltipContent>
-                                  </Tooltip>
-                                </TooltipProvider>
-                                <div className='border-t' />
-                                <TooltipProvider>
-                                  <Tooltip>
-                                    <TooltipTrigger asChild>
-                                      <Button
-                                        variant='ghost'
-                                        size='icon'
-                                        type='button'
-                                        onClick={() => {
-                                          setMessageTab('preview');
-                                        }}
-                                        className={cn(
-                                          'h-10 w-10 shrink-0 rounded-none transition-colors',
-                                          messageTab === 'preview'
-                                            ? 'bg-background shadow-xs'
-                                            : 'text-muted-foreground hover:bg-muted/50'
-                                        )}
-                                      >
-                                        <Eye className='size-4' />
-                                      </Button>
-                                    </TooltipTrigger>
-                                    <TooltipContent side='left'>Preview</TooltipContent>
-                                  </Tooltip>
-                                </TooltipProvider>
-                              </div>
-                            </div>
-                            <FormDescription className='mt-4'>
-                              <MessageTemplateDescription
-                                type={TemplateSourceTypeEnum.CUSTOM_MESSAGE}
-                              />
-                            </FormDescription>
+                                  </FormDescription>
+                                  <FormMessage />
+                                </FormItem>
+                              )}
+                            />
                           </TabsContent>
 
                           <TabsContent
                             value={TemplateSourceTypeEnum.INSIGHT_TEMPLATE}
                             className='mt-1 space-y-4'
                           >
-                            {insightTemplates.length === 0 && !loadingInsightTemplates ? (
-                              <div className='flex flex-col items-center justify-center rounded-md border border-dashed px-4 py-8 text-center'>
-                                <div className='bg-muted mb-3 flex h-12 w-12 items-center justify-center rounded-full'>
-                                  <Sparkles className='text-muted-foreground h-6 w-6' />
-                                </div>
-                                <h3 className='text-sm font-semibold'>No Insights</h3>
-                                <p className='text-muted-foreground mt-1 mb-4 max-w-[240px] text-xs'>
-                                  Create an Insight to use it as a source for your report messages
-                                </p>
-                                <div className='flex gap-2'>
-                                  <Button
-                                    variant='outline'
-                                    size='sm'
-                                    onClick={() => {
-                                      void handleCreateInsight();
-                                    }}
-                                    disabled={isCreatingInsight}
-                                  >
-                                    <Plus className='mr-2 h-3.5 w-3.5' />
-                                    Create Insight
-                                  </Button>
-                                </div>
-                              </div>
-                            ) : (
-                              <>
-                                <FormField
-                                  control={form.control}
-                                  name='insightTemplateId'
-                                  render={({ field: insightField }) => (
+                            <FormField
+                              control={form.control}
+                              name='insightTemplateId'
+                              render={({ field: insightField }) => (
+                                <FormItem variant='light' className='gap-4'>
+                                  {insightTemplates.length === 0 && !loadingInsightTemplates ? (
+                                    <div
+                                      className={cn(
+                                        'flex flex-col items-center justify-center rounded-md border border-dashed px-4 py-8 text-center',
+                                        insightTemplateHasError && 'border-destructive'
+                                      )}
+                                    >
+                                      <div className='bg-muted mb-3 flex h-12 w-12 items-center justify-center rounded-full'>
+                                        <Sparkles className='text-muted-foreground h-6 w-6' />
+                                      </div>
+                                      <h3 className='text-sm font-semibold'>No Insights</h3>
+                                      <p className='text-muted-foreground mt-1 mb-4 max-w-[240px] text-xs'>
+                                        Create an Insight to use it as a source for your report
+                                        messages
+                                      </p>
+                                      <div className='flex gap-2'>
+                                        <Button
+                                          variant='outline'
+                                          size='sm'
+                                          onClick={() => {
+                                            void handleCreateInsight();
+                                          }}
+                                          disabled={isCreatingInsight}
+                                        >
+                                          <Plus className='mr-2 h-3.5 w-3.5' />
+                                          Create Insight
+                                        </Button>
+                                      </div>
+                                    </div>
+                                  ) : (
                                     <div className='flex items-center gap-2'>
                                       <Select
                                         value={insightField.value}
@@ -647,15 +706,15 @@ export const EmailReportEditForm = forwardRef<HTMLFormElement, EmailReportEditFo
                                       )}
                                     </div>
                                   )}
-                                />
-                                <FormDescription>
-                                  <MessageTemplateDescription
-                                    type={TemplateSourceTypeEnum.INSIGHT_TEMPLATE}
-                                  />
-                                </FormDescription>
-                                <FormMessage />
-                              </>
-                            )}
+                                  <FormDescription>
+                                    <MessageTemplateDescription
+                                      type={TemplateSourceTypeEnum.INSIGHT_TEMPLATE}
+                                    />
+                                  </FormDescription>
+                                  <FormMessage />
+                                </FormItem>
+                              )}
+                            />
                           </TabsContent>
                         </Tabs>
                       ) : (

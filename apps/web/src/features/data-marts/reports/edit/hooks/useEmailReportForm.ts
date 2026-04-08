@@ -19,29 +19,36 @@ import { ReportConditionEnum } from '../../shared/enums/report-condition.enum';
 
 export const EmailReportEditFormSchema = z
   .object({
-    title: z.string().min(1, 'Title is required'),
+    title: z.string().trim().min(1, 'Title is required'),
     dataDestinationId: z.string().min(1, 'Destination is required'),
     reportCondition: z.nativeEnum(ReportConditionEnum),
-    subject: z.string().min(1, 'Subject is required'),
+    subject: z.string().trim().min(1, 'Subject is required'),
     // messageTemplate is required only for CUSTOM_MESSAGE
     messageTemplate: z.string().optional(),
     insightTemplateId: z.string().optional(),
     // Track which template source type is selected
     templateSourceType: z.nativeEnum(TemplateSourceTypeEnum),
   })
-  .refine(
-    data => {
-      if (data.templateSourceType === TemplateSourceTypeEnum.CUSTOM_MESSAGE) {
-        return !!data.messageTemplate && data.messageTemplate.length > 0;
+  .superRefine((data, ctx) => {
+    if (data.templateSourceType === TemplateSourceTypeEnum.CUSTOM_MESSAGE) {
+      if (!data.messageTemplate?.trim()) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'Message is required',
+          path: ['messageTemplate'],
+        });
       }
-      // For INSIGHT_TEMPLATE, check insightTemplateId
-      return !!data.insightTemplateId && data.insightTemplateId.length > 0;
-    },
-    {
-      message: 'Message template is required for custom messages',
-      path: ['messageTemplate'],
+      return;
     }
-  );
+
+    if (!data.insightTemplateId?.trim()) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Insight is required',
+        path: ['insightTemplateId'],
+      });
+    }
+  });
 
 export type EmailReportEditFormValues = z.infer<typeof EmailReportEditFormSchema>;
 
