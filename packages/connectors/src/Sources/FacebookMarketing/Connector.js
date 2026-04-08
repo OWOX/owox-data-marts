@@ -78,15 +78,22 @@ var FacebookMarketingConnector = class FacebookMarketingConnector extends Abstra
       for(var i in accountIds) {
 
         let accountId = accountIds[i];
+        const storage = await this.getStorageByNode(nodeName);
 
-        let data = await this.source.fetchData(nodeName, accountId, fields);
+        let totalRows = 0;
+        await this.source.fetchData(nodeName, accountId, fields, null,
+          async (pageData) => {
+            await storage.saveData(pageData);
+            totalRows += pageData.length;
+          }
+        );
 
-        if(data.length || this.config.CreateEmptyTables?.value) {
-          const storage = await this.getStorageByNode(nodeName);
-          await storage.saveData( data );
+        // If no data was fetched but CreateEmptyTables is enabled, ensure the table exists
+        if(!totalRows && this.config.CreateEmptyTables?.value) {
+          await storage.saveData([]);
         }
 
-        data.length && this.config.logMessage(`${data.length} rows of ${nodeName} were fetched for account ${accountId}`);
+        totalRows && this.config.logMessage(`${totalRows} rows of ${nodeName} were fetched for account ${accountId}`);
 
       }
 
