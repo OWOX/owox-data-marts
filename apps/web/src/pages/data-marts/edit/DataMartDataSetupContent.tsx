@@ -12,8 +12,7 @@ import {
   CollapsibleCardContent,
   CollapsibleCardFooter,
 } from '../../../shared/components/CollapsibleCard';
-import { DatabaseIcon, CodeIcon, Columns3, Combine } from 'lucide-react';
-import { BlendedFieldsSection } from '../../../features/data-marts/edit/components/DataMartSchemaSettings/BlendedFieldsSection';
+import { DatabaseIcon, CodeIcon, Columns3 } from 'lucide-react';
 import { DataMartRelationshipsContent } from '../../../features/data-marts/edit/components/DataMartRelationships/DataMartRelationshipsContent';
 import type { DataMartDefinitionType } from '../../../features/data-marts/shared';
 
@@ -87,21 +86,6 @@ export default function DataMartDataSetupContent() {
         </CollapsibleCardHeader>
         <CollapsibleCardContent>
           {dataMart && <DataMartSchemaSettings definitionType={definitionType} />}
-        </CollapsibleCardContent>
-        <CollapsibleCardFooter></CollapsibleCardFooter>
-      </CollapsibleCard>
-
-      <CollapsibleCard collapsible name={'blended-fields'}>
-        <CollapsibleCardHeader>
-          <CollapsibleCardHeaderTitle
-            icon={Combine}
-            tooltip='Fields available for blending from related data marts'
-          >
-            Blendable Fields
-          </CollapsibleCardHeaderTitle>
-        </CollapsibleCardHeader>
-        <CollapsibleCardContent>
-          {dataMart && <BlendedFieldsSection dataMartId={dataMart.id} />}
         </CollapsibleCardContent>
         <CollapsibleCardFooter></CollapsibleCardFooter>
       </CollapsibleCard>

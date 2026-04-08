@@ -75,8 +75,8 @@ describe('BlendedFieldsSchema', () => {
     expect(() => BlendedFieldsSchema.parse(input)).toThrow();
   });
 
-  it('should reject an empty array', () => {
-    expect(() => BlendedFieldsSchema.parse([])).toThrow();
+  it('should accept an empty array', () => {
+    expect(BlendedFieldsSchema.parse([])).toEqual([]);
   });
 
   it('should reject empty targetFieldName', () => {

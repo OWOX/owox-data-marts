@@ -17,6 +17,10 @@ import { DataMartDefinition } from '../dto/schemas/data-mart-table-definitions/d
 import { DataMartSchema, DataMartSchemaSchema } from '../data-storage-types/data-mart-schema.type';
 import { createZodTransformer } from '../../common/zod/zod-transformer';
 import { ConnectorState } from './connector-state.entity';
+import {
+  BlendedFieldsConfig,
+  BlendedFieldsConfigSchema,
+} from '../dto/schemas/blended-fields-config.schemas';
 
 @Entity()
 export class DataMart implements CreatorAwareEntity {
@@ -63,6 +67,13 @@ export class DataMart implements CreatorAwareEntity {
 
   @Column({ type: 'json', nullable: true })
   technicalOwnerIds?: string[];
+
+  @Column({
+    type: 'json',
+    transformer: createZodTransformer<BlendedFieldsConfig>(BlendedFieldsConfigSchema, false),
+    nullable: true,
+  })
+  blendedFieldsConfig?: BlendedFieldsConfig;
 
   @Column()
   createdById: string;

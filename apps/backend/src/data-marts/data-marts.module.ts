@@ -75,6 +75,7 @@ import { UpdateDataMartDefinitionService } from './use-cases/update-data-mart-de
 import { DataMartService } from './services/data-mart.service';
 import { ScheduledTriggerService } from './services/scheduled-trigger.service';
 import { PublishDataMartService } from './use-cases/publish-data-mart.service';
+import { UpdateBlendedFieldsConfigService } from './use-cases/update-blended-fields-config.service';
 import { UpdateDataMartDescriptionService } from './use-cases/update-data-mart-description.service';
 import { UpdateDataMartOwnersService } from './use-cases/update-data-mart-owners.service';
 import { UpdateDataMartTitleService } from './use-cases/update-data-mart-title.service';
@@ -380,6 +381,7 @@ import { DataStorageRelationshipController } from './controllers/data-storage-re
     ListDataMartRunsService,
     UpdateDataMartDefinitionService,
     PublishDataMartService,
+    UpdateBlendedFieldsConfigService,
     UpdateDataMartDescriptionService,
     UpdateDataMartOwnersService,
     UpdateDataMartTitleService,

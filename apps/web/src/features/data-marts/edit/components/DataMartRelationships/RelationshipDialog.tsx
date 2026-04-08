@@ -202,27 +202,17 @@ export function RelationshipDialog({
   const handleSubmit = form.handleSubmit(async values => {
     setIsSaving(true);
     try {
-      const alias = values.targetAlias;
-      const fields = getSchemaFields(targetDM).filter(f => !f.isHiddenForReporting);
-      const blendedFields = fields.map(f => ({
-        targetFieldName: f.name,
-        outputAlias: `${alias}_${f.name}`,
-        isHidden: false,
-        aggregateFunction: 'STRING_AGG',
-      }));
-
       if (relationship) {
         await dataMartRelationshipService.updateRelationship(dataMartId, relationship.id, {
           targetAlias: values.targetAlias,
           joinConditions: values.joinConditions,
-          blendedFields,
         });
       } else {
         await dataMartRelationshipService.createRelationship(dataMartId, {
           targetDataMartId: values.targetDataMartId,
           targetAlias: values.targetAlias,
           joinConditions: values.joinConditions,
-          blendedFields,
+          blendedFields: [],
         });
       }
 

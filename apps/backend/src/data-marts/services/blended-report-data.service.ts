@@ -168,10 +168,21 @@ export class BlendedReportDataService {
         projectId
       );
 
+      const chainBlendedFields = requestedBlendedFields
+        .filter(f => f.sourceRelationshipId === relId)
+        .map(f => ({
+          targetFieldName: f.originalFieldName,
+          outputAlias: f.name,
+          isHidden: f.isHidden,
+          aggregateFunction:
+            f.aggregateFunction as import('../dto/schemas/relationship-schemas').BlendedFieldConfig['aggregateFunction'],
+        }));
+
       chains.push({
         relationship: rel,
         targetTableReference,
         parentAlias,
+        blendedFields: chainBlendedFields,
       });
 
       // Register the target alias so transitive children can resolve their parentAlias

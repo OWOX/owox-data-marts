@@ -4,6 +4,7 @@ import { DataMartRelationshipService } from './data-mart-relationship.service';
 import { DataMartService } from './data-mart.service';
 import { DataMart } from '../entities/data-mart.entity';
 import { DataMartRelationship } from '../entities/data-mart-relationship.entity';
+import { BlendedFieldsConfig } from '../dto/schemas/blended-fields-config.schemas';
 
 function makeDataMart(overrides: Partial<DataMart> = {}): DataMart {
   return {
@@ -35,6 +36,13 @@ function makeRelationship(overrides: Partial<DataMartRelationship> = {}): DataMa
     dataStorage: {} as unknown as DataMartRelationship['dataStorage'],
     ...overrides,
   } as DataMartRelationship;
+}
+
+function makeSchema(fields: Array<{ name: string; type: string; isHiddenForReporting?: boolean }>) {
+  return {
+    type: 'bigquery-data-mart-schema',
+    fields,
+  } as unknown as DataMart['schema'];
 }
 
 describe('BlendableSchemaService', () => {
@@ -72,10 +80,7 @@ describe('BlendableSchemaService', () => {
       dataMartService.getByIdAndProjectId.mockResolvedValue(
         makeDataMart({
           id: 'dm-1',
-          schema: {
-            type: 'bigquery-data-mart-schema',
-            fields: nativeSchemaFields,
-          } as unknown as DataMart['schema'],
+          schema: makeSchema(nativeSchemaFields),
         })
       );
       relationshipService.findBySourceDataMartId.mockResolvedValue([]);
@@ -96,38 +101,22 @@ describe('BlendableSchemaService', () => {
       expect(result.blendedFields).toEqual([]);
     });
 
-    it('should return correct blended fields from a direct relationship', async () => {
-      dataMartService.getByIdAndProjectId.mockResolvedValue(makeDataMart({ id: 'dm-1' }));
+    it('should dynamically compute blended fields from target schema (AUTO_BLEND_ALL default)', async () => {
+      dataMartService.getByIdAndProjectId.mockResolvedValue(
+        makeDataMart({ id: 'dm-1', blendedFieldsConfig: undefined })
+      );
 
-      const targetSchema = {
-        type: 'bigquery-data-mart-schema',
-        fields: [
-          { name: 'customer_name', type: 'STRING' },
-          { name: 'customer_age', type: 'INTEGER' },
-        ],
-      };
       const relationship = makeRelationship({
         id: 'rel-1',
         targetAlias: 'customers',
         targetDataMart: makeDataMart({
           id: 'dm-2',
           title: 'Customers DM',
-          schema: targetSchema as unknown as DataMart['schema'],
+          schema: makeSchema([
+            { name: 'customer_name', type: 'STRING' },
+            { name: 'customer_age', type: 'INTEGER' },
+          ]),
         }),
-        blendedFields: [
-          {
-            targetFieldName: 'customer_name',
-            outputAlias: 'customers_name',
-            isHidden: false,
-            aggregateFunction: 'STRING_AGG',
-          },
-          {
-            targetFieldName: 'customer_age',
-            outputAlias: 'customers_age',
-            isHidden: true,
-            aggregateFunction: 'MAX',
-          },
-        ],
       });
 
       relationshipService.findBySourceDataMartId.mockImplementation(async (id: string) => {
@@ -140,7 +129,9 @@ describe('BlendableSchemaService', () => {
       expect(result.blendedFields).toHaveLength(2);
 
       const nameField = result.blendedFields[0];
-      expect(nameField.name).toBe('customers_name');
+      expect(nameField.name).toBe('customers customer_name');
+      expect(nameField.aliasPath).toBe('customers');
+      expect(nameField.outputPrefix).toBe('customers');
       expect(nameField.sourceRelationshipId).toBe('rel-1');
       expect(nameField.sourceDataMartId).toBe('dm-2');
       expect(nameField.sourceDataMartTitle).toBe('Customers DM');
@@ -152,26 +143,78 @@ describe('BlendableSchemaService', () => {
       expect(nameField.transitiveDepth).toBe(1);
 
       const ageField = result.blendedFields[1];
+      expect(ageField.name).toBe('customers customer_age');
       expect(ageField.type).toBe('INTEGER');
-      expect(ageField.isHidden).toBe(true);
-      expect(ageField.aggregateFunction).toBe('MAX');
-      expect(ageField.transitiveDepth).toBe(1);
     });
 
-    it('should resolve transitive relationships (A→B→C) with depth=2 for C fields', async () => {
-      dataMartService.getByIdAndProjectId.mockResolvedValue(makeDataMart({ id: 'dm-a' }));
-
-      const dmCSchema = {
-        type: 'bigquery-data-mart-schema',
-        fields: [{ name: 'order_id', type: 'INTEGER' }],
+    it('should apply overrides from blendedFieldsConfig sources', async () => {
+      const config: BlendedFieldsConfig = {
+        blendingBehaviour: 'AUTO_BLEND_ALL',
+        sources: [
+          {
+            path: 'orders',
+            alias: 'ord',
+            fields: {
+              revenue: { aggregateFunction: 'SUM' },
+              internal_id: { isHidden: true },
+            },
+          },
+        ],
       };
+
+      dataMartService.getByIdAndProjectId.mockResolvedValue(
+        makeDataMart({ id: 'dm-1', blendedFieldsConfig: config })
+      );
+
+      const relationship = makeRelationship({
+        id: 'rel-1',
+        targetAlias: 'orders',
+        targetDataMart: makeDataMart({
+          id: 'dm-2',
+          title: 'Orders',
+          schema: makeSchema([
+            { name: 'revenue', type: 'FLOAT' },
+            { name: 'internal_id', type: 'STRING' },
+            { name: 'status', type: 'STRING' },
+          ]),
+        }),
+      });
+
+      relationshipService.findBySourceDataMartId.mockImplementation(async (id: string) => {
+        if (id === 'dm-1') return [relationship];
+        return [];
+      });
+
+      const result = await service.computeBlendableSchema('dm-1', 'project-1');
+
+      expect(result.blendedFields).toHaveLength(3);
+
+      const revenueField = result.blendedFields.find(f => f.originalFieldName === 'revenue')!;
+      expect(revenueField.name).toBe('ord revenue');
+      expect(revenueField.outputPrefix).toBe('ord');
+      expect(revenueField.aggregateFunction).toBe('SUM');
+      expect(revenueField.isHidden).toBe(false);
+
+      const hiddenField = result.blendedFields.find(f => f.originalFieldName === 'internal_id')!;
+      expect(hiddenField.isHidden).toBe(true);
+
+      const statusField = result.blendedFields.find(f => f.originalFieldName === 'status')!;
+      expect(statusField.aggregateFunction).toBe('STRING_AGG');
+      expect(statusField.isHidden).toBe(false);
+    });
+
+    it('should resolve transitive relationships (A→B→C) with depth=2', async () => {
+      dataMartService.getByIdAndProjectId.mockResolvedValue(makeDataMart({ id: 'dm-a' }));
 
       const relAtoB = makeRelationship({
         id: 'rel-ab',
         targetAlias: 'b_alias',
         sourceDataMart: makeDataMart({ id: 'dm-a' }),
-        targetDataMart: makeDataMart({ id: 'dm-b', title: 'DM B', schema: undefined }),
-        blendedFields: [],
+        targetDataMart: makeDataMart({
+          id: 'dm-b',
+          title: 'DM B',
+          schema: makeSchema([{ name: 'b_field', type: 'STRING' }]),
+        }),
       });
 
       const relBtoC = makeRelationship({
@@ -181,16 +224,8 @@ describe('BlendableSchemaService', () => {
         targetDataMart: makeDataMart({
           id: 'dm-c',
           title: 'DM C',
-          schema: dmCSchema as unknown as DataMart['schema'],
+          schema: makeSchema([{ name: 'order_id', type: 'INTEGER' }]),
         }),
-        blendedFields: [
-          {
-            targetFieldName: 'order_id',
-            outputAlias: 'c_order_id',
-            isHidden: false,
-            aggregateFunction: 'MAX',
-          },
-        ],
       });
 
       relationshipService.findBySourceDataMartId.mockImplementation(async (id: string) => {
@@ -201,15 +236,21 @@ describe('BlendableSchemaService', () => {
 
       const result = await service.computeBlendableSchema('dm-a', 'project-1');
 
-      expect(result.blendedFields).toHaveLength(1);
-      const field = result.blendedFields[0];
-      expect(field.name).toBe('c_order_id');
-      expect(field.sourceDataMartId).toBe('dm-c');
-      expect(field.type).toBe('INTEGER');
-      expect(field.transitiveDepth).toBe(2);
+      expect(result.blendedFields).toHaveLength(2);
+
+      const bField = result.blendedFields[0];
+      expect(bField.name).toBe('b_alias b_field');
+      expect(bField.aliasPath).toBe('b_alias');
+      expect(bField.transitiveDepth).toBe(1);
+
+      const cField = result.blendedFields[1];
+      expect(cField.name).toBe('b_alias_c_alias order_id');
+      expect(cField.aliasPath).toBe('b_alias.c_alias');
+      expect(cField.outputPrefix).toBe('b_alias_c_alias');
+      expect(cField.transitiveDepth).toBe(2);
     });
 
-    it('should prevent infinite loops via cycle protection (visited set)', async () => {
+    it('should prevent infinite loops via cycle protection (visited set on alias path)', async () => {
       dataMartService.getByIdAndProjectId.mockResolvedValue(makeDataMart({ id: 'dm-a' }));
 
       const relAtoB = makeRelationship({
@@ -217,7 +258,6 @@ describe('BlendableSchemaService', () => {
         targetAlias: 'b_alias',
         sourceDataMart: makeDataMart({ id: 'dm-a' }),
         targetDataMart: makeDataMart({ id: 'dm-b', title: 'DM B' }),
-        blendedFields: [],
       });
 
       const relBtoA = makeRelationship({
@@ -225,7 +265,6 @@ describe('BlendableSchemaService', () => {
         targetAlias: 'a_alias',
         sourceDataMart: makeDataMart({ id: 'dm-b' }),
         targetDataMart: makeDataMart({ id: 'dm-a', title: 'DM A' }),
-        blendedFields: [],
       });
 
       relationshipService.findBySourceDataMartId.mockImplementation(async (id: string) => {
@@ -234,58 +273,193 @@ describe('BlendableSchemaService', () => {
         return [];
       });
 
-      // Should not throw and should terminate
+      // Should terminate without error — bounded by MAX_TRANSITIVE_DEPTH (10)
       const result = await service.computeBlendableSchema('dm-a', 'project-1');
       expect(result.blendedFields).toEqual([]);
-
-      // dm-a is in visited from the start, dm-b is added when first visited
-      // findBySourceDataMartId should be called for dm-a (initial) and dm-b (first visit)
-      // but NOT again for dm-a (cycle prevented)
-      expect(relationshipService.findBySourceDataMartId).toHaveBeenCalledTimes(2);
     });
 
-    it('should return blended fields from multiple relationships to the same target data mart', async () => {
-      dataMartService.getByIdAndProjectId.mockResolvedValue(makeDataMart({ id: 'dm-1' }));
+    it('should support diamond pattern — same DM via two different paths', async () => {
+      dataMartService.getByIdAndProjectId.mockResolvedValue(makeDataMart({ id: 'dm-root' }));
 
-      const targetSchema = {
-        type: 'bigquery-data-mart-schema',
-        fields: [
-          { name: 'revenue', type: 'FLOAT' },
-          { name: 'country', type: 'STRING' },
-        ],
-      };
-      const targetDm = makeDataMart({
-        id: 'dm-2',
-        title: 'Orders DM',
-        schema: targetSchema as unknown as DataMart['schema'],
+      const sharedDm = makeDataMart({
+        id: 'dm-shared',
+        title: 'Shared DM',
+        schema: makeSchema([{ name: 'shared_field', type: 'STRING' }]),
       });
+
+      const dmLeft = makeDataMart({ id: 'dm-left', title: 'Left DM' });
+      const dmRight = makeDataMart({ id: 'dm-right', title: 'Right DM' });
+
+      const relRootToLeft = makeRelationship({
+        id: 'rel-root-left',
+        targetAlias: 'left',
+        sourceDataMart: makeDataMart({ id: 'dm-root' }),
+        targetDataMart: dmLeft,
+      });
+
+      const relRootToRight = makeRelationship({
+        id: 'rel-root-right',
+        targetAlias: 'right',
+        sourceDataMart: makeDataMart({ id: 'dm-root' }),
+        targetDataMart: dmRight,
+      });
+
+      const relLeftToShared = makeRelationship({
+        id: 'rel-left-shared',
+        targetAlias: 'shared',
+        sourceDataMart: dmLeft,
+        targetDataMart: sharedDm,
+      });
+
+      const relRightToShared = makeRelationship({
+        id: 'rel-right-shared',
+        targetAlias: 'shared',
+        sourceDataMart: dmRight,
+        targetDataMart: sharedDm,
+      });
+
+      relationshipService.findBySourceDataMartId.mockImplementation(async (id: string) => {
+        if (id === 'dm-root') return [relRootToLeft, relRootToRight];
+        if (id === 'dm-left') return [relLeftToShared];
+        if (id === 'dm-right') return [relRightToShared];
+        return [];
+      });
+
+      const result = await service.computeBlendableSchema('dm-root', 'project-1');
+
+      // Should have fields from both paths: left.shared and right.shared
+      const leftSharedFields = result.blendedFields.filter(f => f.aliasPath === 'left.shared');
+      const rightSharedFields = result.blendedFields.filter(f => f.aliasPath === 'right.shared');
+
+      expect(leftSharedFields).toHaveLength(1);
+      expect(rightSharedFields).toHaveLength(1);
+      expect(leftSharedFields[0].name).toBe('left_shared shared_field');
+      expect(rightSharedFields[0].name).toBe('right_shared shared_field');
+    });
+
+    it('should handle BLEND_DIRECT_ONLY — exclude transitive unless in sources', async () => {
+      const config: BlendedFieldsConfig = {
+        blendingBehaviour: 'BLEND_DIRECT_ONLY',
+        sources: [],
+      };
+
+      dataMartService.getByIdAndProjectId.mockResolvedValue(
+        makeDataMart({ id: 'dm-a', blendedFieldsConfig: config })
+      );
+
+      const relAtoB = makeRelationship({
+        id: 'rel-ab',
+        targetAlias: 'direct',
+        sourceDataMart: makeDataMart({ id: 'dm-a' }),
+        targetDataMart: makeDataMart({
+          id: 'dm-b',
+          title: 'Direct DM',
+          schema: makeSchema([{ name: 'direct_field', type: 'STRING' }]),
+        }),
+      });
+
+      const relBtoC = makeRelationship({
+        id: 'rel-bc',
+        targetAlias: 'transitive',
+        sourceDataMart: makeDataMart({ id: 'dm-b' }),
+        targetDataMart: makeDataMart({
+          id: 'dm-c',
+          title: 'Transitive DM',
+          schema: makeSchema([{ name: 'trans_field', type: 'STRING' }]),
+        }),
+      });
+
+      relationshipService.findBySourceDataMartId.mockImplementation(async (id: string) => {
+        if (id === 'dm-a') return [relAtoB];
+        if (id === 'dm-b') return [relBtoC];
+        return [];
+      });
+
+      const result = await service.computeBlendableSchema('dm-a', 'project-1');
+
+      // All fields returned, but only direct is included
+      expect(result.blendedFields).toHaveLength(2);
+      expect(result.availableSources).toHaveLength(2);
+      expect(result.availableSources.find(s => s.aliasPath === 'direct')?.isIncluded).toBe(true);
+      expect(
+        result.availableSources.find(s => s.aliasPath === 'direct.transitive')?.isIncluded
+      ).toBe(false);
+    });
+
+    it('should handle BLEND_DIRECT_ONLY — include transitive when explicitly in sources', async () => {
+      const config: BlendedFieldsConfig = {
+        blendingBehaviour: 'BLEND_DIRECT_ONLY',
+        sources: [{ path: 'direct.transitive', alias: 'trans' }],
+      };
+
+      dataMartService.getByIdAndProjectId.mockResolvedValue(
+        makeDataMart({ id: 'dm-a', blendedFieldsConfig: config })
+      );
+
+      const relAtoB = makeRelationship({
+        id: 'rel-ab',
+        targetAlias: 'direct',
+        sourceDataMart: makeDataMart({ id: 'dm-a' }),
+        targetDataMart: makeDataMart({
+          id: 'dm-b',
+          title: 'Direct DM',
+          schema: makeSchema([{ name: 'direct_field', type: 'STRING' }]),
+        }),
+      });
+
+      const relBtoC = makeRelationship({
+        id: 'rel-bc',
+        targetAlias: 'transitive',
+        sourceDataMart: makeDataMart({ id: 'dm-b' }),
+        targetDataMart: makeDataMart({
+          id: 'dm-c',
+          title: 'Transitive DM',
+          schema: makeSchema([{ name: 'trans_field', type: 'STRING' }]),
+        }),
+      });
+
+      relationshipService.findBySourceDataMartId.mockImplementation(async (id: string) => {
+        if (id === 'dm-a') return [relAtoB];
+        if (id === 'dm-b') return [relBtoC];
+        return [];
+      });
+
+      const result = await service.computeBlendableSchema('dm-a', 'project-1');
+
+      expect(result.blendedFields).toHaveLength(2);
+      const transField = result.blendedFields.find(f => f.aliasPath === 'direct.transitive')!;
+      expect(transField.name).toBe('trans trans_field');
+      expect(transField.outputPrefix).toBe('trans');
+    });
+
+    it('should handle MANUAL mode — only explicit sources included', async () => {
+      const config: BlendedFieldsConfig = {
+        blendingBehaviour: 'MANUAL',
+        sources: [{ path: 'orders', alias: 'ord' }],
+      };
+
+      dataMartService.getByIdAndProjectId.mockResolvedValue(
+        makeDataMart({ id: 'dm-1', blendedFieldsConfig: config })
+      );
 
       const rel1 = makeRelationship({
         id: 'rel-1',
         targetAlias: 'orders',
-        targetDataMart: targetDm,
-        blendedFields: [
-          {
-            targetFieldName: 'revenue',
-            outputAlias: 'orders_revenue',
-            isHidden: false,
-            aggregateFunction: 'SUM',
-          },
-        ],
+        targetDataMart: makeDataMart({
+          id: 'dm-2',
+          title: 'Orders',
+          schema: makeSchema([{ name: 'revenue', type: 'FLOAT' }]),
+        }),
       });
 
       const rel2 = makeRelationship({
         id: 'rel-2',
-        targetAlias: 'orders_v2',
-        targetDataMart: targetDm,
-        blendedFields: [
-          {
-            targetFieldName: 'country',
-            outputAlias: 'orders_v2_country',
-            isHidden: false,
-            aggregateFunction: 'STRING_AGG',
-          },
-        ],
+        targetAlias: 'sessions',
+        targetDataMart: makeDataMart({
+          id: 'dm-3',
+          title: 'Sessions',
+          schema: makeSchema([{ name: 'session_id', type: 'STRING' }]),
+        }),
       });
 
       relationshipService.findBySourceDataMartId.mockImplementation(async (id: string) => {
@@ -295,35 +469,63 @@ describe('BlendableSchemaService', () => {
 
       const result = await service.computeBlendableSchema('dm-1', 'project-1');
 
+      // All fields returned, but only 'orders' is included
       expect(result.blendedFields).toHaveLength(2);
-      expect(result.blendedFields[0].name).toBe('orders_revenue');
-      expect(result.blendedFields[0].targetAlias).toBe('orders');
-      expect(result.blendedFields[1].name).toBe('orders_v2_country');
-      expect(result.blendedFields[1].targetAlias).toBe('orders_v2');
+      expect(result.availableSources).toHaveLength(2);
+      expect(result.availableSources.find(s => s.aliasPath === 'orders')?.isIncluded).toBe(true);
+      expect(result.availableSources.find(s => s.aliasPath === 'sessions')?.isIncluded).toBe(false);
+      expect(result.blendedFields.find(f => f.aliasPath === 'orders')?.name).toBe('ord revenue');
     });
 
-    it('should use UNKNOWN type when schema field is not found in target schema', async () => {
+    it('should silently ignore orphaned sources that do not match any relationship path', async () => {
+      const config: BlendedFieldsConfig = {
+        blendingBehaviour: 'AUTO_BLEND_ALL',
+        sources: [
+          { path: 'nonexistent_path', alias: 'ghost' },
+          { path: 'orders', alias: 'ord' },
+        ],
+      };
+
+      dataMartService.getByIdAndProjectId.mockResolvedValue(
+        makeDataMart({ id: 'dm-1', blendedFieldsConfig: config })
+      );
+
+      const relationship = makeRelationship({
+        id: 'rel-1',
+        targetAlias: 'orders',
+        targetDataMart: makeDataMart({
+          id: 'dm-2',
+          title: 'Orders',
+          schema: makeSchema([{ name: 'revenue', type: 'FLOAT' }]),
+        }),
+      });
+
+      relationshipService.findBySourceDataMartId.mockImplementation(async (id: string) => {
+        if (id === 'dm-1') return [relationship];
+        return [];
+      });
+
+      const result = await service.computeBlendableSchema('dm-1', 'project-1');
+
+      // Should not throw — orphaned 'nonexistent_path' is silently ignored
+      expect(result.blendedFields).toHaveLength(1);
+      expect(result.blendedFields[0].name).toBe('ord revenue');
+    });
+
+    it('should filter out isHiddenForReporting fields from target schema', async () => {
       dataMartService.getByIdAndProjectId.mockResolvedValue(makeDataMart({ id: 'dm-1' }));
 
       const relationship = makeRelationship({
         id: 'rel-1',
-        targetAlias: 'alias',
+        targetAlias: 'target',
         targetDataMart: makeDataMart({
           id: 'dm-2',
-          title: 'DM 2',
-          schema: {
-            type: 'bigquery-data-mart-schema',
-            fields: [{ name: 'existing_field', type: 'STRING' }],
-          } as unknown as DataMart['schema'],
+          title: 'Target',
+          schema: makeSchema([
+            { name: 'visible', type: 'STRING' },
+            { name: 'hidden', type: 'STRING', isHiddenForReporting: true },
+          ]),
         }),
-        blendedFields: [
-          {
-            targetFieldName: 'non_existent_field',
-            outputAlias: 'output_alias',
-            isHidden: false,
-            aggregateFunction: 'STRING_AGG',
-          },
-        ],
       });
 
       relationshipService.findBySourceDataMartId.mockImplementation(async (id: string) => {
@@ -334,7 +536,47 @@ describe('BlendableSchemaService', () => {
       const result = await service.computeBlendableSchema('dm-1', 'project-1');
 
       expect(result.blendedFields).toHaveLength(1);
-      expect(result.blendedFields[0].type).toBe('UNKNOWN');
+      expect(result.blendedFields[0].originalFieldName).toBe('visible');
+    });
+
+    it('should return blended fields from multiple relationships to the same target DM with different aliases', async () => {
+      dataMartService.getByIdAndProjectId.mockResolvedValue(makeDataMart({ id: 'dm-1' }));
+
+      const targetSchema = makeSchema([
+        { name: 'revenue', type: 'FLOAT' },
+        { name: 'country', type: 'STRING' },
+      ]);
+      const targetDm = makeDataMart({
+        id: 'dm-2',
+        title: 'Orders DM',
+        schema: targetSchema,
+      });
+
+      const rel1 = makeRelationship({
+        id: 'rel-1',
+        targetAlias: 'orders',
+        targetDataMart: targetDm,
+      });
+
+      const rel2 = makeRelationship({
+        id: 'rel-2',
+        targetAlias: 'orders_v2',
+        targetDataMart: targetDm,
+      });
+
+      relationshipService.findBySourceDataMartId.mockImplementation(async (id: string) => {
+        if (id === 'dm-1') return [rel1, rel2];
+        return [];
+      });
+
+      const result = await service.computeBlendableSchema('dm-1', 'project-1');
+
+      // Both aliases should produce fields independently
+      expect(result.blendedFields).toHaveLength(4);
+      expect(result.blendedFields[0].name).toBe('orders revenue');
+      expect(result.blendedFields[1].name).toBe('orders country');
+      expect(result.blendedFields[2].name).toBe('orders_v2 revenue');
+      expect(result.blendedFields[3].name).toBe('orders_v2 country');
     });
   });
 });

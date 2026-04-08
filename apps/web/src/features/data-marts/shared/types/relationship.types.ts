@@ -70,9 +70,43 @@ export interface BlendedField {
   isHidden: boolean;
   aggregateFunction: string;
   transitiveDepth: number;
+  aliasPath: string;
+  outputPrefix: string;
+}
+
+export interface AvailableSource {
+  aliasPath: string;
+  title: string;
+  defaultAlias: string;
+  depth: number;
+  fieldCount: number;
+  isIncluded: boolean;
+  relationshipId: string;
+  dataMartId: string;
 }
 
 export interface BlendableSchema {
   nativeFields: unknown[];
   blendedFields: BlendedField[];
+  availableSources: AvailableSource[];
+}
+
+export interface BlendedFieldOverride {
+  alias?: string;
+  isHidden?: boolean;
+  aggregateFunction?: string;
+}
+
+export interface BlendedSource {
+  path: string;
+  alias: string;
+  isExcluded?: boolean;
+  fields?: Record<string, BlendedFieldOverride>;
+}
+
+export type BlendingBehaviour = 'AUTO_BLEND_ALL' | 'BLEND_DIRECT_ONLY' | 'MANUAL';
+
+export interface BlendedFieldsConfig {
+  blendingBehaviour: BlendingBehaviour;
+  sources: BlendedSource[];
 }

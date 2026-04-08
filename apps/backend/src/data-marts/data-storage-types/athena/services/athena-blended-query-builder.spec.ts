@@ -46,6 +46,14 @@ describe('AthenaBlendedQueryBuilder', () => {
         relationship: makeRelationship(),
         targetTableReference: '`mydatabase`.`myschema`.`orders`',
         parentAlias: 'main',
+        blendedFields: [
+          {
+            targetFieldName: 'order_name',
+            outputAlias: 'order_names',
+            isHidden: false,
+            aggregateFunction: 'STRING_AGG',
+          },
+        ],
       };
 
       const sql = builder.buildBlendedQuery(
@@ -69,6 +77,14 @@ describe('AthenaBlendedQueryBuilder', () => {
         relationship: makeRelationship(),
         targetTableReference: '`db`.`schema`.`orders`',
         parentAlias: 'main',
+        blendedFields: [
+          {
+            targetFieldName: 'order_name',
+            outputAlias: 'order_names',
+            isHidden: false,
+            aggregateFunction: 'STRING_AGG',
+          },
+        ],
       };
 
       const sql = builder.buildBlendedQuery('`db`.`schema`.`customers`', [chain], ['order_names']);
@@ -98,6 +114,14 @@ describe('AthenaBlendedQueryBuilder', () => {
         }),
         targetTableReference: '`db`.`schema`.`events`',
         parentAlias: 'main',
+        blendedFields: [
+          {
+            targetFieldName: 'event_name',
+            outputAlias: 'event_names',
+            isHidden: false,
+            aggregateFunction: 'STRING_AGG',
+          },
+        ],
       };
 
       const sql = builder.buildBlendedQuery('`db`.`schema`.`customers`', [chain], ['event_names']);
@@ -127,6 +151,14 @@ describe('AthenaBlendedQueryBuilder', () => {
         }),
         targetTableReference: '`db`.`s`.`orders`',
         parentAlias: 'main',
+        blendedFields: [
+          {
+            targetFieldName: 'order_name',
+            outputAlias: 'order_names',
+            isHidden: false,
+            aggregateFunction: 'STRING_AGG',
+          },
+        ],
       };
 
       const chain2: ResolvedRelationshipChain = {
@@ -145,6 +177,14 @@ describe('AthenaBlendedQueryBuilder', () => {
         }),
         targetTableReference: '`db`.`s`.`payments`',
         parentAlias: 'main',
+        blendedFields: [
+          {
+            targetFieldName: 'amount',
+            outputAlias: 'total_amount',
+            isHidden: false,
+            aggregateFunction: 'MAX',
+          },
+        ],
       };
 
       const sql = builder.buildBlendedQuery(
@@ -174,6 +214,14 @@ describe('AthenaBlendedQueryBuilder', () => {
         }),
         targetTableReference: '`db`.`schema`.`orders`',
         parentAlias: 'main',
+        blendedFields: [
+          {
+            targetFieldName: 'order_id',
+            outputAlias: 'order_count',
+            isHidden: false,
+            aggregateFunction: 'COUNT',
+          },
+        ],
       };
 
       const sql = builder.buildBlendedQuery('`db`.`schema`.`customers`', [chain], ['order_count']);

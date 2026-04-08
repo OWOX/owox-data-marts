@@ -254,6 +254,7 @@ export function DataMartRelationshipsContent() {
           dataMartDescription={dmDescription}
           dataMartStatus={dmStatusCode}
           relationships={relationships}
+          connectedFieldCounts={connectedFieldCounts}
           onRelationshipSelect={handleEdit}
           searchQuery={searchQuery}
           showTransient={showTransient}
@@ -356,6 +357,7 @@ export function DataMartRelationshipsContent() {
               dataMartDescription={dataMart.description}
               dataMartStatus={dataMart.status.code}
               relationships={relationships}
+              connectedFieldCounts={connectedFieldCounts}
               onRelationshipSelect={handleEdit}
               searchQuery={searchQuery}
               showTransient={showTransient}

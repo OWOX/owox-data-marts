@@ -18,6 +18,7 @@ interface RelationshipCanvasProps {
   dataMartDescription?: string | null;
   dataMartStatus: string;
   relationships: DataMartRelationship[];
+  connectedFieldCounts?: Map<string, number>;
   onRelationshipSelect: (relationship: DataMartRelationship) => void;
   searchQuery: string;
   showTransient: boolean;
@@ -319,6 +320,7 @@ async function setupEditor(
   dataMartDescription: string | null | undefined,
   dataMartStatus: string,
   initialRelationships: DataMartRelationship[],
+  fieldCounts: Map<string, number> | undefined,
   onNodeSelect: (targetDmId: string) => void,
   onOpenExternal: (targetDmId: string) => void,
   showTransient: boolean
@@ -456,7 +458,7 @@ async function setupEditor(
         isSource: false,
         targetAlias: rel.targetAlias,
         joinCount: rel.joinConditions.length,
-        fieldCount: rel.blendedFields.length,
+        fieldCount: fieldCounts?.get(rel.id) ?? 0,
         isDraft,
         isBlocked,
       });
@@ -649,6 +651,7 @@ export function RelationshipCanvas({
   dataMartDescription,
   dataMartStatus,
   relationships,
+  connectedFieldCounts,
   onRelationshipSelect,
   searchQuery,
   showTransient,
@@ -685,6 +688,7 @@ export function RelationshipCanvas({
       dataMartDescription,
       dataMartStatus,
       relationships,
+      connectedFieldCounts,
       handleNodeSelect,
       handleOpenExternal,
       showTransient
@@ -706,6 +710,7 @@ export function RelationshipCanvas({
     dataMartDescription,
     dataMartStatus,
     relationships,
+    connectedFieldCounts,
     handleNodeSelect,
     handleOpenExternal,
     showTransient,

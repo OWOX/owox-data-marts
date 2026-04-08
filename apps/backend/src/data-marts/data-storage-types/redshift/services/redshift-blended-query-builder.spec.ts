@@ -46,6 +46,14 @@ describe('RedshiftBlendedQueryBuilder', () => {
         relationship: makeRelationship(),
         targetTableReference: '"myschema"."orders"',
         parentAlias: 'main',
+        blendedFields: [
+          {
+            targetFieldName: 'order_name',
+            outputAlias: 'order_names',
+            isHidden: false,
+            aggregateFunction: 'STRING_AGG',
+          },
+        ],
       };
 
       const sql = builder.buildBlendedQuery(
@@ -69,6 +77,14 @@ describe('RedshiftBlendedQueryBuilder', () => {
         relationship: makeRelationship(),
         targetTableReference: '"myschema"."orders"',
         parentAlias: 'main',
+        blendedFields: [
+          {
+            targetFieldName: 'order_name',
+            outputAlias: 'order_names',
+            isHidden: false,
+            aggregateFunction: 'STRING_AGG',
+          },
+        ],
       };
 
       const sql = builder.buildBlendedQuery('"myschema"."customers"', [chain], ['order_names']);
@@ -97,6 +113,14 @@ describe('RedshiftBlendedQueryBuilder', () => {
         }),
         targetTableReference: '"myschema"."events"',
         parentAlias: 'main',
+        blendedFields: [
+          {
+            targetFieldName: 'event_name',
+            outputAlias: 'event_names',
+            isHidden: false,
+            aggregateFunction: 'STRING_AGG',
+          },
+        ],
       };
 
       const sql = builder.buildBlendedQuery('"myschema"."customers"', [chain], ['event_names']);
@@ -126,6 +150,14 @@ describe('RedshiftBlendedQueryBuilder', () => {
         }),
         targetTableReference: '"schema"."orders"',
         parentAlias: 'main',
+        blendedFields: [
+          {
+            targetFieldName: 'order_name',
+            outputAlias: 'order_names',
+            isHidden: false,
+            aggregateFunction: 'STRING_AGG',
+          },
+        ],
       };
 
       const chain2: ResolvedRelationshipChain = {
@@ -144,6 +176,14 @@ describe('RedshiftBlendedQueryBuilder', () => {
         }),
         targetTableReference: '"schema"."payments"',
         parentAlias: 'main',
+        blendedFields: [
+          {
+            targetFieldName: 'amount',
+            outputAlias: 'total_amount',
+            isHidden: false,
+            aggregateFunction: 'MAX',
+          },
+        ],
       };
 
       const sql = builder.buildBlendedQuery(
@@ -173,6 +213,14 @@ describe('RedshiftBlendedQueryBuilder', () => {
         }),
         targetTableReference: '"myschema"."orders"',
         parentAlias: 'main',
+        blendedFields: [
+          {
+            targetFieldName: 'revenue',
+            outputAlias: 'total_revenue',
+            isHidden: false,
+            aggregateFunction: 'SUM',
+          },
+        ],
       };
 
       const sql = builder.buildBlendedQuery('"myschema"."customers"', [chain], ['total_revenue']);

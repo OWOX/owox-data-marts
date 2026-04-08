@@ -5,6 +5,7 @@ import type { DataMartDefinitionConfig } from './data-mart-definition-config.ts'
 import type { DataMartDefinitionType } from '../../../shared';
 import type { DataMartSchema } from '../../../shared/types/data-mart-schema.types';
 import type { ConnectorStateResponseDto } from '../../../shared/types/api/response/connector-state.response.dto';
+import type { BlendedFieldsConfig } from '../../../shared/types/relationship.types';
 
 /**
  * Data mart domain model
@@ -79,6 +80,11 @@ export interface DataMart {
    * Connector state (if Data Mart is CONNECTOR-based)
    */
   connectorState?: ConnectorStateResponseDto | null;
+
+  /**
+   * Blended fields configuration
+   */
+  blendedFieldsConfig?: BlendedFieldsConfig | null;
 
   /**
    * Created by user projection

@@ -20,6 +20,7 @@ export async function mapDataMartFromDto(dataMartDto: DataMartResponseDto): Prom
     definition: await mapDefinitionFromDto(dataMartDto.definitionType, dataMartDto.definition),
     schema: dataMartDto.schema,
     connectorState: dataMartDto.connectorState ?? null,
+    blendedFieldsConfig: dataMartDto.blendedFieldsConfig ?? null,
     createdByUser: dataMartDto.createdByUser,
     businessOwnerUsers: dataMartDto.businessOwnerUsers,
     technicalOwnerUsers: dataMartDto.technicalOwnerUsers,

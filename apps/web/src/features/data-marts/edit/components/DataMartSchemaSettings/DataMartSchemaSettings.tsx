@@ -12,6 +12,7 @@ import type { DataMartContextType } from '../../model/context/types.ts';
 import { useOperationState, useSchemaState } from './hooks';
 import { SchemaContent } from './SchemaContent';
 import type { DataMartDefinitionType } from '../../../shared/index.ts';
+import { BlendedSourcesSubsection } from './BlendedSourcesSubsection';
 
 interface DataMartSchemaSettingsProps {
   definitionType: DataMartDefinitionType | null;
@@ -119,6 +120,7 @@ export function DataMartSchemaSettings({ definitionType }: DataMartSchemaSetting
           Refresh schema
         </Button>
       </div>
+      <BlendedSourcesSubsection dataMartId={dataMartId} />
     </div>
   );
 }

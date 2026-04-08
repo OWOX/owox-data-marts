@@ -1,6 +1,7 @@
 import { ApiService } from '../../../../services';
 import type {
   BlendableSchema,
+  BlendedFieldsConfig,
   CreateRelationshipRequest,
   DataMartRelationship,
   UpdateRelationshipRequest,
@@ -77,6 +78,15 @@ class DataMartRelationshipService extends ApiService {
    * Uses a different base path (/data-storages) than the primary service.
    * @param storageId Data storage ID
    */
+  async updateBlendedFieldsConfig(
+    dataMartId: string,
+    config: BlendedFieldsConfig | null
+  ): Promise<unknown> {
+    return this.put(`/${dataMartId}/blended-fields-config`, {
+      blendedFieldsConfig: config,
+    });
+  }
+
   async getRelationshipsByStorage(storageId: string): Promise<DataMartRelationship[]> {
     return this.storageApiService.get<DataMartRelationship[]>(
       `/data-storages/${storageId}/relationships`

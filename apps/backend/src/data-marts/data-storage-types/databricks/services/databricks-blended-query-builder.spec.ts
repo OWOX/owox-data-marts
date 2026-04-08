@@ -46,6 +46,14 @@ describe('DatabricksBlendedQueryBuilder', () => {
         relationship: makeRelationship(),
         targetTableReference: '`mycatalog`.`myschema`.`orders`',
         parentAlias: 'main',
+        blendedFields: [
+          {
+            targetFieldName: 'order_name',
+            outputAlias: 'order_names',
+            isHidden: false,
+            aggregateFunction: 'STRING_AGG',
+          },
+        ],
       };
 
       const sql = builder.buildBlendedQuery(
@@ -69,6 +77,14 @@ describe('DatabricksBlendedQueryBuilder', () => {
         relationship: makeRelationship(),
         targetTableReference: '`cat`.`schema`.`orders`',
         parentAlias: 'main',
+        blendedFields: [
+          {
+            targetFieldName: 'order_name',
+            outputAlias: 'order_names',
+            isHidden: false,
+            aggregateFunction: 'STRING_AGG',
+          },
+        ],
       };
 
       const sql = builder.buildBlendedQuery('`cat`.`schema`.`customers`', [chain], ['order_names']);
@@ -99,6 +115,14 @@ describe('DatabricksBlendedQueryBuilder', () => {
         }),
         targetTableReference: '`cat`.`schema`.`events`',
         parentAlias: 'main',
+        blendedFields: [
+          {
+            targetFieldName: 'event_name',
+            outputAlias: 'event_names',
+            isHidden: false,
+            aggregateFunction: 'STRING_AGG',
+          },
+        ],
       };
 
       const sql = builder.buildBlendedQuery('`cat`.`schema`.`customers`', [chain], ['event_names']);
@@ -128,6 +152,14 @@ describe('DatabricksBlendedQueryBuilder', () => {
         }),
         targetTableReference: '`cat`.`s`.`orders`',
         parentAlias: 'main',
+        blendedFields: [
+          {
+            targetFieldName: 'order_name',
+            outputAlias: 'order_names',
+            isHidden: false,
+            aggregateFunction: 'STRING_AGG',
+          },
+        ],
       };
 
       const chain2: ResolvedRelationshipChain = {
@@ -146,6 +178,14 @@ describe('DatabricksBlendedQueryBuilder', () => {
         }),
         targetTableReference: '`cat`.`s`.`payments`',
         parentAlias: 'main',
+        blendedFields: [
+          {
+            targetFieldName: 'amount',
+            outputAlias: 'total_amount',
+            isHidden: false,
+            aggregateFunction: 'MAX',
+          },
+        ],
       };
 
       const sql = builder.buildBlendedQuery(
@@ -175,6 +215,14 @@ describe('DatabricksBlendedQueryBuilder', () => {
         }),
         targetTableReference: '`cat`.`schema`.`orders`',
         parentAlias: 'main',
+        blendedFields: [
+          {
+            targetFieldName: 'created_at',
+            outputAlias: 'first_order_date',
+            isHidden: false,
+            aggregateFunction: 'MIN',
+          },
+        ],
       };
 
       const sql = builder.buildBlendedQuery(

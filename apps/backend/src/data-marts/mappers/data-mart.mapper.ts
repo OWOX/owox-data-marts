@@ -27,6 +27,7 @@ import { RunDataMartCommand } from '../dto/domain/run-data-mart.command';
 import { SqlDryRunResult } from '../dto/domain/sql-dry-run-result.dto';
 import { SqlDryRunCommand } from '../dto/domain/sql-dry-run.command';
 import { UpdateDataMartDefinitionCommand } from '../dto/domain/update-data-mart-definition.command';
+import { UpdateBlendedFieldsConfigCommand } from '../dto/domain/update-blended-fields-config.command';
 import { UpdateDataMartDescriptionCommand } from '../dto/domain/update-data-mart-description.command';
 import { UpdateDataMartSchemaCommand } from '../dto/domain/update-data-mart-schema.command';
 import { UpdateDataMartTitleCommand } from '../dto/domain/update-data-mart-title.command';
@@ -45,6 +46,7 @@ import { PaginatedDataMartsResponseApiDto } from '../dto/presentation/paginated-
 import { SqlDryRunRequestApiDto } from '../dto/presentation/sql-dry-run-request-api.dto';
 import { SqlDryRunResponseApiDto } from '../dto/presentation/sql-dry-run-response-api.dto';
 import { UpdateDataMartDefinitionApiDto } from '../dto/presentation/update-data-mart-definition-api.dto';
+import { UpdateBlendedFieldsConfigApiDto } from '../dto/presentation/update-blended-fields-config-api.dto';
 import { UpdateDataMartDescriptionApiDto } from '../dto/presentation/update-data-mart-description-api.dto';
 import { UpdateDataMartSchemaApiDto } from '../dto/presentation/update-data-mart-schema-api.dto';
 import { UpdateDataMartTitleApiDto } from '../dto/presentation/update-data-mart-title-api.dto';
@@ -100,7 +102,8 @@ export class DataMartMapper {
       counters?.reportsCount ?? 0,
       createdByUser ?? null,
       businessOwnerUsers,
-      technicalOwnerUsers
+      technicalOwnerUsers,
+      entity.blendedFieldsConfig
     );
   }
 
@@ -132,6 +135,7 @@ export class DataMartMapper {
       connectorState: dto.connectorState,
       triggersCount: dto.triggersCount,
       reportsCount: dto.reportsCount,
+      blendedFieldsConfig: dto.blendedFieldsConfig,
       createdByUser: dto.createdByUser,
       businessOwnerUsers: dto.businessOwnerUsers,
       technicalOwnerUsers: dto.technicalOwnerUsers,
@@ -302,6 +306,18 @@ export class DataMartMapper {
     dto: UpdateDataMartDescriptionApiDto
   ): UpdateDataMartDescriptionCommand {
     return new UpdateDataMartDescriptionCommand(id, context.projectId, dto.description);
+  }
+
+  toUpdateBlendedFieldsConfigCommand(
+    id: string,
+    context: AuthorizationContext,
+    dto: UpdateBlendedFieldsConfigApiDto
+  ): UpdateBlendedFieldsConfigCommand {
+    return new UpdateBlendedFieldsConfigCommand(
+      id,
+      context.projectId,
+      dto.blendedFieldsConfig ?? null
+    );
   }
 
   toPublishCommand(id: string, context: AuthorizationContext): PublishDataMartCommand {

@@ -46,6 +46,14 @@ describe('BigQueryBlendedQueryBuilder', () => {
         relationship: makeRelationship(),
         targetTableReference: '`project`.`dataset`.`orders`',
         parentAlias: 'main',
+        blendedFields: [
+          {
+            targetFieldName: 'order_name',
+            outputAlias: 'order_names',
+            isHidden: false,
+            aggregateFunction: 'STRING_AGG',
+          },
+        ],
       };
 
       const sql = builder.buildBlendedQuery(
@@ -82,6 +90,14 @@ describe('BigQueryBlendedQueryBuilder', () => {
         }),
         targetTableReference: '`p`.`d`.`orders`',
         parentAlias: 'main',
+        blendedFields: [
+          {
+            targetFieldName: 'order_name',
+            outputAlias: 'order_names',
+            isHidden: false,
+            aggregateFunction: 'STRING_AGG',
+          },
+        ],
       };
 
       const chain2: ResolvedRelationshipChain = {
@@ -100,6 +116,14 @@ describe('BigQueryBlendedQueryBuilder', () => {
         }),
         targetTableReference: '`p`.`d`.`payments`',
         parentAlias: 'main',
+        blendedFields: [
+          {
+            targetFieldName: 'amount',
+            outputAlias: 'total_amount',
+            isHidden: false,
+            aggregateFunction: 'MAX',
+          },
+        ],
       };
 
       const sql = builder.buildBlendedQuery(
@@ -131,6 +155,14 @@ describe('BigQueryBlendedQueryBuilder', () => {
         }),
         targetTableReference: '`p`.`d`.`items`',
         parentAlias: 'orders',
+        blendedFields: [
+          {
+            targetFieldName: 'sku',
+            outputAlias: 'item_skus',
+            isHidden: false,
+            aggregateFunction: 'STRING_AGG',
+          },
+        ],
       };
 
       const sql = builder.buildBlendedQuery('`p`.`d`.`customers`', [chain], ['item_skus']);
@@ -159,6 +191,14 @@ describe('BigQueryBlendedQueryBuilder', () => {
         }),
         targetTableReference: '`p`.`d`.`events`',
         parentAlias: 'main',
+        blendedFields: [
+          {
+            targetFieldName: 'event_name',
+            outputAlias: 'event_names',
+            isHidden: false,
+            aggregateFunction: 'STRING_AGG',
+          },
+        ],
       };
 
       const sql = builder.buildBlendedQuery('`p`.`d`.`customers`', [chain], ['event_names']);
@@ -193,6 +233,20 @@ describe('BigQueryBlendedQueryBuilder', () => {
         }),
         targetTableReference: '`p`.`d`.`orders`',
         parentAlias: 'main',
+        blendedFields: [
+          {
+            targetFieldName: 'order_name',
+            outputAlias: 'order_names',
+            isHidden: false,
+            aggregateFunction: 'STRING_AGG',
+          },
+          {
+            targetFieldName: 'revenue',
+            outputAlias: 'total_revenue',
+            isHidden: false,
+            aggregateFunction: 'SUM',
+          },
+        ],
       };
 
       const sql = builder.buildBlendedQuery(
@@ -233,6 +287,20 @@ describe('BigQueryBlendedQueryBuilder', () => {
         }),
         targetTableReference: '`p`.`d`.`orders`',
         parentAlias: 'main',
+        blendedFields: [
+          {
+            targetFieldName: 'order_name',
+            outputAlias: 'order_names',
+            isHidden: false,
+            aggregateFunction: 'STRING_AGG',
+          },
+          {
+            targetFieldName: 'internal_flag',
+            outputAlias: 'hidden_flag',
+            isHidden: true,
+            aggregateFunction: 'MAX',
+          },
+        ],
       };
 
       const sql = builder.buildBlendedQuery(

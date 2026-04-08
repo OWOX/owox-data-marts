@@ -5,6 +5,7 @@ import { DataMartDefinitionType } from '../../../enums';
 import type { DataMartDefinitionDto } from './data-mart-definition.dto';
 import type { DataMartSchema } from '../../data-mart-schema.types';
 import type { ConnectorStateResponseDto } from './connector-state.response.dto';
+import type { BlendedFieldsConfig } from '../../relationship.types';
 
 /**
  * Data mart response data transfer object
@@ -26,4 +27,5 @@ export interface DataMartResponseDto {
   modifiedAt: Date;
   schema: DataMartSchema | null;
   connectorState?: ConnectorStateResponseDto | null;
+  blendedFieldsConfig?: BlendedFieldsConfig | null;
 }

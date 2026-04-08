@@ -16,7 +16,7 @@ export const BlendedFieldConfigSchema = z.object({
     .default('STRING_AGG'),
 });
 export type BlendedFieldConfig = z.infer<typeof BlendedFieldConfigSchema>;
-export const BlendedFieldsSchema = z.array(BlendedFieldConfigSchema).min(1);
+export const BlendedFieldsSchema = z.array(BlendedFieldConfigSchema);
 
 export const ReportColumnConfigSchema = z.array(z.string().min(1)).min(1).nullable();
 export type ReportColumnConfig = z.infer<typeof ReportColumnConfigSchema>;

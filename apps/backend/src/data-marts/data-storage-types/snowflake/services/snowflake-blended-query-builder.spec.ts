@@ -46,6 +46,14 @@ describe('SnowflakeBlendedQueryBuilder', () => {
         relationship: makeRelationship(),
         targetTableReference: 'mydb."myschema"."orders"',
         parentAlias: 'main',
+        blendedFields: [
+          {
+            targetFieldName: 'order_name',
+            outputAlias: 'order_names',
+            isHidden: false,
+            aggregateFunction: 'STRING_AGG',
+          },
+        ],
       };
 
       const sql = builder.buildBlendedQuery(
@@ -69,6 +77,14 @@ describe('SnowflakeBlendedQueryBuilder', () => {
         relationship: makeRelationship(),
         targetTableReference: 'mydb."myschema"."orders"',
         parentAlias: 'main',
+        blendedFields: [
+          {
+            targetFieldName: 'order_name',
+            outputAlias: 'order_names',
+            isHidden: false,
+            aggregateFunction: 'STRING_AGG',
+          },
+        ],
       };
 
       const sql = builder.buildBlendedQuery(
@@ -101,6 +117,14 @@ describe('SnowflakeBlendedQueryBuilder', () => {
         }),
         targetTableReference: 'mydb."myschema"."events"',
         parentAlias: 'main',
+        blendedFields: [
+          {
+            targetFieldName: 'event_name',
+            outputAlias: 'event_names',
+            isHidden: false,
+            aggregateFunction: 'STRING_AGG',
+          },
+        ],
       };
 
       const sql = builder.buildBlendedQuery(
@@ -134,6 +158,14 @@ describe('SnowflakeBlendedQueryBuilder', () => {
         }),
         targetTableReference: 'db."schema"."orders"',
         parentAlias: 'main',
+        blendedFields: [
+          {
+            targetFieldName: 'order_name',
+            outputAlias: 'order_names',
+            isHidden: false,
+            aggregateFunction: 'STRING_AGG',
+          },
+        ],
       };
 
       const chain2: ResolvedRelationshipChain = {
@@ -152,6 +184,14 @@ describe('SnowflakeBlendedQueryBuilder', () => {
         }),
         targetTableReference: 'db."schema"."payments"',
         parentAlias: 'main',
+        blendedFields: [
+          {
+            targetFieldName: 'amount',
+            outputAlias: 'total_amount',
+            isHidden: false,
+            aggregateFunction: 'MAX',
+          },
+        ],
       };
 
       const sql = builder.buildBlendedQuery(
@@ -181,6 +221,14 @@ describe('SnowflakeBlendedQueryBuilder', () => {
         }),
         targetTableReference: 'mydb."myschema"."orders"',
         parentAlias: 'main',
+        blendedFields: [
+          {
+            targetFieldName: 'order_id',
+            outputAlias: 'order_count',
+            isHidden: false,
+            aggregateFunction: 'COUNT',
+          },
+        ],
       };
 
       const sql = builder.buildBlendedQuery(

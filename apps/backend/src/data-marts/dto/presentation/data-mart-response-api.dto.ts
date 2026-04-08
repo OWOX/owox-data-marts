@@ -7,6 +7,7 @@ import { DataStorageResponseApiDto } from './data-storage-response-api.dto';
 import { DataMartSchema } from '../../data-storage-types/data-mart-schema.type';
 import { ConnectorState as ConnectorStateData } from '../../connector-types/interfaces/connector-state';
 import { ConnectorStateResponseApiDto } from './connector-state-response-api.dto';
+import { BlendedFieldsConfig } from '../schemas/blended-fields-config.schemas';
 
 export class DataMartResponseApiDto {
   @ApiProperty({ example: '9cabc24e-1234-4a5a-8b12-abcdef123456' })
@@ -50,6 +51,9 @@ export class DataMartResponseApiDto {
 
   @ApiProperty({ type: [Object] })
   technicalOwnerUsers: UserProjection[];
+
+  @ApiProperty({ required: false })
+  blendedFieldsConfig?: BlendedFieldsConfig;
 
   @ApiProperty({ example: '2024-01-01T12:00:00.000Z' })
   createdAt: Date;

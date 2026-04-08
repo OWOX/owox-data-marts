@@ -32,7 +32,7 @@ export class AthenaBlendedQueryBuilder implements BlendedQueryBuilder {
 
     const allSubsidiaryOutputAliases = new Set<string>();
     for (const chain of chains) {
-      for (const field of chain.relationship.blendedFields) {
+      for (const field of chain.blendedFields) {
         if (!field.isHidden) {
           allSubsidiaryOutputAliases.add(field.outputAlias);
         }

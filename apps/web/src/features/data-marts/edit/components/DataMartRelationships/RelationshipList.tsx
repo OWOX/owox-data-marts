@@ -133,7 +133,7 @@ export function RelationshipList({
                 <TableCell className='font-medium'>
                   <span
                     className='inline-flex items-center'
-                    style={{ paddingLeft: isTransient ? (row.depth - 1) * 24 : 0 }}
+                    style={{ paddingLeft: isTransient ? (row.depth - 1) * 16 : 0 }}
                   >
                     {isTransient && (
                       <span className='text-muted-foreground mr-1.5 text-xs'>{'\u21B3'}</span>

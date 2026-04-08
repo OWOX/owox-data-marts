@@ -5,6 +5,7 @@ import { DataStorageDto } from './data-storage.dto';
 import { DataMartStatus } from '../../enums/data-mart-status.enum';
 import { DataMartSchema } from '../../data-storage-types/data-mart-schema.type';
 import { ConnectorState as ConnectorStateData } from '../../connector-types/interfaces/connector-state';
+import { BlendedFieldsConfig } from '../schemas/blended-fields-config.schemas';
 
 export class DataMartDto {
   constructor(
@@ -23,6 +24,7 @@ export class DataMartDto {
     public readonly reportsCount: number = 0,
     public readonly createdByUser: UserProjectionDto | null = null,
     public readonly businessOwnerUsers: UserProjectionDto[] = [],
-    public readonly technicalOwnerUsers: UserProjectionDto[] = []
+    public readonly technicalOwnerUsers: UserProjectionDto[] = [],
+    public readonly blendedFieldsConfig?: BlendedFieldsConfig
   ) {}
 }
