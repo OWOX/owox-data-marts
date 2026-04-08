@@ -1,6 +1,5 @@
 import { Fragment, useEffect, useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
-import { CircleCheck, Combine, GitMerge, MoreHorizontal } from 'lucide-react';
+import { CircleCheck, Combine, MoreHorizontal } from 'lucide-react';
 import { SearchInput } from '@owox/ui/components/common/search-input';
 import { Button } from '@owox/ui/components/button';
 import {
@@ -161,14 +160,7 @@ export function BlendedFieldsSection({ dataMartId }: BlendedFieldsSectionProps) 
             Add relationships to blend fields from other Data Marts into this one.
           </EmptyDescription>
         </EmptyHeader>
-        <EmptyContent>
-          <Button variant='outline' size='sm' asChild>
-            <Link to='../relationships'>
-              <GitMerge className='mr-1 h-3.5 w-3.5' />
-              Go to Relationships
-            </Link>
-          </Button>
-        </EmptyContent>
+        <EmptyContent />
       </Empty>
     );
   }
@@ -196,12 +188,6 @@ export function BlendedFieldsSection({ dataMartId }: BlendedFieldsSectionProps) 
             </Tooltip>
             <span className='text-sm font-medium text-gray-500'>{schema.blendedFields.length}</span>
           </div>
-          <Button variant='outline' size='sm' asChild>
-            <Link to='../relationships'>
-              <GitMerge className='mr-1 h-3.5 w-3.5' />
-              Go to Relationships
-            </Link>
-          </Button>
         </div>
       </div>
 

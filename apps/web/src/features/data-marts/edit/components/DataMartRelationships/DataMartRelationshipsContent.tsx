@@ -33,6 +33,7 @@ import { RelationshipList } from './RelationshipList';
 import { useTransientRelationships } from './useTransientRelationships';
 
 const VIEW_MODE_KEY = 'relationship-view-mode';
+const SHOW_TRANSITIVE_KEY = 'relationship-show-transitive';
 const CONTENT_MIN_H = 480;
 
 export function DataMartRelationshipsContent() {
@@ -57,7 +58,9 @@ export function DataMartRelationshipsContent() {
     const stored = localStorage.getItem(VIEW_MODE_KEY);
     return stored === 'graph' ? 'graph' : 'table';
   });
-  const [showTransient, setShowTransient] = useState(false);
+  const [showTransient, setShowTransient] = useState(
+    () => localStorage.getItem(SHOW_TRANSITIVE_KEY) === 'true'
+  );
   const [isFullscreen, setIsFullscreen] = useState(false);
 
   const dataMartId = dataMart?.id ?? '';
@@ -66,6 +69,10 @@ export function DataMartRelationshipsContent() {
   useEffect(() => {
     localStorage.setItem(VIEW_MODE_KEY, viewMode);
   }, [viewMode]);
+
+  useEffect(() => {
+    localStorage.setItem(SHOW_TRANSITIVE_KEY, String(showTransient));
+  }, [showTransient]);
 
   const loadRelationships = useCallback(async () => {
     if (!dataMartId) return;
@@ -226,7 +233,7 @@ export function DataMartRelationshipsContent() {
             className={`h-9 gap-1.5 ${showTransient ? 'ring-ring/30 ring-2' : ''}`}
           >
             <Route className='h-4 w-4' />
-            Show transitive
+            Show transient
           </Button>
 
           <Button variant='outline' size='sm' className='h-9' onClick={openAddDialog}>

@@ -732,17 +732,6 @@ export function RelationshipCanvas({
       `}</style>
       <div className='absolute top-3 right-3 z-10 flex items-start gap-2'>
         <div className='flex flex-col gap-1.5'>
-          {onRequestFullscreen && (
-            <Button
-              variant='outline'
-              size='icon'
-              className='h-12 w-12'
-              onClick={onRequestFullscreen}
-              aria-label='Expand diagram'
-            >
-              <Maximize2 className='h-6 w-6' />
-            </Button>
-          )}
           <Button
             variant='outline'
             size='icon'
@@ -776,6 +765,17 @@ export function RelationshipCanvas({
           >
             <ZoomOut className='h-6 w-6' />
           </Button>
+          {onRequestFullscreen && (
+            <Button
+              variant='outline'
+              size='icon'
+              className='h-12 w-12'
+              onClick={onRequestFullscreen}
+              aria-label='Expand diagram'
+            >
+              <Maximize2 className='h-6 w-6' />
+            </Button>
+          )}
         </div>
       </div>
       <div
