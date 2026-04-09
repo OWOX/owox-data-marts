@@ -155,5 +155,40 @@ describe('ConnectorRunTriggerHandlerService', () => {
 
       await expect(service.handleTrigger(mockTrigger)).rejects.toThrow('execution failed');
     });
+
+    it('skips duplicate trigger when run is already RUNNING', async () => {
+      const { service, dataMartService, dataMartRunService, dataMartRunRepository, mockManager } =
+        createService();
+
+      (dataMartService.getByIdAndProjectId as jest.Mock).mockResolvedValue(mockDataMart);
+      // Simulate claim failure — run is no longer PENDING
+      (mockManager.update as jest.Mock).mockResolvedValue({ affected: 0 });
+      // Run is already RUNNING from a previous trigger processing
+      (dataMartRunService.findById as jest.Mock).mockResolvedValue({
+        id: 'run-1',
+        status: DataMartRunStatus.RUNNING,
+      });
+
+      await service.handleTrigger(mockTrigger);
+
+      // Should NOT fail the run
+      expect(dataMartRunRepository.save).not.toHaveBeenCalled();
+    });
+
+    it('fails the run when claim fails and run is not RUNNING', async () => {
+      const { service, dataMartService, dataMartRunService, mockManager } = createService();
+
+      (dataMartService.getByIdAndProjectId as jest.Mock).mockResolvedValue(mockDataMart);
+      (mockManager.update as jest.Mock).mockResolvedValue({ affected: 0 });
+      // Run is in some other non-RUNNING state (e.g. PENDING changed by another process)
+      (dataMartRunService.findById as jest.Mock).mockResolvedValue({
+        id: 'run-1',
+        status: DataMartRunStatus.FAILED,
+      });
+
+      await expect(service.handleTrigger(mockTrigger)).rejects.toThrow(
+        'is not in PENDING status, cannot claim'
+      );
+    });
   });
 });
