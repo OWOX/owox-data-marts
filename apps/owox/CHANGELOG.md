@@ -1,5 +1,71 @@
 # owox
 
+## 0.23.0
+
+### Minor Changes 0.23.0
+
+- 0f07594: # Auto-select the only storage when creating a Data Mart
+
+  When creating a Data Mart, if your project has only one storage, that storage is now selected for you automatically. New users no longer need to hunt for the right option in the dropdown or take an extra step before they can submit—especially helpful on small projects where a single storage is the obvious choice.
+
+- 126280a: # Fix empty error text for invalid storage status
+
+  When storage access validation fails and the backend response doesn't include an error message, the UI now shows "Access validation failed" instead of rendering a blank space next to the warning icon.
+
+- 15390c6: # Save Facebook ads data progressively to prevent loss on API failures
+
+  Previously, if the Facebook API returned an error mid-fetch, all already-downloaded
+  records were lost. Now data is saved to BigQuery page by page, so a failure only
+  affects the remaining pages — not the entire dataset.
+
+- 870de85: # Add geographic performance reports to Google Ads connector
+
+  You can now import geographic performance data from Google Ads. Add `Geo Stats` to your Fields configuration to see how your campaigns perform across countries, broken down by impressions, clicks, cost, and conversions. Add `Geo Target Constants` alongside it to get country names and codes instead of raw IDs. The two tables are designed to be joined in BigQuery on `country_criterion_id`.
+
+- 5d9c896: # Clearer error when Google Sheet access is denied
+
+  When access validation fails due to missing sharing permissions, the error now tells users exactly what to do: share the spreadsheet with the account used for authentication (service account email or connected Google account) and grant Editor permission — instead of showing the raw Google API error "The caller does not have permission".
+
+- 832bb73: # Add error boundaries to gracefully handle unexpected application crashes
+
+  Replace the default React "Unexpected Application Error" screen with user-friendly fallback UI. When a page crashes, users now see a styled error page with options to navigate home or reload — instead of raw technical stack traces. The sidebar stays visible for in-layout errors, so users can navigate away without a full page reload.
+
+- 004b9a5: # Invite teammates directly from setup screens
+
+  Add contextual “Invite teammates” helper blocks to setup and empty state screens.
+  This allows users to quickly invite teammates when they need help, improving onboarding and reducing friction.
+
+  Includes reusable component with responsive layout and optional documentation link.
+
+- d8b82e5: # Ownership Foundations
+
+  Ownership is now explicit and visible across all major entities. This is the first stage of the Permissions Model Evolution — ownership is informational only and does not affect access control.
+  - **Data Mart** has separate Technical Owner and Business Owner, editable on the Overview tab.
+  - **Storage**, **Destination**, and **Report** each have an Owners list, editable in the configuration sheet and saved together with the entity.
+  - **Creator is auto-assigned as owner** when a new entity is created.
+  - **Owners column** is displayed in Storage, Destination, and Report list tables.
+  - **Filter by owner** is available in Data Marts, Storages, and Destinations lists.
+  - **"Not assigned" state** is shown when an entity has no owners.
+
+- a848ac4: # Fix Storage column sorting on the Data Marts page
+
+  Fixed an issue where sorting by the Storage column produced incorrect alphabetical order. Storages with custom names could appear interleaved instead of being sorted alphabetically by their visible name.
+
+- 4033235: # X Ads: Country Breakdown for Ad Stats
+
+  You can now load daily ad stats broken down by country using the new `stats_by_country` node. It tracks impressions, clicks, and other metrics per country for each promoted tweet.
+
+  To get human-readable country names, use the companion `targeting_locations` node — a reference table that maps X Ads location IDs to country names and ISO codes. Run it once, then join with `stats_by_country` on the `country` field.
+
+### Patch Changes 0.23.0
+
+- @owox/internal-helpers@0.23.0
+- @owox/idp-protocol@0.23.0
+- @owox/idp-better-auth@0.23.0
+- @owox/idp-owox-better-auth@0.23.0
+- @owox/backend@0.23.0
+- @owox/web@0.23.0
+
 ## 0.22.0
 
 ### Minor Changes 0.22.0
@@ -9,7 +75,6 @@
 - 4c9b96d: # **Business Owner & Technical Owner** for Data Marts
 
   Assign Business and Technical Owners to each Data Mart to track accountability and maintainability.
-
   - **Owners section** on the Data Mart edit page — assign one or more project members per role via an inline selector.
   - **Search and role display** — the member selector shows each user's project role with a search input for quick filtering.
   - **Outbound member warnings** — previously assigned owners who have been removed from the project are shown with a warning icon for easy reassignment.
@@ -20,7 +85,6 @@
 - b178723: # **Created By** visibility across major entities
 
   See who created each entity directly in the list views.
-
   - **Created By column** is now available in Data Storages, Data Destinations, Reports, Scheduled Triggers, and Insights tables.
   - **Filter by creator** is available in Data Destinations and Data Storages lists.
 
@@ -31,7 +95,6 @@
 - 2406874: # **Onboarding video** for Email-based Reports
 
   A new onboarding video to improve adoption of Email-based Reports in Data Marts.
-
   - Shown once to new users on the **Destinations** tab in Data Mart.
   - Available in **Help menu → Video tutorials**.
   - Embedded in **Email Reports documentation**.
@@ -39,7 +102,6 @@
 - 9395757: # **Sign In page** redesign with product-focused brand panel
 
   Redesigned the auth screen to better communicate product value and reduce sign-in friction.
-
   - **Brand panel** — replaced placeholder with a carousel of product use cases (Google Sheets, Looker Studio, Email delivery).
   - **Headline** — "Build once. Share anywhere." with outcome-driven copy and short supporting text per slide.
   - **Product preview** — visual workflows introduced directly on the auth screen.
@@ -48,7 +110,6 @@
 - 737f292: # **Externalized connector secrets** from Data Mart definitions
 
   Non-OAuth secrets are moved from inline storage in Data Mart definitions to a separate `connector_source_credentials` table. Centralizes credential storage and reduces secret exposure in definition JSONs.
-
   - Added `_secrets_id` reference pattern (aligned with existing `_source_credential_id` for OAuth).
   - Secrets are extracted on save and injected during connector execution.
   - Includes data migration for existing Data Marts.
@@ -60,7 +121,6 @@
 - 2399254: # **Searchable Storage Selector** in Data Mart form
 
   The storage picker in the Create Data Mart form is upgraded to a searchable combobox.
-
   - Storages are listed in **alphabetical order** by title.
   - **Typeahead search** filters the list by typing — useful when many storages exist.
   - **Create new storage** option remains accessible at the bottom of the list.
@@ -70,7 +130,6 @@
   New team members with Admin or Editor roles are automatically subscribed to existing notification settings when joining a project. Members who leave and rejoin are re-subscribed automatically. Manual unsubscribes are respected and not overridden. Members downgraded to Viewer are automatically removed from the receivers list.
 
 - 6d53e58: # **Bug fixes and improvements**
-
   - **Connector definition validation** — fixed validators to allow early validation success; connector definitions no longer require credential validation during publish, resolving failures for Athena, BigQuery, Databricks, Redshift, and Snowflake.
   - **Delete confirmation dialog** — fixed undefined Data Mart title; dialog now correctly displays the actual data mart name.
   - **Edit button in oneOf config** — secret editing state is now tracked per-field, preventing unintended resets of sibling fields and auth type switches.
