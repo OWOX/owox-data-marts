@@ -22,7 +22,10 @@ interface DataMartSchemaSettingsProps {
  * Main component for editing data mart schema settings
  * Uses custom hooks for state management and the SchemaContent component for rendering
  */
-export function DataMartSchemaSettings({ definitionType, relationshipsVersion }: DataMartSchemaSettingsProps) {
+export function DataMartSchemaSettings({
+  definitionType,
+  relationshipsVersion,
+}: DataMartSchemaSettingsProps) {
   const {
     dataMart,
     updateDataMartSchema,
@@ -121,7 +124,10 @@ export function DataMartSchemaSettings({ definitionType, relationshipsVersion }:
           Refresh schema
         </Button>
       </div>
-      <BlendedSourcesSubsection dataMartId={dataMartId} relationshipsVersion={relationshipsVersion} />
+      <BlendedSourcesSubsection
+        dataMartId={dataMartId}
+        relationshipsVersion={relationshipsVersion}
+      />
     </div>
   );
 }

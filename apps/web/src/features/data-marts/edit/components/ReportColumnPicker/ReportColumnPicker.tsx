@@ -65,9 +65,7 @@ export function ReportColumnPicker({
 
   const includedBlendedFields = useMemo(() => {
     if (!schema) return [];
-    return schema.blendedFields.filter(
-      f => includedPaths.has(f.aliasPath) && !f.isHidden
-    );
+    return schema.blendedFields.filter(f => includedPaths.has(f.aliasPath) && !f.isHidden);
   }, [schema, includedPaths]);
 
   const hasBlendedSelection = useMemo(() => {

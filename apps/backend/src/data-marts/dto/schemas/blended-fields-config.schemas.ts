@@ -6,9 +6,7 @@ export type BlendingBehaviour = z.infer<typeof BlendingBehaviourEnum>;
 export const BlendedFieldOverrideSchema = z.object({
   alias: z.string().optional(),
   isHidden: z.boolean().optional(),
-  aggregateFunction: z
-    .enum(['STRING_AGG', 'MAX', 'MIN', 'SUM', 'COUNT', 'ANY_VALUE'])
-    .optional(),
+  aggregateFunction: z.enum(['STRING_AGG', 'MAX', 'MIN', 'SUM', 'COUNT', 'ANY_VALUE']).optional(),
 });
 export type BlendedFieldOverride = z.infer<typeof BlendedFieldOverrideSchema>;
 

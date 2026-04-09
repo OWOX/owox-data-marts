@@ -40,7 +40,9 @@ interface DataMartRelationshipsContentProps {
   onRelationshipsChanged?: () => void;
 }
 
-export function DataMartRelationshipsContent({ onRelationshipsChanged }: DataMartRelationshipsContentProps) {
+export function DataMartRelationshipsContent({
+  onRelationshipsChanged,
+}: DataMartRelationshipsContentProps) {
   const { dataMart } = useDataMartContext();
 
   const [relationships, setRelationships] = useState<DataMartRelationship[]>([]);
@@ -275,14 +277,7 @@ export function DataMartRelationshipsContent({ onRelationshipsChanged }: DataMar
       );
     }
 
-    return (
-      <RelationshipList
-        rows={filteredRows}
-        onEdit={handleEdit}
-        onDelete={handleDelete}
-        connectedFieldCounts={connectedFieldCounts}
-      />
-    );
+    return <RelationshipList rows={filteredRows} onEdit={handleEdit} onDelete={handleDelete} />;
   }
 
   function renderContent() {

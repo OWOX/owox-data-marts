@@ -89,7 +89,12 @@ export default function DataMartDataSetupContent() {
           </CollapsibleCardHeaderTitle>
         </CollapsibleCardHeader>
         <CollapsibleCardContent>
-          {dataMart && <DataMartSchemaSettings definitionType={definitionType} relationshipsVersion={relationshipsVersion} />}
+          {dataMart && (
+            <DataMartSchemaSettings
+              definitionType={definitionType}
+              relationshipsVersion={relationshipsVersion}
+            />
+          )}
         </CollapsibleCardContent>
         <CollapsibleCardFooter></CollapsibleCardFooter>
       </CollapsibleCard>

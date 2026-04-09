@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
-import { ChevronDown, ChevronRight, Plus, X } from 'lucide-react';
+import { ChevronDown, ChevronRight } from 'lucide-react';
 import { useOutletContext } from 'react-router-dom';
-import { Button } from '@owox/ui/components/button';
 import {
   Select,
   SelectContent,
@@ -9,7 +8,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@owox/ui/components/select';
-import { Tooltip, TooltipContent, TooltipTrigger } from '@owox/ui/components/tooltip';
 import { dataMartRelationshipService } from '../../../shared/services/data-mart-relationship.service';
 import type {
   AvailableSource,
@@ -20,7 +18,7 @@ import type {
   BlendingBehaviour,
 } from '../../../shared/types/relationship.types';
 import type { DataMartContextType } from '../../model/context/types';
-import { SourceConfigDialog } from './SourceConfigDialog';
+import { SourceAccordionItem } from './SourceAccordionItem';
 
 const BLENDING_BEHAVIOUR_LABELS: Record<BlendingBehaviour, string> = {
   AUTO_BLEND_ALL: 'Auto blend including transient',
@@ -33,7 +31,7 @@ const DEFAULT_CONFIG: BlendedFieldsConfig = {
   sources: [],
 };
 
-interface SourceEntry {
+export interface SourceEntry {
   aliasPath: string;
   title: string;
   alias: string;
@@ -50,7 +48,7 @@ interface BlendedSourcesSubsectionProps {
   relationshipsVersion?: number;
 }
 
-function buildSourceTree(
+function buildSourceList(
   availableSources: AvailableSource[],
   blendedFields: BlendedField[],
   config: BlendedFieldsConfig
@@ -69,7 +67,8 @@ function buildSourceTree(
     const configSource = config.sources.find(s => s.path === src.aliasPath);
     const overrideCount = configSource?.fields
       ? Object.values(configSource.fields).filter(
-          v => v.isHidden !== undefined || v.aggregateFunction !== undefined || v.alias !== undefined
+          v =>
+            v.isHidden !== undefined || v.aggregateFunction !== undefined || v.alias !== undefined
         ).length
       : 0;
 
@@ -87,23 +86,25 @@ function buildSourceTree(
   });
 }
 
-export function BlendedSourcesSubsection({ dataMartId, relationshipsVersion }: BlendedSourcesSubsectionProps) {
+export function BlendedSourcesSubsection({
+  dataMartId,
+  relationshipsVersion,
+}: BlendedSourcesSubsectionProps) {
   const { dataMart } = useOutletContext<DataMartContextType>();
   const config: BlendedFieldsConfig = dataMart?.blendedFieldsConfig ?? DEFAULT_CONFIG;
 
   const [isExpanded, setIsExpanded] = useState(false);
   const [schema, setSchema] = useState<BlendableSchema | null>(null);
   const [isLoading, setIsLoading] = useState(false);
-  const [dialogSource, setDialogSource] = useState<SourceEntry | null>(null);
   const [localConfig, setLocalConfig] = useState<BlendedFieldsConfig>(config);
 
   useEffect(() => {
     setLocalConfig(dataMart?.blendedFieldsConfig ?? DEFAULT_CONFIG);
   }, [dataMart?.blendedFieldsConfig]);
 
-  const fetchSchema = () => {
+  const fetchSchema = (showLoading = true) => {
     if (!dataMartId) return;
-    setIsLoading(true);
+    if (showLoading) setIsLoading(true);
     dataMartRelationshipService
       .getBlendableSchema(dataMartId)
       .then(result => {
@@ -122,23 +123,21 @@ export function BlendedSourcesSubsection({ dataMartId, relationshipsVersion }: B
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dataMartId, relationshipsVersion]);
 
-  const sourceTree = useMemo(() => {
+  const sourceList = useMemo(() => {
     if (!schema) return [];
-    return buildSourceTree(schema.availableSources ?? [], schema.blendedFields, localConfig);
+    return buildSourceList(schema.availableSources, schema.blendedFields, localConfig);
   }, [schema, localConfig]);
 
-  const includedCount = sourceTree.filter(s => s.isIncluded).length;
-  const totalFields = sourceTree
+  const includedCount = sourceList.filter(s => s.isIncluded).length;
+  const totalFields = sourceList
     .filter(s => s.isIncluded)
     .reduce((sum, s) => sum + s.fieldCount, 0);
 
   const saveConfigAndRefresh = (newConfig: BlendedFieldsConfig) => {
     setLocalConfig(newConfig);
-    void dataMartRelationshipService
-      .updateBlendedFieldsConfig(dataMartId, newConfig)
-      .then(() => {
-        fetchSchema();
-      });
+    void dataMartRelationshipService.updateBlendedFieldsConfig(dataMartId, newConfig).then(() => {
+      fetchSchema(false);
+    });
   };
 
   const handleBehaviourChange = (value: string) => {
@@ -148,48 +147,91 @@ export function BlendedSourcesSubsection({ dataMartId, relationshipsVersion }: B
     });
   };
 
-  const handleIncludeSource = (source: SourceEntry) => {
+  const handleSourceAliasChange = (source: SourceEntry, alias: string) => {
     const existingSources = localConfig.sources.filter(s => s.path !== source.aliasPath);
+    const currentSource = localConfig.sources.find(s => s.path === source.aliasPath);
     saveConfigAndRefresh({
       ...localConfig,
-      sources: [...existingSources, { path: source.aliasPath, alias: source.alias }],
+      sources: [
+        ...existingSources,
+        {
+          path: source.aliasPath,
+          alias,
+          ...(currentSource?.isExcluded ? { isExcluded: true } : {}),
+          ...(currentSource?.fields ? { fields: currentSource.fields } : {}),
+        },
+      ],
     });
   };
 
-  const handleExcludeSource = (source: SourceEntry) => {
-    if (localConfig.blendingBehaviour === 'MANUAL') {
-      // In MANUAL: remove from sources[] to exclude
-      saveConfigAndRefresh({
-        ...localConfig,
-        sources: localConfig.sources.filter(s => s.path !== source.aliasPath),
-      });
+  const handleSourceHideChange = (source: SourceEntry, isHidden: boolean) => {
+    if (isHidden) {
+      if (localConfig.blendingBehaviour === 'MANUAL') {
+        saveConfigAndRefresh({
+          ...localConfig,
+          sources: localConfig.sources.filter(s => s.path !== source.aliasPath),
+        });
+      } else {
+        const existingSources = localConfig.sources.filter(s => s.path !== source.aliasPath);
+        saveConfigAndRefresh({
+          ...localConfig,
+          sources: [
+            ...existingSources,
+            { path: source.aliasPath, alias: source.alias, isExcluded: true },
+          ],
+        });
+      }
     } else {
-      // In AUTO/DIRECT: mark isExcluded
       const existingSources = localConfig.sources.filter(s => s.path !== source.aliasPath);
       saveConfigAndRefresh({
         ...localConfig,
-        sources: [
-          ...existingSources,
-          { path: source.aliasPath, alias: source.alias, isExcluded: true },
-        ],
+        sources: [...existingSources, { path: source.aliasPath, alias: source.alias }],
       });
     }
   };
 
-  const handleSourceSave = (
+  const handleFieldOverrideChange = (
     source: SourceEntry,
-    update: { alias: string; isExcluded?: boolean; fields?: Record<string, BlendedFieldOverride> }
+    fieldName: string,
+    override: Partial<BlendedFieldOverride>
   ) => {
     const existingSources = localConfig.sources.filter(s => s.path !== source.aliasPath);
-    const updatedSource = {
-      path: source.aliasPath,
-      alias: update.alias,
-      ...(update.isExcluded ? { isExcluded: true } : {}),
-      ...(update.fields ? { fields: update.fields } : {}),
-    };
+    const currentSource = localConfig.sources.find(s => s.path === source.aliasPath);
+
+    const currentFields = currentSource?.fields ?? {};
+    const currentFieldOverride = currentFields[fieldName] ?? {};
+    const newFieldOverride: BlendedFieldOverride = { ...currentFieldOverride, ...override };
+
+    const cleanOverride: BlendedFieldOverride = {};
+    if (newFieldOverride.alias !== undefined && newFieldOverride.alias !== '') {
+      cleanOverride.alias = newFieldOverride.alias;
+    }
+    if (newFieldOverride.isHidden !== undefined) {
+      cleanOverride.isHidden = newFieldOverride.isHidden;
+    }
+    if (newFieldOverride.aggregateFunction !== undefined) {
+      cleanOverride.aggregateFunction = newFieldOverride.aggregateFunction;
+    }
+
+    const newFields: Record<string, BlendedFieldOverride> = {};
+    for (const [key, val] of Object.entries(currentFields)) {
+      if (key !== fieldName) newFields[key] = val;
+    }
+    if (Object.keys(cleanOverride).length > 0) {
+      newFields[fieldName] = cleanOverride;
+    }
+
     saveConfigAndRefresh({
       ...localConfig,
-      sources: [...existingSources, updatedSource],
+      sources: [
+        ...existingSources,
+        {
+          path: source.aliasPath,
+          alias: currentSource?.alias ?? source.alias,
+          ...(currentSource?.isExcluded ? { isExcluded: true } : {}),
+          ...(Object.keys(newFields).length > 0 ? { fields: newFields } : {}),
+        },
+      ],
     });
   };
 
@@ -198,7 +240,7 @@ export function BlendedSourcesSubsection({ dataMartId, relationshipsVersion }: B
       <div className='flex items-center gap-2 pt-4'>
         <button
           type='button'
-          className='-ml-3 flex flex-1 cursor-pointer items-center gap-2 rounded-md px-3 py-2 text-left transition-colors hover:bg-muted/40'
+          className='hover:bg-muted/40 -ml-3 flex flex-1 cursor-pointer items-center gap-2 rounded-md px-3 py-2 text-left transition-colors'
           onClick={() => {
             setIsExpanded(prev => !prev);
           }}
@@ -242,138 +284,32 @@ export function BlendedSourcesSubsection({ dataMartId, relationshipsVersion }: B
             </div>
           )}
 
-          {!isLoading && sourceTree.length === 0 && (
+          {!isLoading && sourceList.length === 0 && (
             <p className='text-muted-foreground py-3 text-sm'>
               No related data marts found. Add relationships first.
             </p>
           )}
 
-          {!isLoading && sourceTree.length > 0 && (
-            <div className='border'>
-              {sourceTree.map(source =>
-                source.isIncluded ? (
-                  <button
-                    key={source.aliasPath}
-                    type='button'
-                    className='bg-background flex w-full cursor-pointer items-start gap-2 border-b px-3 py-2.5 text-left transition-colors last:border-b-0 hover:bg-muted/40'
-                    style={{ paddingLeft: `${source.depth * 16 + 12}px` }}
-                    onClick={() => {
-                      setDialogSource(source);
-                    }}
-                  >
-                    {source.depth > 0 && (
-                      <span className='text-muted-foreground mt-px text-xs'>{'\u21B3'}</span>
-                    )}
-                    <div className='min-w-0 flex-1'>
-                      <div className='truncate text-sm font-medium'>{source.title}</div>
-                      <div className='text-muted-foreground mt-0.5 flex items-center gap-1.5 text-xs'>
-                        <span className='font-mono'>{source.alias}</span>
-                        <span>·</span>
-                        <span>
-                          {source.fieldCount} {source.fieldCount === 1 ? 'field' : 'fields'}
-                        </span>
-                        {source.overrideCount > 0 && (
-                          <>
-                            <span>·</span>
-                            <span>
-                              {source.overrideCount}{' '}
-                              {source.overrideCount === 1 ? 'override' : 'overrides'}
-                            </span>
-                          </>
-                        )}
-                      </div>
-                    </div>
-                    {localConfig.blendingBehaviour !== 'AUTO_BLEND_ALL' && (
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <span
-                            role='button'
-                            className='text-muted-foreground hover:text-destructive mt-0.5 shrink-0'
-                            onClick={e => {
-                              e.stopPropagation();
-                              handleExcludeSource(source);
-                            }}
-                          >
-                            <X className='h-4 w-4' />
-                          </span>
-                        </TooltipTrigger>
-                        <TooltipContent>Exclude from blending</TooltipContent>
-                      </Tooltip>
-                    )}
-                  </button>
-                ) : (
-                  <button
-                    key={source.aliasPath}
-                    type='button'
-                    className='flex w-full cursor-pointer items-start gap-2 border-b px-3 py-2.5 text-left opacity-50 transition-colors last:border-b-0 hover:bg-muted/40 hover:opacity-70'
-                    style={{ paddingLeft: `${source.depth * 16 + 12}px` }}
-                    onClick={() => {
-                      setDialogSource(source);
-                    }}
-                  >
-                    {source.depth > 0 && (
-                      <span className='text-muted-foreground mt-px text-xs'>{'\u21B3'}</span>
-                    )}
-                    <div className='min-w-0 flex-1'>
-                      <div className='truncate text-sm'>{source.title}</div>
-                      <div className='text-muted-foreground mt-0.5 flex items-center gap-1.5 text-xs'>
-                        <span className='font-mono'>{source.alias}</span>
-                        <span>·</span>
-                        <span>
-                          {source.fieldCount} {source.fieldCount === 1 ? 'field' : 'fields'}
-                        </span>
-                      </div>
-                    </div>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Button
-                          type='button'
-                          variant='ghost'
-                          size='sm'
-                          className='mt-0.5 h-6 shrink-0 cursor-pointer gap-1 px-2 text-xs opacity-100'
-                          onClick={e => {
-                            e.stopPropagation();
-                            handleIncludeSource(source);
-                          }}
-                        >
-                          <Plus className='h-3.5 w-3.5' />
-                          Include
-                        </Button>
-                      </TooltipTrigger>
-                      <TooltipContent>Include this source in blending</TooltipContent>
-                    </Tooltip>
-                  </button>
-                )
-              )}
+          {!isLoading && sourceList.length > 0 && (
+            <div className='space-y-2'>
+              {sourceList.map(source => (
+                <SourceAccordionItem
+                  key={source.aliasPath}
+                  source={source}
+                  onAliasChange={alias => {
+                    handleSourceAliasChange(source, alias);
+                  }}
+                  onHideForReportingChange={hidden => {
+                    handleSourceHideChange(source, hidden);
+                  }}
+                  onFieldOverrideChange={(fieldName, override) => {
+                    handleFieldOverrideChange(source, fieldName, override);
+                  }}
+                />
+              ))}
             </div>
           )}
         </div>
-      )}
-
-      {dialogSource && (
-        <SourceConfigDialog
-          open={true}
-          onOpenChange={open => {
-            if (!open) setDialogSource(null);
-          }}
-          source={{
-            path: dialogSource.aliasPath,
-            title: dialogSource.title,
-            currentAlias: dialogSource.alias,
-            isExcluded: !dialogSource.isIncluded,
-            fields: dialogSource.fields.map(f => ({
-              name: f.originalFieldName,
-              type: f.type,
-              alias: f.alias,
-              description: f.description,
-              isHidden: f.isHidden,
-              aggregateFunction: f.aggregateFunction,
-            })),
-          }}
-          onSave={update => {
-            handleSourceSave(dialogSource, update);
-          }}
-        />
       )}
     </div>
   );

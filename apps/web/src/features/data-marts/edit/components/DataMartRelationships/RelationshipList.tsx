@@ -30,15 +30,9 @@ interface RelationshipListProps {
   rows: TransientRelationshipRow[];
   onEdit: (relationship: DataMartRelationship) => void;
   onDelete: (id: string) => Promise<void>;
-  connectedFieldCounts: Map<string, number>;
 }
 
-export function RelationshipList({
-  rows,
-  onEdit,
-  onDelete,
-  connectedFieldCounts,
-}: RelationshipListProps) {
+export function RelationshipList({ rows, onEdit, onDelete }: RelationshipListProps) {
   const { scope } = useProjectRoute();
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -95,14 +89,7 @@ export function RelationshipList({
                 </TooltipContent>
               </Tooltip>
             </TableHead>
-            <TableHead className='bg-secondary dark:bg-background'>
-              <Tooltip>
-                <TooltipTrigger className='cursor-default'>Blendable Fields</TooltipTrigger>
-                <TooltipContent>
-                  Fields from the related data mart available in the output schema
-                </TooltipContent>
-              </Tooltip>
-            </TableHead>
+
             <TableHead className='bg-secondary dark:bg-background cursor-default'>
               Created At
             </TableHead>
@@ -116,7 +103,6 @@ export function RelationshipList({
           {rows.map((row, idx) => {
             const rel = row.relationship;
             const isTransient = row.depth >= 2;
-            const topLevelFieldCount = connectedFieldCounts.get(rel.id) ?? 0;
 
             return (
               <TableRow
@@ -173,9 +159,6 @@ export function RelationshipList({
                 </TableCell>
                 <TableCell className='text-muted-foreground'>
                   {rel.joinConditions.length} {rel.joinConditions.length !== 1 ? 'pairs' : 'pair'}
-                </TableCell>
-                <TableCell className='text-muted-foreground'>
-                  {topLevelFieldCount} field{topLevelFieldCount !== 1 ? 's' : ''}
                 </TableCell>
                 <TableCell className='text-muted-foreground'>
                   {new Intl.DateTimeFormat('en-US', {
