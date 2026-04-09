@@ -111,7 +111,12 @@ export class ReportMapper {
     dataMartId: string,
     context: AuthorizationContext
   ): ListReportsByDataMartCommand {
-    return new ListReportsByDataMartCommand(dataMartId, context.projectId);
+    return new ListReportsByDataMartCommand(
+      dataMartId,
+      context.projectId,
+      context.userId,
+      context.roles ?? []
+    );
   }
 
   toListByInsightTemplateCommand(
@@ -130,7 +135,12 @@ export class ReportMapper {
     context: AuthorizationContext,
     ownerFilter?: OwnerFilter
   ): ListReportsByProjectCommand {
-    return new ListReportsByProjectCommand(context.projectId, ownerFilter);
+    return new ListReportsByProjectCommand(
+      context.projectId,
+      context.userId,
+      context.roles ?? [],
+      ownerFilter
+    );
   }
 
   toRunReportCommand(

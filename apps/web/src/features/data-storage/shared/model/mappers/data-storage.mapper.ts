@@ -5,7 +5,11 @@ import type { DataStorageFormData } from '../../types/data-storage.schema.ts';
 
 export function mapDataStorageFromDto(dto: DataStorageResponseDto): DataStorage {
   const mapper = StorageMapperFactory.getMapper(dto.type);
-  return mapper.mapFromDto(dto);
+  return {
+    ...mapper.mapFromDto(dto),
+    availableForUse: dto.availableForUse,
+    availableForMaintenance: dto.availableForMaintenance,
+  };
 }
 
 export function mapToUpdateDataStorageRequest(

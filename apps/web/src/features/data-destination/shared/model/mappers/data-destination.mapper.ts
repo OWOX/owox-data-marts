@@ -9,7 +9,11 @@ import type {
 
 export function mapDataDestinationFromDto(dto: DataDestinationResponseDto): DataDestination {
   const mapper = DestinationMapperFactory.getMapper(dto.type);
-  return mapper.mapFromDto(dto);
+  return {
+    ...mapper.mapFromDto(dto),
+    availableForUse: dto.availableForUse,
+    availableForMaintenance: dto.availableForMaintenance,
+  };
 }
 
 export function mapToUpdateDataDestinationRequest(

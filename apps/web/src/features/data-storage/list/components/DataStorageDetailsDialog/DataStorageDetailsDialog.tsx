@@ -35,6 +35,7 @@ export function DataStorageDetailsDialog({ isOpen, onClose, id }: DataStorageDet
     clearCurrentDataStorage();
     onClose();
   };
+
   return (
     <Dialog
       open={isOpen}

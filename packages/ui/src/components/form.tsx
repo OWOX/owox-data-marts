@@ -271,15 +271,45 @@ interface FormSectionProps {
   children: React.ReactNode;
   defaultOpen?: boolean;
   collapsible?: boolean;
+  name?: string;
 }
+
+const SECTION_STORAGE_PREFIX = 'form-section-';
 
 function FormSection({
   title,
   children,
   defaultOpen = true,
   collapsible = true,
+  name,
 }: FormSectionProps) {
-  const [isOpen, setIsOpen] = React.useState(defaultOpen);
+  const getInitialState = () => {
+    if (name) {
+      try {
+        const stored = localStorage.getItem(`${SECTION_STORAGE_PREFIX}${name}`);
+        if (stored !== null) return stored === 'true';
+      } catch {
+        /* ignore */
+      }
+    }
+    return defaultOpen;
+  };
+
+  const [isOpen, setIsOpen] = React.useState(getInitialState);
+
+  const handleOpenChange = React.useCallback(
+    (open: boolean) => {
+      setIsOpen(open);
+      if (name) {
+        try {
+          localStorage.setItem(`${SECTION_STORAGE_PREFIX}${name}`, String(open));
+        } catch {
+          /* ignore */
+        }
+      }
+    },
+    [name]
+  );
 
   const content = <div className='flex flex-col gap-2'>{children}</div>;
 
@@ -300,7 +330,7 @@ function FormSection({
   return (
     <Collapsible
       open={isOpen}
-      onOpenChange={setIsOpen}
+      onOpenChange={handleOpenChange}
       data-slot='form-section'
       className='mb-4 flex flex-col gap-2'
     >

@@ -8,6 +8,7 @@ import {
   IsOptional,
   IsUUID,
   IsArray,
+  IsBoolean,
 } from 'class-validator';
 import { DataStorageConfig } from '../../data-storage-types/data-storage-config.type';
 import { DataStorageCredentials } from '../../data-storage-types/data-storage-credentials.type';
@@ -60,4 +61,20 @@ export class UpdateDataStorageApiDto {
   @IsString({ each: true })
   @IsNotEmpty({ each: true })
   ownerIds?: string[];
+
+  @ApiProperty({
+    required: false,
+    description: 'Whether this storage is available for use by project members',
+  })
+  @IsOptional()
+  @IsBoolean()
+  availableForUse?: boolean;
+
+  @ApiProperty({
+    required: false,
+    description: 'Whether this storage is available for maintenance by project members',
+  })
+  @IsOptional()
+  @IsBoolean()
+  availableForMaintenance?: boolean;
 }

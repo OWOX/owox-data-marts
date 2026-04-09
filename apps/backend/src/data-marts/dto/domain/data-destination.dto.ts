@@ -21,6 +21,8 @@ export class DataDestinationDto {
     public readonly modifiedAt: Date,
     public readonly credentialId: string | null | undefined = undefined,
     public readonly createdByUser: UserProjectionDto | null = null,
-    public readonly ownerUsers: UserProjectionDto[] = []
+    public readonly ownerUsers: UserProjectionDto[] = [],
+    public readonly availableForUse: boolean = true,
+    public readonly availableForMaintenance: boolean = true
   ) {}
 }

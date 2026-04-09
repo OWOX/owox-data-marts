@@ -109,9 +109,10 @@ export function useDataDestination() {
     ) => {
       dispatch({ type: DataDestinationActionType.UPDATE_DESTINATION_START });
       try {
-        const dataToSend = source
-          ? { ...requestData, sourceDestinationId: source.id }
-          : requestData;
+        const dataToSend = {
+          ...requestData,
+          ...(source && { sourceDestinationId: source.id }),
+        };
         const response = await dataDestinationService.updateDataDestination(id, dataToSend);
         const mappedDestination = mapDataDestinationFromDto(response);
         dispatch({

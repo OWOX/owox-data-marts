@@ -29,7 +29,13 @@ export class ListDataMartsService {
 
     const { items: dataMarts, total } = await this.dataMartService.findByProjectIdForList(
       command.projectId,
-      { offset, limit: DATA_MARTS_PAGE_SIZE, ownerFilter: command.ownerFilter }
+      {
+        offset,
+        limit: DATA_MARTS_PAGE_SIZE,
+        ownerFilter: command.ownerFilter,
+        userId: command.userId,
+        roles: command.roles,
+      }
     );
 
     if (dataMarts.length === 0) {

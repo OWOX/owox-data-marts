@@ -1,4 +1,4 @@
-import { test as base, expect } from '@playwright/test';
+import { test as base, expect, type Locator } from '@playwright/test';
 import { ApiHelpers, resetDatabase } from './api-helpers';
 import { RadixHelpers } from '../helpers/radix';
 
@@ -16,4 +16,4 @@ export const test = base.extend<{
   },
 });
 
-export { expect };
+export { expect, type Locator };

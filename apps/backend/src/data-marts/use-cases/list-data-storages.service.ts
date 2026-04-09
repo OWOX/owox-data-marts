@@ -23,11 +23,32 @@ export class ListDataStoragesService {
   ) {}
 
   async run(command: ListDataStoragesCommand): Promise<DataStorageDto[]> {
+    const isAdmin = command.roles.includes('admin');
+    const isTu = command.roles.includes('editor') || isAdmin;
+
     let qb = this.dataStorageRepo
       .createQueryBuilder('s')
       .leftJoinAndSelect('s.owners', 'owners')
       .where('s.projectId = :projectId', { projectId: command.projectId })
       .andWhere('s.deletedAt IS NULL');
+
+    if (!isAdmin) {
+      if (isTu) {
+        // TU: own + available_for_use + available_for_maintenance
+        qb = qb.andWhere(
+          `(EXISTS (SELECT 1 FROM storage_owners o WHERE o.storage_id = s.id AND o.user_id = :userId)
+            OR s.availableForUse = 1
+            OR s.availableForMaintenance = 1)`,
+          { userId: command.userId }
+        );
+      } else {
+        // BU: only own (but BU ownership on Storage has no effect, so effectively none)
+        qb = qb.andWhere(
+          'EXISTS (SELECT 1 FROM storage_owners o WHERE o.storage_id = s.id AND o.user_id = :userId)',
+          { userId: command.userId }
+        );
+      }
+    }
 
     if (command.ownerFilter === OwnerFilter.HAS_OWNERS) {
       qb = qb.andWhere('EXISTS (SELECT 1 FROM storage_owners o WHERE o.storage_id = s.id)');

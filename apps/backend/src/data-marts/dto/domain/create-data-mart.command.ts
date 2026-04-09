@@ -3,6 +3,7 @@ export class CreateDataMartCommand {
     public readonly projectId: string,
     public readonly userId: string,
     public readonly title: string,
-    public readonly storageId: string
+    public readonly storageId: string,
+    public readonly roles: string[] = []
   ) {}
 }

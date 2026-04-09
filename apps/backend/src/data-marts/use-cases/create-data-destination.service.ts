@@ -4,7 +4,7 @@ import { Repository } from 'typeorm';
 import { Transactional } from 'typeorm-transactional';
 import { DataDestination } from '../entities/data-destination.entity';
 import { InjectRepository } from '@nestjs/typeorm';
-import { BadRequestException, Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import { DataDestinationDto } from '../dto/domain/data-destination.dto';
 import { DataDestinationMapper } from '../mappers/data-destination.mapper';
 import { DataDestinationCredentialsValidatorFacade } from '../data-destination-types/facades/data-destination-credentials-validator.facade';
@@ -18,6 +18,7 @@ import {
 import type { StoredDestinationCredentials } from '../entities/stored-destination-credentials.type';
 import { DataDestinationService } from '../services/data-destination.service';
 import { CopyCredentialService } from '../services/copy-credential.service';
+import { AccessDecisionService, EntityType, Action } from '../services/access-decision';
 import { UserProjectionsFetcherService } from '../services/user-projections-fetcher.service';
 import { DestinationOwner } from '../entities/destination-owner.entity';
 import { syncOwners } from '../utils/sync-owners';
@@ -26,6 +27,8 @@ import { IdpProjectionsFacade } from '../../idp/facades/idp-projections.facade';
 
 @Injectable()
 export class CreateDataDestinationService {
+  private readonly logger = new Logger(CreateDataDestinationService.name);
+
   constructor(
     @InjectRepository(DataDestination)
     private readonly repository: Repository<DataDestination>,
@@ -40,7 +43,8 @@ export class CreateDataDestinationService {
     private readonly userProjectionsFetcherService: UserProjectionsFetcherService,
     @InjectRepository(DestinationOwner)
     private readonly destinationOwnerRepository: Repository<DestinationOwner>,
-    private readonly idpProjectionsFacade: IdpProjectionsFacade
+    private readonly idpProjectionsFacade: IdpProjectionsFacade,
+    private readonly accessDecisionService: AccessDecisionService
   ) {}
 
   @Transactional()
@@ -57,8 +61,22 @@ export class CreateDataDestinationService {
       throw new BadRequestException('Cannot provide both sourceDestinationId and credentialId');
     }
 
-    // Copy credentials from another destination
+    // Copy credentials from another destination — requires COPY_CREDENTIALS access
     if (command.sourceDestinationId) {
+      const canCopy = await this.accessDecisionService.canAccess(
+        command.userId,
+        command.roles,
+        EntityType.DESTINATION,
+        command.sourceDestinationId,
+        Action.COPY_CREDENTIALS,
+        command.projectId
+      );
+      if (!canCopy) {
+        throw new BadRequestException(
+          'You do not have permission to copy credentials from this destination'
+        );
+      }
+
       const source = await this.dataDestinationService.getByIdAndProjectId(
         command.sourceDestinationId,
         command.projectId
@@ -84,6 +102,8 @@ export class CreateDataDestinationService {
         projectId: command.projectId,
         credentialId: newCredId,
         createdById: command.userId,
+        availableForUse: false,
+        availableForMaintenance: false,
       });
 
       const savedEntity = await this.repository.save(entity);
@@ -105,6 +125,8 @@ export class CreateDataDestinationService {
         projectId: command.projectId,
         credentialId: command.credentialId,
         createdById: command.userId,
+        availableForUse: false,
+        availableForMaintenance: false,
       });
 
       const savedEntity = await this.repository.save(entity);
@@ -146,6 +168,8 @@ export class CreateDataDestinationService {
       projectId: command.projectId,
       credentialId: credentialRecord.id,
       createdById: command.userId,
+      availableForUse: false,
+      availableForMaintenance: false,
     });
 
     const savedEntity = await this.repository.save(entity);
