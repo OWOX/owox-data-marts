@@ -176,8 +176,7 @@ describe('ConnectorRunTriggerHandlerService', () => {
     });
 
     it('fails the run when claim fails and run is not RUNNING', async () => {
-      const { service, dataMartService, dataMartRunService, _dataMartRunRepository, mockManager } =
-        createService();
+      const { service, dataMartService, dataMartRunService, mockManager } = createService();
 
       (dataMartService.getByIdAndProjectId as jest.Mock).mockResolvedValue(mockDataMart);
       (mockManager.update as jest.Mock).mockResolvedValue({ affected: 0 });
