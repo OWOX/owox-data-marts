@@ -19,6 +19,7 @@ import { Combobox } from '../../../../shared/components/Combobox/combobox';
 import { DataStorageHealthIndicator, DataStorageType } from '../../../data-storage';
 import { DataStorageTypeDialog } from '../../../data-storage/shared/components/DataStorageTypeDialog';
 import { useDataStorage } from '../../../data-storage/shared/model/hooks/useDataStorage';
+import { DataStorageTypeModel } from '../../../data-storage/shared/types/data-storage-type.model.ts';
 import { type DataMart, type DataMartFormData, dataMartSchema, useDataMartForm } from '../model';
 
 interface DataMartFormProps {
@@ -184,6 +185,12 @@ export function DataMartCreateForm({ initialData, onSuccess }: DataMartFormProps
                                 variant='compact'
                               />
                             </div>
+                            {(() => {
+                              const storage = dataStorages.find(s => s.id === option.value);
+                              if (!storage) return null;
+                              const Icon = DataStorageTypeModel.getInfo(storage.type).icon;
+                              return <Icon size={20} className='shrink-0' />;
+                            })()}
                             <span className='min-w-0 truncate'>{option.label}</span>
                           </div>
                         )
