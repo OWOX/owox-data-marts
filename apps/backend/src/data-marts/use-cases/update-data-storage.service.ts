@@ -1,4 +1,4 @@
-import { Inject, Injectable, BadRequestException } from '@nestjs/common';
+import { Inject, Injectable, BadRequestException, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { OwoxProducer } from '@owox/internal-helpers';
 import { Repository } from 'typeorm';
@@ -32,6 +32,8 @@ import { ForbiddenException } from '@nestjs/common';
 
 @Injectable()
 export class UpdateDataStorageService {
+  private readonly logger = new Logger(UpdateDataStorageService.name);
+
   constructor(
     @InjectRepository(DataStorage)
     private readonly dataStorageRepository: Repository<DataStorage>,

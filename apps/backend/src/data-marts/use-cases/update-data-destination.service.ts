@@ -1,4 +1,4 @@
-import { BadRequestException, ForbiddenException, Injectable } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Transactional } from 'typeorm-transactional';
 import { AvailableDestinationTypesService } from '../data-destination-types/available-destination-types.service';
@@ -29,6 +29,8 @@ import { AccessDecisionService, EntityType, Action } from '../services/access-de
 
 @Injectable()
 export class UpdateDataDestinationService {
+  private readonly logger = new Logger(UpdateDataDestinationService.name);
+
   constructor(
     @InjectRepository(DataDestination)
     private readonly dataDestinationRepository: Repository<DataDestination>,

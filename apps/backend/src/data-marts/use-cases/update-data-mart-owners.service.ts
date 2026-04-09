@@ -1,4 +1,4 @@
-import { Injectable, ForbiddenException } from '@nestjs/common';
+import { Injectable, ForbiddenException, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Transactional } from 'typeorm-transactional';
@@ -16,6 +16,8 @@ import { AccessDecisionService, EntityType, Action } from '../services/access-de
 
 @Injectable()
 export class UpdateDataMartOwnersService {
+  private readonly logger = new Logger(UpdateDataMartOwnersService.name);
+
   constructor(
     private readonly dataMartService: DataMartService,
     private readonly mapper: DataMartMapper,

@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { DataMartTechnicalOwner } from '../entities/data-mart-technical-owner.entity';
@@ -11,6 +11,8 @@ export interface MemberOwnershipWarning {
 
 @Injectable()
 export class MemberOwnershipWarningsService {
+  private readonly logger = new Logger(MemberOwnershipWarningsService.name);
+
   constructor(
     @InjectRepository(DataMartTechnicalOwner)
     private readonly technicalOwnerRepository: Repository<DataMartTechnicalOwner>,

@@ -17,7 +17,8 @@ export function useMemberOwnershipWarnings() {
         '/member-ownership-warnings'
       );
       setWarnings(data);
-    } catch {
+    } catch (error) {
+      console.error('Failed to fetch member ownership warnings:', error);
       setWarnings([]);
     } finally {
       setLoading(false);

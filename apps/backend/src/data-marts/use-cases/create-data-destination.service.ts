@@ -4,7 +4,7 @@ import { Repository } from 'typeorm';
 import { Transactional } from 'typeorm-transactional';
 import { DataDestination } from '../entities/data-destination.entity';
 import { InjectRepository } from '@nestjs/typeorm';
-import { BadRequestException, Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import { DataDestinationDto } from '../dto/domain/data-destination.dto';
 import { DataDestinationMapper } from '../mappers/data-destination.mapper';
 import { DataDestinationCredentialsValidatorFacade } from '../data-destination-types/facades/data-destination-credentials-validator.facade';
@@ -27,6 +27,8 @@ import { IdpProjectionsFacade } from '../../idp/facades/idp-projections.facade';
 
 @Injectable()
 export class CreateDataDestinationService {
+  private readonly logger = new Logger(CreateDataDestinationService.name);
+
   constructor(
     @InjectRepository(DataDestination)
     private readonly repository: Repository<DataDestination>,

@@ -1,4 +1,4 @@
-import { Injectable, ForbiddenException, NotFoundException } from '@nestjs/common';
+import { Injectable, ForbiddenException, Logger, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { DataMart } from '../entities/data-mart.entity';
@@ -8,6 +8,8 @@ import { AccessDecisionService, EntityType, Action } from '../services/access-de
 
 @Injectable()
 export class UpdateSharingService {
+  private readonly logger = new Logger(UpdateSharingService.name);
+
   constructor(
     @InjectRepository(DataMart)
     private readonly dataMartRepository: Repository<DataMart>,

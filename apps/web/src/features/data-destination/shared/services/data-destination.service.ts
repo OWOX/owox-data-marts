@@ -79,18 +79,6 @@ export class DataDestinationService extends ApiService {
   }
 
   /**
-   * Update availability settings for a data destination
-   * @param id Data destination ID
-   * @param data Availability settings
-   */
-  async updateAvailability(
-    id: string,
-    data: { availableForUse: boolean; availableForMaintenance: boolean }
-  ): Promise<void> {
-    await this.put(`/${id}/availability`, data);
-  }
-
-  /**
    * Get data destinations by type
    * @param type Data destination type
    * @returns Promise with list of data destinations of the given type

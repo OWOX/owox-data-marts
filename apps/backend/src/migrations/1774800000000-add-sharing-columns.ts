@@ -4,7 +4,7 @@ export class AddSharingColumns1774800000000 implements MigrationInterface {
   public readonly name = 'AddSharingColumns1774800000000';
 
   public async up(queryRunner: QueryRunner): Promise<void> {
-    // DataMart: shared_for_reporting + shared_for_maintenance
+    // DataMart: sharedForReporting + sharedForMaintenance
     await queryRunner.addColumns('data_mart', [
       new TableColumn({
         name: 'sharedForReporting',
@@ -20,7 +20,7 @@ export class AddSharingColumns1774800000000 implements MigrationInterface {
       }),
     ]);
 
-    // DataStorage: shared_for_use + shared_for_maintenance
+    // DataStorage: sharedForUse + sharedForMaintenance
     await queryRunner.addColumns('data_storage', [
       new TableColumn({
         name: 'sharedForUse',
@@ -36,7 +36,7 @@ export class AddSharingColumns1774800000000 implements MigrationInterface {
       }),
     ]);
 
-    // DataDestination: shared_for_use + shared_for_maintenance
+    // DataDestination: sharedForUse + sharedForMaintenance
     await queryRunner.addColumns('data_destination', [
       new TableColumn({
         name: 'sharedForUse',

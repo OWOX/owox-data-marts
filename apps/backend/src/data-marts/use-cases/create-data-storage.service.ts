@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Transactional } from 'typeorm-transactional';
@@ -16,6 +16,8 @@ import { IdpProjectionsFacade } from '../../idp/facades/idp-projections.facade';
 
 @Injectable()
 export class CreateDataStorageService {
+  private readonly logger = new Logger(CreateDataStorageService.name);
+
   constructor(
     @InjectRepository(DataStorage)
     private readonly dataStorageRepository: Repository<DataStorage>,

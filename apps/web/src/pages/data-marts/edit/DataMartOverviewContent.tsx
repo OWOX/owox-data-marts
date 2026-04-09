@@ -170,8 +170,7 @@ export default function DataMartOverviewContent() {
         <CollapsibleCardContent>
           <div className='flex gap-4'>
             <div className='group flex w-full flex-col gap-3 rounded-md border-b border-gray-200 bg-white p-4 transition-shadow duration-200 hover:shadow-xs dark:border-0 dark:bg-white/2'>
-              <div className='flex items-center justify-between gap-4'>
-                <div className='text-foreground text-sm font-medium'>Available for reporting</div>
+              <div className='flex items-center gap-4'>
                 <Switch
                   checked={availableForReporting}
                   onCheckedChange={v => {
@@ -179,6 +178,7 @@ export default function DataMartOverviewContent() {
                     void handleAvailabilityChange(v, availableForMaintenance);
                   }}
                 />
+                <div className='text-foreground text-sm font-medium'>Available for reporting</div>
               </div>
               <p className='text-muted-foreground text-xs'>
                 All project members can see this Data Mart and build reports on it
@@ -199,8 +199,7 @@ export default function DataMartOverviewContent() {
               </Accordion>
             </div>
             <div className='group flex w-full flex-col gap-3 rounded-md border-b border-gray-200 bg-white p-4 transition-shadow duration-200 hover:shadow-xs dark:border-0 dark:bg-white/2'>
-              <div className='flex items-center justify-between gap-4'>
-                <div className='text-foreground text-sm font-medium'>Available for maintenance</div>
+              <div className='flex items-center gap-4'>
                 <Switch
                   checked={availableForMaintenance}
                   onCheckedChange={v => {
@@ -208,6 +207,7 @@ export default function DataMartOverviewContent() {
                     void handleAvailabilityChange(availableForReporting, v);
                   }}
                 />
+                <div className='text-foreground text-sm font-medium'>Available for maintenance</div>
               </div>
               <p className='text-muted-foreground text-xs'>
                 Technical users can edit, delete, and manage triggers for this Data Mart
