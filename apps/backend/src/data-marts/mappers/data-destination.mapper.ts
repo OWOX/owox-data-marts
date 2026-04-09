@@ -211,7 +211,10 @@ export class DataDestinationMapper {
 
     switch (credential.type) {
       case DestinationCredentialType.GOOGLE_OAUTH:
-        return { type: 'google-sheets-oauth-credentials' as const };
+        return {
+          type: 'google-sheets-oauth-credentials' as const,
+          identity: credential.identity ?? null,
+        };
 
       case DestinationCredentialType.LOOKER_STUDIO: {
         const creds = credential.credentials as DataDestinationCredentials;

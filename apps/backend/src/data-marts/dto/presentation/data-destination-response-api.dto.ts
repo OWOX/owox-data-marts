@@ -2,6 +2,7 @@ import { ApiProperty } from '@nestjs/swagger';
 import { DataDestinationCredentials } from '../../data-destination-types/data-destination-credentials.type';
 import { DataDestinationType } from '../../data-destination-types/enums/data-destination-type.enum';
 import { UserProjectionDto } from '../../../idp/dto/domain/user-projection.dto';
+import { CredentialIdentity } from '../../entities/credential-identity.type';
 
 export type DataDestinationCredentialsPublic = {
   type: 'google-sheets-credentials';
@@ -15,6 +16,7 @@ export type DataDestinationCredentialsPublic = {
 
 export type GoogleSheetsOAuthCredentialsPublic = {
   type: 'google-sheets-oauth-credentials';
+  identity: CredentialIdentity | null;
 };
 
 export class DataDestinationResponseApiDto {
