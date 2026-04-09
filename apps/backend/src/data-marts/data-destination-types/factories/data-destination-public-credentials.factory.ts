@@ -25,7 +25,10 @@ export class DataDestinationPublicCredentialsFactory {
     switch (validatedCredentials.type) {
       case GoogleSheetsCredentialsType: {
         if (!validatedCredentials.serviceAccountKey) {
-          return { type: 'google-sheets-oauth-credentials' as const };
+          return {
+            type: 'google-sheets-oauth-credentials' as const,
+            identity: validatedCredentials.identity ?? null,
+          };
         }
         return {
           type: 'google-sheets-credentials',
