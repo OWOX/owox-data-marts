@@ -69,6 +69,14 @@ export class ReportRunTriggerHandlerService extends BaseRunTriggerHandlerService
         return;
       }
 
+      const existingRun = await this.dataMartRunService.findById(trigger.dataMartRunId);
+      if (existingRun?.status === DataMartRunStatus.RUNNING) {
+        this.logger.warn(
+          `DataMartRun ${trigger.dataMartRunId} is already RUNNING, skipping duplicate trigger ${trigger.id}`
+        );
+        return;
+      }
+
       await this.failDataMartRunSafely(trigger.dataMartRunId, error);
 
       this.logger.error(

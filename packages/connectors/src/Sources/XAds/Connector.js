@@ -95,10 +95,6 @@ var XAdsConnector = class XAdsConnector extends AbstractConnector {
    * one job at a time (submit → poll → download) and calls onBatchReady after
    * each date so the Connector can save to BigQuery and advance the cursor
    * immediately. If the run fails on date N, dates 1–(N-1) are already persisted.
-   *
-   * Early exit: two consecutive empty chunks are required before skipping remaining
-   * days. One empty chunk may occur mid-campaign (paused days); two consecutive
-   * empties is a reliable signal that ad activity has ended for the period.
    */
   async processAsyncTimeSeriesNode({ nodeName, accountId, fields }) {
     const uniqueKeys = this.source.fieldsSchema[nodeName].uniqueKeys || [];
@@ -127,18 +123,13 @@ var XAdsConnector = class XAdsConnector extends AbstractConnector {
     const chunks = XAdsHelper.splitDatesIntoChunks(days.map(d => d.formatted));
     const dayLookup = new Map(days.map(d => [d.formatted, d.date]));
 
-    let emptyChunks = 0;
     for (const dateChunk of chunks) {
-      let chunkHasData = false;
-
       await this.source.fetchData({
         nodeName,
         accountId,
         fields,
         dateChunk,
         onBatchReady: async (formatted, data) => {
-          if (data.length) chunkHasData = true;
-
           this.config.logMessage(data.length
             ? `${data.length} rows of ${nodeName} were fetched for ${accountId} on ${formatted}`
             : 'No records have been fetched'
@@ -154,16 +145,6 @@ var XAdsConnector = class XAdsConnector extends AbstractConnector {
           }
         }
       });
-
-      if (!chunkHasData) {
-        emptyChunks++;
-        if (emptyChunks >= 2) {
-          console.log(`Two consecutive empty chunks — skipping remaining days`);
-          break;
-        }
-      } else {
-        emptyChunks = 0;
-      }
     }
   }
 
