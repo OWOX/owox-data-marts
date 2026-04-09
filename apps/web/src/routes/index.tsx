@@ -11,49 +11,60 @@ import { ProjectNotificationsPage } from '../pages/notifications/project';
 import { dataMartDetailsRoutes } from './data-marts/routes';
 import { ProjectRedirect } from '../components/ProjectRedirect';
 import { oauthRoutes } from './oauth.routes';
+import { RootErrorBoundary, LayoutErrorBoundary } from '../components/errors';
 
 const routes: RouteObject[] = [
   {
     index: true,
     path: '/',
     element: <ProjectRedirect />,
+    errorElement: <RootErrorBoundary />,
   },
   {
     path: '/ui/:projectId',
     element: <MainLayout />,
+    errorElement: <RootErrorBoundary />,
     children: [
       {
         path: 'about',
         element: <About />,
+        errorElement: <LayoutErrorBoundary />,
       },
       {
         index: true,
         element: <DataMartsPage />,
+        errorElement: <LayoutErrorBoundary />,
       },
       {
         path: 'data-marts',
         element: <DataMartsPage />,
+        errorElement: <LayoutErrorBoundary />,
       },
       {
         path: 'data-marts/create',
         element: <CreateDataMartPage />,
+        errorElement: <LayoutErrorBoundary />,
       },
       {
         path: 'data-marts/:id',
         element: <DataMartDetailsPage />,
+        errorElement: <LayoutErrorBoundary />,
         children: dataMartDetailsRoutes,
       },
       {
         path: 'data-storages',
         element: <DataStorageListPage />,
+        errorElement: <LayoutErrorBoundary />,
       },
       {
         path: 'data-destinations',
         element: <DataDestinationListPage />,
+        errorElement: <LayoutErrorBoundary />,
       },
       {
         path: 'notifications',
         element: <ProjectNotificationsPage />,
+        errorElement: <LayoutErrorBoundary />,
       },
       {
         path: '*',
@@ -61,10 +72,14 @@ const routes: RouteObject[] = [
       },
     ],
   },
-  oauthRoutes,
+  {
+    ...oauthRoutes,
+    errorElement: <RootErrorBoundary />,
+  },
   {
     path: '*',
     element: <NotFound />,
+    errorElement: <RootErrorBoundary />,
   },
 ];
 

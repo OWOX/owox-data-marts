@@ -10,19 +10,23 @@ import PrevInsightsListView from '../../features/data-marts/insights-prev/compon
 import PrevInsightDetailsView from '../../features/data-marts/insights-prev/components/InsightDetailsView.tsx';
 import InsightsListView from '../../features/data-marts/insights/components/InsightsListView.tsx';
 import InsightDetailsView from '../../features/data-marts/insights/components/InsightDetailsView.tsx';
+import { LayoutErrorBoundary } from '../../components/errors';
 
 export const dataMartDetailsRoutes: RouteObject[] = [
   {
     path: 'overview',
     element: <DataMartOverviewContent />,
+    errorElement: <LayoutErrorBoundary />,
   },
   {
     path: 'data-setup',
     element: <DataMartDataSetupContent />,
+    errorElement: <LayoutErrorBoundary />,
   },
   {
     path: 'insights',
     element: <DataMartInsightsContent />,
+    errorElement: <LayoutErrorBoundary />,
     children: [
       { index: true, element: <PrevInsightsListView /> },
       { path: ':insightId', element: <PrevInsightDetailsView /> },
@@ -31,6 +35,7 @@ export const dataMartDetailsRoutes: RouteObject[] = [
   {
     path: 'insights-v2',
     element: <DataMartNextInsightsContent />,
+    errorElement: <LayoutErrorBoundary />,
     children: [
       { index: true, element: <InsightsListView /> },
       { path: ':insightId', element: <InsightDetailsView /> },
@@ -39,17 +44,21 @@ export const dataMartDetailsRoutes: RouteObject[] = [
   {
     path: 'reports',
     element: <DataMartDestinationsContent />,
+    errorElement: <LayoutErrorBoundary />,
   },
   {
     path: 'triggers',
     element: <DataMartTriggersContent />,
+    errorElement: <LayoutErrorBoundary />,
   },
   {
     path: 'run-history',
     element: <DataMartRunHistoryContent />,
+    errorElement: <LayoutErrorBoundary />,
   },
   {
     index: true,
     element: <DataMartOverviewContent />,
+    errorElement: <LayoutErrorBoundary />,
   },
 ];
