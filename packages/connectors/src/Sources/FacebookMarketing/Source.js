@@ -258,7 +258,12 @@ var FacebookMarketingSource = class FacebookMarketingSource extends AbstractSour
     console.log(`isValidToRetry() called`);
     console.log(`error.statusCode =`, error.statusCode);
 
-    if (error.statusCode && error.statusCode >= HTTP_STATUS.SERVER_ERROR_MIN) {
+    // Network-level errors (ETIMEDOUT, ECONNRESET, etc.) have no statusCode — always retry
+    if (!error.statusCode) {
+      return true;
+    }
+
+    if (error.statusCode >= HTTP_STATUS.SERVER_ERROR_MIN) {
       return true;
     }
 
@@ -291,7 +296,7 @@ var FacebookMarketingSource = class FacebookMarketingSource extends AbstractSour
   @return data array
 
   */
-  async fetchData(nodeName, accountId, fields, startDate = null) {
+  async fetchData(nodeName, accountId, fields, startDate = null, onPageFetched = null) {
 
     //console.log(`Fetching data from ${nodeName}/${accountId}/${fields} for ${startDate}`);
 
@@ -344,7 +349,7 @@ var FacebookMarketingSource = class FacebookMarketingSource extends AbstractSour
 
     url += `&access_token=${this._getAccessToken()}`;
 
-    return await this._fetchPaginatedData(url, nodeName, fields);
+    return await this._fetchPaginatedData(url, nodeName, fields, onPageFetched);
 
   }
 
@@ -611,10 +616,11 @@ var FacebookMarketingSource = class FacebookMarketingSource extends AbstractSour
    * @param {string} initialUrl - Initial URL to fetch
    * @param {string} nodeName - Node name for field casting
    * @param {Array} fields - Fields that were requested
+   * @param {Function|null} onPageFetched - Optional async callback invoked with each page's records, allowing progressive saves during pagination
    * @return {Array} All fetched data
    * @private
    */
-  async _fetchPaginatedData(initialUrl, nodeName, fields) {
+  async _fetchPaginatedData(initialUrl, nodeName, fields, onPageFetched = null) {
     var allData = [];
     var nextPageURL = initialUrl;
 
@@ -638,6 +644,10 @@ var FacebookMarketingSource = class FacebookMarketingSource extends AbstractSour
           jsonData.data[index] = mappedRecord;
         });
 
+        if (onPageFetched) {
+          await onPageFetched(jsonData.data);
+        }
+
         allData = allData.concat(jsonData.data);
 
         // this is non-paginated result
@@ -646,6 +656,11 @@ var FacebookMarketingSource = class FacebookMarketingSource extends AbstractSour
         for (var key in jsonData) {
           jsonData[key] = this.castRecordFields(nodeName, jsonData[key]);
         }
+
+        if (onPageFetched) {
+          await onPageFetched([jsonData]);
+        }
+
         allData = allData.concat(jsonData);
       }
       console.log(`Got ${allData.length} records`);
