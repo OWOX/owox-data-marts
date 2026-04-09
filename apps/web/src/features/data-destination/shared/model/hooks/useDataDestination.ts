@@ -109,17 +109,9 @@ export function useDataDestination() {
     ) => {
       dispatch({ type: DataDestinationActionType.UPDATE_DESTINATION_START });
       try {
-        const { sharedForUse, sharedForMaintenance, ...restData } =
-          requestData as typeof requestData & {
-            sharedForUse?: boolean;
-            sharedForMaintenance?: boolean;
-          };
         const dataToSend = {
-          ...(source ? { ...restData, sourceDestinationId: source.id } : restData),
-          ...(sharedForUse !== undefined && { availableForUse: sharedForUse }),
-          ...(sharedForMaintenance !== undefined && {
-            availableForMaintenance: sharedForMaintenance,
-          }),
+          ...requestData,
+          ...(source && { sourceDestinationId: source.id }),
         };
         const response = await dataDestinationService.updateDataDestination(id, dataToSend);
         const mappedDestination = mapDataDestinationFromDto(response);

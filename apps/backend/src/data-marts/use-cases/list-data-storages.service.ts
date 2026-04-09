@@ -34,11 +34,11 @@ export class ListDataStoragesService {
 
     if (!isAdmin) {
       if (isTu) {
-        // TU: own + shared_for_use + shared_for_maintenance
+        // TU: own + available_for_use + available_for_maintenance
         qb = qb.andWhere(
           `(EXISTS (SELECT 1 FROM storage_owners o WHERE o.storage_id = s.id AND o.user_id = :userId)
-            OR s.sharedForUse = 1
-            OR s.sharedForMaintenance = 1)`,
+            OR s.availableForUse = 1
+            OR s.availableForMaintenance = 1)`,
           { userId: command.userId }
         );
       } else {

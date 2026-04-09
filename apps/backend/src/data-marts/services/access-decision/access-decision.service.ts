@@ -174,32 +174,32 @@ export class AccessDecisionService {
       case EntityType.STORAGE: {
         const storage = await this.dataStorageRepository.findOne({
           where: { id: entityId },
-          select: ['id', 'sharedForUse', 'sharedForMaintenance'],
+          select: ['id', 'availableForUse', 'availableForMaintenance'],
         });
         if (!storage) return SharingState.NOT_SHARED;
         return this.resolveUseMaintenanceSharing(
-          storage.sharedForUse,
-          storage.sharedForMaintenance
+          storage.availableForUse,
+          storage.availableForMaintenance
         );
       }
       case EntityType.DATA_MART: {
         const dm = await this.dataMartRepository.findOne({
           where: { id: entityId },
-          select: ['id', 'sharedForReporting', 'sharedForMaintenance'],
+          select: ['id', 'availableForReporting', 'availableForMaintenance'],
         });
         if (!dm) return SharingState.NOT_SHARED;
         return this.resolveReportingMaintenanceSharing(
-          dm.sharedForReporting,
-          dm.sharedForMaintenance
+          dm.availableForReporting,
+          dm.availableForMaintenance
         );
       }
       case EntityType.DESTINATION: {
         const dest = await this.dataDestinationRepository.findOne({
           where: { id: entityId },
-          select: ['id', 'sharedForUse', 'sharedForMaintenance'],
+          select: ['id', 'availableForUse', 'availableForMaintenance'],
         });
         if (!dest) return SharingState.NOT_SHARED;
-        return this.resolveUseMaintenanceSharing(dest.sharedForUse, dest.sharedForMaintenance);
+        return this.resolveUseMaintenanceSharing(dest.availableForUse, dest.availableForMaintenance);
       }
       default:
         return SharingState.NOT_SHARED;
@@ -284,22 +284,22 @@ export class AccessDecisionService {
   }
 
   private resolveUseMaintenanceSharing(
-    sharedForUse: boolean,
-    sharedForMaintenance: boolean
+    availableForUse: boolean,
+    availableForMaintenance: boolean
   ): SharingState {
-    if (sharedForUse && sharedForMaintenance) return SharingState.SHARED_FOR_BOTH;
-    if (sharedForUse) return SharingState.SHARED_FOR_USE;
-    if (sharedForMaintenance) return SharingState.SHARED_FOR_MAINTENANCE;
+    if (availableForUse && availableForMaintenance) return SharingState.SHARED_FOR_BOTH;
+    if (availableForUse) return SharingState.SHARED_FOR_USE;
+    if (availableForMaintenance) return SharingState.SHARED_FOR_MAINTENANCE;
     return SharingState.NOT_SHARED;
   }
 
   private resolveReportingMaintenanceSharing(
-    sharedForReporting: boolean,
-    sharedForMaintenance: boolean
+    availableForReporting: boolean,
+    availableForMaintenance: boolean
   ): SharingState {
-    if (sharedForReporting && sharedForMaintenance) return SharingState.SHARED_FOR_BOTH;
-    if (sharedForReporting) return SharingState.SHARED_FOR_REPORTING;
-    if (sharedForMaintenance) return SharingState.SHARED_FOR_MAINTENANCE;
+    if (availableForReporting && availableForMaintenance) return SharingState.SHARED_FOR_BOTH;
+    if (availableForReporting) return SharingState.SHARED_FOR_REPORTING;
+    if (availableForMaintenance) return SharingState.SHARED_FOR_MAINTENANCE;
     return SharingState.NOT_SHARED;
   }
 }

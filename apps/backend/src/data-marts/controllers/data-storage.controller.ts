@@ -37,8 +37,8 @@ import { GenerateStorageOAuthUrlService } from '../use-cases/google-oauth/genera
 import { RevokeStorageOAuthService } from '../use-cases/google-oauth/revoke-storage-oauth.service';
 import { ExchangeOAuthCodeService } from '../use-cases/google-oauth/exchange-oauth-code.service';
 import { ListDataStoragesByTypeService } from '../use-cases/list-data-storages-by-type.service';
-import { UpdateSharingService } from '../use-cases/update-sharing.service';
-import { UpdateStorageAvailabilityApiDto } from '../dto/presentation/update-sharing-api.dto';
+import { UpdateAvailabilityService } from '../use-cases/update-availability.service';
+import { UpdateStorageAvailabilityApiDto } from '../dto/presentation/update-availability-api.dto';
 import { ListDataStoragesByTypeCommand } from '../dto/domain/list-data-storages-by-type.command';
 import { DataStorageByTypeResponseApiDto } from '../dto/presentation/data-storage-by-type-response-api.dto';
 import { DataStorageType } from '../data-storage-types/enums/data-storage-type.enum';
@@ -75,7 +75,7 @@ export class DataStorageController {
     private readonly revokeOAuthService: RevokeStorageOAuthService,
     private readonly exchangeOAuthCodeService: ExchangeOAuthCodeService,
     private readonly listByTypeService: ListDataStoragesByTypeService,
-    private readonly updateSharingService: UpdateSharingService
+    private readonly updateAvailabilityService: UpdateAvailabilityService
   ) {}
 
   @Auth(Role.viewer(Strategy.PARSE))
@@ -230,7 +230,7 @@ export class DataStorageController {
     @Param('id') id: string,
     @Body() dto: UpdateStorageAvailabilityApiDto
   ): Promise<void> {
-    await this.updateSharingService.updateStorageSharing(
+    await this.updateAvailabilityService.updateStorageSharing(
       id,
       context.projectId,
       context.userId,

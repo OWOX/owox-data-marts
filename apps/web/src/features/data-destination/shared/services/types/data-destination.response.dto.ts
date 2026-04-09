@@ -82,6 +82,6 @@ export interface DataDestinationResponseDto {
   createdByUser?: import('../../../../../shared/types').UserProjection | null;
 
   ownerUsers?: import('../../../../../shared/types').UserProjection[];
-  sharedForUse?: boolean;
-  sharedForMaintenance?: boolean;
+  availableForUse?: boolean;
+  availableForMaintenance?: boolean;
 }

@@ -16,7 +16,7 @@ export class DataStorageDto {
     public readonly credentialId: string | null | undefined = undefined,
     public readonly createdByUser: UserProjectionDto | null = null,
     public readonly ownerUsers: UserProjectionDto[] = [],
-    public readonly sharedForUse: boolean = true,
-    public readonly sharedForMaintenance: boolean = true
+    public readonly availableForUse: boolean = true,
+    public readonly availableForMaintenance: boolean = true
   ) {}
 }

@@ -55,8 +55,8 @@ describe('CreateDataMartService', () => {
 
     expect(dataMartService.create).toHaveBeenCalledWith(
       expect.objectContaining({
-        sharedForReporting: false,
-        sharedForMaintenance: false,
+        availableForReporting: false,
+        availableForMaintenance: false,
       })
     );
   });

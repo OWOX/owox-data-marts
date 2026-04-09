@@ -52,8 +52,8 @@ describe('AccessDecisionService — E2E sharing flows', () => {
       const m = createService();
       m.dataMartRepository.findOne.mockResolvedValue({
         id: 'dm-1',
-        sharedForReporting: false,
-        sharedForMaintenance: false,
+        availableForReporting: false,
+        availableForMaintenance: false,
       });
       m.dataMartTechnicalOwnerRepository.count.mockResolvedValue(0);
       m.dataMartBusinessOwnerRepository.count.mockResolvedValue(0);
@@ -75,8 +75,8 @@ describe('AccessDecisionService — E2E sharing flows', () => {
       const m = createService();
       m.dataStorageRepository.findOne.mockResolvedValue({
         id: 's-1',
-        sharedForUse: true,
-        sharedForMaintenance: false,
+        availableForUse: true,
+        availableForMaintenance: false,
       });
       m.storageOwnerRepository.count.mockResolvedValue(0);
 
@@ -97,8 +97,8 @@ describe('AccessDecisionService — E2E sharing flows', () => {
       const m = createService();
       m.dataStorageRepository.findOne.mockResolvedValue({
         id: 's-1',
-        sharedForUse: true,
-        sharedForMaintenance: false,
+        availableForUse: true,
+        availableForMaintenance: false,
       });
       m.storageOwnerRepository.count.mockResolvedValue(0);
 
@@ -119,8 +119,8 @@ describe('AccessDecisionService — E2E sharing flows', () => {
       const m = createService();
       m.dataStorageRepository.findOne.mockResolvedValue({
         id: 's-1',
-        sharedForUse: false,
-        sharedForMaintenance: true,
+        availableForUse: false,
+        availableForMaintenance: true,
       });
       m.storageOwnerRepository.count.mockResolvedValue(0);
 
@@ -141,8 +141,8 @@ describe('AccessDecisionService — E2E sharing flows', () => {
       const m = createService();
       m.dataStorageRepository.findOne.mockResolvedValue({
         id: 's-1',
-        sharedForUse: true,
-        sharedForMaintenance: true,
+        availableForUse: true,
+        availableForMaintenance: true,
       });
       m.storageOwnerRepository.count.mockResolvedValue(1); // IS owner
 
@@ -165,8 +165,8 @@ describe('AccessDecisionService — E2E sharing flows', () => {
       const m = createService();
       m.dataMartRepository.findOne.mockResolvedValue({
         id: 'dm-1',
-        sharedForReporting: false,
-        sharedForMaintenance: false,
+        availableForReporting: false,
+        availableForMaintenance: false,
       });
       m.dataMartTechnicalOwnerRepository.count.mockResolvedValue(1);
       m.dataMartBusinessOwnerRepository.count.mockResolvedValue(0);
@@ -224,8 +224,8 @@ describe('AccessDecisionService — E2E sharing flows', () => {
       const m = createService();
       m.dataDestinationRepository.findOne.mockResolvedValue({
         id: 'd-1',
-        sharedForUse: true,
-        sharedForMaintenance: false,
+        availableForUse: true,
+        availableForMaintenance: false,
       });
       m.destinationOwnerRepository.count.mockResolvedValue(0);
 
@@ -246,8 +246,8 @@ describe('AccessDecisionService — E2E sharing flows', () => {
       const m = createService();
       m.dataDestinationRepository.findOne.mockResolvedValue({
         id: 'd-1',
-        sharedForUse: false,
-        sharedForMaintenance: true,
+        availableForUse: false,
+        availableForMaintenance: true,
       });
       m.destinationOwnerRepository.count.mockResolvedValue(0);
 
@@ -268,8 +268,8 @@ describe('AccessDecisionService — E2E sharing flows', () => {
       const m = createService();
       m.dataMartRepository.findOne.mockResolvedValue({
         id: 'dm-1',
-        sharedForReporting: true,
-        sharedForMaintenance: false,
+        availableForReporting: true,
+        availableForMaintenance: false,
       });
       m.dataMartTechnicalOwnerRepository.count.mockResolvedValue(0);
       m.dataMartBusinessOwnerRepository.count.mockResolvedValue(0);
@@ -301,8 +301,8 @@ describe('AccessDecisionService — E2E sharing flows', () => {
       const m = createService();
       m.dataMartRepository.findOne.mockResolvedValue({
         id: 'dm-1',
-        sharedForReporting: true,
-        sharedForMaintenance: true,
+        availableForReporting: true,
+        availableForMaintenance: true,
       });
       m.dataMartTechnicalOwnerRepository.count.mockResolvedValue(0);
       m.dataMartBusinessOwnerRepository.count.mockResolvedValue(0);
@@ -324,8 +324,8 @@ describe('AccessDecisionService — E2E sharing flows', () => {
       const m = createService();
       m.dataDestinationRepository.findOne.mockResolvedValue({
         id: 'd-1',
-        sharedForUse: false,
-        sharedForMaintenance: true,
+        availableForUse: false,
+        availableForMaintenance: true,
       });
       m.destinationOwnerRepository.count.mockResolvedValue(0);
 

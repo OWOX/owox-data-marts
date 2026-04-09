@@ -113,29 +113,29 @@ describe('AccessDecisionService', () => {
     if (entityType === EntityType.DATA_MART) {
       switch (sharingState) {
         case SharingState.NOT_SHARED:
-          return { sharedForReporting: false, sharedForMaintenance: false };
+          return { availableForReporting: false, availableForMaintenance: false };
         case SharingState.SHARED_FOR_REPORTING:
-          return { sharedForReporting: true, sharedForMaintenance: false };
+          return { availableForReporting: true, availableForMaintenance: false };
         case SharingState.SHARED_FOR_MAINTENANCE:
-          return { sharedForReporting: false, sharedForMaintenance: true };
+          return { availableForReporting: false, availableForMaintenance: true };
         case SharingState.SHARED_FOR_BOTH:
-          return { sharedForReporting: true, sharedForMaintenance: true };
+          return { availableForReporting: true, availableForMaintenance: true };
         case SharingState.SHARED_FOR_USE:
-          return { sharedForReporting: true, sharedForMaintenance: false };
+          return { availableForReporting: true, availableForMaintenance: false };
       }
     }
     // Storage & Destination
     switch (sharingState) {
       case SharingState.NOT_SHARED:
-        return { sharedForUse: false, sharedForMaintenance: false };
+        return { availableForUse: false, availableForMaintenance: false };
       case SharingState.SHARED_FOR_USE:
-        return { sharedForUse: true, sharedForMaintenance: false };
+        return { availableForUse: true, availableForMaintenance: false };
       case SharingState.SHARED_FOR_MAINTENANCE:
-        return { sharedForUse: false, sharedForMaintenance: true };
+        return { availableForUse: false, availableForMaintenance: true };
       case SharingState.SHARED_FOR_BOTH:
-        return { sharedForUse: true, sharedForMaintenance: true };
+        return { availableForUse: true, availableForMaintenance: true };
       case SharingState.SHARED_FOR_REPORTING:
-        return { sharedForUse: true, sharedForMaintenance: false };
+        return { availableForUse: true, availableForMaintenance: false };
     }
   }
 

@@ -93,20 +93,18 @@ export function useDataStorage() {
     ) => {
       dispatch({ type: DataStorageActionType.UPDATE_STORAGE_START });
       try {
-        const { ownerIds, sharedForUse, sharedForMaintenance, ...formData } =
+        const { ownerIds, availableForUse, availableForMaintenance, ...formData } =
           data as DataStorageFormData & {
             ownerIds?: string[];
-            sharedForUse?: boolean;
-            sharedForMaintenance?: boolean;
+            availableForUse?: boolean;
+            availableForMaintenance?: boolean;
           };
         const request = mapToUpdateDataStorageRequest(formData, source?.id);
         const requestWithExtras = {
           ...request,
           ...(ownerIds !== undefined && { ownerIds }),
-          ...(sharedForUse !== undefined && { availableForUse: sharedForUse }),
-          ...(sharedForMaintenance !== undefined && {
-            availableForMaintenance: sharedForMaintenance,
-          }),
+          ...(availableForUse !== undefined && { availableForUse }),
+          ...(availableForMaintenance !== undefined && { availableForMaintenance }),
         };
         const response = await dataStorageApiService.updateDataStorage(id, requestWithExtras);
         const updatedStorage = mapDataStorageFromDto(response);

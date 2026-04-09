@@ -88,8 +88,8 @@ export class DataStorageMapper {
       dataStorage.credentialId,
       createdByUser,
       ownerUsers,
-      dataStorage.sharedForUse,
-      dataStorage.sharedForMaintenance
+      dataStorage.availableForUse,
+      dataStorage.availableForMaintenance
     );
   }
 
@@ -122,8 +122,8 @@ export class DataStorageMapper {
       credentialId: dataStorageDto.credentialId,
       createdByUser: dataStorageDto.createdByUser,
       ownerUsers: dataStorageDto.ownerUsers,
-      sharedForUse: dataStorageDto.sharedForUse,
-      sharedForMaintenance: dataStorageDto.sharedForMaintenance,
+      availableForUse: dataStorageDto.availableForUse,
+      availableForMaintenance: dataStorageDto.availableForMaintenance,
     };
   }
 

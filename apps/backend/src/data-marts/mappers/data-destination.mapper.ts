@@ -91,8 +91,8 @@ export class DataDestinationMapper {
       dataDestination.credentialId,
       createdByUser,
       ownerUsers,
-      dataDestination.sharedForUse,
-      dataDestination.sharedForMaintenance
+      dataDestination.availableForUse,
+      dataDestination.availableForMaintenance
     );
   }
 
@@ -127,8 +127,8 @@ export class DataDestinationMapper {
       credentialId: dataDestinationDto.credentialId,
       createdByUser: dataDestinationDto.createdByUser,
       ownerUsers: dataDestinationDto.ownerUsers,
-      sharedForUse: dataDestinationDto.sharedForUse,
-      sharedForMaintenance: dataDestinationDto.sharedForMaintenance,
+      availableForUse: dataDestinationDto.availableForUse,
+      availableForMaintenance: dataDestinationDto.availableForMaintenance,
     };
   }
 

@@ -39,10 +39,10 @@ export class DataDestination implements CreatorAwareEntity {
   credential?: DataDestinationCredential | null;
 
   @Column({ type: 'boolean', default: true })
-  sharedForUse: boolean;
+  availableForUse: boolean;
 
   @Column({ type: 'boolean', default: true })
-  sharedForMaintenance: boolean;
+  availableForMaintenance: boolean;
 
   @DeleteDateColumn({ nullable: true })
   deletedAt?: Date;

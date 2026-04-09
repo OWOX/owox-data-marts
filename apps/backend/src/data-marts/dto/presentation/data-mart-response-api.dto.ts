@@ -59,8 +59,8 @@ export class DataMartResponseApiDto {
   modifiedAt: Date;
 
   @ApiProperty({ example: true })
-  sharedForReporting?: boolean;
+  availableForReporting?: boolean;
 
   @ApiProperty({ example: true })
-  sharedForMaintenance?: boolean;
+  availableForMaintenance?: boolean;
 }

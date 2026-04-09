@@ -109,16 +109,16 @@ export function DataStorageForm({
     useOwnerState(initialOwnerUsers);
 
   const sharingInitial = initialData as
-    | { sharedForUse?: boolean; sharedForMaintenance?: boolean }
+    | { availableForUse?: boolean; availableForMaintenance?: boolean }
     | undefined;
   const [sharingState, setSharingState] = useState({
-    sharedForUse: sharingInitial?.sharedForUse ?? true,
-    sharedForMaintenance: sharingInitial?.sharedForMaintenance ?? true,
+    availableForUse: sharingInitial?.availableForUse ?? true,
+    availableForMaintenance: sharingInitial?.availableForMaintenance ?? true,
   });
 
   const sharingDirty =
-    sharingState.sharedForUse !== (sharingInitial?.sharedForUse ?? true) ||
-    sharingState.sharedForMaintenance !== (sharingInitial?.sharedForMaintenance ?? true);
+    sharingState.availableForUse !== (sharingInitial?.availableForUse ?? true) ||
+    sharingState.availableForMaintenance !== (sharingInitial?.availableForMaintenance ?? true);
 
   const [selectedSource, setSelectedSource] = useState<{
     id: string;
@@ -191,8 +191,8 @@ export function DataStorageForm({
     }
 
     if (sharingDirty) {
-      (payload as Record<string, unknown>).sharedForUse = sharingState.sharedForUse;
-      (payload as Record<string, unknown>).sharedForMaintenance = sharingState.sharedForMaintenance;
+      (payload as Record<string, unknown>).availableForUse = sharingState.availableForUse;
+      (payload as Record<string, unknown>).availableForMaintenance = sharingState.availableForMaintenance;
     }
 
     await onSubmit(payload, selectedSource);
@@ -328,9 +328,9 @@ export function DataStorageForm({
                 <div className='flex items-center justify-between gap-4'>
                   <FormLabel>Available for use</FormLabel>
                   <Switch
-                    checked={sharingState.sharedForUse}
+                    checked={sharingState.availableForUse}
                     onCheckedChange={v => {
-                      setSharingState(prev => ({ ...prev, sharedForUse: v }));
+                      setSharingState(prev => ({ ...prev, availableForUse: v }));
                     }}
                   />
                 </div>
@@ -356,9 +356,9 @@ export function DataStorageForm({
                 <div className='flex items-center justify-between gap-4'>
                   <FormLabel>Available for maintenance</FormLabel>
                   <Switch
-                    checked={sharingState.sharedForMaintenance}
+                    checked={sharingState.availableForMaintenance}
                     onCheckedChange={v => {
-                      setSharingState(prev => ({ ...prev, sharedForMaintenance: v }));
+                      setSharingState(prev => ({ ...prev, availableForMaintenance: v }));
                     }}
                   />
                 </div>

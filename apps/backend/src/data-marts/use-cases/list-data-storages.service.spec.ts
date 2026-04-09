@@ -71,7 +71,7 @@ describe('ListDataStoragesService', () => {
     const andWhereCalls = qb.andWhere.mock.calls.map((c: unknown[]) => c[0]);
     const hasAccessFilter = andWhereCalls.some(
       (sql: string) =>
-        typeof sql === 'string' && sql.includes('storage_owners') && sql.includes('sharedForUse')
+        typeof sql === 'string' && sql.includes('storage_owners') && sql.includes('availableForUse')
     );
     expect(hasAccessFilter).toBe(true);
   });
@@ -85,7 +85,7 @@ describe('ListDataStoragesService', () => {
     const andWhereCalls = qb.andWhere.mock.calls.map((c: unknown[]) => c[0]);
     const hasAccessFilter = andWhereCalls.some(
       (sql: string) =>
-        typeof sql === 'string' && sql.includes('storage_owners') && sql.includes('sharedForUse')
+        typeof sql === 'string' && sql.includes('storage_owners') && sql.includes('availableForUse')
     );
     expect(hasAccessFilter).toBe(false);
   });

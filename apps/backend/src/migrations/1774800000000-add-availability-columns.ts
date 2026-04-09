@@ -1,51 +1,51 @@
 import { MigrationInterface, QueryRunner, TableColumn } from 'typeorm';
 
-export class AddSharingColumns1774800000000 implements MigrationInterface {
-  public readonly name = 'AddSharingColumns1774800000000';
+export class AddAvailabilityColumns1774800000000 implements MigrationInterface {
+  public readonly name = 'AddAvailabilityColumns1774800000000';
 
   public async up(queryRunner: QueryRunner): Promise<void> {
-    // DataMart: sharedForReporting + sharedForMaintenance
+    // DataMart: availableForReporting + availableForMaintenance
     await queryRunner.addColumns('data_mart', [
       new TableColumn({
-        name: 'sharedForReporting',
+        name: 'availableForReporting',
         type: 'boolean',
         isNullable: false,
         default: true,
       }),
       new TableColumn({
-        name: 'sharedForMaintenance',
+        name: 'availableForMaintenance',
         type: 'boolean',
         isNullable: false,
         default: true,
       }),
     ]);
 
-    // DataStorage: sharedForUse + sharedForMaintenance
+    // DataStorage: availableForUse + availableForMaintenance
     await queryRunner.addColumns('data_storage', [
       new TableColumn({
-        name: 'sharedForUse',
+        name: 'availableForUse',
         type: 'boolean',
         isNullable: false,
         default: true,
       }),
       new TableColumn({
-        name: 'sharedForMaintenance',
+        name: 'availableForMaintenance',
         type: 'boolean',
         isNullable: false,
         default: true,
       }),
     ]);
 
-    // DataDestination: sharedForUse + sharedForMaintenance
+    // DataDestination: availableForUse + availableForMaintenance
     await queryRunner.addColumns('data_destination', [
       new TableColumn({
-        name: 'sharedForUse',
+        name: 'availableForUse',
         type: 'boolean',
         isNullable: false,
         default: true,
       }),
       new TableColumn({
-        name: 'sharedForMaintenance',
+        name: 'availableForMaintenance',
         type: 'boolean',
         isNullable: false,
         default: true,
@@ -54,11 +54,11 @@ export class AddSharingColumns1774800000000 implements MigrationInterface {
   }
 
   public async down(queryRunner: QueryRunner): Promise<void> {
-    await queryRunner.dropColumn('data_destination', 'sharedForMaintenance');
-    await queryRunner.dropColumn('data_destination', 'sharedForUse');
-    await queryRunner.dropColumn('data_storage', 'sharedForMaintenance');
-    await queryRunner.dropColumn('data_storage', 'sharedForUse');
-    await queryRunner.dropColumn('data_mart', 'sharedForMaintenance');
-    await queryRunner.dropColumn('data_mart', 'sharedForReporting');
+    await queryRunner.dropColumn('data_destination', 'availableForMaintenance');
+    await queryRunner.dropColumn('data_destination', 'availableForUse');
+    await queryRunner.dropColumn('data_storage', 'availableForMaintenance');
+    await queryRunner.dropColumn('data_storage', 'availableForUse');
+    await queryRunner.dropColumn('data_mart', 'availableForMaintenance');
+    await queryRunner.dropColumn('data_mart', 'availableForReporting');
   }
 }

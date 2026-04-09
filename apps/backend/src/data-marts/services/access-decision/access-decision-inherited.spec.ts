@@ -45,8 +45,8 @@ describe('AccessDecisionService — inherited entity access (DM Trigger, Report)
       const m = createService();
       m.dataMartRepository.findOne.mockResolvedValue({
         id: 'dm-1',
-        sharedForReporting: true,
-        sharedForMaintenance: false,
+        availableForReporting: true,
+        availableForMaintenance: false,
       });
       m.dataMartTechnicalOwnerRepository.count.mockResolvedValue(0);
       m.dataMartBusinessOwnerRepository.count.mockResolvedValue(0);
@@ -66,8 +66,8 @@ describe('AccessDecisionService — inherited entity access (DM Trigger, Report)
       const m = createService();
       m.dataMartRepository.findOne.mockResolvedValue({
         id: 'dm-1',
-        sharedForReporting: false,
-        sharedForMaintenance: false,
+        availableForReporting: false,
+        availableForMaintenance: false,
       });
       m.dataMartTechnicalOwnerRepository.count.mockResolvedValue(0);
       m.dataMartBusinessOwnerRepository.count.mockResolvedValue(0);
@@ -87,8 +87,8 @@ describe('AccessDecisionService — inherited entity access (DM Trigger, Report)
       const m = createService();
       m.dataMartRepository.findOne.mockResolvedValue({
         id: 'dm-1',
-        sharedForReporting: false,
-        sharedForMaintenance: true,
+        availableForReporting: false,
+        availableForMaintenance: true,
       });
       m.dataMartTechnicalOwnerRepository.count.mockResolvedValue(0);
       m.dataMartBusinessOwnerRepository.count.mockResolvedValue(0);
@@ -108,8 +108,8 @@ describe('AccessDecisionService — inherited entity access (DM Trigger, Report)
       const m = createService();
       m.dataMartRepository.findOne.mockResolvedValue({
         id: 'dm-1',
-        sharedForReporting: true,
-        sharedForMaintenance: false,
+        availableForReporting: true,
+        availableForMaintenance: false,
       });
       m.dataMartTechnicalOwnerRepository.count.mockResolvedValue(0);
       m.dataMartBusinessOwnerRepository.count.mockResolvedValue(0);
@@ -145,8 +145,8 @@ describe('AccessDecisionService — inherited entity access (DM Trigger, Report)
       const m = createService();
       m.dataMartRepository.findOne.mockResolvedValue({
         id: 'dm-1',
-        sharedForReporting: false,
-        sharedForMaintenance: false,
+        availableForReporting: false,
+        availableForMaintenance: false,
       });
       m.dataMartTechnicalOwnerRepository.count.mockResolvedValue(0);
       m.dataMartBusinessOwnerRepository.count.mockResolvedValue(0);
@@ -166,8 +166,8 @@ describe('AccessDecisionService — inherited entity access (DM Trigger, Report)
       const m = createService();
       m.dataMartRepository.findOne.mockResolvedValue({
         id: 'dm-1',
-        sharedForReporting: true,
-        sharedForMaintenance: false,
+        availableForReporting: true,
+        availableForMaintenance: false,
       });
       m.dataMartTechnicalOwnerRepository.count.mockResolvedValue(0);
       m.dataMartBusinessOwnerRepository.count.mockResolvedValue(0);
@@ -187,8 +187,8 @@ describe('AccessDecisionService — inherited entity access (DM Trigger, Report)
       const m = createService();
       m.dataMartRepository.findOne.mockResolvedValue({
         id: 'dm-1',
-        sharedForReporting: false,
-        sharedForMaintenance: true,
+        availableForReporting: false,
+        availableForMaintenance: true,
       });
       m.dataMartTechnicalOwnerRepository.count.mockResolvedValue(0);
       m.dataMartBusinessOwnerRepository.count.mockResolvedValue(0);
@@ -208,8 +208,8 @@ describe('AccessDecisionService — inherited entity access (DM Trigger, Report)
       const m = createService();
       m.dataMartRepository.findOne.mockResolvedValue({
         id: 'dm-1',
-        sharedForReporting: true,
-        sharedForMaintenance: false,
+        availableForReporting: true,
+        availableForMaintenance: false,
       });
       m.dataMartTechnicalOwnerRepository.count.mockResolvedValue(0);
       m.dataMartBusinessOwnerRepository.count.mockResolvedValue(0);
@@ -230,8 +230,8 @@ describe('AccessDecisionService — inherited entity access (DM Trigger, Report)
       const m = createService();
       m.dataMartRepository.findOne.mockResolvedValue({
         id: 'dm-1',
-        sharedForReporting: true,
-        sharedForMaintenance: false,
+        availableForReporting: true,
+        availableForMaintenance: false,
       });
       m.dataMartTechnicalOwnerRepository.count.mockResolvedValue(0);
       m.dataMartBusinessOwnerRepository.count.mockResolvedValue(0);

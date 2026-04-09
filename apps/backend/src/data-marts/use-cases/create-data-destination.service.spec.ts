@@ -150,8 +150,8 @@ describe('CreateDataDestinationService', () => {
     const repository = (service as unknown as { repository: { create: jest.Mock } }).repository;
     expect(repository.create).toHaveBeenCalledWith(
       expect.objectContaining({
-        sharedForUse: false,
-        sharedForMaintenance: false,
+        availableForUse: false,
+        availableForMaintenance: false,
       })
     );
   });

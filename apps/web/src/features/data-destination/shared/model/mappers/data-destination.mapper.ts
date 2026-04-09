@@ -11,8 +11,8 @@ export function mapDataDestinationFromDto(dto: DataDestinationResponseDto): Data
   const mapper = DestinationMapperFactory.getMapper(dto.type);
   return {
     ...mapper.mapFromDto(dto),
-    sharedForUse: dto.sharedForUse,
-    sharedForMaintenance: dto.sharedForMaintenance,
+    availableForUse: dto.availableForUse,
+    availableForMaintenance: dto.availableForMaintenance,
   };
 }
 

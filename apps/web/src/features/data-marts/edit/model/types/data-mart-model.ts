@@ -95,6 +95,6 @@ export interface DataMart {
    */
   technicalOwnerUsers: UserProjectionDto[];
 
-  sharedForReporting?: boolean;
-  sharedForMaintenance?: boolean;
+  availableForReporting?: boolean;
+  availableForMaintenance?: boolean;
 }

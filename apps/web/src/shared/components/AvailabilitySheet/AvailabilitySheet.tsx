@@ -18,9 +18,9 @@ import { FormLayout, FormSection, FormItem, FormLabel, Form } from '@owox/ui/com
 import { useForm } from 'react-hook-form';
 import { Button } from '../Button';
 
-export type SharingEntityType = 'data-mart' | 'storage' | 'destination';
+export type AvailabilityEntityType = 'data-mart' | 'storage' | 'destination';
 
-interface SharingField {
+interface AvailabilityField {
   key: string;
   sectionTitle: string;
   label: string;
@@ -29,10 +29,10 @@ interface SharingField {
   helpContent: string;
 }
 
-interface SharingSheetProps {
+interface AvailabilitySheetProps {
   isOpen: boolean;
   onClose: () => void;
-  entityType: SharingEntityType;
+  entityType: AvailabilityEntityType;
   entityTitle: string;
   initialValues: {
     field1: boolean;
@@ -41,11 +41,11 @@ interface SharingSheetProps {
   onSave: (field1: boolean, field2: boolean) => Promise<void>;
 }
 
-function getSharingFields(entityType: SharingEntityType): [SharingField, SharingField] {
+function getAvailabilityFields(entityType: AvailabilityEntityType): [AvailabilityField, AvailabilityField] {
   if (entityType === 'data-mart') {
     return [
       {
-        key: 'sharedForReporting',
+        key: 'availableForReporting',
         sectionTitle: 'Reporting',
         label: 'Available for reporting',
         description: 'All project members can see this Data Mart and build reports on it',
@@ -54,7 +54,7 @@ function getSharingFields(entityType: SharingEntityType): [SharingField, Sharing
           'When enabled, all project members (both Technical and Business Users) can see this Data Mart in the catalog and use it to create reports. Owners always have access regardless of this setting. Disable this to restrict visibility to owners only.',
       },
       {
-        key: 'sharedForMaintenance',
+        key: 'availableForMaintenance',
         sectionTitle: 'Maintenance',
         label: 'Available for maintenance',
         description: 'Technical users can edit, delete, and manage triggers for this Data Mart',
@@ -69,7 +69,7 @@ function getSharingFields(entityType: SharingEntityType): [SharingField, Sharing
 
   return [
     {
-      key: 'sharedForUse',
+      key: 'availableForUse',
       sectionTitle: 'Usage',
       label: 'Available for use',
       description:
@@ -83,7 +83,7 @@ function getSharingFields(entityType: SharingEntityType): [SharingField, Sharing
           : 'When enabled, project members can select this destination when configuring reports. Without this, only destination owners and admins can use it. Enable this when your team shares a common reporting destination.',
     },
     {
-      key: 'sharedForMaintenance',
+      key: 'availableForMaintenance',
       sectionTitle: 'Maintenance',
       label: 'Available for maintenance',
       description: `Project members with access can copy credentials, edit, and delete this ${entityName}`,
@@ -93,7 +93,7 @@ function getSharingFields(entityType: SharingEntityType): [SharingField, Sharing
   ];
 }
 
-function getSheetTitle(entityType: SharingEntityType): string {
+function getSheetTitle(entityType: AvailabilityEntityType): string {
   switch (entityType) {
     case 'data-mart':
       return 'Share Data Mart';
@@ -104,14 +104,14 @@ function getSheetTitle(entityType: SharingEntityType): string {
   }
 }
 
-export function SharingSheet({
+export function AvailabilitySheet({
   isOpen,
   onClose,
   entityType,
   entityTitle,
   initialValues,
   onSave,
-}: SharingSheetProps) {
+}: AvailabilitySheetProps) {
   const form = useForm();
   const [field1, setField1] = useState(initialValues.field1);
   const [field2, setField2] = useState(initialValues.field2);
@@ -134,7 +134,7 @@ export function SharingSheet({
     }
   }, [field1, field2, onSave, onClose]);
 
-  const fields = getSharingFields(entityType);
+  const fields = getAvailabilityFields(entityType);
 
   return (
     <Sheet

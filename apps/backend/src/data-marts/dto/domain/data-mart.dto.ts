@@ -24,7 +24,7 @@ export class DataMartDto {
     public readonly createdByUser: UserProjectionDto | null = null,
     public readonly businessOwnerUsers: UserProjectionDto[] = [],
     public readonly technicalOwnerUsers: UserProjectionDto[] = [],
-    public readonly sharedForReporting: boolean = true,
-    public readonly sharedForMaintenance: boolean = true
+    public readonly availableForReporting: boolean = true,
+    public readonly availableForMaintenance: boolean = true
   ) {}
 }

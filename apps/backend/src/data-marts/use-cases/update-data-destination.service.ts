@@ -133,10 +133,10 @@ export class UpdateDataDestinationService {
       // After copy, save title and return — skip credential validation/processing
       entity.title = command.title;
       if (command.availableForUse !== undefined) {
-        entity.sharedForUse = command.availableForUse;
+        entity.availableForUse = command.availableForUse;
       }
       if (command.availableForMaintenance !== undefined) {
-        entity.sharedForMaintenance = command.availableForMaintenance;
+        entity.availableForMaintenance = command.availableForMaintenance;
       }
       const updatedEntity = await this.dataDestinationRepository.save(entity);
       return this.replaceOwnersAndBuildResponse(updatedEntity, command.ownerIds);
@@ -229,10 +229,10 @@ export class UpdateDataDestinationService {
     entity.title = command.title;
 
     if (command.availableForUse !== undefined) {
-      entity.sharedForUse = command.availableForUse;
+      entity.availableForUse = command.availableForUse;
     }
     if (command.availableForMaintenance !== undefined) {
-      entity.sharedForMaintenance = command.availableForMaintenance;
+      entity.availableForMaintenance = command.availableForMaintenance;
     }
 
     const updatedEntity = await this.dataDestinationRepository.save(entity);

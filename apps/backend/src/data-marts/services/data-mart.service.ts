@@ -89,20 +89,20 @@ export class DataMartService {
     if (!isAdmin && options?.userId) {
       const isTu = options.roles?.includes('editor');
       if (isTu) {
-        // TU: tech owner OR biz owner OR shared_for_reporting OR shared_for_maintenance
+        // TU: tech owner OR biz owner OR available_for_reporting OR available_for_maintenance
         qb.andWhere(
           `(EXISTS (SELECT 1 FROM data_mart_technical_owners t WHERE t.data_mart_id = dm.id AND t.user_id = :accessUserId)
             OR EXISTS (SELECT 1 FROM data_mart_business_owners b WHERE b.data_mart_id = dm.id AND b.user_id = :accessUserId)
-            OR dm.sharedForReporting = 1
-            OR dm.sharedForMaintenance = 1)`,
+            OR dm.availableForReporting = 1
+            OR dm.availableForMaintenance = 1)`,
           { accessUserId: options.userId }
         );
       } else {
-        // BU: biz owner OR shared_for_reporting (+ shared_for_both via reporting)
+        // BU: biz owner OR available_for_reporting (+ available_for_both via reporting)
         qb.andWhere(
           `(EXISTS (SELECT 1 FROM data_mart_technical_owners t WHERE t.data_mart_id = dm.id AND t.user_id = :accessUserId)
             OR EXISTS (SELECT 1 FROM data_mart_business_owners b WHERE b.data_mart_id = dm.id AND b.user_id = :accessUserId)
-            OR dm.sharedForReporting = 1)`,
+            OR dm.availableForReporting = 1)`,
           { accessUserId: options.userId }
         );
       }

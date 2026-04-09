@@ -37,15 +37,15 @@ export class ListReportsByProjectService {
         qb = qb.andWhere(
           `(EXISTS (SELECT 1 FROM data_mart_technical_owners t WHERE t.data_mart_id = dataMart.id AND t.user_id = :userId)
             OR EXISTS (SELECT 1 FROM data_mart_business_owners b WHERE b.data_mart_id = dataMart.id AND b.user_id = :userId)
-            OR dataMart.sharedForReporting = 1
-            OR dataMart.sharedForMaintenance = 1)`,
+            OR dataMart.availableForReporting = 1
+            OR dataMart.availableForMaintenance = 1)`,
           { userId: command.userId }
         );
       } else {
         qb = qb.andWhere(
           `(EXISTS (SELECT 1 FROM data_mart_technical_owners t WHERE t.data_mart_id = dataMart.id AND t.user_id = :userId)
             OR EXISTS (SELECT 1 FROM data_mart_business_owners b WHERE b.data_mart_id = dataMart.id AND b.user_id = :userId)
-            OR dataMart.sharedForReporting = 1)`,
+            OR dataMart.availableForReporting = 1)`,
           { userId: command.userId }
         );
       }

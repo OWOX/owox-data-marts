@@ -91,8 +91,8 @@ describe('CreateDataStorageService', () => {
 
     expect(dataStorageRepository.create).toHaveBeenCalledWith(
       expect.objectContaining({
-        sharedForUse: false,
-        sharedForMaintenance: false,
+        availableForUse: false,
+        availableForMaintenance: false,
       })
     );
   });

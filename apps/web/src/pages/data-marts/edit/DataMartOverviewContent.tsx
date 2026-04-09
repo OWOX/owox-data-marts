@@ -31,8 +31,8 @@ interface OutletContextType {
     createdByUser: UserProjectionDto | null;
     businessOwnerUsers: UserProjectionDto[];
     technicalOwnerUsers: UserProjectionDto[];
-    sharedForReporting?: boolean;
-    sharedForMaintenance?: boolean;
+    availableForReporting?: boolean;
+    availableForMaintenance?: boolean;
   };
   updateDataMartOwners: (
     id: string,
@@ -48,17 +48,17 @@ export default function DataMartOverviewContent() {
     useOutletContext<OutletContextType>();
 
   const [availableForReporting, setAvailableForReporting] = useState(
-    dataMart.sharedForReporting !== false
+    dataMart.availableForReporting !== false
   );
   const [availableForMaintenance, setAvailableForMaintenance] = useState(
-    dataMart.sharedForMaintenance !== false
+    dataMart.availableForMaintenance !== false
   );
 
   // Sync local state when dataMart props change (after refetch)
   useEffect(() => {
-    setAvailableForReporting(dataMart.sharedForReporting !== false);
-    setAvailableForMaintenance(dataMart.sharedForMaintenance !== false);
-  }, [dataMart.sharedForReporting, dataMart.sharedForMaintenance]);
+    setAvailableForReporting(dataMart.availableForReporting !== false);
+    setAvailableForMaintenance(dataMart.availableForMaintenance !== false);
+  }, [dataMart.availableForReporting, dataMart.availableForMaintenance]);
 
   const handleAvailabilityChange = useCallback(
     async (reporting: boolean, maintenance: boolean) => {

@@ -7,8 +7,8 @@ export function mapDataStorageFromDto(dto: DataStorageResponseDto): DataStorage 
   const mapper = StorageMapperFactory.getMapper(dto.type);
   return {
     ...mapper.mapFromDto(dto),
-    sharedForUse: dto.sharedForUse,
-    sharedForMaintenance: dto.sharedForMaintenance,
+    availableForUse: dto.availableForUse,
+    availableForMaintenance: dto.availableForMaintenance,
   };
 }
 

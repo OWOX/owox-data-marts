@@ -56,8 +56,8 @@ import { GetDestinationOAuthCredentialStatusService } from '../use-cases/google-
 import { GenerateDestinationOAuthUrlService } from '../use-cases/google-oauth/generate-destination-oauth-url.service';
 import { RevokeDestinationOAuthService } from '../use-cases/google-oauth/revoke-destination-oauth.service';
 import { ExchangeOAuthCodeService } from '../use-cases/google-oauth/exchange-oauth-code.service';
-import { UpdateSharingService } from '../use-cases/update-sharing.service';
-import { UpdateDestinationAvailabilityApiDto } from '../dto/presentation/update-sharing-api.dto';
+import { UpdateAvailabilityService } from '../use-cases/update-availability.service';
+import { UpdateDestinationAvailabilityApiDto } from '../dto/presentation/update-availability-api.dto';
 
 @Controller('data-destinations')
 @ApiTags('DataDestinations')
@@ -77,7 +77,7 @@ export class DataDestinationController {
     private readonly revokeOAuthService: RevokeDestinationOAuthService,
     private readonly exchangeOAuthCodeService: ExchangeOAuthCodeService,
     private readonly listByTypeService: ListDataDestinationsByTypeService,
-    private readonly updateSharingService: UpdateSharingService
+    private readonly updateAvailabilityService: UpdateAvailabilityService
   ) {}
 
   @Auth(Role.viewer(Strategy.INTROSPECT))
@@ -255,7 +255,7 @@ export class DataDestinationController {
     @Param('id') id: string,
     @Body() dto: UpdateDestinationAvailabilityApiDto
   ): Promise<void> {
-    await this.updateSharingService.updateDestinationSharing(
+    await this.updateAvailabilityService.updateDestinationSharing(
       id,
       context.projectId,
       context.userId,

@@ -108,8 +108,8 @@ export class DataMartMapper {
       createdByUser ?? null,
       businessOwnerUsers,
       technicalOwnerUsers,
-      entity.sharedForReporting ?? true,
-      entity.sharedForMaintenance ?? true
+      entity.availableForReporting ?? true,
+      entity.availableForMaintenance ?? true
     );
   }
 
@@ -146,8 +146,8 @@ export class DataMartMapper {
       technicalOwnerUsers: dto.technicalOwnerUsers,
       createdAt: dto.createdAt,
       modifiedAt: dto.modifiedAt,
-      sharedForReporting: dto.sharedForReporting,
-      sharedForMaintenance: dto.sharedForMaintenance,
+      availableForReporting: dto.availableForReporting,
+      availableForMaintenance: dto.availableForMaintenance,
     };
   }
 

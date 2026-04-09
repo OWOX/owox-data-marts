@@ -154,10 +154,10 @@ export class UpdateDataStorageService {
         dataStorageEntity.title = command.title;
       }
       if (command.availableForUse !== undefined) {
-        dataStorageEntity.sharedForUse = command.availableForUse;
+        dataStorageEntity.availableForUse = command.availableForUse;
       }
       if (command.availableForMaintenance !== undefined) {
-        dataStorageEntity.sharedForMaintenance = command.availableForMaintenance;
+        dataStorageEntity.availableForMaintenance = command.availableForMaintenance;
       }
       const updatedDataStorageEntity = await this.dataStorageRepository.save(dataStorageEntity);
 
@@ -245,10 +245,10 @@ export class UpdateDataStorageService {
     }
 
     if (command.availableForUse !== undefined) {
-      dataStorageEntity.sharedForUse = command.availableForUse;
+      dataStorageEntity.availableForUse = command.availableForUse;
     }
     if (command.availableForMaintenance !== undefined) {
-      dataStorageEntity.sharedForMaintenance = command.availableForMaintenance;
+      dataStorageEntity.availableForMaintenance = command.availableForMaintenance;
     }
 
     const updatedDataStorageEntity = await this.dataStorageRepository.save(dataStorageEntity);

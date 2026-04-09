@@ -27,11 +27,11 @@ export class ListDataDestinationsService {
       .andWhere('d.deletedAt IS NULL');
 
     if (!isAdmin) {
-      // Non-admin: own + shared_for_use + shared_for_maintenance
+      // Non-admin: own + available_for_use + available_for_maintenance
       qb = qb.andWhere(
         `(EXISTS (SELECT 1 FROM destination_owners o WHERE o.destination_id = d.id AND o.user_id = :userId)
-          OR d.sharedForUse = 1
-          OR d.sharedForMaintenance = 1)`,
+          OR d.availableForUse = 1
+          OR d.availableForMaintenance = 1)`,
         { userId: command.userId }
       );
     }

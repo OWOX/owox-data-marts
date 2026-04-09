@@ -275,15 +275,15 @@ describe('Stage 3 Sharing Access Control (e2e)', () => {
           availableForMaintenance: false,
         });
       expect(updateRes.status).toBe(200);
-      expect(updateRes.body.sharedForUse).toBe(false);
-      expect(updateRes.body.sharedForMaintenance).toBe(false);
+      expect(updateRes.body.availableForUse).toBe(false);
+      expect(updateRes.body.availableForMaintenance).toBe(false);
 
       // Verify persistence via GET
       const getAfter = await agent
         .get(`/api/data-destinations/${dataDestinationId}`)
         .set(AUTH_HEADER);
-      expect(getAfter.body.sharedForUse).toBe(false);
-      expect(getAfter.body.sharedForMaintenance).toBe(false);
+      expect(getAfter.body.availableForUse).toBe(false);
+      expect(getAfter.body.availableForMaintenance).toBe(false);
     });
 
     it('PUT /api/data-destinations/:id without availability fields does not reset them', async () => {
@@ -308,8 +308,8 @@ describe('Stage 3 Sharing Access Control (e2e)', () => {
       const getAfter = await agent
         .get(`/api/data-destinations/${dataDestinationId}`)
         .set(AUTH_HEADER);
-      expect(getAfter.body.sharedForUse).toBe(false);
-      expect(getAfter.body.sharedForMaintenance).toBe(true);
+      expect(getAfter.body.availableForUse).toBe(false);
+      expect(getAfter.body.availableForMaintenance).toBe(true);
     });
 
     it('PUT /api/data-destinations/:id with availability → 403 for non-owner', async () => {
@@ -349,8 +349,8 @@ describe('Stage 3 Sharing Access Control (e2e)', () => {
           availableForMaintenance: false,
         });
       expect(updateRes.status).toBe(200);
-      expect(updateRes.body.sharedForUse).toBe(true);
-      expect(updateRes.body.sharedForMaintenance).toBe(false);
+      expect(updateRes.body.availableForUse).toBe(true);
+      expect(updateRes.body.availableForMaintenance).toBe(false);
       expect(updateRes.body.ownerUsers.length).toBeGreaterThanOrEqual(1);
     });
   });

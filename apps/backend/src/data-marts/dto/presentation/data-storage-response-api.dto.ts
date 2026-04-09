@@ -67,8 +67,8 @@ export class DataStorageResponseApiDto {
   ownerUsers: UserProjectionDto[];
 
   @ApiProperty({ example: true })
-  sharedForUse?: boolean;
+  availableForUse?: boolean;
 
   @ApiProperty({ example: true })
-  sharedForMaintenance?: boolean;
+  availableForMaintenance?: boolean;
 }

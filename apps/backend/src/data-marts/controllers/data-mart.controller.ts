@@ -44,8 +44,8 @@ import { UpdateDataMartDefinitionService } from '../use-cases/update-data-mart-d
 import { UpdateDataMartDescriptionService } from '../use-cases/update-data-mart-description.service';
 import { UpdateDataMartSchemaService } from '../use-cases/update-data-mart-schema.service';
 import { UpdateDataMartOwnersService } from '../use-cases/update-data-mart-owners.service';
-import { UpdateSharingService } from '../use-cases/update-sharing.service';
-import { UpdateDataMartAvailabilityApiDto } from '../dto/presentation/update-sharing-api.dto';
+import { UpdateAvailabilityService } from '../use-cases/update-availability.service';
+import { UpdateDataMartAvailabilityApiDto } from '../dto/presentation/update-availability-api.dto';
 import { MemberOwnershipWarningsService } from '../services/member-ownership-warnings.service';
 import { UpdateDataMartTitleService } from '../use-cases/update-data-mart-title.service';
 import { ValidateDataMartDefinitionService } from '../use-cases/validate-data-mart-definition.service';
@@ -91,7 +91,7 @@ export class DataMartController {
     private readonly listDataMartsByConnectorNameService: ListDataMartsByConnectorNameService,
     private readonly batchDataMartHealthStatusService: BatchDataMartHealthStatusService,
     private readonly updateOwnersService: UpdateDataMartOwnersService,
-    private readonly updateSharingService: UpdateSharingService,
+    private readonly updateAvailabilityService: UpdateAvailabilityService,
     private readonly memberOwnershipWarningsService: MemberOwnershipWarningsService
   ) {}
 
@@ -325,7 +325,7 @@ export class DataMartController {
     @Param('id') id: string,
     @Body() dto: UpdateDataMartAvailabilityApiDto
   ): Promise<void> {
-    await this.updateSharingService.updateDataMartSharing(
+    await this.updateAvailabilityService.updateDataMartSharing(
       id,
       context.projectId,
       context.userId,

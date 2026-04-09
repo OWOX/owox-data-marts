@@ -50,6 +50,6 @@ export interface DataStorageResponseDto {
   credentialId?: string;
   createdByUser?: import('../../../../../../shared/types').UserProjection | null;
   ownerUsers?: import('../../../../../../shared/types').UserProjection[];
-  sharedForUse?: boolean;
-  sharedForMaintenance?: boolean;
+  availableForUse?: boolean;
+  availableForMaintenance?: boolean;
 }

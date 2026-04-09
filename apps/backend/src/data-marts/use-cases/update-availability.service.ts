@@ -7,8 +7,8 @@ import { DataDestination } from '../entities/data-destination.entity';
 import { AccessDecisionService, EntityType, Action } from '../services/access-decision';
 
 @Injectable()
-export class UpdateSharingService {
-  private readonly logger = new Logger(UpdateSharingService.name);
+export class UpdateAvailabilityService {
+  private readonly logger = new Logger(UpdateAvailabilityService.name);
 
   constructor(
     @InjectRepository(DataMart)
@@ -25,8 +25,8 @@ export class UpdateSharingService {
     projectId: string,
     userId: string,
     roles: string[],
-    sharedForReporting: boolean,
-    sharedForMaintenance: boolean
+    availableForReporting: boolean,
+    availableForMaintenance: boolean
   ): Promise<void> {
     const dm = await this.dataMartRepository.findOne({
       where: { id: dataMartId, projectId },
@@ -44,8 +44,8 @@ export class UpdateSharingService {
     if (!canConfigure)
       throw new ForbiddenException('You cannot configure sharing for this DataMart');
 
-    dm.sharedForReporting = sharedForReporting;
-    dm.sharedForMaintenance = sharedForMaintenance;
+    dm.availableForReporting = availableForReporting;
+    dm.availableForMaintenance = availableForMaintenance;
     await this.dataMartRepository.save(dm);
   }
 
@@ -54,8 +54,8 @@ export class UpdateSharingService {
     projectId: string,
     userId: string,
     roles: string[],
-    sharedForUse: boolean,
-    sharedForMaintenance: boolean
+    availableForUse: boolean,
+    availableForMaintenance: boolean
   ): Promise<void> {
     const storage = await this.dataStorageRepository.findOne({
       where: { id: storageId, projectId },
@@ -73,8 +73,8 @@ export class UpdateSharingService {
     if (!canConfigure)
       throw new ForbiddenException('You cannot configure sharing for this Storage');
 
-    storage.sharedForUse = sharedForUse;
-    storage.sharedForMaintenance = sharedForMaintenance;
+    storage.availableForUse = availableForUse;
+    storage.availableForMaintenance = availableForMaintenance;
     await this.dataStorageRepository.save(storage);
   }
 
@@ -83,8 +83,8 @@ export class UpdateSharingService {
     projectId: string,
     userId: string,
     roles: string[],
-    sharedForUse: boolean,
-    sharedForMaintenance: boolean
+    availableForUse: boolean,
+    availableForMaintenance: boolean
   ): Promise<void> {
     const dest = await this.dataDestinationRepository.findOne({
       where: { id: destinationId, projectId },
@@ -102,8 +102,8 @@ export class UpdateSharingService {
     if (!canConfigure)
       throw new ForbiddenException('You cannot configure sharing for this Destination');
 
-    dest.sharedForUse = sharedForUse;
-    dest.sharedForMaintenance = sharedForMaintenance;
+    dest.availableForUse = availableForUse;
+    dest.availableForMaintenance = availableForMaintenance;
     await this.dataDestinationRepository.save(dest);
   }
 }

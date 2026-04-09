@@ -13,8 +13,8 @@ export interface BaseDataDestination<T extends DataDestinationCredentials> {
   modifiedAt: Date;
   createdByUser?: import('../../../../../shared/types').UserProjection | null;
   ownerUsers?: import('../../../../../shared/types').UserProjection[];
-  sharedForUse?: boolean;
-  sharedForMaintenance?: boolean;
+  availableForUse?: boolean;
+  availableForMaintenance?: boolean;
 }
 
 export interface GoogleSheetsCredentials {

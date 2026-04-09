@@ -7,9 +7,9 @@ jest.mock('../services/access-decision', () => {
 });
 
 import { ForbiddenException, NotFoundException } from '@nestjs/common';
-import { UpdateSharingService } from './update-sharing.service';
+import { UpdateAvailabilityService } from './update-availability.service';
 
-describe('UpdateSharingService', () => {
+describe('UpdateAvailabilityService', () => {
   const createService = () => {
     const dataMartRepository = {
       findOne: jest.fn(),
@@ -27,7 +27,7 @@ describe('UpdateSharingService', () => {
       canAccess: jest.fn(),
     };
 
-    const service = new UpdateSharingService(
+    const service = new UpdateAvailabilityService(
       dataMartRepository as never,
       dataStorageRepository as never,
       dataDestinationRepository as never,
@@ -67,7 +67,7 @@ describe('UpdateSharingService', () => {
 
     it('should update sharing when authorized', async () => {
       const { service, dataMartRepository, accessDecisionService } = createService();
-      const dm = { id: 'dm-1', sharedForReporting: false, sharedForMaintenance: false };
+      const dm = { id: 'dm-1', availableForReporting: false, availableForMaintenance: false };
       dataMartRepository.findOne.mockResolvedValue(dm);
       accessDecisionService.canAccess.mockResolvedValue(true);
 
@@ -75,8 +75,8 @@ describe('UpdateSharingService', () => {
 
       expect(dataMartRepository.save).toHaveBeenCalledWith(
         expect.objectContaining({
-          sharedForReporting: true,
-          sharedForMaintenance: true,
+          availableForReporting: true,
+          availableForMaintenance: true,
         })
       );
     });
@@ -95,7 +95,7 @@ describe('UpdateSharingService', () => {
 
     it('should update storage sharing when authorized', async () => {
       const { service, dataStorageRepository, accessDecisionService } = createService();
-      const storage = { id: 's-1', sharedForUse: false, sharedForMaintenance: false };
+      const storage = { id: 's-1', availableForUse: false, availableForMaintenance: false };
       dataStorageRepository.findOne.mockResolvedValue(storage);
       accessDecisionService.canAccess.mockResolvedValue(true);
 
@@ -103,8 +103,8 @@ describe('UpdateSharingService', () => {
 
       expect(dataStorageRepository.save).toHaveBeenCalledWith(
         expect.objectContaining({
-          sharedForUse: true,
-          sharedForMaintenance: true,
+          availableForUse: true,
+          availableForMaintenance: true,
         })
       );
     });
@@ -123,7 +123,7 @@ describe('UpdateSharingService', () => {
 
     it('should update destination sharing when authorized', async () => {
       const { service, dataDestinationRepository, accessDecisionService } = createService();
-      const dest = { id: 'd-1', sharedForUse: false, sharedForMaintenance: false };
+      const dest = { id: 'd-1', availableForUse: false, availableForMaintenance: false };
       dataDestinationRepository.findOne.mockResolvedValue(dest);
       accessDecisionService.canAccess.mockResolvedValue(true);
 
@@ -131,8 +131,8 @@ describe('UpdateSharingService', () => {
 
       expect(dataDestinationRepository.save).toHaveBeenCalledWith(
         expect.objectContaining({
-          sharedForUse: true,
-          sharedForMaintenance: false,
+          availableForUse: true,
+          availableForMaintenance: false,
         })
       );
     });

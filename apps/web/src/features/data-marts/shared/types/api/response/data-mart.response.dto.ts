@@ -26,6 +26,6 @@ export interface DataMartResponseDto {
   modifiedAt: Date;
   schema: DataMartSchema | null;
   connectorState?: ConnectorStateResponseDto | null;
-  sharedForReporting?: boolean;
-  sharedForMaintenance?: boolean;
+  availableForReporting?: boolean;
+  availableForMaintenance?: boolean;
 }

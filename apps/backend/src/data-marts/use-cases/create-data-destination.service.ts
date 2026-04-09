@@ -102,8 +102,8 @@ export class CreateDataDestinationService {
         projectId: command.projectId,
         credentialId: newCredId,
         createdById: command.userId,
-        sharedForUse: false,
-        sharedForMaintenance: false,
+        availableForUse: false,
+        availableForMaintenance: false,
       });
 
       const savedEntity = await this.repository.save(entity);
@@ -125,8 +125,8 @@ export class CreateDataDestinationService {
         projectId: command.projectId,
         credentialId: command.credentialId,
         createdById: command.userId,
-        sharedForUse: false,
-        sharedForMaintenance: false,
+        availableForUse: false,
+        availableForMaintenance: false,
       });
 
       const savedEntity = await this.repository.save(entity);
@@ -168,8 +168,8 @@ export class CreateDataDestinationService {
       projectId: command.projectId,
       credentialId: credentialRecord.id,
       createdById: command.userId,
-      sharedForUse: false,
-      sharedForMaintenance: false,
+      availableForUse: false,
+      availableForMaintenance: false,
     });
 
     const savedEntity = await this.repository.save(entity);

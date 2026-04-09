@@ -12,15 +12,15 @@ describe('Sharing fields on entities', () => {
   }
 
   describe('DataMart sharing fields', () => {
-    it('should have sharedForReporting boolean column', () => {
-      const col = getColumnMeta(DataMart, 'sharedForReporting');
+    it('should have availableForReporting boolean column', () => {
+      const col = getColumnMeta(DataMart, 'availableForReporting');
       expect(col).toBeDefined();
       expect(col!.options.type).toBe('boolean');
       expect(col!.options.default).toBe(true);
     });
 
-    it('should have sharedForMaintenance boolean column', () => {
-      const col = getColumnMeta(DataMart, 'sharedForMaintenance');
+    it('should have availableForMaintenance boolean column', () => {
+      const col = getColumnMeta(DataMart, 'availableForMaintenance');
       expect(col).toBeDefined();
       expect(col!.options.type).toBe('boolean');
       expect(col!.options.default).toBe(true);
@@ -28,15 +28,15 @@ describe('Sharing fields on entities', () => {
   });
 
   describe('DataStorage sharing fields', () => {
-    it('should have sharedForUse boolean column', () => {
-      const col = getColumnMeta(DataStorage, 'sharedForUse');
+    it('should have availableForUse boolean column', () => {
+      const col = getColumnMeta(DataStorage, 'availableForUse');
       expect(col).toBeDefined();
       expect(col!.options.type).toBe('boolean');
       expect(col!.options.default).toBe(true);
     });
 
-    it('should have sharedForMaintenance boolean column', () => {
-      const col = getColumnMeta(DataStorage, 'sharedForMaintenance');
+    it('should have availableForMaintenance boolean column', () => {
+      const col = getColumnMeta(DataStorage, 'availableForMaintenance');
       expect(col).toBeDefined();
       expect(col!.options.type).toBe('boolean');
       expect(col!.options.default).toBe(true);
@@ -44,15 +44,15 @@ describe('Sharing fields on entities', () => {
   });
 
   describe('DataDestination sharing fields', () => {
-    it('should have sharedForUse boolean column', () => {
-      const col = getColumnMeta(DataDestination, 'sharedForUse');
+    it('should have availableForUse boolean column', () => {
+      const col = getColumnMeta(DataDestination, 'availableForUse');
       expect(col).toBeDefined();
       expect(col!.options.type).toBe('boolean');
       expect(col!.options.default).toBe(true);
     });
 
-    it('should have sharedForMaintenance boolean column', () => {
-      const col = getColumnMeta(DataDestination, 'sharedForMaintenance');
+    it('should have availableForMaintenance boolean column', () => {
+      const col = getColumnMeta(DataDestination, 'availableForMaintenance');
       expect(col).toBeDefined();
       expect(col!.options.type).toBe('boolean');
       expect(col!.options.default).toBe(true);
