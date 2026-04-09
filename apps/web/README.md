@@ -79,6 +79,36 @@ npm run preview
 - `npm run format:check` - Check code formatting
 - `npm run preview` - Preview the production build
 
+## Error Handling
+
+The app uses React Router `errorElement` to catch runtime errors and display a user-friendly fallback instead of the default React crash screen.
+
+There are two error boundary components in `src/components/errors/`:
+
+- **`RootErrorBoundary`** — full-page fallback when `MainLayout` itself crashes (uses a plain `<a href="/">` since the router may be broken).
+- **`LayoutErrorBoundary`** — in-layout fallback when a child page crashes. The sidebar stays visible so users can navigate away without reloading.
+
+### Dev-only error details
+
+Both components include a collapsible block that shows the error message and stack trace:
+
+```tsx
+{import.meta.env.DEV && error instanceof Error && (
+  <details>
+    <summary>Error details</summary>
+    <pre>{error.message}{'\n\n'}{error.stack}</pre>
+  </details>
+)}
+```
+
+| Part | Purpose |
+|---|---|
+| `import.meta.env.DEV` | Vite built-in — `true` during `npm run dev`, `false` in production builds. Vite statically replaces it at build time, so the entire block is tree-shaken out of the production bundle. |
+| `error instanceof Error` | TypeScript type guard — ensures `.message` and `.stack` are safely accessible. Non-`Error` throws (e.g. strings, Response objects) skip this block. |
+| `<details>` / `<summary>` | Native HTML disclosure widget — collapsed by default, click to expand. No JS needed. |
+
+In production, users see only the friendly message and action buttons. In development, developers can expand the details to see the full stack trace inline without opening browser DevTools.
+
 ## Related Documentation
 
 - For information about the overall project, see the [main README](../../README.md)
