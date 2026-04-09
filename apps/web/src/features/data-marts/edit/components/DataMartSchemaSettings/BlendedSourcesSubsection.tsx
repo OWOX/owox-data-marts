@@ -47,6 +47,7 @@ interface SourceEntry {
 
 interface BlendedSourcesSubsectionProps {
   dataMartId: string;
+  relationshipsVersion?: number;
 }
 
 function buildSourceTree(
@@ -86,7 +87,7 @@ function buildSourceTree(
   });
 }
 
-export function BlendedSourcesSubsection({ dataMartId }: BlendedSourcesSubsectionProps) {
+export function BlendedSourcesSubsection({ dataMartId, relationshipsVersion }: BlendedSourcesSubsectionProps) {
   const { dataMart } = useOutletContext<DataMartContextType>();
   const config: BlendedFieldsConfig = dataMart?.blendedFieldsConfig ?? DEFAULT_CONFIG;
 
@@ -119,7 +120,7 @@ export function BlendedSourcesSubsection({ dataMartId }: BlendedSourcesSubsectio
   useEffect(() => {
     fetchSchema();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dataMartId]);
+  }, [dataMartId, relationshipsVersion]);
 
   const sourceTree = useMemo(() => {
     if (!schema) return [];

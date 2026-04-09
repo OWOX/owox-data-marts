@@ -36,7 +36,11 @@ const VIEW_MODE_KEY = 'relationship-view-mode';
 const SHOW_TRANSITIVE_KEY = 'relationship-show-transitive';
 const CONTENT_MIN_H = 480;
 
-export function DataMartRelationshipsContent() {
+interface DataMartRelationshipsContentProps {
+  onRelationshipsChanged?: () => void;
+}
+
+export function DataMartRelationshipsContent({ onRelationshipsChanged }: DataMartRelationshipsContentProps) {
   const { dataMart } = useDataMartContext();
 
   const [relationships, setRelationships] = useState<DataMartRelationship[]>([]);
@@ -145,11 +149,12 @@ export function DataMartRelationshipsContent() {
         await dataMartRelationshipService.deleteRelationship(dataMartId, id);
         toast.success('Relationship deleted');
         setRelationships(prev => prev.filter(r => r.id !== id));
+        onRelationshipsChanged?.();
       } catch {
         toast.error('Failed to delete relationship');
       }
     },
-    [dataMartId]
+    [dataMartId, onRelationshipsChanged]
   );
 
   const handleDialogClose = useCallback((open: boolean) => {
@@ -162,7 +167,8 @@ export function DataMartRelationshipsContent() {
   const handleSaved = useCallback(() => {
     toast.success(editingRelationship ? 'Relationship updated' : 'Relationship added');
     void loadRelationships();
-  }, [editingRelationship, loadRelationships]);
+    onRelationshipsChanged?.();
+  }, [editingRelationship, loadRelationships, onRelationshipsChanged]);
 
   const openAddDialog = useCallback(() => {
     setEditingRelationship(null);

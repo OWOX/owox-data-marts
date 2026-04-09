@@ -77,7 +77,6 @@ export class CreateRelationshipRequestApiDto {
     description: 'Fields to include from the target data mart',
   })
   @IsArray()
-  @ArrayMinSize(1)
   @ValidateNested({ each: true })
   @Type(() => BlendedFieldApiDto)
   blendedFields: BlendedFieldApiDto[];

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useCallback, useState } from 'react';
 import {
   DataMartDataStorageView,
   DataMartDefinitionSettings,
@@ -23,6 +23,10 @@ export default function DataMartDataSetupContent() {
     initialDefinitionType
   );
   const [sqlRevalidateVersion, setSqlRevalidateVersion] = useState(0);
+  const [relationshipsVersion, setRelationshipsVersion] = useState(0);
+  const onRelationshipsChanged = useCallback(() => {
+    setRelationshipsVersion(v => v + 1);
+  }, []);
 
   return (
     <div className={'flex flex-col gap-4'} data-testid='datamartTabDataSetup'>
@@ -85,12 +89,12 @@ export default function DataMartDataSetupContent() {
           </CollapsibleCardHeaderTitle>
         </CollapsibleCardHeader>
         <CollapsibleCardContent>
-          {dataMart && <DataMartSchemaSettings definitionType={definitionType} />}
+          {dataMart && <DataMartSchemaSettings definitionType={definitionType} relationshipsVersion={relationshipsVersion} />}
         </CollapsibleCardContent>
         <CollapsibleCardFooter></CollapsibleCardFooter>
       </CollapsibleCard>
 
-      <DataMartRelationshipsContent />
+      <DataMartRelationshipsContent onRelationshipsChanged={onRelationshipsChanged} />
     </div>
   );
 }

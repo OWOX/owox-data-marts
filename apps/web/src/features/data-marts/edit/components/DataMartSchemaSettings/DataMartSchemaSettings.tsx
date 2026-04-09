@@ -16,12 +16,13 @@ import { BlendedSourcesSubsection } from './BlendedSourcesSubsection';
 
 interface DataMartSchemaSettingsProps {
   definitionType: DataMartDefinitionType | null;
+  relationshipsVersion?: number;
 }
 /**
  * Main component for editing data mart schema settings
  * Uses custom hooks for state management and the SchemaContent component for rendering
  */
-export function DataMartSchemaSettings({ definitionType }: DataMartSchemaSettingsProps) {
+export function DataMartSchemaSettings({ definitionType, relationshipsVersion }: DataMartSchemaSettingsProps) {
   const {
     dataMart,
     updateDataMartSchema,
@@ -120,7 +121,7 @@ export function DataMartSchemaSettings({ definitionType }: DataMartSchemaSetting
           Refresh schema
         </Button>
       </div>
-      <BlendedSourcesSubsection dataMartId={dataMartId} />
+      <BlendedSourcesSubsection dataMartId={dataMartId} relationshipsVersion={relationshipsVersion} />
     </div>
   );
 }
