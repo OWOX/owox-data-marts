@@ -2,7 +2,7 @@
 
 ## 2.0.0
 
-### Patch Changes
+### Patch Changes 2.0.0
 
 - @owox/idp-protocol@0.23.0
 
