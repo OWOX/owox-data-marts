@@ -1,4 +1,5 @@
 import { test, expect, type Locator } from '../fixtures/base';
+import type { Page } from '@playwright/test';
 import { TESTIDS } from '../selectors/testids';
 
 /** Ensure a collapsible FormSection is expanded (handles localStorage state). */
@@ -17,7 +18,7 @@ async function ensureSectionExpanded(container: Locator, sectionName: string): P
  * "Available for use" (storage/destination) or "Available for reporting" (data-mart),
  * the second is always "Available for maintenance".
  */
-function getAvailabilitySwitches(container: Locator): [Locator, Locator] {
+function getAvailabilitySwitches(container: Locator | Page): [Locator, Locator] {
   const switches = container.getByRole('switch');
   return [switches.first(), switches.nth(1)];
 }
