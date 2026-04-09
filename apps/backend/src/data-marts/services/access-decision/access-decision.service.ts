@@ -199,7 +199,10 @@ export class AccessDecisionService {
           select: ['id', 'availableForUse', 'availableForMaintenance'],
         });
         if (!dest) return SharingState.NOT_SHARED;
-        return this.resolveUseMaintenanceSharing(dest.availableForUse, dest.availableForMaintenance);
+        return this.resolveUseMaintenanceSharing(
+          dest.availableForUse,
+          dest.availableForMaintenance
+        );
       }
       default:
         return SharingState.NOT_SHARED;

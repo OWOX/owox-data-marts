@@ -41,7 +41,9 @@ interface AvailabilitySheetProps {
   onSave: (field1: boolean, field2: boolean) => Promise<void>;
 }
 
-function getAvailabilityFields(entityType: AvailabilityEntityType): [AvailabilityField, AvailabilityField] {
+function getAvailabilityFields(
+  entityType: AvailabilityEntityType
+): [AvailabilityField, AvailabilityField] {
   if (entityType === 'data-mart') {
     return [
       {

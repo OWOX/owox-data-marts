@@ -192,7 +192,8 @@ export function DataStorageForm({
 
     if (sharingDirty) {
       (payload as Record<string, unknown>).availableForUse = sharingState.availableForUse;
-      (payload as Record<string, unknown>).availableForMaintenance = sharingState.availableForMaintenance;
+      (payload as Record<string, unknown>).availableForMaintenance =
+        sharingState.availableForMaintenance;
     }
 
     await onSubmit(payload, selectedSource);
