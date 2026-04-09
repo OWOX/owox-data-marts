@@ -108,16 +108,10 @@ export function DataMartRelationshipsContent() {
   const connectedFieldCounts = useMemo(() => {
     const counts = new Map<string, number>();
     if (!blendableSchema) return counts;
-    const topLevelSets = new Map<string, Set<string>>();
     for (const field of blendableSchema.blendedFields) {
       if (field.type === 'UNKNOWN') continue;
       const relId = field.sourceRelationshipId;
-      if (!topLevelSets.has(relId)) topLevelSets.set(relId, new Set());
-      const set = topLevelSets.get(relId);
-      if (set) set.add(field.originalFieldName.split('.')[0]);
-    }
-    for (const [relId, names] of topLevelSets) {
-      counts.set(relId, names.size);
+      counts.set(relId, (counts.get(relId) ?? 0) + 1);
     }
     return counts;
   }, [blendableSchema]);

@@ -127,7 +127,7 @@ export class BlendableSchemaService {
       availableSource.title = rel.targetDataMart.title;
       availableSource.defaultAlias = sourceConfig?.alias ?? currentPath.replace(/\./g, '_');
       availableSource.depth = ctx.depth;
-      availableSource.fieldCount = targetSchemaFields.length;
+      availableSource.fieldCount = flatTargetFields.length;
       availableSource.isIncluded = shouldInclude;
       availableSource.relationshipId = rel.id;
       availableSource.dataMartId = rel.targetDataMart.id;
