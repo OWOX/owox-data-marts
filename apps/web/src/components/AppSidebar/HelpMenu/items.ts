@@ -1,9 +1,12 @@
 import type { HelpMenuItem } from './types';
-import { Info, Clapperboard, MessagesSquare, Rocket, Airplay } from 'lucide-react';
+import { Info, Clapperboard, MessagesSquare, Rocket, Airplay, ListTodo } from 'lucide-react';
 import { SlackIconDesaturated } from '../../../shared';
 import { openIntercom } from '../../../app/intercom/intercomUtils';
 
-export function helpMenuItems(openPopover: (id: string) => void): HelpMenuItem[] {
+export function helpMenuItems(
+  openPopover: (id: string) => void,
+  openSetupChecklist: () => void
+): HelpMenuItem[] {
   return [
     {
       type: 'menu-item',
@@ -13,6 +16,15 @@ export function helpMenuItems(openPopover: (id: string) => void): HelpMenuItem[]
       visible: true,
     },
     { type: 'separator' },
+    {
+      type: 'menu-item',
+      title: 'Get to know OWOX',
+      icon: ListTodo,
+      onClick: () => {
+        openSetupChecklist();
+      },
+      visible: true,
+    },
     {
       type: 'menu-item',
       title: 'Documentation',
