@@ -67,7 +67,6 @@ import { useReport } from '../../../shared';
 import { isEmailDestinationConfig } from '../../../shared/model/types/data-mart-report';
 import { ReportFormActions } from '../shared/ReportFormActions';
 import { ReportColumnPicker } from '../../../../edit/components/ReportColumnPicker/ReportColumnPicker';
-import { GeneratedSqlViewer } from '../../../../edit/components/ReportColumnPicker/GeneratedSqlViewer';
 
 export interface EmailReportEditFormProps {
   initialReport?: DataMartReport;
@@ -121,7 +120,6 @@ export const EmailReportEditForm = forwardRef<HTMLFormElement, EmailReportEditFo
     const scheduleRef = useRef<ReportSchedulesInlineListHandle | null>(null);
     const runAfterSaveRef = useRef(false);
     const [triggersDirty, setTriggersDirty] = useState(false);
-    const [hasBlendedSelection, setHasBlendedSelection] = useState(false);
     const [isCreatingInsight, setIsCreatingInsight] = useState(false);
     const [useInsightTemplateMode, setUseInsightTemplateMode] = useState(isInsightContext);
     const [isDestinationSelectOpen, setIsDestinationSelectOpen] = useState(false);
@@ -818,13 +816,7 @@ export const EmailReportEditForm = forwardRef<HTMLFormElement, EmailReportEditFo
                       onChange={value => {
                         form.setValue('columnConfig', value, { shouldDirty: true });
                       }}
-                      onBlendedSelectionChange={setHasBlendedSelection}
                     />
-                    {hasBlendedSelection && mode === ReportFormMode.EDIT && initialReport?.id && (
-                      <div className='pt-1'>
-                        <GeneratedSqlViewer reportId={initialReport.id} />
-                      </div>
-                    )}
                   </div>
                 )}
               </FormSection>

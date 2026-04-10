@@ -54,7 +54,6 @@ import { CopyableField } from '@owox/ui/components/common/copyable-field';
 import { useReport } from '../../../shared';
 import { ReportFormActions } from '../shared/ReportFormActions';
 import { ReportColumnPicker } from '../../../../edit/components/ReportColumnPicker/ReportColumnPicker';
-import { GeneratedSqlViewer } from '../../../../edit/components/ReportColumnPicker/GeneratedSqlViewer';
 
 interface GoogleSheetsReportEditFormProps {
   initialReport?: DataMartReport;
@@ -117,7 +116,6 @@ export const GoogleSheetsReportEditForm = forwardRef<
     const scheduleRef = useRef<ReportSchedulesInlineListHandle | null>(null);
     const runAfterSaveRef = useRef(false);
     const [triggersDirty, setTriggersDirty] = useState(false);
-    const [hasBlendedSelection, setHasBlendedSelection] = useState(false);
     const { runReport } = useReport();
 
     const {
@@ -395,13 +393,7 @@ export const GoogleSheetsReportEditForm = forwardRef<
                     onChange={value => {
                       form.setValue('columnConfig', value, { shouldDirty: true });
                     }}
-                    onBlendedSelectionChange={setHasBlendedSelection}
                   />
-                  {hasBlendedSelection && mode === ReportFormMode.EDIT && initialReport?.id && (
-                    <div className='pt-1'>
-                      <GeneratedSqlViewer reportId={initialReport.id} />
-                    </div>
-                  )}
                 </div>
               )}
             </FormSection>

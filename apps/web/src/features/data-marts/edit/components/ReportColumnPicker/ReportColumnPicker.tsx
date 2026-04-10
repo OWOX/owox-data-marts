@@ -13,6 +13,7 @@ import {
   SelectValue,
 } from '@owox/ui/components/select';
 import { dataMartRelationshipService } from '../../../shared/services/data-mart-relationship.service';
+import { BLENDABLE_SCHEMA_QUERY_KEY } from '../../../shared/hooks/useBlendedFieldNames';
 import type { BlendedField } from '../../../shared/types/relationship.types';
 
 type ColumnMode = 'default' | 'custom';
@@ -52,8 +53,6 @@ export interface ReportColumnPickerProps {
   onChange: (value: string[] | null) => void;
   onBlendedSelectionChange?: (hasBlendedSelection: boolean) => void;
 }
-
-const BLENDABLE_SCHEMA_QUERY_KEY = 'blendable-schema';
 
 interface BlendedGroupItemProps {
   group: BlendedGroup;

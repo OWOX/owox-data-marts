@@ -110,10 +110,10 @@ export class ReportService extends ApiService {
   /**
    * Copy a report as a new Data Mart
    * @param id Report ID
-   * @returns Promise with the created data mart response
+   * @returns Promise with the created data mart id
    */
-  async copyAsDataMart(id: string): Promise<unknown> {
-    return this.post<unknown>(`/${id}/copy-as-data-mart`);
+  async copyAsDataMart(id: string): Promise<{ dataMartId: string }> {
+    return this.post<{ dataMartId: string }>(`/${id}/copy-as-data-mart`);
   }
 }
 

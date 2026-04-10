@@ -182,11 +182,18 @@ export const LookerStudioReportEditForm = forwardRef<
                     }}
                     onBlendedSelectionChange={setHasBlendedSelection}
                   />
-                  {hasBlendedSelection && mode === ReportFormMode.EDIT && initialReport?.id && (
-                    <div className='pt-1'>
-                      <GeneratedSqlViewer reportId={initialReport.id} />
-                    </div>
-                  )}
+                  {hasBlendedSelection &&
+                    mode === ReportFormMode.EDIT &&
+                    initialReport?.id &&
+                    dataMart?.id && (
+                      <div className='pt-1'>
+                        <GeneratedSqlViewer
+                          reportId={initialReport.id}
+                          dataMartId={dataMart.id}
+                          variant='outline-button'
+                        />
+                      </div>
+                    )}
                 </div>
               )}
             </FormSection>
