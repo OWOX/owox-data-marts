@@ -2,6 +2,8 @@ import { useEffect, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { cn } from '@owox/ui/lib/utils';
 import { Checkbox } from '@owox/ui/components/checkbox';
+import { Collapsible, CollapsibleContent } from '@owox/ui/components/collapsible';
+import { ChevronDown, ChevronRight } from 'lucide-react';
 import { Skeleton } from '@owox/ui/components/skeleton';
 import {
   Select,
@@ -34,6 +36,16 @@ function flattenNativeFields(fields: NativeField[], prefix = ''): NativeField[] 
   return result;
 }
 
+interface BlendedGroup {
+  aliasPath: string;
+  title: string;
+  alias: string;
+  fields: BlendedField[];
+  visibleFields: BlendedField[];
+  selectedCount: number;
+  totalCount: number;
+}
+
 export interface ReportColumnPickerProps {
   dataMartId: string;
   value: string[] | null;
@@ -42,6 +54,74 @@ export interface ReportColumnPickerProps {
 }
 
 const BLENDABLE_SCHEMA_QUERY_KEY = 'blendable-schema';
+
+interface BlendedGroupItemProps {
+  group: BlendedGroup;
+  isChecked: (name: string) => boolean;
+  onToggleField: (name: string, checked: boolean) => void;
+}
+
+function BlendedGroupItem({ group, isChecked, onToggleField }: BlendedGroupItemProps) {
+  // Smart default: групи з уже вибраними полями стартують відкритими
+  const [isOpen, setIsOpen] = useState(() => group.selectedCount > 0);
+
+  const counterText =
+    group.selectedCount > 0
+      ? `${group.selectedCount} / ${group.totalCount}`
+      : `${group.totalCount}`;
+  const fieldWord = group.totalCount === 1 ? 'field' : 'fields';
+
+  return (
+    <Collapsible open={isOpen} onOpenChange={setIsOpen}>
+      <button
+        type='button'
+        aria-expanded={isOpen}
+        aria-label={`${isOpen ? 'Collapse' : 'Expand'} ${group.title}`}
+        className='bg-secondary/50 dark:bg-muted/50 hover:bg-secondary/80 dark:hover:bg-muted/80 flex w-full cursor-pointer items-start gap-1.5 rounded px-1 py-1 text-left transition-colors'
+        onClick={() => {
+          setIsOpen(v => !v);
+        }}
+      >
+        {isOpen ? (
+          <ChevronDown className='text-muted-foreground mt-0.5 h-4 w-4 shrink-0' />
+        ) : (
+          <ChevronRight className='text-muted-foreground mt-0.5 h-4 w-4 shrink-0' />
+        )}
+        <div className='min-w-0 flex-1'>
+          <div className='truncate text-xs font-semibold' title={group.title}>
+            {group.title}
+          </div>
+          <div className='flex items-center gap-1'>
+            <span className='text-muted-foreground shrink-0 text-xs'>
+              {counterText} {fieldWord}
+            </span>
+            <span className='text-muted-foreground shrink-0 text-xs'>·</span>
+            <span className='text-muted-foreground truncate font-mono text-xs' title={group.alias}>
+              {group.alias}
+            </span>
+          </div>
+        </div>
+      </button>
+      <CollapsibleContent>
+        {group.visibleFields.map(field => (
+          <label
+            key={field.name}
+            className='hover:bg-muted/50 flex cursor-pointer items-center gap-2 rounded px-1 py-1'
+          >
+            <Checkbox
+              checked={isChecked(field.name)}
+              onCheckedChange={checked => {
+                onToggleField(field.name, checked === true);
+              }}
+            />
+            <span className='font-mono text-xs'>{field.name}</span>
+            {field.type && <span className='text-muted-foreground text-xs'>({field.type})</span>}
+          </label>
+        ))}
+      </CollapsibleContent>
+    </Collapsible>
+  );
+}
 
 export function ReportColumnPicker({
   dataMartId,
@@ -131,7 +211,10 @@ export function ReportColumnPicker({
   const nativeFields: NativeField[] =
     mode === 'custom' && schema ? flattenNativeFields(schema.nativeFields as NativeField[]) : [];
 
-  const blendedFields: BlendedField[] = mode === 'custom' ? includedBlendedFields : [];
+  const blendedFields = useMemo<BlendedField[]>(
+    () => (mode === 'custom' ? includedBlendedFields : []),
+    [mode, includedBlendedFields]
+  );
 
   const selectedNativeCount = nativeFields.filter(f => isChecked(f.name)).length;
   const selectedBlendedCount = blendedFields.filter(f => isChecked(f.name)).length;
@@ -141,16 +224,12 @@ export function ReportColumnPicker({
   const visibleNativeFields = showSelectedOnly
     ? nativeFields.filter(f => isChecked(f.name))
     : nativeFields;
-  const visibleBlendedFields = showSelectedOnly
-    ? blendedFields.filter(f => isChecked(f.name))
-    : blendedFields;
 
-  const groupedBlendedFields = useMemo(() => {
-    const groupMap = new Map<
-      string,
-      { aliasPath: string; title: string; alias: string; fields: BlendedField[] }
-    >();
-    for (const field of visibleBlendedFields) {
+  const groupedBlendedFields = useMemo<BlendedGroup[]>(() => {
+    const selectedSet = new Set(value ?? []);
+    const groupMap = new Map<string, BlendedGroup>();
+
+    for (const field of blendedFields) {
       let group = groupMap.get(field.aliasPath);
       if (!group) {
         group = {
@@ -158,13 +237,22 @@ export function ReportColumnPicker({
           title: field.sourceDataMartTitle,
           alias: field.outputPrefix,
           fields: [],
+          visibleFields: [],
+          selectedCount: 0,
+          totalCount: 0,
         };
         groupMap.set(field.aliasPath, group);
       }
       group.fields.push(field);
+      group.totalCount += 1;
+      const isSelected = selectedSet.has(field.name);
+      if (isSelected) group.selectedCount += 1;
+      if (!showSelectedOnly || isSelected) group.visibleFields.push(field);
     }
-    return Array.from(groupMap.values());
-  }, [visibleBlendedFields]);
+
+    // У режимі "Selected only" ховаємо групи, у яких немає жодного видимого поля
+    return Array.from(groupMap.values()).filter(g => g.visibleFields.length > 0);
+  }, [blendedFields, showSelectedOnly, value]);
 
   return (
     <div className='space-y-3'>
@@ -314,43 +402,14 @@ export function ReportColumnPicker({
                 </div>
               </div>
 
-              <div className='border-border max-h-48 space-y-1 overflow-y-auto rounded-md border p-1'>
+              <div className='border-border max-h-96 space-y-1 overflow-y-auto rounded-md border p-1'>
                 {groupedBlendedFields.map(group => (
-                  <div key={group.aliasPath}>
-                    <div className='bg-secondary/50 dark:bg-muted/50 rounded px-1 py-1'>
-                      <div className='truncate text-xs font-semibold' title={group.title}>
-                        {group.title}
-                      </div>
-                      <div className='flex items-center gap-1'>
-                        <span
-                          className='text-muted-foreground truncate font-mono text-xs'
-                          title={group.alias}
-                        >
-                          {group.alias}
-                        </span>
-                        <span className='text-muted-foreground shrink-0 text-xs'>
-                          · {group.fields.length} {group.fields.length === 1 ? 'field' : 'fields'}
-                        </span>
-                      </div>
-                    </div>
-                    {group.fields.map(field => (
-                      <label
-                        key={field.name}
-                        className='hover:bg-muted/50 flex cursor-pointer items-center gap-2 rounded px-1 py-1'
-                      >
-                        <Checkbox
-                          checked={isChecked(field.name)}
-                          onCheckedChange={checked => {
-                            toggleField(field.name, checked === true);
-                          }}
-                        />
-                        <span className='font-mono text-xs'>{field.name}</span>
-                        {field.type && (
-                          <span className='text-muted-foreground text-xs'>({field.type})</span>
-                        )}
-                      </label>
-                    ))}
-                  </div>
+                  <BlendedGroupItem
+                    key={group.aliasPath}
+                    group={group}
+                    isChecked={isChecked}
+                    onToggleField={toggleField}
+                  />
                 ))}
               </div>
             </div>

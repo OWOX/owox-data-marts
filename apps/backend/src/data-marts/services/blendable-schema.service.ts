@@ -145,7 +145,9 @@ export class BlendableSchemaService {
         // `outputAlias` emitted by blended query builders, so it must not
         // contain whitespace. Double underscore minimizes collisions with
         // native field names that already use single underscores.
-        dto.name = `${outputPrefix}__${field.name}`;
+        // Replace dots in nested struct field paths (e.g. `struct.field`) with
+        // underscores so the resulting alias is a valid SQL identifier.
+        dto.name = `${outputPrefix}__${field.name.replace(/\./g, '_')}`;
         dto.aliasPath = currentPath;
         dto.outputPrefix = outputPrefix;
         dto.sourceRelationshipId = rel.id;

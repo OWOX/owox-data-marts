@@ -8,6 +8,8 @@ import { Report } from '../entities/report.entity';
 import { ResolvedRelationshipChain } from '../data-storage-types/interfaces/blended-query-builder.interface';
 import { ReportDataHeader } from '../dto/domain/report-data-header.dto';
 import { BlendedFieldDto } from '../dto/domain/blendable-schema.dto';
+import { PublicOriginService } from '../../common/config/public-origin.service';
+import { buildDataMartUrl } from '../../common/helpers/data-mart-url.helper';
 
 export interface BlendingDecision {
   needsBlending: boolean;
@@ -31,7 +33,8 @@ export class BlendedReportDataService {
     private readonly blendableSchemaService: BlendableSchemaService,
     private readonly blendedQueryBuilderFacade: BlendedQueryBuilderFacade,
     private readonly queryBuilderFacade: DataMartQueryBuilderFacade,
-    private readonly tableReferenceService: DataMartTableReferenceService
+    private readonly tableReferenceService: DataMartTableReferenceService,
+    private readonly publicOriginService: PublicOriginService
   ) {}
 
   async resolveBlendingDecision(report: Report): Promise<BlendingDecision> {
@@ -71,6 +74,14 @@ export class BlendedReportDataService {
       dataMart.projectId
     );
 
+    const publicOrigin = this.publicOriginService.getPublicOrigin();
+    const mainDataMartUrl = buildDataMartUrl(
+      publicOrigin,
+      dataMart.projectId,
+      dataMart.id,
+      '/data-setup'
+    );
+
     // Load direct relationships for the main data mart
     const allRelationships = await this.relationshipService.findBySourceDataMartId(dataMart.id);
 
@@ -81,14 +92,19 @@ export class BlendedReportDataService {
       columnConfig,
       blendableSchema.blendedFields,
       allRelationships,
-      dataMart.projectId
+      dataMart.projectId,
+      publicOrigin
     );
 
     const blendedSql = await this.blendedQueryBuilderFacade.buildBlendedQuery(
       dataMart.storage.type,
-      mainTableReference,
-      chains,
-      columnConfig
+      {
+        mainTableReference,
+        mainDataMartTitle: dataMart.title,
+        mainDataMartUrl,
+        chains,
+        columns: columnConfig,
+      }
     );
 
     return {
@@ -141,7 +157,8 @@ export class BlendedReportDataService {
     columnConfig: string[],
     blendedFields: import('../dto/domain/blendable-schema.dto').BlendedFieldDto[],
     directRelationships: import('../entities/data-mart-relationship.entity').DataMartRelationship[],
-    projectId: string
+    projectId: string,
+    publicOrigin: string
   ): Promise<ResolvedRelationshipChain[]> {
     const requestedNames = new Set(columnConfig);
 
@@ -222,6 +239,13 @@ export class BlendedReportDataService {
         projectId
       );
 
+      const targetDataMartUrl = buildDataMartUrl(
+        publicOrigin,
+        projectId,
+        rel.targetDataMart.id,
+        '/data-setup'
+      );
+
       const chainBlendedFields = requestedBlendedFields
         .filter(f => f.sourceRelationshipId === relId)
         .map(f => ({
@@ -237,6 +261,8 @@ export class BlendedReportDataService {
         targetTableReference,
         parentAlias,
         blendedFields: chainBlendedFields,
+        targetDataMartTitle: rel.targetDataMart.title,
+        targetDataMartUrl,
       });
 
       // Register the target alias so transitive children can resolve their parentAlias

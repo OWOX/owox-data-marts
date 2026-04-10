@@ -1,7 +1,10 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { DataMartRelationship } from '../../../entities/data-mart-relationship.entity';
 import { DataStorageType } from '../../enums/data-storage-type.enum';
-import { ResolvedRelationshipChain } from '../../interfaces/blended-query-builder.interface';
+import {
+  BlendedQueryContext,
+  ResolvedRelationshipChain,
+} from '../../interfaces/blended-query-builder.interface';
 import { BigQueryBlendedQueryBuilder } from './bigquery-blended-query-builder';
 
 function makeRelationship(overrides: Partial<DataMartRelationship> = {}): DataMartRelationship {
@@ -25,6 +28,30 @@ function makeRelationship(overrides: Partial<DataMartRelationship> = {}): DataMa
   } as DataMartRelationship;
 }
 
+function makeChain(
+  partial: Omit<ResolvedRelationshipChain, 'targetDataMartTitle' | 'targetDataMartUrl'>
+): ResolvedRelationshipChain {
+  return {
+    ...partial,
+    targetDataMartTitle: 'Test Subsidiary',
+    targetDataMartUrl: '/ui/proj/data-marts/sub-1/data-setup',
+  };
+}
+
+function buildContext(
+  mainTableReference: string,
+  chains: ResolvedRelationshipChain[],
+  columns: string[]
+): BlendedQueryContext {
+  return {
+    mainTableReference,
+    mainDataMartTitle: 'Test Main',
+    mainDataMartUrl: '/ui/proj/data-marts/main-1/data-setup',
+    chains,
+    columns,
+  };
+}
+
 describe('BigQueryBlendedQueryBuilder', () => {
   let builder: BigQueryBlendedQueryBuilder;
 
@@ -42,7 +69,7 @@ describe('BigQueryBlendedQueryBuilder', () => {
 
   describe('single subsidiary with STRING_AGG', () => {
     it('generates correct SQL with pre-aggregation and LEFT JOIN', () => {
-      const chain: ResolvedRelationshipChain = {
+      const chain = makeChain({
         relationship: makeRelationship(),
         targetTableReference: '`project`.`dataset`.`orders`',
         parentAlias: 'main',
@@ -54,39 +81,61 @@ describe('BigQueryBlendedQueryBuilder', () => {
             aggregateFunction: 'STRING_AGG',
           },
         ],
-      };
+      });
 
       const sql = builder.buildBlendedQuery(
-        '`project`.`dataset`.`customers`',
-        [chain],
-        ['customer_name', 'order_names']
+        buildContext('`project`.`dataset`.`customers`', [chain], ['customer_name', 'order_names'])
       );
 
-      expect(sql).toContain('FROM `project`.`dataset`.`customers` AS main');
-      expect(sql).toContain('LEFT JOIN');
-      expect(sql).toContain('FROM `project`.`dataset`.`orders`');
+      expect(sql.trimStart().startsWith('WITH')).toBe(true);
+      expect(sql).toContain('main AS (');
+      expect(sql).toContain('SELECT * FROM `project`.`dataset`.`customers`');
+      expect(sql).toContain('orders_raw AS (');
+      expect(sql).toContain('SELECT * FROM `project`.`dataset`.`orders`');
+      expect(sql).toContain('orders AS (');
+      expect(sql).toContain('FROM orders_raw');
       expect(sql).toContain('GROUP BY customer_id');
       expect(sql).toContain("STRING_AGG(CAST(order_name AS STRING), ', ') AS order_names");
-      expect(sql).toContain('ON main.id = orders.customer_id');
+      expect(sql).toContain('FROM main');
+      expect(sql).toContain('LEFT JOIN orders ON main.id = orders.customer_id');
       expect(sql).toContain('main.customer_name');
       expect(sql).toContain('orders.order_names');
     });
-  });
 
-  describe('multiple subsidiaries', () => {
-    it('generates multiple LEFT JOINs', () => {
-      const chain1: ResolvedRelationshipChain = {
+    it('includes SQL comments with data mart title and URL above each raw CTE', () => {
+      const chain = makeChain({
+        relationship: makeRelationship(),
+        targetTableReference: '`project`.`dataset`.`orders`',
+        parentAlias: 'main',
+        blendedFields: [
+          {
+            targetFieldName: 'order_name',
+            outputAlias: 'order_names',
+            isHidden: false,
+            aggregateFunction: 'STRING_AGG',
+          },
+        ],
+      });
+
+      const sql = builder.buildBlendedQuery({
+        mainTableReference: '`project`.`dataset`.`customers`',
+        mainDataMartTitle: 'Customers DM',
+        mainDataMartUrl: 'https://app.example.com/ui/proj/data-marts/dm-main/data-setup',
+        chains: [chain],
+        columns: ['customer_name', 'order_names'],
+      });
+
+      expect(sql).toContain('-- Customers DM');
+      expect(sql).toContain('-- https://app.example.com/ui/proj/data-marts/dm-main/data-setup');
+      expect(sql).toContain('-- Test Subsidiary');
+      expect(sql).toContain('-- /ui/proj/data-marts/sub-1/data-setup');
+    });
+
+    it('places all raw CTEs before aggregation CTEs', () => {
+      const chain1 = makeChain({
         relationship: makeRelationship({
           targetAlias: 'orders',
           joinConditions: [{ sourceFieldName: 'id', targetFieldName: 'customer_id' }],
-          blendedFields: [
-            {
-              targetFieldName: 'order_name',
-              outputAlias: 'order_names',
-              isHidden: false,
-              aggregateFunction: 'STRING_AGG',
-            },
-          ],
         }),
         targetTableReference: '`p`.`d`.`orders`',
         parentAlias: 'main',
@@ -98,21 +147,13 @@ describe('BigQueryBlendedQueryBuilder', () => {
             aggregateFunction: 'STRING_AGG',
           },
         ],
-      };
+      });
 
-      const chain2: ResolvedRelationshipChain = {
+      const chain2 = makeChain({
         relationship: makeRelationship({
           id: 'rel-2',
           targetAlias: 'payments',
           joinConditions: [{ sourceFieldName: 'id', targetFieldName: 'payer_id' }],
-          blendedFields: [
-            {
-              targetFieldName: 'amount',
-              outputAlias: 'total_amount',
-              isHidden: false,
-              aggregateFunction: 'MAX',
-            },
-          ],
         }),
         targetTableReference: '`p`.`d`.`payments`',
         parentAlias: 'main',
@@ -124,12 +165,91 @@ describe('BigQueryBlendedQueryBuilder', () => {
             aggregateFunction: 'MAX',
           },
         ],
-      };
+      });
 
       const sql = builder.buildBlendedQuery(
-        '`p`.`d`.`customers`',
-        [chain1, chain2],
-        ['customer_name', 'order_names', 'total_amount']
+        buildContext(
+          '`p`.`d`.`customers`',
+          [chain1, chain2],
+          ['customer_name', 'order_names', 'total_amount']
+        )
+      );
+
+      const paymentsRawPos = sql.indexOf('payments_raw AS (');
+      const ordersAggPos = sql.indexOf('\n  orders AS (');
+      expect(paymentsRawPos).toBeGreaterThan(-1);
+      expect(ordersAggPos).toBeGreaterThan(-1);
+      // The last raw CTE (payments_raw) must appear before the first aggregation CTE (orders)
+      expect(paymentsRawPos).toBeLessThan(ordersAggPos);
+    });
+
+    it('separates CTEs with a blank line', () => {
+      const chain = makeChain({
+        relationship: makeRelationship(),
+        targetTableReference: '`project`.`dataset`.`orders`',
+        parentAlias: 'main',
+        blendedFields: [
+          {
+            targetFieldName: 'order_name',
+            outputAlias: 'order_names',
+            isHidden: false,
+            aggregateFunction: 'STRING_AGG',
+          },
+        ],
+      });
+
+      const sql = builder.buildBlendedQuery(
+        buildContext('`project`.`dataset`.`customers`', [chain], ['order_names'])
+      );
+
+      // Blank line separators appear between CTE blocks in the WITH section.
+      expect(sql).toContain('),\n\n');
+    });
+  });
+
+  describe('multiple subsidiaries', () => {
+    it('generates multiple LEFT JOINs', () => {
+      const chain1 = makeChain({
+        relationship: makeRelationship({
+          targetAlias: 'orders',
+          joinConditions: [{ sourceFieldName: 'id', targetFieldName: 'customer_id' }],
+        }),
+        targetTableReference: '`p`.`d`.`orders`',
+        parentAlias: 'main',
+        blendedFields: [
+          {
+            targetFieldName: 'order_name',
+            outputAlias: 'order_names',
+            isHidden: false,
+            aggregateFunction: 'STRING_AGG',
+          },
+        ],
+      });
+
+      const chain2 = makeChain({
+        relationship: makeRelationship({
+          id: 'rel-2',
+          targetAlias: 'payments',
+          joinConditions: [{ sourceFieldName: 'id', targetFieldName: 'payer_id' }],
+        }),
+        targetTableReference: '`p`.`d`.`payments`',
+        parentAlias: 'main',
+        blendedFields: [
+          {
+            targetFieldName: 'amount',
+            outputAlias: 'total_amount',
+            isHidden: false,
+            aggregateFunction: 'MAX',
+          },
+        ],
+      });
+
+      const sql = builder.buildBlendedQuery(
+        buildContext(
+          '`p`.`d`.`customers`',
+          [chain1, chain2],
+          ['customer_name', 'order_names', 'total_amount']
+        )
       );
 
       expect(sql).toContain('ON main.id = orders.customer_id');
@@ -140,18 +260,10 @@ describe('BigQueryBlendedQueryBuilder', () => {
 
   describe('transitive join', () => {
     it('uses parentAlias in ON clause instead of main', () => {
-      const chain: ResolvedRelationshipChain = {
+      const chain = makeChain({
         relationship: makeRelationship({
           targetAlias: 'items',
           joinConditions: [{ sourceFieldName: 'order_id', targetFieldName: 'item_order_id' }],
-          blendedFields: [
-            {
-              targetFieldName: 'sku',
-              outputAlias: 'item_skus',
-              isHidden: false,
-              aggregateFunction: 'STRING_AGG',
-            },
-          ],
         }),
         targetTableReference: '`p`.`d`.`items`',
         parentAlias: 'orders',
@@ -163,9 +275,11 @@ describe('BigQueryBlendedQueryBuilder', () => {
             aggregateFunction: 'STRING_AGG',
           },
         ],
-      };
+      });
 
-      const sql = builder.buildBlendedQuery('`p`.`d`.`customers`', [chain], ['item_skus']);
+      const sql = builder.buildBlendedQuery(
+        buildContext('`p`.`d`.`customers`', [chain], ['item_skus'])
+      );
 
       expect(sql).toContain('ON orders.order_id = items.item_order_id');
     });
@@ -173,20 +287,12 @@ describe('BigQueryBlendedQueryBuilder', () => {
 
   describe('multi-key join', () => {
     it('generates AND in ON clause for multiple join keys', () => {
-      const chain: ResolvedRelationshipChain = {
+      const chain = makeChain({
         relationship: makeRelationship({
           targetAlias: 'events',
           joinConditions: [
             { sourceFieldName: 'project_id', targetFieldName: 'evt_project_id' },
             { sourceFieldName: 'user_id', targetFieldName: 'evt_user_id' },
-          ],
-          blendedFields: [
-            {
-              targetFieldName: 'event_name',
-              outputAlias: 'event_names',
-              isHidden: false,
-              aggregateFunction: 'STRING_AGG',
-            },
           ],
         }),
         targetTableReference: '`p`.`d`.`events`',
@@ -199,9 +305,11 @@ describe('BigQueryBlendedQueryBuilder', () => {
             aggregateFunction: 'STRING_AGG',
           },
         ],
-      };
+      });
 
-      const sql = builder.buildBlendedQuery('`p`.`d`.`customers`', [chain], ['event_names']);
+      const sql = builder.buildBlendedQuery(
+        buildContext('`p`.`d`.`customers`', [chain], ['event_names'])
+      );
 
       expect(sql).toContain(
         'ON main.project_id = events.evt_project_id AND main.user_id = events.evt_user_id'
@@ -212,24 +320,10 @@ describe('BigQueryBlendedQueryBuilder', () => {
 
   describe('column selection', () => {
     it('includes only specified columns in SELECT', () => {
-      const chain: ResolvedRelationshipChain = {
+      const chain = makeChain({
         relationship: makeRelationship({
           targetAlias: 'orders',
           joinConditions: [{ sourceFieldName: 'id', targetFieldName: 'customer_id' }],
-          blendedFields: [
-            {
-              targetFieldName: 'order_name',
-              outputAlias: 'order_names',
-              isHidden: false,
-              aggregateFunction: 'STRING_AGG',
-            },
-            {
-              targetFieldName: 'revenue',
-              outputAlias: 'total_revenue',
-              isHidden: false,
-              aggregateFunction: 'SUM',
-            },
-          ],
         }),
         targetTableReference: '`p`.`d`.`orders`',
         parentAlias: 'main',
@@ -247,43 +341,27 @@ describe('BigQueryBlendedQueryBuilder', () => {
             aggregateFunction: 'SUM',
           },
         ],
-      };
+      });
 
       const sql = builder.buildBlendedQuery(
-        '`p`.`d`.`customers`',
-        [chain],
-        ['customer_name', 'order_names']
+        buildContext('`p`.`d`.`customers`', [chain], ['customer_name', 'order_names'])
       );
 
       // order_names is in columns → present
       expect(sql).toContain('orders.order_names');
       // total_revenue is NOT in columns → absent from SELECT
       expect(sql).not.toContain('orders.total_revenue');
-      // total_revenue should still appear in subquery (it's a blended field)
+      // total_revenue should still appear in the aggregation CTE (it's a blended field)
       expect(sql).toContain('SUM(revenue) AS total_revenue');
     });
   });
 
   describe('hidden fields', () => {
-    it('hidden fields are excluded from SELECT but available in JOIN subquery', () => {
-      const chain: ResolvedRelationshipChain = {
+    it('hidden fields are excluded from SELECT but available in the aggregation CTE', () => {
+      const chain = makeChain({
         relationship: makeRelationship({
           targetAlias: 'orders',
           joinConditions: [{ sourceFieldName: 'id', targetFieldName: 'customer_id' }],
-          blendedFields: [
-            {
-              targetFieldName: 'order_name',
-              outputAlias: 'order_names',
-              isHidden: false,
-              aggregateFunction: 'STRING_AGG',
-            },
-            {
-              targetFieldName: 'internal_flag',
-              outputAlias: 'hidden_flag',
-              isHidden: true,
-              aggregateFunction: 'MAX',
-            },
-          ],
         }),
         targetTableReference: '`p`.`d`.`orders`',
         parentAlias: 'main',
@@ -301,18 +379,20 @@ describe('BigQueryBlendedQueryBuilder', () => {
             aggregateFunction: 'MAX',
           },
         ],
-      };
+      });
 
       const sql = builder.buildBlendedQuery(
-        '`p`.`d`.`customers`',
-        [chain],
-        ['customer_name', 'order_names', 'hidden_flag']
+        buildContext(
+          '`p`.`d`.`customers`',
+          [chain],
+          ['customer_name', 'order_names', 'hidden_flag']
+        )
       );
 
       // hidden_flag is marked isHidden=true, so it should be treated as a main column
       // (not prefixed with the alias in SELECT, i.e. not in allSubsidiaryOutputAliases)
       expect(sql).toContain('main.hidden_flag');
-      // but MAX(internal_flag) still appears in the subquery
+      // but MAX(internal_flag) still appears in the aggregation CTE
       expect(sql).toContain('MAX(internal_flag) AS hidden_flag');
     });
   });

@@ -4,7 +4,7 @@ import { BLENDED_QUERY_BUILDER_RESOLVER } from '../data-storage-providers';
 import { DataStorageType } from '../enums/data-storage-type.enum';
 import {
   BlendedQueryBuilder,
-  ResolvedRelationshipChain,
+  BlendedQueryContext,
 } from '../interfaces/blended-query-builder.interface';
 
 @Injectable()
@@ -16,11 +16,9 @@ export class BlendedQueryBuilderFacade {
 
   async buildBlendedQuery(
     storageType: DataStorageType,
-    mainTableReference: string,
-    chains: ResolvedRelationshipChain[],
-    columns: string[]
+    context: BlendedQueryContext
   ): Promise<string> {
     const builder = await this.resolver.resolve(storageType);
-    return builder.buildBlendedQuery(mainTableReference, chains, columns);
+    return builder.buildBlendedQuery(context);
   }
 }

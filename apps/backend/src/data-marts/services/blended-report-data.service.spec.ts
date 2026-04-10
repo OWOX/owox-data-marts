@@ -11,11 +11,13 @@ import { DataStorage } from '../entities/data-storage.entity';
 import { DataStorageType } from '../data-storage-types/enums/data-storage-type.enum';
 import { DataMartRelationship } from '../entities/data-mart-relationship.entity';
 import { BlendableSchemaDto, BlendedFieldDto } from '../dto/domain/blendable-schema.dto';
+import { PublicOriginService } from '../../common/config/public-origin.service';
 
 function makeReport(overrides: Partial<Report> = {}): Report {
   const storage = { id: 'storage-1', type: DataStorageType.GOOGLE_BIGQUERY } as DataStorage;
   const dataMart = {
     id: 'dm-1',
+    title: 'Main DM',
     projectId: 'project-1',
     storage,
     definition: { sqlQuery: 'SELECT 1' },
@@ -92,6 +94,12 @@ describe('BlendedReportDataService', () => {
           provide: DataMartQueryBuilderFacade,
           useValue: {
             buildQuery: jest.fn(),
+          },
+        },
+        {
+          provide: PublicOriginService,
+          useValue: {
+            getPublicOrigin: jest.fn().mockReturnValue('https://app.example.com'),
           },
         },
       ],
@@ -190,15 +198,19 @@ describe('BlendedReportDataService', () => {
       expect(result.blendedSql).toBe('SELECT native_field, blended_field FROM ...');
       expect(blendedQueryBuilderFacade.buildBlendedQuery).toHaveBeenCalledWith(
         DataStorageType.GOOGLE_BIGQUERY,
-        '`project.dataset.main_table`',
-        expect.arrayContaining([
-          expect.objectContaining({
-            relationship: mockRelationship,
-            targetTableReference: '`project.dataset.target_table`',
-            parentAlias: 'main',
-          }),
-        ]),
-        columnConfig
+        expect.objectContaining({
+          mainTableReference: '`project.dataset.main_table`',
+          mainDataMartTitle: 'Main DM',
+          mainDataMartUrl: expect.stringContaining('/ui/project-1/data-marts/dm-1/data-setup'),
+          columns: columnConfig,
+          chains: expect.arrayContaining([
+            expect.objectContaining({
+              relationship: mockRelationship,
+              targetTableReference: '`project.dataset.target_table`',
+              parentAlias: 'main',
+            }),
+          ]),
+        })
       );
     });
 
@@ -287,8 +299,8 @@ describe('BlendedReportDataService', () => {
 
       await service.resolveBlendingDecision(report);
 
-      const [, , chains] = blendedQueryBuilderFacade.buildBlendedQuery.mock.calls[0];
-      expect(chains[0].parentAlias).toBe('main');
+      const [, context] = blendedQueryBuilderFacade.buildBlendedQuery.mock.calls[0];
+      expect(context?.chains[0].parentAlias).toBe('main');
     });
   });
 });
