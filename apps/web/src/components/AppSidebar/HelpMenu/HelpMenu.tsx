@@ -6,11 +6,11 @@ import { HelpMenuContent } from './HelpMenuContent';
 import { useHelpMenu } from './useHelpMenu';
 import { useContentPopovers } from '../../../app/store/hooks/useContentPopovers';
 
-export function HelpMenu() {
+export function HelpMenu({ openSetupChecklist }: { openSetupChecklist: () => void }) {
   const [isOpen, setIsOpen] = useState(false);
   const { open } = useContentPopovers();
 
-  const rawItems = helpMenuItems(open);
+  const rawItems = helpMenuItems(open, openSetupChecklist);
   const { visibleItems } = useHelpMenu(rawItems);
 
   return (
