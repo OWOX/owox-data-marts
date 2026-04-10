@@ -203,6 +203,59 @@ describe('BlendableSchemaService', () => {
       expect(statusField.isHidden).toBe(false);
     });
 
+    it('should apply alias overrides from blendedFieldsConfig sources', async () => {
+      const config: BlendedFieldsConfig = {
+        blendingBehaviour: 'AUTO_BLEND_ALL',
+        sources: [
+          {
+            path: 'orders',
+            alias: 'ord',
+            fields: {
+              revenue: { alias: 'Total Revenue' },
+              status: { alias: 'Order Status', aggregateFunction: 'MAX' },
+            },
+          },
+        ],
+      };
+
+      dataMartService.getByIdAndProjectId.mockResolvedValue(
+        makeDataMart({ id: 'dm-1', blendedFieldsConfig: config })
+      );
+
+      const relationship = makeRelationship({
+        id: 'rel-1',
+        targetAlias: 'orders',
+        targetDataMart: makeDataMart({
+          id: 'dm-2',
+          title: 'Orders',
+          schema: makeSchema([
+            { name: 'revenue', type: 'FLOAT' },
+            { name: 'status', type: 'STRING' },
+            { name: 'no_override', type: 'STRING' },
+          ]),
+        }),
+      });
+
+      relationshipService.findBySourceDataMartId.mockImplementation(async (id: string) => {
+        if (id === 'dm-1') return [relationship];
+        return [];
+      });
+
+      const result = await service.computeBlendableSchema('dm-1', 'project-1');
+
+      const revenueField = result.blendedFields.find(f => f.originalFieldName === 'revenue')!;
+      expect(revenueField.alias).toBe('Total Revenue');
+
+      const statusField = result.blendedFields.find(f => f.originalFieldName === 'status')!;
+      expect(statusField.alias).toBe('Order Status');
+      expect(statusField.aggregateFunction).toBe('MAX');
+
+      const noOverrideField = result.blendedFields.find(
+        f => f.originalFieldName === 'no_override'
+      )!;
+      expect(noOverrideField.alias).toBe('');
+    });
+
     it('should resolve transitive relationships (A→B→C) with depth=2', async () => {
       dataMartService.getByIdAndProjectId.mockResolvedValue(makeDataMart({ id: 'dm-a' }));
 

@@ -156,7 +156,7 @@ export class BlendableSchemaService {
         dto.targetAlias = rel.targetAlias;
         dto.originalFieldName = field.name;
         dto.type = field.type;
-        dto.alias = field.alias ?? '';
+        dto.alias = fieldOverride?.alias ?? field.alias ?? '';
         dto.description = field.description ?? '';
         dto.isHidden = fieldOverride?.isHidden ?? false;
         dto.aggregateFunction = fieldOverride?.aggregateFunction ?? 'STRING_AGG';

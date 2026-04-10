@@ -113,7 +113,7 @@ function BlendedGroupItem({ group, isChecked, onToggleField }: BlendedGroupItemP
                 onToggleField(field.name, checked === true);
               }}
             />
-            <span className='font-mono text-xs'>{field.name}</span>
+            <span className='font-mono text-xs'>{field.alias || field.name}</span>
             {field.type && <span className='text-muted-foreground text-xs'>({field.type})</span>}
           </label>
         ))}
