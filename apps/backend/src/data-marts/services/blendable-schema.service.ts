@@ -140,7 +140,12 @@ export class BlendableSchemaService {
         const fieldOverride = sourceConfig?.fields?.[field.name];
 
         const dto = new BlendedFieldDto();
-        dto.name = `${outputPrefix} ${field.name}`;
+        // Use `__` (double underscore) as separator so that `dto.name` is a
+        // valid SQL identifier in every dialect. The token also serves as the
+        // `outputAlias` emitted by blended query builders, so it must not
+        // contain whitespace. Double underscore minimizes collisions with
+        // native field names that already use single underscores.
+        dto.name = `${outputPrefix}__${field.name}`;
         dto.aliasPath = currentPath;
         dto.outputPrefix = outputPrefix;
         dto.sourceRelationshipId = rel.id;

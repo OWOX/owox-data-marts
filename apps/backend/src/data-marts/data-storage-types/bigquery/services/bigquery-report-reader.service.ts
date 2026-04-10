@@ -15,7 +15,11 @@ import { isBigQueryDataMartSchema } from '../../data-mart-schema.guards';
 import { isBigQueryConfig } from '../../data-storage-config.guards';
 import { DataStorageType } from '../../enums/data-storage-type.enum';
 import { DataStorageReportReaderState } from '../../interfaces/data-storage-report-reader-state.interface';
-import { DataStorageReportReader } from '../../interfaces/data-storage-report-reader.interface';
+import {
+  DataStorageReportReader,
+  PrepareReportDataOptions,
+} from '../../interfaces/data-storage-report-reader.interface';
+import { resolveReportDataHeaders } from '../../utils/report-data-headers.utils';
 import { BigQueryApiAdapterFactory } from '../adapters/bigquery-api-adapter.factory';
 import { BigQueryApiAdapter } from '../adapters/bigquery-api.adapter';
 import {
@@ -44,6 +48,8 @@ export class BigQueryReportReader implements DataStorageReportReader {
     definition: DataMartDefinition;
     definitionType: DataMartDefinitionType;
   };
+  private sqlOverride?: string;
+  private columnFilter?: string[];
 
   constructor(
     protected readonly adapterFactory: BigQueryApiAdapterFactory,
@@ -52,7 +58,10 @@ export class BigQueryReportReader implements DataStorageReportReader {
     protected readonly credentialsResolver: DataStorageCredentialsResolver
   ) {}
 
-  public async prepareReportData(report: Report): Promise<ReportDataDescription> {
+  public async prepareReportData(
+    report: Report,
+    options?: PrepareReportDataOptions
+  ): Promise<ReportDataDescription> {
     const { storage, definitionType, definition, schema } = report.dataMart;
     if (!storage || !definition || !definitionType) {
       throw new Error('Data Mart is not properly configured');
@@ -76,8 +85,13 @@ export class BigQueryReportReader implements DataStorageReportReader {
       definitionType,
       definition,
     };
+    this.sqlOverride = options?.sqlOverride;
+    this.columnFilter = options?.columnFilter;
 
-    this.reportDataHeaders = this.headersGenerator.generateHeaders(schema);
+    this.reportDataHeaders = resolveReportDataHeaders(
+      this.headersGenerator.generateHeaders(schema),
+      options
+    );
 
     this.adapter = await this.adapterFactory.createFromStorage(storage, storage.config);
     this.contextGcpProject = storage.config.projectId;
@@ -128,22 +142,37 @@ export class BigQueryReportReader implements DataStorageReportReader {
   ): Promise<void> {
     this.logger.debug('Preparing report result table', dataMartDefinition);
     try {
+      // When a SQL override is present (e.g. blended SQL), bypass the
+      // TABLE/CONNECTOR fast path and always execute the override query.
+      if (this.sqlOverride) {
+        await this.prepareQueryData(this.sqlOverride);
+        return;
+      }
+
       if (
         definitionType === DataMartDefinitionType.TABLE &&
         isTableDefinition(dataMartDefinition)
       ) {
+        // TODO(blendable): when `this.columnFilter` is set, switch to the
+        // SQL path (SELECT specific columns) to avoid over-fetching all
+        // columns from BigQuery. Currently we keep the table-reference fast
+        // path and let `getStructuredReportRowData` trim rows to the
+        // filtered header list.
         const [projectId, datasetId, tableId] = dataMartDefinition.fullyQualifiedName.split('.');
         this.defineReportResultTable(projectId, datasetId, tableId);
       } else if (
         definitionType === DataMartDefinitionType.CONNECTOR &&
         isConnectorDefinition(dataMartDefinition)
       ) {
+        // TODO(blendable): same optimization opportunity as TABLE above.
         const tablePath = dataMartDefinition.connector.storage.fullyQualifiedName.split('.');
         const [projectId, datasetId, tableId] =
           tablePath.length === 2 ? [this.contextGcpProject, ...tablePath] : tablePath;
         this.defineReportResultTable(projectId, datasetId, tableId);
       } else {
-        const query = await this.bigQueryQueryBuilder.buildQuery(dataMartDefinition);
+        const query = await this.bigQueryQueryBuilder.buildQuery(dataMartDefinition, {
+          columns: this.columnFilter,
+        });
         await this.prepareQueryData(query);
       }
     } catch (error) {

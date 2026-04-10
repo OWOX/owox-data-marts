@@ -129,7 +129,7 @@ describe('BlendableSchemaService', () => {
       expect(result.blendedFields).toHaveLength(2);
 
       const nameField = result.blendedFields[0];
-      expect(nameField.name).toBe('customers customer_name');
+      expect(nameField.name).toBe('customers__customer_name');
       expect(nameField.aliasPath).toBe('customers');
       expect(nameField.outputPrefix).toBe('customers');
       expect(nameField.sourceRelationshipId).toBe('rel-1');
@@ -143,7 +143,7 @@ describe('BlendableSchemaService', () => {
       expect(nameField.transitiveDepth).toBe(1);
 
       const ageField = result.blendedFields[1];
-      expect(ageField.name).toBe('customers customer_age');
+      expect(ageField.name).toBe('customers__customer_age');
       expect(ageField.type).toBe('INTEGER');
     });
 
@@ -190,7 +190,7 @@ describe('BlendableSchemaService', () => {
       expect(result.blendedFields).toHaveLength(3);
 
       const revenueField = result.blendedFields.find(f => f.originalFieldName === 'revenue')!;
-      expect(revenueField.name).toBe('ord revenue');
+      expect(revenueField.name).toBe('ord__revenue');
       expect(revenueField.outputPrefix).toBe('ord');
       expect(revenueField.aggregateFunction).toBe('SUM');
       expect(revenueField.isHidden).toBe(false);
@@ -239,12 +239,12 @@ describe('BlendableSchemaService', () => {
       expect(result.blendedFields).toHaveLength(2);
 
       const bField = result.blendedFields[0];
-      expect(bField.name).toBe('b_alias b_field');
+      expect(bField.name).toBe('b_alias__b_field');
       expect(bField.aliasPath).toBe('b_alias');
       expect(bField.transitiveDepth).toBe(1);
 
       const cField = result.blendedFields[1];
-      expect(cField.name).toBe('b_alias_c_alias order_id');
+      expect(cField.name).toBe('b_alias_c_alias__order_id');
       expect(cField.aliasPath).toBe('b_alias.c_alias');
       expect(cField.outputPrefix).toBe('b_alias_c_alias');
       expect(cField.transitiveDepth).toBe(2);
@@ -333,8 +333,8 @@ describe('BlendableSchemaService', () => {
 
       expect(leftSharedFields).toHaveLength(1);
       expect(rightSharedFields).toHaveLength(1);
-      expect(leftSharedFields[0].name).toBe('left_shared shared_field');
-      expect(rightSharedFields[0].name).toBe('right_shared shared_field');
+      expect(leftSharedFields[0].name).toBe('left_shared__shared_field');
+      expect(rightSharedFields[0].name).toBe('right_shared__shared_field');
     });
 
     it('should handle BLEND_DIRECT_ONLY — exclude transitive unless in sources', async () => {
@@ -428,7 +428,7 @@ describe('BlendableSchemaService', () => {
 
       expect(result.blendedFields).toHaveLength(2);
       const transField = result.blendedFields.find(f => f.aliasPath === 'direct.transitive')!;
-      expect(transField.name).toBe('trans trans_field');
+      expect(transField.name).toBe('trans__trans_field');
       expect(transField.outputPrefix).toBe('trans');
     });
 
@@ -474,7 +474,7 @@ describe('BlendableSchemaService', () => {
       expect(result.availableSources).toHaveLength(2);
       expect(result.availableSources.find(s => s.aliasPath === 'orders')?.isIncluded).toBe(true);
       expect(result.availableSources.find(s => s.aliasPath === 'sessions')?.isIncluded).toBe(false);
-      expect(result.blendedFields.find(f => f.aliasPath === 'orders')?.name).toBe('ord revenue');
+      expect(result.blendedFields.find(f => f.aliasPath === 'orders')?.name).toBe('ord__revenue');
     });
 
     it('should silently ignore orphaned sources that do not match any relationship path', async () => {
@@ -509,7 +509,7 @@ describe('BlendableSchemaService', () => {
 
       // Should not throw — orphaned 'nonexistent_path' is silently ignored
       expect(result.blendedFields).toHaveLength(1);
-      expect(result.blendedFields[0].name).toBe('ord revenue');
+      expect(result.blendedFields[0].name).toBe('ord__revenue');
     });
 
     it('should filter out isHiddenForReporting fields from target schema', async () => {
@@ -573,10 +573,10 @@ describe('BlendableSchemaService', () => {
 
       // Both aliases should produce fields independently
       expect(result.blendedFields).toHaveLength(4);
-      expect(result.blendedFields[0].name).toBe('orders revenue');
-      expect(result.blendedFields[1].name).toBe('orders country');
-      expect(result.blendedFields[2].name).toBe('orders_v2 revenue');
-      expect(result.blendedFields[3].name).toBe('orders_v2 country');
+      expect(result.blendedFields[0].name).toBe('orders__revenue');
+      expect(result.blendedFields[1].name).toBe('orders__country');
+      expect(result.blendedFields[2].name).toBe('orders_v2__revenue');
+      expect(result.blendedFields[3].name).toBe('orders_v2__country');
     });
   });
 });

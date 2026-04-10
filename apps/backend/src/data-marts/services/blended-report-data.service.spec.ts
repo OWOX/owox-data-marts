@@ -33,6 +33,7 @@ function makeReport(overrides: Partial<Report> = {}): Report {
 function makeBlendableSchema(blendedFieldNames: string[] = []): BlendableSchemaDto {
   return {
     nativeFields: [],
+    availableSources: [],
     blendedFields: blendedFieldNames.map((name, i) => {
       const field = new BlendedFieldDto();
       field.name = name;
@@ -132,7 +133,11 @@ describe('BlendedReportDataService', () => {
 
       const result = await service.resolveBlendingDecision(report);
 
-      expect(result).toEqual({ needsBlending: false, columnFilter: columnConfig });
+      expect(result).toEqual({
+        needsBlending: false,
+        columnFilter: columnConfig,
+        blendedDataHeaders: [],
+      });
       expect(blendableSchemaService.computeBlendableSchema).toHaveBeenCalledWith(
         'dm-1',
         'project-1'
@@ -157,6 +162,7 @@ describe('BlendedReportDataService', () => {
 
       blendableSchemaService.computeBlendableSchema.mockResolvedValue({
         nativeFields: [],
+        availableSources: [],
         blendedFields: [blendedField],
       });
 
@@ -196,6 +202,54 @@ describe('BlendedReportDataService', () => {
       );
     });
 
+    it('populates blendedDataHeaders for blended columns only (native cols are reader-resolved)', async () => {
+      const columnConfig = ['native_col', 'my_alias__blended_col'];
+      const report = makeReport({ columnConfig });
+
+      const blendedField = new BlendedFieldDto();
+      blendedField.name = 'my_alias__blended_col';
+      blendedField.sourceRelationshipId = 'rel-1';
+      blendedField.sourceDataMartId = 'dm-target';
+      blendedField.sourceDataMartTitle = 'Target';
+      blendedField.targetAlias = 'alias_1';
+      blendedField.originalFieldName = 'blended_col';
+      blendedField.type = 'STRING';
+      blendedField.alias = 'Blended Display';
+      blendedField.description = 'Blended field description';
+      blendedField.isHidden = false;
+      blendedField.aggregateFunction = 'STRING_AGG';
+      blendedField.transitiveDepth = 1;
+
+      blendableSchemaService.computeBlendableSchema.mockResolvedValue({
+        nativeFields: [],
+        availableSources: [],
+        blendedFields: [blendedField],
+      });
+
+      const mockRel = {
+        id: 'rel-1',
+        targetAlias: 'alias_1',
+        sourceDataMart: { id: 'dm-1' },
+        targetDataMart: { id: 'dm-target' },
+        joinConditions: [],
+        blendedFields: [],
+      } as unknown as DataMartRelationship;
+
+      relationshipService.findBySourceDataMartId.mockResolvedValue([mockRel]);
+      tableReferenceService.resolveTableName.mockResolvedValue('table_ref');
+      blendedQueryBuilderFacade.buildBlendedQuery.mockResolvedValue('SELECT ...');
+
+      const result = await service.resolveBlendingDecision(report);
+
+      // Only the blended column gets a header; native columns are resolved
+      // by the reader's own headers generator.
+      expect(result.blendedDataHeaders).toHaveLength(1);
+      expect(result.blendedDataHeaders?.[0].name).toBe('my_alias__blended_col');
+      expect(result.blendedDataHeaders?.[0].alias).toBe('Blended Display');
+      expect(result.blendedDataHeaders?.[0].description).toBe('Blended field description');
+      expect(result.columnFilter).toEqual(columnConfig);
+    });
+
     it('sets parentAlias to main for direct relationships (transitiveDepth=1)', async () => {
       const columnConfig = ['blended_field'];
       const report = makeReport({ columnConfig });
@@ -214,6 +268,7 @@ describe('BlendedReportDataService', () => {
 
       blendableSchemaService.computeBlendableSchema.mockResolvedValue({
         nativeFields: [],
+        availableSources: [],
         blendedFields: [blendedField],
       });
 

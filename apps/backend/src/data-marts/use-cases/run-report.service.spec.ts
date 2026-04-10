@@ -27,6 +27,10 @@ describe('RunReportService', () => {
     const projectBalanceService = {
       verifyCanPerformOperations: jest.fn().mockResolvedValue(undefined),
     };
+    const blendedReportDataService = {
+      // Default: no columnConfig -> no blending, no filter.
+      resolveBlendingDecision: jest.fn().mockResolvedValue({ needsBlending: false }),
+    };
 
     const service = new RunReportService(
       reportReaderResolver as never,
@@ -38,7 +42,8 @@ describe('RunReportService', () => {
       {} as never,
       projectBalanceService as never,
       new ReportExecutionPolicyResolver(),
-      {} as never
+      {} as never,
+      blendedReportDataService as never
     );
 
     return {
@@ -46,6 +51,7 @@ describe('RunReportService', () => {
       reportReaderResolver,
       reportWriterResolver,
       projectBalanceService,
+      blendedReportDataService,
     };
   };
 

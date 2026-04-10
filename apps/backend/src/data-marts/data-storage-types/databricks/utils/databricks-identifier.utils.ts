@@ -6,7 +6,7 @@
 
 import { createIdentifierEscaper } from '../../utils/identifier-escaper.utils';
 
-const escapeDatabricksIdentifier = createIdentifierEscaper({ quoteChar: '`' });
+export const escapeDatabricksIdentifier = createIdentifierEscaper({ quoteChar: '`' });
 
 /**
  * Escapes a fully qualified Databricks identifier (catalog.schema.table)

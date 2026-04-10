@@ -5,11 +5,15 @@ import { Repository, MoreThan, LessThan } from 'typeorm';
 import { TypeResolver } from '../../common/resolver/type-resolver';
 import { DATA_STORAGE_REPORT_READER_RESOLVER } from '../data-storage-types/data-storage-providers';
 import { DataStorageType } from '../data-storage-types/enums/data-storage-type.enum';
-import { DataStorageReportReader } from '../data-storage-types/interfaces/data-storage-report-reader.interface';
+import {
+  DataStorageReportReader,
+  PrepareReportDataOptions,
+} from '../data-storage-types/interfaces/data-storage-report-reader.interface';
 import { CachedReaderData } from '../dto/domain/cached-reader-data.dto';
 import { Report } from '../entities/report.entity';
 import { isLookerStudioConnectorConfig } from '../data-destination-types/data-destination-config.guards';
 import { ReportDataCache } from '../entities/report-data-cache.entity';
+import { BlendedReportDataService } from './blended-report-data.service';
 
 /**
  * Service for managing persistent cache of report data readers
@@ -24,8 +28,23 @@ export class ReportDataCacheService {
     @InjectRepository(ReportDataCache)
     private readonly cacheRepository: Repository<ReportDataCache>,
     @Inject(DATA_STORAGE_REPORT_READER_RESOLVER)
-    private readonly readerResolver: TypeResolver<DataStorageType, DataStorageReportReader>
+    private readonly readerResolver: TypeResolver<DataStorageType, DataStorageReportReader>,
+    private readonly blendedReportDataService: BlendedReportDataService
   ) {}
+
+  /**
+   * Resolves the column-filter / SQL-override hints that readers need from
+   * the current state of the report. Called on every cache-miss and
+   * cache-restore path so both branches share the same blending logic.
+   */
+  private async resolvePrepareOptions(report: Report): Promise<PrepareReportDataOptions> {
+    const decision = await this.blendedReportDataService.resolveBlendingDecision(report);
+    return {
+      sqlOverride: decision.needsBlending ? decision.blendedSql : undefined,
+      columnFilter: decision.columnFilter,
+      blendedDataHeaders: decision.blendedDataHeaders,
+    };
+  }
 
   /**
    * Gets cached reader or creates new one if cache miss
@@ -79,7 +98,8 @@ export class ReportDataCacheService {
     this.logger.debug(`Cache miss for report ${report.id}, creating new reader`);
 
     const reader = await this.readerResolver.resolve(report.dataMart.storage.type);
-    const dataDescription = await reader.prepareReportData(report);
+    const prepareOptions = await this.resolvePrepareOptions(report);
+    const dataDescription = await reader.prepareReportData(report, prepareOptions);
     await reader.readReportDataBatch(undefined, 1);
     const readerState = reader.getState();
 
@@ -184,10 +204,44 @@ export class ReportDataCacheService {
     report: Report
   ): Promise<DataStorageReportReader> {
     const reader = await this.readerResolver.resolve(cachedData.storageType);
-    await reader.prepareReportData(report);
+    const prepareOptions = await this.resolvePrepareOptions(report);
+    await reader.prepareReportData(report, prepareOptions);
     if (cachedData.readerState) {
       await reader.initFromState(cachedData.readerState, cachedData.dataDescription.dataHeaders);
     }
     return reader;
+  }
+
+  /**
+   * Invalidates all cache entries for a given report. Called by
+   * `UpdateReportService` when the report's `columnConfig` changes so the
+   * next read reflects the new column selection instead of serving stale
+   * data until the TTL expires.
+   */
+  async invalidateByReportId(reportId: string): Promise<void> {
+    const entries = await this.cacheRepository.find({
+      where: { report: { id: reportId } },
+      relations: [
+        'report',
+        'report.dataMart',
+        'report.dataMart.storage',
+        'report.dataMart.storage.credential',
+      ],
+    });
+
+    for (const entry of entries) {
+      try {
+        await this.finalizeExpiredCacheEntry(entry);
+      } catch (error) {
+        this.logger.warn(
+          `Failed to finalize cache entry ${entry.id} during invalidation: ${error.message}`
+        );
+      }
+    }
+
+    const result = await this.cacheRepository.delete({ report: { id: reportId } });
+    if (result.affected && result.affected > 0) {
+      this.logger.log(`Invalidated ${result.affected} cache entries for report ${reportId}`);
+    }
   }
 }

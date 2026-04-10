@@ -44,7 +44,7 @@ export class BigQueryBlendedQueryBuilder implements BlendedQueryBuilder {
       if (allSubsidiaryOutputAliases.has(col)) {
         // find which chain owns this output alias
         const ownerChain = chains.find(c =>
-          c.relationship.blendedFields.some(f => f.outputAlias === col && !f.isHidden)
+          c.blendedFields.some(f => f.outputAlias === col && !f.isHidden)
         );
         if (ownerChain) {
           parts.push(`${ownerChain.relationship.targetAlias}.${col}`);
@@ -59,14 +59,16 @@ export class BigQueryBlendedQueryBuilder implements BlendedQueryBuilder {
 
   private buildJoinParts(chains: ResolvedRelationshipChain[]): string[] {
     return chains.map(chain => {
-      const { relationship, targetTableReference, parentAlias } = chain;
+      const { relationship, targetTableReference, parentAlias, blendedFields } = chain;
       const alias = relationship.targetAlias;
       const joinKeys = relationship.joinConditions.map(jc => jc.targetFieldName);
 
-      // Build pre-aggregation subquery
+      // Build pre-aggregation subquery using runtime-resolved blended fields
+      // (chain.blendedFields), not the entity-level relationship.blendedFields
+      // which is an empty per-relationship override config.
       const subquerySelectParts: string[] = [
         ...joinKeys,
-        ...relationship.blendedFields.map(field => {
+        ...blendedFields.map(field => {
           const aggregated = this.buildAggregation(field.aggregateFunction, field.targetFieldName);
           return `${aggregated} AS ${field.outputAlias}`;
         }),

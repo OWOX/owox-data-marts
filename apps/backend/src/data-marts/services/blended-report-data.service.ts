@@ -6,11 +6,22 @@ import { BlendedQueryBuilderFacade } from '../data-storage-types/facades/blended
 import { DataMartQueryBuilderFacade } from '../data-storage-types/facades/data-mart-query-builder.facade';
 import { Report } from '../entities/report.entity';
 import { ResolvedRelationshipChain } from '../data-storage-types/interfaces/blended-query-builder.interface';
+import { ReportDataHeader } from '../dto/domain/report-data-header.dto';
+import { BlendedFieldDto } from '../dto/domain/blendable-schema.dto';
 
 export interface BlendingDecision {
   needsBlending: boolean;
   blendedSql?: string;
   columnFilter?: string[];
+  /**
+   * Precomputed headers for columns in `columnFilter` that come from
+   * blended schema (not native). Readers combine these with their own
+   * native headers to construct the final ordered header list.
+   *
+   * Only populated when `columnFilter` is set. Contains at most one entry
+   * per blended column in `columnFilter`.
+   */
+  blendedDataHeaders?: ReportDataHeader[];
 }
 
 @Injectable()
@@ -38,12 +49,20 @@ export class BlendedReportDataService {
     );
 
     // 3. Check if any column in columnConfig matches a blended field name
-    const blendedFieldNames = new Set(blendableSchema.blendedFields.map(f => f.name));
-    const hasBlendedColumns = columnConfig.some(col => blendedFieldNames.has(col));
+    const blendedFieldsByName = new Map(blendableSchema.blendedFields.map(f => [f.name, f]));
+    const hasBlendedColumns = columnConfig.some(col => blendedFieldsByName.has(col));
+
+    // Precompute headers for blended columns so readers do not need to know
+    // anything about blended schema metadata (alias/description/type).
+    const blendedDataHeaders = this.buildBlendedDataHeaders(columnConfig, blendedFieldsByName);
 
     // 4. No blended columns → return base query with column filter
     if (!hasBlendedColumns) {
-      return { needsBlending: false, columnFilter: columnConfig };
+      return {
+        needsBlending: false,
+        columnFilter: columnConfig,
+        blendedDataHeaders,
+      };
     }
 
     // 5. Full blending: resolve table refs, build relationship chains, generate SQL
@@ -72,7 +91,42 @@ export class BlendedReportDataService {
       columnConfig
     );
 
-    return { needsBlending: true, blendedSql };
+    return {
+      needsBlending: true,
+      blendedSql,
+      columnFilter: columnConfig,
+      blendedDataHeaders,
+    };
+  }
+
+  /**
+   * Builds ReportDataHeader entries for columns in `columnConfig` that come
+   * from blended schema. Columns not found in the blended schema are skipped
+   * (they are native and will be supplied by the reader's headers generator).
+   */
+  private buildBlendedDataHeaders(
+    columnConfig: string[],
+    blendedFieldsByName: Map<string, BlendedFieldDto>
+  ): ReportDataHeader[] {
+    const headers: ReportDataHeader[] = [];
+    for (const col of columnConfig) {
+      const blendedField = blendedFieldsByName.get(col);
+      if (blendedField) {
+        headers.push(
+          new ReportDataHeader(
+            blendedField.name,
+            blendedField.alias || blendedField.name,
+            blendedField.description || undefined,
+            // Blended field types come from the target data mart schema.
+            // They are not typed as the concrete storage-type enum here,
+            // so we leave storageFieldType undefined — destinations only
+            // use it for formatting hints.
+            undefined
+          )
+        );
+      }
+    }
+    return headers;
   }
 
   /**

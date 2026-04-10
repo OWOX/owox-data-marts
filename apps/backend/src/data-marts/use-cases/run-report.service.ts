@@ -16,6 +16,7 @@ import { DataMart } from '../entities/data-mart.entity';
 import { Report } from '../entities/report.entity';
 import { ReportRun } from '../models/report-run.model';
 import { createReportRunLogger, ReportRunLogger } from '../report-run-logging/report-run-logger';
+import { BlendedReportDataService } from '../services/blended-report-data.service';
 import { DataMartService } from '../services/data-mart.service';
 import { ProjectBalanceService } from '../services/project-balance.service';
 import { ReportRunService } from '../services/report-run.service';
@@ -85,7 +86,8 @@ export class RunReportService {
     private readonly availableDestinationTypesService: AvailableDestinationTypesService,
     private readonly projectBalanceService: ProjectBalanceService,
     private readonly reportExecutionPolicyResolver: ReportExecutionPolicyResolver,
-    private readonly reportRunTriggerService: ReportRunTriggerService
+    private readonly reportRunTriggerService: ReportRunTriggerService,
+    private readonly blendedReportDataService: BlendedReportDataService
   ) {}
 
   /**
@@ -178,7 +180,17 @@ export class RunReportService {
     try {
       signal?.throwIfAborted();
       await this.projectBalanceService.verifyCanPerformOperations(dataMart.projectId);
-      const reportDataDescription = await reportReader.prepareReportData(report);
+
+      // Resolve blending decision up front. When the report has a column
+      // config, this produces either a pre-built blended SQL (for cross-DM
+      // joins) or a column filter (for native-only projections). Readers
+      // receive the result via PrepareReportDataOptions.
+      const blendingDecision = await this.blendedReportDataService.resolveBlendingDecision(report);
+      const reportDataDescription = await reportReader.prepareReportData(report, {
+        sqlOverride: blendingDecision.needsBlending ? blendingDecision.blendedSql : undefined,
+        columnFilter: blendingDecision.columnFilter,
+        blendedDataHeaders: blendingDecision.blendedDataHeaders,
+      });
       this.logger.debug(`Report data prepared for ${report.id}:`, reportDataDescription);
       reportWriter.setExecutionContext?.({
         runId: report.id,

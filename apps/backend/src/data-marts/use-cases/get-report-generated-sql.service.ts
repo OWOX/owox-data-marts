@@ -33,15 +33,17 @@ export class GetReportGeneratedSqlService {
       return { sql: decision.blendedSql };
     }
 
-    // Build base query (column filter is informational — not yet applied at query-builder level)
     const { dataMart } = report;
     if (!dataMart.definition) {
       throw new Error('Data Mart definition is not set.');
     }
 
+    // Pass the native column filter to the query builder so the preview
+    // matches what runtime actually executes.
     const sql = await this.queryBuilderFacade.buildQuery(
       dataMart.storage.type,
-      dataMart.definition
+      dataMart.definition,
+      { columns: decision.columnFilter }
     );
 
     return { sql };

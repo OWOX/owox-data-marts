@@ -42,7 +42,7 @@ export class AthenaBlendedQueryBuilder implements BlendedQueryBuilder {
     for (const col of columnSet) {
       if (allSubsidiaryOutputAliases.has(col)) {
         const ownerChain = chains.find(c =>
-          c.relationship.blendedFields.some(f => f.outputAlias === col && !f.isHidden)
+          c.blendedFields.some(f => f.outputAlias === col && !f.isHidden)
         );
         if (ownerChain) {
           parts.push(`${ownerChain.relationship.targetAlias}.${col}`);
@@ -57,13 +57,13 @@ export class AthenaBlendedQueryBuilder implements BlendedQueryBuilder {
 
   private buildJoinParts(chains: ResolvedRelationshipChain[]): string[] {
     return chains.map(chain => {
-      const { relationship, targetTableReference, parentAlias } = chain;
+      const { relationship, targetTableReference, parentAlias, blendedFields } = chain;
       const alias = relationship.targetAlias;
       const joinKeys = relationship.joinConditions.map(jc => jc.targetFieldName);
 
       const subquerySelectParts: string[] = [
         ...joinKeys,
-        ...relationship.blendedFields.map(field => {
+        ...blendedFields.map(field => {
           const aggregated = this.buildAggregation(field.aggregateFunction, field.targetFieldName);
           return `${aggregated} AS ${field.outputAlias}`;
         }),
