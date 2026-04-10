@@ -8,6 +8,7 @@ import { SetupStepAccordion } from './SetupStepAccordion';
 import { SETUP_STEPS } from './items';
 import type { GroupProgress, ProjectSetupProgress } from './types';
 import { formatDateShort } from '../../../utils/date-formatters';
+import { GroupStatusType } from './types';
 
 interface SetupGroupPopoverProps {
   groupProgress: GroupProgress;
@@ -40,7 +41,7 @@ export function SetupGroupPopover({ groupProgress, progress }: SetupGroupPopover
           {/* Header */}
           <div className='flex flex-col gap-0.5'>
             <h3 className='text-base font-semibold'>{group.title}</h3>
-            {status === 'done' && completedAt ? (
+            {status === GroupStatusType.DONE && completedAt ? (
               <p className='text-muted-foreground text-xs'>
                 Completed on {formatDateShort(completedAt)}
               </p>

@@ -106,7 +106,7 @@ export function SetupChecklist({ progressResult, visibility }: SetupChecklistPro
       </div>
 
       {/* Pointer */}
-      <div className='bg-background pointer-events-none absolute -bottom-2 left-4 z-0 h-4 w-4 rotate-45 border-r border-b' />
+      <div className='bg-sidebar pointer-events-none absolute -bottom-2 left-4 z-0 h-4 w-4 rotate-45 border-r border-b' />
     </div>
   );
 }

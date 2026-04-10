@@ -27,16 +27,25 @@ export type SetupStepKey = keyof ProjectSetupProgress;
 export interface SetupStep {
   id: string;
   label: string;
-  popoverTitle: string;
-  popoverDescription: string;
+  stepTitle: string;
+  stepDescription: string;
   ctaLabel: string;
-  successTitle: string;
-  successDescription: string;
+  successMessageTitle: string;
+  successMessageDescription?: string;
   linkPath: string | ReactNode;
   progressKey: SetupStepKey;
 }
 
-export type GroupStatus = 'not_started' | 'in_progress' | 'done';
+export enum GroupStatusType {
+  NOT_STARTED = 'NOT_STARTED',
+  IN_PROGRESS = 'IN_PROGRESS',
+  DONE = 'DONE',
+}
+
+export type GroupStatus =
+  | GroupStatusType.NOT_STARTED
+  | GroupStatusType.IN_PROGRESS
+  | GroupStatusType.DONE;
 
 export interface SetupGroup {
   id: string;
