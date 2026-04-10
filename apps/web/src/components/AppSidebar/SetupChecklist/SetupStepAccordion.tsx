@@ -2,7 +2,7 @@
 
 import { isValidElement, cloneElement } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowRight, CheckCircle2 } from 'lucide-react';
+import { ArrowRight, CircleCheckBig, PartyPopper } from 'lucide-react';
 import { AccordionContent, AccordionItem, AccordionTrigger } from '@owox/ui/components/accordion';
 import { Button } from '@owox/ui/components/button';
 import { useProjectRoute } from '../../../shared/hooks';
@@ -44,7 +44,7 @@ export function SetupStepAccordion({ step, stepProgress, onClose }: SetupStepAcc
 
   const renderIcon = () => {
     if (isCompleted) {
-      return <CheckCircle2 className='text-primary size-4' />;
+      return <CircleCheckBig className='text-muted-foreground/50 size-4' />;
     }
     return <ArrowRight className='text-muted-foreground size-4' />;
   };
@@ -54,7 +54,9 @@ export function SetupStepAccordion({ step, stepProgress, onClose }: SetupStepAcc
       <AccordionTrigger
         onClick={handleStepClick}
         className={`hover:bg-muted flex w-full cursor-pointer items-center gap-2.5 rounded-none px-2 py-2 text-left text-sm transition-colors ${
-          isCompleted ? 'text-primary' : 'text-sidebar-foreground'
+          isCompleted
+            ? 'text-muted-foreground/50 font-normal line-through'
+            : 'text-sidebar-foreground'
         }`}
       >
         <span className='flex items-center gap-2'>
@@ -64,18 +66,19 @@ export function SetupStepAccordion({ step, stepProgress, onClose }: SetupStepAcc
       </AccordionTrigger>
       <AccordionContent className='px-2 pt-1 pb-4'>
         {isCompleted ? (
-          <div className='flex flex-col gap-2 pl-6'>
-            <p className='text-sm font-medium'>{step.successTitle}</p>
-            <p className='text-sm'>{step.successDescription}</p>
+          <div className='bg-primary/5 animate-in fade-in zoom-in-95 -mb-6 flex flex-col items-center gap-1 rounded-md p-4 text-center duration-300'>
+            <PartyPopper className='text-primary mb-0.5 size-6' />
+            <p className='text-primary text-sm font-medium'>{step.successMessageTitle}</p>
+            {step.successMessageDescription && (
+              <p className='text-muted-foreground text-sm'>{step.successMessageDescription}</p>
+            )}
             {stepProgress.completedAt && (
-              <p className='text-muted-foreground text-xs'>
-                Completed on {formatDateShort(stepProgress.completedAt)}
-              </p>
+              <p className='text-primary/50 text-xs'>{formatDateShort(stepProgress.completedAt)}</p>
             )}
           </div>
         ) : (
-          <div className='flex flex-col gap-3 pl-6'>
-            <p className='text-sm'>{step.popoverDescription}</p>
+          <div className='-mb-4 flex flex-col gap-2 pl-6'>
+            <p className='text-muted-foreground text-sm'>{step.stepDescription}</p>
             {isLinkPathElement ? (
               <div onClick={handleCtaClick}>
                 {cloneElement(step.linkPath as React.ReactElement)}

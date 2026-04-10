@@ -1,11 +1,12 @@
-import type { GroupProgress, GroupStatus, ProjectSetupProgress } from './types';
+import type { GroupProgress, ProjectSetupProgress } from './types';
 import { SETUP_GROUPS, SETUP_STEPS } from './items';
+import { GroupStatusType, type GroupStatus } from './types';
 
 // Phase 1: mock data matching the API contract.
 // Phase 3: replace with useState + useEffect + real API call to GET /api/project-setup-progress.
 const MOCK_PROGRESS: ProjectSetupProgress = {
   hasStorage: { done: true, completedAt: new Date().toISOString() },
-  hasDraftDataMart: { done: false, completedAt: null },
+  hasDraftDataMart: { done: true, completedAt: new Date().toISOString() },
   hasPublishedDataMart: { done: false, completedAt: null },
   hasDestination: { done: false, completedAt: null },
   hasReport: { done: false, completedAt: null },
@@ -33,16 +34,16 @@ function calculateGroupProgress(progress: ProjectSetupProgress): GroupProgress[]
 
     let status: GroupStatus;
     if (completedCount === 0) {
-      status = 'not_started';
+      status = GroupStatusType.NOT_STARTED;
     } else if (completedCount === totalCount) {
-      status = 'done';
+      status = GroupStatusType.DONE;
     } else {
-      status = 'in_progress';
+      status = GroupStatusType.IN_PROGRESS;
     }
 
     // Calculate completedAt as max of all step completion dates (for 'done' status)
     let completedAt: string | null = null;
-    if (status === 'done') {
+    if (status === GroupStatusType.DONE) {
       const dates = completedSteps
         .map(step => progress[step.progressKey].completedAt)
         .filter((date): date is string => date !== null);
