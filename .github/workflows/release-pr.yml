@@ -53,4 +53,4 @@ jobs:
           git config --global user.name "github-actions[bot]"
           git add .
           git commit -m "chore: fix changelog headings and update package-lock.json"
-          git push
+          git push origin HEAD
