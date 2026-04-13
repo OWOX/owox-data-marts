@@ -37,9 +37,9 @@ export class ListDataStoragesService {
         // TU: own + available_for_use + available_for_maintenance
         qb = qb.andWhere(
           `(EXISTS (SELECT 1 FROM storage_owners o WHERE o.storage_id = s.id AND o.user_id = :userId)
-            OR s.availableForUse = 1
-            OR s.availableForMaintenance = 1)`,
-          { userId: command.userId }
+            OR s.availableForUse = :isTrue
+            OR s.availableForMaintenance = :isTrue)`,
+          { userId: command.userId, isTrue: true }
         );
       } else {
         // BU: only own (but BU ownership on Storage has no effect, so effectively none)

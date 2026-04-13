@@ -30,9 +30,9 @@ export class ListDataDestinationsService {
       // Non-admin: own + available_for_use + available_for_maintenance
       qb = qb.andWhere(
         `(EXISTS (SELECT 1 FROM destination_owners o WHERE o.destination_id = d.id AND o.user_id = :userId)
-          OR d.availableForUse = 1
-          OR d.availableForMaintenance = 1)`,
-        { userId: command.userId }
+          OR d.availableForUse = :isTrue
+          OR d.availableForMaintenance = :isTrue)`,
+        { userId: command.userId, isTrue: true }
       );
     }
 

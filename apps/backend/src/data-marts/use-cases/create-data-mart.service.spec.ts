@@ -49,7 +49,7 @@ describe('CreateDataMartService', () => {
 
   it('should set sharing defaults to false for new data mart', async () => {
     const { service, dataMartService } = createService();
-    const command = new CreateDataMartCommand('proj-1', 'Test DM', 'storage-1', 'user-0');
+    const command = new CreateDataMartCommand('proj-1', 'user-0', 'Test DM', 'storage-1');
 
     await service.run(command);
 
@@ -65,7 +65,7 @@ describe('CreateDataMartService', () => {
     const { service, accessDecisionService } = createService();
     accessDecisionService.canAccess.mockResolvedValue(false);
 
-    const command = new CreateDataMartCommand('proj-1', 'Test DM', 'storage-1', 'user-0', [
+    const command = new CreateDataMartCommand('proj-1', 'user-0', 'Test DM', 'storage-1', [
       'editor',
     ]);
 
@@ -76,7 +76,7 @@ describe('CreateDataMartService', () => {
     const { service, accessDecisionService, dataMartService } = createService();
     accessDecisionService.canAccess.mockResolvedValue(true);
 
-    const command = new CreateDataMartCommand('proj-1', 'Test DM', 'storage-1', 'user-0', [
+    const command = new CreateDataMartCommand('proj-1', 'user-0', 'Test DM', 'storage-1', [
       'editor',
     ]);
 
