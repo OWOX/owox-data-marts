@@ -9,8 +9,6 @@ import { storageService } from '../../../../services';
 const activePromoToasts = new Set<string>();
 
 const SUPPRESSION_KEY_PREFIX = 'promo_suppressed_';
-const SUPPRESSION_DURATION_DAYS = 14;
-const MS_PER_DAY = 86_400_000;
 
 /**
  * Enum for next step promo types
@@ -26,20 +24,14 @@ function getSuppressionKey(step: PromoStep): string {
   return `${SUPPRESSION_KEY_PREFIX}${step}`;
 }
 
-/** Returns true if the promo is currently suppressed by the user */
+/** Returns true if the promo has been shown and should not appear again */
 function isPromoSuppressed(step: PromoStep): boolean {
-  const raw = storageService.get(getSuppressionKey(step));
-  if (!raw) return false;
-  // storageService stores numbers as strings internally (via String()),
-  // so we convert back with Number()
-  const suppressedUntil = Number(raw);
-  return Number.isFinite(suppressedUntil) && Date.now() < suppressedUntil;
+  return storageService.get(getSuppressionKey(step), 'boolean') === true;
 }
 
-/** Suppress the promo for the given number of days */
-function suppressPromo(step: PromoStep, days: number): void {
-  const until = Date.now() + days * MS_PER_DAY;
-  storageService.set(getSuppressionKey(step), until);
+/** Suppress the promo permanently */
+function suppressPromo(step: PromoStep): void {
+  storageService.set(getSuppressionKey(step), true);
 }
 
 interface ShowPromoOptions {
@@ -55,7 +47,7 @@ interface ShowPromoOptions {
   onManualRunClick?: () => void;
   /** Toast display duration in ms. Defaults to Infinity */
   duration?: number;
-  /** When true, checks suppression and shows "Don't show for N days" button */
+  /** When true, auto-suppresses after first show so promo never appears again */
   suppressible?: boolean;
 }
 
@@ -75,23 +67,14 @@ export function useDataMartNextStepPromo() {
     }: ShowPromoOptions) => {
       if (suppressible && isPromoSuppressed(step)) return;
 
+      // Auto-suppress after first show
+      if (suppressible) suppressPromo(step);
+
       // Single ID per data mart to prevent multiple toasts for the same data mart
       const toastId = `promo_${dataMartId}`;
 
       // If a promo toast is already visible for this data mart — skip entirely
       if (activePromoToasts.has(toastId)) return;
-
-      const suppressButton = suppressible ? (
-        <button
-          className='text-muted-foreground hover:text-foreground mx-auto mt-3 block cursor-pointer text-xs underline-offset-2 hover:underline'
-          onClick={() => {
-            suppressPromo(step, SUPPRESSION_DURATION_DAYS);
-            toast.dismiss(toastId);
-          }}
-        >
-          Don't show for {SUPPRESSION_DURATION_DAYS} days
-        </button>
-      ) : null;
 
       // Common toast lifecycle callbacks
       const onDismiss = () => activePromoToasts.delete(toastId);
@@ -110,33 +93,25 @@ export function useDataMartNextStepPromo() {
               onDismiss,
               onAutoClose,
               description: (
-                <div>
-                  <div className='mt-2 flex gap-2'>
-                    <Button
-                      size='sm'
-                      variant='outline'
-                      onClick={() => {
-                        toast.dismiss(toastId);
-                        onManualRunClick?.();
-                      }}
-                    >
-                      <Play className='h-4 w-4' />
-                      Manual Run…
-                    </Button>
+                <div className='mt-2 flex gap-2'>
+                  <Button
+                    size='sm'
+                    variant='outline'
+                    onClick={() => {
+                      toast.dismiss(toastId);
+                      onManualRunClick?.();
+                    }}
+                  >
+                    <Play className='h-4 w-4' />
+                    Manual Run…
+                  </Button>
 
-                    <Button
-                      size='sm'
-                      variant='ghost'
-                      asChild
-                      onClick={() => toast.dismiss(toastId)}
-                    >
-                      <Link to={`/ui/${projectId}/data-marts/${dataMartId}/triggers`}>
-                        <CalendarClock className='h-4 w-4' />
-                        Schedule Trigger…
-                      </Link>
-                    </Button>
-                  </div>
-                  {suppressButton}
+                  <Button size='sm' variant='ghost' asChild onClick={() => toast.dismiss(toastId)}>
+                    <Link to={`/ui/${projectId}/data-marts/${dataMartId}/triggers`}>
+                      <CalendarClock className='h-4 w-4' />
+                      Schedule Trigger…
+                    </Link>
+                  </Button>
                 </div>
               ),
               duration,
@@ -151,35 +126,32 @@ export function useDataMartNextStepPromo() {
             onDismiss,
             onAutoClose,
             description: (
-              <div>
-                <div className='mt-2 flex gap-2'>
-                  {isInsightsEnabled && (
-                    <Button
-                      size='sm'
-                      variant='outline'
-                      asChild
-                      onClick={() => toast.dismiss(toastId)}
-                    >
-                      <Link to={`/ui/${projectId}/data-marts/${dataMartId}/insights-v2`}>
-                        <Sparkles className='h-4 w-4' />
-                        Create Insights…
-                      </Link>
-                    </Button>
-                  )}
-
+              <div className='mt-2 flex gap-2'>
+                {isInsightsEnabled && (
                   <Button
                     size='sm'
-                    variant={isInsightsEnabled ? 'ghost' : 'outline'}
+                    variant='outline'
                     asChild
                     onClick={() => toast.dismiss(toastId)}
                   >
-                    <Link to={`/ui/${projectId}/data-marts/${dataMartId}/reports`}>
-                      <FileText className='h-4 w-4' />
-                      Create Report…
+                    <Link to={`/ui/${projectId}/data-marts/${dataMartId}/insights-v2`}>
+                      <Sparkles className='h-4 w-4' />
+                      Create Insights…
                     </Link>
                   </Button>
-                </div>
-                {suppressButton}
+                )}
+
+                <Button
+                  size='sm'
+                  variant={isInsightsEnabled ? 'ghost' : 'outline'}
+                  asChild
+                  onClick={() => toast.dismiss(toastId)}
+                >
+                  <Link to={`/ui/${projectId}/data-marts/${dataMartId}/reports`}>
+                    <FileText className='h-4 w-4' />
+                    Create Report…
+                  </Link>
+                </Button>
               </div>
             ),
             duration,
