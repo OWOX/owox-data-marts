@@ -19,6 +19,7 @@ import { Combobox } from '../../../../shared/components/Combobox/combobox';
 import { DataStorageHealthIndicator, DataStorageType } from '../../../data-storage';
 import { DataStorageTypeDialog } from '../../../data-storage/shared/components/DataStorageTypeDialog';
 import { useDataStorage } from '../../../data-storage/shared/model/hooks/useDataStorage';
+import type { DataStorageList } from '../../../data-storage/shared/model/types/data-storage-list.ts';
 import { DataStorageTypeModel } from '../../../data-storage/shared/types/data-storage-type.model.ts';
 import { type DataMart, type DataMartFormData, dataMartSchema, useDataMartForm } from '../model';
 
@@ -30,6 +31,19 @@ interface DataMartFormProps {
 }
 
 const CREATE_NEW_STORAGE_VALUE = 'create_new';
+
+function StorageTypeIcon({
+  storages,
+  storageId,
+}: {
+  storages: DataStorageList;
+  storageId: string;
+}) {
+  const storage = storages.find(s => s.id === storageId);
+  if (!storage) return null;
+  const Icon = DataStorageTypeModel.getInfo(storage.type).icon;
+  return <Icon size={20} className='shrink-0' />;
+}
 
 export function DataMartCreateForm({ initialData, onSuccess }: DataMartFormProps) {
   const { handleCreate, isSubmitting, serverError } = useDataMartForm();
@@ -185,12 +199,7 @@ export function DataMartCreateForm({ initialData, onSuccess }: DataMartFormProps
                                 variant='compact'
                               />
                             </div>
-                            {(() => {
-                              const storage = dataStorages.find(s => s.id === option.value);
-                              if (!storage) return null;
-                              const Icon = DataStorageTypeModel.getInfo(storage.type).icon;
-                              return <Icon size={20} className='shrink-0' />;
-                            })()}
+                            <StorageTypeIcon storages={dataStorages} storageId={option.value} />
                             <span className='min-w-0 truncate'>{option.label}</span>
                           </div>
                         )
