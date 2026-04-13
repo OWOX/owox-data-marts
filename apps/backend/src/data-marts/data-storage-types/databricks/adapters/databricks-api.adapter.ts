@@ -1,6 +1,7 @@
 import { Logger } from '@nestjs/common';
 import { DBSQLClient } from '@databricks/sql';
 import type IDBSQLSession from '@databricks/sql/dist/contracts/IDBSQLSession';
+import type IOperation from '@databricks/sql/dist/contracts/IOperation';
 import type IDBSQLLogger from '@databricks/sql/dist/contracts/IDBSQLLogger';
 import { LogLevel } from '@databricks/sql/dist/contracts/IDBSQLLogger';
 import { castError } from '@owox/internal-helpers';
@@ -9,6 +10,16 @@ import { DatabricksCredentials } from '../schemas/databricks-credentials.schema'
 import { DatabricksQueryMetadata } from '../interfaces/databricks-query-metadata';
 import { DatabricksQueryExplainJsonResponse } from '../interfaces/databricks-query-explain-json-response';
 import { escapeFullyQualifiedIdentifier } from '../utils/databricks-identifier.utils';
+
+const DEFAULT_FETCH_CHUNK_MAX_ROWS = 1000;
+
+export interface DatabricksQueryCursor {
+  queryId: string;
+  fetchChunk(maxRows?: number): Promise<Record<string, unknown>[]>;
+  hasMoreRows(): Promise<boolean>;
+  getColumns(): Promise<string[] | null>;
+  close(): Promise<void>;
+}
 
 /**
  * Custom logger for Databricks SQL driver that only logs errors and warnings
@@ -112,30 +123,44 @@ export class DatabricksApiAdapter {
     rows?: Record<string, unknown>[];
     metadata?: DatabricksQueryMetadata;
   }> {
-    const session = await this.ensureConnection();
+    const cursor = await this.openQueryCursor(query);
+    const rows: Record<string, unknown>[] = [];
+    let queryError: Error | null = null;
 
     try {
-      const operation = await session.executeStatement(query);
+      while (true) {
+        const chunk = await cursor.fetchChunk(DEFAULT_FETCH_CHUNK_MAX_ROWS);
+        if (chunk.length > 0) {
+          rows.push(...chunk);
+        }
 
-      const result = await operation.fetchAll();
-      await operation.close();
+        if (chunk.length === 0) {
+          await this.assertCursorIsConsistent(cursor);
+          break;
+        }
 
-      const queryId = operation.id || '';
-      const rows = result as Record<string, unknown>[];
+        const hasMoreRows = await cursor.hasMoreRows();
+        if (!hasMoreRows) {
+          break;
+        }
+      }
 
       this.logger.debug(`Query executed: ${query}`);
       this.logger.debug(`Query returned ${rows?.length || 0} rows`);
 
       const metadata: DatabricksQueryMetadata = {
-        queryId,
-        statementId: queryId,
+        queryId: cursor.queryId,
+        statementId: cursor.queryId,
       };
 
-      return { queryId, rows, metadata };
+      return { queryId: cursor.queryId, rows, metadata };
     } catch (error) {
-      throw new Error(
+      queryError = new Error(
         `${DatabricksApiAdapter.DATABRICKS_QUERY_ERROR_PREFIX} ${castError(error).message}, ${query}`
       );
+      throw queryError;
+    } finally {
+      await this.closeCursorSafely(cursor, 'query execution', queryError);
     }
   }
 
@@ -250,19 +275,116 @@ export class DatabricksApiAdapter {
     query: string,
     maxRows: number = 1000
   ): Promise<Record<string, unknown>[]> {
+    if (maxRows <= 0) {
+      return [];
+    }
+
+    const cursor = await this.openQueryCursor(query);
+    const rows: Record<string, unknown>[] = [];
+    let fetchError: Error | null = null;
+
+    try {
+      while (rows.length < maxRows) {
+        const remainingRows = maxRows - rows.length;
+        const chunk = await cursor.fetchChunk(remainingRows);
+        if (chunk.length > 0) {
+          rows.push(...chunk);
+        }
+
+        if (chunk.length === 0) {
+          await this.assertCursorIsConsistent(cursor);
+          break;
+        }
+
+        const hasMoreRows = await cursor.hasMoreRows();
+        if (!hasMoreRows) {
+          break;
+        }
+      }
+
+      return rows;
+    } catch (error) {
+      fetchError = new Error(`Failed to fetch results: ${castError(error).message}`);
+      throw fetchError;
+    } finally {
+      await this.closeCursorSafely(cursor, 'result fetch', fetchError);
+    }
+  }
+
+  public async openQueryCursor(query: string): Promise<DatabricksQueryCursor> {
     const session = await this.ensureConnection();
 
     try {
-      const operation = await session.executeStatement(query, {
-        maxRows,
-      });
-
-      const result = await operation.fetchAll();
-      await operation.close();
-
-      return result as Record<string, unknown>[];
+      const operation = await session.executeStatement(query);
+      const queryId = operation.id || '';
+      this.logger.debug(`Query cursor opened, queryId: ${queryId}`);
+      return this.createCursor(operation, queryId);
     } catch (error) {
-      throw new Error(`Failed to fetch results: ${castError(error).message}`);
+      throw new Error(
+        `${DatabricksApiAdapter.DATABRICKS_QUERY_ERROR_PREFIX} ${castError(error).message}, ${query}`
+      );
+    }
+  }
+
+  private createCursor(operation: IOperation, queryId: string): DatabricksQueryCursor {
+    let isClosed = false;
+
+    return {
+      queryId,
+      fetchChunk: async (maxRows?: number) => {
+        const chunk = await operation.fetchChunk({
+          maxRows: maxRows ?? DEFAULT_FETCH_CHUNK_MAX_ROWS,
+        });
+        return chunk as Record<string, unknown>[];
+      },
+      hasMoreRows: async () => operation.hasMoreRows(),
+      getColumns: async () => this.resolveColumns(operation),
+      close: async () => {
+        if (isClosed) {
+          return;
+        }
+
+        isClosed = true;
+        await operation.close();
+      },
+    };
+  }
+
+  private async resolveColumns(operation: IOperation): Promise<string[] | null> {
+    const schema = await operation.getSchema();
+    if (!schema?.columns?.length) {
+      return null;
+    }
+
+    const columns = schema.columns.map(column => column.columnName).filter(Boolean);
+    return columns.length > 0 ? columns : null;
+  }
+
+  private async assertCursorIsConsistent(cursor: DatabricksQueryCursor): Promise<void> {
+    const hasMoreRows = await cursor.hasMoreRows();
+    if (hasMoreRows) {
+      throw new Error('Databricks cursor returned an empty chunk while indicating more rows');
+    }
+  }
+
+  private async closeCursorSafely(
+    cursor: DatabricksQueryCursor,
+    context: string,
+    primaryError?: Error | null
+  ): Promise<void> {
+    try {
+      await cursor.close();
+    } catch (error) {
+      const closeError = castError(error);
+
+      if (primaryError) {
+        this.logger.warn(
+          `Failed to close Databricks cursor after ${context}: ${closeError.message}. Preserving original error: ${primaryError.message}`
+        );
+        return;
+      }
+
+      throw new Error(`Failed to close Databricks cursor after ${context}: ${closeError.message}`);
     }
   }
 

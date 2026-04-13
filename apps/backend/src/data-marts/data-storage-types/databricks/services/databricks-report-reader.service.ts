@@ -1,4 +1,5 @@
 import { Injectable, Logger, Scope } from '@nestjs/common';
+import { castError } from '@owox/internal-helpers';
 import { DataStorageType } from '../../enums/data-storage-type.enum';
 import { DataStorageReportReader } from '../../interfaces/data-storage-report-reader.interface';
 import { ReportDataBatch } from '../../../dto/domain/report-data-batch.dto';
@@ -9,6 +10,7 @@ import { DataMartDefinition } from '../../../dto/schemas/data-mart-table-definit
 import { DataStorageReportReaderState } from '../../interfaces/data-storage-report-reader-state.interface';
 import { DataStorage } from '../../../entities/data-storage.entity';
 import { DatabricksApiAdapter } from '../adapters/databricks-api.adapter';
+import type { DatabricksQueryCursor } from '../adapters/databricks-api.adapter';
 import { DatabricksApiAdapterFactory } from '../adapters/databricks-api-adapter.factory';
 import { DatabricksQueryBuilder } from './databricks-query.builder';
 import { DatabricksReportHeadersGenerator } from './databricks-report-headers-generator.service';
@@ -23,11 +25,13 @@ export class DatabricksReportReader implements DataStorageReportReader {
   readonly type = DataStorageType.DATABRICKS;
 
   private adapter: DatabricksApiAdapter;
+  private queryCursor: DatabricksQueryCursor | null = null;
   private reportDataHeaders: ReportDataHeader[];
   private reportConfig: { storage: DataStorage; definition: DataMartDefinition };
   private queryId?: string;
   private currentRowIndex = 0;
-  private allRows: Record<string, unknown>[] = [];
+  private hasMoreRows = false;
+  private pendingRowsToSkip = 0;
 
   constructor(
     private readonly adapterFactory: DatabricksApiAdapterFactory,
@@ -57,35 +61,37 @@ export class DatabricksReportReader implements DataStorageReportReader {
     const query = this.queryBuilder.buildQuery(definition);
     this.logger.debug(`Executing query: ${query}`);
 
-    const result = await this.adapter.executeQuery(query);
-    this.queryId = result.queryId;
-    this.allRows = result.rows || [];
+    this.queryCursor = await this.adapter.openQueryCursor(query);
+    this.queryId = this.queryCursor.queryId;
     this.currentRowIndex = 0;
+    this.pendingRowsToSkip = 0;
+    this.hasMoreRows = true;
 
-    this.logger.debug(
-      `Query executed, queryId: ${this.queryId}, total rows: ${this.allRows.length}`
-    );
+    this.logger.debug(`Query cursor opened, queryId: ${this.queryId}`);
 
     return new ReportDataDescription(this.reportDataHeaders);
   }
 
   async readReportDataBatch(_batchId?: string, maxDataRows = 1000): Promise<ReportDataBatch> {
-    if (!this.reportDataHeaders || !this.queryId) {
+    if (!this.reportDataHeaders || !this.queryCursor || !this.queryId) {
       throw new Error('Report data must be prepared before read');
     }
 
-    const startIndex = this.currentRowIndex;
-    const endIndex = Math.min(startIndex + maxDataRows, this.allRows.length);
-    const rows = this.allRows.slice(startIndex, endIndex);
+    if (this.pendingRowsToSkip > 0) {
+      await this.skipPendingRows();
+    }
+
+    const rows = await this.queryCursor.fetchChunk(maxDataRows);
 
     const mappedRows = this.mapRowsToHeaders(rows);
 
-    this.currentRowIndex = endIndex;
-    const hasMoreData = endIndex < this.allRows.length;
+    this.currentRowIndex += rows.length;
+    const hasMoreData = rows.length > 0 ? await this.queryCursor.hasMoreRows() : false;
+    this.hasMoreRows = hasMoreData;
     const nextBatchId = hasMoreData ? this.currentRowIndex.toString() : null;
 
     this.logger.debug(
-      `Returning batch with ${rows.length} rows (from index ${startIndex} to ${endIndex})`
+      `Returning batch with ${rows.length} rows (rows read total: ${this.currentRowIndex})`
     );
 
     return new ReportDataBatch(mappedRows, nextBatchId);
@@ -93,12 +99,28 @@ export class DatabricksReportReader implements DataStorageReportReader {
 
   async finalize(): Promise<void> {
     this.logger.debug('Finalizing report read');
+    let closeError: Error | null = null;
+
+    if (this.queryCursor) {
+      try {
+        await this.queryCursor.close();
+      } catch (error) {
+        closeError = castError(error);
+        this.logger.warn(
+          `Failed to close Databricks cursor during finalize: ${closeError.message}`
+        );
+      } finally {
+        this.queryCursor = null;
+      }
+    }
 
     if (this.adapter) {
       await this.adapter.destroy();
     }
 
-    this.allRows = [];
+    if (closeError) {
+      throw closeError;
+    }
   }
 
   private mapRowsToHeaders(rows: Record<string, unknown>[]): unknown[][] {
@@ -185,7 +207,7 @@ export class DatabricksReportReader implements DataStorageReportReader {
       type: DataStorageType.DATABRICKS,
       queryId: this.queryId,
       rowsRead: this.currentRowIndex,
-      hasMore: this.currentRowIndex < this.allRows.length,
+      hasMore: this.hasMoreRows,
     };
   }
 
@@ -197,12 +219,43 @@ export class DatabricksReportReader implements DataStorageReportReader {
       throw new Error('Invalid state type for Databricks reader');
     }
 
-    this.queryId = state.queryId;
-    this.currentRowIndex = state.rowsRead;
+    if (!this.queryCursor || !this.queryId) {
+      throw new Error('Report data must be prepared before state restore');
+    }
+
+    this.currentRowIndex = 0;
+    this.pendingRowsToSkip = state.rowsRead;
+    this.hasMoreRows = state.hasMore;
     this.reportDataHeaders = reportDataHeaders;
 
     this.logger.debug(
-      `Restored from state: queryId=${this.queryId}, currentRow=${this.currentRowIndex}`
+      `Restored from state: cachedQueryId=${state.queryId}, activeQueryId=${this.queryId}, rowsToSkip=${this.pendingRowsToSkip}`
     );
+  }
+
+  private async skipPendingRows(): Promise<void> {
+    if (!this.queryCursor) {
+      throw new Error('Report data must be prepared before skip');
+    }
+
+    while (this.pendingRowsToSkip > 0) {
+      const chunkSize = Math.min(this.pendingRowsToSkip, 1000);
+      const skippedRows = await this.queryCursor.fetchChunk(chunkSize);
+
+      if (!skippedRows.length) {
+        this.pendingRowsToSkip = 0;
+        this.hasMoreRows = false;
+        return;
+      }
+
+      this.pendingRowsToSkip -= skippedRows.length;
+      this.currentRowIndex += skippedRows.length;
+      this.hasMoreRows = await this.queryCursor.hasMoreRows();
+
+      if (!this.hasMoreRows) {
+        this.pendingRowsToSkip = 0;
+        return;
+      }
+    }
   }
 }
