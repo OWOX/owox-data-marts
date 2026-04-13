@@ -439,12 +439,22 @@ var XAdsSource = class XAdsSource extends AbstractSource {
   }
 
   async _downloadAndParseJobResults({ nodeName, downloadUrl, placement, start_time }) {
-    // No OAuth header — downloadUrl is a pre-signed CDN URL served as raw gzip binary
-    // (no Content-Encoding header), so we decompress manually with zlib.
-    // Uses urlFetchWithRetry for transient CDN failure resilience.
-    // 60s timeout guards against a stalled CDN connection hanging the import.
-    const resp = await this.urlFetchWithRetry(downloadUrl, {
+    // X API may return a malformed URL with a prefix concatenated to the actual download URL.
+    // Extract the last valid URL if multiple https:// segments are found.
+    const resolvedUrl = this._extractDownloadUrl(downloadUrl);
+
+    // Download URL may be either a pre-signed CDN URL (no auth) or an ads-api.x.com
+    // endpoint (requires OAuth). Detect and add OAuth header when needed.
+    const headers = {};
+    if (resolvedUrl.includes('ads-api.x.com')) {
+      const urlObj = new URL(resolvedUrl);
+      const oauth = this._generateOAuthHeader({ method: 'GET', url: urlObj.origin + urlObj.pathname, params: {} });
+      headers['Authorization'] = oauth;
+    }
+
+    const resp = await this.urlFetchWithRetry(resolvedUrl, {
       method: 'GET',
+      headers,
       signal: AbortSignal.timeout(60000),
       muteHttpExceptions: true
     });
@@ -693,6 +703,19 @@ var XAdsSource = class XAdsSource extends AbstractSource {
 
     console.log(`Fetched ${all.length} targeting locations`);
     return this._filterBySchema(all, 'targeting_locations', fields);
+  }
+
+  /**
+   * Extracts the actual download URL from a potentially malformed URL string.
+   * X API may return a concatenated string of multiple URLs (e.g., base URL + download URL
+   * joined without separator). This method finds the last valid https:// URL in the string.
+   * If the URL is well-formed (single https://), it is returned as-is.
+   */
+  _extractDownloadUrl(url) {
+    const parts = url.split('https://').filter(Boolean);
+    if (parts.length <= 1) return url;
+    const extractedUrl = 'https://' + parts[parts.length - 1];
+    return extractedUrl;
   }
 
   /**
