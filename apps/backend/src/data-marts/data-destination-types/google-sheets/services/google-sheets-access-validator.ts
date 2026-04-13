@@ -71,7 +71,7 @@ export class GoogleSheetsAccessValidator implements DataDestinationAccessValidat
       const rawMessage = error instanceof Error ? error.message : '';
       this.logger.warn('Access check failed', error);
       const message = rawMessage.toLowerCase().includes('does not have permission')
-        ? "You don't have access to this Google Sheet. Please share the spreadsheet with the account used for authentication (service account email or connected Google account) and grant Editor permission."
+        ? "The account used for authentication doesn't have access to this Google Sheet. Please share the spreadsheet with it (service account email or connected Google account) and grant Editor permission."
         : rawMessage || 'Access check failed';
       return new ValidationResult(false, message);
     }
