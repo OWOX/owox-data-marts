@@ -134,6 +134,11 @@ export class DatabricksApiAdapter {
           rows.push(...chunk);
         }
 
+        if (chunk.length === 0) {
+          await this.assertCursorIsConsistent(cursor);
+          break;
+        }
+
         const hasMoreRows = await cursor.hasMoreRows();
         if (!hasMoreRows) {
           break;
@@ -286,6 +291,11 @@ export class DatabricksApiAdapter {
           rows.push(...chunk);
         }
 
+        if (chunk.length === 0) {
+          await this.assertCursorIsConsistent(cursor);
+          break;
+        }
+
         const hasMoreRows = await cursor.hasMoreRows();
         if (!hasMoreRows) {
           break;
@@ -348,6 +358,13 @@ export class DatabricksApiAdapter {
 
     const columns = schema.columns.map(column => column.columnName).filter(Boolean);
     return columns.length > 0 ? columns : null;
+  }
+
+  private async assertCursorIsConsistent(cursor: DatabricksQueryCursor): Promise<void> {
+    const hasMoreRows = await cursor.hasMoreRows();
+    if (hasMoreRows) {
+      throw new Error('Databricks cursor returned an empty chunk while indicating more rows');
+    }
   }
 
   private async closeCursorSafely(
