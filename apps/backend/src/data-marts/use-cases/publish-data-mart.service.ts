@@ -11,6 +11,8 @@ import { DataMartPublishedEvent } from '../events/data-mart-published.event';
 import { DataMartMapper } from '../mappers/data-mart.mapper';
 import { DataMartService } from '../services/data-mart.service';
 import { AccessDecisionService, EntityType, Action } from '../services/access-decision';
+import { RunType } from '../../common/scheduler/shared/types';
+import { ConnectorExecutionService } from '../services/connector/connector-execution.service';
 
 @Injectable()
 export class PublishDataMartService {
@@ -20,7 +22,8 @@ export class PublishDataMartService {
     private readonly mapper: DataMartMapper,
     @Inject(OWOX_PRODUCER)
     private readonly producer: OwoxProducer,
-    private readonly accessDecisionService: AccessDecisionService
+    private readonly accessDecisionService: AccessDecisionService,
+    private readonly connectorExecutionService: ConnectorExecutionService
   ) {}
 
   async run(command: PublishDataMartCommand): Promise<DataMartDto> {
@@ -56,6 +59,12 @@ export class PublishDataMartService {
     dataMart.status = DataMartStatus.PUBLISHED;
 
     await this.dataMartService.save(dataMart);
+
+    if (dataMart.definitionType === DataMartDefinitionType.CONNECTOR) {
+      await this.connectorExecutionService.run(dataMart, command.createdById, RunType.manual, {
+        runType: 'INCREMENTAL',
+      });
+    }
 
     await this.producer.produceEvent(
       new DataMartPublishedEvent(

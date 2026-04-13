@@ -347,7 +347,13 @@ export class DataMartMapper {
   }
 
   toPublishCommand(id: string, context: AuthorizationContext): PublishDataMartCommand {
-    return new PublishDataMartCommand(id, context.projectId, context.userId, context.roles ?? []);
+    return new PublishDataMartCommand(
+      id,
+      context.projectId,
+      context.userId,
+      context.roles ?? [],
+      context.userId
+    );
   }
 
   toDeleteCommand(id: string, context: AuthorizationContext): DeleteDataMartCommand {

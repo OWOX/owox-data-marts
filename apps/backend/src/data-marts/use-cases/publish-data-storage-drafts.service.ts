@@ -50,7 +50,7 @@ export class PublishDataStorageDraftsService {
     for (const draftId of draftIds) {
       try {
         await this.publishDataMartService.run(
-          new PublishDataMartCommand(draftId, command.projectId)
+          new PublishDataMartCommand(draftId, command.projectId, command.userId)
         );
         await this.schemaActualizeTriggerService.createTrigger(
           command.userId,
