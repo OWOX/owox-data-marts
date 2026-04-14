@@ -4,29 +4,32 @@ export class AddOwnershipUserIdIndexes1774800000001 implements MigrationInterfac
   public readonly name = 'AddOwnershipUserIdIndexes1774800000001';
 
   private readonly indexes = [
-    { table: 'data_mart_technical_owners', column: 'user_id' },
-    { table: 'data_mart_business_owners', column: 'user_id' },
-    { table: 'storage_owners', column: 'user_id' },
-    { table: 'destination_owners', column: 'user_id' },
+    { table: 'data_mart_technical_owners', columns: ['user_id', 'data_mart_id'] },
+    { table: 'data_mart_business_owners', columns: ['user_id', 'data_mart_id'] },
+    { table: 'storage_owners', columns: ['user_id', 'storage_id'] },
+    { table: 'destination_owners', columns: ['user_id', 'destination_id'] },
   ];
 
   public async up(queryRunner: QueryRunner): Promise<void> {
-    for (const { table, column } of this.indexes) {
+    for (const { table, columns } of this.indexes) {
       const hasTable = await queryRunner.hasTable(table);
       if (hasTable) {
         await queryRunner.createIndex(
           table,
-          new TableIndex({ name: `IDX_${table}_${column}`, columnNames: [column] })
+          new TableIndex({
+            name: `IDX_${table}_${columns.join('_')}`,
+            columnNames: columns,
+          })
         );
       }
     }
   }
 
   public async down(queryRunner: QueryRunner): Promise<void> {
-    for (const { table, column } of this.indexes) {
+    for (const { table, columns } of this.indexes) {
       const hasTable = await queryRunner.hasTable(table);
       if (hasTable) {
-        await queryRunner.dropIndex(table, `IDX_${table}_${column}`);
+        await queryRunner.dropIndex(table, `IDX_${table}_${columns.join('_')}`);
       }
     }
   }

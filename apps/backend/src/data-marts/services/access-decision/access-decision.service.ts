@@ -72,7 +72,7 @@ export class AccessDecisionService {
     entityType: EntityType,
     entityId: string,
     action: Action,
-    projectId: string
+    _projectId?: string
   ): Promise<boolean> {
     const role = this.resolveRole(roles);
 
@@ -87,8 +87,10 @@ export class AccessDecisionService {
       );
     }
 
-    const ownerStatus = await this.getOwnerStatus(userId, entityType, entityId);
-    const sharingState = await this.getSharingState(entityType, entityId, projectId);
+    const [ownerStatus, sharingState] = await Promise.all([
+      this.getOwnerStatus(userId, entityType, entityId),
+      this.getSharingState(entityType, entityId),
+    ]);
 
     const result = this.lookupMatrix(entityType, action, role, ownerStatus, sharingState);
 
@@ -165,11 +167,7 @@ export class AccessDecisionService {
     }
   }
 
-  async getSharingState(
-    entityType: EntityType,
-    entityId: string,
-    _projectId: string
-  ): Promise<SharingState> {
+  async getSharingState(entityType: EntityType, entityId: string): Promise<SharingState> {
     switch (entityType) {
       case EntityType.STORAGE: {
         const storage = await this.dataStorageRepository.findOne({

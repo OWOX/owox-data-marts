@@ -10,15 +10,20 @@ export class AddAvailabilityColumns1774800000000 implements MigrationInterface {
         name: 'availableForReporting',
         type: 'boolean',
         isNullable: false,
-        default: true,
+        default: false,
       }),
       new TableColumn({
         name: 'availableForMaintenance',
         type: 'boolean',
         isNullable: false,
-        default: true,
+        default: false,
       }),
     ]);
+
+    // Set existing records to true (preserve pre-Stage-3 behavior: all entities were visible)
+    await queryRunner.query(
+      `UPDATE data_mart SET availableForReporting = 1, availableForMaintenance = 1`
+    );
 
     // DataStorage: availableForUse + availableForMaintenance
     await queryRunner.addColumns('data_storage', [
@@ -26,15 +31,19 @@ export class AddAvailabilityColumns1774800000000 implements MigrationInterface {
         name: 'availableForUse',
         type: 'boolean',
         isNullable: false,
-        default: true,
+        default: false,
       }),
       new TableColumn({
         name: 'availableForMaintenance',
         type: 'boolean',
         isNullable: false,
-        default: true,
+        default: false,
       }),
     ]);
+
+    await queryRunner.query(
+      `UPDATE data_storage SET availableForUse = 1, availableForMaintenance = 1`
+    );
 
     // DataDestination: availableForUse + availableForMaintenance
     await queryRunner.addColumns('data_destination', [
@@ -42,15 +51,19 @@ export class AddAvailabilityColumns1774800000000 implements MigrationInterface {
         name: 'availableForUse',
         type: 'boolean',
         isNullable: false,
-        default: true,
+        default: false,
       }),
       new TableColumn({
         name: 'availableForMaintenance',
         type: 'boolean',
         isNullable: false,
-        default: true,
+        default: false,
       }),
     ]);
+
+    await queryRunner.query(
+      `UPDATE data_destination SET availableForUse = 1, availableForMaintenance = 1`
+    );
   }
 
   public async down(queryRunner: QueryRunner): Promise<void> {
