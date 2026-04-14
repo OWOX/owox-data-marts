@@ -7,4 +7,5 @@ export enum DataStorageColumnKey {
   OWNERS = 'owners',
   DATA_MARTS_COUNT = 'publishedDataMartsCount',
   DRAFTS_COUNT = 'draftDataMartsCount',
+  CONTEXTS = 'contexts',
 }

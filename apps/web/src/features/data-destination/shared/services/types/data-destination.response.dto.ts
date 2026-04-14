@@ -84,4 +84,5 @@ export interface DataDestinationResponseDto {
   ownerUsers?: import('../../../../../shared/types').UserProjection[];
   availableForUse?: boolean;
   availableForMaintenance?: boolean;
+  contexts?: { id: string; name: string }[];
 }

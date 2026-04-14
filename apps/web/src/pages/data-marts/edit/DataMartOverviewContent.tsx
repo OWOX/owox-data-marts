@@ -11,7 +11,9 @@ import {
   CollapsibleCardContent,
   CollapsibleCardFooter,
 } from '../../../shared/components/CollapsibleCard';
-import { BookOpenIcon, CalendarIcon, Globe, Info, Lock, Users } from 'lucide-react';
+import { BookOpenIcon, CalendarIcon, Globe, Info, Lock, Tags, Users } from 'lucide-react';
+import { ContextPicker } from '../../../features/contexts/components/ContextPicker/ContextPicker';
+import { contextService } from '../../../features/contexts/services/context.service';
 import { Switch } from '@owox/ui/components/switch';
 import {
   Accordion,
@@ -33,6 +35,7 @@ interface OutletContextType {
     technicalOwnerUsers: UserProjectionDto[];
     availableForReporting?: boolean;
     availableForMaintenance?: boolean;
+    contexts?: { id: string; name: string }[];
   };
   updateDataMartOwners: (
     id: string,
@@ -53,12 +56,17 @@ export default function DataMartOverviewContent() {
   const [availableForMaintenance, setAvailableForMaintenance] = useState(
     dataMart.availableForMaintenance !== false
   );
+  const [contextIds, setContextIds] = useState<string[]>((dataMart.contexts ?? []).map(c => c.id));
 
   // Sync local state when dataMart props change (after refetch)
   useEffect(() => {
     setAvailableForReporting(dataMart.availableForReporting !== false);
     setAvailableForMaintenance(dataMart.availableForMaintenance !== false);
   }, [dataMart.availableForReporting, dataMart.availableForMaintenance]);
+
+  useEffect(() => {
+    setContextIds((dataMart.contexts ?? []).map(c => c.id));
+  }, [dataMart.contexts]);
 
   const handleAvailabilityChange = useCallback(
     async (reporting: boolean, maintenance: boolean) => {
@@ -74,6 +82,18 @@ export default function DataMartOverviewContent() {
 
   return (
     <div data-testid='datamartTabOverview' className='flex flex-col gap-4'>
+      <CollapsibleCard collapsible name='dm-description'>
+        <CollapsibleCardHeader>
+          <CollapsibleCardHeaderTitle icon={BookOpenIcon} tooltip='Description of this Data Mart'>
+            Description
+          </CollapsibleCardHeaderTitle>
+        </CollapsibleCardHeader>
+        <CollapsibleCardContent>
+          <DataMartOverview />
+        </CollapsibleCardContent>
+        <CollapsibleCardFooter></CollapsibleCardFooter>
+      </CollapsibleCard>
+
       <CollapsibleCard collapsible name='dm-owners'>
         <CollapsibleCardHeader>
           <CollapsibleCardHeaderTitle
@@ -118,6 +138,23 @@ export default function DataMartOverviewContent() {
                   );
                 }}
               />
+              <Accordion variant='common' type='single' collapsible>
+                <AccordionItem value='technical-owner-help'>
+                  <AccordionTrigger className='text-sm'>
+                    What is a Technical Owner?
+                  </AccordionTrigger>
+                  <AccordionContent>
+                    <p className='text-muted-foreground text-sm'>
+                      Technical Owner is direct maintenance ownership of this Data Mart. When the
+                      owner&apos;s role is Technical User or Project Admin, they may edit and delete
+                      the Data Mart, configure its Availability, and maintain its Triggers, Reports
+                      and nested Report Triggers — regardless of Availability settings. Assigning
+                      Technical Owner to a Business User stores the assignment but grants no
+                      maintenance permissions until the role changes.
+                    </p>
+                  </AccordionContent>
+                </AccordionItem>
+              </Accordion>
             </div>
             <div className='group flex w-full flex-col gap-4 rounded-md border-b border-gray-200 bg-white p-4 transition-shadow duration-200 hover:shadow-xs dark:border-0 dark:bg-white/2'>
               <div className='text-foreground flex items-center justify-between gap-2 text-sm font-medium'>
@@ -152,6 +189,20 @@ export default function DataMartOverviewContent() {
                   );
                 }}
               />
+              <Accordion variant='common' type='single' collapsible>
+                <AccordionItem value='business-owner-help'>
+                  <AccordionTrigger className='text-sm'>What is a Business Owner?</AccordionTrigger>
+                  <AccordionContent>
+                    <p className='text-muted-foreground text-sm'>
+                      Business Owner is direct reporting ownership of this Data Mart. Business
+                      Owners may see the Data Mart in the catalog, open it, use it for reporting,
+                      and see its Triggers, Reports and nested Report Triggers — regardless of
+                      Availability settings. This role does not grant editing, deleting, Sharing
+                      management, Trigger maintenance, or changing owners.
+                    </p>
+                  </AccordionContent>
+                </AccordionItem>
+              </Accordion>
             </div>
           </div>
         </CollapsibleCardContent>
@@ -169,35 +220,6 @@ export default function DataMartOverviewContent() {
         </CollapsibleCardHeader>
         <CollapsibleCardContent>
           <div className='flex gap-4'>
-            <div className='group flex w-full flex-col gap-3 rounded-md border-b border-gray-200 bg-white p-4 transition-shadow duration-200 hover:shadow-xs dark:border-0 dark:bg-white/2'>
-              <div className='flex items-center gap-4'>
-                <Switch
-                  checked={availableForReporting}
-                  onCheckedChange={v => {
-                    setAvailableForReporting(v);
-                    void handleAvailabilityChange(v, availableForMaintenance);
-                  }}
-                />
-                <div className='text-foreground text-sm font-medium'>Available for reporting</div>
-              </div>
-              <p className='text-muted-foreground text-xs'>
-                All project members can see this Data Mart and build reports on it
-              </p>
-              <Accordion variant='common' type='single' collapsible>
-                <AccordionItem value='reporting-help'>
-                  <AccordionTrigger className='text-sm'>
-                    What does &quot;Available for reporting&quot; mean?
-                  </AccordionTrigger>
-                  <AccordionContent>
-                    <p className='text-muted-foreground text-sm'>
-                      When enabled, all project members (both Technical and Business Users) can see
-                      this Data Mart in the catalog and use it to create reports. Owners always have
-                      access regardless of this setting.
-                    </p>
-                  </AccordionContent>
-                </AccordionItem>
-              </Accordion>
-            </div>
             <div className='group flex w-full flex-col gap-3 rounded-md border-b border-gray-200 bg-white p-4 transition-shadow duration-200 hover:shadow-xs dark:border-0 dark:bg-white/2'>
               <div className='flex items-center gap-4'>
                 <Switch
@@ -227,19 +249,85 @@ export default function DataMartOverviewContent() {
                 </AccordionItem>
               </Accordion>
             </div>
+            <div className='group flex w-full flex-col gap-3 rounded-md border-b border-gray-200 bg-white p-4 transition-shadow duration-200 hover:shadow-xs dark:border-0 dark:bg-white/2'>
+              <div className='flex items-center gap-4'>
+                <Switch
+                  checked={availableForReporting}
+                  onCheckedChange={v => {
+                    setAvailableForReporting(v);
+                    void handleAvailabilityChange(v, availableForMaintenance);
+                  }}
+                />
+                <div className='text-foreground text-sm font-medium'>Available for reporting</div>
+              </div>
+              <p className='text-muted-foreground text-xs'>
+                All project members can see this Data Mart and build reports on it
+              </p>
+              <Accordion variant='common' type='single' collapsible>
+                <AccordionItem value='reporting-help'>
+                  <AccordionTrigger className='text-sm'>
+                    What does &quot;Available for reporting&quot; mean?
+                  </AccordionTrigger>
+                  <AccordionContent>
+                    <p className='text-muted-foreground text-sm'>
+                      When enabled, all project members (both Technical and Business Users) can see
+                      this Data Mart in the catalog and use it to create reports. Owners always have
+                      access regardless of this setting.
+                    </p>
+                  </AccordionContent>
+                </AccordionItem>
+              </Accordion>
+            </div>
           </div>
         </CollapsibleCardContent>
         <CollapsibleCardFooter></CollapsibleCardFooter>
       </CollapsibleCard>
 
-      <CollapsibleCard collapsible name='dm-description'>
+      <CollapsibleCard collapsible name='dm-contexts'>
         <CollapsibleCardHeader>
-          <CollapsibleCardHeaderTitle icon={BookOpenIcon} tooltip='Description of this Data Mart'>
-            Description
+          <CollapsibleCardHeaderTitle
+            icon={Tags}
+            tooltip='Business domain contexts assigned to this Data Mart'
+          >
+            Contexts
           </CollapsibleCardHeaderTitle>
         </CollapsibleCardHeader>
         <CollapsibleCardContent>
-          <DataMartOverview />
+          <div className='group flex w-full flex-col gap-4 rounded-md border-b border-gray-200 bg-white p-4 transition-shadow duration-200 hover:shadow-xs dark:border-0 dark:bg-white/2'>
+            <ContextPicker
+              selectedContextIds={contextIds}
+              onChange={next => {
+                setContextIds(next);
+                void (async () => {
+                  try {
+                    await contextService.updateDataMartContexts(dataMart.id, next);
+                    toast.success('Contexts updated');
+                    void getDataMart(dataMart.id);
+                  } catch (error) {
+                    toast.error(
+                      error instanceof Error ? error.message : 'Failed to update contexts'
+                    );
+                    void getDataMart(dataMart.id);
+                  }
+                })();
+              }}
+              idPrefix='dm-ctx'
+            />
+            <Accordion variant='common' type='single' collapsible>
+              <AccordionItem value='contexts-help'>
+                <AccordionTrigger className='text-sm'>What are Contexts?</AccordionTrigger>
+                <AccordionContent>
+                  <p className='text-muted-foreground text-sm'>
+                    Contexts are business domains (e.g. Marketing, Finance, Sales) used to group
+                    Data Marts, Storages and Destinations. They also control access: a member with
+                    the role scope limited to specific contexts will only see resources assigned to
+                    those contexts. Assign one or more contexts to make this Data Mart discoverable
+                    to the right people.
+                  </p>
+                </AccordionContent>
+              </AccordionItem>
+            </Accordion>
+          </div>
         </CollapsibleCardContent>
         <CollapsibleCardFooter></CollapsibleCardFooter>
       </CollapsibleCard>

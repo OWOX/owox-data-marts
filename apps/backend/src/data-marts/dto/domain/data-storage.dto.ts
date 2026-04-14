@@ -1,6 +1,7 @@
 import { DataStorageType } from '../../data-storage-types/enums/data-storage-type.enum';
 import { DataStorageConfig } from '../../data-storage-types/data-storage-config.type';
 import { UserProjectionDto } from '../../../idp/dto/domain/user-projection.dto';
+import { ContextSummary } from '../../utils/extract-context-summaries';
 
 export class DataStorageDto {
   constructor(
@@ -17,6 +18,7 @@ export class DataStorageDto {
     public readonly createdByUser: UserProjectionDto | null = null,
     public readonly ownerUsers: UserProjectionDto[] = [],
     public readonly availableForUse: boolean = true,
-    public readonly availableForMaintenance: boolean = true
+    public readonly availableForMaintenance: boolean = true,
+    public readonly contexts: ContextSummary[] = []
   ) {}
 }

@@ -3,6 +3,7 @@ import { DataDestinationCredentials } from '../../data-destination-types/data-de
 import { DataDestinationType } from '../../data-destination-types/enums/data-destination-type.enum';
 import { UserProjectionDto } from '../../../idp/dto/domain/user-projection.dto';
 import { CredentialIdentity } from '../../entities/credential-identity.type';
+import { ContextSummary } from '../../utils/extract-context-summaries';
 
 export type DataDestinationCredentialsPublic = {
   type: 'google-sheets-credentials';
@@ -62,4 +63,7 @@ export class DataDestinationResponseApiDto {
 
   @ApiProperty({ example: true })
   availableForMaintenance?: boolean;
+
+  @ApiProperty({ type: [Object] })
+  contexts: ContextSummary[];
 }

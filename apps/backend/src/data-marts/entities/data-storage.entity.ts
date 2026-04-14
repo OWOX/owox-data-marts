@@ -14,6 +14,7 @@ import { DataStorageConfig } from '../data-storage-types/data-storage-config.typ
 import { DataStorageCredential } from './data-storage-credential.entity';
 import { CreatorAwareEntity } from './creator-aware-entity.interface';
 import { StorageOwner } from './storage-owner.entity';
+import { StorageContext } from './storage-context.entity';
 
 @Entity()
 export class DataStorage implements CreatorAwareEntity {
@@ -54,6 +55,9 @@ export class DataStorage implements CreatorAwareEntity {
   @OneToMany(() => StorageOwner, owner => owner.storage)
   owners: StorageOwner[];
 
+  @OneToMany(() => StorageContext, ctx => ctx.storage)
+  contexts: StorageContext[];
+
   @CreateDateColumn()
   createdAt: Date;
 
@@ -62,5 +66,9 @@ export class DataStorage implements CreatorAwareEntity {
 
   get ownerIds(): string[] {
     return (this.owners ?? []).map(o => o.userId);
+  }
+
+  get contextIds(): string[] {
+    return (this.contexts ?? []).map(c => c.contextId);
   }
 }

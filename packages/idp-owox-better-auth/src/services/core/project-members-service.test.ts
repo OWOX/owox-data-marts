@@ -64,6 +64,9 @@ function createIdentityClientMock(): jest.Mocked<IdentityOwoxClient> {
     getJwks: jest.fn(),
     completeAuthFlow: jest.fn(),
     getProjectMembers: jest.fn(),
+    inviteProjectMember: jest.fn(),
+    removeProjectMember: jest.fn(),
+    changeProjectMemberRole: jest.fn(),
   } as unknown as jest.Mocked<IdentityOwoxClient>;
 }
 
@@ -482,6 +485,87 @@ describe('ProjectMembersService', () => {
       // Result should return the updated member
       expect(result).toHaveLength(1);
       expect(result[0]?.projectRole).toBe('admin');
+    });
+  });
+
+  // Java upstream only returns {userUid}. We synthesise the rest locally and
+  // forward userUid through `userId` so the controller can attach scope+contexts
+  // immediately. These tests pin that mapping down so future refactors can't
+  // silently drop the userId.
+  describe('inviteMember', () => {
+    it('forwards upstream userUid as userId and synthesises email/message', async () => {
+      const store = createStoreMock();
+      const identityClient = createIdentityClientMock();
+      identityClient.inviteProjectMember.mockResolvedValue({ userUid: 'new-user-uid' });
+
+      const service = new ProjectMembersService(store, identityClient);
+
+      const result = await service.inviteMember(
+        'project-1',
+        'new@example.com',
+        'editor',
+        'admin-1'
+      );
+
+      expect(identityClient.inviteProjectMember).toHaveBeenCalledWith(
+        'project-1',
+        'new@example.com',
+        'editor',
+        'admin-1'
+      );
+      expect(result).toEqual({
+        projectId: 'project-1',
+        email: 'new@example.com',
+        role: 'editor',
+        kind: 'email-sent',
+        userId: 'new-user-uid',
+        message: 'Invitation email sent to new@example.com',
+      });
+    });
+
+    it('propagates upstream failure instead of swallowing it', async () => {
+      const store = createStoreMock();
+      const identityClient = createIdentityClientMock();
+      identityClient.inviteProjectMember.mockRejectedValue(new Error('upstream 500'));
+
+      const service = new ProjectMembersService(store, identityClient);
+
+      await expect(
+        service.inviteMember('project-1', 'x@y.io', 'viewer', 'admin-1')
+      ).rejects.toThrow('upstream 500');
+    });
+  });
+
+  describe('removeMember / changeMemberRole', () => {
+    it('delegates removeMember to the client forwarding the actor user id', async () => {
+      const store = createStoreMock();
+      const identityClient = createIdentityClientMock();
+      identityClient.removeProjectMember.mockResolvedValue(undefined);
+
+      const service = new ProjectMembersService(store, identityClient);
+      await service.removeMember('project-1', 'user-42', 'admin-1');
+
+      expect(identityClient.removeProjectMember).toHaveBeenCalledWith(
+        'project-1',
+        'user-42',
+        'admin-1'
+      );
+    });
+
+    it('delegates changeMemberRole to the client forwarding the actor user id', async () => {
+      const store = createStoreMock();
+      const identityClient = createIdentityClientMock();
+      identityClient.changeProjectMemberRole.mockResolvedValue(undefined);
+
+      const service = new ProjectMembersService(store, identityClient);
+      await service.changeMemberRole('project-1', 'user-42', 'admin', 'admin-1');
+
+      expect(identityClient.changeProjectMemberRole).toHaveBeenCalledWith(
+        'project-1',
+        'user-42',
+        'admin',
+        'admin-1'
+      );
     });
   });
 });

@@ -96,11 +96,12 @@ export function useDataStorage() {
     ) => {
       dispatch({ type: DataStorageActionType.UPDATE_STORAGE_START });
       try {
-        const { ownerIds, availableForUse, availableForMaintenance, ...formData } =
+        const { ownerIds, availableForUse, availableForMaintenance, contextIds, ...formData } =
           data as DataStorageFormData & {
             ownerIds?: string[];
             availableForUse?: boolean;
             availableForMaintenance?: boolean;
+            contextIds?: string[];
           };
         const request = mapToUpdateDataStorageRequest(formData, source?.id);
         const requestWithExtras = {
@@ -108,6 +109,7 @@ export function useDataStorage() {
           ...(ownerIds !== undefined && { ownerIds }),
           ...(availableForUse !== undefined && { availableForUse }),
           ...(availableForMaintenance !== undefined && { availableForMaintenance }),
+          ...(contextIds !== undefined && { contextIds }),
         };
         const response = await dataStorageApiService.updateDataStorage(id, requestWithExtras);
         const updatedStorage = mapDataStorageFromDto(response);

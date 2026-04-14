@@ -8,6 +8,7 @@ import { dataDestinationColumnLabels } from './columnLabels';
 import { type UserProjection } from '../../../../../../shared/types';
 import { UserReference } from '../../../../../../shared/components/UserReference';
 import { UserAvatarGroup } from '../../../../../../shared/components/UserAvatarGroup/UserAvatarGroup';
+import { ContextBadges } from '../../../../../../features/contexts/components/ContextBadges/ContextBadges';
 
 export interface DataDestinationTableItem {
   id: string;
@@ -18,6 +19,7 @@ export interface DataDestinationTableItem {
   credentials?: DataDestination['credentials'];
   createdByUser?: UserProjection | null;
   ownerUsers?: UserProjection[];
+  contexts: { id: string; name: string }[];
 }
 
 interface DataDestinationColumnsProps {
@@ -132,6 +134,15 @@ export const getDataDestinationColumns = ({
         return <span className='text-muted-foreground text-sm'>Not assigned</span>;
       if (users.length === 1) return <UserReference userProjection={users[0]} />;
       return <UserAvatarGroup users={users} />;
+    },
+  },
+  {
+    id: DataDestinationColumnKey.CONTEXTS,
+    accessorKey: 'contexts',
+    header: dataDestinationColumnLabels[DataDestinationColumnKey.CONTEXTS],
+    enableSorting: false,
+    cell: ({ row }) => {
+      return <ContextBadges contexts={row.original.contexts} />;
     },
   },
   {

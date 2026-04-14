@@ -3,6 +3,8 @@ jest.mock('../../../idp/facades/idp-projections.facade', () => ({
 }));
 
 import { AccessDecisionService } from './access-decision.service';
+import { ContextAccessService } from '../context/context-access.service';
+import { RoleScope } from '../../enums/role-scope.enum';
 import { Action } from './access-decision.types';
 
 describe('AccessDecisionService — inherited entity access (DM Trigger, Report)', () => {
@@ -16,6 +18,10 @@ describe('AccessDecisionService — inherited entity access (DM Trigger, Report)
     const destinationOwnerRepository = { count: jest.fn() };
     const reportOwnerRepository = { count: jest.fn() };
     const reportRepository = { findOne: jest.fn() };
+    const contextAccessService = {
+      getRoleScope: jest.fn().mockResolvedValue(RoleScope.ENTIRE_PROJECT),
+      hasContextOverlap: jest.fn().mockResolvedValue(true),
+    };
 
     const service = new AccessDecisionService(
       dataMartRepository as never,
@@ -26,7 +32,8 @@ describe('AccessDecisionService — inherited entity access (DM Trigger, Report)
       storageOwnerRepository as never,
       destinationOwnerRepository as never,
       reportOwnerRepository as never,
-      reportRepository as never
+      reportRepository as never,
+      contextAccessService as unknown as ContextAccessService
     );
 
     return {
@@ -37,6 +44,7 @@ describe('AccessDecisionService — inherited entity access (DM Trigger, Report)
       reportRepository,
       reportOwnerRepository,
       dataDestinationRepository,
+      contextAccessService,
     };
   };
 

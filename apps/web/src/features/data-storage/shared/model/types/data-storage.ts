@@ -28,6 +28,7 @@ export interface BaseDataStorage<T extends DataStorageCredentials, C extends Dat
   ownerUsers?: import('../../../../../shared/types').UserProjection[];
   availableForUse?: boolean;
   availableForMaintenance?: boolean;
+  contexts?: { id: string; name: string }[];
 }
 
 export interface GoogleBigQueryDataStorage extends BaseDataStorage<

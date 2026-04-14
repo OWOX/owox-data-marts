@@ -2,7 +2,7 @@ import { createBetterAuthConfig } from '../auth/auth-config.js';
 import { MagicLinkService } from './magic-link-service.js';
 import { CryptoService } from './crypto-service.js';
 import { Payload, AddUserCommandResponse } from '@owox/idp-protocol';
-import type { Role, OrganizationMembersResponse } from '../types/index.js';
+import type { Role } from '../types/index.js';
 import type { Request as ExpressRequest } from 'express';
 import type { DatabaseStore } from '../store/DatabaseStore.js';
 import { logger } from '../logger.js';
@@ -11,7 +11,6 @@ export class UserManagementService {
   private static readonly DEFAULT_ORGANIZATION_ID = 'owox_data_marts_organization';
   private static readonly DEFAULT_ORGANIZATION_NAME = 'OWOX Data Marts';
   private static readonly DEFAULT_ORGANIZATION_SLUG = 'owox-data-marts';
-  private readonly baseURL: string;
 
   /**
    * Role hierarchy permissions
@@ -30,13 +29,7 @@ export class UserManagementService {
     private readonly magicLinkService: MagicLinkService,
     private readonly cryptoService: CryptoService | undefined,
     private readonly store: DatabaseStore
-  ) {
-    const baseUrlConfig = this.auth.options.baseURL;
-    this.baseURL =
-      typeof baseUrlConfig === 'string'
-        ? baseUrlConfig
-        : (baseUrlConfig as { fallback?: string } | undefined)?.fallback || 'http://localhost:3000';
-  }
+  ) {}
 
   async addUserViaMagicLink(username: string): Promise<AddUserCommandResponse> {
     try {
@@ -54,118 +47,59 @@ export class UserManagementService {
     }
   }
 
+  /**
+   * Pre-provision an invitation: upsert a stub user, ensure organization
+   * membership with the target role, and generate a magic link so the invitee
+   * can sign in. Returns the userId so the caller can attach authorization
+   * scope (contexts / role scope) immediately, before first sign-in.
+   *
+   * Idempotent w.r.t. user creation: re-invites reuse the existing user row
+   * and just rotate the magic-link token.
+   */
+  async inviteAndCreateStub(
+    email: string,
+    role: Role
+  ): Promise<{ userId: string; magicLink: string }> {
+    try {
+      const { userId } = await this.store.createUserStub(email);
+      await this.ensureUserInDefaultOrganization(userId, role);
+      const magicLink = await this.magicLinkService.generateMagicLink(email, role);
+      return { userId, magicLink };
+    } catch (error) {
+      logger.error('Error pre-provisioning invitation', { email, role }, error as Error);
+      throw new Error(
+        `Failed to prepare invitation: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
+    }
+  }
+
   async listUsers(): Promise<Payload[]> {
     try {
-      const listMembersRequest = new Request(
-        `${this.baseURL}/auth/better-auth/organization/list-members`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            organizationId: UserManagementService.DEFAULT_ORGANIZATION_ID,
-          }),
-        }
-      );
+      const users = await this.store.getUsersForAdmin();
 
-      try {
-        const response = await this.auth.handler(listMembersRequest);
-
-        if (response.ok) {
-          const result: OrganizationMembersResponse = await response.json();
-          const members = result.members || [];
-
-          return members.map(
-            (member): Payload => ({
-              userId: member.user?.id || member.userId,
-              projectId: UserManagementService.DEFAULT_ORGANIZATION_ID,
-              email: member.user?.email || 'unknown@email.com',
-              fullName: member.user?.name || member.user?.email || 'Unknown User',
-              roles: [this.isValidRole(member.role) ? member.role : 'viewer'],
-            })
-          );
-        } else {
-          return await this.listUsersDirectly();
-        }
-      } catch (error) {
-        logger.warn(
-          'Fallback to direct users listing due to Better Auth handler error',
-          {},
-          error as Error
-        );
-        return await this.listUsersDirectly();
-      }
+      return users.map((user): Payload => {
+        const role: Role = this.isValidRole(user.role) ? user.role : 'viewer';
+        return {
+          userId: user.id,
+          projectId: UserManagementService.DEFAULT_ORGANIZATION_ID,
+          email: user.email,
+          fullName: user.name || user.email,
+          roles: [role],
+        };
+      });
     } catch (error) {
       logger.error('Error listing users', {}, error as Error);
       throw new Error('Failed to list users');
     }
   }
 
-  private async listUsersDirectly(): Promise<Payload[]> {
-    try {
-      const users = await this.store.getUsers();
-
-      return users.map(
-        (user): Payload => ({
-          userId: user.id,
-          projectId: UserManagementService.DEFAULT_ORGANIZATION_ID,
-          email: user.email,
-          fullName: user.name || user.email,
-          roles: ['editor'],
-        })
-      );
-    } catch (error) {
-      logger.error('Error listing users directly from database', {}, error as Error);
-      return [];
-    }
-  }
-
   async removeUser(userId: string): Promise<void> {
     try {
-      // Step 1: Remove user from organization first
-      const removeMemberRequest = new Request(
-        `${this.baseURL}/auth/better-auth/organization/remove-member`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            userId: userId,
-            organizationId: UserManagementService.DEFAULT_ORGANIZATION_ID,
-          }),
-        }
-      );
-
-      try {
-        await this.auth.handler(removeMemberRequest);
-      } catch (error) {
-        logger.warn(
-          'Failed to remove user from organization (continuing with deletion)',
-          { userId },
-          error as Error
-        );
-        // Continue with user deletion even if organization removal fails
-      }
-
-      // Step 2: Remove user from Better Auth system
-      await this.removeUserDirectly(userId);
+      await this.store.deleteUserCascade(userId);
     } catch (error) {
       logger.error('Error removing user', { userId }, error as Error);
       throw new Error(
         `Failed to remove user: ${error instanceof Error ? error.message : 'Unknown error'}`
-      );
-    }
-  }
-
-  private async removeUserDirectly(userId: string): Promise<void> {
-    try {
-      await this.store.deleteUserCascade(userId);
-    } catch (error) {
-      logger.error('Failed to delete user', { userId }, error as Error);
-      throw new Error(
-        `Failed to delete user ${userId}: ${error instanceof Error ? error.message : 'Unknown error'}`
       );
     }
   }

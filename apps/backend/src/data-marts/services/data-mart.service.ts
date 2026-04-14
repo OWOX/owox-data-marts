@@ -34,6 +34,8 @@ export class DataMartService {
         'storage.credential',
         'businessOwners',
         'technicalOwners',
+        'contexts',
+        'contexts.context',
       ],
     });
 
@@ -56,6 +58,7 @@ export class DataMartService {
       ownerFilter?: OwnerFilter;
       userId?: string;
       roles?: string[];
+      roleScope?: string;
     }
   ): Promise<{ items: DataMart[]; total: number }> {
     const qb = this.dataMartRepository
@@ -63,6 +66,8 @@ export class DataMartService {
       .leftJoin('dm.storage', 'storage')
       .leftJoinAndSelect('dm.businessOwners', 'businessOwners')
       .leftJoinAndSelect('dm.technicalOwners', 'technicalOwners')
+      .leftJoinAndSelect('dm.contexts', 'dmContexts')
+      .leftJoinAndSelect('dmContexts.context', 'dmContext')
       .select([
         'dm.id',
         'dm.title',
@@ -75,6 +80,10 @@ export class DataMartService {
         'storage.title',
         'businessOwners.userId',
         'technicalOwners.userId',
+        'dmContexts.dataMartId',
+        'dmContexts.contextId',
+        'dmContext.id',
+        'dmContext.name',
       ])
       .addSelect(
         'CASE WHEN dm.definitionType = :connectorDefinitionType THEN dm.definition ELSE NULL END',
@@ -88,22 +97,48 @@ export class DataMartService {
     const isAdmin = options?.roles?.includes('admin');
     if (!isAdmin && options?.userId) {
       const isTu = options.roles?.includes('editor');
+      const roleScope = options?.roleScope ?? 'entire_project';
       if (isTu) {
-        // TU: tech owner OR biz owner OR available_for_reporting OR available_for_maintenance
+        // TU: tech owner OR biz owner OR (shared access with context gate)
         qb.andWhere(
-          `(EXISTS (SELECT 1 FROM data_mart_technical_owners t WHERE t.data_mart_id = dm.id AND t.user_id = :accessUserId)
+          `(
+            EXISTS (SELECT 1 FROM data_mart_technical_owners t WHERE t.data_mart_id = dm.id AND t.user_id = :accessUserId)
             OR EXISTS (SELECT 1 FROM data_mart_business_owners b WHERE b.data_mart_id = dm.id AND b.user_id = :accessUserId)
-            OR dm.availableForReporting = :isTrue
-            OR dm.availableForMaintenance = :isTrue)`,
-          { accessUserId: options.userId, isTrue: true }
+            OR (
+              (dm.availableForReporting = :isTrue OR dm.availableForMaintenance = :isTrue)
+              AND (
+                :roleScope = 'entire_project'
+                OR EXISTS (
+                  SELECT 1 FROM data_mart_contexts dmc
+                  JOIN member_role_contexts mrc ON mrc.context_id = dmc.context_id
+                  WHERE dmc.data_mart_id = dm.id
+                  AND mrc.user_id = :accessUserId AND mrc.project_id = :projectId
+                )
+              )
+            )
+          )`,
+          { accessUserId: options.userId, isTrue: true, roleScope, projectId }
         );
       } else {
-        // BU: tech owner (SEE+USE only) OR biz owner OR available_for_reporting
+        // BU: tech/biz owner OR (available_for_reporting with context gate)
         qb.andWhere(
-          `(EXISTS (SELECT 1 FROM data_mart_technical_owners t WHERE t.data_mart_id = dm.id AND t.user_id = :accessUserId)
+          `(
+            EXISTS (SELECT 1 FROM data_mart_technical_owners t WHERE t.data_mart_id = dm.id AND t.user_id = :accessUserId)
             OR EXISTS (SELECT 1 FROM data_mart_business_owners b WHERE b.data_mart_id = dm.id AND b.user_id = :accessUserId)
-            OR dm.availableForReporting = :isTrue)`,
-          { accessUserId: options.userId, isTrue: true }
+            OR (
+              dm.availableForReporting = :isTrue
+              AND (
+                :roleScope = 'entire_project'
+                OR EXISTS (
+                  SELECT 1 FROM data_mart_contexts dmc
+                  JOIN member_role_contexts mrc ON mrc.context_id = dmc.context_id
+                  WHERE dmc.data_mart_id = dm.id
+                  AND mrc.user_id = :accessUserId AND mrc.project_id = :projectId
+                )
+              )
+            )
+          )`,
+          { accessUserId: options.userId, isTrue: true, roleScope, projectId }
         );
       }
     }

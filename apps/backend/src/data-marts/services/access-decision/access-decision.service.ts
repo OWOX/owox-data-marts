@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Inject, forwardRef } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { DataMart } from '../../entities/data-mart.entity';
@@ -12,6 +12,8 @@ import { ReportOwner } from '../../entities/report-owner.entity';
 import { Report } from '../../entities/report.entity';
 import { ACCESS_MATRIX } from './access-matrix.config';
 import { EntityType, Action, Role, OwnerStatus, SharingState } from './access-decision.types';
+import { ContextAccessService } from '../context/context-access.service';
+import { RoleScope } from '../../enums/role-scope.enum';
 
 @Injectable()
 export class AccessDecisionService {
@@ -38,7 +40,9 @@ export class AccessDecisionService {
     @InjectRepository(ReportOwner)
     private readonly reportOwnerRepository: Repository<ReportOwner>,
     @InjectRepository(Report)
-    private readonly reportRepository: Repository<Report>
+    private readonly reportRepository: Repository<Report>,
+    @Inject(forwardRef(() => ContextAccessService))
+    private readonly contextAccessService: ContextAccessService
   ) {
     this.matrixMap = new Map();
     for (const rule of ACCESS_MATRIX) {
@@ -72,11 +76,11 @@ export class AccessDecisionService {
     entityType: EntityType,
     entityId: string,
     action: Action,
-    _projectId?: string
+    projectId?: string
   ): Promise<boolean> {
     const role = this.resolveRole(roles);
 
-    // Admin shortcut
+    // Admin shortcut — bypass everything including contexts
     if (role === Role.ADMIN) {
       return this.lookupMatrix(
         entityType,
@@ -92,15 +96,35 @@ export class AccessDecisionService {
       this.getSharingState(entityType, entityId),
     ]);
 
-    const result = this.lookupMatrix(entityType, action, role, ownerStatus, sharingState);
-
-    if (!result) {
+    const matrixResult = this.lookupMatrix(entityType, action, role, ownerStatus, sharingState);
+    if (!matrixResult) {
       this.logger.debug(
-        `Access denied: user=${userId} entity=${entityType}/${entityId} action=${action} role=${role} owner=${ownerStatus} sharing=${sharingState}`
+        `Access denied (matrix): user=${userId} entity=${entityType}/${entityId} action=${action} role=${role} owner=${ownerStatus} sharing=${sharingState}`
       );
+      return false;
     }
 
-    return result;
+    // Stage 4: Context gate — only for shared non-owner access
+    const isOwner = ownerStatus !== OwnerStatus.NON_OWNER;
+    if (!isOwner && projectId) {
+      const roleScope = await this.contextAccessService.getRoleScope(userId, projectId);
+      if (roleScope === RoleScope.SELECTED_CONTEXTS) {
+        const hasOverlap = await this.contextAccessService.hasContextOverlap(
+          userId,
+          entityType,
+          entityId,
+          projectId
+        );
+        if (!hasOverlap) {
+          this.logger.debug(
+            `Access denied (context): user=${userId} entity=${entityType}/${entityId} no context overlap`
+          );
+          return false;
+        }
+      }
+    }
+
+    return true;
   }
 
   private lookupMatrix(

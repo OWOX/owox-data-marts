@@ -21,6 +21,21 @@ export interface DatabaseStore {
   clearUserPassword(userId: string): Promise<void>;
   revokeUserSessions(userId: string): Promise<void>;
 
+  /**
+   * Pre-provision a user record for a pending invitation. If a user with the
+   * given email already exists, returns that user's id unchanged (idempotent,
+   * so repeated invites and re-invitations do not create duplicates).
+   *
+   * The stub is created with `emailVerified = false`; Better Auth will flip it
+   * to `true` on the first successful magic-link verification. Callers must
+   * not rely on the presence of this row for authentication — it only exists
+   * so the application can attach authorization scope before sign-in.
+   *
+   * Returns `{ userId, created }` where `created` is true when a fresh row was
+   * inserted and false when the user already existed.
+   */
+  createUserStub(email: string, name?: string): Promise<{ userId: string; created: boolean }>;
+
   // Organization and roles
   defaultOrganizationExists(slug: string): Promise<boolean>;
   createDefaultOrganizationForUser(

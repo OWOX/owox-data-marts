@@ -1,5 +1,13 @@
 import { IdpProvider } from '../types/provider.js';
-import { AuthResult, Payload, Projects, ProjectMember } from '../types/models.js';
+import {
+  AuthResult,
+  Payload,
+  Projects,
+  ProjectMember,
+  ProjectMemberInvitation,
+  Role,
+} from '../types/models.js';
+import { IdpOperationNotSupportedError } from '../types/errors.js';
 import { Express, Request, Response, NextFunction } from 'express';
 
 /**
@@ -106,7 +114,69 @@ export class NullIdpProvider implements IdpProvider {
         hasNotificationsEnabled: true,
         isOutbound: false,
       },
+      {
+        userId: 'editor-1',
+        email: 'alice@localhost',
+        fullName: 'Alice Editor',
+        avatar: undefined,
+        projectRole: 'editor',
+        userStatus: 'active',
+        hasNotificationsEnabled: true,
+        isOutbound: false,
+      },
+      {
+        userId: 'editor-2',
+        email: 'bob@localhost',
+        fullName: 'Bob Editor',
+        avatar: undefined,
+        projectRole: 'editor',
+        userStatus: 'active',
+        hasNotificationsEnabled: true,
+        isOutbound: false,
+      },
+      {
+        userId: 'viewer-1',
+        email: 'carol@localhost',
+        fullName: 'Carol Viewer',
+        avatar: undefined,
+        projectRole: 'viewer',
+        userStatus: 'active',
+        hasNotificationsEnabled: true,
+        isOutbound: false,
+      },
+      {
+        userId: 'viewer-2',
+        email: 'dave@localhost',
+        fullName: 'Dave Viewer',
+        avatar: undefined,
+        projectRole: 'viewer',
+        userStatus: 'active',
+        hasNotificationsEnabled: true,
+        isOutbound: false,
+      },
     ];
+  }
+
+  async inviteMember(
+    _projectId: string,
+    _email: string,
+    _role: Role,
+    _actorUserId: string
+  ): Promise<ProjectMemberInvitation> {
+    throw new IdpOperationNotSupportedError('inviteMember');
+  }
+
+  async removeMember(_projectId: string, _userId: string, _actorUserId: string): Promise<void> {
+    throw new IdpOperationNotSupportedError('removeMember');
+  }
+
+  async changeMemberRole(
+    _projectId: string,
+    _userId: string,
+    _newRole: Role,
+    _actorUserId: string
+  ): Promise<void> {
+    throw new IdpOperationNotSupportedError('changeMemberRole');
   }
 
   /**
