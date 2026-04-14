@@ -70,7 +70,7 @@ export function SetupStepAccordion({ step, stepProgress, onClose }: SetupStepAcc
             <PartyPopper className='text-primary mb-0.5 size-6' />
             <p className='text-primary text-sm font-medium'>{step.successMessageTitle}</p>
             {step.successMessageDescription && (
-              <p className='text-muted-foreground text-sm'>{step.successMessageDescription}</p>
+              <p className='text-primary/50 text-sm'>{step.successMessageDescription}</p>
             )}
             {stepProgress.completedAt && (
               <p className='text-primary/50 text-xs'>{formatDateShort(stepProgress.completedAt)}</p>

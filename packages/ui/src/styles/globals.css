@@ -422,3 +422,50 @@
     opacity: 0.1;
   }
 }
+
+/* --- Party Animations --- */
+@keyframes party-cone {
+  0% {
+    transform: rotate(0deg) scale(1);
+  }
+  15% {
+    transform: rotate(-6deg) scale(0.92);
+  }
+  25% {
+    transform: rotate(4deg) scale(1.08);
+  }
+  35% {
+    transform: rotate(0deg) scale(1);
+  }
+  100% {
+    transform: rotate(0deg) scale(1);
+  }
+}
+
+@keyframes confetti-loop {
+  0% {
+    opacity: 0;
+    transform: translateY(0) scale(0.6) rotate(0deg);
+  }
+  20% {
+    opacity: 0;
+  }
+  30% {
+    opacity: 1;
+    transform: translateY(-4px) scale(1.1) rotate(8deg);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-2px) scale(1);
+  }
+}
+
+.animate-party-cone {
+  animation: party-cone 3s ease-in-out infinite;
+  transform-box: fill-box;
+  transform-origin: 20% 80%;
+}
+
+.animate-confetti-loop {
+  animation: confetti-loop 3s ease-in-out infinite;
+}

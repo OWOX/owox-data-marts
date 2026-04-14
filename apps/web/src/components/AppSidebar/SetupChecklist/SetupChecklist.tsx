@@ -1,9 +1,11 @@
 import { useEffect, useRef } from 'react';
 import { X } from 'lucide-react';
+import { cn } from '@owox/ui/lib/utils';
 import { trackEvent } from '../../../utils/data-layer';
 import { SetupGroupPopover } from './SetupGroupPopover';
 import type { SetupProgressResult } from './useSetupProgress';
 import type { SetupChecklistVisibility } from './useSetupChecklistVisibility';
+import { SetupChecklistCompleted } from './SetupChecklistCompleted';
 
 interface SetupChecklistProps {
   progressResult: SetupProgressResult;
@@ -61,16 +63,27 @@ export function SetupChecklist({ progressResult, visibility }: SetupChecklistPro
     hide();
   };
 
+  const isEmpty = percentage === 0;
+  const isCompleted = percentage === 100;
+
   return (
     <div className='relative z-0 mb-0.5 flex flex-col gap-1 rounded-md border shadow-sm'>
       {/* Header */}
-      <div className='bg-background flex flex-col gap-1 rounded-t-md'>
+      <div
+        className={cn('bg-background flex flex-col gap-1 rounded-t-md', isCompleted && 'border-b')}
+      >
         {/* Title */}
         <div className='flex items-start justify-between gap-2'>
           <div className='flex flex-col gap-0.5 py-2 pl-4'>
             <span className='text-sidebar-foreground text-sm font-semibold'>Get to know OWOX</span>
             <span className='text-muted-foreground text-xs'>
-              <span className='tabular-nums'>{percentage}%</span> completed
+              {isEmpty ? (
+                'Easy steps to get up and run'
+              ) : (
+                <>
+                  <span className='tabular-nums'>{percentage}%</span> completed
+                </>
+              )}
             </span>
           </div>
           <button
@@ -84,26 +97,31 @@ export function SetupChecklist({ progressResult, visibility }: SetupChecklistPro
         </div>
 
         {/* Progress bar */}
-        <div className='flex items-center gap-2'>
-          <div className='bg-sidebar-border h-1 flex-1 overflow-hidden'>
-            <div
-              className='bg-primary h-full transition-all duration-300'
-              style={{ width: `${String(Math.min(100, percentage))}%` }}
-            />
+        {!isCompleted && (
+          <div className='flex items-center gap-2'>
+            <div className='bg-sidebar-border h-1 flex-1 overflow-hidden'>
+              <div
+                className='bg-primary h-full transition-all duration-300'
+                style={{ width: `${String(Math.min(100, percentage))}%` }}
+              />
+            </div>
           </div>
-        </div>
+        )}
       </div>
 
-      {/* Groups */}
-      <div className='flex flex-col p-2'>
-        {groupProgresses.map(groupProgress => (
-          <SetupGroupPopover
-            key={groupProgress.group.id}
-            groupProgress={groupProgress}
-            progress={progress}
-          />
-        ))}
-      </div>
+      {isCompleted ? (
+        <SetupChecklistCompleted />
+      ) : (
+        <div className='flex flex-col p-2'>
+          {groupProgresses.map(groupProgress => (
+            <SetupGroupPopover
+              key={groupProgress.group.id}
+              groupProgress={groupProgress}
+              progress={progress}
+            />
+          ))}
+        </div>
+      )}
 
       {/* Pointer */}
       <div className='bg-sidebar pointer-events-none absolute -bottom-2 left-4 z-0 h-4 w-4 rotate-45 border-r border-b' />
