@@ -18,11 +18,23 @@ export class ListDataDestinationsService {
   ) {}
 
   async run(command: ListDataDestinationsCommand): Promise<DataDestinationDto[]> {
+    const isAdmin = command.roles.includes('admin');
+
     let qb = this.dataDestinationRepo
       .createQueryBuilder('d')
       .leftJoinAndSelect('d.owners', 'owners')
       .where('d.projectId = :projectId', { projectId: command.projectId })
       .andWhere('d.deletedAt IS NULL');
+
+    if (!isAdmin) {
+      // Non-admin: own + available_for_use + available_for_maintenance
+      qb = qb.andWhere(
+        `(EXISTS (SELECT 1 FROM destination_owners o WHERE o.destination_id = d.id AND o.user_id = :userId)
+          OR d.availableForUse = :isTrue
+          OR d.availableForMaintenance = :isTrue)`,
+        { userId: command.userId, isTrue: true }
+      );
+    }
 
     if (command.ownerFilter === OwnerFilter.HAS_OWNERS) {
       qb = qb.andWhere('EXISTS (SELECT 1 FROM destination_owners o WHERE o.destination_id = d.id)');

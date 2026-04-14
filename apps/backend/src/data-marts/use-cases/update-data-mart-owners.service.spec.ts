@@ -46,13 +46,18 @@ describe('UpdateDataMartOwnersService', () => {
       save: jest.fn().mockResolvedValue(undefined),
     };
 
+    const accessDecisionService = {
+      canAccess: jest.fn().mockResolvedValue(true),
+    };
+
     const service = new UpdateDataMartOwnersService(
       dataMartService as never,
       mapper as never,
       userProjectionsFetcherService as never,
       idpProjectionsFacade as never,
       businessOwnerRepository as never,
-      technicalOwnerRepository as never
+      technicalOwnerRepository as never,
+      accessDecisionService as never
     );
 
     return {
@@ -63,6 +68,7 @@ describe('UpdateDataMartOwnersService', () => {
       idpProjectionsFacade,
       businessOwnerRepository,
       technicalOwnerRepository,
+      accessDecisionService,
     };
   };
 
@@ -75,6 +81,22 @@ describe('UpdateDataMartOwnersService', () => {
     dm.technicalOwners = [];
     return Object.assign(dm, overrides);
   };
+
+  it('should throw ForbiddenException when user cannot manage owners', async () => {
+    const { service, dataMartService, accessDecisionService } = createService();
+    dataMartService.getByIdAndProjectId.mockResolvedValue(createDataMart());
+    accessDecisionService.canAccess.mockResolvedValue(false);
+
+    const command = new UpdateDataMartOwnersCommand(
+      'dm-1',
+      'proj-1',
+      ['user-1'],
+      ['user-2'],
+      'non-owner',
+      ['editor']
+    );
+    await expect(service.run(command)).rejects.toThrow('You cannot manage owners');
+  });
 
   it('should replace business and technical owners via join tables', async () => {
     const {

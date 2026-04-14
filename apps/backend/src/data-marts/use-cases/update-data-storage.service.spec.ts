@@ -136,6 +136,10 @@ describe('UpdateDataStorageService - credential copy (sourceStorageId)', () => {
       produceEvent: jest.fn().mockResolvedValue(undefined),
     };
 
+    const accessDecisionService = {
+      canAccess: jest.fn().mockResolvedValue(true),
+    };
+
     const service = new UpdateDataStorageService(
       dataStorageRepository as never,
       dataStorageService as never,
@@ -146,7 +150,8 @@ describe('UpdateDataStorageService - credential copy (sourceStorageId)', () => {
       userProjectionsFetcherService as never,
       idpProjectionsFacade as never,
       storageOwnerRepository as never,
-      producer as never
+      producer as never,
+      accessDecisionService as never
     );
 
     return {

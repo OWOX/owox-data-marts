@@ -34,6 +34,7 @@ import { useSchemaActualizeTrigger } from '../../shared/hooks/useSchemaActualize
 import { PromoStep, useDataMartNextStepPromo } from '../hooks/useDataMartNextStepPromo';
 import { useDataMart } from '../model';
 import NotFound from '../../../../pages/NotFound.tsx';
+import NoAccess from '../../../../pages/NoAccess.tsx';
 
 interface DataMartDetailsProps {
   id: string;
@@ -266,6 +267,10 @@ export function DataMartDetails({ id }: DataMartDetailsProps) {
 
   if (isLoading) {
     // TODO:: Add skeleton loading indicator
+  }
+
+  if (error?.statusCode === 403) {
+    return <NoAccess />;
   }
 
   if (error?.statusCode === 404) {

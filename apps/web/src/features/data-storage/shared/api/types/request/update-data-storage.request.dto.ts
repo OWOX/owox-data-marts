@@ -7,4 +7,6 @@ export interface UpdateDataStorageRequestDto {
   credentialId?: string | null;
   sourceStorageId?: string; // for credential copy
   ownerIds?: string[];
+  availableForUse?: boolean;
+  availableForMaintenance?: boolean;
 }

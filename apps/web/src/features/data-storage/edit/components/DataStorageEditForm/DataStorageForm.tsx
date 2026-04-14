@@ -14,6 +14,13 @@ import {
   FormSection,
 } from '@owox/ui/components/form';
 import { Input } from '@owox/ui/components/input';
+import { Switch } from '@owox/ui/components/switch';
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from '@owox/ui/components/accordion';
 import {
   Select,
   SelectContent,
@@ -101,6 +108,18 @@ export function DataStorageForm({
   const { ownerUsers, ownersDirty, handleOwnersChange, consumePendingOwnerIds } =
     useOwnerState(initialOwnerUsers);
 
+  const sharingInitial = initialData as
+    | { availableForUse?: boolean; availableForMaintenance?: boolean }
+    | undefined;
+  const [sharingState, setSharingState] = useState({
+    availableForUse: sharingInitial?.availableForUse ?? true,
+    availableForMaintenance: sharingInitial?.availableForMaintenance ?? true,
+  });
+
+  const sharingDirty =
+    sharingState.availableForUse !== (sharingInitial?.availableForUse ?? true) ||
+    sharingState.availableForMaintenance !== (sharingInitial?.availableForMaintenance ?? true);
+
   const [selectedSource, setSelectedSource] = useState<{
     id: string;
     title: string;
@@ -143,8 +162,8 @@ export function DataStorageForm({
   const storageId = initialData?.id;
 
   useEffect(() => {
-    onDirtyChange?.(isDirty || selectedSource !== null || ownersDirty);
-  }, [isDirty, selectedSource, ownersDirty, onDirtyChange]);
+    onDirtyChange?.(isDirty || selectedSource !== null || ownersDirty || sharingDirty);
+  }, [isDirty, selectedSource, ownersDirty, sharingDirty, onDirtyChange]);
 
   const copyCredentialCtx = useMemo(
     () => ({
@@ -169,6 +188,12 @@ export function DataStorageForm({
     const ownerIds = consumePendingOwnerIds();
     if (ownerIds !== null) {
       (payload as Record<string, unknown>).ownerIds = ownerIds;
+    }
+
+    if (sharingDirty) {
+      (payload as Record<string, unknown>).availableForUse = sharingState.availableForUse;
+      (payload as Record<string, unknown>).availableForMaintenance =
+        sharingState.availableForMaintenance;
     }
 
     await onSubmit(payload, selectedSource);
@@ -291,15 +316,76 @@ export function DataStorageForm({
             {selectedType === DataStorageType.DATABRICKS && <DatabricksFields form={form} />}
           </CopyCredentialContext.Provider>
 
-          <FormSection title='Ownership'>
+          <FormSection title='Ownership' defaultOpen={false} name='storage-ownership'>
             <FormItem>
               <FormLabel tooltip='Team members responsible for this storage'>Owners</FormLabel>
               <OwnersSection ownerUsers={ownerUsers} onSave={handleOwnersChange} />
             </FormItem>
           </FormSection>
 
+          {initialData?.id && (
+            <FormSection title='Availability' defaultOpen={false} name='storage-availability'>
+              <FormItem>
+                <div className='flex items-center justify-between gap-4'>
+                  <FormLabel>Available for use</FormLabel>
+                  <Switch
+                    checked={sharingState.availableForUse}
+                    onCheckedChange={v => {
+                      setSharingState(prev => ({ ...prev, availableForUse: v }));
+                    }}
+                  />
+                </div>
+                <p className='text-muted-foreground text-xs'>
+                  Technical users can use this storage when creating Data Marts
+                </p>
+                <Accordion variant='common' type='single' collapsible>
+                  <AccordionItem value='sharing-use-help'>
+                    <AccordionTrigger className='text-sm'>
+                      What does &quot;Available for use&quot; mean?
+                    </AccordionTrigger>
+                    <AccordionContent>
+                      <p className='text-muted-foreground text-sm'>
+                        When enabled, Technical Users who are not owners can select this storage
+                        when creating new Data Marts. Without this, only storage owners and admins
+                        can use it.
+                      </p>
+                    </AccordionContent>
+                  </AccordionItem>
+                </Accordion>
+              </FormItem>
+              <FormItem>
+                <div className='flex items-center justify-between gap-4'>
+                  <FormLabel>Available for maintenance</FormLabel>
+                  <Switch
+                    checked={sharingState.availableForMaintenance}
+                    onCheckedChange={v => {
+                      setSharingState(prev => ({ ...prev, availableForMaintenance: v }));
+                    }}
+                  />
+                </div>
+                <p className='text-muted-foreground text-xs'>
+                  Project members with access can copy credentials, edit, and delete this storage
+                </p>
+                <Accordion variant='common' type='single' collapsible>
+                  <AccordionItem value='sharing-maintenance-help'>
+                    <AccordionTrigger className='text-sm'>
+                      What does &quot;Available for maintenance&quot; mean?
+                    </AccordionTrigger>
+                    <AccordionContent>
+                      <p className='text-muted-foreground text-sm'>
+                        When enabled, project members can copy credentials from this storage, edit
+                        its configuration, and delete it. Without this, only owners and admins can
+                        perform these actions.
+                      </p>
+                    </AccordionContent>
+                  </AccordionItem>
+                </Accordion>
+              </FormItem>
+            </FormSection>
+          )}
+
           {initialData?.createdAt && (
-            <FormSection title='Details'>
+            <FormSection title='Details' defaultOpen={false} name='storage-details'>
               <FormItem>
                 <FormLabel>Created By</FormLabel>
                 <div className='text-sm'>
@@ -329,7 +415,9 @@ export function DataStorageForm({
             type='submit'
             className='w-full'
             aria-label='Save'
-            disabled={(!isDirty && !selectedSource && !ownersDirty) || isSubmitting}
+            disabled={
+              (!isDirty && !selectedSource && !ownersDirty && !sharingDirty) || isSubmitting
+            }
           >
             Save
           </Button>

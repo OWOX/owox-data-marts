@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, ForbiddenException, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Transactional } from 'typeorm-transactional';
@@ -13,22 +13,43 @@ import { DataMartMapper } from '../mappers/data-mart.mapper';
 import { DataMartService } from '../services/data-mart.service';
 import { DataStorageService } from '../services/data-storage.service';
 import { LegacyDataMartsService } from '../services/legacy-data-marts/legacy-data-marts.service';
+import { AccessDecisionService, EntityType, Action } from '../services/access-decision';
 
 const LEGACY_DATA_MART_INITIAL_QUERY = 'SELECT 1';
 
 @Injectable()
 export class CreateDataMartService {
+  private readonly logger = new Logger(CreateDataMartService.name);
+
   constructor(
     private readonly dataMartService: DataMartService,
     private readonly dataStorageService: DataStorageService,
     private readonly mapper: DataMartMapper,
     private readonly legacyDataMartService: LegacyDataMartsService,
     @InjectRepository(DataMartTechnicalOwner)
-    private readonly technicalOwnerRepository: Repository<DataMartTechnicalOwner>
+    private readonly technicalOwnerRepository: Repository<DataMartTechnicalOwner>,
+    private readonly accessDecisionService: AccessDecisionService
   ) {}
 
   @Transactional()
   async run(command: CreateDataMartCommand): Promise<DataMartDto> {
+    // Stage 3: verify user has USE access to the chosen Storage
+    if (command.roles.length > 0) {
+      const canUseStorage = await this.accessDecisionService.canAccess(
+        command.userId,
+        command.roles,
+        EntityType.STORAGE,
+        command.storageId,
+        Action.USE,
+        command.projectId
+      );
+      if (!canUseStorage) {
+        throw new ForbiddenException(
+          'You do not have access to use this Storage for creating a DataMart'
+        );
+      }
+    }
+
     const dataStorage = await this.dataStorageService.getByProjectIdAndId(
       command.projectId,
       command.storageId
@@ -50,6 +71,8 @@ export class CreateDataMartService {
       projectId: command.projectId,
       createdById: command.userId,
       storage: dataStorage,
+      availableForReporting: false,
+      availableForMaintenance: false,
       ...(isLegacyDataMart
         ? {
             id: legacyDataMartId,

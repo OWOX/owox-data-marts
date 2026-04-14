@@ -100,6 +100,7 @@ describe('Stage 2 Access Control (e2e)', () => {
       ]);
 
     // Setup prerequisites as admin: storage → data mart → publish → destination
+    // setupReportPrerequisites auto-shares all entities (Stage 3 compat)
     const prereqs = await setupReportPrerequisites(agent);
     dataMartId = prereqs.dataMartId;
     dataDestinationId = prereqs.dataDestinationId;

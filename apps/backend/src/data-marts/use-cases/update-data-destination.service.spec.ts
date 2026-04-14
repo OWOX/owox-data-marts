@@ -148,6 +148,10 @@ describe('UpdateDataDestinationService - credential copy (sourceDestinationId)',
       getProjectMembers: jest.fn().mockResolvedValue([]),
     };
 
+    const accessDecisionService = {
+      canAccess: jest.fn().mockResolvedValue(true),
+    };
+
     const service = new UpdateDataDestinationService(
       dataDestinationRepository as never,
       dataDestinationService as never,
@@ -160,7 +164,8 @@ describe('UpdateDataDestinationService - credential copy (sourceDestinationId)',
       copyCredentialService,
       userProjectionsFetcherService as never,
       idpProjectionsFacade as never,
-      destinationOwnerRepository as never
+      destinationOwnerRepository as never,
+      accessDecisionService as never
     );
 
     return {

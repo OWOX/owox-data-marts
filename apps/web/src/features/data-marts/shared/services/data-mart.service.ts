@@ -273,6 +273,18 @@ export class DataMartService extends ApiService {
   }
 
   /**
+   * Update data mart availability settings
+   * @param id Data mart ID
+   * @param data Availability settings
+   */
+  async updateDataMartAvailability(
+    id: string,
+    data: { availableForReporting: boolean; availableForMaintenance: boolean }
+  ): Promise<void> {
+    await this.put(`/${id}/availability`, data);
+  }
+
+  /**
    * Update data mart owners
    * @param id Data mart ID
    * @param data Owner IDs

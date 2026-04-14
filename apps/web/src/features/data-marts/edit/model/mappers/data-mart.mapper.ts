@@ -28,6 +28,8 @@ export async function mapDataMartFromDto(dataMartDto: DataMartResponseDto): Prom
     canPublish: false,
     canActualizeSchema: false,
     validationErrors: [],
+    availableForReporting: dataMartDto.availableForReporting,
+    availableForMaintenance: dataMartDto.availableForMaintenance,
   };
 
   dataMart.canActualizeSchema = canActualizeSchema(dataMart.definitionType, dataMart.schema);

@@ -42,8 +42,11 @@ test.describe('Storage Ownership', () => {
     await page.getByRole('menuitem', { name: 'Edit' }).click();
     await expect(page.getByTestId(TESTIDS.storageConfigSheet)).toBeVisible();
 
-    // Owners section should be visible in the form
+    // Expand the Ownership section (collapsed by default)
     const sheet = page.getByTestId(TESTIDS.storageConfigSheet);
+    await sheet.getByRole('button', { name: 'Ownership' }).click();
+
+    // Owners label should be visible inside the expanded section
     await expect(sheet.getByText('Owners', { exact: true })).toBeVisible();
   });
 
@@ -84,7 +87,10 @@ test.describe('Destination Ownership', () => {
     const sheet = page.getByTestId(TESTIDS.destEditSheet);
     await expect(sheet).toBeVisible();
 
-    // Owners label should be visible
+    // Expand the Ownership section (collapsed by default)
+    await sheet.getByRole('button', { name: 'Ownership' }).click();
+
+    // Owners label should be visible inside the expanded section
     await expect(sheet.getByText('Owners', { exact: true })).toBeVisible();
   });
 

@@ -50,7 +50,13 @@ export class DataMartService {
 
   async findByProjectIdForList(
     projectId: string,
-    options?: { limit?: number; offset?: number; ownerFilter?: OwnerFilter }
+    options?: {
+      limit?: number;
+      offset?: number;
+      ownerFilter?: OwnerFilter;
+      userId?: string;
+      roles?: string[];
+    }
   ): Promise<{ items: DataMart[]; total: number }> {
     const qb = this.dataMartRepository
       .createQueryBuilder('dm')
@@ -77,6 +83,30 @@ export class DataMartService {
       .setParameter('connectorDefinitionType', DataMartDefinitionType.CONNECTOR)
       .where('dm.projectId = :projectId', { projectId })
       .andWhere('dm.deletedAt IS NULL');
+
+    // Access filtering: non-admin sees only owned + shared
+    const isAdmin = options?.roles?.includes('admin');
+    if (!isAdmin && options?.userId) {
+      const isTu = options.roles?.includes('editor');
+      if (isTu) {
+        // TU: tech owner OR biz owner OR available_for_reporting OR available_for_maintenance
+        qb.andWhere(
+          `(EXISTS (SELECT 1 FROM data_mart_technical_owners t WHERE t.data_mart_id = dm.id AND t.user_id = :accessUserId)
+            OR EXISTS (SELECT 1 FROM data_mart_business_owners b WHERE b.data_mart_id = dm.id AND b.user_id = :accessUserId)
+            OR dm.availableForReporting = :isTrue
+            OR dm.availableForMaintenance = :isTrue)`,
+          { accessUserId: options.userId, isTrue: true }
+        );
+      } else {
+        // BU: biz owner OR available_for_reporting (+ available_for_both via reporting)
+        qb.andWhere(
+          `(EXISTS (SELECT 1 FROM data_mart_technical_owners t WHERE t.data_mart_id = dm.id AND t.user_id = :accessUserId)
+            OR EXISTS (SELECT 1 FROM data_mart_business_owners b WHERE b.data_mart_id = dm.id AND b.user_id = :accessUserId)
+            OR dm.availableForReporting = :isTrue)`,
+          { accessUserId: options.userId, isTrue: true }
+        );
+      }
+    }
 
     if (options?.ownerFilter === OwnerFilter.HAS_OWNERS) {
       qb.andWhere(

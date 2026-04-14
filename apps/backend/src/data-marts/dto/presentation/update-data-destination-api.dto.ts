@@ -7,6 +7,7 @@ import {
   IsOptional,
   IsUUID,
   IsArray,
+  IsBoolean,
 } from 'class-validator';
 import { DataDestinationCredentials } from '../../data-destination-types/data-destination-credentials.type';
 
@@ -51,4 +52,20 @@ export class UpdateDataDestinationApiDto {
   @IsString({ each: true })
   @IsNotEmpty({ each: true })
   ownerIds?: string[];
+
+  @ApiProperty({
+    required: false,
+    description: 'Whether this destination is available for use by project members',
+  })
+  @IsOptional()
+  @IsBoolean()
+  availableForUse?: boolean;
+
+  @ApiProperty({
+    required: false,
+    description: 'Whether this destination is available for maintenance by project members',
+  })
+  @IsOptional()
+  @IsBoolean()
+  availableForMaintenance?: boolean;
 }

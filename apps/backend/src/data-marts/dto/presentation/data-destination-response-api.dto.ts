@@ -56,4 +56,10 @@ export class DataDestinationResponseApiDto {
 
   @ApiProperty({ type: [UserProjectionDto] })
   ownerUsers: UserProjectionDto[];
+
+  @ApiProperty({ example: true })
+  availableForUse?: boolean;
+
+  @ApiProperty({ example: true })
+  availableForMaintenance?: boolean;
 }

@@ -62,6 +62,7 @@ export function DataDestinationConfigSheet({
           ...(ownerIds !== undefined && { ownerIds }),
         };
         const newDestination = await createDataDestination(createData);
+        handleFormSubmitSuccess();
         if (newDestination) {
           onSaveSuccess(newDestination);
         }
@@ -71,29 +72,37 @@ export function DataDestinationConfigSheet({
           ...(ownerIds !== undefined && { ownerIds }),
         };
         const newDestination = await createDataDestination(createData);
+        handleFormSubmitSuccess();
         if (newDestination) {
           onSaveSuccess(newDestination);
         }
       }
     } else {
-      const { ownerIds, ...formFields } = data as DataDestinationFormData & { ownerIds?: string[] };
+      const { ownerIds, availableForUse, availableForMaintenance, ...formFields } =
+        data as DataDestinationFormData & {
+          ownerIds?: string[];
+          availableForUse?: boolean;
+          availableForMaintenance?: boolean;
+        };
       const updateData = mapper.mapToUpdateRequest(formFields);
-      const requestWithOwners = ownerIds !== undefined ? { ...updateData, ownerIds } : updateData;
-      const updatedDestination = await updateDataDestination(
-        dataDestination.id,
-        requestWithOwners,
-        source
-      );
+      const requestWithExtras = {
+        ...updateData,
+        ...(ownerIds !== undefined && { ownerIds }),
+        ...(availableForUse !== undefined && { availableForUse }),
+        ...(availableForMaintenance !== undefined && { availableForMaintenance }),
+      };
+      const updatedDestination = await updateDataDestination(dataDestination.id, requestWithExtras);
+      handleFormSubmitSuccess();
       if (updatedDestination) {
         onSaveSuccess(updatedDestination);
       }
     }
-    handleFormSubmitSuccess();
   };
 
-  const wasOpenRef = useRef<boolean>(false);
+  const mode = dataDestination ? 'edit' : 'create';
+  const wasOpenRef = useRef(false);
+
   useEffect(() => {
-    const mode = dataDestination ? 'Edit' : 'Create';
     if (isOpen && !wasOpenRef.current) {
       trackEvent({
         event: 'data_destination_config_open',

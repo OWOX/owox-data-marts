@@ -44,6 +44,9 @@ import { UpdateDataMartDefinitionService } from '../use-cases/update-data-mart-d
 import { UpdateDataMartDescriptionService } from '../use-cases/update-data-mart-description.service';
 import { UpdateDataMartSchemaService } from '../use-cases/update-data-mart-schema.service';
 import { UpdateDataMartOwnersService } from '../use-cases/update-data-mart-owners.service';
+import { UpdateAvailabilityService } from '../use-cases/update-availability.service';
+import { UpdateDataMartAvailabilityApiDto } from '../dto/presentation/update-availability-api.dto';
+import { MemberOwnershipWarningsService } from '../services/member-ownership-warnings.service';
 import { UpdateDataMartTitleService } from '../use-cases/update-data-mart-title.service';
 import { ValidateDataMartDefinitionService } from '../use-cases/validate-data-mart-definition.service';
 import {
@@ -87,7 +90,9 @@ export class DataMartController {
     private readonly cancelDataMartRunService: CancelDataMartRunService,
     private readonly listDataMartsByConnectorNameService: ListDataMartsByConnectorNameService,
     private readonly batchDataMartHealthStatusService: BatchDataMartHealthStatusService,
-    private readonly updateOwnersService: UpdateDataMartOwnersService
+    private readonly updateOwnersService: UpdateDataMartOwnersService,
+    private readonly updateAvailabilityService: UpdateAvailabilityService,
+    private readonly memberOwnershipWarningsService: MemberOwnershipWarningsService
   ) {}
 
   @Auth(Role.editor(Strategy.INTROSPECT))
@@ -126,6 +131,12 @@ export class DataMartController {
     const command = this.mapper.toListDataMartsByConnectorNameCommand(connectorName, context);
     const dataMarts = await this.listDataMartsByConnectorNameService.run(command);
     return this.mapper.toResponseList(dataMarts);
+  }
+
+  @Auth(Role.admin(Strategy.INTROSPECT))
+  @Get('member-ownership-warnings')
+  async getMemberOwnershipWarnings(@AuthContext() context: AuthorizationContext) {
+    return this.memberOwnershipWarningsService.getWarnings(context.projectId);
   }
 
   @Auth(Role.viewer(Strategy.PARSE))
@@ -304,5 +315,23 @@ export class DataMartController {
     const command = this.mapper.toBatchHealthStatusCommand(context, dto);
     const domainDto = await this.batchDataMartHealthStatusService.run(command);
     return this.mapper.toBatchHealthStatusResponse(domainDto);
+  }
+
+  @Auth(Role.viewer(Strategy.INTROSPECT))
+  @Put(':id/availability')
+  @HttpCode(204)
+  async updateAvailability(
+    @AuthContext() context: AuthorizationContext,
+    @Param('id') id: string,
+    @Body() dto: UpdateDataMartAvailabilityApiDto
+  ): Promise<void> {
+    await this.updateAvailabilityService.updateDataMartSharing(
+      id,
+      context.projectId,
+      context.userId,
+      context.roles ?? [],
+      dto.availableForReporting,
+      dto.availableForMaintenance
+    );
   }
 }
