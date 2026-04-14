@@ -148,11 +148,12 @@ export class ProjectSetupProgressService {
   }
 
   async resolveProjectIdByDataMartId(dataMartId: string): Promise<string | null> {
-    const dataMart = await this.dataMartRepository.findOne({
-      where: { id: dataMartId },
-      select: ['projectId'],
-    });
-    return dataMart?.projectId ?? null;
+    const row = await this.dataMartRepository
+      .createQueryBuilder('dm')
+      .select('dm.projectId', 'projectId')
+      .where('dm.id = :dataMartId', { dataMartId })
+      .getRawOne<{ projectId: string }>();
+    return row?.projectId ?? null;
   }
 
   // ── Project-level progress ──
