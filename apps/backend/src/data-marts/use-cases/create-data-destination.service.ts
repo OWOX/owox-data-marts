@@ -1,12 +1,14 @@
 import { AvailableDestinationTypesService } from '../data-destination-types/available-destination-types.service';
 import { CreateDataDestinationCommand } from '../dto/domain/create-data-destination.command';
 import { Repository } from 'typeorm';
-import { Transactional } from 'typeorm-transactional';
+import { Transactional, runOnTransactionCommit } from 'typeorm-transactional';
 import { DataDestination } from '../entities/data-destination.entity';
 import { InjectRepository } from '@nestjs/typeorm';
 import { BadRequestException, Injectable, Logger } from '@nestjs/common';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { DataDestinationDto } from '../dto/domain/data-destination.dto';
 import { DataDestinationMapper } from '../mappers/data-destination.mapper';
+import { DataDestinationCreatedEvent } from '../events/data-destination-created.event';
 import { DataDestinationCredentialsValidatorFacade } from '../data-destination-types/facades/data-destination-credentials-validator.facade';
 import { DataDestinationCredentialsProcessorFacade } from '../data-destination-types/facades/data-destination-credentials-processor.facade';
 import { DataDestinationCredentialService } from '../services/data-destination-credential.service';
@@ -44,7 +46,8 @@ export class CreateDataDestinationService {
     @InjectRepository(DestinationOwner)
     private readonly destinationOwnerRepository: Repository<DestinationOwner>,
     private readonly idpProjectionsFacade: IdpProjectionsFacade,
-    private readonly accessDecisionService: AccessDecisionService
+    private readonly accessDecisionService: AccessDecisionService,
+    private readonly eventEmitter: EventEmitter2
   ) {}
 
   @Transactional()
@@ -181,6 +184,13 @@ export class CreateDataDestinationService {
     savedEntity: DataDestination,
     command: CreateDataDestinationCommand
   ): Promise<DataDestinationDto> {
+    runOnTransactionCommit(() => {
+      this.eventEmitter.emit(
+        'data-destination.created',
+        new DataDestinationCreatedEvent(savedEntity.id, command.projectId, command.userId)
+      );
+    });
+
     const ownerIdsToSave = command.ownerIds ?? [command.userId];
     await syncOwners(
       this.destinationOwnerRepository,

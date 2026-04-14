@@ -1,6 +1,7 @@
 jest.mock('typeorm-transactional', () => ({
   Transactional: () => (_target: unknown, _key: string, descriptor: PropertyDescriptor) =>
     descriptor,
+  runOnTransactionCommit: (fn: () => void) => fn(),
 }));
 
 jest.mock('../services/user-projections-fetcher.service', () => ({
@@ -43,12 +44,15 @@ describe('CreateDataStorageService', () => {
     };
     const idpProjectionsFacade = {};
 
+    const eventEmitter = { emit: jest.fn() };
+
     const service = new CreateDataStorageService(
       dataStorageRepository as never,
       storageOwnerRepository as never,
       dataStorageMapper as never,
       userProjectionsFetcherService as never,
-      idpProjectionsFacade as never
+      idpProjectionsFacade as never,
+      eventEmitter as never
     );
 
     return { service, dataStorageRepository, storageOwnerRepository, idpProjectionsFacade };

@@ -1,18 +1,9 @@
+import { useState, useEffect, useCallback } from 'react';
 import type { GroupProgress, ProjectSetupProgress } from './types';
 import { SETUP_GROUPS, SETUP_STEPS } from './items';
 import { GroupStatusType, type GroupStatus } from './types';
-
-// Phase 1: mock data matching the API contract.
-// Phase 3: replace with useState + useEffect + real API call to GET /api/project-setup-progress.
-const MOCK_PROGRESS: ProjectSetupProgress = {
-  hasStorage: { done: true, completedAt: new Date().toISOString() },
-  hasDraftDataMart: { done: true, completedAt: new Date().toISOString() },
-  hasPublishedDataMart: { done: false, completedAt: null },
-  hasDestination: { done: false, completedAt: null },
-  hasReport: { done: false, completedAt: null },
-  hasReportRun: { done: false, completedAt: null },
-  hasTeammatesInvited: { done: false, completedAt: null },
-};
+import { useProjectId } from '../../../shared/hooks/useProjectId';
+import { setupProgressService } from './setup-progress.service';
 
 export interface SetupProgressResult {
   progress: ProjectSetupProgress;
@@ -23,7 +14,18 @@ export interface SetupProgressResult {
   isLoading: boolean;
   isAllComplete: boolean;
   groupProgresses: GroupProgress[];
+  refetch: () => void;
 }
+
+const EMPTY_PROGRESS: ProjectSetupProgress = {
+  hasStorage: { done: false, completedAt: null },
+  hasDraftDataMart: { done: false, completedAt: null },
+  hasPublishedDataMart: { done: false, completedAt: null },
+  hasDestination: { done: false, completedAt: null },
+  hasReport: { done: false, completedAt: null },
+  hasReportRun: { done: false, completedAt: null },
+  hasTeammatesInvited: { done: false, completedAt: null },
+};
 
 function calculateGroupProgress(progress: ProjectSetupProgress): GroupProgress[] {
   return SETUP_GROUPS.map(group => {
@@ -41,7 +43,6 @@ function calculateGroupProgress(progress: ProjectSetupProgress): GroupProgress[]
       status = GroupStatusType.IN_PROGRESS;
     }
 
-    // Calculate completedAt as max of all step completion dates (for 'done' status)
     let completedAt: string | null = null;
     if (status === GroupStatusType.DONE) {
       const dates = completedSteps
@@ -63,8 +64,29 @@ function calculateGroupProgress(progress: ProjectSetupProgress): GroupProgress[]
 }
 
 export function useSetupProgress(): SetupProgressResult {
-  const progress = MOCK_PROGRESS;
-  const isLoading = false;
+  const projectId = useProjectId();
+  const [progress, setProgress] = useState<ProjectSetupProgress>(EMPTY_PROGRESS);
+  const [isLoading, setIsLoading] = useState(true);
+
+  const fetchProgress = useCallback(async () => {
+    if (!projectId) {
+      setIsLoading(false);
+      return;
+    }
+
+    try {
+      const response = await setupProgressService.getProgress();
+      setProgress(response.steps);
+    } catch {
+      // Silently fail — show empty progress rather than breaking the sidebar
+    } finally {
+      setIsLoading(false);
+    }
+  }, [projectId]);
+
+  useEffect(() => {
+    void fetchProgress();
+  }, [fetchProgress]);
 
   const completedStepIds = SETUP_STEPS.filter(step => progress[step.progressKey].done).map(
     step => step.id
@@ -83,5 +105,6 @@ export function useSetupProgress(): SetupProgressResult {
     isLoading,
     isAllComplete: completedCount === totalCount,
     groupProgresses,
+    refetch: () => void fetchProgress(),
   };
 }

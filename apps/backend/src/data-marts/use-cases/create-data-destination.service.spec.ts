@@ -1,6 +1,7 @@
 jest.mock('typeorm-transactional', () => ({
   Transactional: () => (_target: unknown, _key: string, descriptor: PropertyDescriptor) =>
     descriptor,
+  runOnTransactionCommit: (fn: () => void) => fn(),
 }));
 
 jest.mock('../services/user-projections-fetcher.service', () => ({
@@ -89,6 +90,8 @@ describe('CreateDataDestinationService', () => {
       canAccess: jest.fn().mockResolvedValue(true),
     };
 
+    const eventEmitter = { emit: jest.fn() };
+
     const service = new CreateDataDestinationService(
       repository as never,
       mapper as never,
@@ -102,7 +105,8 @@ describe('CreateDataDestinationService', () => {
       userProjectionsFetcherService as never,
       destinationOwnerRepository as never,
       idpProjectionsFacade as never,
-      accessDecisionService as never
+      accessDecisionService as never,
+      eventEmitter as never
     );
 
     return { service };

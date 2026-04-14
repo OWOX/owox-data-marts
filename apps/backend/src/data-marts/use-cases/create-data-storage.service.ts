@@ -1,13 +1,15 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { Repository } from 'typeorm';
-import { Transactional } from 'typeorm-transactional';
+import { Transactional, runOnTransactionCommit } from 'typeorm-transactional';
 import { BusinessViolationException } from '../../common/exceptions/business-violation.exception';
 import { DataStorageType } from '../data-storage-types/enums/data-storage-type.enum';
 import { CreateDataStorageCommand } from '../dto/domain/create-data-storage.command';
 import { DataStorageDto } from '../dto/domain/data-storage.dto';
 import { DataStorage } from '../entities/data-storage.entity';
 import { StorageOwner } from '../entities/storage-owner.entity';
+import { DataStorageCreatedEvent } from '../events/data-storage-created.event';
 import { DataStorageMapper } from '../mappers/data-storage.mapper';
 import { UserProjectionsFetcherService } from '../services/user-projections-fetcher.service';
 import { syncOwners } from '../utils/sync-owners';
@@ -25,7 +27,8 @@ export class CreateDataStorageService {
     private readonly storageOwnerRepository: Repository<StorageOwner>,
     private readonly dataStorageMapper: DataStorageMapper,
     private readonly userProjectionsFetcherService: UserProjectionsFetcherService,
-    private readonly idpProjectionsFacade: IdpProjectionsFacade
+    private readonly idpProjectionsFacade: IdpProjectionsFacade,
+    private readonly eventEmitter: EventEmitter2
   ) {}
 
   @Transactional()
@@ -45,6 +48,13 @@ export class CreateDataStorageService {
     });
 
     const savedEntity = await this.dataStorageRepository.save(entity);
+
+    runOnTransactionCommit(() => {
+      this.eventEmitter.emit(
+        'data-storage.created',
+        new DataStorageCreatedEvent(savedEntity.id, command.projectId, command.userId)
+      );
+    });
 
     const ownerIdsToSave = command.ownerIds ?? [command.userId];
     await syncOwners(

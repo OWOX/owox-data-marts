@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { SystemTimeService } from '../../common/scheduler/services/system-time.service';
@@ -89,7 +90,8 @@ export class DataMartRunService {
   constructor(
     @InjectRepository(DataMartRun)
     private readonly dataMartRunRepository: Repository<DataMartRun>,
-    private readonly systemClock: SystemTimeService
+    private readonly systemClock: SystemTimeService,
+    private readonly eventEmitter: EventEmitter2
   ) {}
 
   /**
@@ -244,6 +246,14 @@ export class DataMartRunService {
     dataMartRun.finishedAt = this.systemClock.now();
 
     await this.dataMartRunRepository.save(dataMartRun);
+
+    if (dataMartRun.status === DataMartRunStatus.SUCCESS && dataMartRun.reportId) {
+      this.eventEmitter.emit('report-run.completed.successfully', {
+        dataMartRunId: dataMartRun.id,
+        dataMartId: dataMartRun.dataMartId,
+        userId: dataMartRun.createdById,
+      });
+    }
   }
 
   /**

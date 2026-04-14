@@ -296,6 +296,11 @@ import { ConnectorRunTriggerHandlerService } from './services/connector/connecto
 import { ReportRunTrigger } from './entities/report-run-trigger.entity';
 import { ReportRunTriggerService } from './services/report-run-trigger.service';
 import { ReportRunTriggerHandlerService } from './services/report-run-trigger-handler.service';
+import { ProjectSetupProgress } from './entities/project-setup-progress.entity';
+import { ProjectSetupUserProgress } from './entities/project-setup-user-progress.entity';
+import { ProjectSetupProgressService } from './services/project-setup-progress.service';
+import { ProjectSetupProgressListenerService } from './services/project-setup-progress-listener.service';
+import { ProjectSetupProgressController } from './controllers/project-setup-progress.controller';
 
 @Module({
   imports: [
@@ -335,6 +340,8 @@ import { ReportRunTriggerHandlerService } from './services/report-run-trigger-ha
       AiAssistantApplyAction,
       ConnectorRunTrigger,
       ReportRunTrigger,
+      ProjectSetupProgress,
+      ProjectSetupUserProgress,
     ]),
     CommonModule,
     IdpModule,
@@ -360,6 +367,7 @@ import { ReportRunTriggerHandlerService } from './services/report-run-trigger-ha
     InsightTemplateRunTriggerController,
     MarkdownParserController,
     LegacyDataMartsSyncController,
+    ProjectSetupProgressController,
   ],
   providers: [
     ...dataStorageResolverProviders,
@@ -601,6 +609,8 @@ import { ReportRunTriggerHandlerService } from './services/report-run-trigger-ha
     GetDestinationOAuthCredentialStatusService,
     GenerateDestinationOAuthUrlService,
     RevokeDestinationOAuthService,
+    ProjectSetupProgressService,
+    ProjectSetupProgressListenerService,
   ],
 })
 export class DataMartsModule {
