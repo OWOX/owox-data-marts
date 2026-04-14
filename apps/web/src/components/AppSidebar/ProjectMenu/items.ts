@@ -1,15 +1,6 @@
 import type { ProjectMenuItem } from './types';
 import { GitHubIcon, OWOXBIIcon } from '../../../shared';
-import {
-  Gem,
-  BadgeAlert,
-  Scale,
-  MessageCircle,
-  Settings,
-  BriefcaseBusiness,
-  Users,
-  Bell,
-} from 'lucide-react';
+import { Gem, BadgeAlert, Scale, MessageCircle, Settings } from 'lucide-react';
 
 export const projectMenuItems: ProjectMenuItem[] = [
   {
@@ -31,48 +22,8 @@ export const projectMenuItems: ProjectMenuItem[] = [
   {
     type: 'menu-item',
     title: 'Project settings',
-    href: 'https://platform.owox.com/ui/p/none/settings/general',
+    href: '/project-settings',
     icon: Settings,
-    visible: { flagKey: 'IDP_PROVIDER', expectedValue: ['owox-better-auth'] },
-    group: 'project',
-  },
-  {
-    type: 'menu-item',
-    title: 'Credits consumption',
-    href: 'https://platform.owox.com/ui/p/none/settings/consumption',
-    icon: Gem,
-    visible: { flagKey: 'IDP_PROVIDER', expectedValue: ['owox-better-auth'] },
-    group: 'project',
-  },
-  {
-    type: 'menu-item',
-    title: 'Subscription',
-    href: 'https://platform.owox.com/ui/p/none/settings/subscription',
-    icon: BriefcaseBusiness,
-    visible: { flagKey: 'IDP_PROVIDER', expectedValue: ['owox-better-auth'] },
-    group: 'project',
-  },
-  {
-    type: 'menu-item',
-    title: 'Members',
-    href: 'https://platform.owox.com/ui/p/none/settings/members',
-    icon: Users,
-    visible: { flagKey: 'IDP_PROVIDER', expectedValue: ['owox-better-auth'] },
-    group: 'project',
-  },
-  {
-    type: 'menu-item',
-    title: 'Members',
-    href: '/auth',
-    icon: Users,
-    visible: { flagKey: 'IDP_PROVIDER', expectedValue: 'better-auth' },
-    group: 'project',
-  },
-  {
-    type: 'menu-item',
-    title: 'Notification settings',
-    href: '/notifications',
-    icon: Bell,
     visible: true,
     group: 'project',
     internal: true,

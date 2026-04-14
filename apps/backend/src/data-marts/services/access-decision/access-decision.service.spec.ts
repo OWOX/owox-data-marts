@@ -5,6 +5,8 @@ jest.mock('../../../idp/facades/idp-projections.facade', () => ({
 import { AccessDecisionService } from './access-decision.service';
 import { ACCESS_MATRIX } from './access-matrix.config';
 import { EntityType, OwnerStatus, SharingState } from './access-decision.types';
+import { ContextAccessService } from '../context/context-access.service';
+import { RoleScope } from '../../enums/role-scope.enum';
 
 describe('AccessDecisionService', () => {
   const createService = () => {
@@ -36,6 +38,11 @@ describe('AccessDecisionService', () => {
       findOne: jest.fn(),
     };
 
+    const contextAccessService = {
+      getRoleScope: jest.fn().mockResolvedValue(RoleScope.ENTIRE_PROJECT),
+      hasContextOverlap: jest.fn().mockResolvedValue(true),
+    };
+
     const service = new AccessDecisionService(
       dataMartRepository as never,
       dataStorageRepository as never,
@@ -45,7 +52,8 @@ describe('AccessDecisionService', () => {
       storageOwnerRepository as never,
       destinationOwnerRepository as never,
       reportOwnerRepository as never,
-      reportRepository as never
+      reportRepository as never,
+      contextAccessService as unknown as ContextAccessService
     );
 
     return {
@@ -59,6 +67,7 @@ describe('AccessDecisionService', () => {
       destinationOwnerRepository,
       reportOwnerRepository,
       reportRepository,
+      contextAccessService,
     };
   };
 

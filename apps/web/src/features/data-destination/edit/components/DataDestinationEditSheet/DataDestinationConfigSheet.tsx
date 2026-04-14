@@ -78,11 +78,12 @@ export function DataDestinationConfigSheet({
         }
       }
     } else {
-      const { ownerIds, availableForUse, availableForMaintenance, ...formFields } =
+      const { ownerIds, availableForUse, availableForMaintenance, contextIds, ...formFields } =
         data as DataDestinationFormData & {
           ownerIds?: string[];
           availableForUse?: boolean;
           availableForMaintenance?: boolean;
+          contextIds?: string[];
         };
       const updateData = mapper.mapToUpdateRequest(formFields);
       const requestWithExtras = {
@@ -90,6 +91,7 @@ export function DataDestinationConfigSheet({
         ...(ownerIds !== undefined && { ownerIds }),
         ...(availableForUse !== undefined && { availableForUse }),
         ...(availableForMaintenance !== undefined && { availableForMaintenance }),
+        ...(contextIds !== undefined && { contextIds }),
       };
       const updatedDestination = await updateDataDestination(dataDestination.id, requestWithExtras);
       handleFormSubmitSuccess();

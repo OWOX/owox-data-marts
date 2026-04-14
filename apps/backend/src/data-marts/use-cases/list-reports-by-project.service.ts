@@ -6,6 +6,7 @@ import { ReportMapper } from '../mappers/report.mapper';
 import { ListReportsByProjectCommand } from '../dto/domain/list-reports-by-project.command';
 import { ReportDto } from '../dto/domain/report.dto';
 import { OwnerFilter } from '../enums/owner-filter.enum';
+import { ContextAccessService } from '../services/context/context-access.service';
 import { UserProjectionsFetcherService } from '../services/user-projections-fetcher.service';
 
 @Injectable()
@@ -14,12 +15,16 @@ export class ListReportsByProjectService {
     @InjectRepository(Report)
     private readonly reportRepository: Repository<Report>,
     private readonly mapper: ReportMapper,
-    private readonly userProjectionsFetcherService: UserProjectionsFetcherService
+    private readonly userProjectionsFetcherService: UserProjectionsFetcherService,
+    private readonly contextAccessService: ContextAccessService
   ) {}
 
   async run(command: ListReportsByProjectCommand): Promise<ReportDto[]> {
     const isAdmin = command.roles.includes('admin');
     const isTu = command.roles.includes('editor') || isAdmin;
+    const roleScope = isAdmin
+      ? 'entire_project'
+      : await this.contextAccessService.getRoleScope(command.userId, command.projectId);
 
     // Get all data reports for the project — filtered by DM visibility
     let qb = this.reportRepository
@@ -35,18 +40,43 @@ export class ListReportsByProjectService {
     if (!isAdmin) {
       if (isTu) {
         qb = qb.andWhere(
-          `(EXISTS (SELECT 1 FROM data_mart_technical_owners t WHERE t.data_mart_id = dataMart.id AND t.user_id = :userId)
+          `(
+            EXISTS (SELECT 1 FROM data_mart_technical_owners t WHERE t.data_mart_id = dataMart.id AND t.user_id = :userId)
             OR EXISTS (SELECT 1 FROM data_mart_business_owners b WHERE b.data_mart_id = dataMart.id AND b.user_id = :userId)
-            OR dataMart.availableForReporting = :isTrue
-            OR dataMart.availableForMaintenance = :isTrue)`,
-          { userId: command.userId, isTrue: true }
+            OR (
+              (dataMart.availableForReporting = :isTrue OR dataMart.availableForMaintenance = :isTrue)
+              AND (
+                :roleScope = 'entire_project'
+                OR EXISTS (
+                  SELECT 1 FROM data_mart_contexts dmc
+                  JOIN member_role_contexts mrc ON mrc.context_id = dmc.context_id
+                  WHERE dmc.data_mart_id = dataMart.id
+                  AND mrc.user_id = :userId AND mrc.project_id = :projectId
+                )
+              )
+            )
+          )`,
+          { userId: command.userId, isTrue: true, roleScope, projectId: command.projectId }
         );
       } else {
         qb = qb.andWhere(
-          `(EXISTS (SELECT 1 FROM data_mart_technical_owners t WHERE t.data_mart_id = dataMart.id AND t.user_id = :userId)
+          `(
+            EXISTS (SELECT 1 FROM data_mart_technical_owners t WHERE t.data_mart_id = dataMart.id AND t.user_id = :userId)
             OR EXISTS (SELECT 1 FROM data_mart_business_owners b WHERE b.data_mart_id = dataMart.id AND b.user_id = :userId)
-            OR dataMart.availableForReporting = :isTrue)`,
-          { userId: command.userId, isTrue: true }
+            OR (
+              dataMart.availableForReporting = :isTrue
+              AND (
+                :roleScope = 'entire_project'
+                OR EXISTS (
+                  SELECT 1 FROM data_mart_contexts dmc
+                  JOIN member_role_contexts mrc ON mrc.context_id = dmc.context_id
+                  WHERE dmc.data_mart_id = dataMart.id
+                  AND mrc.user_id = :userId AND mrc.project_id = :projectId
+                )
+              )
+            )
+          )`,
+          { userId: command.userId, isTrue: true, roleScope, projectId: command.projectId }
         );
       }
     }

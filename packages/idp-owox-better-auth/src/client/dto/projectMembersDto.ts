@@ -25,3 +25,15 @@ export const OwoxProjectMembersResponseSchema = z.object({
 });
 
 export type OwoxProjectMembersResponse = z.infer<typeof OwoxProjectMembersResponseSchema>;
+
+/**
+ * Response from the remote Identity OWOX API for invite. Mirrors the Java
+ * `InviteProjectMemberResponseDto`: the server confirms by returning the
+ * freshly provisioned (or already-existing) user uid. Email delivery and
+ * business validations all happen server-side; nothing else is echoed back.
+ */
+export const OwoxInviteProjectMemberResponseSchema = z.object({
+  userUid: z.string().min(1),
+});
+
+export type OwoxInviteProjectMemberResponse = z.infer<typeof OwoxInviteProjectMemberResponseSchema>;

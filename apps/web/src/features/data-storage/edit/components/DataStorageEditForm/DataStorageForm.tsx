@@ -33,9 +33,14 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import type { CredentialIdentity } from '../../../../../shared/types/credential-identity';
 import { OwnersSection } from '../../../../../shared/components/OwnersSection/OwnersSection';
+import { ContextPicker } from '../../../../../features/contexts/components/ContextPicker/ContextPicker';
+import { AddContextSheet } from '../../../../../features/contexts/components/AddContextSheet/AddContextSheet';
+import { contextService } from '../../../../../features/contexts/services/context.service';
+import type { MemberWithScopeDto } from '../../../../../features/contexts/types/context.types';
 import type { UserProjectionDto } from '../../../../../shared/types/api';
 import { useOwnerState } from '../../../../../shared/hooks/useOwnerState';
 import { useUser } from '../../../../idp/hooks/useAuthState';
+import { useIsAdmin } from '../../../../idp/hooks/useRole';
 import type { UserProjection } from '../../../../../shared/types';
 import { UserReference } from '../../../../../shared/components/UserReference/UserReference';
 import { CopyCredentialContext } from '../../model/context/copy-credential-context';
@@ -72,6 +77,7 @@ interface DataStorageFormProps {
     ownerUsers?: UserProjection[];
     createdAt?: Date;
     createdByUser?: UserProjection | null;
+    contexts?: { id: string; name: string }[];
   };
   onSubmit: (
     data: DataStorageFormData,
@@ -120,6 +126,31 @@ export function DataStorageForm({
     sharingState.availableForUse !== (sharingInitial?.availableForUse ?? true) ||
     sharingState.availableForMaintenance !== (sharingInitial?.availableForMaintenance ?? true);
 
+  const initialContextIds = (initialData?.contexts ?? []).map(c => c.id);
+  const [contextIds, setContextIds] = useState<string[]>(initialContextIds);
+  const contextsDirty =
+    contextIds.length !== initialContextIds.length ||
+    contextIds.some(id => !initialContextIds.includes(id));
+
+  const isAdmin = useIsAdmin();
+  const [addContextOpen, setAddContextOpen] = useState(false);
+  const [contextsRefreshToken, setContextsRefreshToken] = useState(0);
+  // Lazy: fetch members list only when the inner AddContextSheet is opened so
+  // admins can optionally assign members to the freshly created context
+  // without leaving this flow. Refetch on every open in case the project
+  // member roster changed since last time the storage sheet was opened.
+  const [contextMembers, setContextMembers] = useState<MemberWithScopeDto[]>([]);
+  useEffect(() => {
+    if (!addContextOpen) return;
+    let cancelled = false;
+    void contextService.getMembers().then(list => {
+      if (!cancelled) setContextMembers(list);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [addContextOpen]);
+
   const [selectedSource, setSelectedSource] = useState<{
     id: string;
     title: string;
@@ -162,8 +193,10 @@ export function DataStorageForm({
   const storageId = initialData?.id;
 
   useEffect(() => {
-    onDirtyChange?.(isDirty || selectedSource !== null || ownersDirty || sharingDirty);
-  }, [isDirty, selectedSource, ownersDirty, sharingDirty, onDirtyChange]);
+    onDirtyChange?.(
+      isDirty || selectedSource !== null || ownersDirty || sharingDirty || contextsDirty
+    );
+  }, [isDirty, selectedSource, ownersDirty, sharingDirty, contextsDirty, onDirtyChange]);
 
   const copyCredentialCtx = useMemo(
     () => ({
@@ -194,6 +227,10 @@ export function DataStorageForm({
       (payload as Record<string, unknown>).availableForUse = sharingState.availableForUse;
       (payload as Record<string, unknown>).availableForMaintenance =
         sharingState.availableForMaintenance;
+    }
+
+    if (contextsDirty) {
+      (payload as Record<string, unknown>).contextIds = contextIds;
     }
 
     await onSubmit(payload, selectedSource);
@@ -320,8 +357,59 @@ export function DataStorageForm({
             <FormItem>
               <FormLabel tooltip='Team members responsible for this storage'>Owners</FormLabel>
               <OwnersSection ownerUsers={ownerUsers} onSave={handleOwnersChange} />
+              <Accordion variant='common' type='single' collapsible>
+                <AccordionItem value='storage-owners-help'>
+                  <AccordionTrigger className='text-sm'>What is a Storage Owner?</AccordionTrigger>
+                  <AccordionContent>
+                    <p className='text-muted-foreground text-sm'>
+                      Storage Owner is direct technical ownership of this Storage. When the
+                      owner&apos;s role is Technical User or Project Admin, they may view, edit,
+                      delete, configure Availability, and copy credentials from this Storage —
+                      regardless of Availability settings. Assigning Owner to a Business User stores
+                      the assignment but grants no maintenance permissions until the role changes.
+                    </p>
+                  </AccordionContent>
+                </AccordionItem>
+              </Accordion>
             </FormItem>
           </FormSection>
+
+          {storageId && (
+            <FormSection title='Contexts' defaultOpen={false} name='storage-contexts'>
+              <FormItem>
+                <FormLabel tooltip='Business domain contexts assigned to this storage'>
+                  Assigned
+                </FormLabel>
+                <ContextPicker
+                  selectedContextIds={contextIds}
+                  onChange={setContextIds}
+                  idPrefix='storage-ctx'
+                  refreshToken={contextsRefreshToken}
+                  onRequestCreate={
+                    isAdmin
+                      ? () => {
+                          setAddContextOpen(true);
+                        }
+                      : undefined
+                  }
+                />
+                <Accordion variant='common' type='single' collapsible>
+                  <AccordionItem value='storage-contexts-help'>
+                    <AccordionTrigger className='text-sm'>What are Contexts?</AccordionTrigger>
+                    <AccordionContent>
+                      <p className='text-muted-foreground text-sm'>
+                        Contexts are business domains (e.g. Marketing, Finance, Sales) used to group
+                        Storages, Destinations and Data Marts. They also control access: a member
+                        whose role scope is limited to specific contexts will only see resources
+                        assigned to those contexts. Assign one or more contexts to make this Storage
+                        discoverable to the right people.
+                      </p>
+                    </AccordionContent>
+                  </AccordionItem>
+                </Accordion>
+              </FormItem>
+            </FormSection>
+          )}
 
           {initialData?.id && (
             <FormSection title='Availability' defaultOpen={false} name='storage-availability'>
@@ -416,7 +504,8 @@ export function DataStorageForm({
             className='w-full'
             aria-label='Save'
             disabled={
-              (!isDirty && !selectedSource && !ownersDirty && !sharingDirty) || isSubmitting
+              (!isDirty && !selectedSource && !ownersDirty && !sharingDirty && !contextsDirty) ||
+              isSubmitting
             }
           >
             Save
@@ -432,6 +521,26 @@ export function DataStorageForm({
           </Button>
         </FormActions>
       </AppForm>
+      {/*
+       * Sheet-in-sheet: nested Radix Dialogs stack via portals, so the outer
+       * Storage sheet stays mounted beneath and its unsaved form state is
+       * preserved while the admin creates a new context. After creation we
+       * bump `contextsRefreshToken` to re-fetch the list, and push the new
+       * id into `contextIds` so the checkbox is already checked when the
+       * inner sheet closes.
+       */}
+      <AddContextSheet
+        isOpen={addContextOpen}
+        members={contextMembers}
+        onClose={() => {
+          setAddContextOpen(false);
+        }}
+        onCreated={created => {
+          setContextIds(prev => (prev.includes(created.id) ? prev : [...prev, created.id]));
+          setContextsRefreshToken(t => t + 1);
+          setAddContextOpen(false);
+        }}
+      />
     </Form>
   );
 }

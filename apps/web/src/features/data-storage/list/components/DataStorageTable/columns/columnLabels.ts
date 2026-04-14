@@ -9,4 +9,5 @@ export const dataStorageColumnLabels: Record<DataStorageColumnKey, string> = {
   [DataStorageColumnKey.OWNERS]: 'Owners',
   [DataStorageColumnKey.DATA_MARTS_COUNT]: 'Published Data Marts',
   [DataStorageColumnKey.DRAFTS_COUNT]: 'Draft Data Marts',
+  [DataStorageColumnKey.CONTEXTS]: 'Contexts',
 };

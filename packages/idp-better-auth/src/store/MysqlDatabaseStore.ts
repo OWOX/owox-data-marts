@@ -147,6 +147,29 @@ export class MysqlDatabaseStore implements DatabaseStore {
     };
   }
 
+  async createUserStub(
+    email: string,
+    name?: string
+  ): Promise<{ userId: string; created: boolean }> {
+    const pool = await this.getPool();
+
+    const [existingRows] = (await pool.execute('SELECT id FROM user WHERE email = ? LIMIT 1', [
+      email,
+    ])) as [Array<Record<string, unknown>>, unknown];
+    const existing = (existingRows as Array<Record<string, unknown>>)[0];
+    if (existing) {
+      return { userId: String(existing.id), created: false };
+    }
+
+    const userId = randomUUID();
+    const now = new Date();
+    await pool.execute(
+      'INSERT INTO user (id, email, emailVerified, name, createdAt, updatedAt) VALUES (?, ?, 0, ?, ?, ?)',
+      [userId, email, name ?? '', now, now]
+    );
+    return { userId, created: true };
+  }
+
   async userHasPassword(userId: string): Promise<boolean> {
     const pool = await this.getPool();
     try {

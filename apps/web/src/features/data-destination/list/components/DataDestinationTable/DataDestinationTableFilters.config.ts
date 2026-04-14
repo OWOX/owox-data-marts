@@ -18,7 +18,8 @@ export type DataDestinationFilterKey =
   | DataDestinationColumnKey.TITLE
   | DataDestinationColumnKey.TYPE
   | DataDestinationColumnKey.CREATED_BY
-  | DataDestinationColumnKey.OWNERS;
+  | DataDestinationColumnKey.OWNERS
+  | DataDestinationColumnKey.CONTEXTS;
 
 /* ---------------------------------------------------------------------------
  * Accessors (used both for filtering and option collection)
@@ -32,6 +33,7 @@ export const dataDestinationFilterAccessors: FilterAccessors<
   [DataDestinationColumnKey.TYPE]: row => row.type,
   [DataDestinationColumnKey.CREATED_BY]: row => row.createdByUser?.userId,
   [DataDestinationColumnKey.OWNERS]: row => (row.ownerUsers ?? []).map(u => u.userId),
+  [DataDestinationColumnKey.CONTEXTS]: row => row.contexts.map(c => c.id),
 };
 
 /* ---------------------------------------------------------------------------
@@ -78,6 +80,17 @@ export function buildDataDestinationTableFilters(
   }
   const userLabelMapper = (userId: string) => userLabelMap.get(userId) ?? userId;
 
+  /* -----------------------------
+   * Context label mapper (ctxId → name)
+   * --------------------------- */
+  const contextLabelMap = new Map<string, string>();
+  for (const item of data) {
+    for (const c of item.contexts) {
+      contextLabelMap.set(c.id, c.name);
+    }
+  }
+  const contextLabelMapper = (ctxId: string) => contextLabelMap.get(ctxId) ?? ctxId;
+
   return [
     {
       id: DataDestinationColumnKey.TITLE,
@@ -113,6 +126,17 @@ export function buildDataDestinationTableFilters(
         data,
         dataDestinationFilterAccessors[DataDestinationColumnKey.OWNERS],
         { labelMapper: userLabelMapper }
+      ),
+    },
+    {
+      id: DataDestinationColumnKey.CONTEXTS,
+      label: dataDestinationColumnLabels[DataDestinationColumnKey.CONTEXTS],
+      dataType: 'enum',
+      operators: ['eq', 'neq'],
+      options: collectOptionsFromData(
+        data,
+        dataDestinationFilterAccessors[DataDestinationColumnKey.CONTEXTS],
+        { labelMapper: contextLabelMapper }
       ),
     },
   ];

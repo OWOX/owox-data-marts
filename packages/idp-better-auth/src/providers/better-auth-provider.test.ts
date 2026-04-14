@@ -94,6 +94,7 @@ jest.unstable_mockModule('../services/user-management-service.js', () => ({
     listUsers: jest.fn(),
     removeUser: jest.fn(),
     getUserRole: jest.fn(),
+    inviteAndCreateStub: jest.fn(),
   })),
 }));
 
@@ -459,6 +460,43 @@ describe('BetterAuthProvider', () => {
       );
 
       expect(res.json).toHaveBeenCalledWith([]);
+    });
+  });
+
+  describe('inviteMember', () => {
+    it('returns magic-link invitation with userId from inviteAndCreateStub', async () => {
+      const provider = await createProvider();
+      const userMgmt = getUserManagementServiceFromProvider(provider);
+      (
+        userMgmt.inviteAndCreateStub as jest.Mock<typeof userMgmt.inviteAndCreateStub>
+      ).mockResolvedValue({
+        userId: 'stub-1',
+        magicLink: 'https://app/magic/tok',
+      });
+
+      const result = await provider.inviteMember('proj-1', 'new@x.io', 'editor', 'admin-1');
+
+      expect(userMgmt.inviteAndCreateStub).toHaveBeenCalledWith('new@x.io', 'editor');
+      expect(result).toEqual({
+        projectId: 'proj-1',
+        email: 'new@x.io',
+        role: 'editor',
+        kind: 'magic-link',
+        magicLink: 'https://app/magic/tok',
+        userId: 'stub-1',
+      });
+    });
+
+    it('propagates errors from the service layer', async () => {
+      const provider = await createProvider();
+      const userMgmt = getUserManagementServiceFromProvider(provider);
+      (
+        userMgmt.inviteAndCreateStub as jest.Mock<typeof userMgmt.inviteAndCreateStub>
+      ).mockRejectedValue(new Error('db down'));
+
+      await expect(
+        provider.inviteMember('proj-1', 'bad@x.io', 'viewer', 'admin-1')
+      ).rejects.toThrow('db down');
     });
   });
 });

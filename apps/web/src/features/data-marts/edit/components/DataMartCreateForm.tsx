@@ -178,7 +178,7 @@ export function DataMartCreateForm({ initialData, onSuccess }: DataMartFormProps
                         }
                       }}
                       placeholder={loadingStorages ? 'Loading...' : 'Select a storage'}
-                      emptyMessage='No storages found'
+                      emptyMessage='No storages available for your contexts'
                       disabled={isSubmitting || loadingStorages}
                       className='w-full'
                       renderLabel={option =>

@@ -17,4 +17,5 @@ export interface DataMartListItem {
   connectorSourceName: string | null;
   businessOwnerUsers: UserProjectionDto[];
   technicalOwnerUsers: UserProjectionDto[];
+  contexts: { id: string; name: string }[];
 }

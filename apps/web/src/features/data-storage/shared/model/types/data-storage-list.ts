@@ -10,5 +10,6 @@ export interface DataStorageListItem {
   draftDataMartsCount: number;
   createdByUser?: import('../../../../../shared/types').UserProjection | null;
   ownerUsers?: import('../../../../../shared/types').UserProjection[];
+  contexts?: { id: string; name: string }[];
 }
 export type DataStorageList = DataStorageListItem[];

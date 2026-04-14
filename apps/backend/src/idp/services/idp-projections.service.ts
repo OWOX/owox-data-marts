@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Payload, ProjectMember } from '@owox/idp-protocol';
+import { Payload, ProjectMember, ProjectMemberInvitation, Role } from '@owox/idp-protocol';
 import { In, Repository } from 'typeorm';
 import { ProjectProjection } from '../entities/project-projection.entity';
 import { UserProjection } from '../entities/user-projection.entity';
@@ -103,6 +103,42 @@ export class IdpProjectionsService {
       this.logger.error(`Failed to get project members for project ${projectId}`, error);
       return [];
     }
+  }
+
+  /**
+   * Invite a new member to the project via the active IDP provider.
+   * Errors propagate to the caller — the HTTP controller is responsible for
+   * surfacing them as the correct status code.
+   */
+  public async inviteMember(
+    projectId: string,
+    email: string,
+    role: Role,
+    actorUserId: string
+  ): Promise<ProjectMemberInvitation> {
+    const provider = this.idpProviderService.getProviderFromApp();
+    return provider.inviteMember(projectId, email, role, actorUserId);
+  }
+
+  /**
+   * Remove a member from the project via the active IDP provider.
+   */
+  public async removeMember(projectId: string, userId: string, actorUserId: string): Promise<void> {
+    const provider = this.idpProviderService.getProviderFromApp();
+    await provider.removeMember(projectId, userId, actorUserId);
+  }
+
+  /**
+   * Change a member's role via the active IDP provider.
+   */
+  public async changeMemberRole(
+    projectId: string,
+    userId: string,
+    newRole: Role,
+    actorUserId: string
+  ): Promise<void> {
+    const provider = this.idpProviderService.getProviderFromApp();
+    await provider.changeMemberRole(projectId, userId, newRole, actorUserId);
   }
 
   /**
