@@ -1,12 +1,11 @@
-import { Inject, Injectable, Logger } from '@nestjs/common';
-import { type OwoxProducer } from '@owox/internal-helpers';
+import { Injectable, Logger } from '@nestjs/common';
 
 import { CreateAiAssistantMessageCommand } from '../dto/domain/create-ai-assistant-message.command';
 import {
   AiAssistantExecutionMode,
   AiAssistantMessageResultDto,
 } from '../dto/domain/ai-assistant-message-result.dto';
-import { OWOX_PRODUCER } from '../../common/producer/producer.module';
+import { OwoxEventDispatcher } from '../../common/event-dispatcher/owox-event-dispatcher';
 import { AiAssistantTurnRequestedEvent } from '../events/ai-assistant-turn-requested.event';
 import { AiAssistantMessageRole } from '../enums/ai-assistant-message-role.enum';
 import { AiAssistantMapper } from '../mappers/ai-assistant.mapper';
@@ -22,8 +21,7 @@ export class CreateAiAssistantMessageService {
   constructor(
     private readonly aiAssistantSessionService: AiAssistantSessionService,
     private readonly aiAssistantRunTriggerService: AiAssistantRunTriggerService,
-    @Inject(OWOX_PRODUCER)
-    private readonly producer: OwoxProducer,
+    private readonly eventDispatcher: OwoxEventDispatcher,
     private readonly insightTemplateService: InsightTemplateService,
     private readonly mapper: AiAssistantMapper
   ) {}
@@ -70,7 +68,7 @@ export class CreateAiAssistantMessageService {
       userMessageId: userMessage.id,
     });
 
-    this.producer.produceEventSafely(
+    this.eventDispatcher.publishExternalSafely(
       new AiAssistantTurnRequestedEvent({
         projectId: command.projectId,
         dataMartId: command.dataMartId,

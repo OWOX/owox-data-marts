@@ -1,9 +1,9 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { EventEmitter2 } from '@nestjs/event-emitter';
 import { Repository } from 'typeorm';
-import { Transactional, runOnTransactionCommit } from 'typeorm-transactional';
+import { Transactional } from 'typeorm-transactional';
 import { BusinessViolationException } from '../../common/exceptions/business-violation.exception';
+import { OwoxEventDispatcher } from '../../common/event-dispatcher/owox-event-dispatcher';
 import { DataStorageType } from '../data-storage-types/enums/data-storage-type.enum';
 import { CreateDataStorageCommand } from '../dto/domain/create-data-storage.command';
 import { DataStorageDto } from '../dto/domain/data-storage.dto';
@@ -28,7 +28,7 @@ export class CreateDataStorageService {
     private readonly dataStorageMapper: DataStorageMapper,
     private readonly userProjectionsFetcherService: UserProjectionsFetcherService,
     private readonly idpProjectionsFacade: IdpProjectionsFacade,
-    private readonly eventEmitter: EventEmitter2
+    private readonly eventDispatcher: OwoxEventDispatcher
   ) {}
 
   @Transactional()
@@ -49,12 +49,11 @@ export class CreateDataStorageService {
 
     const savedEntity = await this.dataStorageRepository.save(entity);
 
-    runOnTransactionCommit(() => {
-      this.eventEmitter.emit(
-        'data-storage.created',
-        new DataStorageCreatedEvent(savedEntity.id, command.projectId, command.userId)
-      );
-    });
+    // Safe inside @Transactional(): the local emit is discarded if the
+    // surrounding transaction rolls back.
+    this.eventDispatcher.publishLocalOnCommit(
+      new DataStorageCreatedEvent(savedEntity.id, command.projectId, command.userId)
+    );
 
     const ownerIdsToSave = command.ownerIds ?? [command.userId];
     await syncOwners(

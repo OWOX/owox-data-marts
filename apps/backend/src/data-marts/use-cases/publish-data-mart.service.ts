@@ -1,8 +1,6 @@
-import { Inject, Injectable } from '@nestjs/common';
-import { EventEmitter2 } from '@nestjs/event-emitter';
-import { OwoxProducer } from '@owox/internal-helpers';
+import { Injectable } from '@nestjs/common';
 import { BusinessViolationException } from '../../common/exceptions/business-violation.exception';
-import { OWOX_PRODUCER } from '../../common/producer/producer.module';
+import { OwoxEventDispatcher } from '../../common/event-dispatcher/owox-event-dispatcher';
 import { DataMartDefinitionValidatorFacade } from '../data-storage-types/facades/data-mart-definition-validator-facade.service';
 import { DataMartDto } from '../dto/domain/data-mart.dto';
 import { PublishDataMartCommand } from '../dto/domain/publish-data-mart.command';
@@ -18,9 +16,7 @@ export class PublishDataMartService {
     private readonly dataMartService: DataMartService,
     private readonly definitionValidatorFacade: DataMartDefinitionValidatorFacade,
     private readonly mapper: DataMartMapper,
-    @Inject(OWOX_PRODUCER)
-    private readonly producer: OwoxProducer,
-    private readonly eventEmitter: EventEmitter2
+    private readonly eventDispatcher: OwoxEventDispatcher
   ) {}
 
   async run(command: PublishDataMartCommand): Promise<DataMartDto> {
@@ -49,8 +45,8 @@ export class PublishDataMartService {
       dataMart.createdById,
       previousStatus
     );
-    await this.producer.produceEvent(event);
-    this.eventEmitter.emit('data-mart.published', event);
+
+    await this.eventDispatcher.publish(event);
 
     return this.mapper.toDomainDto(dataMart);
   }

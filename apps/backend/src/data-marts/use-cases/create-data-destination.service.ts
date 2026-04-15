@@ -1,11 +1,11 @@
 import { AvailableDestinationTypesService } from '../data-destination-types/available-destination-types.service';
 import { CreateDataDestinationCommand } from '../dto/domain/create-data-destination.command';
 import { Repository } from 'typeorm';
-import { Transactional, runOnTransactionCommit } from 'typeorm-transactional';
+import { Transactional } from 'typeorm-transactional';
 import { DataDestination } from '../entities/data-destination.entity';
 import { InjectRepository } from '@nestjs/typeorm';
 import { BadRequestException, Injectable, Logger } from '@nestjs/common';
-import { EventEmitter2 } from '@nestjs/event-emitter';
+import { OwoxEventDispatcher } from '../../common/event-dispatcher/owox-event-dispatcher';
 import { DataDestinationDto } from '../dto/domain/data-destination.dto';
 import { DataDestinationMapper } from '../mappers/data-destination.mapper';
 import { DataDestinationCreatedEvent } from '../events/data-destination-created.event';
@@ -47,7 +47,7 @@ export class CreateDataDestinationService {
     private readonly destinationOwnerRepository: Repository<DestinationOwner>,
     private readonly idpProjectionsFacade: IdpProjectionsFacade,
     private readonly accessDecisionService: AccessDecisionService,
-    private readonly eventEmitter: EventEmitter2
+    private readonly eventDispatcher: OwoxEventDispatcher
   ) {}
 
   @Transactional()
@@ -184,12 +184,9 @@ export class CreateDataDestinationService {
     savedEntity: DataDestination,
     command: CreateDataDestinationCommand
   ): Promise<DataDestinationDto> {
-    runOnTransactionCommit(() => {
-      this.eventEmitter.emit(
-        'data-destination.created',
-        new DataDestinationCreatedEvent(savedEntity.id, command.projectId, command.userId)
-      );
-    });
+    this.eventDispatcher.publishLocalOnCommit(
+      new DataDestinationCreatedEvent(savedEntity.id, command.projectId, command.userId)
+    );
 
     const ownerIdsToSave = command.ownerIds ?? [command.userId];
     await syncOwners(

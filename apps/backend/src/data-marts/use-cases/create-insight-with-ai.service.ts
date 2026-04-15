@@ -9,8 +9,7 @@ import { DataMartService } from '../services/data-mart.service';
 import { InsightMapper } from '../mappers/insight.mapper';
 import { AiInsightsFacade } from '../ai-insights/facades/ai-insights.facade';
 import { AI_INSIGHTS_FACADE } from '../ai-insights/ai-insights-types';
-import { OWOX_PRODUCER } from '../../common/producer/producer.module';
-import { type OwoxProducer } from '@owox/internal-helpers';
+import { OwoxEventDispatcher } from '../../common/event-dispatcher/owox-event-dispatcher';
 import { InsightGeneratedSuccessfullyEvent } from '../events/insight-generated-successfully.event';
 import { PromptProcessedEventsService } from '../ai-insights/prompt-processed-events.service';
 
@@ -25,8 +24,7 @@ export class CreateInsightWithAiService {
     private readonly mapper: InsightMapper,
     @Inject(AI_INSIGHTS_FACADE)
     private readonly aiInsightsFacade: AiInsightsFacade,
-    @Inject(OWOX_PRODUCER)
-    private readonly producer: OwoxProducer,
+    private readonly eventDispatcher: OwoxEventDispatcher,
     private readonly promptProcessedEvents: PromptProcessedEventsService
   ) {}
 
@@ -72,7 +70,7 @@ export class CreateInsightWithAiService {
     });
 
     try {
-      await this.producer.produceEvent(
+      await this.eventDispatcher.publishExternal(
         new InsightGeneratedSuccessfullyEvent(
           dataMart.id,
           saved.id,

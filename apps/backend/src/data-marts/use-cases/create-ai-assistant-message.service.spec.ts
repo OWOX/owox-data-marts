@@ -57,9 +57,9 @@ describe('CreateAiAssistantMessageService', () => {
     const aiAssistantRunTriggerService = {
       createTrigger: jest.fn().mockResolvedValue('trigger-1'),
     };
-    const producer = {
-      produceEvent: jest.fn().mockResolvedValue(undefined),
-      produceEventSafely: jest.fn(),
+    const eventDispatcher = {
+      publishExternal: jest.fn().mockResolvedValue(undefined),
+      publishExternalSafely: jest.fn(),
     };
     const insightTemplateService = {
       updateTitleOnlyIfHasDefaultTitle: jest.fn(),
@@ -71,7 +71,7 @@ describe('CreateAiAssistantMessageService', () => {
     const service = new CreateAiAssistantMessageService(
       aiAssistantSessionService as never,
       aiAssistantRunTriggerService as never,
-      producer as never,
+      eventDispatcher as never,
       insightTemplateService as never,
       mapper as never
     );
@@ -80,14 +80,14 @@ describe('CreateAiAssistantMessageService', () => {
       service,
       aiAssistantSessionService,
       aiAssistantRunTriggerService,
-      producer,
+      eventDispatcher,
       insightTemplateService,
       mapper,
     };
   };
 
   it('enqueues a routing job', async () => {
-    const { service, aiAssistantSessionService, aiAssistantRunTriggerService, producer } =
+    const { service, aiAssistantSessionService, aiAssistantRunTriggerService, eventDispatcher } =
       createService();
 
     aiAssistantSessionService.getSessionByIdAndDataMartIdAndProjectId.mockResolvedValue(session);
@@ -107,7 +107,7 @@ describe('CreateAiAssistantMessageService', () => {
     expect(result.triggerId).toBe('trigger-1');
     expect(result.response).toBeNull();
     expect(aiAssistantRunTriggerService.createTrigger).toHaveBeenCalled();
-    expect(producer.produceEventSafely).toHaveBeenCalledWith(
+    expect(eventDispatcher.publishExternalSafely).toHaveBeenCalledWith(
       new AiAssistantTurnRequestedEvent({
         projectId: 'project-1',
         dataMartId: 'data-mart-1',
@@ -122,7 +122,7 @@ describe('CreateAiAssistantMessageService', () => {
   });
 
   it('enqueues a run for non-template session scope too', async () => {
-    const { service, aiAssistantSessionService, aiAssistantRunTriggerService, producer } =
+    const { service, aiAssistantSessionService, aiAssistantRunTriggerService, eventDispatcher } =
       createService();
     aiAssistantSessionService.getSessionByIdAndDataMartIdAndProjectId.mockResolvedValue({
       ...session,
@@ -137,7 +137,7 @@ describe('CreateAiAssistantMessageService', () => {
 
     await expect(service.run(command)).resolves.toBeInstanceOf(AiAssistantMessageResultDto);
     expect(aiAssistantRunTriggerService.createTrigger).toHaveBeenCalled();
-    expect(producer.produceEventSafely).toHaveBeenCalledWith(
+    expect(eventDispatcher.publishExternalSafely).toHaveBeenCalledWith(
       expect.objectContaining({
         payload: expect.objectContaining({
           templateId: null,
@@ -148,10 +148,10 @@ describe('CreateAiAssistantMessageService', () => {
   });
 
   it('does not fail when turn_requested event publish fails', async () => {
-    const { service, aiAssistantSessionService, aiAssistantRunTriggerService, producer } =
+    const { service, aiAssistantSessionService, aiAssistantRunTriggerService, eventDispatcher } =
       createService();
 
-    producer.produceEventSafely.mockImplementation(() => undefined);
+    eventDispatcher.publishExternalSafely.mockImplementation(() => undefined);
     aiAssistantSessionService.getSessionByIdAndDataMartIdAndProjectId.mockResolvedValue(session);
     aiAssistantSessionService.addMessage.mockResolvedValue(userMessageEntity);
     aiAssistantRunTriggerService.createTrigger.mockResolvedValue('trigger-1');
@@ -159,6 +159,6 @@ describe('CreateAiAssistantMessageService', () => {
     await expect(service.run(command)).resolves.toBeInstanceOf(AiAssistantMessageResultDto);
 
     expect(aiAssistantRunTriggerService.createTrigger).toHaveBeenCalledTimes(1);
-    expect(producer.produceEventSafely).toHaveBeenCalledTimes(1);
+    expect(eventDispatcher.publishExternalSafely).toHaveBeenCalledTimes(1);
   });
 });

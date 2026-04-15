@@ -1,8 +1,7 @@
-import { Inject, Injectable } from '@nestjs/common';
-import type { OwoxProducer } from '@owox/internal-helpers';
+import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { OWOX_PRODUCER } from '../../common/producer/producer.module';
+import { OwoxEventDispatcher } from '../../common/event-dispatcher/owox-event-dispatcher';
 import { TriggerStatus } from '../../common/scheduler/shared/entities/trigger-status';
 import { UiTriggerService } from '../../common/scheduler/shared/ui-trigger.service';
 import { InsightTemplateRunResponseApiDto } from '../dto/presentation/insight-template-run-response-api.dto';
@@ -23,8 +22,7 @@ export class InsightTemplateRunTriggerService extends UiTriggerService<InsightTe
   constructor(
     @InjectRepository(InsightTemplateRunTrigger)
     triggerRepository: Repository<InsightTemplateRunTrigger>,
-    @Inject(OWOX_PRODUCER)
-    private readonly producer: OwoxProducer
+    private readonly eventDispatcher: OwoxEventDispatcher
   ) {
     super(triggerRepository);
   }
@@ -52,7 +50,7 @@ export class InsightTemplateRunTriggerService extends UiTriggerService<InsightTe
 
     const saved = await this.triggerRepository.save(trigger);
 
-    this.producer.produceEventSafely(
+    this.eventDispatcher.publishExternalSafely(
       new InsightTemplateRunRequestedEvent({
         projectId: params.projectId,
         dataMartId: params.dataMartId,

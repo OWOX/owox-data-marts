@@ -1,7 +1,6 @@
 jest.mock('typeorm-transactional', () => ({
   Transactional: () => (_target: unknown, _key: string, descriptor: PropertyDescriptor) =>
     descriptor,
-  runOnTransactionCommit: (fn: () => void) => fn(),
 }));
 
 jest.mock('../services/user-projections-fetcher.service', () => ({
@@ -65,11 +64,8 @@ describe('CreateReportService', () => {
       }),
     };
     const idpProjectionsFacade = {};
-    const producer = {
-      produceEvent: jest.fn().mockResolvedValue(undefined),
-    };
-    const eventEmitter = {
-      emit: jest.fn(),
+    const eventDispatcher = {
+      publishOnCommit: jest.fn().mockResolvedValue(undefined),
     };
 
     const service = new CreateReportService(
@@ -82,8 +78,7 @@ describe('CreateReportService', () => {
       availableDestinationTypesService as never,
       userProjectionsFetcherService as never,
       idpProjectionsFacade as never,
-      producer as never,
-      eventEmitter as never
+      eventDispatcher as never
     );
 
     return { service };

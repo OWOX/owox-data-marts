@@ -301,6 +301,8 @@ import { ProjectSetupUserProgress } from './entities/project-setup-user-progress
 import { ProjectSetupProgressService } from './services/project-setup-progress.service';
 import { ProjectSetupProgressListenerService } from './services/project-setup-progress-listener.service';
 import { ProjectSetupProgressController } from './controllers/project-setup-progress.controller';
+import { GetProjectSetupProgressService } from './use-cases/get-project-setup-progress.service';
+import { ProjectSetupProgressMapper } from './mappers/project-setup-progress.mapper';
 
 @Module({
   imports: [
@@ -611,6 +613,8 @@ import { ProjectSetupProgressController } from './controllers/project-setup-prog
     RevokeDestinationOAuthService,
     ProjectSetupProgressService,
     ProjectSetupProgressListenerService,
+    GetProjectSetupProgressService,
+    ProjectSetupProgressMapper,
   ],
 })
 export class DataMartsModule {

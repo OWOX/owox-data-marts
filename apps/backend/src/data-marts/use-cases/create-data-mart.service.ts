@@ -1,8 +1,8 @@
 import { Injectable, ForbiddenException, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { EventEmitter2 } from '@nestjs/event-emitter';
 import { Repository } from 'typeorm';
-import { Transactional, runOnTransactionCommit } from 'typeorm-transactional';
+import { Transactional } from 'typeorm-transactional';
+import { OwoxEventDispatcher } from '../../common/event-dispatcher/owox-event-dispatcher';
 import { BigQueryConfig } from '../data-storage-types/bigquery/schemas/bigquery-config.schema';
 import { DataStorageType } from '../data-storage-types/enums/data-storage-type.enum';
 import { CreateDataMartCommand } from '../dto/domain/create-data-mart.command';
@@ -31,7 +31,7 @@ export class CreateDataMartService {
     @InjectRepository(DataMartTechnicalOwner)
     private readonly technicalOwnerRepository: Repository<DataMartTechnicalOwner>,
     private readonly accessDecisionService: AccessDecisionService,
-    private readonly eventEmitter: EventEmitter2
+    private readonly eventDispatcher: OwoxEventDispatcher
   ) {}
 
   @Transactional()
@@ -95,12 +95,11 @@ export class CreateDataMartService {
     newDataMart.technicalOwners = [technicalOwner];
     newDataMart.businessOwners = [];
 
-    runOnTransactionCommit(() => {
-      this.eventEmitter.emit(
-        'data-mart.created',
-        new DataMartCreatedEvent(newDataMart.id, command.projectId, command.userId)
-      );
-    });
+    // Safe inside @Transactional(): the local emit is discarded if the
+    // surrounding transaction rolls back.
+    this.eventDispatcher.publishLocalOnCommit(
+      new DataMartCreatedEvent(newDataMart.id, command.projectId, command.userId)
+    );
 
     return this.mapper.toDomainDto(newDataMart);
   }

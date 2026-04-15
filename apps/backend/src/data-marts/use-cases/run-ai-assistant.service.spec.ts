@@ -117,9 +117,9 @@ describe('RunAiAssistantService', () => {
       buildPromptContext: jest.fn().mockResolvedValue(promptContext),
     };
     const aiAssistantTurnProcessedEventMapper = new AiAssistantTurnProcessedEventMapper();
-    const producer = {
-      produceEvent: jest.fn().mockResolvedValue(undefined),
-      produceEventSafely: jest.fn(),
+    const eventDispatcher = {
+      publishExternal: jest.fn().mockResolvedValue(undefined),
+      publishExternalSafely: jest.fn(),
     };
     const systemTimeService = {
       now: jest.fn(),
@@ -136,7 +136,7 @@ describe('RunAiAssistantService', () => {
       agentFlowService as never,
       agentFlowContextManager as never,
       aiAssistantTurnProcessedEventMapper as never,
-      producer as never,
+      eventDispatcher as never,
       systemTimeService as never,
       clsContextService as never
     );
@@ -149,7 +149,7 @@ describe('RunAiAssistantService', () => {
       agentFlowService,
       agentFlowContextManager,
       aiAssistantTurnProcessedEventMapper,
-      producer,
+      eventDispatcher,
       systemTimeService,
       clsContextService,
     };
@@ -162,7 +162,7 @@ describe('RunAiAssistantService', () => {
       dataMartRunService,
       aiAssistantSessionService,
       agentFlowService,
-      producer,
+      eventDispatcher,
       systemTimeService,
     } = createService();
 
@@ -267,8 +267,8 @@ describe('RunAiAssistantService', () => {
       })
     );
 
-    expect(producer.produceEventSafely).toHaveBeenCalledTimes(1);
-    const [event] = producer.produceEventSafely.mock.calls[0];
+    expect(eventDispatcher.publishExternalSafely).toHaveBeenCalledTimes(1);
+    const [event] = eventDispatcher.publishExternalSafely.mock.calls[0];
     expect(event).toBeInstanceOf(AiAssistantTurnProcessedEvent);
     expect(event.name).toBe('ai_assistant.turn_processed');
     expect(event.payload).toEqual({
@@ -379,7 +379,7 @@ describe('RunAiAssistantService', () => {
       dataMartRunService,
       aiAssistantSessionService,
       agentFlowService,
-      producer,
+      eventDispatcher,
       systemTimeService,
     } = createService();
 
@@ -447,8 +447,8 @@ describe('RunAiAssistantService', () => {
       })
     );
 
-    expect(producer.produceEventSafely).toHaveBeenCalledTimes(1);
-    const [event] = producer.produceEventSafely.mock.calls[0];
+    expect(eventDispatcher.publishExternalSafely).toHaveBeenCalledTimes(1);
+    const [event] = eventDispatcher.publishExternalSafely.mock.calls[0];
     expect(event).toBeInstanceOf(AiAssistantTurnProcessedEvent);
     expect(event.payload).toEqual({
       projectId: 'project-1',
@@ -555,7 +555,7 @@ describe('RunAiAssistantService', () => {
       dataMartRunService,
       aiAssistantSessionService,
       agentFlowService,
-      producer,
+      eventDispatcher,
       systemTimeService,
     } = createService();
 
@@ -581,8 +581,8 @@ describe('RunAiAssistantService', () => {
         errors: expect.arrayContaining([expect.stringContaining('orchestrator failed')]),
       })
     );
-    expect(producer.produceEventSafely).toHaveBeenCalledTimes(1);
-    const [event] = producer.produceEventSafely.mock.calls[0];
+    expect(eventDispatcher.publishExternalSafely).toHaveBeenCalledTimes(1);
+    const [event] = eventDispatcher.publishExternalSafely.mock.calls[0];
     expect(event).toBeInstanceOf(AiAssistantTurnProcessedEvent);
     expect(event.payload).toEqual({
       projectId: 'project-1',
@@ -638,7 +638,7 @@ describe('RunAiAssistantService', () => {
       dataMartRunService,
       aiAssistantSessionService,
       agentFlowService,
-      producer,
+      eventDispatcher,
       systemTimeService,
     } = createService();
 
@@ -671,7 +671,7 @@ describe('RunAiAssistantService', () => {
       },
     });
     aiAssistantSessionService.addMessage.mockResolvedValue(assistantMessage);
-    producer.produceEventSafely.mockImplementation(() => undefined);
+    eventDispatcher.publishExternalSafely.mockImplementation(() => undefined);
     systemTimeService.now.mockReturnValue(now);
 
     await expect(service.run(command)).resolves.toMatchObject({
@@ -694,7 +694,7 @@ describe('RunAiAssistantService', () => {
       dataMartRunService,
       aiAssistantSessionService,
       agentFlowService,
-      producer,
+      eventDispatcher,
       systemTimeService,
     } = createService();
 
@@ -709,7 +709,7 @@ describe('RunAiAssistantService', () => {
       userMessage,
     ]);
     agentFlowService.run.mockRejectedValue(new Error('orchestrator failed'));
-    producer.produceEventSafely.mockImplementation(() => undefined);
+    eventDispatcher.publishExternalSafely.mockImplementation(() => undefined);
     systemTimeService.now.mockReturnValue(now);
 
     await expect(service.run(command)).rejects.toThrow('orchestrator failed');
@@ -729,7 +729,7 @@ describe('RunAiAssistantService', () => {
       dataMartRunService,
       aiAssistantSessionService,
       agentFlowService,
-      producer,
+      eventDispatcher,
       systemTimeService,
     } = createService();
 
@@ -776,8 +776,8 @@ describe('RunAiAssistantService', () => {
         status: DataMartRunStatus.FAILED,
       })
     );
-    expect(producer.produceEventSafely).toHaveBeenCalledTimes(1);
-    const [event] = producer.produceEventSafely.mock.calls[0];
+    expect(eventDispatcher.publishExternalSafely).toHaveBeenCalledTimes(1);
+    const [event] = eventDispatcher.publishExternalSafely.mock.calls[0];
     expect(event).toBeInstanceOf(AiAssistantTurnProcessedEvent);
     expect(event.payload).toEqual({
       projectId: 'project-1',

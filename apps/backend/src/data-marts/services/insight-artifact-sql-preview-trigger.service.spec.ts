@@ -7,25 +7,25 @@ describe('InsightArtifactSqlPreviewTriggerService', () => {
     const repository = {
       save: jest.fn(),
     };
-    const producer = {
-      produceEvent: jest.fn().mockResolvedValue(undefined),
-      produceEventSafely: jest.fn(),
+    const eventDispatcher = {
+      publishExternal: jest.fn().mockResolvedValue(undefined),
+      publishExternalSafely: jest.fn(),
     };
 
     const service = new InsightArtifactSqlPreviewTriggerService(
       repository as never,
-      producer as never
+      eventDispatcher as never
     );
 
     return {
       service,
       repository,
-      producer,
+      eventDispatcher,
     };
   };
 
   it('creates trigger and emits sql_preview_requested event', async () => {
-    const { service, repository, producer } = createService();
+    const { service, repository, eventDispatcher } = createService();
     repository.save.mockImplementation(async trigger => ({
       ...trigger,
       id: 'trigger-1',
@@ -51,8 +51,8 @@ describe('InsightArtifactSqlPreviewTriggerService', () => {
         isActive: true,
       })
     );
-    expect(producer.produceEventSafely).toHaveBeenCalledTimes(1);
-    const [event] = producer.produceEventSafely.mock.calls[0];
+    expect(eventDispatcher.publishExternalSafely).toHaveBeenCalledTimes(1);
+    const [event] = eventDispatcher.publishExternalSafely.mock.calls[0];
     expect(event).toBeInstanceOf(InsightArtifactSqlPreviewRequestedEvent);
     expect(event.payload).toEqual({
       projectId: 'project-1',
@@ -64,18 +64,18 @@ describe('InsightArtifactSqlPreviewTriggerService', () => {
   });
 
   it('does not fail when sql_preview_requested event publish fails', async () => {
-    const { service, repository, producer } = createService();
+    const { service, repository, eventDispatcher } = createService();
     repository.save.mockImplementation(async trigger => ({
       ...trigger,
       id: 'trigger-1',
     }));
-    producer.produceEventSafely.mockImplementation(() => undefined);
+    eventDispatcher.publishExternalSafely.mockImplementation(() => undefined);
 
     await expect(
       service.createTrigger('user-1', 'project-1', 'data-mart-1', 'artifact-1')
     ).resolves.toBe('trigger-1');
 
     expect(repository.save).toHaveBeenCalledTimes(1);
-    expect(producer.produceEventSafely).toHaveBeenCalledTimes(1);
+    expect(eventDispatcher.publishExternalSafely).toHaveBeenCalledTimes(1);
   });
 });

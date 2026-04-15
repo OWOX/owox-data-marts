@@ -1,7 +1,6 @@
 import {
   BadRequestException,
   ConflictException,
-  Inject,
   Injectable,
   Logger,
   NotFoundException,
@@ -9,9 +8,9 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Transactional } from 'typeorm-transactional';
-import { castError, type OwoxProducer } from '@owox/internal-helpers';
+import { castError } from '@owox/internal-helpers';
 import { BusinessViolationException } from '../../common/exceptions/business-violation.exception';
-import { OWOX_PRODUCER } from '../../common/producer/producer.module';
+import { OwoxEventDispatcher } from '../../common/event-dispatcher/owox-event-dispatcher';
 import { isUniqueConstraintViolation } from '../../common/typeorm/query-error.utils';
 import type { AssistantProposedAction } from '../ai-insights/agent-flow/ai-assistant-types';
 import {
@@ -50,8 +49,7 @@ export class AiSourceApplyService {
     private readonly applyExecutionService: AiSourceApplyExecutionService,
     private readonly applyActionMapper: AiAssistantApplyActionMapper,
     private readonly aiAssistantSessionService: AiAssistantSessionService,
-    @Inject(OWOX_PRODUCER)
-    private readonly producer: OwoxProducer
+    private readonly eventDispatcher: OwoxEventDispatcher
   ) {}
 
   async listAppliedBySession(
@@ -155,7 +153,7 @@ export class AiSourceApplyService {
       });
 
       const templateId = result.templateId ?? action.templateId ?? null;
-      this.producer.produceEventSafely(
+      this.eventDispatcher.publishExternalSafely(
         this.applyActionMapper.toActionAppliedEvent({
           projectId: command.projectId,
           dataMartId: command.dataMartId,
@@ -181,7 +179,7 @@ export class AiSourceApplyService {
       const action = loadedAction?.action ?? null;
       const templateId = loadedAction?.response.templateId ?? action?.templateId ?? null;
 
-      this.producer.produceEventSafely(
+      this.eventDispatcher.publishExternalSafely(
         this.applyActionMapper.toActionAppliedEvent({
           projectId: command.projectId,
           dataMartId: command.dataMartId,

@@ -6,6 +6,7 @@ import { DataMartCreatedEvent } from '../events/data-mart-created.event';
 import { DataMartPublishedEvent } from '../events/data-mart-published.event';
 import { DataDestinationCreatedEvent } from '../events/data-destination-created.event';
 import { ReportCreatedEvent } from '../events/report-created.event';
+import { ReportRunCompletedSuccessfullyEvent } from '../events/report-run-completed-successfully.event';
 
 @Injectable()
 export class ProjectSetupProgressListenerService {
@@ -38,16 +39,13 @@ export class ProjectSetupProgressListenerService {
   }
 
   @OnEvent('report-run.completed.successfully', { async: true })
-  async onReportRunSuccess(event: {
-    dataMartRunId: string;
-    dataMartId: string;
-    userId?: string;
-  }): Promise<void> {
-    if (!event.userId) return;
+  async onReportRunSuccess(event: ReportRunCompletedSuccessfullyEvent): Promise<void> {
+    const { dataMartId, userId } = event.payload;
+    if (!userId) return;
 
-    const projectId = await this.progressService.resolveProjectIdByDataMartId(event.dataMartId);
+    const projectId = await this.progressService.resolveProjectIdByDataMartId(dataMartId);
     if (projectId) {
-      await this.progressService.markUserStepDone(projectId, event.userId, 'hasReportRun');
+      await this.progressService.markUserStepDone(projectId, userId, 'hasReportRun');
     }
   }
 }

@@ -1,4 +1,4 @@
-import { Inject, Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 
@@ -22,8 +22,7 @@ import { DataMartService } from '../data-mart.service';
 import { GracefulShutdownService } from '../../../common/scheduler/services/graceful-shutdown.service';
 import { SystemTimeService } from '../../../common/scheduler/services/system-time.service';
 import { ConnectorExecutionError } from '../../errors/connector-execution.error';
-import { OWOX_PRODUCER } from '../../../common/producer/producer.module';
-import { OwoxProducer } from '@owox/internal-helpers';
+import { OwoxEventDispatcher } from '../../../common/event-dispatcher/owox-event-dispatcher';
 import { ConnectorRunEvent } from '../../events/connector-run.event';
 import { ProjectBalanceService } from '../project-balance.service';
 import { ConnectorProcessSpawnerService } from './connector-process-spawner.service';
@@ -55,8 +54,7 @@ export class ConnectorExecutorService {
     private readonly consumptionTracker: ConsumptionTrackingService,
     private readonly gracefulShutdownService: GracefulShutdownService,
     private readonly systemTimeService: SystemTimeService,
-    @Inject(OWOX_PRODUCER)
-    private readonly producer: OwoxProducer,
+    private readonly eventDispatcher: OwoxEventDispatcher,
     private readonly projectBalanceService: ProjectBalanceService,
     private readonly dataMartService: DataMartService
   ) {}
@@ -153,7 +151,7 @@ export class ConnectorExecutorService {
 
       if (hasSuccessfulRun) {
         await this.consumptionTracker.registerConnectorRunConsumption(dataMart, runId);
-        await this.producer.produceEvent(
+        await this.eventDispatcher.publishExternal(
           new ConnectorRunEvent(
             dataMart.id,
             runId,
@@ -164,7 +162,7 @@ export class ConnectorExecutorService {
           )
         );
       } else if (!this.gracefulShutdownService.isInShutdownMode()) {
-        await this.producer.produceEvent(
+        await this.eventDispatcher.publishExternal(
           new ConnectorRunEvent(
             dataMart.id,
             runId,

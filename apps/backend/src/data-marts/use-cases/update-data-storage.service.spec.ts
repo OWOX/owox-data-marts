@@ -132,8 +132,8 @@ describe('UpdateDataStorageService - credential copy (sourceStorageId)', () => {
       getProjectMembers: jest.fn().mockResolvedValue([]),
     };
 
-    const producer = {
-      produceEvent: jest.fn().mockResolvedValue(undefined),
+    const eventDispatcher = {
+      publishExternal: jest.fn().mockResolvedValue(undefined),
     };
 
     const accessDecisionService = {
@@ -150,7 +150,7 @@ describe('UpdateDataStorageService - credential copy (sourceStorageId)', () => {
       userProjectionsFetcherService as never,
       idpProjectionsFacade as never,
       storageOwnerRepository as never,
-      producer as never,
+      eventDispatcher as never,
       accessDecisionService as never
     );
 

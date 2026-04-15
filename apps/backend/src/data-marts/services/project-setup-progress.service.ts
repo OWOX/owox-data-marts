@@ -122,31 +122,6 @@ export class ProjectSetupProgressService {
     await this.userProgressRepository.save(userProgress);
   }
 
-  /**
-   * Generic markStepDone that routes to project or user level based on step scope.
-   */
-  async markStepDone(projectId: string, stepKey: SetupStepKey, userId?: string): Promise<void> {
-    if (USER_SCOPED_STEP_KEYS.includes(stepKey)) {
-      if (!userId) return;
-      await this.markUserStepDone(projectId, userId, stepKey);
-    } else {
-      await this.markProjectStepDone(projectId, stepKey);
-    }
-  }
-
-  computeProgress(steps: ProjectSetupSteps): number {
-    const total = Object.keys(steps).length;
-    const done = Object.values(steps).filter(s => s.done).length;
-    return Math.round((done / total) * 100);
-  }
-
-  async deleteByProjectId(projectId: string): Promise<void> {
-    await Promise.all([
-      this.progressRepository.delete({ projectId }),
-      this.userProgressRepository.delete({ projectId }),
-    ]);
-  }
-
   async resolveProjectIdByDataMartId(dataMartId: string): Promise<string | null> {
     const row = await this.dataMartRepository
       .createQueryBuilder('dm')
