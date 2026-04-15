@@ -34,7 +34,7 @@ export class UpdateDataMartOwnersService {
   async run(command: UpdateDataMartOwnersCommand): Promise<DataMartDto> {
     await this.dataMartService.getByIdAndProjectId(command.id, command.projectId);
 
-    // Stage 3: only existing owners or admin can manage owners
+    // Permissions Model: only existing owners or admin can manage owners
     if (command.userId) {
       const canManage = await this.accessDecisionService.canAccess(
         command.userId,

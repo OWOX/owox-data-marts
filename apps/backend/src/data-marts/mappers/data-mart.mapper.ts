@@ -223,12 +223,14 @@ export class DataMartMapper {
       dto.definitionType,
       dto.definition,
       dto.sourceDataMartId,
-      dto.sourceConfigurationId
+      dto.sourceConfigurationId,
+      context.userId,
+      context.roles ?? []
     );
   }
 
   toGetCommand(id: string, context: AuthorizationContext): GetDataMartCommand {
-    return new GetDataMartCommand(id, context.projectId);
+    return new GetDataMartCommand(id, context.projectId, context.userId, context.roles ?? []);
   }
 
   toGetDataMartRunsCommand(
@@ -237,7 +239,14 @@ export class DataMartMapper {
     limit: number,
     offset: number
   ): GetDataMartRunsCommand {
-    return new GetDataMartRunsCommand(id, context.projectId, limit, offset);
+    return new GetDataMartRunsCommand(
+      id,
+      context.projectId,
+      limit,
+      offset,
+      context.userId,
+      context.roles ?? []
+    );
   }
 
   toListCommand(
@@ -314,7 +323,13 @@ export class DataMartMapper {
     context: AuthorizationContext,
     dto: UpdateDataMartTitleApiDto
   ): UpdateDataMartTitleCommand {
-    return new UpdateDataMartTitleCommand(id, context.projectId, dto.title);
+    return new UpdateDataMartTitleCommand(
+      id,
+      context.projectId,
+      dto.title,
+      context.userId,
+      context.roles ?? []
+    );
   }
 
   toUpdateDescriptionCommand(
@@ -322,15 +337,27 @@ export class DataMartMapper {
     context: AuthorizationContext,
     dto: UpdateDataMartDescriptionApiDto
   ): UpdateDataMartDescriptionCommand {
-    return new UpdateDataMartDescriptionCommand(id, context.projectId, dto.description);
+    return new UpdateDataMartDescriptionCommand(
+      id,
+      context.projectId,
+      dto.description,
+      context.userId,
+      context.roles ?? []
+    );
   }
 
   toPublishCommand(id: string, context: AuthorizationContext): PublishDataMartCommand {
-    return new PublishDataMartCommand(id, context.projectId);
+    return new PublishDataMartCommand(id, context.projectId, context.userId, context.roles ?? []);
   }
 
   toDeleteCommand(id: string, context: AuthorizationContext): DeleteDataMartCommand {
-    return new DeleteDataMartCommand(id, context.projectId);
+    return new DeleteDataMartCommand(
+      id,
+      context.projectId,
+      false,
+      context.userId,
+      context.roles ?? []
+    );
   }
 
   toRunCommand(
@@ -338,7 +365,14 @@ export class DataMartMapper {
     context: AuthorizationContext,
     payload?: Record<string, unknown>
   ): RunDataMartCommand {
-    return new RunDataMartCommand(id, context.projectId, context.userId, RunType.manual, payload);
+    return new RunDataMartCommand(
+      id,
+      context.projectId,
+      context.userId,
+      RunType.manual,
+      payload,
+      context.roles ?? []
+    );
   }
 
   toCancelRunCommand(
@@ -346,14 +380,25 @@ export class DataMartMapper {
     runId: string,
     context: AuthorizationContext
   ): CancelDataMartRunCommand {
-    return new CancelDataMartRunCommand(id, runId, context.projectId);
+    return new CancelDataMartRunCommand(
+      id,
+      runId,
+      context.projectId,
+      context.userId,
+      context.roles ?? []
+    );
   }
 
   toDefinitionValidateCommand(
     id: string,
     context: AuthorizationContext
   ): ValidateDataMartDefinitionCommand {
-    return new ValidateDataMartDefinitionCommand(id, context.projectId);
+    return new ValidateDataMartDefinitionCommand(
+      id,
+      context.projectId,
+      context.userId,
+      context.roles ?? []
+    );
   }
 
   toDefinitionValidationResponse(
@@ -371,7 +416,12 @@ export class DataMartMapper {
     id: string,
     context: AuthorizationContext
   ): ActualizeDataMartSchemaCommand {
-    return new ActualizeDataMartSchemaCommand(id, context.projectId);
+    return new ActualizeDataMartSchemaCommand(
+      id,
+      context.projectId,
+      context.userId,
+      context.roles ?? []
+    );
   }
 
   toUpdateSchemaCommand(
@@ -379,7 +429,13 @@ export class DataMartMapper {
     context: AuthorizationContext,
     dto: UpdateDataMartSchemaApiDto
   ): UpdateDataMartSchemaCommand {
-    return new UpdateDataMartSchemaCommand(id, context.projectId, dto.schema);
+    return new UpdateDataMartSchemaCommand(
+      id,
+      context.projectId,
+      dto.schema,
+      context.userId,
+      context.roles ?? []
+    );
   }
 
   toSqlDryRunCommand(
@@ -387,7 +443,13 @@ export class DataMartMapper {
     context: AuthorizationContext,
     dto: SqlDryRunRequestApiDto
   ): SqlDryRunCommand {
-    return new SqlDryRunCommand(dataMartId, context.projectId, dto.sql);
+    return new SqlDryRunCommand(
+      dataMartId,
+      context.projectId,
+      dto.sql,
+      context.userId,
+      context.roles ?? []
+    );
   }
 
   toSqlDryRunResponse(result: SqlDryRunResult): SqlDryRunResponseApiDto {
@@ -479,7 +541,13 @@ export class DataMartMapper {
     runId: string,
     context: AuthorizationContext
   ): GetDataMartRunCommand {
-    return new GetDataMartRunCommand(dataMartId, context.projectId, runId);
+    return new GetDataMartRunCommand(
+      dataMartId,
+      context.projectId,
+      runId,
+      context.userId,
+      context.roles ?? []
+    );
   }
 
   async toRunResponse(run: DataMartRunDto): Promise<DataMartRunResponseApiDto> {

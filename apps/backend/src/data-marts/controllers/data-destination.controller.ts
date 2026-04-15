@@ -2,6 +2,7 @@ import {
   Body,
   Controller,
   Delete,
+  ForbiddenException,
   Get,
   HttpCode,
   Param,
@@ -58,6 +59,7 @@ import { RevokeDestinationOAuthService } from '../use-cases/google-oauth/revoke-
 import { ExchangeOAuthCodeService } from '../use-cases/google-oauth/exchange-oauth-code.service';
 import { UpdateAvailabilityService } from '../use-cases/update-availability.service';
 import { UpdateDestinationAvailabilityApiDto } from '../dto/presentation/update-availability-api.dto';
+import { AccessDecisionService, EntityType, Action } from '../services/access-decision';
 
 @Controller('data-destinations')
 @ApiTags('DataDestinations')
@@ -77,8 +79,28 @@ export class DataDestinationController {
     private readonly revokeOAuthService: RevokeDestinationOAuthService,
     private readonly exchangeOAuthCodeService: ExchangeOAuthCodeService,
     private readonly listByTypeService: ListDataDestinationsByTypeService,
-    private readonly updateAvailabilityService: UpdateAvailabilityService
+    private readonly updateAvailabilityService: UpdateAvailabilityService,
+    private readonly accessDecisionService: AccessDecisionService
   ) {}
+
+  private async checkDestinationAccess(
+    id: string,
+    context: AuthorizationContext,
+    action: Action
+  ): Promise<void> {
+    if (!context.userId) return;
+    const allowed = await this.accessDecisionService.canAccess(
+      context.userId,
+      context.roles ?? [],
+      EntityType.DESTINATION,
+      id,
+      action,
+      context.projectId
+    );
+    if (!allowed) {
+      throw new ForbiddenException('You do not have access to this Destination');
+    }
+  }
 
   @Auth(Role.viewer(Strategy.INTROSPECT))
   @Post()
@@ -183,6 +205,7 @@ export class DataDestinationController {
     @AuthContext() context: AuthorizationContext,
     @Param('id') id: string
   ): Promise<DataDestinationResponseApiDto> {
+    await this.checkDestinationAccess(id, context, Action.SEE);
     const command = this.mapper.toGetCommand(id, context);
     const dataDestinationDto = await this.getService.run(command);
     return await this.mapper.toApiResponse(dataDestinationDto);
@@ -195,6 +218,7 @@ export class DataDestinationController {
     @AuthContext() context: AuthorizationContext,
     @Param('id') id: string
   ): Promise<void> {
+    await this.checkDestinationAccess(id, context, Action.DELETE);
     const command = this.mapper.toDeleteCommand(id, context);
     await this.deleteService.run(command);
   }
@@ -206,6 +230,7 @@ export class DataDestinationController {
     @AuthContext() context: AuthorizationContext,
     @Param('id') id: string
   ): Promise<DataDestinationResponseApiDto> {
+    await this.checkDestinationAccess(id, context, Action.EDIT);
     const command = this.mapper.toRotateSecretKeyCommand(id, context);
     const dataDestinationDto = await this.rotateSecretKeyService.run(command);
     return await this.mapper.toApiResponse(dataDestinationDto);
@@ -220,6 +245,7 @@ export class DataDestinationController {
     @Param('id') id: string,
     @Body() body: GenerateAuthorizationUrlRequestDto
   ): Promise<GenerateAuthorizationUrlResponseDto> {
+    await this.checkDestinationAccess(id, context, Action.EDIT);
     const command = this.mapper.toGenerateOAuthUrlCommand(context, body, id);
     return this.generateOAuthUrlService.run(command);
   }
@@ -231,6 +257,7 @@ export class DataDestinationController {
     @AuthContext() context: AuthorizationContext,
     @Param('id') id: string
   ): Promise<GoogleOAuthStatusResponseDto> {
+    await this.checkDestinationAccess(id, context, Action.SEE);
     const command = this.mapper.toGetOAuthStatusCommand(id, context);
     return this.getOAuthStatusService.run(command);
   }
@@ -243,6 +270,7 @@ export class DataDestinationController {
     @AuthContext() context: AuthorizationContext,
     @Param('id') id: string
   ): Promise<void> {
+    await this.checkDestinationAccess(id, context, Action.EDIT);
     const command = this.mapper.toRevokeOAuthCommand(id, context);
     await this.revokeOAuthService.run(command);
   }

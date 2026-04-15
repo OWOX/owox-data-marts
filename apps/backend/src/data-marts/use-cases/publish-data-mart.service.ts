@@ -1,4 +1,4 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, ForbiddenException } from '@nestjs/common';
 import { OwoxProducer } from '@owox/internal-helpers';
 import { BusinessViolationException } from '../../common/exceptions/business-violation.exception';
 import { OWOX_PRODUCER } from '../../common/producer/producer.module';
@@ -10,6 +10,7 @@ import { DataMartStatus } from '../enums/data-mart-status.enum';
 import { DataMartPublishedEvent } from '../events/data-mart-published.event';
 import { DataMartMapper } from '../mappers/data-mart.mapper';
 import { DataMartService } from '../services/data-mart.service';
+import { AccessDecisionService, EntityType, Action } from '../services/access-decision';
 
 @Injectable()
 export class PublishDataMartService {
@@ -18,11 +19,26 @@ export class PublishDataMartService {
     private readonly definitionValidatorFacade: DataMartDefinitionValidatorFacade,
     private readonly mapper: DataMartMapper,
     @Inject(OWOX_PRODUCER)
-    private readonly producer: OwoxProducer
+    private readonly producer: OwoxProducer,
+    private readonly accessDecisionService: AccessDecisionService
   ) {}
 
   async run(command: PublishDataMartCommand): Promise<DataMartDto> {
     const dataMart = await this.dataMartService.getByIdAndProjectId(command.id, command.projectId);
+
+    if (command.userId) {
+      const canEdit = await this.accessDecisionService.canAccess(
+        command.userId,
+        command.roles,
+        EntityType.DATA_MART,
+        command.id,
+        Action.EDIT,
+        command.projectId
+      );
+      if (!canEdit) {
+        throw new ForbiddenException('You do not have permission to publish this DataMart');
+      }
+    }
 
     if (dataMart.status !== DataMartStatus.DRAFT) {
       throw new BusinessViolationException(`DataMart is not in ${DataMartStatus.DRAFT} status`);

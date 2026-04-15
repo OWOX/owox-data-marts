@@ -37,7 +37,7 @@ export class ReportAccessService {
   /**
    * Evaluate whether a user can mutate a Report. Single source of truth for access logic.
    *
-   * Stage 3: Editor no longer has project-wide bypass.
+   * Permissions Model: Editor no longer has project-wide bypass.
    * Access requires: DM visible + (DM maintenance access OR Report ownership with effective dest).
    */
   private async evaluateMutateAccess(
@@ -55,7 +55,7 @@ export class ReportAccessService {
       return { allowed: false, reason: 'not-found' };
     }
 
-    // Stage 3: DM must be visible to the user
+    // Permissions Model: DM must be visible to the user
     const canSeeDm = await this.accessDecisionService.canAccess(
       userId,
       roles,
@@ -162,7 +162,7 @@ export class ReportAccessService {
       return false;
     }
 
-    // Stage 3: check DataMart visibility for this user
+    // Permissions Model: check DataMart visibility for this user
     if (report.dataMart) {
       const canSeeDm = await this.accessDecisionService.canAccess(
         userId,
@@ -173,6 +173,21 @@ export class ReportAccessService {
         projectId
       );
       if (!canSeeDm) {
+        return false;
+      }
+    }
+
+    // Permissions Model: check Destination USE access for this user
+    if (report.dataDestination) {
+      const canUseDest = await this.accessDecisionService.canAccess(
+        userId,
+        [member.role ?? 'viewer'],
+        EntityType.DESTINATION,
+        report.dataDestination.id,
+        Action.USE,
+        projectId
+      );
+      if (!canUseDest) {
         return false;
       }
     }

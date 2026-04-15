@@ -50,9 +50,9 @@ function resolvePayload(token: string): Payload {
 }
 
 /**
- * Stage 2: Extend Role Definitions — Access Control E2E Tests
+ * Permissions Model: Extend Role Definitions — Access Control E2E Tests
  */
-describe('Stage 2 Access Control (e2e)', () => {
+describe('Permissions Model Access Control (e2e)', () => {
   let app: INestApplication;
   let agent: supertest.Agent;
   let dataMartId: string;
@@ -100,7 +100,7 @@ describe('Stage 2 Access Control (e2e)', () => {
       ]);
 
     // Setup prerequisites as admin: storage → data mart → publish → destination
-    // setupReportPrerequisites auto-shares all entities (Stage 3 compat)
+    // setupReportPrerequisites auto-shares all entities for test compatibility
     const prereqs = await setupReportPrerequisites(agent);
     dataMartId = prereqs.dataMartId;
     dataDestinationId = prereqs.dataDestinationId;

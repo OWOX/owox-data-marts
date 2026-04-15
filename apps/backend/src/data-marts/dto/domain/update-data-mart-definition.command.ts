@@ -8,6 +8,8 @@ export class UpdateDataMartDefinitionCommand {
     public readonly definitionType: DataMartDefinitionType,
     public readonly definition: DataMartDefinition,
     public readonly sourceDataMartId?: string,
-    public readonly sourceConfigurationId?: string
+    public readonly sourceConfigurationId?: string,
+    public readonly userId: string = '',
+    public readonly roles: string[] = []
   ) {}
 }

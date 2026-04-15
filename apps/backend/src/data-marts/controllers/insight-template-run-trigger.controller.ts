@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, ForbiddenException } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { UiTriggerController } from '../../common/scheduler/shared/ui-trigger-controller';
 import { Auth, AuthContext, AuthorizationContext, Role, Strategy } from '../../idp';
@@ -10,11 +10,15 @@ import {
   CreateInsightTemplateRunTriggerSpec,
   ListInsightTemplateRunTriggersSpec,
 } from './spec/insight-template-run-trigger.api';
+import { AccessDecisionService, EntityType, Action } from '../services/access-decision';
 
 @Controller('data-marts/:dataMartId/insight-templates/:insightTemplateId/run-triggers')
 @ApiTags('Insights')
 export class InsightTemplateRunTriggerController extends UiTriggerController<InsightTemplateRunResponseApiDto> {
-  constructor(triggerService: InsightTemplateRunTriggerService) {
+  constructor(
+    triggerService: InsightTemplateRunTriggerService,
+    private readonly accessDecisionService: AccessDecisionService
+  ) {
     super(triggerService);
   }
 
@@ -27,6 +31,17 @@ export class InsightTemplateRunTriggerController extends UiTriggerController<Ins
     @Param('insightTemplateId') insightTemplateId: string,
     @Body() dto: CreateInsightTemplateRunTriggerRequestApiDto
   ): Promise<{ triggerId: string }> {
+    if (context.userId) {
+      const canEdit = await this.accessDecisionService.canAccess(
+        context.userId,
+        context.roles ?? [],
+        EntityType.DATA_MART,
+        dataMartId,
+        Action.EDIT,
+        context.projectId
+      );
+      if (!canEdit) throw new ForbiddenException('You do not have access to this DataMart');
+    }
     const triggerId = await (this.triggerService as InsightTemplateRunTriggerService).createTrigger(
       {
         userId: context.userId,
@@ -49,6 +64,17 @@ export class InsightTemplateRunTriggerController extends UiTriggerController<Ins
     @Param('dataMartId') dataMartId: string,
     @Param('insightTemplateId') insightTemplateId: string
   ): Promise<{ data: InsightTemplateRunTriggerListItemResponseApiDto[] }> {
+    if (context.userId) {
+      const canSee = await this.accessDecisionService.canAccess(
+        context.userId,
+        context.roles ?? [],
+        EntityType.DATA_MART,
+        dataMartId,
+        Action.SEE,
+        context.projectId
+      );
+      if (!canSee) throw new ForbiddenException('You do not have access to this DataMart');
+    }
     const triggers = await (
       this.triggerService as InsightTemplateRunTriggerService
     ).listByInsightTemplate({

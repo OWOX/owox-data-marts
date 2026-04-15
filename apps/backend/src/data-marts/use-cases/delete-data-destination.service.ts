@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, ForbiddenException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { DataDestination } from '../entities/data-destination.entity';
@@ -6,6 +6,7 @@ import { Report } from '../entities/report.entity';
 import { DeleteDataDestinationCommand } from '../dto/domain/delete-data-destination.command';
 import { DataDestinationService } from '../services/data-destination.service';
 import { BusinessViolationException } from '../../common/exceptions/business-violation.exception';
+import { AccessDecisionService, EntityType, Action } from '../services/access-decision';
 
 @Injectable()
 export class DeleteDataDestinationService {
@@ -14,7 +15,8 @@ export class DeleteDataDestinationService {
     private readonly dataDestinationRepository: Repository<DataDestination>,
     @InjectRepository(Report)
     private readonly reportRepository: Repository<Report>,
-    private readonly dataDestinationService: DataDestinationService
+    private readonly dataDestinationService: DataDestinationService,
+    private readonly accessDecisionService: AccessDecisionService
   ) {}
 
   async run(command: DeleteDataDestinationCommand): Promise<void> {
@@ -22,6 +24,20 @@ export class DeleteDataDestinationService {
       command.id,
       command.projectId
     );
+
+    if (command.userId) {
+      const canDelete = await this.accessDecisionService.canAccess(
+        command.userId,
+        command.roles,
+        EntityType.DESTINATION,
+        command.id,
+        Action.DELETE,
+        command.projectId
+      );
+      if (!canDelete) {
+        throw new ForbiddenException('You do not have permission to delete this Destination');
+      }
+    }
 
     const reportsCount = await this.reportRepository
       .createQueryBuilder('report')

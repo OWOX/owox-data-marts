@@ -158,6 +158,10 @@ export function reducer(state: DataMartState, action: DataMartAction): DataMartS
 
     case 'FETCH_DATA_MART_ERROR':
     case 'CREATE_DATA_MART_ERROR':
+      return { ...state, isLoading: false, error: action.payload };
+
+    // Mutation errors: keep existing dataMart visible, don't set error
+    // (toast is shown by apiClient interceptor)
     case 'UPDATE_DATA_MART_ERROR':
     case 'UPDATE_DATA_MART_TITLE_ERROR':
     case 'UPDATE_DATA_MART_DESCRIPTION_ERROR':
@@ -169,7 +173,7 @@ export function reducer(state: DataMartState, action: DataMartAction): DataMartS
     case 'ACTUALIZE_DATA_MART_SCHEMA_ERROR':
     case 'UPDATE_DATA_MART_SCHEMA_ERROR':
     case 'FETCH_DATA_MART_RUNS_ERROR':
-      return { ...state, isLoading: false, error: action.payload };
+      return { ...state, isLoading: false };
 
     case 'LOAD_MORE_DATA_MART_RUNS_SUCCESS': {
       // Deduplicate: add only runs that don't exist yet

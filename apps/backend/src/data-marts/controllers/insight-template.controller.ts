@@ -1,4 +1,15 @@
-import { Body, Controller, Delete, Get, HttpCode, Param, Patch, Post, Put } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  ForbiddenException,
+  Get,
+  HttpCode,
+  Param,
+  Patch,
+  Post,
+  Put,
+} from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { Auth, AuthContext, AuthorizationContext, Role, Strategy } from '../../idp';
 import { CreateInsightTemplateRequestApiDto } from '../dto/presentation/create-insight-template-request-api.dto';
@@ -11,6 +22,7 @@ import { UpdateInsightTemplateSourceRequestApiDto } from '../dto/presentation/up
 import { UpdateInsightTemplateTitleApiDto } from '../dto/presentation/update-insight-template-title-api.dto';
 import { InsightTemplateMapper } from '../mappers/insight-template.mapper';
 import { InsightTemplateSourceMapper } from '../mappers/insight-template-source.mapper';
+import { AccessDecisionService, EntityType, Action } from '../services/access-decision';
 import { CreateInsightTemplateSourceService } from '../use-cases/create-insight-template-source.service';
 import { CreateInsightTemplateService } from '../use-cases/create-insight-template.service';
 import { DeleteInsightTemplateSourceService } from '../use-cases/delete-insight-template-source.service';
@@ -49,8 +61,28 @@ export class InsightTemplateController {
     private readonly deleteInsightTemplateSourceService: DeleteInsightTemplateSourceService,
     private readonly updateInsightTemplateTitleService: UpdateInsightTemplateTitleService,
     private readonly mapper: InsightTemplateMapper,
-    private readonly sourceMapper: InsightTemplateSourceMapper
+    private readonly sourceMapper: InsightTemplateSourceMapper,
+    private readonly accessDecisionService: AccessDecisionService
   ) {}
+
+  private async checkDataMartAccess(
+    dataMartId: string,
+    context: AuthorizationContext,
+    action: Action
+  ): Promise<void> {
+    if (!context.userId) return;
+    const allowed = await this.accessDecisionService.canAccess(
+      context.userId,
+      context.roles ?? [],
+      EntityType.DATA_MART,
+      dataMartId,
+      action,
+      context.projectId
+    );
+    if (!allowed) {
+      throw new ForbiddenException('You do not have access to this DataMart');
+    }
+  }
 
   @Auth(Role.editor(Strategy.INTROSPECT))
   @Post()
@@ -60,6 +92,7 @@ export class InsightTemplateController {
     @Param('dataMartId') dataMartId: string,
     @Body() dto: CreateInsightTemplateRequestApiDto
   ): Promise<InsightTemplateResponseApiDto> {
+    await this.checkDataMartAccess(dataMartId, context, Action.EDIT);
     const command = this.mapper.toCreateDomainCommand(dataMartId, context, dto);
     const insightTemplate = await this.createInsightTemplateService.run(command);
     return this.mapper.toResponse(insightTemplate);
@@ -72,6 +105,7 @@ export class InsightTemplateController {
     @AuthContext() context: AuthorizationContext,
     @Param('dataMartId') dataMartId: string
   ): Promise<{ data: InsightTemplateListItemResponseApiDto[] }> {
+    await this.checkDataMartAccess(dataMartId, context, Action.SEE);
     const command = this.mapper.toListCommand(dataMartId, context);
     const insightTemplates = await this.listInsightTemplatesService.run(command);
 
@@ -86,6 +120,7 @@ export class InsightTemplateController {
     @Param('dataMartId') dataMartId: string,
     @Param('insightTemplateId') insightTemplateId: string
   ): Promise<InsightTemplateResponseApiDto> {
+    await this.checkDataMartAccess(dataMartId, context, Action.SEE);
     const command = this.mapper.toGetCommand(insightTemplateId, dataMartId, context);
     const insightTemplate = await this.getInsightTemplateService.run(command);
 
@@ -101,6 +136,7 @@ export class InsightTemplateController {
     @Param('insightTemplateId') insightTemplateId: string,
     @Body() dto: UpdateInsightTemplateRequestApiDto
   ): Promise<InsightTemplateResponseApiDto> {
+    await this.checkDataMartAccess(dataMartId, context, Action.EDIT);
     const command = this.mapper.toUpdateCommand(insightTemplateId, dataMartId, context, dto);
     const insightTemplate = await this.updateInsightTemplateService.run(command);
     return this.mapper.toResponse(insightTemplate);
@@ -115,6 +151,7 @@ export class InsightTemplateController {
     @Param('insightTemplateId') insightTemplateId: string,
     @Body() dto: UpdateInsightTemplateTitleApiDto
   ): Promise<InsightTemplateResponseApiDto> {
+    await this.checkDataMartAccess(dataMartId, context, Action.EDIT);
     const command = this.mapper.toUpdateTitleCommand(insightTemplateId, dataMartId, context, dto);
     const insightTemplate = await this.updateInsightTemplateTitleService.run(command);
     return this.mapper.toResponse(insightTemplate);
@@ -129,6 +166,7 @@ export class InsightTemplateController {
     @Param('dataMartId') dataMartId: string,
     @Param('insightTemplateId') insightTemplateId: string
   ): Promise<void> {
+    await this.checkDataMartAccess(dataMartId, context, Action.EDIT);
     const command = this.mapper.toDeleteCommand(insightTemplateId, dataMartId, context);
     await this.deleteInsightTemplateService.run(command);
   }
@@ -143,6 +181,7 @@ export class InsightTemplateController {
     @Param('insightTemplateId') insightTemplateId: string,
     @Param('sourceId') sourceId: string
   ): Promise<void> {
+    await this.checkDataMartAccess(dataMartId, context, Action.EDIT);
     const command = this.sourceMapper.toDeleteCommand(
       sourceId,
       insightTemplateId,
@@ -160,6 +199,7 @@ export class InsightTemplateController {
     @Param('dataMartId') dataMartId: string,
     @Param('insightTemplateId') insightTemplateId: string
   ): Promise<{ data: InsightTemplateSourceDetailsApiDto[] }> {
+    await this.checkDataMartAccess(dataMartId, context, Action.SEE);
     const command = this.sourceMapper.toListCommand(insightTemplateId, dataMartId, context);
     const sources = await this.listInsightTemplateSourcesService.run(command);
 
@@ -175,6 +215,7 @@ export class InsightTemplateController {
     @Param('insightTemplateId') insightTemplateId: string,
     @Body() dto: CreateInsightTemplateSourceRequestApiDto
   ): Promise<InsightTemplateSourceDetailsApiDto> {
+    await this.checkDataMartAccess(dataMartId, context, Action.EDIT);
     const command = this.sourceMapper.toCreateCommand(insightTemplateId, dataMartId, context, dto);
     const source = await this.createInsightTemplateSourceService.run(command);
 
@@ -191,6 +232,7 @@ export class InsightTemplateController {
     @Param('sourceId') sourceId: string,
     @Body() dto: UpdateInsightTemplateSourceRequestApiDto
   ): Promise<InsightTemplateSourceDetailsApiDto> {
+    await this.checkDataMartAccess(dataMartId, context, Action.EDIT);
     const command = this.sourceMapper.toUpdateCommand(
       sourceId,
       insightTemplateId,

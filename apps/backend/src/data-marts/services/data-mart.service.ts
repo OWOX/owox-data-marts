@@ -98,7 +98,7 @@ export class DataMartService {
           { accessUserId: options.userId, isTrue: true }
         );
       } else {
-        // BU: biz owner OR available_for_reporting (+ available_for_both via reporting)
+        // BU: tech owner (SEE+USE only) OR biz owner OR available_for_reporting
         qb.andWhere(
           `(EXISTS (SELECT 1 FROM data_mart_technical_owners t WHERE t.data_mart_id = dm.id AND t.user_id = :accessUserId)
             OR EXISTS (SELECT 1 FROM data_mart_business_owners b WHERE b.data_mart_id = dm.id AND b.user_id = :accessUserId)

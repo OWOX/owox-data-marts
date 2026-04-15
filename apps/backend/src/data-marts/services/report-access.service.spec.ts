@@ -81,7 +81,7 @@ describe('ReportAccessService', () => {
       expect(result).toBe(false);
     });
 
-    it('should NOT auto-allow editor without DM ownership (Stage 3 bypass removed)', async () => {
+    it('should NOT auto-allow editor without DM ownership (project-wide bypass removed)', async () => {
       const { service, reportRepository, reportOwnerRepository, accessDecisionService } =
         createService();
       reportRepository.findOne.mockResolvedValue(mockReport);

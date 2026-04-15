@@ -20,7 +20,7 @@ export class AddAvailabilityColumns1774800000000 implements MigrationInterface {
       }),
     ]);
 
-    // Set existing records to true (preserve pre-Stage-3 behavior: all entities were visible)
+    // Set existing records to true (backward compat: all entities were visible before Permissions Model)
     await queryRunner.query(
       `UPDATE data_mart SET availableForReporting = 1, availableForMaintenance = 1`
     );

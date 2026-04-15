@@ -1,9 +1,10 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, ForbiddenException } from '@nestjs/common';
 import { DataStorageAccessValidatorFacade } from '../data-storage-types/facades/data-storage-access-validator-facade.service';
 import { DataStorageCredentialsResolver } from '../data-storage-types/data-storage-credentials-resolver.service';
 import { ValidationResult } from '../data-storage-types/interfaces/data-storage-access-validator.interface';
 import { ValidateDataStorageAccessCommand } from '../dto/domain/validate-data-storage-access.command';
 import { DataStorageService } from '../services/data-storage.service';
+import { AccessDecisionService, EntityType, Action } from '../services/access-decision';
 
 @Injectable()
 export class ValidateDataStorageAccessService {
@@ -12,7 +13,8 @@ export class ValidateDataStorageAccessService {
   constructor(
     private readonly dataStorageService: DataStorageService,
     private readonly dataStorageValidationFacade: DataStorageAccessValidatorFacade,
-    private readonly dataStorageCredentialsResolver: DataStorageCredentialsResolver
+    private readonly dataStorageCredentialsResolver: DataStorageCredentialsResolver,
+    private readonly accessDecisionService: AccessDecisionService
   ) {}
 
   async run(command: ValidateDataStorageAccessCommand): Promise<ValidationResult> {
@@ -20,6 +22,20 @@ export class ValidateDataStorageAccessService {
       command.projectId,
       command.id
     );
+
+    if (command.userId) {
+      const canUse = await this.accessDecisionService.canAccess(
+        command.userId,
+        command.roles,
+        EntityType.STORAGE,
+        command.id,
+        Action.USE,
+        command.projectId
+      );
+      if (!canUse) {
+        throw new ForbiddenException('You do not have access to this Storage');
+      }
+    }
 
     if (!dataStorage.config) {
       return { valid: false, errorMessage: 'Storage setup is incomplete' };

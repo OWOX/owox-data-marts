@@ -47,6 +47,8 @@ export class SqlDryRunTriggerHandlerService
         dataMartId: trigger.dataMartId,
         projectId: trigger.projectId,
         sql: trigger.sql,
+        userId: '',
+        roles: [],
       });
 
       // Save result in trigger

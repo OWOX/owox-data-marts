@@ -4,6 +4,8 @@ export class UpdateDataMartSchemaCommand {
   constructor(
     public readonly id: string,
     public readonly projectId: string,
-    public readonly schema: DataMartSchema
+    public readonly schema: DataMartSchema,
+    public readonly userId: string = '',
+    public readonly roles: string[] = []
   ) {}
 }

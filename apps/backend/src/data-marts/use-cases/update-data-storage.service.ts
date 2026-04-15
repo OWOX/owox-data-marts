@@ -53,7 +53,7 @@ export class UpdateDataStorageService {
 
   @Transactional()
   async run(command: UpdateDataStorageCommand): Promise<DataStorageDto> {
-    // Stage 3: if ownerIds are being changed, check MANAGE_OWNERS permission
+    // Permissions Model: if ownerIds are being changed, check MANAGE_OWNERS permission
     if (command.ownerIds !== undefined && command.userId) {
       const canManage = await this.accessDecisionService.canAccess(
         command.userId,
@@ -68,7 +68,7 @@ export class UpdateDataStorageService {
       }
     }
 
-    // Stage 3: if availability is being changed, check CONFIGURE_SHARING permission
+    // Permissions Model: if availability is being changed, check CONFIGURE_SHARING permission
     if (
       (command.availableForUse !== undefined || command.availableForMaintenance !== undefined) &&
       command.userId
@@ -109,7 +109,7 @@ export class UpdateDataStorageService {
     }
 
     if (command.sourceStorageId) {
-      // Stage 3: copy credentials requires COPY_CREDENTIALS access to source storage
+      // Permissions Model: copy credentials requires COPY_CREDENTIALS access to source storage
       if (command.userId) {
         const canCopy = await this.accessDecisionService.canAccess(
           command.userId,
