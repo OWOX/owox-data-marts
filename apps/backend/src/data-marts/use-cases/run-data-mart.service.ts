@@ -16,7 +16,9 @@ export class RunDataMartService {
   async run(command: RunDataMartCommand): Promise<string> {
     const dataMart = await this.dataMartService.getByIdAndProjectId(command.id, command.projectId);
 
-    if (command.createdById) {
+    // Access check only for user-initiated runs (manual run from UI).
+    // Scheduled runs have roles=[] — no user context, access was checked at trigger creation.
+    if (command.createdById && command.roles.length > 0) {
       const canEdit = await this.accessDecisionService.canAccess(
         command.createdById,
         command.roles,

@@ -91,6 +91,21 @@ export class UpdateDataStorageService {
       command.id
     );
 
+    // Permissions Model: verify user has EDIT access to this Storage
+    if (command.userId) {
+      const canEdit = await this.accessDecisionService.canAccess(
+        command.userId,
+        command.roles,
+        EntityType.STORAGE,
+        command.id,
+        Action.EDIT,
+        command.projectId
+      );
+      if (!canEdit) {
+        throw new ForbiddenException('You do not have permission to edit this Storage');
+      }
+    }
+
     const isLegacyStorage = dataStorageEntity.type === DataStorageType.LEGACY_GOOGLE_BIGQUERY;
     const configWasEmpty = !dataStorageEntity.config;
 

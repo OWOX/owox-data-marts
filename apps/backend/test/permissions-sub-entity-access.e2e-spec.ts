@@ -51,6 +51,7 @@ function resolvePayload(token: string): Payload {
 describe('Permissions Model Sub-Entity Access Control (e2e)', () => {
   let app: INestApplication;
   let agent: supertest.Agent;
+  let storageId: string;
   let dataMartId: string;
   let dataDestinationId: string;
 
@@ -94,6 +95,7 @@ describe('Permissions Model Sub-Entity Access Control (e2e)', () => {
       ]);
 
     const prereqs = await setupReportPrerequisites(agent);
+    storageId = prereqs.storageId;
     dataMartId = prereqs.dataMartId;
     dataDestinationId = prereqs.dataDestinationId;
   }, 120_000);
@@ -500,6 +502,112 @@ describe('Permissions Model Sub-Entity Access Control (e2e)', () => {
         .post(`/api/data-marts/${dataMartId}/scheduled-triggers`)
         .set(VIEWER_AUTH_HEADER)
         .send({ type: 'CONNECTOR_RUN', cronExpression: '0 * * * *', timeZone: 'UTC' });
+      expect(res.status).toBe(403);
+    });
+  });
+
+  // ═══════════════════════════════════════════════════════════════
+  // STORAGE OAUTH — ownership check
+  // ═══════════════════════════════════════════════════════════════
+
+  describe('Storage OAuth — Not shared blocks OAuth operations', () => {
+    beforeAll(async () => {
+      await agent
+        .put(`/api/data-storages/${storageId}/availability`)
+        .set(AUTH_HEADER)
+        .send({ availableForUse: false, availableForMaintenance: false });
+    });
+
+    afterAll(async () => {
+      await agent
+        .put(`/api/data-storages/${storageId}/availability`)
+        .set(AUTH_HEADER)
+        .send({ availableForUse: true, availableForMaintenance: true });
+    });
+
+    it('GET /api/data-storages/:id/oauth/status → 403 for non-owner TU', async () => {
+      const res = await agent
+        .get(`/api/data-storages/${storageId}/oauth/status`)
+        .set(EDITOR_AUTH_HEADER);
+      expect(res.status).toBe(403);
+    });
+
+    it('POST /api/data-storages/:id/oauth/authorize → 403 for non-owner TU', async () => {
+      const res = await agent
+        .post(`/api/data-storages/${storageId}/oauth/authorize`)
+        .set(EDITOR_AUTH_HEADER)
+        .send({ redirectUri: 'http://localhost' });
+      expect(res.status).toBe(403);
+    });
+
+    it('DELETE /api/data-storages/:id/oauth → 403 for non-owner TU', async () => {
+      const res = await agent
+        .delete(`/api/data-storages/${storageId}/oauth`)
+        .set(EDITOR_AUTH_HEADER);
+      expect(res.status).toBe(403);
+    });
+  });
+
+  // ═══════════════════════════════════════════════════════════════
+  // PUBLISH DRAFTS TRIGGER — parent Storage access
+  // ═══════════════════════════════════════════════════════════════
+
+  describe('PublishDraftsTrigger — Not shared Storage blocks trigger', () => {
+    beforeAll(async () => {
+      await agent
+        .put(`/api/data-storages/${storageId}/availability`)
+        .set(AUTH_HEADER)
+        .send({ availableForUse: false, availableForMaintenance: false });
+    });
+
+    afterAll(async () => {
+      await agent
+        .put(`/api/data-storages/${storageId}/availability`)
+        .set(AUTH_HEADER)
+        .send({ availableForUse: true, availableForMaintenance: true });
+    });
+
+    it('POST /api/data-storages/:id/publish-drafts-triggers → 403 for non-owner TU', async () => {
+      const res = await agent
+        .post(`/api/data-storages/${storageId}/publish-drafts-triggers`)
+        .set(EDITOR_AUTH_HEADER);
+      expect(res.status).toBe(403);
+    });
+
+    it('POST /api/data-storages/:id/publish-drafts-triggers → success for admin', async () => {
+      const res = await agent
+        .post(`/api/data-storages/${storageId}/publish-drafts-triggers`)
+        .set(AUTH_HEADER);
+      expect([200, 201]).toContain(res.status);
+    });
+  });
+
+  // ═══════════════════════════════════════════════════════════════
+  // INSIGHT ARTIFACT SQL PREVIEW — parent DM access
+  // ═══════════════════════════════════════════════════════════════
+
+  describe('InsightArtifactSqlPreview — Not shared DM blocks trigger', () => {
+    beforeAll(async () => {
+      await agent
+        .put(`/api/data-marts/${dataMartId}/availability`)
+        .set(AUTH_HEADER)
+        .send({ availableForReporting: false, availableForMaintenance: false });
+    });
+
+    afterAll(async () => {
+      await agent
+        .put(`/api/data-marts/${dataMartId}/availability`)
+        .set(AUTH_HEADER)
+        .send({ availableForReporting: true, availableForMaintenance: true });
+    });
+
+    it('POST /api/data-marts/:id/insight-artifacts/:artifactId/sql-preview-triggers → 403 for non-owner TU', async () => {
+      const res = await agent
+        .post(
+          `/api/data-marts/${dataMartId}/insight-artifacts/00000000-0000-0000-0000-000000000000/sql-preview-triggers`
+        )
+        .set(EDITOR_AUTH_HEADER)
+        .send({ sql: 'SELECT 1' });
       expect(res.status).toBe(403);
     });
   });

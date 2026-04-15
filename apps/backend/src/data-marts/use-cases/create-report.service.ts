@@ -72,6 +72,21 @@ export class CreateReportService {
       }
     }
 
+    // Permissions Model: verify user has access to this Destination
+    if (command.userId) {
+      const canUseDest = await this.accessDecisionService.canAccess(
+        command.userId,
+        command.roles,
+        EntityType.DESTINATION,
+        command.dataDestinationId,
+        Action.USE,
+        command.projectId
+      );
+      if (!canUseDest) {
+        throw new ForbiddenException('You do not have access to the Destination for this report');
+      }
+    }
+
     // Get the data destination
     const dataDestination = await this.dataDestinationService.getByIdAndProjectId(
       command.dataDestinationId,

@@ -345,7 +345,7 @@ describe('Permissions Model Entity Access — Storage, Destination, Report, DM s
         .post(`/api/data-storages/${storageId}/validate-access`)
         .set(EDITOR_AUTH_HEADER);
       // Shared for use allows USE → validation should pass access check
-      expect(res.status).not.toBe(403);
+      expect([200, 201, 204]).toContain(res.status);
     });
   });
 
@@ -379,7 +379,7 @@ describe('Permissions Model Entity Access — Storage, Destination, Report, DM s
       const res = await agent
         .post(`/api/data-storages/${storageId}/validate-access`)
         .set(AUTH_HEADER);
-      expect(res.status).not.toBe(403);
+      expect([200, 201, 204]).toContain(res.status);
     });
   });
 
