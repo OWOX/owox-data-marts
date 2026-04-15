@@ -18,11 +18,11 @@ import { UpdateDataMartTitleApiDto } from '../../dto/presentation/update-data-ma
 import { UpdateDataMartDefinitionApiDto } from '../../dto/presentation/update-data-mart-definition-api.dto';
 import { UpdateDataMartSchemaApiDto } from '../../dto/presentation/update-data-mart-schema-api.dto';
 import { DataMartValidationResponseApiDto } from '../../dto/presentation/data-mart-validation-response-api.dto';
-import { SqlDryRunRequestApiDto } from '../../dto/presentation/sql-dry-run-request-api.dto';
-import { SqlDryRunResponseApiDto } from '../../dto/presentation/sql-dry-run-response-api.dto';
 import { DataMartRunsResponseApiDto } from '../../dto/presentation/data-mart-runs-response-api.dto';
 import { DataMartRunResponseApiDto } from '../../dto/presentation/data-mart-run-response-api.dto';
 import { UpdateDataMartOwnersApiDto } from '../../dto/presentation/update-data-mart-owners-api.dto';
+import { PaginatedDataMartsResponseApiDto } from '../../dto/presentation/paginated-data-marts-response-api.dto';
+import { OwnerFilter } from '../../enums/owner-filter.enum';
 
 export function CreateDataMartSpec() {
   return applyDecorators(
@@ -35,7 +35,21 @@ export function CreateDataMartSpec() {
 export function ListDataMartsSpec() {
   return applyDecorators(
     ApiOperation({ summary: 'List all DataMarts' }),
-    ApiResponse({ status: 200, type: DataMartResponseApiDto, isArray: true })
+    ApiQuery({
+      name: 'offset',
+      required: false,
+      type: Number,
+      example: 0,
+      description: 'Number of DataMarts to skip before returning results',
+    }),
+    ApiQuery({
+      name: 'ownerFilter',
+      required: false,
+      enum: OwnerFilter,
+      example: OwnerFilter.HAS_OWNERS,
+      description: 'Filter DataMarts by whether they have technical or business owners',
+    }),
+    ApiResponse({ status: 200, type: PaginatedDataMartsResponseApiDto })
   );
 }
 
@@ -102,23 +116,51 @@ export function UpdateDataMartOwnersSpec() {
 export function DeleteDataMartSpec() {
   return applyDecorators(
     ApiOperation({ summary: 'Soft delete DataMart' }),
-    ApiParam({ name: 'id', type: String }),
-    ApiNoContentResponse({ description: 'DataMart deleted' })
+    ApiParam({ name: 'id', description: 'DataMart ID' }),
+    ApiOkResponse({ description: 'DataMart deleted' })
   );
 }
 
 export function RunDataMartSpec() {
   return applyDecorators(
     ApiOperation({ summary: 'Manual run DataMart' }),
-    ApiParam({ name: 'id', type: String }),
-    ApiNoContentResponse({ description: 'DataMart run' })
+    ApiParam({ name: 'id', description: 'DataMart ID' }),
+    ApiBody({
+      required: false,
+      schema: {
+        type: 'object',
+        properties: {
+          payload: {
+            type: 'object',
+            additionalProperties: true,
+            example: { key: 'value' },
+            description: 'Optional payload for the manual run',
+          },
+        },
+      },
+    }),
+    ApiResponse({
+      status: 201,
+      description: 'DataMart run created',
+      schema: {
+        type: 'object',
+        required: ['runId'],
+        properties: {
+          runId: {
+            type: 'string',
+            format: 'uuid',
+            example: '123e4567-e89b-12d3-a456-426614174000',
+          },
+        },
+      },
+    })
   );
 }
 
 export function ValidateDataMartDefinitionSpec() {
   return applyDecorators(
     ApiOperation({ summary: 'Validate DataMart definition' }),
-    ApiParam({ name: 'id', type: String }),
+    ApiParam({ name: 'id', description: 'DataMart ID' }),
     ApiOkResponse({ type: DataMartValidationResponseApiDto })
   );
 }
@@ -132,21 +174,24 @@ export function UpdateDataMartSchemaSpec() {
   );
 }
 
-export function SqlDryRunSpec() {
-  return applyDecorators(
-    ApiOperation({ summary: 'Execute SQL dry run validation' }),
-    ApiParam({ name: 'id', description: 'DataMart ID' }),
-    ApiBody({ type: SqlDryRunRequestApiDto }),
-    ApiOkResponse({ type: SqlDryRunResponseApiDto })
-  );
-}
-
 export function GetDataMartRunsSpec() {
   return applyDecorators(
     ApiOperation({ summary: 'Get DataMart run history' }),
     ApiParam({ name: 'id', description: 'DataMart ID' }),
-    ApiQuery({ name: 'limit', description: 'Limit the number of runs to return', required: false }),
-    ApiQuery({ name: 'offset', description: 'Offset for pagination', required: false }),
+    ApiQuery({
+      name: 'limit',
+      required: false,
+      type: Number,
+      example: 20,
+      description: 'Maximum number of runs to return',
+    }),
+    ApiQuery({
+      name: 'offset',
+      required: false,
+      type: Number,
+      example: 0,
+      description: 'Number of runs to skip before returning results',
+    }),
     ApiOkResponse({ type: DataMartRunsResponseApiDto })
   );
 }
@@ -174,5 +219,56 @@ export function GetDataMartRunByIdSpec() {
     ApiParam({ name: 'id', description: 'DataMart ID' }),
     ApiParam({ name: 'runId', description: 'Run ID' }),
     ApiOkResponse({ type: DataMartRunResponseApiDto })
+  );
+}
+
+export function GetMemberOwnershipWarningsSpec() {
+  return applyDecorators(
+    ApiOperation({ summary: 'List member ownership warnings' }),
+    ApiOkResponse({
+      description:
+        'Technical-owner warnings for project members whose role makes ownership ineffective',
+      schema: {
+        type: 'array',
+        items: {
+          type: 'object',
+          required: ['userId', 'warning'],
+          properties: {
+            userId: {
+              type: 'string',
+              example: 'user-123',
+            },
+            warning: {
+              type: 'string',
+              example: 'Technical Owner — requires Technical User role to be effective',
+            },
+          },
+        },
+      },
+    })
+  );
+}
+
+export function UpdateDataMartAvailabilitySpec() {
+  return applyDecorators(
+    ApiOperation({ summary: 'Update DataMart availability' }),
+    ApiParam({ name: 'id', description: 'DataMart ID' }),
+    ApiBody({
+      schema: {
+        type: 'object',
+        required: ['availableForReporting', 'availableForMaintenance'],
+        properties: {
+          availableForReporting: {
+            type: 'boolean',
+            example: true,
+          },
+          availableForMaintenance: {
+            type: 'boolean',
+            example: false,
+          },
+        },
+      },
+    }),
+    ApiNoContentResponse({ description: 'DataMart availability updated' })
   );
 }

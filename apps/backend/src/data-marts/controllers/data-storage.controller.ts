@@ -58,6 +58,7 @@ import {
   OAuthExchangeSpec,
   OAuthStatusSpec,
   OAuthRevokeSpec,
+  UpdateStorageAvailabilitySpec,
 } from './spec/data-storage.api';
 
 @Controller('data-storages')
@@ -250,6 +251,7 @@ export class DataStorageController {
   @Auth(Role.viewer(Strategy.INTROSPECT))
   @Put(':id/availability')
   @HttpCode(204)
+  @UpdateStorageAvailabilitySpec()
   async updateAvailability(
     @AuthContext() context: AuthorizationContext,
     @Param('id') id: string,
