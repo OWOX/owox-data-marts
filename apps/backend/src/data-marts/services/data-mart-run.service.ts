@@ -253,7 +253,7 @@ export class DataMartRunService {
       dataMartRun.reportId &&
       dataMartRun.createdById
     ) {
-      this.eventDispatcher.publishLocal(
+      this.eventDispatcher.publishLocalOnCommit(
         new ReportRunCompletedSuccessfullyEvent(
           dataMartRun.id,
           dataMartRun.dataMartId,

@@ -5,6 +5,7 @@ import {
   CreateDateColumn,
   UpdateDateColumn,
   Index,
+  VersionColumn,
 } from 'typeorm';
 import type { StepState } from '../dto/domain/project-setup-steps.interface';
 
@@ -25,6 +26,9 @@ export class ProjectSetupUserProgress {
 
   @Column({ default: 1 })
   stepsSchemaVersion: number;
+
+  @VersionColumn()
+  version: number;
 
   @CreateDateColumn()
   createdAt: Date;

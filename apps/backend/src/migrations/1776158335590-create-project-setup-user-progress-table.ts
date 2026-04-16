@@ -14,6 +14,7 @@ export class CreateProjectSetupUserProgressTable1776158335590 implements Migrati
           { name: 'userId', type: 'varchar', isNullable: false },
           { name: 'stepsSchemaVersion', type: 'int', isNullable: false, default: 1 },
           { name: 'steps', type: 'json', isNullable: false },
+          { name: 'version', type: 'int', isNullable: false, default: 1 },
           { name: 'createdAt', type: 'datetime', default: 'CURRENT_TIMESTAMP' },
           { name: 'modifiedAt', type: 'datetime', default: 'CURRENT_TIMESTAMP' },
         ],

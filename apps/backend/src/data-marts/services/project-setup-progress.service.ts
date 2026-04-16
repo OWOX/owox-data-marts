@@ -21,6 +21,8 @@ import { DataMartRunStatus } from '../enums/data-mart-run-status.enum';
 import { DataMartRunType } from '../enums/data-mart-run-type.enum';
 import { IdpProjectionsFacade } from '../../idp/facades/idp-projections.facade';
 
+const OPTIMISTIC_LOCK_MAX_ATTEMPTS = 5;
+
 const REPORT_RUN_TYPES = [
   DataMartRunType.GOOGLE_SHEETS_EXPORT,
   DataMartRunType.LOOKER_STUDIO,
@@ -58,20 +60,25 @@ export class ProjectSetupProgressService {
     projectId: string,
     userId: string
   ): Promise<{ projectProgress: ProjectSetupProgress; mergedSteps: ProjectSetupSteps }> {
-    const [projectProgress, userProgress] = await Promise.all([
+    const [initialProjectProgress, userProgress] = await Promise.all([
       this.getOrInitializeProject(projectId),
       this.getOrInitializeUser(projectId, userId),
     ]);
+
+    let projectProgress = initialProjectProgress;
 
     // Lazy check: if hasTeammatesInvited is not yet done, check IDP for >1 members
     if (!projectProgress.steps.hasTeammatesInvited.done) {
       const hasTeammates = await this.checkTeammatesInvited(projectId);
       if (hasTeammates) {
-        projectProgress.steps.hasTeammatesInvited = {
-          done: true,
-          completedAt: new Date().toISOString(),
-        };
-        await this.progressRepository.save(projectProgress);
+        projectProgress = await this.mutateProjectStepsWithRetry(projectId, steps => {
+          if (steps.hasTeammatesInvited.done) return false;
+          steps.hasTeammatesInvited = {
+            done: true,
+            completedAt: new Date().toISOString(),
+          };
+          return true;
+        });
       }
     }
 
@@ -88,38 +95,114 @@ export class ProjectSetupProgressService {
 
   /**
    * Marks a project-scoped step as done. Idempotent — no-op if already done.
+   *
+   * Uses optimistic locking (conditional UPDATE WHERE version = :version) with
+   * a retry loop so that two concurrent listeners updating different keys of
+   * the same `steps` JSON column cannot clobber each other's writes.
    */
   async markProjectStepDone(projectId: string, stepKey: SetupStepKey): Promise<void> {
     if (!SETUP_STEP_KEYS.includes(stepKey)) return;
 
-    const progress = await this.getOrInitializeProject(projectId);
-
-    if (progress.steps[stepKey]?.done) return;
-
-    progress.steps[stepKey] = {
-      done: true,
-      completedAt: new Date().toISOString(),
-    };
-
-    await this.progressRepository.save(progress);
+    await this.mutateProjectStepsWithRetry(projectId, steps => {
+      if (steps[stepKey]?.done) return false;
+      steps[stepKey] = {
+        done: true,
+        completedAt: new Date().toISOString(),
+      };
+      return true;
+    });
   }
 
   /**
    * Marks a user-scoped step as done for a specific user. Idempotent.
+   *
+   * Uses optimistic locking with a retry loop — same reasoning as
+   * {@link markProjectStepDone}.
    */
   async markUserStepDone(projectId: string, userId: string, stepKey: SetupStepKey): Promise<void> {
     if (!USER_SCOPED_STEP_KEYS.includes(stepKey)) return;
 
-    const userProgress = await this.getOrInitializeUser(projectId, userId);
+    await this.mutateUserStepsWithRetry(projectId, userId, steps => {
+      if (steps[stepKey]?.done) return false;
+      steps[stepKey] = {
+        done: true,
+        completedAt: new Date().toISOString(),
+      };
+      return true;
+    });
+  }
 
-    if (userProgress.steps[stepKey]?.done) return;
+  /**
+   * Re-reads the project progress row, applies `mutate`, then performs a
+   * conditional UPDATE guarded by the `version` column. Retries on version
+   * mismatch (another listener committed in between).
+   *
+   * `mutate` should return `true` if it changed anything, `false` to abort.
+   */
+  private async mutateProjectStepsWithRetry(
+    projectId: string,
+    mutate: (steps: ProjectSetupSteps) => boolean
+  ): Promise<ProjectSetupProgress> {
+    for (let attempt = 0; attempt < OPTIMISTIC_LOCK_MAX_ATTEMPTS; attempt++) {
+      const progress = await this.getOrInitializeProject(projectId);
+      const changed = mutate(progress.steps);
+      if (!changed) return progress;
 
-    userProgress.steps[stepKey] = {
-      done: true,
-      completedAt: new Date().toISOString(),
-    };
+      const result = await this.progressRepository
+        .createQueryBuilder()
+        .update(ProjectSetupProgress)
+        .set({
+          steps: progress.steps,
+          version: () => 'version + 1',
+        })
+        .where('id = :id AND version = :version', {
+          id: progress.id,
+          version: progress.version,
+        })
+        .execute();
 
-    await this.userProgressRepository.save(userProgress);
+      if (result.affected && result.affected > 0) {
+        progress.version = progress.version + 1;
+        return progress;
+      }
+      // Version mismatch — another writer beat us. Loop and retry with fresh read.
+    }
+    throw new Error(
+      `Failed to update project setup progress for project ${projectId} after ${OPTIMISTIC_LOCK_MAX_ATTEMPTS} attempts`
+    );
+  }
+
+  private async mutateUserStepsWithRetry(
+    projectId: string,
+    userId: string,
+    mutate: (steps: Record<string, StepState>) => boolean
+  ): Promise<ProjectSetupUserProgress> {
+    for (let attempt = 0; attempt < OPTIMISTIC_LOCK_MAX_ATTEMPTS; attempt++) {
+      const progress = await this.getOrInitializeUser(projectId, userId);
+      const changed = mutate(progress.steps);
+      if (!changed) return progress;
+
+      const result = await this.userProgressRepository
+        .createQueryBuilder()
+        .update(ProjectSetupUserProgress)
+        .set({
+          steps: progress.steps,
+          version: () => 'version + 1',
+        })
+        .where('id = :id AND version = :version', {
+          id: progress.id,
+          version: progress.version,
+        })
+        .execute();
+
+      if (result.affected && result.affected > 0) {
+        progress.version = progress.version + 1;
+        return progress;
+      }
+    }
+    throw new Error(
+      `Failed to update user setup progress for project ${projectId}, user ${userId} after ${OPTIMISTIC_LOCK_MAX_ATTEMPTS} attempts`
+    );
   }
 
   async resolveProjectIdByDataMartId(dataMartId: string): Promise<string | null> {

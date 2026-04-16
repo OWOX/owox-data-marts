@@ -4,6 +4,7 @@ import {
   PrimaryGeneratedColumn,
   CreateDateColumn,
   UpdateDateColumn,
+  VersionColumn,
 } from 'typeorm';
 import { ProjectSetupSteps } from '../dto/domain/project-setup-steps.interface';
 
@@ -20,6 +21,9 @@ export class ProjectSetupProgress {
 
   @Column({ type: 'json' })
   steps: ProjectSetupSteps;
+
+  @VersionColumn()
+  version: number;
 
   @CreateDateColumn()
   createdAt: Date;

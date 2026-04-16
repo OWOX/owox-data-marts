@@ -13,6 +13,7 @@ export class CreateProjectSetupProgressTable1776158335588 implements MigrationIn
           { name: 'projectId', type: 'varchar', isNullable: false },
           { name: 'stepsSchemaVersion', type: 'int', isNullable: false, default: 1 },
           { name: 'steps', type: 'json', isNullable: false },
+          { name: 'version', type: 'int', isNullable: false, default: 1 },
           { name: 'createdAt', type: 'datetime', default: 'CURRENT_TIMESTAMP' },
           { name: 'modifiedAt', type: 'datetime', default: 'CURRENT_TIMESTAMP' },
         ],
