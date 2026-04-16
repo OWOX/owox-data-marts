@@ -1,6 +1,53 @@
+import { useState, useEffect } from 'react';
 import { DataStorageProvider } from '../../features/data-storage/shared/model/context';
 import { DataStorageList } from '../../features/data-storage/list/components';
-import { useState } from 'react';
+import { useDataStorage } from '../../features/data-storage/shared/model/hooks/useDataStorage';
+import { DataStorageType } from '../../features/data-storage/shared/model/types/data-storage-type.enum';
+import {
+  getCachedDataStorageHealthStatus,
+  DataStorageHealthStatus,
+  subscribeToDataStorageHealthStatusUpdates,
+} from '../../features/data-storage/shared/services/data-storage-health-status.service';
+import { PageNotificationLegacyStorageSetup } from './PageNotificationLegacyStorageSetup.tsx';
+
+const DataStorageListWithContext = ({
+  shouldOpenDialog,
+  onTypeDialogClose,
+}: {
+  shouldOpenDialog: boolean;
+  onTypeDialogClose: () => void;
+}) => {
+  const { dataStorages } = useDataStorage();
+
+  const [, setForceUpdate] = useState(0);
+
+  useEffect(() => {
+    return subscribeToDataStorageHealthStatusUpdates(() => {
+      setForceUpdate(forceUpdate => forceUpdate + 1);
+    });
+  }, []);
+
+  const hasLegacyStorageWithoutAccess = dataStorages.some(storage => {
+    if (storage.type !== DataStorageType.LEGACY_GOOGLE_BIGQUERY) {
+      return false;
+    }
+
+    const cached = getCachedDataStorageHealthStatus(storage.id);
+
+    return cached?.status === DataStorageHealthStatus.INVALID;
+  });
+
+  return (
+    <>
+      {hasLegacyStorageWithoutAccess && <PageNotificationLegacyStorageSetup />}
+
+      <DataStorageList
+        initialTypeDialogOpen={shouldOpenDialog}
+        onTypeDialogClose={onTypeDialogClose}
+      />
+    </>
+  );
+};
 
 export const DataStorageListPage = () => {
   const [shouldOpenDialog, setShouldOpenDialog] = useState(false);
@@ -13,8 +60,8 @@ export const DataStorageListPage = () => {
 
       <div className='dm-page-content'>
         <DataStorageProvider>
-          <DataStorageList
-            initialTypeDialogOpen={shouldOpenDialog}
+          <DataStorageListWithContext
+            shouldOpenDialog={shouldOpenDialog}
             onTypeDialogClose={() => {
               setShouldOpenDialog(false);
             }}

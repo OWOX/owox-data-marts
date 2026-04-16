@@ -5,14 +5,14 @@ import {
   CollapsibleCardContent,
   CollapsibleCardFooter,
   CollapsibleCardHeaderActions,
-} from '../../../shared/components/CollapsibleCard/index.ts';
-import { Info, Database, BookOpen } from 'lucide-react';
+} from '../../shared/components/CollapsibleCard/index.ts';
+import { Info, BookOpen, Airplay } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import { Button } from '../../../shared/components/Button/index.tsx';
-import { useProjectRoute } from '../../../shared/hooks';
+import { Button } from '../../shared/components/Button/index.tsx';
+import { useContentPopovers } from '../../app/store/hooks/useContentPopovers.ts';
 
-export default function PageNotificationLegacyStorageSetup() {
-  const { scope } = useProjectRoute();
+export function PageNotificationLegacyStorageSetup() {
+  const { open } = useContentPopovers();
   return (
     <div className='mb-4'>
       <CollapsibleCard collapsible name='notification-legacy-storage-setup'>
@@ -59,15 +59,12 @@ export default function PageNotificationLegacyStorageSetup() {
                 </ol>
               </div>
               <div className='flex items-center gap-2'>
-                <Button asChild>
-                  <Link
-                    to={scope(
-                      `/data-storages?filters=%5B%7B"f"%3A"type"%2C"o"%3A"eq"%2C"v"%3A%5B"LEGACY_GOOGLE_BIGQUERY"%5D%7D%5D`
-                    )}
-                  >
-                    <Database className='size-4' />
-                    Select a storage
-                  </Link>
+                <Button
+                  onClick={() => {
+                    open('video-4-legacy-storage-setup');
+                  }}
+                >
+                  <Airplay className='size-4' /> Watch video (30 seconds)
                 </Button>
                 <Button variant='outline' asChild>
                   <Link
