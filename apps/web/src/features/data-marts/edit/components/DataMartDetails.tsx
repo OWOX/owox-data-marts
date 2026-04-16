@@ -74,7 +74,6 @@ export function DataMartDetails({ id }: DataMartDetailsProps) {
 
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [isPublishing, setIsPublishing] = useState(false);
-  const [isRunSheetOpen, setIsRunSheetOpen] = useState(false);
   const lastRunIdRef = useRef<string | null>(null);
 
   const {
@@ -113,21 +112,18 @@ export function DataMartDetails({ id }: DataMartDetailsProps) {
   const { showPromo, dismissAllPromos } = useDataMartNextStepPromo();
 
   // Show promo once a published data mart page is opened.
-  // For CONNECTOR type — show LOAD_DATA promo, for others — USE_DATA promo.
+  // For CONNECTOR type — show SCHEDULE_DATA promo, for others — USE_DATA promo.
   // Show once to prevent multiple toasts for the same data mart.
   useEffect(() => {
     if (!dataMartId) return;
     if (!isPublished) return;
 
     showPromo({
-      step: isConnector ? PromoStep.LOAD_DATA : PromoStep.USE_DATA,
+      step: isConnector ? PromoStep.SCHEDULE_DATA : PromoStep.USE_DATA,
       projectId,
       dataMartId,
       isInsightsEnabled: shouldShowInsights,
       showOnce: true,
-      onManualRunClick: () => {
-        setIsRunSheetOpen(true);
-      },
     });
   }, [dataMartId, isPublished, isConnector, showPromo, projectId, shouldShowInsights]);
 
@@ -165,14 +161,11 @@ export function DataMartDetails({ id }: DataMartDetailsProps) {
 
       // Show promo toast based on a data mart type
       showPromo({
-        step: isConnector ? PromoStep.LOAD_DATA : PromoStep.USE_DATA,
+        step: isConnector ? PromoStep.SCHEDULE_DATA : PromoStep.USE_DATA,
         projectId,
         dataMartId,
         isInsightsEnabled: shouldShowInsights,
         showOnce: true,
-        onManualRunClick: () => {
-          setIsRunSheetOpen(true);
-        },
       });
     } catch (error) {
       console.log(error instanceof Error ? error.message : 'Failed to publish Data Mart');
@@ -519,21 +512,6 @@ export function DataMartDetails({ id }: DataMartDetailsProps) {
           })();
         }}
       />
-
-      {/* Controlled ConnectorRunView for toast "Run Now" action */}
-      {isConnector && (
-        <ConnectorRunView
-          configuration={dataMartDefinition ?? null}
-          onManualRun={data => {
-            void handleManualRun({
-              runType: data.runType,
-              data: data.data,
-            });
-          }}
-          open={isRunSheetOpen}
-          onOpenChange={setIsRunSheetOpen}
-        />
-      )}
     </div>
   );
 }

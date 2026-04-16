@@ -1,5 +1,5 @@
 import { Button } from '@owox/ui/components/button';
-import { CalendarClock, FileText, Play, Sparkles } from 'lucide-react';
+import { CalendarClock, FileText, History, Sparkles } from 'lucide-react';
 import { useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { toast } from 'sonner';
@@ -15,8 +15,8 @@ const SHOW_ONCE_KEY_PREFIX = 'promo_shown_once_';
  * Next-step promo types shown after key data mart actions
  */
 export enum PromoStep {
-  /** Promote loading data: run manually or create scheduled trigger */
-  LOAD_DATA = 'load_data',
+  /** Promote scheduling data: create scheduled trigger */
+  SCHEDULE_DATA = 'schedule_data',
   /** Promote using data: create insights or reports */
   USE_DATA = 'use_data',
 }
@@ -44,8 +44,6 @@ interface ShowPromoOptions {
   dataMartId: string;
   /** Whether insights feature is enabled */
   isInsightsEnabled?: boolean;
-  /** Callback to open manual run sheet (for LOAD_DATA step) */
-  onManualRunClick?: () => void;
   /** Toast display duration in ms. Defaults to Infinity */
   duration?: number;
   /** When true, the promo is shown only once globally (across all data marts) */
@@ -62,7 +60,6 @@ export function useDataMartNextStepPromo() {
       projectId,
       dataMartId,
       isInsightsEnabled,
-      onManualRunClick,
       duration = Infinity,
       showOnce = false,
     }: ShowPromoOptions) => {
@@ -86,39 +83,30 @@ export function useDataMartNextStepPromo() {
       activePromoToasts.add(toastId);
 
       switch (step) {
-        case PromoStep.LOAD_DATA:
-          toast(
-            <div className='text-foreground text-sm'>Data Mart is ready to load your data</div>,
-            {
-              id: toastId,
-              closeButton: true,
-              onDismiss,
-              onAutoClose,
-              description: (
-                <div className='mt-2 flex gap-2'>
-                  <Button
-                    size='sm'
-                    variant='outline'
-                    onClick={() => {
-                      toast.dismiss(toastId);
-                      onManualRunClick?.();
-                    }}
-                  >
-                    <Play className='h-4 w-4' />
-                    Manual Run…
-                  </Button>
-
-                  <Button size='sm' variant='ghost' asChild onClick={() => toast.dismiss(toastId)}>
-                    <Link to={`/ui/${projectId}/data-marts/${dataMartId}/triggers`}>
-                      <CalendarClock className='h-4 w-4' />
-                      Schedule Trigger…
-                    </Link>
-                  </Button>
-                </div>
-              ),
-              duration,
-            }
-          );
+        case PromoStep.SCHEDULE_DATA:
+          toast(<div className='text-foreground text-sm'>Keep your data fresh automatically</div>, {
+            id: toastId,
+            closeButton: true,
+            onDismiss,
+            onAutoClose,
+            description: (
+              <div className='mt-2 flex gap-2'>
+                <Button size='sm' variant='outline' asChild onClick={() => toast.dismiss(toastId)}>
+                  <Link to={`/ui/${projectId}/data-marts/${dataMartId}/triggers`}>
+                    <CalendarClock className='h-4 w-4' />
+                    Schedule Updates
+                  </Link>
+                </Button>
+                <Button size='sm' variant='ghost' asChild onClick={() => toast.dismiss(toastId)}>
+                  <Link to={`/ui/${projectId}/data-marts/${dataMartId}/run-history`}>
+                    <History className='h-4 w-4' />
+                    View Run History
+                  </Link>
+                </Button>
+              </div>
+            ),
+            duration,
+          });
           break;
 
         case PromoStep.USE_DATA:
