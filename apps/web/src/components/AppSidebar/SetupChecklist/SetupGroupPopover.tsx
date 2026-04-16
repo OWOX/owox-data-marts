@@ -1,6 +1,4 @@
-'use client';
-
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Popover, PopoverContent, PopoverTrigger } from '@owox/ui/components/popover';
 import { Accordion } from '@owox/ui/components/accordion';
 import { SetupChecklistGroup } from './SetupChecklistGroup';
@@ -16,22 +14,25 @@ interface SetupGroupPopoverProps {
 }
 
 export function SetupGroupPopover({ groupProgress, progress }: SetupGroupPopoverProps) {
-  const [open, setOpen] = useState(false);
+  const [isOpen, setIsOpen] = useState(false);
   const { group, status, completedCount, totalCount, completedAt } = groupProgress;
-  const groupSteps = SETUP_STEPS.filter(step => group.stepIds.includes(step.id));
+  const groupSteps = useMemo(() => {
+    const stepIdsSet = new Set(group.stepIds);
+    return SETUP_STEPS.filter(step => stepIdsSet.has(step.id));
+  }, [group.stepIds]);
 
   const handleClose = () => {
-    setOpen(false);
+    setIsOpen(false);
   };
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
+    <Popover open={isOpen} onOpenChange={setIsOpen}>
       <PopoverTrigger asChild>
         <div>
           <SetupChecklistGroup
             groupProgress={groupProgress}
             onClick={() => {
-              setOpen(true);
+              setIsOpen(true);
             }}
           />
         </div>

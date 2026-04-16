@@ -1,11 +1,10 @@
-import { useEffect, useRef } from 'react';
 import { X } from 'lucide-react';
 import { cn } from '@owox/ui/lib/utils';
-import { trackEvent } from '../../../utils/data-layer';
 import { SetupGroupPopover } from './SetupGroupPopover';
 import type { SetupProgressResult } from './useSetupProgress';
 import type { SetupChecklistVisibility } from './useSetupChecklistVisibility';
 import { SetupChecklistCompleted } from './SetupChecklistCompleted';
+import { useCallback } from 'react';
 
 interface SetupChecklistProps {
   progressResult: SetupProgressResult;
@@ -13,58 +12,16 @@ interface SetupChecklistProps {
 }
 
 export function SetupChecklist({ progressResult, visibility }: SetupChecklistProps) {
-  const { completedStepIds, completedCount, totalCount, percentage, progress, groupProgresses } =
-    progressResult;
+  const { percentage, progress, groupProgresses } = progressResult;
   const { hide } = visibility;
-  const viewedTrackedRef = useRef(false);
 
-  // Fire "viewed" event once per mount
-  useEffect(() => {
-    if (viewedTrackedRef.current) return;
-    viewedTrackedRef.current = true;
-
-    trackEvent({
-      event: 'setup_checklist_viewed',
-      category: 'SetupChecklist',
-      action: 'View',
-      value: String(percentage),
-      details: JSON.stringify({
-        completedSteps: completedStepIds,
-        completedCount,
-        totalCount,
-        groups: groupProgresses.map(g => ({
-          id: g.group.id,
-          status: g.status,
-          completedCount: g.completedCount,
-          totalCount: g.totalCount,
-        })),
-      }),
-    });
-  }, [completedStepIds, completedCount, totalCount, percentage, groupProgresses]);
-
-  const handleDismiss = () => {
-    trackEvent({
-      event: 'setup_checklist_dismissed',
-      category: 'SetupChecklist',
-      action: 'Dismiss',
-      value: String(percentage),
-      details: JSON.stringify({
-        completedSteps: completedStepIds,
-        completedCount,
-        totalCount,
-        groups: groupProgresses.map(g => ({
-          id: g.group.id,
-          status: g.status,
-          completedCount: g.completedCount,
-          totalCount: g.totalCount,
-        })),
-      }),
-    });
+  const handleDismiss = useCallback(() => {
     hide();
-  };
+  }, [hide]);
 
-  const isEmpty = percentage === 0;
-  const isCompleted = percentage === 100;
+  const isEmpty = percentage <= 0;
+  const isCompleted = percentage >= 100;
+  const progressWidth = Math.min(100, percentage);
 
   return (
     <div className='relative z-0 mb-0.5 flex flex-col gap-1 rounded-md border shadow-sm'>
@@ -78,7 +35,7 @@ export function SetupChecklist({ progressResult, visibility }: SetupChecklistPro
             <span className='text-sidebar-foreground text-sm font-semibold'>Get to know OWOX</span>
             <span className='text-muted-foreground text-xs'>
               {isEmpty ? (
-                'Easy steps to get up and run'
+                'Easy steps to set up and run'
               ) : (
                 <>
                   <span className='tabular-nums'>{percentage}%</span> completed
@@ -102,7 +59,7 @@ export function SetupChecklist({ progressResult, visibility }: SetupChecklistPro
             <div className='bg-sidebar-border h-1 flex-1 overflow-hidden'>
               <div
                 className='bg-primary h-full transition-all duration-300'
-                style={{ width: `${String(Math.min(100, percentage))}%` }}
+                style={{ width: `${String(progressWidth)}%` }}
               />
             </div>
           </div>
@@ -112,7 +69,7 @@ export function SetupChecklist({ progressResult, visibility }: SetupChecklistPro
       {isCompleted ? (
         <SetupChecklistCompleted />
       ) : (
-        <div className='flex flex-col p-2'>
+        <div className='flex flex-col px-2 pt-2 pb-4'>
           {groupProgresses.map(groupProgress => (
             <SetupGroupPopover
               key={groupProgress.group.id}

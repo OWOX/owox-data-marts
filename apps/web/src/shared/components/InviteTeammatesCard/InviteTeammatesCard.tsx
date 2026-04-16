@@ -1,5 +1,3 @@
-'use client';
-
 import { useMemo } from 'react';
 import { UserPlus, HelpCircle } from 'lucide-react';
 import { cn } from '@owox/ui/lib/utils';
@@ -15,7 +13,7 @@ interface InviteTeammatesCardProps {
   docsLabel?: string;
   className?: string;
   variant?: 'card' | 'inline' | 'button';
-  onClose?: () => void;
+  onClick?: () => void;
 }
 
 export function InviteTeammatesCard({
@@ -25,7 +23,7 @@ export function InviteTeammatesCard({
   docsLabel = 'View documentation',
   className,
   variant = 'card',
-  onClose,
+  onClick,
 }: InviteTeammatesCardProps) {
   const { id: projectId } = useProject();
   const { flags } = useFlags();
@@ -81,7 +79,9 @@ export function InviteTeammatesCard({
             rel={isMembersExternal ? 'noopener noreferrer' : undefined}
             className={cn(linkClasses[variant])}
             aria-label={inviteLabel}
-            onClick={() => onClose?.()}
+            onClick={() => {
+              onClick?.();
+            }}
           >
             <UserPlus className='h-4 w-4 shrink-0' />
             <span className='truncate'>{inviteLabel}</span>

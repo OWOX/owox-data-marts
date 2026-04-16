@@ -14,9 +14,11 @@ import { DataStorageType } from '../types';
 import { extractApiError } from '../../../../../app/api';
 import toast from 'react-hot-toast';
 import { trackEvent } from '../../../../../utils/data-layer';
+import { useRefreshSetupProgress } from '../../../../../components/AppSidebar/SetupChecklist/useSetupProgress';
 
 export function useDataStorage() {
   const { state, dispatch } = useDataStorageContext();
+  const refreshSetupProgress = useRefreshSetupProgress();
 
   const fetchDataStorages = useCallback(async () => {
     dispatch({ type: DataStorageActionType.FETCH_STORAGES_START });
@@ -73,6 +75,7 @@ export function useDataStorage() {
         });
 
         toast.success('Storage created');
+        refreshSetupProgress();
         return newStorage;
       } catch (error) {
         dispatch({
@@ -82,7 +85,7 @@ export function useDataStorage() {
         return null;
       }
     },
-    [dispatch]
+    [dispatch, refreshSetupProgress]
   );
 
   const updateDataStorage = useCallback(

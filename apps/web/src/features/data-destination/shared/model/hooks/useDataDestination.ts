@@ -10,9 +10,11 @@ import type {
 } from '../../services/types';
 import toast from 'react-hot-toast';
 import { trackEvent } from '../../../../../utils/data-layer';
+import { useRefreshSetupProgress } from '../../../../../components/AppSidebar/SetupChecklist/useSetupProgress';
 
 export function useDataDestination() {
   const { state, dispatch } = useDataDestinationContext();
+  const refreshSetupProgress = useRefreshSetupProgress();
 
   const fetchDataDestinations = useCallback(async () => {
     dispatch({ type: DataDestinationActionType.FETCH_DESTINATIONS_START });
@@ -81,6 +83,7 @@ export function useDataDestination() {
           label: mappedDestination.type,
         });
         toast.success('Destination created');
+        refreshSetupProgress();
         return mappedDestination;
       } catch (error) {
         const message = error instanceof Error ? error.message : 'Failed to create destination';
@@ -98,7 +101,7 @@ export function useDataDestination() {
         return null;
       }
     },
-    [dispatch]
+    [dispatch, refreshSetupProgress]
   );
 
   const updateDataDestination = useCallback(

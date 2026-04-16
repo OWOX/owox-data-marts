@@ -7,9 +7,12 @@ import { useReportContext, ReportActionType } from '../context';
 import { mapReportDtoToEntity } from '../mappers';
 import toast from 'react-hot-toast';
 import { trackEvent } from '../../../../../../utils';
+import { useRefreshSetupProgress } from '../../../../../../components/AppSidebar/SetupChecklist/useSetupProgress';
+import { ReportStatusEnum } from '../../enums';
 
 export function useReport() {
   const { state, dispatch } = useReportContext();
+  const refreshSetupProgress = useRefreshSetupProgress();
 
   const fetchDestinations = useCallback(async () => {
     dispatch({ type: ReportActionType.FETCH_DESTINATIONS_START });
@@ -121,6 +124,7 @@ export function useReport() {
           context: mappedReport.dataMart.id,
         });
         toast.success('Report created');
+        refreshSetupProgress();
         return mappedReport;
       } catch (error) {
         const message = error instanceof Error ? error.message : 'Failed to create report';
@@ -138,7 +142,7 @@ export function useReport() {
         return null;
       }
     },
-    [dispatch]
+    [dispatch, refreshSetupProgress]
   );
 
   const updateReport = useCallback(
@@ -240,9 +244,12 @@ export function useReport() {
         // Dispatch action to update the report in state
         // The reducer will handle checking if the status has changed
         dispatch({ type: ReportActionType.UPDATE_POLLED_REPORT, payload: mappedReport });
+        if (mappedReport.lastRunStatus === ReportStatusEnum.SUCCESS) {
+          refreshSetupProgress();
+        }
       });
     },
-    [dispatch, state.polledReportIds, stopPollingReport]
+    [dispatch, state.polledReportIds, stopPollingReport, refreshSetupProgress]
   );
 
   const stopAllPolling = useCallback(() => {

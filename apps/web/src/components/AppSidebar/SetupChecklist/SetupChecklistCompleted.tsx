@@ -1,6 +1,6 @@
 export function SetupChecklistCompleted() {
   return (
-    <div className='flex flex-col items-center gap-2 px-4 pt-6 pb-10 text-center'>
+    <div className='flex flex-col items-center gap-2 px-4 pt-4 pb-8 text-center'>
       {/* Icon */}
       <div className='animate-in fade-in zoom-in-95 duration-500'>
         <svg
@@ -14,6 +14,7 @@ export function SetupChecklistCompleted() {
           strokeLinecap='round'
           strokeLinejoin='round'
           className='text-primary'
+          aria-hidden='true'
         >
           {/* Confetti dots */}
           <path d='M4 3h.01' className='animate-confetti-loop' />
@@ -48,7 +49,7 @@ export function SetupChecklistCompleted() {
       <div className='flex flex-col items-center gap-1'>
         <p className='text-primary text-sm font-semibold'>You did an amazing job!</p>
         <p className='text-primary/75 dark:text-primary/50 text-xs'>
-          The rest is up to your curiosity.
+          Your data is ready. Keep exploring.
         </p>
       </div>
     </div>

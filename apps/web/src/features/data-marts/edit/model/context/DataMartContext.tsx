@@ -38,6 +38,7 @@ import type { DataMartSchema } from '../../../shared/types/data-mart-schema.type
 import toast from 'react-hot-toast';
 import { pushToDataLayer, trackEvent } from '../../../../../utils';
 import { DATA_MART_RUNS_PAGE_SIZE } from '../../constants';
+import { useRefreshSetupProgress } from '../../../../../components/AppSidebar/SetupChecklist/useSetupProgress';
 
 // Props interface
 interface DataMartProviderProps {
@@ -47,6 +48,7 @@ interface DataMartProviderProps {
 // Provider component
 export function DataMartProvider({ children }: DataMartProviderProps) {
   const [state, dispatch] = useReducer(reducer, initialState);
+  const refreshSetupProgress = useRefreshSetupProgress();
 
   // Get a data mart by ID
   const getDataMart = useCallback(async (id: string) => {
@@ -68,37 +70,41 @@ export function DataMartProvider({ children }: DataMartProviderProps) {
   }, []);
 
   // Create a new data mart
-  const createDataMart = useCallback(async (data: CreateDataMartRequestDto) => {
-    try {
-      dispatch({ type: 'CREATE_DATA_MART_START' });
-      const response = await dataMartService.createDataMart(data);
-      const dataMart = mapLimitedDataMartFromDto(response);
-      dispatch({ type: 'CREATE_DATA_MART_SUCCESS', payload: dataMart });
-      trackEvent({
-        event: 'data_mart_created',
-        category: 'DataMart',
-        action: 'Create',
-        label: dataMart.id,
-        value: dataMart.title,
-      });
-      toast.success('Data Mart created');
-      return dataMart;
-    } catch (error) {
-      const apiError = extractApiError(error);
-      dispatch({
-        type: 'CREATE_DATA_MART_ERROR',
-        payload: apiError,
-      });
-      trackEvent({
-        event: 'data_mart_error',
-        category: 'DataMart',
-        action: 'CreateError',
-        value: data.title,
-        error: apiError.message,
-      });
-      throw error;
-    }
-  }, []);
+  const createDataMart = useCallback(
+    async (data: CreateDataMartRequestDto) => {
+      try {
+        dispatch({ type: 'CREATE_DATA_MART_START' });
+        const response = await dataMartService.createDataMart(data);
+        const dataMart = mapLimitedDataMartFromDto(response);
+        dispatch({ type: 'CREATE_DATA_MART_SUCCESS', payload: dataMart });
+        trackEvent({
+          event: 'data_mart_created',
+          category: 'DataMart',
+          action: 'Create',
+          label: dataMart.id,
+          value: dataMart.title,
+        });
+        toast.success('Data Mart created');
+        refreshSetupProgress();
+        return dataMart;
+      } catch (error) {
+        const apiError = extractApiError(error);
+        dispatch({
+          type: 'CREATE_DATA_MART_ERROR',
+          payload: apiError,
+        });
+        trackEvent({
+          event: 'data_mart_error',
+          category: 'DataMart',
+          action: 'CreateError',
+          value: data.title,
+          error: apiError.message,
+        });
+        throw error;
+      }
+    },
+    [refreshSetupProgress]
+  );
 
   // Update an existing data mart
   const updateDataMart = useCallback(async (id: string, data: UpdateDataMartRequestDto) => {
@@ -355,38 +361,42 @@ export function DataMartProvider({ children }: DataMartProviderProps) {
   );
 
   // Publish a data mart
-  const publishDataMart = useCallback(async (id: string) => {
-    try {
-      dispatch({ type: 'PUBLISH_DATA_MART_START' });
-      const response = await dataMartService.publishDataMart(id);
-      const dataMart = await mapDataMartFromDto(response);
-      dispatch({ type: 'PUBLISH_DATA_MART_SUCCESS', payload: dataMart });
-      toast.success('Data Mart published');
-      trackEvent({
-        event: 'data_mart_published',
-        category: 'DataMart',
-        action: 'Publish',
-        label: dataMart.storage.type,
-        context: dataMart.id,
-        value: dataMart.title,
-        details: dataMart.definitionType ?? 'No definition',
-      });
-    } catch (error) {
-      const apiError = extractApiError(error);
-      dispatch({
-        type: 'PUBLISH_DATA_MART_ERROR',
-        payload: apiError,
-      });
-      trackEvent({
-        event: 'data_mart_error',
-        category: 'DataMart',
-        action: 'PublishError',
-        label: id,
-        error: apiError.message,
-      });
-      throw error;
-    }
-  }, []);
+  const publishDataMart = useCallback(
+    async (id: string) => {
+      try {
+        dispatch({ type: 'PUBLISH_DATA_MART_START' });
+        const response = await dataMartService.publishDataMart(id);
+        const dataMart = await mapDataMartFromDto(response);
+        dispatch({ type: 'PUBLISH_DATA_MART_SUCCESS', payload: dataMart });
+        toast.success('Data Mart published');
+        refreshSetupProgress();
+        trackEvent({
+          event: 'data_mart_published',
+          category: 'DataMart',
+          action: 'Publish',
+          label: dataMart.storage.type,
+          context: dataMart.id,
+          value: dataMart.title,
+          details: dataMart.definitionType ?? 'No definition',
+        });
+      } catch (error) {
+        const apiError = extractApiError(error);
+        dispatch({
+          type: 'PUBLISH_DATA_MART_ERROR',
+          payload: apiError,
+        });
+        trackEvent({
+          event: 'data_mart_error',
+          category: 'DataMart',
+          action: 'PublishError',
+          label: id,
+          error: apiError.message,
+        });
+        throw error;
+      }
+    },
+    [refreshSetupProgress]
+  );
 
   /**
    * Retrieves a list of Data Mart runs from the server with the specified parameters.
