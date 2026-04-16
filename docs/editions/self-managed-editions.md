@@ -57,10 +57,11 @@ _This page will be updated regularly as we develop more features and refine edit
 
 [^2]: **Data Storage (SQL-accessible)** — Work with live data in your own data warehouse — stay in control, stay efficient.
 
-[^3]: **Data Enablement** — Amplify analytics team by giving business users direct, self-service access to governed data.  
-    - **Google Sheets Extension** _(available in Cloud edition)_  — Empower business users with self-service access to trusted Data Marts. They can filter, schedule, and refresh data directly within the Google Sheets interface, gaining independence while analysts maintain full governance.
+[^3]: **Data Enablement** — Amplify analytics team by giving business users direct, self-service access to governed data.
+
+    - **Google Sheets Extension** — Empower business users with self-service access to trusted Data Marts. They can filter, schedule, and refresh data directly within the Google Sheets interface, gaining independence while analysts maintain full governance.
     - **Google Sheets Export** — Automate data delivery by pushing Data Mart results to spreadsheets via flexible triggers. Designed for analysts, this feature provides granular control over data flow and schedules directly from the OWOX Data Marts interface.
-    - **Looker Studio Connector** — Connect Data Marts to Looker Studio so teams can build dashboards on trusted, reusable data — without rewriting logic.  
+    - **Looker Studio Connector** — Connect Data Marts to Looker Studio so teams can build dashboards on trusted, reusable data — without rewriting logic.
     - **Open Data Protocol (OData)** — Seamlessly connect your preferred tools to trusted data using OData protocol, empowering business users with flexible, secure access.
 
 [^4]: **Data Mart Management** — Think of Data Marts as your company’s internal API for analytics — structured, reusable, and controlled.
