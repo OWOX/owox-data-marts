@@ -114,7 +114,7 @@ export function DataMartDetails({ id }: DataMartDetailsProps) {
 
   // Show promo once a published data mart page is opened.
   // For CONNECTOR type — show LOAD_DATA promo, for others — USE_DATA promo.
-  // Suppressible to prevent multiple toasts for the same data mart.
+  // Show once to prevent multiple toasts for the same data mart.
   useEffect(() => {
     if (!dataMartId) return;
     if (!isPublished) return;
@@ -124,7 +124,7 @@ export function DataMartDetails({ id }: DataMartDetailsProps) {
       projectId,
       dataMartId,
       isInsightsEnabled: shouldShowInsights,
-      suppressible: true,
+      showOnce: true,
       onManualRunClick: () => {
         setIsRunSheetOpen(true);
       },
@@ -169,7 +169,7 @@ export function DataMartDetails({ id }: DataMartDetailsProps) {
         projectId,
         dataMartId,
         isInsightsEnabled: shouldShowInsights,
-        suppressible: true,
+        showOnce: true,
         onManualRunClick: () => {
           setIsRunSheetOpen(true);
         },
@@ -245,7 +245,7 @@ export function DataMartDetails({ id }: DataMartDetailsProps) {
             projectId,
             dataMartId,
             isInsightsEnabled: shouldShowInsights,
-            suppressible: true,
+            showOnce: true,
           });
         }
       }

@@ -8,10 +8,11 @@ import { storageService } from '../../../../services';
 // Set to track currently visible promo toasts
 const activePromoToasts = new Set<string>();
 
-const SUPPRESSION_KEY_PREFIX = 'promo_suppressed_';
+// Prefix for storing globally shown promos (per user, across all data marts)
+const SHOW_ONCE_KEY_PREFIX = 'promo_shown_once_';
 
 /**
- * Enum for next step promo types
+ * Next-step promo types shown after key data mart actions
  */
 export enum PromoStep {
   /** Promote loading data: run manually or create scheduled trigger */
@@ -20,18 +21,18 @@ export enum PromoStep {
   USE_DATA = 'use_data',
 }
 
-function getSuppressionKey(step: PromoStep): string {
-  return `${SUPPRESSION_KEY_PREFIX}${step}`;
+function getShownOnceKey(step: PromoStep): string {
+  return `${SHOW_ONCE_KEY_PREFIX}${step}`;
 }
 
-/** Returns true if the promo has been shown and should not appear again */
-function isPromoSuppressed(step: PromoStep): boolean {
-  return storageService.get(getSuppressionKey(step), 'boolean') === true;
+/** Returns true if the promo was already shown once globally (across all data marts) */
+function isPromoShownOnce(step: PromoStep): boolean {
+  return storageService.get(getShownOnceKey(step), 'boolean') === true;
 }
 
-/** Suppress the promo permanently */
-function suppressPromo(step: PromoStep): void {
-  storageService.set(getSuppressionKey(step), true);
+/** Marks the promo as shown globally so it will never appear again for this user */
+function markPromoAsShownOnce(step: PromoStep): void {
+  storageService.set(getShownOnceKey(step), true);
 }
 
 interface ShowPromoOptions {
@@ -47,8 +48,8 @@ interface ShowPromoOptions {
   onManualRunClick?: () => void;
   /** Toast display duration in ms. Defaults to Infinity */
   duration?: number;
-  /** When true, auto-suppresses after first show so promo never appears again */
-  suppressible?: boolean;
+  /** When true, the promo is shown only once globally (across all data marts) */
+  showOnce?: boolean;
 }
 
 /**
@@ -63,18 +64,19 @@ export function useDataMartNextStepPromo() {
       isInsightsEnabled,
       onManualRunClick,
       duration = Infinity,
-      suppressible = false,
+      showOnce = false,
     }: ShowPromoOptions) => {
-      if (suppressible && isPromoSuppressed(step)) return;
-
-      // Auto-suppress after first show
-      if (suppressible) suppressPromo(step);
+      // Skip if this promo was already shown once globally
+      if (showOnce && isPromoShownOnce(step)) return;
 
       // Single ID per data mart to prevent multiple toasts for the same data mart
       const toastId = `promo_${dataMartId}`;
 
       // If a promo toast is already visible for this data mart — skip entirely
       if (activePromoToasts.has(toastId)) return;
+
+      // Mark promo as shown to prevent future displays (one-time promo)
+      if (showOnce) markPromoAsShownOnce(step);
 
       // Common toast lifecycle callbacks
       const onDismiss = () => activePromoToasts.delete(toastId);
