@@ -5,13 +5,13 @@ import {
   CollapsibleCardContent,
   CollapsibleCardFooter,
   CollapsibleCardHeaderActions,
-} from '../../../shared/components/CollapsibleCard/index.ts';
+} from '../../shared/components/CollapsibleCard/index.ts';
 import { Info, BookOpen, Airplay } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import { Button } from '../../../shared/components/Button/index.tsx';
-import { useContentPopovers } from '../../../app/store/hooks/useContentPopovers';
+import { Button } from '../../shared/components/Button/index.tsx';
+import { useContentPopovers } from '../../app/store/hooks/useContentPopovers.ts';
 
-export default function PageNotificationLegacyStorageSetup() {
+export function PageNotificationLegacyStorageSetup() {
   const { open } = useContentPopovers();
   return (
     <div className='mb-4'>

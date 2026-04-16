@@ -1,1 +1,1 @@
-export { DataStorageListPage } from './DataStorageListPage.tsx';
+export * from './DataStorageListPage';

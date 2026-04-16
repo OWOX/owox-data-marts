@@ -3,12 +3,12 @@ import { DataStorageProvider } from '../../features/data-storage/shared/model/co
 import { DataStorageList } from '../../features/data-storage/list/components';
 import { useDataStorage } from '../../features/data-storage/shared/model/hooks/useDataStorage';
 import { DataStorageType } from '../../features/data-storage/shared/model/types/data-storage-type.enum';
-import PageNotificationLegacyStorageSetup from '../data-marts/list/PageNotificationLegacyStorageSetup';
 import {
   getCachedDataStorageHealthStatus,
   DataStorageHealthStatus,
   subscribeToDataStorageHealthStatusUpdates,
 } from '../../features/data-storage/shared/services/data-storage-health-status.service';
+import { PageNotificationLegacyStorageSetup } from './PageNotificationLegacyStorageSetup.tsx';
 
 const DataStorageListWithContext = ({
   shouldOpenDialog,
