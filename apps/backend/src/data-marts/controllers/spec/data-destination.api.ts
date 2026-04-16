@@ -11,6 +11,7 @@ import {
 } from '@nestjs/swagger';
 import { CreateDataDestinationApiDto } from '../../dto/presentation/create-data-destination-api.dto';
 import { UpdateDataDestinationApiDto } from '../../dto/presentation/update-data-destination-api.dto';
+import { UpdateDestinationAvailabilityApiDto } from '../../dto/presentation/update-availability-api.dto';
 import { DataDestinationResponseApiDto } from '../../dto/presentation/data-destination-response-api.dto';
 import { DataDestinationByTypeResponseApiDto } from '../../dto/presentation/data-destination-by-type-response-api.dto';
 import { GenerateAuthorizationUrlRequestDto } from '../../dto/presentation/google-oauth/generate-authorization-url-request.dto';
@@ -156,22 +157,7 @@ export function UpdateDataDestinationAvailabilitySpec() {
   return applyDecorators(
     ApiOperation({ summary: 'Update Data Destination availability' }),
     ApiParam({ name: 'id', description: 'Data Destination ID' }),
-    ApiBody({
-      schema: {
-        type: 'object',
-        required: ['availableForUse', 'availableForMaintenance'],
-        properties: {
-          availableForUse: {
-            type: 'boolean',
-            example: true,
-          },
-          availableForMaintenance: {
-            type: 'boolean',
-            example: false,
-          },
-        },
-      },
-    }),
+    ApiBody({ type: UpdateDestinationAvailabilityApiDto }),
     ApiNoContentResponse({ description: 'Data Destination availability updated' })
   );
 }

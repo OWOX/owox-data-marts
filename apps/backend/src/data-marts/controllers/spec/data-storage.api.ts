@@ -14,6 +14,7 @@ import { DataStorageListResponseApiDto } from '../../dto/presentation/data-stora
 import { DataStorageResponseApiDto } from '../../dto/presentation/data-storage-response-api.dto';
 import { DataStorageByTypeResponseApiDto } from '../../dto/presentation/data-storage-by-type-response-api.dto';
 import { UpdateDataStorageApiDto } from '../../dto/presentation/update-data-storage-api.dto';
+import { UpdateStorageAvailabilityApiDto } from '../../dto/presentation/update-availability-api.dto';
 import { GenerateAuthorizationUrlRequestDto } from '../../dto/presentation/google-oauth/generate-authorization-url-request.dto';
 import { GenerateAuthorizationUrlResponseDto } from '../../dto/presentation/google-oauth/generate-authorization-url-response.dto';
 import { ExchangeAuthorizationCodeRequestDto } from '../../dto/presentation/google-oauth/exchange-authorization-code-request.dto';
@@ -141,22 +142,7 @@ export function UpdateStorageAvailabilitySpec() {
   return applyDecorators(
     ApiOperation({ summary: 'Update Data Storage availability' }),
     ApiParam({ name: 'id', description: 'Data Storage ID' }),
-    ApiBody({
-      schema: {
-        type: 'object',
-        required: ['availableForUse', 'availableForMaintenance'],
-        properties: {
-          availableForUse: {
-            type: 'boolean',
-            example: true,
-          },
-          availableForMaintenance: {
-            type: 'boolean',
-            example: false,
-          },
-        },
-      },
-    }),
+    ApiBody({ type: UpdateStorageAvailabilityApiDto }),
     ApiNoContentResponse({ description: 'Data Storage availability updated' })
   );
 }

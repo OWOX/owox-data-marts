@@ -22,6 +22,8 @@ import { DataMartRunsResponseApiDto } from '../../dto/presentation/data-mart-run
 import { DataMartRunResponseApiDto } from '../../dto/presentation/data-mart-run-response-api.dto';
 import { UpdateDataMartOwnersApiDto } from '../../dto/presentation/update-data-mart-owners-api.dto';
 import { PaginatedDataMartsResponseApiDto } from '../../dto/presentation/paginated-data-marts-response-api.dto';
+import { RunDataMartRequestApiDto } from '../../dto/presentation/run-data-mart-request-api.dto';
+import { UpdateDataMartAvailabilityApiDto } from '../../dto/presentation/update-availability-api.dto';
 import { OwnerFilter } from '../../enums/owner-filter.enum';
 
 export function CreateDataMartSpec() {
@@ -125,20 +127,7 @@ export function RunDataMartSpec() {
   return applyDecorators(
     ApiOperation({ summary: 'Manual run DataMart' }),
     ApiParam({ name: 'id', description: 'DataMart ID' }),
-    ApiBody({
-      required: false,
-      schema: {
-        type: 'object',
-        properties: {
-          payload: {
-            type: 'object',
-            additionalProperties: true,
-            example: { key: 'value' },
-            description: 'Optional payload for the manual run',
-          },
-        },
-      },
-    }),
+    ApiBody({ type: RunDataMartRequestApiDto, required: false }),
     ApiResponse({
       status: 201,
       description: 'DataMart run created',
@@ -253,22 +242,7 @@ export function UpdateDataMartAvailabilitySpec() {
   return applyDecorators(
     ApiOperation({ summary: 'Update DataMart availability' }),
     ApiParam({ name: 'id', description: 'DataMart ID' }),
-    ApiBody({
-      schema: {
-        type: 'object',
-        required: ['availableForReporting', 'availableForMaintenance'],
-        properties: {
-          availableForReporting: {
-            type: 'boolean',
-            example: true,
-          },
-          availableForMaintenance: {
-            type: 'boolean',
-            example: false,
-          },
-        },
-      },
-    }),
+    ApiBody({ type: UpdateDataMartAvailabilityApiDto }),
     ApiNoContentResponse({ description: 'DataMart availability updated' })
   );
 }
