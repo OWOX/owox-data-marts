@@ -39,9 +39,12 @@ export function useSqlDryRunTrigger(dataMartId: string): UseSqlDryRunTriggerRetu
   }, []);
 
   const setErrorResult = useCallback((error: unknown): void => {
+    // Extract backend error message from axios response (e.g. "You do not have permission to edit this DataMart")
+    const axiosError = error as { response?: { data?: { message?: string } } };
+    const backendMessage = axiosError.response?.data?.message;
     setResult({
       isValid: false,
-      error: error instanceof Error ? error.message : 'Validation failed',
+      error: backendMessage ?? (error instanceof Error ? error.message : 'Validation failed'),
     });
     setIsLoading(false);
   }, []);

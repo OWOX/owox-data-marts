@@ -39,7 +39,8 @@ export class ReportMapper {
       dto.dataMartId,
       dto.dataDestinationId,
       dto.destinationConfig,
-      dto.ownerIds
+      dto.ownerIds,
+      context.roles ?? []
     );
   }
 
@@ -100,7 +101,7 @@ export class ReportMapper {
   }
 
   toGetCommand(id: string, context: AuthorizationContext): GetReportCommand {
-    return new GetReportCommand(id, context.projectId);
+    return new GetReportCommand(id, context.projectId, context.userId, context.roles ?? []);
   }
 
   toDeleteCommand(id: string, context: AuthorizationContext): DeleteReportCommand {

@@ -72,6 +72,28 @@ describe('CreateDataMartService', () => {
     await expect(service.run(command)).rejects.toThrow(ForbiddenException);
   });
 
+  it('should check access even when roles is empty but userId is set', async () => {
+    const { service, accessDecisionService } = createService();
+    accessDecisionService.canAccess.mockResolvedValue(false);
+
+    // userId is set, roles is empty — guard should still trigger via if (command.userId)
+    const command = new CreateDataMartCommand('proj-1', 'user-0', 'Test DM', 'storage-1', []);
+
+    await expect(service.run(command)).rejects.toThrow(ForbiddenException);
+    expect(accessDecisionService.canAccess).toHaveBeenCalled();
+  });
+
+  it('should skip access check when userId is empty (system caller)', async () => {
+    const { service, accessDecisionService, dataMartService } = createService();
+
+    const command = new CreateDataMartCommand('proj-1', '', 'Test DM', 'storage-1', []);
+
+    await service.run(command);
+
+    expect(accessDecisionService.canAccess).not.toHaveBeenCalled();
+    expect(dataMartService.create).toHaveBeenCalled();
+  });
+
   it('should allow creation when user has USE access to storage', async () => {
     const { service, accessDecisionService, dataMartService } = createService();
     accessDecisionService.canAccess.mockResolvedValue(true);

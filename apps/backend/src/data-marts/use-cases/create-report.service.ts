@@ -21,6 +21,8 @@ import { UserProjectionsFetcherService } from '../services/user-projections-fetc
 import { resolveOwnerUsers } from '../utils/resolve-owner-users';
 import { syncOwners } from '../utils/sync-owners';
 import { IdpProjectionsFacade } from '../../idp/facades/idp-projections.facade';
+import { ForbiddenException } from '@nestjs/common';
+import { AccessDecisionService, EntityType, Action } from '../services/access-decision';
 
 @Injectable()
 export class CreateReportService {
@@ -38,7 +40,8 @@ export class CreateReportService {
     private readonly idpProjectionsFacade: IdpProjectionsFacade,
     @Inject(OWOX_PRODUCER)
     private readonly producer: OwoxProducer,
-    private readonly eventEmitter: EventEmitter2
+    private readonly eventEmitter: EventEmitter2,
+    private readonly accessDecisionService: AccessDecisionService
   ) {}
 
   @Transactional()
@@ -52,6 +55,36 @@ export class CreateReportService {
       throw new BusinessViolationException(
         `Cannot create report for data mart with status ${dataMart.status}. Data mart must be in PUBLISHED status.`
       );
+    }
+
+    // Permissions Model: verify user has reporting access to this DataMart
+    if (command.userId) {
+      const canUseDm = await this.accessDecisionService.canAccess(
+        command.userId,
+        command.roles,
+        EntityType.DATA_MART,
+        command.dataMartId,
+        Action.USE,
+        command.projectId
+      );
+      if (!canUseDm) {
+        throw new ForbiddenException('You do not have access to the DataMart for this report');
+      }
+    }
+
+    // Permissions Model: verify user has access to this Destination
+    if (command.userId) {
+      const canUseDest = await this.accessDecisionService.canAccess(
+        command.userId,
+        command.roles,
+        EntityType.DESTINATION,
+        command.dataDestinationId,
+        Action.USE,
+        command.projectId
+      );
+      if (!canUseDest) {
+        throw new ForbiddenException('You do not have access to the Destination for this report');
+      }
     }
 
     // Get the data destination

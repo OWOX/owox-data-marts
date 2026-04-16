@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, ForbiddenException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { DataDestination } from '../entities/data-destination.entity';
@@ -9,6 +9,7 @@ import { DataDestinationSecretKeyRotatorFacade } from '../data-destination-types
 import { DataDestinationCredentialService } from '../services/data-destination-credential.service';
 import { DataDestinationCredentials } from '../data-destination-types/data-destination-credentials.type';
 import type { StoredDestinationCredentials } from '../entities/stored-destination-credentials.type';
+import { AccessDecisionService, EntityType, Action } from '../services/access-decision';
 
 @Injectable()
 export class RotateSecretKeyService {
@@ -17,7 +18,8 @@ export class RotateSecretKeyService {
     private readonly repository: Repository<DataDestination>,
     private readonly mapper: DataDestinationMapper,
     private readonly secretKeyRotator: DataDestinationSecretKeyRotatorFacade,
-    private readonly credentialService: DataDestinationCredentialService
+    private readonly credentialService: DataDestinationCredentialService,
+    private readonly accessDecisionService: AccessDecisionService
   ) {}
 
   async run(command: RotateSecretKeyCommand): Promise<DataDestinationDto> {
@@ -27,6 +29,22 @@ export class RotateSecretKeyService {
 
     if (!entity) {
       throw new Error('Data destination not found');
+    }
+
+    if (command.userId) {
+      const canEdit = await this.accessDecisionService.canAccess(
+        command.userId,
+        command.roles,
+        EntityType.DESTINATION,
+        command.id,
+        Action.EDIT,
+        command.projectId
+      );
+      if (!canEdit) {
+        throw new ForbiddenException(
+          'You do not have permission to rotate credentials for this Destination'
+        );
+      }
     }
 
     if (!entity.credentialId) {

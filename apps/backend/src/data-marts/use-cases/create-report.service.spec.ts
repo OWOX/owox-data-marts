@@ -71,6 +71,9 @@ describe('CreateReportService', () => {
     const eventEmitter = {
       emit: jest.fn(),
     };
+    const accessDecisionService = {
+      canAccess: jest.fn().mockResolvedValue(true),
+    };
 
     const service = new CreateReportService(
       reportRepository as never,
@@ -83,7 +86,8 @@ describe('CreateReportService', () => {
       userProjectionsFetcherService as never,
       idpProjectionsFacade as never,
       producer as never,
-      eventEmitter as never
+      eventEmitter as never,
+      accessDecisionService as never
     );
 
     return { service };

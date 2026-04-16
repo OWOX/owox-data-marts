@@ -1,4 +1,14 @@
-import { Body, Controller, Delete, Get, HttpCode, Param, Post, Put } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  ForbiddenException,
+  Get,
+  HttpCode,
+  Param,
+  Post,
+  Put,
+} from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { Auth, AuthContext, AuthorizationContext, Role, Strategy } from '../../idp';
 import { CreateInsightArtifactRequestApiDto } from '../dto/presentation/create-insight-artifact-request-api.dto';
@@ -7,6 +17,7 @@ import { InsightArtifactResponseApiDto } from '../dto/presentation/insight-artif
 import { UpdateInsightArtifactRequestApiDto } from '../dto/presentation/update-insight-artifact-request-api.dto';
 import { UpdateInsightArtifactTitleApiDto } from '../dto/presentation/update-insight-artifact-title-api.dto';
 import { InsightArtifactMapper } from '../mappers/insight-artifact.mapper';
+import { AccessDecisionService, EntityType, Action } from '../services/access-decision';
 import { CreateInsightArtifactService } from '../use-cases/create-insight-artifact.service';
 import { DeleteInsightArtifactService } from '../use-cases/delete-insight-artifact.service';
 import { GetInsightArtifactService } from '../use-cases/get-insight-artifact.service';
@@ -32,8 +43,32 @@ export class InsightArtifactController {
     private readonly updateInsightArtifactService: UpdateInsightArtifactService,
     private readonly deleteInsightArtifactService: DeleteInsightArtifactService,
     private readonly updateInsightArtifactTitleService: UpdateInsightArtifactTitleService,
-    private readonly mapper: InsightArtifactMapper
+    private readonly mapper: InsightArtifactMapper,
+    private readonly accessDecisionService: AccessDecisionService
   ) {}
+
+  private async checkDataMartAccess(
+    dataMartId: string,
+    context: AuthorizationContext,
+    action: Action
+  ): Promise<void> {
+    if (!context.userId) return;
+    const allowed = await this.accessDecisionService.canAccess(
+      context.userId,
+      context.roles ?? [],
+      EntityType.DATA_MART,
+      dataMartId,
+      action,
+      context.projectId
+    );
+    if (!allowed) {
+      throw new ForbiddenException(
+        action === Action.SEE
+          ? 'You do not have access to this DataMart'
+          : 'You do not have permission to edit this DataMart'
+      );
+    }
+  }
 
   @Auth(Role.editor(Strategy.INTROSPECT))
   @Post()
@@ -43,6 +78,7 @@ export class InsightArtifactController {
     @Param('dataMartId') dataMartId: string,
     @Body() dto: CreateInsightArtifactRequestApiDto
   ): Promise<InsightArtifactResponseApiDto> {
+    await this.checkDataMartAccess(dataMartId, context, Action.EDIT);
     const command = this.mapper.toCreateDomainCommand(dataMartId, context, dto);
     const artifact = await this.createInsightArtifactService.run(command);
     return this.mapper.toResponse(artifact);
@@ -55,6 +91,7 @@ export class InsightArtifactController {
     @AuthContext() context: AuthorizationContext,
     @Param('dataMartId') dataMartId: string
   ): Promise<{ data: InsightArtifactListItemResponseApiDto[] }> {
+    await this.checkDataMartAccess(dataMartId, context, Action.SEE);
     const command = this.mapper.toListCommand(dataMartId, context);
     const artifacts = await this.listInsightArtifactsService.run(command);
 
@@ -69,6 +106,7 @@ export class InsightArtifactController {
     @Param('dataMartId') dataMartId: string,
     @Param('insightArtifactId') insightArtifactId: string
   ): Promise<InsightArtifactResponseApiDto> {
+    await this.checkDataMartAccess(dataMartId, context, Action.SEE);
     const command = this.mapper.toGetCommand(insightArtifactId, dataMartId, context);
     const artifact = await this.getInsightArtifactService.run(command);
 
@@ -84,6 +122,7 @@ export class InsightArtifactController {
     @Param('insightArtifactId') insightArtifactId: string,
     @Body() dto: UpdateInsightArtifactRequestApiDto
   ): Promise<InsightArtifactResponseApiDto> {
+    await this.checkDataMartAccess(dataMartId, context, Action.EDIT);
     const command = this.mapper.toUpdateCommand(insightArtifactId, dataMartId, context, dto);
     const artifact = await this.updateInsightArtifactService.run(command);
 
@@ -99,6 +138,7 @@ export class InsightArtifactController {
     @Param('insightArtifactId') insightArtifactId: string,
     @Body() dto: UpdateInsightArtifactTitleApiDto
   ): Promise<InsightArtifactResponseApiDto> {
+    await this.checkDataMartAccess(dataMartId, context, Action.EDIT);
     const command = this.mapper.toUpdateTitleCommand(insightArtifactId, dataMartId, context, dto);
     const artifact = await this.updateInsightArtifactTitleService.run(command);
 
@@ -114,6 +154,7 @@ export class InsightArtifactController {
     @Param('dataMartId') dataMartId: string,
     @Param('insightArtifactId') insightArtifactId: string
   ): Promise<void> {
+    await this.checkDataMartAccess(dataMartId, context, Action.EDIT);
     const command = this.mapper.toDeleteCommand(insightArtifactId, dataMartId, context);
     await this.deleteInsightArtifactService.run(command);
   }

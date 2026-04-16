@@ -128,7 +128,7 @@ export class DataStorageMapper {
   }
 
   toGetCommand(id: string, context: AuthorizationContext) {
-    return new GetDataStorageCommand(id, context.projectId);
+    return new GetDataStorageCommand(id, context.projectId, context.userId, context.roles ?? []);
   }
 
   toListCommand(context: AuthorizationContext, ownerFilter?: OwnerFilter) {
@@ -155,7 +155,7 @@ export class DataStorageMapper {
   }
 
   toDeleteCommand(id: string, context: AuthorizationContext): DeleteDataStorageCommand {
-    return new DeleteDataStorageCommand(id, context.projectId);
+    return new DeleteDataStorageCommand(id, context.projectId, context.userId, context.roles ?? []);
   }
 
   toPublishDraftsCommand(
@@ -169,7 +169,12 @@ export class DataStorageMapper {
     id: string,
     context: AuthorizationContext
   ): ValidateDataStorageAccessCommand {
-    return new ValidateDataStorageAccessCommand(id, context.projectId);
+    return new ValidateDataStorageAccessCommand(
+      id,
+      context.projectId,
+      context.userId,
+      context.roles ?? []
+    );
   }
 
   toValidateAccessResponse(

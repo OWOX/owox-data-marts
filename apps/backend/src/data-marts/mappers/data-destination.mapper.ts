@@ -133,7 +133,12 @@ export class DataDestinationMapper {
   }
 
   toGetCommand(id: string, context: AuthorizationContext) {
-    return new GetDataDestinationCommand(id, context.projectId);
+    return new GetDataDestinationCommand(
+      id,
+      context.projectId,
+      context.userId,
+      context.roles ?? []
+    );
   }
 
   toListCommand(context: AuthorizationContext, ownerFilter?: OwnerFilter) {
@@ -152,11 +157,16 @@ export class DataDestinationMapper {
   }
 
   toDeleteCommand(id: string, context: AuthorizationContext): DeleteDataDestinationCommand {
-    return new DeleteDataDestinationCommand(id, context.projectId);
+    return new DeleteDataDestinationCommand(
+      id,
+      context.projectId,
+      context.userId,
+      context.roles ?? []
+    );
   }
 
   toRotateSecretKeyCommand(id: string, context: AuthorizationContext): RotateSecretKeyCommand {
-    return new RotateSecretKeyCommand(id, context.projectId);
+    return new RotateSecretKeyCommand(id, context.projectId, context.userId, context.roles ?? []);
   }
 
   toGetOAuthStatusCommand(

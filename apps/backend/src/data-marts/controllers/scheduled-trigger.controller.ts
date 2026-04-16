@@ -1,4 +1,13 @@
-import { Body, Controller, Delete, Get, Param, Post, Put } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  ForbiddenException,
+  Get,
+  Param,
+  Post,
+  Put,
+} from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { AuthContext, AuthorizationContext, Auth } from '../../idp';
 import { Role, Strategy } from '../../idp/types/role-config.types';
@@ -6,6 +15,7 @@ import { CreateScheduledTriggerRequestApiDto } from '../dto/presentation/create-
 import { ScheduledTriggerResponseApiDto } from '../dto/presentation/scheduled-trigger-response-api.dto';
 import { UpdateScheduledTriggerRequestApiDto } from '../dto/presentation/update-scheduled-trigger-request-api.dto';
 import { ScheduledTriggerMapper } from '../mappers/scheduled-trigger.mapper';
+import { AccessDecisionService, EntityType, Action } from '../services/access-decision';
 import { CreateScheduledTriggerService } from '../use-cases/create-scheduled-trigger.service';
 import { DeleteScheduledTriggerService } from '../use-cases/delete-scheduled-trigger.service';
 import { GetScheduledTriggerService } from '../use-cases/get-scheduled-trigger.service';
@@ -31,8 +41,32 @@ export class ScheduledTriggerController {
     private readonly listService: ListScheduledTriggersService,
     private readonly updateService: UpdateScheduledTriggerService,
     private readonly deleteService: DeleteScheduledTriggerService,
-    private readonly mapper: ScheduledTriggerMapper
+    private readonly mapper: ScheduledTriggerMapper,
+    private readonly accessDecisionService: AccessDecisionService
   ) {}
+
+  private async checkDataMartAccess(
+    dataMartId: string,
+    context: AuthorizationContext,
+    action: Action
+  ): Promise<void> {
+    if (!context.userId) return;
+    const allowed = await this.accessDecisionService.canAccess(
+      context.userId,
+      context.roles ?? [],
+      EntityType.DATA_MART,
+      dataMartId,
+      action,
+      context.projectId
+    );
+    if (!allowed) {
+      throw new ForbiddenException(
+        action === Action.SEE
+          ? 'You do not have access to this DataMart'
+          : 'You do not have permission to edit this DataMart'
+      );
+    }
+  }
 
   @Auth(Role.viewer(Strategy.INTROSPECT))
   @Post()
@@ -42,6 +76,7 @@ export class ScheduledTriggerController {
     @Param('dataMartId') dataMartId: string,
     @Body() dto: CreateScheduledTriggerRequestApiDto
   ): Promise<ScheduledTriggerResponseApiDto> {
+    await this.checkDataMartAccess(dataMartId, context, Action.MANAGE_TRIGGERS);
     const command = this.mapper.toCreateCommand(dataMartId, context, dto);
     const trigger = await this.createService.run(command);
     return this.mapper.toResponse(trigger);
@@ -54,6 +89,7 @@ export class ScheduledTriggerController {
     @AuthContext() context: AuthorizationContext,
     @Param('dataMartId') dataMartId: string
   ): Promise<ScheduledTriggerResponseApiDto[]> {
+    await this.checkDataMartAccess(dataMartId, context, Action.SEE);
     const command = this.mapper.toListCommand(dataMartId, context);
     const triggers = await this.listService.run(command);
     return this.mapper.toResponseList(triggers);
@@ -67,6 +103,7 @@ export class ScheduledTriggerController {
     @Param('dataMartId') dataMartId: string,
     @Param('id') id: string
   ): Promise<ScheduledTriggerResponseApiDto> {
+    await this.checkDataMartAccess(dataMartId, context, Action.SEE);
     const command = this.mapper.toGetCommand(id, dataMartId, context);
     const trigger = await this.getService.run(command);
     return this.mapper.toResponse(trigger);
@@ -81,6 +118,7 @@ export class ScheduledTriggerController {
     @Param('id') id: string,
     @Body() dto: UpdateScheduledTriggerRequestApiDto
   ): Promise<ScheduledTriggerResponseApiDto> {
+    await this.checkDataMartAccess(dataMartId, context, Action.MANAGE_TRIGGERS);
     const command = this.mapper.toUpdateCommand(id, dataMartId, context, dto);
     const trigger = await this.updateService.run(command);
     return this.mapper.toResponse(trigger);
@@ -94,6 +132,7 @@ export class ScheduledTriggerController {
     @Param('dataMartId') dataMartId: string,
     @Param('id') id: string
   ): Promise<void> {
+    await this.checkDataMartAccess(dataMartId, context, Action.MANAGE_TRIGGERS);
     const command = this.mapper.toDeleteCommand(id, dataMartId, context);
     await this.deleteService.run(command);
   }

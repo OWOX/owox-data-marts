@@ -53,7 +53,7 @@ export class UpdateDataStorageService {
 
   @Transactional()
   async run(command: UpdateDataStorageCommand): Promise<DataStorageDto> {
-    // Stage 3: if ownerIds are being changed, check MANAGE_OWNERS permission
+    // Permissions Model: if ownerIds are being changed, check MANAGE_OWNERS permission
     if (command.ownerIds !== undefined && command.userId) {
       const canManage = await this.accessDecisionService.canAccess(
         command.userId,
@@ -68,7 +68,7 @@ export class UpdateDataStorageService {
       }
     }
 
-    // Stage 3: if availability is being changed, check CONFIGURE_SHARING permission
+    // Permissions Model: if availability is being changed, check CONFIGURE_SHARING permission
     if (
       (command.availableForUse !== undefined || command.availableForMaintenance !== undefined) &&
       command.userId
@@ -91,6 +91,21 @@ export class UpdateDataStorageService {
       command.id
     );
 
+    // Permissions Model: verify user has EDIT access to this Storage
+    if (command.userId) {
+      const canEdit = await this.accessDecisionService.canAccess(
+        command.userId,
+        command.roles,
+        EntityType.STORAGE,
+        command.id,
+        Action.EDIT,
+        command.projectId
+      );
+      if (!canEdit) {
+        throw new ForbiddenException('You do not have permission to edit this Storage');
+      }
+    }
+
     const isLegacyStorage = dataStorageEntity.type === DataStorageType.LEGACY_GOOGLE_BIGQUERY;
     const configWasEmpty = !dataStorageEntity.config;
 
@@ -109,7 +124,7 @@ export class UpdateDataStorageService {
     }
 
     if (command.sourceStorageId) {
-      // Stage 3: copy credentials requires COPY_CREDENTIALS access to source storage
+      // Permissions Model: copy credentials requires COPY_CREDENTIALS access to source storage
       if (command.userId) {
         const canCopy = await this.accessDecisionService.canAccess(
           command.userId,

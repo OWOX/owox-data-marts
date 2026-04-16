@@ -30,6 +30,8 @@ export class SchemaActualizeTriggerHandlerService
       await this.actualizeSchemaService.run({
         id: trigger.dataMartId,
         projectId: trigger.projectId,
+        userId: '',
+        roles: [],
       });
 
       trigger.uiResponse = { success: true };

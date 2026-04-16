@@ -43,9 +43,9 @@ function resolvePayload(token: string): Payload {
 }
 
 /**
- * Stage 3: Sharing & Owner-based Access Control E2E Tests
+ * Permissions Model: Sharing & Owner-based Access Control E2E Tests
  */
-describe('Stage 3 Sharing Access Control (e2e)', () => {
+describe('Permissions Model Sharing Access Control (e2e)', () => {
   let app: INestApplication;
   let agent: supertest.Agent;
   let storageId: string;
@@ -91,7 +91,7 @@ describe('Stage 3 Sharing Access Control (e2e)', () => {
         ),
       ]);
 
-    // Setup prerequisites (helper auto-shares, we un-share for Stage 3 tests)
+    // Setup prerequisites (helper auto-shares, we un-share for Permissions Model tests)
     const prereqs = await setupReportPrerequisites(agent);
     storageId = prereqs.storageId;
     dataMartId = prereqs.dataMartId;

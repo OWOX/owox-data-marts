@@ -6,6 +6,7 @@ export class RunDataMartCommand {
     public readonly projectId: string,
     public readonly createdById: string,
     public readonly runType: RunType,
-    public readonly payload?: Record<string, unknown> | undefined
+    public readonly payload?: Record<string, unknown> | undefined,
+    public readonly roles: string[] = []
   ) {}
 }

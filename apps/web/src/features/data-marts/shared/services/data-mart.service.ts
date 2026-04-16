@@ -190,6 +190,7 @@ export class DataMartService extends ApiService {
   async createSqlDryRunTrigger(id: string, sql: string): Promise<CreateSqlDryRunTaskResponseDto> {
     return this.post<CreateSqlDryRunTaskResponseDto>(`/${id}/sql-dry-run-triggers`, { sql }, {
       skipLoadingIndicator: true,
+      skipErrorToast: true,
     } as AxiosRequestConfig);
   }
 

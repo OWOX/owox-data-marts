@@ -16,14 +16,14 @@ describe('Sharing fields on entities', () => {
       const col = getColumnMeta(DataMart, 'availableForReporting');
       expect(col).toBeDefined();
       expect(col!.options.type).toBe('boolean');
-      expect(col!.options.default).toBe(true);
+      expect(col!.options.default).toBe(false);
     });
 
     it('should have availableForMaintenance boolean column', () => {
       const col = getColumnMeta(DataMart, 'availableForMaintenance');
       expect(col).toBeDefined();
       expect(col!.options.type).toBe('boolean');
-      expect(col!.options.default).toBe(true);
+      expect(col!.options.default).toBe(false);
     });
   });
 
@@ -32,14 +32,14 @@ describe('Sharing fields on entities', () => {
       const col = getColumnMeta(DataStorage, 'availableForUse');
       expect(col).toBeDefined();
       expect(col!.options.type).toBe('boolean');
-      expect(col!.options.default).toBe(true);
+      expect(col!.options.default).toBe(false);
     });
 
     it('should have availableForMaintenance boolean column', () => {
       const col = getColumnMeta(DataStorage, 'availableForMaintenance');
       expect(col).toBeDefined();
       expect(col!.options.type).toBe('boolean');
-      expect(col!.options.default).toBe(true);
+      expect(col!.options.default).toBe(false);
     });
   });
 
@@ -48,14 +48,14 @@ describe('Sharing fields on entities', () => {
       const col = getColumnMeta(DataDestination, 'availableForUse');
       expect(col).toBeDefined();
       expect(col!.options.type).toBe('boolean');
-      expect(col!.options.default).toBe(true);
+      expect(col!.options.default).toBe(false);
     });
 
     it('should have availableForMaintenance boolean column', () => {
       const col = getColumnMeta(DataDestination, 'availableForMaintenance');
       expect(col).toBeDefined();
       expect(col!.options.type).toBe('boolean');
-      expect(col!.options.default).toBe(true);
+      expect(col!.options.default).toBe(false);
     });
   });
 });

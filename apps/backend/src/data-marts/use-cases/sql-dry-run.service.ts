@@ -1,10 +1,11 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, ForbiddenException } from '@nestjs/common';
 import { SqlDryRunExecutorFacade } from '../data-storage-types/facades/sql-dry-run-executor.facade';
 import { SqlDryRunResult } from '../dto/domain/sql-dry-run-result.dto';
 import { SqlDryRunCommand } from '../dto/domain/sql-dry-run.command';
 import { DataMartService } from '../services/data-mart.service';
 import { DataMartSqlTableService } from '../services/data-mart-sql-table.service';
 import { DataStorageCredentialsResolver } from '../data-storage-types/data-storage-credentials-resolver.service';
+import { AccessDecisionService, EntityType, Action } from '../services/access-decision';
 
 @Injectable()
 export class SqlDryRunService {
@@ -12,7 +13,8 @@ export class SqlDryRunService {
     private readonly dataMartService: DataMartService,
     private readonly sqlDryRunExecutorFacade: SqlDryRunExecutorFacade,
     private readonly dataMartSqlTableService: DataMartSqlTableService,
-    private readonly credentialsResolver: DataStorageCredentialsResolver
+    private readonly credentialsResolver: DataStorageCredentialsResolver,
+    private readonly accessDecisionService: AccessDecisionService
   ) {}
 
   async run(command: SqlDryRunCommand): Promise<SqlDryRunResult> {
@@ -20,6 +22,20 @@ export class SqlDryRunService {
       command.dataMartId,
       command.projectId
     );
+
+    if (command.userId) {
+      const canEdit = await this.accessDecisionService.canAccess(
+        command.userId,
+        command.roles,
+        EntityType.DATA_MART,
+        command.dataMartId,
+        Action.EDIT,
+        command.projectId
+      );
+      if (!canEdit) {
+        throw new ForbiddenException('You do not have permission to edit this DataMart');
+      }
+    }
 
     const storage = dataMart.storage;
     if (!storage || !storage.type || !storage.config) {
