@@ -113,67 +113,66 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
   })();
 </script> <script type="module">function a(){const e=document.getElementById("sidebar-toggle"),s=document.getElementById("page-sidebar"),t=document.querySelector(".right-sidebar-container"),l=document.querySelector(".main-pane");if(!e||!s||!t||!l)return;document.documentElement.classList.remove("sidebar-initially-collapsed"),localStorage.getItem("sidebar-collapsed")==="true"&&(e.classList.add("collapsed"),s.classList.add("collapsed"),t.classList.add("collapsed"),l.classList.add("sidebar-collapsed")),e.addEventListener("click",()=>{const d=e.classList.toggle("collapsed");s.classList.toggle("collapsed"),t.classList.toggle("collapsed"),l.classList.toggle("sidebar-collapsed"),localStorage.setItem("sidebar-collapsed",String(d))})}document.addEventListener("DOMContentLoaded",a);document.addEventListener("astro:page-load",a);</script> </div> </aside> <div class="main-pane astro-iwxxlyos">  <main data-pagefind-body class="astro-6fdpy5ow" lang="en" dir="ltr">    <div class="content-panel astro-ojddbpe4"> <div class="sl-container astro-ojddbpe4"> <h1 id="_top" class="astro-cydrltla">Changelog</h1>  </div> </div>  <div class="content-panel astro-ojddbpe4"> <div class="sl-container astro-ojddbpe4"> <div class="sl-markdown-content"> <div class="sl-heading-wrapper level-h2"><h2 id="0230">0.23.0</h2><a class="sl-anchor-link" href="#0230"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24"><path fill="currentcolor" d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 0 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 1 0-1.42-1.42Zm8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 0 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 1 0 1.42 1.42l3.88-3.89a4.49 4.49 0 0 0 0-6.33ZM8.83 15.17a1 1 0 0 0 1.1.22 1 1 0 0 0 .32-.22l4.92-4.92a1 1 0 0 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42Z"></path></svg></span><span class="sr-only">Section titled “0.23.0”</span></a></div>
 <div class="sl-heading-wrapper level-h3"><h3 id="minor-changes-0230">Minor Changes 0.23.0</h3><a class="sl-anchor-link" href="#minor-changes-0230"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24"><path fill="currentcolor" d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 0 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 1 0-1.42-1.42Zm8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 0 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 1 0 1.42 1.42l3.88-3.89a4.49 4.49 0 0 0 0-6.33ZM8.83 15.17a1 1 0 0 0 1.1.22 1 1 0 0 0 .32-.22l4.92-4.92a1 1 0 0 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42Z"></path></svg></span><span class="sr-only">Section titled “Minor Changes 0.23.0”</span></a></div>
+<p><img src="https://github.com/user-attachments/assets/8bfad6e5-a8cc-4859-8de6-7be54d5f3a83" alt="OWOX Data Marts – v0.23.0"></p>
 <ul>
 <li>
-<p>11c0c77: # Add availability model and activate owner-based access control</p>
-<p>Introduced explicit availability settings for DataMarts (Available for reporting / Available for maintenance), Storages (Available for use / Available for maintenance), and Destinations (Available for use / Available for maintenance). Ownership now affects access: owners have direct access to their entities regardless of availability state, while non-owners see only available entities. Implemented table-driven AccessDecisionService that evaluates entity type, role, ownership status, availability state, and action for every single-entity operation. Enforced access checks on all endpoints including direct URL access, sub-operations (SQL dry run, validate definition, run history), and report creation. Existing entities default to fully available for backward compatibility; new entities default to not available (secure by default).</p>
-</li>
-<li>
-<p>11c0c77: # Extend role definitions and activate report ownership</p>
-<p>Reinterpreted existing project roles without changing stored identifiers: Viewer becomes Business User with self-service reporting capabilities, Editor becomes Technical User with full technical maintenance access. Activated Report ownership — Business Users can now create, edit, delete, and run their own Reports and manage Report Triggers, while Technical Users retain project-wide Report management. Business Users can also create, edit, and delete Destinations. Implemented ineffective owner logic: if a Report owner loses access to the DataMart or Destination, they become read-only until access is restored.</p>
-</li>
-<li>
-<p>0f07594: # Auto-select the only storage when creating a Data Mart</p>
-<p>When creating a Data Mart, if your project has only one storage, that storage is now selected for you automatically. New users no longer need to hunt for the right option in the dropdown or take an extra step before they can submit—especially helpful on small projects where a single storage is the obvious choice.</p>
-</li>
-<li>
-<p>126280a: # Fix empty error text for invalid storage status</p>
-<p>When storage access validation fails and the backend response doesn’t include an error message, the UI now shows “Access validation failed” instead of rendering a blank space next to the warning icon.</p>
-</li>
-<li>
-<p>15390c6: # Save Facebook ads data progressively to prevent loss on API failures</p>
-<p>Previously, if the Facebook API returned an error mid-fetch, all already-downloaded
-records were lost. Now data is saved to BigQuery page by page, so a failure only
-affects the remaining pages — not the entire dataset.</p>
-</li>
-<li>
-<p>870de85: # Add geographic performance reports to Google Ads connector</p>
-<p>You can now import geographic performance data from Google Ads. Add <code dir="auto">Geo Stats</code> to your Fields configuration to see how your campaigns perform across countries, broken down by impressions, clicks, cost, and conversions. Add <code dir="auto">Geo Target Constants</code> alongside it to get country names and codes instead of raw IDs. The two tables are designed to be joined in BigQuery on <code dir="auto">country_criterion_id</code>.</p>
-</li>
-<li>
-<p>5d9c896: # Clearer error when Google Sheet access is denied</p>
-<p>When access validation fails due to missing sharing permissions, the error now clearly states that the account used for authentication doesn’t have access to the sheet and tells users exactly what to do: share the spreadsheet with it and grant Editor permission — instead of showing the raw Google API error “The caller does not have permission”.</p>
-</li>
-<li>
-<p>832bb73: # Add error boundaries to gracefully handle unexpected application crashes</p>
-<p>Replace the default React “Unexpected Application Error” screen with user-friendly fallback UI. When a page crashes, users now see a styled error page with options to navigate home or reload — instead of raw technical stack traces. The sidebar stays visible for in-layout errors, so users can navigate away without a full page reload.</p>
-</li>
-<li>
-<p>004b9a5: # Invite teammates directly from setup screens</p>
-<p>Add contextual “Invite teammates” helper blocks to setup and empty state screens.
-This allows users to quickly invite teammates when they need help, improving onboarding and reducing friction.</p>
-<p>Includes reusable component with responsive layout and optional documentation link.</p>
-</li>
-<li>
-<p>d8b82e5: # Ownership Foundations</p>
+<p>d8b82e5: <strong>Ownership foundations</strong></p>
 <p>Ownership is now explicit and visible across all major entities. This is the first stage of the Permissions Model Evolution — ownership is informational only and does not affect access control.</p>
 <ul>
-<li><strong>Data Mart</strong> has separate Technical Owner and Business Owner, editable on the Overview tab.</li>
-<li><strong>Storage</strong>, <strong>Destination</strong>, and <strong>Report</strong> each have an Owners list, editable in the configuration sheet and saved together with the entity.</li>
-<li><strong>Creator is auto-assigned as owner</strong> when a new entity is created.</li>
+<li>Data Mart has <strong>separate Technical Owner and Business Owner</strong>, editable on the Overview tab.</li>
+<li>Storage, Destination, and Report <strong>each have an Owners list</strong>, editable in the configuration sheet and saved together with the entity.</li>
+<li><strong>Creator is auto-assigned</strong> as owner when a new entity is created.</li>
 <li><strong>Owners column</strong> is displayed in Storage, Destination, and Report list tables.</li>
 <li><strong>Filter by owner</strong> is available in Data Marts, Storages, and Destinations lists.</li>
 <li><strong>“Not assigned” state</strong> is shown when an entity has no owners.</li>
 </ul>
 </li>
 <li>
-<p>a848ac4: # Fix Storage column sorting on the Data Marts page</p>
-<p>Fixed an issue where sorting by the Storage column produced incorrect alphabetical order. Storages with custom names could appear interleaved instead of being sorted alphabetically by their visible name.</p>
+<p>11c0c77: <strong>Availability model and owner-based access control</strong></p>
+<p>Introduced explicit availability settings for DataMarts, Storages, and Destinations (<code dir="auto">Available for reporting / Available for maintenance</code> and <code dir="auto">Available for use / Available for maintenance</code>). Ownership now affects access: owners have direct access to their entities regardless of availability state, while non-owners see only available entities.</p>
+<ul>
+<li>Implemented table-driven <code dir="auto">AccessDecisionService</code> that evaluates entity type, role, ownership status, availability state, and action for every single-entity operation.</li>
+<li>Enforced access checks on all endpoints including direct URL access, sub-operations (SQL dry run, validate definition, run history), and report creation.</li>
+<li>Existing entities default to fully available for backward compatibility; new entities default to not available (secure by default).</li>
+</ul>
 </li>
 <li>
-<p>4033235: # X Ads: Country Breakdown for Ad Stats</p>
-<p>You can now load daily ad stats broken down by country using the new <code dir="auto">stats_by_country</code> node. It tracks impressions, clicks, and other metrics per country for each promoted tweet.</p>
-<p>To get human-readable country names, use the companion <code dir="auto">targeting_locations</code> node — a reference table that maps X Ads location IDs to country names and ISO codes. Run it once, then join with <code dir="auto">stats_by_country</code> on the <code dir="auto">country</code> field.</p>
+<p>11c0c77: <strong>Extended role definitions and report ownership</strong></p>
+<p>Reinterpreted existing project roles without changing stored identifiers: Viewer becomes Business User with self-service reporting capabilities, Editor becomes Technical User with full technical maintenance access.</p>
+<ul>
+<li>Business Users can now create, edit, delete, and run their own Reports and manage Report Triggers.</li>
+<li>Business Users can also create, edit, and delete Destinations.</li>
+<li>Technical Users retain project-wide Report management.</li>
+<li>Implemented ineffective owner logic: if a Report owner loses access to the DataMart or Destination, they become read-only until access is restored.</li>
+</ul>
+</li>
+<li>
+<p>004b9a5: <strong>Invite teammates from setup screens</strong></p>
+<p>Added contextual “Invite teammates” helper blocks to setup and empty state screens. Includes a reusable component with responsive layout and optional documentation link.</p>
+</li>
+<li>
+<p>0f07594: <strong>Auto-select the only storage when creating a Data Mart</strong></p>
+<p>When creating a Data Mart, if the project has only one storage, that storage is now selected automatically.</p>
+</li>
+<li>
+<p>870de85: <strong>Geographic performance reports for Google Ads connector</strong></p>
+<p>Added <code dir="auto">Geo Stats</code> and <code dir="auto">Geo Target Constants</code> nodes to the Google Ads connector. The two tables are designed to be joined in BigQuery on <code dir="auto">country_criterion_id</code>.</p>
+</li>
+<li>
+<p>4033235: <strong>X Ads: country breakdown for ad stats</strong></p>
+<p>Added <code dir="auto">stats_by_country</code> node for daily ad stats broken down by country. A companion <code dir="auto">targeting_locations</code> reference table maps X Ads location IDs to country names and ISO codes — join on the <code dir="auto">country</code> field.</p>
+</li>
+<li>
+<p>15390c6: <strong>Progressive save for Facebook Ads data</strong></p>
+<p>Data is now saved to BigQuery page by page. A failure only affects the remaining pages, not the entire dataset.</p>
+</li>
+<li>
+<p>126280a: # <strong>Bug fixes and improvements</strong></p>
+<ul>
+<li>126280a: <strong>Fixed empty error</strong> text for invalid storage status — now shows “Access validation failed” instead of a blank space.</li>
+<li>a848ac4: <strong>Fixed Storage column sorting</strong> on the Data Marts page — storages with custom names now sort correctly by their visible name.</li>
+<li>832bb73: <strong>Error boundaries for unexpected application crashes</strong>. Replaced the default React error screen with a user-friendly fallback UI. The sidebar stays visible for in-layout errors so users can navigate away without a full page reload.</li>
+</ul>
 </li>
 </ul>
 <div class="sl-heading-wrapper level-h3"><h3 id="patch-changes-0230">Patch Changes 0.23.0</h3><a class="sl-anchor-link" href="#patch-changes-0230"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24"><path fill="currentcolor" d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 0 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 1 0-1.42-1.42Zm8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 0 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 1 0 1.42 1.42l3.88-3.89a4.49 4.49 0 0 0 0-6.33ZM8.83 15.17a1 1 0 0 0 1.1.22 1 1 0 0 0 .32-.22l4.92-4.92a1 1 0 0 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42Z"></path></svg></span><span class="sr-only">Section titled “Patch Changes 0.23.0”</span></a></div>
