@@ -38,7 +38,8 @@ export class InsightRunTriggerController extends UiTriggerController<InsightRunR
         Action.EDIT,
         context.projectId
       );
-      if (!canEdit) throw new ForbiddenException('You do not have access to this DataMart');
+      if (!canEdit)
+        throw new ForbiddenException('You do not have permission to edit this DataMart');
     }
     const triggerId = await (this.triggerService as InsightRunTriggerService).createTrigger(
       context.userId,

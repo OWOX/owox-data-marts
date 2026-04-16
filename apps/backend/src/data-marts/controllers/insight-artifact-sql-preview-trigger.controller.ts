@@ -36,7 +36,8 @@ export class InsightArtifactSqlPreviewTriggerController extends UiTriggerControl
         Action.EDIT,
         context.projectId
       );
-      if (!canEdit) throw new ForbiddenException('You do not have access to this DataMart');
+      if (!canEdit)
+        throw new ForbiddenException('You do not have permission to edit this DataMart');
     }
 
     const triggerId = await (

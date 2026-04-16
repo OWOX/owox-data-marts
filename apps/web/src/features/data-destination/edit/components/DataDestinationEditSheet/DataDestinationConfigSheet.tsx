@@ -120,7 +120,7 @@ export function DataDestinationConfigSheet({
       });
       wasOpenRef.current = false;
     }
-  }, [isOpen, dataDestination]);
+  }, [isOpen, dataDestination, mode]);
 
   return (
     <>

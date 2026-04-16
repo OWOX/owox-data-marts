@@ -60,7 +60,11 @@ export class ScheduledTriggerController {
       context.projectId
     );
     if (!allowed) {
-      throw new ForbiddenException('You do not have access to this DataMart');
+      throw new ForbiddenException(
+        action === Action.SEE
+          ? 'You do not have access to this DataMart'
+          : 'You do not have permission to edit this DataMart'
+      );
     }
   }
 
