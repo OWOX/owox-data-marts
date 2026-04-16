@@ -4,7 +4,7 @@
 
 ### Minor Changes 0.23.0
 
-![OWOX Data Marts – v0.23.0](ttps://github.com/user-attachments/assets/8bfad6e5-a8cc-4859-8de6-7be54d5f3a83)
+![OWOX Data Marts – v0.23.0](https://github.com/user-attachments/assets/8bfad6e5-a8cc-4859-8de6-7be54d5f3a83)
 
 - d8b82e5: **Ownership foundations**
 
