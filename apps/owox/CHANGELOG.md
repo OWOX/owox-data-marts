@@ -4,66 +4,60 @@
 
 ### Minor Changes 0.23.0
 
-- 11c0c77: # Add availability model and activate owner-based access control
+![OWOX Data Marts – v0.23.0](https://github.com/user-attachments/assets/8bfad6e5-a8cc-4859-8de6-7be54d5f3a83)
 
-  Introduced explicit availability settings for DataMarts (Available for reporting / Available for maintenance), Storages (Available for use / Available for maintenance), and Destinations (Available for use / Available for maintenance). Ownership now affects access: owners have direct access to their entities regardless of availability state, while non-owners see only available entities. Implemented table-driven AccessDecisionService that evaluates entity type, role, ownership status, availability state, and action for every single-entity operation. Enforced access checks on all endpoints including direct URL access, sub-operations (SQL dry run, validate definition, run history), and report creation. Existing entities default to fully available for backward compatibility; new entities default to not available (secure by default).
-
-- 11c0c77: # Extend role definitions and activate report ownership
-
-  Reinterpreted existing project roles without changing stored identifiers: Viewer becomes Business User with self-service reporting capabilities, Editor becomes Technical User with full technical maintenance access. Activated Report ownership — Business Users can now create, edit, delete, and run their own Reports and manage Report Triggers, while Technical Users retain project-wide Report management. Business Users can also create, edit, and delete Destinations. Implemented ineffective owner logic: if a Report owner loses access to the DataMart or Destination, they become read-only until access is restored.
-
-- 0f07594: # Auto-select the only storage when creating a Data Mart
-
-  When creating a Data Mart, if your project has only one storage, that storage is now selected for you automatically. New users no longer need to hunt for the right option in the dropdown or take an extra step before they can submit—especially helpful on small projects where a single storage is the obvious choice.
-
-- 126280a: # Fix empty error text for invalid storage status
-
-  When storage access validation fails and the backend response doesn't include an error message, the UI now shows "Access validation failed" instead of rendering a blank space next to the warning icon.
-
-- 15390c6: # Save Facebook ads data progressively to prevent loss on API failures
-
-  Previously, if the Facebook API returned an error mid-fetch, all already-downloaded
-  records were lost. Now data is saved to BigQuery page by page, so a failure only
-  affects the remaining pages — not the entire dataset.
-
-- 870de85: # Add geographic performance reports to Google Ads connector
-
-  You can now import geographic performance data from Google Ads. Add `Geo Stats` to your Fields configuration to see how your campaigns perform across countries, broken down by impressions, clicks, cost, and conversions. Add `Geo Target Constants` alongside it to get country names and codes instead of raw IDs. The two tables are designed to be joined in BigQuery on `country_criterion_id`.
-
-- 5d9c896: # Clearer error when Google Sheet access is denied
-
-  When access validation fails due to missing sharing permissions, the error now clearly states that the account used for authentication doesn't have access to the sheet and tells users exactly what to do: share the spreadsheet with it and grant Editor permission — instead of showing the raw Google API error "The caller does not have permission".
-
-- 832bb73: # Add error boundaries to gracefully handle unexpected application crashes
-
-  Replace the default React "Unexpected Application Error" screen with user-friendly fallback UI. When a page crashes, users now see a styled error page with options to navigate home or reload — instead of raw technical stack traces. The sidebar stays visible for in-layout errors, so users can navigate away without a full page reload.
-
-- 004b9a5: # Invite teammates directly from setup screens
-
-  Add contextual “Invite teammates” helper blocks to setup and empty state screens.
-  This allows users to quickly invite teammates when they need help, improving onboarding and reducing friction.
-
-  Includes reusable component with responsive layout and optional documentation link.
-
-- d8b82e5: # Ownership Foundations
+- d8b82e5: **Ownership foundations**
 
   Ownership is now explicit and visible across all major entities. This is the first stage of the Permissions Model Evolution — ownership is informational only and does not affect access control.
-  - **Data Mart** has separate Technical Owner and Business Owner, editable on the Overview tab.
-  - **Storage**, **Destination**, and **Report** each have an Owners list, editable in the configuration sheet and saved together with the entity.
-  - **Creator is auto-assigned as owner** when a new entity is created.
+
+  - Data Mart has **separate Technical Owner and Business Owner**, editable on the Overview tab.
+  - Storage, Destination, and Report **each have an Owners list**, editable in the configuration sheet and saved together with the entity.
+  - **Creator is auto-assigned** as owner when a new entity is created.
   - **Owners column** is displayed in Storage, Destination, and Report list tables.
   - **Filter by owner** is available in Data Marts, Storages, and Destinations lists.
   - **"Not assigned" state** is shown when an entity has no owners.
 
-- a848ac4: # Fix Storage column sorting on the Data Marts page
+- 11c0c77: **Availability model and owner-based access control**
 
-  Fixed an issue where sorting by the Storage column produced incorrect alphabetical order. Storages with custom names could appear interleaved instead of being sorted alphabetically by their visible name.
+  Introduced explicit availability settings for DataMarts, Storages, and Destinations (`Available for reporting / Available for maintenance` and `Available for use / Available for maintenance`). Ownership now affects access: owners have direct access to their entities regardless of availability state, while non-owners see only available entities.
 
-- 4033235: # X Ads: Country Breakdown for Ad Stats
+  - Implemented table-driven `AccessDecisionService` that evaluates entity type, role, ownership status, availability state, and action for every single-entity operation.
+  - Enforced access checks on all endpoints including direct URL access, sub-operations (SQL dry run, validate definition, run history), and report creation.
+  - Existing entities default to fully available for backward compatibility; new entities default to not available (secure by default).
 
-  You can now load daily ad stats broken down by country using the new `stats_by_country` node. It tracks impressions, clicks, and other metrics per country for each promoted tweet.
+- 11c0c77: **Extended role definitions and report ownership**
 
-  To get human-readable country names, use the companion `targeting_locations` node — a reference table that maps X Ads location IDs to country names and ISO codes. Run it once, then join with `stats_by_country` on the `country` field.
+  Reinterpreted existing project roles without changing stored identifiers: Viewer becomes Business User with self-service reporting capabilities, Editor becomes Technical User with full technical maintenance access.
+
+  - Business Users can now create, edit, delete, and run their own Reports and manage Report Triggers.
+  - Business Users can also create, edit, and delete Destinations.
+  - Technical Users retain project-wide Report management.
+  - Implemented ineffective owner logic: if a Report owner loses access to the DataMart or Destination, they become read-only until access is restored.
+
+- 004b9a5: **Invite teammates from setup screens**
+
+  Added contextual "Invite teammates" helper blocks to setup and empty state screens. Includes a reusable component with responsive layout and optional documentation link.
+
+- 0f07594: **Auto-select the only storage when creating a Data Mart**
+
+  When creating a Data Mart, if the project has only one storage, that storage is now selected automatically.
+
+- 870de85: **Geographic performance reports for Google Ads connector**
+
+  Added `Geo Stats` and `Geo Target Constants` nodes to the Google Ads connector. The two tables are designed to be joined in BigQuery on `country_criterion_id`.
+
+- 4033235: **X Ads: country breakdown for ad stats**
+
+  Added `stats_by_country` node for daily ad stats broken down by country. A companion `targeting_locations` reference table maps X Ads location IDs to country names and ISO codes — join on the `country` field.
+
+- 15390c6: **Progressive save for Facebook Ads data**
+
+  Data is now saved to BigQuery page by page. A failure only affects the remaining pages, not the entire dataset.
+
+- 126280a: # **Bug fixes and improvements**
+  - 126280a: **Fixed empty error** text for invalid storage status — now shows "Access validation failed" instead of a blank space.
+  - a848ac4: **Fixed Storage column sorting** on the Data Marts page — storages with custom names now sort correctly by their visible name.
+  - 832bb73: **Error boundaries for unexpected application crashes**. Replaced the default React error screen with a user-friendly fallback UI. The sidebar stays visible for in-layout errors so users can navigate away without a full page reload.
 
 ### Patch Changes 0.23.0
 
