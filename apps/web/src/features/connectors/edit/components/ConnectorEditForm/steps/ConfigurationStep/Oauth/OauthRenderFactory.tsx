@@ -7,6 +7,7 @@ import { FacebookOauthRender } from './impl/FacebookOauthRender';
 import { TikTokOauthRender } from './impl/TikTokOauthRender';
 import { MicrosoftOauthRender } from './impl/MicrosoftOauthRender';
 import { GoogleAdsOauthRender } from './impl/GoogleAdsOauthRender';
+import { LinkedInOauthRender } from './impl/LinkedInOauthRender';
 import { useState, useEffect, useMemo } from 'react';
 import type {
   OAuthStatusResponseDto,
@@ -337,6 +338,16 @@ export function OauthRenderFactory({
             configuration={configuration}
             onValueChange={onValueChange}
             connectorName={connectorName}
+            isLoading={isLoading}
+            status={status}
+            settings={settings}
+            onOAuthSuccess={handleOAuthSuccess}
+          />
+        );
+      case 'LinkedInAds':
+      case 'LinkedInPages':
+        return (
+          <LinkedInOauthRender
             isLoading={isLoading}
             status={status}
             settings={settings}
