@@ -12,7 +12,10 @@ import {
 } from '@owox/ui/components/hover-card';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@owox/ui/components/tooltip';
 import { useDataStorageHealthStatus } from '../../model/hooks/useDataStorageHealthStatus';
-import { DataStorageHealthStatus } from '../../services/data-storage-health-status.service';
+import {
+  DataStorageHealthStatus,
+  HEALTH_STATUS_UNCONFIGURED_TEXT,
+} from '../../services/data-storage-health-status.service';
 import { DataStorageHealthStatusView } from './DataStorageHealthStatusView';
 import { DataStorageHealthDot } from './DataStorageHealthDot';
 
@@ -23,6 +26,9 @@ interface DataStorageHealthIndicatorProps {
   variant?: 'default' | 'compact';
 }
 
+// NOTE: `text` here is used for compact-variant tooltips.
+// DataStorageHealthStatusView uses its own labels for VALID/INVALID (pre-existing).
+// New states should use shared constants (see HEALTH_STATUS_UNCONFIGURED_TEXT).
 const HEALTH_STATUS_CONFIG: Record<
   DataStorageHealthStatus,
   { text: string; dotClass: string; ringClass: string }
@@ -37,11 +43,16 @@ const HEALTH_STATUS_CONFIG: Record<
     dotClass: 'bg-red-500',
     ringClass: 'ring-red-500/50',
   },
+  [DataStorageHealthStatus.UNCONFIGURED]: {
+    text: HEALTH_STATUS_UNCONFIGURED_TEXT,
+    dotClass: 'bg-neutral-400 dark:bg-neutral-500',
+    ringClass: 'ring-neutral-400/50 dark:ring-neutral-500/50',
+  },
 };
 const HEALTH_STATUS_NOT_FETCHED = {
   text: 'Storage status not fetched yet',
   dotClass: 'bg-neutral-300 dark:bg-neutral-600',
-  ringClass: 'ring-neutral-400/50 dark:ring-neutral-500/50',
+  ringClass: 'ring-neutral-300/50 dark:ring-neutral-600/50',
 };
 
 function getTooltipText(params: { status: DataStorageHealthStatus; isLoading: boolean }): string {
@@ -85,7 +96,7 @@ export function DataStorageHealthIndicator({
           </div>
         </HoverCardTrigger>
 
-        {isFetched && !isLoading && (
+        {isFetched && !isLoading && status !== DataStorageHealthStatus.UNCONFIGURED && (
           <HoverCardContent side={hovercardSide} align='start'>
             <HoverCardHeader>
               <HoverCardHeaderText>
