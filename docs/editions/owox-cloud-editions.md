@@ -17,10 +17,10 @@ Legend:
 |-----------------------------------|:----------:|:--------:|:--------------:|
 | **Ideal for**                     | _Self-service reporting_ | _Self-service reporting & AI Insights_ | _Self-service reporting built your way_ |
 | **Data Connectors:** [available sources](../../README.md#data-sources) [^1] | ✅ | ✅ | ✅ |
-| **Data Storages** [^2]            | ![Google BigQuery](../res/bigquery.svg) ![AWS Athena](../res/athena.svg) | ![Google BigQuery](../res/bigquery.svg) ![AWS Athena](../res/athena.svg) | ![Google BigQuery](../res/bigquery.svg) ![AWS Athena](../res/athena.svg) ![Databricks](../res/databricks.svg) ![Azure Synapse](../res/synapse.svg) ![Snowflake](../res/snowflake.svg) ![Amazon Redshift](../res/redshift.svg) |
+| **Data Storages** [^2]            | ![Google BigQuery](../res/bigquery.svg) ![AWS Athena](../res/athena.svg) ![Databricks](../res/databricks.svg) ![Snowflake](../res/snowflake.svg) ![Amazon Redshift](../res/redshift.svg) | ![Google BigQuery](../res/bigquery.svg) ![AWS Athena](../res/athena.svg) ![Databricks](../res/databricks.svg) ![Snowflake](../res/snowflake.svg) ![Amazon Redshift](../res/redshift.svg) | ![Google BigQuery](../res/bigquery.svg) ![AWS Athena](../res/athena.svg) ![Databricks](../res/databricks.svg) ![Azure Synapse](../res/synapse.svg) ![Snowflake](../res/snowflake.svg) ![Amazon Redshift](../res/redshift.svg) |
 | **Data Destinations** [^3]        | ![Google Sheets](../res/g-sheets.svg) ![Looker Studio](../res/looker.svg) | ![Google Sheets](../res/g-sheets.svg) ![Looker Studio](../res/looker.svg) ![Email](../res/email.svg) ![Slack](../res/slack.svg) ![Teams](../res/teams.svg) ![Google Chat](../res/google_chat.svg) | ![Google Sheets](../res/g-sheets.svg) ![Looker Studio](../res/looker.svg) ![MS Excel](../res/ms-excel.svg) ![Power BI](../res/power-bi.svg) ![Tableau](../res/tableau.svg) ![Email](../res/email.svg) ![Slack](../res/slack.svg) ![Teams](../res/teams.svg) ![Google Chat](../res/google_chat.svg) |
 | **Data Marts Management** [^4]    | ✅ | ✅ | ✅ |
-| **AI Insights** [^5]              | ❌ | ✅ _OWOX AI_ | ✅ _OWOX AI or Your AI_ |
+| **Insights** [^5]              | ❌ | ✅ _OWOX AI_ | ✅ _OWOX AI or Your AI_ |
 | **Conversational AI** [^6]        | ❌ | ❌ | ✅ _OWOX AI or Your AI_ |
 | **How to start**                  | [Get started free](https://www.owox.com/app-signup) | [Contact our team](https://www.owox.com/pricing) | [Contact our team](https://www.owox.com/pricing) |
 
@@ -45,7 +45,7 @@ Legend:
 | **Support**                                                                                      | ![Doc](../res/doc.svg) ![Chat](../res/chat.svg)                                                           | ![Doc](../res/doc.svg) ![Chat](../res/chat.svg) ![Email](../res/mail.svg)                                                        |   ![Doc](../res/doc.svg) ![Chat](../res/chat.svg) ![Email](../res/mail.svg) ![Phone](../res/phone_in_talk.svg)                                           |
 | [**Support Details**](https://support.owox.com/hc/en-us/articles/115000216754-Support-Options) | _Cloud Starter_                                                  | _Cloud Team_                                                  | _Enterprise_                                     |
 | **Pricing**                                                                             | Starts at 30 USD / mo  | Starts at 875 USD / mo | Custom contract  |
-| **How to start**                                                                             | [Get started free](https://www.owox.com/app-signup)  | [Contact our team](https://www.owox.com/pricing) | [Contact our team](https://www.owox.com/pricing)  |
+| **How to start**                                                                             | [Get started free](https://www.owox.com/app-signup) | [Contact our team](https://www.owox.com/pricing) | [Contact our team](https://www.owox.com/pricing)  |
 
 _This page will be updated regularly as we develop more features and refine editions._
 
@@ -63,17 +63,17 @@ _This page will be updated regularly as we develop more features and refine edit
 
 [^4]: **Data Mart Management** — Think of Data Marts as your company’s internal API for analytics — structured, reusable, and controlled.
 
-[^5]: **AI Insights** — Get automated insights into where user work - into Slack, MS Teams, Google Chat or simply by Email.
+[^5]: **Insights** — Get AI-powered [Insights](../getting-started/setup-guide/insights.md) that turn raw Data Mart output into recurring, narrative-style reports. Deliver them directly to your stakeholders where they work — Slack, MS Teams, Google Chat, or Email — without writing new queries every time, while maintaining 100% control over the results.
 
 [^6]: **Conversational AI** — Chat with your data in corporate messenger
 
-[^7]: **Users Management** _(coming soon)_ — Simple multi-user access with identical permissions and email sign-in.
+[^7]: **Users Management** — Simple multi-user access with identical permissions and email sign-in.
 
-[^8]: **Social Sign In** _(coming soon)_ — Simplify onboarding with secure social login for your team.
+[^8]: **Social Sign In** — Simplify onboarding with secure social login for your team.
 
 [^9]: **SSO (SAML)** _(coming soon)_ — Enable secure, one-click access with your organization’s SSO — no separate passwords to manage.
 
-[^10]: **Access Permissions (including Contexts)** _(coming soon)_ — Give the right people/teams the right access, and block everything else.
+[^10]: **Access Permissions (including Contexts)** — Give the right people/teams the right access, and block everything else.
 
 [^11]: **Multiple Projects** — Manage multiple business environments under one account — with clean separation and full control.
 
