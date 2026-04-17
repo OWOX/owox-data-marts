@@ -3,6 +3,7 @@ export class PublishDataMartCommand {
     public readonly id: string,
     public readonly projectId: string,
     public readonly userId: string = '',
-    public readonly roles: string[] = []
+    public readonly roles: string[] = [],
+    public readonly createdById: string
   ) {}
 }

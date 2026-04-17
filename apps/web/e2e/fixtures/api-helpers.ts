@@ -163,7 +163,27 @@ export class ApiHelpers {
     const datamart = await this.createDataMart(storage.id, title);
     await this.setConnectorDefinition(datamart.id);
     await this.publish(datamart.id);
+    // Cancel auto-run triggered by publish so tests can trigger their own manual runs.
+    await this.cancelActiveRuns(datamart.id);
     return { storage, datamart };
+  }
+
+  /**
+   * Cancels any PENDING/RUNNING runs for a data mart.
+   * PublishDataMartService now auto-runs connector DMs on publish (fire-and-forget).
+   * This prevents "Connector is already running" errors in tests that trigger manual runs.
+   */
+  async cancelActiveRuns(dataMartId: string): Promise<void> {
+    // Brief delay to let the fire-and-forget create the run record
+    await new Promise(resolve => setTimeout(resolve, 100));
+    const res = await this.page.request.get(`/api/data-marts/${dataMartId}/runs`);
+    if (!res.ok()) return;
+    const body = await res.json();
+    for (const run of (body.runs ?? []) as { id: string; status: string }[]) {
+      if (run.status === 'PENDING' || run.status === 'RUNNING') {
+        await this.page.request.post(`/api/data-marts/${dataMartId}/runs/${run.id}/cancel`);
+      }
+    }
   }
 
   /**
