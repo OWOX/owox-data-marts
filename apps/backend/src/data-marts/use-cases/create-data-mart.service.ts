@@ -36,8 +36,8 @@ export class CreateDataMartService {
 
   @Transactional()
   async run(command: CreateDataMartCommand): Promise<DataMartDto> {
-    // Stage 3: verify user has USE access to the chosen Storage
-    if (command.roles.length > 0) {
+    // Permissions Model: verify user has USE access to the chosen Storage
+    if (command.userId) {
       const canUseStorage = await this.accessDecisionService.canAccess(
         command.userId,
         command.roles,

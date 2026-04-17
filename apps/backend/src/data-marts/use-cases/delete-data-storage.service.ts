@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, ForbiddenException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { BusinessViolationException } from '../../common/exceptions/business-violation.exception';
@@ -7,6 +7,7 @@ import { DeleteDataStorageCommand } from '../dto/domain/delete-data-storage.comm
 import { DataStorage } from '../entities/data-storage.entity';
 import { DataMartService } from '../services/data-mart.service';
 import { DataStorageService } from '../services/data-storage.service';
+import { AccessDecisionService, EntityType, Action } from '../services/access-decision';
 
 @Injectable()
 export class DeleteDataStorageService {
@@ -14,7 +15,8 @@ export class DeleteDataStorageService {
     @InjectRepository(DataStorage)
     private readonly dataStorageRepository: Repository<DataStorage>,
     private readonly dataStorageService: DataStorageService,
-    private readonly dataMartService: DataMartService
+    private readonly dataMartService: DataMartService,
+    private readonly accessDecisionService: AccessDecisionService
   ) {}
 
   async run(command: DeleteDataStorageCommand): Promise<void> {
@@ -22,6 +24,20 @@ export class DeleteDataStorageService {
       command.projectId,
       command.id
     );
+
+    if (command.userId) {
+      const canDelete = await this.accessDecisionService.canAccess(
+        command.userId,
+        command.roles,
+        EntityType.STORAGE,
+        command.id,
+        Action.DELETE,
+        command.projectId
+      );
+      if (!canDelete) {
+        throw new ForbiddenException('You do not have permission to delete this Storage');
+      }
+    }
 
     if (dataStorage.type === DataStorageType.LEGACY_GOOGLE_BIGQUERY) {
       throw new BusinessViolationException(

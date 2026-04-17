@@ -39,10 +39,10 @@ export class DataStorage implements CreatorAwareEntity {
   @JoinColumn({ name: 'credentialId' })
   credential?: DataStorageCredential | null;
 
-  @Column({ type: 'boolean', default: true })
+  @Column({ type: 'boolean', default: false })
   availableForUse: boolean;
 
-  @Column({ type: 'boolean', default: true })
+  @Column({ type: 'boolean', default: false })
   availableForMaintenance: boolean;
 
   @DeleteDateColumn({ nullable: true })

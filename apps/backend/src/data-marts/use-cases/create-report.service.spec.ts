@@ -67,6 +67,9 @@ describe('CreateReportService', () => {
     const eventDispatcher = {
       publishOnCommit: jest.fn().mockResolvedValue(undefined),
     };
+    const accessDecisionService = {
+      canAccess: jest.fn().mockResolvedValue(true),
+    };
 
     const service = new CreateReportService(
       reportRepository as never,
@@ -78,7 +81,8 @@ describe('CreateReportService', () => {
       availableDestinationTypesService as never,
       userProjectionsFetcherService as never,
       idpProjectionsFacade as never,
-      eventDispatcher as never
+      eventDispatcher as never,
+      accessDecisionService as never
     );
 
     return { service };

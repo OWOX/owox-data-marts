@@ -1,5 +1,73 @@
 # owox
 
+## 0.23.0
+
+### Minor Changes 0.23.0
+
+![OWOX Data Marts – v0.23.0](https://github.com/user-attachments/assets/8bfad6e5-a8cc-4859-8de6-7be54d5f3a83)
+
+- d8b82e5: **Ownership foundations**
+
+  Ownership is now explicit and visible across all major entities. This is the first stage of the Permissions Model Evolution — ownership is informational only and does not affect access control.
+
+  - Data Mart has **separate Technical Owner and Business Owner**, editable on the Overview tab.
+  - Storage, Destination, and Report **each have an Owners list**, editable in the configuration sheet and saved together with the entity.
+  - **Creator is auto-assigned** as owner when a new entity is created.
+  - **Owners column** is displayed in Storage, Destination, and Report list tables.
+  - **Filter by owner** is available in Data Marts, Storages, and Destinations lists.
+  - **"Not assigned" state** is shown when an entity has no owners.
+
+- 11c0c77: **Availability model and owner-based access control**
+
+  Introduced explicit availability settings for DataMarts, Storages, and Destinations (`Available for reporting / Available for maintenance` and `Available for use / Available for maintenance`). Ownership now affects access: owners have direct access to their entities regardless of availability state, while non-owners see only available entities.
+
+  - Implemented table-driven `AccessDecisionService` that evaluates entity type, role, ownership status, availability state, and action for every single-entity operation.
+  - Enforced access checks on all endpoints including direct URL access, sub-operations (SQL dry run, validate definition, run history), and report creation.
+  - Existing entities default to fully available for backward compatibility; new entities default to not available (secure by default).
+
+- 11c0c77: **Extended role definitions and report ownership**
+
+  Reinterpreted existing project roles without changing stored identifiers: Viewer becomes Business User with self-service reporting capabilities, Editor becomes Technical User with full technical maintenance access.
+
+  - Business Users can now create, edit, delete, and run their own Reports and manage Report Triggers.
+  - Business Users can also create, edit, and delete Destinations.
+  - Technical Users retain project-wide Report management.
+  - Implemented ineffective owner logic: if a Report owner loses access to the DataMart or Destination, they become read-only until access is restored.
+
+- 004b9a5: **Invite teammates from setup screens**
+
+  Added contextual "Invite teammates" helper blocks to setup and empty state screens. Includes a reusable component with responsive layout and optional documentation link.
+
+- 0f07594: **Auto-select the only storage when creating a Data Mart**
+
+  When creating a Data Mart, if the project has only one storage, that storage is now selected automatically.
+
+- 870de85: **Geographic performance reports for Google Ads connector**
+
+  Added `Geo Stats` and `Geo Target Constants` nodes to the Google Ads connector. The two tables are designed to be joined in BigQuery on `country_criterion_id`.
+
+- 4033235: **X Ads: country breakdown for ad stats**
+
+  Added `stats_by_country` node for daily ad stats broken down by country. A companion `targeting_locations` reference table maps X Ads location IDs to country names and ISO codes — join on the `country` field.
+
+- 15390c6: **Progressive save for Facebook Ads data**
+
+  Data is now saved to BigQuery page by page. A failure only affects the remaining pages, not the entire dataset.
+
+- 126280a: # **Bug fixes and improvements**
+  - 126280a: **Fixed empty error** text for invalid storage status — now shows "Access validation failed" instead of a blank space.
+  - a848ac4: **Fixed Storage column sorting** on the Data Marts page — storages with custom names now sort correctly by their visible name.
+  - 832bb73: **Error boundaries for unexpected application crashes**. Replaced the default React error screen with a user-friendly fallback UI. The sidebar stays visible for in-layout errors so users can navigate away without a full page reload.
+
+### Patch Changes 0.23.0
+
+- @owox/internal-helpers@0.23.0
+- @owox/idp-protocol@0.23.0
+- @owox/idp-better-auth@0.23.0
+- @owox/idp-owox-better-auth@0.23.0
+- @owox/backend@0.23.0
+- @owox/web@0.23.0
+
 ## 0.22.0
 
 ### Minor Changes 0.22.0
@@ -9,7 +77,6 @@
 - 4c9b96d: # **Business Owner & Technical Owner** for Data Marts
 
   Assign Business and Technical Owners to each Data Mart to track accountability and maintainability.
-
   - **Owners section** on the Data Mart edit page — assign one or more project members per role via an inline selector.
   - **Search and role display** — the member selector shows each user's project role with a search input for quick filtering.
   - **Outbound member warnings** — previously assigned owners who have been removed from the project are shown with a warning icon for easy reassignment.
@@ -20,7 +87,6 @@
 - b178723: # **Created By** visibility across major entities
 
   See who created each entity directly in the list views.
-
   - **Created By column** is now available in Data Storages, Data Destinations, Reports, Scheduled Triggers, and Insights tables.
   - **Filter by creator** is available in Data Destinations and Data Storages lists.
 
@@ -31,7 +97,6 @@
 - 2406874: # **Onboarding video** for Email-based Reports
 
   A new onboarding video to improve adoption of Email-based Reports in Data Marts.
-
   - Shown once to new users on the **Destinations** tab in Data Mart.
   - Available in **Help menu → Video tutorials**.
   - Embedded in **Email Reports documentation**.
@@ -39,7 +104,6 @@
 - 9395757: # **Sign In page** redesign with product-focused brand panel
 
   Redesigned the auth screen to better communicate product value and reduce sign-in friction.
-
   - **Brand panel** — replaced placeholder with a carousel of product use cases (Google Sheets, Looker Studio, Email delivery).
   - **Headline** — "Build once. Share anywhere." with outcome-driven copy and short supporting text per slide.
   - **Product preview** — visual workflows introduced directly on the auth screen.
@@ -48,7 +112,6 @@
 - 737f292: # **Externalized connector secrets** from Data Mart definitions
 
   Non-OAuth secrets are moved from inline storage in Data Mart definitions to a separate `connector_source_credentials` table. Centralizes credential storage and reduces secret exposure in definition JSONs.
-
   - Added `_secrets_id` reference pattern (aligned with existing `_source_credential_id` for OAuth).
   - Secrets are extracted on save and injected during connector execution.
   - Includes data migration for existing Data Marts.
@@ -60,7 +123,6 @@
 - 2399254: # **Searchable Storage Selector** in Data Mart form
 
   The storage picker in the Create Data Mart form is upgraded to a searchable combobox.
-
   - Storages are listed in **alphabetical order** by title.
   - **Typeahead search** filters the list by typing — useful when many storages exist.
   - **Create new storage** option remains accessible at the bottom of the list.
@@ -70,7 +132,6 @@
   New team members with Admin or Editor roles are automatically subscribed to existing notification settings when joining a project. Members who leave and rejoin are re-subscribed automatically. Manual unsubscribes are respected and not overridden. Members downgraded to Viewer are automatically removed from the receivers list.
 
 - 6d53e58: # **Bug fixes and improvements**
-
   - **Connector definition validation** — fixed validators to allow early validation success; connector definitions no longer require credential validation during publish, resolving failures for Athena, BigQuery, Databricks, Redshift, and Snowflake.
   - **Delete confirmation dialog** — fixed undefined Data Mart title; dialog now correctly displays the actual data mart name.
   - **Edit button in oneOf config** — secret editing state is now tracked per-field, preventing unintended resets of sibling fields and auth type switches.

@@ -80,7 +80,7 @@ export async function bootstrap(options: BootstrapOptions): Promise<NestExpressA
   const normalizedUrl = appUrl.replace('[::1]', 'localhost');
 
   logger.log(`Application is running on: ${normalizedUrl}`);
-  logger.log(`Swagger is available at: ${normalizedUrl}/${SWAGGER_PATH}`);
+  logger.log(`Swagger is available at: ${normalizedUrl}/${PATH_PREFIX}/${SWAGGER_PATH}`);
 
   return app;
 }

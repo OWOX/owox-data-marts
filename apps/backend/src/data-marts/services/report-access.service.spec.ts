@@ -81,7 +81,7 @@ describe('ReportAccessService', () => {
       expect(result).toBe(false);
     });
 
-    it('should NOT auto-allow editor without DM ownership (Stage 3 bypass removed)', async () => {
+    it('should NOT auto-allow editor without DM ownership (project-wide bypass removed)', async () => {
       const { service, reportRepository, reportOwnerRepository, accessDecisionService } =
         createService();
       reportRepository.findOne.mockResolvedValue(mockReport);
@@ -226,6 +226,42 @@ describe('ReportAccessService', () => {
       const report = { dataMart: { id: 'dm-1' } } as never;
       const result = await service.canBeOwner('user-1', report, 'proj-1');
       expect(result).toBe(false);
+    });
+
+    it('should return false when user has DM access but no Destination access', async () => {
+      const { service, idpProjectionsFacade, accessDecisionService } = createService();
+      idpProjectionsFacade.getProjectMembers.mockResolvedValue([
+        { userId: 'user-1', isOutbound: false, role: 'editor' },
+      ]);
+      accessDecisionService.canAccess.mockImplementation(
+        async (_userId, _roles, entityType, _entityId, _action, _projectId) => {
+          if (entityType === 'DATA_MART') return true; // DM SEE
+          if (entityType === 'DESTINATION') return false; // DESTINATION USE
+          return false;
+        }
+      );
+
+      const report = { dataMart: { id: 'dm-1' }, dataDestination: { id: 'dest-1' } } as never;
+      const result = await service.canBeOwner('user-1', report, 'proj-1');
+      expect(result).toBe(false);
+    });
+
+    it('should return true when user has both DM and Destination access', async () => {
+      const { service, idpProjectionsFacade, accessDecisionService } = createService();
+      idpProjectionsFacade.getProjectMembers.mockResolvedValue([
+        { userId: 'user-1', isOutbound: false, role: 'editor' },
+      ]);
+      accessDecisionService.canAccess.mockImplementation(
+        async (_userId, _roles, entityType, _entityId, _action, _projectId) => {
+          if (entityType === 'DATA_MART') return true; // DM SEE
+          if (entityType === 'DESTINATION') return true; // DESTINATION USE
+          return false;
+        }
+      );
+
+      const report = { dataMart: { id: 'dm-1' }, dataDestination: { id: 'dest-1' } } as never;
+      const result = await service.canBeOwner('user-1', report, 'proj-1');
+      expect(result).toBe(true);
     });
   });
 

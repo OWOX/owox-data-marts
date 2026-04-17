@@ -2,6 +2,7 @@ import {
   Body,
   Controller,
   Delete,
+  ForbiddenException,
   Get,
   HttpCode,
   Param,
@@ -43,6 +44,7 @@ import { ListDataStoragesByTypeCommand } from '../dto/domain/list-data-storages-
 import { DataStorageByTypeResponseApiDto } from '../dto/presentation/data-storage-by-type-response-api.dto';
 import { DataStorageType } from '../data-storage-types/enums/data-storage-type.enum';
 import { OwnerFilter } from '../enums/owner-filter.enum';
+import { AccessDecisionService, EntityType, Action } from '../services/access-decision';
 import {
   CreateDataStorageSpec,
   DeleteDataStorageSpec,
@@ -56,6 +58,7 @@ import {
   OAuthExchangeSpec,
   OAuthStatusSpec,
   OAuthRevokeSpec,
+  UpdateStorageAvailabilitySpec,
 } from './spec/data-storage.api';
 
 @Controller('data-storages')
@@ -75,8 +78,28 @@ export class DataStorageController {
     private readonly revokeOAuthService: RevokeStorageOAuthService,
     private readonly exchangeOAuthCodeService: ExchangeOAuthCodeService,
     private readonly listByTypeService: ListDataStoragesByTypeService,
-    private readonly updateAvailabilityService: UpdateAvailabilityService
+    private readonly updateAvailabilityService: UpdateAvailabilityService,
+    private readonly accessDecisionService: AccessDecisionService
   ) {}
+
+  private async checkStorageAccess(
+    id: string,
+    context: AuthorizationContext,
+    action: Action
+  ): Promise<void> {
+    if (!context.userId) return;
+    const allowed = await this.accessDecisionService.canAccess(
+      context.userId,
+      context.roles ?? [],
+      EntityType.STORAGE,
+      id,
+      action,
+      context.projectId
+    );
+    if (!allowed) {
+      throw new ForbiddenException('You do not have access to this Storage');
+    }
+  }
 
   @Auth(Role.viewer(Strategy.PARSE))
   @Get()
@@ -195,6 +218,7 @@ export class DataStorageController {
     @Param('id') id: string,
     @Body() body: GenerateAuthorizationUrlRequestDto
   ): Promise<GenerateAuthorizationUrlResponseDto> {
+    await this.checkStorageAccess(id, context, Action.EDIT);
     const command = this.mapper.toGenerateOAuthUrlCommand(id, context, body);
     return this.generateOAuthUrlService.run(command);
   }
@@ -206,6 +230,7 @@ export class DataStorageController {
     @AuthContext() context: AuthorizationContext,
     @Param('id') id: string
   ): Promise<GoogleOAuthStatusResponseDto> {
+    await this.checkStorageAccess(id, context, Action.SEE);
     const command = this.mapper.toGetOAuthStatusCommand(id, context);
     return this.getOAuthStatusService.run(command);
   }
@@ -218,6 +243,7 @@ export class DataStorageController {
     @AuthContext() context: AuthorizationContext,
     @Param('id') id: string
   ): Promise<void> {
+    await this.checkStorageAccess(id, context, Action.EDIT);
     const command = this.mapper.toRevokeOAuthCommand(id, context);
     await this.revokeOAuthService.run(command);
   }
@@ -225,6 +251,7 @@ export class DataStorageController {
   @Auth(Role.viewer(Strategy.INTROSPECT))
   @Put(':id/availability')
   @HttpCode(204)
+  @UpdateStorageAvailabilitySpec()
   async updateAvailability(
     @AuthContext() context: AuthorizationContext,
     @Param('id') id: string,

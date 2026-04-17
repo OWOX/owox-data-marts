@@ -54,6 +54,7 @@ import {
   CancelDataMartRunSpec,
   CreateDataMartSpec,
   DeleteDataMartSpec,
+  GetMemberOwnershipWarningsSpec,
   GetDataMartRunByIdSpec,
   GetDataMartRunsSpec,
   GetDataMartSpec,
@@ -61,6 +62,7 @@ import {
   ListDataMartsSpec,
   PublishDataMartSpec,
   RunDataMartSpec,
+  UpdateDataMartAvailabilitySpec,
   UpdateDataMartDefinitionSpec,
   UpdateDataMartDescriptionSpec,
   UpdateDataMartSchemaSpec,
@@ -135,6 +137,7 @@ export class DataMartController {
 
   @Auth(Role.admin(Strategy.INTROSPECT))
   @Get('member-ownership-warnings')
+  @GetMemberOwnershipWarningsSpec()
   async getMemberOwnershipWarnings(@AuthContext() context: AuthorizationContext) {
     return this.memberOwnershipWarningsService.getWarnings(context.projectId);
   }
@@ -320,6 +323,7 @@ export class DataMartController {
   @Auth(Role.viewer(Strategy.INTROSPECT))
   @Put(':id/availability')
   @HttpCode(204)
+  @UpdateDataMartAvailabilitySpec()
   async updateAvailability(
     @AuthContext() context: AuthorizationContext,
     @Param('id') id: string,

@@ -38,10 +38,10 @@ export class DataDestination implements CreatorAwareEntity {
   @JoinColumn({ name: 'credentialId' })
   credential?: DataDestinationCredential | null;
 
-  @Column({ type: 'boolean', default: true })
+  @Column({ type: 'boolean', default: false })
   availableForUse: boolean;
 
-  @Column({ type: 'boolean', default: true })
+  @Column({ type: 'boolean', default: false })
   availableForMaintenance: boolean;
 
   @DeleteDateColumn({ nullable: true })

@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, ForbiddenException } from '@nestjs/common';
 import { DataMartDto } from '../dto/domain/data-mart.dto';
 import { GetDataMartCommand } from '../dto/domain/get-data-mart.command';
 import { DataMartMapper } from '../mappers/data-mart.mapper';
@@ -7,6 +7,7 @@ import { LegacyDataMartsService } from '../services/legacy-data-marts/legacy-dat
 import { UserProjectionsFetcherService } from '../services/user-projections-fetcher.service';
 import { SyncLegacyDataMartService } from './legacy-data-marts/sync-legacy-data-mart.service';
 import { resolveOwnerUsers } from '../utils/resolve-owner-users';
+import { AccessDecisionService, EntityType, Action } from '../services/access-decision';
 
 @Injectable()
 export class GetDataMartService {
@@ -15,7 +16,8 @@ export class GetDataMartService {
     private readonly userProjectionsFetcherService: UserProjectionsFetcherService,
     private readonly mapper: DataMartMapper,
     private readonly legacyDataMartService: LegacyDataMartsService,
-    private readonly syncLegacyDataMartService: SyncLegacyDataMartService
+    private readonly syncLegacyDataMartService: SyncLegacyDataMartService,
+    private readonly accessDecisionService: AccessDecisionService
   ) {}
 
   async run(command: GetDataMartCommand): Promise<DataMartDto> {
@@ -24,6 +26,20 @@ export class GetDataMartService {
     }
 
     const dataMart = await this.dataMartService.getByIdAndProjectId(command.id, command.projectId);
+
+    if (command.userId) {
+      const canSee = await this.accessDecisionService.canAccess(
+        command.userId,
+        command.roles,
+        EntityType.DATA_MART,
+        command.id,
+        Action.SEE,
+        command.projectId
+      );
+      if (!canSee) {
+        throw new ForbiddenException('You do not have access to this DataMart');
+      }
+    }
 
     const userProjections =
       await this.userProjectionsFetcherService.fetchAllRelevantUserProjections([dataMart]);

@@ -14,7 +14,7 @@ import { setupPublishedDataMart } from './setup-published-data-mart';
  * Returns storageId, dataMartId, and dataDestinationId for downstream test use.
  */
 export async function setupReportPrerequisites(
-  agent: supertest.Agent,
+  agent: supertest.Agent
 ): Promise<{ storageId: string; dataMartId: string; dataDestinationId: string }> {
   // Step 1: Create published data mart (storage + data mart + definition + publish)
   const { storageId, dataMartId } = await setupPublishedDataMart(agent);
@@ -27,13 +27,13 @@ export async function setupReportPrerequisites(
       new DataDestinationBuilder()
         .withType(DataDestinationType.LOOKER_STUDIO)
         .withCredentials({ type: 'looker-studio-credentials' })
-        .build(),
+        .build()
     );
   expect(destRes.status).toBe(201);
 
   const dataDestinationId = destRes.body.id;
 
-  // Stage 3: new entities default to Not Available — make them available for test compatibility
+  // Permissions Model: new entities default to Not Available — make them available for test compatibility
   await agent
     .put(`/api/data-storages/${storageId}/availability`)
     .set(AUTH_HEADER)

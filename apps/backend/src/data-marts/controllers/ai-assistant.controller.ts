@@ -1,7 +1,19 @@
-import { Body, Controller, Delete, Get, HttpCode, Param, Patch, Post, Query } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  ForbiddenException,
+  Get,
+  HttpCode,
+  Param,
+  Patch,
+  Post,
+  Query,
+} from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { Auth, AuthContext, AuthorizationContext, Role, Strategy } from '../../idp';
 import { AiAssistantMapper } from '../mappers/ai-assistant.mapper';
+import { AccessDecisionService, EntityType, Action } from '../services/access-decision';
 import { ApplyAiAssistantSessionService } from '../use-cases/apply-ai-assistant-session.service';
 import { CreateAiAssistantMessageService } from '../use-cases/create-ai-assistant-message.service';
 import { CreateAiAssistantSessionService } from '../use-cases/create-ai-assistant-session.service';
@@ -40,8 +52,32 @@ export class AiAssistantController {
     private readonly deleteAiAssistantSessionService: DeleteAiAssistantSessionService,
     private readonly createAiAssistantMessageService: CreateAiAssistantMessageService,
     private readonly applyAiAssistantSessionService: ApplyAiAssistantSessionService,
-    private readonly mapper: AiAssistantMapper
+    private readonly mapper: AiAssistantMapper,
+    private readonly accessDecisionService: AccessDecisionService
   ) {}
+
+  private async checkDataMartAccess(
+    dataMartId: string,
+    context: AuthorizationContext,
+    action: Action
+  ): Promise<void> {
+    if (!context.userId) return;
+    const allowed = await this.accessDecisionService.canAccess(
+      context.userId,
+      context.roles ?? [],
+      EntityType.DATA_MART,
+      dataMartId,
+      action,
+      context.projectId
+    );
+    if (!allowed) {
+      throw new ForbiddenException(
+        action === Action.SEE
+          ? 'You do not have access to this DataMart'
+          : 'You do not have permission to edit this DataMart'
+      );
+    }
+  }
 
   @Auth(Role.editor(Strategy.INTROSPECT))
   @Post('sessions')
@@ -51,6 +87,7 @@ export class AiAssistantController {
     @Param('dataMartId') dataMartId: string,
     @Body() dto: CreateAiAssistantSessionRequestApiDto
   ): Promise<CreateAiAssistantSessionResponseApiDto> {
+    await this.checkDataMartAccess(dataMartId, context, Action.EDIT);
     const command = this.mapper.toCreateSessionCommand(dataMartId, context, dto);
     const session = await this.createAiAssistantSessionService.run(command);
 
@@ -65,6 +102,7 @@ export class AiAssistantController {
     @Param('dataMartId') dataMartId: string,
     @Query() query: ListAiAssistantSessionsQueryApiDto
   ): Promise<AiAssistantSessionListItemResponseApiDto[]> {
+    await this.checkDataMartAccess(dataMartId, context, Action.SEE);
     const command = this.mapper.toListSessionsCommand({
       dataMartId,
       context,
@@ -85,6 +123,7 @@ export class AiAssistantController {
     @Param('dataMartId') dataMartId: string,
     @Param('sessionId') sessionId: string
   ): Promise<AiAssistantSessionResponseApiDto> {
+    await this.checkDataMartAccess(dataMartId, context, Action.SEE);
     const command = this.mapper.toGetSessionCommand(sessionId, dataMartId, context);
     const session = await this.getAiAssistantSessionService.run(command);
 
@@ -100,6 +139,7 @@ export class AiAssistantController {
     @Param('sessionId') sessionId: string,
     @Body() dto: UpdateAiAssistantSessionTitleRequestApiDto
   ): Promise<AiAssistantSessionListItemResponseApiDto> {
+    await this.checkDataMartAccess(dataMartId, context, Action.EDIT);
     const command = this.mapper.toUpdateSessionTitleCommand(sessionId, dataMartId, context, dto);
     const session = await this.updateAiAssistantSessionTitleService.run(command);
     return this.mapper.toSessionListItemResponse(session);
@@ -114,6 +154,7 @@ export class AiAssistantController {
     @Param('dataMartId') dataMartId: string,
     @Param('sessionId') sessionId: string
   ): Promise<void> {
+    await this.checkDataMartAccess(dataMartId, context, Action.EDIT);
     const command = this.mapper.toDeleteSessionCommand(sessionId, dataMartId, context);
     await this.deleteAiAssistantSessionService.run(command);
   }
@@ -127,6 +168,7 @@ export class AiAssistantController {
     @Param('sessionId') sessionId: string,
     @Body() dto: CreateAiAssistantMessageRequestApiDto
   ): Promise<CreateAiAssistantMessageResponseApiDto> {
+    await this.checkDataMartAccess(dataMartId, context, Action.EDIT);
     const command = this.mapper.toCreateMessageCommand(sessionId, dataMartId, context, dto);
     const result = await this.createAiAssistantMessageService.run(command);
 
@@ -142,6 +184,7 @@ export class AiAssistantController {
     @Param('sessionId') sessionId: string,
     @Body() dto: ApplyAiAssistantSessionRequestApiDto
   ): Promise<ApplyAiAssistantSessionResponseApiDto> {
+    await this.checkDataMartAccess(dataMartId, context, Action.EDIT);
     const command = this.mapper.toApplySessionCommand(sessionId, dataMartId, context, dto);
     const result = await this.applyAiAssistantSessionService.run(command);
 

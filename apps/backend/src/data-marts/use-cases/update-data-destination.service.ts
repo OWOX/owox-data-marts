@@ -51,7 +51,7 @@ export class UpdateDataDestinationService {
 
   @Transactional()
   async run(command: UpdateDataDestinationCommand): Promise<DataDestinationDto> {
-    // Stage 3: if ownerIds are being changed, check MANAGE_OWNERS permission
+    // Permissions Model: if ownerIds are being changed, check MANAGE_OWNERS permission
     if (command.ownerIds !== undefined && command.userId) {
       const canManage = await this.accessDecisionService.canAccess(
         command.userId,
@@ -66,7 +66,7 @@ export class UpdateDataDestinationService {
       }
     }
 
-    // Stage 3: if availability is being changed, check CONFIGURE_SHARING permission
+    // Permissions Model: if availability is being changed, check CONFIGURE_SHARING permission
     if (
       (command.availableForUse !== undefined || command.availableForMaintenance !== undefined) &&
       command.userId
@@ -89,6 +89,21 @@ export class UpdateDataDestinationService {
       command.projectId
     );
 
+    // Permissions Model: verify user has EDIT access to this Destination
+    if (command.userId) {
+      const canEdit = await this.accessDecisionService.canAccess(
+        command.userId,
+        command.roles,
+        EntityType.DESTINATION,
+        command.id,
+        Action.EDIT,
+        command.projectId
+      );
+      if (!canEdit) {
+        throw new ForbiddenException('You do not have permission to edit this Destination');
+      }
+    }
+
     this.availableDestinationTypesService.verifyIsAllowed(entity.type);
 
     // Mutual exclusion: sourceDestinationId vs credentials
@@ -107,6 +122,23 @@ export class UpdateDataDestinationService {
     }
 
     if (command.sourceDestinationId) {
+      // Permissions Model: copy credentials requires COPY_CREDENTIALS access to source destination
+      if (command.userId) {
+        const canCopy = await this.accessDecisionService.canAccess(
+          command.userId,
+          command.roles,
+          EntityType.DESTINATION,
+          command.sourceDestinationId,
+          Action.COPY_CREDENTIALS,
+          command.projectId
+        );
+        if (!canCopy) {
+          throw new ForbiddenException(
+            'You do not have permission to copy credentials from this destination'
+          );
+        }
+      }
+
       const source = await this.dataDestinationService.getByIdAndProjectId(
         command.sourceDestinationId,
         command.projectId
