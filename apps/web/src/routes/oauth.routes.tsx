@@ -23,8 +23,8 @@ export const oauthRoutes: RouteObject = {
       element: <GoogleAdsCallback />,
     },
     {
-      path: 'linkedin/callback',
-      element: <LinkedInCallback />,
+      path: 'google/callback',
+      element: <GoogleOAuthCallbackPage />,
     },
     {
       path: 'linkedin-ads/callback',
@@ -33,10 +33,6 @@ export const oauthRoutes: RouteObject = {
     {
       path: 'linkedin-pages/callback',
       element: <LinkedInCallback />,
-    },
-    {
-      path: 'google/callback',
-      element: <GoogleOAuthCallbackPage />,
     },
   ],
 };
