@@ -34,6 +34,7 @@
     "^@owox/test-utils$": "<rootDir>/../../../packages/test-utils/src",
     "^@owox/internal-helpers$": "<rootDir>/../../../packages/internal-helpers/src"
   },
+  "maxWorkers": 1,
   "testTimeout": 120000,
   "resolver": "<rootDir>/jest-e2e-resolver.js"
 }
