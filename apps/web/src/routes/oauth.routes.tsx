@@ -27,6 +27,14 @@ export const oauthRoutes: RouteObject = {
       element: <LinkedInCallback />,
     },
     {
+      path: 'linkedin-ads/callback',
+      element: <LinkedInCallback />,
+    },
+    {
+      path: 'linkedin-pages/callback',
+      element: <LinkedInCallback />,
+    },
+    {
       path: 'google/callback',
       element: <GoogleOAuthCallbackPage />,
     },
