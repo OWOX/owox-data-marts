@@ -7,9 +7,11 @@ import {
   ApiOkResponse,
   ApiNoContentResponse,
   ApiResponse,
+  ApiQuery,
 } from '@nestjs/swagger';
 import { CreateDataDestinationApiDto } from '../../dto/presentation/create-data-destination-api.dto';
 import { UpdateDataDestinationApiDto } from '../../dto/presentation/update-data-destination-api.dto';
+import { UpdateDestinationAvailabilityApiDto } from '../../dto/presentation/update-availability-api.dto';
 import { DataDestinationResponseApiDto } from '../../dto/presentation/data-destination-response-api.dto';
 import { DataDestinationByTypeResponseApiDto } from '../../dto/presentation/data-destination-by-type-response-api.dto';
 import { GenerateAuthorizationUrlRequestDto } from '../../dto/presentation/google-oauth/generate-authorization-url-request.dto';
@@ -19,6 +21,7 @@ import { ExchangeAuthorizationCodeResponseDto } from '../../dto/presentation/goo
 import { GoogleOAuthStatusResponseDto } from '../../dto/presentation/google-oauth/google-oauth-status-response.dto';
 import { GoogleOAuthSettingsResponseDto } from '../../dto/presentation/google-oauth/oauth-settings-response.dto';
 import { DataDestinationType } from '../../data-destination-types/enums/data-destination-type.enum';
+import { OwnerFilter } from '../../enums/owner-filter.enum';
 
 export function ListDataDestinationsByTypeSpec() {
   return applyDecorators(
@@ -56,6 +59,13 @@ export function GetDataDestinationSpec() {
 export function ListDataDestinationsSpec() {
   return applyDecorators(
     ApiOperation({ summary: 'Get all Data Destinations' }),
+    ApiQuery({
+      name: 'ownerFilter',
+      required: false,
+      enum: OwnerFilter,
+      example: OwnerFilter.HAS_OWNERS,
+      description: 'Filter Data Destinations by whether they have owners',
+    }),
     ApiOkResponse({ type: [DataDestinationResponseApiDto] })
   );
 }
@@ -64,7 +74,7 @@ export function DeleteDataDestinationSpec() {
   return applyDecorators(
     ApiOperation({ summary: 'Delete Data Destination by ID' }),
     ApiParam({ name: 'id', description: 'Data Destination ID' }),
-    ApiNoContentResponse({ description: 'Data Destination successfully deleted' })
+    ApiOkResponse({ description: 'Data Destination successfully deleted' })
   );
 }
 
@@ -72,7 +82,7 @@ export function RotateSecretKeySpec() {
   return applyDecorators(
     ApiOperation({ summary: 'Rotate secret key for Data Destination' }),
     ApiParam({ name: 'id', description: 'Data Destination ID' }),
-    ApiOkResponse({ type: DataDestinationResponseApiDto })
+    ApiCreatedResponse({ type: DataDestinationResponseApiDto })
   );
 }
 
@@ -86,14 +96,21 @@ export function OAuthSettingsSpec() {
   );
 }
 
-export function OAuthAuthorizeSpec() {
+export function OAuthAuthorizeSpec(withDestinationId = false) {
   return applyDecorators(
-    ApiOperation({ summary: 'Generate Google OAuth authorization URL for a Data Destination' }),
+    ApiOperation({
+      summary: withDestinationId
+        ? 'Generate Google OAuth authorization URL for a Data Destination'
+        : 'Generate Google OAuth authorization URL for Data Destination credentials',
+    }),
+    ...(withDestinationId ? [ApiParam({ name: 'id', description: 'Data Destination ID' })] : []),
     ApiBody({ type: GenerateAuthorizationUrlRequestDto }),
     ApiOkResponse({
       type: GenerateAuthorizationUrlResponseDto,
       description: 'Authorization URL and state token',
-    })
+    }),
+    ApiResponse({ status: 400, description: 'Invalid redirect URI' }),
+    ApiResponse({ status: 503, description: 'Google OAuth is not configured' })
   );
 }
 
@@ -106,7 +123,8 @@ export function OAuthExchangeSpec() {
       description: 'OAuth credential created successfully',
     }),
     ApiResponse({ status: 400, description: 'Invalid authorization code or state' }),
-    ApiResponse({ status: 403, description: 'OAuth state does not belong to your project' })
+    ApiResponse({ status: 403, description: 'OAuth state does not belong to your project' }),
+    ApiResponse({ status: 503, description: 'Google OAuth is not configured' })
   );
 }
 
@@ -132,5 +150,14 @@ export function OAuthRevokeSpec() {
     ApiOperation({ summary: 'Revoke Google OAuth credentials for a Data Destination' }),
     ApiParam({ name: 'id', description: 'Data Destination ID' }),
     ApiNoContentResponse({ description: 'OAuth credentials revoked' })
+  );
+}
+
+export function UpdateDataDestinationAvailabilitySpec() {
+  return applyDecorators(
+    ApiOperation({ summary: 'Update Data Destination availability' }),
+    ApiParam({ name: 'id', description: 'Data Destination ID' }),
+    ApiBody({ type: UpdateDestinationAvailabilityApiDto }),
+    ApiNoContentResponse({ description: 'Data Destination availability updated' })
   );
 }

@@ -1,4 +1,4 @@
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiPropertyOptional } from '@nestjs/swagger';
 import { IsOptional } from 'class-validator';
 import { MaxJsonSize } from '../../../common/validators/max-json-size.validator';
 
@@ -12,7 +12,7 @@ export class RunDataMartRequestApiDto {
    */
   @IsOptional()
   @MaxJsonSize(MAX_PAYLOAD_SIZE_BYTES)
-  @ApiProperty({
+  @ApiPropertyOptional({
     example: { key: 'value' },
     description: `Payload for the manual run.
     If not provided, the data mart will be run with the default payload.

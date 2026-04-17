@@ -47,6 +47,7 @@ import {
   OAuthCredentialStatusSpec,
   OAuthStatusSpec,
   OAuthRevokeSpec,
+  UpdateDataDestinationAvailabilitySpec,
 } from './spec/data-destination.api';
 import { ApiTags } from '@nestjs/swagger';
 import { DeleteDataDestinationService } from '../use-cases/delete-data-destination.service';
@@ -239,7 +240,7 @@ export class DataDestinationController {
   @Auth(Role.viewer())
   @Post(':id/oauth/authorize')
   @HttpCode(200)
-  @OAuthAuthorizeSpec()
+  @OAuthAuthorizeSpec(true)
   async generateOAuthAuthorizationUrl(
     @AuthContext() context: AuthorizationContext,
     @Param('id') id: string,
@@ -278,6 +279,7 @@ export class DataDestinationController {
   @Auth(Role.viewer(Strategy.INTROSPECT))
   @Put(':id/availability')
   @HttpCode(204)
+  @UpdateDataDestinationAvailabilitySpec()
   async updateAvailability(
     @AuthContext() context: AuthorizationContext,
     @Param('id') id: string,

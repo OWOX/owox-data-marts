@@ -5,10 +5,12 @@ import {
   ApiOkResponse,
   ApiOperation,
   ApiParam,
+  ApiQuery,
 } from '@nestjs/swagger';
 import { ReportResponseApiDto } from '../../dto/presentation/report-response-api.dto';
 import { CreateReportRequestApiDto } from '../../dto/presentation/create-report-request-api.dto';
 import { UpdateReportRequestApiDto } from '../../dto/presentation/update-report-request-api.dto';
+import { OwnerFilter } from '../../enums/owner-filter.enum';
 
 export function CreateReportSpec() {
   return applyDecorators(
@@ -35,6 +37,13 @@ export function ListReportsByDataMartSpec() {
 export function ListReportsByProjectSpec() {
   return applyDecorators(
     ApiOperation({ summary: 'Get all reports for a project' }),
+    ApiQuery({
+      name: 'ownerFilter',
+      required: false,
+      enum: OwnerFilter,
+      example: OwnerFilter.HAS_OWNERS,
+      description: 'Filter reports by whether they have owners',
+    }),
     ApiOkResponse({
       description: 'List of reports for the project',
       type: [ReportResponseApiDto],
@@ -65,10 +74,10 @@ export function DeleteReportSpec() {
 
 export function RunReportSpec() {
   return applyDecorators(
-    ApiOperation({ summary: 'Run a report by ID' }),
+    ApiOperation({ summary: 'Trigger a manual report run' }),
     ApiParam({ name: 'id', description: 'Report ID' }),
-    ApiOkResponse({
-      description: 'The report has been successfully started.',
+    ApiCreatedResponse({
+      description: 'The manual report run trigger has been successfully created.',
     })
   );
 }
@@ -87,11 +96,11 @@ export function UpdateReportSpec() {
 
 export function ListReportsByInsightTemplateSpec() {
   return applyDecorators(
-    ApiOperation({ summary: 'Get all reports for an insight template' }),
+    ApiOperation({ summary: 'Get email reports that use an insight template' }),
     ApiParam({ name: 'dataMartId', description: 'Data mart ID' }),
     ApiParam({ name: 'insightTemplateId', description: 'Insight template ID' }),
     ApiOkResponse({
-      description: 'List of reports for the insight template',
+      description: 'List of email reports that use the insight template as their template source',
       type: [ReportResponseApiDto],
     })
   );
