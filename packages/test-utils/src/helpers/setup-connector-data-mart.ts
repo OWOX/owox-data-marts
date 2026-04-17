@@ -17,7 +17,7 @@ import { DataMartBuilder } from '../fixtures/data-mart.builder';
  */
 export async function setupConnectorDataMart(
   agent: supertest.Agent,
-  app: INestApplication,
+  app: INestApplication
 ): Promise<{ storageId: string; dataMartId: string }> {
   // Resolve DataSource and entity repositories from the backend workspace
   const backendRoot = require.resolve('@owox/backend/package.json');
@@ -44,12 +44,13 @@ export async function setupConnectorDataMart(
   await dataSource.query(
     `INSERT INTO data_storage_credentials (id, projectId, type, credentials, createdAt, modifiedAt)
      VALUES (?, ?, ?, ?, datetime('now'), datetime('now'))`,
-    [credentialId, '0', 'google_service_account', JSON.stringify({ type: 'test-credentials' })],
+    [credentialId, '0', 'google_service_account', JSON.stringify({ type: 'test-credentials' })]
   );
-  await dataSource.query(
-    `UPDATE data_storage SET config = ?, credentialId = ? WHERE id = ?`,
-    [JSON.stringify({ projectId: 'test-project', dataset: 'test_dataset' }), credentialId, storageId],
-  );
+  await dataSource.query(`UPDATE data_storage SET config = ?, credentialId = ? WHERE id = ?`, [
+    JSON.stringify({ projectId: 'test-project', dataset: 'test_dataset' }),
+    credentialId,
+    storageId,
+  ]);
 
   // Step 3: Create data mart
   const dataMartRes = await agent
@@ -83,10 +84,22 @@ export async function setupConnectorDataMart(
   expect(defRes.status).toBe(200);
 
   // Step 5: Publish
-  const publishRes = await agent
-    .put(`/api/data-marts/${dataMartId}/publish`)
-    .set(AUTH_HEADER);
+  const publishRes = await agent.put(`/api/data-marts/${dataMartId}/publish`).set(AUTH_HEADER);
   expect(publishRes.status).toBe(200);
+
+  // Step 6: Cancel auto-run triggered by publish.
+  // PublishDataMartService now fires a connector run on publish (fire-and-forget).
+  // Allow event loop to process the async run creation, then cancel any active runs
+  // so downstream tests can trigger their own manual runs without "already running" errors.
+  await new Promise(resolve => setTimeout(resolve, 100));
+  const runsRes = await agent.get(`/api/data-marts/${dataMartId}/runs`).set(AUTH_HEADER);
+  if (runsRes.body?.runs) {
+    for (const run of runsRes.body.runs as Array<{ id: string; status: string }>) {
+      if (run.status === 'PENDING' || run.status === 'RUNNING') {
+        await agent.post(`/api/data-marts/${dataMartId}/runs/${run.id}/cancel`).set(AUTH_HEADER);
+      }
+    }
+  }
 
   return { storageId, dataMartId };
 }

@@ -95,7 +95,7 @@ test.describe('DataMart Detail - Manual Run', () => {
     await page.getByRole('menuitem', { name: /Manual Run/ }).click();
 
     // ConnectorRunSheet opens as a dialog. Scope the Run button to the dialog
-    // to avoid collisions with the toast notification "Manual Run..." button.
+    // to avoid ambiguity with other buttons on the page.
     const sheet = page.locator('[data-slot="sheet-content"]');
     await expect(sheet).toBeVisible({ timeout: 10000 });
     const runButton = sheet.getByRole('button', { name: 'Run' });
