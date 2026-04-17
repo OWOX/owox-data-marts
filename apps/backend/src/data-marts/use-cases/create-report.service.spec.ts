@@ -81,8 +81,8 @@ describe('CreateReportService', () => {
       availableDestinationTypesService as never,
       userProjectionsFetcherService as never,
       idpProjectionsFacade as never,
-      eventDispatcher as never,
-      accessDecisionService as never
+      accessDecisionService as never,
+      eventDispatcher as never
     );
 
     return { service };
