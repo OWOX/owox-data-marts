@@ -1,7 +1,6 @@
-import { Inject, Injectable, ForbiddenException } from '@nestjs/common';
-import { OwoxProducer } from '@owox/internal-helpers';
+import { Injectable, ForbiddenException } from '@nestjs/common';
 import { BusinessViolationException } from '../../common/exceptions/business-violation.exception';
-import { OWOX_PRODUCER } from '../../common/producer/producer.module';
+import { OwoxEventDispatcher } from '../../common/event-dispatcher/owox-event-dispatcher';
 import { DataStorageType } from '../data-storage-types/enums/data-storage-type.enum';
 import { DataMartDefinitionValidatorFacade } from '../data-storage-types/facades/data-mart-definition-validator-facade.service';
 import { DataMartDto } from '../dto/domain/data-mart.dto';
@@ -25,9 +24,8 @@ export class UpdateDataMartDefinitionService {
     private readonly mapper: DataMartMapper,
     private readonly connectorSecretService: ConnectorSecretService,
     private readonly legacyDataMartsService: LegacyDataMartsService,
-    @Inject(OWOX_PRODUCER)
-    private readonly producer: OwoxProducer,
-    private readonly accessDecisionService: AccessDecisionService
+    private readonly accessDecisionService: AccessDecisionService,
+    private readonly eventDispatcher: OwoxEventDispatcher
   ) {}
 
   async run(command: UpdateDataMartDefinitionCommand): Promise<DataMartDto> {
@@ -137,7 +135,7 @@ export class UpdateDataMartDefinitionService {
     await this.dataMartService.save(dataMart);
 
     if (definitionTypeWasEmpty && dataMart.definitionType) {
-      await this.producer.produceEvent(
+      await this.eventDispatcher.publishExternal(
         new DataMartDefinitionTypeSetEvent(
           dataMart.id,
           command.projectId,
@@ -148,7 +146,7 @@ export class UpdateDataMartDefinitionService {
     }
 
     if (definitionWasEmpty && dataMart.definition) {
-      await this.producer.produceEvent(
+      await this.eventDispatcher.publishExternal(
         new DataMartDefinitionSetEvent(
           dataMart.id,
           command.projectId,

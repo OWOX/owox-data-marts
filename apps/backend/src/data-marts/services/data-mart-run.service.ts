@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
+import { OwoxEventDispatcher } from '../../common/event-dispatcher/owox-event-dispatcher';
 import { SystemTimeService } from '../../common/scheduler/services/system-time.service';
 
 import { RunType } from '../../common/scheduler/shared/types';
@@ -13,6 +14,7 @@ import { InsightTemplate } from '../entities/insight-template.entity';
 import { Report } from '../entities/report.entity';
 import { DataMartRunStatus } from '../enums/data-mart-run-status.enum';
 import { DataMartRunType } from '../enums/data-mart-run-type.enum';
+import { ReportRunCompletedSuccessfullyEvent } from '../events/report-run-completed-successfully.event';
 
 /**
  * Context for creating a new report run.
@@ -89,7 +91,8 @@ export class DataMartRunService {
   constructor(
     @InjectRepository(DataMartRun)
     private readonly dataMartRunRepository: Repository<DataMartRun>,
-    private readonly systemClock: SystemTimeService
+    private readonly systemClock: SystemTimeService,
+    private readonly eventDispatcher: OwoxEventDispatcher
   ) {}
 
   /**
@@ -244,6 +247,20 @@ export class DataMartRunService {
     dataMartRun.finishedAt = this.systemClock.now();
 
     await this.dataMartRunRepository.save(dataMartRun);
+
+    if (
+      dataMartRun.status === DataMartRunStatus.SUCCESS &&
+      dataMartRun.reportId &&
+      dataMartRun.createdById
+    ) {
+      this.eventDispatcher.publishLocalOnCommit(
+        new ReportRunCompletedSuccessfullyEvent(
+          dataMartRun.id,
+          dataMartRun.dataMartId,
+          dataMartRun.createdById
+        )
+      );
+    }
   }
 
   /**

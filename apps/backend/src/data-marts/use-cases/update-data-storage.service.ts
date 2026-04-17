@@ -1,9 +1,8 @@
-import { Inject, Injectable, BadRequestException, Logger } from '@nestjs/common';
+import { Injectable, BadRequestException, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { OwoxProducer } from '@owox/internal-helpers';
 import { Repository } from 'typeorm';
 import { Transactional } from 'typeorm-transactional';
-import { OWOX_PRODUCER } from '../../common/producer/producer.module';
+import { OwoxEventDispatcher } from '../../common/event-dispatcher/owox-event-dispatcher';
 import { BigQueryConfig } from '../data-storage-types/bigquery/schemas/bigquery-config.schema';
 import { DataStorageCredentials } from '../data-storage-types/data-storage-credentials.type';
 import { DataStorageType } from '../data-storage-types/enums/data-storage-type.enum';
@@ -46,8 +45,7 @@ export class UpdateDataStorageService {
     private readonly idpProjectionsFacade: IdpProjectionsFacade,
     @InjectRepository(StorageOwner)
     private readonly storageOwnerRepository: Repository<StorageOwner>,
-    @Inject(OWOX_PRODUCER)
-    private readonly producer: OwoxProducer,
+    private readonly eventDispatcher: OwoxEventDispatcher,
     private readonly accessDecisionService: AccessDecisionService
   ) {}
 
@@ -177,7 +175,7 @@ export class UpdateDataStorageService {
       const updatedDataStorageEntity = await this.dataStorageRepository.save(dataStorageEntity);
 
       if (configWasEmpty && updatedDataStorageEntity.config) {
-        await this.producer.produceEvent(
+        await this.eventDispatcher.publishExternal(
           new StorageConfigSetEvent(
             updatedDataStorageEntity.id,
             updatedDataStorageEntity.projectId,
@@ -269,7 +267,7 @@ export class UpdateDataStorageService {
     const updatedDataStorageEntity = await this.dataStorageRepository.save(dataStorageEntity);
 
     if (configWasEmpty && updatedDataStorageEntity.config) {
-      await this.producer.produceEvent(
+      await this.eventDispatcher.publishExternal(
         new StorageConfigSetEvent(
           updatedDataStorageEntity.id,
           updatedDataStorageEntity.projectId,

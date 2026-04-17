@@ -4,8 +4,6 @@ import { GetDataRequest } from '../schemas/get-data.schema';
 
 // Mock external modules before importing service
 jest.mock('@owox/internal-helpers', () => ({
-  // eslint-disable-next-line @typescript-eslint/no-extraneous-class
-  OwoxProducer: class {},
   createProducer: jest.fn(),
   BaseEvent: class {
     constructor(public payload: unknown) {}
@@ -31,7 +29,7 @@ describe('LookerStudioConnectorApiService', () => {
   let reportRunService: jest.Mocked<LookerStudioReportRunService>;
   let consumptionTrackingService: jest.Mocked<ConsumptionTrackingService>;
   let projectBalanceService: jest.Mocked<ProjectBalanceService>;
-  let producer: jest.Mocked<{ produceEvent: jest.Mock }>;
+  let eventDispatcher: jest.Mocked<{ publishExternal: jest.Mock }>;
 
   const originalEnv = process.env;
 
@@ -66,8 +64,8 @@ describe('LookerStudioConnectorApiService', () => {
       verifyCanPerformOperations: jest.fn(),
     } as unknown as jest.Mocked<ProjectBalanceService>;
 
-    producer = {
-      produceEvent: jest.fn(),
+    eventDispatcher = {
+      publishExternal: jest.fn(),
     };
 
     service = new LookerStudioConnectorApiService(
@@ -77,7 +75,7 @@ describe('LookerStudioConnectorApiService', () => {
       cacheService,
       reportService,
       consumptionTrackingService,
-      producer as any,
+      eventDispatcher as any,
       reportRunService,
       projectBalanceService
     );
@@ -234,7 +232,7 @@ describe('LookerStudioConnectorApiService', () => {
         expect(
           consumptionTrackingService.registerLookerReportRunConsumption
         ).not.toHaveBeenCalled();
-        expect(producer.produceEvent).toHaveBeenCalled();
+        expect(eventDispatcher.publishExternal).toHaveBeenCalled();
       });
 
       it('should register consumption when data is not from cache (non-streaming)', async () => {
@@ -264,7 +262,7 @@ describe('LookerStudioConnectorApiService', () => {
 
         expect(mockReportRun.markAsSuccess).toHaveBeenCalled();
         expect(consumptionTrackingService.registerLookerReportRunConsumption).toHaveBeenCalled();
-        expect(producer.produceEvent).toHaveBeenCalled();
+        expect(eventDispatcher.publishExternal).toHaveBeenCalled();
       });
     });
 
@@ -325,7 +323,7 @@ describe('LookerStudioConnectorApiService', () => {
         expect(
           consumptionTrackingService.registerLookerReportRunConsumption
         ).not.toHaveBeenCalled();
-        expect(producer.produceEvent).toHaveBeenCalled();
+        expect(eventDispatcher.publishExternal).toHaveBeenCalled();
       });
 
       it('should register consumption when data is not from cache', async () => {
@@ -358,7 +356,7 @@ describe('LookerStudioConnectorApiService', () => {
         expect(mockReportRun.markAsSuccess).toHaveBeenCalled();
         expect(reportRunService.finish).toHaveBeenCalled();
         expect(consumptionTrackingService.registerLookerReportRunConsumption).toHaveBeenCalled();
-        expect(producer.produceEvent).toHaveBeenCalled();
+        expect(eventDispatcher.publishExternal).toHaveBeenCalled();
       });
 
       it('should handle errors before streaming starts', async () => {

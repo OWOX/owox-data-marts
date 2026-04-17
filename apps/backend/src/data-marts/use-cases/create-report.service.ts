@@ -1,10 +1,8 @@
 import { Repository } from 'typeorm';
-import { Transactional, runOnTransactionCommit } from 'typeorm-transactional';
-import { Inject, Injectable } from '@nestjs/common';
+import { Transactional } from 'typeorm-transactional';
+import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { OwoxProducer } from '@owox/internal-helpers';
-import { OWOX_PRODUCER } from '../../common/producer/producer.module';
-import { EventEmitter2 } from '@nestjs/event-emitter';
+import { OwoxEventDispatcher } from '../../common/event-dispatcher/owox-event-dispatcher';
 import { AvailableDestinationTypesService } from '../data-destination-types/available-destination-types.service';
 import { Report } from '../entities/report.entity';
 import { ReportCreatedEvent } from '../events/report-created.event';
@@ -38,10 +36,8 @@ export class CreateReportService {
     private readonly availableDestinationTypesService: AvailableDestinationTypesService,
     private readonly userProjectionsFetcherService: UserProjectionsFetcherService,
     private readonly idpProjectionsFacade: IdpProjectionsFacade,
-    @Inject(OWOX_PRODUCER)
-    private readonly producer: OwoxProducer,
-    private readonly eventEmitter: EventEmitter2,
-    private readonly accessDecisionService: AccessDecisionService
+    private readonly accessDecisionService: AccessDecisionService,
+    private readonly eventDispatcher: OwoxEventDispatcher
   ) {}
 
   @Transactional()
@@ -142,10 +138,7 @@ export class CreateReportService {
       command.userId
     );
 
-    await this.producer.produceEvent(reportCreatedEvent);
-    runOnTransactionCommit(() => {
-      this.eventEmitter.emit('report.created', reportCreatedEvent);
-    });
+    await this.eventDispatcher.publishOnCommit(reportCreatedEvent);
 
     const allUserIds = [command.userId, ...ownerIdsToSave];
     const userProjections =

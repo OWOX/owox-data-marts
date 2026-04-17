@@ -7,22 +7,25 @@ describe('InsightTemplateRunTriggerService', () => {
     const repository = {
       save: jest.fn(),
     };
-    const producer = {
-      produceEvent: jest.fn().mockResolvedValue(undefined),
-      produceEventSafely: jest.fn(),
+    const eventDispatcher = {
+      publishExternal: jest.fn().mockResolvedValue(undefined),
+      publishExternalSafely: jest.fn(),
     };
 
-    const service = new InsightTemplateRunTriggerService(repository as never, producer as never);
+    const service = new InsightTemplateRunTriggerService(
+      repository as never,
+      eventDispatcher as never
+    );
 
     return {
       service,
       repository,
-      producer,
+      eventDispatcher,
     };
   };
 
   it('creates manual trigger and emits run_requested event', async () => {
-    const { service, repository, producer } = createService();
+    const { service, repository, eventDispatcher } = createService();
     repository.save.mockImplementation(async trigger => ({
       ...trigger,
       id: 'trigger-1',
@@ -47,8 +50,8 @@ describe('InsightTemplateRunTriggerService', () => {
         isActive: true,
       })
     );
-    expect(producer.produceEventSafely).toHaveBeenCalledTimes(1);
-    const [event] = producer.produceEventSafely.mock.calls[0];
+    expect(eventDispatcher.publishExternalSafely).toHaveBeenCalledTimes(1);
+    const [event] = eventDispatcher.publishExternalSafely.mock.calls[0];
     expect(event).toBeInstanceOf(InsightTemplateRunRequestedEvent);
     expect(event.payload).toEqual({
       projectId: 'project-1',
@@ -61,7 +64,7 @@ describe('InsightTemplateRunTriggerService', () => {
   });
 
   it('includes chat metadata in run_requested event', async () => {
-    const { service, repository, producer } = createService();
+    const { service, repository, eventDispatcher } = createService();
     repository.save.mockImplementation(async trigger => ({
       ...trigger,
       id: 'trigger-2',
@@ -76,7 +79,7 @@ describe('InsightTemplateRunTriggerService', () => {
       assistantMessageId: '57bba70a-8ad8-4edc-8b3e-ec45f51dc486',
     });
 
-    const [event] = producer.produceEventSafely.mock.calls[0];
+    const [event] = eventDispatcher.publishExternalSafely.mock.calls[0];
     expect(event.payload).toEqual({
       projectId: 'project-1',
       dataMartId: 'data-mart-1',

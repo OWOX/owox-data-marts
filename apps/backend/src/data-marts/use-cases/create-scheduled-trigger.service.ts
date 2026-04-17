@@ -1,9 +1,8 @@
-import { Inject, Injectable, ForbiddenException, BadRequestException } from '@nestjs/common';
+import { Injectable, ForbiddenException, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { OwoxProducer } from '@owox/internal-helpers';
 import { Repository } from 'typeorm';
 import { BusinessViolationException } from '../../common/exceptions/business-violation.exception';
-import { OWOX_PRODUCER } from '../../common/producer/producer.module';
+import { OwoxEventDispatcher } from '../../common/event-dispatcher/owox-event-dispatcher';
 import { CreateScheduledTriggerCommand } from '../dto/domain/create-scheduled-trigger.command';
 import { ScheduledTriggerDto } from '../dto/domain/scheduled-trigger.dto';
 import { DataMartScheduledTrigger } from '../entities/data-mart-scheduled-trigger.entity';
@@ -24,8 +23,7 @@ export class CreateScheduledTriggerService {
     private readonly scheduledTriggerValidatorFacade: ScheduledTriggerValidatorFacade,
     private readonly dataMartService: DataMartService,
     private readonly mapper: ScheduledTriggerMapper,
-    @Inject(OWOX_PRODUCER)
-    private readonly producer: OwoxProducer,
+    private readonly eventDispatcher: OwoxEventDispatcher,
     private readonly reportAccessService: ReportAccessService
   ) {}
 
@@ -68,7 +66,7 @@ export class CreateScheduledTriggerService {
 
     const newTrigger = await this.triggerRepository.save(trigger);
 
-    await this.producer.produceEvent(
+    await this.eventDispatcher.publishExternal(
       new TriggerCreatedEvent(
         newTrigger.id,
         dataMart.id,

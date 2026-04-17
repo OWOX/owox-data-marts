@@ -5,8 +5,10 @@ import { Transactional } from 'typeorm-transactional';
 import { DataDestination } from '../entities/data-destination.entity';
 import { InjectRepository } from '@nestjs/typeorm';
 import { BadRequestException, ForbiddenException, Injectable, Logger } from '@nestjs/common';
+import { OwoxEventDispatcher } from '../../common/event-dispatcher/owox-event-dispatcher';
 import { DataDestinationDto } from '../dto/domain/data-destination.dto';
 import { DataDestinationMapper } from '../mappers/data-destination.mapper';
+import { DataDestinationCreatedEvent } from '../events/data-destination-created.event';
 import { DataDestinationCredentialsValidatorFacade } from '../data-destination-types/facades/data-destination-credentials-validator.facade';
 import { DataDestinationCredentialsProcessorFacade } from '../data-destination-types/facades/data-destination-credentials-processor.facade';
 import { DataDestinationCredentialService } from '../services/data-destination-credential.service';
@@ -44,7 +46,8 @@ export class CreateDataDestinationService {
     @InjectRepository(DestinationOwner)
     private readonly destinationOwnerRepository: Repository<DestinationOwner>,
     private readonly idpProjectionsFacade: IdpProjectionsFacade,
-    private readonly accessDecisionService: AccessDecisionService
+    private readonly accessDecisionService: AccessDecisionService,
+    private readonly eventDispatcher: OwoxEventDispatcher
   ) {}
 
   @Transactional()
@@ -181,6 +184,10 @@ export class CreateDataDestinationService {
     savedEntity: DataDestination,
     command: CreateDataDestinationCommand
   ): Promise<DataDestinationDto> {
+    this.eventDispatcher.publishLocalOnCommit(
+      new DataDestinationCreatedEvent(savedEntity.id, command.projectId, command.userId)
+    );
+
     const ownerIdsToSave = command.ownerIds ?? [command.userId];
     await syncOwners(
       this.destinationOwnerRepository,

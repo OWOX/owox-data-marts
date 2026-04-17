@@ -1,5 +1,4 @@
 import { Inject, Injectable, Logger, NotFoundException, Scope } from '@nestjs/common';
-import { OwoxProducer } from '@owox/internal-helpers';
 import { PublicOriginService } from '../../../../../common/config/public-origin.service';
 import {
   EMAIL_PROVIDER_FACADE,
@@ -10,7 +9,7 @@ import {
   COLOR_THEME,
   MarkdownParser,
 } from '../../../../../common/markdown/markdown-parser.service';
-import { OWOX_PRODUCER } from '../../../../../common/producer/producer.module';
+import { OwoxEventDispatcher } from '../../../../../common/event-dispatcher/owox-event-dispatcher';
 import { DataMartInsightTemplateFacadeImpl } from '../../../../ai-insights/data-mart-insight-template.facade';
 import {
   DataMartInsightTemplateStatus,
@@ -85,7 +84,7 @@ abstract class BaseEmailReportWriter implements DataDestinationReportWriter {
     private readonly publicOriginService: PublicOriginService,
     private readonly insightTemplateFacade: DataMartInsightTemplateFacadeImpl,
     private readonly consumptionTrackingService: ConsumptionTrackingService,
-    private readonly producer: OwoxProducer,
+    private readonly eventDispatcher: OwoxEventDispatcher,
     private readonly credentialsResolver: DataDestinationCredentialsResolver,
     private readonly sourceDataService: InsightTemplateSourceDataService,
     protected readonly insightTemplateService: InsightTemplateService,
@@ -388,22 +387,22 @@ abstract class BaseEmailReportWriter implements DataDestinationReportWriter {
 
     switch (this.type) {
       case DataDestinationType.EMAIL:
-        await this.producer.produceEvent(
+        await this.eventDispatcher.publishExternal(
           new EmailReportRunEvent(dataMart.id, runId, dataMart.projectId, userId, status)
         );
         break;
       case DataDestinationType.SLACK:
-        await this.producer.produceEvent(
+        await this.eventDispatcher.publishExternal(
           new SlackReportRunEvent(dataMart.id, runId, dataMart.projectId, userId, status)
         );
         break;
       case DataDestinationType.MS_TEAMS:
-        await this.producer.produceEvent(
+        await this.eventDispatcher.publishExternal(
           new MsTeamsReportRunEvent(dataMart.id, runId, dataMart.projectId, userId, status)
         );
         break;
       case DataDestinationType.GOOGLE_CHAT:
-        await this.producer.produceEvent(
+        await this.eventDispatcher.publishExternal(
           new GoogleChatReportRunEvent(dataMart.id, runId, dataMart.projectId, userId, status)
         );
         break;
@@ -422,8 +421,7 @@ export class EmailReportWriter extends BaseEmailReportWriter {
     publicOriginService: PublicOriginService,
     insightTemplateFacade: DataMartInsightTemplateFacadeImpl,
     consumptionTrackingService: ConsumptionTrackingService,
-    @Inject(OWOX_PRODUCER)
-    producer: OwoxProducer,
+    eventDispatcher: OwoxEventDispatcher,
     credentialsResolver: DataDestinationCredentialsResolver,
     sourceDataService: InsightTemplateSourceDataService,
     insightTemplateService: InsightTemplateService,
@@ -435,7 +433,7 @@ export class EmailReportWriter extends BaseEmailReportWriter {
       publicOriginService,
       insightTemplateFacade,
       consumptionTrackingService,
-      producer,
+      eventDispatcher,
       credentialsResolver,
       sourceDataService,
       insightTemplateService,
@@ -455,8 +453,7 @@ export class SlackReportWriter extends BaseEmailReportWriter {
     publicOriginService: PublicOriginService,
     insightTemplateFacade: DataMartInsightTemplateFacadeImpl,
     consumptionTrackingService: ConsumptionTrackingService,
-    @Inject(OWOX_PRODUCER)
-    producer: OwoxProducer,
+    eventDispatcher: OwoxEventDispatcher,
     credentialsResolver: DataDestinationCredentialsResolver,
     sourceDataService: InsightTemplateSourceDataService,
     insightTemplateService: InsightTemplateService,
@@ -468,7 +465,7 @@ export class SlackReportWriter extends BaseEmailReportWriter {
       publicOriginService,
       insightTemplateFacade,
       consumptionTrackingService,
-      producer,
+      eventDispatcher,
       credentialsResolver,
       sourceDataService,
       insightTemplateService,
@@ -488,8 +485,7 @@ export class MsTeamsReportWriter extends BaseEmailReportWriter {
     publicOriginService: PublicOriginService,
     insightTemplateFacade: DataMartInsightTemplateFacadeImpl,
     consumptionTrackingService: ConsumptionTrackingService,
-    @Inject(OWOX_PRODUCER)
-    producer: OwoxProducer,
+    eventDispatcher: OwoxEventDispatcher,
     credentialsResolver: DataDestinationCredentialsResolver,
     sourceDataService: InsightTemplateSourceDataService,
     insightTemplateService: InsightTemplateService,
@@ -501,7 +497,7 @@ export class MsTeamsReportWriter extends BaseEmailReportWriter {
       publicOriginService,
       insightTemplateFacade,
       consumptionTrackingService,
-      producer,
+      eventDispatcher,
       credentialsResolver,
       sourceDataService,
       insightTemplateService,
@@ -521,8 +517,7 @@ export class GoogleChatReportWriter extends BaseEmailReportWriter {
     publicOriginService: PublicOriginService,
     insightTemplateFacade: DataMartInsightTemplateFacadeImpl,
     consumptionTrackingService: ConsumptionTrackingService,
-    @Inject(OWOX_PRODUCER)
-    producer: OwoxProducer,
+    eventDispatcher: OwoxEventDispatcher,
     credentialsResolver: DataDestinationCredentialsResolver,
     sourceDataService: InsightTemplateSourceDataService,
     insightTemplateService: InsightTemplateService,
@@ -534,7 +529,7 @@ export class GoogleChatReportWriter extends BaseEmailReportWriter {
       publicOriginService,
       insightTemplateFacade,
       consumptionTrackingService,
-      producer,
+      eventDispatcher,
       credentialsResolver,
       sourceDataService,
       insightTemplateService,

@@ -13,6 +13,8 @@ import { ActionButton } from './ActionButton';
 import { MainMenu } from './MainMenu';
 import { HelpMenu } from './HelpMenu';
 import { Separator } from '@owox/ui/components/separator';
+import { SetupChecklistBlock } from './SetupChecklist';
+import { useSetupChecklistVisibility } from './SetupChecklist/useSetupChecklistVisibility';
 
 interface AppSidebarProps {
   variant?: 'sidebar' | 'floating' | 'inset';
@@ -20,6 +22,7 @@ interface AppSidebarProps {
 }
 
 export function AppSidebar({ variant = 'inset', collapsible = 'icon' }: AppSidebarProps) {
+  const setupChecklistVisibility = useSetupChecklistVisibility();
   return (
     <Sidebar variant={variant} collapsible={collapsible}>
       <SidebarHeader>
@@ -37,10 +40,17 @@ export function AppSidebar({ variant = 'inset', collapsible = 'icon' }: AppSideb
             <MainMenu />
           </SidebarGroupContent>
         </SidebarGroup>
+        {setupChecklistVisibility.isVisible && (
+          <SidebarGroup className='mt-auto'>
+            <SidebarGroupContent>
+              <SetupChecklistBlock visibility={setupChecklistVisibility} />
+            </SidebarGroupContent>
+          </SidebarGroup>
+        )}
       </SidebarContent>
 
       <SidebarFooter>
-        <HelpMenu />
+        <HelpMenu openSetupChecklist={setupChecklistVisibility.show} />
         <Separator />
         <UserMenu />
       </SidebarFooter>

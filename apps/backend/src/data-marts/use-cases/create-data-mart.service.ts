@@ -2,12 +2,14 @@ import { Injectable, ForbiddenException, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Transactional } from 'typeorm-transactional';
+import { OwoxEventDispatcher } from '../../common/event-dispatcher/owox-event-dispatcher';
 import { BigQueryConfig } from '../data-storage-types/bigquery/schemas/bigquery-config.schema';
 import { DataStorageType } from '../data-storage-types/enums/data-storage-type.enum';
 import { CreateDataMartCommand } from '../dto/domain/create-data-mart.command';
 import { DataMartDto } from '../dto/domain/data-mart.dto';
 import { SqlDefinition } from '../dto/schemas/data-mart-table-definitions/sql-definition.schema';
 import { DataMartTechnicalOwner } from '../entities/data-mart-technical-owner.entity';
+import { DataMartCreatedEvent } from '../events/data-mart-created.event';
 import { DataMartDefinitionType } from '../enums/data-mart-definition-type.enum';
 import { DataMartMapper } from '../mappers/data-mart.mapper';
 import { DataMartService } from '../services/data-mart.service';
@@ -28,7 +30,8 @@ export class CreateDataMartService {
     private readonly legacyDataMartService: LegacyDataMartsService,
     @InjectRepository(DataMartTechnicalOwner)
     private readonly technicalOwnerRepository: Repository<DataMartTechnicalOwner>,
-    private readonly accessDecisionService: AccessDecisionService
+    private readonly accessDecisionService: AccessDecisionService,
+    private readonly eventDispatcher: OwoxEventDispatcher
   ) {}
 
   @Transactional()
@@ -91,6 +94,12 @@ export class CreateDataMartService {
 
     newDataMart.technicalOwners = [technicalOwner];
     newDataMart.businessOwners = [];
+
+    // Safe inside @Transactional(): the local emit is discarded if the
+    // surrounding transaction rolls back.
+    this.eventDispatcher.publishLocalOnCommit(
+      new DataMartCreatedEvent(newDataMart.id, command.projectId, command.userId)
+    );
 
     return this.mapper.toDomainDto(newDataMart);
   }

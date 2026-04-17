@@ -5,7 +5,7 @@ import {
   ReportWriteFinalizeMeta,
 } from '../../interfaces/data-destination-report-writer.interface';
 import { DataDestinationType } from '../../enums/data-destination-type.enum';
-import { Inject, Injectable, Logger, Scope } from '@nestjs/common';
+import { Injectable, Logger, Scope } from '@nestjs/common';
 import { isGoogleSheetsConfig } from '../../data-destination-config.guards';
 import { GoogleSheetsConfig } from '../schemas/google-sheets-config.schema';
 import { DateTime } from 'luxon';
@@ -19,8 +19,7 @@ import { GoogleSheetsApiAdapter } from '../adapters/google-sheets-api.adapter';
 import { GoogleSheetsApiAdapterFactory } from '../adapters/google-sheets-api-adapter.factory';
 import { SheetValuesFormatter } from './sheet-formatters/sheet-values-formatter';
 import { SheetsReportRunEvent } from '../../../events/sheets-report-run.event';
-import { OWOX_PRODUCER } from '../../../../common/producer/producer.module';
-import { OwoxProducer } from '@owox/internal-helpers';
+import { OwoxEventDispatcher } from '../../../../common/event-dispatcher/owox-event-dispatcher';
 import { GoogleSheetNotFound } from '../../../errors/google-sheet-not-found.error';
 import { BusinessViolationException } from 'src/common/exceptions/business-violation.exception';
 import { AppEditionConfig } from '../../../../common/config/app-edition-config.service';
@@ -59,8 +58,7 @@ export class GoogleSheetsReportWriter implements DataDestinationReportWriter {
     private readonly consumptionTrackingService: ConsumptionTrackingService,
     private readonly appEditionConfig: AppEditionConfig,
     private readonly publicOriginService: PublicOriginService,
-    @Inject(OWOX_PRODUCER)
-    private readonly producer: OwoxProducer
+    private readonly eventDispatcher: OwoxEventDispatcher
   ) {}
 
   /**
@@ -246,7 +244,7 @@ export class GoogleSheetsReportWriter implements DataDestinationReportWriter {
       });
 
       const dataMart = this.report.dataMart;
-      await this.producer.produceEvent(
+      await this.eventDispatcher.publishExternal(
         new SheetsReportRunEvent(
           dataMart.id,
           this.report.id,
@@ -257,7 +255,7 @@ export class GoogleSheetsReportWriter implements DataDestinationReportWriter {
       );
     } else {
       const dataMart = this.report.dataMart;
-      await this.producer.produceEvent(
+      await this.eventDispatcher.publishExternal(
         new SheetsReportRunEvent(
           dataMart.id,
           this.report.id,

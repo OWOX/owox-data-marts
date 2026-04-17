@@ -1,9 +1,8 @@
-import { Inject, Injectable, InternalServerErrorException, Logger } from '@nestjs/common';
-import { OwoxProducer } from '@owox/internal-helpers';
+import { Injectable, InternalServerErrorException, Logger } from '@nestjs/common';
 import { Response } from 'express';
 import { BusinessViolationException } from '../../../../common/exceptions/business-violation.exception';
 import { ProjectOperationBlockedException } from '../../../../common/exceptions/project-operation-blocked.exception';
-import { OWOX_PRODUCER } from '../../../../common/producer/producer.module';
+import { OwoxEventDispatcher } from '../../../../common/event-dispatcher/owox-event-dispatcher';
 import { CachedReaderData } from '../../../dto/domain/cached-reader-data.dto';
 import { Report } from '../../../entities/report.entity';
 import { LookerReportRunEvent } from '../../../events/looker-report-run.event';
@@ -68,8 +67,7 @@ export class LookerStudioConnectorApiService {
     private readonly cacheService: ReportDataCacheService,
     private readonly reportService: ReportService,
     private readonly consumptionTrackingService: ConsumptionTrackingService,
-    @Inject(OWOX_PRODUCER)
-    private readonly producer: OwoxProducer,
+    private readonly eventDispatcher: OwoxEventDispatcher,
     private readonly lookerStudioReportRunService: LookerStudioReportRunService,
     private readonly projectBalanceService: ProjectBalanceService
   ) {}
@@ -406,7 +404,7 @@ export class LookerStudioConnectorApiService {
       createdById: userId,
     } = report;
 
-    await this.producer.produceEvent(
+    await this.eventDispatcher.publishExternal(
       new LookerReportRunEvent(dataMartId, reportId, projectId, userId, 'successfully')
     );
   }
@@ -434,7 +432,7 @@ export class LookerStudioConnectorApiService {
       createdById: userId,
     } = report;
 
-    await this.producer.produceEvent(
+    await this.eventDispatcher.publishExternal(
       new LookerReportRunEvent(dataMartId, reportId, projectId, userId, 'unsuccessfully')
     );
   }

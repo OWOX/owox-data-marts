@@ -70,9 +70,9 @@ describe('AiSourceApplyService', () => {
       apply: jest.fn(),
     };
     const applyActionMapper = new AiAssistantApplyActionMapper();
-    const producer = {
-      produceEvent: jest.fn().mockResolvedValue(undefined),
-      produceEventSafely: jest.fn(),
+    const eventDispatcher = {
+      publishExternal: jest.fn().mockResolvedValue(undefined),
+      publishExternalSafely: jest.fn(),
     };
     let lastRequestedRequestId: string | null = null;
 
@@ -217,7 +217,7 @@ describe('AiSourceApplyService', () => {
       applyExecutionService as never,
       applyActionMapper as never,
       aiAssistantSessionService as never,
-      producer as never
+      eventDispatcher as never
     );
 
     messageRepository.findOne.mockResolvedValue({
@@ -260,14 +260,19 @@ describe('AiSourceApplyService', () => {
       insightTemplateValidationService,
       templateFullReplaceApplyService,
       applyActionMapper,
-      producer,
+      eventDispatcher,
       createStoredAction,
     };
   };
 
   it('creates artifact, binds session and stores idempotent response', async () => {
-    const { service, sessionRepository, applyActionRepository, artifactRepository, producer } =
-      createService();
+    const {
+      service,
+      sessionRepository,
+      applyActionRepository,
+      artifactRepository,
+      eventDispatcher,
+    } = createService();
 
     const command = new ApplyAiAssistantSessionCommand(
       'session-1',
@@ -325,8 +330,8 @@ describe('AiSourceApplyService', () => {
         }),
       })
     );
-    expect(producer.produceEventSafely).toHaveBeenCalledTimes(1);
-    const [event] = producer.produceEventSafely.mock.calls[0];
+    expect(eventDispatcher.publishExternalSafely).toHaveBeenCalledTimes(1);
+    const [event] = eventDispatcher.publishExternalSafely.mock.calls[0];
     expect(event).toBeInstanceOf(AiAssistantActionAppliedEvent);
     expect(event.payload).toEqual({
       projectId: 'project-1',
@@ -428,7 +433,7 @@ describe('AiSourceApplyService', () => {
       artifactRepository,
       templateRepository,
       insightTemplateValidationService,
-      producer,
+      eventDispatcher,
     } = createService();
 
     const command = new ApplyAiAssistantSessionCommand(
@@ -504,8 +509,8 @@ describe('AiSourceApplyService', () => {
         ],
       })
     );
-    expect(producer.produceEventSafely).toHaveBeenCalledTimes(1);
-    const [event] = producer.produceEventSafely.mock.calls[0];
+    expect(eventDispatcher.publishExternalSafely).toHaveBeenCalledTimes(1);
+    const [event] = eventDispatcher.publishExternalSafely.mock.calls[0];
     expect(event).toBeInstanceOf(AiAssistantActionAppliedEvent);
     expect(event.payload).toEqual({
       projectId: 'project-1',
@@ -752,7 +757,7 @@ describe('AiSourceApplyService', () => {
   });
 
   it('returns stored response for duplicate requestId without new mutations', async () => {
-    const { service, applyActionRepository, sessionRepository, producer } = createService();
+    const { service, applyActionRepository, sessionRepository, eventDispatcher } = createService();
 
     const command = new ApplyAiAssistantSessionCommand(
       'session-1',
@@ -791,12 +796,17 @@ describe('AiSourceApplyService', () => {
     expect(result.artifactId).toBe('artifact-3');
     expect(result.status).toBe('updated');
     expect(sessionRepository.findOne).not.toHaveBeenCalled();
-    expect(producer.produceEventSafely).not.toHaveBeenCalled();
+    expect(eventDispatcher.publishExternalSafely).not.toHaveBeenCalled();
   });
 
   it('does not fail successful apply when action_applied event publish fails', async () => {
-    const { service, sessionRepository, applyActionRepository, artifactRepository, producer } =
-      createService();
+    const {
+      service,
+      sessionRepository,
+      applyActionRepository,
+      artifactRepository,
+      eventDispatcher,
+    } = createService();
 
     const command = new ApplyAiAssistantSessionCommand(
       'session-1',
@@ -833,7 +843,7 @@ describe('AiSourceApplyService', () => {
       title: 'Source A',
       sql: 'select 1',
     });
-    producer.produceEventSafely.mockImplementation(() => undefined);
+    eventDispatcher.publishExternalSafely.mockImplementation(() => undefined);
 
     await expect(service.apply(command)).resolves.toMatchObject({
       requestId: 'request-1',
@@ -843,12 +853,17 @@ describe('AiSourceApplyService', () => {
     await flushAsyncTasks();
 
     expect(applyActionRepository.update).toHaveBeenCalledTimes(1);
-    expect(producer.produceEventSafely).toHaveBeenCalledTimes(1);
+    expect(eventDispatcher.publishExternalSafely).toHaveBeenCalledTimes(1);
   });
 
   it('rejects outdated apply action when a newer action exists in the same session', async () => {
-    const { service, sessionRepository, messageRepository, applyActionRepository, producer } =
-      createService();
+    const {
+      service,
+      sessionRepository,
+      messageRepository,
+      applyActionRepository,
+      eventDispatcher,
+    } = createService();
 
     const command = new ApplyAiAssistantSessionCommand(
       'session-1',
@@ -887,8 +902,8 @@ describe('AiSourceApplyService', () => {
 
     await expect(service.apply(command)).rejects.toBeInstanceOf(BadRequestException);
     expect(applyActionRepository.update).not.toHaveBeenCalled();
-    expect(producer.produceEventSafely).toHaveBeenCalledTimes(1);
-    const [event] = producer.produceEventSafely.mock.calls[0];
+    expect(eventDispatcher.publishExternalSafely).toHaveBeenCalledTimes(1);
+    const [event] = eventDispatcher.publishExternalSafely.mock.calls[0];
     expect(event).toBeInstanceOf(AiAssistantActionAppliedEvent);
     expect(event.payload).toEqual({
       projectId: 'project-1',
@@ -909,7 +924,7 @@ describe('AiSourceApplyService', () => {
   });
 
   it('preserves original apply error when action_applied event publish fails', async () => {
-    const { service, sessionRepository, messageRepository, producer } = createService();
+    const { service, sessionRepository, messageRepository, eventDispatcher } = createService();
 
     const command = new ApplyAiAssistantSessionCommand(
       'session-1',
@@ -945,12 +960,12 @@ describe('AiSourceApplyService', () => {
         ],
       },
     ]);
-    producer.produceEventSafely.mockImplementation(() => undefined);
+    eventDispatcher.publishExternalSafely.mockImplementation(() => undefined);
 
     await expect(service.apply(command)).rejects.toBeInstanceOf(BadRequestException);
     await flushAsyncTasks();
 
-    expect(producer.produceEventSafely).toHaveBeenCalledTimes(1);
+    expect(eventDispatcher.publishExternalSafely).toHaveBeenCalledTimes(1);
   });
 
   it('emits failed action_applied event for validation_failed result', async () => {
@@ -960,7 +975,7 @@ describe('AiSourceApplyService', () => {
       applyActionRepository,
       templateFullReplaceApplyService,
       templateRepository,
-      producer,
+      eventDispatcher,
     } = createService();
 
     const command = new ApplyAiAssistantSessionCommand(
@@ -997,8 +1012,8 @@ describe('AiSourceApplyService', () => {
     await flushAsyncTasks();
 
     expect(result.status).toBe('validation_failed');
-    expect(producer.produceEventSafely).toHaveBeenCalledTimes(1);
-    const [event] = producer.produceEventSafely.mock.calls[0];
+    expect(eventDispatcher.publishExternalSafely).toHaveBeenCalledTimes(1);
+    const [event] = eventDispatcher.publishExternalSafely.mock.calls[0];
     expect(event).toBeInstanceOf(AiAssistantActionAppliedEvent);
     expect(event.payload).toEqual({
       projectId: 'project-1',

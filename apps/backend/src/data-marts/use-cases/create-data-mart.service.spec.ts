@@ -30,6 +30,7 @@ describe('CreateDataMartService', () => {
     const accessDecisionService = {
       canAccess: jest.fn().mockResolvedValue(true),
     };
+    const eventDispatcher = { publishLocalOnCommit: jest.fn() };
 
     const service = new CreateDataMartService(
       dataMartService as never,
@@ -37,7 +38,8 @@ describe('CreateDataMartService', () => {
       mapper as never,
       legacyDataMartService as never,
       technicalOwnerRepository as never,
-      accessDecisionService as never
+      accessDecisionService as never,
+      eventDispatcher as never
     );
 
     return { service, dataMartService, accessDecisionService };

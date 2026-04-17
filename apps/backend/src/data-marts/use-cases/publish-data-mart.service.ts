@@ -1,7 +1,6 @@
-import { Inject, Injectable, ForbiddenException } from '@nestjs/common';
-import { OwoxProducer } from '@owox/internal-helpers';
+import { Injectable, ForbiddenException } from '@nestjs/common';
 import { BusinessViolationException } from '../../common/exceptions/business-violation.exception';
-import { OWOX_PRODUCER } from '../../common/producer/producer.module';
+import { OwoxEventDispatcher } from '../../common/event-dispatcher/owox-event-dispatcher';
 import { DataMartDefinitionValidatorFacade } from '../data-storage-types/facades/data-mart-definition-validator-facade.service';
 import { DataMartDto } from '../dto/domain/data-mart.dto';
 import { PublishDataMartCommand } from '../dto/domain/publish-data-mart.command';
@@ -11,22 +10,15 @@ import { DataMartPublishedEvent } from '../events/data-mart-published.event';
 import { DataMartMapper } from '../mappers/data-mart.mapper';
 import { DataMartService } from '../services/data-mart.service';
 import { AccessDecisionService, EntityType, Action } from '../services/access-decision';
-import { RunType } from '../../common/scheduler/shared/types';
-import { ConnectorExecutionService } from '../services/connector/connector-execution.service';
-import { Logger } from '@nestjs/common';
 
 @Injectable()
 export class PublishDataMartService {
-  private readonly logger = new Logger(PublishDataMartService.name);
-
   constructor(
     private readonly dataMartService: DataMartService,
     private readonly definitionValidatorFacade: DataMartDefinitionValidatorFacade,
     private readonly mapper: DataMartMapper,
-    @Inject(OWOX_PRODUCER)
-    private readonly producer: OwoxProducer,
-    private readonly accessDecisionService: AccessDecisionService,
-    private readonly connectorExecutionService: ConnectorExecutionService
+    private readonly eventDispatcher: OwoxEventDispatcher,
+    private readonly accessDecisionService: AccessDecisionService
   ) {}
 
   async run(command: PublishDataMartCommand): Promise<DataMartDto> {
@@ -63,32 +55,14 @@ export class PublishDataMartService {
 
     await this.dataMartService.save(dataMart);
 
-    await this.producer.produceEvent(
-      new DataMartPublishedEvent(
-        dataMart.id,
-        command.projectId,
-        dataMart.createdById,
-        previousStatus
-      )
+    const event = new DataMartPublishedEvent(
+      dataMart.id,
+      command.projectId,
+      dataMart.createdById,
+      previousStatus
     );
 
-    if (dataMart.definitionType === DataMartDefinitionType.CONNECTOR) {
-      this.connectorExecutionService
-        .run(dataMart, command.createdById, RunType.manual, {
-          runType: 'INCREMENTAL',
-        })
-        .catch(error => {
-          this.logger.error(
-            `Failed to auto-run connector after publishing data mart ${dataMart.id}`,
-            error?.stack,
-            {
-              dataMartId: dataMart.id,
-              projectId: dataMart.projectId,
-              userId: command.createdById,
-            }
-          );
-        });
-    }
+    await this.eventDispatcher.publish(event);
 
     return this.mapper.toDomainDto(dataMart);
   }

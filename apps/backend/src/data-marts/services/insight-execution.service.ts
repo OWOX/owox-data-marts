@@ -1,10 +1,10 @@
-import { Inject, Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { formatDuration, OwoxProducer } from '@owox/internal-helpers';
+import { formatDuration } from '@owox/internal-helpers';
 import { Repository } from 'typeorm';
 import { AgentTelemetry } from '../../common/ai-insights/agent/types';
 import { BusinessViolationException } from '../../common/exceptions/business-violation.exception';
-import { OWOX_PRODUCER } from '../../common/producer/producer.module';
+import { OwoxEventDispatcher } from '../../common/event-dispatcher/owox-event-dispatcher';
 import { SystemTimeService } from '../../common/scheduler/services/system-time.service';
 import { RunType } from '../../common/scheduler/shared/types';
 import { DataMartInsightTemplateFacadeImpl } from '../ai-insights/data-mart-insight-template.facade';
@@ -64,8 +64,7 @@ export class InsightExecutionService {
     @InjectRepository(Insight)
     private readonly insightRepository: Repository<Insight>,
     private readonly systemTimeService: SystemTimeService,
-    @Inject(OWOX_PRODUCER)
-    private readonly producer: OwoxProducer,
+    private readonly eventDispatcher: OwoxEventDispatcher,
     private readonly insightTemplateFacade: DataMartInsightTemplateFacadeImpl
   ) {}
 
@@ -252,7 +251,7 @@ export class InsightExecutionService {
       });
 
       if (isNotError) {
-        await this.producer.produceEvent(
+        await this.eventDispatcher.publishExternal(
           new InsightRunEvent(
             dataMart.id,
             runId,
@@ -263,7 +262,7 @@ export class InsightExecutionService {
           )
         );
       } else {
-        await this.producer.produceEvent(
+        await this.eventDispatcher.publishExternal(
           new InsightRunEvent(
             dataMart.id,
             runId,
@@ -288,7 +287,7 @@ export class InsightExecutionService {
         logs,
         errors,
       });
-      await this.producer.produceEvent(
+      await this.eventDispatcher.publishExternal(
         new InsightRunEvent(
           dataMart.id,
           runId,

@@ -1,4 +1,4 @@
-import { OwoxProducer } from '@owox/internal-helpers';
+import { OwoxEventDispatcher } from '../../../common/event-dispatcher/owox-event-dispatcher';
 import { ConnectorMessageType } from '../../connector-types/enums/connector-message-type-enum';
 
 jest.mock('@owox/connectors', () => ({
@@ -101,8 +101,8 @@ describe('ConnectorExecutorService', () => {
       now: jest.fn().mockReturnValue(new Date('2025-01-15')),
     } as unknown as SystemTimeService;
 
-    const producer = {
-      produceEvent: jest.fn().mockResolvedValue(undefined),
+    const eventDispatcher = {
+      publishExternal: jest.fn().mockResolvedValue(undefined),
     };
 
     const projectBalanceService = {
@@ -124,7 +124,7 @@ describe('ConnectorExecutorService', () => {
       consumptionTracker,
       gracefulShutdownService,
       systemTimeService,
-      producer as unknown as OwoxProducer,
+      eventDispatcher as unknown as OwoxEventDispatcher,
       projectBalanceService,
       dataMartService
     );
@@ -141,7 +141,7 @@ describe('ConnectorExecutorService', () => {
       consumptionTracker,
       gracefulShutdownService,
       systemTimeService,
-      producer,
+      eventDispatcher,
       projectBalanceService,
       dataMartService,
     };
@@ -177,7 +177,7 @@ describe('ConnectorExecutorService', () => {
     }) as unknown as DataMartRun;
 
   it('executes successfully and updates status to SUCCESS', async () => {
-    const { service, dataMartRunRepository, consumptionTracker, producer, dataMartService } =
+    const { service, dataMartRunRepository, consumptionTracker, eventDispatcher, dataMartService } =
       createService();
 
     await service.executeInBackground(createDataMart(), createRun(), null);
@@ -187,7 +187,7 @@ describe('ConnectorExecutorService', () => {
       expect.objectContaining({ status: DataMartRunStatus.RUNNING })
     );
     expect(consumptionTracker.registerConnectorRunConsumption).toHaveBeenCalled();
-    expect(producer.produceEvent).toHaveBeenCalled();
+    expect(eventDispatcher.publishExternal).toHaveBeenCalled();
     expect(dataMartService.actualizeSchema).toHaveBeenCalledWith('dm-1', 'proj-1');
   });
 

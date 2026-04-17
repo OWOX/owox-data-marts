@@ -41,8 +41,8 @@ describe('EmailReportWriter', () => {
     const consumptionTrackingService = {
       registerEmailBasedReportRunConsumption: jest.fn().mockResolvedValue(undefined),
     };
-    const producer = {
-      produceEvent: jest.fn().mockResolvedValue(undefined),
+    const eventDispatcher = {
+      publishExternal: jest.fn().mockResolvedValue(undefined),
     };
     const credentialsResolver = {
       resolve: jest.fn().mockResolvedValue({
@@ -73,7 +73,7 @@ describe('EmailReportWriter', () => {
         publicOriginService as never,
         insightTemplateFacade as never as DataMartInsightTemplateFacadeImpl,
         consumptionTrackingService as never,
-        producer as never,
+        eventDispatcher as never,
         credentialsResolver as never as DataDestinationCredentialsResolver,
         sourceDataService as never as InsightTemplateSourceDataService,
         insightTemplateService as never as InsightTemplateService,
@@ -87,7 +87,7 @@ describe('EmailReportWriter', () => {
       sourceUsageService,
       credentialsResolver,
       consumptionTrackingService,
-      producer,
+      eventDispatcher,
     };
   };
 

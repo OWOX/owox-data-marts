@@ -42,14 +42,14 @@ describe('CreateScheduledTriggerService', () => {
         ),
     };
 
-    const producer = { produceEvent: jest.fn().mockResolvedValue(undefined) };
+    const eventDispatcher = { publishExternal: jest.fn().mockResolvedValue(undefined) };
 
     const service = new CreateScheduledTriggerService(
       triggerRepository as never,
       scheduledTriggerValidatorFacade as never,
       dataMartService as never,
       mapper as never,
-      producer as never,
+      eventDispatcher as never,
       reportAccessService as never
     );
 

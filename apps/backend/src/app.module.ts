@@ -6,6 +6,7 @@ import { ScheduleModule } from '@nestjs/schedule';
 import { EventEmitterModule } from '@nestjs/event-emitter';
 import { DataMartsModule } from './data-marts/data-marts.module';
 import { CommonModule } from './common/common.module';
+import { OwoxEventDispatcherModule } from './common/event-dispatcher/owox-event-dispatcher.module';
 import { ActiveRequestInterceptor } from './common/interceptors/active-request.interceptor';
 import { IdpModule } from './idp/idp.module';
 import { NotificationsModule } from './notifications/notifications.module';
@@ -43,6 +44,7 @@ import { addTransactionalDataSource } from 'typeorm-transactional';
     }),
     ScheduleModule.forRoot(),
     EventEmitterModule.forRoot(),
+    OwoxEventDispatcherModule,
 
     DataMartsModule,
     CommonModule,

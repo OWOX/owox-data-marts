@@ -1,5 +1,3 @@
-'use client';
-
 import { useMemo } from 'react';
 import { UserPlus, HelpCircle } from 'lucide-react';
 import { cn } from '@owox/ui/lib/utils';
@@ -14,7 +12,8 @@ interface InviteTeammatesCardProps {
   docsHref?: string;
   docsLabel?: string;
   className?: string;
-  variant?: 'card' | 'inline';
+  variant?: 'card' | 'inline' | 'button';
+  onClick?: () => void;
 }
 
 export function InviteTeammatesCard({
@@ -24,6 +23,7 @@ export function InviteTeammatesCard({
   docsLabel = 'View documentation',
   className,
   variant = 'card',
+  onClick,
 }: InviteTeammatesCardProps) {
   const { id: projectId } = useProject();
   const { flags } = useFlags();
@@ -41,10 +41,23 @@ export function InviteTeammatesCard({
     return null;
   }, [flags, projectId]);
 
-  const baseClasses = 'flex items-center justify-between text-sm gap-4';
+  const baseClasses = cn(
+    'flex items-center text-sm gap-4',
+    variant !== 'button' && 'justify-between'
+  );
   const variantClasses = {
     card: 'bg-muted/50 rounded-md border-b border-gray-200 px-4 py-3 dark:border-white/2 dark:bg-white/2 text-muted-foreground dark:text-muted-foreground/75',
     inline: 'mt-4 border-t border-b border-border/50 py-4 text-muted-foreground/75',
+    button: '',
+  };
+  const baseLink =
+    'hover:text-foreground flex min-w-0 items-center gap-1.5 text-sm font-medium transition-colors hover:underline';
+
+  const linkClasses = {
+    card: baseLink,
+    inline: baseLink,
+    button:
+      'inline-flex w-full items-center justify-center gap-2 rounded-md border border-input bg-background px-3 py-2 text-sm font-medium transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50',
   };
 
   if (!membersHref && !docsHref) return null;
@@ -54,18 +67,26 @@ export function InviteTeammatesCard({
   return (
     <div className={cn(baseClasses, variantClasses[variant], className)}>
       {membersHref && (
-        <div className='flex min-w-0 items-center gap-2'>
+        <div
+          className={cn(
+            'flex min-w-0 items-center gap-2',
+            variant === 'button' && 'w-full justify-center'
+          )}
+        >
           <a
             href={membersHref}
             target={isMembersExternal ? '_blank' : undefined}
             rel={isMembersExternal ? 'noopener noreferrer' : undefined}
-            className='hover:text-foreground flex min-w-0 items-center gap-1.5 text-sm font-medium transition-colors hover:underline'
+            className={cn(linkClasses[variant])}
             aria-label={inviteLabel}
+            onClick={() => {
+              onClick?.();
+            }}
           >
             <UserPlus className='h-4 w-4 shrink-0' />
             <span className='truncate'>{inviteLabel}</span>
           </a>
-          {hint && (
+          {hint && variant !== 'button' && (
             <span className='text-muted-foreground/75 dark:text-muted-foreground/50 hidden truncate lg:inline'>
               {hint}
             </span>

@@ -89,6 +89,8 @@ describe('CreateDataDestinationService', () => {
       canAccess: jest.fn().mockResolvedValue(true),
     };
 
+    const eventDispatcher = { publishLocalOnCommit: jest.fn() };
+
     const service = new CreateDataDestinationService(
       repository as never,
       mapper as never,
@@ -102,7 +104,8 @@ describe('CreateDataDestinationService', () => {
       userProjectionsFetcherService as never,
       destinationOwnerRepository as never,
       idpProjectionsFacade as never,
-      accessDecisionService as never
+      accessDecisionService as never,
+      eventDispatcher as never
     );
 
     return { service };

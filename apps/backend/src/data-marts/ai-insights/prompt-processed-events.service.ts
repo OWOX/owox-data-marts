@@ -1,6 +1,5 @@
-import { Inject, Injectable, Logger } from '@nestjs/common';
-import { type OwoxProducer } from '@owox/internal-helpers';
-import { OWOX_PRODUCER } from '../../common/producer/producer.module';
+import { Injectable, Logger } from '@nestjs/common';
+import { OwoxEventDispatcher } from '../../common/event-dispatcher/owox-event-dispatcher';
 import { PromptProcessedEvent } from '../events/prompt-processed.event';
 import { DataMartPromptMetaEntry, PromptProcessedContext } from './data-mart-insights.types';
 import { getPromptTotalUsage, getPromptTotalUsageByModels } from './utils/compute-model-usage';
@@ -9,10 +8,7 @@ import { getPromptTotalUsage, getPromptTotalUsageByModels } from './utils/comput
 export class PromptProcessedEventsService {
   private readonly logger = new Logger(PromptProcessedEventsService.name);
 
-  constructor(
-    @Inject(OWOX_PRODUCER)
-    private readonly producer: OwoxProducer
-  ) {}
+  constructor(private readonly eventDispatcher: OwoxEventDispatcher) {}
 
   produce(prompts: DataMartPromptMetaEntry[], context?: PromptProcessedContext): void {
     if (!context) return;
@@ -22,8 +18,8 @@ export class PromptProcessedEventsService {
         const llmCalls = p.meta.telemetry.llmCalls ?? [];
         const telemetryJson = JSON.stringify(p.meta.telemetry);
 
-        void this.producer
-          .produceEvent(
+        void this.eventDispatcher
+          .publishExternal(
             new PromptProcessedEvent({
               prompt: p.payload.prompt,
               promptAnswer: p.promptAnswer,

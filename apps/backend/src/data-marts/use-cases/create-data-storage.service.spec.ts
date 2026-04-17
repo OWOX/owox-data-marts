@@ -43,12 +43,15 @@ describe('CreateDataStorageService', () => {
     };
     const idpProjectionsFacade = {};
 
+    const eventDispatcher = { publishLocalOnCommit: jest.fn() };
+
     const service = new CreateDataStorageService(
       dataStorageRepository as never,
       storageOwnerRepository as never,
       dataStorageMapper as never,
       userProjectionsFetcherService as never,
-      idpProjectionsFacade as never
+      idpProjectionsFacade as never,
+      eventDispatcher as never
     );
 
     return { service, dataStorageRepository, storageOwnerRepository, idpProjectionsFacade };

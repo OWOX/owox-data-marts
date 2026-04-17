@@ -1,9 +1,9 @@
-import { Inject, Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { ClsContextService } from '../../common/logger/cls-context.service';
-import { OWOX_PRODUCER } from '../../common/producer/producer.module';
+import { OwoxEventDispatcher } from '../../common/event-dispatcher/owox-event-dispatcher';
 import { SystemTimeService } from '../../common/scheduler/services/system-time.service';
 import { RunType } from '../../common/scheduler/shared/types';
-import { castError, formatDuration, type OwoxProducer } from '@owox/internal-helpers';
+import { castError, formatDuration } from '@owox/internal-helpers';
 import {
   MeasuredExecutionResult,
   measureExecutionTime,
@@ -65,8 +65,7 @@ export class RunAiAssistantService {
     private readonly agentFlowService: AgentFlowService,
     private readonly agentFlowContextManager: AgentFlowContextManager,
     private readonly aiAssistantTurnProcessedEventMapper: AiAssistantTurnProcessedEventMapper,
-    @Inject(OWOX_PRODUCER)
-    private readonly producer: OwoxProducer,
+    private readonly eventDispatcher: OwoxEventDispatcher,
     private readonly systemTimeService: SystemTimeService,
     private readonly clsContextService: ClsContextService
   ) {}
@@ -249,7 +248,7 @@ export class RunAiAssistantService {
         errors: runLogger.errors,
       });
 
-      this.producer.produceEventSafely(
+      this.eventDispatcher.publishExternalSafely(
         this.aiAssistantTurnProcessedEventMapper.toEvent({
           projectId: command.projectId,
           dataMartId: command.dataMartId,
@@ -297,7 +296,7 @@ export class RunAiAssistantService {
         assistantMessageContent ??
         this.getFallbackAssistantErrorText();
 
-      this.producer.produceEventSafely(
+      this.eventDispatcher.publishExternalSafely(
         this.aiAssistantTurnProcessedEventMapper.toEvent({
           projectId: command.projectId,
           dataMartId: command.dataMartId,
