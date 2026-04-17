@@ -46,7 +46,7 @@ var LinkedInAdsSource = class LinkedInAdsSource extends AbstractSource {
                   type: 'string',
                   store: 'env',
                   key: 'OAUTH_LINKEDIN_ADS_SCOPE',
-                  default: 'r_ads,r_ads_reporting,offline_access',
+                  default: 'r_ads,r_ads_reporting',
                   attributes: [OAUTH_CONSTANTS.UI]
                 }
               },

@@ -46,7 +46,7 @@ var LinkedInPagesSource = class LinkedInPagesSource extends AbstractSource {
                   type: 'string',
                   store: 'env',
                   key: 'OAUTH_LINKEDIN_PAGES_SCOPE',
-                  default: 'r_organization_social,rw_organization_admin,offline_access',
+                  default: 'r_organization_social,rw_organization_admin',
                   attributes: [OAUTH_CONSTANTS.UI]
                 }
               },

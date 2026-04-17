@@ -45,6 +45,12 @@ export function LinkedInLoginButton({
   disabled = false,
   children,
 }: LinkedInLoginButtonProps) {
+  const normalizedScope = (scope || '')
+    .split(/[,\s]+/)
+    .map(item => item.trim())
+    .filter(Boolean)
+    .join(' ');
+
   const { openPopup, isLoading, error } = useOAuthPopup<LinkedInLoginResponse, LinkedInAuthMessage>(
     {
       redirectUri,
@@ -54,7 +60,7 @@ export function LinkedInLoginButton({
         url.searchParams.set('client_id', clientId);
         url.searchParams.set('redirect_uri', redirectUri);
         url.searchParams.set('state', state);
-        url.searchParams.set('scope', scope);
+        url.searchParams.set('scope', normalizedScope);
         return url.toString();
       },
       onSuccess,
