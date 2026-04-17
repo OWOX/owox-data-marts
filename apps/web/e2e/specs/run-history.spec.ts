@@ -16,7 +16,7 @@ async function triggerManualRun(page: import('@playwright/test').Page, datamartI
   // Click "Manual Run..." menu item
   await page.getByRole('menuitem', { name: /Manual Run/ }).click();
 
-  // Scope Run button to the sheet content to avoid toast button collision
+  // Scope Run button to the sheet content to avoid ambiguity with other buttons
   const sheet = page.locator('[data-slot="sheet-content"]');
   await expect(sheet).toBeVisible({ timeout: 10000 });
   // Click Run and wait for the API response confirming the run was accepted
@@ -29,10 +29,11 @@ async function triggerManualRun(page: import('@playwright/test').Page, datamartI
 
 // ---------------------------------------------------------------------------
 // RUN-01: Empty state renders on Run History tab when no runs exist.
+// Uses a SQL-type published DM because connector DMs now auto-run on publish.
 // ---------------------------------------------------------------------------
 test.describe('Run History - Empty State', () => {
   test('shows empty state when no runs exist (RUN-01)', async ({ page, apiHelpers }) => {
-    const { datamart } = await apiHelpers.createPublishedConnectorDataMart();
+    const { datamart } = await apiHelpers.createPublishedDataMart();
     await page.goto(`/ui/0/data-marts/${datamart.id}/run-history`);
 
     // RunHistory renders empty state with runHistoryEmptyState testid

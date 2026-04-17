@@ -74,7 +74,6 @@ export function DataMartDetails({ id }: DataMartDetailsProps) {
 
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [isPublishing, setIsPublishing] = useState(false);
-  const [isRunSheetOpen, setIsRunSheetOpen] = useState(false);
   const lastRunIdRef = useRef<string | null>(null);
 
   const {
@@ -87,6 +86,10 @@ export function DataMartDetails({ id }: DataMartDetailsProps) {
     definitionType: dataMartDefinitionType = null,
     validationErrors: dataMartValidationErrors = [],
   } = dataMart ?? {};
+
+  const isConnector = dataMartDefinitionType === DataMartDefinitionType.CONNECTOR;
+  const isPublished = dataMartStatus.code === DataMartStatus.PUBLISHED;
+  const isDraft = dataMartStatus.code === DataMartStatus.DRAFT;
 
   const onActualizeSuccess = useCallback(() => {
     if (!dataMartId) return;
@@ -108,32 +111,21 @@ export function DataMartDetails({ id }: DataMartDetailsProps) {
 
   const { showPromo, dismissAllPromos } = useDataMartNextStepPromo();
 
-  // Show promo every time a published data mart page is opened.
-  // For CONNECTOR type — show LOAD_DATA promo, for others — USE_DATA promo.
+  // Show promo once a published data mart page is opened.
+  // For CONNECTOR type — show SCHEDULE_DATA promo, for others — USE_DATA promo.
+  // Show once to prevent multiple toasts for the same data mart.
   useEffect(() => {
     if (!dataMartId) return;
-    if (dataMartStatus.code !== DataMartStatus.PUBLISHED) return;
-
-    const isConnector = dataMartDefinitionType === DataMartDefinitionType.CONNECTOR;
+    if (!isPublished) return;
 
     showPromo({
-      step: isConnector ? PromoStep.LOAD_DATA : PromoStep.USE_DATA,
+      step: isConnector ? PromoStep.SCHEDULE_DATA : PromoStep.USE_DATA,
       projectId,
       dataMartId,
       isInsightsEnabled: shouldShowInsights,
-      suppressible: true,
-      onManualRunClick: () => {
-        setIsRunSheetOpen(true);
-      },
+      showOnce: true,
     });
-  }, [
-    dataMartId,
-    dataMartStatus.code,
-    dataMartDefinitionType,
-    showPromo,
-    projectId,
-    shouldShowInsights,
-  ]);
+  }, [dataMartId, isPublished, isConnector, showPromo, projectId, shouldShowInsights]);
 
   // Dismiss all promo toasts when leaving the data mart page
   useEffect(() => {
@@ -168,16 +160,12 @@ export function DataMartDetails({ id }: DataMartDetailsProps) {
       void runSchemaActualization();
 
       // Show promo toast based on a data mart type
-      const isConnector = dataMartDefinitionType === DataMartDefinitionType.CONNECTOR;
-
       showPromo({
-        step: isConnector ? PromoStep.LOAD_DATA : PromoStep.USE_DATA,
+        step: isConnector ? PromoStep.SCHEDULE_DATA : PromoStep.USE_DATA,
         projectId,
         dataMartId,
         isInsightsEnabled: shouldShowInsights,
-        onManualRunClick: () => {
-          setIsRunSheetOpen(true);
-        },
+        showOnce: true,
       });
     } catch (error) {
       console.log(error instanceof Error ? error.message : 'Failed to publish Data Mart');
@@ -186,7 +174,7 @@ export function DataMartDetails({ id }: DataMartDetailsProps) {
     }
   }, [
     dataMartId,
-    dataMartDefinitionType,
+    isConnector,
     publishDataMart,
     runSchemaActualization,
     showPromo,
@@ -197,20 +185,20 @@ export function DataMartDetails({ id }: DataMartDetailsProps) {
   const handleManualRun = useCallback(
     async (payload: Record<string, unknown>) => {
       if (!dataMartId) return;
-      if (dataMartStatus.code !== DataMartStatus.PUBLISHED) {
+      if (!isPublished) {
         toast.error('Manual run is only available for published Data Marts');
         return;
       }
       lastRunIdRef.current = runs[0]?.id || null;
       await runDataMart({ id: dataMartId, payload });
     },
-    [dataMartId, dataMartStatus, runDataMart, runs]
+    [dataMartId, isPublished, runDataMart, runs]
   );
 
   // Show promo after the first successful manual connector run
   useEffect(() => {
     if (!isManualRunTriggered || !runs.length) return;
-    if (dataMartDefinitionType !== DataMartDefinitionType.CONNECTOR) return;
+    if (!isConnector) return;
 
     const latestRun = runs[0];
     if (latestRun.id === lastRunIdRef.current) return;
@@ -250,6 +238,7 @@ export function DataMartDetails({ id }: DataMartDetailsProps) {
             projectId,
             dataMartId,
             isInsightsEnabled: shouldShowInsights,
+            showOnce: true,
           });
         }
       }
@@ -257,7 +246,7 @@ export function DataMartDetails({ id }: DataMartDetailsProps) {
   }, [
     runs,
     isManualRunTriggered,
-    dataMartDefinitionType,
+    isConnector,
     resetManualRunTriggered,
     showPromo,
     projectId,
@@ -287,6 +276,14 @@ export function DataMartDetails({ id }: DataMartDetailsProps) {
       </div>
     );
   }
+
+  // Config for publish button and tooltip based on data mart type
+  const publishText = {
+    buttonLabel: isConnector ? 'Publish & Run Data Mart' : 'Publish Data Mart',
+    tooltipText: isConnector
+      ? 'Publish and start loading data'
+      : 'Publish to enable reports and scheduled runs',
+  };
 
   return (
     <div className='min-w-[600px] px-12 py-6' data-testid='datamartDetails'>
@@ -323,11 +320,7 @@ export function DataMartDetails({ id }: DataMartDetailsProps) {
               <TooltipTrigger asChild>
                 <div className={cn('mr-4', !canPublish ? 'pt-1.5' : '')}>
                   <StatusLabel
-                    type={
-                      dataMartStatus.code === DataMartStatus.PUBLISHED
-                        ? StatusTypeEnum.SUCCESS
-                        : StatusTypeEnum.NEUTRAL
-                    }
+                    type={isPublished ? StatusTypeEnum.SUCCESS : StatusTypeEnum.NEUTRAL}
                     variant='subtle'
                   >
                     {dataMartStatus.displayName}
@@ -335,12 +328,12 @@ export function DataMartDetails({ id }: DataMartDetailsProps) {
                 </div>
               </TooltipTrigger>
               <TooltipContent side='bottom'>
-                {dataMartStatus.code === DataMartStatus.PUBLISHED
+                {isPublished
                   ? 'Your published Data Mart is ready for scheduled runs'
                   : 'Draft Data Mart is not available for scheduled runs. Publish it to activate scheduling.'}
               </TooltipContent>
             </Tooltip>
-            {dataMartStatus.code === DataMartStatus.DRAFT && (
+            {isDraft && (
               <Tooltip>
                 <TooltipTrigger asChild>
                   <div className='relative'>
@@ -357,7 +350,7 @@ export function DataMartDetails({ id }: DataMartDetailsProps) {
                       data-testid='datamartPublishButton'
                     >
                       <CircleCheckBig className='h-4 w-4' />
-                      Publish Data Mart
+                      {publishText.buttonLabel}
                     </Button>
                     <div
                       className={cn(
@@ -380,7 +373,7 @@ export function DataMartDetails({ id }: DataMartDetailsProps) {
                       </ul>
                     </>
                   ) : (
-                    <p>You can publish this Data Mart now</p>
+                    <p>{publishText.tooltipText}</p>
                   )}
                 </TooltipContent>
               </Tooltip>
@@ -393,7 +386,7 @@ export function DataMartDetails({ id }: DataMartDetailsProps) {
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align='end'>
-              {dataMartDefinitionType === DataMartDefinitionType.CONNECTOR && (
+              {isConnector && (
                 <>
                   <ConnectorRunView
                     configuration={dataMartDefinition ?? null}
@@ -519,21 +512,6 @@ export function DataMartDetails({ id }: DataMartDetailsProps) {
           })();
         }}
       />
-
-      {/* Controlled ConnectorRunView for toast "Run Now" action */}
-      {dataMartDefinitionType === DataMartDefinitionType.CONNECTOR && (
-        <ConnectorRunView
-          configuration={dataMartDefinition ?? null}
-          onManualRun={data => {
-            void handleManualRun({
-              runType: data.runType,
-              data: data.data,
-            });
-          }}
-          open={isRunSheetOpen}
-          onOpenChange={setIsRunSheetOpen}
-        />
-      )}
     </div>
   );
 }
