@@ -93,6 +93,14 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
           ],
         },
         {
+          label: 'Project Administration',
+          items: [
+            'docs/project/members',
+            'docs/project/roles-and-permissions',
+            'docs/project/access-rights',
+          ],
+        },
+        {
           label: 'Destinations',
           items: [
             'docs/destinations/manage-destinations',
