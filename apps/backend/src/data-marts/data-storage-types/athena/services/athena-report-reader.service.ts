@@ -1,6 +1,9 @@
 import { ReportDataHeader } from '../../../dto/domain/report-data-header.dto';
 import { isAthenaDataMartSchema } from '../../data-mart-schema.guards';
-import { DataStorageReportReader } from '../../interfaces/data-storage-report-reader.interface';
+import {
+  DataStorageReportReader,
+  PrepareReportDataOptions,
+} from '../../interfaces/data-storage-report-reader.interface';
 import { DataStorageReportReaderState } from '../../interfaces/data-storage-report-reader-state.interface';
 import {
   AthenaReaderState,
@@ -20,6 +23,7 @@ import { S3ApiAdapterFactory } from '../adapters/s3-api-adapter.factory';
 import { isAthenaConfig } from '../../data-storage-config.guards';
 import { AthenaQueryBuilder } from './athena-query.builder';
 import { AthenaReportHeadersGenerator } from './athena-report-headers-generator.service';
+import { resolveReportDataHeaders } from '../../utils/report-data-headers.utils';
 @Injectable({ scope: Scope.TRANSIENT })
 export class AthenaReportReader implements DataStorageReportReader {
   private readonly logger = new Logger(AthenaReportReader.name);
@@ -32,6 +36,7 @@ export class AthenaReportReader implements DataStorageReportReader {
   private outputPrefix: string;
   private reportDataHeaders: ReportDataHeader[];
   private reportConfig: { storage: DataStorage; definition: DataMartDefinition };
+  private pendingQuery?: string;
 
   constructor(
     private readonly athenaAdapterFactory: AthenaApiAdapterFactory,
@@ -40,7 +45,10 @@ export class AthenaReportReader implements DataStorageReportReader {
     private readonly headersGenerator: AthenaReportHeadersGenerator
   ) {}
 
-  async prepareReportData(report: Report): Promise<ReportDataDescription> {
+  async prepareReportData(
+    report: Report,
+    options?: PrepareReportDataOptions
+  ): Promise<ReportDataDescription> {
     const { storage, definition, schema } = report.dataMart;
     if (!storage || !definition) {
       throw new Error('Data Mart is not properly configured');
@@ -56,7 +64,13 @@ export class AthenaReportReader implements DataStorageReportReader {
 
     this.reportConfig = { storage, definition };
 
-    this.reportDataHeaders = this.headersGenerator.generateHeaders(schema);
+    this.reportDataHeaders = resolveReportDataHeaders(
+      this.headersGenerator.generateHeaders(schema),
+      options
+    );
+    this.pendingQuery =
+      options?.sqlOverride ??
+      this.athenaQueryBuilder.buildQuery(definition, { columns: options?.columnFilter });
 
     await this.prepareApiAdapters(storage);
 
@@ -166,7 +180,7 @@ export class AthenaReportReader implements DataStorageReportReader {
   private async prepareQueryExecution(dataMartDefinition: DataMartDefinition): Promise<void> {
     this.logger.debug('Preparing query execution', dataMartDefinition);
     try {
-      const query = this.athenaQueryBuilder.buildQuery(dataMartDefinition);
+      const query = this.pendingQuery ?? this.athenaQueryBuilder.buildQuery(dataMartDefinition);
       await this.executeQuery(query);
     } catch (error) {
       this.logger.error('Failed to prepare query execution', error);

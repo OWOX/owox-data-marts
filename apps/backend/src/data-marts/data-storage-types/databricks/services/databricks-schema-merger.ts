@@ -75,6 +75,7 @@ export class DatabricksSchemaMerger implements DataMartSchemaMerger {
 
     return {
       ...existingField,
+      isHiddenForReporting: existingField.isHiddenForReporting ?? false,
       status: this.getConnectedFieldStatus(hasTypeMismatch),
     };
   }

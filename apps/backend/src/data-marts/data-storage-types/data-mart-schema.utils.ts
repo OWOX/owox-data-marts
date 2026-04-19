@@ -17,6 +17,10 @@ export function createBaseFieldSchemaForType<T extends z.ZodTypeAny>(schemaField
         .boolean()
         .default(false)
         .describe('Is field must be a part of a data mart primary key'),
+      isHiddenForReporting: z
+        .boolean()
+        .default(false)
+        .describe('Hide field from reporting and blending'),
       status: z
         .nativeEnum(DataMartSchemaFieldStatus)
         .describe('Field status relatively to the actual data mart schema'),

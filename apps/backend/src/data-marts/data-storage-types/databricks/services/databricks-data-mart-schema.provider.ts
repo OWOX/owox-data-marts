@@ -77,6 +77,7 @@ export class DatabricksDataMartSchemaProvider implements DataMartSchemaProvider 
             name: fieldName,
             type: DatabricksFieldType.STRING,
             isPrimaryKey: false,
+            isHiddenForReporting: false,
             status: DataMartSchemaFieldStatus.CONNECTED,
           })),
         };
@@ -161,6 +162,7 @@ export class DatabricksDataMartSchemaProvider implements DataMartSchemaProvider 
       type: this.parseDatabricksFieldType(type),
       description: description || undefined,
       isPrimaryKey,
+      isHiddenForReporting: false,
       status: DataMartSchemaFieldStatus.CONNECTED,
     };
   }

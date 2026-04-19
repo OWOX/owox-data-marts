@@ -130,6 +130,7 @@ export class BigQuerySchemaMerger implements DataMartSchemaMerger {
 
     return {
       ...existingField,
+      isHiddenForReporting: existingField.isHiddenForReporting ?? false,
       status,
       fields: mergedFields,
     };
@@ -153,6 +154,7 @@ export class BigQuerySchemaMerger implements DataMartSchemaMerger {
   private updateSimpleField(existingField: SchemaField, hasTypeMismatch: boolean): SchemaField {
     return {
       ...existingField,
+      isHiddenForReporting: existingField.isHiddenForReporting ?? false,
       status: this.getConnectedFieldStatus(hasTypeMismatch),
     };
   }

@@ -1,5 +1,8 @@
 import { Injectable, Logger, Scope } from '@nestjs/common';
-import { DataStorageReportReader } from '../../interfaces/data-storage-report-reader.interface';
+import {
+  DataStorageReportReader,
+  PrepareReportDataOptions,
+} from '../../interfaces/data-storage-report-reader.interface';
 import { DataStorageType } from '../../enums/data-storage-type.enum';
 import { Report } from '../../../entities/report.entity';
 import { ReportDataDescription } from '../../../dto/domain/report-data-description.dto';
@@ -14,6 +17,7 @@ import { isRedshiftDataMartSchema } from '../../data-mart-schema.guards';
 import { RedshiftReaderState } from '../interfaces/redshift-reader-state.interface';
 import { DataMartDefinition } from '../../../dto/schemas/data-mart-table-definitions/data-mart-definition';
 import { DataStorage } from '../../../entities/data-storage.entity';
+import { resolveReportDataHeaders } from '../../utils/report-data-headers.utils';
 
 @Injectable({ scope: Scope.TRANSIENT })
 export class RedshiftReportReader implements DataStorageReportReader {
@@ -27,6 +31,7 @@ export class RedshiftReportReader implements DataStorageReportReader {
     storage: DataStorage;
     definition: DataMartDefinition;
   };
+  private pendingQuery?: string;
 
   constructor(
     private readonly adapterFactory: RedshiftApiAdapterFactory,
@@ -34,7 +39,10 @@ export class RedshiftReportReader implements DataStorageReportReader {
     private readonly headersGenerator: RedshiftReportHeadersGenerator
   ) {}
 
-  async prepareReportData(report: Report): Promise<ReportDataDescription> {
+  async prepareReportData(
+    report: Report,
+    options?: PrepareReportDataOptions
+  ): Promise<ReportDataDescription> {
     const { storage, definition, schema } = report.dataMart;
 
     if (!storage || !definition) {
@@ -46,7 +54,13 @@ export class RedshiftReportReader implements DataStorageReportReader {
     }
 
     this.reportConfig = { storage, definition };
-    this.reportDataHeaders = this.headersGenerator.generateHeaders(schema);
+    this.reportDataHeaders = resolveReportDataHeaders(
+      this.headersGenerator.generateHeaders(schema),
+      options
+    );
+    this.pendingQuery =
+      options?.sqlOverride ??
+      this.queryBuilder.buildQuery(definition, { columns: options?.columnFilter });
 
     this.adapter = await this.adapterFactory.createFromStorage(storage);
 
@@ -95,7 +109,7 @@ export class RedshiftReportReader implements DataStorageReportReader {
       throw new Error('Adapter not initialized');
     }
 
-    const query = this.queryBuilder.buildQuery(this.reportConfig.definition);
+    const query = this.pendingQuery ?? this.queryBuilder.buildQuery(this.reportConfig.definition);
 
     const { statementId } = await this.adapter.executeQuery(query);
     this.statementId = statementId;

@@ -23,7 +23,10 @@ export class DatabricksReportHeadersGenerator implements ReportHeadersGenerator 
     }
 
     return dataMartSchema.fields
-      .filter(field => field.status !== DataMartSchemaFieldStatus.DISCONNECTED)
+      .filter(
+        field =>
+          field.status !== DataMartSchemaFieldStatus.DISCONNECTED && !field.isHiddenForReporting
+      )
       .map(field => new ReportDataHeader(field.name, field.alias, field.description, field.type));
   }
 }
