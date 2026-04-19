@@ -12,23 +12,32 @@ import {
   DataMartQueryBuilder,
   DataMartQueryOptions,
 } from '../../interfaces/data-mart-query-builder.interface';
-import { escapeFullyQualifiedIdentifier } from '../utils/databricks-identifier.utils';
+import {
+  escapeDatabricksIdentifier,
+  escapeFullyQualifiedIdentifier,
+} from '../utils/databricks-identifier.utils';
 
 @Injectable()
 export class DatabricksQueryBuilder implements DataMartQueryBuilder {
   readonly type = DataStorageType.DATABRICKS;
 
   buildQuery(definition: DataMartDefinition, queryOptions?: DataMartQueryOptions): string {
+    const selectList = this.buildSelectList(queryOptions?.columns);
     let query: string;
 
     if (isTableDefinition(definition) || isViewDefinition(definition)) {
       const parts = definition.fullyQualifiedName.split('.');
-      query = `SELECT * FROM ${escapeFullyQualifiedIdentifier(parts)}`;
+      query = `SELECT ${selectList} FROM ${escapeFullyQualifiedIdentifier(parts)}`;
     } else if (isConnectorDefinition(definition)) {
       const parts = definition.connector.storage.fullyQualifiedName.split('.');
-      query = `SELECT * FROM ${escapeFullyQualifiedIdentifier(parts)}`;
+      query = `SELECT ${selectList} FROM ${escapeFullyQualifiedIdentifier(parts)}`;
     } else if (isSqlDefinition(definition)) {
-      query = definition.sqlQuery.trim();
+      if (queryOptions?.columns?.length) {
+        const cleanQuery = definition.sqlQuery.trim().replace(/;\s*$/, '');
+        query = `SELECT ${selectList} FROM (${cleanQuery})`;
+      } else {
+        query = definition.sqlQuery.trim();
+      }
     } else if (isTablePatternDefinition(definition)) {
       throw new Error('Table pattern definitions are not supported for Databricks');
     } else {
@@ -41,5 +50,12 @@ export class DatabricksQueryBuilder implements DataMartQueryBuilder {
     }
 
     return query;
+  }
+
+  private buildSelectList(columns?: string[]): string {
+    if (!columns || columns.length === 0) {
+      return '*';
+    }
+    return columns.map(col => escapeDatabricksIdentifier(col)).join(', ');
   }
 }

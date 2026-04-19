@@ -19,14 +19,20 @@ export class SnowflakeQueryBuilder implements DataMartQueryBuilder {
   readonly type = DataStorageType.SNOWFLAKE;
 
   buildQuery(definition: DataMartDefinition, queryOptions?: DataMartQueryOptions): string {
+    const selectList = this.buildSelectList(queryOptions?.columns);
     let query: string;
 
     if (isTableDefinition(definition) || isViewDefinition(definition)) {
-      query = `SELECT * FROM ${escapeSnowflakeIdentifier(definition.fullyQualifiedName)}`;
+      query = `SELECT ${selectList} FROM ${escapeSnowflakeIdentifier(definition.fullyQualifiedName)}`;
     } else if (isConnectorDefinition(definition)) {
-      query = `SELECT * FROM ${escapeSnowflakeIdentifier(definition.connector.storage.fullyQualifiedName)}`;
+      query = `SELECT ${selectList} FROM ${escapeSnowflakeIdentifier(definition.connector.storage.fullyQualifiedName)}`;
     } else if (isSqlDefinition(definition)) {
-      query = definition.sqlQuery;
+      if (queryOptions?.columns?.length) {
+        const cleanQuery = definition.sqlQuery.trim().replace(/;\s*$/, '');
+        query = `SELECT ${selectList} FROM (${cleanQuery})`;
+      } else {
+        query = definition.sqlQuery;
+      }
     } else if (isTablePatternDefinition(definition)) {
       // Snowflake doesn't support table patterns like BigQuery
       // This would need to be implemented differently, possibly using INFORMATION_SCHEMA
@@ -41,5 +47,12 @@ export class SnowflakeQueryBuilder implements DataMartQueryBuilder {
     }
 
     return query;
+  }
+
+  private buildSelectList(columns?: string[]): string {
+    if (!columns || columns.length === 0) {
+      return '*';
+    }
+    return columns.map(col => escapeSnowflakeIdentifier(col)).join(', ');
   }
 }
