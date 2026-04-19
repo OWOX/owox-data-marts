@@ -17,7 +17,9 @@ import {
 import { ConfirmationDialog } from '../../../../../../shared/components/ConfirmationDialog';
 import type { DataMartReport } from '../../../shared/model/types/data-mart-report';
 import { ReportStatusEnum } from '../../../shared/enums';
-import { useReport } from '../../../shared';
+import { reportHasBlending, useReport } from '../../../shared';
+import { useBlendedFieldNames } from '../../../../shared/hooks/useBlendedFieldNames';
+import { GeneratedSqlViewer } from '../../../../edit/components/ReportColumnPicker/GeneratedSqlViewer';
 
 interface EmailActionsCellProps {
   row: { original: DataMartReport };
@@ -32,6 +34,11 @@ export function EmailActionsCell({ row, onDeleteSuccess, onEditReport }: EmailAc
   const [menuOpen, setMenuOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const { deleteReport, fetchReportsByDataMartId, runReport } = useReport();
+
+  // Show the "View SQL" icon only when the report actually produces blended output.
+  // The hook is safe to call per-row: React Query dedupes concurrent requests by key.
+  const blendedFieldNames = useBlendedFieldNames(row.original.dataMart.id);
+  const hasBlending = reportHasBlending(row.original, blendedFieldNames);
 
   const actionsMenuId = `actions-menu-${row.original.id}`;
 
@@ -105,6 +112,15 @@ export function EmailActionsCell({ row, onDeleteSuccess, onEditReport }: EmailAc
             Run report
           </TooltipContent>
         </Tooltip>
+
+        {/* View SQL (only when report uses blending) */}
+        {hasBlending && (
+          <GeneratedSqlViewer
+            reportId={row.original.id}
+            dataMartId={row.original.dataMart.id}
+            reportTitle={row.original.title}
+          />
+        )}
 
         {/* More actions */}
         <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>

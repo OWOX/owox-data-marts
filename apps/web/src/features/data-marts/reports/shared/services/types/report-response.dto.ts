@@ -13,6 +13,7 @@ export interface ReportResponseDto {
   dataMart: DataMartResponseDto;
   dataDestinationAccess: DataDestinationResponseDto;
   destinationConfig: DestinationConfigDto;
+  columnConfig?: string[] | null;
   lastRunAt: string | null;
   lastRunStatus: ReportStatusEnum | null;
   lastRunError: string | null;

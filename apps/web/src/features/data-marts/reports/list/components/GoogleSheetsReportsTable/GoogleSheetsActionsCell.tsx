@@ -15,13 +15,15 @@ import {
   TooltipTrigger,
 } from '@owox/ui/components/tooltip';
 import { ConfirmationDialog } from '../../../../../../shared/components/ConfirmationDialog';
-import { getGoogleSheetTabUrl } from '../../../shared';
+import { getGoogleSheetTabUrl, reportHasBlending } from '../../../shared';
 import type {
   DataMartReport,
   GoogleSheetsDestinationConfig,
 } from '../../../shared/model/types/data-mart-report';
 import { ReportStatusEnum } from '../../../shared/enums';
 import { useReport } from '../../../shared';
+import { useBlendedFieldNames } from '../../../../shared/hooks/useBlendedFieldNames';
+import { GeneratedSqlViewer } from '../../../../edit/components/ReportColumnPicker/GeneratedSqlViewer';
 
 interface GoogleSheetsActionsCellProps {
   row: { original: DataMartReport };
@@ -40,6 +42,11 @@ export function GoogleSheetsActionsCell({
   const [menuOpen, setMenuOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const { deleteReport, fetchReportsByDataMartId, runReport } = useReport();
+
+  // Show the "View SQL" icon only when the report actually produces blended output.
+  // The hook is safe to call per-row: React Query dedupes concurrent requests by key.
+  const blendedFieldNames = useBlendedFieldNames(row.original.dataMart.id);
+  const hasBlending = reportHasBlending(row.original, blendedFieldNames);
 
   // Generate unique ID for the actions menu
   const actionsMenuId = `actions-menu-${row.original.id}`;
@@ -138,6 +145,15 @@ export function GoogleSheetsActionsCell({
             Open document
           </TooltipContent>
         </Tooltip>
+
+        {/* View SQL (only when report uses blending) */}
+        {hasBlending && (
+          <GeneratedSqlViewer
+            reportId={row.original.id}
+            dataMartId={row.original.dataMart.id}
+            reportTitle={row.original.title}
+          />
+        )}
 
         {/* More actions */}
         <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>

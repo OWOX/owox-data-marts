@@ -12,12 +12,14 @@ interface SortableTableRowProps<T = unknown> {
   row?: T;
   /** Table cells (first cell replaced with drag handle) */
   children: ReactNode;
+  /** Optional class name for the row */
+  className?: string;
 }
 
 /**
  * Sortable table row with drag-and-drop functionality
  */
-export function SortableTableRow<T>({ id, children }: SortableTableRowProps<T>) {
+export function SortableTableRow<T>({ id, children, className }: SortableTableRowProps<T>) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id,
   });
@@ -53,7 +55,7 @@ export function SortableTableRow<T>({ id, children }: SortableTableRowProps<T>) 
   ];
 
   return (
-    <TableRow ref={setNodeRef} style={style} className='group'>
+    <TableRow ref={setNodeRef} style={style} className={`group${className ? ` ${className}` : ''}`}>
       {updatedChildren}
     </TableRow>
   );

@@ -49,6 +49,18 @@ export function Combobox({
 }: ComboboxProps) {
   const [open, setOpen] = React.useState(false);
   const [searchQuery, setSearchQuery] = React.useState('');
+  const [activeValue, setActiveValue] = React.useState(value);
+
+  const handleOpenChange = React.useCallback(
+    (nextOpen: boolean) => {
+      setOpen(nextOpen);
+      if (nextOpen) {
+        setActiveValue(value);
+        setSearchQuery('');
+      }
+    },
+    [value]
+  );
 
   const groupedOptions = React.useMemo(() => {
     const groups: Record<string, ComboboxOption[]> = {};
@@ -78,7 +90,7 @@ export function Combobox({
   );
 
   return (
-    <Popover open={open} onOpenChange={setOpen} modal={true}>
+    <Popover open={open} onOpenChange={handleOpenChange} modal={true}>
       <PopoverTrigger asChild>
         <Button
           variant='outline'
@@ -87,9 +99,15 @@ export function Combobox({
           className={cn('w-full justify-between', !value && 'text-muted-foreground', className)}
           disabled={disabled}
         >
-          <span className='min-w-0 flex-1 truncate text-left'>
-            {selectedOption ? selectedOption.label : placeholder}
-          </span>
+          {selectedOption ? (
+            renderLabel ? (
+              <span className='min-w-0 flex-1 text-left'>{renderLabel(selectedOption)}</span>
+            ) : (
+              <span className='min-w-0 flex-1 truncate text-left'>{selectedOption.label}</span>
+            )
+          ) : (
+            <span className='min-w-0 flex-1 truncate text-left'>{placeholder}</span>
+          )}
           <ChevronsUpDown className='ml-2 h-4 w-4 shrink-0 opacity-50' />
         </Button>
       </PopoverTrigger>
@@ -99,6 +117,8 @@ export function Combobox({
         sideOffset={5}
       >
         <Command
+          value={activeValue}
+          onValueChange={setActiveValue}
           filter={filterOptions}
           className='[&_[data-slot=command-input-wrapper]]:gap-3 [&_[data-slot=command-input-wrapper]]:px-4'
         >
@@ -107,7 +127,7 @@ export function Combobox({
             value={searchQuery}
             onValueChange={setSearchQuery}
           />
-          <CommandList className='max-h-[300px] overflow-auto'>
+          <CommandList className='max-h-[200px] overflow-auto'>
             <CommandEmpty>{emptyMessage}</CommandEmpty>
             {Object.entries(groupedOptions).map(([groupName, groupOptions]) => {
               return (

@@ -17,6 +17,10 @@ export const GoogleSheetsReportEditFormSchema = z.object({
   title: z.string().min(1, 'Title is required'),
   documentUrl: z.string().refine(isValidGoogleSheetsUrl, 'Enter a valid Google Sheets URL'),
   dataDestinationId: z.string().min(1, 'Destination is required'),
+  columnConfig: z
+    .array(z.string())
+    .nullable()
+    .refine(val => val === null || val.length > 0, 'At least one column must be selected'),
 });
 
 export type GoogleSheetsReportEditFormValues = z.infer<typeof GoogleSheetsReportEditFormSchema>;
@@ -61,6 +65,7 @@ export function useGoogleSheetsReportForm({
           ? `https://docs.google.com/spreadsheets/d/${initialReport.destinationConfig.spreadsheetId}/edit#gid=${initialReport.destinationConfig.sheetId}`
           : '',
       dataDestinationId: initialReport?.dataDestination.id ?? preSelectedDestination?.id ?? '', // Use preSelectedDestination here
+      columnConfig: initialReport?.columnConfig ?? null,
     },
     mode: 'onTouched',
   });
@@ -98,6 +103,7 @@ export function useGoogleSheetsReportForm({
             ...(pendingOwnerIdsRef?.current != null
               ? { ownerIds: pendingOwnerIdsRef.current }
               : {}),
+            columnConfig: data.columnConfig,
           });
         } else {
           if (!initialReport) {
@@ -115,6 +121,7 @@ export function useGoogleSheetsReportForm({
             ...(pendingOwnerIdsRef?.current != null
               ? { ownerIds: pendingOwnerIdsRef.current }
               : {}),
+            columnConfig: data.columnConfig,
           });
         }
 

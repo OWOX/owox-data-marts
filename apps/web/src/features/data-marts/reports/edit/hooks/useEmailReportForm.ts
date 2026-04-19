@@ -28,6 +28,10 @@ export const EmailReportEditFormSchema = z
     insightTemplateId: z.string().optional(),
     // Track which template source type is selected
     templateSourceType: z.nativeEnum(TemplateSourceTypeEnum),
+    columnConfig: z
+      .array(z.string())
+      .nullable()
+      .refine(val => val === null || val.length > 0, 'At least one column must be selected'),
   })
   .superRefine((data, ctx) => {
     if (data.templateSourceType === TemplateSourceTypeEnum.CUSTOM_MESSAGE) {
@@ -121,6 +125,7 @@ export function useEmailReportForm({
         isEmailDestinationConfig(initialReport.destinationConfig)
           ? (initialReport.destinationConfig.templateSource.type as TemplateSourceTypeEnum)
           : TemplateSourceTypeEnum.CUSTOM_MESSAGE,
+      columnConfig: initialReport?.columnConfig ?? null,
     },
     mode: 'onTouched',
   });
@@ -168,6 +173,7 @@ export function useEmailReportForm({
             ...(pendingOwnerIdsRef?.current != null
               ? { ownerIds: pendingOwnerIdsRef.current }
               : {}),
+            columnConfig: data.columnConfig,
           });
         } else {
           if (!initialReport) {
@@ -181,6 +187,7 @@ export function useEmailReportForm({
             ...(pendingOwnerIdsRef?.current != null
               ? { ownerIds: pendingOwnerIdsRef.current }
               : {}),
+            columnConfig: data.columnConfig,
           });
         }
 
