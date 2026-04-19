@@ -1,5 +1,6 @@
 import { Tooltip, TooltipContent, TooltipTrigger } from '@owox/ui/components/tooltip';
 import type { ColumnDef, Row, Table } from '@tanstack/react-table';
+import { EyeOff } from 'lucide-react';
 import type { ComponentType } from 'react';
 import { useCallback, useMemo } from 'react';
 import type { SortingStrategy } from '@dnd-kit/sortable';
@@ -184,14 +185,24 @@ export function BaseSchemaTable<T extends BaseSchemaField>({
             return nameColumnCell({ row, updateField });
           }
           return (
-            <EditableText
-              value={asString(row.getValue('name'))}
-              onValueChange={value => {
-                updateField(row.index, { name: value } as Partial<T>);
-              }}
-              placeholder={'Field name is required'}
-              isBold={true}
-            />
+            <div className='flex items-center gap-1'>
+              <EditableText
+                value={asString(row.getValue('name'))}
+                onValueChange={value => {
+                  updateField(row.index, { name: value } as Partial<T>);
+                }}
+                placeholder={'Field name is required'}
+                isBold={true}
+              />
+              {row.original.isHiddenForReporting && (
+                <Tooltip>
+                  <TooltipTrigger>
+                    <EyeOff className='text-muted-foreground h-3.5 w-3.5 flex-shrink-0' />
+                  </TooltipTrigger>
+                  <TooltipContent>Hidden from reports</TooltipContent>
+                </Tooltip>
+              )}
+            </div>
           );
         },
         enableHiding: false,
@@ -282,6 +293,16 @@ export function BaseSchemaTable<T extends BaseSchemaField>({
             <SchemaFieldActionsButton
               row={row}
               onDeleteRow={onFieldsChange ? handleDeleteRow : undefined}
+              isHiddenForReporting={!!row.original.isHiddenForReporting}
+              onToggleHiddenForReporting={
+                onFieldsChange
+                  ? (index: number) => {
+                      updateField(index, {
+                        isHiddenForReporting: !fields[index].isHiddenForReporting,
+                      } as Partial<T>);
+                    }
+                  : undefined
+              }
             />
           );
         },
@@ -291,6 +312,7 @@ export function BaseSchemaTable<T extends BaseSchemaField>({
       },
     ],
     [
+      fields,
       updateField,
       handleDeleteRow,
       onFieldsChange,

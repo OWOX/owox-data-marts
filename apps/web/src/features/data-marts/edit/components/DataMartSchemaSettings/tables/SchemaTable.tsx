@@ -196,7 +196,12 @@ export function SchemaTable<T extends BaseSchemaField>({
             {table.getRowModel().rows.length ? (
               <DragContext {...dragContextProps}>
                 {table.getRowModel().rows.map(row => (
-                  <RowComponent key={row.id} id={getRowId ? getRowId(row) : row.index} row={row}>
+                  <RowComponent
+                    key={row.id}
+                    id={getRowId ? getRowId(row) : row.index}
+                    row={row}
+                    className={row.original.isHiddenForReporting ? 'opacity-70' : undefined}
+                  >
                     {row.getVisibleCells().map(cell => (
                       <TableCell
                         key={cell.id}

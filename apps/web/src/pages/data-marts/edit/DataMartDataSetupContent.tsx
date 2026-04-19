@@ -13,6 +13,7 @@ import {
   CollapsibleCardFooter,
 } from '../../../shared/components/CollapsibleCard';
 import { DatabaseIcon, CodeIcon, Columns3 } from 'lucide-react';
+import { DataMartRelationshipsContent } from '../../../features/data-marts/edit/components/DataMartRelationships/DataMartRelationshipsContent';
 import type { DataMartDefinitionType } from '../../../features/data-marts/shared';
 
 export default function DataMartDataSetupContent() {
@@ -88,6 +89,8 @@ export default function DataMartDataSetupContent() {
         </CollapsibleCardContent>
         <CollapsibleCardFooter></CollapsibleCardFooter>
       </CollapsibleCard>
+
+      <DataMartRelationshipsContent />
     </div>
   );
 }

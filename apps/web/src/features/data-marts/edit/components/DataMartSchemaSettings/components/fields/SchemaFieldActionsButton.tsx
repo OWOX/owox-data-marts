@@ -7,7 +7,7 @@ import {
   DropdownMenuTrigger,
 } from '@owox/ui/components/dropdown-menu';
 import { type Row } from '@tanstack/react-table';
-import { MoreHorizontal, Plus, Trash2 } from 'lucide-react';
+import { Eye, EyeOff, MoreHorizontal, Plus, Trash2 } from 'lucide-react';
 import { useState } from 'react';
 import { ConfirmationDialog } from '../../../../../../../shared/components/ConfirmationDialog';
 
@@ -23,6 +23,10 @@ interface SchemaFieldActionsButtonProps<TData> {
   onAddNestedField?: (index: number) => void;
   /** Function to check if a field is a record type */
   isRecordType?: (index: number) => boolean;
+  /** Whether the field is currently hidden from reports */
+  isHiddenForReporting?: boolean;
+  /** Callback to toggle the hidden-for-reporting state */
+  onToggleHiddenForReporting?: (index: number) => void;
 }
 
 /**
@@ -33,6 +37,8 @@ export function SchemaFieldActionsButton<TData>({
   onDeleteRow,
   onAddNestedField,
   isRecordType,
+  isHiddenForReporting,
+  onToggleHiddenForReporting,
 }: SchemaFieldActionsButtonProps<TData>) {
   const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
 
@@ -44,8 +50,9 @@ export function SchemaFieldActionsButton<TData>({
   };
 
   const showAddNestedField = isRecordType && onAddNestedField && isRecordType(row.index);
+  const showHideToggle = !!onToggleHiddenForReporting;
   const showDeleteField = !!onDeleteRow;
-  const showSeparator = showAddNestedField && showDeleteField;
+  const showSeparator = (!!showAddNestedField || showHideToggle) && showDeleteField;
 
   return (
     <div className='px-3 text-right'>
@@ -69,6 +76,27 @@ export function SchemaFieldActionsButton<TData>({
             >
               <Plus className='mr-2 h-4 w-4' />
               Add nested field
+            </DropdownMenuItem>
+          )}
+
+          {onToggleHiddenForReporting && (
+            <DropdownMenuItem
+              className='cursor-pointer'
+              onClick={() => {
+                onToggleHiddenForReporting(row.index);
+              }}
+            >
+              {isHiddenForReporting ? (
+                <>
+                  <Eye className='mr-2 h-4 w-4' />
+                  Show in reports
+                </>
+              ) : (
+                <>
+                  <EyeOff className='mr-2 h-4 w-4' />
+                  Hide from reports
+                </>
+              )}
             </DropdownMenuItem>
           )}
 
