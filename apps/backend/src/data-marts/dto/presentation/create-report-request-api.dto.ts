@@ -30,4 +30,15 @@ export class CreateReportRequestApiDto {
   @IsString({ each: true })
   @IsNotEmpty({ each: true })
   ownerIds?: string[];
+
+  @ApiProperty({
+    description: 'Selected columns for the report (null = all native columns)',
+    nullable: true,
+    required: false,
+    type: [String],
+  })
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  columnConfig?: string[] | null;
 }

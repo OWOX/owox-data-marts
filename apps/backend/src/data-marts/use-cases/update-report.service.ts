@@ -16,6 +16,7 @@ import { resolveOwnerUsers } from '../utils/resolve-owner-users';
 import { syncOwners } from '../utils/sync-owners';
 import { IdpProjectionsFacade } from '../../idp/facades/idp-projections.facade';
 import { ReportAccessService } from '../services/report-access.service';
+import { ReportDataCacheService } from '../services/report-data-cache.service';
 
 @Injectable()
 export class UpdateReportService {
@@ -30,7 +31,8 @@ export class UpdateReportService {
     private readonly idpProjectionsFacade: IdpProjectionsFacade,
     @InjectRepository(ReportOwner)
     private readonly reportOwnerRepository: Repository<ReportOwner>,
-    private readonly reportAccessService: ReportAccessService
+    private readonly reportAccessService: ReportAccessService,
+    private readonly reportDataCacheService: ReportDataCacheService
   ) {}
 
   @Transactional()
@@ -91,10 +93,19 @@ export class UpdateReportService {
       }
     }
 
+    // Detect columnConfig change BEFORE we overwrite the entity so we can
+    // invalidate the cache for this report after save. Serialized compare
+    // handles null, empty arrays, and order changes uniformly.
+    const previousColumnConfig = report.columnConfig ?? null;
+    const nextColumnConfig = command.columnConfig ?? null;
+    const columnConfigChanged =
+      JSON.stringify(previousColumnConfig) !== JSON.stringify(nextColumnConfig);
+
     // Update the report
     report.title = command.title;
     report.dataDestination = dataDestination;
     report.destinationConfig = command.destinationConfig;
+    report.columnConfig = nextColumnConfig;
 
     const updatedReport = await this.reportRepository.save(report);
 
@@ -113,6 +124,13 @@ export class UpdateReportService {
           return o;
         }
       );
+    }
+
+    if (columnConfigChanged) {
+      // Stale cache would otherwise serve the old column set until TTL
+      // expires (default 1h). Invalidate so the next read applies the
+      // new selection immediately.
+      await this.reportDataCacheService.invalidateByReportId(updatedReport.id);
     }
 
     // Reload to get fresh owners

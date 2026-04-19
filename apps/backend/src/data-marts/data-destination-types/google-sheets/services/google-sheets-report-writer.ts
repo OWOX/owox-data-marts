@@ -336,6 +336,10 @@ export class GoogleSheetsReportWriter implements DataDestinationReportWriter {
         columnsToAllocate,
         'COLUMNS'
       );
+
+      // Keep local tracking in sync so subsequent requests (header format
+      // reset, etc.) operate on the correct column range.
+      this.availableColumnsCount += columnsToAllocate;
     }, 'Adding columns to sheet as needed');
   }
 
@@ -389,7 +393,12 @@ export class GoogleSheetsReportWriter implements DataDestinationReportWriter {
         this.metadataFormatter.createNoteRequest(sheetId, h.description, 0, i)
       );
 
+      // Reset header-row formatting across ALL columns first, then apply
+      // the new header format only to the columns we are about to write.
+      // Without this reset, columns that were part of a previous (wider)
+      // report keep the old gray header background on empty cells.
       await this.adapter.batchUpdate(spreadsheetId, [
+        this.headerFormatter.createHeaderClearFormatRequest(sheetId, this.availableColumnsCount),
         this.headerFormatter.createHeaderFormatRequest(sheetId, headers.length),
         ...descriptions,
       ]);

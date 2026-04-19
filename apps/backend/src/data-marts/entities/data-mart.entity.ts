@@ -20,6 +20,10 @@ import { createZodTransformer } from '../../common/zod/zod-transformer';
 import { ConnectorState } from './connector-state.entity';
 import { DataMartTechnicalOwner } from './data-mart-technical-owner.entity';
 import { DataMartBusinessOwner } from './data-mart-business-owner.entity';
+import {
+  BlendedFieldsConfig,
+  BlendedFieldsConfigSchema,
+} from '../dto/schemas/blended-fields-config.schemas';
 
 @Entity()
 export class DataMart implements CreatorAwareEntity {
@@ -72,6 +76,13 @@ export class DataMart implements CreatorAwareEntity {
 
   @OneToMany(() => DataMartTechnicalOwner, owner => owner.dataMart)
   technicalOwners: DataMartTechnicalOwner[];
+
+  @Column({
+    type: 'json',
+    transformer: createZodTransformer<BlendedFieldsConfig>(BlendedFieldsConfigSchema, false),
+    nullable: true,
+  })
+  blendedFieldsConfig?: BlendedFieldsConfig;
 
   @Column()
   createdById: string;

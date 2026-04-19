@@ -105,3 +105,25 @@ export function ListReportsByInsightTemplateSpec() {
     })
   );
 }
+
+export function GetReportGeneratedSqlSpec() {
+  return applyDecorators(
+    ApiOperation({ summary: 'Get the generated SQL for a report' }),
+    ApiParam({ name: 'id', description: 'Report ID' }),
+    ApiOkResponse({
+      description: 'The generated SQL query for the report.',
+      schema: { type: 'object', properties: { sql: { type: 'string' } } },
+    })
+  );
+}
+
+export function CopyReportAsDataMartSpec() {
+  return applyDecorators(
+    ApiOperation({ summary: 'Copy a report as a new data mart with SQL definition' }),
+    ApiParam({ name: 'id', description: 'Report ID' }),
+    ApiCreatedResponse({
+      description: 'The new data mart has been successfully created.',
+      schema: { type: 'object', properties: { dataMartId: { type: 'string' } } },
+    })
+  );
+}

@@ -3,10 +3,16 @@ import { Response } from 'express';
 import { BusinessViolationException } from '../../../../common/exceptions/business-violation.exception';
 import { ProjectOperationBlockedException } from '../../../../common/exceptions/project-operation-blocked.exception';
 import { OwoxEventDispatcher } from '../../../../common/event-dispatcher/owox-event-dispatcher';
+import { SystemTimeService } from '../../../../common/scheduler/services/system-time.service';
 import { CachedReaderData } from '../../../dto/domain/cached-reader-data.dto';
 import { Report } from '../../../entities/report.entity';
 import { LookerReportRunEvent } from '../../../events/looker-report-run.event';
 import { LookerStudioReportRun } from '../../../models/looker-studio-report-run.model';
+import {
+  createReportRunLogger,
+  ReportRunLogger,
+} from '../../../report-run-logging/report-run-logger';
+import { BlendedReportDataService } from '../../../services/blended-report-data.service';
 import { ConsumptionTrackingService } from '../../../services/consumption-tracking.service';
 import { LookerStudioReportRunService } from '../../../services/looker-studio-report-run.service';
 import { ProjectBalanceService } from '../../../services/project-balance.service';
@@ -69,7 +75,9 @@ export class LookerStudioConnectorApiService {
     private readonly consumptionTrackingService: ConsumptionTrackingService,
     private readonly eventDispatcher: OwoxEventDispatcher,
     private readonly lookerStudioReportRunService: LookerStudioReportRunService,
-    private readonly projectBalanceService: ProjectBalanceService
+    private readonly projectBalanceService: ProjectBalanceService,
+    private readonly blendedReportDataService: BlendedReportDataService,
+    private readonly systemTimeService: SystemTimeService
   ) {}
 
   /**
@@ -182,6 +190,12 @@ export class LookerStudioConnectorApiService {
       throw new InternalServerErrorException('Failed to create report run');
     }
 
+    const reportRunLogger = createReportRunLogger(this.systemTimeService);
+    this.blendedReportDataService.logBlendedSqlIfNeeded(
+      cachedReader.blendingDecision,
+      reportRunLogger
+    );
+
     try {
       await this.projectBalanceService.verifyCanPerformOperations(report.dataMart.projectId);
       const context = await this.dataService.prepareStreamingContext(
@@ -200,13 +214,14 @@ export class LookerStudioConnectorApiService {
           new BusinessViolationException(
             limitReason ??
               `Looker Studio streaming response truncated (unknown reason), rows sent: ${rowCount}, bytes sent: ${bytesWritten}`
-          )
+          ),
+          reportRunLogger
         );
       } else {
-        await this.handleSuccessfulReportRun(reportRun, cachedReader);
+        await this.handleSuccessfulReportRun(reportRun, cachedReader, reportRunLogger);
       }
     } catch (e) {
-      await this.handleFailedReportRun(reportRun, e);
+      await this.handleFailedReportRun(reportRun, e, reportRunLogger);
       // If headers haven't been sent yet, throw to let error handler respond
       if (!res.headersSent) {
         throw e;
@@ -347,6 +362,12 @@ export class LookerStudioConnectorApiService {
       throw new InternalServerErrorException('Failed to create report run');
     }
 
+    const reportRunLogger = createReportRunLogger(this.systemTimeService);
+    this.blendedReportDataService.logBlendedSqlIfNeeded(
+      cachedReader.blendingDecision,
+      reportRunLogger
+    );
+
     try {
       await this.projectBalanceService.verifyCanPerformOperations(report.dataMart.projectId);
       const { response, meta } = await this.dataService.getData(request, report, cachedReader);
@@ -357,15 +378,16 @@ export class LookerStudioConnectorApiService {
           new BusinessViolationException(
             meta.limitReason ??
               `Looker Studio response truncated (unknown reason), rows sent: ${meta.rowsSent}`
-          )
+          ),
+          reportRunLogger
         );
       } else {
-        await this.handleSuccessfulReportRun(reportRun, cachedReader);
+        await this.handleSuccessfulReportRun(reportRun, cachedReader, reportRunLogger);
       }
 
       return response;
     } catch (e) {
-      await this.handleFailedReportRun(reportRun, e);
+      await this.handleFailedReportRun(reportRun, e, reportRunLogger);
       throw e;
     }
   }
@@ -384,11 +406,12 @@ export class LookerStudioConnectorApiService {
    */
   private async handleSuccessfulReportRun(
     reportRun: LookerStudioReportRun,
-    cachedReader: CachedReaderData
+    cachedReader: CachedReaderData,
+    reportRunLogger?: ReportRunLogger
   ) {
     reportRun.markAsSuccess();
 
-    const saved = await this.saveReportRunResultSafely(reportRun);
+    const saved = await this.saveReportRunResultSafely(reportRun, reportRunLogger);
     if (saved) {
       this.logger.log(`Report ${reportRun.getReportId()} completed successfully`);
     }
@@ -416,9 +439,13 @@ export class LookerStudioConnectorApiService {
    * @param reportRun - Failed report run
    * @param error - Error that caused the failure
    */
-  private async handleFailedReportRun(reportRun: LookerStudioReportRun, error: Error | string) {
+  private async handleFailedReportRun(
+    reportRun: LookerStudioReportRun,
+    error: Error | string,
+    reportRunLogger?: ReportRunLogger
+  ) {
     reportRun.markAsUnsuccessful(error);
-    await this.saveReportRunResultSafely(reportRun);
+    await this.saveReportRunResultSafely(reportRun, reportRunLogger);
     if (error instanceof ProjectOperationBlockedException) {
       this.logger.warn(`Report ${reportRun.getReportId()} execution restricted: ${error.message}`);
     } else {
@@ -445,9 +472,13 @@ export class LookerStudioConnectorApiService {
    *
    * @returns true if saved successfully, false otherwise
    */
-  private async saveReportRunResultSafely(reportRun: LookerStudioReportRun): Promise<boolean> {
+  private async saveReportRunResultSafely(
+    reportRun: LookerStudioReportRun,
+    reportRunLogger?: ReportRunLogger
+  ): Promise<boolean> {
     try {
-      await this.lookerStudioReportRunService.finish(reportRun);
+      const context = reportRunLogger ? reportRunLogger.asArrays() : undefined;
+      await this.lookerStudioReportRunService.finish(reportRun, context);
       return true;
     } catch (saveError) {
       this.logger.error(

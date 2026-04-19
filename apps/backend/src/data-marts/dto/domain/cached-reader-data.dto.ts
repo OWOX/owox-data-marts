@@ -1,4 +1,5 @@
 import { DataStorageReportReader } from '../../data-storage-types/interfaces/data-storage-report-reader.interface';
+import { BlendingDecision } from '../../services/blended-report-data.service';
 import { ReportDataDescription } from './report-data-description.dto';
 
 /**
@@ -14,4 +15,11 @@ export interface CachedReaderData {
 
   /** Indicates whether the data was retrieved from cache */
   fromCache: boolean;
+
+  /**
+   * Blending decision produced while preparing the reader. Carried on the
+   * DTO so consumers (e.g. Looker run logger) can inspect the resolved SQL
+   * without re-running metadata lookups.
+   */
+  blendingDecision: BlendingDecision;
 }

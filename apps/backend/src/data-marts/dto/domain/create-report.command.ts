@@ -9,6 +9,7 @@ export class CreateReportCommand {
     public readonly dataDestinationId: string,
     public readonly destinationConfig: DataDestinationConfig,
     public readonly ownerIds?: string[],
-    public readonly roles: string[] = []
+    public readonly roles: string[] = [],
+    public readonly columnConfig?: string[] | null
   ) {}
 }

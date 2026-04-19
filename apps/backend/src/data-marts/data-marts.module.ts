@@ -84,6 +84,7 @@ import { UpdateDataMartDefinitionService } from './use-cases/update-data-mart-de
 import { DataMartService } from './services/data-mart.service';
 import { ScheduledTriggerService } from './services/scheduled-trigger.service';
 import { PublishDataMartService } from './use-cases/publish-data-mart.service';
+import { UpdateBlendedFieldsConfigService } from './use-cases/update-blended-fields-config.service';
 import { UpdateDataMartDescriptionService } from './use-cases/update-data-mart-description.service';
 import { UpdateDataMartOwnersService } from './use-cases/update-data-mart-owners.service';
 import { UpdateDataMartTitleService } from './use-cases/update-data-mart-title.service';
@@ -303,6 +304,20 @@ import { ProjectSetupProgressListenerService } from './services/project-setup-pr
 import { ProjectSetupProgressController } from './controllers/project-setup-progress.controller';
 import { GetProjectSetupProgressService } from './use-cases/get-project-setup-progress.service';
 import { ProjectSetupProgressMapper } from './mappers/project-setup-progress.mapper';
+import { DataMartRelationship } from './entities/data-mart-relationship.entity';
+import { DataMartRelationshipService } from './services/data-mart-relationship.service';
+import { BlendableSchemaService } from './services/blendable-schema.service';
+import { BlendedReportDataService } from './services/blended-report-data.service';
+import { RelationshipMapper } from './mappers/relationship.mapper';
+import { CreateDataMartRelationshipService } from './use-cases/create-data-mart-relationship.service';
+import { UpdateDataMartRelationshipService } from './use-cases/update-data-mart-relationship.service';
+import { DeleteDataMartRelationshipService } from './use-cases/delete-data-mart-relationship.service';
+import { ListDataMartRelationshipsService } from './use-cases/list-data-mart-relationships.service';
+import { GetDataMartRelationshipService } from './use-cases/get-data-mart-relationship.service';
+import { GetReportGeneratedSqlService } from './use-cases/get-report-generated-sql.service';
+import { CopyReportAsDataMartService } from './use-cases/copy-report-as-data-mart.service';
+import { DataMartRelationshipController } from './controllers/data-mart-relationship.controller';
+import { DataStorageRelationshipController } from './controllers/data-storage-relationship.controller';
 
 @Module({
   imports: [
@@ -344,6 +359,7 @@ import { ProjectSetupProgressMapper } from './mappers/project-setup-progress.map
       ReportRunTrigger,
       ProjectSetupProgress,
       ProjectSetupUserProgress,
+      DataMartRelationship,
     ]),
     CommonModule,
     IdpModule,
@@ -370,6 +386,8 @@ import { ProjectSetupProgressMapper } from './mappers/project-setup-progress.map
     MarkdownParserController,
     LegacyDataMartsSyncController,
     ProjectSetupProgressController,
+    DataMartRelationshipController,
+    DataStorageRelationshipController,
   ],
   providers: [
     ...dataStorageResolverProviders,
@@ -387,6 +405,7 @@ import { ProjectSetupProgressMapper } from './mappers/project-setup-progress.map
     ListDataMartRunsService,
     UpdateDataMartDefinitionService,
     PublishDataMartService,
+    UpdateBlendedFieldsConfigService,
     UpdateDataMartDescriptionService,
     UpdateDataMartOwnersService,
     UpdateDataMartTitleService,
@@ -615,6 +634,17 @@ import { ProjectSetupProgressMapper } from './mappers/project-setup-progress.map
     ProjectSetupProgressListenerService,
     GetProjectSetupProgressService,
     ProjectSetupProgressMapper,
+    DataMartRelationshipService,
+    BlendableSchemaService,
+    BlendedReportDataService,
+    RelationshipMapper,
+    CreateDataMartRelationshipService,
+    UpdateDataMartRelationshipService,
+    DeleteDataMartRelationshipService,
+    ListDataMartRelationshipsService,
+    GetDataMartRelationshipService,
+    GetReportGeneratedSqlService,
+    CopyReportAsDataMartService,
   ],
 })
 export class DataMartsModule {
