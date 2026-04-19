@@ -71,6 +71,9 @@ describe('UpdateReportService', () => {
       checkMutateAccess: jest.fn().mockResolvedValue(undefined),
       canBeOwner: jest.fn().mockResolvedValue(true),
     };
+    const reportDataCacheService = {
+      invalidateByReportId: jest.fn().mockResolvedValue(undefined),
+    };
 
     const service = new UpdateReportService(
       reportRepository as never,
@@ -81,10 +84,11 @@ describe('UpdateReportService', () => {
       userProjectionsFetcherService as never,
       idpProjectionsFacade as never,
       reportOwnerRepository as never,
-      reportAccessService as never
+      reportAccessService as never,
+      reportDataCacheService as never
     );
 
-    return { service, reportAccessService, reportRepository };
+    return { service, reportAccessService, reportRepository, reportDataCacheService };
   };
 
   beforeEach(() => {

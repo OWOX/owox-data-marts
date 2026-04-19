@@ -10,10 +10,12 @@ import {
 import { Skeleton } from '@owox/ui/components/skeleton';
 import { Tabs, TabsList, TabsTrigger } from '@owox/ui/components/tabs';
 import { GitMerge, Link2, List, Network, Plus } from 'lucide-react';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'react-hot-toast';
+import { useQueryClient } from '@tanstack/react-query';
 import { useDataMartContext } from '../../model/context/useDataMartContext';
 import { useDebounce } from '../../../../../hooks/useDebounce';
+import { BLENDABLE_SCHEMA_QUERY_KEY } from '../../../shared/hooks/useBlendedFieldNames';
 import { Button } from '../../../../../shared/components/Button';
 import {
   CollapsibleCard,
@@ -35,9 +37,21 @@ import type {
 
 import type { SourceEntry } from './RelationshipAccordionItem';
 import { RelationshipAccordionItem } from './RelationshipAccordionItem';
-import { RelationshipCanvas } from './RelationshipCanvas';
 import { TargetDataMartPicker } from './TargetDataMartPicker';
 import { useTransientRelationships } from './useTransientRelationships';
+
+// `RelationshipCanvas` pulls in Rete.js and its plugins (~50 kB gzipped).
+// Load it only when the user switches to graph view so the default table
+// path keeps the main bundle small.
+const RelationshipCanvas = lazy(() =>
+  import('./RelationshipCanvas').then(module => ({ default: module.RelationshipCanvas }))
+);
+
+const CanvasSuspenseFallback = (
+  <div className='flex h-full w-full items-center justify-center'>
+    <Skeleton className='h-full w-full' />
+  </div>
+);
 
 const VIEW_MODE_KEY = 'relationship-view-mode';
 const CONTENT_MIN_H = 480;
@@ -90,6 +104,11 @@ export function DataMartRelationshipsContent({
   onRelationshipsChanged,
 }: DataMartRelationshipsContentProps) {
   const { dataMart } = useDataMartContext();
+  const queryClient = useQueryClient();
+
+  const invalidateBlendableSchema = useCallback(() => {
+    void queryClient.invalidateQueries({ queryKey: [BLENDABLE_SCHEMA_QUERY_KEY] });
+  }, [queryClient]);
 
   const [relationships, setRelationships] = useState<DataMartRelationship[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -217,21 +236,23 @@ export function DataMartRelationshipsContent({
         await dataMartRelationshipService.deleteRelationship(dataMartId, id);
         toast.success('Relationship deleted');
         setRelationships(prev => prev.filter(r => r.id !== id));
+        invalidateBlendableSchema();
         onRelationshipsChanged?.();
       } catch {
         toast.error('Failed to delete relationship');
       }
     },
-    [dataMartId, onRelationshipsChanged]
+    [dataMartId, invalidateBlendableSchema, onRelationshipsChanged]
   );
 
   const handleRelationshipUpdated = useCallback(
     (updated: DataMartRelationship) => {
       toast.success('Relationship updated');
       setRelationships(prev => prev.map(r => (r.id === updated.id ? updated : r)));
+      invalidateBlendableSchema();
       onRelationshipsChanged?.();
     },
-    [onRelationshipsChanged]
+    [invalidateBlendableSchema, onRelationshipsChanged]
   );
 
   const saveConfigAndRefresh = useCallback(
@@ -239,9 +260,10 @@ export function DataMartRelationshipsContent({
       setLocalConfig(newConfig);
       void dataMartRelationshipService.updateBlendedFieldsConfig(dataMartId, newConfig).then(() => {
         fetchBlendableSchema();
+        invalidateBlendableSchema();
       });
     },
-    [dataMartId, fetchBlendableSchema]
+    [dataMartId, fetchBlendableSchema, invalidateBlendableSchema]
   );
 
   const handleCreated = useCallback(
@@ -250,9 +272,10 @@ export function DataMartRelationshipsContent({
       setNewlyCreatedId(newRelationship.id);
       setIsAddingNew(false);
       setRelationships(prev => [...prev, newRelationship]);
+      invalidateBlendableSchema();
       onRelationshipsChanged?.();
     },
-    [onRelationshipsChanged]
+    [invalidateBlendableSchema, onRelationshipsChanged]
   );
 
   const updateSourceConfig = useCallback(
@@ -376,20 +399,22 @@ export function DataMartRelationshipsContent({
   function renderViewContent() {
     if (viewMode === 'graph') {
       return (
-        <RelationshipCanvas
-          dataMartId={dataMartId}
-          dataMartTitle={dmTitle}
-          dataMartDescription={dmDescription}
-          dataMartStatus={dmStatusCode}
-          relationships={relationships}
-          connectedFieldCounts={connectedFieldCounts}
-          searchQuery={searchQuery}
-          showTransient={showTransient}
-          onRequestFullscreen={() => {
-            setIsFullscreen(true);
-          }}
-          style={{ height: CONTENT_MIN_H }}
-        />
+        <Suspense fallback={CanvasSuspenseFallback}>
+          <RelationshipCanvas
+            dataMartId={dataMartId}
+            dataMartTitle={dmTitle}
+            dataMartDescription={dmDescription}
+            dataMartStatus={dmStatusCode}
+            relationships={relationships}
+            connectedFieldCounts={connectedFieldCounts}
+            searchQuery={searchQuery}
+            showTransient={showTransient}
+            onRequestFullscreen={() => {
+              setIsFullscreen(true);
+            }}
+            style={{ height: CONTENT_MIN_H }}
+          />
+        </Suspense>
       );
     }
 
@@ -550,18 +575,20 @@ export function DataMartRelationshipsContent({
             </Button>
           </DialogHeader>
           {isFullscreen && (
-            <RelationshipCanvas
-              dataMartId={dataMartId}
-              dataMartTitle={dataMart.title}
-              dataMartDescription={dataMart.description}
-              dataMartStatus={dataMart.status.code}
-              relationships={relationships}
-              connectedFieldCounts={connectedFieldCounts}
-              searchQuery={searchQuery}
-              showTransient={showTransient}
-              className='rounded-none border-0'
-              style={{ width: '100%', height: '100%' }}
-            />
+            <Suspense fallback={CanvasSuspenseFallback}>
+              <RelationshipCanvas
+                dataMartId={dataMartId}
+                dataMartTitle={dataMart.title}
+                dataMartDescription={dataMart.description}
+                dataMartStatus={dataMart.status.code}
+                relationships={relationships}
+                connectedFieldCounts={connectedFieldCounts}
+                searchQuery={searchQuery}
+                showTransient={showTransient}
+                className='rounded-none border-0'
+                style={{ width: '100%', height: '100%' }}
+              />
+            </Suspense>
           )}
         </DialogContent>
       </Dialog>

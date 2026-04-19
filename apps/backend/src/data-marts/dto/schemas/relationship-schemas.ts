@@ -1,5 +1,9 @@
 import { z } from 'zod';
 
+// Keep this list in sync with `AGGREGATE_FUNCTIONS` on the web side
+// (`apps/web/src/features/data-marts/shared/types/relationship.types.ts`).
+// The two declarations mirror each other so the blended SQL builder and
+// the UI expose identical options.
 export const AGGREGATE_FUNCTIONS = [
   'STRING_AGG',
   'MAX',

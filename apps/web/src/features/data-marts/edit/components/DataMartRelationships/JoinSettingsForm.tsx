@@ -12,7 +12,7 @@ import { Separator } from '@owox/ui/components/separator';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@owox/ui/components/tooltip';
 import { cn } from '@owox/ui/lib/utils';
 import { ExternalLink, Info, Plus, Trash2 } from 'lucide-react';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useFieldArray, useForm } from 'react-hook-form';
 import { toast } from 'react-hot-toast';
 import { z } from 'zod';
@@ -163,13 +163,17 @@ export function JoinSettingsForm({
   const watchedValues = form.watch();
   const watchedKey = JSON.stringify(watchedValues);
 
-  const joinTypeMismatches = watchedValues.joinConditions.map(jc => {
-    if (!jc.sourceFieldName || !jc.targetFieldName) return null;
-    const sourceType = sourceFields.find(f => f.name === jc.sourceFieldName)?.type;
-    const targetType = targetFields.find(f => f.name === jc.targetFieldName)?.type;
-    if (!sourceType || !targetType) return null;
-    return sourceType !== targetType ? { sourceType, targetType } : null;
-  });
+  const joinTypeMismatches = useMemo(
+    () =>
+      watchedValues.joinConditions.map(jc => {
+        if (!jc.sourceFieldName || !jc.targetFieldName) return null;
+        const sourceType = sourceFields.find(f => f.name === jc.sourceFieldName)?.type;
+        const targetType = targetFields.find(f => f.name === jc.targetFieldName)?.type;
+        if (!sourceType || !targetType) return null;
+        return sourceType !== targetType ? { sourceType, targetType } : null;
+      }),
+    [watchedValues.joinConditions, sourceFields, targetFields]
+  );
   const hasTypeMismatch = joinTypeMismatches.some(Boolean);
 
   const debouncedKey = useDebounce(watchedKey, 800);

@@ -1,19 +1,25 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { Transactional } from 'typeorm-transactional';
 import { UpdateRelationshipCommand } from '../dto/domain/update-relationship.command';
-import { DataMartRelationship } from '../entities/data-mart-relationship.entity';
+import { RelationshipResponseApiDto } from '../dto/presentation/relationship-response-api.dto';
+import { RelationshipMapper } from '../mappers/relationship.mapper';
 import { DataMartRelationshipService } from '../services/data-mart-relationship.service';
 import { DataMartService } from '../services/data-mart.service';
+import { ReportDataCacheService } from '../services/report-data-cache.service';
+import { UserProjectionsFetcherService } from '../services/user-projections-fetcher.service';
 
 @Injectable()
 export class UpdateDataMartRelationshipService {
   constructor(
     private readonly relationshipService: DataMartRelationshipService,
-    private readonly dataMartService: DataMartService
+    private readonly dataMartService: DataMartService,
+    private readonly userProjectionsFetcherService: UserProjectionsFetcherService,
+    private readonly reportDataCacheService: ReportDataCacheService,
+    private readonly mapper: RelationshipMapper
   ) {}
 
   @Transactional()
-  async run(command: UpdateRelationshipCommand): Promise<DataMartRelationship> {
+  async run(command: UpdateRelationshipCommand): Promise<RelationshipResponseApiDto> {
     const relationship = await this.relationshipService.findById(command.relationshipId);
 
     if (!relationship || relationship.sourceDataMart.id !== command.sourceDataMartId) {
@@ -47,7 +53,10 @@ export class UpdateDataMartRelationshipService {
       await this.cascadeAliasRename(command.sourceDataMartId, oldAlias, command.targetAlias);
     }
 
-    return updated;
+    await this.reportDataCacheService.invalidateByDataMartId(command.sourceDataMartId);
+
+    const createdByUser = await this.userProjectionsFetcherService.fetchCreatedByUser(updated);
+    return this.mapper.toResponse(updated, createdByUser);
   }
 
   private async cascadeAliasRename(

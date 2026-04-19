@@ -134,7 +134,6 @@ interface BlendedGroupItemProps {
 }
 
 function BlendedGroupItem({ group, isChecked, onToggleField }: BlendedGroupItemProps) {
-  // Smart default: групи з уже вибраними полями стартують відкритими
   const [isOpen, setIsOpen] = useState(() => group.selectedCount > 0);
 
   const counterText = `${group.selectedCount} / ${group.totalCount}`;

@@ -1,7 +1,7 @@
 import { Injectable, Inject, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Cron, CronExpression } from '@nestjs/schedule';
-import { Repository, MoreThan, LessThan } from 'typeorm';
+import { FindOptionsWhere, Repository, MoreThan, LessThan } from 'typeorm';
 import { TypeResolver } from '../../common/resolver/type-resolver';
 import { DATA_STORAGE_REPORT_READER_RESOLVER } from '../data-storage-types/data-storage-providers';
 import { DataStorageType } from '../data-storage-types/enums/data-storage-type.enum';
@@ -133,24 +133,20 @@ export class ReportDataCacheService {
     };
   }
 
-  /**
-   * Cleans up expired cache entries with proper finalization
-   * Called actively by scheduler every minute
-   */
+  private static readonly CACHE_ENTRY_RELATIONS = [
+    'report',
+    'report.dataMart',
+    'report.dataMart.storage',
+    'report.dataMart.storage.credential',
+  ];
+
   @Cron(CronExpression.EVERY_MINUTE)
   async cleanupExpiredCache(): Promise<void> {
-    const now = new Date();
+    const where: FindOptionsWhere<ReportDataCache> = { expiresAt: LessThan(new Date()) };
 
     const expiredEntries = await this.cacheRepository.find({
-      where: {
-        expiresAt: LessThan(now),
-      },
-      relations: [
-        'report',
-        'report.dataMart',
-        'report.dataMart.storage',
-        'report.dataMart.storage.credential',
-      ],
+      where,
+      relations: ReportDataCacheService.CACHE_ENTRY_RELATIONS,
     });
 
     if (expiredEntries.length === 0) {
@@ -158,23 +154,23 @@ export class ReportDataCacheService {
     }
 
     this.logger.log(`Found ${expiredEntries.length} expired cache entries to cleanup`);
+    await this.finalizeEntriesInParallel(expiredEntries);
 
-    for (const entry of expiredEntries) {
-      try {
-        await this.finalizeExpiredCacheEntry(entry);
-      } catch (error) {
-        this.logger.error(
-          `Failed to finalize cache entry ${entry.id}: ${error.message}`,
-          error.stack
+    const result = await this.cacheRepository.delete(where);
+    this.logger.log(`Cleaned up ${result.affected || 0} expired cache entries`);
+  }
+
+  private async finalizeEntriesInParallel(entries: ReportDataCache[]): Promise<void> {
+    const outcomes = await Promise.allSettled(
+      entries.map(entry => this.finalizeExpiredCacheEntry(entry))
+    );
+    for (const [index, outcome] of outcomes.entries()) {
+      if (outcome.status === 'rejected') {
+        this.logger.warn(
+          `Failed to finalize cache entry ${entries[index].id}: ${outcome.reason?.message ?? outcome.reason}`
         );
       }
     }
-
-    const result = await this.cacheRepository.delete({
-      expiresAt: LessThan(now),
-    });
-
-    this.logger.log(`Cleaned up ${result.affected || 0} expired cache entries`);
   }
 
   /**
@@ -227,36 +223,33 @@ export class ReportDataCacheService {
     return reader;
   }
 
-  /**
-   * Invalidates all cache entries for a given report. Called by
-   * `UpdateReportService` when the report's `columnConfig` changes so the
-   * next read reflects the new column selection instead of serving stale
-   * data until the TTL expires.
-   */
   async invalidateByReportId(reportId: string): Promise<void> {
+    await this.invalidateWhere({ report: { id: reportId } }, `report ${reportId}`);
+  }
+
+  async invalidateByDataMartId(dataMartId: string): Promise<void> {
+    await this.invalidateWhere(
+      { report: { dataMart: { id: dataMartId } } },
+      `data mart ${dataMartId}`
+    );
+  }
+
+  private async invalidateWhere(
+    where: FindOptionsWhere<ReportDataCache>,
+    contextLabel: string
+  ): Promise<void> {
     const entries = await this.cacheRepository.find({
-      where: { report: { id: reportId } },
-      relations: [
-        'report',
-        'report.dataMart',
-        'report.dataMart.storage',
-        'report.dataMart.storage.credential',
-      ],
+      where,
+      relations: ReportDataCacheService.CACHE_ENTRY_RELATIONS,
     });
 
-    for (const entry of entries) {
-      try {
-        await this.finalizeExpiredCacheEntry(entry);
-      } catch (error) {
-        this.logger.warn(
-          `Failed to finalize cache entry ${entry.id} during invalidation: ${error.message}`
-        );
-      }
-    }
+    if (entries.length === 0) return;
 
-    const result = await this.cacheRepository.delete({ report: { id: reportId } });
+    await this.finalizeEntriesInParallel(entries);
+
+    const result = await this.cacheRepository.delete(where);
     if (result.affected && result.affected > 0) {
-      this.logger.log(`Invalidated ${result.affected} cache entries for report ${reportId}`);
+      this.logger.log(`Invalidated ${result.affected} cache entries for ${contextLabel}`);
     }
   }
 }

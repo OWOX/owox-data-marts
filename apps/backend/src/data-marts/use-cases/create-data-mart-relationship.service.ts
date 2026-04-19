@@ -2,19 +2,23 @@ import { Injectable } from '@nestjs/common';
 import { Transactional } from 'typeorm-transactional';
 import { BusinessViolationException } from '../../common/exceptions/business-violation.exception';
 import { CreateRelationshipCommand } from '../dto/domain/create-relationship.command';
-import { DataMartRelationship } from '../entities/data-mart-relationship.entity';
+import { RelationshipResponseApiDto } from '../dto/presentation/relationship-response-api.dto';
+import { RelationshipMapper } from '../mappers/relationship.mapper';
 import { DataMartRelationshipService } from '../services/data-mart-relationship.service';
 import { DataMartService } from '../services/data-mart.service';
+import { UserProjectionsFetcherService } from '../services/user-projections-fetcher.service';
 
 @Injectable()
 export class CreateDataMartRelationshipService {
   constructor(
     private readonly relationshipService: DataMartRelationshipService,
-    private readonly dataMartService: DataMartService
+    private readonly dataMartService: DataMartService,
+    private readonly userProjectionsFetcherService: UserProjectionsFetcherService,
+    private readonly mapper: RelationshipMapper
   ) {}
 
   @Transactional()
-  async run(command: CreateRelationshipCommand): Promise<DataMartRelationship> {
+  async run(command: CreateRelationshipCommand): Promise<RelationshipResponseApiDto> {
     this.relationshipService.validateNoSelfReference(
       command.sourceDataMartId,
       command.targetDataMartId
@@ -57,6 +61,8 @@ export class CreateDataMartRelationshipService {
       command.joinConditions
     );
 
-    return this.relationshipService.create(command, sourceDataMart);
+    const relationship = await this.relationshipService.create(command, sourceDataMart);
+    const createdByUser = await this.userProjectionsFetcherService.fetchCreatedByUser(relationship);
+    return this.mapper.toResponse(relationship, createdByUser);
   }
 }

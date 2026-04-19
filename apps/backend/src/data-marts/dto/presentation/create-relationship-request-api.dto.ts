@@ -1,6 +1,9 @@
-import { IsString, IsArray, ValidateNested, MinLength } from 'class-validator';
+import { IsString, IsArray, ValidateNested, MinLength, Matches } from 'class-validator';
 import { Type } from 'class-transformer';
 import { ApiProperty } from '@nestjs/swagger';
+import { ALIAS_SEGMENT_ERROR, ALIAS_SEGMENT_REGEX } from '../schemas/blended-fields-config.schemas';
+
+const TARGET_ALIAS_MESSAGE = `targetAlias ${ALIAS_SEGMENT_ERROR}`;
 
 export class JoinConditionApiDto {
   @ApiProperty({ example: 'user_id', description: 'Field name in the source data mart' })
@@ -22,9 +25,14 @@ export class CreateRelationshipRequestApiDto {
   @IsString()
   targetDataMartId: string;
 
-  @ApiProperty({ example: 'orders', description: 'Alias for the target data mart in the blend' })
+  @ApiProperty({
+    example: 'orders',
+    description: 'Alias for the target data mart in the blend',
+    pattern: ALIAS_SEGMENT_REGEX.source,
+  })
   @IsString()
   @MinLength(1)
+  @Matches(ALIAS_SEGMENT_REGEX, { message: TARGET_ALIAS_MESSAGE })
   targetAlias: string;
 
   @ApiProperty({

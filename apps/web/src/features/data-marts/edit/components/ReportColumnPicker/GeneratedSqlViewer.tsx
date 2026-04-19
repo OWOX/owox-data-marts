@@ -32,13 +32,13 @@ interface GeneratedSqlViewerProps {
    * - 'action-icon' (default): ghost icon button with tooltip, intended for
    *   table row action cells. Uses hover-reveal styling that matches sibling
    *   row actions.
-   * - 'outline-button': outline button with "View Blending SQL" text,
+   * - 'outline-button': outline button with "View joined Data Marts SQL" text,
    *   intended for use inside forms where a full button label makes sense.
    */
   variant?: GeneratedSqlViewerVariant;
   /**
    * Optional report title, used to build a descriptive aria-label for the
-   * action icon variant (e.g. "View Blending SQL: Test Blending").
+   * action icon variant (e.g. "View joined Data Marts SQL: Test Report").
    */
   reportTitle?: string;
 }
@@ -110,7 +110,9 @@ export function GeneratedSqlViewer({
     }
   }
 
-  const ariaLabel = reportTitle ? `View Blending SQL: ${reportTitle}` : 'View Blending SQL';
+  const ariaLabel = reportTitle
+    ? `View joined Data Marts SQL: ${reportTitle}`
+    : 'View joined Data Marts SQL';
 
   return (
     <Dialog open={isOpen} onOpenChange={handleOpenChange}>
@@ -132,21 +134,21 @@ export function GeneratedSqlViewer({
             </DialogTrigger>
           </TooltipTrigger>
           <TooltipContent side='bottom' role='tooltip'>
-            View Blending SQL
+            View joined Data Marts SQL
           </TooltipContent>
         </Tooltip>
       ) : (
         <DialogTrigger asChild>
           <Button type='button' variant='outline' size='sm'>
             <Network className='mr-2 h-4 w-4' />
-            View Blending SQL
+            View joined Data Marts SQL
           </Button>
         </DialogTrigger>
       )}
 
       <DialogContent className='flex flex-col gap-4 sm:max-w-[80vw]'>
         <DialogHeader>
-          <DialogTitle>Generated Blending SQL</DialogTitle>
+          <DialogTitle>Joined Data Marts SQL</DialogTitle>
         </DialogHeader>
 
         <div className='min-h-[600px]'>
@@ -185,7 +187,7 @@ export function GeneratedSqlViewer({
             <div className='inline-flex h-9 items-center px-3 py-2'>
               <div className='flex h-5 items-center gap-2 text-gray-500'>
                 <Loader2 className='h-4 w-4 animate-spin' />
-                <span className='text-sm'>Generating blending SQL...</span>
+                <span className='text-sm'>Generating SQL...</span>
               </div>
             </div>
           ) : (

@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { In, Repository } from 'typeorm';
 import { BusinessViolationException } from '../../common/exceptions/business-violation.exception';
 import { CreateRelationshipCommand } from '../dto/domain/create-relationship.command';
 import { UpdateRelationshipCommand } from '../dto/domain/update-relationship.command';
@@ -42,10 +42,11 @@ export class DataMartRelationshipService {
     return reloaded ?? saved;
   }
 
+  // Relations are loaded via `eager: true` on the entity; passing `relations: [...]`
+  // here would add a second set of joins.
   async findBySourceDataMartId(sourceDataMartId: string): Promise<DataMartRelationship[]> {
     return this.repository.find({
       where: { sourceDataMart: { id: sourceDataMartId } },
-      relations: ['sourceDataMart', 'targetDataMart', 'dataStorage'],
       order: { createdAt: 'ASC' },
     });
   }
@@ -53,16 +54,17 @@ export class DataMartRelationshipService {
   async findByStorageId(storageId: string): Promise<DataMartRelationship[]> {
     return this.repository.find({
       where: { dataStorage: { id: storageId } },
-      relations: ['sourceDataMart', 'targetDataMart', 'dataStorage'],
       order: { createdAt: 'ASC' },
     });
   }
 
   async findById(id: string): Promise<DataMartRelationship | null> {
-    return this.repository.findOne({
-      where: { id },
-      relations: ['sourceDataMart', 'targetDataMart', 'dataStorage'],
-    });
+    return this.repository.findOne({ where: { id } });
+  }
+
+  async findByIds(ids: string[]): Promise<DataMartRelationship[]> {
+    if (ids.length === 0) return [];
+    return this.repository.find({ where: { id: In(ids) } });
   }
 
   async update(
@@ -150,10 +152,13 @@ export class DataMartRelationshipService {
     alias: string,
     excludeId?: string
   ): Promise<void> {
-    const existing = await this.findBySourceDataMartId(sourceDataMartId);
-    const conflict = existing.find(rel => rel.targetAlias === alias && rel.id !== excludeId);
+    // Pre-check complements the `UQ_data_mart_relationship_source_alias` DB constraint
+    // so callers get a domain error rather than a raw driver exception on conflict.
+    const conflict = await this.repository.findOne({
+      where: { sourceDataMart: { id: sourceDataMartId }, targetAlias: alias },
+    });
 
-    if (conflict) {
+    if (conflict && conflict.id !== excludeId) {
       throw new BusinessViolationException(
         `Alias "${alias}" is already used in another relationship for this data mart`,
         { sourceDataMartId, alias, conflictingRelationshipId: conflict.id }
@@ -168,44 +173,19 @@ export class DataMartRelationshipService {
   ): Promise<boolean> {
     const allRelationships = await this.findByStorageId(storageId);
 
-    // Build adjacency list from existing relationships
+    // Adding source → target creates a cycle iff target can already reach source via
+    // existing edges — so the adjacency list excludes the proposed edge.
     const adjacency = new Map<string, Set<string>>();
-
     for (const rel of allRelationships) {
       const from = rel.sourceDataMart.id;
       const to = rel.targetDataMart.id;
-
       if (!adjacency.has(from)) {
         adjacency.set(from, new Set());
       }
       adjacency.get(from)!.add(to);
     }
 
-    // Add the proposed edge
-    if (!adjacency.has(targetDataMartId)) {
-      adjacency.set(targetDataMartId, new Set());
-    }
-    adjacency.get(targetDataMartId)!.add(sourceDataMartId);
-
-    // DFS from targetDataMartId to check if it can reach sourceDataMartId
-    // The proposed edge is targetDataMartId → sourceDataMartId (reversed to check for cycle:
-    // original proposed edge is sourceDataMartId → targetDataMartId,
-    // so a cycle exists if targetDataMartId can already reach sourceDataMartId via existing edges)
-    // Reset: check original direction — does targetDataMartId reach sourceDataMartId through
-    // existing edges (before adding proposed edge)?
-    // If yes → adding sourceDataMartId → targetDataMartId would create a cycle.
-
-    const adjacencyOriginal = new Map<string, Set<string>>();
-    for (const rel of allRelationships) {
-      const from = rel.sourceDataMart.id;
-      const to = rel.targetDataMart.id;
-      if (!adjacencyOriginal.has(from)) {
-        adjacencyOriginal.set(from, new Set());
-      }
-      adjacencyOriginal.get(from)!.add(to);
-    }
-
-    return this.dfsCanReach(adjacencyOriginal, targetDataMartId, sourceDataMartId, 0);
+    return this.dfsCanReach(adjacency, targetDataMartId, sourceDataMartId, 0);
   }
 
   private dfsCanReach(

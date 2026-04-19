@@ -49,8 +49,14 @@ function FieldAliasInput({
   const [value, setValue] = useState(initialValue);
   const debouncedValue = useDebounce(value, 500);
   const lastSaved = useRef(initialValue);
+  // Hold the latest `onSave` in a ref so the debounced effect below only fires
+  // when `debouncedValue` actually changes — wiring `onSave` directly into the
+  // dep array would restart debounce on every parent render that passes an
+  // inline callback.
   const onSaveRef = useRef(onSave);
-  onSaveRef.current = onSave;
+  useEffect(() => {
+    onSaveRef.current = onSave;
+  }, [onSave]);
 
   useEffect(() => {
     if (debouncedValue !== lastSaved.current) {

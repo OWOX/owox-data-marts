@@ -93,15 +93,13 @@ export class UpdateReportService {
       }
     }
 
-    // Detect columnConfig change BEFORE we overwrite the entity so we can
-    // invalidate the cache for this report after save. Serialized compare
-    // handles null, empty arrays, and order changes uniformly.
+    // Column order is part of the report output, so a serialized compare is intentional —
+    // reordering alone must rebuild the cached reader.
     const previousColumnConfig = report.columnConfig ?? null;
     const nextColumnConfig = command.columnConfig ?? null;
     const columnConfigChanged =
       JSON.stringify(previousColumnConfig) !== JSON.stringify(nextColumnConfig);
 
-    // Update the report
     report.title = command.title;
     report.dataDestination = dataDestination;
     report.destinationConfig = command.destinationConfig;
@@ -127,9 +125,6 @@ export class UpdateReportService {
     }
 
     if (columnConfigChanged) {
-      // Stale cache would otherwise serve the old column set until TTL
-      // expires (default 1h). Invalidate so the next read applies the
-      // new selection immediately.
       await this.reportDataCacheService.invalidateByReportId(updatedReport.id);
     }
 

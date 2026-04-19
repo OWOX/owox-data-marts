@@ -115,22 +115,26 @@ export function RelationshipAccordionItem({
 
   const containerRef = useRef<HTMLDivElement>(null);
 
+  // Wait for the Collapsible's CSS expand transition before measuring so scrollIntoView
+  // targets the final layout.
+  const COLLAPSIBLE_EXPAND_DELAY_MS = 250;
+  const STICKY_HEADER_OFFSET_PX = 80;
+  const VIEWPORT_BOTTOM_OFFSET_PX = 40;
+
   useEffect(() => {
     if (!defaultOpenTab) return;
     setIsOpen(true);
     setActiveTab(defaultOpenTab);
-    // Delay scroll until Collapsible finishes expanding, so the whole
-    // accordion lands in the viewport — not just the header.
     const timeoutId = window.setTimeout(() => {
       const el = containerRef.current;
       if (!el) return;
       const rect = el.getBoundingClientRect();
-      const fullyAbove = rect.top < 80;
-      const partiallyBelow = rect.bottom > window.innerHeight - 40;
+      const fullyAbove = rect.top < STICKY_HEADER_OFFSET_PX;
+      const partiallyBelow = rect.bottom > window.innerHeight - VIEWPORT_BOTTOM_OFFSET_PX;
       if (fullyAbove || partiallyBelow) {
         el.scrollIntoView({ behavior: 'smooth', block: 'center' });
       }
-    }, 250);
+    }, COLLAPSIBLE_EXPAND_DELAY_MS);
     return () => {
       window.clearTimeout(timeoutId);
     };

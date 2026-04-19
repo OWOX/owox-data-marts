@@ -122,7 +122,7 @@ describe('DataMartRelationshipService', () => {
   });
 
   describe('findBySourceDataMartId', () => {
-    it('calls repository with correct where clause and relations', async () => {
+    it('calls repository with correct where clause (relations are loaded eagerly on the entity)', async () => {
       const expected = [makeRelationship('dm-1', 'dm-2')];
       repository.find.mockResolvedValue(expected);
 
@@ -130,7 +130,6 @@ describe('DataMartRelationshipService', () => {
 
       expect(repository.find).toHaveBeenCalledWith({
         where: { sourceDataMart: { id: 'dm-1' } },
-        relations: ['sourceDataMart', 'targetDataMart', 'dataStorage'],
         order: { createdAt: 'ASC' },
       });
       expect(result).toBe(expected);

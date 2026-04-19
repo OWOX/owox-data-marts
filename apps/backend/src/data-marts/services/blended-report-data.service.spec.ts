@@ -87,6 +87,7 @@ describe('BlendedReportDataService', () => {
           useValue: {
             findBySourceDataMartId: jest.fn(),
             findById: jest.fn(),
+            findByIds: jest.fn().mockResolvedValue([]),
           },
         },
         {
@@ -504,10 +505,12 @@ describe('BlendedReportDataService', () => {
         joinConditions: [{ sourceFieldName: 'id', targetFieldName: 'id' }],
       } as unknown as DataMartRelationship;
       relationshipService.findBySourceDataMartId.mockResolvedValue([relAB]);
-      relationshipService.findById.mockImplementation(async (id: string) => {
-        if (id === 'rel-ab') return relAB;
-        if (id === 'rel-bc') return relBC;
-        return null;
+      relationshipService.findByIds.mockImplementation(async (ids: string[]) => {
+        const byId: Record<string, DataMartRelationship> = {
+          'rel-ab': relAB,
+          'rel-bc': relBC,
+        };
+        return ids.map(id => byId[id]).filter(Boolean);
       });
       tableReferenceService.resolveTableName.mockResolvedValue('table_ref');
 
@@ -593,10 +596,12 @@ describe('BlendedReportDataService', () => {
       } as unknown as DataMartRelationship;
 
       relationshipService.findBySourceDataMartId.mockResolvedValue([relAB]);
-      relationshipService.findById.mockImplementation(async (id: string) => {
-        if (id === 'rel-ab') return relAB;
-        if (id === 'rel-bc') return relBC;
-        return null;
+      relationshipService.findByIds.mockImplementation(async (ids: string[]) => {
+        const byId: Record<string, DataMartRelationship> = {
+          'rel-ab': relAB,
+          'rel-bc': relBC,
+        };
+        return ids.map(id => byId[id]).filter(Boolean);
       });
       tableReferenceService.resolveTableName.mockImplementation(async (id: string) => {
         if (id === 'dm-1') return '`p`.`d`.`main`';
@@ -662,8 +667,8 @@ describe('BlendedReportDataService', () => {
       const sql = 'WITH cte AS (SELECT 1) SELECT * FROM cte';
       service.logBlendedSqlIfNeeded({ needsBlending: true, blendedSql: sql }, logger);
       expect(logger.log).toHaveBeenCalledWith({
-        type: 'blended-sql',
-        message: 'Blended SQL used for report execution',
+        type: 'joined-data-marts-sql',
+        message: 'SQL over joined Data Marts used for report execution',
         sql,
       });
     });

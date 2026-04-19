@@ -1,5 +1,6 @@
 import type { AxiosRequestConfig } from '../../../../app/api/apiClient';
 import { ApiService } from '../../../../services';
+import type { DataMartResponseDto } from '../types/api/response/data-mart.response.dto';
 import type {
   BlendableSchema,
   BlendedFieldsConfig,
@@ -80,19 +81,25 @@ class DataMartRelationshipService extends ApiService {
   }
 
   /**
-   * Get all relationships for a data storage.
-   * Uses a different base path (/data-storages) than the primary service.
-   * @param storageId Data storage ID
+   * Replace the data mart's blended fields configuration.
+   * @param dataMartId Data mart ID.
+   * @param config Full configuration to persist, or `null` to clear it.
+   * @returns The updated data mart as returned by the API.
    */
   async updateBlendedFieldsConfig(
     dataMartId: string,
     config: BlendedFieldsConfig | null
-  ): Promise<unknown> {
-    return this.put(`/${dataMartId}/blended-fields-config`, {
+  ): Promise<DataMartResponseDto> {
+    return this.put<DataMartResponseDto>(`/${dataMartId}/blended-fields-config`, {
       blendedFieldsConfig: config,
     });
   }
 
+  /**
+   * Get all relationships for a data storage.
+   * Uses a different base path (/data-storages) than the primary service.
+   * @param storageId Data storage ID
+   */
   async getRelationshipsByStorage(storageId: string): Promise<DataMartRelationship[]> {
     return this.storageApiService.get<DataMartRelationship[]>(
       `/data-storages/${storageId}/relationships`

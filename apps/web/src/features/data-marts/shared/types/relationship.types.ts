@@ -1,5 +1,9 @@
 import type { UserProjection } from '../../../../shared/types';
 
+// Keep this list in sync with `AGGREGATE_FUNCTIONS` on the backend side
+// (`apps/backend/src/data-marts/dto/schemas/relationship-schemas.ts`).
+// The two declarations mirror each other so the blended SQL builder and
+// the UI expose identical options.
 export const AGGREGATE_FUNCTIONS = [
   'STRING_AGG',
   'MAX',

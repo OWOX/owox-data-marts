@@ -43,26 +43,19 @@ export class BlendedReportDataService {
   async resolveBlendingDecision(report: Report): Promise<BlendingDecision> {
     const { columnConfig, dataMart } = report;
 
-    // 1. If columnConfig is null → no blending
     if (columnConfig === null || columnConfig === undefined) {
       return { needsBlending: false };
     }
 
-    // 2. Compute blendable schema for the data mart
     const blendableSchema = await this.blendableSchemaService.computeBlendableSchema(
       dataMart.id,
       dataMart.projectId
     );
 
-    // 3. Check if any column in columnConfig matches a blended field name
     const blendedFieldsByName = new Map(blendableSchema.blendedFields.map(f => [f.name, f]));
     const hasBlendedColumns = columnConfig.some(col => blendedFieldsByName.has(col));
-
-    // Precompute headers for blended columns so readers do not need to know
-    // anything about blended schema metadata (alias/description/type).
     const blendedDataHeaders = this.buildBlendedDataHeaders(columnConfig, blendedFieldsByName);
 
-    // 4. No blended columns → return base query with column filter
     if (!hasBlendedColumns) {
       return {
         needsBlending: false,
@@ -71,7 +64,6 @@ export class BlendedReportDataService {
       };
     }
 
-    // 5. Full blending: resolve table refs, build relationship chains, generate SQL
     const mainTableReference = await this.tableReferenceService.resolveTableName(
       dataMart.id,
       dataMart.projectId
@@ -85,12 +77,7 @@ export class BlendedReportDataService {
       '/data-setup'
     );
 
-    // Load direct relationships for the main data mart
     const allRelationships = await this.relationshipService.findBySourceDataMartId(dataMart.id);
-
-    // Build alias→tableReference map for transitive lookups
-    // We need to resolve chains: for each relationship whose blended fields appear in columnConfig,
-    // resolve target table reference and determine parentAlias
     const chains = await this.buildRelationshipChains(
       columnConfig,
       blendableSchema.blendedFields,
@@ -131,8 +118,8 @@ export class BlendedReportDataService {
       return;
     }
     logger.log({
-      type: 'blended-sql',
-      message: 'Blended SQL used for report execution',
+      type: 'joined-data-marts-sql',
+      message: 'SQL over joined Data Marts used for report execution',
       sql: decision.blendedSql,
     });
   }
@@ -196,8 +183,8 @@ export class BlendedReportDataService {
       return [];
     }
 
-    // Step 1: expand requested aliasPaths to include all ancestor paths.
-    // E.g. requesting a field with aliasPath "b.c" requires both "b" and "b.c".
+    // Requesting a field at aliasPath "b.c" requires resolving "b" as well so the join
+    // chain is contiguous; otherwise C would try to join directly to main using B's keys.
     const neededPaths = new Set<string>();
     for (const field of requestedBlendedFields) {
       const segments = field.aliasPath.split('.');
@@ -206,8 +193,6 @@ export class BlendedReportDataService {
       }
     }
 
-    // Step 2: for each needed path, look up the corresponding source metadata
-    // (relationshipId + dataMartId + depth).
     const sourceByPath = new Map(availableSources.map(s => [s.aliasPath, s]));
     const neededSources: AvailableSourceDto[] = [];
     for (const path of neededPaths) {
@@ -215,18 +200,18 @@ export class BlendedReportDataService {
       if (src) neededSources.push(src);
     }
 
-    // Step 3: load relationship entities for every needed source.
     const directRelMap = new Map(directRelationships.map(r => [r.id, r]));
     const relationshipsById = new Map(directRelMap);
-    for (const src of neededSources) {
-      if (!relationshipsById.has(src.relationshipId)) {
-        const rel = await this.relationshipService.findById(src.relationshipId);
-        if (rel) relationshipsById.set(src.relationshipId, rel);
+    const missingIds = Array.from(
+      new Set(neededSources.map(src => src.relationshipId).filter(id => !relationshipsById.has(id)))
+    );
+    if (missingIds.length > 0) {
+      const fetched = await this.relationshipService.findByIds(missingIds);
+      for (const rel of fetched) {
+        relationshipsById.set(rel.id, rel);
       }
     }
 
-    // Step 4: group requested blended fields by relationship id so each chain
-    // only includes the fields that actually need to be aggregated for it.
     const fieldsByRelId = new Map<string, BlendedFieldDto[]>();
     for (const field of requestedBlendedFields) {
       const bucket = fieldsByRelId.get(field.sourceRelationshipId) ?? [];
@@ -234,9 +219,8 @@ export class BlendedReportDataService {
       fieldsByRelId.set(field.sourceRelationshipId, bucket);
     }
 
-    // Step 5: sort sources by depth so parents are processed before children.
-    // This guarantees dataMartAliasMap has the parent's alias registered by the
-    // time we compute parentAlias for a child.
+    // Parent-first order guarantees dataMartAliasMap has the parent's alias registered
+    // by the time we compute parentAlias for a child.
     const sortedSources = [...neededSources].sort((a, b) => a.depth - b.depth);
 
     const dataMartAliasMap = new Map<string, string>();

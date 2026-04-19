@@ -40,8 +40,7 @@ export class DataMartRelationshipController {
     @Body() dto: CreateRelationshipRequestApiDto
   ): Promise<RelationshipResponseApiDto> {
     const command = this.mapper.toCreateCommand(dataMartId, context, dto);
-    const relationship = await this.createService.run(command);
-    return this.mapper.toResponse(relationship);
+    return this.createService.run(command);
   }
 
   @Auth(Role.viewer(Strategy.PARSE))
@@ -71,8 +70,7 @@ export class DataMartRelationshipController {
     @Body() dto: UpdateRelationshipRequestApiDto
   ): Promise<RelationshipResponseApiDto> {
     const command = this.mapper.toUpdateCommand(id, dataMartId, context, dto);
-    const relationship = await this.updateService.run(command);
-    return this.mapper.toResponse(relationship);
+    return this.updateService.run(command);
   }
 
   @Auth(Role.editor(Strategy.INTROSPECT))

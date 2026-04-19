@@ -457,7 +457,7 @@ describe('LookerStudioConnectorApiService', () => {
       setupRun({ needsBlending: true, blendedSql: 'SELECT 1' });
       blendedReportDataService.logBlendedSqlIfNeeded.mockImplementation((decision, logger) => {
         if (decision?.needsBlending && decision.blendedSql && logger) {
-          logger.log({ type: 'blended-sql', sql: decision.blendedSql });
+          logger.log({ type: 'joined-data-marts-sql', sql: decision.blendedSql });
         }
       });
 
@@ -471,7 +471,7 @@ describe('LookerStudioConnectorApiService', () => {
       expect(reportRunService.finish).toHaveBeenCalledWith(
         expect.anything(),
         expect.objectContaining({
-          logs: expect.arrayContaining([expect.stringContaining('"type":"blended-sql"')]),
+          logs: expect.arrayContaining([expect.stringContaining('"type":"joined-data-marts-sql"')]),
           errors: [],
         })
       );
