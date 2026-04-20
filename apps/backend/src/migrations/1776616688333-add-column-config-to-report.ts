@@ -1,11 +1,11 @@
 import { MigrationInterface, QueryRunner, TableColumn } from 'typeorm';
 import { getTable } from './migration-utils';
 
-export class AddBlendedFieldsConfigToDataMart1776616688332 implements MigrationInterface {
-  public readonly name = 'AddBlendedFieldsConfigToDataMart1776616688332';
+export class AddColumnConfigToReport1776616688333 implements MigrationInterface {
+  public readonly name = 'AddColumnConfigToReport1776616688333';
 
-  private readonly TABLE = 'data_mart';
-  private readonly COLUMN = 'blendedFieldsConfig';
+  private readonly TABLE = 'report';
+  private readonly COLUMN = 'columnConfig';
 
   public async up(queryRunner: QueryRunner): Promise<void> {
     const table = await getTable(queryRunner, this.TABLE);

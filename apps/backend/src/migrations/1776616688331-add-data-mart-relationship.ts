@@ -1,21 +1,16 @@
-import {
-  MigrationInterface,
-  QueryRunner,
-  Table,
-  TableColumn,
-  TableForeignKey,
-  TableIndex,
-} from 'typeorm';
+import { MigrationInterface, QueryRunner, Table, TableIndex } from 'typeorm';
 import { softDropTable } from './migration-utils';
 
 export class AddDataMartRelationship1776616688331 implements MigrationInterface {
   public readonly name = 'AddDataMartRelationship1776616688331';
 
   private readonly RELATIONSHIP_TABLE = 'data_mart_relationship';
-  private readonly REPORT_TABLE = 'report';
-  private readonly COLUMN_CONFIG_COLUMN = 'columnConfig';
 
   public async up(queryRunner: QueryRunner): Promise<void> {
+    if (await queryRunner.hasTable(this.RELATIONSHIP_TABLE)) {
+      return;
+    }
+
     await queryRunner.createTable(
       new Table({
         name: this.RELATIONSHIP_TABLE,
@@ -31,8 +26,30 @@ export class AddDataMartRelationship1776616688331 implements MigrationInterface 
           { name: 'createdAt', type: 'datetime', isNullable: false, default: 'CURRENT_TIMESTAMP' },
           { name: 'modifiedAt', type: 'datetime', isNullable: false, default: 'CURRENT_TIMESTAMP' },
         ],
-      }),
-      true
+        foreignKeys: [
+          {
+            columnNames: ['dataStorageId'],
+            referencedTableName: 'data_storage',
+            referencedColumnNames: ['id'],
+            onDelete: 'CASCADE',
+            onUpdate: 'NO ACTION',
+          },
+          {
+            columnNames: ['sourceDataMartId'],
+            referencedTableName: 'data_mart',
+            referencedColumnNames: ['id'],
+            onDelete: 'CASCADE',
+            onUpdate: 'NO ACTION',
+          },
+          {
+            columnNames: ['targetDataMartId'],
+            referencedTableName: 'data_mart',
+            referencedColumnNames: ['id'],
+            onDelete: 'CASCADE',
+            onUpdate: 'NO ACTION',
+          },
+        ],
+      })
     );
 
     await queryRunner.createIndex(
@@ -44,65 +61,24 @@ export class AddDataMartRelationship1776616688331 implements MigrationInterface 
       })
     );
 
-    await queryRunner.createForeignKey(
+    await queryRunner.createIndex(
       this.RELATIONSHIP_TABLE,
-      new TableForeignKey({
+      new TableIndex({
+        name: 'IDX_dmr_dataStorage',
         columnNames: ['dataStorageId'],
-        referencedTableName: 'data_storage',
-        referencedColumnNames: ['id'],
-        onDelete: 'CASCADE',
-        onUpdate: 'NO ACTION',
       })
     );
 
-    await queryRunner.createForeignKey(
+    await queryRunner.createIndex(
       this.RELATIONSHIP_TABLE,
-      new TableForeignKey({
-        columnNames: ['sourceDataMartId'],
-        referencedTableName: 'data_mart',
-        referencedColumnNames: ['id'],
-        onDelete: 'CASCADE',
-        onUpdate: 'NO ACTION',
-      })
-    );
-
-    await queryRunner.createForeignKey(
-      this.RELATIONSHIP_TABLE,
-      new TableForeignKey({
+      new TableIndex({
+        name: 'IDX_dmr_targetDataMart',
         columnNames: ['targetDataMartId'],
-        referencedTableName: 'data_mart',
-        referencedColumnNames: ['id'],
-        onDelete: 'CASCADE',
-        onUpdate: 'NO ACTION',
       })
     );
-
-    const hasColumnConfig = await queryRunner.hasColumn(
-      this.REPORT_TABLE,
-      this.COLUMN_CONFIG_COLUMN
-    );
-    if (!hasColumnConfig) {
-      await queryRunner.addColumn(
-        this.REPORT_TABLE,
-        new TableColumn({
-          name: this.COLUMN_CONFIG_COLUMN,
-          type: 'json',
-          isNullable: true,
-          default: null,
-        })
-      );
-    }
   }
 
   public async down(queryRunner: QueryRunner): Promise<void> {
-    const hasColumnConfig = await queryRunner.hasColumn(
-      this.REPORT_TABLE,
-      this.COLUMN_CONFIG_COLUMN
-    );
-    if (hasColumnConfig) {
-      await queryRunner.dropColumn(this.REPORT_TABLE, this.COLUMN_CONFIG_COLUMN);
-    }
-
     await softDropTable(queryRunner, this.RELATIONSHIP_TABLE);
   }
 }
