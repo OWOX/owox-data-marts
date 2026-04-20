@@ -131,18 +131,22 @@ class TiktokMarketingApiProvider {
 
   getValidAdInsightsMetrics() {
     return [
+      // Parent-hierarchy IDs — at AUCTION_AD level TikTok returns these only when
+      // requested as `metrics`; passing them in `dimensions` is rejected at this level.
+      "campaign_id", "adgroup_id",
+
       // Cost metrics
-      "spend", "cpc", "cpm", "cpr", "cpa", "cost_per_conversion", "cost_per_1000_reached",
-      
+      "spend", "cpc", "cpm", "cpr", "cpa", "cost_per_1000_reached",
+
       // Performance metrics
-      "impressions", "clicks", "ctr", "reach", "frequency", "viewable_impression", 
+      "impressions", "clicks", "ctr", "reach", "frequency", "viewable_impression",
       "viewable_rate", "video_play_actions", "video_watched_2s", "video_watched_6s",
-      "average_video_play", "average_video_play_per_user", "video_views_p25", 
+      "average_video_play", "average_video_play_per_user", "video_views_p25",
       "video_views_p50", "video_views_p75", "video_views_p100", "profile_visits",
       "profile_visits_rate", "likes", "comments", "shares", "follows", "landing_page_views",
-      
+
       // Conversion metrics
-      "conversion", "cost_per_conversion", "conversion_rate", "conversion_1d_click", 
+      "conversion", "cost_per_conversion", "conversion_rate", "conversion_1d_click",
       "conversion_7d_click", "conversion_28d_click"
     ];
   }
