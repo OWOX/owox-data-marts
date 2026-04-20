@@ -4,11 +4,11 @@ Every project member has one of three roles. A role controls what a member can d
 
 ## Roles Overview
 
-| Role | Typical user | Access level |
-|---|---|---|
-| **Admin** | Data team lead, IT admin | Full access to everything |
-| **Technical User** | Data analyst, data engineer | Create and manage own resources |
-| **Business User** | Analyst, marketer, business stakeholder | View and use shared resources |
+| Role | Access level |
+|---|---|
+| **Admin** | Full access to everything |
+| **Technical User** | Create and manage data resources; full control over all Reports |
+| **Business User** | Self-service reporting on shared Data Marts; manage own Reports and Destinations |
 
 ---
 
@@ -35,7 +35,7 @@ Admins have unrestricted access to the entire project.
 
 ## Technical User
 
-Technical Users build and manage data resources, and can share them with others.
+Technical Users build and manage data infrastructure, and retain project-wide control over reporting.
 
 **Member management:**
 
@@ -43,9 +43,13 @@ Technical Users build and manage data resources, and can share them with others.
 
 **Data access:**
 
-- Create, edit, and delete their own Data Marts, Storages, Destinations, Reports, Triggers, and Runs
-- Configure sharing and manage owners for their own resources
-- Access resources that other members have shared with them — the level of access depends on how the resource is shared (see [Access Rights](access-rights.md))
+- Create, edit, and delete their own Data Marts, Storages, and Destinations
+- Create, edit, delete, and manage Data Mart Triggers
+- Configure sharing and manage owners for their own Data Marts, Storages, and Destinations
+- Access Data Marts, Storages, and Destinations that other members have shared with them — the level of access depends on how the resource is shared (see [Access Rights](access-rights.md))
+- Edit and delete any Report in the project, regardless of ownership
+- Manage owners of any Report in the project
+- Create, edit, and delete Report Triggers on any Report in the project
 
 **Notifications:**
 
@@ -55,7 +59,7 @@ Technical Users build and manage data resources, and can share them with others.
 
 ## Business User
 
-Business Users consume data that has been prepared and shared for them. They cannot create or modify resources.
+Business Users build and manage their own reporting assets on top of Data Marts prepared by Technical Users.
 
 **Member management:**
 
@@ -63,7 +67,14 @@ Business Users consume data that has been prepared and shared for them. They can
 
 **Data access:**
 
-- View and use Data Marts, Storages, Destinations, Reports, Triggers, and Runs that are explicitly shared with them
+- View Data Marts and their Triggers that are shared with them
+- Create Reports on Data Marts that are available for reporting
+- Edit, delete, run, and manage owners of Reports they own
+- Create, edit, and delete Report Triggers on Reports they own
+- Create, edit, and delete Destinations
+- Access Destinations that other members have shared with them
+
+> ☝️ A Business User can only edit or run a Report as long as its Destination still exists. If the Destination is deleted, the Report becomes read-only for that owner until a Technical User restores the Destination or reassigns ownership.
 
 **Notifications:**
 
