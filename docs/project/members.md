@@ -10,16 +10,11 @@ To see who has access to your project, navigate to the **Admin Dashboard** at `/
 
 ## Inviting a New Member
 
-1. Open the **Admin Dashboard** at `/auth/dashboard`
-2. Click **Add User**
+1. Open the **Members Page**
+2. Click **Invite People**
 3. Enter the member's email address
 4. Select their role
-5. Click **Generate Magic Link**
-6. Share the generated link with the new member via email
-
-> ☝️ **Important:** Share magic links via email only. Messaging apps may auto-open the URL and invalidate it before the recipient uses it.
-
-The new member uses the link to set their password and sign in for the first time.
+5. Click **Send Invite**
 
 ## Changing a Member's Role
 
