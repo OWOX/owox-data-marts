@@ -57,6 +57,7 @@ const VIEW_MODE_KEY = 'relationship-view-mode';
 const CONTENT_MIN_H = 480;
 
 const DEFAULT_BLENDED_FIELDS_CONFIG: BlendedFieldsConfig = { sources: [] };
+const EMPTY_STRING_ARRAY: string[] = [];
 
 interface DataMartRelationshipsContentProps {
   onRelationshipsChanged?: () => void;
@@ -229,6 +230,25 @@ export function DataMartRelationshipsContent({
         row.relationship.targetAlias.toLowerCase().includes(q)
     );
   }, [transientRows, searchQuery]);
+
+  // Backend enforces (sourceDataMartId, targetAlias) uniqueness. Precompute
+  // sibling aliases per relationship so each row gets a stable reference and
+  // the form can flag conflicts inline before the request fires.
+  const siblingAliasesByRelId = useMemo(() => {
+    const bySource = new Map<string, DataMartRelationship[]>();
+    for (const r of relationships) {
+      const arr = bySource.get(r.sourceDataMart.id);
+      if (arr) arr.push(r);
+      else bySource.set(r.sourceDataMart.id, [r]);
+    }
+    const result: Record<string, string[]> = {};
+    for (const r of relationships) {
+      result[r.id] = (bySource.get(r.sourceDataMart.id) ?? [])
+        .filter(sibling => sibling.id !== r.id)
+        .map(sibling => sibling.targetAlias);
+    }
+    return result;
+  }, [relationships]);
 
   const handleDelete = useCallback(
     async (id: string) => {
@@ -444,6 +464,7 @@ export function DataMartRelationshipsContent({
           // inherits the previous one's `isIncluded` / alias overrides.
           const source = sourceList.find(s => s.aliasPath === row.aliasPath) ?? null;
           const isNewlyCreated = rel.id === newlyCreatedId;
+          const siblingAliases = siblingAliasesByRelId[rel.id] ?? EMPTY_STRING_ARRAY;
 
           return (
             <RelationshipAccordionItem
@@ -452,6 +473,7 @@ export function DataMartRelationshipsContent({
               source={source}
               dataMartId={dataMartId}
               storageId={storageId}
+              siblingAliases={siblingAliases}
               defaultOpenTab={isNewlyCreated ? 'join-settings' : undefined}
               readOnly={false}
               onDelete={handleDelete}

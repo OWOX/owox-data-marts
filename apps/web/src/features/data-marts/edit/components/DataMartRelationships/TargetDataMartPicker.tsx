@@ -56,7 +56,10 @@ export function TargetDataMartPicker({
     setIsCreating(true);
     try {
       const takenAliases = new Set(existingRelationships.map(r => r.targetAlias));
-      const targetAlias = generateUniqueAlias(slugify(dm.title), takenAliases);
+      // Non-ASCII titles (e.g. Cyrillic) slugify to empty, which fails the server-side
+      // alias regex. Fall back to the data-mart id so the relationship can be created.
+      const baseAlias = slugify(dm.title) || slugify(targetDMId);
+      const targetAlias = generateUniqueAlias(baseAlias, takenAliases);
 
       const created = await dataMartRelationshipService.createRelationship(dataMartId, {
         targetDataMartId: targetDMId,

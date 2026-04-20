@@ -48,6 +48,8 @@ interface RelationshipAccordionItemProps {
   source: SourceEntry | null;
   dataMartId: string;
   storageId: string;
+  /** Aliases used by other relationships that share the same source data mart. */
+  siblingAliases: string[];
   /** Open this accordion on Join Settings tab on mount */
   defaultOpenTab?: AccordionTab;
   readOnly?: boolean;
@@ -66,6 +68,7 @@ export function RelationshipAccordionItem({
   row,
   source,
   dataMartId,
+  siblingAliases,
   defaultOpenTab,
   readOnly = false,
   onDelete,
@@ -343,7 +346,6 @@ export function RelationshipAccordionItem({
                     setActiveTab(v as AccordionTab);
                   }}
                 >
-                  {/* Segment control (left) · data mart identity (center) · creation metadata (right) */}
                   <div className='flex items-center gap-3 px-4 pt-3'>
                     <TabsList className='shrink-0'>
                       <TabsTrigger value='fields'>
@@ -355,7 +357,7 @@ export function RelationshipAccordionItem({
                         Join Settings
                       </TabsTrigger>
                     </TabsList>
-                    <div className='text-muted-foreground flex min-w-0 flex-1 items-center justify-center gap-1.5 text-sm'>
+                    <div className='text-muted-foreground ml-auto flex min-w-0 items-center gap-1.5 text-sm'>
                       <Box className='size-4 shrink-0' />
                       <span
                         className='text-foreground max-w-[240px] truncate font-medium'
@@ -454,6 +456,7 @@ export function RelationshipAccordionItem({
                       relationship={rel}
                       dataMartId={dataMartId}
                       readOnly={readOnly || isTransient}
+                      siblingAliases={siblingAliases}
                       inheritedFrom={
                         isTransient ? { id: row.sourceDmId, title: row.parentDataMartTitle } : null
                       }

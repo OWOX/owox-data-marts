@@ -30,17 +30,22 @@ const joinConditionSchema = z.object({
   targetFieldName: z.string().min(1, 'Related field is required'),
 });
 
-const joinSettingsFormSchema = z.object({
-  targetAlias: z
-    .string()
-    .min(1, 'Field prefix is required')
-    .regex(/^[a-z0-9_]+$/, {
-      message: 'Field prefix must contain only lowercase letters, numbers, and underscores',
-    }),
-  joinConditions: z.array(joinConditionSchema).min(1, 'At least one join condition is required'),
-});
+function buildJoinSettingsFormSchema(siblingAliasesRef: { current: Set<string> }) {
+  return z.object({
+    targetAlias: z
+      .string()
+      .min(1, 'Field prefix is required')
+      .regex(/^[a-z0-9_]+$/, {
+        message: 'Field prefix must contain only lowercase letters, numbers, and underscores',
+      })
+      .refine(val => !siblingAliasesRef.current.has(val), {
+        message: 'This alias is already used by another joined data mart',
+      }),
+    joinConditions: z.array(joinConditionSchema).min(1, 'At least one join condition is required'),
+  });
+}
 
-type JoinSettingsFormValues = z.infer<typeof joinSettingsFormSchema>;
+type JoinSettingsFormValues = z.infer<ReturnType<typeof buildJoinSettingsFormSchema>>;
 
 interface FlatField {
   name: string;
@@ -91,6 +96,8 @@ interface JoinSettingsFormProps {
   relationship: DataMartRelationship;
   dataMartId: string;
   readOnly?: boolean;
+  /** Aliases used by other relationships that share the same source data mart. */
+  siblingAliases: string[];
   /**
    * When set, the join is inherited from a parent data mart and must be edited there.
    * Renders an informational banner with a link to the parent.
@@ -103,6 +110,7 @@ export function JoinSettingsForm({
   relationship,
   dataMartId,
   readOnly = false,
+  siblingAliases,
   inheritedFrom,
   onSaved,
 }: JoinSettingsFormProps) {
@@ -112,14 +120,30 @@ export function JoinSettingsForm({
   const [isLoadingSchemas, setIsLoadingSchemas] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
 
+  // Zod's `refine` closes over a ref so the schema instance stays stable while the
+  // set of taken aliases changes. Paired with `form.trigger` below to re-validate
+  // when siblings are added or renamed.
+  const siblingAliasesRef = useRef<Set<string>>(new Set(siblingAliases));
+  const formSchema = useMemo(() => buildJoinSettingsFormSchema(siblingAliasesRef), []);
+
   const form = useForm<JoinSettingsFormValues>({
-    resolver: zodResolver(joinSettingsFormSchema),
+    resolver: zodResolver(formSchema),
     mode: 'onChange',
     defaultValues: getInitialDefaults(relationship),
   });
 
-  const lastSavedKeyRef = useRef<string>(JSON.stringify(getInitialDefaults(relationship)));
-  const lastAttemptedKeyRef = useRef<string>(JSON.stringify(getInitialDefaults(relationship)));
+  useEffect(() => {
+    siblingAliasesRef.current = new Set(siblingAliases);
+    void form.trigger('targetAlias');
+  }, [siblingAliases, form]);
+
+  // Track saved/attempted state per field so targetAlias can autosave even while
+  // joinConditions are incomplete (e.g. "Join not configured" relationships).
+  const lastSavedRef = useRef({
+    targetAlias: relationship.targetAlias,
+    joinConditionsKey: JSON.stringify(relationship.joinConditions),
+  });
+  const lastAttemptedRef = useRef(lastSavedRef.current);
 
   const {
     fields: joinFields,
@@ -131,11 +155,13 @@ export function JoinSettingsForm({
   });
 
   useEffect(() => {
-    const defaults = getInitialDefaults(relationship);
-    const key = JSON.stringify(defaults);
-    form.reset(defaults);
-    lastSavedKeyRef.current = key;
-    lastAttemptedKeyRef.current = key;
+    form.reset(getInitialDefaults(relationship));
+    const snapshot = {
+      targetAlias: relationship.targetAlias,
+      joinConditionsKey: JSON.stringify(relationship.joinConditions),
+    };
+    lastSavedRef.current = snapshot;
+    lastAttemptedRef.current = snapshot;
   }, [relationship, form]);
 
   useEffect(() => {
@@ -177,15 +203,9 @@ export function JoinSettingsForm({
   const hasTypeMismatch = joinTypeMismatches.some(Boolean);
 
   const debouncedKey = useDebounce(watchedKey, 800);
-  const isValid = form.formState.isValid;
 
   useEffect(() => {
-    if (readOnly || isSaving || !isValid || hasTypeMismatch) return;
-    if (debouncedKey === lastSavedKeyRef.current) return;
-    // Without this guard a failed save keeps `lastSavedKeyRef` stale, so the
-    // next `isSaving=false` flip would re-run the effect and repost the same
-    // payload in a tight loop — a wall of error toasts the user cannot escape.
-    if (debouncedKey === lastAttemptedKeyRef.current) return;
+    if (readOnly || isSaving) return;
 
     let parsed: JoinSettingsFormValues;
     try {
@@ -194,34 +214,55 @@ export function JoinSettingsForm({
       return;
     }
 
-    lastAttemptedKeyRef.current = debouncedKey;
+    const parsedJoinKey = JSON.stringify(parsed.joinConditions);
+    const hasAliasError = !!form.formState.errors.targetAlias;
+    const joinsAreComplete =
+      parsed.joinConditions.length > 0 &&
+      parsed.joinConditions.every(jc => jc.sourceFieldName && jc.targetFieldName);
+
+    const aliasIsNew =
+      parsed.targetAlias !== lastSavedRef.current.targetAlias &&
+      parsed.targetAlias !== lastAttemptedRef.current.targetAlias;
+    const joinsAreNew =
+      parsedJoinKey !== lastSavedRef.current.joinConditionsKey &&
+      parsedJoinKey !== lastAttemptedRef.current.joinConditionsKey;
+
+    const payload: {
+      targetAlias?: string;
+      joinConditions?: JoinSettingsFormValues['joinConditions'];
+    } = {};
+    if (aliasIsNew && !hasAliasError) {
+      payload.targetAlias = parsed.targetAlias;
+    }
+    if (joinsAreNew && joinsAreComplete && !hasTypeMismatch) {
+      payload.joinConditions = parsed.joinConditions;
+    }
+    if (Object.keys(payload).length === 0) return;
+
+    // Mirror the payload into attempted refs so a failed save cannot loop on the
+    // same value (see original guard), while leaving untouched fields intact so
+    // they still eligible for their own autosave path.
+    lastAttemptedRef.current = {
+      targetAlias: payload.targetAlias ?? lastAttemptedRef.current.targetAlias,
+      joinConditionsKey: payload.joinConditions
+        ? parsedJoinKey
+        : lastAttemptedRef.current.joinConditionsKey,
+    };
     setIsSaving(true);
 
     dataMartRelationshipService
-      .updateRelationship(
-        dataMartId,
-        relationship.id,
-        {
-          targetAlias: parsed.targetAlias,
-          joinConditions: parsed.joinConditions,
-        },
-        { skipErrorToast: true }
-      )
+      .updateRelationship(dataMartId, relationship.id, payload, { skipErrorToast: true })
       .then(updated => {
-        lastSavedKeyRef.current = JSON.stringify({
+        lastSavedRef.current = {
           targetAlias: updated.targetAlias,
-          joinConditions: updated.joinConditions,
-        });
+          joinConditionsKey: JSON.stringify(updated.joinConditions),
+        };
         onSaved(updated);
       })
       .catch(() => {
-        // Suppress stale errors: the user may have already moved past this
-        // payload by the time the rejection arrives.
-        if (JSON.stringify(form.getValues()) === lastAttemptedKeyRef.current) {
-          toast.error('Failed to save join settings', {
-            id: `join-save-error-${relationship.id}`,
-          });
-        }
+        toast.error('Failed to save join settings', {
+          id: `join-save-error-${relationship.id}`,
+        });
       })
       .finally(() => {
         setIsSaving(false);
@@ -231,7 +272,6 @@ export function JoinSettingsForm({
     hasTypeMismatch,
     readOnly,
     isSaving,
-    isValid,
     dataMartId,
     relationship.id,
     onSaved,
@@ -261,48 +301,41 @@ export function JoinSettingsForm({
           </Button>
         </div>
       )}
-      {/* SQL Alias — internal, used for SQL JOIN construction. Target DM identity now lives
-          in the tabs row above, so this section only holds the SQL alias editor. Keep the
-          50/50 grid so the editor stays right-aligned and matches the Output Alias layout
-          in the Report Fields tab. */}
       <Form {...form}>
-        <div className='grid grid-cols-2 gap-3'>
-          <div />
-          <FormField
-            control={form.control}
-            name='targetAlias'
-            render={({ field }) => (
-              <FormItem
-                variant='light'
-                className='bg-muted/50 flex flex-col gap-1.5 rounded-md p-3 dark:bg-white/5'
-              >
-                <label className='flex items-center gap-1.5 text-sm font-medium'>
-                  SQL Alias
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <span className='text-muted-foreground/50 hover:text-muted-foreground shrink-0 transition-colors'>
-                        <Info className='size-4 shrink-0' />
-                      </span>
-                    </TooltipTrigger>
-                    <TooltipContent side='top' className='max-w-xs'>
-                      Internal name used when building the SQL JOIN for this data mart (e.g.
-                      orders_customer_id). Not shown in the output.
-                    </TooltipContent>
-                  </Tooltip>
-                </label>
-                <FormControl>
-                  <Input
-                    {...field}
-                    placeholder='e.g. orders'
-                    disabled={readOnly}
-                    className='bg-background h-8 text-sm dark:bg-white/5'
-                  />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-        </div>
+        <FormField
+          control={form.control}
+          name='targetAlias'
+          render={({ field }) => (
+            <FormItem
+              variant='light'
+              className='bg-muted/50 flex flex-col gap-1.5 rounded-md p-3 dark:bg-white/5'
+            >
+              <label className='flex items-center gap-1.5 text-sm font-medium'>
+                SQL Alias
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <span className='text-muted-foreground/50 hover:text-muted-foreground shrink-0 transition-colors'>
+                      <Info className='size-4 shrink-0' />
+                    </span>
+                  </TooltipTrigger>
+                  <TooltipContent side='top' className='max-w-xs'>
+                    Internal name used when building the SQL JOIN for this data mart (e.g.
+                    orders_customer_id). Not shown in the output.
+                  </TooltipContent>
+                </Tooltip>
+              </label>
+              <FormControl>
+                <Input
+                  {...field}
+                  placeholder='e.g. orders'
+                  disabled={readOnly}
+                  className='bg-background h-8 text-sm dark:bg-white/5'
+                />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
 
         <Separator />
 
