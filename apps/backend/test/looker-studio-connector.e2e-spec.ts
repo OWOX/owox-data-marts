@@ -48,6 +48,7 @@ const mockCacheService = {
     reader: mockReader,
     dataDescription: new ReportDataDescription(MOCK_HEADERS, MOCK_ROWS.length),
     fromCache: false,
+    blendingDecision: { needsBlending: false },
   }),
 };
 
@@ -135,6 +136,7 @@ describe('Looker Studio Connector (e2e)', () => {
       reader: mockReader,
       dataDescription: new ReportDataDescription(MOCK_HEADERS, MOCK_ROWS.length),
       fromCache: false,
+      blendingDecision: { needsBlending: false },
     });
     mockReader.readReportDataBatch.mockResolvedValue(new ReportDataBatch(MOCK_ROWS, null));
     mockSchemaProviderFacade.getActualDataMartSchema.mockResolvedValue({
