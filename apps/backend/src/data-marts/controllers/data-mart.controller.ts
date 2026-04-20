@@ -12,6 +12,8 @@ import {
 } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { Auth, AuthContext, AuthorizationContext, Role, Strategy } from '../../idp';
+import { BlendableSchemaDto } from '../dto/domain/blendable-schema.dto';
+import { BlendableSchemaService } from '../services/blendable-schema.service';
 import { BatchDataMartHealthStatusRequestApiDto } from '../dto/presentation/batch-data-mart-health-status-request-api.dto';
 import { BatchDataMartHealthStatusResponseApiDto } from '../dto/presentation/batch-data-mart-health-status-response-api.dto';
 import { CreateDataMartRequestApiDto } from '../dto/presentation/create-data-mart-request-api.dto';
@@ -23,6 +25,7 @@ import { DataMartValidationResponseApiDto } from '../dto/presentation/data-mart-
 import { PaginatedDataMartsResponseApiDto } from '../dto/presentation/paginated-data-marts-response-api.dto';
 import { RunDataMartRequestApiDto } from '../dto/presentation/run-data-mart-request-api.dto';
 import { UpdateDataMartDefinitionApiDto } from '../dto/presentation/update-data-mart-definition-api.dto';
+import { UpdateBlendedFieldsConfigApiDto } from '../dto/presentation/update-blended-fields-config-api.dto';
 import { UpdateDataMartDescriptionApiDto } from '../dto/presentation/update-data-mart-description-api.dto';
 import { UpdateDataMartOwnersApiDto } from '../dto/presentation/update-data-mart-owners-api.dto';
 import { UpdateDataMartSchemaApiDto } from '../dto/presentation/update-data-mart-schema-api.dto';
@@ -42,6 +45,7 @@ import { PublishDataMartService } from '../use-cases/publish-data-mart.service';
 import { RunDataMartService } from '../use-cases/run-data-mart.service';
 import { UpdateDataMartDefinitionService } from '../use-cases/update-data-mart-definition.service';
 import { UpdateDataMartDescriptionService } from '../use-cases/update-data-mart-description.service';
+import { UpdateBlendedFieldsConfigService } from '../use-cases/update-blended-fields-config.service';
 import { UpdateDataMartSchemaService } from '../use-cases/update-data-mart-schema.service';
 import { UpdateDataMartOwnersService } from '../use-cases/update-data-mart-owners.service';
 import { UpdateAvailabilityService } from '../use-cases/update-availability.service';
@@ -94,7 +98,9 @@ export class DataMartController {
     private readonly batchDataMartHealthStatusService: BatchDataMartHealthStatusService,
     private readonly updateOwnersService: UpdateDataMartOwnersService,
     private readonly updateAvailabilityService: UpdateAvailabilityService,
-    private readonly memberOwnershipWarningsService: MemberOwnershipWarningsService
+    private readonly memberOwnershipWarningsService: MemberOwnershipWarningsService,
+    private readonly blendableSchemaService: BlendableSchemaService,
+    private readonly updateBlendedFieldsConfigService: UpdateBlendedFieldsConfigService
   ) {}
 
   @Auth(Role.editor(Strategy.INTROSPECT))
@@ -280,6 +286,18 @@ export class DataMartController {
     return this.mapper.toResponse(dataMart);
   }
 
+  @Auth(Role.editor(Strategy.INTROSPECT))
+  @Put(':id/blended-fields-config')
+  async updateBlendedFieldsConfig(
+    @AuthContext() context: AuthorizationContext,
+    @Param('id') id: string,
+    @Body() dto: UpdateBlendedFieldsConfigApiDto
+  ): Promise<DataMartResponseApiDto> {
+    const command = this.mapper.toUpdateBlendedFieldsConfigCommand(id, context, dto);
+    const result = await this.updateBlendedFieldsConfigService.run(command);
+    return this.mapper.toResponse(result);
+  }
+
   @Auth(Role.viewer(Strategy.PARSE))
   @Get(':id/runs')
   @GetDataMartRunsSpec()
@@ -337,5 +355,14 @@ export class DataMartController {
       dto.availableForReporting,
       dto.availableForMaintenance
     );
+  }
+
+  @Auth(Role.viewer(Strategy.PARSE))
+  @Get(':id/blendable-schema')
+  async getBlendableSchema(
+    @AuthContext() context: AuthorizationContext,
+    @Param('id') dataMartId: string
+  ): Promise<BlendableSchemaDto> {
+    return this.blendableSchemaService.computeBlendableSchema(dataMartId, context.projectId);
   }
 }

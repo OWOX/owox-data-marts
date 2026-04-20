@@ -71,6 +71,7 @@ import type { DataDestinationFormData } from '../../../../../data-destination';
 import { useReport } from '../../../shared';
 import { isEmailDestinationConfig } from '../../../shared/model/types/data-mart-report';
 import { ReportFormActions } from '../shared/ReportFormActions';
+import { ReportColumnPicker } from '../../../../edit/components/ReportColumnPicker/ReportColumnPicker';
 
 export interface EmailReportEditFormProps {
   initialReport?: DataMartReport;
@@ -291,6 +292,7 @@ export const EmailReportEditForm = forwardRef<HTMLFormElement, EmailReportEditFo
           messageTemplate: prefill?.messageTemplate ?? defaultMessageTemplate,
           insightTemplateId: prefill?.insightTemplateId,
           templateSourceType,
+          columnConfig: null,
         });
       }
     }, [
@@ -890,6 +892,23 @@ export const EmailReportEditForm = forwardRef<HTMLFormElement, EmailReportEditFo
                     </FormItem>
                   )}
                 />
+              </FormSection>
+
+              <FormSection
+                title='Report Columns'
+                tooltip='Select which columns to include in the report'
+              >
+                {dataMart?.id && (
+                  <div className='border-border space-y-3 rounded-md border-b bg-white px-4 py-3 dark:border-transparent dark:bg-white/4'>
+                    <ReportColumnPicker
+                      dataMartId={dataMart.id}
+                      value={form.watch('columnConfig')}
+                      onChange={value => {
+                        form.setValue('columnConfig', value, { shouldDirty: true });
+                      }}
+                    />
+                  </div>
+                )}
               </FormSection>
 
               <FormSection title='Automate Report Runs'>

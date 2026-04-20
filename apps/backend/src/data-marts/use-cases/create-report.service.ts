@@ -103,6 +103,7 @@ export class CreateReportService {
       dataDestination,
       createdById: command.userId,
       destinationConfig: command.destinationConfig,
+      columnConfig: command.columnConfig ?? null,
     });
 
     const newReport = await this.reportRepository.save(report);

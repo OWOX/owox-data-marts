@@ -1,6 +1,9 @@
 import { Injectable, Logger, Scope } from '@nestjs/common';
 import { DataStorageType } from '../../enums/data-storage-type.enum';
-import { DataStorageReportReader } from '../../interfaces/data-storage-report-reader.interface';
+import {
+  DataStorageReportReader,
+  PrepareReportDataOptions,
+} from '../../interfaces/data-storage-report-reader.interface';
 import { ReportDataBatch } from '../../../dto/domain/report-data-batch.dto';
 import { ReportDataDescription } from '../../../dto/domain/report-data-description.dto';
 import { ReportDataHeader } from '../../../dto/domain/report-data-header.dto';
@@ -17,6 +20,7 @@ import {
   SnowflakeReaderState,
   isSnowflakeReaderState,
 } from '../interfaces/snowflake-reader-state.interface';
+import { resolveReportDataHeaders } from '../../utils/report-data-headers.utils';
 @Injectable({ scope: Scope.TRANSIENT })
 export class SnowflakeReportReader implements DataStorageReportReader {
   private readonly logger = new Logger(SnowflakeReportReader.name);
@@ -34,7 +38,10 @@ export class SnowflakeReportReader implements DataStorageReportReader {
     private readonly headersGenerator: SnowflakeReportHeadersGenerator
   ) {}
 
-  async prepareReportData(report: Report): Promise<ReportDataDescription> {
+  async prepareReportData(
+    report: Report,
+    options?: PrepareReportDataOptions
+  ): Promise<ReportDataDescription> {
     const { storage, definition, schema } = report.dataMart;
     if (!storage || !definition) {
       throw new Error('Data Mart is not properly configured');
@@ -49,11 +56,16 @@ export class SnowflakeReportReader implements DataStorageReportReader {
     }
 
     this.reportConfig = { storage, definition };
-    this.reportDataHeaders = this.headersGenerator.generateHeaders(schema);
+    this.reportDataHeaders = resolveReportDataHeaders(
+      this.headersGenerator.generateHeaders(schema),
+      options
+    );
 
     this.adapter = await this.adapterFactory.createFromStorage(storage);
 
-    const query = this.queryBuilder.buildQuery(definition);
+    const query =
+      options?.sqlOverride ??
+      this.queryBuilder.buildQuery(definition, { columns: options?.columnFilter });
     this.logger.debug(`Executing query: ${query}`);
 
     const result = await this.adapter.executeQuery(query);

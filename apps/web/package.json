@@ -54,6 +54,12 @@
     "react-hook-form": "^7.58.0",
     "react-hot-toast": "^2.5.2",
     "react-router-dom": "^7.6.2",
+    "rete": "^2.0.6",
+    "rete-area-plugin": "^2.1.5",
+    "rete-connection-plugin": "^2.0.5",
+    "rete-minimap-plugin": "^2.0.3",
+    "rete-react-plugin": "^2.1.0",
+    "styled-components": "^6.3.12",
     "tailwindcss": "^4.1.8"
   },
   "devDependencies": {

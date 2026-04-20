@@ -9,4 +9,5 @@ export interface CreateReportRequestDto {
   dataDestinationId: string;
   destinationConfig: DestinationConfigDto;
   ownerIds?: string[];
+  columnConfig?: string[] | null;
 }

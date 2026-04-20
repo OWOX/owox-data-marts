@@ -16,6 +16,7 @@ import { resolveOwnerUsers } from '../utils/resolve-owner-users';
 import { syncOwners } from '../utils/sync-owners';
 import { IdpProjectionsFacade } from '../../idp/facades/idp-projections.facade';
 import { ReportAccessService } from '../services/report-access.service';
+import { ReportDataCacheService } from '../services/report-data-cache.service';
 
 @Injectable()
 export class UpdateReportService {
@@ -30,7 +31,8 @@ export class UpdateReportService {
     private readonly idpProjectionsFacade: IdpProjectionsFacade,
     @InjectRepository(ReportOwner)
     private readonly reportOwnerRepository: Repository<ReportOwner>,
-    private readonly reportAccessService: ReportAccessService
+    private readonly reportAccessService: ReportAccessService,
+    private readonly reportDataCacheService: ReportDataCacheService
   ) {}
 
   @Transactional()
@@ -91,10 +93,17 @@ export class UpdateReportService {
       }
     }
 
-    // Update the report
+    // Column order is part of the report output, so a serialized compare is intentional —
+    // reordering alone must rebuild the cached reader.
+    const previousColumnConfig = report.columnConfig ?? null;
+    const nextColumnConfig = command.columnConfig ?? null;
+    const columnConfigChanged =
+      JSON.stringify(previousColumnConfig) !== JSON.stringify(nextColumnConfig);
+
     report.title = command.title;
     report.dataDestination = dataDestination;
     report.destinationConfig = command.destinationConfig;
+    report.columnConfig = nextColumnConfig;
 
     const updatedReport = await this.reportRepository.save(report);
 
@@ -113,6 +122,10 @@ export class UpdateReportService {
           return o;
         }
       );
+    }
+
+    if (columnConfigChanged) {
+      await this.reportDataCacheService.invalidateByReportId(updatedReport.id);
     }
 
     // Reload to get fresh owners

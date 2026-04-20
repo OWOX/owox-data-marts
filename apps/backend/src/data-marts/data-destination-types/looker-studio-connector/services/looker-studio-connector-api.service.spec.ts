@@ -11,6 +11,8 @@ jest.mock('@owox/internal-helpers', () => ({
 }));
 
 // Import after mocking
+import { SystemTimeService } from '../../../../common/scheduler/services/system-time.service';
+import { BlendedReportDataService } from '../../../services/blended-report-data.service';
 import { ConsumptionTrackingService } from '../../../services/consumption-tracking.service';
 import { LookerStudioReportRunService } from '../../../services/looker-studio-report-run.service';
 import { ProjectBalanceService } from '../../../services/project-balance.service';
@@ -30,6 +32,8 @@ describe('LookerStudioConnectorApiService', () => {
   let consumptionTrackingService: jest.Mocked<ConsumptionTrackingService>;
   let projectBalanceService: jest.Mocked<ProjectBalanceService>;
   let eventDispatcher: jest.Mocked<{ publishExternal: jest.Mock }>;
+  let blendedReportDataService: jest.Mocked<BlendedReportDataService>;
+  let systemTimeService: jest.Mocked<SystemTimeService>;
 
   const originalEnv = process.env;
 
@@ -68,6 +72,15 @@ describe('LookerStudioConnectorApiService', () => {
       publishExternal: jest.fn(),
     };
 
+    blendedReportDataService = {
+      resolveBlendingDecision: jest.fn().mockResolvedValue({ needsBlending: false }),
+      logBlendedSqlIfNeeded: jest.fn(),
+    } as unknown as jest.Mocked<BlendedReportDataService>;
+
+    systemTimeService = {
+      now: jest.fn().mockReturnValue(new Date('2026-04-17T00:00:00.000Z').toISOString()),
+    } as unknown as jest.Mocked<SystemTimeService>;
+
     service = new LookerStudioConnectorApiService(
       {} as LookerStudioConnectorApiConfigService,
       {} as LookerStudioConnectorApiSchemaService,
@@ -77,7 +90,9 @@ describe('LookerStudioConnectorApiService', () => {
       consumptionTrackingService,
       eventDispatcher as any,
       reportRunService,
-      projectBalanceService
+      projectBalanceService,
+      blendedReportDataService,
+      systemTimeService
     );
 
     (service as any).logger = {
@@ -379,6 +394,104 @@ describe('LookerStudioConnectorApiService', () => {
 
         expect(mockReportRun.markAsUnsuccessful).toHaveBeenCalled();
       });
+    });
+  });
+
+  describe('blended SQL logging', () => {
+    const setupRun = (blendingDecision: unknown = { needsBlending: false }) => {
+      const mockReport = createMockReport();
+      const mockCachedReader = {
+        fromCache: true,
+        reader: {},
+        dataDescription: { dataHeaders: [] },
+        blendingDecision,
+      };
+      const mockReportRun = {
+        markAsSuccess: jest.fn(),
+        markAsUnsuccessful: jest.fn(),
+        getReport: jest.fn().mockReturnValue(mockReport),
+        getReportId: jest.fn().mockReturnValue('report-1'),
+      };
+
+      reportService.getByIdAndLookerStudioSecret.mockResolvedValue(mockReport);
+      cacheService.getOrCreateCachedReader.mockResolvedValue(mockCachedReader as any);
+      reportRunService.create.mockResolvedValue(mockReportRun as any);
+      return { mockReport, mockReportRun };
+    };
+
+    it('forwards cached blending decision to logBlendedSqlIfNeeded on full extraction', async () => {
+      const decision = {
+        needsBlending: true,
+        blendedSql: 'WITH cte AS (SELECT 1) SELECT * FROM cte',
+      };
+      setupRun(decision);
+
+      dataService.getData.mockResolvedValue({
+        response: { schema: [], rows: [], filtersApplied: [] },
+        meta: { limitExceeded: false, rowsSent: 0, bytesSent: undefined, limitReason: undefined },
+      } as any);
+
+      await service.getData(createMockRequest(false));
+
+      expect(blendedReportDataService.resolveBlendingDecision).not.toHaveBeenCalled();
+      expect(blendedReportDataService.logBlendedSqlIfNeeded).toHaveBeenCalledWith(
+        decision,
+        expect.objectContaining({ log: expect.any(Function), asArrays: expect.any(Function) })
+      );
+    });
+
+    it('does not log blended SQL on sample extraction', async () => {
+      setupRun({ needsBlending: true, blendedSql: 'SELECT 1' });
+
+      dataService.getData.mockResolvedValue({
+        response: { schema: [], rows: [], filtersApplied: [] },
+        meta: { limitExceeded: false, rowsSent: 0, bytesSent: undefined, limitReason: undefined },
+      } as any);
+
+      await service.getData(createMockRequest(true));
+
+      expect(blendedReportDataService.logBlendedSqlIfNeeded).not.toHaveBeenCalled();
+    });
+
+    it('passes collected logs to finish when blending produced SQL', async () => {
+      setupRun({ needsBlending: true, blendedSql: 'SELECT 1' });
+      blendedReportDataService.logBlendedSqlIfNeeded.mockImplementation((decision, logger) => {
+        if (decision?.needsBlending && decision.blendedSql && logger) {
+          logger.log({ type: 'joined-data-marts-sql', sql: decision.blendedSql });
+        }
+      });
+
+      dataService.getData.mockResolvedValue({
+        response: { schema: [], rows: [], filtersApplied: [] },
+        meta: { limitExceeded: false, rowsSent: 0, bytesSent: undefined, limitReason: undefined },
+      } as any);
+
+      await service.getData(createMockRequest(false));
+
+      expect(reportRunService.finish).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({
+          logs: expect.arrayContaining([expect.stringContaining('"type":"joined-data-marts-sql"')]),
+          errors: [],
+        })
+      );
+    });
+
+    it('still persists empty logs/errors when blending is not needed', async () => {
+      setupRun({ needsBlending: false });
+
+      dataService.getData.mockResolvedValue({
+        response: { schema: [], rows: [], filtersApplied: [] },
+        meta: { limitExceeded: false, rowsSent: 0, bytesSent: undefined, limitReason: undefined },
+      } as any);
+
+      await service.getData(createMockRequest(false));
+
+      expect(blendedReportDataService.logBlendedSqlIfNeeded).toHaveBeenCalled();
+      expect(reportRunService.finish).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({ logs: [], errors: [] })
+      );
     });
   });
 });

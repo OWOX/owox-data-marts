@@ -63,4 +63,39 @@ export class SheetHeaderFormatter {
       },
     };
   }
+
+  /**
+   * Creates a request to reset header-row formatting (background and text
+   * format) across every column of the sheet.
+   *
+   * This is applied BEFORE `createHeaderFormatRequest` to wipe leftover
+   * styling from previous runs — otherwise columns that are no longer part
+   * of the selection keep the old gray header background (visible on the
+   * right side of the sheet as empty-but-styled cells).
+   *
+   * @param sheetId - ID of the sheet to reset
+   * @param totalColumnsCount - Total number of columns currently allocated
+   *   on the sheet (equals `sheet.properties.gridProperties.columnCount`).
+   * @returns Google Sheets API request object for clearing header row format
+   */
+  public createHeaderClearFormatRequest(
+    sheetId: number,
+    totalColumnsCount: number
+  ): sheets_v4.Schema$Request {
+    return {
+      repeatCell: {
+        range: {
+          sheetId: sheetId,
+          startRowIndex: 0,
+          endRowIndex: 1,
+          startColumnIndex: 0,
+          endColumnIndex: totalColumnsCount,
+        },
+        cell: {
+          userEnteredFormat: {},
+        },
+        fields: 'userEnteredFormat.textFormat,userEnteredFormat.backgroundColor',
+      },
+    };
+  }
 }

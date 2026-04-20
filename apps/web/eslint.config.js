@@ -6,6 +6,13 @@ export default tseslint.config(
   {
     ignores: ['src/features/data-marts/insights-prev/**'],
   },
+  // Allow numbers in template literals (e.g. field array index paths like `items.${index}.name`)
+  {
+    files: ['**/*.{ts,tsx}'],
+    rules: {
+      '@typescript-eslint/restrict-template-expressions': ['error', { allowNumber: true }],
+    },
+  },
   // Disable TypeScript type-checking for config files in root
   {
     files: ['*.config.{js,mjs,ts}'],

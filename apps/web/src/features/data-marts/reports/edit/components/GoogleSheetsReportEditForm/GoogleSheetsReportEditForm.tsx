@@ -58,6 +58,7 @@ import { useReport } from '../../../shared';
 import { ReportFormActions } from '../shared/ReportFormActions';
 import { OwnersSection } from '../../../../../../shared/components/OwnersSection/OwnersSection';
 import type { UserProjectionDto } from '../../../../../../shared/types/api';
+import { ReportColumnPicker } from '../../../../edit/components/ReportColumnPicker/ReportColumnPicker';
 
 interface GoogleSheetsReportEditFormProps {
   initialReport?: DataMartReport;
@@ -199,11 +200,12 @@ export const GoogleSheetsReportEditForm = forwardRef<
             initialReport.destinationConfig.sheetId
           ),
           dataDestinationId: initialReport.dataDestination.id,
+          columnConfig: initialReport.columnConfig ?? null,
         });
       } else if (mode === ReportFormMode.CREATE) {
         // Pre-select destination if provided
         const destinationId = preSelectedDestination?.id ?? '';
-        reset({ title: '', documentUrl: '', dataDestinationId: destinationId });
+        reset({ title: '', documentUrl: '', dataDestinationId: destinationId, columnConfig: null });
       }
     }, [initialReport, mode, reset, preSelectedDestination]);
 
@@ -409,6 +411,22 @@ export const GoogleSheetsReportEditForm = forwardRef<
                   </FormItem>
                 )}
               />
+            </FormSection>
+            <FormSection
+              title='Report Columns'
+              tooltip='Select which columns to include in the report'
+            >
+              {dataMart?.id && (
+                <div className='border-border space-y-3 rounded-md border-b bg-white px-4 py-3 dark:border-transparent dark:bg-white/4'>
+                  <ReportColumnPicker
+                    dataMartId={dataMart.id}
+                    value={form.watch('columnConfig')}
+                    onChange={value => {
+                      form.setValue('columnConfig', value, { shouldDirty: true });
+                    }}
+                  />
+                </div>
+              )}
             </FormSection>
             <FormSection title='Automate Report Runs'>
               {dataMart?.id ? (

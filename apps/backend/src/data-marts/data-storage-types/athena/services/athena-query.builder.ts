@@ -19,14 +19,20 @@ export class AthenaQueryBuilder implements DataMartQueryBuilder {
   readonly type = DataStorageType.AWS_ATHENA;
 
   buildQuery(definition: DataMartDefinition, queryOptions?: DataMartQueryOptions): string {
+    const selectList = this.buildSelectList(queryOptions?.columns);
     let query: string;
 
     if (isTableDefinition(definition) || isViewDefinition(definition)) {
-      query = `SELECT * FROM ${escapeAthenaIdentifier(definition.fullyQualifiedName)}`;
+      query = `SELECT ${selectList} FROM ${escapeAthenaIdentifier(definition.fullyQualifiedName)}`;
     } else if (isConnectorDefinition(definition)) {
-      query = `SELECT * FROM ${escapeAthenaIdentifier(definition.connector.storage.fullyQualifiedName)}`;
+      query = `SELECT ${selectList} FROM ${escapeAthenaIdentifier(definition.connector.storage.fullyQualifiedName)}`;
     } else if (isSqlDefinition(definition)) {
-      query = definition.sqlQuery.trim();
+      if (queryOptions?.columns?.length) {
+        const cleanQuery = definition.sqlQuery.trim().replace(/;\s*$/, '');
+        query = `SELECT ${selectList} FROM (${cleanQuery})`;
+      } else {
+        query = definition.sqlQuery.trim();
+      }
     } else if (isTablePatternDefinition(definition)) {
       throw new Error('Table pattern queries are not supported in Athena');
     } else {
@@ -41,5 +47,12 @@ export class AthenaQueryBuilder implements DataMartQueryBuilder {
     }
 
     return query;
+  }
+
+  private buildSelectList(columns?: string[]): string {
+    if (!columns || columns.length === 0) {
+      return '*';
+    }
+    return columns.map(col => escapeAthenaIdentifier(col)).join(', ');
   }
 }

@@ -101,8 +101,8 @@ function FormItem({ className = '', variant = 'default', ...props }: FormItemPro
         data-slot='form-item'
         className={cn(
           variant === 'default' &&
-            'group border-border flex flex-col gap-2 rounded-md border-b bg-white px-4 py-3 transition-shadow duration-200 hover:shadow-sm dark:border-white/4 dark:bg-white/4',
-          variant === 'light' && '',
+            'group border-border flex flex-col gap-2 rounded-md border-b bg-white px-4 py-3 transition-shadow duration-200 hover:shadow-sm dark:border-transparent dark:bg-white/4',
+          variant === 'light' && 'flex flex-col gap-1.5',
           className
         )}
         {...props}
@@ -268,6 +268,8 @@ function FormActions({
  */
 interface FormSectionProps {
   title?: string;
+  description?: string;
+  tooltip?: React.ReactNode | string;
   children: React.ReactNode;
   defaultOpen?: boolean;
   collapsible?: boolean;
@@ -276,8 +278,33 @@ interface FormSectionProps {
 
 const SECTION_STORAGE_PREFIX = 'form-section-';
 
+function FormSectionTooltip({ tooltip }: { tooltip: React.ReactNode | string }) {
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <button
+          type='button'
+          tabIndex={-1}
+          className='pointer-events-none opacity-0 transition group-hover:pointer-events-auto group-hover:opacity-100'
+          aria-label='Help information'
+        >
+          <Info
+            className='text-muted-foreground/50 hover:text-muted-foreground size-4 shrink-0 transition-colors'
+            aria-hidden='true'
+          />
+        </button>
+      </TooltipTrigger>
+      <TooltipContent side='top' align='center' role='tooltip'>
+        {tooltip}
+      </TooltipContent>
+    </Tooltip>
+  );
+}
+
 function FormSection({
   title,
+  description,
+  tooltip,
   children,
   defaultOpen = true,
   collapsible = true,
@@ -318,10 +345,12 @@ function FormSection({
     return (
       <div data-slot='form-section' className='mb-4'>
         {title && (
-          <h3 className='text-muted-foreground/75 mb-2 text-xs font-semibold tracking-wide uppercase'>
-            {title}
-          </h3>
+          <div className='group border-border flex items-center justify-between rounded-md border-b bg-white px-4 py-3 dark:border-transparent dark:bg-white/4'>
+            <h3 className='text-muted-foreground text-sm font-medium'>{title}</h3>
+            {tooltip && <FormSectionTooltip tooltip={tooltip} />}
+          </div>
         )}
+        {description && <p className='text-muted-foreground mt-2 mb-2 text-sm'>{description}</p>}
         {content}
       </div>
     );
@@ -335,22 +364,24 @@ function FormSection({
       className='mb-4 flex flex-col gap-2'
     >
       {title && (
-        <CollapsibleTrigger asChild>
-          <button type='button' className='flex cursor-pointer items-center gap-1'>
-            <span className='text-muted-foreground/75 text-xs font-semibold tracking-wide uppercase'>
-              {title}
-            </span>
-            <ChevronRight
-              className={cn(
-                'text-foreground/75 h-3.5 w-3.5 transition-transform duration-200',
-                isOpen && 'rotate-90'
-              )}
-            />
-          </button>
-        </CollapsibleTrigger>
+        <div className='group border-border flex items-center justify-between rounded-md border-b bg-white px-4 py-3 dark:border-transparent dark:bg-white/4'>
+          <CollapsibleTrigger asChild>
+            <button type='button' className='flex cursor-pointer items-center gap-1'>
+              <ChevronRight
+                className={cn(
+                  'text-muted-foreground h-3.5 w-3.5 transition-transform duration-200',
+                  isOpen && 'rotate-90'
+                )}
+              />
+              <span className='text-muted-foreground text-sm font-medium'>{title}</span>
+            </button>
+          </CollapsibleTrigger>
+          {tooltip && <FormSectionTooltip tooltip={tooltip} />}
+        </div>
       )}
 
       <CollapsibleContent className='data-[state=open]:animate-collapsible-down data-[state=closed]:animate-collapsible-up overflow-hidden'>
+        {description && <p className='text-muted-foreground text-sm'>{description}</p>}
         {content}
       </CollapsibleContent>
     </Collapsible>

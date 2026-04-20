@@ -1,4 +1,4 @@
-import { forwardRef, useEffect } from 'react';
+import { forwardRef, useEffect, useState } from 'react';
 import { useOwnerState } from '../../../../../../shared/hooks/useOwnerState';
 import { UserReference } from '../../../../../../shared/components/UserReference/UserReference';
 import { useUser } from '../../../../../idp/hooks/useAuthState';
@@ -36,6 +36,8 @@ import { Button } from '@owox/ui/components/button';
 import LookerStudioCacheLifetimeDescription from './LookerStudioCacheLifetimeDescription.tsx';
 import { OwnersSection } from '../../../../../../shared/components/OwnersSection/OwnersSection';
 import type { UserProjectionDto } from '../../../../../../shared/types/api';
+import { ReportColumnPicker } from '../../../../edit/components/ReportColumnPicker/ReportColumnPicker';
+import { GeneratedSqlViewer } from '../../../../edit/components/ReportColumnPicker/GeneratedSqlViewer';
 
 interface LookerStudioReportEditFormProps {
   initialReport?: DataMartReport;
@@ -82,6 +84,7 @@ export const LookerStudioReportEditForm = forwardRef<
     const formId = 'looker-studio-edit-form';
 
     const { dataMart } = useOutletContext<DataMartContextType>();
+    const [hasBlendedSelection, setHasBlendedSelection] = useState(false);
 
     const currentUser = useUser();
     const initialOwnerUsers =
@@ -136,10 +139,11 @@ export const LookerStudioReportEditForm = forwardRef<
       ) {
         reset({
           cacheLifetime: initialReport.destinationConfig.cacheLifetime,
+          columnConfig: initialReport.columnConfig ?? null,
         });
       } else if (mode === ReportFormMode.CREATE) {
         // Pre-select destination if provided
-        reset({ cacheLifetime: 300 });
+        reset({ cacheLifetime: 300, columnConfig: null });
       }
     }, [initialReport, mode, reset]);
 
@@ -192,6 +196,36 @@ export const LookerStudioReportEditForm = forwardRef<
                   </FormItem>
                 )}
               />
+            </FormSection>
+
+            <FormSection
+              title='Report Columns'
+              tooltip='Select which columns to include in the report'
+            >
+              {dataMart?.id && (
+                <div className='border-border space-y-3 rounded-md border-b bg-white px-4 py-3 dark:border-transparent dark:bg-white/4'>
+                  <ReportColumnPicker
+                    dataMartId={dataMart.id}
+                    value={form.watch('columnConfig')}
+                    onChange={value => {
+                      form.setValue('columnConfig', value, { shouldDirty: true });
+                    }}
+                    onBlendedSelectionChange={setHasBlendedSelection}
+                  />
+                  {hasBlendedSelection &&
+                    mode === ReportFormMode.EDIT &&
+                    initialReport?.id &&
+                    dataMart.id && (
+                      <div className='pt-1'>
+                        <GeneratedSqlViewer
+                          reportId={initialReport.id}
+                          dataMartId={dataMart.id}
+                          variant='outline-button'
+                        />
+                      </div>
+                    )}
+                </div>
+              )}
             </FormSection>
 
             <FormSection title='Ownership'>

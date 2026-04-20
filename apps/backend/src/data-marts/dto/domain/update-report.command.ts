@@ -9,6 +9,7 @@ export class UpdateReportCommand {
     public readonly title: string,
     public readonly dataDestinationId: string,
     public readonly destinationConfig: DataDestinationConfig,
-    public readonly ownerIds?: string[]
+    public readonly ownerIds?: string[],
+    public readonly columnConfig?: string[] | null
   ) {}
 }

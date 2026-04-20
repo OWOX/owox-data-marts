@@ -26,9 +26,11 @@ export class BigQueryReportHeadersGenerator implements ReportHeadersGenerator {
     }
 
     const headers: ReportDataHeader[] = [];
-    dataMartSchema.fields.forEach(field => {
-      headers.push(...this.getHeadersForField(field));
-    });
+    dataMartSchema.fields
+      .filter(field => !field.isHiddenForReporting)
+      .forEach(field => {
+        headers.push(...this.getHeadersForField(field));
+      });
     return headers;
   }
 

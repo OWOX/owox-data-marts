@@ -6,6 +6,10 @@ const DatabricksSchemaFieldSchema = z.object({
   name: z.string(),
   type: z.nativeEnum(DatabricksFieldType),
   isPrimaryKey: z.boolean().optional(),
+  isHiddenForReporting: z
+    .boolean()
+    .default(false)
+    .describe('Hide field from reporting and blending'),
   description: z.string().optional(),
   alias: z.string().optional(),
   status: z.nativeEnum(DataMartSchemaFieldStatus),

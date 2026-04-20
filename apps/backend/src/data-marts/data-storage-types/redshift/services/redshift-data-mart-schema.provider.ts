@@ -87,6 +87,7 @@ export class RedshiftDataMartSchemaProvider implements DataMartSchemaProvider {
       type,
       description: description || undefined,
       isPrimaryKey: false,
+      isHiddenForReporting: false,
       status: DataMartSchemaFieldStatus.CONNECTED,
     };
   }

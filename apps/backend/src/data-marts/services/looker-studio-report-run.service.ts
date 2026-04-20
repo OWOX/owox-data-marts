@@ -61,14 +61,25 @@ export class LookerStudioReportRunService {
    * Finalizes Looker Studio report run by persisting results in transaction.
    *
    * @param reportRun - Completed Looker Studio report run
+   * @param context - Optional finish context with logs/errors to append to DataMartRun
    */
   @Transactional()
-  async finish(reportRun: LookerStudioReportRun): Promise<void> {
+  async finish(
+    reportRun: LookerStudioReportRun,
+    context?: { logs?: string[]; errors?: string[] }
+  ): Promise<void> {
     await this.reportService.updateRunStatus(
       reportRun.getReport().id,
       reportRun.getReport().lastRunStatus!,
       reportRun.getReport().lastRunError
     );
-    await this.dataMartRunService.markReportRunAsFinished(reportRun.getDataMartRun());
+    const dmRun = reportRun.getDataMartRun();
+    if (context?.logs?.length) {
+      dmRun.logs = [...(dmRun.logs ?? []), ...context.logs];
+    }
+    if (context?.errors?.length) {
+      dmRun.errors = [...(dmRun.errors ?? []), ...context.errors];
+    }
+    await this.dataMartRunService.markReportRunAsFinished(dmRun);
   }
 }

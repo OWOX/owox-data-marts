@@ -230,6 +230,7 @@ export interface BaseSchemaField {
   alias?: string;
   description?: string;
   isPrimaryKey: boolean;
+  isHiddenForReporting?: boolean;
   status: DataMartSchemaFieldStatus;
 }
 

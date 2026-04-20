@@ -3,6 +3,13 @@ import { DataMartDefinition } from '../../dto/schemas/data-mart-table-definition
 
 export interface DataMartQueryOptions {
   limit?: number;
+  /**
+   * Optional list of column expressions to project via SELECT.
+   * When set, `SELECT *` is replaced with `SELECT <escaped-columns>`.
+   * Each builder escapes per its dialect. SQL-definition data marts are
+   * wrapped as `SELECT <cols> FROM (<user-sql>)` to avoid mutating user SQL.
+   */
+  columns?: string[];
 }
 
 export interface DataMartQueryBuilder {

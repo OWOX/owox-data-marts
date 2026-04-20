@@ -1,3 +1,4 @@
+import { BlendedQueryBuilderFacade } from './facades/blended-query-builder.facade';
 import { DataMartDefinitionValidatorFacade } from './facades/data-mart-definition-validator-facade.service';
 import { DataMartQueryBuilderFacade } from './facades/data-mart-query-builder.facade';
 import { DataMartSchemaMergerFacade } from './facades/data-mart-schema-merger.facade';
@@ -18,4 +19,5 @@ export const dataStorageFacadesProviders = [
   SqlDryRunExecutorFacade,
   SqlRunExecutorFacade,
   CreateViewExecutorFacade,
+  BlendedQueryBuilderFacade,
 ];
