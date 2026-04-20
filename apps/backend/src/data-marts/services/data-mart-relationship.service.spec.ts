@@ -279,7 +279,8 @@ describe('DataMartRelationshipService', () => {
         'my_alias',
         [],
         'user-1',
-        'project-1'
+        'project-1',
+        []
       );
       const sourceDataMart = {
         id: 'dm-source',
@@ -312,7 +313,8 @@ describe('DataMartRelationshipService', () => {
         'draft_alias',
         [],
         'user-1',
-        'project-1'
+        'project-1',
+        []
       );
       const sourceDataMart = {
         id: 'dm-source',

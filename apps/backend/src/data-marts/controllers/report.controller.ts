@@ -166,7 +166,8 @@ export class ReportController {
     @AuthContext() context: AuthorizationContext,
     @Param('id') id: string
   ): Promise<{ sql: string }> {
-    return this.getReportGeneratedSqlService.run(id, context.projectId);
+    const command = this.mapper.toGetGeneratedSqlCommand(id, context);
+    return this.getReportGeneratedSqlService.run(command);
   }
 
   @Auth(Role.editor(Strategy.INTROSPECT))
@@ -176,11 +177,8 @@ export class ReportController {
     @AuthContext() context: AuthorizationContext,
     @Param('id') id: string
   ): Promise<{ dataMartId: string }> {
-    const dataMart = await this.copyReportAsDataMartService.run(
-      id,
-      context.userId,
-      context.projectId
-    );
+    const command = this.mapper.toCopyAsDataMartCommand(id, context);
+    const dataMart = await this.copyReportAsDataMartService.run(command);
     return { dataMartId: dataMart.id };
   }
 }

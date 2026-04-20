@@ -27,7 +27,8 @@ export class RelationshipMapper {
       dto.targetAlias,
       dto.joinConditions.map(c => this.toJoinCondition(c)),
       context.userId,
-      context.projectId
+      context.projectId,
+      context.roles ?? []
     );
   }
 
@@ -42,6 +43,7 @@ export class RelationshipMapper {
       dataMartId,
       context.userId,
       context.projectId,
+      context.roles ?? [],
       dto.targetAlias,
       dto.joinConditions?.map(c => this.toJoinCondition(c))
     );
@@ -56,7 +58,8 @@ export class RelationshipMapper {
       relationshipId,
       dataMartId,
       context.userId,
-      context.projectId
+      context.projectId,
+      context.roles ?? []
     );
   }
 

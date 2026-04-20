@@ -358,7 +358,9 @@ export class DataMartMapper {
     return new UpdateBlendedFieldsConfigCommand(
       id,
       context.projectId,
-      dto.blendedFieldsConfig ?? null
+      dto.blendedFieldsConfig ?? null,
+      context.userId,
+      context.roles ?? []
     );
   }
 

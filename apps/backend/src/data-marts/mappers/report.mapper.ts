@@ -12,6 +12,8 @@ import { ListReportsByDataMartCommand } from '../dto/domain/list-reports-by-data
 import { ListReportsByProjectCommand } from '../dto/domain/list-reports-by-project.command';
 import { ListReportsByInsightTemplateCommand } from '../dto/domain/list-reports-by-insight-template.command';
 import { RunReportCommand } from '../dto/domain/run-report.command';
+import { CopyReportAsDataMartCommand } from '../dto/domain/copy-report-as-data-mart.command';
+import { GetReportGeneratedSqlCommand } from '../dto/domain/get-report-generated-sql.command';
 import { AuthorizationContext } from '../../idp';
 import { DataMartMapper } from './data-mart.mapper';
 import { DataDestinationMapper } from './data-destination.mapper';
@@ -176,6 +178,30 @@ export class ReportMapper {
       dto.destinationConfig,
       dto.ownerIds,
       dto.columnConfig
+    );
+  }
+
+  toCopyAsDataMartCommand(
+    reportId: string,
+    context: AuthorizationContext
+  ): CopyReportAsDataMartCommand {
+    return new CopyReportAsDataMartCommand(
+      reportId,
+      context.userId,
+      context.projectId,
+      context.roles ?? []
+    );
+  }
+
+  toGetGeneratedSqlCommand(
+    reportId: string,
+    context: AuthorizationContext
+  ): GetReportGeneratedSqlCommand {
+    return new GetReportGeneratedSqlCommand(
+      reportId,
+      context.userId,
+      context.projectId,
+      context.roles ?? []
     );
   }
 }

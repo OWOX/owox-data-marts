@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { Transactional } from 'typeorm-transactional';
 import { UpdateRelationshipCommand } from '../dto/domain/update-relationship.command';
 import { RelationshipResponseApiDto } from '../dto/presentation/relationship-response-api.dto';
@@ -7,6 +7,7 @@ import { DataMartRelationshipService } from '../services/data-mart-relationship.
 import { DataMartService } from '../services/data-mart.service';
 import { ReportDataCacheService } from '../services/report-data-cache.service';
 import { UserProjectionsFetcherService } from '../services/user-projections-fetcher.service';
+import { AccessDecisionService, EntityType, Action } from '../services/access-decision';
 
 @Injectable()
 export class UpdateDataMartRelationshipService {
@@ -15,7 +16,8 @@ export class UpdateDataMartRelationshipService {
     private readonly dataMartService: DataMartService,
     private readonly userProjectionsFetcherService: UserProjectionsFetcherService,
     private readonly reportDataCacheService: ReportDataCacheService,
-    private readonly mapper: RelationshipMapper
+    private readonly mapper: RelationshipMapper,
+    private readonly accessDecisionService: AccessDecisionService
   ) {}
 
   @Transactional()
@@ -26,6 +28,22 @@ export class UpdateDataMartRelationshipService {
       throw new NotFoundException(
         `Relationship with ID ${command.relationshipId} not found for data mart ${command.sourceDataMartId}`
       );
+    }
+
+    if (command.userId) {
+      const canEdit = await this.accessDecisionService.canAccess(
+        command.userId,
+        command.roles,
+        EntityType.DATA_MART,
+        relationship.sourceDataMart.id,
+        Action.EDIT,
+        command.projectId
+      );
+      if (!canEdit) {
+        throw new ForbiddenException(
+          'You do not have permission to manage relationships of this DataMart'
+        );
+      }
     }
 
     const oldAlias = relationship.targetAlias;
