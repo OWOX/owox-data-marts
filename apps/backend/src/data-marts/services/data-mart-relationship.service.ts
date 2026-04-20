@@ -85,6 +85,14 @@ export class DataMartRelationshipService {
     await this.repository.remove(relationship);
   }
 
+  async deleteAllByDataMartId(dataMartId: string): Promise<void> {
+    const relationships = await this.repository.find({
+      where: [{ sourceDataMart: { id: dataMartId } }, { targetDataMart: { id: dataMartId } }],
+    });
+    if (relationships.length === 0) return;
+    await this.repository.remove(relationships);
+  }
+
   validateJoinFieldTypes(
     sourceSchema: DataMartSchema | undefined,
     targetSchema: DataMartSchema | undefined,

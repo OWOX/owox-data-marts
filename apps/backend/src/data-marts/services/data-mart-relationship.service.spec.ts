@@ -136,6 +136,29 @@ describe('DataMartRelationshipService', () => {
     });
   });
 
+  describe('deleteAllByDataMartId', () => {
+    it('queries with OR on source and target and removes every match', async () => {
+      const asSource = makeRelationship('dm-1', 'dm-2', { id: 'rel-src' });
+      const asTarget = makeRelationship('dm-3', 'dm-1', { id: 'rel-tgt' });
+      repository.find.mockResolvedValue([asSource, asTarget]);
+
+      await service.deleteAllByDataMartId('dm-1');
+
+      expect(repository.find).toHaveBeenCalledWith({
+        where: [{ sourceDataMart: { id: 'dm-1' } }, { targetDataMart: { id: 'dm-1' } }],
+      });
+      expect(repository.remove).toHaveBeenCalledWith([asSource, asTarget]);
+    });
+
+    it('skips the remove call when no relationships reference the data mart', async () => {
+      repository.find.mockResolvedValue([]);
+
+      await service.deleteAllByDataMartId('dm-orphan');
+
+      expect(repository.remove).not.toHaveBeenCalled();
+    });
+  });
+
   describe('validateJoinFieldTypes', () => {
     const STATUS = DataMartSchemaFieldStatus.CONNECTED;
 
