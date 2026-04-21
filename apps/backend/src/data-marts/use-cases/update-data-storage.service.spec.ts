@@ -441,7 +441,7 @@ describe('UpdateDataStorageService - BigQuery projectId validation', () => {
 
     dataStorageService.getByProjectIdAndId.mockResolvedValue(makeOAuthStorage());
 
-    const command = makeCommand({ projectId: 'GTM-NC4KR2JL' });
+    const command = makeCommand({ projectId: 'GTM-NC2077' });
 
     await expect(service.run(command)).rejects.toThrow(/Invalid config — projectId: /);
     expect(dataStorageRepository.save).not.toHaveBeenCalled();

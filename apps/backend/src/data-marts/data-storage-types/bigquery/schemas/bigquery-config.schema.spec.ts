@@ -17,7 +17,7 @@ describe('BigQueryConfigSchema.projectId', () => {
 
   describe('invalid project IDs', () => {
     it.each([
-      ['uppercase letters', 'GTM-NC4KR2JL'],
+      ['uppercase letters', 'GTM-NC2077'],
       ['starts with a digit', '1my-project'],
       ['too short', 'abc'],
       ['ends with a hyphen', 'my-project-'],
