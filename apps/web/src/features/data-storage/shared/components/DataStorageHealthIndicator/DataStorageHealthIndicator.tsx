@@ -26,13 +26,18 @@ interface DataStorageHealthIndicatorProps {
   variant?: 'default' | 'compact';
 }
 
-// NOTE: `text` here is used for compact-variant tooltips.
-// DataStorageHealthStatusView uses its own labels for VALID/INVALID (pre-existing).
-// New states should use shared constants (see HEALTH_STATUS_UNCONFIGURED_TEXT).
-const HEALTH_STATUS_CONFIG: Record<
-  DataStorageHealthStatus,
-  { text: string; dotClass: string; ringClass: string }
-> = {
+interface HealthStatusDisplayConfig {
+  text: string;
+  dotClass: string;
+  ringClass: string;
+}
+
+// NOTE: `text` here is used for compact-variant tooltips only.
+// DataStorageHealthStatusView renders its own labels for each state (non-compact variant).
+// VALID/INVALID intentionally use different wording between tooltip and status view (pre-existing).
+// TODO: migrate all state display strings to shared constants (following HEALTH_STATUS_UNCONFIGURED_TEXT)
+//       so tooltip and status view always stay in sync.
+const HEALTH_STATUS_CONFIG: Record<DataStorageHealthStatus, HealthStatusDisplayConfig> = {
   [DataStorageHealthStatus.VALID]: {
     text: 'Storage access is valid',
     dotClass: 'bg-green-500',
@@ -49,7 +54,7 @@ const HEALTH_STATUS_CONFIG: Record<
     ringClass: 'ring-neutral-400/50 dark:ring-neutral-500/50',
   },
 };
-const HEALTH_STATUS_NOT_FETCHED = {
+const HEALTH_STATUS_NOT_FETCHED: HealthStatusDisplayConfig = {
   text: 'Storage status not fetched yet',
   dotClass: 'bg-neutral-300 dark:bg-neutral-600',
   ringClass: 'ring-neutral-300/50 dark:ring-neutral-600/50',
@@ -96,6 +101,9 @@ export function DataStorageHealthIndicator({
           </div>
         </HoverCardTrigger>
 
+        {/* UNCONFIGURED is excluded: the tooltip already conveys the full message and the hovercard
+            would add no extra information. Revisit if the hovercard gains actionable content
+            (e.g. a link to the setup form) for this state. */}
         {isFetched && !isLoading && status !== DataStorageHealthStatus.UNCONFIGURED && (
           <HoverCardContent side={hovercardSide} align='start'>
             <HoverCardHeader>
@@ -118,5 +126,11 @@ export function DataStorageHealthIndicator({
     );
   }
 
-  return <DataStorageHealthStatusView status={status} errorMessage={errorMessage} />;
+  return (
+    <DataStorageHealthStatusView
+      status={status}
+      errorMessage={errorMessage}
+      isLoading={isLoading}
+    />
+  );
 }

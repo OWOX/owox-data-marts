@@ -7,9 +7,19 @@ import {
 interface Props {
   status: DataStorageHealthStatus;
   errorMessage?: string;
+  isLoading?: boolean;
 }
 
-export function DataStorageHealthStatusView({ status, errorMessage }: Props) {
+export function DataStorageHealthStatusView({ status, errorMessage, isLoading }: Props) {
+  if (isLoading) {
+    return (
+      <div className='text-muted-foreground flex animate-pulse items-center gap-2 text-sm'>
+        <CircleDashed className='size-4' />
+        <span>Validating storage access...</span>
+      </div>
+    );
+  }
+
   if (status === DataStorageHealthStatus.VALID) {
     return (
       <div className='flex items-center gap-2 text-sm text-green-500'>

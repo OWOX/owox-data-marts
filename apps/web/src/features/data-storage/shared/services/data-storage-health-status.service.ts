@@ -127,8 +127,13 @@ function processQueue(): void {
         healthStatusCache.set(storageId, cached);
         notifySubscribers();
       })
-      .catch(() => {
-        // Silently ignore errors — the item stays uncached and can be retried
+      .catch((error: unknown) => {
+        console.error(`[DataStorageHealthStatus] Failed to validate storage ${storageId}:`, error);
+        healthStatusCache.set(storageId, {
+          status: DataStorageHealthStatus.INVALID,
+          errorMessage: 'Unable to validate storage access',
+        });
+        notifySubscribers();
       })
       .finally(() => {
         inFlightRequests.delete(storageId);
