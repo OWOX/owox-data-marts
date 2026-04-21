@@ -12,6 +12,7 @@ export * from './utils/extractJsonFromText.js';
 export * from './utils/trimString.js';
 export * from './utils/formatDuration.js';
 export * from './utils/disableConditionalCaching.js';
+export * from './security/security-headers.js';
 export * from './integrations/event-bus/index.js';
 export * from './integrations/email/index.js';
 export * from './utils/impersonatedIdToken.js';

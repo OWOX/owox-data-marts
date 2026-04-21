@@ -176,6 +176,32 @@ owox serve --env-file custom.env --port 3030
   - If empty, it falls back to `PUBLIC_ORIGIN`.
   - Example: `https://looker.example.com`
 
+## Security headers
+
+- **SECURITY_HEADERS_ENABLED**: Enables strict HTTP security headers on HTML responses served
+  by the SPA and the IDP auth pages (`/auth/*`). Adjacent JSON endpoints (e.g., Better Auth API
+  under `/auth/better-auth/*`) are intentionally left untouched.
+  - Values: `true` | `false` (also accepts `1`/`0`, case-insensitive)
+  - Default: `false`
+  - Recommended for public HTTPS deployments (e.g., `https://app.owox.com`). Usually unnecessary
+    for local development or when a reverse proxy (nginx, CDN, etc.) already injects these
+    headers — enabling it there would duplicate or conflict with proxy-set values.
+
+When enabled, each HTML response carries the five baseline headers required by the OWOX security
+baseline:
+
+- `Strict-Transport-Security: max-age=31536000` — instructs browsers to use HTTPS for the next
+  year on this host. Only meaningful over HTTPS; has no effect on plain HTTP.
+- `Content-Security-Policy: frame-ancestors 'none'` — blocks the page from being embedded in
+  any iframe (clickjacking defense). Do not enable if you intentionally embed OWOX UI in an
+  iframe.
+- `X-Content-Type-Options: nosniff` — disables MIME-type sniffing; browsers must trust the
+  declared `Content-Type`.
+- `X-XSS-Protection: 1; mode=block` — legacy XSS filter toggle for older browsers; modern
+  browsers ignore it, but it is harmless and still required by common security baselines.
+- `Referrer-Policy: no-referrer-when-downgrade` — sends full referrer only when the
+  destination is at least as secure (HTTPS → HTTPS); strips it when downgrading to HTTP.
+
 ## MySQL SSL
 
 `DB_MYSQL_SSL`, `IDP_BETTER_AUTH_MYSQL_SSL`, `IDP_OWOX_MYSQL_SSL`  enable TLS for MySQL (mysql2). Supported formats:
