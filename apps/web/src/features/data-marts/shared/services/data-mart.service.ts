@@ -57,10 +57,11 @@ export class DataMartService extends ApiService {
   /**
    * Get a data mart by ID
    * @param id Data mart ID
+   * @param config Optional axios config (e.g. `skipLoadingIndicator` for silent refreshes)
    * @returns Promise with data mart response
    */
-  async getDataMartById(id: string): Promise<DataMartResponseDto> {
-    return this.get<DataMartResponseDto>(`/${id}`);
+  async getDataMartById(id: string, config?: AxiosRequestConfig): Promise<DataMartResponseDto> {
+    return this.get<DataMartResponseDto>(`/${id}`, undefined, config);
   }
 
   /**

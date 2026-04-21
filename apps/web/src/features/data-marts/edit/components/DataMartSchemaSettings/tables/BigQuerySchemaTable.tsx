@@ -183,15 +183,17 @@ export function BigQuerySchemaTable({ fields, onFieldsChange }: BigQuerySchemaTa
             }}
             placeholder={'Field name is required'}
             isBold={true}
+            trailingContent={
+              level === 0 && row.original.isHiddenForReporting ? (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <EyeOff className='text-muted-foreground h-3.5 w-3.5 shrink-0' />
+                  </TooltipTrigger>
+                  <TooltipContent>Hidden from reports</TooltipContent>
+                </Tooltip>
+              ) : undefined
+            }
           />
-          {level === 0 && row.original.isHiddenForReporting && (
-            <Tooltip>
-              <TooltipTrigger>
-                <EyeOff className='text-muted-foreground h-3.5 w-3.5 flex-shrink-0' />
-              </TooltipTrigger>
-              <TooltipContent>Hidden from reports</TooltipContent>
-            </Tooltip>
-          )}
         </div>
       );
     },

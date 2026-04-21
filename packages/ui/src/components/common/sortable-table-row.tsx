@@ -24,10 +24,10 @@ export function SortableTableRow<T>({ id, children, className }: SortableTableRo
     id,
   });
 
-  const style = {
+  const style: React.CSSProperties = {
     transform: CSS.Transform.toString(transform),
     transition,
-    opacity: isDragging ? 0.75 : 1,
+    ...(isDragging && { opacity: 0.75 }),
   };
 
   // Convert children to array to manipulate them

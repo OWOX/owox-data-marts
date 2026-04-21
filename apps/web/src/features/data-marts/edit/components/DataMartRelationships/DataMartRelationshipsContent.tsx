@@ -104,7 +104,7 @@ function buildSourceList(
 export function DataMartRelationshipsContent({
   onRelationshipsChanged,
 }: DataMartRelationshipsContentProps) {
-  const { dataMart } = useDataMartContext();
+  const { dataMart, syncDataMartFromResponse, refreshDataMart } = useDataMartContext();
   const queryClient = useQueryClient();
 
   const invalidateBlendableSchema = useCallback(() => {
@@ -112,6 +112,7 @@ export function DataMartRelationshipsContent({
   }, [queryClient]);
 
   const [relationships, setRelationships] = useState<DataMartRelationship[]>([]);
+  const relationshipsRef = useRef<DataMartRelationship[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isAddingNew, setIsAddingNew] = useState(false);
   const [newlyCreatedId, setNewlyCreatedId] = useState<string | null>(null);
@@ -131,10 +132,18 @@ export function DataMartRelationshipsContent({
   const localBlendedFieldsConfig: BlendedFieldsConfig =
     dataMart?.blendedFieldsConfig ?? DEFAULT_BLENDED_FIELDS_CONFIG;
   const [localConfig, setLocalConfig] = useState<BlendedFieldsConfig>(localBlendedFieldsConfig);
+  const localConfigRef = useRef(localConfig);
+  useEffect(() => {
+    localConfigRef.current = localConfig;
+  }, [localConfig]);
 
   useEffect(() => {
     setLocalConfig(dataMart?.blendedFieldsConfig ?? DEFAULT_BLENDED_FIELDS_CONFIG);
   }, [dataMart?.blendedFieldsConfig]);
+
+  useEffect(() => {
+    relationshipsRef.current = relationships;
+  }, [relationships]);
 
   useEffect(() => {
     localStorage.setItem(VIEW_MODE_KEY, viewMode);
@@ -268,22 +277,30 @@ export function DataMartRelationshipsContent({
   const handleRelationshipUpdated = useCallback(
     (updated: DataMartRelationship) => {
       toast.success('Relationship updated');
+      const prevTargetAlias = relationshipsRef.current.find(r => r.id === updated.id)?.targetAlias;
       setRelationships(prev => prev.map(r => (r.id === updated.id ? updated : r)));
+      // Rename cascades paths in blendedFieldsConfig server-side; refetch to avoid overwriting it on next save.
+      if (prevTargetAlias !== undefined && prevTargetAlias !== updated.targetAlias) {
+        void refreshDataMart(dataMartId);
+      }
       invalidateBlendableSchema();
       onRelationshipsChanged?.();
     },
-    [invalidateBlendableSchema, onRelationshipsChanged]
+    [dataMartId, refreshDataMart, invalidateBlendableSchema, onRelationshipsChanged]
   );
 
   const saveConfigAndRefresh = useCallback(
     (newConfig: BlendedFieldsConfig) => {
       setLocalConfig(newConfig);
-      void dataMartRelationshipService.updateBlendedFieldsConfig(dataMartId, newConfig).then(() => {
-        fetchBlendableSchema();
-        invalidateBlendableSchema();
-      });
+      void dataMartRelationshipService
+        .updateBlendedFieldsConfig(dataMartId, newConfig)
+        .then(response => {
+          void syncDataMartFromResponse(response);
+          fetchBlendableSchema();
+          invalidateBlendableSchema();
+        });
     },
-    [dataMartId, fetchBlendableSchema, invalidateBlendableSchema]
+    [dataMartId, fetchBlendableSchema, invalidateBlendableSchema, syncDataMartFromResponse]
   );
 
   const handleCreated = useCallback(
@@ -300,14 +317,15 @@ export function DataMartRelationshipsContent({
 
   const updateSourceConfig = useCallback(
     (path: string, updater: (current: BlendedSource | undefined) => BlendedSource) => {
-      const existingSources = localConfig.sources.filter(s => s.path !== path);
-      const currentSource = localConfig.sources.find(s => s.path === path);
+      const currentConfig = localConfigRef.current;
+      const existingSources = currentConfig.sources.filter(s => s.path !== path);
+      const currentSource = currentConfig.sources.find(s => s.path === path);
       saveConfigAndRefresh({
-        ...localConfig,
+        ...currentConfig,
         sources: [...existingSources, updater(currentSource)],
       });
     },
-    [localConfig, saveConfigAndRefresh]
+    [saveConfigAndRefresh]
   );
 
   const handleSourceAliasChange = useCallback(

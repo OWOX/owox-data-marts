@@ -185,24 +185,24 @@ export function BaseSchemaTable<T extends BaseSchemaField>({
             return nameColumnCell({ row, updateField });
           }
           return (
-            <div className='flex items-center gap-1'>
-              <EditableText
-                value={asString(row.getValue('name'))}
-                onValueChange={value => {
-                  updateField(row.index, { name: value } as Partial<T>);
-                }}
-                placeholder={'Field name is required'}
-                isBold={true}
-              />
-              {row.original.isHiddenForReporting && (
-                <Tooltip>
-                  <TooltipTrigger>
-                    <EyeOff className='text-muted-foreground h-3.5 w-3.5 flex-shrink-0' />
-                  </TooltipTrigger>
-                  <TooltipContent>Hidden from reports</TooltipContent>
-                </Tooltip>
-              )}
-            </div>
+            <EditableText
+              value={asString(row.getValue('name'))}
+              onValueChange={value => {
+                updateField(row.index, { name: value } as Partial<T>);
+              }}
+              placeholder={'Field name is required'}
+              isBold={true}
+              trailingContent={
+                row.original.isHiddenForReporting ? (
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <EyeOff className='text-muted-foreground h-3.5 w-3.5 shrink-0' />
+                    </TooltipTrigger>
+                    <TooltipContent>Hidden from reports</TooltipContent>
+                  </Tooltip>
+                ) : undefined
+              }
+            />
           );
         },
         enableHiding: false,
