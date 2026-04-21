@@ -18,28 +18,18 @@ To see who has access to your project, navigate to the **Admin Dashboard** at `/
 
 ## Changing a Member's Role
 
-1. Open the **Admin Dashboard** at `/auth/dashboard`
-2. Find the member and click **View**
-3. Update their role on the User Details page
+1. Open the **Members Page**
+2. Find the member
+3. Update their role
 4. Save the change
 
 > ☝️ Downgrading a member from **Technical User** to **Business User** automatically removes them from all notification receivers lists.
 
-## Resetting a Member's Password
-
-1. Open the **Admin Dashboard** at `/auth/dashboard`
-2. Find the member and click **View**
-3. On the User Details page, click one of:
-   - **Generate Magic Link** — if the member has not set a password yet
-   - **Reset Password** — if the member already has a password (signs them out of all active sessions)
-4. Copy the link from the green confirmation box
-5. Share it with the member via email
-
 ## Removing a Member
 
-1. Open the **Admin Dashboard** at `/auth/dashboard`
-2. Find the member and click **View**
-3. Click **Delete User** and confirm
+1. Open the **Members Page**
+2. Find the member
+3. Click **Remove member** and confirm
 
 Removing a member also cleans them up from all notification receivers lists.
 
@@ -64,15 +54,3 @@ Triggers do not have dedicated ownership — they are managed through their pare
 Ownership can be reassigned at any time from the resource settings page. The Created By record remains unchanged regardless.
 
 **When a member is removed,** the Created By field retains the original record internally, but the member's name is no longer displayed — the column shows "—" instead. Resources they created are not deleted and remain fully accessible to their current owners.
-
-## Command Line
-
-You can add a member directly from the CLI:
-
-```bash
-owox idp add-user user@example.com
-```
-
----
-
-For initial admin account setup, recovery scenarios, and identity provider configuration, see [Better Auth Setup](../getting-started/setup-guide/members-management/better-auth.md).
