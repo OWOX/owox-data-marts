@@ -74,30 +74,35 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
                 'docs/getting-started/setup-guide/connector-triggers',
                 'docs/getting-started/setup-guide/report-triggers',
                 {
-                  label: 'Members Management',
+                  label: 'Self-Managed Authentication',
                   autogenerate: {
                     directory: 'docs/getting-started/setup-guide/members-management',
                   },
                   collapsed: true,
-                },
-                {
-                  label: 'Notifications',
-                  items: [
-                    'docs/notifications/notification-settings',
-                    'docs/notifications/email',
-                    'docs/notifications/webhooks',
-                  ],
                 },
               ],
             },
           ],
         },
         {
-          label: 'Project Administration',
+          label: 'Project Settings',
           items: [
-            'docs/project/members',
-            'docs/project/roles-and-permissions',
-            'docs/project/access-rights',
+            {
+              label: 'Members Management',
+              items: [
+                'docs/project/members',
+                'docs/project/roles-and-permissions',
+                'docs/project/ownership-and-sharing',
+              ],
+            },
+            {
+              label: 'Notifications',
+              items: [
+                'docs/notifications/notification-settings',
+                'docs/notifications/email',
+                'docs/notifications/webhooks',
+              ],
+            },
           ],
         },
         {

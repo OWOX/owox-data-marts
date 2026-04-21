@@ -1,4 +1,4 @@
-# Access Rights
+# Ownership and Sharing
 
 A member's [role](roles-and-permissions.md) defines their capabilities across the whole project. **Access rights** go one level deeper: they control what a member can do with a specific resource, based on two factors — their **ownership status** and the resource's **sharing state**.
 

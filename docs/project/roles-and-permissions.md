@@ -10,8 +10,6 @@ Every project member has one of three roles. A role controls what a member can d
 | **Technical User** | Create and manage data resources; full control over all Reports |
 | **Business User** | Self-service reporting on shared Data Marts; manage own Reports and Destinations |
 
----
-
 ## Admin
 
 Admins have unrestricted access to the entire project.
