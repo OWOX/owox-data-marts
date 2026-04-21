@@ -1,4 +1,4 @@
-import { applySecurityHeaders, isSecurityHeadersEnabled } from '@owox/internal-helpers';
+import { applySecurityHeaders } from '@owox/internal-helpers';
 import express, { Express, NextFunction, Request, Response } from 'express';
 import { existsSync } from 'node:fs';
 import { createRequire } from 'node:module';
@@ -47,17 +47,12 @@ export function setupWebStaticAssets(app: Express, options: StaticAssetsOptions 
     return false;
   }
 
-  // Read the flag once at setup time — the value is stable for the lifetime
-  // of the process (env is loaded before this runs).
-  const securityEnabled = isSecurityHeadersEnabled();
-
-  // Serve static files. When SECURITY_HEADERS_ENABLED is truthy, security
-  // headers are applied only to HTML responses so JS/CSS/asset responses
-  // stay unchanged.
+  // Serve static files. Security headers are applied only to HTML responses
+  // so JS/CSS/asset responses stay unchanged.
   app.use(
     express.static(distPath, {
       setHeaders(res, filePath) {
-        if (securityEnabled && filePath.toLowerCase().endsWith('.html')) {
+        if (filePath.toLowerCase().endsWith('.html')) {
           applySecurityHeaders(res);
         }
       },
@@ -65,7 +60,7 @@ export function setupWebStaticAssets(app: Express, options: StaticAssetsOptions 
   );
 
   // Configure SPA fallback for client-side routing
-  setupSpaFallback(app, distPath, options, securityEnabled);
+  setupSpaFallback(app, distPath, options);
 
   return true;
 }
@@ -100,14 +95,8 @@ function getWebDistPath(packageName: string): null | string {
  * @param app - Express application instance
  * @param distPath - Path to the static files directory
  * @param options - Configuration options for routing behavior
- * @param securityEnabled - Whether strict security headers should be applied
  */
-function setupSpaFallback(
-  app: Express,
-  distPath: string,
-  options: StaticAssetsOptions,
-  securityEnabled: boolean
-): void {
+function setupSpaFallback(app: Express, distPath: string, options: StaticAssetsOptions): void {
   const { excludedRoutes = ['/api'] } = options;
 
   // SPA fallback middleware - should be the last one!
@@ -124,9 +113,7 @@ function setupSpaFallback(
     }
 
     // For all other routes, serve index.html (SPA routing)
-    if (securityEnabled) {
-      applySecurityHeaders(res);
-    }
+    applySecurityHeaders(res);
 
     res.sendFile('index.html', { root: distPath }, error => {
       if (error) {

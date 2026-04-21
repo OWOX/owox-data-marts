@@ -24,9 +24,6 @@ export const SECURITY_HEADERS: readonly (readonly [string, string])[] = Object.f
 
 /**
  * Writes all five security headers to the response.
- *
- * Does NOT read environment variables — the caller decides when to apply
- * (so tests and custom integrations can bypass env lookup).
  */
 export function applySecurityHeaders(res: ResponseLike): void {
   for (const [name, value] of SECURITY_HEADERS) {
@@ -35,43 +32,14 @@ export function applySecurityHeaders(res: ResponseLike): void {
 }
 
 /**
- * Parses the `SECURITY_HEADERS_ENABLED` environment variable.
+ * Sends an HTML string response with the five DoD security headers attached.
  *
- * Accepts `'true'` or `'1'` (case-insensitive) as truthy. Anything else —
- * including unset, empty string, `'false'`, `'0'` — resolves to `false`. This
- * makes the default behavior backward-compatible for existing self-hosted
- * deployments that did not previously opt into strict headers.
- *
- * @param env - Optional environment source (defaults to `process.env`). Useful
- *   for unit tests that want to exercise both branches without mutating the
- *   global process state.
- */
-export function isSecurityHeadersEnabled(env: NodeJS.ProcessEnv = process.env): boolean {
-  const raw = env.SECURITY_HEADERS_ENABLED;
-  if (!raw) {
-    return false;
-  }
-  const normalized = raw.trim().toLowerCase();
-  return normalized === 'true' || normalized === '1';
-}
-
-/**
- * Sends an HTML string response with security headers applied when the
- * `SECURITY_HEADERS_ENABLED` env flag is truthy.
- *
- * Use this at every IDP callsite that renders server-side HTML (sign-in
+ * Use this at every IDP / SSR callsite that renders server-side HTML (sign-in
  * pages, magic-link confirmation, password setup, admin dashboard, etc.) so
  * that security headers land *only* on HTML responses — not on adjacent JSON
  * endpoints under the same `/auth/*` prefix.
- *
- * The env flag is read per call. That's cheap (one property lookup + short
- * string compare) and lets integration tests flip the flag without restarting
- * the process.
  */
 export function sendSecureHtml(res: ResponseLike, html: string): void {
-  if (isSecurityHeadersEnabled()) {
-    applySecurityHeaders(res);
-  }
-
+  applySecurityHeaders(res);
   res.send(html);
 }

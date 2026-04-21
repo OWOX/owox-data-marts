@@ -33,6 +33,8 @@ function createResponseMock(): Response & { body?: unknown; statusCode?: number 
     return res;
   });
   res.redirect = redirectMock as unknown as Response['redirect'];
+  const setHeaderMock = jest.fn(() => res);
+  res.setHeader = setHeaderMock as unknown as Response['setHeader'];
   return res;
 }
 
