@@ -49,7 +49,7 @@ Each connector requires authentication. Here is how you can obtain the required 
 - [TikTok Ads](../../../packages/connectors/src/Sources/TikTokAds/CREDENTIALS.md)
 - [Linkedin Ads](../../../packages/connectors/src/Sources/LinkedInAds/CREDENTIALS.md)
 - [X Ads](../../../packages/connectors/src/Sources/XAds/CREDENTIALS.md)
-- [Bing Ads](../../../packages/connectors/src/Sources/BingAds/CREDENTIALS.md)
+- [Microsoft Ads](../../../packages/connectors/src/Sources/MicrosoftAds/CREDENTIALS.md)
 - [Reddit Ads](../../../packages/connectors/src/Sources/RedditAds/CREDENTIALS.md)
 - [Criteo Ads](../../../packages/connectors/src/Sources/CriteoAds/CREDENTIALS.md)
 - [Open Exchange Rates](../../../packages/connectors/src/Sources/OpenExchangeRates/CREDENTIALS.md)

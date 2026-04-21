@@ -6,8 +6,8 @@ You already use the [OWOX Reports Google Sheets Extension](https://workspace.goo
 
 - get reusable Insights defined by SQL with AI assistance
 - unlock new delivery destinations like Looker Studio, Email, Slack, MS Teams or Google Chat for your data
-- simplify access and scheduling management at the organizational level—all
-- gain full visibility into run history.
+- simplify access and scheduling management at the organizational level
+- gain full visibility into run history
 
 > 💡 OWOX Data Marts detects your existing Extension Data Marts and automatically
 > creates a **system storage** named after your GCP project ID. The storage type is “Google BigQuery (used in OWOX extension)”.
