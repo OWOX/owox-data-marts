@@ -58,6 +58,7 @@ import {
   CancelDataMartRunSpec,
   CreateDataMartSpec,
   DeleteDataMartSpec,
+  GetBlendableSchemaSpec,
   GetMemberOwnershipWarningsSpec,
   GetDataMartRunByIdSpec,
   GetDataMartRunsSpec,
@@ -66,6 +67,7 @@ import {
   ListDataMartsSpec,
   PublishDataMartSpec,
   RunDataMartSpec,
+  UpdateBlendedFieldsConfigSpec,
   UpdateDataMartAvailabilitySpec,
   UpdateDataMartDefinitionSpec,
   UpdateDataMartDescriptionSpec,
@@ -288,6 +290,7 @@ export class DataMartController {
 
   @Auth(Role.editor(Strategy.INTROSPECT))
   @Put(':id/blended-fields-config')
+  @UpdateBlendedFieldsConfigSpec()
   async updateBlendedFieldsConfig(
     @AuthContext() context: AuthorizationContext,
     @Param('id') id: string,
@@ -359,6 +362,7 @@ export class DataMartController {
 
   @Auth(Role.viewer(Strategy.PARSE))
   @Get(':id/blendable-schema')
+  @GetBlendableSchemaSpec()
   async getBlendableSchema(
     @AuthContext() context: AuthorizationContext,
     @Param('id') dataMartId: string

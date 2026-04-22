@@ -157,7 +157,6 @@ export class BlendableSchemaService {
       const sqlPrefix = currentPath.replace(/\./g, '_');
       const displayPrefix = sourceConfig?.alias ?? rel.targetDataMart.title;
 
-      // Always collect available source metadata
       const availableSource = new AvailableSourceDto();
       availableSource.aliasPath = currentPath;
       availableSource.title = rel.targetDataMart.title;

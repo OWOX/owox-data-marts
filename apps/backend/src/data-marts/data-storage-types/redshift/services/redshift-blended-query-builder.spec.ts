@@ -73,7 +73,9 @@ describe('RedshiftBlendedQueryBuilder', () => {
 
     const sql = builder.buildBlendedQuery(buildContext([chain], ['order_names']));
 
-    expect(sql).toContain("LISTAGG(CAST(order_name AS VARCHAR), ', ') AS order_names");
+    expect(sql).toContain(
+      "LISTAGG(CAST(order_name AS VARCHAR), ', ') WITHIN GROUP (ORDER BY order_name) AS order_names"
+    );
     expect(sql).not.toContain('STRING_AGG');
     expect(sql).not.toContain('ARRAY_JOIN');
     expect(sql).not.toContain('COLLECT_LIST');

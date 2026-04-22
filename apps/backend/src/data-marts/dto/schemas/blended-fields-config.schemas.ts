@@ -10,7 +10,7 @@ export const ALIAS_PATH_REGEX = /^[a-z0-9_]+(\.[a-z0-9_]+)*$/;
 export const ALIAS_SEGMENT_ERROR = 'must contain only lowercase letters, numbers, and underscores';
 
 export const BlendedFieldOverrideSchema = z.object({
-  alias: z.string().optional(),
+  alias: z.string().min(1).max(255).optional(),
   isHidden: z.boolean().optional(),
   aggregateFunction: z.enum(AGGREGATE_FUNCTIONS).optional(),
 });
@@ -20,11 +20,12 @@ export const BlendedSourceSchema = z.object({
   path: z
     .string()
     .min(1)
+    .max(255)
     .regex(
       ALIAS_PATH_REGEX,
       'path must be a dot-separated chain of alias segments (e.g. "orders" or "orders.items")'
     ),
-  alias: z.string().min(1),
+  alias: z.string().min(1).max(255),
   isExcluded: z.boolean().optional(),
   fields: z.record(z.string(), BlendedFieldOverrideSchema).optional(),
 });

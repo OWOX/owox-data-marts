@@ -1,11 +1,10 @@
 import { Controller, Get, Param } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
-import { Auth } from '../../idp';
-import { Role, Strategy } from '../../idp/types/role-config.types';
-import { RelationshipMapper } from '../mappers/relationship.mapper';
+import { Auth, Role, Strategy } from '../../idp';
 import { RelationshipResponseApiDto } from '../dto/presentation/relationship-response-api.dto';
+import { RelationshipMapper } from '../mappers/relationship.mapper';
 import { DataMartRelationshipService } from '../services/data-mart-relationship.service';
-import { ListRelationshipsByStorageSpec } from './spec/data-mart-relationship.api';
+import { ListRelationshipsByStorageSpec } from './spec/data-storage-relationship.api';
 
 @Controller('data-storages/:storageId/relationships')
 @ApiTags('Data Storage Relationships')

@@ -1,13 +1,13 @@
-import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
+import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { Transactional } from 'typeorm-transactional';
 import { UpdateRelationshipCommand } from '../dto/domain/update-relationship.command';
 import { RelationshipResponseApiDto } from '../dto/presentation/relationship-response-api.dto';
 import { RelationshipMapper } from '../mappers/relationship.mapper';
+import { AccessDecisionService, Action, EntityType } from '../services/access-decision';
 import { DataMartRelationshipService } from '../services/data-mart-relationship.service';
 import { DataMartService } from '../services/data-mart.service';
 import { ReportDataCacheService } from '../services/report-data-cache.service';
 import { UserProjectionsFetcherService } from '../services/user-projections-fetcher.service';
-import { AccessDecisionService, EntityType, Action } from '../services/access-decision';
 
 @Injectable()
 export class UpdateDataMartRelationshipService {
@@ -66,7 +66,6 @@ export class UpdateDataMartRelationshipService {
 
     const updated = await this.relationshipService.update(relationship, command);
 
-    // Cascade alias rename in blendedFieldsConfig paths
     if (command.targetAlias !== undefined && command.targetAlias !== oldAlias) {
       await this.cascadeAliasRename(command.sourceDataMartId, oldAlias, command.targetAlias);
     }

@@ -1,19 +1,25 @@
 import {
-  Entity,
   Column,
-  PrimaryGeneratedColumn,
-  ManyToOne,
-  JoinColumn,
   CreateDateColumn,
+  Entity,
+  Index,
+  JoinColumn,
+  ManyToOne,
+  PrimaryGeneratedColumn,
   UpdateDateColumn,
 } from 'typeorm';
-import { CreatorAwareEntity } from './creator-aware-entity.interface';
-import { DataStorage } from './data-storage.entity';
-import { DataMart } from './data-mart.entity';
 import { createZodTransformer } from '../../common/zod/zod-transformer';
 import { JoinCondition, JoinConditionsSchema } from '../dto/schemas/relationship-schemas';
+import { CreatorAwareEntity } from './creator-aware-entity.interface';
+import { DataMart } from './data-mart.entity';
+import { DataStorage } from './data-storage.entity';
 
 @Entity()
+@Index('UQ_data_mart_relationship_source_alias', ['sourceDataMart', 'targetAlias'], {
+  unique: true,
+})
+@Index('IDX_dmr_dataStorage', ['dataStorage'])
+@Index('IDX_dmr_targetDataMart', ['targetDataMart'])
 export class DataMartRelationship implements CreatorAwareEntity {
   @PrimaryGeneratedColumn('uuid')
   id: string;

@@ -8,6 +8,6 @@ export class RedshiftBlendedQueryBuilder extends AbstractBlendedQueryBuilder {
   protected readonly identifierQuoteChar = '"';
 
   protected buildStringAgg(fieldName: string): string {
-    return `LISTAGG(CAST(${fieldName} AS VARCHAR), ', ')`;
+    return `LISTAGG(CAST(${fieldName} AS VARCHAR), ', ') WITHIN GROUP (ORDER BY ${fieldName})`;
   }
 }

@@ -119,6 +119,19 @@ describe('DataMartRelationshipService', () => {
 
       expect(hasCycle).toBe(false);
     });
+
+    it('detects cycles deeper than 10 hops (no MAX_CYCLE_DEPTH false-negative)', async () => {
+      const chainLength = 15;
+      const existing: DataMartRelationship[] = [];
+      for (let i = 0; i < chainLength - 1; i++) {
+        existing.push(makeRelationship(`dm-${i}`, `dm-${i + 1}`, { id: `rel-${i}-${i + 1}` }));
+      }
+      repository.find.mockResolvedValue(existing);
+
+      const hasCycle = await service.detectCycles(`dm-${chainLength - 1}`, 'dm-0', 'storage-1');
+
+      expect(hasCycle).toBe(true);
+    });
   });
 
   describe('findBySourceDataMartId', () => {

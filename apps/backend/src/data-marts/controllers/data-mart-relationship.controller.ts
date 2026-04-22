@@ -1,22 +1,21 @@
-import { Controller, Get, Post, Patch, Delete, Body, Param } from '@nestjs/common';
+import { Body, Controller, Delete, Get, HttpCode, Param, Patch, Post } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
-import { AuthContext, AuthorizationContext, Auth } from '../../idp';
-import { Role, Strategy } from '../../idp/types/role-config.types';
-import { RelationshipMapper } from '../mappers/relationship.mapper';
+import { Auth, AuthContext, AuthorizationContext, Role, Strategy } from '../../idp';
 import { CreateRelationshipRequestApiDto } from '../dto/presentation/create-relationship-request-api.dto';
-import { UpdateRelationshipRequestApiDto } from '../dto/presentation/update-relationship-request-api.dto';
 import { RelationshipResponseApiDto } from '../dto/presentation/relationship-response-api.dto';
+import { UpdateRelationshipRequestApiDto } from '../dto/presentation/update-relationship-request-api.dto';
+import { RelationshipMapper } from '../mappers/relationship.mapper';
 import { CreateDataMartRelationshipService } from '../use-cases/create-data-mart-relationship.service';
-import { UpdateDataMartRelationshipService } from '../use-cases/update-data-mart-relationship.service';
 import { DeleteDataMartRelationshipService } from '../use-cases/delete-data-mart-relationship.service';
-import { ListDataMartRelationshipsService } from '../use-cases/list-data-mart-relationships.service';
 import { GetDataMartRelationshipService } from '../use-cases/get-data-mart-relationship.service';
+import { ListDataMartRelationshipsService } from '../use-cases/list-data-mart-relationships.service';
+import { UpdateDataMartRelationshipService } from '../use-cases/update-data-mart-relationship.service';
 import {
   CreateRelationshipSpec,
-  ListRelationshipsByDataMartSpec,
-  GetRelationshipSpec,
-  UpdateRelationshipSpec,
   DeleteRelationshipSpec,
+  GetRelationshipSpec,
+  ListRelationshipsByDataMartSpec,
+  UpdateRelationshipSpec,
 } from './spec/data-mart-relationship.api';
 
 @Controller('data-marts/:dataMartId/relationships')
@@ -75,8 +74,9 @@ export class DataMartRelationshipController {
 
   @Auth(Role.editor(Strategy.INTROSPECT))
   @Delete(':id')
+  @HttpCode(204)
   @DeleteRelationshipSpec()
-  async remove(
+  async delete(
     @AuthContext() context: AuthorizationContext,
     @Param('dataMartId') dataMartId: string,
     @Param('id') id: string

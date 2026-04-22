@@ -4,6 +4,7 @@ import {
   ArrayMinSize,
   ValidateNested,
   MinLength,
+  MaxLength,
   IsOptional,
   Matches,
 } from 'class-validator';
@@ -21,6 +22,7 @@ export class UpdateRelationshipRequestApiDto {
   })
   @IsString()
   @MinLength(1)
+  @MaxLength(255)
   @Matches(ALIAS_SEGMENT_REGEX, { message: `targetAlias ${ALIAS_SEGMENT_ERROR}` })
   @IsOptional()
   targetAlias?: string;

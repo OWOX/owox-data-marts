@@ -1,4 +1,12 @@
-import { IsString, IsArray, ValidateNested, MinLength, Matches } from 'class-validator';
+import {
+  IsString,
+  IsArray,
+  IsNotEmpty,
+  ValidateNested,
+  MinLength,
+  MaxLength,
+  Matches,
+} from 'class-validator';
 import { Type } from 'class-transformer';
 import { ApiProperty } from '@nestjs/swagger';
 import { ALIAS_SEGMENT_ERROR, ALIAS_SEGMENT_REGEX } from '../schemas/blended-fields-config.schemas';
@@ -23,6 +31,7 @@ export class CreateRelationshipRequestApiDto {
     description: 'ID of the target data mart to blend with',
   })
   @IsString()
+  @IsNotEmpty()
   targetDataMartId: string;
 
   @ApiProperty({
@@ -32,6 +41,7 @@ export class CreateRelationshipRequestApiDto {
   })
   @IsString()
   @MinLength(1)
+  @MaxLength(255)
   @Matches(ALIAS_SEGMENT_REGEX, { message: TARGET_ALIAS_MESSAGE })
   targetAlias: string;
 

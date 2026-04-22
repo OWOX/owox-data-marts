@@ -13,7 +13,10 @@ import { DataMartSchemaFieldStatus } from '../../enums/data-mart-schema-field-st
 export class RedshiftSchemaMerger implements DataMartSchemaMerger {
   readonly type = DataStorageType.AWS_REDSHIFT;
 
-  mergeSchemas(existingSchema: DataMartSchema, newSchema: DataMartSchema): DataMartSchema {
+  mergeSchemas(
+    existingSchema: DataMartSchema | undefined,
+    newSchema: DataMartSchema
+  ): DataMartSchema {
     if (!existingSchema || !isRedshiftDataMartSchema(existingSchema)) {
       if (!isRedshiftDataMartSchema(newSchema)) {
         throw new Error('New schema must be a Redshift data mart schema');
