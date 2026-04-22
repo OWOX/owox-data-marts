@@ -3,7 +3,10 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Transactional } from 'typeorm-transactional';
 import { OwoxEventDispatcher } from '../../common/event-dispatcher/owox-event-dispatcher';
-import { BigQueryConfig } from '../data-storage-types/bigquery/schemas/bigquery-config.schema';
+import {
+  BigQueryConfig,
+  BigQueryConfigSchema,
+} from '../data-storage-types/bigquery/schemas/bigquery-config.schema';
 import { DataStorageCredentials } from '../data-storage-types/data-storage-credentials.type';
 import { DataStorageType } from '../data-storage-types/enums/data-storage-type.enum';
 import { DataStorageDto } from '../dto/domain/data-storage.dto';
@@ -209,6 +212,26 @@ export class UpdateDataStorageService {
       // Clear the eagerly-loaded relation so TypeORM save() does not
       // overwrite credentialId with the stale (soft-deleted) relation id.
       dataStorageEntity.credential = null;
+    }
+
+    // Validate BigQuery config format regardless of credential type.
+    // The full verifyAccess below is skipped for OAuth storages, so without this
+    // an invalid projectId would only surface during data mart execution.
+    if (
+      (dataStorageEntity.type === DataStorageType.GOOGLE_BIGQUERY ||
+        dataStorageEntity.type === DataStorageType.LEGACY_GOOGLE_BIGQUERY) &&
+      command.hasConfig()
+    ) {
+      const parsed = BigQueryConfigSchema.safeParse(command.config);
+      if (!parsed.success) {
+        const details = parsed.error.errors
+          .map(issue => {
+            const path = issue.path.join('.') || 'config';
+            return `${path}: ${issue.message}`;
+          })
+          .join('; ');
+        throw new BadRequestException(`Invalid config — ${details}`);
+      }
     }
 
     // Skip access validation for OAuth-configured storages (tokens are validated during OAuth exchange).

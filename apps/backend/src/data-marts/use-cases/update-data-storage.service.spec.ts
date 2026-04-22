@@ -352,3 +352,114 @@ describe('UpdateDataStorageService - credential copy (sourceStorageId)', () => {
     );
   });
 });
+
+describe('UpdateDataStorageService - BigQuery projectId validation', () => {
+  const projectId = 'proj-1';
+  const targetId = 'storage-target';
+
+  const makeService = () => {
+    const dataStorageRepository = {
+      save: jest.fn(),
+    };
+    const dataStorageService = {
+      getByProjectIdAndId: jest.fn(),
+    };
+    const dataStorageMapper = {
+      toDomainDto: jest.fn().mockReturnValue({ id: targetId }),
+    };
+    const dataStorageAccessFacade = {
+      verifyAccess: jest.fn().mockResolvedValue(undefined),
+    };
+    const dataStorageCredentialService = {
+      create: jest.fn(),
+      update: jest.fn(),
+      softDelete: jest.fn(),
+    };
+    const copyCredentialService = new CopyCredentialService(
+      dataStorageCredentialService as never,
+      {} as never
+    );
+    const userProjectionsFetcherService = {
+      fetchUserProjectionsList: jest.fn().mockResolvedValue({
+        getByUserId: jest.fn().mockReturnValue(null),
+      }),
+    };
+    const storageOwnerRepository = {
+      delete: jest.fn().mockResolvedValue(undefined),
+      save: jest.fn().mockResolvedValue([]),
+    };
+    const idpProjectionsFacade = {
+      getProjectMembers: jest.fn().mockResolvedValue([]),
+    };
+    const eventDispatcher = {
+      publishExternal: jest.fn().mockResolvedValue(undefined),
+    };
+    const accessDecisionService = {
+      canAccess: jest.fn().mockResolvedValue(true),
+    };
+
+    const service = new UpdateDataStorageService(
+      dataStorageRepository as never,
+      dataStorageService as never,
+      dataStorageMapper as never,
+      dataStorageAccessFacade as never,
+      dataStorageCredentialService as never,
+      copyCredentialService,
+      userProjectionsFetcherService as never,
+      idpProjectionsFacade as never,
+      storageOwnerRepository as never,
+      eventDispatcher as never,
+      accessDecisionService as never
+    );
+
+    return {
+      service,
+      dataStorageRepository,
+      dataStorageService,
+      dataStorageAccessFacade,
+    };
+  };
+
+  const makeCommand = (config: Record<string, unknown>): UpdateDataStorageCommand =>
+    new UpdateDataStorageCommand(targetId, projectId, config as never, 'Title');
+
+  const makeOAuthStorage = () => ({
+    id: targetId,
+    type: DataStorageType.GOOGLE_BIGQUERY,
+    projectId,
+    credentialId: 'cred-oauth',
+    credential: null,
+    config: { projectId: 'old-project' },
+    title: 'Title',
+    createdById: null,
+    ownerIds: [],
+  });
+
+  it('rejects OAuth update with invalid projectId before save', async () => {
+    const { service, dataStorageRepository, dataStorageService, dataStorageAccessFacade } =
+      makeService();
+
+    dataStorageService.getByProjectIdAndId.mockResolvedValue(makeOAuthStorage());
+
+    const command = makeCommand({ projectId: 'GTM-NC2077' });
+
+    await expect(service.run(command)).rejects.toThrow(/Invalid config — projectId: /);
+    expect(dataStorageRepository.save).not.toHaveBeenCalled();
+    expect(dataStorageAccessFacade.verifyAccess).not.toHaveBeenCalled();
+  });
+
+  it('passes validation for OAuth update with valid projectId', async () => {
+    const { service, dataStorageRepository, dataStorageService } = makeService();
+
+    const storage = makeOAuthStorage();
+    dataStorageService.getByProjectIdAndId
+      .mockResolvedValueOnce(storage)
+      .mockResolvedValueOnce(storage);
+    dataStorageRepository.save.mockResolvedValue(storage);
+
+    const command = makeCommand({ projectId: 'my-valid-project-1' });
+
+    await expect(service.run(command)).resolves.toBeDefined();
+    expect(dataStorageRepository.save).toHaveBeenCalled();
+  });
+});
