@@ -45,18 +45,24 @@ export class DataMartRelationshipController {
   @Auth(Role.viewer(Strategy.PARSE))
   @Get()
   @ListRelationshipsByDataMartSpec()
-  async list(@Param('dataMartId') dataMartId: string): Promise<RelationshipResponseApiDto[]> {
-    return this.listService.run(dataMartId);
+  async list(
+    @AuthContext() context: AuthorizationContext,
+    @Param('dataMartId') dataMartId: string
+  ): Promise<RelationshipResponseApiDto[]> {
+    const command = this.mapper.toListCommand(dataMartId, context);
+    return this.listService.run(command);
   }
 
   @Auth(Role.viewer(Strategy.PARSE))
   @Get(':id')
   @GetRelationshipSpec()
   async get(
+    @AuthContext() context: AuthorizationContext,
     @Param('dataMartId') dataMartId: string,
     @Param('id') id: string
   ): Promise<RelationshipResponseApiDto> {
-    return this.getService.run(id, dataMartId);
+    const command = this.mapper.toGetCommand(id, dataMartId, context);
+    return this.getService.run(command);
   }
 
   @Auth(Role.editor(Strategy.INTROSPECT))

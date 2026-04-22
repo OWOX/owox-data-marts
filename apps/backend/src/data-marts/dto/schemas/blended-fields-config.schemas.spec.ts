@@ -24,6 +24,14 @@ describe('BlendedFieldOverrideSchema', () => {
     expect(() => BlendedFieldOverrideSchema.parse({ aggregateFunction: 'INVALID' })).toThrow();
   });
 
+  it('should reject empty alias', () => {
+    expect(() => BlendedFieldOverrideSchema.parse({ alias: '' })).toThrow();
+  });
+
+  it('should reject alias longer than 255 chars', () => {
+    expect(() => BlendedFieldOverrideSchema.parse({ alias: 'a'.repeat(256) })).toThrow();
+  });
+
   it.each(['STRING_AGG', 'MAX', 'MIN', 'SUM', 'COUNT', 'COUNT_DISTINCT', 'ANY_VALUE'])(
     'should accept aggregateFunction: %s',
     fn => {
@@ -61,6 +69,25 @@ describe('BlendedSourceSchema', () => {
 
   it('should reject empty alias', () => {
     expect(() => BlendedSourceSchema.parse({ path: 'p', alias: '' })).toThrow();
+  });
+
+  it.each([
+    ['uppercase', 'Orders'],
+    ['dash', 'orders-items'],
+    ['space', 'orders items'],
+    ['semicolon', 'orders;DROP'],
+    ['leading dot', '.orders'],
+    ['trailing dot', 'orders.'],
+  ])('should reject path with %s: %p', (_label, path) => {
+    expect(() => BlendedSourceSchema.parse({ path, alias: 'a' })).toThrow();
+  });
+
+  it('should reject path longer than 255 chars', () => {
+    expect(() => BlendedSourceSchema.parse({ path: 'a'.repeat(256), alias: 'a' })).toThrow();
+  });
+
+  it('should reject alias longer than 255 chars', () => {
+    expect(() => BlendedSourceSchema.parse({ path: 'p', alias: 'a'.repeat(256) })).toThrow();
   });
 });
 

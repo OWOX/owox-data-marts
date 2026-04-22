@@ -1,16 +1,16 @@
 import { Controller, Get, Param } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
-import { Auth, Role, Strategy } from '../../idp';
+import { Auth, AuthContext, AuthorizationContext, Role, Strategy } from '../../idp';
 import { RelationshipResponseApiDto } from '../dto/presentation/relationship-response-api.dto';
 import { RelationshipMapper } from '../mappers/relationship.mapper';
-import { DataMartRelationshipService } from '../services/data-mart-relationship.service';
+import { ListRelationshipsByStorageService } from '../use-cases/list-relationships-by-storage.service';
 import { ListRelationshipsByStorageSpec } from './spec/data-storage-relationship.api';
 
 @Controller('data-storages/:storageId/relationships')
 @ApiTags('Data Storage Relationships')
 export class DataStorageRelationshipController {
   constructor(
-    private readonly relationshipService: DataMartRelationshipService,
+    private readonly listService: ListRelationshipsByStorageService,
     private readonly mapper: RelationshipMapper
   ) {}
 
@@ -18,9 +18,10 @@ export class DataStorageRelationshipController {
   @Get()
   @ListRelationshipsByStorageSpec()
   async listByStorage(
+    @AuthContext() context: AuthorizationContext,
     @Param('storageId') storageId: string
   ): Promise<RelationshipResponseApiDto[]> {
-    const relationships = await this.relationshipService.findByStorageId(storageId);
-    return this.mapper.toResponseList(relationships);
+    const command = this.mapper.toListByStorageCommand(storageId, context);
+    return this.listService.run(command);
   }
 }

@@ -47,9 +47,9 @@ export class DataMartRelationshipService {
     });
   }
 
-  async findByStorageId(storageId: string): Promise<DataMartRelationship[]> {
+  async findByStorageId(storageId: string, projectId?: string): Promise<DataMartRelationship[]> {
     return this.repository.find({
-      where: { dataStorage: { id: storageId } },
+      where: { dataStorage: { id: storageId }, ...(projectId ? { projectId } : {}) },
       order: { createdAt: 'ASC' },
     });
   }

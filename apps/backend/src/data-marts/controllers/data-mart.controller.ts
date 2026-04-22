@@ -13,7 +13,6 @@ import {
 import { ApiTags } from '@nestjs/swagger';
 import { Auth, AuthContext, AuthorizationContext, Role, Strategy } from '../../idp';
 import { BlendableSchemaDto } from '../dto/domain/blendable-schema.dto';
-import { BlendableSchemaService } from '../services/blendable-schema.service';
 import { BatchDataMartHealthStatusRequestApiDto } from '../dto/presentation/batch-data-mart-health-status-request-api.dto';
 import { BatchDataMartHealthStatusResponseApiDto } from '../dto/presentation/batch-data-mart-health-status-response-api.dto';
 import { CreateDataMartRequestApiDto } from '../dto/presentation/create-data-mart-request-api.dto';
@@ -45,6 +44,7 @@ import { PublishDataMartService } from '../use-cases/publish-data-mart.service';
 import { RunDataMartService } from '../use-cases/run-data-mart.service';
 import { UpdateDataMartDefinitionService } from '../use-cases/update-data-mart-definition.service';
 import { UpdateDataMartDescriptionService } from '../use-cases/update-data-mart-description.service';
+import { GetBlendableSchemaService } from '../use-cases/get-blendable-schema.service';
 import { UpdateBlendedFieldsConfigService } from '../use-cases/update-blended-fields-config.service';
 import { UpdateDataMartSchemaService } from '../use-cases/update-data-mart-schema.service';
 import { UpdateDataMartOwnersService } from '../use-cases/update-data-mart-owners.service';
@@ -101,7 +101,7 @@ export class DataMartController {
     private readonly updateOwnersService: UpdateDataMartOwnersService,
     private readonly updateAvailabilityService: UpdateAvailabilityService,
     private readonly memberOwnershipWarningsService: MemberOwnershipWarningsService,
-    private readonly blendableSchemaService: BlendableSchemaService,
+    private readonly getBlendableSchemaService: GetBlendableSchemaService,
     private readonly updateBlendedFieldsConfigService: UpdateBlendedFieldsConfigService
   ) {}
 
@@ -367,6 +367,7 @@ export class DataMartController {
     @AuthContext() context: AuthorizationContext,
     @Param('id') dataMartId: string
   ): Promise<BlendableSchemaDto> {
-    return this.blendableSchemaService.computeBlendableSchema(dataMartId, context.projectId);
+    const command = this.mapper.toGetBlendableSchemaCommand(dataMartId, context);
+    return this.getBlendableSchemaService.run(command);
   }
 }

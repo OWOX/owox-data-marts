@@ -4,6 +4,8 @@ import { DataMartRelationship } from '../entities/data-mart-relationship.entity'
 import { CreateRelationshipCommand } from '../dto/domain/create-relationship.command';
 import { UpdateRelationshipCommand } from '../dto/domain/update-relationship.command';
 import { GetRelationshipCommand } from '../dto/domain/get-relationship.command';
+import { ListRelationshipsCommand } from '../dto/domain/list-relationships.command';
+import { ListRelationshipsByStorageCommand } from '../dto/domain/list-relationships-by-storage.command';
 import {
   CreateRelationshipRequestApiDto,
   JoinConditionApiDto,
@@ -59,6 +61,27 @@ export class RelationshipMapper {
       dataMartId,
       context.userId,
       context.projectId,
+      context.roles ?? []
+    );
+  }
+
+  toListCommand(dataMartId: string, context: AuthorizationContext): ListRelationshipsCommand {
+    return new ListRelationshipsCommand(
+      dataMartId,
+      context.projectId,
+      context.userId,
+      context.roles ?? []
+    );
+  }
+
+  toListByStorageCommand(
+    storageId: string,
+    context: AuthorizationContext
+  ): ListRelationshipsByStorageCommand {
+    return new ListRelationshipsByStorageCommand(
+      storageId,
+      context.projectId,
+      context.userId,
       context.roles ?? []
     );
   }

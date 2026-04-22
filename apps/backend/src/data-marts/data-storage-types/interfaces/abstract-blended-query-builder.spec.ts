@@ -124,6 +124,44 @@ describe('AbstractBlendedQueryBuilder', () => {
       expect(sql).toContain('-- /ui/proj/data-marts/sub-1/data-setup');
     });
 
+    it('sanitizes newlines and comment markers in title/url to prevent SQL injection', () => {
+      const chain: ResolvedRelationshipChain = {
+        ...makeChain({
+          relationship: makeRelationship(),
+          targetTableReference: 'orders_table',
+          parentAlias: 'main',
+          blendedFields: [
+            {
+              targetFieldName: 'order_name',
+              outputAlias: 'order_names',
+              isHidden: false,
+              aggregateFunction: 'STRING_AGG',
+            },
+          ],
+        }),
+        targetDataMartTitle: 'Orders\n DROP TABLE secrets; --',
+        targetDataMartUrl: 'https://app/\r\nSELECT 1',
+      };
+
+      const sql = builder.buildBlendedQuery({
+        mainTableReference: 'customers_table',
+        mainDataMartTitle: 'Customers\nSELECT 1; --',
+        mainDataMartUrl: 'https://app\r\n--evil',
+        chains: [chain],
+        columns: ['order_names'],
+      });
+
+      for (const line of sql.split('\n')) {
+        if (/^\s*(DROP|INSERT|DELETE|UPDATE|SELECT 1)/i.test(line)) {
+          throw new Error(`Injected SQL leaked into a code line: ${line}`);
+        }
+      }
+      const dropLines = sql.split('\n').filter(l => l.includes('DROP TABLE'));
+      for (const line of dropLines) {
+        expect(line.trimStart().startsWith('--')).toBe(true);
+      }
+    });
+
     it('places raw CTE before aggregation CTE within each subtree', () => {
       const chain1 = makeChain({
         relationship: makeRelationship({
