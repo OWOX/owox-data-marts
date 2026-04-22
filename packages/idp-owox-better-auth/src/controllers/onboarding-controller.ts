@@ -1,3 +1,4 @@
+import { sendSecureHtml } from '@owox/internal-helpers';
 import type { Express, Request, Response } from 'express';
 import { AUTH_BASE_PATH, CORE_REFRESH_TOKEN_COOKIE } from '../core/constants.js';
 import { createServiceLogger } from '../core/logger.js';
@@ -35,7 +36,8 @@ export class OnboardingController {
 
     const emailDomain = typeof req.query?.domain === 'string' ? req.query.domain : '';
 
-    res.send(
+    sendSecureHtml(
+      res,
       TemplateService.renderOnboarding({
         emailDomain,
         gtmContainerId: this.gtmContainerId,

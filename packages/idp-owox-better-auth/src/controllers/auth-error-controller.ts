@@ -1,3 +1,4 @@
+import { sendSecureHtml } from '@owox/internal-helpers';
 import {
   type Express,
   type Request as ExpressRequest,
@@ -69,7 +70,9 @@ export class AuthErrorController {
     const errorCode = readQueryString(req, 'error');
     const errorMessage = this.resolveErrorMessage(errorCode);
 
-    res.status(400).send(
+    res.status(400);
+    sendSecureHtml(
+      res,
       TemplateService.renderAuthError({
         heading: 'Sign in failed',
         errorMessage,

@@ -1,7 +1,16 @@
 import { expect } from 'chai';
 import express, { Express } from 'express';
+import request from 'supertest';
 
 import { setupWebStaticAssets } from '../../src/web/index.js';
+
+const EXPECTED_SECURITY_HEADERS: ReadonlyArray<readonly [string, string]> = [
+  ['strict-transport-security', 'max-age=31536000'],
+  ['content-security-policy', "frame-ancestors 'none'"],
+  ['x-content-type-options', 'nosniff'],
+  ['x-xss-protection', '1; mode=block'],
+  ['referrer-policy', 'no-referrer-when-downgrade'],
+];
 
 describe('setupWebStaticAssets', () => {
   let app: Express;
@@ -80,6 +89,47 @@ describe('setupWebStaticAssets', () => {
 
       expect(app).to.be.a('function');
       expect(app).to.have.property('use');
+    });
+  });
+
+  describe('security headers', () => {
+    beforeEach(() => {
+      // /api/* is registered BEFORE static so the SPA fallback won't catch it.
+      app.get('/api/flags', (_req, res) => {
+        res.json({});
+      });
+
+      const configured = setupWebStaticAssets(app);
+      expect(configured, '@owox/web must be built for these tests').to.be.true;
+    });
+
+    it('should set all 5 security headers on SPA fallback HTML response', async () => {
+      const response = await request(app).get('/data-marts');
+
+      expect(response.status).to.equal(200);
+      expect(response.headers['content-type']).to.match(/text\/html/);
+      for (const [name, value] of EXPECTED_SECURITY_HEADERS) {
+        expect(response.headers[name], `missing ${name}`).to.equal(value);
+      }
+    });
+
+    it('should set all 5 security headers on root / HTML response', async () => {
+      const response = await request(app).get('/');
+
+      expect(response.status).to.equal(200);
+      expect(response.headers['content-type']).to.match(/text\/html/);
+      for (const [name, value] of EXPECTED_SECURITY_HEADERS) {
+        expect(response.headers[name], `missing ${name}`).to.equal(value);
+      }
+    });
+
+    it('should NOT set security headers on API responses (outside HTML scope)', async () => {
+      const response = await request(app).get('/api/flags');
+
+      expect(response.status).to.equal(200);
+      for (const [name] of EXPECTED_SECURITY_HEADERS) {
+        expect(response.headers[name], `unexpected ${name}`).to.be.undefined;
+      }
     });
   });
 });

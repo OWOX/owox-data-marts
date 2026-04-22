@@ -1,3 +1,4 @@
+import { applySecurityHeaders } from '@owox/internal-helpers';
 import express, { Express, NextFunction, Request, Response } from 'express';
 import { existsSync } from 'node:fs';
 import { createRequire } from 'node:module';
@@ -46,8 +47,17 @@ export function setupWebStaticAssets(app: Express, options: StaticAssetsOptions 
     return false;
   }
 
-  // Serve static files
-  app.use(express.static(distPath));
+  // Serve static files. Security headers are applied only to HTML responses
+  // so JS/CSS/asset responses stay unchanged.
+  app.use(
+    express.static(distPath, {
+      setHeaders(res, filePath) {
+        if (filePath.toLowerCase().endsWith('.html')) {
+          applySecurityHeaders(res);
+        }
+      },
+    })
+  );
 
   // Configure SPA fallback for client-side routing
   setupSpaFallback(app, distPath, options);
@@ -103,6 +113,8 @@ function setupSpaFallback(app: Express, distPath: string, options: StaticAssetsO
     }
 
     // For all other routes, serve index.html (SPA routing)
+    applySecurityHeaders(res);
+
     res.sendFile('index.html', { root: distPath }, error => {
       if (error) {
         next(error);

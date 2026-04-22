@@ -15,6 +15,8 @@ function createResponseMock(): Response & { body?: unknown; statusCode?: number 
     return res;
   });
   res.send = sendMock as unknown as Response['send'];
+  const setHeaderMock = jest.fn(() => res);
+  res.setHeader = setHeaderMock as unknown as Response['setHeader'];
   return res;
 }
 

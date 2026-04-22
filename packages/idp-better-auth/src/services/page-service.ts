@@ -1,3 +1,4 @@
+import { sendSecureHtml } from '@owox/internal-helpers';
 import {
   type Express,
   type Request as ExpressRequest,
@@ -29,10 +30,10 @@ export class PageService {
       }
     } catch (error) {
       logger.error('Error checking authentication for sign-in page', {}, error as Error);
-      res.send(TemplateService.renderSignIn());
+      sendSecureHtml(res, TemplateService.renderSignIn());
       return;
     }
-    res.send(TemplateService.renderSignIn());
+    sendSecureHtml(res, TemplateService.renderSignIn());
   }
 
   async setupPasswordPage(req: ExpressRequest, res: ExpressResponse): Promise<void> {
@@ -44,7 +45,7 @@ export class PageService {
         return;
       }
 
-      res.send(TemplateService.renderPasswordSetup());
+      sendSecureHtml(res, TemplateService.renderPasswordSetup());
     } catch (error) {
       logger.error('Error loading password setup page', {}, error as Error);
       res.redirect('/auth/sign-in');
@@ -75,7 +76,7 @@ export class PageService {
           'Set-Cookie',
           `refreshToken=${session.session.token}; Path=/; HttpOnly; SameSite=Strict`
         );
-        res.send(TemplateService.renderPasswordSuccess());
+        sendSecureHtml(res, TemplateService.renderPasswordSuccess());
       } catch (error: unknown) {
         if (error instanceof Error && error.message === 'User already has a password') {
           res.status(400).send('User already has a password');
@@ -104,7 +105,7 @@ export class PageService {
         token
       )}&callbackURL=${encodeURIComponent(callbackURL)}`;
 
-      res.send(TemplateService.renderMagicLinkConfirm(verifyUrl));
+      sendSecureHtml(res, TemplateService.renderMagicLinkConfirm(verifyUrl));
     } catch (error) {
       logger.error('Error rendering magic link preconfirm page', {}, error as Error);
       res.redirect('/auth/sign-in?error=Something went wrong with the magic link');
@@ -221,7 +222,7 @@ export class PageService {
 
       const users = await this.userManagementService.getUsersForAdmin();
       const html = TemplateService.renderAdminDashboard(users, currentUserEmail);
-      res.send(html);
+      sendSecureHtml(res, html);
     } catch (error) {
       logger.error('Error loading admin dashboard', {}, error as Error);
       res.status(500).send('Error loading dashboard');
@@ -250,7 +251,7 @@ export class PageService {
         : null;
 
       const html = TemplateService.renderUserDetails(user, currentUserRole);
-      res.send(html);
+      sendSecureHtml(res, html);
     } catch (error) {
       logger.error('Error loading user details', {}, error as Error);
       res.status(500).send('Error loading user details');
@@ -279,7 +280,7 @@ export class PageService {
 
       const allowedRoles = this.userManagementService.getAllowedRolesForInvite(currentUserRole);
       const html = TemplateService.renderAddUser(allowedRoles);
-      res.send(html);
+      sendSecureHtml(res, html);
     } catch (error) {
       logger.error('Error loading add user page', {}, error as Error);
       res.status(500).send('Error loading page');

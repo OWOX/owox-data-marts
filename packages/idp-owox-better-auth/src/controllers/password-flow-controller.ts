@@ -1,4 +1,5 @@
 import { ProtocolRoute } from '@owox/idp-protocol';
+import { sendSecureHtml } from '@owox/internal-helpers';
 import {
   type Express,
   type Request as ExpressRequest,
@@ -99,7 +100,8 @@ export class PasswordFlowController {
     const infoMessage = typeof req.query?.info === 'string' ? req.query.info : undefined;
 
     if (resetToken) {
-      res.send(
+      sendSecureHtml(
+        res,
         TemplateService.renderPasswordSetup({
           intent,
           resetToken,
@@ -118,7 +120,8 @@ export class PasswordFlowController {
       );
     }
 
-    res.send(
+    sendSecureHtml(
+      res,
       TemplateService.renderPasswordSetup({
         userEmail: session.email,
         intent,
@@ -204,7 +207,10 @@ export class PasswordFlowController {
   }
 
   async passwordSuccessPage(_req: ExpressRequest, res: ExpressResponse): Promise<void> {
-    res.send(TemplateService.renderPasswordSuccess({ gtmContainerId: this.gtmContainerId }));
+    sendSecureHtml(
+      res,
+      TemplateService.renderPasswordSuccess({ gtmContainerId: this.gtmContainerId })
+    );
   }
 
   registerRoutes(express: Express): void {

@@ -1,4 +1,5 @@
 import { ProtocolRoute } from '@owox/idp-protocol';
+import { sendSecureHtml } from '@owox/internal-helpers';
 import {
   type Express,
   type Request as ExpressRequest,
@@ -28,7 +29,8 @@ export class PageController {
     this.persistPlatformContext(req, res);
     const errorMessage = typeof req.query?.error === 'string' ? req.query.error : undefined;
     const infoMessage = typeof req.query?.info === 'string' ? req.query.info : undefined;
-    res.send(
+    sendSecureHtml(
+      res,
       TemplateService.renderSignIn({
         errorMessage,
         infoMessage,
@@ -42,7 +44,8 @@ export class PageController {
     this.persistPlatformContext(req, res);
     const errorMessage = typeof req.query?.error === 'string' ? req.query.error : undefined;
     const infoMessage = typeof req.query?.info === 'string' ? req.query.info : undefined;
-    res.send(
+    sendSecureHtml(
+      res,
       TemplateService.renderSignUp({
         errorMessage,
         infoMessage,
@@ -75,7 +78,8 @@ export class PageController {
       req
     );
     const intent = parseMagicLinkIntent(req.query?.intent);
-    res.send(
+    sendSecureHtml(
+      res,
       TemplateService.renderMagicLinkConfirm({
         token,
         callbackURL,
@@ -88,7 +92,8 @@ export class PageController {
   async forgotPasswordPage(req: ExpressRequest, res: ExpressResponse): Promise<void> {
     const errorMessage = typeof req.query?.error === 'string' ? req.query.error : undefined;
     const infoMessage = typeof req.query?.info === 'string' ? req.query.info : undefined;
-    res.send(
+    sendSecureHtml(
+      res,
       TemplateService.renderForgotPassword({
         errorMessage,
         infoMessage,
