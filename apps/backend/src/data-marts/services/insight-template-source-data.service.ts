@@ -87,12 +87,6 @@ export class InsightTemplateSourceDataService {
       dataMart.projectId
     );
 
-    if (artifact.validationStatus === InsightArtifactValidationStatus.ERROR) {
-      throw new BusinessViolationException(
-        `Source artifact "${artifact.title}" has SQL errors and cannot be used`
-      );
-    }
-
     try {
       const sql = await this.prepareArtifactSql(artifact, dataMart);
       const { columns, rows } = await this.dataMartSqlTableService.executeSqlToTable(
@@ -104,7 +98,7 @@ export class InsightTemplateSourceDataService {
       );
       const context = this.buildContext(columns, rows);
 
-      if (artifact.validationStatus !== InsightArtifactValidationStatus.VALID) {
+      if (this.shouldResetArtifactValidationState(artifact)) {
         await this.insightArtifactService.markValidationStatus(
           artifact.id,
           InsightArtifactValidationStatus.VALID,
@@ -121,7 +115,7 @@ export class InsightTemplateSourceDataService {
         message
       );
       throw new BusinessViolationException(
-        `Failed to execute artifact source "${artifact.title}": ${message}`
+        `Failed to execute artifact source "${artifact.title}" (artifactId="${artifact.id}", sourceKey="${source.key}"): ${message}`
       );
     }
   }
@@ -211,5 +205,12 @@ export class InsightTemplateSourceDataService {
     }
 
     return options.usedSourceKeys.has(sourceKey);
+  }
+
+  private shouldResetArtifactValidationState(artifact: InsightArtifact): boolean {
+    return (
+      artifact.validationStatus !== InsightArtifactValidationStatus.VALID ||
+      artifact.validationError != null
+    );
   }
 }

@@ -518,4 +518,116 @@ describe('InsightTemplateSourceDataService', () => {
     expect(result.tableSources.artifactSource.rowsLimit).toBe(100);
     expect(result.tableSources.artifactSource.hasMoreRowsThanLimit).toBe(true);
   });
+
+  it('retries artifact execution even when last validation result is error and clears stale error on success', async () => {
+    const {
+      service,
+      insightArtifactService,
+      reportHeadersGeneratorFacade,
+      dataMartSqlTableService,
+    } = createService();
+    const dataMart = createDataMart();
+    const insightTemplate = createInsightTemplate([
+      {
+        templateSourceId: '11111111-1111-1111-1111-111111111111',
+        key: 'artifactSource',
+        type: InsightTemplateSourceType.INSIGHT_ARTIFACT,
+        artifactId: '22222222-2222-2222-2222-222222222222',
+      },
+    ]);
+
+    reportHeadersGeneratorFacade.generateHeadersFromSchema.mockResolvedValue([]);
+    dataMartSqlTableService.executeSqlToTable
+      .mockResolvedValueOnce({
+        columns: ['main_col'],
+        rows: [['main']],
+      })
+      .mockResolvedValueOnce({
+        columns: ['artifact_col'],
+        rows: [['resolved']],
+      });
+    dataMartSqlTableService.resolveDataMartTableMacro.mockResolvedValue(
+      'SELECT * FROM source_table'
+    );
+    insightArtifactService.getByIdAndDataMartIdAndProjectId.mockResolvedValue({
+      id: 'artifact-1',
+      title: 'Product Category Comparison (Last 30 vs Previous 30 Days)',
+      sql: 'SELECT * FROM source_table',
+      validationStatus: InsightArtifactValidationStatus.ERROR,
+      validationError: 'Unrecognized name: product_category at [12:5]',
+    });
+
+    const result = await service.buildRenderContext(dataMart, insightTemplate);
+
+    expect(dataMartSqlTableService.executeSqlToTable).toHaveBeenNthCalledWith(
+      2,
+      dataMart,
+      'SELECT * FROM source_table',
+      {
+        limit: 101,
+      }
+    );
+    expect(insightArtifactService.markValidationStatus).toHaveBeenCalledWith(
+      'artifact-1',
+      InsightArtifactValidationStatus.VALID,
+      null
+    );
+    expect(result.tableSources.artifactSource).toEqual({
+      dataHeaders: [{ name: 'artifact_col' }],
+      dataRows: [['resolved']],
+      dataHeadersCount: 1,
+      hasMoreRowsThanLimit: false,
+      rowsLimit: 100,
+    });
+  });
+
+  it('updates artifact validation error when execution fails during run', async () => {
+    const {
+      service,
+      insightArtifactService,
+      reportHeadersGeneratorFacade,
+      dataMartSqlTableService,
+    } = createService();
+    const dataMart = createDataMart();
+    const insightTemplate = createInsightTemplate([
+      {
+        templateSourceId: '11111111-1111-1111-1111-111111111111',
+        key: 'artifactSource',
+        type: InsightTemplateSourceType.INSIGHT_ARTIFACT,
+        artifactId: '22222222-2222-2222-2222-222222222222',
+      },
+    ]);
+
+    reportHeadersGeneratorFacade.generateHeadersFromSchema.mockResolvedValue([]);
+    dataMartSqlTableService.executeSqlToTable
+      .mockResolvedValueOnce({
+        columns: ['main_col'],
+        rows: [['main']],
+      })
+      .mockRejectedValueOnce(
+        new Error(
+          "Name source_medium not found inside s; failed to parse view 'owox-demo.owox_internal_us.view_addfa49f_aeb0_4273_a73f_d10ee6ce9edd' at [4:5]"
+        )
+      );
+    dataMartSqlTableService.resolveDataMartTableMacro.mockResolvedValue(
+      'SELECT * FROM source_table'
+    );
+    insightArtifactService.getByIdAndDataMartIdAndProjectId.mockResolvedValue({
+      id: 'artifact-1',
+      title: 'Product Category Comparison (Last 30 vs Previous 30 Days)',
+      sql: 'SELECT * FROM source_table',
+      validationStatus: InsightArtifactValidationStatus.ERROR,
+      validationError: 'stale error',
+    });
+
+    await expect(service.buildRenderContext(dataMart, insightTemplate)).rejects.toThrow(
+      `Failed to execute artifact source "Product Category Comparison (Last 30 vs Previous 30 Days)" (artifactId="artifact-1", sourceKey="artifactSource"): Name source_medium not found inside s; failed to parse view 'owox-demo.owox_internal_us.view_addfa49f_aeb0_4273_a73f_d10ee6ce9edd' at [4:5]`
+    );
+
+    expect(insightArtifactService.markValidationStatus).toHaveBeenCalledWith(
+      'artifact-1',
+      InsightArtifactValidationStatus.ERROR,
+      "Name source_medium not found inside s; failed to parse view 'owox-demo.owox_internal_us.view_addfa49f_aeb0_4273_a73f_d10ee6ce9edd' at [4:5]"
+    );
+  });
 });
