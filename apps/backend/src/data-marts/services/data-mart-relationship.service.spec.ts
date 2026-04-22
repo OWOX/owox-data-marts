@@ -87,7 +87,7 @@ describe('DataMartRelationshipService', () => {
       const existingRelationship = makeRelationship('dm-A', 'dm-B');
       repository.find.mockResolvedValue([existingRelationship]);
 
-      const hasCycle = await service.detectCycles('dm-B', 'dm-A', 'storage-1');
+      const hasCycle = await service.detectCycles('dm-B', 'dm-A', 'storage-1', 'project-1');
 
       expect(hasCycle).toBe(true);
     });
@@ -97,7 +97,7 @@ describe('DataMartRelationshipService', () => {
       const existingRelationship = makeRelationship('dm-A', 'dm-B');
       repository.find.mockResolvedValue([existingRelationship]);
 
-      const hasCycle = await service.detectCycles('dm-A', 'dm-C', 'storage-1');
+      const hasCycle = await service.detectCycles('dm-A', 'dm-C', 'storage-1', 'project-1');
 
       expect(hasCycle).toBe(false);
     });
@@ -107,7 +107,7 @@ describe('DataMartRelationshipService', () => {
       const relBC = makeRelationship('dm-B', 'dm-C', { id: 'rel-BC' });
       repository.find.mockResolvedValue([relAB, relBC]);
 
-      const hasCycle = await service.detectCycles('dm-C', 'dm-A', 'storage-1');
+      const hasCycle = await service.detectCycles('dm-C', 'dm-A', 'storage-1', 'project-1');
 
       expect(hasCycle).toBe(true);
     });
@@ -115,7 +115,7 @@ describe('DataMartRelationshipService', () => {
     it('returns false when there are no existing relationships', async () => {
       repository.find.mockResolvedValue([]);
 
-      const hasCycle = await service.detectCycles('dm-A', 'dm-B', 'storage-1');
+      const hasCycle = await service.detectCycles('dm-A', 'dm-B', 'storage-1', 'project-1');
 
       expect(hasCycle).toBe(false);
     });
@@ -128,7 +128,12 @@ describe('DataMartRelationshipService', () => {
       }
       repository.find.mockResolvedValue(existing);
 
-      const hasCycle = await service.detectCycles(`dm-${chainLength - 1}`, 'dm-0', 'storage-1');
+      const hasCycle = await service.detectCycles(
+        `dm-${chainLength - 1}`,
+        'dm-0',
+        'storage-1',
+        'project-1'
+      );
 
       expect(hasCycle).toBe(true);
     });

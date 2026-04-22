@@ -1,6 +1,6 @@
 import { ForbiddenException, Injectable } from '@nestjs/common';
 import { ListRelationshipsByStorageCommand } from '../dto/domain/list-relationships-by-storage.command';
-import { RelationshipResponseApiDto } from '../dto/presentation/relationship-response-api.dto';
+import { RelationshipDto } from '../dto/domain/relationship.dto';
 import { RelationshipMapper } from '../mappers/relationship.mapper';
 import { AccessDecisionService, Action, EntityType } from '../services/access-decision';
 import { DataMartRelationshipService } from '../services/data-mart-relationship.service';
@@ -17,17 +17,18 @@ export class ListRelationshipsByStorageService {
     private readonly accessDecisionService: AccessDecisionService
   ) {}
 
-  async run(command: ListRelationshipsByStorageCommand): Promise<RelationshipResponseApiDto[]> {
-    await this.dataStorageService.getByProjectIdAndId(command.projectId, command.storageId);
-
-    const canSee = await this.accessDecisionService.canAccess(
-      command.userId,
-      command.roles,
-      EntityType.STORAGE,
-      command.storageId,
-      Action.SEE,
-      command.projectId
-    );
+  async run(command: ListRelationshipsByStorageCommand): Promise<RelationshipDto[]> {
+    const [, canSee] = await Promise.all([
+      this.dataStorageService.getByProjectIdAndId(command.projectId, command.storageId),
+      this.accessDecisionService.canAccess(
+        command.userId,
+        command.roles,
+        EntityType.STORAGE,
+        command.storageId,
+        Action.SEE,
+        command.projectId
+      ),
+    ]);
     if (!canSee) {
       throw new ForbiddenException('You do not have access to this Storage');
     }
@@ -40,6 +41,6 @@ export class ListRelationshipsByStorageService {
     const userProjectionsList =
       await this.userProjectionsFetcherService.fetchRelevantUserProjections(relationships);
 
-    return this.mapper.toResponseList(relationships, userProjectionsList);
+    return this.mapper.toDomainDtoList(relationships, userProjectionsList);
   }
 }

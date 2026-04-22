@@ -42,7 +42,7 @@ describe('UpdateDataMartRelationshipService', () => {
       invalidateByDataMartId: jest.fn().mockResolvedValue(undefined),
     };
     const mapper = {
-      toResponse: jest.fn().mockReturnValue({ id: 'rel-1' }),
+      toDomainDto: jest.fn().mockReturnValue({ id: 'rel-1' }),
     };
     const accessDecisionService = {
       canAccess: jest.fn().mockResolvedValue(canAccess),

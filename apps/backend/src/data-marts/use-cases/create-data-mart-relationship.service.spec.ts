@@ -48,7 +48,7 @@ describe('CreateDataMartRelationshipService', () => {
       fetchCreatedByUser: jest.fn().mockResolvedValue(null),
     };
     const mapper = {
-      toResponse: jest.fn().mockReturnValue({ id: 'rel-1' }),
+      toDomainDto: jest.fn().mockReturnValue({ id: 'rel-1' }),
     };
     const accessDecisionService = {
       canAccess: jest

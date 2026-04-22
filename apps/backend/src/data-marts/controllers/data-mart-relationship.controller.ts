@@ -39,7 +39,8 @@ export class DataMartRelationshipController {
     @Body() dto: CreateRelationshipRequestApiDto
   ): Promise<RelationshipResponseApiDto> {
     const command = this.mapper.toCreateCommand(dataMartId, context, dto);
-    return this.createService.run(command);
+    const result = await this.createService.run(command);
+    return this.mapper.toResponse(result);
   }
 
   @Auth(Role.viewer(Strategy.PARSE))
@@ -50,7 +51,8 @@ export class DataMartRelationshipController {
     @Param('dataMartId') dataMartId: string
   ): Promise<RelationshipResponseApiDto[]> {
     const command = this.mapper.toListCommand(dataMartId, context);
-    return this.listService.run(command);
+    const result = await this.listService.run(command);
+    return this.mapper.toResponseList(result);
   }
 
   @Auth(Role.viewer(Strategy.PARSE))
@@ -62,7 +64,8 @@ export class DataMartRelationshipController {
     @Param('id') id: string
   ): Promise<RelationshipResponseApiDto> {
     const command = this.mapper.toGetCommand(id, dataMartId, context);
-    return this.getService.run(command);
+    const result = await this.getService.run(command);
+    return this.mapper.toResponse(result);
   }
 
   @Auth(Role.editor(Strategy.INTROSPECT))
@@ -75,7 +78,8 @@ export class DataMartRelationshipController {
     @Body() dto: UpdateRelationshipRequestApiDto
   ): Promise<RelationshipResponseApiDto> {
     const command = this.mapper.toUpdateCommand(id, dataMartId, context, dto);
-    return this.updateService.run(command);
+    const result = await this.updateService.run(command);
+    return this.mapper.toResponse(result);
   }
 
   @Auth(Role.editor(Strategy.INTROSPECT))
@@ -87,7 +91,7 @@ export class DataMartRelationshipController {
     @Param('dataMartId') dataMartId: string,
     @Param('id') id: string
   ): Promise<void> {
-    const command = this.mapper.toGetCommand(id, dataMartId, context);
+    const command = this.mapper.toDeleteCommand(id, dataMartId, context);
     await this.deleteService.run(command);
   }
 }

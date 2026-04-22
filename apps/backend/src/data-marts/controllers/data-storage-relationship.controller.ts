@@ -22,6 +22,7 @@ export class DataStorageRelationshipController {
     @Param('storageId') storageId: string
   ): Promise<RelationshipResponseApiDto[]> {
     const command = this.mapper.toListByStorageCommand(storageId, context);
-    return this.listService.run(command);
+    const result = await this.listService.run(command);
+    return this.mapper.toResponseList(result);
   }
 }

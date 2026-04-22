@@ -1,7 +1,7 @@
 import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { Transactional } from 'typeorm-transactional';
 import { UpdateRelationshipCommand } from '../dto/domain/update-relationship.command';
-import { RelationshipResponseApiDto } from '../dto/presentation/relationship-response-api.dto';
+import { RelationshipDto } from '../dto/domain/relationship.dto';
 import { RelationshipMapper } from '../mappers/relationship.mapper';
 import { AccessDecisionService, Action, EntityType } from '../services/access-decision';
 import { DataMartRelationshipService } from '../services/data-mart-relationship.service';
@@ -21,7 +21,7 @@ export class UpdateDataMartRelationshipService {
   ) {}
 
   @Transactional()
-  async run(command: UpdateRelationshipCommand): Promise<RelationshipResponseApiDto> {
+  async run(command: UpdateRelationshipCommand): Promise<RelationshipDto> {
     const relationship = await this.relationshipService.findById(command.relationshipId);
 
     if (!relationship || relationship.sourceDataMart.id !== command.sourceDataMartId) {
@@ -73,7 +73,7 @@ export class UpdateDataMartRelationshipService {
     await this.reportDataCacheService.invalidateByDataMartId(command.sourceDataMartId);
 
     const createdByUser = await this.userProjectionsFetcherService.fetchCreatedByUser(updated);
-    return this.mapper.toResponse(updated, createdByUser);
+    return this.mapper.toDomainDto(updated, createdByUser);
   }
 
   private async cascadeAliasRename(

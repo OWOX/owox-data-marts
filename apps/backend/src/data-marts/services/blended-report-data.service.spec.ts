@@ -70,7 +70,6 @@ describe('BlendedReportDataService', () => {
   let relationshipService: jest.Mocked<DataMartRelationshipService>;
   let tableReferenceService: jest.Mocked<DataMartTableReferenceService>;
   let blendedQueryBuilderFacade: jest.Mocked<BlendedQueryBuilderFacade>;
-  let _queryBuilderFacade: jest.Mocked<DataMartQueryBuilderFacade>;
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
@@ -122,7 +121,6 @@ describe('BlendedReportDataService', () => {
     relationshipService = module.get(DataMartRelationshipService);
     tableReferenceService = module.get(DataMartTableReferenceService);
     blendedQueryBuilderFacade = module.get(BlendedQueryBuilderFacade);
-    _queryBuilderFacade = module.get(DataMartQueryBuilderFacade);
   });
 
   describe('resolveBlendingDecision', () => {

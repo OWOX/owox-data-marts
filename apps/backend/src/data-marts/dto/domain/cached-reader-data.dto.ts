@@ -1,5 +1,5 @@
 import { DataStorageReportReader } from '../../data-storage-types/interfaces/data-storage-report-reader.interface';
-import { BlendingDecision } from '../../services/blended-report-data.service';
+import { BlendingDecision } from './blending-decision.dto';
 import { ReportDataDescription } from './report-data-description.dto';
 
 /**

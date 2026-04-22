@@ -4,8 +4,10 @@ import { DataMartRelationship } from '../entities/data-mart-relationship.entity'
 import { CreateRelationshipCommand } from '../dto/domain/create-relationship.command';
 import { UpdateRelationshipCommand } from '../dto/domain/update-relationship.command';
 import { GetRelationshipCommand } from '../dto/domain/get-relationship.command';
+import { DeleteRelationshipCommand } from '../dto/domain/delete-relationship.command';
 import { ListRelationshipsCommand } from '../dto/domain/list-relationships.command';
 import { ListRelationshipsByStorageCommand } from '../dto/domain/list-relationships-by-storage.command';
+import { RelationshipDto } from '../dto/domain/relationship.dto';
 import {
   CreateRelationshipRequestApiDto,
   JoinConditionApiDto,
@@ -65,6 +67,20 @@ export class RelationshipMapper {
     );
   }
 
+  toDeleteCommand(
+    relationshipId: string,
+    dataMartId: string,
+    context: AuthorizationContext
+  ): DeleteRelationshipCommand {
+    return new DeleteRelationshipCommand(
+      relationshipId,
+      dataMartId,
+      context.userId,
+      context.projectId,
+      context.roles ?? []
+    );
+  }
+
   toListCommand(dataMartId: string, context: AuthorizationContext): ListRelationshipsCommand {
     return new ListRelationshipsCommand(
       dataMartId,
@@ -86,10 +102,10 @@ export class RelationshipMapper {
     );
   }
 
-  toResponse(
+  toDomainDto(
     entity: DataMartRelationship,
     createdByUser: UserProjectionDto | null = null
-  ): RelationshipResponseApiDto {
+  ): RelationshipDto {
     return {
       id: entity.id,
       dataStorageId: entity.dataStorage.id,
@@ -114,16 +130,24 @@ export class RelationshipMapper {
     };
   }
 
-  toResponseList(
+  toDomainDtoList(
     entities: DataMartRelationship[],
     userProjectionsList?: UserProjectionsListDto
-  ): RelationshipResponseApiDto[] {
+  ): RelationshipDto[] {
     return entities.map(entity =>
-      this.toResponse(
+      this.toDomainDto(
         entity,
         entity.createdById ? (userProjectionsList?.getByUserId(entity.createdById) ?? null) : null
       )
     );
+  }
+
+  toResponse(dto: RelationshipDto): RelationshipResponseApiDto {
+    return { ...dto, createdByUser: dto.createdByUser ?? null };
+  }
+
+  toResponseList(dtos: RelationshipDto[]): RelationshipResponseApiDto[] {
+    return dtos.map(dto => this.toResponse(dto));
   }
 
   private toJoinCondition(dto: JoinConditionApiDto): JoinCondition {

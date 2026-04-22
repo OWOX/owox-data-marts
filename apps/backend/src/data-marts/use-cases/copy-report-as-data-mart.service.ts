@@ -7,7 +7,7 @@ import { DataMart } from '../entities/data-mart.entity';
 import { DataMartDefinitionType } from '../enums/data-mart-definition-type.enum';
 import { DataMartStatus } from '../enums/data-mart-status.enum';
 import { DataMartService } from '../services/data-mart.service';
-import { GetReportGeneratedSqlService } from './get-report-generated-sql.service';
+import { ReportSqlComposerService } from '../services/report-sql-composer.service';
 import { SqlDefinition } from '../dto/schemas/data-mart-table-definitions/sql-definition.schema';
 import { CopyReportAsDataMartCommand } from '../dto/domain/copy-report-as-data-mart.command';
 import { AccessDecisionService, EntityType, Action } from '../services/access-decision';
@@ -17,7 +17,7 @@ export class CopyReportAsDataMartService {
   constructor(
     @InjectRepository(Report)
     private readonly reportRepository: Repository<Report>,
-    private readonly getGeneratedSqlService: GetReportGeneratedSqlService,
+    private readonly reportSqlComposerService: ReportSqlComposerService,
     private readonly dataMartService: DataMartService,
     private readonly accessDecisionService: AccessDecisionService
   ) {}
@@ -60,7 +60,7 @@ export class CopyReportAsDataMartService {
       }
     }
 
-    const { sql } = await this.getGeneratedSqlService.buildForReport(report);
+    const { sql } = await this.reportSqlComposerService.compose(report);
 
     const { dataMart: sourceDataMart } = report;
 

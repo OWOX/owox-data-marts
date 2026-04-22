@@ -308,6 +308,7 @@ import { DataMartRelationship } from './entities/data-mart-relationship.entity';
 import { DataMartRelationshipService } from './services/data-mart-relationship.service';
 import { BlendableSchemaService } from './services/blendable-schema.service';
 import { BlendedReportDataService } from './services/blended-report-data.service';
+import { ReportSqlComposerService } from './services/report-sql-composer.service';
 import { RelationshipMapper } from './mappers/relationship.mapper';
 import { CreateDataMartRelationshipService } from './use-cases/create-data-mart-relationship.service';
 import { UpdateDataMartRelationshipService } from './use-cases/update-data-mart-relationship.service';
@@ -639,6 +640,7 @@ import { DataStorageRelationshipController } from './controllers/data-storage-re
     DataMartRelationshipService,
     BlendableSchemaService,
     BlendedReportDataService,
+    ReportSqlComposerService,
     RelationshipMapper,
     CreateDataMartRelationshipService,
     UpdateDataMartRelationshipService,

@@ -13,7 +13,8 @@ import { CachedReaderData } from '../dto/domain/cached-reader-data.dto';
 import { Report } from '../entities/report.entity';
 import { isLookerStudioConnectorConfig } from '../data-destination-types/data-destination-config.guards';
 import { ReportDataCache } from '../entities/report-data-cache.entity';
-import { BlendedReportDataService, BlendingDecision } from './blended-report-data.service';
+import { BlendedReportDataService } from './blended-report-data.service';
+import { BlendingDecision } from '../dto/domain/blending-decision.dto';
 
 /**
  * Service for managing persistent cache of report data readers

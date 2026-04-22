@@ -3,31 +3,16 @@ import { BlendableSchemaService } from './blendable-schema.service';
 import { DataMartRelationshipService } from './data-mart-relationship.service';
 import { DataMartTableReferenceService } from './data-mart-table-reference.service';
 import { BlendedQueryBuilderFacade } from '../data-storage-types/facades/blended-query-builder.facade';
-import { DataMartQueryBuilderFacade } from '../data-storage-types/facades/data-mart-query-builder.facade';
 import { Report } from '../entities/report.entity';
 import { ResolvedRelationshipChain } from '../data-storage-types/interfaces/blended-query-builder.interface';
 import { ReportDataHeader } from '../dto/domain/report-data-header.dto';
 import { AvailableSourceDto, BlendedFieldDto } from '../dto/domain/blendable-schema.dto';
+import { BlendingDecision } from '../dto/domain/blending-decision.dto';
 import { DataMartRelationship } from '../entities/data-mart-relationship.entity';
 import { PublicOriginService } from '../../common/config/public-origin.service';
 import { BusinessViolationException } from '../../common/exceptions/business-violation.exception';
 import { buildDataMartUrl } from '../../common/helpers/data-mart-url.helper';
 import { ReportRunLogger } from '../report-run-logging/report-run-logger';
-
-export interface BlendingDecision {
-  needsBlending: boolean;
-  blendedSql?: string;
-  columnFilter?: string[];
-  /**
-   * Precomputed headers for columns in `columnFilter` that come from
-   * blended schema (not native). Readers combine these with their own
-   * native headers to construct the final ordered header list.
-   *
-   * Only populated when `columnFilter` is set. Contains at most one entry
-   * per blended column in `columnFilter`.
-   */
-  blendedDataHeaders?: ReportDataHeader[];
-}
 
 @Injectable()
 export class BlendedReportDataService {
@@ -35,7 +20,6 @@ export class BlendedReportDataService {
     private readonly relationshipService: DataMartRelationshipService,
     private readonly blendableSchemaService: BlendableSchemaService,
     private readonly blendedQueryBuilderFacade: BlendedQueryBuilderFacade,
-    private readonly queryBuilderFacade: DataMartQueryBuilderFacade,
     private readonly tableReferenceService: DataMartTableReferenceService,
     private readonly publicOriginService: PublicOriginService
   ) {}

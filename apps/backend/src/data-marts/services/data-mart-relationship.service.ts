@@ -47,9 +47,9 @@ export class DataMartRelationshipService {
     });
   }
 
-  async findByStorageId(storageId: string, projectId?: string): Promise<DataMartRelationship[]> {
+  async findByStorageId(storageId: string, projectId: string): Promise<DataMartRelationship[]> {
     return this.repository.find({
-      where: { dataStorage: { id: storageId }, ...(projectId ? { projectId } : {}) },
+      where: { dataStorage: { id: storageId }, projectId },
       order: { createdAt: 'ASC' },
     });
   }
@@ -173,9 +173,10 @@ export class DataMartRelationshipService {
   async detectCycles(
     sourceDataMartId: string,
     targetDataMartId: string,
-    storageId: string
+    storageId: string,
+    projectId: string
   ): Promise<boolean> {
-    const allRelationships = await this.findByStorageId(storageId);
+    const allRelationships = await this.findByStorageId(storageId, projectId);
 
     // Adding source → target creates a cycle iff target can already reach source via
     // existing edges — so the adjacency list excludes the proposed edge.

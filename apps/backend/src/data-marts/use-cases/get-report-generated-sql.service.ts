@@ -1,19 +1,17 @@
-import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
+import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { Report } from '../entities/report.entity';
-import { BlendedReportDataService } from '../services/blended-report-data.service';
-import { DataMartQueryBuilderFacade } from '../data-storage-types/facades/data-mart-query-builder.facade';
 import { GetReportGeneratedSqlCommand } from '../dto/domain/get-report-generated-sql.command';
+import { Report } from '../entities/report.entity';
 import { AccessDecisionService, Action } from '../services/access-decision';
+import { ReportSqlComposerService } from '../services/report-sql-composer.service';
 
 @Injectable()
 export class GetReportGeneratedSqlService {
   constructor(
     @InjectRepository(Report)
     private readonly reportRepository: Repository<Report>,
-    private readonly blendedReportDataService: BlendedReportDataService,
-    private readonly queryBuilderFacade: DataMartQueryBuilderFacade,
+    private readonly reportSqlComposerService: ReportSqlComposerService,
     private readonly accessDecisionService: AccessDecisionService
   ) {}
 
@@ -44,27 +42,6 @@ export class GetReportGeneratedSqlService {
       }
     }
 
-    return this.buildForReport(report);
-  }
-
-  async buildForReport(report: Report): Promise<{ sql: string }> {
-    const decision = await this.blendedReportDataService.resolveBlendingDecision(report);
-
-    if (decision.needsBlending && decision.blendedSql) {
-      return { sql: decision.blendedSql };
-    }
-
-    const { dataMart } = report;
-    if (!dataMart.definition) {
-      throw new Error('Data Mart definition is not set.');
-    }
-
-    const sql = await this.queryBuilderFacade.buildQuery(
-      dataMart.storage.type,
-      dataMart.definition,
-      { columns: decision.columnFilter }
-    );
-
-    return { sql };
+    return this.reportSqlComposerService.compose(report);
   }
 }

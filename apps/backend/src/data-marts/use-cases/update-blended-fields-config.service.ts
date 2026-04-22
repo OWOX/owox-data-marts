@@ -1,5 +1,6 @@
 import { Injectable, ForbiddenException } from '@nestjs/common';
 import { Transactional } from 'typeorm-transactional';
+import { deepEqual } from '../../common/utils/deep-equal.util';
 import { DataMartMapper } from '../mappers/data-mart.mapper';
 import { DataMartDto } from '../dto/domain/data-mart.dto';
 import { DataMartService } from '../services/data-mart.service';
@@ -35,8 +36,7 @@ export class UpdateBlendedFieldsConfigService {
     }
 
     const nextConfig = command.blendedFieldsConfig ?? undefined;
-    const changed =
-      JSON.stringify(dataMart.blendedFieldsConfig ?? null) !== JSON.stringify(nextConfig ?? null);
+    const changed = !deepEqual(dataMart.blendedFieldsConfig ?? null, nextConfig ?? null);
 
     if (changed) {
       dataMart.blendedFieldsConfig = nextConfig;

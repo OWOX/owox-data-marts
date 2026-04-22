@@ -2,7 +2,7 @@ import { Injectable, ForbiddenException } from '@nestjs/common';
 import { Transactional } from 'typeorm-transactional';
 import { BusinessViolationException } from '../../common/exceptions/business-violation.exception';
 import { CreateRelationshipCommand } from '../dto/domain/create-relationship.command';
-import { RelationshipResponseApiDto } from '../dto/presentation/relationship-response-api.dto';
+import { RelationshipDto } from '../dto/domain/relationship.dto';
 import { RelationshipMapper } from '../mappers/relationship.mapper';
 import { DataMartRelationshipService } from '../services/data-mart-relationship.service';
 import { DataMartService } from '../services/data-mart.service';
@@ -20,7 +20,7 @@ export class CreateDataMartRelationshipService {
   ) {}
 
   @Transactional()
-  async run(command: CreateRelationshipCommand): Promise<RelationshipResponseApiDto> {
+  async run(command: CreateRelationshipCommand): Promise<RelationshipDto> {
     this.relationshipService.validateNoSelfReference(
       command.sourceDataMartId,
       command.targetDataMartId
@@ -70,7 +70,8 @@ export class CreateDataMartRelationshipService {
     const hasCycle = await this.relationshipService.detectCycles(
       command.sourceDataMartId,
       command.targetDataMartId,
-      sourceDataMart.storage.id
+      sourceDataMart.storage.id,
+      command.projectId
     );
 
     if (hasCycle) {
@@ -91,6 +92,6 @@ export class CreateDataMartRelationshipService {
 
     const relationship = await this.relationshipService.create(command, sourceDataMart);
     const createdByUser = await this.userProjectionsFetcherService.fetchCreatedByUser(relationship);
-    return this.mapper.toResponse(relationship, createdByUser);
+    return this.mapper.toDomainDto(relationship, createdByUser);
   }
 }

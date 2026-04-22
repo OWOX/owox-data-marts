@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { Transactional } from 'typeorm-transactional';
-import { GetRelationshipCommand } from '../dto/domain/get-relationship.command';
+import { DeleteRelationshipCommand } from '../dto/domain/delete-relationship.command';
 import { DataMartRelationshipService } from '../services/data-mart-relationship.service';
 import { ReportDataCacheService } from '../services/report-data-cache.service';
 import { AccessDecisionService, EntityType, Action } from '../services/access-decision';
@@ -14,7 +14,7 @@ export class DeleteDataMartRelationshipService {
   ) {}
 
   @Transactional()
-  async run(command: GetRelationshipCommand): Promise<void> {
+  async run(command: DeleteRelationshipCommand): Promise<void> {
     const relationship = await this.relationshipService.findById(command.relationshipId);
 
     if (!relationship || relationship.sourceDataMart.id !== command.sourceDataMartId) {

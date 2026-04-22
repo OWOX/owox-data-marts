@@ -25,8 +25,8 @@ describe('CopyReportAsDataMartService', () => {
     const reportRepository = {
       findOne: jest.fn().mockResolvedValue(report),
     };
-    const getGeneratedSqlService = {
-      buildForReport: jest.fn().mockResolvedValue({ sql: 'SELECT 1' }),
+    const reportSqlComposerService = {
+      compose: jest.fn().mockResolvedValue({ sql: 'SELECT 1' }),
     };
     const dataMartService = {
       create: jest.fn().mockReturnValue(newDataMart),
@@ -39,7 +39,7 @@ describe('CopyReportAsDataMartService', () => {
 
     const service = new CopyReportAsDataMartService(
       reportRepository as never,
-      getGeneratedSqlService as never,
+      reportSqlComposerService as never,
       dataMartService as never,
       accessDecisionService as never
     );
@@ -47,7 +47,7 @@ describe('CopyReportAsDataMartService', () => {
     return {
       service,
       reportRepository,
-      getGeneratedSqlService,
+      reportSqlComposerService,
       dataMartService,
       accessDecisionService,
     };
