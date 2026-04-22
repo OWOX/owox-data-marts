@@ -78,8 +78,8 @@ describe('CreateDataMartRelationshipService', () => {
       'dm-target',
       'alias1',
       [],
-      'user-1',
       'proj-1',
+      'user-1',
       ['editor']
     );
 
@@ -113,8 +113,8 @@ describe('CreateDataMartRelationshipService', () => {
       'dm-target',
       'alias1',
       [],
-      'user-1',
       'proj-1',
+      'user-1',
       ['viewer']
     );
 
@@ -129,8 +129,8 @@ describe('CreateDataMartRelationshipService', () => {
       'dm-target',
       'alias1',
       [],
-      'user-1',
       'proj-1',
+      'user-1',
       ['editor']
     );
 
@@ -145,8 +145,8 @@ describe('CreateDataMartRelationshipService', () => {
       'dm-target',
       'alias1',
       [],
-      '',
       'proj-1',
+      '',
       []
     );
 

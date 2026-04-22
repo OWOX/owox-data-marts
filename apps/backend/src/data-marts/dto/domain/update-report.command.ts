@@ -1,4 +1,5 @@
 import { DataDestinationConfig } from '../../data-destination-types/data-destination-config.type';
+import { ReportColumnConfig } from '../schemas/report-column-config.schema';
 
 export class UpdateReportCommand {
   constructor(
@@ -10,6 +11,6 @@ export class UpdateReportCommand {
     public readonly dataDestinationId: string,
     public readonly destinationConfig: DataDestinationConfig,
     public readonly ownerIds?: string[],
-    public readonly columnConfig?: string[] | null
+    public readonly columnConfig?: ReportColumnConfig
   ) {}
 }

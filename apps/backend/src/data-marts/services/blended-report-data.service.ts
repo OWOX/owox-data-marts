@@ -12,7 +12,6 @@ import { DataMartRelationship } from '../entities/data-mart-relationship.entity'
 import { PublicOriginService } from '../../common/config/public-origin.service';
 import { BusinessViolationException } from '../../common/exceptions/business-violation.exception';
 import { buildDataMartUrl } from '../../common/helpers/data-mart-url.helper';
-import { ReportRunLogger } from '../report-run-logging/report-run-logger';
 
 @Injectable()
 export class BlendedReportDataService {
@@ -91,28 +90,6 @@ export class BlendedReportDataService {
     };
   }
 
-  /**
-   * Emits a structured log entry with the blended SQL produced by
-   * `resolveBlendingDecision` so that users can inspect the query that was
-   * used for their run in the history UI. No-op when blending was not
-   * required, the SQL is missing, or a logger was not provided.
-   */
-  logBlendedSqlIfNeeded(decision: BlendingDecision, logger?: ReportRunLogger): void {
-    if (!logger || !decision.needsBlending || !decision.blendedSql) {
-      return;
-    }
-    logger.log({
-      type: 'joined-data-marts-sql',
-      message: 'SQL over joined Data Marts used for report execution',
-      sql: decision.blendedSql,
-    });
-  }
-
-  /**
-   * Builds ReportDataHeader entries for columns in `columnConfig` that come
-   * from blended schema. Columns not found in the blended schema are skipped
-   * (they are native and will be supplied by the reader's headers generator).
-   */
   private buildBlendedDataHeaders(
     columnConfig: string[],
     blendedFieldsByName: Map<string, BlendedFieldDto>

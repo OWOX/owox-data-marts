@@ -1,5 +1,5 @@
 import { DataMartSchema } from '../../data-storage-types/data-mart-schema.type';
-import { AggregateFunction } from '../schemas/relationship-schemas';
+import { AggregateFunction } from '../schemas/aggregate-function.schema';
 
 export class BlendedFieldDto {
   name: string;

@@ -12,7 +12,7 @@ import { DataMartSchema } from '../data-storage-types/data-mart-schema.type';
 import { DataMart } from '../entities/data-mart.entity';
 import { DataMartRelationship } from '../entities/data-mart-relationship.entity';
 import { DataStorage } from '../entities/data-storage.entity';
-import { JoinCondition } from '../dto/schemas/relationship-schemas';
+import { JoinCondition } from '../dto/schemas/join-condition.schema';
 
 @Injectable()
 export class DataMartRelationshipService {

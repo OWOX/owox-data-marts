@@ -4,7 +4,7 @@ import { DataMartRelationshipService } from './data-mart-relationship.service';
 import { DataMartService } from './data-mart.service';
 import { DataMart } from '../entities/data-mart.entity';
 import { DataMartRelationship } from '../entities/data-mart-relationship.entity';
-import { BlendedFieldsConfig } from '../dto/schemas/blended-fields-config.schemas';
+import { BlendedFieldsConfig } from '../dto/schemas/blended-fields-config.schema';
 
 function makeDataMart(overrides: Partial<DataMart> = {}): DataMart {
   return {

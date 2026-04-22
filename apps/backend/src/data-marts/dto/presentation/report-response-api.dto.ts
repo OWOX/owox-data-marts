@@ -3,6 +3,7 @@ import { DataMartResponseApiDto } from './data-mart-response-api.dto';
 import { DataDestinationResponseApiDto } from './data-destination-response-api.dto';
 import { ReportRunStatus } from '../../enums/report-run-status.enum';
 import { DataDestinationConfig } from '../../data-destination-types/data-destination-config.type';
+import { ReportColumnConfig } from '../schemas/report-column-config.schema';
 import { UserProjectionDto } from '../../../idp/dto/domain/user-projection.dto';
 
 export class ReportResponseApiDto {
@@ -22,7 +23,7 @@ export class ReportResponseApiDto {
   destinationConfig: DataDestinationConfig;
 
   @ApiProperty({ nullable: true, required: false, type: [String] })
-  columnConfig?: string[] | null;
+  columnConfig?: ReportColumnConfig;
 
   @ApiProperty({ nullable: true })
   lastRunAt?: Date;

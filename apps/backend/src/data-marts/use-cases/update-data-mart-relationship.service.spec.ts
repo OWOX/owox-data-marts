@@ -68,8 +68,8 @@ describe('UpdateDataMartRelationshipService', () => {
     const command = new UpdateRelationshipCommand(
       'rel-1',
       'dm-source',
-      'user-1',
       'proj-1',
+      'user-1',
       ['editor'],
       'new-alias',
       undefined
@@ -93,8 +93,8 @@ describe('UpdateDataMartRelationshipService', () => {
     const command = new UpdateRelationshipCommand(
       'rel-1',
       'dm-source',
-      'user-1',
       'proj-1',
+      'user-1',
       ['viewer'],
       'new-alias',
       undefined
@@ -117,7 +117,7 @@ describe('UpdateDataMartRelationshipService', () => {
       accessDecisionService as never
     );
 
-    const command = new UpdateRelationshipCommand('rel-1', 'dm-source', 'user-1', 'proj-1', []);
+    const command = new UpdateRelationshipCommand('rel-1', 'dm-source', 'proj-1', 'user-1', []);
 
     await expect(badService.run(command)).rejects.toThrow(NotFoundException);
   });
@@ -125,7 +125,7 @@ describe('UpdateDataMartRelationshipService', () => {
   it('should skip access check when userId is empty', async () => {
     const { service, accessDecisionService } = createService(false);
 
-    const command = new UpdateRelationshipCommand('rel-1', 'dm-source', '', 'proj-1', []);
+    const command = new UpdateRelationshipCommand('rel-1', 'dm-source', 'proj-1', '', []);
 
     await service.run(command);
 

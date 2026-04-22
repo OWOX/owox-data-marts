@@ -1,45 +1,13 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { DataMartRelationship } from '../../../entities/data-mart-relationship.entity';
 import { DataStorageType } from '../../enums/data-storage-type.enum';
 import {
-  BlendedQueryContext,
-  ResolvedRelationshipChain,
-} from '../../interfaces/blended-query-builder.interface';
+  createBuildContext,
+  makeChain,
+  makeRelationship,
+} from '../../interfaces/__fixtures__/blended-query-builder-fixtures';
 import { DatabricksBlendedQueryBuilder } from './databricks-blended-query-builder';
 
-function makeRelationship(overrides: Partial<DataMartRelationship> = {}): DataMartRelationship {
-  return {
-    id: 'rel-1',
-    targetAlias: 'orders',
-    joinConditions: [{ sourceFieldName: 'id', targetFieldName: 'customer_id' }],
-    blendedFields: [],
-    projectId: 'proj',
-    createdById: 'user-1',
-    createdAt: new Date(),
-    modifiedAt: new Date(),
-    ...overrides,
-  } as DataMartRelationship;
-}
-
-function makeChain(
-  partial: Omit<ResolvedRelationshipChain, 'targetDataMartTitle' | 'targetDataMartUrl'>
-): ResolvedRelationshipChain {
-  return {
-    ...partial,
-    targetDataMartTitle: 'Test Subsidiary',
-    targetDataMartUrl: '/ui/proj/data-marts/sub-1/data-setup',
-  };
-}
-
-function buildContext(chains: ResolvedRelationshipChain[], columns: string[]): BlendedQueryContext {
-  return {
-    mainTableReference: '`catalog`.`schema`.`customers`',
-    mainDataMartTitle: 'Test Main',
-    mainDataMartUrl: '/ui/proj/data-marts/main-1/data-setup',
-    chains,
-    columns,
-  };
-}
+const buildContext = createBuildContext('`catalog`.`schema`.`customers`');
 
 describe('DatabricksBlendedQueryBuilder', () => {
   let builder: DatabricksBlendedQueryBuilder;

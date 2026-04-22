@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { JoinCondition } from '../schemas/relationship-schemas';
+import { JoinCondition } from '../schemas/join-condition.schema';
 import { DataMartStatus } from '../../enums/data-mart-status.enum';
 import { UserProjectionDto } from '../../../idp/dto/domain/user-projection.dto';
 

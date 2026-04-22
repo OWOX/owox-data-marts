@@ -16,8 +16,8 @@ import {
   ALIAS_PATH_REGEX,
   ALIAS_SEGMENT_ERROR,
   ALIAS_SEGMENT_REGEX,
-} from '../schemas/blended-fields-config.schemas';
-import { AGGREGATE_FUNCTIONS, AggregateFunction } from '../schemas/relationship-schemas';
+} from '../schemas/blended-fields-config.schema';
+import { AGGREGATE_FUNCTIONS, AggregateFunction } from '../schemas/aggregate-function.schema';
 
 const PATH_MESSAGE = `path must be a dot-separated chain where each segment ${ALIAS_SEGMENT_ERROR}`;
 const ALIAS_MESSAGE = `alias ${ALIAS_SEGMENT_ERROR}`;

@@ -9,7 +9,7 @@ import {
   UpdateDateColumn,
 } from 'typeorm';
 import { createZodTransformer } from '../../common/zod/zod-transformer';
-import { JoinCondition, JoinConditionsSchema } from '../dto/schemas/relationship-schemas';
+import { JoinCondition, JoinConditionsSchema } from '../dto/schemas/join-condition.schema';
 import { CreatorAwareEntity } from './creator-aware-entity.interface';
 import { DataMart } from './data-mart.entity';
 import { DataStorage } from './data-storage.entity';

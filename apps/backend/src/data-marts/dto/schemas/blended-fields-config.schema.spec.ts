@@ -1,8 +1,9 @@
+import { AGGREGATE_FUNCTIONS } from './aggregate-function.schema';
 import {
   BlendedFieldsConfigSchema,
   BlendedSourceSchema,
   BlendedFieldOverrideSchema,
-} from './blended-fields-config.schemas';
+} from './blended-fields-config.schema';
 
 describe('BlendedFieldOverrideSchema', () => {
   it('should accept empty object', () => {
@@ -32,14 +33,9 @@ describe('BlendedFieldOverrideSchema', () => {
     expect(() => BlendedFieldOverrideSchema.parse({ alias: 'a'.repeat(256) })).toThrow();
   });
 
-  it.each(['STRING_AGG', 'MAX', 'MIN', 'SUM', 'COUNT', 'COUNT_DISTINCT', 'ANY_VALUE'])(
-    'should accept aggregateFunction: %s',
-    fn => {
-      expect(BlendedFieldOverrideSchema.parse({ aggregateFunction: fn }).aggregateFunction).toBe(
-        fn
-      );
-    }
-  );
+  it.each([...AGGREGATE_FUNCTIONS])('should accept aggregateFunction: %s', fn => {
+    expect(BlendedFieldOverrideSchema.parse({ aggregateFunction: fn }).aggregateFunction).toBe(fn);
+  });
 });
 
 describe('BlendedSourceSchema', () => {

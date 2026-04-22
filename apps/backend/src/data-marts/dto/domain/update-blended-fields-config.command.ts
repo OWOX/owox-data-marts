@@ -1,4 +1,4 @@
-import { BlendedFieldsConfig } from '../schemas/blended-fields-config.schemas';
+import { BlendedFieldsConfig } from '../schemas/blended-fields-config.schema';
 
 export class UpdateBlendedFieldsConfigCommand {
   constructor(

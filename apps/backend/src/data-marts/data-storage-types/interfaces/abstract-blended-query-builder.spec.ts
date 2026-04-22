@@ -1,14 +1,14 @@
-import { DataMartRelationship } from '../../entities/data-mart-relationship.entity';
 import { DataStorageType } from '../enums/data-storage-type.enum';
-import { BlendedQueryContext, ResolvedRelationshipChain } from './blended-query-builder.interface';
+import {
+  createBuildContext,
+  makeChain,
+  makeRelationship,
+} from './__fixtures__/blended-query-builder-fixtures';
 import { AbstractBlendedQueryBuilder } from './abstract-blended-query-builder';
+import { ResolvedRelationshipChain } from './blended-query-builder.interface';
 
-/**
- * Minimal concrete implementation for testing the abstract base class.
- * Uses backtick quoting and a simple STRING_AGG syntax (no CAST) so that
- * existing SQL-shape assertions stay readable — dialect-specific CASTs are
- * covered by the per-dialect builder specs.
- */
+// Uses backtick quoting and a plain STRING_AGG syntax (no CAST) so that SQL-shape
+// assertions stay readable — dialect-specific CASTs are covered by per-dialect specs.
 class TestBlendedQueryBuilder extends AbstractBlendedQueryBuilder {
   readonly type = DataStorageType.GOOGLE_BIGQUERY;
   protected get identifierQuoteChar() {
@@ -19,46 +19,7 @@ class TestBlendedQueryBuilder extends AbstractBlendedQueryBuilder {
   }
 }
 
-function makeRelationship(overrides: Partial<DataMartRelationship> = {}): DataMartRelationship {
-  return {
-    id: 'rel-1',
-    targetAlias: 'orders',
-    joinConditions: [{ sourceFieldName: 'id', targetFieldName: 'customer_id' }],
-    blendedFields: [
-      {
-        targetFieldName: 'order_name',
-        outputAlias: 'order_names',
-        isHidden: false,
-        aggregateFunction: 'STRING_AGG',
-      },
-    ],
-    projectId: 'proj',
-    createdById: 'user-1',
-    createdAt: new Date(),
-    modifiedAt: new Date(),
-    ...overrides,
-  } as DataMartRelationship;
-}
-
-function makeChain(
-  partial: Omit<ResolvedRelationshipChain, 'targetDataMartTitle' | 'targetDataMartUrl'>
-): ResolvedRelationshipChain {
-  return {
-    ...partial,
-    targetDataMartTitle: 'Test Subsidiary',
-    targetDataMartUrl: '/ui/proj/data-marts/sub-1/data-setup',
-  };
-}
-
-function buildContext(chains: ResolvedRelationshipChain[], columns: string[]): BlendedQueryContext {
-  return {
-    mainTableReference: 'main_table',
-    mainDataMartTitle: 'Test Main',
-    mainDataMartUrl: '/ui/proj/data-marts/main-1/data-setup',
-    chains,
-    columns,
-  };
-}
+const buildContext = createBuildContext('main_table');
 
 describe('AbstractBlendedQueryBuilder', () => {
   let builder: TestBlendedQueryBuilder;

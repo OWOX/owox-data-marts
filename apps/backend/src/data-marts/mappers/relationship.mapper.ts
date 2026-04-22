@@ -14,7 +14,7 @@ import {
 } from '../dto/presentation/create-relationship-request-api.dto';
 import { UpdateRelationshipRequestApiDto } from '../dto/presentation/update-relationship-request-api.dto';
 import { RelationshipResponseApiDto } from '../dto/presentation/relationship-response-api.dto';
-import { JoinCondition } from '../dto/schemas/relationship-schemas';
+import { JoinCondition } from '../dto/schemas/join-condition.schema';
 import { UserProjectionDto } from '../../idp/dto/domain/user-projection.dto';
 import { UserProjectionsListDto } from '../../idp/dto/domain/user-projections-list.dto';
 
@@ -30,8 +30,8 @@ export class RelationshipMapper {
       dto.targetDataMartId,
       dto.targetAlias,
       dto.joinConditions.map(c => this.toJoinCondition(c)),
-      context.userId,
       context.projectId,
+      context.userId,
       context.roles ?? []
     );
   }
@@ -45,8 +45,8 @@ export class RelationshipMapper {
     return new UpdateRelationshipCommand(
       relationshipId,
       dataMartId,
-      context.userId,
       context.projectId,
+      context.userId,
       context.roles ?? [],
       dto.targetAlias,
       dto.joinConditions?.map(c => this.toJoinCondition(c))
@@ -61,8 +61,8 @@ export class RelationshipMapper {
     return new GetRelationshipCommand(
       relationshipId,
       dataMartId,
-      context.userId,
       context.projectId,
+      context.userId,
       context.roles ?? []
     );
   }
@@ -75,8 +75,8 @@ export class RelationshipMapper {
     return new DeleteRelationshipCommand(
       relationshipId,
       dataMartId,
-      context.userId,
       context.projectId,
+      context.userId,
       context.roles ?? []
     );
   }

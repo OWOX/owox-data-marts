@@ -2,6 +2,11 @@ jest.mock('../../idp/facades/idp-projections.facade', () => ({
   IdpProjectionsFacade: jest.fn(),
 }));
 
+jest.mock('../report-run-logging/log-blended-sql', () => ({
+  logBlendedSqlIfNeeded: jest.fn(),
+}));
+
+import { logBlendedSqlIfNeeded } from '../report-run-logging/log-blended-sql';
 import { DataDestinationType } from '../data-destination-types/enums/data-destination-type.enum';
 import { DataStorageType } from '../data-storage-types/enums/data-storage-type.enum';
 import { ReportDataBatch } from '../dto/domain/report-data-batch.dto';
@@ -34,7 +39,6 @@ describe('RunReportService', () => {
     const blendedReportDataService = {
       // Default: no columnConfig -> no blending, no filter.
       resolveBlendingDecision: jest.fn().mockResolvedValue({ needsBlending: false }),
-      logBlendedSqlIfNeeded: jest.fn(),
     };
 
     const service = new RunReportService(
@@ -147,6 +151,38 @@ describe('RunReportService', () => {
     expect(reader.finalize).toHaveBeenCalled();
   });
 
+  it('forwards blending decision and run logger to logBlendedSqlIfNeeded helper', async () => {
+    const { service, reportReaderResolver, reportWriterResolver, blendedReportDataService } =
+      createService();
+    const report = createReport(DataDestinationType.GOOGLE_SHEETS);
+    const reader = createReader();
+    const writer = createWriter(DataDestinationType.GOOGLE_SHEETS);
+
+    reader.readReportDataBatch.mockResolvedValue(new ReportDataBatch([], undefined));
+
+    reportReaderResolver.resolve.mockResolvedValue(reader);
+    reportWriterResolver.resolve.mockResolvedValue(writer);
+
+    const decision = { needsBlending: true, blendedSql: 'SELECT 1' };
+    blendedReportDataService.resolveBlendingDecision.mockResolvedValue(decision);
+
+    (logBlendedSqlIfNeeded as jest.Mock).mockReset();
+
+    const mockLogger = {
+      log: jest.fn(),
+      error: jest.fn(),
+      asArrays: jest.fn().mockReturnValue({ logs: [], errors: [] }),
+    };
+
+    await (
+      service as unknown as {
+        executeReport: (report: Report, signal?: AbortSignal, logger?: unknown) => Promise<void>;
+      }
+    ).executeReport(report, undefined, mockLogger);
+
+    expect(logBlendedSqlIfNeeded).toHaveBeenCalledWith(decision, mockLogger);
+  });
+
   it('keeps non-email destinations unchanged and reads all batches', async () => {
     const { service, reportReaderResolver, reportWriterResolver } = createService();
     const report = createReport(DataDestinationType.GOOGLE_SHEETS);
@@ -175,39 +211,5 @@ describe('RunReportService', () => {
     expect(writer.finalize).toHaveBeenCalledWith(undefined, {
       mainRowsTruncationInfo: null,
     });
-  });
-
-  it('forwards blending decision and run logger to logBlendedSqlIfNeeded', async () => {
-    const { service, reportReaderResolver, reportWriterResolver, blendedReportDataService } =
-      createService();
-    const report = createReport(DataDestinationType.GOOGLE_SHEETS);
-    const reader = createReader();
-    const writer = createWriter(DataDestinationType.GOOGLE_SHEETS);
-
-    reader.readReportDataBatch.mockResolvedValue(new ReportDataBatch([], undefined));
-
-    reportReaderResolver.resolve.mockResolvedValue(reader);
-    reportWriterResolver.resolve.mockResolvedValue(writer);
-
-    const decision = { needsBlending: true, blendedSql: 'SELECT 1' };
-    blendedReportDataService.resolveBlendingDecision.mockResolvedValue(decision);
-
-    const mockLogger = {
-      log: jest.fn(),
-      error: jest.fn(),
-      asArrays: jest.fn().mockReturnValue({ logs: [], errors: [] }),
-    };
-
-    await (
-      service as unknown as {
-        executeReport: (report: Report, signal?: AbortSignal, logger?: unknown) => Promise<void>;
-      }
-    ).executeReport(report, undefined, mockLogger);
-
-    expect(blendedReportDataService.resolveBlendingDecision).toHaveBeenCalledWith(report);
-    expect(blendedReportDataService.logBlendedSqlIfNeeded).toHaveBeenCalledWith(
-      decision,
-      mockLogger
-    );
   });
 });

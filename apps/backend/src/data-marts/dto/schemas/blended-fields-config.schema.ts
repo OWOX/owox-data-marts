@@ -1,10 +1,9 @@
 import { z } from 'zod';
-import { AGGREGATE_FUNCTIONS } from './relationship-schemas';
+import { AGGREGATE_FUNCTIONS } from './aggregate-function.schema';
 
-// `path` / `targetAlias` segments flow into SQL identifiers (CTE names, column prefixes)
-// in the generated blended query, so they must stay inside a safe character set even
-// when the UI is bypassed. `BlendedSource.alias` is a free-form display label shown in
-// report column headers and is NOT validated against this regex.
+// Segments flow into SQL identifiers (CTE names, column prefixes) and must stay safe
+// even when the UI is bypassed. Note: `BlendedSource.alias` is a display label, not an
+// identifier, so it is intentionally NOT validated against these regexes.
 export const ALIAS_SEGMENT_REGEX = /^[a-z0-9_]+$/;
 export const ALIAS_PATH_REGEX = /^[a-z0-9_]+(\.[a-z0-9_]+)*$/;
 export const ALIAS_SEGMENT_ERROR = 'must contain only lowercase letters, numbers, and underscores';

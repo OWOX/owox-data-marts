@@ -40,7 +40,7 @@ describe('DeleteDataMartRelationshipService', () => {
   it('should delete relationship when user has EDIT access on source DataMart', async () => {
     const { service, relationshipService, accessDecisionService } = createService(true);
 
-    const command = new GetRelationshipCommand('rel-1', 'dm-source', 'user-1', 'proj-1', [
+    const command = new GetRelationshipCommand('rel-1', 'dm-source', 'proj-1', 'user-1', [
       'editor',
     ]);
 
@@ -60,7 +60,7 @@ describe('DeleteDataMartRelationshipService', () => {
   it('should throw ForbiddenException when user lacks EDIT on source DataMart', async () => {
     const { service } = createService(false);
 
-    const command = new GetRelationshipCommand('rel-1', 'dm-source', 'user-1', 'proj-1', [
+    const command = new GetRelationshipCommand('rel-1', 'dm-source', 'proj-1', 'user-1', [
       'viewer',
     ]);
 
@@ -70,7 +70,7 @@ describe('DeleteDataMartRelationshipService', () => {
   it('should throw NotFoundException when relationship not found', async () => {
     const { service } = createService(true, null as never);
 
-    const command = new GetRelationshipCommand('rel-1', 'dm-source', 'user-1', 'proj-1', [
+    const command = new GetRelationshipCommand('rel-1', 'dm-source', 'proj-1', 'user-1', [
       'editor',
     ]);
 
@@ -80,7 +80,7 @@ describe('DeleteDataMartRelationshipService', () => {
   it('should skip access check when userId is empty', async () => {
     const { service, accessDecisionService } = createService(false);
 
-    const command = new GetRelationshipCommand('rel-1', 'dm-source', '', 'proj-1', []);
+    const command = new GetRelationshipCommand('rel-1', 'dm-source', 'proj-1', '', []);
 
     await service.run(command);
 

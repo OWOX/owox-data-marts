@@ -23,7 +23,7 @@ import { DataMartBusinessOwner } from './data-mart-business-owner.entity';
 import {
   BlendedFieldsConfig,
   BlendedFieldsConfigSchema,
-} from '../dto/schemas/blended-fields-config.schemas';
+} from '../dto/schemas/blended-fields-config.schema';
 
 @Entity()
 export class DataMart implements CreatorAwareEntity {

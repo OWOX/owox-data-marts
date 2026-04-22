@@ -16,6 +16,10 @@ import {
   DataDestinationConfig,
   DataDestinationConfigSchema,
 } from '../data-destination-types/data-destination-config.type';
+import {
+  ReportColumnConfig,
+  ReportColumnConfigSchema,
+} from '../dto/schemas/report-column-config.schema';
 import { DataDestinationType } from '../data-destination-types/enums/data-destination-type.enum';
 import { ReportRunStatus } from '../enums/report-run-status.enum';
 import { CreatorAwareEntity } from './creator-aware-entity.interface';
@@ -51,8 +55,9 @@ export class Report implements CreatorAwareEntity {
     type: 'json',
     nullable: true,
     default: null,
+    transformer: createZodTransformer<ReportColumnConfig>(ReportColumnConfigSchema, false),
   })
-  columnConfig?: string[] | null;
+  columnConfig?: ReportColumnConfig;
 
   @Column({ nullable: true })
   lastRunAt?: Date;

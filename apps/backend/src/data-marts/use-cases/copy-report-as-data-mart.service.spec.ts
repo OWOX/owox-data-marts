@@ -4,6 +4,7 @@ jest.mock('typeorm-transactional', () => ({
 }));
 
 import { ForbiddenException, NotFoundException } from '@nestjs/common';
+import { BusinessViolationException } from '../../common/exceptions/business-violation.exception';
 import { CopyReportAsDataMartService } from './copy-report-as-data-mart.service';
 import { CopyReportAsDataMartCommand } from '../dto/domain/copy-report-as-data-mart.command';
 import { EntityType, Action } from '../services/access-decision';
@@ -117,4 +118,17 @@ describe('CopyReportAsDataMartService', () => {
     expect(accessDecisionService.canAccessReport).not.toHaveBeenCalled();
     expect(accessDecisionService.canAccess).not.toHaveBeenCalled();
   });
+
+  it.each(['', '   ', '\n\t  '])(
+    'rejects empty/whitespace SQL from composer with a BusinessViolationException',
+    async emptySql => {
+      const { service, reportSqlComposerService, dataMartService } = createService([true, true]);
+      reportSqlComposerService.compose = jest.fn().mockResolvedValue({ sql: emptySql });
+
+      const command = new CopyReportAsDataMartCommand('report-1', 'user-1', 'proj-1', ['editor']);
+
+      await expect(service.run(command)).rejects.toThrow(BusinessViolationException);
+      expect(dataMartService.save).not.toHaveBeenCalled();
+    }
+  );
 });

@@ -4,7 +4,7 @@ import {
   ResolvedRelationshipChain,
 } from './blended-query-builder.interface';
 import { DataStorageType } from '../enums/data-storage-type.enum';
-import { AggregateFunction } from '../../dto/schemas/relationship-schemas';
+import { AggregateFunction } from '../../dto/schemas/aggregate-function.schema';
 
 interface BlendTreeNode {
   chain: ResolvedRelationshipChain;

@@ -2,6 +2,7 @@ import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/commo
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Transactional } from 'typeorm-transactional';
+import { BusinessViolationException } from '../../common/exceptions/business-violation.exception';
 import { Report } from '../entities/report.entity';
 import { DataMart } from '../entities/data-mart.entity';
 import { DataMartDefinitionType } from '../enums/data-mart-definition-type.enum';
@@ -61,6 +62,13 @@ export class CopyReportAsDataMartService {
     }
 
     const { sql } = await this.reportSqlComposerService.compose(report);
+
+    if (!sql.trim()) {
+      throw new BusinessViolationException(
+        'Unable to copy this report: generated SQL is empty. Ensure the report has a valid column configuration.',
+        { reportId: command.reportId }
+      );
+    }
 
     const { dataMart: sourceDataMart } = report;
 

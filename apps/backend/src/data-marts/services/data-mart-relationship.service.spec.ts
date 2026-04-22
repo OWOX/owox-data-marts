@@ -5,7 +5,7 @@ import { BusinessViolationException } from '../../common/exceptions/business-vio
 import { CreateRelationshipCommand } from '../dto/domain/create-relationship.command';
 import { DataMartSchema } from '../data-storage-types/data-mart-schema.type';
 import { DataMartSchemaFieldStatus } from '../data-storage-types/enums/data-mart-schema-field-status.enum';
-import { JoinCondition } from '../dto/schemas/relationship-schemas';
+import { JoinCondition } from '../dto/schemas/join-condition.schema';
 import { DataMart } from '../entities/data-mart.entity';
 import { DataMartRelationship } from '../entities/data-mart-relationship.entity';
 import { DataStorage } from '../entities/data-storage.entity';
@@ -319,8 +319,8 @@ describe('DataMartRelationshipService', () => {
         'dm-target',
         'my_alias',
         [],
-        'user-1',
         'project-1',
+        'user-1',
         []
       );
       const sourceDataMart = {
@@ -353,8 +353,8 @@ describe('DataMartRelationshipService', () => {
         'dm-target',
         'draft_alias',
         [],
-        'user-1',
         'project-1',
+        'user-1',
         []
       );
       const sourceDataMart = {
