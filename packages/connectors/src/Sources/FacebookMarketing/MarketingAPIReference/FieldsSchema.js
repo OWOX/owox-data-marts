@@ -13,6 +13,7 @@ var FacebookMarketingFieldsSchema = {
         "documentation": "https://developers.facebook.com/docs/marketing-api/reference/ad-account-user",
         "fields": adAccountUserFields,
         'uniqueKeys': ["id"],
+        'defaultFields': ["name"],
         "isTimeSeries": false,
         "destinationName": "facebook_ads_ad_account_user"
     },
@@ -22,6 +23,7 @@ var FacebookMarketingFieldsSchema = {
         "documentation": "https://developers.facebook.com/docs/marketing-api/reference/ad-account/",
         "fields": adAccountFields,
         'uniqueKeys': ["id", "account_id"],
+        'defaultFields': ["name", "account_status", "currency", "timezone_name", "business_name", "created_time"],
         "isTimeSeries": false,
         "destinationName": "facebook_ads_ad_account"
     },
@@ -30,6 +32,7 @@ var FacebookMarketingFieldsSchema = {
         "documentation": "https://developers.facebook.com/docs/marketing-api/reference/ad-account/adcreatives",
         "fields": adAccountCreativesFields,
         'uniqueKeys': ["id"],
+        'defaultFields': ["name", "account_id", "status", "body", "title", "call_to_action_type", "object_type", "effective_object_story_id"],
         "isTimeSeries": false,
         "destinationName": "facebook_ads_ad_account_adcreatives"
     },
