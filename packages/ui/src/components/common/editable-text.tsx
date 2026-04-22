@@ -2,7 +2,7 @@ import { Button } from '@owox/ui/components/button';
 import { Popover, PopoverContent, PopoverTrigger } from '@owox/ui/components/popover';
 import { Textarea } from '@owox/ui/components/textarea';
 import { cn } from '@owox/ui/lib/utils';
-import { type KeyboardEvent, useRef, useState } from 'react';
+import { type KeyboardEvent, type ReactNode, useRef, useState } from 'react';
 
 /**
  * Props for the EditableText component
@@ -24,6 +24,8 @@ export interface EditableTextProps {
   saveButtonText?: string;
   /** Custom cancel button text */
   cancelButtonText?: string;
+  /** Optional slot rendered inline after the value (e.g., a status icon). Keeps the full-width click area for editing. */
+  trailingContent?: ReactNode;
 }
 
 /**
@@ -38,6 +40,7 @@ export function EditableText({
   className,
   saveButtonText = 'Save',
   cancelButtonText = 'Discard',
+  trailingContent,
 }: EditableTextProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [editedValue, setEditedValue] = useState(value);
@@ -99,10 +102,12 @@ export function EditableText({
             'cursor-edit w-full min-w-[100px]',
             !value && 'text-gray-400',
             isBold && 'font-medium',
+            trailingContent && 'flex items-center gap-1.5',
             className
           )}
         >
           {value || placeholder}
+          {trailingContent}
         </div>
       </PopoverTrigger>
       <PopoverContent className='w-auto max-w-[600px] min-w-[300px] p-2' align='start'>

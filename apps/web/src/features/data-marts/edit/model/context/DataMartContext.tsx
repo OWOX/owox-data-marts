@@ -24,6 +24,7 @@ import type {
   UpdateDataMartTablePatternDefinitionRequestDto,
   UpdateDataMartViewDefinitionRequestDto,
 } from '../../../shared/types/api';
+import type { DataMartResponseDto } from '../../../shared/types/api/response/data-mart.response.dto';
 import type { DataStorage } from '../../../../data-storage/shared/model/types/data-storage';
 import type {
   ConnectorDefinitionConfig,
@@ -68,6 +69,25 @@ export function DataMartProvider({ children }: DataMartProviderProps) {
       });
     }
   }, []);
+
+  const syncDataMartFromResponse = useCallback(async (response: DataMartResponseDto) => {
+    const dataMart = await mapDataMartFromDto(response);
+    dispatch({ type: 'UPDATE_DATA_MART_SUCCESS', payload: dataMart });
+  }, []);
+
+  const refreshDataMart = useCallback(
+    async (id: string) => {
+      try {
+        const response = await dataMartService.getDataMartById(id, {
+          skipLoadingIndicator: true,
+        });
+        await syncDataMartFromResponse(response);
+      } catch {
+        // apiClient surfaces the toast
+      }
+    },
+    [syncDataMartFromResponse]
+  );
 
   // Create a new data mart
   const createDataMart = useCallback(
@@ -639,6 +659,8 @@ export function DataMartProvider({ children }: DataMartProviderProps) {
   const value = {
     ...state,
     getDataMart,
+    syncDataMartFromResponse,
+    refreshDataMart,
     createDataMart,
     updateDataMart,
     deleteDataMart,
