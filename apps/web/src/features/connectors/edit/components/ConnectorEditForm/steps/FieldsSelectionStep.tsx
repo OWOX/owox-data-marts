@@ -38,6 +38,7 @@ export function FieldsSelectionStep({
   onSelectAllFields,
 }: FieldsSelectionStepProps) {
   const filterInputRef = useRef<HTMLInputElement>(null);
+  const defaultsInitializedForRef = useRef<string | null>(null);
   const [filterText, setFilterText] = useState('');
   const [sortOrder, setSortOrder] = useState<ConnectorFieldSortOrder>(
     ConnectorFieldSortOrder.ORIGINAL
@@ -99,21 +100,31 @@ export function FieldsSelectionStep({
       }
     });
 
-    const hasFieldsBeyondUniqueKeys = selectedFields.some(f => !uniqueKeysSet.has(f));
-    if (!hasFieldsBeyondUniqueKeys) {
-      const defaultFields = selectedFieldData?.defaultFields ?? [];
-      defaultFields.forEach(fieldName => {
-        if (availableFieldNamesSet.has(fieldName) && !selectedFieldsSet.has(fieldName)) {
-          fieldsToAutoSelect.add(fieldName);
-        }
-      });
+    if (defaultsInitializedForRef.current !== selectedField) {
+      const hasFieldsBeyondUniqueKeys = selectedFields.some(f => !uniqueKeysSet.has(f));
+      if (!hasFieldsBeyondUniqueKeys) {
+        const defaultFields = selectedFieldData?.defaultFields ?? [];
+        defaultFields.forEach(fieldName => {
+          if (availableFieldNamesSet.has(fieldName) && !selectedFieldsSet.has(fieldName)) {
+            fieldsToAutoSelect.add(fieldName);
+          }
+        });
+      }
+      defaultsInitializedForRef.current = selectedField;
     }
 
     if (fieldsToAutoSelect.size > 0) {
       const namesToAdd = Array.from(fieldsToAutoSelect);
       onSelectAllFields(namesToAdd, true);
     }
-  }, [availableFields, uniqueKeys, selectedFields, selectedFieldData, onSelectAllFields]);
+  }, [
+    availableFields,
+    uniqueKeys,
+    selectedFields,
+    selectedFieldData,
+    onSelectAllFields,
+    selectedField,
+  ]);
 
   // HotKey for Selecting/Unselecting all fields
   useEffect(() => {
