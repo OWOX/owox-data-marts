@@ -12,8 +12,9 @@ describe('ReportColumnConfigSchema', () => {
     expect(result).toEqual(input);
   });
 
-  it('should reject an empty array', () => {
-    expect(() => ReportColumnConfigSchema.parse([])).toThrow();
+  it('should accept an empty array (backward compatibility with pre-existing data)', () => {
+    const result = ReportColumnConfigSchema.parse([]);
+    expect(result).toEqual([]);
   });
 
   it('should reject an array with empty strings', () => {
