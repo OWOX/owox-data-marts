@@ -38,13 +38,13 @@ export class CopyReportAsDataMartService {
     }
 
     if (command.userId) {
-      const [canRun, canUseStorage] = await Promise.all([
-        this.accessDecisionService.canAccessReport(
+      const [canEditDataMart, canUseStorage] = await Promise.all([
+        this.accessDecisionService.canAccess(
           command.userId,
           command.roles,
-          command.reportId,
+          EntityType.DATA_MART,
           report.dataMart.id,
-          Action.RUN,
+          Action.EDIT,
           command.projectId
         ),
         this.accessDecisionService.canAccess(
@@ -56,8 +56,15 @@ export class CopyReportAsDataMartService {
           command.projectId
         ),
       ]);
-      if (!canRun || !canUseStorage) {
-        throw new ForbiddenException('You do not have permission to copy this report');
+      if (!canEditDataMart) {
+        throw new ForbiddenException(
+          'You do not have permission to copy this report: edit access to the source data mart is required.'
+        );
+      }
+      if (!canUseStorage) {
+        throw new ForbiddenException(
+          'You do not have permission to copy this report: use access to the source data storage is required.'
+        );
       }
     }
 

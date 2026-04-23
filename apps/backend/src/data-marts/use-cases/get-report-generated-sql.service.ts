@@ -3,7 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { GetReportGeneratedSqlCommand } from '../dto/domain/get-report-generated-sql.command';
 import { Report } from '../entities/report.entity';
-import { AccessDecisionService, Action } from '../services/access-decision';
+import { AccessDecisionService, Action, EntityType } from '../services/access-decision';
 import { ReportSqlComposerService } from '../services/report-sql-composer.service';
 
 @Injectable()
@@ -29,16 +29,18 @@ export class GetReportGeneratedSqlService {
     }
 
     if (command.userId) {
-      const canSee = await this.accessDecisionService.canAccessReport(
+      const canEditDataMart = await this.accessDecisionService.canAccess(
         command.userId,
         command.roles,
-        command.reportId,
+        EntityType.DATA_MART,
         report.dataMart.id,
-        Action.SEE,
+        Action.EDIT,
         command.projectId
       );
-      if (!canSee) {
-        throw new ForbiddenException('You do not have access to this report');
+      if (!canEditDataMart) {
+        throw new ForbiddenException(
+          'You do not have permission to view the generated SQL of this report: edit access to the source data mart is required.'
+        );
       }
     }
 
