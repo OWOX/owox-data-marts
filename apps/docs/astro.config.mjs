@@ -75,7 +75,6 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
                 'docs/getting-started/setup-guide/report-triggers',
                 {
                   label: 'Self-Managed Authentication',
-                  label: 'Self-Managed Authentication',
                   autogenerate: {
                     directory: 'docs/getting-started/setup-guide/members-management',
                   },
