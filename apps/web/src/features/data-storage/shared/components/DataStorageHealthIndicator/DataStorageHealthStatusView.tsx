@@ -1,7 +1,7 @@
 import { CircleCheck, CircleDashed, TriangleAlert } from 'lucide-react';
 import {
   DataStorageHealthStatus,
-  HEALTH_STATUS_UNCONFIGURED_TEXT,
+  UNCONFIGURED_STATUS_LABEL,
 } from '../../services/data-storage-health-status.service';
 
 interface Props {
@@ -33,7 +33,7 @@ export function DataStorageHealthStatusView({ status, errorMessage, isLoading }:
     return (
       <div className='text-muted-foreground flex items-center gap-2 text-sm'>
         <CircleDashed className='size-4' />
-        <span>{HEALTH_STATUS_UNCONFIGURED_TEXT}</span>
+        <span>{UNCONFIGURED_STATUS_LABEL}</span>
       </div>
     );
   }

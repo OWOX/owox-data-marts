@@ -14,7 +14,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@owox/ui/components/too
 import { useDataStorageHealthStatus } from '../../model/hooks/useDataStorageHealthStatus';
 import {
   DataStorageHealthStatus,
-  HEALTH_STATUS_UNCONFIGURED_TEXT,
+  UNCONFIGURED_STATUS_LABEL,
 } from '../../services/data-storage-health-status.service';
 import { DataStorageHealthStatusView } from './DataStorageHealthStatusView';
 import { DataStorageHealthDot } from './DataStorageHealthDot';
@@ -35,7 +35,7 @@ interface HealthStatusDisplayConfig {
 // NOTE: `text` here is used for compact-variant tooltips only.
 // DataStorageHealthStatusView renders its own labels for each state (non-compact variant).
 // VALID/INVALID intentionally use different wording between tooltip and status view (pre-existing).
-// TODO: migrate all state display strings to shared constants (following HEALTH_STATUS_UNCONFIGURED_TEXT)
+// TODO: migrate all state display strings to shared constants (following UNCONFIGURED_STATUS_LABEL)
 //       so tooltip and status view always stay in sync.
 const HEALTH_STATUS_CONFIG: Record<DataStorageHealthStatus, HealthStatusDisplayConfig> = {
   [DataStorageHealthStatus.VALID]: {
@@ -49,7 +49,7 @@ const HEALTH_STATUS_CONFIG: Record<DataStorageHealthStatus, HealthStatusDisplayC
     ringClass: 'ring-red-500/50',
   },
   [DataStorageHealthStatus.UNCONFIGURED]: {
-    text: HEALTH_STATUS_UNCONFIGURED_TEXT,
+    text: UNCONFIGURED_STATUS_LABEL,
     dotClass: 'bg-neutral-400 dark:bg-neutral-500',
     ringClass: 'ring-neutral-400/50 dark:ring-neutral-500/50',
   },
@@ -101,10 +101,7 @@ export function DataStorageHealthIndicator({
           </div>
         </HoverCardTrigger>
 
-        {/* UNCONFIGURED is excluded: the tooltip already conveys the full message and the hovercard
-            would add no extra information. Revisit if the hovercard gains actionable content
-            (e.g. a link to the setup form) for this state. */}
-        {isFetched && !isLoading && status !== DataStorageHealthStatus.UNCONFIGURED && (
+        {isFetched && !isLoading && (
           <HoverCardContent side={hovercardSide} align='start'>
             <HoverCardHeader>
               <HoverCardHeaderText>

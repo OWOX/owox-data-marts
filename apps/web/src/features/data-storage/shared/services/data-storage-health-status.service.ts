@@ -19,7 +19,7 @@ export enum DataStorageHealthStatus {
  */
 const UNCONFIGURED_CODE: DataStorageValidationCode = 'UNCONFIGURED';
 
-export const HEALTH_STATUS_UNCONFIGURED_TEXT = 'Complete setup to activate Storage';
+export const UNCONFIGURED_STATUS_LABEL = 'Complete setup to activate Storage';
 
 export interface CachedDataStorageHealthStatus {
   status: DataStorageHealthStatus;
