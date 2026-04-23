@@ -44,7 +44,7 @@ Technical Users build and manage data infrastructure, and retain project-wide co
 - Create, edit, and delete their own Data Marts, Storages, and Destinations
 - Create, edit, delete, and manage Data Mart Triggers
 - Configure sharing and manage owners for their own Data Marts, Storages, and Destinations
-- Access Data Marts, Storages, and Destinations that other members have shared with them — the level of access depends on how the resource is shared (see [Access Rights](access-rights.md))
+- Access Data Marts, Storages, and Destinations that other members have shared with them — the level of access depends on how the resource is shared (see [Ownership and Sharing](ownership-and-sharing.md))
 - Edit and delete any Report in the project, regardless of ownership
 - Manage owners of any Report in the project
 - Create, edit, and delete Report Triggers on any Report in the project

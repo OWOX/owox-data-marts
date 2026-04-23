@@ -6,7 +6,7 @@ Only **Admins** can invite, edit, or remove members.
 
 ## Viewing Members
 
-To see who has access to your project, navigate to the **Admin Dashboard** at `/auth/dashboard`. The list shows each member's name, email, role, and account status.
+To see who has access to your project, navigate to the **Members Page**. The list shows each member's name, email and role.
 
 ## Inviting a New Member
 
