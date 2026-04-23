@@ -1,4 +1,4 @@
-import { Injectable, ForbiddenException } from '@nestjs/common';
+import { Injectable, ForbiddenException, Logger } from '@nestjs/common';
 import { BusinessViolationException } from '../../common/exceptions/business-violation.exception';
 import { OwoxEventDispatcher } from '../../common/event-dispatcher/owox-event-dispatcher';
 import { DataMartDefinitionValidatorFacade } from '../data-storage-types/facades/data-mart-definition-validator-facade.service';
@@ -10,15 +10,20 @@ import { DataMartPublishedEvent } from '../events/data-mart-published.event';
 import { DataMartMapper } from '../mappers/data-mart.mapper';
 import { DataMartService } from '../services/data-mart.service';
 import { AccessDecisionService, EntityType, Action } from '../services/access-decision';
+import { RunType } from '../../common/scheduler/shared/types';
+import { ConnectorExecutionService } from '../services/connector/connector-execution.service';
 
 @Injectable()
 export class PublishDataMartService {
+  private readonly logger = new Logger(PublishDataMartService.name);
+
   constructor(
     private readonly dataMartService: DataMartService,
     private readonly definitionValidatorFacade: DataMartDefinitionValidatorFacade,
     private readonly mapper: DataMartMapper,
     private readonly eventDispatcher: OwoxEventDispatcher,
-    private readonly accessDecisionService: AccessDecisionService
+    private readonly accessDecisionService: AccessDecisionService,
+    private readonly connectorExecutionService: ConnectorExecutionService
   ) {}
 
   async run(command: PublishDataMartCommand): Promise<DataMartDto> {
@@ -63,6 +68,26 @@ export class PublishDataMartService {
     );
 
     await this.eventDispatcher.publish(event);
+
+    if (dataMart.definitionType === DataMartDefinitionType.CONNECTOR) {
+      const userId = command.createdById ?? command.userId;
+
+      this.connectorExecutionService
+        .run(dataMart, userId, RunType.manual, {
+          runType: 'INCREMENTAL',
+        })
+        .catch(error => {
+          this.logger.error(
+            `Failed to auto-run connector after publishing data mart ${dataMart.id}`,
+            error?.stack,
+            {
+              dataMartId: dataMart.id,
+              projectId: dataMart.projectId,
+              userId,
+            }
+          );
+        });
+    }
 
     return this.mapper.toDomainDto(dataMart);
   }
