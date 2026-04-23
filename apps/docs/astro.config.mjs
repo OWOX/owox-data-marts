@@ -93,7 +93,7 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
               items: [
                 'docs/project/members',
                 'docs/project/roles-and-permissions',
-                'docs/project/ownership-and-sharing',
+                'docs/project/ownership-and-availability',
               ],
             },
             {

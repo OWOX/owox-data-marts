@@ -1,90 +1,67 @@
 # Roles and Permissions
 
-Every project member has one of three roles. A role controls what a member can do across the entire project — from managing users to creating and editing resources.
+Each project member has one of three roles.
 
 ## Roles Overview
 
 | Role | Access level |
 |---|---|
-| **Admin** | Full access to everything |
-| **Technical User** | Create and manage data resources; full control over all Reports |
-| **Business User** | Self-service reporting on shared Data Marts; manage own Reports and Destinations |
+| **Project Admin** | Full access across all entities |
+| **Technical User** | Build and maintain data resources; can edit any Report they have access to |
+| **Business User** | Self-service reporting on Data Marts available to them; manage own Reports and Destinations |
 
-## Admin
+## Project Admin
 
-Admins have unrestricted access to the entire project.
+Assigned to members who manage the project team and need full access to all resources.
 
-**Member management:**
+**Project administration:**
 
-- Invite members with any role
-- Change any member's role
-- Reset passwords and generate magic links
-- Delete members
+- Manage project members
 
 **Data access:**
 
-- Create, edit, and delete any Data Mart, Storage, Destination, Report, Trigger, and Run — regardless of who created it
+- Create, edit, and delete any Data Mart, Storage, Destination, Report, and Trigger
+- Full owner and availability management
 
 **Notifications:**
 
-- Automatically subscribed to all project notification channels upon joining
+- Included in default notification receivers
 
 ---
 
 ## Technical User
 
-Technical Users build and manage data infrastructure, and retain project-wide control over reporting.
-
-**Member management:**
-
-- Invite Technical Users and Business Users (cannot invite Admins)
+Assigned to members who build and maintain the data infrastructure — creating Data Marts, Storages, Destinations, and report pipelines.
 
 **Data access:**
 
-- Create, edit, and delete their own Data Marts, Storages, and Destinations
-- Create, edit, delete, and manage Data Mart Triggers
-- Configure sharing and manage owners for their own Data Marts, Storages, and Destinations
-- Access Data Marts, Storages, and Destinations that other members have shared with them — the level of access depends on how the resource is shared (see [Ownership and Sharing](ownership-and-sharing.md))
-- Edit and delete any Report in the project, regardless of ownership
-- Manage owners of any Report in the project
-- Create, edit, and delete Report Triggers on any Report in the project
+- Create and manage Data Marts, Storages, and Destinations
+- Create Reports using Data Marts and Destinations they have access to
+- What they can do with a specific resource depends on their ownership status and the resource's availability settings (see [Ownership and Availability](ownership-and-availability.md))
+- Manage scheduled triggers for Data Marts they have maintenance access to
+- Edit, delete, run, and manage owners of Reports they have access to — either through maintenance access to the parent Data Mart, or as the Report owner
 
 **Notifications:**
 
-- Automatically subscribed to all project notification channels upon joining
+- Included in default notification receivers
 
 ---
 
 ## Business User
 
-Business Users build and manage their own reporting assets on top of Data Marts prepared by Technical Users.
-
-**Member management:**
-
-- Invite Business Users only
+Assigned to members who create and run reports on data prepared by Technical Users, without needing access to the underlying infrastructure.
 
 **Data access:**
 
-- View Data Marts and their Triggers that are shared with them
-- Create Reports on Data Marts that are available for reporting
-- Edit, delete, run, and manage owners of Reports they own
-- Create, edit, and delete Report Triggers on Reports they own
-- Create, edit, and delete Destinations
-- Access Destinations that other members have shared with them
+- View Data Marts and their scheduled triggers made available to them
+- Create Reports on Data Marts available for reporting, using Destinations they have access to
+- Edit, delete, and run Reports they own
+- Create and manage Destinations they own or have maintenance access to
+- Cannot create, edit, or delete Data Marts, Storages, or Data Mart scheduled triggers
 
-> ☝️ A Business User can only edit or run a Report as long as its Destination still exists. If the Destination is deleted, the Report becomes read-only for that owner until a Technical User restores the Destination or reassigns ownership.
+> ☝️ A Report owner can edit, delete, or run a Report only while its Destination still exists. If the Destination is deleted, the Report becomes read-only for that owner until the Destination is restored or ownership is reassigned.
 
 **Notifications:**
 
-- Not subscribed to notifications by default
-- Automatically removed from notification receivers if their role is downgraded from Technical User
-
----
-
-## Who Can Invite Whom
-
-| Inviting as | Can invite Admin | Can invite Technical User | Can invite Business User |
-|---|---|---|---|
-| Admin | ✓ | ✓ | ✓ |
-| Technical User | — | ✓ | ✓ |
-| Business User | — | — | ✓ |
+- Not included in default receivers
+- Removed from all notification receiver lists when downgraded from Technical User
