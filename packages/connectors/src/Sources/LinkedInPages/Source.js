@@ -8,25 +8,126 @@
 var LinkedInPagesSource = class LinkedInPagesSource extends AbstractSource {
   constructor(config) {
     super(config.mergeParameters({
-      ClientID: {
+      AuthType: {
+        requiredType: "object",
+        label: "Auth Type",
+        description: "Authentication type",
         isRequired: true,
+        oneOf: [
+          {
+            label: "OAuth2",
+            value: "oauth2",
+            requiredType: "object",
+            attributes: [CONFIG_ATTRIBUTES.OAUTH_FLOW],
+            oauthParams: {
+              vars: {
+                ClientId: {
+                  type: 'string',
+                  required: true,
+                  store: 'env',
+                  key: 'OAUTH_LINKEDIN_PAGES_CLIENT_ID',
+                  attributes: [OAUTH_CONSTANTS.UI, OAUTH_CONSTANTS.SECRET, OAUTH_CONSTANTS.REQUIRED]
+                },
+                ClientSecret: {
+                  type: 'string',
+                  required: true,
+                  store: 'env',
+                  key: 'OAUTH_LINKEDIN_PAGES_CLIENT_SECRET',
+                  attributes: [OAUTH_CONSTANTS.SECRET, OAUTH_CONSTANTS.REQUIRED]
+                },
+                RedirectUri: {
+                  type: 'string',
+                  required: true,
+                  store: 'env',
+                  key: 'OAUTH_LINKEDIN_PAGES_REDIRECT_URI',
+                  attributes: [OAUTH_CONSTANTS.UI, OAUTH_CONSTANTS.REQUIRED]
+                },
+                Scopes: {
+                  type: 'string',
+                  store: 'env',
+                  key: 'OAUTH_LINKEDIN_PAGES_SCOPE',
+                  default: 'r_organization_social,rw_organization_admin',
+                  attributes: [OAUTH_CONSTANTS.UI]
+                }
+              },
+              mapping: {
+                RefreshToken: {
+                  type: 'string',
+                  required: true,
+                  store: 'secret',
+                  key: 'refresh_token'
+                },
+                ClientId: {
+                  type: 'string',
+                  required: true,
+                  store: 'secret',
+                  key: 'client_id'
+                },
+                ClientSecret: {
+                  type: 'string',
+                  required: true,
+                  store: 'secret',
+                  key: 'client_secret'
+                },
+                AccessToken: {
+                  type: 'string',
+                  required: false,
+                  store: 'secret',
+                  key: 'access_token'
+                }
+              }
+            },
+            items: {
+              ClientId: {
+                isRequired: true,
+                requiredType: "string",
+                label: "Client ID",
+                description: "LinkedIn API Client ID for authentication"
+              },
+              ClientSecret: {
+                isRequired: true,
+                requiredType: "string",
+                label: "Primary Client Secret",
+                description: "LinkedIn API Primary Client Secret for authentication",
+                attributes: [CONFIG_ATTRIBUTES.SECRET]
+              },
+              RefreshToken: {
+                isRequired: true,
+                requiredType: "string",
+                label: "Refresh Token",
+                description: "LinkedIn API Refresh Token for authentication",
+                attributes: [CONFIG_ATTRIBUTES.SECRET]
+              },
+              AccessToken: {
+                requiredType: "string",
+                label: "Access Token",
+                description: "LinkedIn API Access Token (auto-generated)",
+                attributes: [CONFIG_ATTRIBUTES.SECRET]
+              }
+            }
+          }
+        ]
+      },
+      ClientID: {
+        isRequired: false,
         requiredType: "string",
         label: "Client ID",
-        description: "LinkedIn API Client ID for authentication"
+        description: "LinkedIn API Client ID for authentication",
+        attributes: [CONFIG_ATTRIBUTES.DEPRECATED, CONFIG_ATTRIBUTES.HIDE_IN_CONFIG_FORM]
       },
       ClientSecret: {
-        isRequired: true,
+        isRequired: false,
         requiredType: "string",
         label: "Primary Client Secret",
         description: "LinkedIn API Primary Client Secret for authentication",
-        attributes: [CONFIG_ATTRIBUTES.SECRET]
+        attributes: [CONFIG_ATTRIBUTES.SECRET, CONFIG_ATTRIBUTES.DEPRECATED, CONFIG_ATTRIBUTES.HIDE_IN_CONFIG_FORM]
       },
       RefreshToken: {
-        isRequired: true,
+        isRequired: false,
         requiredType: "string",
         label: "Refresh Token",
         description: "LinkedIn API Refresh Token for authentication",
-        attributes: [CONFIG_ATTRIBUTES.SECRET]
+        attributes: [CONFIG_ATTRIBUTES.SECRET, CONFIG_ATTRIBUTES.DEPRECATED, CONFIG_ATTRIBUTES.HIDE_IN_CONFIG_FORM]
       },
       ReimportLookbackWindow: {
         requiredType: "number",
@@ -75,6 +176,82 @@ var LinkedInPagesSource = class LinkedInPagesSource extends AbstractSource {
     
     this.fieldsSchema = LinkedInPagesFieldsSchema;
     this.BASE_URL = "https://api.linkedin.com/rest/";
+  }
+
+  async exchangeOauthCredentials(credentials, variables) {
+    try {
+      const tokenUrl = "https://www.linkedin.com/oauth/v2/accessToken";
+      const payload = {
+        grant_type: 'authorization_code',
+        code: credentials.code,
+        client_id: variables.ClientId,
+        client_secret: variables.ClientSecret,
+        redirect_uri: variables.RedirectUri,
+      };
+
+      const options = {
+        method: 'post',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded'
+        },
+        body: Object.entries(payload)
+          .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v)}`)
+          .join('&')
+      };
+
+      const response = await HttpUtils.fetch(tokenUrl, options);
+      const data = await response.getAsJson();
+
+      if (data.error || !data.refresh_token) {
+        throw new OauthFlowException({
+          message: data.error_description || data.error || 'Failed to exchange LinkedIn authorization code',
+          payload: data
+        });
+      }
+
+      const expiresIn = data.expires_in ?? 3600;
+
+      return OauthCredentialsDto.builder()
+        .withUser({ id: 'unknown', name: 'LinkedIn Pages User' })
+        .withSecret({
+          refresh_token: data.refresh_token,
+          access_token: data.access_token,
+          client_id: variables.ClientId,
+          client_secret: variables.ClientSecret
+        })
+        .withExpiresIn(expiresIn)
+        .build()
+        .toObject();
+    } catch (error) {
+      if (error instanceof OauthFlowException) {
+        throw error;
+      }
+      throw new OauthFlowException({
+        message: 'Failed to exchange LinkedIn Pages authorization code',
+        payload: error.message
+      });
+    }
+  }
+
+  _getOAuthConfig() {
+    const authTypeConfig = this.config.AuthType || {};
+    const isOAuth2 = this.config.AuthType?.value === 'oauth2';
+    return isOAuth2 ? (authTypeConfig.items || {}) : {};
+  }
+
+  _getClientId() {
+    const oauthConfig = this._getOAuthConfig();
+    return oauthConfig.ClientId?.value || this.config.ClientID?.value || process.env.OAUTH_LINKEDIN_PAGES_CLIENT_ID;
+  }
+
+  _getClientSecret() {
+    const oauthConfig = this._getOAuthConfig();
+    return oauthConfig.ClientSecret?.value || this.config.ClientSecret?.value || process.env.OAUTH_LINKEDIN_PAGES_CLIENT_SECRET;
+  }
+
+  _getRefreshToken() {
+    const oauthConfig = this._getOAuthConfig();
+    return oauthConfig.RefreshToken?.value || this.config.RefreshToken?.value;
   }
 
   /**
@@ -167,14 +344,22 @@ var LinkedInPagesSource = class LinkedInPagesSource extends AbstractSource {
    */
   async makeRequest(url) {
     console.log(`LinkedIn Pages API URL:`, url);
+    const clientId = this._getClientId();
+    const clientSecret = this._getClientSecret();
+    const refreshToken = this._getRefreshToken();
+
+    if (!clientId || !clientSecret || !refreshToken) {
+      throw new Error('LinkedIn Pages OAuth credentials are not configured');
+    }
+
     await OAuthUtils.getAccessToken({
       config: this.config,
       tokenUrl: "https://www.linkedin.com/oauth/v2/accessToken",
       formData: {
         grant_type: 'refresh_token',
-        refresh_token: this.config.RefreshToken.value,
-        client_id: this.config.ClientID.value,
-        client_secret: this.config.ClientSecret.value
+        refresh_token: refreshToken,
+        client_id: clientId,
+        client_secret: clientSecret
       }
     });
 

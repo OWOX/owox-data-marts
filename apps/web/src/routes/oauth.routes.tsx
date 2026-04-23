@@ -1,6 +1,11 @@
 import type { RouteObject } from 'react-router-dom';
 import { GoogleOAuthCallbackPage } from '../features/google-oauth/pages/GoogleOAuthCallbackPage';
-import { TikTokCallback, MicrosoftCallback, GoogleAdsCallback } from '../pages/oauth';
+import {
+  TikTokCallback,
+  MicrosoftCallback,
+  GoogleAdsCallback,
+  LinkedInCallback,
+} from '../pages/oauth';
 
 export const oauthRoutes: RouteObject = {
   path: 'oauth',
@@ -20,6 +25,14 @@ export const oauthRoutes: RouteObject = {
     {
       path: 'google/callback',
       element: <GoogleOAuthCallbackPage />,
+    },
+    {
+      path: 'linkedin-ads/callback',
+      element: <LinkedInCallback />,
+    },
+    {
+      path: 'linkedin-pages/callback',
+      element: <LinkedInCallback />,
     },
   ],
 };
