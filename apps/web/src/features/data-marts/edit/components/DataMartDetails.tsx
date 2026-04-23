@@ -286,23 +286,25 @@ export function DataMartDetails({ id }: DataMartDetailsProps) {
   };
 
   return (
-    <div className='min-w-[600px] px-12 py-6' data-testid='datamartDetails'>
-      <div className='items-top mb-4 flex flex-col-reverse justify-between gap-4 md:flex-row md:gap-0'>
+    <div
+      className='min-w-[600px] px-4 py-6 md:min-w-0 md:px-8 md:py-4 lg:px-12 xl:px-16'
+      data-testid='datamartDetails'
+    >
+      <div className='items-top -mt-2.5 mb-4 flex flex-col-reverse justify-between gap-2 md:-mt-0 md:flex-row md:items-start md:gap-4'>
         {/* Title and back button */}
-        <div className='-ml-10 flex items-center space-x-1'>
+        <div className='-ml-4 flex min-w-0 items-start md:-ml-6 md:gap-2 lg:-ml-11'>
           <Button
             onClick={() => {
               navigate('/data-marts');
             }}
             variant='ghost'
-            size='sm'
+            className='mt-1 size-7 md:mt-0 md:size-8 lg:size-9'
             aria-label='Back to Data Marts'
             title='Back to Data Marts'
-            className='text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'
           >
-            <ArrowLeft className='h-5 w-5' />
+            <ArrowLeft className='h-4 w-4 lg:h-5 lg:w-5' />
           </Button>
-          <div data-testid='datamartTitleInput'>
+          <div data-testid='datamartTitleInput' className='min-w-0 flex-1'>
             <InlineEditTitle
               title={dataMartTitle}
               onUpdate={handleTitleUpdate}
@@ -313,12 +315,15 @@ export function DataMartDetails({ id }: DataMartDetailsProps) {
 
         {/* Publish button and status */}
         <div
-          className={cn('flex min-w-[120px] items-center gap-2', isPublishing ? 'opacity-50' : '')}
+          className={cn(
+            'flex w-full min-w-0 shrink-0 items-center justify-end gap-4 md:w-auto md:justify-start',
+            isPublishing ? 'opacity-50' : ''
+          )}
         >
-          <div className='flex w-full items-center justify-between gap-2 md:w-auto'>
+          <div className='flex min-w-0 shrink-0 items-center gap-4'>
             <Tooltip>
               <TooltipTrigger asChild>
-                <div className={cn('mr-4', !canPublish ? 'pt-1.5' : '')}>
+                <div className={cn('shrink-0', !canPublish ? 'md:pt-1' : '')}>
                   <StatusLabel
                     type={isPublished ? StatusTypeEnum.SUCCESS : StatusTypeEnum.NEUTRAL}
                     variant='subtle'
@@ -336,7 +341,7 @@ export function DataMartDetails({ id }: DataMartDetailsProps) {
             {isDraft && (
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <div className='relative'>
+                  <div className='relative shrink-0'>
                     <Button
                       variant='default'
                       onClick={() => {
@@ -354,7 +359,7 @@ export function DataMartDetails({ id }: DataMartDetailsProps) {
                     </Button>
                     <div
                       className={cn(
-                        'bg-brand-blue-500/15 pointer-events-none absolute -top-1.5 -right-1.5 -bottom-1.5 -left-1.5 z-0 rounded-lg',
+                        'bg-brand-blue-500/15 pointer-events-none absolute -top-1 -right-1 -bottom-1 -left-1 z-0 hidden rounded-lg md:-top-1.5 md:-right-1.5 md:-bottom-1.5 md:-left-1.5 md:block',
                         !canPublish
                           ? ''
                           : 'bg-brand-blue-500/25 motion-safe:animate-[soft-glow_3s_ease-in-out_infinite]'
@@ -381,8 +386,8 @@ export function DataMartDetails({ id }: DataMartDetailsProps) {
           </div>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant='ghost'>
-                <MoreVertical className='h-5 w-5' />
+              <Button variant='ghost' className='size-7 md:size-8 lg:size-9'>
+                <MoreVertical className='h-4 w-4 lg:h-5 lg:w-5' />
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align='end'>
@@ -423,7 +428,7 @@ export function DataMartDetails({ id }: DataMartDetailsProps) {
         </div>
       </div>
 
-      <div>
+      <div className='relative'>
         <nav
           className='no-scrollbar -mb-px flex gap-2 overflow-x-auto border-b whitespace-nowrap'
           aria-label='Tabs'
@@ -449,6 +454,7 @@ export function DataMartDetails({ id }: DataMartDetailsProps) {
             );
           })}
         </nav>
+        <div className='from-background pointer-events-none absolute inset-y-0 right-0 w-8 bg-gradient-to-l to-transparent' />
       </div>
 
       <div className='pt-4'>
