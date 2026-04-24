@@ -2,7 +2,7 @@
 
 ## 0.24.0
 
-### Minor Changes
+### Minor Changes 0.24.0
 
 - b335552: # Joinable Data Marts and Joined Reports
 
@@ -42,7 +42,7 @@
 
   Previously, the `campaign_id` and `adgroup_id` fields in the `tiktok_ads_ad_insights` table were always `null`. This happened because TikTok's API requires these parent-hierarchy IDs to be requested as metrics, not dimensions, at the ad data level — and they were missing from the request. Now both fields are correctly requested and populated, so users can join ad-level performance data back to their campaigns and ad groups.
 
-### Patch Changes
+### Patch Changes 0.24.0
 
 - @owox/internal-helpers@0.24.0
 - @owox/idp-protocol@0.24.0
@@ -1517,6 +1517,7 @@
   We're excited to introduce **Time Triggers** - a powerful new feature that allows you to schedule your reports and connectors to run automatically at specified times!
 
   ## Benefits
+
   - ✅ **Save Time**: Automate routine data refreshes without manual intervention
   - 🔄 **Stay Updated**: Keep your data fresh with regular scheduled updates
   - 📊 **Consistent Reporting**: Ensure your reports are generated on a reliable schedule
@@ -1524,6 +1525,7 @@
   - 🔧 **Flexible Scheduling Options**: Choose from daily, weekly, monthly, or interval-based schedules
 
   ## Scheduling Options
+
   - **Daily**: Run your reports or connectors at the same time every day
   - **Weekly**: Select specific days of the week for execution
   - **Monthly**: Schedule runs on specific days of the month
