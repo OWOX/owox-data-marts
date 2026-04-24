@@ -1,5 +1,8 @@
 import type { AxiosRequestConfig } from '../../../../app/api';
-import { dataStorageApiService } from '../api/data-storage-api.service';
+import {
+  dataStorageApiService,
+  type DataStorageValidationCode,
+} from '../api/data-storage-api.service';
 
 /**
  * Health status for a data storage.
@@ -7,7 +10,16 @@ import { dataStorageApiService } from '../api/data-storage-api.service';
 export enum DataStorageHealthStatus {
   VALID = 'valid',
   INVALID = 'invalid',
+  UNCONFIGURED = 'unconfigured',
 }
+
+/**
+ * Must match ValidationResultCode.UNCONFIGURED on the backend.
+ * If the backend enum value changes, update this constant accordingly.
+ */
+const UNCONFIGURED_CODE: DataStorageValidationCode = 'UNCONFIGURED';
+
+export const UNCONFIGURED_STATUS_LABEL = 'Complete setup to activate Storage';
 
 export interface CachedDataStorageHealthStatus {
   status: DataStorageHealthStatus;
@@ -98,16 +110,30 @@ function processQueue(): void {
     dataStorageApiService
       .validateAccess(storageId, config)
       .then(response => {
+        let status: DataStorageHealthStatus;
+        if (response.valid) {
+          status = DataStorageHealthStatus.VALID;
+        } else if (response.code === UNCONFIGURED_CODE) {
+          status = DataStorageHealthStatus.UNCONFIGURED;
+        } else {
+          status = DataStorageHealthStatus.INVALID;
+        }
+
         const cached: CachedDataStorageHealthStatus = {
-          status: response.valid ? DataStorageHealthStatus.VALID : DataStorageHealthStatus.INVALID,
+          status,
           errorMessage: response.errorMessage,
         };
 
         healthStatusCache.set(storageId, cached);
         notifySubscribers();
       })
-      .catch(() => {
-        // Silently ignore errors — the item stays uncached and can be retried
+      .catch((error: unknown) => {
+        console.error(`[DataStorageHealthStatus] Failed to validate storage ${storageId}:`, error);
+        healthStatusCache.set(storageId, {
+          status: DataStorageHealthStatus.INVALID,
+          errorMessage: 'Unable to validate storage access',
+        });
+        notifySubscribers();
       })
       .finally(() => {
         inFlightRequests.delete(storageId);

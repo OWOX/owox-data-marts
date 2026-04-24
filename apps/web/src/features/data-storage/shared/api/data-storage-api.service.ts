@@ -15,9 +15,12 @@ interface TaskStatusResponseDto {
   status: TaskStatus;
 }
 
+export type DataStorageValidationCode = 'UNCONFIGURED';
+
 export interface DataStorageValidationResponseDto {
   valid: boolean;
   errorMessage?: string;
+  code?: DataStorageValidationCode;
 }
 
 export class DataStorageApiService extends ApiService {
