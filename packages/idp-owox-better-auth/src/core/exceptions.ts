@@ -30,12 +30,15 @@ export class BaseException extends Error {
  * Error for authentication flow failures with context.
  */
 export class AuthenticationException extends BaseException {
-  constructor(message: string, opts?: ExceptionOpts) {
+  readonly description?: string | null;
+
+  constructor(message: string, opts?: ExceptionOpts & { description?: string | null }) {
     super('AuthenticationException', message, {
       status: 401,
       publicMessage: 'Invalid or expired token',
       ...opts,
     });
+    this.description = opts?.description;
   }
 }
 
@@ -84,6 +87,19 @@ export class SessionException extends BaseException {
     super('SessionException', message, {
       status: 401,
       publicMessage: 'Authentication session error',
+      ...opts,
+    });
+  }
+}
+
+/**
+ * Error for Identity API 4xx responses with raw body in context.
+ */
+export class IdentityApiException extends BaseException {
+  constructor(message: string, opts?: ExceptionOpts) {
+    super('IdentityApiException', message, {
+      status: opts?.status ?? 400,
+      publicMessage: 'IDP request failed',
       ...opts,
     });
   }

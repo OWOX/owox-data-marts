@@ -5,6 +5,7 @@ import { OwoxTokenFacade } from '../facades/owox-token-facade.js';
 import {
   AuthenticationException,
   ForbiddenException,
+  IdentityApiException,
   IdpFailedException,
 } from '../core/exceptions.js';
 
@@ -77,7 +78,7 @@ describe('GoogleSheetsExtensionAuthController', () => {
       await controller.authenticate(req, res);
 
       expect(res.status).toHaveBeenCalledWith(401);
-      expect(res.json).toHaveBeenCalledWith({ error: 'Invalid or expired token' });
+      expect(res.json).toHaveBeenCalledWith({ error: 'InvalidToken' });
     });
 
     it('returns 403 on ForbiddenException', async () => {
@@ -113,6 +114,115 @@ describe('GoogleSheetsExtensionAuthController', () => {
 
       expect(res.status).toHaveBeenCalledWith(500);
       expect(res.json).toHaveBeenCalledWith({ error: 'Internal server error' });
+    });
+
+    it('maps UnknownUser IDP error to stable error response', async () => {
+      const req = { body: { google_id_token: 'unknown-user' } } as Request;
+      const res = createMockResponse();
+      tokenFacade.exchangeGoogleIdToken.mockRejectedValue(
+        new IdentityApiException('IDP error', {
+          context: {
+            body: { status: 'UnknownUser', params: { googleAccountId: '118327446763797398368' } },
+          },
+        })
+      );
+
+      await controller.authenticate(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(res.json).toHaveBeenCalledWith({
+        status: 'UnknownUser',
+        params: { googleAccountId: '118327446763797398368' },
+      });
+    });
+
+    it('maps UnknownProject IDP error to stable error response', async () => {
+      const req = { body: { google_id_token: 'unknown-project' } } as Request;
+      const res = createMockResponse();
+      tokenFacade.exchangeGoogleIdToken.mockRejectedValue(
+        new IdentityApiException('IDP error', {
+          context: { body: { status: 'UnknownProject', params: { projectName: 'My Project' } } },
+        })
+      );
+
+      await controller.authenticate(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(res.json).toHaveBeenCalledWith({
+        status: 'UnknownProject',
+        params: { projectName: 'My Project' },
+      });
+    });
+
+    it('maps AuthenticationException with description to stable error response', async () => {
+      const req = { body: { google_id_token: 'expired' } } as Request;
+      const res = createMockResponse();
+      tokenFacade.exchangeGoogleIdToken.mockRejectedValue(
+        new AuthenticationException('Invalid or expired credentials', {
+          description: 'Token has expired',
+        })
+      );
+
+      await controller.authenticate(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(401);
+      expect(res.json).toHaveBeenCalledWith({
+        error: 'InvalidToken',
+        description: 'Token has expired',
+      });
+    });
+
+    it('returns generic error when IdpFailedException has no mapped client response (no leak)', async () => {
+      const req = { body: { google_id_token: 'bad-gateway' } } as Request;
+      const res = createMockResponse();
+      tokenFacade.exchangeGoogleIdToken.mockRejectedValue(
+        new IdpFailedException('Failed: 502', {
+          status: 502,
+          context: { responseData: { raw: 'internal' } },
+        })
+      );
+
+      await controller.authenticate(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(502);
+      expect(res.json).toHaveBeenCalledWith({ error: 'Internal server error' });
+      expect(res.json).not.toHaveBeenCalledWith(expect.objectContaining({ raw: 'internal' }));
+    });
+
+    it('maps all 400-specific IDP errors to stable error responses', async () => {
+      const cases = [
+        {
+          rawBody: { status: 'invalidBody' },
+        },
+        {
+          rawBody: { status: 'invalidSigninMethod' },
+        },
+        {
+          rawBody: { status: 'locked' },
+        },
+        {
+          rawBody: { status: 'erased' },
+        },
+        {
+          rawBody: { status: 'CannotRetrieveProject' },
+        },
+        {
+          rawBody: { status: 'AccessDeniedToProject', params: { projectName: 'My Project' } },
+        },
+      ] as const;
+
+      for (const { rawBody } of cases) {
+        const req = { body: { google_id_token: 'test' } } as Request;
+        const res = createMockResponse();
+        tokenFacade.exchangeGoogleIdToken.mockRejectedValue(
+          new IdentityApiException('IDP error', { context: { body: rawBody } })
+        );
+
+        await controller.authenticate(req, res);
+
+        expect(res.status).toHaveBeenCalledWith(400);
+        expect(res.json).toHaveBeenCalledWith(rawBody);
+      }
     });
   });
 
