@@ -345,8 +345,10 @@ function FormSection({
     return (
       <div data-slot='form-section' className='mb-4'>
         {title && (
-          <div className='group border-border flex items-center justify-between rounded-md border-b bg-white px-4 py-3 dark:border-transparent dark:bg-white/4'>
-            <h3 className='text-muted-foreground text-sm font-medium'>{title}</h3>
+          <div className='group flex items-center justify-between'>
+            <h3 className='text-muted-foreground/75 text-xs font-semibold tracking-wide uppercase'>
+              {title}
+            </h3>
             {tooltip && <FormSectionTooltip tooltip={tooltip} />}
           </div>
         )}
@@ -364,16 +366,18 @@ function FormSection({
       className='mb-4 flex flex-col gap-2'
     >
       {title && (
-        <div className='group border-border flex items-center justify-between rounded-md border-b bg-white px-4 py-3 dark:border-transparent dark:bg-white/4'>
+        <div className='group flex items-center justify-between'>
           <CollapsibleTrigger asChild>
             <button type='button' className='flex cursor-pointer items-center gap-1'>
+              <span className='text-muted-foreground/75 text-xs font-semibold tracking-wide uppercase'>
+                {title}
+              </span>
               <ChevronRight
                 className={cn(
-                  'text-muted-foreground h-3.5 w-3.5 transition-transform duration-200',
+                  'text-foreground/75 h-3.5 w-3.5 transition-transform duration-200',
                   isOpen && 'rotate-90'
                 )}
               />
-              <span className='text-muted-foreground text-sm font-medium'>{title}</span>
             </button>
           </CollapsibleTrigger>
           {tooltip && <FormSectionTooltip tooltip={tooltip} />}

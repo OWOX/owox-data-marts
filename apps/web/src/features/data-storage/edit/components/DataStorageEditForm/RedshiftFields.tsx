@@ -163,7 +163,7 @@ export const RedshiftFields = ({ form }: RedshiftFieldsProps) => {
       </FormSection>
 
       {/* Authentication */}
-      <section>
+      <div className='mb-4 flex flex-col gap-2'>
         <AuthenticationSectionHeader
           itemType='storage'
           copyButton={
@@ -220,7 +220,7 @@ export const RedshiftFields = ({ form }: RedshiftFieldsProps) => {
             />
           </div>
         )}
-      </section>
+      </div>
     </>
   );
 };

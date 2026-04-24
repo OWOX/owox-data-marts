@@ -118,7 +118,7 @@ export function GoogleSheetsFields({ form }: GoogleSheetsFieldsProps) {
   };
 
   return (
-    <section>
+    <div className='mb-4 flex flex-col gap-2'>
       <AuthenticationSectionHeader
         itemType='destination'
         copyButton={
@@ -201,7 +201,10 @@ export function GoogleSheetsFields({ form }: GoogleSheetsFieldsProps) {
                     {!isEditing && serviceAccountLink ? (
                       <Tooltip>
                         <TooltipTrigger asChild>
-                          <ExternalAnchor href={serviceAccountLink.url}>
+                          <ExternalAnchor
+                            href={serviceAccountLink.url}
+                            className='text-foreground rounded-md border px-4 py-2 text-sm font-normal'
+                          >
                             {serviceAccountLink.email}
                           </ExternalAnchor>
                         </TooltipTrigger>
@@ -228,6 +231,6 @@ export function GoogleSheetsFields({ form }: GoogleSheetsFieldsProps) {
           )}
         </div>
       )}
-    </section>
+    </div>
   );
 }
