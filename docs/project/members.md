@@ -1,56 +1,45 @@
 # Managing Project Members
 
-Project members are the people who have access to your OWOX Data Marts project. Each member is assigned a role that determines what they can see and do — see [Roles and Permissions](roles-and-permissions.md) for details.
+Project members are people who have access to your project. Each member has a role that controls what they can do — see [Roles and Permissions](roles-and-permissions.md).
 
-Only **Admins** can invite, edit, or remove members.
+In OWOX projects, only **Project Admins** manage the member list (invite, role change, remove) from **Project Settings → Members**.
 
-## Viewing Members
+> ☝️ Notification receivers are synchronized with the current member list and role eligibility. If a member is removed, or downgraded from **Technical User** to **Business User**, they are removed from receiver lists.
 
-To see who has access to your project, navigate to the **Admin Dashboard** at `/auth/dashboard`. The list shows each member's name, email, role, and account status.
-
-## Inviting a New Member
-
-1. Open the **Members Page**
-2. Click **Invite People**
-3. Enter the member's email address
-4. Select their role
-5. Click **Send Invite**
-
-## Changing a Member's Role
-
-1. Open the **Members Page**
-2. Find the member
-3. Update their role
-4. Save the change
-
-> ☝️ Downgrading a member from **Technical User** to **Business User** automatically removes them from all notification receivers lists.
-
-## Removing a Member
-
-1. Open the **Members Page**
-2. Find the member
-3. Click **Remove member** and confirm
-
-Removing a member also cleans them up from all notification receivers lists.
+![Project Settings Members page showing the list of project members with their names and roles](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/9449c7c1-6010-4211-e4da-f88f0b413900/public)
 
 ## Created By
 
-Every resource in OWOX Data Marts — Data Mart, Storage, Destination, Report, Trigger, Run — records who created it. This **Created By** field is permanent: it never changes, even if ownership is later transferred to someone else.
+Resources keep a creator reference (`Created By`) that does not change after creation.
+
+This applies to Data Marts, Storages, Destinations, Reports, Scheduled Triggers, and Runs.
 
 **Where it appears:**
 
-- **Data Marts, Storages, Destinations, Reports** — displayed as a sortable column in each list view
-- **Run history** — shown inline as "by [member name]" for manually triggered runs
+- **Data Marts, Storages, Destinations, Reports**: sortable `Created By` column in list views, and in the **Details** section of each resource's page
+- **Run history**: inline `by [member name]` when a creator profile is available
 
-**Creator becomes the initial owner.** When a member creates a resource, they are automatically assigned as its owner:
+![Resource list view with a sortable Created By column showing which member created each resource](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/97cca939-e070-48d1-c874-cf3dda4bdc00/public)
 
-- Data Mart → assigned as **Technical Owner**
-- Storage → assigned as **Owner**
-- Destination → assigned as **Owner**
-- Report → assigned as **Owner**
+## Initial Ownership
 
-Triggers do not have dedicated ownership — they are managed through their parent entity (Data Mart or Report).
+By default, creator and initial owner are the same:
 
-Ownership can be reassigned at any time from the resource settings page. The Created By record remains unchanged regardless.
+- Data Mart → creator becomes **Technical Owner**
+- Storage → creator becomes **Owner**
+- Destination → creator becomes **Owner**
+- Report → creator becomes **Owner**
 
-**When a member is removed,** the Created By field retains the original record internally, but the member's name is no longer displayed — the column shows "—" instead. Resources they created are not deleted and remain fully accessible to their current owners.
+When creating a Storage, Destination, or Report, you can assign owners directly during setup instead of relying on the default.
+
+Scheduled Triggers do not have dedicated ownership. Access to them follows the same rules as their parent Data Mart or Report.
+
+![Resource creation form with an Owners field for assigning initial owners during setup](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/e8b00bd7-8710-45df-1d3f-3685eddbe500/public)
+
+## Member Removal Impact
+
+When a member leaves the project:
+
+- Resources are not deleted.
+- The **Created By** record is kept — it is never deleted.
+- The member's name is no longer shown in the interface; the **Created By** field displays `—` instead.
