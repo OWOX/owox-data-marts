@@ -1,45 +1,13 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { DataMartRelationship } from '../../../entities/data-mart-relationship.entity';
 import { DataStorageType } from '../../enums/data-storage-type.enum';
 import {
-  BlendedQueryContext,
-  ResolvedRelationshipChain,
-} from '../../interfaces/blended-query-builder.interface';
+  createBuildContext,
+  makeChain,
+  makeRelationship,
+} from '../../interfaces/__fixtures__/blended-query-builder-fixtures';
 import { RedshiftBlendedQueryBuilder } from './redshift-blended-query-builder';
 
-function makeRelationship(overrides: Partial<DataMartRelationship> = {}): DataMartRelationship {
-  return {
-    id: 'rel-1',
-    targetAlias: 'orders',
-    joinConditions: [{ sourceFieldName: 'id', targetFieldName: 'customer_id' }],
-    blendedFields: [],
-    projectId: 'proj',
-    createdById: 'user-1',
-    createdAt: new Date(),
-    modifiedAt: new Date(),
-    ...overrides,
-  } as DataMartRelationship;
-}
-
-function makeChain(
-  partial: Omit<ResolvedRelationshipChain, 'targetDataMartTitle' | 'targetDataMartUrl'>
-): ResolvedRelationshipChain {
-  return {
-    ...partial,
-    targetDataMartTitle: 'Test Subsidiary',
-    targetDataMartUrl: '/ui/proj/data-marts/sub-1/data-setup',
-  };
-}
-
-function buildContext(chains: ResolvedRelationshipChain[], columns: string[]): BlendedQueryContext {
-  return {
-    mainTableReference: '"myschema"."customers"',
-    mainDataMartTitle: 'Test Main',
-    mainDataMartUrl: '/ui/proj/data-marts/main-1/data-setup',
-    chains,
-    columns,
-  };
-}
+const buildContext = createBuildContext('"myschema"."customers"');
 
 describe('RedshiftBlendedQueryBuilder', () => {
   let builder: RedshiftBlendedQueryBuilder;
@@ -73,7 +41,9 @@ describe('RedshiftBlendedQueryBuilder', () => {
 
     const sql = builder.buildBlendedQuery(buildContext([chain], ['order_names']));
 
-    expect(sql).toContain("LISTAGG(CAST(order_name AS VARCHAR), ', ') AS order_names");
+    expect(sql).toContain(
+      "LISTAGG(CAST(order_name AS VARCHAR), ', ') WITHIN GROUP (ORDER BY order_name) AS order_names"
+    );
     expect(sql).not.toContain('STRING_AGG');
     expect(sql).not.toContain('ARRAY_JOIN');
     expect(sql).not.toContain('COLLECT_LIST');

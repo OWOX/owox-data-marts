@@ -16,6 +16,7 @@ import { RunType } from '../../common/scheduler/shared/types';
 import { DataMart } from '../entities/data-mart.entity';
 import { Report } from '../entities/report.entity';
 import { ReportRun } from '../models/report-run.model';
+import { logBlendedSqlIfNeeded } from '../report-run-logging/log-blended-sql';
 import { createReportRunLogger, ReportRunLogger } from '../report-run-logging/report-run-logger';
 import { BlendedReportDataService } from '../services/blended-report-data.service';
 import { DataMartService } from '../services/data-mart.service';
@@ -201,7 +202,7 @@ export class RunReportService {
       // joins) or a column filter (for native-only projections). Readers
       // receive the result via PrepareReportDataOptions.
       const blendingDecision = await this.blendedReportDataService.resolveBlendingDecision(report);
-      this.blendedReportDataService.logBlendedSqlIfNeeded(blendingDecision, reportRunLogger);
+      logBlendedSqlIfNeeded(blendingDecision, reportRunLogger);
       const reportDataDescription = await reportReader.prepareReportData(report, {
         sqlOverride: blendingDecision.needsBlending ? blendingDecision.blendedSql : undefined,
         columnFilter: blendingDecision.columnFilter,

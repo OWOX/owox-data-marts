@@ -11,7 +11,7 @@ jest.mock('../../idp/facades/idp-projections.facade', () => ({
   IdpProjectionsFacade: jest.fn(),
 }));
 
-import { ForbiddenException } from '@nestjs/common';
+import { ForbiddenException, UnauthorizedException } from '@nestjs/common';
 import { CreateDataMartRelationshipService } from './create-data-mart-relationship.service';
 import { CreateRelationshipCommand } from '../dto/domain/create-relationship.command';
 import { EntityType, Action } from '../services/access-decision';
@@ -48,7 +48,7 @@ describe('CreateDataMartRelationshipService', () => {
       fetchCreatedByUser: jest.fn().mockResolvedValue(null),
     };
     const mapper = {
-      toResponse: jest.fn().mockReturnValue({ id: 'rel-1' }),
+      toDomainDto: jest.fn().mockReturnValue({ id: 'rel-1' }),
     };
     const accessDecisionService = {
       canAccess: jest
@@ -78,8 +78,8 @@ describe('CreateDataMartRelationshipService', () => {
       'dm-target',
       'alias1',
       [],
-      'user-1',
       'proj-1',
+      'user-1',
       ['editor']
     );
 
@@ -102,7 +102,11 @@ describe('CreateDataMartRelationshipService', () => {
       Action.EDIT,
       'proj-1'
     );
-    expect(relationshipService.create).toHaveBeenCalled();
+    expect(relationshipService.create).toHaveBeenCalledWith(
+      command,
+      sourceDataMart,
+      targetDataMart
+    );
   });
 
   it('should throw ForbiddenException when user lacks EDIT on source DataMart', async () => {
@@ -113,8 +117,8 @@ describe('CreateDataMartRelationshipService', () => {
       'dm-target',
       'alias1',
       [],
-      'user-1',
       'proj-1',
+      'user-1',
       ['viewer']
     );
 
@@ -129,29 +133,33 @@ describe('CreateDataMartRelationshipService', () => {
       'dm-target',
       'alias1',
       [],
-      'user-1',
       'proj-1',
+      'user-1',
       ['editor']
     );
 
     await expect(service.run(command)).rejects.toThrow(ForbiddenException);
   });
 
-  it('should skip access check when userId is empty', async () => {
-    const { service, accessDecisionService } = createService([false, false]);
+  it('throws UnauthorizedException when userId is empty', async () => {
+    const { service, accessDecisionService, dataMartService, relationshipService } = createService([
+      true,
+      true,
+    ]);
 
     const command = new CreateRelationshipCommand(
       'dm-source',
       'dm-target',
       'alias1',
       [],
-      '',
       'proj-1',
+      '',
       []
     );
 
-    await service.run(command);
-
+    await expect(service.run(command)).rejects.toThrow(UnauthorizedException);
     expect(accessDecisionService.canAccess).not.toHaveBeenCalled();
+    expect(dataMartService.getByIdAndProjectId).not.toHaveBeenCalled();
+    expect(relationshipService.validateNoSelfReference).not.toHaveBeenCalled();
   });
 });

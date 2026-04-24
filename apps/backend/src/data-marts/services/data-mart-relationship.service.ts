@@ -11,10 +11,7 @@ import {
 import { DataMartSchema } from '../data-storage-types/data-mart-schema.type';
 import { DataMart } from '../entities/data-mart.entity';
 import { DataMartRelationship } from '../entities/data-mart-relationship.entity';
-import { DataStorage } from '../entities/data-storage.entity';
-import { JoinCondition } from '../dto/schemas/relationship-schemas';
-
-const MAX_CYCLE_DEPTH = 10;
+import { JoinCondition } from '../dto/schemas/join-condition.schema';
 
 @Injectable()
 export class DataMartRelationshipService {
@@ -25,21 +22,20 @@ export class DataMartRelationshipService {
 
   async create(
     command: CreateRelationshipCommand,
-    sourceDataMart: DataMart
+    sourceDataMart: DataMart,
+    targetDataMart: DataMart
   ): Promise<DataMartRelationship> {
     const relationship = this.repository.create({
-      sourceDataMart: { id: command.sourceDataMartId } as DataMart,
-      targetDataMart: { id: command.targetDataMartId } as DataMart,
-      dataStorage: { id: sourceDataMart.storage.id } as DataStorage,
+      sourceDataMart,
+      targetDataMart,
+      dataStorage: sourceDataMart.storage,
       targetAlias: command.targetAlias,
       joinConditions: command.joinConditions,
       projectId: command.projectId,
       createdById: command.userId,
     });
 
-    const saved = await this.repository.save(relationship);
-    const reloaded = await this.findById(saved.id);
-    return reloaded ?? saved;
+    return this.repository.save(relationship);
   }
 
   // Relations are loaded via `eager: true` on the entity; passing `relations: [...]`
@@ -51,9 +47,9 @@ export class DataMartRelationshipService {
     });
   }
 
-  async findByStorageId(storageId: string): Promise<DataMartRelationship[]> {
+  async findByStorageId(storageId: string, projectId: string): Promise<DataMartRelationship[]> {
     return this.repository.find({
-      where: { dataStorage: { id: storageId } },
+      where: { dataStorage: { id: storageId }, projectId },
       order: { createdAt: 'ASC' },
     });
   }
@@ -177,9 +173,10 @@ export class DataMartRelationshipService {
   async detectCycles(
     sourceDataMartId: string,
     targetDataMartId: string,
-    storageId: string
+    storageId: string,
+    projectId: string
   ): Promise<boolean> {
-    const allRelationships = await this.findByStorageId(storageId);
+    const allRelationships = await this.findByStorageId(storageId, projectId);
 
     // Adding source → target creates a cycle iff target can already reach source via
     // existing edges — so the adjacency list excludes the proposed edge.
@@ -193,19 +190,15 @@ export class DataMartRelationshipService {
       adjacency.get(from)!.add(to);
     }
 
-    return this.dfsCanReach(adjacency, targetDataMartId, sourceDataMartId, 0);
+    return this.dfsCanReach(adjacency, targetDataMartId, sourceDataMartId, new Set());
   }
 
   private dfsCanReach(
     adjacency: Map<string, Set<string>>,
     current: string,
     target: string,
-    depth: number,
-    visited: Set<string> = new Set()
+    visited: Set<string>
   ): boolean {
-    if (depth > MAX_CYCLE_DEPTH) {
-      return false;
-    }
     if (current === target) {
       return true;
     }
@@ -221,7 +214,7 @@ export class DataMartRelationshipService {
     }
 
     for (const neighbor of neighbors) {
-      if (this.dfsCanReach(adjacency, neighbor, target, depth + 1, visited)) {
+      if (this.dfsCanReach(adjacency, neighbor, target, visited)) {
         return true;
       }
     }

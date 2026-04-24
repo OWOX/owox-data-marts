@@ -1,13 +1,18 @@
-import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
+import {
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { Transactional } from 'typeorm-transactional';
 import { UpdateRelationshipCommand } from '../dto/domain/update-relationship.command';
-import { RelationshipResponseApiDto } from '../dto/presentation/relationship-response-api.dto';
+import { RelationshipDto } from '../dto/domain/relationship.dto';
 import { RelationshipMapper } from '../mappers/relationship.mapper';
+import { AccessDecisionService, Action, EntityType } from '../services/access-decision';
 import { DataMartRelationshipService } from '../services/data-mart-relationship.service';
 import { DataMartService } from '../services/data-mart.service';
 import { ReportDataCacheService } from '../services/report-data-cache.service';
 import { UserProjectionsFetcherService } from '../services/user-projections-fetcher.service';
-import { AccessDecisionService, EntityType, Action } from '../services/access-decision';
 
 @Injectable()
 export class UpdateDataMartRelationshipService {
@@ -21,7 +26,13 @@ export class UpdateDataMartRelationshipService {
   ) {}
 
   @Transactional()
-  async run(command: UpdateRelationshipCommand): Promise<RelationshipResponseApiDto> {
+  async run(command: UpdateRelationshipCommand): Promise<RelationshipDto> {
+    if (!command.userId) {
+      throw new UnauthorizedException('Authenticated user is required');
+    }
+
+    await this.dataMartService.getByIdAndProjectId(command.sourceDataMartId, command.projectId);
+
     const relationship = await this.relationshipService.findById(command.relationshipId);
 
     if (!relationship || relationship.sourceDataMart.id !== command.sourceDataMartId) {
@@ -30,20 +41,18 @@ export class UpdateDataMartRelationshipService {
       );
     }
 
-    if (command.userId) {
-      const canEdit = await this.accessDecisionService.canAccess(
-        command.userId,
-        command.roles,
-        EntityType.DATA_MART,
-        relationship.sourceDataMart.id,
-        Action.EDIT,
-        command.projectId
+    const canEdit = await this.accessDecisionService.canAccess(
+      command.userId,
+      command.roles,
+      EntityType.DATA_MART,
+      relationship.sourceDataMart.id,
+      Action.EDIT,
+      command.projectId
+    );
+    if (!canEdit) {
+      throw new ForbiddenException(
+        'You do not have permission to manage relationships of this DataMart'
       );
-      if (!canEdit) {
-        throw new ForbiddenException(
-          'You do not have permission to manage relationships of this DataMart'
-        );
-      }
     }
 
     const oldAlias = relationship.targetAlias;
@@ -66,7 +75,6 @@ export class UpdateDataMartRelationshipService {
 
     const updated = await this.relationshipService.update(relationship, command);
 
-    // Cascade alias rename in blendedFieldsConfig paths
     if (command.targetAlias !== undefined && command.targetAlias !== oldAlias) {
       await this.cascadeAliasRename(command.sourceDataMartId, oldAlias, command.targetAlias);
     }
@@ -74,7 +82,7 @@ export class UpdateDataMartRelationshipService {
     await this.reportDataCacheService.invalidateByDataMartId(command.sourceDataMartId);
 
     const createdByUser = await this.userProjectionsFetcherService.fetchCreatedByUser(updated);
-    return this.mapper.toResponse(updated, createdByUser);
+    return this.mapper.toDomainDto(updated, createdByUser);
   }
 
   private async cascadeAliasRename(

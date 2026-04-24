@@ -10,7 +10,12 @@ jest.mock('@owox/internal-helpers', () => ({
   },
 }));
 
+jest.mock('../../../report-run-logging/log-blended-sql', () => ({
+  logBlendedSqlIfNeeded: jest.fn(),
+}));
+
 // Import after mocking
+import { logBlendedSqlIfNeeded } from '../../../report-run-logging/log-blended-sql';
 import { SystemTimeService } from '../../../../common/scheduler/services/system-time.service';
 import { BlendedReportDataService } from '../../../services/blended-report-data.service';
 import { ConsumptionTrackingService } from '../../../services/consumption-tracking.service';
@@ -74,8 +79,8 @@ describe('LookerStudioConnectorApiService', () => {
 
     blendedReportDataService = {
       resolveBlendingDecision: jest.fn().mockResolvedValue({ needsBlending: false }),
-      logBlendedSqlIfNeeded: jest.fn(),
     } as unknown as jest.Mocked<BlendedReportDataService>;
+    (logBlendedSqlIfNeeded as jest.Mock).mockReset();
 
     systemTimeService = {
       now: jest.fn().mockReturnValue(new Date('2026-04-17T00:00:00.000Z').toISOString()),
@@ -434,7 +439,7 @@ describe('LookerStudioConnectorApiService', () => {
       await service.getData(createMockRequest(false));
 
       expect(blendedReportDataService.resolveBlendingDecision).not.toHaveBeenCalled();
-      expect(blendedReportDataService.logBlendedSqlIfNeeded).toHaveBeenCalledWith(
+      expect(logBlendedSqlIfNeeded).toHaveBeenCalledWith(
         decision,
         expect.objectContaining({ log: expect.any(Function), asArrays: expect.any(Function) })
       );
@@ -450,12 +455,12 @@ describe('LookerStudioConnectorApiService', () => {
 
       await service.getData(createMockRequest(true));
 
-      expect(blendedReportDataService.logBlendedSqlIfNeeded).not.toHaveBeenCalled();
+      expect(logBlendedSqlIfNeeded).not.toHaveBeenCalled();
     });
 
     it('passes collected logs to finish when blending produced SQL', async () => {
       setupRun({ needsBlending: true, blendedSql: 'SELECT 1' });
-      blendedReportDataService.logBlendedSqlIfNeeded.mockImplementation((decision, logger) => {
+      (logBlendedSqlIfNeeded as jest.Mock).mockImplementation((decision, logger) => {
         if (decision?.needsBlending && decision.blendedSql && logger) {
           logger.log({ type: 'joined-data-marts-sql', sql: decision.blendedSql });
         }
@@ -487,7 +492,7 @@ describe('LookerStudioConnectorApiService', () => {
 
       await service.getData(createMockRequest(false));
 
-      expect(blendedReportDataService.logBlendedSqlIfNeeded).toHaveBeenCalled();
+      expect(logBlendedSqlIfNeeded).toHaveBeenCalled();
       expect(reportRunService.finish).toHaveBeenCalledWith(
         expect.anything(),
         expect.objectContaining({ logs: [], errors: [] })

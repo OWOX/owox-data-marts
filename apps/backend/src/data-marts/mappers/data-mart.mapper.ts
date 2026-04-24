@@ -27,6 +27,7 @@ import { RunDataMartCommand } from '../dto/domain/run-data-mart.command';
 import { SqlDryRunResult } from '../dto/domain/sql-dry-run-result.dto';
 import { SqlDryRunCommand } from '../dto/domain/sql-dry-run.command';
 import { UpdateDataMartDefinitionCommand } from '../dto/domain/update-data-mart-definition.command';
+import { GetBlendableSchemaCommand } from '../dto/domain/get-blendable-schema.command';
 import { UpdateBlendedFieldsConfigCommand } from '../dto/domain/update-blended-fields-config.command';
 import { UpdateDataMartDescriptionCommand } from '../dto/domain/update-data-mart-description.command';
 import { UpdateDataMartSchemaCommand } from '../dto/domain/update-data-mart-schema.command';
@@ -345,6 +346,18 @@ export class DataMartMapper {
       id,
       context.projectId,
       dto.description,
+      context.userId,
+      context.roles ?? []
+    );
+  }
+
+  toGetBlendableSchemaCommand(
+    dataMartId: string,
+    context: AuthorizationContext
+  ): GetBlendableSchemaCommand {
+    return new GetBlendableSchemaCommand(
+      dataMartId,
+      context.projectId,
       context.userId,
       context.roles ?? []
     );

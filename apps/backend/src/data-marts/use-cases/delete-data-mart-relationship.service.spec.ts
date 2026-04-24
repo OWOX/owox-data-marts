@@ -3,9 +3,9 @@ jest.mock('typeorm-transactional', () => ({
     descriptor,
 }));
 
-import { ForbiddenException, NotFoundException } from '@nestjs/common';
+import { ForbiddenException, NotFoundException, UnauthorizedException } from '@nestjs/common';
 import { DeleteDataMartRelationshipService } from './delete-data-mart-relationship.service';
-import { GetRelationshipCommand } from '../dto/domain/get-relationship.command';
+import { DeleteRelationshipCommand } from '../dto/domain/delete-relationship.command';
 import { EntityType, Action } from '../services/access-decision';
 
 describe('DeleteDataMartRelationshipService', () => {
@@ -19,6 +19,9 @@ describe('DeleteDataMartRelationshipService', () => {
       findById: jest.fn().mockResolvedValue(foundRelationship),
       delete: jest.fn().mockResolvedValue(undefined),
     };
+    const dataMartService = {
+      getByIdAndProjectId: jest.fn().mockResolvedValue({ id: 'dm-source' }),
+    };
     const reportDataCacheService = {
       invalidateByDataMartId: jest.fn().mockResolvedValue(undefined),
     };
@@ -28,11 +31,18 @@ describe('DeleteDataMartRelationshipService', () => {
 
     const service = new DeleteDataMartRelationshipService(
       relationshipService as never,
+      dataMartService as never,
       reportDataCacheService as never,
       accessDecisionService as never
     );
 
-    return { service, relationshipService, reportDataCacheService, accessDecisionService };
+    return {
+      service,
+      relationshipService,
+      dataMartService,
+      reportDataCacheService,
+      accessDecisionService,
+    };
   };
 
   beforeEach(() => jest.clearAllMocks());
@@ -40,7 +50,7 @@ describe('DeleteDataMartRelationshipService', () => {
   it('should delete relationship when user has EDIT access on source DataMart', async () => {
     const { service, relationshipService, accessDecisionService } = createService(true);
 
-    const command = new GetRelationshipCommand('rel-1', 'dm-source', 'user-1', 'proj-1', [
+    const command = new DeleteRelationshipCommand('rel-1', 'dm-source', 'proj-1', 'user-1', [
       'editor',
     ]);
 
@@ -60,7 +70,7 @@ describe('DeleteDataMartRelationshipService', () => {
   it('should throw ForbiddenException when user lacks EDIT on source DataMart', async () => {
     const { service } = createService(false);
 
-    const command = new GetRelationshipCommand('rel-1', 'dm-source', 'user-1', 'proj-1', [
+    const command = new DeleteRelationshipCommand('rel-1', 'dm-source', 'proj-1', 'user-1', [
       'viewer',
     ]);
 
@@ -70,20 +80,38 @@ describe('DeleteDataMartRelationshipService', () => {
   it('should throw NotFoundException when relationship not found', async () => {
     const { service } = createService(true, null as never);
 
-    const command = new GetRelationshipCommand('rel-1', 'dm-source', 'user-1', 'proj-1', [
+    const command = new DeleteRelationshipCommand('rel-1', 'dm-source', 'proj-1', 'user-1', [
       'editor',
     ]);
 
     await expect(service.run(command)).rejects.toThrow(NotFoundException);
   });
 
-  it('should skip access check when userId is empty', async () => {
-    const { service, accessDecisionService } = createService(false);
+  it('throws UnauthorizedException when userId is empty', async () => {
+    const { service, accessDecisionService, relationshipService, dataMartService } =
+      createService(true);
 
-    const command = new GetRelationshipCommand('rel-1', 'dm-source', '', 'proj-1', []);
+    const command = new DeleteRelationshipCommand('rel-1', 'dm-source', 'proj-1', '', []);
 
-    await service.run(command);
+    await expect(service.run(command)).rejects.toThrow(UnauthorizedException);
+    expect(accessDecisionService.canAccess).not.toHaveBeenCalled();
+    expect(relationshipService.findById).not.toHaveBeenCalled();
+    expect(dataMartService.getByIdAndProjectId).not.toHaveBeenCalled();
+  });
 
+  it('throws NotFoundException when source data mart is not in the caller project', async () => {
+    const { service, dataMartService, relationshipService, accessDecisionService } =
+      createService(true);
+    dataMartService.getByIdAndProjectId.mockRejectedValueOnce(
+      new NotFoundException('DataMart not found')
+    );
+
+    const command = new DeleteRelationshipCommand('rel-1', 'dm-source', 'other-proj', 'user-1', [
+      'editor',
+    ]);
+
+    await expect(service.run(command)).rejects.toThrow(NotFoundException);
+    expect(relationshipService.findById).not.toHaveBeenCalled();
     expect(accessDecisionService.canAccess).not.toHaveBeenCalled();
   });
 });

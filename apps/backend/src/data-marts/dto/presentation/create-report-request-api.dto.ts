@@ -1,6 +1,7 @@
 import { ArrayMaxSize, IsArray, IsNotEmpty, IsOptional, IsString, IsObject } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 import { DataDestinationConfig } from '../../data-destination-types/data-destination-config.type';
+import { ReportColumnConfig } from '../schemas/report-column-config.schema';
 
 export class CreateReportRequestApiDto {
   @ApiProperty({ example: 'My Report' })
@@ -40,5 +41,5 @@ export class CreateReportRequestApiDto {
   @IsOptional()
   @IsArray()
   @IsString({ each: true })
-  columnConfig?: string[] | null;
+  columnConfig?: ReportColumnConfig;
 }

@@ -1,5 +1,6 @@
-import { Injectable, ForbiddenException } from '@nestjs/common';
+import { Injectable, ForbiddenException, UnauthorizedException } from '@nestjs/common';
 import { Transactional } from 'typeorm-transactional';
+import { deepEqual } from '../../common/utils/deep-equal.util';
 import { DataMartMapper } from '../mappers/data-mart.mapper';
 import { DataMartDto } from '../dto/domain/data-mart.dto';
 import { DataMartService } from '../services/data-mart.service';
@@ -18,25 +19,26 @@ export class UpdateBlendedFieldsConfigService {
 
   @Transactional()
   async run(command: UpdateBlendedFieldsConfigCommand): Promise<DataMartDto> {
+    if (!command.userId) {
+      throw new UnauthorizedException('Authenticated user is required');
+    }
+
     const dataMart = await this.dataMartService.getByIdAndProjectId(command.id, command.projectId);
 
-    if (command.userId) {
-      const canEdit = await this.accessDecisionService.canAccess(
-        command.userId,
-        command.roles,
-        EntityType.DATA_MART,
-        command.id,
-        Action.EDIT,
-        command.projectId
-      );
-      if (!canEdit) {
-        throw new ForbiddenException('You do not have permission to edit this DataMart');
-      }
+    const canEdit = await this.accessDecisionService.canAccess(
+      command.userId,
+      command.roles,
+      EntityType.DATA_MART,
+      command.id,
+      Action.EDIT,
+      command.projectId
+    );
+    if (!canEdit) {
+      throw new ForbiddenException('You do not have permission to edit this DataMart');
     }
 
     const nextConfig = command.blendedFieldsConfig ?? undefined;
-    const changed =
-      JSON.stringify(dataMart.blendedFieldsConfig ?? null) !== JSON.stringify(nextConfig ?? null);
+    const changed = !deepEqual(dataMart.blendedFieldsConfig ?? null, nextConfig ?? null);
 
     if (changed) {
       dataMart.blendedFieldsConfig = nextConfig;

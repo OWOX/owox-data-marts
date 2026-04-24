@@ -4,11 +4,21 @@ import {
   ResolvedRelationshipChain,
 } from './blended-query-builder.interface';
 import { DataStorageType } from '../enums/data-storage-type.enum';
-import { AggregateFunction } from '../../dto/schemas/relationship-schemas';
+import { AggregateFunction } from '../../dto/schemas/aggregate-function.schema';
 
 interface BlendTreeNode {
   chain: ResolvedRelationshipChain;
   children: BlendTreeNode[];
+}
+
+// `title`/`url` flow into single-line SQL comments inside generated queries;
+// embedded newlines would close the comment and expose the rest of the input as
+// executable SQL, so strip any line break or additional comment marker.
+function sanitizeSqlComment(text: string): string {
+  return text
+    .replace(/[\r\n]+/g, ' ')
+    .replace(/--/g, '—')
+    .trim();
 }
 
 /**
@@ -293,7 +303,9 @@ export abstract class AbstractBlendedQueryBuilder implements BlendedQueryBuilder
     // dot-notation (BigQuery nested struct path) — projecting `user.email`
     // directly would rename it to `email`, breaking downstream references.
     const safeForExplicitProjection = columns.length > 0 && columns.every(c => !c.includes('.'));
-    const header = `  -- ${title}\n  -- ${url}\n  ${this.quoteIdentifier(alias)} AS (\n`;
+    const safeTitle = sanitizeSqlComment(title);
+    const safeUrl = sanitizeSqlComment(url);
+    const header = `  -- ${safeTitle}\n  -- ${safeUrl}\n  ${this.quoteIdentifier(alias)} AS (\n`;
     if (!safeForExplicitProjection) {
       return `${header}    SELECT * FROM ${tableReference}\n  )`;
     }

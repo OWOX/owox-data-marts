@@ -5,7 +5,7 @@ import { DataStorageDto } from './data-storage.dto';
 import { DataMartStatus } from '../../enums/data-mart-status.enum';
 import { DataMartSchema } from '../../data-storage-types/data-mart-schema.type';
 import { ConnectorState as ConnectorStateData } from '../../connector-types/interfaces/connector-state';
-import { BlendedFieldsConfig } from '../schemas/blended-fields-config.schemas';
+import { BlendedFieldsConfig } from '../schemas/blended-fields-config.schema';
 
 export class DataMartDto {
   constructor(

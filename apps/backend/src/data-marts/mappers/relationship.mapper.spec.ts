@@ -14,8 +14,14 @@ const mockContext: AuthorizationContext = {
   projectId: 'project-456',
 };
 
-const mockSourceDataMart = { id: 'source-dm-1', title: 'Source Mart' } as DataMart;
-const mockTargetDataMart = { id: 'target-dm-2', title: 'Target Mart' } as DataMart;
+const mockSourceDataMart = {
+  id: 'source-dm-1',
+  title: 'Source Mart',
+} as DataMart;
+const mockTargetDataMart = {
+  id: 'target-dm-2',
+  title: 'Target Mart',
+} as DataMart;
 const mockDataStorage = { id: 'storage-1' } as DataStorage;
 
 const mockEntity: DataMartRelationship = {
@@ -101,51 +107,79 @@ describe('RelationshipMapper', () => {
     });
   });
 
-  describe('toResponse', () => {
-    it('should map entity to RelationshipResponseApiDto', () => {
-      const response = mapper.toResponse(mockEntity);
+  describe('toDomainDto', () => {
+    it('should map entity to RelationshipDto', () => {
+      const dto = mapper.toDomainDto(mockEntity);
 
-      expect(response.id).toBe('rel-1');
-      expect(response.dataStorageId).toBe('storage-1');
-      expect(response.sourceDataMart).toEqual({
-        id: 'source-dm-1',
-        title: 'Source Mart',
-        description: undefined,
-      });
-      expect(response.targetDataMart).toEqual({
-        id: 'target-dm-2',
-        title: 'Target Mart',
-        description: undefined,
-      });
-      expect(response.targetAlias).toBe('orders');
-      expect(response.joinConditions).toEqual([
+      expect(dto.id).toBe('rel-1');
+      expect(dto.dataStorageId).toBe('storage-1');
+      expect(dto.sourceDataMart.id).toBe('source-dm-1');
+      expect(dto.sourceDataMart.title).toBe('Source Mart');
+      expect(dto.targetDataMart.id).toBe('target-dm-2');
+      expect(dto.targetDataMart.title).toBe('Target Mart');
+      expect(dto.targetAlias).toBe('orders');
+      expect(dto.joinConditions).toEqual([
         { sourceFieldName: 'user_id', targetFieldName: 'user_id' },
       ]);
-      expect(response.createdById).toBe('user-123');
-      expect(response.createdAt).toEqual(new Date('2024-01-01T00:00:00.000Z'));
-      expect(response.modifiedAt).toEqual(new Date('2024-01-02T00:00:00.000Z'));
+      expect(dto.createdById).toBe('user-123');
+      expect(dto.createdAt).toEqual(new Date('2024-01-01T00:00:00.000Z'));
+      expect(dto.modifiedAt).toEqual(new Date('2024-01-02T00:00:00.000Z'));
+      expect(dto.createdByUser).toBeNull();
     });
   });
 
-  describe('toResponseList', () => {
-    it('should map array of entities to array of RelationshipResponseApiDto', () => {
+  describe('toDomainDtoList', () => {
+    it('should map array of entities to array of RelationshipDto', () => {
       const secondEntity: DataMartRelationship = {
         ...mockEntity,
         id: 'rel-2',
         targetAlias: 'sessions',
       };
 
-      const responses = mapper.toResponseList([mockEntity, secondEntity]);
+      const dtos = mapper.toDomainDtoList([mockEntity, secondEntity]);
 
-      expect(responses).toHaveLength(2);
-      expect(responses[0].id).toBe('rel-1');
-      expect(responses[1].id).toBe('rel-2');
-      expect(responses[1].targetAlias).toBe('sessions');
+      expect(dtos).toHaveLength(2);
+      expect(dtos[0].id).toBe('rel-1');
+      expect(dtos[1].id).toBe('rel-2');
+      expect(dtos[1].targetAlias).toBe('sessions');
     });
 
     it('should return empty array for empty input', () => {
-      const responses = mapper.toResponseList([]);
-      expect(responses).toHaveLength(0);
+      const dtos = mapper.toDomainDtoList([]);
+      expect(dtos).toHaveLength(0);
+    });
+  });
+
+  describe('toResponse', () => {
+    it('should map RelationshipDto to RelationshipResponseApiDto', () => {
+      const dto = mapper.toDomainDto(mockEntity);
+      const response = mapper.toResponse(dto);
+
+      expect(response.id).toBe(dto.id);
+      expect(response.dataStorageId).toBe(dto.dataStorageId);
+      expect(response.sourceDataMart).toEqual(dto.sourceDataMart);
+      expect(response.targetDataMart).toEqual(dto.targetDataMart);
+      expect(response.targetAlias).toBe(dto.targetAlias);
+      expect(response.joinConditions).toEqual(dto.joinConditions);
+    });
+  });
+
+  describe('toResponseList', () => {
+    it('maps an array of RelationshipDto to an array of API DTOs', () => {
+      const dtos = mapper.toDomainDtoList([
+        mockEntity,
+        { ...mockEntity, id: 'rel-2', targetAlias: 'sessions' },
+      ]);
+
+      const responses = mapper.toResponseList(dtos);
+
+      expect(responses).toHaveLength(2);
+      expect(responses[0].id).toBe('rel-1');
+      expect(responses[1].targetAlias).toBe('sessions');
+    });
+
+    it('returns empty array for empty input', () => {
+      expect(mapper.toResponseList([])).toHaveLength(0);
     });
   });
 });

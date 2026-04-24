@@ -5,7 +5,7 @@ import { BusinessViolationException } from '../../common/exceptions/business-vio
 import { CreateRelationshipCommand } from '../dto/domain/create-relationship.command';
 import { DataMartSchema } from '../data-storage-types/data-mart-schema.type';
 import { DataMartSchemaFieldStatus } from '../data-storage-types/enums/data-mart-schema-field-status.enum';
-import { JoinCondition } from '../dto/schemas/relationship-schemas';
+import { JoinCondition } from '../dto/schemas/join-condition.schema';
 import { DataMart } from '../entities/data-mart.entity';
 import { DataMartRelationship } from '../entities/data-mart-relationship.entity';
 import { DataStorage } from '../entities/data-storage.entity';
@@ -87,7 +87,7 @@ describe('DataMartRelationshipService', () => {
       const existingRelationship = makeRelationship('dm-A', 'dm-B');
       repository.find.mockResolvedValue([existingRelationship]);
 
-      const hasCycle = await service.detectCycles('dm-B', 'dm-A', 'storage-1');
+      const hasCycle = await service.detectCycles('dm-B', 'dm-A', 'storage-1', 'project-1');
 
       expect(hasCycle).toBe(true);
     });
@@ -97,7 +97,7 @@ describe('DataMartRelationshipService', () => {
       const existingRelationship = makeRelationship('dm-A', 'dm-B');
       repository.find.mockResolvedValue([existingRelationship]);
 
-      const hasCycle = await service.detectCycles('dm-A', 'dm-C', 'storage-1');
+      const hasCycle = await service.detectCycles('dm-A', 'dm-C', 'storage-1', 'project-1');
 
       expect(hasCycle).toBe(false);
     });
@@ -107,7 +107,7 @@ describe('DataMartRelationshipService', () => {
       const relBC = makeRelationship('dm-B', 'dm-C', { id: 'rel-BC' });
       repository.find.mockResolvedValue([relAB, relBC]);
 
-      const hasCycle = await service.detectCycles('dm-C', 'dm-A', 'storage-1');
+      const hasCycle = await service.detectCycles('dm-C', 'dm-A', 'storage-1', 'project-1');
 
       expect(hasCycle).toBe(true);
     });
@@ -115,9 +115,27 @@ describe('DataMartRelationshipService', () => {
     it('returns false when there are no existing relationships', async () => {
       repository.find.mockResolvedValue([]);
 
-      const hasCycle = await service.detectCycles('dm-A', 'dm-B', 'storage-1');
+      const hasCycle = await service.detectCycles('dm-A', 'dm-B', 'storage-1', 'project-1');
 
       expect(hasCycle).toBe(false);
+    });
+
+    it('detects cycles deeper than 10 hops (no MAX_CYCLE_DEPTH false-negative)', async () => {
+      const chainLength = 15;
+      const existing: DataMartRelationship[] = [];
+      for (let i = 0; i < chainLength - 1; i++) {
+        existing.push(makeRelationship(`dm-${i}`, `dm-${i + 1}`, { id: `rel-${i}-${i + 1}` }));
+      }
+      repository.find.mockResolvedValue(existing);
+
+      const hasCycle = await service.detectCycles(
+        `dm-${chainLength - 1}`,
+        'dm-0',
+        'storage-1',
+        'project-1'
+      );
+
+      expect(hasCycle).toBe(true);
     });
   });
 
@@ -295,31 +313,30 @@ describe('DataMartRelationshipService', () => {
   });
 
   describe('create', () => {
-    it('saves entity with correct fields from command', async () => {
+    it('passes hydrated source/target data marts and storage through to repository.create', async () => {
       const command = new CreateRelationshipCommand(
         'dm-source',
         'dm-target',
         'my_alias',
         [],
-        'user-1',
         'project-1',
+        'user-1',
         []
       );
-      const sourceDataMart = {
-        id: 'dm-source',
-        storage: { id: 'storage-1' } as DataStorage,
-      } as DataMart;
+      const storage = { id: 'storage-1' } as DataStorage;
+      const sourceDataMart = { id: 'dm-source', storage } as DataMart;
+      const targetDataMart = { id: 'dm-target', storage } as DataMart;
 
       const createdEntity = makeRelationship('dm-source', 'dm-target');
       repository.create.mockReturnValue(createdEntity);
       repository.save.mockResolvedValue(createdEntity);
 
-      const result = await service.create(command, sourceDataMart);
+      const result = await service.create(command, sourceDataMart, targetDataMart);
 
       expect(repository.create).toHaveBeenCalledWith({
-        sourceDataMart: { id: 'dm-source' },
-        targetDataMart: { id: 'dm-target' },
-        dataStorage: { id: 'storage-1' },
+        sourceDataMart,
+        targetDataMart,
+        dataStorage: storage,
         targetAlias: 'my_alias',
         joinConditions: [],
         projectId: 'project-1',
@@ -335,14 +352,13 @@ describe('DataMartRelationshipService', () => {
         'dm-target',
         'draft_alias',
         [],
-        'user-1',
         'project-1',
+        'user-1',
         []
       );
-      const sourceDataMart = {
-        id: 'dm-source',
-        storage: { id: 'storage-1' } as DataStorage,
-      } as DataMart;
+      const storage = { id: 'storage-1' } as DataStorage;
+      const sourceDataMart = { id: 'dm-source', storage } as DataMart;
+      const targetDataMart = { id: 'dm-target', storage } as DataMart;
 
       const createdEntity = makeRelationship('dm-source', 'dm-target', {
         targetAlias: 'draft_alias',
@@ -351,7 +367,7 @@ describe('DataMartRelationshipService', () => {
       repository.create.mockReturnValue(createdEntity);
       repository.save.mockResolvedValue(createdEntity);
 
-      const result = await service.create(command, sourceDataMart);
+      const result = await service.create(command, sourceDataMart, targetDataMart);
 
       expect(result.joinConditions).toEqual([]);
       expect(repository.save).toHaveBeenCalled();

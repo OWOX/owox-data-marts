@@ -15,6 +15,8 @@ import { BatchDataMartHealthStatusRequestApiDto } from '../../dto/presentation/b
 import { BatchDataMartHealthStatusResponseApiDto } from '../../dto/presentation/batch-data-mart-health-status-response-api.dto';
 import { UpdateDataMartDescriptionApiDto } from '../../dto/presentation/update-data-mart-description-api.dto';
 import { UpdateDataMartTitleApiDto } from '../../dto/presentation/update-data-mart-title-api.dto';
+import { BlendableSchemaDto } from '../../dto/domain/blendable-schema.dto';
+import { UpdateBlendedFieldsConfigApiDto } from '../../dto/presentation/update-blended-fields-config-api.dto';
 import { UpdateDataMartDefinitionApiDto } from '../../dto/presentation/update-data-mart-definition-api.dto';
 import { UpdateDataMartSchemaApiDto } from '../../dto/presentation/update-data-mart-schema-api.dto';
 import { DataMartValidationResponseApiDto } from '../../dto/presentation/data-mart-validation-response-api.dto';
@@ -244,5 +246,26 @@ export function UpdateDataMartAvailabilitySpec() {
     ApiParam({ name: 'id', description: 'DataMart ID' }),
     ApiBody({ type: UpdateDataMartAvailabilityApiDto }),
     ApiNoContentResponse({ description: 'DataMart availability updated' })
+  );
+}
+
+export function UpdateBlendedFieldsConfigSpec() {
+  return applyDecorators(
+    ApiOperation({ summary: 'Update DataMart blended fields config' }),
+    ApiParam({ name: 'id', description: 'DataMart ID' }),
+    ApiBody({ type: UpdateBlendedFieldsConfigApiDto }),
+    ApiOkResponse({ type: DataMartResponseApiDto })
+  );
+}
+
+export function GetBlendableSchemaSpec() {
+  return applyDecorators(
+    ApiOperation({
+      summary: 'Get blendable schema for a DataMart',
+      description:
+        'Returns native fields, blended fields pulled from joined DataMarts, and the list of available sources reachable via relationships.',
+    }),
+    ApiParam({ name: 'id', description: 'DataMart ID' }),
+    ApiOkResponse({ type: BlendableSchemaDto })
   );
 }

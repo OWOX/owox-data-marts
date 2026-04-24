@@ -8,6 +8,7 @@ import { CachedReaderData } from '../../../dto/domain/cached-reader-data.dto';
 import { Report } from '../../../entities/report.entity';
 import { LookerReportRunEvent } from '../../../events/looker-report-run.event';
 import { LookerStudioReportRun } from '../../../models/looker-studio-report-run.model';
+import { logBlendedSqlIfNeeded } from '../../../report-run-logging/log-blended-sql';
 import {
   createReportRunLogger,
   ReportRunLogger,
@@ -191,10 +192,7 @@ export class LookerStudioConnectorApiService {
     }
 
     const reportRunLogger = createReportRunLogger(this.systemTimeService);
-    this.blendedReportDataService.logBlendedSqlIfNeeded(
-      cachedReader.blendingDecision,
-      reportRunLogger
-    );
+    logBlendedSqlIfNeeded(cachedReader.blendingDecision, reportRunLogger);
 
     try {
       await this.projectBalanceService.verifyCanPerformOperations(report.dataMart.projectId);
@@ -363,10 +361,7 @@ export class LookerStudioConnectorApiService {
     }
 
     const reportRunLogger = createReportRunLogger(this.systemTimeService);
-    this.blendedReportDataService.logBlendedSqlIfNeeded(
-      cachedReader.blendingDecision,
-      reportRunLogger
-    );
+    logBlendedSqlIfNeeded(cachedReader.blendingDecision, reportRunLogger);
 
     try {
       await this.projectBalanceService.verifyCanPerformOperations(report.dataMart.projectId);

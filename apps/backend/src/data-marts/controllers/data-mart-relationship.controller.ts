@@ -1,22 +1,21 @@
-import { Controller, Get, Post, Patch, Delete, Body, Param } from '@nestjs/common';
+import { Body, Controller, Delete, Get, HttpCode, Param, Patch, Post } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
-import { AuthContext, AuthorizationContext, Auth } from '../../idp';
-import { Role, Strategy } from '../../idp/types/role-config.types';
-import { RelationshipMapper } from '../mappers/relationship.mapper';
+import { Auth, AuthContext, AuthorizationContext, Role, Strategy } from '../../idp';
 import { CreateRelationshipRequestApiDto } from '../dto/presentation/create-relationship-request-api.dto';
-import { UpdateRelationshipRequestApiDto } from '../dto/presentation/update-relationship-request-api.dto';
 import { RelationshipResponseApiDto } from '../dto/presentation/relationship-response-api.dto';
+import { UpdateRelationshipRequestApiDto } from '../dto/presentation/update-relationship-request-api.dto';
+import { RelationshipMapper } from '../mappers/relationship.mapper';
 import { CreateDataMartRelationshipService } from '../use-cases/create-data-mart-relationship.service';
-import { UpdateDataMartRelationshipService } from '../use-cases/update-data-mart-relationship.service';
 import { DeleteDataMartRelationshipService } from '../use-cases/delete-data-mart-relationship.service';
-import { ListDataMartRelationshipsService } from '../use-cases/list-data-mart-relationships.service';
 import { GetDataMartRelationshipService } from '../use-cases/get-data-mart-relationship.service';
+import { ListDataMartRelationshipsService } from '../use-cases/list-data-mart-relationships.service';
+import { UpdateDataMartRelationshipService } from '../use-cases/update-data-mart-relationship.service';
 import {
   CreateRelationshipSpec,
-  ListRelationshipsByDataMartSpec,
-  GetRelationshipSpec,
-  UpdateRelationshipSpec,
   DeleteRelationshipSpec,
+  GetRelationshipSpec,
+  ListRelationshipsByDataMartSpec,
+  UpdateRelationshipSpec,
 } from './spec/data-mart-relationship.api';
 
 @Controller('data-marts/:dataMartId/relationships')
@@ -40,24 +39,33 @@ export class DataMartRelationshipController {
     @Body() dto: CreateRelationshipRequestApiDto
   ): Promise<RelationshipResponseApiDto> {
     const command = this.mapper.toCreateCommand(dataMartId, context, dto);
-    return this.createService.run(command);
+    const result = await this.createService.run(command);
+    return this.mapper.toResponse(result);
   }
 
   @Auth(Role.viewer(Strategy.PARSE))
   @Get()
   @ListRelationshipsByDataMartSpec()
-  async list(@Param('dataMartId') dataMartId: string): Promise<RelationshipResponseApiDto[]> {
-    return this.listService.run(dataMartId);
+  async list(
+    @AuthContext() context: AuthorizationContext,
+    @Param('dataMartId') dataMartId: string
+  ): Promise<RelationshipResponseApiDto[]> {
+    const command = this.mapper.toListCommand(dataMartId, context);
+    const result = await this.listService.run(command);
+    return this.mapper.toResponseList(result);
   }
 
   @Auth(Role.viewer(Strategy.PARSE))
   @Get(':id')
   @GetRelationshipSpec()
   async get(
+    @AuthContext() context: AuthorizationContext,
     @Param('dataMartId') dataMartId: string,
     @Param('id') id: string
   ): Promise<RelationshipResponseApiDto> {
-    return this.getService.run(id, dataMartId);
+    const command = this.mapper.toGetCommand(id, dataMartId, context);
+    const result = await this.getService.run(command);
+    return this.mapper.toResponse(result);
   }
 
   @Auth(Role.editor(Strategy.INTROSPECT))
@@ -70,18 +78,20 @@ export class DataMartRelationshipController {
     @Body() dto: UpdateRelationshipRequestApiDto
   ): Promise<RelationshipResponseApiDto> {
     const command = this.mapper.toUpdateCommand(id, dataMartId, context, dto);
-    return this.updateService.run(command);
+    const result = await this.updateService.run(command);
+    return this.mapper.toResponse(result);
   }
 
   @Auth(Role.editor(Strategy.INTROSPECT))
   @Delete(':id')
+  @HttpCode(204)
   @DeleteRelationshipSpec()
-  async remove(
+  async delete(
     @AuthContext() context: AuthorizationContext,
     @Param('dataMartId') dataMartId: string,
     @Param('id') id: string
   ): Promise<void> {
-    const command = this.mapper.toGetCommand(id, dataMartId, context);
+    const command = this.mapper.toDeleteCommand(id, dataMartId, context);
     await this.deleteService.run(command);
   }
 }

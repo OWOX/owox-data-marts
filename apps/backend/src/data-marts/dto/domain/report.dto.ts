@@ -2,6 +2,7 @@ import { DataMartDto } from './data-mart.dto';
 import { DataDestinationDto } from './data-destination.dto';
 import { ReportRunStatus } from '../../enums/report-run-status.enum';
 import { DataDestinationConfig } from '../../data-destination-types/data-destination-config.type';
+import { ReportColumnConfig } from '../schemas/report-column-config.schema';
 import { UserProjectionDto } from '../../../idp/dto/domain/user-projection.dto';
 
 export class ReportDto {
@@ -19,6 +20,6 @@ export class ReportDto {
     public readonly runsCount: number = 0,
     public readonly createdByUser: UserProjectionDto | null = null,
     public readonly ownerUsers: UserProjectionDto[] = [],
-    public readonly columnConfig?: string[] | null
+    public readonly columnConfig?: ReportColumnConfig
   ) {}
 }
