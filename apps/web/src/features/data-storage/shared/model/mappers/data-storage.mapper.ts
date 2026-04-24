@@ -9,6 +9,7 @@ export function mapDataStorageFromDto(dto: DataStorageResponseDto): DataStorage 
     ...mapper.mapFromDto(dto),
     availableForUse: dto.availableForUse,
     availableForMaintenance: dto.availableForMaintenance,
+    contexts: dto.contexts ?? [],
   };
 }
 

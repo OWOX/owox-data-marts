@@ -1,4 +1,11 @@
-import { Payload, AuthResult, Projects, ProjectMember } from './models.js';
+import {
+  Payload,
+  AuthResult,
+  Projects,
+  ProjectMember,
+  ProjectMemberInvitation,
+  Role,
+} from './models.js';
 import { Express, NextFunction, Request, Response } from 'express';
 
 /**
@@ -121,4 +128,49 @@ export interface IdpProvider {
     projectId: string,
     options?: GetProjectMembersOptions
   ): Promise<ProjectMember[]>;
+
+  /**
+   * Invite a new member to a project by email with the given role.
+   * `actorUserId` is the BI uid of the admin performing the invite — the
+   * remote IDP may require it for audit / authorization. Pure local providers
+   * (better-auth / none) may ignore it.
+   *
+   * The returned shape depends on provider semantics:
+   *  - `kind: 'email-sent'` — the provider has delivered the invitation email itself.
+   *  - `kind: 'magic-link'` — the provider produced a link that the caller must deliver.
+   *
+   * Implementations that do not support invitations should throw
+   * `IdpOperationNotSupportedError`.
+   */
+  inviteMember(
+    projectId: string,
+    email: string,
+    role: Role,
+    actorUserId: string
+  ): Promise<ProjectMemberInvitation>;
+
+  /**
+   * Remove a member from a project. Idempotent where possible; if the member
+   * does not exist, implementations should still complete successfully.
+   * `actorUserId` identifies the admin performing the removal.
+   *
+   * Implementations that do not support removal should throw
+   * `IdpOperationNotSupportedError`.
+   */
+  removeMember(projectId: string, userId: string, actorUserId: string): Promise<void>;
+
+  /**
+   * Change a member's role within a project. The new role must be one of the
+   * values supported by the shared `RoleEnum`. `actorUserId` identifies the
+   * admin performing the change.
+   *
+   * Implementations that do not support role changes should throw
+   * `IdpOperationNotSupportedError`.
+   */
+  changeMemberRole(
+    projectId: string,
+    userId: string,
+    newRole: Role,
+    actorUserId: string
+  ): Promise<void>;
 }

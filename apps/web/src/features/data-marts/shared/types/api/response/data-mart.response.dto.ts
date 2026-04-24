@@ -30,4 +30,5 @@ export interface DataMartResponseDto {
   availableForReporting?: boolean;
   availableForMaintenance?: boolean;
   blendedFieldsConfig?: BlendedFieldsConfig | null;
+  contexts?: { id: string; name: string }[];
 }

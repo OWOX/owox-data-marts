@@ -77,4 +77,16 @@ export class UpdateDataStorageApiDto {
   @IsOptional()
   @IsBoolean()
   availableForMaintenance?: boolean;
+
+  @ApiProperty({
+    type: [String],
+    required: false,
+    description: 'Context IDs attached to this storage (full replacement)',
+  })
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(100)
+  @IsString({ each: true })
+  @IsNotEmpty({ each: true })
+  contextIds?: string[];
 }

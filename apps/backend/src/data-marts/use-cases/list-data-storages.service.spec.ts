@@ -51,12 +51,16 @@ describe('ListDataStoragesService', () => {
         getByUserId: jest.fn().mockReturnValue(null),
       }),
     };
+    const contextAccessService = {
+      getRoleScope: jest.fn().mockResolvedValue('entire_project'),
+    };
 
     const service = new ListDataStoragesService(
       dataStorageRepo as never,
       dataMartRepo as never,
       mapper as never,
-      userProjectionsFetcherService as never
+      userProjectionsFetcherService as never,
+      contextAccessService as never
     );
 
     return { service, qb };

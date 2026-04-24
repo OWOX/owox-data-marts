@@ -49,6 +49,7 @@ describe('data-mart-validation', () => {
     createdByUser: null,
     businessOwnerUsers: [],
     technicalOwnerUsers: [],
+    contexts: [],
     ...overrides,
   });
 

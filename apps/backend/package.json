@@ -146,8 +146,30 @@
     "rootDir": "src",
     "testRegex": ".*\\.spec\\.ts$",
     "transform": {
-      "^.+\\.(t|j)s$": "ts-jest"
+      "^.+\\.(t|j)s$": [
+        "ts-jest",
+        {
+          "diagnostics": false,
+          "tsconfig": {
+            "module": "commonjs",
+            "moduleResolution": "node",
+            "emitDecoratorMetadata": true,
+            "experimentalDecorators": true,
+            "allowSyntheticDefaultImports": true,
+            "target": "ES2023",
+            "esModuleInterop": true,
+            "allowJs": true,
+            "resolveJsonModule": true,
+            "skipLibCheck": true,
+            "strictNullChecks": true
+          }
+        }
+      ]
     },
+    "transformIgnorePatterns": [
+      "<rootDir>/../../../node_modules/(?!(@owox)/)",
+      "<rootDir>/../../../packages/(?!(idp-protocol|idp-better-auth|idp-owox-better-auth|internal-helpers)/)"
+    ],
     "collectCoverageFrom": ["**/*.(t|j)s"],
     "coverageDirectory": "../coverage",
     "testEnvironment": "node",

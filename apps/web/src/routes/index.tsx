@@ -1,4 +1,4 @@
-import type { RouteObject } from 'react-router-dom';
+import { Navigate, type RouteObject } from 'react-router-dom';
 import MainLayout from '../layouts/MainLayout';
 import About from '../pages/About';
 import NotFound from '../pages/NotFound';
@@ -7,8 +7,10 @@ import { DataMartDetailsPage } from '../pages/data-marts/edit';
 import CreateDataMartPage from '../pages/data-marts/create/CreateDataMartPage.tsx';
 import { DataStorageListPage } from '../pages/data-storage';
 import { DataDestinationListPage } from '../pages/data-destination/DataDestinationListPage';
+import { ProjectSettingsPage } from '../pages/project-settings/ProjectSettingsPage';
 import { ProjectNotificationsPage } from '../pages/notifications/project';
 import { dataMartDetailsRoutes } from './data-marts/routes';
+import { projectSettingsRoutes } from './project-settings/routes';
 import { ProjectRedirect } from '../components/ProjectRedirect';
 import { oauthRoutes } from './oauth.routes';
 import { RootErrorBoundary, LayoutErrorBoundary } from '../components/errors';
@@ -59,6 +61,25 @@ const routes: RouteObject[] = [
       {
         path: 'data-destinations',
         element: <DataDestinationListPage />,
+        errorElement: <LayoutErrorBoundary />,
+      },
+      {
+        path: 'project-settings',
+        element: <ProjectSettingsPage />,
+        errorElement: <LayoutErrorBoundary />,
+        children: projectSettingsRoutes,
+      },
+      // Legacy redirects: old /members and /members/contexts bookmarks land on
+      // the new Project Settings page. Kept as thin redirects for one release
+      // cycle — remove once internal links are updated.
+      {
+        path: 'members',
+        element: <Navigate to='../project-settings/members' replace />,
+        errorElement: <LayoutErrorBoundary />,
+      },
+      {
+        path: 'members/contexts',
+        element: <Navigate to='../project-settings/contexts' replace />,
         errorElement: <LayoutErrorBoundary />,
       },
       {

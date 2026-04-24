@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import type { ProjectMemberInvitation, Role } from '@owox/idp-protocol';
 import { ProjectProjectionDto } from '../dto/domain/project-projection.dto';
 import { UserProjectionDto } from '../dto/domain/user-projection.dto';
 import { UserProjectionsListDto } from '../dto/domain/user-projections-list.dto';
@@ -38,5 +39,27 @@ export class IdpProjectionsFacade {
 
   public async getProjectMembers(projectId: string): Promise<ProjectMemberDto[]> {
     return this.idpProjectionsService.getProjectMembers(projectId);
+  }
+
+  public async inviteMember(
+    projectId: string,
+    email: string,
+    role: Role,
+    actorUserId: string
+  ): Promise<ProjectMemberInvitation> {
+    return this.idpProjectionsService.inviteMember(projectId, email, role, actorUserId);
+  }
+
+  public async removeMember(projectId: string, userId: string, actorUserId: string): Promise<void> {
+    return this.idpProjectionsService.removeMember(projectId, userId, actorUserId);
+  }
+
+  public async changeMemberRole(
+    projectId: string,
+    userId: string,
+    newRole: Role,
+    actorUserId: string
+  ): Promise<void> {
+    return this.idpProjectionsService.changeMemberRole(projectId, userId, newRole, actorUserId);
   }
 }

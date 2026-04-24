@@ -3,6 +3,7 @@ import { DataMartDefinition } from '../schemas/data-mart-table-definitions/data-
 import { DataMartDefinitionType } from '../../enums/data-mart-definition-type.enum';
 import { DataMartStatus } from '../../enums/data-mart-status.enum';
 import { DataStorageType } from '../../data-storage-types/enums/data-storage-type.enum';
+import { ContextSummary } from '../../utils/extract-context-summaries';
 
 export class DataMartListItemDto {
   constructor(
@@ -19,6 +20,7 @@ export class DataMartListItemDto {
     public readonly reportsCount: number = 0,
     public readonly createdByUser: UserProjectionDto | null = null,
     public readonly businessOwnerUsers: UserProjectionDto[] = [],
-    public readonly technicalOwnerUsers: UserProjectionDto[] = []
+    public readonly technicalOwnerUsers: UserProjectionDto[] = [],
+    public readonly contexts: ContextSummary[] = []
   ) {}
 }

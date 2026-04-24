@@ -29,4 +29,6 @@ export interface UpdateDataDestinationRequestDto {
 
   availableForUse?: boolean;
   availableForMaintenance?: boolean;
+
+  contextIds?: string[];
 }

@@ -3,6 +3,7 @@ import { DataDestinationType } from '../../data-destination-types/enums/data-des
 import { GoogleSheetsCredentialsSchema } from '../../data-destination-types/google-sheets/schemas/google-sheets-credentials.schema';
 import { LookerStudioConnectorCredentialsSchema } from '../../data-destination-types/looker-studio-connector/schemas/looker-studio-connector-credentials.schema';
 import { UserProjectionDto } from '../../../idp/dto/domain/user-projection.dto';
+import { ContextSummary } from '../../utils/extract-context-summaries';
 
 export const DataDestinationCredentialsDtoSchema = z.discriminatedUnion('type', [
   GoogleSheetsCredentialsSchema,
@@ -23,6 +24,7 @@ export class DataDestinationDto {
     public readonly createdByUser: UserProjectionDto | null = null,
     public readonly ownerUsers: UserProjectionDto[] = [],
     public readonly availableForUse: boolean = true,
-    public readonly availableForMaintenance: boolean = true
+    public readonly availableForMaintenance: boolean = true,
+    public readonly contexts: ContextSummary[] = []
   ) {}
 }

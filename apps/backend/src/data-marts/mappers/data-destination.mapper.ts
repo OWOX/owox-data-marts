@@ -29,6 +29,7 @@ import { ListDataDestinationsByTypeItemDto } from '../dto/domain/list-data-desti
 import { UserProjectionDto } from '../../idp/dto/domain/user-projection.dto';
 import { OwnerFilter } from '../enums/owner-filter.enum';
 import { resolveOwnerUsers } from '../utils/resolve-owner-users';
+import { extractContextSummaries } from '../utils/extract-context-summaries';
 
 @Injectable()
 export class DataDestinationMapper {
@@ -72,7 +73,8 @@ export class DataDestinationMapper {
       context.userId,
       context.roles ?? [],
       dto.availableForUse,
-      dto.availableForMaintenance
+      dto.availableForMaintenance,
+      dto.contextIds
     );
   }
 
@@ -92,7 +94,8 @@ export class DataDestinationMapper {
       createdByUser,
       ownerUsers,
       dataDestination.availableForUse,
-      dataDestination.availableForMaintenance
+      dataDestination.availableForMaintenance,
+      extractContextSummaries(dataDestination.contexts)
     );
   }
 
@@ -129,6 +132,7 @@ export class DataDestinationMapper {
       ownerUsers: dataDestinationDto.ownerUsers,
       availableForUse: dataDestinationDto.availableForUse,
       availableForMaintenance: dataDestinationDto.availableForMaintenance,
+      contexts: dataDestinationDto.contexts,
     };
   }
 

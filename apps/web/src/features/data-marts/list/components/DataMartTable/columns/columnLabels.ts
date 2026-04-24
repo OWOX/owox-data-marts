@@ -12,4 +12,5 @@ export const dataMartColumnLabels: Record<DataMartColumnKey, string> = {
   [DataMartColumnKey.HEALTH_STATUS]: 'Health Status',
   [DataMartColumnKey.BUSINESS_OWNERS]: 'Business Owner',
   [DataMartColumnKey.TECHNICAL_OWNERS]: 'Technical Owner',
+  [DataMartColumnKey.CONTEXTS]: 'Contexts',
 };

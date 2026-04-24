@@ -32,6 +32,7 @@ import { ListDataStoragesByTypeItemDto } from '../dto/domain/list-data-storages-
 import { DataStorage } from '../entities/data-storage.entity';
 import { UserProjectionDto } from '../../idp/dto/domain/user-projection.dto';
 import { OwnerFilter } from '../enums/owner-filter.enum';
+import { extractContextSummaries, ContextSummary } from '../utils/extract-context-summaries';
 
 @Injectable()
 export class DataStorageMapper {
@@ -64,7 +65,8 @@ export class DataStorageMapper {
       context.userId,
       context.roles ?? [],
       dto.availableForUse,
-      dto.availableForMaintenance
+      dto.availableForMaintenance,
+      dto.contextIds
     );
   }
 
@@ -73,7 +75,8 @@ export class DataStorageMapper {
     publishedCount = 0,
     draftsCount = 0,
     createdByUser: UserProjectionDto | null = null,
-    ownerUsers: UserProjectionDto[] = []
+    ownerUsers: UserProjectionDto[] = [],
+    contexts?: ContextSummary[]
   ): DataStorageDto {
     return new DataStorageDto(
       dataStorage.id,
@@ -89,7 +92,8 @@ export class DataStorageMapper {
       createdByUser,
       ownerUsers,
       dataStorage.availableForUse,
-      dataStorage.availableForMaintenance
+      dataStorage.availableForMaintenance,
+      contexts ?? extractContextSummaries(dataStorage.contexts)
     );
   }
 
@@ -124,6 +128,7 @@ export class DataStorageMapper {
       ownerUsers: dataStorageDto.ownerUsers,
       availableForUse: dataStorageDto.availableForUse,
       availableForMaintenance: dataStorageDto.availableForMaintenance,
+      contexts: dataStorageDto.contexts,
     };
   }
 
@@ -151,6 +156,7 @@ export class DataStorageMapper {
       draftDataMartsCount: dataStorageDto.draftsCount,
       createdByUser: dataStorageDto.createdByUser,
       ownerUsers: dataStorageDto.ownerUsers,
+      contexts: dataStorageDto.contexts,
     }));
   }
 

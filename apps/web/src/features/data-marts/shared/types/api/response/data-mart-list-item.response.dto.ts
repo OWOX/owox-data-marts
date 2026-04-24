@@ -19,4 +19,5 @@ export interface DataMartListItemResponseDto {
   technicalOwnerUsers: UserProjectionDto[];
   createdAt: Date;
   modifiedAt: Date;
+  contexts: { id: string; name: string }[];
 }

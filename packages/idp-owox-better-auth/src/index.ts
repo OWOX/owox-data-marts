@@ -20,6 +20,7 @@ export {
   AuthenticationException,
   ForbiddenException,
   IdpFailedException,
+  IdpNotFoundException,
   SessionException,
 } from './core/exceptions.js';
 export { BetterAuthSessionService } from './services/auth/better-auth-session-service.js';
