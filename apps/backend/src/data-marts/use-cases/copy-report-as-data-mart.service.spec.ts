@@ -3,7 +3,7 @@ jest.mock('typeorm-transactional', () => ({
     descriptor,
 }));
 
-import { ForbiddenException, NotFoundException } from '@nestjs/common';
+import { ForbiddenException, NotFoundException, UnauthorizedException } from '@nestjs/common';
 import { BusinessViolationException } from '../../common/exceptions/business-violation.exception';
 import { CopyReportAsDataMartService } from './copy-report-as-data-mart.service';
 import { CopyReportAsDataMartCommand } from '../dto/domain/copy-report-as-data-mart.command';
@@ -117,17 +117,17 @@ describe('CopyReportAsDataMartService', () => {
     await expect(service.run(command)).rejects.toThrow(NotFoundException);
   });
 
-  it('should skip access check when userId is empty', async () => {
-    const { service, accessDecisionService } = createService({
-      canEditDataMart: false,
-      canUseStorage: false,
+  it('throws UnauthorizedException when userId is empty', async () => {
+    const { service, accessDecisionService, reportRepository } = createService({
+      canEditDataMart: true,
+      canUseStorage: true,
     });
 
     const command = new CopyReportAsDataMartCommand('report-1', '', 'proj-1', []);
 
-    await service.run(command);
-
+    await expect(service.run(command)).rejects.toThrow(UnauthorizedException);
     expect(accessDecisionService.canAccess).not.toHaveBeenCalled();
+    expect(reportRepository.findOne).not.toHaveBeenCalled();
   });
 
   it.each(['', '   ', '\n\t  '])(

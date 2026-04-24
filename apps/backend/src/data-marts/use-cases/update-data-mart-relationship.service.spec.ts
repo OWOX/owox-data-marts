@@ -11,7 +11,7 @@ jest.mock('../../idp/facades/idp-projections.facade', () => ({
   IdpProjectionsFacade: jest.fn(),
 }));
 
-import { ForbiddenException, NotFoundException } from '@nestjs/common';
+import { ForbiddenException, NotFoundException, UnauthorizedException } from '@nestjs/common';
 import { UpdateDataMartRelationshipService } from './update-data-mart-relationship.service';
 import { UpdateRelationshipCommand } from '../dto/domain/update-relationship.command';
 import { EntityType, Action } from '../services/access-decision';
@@ -34,6 +34,7 @@ describe('UpdateDataMartRelationshipService', () => {
     };
     const dataMartService = {
       findById: jest.fn().mockResolvedValue(null),
+      getByIdAndProjectId: jest.fn().mockResolvedValue({ id: 'dm-source' }),
     };
     const userProjectionsFetcherService = {
       fetchCreatedByUser: jest.fn().mockResolvedValue(null),
@@ -57,7 +58,7 @@ describe('UpdateDataMartRelationshipService', () => {
       accessDecisionService as never
     );
 
-    return { service, relationshipService, accessDecisionService };
+    return { service, relationshipService, dataMartService, accessDecisionService };
   };
 
   beforeEach(() => jest.clearAllMocks());
@@ -104,31 +105,39 @@ describe('UpdateDataMartRelationshipService', () => {
   });
 
   it('should throw NotFoundException when relationship not found', async () => {
-    const { accessDecisionService } = createService(true);
-    const { relationshipService } = createService(true);
+    const { service, relationshipService } = createService(true);
     relationshipService.findById = jest.fn().mockResolvedValue(null);
-
-    const badService = new UpdateDataMartRelationshipService(
-      relationshipService as never,
-      {} as never,
-      {} as never,
-      {} as never,
-      {} as never,
-      accessDecisionService as never
-    );
 
     const command = new UpdateRelationshipCommand('rel-1', 'dm-source', 'proj-1', 'user-1', []);
 
-    await expect(badService.run(command)).rejects.toThrow(NotFoundException);
+    await expect(service.run(command)).rejects.toThrow(NotFoundException);
   });
 
-  it('should skip access check when userId is empty', async () => {
-    const { service, accessDecisionService } = createService(false);
+  it('throws NotFoundException when source data mart is not in the caller project', async () => {
+    const { service, dataMartService, relationshipService, accessDecisionService } =
+      createService(true);
+    dataMartService.getByIdAndProjectId.mockRejectedValueOnce(
+      new NotFoundException('DataMart not found')
+    );
+
+    const command = new UpdateRelationshipCommand('rel-1', 'dm-source', 'other-proj', 'user-1', [
+      'editor',
+    ]);
+
+    await expect(service.run(command)).rejects.toThrow(NotFoundException);
+    expect(relationshipService.findById).not.toHaveBeenCalled();
+    expect(accessDecisionService.canAccess).not.toHaveBeenCalled();
+  });
+
+  it('throws UnauthorizedException when userId is empty', async () => {
+    const { service, accessDecisionService, relationshipService, dataMartService } =
+      createService(true);
 
     const command = new UpdateRelationshipCommand('rel-1', 'dm-source', 'proj-1', '', []);
 
-    await service.run(command);
-
+    await expect(service.run(command)).rejects.toThrow(UnauthorizedException);
     expect(accessDecisionService.canAccess).not.toHaveBeenCalled();
+    expect(relationshipService.findById).not.toHaveBeenCalled();
+    expect(dataMartService.getByIdAndProjectId).not.toHaveBeenCalled();
   });
 });

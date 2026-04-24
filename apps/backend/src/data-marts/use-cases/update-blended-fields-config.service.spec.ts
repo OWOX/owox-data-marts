@@ -3,7 +3,7 @@ jest.mock('typeorm-transactional', () => ({
     descriptor,
 }));
 
-import { ForbiddenException } from '@nestjs/common';
+import { ForbiddenException, UnauthorizedException } from '@nestjs/common';
 import { UpdateBlendedFieldsConfigService } from './update-blended-fields-config.service';
 import { UpdateBlendedFieldsConfigCommand } from '../dto/domain/update-blended-fields-config.command';
 import { EntityType, Action } from '../services/access-decision';
@@ -71,13 +71,13 @@ describe('UpdateBlendedFieldsConfigService', () => {
     await expect(service.run(command)).rejects.toThrow(ForbiddenException);
   });
 
-  it('should skip access check when userId is empty', async () => {
-    const { service, accessDecisionService } = createService(false);
+  it('throws UnauthorizedException when userId is empty', async () => {
+    const { service, accessDecisionService, dataMartService } = createService(true);
 
     const command = new UpdateBlendedFieldsConfigCommand('dm-1', 'proj-1', null, '', []);
 
-    await service.run(command);
-
+    await expect(service.run(command)).rejects.toThrow(UnauthorizedException);
     expect(accessDecisionService.canAccess).not.toHaveBeenCalled();
+    expect(dataMartService.getByIdAndProjectId).not.toHaveBeenCalled();
   });
 });

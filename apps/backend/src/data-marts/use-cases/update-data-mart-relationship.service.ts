@@ -1,4 +1,9 @@
-import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { Transactional } from 'typeorm-transactional';
 import { UpdateRelationshipCommand } from '../dto/domain/update-relationship.command';
 import { RelationshipDto } from '../dto/domain/relationship.dto';
@@ -22,6 +27,12 @@ export class UpdateDataMartRelationshipService {
 
   @Transactional()
   async run(command: UpdateRelationshipCommand): Promise<RelationshipDto> {
+    if (!command.userId) {
+      throw new UnauthorizedException('Authenticated user is required');
+    }
+
+    await this.dataMartService.getByIdAndProjectId(command.sourceDataMartId, command.projectId);
+
     const relationship = await this.relationshipService.findById(command.relationshipId);
 
     if (!relationship || relationship.sourceDataMart.id !== command.sourceDataMartId) {
@@ -30,20 +41,18 @@ export class UpdateDataMartRelationshipService {
       );
     }
 
-    if (command.userId) {
-      const canEdit = await this.accessDecisionService.canAccess(
-        command.userId,
-        command.roles,
-        EntityType.DATA_MART,
-        relationship.sourceDataMart.id,
-        Action.EDIT,
-        command.projectId
+    const canEdit = await this.accessDecisionService.canAccess(
+      command.userId,
+      command.roles,
+      EntityType.DATA_MART,
+      relationship.sourceDataMart.id,
+      Action.EDIT,
+      command.projectId
+    );
+    if (!canEdit) {
+      throw new ForbiddenException(
+        'You do not have permission to manage relationships of this DataMart'
       );
-      if (!canEdit) {
-        throw new ForbiddenException(
-          'You do not have permission to manage relationships of this DataMart'
-        );
-      }
     }
 
     const oldAlias = relationship.targetAlias;

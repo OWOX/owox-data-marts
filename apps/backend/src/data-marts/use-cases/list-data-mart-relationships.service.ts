@@ -1,4 +1,4 @@
-import { ForbiddenException, Injectable } from '@nestjs/common';
+import { ForbiddenException, Injectable, UnauthorizedException } from '@nestjs/common';
 import { ListRelationshipsCommand } from '../dto/domain/list-relationships.command';
 import { RelationshipDto } from '../dto/domain/relationship.dto';
 import { RelationshipMapper } from '../mappers/relationship.mapper';
@@ -18,17 +18,20 @@ export class ListDataMartRelationshipsService {
   ) {}
 
   async run(command: ListRelationshipsCommand): Promise<RelationshipDto[]> {
-    const [, canSee] = await Promise.all([
-      this.dataMartService.getByIdAndProjectId(command.dataMartId, command.projectId),
-      this.accessDecisionService.canAccess(
-        command.userId,
-        command.roles,
-        EntityType.DATA_MART,
-        command.dataMartId,
-        Action.SEE,
-        command.projectId
-      ),
-    ]);
+    if (!command.userId) {
+      throw new UnauthorizedException('Authenticated user is required');
+    }
+
+    await this.dataMartService.getByIdAndProjectId(command.dataMartId, command.projectId);
+
+    const canSee = await this.accessDecisionService.canAccess(
+      command.userId,
+      command.roles,
+      EntityType.DATA_MART,
+      command.dataMartId,
+      Action.SEE,
+      command.projectId
+    );
     if (!canSee) {
       throw new ForbiddenException('You do not have access to this DataMart');
     }

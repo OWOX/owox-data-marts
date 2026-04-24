@@ -11,7 +11,6 @@ import {
 import { DataMartSchema } from '../data-storage-types/data-mart-schema.type';
 import { DataMart } from '../entities/data-mart.entity';
 import { DataMartRelationship } from '../entities/data-mart-relationship.entity';
-import { DataStorage } from '../entities/data-storage.entity';
 import { JoinCondition } from '../dto/schemas/join-condition.schema';
 
 @Injectable()
@@ -23,12 +22,13 @@ export class DataMartRelationshipService {
 
   async create(
     command: CreateRelationshipCommand,
-    sourceDataMart: DataMart
+    sourceDataMart: DataMart,
+    targetDataMart: DataMart
   ): Promise<DataMartRelationship> {
     const relationship = this.repository.create({
-      sourceDataMart: { id: command.sourceDataMartId } as DataMart,
-      targetDataMart: { id: command.targetDataMartId } as DataMart,
-      dataStorage: { id: sourceDataMart.storage.id } as DataStorage,
+      sourceDataMart,
+      targetDataMart,
+      dataStorage: sourceDataMart.storage,
       targetAlias: command.targetAlias,
       joinConditions: command.joinConditions,
       projectId: command.projectId,

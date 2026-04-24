@@ -1,4 +1,9 @@
-import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { GetReportGeneratedSqlCommand } from '../dto/domain/get-report-generated-sql.command';
@@ -16,6 +21,10 @@ export class GetReportGeneratedSqlService {
   ) {}
 
   async run(command: GetReportGeneratedSqlCommand): Promise<{ sql: string }> {
+    if (!command.userId) {
+      throw new UnauthorizedException('Authenticated user is required');
+    }
+
     const report = await this.reportRepository.findOne({
       where: {
         id: command.reportId,
@@ -28,20 +37,18 @@ export class GetReportGeneratedSqlService {
       throw new NotFoundException(`Report with ID ${command.reportId} not found`);
     }
 
-    if (command.userId) {
-      const canEditDataMart = await this.accessDecisionService.canAccess(
-        command.userId,
-        command.roles,
-        EntityType.DATA_MART,
-        report.dataMart.id,
-        Action.EDIT,
-        command.projectId
+    const canEditDataMart = await this.accessDecisionService.canAccess(
+      command.userId,
+      command.roles,
+      EntityType.DATA_MART,
+      report.dataMart.id,
+      Action.EDIT,
+      command.projectId
+    );
+    if (!canEditDataMart) {
+      throw new ForbiddenException(
+        'You do not have permission to view the generated SQL of this report: edit access to the source data mart is required.'
       );
-      if (!canEditDataMart) {
-        throw new ForbiddenException(
-          'You do not have permission to view the generated SQL of this report: edit access to the source data mart is required.'
-        );
-      }
     }
 
     return this.reportSqlComposerService.compose(report);

@@ -313,7 +313,7 @@ describe('DataMartRelationshipService', () => {
   });
 
   describe('create', () => {
-    it('saves entity with correct fields from command', async () => {
+    it('passes hydrated source/target data marts and storage through to repository.create', async () => {
       const command = new CreateRelationshipCommand(
         'dm-source',
         'dm-target',
@@ -323,21 +323,20 @@ describe('DataMartRelationshipService', () => {
         'user-1',
         []
       );
-      const sourceDataMart = {
-        id: 'dm-source',
-        storage: { id: 'storage-1' } as DataStorage,
-      } as DataMart;
+      const storage = { id: 'storage-1' } as DataStorage;
+      const sourceDataMart = { id: 'dm-source', storage } as DataMart;
+      const targetDataMart = { id: 'dm-target', storage } as DataMart;
 
       const createdEntity = makeRelationship('dm-source', 'dm-target');
       repository.create.mockReturnValue(createdEntity);
       repository.save.mockResolvedValue(createdEntity);
 
-      const result = await service.create(command, sourceDataMart);
+      const result = await service.create(command, sourceDataMart, targetDataMart);
 
       expect(repository.create).toHaveBeenCalledWith({
-        sourceDataMart: { id: 'dm-source' },
-        targetDataMart: { id: 'dm-target' },
-        dataStorage: { id: 'storage-1' },
+        sourceDataMart,
+        targetDataMart,
+        dataStorage: storage,
         targetAlias: 'my_alias',
         joinConditions: [],
         projectId: 'project-1',
@@ -357,10 +356,9 @@ describe('DataMartRelationshipService', () => {
         'user-1',
         []
       );
-      const sourceDataMart = {
-        id: 'dm-source',
-        storage: { id: 'storage-1' } as DataStorage,
-      } as DataMart;
+      const storage = { id: 'storage-1' } as DataStorage;
+      const sourceDataMart = { id: 'dm-source', storage } as DataMart;
+      const targetDataMart = { id: 'dm-target', storage } as DataMart;
 
       const createdEntity = makeRelationship('dm-source', 'dm-target', {
         targetAlias: 'draft_alias',
@@ -369,7 +367,7 @@ describe('DataMartRelationshipService', () => {
       repository.create.mockReturnValue(createdEntity);
       repository.save.mockResolvedValue(createdEntity);
 
-      const result = await service.create(command, sourceDataMart);
+      const result = await service.create(command, sourceDataMart, targetDataMart);
 
       expect(result.joinConditions).toEqual([]);
       expect(repository.save).toHaveBeenCalled();

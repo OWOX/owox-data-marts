@@ -1,4 +1,4 @@
-import { Injectable, ForbiddenException } from '@nestjs/common';
+import { Injectable, ForbiddenException, UnauthorizedException } from '@nestjs/common';
 import { Transactional } from 'typeorm-transactional';
 import { BusinessViolationException } from '../../common/exceptions/business-violation.exception';
 import { CreateRelationshipCommand } from '../dto/domain/create-relationship.command';
@@ -21,6 +21,10 @@ export class CreateDataMartRelationshipService {
 
   @Transactional()
   async run(command: CreateRelationshipCommand): Promise<RelationshipDto> {
+    if (!command.userId) {
+      throw new UnauthorizedException('Authenticated user is required');
+    }
+
     this.relationshipService.validateNoSelfReference(
       command.sourceDataMartId,
       command.targetDataMartId
@@ -31,30 +35,28 @@ export class CreateDataMartRelationshipService {
       this.dataMartService.getByIdAndProjectId(command.targetDataMartId, command.projectId),
     ]);
 
-    if (command.userId) {
-      const [canEditSource, canEditTarget] = await Promise.all([
-        this.accessDecisionService.canAccess(
-          command.userId,
-          command.roles,
-          EntityType.DATA_MART,
-          command.sourceDataMartId,
-          Action.EDIT,
-          command.projectId
-        ),
-        this.accessDecisionService.canAccess(
-          command.userId,
-          command.roles,
-          EntityType.DATA_MART,
-          command.targetDataMartId,
-          Action.EDIT,
-          command.projectId
-        ),
-      ]);
-      if (!canEditSource || !canEditTarget) {
-        throw new ForbiddenException(
-          'You do not have permission to create relationship between these DataMarts'
-        );
-      }
+    const [canEditSource, canEditTarget] = await Promise.all([
+      this.accessDecisionService.canAccess(
+        command.userId,
+        command.roles,
+        EntityType.DATA_MART,
+        command.sourceDataMartId,
+        Action.EDIT,
+        command.projectId
+      ),
+      this.accessDecisionService.canAccess(
+        command.userId,
+        command.roles,
+        EntityType.DATA_MART,
+        command.targetDataMartId,
+        Action.EDIT,
+        command.projectId
+      ),
+    ]);
+    if (!canEditSource || !canEditTarget) {
+      throw new ForbiddenException(
+        'You do not have permission to create relationship between these DataMarts'
+      );
     }
 
     this.relationshipService.validateSameStorage(
@@ -90,7 +92,11 @@ export class CreateDataMartRelationshipService {
       command.joinConditions
     );
 
-    const relationship = await this.relationshipService.create(command, sourceDataMart);
+    const relationship = await this.relationshipService.create(
+      command,
+      sourceDataMart,
+      targetDataMart
+    );
     const createdByUser = await this.userProjectionsFetcherService.fetchCreatedByUser(relationship);
     return this.mapper.toDomainDto(relationship, createdByUser);
   }

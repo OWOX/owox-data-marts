@@ -1,4 +1,4 @@
-import { ForbiddenException, Injectable } from '@nestjs/common';
+import { ForbiddenException, Injectable, UnauthorizedException } from '@nestjs/common';
 import { ListRelationshipsByStorageCommand } from '../dto/domain/list-relationships-by-storage.command';
 import { RelationshipDto } from '../dto/domain/relationship.dto';
 import { RelationshipMapper } from '../mappers/relationship.mapper';
@@ -18,17 +18,20 @@ export class ListRelationshipsByStorageService {
   ) {}
 
   async run(command: ListRelationshipsByStorageCommand): Promise<RelationshipDto[]> {
-    const [, canSee] = await Promise.all([
-      this.dataStorageService.getByProjectIdAndId(command.projectId, command.storageId),
-      this.accessDecisionService.canAccess(
-        command.userId,
-        command.roles,
-        EntityType.STORAGE,
-        command.storageId,
-        Action.SEE,
-        command.projectId
-      ),
-    ]);
+    if (!command.userId) {
+      throw new UnauthorizedException('Authenticated user is required');
+    }
+
+    await this.dataStorageService.getByProjectIdAndId(command.projectId, command.storageId);
+
+    const canSee = await this.accessDecisionService.canAccess(
+      command.userId,
+      command.roles,
+      EntityType.STORAGE,
+      command.storageId,
+      Action.SEE,
+      command.projectId
+    );
     if (!canSee) {
       throw new ForbiddenException('You do not have access to this Storage');
     }

@@ -1,4 +1,4 @@
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { ApiExtraModels, ApiProperty, ApiPropertyOptional, getSchemaPath } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import {
   IsArray,
@@ -12,26 +12,20 @@ import {
   MinLength,
   ValidateNested,
 } from 'class-validator';
-import {
-  ALIAS_PATH_REGEX,
-  ALIAS_SEGMENT_ERROR,
-  ALIAS_SEGMENT_REGEX,
-} from '../schemas/blended-fields-config.schema';
+import { ALIAS_PATH_REGEX, ALIAS_SEGMENT_ERROR } from '../schemas/blended-fields-config.schema';
 import { AGGREGATE_FUNCTIONS, AggregateFunction } from '../schemas/aggregate-function.schema';
+import { ValidateRecordValues } from '../../../common/validators/validate-record-values.validator';
 
 const PATH_MESSAGE = `path must be a dot-separated chain where each segment ${ALIAS_SEGMENT_ERROR}`;
-const ALIAS_MESSAGE = `alias ${ALIAS_SEGMENT_ERROR}`;
 
 export class BlendedFieldOverrideApiDto {
   @ApiPropertyOptional({
     description: 'Optional custom alias shown in reports for this blended field.',
-    pattern: ALIAS_SEGMENT_REGEX.source,
   })
   @IsOptional()
   @IsString()
   @MinLength(1)
   @MaxLength(255)
-  @Matches(ALIAS_SEGMENT_REGEX, { message: ALIAS_MESSAGE })
   alias?: string;
 
   @ApiPropertyOptional()
@@ -45,6 +39,7 @@ export class BlendedFieldOverrideApiDto {
   aggregateFunction?: AggregateFunction;
 }
 
+@ApiExtraModels(BlendedFieldOverrideApiDto)
 export class BlendedSourceApiDto {
   @ApiProperty({
     description: 'Dot-separated chain of target aliases identifying the blended data mart.',
@@ -75,10 +70,11 @@ export class BlendedSourceApiDto {
     description:
       'Per-field overrides keyed by original field name. Values must match the blended field override shape.',
     type: 'object',
-    additionalProperties: { $ref: '#/components/schemas/BlendedFieldOverrideApiDto' },
+    additionalProperties: { $ref: getSchemaPath(BlendedFieldOverrideApiDto) },
   })
   @IsOptional()
   @IsObject()
+  @ValidateRecordValues(BlendedFieldOverrideApiDto)
   fields?: Record<string, BlendedFieldOverrideApiDto>;
 }
 

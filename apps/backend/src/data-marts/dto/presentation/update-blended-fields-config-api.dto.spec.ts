@@ -4,7 +4,7 @@ import { UpdateBlendedFieldsConfigApiDto } from './update-blended-fields-config-
 
 async function validateDto(payload: unknown) {
   const instance = plainToInstance(UpdateBlendedFieldsConfigApiDto, payload);
-  return validate(instance);
+  return validate(instance, { whitelist: true, forbidNonWhitelisted: true });
 }
 
 describe('UpdateBlendedFieldsConfigApiDto validation', () => {
@@ -89,5 +89,173 @@ describe('UpdateBlendedFieldsConfigApiDto validation', () => {
   it('rejects missing sources when config is present', async () => {
     const errors = await validateDto({ blendedFieldsConfig: {} });
     expect(errors.length).toBeGreaterThan(0);
+  });
+
+  it('rejects unknown aggregateFunction in field override', async () => {
+    const errors = await validateDto({
+      blendedFieldsConfig: {
+        sources: [
+          {
+            path: 'orders',
+            alias: 'Orders',
+            fields: {
+              revenue: { aggregateFunction: 'BOGUS' },
+            },
+          },
+        ],
+      },
+    });
+    expect(errors.length).toBeGreaterThan(0);
+  });
+
+  it('rejects empty alias in field override', async () => {
+    const errors = await validateDto({
+      blendedFieldsConfig: {
+        sources: [
+          {
+            path: 'orders',
+            alias: 'Orders',
+            fields: {
+              revenue: { alias: '' },
+            },
+          },
+        ],
+      },
+    });
+    expect(errors.length).toBeGreaterThan(0);
+  });
+
+  it('rejects non-string alias in field override', async () => {
+    const errors = await validateDto({
+      blendedFieldsConfig: {
+        sources: [
+          {
+            path: 'orders',
+            alias: 'Orders',
+            fields: {
+              revenue: { alias: 123 },
+            },
+          },
+        ],
+      },
+    });
+    expect(errors.length).toBeGreaterThan(0);
+  });
+
+  it('rejects non-boolean isHidden in field override', async () => {
+    const errors = await validateDto({
+      blendedFieldsConfig: {
+        sources: [
+          {
+            path: 'orders',
+            alias: 'Orders',
+            fields: {
+              revenue: { isHidden: 'yes' },
+            },
+          },
+        ],
+      },
+    });
+    expect(errors.length).toBeGreaterThan(0);
+  });
+
+  it('rejects non-object value inside fields record', async () => {
+    const errors = await validateDto({
+      blendedFieldsConfig: {
+        sources: [
+          {
+            path: 'orders',
+            alias: 'Orders',
+            fields: {
+              revenue: 'not-an-object',
+            },
+          },
+        ],
+      },
+    });
+    expect(errors.length).toBeGreaterThan(0);
+  });
+
+  it('rejects non-plain object (Map) inside fields record', async () => {
+    const errors = await validateDto({
+      blendedFieldsConfig: {
+        sources: [
+          {
+            path: 'orders',
+            alias: 'Orders',
+            fields: {
+              revenue: new Map([['aggregateFunction', 'SUM']]),
+            },
+          },
+        ],
+      },
+    });
+    expect(errors.length).toBeGreaterThan(0);
+  });
+
+  it('rejects unknown properties inside a field override (whitelist enforced)', async () => {
+    const errors = await validateDto({
+      blendedFieldsConfig: {
+        sources: [
+          {
+            path: 'orders',
+            alias: 'Orders',
+            fields: {
+              revenue: { aggregateFunction: 'SUM', foo: 'bar' },
+            },
+          },
+        ],
+      },
+    });
+    expect(errors.length).toBeGreaterThan(0);
+  });
+
+  it('rejects array as a fields-record value', async () => {
+    const errors = await validateDto({
+      blendedFieldsConfig: {
+        sources: [
+          {
+            path: 'orders',
+            alias: 'Orders',
+            fields: {
+              revenue: ['SUM'],
+            },
+          },
+        ],
+      },
+    });
+    expect(errors.length).toBeGreaterThan(0);
+  });
+
+  it('accepts a field override alias with spaces and mixed case (display label)', async () => {
+    const errors = await validateDto({
+      blendedFieldsConfig: {
+        sources: [
+          {
+            path: 'orders',
+            alias: 'Orders',
+            fields: {
+              revenue: { alias: 'Total Revenue' },
+            },
+          },
+        ],
+      },
+    });
+    expect(errors).toHaveLength(0);
+  });
+
+  it('accepts an empty fields record', async () => {
+    const errors = await validateDto({
+      blendedFieldsConfig: {
+        sources: [
+          {
+            path: 'orders',
+            alias: 'Orders',
+            fields: {},
+          },
+        ],
+      },
+    });
+    expect(errors).toHaveLength(0);
   });
 });

@@ -1,4 +1,9 @@
-import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  ForbiddenException,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Transactional } from 'typeorm-transactional';
@@ -25,6 +30,10 @@ export class CopyReportAsDataMartService {
 
   @Transactional()
   async run(command: CopyReportAsDataMartCommand): Promise<DataMart> {
+    if (!command.userId) {
+      throw new UnauthorizedException('Authenticated user is required');
+    }
+
     const report = await this.reportRepository.findOne({
       where: {
         id: command.reportId,
@@ -37,35 +46,33 @@ export class CopyReportAsDataMartService {
       throw new NotFoundException(`Report with ID ${command.reportId} not found`);
     }
 
-    if (command.userId) {
-      const [canEditDataMart, canUseStorage] = await Promise.all([
-        this.accessDecisionService.canAccess(
-          command.userId,
-          command.roles,
-          EntityType.DATA_MART,
-          report.dataMart.id,
-          Action.EDIT,
-          command.projectId
-        ),
-        this.accessDecisionService.canAccess(
-          command.userId,
-          command.roles,
-          EntityType.STORAGE,
-          report.dataMart.storage.id,
-          Action.USE,
-          command.projectId
-        ),
-      ]);
-      if (!canEditDataMart) {
-        throw new ForbiddenException(
-          'You do not have permission to copy this report: edit access to the source data mart is required.'
-        );
-      }
-      if (!canUseStorage) {
-        throw new ForbiddenException(
-          'You do not have permission to copy this report: use access to the source data storage is required.'
-        );
-      }
+    const [canEditDataMart, canUseStorage] = await Promise.all([
+      this.accessDecisionService.canAccess(
+        command.userId,
+        command.roles,
+        EntityType.DATA_MART,
+        report.dataMart.id,
+        Action.EDIT,
+        command.projectId
+      ),
+      this.accessDecisionService.canAccess(
+        command.userId,
+        command.roles,
+        EntityType.STORAGE,
+        report.dataMart.storage.id,
+        Action.USE,
+        command.projectId
+      ),
+    ]);
+    if (!canEditDataMart) {
+      throw new ForbiddenException(
+        'You do not have permission to copy this report: edit access to the source data mart is required.'
+      );
+    }
+    if (!canUseStorage) {
+      throw new ForbiddenException(
+        'You do not have permission to copy this report: use access to the source data storage is required.'
+      );
     }
 
     const { sql } = await this.reportSqlComposerService.compose(report);
