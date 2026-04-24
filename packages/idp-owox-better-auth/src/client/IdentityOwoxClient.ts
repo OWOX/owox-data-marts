@@ -6,6 +6,7 @@ import { IdentityOwoxClientConfig } from '../config/idp-owox-config.js';
 import {
   AuthenticationException,
   ForbiddenException,
+  IdentityApiException,
   IdpFailedException,
 } from '../core/exceptions.js';
 import {
@@ -243,35 +244,38 @@ export class IdentityOwoxClient {
     }
 
     const status = error.response?.status;
-    const errorMap: Record<
-      number,
-      {
-        Exception: new (
-          message: string,
-          opts?: { cause?: unknown; context?: Record<string, unknown>; status?: number }
-        ) => Error;
-        message: string;
-      }
-    > = {
-      400: { Exception: AuthenticationException, message: 'Invalid request' },
-      401: { Exception: AuthenticationException, message: 'Invalid or expired credentials' },
-      403: { Exception: ForbiddenException, message: 'Identity inactive or blocked' },
-    };
+    const rawBody = error.response?.data;
 
-    const mapped = status ? errorMap[status] : null;
-
-    if (mapped) {
-      throw new mapped.Exception(mapped.message, {
-        cause: error,
-        context,
-        status,
-      });
+    // Handle specific status codes.
+    switch (status) {
+      case 400:
+        throw new IdentityApiException('Bad request', {
+          cause: error,
+          context: { ...context, body: rawBody },
+          status: 400,
+        });
+      case 401:
+        throw new AuthenticationException('Invalid or expired credentials', {
+          cause: error,
+          context,
+          status,
+          description:
+            typeof rawBody === 'object' && rawBody !== null && 'error' in rawBody
+              ? ((rawBody as Record<string, unknown>).description as string | null | undefined)
+              : undefined,
+        });
+      case 403:
+        throw new ForbiddenException('Identity inactive or blocked', {
+          cause: error,
+          context,
+          status,
+        });
+      default:
+        throw new IdpFailedException(`${defaultMessage}${status ? `: ${status}` : ''}`, {
+          cause: error,
+          context: { ...context, responseData: rawBody },
+          status,
+        });
     }
-
-    throw new IdpFailedException(`${defaultMessage}${status ? `: ${status}` : ''}`, {
-      cause: error,
-      context: { ...context, responseData: error.response?.data },
-      status,
-    });
   }
 }

@@ -6,7 +6,11 @@ import {
 import { AUTH_BASE_PATH } from '../core/constants.js';
 import { createServiceLogger } from '../core/logger.js';
 import { OwoxTokenFacade } from '../facades/owox-token-facade.js';
-import { BaseException } from '../core/exceptions.js';
+import {
+  BaseException,
+  IdentityApiException,
+  AuthenticationException,
+} from '../core/exceptions.js';
 import type { AuthResult } from '@owox/idp-protocol';
 import {
   GoogleSheetsExtensionAuthRequestSchema,
@@ -37,6 +41,7 @@ export class GoogleSheetsExtensionAuthController {
       if (body.google_id_token) {
         this.logger.info('Google Sheets Extension: authenticating via Google ID token', {
           hasProjectId: !!body.project_id,
+          projectId: body.project_id,
         });
         authResult = await this.tokenFacade.exchangeGoogleIdToken(
           body.google_id_token,
@@ -45,6 +50,7 @@ export class GoogleSheetsExtensionAuthController {
       } else {
         this.logger.info('Google Sheets Extension: refreshing tokens via refresh token', {
           hasProjectId: !!body.project_id,
+          projectId: body.project_id,
         });
         authResult = await this.tokenFacade.refreshToken(body.refresh_token!);
       }
@@ -57,22 +63,47 @@ export class GoogleSheetsExtensionAuthController {
       };
       res.json(response);
     } catch (error) {
-      const isKnownError = error instanceof BaseException;
-      const status = isKnownError ? (error.status ?? 500) : 500;
-      const message = isKnownError ? error.publicMessage : 'Internal server error';
-
-      this.logger[status >= 500 ? 'error' : 'info'](
-        `Google Sheets Extension authentication failed: ${isKnownError ? error.name : 'UnknownError'}`,
-        {
-          path: req.path,
-          status,
-          ...(isKnownError ? error.context : {}),
-        },
-        error instanceof Error ? error : undefined
-      );
-
-      res.status(status).json({ error: message });
+      GoogleSheetsExtensionAuthController.handleError(error, req, res, this.logger);
     }
+  }
+
+  private static handleError(
+    error: unknown,
+    req: ExpressRequest,
+    res: ExpressResponse,
+    logger: ReturnType<typeof createServiceLogger>
+  ): void {
+    const isKnown = error instanceof BaseException;
+    const status = isKnown ? (error.status ?? 500) : 500;
+    const message = isKnown ? error.publicMessage : 'Internal server error';
+
+    logger[status >= 500 ? 'error' : 'info'](
+      `Google Sheets Extension authentication failed: ${isKnown ? error.name : 'UnknownError'}`,
+      {
+        path: req.path,
+        status,
+        ...(isKnown ? error.context : {}),
+      },
+      error instanceof Error ? error : undefined
+    );
+
+    if (error instanceof IdentityApiException) {
+      const body = error.context?.body as Record<string, unknown> | undefined;
+      if (body) {
+        res.status(status).json(body);
+        return;
+      }
+    }
+
+    if (error instanceof AuthenticationException) {
+      res.status(status).json({
+        error: 'InvalidToken',
+        ...(error.description ? { description: error.description } : {}),
+      });
+      return;
+    }
+
+    res.status(status).json({ error: message });
   }
 
   registerRoutes(express: Express): void {
