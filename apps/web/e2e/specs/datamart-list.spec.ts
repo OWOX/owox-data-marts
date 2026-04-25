@@ -113,6 +113,9 @@ test.describe('DataMart List with data', () => {
     // The multi-select combobox stays open after selection. Tab moves focus
     // to the next focusable element inside the popover, closing the dropdown.
     await page.keyboard.press('Tab');
+    await page.waitForSelector('[data-slot="combobox-content"]', {
+      state: 'detached',
+    });
     await page.getByRole('button', { name: 'Apply filters' }).click();
 
     // After applying, only draft datamart should be visible
