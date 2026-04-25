@@ -99,7 +99,7 @@ export const SnowflakeFields = ({ form }: SnowflakeFieldsProps) => {
       </FormSection>
 
       {/* Authentication */}
-      <section>
+      <div className='mb-4 flex flex-col gap-2'>
         <AuthenticationSectionHeader
           itemType='storage'
           copyButton={
@@ -234,7 +234,7 @@ export const SnowflakeFields = ({ form }: SnowflakeFieldsProps) => {
             )}
           </div>
         )}
-      </section>
+      </div>
     </>
   );
 };

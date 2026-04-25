@@ -89,7 +89,7 @@ export const AwsAthenaFields = ({ form }: AwsAthenaFieldsProps) => {
       </FormSection>
 
       {/* Authentication */}
-      <section>
+      <div className='mb-4 flex flex-col gap-2'>
         <AuthenticationSectionHeader
           itemType='storage'
           copyButton={
@@ -146,7 +146,7 @@ export const AwsAthenaFields = ({ form }: AwsAthenaFieldsProps) => {
             />
           </div>
         )}
-      </section>
+      </div>
     </>
   );
 };

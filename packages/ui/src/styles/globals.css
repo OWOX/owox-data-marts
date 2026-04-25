@@ -44,6 +44,8 @@
   --sidebar-ring: oklch(0.708 0 0);
   --sidebar-active: oklch(1 0 0);
   --sidebar-active-foreground: oklch(0.145 0 0);
+  --table-thead-sticky-bg: oklch(0.98 0 0);
+  --table-tbody-sticky-hover-bg: oklch(0.97 0 0);
 
   /* Brand Blue Color Scale based on brand-blue-500: oklch(0.6179 0.2295 250.87) */
   --brand-blue-50: oklch(0.985 0.03 250.87);
@@ -104,6 +106,8 @@
   --sidebar-ring: oklch(0.439 0 0);
   --sidebar-active: oklch(0.269 0 0);
   --sidebar-active-foreground: oklch(0.985 0 0);
+  --table-thead-sticky-bg: oklch(0.242 0 0);
+  --table-tbody-sticky-hover-bg: oklch(0.269 0 0);
 
   /* Brand Blue Color Scale — Dark Theme */
   --brand-blue-50: oklch(0.36 0.17 250.87);
@@ -168,6 +172,8 @@
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-active: var(--sidebar-active);
   --color-sidebar-active-foreground: var(--sidebar-active-foreground);
+  --color-table-thead-sticky-bg: var(--table-thead-sticky-bg);
+  --color-table-tbody-sticky-hover-bg: var(--table-tbody-sticky-hover-bg);
   --color-brand-blue-50: var(--brand-blue-50);
   --color-brand-blue-100: var(--brand-blue-100);
   --color-brand-blue-200: var(--brand-blue-200);
