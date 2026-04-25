@@ -84,12 +84,11 @@ export function TableFiltersContent({
         </FormLayout>
 
         <FormActions variant='inline'>
-          <Button variant='outline' size='sm' type='button' onClick={handleClear}>
-            Clear all
-          </Button>
-
           <Button size='sm' type='button' disabled={!canApply} onClick={handleApply}>
             Apply filters
+          </Button>
+          <Button variant='outline' size='sm' type='button' onClick={handleClear}>
+            Clear all
           </Button>
         </FormActions>
       </AppForm>
