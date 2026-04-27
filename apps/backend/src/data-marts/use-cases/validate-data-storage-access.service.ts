@@ -38,7 +38,7 @@ export class ValidateDataStorageAccessService {
     }
 
     if (!dataStorage.config) {
-      return { valid: false, errorMessage: 'Storage setup is incomplete' };
+      return ValidationResult.unconfigured('Complete setup to activate Storage');
     }
 
     if (dataStorage.credentialId) {
@@ -51,13 +51,12 @@ export class ValidateDataStorageAccessService {
         );
       } catch (error) {
         this.logger.warn(`Failed to resolve credentials for storage ${dataStorage.id}`, error);
-        return {
-          valid: false,
-          errorMessage: error instanceof Error ? error.message : 'Failed to resolve credentials',
-        };
+        return ValidationResult.failure(
+          error instanceof Error ? error.message : 'Failed to resolve credentials'
+        );
       }
     }
 
-    return { valid: false, errorMessage: 'Storage setup is incomplete' };
+    return ValidationResult.unconfigured('Complete setup to activate Storage');
   }
 }

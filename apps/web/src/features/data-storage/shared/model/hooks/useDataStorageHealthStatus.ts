@@ -51,7 +51,7 @@ export function useDataStorageHealthStatus(storageId: string): UseDataStorageHea
   const isFetched = Boolean(cached);
 
   return {
-    status: cached?.status ?? DataStorageHealthStatus.INVALID,
+    status: cached?.status ?? DataStorageHealthStatus.UNCONFIGURED,
     errorMessage: cached?.errorMessage,
     isLoading: !isFetched,
     isFetched,

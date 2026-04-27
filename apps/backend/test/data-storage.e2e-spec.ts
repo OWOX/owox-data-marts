@@ -96,7 +96,19 @@ describe('DataStorage API (e2e)', () => {
     expect(response.body.statusCode).toBe(400);
   });
 
-  // API-05: Delete
+  // API-05: Validate access on unconfigured storage — contract test for the frontend UNCONFIGURED_CODE constant.
+  // If this assertion fails, update UNCONFIGURED_CODE in data-storage-health-status.service.ts to match.
+  it('POST /api/data-storages/:id/validate-access - returns code UNCONFIGURED for a storage with no config', async () => {
+    const response = await agent
+      .post(`/api/data-storages/${createdStorageId}/validate-access`)
+      .set(AUTH_HEADER);
+
+    expect(response.status).toBe(200);
+    expect(response.body.valid).toBe(false);
+    expect(response.body.code).toBe('UNCONFIGURED');
+  });
+
+  // API-06: Delete
   it('DELETE /api/data-storages/:id - soft deletes the storage', async () => {
     const response = await agent.delete(`/api/data-storages/${createdStorageId}`).set(AUTH_HEADER);
 

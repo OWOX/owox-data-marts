@@ -199,6 +199,7 @@ export class DataStorageController {
 
   @Auth(Role.viewer(Strategy.INTROSPECT))
   @Post(':id/validate-access')
+  @HttpCode(200)
   @ValidateDataStorageAccessSpec()
   async validate(
     @AuthContext() context: AuthorizationContext,

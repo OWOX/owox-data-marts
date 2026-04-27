@@ -183,6 +183,7 @@ export class DataStorageMapper {
     return {
       valid: validationResult.valid,
       errorMessage: validationResult.errorMessage,
+      code: validationResult.code,
     };
   }
 
