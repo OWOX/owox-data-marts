@@ -7,6 +7,7 @@ import { StorageContext } from '../../entities/storage-context.entity';
 import { DestinationContext } from '../../entities/destination-context.entity';
 import { MemberRoleScope } from '../../entities/member-role-scope.entity';
 import { MemberRoleContext } from '../../entities/member-role-context.entity';
+import { ProjectRole } from '../../enums/project-role.enum';
 import { RoleScope } from '../../enums/role-scope.enum';
 import { ContextService } from './context.service';
 import { AccessDecisionService } from '../access-decision/access-decision.service';
@@ -188,12 +189,20 @@ export class ContextAccessService {
     targetUserId: string,
     projectId: string,
     payload: {
-      role: 'admin' | 'editor' | 'viewer';
+      role: ProjectRole;
       roleScope: RoleScope;
       contextIds: string[];
     }
   ): Promise<void> {
-    const isAdminRole = payload.role === 'admin';
+    // Validate before any DB writes so a stale UI sending invalid contextIds
+    // for an admin (where they will be stripped to []) still 400s upfront,
+    // matching the validation-first pattern used by every other public
+    // mutation on this service.
+    if (payload.contextIds.length > 0) {
+      await this.contextService.validateContextIds(payload.contextIds, projectId);
+    }
+
+    const isAdminRole = payload.role === ProjectRole.ADMIN;
     const effectiveScope = isAdminRole ? RoleScope.ENTIRE_PROJECT : payload.roleScope;
     const effectiveContextIds = isAdminRole ? [] : payload.contextIds;
 
@@ -217,7 +226,10 @@ export class ContextAccessService {
     projectId: string,
     assignedUserIds: string[]
   ): Promise<void> {
-    await this.contextService.validateContextIds([contextId], projectId);
+    // Single-context lookup: surface a 404 when the context does not belong
+    // to the project. The bulk validateContextIds() helper would return 400
+    // here, which is wrong for "context not found".
+    await this.contextService.getByIdAndProject(contextId, projectId);
 
     const currentBindings = await this.memberRoleContextRepository.find({
       where: { contextId, projectId },

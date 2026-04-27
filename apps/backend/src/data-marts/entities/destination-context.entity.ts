@@ -1,8 +1,9 @@
-import { Entity, PrimaryColumn, ManyToOne, JoinColumn } from 'typeorm';
+import { Entity, Index, PrimaryColumn, ManyToOne, JoinColumn } from 'typeorm';
 import { DataDestination } from './data-destination.entity';
 import { Context } from './context.entity';
 
 @Entity('destination_contexts')
+@Index('idx_dc_context', ['contextId'])
 export class DestinationContext {
   @PrimaryColumn({ name: 'destination_id' })
   destinationId: string;

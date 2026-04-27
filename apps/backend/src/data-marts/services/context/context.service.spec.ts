@@ -108,7 +108,7 @@ describe('ContextService', () => {
         userId: USER_ID,
         email: 'test@test.com',
         fullName: 'Test User',
-        avatar: undefined,
+        avatar: null,
       });
       expect(contextRepository.save).toHaveBeenCalled();
     });

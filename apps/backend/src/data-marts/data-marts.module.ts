@@ -330,6 +330,7 @@ import { MemberRoleContext } from './entities/member-role-context.entity';
 import { ContextService } from './services/context/context.service';
 import { ContextAccessService } from './services/context/context-access.service';
 import { ContextMapper } from './mappers/context.mapper';
+import { ProjectMembersMapper } from './mappers/project-members.mapper';
 import { ContextController } from './controllers/context.controller';
 import { ProjectMembersController } from './controllers/project-members.controller';
 import { ListProjectMembersService } from './use-cases/project-members/list-project-members.service';
@@ -678,6 +679,7 @@ import { SetContextMembersService } from './use-cases/contexts/set-context-membe
     ContextService,
     ContextAccessService,
     ContextMapper,
+    ProjectMembersMapper,
     ListProjectMembersService,
     InviteProjectMemberService,
     UpdateProjectMemberService,

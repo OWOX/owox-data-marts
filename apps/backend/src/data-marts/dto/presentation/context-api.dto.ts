@@ -3,12 +3,16 @@ import {
   ArrayMaxSize,
   IsArray,
   IsEmail,
-  IsIn,
+  IsEnum,
   IsNotEmpty,
   IsOptional,
   IsString,
   MaxLength,
 } from 'class-validator';
+import { ProjectRole } from '../../enums/project-role.enum';
+import { RoleScope } from '../../enums/role-scope.enum';
+import { UserProjection } from '../schemas/user-projection.schema';
+import { UserProjectionDto } from '../../../idp/dto/domain/user-projection.dto';
 
 export class CreateContextRequestApiDto {
   @ApiProperty()
@@ -30,9 +34,10 @@ export class UpdateContextRequestApiDto {
   @MaxLength(255)
   name: string;
 
-  @ApiProperty()
+  @ApiPropertyOptional()
+  @IsOptional()
   @IsString()
-  description: string;
+  description?: string;
 }
 
 export class ContextResponseApiDto {
@@ -48,11 +53,14 @@ export class ContextResponseApiDto {
   @ApiPropertyOptional()
   createdById: string | null;
 
-  @ApiPropertyOptional()
-  createdByUser: { userId: string; email: string; fullName?: string; avatar?: string } | null;
+  @ApiPropertyOptional({ type: UserProjectionDto })
+  createdByUser: UserProjection | null;
 
-  @ApiProperty()
+  @ApiProperty({ example: '2024-01-01T12:00:00.000Z' })
   createdAt: Date;
+
+  @ApiProperty({ example: '2024-01-02T15:30:00.000Z' })
+  modifiedAt: Date;
 }
 
 export class ContextImpactResponseApiDto {
@@ -112,15 +120,13 @@ export class UpdateContextMembersResponseApiDto {
 }
 
 export class UpdateMemberRequestApiDto {
-  @ApiProperty({ enum: ['admin', 'editor', 'viewer'] })
-  @IsString()
-  @IsIn(['admin', 'editor', 'viewer'])
-  role: 'admin' | 'editor' | 'viewer';
+  @ApiProperty({ enum: ProjectRole })
+  @IsEnum(ProjectRole)
+  role: ProjectRole;
 
-  @ApiProperty({ enum: ['entire_project', 'selected_contexts'] })
-  @IsString()
-  @IsIn(['entire_project', 'selected_contexts'])
-  roleScope: 'entire_project' | 'selected_contexts';
+  @ApiProperty({ enum: RoleScope })
+  @IsEnum(RoleScope)
+  roleScope: RoleScope;
 
   @ApiProperty({ type: [String] })
   @IsArray()
@@ -134,11 +140,11 @@ export class UpdateMemberResponseApiDto {
   @ApiProperty()
   userId: string;
 
-  @ApiProperty()
-  role: string;
+  @ApiProperty({ enum: ProjectRole })
+  role: ProjectRole;
 
-  @ApiProperty()
-  roleScope: string;
+  @ApiProperty({ enum: RoleScope })
+  roleScope: RoleScope;
 
   @ApiProperty({ type: [String] })
   contextIds: string[];
@@ -163,11 +169,11 @@ export class ProjectMemberResponseApiDto {
   @ApiPropertyOptional()
   avatarUrl?: string;
 
-  @ApiProperty({ enum: ['admin', 'editor', 'viewer'] })
-  role: string;
+  @ApiProperty({ enum: ProjectRole })
+  role: ProjectRole;
 
-  @ApiProperty({ enum: ['entire_project', 'selected_contexts'] })
-  roleScope: string;
+  @ApiProperty({ enum: RoleScope })
+  roleScope: RoleScope;
 
   @ApiProperty({ type: [String] })
   contextIds: string[];
@@ -179,20 +185,18 @@ export class InviteMemberRequestApiDto {
   @MaxLength(320)
   email: string;
 
-  @ApiProperty({ enum: ['admin', 'editor', 'viewer'] })
-  @IsString()
-  @IsIn(['admin', 'editor', 'viewer'])
-  role: 'admin' | 'editor' | 'viewer';
+  @ApiProperty({ enum: ProjectRole })
+  @IsEnum(ProjectRole)
+  role: ProjectRole;
 
   @ApiPropertyOptional({
-    enum: ['entire_project', 'selected_contexts'],
+    enum: RoleScope,
     description:
       'Explicit role scope for non-admin invitees. Ignored when role=admin (admins are always entire_project). If omitted, scope is inferred from contextIds (non-empty → selected_contexts, empty → entire_project) for backwards compatibility.',
   })
   @IsOptional()
-  @IsString()
-  @IsIn(['entire_project', 'selected_contexts'])
-  roleScope?: 'entire_project' | 'selected_contexts';
+  @IsEnum(RoleScope)
+  roleScope?: RoleScope;
 
   @ApiPropertyOptional({ type: [String] })
   @IsOptional()
@@ -217,8 +221,8 @@ export class InviteMemberResponseApiDto {
   @ApiProperty({ enum: ['email-sent', 'magic-link'] })
   kind: 'email-sent' | 'magic-link';
 
-  @ApiProperty({ enum: ['admin', 'editor', 'viewer'] })
-  role: 'admin' | 'editor' | 'viewer';
+  @ApiProperty({ enum: ProjectRole })
+  role: ProjectRole;
 
   @ApiPropertyOptional({
     description: 'Present when `kind` is `magic-link`. Admin shares this link manually.',

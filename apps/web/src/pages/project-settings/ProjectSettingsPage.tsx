@@ -1,6 +1,8 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { NavLink, Outlet } from 'react-router-dom';
 import { cn } from '@owox/ui/lib/utils';
+import { Alert, AlertDescription, AlertTitle } from '@owox/ui/components/alert';
+import { AlertCircle } from 'lucide-react';
 import { useIsAdmin } from '../../features/idp/hooks/useRole';
 import { useFlags } from '../../app/store/hooks';
 import { checkVisible } from '../../utils/check-visible';
@@ -35,11 +37,13 @@ export function ProjectSettingsPage() {
   const [contexts, setContexts] = useState<ContextDto[]>([]);
   const [members, setMembers] = useState<MemberWithScopeDto[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [inviteOpen, setInviteOpen] = useState(false);
   const [addContextOpen, setAddContextOpen] = useState(false);
 
   const loadData = useCallback(async () => {
     setLoading(true);
+    setError(null);
     try {
       const [ctxs, mems] = await Promise.all([
         contextService.getContexts(),
@@ -47,6 +51,11 @@ export function ProjectSettingsPage() {
       ]);
       setContexts(ctxs);
       setMembers(mems);
+    } catch (err) {
+      // Without a catch the page renders empty arrays + loading=false, which
+      // is indistinguishable from "this project really has no members /
+      // contexts". Surface the error so the admin knows to retry.
+      setError(err instanceof Error ? err.message : 'Failed to load project data');
     } finally {
       setLoading(false);
     }
@@ -79,19 +88,34 @@ export function ProjectSettingsPage() {
     { name: 'Notification', path: 'notifications', end: false },
   ];
 
+  // Stabilize the context value object so consumers do not re-render every
+  // time `ProjectSettingsPage` itself rerenders for unrelated reasons (sheet
+  // open/close state, etc.).
+  const providerValue = useMemo(
+    () => ({
+      contexts,
+      members,
+      loading,
+      refresh: loadData,
+      optimisticRemoveMember,
+      isAdmin,
+      openInviteSheet,
+      openAddContextSheet,
+    }),
+    [
+      contexts,
+      members,
+      loading,
+      loadData,
+      optimisticRemoveMember,
+      isAdmin,
+      openInviteSheet,
+      openAddContextSheet,
+    ]
+  );
+
   return (
-    <MembersSettingsProvider
-      value={{
-        contexts,
-        members,
-        loading,
-        refresh: loadData,
-        optimisticRemoveMember,
-        isAdmin,
-        openInviteSheet,
-        openAddContextSheet,
-      }}
-    >
+    <MembersSettingsProvider value={providerValue}>
       <div className='min-w-[600px] px-12 py-6'>
         <div className='mb-4 flex items-center gap-4'>
           <span className='text-2xl font-medium'>Project settings</span>
@@ -120,6 +144,14 @@ export function ProjectSettingsPage() {
             </NavLink>
           ))}
         </nav>
+
+        {error !== null && (
+          <Alert variant='destructive' className='mt-4'>
+            <AlertCircle className='h-4 w-4' />
+            <AlertTitle>Could not load project data</AlertTitle>
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        )}
 
         <div className='pt-4'>
           <Outlet />

@@ -1,4 +1,5 @@
 import { InviteProjectMemberCommand } from '../../dto/domain/invite-project-member.command';
+import { ProjectRole } from '../../enums/project-role.enum';
 import { RoleScope } from '../../enums/role-scope.enum';
 import { InviteProjectMemberService } from './invite-project-member.service';
 
@@ -31,7 +32,7 @@ describe('InviteProjectMemberService', () => {
       overrides.projectId ?? PROJECT_ID,
       overrides.actorUserId ?? ACTOR_ID,
       overrides.email ?? 'invitee@test.io',
-      overrides.role ?? 'editor',
+      overrides.role ?? ProjectRole.EDITOR,
       overrides.roleScope,
       overrides.contextIds ?? []
     );
@@ -41,16 +42,16 @@ describe('InviteProjectMemberService', () => {
     idpProjectionsFacade.inviteMember.mockResolvedValue({
       projectId: PROJECT_ID,
       email: 'invitee@test.io',
-      role: 'editor',
+      role: ProjectRole.EDITOR,
       kind: 'magic-link',
       magicLink: 'https://app/invite/tok',
       userId: 'new-user',
     });
 
-    await service.run(command({ role: 'editor', contextIds: [] }));
+    await service.run(command({ role: ProjectRole.EDITOR, contextIds: [] }));
 
     expect(contextAccessService.updateMember).toHaveBeenCalledWith('new-user', PROJECT_ID, {
-      role: 'editor',
+      role: ProjectRole.EDITOR,
       roleScope: RoleScope.ENTIRE_PROJECT,
       contextIds: [],
     });
@@ -61,7 +62,7 @@ describe('InviteProjectMemberService', () => {
     idpProjectionsFacade.inviteMember.mockResolvedValue({
       projectId: PROJECT_ID,
       email: 'scoped@test.io',
-      role: 'editor',
+      role: ProjectRole.EDITOR,
       kind: 'magic-link',
       magicLink: 'https://app/invite/scoped',
       userId: 'scoped-user',
@@ -69,7 +70,7 @@ describe('InviteProjectMemberService', () => {
 
     await service.run(
       command({
-        role: 'editor',
+        role: ProjectRole.EDITOR,
         roleScope: RoleScope.SELECTED_CONTEXTS,
         contextIds: [],
       })
@@ -77,7 +78,7 @@ describe('InviteProjectMemberService', () => {
 
     expect(idpProjectionsFacade.inviteMember).toHaveBeenCalled();
     expect(contextAccessService.updateMember).toHaveBeenCalledWith('scoped-user', PROJECT_ID, {
-      role: 'editor',
+      role: ProjectRole.EDITOR,
       roleScope: RoleScope.SELECTED_CONTEXTS,
       contextIds: [],
     });
@@ -88,13 +89,15 @@ describe('InviteProjectMemberService', () => {
     idpProjectionsFacade.inviteMember.mockResolvedValue({
       projectId: PROJECT_ID,
       email: 'invitee@test.io',
-      role: 'editor',
+      role: ProjectRole.EDITOR,
       kind: 'magic-link',
       magicLink: 'https://app/invite/tok',
       userId: 'new-user',
     });
 
-    const result = await service.run(command({ role: 'editor', contextIds: ['ctx-1', 'ctx-2'] }));
+    const result = await service.run(
+      command({ role: ProjectRole.EDITOR, contextIds: ['ctx-1', 'ctx-2'] })
+    );
 
     expect(contextService.validateContextIds).toHaveBeenCalledWith(['ctx-1', 'ctx-2'], PROJECT_ID);
     expect(idpProjectionsFacade.inviteMember).toHaveBeenCalledWith(
@@ -104,7 +107,7 @@ describe('InviteProjectMemberService', () => {
       ACTOR_ID
     );
     expect(contextAccessService.updateMember).toHaveBeenCalledWith('new-user', PROJECT_ID, {
-      role: 'editor',
+      role: ProjectRole.EDITOR,
       roleScope: RoleScope.SELECTED_CONTEXTS,
       contextIds: ['ctx-1', 'ctx-2'],
     });
@@ -116,7 +119,7 @@ describe('InviteProjectMemberService', () => {
     idpProjectionsFacade.inviteMember.mockResolvedValue({
       projectId: PROJECT_ID,
       email: 'adm@test.io',
-      role: 'admin',
+      role: ProjectRole.ADMIN,
       kind: 'magic-link',
       magicLink: 'https://app/invite/adm',
       userId: 'adm-stub',
@@ -124,14 +127,14 @@ describe('InviteProjectMemberService', () => {
 
     await service.run(
       command({
-        role: 'admin',
+        role: ProjectRole.ADMIN,
         roleScope: RoleScope.SELECTED_CONTEXTS,
         contextIds: ['ctx-1'],
       })
     );
 
     expect(contextAccessService.updateMember).toHaveBeenCalledWith('adm-stub', PROJECT_ID, {
-      role: 'admin',
+      role: ProjectRole.ADMIN,
       roleScope: RoleScope.ENTIRE_PROJECT,
       contextIds: ['ctx-1'],
     });
@@ -142,7 +145,7 @@ describe('InviteProjectMemberService', () => {
     idpProjectionsFacade.inviteMember.mockResolvedValue({
       projectId: PROJECT_ID,
       email: 'wide@test.io',
-      role: 'viewer',
+      role: ProjectRole.VIEWER,
       kind: 'magic-link',
       magicLink: 'https://app/invite/wide',
       userId: 'wide-stub',
@@ -150,14 +153,14 @@ describe('InviteProjectMemberService', () => {
 
     await service.run(
       command({
-        role: 'viewer',
+        role: ProjectRole.VIEWER,
         roleScope: RoleScope.ENTIRE_PROJECT,
         contextIds: ['ctx-1'],
       })
     );
 
     expect(contextAccessService.updateMember).toHaveBeenCalledWith('wide-stub', PROJECT_ID, {
-      role: 'viewer',
+      role: ProjectRole.VIEWER,
       roleScope: RoleScope.ENTIRE_PROJECT,
       contextIds: ['ctx-1'],
     });
@@ -168,14 +171,14 @@ describe('InviteProjectMemberService', () => {
     idpProjectionsFacade.inviteMember.mockResolvedValue({
       projectId: PROJECT_ID,
       email: 'deferred@test.io',
-      role: 'viewer',
+      role: ProjectRole.VIEWER,
       kind: 'email-sent',
       message: 'Invitation email sent',
     });
 
     await service.run(
       command({
-        role: 'viewer',
+        role: ProjectRole.VIEWER,
         roleScope: RoleScope.ENTIRE_PROJECT,
         contextIds: [],
       })
@@ -191,7 +194,7 @@ describe('InviteProjectMemberService', () => {
     await expect(
       service.run(
         command({
-          role: 'viewer',
+          role: ProjectRole.VIEWER,
           roleScope: RoleScope.ENTIRE_PROJECT,
           contextIds: [],
         })
@@ -206,7 +209,7 @@ describe('InviteProjectMemberService', () => {
     idpProjectionsFacade.inviteMember.mockResolvedValue({
       projectId: PROJECT_ID,
       email: 'local-fail@test.io',
-      role: 'editor',
+      role: ProjectRole.EDITOR,
       kind: 'magic-link',
       magicLink: 'https://app/invite/local-fail',
       userId: 'local-fail-stub',
@@ -216,7 +219,7 @@ describe('InviteProjectMemberService', () => {
     await expect(
       service.run(
         command({
-          role: 'editor',
+          role: ProjectRole.EDITOR,
           roleScope: RoleScope.ENTIRE_PROJECT,
           contextIds: [],
         })

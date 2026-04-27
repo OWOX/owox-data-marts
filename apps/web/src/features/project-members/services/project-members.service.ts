@@ -1,5 +1,6 @@
 import { ApiService } from '../../../services/api-service';
 import type { MemberWithScopeDto } from '../../contexts/types/context.types';
+import type { Role, RoleScope } from '../types';
 
 /**
  * Discriminated union mirroring `InviteMemberResponseApiDto` from backend.
@@ -13,20 +14,42 @@ import type { MemberWithScopeDto } from '../../contexts/types/context.types';
 export type InviteMemberResponse =
   | {
       email: string;
-      role: string;
+      role: Role;
       kind: 'email-sent';
       userId?: string;
       message?: string;
     }
   | {
       email: string;
-      role: string;
+      role: Role;
       kind: 'magic-link';
       magicLink: string;
       userId?: string;
       expiresAt?: string;
       message?: string;
     };
+
+export interface UpdateMemberPayload {
+  role: Role;
+  roleScope: RoleScope;
+  contextIds: string[];
+}
+
+export interface UpdateMemberResult {
+  userId: string;
+  role: Role;
+  roleScope: RoleScope;
+  contextIds: string[];
+  roleStatus: 'ok' | 'pending';
+  message?: string;
+}
+
+export interface InviteMemberPayload {
+  email: string;
+  role: Role;
+  roleScope?: RoleScope;
+  contextIds?: string[];
+}
 
 class ProjectMembersApiService extends ApiService {
   constructor() {
@@ -37,30 +60,11 @@ class ProjectMembersApiService extends ApiService {
     return this.get<MemberWithScopeDto[]>('/');
   }
 
-  async updateMember(
-    userId: string,
-    payload: {
-      role: string;
-      roleScope: string;
-      contextIds: string[];
-    }
-  ): Promise<{
-    userId: string;
-    role: string;
-    roleScope: string;
-    contextIds: string[];
-    roleStatus: 'ok' | 'pending';
-    message?: string;
-  }> {
+  async updateMember(userId: string, payload: UpdateMemberPayload): Promise<UpdateMemberResult> {
     return this.put(`/${userId}`, payload);
   }
 
-  async inviteMember(payload: {
-    email: string;
-    role: string;
-    roleScope?: 'entire_project' | 'selected_contexts';
-    contextIds?: string[];
-  }): Promise<InviteMemberResponse> {
+  async inviteMember(payload: InviteMemberPayload): Promise<InviteMemberResponse> {
     return this.post('/invite', payload);
   }
 

@@ -2,14 +2,15 @@ import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/commo
 import type { Role as IdpRole } from '@owox/idp-protocol';
 import { IdpProjectionsFacade } from '../../../idp/facades/idp-projections.facade';
 import { UpdateProjectMemberCommand } from '../../dto/domain/update-project-member.command';
+import { ProjectRole } from '../../enums/project-role.enum';
 import { RoleScope } from '../../enums/role-scope.enum';
 import { ContextAccessService } from '../../services/context/context-access.service';
 import { ContextService } from '../../services/context/context.service';
-import { isIdpNotFoundError } from '../../utils/is-idp-not-found-error';
+import { isIdpNotFoundError } from '../../../idp/utils/is-idp-not-found-error';
 
 export interface UpdateProjectMemberResult {
   userId: string;
-  role: 'admin' | 'editor' | 'viewer';
+  role: ProjectRole;
   roleScope: RoleScope;
   contextIds: string[];
 }
@@ -32,8 +33,7 @@ export class UpdateProjectMemberService {
       throw new ForbiddenException('You cannot modify your own membership');
     }
 
-    const projectMembers = await this.idpProjectionsFacade.getProjectMembers(projectId);
-    const currentMember = projectMembers.find(m => m.userId === targetUserId);
+    const currentMember = await this.idpProjectionsFacade.getProjectMember(projectId, targetUserId);
     if (!currentMember) {
       throw new NotFoundException(`Member "${targetUserId}" not found in project "${projectId}"`);
     }
@@ -49,7 +49,7 @@ export class UpdateProjectMemberService {
     // the local scope/contexts unchanged. A 404 from upstream means the
     // member was already removed concurrently (our cache is stale) — surface
     // it as a real 404 so the UI shows "refresh the list" rather than 500.
-    if (role !== currentMember.role) {
+    if (role !== (currentMember.role as ProjectRole)) {
       try {
         await this.idpProjectionsFacade.changeMemberRole(
           projectId,

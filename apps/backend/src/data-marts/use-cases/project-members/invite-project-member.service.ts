@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import type { ProjectMemberInvitation, Role as IdpRole } from '@owox/idp-protocol';
 import { IdpProjectionsFacade } from '../../../idp/facades/idp-projections.facade';
 import { InviteProjectMemberCommand } from '../../dto/domain/invite-project-member.command';
+import { ProjectRole } from '../../enums/project-role.enum';
 import { RoleScope } from '../../enums/role-scope.enum';
 import { ContextAccessService } from '../../services/context/context-access.service';
 import { ContextService } from '../../services/context/context.service';
@@ -28,7 +29,7 @@ export class InviteProjectMemberService {
     const inferredScope =
       contextIds.length > 0 ? RoleScope.SELECTED_CONTEXTS : RoleScope.ENTIRE_PROJECT;
     const effectiveScope: RoleScope =
-      role === 'admin' ? RoleScope.ENTIRE_PROJECT : (roleScope ?? inferredScope);
+      role === ProjectRole.ADMIN ? RoleScope.ENTIRE_PROJECT : (roleScope ?? inferredScope);
 
     if (contextIds.length > 0) {
       await this.contextService.validateContextIds(contextIds, projectId);

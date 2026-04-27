@@ -167,15 +167,15 @@ export class ContextService {
 
     const affectedMemberIds = affectedMembers.map(m => m.userId);
 
-    return {
-      contextId: entity.id,
-      contextName: entity.name,
+    return new ContextImpactDto(
+      entity.id,
+      entity.name,
       dataMartCount,
       storageCount,
       destinationCount,
       memberCount,
-      affectedMemberIds,
-    };
+      affectedMemberIds
+    );
   }
 
   /**

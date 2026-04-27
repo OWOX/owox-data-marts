@@ -9,6 +9,8 @@ import { DataStorage } from '../entities/data-storage.entity';
 import { DataMartDefinitionType } from '../enums/data-mart-definition-type.enum';
 import { DataMartStatus } from '../enums/data-mart-status.enum';
 import { OwnerFilter } from '../enums/owner-filter.enum';
+import { RoleScope } from '../enums/role-scope.enum';
+import { buildContextGateSql } from '../utils/build-context-gate-sql';
 
 @Injectable()
 export class DataMartService {
@@ -58,7 +60,7 @@ export class DataMartService {
       ownerFilter?: OwnerFilter;
       userId?: string;
       roles?: string[];
-      roleScope?: string;
+      roleScope?: RoleScope;
     }
   ): Promise<{ items: DataMart[]; total: number }> {
     const qb = this.dataMartRepository
@@ -97,52 +99,32 @@ export class DataMartService {
     const isAdmin = options?.roles?.includes('admin');
     if (!isAdmin && options?.userId) {
       const isTu = options.roles?.includes('editor');
-      const roleScope = options?.roleScope ?? 'entire_project';
-      if (isTu) {
-        // TU: tech owner OR biz owner OR (shared access with context gate)
-        qb.andWhere(
-          `(
-            EXISTS (SELECT 1 FROM data_mart_technical_owners t WHERE t.data_mart_id = dm.id AND t.user_id = :accessUserId)
-            OR EXISTS (SELECT 1 FROM data_mart_business_owners b WHERE b.data_mart_id = dm.id AND b.user_id = :accessUserId)
-            OR (
-              (dm.availableForReporting = :isTrue OR dm.availableForMaintenance = :isTrue)
-              AND (
-                :roleScope = 'entire_project'
-                OR EXISTS (
-                  SELECT 1 FROM data_mart_contexts dmc
-                  JOIN member_role_contexts mrc ON mrc.context_id = dmc.context_id
-                  JOIN context c ON c.id = dmc.context_id AND c.deletedAt IS NULL
-                  WHERE dmc.data_mart_id = dm.id
-                  AND mrc.user_id = :accessUserId AND mrc.project_id = :projectId
-                )
-              )
-            )
-          )`,
-          { accessUserId: options.userId, isTrue: true, roleScope, projectId }
-        );
-      } else {
-        // BU: tech/biz owner OR (available_for_reporting with context gate)
-        qb.andWhere(
-          `(
-            EXISTS (SELECT 1 FROM data_mart_technical_owners t WHERE t.data_mart_id = dm.id AND t.user_id = :accessUserId)
-            OR EXISTS (SELECT 1 FROM data_mart_business_owners b WHERE b.data_mart_id = dm.id AND b.user_id = :accessUserId)
-            OR (
-              dm.availableForReporting = :isTrue
-              AND (
-                :roleScope = 'entire_project'
-                OR EXISTS (
-                  SELECT 1 FROM data_mart_contexts dmc
-                  JOIN member_role_contexts mrc ON mrc.context_id = dmc.context_id
-                  JOIN context c ON c.id = dmc.context_id AND c.deletedAt IS NULL
-                  WHERE dmc.data_mart_id = dm.id
-                  AND mrc.user_id = :accessUserId AND mrc.project_id = :projectId
-                )
-              )
-            )
-          )`,
-          { accessUserId: options.userId, isTrue: true, roleScope, projectId }
-        );
-      }
+      const roleScope: RoleScope = options?.roleScope ?? RoleScope.ENTIRE_PROJECT;
+      const contextGate = buildContextGateSql({
+        joinTable: 'data_mart_contexts',
+        entityIdColumn: 'data_mart_id',
+        entityAlias: 'dm',
+      });
+      const sharedClause = isTu
+        ? `(dm.availableForReporting = :isTrue OR dm.availableForMaintenance = :isTrue)`
+        : `dm.availableForReporting = :isTrue`;
+      qb.andWhere(
+        `(
+          EXISTS (SELECT 1 FROM data_mart_technical_owners t WHERE t.data_mart_id = dm.id AND t.user_id = :userId)
+          OR EXISTS (SELECT 1 FROM data_mart_business_owners b WHERE b.data_mart_id = dm.id AND b.user_id = :userId)
+          OR (
+            ${sharedClause}
+            AND ${contextGate}
+          )
+        )`,
+        {
+          userId: options.userId,
+          isTrue: true,
+          roleScope,
+          entireProjectScope: RoleScope.ENTIRE_PROJECT,
+          projectId,
+        }
+      );
     }
 
     if (options?.ownerFilter === OwnerFilter.HAS_OWNERS) {

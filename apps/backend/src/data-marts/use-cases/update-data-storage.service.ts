@@ -1,4 +1,4 @@
-import { Injectable, BadRequestException, Logger } from '@nestjs/common';
+import { Injectable, BadRequestException, ForbiddenException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Transactional } from 'typeorm-transactional';
@@ -31,12 +31,9 @@ import { syncOwners } from '../utils/sync-owners';
 import { IdpProjectionsFacade } from '../../idp/facades/idp-projections.facade';
 import { AccessDecisionService, EntityType, Action } from '../services/access-decision';
 import { ContextAccessService } from '../services/context/context-access.service';
-import { ForbiddenException } from '@nestjs/common';
 
 @Injectable()
 export class UpdateDataStorageService {
-  private readonly logger = new Logger(UpdateDataStorageService.name);
-
   constructor(
     @InjectRepository(DataStorage)
     private readonly dataStorageRepository: Repository<DataStorage>,

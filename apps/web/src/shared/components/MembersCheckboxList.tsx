@@ -2,11 +2,23 @@ import { Checkbox } from '@owox/ui/components/checkbox';
 import { Label } from '@owox/ui/components/label';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@owox/ui/components/tooltip';
 import { Info, User } from 'lucide-react';
-import type { MemberWithScopeDto } from '../../features/contexts/types/context.types';
+
+/**
+ * Minimal member shape accepted by the list. Kept narrow on purpose so
+ * `shared/` does not depend on any feature DTO — callers in `features/`
+ * project to this shape before passing in.
+ */
+export interface CheckableMember {
+  userId: string;
+  email: string;
+  displayName?: string | undefined;
+  avatarUrl?: string | undefined;
+  isAdmin?: boolean;
+}
 
 interface MembersCheckboxListProps {
   idPrefix: string;
-  members: MemberWithScopeDto[];
+  members: CheckableMember[];
   selectedIds: string[];
   onToggle: (userId: string, checked: boolean) => void;
   disabled?: boolean;
@@ -23,7 +35,7 @@ export function MembersCheckboxList({
   excludeAdmins = false,
   emptyText = 'No members available.',
 }: MembersCheckboxListProps) {
-  const visible = excludeAdmins ? members.filter(m => m.role !== 'admin') : members;
+  const visible = excludeAdmins ? members.filter(m => !m.isAdmin) : members;
 
   if (visible.length === 0) {
     return (
@@ -36,7 +48,7 @@ export function MembersCheckboxList({
   return (
     <div className='border-input flex flex-col gap-1 rounded-md border p-1'>
       {visible.map(m => {
-        const isAdmin = m.role === 'admin';
+        const isAdmin = m.isAdmin === true;
         const checked = isAdmin || selectedIds.includes(m.userId);
         const id = `${idPrefix}-${m.userId}`;
         return (

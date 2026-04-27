@@ -1,5 +1,7 @@
 import { useState, useCallback } from 'react';
 import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { z } from 'zod';
 import {
   Sheet,
   SheetContent,
@@ -11,11 +13,15 @@ import { Button } from '@owox/ui/components/button';
 import { Input } from '@owox/ui/components/input';
 import { Textarea } from '@owox/ui/components/textarea';
 import {
+  AppForm,
   Form,
   FormActions,
+  FormControl,
+  FormField,
   FormItem,
   FormLabel,
   FormLayout,
+  FormMessage,
   FormSection,
 } from '@owox/ui/components/form';
 import {
@@ -30,6 +36,19 @@ import { contextService } from '../../services/context.service';
 import { MembersCheckboxList } from '../../../../shared/components/MembersCheckboxList';
 import type { ContextDto, MemberWithScopeDto } from '../../types/context.types';
 
+const addContextSchema = z.object({
+  name: z
+    .string()
+    .trim()
+    .min(1, 'Name is required')
+    .max(255, 'Name must be 255 characters or fewer'),
+  description: z.string().optional(),
+});
+
+type AddContextFormValues = z.infer<typeof addContextSchema>;
+
+const DEFAULT_VALUES: AddContextFormValues = { name: '', description: '' };
+
 interface AddContextSheetProps {
   isOpen: boolean;
   members: MemberWithScopeDto[];
@@ -38,17 +57,19 @@ interface AddContextSheetProps {
 }
 
 export function AddContextSheet({ isOpen, members, onClose, onCreated }: AddContextSheetProps) {
-  const form = useForm();
-  const [name, setName] = useState('');
-  const [description, setDescription] = useState('');
+  const form = useForm<AddContextFormValues>({
+    resolver: zodResolver(addContextSchema),
+    defaultValues: DEFAULT_VALUES,
+    mode: 'onChange',
+  });
+  const { control, handleSubmit, formState, reset: resetForm } = form;
   const [selectedMemberIds, setSelectedMemberIds] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
 
-  const reset = () => {
-    setName('');
-    setDescription('');
+  const reset = useCallback(() => {
+    resetForm(DEFAULT_VALUES);
     setSelectedMemberIds([]);
-  };
+  }, [resetForm]);
 
   const handleClose = () => {
     if (saving) return;
@@ -60,32 +81,30 @@ export function AddContextSheet({ isOpen, members, onClose, onCreated }: AddCont
     setSelectedMemberIds(prev => (checked ? [...prev, userId] : prev.filter(id => id !== userId)));
   };
 
-  const handleCreate = useCallback(async () => {
-    const trimmed = name.trim();
-    if (!trimmed) {
-      toast.error('Name is required');
-      return;
-    }
-    setSaving(true);
-    try {
-      const created = await contextService.createContext({
-        name: trimmed,
-        description: description.trim() || undefined,
-      });
+  const onSubmit = useCallback(
+    async (values: AddContextFormValues) => {
+      setSaving(true);
+      try {
+        const created = await contextService.createContext({
+          name: values.name.trim(),
+          description: values.description?.trim() || undefined,
+        });
 
-      if (selectedMemberIds.length > 0) {
-        await contextService.updateContextMembers(created.id, selectedMemberIds);
+        if (selectedMemberIds.length > 0) {
+          await contextService.updateContextMembers(created.id, selectedMemberIds);
+        }
+
+        toast.success('Context created');
+        reset();
+        onCreated(created);
+      } catch (error) {
+        toast.error(error instanceof Error ? error.message : 'Failed to create context');
+      } finally {
+        setSaving(false);
       }
-
-      toast.success('Context created');
-      reset();
-      onCreated(created);
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Failed to create context');
-    } finally {
-      setSaving(false);
-    }
-  }, [name, description, selectedMemberIds, onCreated]);
+    },
+    [selectedMemberIds, onCreated, reset]
+  );
 
   return (
     <Sheet
@@ -103,100 +122,100 @@ export function AddContextSheet({ isOpen, members, onClose, onCreated }: AddCont
         </SheetHeader>
 
         <Form {...form}>
-          <FormLayout>
-            <FormSection title='General' name='add-context-general'>
-              <FormItem>
-                <FormLabel
-                  htmlFor='new-ctx-name'
-                  tooltip='Business-domain label shown on resources'
-                >
-                  Name
-                </FormLabel>
-                <Input
-                  id='new-ctx-name'
-                  value={name}
-                  onChange={e => {
-                    setName(e.target.value);
-                  }}
-                  placeholder='Marketing'
-                  disabled={saving}
-                  autoFocus
+          <AppForm onSubmit={handleSubmit(onSubmit)}>
+            <FormLayout>
+              <FormSection title='General' name='add-context-general'>
+                <FormField
+                  control={control}
+                  name='name'
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel tooltip='Business-domain label shown on resources'>Name</FormLabel>
+                      <FormControl>
+                        <Input {...field} placeholder='Marketing' disabled={saving} autoFocus />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
                 />
-              </FormItem>
 
-              <FormItem>
-                <FormLabel
-                  htmlFor='new-ctx-description'
-                  tooltip='Helps members understand what resources belong to this context'
-                >
-                  Description (optional)
-                </FormLabel>
-                <Textarea
-                  id='new-ctx-description'
-                  value={description}
-                  onChange={e => {
-                    setDescription(e.target.value);
-                  }}
-                  rows={3}
-                  disabled={saving}
-                  placeholder='What this context represents'
+                <FormField
+                  control={control}
+                  name='description'
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel tooltip='Helps members understand what resources belong to this context'>
+                        Description (optional)
+                      </FormLabel>
+                      <FormControl>
+                        <Textarea
+                          {...field}
+                          rows={3}
+                          disabled={saving}
+                          placeholder='What this context represents'
+                        />
+                      </FormControl>
+                      <FormMessage />
+                      <Accordion variant='common' type='single' collapsible>
+                        <AccordionItem value='add-ctx-help'>
+                          <AccordionTrigger className='text-sm'>
+                            What is a context?
+                          </AccordionTrigger>
+                          <AccordionContent>
+                            <p className='text-muted-foreground text-sm'>
+                              A context is a business-domain label (e.g. Marketing, Finance) that
+                              you can attach to Data Marts, Storages, Destinations and members.
+                              Non-admin members with "Selected contexts" scope can only access
+                              resources that share at least one of their contexts.
+                            </p>
+                          </AccordionContent>
+                        </AccordionItem>
+                      </Accordion>
+                    </FormItem>
+                  )}
                 />
-                <Accordion variant='common' type='single' collapsible>
-                  <AccordionItem value='add-ctx-help'>
-                    <AccordionTrigger className='text-sm'>What is a context?</AccordionTrigger>
-                    <AccordionContent>
-                      <p className='text-muted-foreground text-sm'>
-                        A context is a business-domain label (e.g. Marketing, Finance) that you can
-                        attach to Data Marts, Storages, Destinations and members. Non-admin members
-                        with "Selected contexts" scope can only access resources that share at least
-                        one of their contexts.
-                      </p>
-                    </AccordionContent>
-                  </AccordionItem>
-                </Accordion>
-              </FormItem>
-            </FormSection>
-
-            {members.length > 0 && (
-              <FormSection title='Members' name='add-context-members'>
-                <FormItem>
-                  <FormLabel tooltip='Members you select here will get access to resources tagged with this context'>
-                    Assign to members (optional)
-                  </FormLabel>
-                  <MembersCheckboxList
-                    idPrefix='new-ctx-mem'
-                    members={members}
-                    selectedIds={selectedMemberIds}
-                    onToggle={handleToggleMember}
-                    disabled={saving}
-                  />
-                </FormItem>
               </FormSection>
-            )}
-          </FormLayout>
 
-          <FormActions>
-            <Button
-              type='button'
-              className='w-full'
-              onClick={() => {
-                void handleCreate();
-              }}
-              disabled={saving || name.trim().length === 0}
-            >
-              {saving && <Loader2 className='mr-2 h-4 w-4 animate-spin' />}
-              Create
-            </Button>
-            <Button
-              type='button'
-              variant='outline'
-              className='w-full'
-              onClick={handleClose}
-              disabled={saving}
-            >
-              Cancel
-            </Button>
-          </FormActions>
+              {members.length > 0 && (
+                <FormSection title='Members' name='add-context-members'>
+                  <FormItem>
+                    <FormLabel tooltip='Members you select here will get access to resources tagged with this context'>
+                      Assign to members (optional)
+                    </FormLabel>
+                    <MembersCheckboxList
+                      idPrefix='new-ctx-mem'
+                      members={members.map(m => ({
+                        userId: m.userId,
+                        email: m.email,
+                        displayName: m.displayName,
+                        avatarUrl: m.avatarUrl,
+                        isAdmin: m.role === 'admin',
+                      }))}
+                      selectedIds={selectedMemberIds}
+                      onToggle={handleToggleMember}
+                      disabled={saving}
+                    />
+                  </FormItem>
+                </FormSection>
+              )}
+            </FormLayout>
+
+            <FormActions>
+              <Button type='submit' className='w-full' disabled={saving || !formState.isValid}>
+                {saving && <Loader2 className='mr-2 h-4 w-4 animate-spin' />}
+                Create
+              </Button>
+              <Button
+                type='button'
+                variant='outline'
+                className='w-full'
+                onClick={handleClose}
+                disabled={saving}
+              >
+                Cancel
+              </Button>
+            </FormActions>
+          </AppForm>
         </Form>
       </SheetContent>
     </Sheet>

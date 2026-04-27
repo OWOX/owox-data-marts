@@ -1,19 +1,26 @@
+import { UserProjection } from '../schemas/user-projection.schema';
+
 export class ContextDto {
-  id: string;
-  name: string;
-  description: string | null;
-  projectId: string;
-  createdById: string | null;
-  createdByUser: { userId: string; email: string; fullName?: string; avatar?: string } | null;
-  createdAt: Date;
+  constructor(
+    public readonly id: string,
+    public readonly name: string,
+    public readonly description: string | null,
+    public readonly projectId: string,
+    public readonly createdById: string | null,
+    public readonly createdByUser: UserProjection | null,
+    public readonly createdAt: Date,
+    public readonly modifiedAt: Date
+  ) {}
 }
 
 export class ContextImpactDto {
-  contextId: string;
-  contextName: string;
-  dataMartCount: number;
-  storageCount: number;
-  destinationCount: number;
-  memberCount: number;
-  affectedMemberIds: string[];
+  constructor(
+    public readonly contextId: string,
+    public readonly contextName: string,
+    public readonly dataMartCount: number,
+    public readonly storageCount: number,
+    public readonly destinationCount: number,
+    public readonly memberCount: number,
+    public readonly affectedMemberIds: string[]
+  ) {}
 }

@@ -13,7 +13,6 @@ import {
 } from '../../../shared/components/CollapsibleCard';
 import { BookOpenIcon, CalendarIcon, Globe, Info, Lock, Tags, Users } from 'lucide-react';
 import { ContextPicker } from '../../../features/contexts/components/ContextPicker/ContextPicker';
-import { contextService } from '../../../features/contexts/services/context.service';
 import { Switch } from '@owox/ui/components/switch';
 import {
   Accordion,
@@ -300,7 +299,7 @@ export default function DataMartOverviewContent() {
                 setContextIds(next);
                 void (async () => {
                   try {
-                    await contextService.updateDataMartContexts(dataMart.id, next);
+                    await dataMartService.updateContexts(dataMart.id, next);
                     toast.success('Contexts updated');
                     void getDataMart(dataMart.id);
                   } catch (error) {

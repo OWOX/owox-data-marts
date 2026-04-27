@@ -1,8 +1,9 @@
-import { Entity, PrimaryColumn, ManyToOne, JoinColumn } from 'typeorm';
+import { Entity, Index, PrimaryColumn, ManyToOne, JoinColumn } from 'typeorm';
 import { DataStorage } from './data-storage.entity';
 import { Context } from './context.entity';
 
 @Entity('storage_contexts')
+@Index('idx_sc_context', ['contextId'])
 export class StorageContext {
   @PrimaryColumn({ name: 'storage_id' })
   storageId: string;

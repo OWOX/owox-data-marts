@@ -1,8 +1,9 @@
-import { Entity, PrimaryColumn, ManyToOne, JoinColumn } from 'typeorm';
+import { Entity, Index, PrimaryColumn, ManyToOne, JoinColumn } from 'typeorm';
 import { DataMart } from './data-mart.entity';
 import { Context } from './context.entity';
 
 @Entity('data_mart_contexts')
+@Index('idx_dmc_context', ['contextId'])
 export class DataMartContext {
   @PrimaryColumn({ name: 'data_mart_id' })
   dataMartId: string;

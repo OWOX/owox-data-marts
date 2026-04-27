@@ -7,6 +7,7 @@ import type { ProjectMemberInvitation } from '@owox/idp-protocol';
 import { IdpProjectionsFacade } from './idp-projections.facade';
 import { IdpProjectionsService } from '../services/idp-projections.service';
 import { ProjectionsMapper } from '../mappers/projections.mapper';
+import { ProjectMemberDto } from '../dto/domain/project-member.dto';
 
 describe('IdpProjectionsFacade — member mutation proxies', () => {
   const PROJECT_ID = 'project-1';
@@ -14,7 +15,10 @@ describe('IdpProjectionsFacade — member mutation proxies', () => {
   const ACTOR_USER_ID = 'admin-42';
 
   let idpProjectionsService: jest.Mocked<
-    Pick<IdpProjectionsService, 'inviteMember' | 'removeMember' | 'changeMemberRole'>
+    Pick<
+      IdpProjectionsService,
+      'inviteMember' | 'removeMember' | 'changeMemberRole' | 'getProjectMembers'
+    >
   >;
   let facade: IdpProjectionsFacade;
 
@@ -23,8 +27,12 @@ describe('IdpProjectionsFacade — member mutation proxies', () => {
       inviteMember: jest.fn(),
       removeMember: jest.fn(),
       changeMemberRole: jest.fn(),
+      getProjectMembers: jest.fn(),
     } as unknown as jest.Mocked<
-      Pick<IdpProjectionsService, 'inviteMember' | 'removeMember' | 'changeMemberRole'>
+      Pick<
+        IdpProjectionsService,
+        'inviteMember' | 'removeMember' | 'changeMemberRole' | 'getProjectMembers'
+      >
     >;
 
     facade = new IdpProjectionsFacade(
@@ -85,5 +93,40 @@ describe('IdpProjectionsFacade — member mutation proxies', () => {
       'admin',
       ACTOR_USER_ID
     );
+  });
+
+  describe('getProjectMember', () => {
+    const member = (userId: string): ProjectMemberDto =>
+      new ProjectMemberDto(userId, `${userId}@x.io`, userId, undefined, 'editor', false, false);
+
+    it('returns the matching member from getProjectMembers', async () => {
+      const list = [member('alice'), member('bob'), member('carol')];
+      idpProjectionsService.getProjectMembers.mockResolvedValue(list);
+
+      const found = await facade.getProjectMember(PROJECT_ID, 'bob');
+
+      expect(found?.userId).toBe('bob');
+      expect(idpProjectionsService.getProjectMembers).toHaveBeenCalledWith(PROJECT_ID);
+    });
+
+    it('returns undefined when no member matches the requested userId', async () => {
+      idpProjectionsService.getProjectMembers.mockResolvedValue([member('alice')]);
+
+      const found = await facade.getProjectMember(PROJECT_ID, 'ghost');
+
+      expect(found).toBeUndefined();
+    });
+
+    it('returns undefined for an empty member list', async () => {
+      idpProjectionsService.getProjectMembers.mockResolvedValue([]);
+
+      expect(await facade.getProjectMember(PROJECT_ID, 'anyone')).toBeUndefined();
+    });
+
+    it('propagates upstream errors', async () => {
+      idpProjectionsService.getProjectMembers.mockRejectedValue(new Error('IDP timeout'));
+
+      await expect(facade.getProjectMember(PROJECT_ID, USER_ID)).rejects.toThrow('IDP timeout');
+    });
   });
 });

@@ -6,9 +6,9 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@owox/ui/components/dropdown-menu';
-import { Tooltip, TooltipContent, TooltipTrigger } from '@owox/ui/components/tooltip';
 import { MoreHorizontal, Pencil, Trash2 } from 'lucide-react';
-import { type FC, type ReactNode, useState } from 'react';
+import { type FC, useState } from 'react';
+import { AdminGuardTooltip } from '../../../../shared/components/AdminGuardTooltip';
 
 const ADMIN_ONLY_HINT = 'You need the Project Admin role to manage contexts.';
 
@@ -27,18 +27,6 @@ export const ContextsActionsCell: FC<ContextsActionsCellProps> = ({
 }) => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
 
-  const withHint = (node: ReactNode): ReactNode =>
-    isAdmin ? (
-      node
-    ) : (
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <span className='inline-flex w-full'>{node}</span>
-        </TooltipTrigger>
-        <TooltipContent side='left'>{ADMIN_ONLY_HINT}</TooltipContent>
-      </Tooltip>
-    );
-
   return (
     <div className='actions-cell text-right'>
       <DropdownMenu open={isMenuOpen} onOpenChange={setIsMenuOpen}>
@@ -54,7 +42,7 @@ export const ContextsActionsCell: FC<ContextsActionsCellProps> = ({
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align='end'>
-          {withHint(
+          <AdminGuardTooltip isAdmin={isAdmin} hint={ADMIN_ONLY_HINT}>
             <DropdownMenuItem
               disabled={!isAdmin}
               onClick={() => {
@@ -65,9 +53,9 @@ export const ContextsActionsCell: FC<ContextsActionsCellProps> = ({
               <Pencil className='text-foreground h-4 w-4' aria-hidden='true' />
               <span>Edit</span>
             </DropdownMenuItem>
-          )}
+          </AdminGuardTooltip>
           <DropdownMenuSeparator />
-          {withHint(
+          <AdminGuardTooltip isAdmin={isAdmin} hint={ADMIN_ONLY_HINT}>
             <DropdownMenuItem
               disabled={!isAdmin}
               onClick={() => {
@@ -78,7 +66,7 @@ export const ContextsActionsCell: FC<ContextsActionsCellProps> = ({
               <Trash2 className='h-4 w-4 text-red-600' aria-hidden='true' />
               <span className='text-red-600'>Delete</span>
             </DropdownMenuItem>
-          )}
+          </AdminGuardTooltip>
         </DropdownMenuContent>
       </DropdownMenu>
     </div>

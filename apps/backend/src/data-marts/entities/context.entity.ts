@@ -1,6 +1,7 @@
 import {
   Entity,
   Column,
+  Index,
   PrimaryGeneratedColumn,
   CreateDateColumn,
   UpdateDateColumn,
@@ -8,6 +9,8 @@ import {
 } from 'typeorm';
 
 @Entity('context')
+@Index('idx_context_project', ['projectId'])
+@Index('uq_context_project_name', ['projectId', 'name', 'deletedAt'], { unique: true })
 export class Context {
   @PrimaryGeneratedColumn('uuid')
   id: string;

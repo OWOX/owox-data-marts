@@ -1,15 +1,13 @@
+import type { UserProjection } from '../../../shared/types';
+
 export interface ContextDto {
   id: string;
   name: string;
   description: string | null;
   createdById: string | null;
-  createdByUser: {
-    userId: string;
-    email: string;
-    fullName?: string;
-    avatar?: string;
-  } | null;
+  createdByUser: UserProjection | null;
   createdAt: string;
+  modifiedAt: string;
 }
 
 export interface ContextImpactDto {
@@ -22,13 +20,15 @@ export interface ContextImpactDto {
   affectedMemberIds: string[];
 }
 
+import type { Role, RoleScope } from '../../project-members/types';
+
 export interface MemberWithScopeDto {
   userId: string;
   email: string;
   displayName: string | undefined;
   avatarUrl: string | undefined;
-  role: string;
-  roleScope: string;
+  role: Role;
+  roleScope: RoleScope;
   contextIds: string[];
 }
 

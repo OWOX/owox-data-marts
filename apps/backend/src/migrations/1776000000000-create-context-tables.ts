@@ -169,6 +169,14 @@ export class CreateContextTables1776000000000 implements MigrationInterface {
     );
   }
 
+  /**
+   * WARNING: destructive on a project that has assigned scoped roles or
+   * attached contexts. Dropping `member_role_scope` and
+   * `member_role_contexts` deletes every per-member context binding;
+   * dropping `*_contexts` join tables loses every shared-resource ↔
+   * context attachment. Roll back only on environments that have not yet
+   * exercised the Stage 4 permissions feature.
+   */
   public async down(queryRunner: QueryRunner): Promise<void> {
     await queryRunner.dropTable('member_role_contexts', true);
     await queryRunner.dropTable('member_role_scope', true);

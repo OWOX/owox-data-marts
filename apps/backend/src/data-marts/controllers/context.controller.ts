@@ -8,7 +8,6 @@ import {
   UpdateContextMembersRequestApiDto,
   UpdateContextMembersResponseApiDto,
   UpdateContextRequestApiDto,
-  UpdateEntityContextsRequestApiDto,
 } from '../dto/presentation/context-api.dto';
 import { ContextMapper } from '../mappers/context.mapper';
 import { ContextAccessService } from '../services/context/context-access.service';
@@ -21,7 +20,6 @@ import {
   ListContextsSpec,
   SetContextMembersSpec,
   UpdateContextSpec,
-  UpdateDataMartContextsSpec,
 } from './spec/context.api';
 
 @Controller('contexts')
@@ -47,7 +45,7 @@ export class ContextController {
       dto.name,
       dto.description
     );
-    return this.contextMapper.toResponse(result);
+    return this.contextMapper.toApiResponse(result);
   }
 
   @Auth(Role.viewer(Strategy.PARSE))
@@ -55,7 +53,7 @@ export class ContextController {
   @ListContextsSpec()
   async list(@AuthContext() context: AuthorizationContext): Promise<ContextResponseApiDto[]> {
     const results = await this.contextService.list(context.projectId);
-    return results.map(r => this.contextMapper.toResponse(r));
+    return results.map(r => this.contextMapper.toApiResponse(r));
   }
 
   @Auth(Role.admin(Strategy.INTROSPECT))
@@ -72,7 +70,7 @@ export class ContextController {
       dto.name,
       dto.description
     );
-    return this.contextMapper.toResponse(result);
+    return this.contextMapper.toApiResponse(result);
   }
 
   @Auth(Role.admin(Strategy.INTROSPECT))
@@ -103,23 +101,6 @@ export class ContextController {
     @Param('id') id: string
   ): Promise<void> {
     await this.contextService.delete(id, context.projectId);
-  }
-
-  @Auth(Role.editor(Strategy.INTROSPECT))
-  @Put('data-marts/:id/contexts')
-  @UpdateDataMartContextsSpec()
-  async updateDataMartContexts(
-    @AuthContext() context: AuthorizationContext,
-    @Param('id') id: string,
-    @Body() dto: UpdateEntityContextsRequestApiDto
-  ): Promise<void> {
-    await this.contextAccessService.updateDataMartContexts(
-      id,
-      context.projectId,
-      dto.contextIds,
-      context.userId,
-      context.roles ?? []
-    );
   }
 
   @Auth(Role.admin(Strategy.INTROSPECT))

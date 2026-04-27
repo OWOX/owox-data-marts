@@ -1,5 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { IdpProjectionsFacade } from '../../../idp/facades/idp-projections.facade';
+import { ProjectRole } from '../../enums/project-role.enum';
+import { RoleScope } from '../../enums/role-scope.enum';
 import { ContextAccessService } from '../../services/context/context-access.service';
 
 export interface ProjectMemberWithScope {
@@ -7,8 +9,8 @@ export interface ProjectMemberWithScope {
   email: string;
   displayName: string | undefined;
   avatarUrl: string | undefined;
-  role: string;
-  roleScope: string;
+  role: ProjectRole;
+  roleScope: RoleScope;
   contextIds: string[];
 }
 
@@ -34,7 +36,7 @@ export class ListProjectMembersService {
           email: member.email,
           displayName: member.displayName,
           avatarUrl: member.avatarUrl,
-          role: member.role,
+          role: member.role as ProjectRole,
           roleScope,
           contextIds,
         };

@@ -7,7 +7,7 @@ class ContextApiService extends ApiService {
   }
 
   async getContexts(): Promise<ContextDto[]> {
-    return this.get<ContextDto[]>('/');
+    return this.get<ContextDto[]>('');
   }
 
   async createContext(data: { name: string; description?: string }): Promise<ContextDto> {
@@ -16,7 +16,7 @@ class ContextApiService extends ApiService {
 
   async updateContext(
     id: string,
-    data: { name: string; description: string }
+    data: { name: string; description?: string }
   ): Promise<ContextDto> {
     return this.put<ContextDto>(`/${id}`, data);
   }
@@ -27,10 +27,6 @@ class ContextApiService extends ApiService {
 
   async deleteContext(id: string): Promise<void> {
     return this.delete(`/${id}`);
-  }
-
-  async updateDataMartContexts(dataMartId: string, contextIds: string[]): Promise<void> {
-    return this.put(`/data-marts/${dataMartId}/contexts`, { contextIds });
   }
 
   /**

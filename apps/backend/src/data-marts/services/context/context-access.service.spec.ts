@@ -1,5 +1,6 @@
 import { ForbiddenException } from '@nestjs/common';
 import { OwnerStatus, EntityType } from '../access-decision/access-decision.types';
+import { ProjectRole } from '../../enums/project-role.enum';
 import { RoleScope } from '../../enums/role-scope.enum';
 import { ContextAccessService } from './context-access.service';
 
@@ -42,6 +43,7 @@ describe('ContextAccessService', () => {
 
     const contextService = {
       validateContextIds: jest.fn(),
+      getByIdAndProject: jest.fn(),
     };
 
     const accessDecisionService = {
@@ -309,7 +311,7 @@ describe('ContextAccessService', () => {
       memberRoleScopeRepository.upsert.mockResolvedValue(undefined);
 
       await service.updateMember(TARGET_USER_ID, PROJECT_ID, {
-        role: 'admin',
+        role: ProjectRole.ADMIN,
         roleScope: RoleScope.SELECTED_CONTEXTS,
         contextIds: ['ctx-1', 'ctx-2'],
       });
@@ -335,7 +337,7 @@ describe('ContextAccessService', () => {
       memberRoleScopeRepository.upsert.mockResolvedValue(undefined);
 
       await service.updateMember(TARGET_USER_ID, PROJECT_ID, {
-        role: 'editor',
+        role: ProjectRole.EDITOR,
         roleScope: RoleScope.SELECTED_CONTEXTS,
         contextIds: ['ctx-1'],
       });
@@ -398,9 +400,10 @@ describe('ContextAccessService', () => {
       memberRoleContextRepository.delete.mockResolvedValue({ affected: 1 });
 
       // Requested: users 'u1', 'u3' → add 'u3', remove 'u2'
+      contextService.getByIdAndProject.mockResolvedValue({ id: CONTEXT_ID } as never);
       await service.setContextMembers(CONTEXT_ID, PROJECT_ID, ['u1', 'u3']);
 
-      expect(contextService.validateContextIds).toHaveBeenCalledWith([CONTEXT_ID], PROJECT_ID);
+      expect(contextService.getByIdAndProject).toHaveBeenCalledWith(CONTEXT_ID, PROJECT_ID);
       expect(memberRoleContextRepository.save).toHaveBeenCalledWith([
         { userId: 'u3', projectId: PROJECT_ID, contextId: CONTEXT_ID },
       ]);
@@ -443,7 +446,7 @@ describe('ContextAccessService', () => {
 
     it('rejects when context does not belong to the project', async () => {
       const { service, contextService } = createService();
-      contextService.validateContextIds.mockRejectedValue(new Error('invalid context'));
+      contextService.getByIdAndProject.mockRejectedValue(new Error('invalid context'));
 
       await expect(service.setContextMembers(CONTEXT_ID, PROJECT_ID, ['u1'])).rejects.toThrow(
         'invalid context'

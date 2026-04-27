@@ -6,7 +6,9 @@ import { DataDestinationMapper } from '../mappers/data-destination.mapper';
 import { DataDestinationDto } from '../dto/domain/data-destination.dto';
 import { ListDataDestinationsCommand } from '../dto/domain/list-data-destinations.command';
 import { OwnerFilter } from '../enums/owner-filter.enum';
+import { RoleScope } from '../enums/role-scope.enum';
 import { ContextAccessService } from '../services/context/context-access.service';
+import { buildContextGateSql } from '../utils/build-context-gate-sql';
 import { UserProjectionsFetcherService } from '../services/user-projections-fetcher.service';
 
 @Injectable()
@@ -21,8 +23,8 @@ export class ListDataDestinationsService {
 
   async run(command: ListDataDestinationsCommand): Promise<DataDestinationDto[]> {
     const isAdmin = command.roles.includes('admin');
-    const roleScope = isAdmin
-      ? 'entire_project'
+    const roleScope: RoleScope = isAdmin
+      ? RoleScope.ENTIRE_PROJECT
       : await this.contextAccessService.getRoleScope(command.userId, command.projectId);
 
     let qb = this.dataDestinationRepo
@@ -35,24 +37,26 @@ export class ListDataDestinationsService {
 
     if (!isAdmin) {
       // Non-admin: own OR (shared access with context gate)
+      const contextGate = buildContextGateSql({
+        joinTable: 'destination_contexts',
+        entityIdColumn: 'destination_id',
+        entityAlias: 'd',
+      });
       qb = qb.andWhere(
         `(
           EXISTS (SELECT 1 FROM destination_owners o WHERE o.destination_id = d.id AND o.user_id = :userId)
           OR (
             (d.availableForUse = :isTrue OR d.availableForMaintenance = :isTrue)
-            AND (
-              :roleScope = 'entire_project'
-              OR EXISTS (
-                SELECT 1 FROM destination_contexts dc
-                JOIN member_role_contexts mrc ON mrc.context_id = dc.context_id
-                JOIN context c ON c.id = dc.context_id AND c.deletedAt IS NULL
-                WHERE dc.destination_id = d.id
-                AND mrc.user_id = :userId AND mrc.project_id = :projectId
-              )
-            )
+            AND ${contextGate}
           )
         )`,
-        { userId: command.userId, isTrue: true, roleScope, projectId: command.projectId }
+        {
+          userId: command.userId,
+          isTrue: true,
+          roleScope,
+          entireProjectScope: RoleScope.ENTIRE_PROJECT,
+          projectId: command.projectId,
+        }
       );
     }
 

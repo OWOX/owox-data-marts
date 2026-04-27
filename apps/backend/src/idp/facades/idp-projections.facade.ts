@@ -41,6 +41,31 @@ export class IdpProjectionsFacade {
     return this.idpProjectionsService.getProjectMembers(projectId);
   }
 
+  /**
+   * Resolve a single project member by userId. The active IDP provider only
+   * exposes a list endpoint, so this is a thin wrapper — callers should use
+   * it instead of `getProjectMembers(...).find(...)` so the linear-scan
+   * pattern lives in one place and a future bulk-cache or per-id API surfaces
+   * here.
+   */
+  public async getProjectMember(
+    projectId: string,
+    userId: string
+  ): Promise<ProjectMemberDto | undefined> {
+    const members = await this.getProjectMembers(projectId);
+    return members.find(m => m.userId === userId);
+  }
+
+  /**
+   * Invite a member via the active IDP provider.
+   *
+   * NOTE: per `project_idp_invite_semantics`, providers return distinct
+   * shapes through the `ProjectMemberInvitation` discriminated union
+   * (`kind: 'magic-link' | 'email-sent'`). The facade intentionally does
+   * NOT collapse them — the controller maps the variant directly into
+   * `InviteMemberResponseApiDto` so the UI can render the magic-link copy
+   * box vs. the email-sent toast on the right path.
+   */
   public async inviteMember(
     projectId: string,
     email: string,

@@ -17,6 +17,12 @@ describe('RemoveProjectMemberService', () => {
   const createService = () => {
     const idpProjectionsFacade = {
       getProjectMembers: jest.fn(),
+      // Mirror the facade's real getProjectMember(): linear scan over
+      // getProjectMembers() so tests only need to set the list mock.
+      getProjectMember: jest.fn(async (projectId: string, userId: string) => {
+        const list = await idpProjectionsFacade.getProjectMembers(projectId);
+        return Array.isArray(list) ? list.find(m => m.userId === userId) : undefined;
+      }),
       removeMember: jest.fn(),
     };
     const contextAccessService = {

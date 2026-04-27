@@ -14,7 +14,6 @@ import {
   UpdateContextMembersRequestApiDto,
   UpdateContextMembersResponseApiDto,
   UpdateContextRequestApiDto,
-  UpdateEntityContextsRequestApiDto,
 } from '../../dto/presentation/context-api.dto';
 
 export function CreateContextSpec() {
@@ -68,24 +67,6 @@ export function DeleteContextSpec() {
     ApiNoContentResponse({ description: 'Context deleted' }),
     ApiResponse({ status: 404, description: 'Context not found' }),
     ApiResponse({ status: 409, description: 'Context is still attached to resources or members' })
-  );
-}
-
-export function UpdateDataMartContextsSpec() {
-  return applyDecorators(
-    ApiOperation({
-      summary: 'Replace the contexts attached to a Data Mart',
-      description:
-        'Editors may only attach contexts they themselves are bound to. Admins may attach any context.',
-    }),
-    ApiParam({ name: 'id', description: 'Data Mart ID' }),
-    ApiBody({ type: UpdateEntityContextsRequestApiDto }),
-    ApiOkResponse({ description: 'Data Mart contexts updated' }),
-    ApiResponse({
-      status: 403,
-      description: 'Caller is not allowed to attach one of the contexts',
-    }),
-    ApiResponse({ status: 404, description: 'Data Mart or Context not found' })
   );
 }
 

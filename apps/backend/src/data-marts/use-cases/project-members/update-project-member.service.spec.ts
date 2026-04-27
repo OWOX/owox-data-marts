@@ -1,5 +1,6 @@
 import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { UpdateProjectMemberCommand } from '../../dto/domain/update-project-member.command';
+import { ProjectRole } from '../../enums/project-role.enum';
 import { RoleScope } from '../../enums/role-scope.enum';
 import { UpdateProjectMemberService } from './update-project-member.service';
 
@@ -18,6 +19,12 @@ describe('UpdateProjectMemberService', () => {
   const createService = () => {
     const idpProjectionsFacade = {
       getProjectMembers: jest.fn(),
+      // Mirror the facade's real getProjectMember(): linear scan over
+      // getProjectMembers() so tests only need to set the list mock.
+      getProjectMember: jest.fn(async (projectId: string, userId: string) => {
+        const list = await idpProjectionsFacade.getProjectMembers(projectId);
+        return Array.isArray(list) ? list.find(m => m.userId === userId) : undefined;
+      }),
       changeMemberRole: jest.fn(),
     };
     const contextAccessService = {
@@ -43,7 +50,7 @@ describe('UpdateProjectMemberService', () => {
       overrides.projectId ?? PROJECT_ID,
       overrides.actorUserId ?? ACTOR_ID,
       overrides.targetUserId ?? TARGET_ID,
-      overrides.role ?? 'editor',
+      overrides.role ?? ProjectRole.EDITOR,
       overrides.roleScope ?? RoleScope.SELECTED_CONTEXTS,
       overrides.contextIds ?? ['ctx-1']
     );
@@ -62,7 +69,7 @@ describe('UpdateProjectMemberService', () => {
   it('throws NotFoundException when target member is not in the project', async () => {
     const { service, idpProjectionsFacade } = createService();
     idpProjectionsFacade.getProjectMembers.mockResolvedValue([
-      { userId: 'someone-else', role: 'viewer' },
+      { userId: 'someone-else', role: ProjectRole.VIEWER },
     ]);
 
     await expect(service.run(command())).rejects.toBeInstanceOf(NotFoundException);
@@ -71,14 +78,14 @@ describe('UpdateProjectMemberService', () => {
   it('invalid context id → BadRequest before IDP role change is committed', async () => {
     const { service, idpProjectionsFacade, contextService } = createService();
     idpProjectionsFacade.getProjectMembers.mockResolvedValue([
-      { userId: TARGET_ID, role: 'viewer' },
+      { userId: TARGET_ID, role: ProjectRole.VIEWER },
     ]);
     contextService.validateContextIds.mockRejectedValue(
       new BadRequestException('One or more context IDs are invalid')
     );
 
     await expect(
-      service.run(command({ role: 'editor', contextIds: ['ctx-bad'] }))
+      service.run(command({ role: ProjectRole.EDITOR, contextIds: ['ctx-bad'] }))
     ).rejects.toBeInstanceOf(BadRequestException);
 
     // IDP must NOT be touched on a bad contextId — otherwise the role would
@@ -89,12 +96,12 @@ describe('UpdateProjectMemberService', () => {
   it('same role — does not call IDP, persists scope/contexts, returns ok', async () => {
     const { service, idpProjectionsFacade, contextAccessService } = createService();
     idpProjectionsFacade.getProjectMembers.mockResolvedValue([
-      { userId: TARGET_ID, role: 'editor' },
+      { userId: TARGET_ID, role: ProjectRole.EDITOR },
     ]);
     contextAccessService.getRoleScope.mockResolvedValue(RoleScope.SELECTED_CONTEXTS);
     contextAccessService.getMemberContextIds.mockResolvedValue(['ctx-1']);
 
-    const result = await service.run(command({ role: 'editor' }));
+    const result = await service.run(command({ role: ProjectRole.EDITOR }));
 
     expect(idpProjectionsFacade.changeMemberRole).not.toHaveBeenCalled();
     expect(contextAccessService.updateMember).toHaveBeenCalled();
@@ -105,7 +112,7 @@ describe('UpdateProjectMemberService', () => {
   it('different role — calls IDP changeMemberRole before touching local scope', async () => {
     const { service, idpProjectionsFacade, contextAccessService } = createService();
     idpProjectionsFacade.getProjectMembers.mockResolvedValue([
-      { userId: TARGET_ID, role: 'viewer' },
+      { userId: TARGET_ID, role: ProjectRole.VIEWER },
     ]);
     contextAccessService.getRoleScope.mockResolvedValue(RoleScope.SELECTED_CONTEXTS);
     contextAccessService.getMemberContextIds.mockResolvedValue(['ctx-1']);
@@ -118,7 +125,7 @@ describe('UpdateProjectMemberService', () => {
       order.push('local');
     });
 
-    await service.run(command({ role: 'editor' }));
+    await service.run(command({ role: ProjectRole.EDITOR }));
 
     expect(order).toEqual(['idp', 'local']);
     expect(idpProjectionsFacade.changeMemberRole).toHaveBeenCalledWith(
@@ -132,11 +139,11 @@ describe('UpdateProjectMemberService', () => {
   it('IDP failure on role change propagates without touching local scope', async () => {
     const { service, idpProjectionsFacade, contextAccessService } = createService();
     idpProjectionsFacade.getProjectMembers.mockResolvedValue([
-      { userId: TARGET_ID, role: 'viewer' },
+      { userId: TARGET_ID, role: ProjectRole.VIEWER },
     ]);
     idpProjectionsFacade.changeMemberRole.mockRejectedValue(new Error('IDP refused'));
 
-    await expect(service.run(command({ role: 'editor' }))).rejects.toThrow('IDP refused');
+    await expect(service.run(command({ role: ProjectRole.EDITOR }))).rejects.toThrow('IDP refused');
 
     expect(contextAccessService.updateMember).not.toHaveBeenCalled();
   });
@@ -144,11 +151,11 @@ describe('UpdateProjectMemberService', () => {
   it('upstream 404 on changeMemberRole maps to NestJS NotFoundException', async () => {
     const { service, idpProjectionsFacade } = createService();
     idpProjectionsFacade.getProjectMembers.mockResolvedValue([
-      { userId: TARGET_ID, role: 'viewer' },
+      { userId: TARGET_ID, role: ProjectRole.VIEWER },
     ]);
     idpProjectionsFacade.changeMemberRole.mockRejectedValue(new IdpNotFoundException('not found'));
 
-    await expect(service.run(command({ role: 'editor' }))).rejects.toBeInstanceOf(
+    await expect(service.run(command({ role: ProjectRole.EDITOR }))).rejects.toBeInstanceOf(
       NotFoundException
     );
   });

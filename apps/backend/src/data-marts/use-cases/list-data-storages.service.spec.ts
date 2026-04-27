@@ -4,6 +4,7 @@ jest.mock('../services/user-projections-fetcher.service', () => ({
 
 import { ListDataStoragesService } from './list-data-storages.service';
 import { ListDataStoragesCommand } from '../dto/domain/list-data-storages.command';
+import { RoleScope } from '../enums/role-scope.enum';
 
 describe('ListDataStoragesService', () => {
   const makeQbChain = (results: unknown[]) => {
@@ -52,7 +53,7 @@ describe('ListDataStoragesService', () => {
       }),
     };
     const contextAccessService = {
-      getRoleScope: jest.fn().mockResolvedValue('entire_project'),
+      getRoleScope: jest.fn().mockResolvedValue(RoleScope.ENTIRE_PROJECT),
     };
 
     const service = new ListDataStoragesService(

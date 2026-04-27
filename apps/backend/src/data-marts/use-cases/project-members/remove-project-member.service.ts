@@ -1,8 +1,8 @@
 import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { IdpProjectionsFacade } from '../../../idp/facades/idp-projections.facade';
+import { isIdpNotFoundError } from '../../../idp/utils/is-idp-not-found-error';
 import { RemoveProjectMemberCommand } from '../../dto/domain/remove-project-member.command';
 import { ContextAccessService } from '../../services/context/context-access.service';
-import { isIdpNotFoundError } from '../../utils/is-idp-not-found-error';
 
 @Injectable()
 export class RemoveProjectMemberService {
@@ -21,8 +21,8 @@ export class RemoveProjectMemberService {
 
     // Guard: only proceed if the member currently exists; otherwise surface a
     // 404 without touching local bindings.
-    const projectMembers = await this.idpProjectionsFacade.getProjectMembers(projectId);
-    if (!projectMembers.some(m => m.userId === targetUserId)) {
+    const member = await this.idpProjectionsFacade.getProjectMember(projectId, targetUserId);
+    if (!member) {
       throw new NotFoundException(`Member "${targetUserId}" not found in project "${projectId}"`);
     }
 

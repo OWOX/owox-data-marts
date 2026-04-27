@@ -14,13 +14,12 @@ jest.mock('../../idp/facades/idp-projections.facade', () => ({
 
 import { ContextController } from './context.controller';
 import type { AuthorizationContext } from '../../idp/types/auth.types';
-import type { ContextDto, ContextImpactDto } from '../dto/domain/context.dto';
+import { ContextDto, ContextImpactDto } from '../dto/domain/context.dto';
 
 describe('ContextController', () => {
   const PROJECT_ID = 'project-1';
   const USER_ID = 'user-1';
   const CONTEXT_ID = 'ctx-1';
-  const DATA_MART_ID = 'dm-1';
 
   const makeAuthContext = (overrides: Partial<AuthorizationContext> = {}): AuthorizationContext =>
     ({
@@ -52,13 +51,14 @@ describe('ContextController', () => {
     };
 
     const contextMapper = {
-      toResponse: jest.fn((dto: ContextDto) => ({
+      toApiResponse: jest.fn((dto: ContextDto) => ({
         id: dto.id,
         name: dto.name,
         description: dto.description,
         createdById: dto.createdById,
         createdByUser: dto.createdByUser,
         createdAt: dto.createdAt,
+        modifiedAt: dto.modifiedAt,
       })),
     };
 
@@ -82,15 +82,16 @@ describe('ContextController', () => {
     };
   };
 
-  const sampleContextDto: ContextDto = {
-    id: CONTEXT_ID,
-    name: 'Marketing',
-    description: 'Marketing ctx',
-    projectId: PROJECT_ID,
-    createdById: USER_ID,
-    createdByUser: null,
-    createdAt: new Date('2026-01-01T00:00:00Z'),
-  } as ContextDto;
+  const sampleContextDto = new ContextDto(
+    CONTEXT_ID,
+    'Marketing',
+    'Marketing ctx',
+    PROJECT_ID,
+    USER_ID,
+    null,
+    new Date('2026-01-01T00:00:00Z'),
+    new Date('2026-01-02T00:00:00Z')
+  );
 
   describe('create', () => {
     it('creates context and maps to response', async () => {
@@ -108,7 +109,7 @@ describe('ContextController', () => {
         'Marketing',
         'Marketing ctx'
       );
-      expect(contextMapper.toResponse).toHaveBeenCalledWith(sampleContextDto);
+      expect(contextMapper.toApiResponse).toHaveBeenCalledWith(sampleContextDto);
       expect(result.id).toBe(CONTEXT_ID);
     });
   });
@@ -122,7 +123,7 @@ describe('ContextController', () => {
 
       expect(contextService.list).toHaveBeenCalledWith(PROJECT_ID);
       expect(result).toHaveLength(2);
-      expect(contextMapper.toResponse).toHaveBeenCalledTimes(2);
+      expect(contextMapper.toApiResponse).toHaveBeenCalledTimes(2);
     });
 
     it('returns empty list when no contexts', async () => {
@@ -151,7 +152,7 @@ describe('ContextController', () => {
         'Marketing 2',
         'Updated'
       );
-      expect(contextMapper.toResponse).toHaveBeenCalledWith(sampleContextDto);
+      expect(contextMapper.toApiResponse).toHaveBeenCalledWith(sampleContextDto);
       expect(result.id).toBe(CONTEXT_ID);
     });
   });
@@ -159,15 +160,7 @@ describe('ContextController', () => {
   describe('getImpact', () => {
     it('returns full impact dto', async () => {
       const { controller, contextService } = createController();
-      const impact: ContextImpactDto = {
-        contextId: CONTEXT_ID,
-        contextName: 'Marketing',
-        dataMartCount: 2,
-        storageCount: 1,
-        destinationCount: 0,
-        memberCount: 3,
-        affectedMemberIds: ['u1', 'u2'],
-      };
+      const impact = new ContextImpactDto(CONTEXT_ID, 'Marketing', 2, 1, 0, 3, ['u1', 'u2']);
       contextService.getImpact.mockResolvedValue(impact);
 
       const result = await controller.getImpact(makeAuthContext(), CONTEXT_ID);
@@ -188,43 +181,10 @@ describe('ContextController', () => {
     });
   });
 
-  describe('updateDataMartContexts', () => {
-    it('forwards to context-access service with auth context', async () => {
-      const { controller, contextAccessService } = createController();
-      contextAccessService.updateDataMartContexts.mockResolvedValue(undefined);
-
-      await controller.updateDataMartContexts(
-        makeAuthContext({ roles: ['editor'] }),
-        DATA_MART_ID,
-        { contextIds: ['ctx-1'] }
-      );
-
-      expect(contextAccessService.updateDataMartContexts).toHaveBeenCalledWith(
-        DATA_MART_ID,
-        PROJECT_ID,
-        ['ctx-1'],
-        USER_ID,
-        ['editor']
-      );
-    });
-
-    it('uses empty roles array when roles missing from auth context', async () => {
-      const { controller, contextAccessService } = createController();
-      contextAccessService.updateDataMartContexts.mockResolvedValue(undefined);
-
-      await controller.updateDataMartContexts(makeAuthContext({ roles: undefined }), DATA_MART_ID, {
-        contextIds: [],
-      });
-
-      expect(contextAccessService.updateDataMartContexts).toHaveBeenCalledWith(
-        DATA_MART_ID,
-        PROJECT_ID,
-        [],
-        USER_ID,
-        []
-      );
-    });
-  });
+  // updateDataMartContexts moved to DataMartController (`PUT /data-marts/:id/contexts`)
+  // for path consistency with the rest of the data-mart sub-routes; behaviour
+  // is covered by ContextAccessService unit tests and the
+  // permissions-contexts.e2e suite.
 
   describe('setContextMembers', () => {
     it('forwards the request to SetContextMembersService and returns the result', async () => {
