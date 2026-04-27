@@ -5,6 +5,7 @@ import {
   Injectable,
   Logger,
   ServiceUnavailableException,
+  UnauthorizedException,
 } from '@nestjs/common';
 import {
   ListStorageResourcesCommand,
@@ -14,6 +15,24 @@ import { ListStorageResourcesResponseDto } from '../dto/presentation/storage-res
 import { DataStorageService } from '../services/data-storage.service';
 import { AccessDecisionService, Action, EntityType } from '../services/access-decision';
 import { StorageResourceBrowserFacade } from '../data-storage-types/facades/storage-resource-browser.facade';
+
+/**
+ * Extracts an HTTP status code from GCP SDK / googleapis errors.
+ * Both `@google-cloud/*` packages and the googleapis REST client attach a `.code`
+ * or `.status` numeric property to the thrown error object.
+ */
+function extractGcpHttpStatus(error: unknown): number | undefined {
+  if (error == null || typeof error !== 'object') return undefined;
+  const e = error as Record<string, unknown>;
+  // @google-cloud/* packages surface the HTTP status as `code`; googleapis uses `status`.
+  const raw = e['code'] ?? e['status'];
+  if (typeof raw === 'number') return raw;
+  if (typeof raw === 'string') {
+    const n = parseInt(raw, 10);
+    return isNaN(n) ? undefined : n;
+  }
+  return undefined;
+}
 
 @Injectable()
 export class ListStorageResourcesService {
@@ -46,18 +65,17 @@ export class ListStorageResourcesService {
     }
 
     try {
-      const browser = await this.browserFacade.create(storage);
-
       switch (command.level) {
         case StorageResourceLevel.NAMESPACES: {
-          const namespaces = await browser.listNamespaces();
+          const namespaces = await this.browserFacade.listNamespaces(storage);
           return { namespaces };
         }
         case StorageResourceLevel.RESOURCES: {
           if (!command.namespaceId) {
             throw new BadRequestException('namespaceId is required for level=resources');
           }
-          const resources = await browser.listLeafResources(
+          const resources = await this.browserFacade.listLeafResources(
+            storage,
             command.namespaceId,
             command.resourceType
           );
@@ -65,7 +83,11 @@ export class ListStorageResourcesService {
         }
       }
     } catch (error) {
-      if (error instanceof BadRequestException || error instanceof ForbiddenException) {
+      if (
+        error instanceof BadRequestException ||
+        error instanceof ForbiddenException ||
+        error instanceof UnauthorizedException
+      ) {
         throw error;
       }
       const message = error instanceof Error ? error.message : String(error);
@@ -75,6 +97,20 @@ export class ListStorageResourcesService {
 
       if (error instanceof Error && error.message.startsWith('Timed out after')) {
         throw new ServiceUnavailableException('Storage API timed out. Please try again later.');
+      }
+
+      // GCP returns HTTP 401 / 403 as structured errors; surface them correctly so the client
+      // gets a meaningful status code instead of 502 Bad Gateway.
+      const gcpStatus = extractGcpHttpStatus(error);
+      if (gcpStatus === 401) {
+        throw new UnauthorizedException(
+          'Storage credentials are invalid or expired. Please re-authorise the storage.'
+        );
+      }
+      if (gcpStatus === 403) {
+        throw new ForbiddenException(
+          'The storage credentials do not have permission to list resources.'
+        );
       }
 
       throw new BadGatewayException(`Failed to list storage resources: ${message}`);

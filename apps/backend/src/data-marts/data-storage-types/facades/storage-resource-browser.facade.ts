@@ -1,32 +1,50 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import { BadRequestException, Inject, Injectable } from '@nestjs/common';
+import { TypeResolver } from '../../../common/resolver/type-resolver';
 import { DataStorage } from '../../entities/data-storage.entity';
+import { STORAGE_RESOURCE_BROWSER_RESOLVER } from '../data-storage-providers';
 import { DataStorageType } from '../enums/data-storage-type.enum';
-import type { IStorageResourceBrowser } from '../interfaces/storage-resource-browser.interface';
-import { BigQueryApiAdapterFactory } from '../bigquery/adapters/bigquery-api-adapter.factory';
-import { BigQueryConfigSchema } from '../bigquery/schemas/bigquery-config.schema';
+import type {
+  IStorageResourceBrowserProvider,
+  StorageResourceFilter,
+  StorageResourceLeaf,
+  StorageResourceNode,
+} from '../interfaces/storage-resource-browser.interface';
 
 /**
- * Resolves the correct {@link IStorageResourceBrowser} implementation for a given
- * {@link DataStorage}.  Follows the facade pattern used by other storage facades in
- * this directory (e.g. `DataStorageAccessValidatorFacade`).
+ * Facade that dispatches resource-browsing calls to the correct
+ * {@link IStorageResourceBrowserProvider} for the given storage type.
  *
- * Add a new `case` here when another storage type gains resource-browsing support.
+ * Throws {@link BadRequestException} when no provider is registered for a type,
+ * matching the behaviour of every other facade in this directory.
  */
 @Injectable()
 export class StorageResourceBrowserFacade {
-  constructor(private readonly bigQueryFactory: BigQueryApiAdapterFactory) {}
+  constructor(
+    @Inject(STORAGE_RESOURCE_BROWSER_RESOLVER)
+    private readonly resolver: TypeResolver<DataStorageType, IStorageResourceBrowserProvider>
+  ) {}
 
-  async create(storage: DataStorage): Promise<IStorageResourceBrowser> {
-    switch (storage.type) {
-      case DataStorageType.GOOGLE_BIGQUERY:
-      case DataStorageType.LEGACY_GOOGLE_BIGQUERY: {
-        const config = BigQueryConfigSchema.parse(storage.config ?? {});
-        return this.bigQueryFactory.createFromStorage(storage, config);
-      }
-      default:
-        throw new BadRequestException(
-          `Resource browsing is not supported for storage type: ${storage.type}`
-        );
+  async listNamespaces(storage: DataStorage): Promise<StorageResourceNode[]> {
+    const provider = await this.resolver.tryResolve(storage.type);
+    if (!provider) {
+      throw new BadRequestException(
+        `Resource browsing is not supported for storage type: ${storage.type}`
+      );
     }
+    return provider.listNamespaces(storage);
+  }
+
+  async listLeafResources(
+    storage: DataStorage,
+    namespaceId: string,
+    filter?: StorageResourceFilter
+  ): Promise<StorageResourceLeaf[]> {
+    const provider = await this.resolver.tryResolve(storage.type);
+    if (!provider) {
+      throw new BadRequestException(
+        `Resource browsing is not supported for storage type: ${storage.type}`
+      );
+    }
+    return provider.listLeafResources(storage, namespaceId, filter);
   }
 }

@@ -2,9 +2,9 @@ import { useEffect, useState } from 'react';
 import { useFormContext } from 'react-hook-form';
 import { DataMartDefinitionType } from '../../../../shared';
 import { DataStorageType } from '../../../../../data-storage';
+import type { DataStorageConfigDto } from '../../../../../data-storage/shared/api/types';
 import { SqlDefinitionField } from './SqlDefinitionField.tsx';
-import { TableDefinitionField } from './TableDefinitionField.tsx';
-import { ViewDefinitionField } from './ViewDefinitionField.tsx';
+import { DefinitionFqnField } from './DefinitionFqnField.tsx';
 import { TablePatternDefinitionField } from './TablePatternDefinitionField.tsx';
 import { ConnectorDefinitionField } from './ConnectorDefinitionField.tsx';
 import type { DataMartDefinitionFormData } from '../../../model/schema/data-mart-definition.schema.ts';
@@ -12,6 +12,8 @@ import type { DataMartDefinitionFormData } from '../../../model/schema/data-mart
 interface DataMartDefinitionFormProps {
   definitionType: DataMartDefinitionType;
   storageType: DataStorageType;
+  storageId: string;
+  storageConfig: DataStorageConfigDto | null;
   preset?: string;
   saveDataMartDefinition?: (e?: React.SyntheticEvent<HTMLFormElement>) => void;
 }
@@ -19,6 +21,8 @@ interface DataMartDefinitionFormProps {
 export function DataMartDefinitionForm({
   definitionType,
   storageType,
+  storageId,
+  storageConfig,
   preset,
   saveDataMartDefinition,
 }: DataMartDefinitionFormProps) {
@@ -38,15 +42,32 @@ export function DataMartDefinitionForm({
       {definitionType === DataMartDefinitionType.SQL && <SqlDefinitionField control={control} />}
 
       {definitionType === DataMartDefinitionType.TABLE && (
-        <TableDefinitionField control={control} storageType={storageType} />
+        <DefinitionFqnField
+          control={control}
+          storageType={storageType}
+          storageId={storageId}
+          storageConfig={storageConfig}
+          mode='TABLE'
+        />
       )}
 
       {definitionType === DataMartDefinitionType.VIEW && (
-        <ViewDefinitionField control={control} storageType={storageType} />
+        <DefinitionFqnField
+          control={control}
+          storageType={storageType}
+          storageId={storageId}
+          storageConfig={storageConfig}
+          mode='VIEW'
+        />
       )}
 
       {definitionType === DataMartDefinitionType.TABLE_PATTERN && (
-        <TablePatternDefinitionField control={control} storageType={storageType} />
+        <TablePatternDefinitionField
+          control={control}
+          storageType={storageType}
+          storageId={storageId}
+          storageConfig={storageConfig}
+        />
       )}
 
       {definitionType === DataMartDefinitionType.CONNECTOR && (

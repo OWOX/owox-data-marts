@@ -11,6 +11,8 @@ import { DataStorageDto } from '../dto/domain/data-storage.dto';
 import { DeleteDataStorageCommand } from '../dto/domain/delete-data-storage.command';
 import { GetDataStorageCommand } from '../dto/domain/get-data-storage.command';
 import { ListDataStoragesCommand } from '../dto/domain/list-data-storages.command';
+import { ListStorageResourcesCommand } from '../dto/domain/list-storage-resources.command';
+import { ListStorageResourcesQueryDto } from '../dto/presentation/storage-resources/list-storage-resources-query.dto';
 import { UpdateDataStorageCommand } from '../dto/domain/update-data-storage.command';
 import { PublishDataStorageDraftsCommand } from '../dto/domain/publish-data-storage-drafts.command';
 import { PublishDataStorageDraftsResultDto } from '../dto/domain/publish-data-storage-drafts-result.dto';
@@ -129,6 +131,22 @@ export class DataStorageMapper {
 
   toGetCommand(id: string, context: AuthorizationContext) {
     return new GetDataStorageCommand(id, context.projectId, context.userId, context.roles ?? []);
+  }
+
+  toListStorageResourcesCommand(
+    id: string,
+    context: AuthorizationContext,
+    query: ListStorageResourcesQueryDto
+  ): ListStorageResourcesCommand {
+    return new ListStorageResourcesCommand(
+      id,
+      context.projectId,
+      context.userId,
+      context.roles ?? [],
+      query.level,
+      query.namespaceId,
+      query.resourceType
+    );
   }
 
   toListCommand(context: AuthorizationContext, ownerFilter?: OwnerFilter) {

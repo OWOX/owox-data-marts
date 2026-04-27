@@ -90,6 +90,8 @@ export function StorageResourceTree({
             }));
           })
           .catch((error: unknown) => {
+            // Clear the fetch guard so the user can retry by collapsing and re-expanding.
+            fetchedNamespacesRef.current.delete(namespaceId);
             setResourcesByNamespace(prev => ({
               ...prev,
               [namespaceId]: {

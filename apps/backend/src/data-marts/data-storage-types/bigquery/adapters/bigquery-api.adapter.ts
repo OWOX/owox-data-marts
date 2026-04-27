@@ -1,16 +1,21 @@
 import { BigQuery, Job, Table, TableSchema } from '@google-cloud/bigquery';
 import { Logger } from '@nestjs/common';
-import { JWT } from 'google-auth-library';
+import { JWT, OAuth2Client } from 'google-auth-library';
 import { BIGQUERY_AUTODETECT_LOCATION, BigQueryConfig } from '../schemas/bigquery-config.schema';
 import { BIGQUERY_OAUTH_TYPE, BigQueryCredentials } from '../schemas/bigquery-credentials.schema';
 
 /**
  * Adapter for BigQuery API operations.
  * Accepts either Service Account credentials or pre-resolved OAuth credentials.
+ *
+ * Resource-listing (namespaces / tables) is handled by the dedicated
+ * {@link BigQueryStorageResourceBrowser} service; this adapter focuses on
+ * query execution, dry-run, and job management.
  */
 export class BigQueryApiAdapter {
   private readonly logger = new Logger(BigQueryApiAdapter.name);
   private readonly bigQuery: BigQuery;
+  private readonly authClient: JWT | OAuth2Client;
   private location?: string;
 
   constructor(credentials: BigQueryCredentials, config: BigQueryConfig) {
@@ -26,6 +31,7 @@ export class BigQueryApiAdapter {
             ],
           });
 
+    this.authClient = auth;
     const shouldAutodetectLocation = config.location === BIGQUERY_AUTODETECT_LOCATION;
     this.bigQuery = new BigQuery({
       projectId: config.projectId,
