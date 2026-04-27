@@ -109,10 +109,8 @@ test.describe('DataMart List with data', () => {
     await popover.locator('[data-slot="combobox-chips"]').click();
     await page.getByRole('option', { name: 'Draft' }).click();
 
-    // Step 4: Close the combobox dropdown and click "Apply filters".
-    // The multi-select combobox stays open after selection. Tab moves focus
-    // to the next focusable element inside the popover, closing the dropdown.
-    await page.keyboard.press('Tab');
+    // Step 4: Close the combobox dropdown by clicking on the popover header and click "Apply filters".
+    await page.locator('[data-slot="popover-header"]').click();
     await page.getByRole('button', { name: 'Apply filters' }).click();
 
     // After applying, only draft datamart should be visible
