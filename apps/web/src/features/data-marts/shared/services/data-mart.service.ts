@@ -35,7 +35,7 @@ export class DataMartService extends ApiService {
    * Pagination is handled internally — callers receive the full list.
    * @returns Promise with all data mart items
    */
-  async getDataMarts(): Promise<DataMartListItemResponseDto[]> {
+  async getDataMarts(config?: AxiosRequestConfig): Promise<DataMartListItemResponseDto[]> {
     const allItems: DataMartListItemResponseDto[] = [];
     let nextOffset: number | null = 0;
 
@@ -45,7 +45,7 @@ export class DataMartService extends ApiService {
         params.offset = nextOffset;
       }
 
-      const page = await this.get<DataMartListResponseDto>('/', params);
+      const page = await this.get<DataMartListResponseDto>('/', params, config);
 
       allItems.push(...page.items);
       nextOffset = page.nextOffset;

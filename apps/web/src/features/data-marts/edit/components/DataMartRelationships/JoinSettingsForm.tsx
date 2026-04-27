@@ -174,8 +174,10 @@ export function JoinSettingsForm({
     if (!sourceId || !relationship.targetDataMart.id) return;
     setIsLoadingSchemas(true);
     void Promise.all([
-      dataMartService.getDataMartById(sourceId),
-      dataMartService.getDataMartById(relationship.targetDataMart.id),
+      dataMartService.getDataMartById(sourceId, { skipLoadingIndicator: true }),
+      dataMartService.getDataMartById(relationship.targetDataMart.id, {
+        skipLoadingIndicator: true,
+      }),
     ])
       .then(([src, tgt]) => {
         setSourceDM(src);
@@ -254,7 +256,10 @@ export function JoinSettingsForm({
     setIsSaving(true);
 
     dataMartRelationshipService
-      .updateRelationship(dataMartId, relationship.id, payload, { skipErrorToast: true })
+      .updateRelationship(dataMartId, relationship.id, payload, {
+        skipErrorToast: true,
+        skipLoadingIndicator: true,
+      })
       .then(updated => {
         lastSavedRef.current = {
           targetAlias: updated.targetAlias,

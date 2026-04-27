@@ -470,7 +470,9 @@ async function setupEditor(
 
       if (showTransient && depth < MAX_DEPTH && !ancestorDmIds.has(dmId)) {
         try {
-          const childRels = await dataMartRelationshipService.getRelationships(dmId);
+          const childRels = await dataMartRelationshipService.getRelationships(dmId, {
+            skipLoadingIndicator: true,
+          });
           if (childRels.length > 0) {
             const newAncestors = new Set(ancestorDmIds);
             newAncestors.add(dmId);
