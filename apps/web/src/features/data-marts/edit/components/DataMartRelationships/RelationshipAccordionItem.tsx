@@ -12,14 +12,12 @@ import { Switch } from '@owox/ui/components/switch';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@owox/ui/components/tabs';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@owox/ui/components/tooltip';
 import { cn } from '@owox/ui/lib/utils';
-import { Box, Columns3, ExternalLink, GitMerge, Info, MoreHorizontal, Trash2 } from 'lucide-react';
+import { Columns3, ExternalLink, GitMerge, Info, MoreHorizontal, Trash2 } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { Button } from '../../../../../shared/components/Button';
 import { ConfirmationDialog } from '../../../../../shared/components/ConfirmationDialog';
-import { UserReference } from '../../../../../shared/components/UserReference';
 import { useProjectRoute } from '../../../../../shared/hooks/useProjectRoute';
 import { useDebounce } from '../../../../../hooks/useDebounce';
-import { formatDateShort } from '../../../../../utils/date-formatters';
 import type {
   BlendedField,
   BlendedFieldOverride,
@@ -357,51 +355,6 @@ export function RelationshipAccordionItem({
                         Join Settings
                       </TabsTrigger>
                     </TabsList>
-                    <div className='text-muted-foreground ml-auto flex min-w-0 items-center gap-1.5 text-sm'>
-                      <Box className='size-4 shrink-0' />
-                      <span
-                        className='text-foreground max-w-[240px] truncate font-medium'
-                        title={rel.targetDataMart.title}
-                      >
-                        {rel.targetDataMart.title}
-                      </span>
-                      {rel.targetDataMart.description && (
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <span className='text-muted-foreground/50 hover:text-muted-foreground shrink-0 transition-colors'>
-                              <Info className='size-4 shrink-0' />
-                            </span>
-                          </TooltipTrigger>
-                          <TooltipContent side='top' className='max-w-xs'>
-                            {rel.targetDataMart.description}
-                          </TooltipContent>
-                        </Tooltip>
-                      )}
-                      <Button
-                        type='button'
-                        variant='ghost'
-                        size='sm'
-                        className='text-muted-foreground/60 hover:text-muted-foreground h-5 w-5 shrink-0 p-0'
-                        onClick={() => {
-                          window.open(
-                            scope(`/data-marts/${rel.targetDataMart.id}/data-setup`),
-                            '_blank'
-                          );
-                        }}
-                        aria-label='Open target data mart in new tab'
-                      >
-                        <ExternalLink className='size-4' />
-                      </Button>
-                    </div>
-                    <div className='text-muted-foreground flex shrink-0 items-center gap-1.5 text-sm'>
-                      <span>Joined {formatDateShort(rel.createdAt)}</span>
-                      {rel.createdByUser && (
-                        <>
-                          <span>by</span>
-                          <UserReference userProjection={rel.createdByUser} />
-                        </>
-                      )}
-                    </div>
                   </div>
 
                   <TabsContent value='fields' className='px-4 pt-2 pb-2'>

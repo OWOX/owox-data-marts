@@ -11,6 +11,7 @@ import { Input } from '@owox/ui/components/input';
 import { Separator } from '@owox/ui/components/separator';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@owox/ui/components/tooltip';
 import { cn } from '@owox/ui/lib/utils';
+import { ExternalAnchor } from '@owox/ui/components/common/external-anchor';
 import { ExternalLink, Info, Plus, Trash2 } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useFieldArray, useForm } from 'react-hook-form';
@@ -18,8 +19,10 @@ import { toast } from 'react-hot-toast';
 import { z } from 'zod';
 import { Button } from '../../../../../shared/components/Button';
 import { Combobox } from '../../../../../shared/components/Combobox/combobox';
+import { UserReference } from '../../../../../shared/components/UserReference';
 import { useProjectRoute } from '../../../../../shared/hooks/useProjectRoute';
 import { useDebounce } from '../../../../../hooks/useDebounce';
+import { formatDateShort } from '../../../../../utils/date-formatters';
 import type { DataMartResponseDto } from '../../../shared';
 import { dataMartService } from '../../../shared';
 import { dataMartRelationshipService } from '../../../shared/services/data-mart-relationship.service';
@@ -302,40 +305,76 @@ export function JoinSettingsForm({
         </div>
       )}
       <Form {...form}>
-        <FormField
-          control={form.control}
-          name='targetAlias'
-          render={({ field }) => (
-            <FormItem
-              variant='light'
-              className='bg-muted/50 flex flex-col gap-1.5 rounded-md p-3 dark:bg-white/5'
-            >
-              <label className='flex items-center gap-1.5 text-sm font-medium'>
-                SQL Alias
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <span className='text-muted-foreground/50 hover:text-muted-foreground shrink-0 transition-colors'>
-                      <Info className='size-4 shrink-0' />
-                    </span>
-                  </TooltipTrigger>
-                  <TooltipContent side='top' className='max-w-xs'>
-                    Internal name used when building the SQL JOIN for this data mart (e.g.
-                    orders_customer_id). Not shown in the output.
-                  </TooltipContent>
-                </Tooltip>
-              </label>
-              <FormControl>
-                <Input
-                  {...field}
-                  placeholder='e.g. orders'
-                  disabled={readOnly}
-                  className='bg-background h-8 text-sm dark:bg-white/5'
-                />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
+        <div className='grid grid-cols-2 gap-3'>
+          <div className='bg-muted/50 flex flex-col gap-1.5 rounded-md p-3 dark:bg-white/5'>
+            <label className='flex items-center gap-1.5 text-sm font-medium'>
+              Joined Data Mart
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span className='text-muted-foreground/50 hover:text-muted-foreground shrink-0 transition-colors'>
+                    <Info className='size-4 shrink-0' />
+                  </span>
+                </TooltipTrigger>
+                <TooltipContent side='top' className='max-w-xs'>
+                  The data mart linked here, plus who configured the join and when.
+                </TooltipContent>
+              </Tooltip>
+            </label>
+            <div className='text-muted-foreground flex flex-wrap items-center gap-x-1.5 gap-y-1 text-sm'>
+              <ExternalAnchor
+                href={scope(`/data-marts/${relationship.targetDataMart.id}/data-setup`)}
+                title={relationship.targetDataMart.title}
+                className='min-w-0'
+              >
+                <span className='max-w-[360px] truncate'>{relationship.targetDataMart.title}</span>
+              </ExternalAnchor>
+              <span className='flex shrink-0 items-center gap-1.5'>
+                <span>Joined {formatDateShort(relationship.createdAt)}</span>
+                {relationship.createdByUser && (
+                  <>
+                    <span>by</span>
+                    <UserReference userProjection={relationship.createdByUser} />
+                  </>
+                )}
+              </span>
+            </div>
+          </div>
+
+          <FormField
+            control={form.control}
+            name='targetAlias'
+            render={({ field }) => (
+              <FormItem
+                variant='light'
+                className='bg-muted/50 flex flex-col gap-1.5 rounded-md p-3 dark:bg-white/5'
+              >
+                <label className='flex items-center gap-1.5 text-sm font-medium'>
+                  SQL Alias
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <span className='text-muted-foreground/50 hover:text-muted-foreground shrink-0 transition-colors'>
+                        <Info className='size-4 shrink-0' />
+                      </span>
+                    </TooltipTrigger>
+                    <TooltipContent side='top' className='max-w-xs'>
+                      Internal name used when building the SQL JOIN for this data mart (e.g.
+                      orders_customer_id). Not shown in the output.
+                    </TooltipContent>
+                  </Tooltip>
+                </label>
+                <FormControl>
+                  <Input
+                    {...field}
+                    placeholder='e.g. orders'
+                    disabled={readOnly}
+                    className='bg-background h-8 text-sm dark:bg-white/5'
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        </div>
 
         <Separator />
 

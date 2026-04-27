@@ -588,7 +588,7 @@ export function DataMartRelationshipsContent({
         <CollapsibleCardHeader>
           <CollapsibleCardHeaderTitle
             icon={Link2}
-            tooltip='Joinable data marts connected to this one'
+            tooltip='Business users can add columns from joinable data marts directly into their spreadsheet reports. No hallucinations - row counts remain unchanged'
           >
             Joinable Data Marts
           </CollapsibleCardHeaderTitle>
