@@ -38,8 +38,8 @@ export function EditableText({
   minRows = 1,
   isBold = false,
   className,
-  saveButtonText = 'Save',
-  cancelButtonText = 'Discard',
+  saveButtonText = 'Apply',
+  cancelButtonText = 'Cancel',
   trailingContent,
 }: EditableTextProps) {
   const [isEditing, setIsEditing] = useState(false);
