@@ -168,7 +168,7 @@ export const GoogleBigQueryFields = ({ form }: GoogleBigQueryFieldsProps) => {
       </FormSection>
 
       {/* Authentication */}
-      <section>
+      <div className='mb-4 flex flex-col gap-2'>
         <AuthenticationSectionHeader
           itemType='storage'
           copyButton={
@@ -250,7 +250,10 @@ export const GoogleBigQueryFields = ({ form }: GoogleBigQueryFieldsProps) => {
                       {!isEditing && serviceAccountLink ? (
                         <Tooltip>
                           <TooltipTrigger asChild>
-                            <ExternalAnchor href={serviceAccountLink.url}>
+                            <ExternalAnchor
+                              href={serviceAccountLink.url}
+                              className='text-foreground rounded-md border px-4 py-2 text-sm font-normal'
+                            >
                               {serviceAccountLink.email}
                             </ExternalAnchor>
                           </TooltipTrigger>
@@ -277,7 +280,7 @@ export const GoogleBigQueryFields = ({ form }: GoogleBigQueryFieldsProps) => {
             )}
           </div>
         )}
-      </section>
+      </div>
     </>
   );
 };

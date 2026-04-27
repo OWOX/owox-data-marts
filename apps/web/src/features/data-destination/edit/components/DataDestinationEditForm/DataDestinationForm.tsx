@@ -189,25 +189,27 @@ export function DataDestinationForm({
         }}
       >
         <FormLayout>
-          <FormField
-            control={form.control}
-            name='title'
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel tooltip='Name the destination to clarify its purpose'>Title</FormLabel>
-                <FormControl>
-                  <Input placeholder='Enter title' {...field} />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
+          <FormSection title='General'>
+            <FormField
+              control={form.control}
+              name='title'
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel tooltip='Name the destination to clarify its purpose'>Title</FormLabel>
+                  <FormControl>
+                    <Input placeholder='Enter title' {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
 
-          <DestinationTypeField
-            form={form}
-            isEditMode={isEditMode}
-            allowedDestinationTypes={allowedDestinationTypes}
-          />
+            <DestinationTypeField
+              form={form}
+              isEditMode={isEditMode}
+              allowedDestinationTypes={allowedDestinationTypes}
+            />
+          </FormSection>
 
           <CopyCredentialContext.Provider value={copyCredentialCtx}>
             {destinationType === DataDestinationType.GOOGLE_SHEETS && (

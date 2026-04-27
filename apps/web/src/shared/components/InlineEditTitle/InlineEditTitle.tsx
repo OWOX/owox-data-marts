@@ -17,7 +17,7 @@ export function InlineEditTitle({
   onUpdate,
   className,
   errorMessage = 'Title cannot be empty',
-  minWidth = '200px',
+  minWidth = '100px',
   readOnly = false,
 }: InlineEditTitleProps) {
   const [editedTitle, setEditedTitle] = useState(title);
@@ -73,7 +73,7 @@ export function InlineEditTitle({
 
   return (
     <h2
-      className={cn('m-0 p-0', className, {
+      className={cn('m-0 min-w-0 p-0', className, {
         'cursor-pointer hover:opacity-80': !readOnly,
       })}
     >
@@ -93,6 +93,7 @@ export function InlineEditTitle({
         className={cn(
           'm-0 w-full border-0 p-0 shadow-none',
           'bg-transparent focus-visible:ring-0 focus-visible:ring-offset-0',
+          'break-words whitespace-normal',
           {
             'opacity-50': isLoading,
             'cursor-default': readOnly,
