@@ -85,10 +85,18 @@ export function AddContextSheet({ isOpen, members, onClose, onCreated }: AddCont
     async (values: AddContextFormValues) => {
       setSaving(true);
       try {
-        const created = await contextService.createContext({
+        const trimmedDescription = values.description?.trim();
+        const payload: { name: string; description?: string } = {
           name: values.name.trim(),
-          description: values.description?.trim() || undefined,
-        });
+        };
+        // Don't send empty-string description — backend treats it as a
+        // distinct value from "absent". `??` would not collapse '' to
+        // undefined; an explicit guard is the cleanest way to express
+        // "either present or omitted entirely".
+        if (trimmedDescription) {
+          payload.description = trimmedDescription;
+        }
+        const created = await contextService.createContext(payload);
 
         if (selectedMemberIds.length > 0) {
           await contextService.updateContextMembers(created.id, selectedMemberIds);
@@ -122,7 +130,11 @@ export function AddContextSheet({ isOpen, members, onClose, onCreated }: AddCont
         </SheetHeader>
 
         <Form {...form}>
-          <AppForm onSubmit={handleSubmit(onSubmit)}>
+          <AppForm
+            onSubmit={e => {
+              void handleSubmit(onSubmit)(e);
+            }}
+          >
             <FormLayout>
               <FormSection title='General' name='add-context-general'>
                 <FormField

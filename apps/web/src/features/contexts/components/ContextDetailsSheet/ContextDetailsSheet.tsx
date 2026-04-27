@@ -141,7 +141,11 @@ export function ContextDetailsSheet({
           </SheetHeader>
 
           <Form {...form}>
-            <AppForm onSubmit={handleSubmit(onSubmit)}>
+            <AppForm
+              onSubmit={e => {
+                void handleSubmit(onSubmit)(e);
+              }}
+            >
               <FormLayout>
                 <FormSection title='General' name='ctx-details-general'>
                   <FormField

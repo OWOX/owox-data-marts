@@ -47,7 +47,6 @@ import {
   PROJECT_ROLE_VALUES,
   ROLE_SCOPE_VALUES,
 } from '../../../../../features/project-members/types';
-import type { Role, RoleScope } from '../../../../../features/project-members/types';
 import type {
   ContextDto,
   MemberWithScopeDto,
@@ -126,8 +125,8 @@ export function MemberDetailsSheet({
       setSaving(true);
       try {
         const result = await projectMembersService.updateMember(member.userId, {
-          role: values.role as Role,
-          roleScope: values.roleScope as RoleScope,
+          role: values.role,
+          roleScope: values.roleScope,
           contextIds: selectedContextIds,
         });
         toast.success('Member settings updated');
@@ -163,7 +162,11 @@ export function MemberDetailsSheet({
           </SheetHeader>
 
           <Form {...form}>
-            <AppForm onSubmit={handleSubmit(onSubmit)}>
+            <AppForm
+              onSubmit={e => {
+                void handleSubmit(onSubmit)(e);
+              }}
+            >
               <FormLayout>
                 <FormSection title='General' name='member-details-general'>
                   <FormItem>

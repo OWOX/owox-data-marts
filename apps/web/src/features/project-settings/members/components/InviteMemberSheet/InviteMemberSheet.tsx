@@ -45,7 +45,6 @@ import {
   PROJECT_ROLE_VALUES,
   ROLE_SCOPE_VALUES,
 } from '../../../../../features/project-members/types';
-import type { Role, RoleScope } from '../../../../../features/project-members/types';
 import { getRoleDisplayName } from '../../../../../features/idp/utils/role-display-name';
 import { ContextsCheckboxList } from '../../../../../features/contexts/components/ContextsCheckboxList';
 import { AddContextSheet } from '../../../../../features/contexts/components/AddContextSheet/AddContextSheet';
@@ -146,8 +145,8 @@ export function InviteMemberSheet({
             : undefined;
         const result = await projectMembersService.inviteMember({
           email: values.email.trim(),
-          role: values.role as Role,
-          roleScope: isAdminRoleSelected ? undefined : (values.roleScope as RoleScope),
+          role: values.role,
+          roleScope: isAdminRoleSelected ? undefined : values.roleScope,
           contextIds: effectiveContextIds,
         });
 
@@ -293,7 +292,11 @@ export function InviteMemberSheet({
               </SheetHeader>
 
               <Form {...form}>
-                <AppForm onSubmit={handleSubmit(onSubmit)}>
+                <AppForm
+                  onSubmit={e => {
+                    void handleSubmit(onSubmit)(e);
+                  }}
+                >
                   <FormLayout>
                     <FormSection title='General' name='invite-general'>
                       <FormField
