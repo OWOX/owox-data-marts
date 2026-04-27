@@ -9,6 +9,7 @@ import {
 } from '@owox/ui/components/table';
 import { TablePagination } from '@owox/ui/components/common/table-pagination';
 import { getTableColumnSize } from '../../utils/getTableColumnSize';
+import { cn } from '@owox/ui/lib/utils';
 
 /**
  * Props for BaseTable component
@@ -73,6 +74,39 @@ export function BaseTable<TData>({
   ariaLabel = 'Data table',
 }: BaseTableProps<TData>) {
   const hasToolbar = renderToolbarLeft ?? renderToolbarRight;
+  const ACTIONS_COLUMN_ID = 'actions';
+
+  const isActionsColumn = (columnId: string) => columnId === ACTIONS_COLUMN_ID;
+
+  const baseHeaderClass =
+    'relative [&:has([role=checkbox])]:pl-6 [&>[role=checkbox]]:translate-y-[2px]';
+
+  const actionsHeaderClass = cn(
+    'sticky right-0 z-20',
+    'bg-table-thead-sticky-bg',
+    'after:pointer-events-none after:absolute after:inset-y-0 after:left-[-16px] after:w-[16px]',
+    'after:bg-gradient-to-r after:from-transparent after:to-table-thead-sticky-bg'
+  );
+
+  const isCreatedAt = (columnId: string) => columnId === 'createdAt';
+  const isHealthStatus = (columnId: string) => columnId === 'healthStatus';
+
+  const baseCellClass =
+    'px-6 pr-0 break-words whitespace-normal transition-colors duration-200 ease-out ' +
+    'after:transition-opacity after:duration-150 after:ease-out ' +
+    '[&>[role=checkbox]]:translate-y-[2px]';
+
+  const actionsCellClass = cn(
+    'sticky right-0 z-10 px-2',
+    'group-hover:bg-table-tbody-sticky-hover-bg',
+    'after:pointer-events-none after:absolute after:inset-y-0 after:left-[-24px] after:w-[24px]',
+    'after:bg-gradient-to-r after:from-transparent after:to-table-tbody-sticky-hover-bg',
+    'after:opacity-0 after:transition-opacity after:duration-200',
+    'group-hover:after:opacity-100'
+  );
+
+  const createdAtClass = 'whitespace-nowrap';
+  const healthStatusClass = 'pl-5';
 
   return (
     <>
@@ -107,7 +141,10 @@ export function BaseTable<TData>({
                   return (
                     <TableHead
                       key={header.id}
-                      className='relative [&:has([role=checkbox])]:pl-6 [&>[role=checkbox]]:translate-y-[2px]'
+                      className={cn(
+                        baseHeaderClass,
+                        isActionsColumn(header.column.id) && actionsHeaderClass
+                      )}
                       style={getTableColumnSize(header.column)}
                     >
                       {header.isPlaceholder
@@ -149,7 +186,12 @@ export function BaseTable<TData>({
                   {row.getVisibleCells().map(cell => (
                     <TableCell
                       key={cell.id}
-                      className={`px-6 pr-0 whitespace-normal [&>[role=checkbox]]:translate-y-[2px] ${cell.column.id === 'actions' ? 'px-2' : ''} ${cell.column.id === 'createdAt' ? 'whitespace-nowrap' : ''} ${cell.column.id === 'healthStatus' ? 'pl-5' : ''}`}
+                      className={cn(
+                        baseCellClass,
+                        isActionsColumn(cell.column.id) && actionsCellClass,
+                        isCreatedAt(cell.column.id) && createdAtClass,
+                        isHealthStatus(cell.column.id) && healthStatusClass
+                      )}
                       style={getTableColumnSize(cell.column)}
                     >
                       {flexRender(cell.column.columnDef.cell, cell.getContext())}

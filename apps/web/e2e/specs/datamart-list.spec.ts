@@ -84,9 +84,12 @@ test.describe('DataMart List with data', () => {
     await expect(page.getByText(publishedTitle)).toBeVisible();
   });
 
-  test('filter by status shows matching datamarts (DLIST-03)', async ({ page }) => {
+  test('filter by status shows matching datamarts (DLIST-03)', async ({ page, radix }) => {
     await page.goto('/ui/0/data-marts');
     await expect(page.getByTestId(TESTIDS.datamartTable)).toBeVisible();
+
+    // Close FloatingPopover if it's open (blocks interaction with filters)
+    await radix.closeFloatingPopoverIfOpen();
 
     // Open the filters popover by clicking the Filters trigger button
     const filterContainer = page.getByTestId(TESTIDS.datamartStatusFilter);

@@ -73,7 +73,25 @@ export function TableFiltersContent({
         <PopoverDescription>{description}</PopoverDescription>
       </PopoverHeader>
 
-      <AppForm>
+      <AppForm
+        onSubmit={e => {
+          e.preventDefault();
+          if (canApply) handleApply();
+        }}
+        onKeyDown={e => {
+          if (e.key !== 'Enter') return;
+
+          const target = e.target as HTMLElement;
+
+          if (target.tagName === 'TEXTAREA' || target.getAttribute('role') === 'combobox') {
+            return;
+          }
+
+          if (canApply) {
+            handleApply();
+          }
+        }}
+      >
         <FormLayout className='max-h-[40vh]'>
           <FiltersForm
             ref={formRef}
@@ -84,12 +102,11 @@ export function TableFiltersContent({
         </FormLayout>
 
         <FormActions variant='inline'>
+          <Button size='sm' type='submit' disabled={!canApply}>
+            Apply filters
+          </Button>
           <Button variant='outline' size='sm' type='button' onClick={handleClear}>
             Clear all
-          </Button>
-
-          <Button size='sm' type='button' disabled={!canApply} onClick={handleApply}>
-            Apply filters
           </Button>
         </FormActions>
       </AppForm>

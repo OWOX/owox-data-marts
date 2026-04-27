@@ -39,7 +39,11 @@ export function SelectValueControl({ configItem, value, onChange }: SelectValueC
             <>
               {(values as string[]).map(v => {
                 const label = items.find(o => o.value === v)?.label ?? v;
-                return <ComboboxChip key={v}>{label}</ComboboxChip>;
+                return (
+                  <ComboboxChip key={v} className='max-w-[200px]'>
+                    <span className='truncate'>{label}</span>
+                  </ComboboxChip>
+                );
               })}
               <ComboboxChipsInput placeholder={isDisabled ? 'Value' : ''} />
             </>

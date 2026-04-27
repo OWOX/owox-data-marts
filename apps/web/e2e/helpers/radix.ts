@@ -1,4 +1,5 @@
 import { type Page, type Locator, expect } from '@playwright/test';
+import { TESTIDS } from '../selectors/testids';
 
 export class RadixHelpers {
   constructor(private page: Page) {}
@@ -63,5 +64,19 @@ export class RadixHelpers {
     await expect(dialog).toBeVisible();
     await dialog.getByRole('button', { name: confirmLabel }).click();
     await expect(dialog).not.toBeVisible();
+  }
+
+  /**
+   * Close FloatingPopover if it's open.
+   * Useful when popover blocks interaction with other elements.
+   */
+  async closeFloatingPopoverIfOpen(): Promise<void> {
+    const closeButton = this.page.getByTestId(TESTIDS.floatingPopoverClose);
+
+    if (await closeButton.isVisible().catch(() => false)) {
+      await closeButton.click();
+      // Wait for popover to disappear
+      await closeButton.waitFor({ state: 'hidden' }).catch(() => undefined);
+    }
   }
 }

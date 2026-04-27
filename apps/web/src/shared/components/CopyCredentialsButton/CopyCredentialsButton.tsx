@@ -1,5 +1,4 @@
 import { useState, useCallback, useEffect } from 'react';
-import { Button } from '@owox/ui/components/button';
 import { ChevronRight, PackageSearch } from 'lucide-react';
 import { cn } from '@owox/ui/lib/utils';
 import {
@@ -96,7 +95,7 @@ export function CopyCredentialsButton({
     <TooltipProvider>
       <DropdownMenu open={open} onOpenChange={setOpen}>
         <DropdownMenuTrigger asChild>
-          <Button type='button' variant='ghost' size='sm' className='cursor-pointer'>
+          <button type='button' className='flex cursor-pointer items-center gap-1'>
             <span className='text-muted-foreground/75 text-xs font-semibold tracking-wide uppercase'>
               Copy from&hellip;
             </span>
@@ -106,7 +105,7 @@ export function CopyCredentialsButton({
                 open && 'rotate-90'
               )}
             />
-          </Button>
+          </button>
         </DropdownMenuTrigger>
         <DropdownMenuContent side='bottom' align='end' className='w-72'>
           {loading ? (

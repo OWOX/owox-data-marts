@@ -53,4 +53,7 @@ export const TESTIDS = {
   notifSettingsTable: 'notifSettingsTable',
   notifToggle: 'notifToggle',
   notifEditSheet: 'notifEditSheet',
+
+  // FloatingPopover domain
+  floatingPopoverClose: 'floatingPopoverClose',
 } as const;

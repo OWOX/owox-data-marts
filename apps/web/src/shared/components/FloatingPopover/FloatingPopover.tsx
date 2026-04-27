@@ -73,6 +73,7 @@ export function FloatingPopoverHeader({ children, onClose, ...props }: FloatingP
             'focus:ring-brand-blue-500 focus:ring-2 focus:outline-none active:scale-95'
           )}
           aria-label='Close popover'
+          data-testid='floatingPopoverClose'
         >
           <X className='size-4' />
         </button>
