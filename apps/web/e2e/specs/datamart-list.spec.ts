@@ -88,6 +88,14 @@ test.describe('DataMart List with data', () => {
     await page.goto('/ui/0/data-marts');
     await expect(page.getByTestId(TESTIDS.datamartTable)).toBeVisible();
 
+    // Close FloatingPopover if it's open (blocks interaction with filters)
+    const floatingPopoverClose = page.locator(
+      '[data-slot="floating-popover-header"] button[aria-label="Close popover"]'
+    );
+    if (await floatingPopoverClose.isVisible().catch(() => false)) {
+      await floatingPopoverClose.click();
+    }
+
     // Open the filters popover by clicking the Filters trigger button
     const filterContainer = page.getByTestId(TESTIDS.datamartStatusFilter);
     await filterContainer.getByRole('button', { name: 'Filters' }).click();
