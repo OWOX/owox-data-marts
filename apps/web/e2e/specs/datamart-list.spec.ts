@@ -84,17 +84,12 @@ test.describe('DataMart List with data', () => {
     await expect(page.getByText(publishedTitle)).toBeVisible();
   });
 
-  test('filter by status shows matching datamarts (DLIST-03)', async ({ page }) => {
+  test('filter by status shows matching datamarts (DLIST-03)', async ({ page, radix }) => {
     await page.goto('/ui/0/data-marts');
     await expect(page.getByTestId(TESTIDS.datamartTable)).toBeVisible();
 
     // Close FloatingPopover if it's open (blocks interaction with filters)
-    const floatingPopoverClose = page.locator(
-      '[data-slot="floating-popover-header"] button[aria-label="Close popover"]'
-    );
-    if (await floatingPopoverClose.isVisible().catch(() => false)) {
-      await floatingPopoverClose.click();
-    }
+    await radix.closeFloatingPopoverIfOpen();
 
     // Open the filters popover by clicking the Filters trigger button
     const filterContainer = page.getByTestId(TESTIDS.datamartStatusFilter);
@@ -117,8 +112,10 @@ test.describe('DataMart List with data', () => {
     await popover.locator('[data-slot="combobox-chips"]').click();
     await page.getByRole('option', { name: 'Draft' }).click();
 
-    // Step 4: Close the combobox dropdown by clicking on the popover header and click "Apply filters".
-    await page.locator('[data-slot="popover-header"]').click();
+    // Step 4: Close the combobox dropdown and click "Apply filters".
+    // The multi-select combobox stays open after selection. Tab moves focus
+    // to the next focusable element inside the popover, closing the dropdown.
+    await page.keyboard.press('Tab');
     await page.getByRole('button', { name: 'Apply filters' }).click();
 
     // After applying, only draft datamart should be visible
