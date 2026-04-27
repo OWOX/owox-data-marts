@@ -269,9 +269,9 @@ export class ContextAccessService {
     const memberContextIds = memberContexts.map(mc => mc.contextId);
 
     const { repository, entityIdColumn } = this.getEntityContextConfig(entityType);
-
     const count = await repository
       .createQueryBuilder('ec')
+      .innerJoin('context', 'c', 'c.id = ec.context_id AND c.deletedAt IS NULL')
       .where(`ec.${entityIdColumn} = :entityId`, { entityId })
       .andWhere('ec.context_id IN (:...memberContextIds)', { memberContextIds })
       .getCount();

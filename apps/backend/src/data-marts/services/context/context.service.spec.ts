@@ -123,6 +123,24 @@ describe('ContextService', () => {
       );
     });
 
+    it('should translate UNIQUE-constraint race into ConflictException (TOCTOU)', async () => {
+      const { service, contextRepository } = createService();
+
+      // First check passes (no duplicate found at app-level), but DB rejects
+      // the INSERT because a concurrent transaction inserted the same name.
+      contextRepository.findOne.mockResolvedValue(null);
+      contextRepository.create.mockReturnValue(createContextEntity());
+      contextRepository.save.mockRejectedValue(
+        Object.assign(new Error('UNIQUE constraint failed: context.projectId, context.name'), {
+          code: 'SQLITE_CONSTRAINT_UNIQUE',
+        })
+      );
+
+      await expect(service.create(PROJECT_ID, USER_ID, 'Race Context')).rejects.toBeInstanceOf(
+        ConflictException
+      );
+    });
+
     it('should allow same name in different project', async () => {
       const { service, contextRepository, userProjectionsFetcherService } = createService();
 

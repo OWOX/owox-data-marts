@@ -52,6 +52,7 @@ export class ListDataStoragesService {
                 OR EXISTS (
                   SELECT 1 FROM storage_contexts sc
                   JOIN member_role_contexts mrc ON mrc.context_id = sc.context_id
+                  JOIN context c ON c.id = sc.context_id AND c.deletedAt IS NULL
                   WHERE sc.storage_id = s.id
                   AND mrc.user_id = :userId AND mrc.project_id = :projectId
                 )

@@ -482,10 +482,10 @@ describe('Permissions Model Contexts & Role Scope (e2e)', () => {
   // ─── D. Member role-scope + contexts ─────────────────────────
 
   describe('D. Member role-scope + contexts', () => {
-    it('PUT /api/contexts/members/:userId → 200 sets editor + selected_contexts + [ctx]', async () => {
+    it('PUT /api/members/:userId → 200 sets editor + selected_contexts + [ctx]', async () => {
       const ctx = await createContext('D-member-1');
       const res = await agent
-        .put('/api/contexts/members/1')
+        .put('/api/members/1')
         .set(AUTH_HEADER)
         .send({
           role: 'editor',
@@ -507,7 +507,7 @@ describe('Permissions Model Contexts & Role Scope (e2e)', () => {
     });
 
     it('selected_contexts + empty contextIds → 200 (valid "no shared access" state per spec)', async () => {
-      const res = await agent.put('/api/contexts/members/1').set(AUTH_HEADER).send({
+      const res = await agent.put('/api/members/1').set(AUTH_HEADER).send({
         role: 'editor',
         roleScope: RoleScope.SELECTED_CONTEXTS,
         contextIds: [],
@@ -520,7 +520,7 @@ describe('Permissions Model Contexts & Role Scope (e2e)', () => {
     it('role=admin forces entire_project + empty contextIds', async () => {
       const ctx = await createContext('D-admin-force');
       const res = await agent
-        .put('/api/contexts/members/1')
+        .put('/api/members/1')
         .set(AUTH_HEADER)
         .send({
           role: 'admin',
@@ -534,7 +534,7 @@ describe('Permissions Model Contexts & Role Scope (e2e)', () => {
     });
 
     it('editor caller → 403', async () => {
-      const res = await agent.put('/api/contexts/members/1').set(EDITOR_AUTH_HEADER).send({
+      const res = await agent.put('/api/members/1').set(EDITOR_AUTH_HEADER).send({
         role: 'editor',
         roleScope: RoleScope.ENTIRE_PROJECT,
         contextIds: [],
@@ -543,7 +543,7 @@ describe('Permissions Model Contexts & Role Scope (e2e)', () => {
     });
 
     it('unknown userId → 404', async () => {
-      const res = await agent.put('/api/contexts/members/unknown-user').set(AUTH_HEADER).send({
+      const res = await agent.put('/api/members/unknown-user').set(AUTH_HEADER).send({
         role: 'editor',
         roleScope: RoleScope.ENTIRE_PROJECT,
         contextIds: [],
@@ -553,7 +553,7 @@ describe('Permissions Model Contexts & Role Scope (e2e)', () => {
 
     it('invalid contextId in payload → 400', async () => {
       const res = await agent
-        .put('/api/contexts/members/1')
+        .put('/api/members/1')
         .set(AUTH_HEADER)
         .send({
           role: 'editor',
@@ -567,7 +567,7 @@ describe('Permissions Model Contexts & Role Scope (e2e)', () => {
       const facade = app.get(IdpProjectionsFacade);
       (facade.changeMemberRole as jest.Mock).mockClear();
 
-      const res = await agent.put('/api/contexts/members/2').set(AUTH_HEADER).send({
+      const res = await agent.put('/api/members/2').set(AUTH_HEADER).send({
         role: 'editor', // viewer currently
         roleScope: RoleScope.ENTIRE_PROJECT,
         contextIds: [],
@@ -583,7 +583,7 @@ describe('Permissions Model Contexts & Role Scope (e2e)', () => {
       const spy = facade.changeMemberRole as jest.Mock;
       spy.mockRejectedValueOnce(new Error('IDP unavailable'));
 
-      const res = await agent.put('/api/contexts/members/2').set(AUTH_HEADER).send({
+      const res = await agent.put('/api/members/2').set(AUTH_HEADER).send({
         role: 'editor',
         roleScope: RoleScope.ENTIRE_PROJECT,
         contextIds: [],
@@ -592,7 +592,7 @@ describe('Permissions Model Contexts & Role Scope (e2e)', () => {
     });
 
     it('role change equal → roleStatus ok', async () => {
-      const res = await agent.put('/api/contexts/members/1').set(AUTH_HEADER).send({
+      const res = await agent.put('/api/members/1').set(AUTH_HEADER).send({
         role: 'editor', // same as current
         roleScope: RoleScope.ENTIRE_PROJECT,
         contextIds: [],
@@ -679,7 +679,7 @@ describe('Permissions Model Contexts & Role Scope (e2e)', () => {
     });
 
     it('TU selected_contexts [] → sees only owned (zero shared non-owner access per spec)', async () => {
-      const res = await agent.put('/api/contexts/members/1').set(AUTH_HEADER).send({
+      const res = await agent.put('/api/members/1').set(AUTH_HEADER).send({
         role: 'editor',
         roleScope: RoleScope.SELECTED_CONTEXTS,
         contextIds: [],
@@ -836,7 +836,7 @@ describe('Permissions Model Contexts & Role Scope (e2e)', () => {
 
   describe('H. listMembers', () => {
     it('viewer → 200, returns all members with roleScope + contextIds', async () => {
-      const res = await agent.get('/api/contexts/members').set(VIEWER_AUTH_HEADER);
+      const res = await agent.get('/api/members').set(VIEWER_AUTH_HEADER);
       expect(res.status).toBe(200);
       expect(Array.isArray(res.body)).toBe(true);
       expect(res.body.length).toBe(3);
@@ -852,7 +852,7 @@ describe('Permissions Model Contexts & Role Scope (e2e)', () => {
     });
 
     it('member with no member_role_scope record → default entire_project', async () => {
-      const res = await agent.get('/api/contexts/members').set(VIEWER_AUTH_HEADER);
+      const res = await agent.get('/api/members').set(VIEWER_AUTH_HEADER);
       const admin = (res.body as Array<{ userId: string; roleScope: string }>).find(
         m => m.userId === '0'
       );
@@ -912,7 +912,7 @@ describe('Permissions Model Contexts & Role Scope (e2e)', () => {
         .set(AUTH_HEADER)
         .send({ assignedUserIds: ['1'] });
       await agent
-        .put('/api/contexts/members/1')
+        .put('/api/members/1')
         .set(AUTH_HEADER)
         .send({
           role: 'editor',
@@ -946,9 +946,9 @@ describe('Permissions Model Contexts & Role Scope (e2e)', () => {
   describe('I. Invite member', () => {
     it('email-sent kind — 202 with role echo, no magicLink field', async () => {
       const res = await agent
-        .post('/api/contexts/members/invite')
+        .post('/api/members/invite')
         .set(AUTH_HEADER)
-        .send({ email: 'new@test.io', role: 'editor' });
+        .send({ email: 'new@test.io', role: 'editor', roleScope: 'entire_project' });
       expect(res.status).toBe(202);
       expect(res.body.kind).toBe('email-sent');
       expect(res.body.email).toBe('new@test.io');
@@ -968,9 +968,9 @@ describe('Permissions Model Contexts & Role Scope (e2e)', () => {
       });
 
       const res = await agent
-        .post('/api/contexts/members/invite')
+        .post('/api/members/invite')
         .set(AUTH_HEADER)
-        .send({ email: 'ml@test.io', role: 'viewer' });
+        .send({ email: 'ml@test.io', role: 'viewer', roleScope: 'entire_project' });
       expect(res.status).toBe(202);
       expect(res.body.kind).toBe('magic-link');
       expect(res.body.magicLink).toBe('https://app.owox.local/invite/tok-1');
@@ -983,7 +983,7 @@ describe('Permissions Model Contexts & Role Scope (e2e)', () => {
       spy.mockClear();
 
       const res = await agent
-        .post('/api/contexts/members/invite')
+        .post('/api/members/invite')
         .set(EDITOR_AUTH_HEADER)
         .send({ email: 'new2@test.io', role: 'viewer' });
       expect(res.status).toBe(403);
@@ -996,7 +996,7 @@ describe('Permissions Model Contexts & Role Scope (e2e)', () => {
       spy.mockClear();
 
       const res = await agent
-        .post('/api/contexts/members/invite')
+        .post('/api/members/invite')
         .set(AUTH_HEADER)
         .send({ email: 'not-an-email', role: 'editor' });
       expect(res.status).toBe(400);
@@ -1008,9 +1008,9 @@ describe('Permissions Model Contexts & Role Scope (e2e)', () => {
       (facade.inviteMember as jest.Mock).mockRejectedValueOnce(new Error('IDP refused'));
 
       const res = await agent
-        .post('/api/contexts/members/invite')
+        .post('/api/members/invite')
         .set(AUTH_HEADER)
-        .send({ email: 'boom@test.io', role: 'viewer' });
+        .send({ email: 'boom@test.io', role: 'viewer', roleScope: 'entire_project' });
       expect(res.status).toBe(500);
     });
 
@@ -1027,7 +1027,7 @@ describe('Permissions Model Contexts & Role Scope (e2e)', () => {
       });
 
       const res = await agent
-        .post('/api/contexts/members/invite')
+        .post('/api/members/invite')
         .set(AUTH_HEADER)
         .send({
           email: 'pre@test.io',
@@ -1044,7 +1044,7 @@ describe('Permissions Model Contexts & Role Scope (e2e)', () => {
       ]);
     });
 
-    it('explicit roleScope=selected_contexts without contextIds → valid "no-access" state', async () => {
+    it('explicit roleScope=selected_contexts without contextIds → valid "no-access" state per Fibery spec', async () => {
       const facade = app.get(IdpProjectionsFacade);
       (facade.inviteMember as jest.Mock).mockResolvedValueOnce({
         projectId: '0',
@@ -1055,7 +1055,7 @@ describe('Permissions Model Contexts & Role Scope (e2e)', () => {
         userId: 'scoped-user-id',
       });
 
-      const res = await agent.post('/api/contexts/members/invite').set(AUTH_HEADER).send({
+      const res = await agent.post('/api/members/invite').set(AUTH_HEADER).send({
         email: 'scoped@test.io',
         role: 'editor',
         roleScope: 'selected_contexts',
@@ -1081,7 +1081,7 @@ describe('Permissions Model Contexts & Role Scope (e2e)', () => {
       });
 
       const res = await agent
-        .post('/api/contexts/members/invite')
+        .post('/api/members/invite')
         .set(AUTH_HEADER)
         .send({
           email: 'wide@test.io',
@@ -1113,7 +1113,7 @@ describe('Permissions Model Contexts & Role Scope (e2e)', () => {
       });
 
       const res = await agent
-        .post('/api/contexts/members/invite')
+        .post('/api/members/invite')
         .set(AUTH_HEADER)
         .send({
           email: 'adm@test.io',
@@ -1129,7 +1129,7 @@ describe('Permissions Model Contexts & Role Scope (e2e)', () => {
     });
 
     it('invalid roleScope value → 400', async () => {
-      const res = await agent.post('/api/contexts/members/invite').set(AUTH_HEADER).send({
+      const res = await agent.post('/api/members/invite').set(AUTH_HEADER).send({
         email: 'bad@test.io',
         role: 'editor',
         roleScope: 'everywhere', // not in enum
@@ -1141,19 +1141,19 @@ describe('Permissions Model Contexts & Role Scope (e2e)', () => {
   // ─── N. Remove member ────────────────────────────────────────
 
   describe('N. Remove member', () => {
-    it('DELETE /api/contexts/members/:userId admin → 204, IDP + bindings cleared', async () => {
+    it('DELETE /api/members/:userId admin → 204, IDP + bindings cleared', async () => {
       const facade = app.get(IdpProjectionsFacade);
       const idpSpy = facade.removeMember as jest.Mock;
       idpSpy.mockClear();
 
       // Seed a scope row so we can verify it gets cleared.
-      await agent.put('/api/contexts/members/1').set(AUTH_HEADER).send({
+      await agent.put('/api/members/1').set(AUTH_HEADER).send({
         role: 'editor',
         roleScope: RoleScope.ENTIRE_PROJECT,
         contextIds: [],
       });
 
-      const res = await agent.delete('/api/contexts/members/1').set(AUTH_HEADER);
+      const res = await agent.delete('/api/members/1').set(AUTH_HEADER);
       expect(res.status).toBe(204);
       expect(idpSpy).toHaveBeenCalledWith('0', '1', '0');
 
@@ -1166,18 +1166,18 @@ describe('Permissions Model Contexts & Role Scope (e2e)', () => {
       const spy = facade.removeMember as jest.Mock;
       spy.mockClear();
 
-      const res = await agent.delete('/api/contexts/members/not-a-member').set(AUTH_HEADER);
+      const res = await agent.delete('/api/members/not-a-member').set(AUTH_HEADER);
       expect(res.status).toBe(404);
       expect(spy).not.toHaveBeenCalled();
     });
 
     it('editor caller → 403', async () => {
-      const res = await agent.delete('/api/contexts/members/1').set(EDITOR_AUTH_HEADER);
+      const res = await agent.delete('/api/members/1').set(EDITOR_AUTH_HEADER);
       expect(res.status).toBe(403);
     });
 
     it('viewer caller → 403', async () => {
-      const res = await agent.delete('/api/contexts/members/1').set(VIEWER_AUTH_HEADER);
+      const res = await agent.delete('/api/members/1').set(VIEWER_AUTH_HEADER);
       expect(res.status).toBe(403);
     });
 
@@ -1186,13 +1186,13 @@ describe('Permissions Model Contexts & Role Scope (e2e)', () => {
       (facade.removeMember as jest.Mock).mockRejectedValueOnce(new Error('upstream down'));
 
       // Seed a member_role_scope record we expect to survive.
-      await agent.put('/api/contexts/members/1').set(AUTH_HEADER).send({
+      await agent.put('/api/members/1').set(AUTH_HEADER).send({
         role: 'editor',
         roleScope: RoleScope.ENTIRE_PROJECT,
         contextIds: [],
       });
 
-      const res = await agent.delete('/api/contexts/members/1').set(AUTH_HEADER);
+      const res = await agent.delete('/api/members/1').set(AUTH_HEADER);
       expect(res.status).toBe(500);
       // The scope record should still be queryable (no accidental cleanup).
       await expect(contextAccess.getRoleScope('1', '0')).resolves.toBeDefined();
@@ -1204,7 +1204,7 @@ describe('Permissions Model Contexts & Role Scope (e2e)', () => {
       spy.mockClear();
 
       // userId '0' matches the admin payload the test auth header resolves to.
-      const res = await agent.delete('/api/contexts/members/0').set(AUTH_HEADER);
+      const res = await agent.delete('/api/members/0').set(AUTH_HEADER);
       expect(res.status).toBe(403);
       expect(spy).not.toHaveBeenCalled();
     });
@@ -1214,7 +1214,7 @@ describe('Permissions Model Contexts & Role Scope (e2e)', () => {
       const spy = facade.changeMemberRole as jest.Mock;
       spy.mockClear();
 
-      const res = await agent.put('/api/contexts/members/0').set(AUTH_HEADER).send({
+      const res = await agent.put('/api/members/0').set(AUTH_HEADER).send({
         role: 'viewer',
         roleScope: RoleScope.ENTIRE_PROJECT,
         contextIds: [],
@@ -1267,7 +1267,7 @@ describe('Permissions Model Contexts & Role Scope (e2e)', () => {
       // Admin detaches this context from the member directly (via same endpoint)
       await contextAccess.updateMemberContexts('1', PROJECT_ID, []);
 
-      const res = await agent.get('/api/contexts/members').set(VIEWER_AUTH_HEADER);
+      const res = await agent.get('/api/members').set(VIEWER_AUTH_HEADER);
       const editor = (
         res.body as Array<{ userId: string; roleScope: string; contextIds: string[] }>
       ).find(m => m.userId === '1');
@@ -1328,7 +1328,7 @@ describe('Permissions Model Contexts & Role Scope (e2e)', () => {
 
     it('K3. PUT /members/:id with 101 contextIds → 400 (ArrayMaxSize)', async () => {
       const many = Array.from({ length: 101 }, () => NONEXISTENT_UUID);
-      const res = await agent.put('/api/contexts/members/1').set(AUTH_HEADER).send({
+      const res = await agent.put('/api/members/1').set(AUTH_HEADER).send({
         role: 'editor',
         roleScope: RoleScope.ENTIRE_PROJECT,
         contextIds: many,
@@ -1341,7 +1341,7 @@ describe('Permissions Model Contexts & Role Scope (e2e)', () => {
 
       // 1. editor + selected_contexts + [ctx]
       await agent
-        .put('/api/contexts/members/1')
+        .put('/api/members/1')
         .set(AUTH_HEADER)
         .send({
           role: 'editor',
@@ -1351,7 +1351,7 @@ describe('Permissions Model Contexts & Role Scope (e2e)', () => {
 
       // 2. admin → forces entire_project + []
       await agent
-        .put('/api/contexts/members/1')
+        .put('/api/members/1')
         .set(AUTH_HEADER)
         .send({
           role: 'admin',
@@ -1360,7 +1360,7 @@ describe('Permissions Model Contexts & Role Scope (e2e)', () => {
         });
 
       // 3. back to editor — scope must still be entire_project + [] (not the old [ctx])
-      const res = await agent.put('/api/contexts/members/1').set(AUTH_HEADER).send({
+      const res = await agent.put('/api/members/1').set(AUTH_HEADER).send({
         role: 'editor',
         roleScope: RoleScope.ENTIRE_PROJECT,
         contextIds: [],
@@ -1435,7 +1435,7 @@ describe('Permissions Model Contexts & Role Scope (e2e)', () => {
         contextIds: [],
       });
 
-      const before = await agent.get('/api/contexts/members').set(VIEWER_AUTH_HEADER);
+      const before = await agent.get('/api/members').set(VIEWER_AUTH_HEADER);
       const editorBefore = (
         before.body as Array<{ userId: string; roleScope: string; contextIds: string[] }>
       ).find(m => m.userId === '1');
@@ -1445,7 +1445,7 @@ describe('Permissions Model Contexts & Role Scope (e2e)', () => {
 
       // 2. Try to update with one valid and one invalid ctx → should fail atomically
       const bad = await agent
-        .put('/api/contexts/members/1')
+        .put('/api/members/1')
         .set(AUTH_HEADER)
         .send({
           role: 'editor',
@@ -1455,7 +1455,7 @@ describe('Permissions Model Contexts & Role Scope (e2e)', () => {
       expect(bad.status).toBe(400);
 
       // 3. State must match baseline (no partial apply)
-      const after = await agent.get('/api/contexts/members').set(VIEWER_AUTH_HEADER);
+      const after = await agent.get('/api/members').set(VIEWER_AUTH_HEADER);
       const editorAfter = (
         after.body as Array<{ userId: string; roleScope: string; contextIds: string[] }>
       ).find(m => m.userId === '1');
@@ -1473,7 +1473,7 @@ describe('Permissions Model Contexts & Role Scope (e2e)', () => {
         ctx,
       ]);
 
-      const res = await agent.get('/api/contexts/members').set(VIEWER_AUTH_HEADER);
+      const res = await agent.get('/api/members').set(VIEWER_AUTH_HEADER);
       const editor = (res.body as Array<{ userId: string; contextIds: string[] }>).find(
         m => m.userId === '1'
       );
@@ -1517,7 +1517,7 @@ describe('Permissions Model Contexts & Role Scope (e2e)', () => {
     it('M17. Invite admin with contextIds returns 202 without applying contexts', async () => {
       const ctx = (await createContext('M17-for-invite')).body.id;
       const res = await agent
-        .post('/api/contexts/members/invite')
+        .post('/api/members/invite')
         .set(AUTH_HEADER)
         .send({
           email: 'new-admin@test.io',

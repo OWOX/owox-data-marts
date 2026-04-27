@@ -16,7 +16,6 @@ interface ContextsTableProps {
   onRowClick?: (context: ContextDto) => void;
   onEditContext?: (contextId: string) => void;
   onDeleteContext?: (contextId: string) => void;
-  /** When provided, renders an "Add context" CTA inside the table toolbar. */
   onAddContext?: () => void;
 }
 

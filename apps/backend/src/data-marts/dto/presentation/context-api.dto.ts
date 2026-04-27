@@ -99,6 +99,18 @@ export class UpdateContextMembersRequestApiDto {
   assignedUserIds: string[];
 }
 
+export class UpdateContextMembersResponseApiDto {
+  @ApiProperty({ type: [String] })
+  assignedUserIds: string[];
+
+  @ApiProperty({
+    type: [String],
+    description:
+      'Admin user ids the caller tried to attach. Admins always have project-wide scope, so binding them to a context is a no-op. UI may surface a warning.',
+  })
+  droppedAdminIds: string[];
+}
+
 export class UpdateMemberRequestApiDto {
   @ApiProperty({ enum: ['admin', 'editor', 'viewer'] })
   @IsString()
@@ -136,6 +148,29 @@ export class UpdateMemberResponseApiDto {
 
   @ApiPropertyOptional()
   message?: string;
+}
+
+export class ProjectMemberResponseApiDto {
+  @ApiProperty()
+  userId: string;
+
+  @ApiProperty()
+  email: string;
+
+  @ApiPropertyOptional()
+  displayName?: string;
+
+  @ApiPropertyOptional()
+  avatarUrl?: string;
+
+  @ApiProperty({ enum: ['admin', 'editor', 'viewer'] })
+  role: string;
+
+  @ApiProperty({ enum: ['entire_project', 'selected_contexts'] })
+  roleScope: string;
+
+  @ApiProperty({ type: [String] })
+  contextIds: string[];
 }
 
 export class InviteMemberRequestApiDto {

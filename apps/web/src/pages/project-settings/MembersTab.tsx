@@ -2,15 +2,17 @@ import { useState } from 'react';
 import { toast } from 'react-hot-toast';
 import { MembersTable } from '../../features/project-settings/members/components/MembersTable/MembersTable';
 import { MemberDetailsSheet } from '../../features/project-settings/members/components/MemberDetailsSheet/MemberDetailsSheet';
+import { ContextDetailsSheet } from '../../features/contexts/components/ContextDetailsSheet/ContextDetailsSheet';
 import { useMembersSettings } from '../../features/project-settings/members/model/members-settings.context';
 import { ConfirmationDialog } from '../../shared/components/ConfirmationDialog';
-import { contextService } from '../../features/contexts/services/context.service';
-import type { MemberWithScopeDto } from '../../features/contexts/types/context.types';
+import { projectMembersService } from '../../features/project-members/services/project-members.service';
+import type { ContextDto, MemberWithScopeDto } from '../../features/contexts/types/context.types';
 
 export function MembersTab() {
   const { members, contexts, refresh, optimisticRemoveMember, isAdmin, openInviteSheet } =
     useMembersSettings();
   const [selected, setSelected] = useState<MemberWithScopeDto | null>(null);
+  const [selectedContext, setSelectedContext] = useState<ContextDto | null>(null);
   const [pendingRemove, setPendingRemove] = useState<MemberWithScopeDto | null>(null);
   const [removing, setRemoving] = useState(false);
 
@@ -28,7 +30,7 @@ export function MembersTab() {
     if (!pendingRemove || removing) return;
     setRemoving(true);
     try {
-      await contextService.removeMember(pendingRemove.userId);
+      await projectMembersService.removeMember(pendingRemove.userId);
       // Legacy platform is eventually consistent — the next getMembers may
       // still echo the removed user. Drop them locally first so the row
       // disappears immediately; refresh() reconciles once upstream catches up.
@@ -66,6 +68,19 @@ export function MembersTab() {
         }}
         onSaved={() => {
           setSelected(null);
+          void refresh();
+        }}
+      />
+
+      <ContextDetailsSheet
+        isOpen={!!selectedContext}
+        context={selectedContext}
+        members={members}
+        onClose={() => {
+          setSelectedContext(null);
+        }}
+        onSaved={() => {
+          setSelectedContext(null);
           void refresh();
         }}
       />

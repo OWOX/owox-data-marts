@@ -256,17 +256,25 @@ export class IdentityOwoxClient {
     role: string,
     actorUserId: string
   ): Promise<OwoxInviteProjectMemberResponse> {
-    const idToken = await this.getC2cIdToken('inviteProjectMember', {
-      projectId,
-      email,
-      role,
-      actorUserId,
-    });
+    if (
+      !this.impersonatedIdTokenFetcher ||
+      !this.c2cServiceAccountEmail ||
+      !this.c2cTargetAudience ||
+      !this.clientBackchannelPrefix
+    ) {
+      throw new IdpFailedException(
+        'C2C authentication is not configured. Cannot invite project member.',
+        { context: { projectId, email, role, actorUserId } }
+      );
+    }
+
+    const idToken = await this.impersonatedIdTokenFetcher.getIdToken(
+      this.c2cServiceAccountEmail,
+      this.c2cTargetAudience
+    );
     const url = `${this.clientBackchannelPrefix}/idp/bi-project/${projectId}/members`;
     const body = { biUserId: actorUserId, inviteeEmail: email, role };
 
-    // TODO(stage4-idp-proxy-debug): temporary verbose logging while we verify
-    // the Java wiring in staging. Drop once remove/invite flows are stable.
     this.logger.info('inviteProjectMember → request', { method: 'POST', url, body });
 
     try {
@@ -293,11 +301,22 @@ export class IdentityOwoxClient {
    * See `inviteProjectMember` for path rationale.
    */
   async removeProjectMember(projectId: string, userId: string, actorUserId: string): Promise<void> {
-    const idToken = await this.getC2cIdToken('removeProjectMember', {
-      projectId,
-      userId,
-      actorUserId,
-    });
+    if (
+      !this.impersonatedIdTokenFetcher ||
+      !this.c2cServiceAccountEmail ||
+      !this.c2cTargetAudience ||
+      !this.clientBackchannelPrefix
+    ) {
+      throw new IdpFailedException(
+        'C2C authentication is not configured. Cannot remove project member.',
+        { context: { projectId, userId, actorUserId } }
+      );
+    }
+
+    const idToken = await this.impersonatedIdTokenFetcher.getIdToken(
+      this.c2cServiceAccountEmail,
+      this.c2cTargetAudience
+    );
     const url = `${this.clientBackchannelPrefix}/idp/bi-project/${projectId}/members/${userId}`;
     const body = { biUserId: actorUserId };
 
@@ -344,12 +363,22 @@ export class IdentityOwoxClient {
     newRole: string,
     actorUserId: string
   ): Promise<void> {
-    const idToken = await this.getC2cIdToken('changeProjectMemberRole', {
-      projectId,
-      userId,
-      newRole,
-      actorUserId,
-    });
+    if (
+      !this.impersonatedIdTokenFetcher ||
+      !this.c2cServiceAccountEmail ||
+      !this.c2cTargetAudience ||
+      !this.clientBackchannelPrefix
+    ) {
+      throw new IdpFailedException(
+        'C2C authentication is not configured. Cannot change project member role.',
+        { context: { projectId, userId, newRole, actorUserId } }
+      );
+    }
+
+    const idToken = await this.impersonatedIdTokenFetcher.getIdToken(
+      this.c2cServiceAccountEmail,
+      this.c2cTargetAudience
+    );
     const url = `${this.clientBackchannelPrefix}/idp/bi-project/${projectId}/members/${userId}/role`;
     const body = { biUserId: actorUserId, role: newRole };
 
@@ -375,33 +404,6 @@ export class IdentityOwoxClient {
         'Failed to change project member role'
       );
     }
-  }
-
-  /**
-   * Resolve the C2C impersonated id token used by project-members mutation
-   * endpoints. Centralised here so the three admin-only methods above share a
-   * single "is C2C configured?" guard and logging path.
-   */
-  private async getC2cIdToken(
-    operation: string,
-    context: Record<string, unknown>
-  ): Promise<string> {
-    if (
-      !this.impersonatedIdTokenFetcher ||
-      !this.c2cServiceAccountEmail ||
-      !this.c2cTargetAudience ||
-      !this.clientBackchannelPrefix
-    ) {
-      throw new IdpFailedException(
-        `C2C authentication is not configured. Cannot perform ${operation}.`,
-        { context }
-      );
-    }
-
-    return this.impersonatedIdTokenFetcher.getIdToken(
-      this.c2cServiceAccountEmail,
-      this.c2cTargetAudience
-    );
   }
 
   private handleAxiosError(

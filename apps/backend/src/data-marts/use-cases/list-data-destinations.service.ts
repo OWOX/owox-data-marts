@@ -45,6 +45,7 @@ export class ListDataDestinationsService {
               OR EXISTS (
                 SELECT 1 FROM destination_contexts dc
                 JOIN member_role_contexts mrc ON mrc.context_id = dc.context_id
+                JOIN context c ON c.id = dc.context_id AND c.deletedAt IS NULL
                 WHERE dc.destination_id = d.id
                 AND mrc.user_id = :userId AND mrc.project_id = :projectId
               )

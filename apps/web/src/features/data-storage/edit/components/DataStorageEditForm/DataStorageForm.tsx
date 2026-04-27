@@ -35,7 +35,7 @@ import type { CredentialIdentity } from '../../../../../shared/types/credential-
 import { OwnersSection } from '../../../../../shared/components/OwnersSection/OwnersSection';
 import { ContextPicker } from '../../../../../features/contexts/components/ContextPicker/ContextPicker';
 import { AddContextSheet } from '../../../../../features/contexts/components/AddContextSheet/AddContextSheet';
-import { contextService } from '../../../../../features/contexts/services/context.service';
+import { projectMembersService } from '../../../../../features/project-members/services/project-members.service';
 import type { MemberWithScopeDto } from '../../../../../features/contexts/types/context.types';
 import type { UserProjectionDto } from '../../../../../shared/types/api';
 import { useOwnerState } from '../../../../../shared/hooks/useOwnerState';
@@ -143,7 +143,7 @@ export function DataStorageForm({
   useEffect(() => {
     if (!addContextOpen) return;
     let cancelled = false;
-    void contextService.getMembers().then(list => {
+    void projectMembersService.getMembers().then(list => {
       if (!cancelled) setContextMembers(list);
     });
     return () => {

@@ -18,6 +18,28 @@ import { MemberRoleScope } from '../../entities/member-role-scope.entity';
 import { ContextMapper } from '../../mappers/context.mapper';
 import { UserProjectionsFetcherService } from '../user-projections-fetcher.service';
 
+/**
+ * Detects unique-constraint violations across MySQL / SQLite / Postgres so the
+ * `validateUniqueName` race (TOCTOU between app-level check and DB INSERT)
+ * surfaces as a 409 ConflictException instead of a 500.
+ */
+function isUniqueConstraintViolation(err: unknown): boolean {
+  if (!err || typeof err !== 'object') return false;
+  const e = err as { code?: unknown; driverError?: { code?: unknown }; message?: unknown };
+  const code = e.code;
+  const driverCode = e.driverError?.code;
+  const msg = e.message;
+  return (
+    code === 'ER_DUP_ENTRY' ||
+    code === 'SQLITE_CONSTRAINT_UNIQUE' ||
+    code === '23505' ||
+    driverCode === 'ER_DUP_ENTRY' ||
+    driverCode === 'SQLITE_CONSTRAINT_UNIQUE' ||
+    driverCode === '23505' ||
+    (typeof msg === 'string' && msg.includes('UNIQUE constraint failed'))
+  );
+}
+
 @Injectable()
 export class ContextService {
   constructor(
@@ -52,7 +74,18 @@ export class ContextService {
       createdById,
     });
 
-    const saved = await this.contextRepository.save(entity);
+    let saved: Context;
+    try {
+      saved = await this.contextRepository.save(entity);
+    } catch (err) {
+      // Race: two parallel POSTs both pass `validateUniqueName`, the second
+      // one trips the DB UNIQUE index. Translate to a 409 instead of leaking
+      // QueryFailedError as a 500.
+      if (isUniqueConstraintViolation(err)) {
+        throw new ConflictException(`Context with name "${name}" already exists in this project`);
+      }
+      throw err;
+    }
 
     const userProjections = await this.userProjectionsFetcherService.fetchUserProjectionsList(
       saved.createdById ? [saved.createdById] : []
@@ -89,7 +122,15 @@ export class ContextService {
     entity.name = name;
     entity.description = description;
 
-    const saved = await this.contextRepository.save(entity);
+    let saved: Context;
+    try {
+      saved = await this.contextRepository.save(entity);
+    } catch (err) {
+      if (isUniqueConstraintViolation(err)) {
+        throw new ConflictException(`Context with name "${name}" already exists in this project`);
+      }
+      throw err;
+    }
 
     const userProjections = await this.userProjectionsFetcherService.fetchUserProjectionsList(
       saved.createdById ? [saved.createdById] : []
@@ -137,6 +178,13 @@ export class ContextService {
     };
   }
 
+  /**
+   * Per Fibery spec (`01d:54`): "a Context may be deleted only when it is
+   * detached from all Project Member role assignments and all Data Marts,
+   * Storages, and Destinations". The admin must manually detach first; we
+   * refuse the delete here when any attachment exists. Counts are returned
+   * in the conflict body so the UI can show what's blocking.
+   */
   @Transactional()
   async delete(contextId: string, projectId: string): Promise<void> {
     const entity = await this.getByIdAndProject(contextId, projectId);

@@ -1,0 +1,226 @@
+import { InviteProjectMemberCommand } from '../../dto/domain/invite-project-member.command';
+import { RoleScope } from '../../enums/role-scope.enum';
+import { InviteProjectMemberService } from './invite-project-member.service';
+
+describe('InviteProjectMemberService', () => {
+  const PROJECT_ID = 'project-1';
+  const ACTOR_ID = 'admin-1';
+
+  const createService = () => {
+    const idpProjectionsFacade = {
+      inviteMember: jest.fn(),
+    };
+    const contextAccessService = {
+      updateMember: jest.fn().mockResolvedValue(undefined),
+    };
+    const contextService = {
+      validateContextIds: jest.fn().mockResolvedValue(undefined),
+    };
+    const service = new InviteProjectMemberService(
+      idpProjectionsFacade as never,
+      contextAccessService as never,
+      contextService as never
+    );
+    return { service, idpProjectionsFacade, contextAccessService, contextService };
+  };
+
+  const command = (
+    overrides: Partial<InviteProjectMemberCommand> = {}
+  ): InviteProjectMemberCommand =>
+    new InviteProjectMemberCommand(
+      overrides.projectId ?? PROJECT_ID,
+      overrides.actorUserId ?? ACTOR_ID,
+      overrides.email ?? 'invitee@test.io',
+      overrides.role ?? 'editor',
+      overrides.roleScope,
+      overrides.contextIds ?? []
+    );
+
+  it('non-admin without contextIds and without explicit roleScope → defaults to entire_project', async () => {
+    const { service, idpProjectionsFacade, contextAccessService } = createService();
+    idpProjectionsFacade.inviteMember.mockResolvedValue({
+      projectId: PROJECT_ID,
+      email: 'invitee@test.io',
+      role: 'editor',
+      kind: 'magic-link',
+      magicLink: 'https://app/invite/tok',
+      userId: 'new-user',
+    });
+
+    await service.run(command({ role: 'editor', contextIds: [] }));
+
+    expect(contextAccessService.updateMember).toHaveBeenCalledWith('new-user', PROJECT_ID, {
+      role: 'editor',
+      roleScope: RoleScope.ENTIRE_PROJECT,
+      contextIds: [],
+    });
+  });
+
+  it('non-admin + explicit selected_contexts + 0 contexts → valid no-shared-access state per Fibery spec', async () => {
+    const { service, idpProjectionsFacade, contextAccessService } = createService();
+    idpProjectionsFacade.inviteMember.mockResolvedValue({
+      projectId: PROJECT_ID,
+      email: 'scoped@test.io',
+      role: 'editor',
+      kind: 'magic-link',
+      magicLink: 'https://app/invite/scoped',
+      userId: 'scoped-user',
+    });
+
+    await service.run(
+      command({
+        role: 'editor',
+        roleScope: RoleScope.SELECTED_CONTEXTS,
+        contextIds: [],
+      })
+    );
+
+    expect(idpProjectionsFacade.inviteMember).toHaveBeenCalled();
+    expect(contextAccessService.updateMember).toHaveBeenCalledWith('scoped-user', PROJECT_ID, {
+      role: 'editor',
+      roleScope: RoleScope.SELECTED_CONTEXTS,
+      contextIds: [],
+    });
+  });
+
+  it('non-admin + contextIds → defaults to selected_contexts, validates context ids, applies scope', async () => {
+    const { service, idpProjectionsFacade, contextAccessService, contextService } = createService();
+    idpProjectionsFacade.inviteMember.mockResolvedValue({
+      projectId: PROJECT_ID,
+      email: 'invitee@test.io',
+      role: 'editor',
+      kind: 'magic-link',
+      magicLink: 'https://app/invite/tok',
+      userId: 'new-user',
+    });
+
+    const result = await service.run(command({ role: 'editor', contextIds: ['ctx-1', 'ctx-2'] }));
+
+    expect(contextService.validateContextIds).toHaveBeenCalledWith(['ctx-1', 'ctx-2'], PROJECT_ID);
+    expect(idpProjectionsFacade.inviteMember).toHaveBeenCalledWith(
+      PROJECT_ID,
+      'invitee@test.io',
+      'editor',
+      ACTOR_ID
+    );
+    expect(contextAccessService.updateMember).toHaveBeenCalledWith('new-user', PROJECT_ID, {
+      role: 'editor',
+      roleScope: RoleScope.SELECTED_CONTEXTS,
+      contextIds: ['ctx-1', 'ctx-2'],
+    });
+    expect(result.kind).toBe('magic-link');
+  });
+
+  it('admin role overrides explicit roleScope to entire_project', async () => {
+    const { service, idpProjectionsFacade, contextAccessService } = createService();
+    idpProjectionsFacade.inviteMember.mockResolvedValue({
+      projectId: PROJECT_ID,
+      email: 'adm@test.io',
+      role: 'admin',
+      kind: 'magic-link',
+      magicLink: 'https://app/invite/adm',
+      userId: 'adm-stub',
+    });
+
+    await service.run(
+      command({
+        role: 'admin',
+        roleScope: RoleScope.SELECTED_CONTEXTS,
+        contextIds: ['ctx-1'],
+      })
+    );
+
+    expect(contextAccessService.updateMember).toHaveBeenCalledWith('adm-stub', PROJECT_ID, {
+      role: 'admin',
+      roleScope: RoleScope.ENTIRE_PROJECT,
+      contextIds: ['ctx-1'],
+    });
+  });
+
+  it('explicit roleScope=entire_project + contextIds → honours explicit scope, still records contexts', async () => {
+    const { service, idpProjectionsFacade, contextAccessService } = createService();
+    idpProjectionsFacade.inviteMember.mockResolvedValue({
+      projectId: PROJECT_ID,
+      email: 'wide@test.io',
+      role: 'viewer',
+      kind: 'magic-link',
+      magicLink: 'https://app/invite/wide',
+      userId: 'wide-stub',
+    });
+
+    await service.run(
+      command({
+        role: 'viewer',
+        roleScope: RoleScope.ENTIRE_PROJECT,
+        contextIds: ['ctx-1'],
+      })
+    );
+
+    expect(contextAccessService.updateMember).toHaveBeenCalledWith('wide-stub', PROJECT_ID, {
+      role: 'viewer',
+      roleScope: RoleScope.ENTIRE_PROJECT,
+      contextIds: ['ctx-1'],
+    });
+  });
+
+  it('no userId from IDP → does not touch local bindings (deferred to first sign-in)', async () => {
+    const { service, idpProjectionsFacade, contextAccessService } = createService();
+    idpProjectionsFacade.inviteMember.mockResolvedValue({
+      projectId: PROJECT_ID,
+      email: 'deferred@test.io',
+      role: 'viewer',
+      kind: 'email-sent',
+      message: 'Invitation email sent',
+    });
+
+    await service.run(
+      command({
+        role: 'viewer',
+        roleScope: RoleScope.ENTIRE_PROJECT,
+        contextIds: [],
+      })
+    );
+
+    expect(contextAccessService.updateMember).not.toHaveBeenCalled();
+  });
+
+  it('IDP failure propagates — no local writes attempted', async () => {
+    const { service, idpProjectionsFacade, contextAccessService } = createService();
+    idpProjectionsFacade.inviteMember.mockRejectedValue(new Error('IDP refused'));
+
+    await expect(
+      service.run(
+        command({
+          role: 'viewer',
+          roleScope: RoleScope.ENTIRE_PROJECT,
+          contextIds: [],
+        })
+      )
+    ).rejects.toThrow('IDP refused');
+
+    expect(contextAccessService.updateMember).not.toHaveBeenCalled();
+  });
+
+  it('local write fails after IDP success → error propagates (no silent entire_project fallback)', async () => {
+    const { service, idpProjectionsFacade, contextAccessService } = createService();
+    idpProjectionsFacade.inviteMember.mockResolvedValue({
+      projectId: PROJECT_ID,
+      email: 'local-fail@test.io',
+      role: 'editor',
+      kind: 'magic-link',
+      magicLink: 'https://app/invite/local-fail',
+      userId: 'local-fail-stub',
+    });
+    contextAccessService.updateMember.mockRejectedValue(new Error('DB blip'));
+
+    await expect(
+      service.run(
+        command({
+          role: 'editor',
+          roleScope: RoleScope.ENTIRE_PROJECT,
+          contextIds: [],
+        })
+      )
+    ).rejects.toThrow('DB blip');
+  });
+});

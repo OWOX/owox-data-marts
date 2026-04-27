@@ -5,6 +5,7 @@ import { useIsAdmin } from '../../features/idp/hooks/useRole';
 import { useFlags } from '../../app/store/hooks';
 import { checkVisible } from '../../utils/check-visible';
 import { contextService } from '../../features/contexts/services/context.service';
+import { projectMembersService } from '../../features/project-members/services/project-members.service';
 import type { ContextDto, MemberWithScopeDto } from '../../features/contexts/types/context.types';
 import { InviteMemberSheet } from '../../features/project-settings/members/components/InviteMemberSheet/InviteMemberSheet';
 import { AddContextSheet } from '../../features/contexts/components/AddContextSheet/AddContextSheet';
@@ -42,7 +43,7 @@ export function ProjectSettingsPage() {
     try {
       const [ctxs, mems] = await Promise.all([
         contextService.getContexts(),
-        contextService.getMembers(),
+        projectMembersService.getMembers(),
       ]);
       setContexts(ctxs);
       setMembers(mems);

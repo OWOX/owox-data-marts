@@ -486,6 +486,7 @@ describe('ContextAccessService', () => {
       ]);
 
       const qb = {
+        innerJoin: jest.fn().mockReturnThis(),
         where: jest.fn().mockReturnThis(),
         andWhere: jest.fn().mockReturnThis(),
         getCount: jest.fn().mockResolvedValue(1),
@@ -510,6 +511,7 @@ describe('ContextAccessService', () => {
       ]);
 
       const qb = {
+        innerJoin: jest.fn().mockReturnThis(),
         where: jest.fn().mockReturnThis(),
         andWhere: jest.fn().mockReturnThis(),
         getCount: jest.fn().mockResolvedValue(0),
@@ -549,6 +551,7 @@ describe('ContextAccessService', () => {
         { userId: USER_ID, projectId: PROJECT_ID, contextId: 'ctx-1' },
       ]);
       const qb = {
+        innerJoin: jest.fn().mockReturnThis(),
         where: jest.fn().mockReturnThis(),
         andWhere: jest.fn().mockReturnThis(),
         getCount: jest.fn().mockResolvedValue(1),

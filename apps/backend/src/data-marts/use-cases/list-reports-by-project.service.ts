@@ -50,6 +50,7 @@ export class ListReportsByProjectService {
                 OR EXISTS (
                   SELECT 1 FROM data_mart_contexts dmc
                   JOIN member_role_contexts mrc ON mrc.context_id = dmc.context_id
+                  JOIN context c ON c.id = dmc.context_id AND c.deletedAt IS NULL
                   WHERE dmc.data_mart_id = dataMart.id
                   AND mrc.user_id = :userId AND mrc.project_id = :projectId
                 )
@@ -70,6 +71,7 @@ export class ListReportsByProjectService {
                 OR EXISTS (
                   SELECT 1 FROM data_mart_contexts dmc
                   JOIN member_role_contexts mrc ON mrc.context_id = dmc.context_id
+                  JOIN context c ON c.id = dmc.context_id AND c.deletedAt IS NULL
                   WHERE dmc.data_mart_id = dataMart.id
                   AND mrc.user_id = :userId AND mrc.project_id = :projectId
                 )

@@ -104,7 +104,6 @@ export class AccessDecisionService {
       return false;
     }
 
-    // Stage 4: Context gate — only for shared non-owner access
     const isOwner = ownerStatus !== OwnerStatus.NON_OWNER;
     if (!isOwner && projectId) {
       const roleScope = await this.contextAccessService.getRoleScope(userId, projectId);

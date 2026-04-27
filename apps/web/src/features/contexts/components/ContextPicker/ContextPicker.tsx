@@ -11,13 +11,7 @@ interface ContextPickerProps {
   onChange: (contextIds: string[]) => void;
   disabled?: boolean;
   idPrefix?: string;
-  /**
-   * When provided, renders a "Create context" button below the list. The
-   * parent wires this to an AddContextSheet and bumps `refreshToken` once
-   * the newly created context persists — this component will re-fetch.
-   */
   onRequestCreate?: () => void;
-  /** Bump this value to force a re-fetch of the contexts list. */
   refreshToken?: number;
 }
 

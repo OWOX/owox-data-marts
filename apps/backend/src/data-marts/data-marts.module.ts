@@ -331,6 +331,12 @@ import { ContextService } from './services/context/context.service';
 import { ContextAccessService } from './services/context/context-access.service';
 import { ContextMapper } from './mappers/context.mapper';
 import { ContextController } from './controllers/context.controller';
+import { ProjectMembersController } from './controllers/project-members.controller';
+import { ListProjectMembersService } from './use-cases/project-members/list-project-members.service';
+import { InviteProjectMemberService } from './use-cases/project-members/invite-project-member.service';
+import { UpdateProjectMemberService } from './use-cases/project-members/update-project-member.service';
+import { RemoveProjectMemberService } from './use-cases/project-members/remove-project-member.service';
+import { SetContextMembersService } from './use-cases/contexts/set-context-members.service';
 
 @Module({
   imports: [
@@ -408,6 +414,7 @@ import { ContextController } from './controllers/context.controller';
     DataMartRelationshipController,
     DataStorageRelationshipController,
     ContextController,
+    ProjectMembersController,
   ],
   providers: [
     ...dataStorageResolverProviders,
@@ -671,6 +678,11 @@ import { ContextController } from './controllers/context.controller';
     ContextService,
     ContextAccessService,
     ContextMapper,
+    ListProjectMembersService,
+    InviteProjectMemberService,
+    UpdateProjectMemberService,
+    RemoveProjectMemberService,
+    SetContextMembersService,
   ],
 })
 export class DataMartsModule {

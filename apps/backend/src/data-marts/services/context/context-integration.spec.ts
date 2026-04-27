@@ -150,6 +150,7 @@ function stubSharedDmNonOwner(s: ReturnType<typeof buildServices>) {
 /** Stub the query-builder chain used by hasContextOverlap */
 function stubEntityContexts(repo: ReturnType<typeof createMockRepository>, matchingCount: number) {
   const qb = {
+    innerJoin: jest.fn().mockReturnThis(),
     where: jest.fn().mockReturnThis(),
     andWhere: jest.fn().mockReturnThis(),
     getCount: jest.fn().mockResolvedValue(matchingCount),
@@ -620,7 +621,7 @@ describe('Context Integration Tests', () => {
     });
   });
 
-  // ─── Detach-before-delete ─────────────────────────────────────────────────
+  // ─── Detach-before-delete (Fibery 01d:54) ──────────────────────────────────
   describe('Detach-before-delete', () => {
     const CONTEXT_ID = 'ctx-to-delete';
 

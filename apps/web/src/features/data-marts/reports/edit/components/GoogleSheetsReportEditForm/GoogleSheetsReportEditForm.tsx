@@ -315,10 +315,9 @@ export const GoogleSheetsReportEditForm = forwardRef<
                     {filteredDestinations.length === 0 && !loadingDestinations && (
                       <Alert className='mt-2'>
                         <AlertCircle className='h-4 w-4' />
-                        <AlertTitle>No destinations available for your contexts</AlertTitle>
+                        <AlertTitle>No destinations available</AlertTitle>
                         <AlertDescription>
-                          You need a Destination assigned to one of your contexts before you can
-                          create a report.{' '}
+                          You need to create a Destination before you can create a report.{' '}
                           <Link
                             to={scope('/data-destinations')}
                             className='font-medium text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300'

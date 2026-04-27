@@ -1,0 +1,72 @@
+import { ApiService } from '../../../services/api-service';
+import type { MemberWithScopeDto } from '../../contexts/types/context.types';
+
+/**
+ * Discriminated union mirroring `InviteMemberResponseApiDto` from backend.
+ *
+ * `email-sent` — backend IDP (e.g. owox-better-auth) delivered the invitation
+ * email itself; UI confirms with a toast.
+ *
+ * `magic-link` — backend IDP (e.g. better-auth) returned a link that the admin
+ * must copy and share out-of-band; UI shows the link with a copy button.
+ */
+export type InviteMemberResponse =
+  | {
+      email: string;
+      role: string;
+      kind: 'email-sent';
+      userId?: string;
+      message?: string;
+    }
+  | {
+      email: string;
+      role: string;
+      kind: 'magic-link';
+      magicLink: string;
+      userId?: string;
+      expiresAt?: string;
+      message?: string;
+    };
+
+class ProjectMembersApiService extends ApiService {
+  constructor() {
+    super('/members');
+  }
+
+  async getMembers(): Promise<MemberWithScopeDto[]> {
+    return this.get<MemberWithScopeDto[]>('/');
+  }
+
+  async updateMember(
+    userId: string,
+    payload: {
+      role: string;
+      roleScope: string;
+      contextIds: string[];
+    }
+  ): Promise<{
+    userId: string;
+    role: string;
+    roleScope: string;
+    contextIds: string[];
+    roleStatus: 'ok' | 'pending';
+    message?: string;
+  }> {
+    return this.put(`/${userId}`, payload);
+  }
+
+  async inviteMember(payload: {
+    email: string;
+    role: string;
+    roleScope?: 'entire_project' | 'selected_contexts';
+    contextIds?: string[];
+  }): Promise<InviteMemberResponse> {
+    return this.post('/invite', payload);
+  }
+
+  async removeMember(userId: string): Promise<void> {
+    return this.delete(`/${userId}`);
+  }
+}
+
+export const projectMembersService = new ProjectMembersApiService();

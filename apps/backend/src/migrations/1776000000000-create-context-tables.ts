@@ -27,6 +27,15 @@ export class CreateContextTables1776000000000 implements MigrationInterface {
       new TableIndex({ name: 'idx_context_project', columnNames: ['projectId'] })
     );
 
+    await queryRunner.createIndex(
+      'context',
+      new TableIndex({
+        name: 'uq_context_project_name',
+        columnNames: ['projectId', 'name', 'deletedAt'],
+        isUnique: true,
+      })
+    );
+
     // 2. data_mart_contexts join table
     await queryRunner.createTable(
       new Table({
