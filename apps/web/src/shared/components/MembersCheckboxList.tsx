@@ -21,7 +21,6 @@ export interface CheckableMember {
   displayName?: string | undefined;
   avatarUrl?: string | undefined;
   role: CheckableMemberRole;
-  /** Display label for the role (e.g. `getRoleDisplayName(role)`). */
   roleLabel: string;
 }
 
@@ -35,8 +34,6 @@ interface MembersCheckboxListProps {
   emptyText?: string;
 }
 
-// Business users (viewer) → Technical users (editor) → Project admins.
-// Within each group: alphabetical by email (case-insensitive, locale-aware).
 const ROLE_PRIORITY: Record<CheckableMemberRole, number> = {
   viewer: 0,
   editor: 1,
