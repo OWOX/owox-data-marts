@@ -73,7 +73,10 @@ export class GlobalExceptionFilter implements ExceptionFilter {
         logBody
       );
     } else {
-      this.logger.log(`Handled HTTP ${status} by ${GlobalExceptionFilter.name}`, logBody);
+      this.logger.log(`Handled HTTP ${status} by ${GlobalExceptionFilter.name}`, {
+        ...logBody,
+        error: err,
+      });
     }
 
     if (response.headersSent) {

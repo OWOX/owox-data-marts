@@ -9,6 +9,7 @@ import {
 import { CreateViewCommand } from '../dto/domain/create-view.command';
 import { DataMartService } from './data-mart.service';
 import { CreateViewService } from '../use-cases/create-view.service';
+import { DataMart } from '../entities/data-mart.entity';
 
 @Injectable()
 export class DataMartTableReferenceService {
@@ -20,6 +21,27 @@ export class DataMartTableReferenceService {
   async resolveTableName(dataMartId: string, projectId: string): Promise<string> {
     const dataMart = await this.dataMartService.getByIdAndProjectId(dataMartId, projectId);
 
+    return this.resolveTableNameForDataMart(dataMart);
+  }
+
+  /**
+   * Explicitly refreshes the technical SQL view used as a stable reference for
+   * SQL-based Data Marts. Non-SQL definitions do not need this step.
+   */
+  async ensureSqlViewIsUpToDate(dataMart: DataMart): Promise<string | null> {
+    const definition = dataMart.definition;
+    if (!definition || !isSqlDefinition(definition)) {
+      return null;
+    }
+
+    const result = await this.createViewService.run(
+      new CreateViewCommand(dataMart.id, dataMart.projectId, this.computeViewName(dataMart.id))
+    );
+
+    return result.fullyQualifiedName;
+  }
+
+  private async resolveTableNameForDataMart(dataMart: DataMart): Promise<string> {
     const definition = dataMart.definition;
     if (!definition) {
       throw new Error('Data Mart definition is not available.');
@@ -38,10 +60,11 @@ export class DataMartTableReferenceService {
     }
 
     if (isSqlDefinition(definition)) {
-      const result = await this.createViewService.run(
-        new CreateViewCommand(dataMartId, projectId, this.computeViewName(dataMartId))
-      );
-      return result.fullyQualifiedName;
+      const fullyQualifiedName = await this.ensureSqlViewIsUpToDate(dataMart);
+      if (!fullyQualifiedName) {
+        throw new Error('Failed to refresh SQL Data Mart reference.');
+      }
+      return fullyQualifiedName;
     }
 
     throw new Error('Unsupported Data Mart definition for table name retrieval.');

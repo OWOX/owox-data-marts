@@ -13,6 +13,7 @@ import { DataMartStatus } from '../enums/data-mart-status.enum';
 import { DataMartRunService } from './data-mart-run.service';
 import { InsightTemplateSourceDataService } from './insight-template-source-data.service';
 import { InsightTemplateSourceUsageService } from './insight-template-source-usage.service';
+import { DataMartTableReferenceService } from './data-mart-table-reference.service';
 
 @Injectable()
 export class InsightTemplateExecutionService {
@@ -25,7 +26,8 @@ export class InsightTemplateExecutionService {
     private readonly systemTimeService: SystemTimeService,
     private readonly templateFacade: DataMartTemplateFacadeImpl,
     private readonly sourceDataService: InsightTemplateSourceDataService,
-    private readonly sourceUsageService: InsightTemplateSourceUsageService
+    private readonly sourceUsageService: InsightTemplateSourceUsageService,
+    private readonly dataMartTableReferenceService: DataMartTableReferenceService
   ) {}
 
   async run(
@@ -105,6 +107,8 @@ export class InsightTemplateExecutionService {
 
     try {
       pushLog({ type: 'log', message: 'Insight Template run started' });
+
+      await this.dataMartTableReferenceService.ensureSqlViewIsUpToDate(dataMart);
 
       const usedSourceKeys = new Set(
         this.sourceUsageService.getUsedSourceKeys(insightTemplate.template)

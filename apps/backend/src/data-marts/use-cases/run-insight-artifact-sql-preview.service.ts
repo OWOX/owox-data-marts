@@ -7,12 +7,14 @@ import { DataMart } from '../entities/data-mart.entity';
 import { InsightArtifact } from '../entities/insight-artifact.entity';
 import { DataMartSqlTableService } from '../services/data-mart-sql-table.service';
 import { InsightArtifactService } from '../services/insight-artifact.service';
+import { DataMartTableReferenceService } from '../services/data-mart-table-reference.service';
 
 @Injectable()
 export class RunInsightArtifactSqlPreviewService {
   constructor(
     private readonly insightArtifactService: InsightArtifactService,
-    private readonly dataMartSqlTableService: DataMartSqlTableService
+    private readonly dataMartSqlTableService: DataMartSqlTableService,
+    private readonly dataMartTableReferenceService: DataMartTableReferenceService
   ) {}
 
   async run(command: RunInsightArtifactSqlPreviewCommand): Promise<InsightArtifactSqlPreviewDto> {
@@ -25,6 +27,8 @@ export class RunInsightArtifactSqlPreviewService {
     const shouldPersistValidationStatus = command.sql == null;
 
     try {
+      await this.dataMartTableReferenceService.ensureSqlViewIsUpToDate(artifact.dataMart);
+
       const sql = await this.prepareSql(
         (command.sql ?? artifact.sql ?? '').trim(),
         artifact,
