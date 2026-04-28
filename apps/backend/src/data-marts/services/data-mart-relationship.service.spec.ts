@@ -82,63 +82,6 @@ describe('DataMartRelationshipService', () => {
     });
   });
 
-  describe('detectCycles', () => {
-    it('detects a direct cycle: A→B exists, adding B→A returns true', async () => {
-      const existingRelationship = makeRelationship('dm-A', 'dm-B');
-      repository.find.mockResolvedValue([existingRelationship]);
-
-      const hasCycle = await service.detectCycles('dm-B', 'dm-A', 'storage-1', 'project-1');
-
-      expect(hasCycle).toBe(true);
-    });
-
-    it('returns false when there is no cycle', async () => {
-      // A→B, adding A→C — no cycle
-      const existingRelationship = makeRelationship('dm-A', 'dm-B');
-      repository.find.mockResolvedValue([existingRelationship]);
-
-      const hasCycle = await service.detectCycles('dm-A', 'dm-C', 'storage-1', 'project-1');
-
-      expect(hasCycle).toBe(false);
-    });
-
-    it('detects a transitive cycle: A→B, B→C, adding C→A returns true', async () => {
-      const relAB = makeRelationship('dm-A', 'dm-B', { id: 'rel-AB' });
-      const relBC = makeRelationship('dm-B', 'dm-C', { id: 'rel-BC' });
-      repository.find.mockResolvedValue([relAB, relBC]);
-
-      const hasCycle = await service.detectCycles('dm-C', 'dm-A', 'storage-1', 'project-1');
-
-      expect(hasCycle).toBe(true);
-    });
-
-    it('returns false when there are no existing relationships', async () => {
-      repository.find.mockResolvedValue([]);
-
-      const hasCycle = await service.detectCycles('dm-A', 'dm-B', 'storage-1', 'project-1');
-
-      expect(hasCycle).toBe(false);
-    });
-
-    it('detects cycles deeper than 10 hops (no MAX_CYCLE_DEPTH false-negative)', async () => {
-      const chainLength = 15;
-      const existing: DataMartRelationship[] = [];
-      for (let i = 0; i < chainLength - 1; i++) {
-        existing.push(makeRelationship(`dm-${i}`, `dm-${i + 1}`, { id: `rel-${i}-${i + 1}` }));
-      }
-      repository.find.mockResolvedValue(existing);
-
-      const hasCycle = await service.detectCycles(
-        `dm-${chainLength - 1}`,
-        'dm-0',
-        'storage-1',
-        'project-1'
-      );
-
-      expect(hasCycle).toBe(true);
-    });
-  });
-
   describe('findBySourceDataMartId', () => {
     it('calls repository with correct where clause (relations are loaded eagerly on the entity)', async () => {
       const expected = [makeRelationship('dm-1', 'dm-2')];

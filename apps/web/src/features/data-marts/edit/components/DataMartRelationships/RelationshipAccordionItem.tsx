@@ -13,6 +13,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@owox/ui/components/ta
 import { Tooltip, TooltipContent, TooltipTrigger } from '@owox/ui/components/tooltip';
 import { cn } from '@owox/ui/lib/utils';
 import { Columns3, ExternalLink, GitMerge, Info, MoreHorizontal, Trash2 } from 'lucide-react';
+import type { ComponentProps } from 'react';
 import { useEffect, useRef, useState } from 'react';
 import { Button } from '../../../../../shared/components/Button';
 import { ConfirmationDialog } from '../../../../../shared/components/ConfirmationDialog';
@@ -26,6 +27,23 @@ import type {
 } from '../../../shared/types/relationship.types';
 import { SourceFieldsTable } from '../DataMartSchemaSettings/SourceFieldsTable';
 import { JoinSettingsForm } from './JoinSettingsForm';
+import { CYCLE_STUB_TOOLTIP } from './relationship-warning-state';
+
+function WarningBadge({
+  className,
+  children,
+  ...props
+}: Omit<ComponentProps<typeof Badge>, 'variant'>) {
+  return (
+    <Badge
+      {...props}
+      variant='outline'
+      className={cn('shrink-0 border-orange-400 text-[10px] text-orange-500', className)}
+    >
+      {children}
+    </Badge>
+  );
+}
 
 export interface SourceEntry {
   aliasPath: string;
@@ -79,7 +97,7 @@ export function RelationshipAccordionItem({
   const rel = row.relationship;
   const isTransient = row.depth >= 2;
 
-  const [isOpen, setIsOpen] = useState(defaultOpenTab !== undefined);
+  const [isOpen, setIsOpen] = useState(defaultOpenTab !== undefined && !row.isCycleStub);
   const [activeTab, setActiveTab] = useState<AccordionTab>(defaultOpenTab ?? 'fields');
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isConfirmDeleteOpen, setIsConfirmDeleteOpen] = useState(false);
@@ -133,7 +151,7 @@ export function RelationshipAccordionItem({
   const VIEWPORT_BOTTOM_OFFSET_PX = 40;
 
   useEffect(() => {
-    if (!defaultOpenTab) return;
+    if (!defaultOpenTab || row.isCycleStub) return;
     setIsOpen(true);
     setActiveTab(defaultOpenTab);
     const timeoutId = window.setTimeout(() => {
@@ -149,7 +167,7 @@ export function RelationshipAccordionItem({
     return () => {
       window.clearTimeout(timeoutId);
     };
-  }, [defaultOpenTab]);
+  }, [defaultOpenTab, row.isCycleStub]);
 
   const handleDeleteConfirm = async () => {
     setIsDeleting(true);
@@ -186,7 +204,7 @@ export function RelationshipAccordionItem({
           {isTransient && (
             <span className='text-muted-foreground/40 mt-2.5 shrink-0 text-xs'>{'\u21B3'}</span>
           )}
-          <div className={cn('min-w-0 flex-1', isDimmed && 'opacity-60')}>
+          <div className={cn('min-w-0 flex-1', (isDimmed || row.isCycleStub) && 'opacity-60')}>
             {/* Header */}
             <div
               className={cn(
@@ -198,12 +216,14 @@ export function RelationshipAccordionItem({
                 isOpen ? 'border-border rounded-t-md border-b' : 'rounded-md'
               )}
             >
-              <ExpandButton
-                isExpanded={isOpen}
-                onToggle={() => {
-                  setIsOpen(prev => !prev);
-                }}
-              />
+              {!row.isCycleStub && (
+                <ExpandButton
+                  isExpanded={isOpen}
+                  onToggle={() => {
+                    setIsOpen(prev => !prev);
+                  }}
+                />
+              )}
 
               {/* Output alias + badges — clickable area */}
               <div
@@ -211,224 +231,227 @@ export function RelationshipAccordionItem({
                 role='button'
                 tabIndex={0}
                 onClick={() => {
-                  setIsOpen(prev => !prev);
+                  if (!row.isCycleStub) setIsOpen(prev => !prev);
                 }}
                 onKeyDown={e => {
-                  if (e.key === 'Enter' || e.key === ' ') setIsOpen(prev => !prev);
+                  if (!row.isCycleStub && (e.key === 'Enter' || e.key === ' '))
+                    setIsOpen(prev => !prev);
                 }}
               >
                 <span className='truncate text-sm font-semibold'>{displayAlias}</span>
 
                 {/* Fields badge */}
-                <Badge variant='secondary' className='shrink-0 text-xs'>
-                  {visibleCount} {visibleCount === 1 ? 'field' : 'fields'}
-                </Badge>
-
-                {/* Draft / Blocked / Join not configured badges */}
-                {rel.targetDataMart.status === 'DRAFT' && (
-                  <Badge
-                    variant='outline'
-                    className='shrink-0 border-orange-400 text-[10px] text-orange-500'
-                  >
-                    Draft
+                {!row.isCycleStub && (
+                  <Badge variant='secondary' className='shrink-0 text-xs'>
+                    {visibleCount} {visibleCount === 1 ? 'field' : 'fields'}
                   </Badge>
                 )}
+
+                {rel.targetDataMart.status === 'DRAFT' && <WarningBadge>Draft</WarningBadge>}
                 {rel.joinConditions.length === 0 && (
-                  <Badge
-                    variant='outline'
-                    className='shrink-0 border-orange-400 text-[10px] text-orange-500'
-                  >
-                    Join not configured
-                  </Badge>
+                  <WarningBadge>Join not configured</WarningBadge>
                 )}
                 {row.isBlocked && rel.targetDataMart.status !== 'DRAFT' && (
-                  <Badge
-                    variant='outline'
-                    className='shrink-0 border-orange-400 text-[10px] text-orange-500'
-                  >
-                    Blocked
-                  </Badge>
+                  <WarningBadge>Blocked</WarningBadge>
+                )}
+                {row.isCycleStub && (
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <WarningBadge>Loop</WarningBadge>
+                    </TooltipTrigger>
+                    <TooltipContent side='top' className='max-w-xs'>
+                      {CYCLE_STUB_TOOLTIP}
+                    </TooltipContent>
+                  </Tooltip>
                 )}
               </div>
 
               {/* Allow for reporting — rendered for both direct and transient rows */}
-              <div
-                className={cn('flex shrink-0 items-center gap-1.5', actionsVisibilityClass)}
-                onClick={e => {
-                  e.stopPropagation();
-                }}
-              >
-                <span className='text-muted-foreground text-xs'>Allow for reporting</span>
-                <Switch
-                  checked={source?.isIncluded ?? true}
-                  onCheckedChange={checked => {
-                    // Backend omits relationships without join conditions from
-                    // availableSources (source is null). The preference is still
-                    // persisted by aliasPath and becomes effective once joins
-                    // are configured.
-                    onHideForReportingChange(
-                      source?.aliasPath ?? row.aliasPath,
-                      source?.alias ?? rel.targetAlias,
-                      !checked
-                    );
+              {!row.isCycleStub && (
+                <div
+                  className={cn('flex shrink-0 items-center gap-1.5', actionsVisibilityClass)}
+                  onClick={e => {
+                    e.stopPropagation();
                   }}
-                />
-              </div>
+                >
+                  <span className='text-muted-foreground text-xs'>Allow for reporting</span>
+                  <Switch
+                    checked={source?.isIncluded ?? true}
+                    onCheckedChange={checked => {
+                      // Backend omits relationships without join conditions from
+                      // availableSources (source is null). The preference is still
+                      // persisted by aliasPath and becomes effective once joins
+                      // are configured.
+                      onHideForReportingChange(
+                        source?.aliasPath ?? row.aliasPath,
+                        source?.alias ?? rel.targetAlias,
+                        !checked
+                      );
+                    }}
+                  />
+                </div>
+              )}
 
               {/* Dropdown menu — controlled so siblings stay visible while open */}
-              <div
-                className={cn('shrink-0', actionsVisibilityClass)}
-                onClick={e => {
-                  e.stopPropagation();
-                }}
-              >
-                <DropdownMenu open={isMenuOpen} onOpenChange={setIsMenuOpen}>
-                  <DropdownMenuTrigger asChild>
-                    <Button
-                      variant='ghost'
-                      size='sm'
-                      className='h-7 w-7 cursor-pointer p-0'
-                      aria-label='More actions'
-                    >
-                      <MoreHorizontal className='h-4 w-4' />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align='end'>
-                    <DropdownMenuItem
-                      onClick={() => {
-                        window.open(
-                          scope(`/data-marts/${rel.targetDataMart.id}/data-setup`),
-                          '_blank'
-                        );
-                      }}
-                    >
-                      <ExternalLink className='h-4 w-4' />
-                      Open in new tab
-                    </DropdownMenuItem>
-                    {/* Delete is disabled for transient rows — removing an inherited relationship must happen on its source data mart. */}
-                    {isTransient ? (
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <span>
-                            <DropdownMenuItem
-                              variant='destructive'
-                              disabled
-                              onSelect={e => {
-                                e.preventDefault();
-                              }}
-                            >
-                              <Trash2 className='h-4 w-4' />
-                              Delete relationship
-                            </DropdownMenuItem>
-                          </span>
-                        </TooltipTrigger>
-                        <TooltipContent side='left' className='max-w-xs'>
-                          This relationship is inherited. Remove it from the source data mart
-                          instead.
-                        </TooltipContent>
-                      </Tooltip>
-                    ) : (
+              {!row.isCycleStub && (
+                <div
+                  className={cn('shrink-0', actionsVisibilityClass)}
+                  onClick={e => {
+                    e.stopPropagation();
+                  }}
+                >
+                  <DropdownMenu open={isMenuOpen} onOpenChange={setIsMenuOpen}>
+                    <DropdownMenuTrigger asChild>
+                      <Button
+                        variant='ghost'
+                        size='sm'
+                        className='h-7 w-7 cursor-pointer p-0'
+                        aria-label='More actions'
+                      >
+                        <MoreHorizontal className='h-4 w-4' />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align='end'>
                       <DropdownMenuItem
-                        variant='destructive'
                         onClick={() => {
-                          setIsConfirmDeleteOpen(true);
+                          window.open(
+                            scope(`/data-marts/${rel.targetDataMart.id}/data-setup`),
+                            '_blank'
+                          );
                         }}
                       >
-                        <Trash2 className='h-4 w-4' />
-                        Delete relationship
+                        <ExternalLink className='h-4 w-4' />
+                        Open in new tab
                       </DropdownMenuItem>
-                    )}
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              </div>
+                      {/* Delete is disabled for transient rows — removing an inherited relationship must happen on its source data mart. */}
+                      {isTransient ? (
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <span>
+                              <DropdownMenuItem
+                                variant='destructive'
+                                disabled
+                                onSelect={e => {
+                                  e.preventDefault();
+                                }}
+                              >
+                                <Trash2 className='h-4 w-4' />
+                                Delete relationship
+                              </DropdownMenuItem>
+                            </span>
+                          </TooltipTrigger>
+                          <TooltipContent side='left' className='max-w-xs'>
+                            This relationship is inherited. Remove it from the source data mart
+                            instead.
+                          </TooltipContent>
+                        </Tooltip>
+                      ) : (
+                        <DropdownMenuItem
+                          variant='destructive'
+                          onClick={() => {
+                            setIsConfirmDeleteOpen(true);
+                          }}
+                        >
+                          <Trash2 className='h-4 w-4' />
+                          Delete relationship
+                        </DropdownMenuItem>
+                      )}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
+              )}
             </div>
 
             {/* Expanded content */}
-            <CollapsibleContent>
-              <div className='border-border rounded-b-md border border-t-0 bg-white shadow-xs dark:bg-white/5 dark:shadow-none'>
-                <Tabs
-                  value={activeTab}
-                  onValueChange={v => {
-                    setActiveTab(v as AccordionTab);
-                  }}
-                >
-                  <div className='flex items-center gap-3 px-4 pt-3'>
-                    <TabsList className='shrink-0'>
-                      <TabsTrigger value='fields'>
-                        <Columns3 className='h-4 w-4' />
-                        Report Fields
-                      </TabsTrigger>
-                      <TabsTrigger value='join-settings'>
-                        <GitMerge className='h-4 w-4' />
-                        Join Settings
-                      </TabsTrigger>
-                    </TabsList>
-                  </div>
+            {!row.isCycleStub && (
+              <CollapsibleContent>
+                <div className='border-border rounded-b-md border border-t-0 bg-white shadow-xs dark:bg-white/5 dark:shadow-none'>
+                  <Tabs
+                    value={activeTab}
+                    onValueChange={v => {
+                      setActiveTab(v as AccordionTab);
+                    }}
+                  >
+                    <div className='flex items-center gap-3 px-4 pt-3'>
+                      <TabsList className='shrink-0'>
+                        <TabsTrigger value='fields'>
+                          <Columns3 className='h-4 w-4' />
+                          Report Fields
+                        </TabsTrigger>
+                        <TabsTrigger value='join-settings'>
+                          <GitMerge className='h-4 w-4' />
+                          Join Settings
+                        </TabsTrigger>
+                      </TabsList>
+                    </div>
 
-                  <TabsContent value='fields' className='px-4 pt-2 pb-2'>
-                    {source ? (
-                      <SourceFieldsTable
-                        fields={source.fields}
-                        onFieldOverrideChange={(fieldName, override) => {
-                          onFieldOverrideChange(source, fieldName, override);
-                        }}
-                        leadingToolbar={
-                          <div
-                            className='bg-muted/50 flex flex-col gap-1.5 rounded-md p-3 dark:bg-white/5'
-                            onClick={e => {
-                              e.stopPropagation();
-                            }}
-                          >
-                            <label className='flex items-center gap-1.5 text-sm font-medium'>
-                              Output Alias
-                              <Tooltip>
-                                <TooltipTrigger asChild>
-                                  <span className='text-muted-foreground/50 hover:text-muted-foreground shrink-0 transition-colors'>
-                                    <Info className='size-4 shrink-0' />
-                                  </span>
-                                </TooltipTrigger>
-                                <TooltipContent side='top' className='max-w-xs'>
-                                  Short name that appears in the output data schema for fields from
-                                  this data mart.
-                                </TooltipContent>
-                              </Tooltip>
-                            </label>
-                            <Input
-                              value={localAlias}
-                              onChange={e => {
-                                handleAliasInput(e.target.value);
+                    <TabsContent value='fields' className='px-4 pt-2 pb-2'>
+                      {source ? (
+                        <SourceFieldsTable
+                          fields={source.fields}
+                          onFieldOverrideChange={(fieldName, override) => {
+                            onFieldOverrideChange(source, fieldName, override);
+                          }}
+                          leadingToolbar={
+                            <div
+                              className='bg-muted/50 flex flex-col gap-1.5 rounded-md p-3 dark:bg-white/5'
+                              onClick={e => {
+                                e.stopPropagation();
                               }}
-                              onBlur={handleAliasBlur}
-                              placeholder='e.g. campaign_performance'
-                              className='bg-background h-8 text-sm dark:bg-white/5'
-                            />
-                          </div>
-                        }
-                      />
-                    ) : (
-                      <p className='text-muted-foreground py-4 text-sm'>
-                        Fields will appear after configuring join conditions.
-                      </p>
-                    )}
-                  </TabsContent>
+                            >
+                              <label className='flex items-center gap-1.5 text-sm font-medium'>
+                                Output Alias
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <span className='text-muted-foreground/50 hover:text-muted-foreground shrink-0 transition-colors'>
+                                      <Info className='size-4 shrink-0' />
+                                    </span>
+                                  </TooltipTrigger>
+                                  <TooltipContent side='top' className='max-w-xs'>
+                                    Short name that appears in the output data schema for fields
+                                    from this data mart.
+                                  </TooltipContent>
+                                </Tooltip>
+                              </label>
+                              <Input
+                                value={localAlias}
+                                onChange={e => {
+                                  handleAliasInput(e.target.value);
+                                }}
+                                onBlur={handleAliasBlur}
+                                placeholder='e.g. campaign_performance'
+                                className='bg-background h-8 text-sm dark:bg-white/5'
+                              />
+                            </div>
+                          }
+                        />
+                      ) : (
+                        <p className='text-muted-foreground py-4 text-sm'>
+                          Fields will appear after configuring join conditions.
+                        </p>
+                      )}
+                    </TabsContent>
 
-                  <TabsContent value='join-settings'>
-                    <JoinSettingsForm
-                      relationship={rel}
-                      dataMartId={dataMartId}
-                      readOnly={readOnly || isTransient}
-                      siblingAliases={siblingAliases}
-                      inheritedFrom={
-                        isTransient ? { id: row.sourceDmId, title: row.parentDataMartTitle } : null
-                      }
-                      onSaved={updated => {
-                        onRelationshipUpdated(updated);
-                      }}
-                    />
-                  </TabsContent>
-                </Tabs>
-              </div>
-            </CollapsibleContent>
+                    <TabsContent value='join-settings'>
+                      <JoinSettingsForm
+                        relationship={rel}
+                        dataMartId={dataMartId}
+                        readOnly={readOnly || isTransient}
+                        siblingAliases={siblingAliases}
+                        inheritedFrom={
+                          isTransient
+                            ? { id: row.sourceDmId, title: row.parentDataMartTitle }
+                            : null
+                        }
+                        onSaved={updated => {
+                          onRelationshipUpdated(updated);
+                        }}
+                      />
+                    </TabsContent>
+                  </Tabs>
+                </div>
+              </CollapsibleContent>
+            )}
           </div>
         </div>
       </Collapsible>

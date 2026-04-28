@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import {
   AvailableSourceDto,
   BlendableSchemaDto,
@@ -12,8 +12,7 @@ import { isNumericFieldType } from '../data-storage-types/field-type-compatibili
 import { BlendedFieldsConfig, BlendedSource } from '../dto/schemas/blended-fields-config.schema';
 import { AggregateFunction } from '../dto/schemas/aggregate-function.schema';
 import { BusinessViolationException } from '../../common/exceptions/business-violation.exception';
-
-const MAX_TRANSITIVE_DEPTH = 10;
+import { DataMartRelationship } from '../entities/data-mart-relationship.entity';
 
 const DEFAULT_CONFIG: BlendedFieldsConfig = {
   sources: [],
@@ -62,16 +61,15 @@ interface CollectContext {
   sourceId: string;
   parentPath: string;
   sourcesByPath: Map<string, BlendedSource>;
+  relationshipsBySource: Map<string, DataMartRelationship[]>;
   result: BlendedFieldDto[];
   availableSources: AvailableSourceDto[];
-  visited: Set<string>;
+  branchDmIds: Set<string>;
   depth: number;
 }
 
 @Injectable()
 export class BlendableSchemaService {
-  private readonly logger = new Logger(BlendableSchemaService.name);
-
   constructor(
     private readonly relationshipService: DataMartRelationshipService,
     private readonly dataMartService: DataMartService
@@ -86,17 +84,29 @@ export class BlendableSchemaService {
     const config: BlendedFieldsConfig = dataMart.blendedFieldsConfig ?? DEFAULT_CONFIG;
     const sourcesByPath = new Map(config.sources.map(s => [s.path, s]));
 
+    const allStorageRelationships = await this.relationshipService.findByStorageId(
+      dataMart.storage.id,
+      projectId
+    );
+    const relationshipsBySource = new Map<string, DataMartRelationship[]>();
+    for (const rel of allStorageRelationships) {
+      const list = relationshipsBySource.get(rel.sourceDataMart.id);
+      if (list) list.push(rel);
+      else relationshipsBySource.set(rel.sourceDataMart.id, [rel]);
+    }
+
     const blendedFields: BlendedFieldDto[] = [];
     const availableSources: AvailableSourceDto[] = [];
-    const visited = new Set<string>();
+    const branchDmIds = new Set<string>([dataMartId]);
 
-    await this.collectBlendedFields({
+    this.collectBlendedFields({
       sourceId: dataMartId,
       parentPath: '',
       sourcesByPath,
+      relationshipsBySource,
       result: blendedFields,
       availableSources,
-      visited,
+      branchDmIds,
       depth: 1,
     });
 
@@ -108,17 +118,8 @@ export class BlendableSchemaService {
     };
   }
 
-  private async collectBlendedFields(ctx: CollectContext): Promise<void> {
-    if (ctx.depth > MAX_TRANSITIVE_DEPTH) {
-      this.logger.warn(
-        `Blendable schema traversal hit MAX_TRANSITIVE_DEPTH=${MAX_TRANSITIVE_DEPTH} ` +
-          `at path "${ctx.parentPath}". Deeper relationships are silently truncated — ` +
-          `restructure the relationship graph or raise the limit.`
-      );
-      return;
-    }
-
-    const relationships = await this.relationshipService.findBySourceDataMartId(ctx.sourceId);
+  private collectBlendedFields(ctx: CollectContext): void {
+    const relationships = ctx.relationshipsBySource.get(ctx.sourceId) ?? [];
 
     for (const rel of relationships) {
       // Skip relationships that don't have join conditions configured yet. They — and any
@@ -137,10 +138,9 @@ export class BlendableSchemaService {
         );
       }
 
-      const currentPath = ctx.parentPath ? `${ctx.parentPath}.${rel.targetAlias}` : rel.targetAlias;
+      if (ctx.branchDmIds.has(rel.targetDataMart.id)) continue;
 
-      if (ctx.visited.has(currentPath)) continue;
-      ctx.visited.add(currentPath);
+      const currentPath = ctx.parentPath ? `${ctx.parentPath}.${rel.targetAlias}` : rel.targetAlias;
 
       const sourceConfig = ctx.sourcesByPath.get(currentPath);
       const isExcluded = sourceConfig?.isExcluded === true;
@@ -194,10 +194,11 @@ export class BlendableSchemaService {
         ctx.result.push(dto);
       }
 
-      await this.collectBlendedFields({
+      this.collectBlendedFields({
         ...ctx,
         sourceId: rel.targetDataMart.id,
         parentPath: currentPath,
+        branchDmIds: new Set([...ctx.branchDmIds, rel.targetDataMart.id]),
         depth: ctx.depth + 1,
       });
     }
