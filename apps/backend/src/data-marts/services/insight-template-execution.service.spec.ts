@@ -4,6 +4,7 @@ import { DataMartStatus } from '../enums/data-mart-status.enum';
 import { InsightTemplateExecutionService } from './insight-template-execution.service';
 import { InsightTemplateSourceDataService } from './insight-template-source-data.service';
 import { InsightTemplateSourceUsageService } from './insight-template-source-usage.service';
+import { DataMartTableReferenceService } from './data-mart-table-reference.service';
 
 describe('InsightTemplateExecutionService', () => {
   const createService = () => {
@@ -35,6 +36,9 @@ describe('InsightTemplateExecutionService', () => {
     const sourceUsageService = {
       getUsedSourceKeys: jest.fn().mockReturnValue(['secondary']),
     };
+    const dataMartTableReferenceService = {
+      ensureSqlViewIsUpToDate: jest.fn().mockResolvedValue(null),
+    };
 
     return {
       service: new InsightTemplateExecutionService(
@@ -43,13 +47,15 @@ describe('InsightTemplateExecutionService', () => {
         systemTimeService as never,
         templateFacade as never as DataMartTemplateFacadeImpl,
         sourceDataService as never as InsightTemplateSourceDataService,
-        sourceUsageService as never as InsightTemplateSourceUsageService
+        sourceUsageService as never as InsightTemplateSourceUsageService,
+        dataMartTableReferenceService as never as DataMartTableReferenceService
       ),
       dataMartRunService,
       insightTemplateRepository,
       templateFacade,
       sourceDataService,
       sourceUsageService,
+      dataMartTableReferenceService,
     };
   };
 
@@ -68,12 +74,19 @@ describe('InsightTemplateExecutionService', () => {
     }) as const;
 
   it('passes usedSourceKeys from analyzer into buildRenderContext', async () => {
-    const { service, sourceUsageService, sourceDataService, templateFacade } = createService();
+    const {
+      service,
+      sourceUsageService,
+      sourceDataService,
+      templateFacade,
+      dataMartTableReferenceService,
+    } = createService();
     const dataMart = createDataMart();
     const insightTemplate = createInsightTemplate();
 
     await service.run(dataMart as never, insightTemplate as never, 'user-1', 'MANUAL' as never);
 
+    expect(dataMartTableReferenceService.ensureSqlViewIsUpToDate).toHaveBeenCalledWith(dataMart);
     expect(sourceUsageService.getUsedSourceKeys).toHaveBeenCalledWith(insightTemplate.template);
     expect(sourceDataService.buildRenderContext).toHaveBeenCalledWith(dataMart, insightTemplate, {
       usedSourceKeys: new Set(['secondary']),
@@ -85,7 +98,13 @@ describe('InsightTemplateExecutionService', () => {
   });
 
   it('passes empty usedSourceKeys set when template has no supported data tags', async () => {
-    const { service, sourceUsageService, sourceDataService, dataMartRunService } = createService();
+    const {
+      service,
+      sourceUsageService,
+      sourceDataService,
+      dataMartRunService,
+      dataMartTableReferenceService,
+    } = createService();
     const dataMart = createDataMart();
     const insightTemplate = createInsightTemplate('# Report without data tags');
 
@@ -93,6 +112,7 @@ describe('InsightTemplateExecutionService', () => {
 
     await service.run(dataMart as never, insightTemplate as never, 'user-1', 'MANUAL' as never);
 
+    expect(dataMartTableReferenceService.ensureSqlViewIsUpToDate).toHaveBeenCalledWith(dataMart);
     expect(sourceDataService.buildRenderContext).toHaveBeenCalledWith(dataMart, insightTemplate, {
       usedSourceKeys: new Set(),
     });
