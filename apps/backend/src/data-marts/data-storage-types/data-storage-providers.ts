@@ -39,7 +39,6 @@ import { LegacyBigQuerySchemaMerger } from './bigquery/services/legacy/legacy-bi
 import { LegacyBigQuerySqlDryRunExecutor } from './bigquery/services/legacy/legacy-bigquery-sql-dry-run.executor';
 import { LegacyBigQuerySqlPreprocessor } from './bigquery/services/legacy/legacy-bigquery-sql-preprocessor.service';
 import { LegacyBigQuerySqlRunExecutor } from './bigquery/services/legacy/legacy-bigquery-sql-run.executor';
-import { LegacyBigQueryStorageResourceBrowser } from './bigquery/services/legacy/legacy-bigquery-storage-resource-browser.service';
 import { BigQueryStorageResourceBrowser } from './bigquery/services/bigquery-storage-resource-browser.service';
 import { DataStorageCredentialsUtils } from './data-mart-schema.utils';
 import { DatabricksApiAdapterFactory } from './databricks/adapters/databricks-api-adapter.factory';
@@ -217,10 +216,7 @@ const publicCredentialsProviders = [
   DataStorageCredentialsUtils,
 ];
 const legacyBigQueryProviders = [LegacyBigQuerySqlPreprocessor];
-const storageResourceBrowserProviders = [
-  BigQueryStorageResourceBrowser,
-  LegacyBigQueryStorageResourceBrowser,
-];
+const storageResourceBrowserProviders = [BigQueryStorageResourceBrowser];
 const blendedQueryBuilderProviders = [
   BigQueryBlendedQueryBuilder,
   SnowflakeBlendedQueryBuilder,
