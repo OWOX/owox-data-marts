@@ -34,6 +34,7 @@ import { Loader2 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { contextService } from '../../services/context.service';
 import { MembersCheckboxList } from '../../../../shared/components/MembersCheckboxList';
+import { getRoleDisplayName } from '../../../idp/utils/role-display-name';
 import type { ContextDto, MemberWithScopeDto } from '../../types/context.types';
 
 const contextDetailsSchema = z.object({
@@ -198,7 +199,8 @@ export function ContextDetailsSheet({
                         email: m.email,
                         displayName: m.displayName,
                         avatarUrl: m.avatarUrl,
-                        isAdmin: m.role === 'admin',
+                        role: m.role,
+                        roleLabel: getRoleDisplayName(m.role),
                       }))}
                       selectedIds={selectedMemberIds}
                       onToggle={handleToggleMember}

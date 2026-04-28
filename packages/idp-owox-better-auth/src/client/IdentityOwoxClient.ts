@@ -30,7 +30,6 @@ import {
   TokenResponse,
   TokenResponseSchema,
 } from './dto/index.js';
-import { createServiceLogger } from '../core/logger.js';
 
 /**
  * Represents a client for interacting with the Identity OWOX API.
@@ -42,7 +41,6 @@ export class IdentityOwoxClient {
   private readonly c2cServiceAccountEmail?: string;
   private readonly c2cTargetAudience?: string;
   private readonly clientBackchannelPrefix: string;
-  private readonly logger = createServiceLogger(IdentityOwoxClient.name);
 
   constructor(config: IdentityOwoxClientConfig) {
     const timeout =
@@ -275,23 +273,14 @@ export class IdentityOwoxClient {
     const url = `${this.clientBackchannelPrefix}/idp/bi-project/${projectId}/members`;
     const body = { biUserId: actorUserId, inviteeEmail: email, role };
 
-    this.logger.info('inviteProjectMember → request', { method: 'POST', url, body });
-
     try {
-      const { data, status } = await this.http.post<unknown>(url, body, {
+      const { data } = await this.http.post<unknown>(url, body, {
         headers: {
           Authorization: `Bearer ${idToken}`,
         },
       });
-      this.logger.info('inviteProjectMember ← response', { status, data });
       return OwoxInviteProjectMemberResponseSchema.parse(data);
     } catch (err) {
-      this.logger.warn('inviteProjectMember ← error', {
-        url,
-        body,
-        status: axios.isAxiosError(err) ? err.response?.status : undefined,
-        responseData: axios.isAxiosError(err) ? err.response?.data : undefined,
-      });
       this.handleAxiosError(err, { projectId, email, role }, 'Failed to invite project member');
     }
   }
@@ -320,31 +309,16 @@ export class IdentityOwoxClient {
     const url = `${this.clientBackchannelPrefix}/idp/bi-project/${projectId}/members/${userId}`;
     const body = { biUserId: actorUserId };
 
-    this.logger.info('removeProjectMember → request', {
-      method: 'DELETE',
-      url,
-      projectId,
-      userId,
-      body,
-    });
-
     try {
       // Java contract requires `biUserId` in the request body even for DELETE —
       // axios forwards it via the `data` option.
-      const { status } = await this.http.delete(url, {
+      await this.http.delete(url, {
         headers: {
           Authorization: `Bearer ${idToken}`,
         },
         data: body,
       });
-      this.logger.info('removeProjectMember ← response', { status });
     } catch (err) {
-      this.logger.warn('removeProjectMember ← error', {
-        url,
-        body,
-        status: axios.isAxiosError(err) ? err.response?.status : undefined,
-        responseData: axios.isAxiosError(err) ? err.response?.data : undefined,
-      });
       this.handleAxiosError(
         err,
         { projectId, userId, actorUserId },
@@ -382,22 +356,13 @@ export class IdentityOwoxClient {
     const url = `${this.clientBackchannelPrefix}/idp/bi-project/${projectId}/members/${userId}/role`;
     const body = { biUserId: actorUserId, role: newRole };
 
-    this.logger.info('changeProjectMemberRole → request', { method: 'PUT', url, body });
-
     try {
-      const { status } = await this.http.put(url, body, {
+      await this.http.put(url, body, {
         headers: {
           Authorization: `Bearer ${idToken}`,
         },
       });
-      this.logger.info('changeProjectMemberRole ← response', { status });
     } catch (err) {
-      this.logger.warn('changeProjectMemberRole ← error', {
-        url,
-        body,
-        status: axios.isAxiosError(err) ? err.response?.status : undefined,
-        responseData: axios.isAxiosError(err) ? err.response?.data : undefined,
-      });
       this.handleAxiosError(
         err,
         { projectId, userId, newRole },

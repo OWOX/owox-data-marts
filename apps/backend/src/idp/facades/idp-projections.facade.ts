@@ -42,6 +42,16 @@ export class IdpProjectionsFacade {
   }
 
   /**
+   * Strict variant of `getProjectMembers` — propagates IDP failures instead
+   * of degrading to `[]`. Use on write paths that filter or validate
+   * against the returned list (e.g. setContextMembers admin-strip /
+   * membership check), where a silently-empty list would corrupt state.
+   */
+  public async getProjectMembersOrThrow(projectId: string): Promise<ProjectMemberDto[]> {
+    return this.idpProjectionsService.getProjectMembersOrThrow(projectId);
+  }
+
+  /**
    * Resolve a single project member by userId. The active IDP provider only
    * exposes a list endpoint, so this is a thin wrapper — callers should use
    * it instead of `getProjectMembers(...).find(...)` so the linear-scan

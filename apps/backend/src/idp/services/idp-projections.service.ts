@@ -76,33 +76,54 @@ export class IdpProjectionsService {
   }
 
   /**
-   * Get project members from IDP provider and update projections
+   * Get project members from IDP provider and update projections.
+   *
+   * IDP failures are swallowed and an empty list is returned. This is
+   * intentional for read-only / display paths (the legacy Members page,
+   * notifications recipient picker, owners pickers) where graceful
+   * degradation is preferable to a hard 500.
+   *
+   * **WRITE PATHS MUST NOT USE THIS METHOD.** A swallowed error here turns
+   * into corrupted state when the caller filters or validates against the
+   * returned list (e.g. `setContextMembers` would let admin user-ids slip
+   * through the admin-strip filter, writing orphan rows). Use
+   * `getProjectMembersOrThrow` for those paths.
    */
   public async getProjectMembers(projectId: string): Promise<ProjectMemberDto[]> {
     try {
-      const provider = this.idpProviderService.getProviderFromApp();
-      const members = await provider.getProjectMembers(projectId);
-
-      await this.updateUserProjections(members);
-
-      return members
-        .filter(m => m.userStatus !== 'locked' && m.userStatus !== 'erased')
-        .map(
-          m =>
-            new ProjectMemberDto(
-              m.userId,
-              m.email,
-              m.fullName,
-              m.avatar,
-              m.projectRole,
-              m.hasNotificationsEnabled,
-              m.isOutbound ?? false
-            )
-        );
+      return await this.getProjectMembersOrThrow(projectId);
     } catch (error) {
       this.logger.error(`Failed to get project members for project ${projectId}`, error);
       return [];
     }
+  }
+
+  /**
+   * Same as `getProjectMembers`, but propagates IDP failures to the caller.
+   * Required by write paths that filter/validate against the returned list,
+   * because a silently-empty list would let admin user-ids past the
+   * admin-strip filter or let unknown user-ids be written as bindings.
+   */
+  public async getProjectMembersOrThrow(projectId: string): Promise<ProjectMemberDto[]> {
+    const provider = this.idpProviderService.getProviderFromApp();
+    const members = await provider.getProjectMembers(projectId);
+
+    await this.updateUserProjections(members);
+
+    return members
+      .filter(m => m.userStatus !== 'locked' && m.userStatus !== 'erased')
+      .map(
+        m =>
+          new ProjectMemberDto(
+            m.userId,
+            m.email,
+            m.fullName,
+            m.avatar,
+            m.projectRole,
+            m.hasNotificationsEnabled,
+            m.isOutbound ?? false
+          )
+      );
   }
 
   /**

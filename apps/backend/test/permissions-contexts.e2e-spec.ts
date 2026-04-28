@@ -102,29 +102,32 @@ describe('Permissions Model Contexts & Role Scope (e2e)', () => {
     jest.spyOn(idpProvider, 'parseToken').mockImplementation(async token => resolvePayload(token));
 
     const facade = app.get(IdpProjectionsFacade);
-    jest
-      .spyOn(facade, 'getProjectMembers')
-      .mockResolvedValue([
-        new ProjectMemberDto('0', 'admin@localhost', 'Admin', undefined, 'admin', true, false),
-        new ProjectMemberDto(
-          '1',
-          'editor@localhost',
-          'Technical User',
-          undefined,
-          'editor',
-          true,
-          false
-        ),
-        new ProjectMemberDto(
-          '2',
-          'viewer@localhost',
-          'Business User',
-          undefined,
-          'viewer',
-          true,
-          false
-        ),
-      ]);
+    const fixtureMembers = [
+      new ProjectMemberDto('0', 'admin@localhost', 'Admin', undefined, 'admin', true, false),
+      new ProjectMemberDto(
+        '1',
+        'editor@localhost',
+        'Technical User',
+        undefined,
+        'editor',
+        true,
+        false
+      ),
+      new ProjectMemberDto(
+        '2',
+        'viewer@localhost',
+        'Business User',
+        undefined,
+        'viewer',
+        true,
+        false
+      ),
+    ];
+    jest.spyOn(facade, 'getProjectMembers').mockResolvedValue(fixtureMembers);
+    // Strict variant used by setContextMembers et al. — mirror the same
+    // fixture so write paths see the project's members rather than tripping
+    // the IDP-outage early-throw.
+    jest.spyOn(facade, 'getProjectMembersOrThrow').mockResolvedValue(fixtureMembers);
 
     // NullIdpProvider throws IdpOperationNotSupportedError for member mutations.
     // The controller-level semantics we want to exercise (auth, validation, ordering,

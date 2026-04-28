@@ -1,19 +1,28 @@
+import { useMemo } from 'react';
 import { Checkbox } from '@owox/ui/components/checkbox';
 import { Label } from '@owox/ui/components/label';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@owox/ui/components/tooltip';
 import { Info, User } from 'lucide-react';
 
 /**
- * Minimal member shape accepted by the list. Kept narrow on purpose so
- * `shared/` does not depend on any feature DTO — callers in `features/`
- * project to this shape before passing in.
+ * Member role used for sorting + role-label rendering. Kept as a literal
+ * union (not imported from an idp feature) so this shared list component
+ * stays free of feature-DTO dependencies.
+ */
+export type CheckableMemberRole = 'admin' | 'editor' | 'viewer';
+
+/**
+ * Minimal member shape accepted by the list. Callers in `features/` project
+ * to this shape before passing in.
  */
 export interface CheckableMember {
   userId: string;
   email: string;
   displayName?: string | undefined;
   avatarUrl?: string | undefined;
-  isAdmin?: boolean;
+  role: CheckableMemberRole;
+  /** Display label for the role (e.g. `getRoleDisplayName(role)`). */
+  roleLabel: string;
 }
 
 interface MembersCheckboxListProps {
@@ -26,6 +35,22 @@ interface MembersCheckboxListProps {
   emptyText?: string;
 }
 
+// Business users (viewer) → Technical users (editor) → Project admins.
+// Within each group: alphabetical by email (case-insensitive, locale-aware).
+const ROLE_PRIORITY: Record<CheckableMemberRole, number> = {
+  viewer: 0,
+  editor: 1,
+  admin: 2,
+};
+
+function sortMembers(members: CheckableMember[]): CheckableMember[] {
+  return [...members].sort((a, b) => {
+    const byRole = ROLE_PRIORITY[a.role] - ROLE_PRIORITY[b.role];
+    if (byRole !== 0) return byRole;
+    return a.email.localeCompare(b.email, undefined, { sensitivity: 'base' });
+  });
+}
+
 export function MembersCheckboxList({
   idPrefix,
   members,
@@ -35,7 +60,10 @@ export function MembersCheckboxList({
   excludeAdmins = false,
   emptyText = 'No members available.',
 }: MembersCheckboxListProps) {
-  const visible = excludeAdmins ? members.filter(m => !m.isAdmin) : members;
+  const visible = useMemo(() => {
+    const filtered = excludeAdmins ? members.filter(m => m.role !== 'admin') : members;
+    return sortMembers(filtered);
+  }, [members, excludeAdmins]);
 
   if (visible.length === 0) {
     return (
@@ -48,7 +76,7 @@ export function MembersCheckboxList({
   return (
     <div className='border-input flex flex-col gap-1 rounded-md border p-1'>
       {visible.map(m => {
-        const isAdmin = m.isAdmin === true;
+        const isAdmin = m.role === 'admin';
         const checked = isAdmin || selectedIds.includes(m.userId);
         const id = `${idPrefix}-${m.userId}`;
         return (
@@ -74,7 +102,7 @@ export function MembersCheckboxList({
                 className='h-8 w-8 rounded-full object-cover'
               />
             ) : (
-              <div className='bg-muted text-muted-foreground flex h-8 w-8 items-center justify-center rounded-full text-xs'>
+              <div className='bg-muted text-muted-foreground flex h-8 w-8 items-center justify-center rounded-full text-xs font-medium'>
                 <User className='h-4 w-4' />
               </div>
             )}
@@ -104,7 +132,10 @@ export function MembersCheckboxList({
                   </Tooltip>
                 )}
               </span>
-              <span className='text-muted-foreground text-xs'>{m.email}</span>
+              <span className='text-muted-foreground flex flex-col items-end text-xs font-normal'>
+                <span className='font-semibold'>{m.roleLabel}</span>
+                <span>{m.email}</span>
+              </span>
             </Label>
           </div>
         );
