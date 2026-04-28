@@ -114,6 +114,29 @@ export class SqliteDatabaseStore implements DatabaseStore {
     return row ?? null;
   }
 
+  async createUserStub(
+    email: string,
+    name?: string
+  ): Promise<{ userId: string; created: boolean }> {
+    await this.connect();
+
+    const existing = this.getDb().prepare('SELECT id FROM user WHERE email = ?').get(email) as
+      | { id: string }
+      | undefined;
+    if (existing) {
+      return { userId: existing.id, created: false };
+    }
+
+    const userId = this.generateId();
+    const now = new Date().toISOString();
+    this.getDb()
+      .prepare(
+        'INSERT INTO user (id, email, emailVerified, name, createdAt, updatedAt) VALUES (?, ?, 0, ?, ?, ?)'
+      )
+      .run(userId, email, name ?? '', now, now);
+    return { userId, created: true };
+  }
+
   async userHasPassword(userId: string): Promise<boolean> {
     await this.connect();
     try {

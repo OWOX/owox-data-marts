@@ -9,6 +9,8 @@ import { DataStorage } from '../entities/data-storage.entity';
 import { DataMartDefinitionType } from '../enums/data-mart-definition-type.enum';
 import { DataMartStatus } from '../enums/data-mart-status.enum';
 import { OwnerFilter } from '../enums/owner-filter.enum';
+import { RoleScope } from '../enums/role-scope.enum';
+import { buildContextGateSql } from '../utils/build-context-gate-sql';
 
 @Injectable()
 export class DataMartService {
@@ -34,6 +36,8 @@ export class DataMartService {
         'storage.credential',
         'businessOwners',
         'technicalOwners',
+        'contexts',
+        'contexts.context',
       ],
     });
 
@@ -56,6 +60,7 @@ export class DataMartService {
       ownerFilter?: OwnerFilter;
       userId?: string;
       roles?: string[];
+      roleScope?: RoleScope;
     }
   ): Promise<{ items: DataMart[]; total: number }> {
     const qb = this.dataMartRepository
@@ -63,6 +68,8 @@ export class DataMartService {
       .leftJoin('dm.storage', 'storage')
       .leftJoinAndSelect('dm.businessOwners', 'businessOwners')
       .leftJoinAndSelect('dm.technicalOwners', 'technicalOwners')
+      .leftJoinAndSelect('dm.contexts', 'dmContexts')
+      .leftJoinAndSelect('dmContexts.context', 'dmContext')
       .select([
         'dm.id',
         'dm.title',
@@ -75,6 +82,10 @@ export class DataMartService {
         'storage.title',
         'businessOwners.userId',
         'technicalOwners.userId',
+        'dmContexts.dataMartId',
+        'dmContexts.contextId',
+        'dmContext.id',
+        'dmContext.name',
       ])
       .addSelect(
         'CASE WHEN dm.definitionType = :connectorDefinitionType THEN dm.definition ELSE NULL END',
@@ -88,24 +99,32 @@ export class DataMartService {
     const isAdmin = options?.roles?.includes('admin');
     if (!isAdmin && options?.userId) {
       const isTu = options.roles?.includes('editor');
-      if (isTu) {
-        // TU: tech owner OR biz owner OR available_for_reporting OR available_for_maintenance
-        qb.andWhere(
-          `(EXISTS (SELECT 1 FROM data_mart_technical_owners t WHERE t.data_mart_id = dm.id AND t.user_id = :accessUserId)
-            OR EXISTS (SELECT 1 FROM data_mart_business_owners b WHERE b.data_mart_id = dm.id AND b.user_id = :accessUserId)
-            OR dm.availableForReporting = :isTrue
-            OR dm.availableForMaintenance = :isTrue)`,
-          { accessUserId: options.userId, isTrue: true }
-        );
-      } else {
-        // BU: tech owner (SEE+USE only) OR biz owner OR available_for_reporting
-        qb.andWhere(
-          `(EXISTS (SELECT 1 FROM data_mart_technical_owners t WHERE t.data_mart_id = dm.id AND t.user_id = :accessUserId)
-            OR EXISTS (SELECT 1 FROM data_mart_business_owners b WHERE b.data_mart_id = dm.id AND b.user_id = :accessUserId)
-            OR dm.availableForReporting = :isTrue)`,
-          { accessUserId: options.userId, isTrue: true }
-        );
-      }
+      const roleScope: RoleScope = options?.roleScope ?? RoleScope.ENTIRE_PROJECT;
+      const contextGate = buildContextGateSql({
+        joinTable: 'data_mart_contexts',
+        entityIdColumn: 'data_mart_id',
+        entityAlias: 'dm',
+      });
+      const sharedClause = isTu
+        ? `(dm.availableForReporting = :isTrue OR dm.availableForMaintenance = :isTrue)`
+        : `dm.availableForReporting = :isTrue`;
+      qb.andWhere(
+        `(
+          EXISTS (SELECT 1 FROM data_mart_technical_owners t WHERE t.data_mart_id = dm.id AND t.user_id = :userId)
+          OR EXISTS (SELECT 1 FROM data_mart_business_owners b WHERE b.data_mart_id = dm.id AND b.user_id = :userId)
+          OR (
+            ${sharedClause}
+            AND ${contextGate}
+          )
+        )`,
+        {
+          userId: options.userId,
+          isTrue: true,
+          roleScope,
+          entireProjectScope: RoleScope.ENTIRE_PROJECT,
+          projectId,
+        }
+      );
     }
 
     if (options?.ownerFilter === OwnerFilter.HAS_OWNERS) {

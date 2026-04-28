@@ -8,6 +8,7 @@ import {
   ForbiddenException,
   IdentityApiException,
   IdpFailedException,
+  IdpNotFoundException,
 } from '../core/exceptions.js';
 import {
   AuthFlowRequest,
@@ -19,6 +20,8 @@ import {
   IntrospectionResponseSchema,
   JwksResponse,
   JwksResponseSchema,
+  OwoxInviteProjectMemberResponse,
+  OwoxInviteProjectMemberResponseSchema,
   OwoxProjectMembersResponse,
   OwoxProjectMembersResponseSchema,
   RevocationRequest,
@@ -234,6 +237,140 @@ export class IdentityOwoxClient {
     }
   }
 
+  /**
+   * POST /idp/bi-project/:projectId/members — invite a new member by email.
+   *
+   * The Java endpoint owns validation, duplicate detection, email delivery and
+   * pending-user provisioning. It returns the resolved userUid (new or
+   * pre-existing) so callers can attach authorization scope immediately.
+   *
+   * Path mirrors the existing `getProjectMembers` (GET on the same collection)
+   * on the C2C backchannel — the public `/api/idp/projects/...` variant is
+   * user-JWT authed and not reachable from this service-to-service client.
+   */
+  async inviteProjectMember(
+    projectId: string,
+    email: string,
+    role: string,
+    actorUserId: string
+  ): Promise<OwoxInviteProjectMemberResponse> {
+    if (
+      !this.impersonatedIdTokenFetcher ||
+      !this.c2cServiceAccountEmail ||
+      !this.c2cTargetAudience ||
+      !this.clientBackchannelPrefix
+    ) {
+      throw new IdpFailedException(
+        'C2C authentication is not configured. Cannot invite project member.',
+        { context: { projectId, email, role, actorUserId } }
+      );
+    }
+
+    const idToken = await this.impersonatedIdTokenFetcher.getIdToken(
+      this.c2cServiceAccountEmail,
+      this.c2cTargetAudience
+    );
+    const url = `${this.clientBackchannelPrefix}/idp/bi-project/${projectId}/members`;
+    const body = { biUserId: actorUserId, inviteeEmail: email, role };
+
+    try {
+      const { data } = await this.http.post<unknown>(url, body, {
+        headers: {
+          Authorization: `Bearer ${idToken}`,
+        },
+      });
+      return OwoxInviteProjectMemberResponseSchema.parse(data);
+    } catch (err) {
+      this.handleAxiosError(err, { projectId, email, role }, 'Failed to invite project member');
+    }
+  }
+
+  /**
+   * DELETE /idp/bi-project/:projectId/members/:userId — remove a member.
+   * See `inviteProjectMember` for path rationale.
+   */
+  async removeProjectMember(projectId: string, userId: string, actorUserId: string): Promise<void> {
+    if (
+      !this.impersonatedIdTokenFetcher ||
+      !this.c2cServiceAccountEmail ||
+      !this.c2cTargetAudience ||
+      !this.clientBackchannelPrefix
+    ) {
+      throw new IdpFailedException(
+        'C2C authentication is not configured. Cannot remove project member.',
+        { context: { projectId, userId, actorUserId } }
+      );
+    }
+
+    const idToken = await this.impersonatedIdTokenFetcher.getIdToken(
+      this.c2cServiceAccountEmail,
+      this.c2cTargetAudience
+    );
+    const url = `${this.clientBackchannelPrefix}/idp/bi-project/${projectId}/members/${userId}`;
+    const body = { biUserId: actorUserId };
+
+    try {
+      // Java contract requires `biUserId` in the request body even for DELETE —
+      // axios forwards it via the `data` option.
+      await this.http.delete(url, {
+        headers: {
+          Authorization: `Bearer ${idToken}`,
+        },
+        data: body,
+      });
+    } catch (err) {
+      this.handleAxiosError(
+        err,
+        { projectId, userId, actorUserId },
+        'Failed to remove project member'
+      );
+    }
+  }
+
+  /**
+   * PUT /idp/bi-project/:projectId/members/:userId/role — change a member's role.
+   * See `inviteProjectMember` for path rationale.
+   */
+  async changeProjectMemberRole(
+    projectId: string,
+    userId: string,
+    newRole: string,
+    actorUserId: string
+  ): Promise<void> {
+    if (
+      !this.impersonatedIdTokenFetcher ||
+      !this.c2cServiceAccountEmail ||
+      !this.c2cTargetAudience ||
+      !this.clientBackchannelPrefix
+    ) {
+      throw new IdpFailedException(
+        'C2C authentication is not configured. Cannot change project member role.',
+        { context: { projectId, userId, newRole, actorUserId } }
+      );
+    }
+
+    const idToken = await this.impersonatedIdTokenFetcher.getIdToken(
+      this.c2cServiceAccountEmail,
+      this.c2cTargetAudience
+    );
+    const url = `${this.clientBackchannelPrefix}/idp/bi-project/${projectId}/members/${userId}/role`;
+    const body = { biUserId: actorUserId, role: newRole };
+
+    try {
+      await this.http.put(url, body, {
+        headers: {
+          Authorization: `Bearer ${idToken}`,
+        },
+      });
+    } catch (err) {
+      this.handleAxiosError(
+        err,
+        { projectId, userId, newRole },
+        'Failed to change project member role'
+      );
+    }
+  }
+
   private handleAxiosError(
     error: unknown,
     context: Record<string, unknown>,
@@ -268,6 +405,12 @@ export class IdentityOwoxClient {
         throw new ForbiddenException('Identity inactive or blocked', {
           cause: error,
           context,
+          status,
+        });
+      case 404:
+        throw new IdpNotFoundException('Upstream resource not found', {
+          cause: error,
+          context: { ...context, responseData: rawBody },
           status,
         });
       default:

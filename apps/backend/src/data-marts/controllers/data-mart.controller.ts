@@ -53,6 +53,8 @@ import { UpdateDataMartAvailabilityApiDto } from '../dto/presentation/update-ava
 import { MemberOwnershipWarningsService } from '../services/member-ownership-warnings.service';
 import { UpdateDataMartTitleService } from '../use-cases/update-data-mart-title.service';
 import { ValidateDataMartDefinitionService } from '../use-cases/validate-data-mart-definition.service';
+import { ContextAccessService } from '../services/context/context-access.service';
+import { UpdateEntityContextsRequestApiDto } from '../dto/presentation/context-api.dto';
 import {
   BatchDataMartHealthStatusSpec,
   CancelDataMartRunSpec,
@@ -69,6 +71,7 @@ import {
   RunDataMartSpec,
   UpdateBlendedFieldsConfigSpec,
   UpdateDataMartAvailabilitySpec,
+  UpdateDataMartContextsSpec,
   UpdateDataMartDefinitionSpec,
   UpdateDataMartDescriptionSpec,
   UpdateDataMartSchemaSpec,
@@ -102,7 +105,8 @@ export class DataMartController {
     private readonly updateAvailabilityService: UpdateAvailabilityService,
     private readonly memberOwnershipWarningsService: MemberOwnershipWarningsService,
     private readonly getBlendableSchemaService: GetBlendableSchemaService,
-    private readonly updateBlendedFieldsConfigService: UpdateBlendedFieldsConfigService
+    private readonly updateBlendedFieldsConfigService: UpdateBlendedFieldsConfigService,
+    private readonly contextAccessService: ContextAccessService
   ) {}
 
   @Auth(Role.editor(Strategy.INTROSPECT))
@@ -212,6 +216,23 @@ export class DataMartController {
     const command = this.mapper.toUpdateOwnersCommand(id, context, dto);
     const dataMart = await this.updateOwnersService.run(command);
     return this.mapper.toResponse(dataMart);
+  }
+
+  @Auth(Role.editor(Strategy.INTROSPECT))
+  @Put(':id/contexts')
+  @UpdateDataMartContextsSpec()
+  async updateContexts(
+    @AuthContext() context: AuthorizationContext,
+    @Param('id') id: string,
+    @Body() dto: UpdateEntityContextsRequestApiDto
+  ): Promise<void> {
+    await this.contextAccessService.updateDataMartContexts(
+      id,
+      context.projectId,
+      dto.contextIds,
+      context.userId,
+      context.roles ?? []
+    );
   }
 
   @Auth(Role.editor(Strategy.INTROSPECT))

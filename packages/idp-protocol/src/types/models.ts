@@ -58,3 +58,32 @@ export type ProjectMember = {
   hasNotificationsEnabled: boolean; // from subscriptions.serviceNotifications
   isOutbound?: boolean; // user is not in the project anymore
 };
+
+/**
+ * Result of a member invitation. Discriminated by `kind` because different IDP
+ * providers have different semantics:
+ *   - `email-sent` — the provider itself delivered the invitation email
+ *     (e.g. `idp-owox-better-auth` via the remote OWOX Identity API).
+ *   - `magic-link` — the provider produced a link that the admin must copy
+ *     and deliver manually (e.g. `idp-better-auth` for self-hosted setups
+ *     without an SMTP path).
+ */
+export type ProjectMemberInvitation =
+  | {
+      projectId: string;
+      email: string;
+      role: Role;
+      kind: 'email-sent';
+      userId?: string;
+      message?: string;
+    }
+  | {
+      projectId: string;
+      email: string;
+      role: Role;
+      kind: 'magic-link';
+      magicLink: string;
+      userId?: string;
+      expiresAt?: string;
+      message?: string;
+    };

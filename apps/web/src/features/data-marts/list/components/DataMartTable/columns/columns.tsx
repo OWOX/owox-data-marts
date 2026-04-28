@@ -14,6 +14,7 @@ import { dataMartColumnLabels } from './columnLabels.ts';
 import type { ConnectorListItem } from '../../../../../connectors/shared/model/types/connector';
 import { RawBase64Icon } from '../../../../../../shared';
 import { SortableHeader, ToggleColumnsHeader } from '../../../../../../shared/components/Table';
+import { ContextBadges } from '../../../../../../features/contexts/components/ContextBadges/ContextBadges';
 
 interface DataMartTableColumnsProps {
   onDeleteSuccess?: () => void;
@@ -276,6 +277,15 @@ export const getDataMartColumns = ({
         return <UserAvatarGroup users={users} />;
       }
       return <div className='text-muted-foreground'>—</div>;
+    },
+  },
+  {
+    id: DataMartColumnKey.CONTEXTS,
+    accessorKey: 'contexts',
+    header: dataMartColumnLabels[DataMartColumnKey.CONTEXTS],
+    enableSorting: false,
+    cell: ({ row }) => {
+      return <ContextBadges contexts={row.original.contexts} />;
     },
   },
   {

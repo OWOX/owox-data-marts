@@ -348,5 +348,12 @@ export class DataMartService extends ApiService {
   ): Promise<BatchDataMartHealthStatusResponseDto> {
     return this.post<BatchDataMartHealthStatusResponseDto>('/health-status', { ids }, config);
   }
+
+  /**
+   * Replace the set of contexts attached to a data mart.
+   */
+  async updateContexts(id: string, contextIds: string[]): Promise<void> {
+    return this.put(`/${id}/contexts`, { contextIds });
+  }
 }
 export const dataMartService = new DataMartService();

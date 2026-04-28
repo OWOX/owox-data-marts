@@ -16,6 +16,7 @@ import {
 import { DataDestinationCredential } from './data-destination-credential.entity';
 import { CreatorAwareEntity } from './creator-aware-entity.interface';
 import { DestinationOwner } from './destination-owner.entity';
+import { DestinationContext } from './destination-context.entity';
 
 @Entity()
 export class DataDestination implements CreatorAwareEntity {
@@ -53,6 +54,9 @@ export class DataDestination implements CreatorAwareEntity {
   @OneToMany(() => DestinationOwner, owner => owner.destination)
   owners: DestinationOwner[];
 
+  @OneToMany(() => DestinationContext, ctx => ctx.destination)
+  contexts: DestinationContext[];
+
   @CreateDateColumn()
   createdAt: Date;
 
@@ -61,6 +65,10 @@ export class DataDestination implements CreatorAwareEntity {
 
   get ownerIds(): string[] {
     return (this.owners ?? []).map(o => o.userId);
+  }
+
+  get contextIds(): string[] {
+    return (this.contexts ?? []).map(c => c.contextId);
   }
 
   isEmailBased(): boolean {

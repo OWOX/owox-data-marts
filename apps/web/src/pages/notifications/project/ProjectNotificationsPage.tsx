@@ -7,12 +7,12 @@ import {
   useNotificationSettings,
   NotificationSettingsTable,
   EditNotificationSheet,
-} from '../../../features/notifications/project';
+} from '../../../features/project-settings/notifications';
 import type {
   NotificationSettingsItem,
   NotificationType,
   UpdateNotificationSettingsRequest,
-} from '../../../features/notifications/project';
+} from '../../../features/project-settings/notifications';
 
 export function ProjectNotificationsPage() {
   const projectId = useProjectId();

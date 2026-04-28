@@ -103,4 +103,11 @@ export interface DataMart {
 
   availableForReporting?: boolean;
   availableForMaintenance?: boolean;
+
+  /**
+   * Context summaries attached to this Data Mart. Empty array when no context
+   * is assigned. Always present after loading so `useEffect` dependency equality
+   * behaves predictably.
+   */
+  contexts: { id: string; name: string }[];
 }

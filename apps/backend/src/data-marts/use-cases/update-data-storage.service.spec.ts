@@ -140,6 +140,10 @@ describe('UpdateDataStorageService - credential copy (sourceStorageId)', () => {
       canAccess: jest.fn().mockResolvedValue(true),
     };
 
+    const contextAccessService = {
+      updateStorageContexts: jest.fn().mockResolvedValue(undefined),
+    };
+
     const service = new UpdateDataStorageService(
       dataStorageRepository as never,
       dataStorageService as never,
@@ -151,7 +155,8 @@ describe('UpdateDataStorageService - credential copy (sourceStorageId)', () => {
       idpProjectionsFacade as never,
       storageOwnerRepository as never,
       eventDispatcher as never,
-      accessDecisionService as never
+      accessDecisionService as never,
+      contextAccessService as never
     );
 
     return {
@@ -397,6 +402,10 @@ describe('UpdateDataStorageService - BigQuery projectId validation', () => {
     const accessDecisionService = {
       canAccess: jest.fn().mockResolvedValue(true),
     };
+    const contextAccessService = {
+      updateStorageContexts: jest.fn().mockResolvedValue(undefined),
+      getStorageContextIds: jest.fn().mockResolvedValue([]),
+    };
 
     const service = new UpdateDataStorageService(
       dataStorageRepository as never,
@@ -409,7 +418,8 @@ describe('UpdateDataStorageService - BigQuery projectId validation', () => {
       idpProjectionsFacade as never,
       storageOwnerRepository as never,
       eventDispatcher as never,
-      accessDecisionService as never
+      accessDecisionService as never,
+      contextAccessService as never
     );
 
     return {

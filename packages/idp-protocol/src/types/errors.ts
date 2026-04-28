@@ -55,3 +55,14 @@ export class InvalidTokenError extends IdpError {
     super(message, 'INVALID_TOKEN', 401);
   }
 }
+
+/**
+ * Raised when an IDP provider does not implement an optional operation
+ * (e.g. the Null provider is asked to invite a user). Maps to HTTP 501.
+ */
+export class IdpOperationNotSupportedError extends IdpError {
+  constructor(operation: string) {
+    super(`IDP operation not supported: ${operation}`, 'OPERATION_NOT_SUPPORTED', 501);
+    this.name = 'IdpOperationNotSupportedError';
+  }
+}

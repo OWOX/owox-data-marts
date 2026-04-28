@@ -1,4 +1,4 @@
-import { Injectable, BadRequestException, Logger } from '@nestjs/common';
+import { Injectable, BadRequestException, ForbiddenException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Transactional } from 'typeorm-transactional';
@@ -30,12 +30,10 @@ import { resolveOwnerUsers } from '../utils/resolve-owner-users';
 import { syncOwners } from '../utils/sync-owners';
 import { IdpProjectionsFacade } from '../../idp/facades/idp-projections.facade';
 import { AccessDecisionService, EntityType, Action } from '../services/access-decision';
-import { ForbiddenException } from '@nestjs/common';
+import { ContextAccessService } from '../services/context/context-access.service';
 
 @Injectable()
 export class UpdateDataStorageService {
-  private readonly logger = new Logger(UpdateDataStorageService.name);
-
   constructor(
     @InjectRepository(DataStorage)
     private readonly dataStorageRepository: Repository<DataStorage>,
@@ -49,7 +47,8 @@ export class UpdateDataStorageService {
     @InjectRepository(StorageOwner)
     private readonly storageOwnerRepository: Repository<StorageOwner>,
     private readonly eventDispatcher: OwoxEventDispatcher,
-    private readonly accessDecisionService: AccessDecisionService
+    private readonly accessDecisionService: AccessDecisionService,
+    private readonly contextAccessService: ContextAccessService
   ) {}
 
   @Transactional()
@@ -187,6 +186,16 @@ export class UpdateDataStorageService {
         );
       }
 
+      if (command.contextIds !== undefined) {
+        await this.contextAccessService.updateStorageContexts(
+          updatedDataStorageEntity.id,
+          command.projectId,
+          command.contextIds,
+          command.userId,
+          command.roles
+        );
+      }
+
       return this.replaceOwnersAndBuildResponse(updatedDataStorageEntity, command.ownerIds);
     }
 
@@ -296,6 +305,16 @@ export class UpdateDataStorageService {
           updatedDataStorageEntity.projectId,
           updatedDataStorageEntity.createdById ?? ''
         )
+      );
+    }
+
+    if (command.contextIds !== undefined) {
+      await this.contextAccessService.updateStorageContexts(
+        updatedDataStorageEntity.id,
+        command.projectId,
+        command.contextIds,
+        command.userId,
+        command.roles
       );
     }
 

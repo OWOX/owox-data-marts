@@ -19,6 +19,7 @@ import { DataMartSchema, DataMartSchemaSchema } from '../data-storage-types/data
 import { createZodTransformer } from '../../common/zod/zod-transformer';
 import { ConnectorState } from './connector-state.entity';
 import { DataMartTechnicalOwner } from './data-mart-technical-owner.entity';
+import { DataMartContext } from './data-mart-context.entity';
 import { DataMartBusinessOwner } from './data-mart-business-owner.entity';
 import {
   BlendedFieldsConfig,
@@ -84,6 +85,9 @@ export class DataMart implements CreatorAwareEntity {
   })
   blendedFieldsConfig?: BlendedFieldsConfig;
 
+  @OneToMany(() => DataMartContext, ctx => ctx.dataMart)
+  contexts: DataMartContext[];
+
   @Column()
   createdById: string;
 
@@ -102,5 +106,9 @@ export class DataMart implements CreatorAwareEntity {
 
   get technicalOwnerIds(): string[] {
     return (this.technicalOwners ?? []).map(o => o.userId);
+  }
+
+  get contextIds(): string[] {
+    return (this.contexts ?? []).map(c => c.contextId);
   }
 }

@@ -4,8 +4,10 @@ import {
   IdpProvider,
   Payload,
   ProjectMember,
+  ProjectMemberInvitation,
   Projects,
   ProtocolRoute,
+  Role,
 } from '@owox/idp-protocol';
 import { createMailingProvider } from '@owox/internal-helpers';
 import { getMigrations } from 'better-auth/db/migration';
@@ -153,6 +155,28 @@ export class OwoxBetterAuthIdp implements IdpProvider {
     options?: GetProjectMembersOptions
   ): Promise<ProjectMember[]> {
     return this.projectMembersService.getMembers(projectId, options);
+  }
+
+  async inviteMember(
+    projectId: string,
+    email: string,
+    role: Role,
+    actorUserId: string
+  ): Promise<ProjectMemberInvitation> {
+    return this.projectMembersService.inviteMember(projectId, email, role, actorUserId);
+  }
+
+  async removeMember(projectId: string, userId: string, actorUserId: string): Promise<void> {
+    return this.projectMembersService.removeMember(projectId, userId, actorUserId);
+  }
+
+  async changeMemberRole(
+    projectId: string,
+    userId: string,
+    newRole: Role,
+    actorUserId: string
+  ): Promise<void> {
+    return this.projectMembersService.changeMemberRole(projectId, userId, newRole, actorUserId);
   }
 
   static async create(config: BetterAuthProviderConfig): Promise<OwoxBetterAuthIdp> {

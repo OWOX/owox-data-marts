@@ -26,6 +26,7 @@ import { UpdateDataMartOwnersApiDto } from '../../dto/presentation/update-data-m
 import { PaginatedDataMartsResponseApiDto } from '../../dto/presentation/paginated-data-marts-response-api.dto';
 import { RunDataMartRequestApiDto } from '../../dto/presentation/run-data-mart-request-api.dto';
 import { UpdateDataMartAvailabilityApiDto } from '../../dto/presentation/update-availability-api.dto';
+import { UpdateEntityContextsRequestApiDto } from '../../dto/presentation/context-api.dto';
 import { OwnerFilter } from '../../enums/owner-filter.enum';
 
 export function CreateDataMartSpec() {
@@ -114,6 +115,24 @@ export function UpdateDataMartOwnersSpec() {
     ApiParam({ name: 'id', description: 'DataMart ID' }),
     ApiBody({ type: UpdateDataMartOwnersApiDto }),
     ApiOkResponse({ type: DataMartResponseApiDto })
+  );
+}
+
+export function UpdateDataMartContextsSpec() {
+  return applyDecorators(
+    ApiOperation({
+      summary: 'Replace the contexts attached to a Data Mart',
+      description:
+        'Editors may only attach contexts they themselves are bound to. Admins may attach any context.',
+    }),
+    ApiParam({ name: 'id', description: 'Data Mart ID' }),
+    ApiBody({ type: UpdateEntityContextsRequestApiDto }),
+    ApiOkResponse({ description: 'Data Mart contexts updated' }),
+    ApiResponse({
+      status: 403,
+      description: 'Caller is not allowed to attach one of the contexts',
+    }),
+    ApiResponse({ status: 404, description: 'Data Mart or Context not found' })
   );
 }
 

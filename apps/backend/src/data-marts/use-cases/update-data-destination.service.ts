@@ -1,4 +1,4 @@
-import { BadRequestException, ForbiddenException, Injectable, Logger } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Transactional } from 'typeorm-transactional';
 import { AvailableDestinationTypesService } from '../data-destination-types/available-destination-types.service';
@@ -26,11 +26,10 @@ import { resolveOwnerUsers } from '../utils/resolve-owner-users';
 import { syncOwners } from '../utils/sync-owners';
 import { IdpProjectionsFacade } from '../../idp/facades/idp-projections.facade';
 import { AccessDecisionService, EntityType, Action } from '../services/access-decision';
+import { ContextAccessService } from '../services/context/context-access.service';
 
 @Injectable()
 export class UpdateDataDestinationService {
-  private readonly logger = new Logger(UpdateDataDestinationService.name);
-
   constructor(
     @InjectRepository(DataDestination)
     private readonly dataDestinationRepository: Repository<DataDestination>,
@@ -46,7 +45,8 @@ export class UpdateDataDestinationService {
     private readonly idpProjectionsFacade: IdpProjectionsFacade,
     @InjectRepository(DestinationOwner)
     private readonly destinationOwnerRepository: Repository<DestinationOwner>,
-    private readonly accessDecisionService: AccessDecisionService
+    private readonly accessDecisionService: AccessDecisionService,
+    private readonly contextAccessService: ContextAccessService
   ) {}
 
   @Transactional()
@@ -171,6 +171,15 @@ export class UpdateDataDestinationService {
         entity.availableForMaintenance = command.availableForMaintenance;
       }
       const updatedEntity = await this.dataDestinationRepository.save(entity);
+      if (command.contextIds !== undefined) {
+        await this.contextAccessService.updateDestinationContexts(
+          updatedEntity.id,
+          command.projectId,
+          command.contextIds,
+          command.userId,
+          command.roles
+        );
+      }
       return this.replaceOwnersAndBuildResponse(updatedEntity, command.ownerIds);
     }
 
@@ -268,6 +277,17 @@ export class UpdateDataDestinationService {
     }
 
     const updatedEntity = await this.dataDestinationRepository.save(entity);
+
+    if (command.contextIds !== undefined) {
+      await this.contextAccessService.updateDestinationContexts(
+        updatedEntity.id,
+        command.projectId,
+        command.contextIds,
+        command.userId,
+        command.roles
+      );
+    }
+
     return this.replaceOwnersAndBuildResponse(updatedEntity, command.ownerIds);
   }
 

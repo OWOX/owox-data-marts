@@ -55,6 +55,23 @@ export class ForbiddenException extends BaseException {
   }
 }
 
+/**
+ * Error for upstream resources that the OWOX Java IDP could not find
+ * (HTTP 404). Typically raised when a project member was already removed
+ * concurrently or when a userUid no longer exists at the IDP layer.
+ * Callers can use this to offer idempotent semantics (e.g. treat
+ * remove-after-remove as success) or to surface a cleaner 404 to clients.
+ */
+export class IdpNotFoundException extends BaseException {
+  constructor(message: string, opts?: ExceptionOpts) {
+    super('IdpNotFoundException', message, {
+      status: 404,
+      publicMessage: 'Resource not found',
+      ...opts,
+    });
+  }
+}
+
 const STATE_EXPIRED_ERROR_MARKER = 'state expired';
 
 /**

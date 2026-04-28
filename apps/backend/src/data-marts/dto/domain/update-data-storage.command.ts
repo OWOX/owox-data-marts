@@ -14,7 +14,8 @@ export class UpdateDataStorageCommand {
     public readonly userId: string = '',
     public readonly roles: string[] = [],
     public readonly availableForUse?: boolean,
-    public readonly availableForMaintenance?: boolean
+    public readonly availableForMaintenance?: boolean,
+    public readonly contextIds?: string[]
   ) {}
 
   hasCredentials(): boolean {

@@ -20,5 +20,6 @@ export function mapDataMartListFromDto(
     technicalOwnerUsers: dmart.technicalOwnerUsers,
     createdAt: new Date(dmart.createdAt),
     modifiedAt: new Date(dmart.modifiedAt),
+    contexts: dmart.contexts,
   }));
 }

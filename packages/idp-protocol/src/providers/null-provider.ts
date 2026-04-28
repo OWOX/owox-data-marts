@@ -1,5 +1,13 @@
 import { IdpProvider } from '../types/provider.js';
-import { AuthResult, Payload, Projects, ProjectMember } from '../types/models.js';
+import {
+  AuthResult,
+  Payload,
+  Projects,
+  ProjectMember,
+  ProjectMemberInvitation,
+  Role,
+} from '../types/models.js';
+import { IdpOperationNotSupportedError } from '../types/errors.js';
 import { Express, Request, Response, NextFunction } from 'express';
 
 /**
@@ -107,6 +115,28 @@ export class NullIdpProvider implements IdpProvider {
         isOutbound: false,
       },
     ];
+  }
+
+  async inviteMember(
+    _projectId: string,
+    _email: string,
+    _role: Role,
+    _actorUserId: string
+  ): Promise<ProjectMemberInvitation> {
+    throw new IdpOperationNotSupportedError('inviteMember');
+  }
+
+  async removeMember(_projectId: string, _userId: string, _actorUserId: string): Promise<void> {
+    throw new IdpOperationNotSupportedError('removeMember');
+  }
+
+  async changeMemberRole(
+    _projectId: string,
+    _userId: string,
+    _newRole: Role,
+    _actorUserId: string
+  ): Promise<void> {
+    throw new IdpOperationNotSupportedError('changeMemberRole');
   }
 
   /**

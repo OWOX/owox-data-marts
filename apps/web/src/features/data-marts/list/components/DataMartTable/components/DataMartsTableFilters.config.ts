@@ -31,7 +31,8 @@ export type DataMartFilterKey =
   | AdditionalFilterKeys.INPUT_SOURCE
   | DataMartColumnKey.CREATED_BY_USER
   | DataMartColumnKey.BUSINESS_OWNERS
-  | DataMartColumnKey.TECHNICAL_OWNERS;
+  | DataMartColumnKey.TECHNICAL_OWNERS
+  | DataMartColumnKey.CONTEXTS;
 
 /* ---------------------------------------------------------------------------
  * Accessors (used both for filtering and option collection)
@@ -52,6 +53,7 @@ export const dataMartsFilterAccessors: FilterAccessors<DataMartFilterKey, DataMa
   [DataMartColumnKey.CREATED_BY_USER]: row => row.createdByUser?.userId,
   [DataMartColumnKey.BUSINESS_OWNERS]: row => row.businessOwnerUsers.map(u => u.userId),
   [DataMartColumnKey.TECHNICAL_OWNERS]: row => row.technicalOwnerUsers.map(u => u.userId),
+  [DataMartColumnKey.CONTEXTS]: row => row.contexts.map(c => c.id),
 };
 
 /* ---------------------------------------------------------------------------
@@ -166,6 +168,17 @@ export function buildDataMartsTableFilters(
   }
   const userLabelMapper = (userId: string) => userLabelMap.get(userId) ?? userId;
 
+  /* -----------------------------
+   * Context label map (ctxId → name)
+   * --------------------------- */
+  const contextLabelMap = new Map<string, string>();
+  for (const item of data) {
+    for (const c of item.contexts) {
+      contextLabelMap.set(c.id, c.name);
+    }
+  }
+  const contextLabelMapper = (ctxId: string) => contextLabelMap.get(ctxId) ?? ctxId;
+
   return [
     {
       id: DataMartColumnKey.TITLE,
@@ -241,6 +254,15 @@ export function buildDataMartsTableFilters(
         dataMartsFilterAccessors[DataMartColumnKey.TECHNICAL_OWNERS],
         { labelMapper: userLabelMapper }
       ),
+    },
+    {
+      id: DataMartColumnKey.CONTEXTS,
+      label: dataMartColumnLabels[DataMartColumnKey.CONTEXTS],
+      dataType: 'enum',
+      operators: ['eq', 'neq'],
+      options: collectOptionsFromData(data, dataMartsFilterAccessors[DataMartColumnKey.CONTEXTS], {
+        labelMapper: contextLabelMapper,
+      }),
     },
   ];
 }

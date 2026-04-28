@@ -9,6 +9,7 @@ import { DataMartSchema } from '../../data-storage-types/data-mart-schema.type';
 import { ConnectorState as ConnectorStateData } from '../../connector-types/interfaces/connector-state';
 import { ConnectorStateResponseApiDto } from './connector-state-response-api.dto';
 import { BlendedFieldsConfig } from '../schemas/blended-fields-config.schema';
+import { ContextSummary } from '../../utils/extract-context-summaries';
 
 export class DataMartResponseApiDto {
   @ApiProperty({ example: '9cabc24e-1234-4a5a-8b12-abcdef123456' })
@@ -67,4 +68,7 @@ export class DataMartResponseApiDto {
 
   @ApiProperty({ example: true })
   availableForMaintenance?: boolean;
+
+  @ApiProperty({ type: [Object] })
+  contexts: ContextSummary[];
 }

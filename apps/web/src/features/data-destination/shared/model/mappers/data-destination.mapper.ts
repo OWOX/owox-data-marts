@@ -13,6 +13,7 @@ export function mapDataDestinationFromDto(dto: DataDestinationResponseDto): Data
     ...mapper.mapFromDto(dto),
     availableForUse: dto.availableForUse,
     availableForMaintenance: dto.availableForMaintenance,
+    contexts: dto.contexts ?? [],
   };
 }
 

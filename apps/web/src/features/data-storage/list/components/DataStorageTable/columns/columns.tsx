@@ -8,6 +8,7 @@ import { dataStorageColumnLabels } from './columnLabels';
 import { type UserProjection } from '../../../../../../shared/types';
 import { UserReference } from '../../../../../../shared/components/UserReference';
 import { UserAvatarGroup } from '../../../../../../shared/components/UserAvatarGroup/UserAvatarGroup';
+import { ContextBadges } from '../../../../../../features/contexts/components/ContextBadges/ContextBadges';
 
 export interface DataStorageTableItem {
   id: string;
@@ -19,6 +20,7 @@ export interface DataStorageTableItem {
   draftDataMartsCount: number;
   createdByUser?: UserProjection | null;
   ownerUsers?: UserProjection[];
+  contexts: { id: string; name: string }[];
 }
 
 interface DataStorageColumnsProps {
@@ -186,6 +188,15 @@ export const getDataStorageColumns = ({
     cell: ({ row }) => {
       const count = row.getValue<string>(DataStorageColumnKey.DRAFTS_COUNT);
       return <div>{count}</div>;
+    },
+  },
+  {
+    id: DataStorageColumnKey.CONTEXTS,
+    accessorKey: 'contexts',
+    header: dataStorageColumnLabels[DataStorageColumnKey.CONTEXTS],
+    enableSorting: false,
+    cell: ({ row }) => {
+      return <ContextBadges contexts={row.original.contexts} />;
     },
   },
   {

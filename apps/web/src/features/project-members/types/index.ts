@@ -1,0 +1,8 @@
+import type { Role } from '../../idp/types';
+
+export type { Role };
+
+export const PROJECT_ROLE_VALUES = ['admin', 'editor', 'viewer'] as const satisfies readonly Role[];
+
+export const ROLE_SCOPE_VALUES = ['entire_project', 'selected_contexts'] as const;
+export type RoleScope = (typeof ROLE_SCOPE_VALUES)[number];

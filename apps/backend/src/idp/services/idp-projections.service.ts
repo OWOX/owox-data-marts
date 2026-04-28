@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Payload, ProjectMember } from '@owox/idp-protocol';
+import { Payload, ProjectMember, ProjectMemberInvitation, Role } from '@owox/idp-protocol';
 import { In, Repository } from 'typeorm';
 import { ProjectProjection } from '../entities/project-projection.entity';
 import { UserProjection } from '../entities/user-projection.entity';
@@ -76,33 +76,90 @@ export class IdpProjectionsService {
   }
 
   /**
-   * Get project members from IDP provider and update projections
+   * Get project members from IDP provider and update projections.
+   *
+   * IDP failures are swallowed and an empty list is returned. This is
+   * intentional for read-only / display paths (the legacy Members page,
+   * notifications recipient picker, owners pickers) where graceful
+   * degradation is preferable to a hard 500.
+   *
+   * **WRITE PATHS MUST NOT USE THIS METHOD.** A swallowed error here turns
+   * into corrupted state when the caller filters or validates against the
+   * returned list (e.g. `setContextMembers` would let admin user-ids slip
+   * through the admin-strip filter, writing orphan rows). Use
+   * `getProjectMembersOrThrow` for those paths.
    */
   public async getProjectMembers(projectId: string): Promise<ProjectMemberDto[]> {
     try {
-      const provider = this.idpProviderService.getProviderFromApp();
-      const members = await provider.getProjectMembers(projectId);
-
-      await this.updateUserProjections(members);
-
-      return members
-        .filter(m => m.userStatus !== 'locked' && m.userStatus !== 'erased')
-        .map(
-          m =>
-            new ProjectMemberDto(
-              m.userId,
-              m.email,
-              m.fullName,
-              m.avatar,
-              m.projectRole,
-              m.hasNotificationsEnabled,
-              m.isOutbound ?? false
-            )
-        );
+      return await this.getProjectMembersOrThrow(projectId);
     } catch (error) {
       this.logger.error(`Failed to get project members for project ${projectId}`, error);
       return [];
     }
+  }
+
+  /**
+   * Same as `getProjectMembers`, but propagates IDP failures to the caller.
+   * Required by write paths that filter/validate against the returned list,
+   * because a silently-empty list would let admin user-ids past the
+   * admin-strip filter or let unknown user-ids be written as bindings.
+   */
+  public async getProjectMembersOrThrow(projectId: string): Promise<ProjectMemberDto[]> {
+    const provider = this.idpProviderService.getProviderFromApp();
+    const members = await provider.getProjectMembers(projectId);
+
+    await this.updateUserProjections(members);
+
+    return members
+      .filter(m => m.userStatus !== 'locked' && m.userStatus !== 'erased')
+      .map(
+        m =>
+          new ProjectMemberDto(
+            m.userId,
+            m.email,
+            m.fullName,
+            m.avatar,
+            m.projectRole,
+            m.hasNotificationsEnabled,
+            m.isOutbound ?? false
+          )
+      );
+  }
+
+  /**
+   * Invite a new member to the project via the active IDP provider.
+   * Errors propagate to the caller — the HTTP controller is responsible for
+   * surfacing them as the correct status code.
+   */
+  public async inviteMember(
+    projectId: string,
+    email: string,
+    role: Role,
+    actorUserId: string
+  ): Promise<ProjectMemberInvitation> {
+    const provider = this.idpProviderService.getProviderFromApp();
+    return provider.inviteMember(projectId, email, role, actorUserId);
+  }
+
+  /**
+   * Remove a member from the project via the active IDP provider.
+   */
+  public async removeMember(projectId: string, userId: string, actorUserId: string): Promise<void> {
+    const provider = this.idpProviderService.getProviderFromApp();
+    await provider.removeMember(projectId, userId, actorUserId);
+  }
+
+  /**
+   * Change a member's role via the active IDP provider.
+   */
+  public async changeMemberRole(
+    projectId: string,
+    userId: string,
+    newRole: Role,
+    actorUserId: string
+  ): Promise<void> {
+    const provider = this.idpProviderService.getProviderFromApp();
+    await provider.changeMemberRole(projectId, userId, newRole, actorUserId);
   }
 
   /**

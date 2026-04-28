@@ -15,6 +15,7 @@ export interface BaseDataDestination<T extends DataDestinationCredentials> {
   ownerUsers?: import('../../../../../shared/types').UserProjection[];
   availableForUse?: boolean;
   availableForMaintenance?: boolean;
+  contexts?: { id: string; name: string }[];
 }
 
 export interface GoogleSheetsCredentials {

@@ -321,6 +321,23 @@ import { GetReportGeneratedSqlService } from './use-cases/get-report-generated-s
 import { CopyReportAsDataMartService } from './use-cases/copy-report-as-data-mart.service';
 import { DataMartRelationshipController } from './controllers/data-mart-relationship.controller';
 import { DataStorageRelationshipController } from './controllers/data-storage-relationship.controller';
+import { Context } from './entities/context.entity';
+import { DataMartContext } from './entities/data-mart-context.entity';
+import { StorageContext } from './entities/storage-context.entity';
+import { DestinationContext } from './entities/destination-context.entity';
+import { MemberRoleScope } from './entities/member-role-scope.entity';
+import { MemberRoleContext } from './entities/member-role-context.entity';
+import { ContextService } from './services/context/context.service';
+import { ContextAccessService } from './services/context/context-access.service';
+import { ContextMapper } from './mappers/context.mapper';
+import { ProjectMembersMapper } from './mappers/project-members.mapper';
+import { ContextController } from './controllers/context.controller';
+import { ProjectMembersController } from './controllers/project-members.controller';
+import { ListProjectMembersService } from './use-cases/project-members/list-project-members.service';
+import { InviteProjectMemberService } from './use-cases/project-members/invite-project-member.service';
+import { UpdateProjectMemberService } from './use-cases/project-members/update-project-member.service';
+import { RemoveProjectMemberService } from './use-cases/project-members/remove-project-member.service';
+import { SetContextMembersService } from './use-cases/contexts/set-context-members.service';
 
 @Module({
   imports: [
@@ -363,6 +380,12 @@ import { DataStorageRelationshipController } from './controllers/data-storage-re
       ProjectSetupProgress,
       ProjectSetupUserProgress,
       DataMartRelationship,
+      Context,
+      DataMartContext,
+      StorageContext,
+      DestinationContext,
+      MemberRoleScope,
+      MemberRoleContext,
     ]),
     CommonModule,
     IdpModule,
@@ -391,6 +414,8 @@ import { DataStorageRelationshipController } from './controllers/data-storage-re
     ProjectSetupProgressController,
     DataMartRelationshipController,
     DataStorageRelationshipController,
+    ContextController,
+    ProjectMembersController,
   ],
   providers: [
     ...dataStorageResolverProviders,
@@ -651,6 +676,15 @@ import { DataStorageRelationshipController } from './controllers/data-storage-re
     GetBlendableSchemaService,
     GetReportGeneratedSqlService,
     CopyReportAsDataMartService,
+    ContextService,
+    ContextAccessService,
+    ContextMapper,
+    ProjectMembersMapper,
+    ListProjectMembersService,
+    InviteProjectMemberService,
+    UpdateProjectMemberService,
+    RemoveProjectMemberService,
+    SetContextMembersService,
   ],
 })
 export class DataMartsModule {

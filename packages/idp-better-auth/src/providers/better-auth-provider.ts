@@ -8,7 +8,9 @@ import {
   Payload,
   Projects,
   ProjectMember,
+  ProjectMemberInvitation,
   GetProjectMembersOptions,
+  Role,
 } from '@owox/idp-protocol';
 import { Express, type Request, Response, NextFunction } from 'express';
 import express from 'express';
@@ -260,5 +262,35 @@ export class BetterAuthProvider
       hasNotificationsEnabled: true, // No preference table yet
       isOutbound: false,
     }));
+  }
+
+  async inviteMember(
+    projectId: string,
+    email: string,
+    role: Role,
+    _actorUserId: string
+  ): Promise<ProjectMemberInvitation> {
+    const { userId, magicLink } = await this.userManagementService.inviteAndCreateStub(email, role);
+    return {
+      projectId,
+      email,
+      role,
+      kind: 'magic-link',
+      magicLink,
+      userId,
+    };
+  }
+
+  async removeMember(_projectId: string, userId: string, _actorUserId: string): Promise<void> {
+    await this.userManagementService.removeUser(userId);
+  }
+
+  async changeMemberRole(
+    _projectId: string,
+    userId: string,
+    newRole: Role,
+    _actorUserId: string
+  ): Promise<void> {
+    await this.userManagementService.ensureUserInDefaultOrganization(userId, newRole);
   }
 }

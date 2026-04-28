@@ -18,7 +18,8 @@ export type DataStorageFilterKey =
   | DataStorageColumnKey.TITLE
   | DataStorageColumnKey.TYPE
   | DataStorageColumnKey.CREATED_BY
-  | DataStorageColumnKey.OWNERS;
+  | DataStorageColumnKey.OWNERS
+  | DataStorageColumnKey.CONTEXTS;
 
 /* ---------------------------------------------------------------------------
  * Accessors (used both for filtering and option collection)
@@ -32,6 +33,7 @@ export const dataStorageFilterAccessors: FilterAccessors<
   [DataStorageColumnKey.TYPE]: row => row.type,
   [DataStorageColumnKey.CREATED_BY]: row => row.createdByUser?.userId,
   [DataStorageColumnKey.OWNERS]: row => (row.ownerUsers ?? []).map(u => u.userId),
+  [DataStorageColumnKey.CONTEXTS]: row => row.contexts.map(c => c.id),
 };
 
 /* ---------------------------------------------------------------------------
@@ -78,6 +80,17 @@ export function buildDataStorageTableFilters(
   }
   const userLabelMapper = (userId: string) => userLabelMap.get(userId) ?? userId;
 
+  /* -----------------------------
+   * Context label mapper (ctxId → name)
+   * --------------------------- */
+  const contextLabelMap = new Map<string, string>();
+  for (const item of data) {
+    for (const c of item.contexts) {
+      contextLabelMap.set(c.id, c.name);
+    }
+  }
+  const contextLabelMapper = (ctxId: string) => contextLabelMap.get(ctxId) ?? ctxId;
+
   return [
     {
       id: DataStorageColumnKey.TITLE,
@@ -113,6 +126,17 @@ export function buildDataStorageTableFilters(
         data,
         dataStorageFilterAccessors[DataStorageColumnKey.OWNERS],
         { labelMapper: userLabelMapper }
+      ),
+    },
+    {
+      id: DataStorageColumnKey.CONTEXTS,
+      label: dataStorageColumnLabels[DataStorageColumnKey.CONTEXTS],
+      dataType: 'enum',
+      operators: ['eq', 'neq'],
+      options: collectOptionsFromData(
+        data,
+        dataStorageFilterAccessors[DataStorageColumnKey.CONTEXTS],
+        { labelMapper: contextLabelMapper }
       ),
     },
   ];

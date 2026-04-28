@@ -1,4 +1,9 @@
-import type { GetProjectMembersOptions, ProjectMember } from '@owox/idp-protocol';
+import type {
+  GetProjectMembersOptions,
+  ProjectMember,
+  ProjectMemberInvitation,
+  Role,
+} from '@owox/idp-protocol';
 import type { IdentityOwoxClient } from '../../client/index.js';
 import {
   DEFAULT_OWOX_CLIENT_TIMEOUT_MS,
@@ -212,5 +217,55 @@ export class ProjectMembersService {
       );
       throw error;
     }
+  }
+
+  /**
+   * Invite a new member to the project by delegating to the Identity OWOX API.
+   * The Java upstream owns email delivery, so the response surfaces
+   * `kind: 'email-sent'` unconditionally. We compose `email` / `message` on
+   * this side because the Java contract only returns `userUid` — everything
+   * else is already known from the request. Returning `userId` lets the
+   * caller controller attach scope + contexts immediately.
+   */
+  async inviteMember(
+    projectId: string,
+    email: string,
+    role: Role,
+    actorUserId: string
+  ): Promise<ProjectMemberInvitation> {
+    const response = await this.identityClient.inviteProjectMember(
+      projectId,
+      email,
+      role,
+      actorUserId
+    );
+    return {
+      projectId,
+      email,
+      role,
+      kind: 'email-sent',
+      userId: response.userUid,
+      message: `Invitation email sent to ${email}`,
+    };
+  }
+
+  /**
+   * Remove a member from the project. The next `getMembers` call will re-sync
+   * from the remote source because `forceFresh` defaults to true in consumers.
+   */
+  async removeMember(projectId: string, userId: string, actorUserId: string): Promise<void> {
+    await this.identityClient.removeProjectMember(projectId, userId, actorUserId);
+  }
+
+  /**
+   * Change a member's role via the Identity OWOX API.
+   */
+  async changeMemberRole(
+    projectId: string,
+    userId: string,
+    newRole: Role,
+    actorUserId: string
+  ): Promise<void> {
+    await this.identityClient.changeProjectMemberRole(projectId, userId, newRole, actorUserId);
   }
 }

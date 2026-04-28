@@ -5,7 +5,9 @@ import { ListDataMartsCommand } from '../dto/domain/list-data-marts.command';
 import { PaginatedDataMartListItemsDto } from '../dto/domain/paginated-data-mart-list-items.dto';
 import { DataMartScheduledTrigger } from '../entities/data-mart-scheduled-trigger.entity';
 import { Report } from '../entities/report.entity';
+import { RoleScope } from '../enums/role-scope.enum';
 import { DataMartMapper } from '../mappers/data-mart.mapper';
+import { ContextAccessService } from '../services/context/context-access.service';
 import { DataMartService } from '../services/data-mart.service';
 import { UserProjectionsFetcherService } from '../services/user-projections-fetcher.service';
 import { resolveOwnerUsers } from '../utils/resolve-owner-users';
@@ -21,11 +23,16 @@ export class ListDataMartsService {
     private readonly triggerRepo: Repository<DataMartScheduledTrigger>,
     @InjectRepository(Report)
     private readonly reportRepo: Repository<Report>,
-    private readonly userProjectionsFetcherService: UserProjectionsFetcherService
+    private readonly userProjectionsFetcherService: UserProjectionsFetcherService,
+    private readonly contextAccessService: ContextAccessService
   ) {}
 
   async run(command: ListDataMartsCommand): Promise<PaginatedDataMartListItemsDto> {
     const offset = command.offset ?? 0;
+    const isAdmin = command.roles.includes('admin');
+    const roleScope: RoleScope = isAdmin
+      ? RoleScope.ENTIRE_PROJECT
+      : await this.contextAccessService.getRoleScope(command.userId, command.projectId);
 
     const { items: dataMarts, total } = await this.dataMartService.findByProjectIdForList(
       command.projectId,
@@ -35,6 +42,7 @@ export class ListDataMartsService {
         ownerFilter: command.ownerFilter,
         userId: command.userId,
         roles: command.roles,
+        roleScope,
       }
     );
 

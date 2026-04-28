@@ -20,13 +20,29 @@ const safe = (v: unknown, maxLength = 5000): string => {
   }
 };
 
-function isHttpError(e: unknown): e is { getStatus(): number } {
+function isHttpError(e: unknown): e is { getStatus(): number; getResponse?: () => unknown } {
   return (
     typeof e === 'object' &&
     e !== null &&
     'getStatus' in e &&
     typeof (e as Record<string, unknown>).getStatus === 'function'
   );
+}
+
+/**
+ * Extract a human-readable `message` string from a structured exception
+ * response when present. NestJS HttpException accepts either a string, or an
+ * object that may carry a `message` key alongside extra payload fields (e.g.
+ * `affectedMemberIds` for context-delete conflicts). We surface that string
+ * directly so the client sees the actionable wording instead of the generic
+ * exception name.
+ */
+function responseBodyMessage(structured: unknown): string | undefined {
+  if (structured && typeof structured === 'object' && !Array.isArray(structured)) {
+    const msg = (structured as Record<string, unknown>).message;
+    if (typeof msg === 'string') return msg;
+  }
+  return undefined;
 }
 
 @Catch()
@@ -43,9 +59,16 @@ export class GlobalExceptionFilter implements ExceptionFilter {
     const isHttp = isHttpError(exception);
     const status = isHttp ? exception.getStatus() : HttpStatus.INTERNAL_SERVER_ERROR;
 
+    const structured =
+      isHttp && typeof exception.getResponse === 'function' ? exception.getResponse() : undefined;
     const responseBody: Record<string, unknown> = {
+      ...(structured && typeof structured === 'object' && !Array.isArray(structured)
+        ? (structured as Record<string, unknown>)
+        : {}),
       statusCode: status,
-      message: isHttp && exception instanceof Error ? exception.message : undefined,
+      message:
+        responseBodyMessage(structured) ??
+        (isHttp && exception instanceof Error ? exception.message : undefined),
       timestamp: new Date().toISOString(),
       path: request?.originalUrl || request?.url,
       requestId: (request?.headers?.['x-request-id'] as string) || undefined,

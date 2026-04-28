@@ -63,6 +63,7 @@ import { ConnectorSecretService } from '../services/connector/connector-secret.s
 import { UpdateDataMartOwnersApiDto } from '../dto/presentation/update-data-mart-owners-api.dto';
 import { UpdateDataMartOwnersCommand } from '../dto/domain/update-data-mart-owners.command';
 import { DataStorageMapper } from './data-storage.mapper';
+import { extractContextSummaries } from '../utils/extract-context-summaries';
 
 @Injectable()
 export class DataMartMapper {
@@ -113,7 +114,8 @@ export class DataMartMapper {
       technicalOwnerUsers,
       entity.availableForReporting ?? true,
       entity.availableForMaintenance ?? true,
-      entity.blendedFieldsConfig
+      entity.blendedFieldsConfig,
+      extractContextSummaries(entity.contexts)
     );
   }
 
@@ -153,6 +155,7 @@ export class DataMartMapper {
       modifiedAt: dto.modifiedAt,
       availableForReporting: dto.availableForReporting,
       availableForMaintenance: dto.availableForMaintenance,
+      contexts: dto.contexts,
     };
   }
 
@@ -289,7 +292,8 @@ export class DataMartMapper {
       counters.reportsCount,
       createdByUser ?? null,
       businessOwnerUsers,
-      technicalOwnerUsers
+      technicalOwnerUsers,
+      extractContextSummaries(entity.contexts)
     );
   }
 
@@ -311,6 +315,7 @@ export class DataMartMapper {
       technicalOwnerUsers: dto.technicalOwnerUsers,
       createdAt: dto.createdAt,
       modifiedAt: dto.modifiedAt,
+      contexts: dto.contexts,
     };
   }
 

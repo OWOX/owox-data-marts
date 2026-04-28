@@ -8,6 +8,9 @@ import { ListDataStoragesCommand } from '../dto/domain/list-data-storages.comman
 import { DataMart } from '../entities/data-mart.entity';
 import { DataMartStatus } from '../enums/data-mart-status.enum';
 import { OwnerFilter } from '../enums/owner-filter.enum';
+import { RoleScope } from '../enums/role-scope.enum';
+import { ContextAccessService } from '../services/context/context-access.service';
+import { buildContextGateSql } from '../utils/build-context-gate-sql';
 import { UserProjectionsFetcherService } from '../services/user-projections-fetcher.service';
 import { resolveOwnerUsers } from '../utils/resolve-owner-users';
 
@@ -19,27 +22,48 @@ export class ListDataStoragesService {
     @InjectRepository(DataMart)
     private readonly dataMartRepo: Repository<DataMart>,
     private readonly mapper: DataStorageMapper,
-    private readonly userProjectionsFetcherService: UserProjectionsFetcherService
+    private readonly userProjectionsFetcherService: UserProjectionsFetcherService,
+    private readonly contextAccessService: ContextAccessService
   ) {}
 
   async run(command: ListDataStoragesCommand): Promise<DataStorageDto[]> {
     const isAdmin = command.roles.includes('admin');
     const isTu = command.roles.includes('editor') || isAdmin;
+    const roleScope: RoleScope = isAdmin
+      ? RoleScope.ENTIRE_PROJECT
+      : await this.contextAccessService.getRoleScope(command.userId, command.projectId);
 
     let qb = this.dataStorageRepo
       .createQueryBuilder('s')
       .leftJoinAndSelect('s.owners', 'owners')
+      .leftJoinAndSelect('s.contexts', 'sContexts')
+      .leftJoinAndSelect('sContexts.context', 'sContext')
       .where('s.projectId = :projectId', { projectId: command.projectId })
       .andWhere('s.deletedAt IS NULL');
 
     if (!isAdmin) {
       if (isTu) {
-        // TU: own + available_for_use + available_for_maintenance
+        // TU: own OR (shared access with context gate)
+        const contextGate = buildContextGateSql({
+          joinTable: 'storage_contexts',
+          entityIdColumn: 'storage_id',
+          entityAlias: 's',
+        });
         qb = qb.andWhere(
-          `(EXISTS (SELECT 1 FROM storage_owners o WHERE o.storage_id = s.id AND o.user_id = :userId)
-            OR s.availableForUse = :isTrue
-            OR s.availableForMaintenance = :isTrue)`,
-          { userId: command.userId, isTrue: true }
+          `(
+            EXISTS (SELECT 1 FROM storage_owners o WHERE o.storage_id = s.id AND o.user_id = :userId)
+            OR (
+              (s.availableForUse = :isTrue OR s.availableForMaintenance = :isTrue)
+              AND ${contextGate}
+            )
+          )`,
+          {
+            userId: command.userId,
+            isTrue: true,
+            roleScope,
+            entireProjectScope: RoleScope.ENTIRE_PROJECT,
+            projectId: command.projectId,
+          }
         );
       } else {
         // BU: only own (but BU ownership on Storage has no effect, so effectively none)

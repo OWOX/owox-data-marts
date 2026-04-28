@@ -9,4 +9,5 @@ export interface UpdateDataStorageRequestDto {
   ownerIds?: string[];
   availableForUse?: boolean;
   availableForMaintenance?: boolean;
+  contextIds?: string[];
 }
