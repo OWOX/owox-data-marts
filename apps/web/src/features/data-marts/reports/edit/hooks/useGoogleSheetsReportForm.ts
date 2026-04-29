@@ -12,6 +12,7 @@ import {
   useReport,
 } from '../../shared';
 import type { DataDestination } from '../../../../data-destination/shared/model/types';
+import { DEFAULT_REPORT_TITLE } from '../../shared';
 
 export const GoogleSheetsReportEditFormSchema = z.object({
   title: z.string().min(1, 'Title is required'),
@@ -58,7 +59,7 @@ export function useGoogleSheetsReportForm({
   const form = useForm<GoogleSheetsReportEditFormValues>({
     resolver: zodResolver(GoogleSheetsReportEditFormSchema),
     defaultValues: {
-      title: initialReport?.title ?? '',
+      title: initialReport?.title ?? DEFAULT_REPORT_TITLE,
       documentUrl:
         initialReport?.destinationConfig &&
         isGoogleSheetsDestinationConfig(initialReport.destinationConfig)

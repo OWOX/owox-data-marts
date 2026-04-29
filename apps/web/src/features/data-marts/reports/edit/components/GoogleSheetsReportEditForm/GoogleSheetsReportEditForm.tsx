@@ -63,6 +63,7 @@ import {
   ReportColumnsCountBadge,
   type ReportColumnSelectionCount,
 } from '../../../../edit/components/ReportColumnPicker/ReportColumnPicker';
+import { DEFAULT_REPORT_TITLE } from '../../../shared';
 
 interface GoogleSheetsReportEditFormProps {
   initialReport?: DataMartReport;
@@ -213,7 +214,12 @@ export const GoogleSheetsReportEditForm = forwardRef<
       } else if (mode === ReportFormMode.CREATE) {
         // Pre-select destination if provided
         const destinationId = preSelectedDestination?.id ?? '';
-        reset({ title: '', documentUrl: '', dataDestinationId: destinationId, columnConfig: null });
+        reset({
+          title: DEFAULT_REPORT_TITLE,
+          documentUrl: '',
+          dataDestinationId: destinationId,
+          columnConfig: null,
+        });
       }
     }, [initialReport, mode, reset, preSelectedDestination]);
 

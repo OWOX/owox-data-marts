@@ -7,7 +7,7 @@ import type {
   DestinationConfig,
 } from '../../shared/model/types/data-mart-report.ts';
 import { isLookerStudioDestinationConfig } from '../../shared/model/types/data-mart-report.ts';
-import { DestinationTypeConfigEnum, useReport } from '../../shared';
+import { DEFAULT_REPORT_TITLE, DestinationTypeConfigEnum, useReport } from '../../shared';
 import type { DataDestination } from '../../../../data-destination/shared/model/types';
 
 // Define the form schema - simplified for editing existing reports
@@ -66,7 +66,7 @@ export function useLookerStudioReportForm({
       if (initialReport) {
         // Only update the destination config, keep existing title and destination
         await updateReport(initialReport.id, {
-          title: `Looker Studio Report`, // Keep existing
+          title: initialReport.title, // Keep existing
           dataDestinationId: initialReport.dataDestination.id, // Keep existing
           destinationConfig,
           ...(pendingOwnerIdsRef?.current != null ? { ownerIds: pendingOwnerIdsRef.current } : {}),
@@ -75,7 +75,7 @@ export function useLookerStudioReportForm({
       } else {
         // This shouldn't happen in our use case, but keeping for compatibility
         await createReport({
-          title: `Looker Studio Report`,
+          title: DEFAULT_REPORT_TITLE,
           dataMartId,
           dataDestinationId: preSelectedDestination?.id ?? '',
           destinationConfig,
