@@ -35,8 +35,7 @@ import type { CredentialIdentity } from '../../../../../shared/types/credential-
 import { OwnersSection } from '../../../../../shared/components/OwnersSection/OwnersSection';
 import { ContextPicker } from '../../../../../features/contexts/components/ContextPicker/ContextPicker';
 import { AddContextSheet } from '../../../../../features/contexts/components/AddContextSheet/AddContextSheet';
-import { projectMembersService } from '../../../../../features/project-members/services/project-members.service';
-import type { MemberWithScopeDto } from '../../../../../features/contexts/types/context.types';
+import { useInlineContextCreate } from '../../../../../features/contexts/hooks/useInlineContextCreate';
 import type { UserProjectionDto } from '../../../../../shared/types/api';
 import { useOwnerState } from '../../../../../shared/hooks/useOwnerState';
 import { useUser } from '../../../../idp/hooks/useAuthState';
@@ -133,23 +132,12 @@ export function DataStorageForm({
     contextIds.some(id => !initialContextIds.includes(id));
 
   const isAdmin = useIsAdmin();
-  const [addContextOpen, setAddContextOpen] = useState(false);
-  const [contextsRefreshToken, setContextsRefreshToken] = useState(0);
-  // Lazy: fetch members list only when the inner AddContextSheet is opened so
-  // admins can optionally assign members to the freshly created context
-  // without leaving this flow. Refetch on every open in case the project
-  // member roster changed since last time the storage sheet was opened.
-  const [contextMembers, setContextMembers] = useState<MemberWithScopeDto[]>([]);
-  useEffect(() => {
-    if (!addContextOpen) return;
-    let cancelled = false;
-    void projectMembersService.getMembers().then(list => {
-      if (!cancelled) setContextMembers(list);
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [addContextOpen]);
+  const inlineContext = useInlineContextCreate({
+    enabled: isAdmin,
+    onCreated: created => {
+      setContextIds(prev => (prev.includes(created.id) ? prev : [...prev, created.id]));
+    },
+  });
 
   const [selectedSource, setSelectedSource] = useState<{
     id: string;
@@ -384,14 +372,7 @@ export function DataStorageForm({
                   selectedContextIds={contextIds}
                   onChange={setContextIds}
                   idPrefix='storage-ctx'
-                  refreshToken={contextsRefreshToken}
-                  onRequestCreate={
-                    isAdmin
-                      ? () => {
-                          setAddContextOpen(true);
-                        }
-                      : undefined
-                  }
+                  {...inlineContext.pickerProps}
                 />
                 <Accordion variant='common' type='single' collapsible>
                   <AccordionItem value='storage-contexts-help'>
@@ -524,23 +505,11 @@ export function DataStorageForm({
       {/*
        * Sheet-in-sheet: nested Radix Dialogs stack via portals, so the outer
        * Storage sheet stays mounted beneath and its unsaved form state is
-       * preserved while the admin creates a new context. After creation we
-       * bump `contextsRefreshToken` to re-fetch the list, and push the new
-       * id into `contextIds` so the checkbox is already checked when the
-       * inner sheet closes.
+       * preserved while the admin creates a new context. The hook bumps
+       * the picker refresh token and closes the sheet; we just push the
+       * new id into `contextIds`.
        */}
-      <AddContextSheet
-        isOpen={addContextOpen}
-        members={contextMembers}
-        onClose={() => {
-          setAddContextOpen(false);
-        }}
-        onCreated={created => {
-          setContextIds(prev => (prev.includes(created.id) ? prev : [...prev, created.id]));
-          setContextsRefreshToken(t => t + 1);
-          setAddContextOpen(false);
-        }}
-      />
+      <AddContextSheet {...inlineContext.sheetProps} />
     </Form>
   );
 }

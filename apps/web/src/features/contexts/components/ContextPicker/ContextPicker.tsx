@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { toast } from 'react-hot-toast';
 import { contextService } from '../../services/context.service';
 import { AdminsHoverCard } from '../../../project-members/components/AdminsHoverCard';
 import type { ContextDto } from '../../types/context.types';
@@ -31,9 +32,16 @@ export function ContextPicker({
 
   useEffect(() => {
     let cancelled = false;
-    void contextService.getContexts().then(list => {
-      if (!cancelled) setAllContexts(list);
-    });
+    void contextService
+      .getContexts()
+      .then(list => {
+        if (!cancelled) setAllContexts(list);
+      })
+      .catch((err: unknown) => {
+        if (cancelled) return;
+        setAllContexts([]);
+        toast.error(err instanceof Error ? err.message : 'Failed to load contexts');
+      });
     return () => {
       cancelled = true;
     };

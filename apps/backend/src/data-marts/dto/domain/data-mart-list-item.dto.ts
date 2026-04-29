@@ -22,7 +22,7 @@ export class DataMartListItemDto {
     public readonly businessOwnerUsers: UserProjectionDto[] = [],
     public readonly technicalOwnerUsers: UserProjectionDto[] = [],
     public readonly contexts: ContextSummary[] = [],
-    public readonly availableForReporting: boolean = false,
+    public readonly availableForReporting: boolean = true,
     public readonly availableForMaintenance: boolean = false
   ) {}
 }

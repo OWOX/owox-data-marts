@@ -31,6 +31,9 @@ type SettingsSubItem =
       isVisible?: (isOwoxIdpProvider: boolean) => boolean;
     };
 
+const PLATFORM_BASE_URL =
+  import.meta.env.VITE_OWOX_PLATFORM_URL?.replace(/\/$/, '') ?? 'https://platform.owox.com';
+
 const settingsItems: SettingsSubItem[] = [
   { kind: 'internal', title: 'Overview', path: '', icon: Settings },
   { kind: 'internal', title: 'Members', path: 'members', icon: Users },
@@ -38,14 +41,14 @@ const settingsItems: SettingsSubItem[] = [
   {
     kind: 'external',
     title: 'Credit consumption',
-    buildHref: id => `https://platform.owox.com/ui/p/${id}/settings/consumption`,
+    buildHref: id => `${PLATFORM_BASE_URL}/ui/p/${id}/settings/consumption`,
     icon: Gem,
     isVisible: isOwoxIdpProvider => isOwoxIdpProvider,
   },
   {
     kind: 'external',
     title: 'Subscription',
-    buildHref: id => `https://platform.owox.com/ui/p/${id}/settings/subscription`,
+    buildHref: id => `${PLATFORM_BASE_URL}/ui/p/${id}/settings/subscription`,
     icon: BriefcaseBusiness,
     isVisible: isOwoxIdpProvider => isOwoxIdpProvider,
   },

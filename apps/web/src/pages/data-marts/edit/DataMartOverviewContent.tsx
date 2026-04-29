@@ -14,8 +14,7 @@ import {
 import { BookOpenIcon, CalendarIcon, Globe, Info, Lock, Tags, Users } from 'lucide-react';
 import { ContextPicker } from '../../../features/contexts/components/ContextPicker/ContextPicker';
 import { AddContextSheet } from '../../../features/contexts/components/AddContextSheet/AddContextSheet';
-import { projectMembersService } from '../../../features/project-members/services/project-members.service';
-import type { MemberWithScopeDto } from '../../../features/contexts/types/context.types';
+import { useInlineContextCreate } from '../../../features/contexts/hooks/useInlineContextCreate';
 import { useIsAdmin } from '../../../features/idp/hooks/useRole';
 import { Switch } from '@owox/ui/components/switch';
 import {
@@ -62,19 +61,6 @@ export default function DataMartOverviewContent() {
   const [contextIds, setContextIds] = useState<string[]>((dataMart.contexts ?? []).map(c => c.id));
 
   const isAdmin = useIsAdmin();
-  const [addContextOpen, setAddContextOpen] = useState(false);
-  const [contextsRefreshToken, setContextsRefreshToken] = useState(0);
-  const [contextMembers, setContextMembers] = useState<MemberWithScopeDto[]>([]);
-  useEffect(() => {
-    if (!addContextOpen) return;
-    let cancelled = false;
-    void projectMembersService.getMembers().then(list => {
-      if (!cancelled) setContextMembers(list);
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [addContextOpen]);
 
   // Sync local state when dataMart props change (after refetch)
   useEffect(() => {
@@ -114,6 +100,18 @@ export default function DataMartOverviewContent() {
     },
     [dataMart.id, getDataMart]
   );
+
+  const inlineContext = useInlineContextCreate({
+    enabled: isAdmin,
+    onCreated: created => {
+      setContextIds(prev => {
+        if (prev.includes(created.id)) return prev;
+        const next = [...prev, created.id];
+        persistContexts(next);
+        return next;
+      });
+    },
+  });
 
   return (
     <div data-testid='datamartTabOverview' className='flex flex-col gap-4'>
@@ -333,14 +331,7 @@ export default function DataMartOverviewContent() {
               selectedContextIds={contextIds}
               onChange={persistContexts}
               idPrefix='dm-ctx'
-              refreshToken={contextsRefreshToken}
-              onRequestCreate={
-                isAdmin
-                  ? () => {
-                      setAddContextOpen(true);
-                    }
-                  : undefined
-              }
+              {...inlineContext.pickerProps}
             />
             <Accordion variant='common' type='single' collapsible>
               <AccordionItem value='contexts-help'>
@@ -441,19 +432,7 @@ export default function DataMartOverviewContent() {
         </CollapsibleCardContent>
         <CollapsibleCardFooter></CollapsibleCardFooter>
       </CollapsibleCard>
-      <AddContextSheet
-        isOpen={addContextOpen}
-        members={contextMembers}
-        onClose={() => {
-          setAddContextOpen(false);
-        }}
-        onCreated={created => {
-          const next = contextIds.includes(created.id) ? contextIds : [...contextIds, created.id];
-          setContextsRefreshToken(t => t + 1);
-          setAddContextOpen(false);
-          persistContexts(next);
-        }}
-      />
+      <AddContextSheet {...inlineContext.sheetProps} />
     </div>
   );
 }

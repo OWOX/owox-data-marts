@@ -50,6 +50,8 @@ interface MembersHoverCardProps {
   loadingText?: string;
   emptyText?: string;
   errorText?: string;
+  /** Fallback label when a member has no displayName and no email. */
+  unknownLabel?: string;
 
   openDelay?: number;
   closeDelay?: number;
@@ -78,6 +80,7 @@ export function MembersHoverCard({
   loadingText = 'Loading…',
   emptyText = 'No members found',
   errorText = 'Could not load members',
+  unknownLabel = 'Unknown',
   openDelay = 150,
   closeDelay = 100,
   side = 'top',
@@ -128,7 +131,7 @@ export function MembersHoverCard({
     return (
       <div className='flex flex-col gap-1.5'>
         {visible.map(m => {
-          const displayName = m.displayName ?? m.email ?? 'Unknown';
+          const displayName = m.displayName ?? m.email ?? unknownLabel;
           const initials = generateInitials(m.displayName, m.email);
           return (
             <div key={m.id} className='flex min-w-0 items-center gap-2'>
