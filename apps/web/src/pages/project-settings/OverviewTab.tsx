@@ -141,10 +141,7 @@ export function OverviewTab() {
           </CollapsibleCardHeaderTitle>
         </CollapsibleCardHeader>
         <CollapsibleCardContent>
-          {/* Stacked-card layout: each fact gets its own small card with label
-              on top and value below. Same grid feel as "At a glance" so the
-              two sections visually line up. */}
-          <div className='mb-4 grid grid-cols-1 gap-3 sm:grid-cols-3'>
+          <div className='grid grid-cols-1 gap-3 sm:grid-cols-3'>
             <DescriptionCard label='Project name' value={user?.projectTitle ?? '—'} />
             <DescriptionCard
               label='Project ID'
