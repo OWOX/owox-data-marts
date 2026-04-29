@@ -211,8 +211,39 @@ describe('BlendableSchemaService', () => {
       expect(field.aggregateFunction).toBe('SUM');
     });
 
-    it.each(['STRING', 'DATE', 'TIMESTAMP', 'BOOLEAN', 'JSON', 'VARCHAR'])(
-      'should default aggregateFunction to STRING_AGG for non-numeric type %s',
+    it.each([
+      'DATE',
+      'TIME',
+      'DATETIME',
+      'TIMESTAMP',
+      'TIMESTAMP_LTZ',
+      'TIMESTAMP_NTZ',
+      'TIMESTAMP_TZ',
+      'TIMESTAMPTZ',
+    ])('should default aggregateFunction to MAX for date/time type %s', async dateTimeType => {
+      dataMartService.getByIdAndProjectId.mockResolvedValue(
+        makeDataMart({ id: 'dm-1', blendedFieldsConfig: undefined })
+      );
+
+      const relationship = makeRelationship({
+        id: 'rel-1',
+        targetAlias: 't',
+        targetDataMart: makeDataMart({
+          id: 'dm-2',
+          title: 'Target',
+          schema: makeSchema([{ name: 'val', type: dateTimeType }]),
+        }),
+      });
+
+      relationshipService.findByStorageId.mockResolvedValue([relationship]);
+
+      const result = await service.computeBlendableSchema('dm-1', 'project-1');
+      const field = result.blendedFields.find(f => f.originalFieldName === 'val')!;
+      expect(field.aggregateFunction).toBe('MAX');
+    });
+
+    it.each(['STRING', 'BOOLEAN', 'JSON', 'VARCHAR'])(
+      'should default aggregateFunction to STRING_AGG for non-numeric, non-date/time type %s',
       async nonNumericType => {
         dataMartService.getByIdAndProjectId.mockResolvedValue(
           makeDataMart({ id: 'dm-1', blendedFieldsConfig: undefined })

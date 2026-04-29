@@ -8,7 +8,10 @@ import { DataMartRelationshipService } from './data-mart-relationship.service';
 import { DataMartService } from './data-mart.service';
 import { DataMartSchema } from '../data-storage-types/data-mart-schema.type';
 import { DataMartSchemaFieldStatus } from '../data-storage-types/enums/data-mart-schema-field-status.enum';
-import { isNumericFieldType } from '../data-storage-types/field-type-compatibility';
+import {
+  isDateOrTimeFieldType,
+  isNumericFieldType,
+} from '../data-storage-types/field-type-compatibility';
 import { BlendedFieldsConfig, BlendedSource } from '../dto/schemas/blended-fields-config.schema';
 import { AggregateFunction } from '../dto/schemas/aggregate-function.schema';
 import { BusinessViolationException } from '../../common/exceptions/business-violation.exception';
@@ -19,7 +22,9 @@ const DEFAULT_CONFIG: BlendedFieldsConfig = {
 };
 
 function getDefaultAggregateFunction(rawFieldType: string): AggregateFunction {
-  return isNumericFieldType(rawFieldType) ? 'SUM' : 'STRING_AGG';
+  if (isNumericFieldType(rawFieldType)) return 'SUM';
+  if (isDateOrTimeFieldType(rawFieldType)) return 'MAX';
+  return 'STRING_AGG';
 }
 
 interface RawSchemaField {

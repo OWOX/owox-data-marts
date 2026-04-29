@@ -52,20 +52,24 @@ const NUMERIC_TYPES = [
 
 const NUMERIC_TYPE_SET = new Set(NUMERIC_TYPES);
 
+const DATE_TIME_TYPES = [
+  'DATE',
+  'TIME',
+  'DATETIME',
+  'TIMESTAMP',
+  'TIMESTAMP_LTZ',
+  'TIMESTAMP_NTZ',
+  'TIMESTAMP_TZ',
+  'TIMESTAMPTZ',
+];
+
+const DATE_TIME_TYPE_SET = new Set(DATE_TIME_TYPES);
+
 const TYPE_GROUPS: string[][] = [
   NUMERIC_TYPES,
   ['STRING', 'VARCHAR', 'CHAR', 'TEXT', 'NVARCHAR', 'NCHAR'],
   ['BOOLEAN', 'BOOL'],
-  [
-    'DATE',
-    'TIME',
-    'DATETIME',
-    'TIMESTAMP',
-    'TIMESTAMP_LTZ',
-    'TIMESTAMP_NTZ',
-    'TIMESTAMP_TZ',
-    'TIMESTAMPTZ',
-  ],
+  DATE_TIME_TYPES,
   ['BYTES', 'BINARY', 'VARBINARY', 'BYTEA'],
 ];
 
@@ -84,4 +88,8 @@ export function areTypesCompatible(type1: string, type2: string): boolean {
 
 export function isNumericFieldType(type: string): boolean {
   return NUMERIC_TYPE_SET.has(type.toUpperCase());
+}
+
+export function isDateOrTimeFieldType(type: string): boolean {
+  return DATE_TIME_TYPE_SET.has(type.toUpperCase());
 }
