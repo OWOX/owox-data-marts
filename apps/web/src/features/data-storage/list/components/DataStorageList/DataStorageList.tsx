@@ -201,6 +201,8 @@ export const DataStorageList = ({
     draftDataMartsCount: storage.draftDataMartsCount,
     createdByUser: storage.createdByUser,
     ownerUsers: storage.ownerUsers,
+    availableForUse: storage.availableForUse,
+    availableForMaintenance: storage.availableForMaintenance,
     contexts: storage.contexts ?? [],
   }));
 

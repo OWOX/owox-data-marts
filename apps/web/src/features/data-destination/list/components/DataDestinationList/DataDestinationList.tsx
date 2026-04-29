@@ -149,6 +149,8 @@ export const DataDestinationList = ({
     credentials: destination.credentials,
     createdByUser: destination.createdByUser,
     ownerUsers: destination.ownerUsers,
+    availableForUse: destination.availableForUse,
+    availableForMaintenance: destination.availableForMaintenance,
     contexts: destination.contexts ?? [],
   }));
 

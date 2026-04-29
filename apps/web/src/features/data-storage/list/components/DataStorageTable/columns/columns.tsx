@@ -20,6 +20,8 @@ export interface DataStorageTableItem {
   draftDataMartsCount: number;
   createdByUser?: UserProjection | null;
   ownerUsers?: UserProjection[];
+  availableForUse?: boolean;
+  availableForMaintenance?: boolean;
   contexts: { id: string; name: string }[];
 }
 

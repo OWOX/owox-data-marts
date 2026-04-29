@@ -22,7 +22,11 @@ export function SidebarProjectMenu() {
           <DropdownMenu open={isOpen} onOpenChange={setIsOpen}>
             <ProjectMenuTrigger isOpen={isOpen} />
             <ProjectsProvider>
-              <ProjectMenuContent />
+              <ProjectMenuContent
+                onClose={() => {
+                  setIsOpen(false);
+                }}
+              />
             </ProjectsProvider>
           </DropdownMenu>
         </li>

@@ -6,6 +6,10 @@ import {
   collectOptionsFromData,
   type SelectOption,
 } from '../../../../../shared/components/TableFilters/collectOptions.utils';
+import {
+  buildAvailabilityFilter,
+  classifyAvailability,
+} from '../../../../../shared/components/TableFilters/availability-filter.utils';
 import { DataStorageTypeModel } from '../../../shared/types/data-storage-type.model';
 import type { DataStorageTableItem } from './columns';
 import { DataStorageColumnKey, dataStorageColumnLabels } from './columns';
@@ -14,12 +18,17 @@ import { DataStorageColumnKey, dataStorageColumnLabels } from './columns';
  * Filter keys
  * ------------------------------------------------------------------------ */
 
+enum AdditionalFilterKeys {
+  AVAILABILITY = 'availability',
+}
+
 export type DataStorageFilterKey =
   | DataStorageColumnKey.TITLE
   | DataStorageColumnKey.TYPE
   | DataStorageColumnKey.CREATED_BY
   | DataStorageColumnKey.OWNERS
-  | DataStorageColumnKey.CONTEXTS;
+  | DataStorageColumnKey.CONTEXTS
+  | AdditionalFilterKeys.AVAILABILITY;
 
 /* ---------------------------------------------------------------------------
  * Accessors (used both for filtering and option collection)
@@ -34,6 +43,8 @@ export const dataStorageFilterAccessors: FilterAccessors<
   [DataStorageColumnKey.CREATED_BY]: row => row.createdByUser?.userId,
   [DataStorageColumnKey.OWNERS]: row => (row.ownerUsers ?? []).map(u => u.userId),
   [DataStorageColumnKey.CONTEXTS]: row => row.contexts.map(c => c.id),
+  [AdditionalFilterKeys.AVAILABILITY]: row =>
+    classifyAvailability(row.availableForUse, row.availableForMaintenance),
 };
 
 /* ---------------------------------------------------------------------------
@@ -139,5 +150,9 @@ export function buildDataStorageTableFilters(
         { labelMapper: contextLabelMapper }
       ),
     },
+    buildAvailabilityFilter<DataStorageFilterKey>({
+      id: AdditionalFilterKeys.AVAILABILITY,
+      firstLabel: 'Use',
+    }),
   ];
 }

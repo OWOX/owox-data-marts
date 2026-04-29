@@ -175,6 +175,8 @@ export class DataStorageMapper {
       createdByUser: dataStorageDto.createdByUser,
       ownerUsers: dataStorageDto.ownerUsers,
       contexts: dataStorageDto.contexts,
+      availableForUse: dataStorageDto.availableForUse,
+      availableForMaintenance: dataStorageDto.availableForMaintenance,
     }));
   }
 

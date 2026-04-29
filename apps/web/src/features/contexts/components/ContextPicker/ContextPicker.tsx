@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { contextService } from '../../services/context.service';
+import { AdminsHoverCard } from '../../../project-members/components/AdminsHoverCard';
 import type { ContextDto } from '../../types/context.types';
 import { ContextsCheckboxList } from '../ContextsCheckboxList';
 
@@ -45,6 +46,12 @@ export function ContextPicker({
     onChange(next);
   };
 
+  const adminWord = (
+    <AdminsHoverCard>
+      <span className='cursor-help underline decoration-dotted underline-offset-2'>admin</span>
+    </AdminsHoverCard>
+  );
+
   return (
     <ContextsCheckboxList
       idPrefix={idPrefix}
@@ -54,7 +61,9 @@ export function ContextPicker({
       disabled={disabled}
       onRequestCreate={onRequestCreate}
       emptyText={
-        onRequestCreate ? undefined : 'No contexts available. Ask your admin to create contexts.'
+        onRequestCreate ? undefined : (
+          <>No contexts available. Ask your {adminWord} to create contexts.</>
+        )
       }
     />
   );

@@ -85,7 +85,7 @@ export function ProjectSettingsPage() {
           { name: 'Subscription', path: 'subscription', end: false },
         ]
       : []),
-    { name: 'Notification', path: 'notifications', end: false },
+    { name: 'Notifications', path: 'notifications', end: false },
   ];
 
   // Stabilize the context value object so consumers do not re-render every

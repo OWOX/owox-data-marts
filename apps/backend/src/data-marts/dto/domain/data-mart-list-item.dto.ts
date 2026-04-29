@@ -21,6 +21,8 @@ export class DataMartListItemDto {
     public readonly createdByUser: UserProjectionDto | null = null,
     public readonly businessOwnerUsers: UserProjectionDto[] = [],
     public readonly technicalOwnerUsers: UserProjectionDto[] = [],
-    public readonly contexts: ContextSummary[] = []
+    public readonly contexts: ContextSummary[] = [],
+    public readonly availableForReporting: boolean = false,
+    public readonly availableForMaintenance: boolean = false
   ) {}
 }

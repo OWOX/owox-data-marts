@@ -4,11 +4,16 @@ import {
   DropdownMenuItem,
   DropdownMenuSeparator,
 } from '@owox/ui/components/dropdown-menu';
+import { ProjectSettingsSubmenu } from './ProjectSettingsSubmenu';
 import { SwitchProjectMenu } from './SwitchProjectMenu';
 import { useProjectMenu } from './useProjectMenu';
 import { useProjectRoute } from '../../../shared/hooks';
 
-export function ProjectMenuContent() {
+interface ProjectMenuContentProps {
+  onClose: () => void;
+}
+
+export function ProjectMenuContent({ onClose }: ProjectMenuContentProps) {
   const { visibleMenuItems, canSwitchProject } = useProjectMenu();
   const { scope } = useProjectRoute();
 
@@ -18,6 +23,11 @@ export function ProjectMenuContent() {
         if (item.type === 'separator') {
           return <DropdownMenuSeparator key={`separator-${String(index)}`} />;
         }
+
+        if (item.type === 'project-settings-submenu') {
+          return <ProjectSettingsSubmenu key='project-settings' onClose={onClose} />;
+        }
+
         const Icon = item.icon;
 
         if (item.internal) {
