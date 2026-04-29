@@ -39,6 +39,7 @@ import { LegacyBigQuerySchemaMerger } from './bigquery/services/legacy/legacy-bi
 import { LegacyBigQuerySqlDryRunExecutor } from './bigquery/services/legacy/legacy-bigquery-sql-dry-run.executor';
 import { LegacyBigQuerySqlPreprocessor } from './bigquery/services/legacy/legacy-bigquery-sql-preprocessor.service';
 import { LegacyBigQuerySqlRunExecutor } from './bigquery/services/legacy/legacy-bigquery-sql-run.executor';
+import { BigQueryStorageResourceBrowser } from './bigquery/services/bigquery-storage-resource-browser.service';
 import { DataStorageCredentialsUtils } from './data-mart-schema.utils';
 import { DatabricksApiAdapterFactory } from './databricks/adapters/databricks-api-adapter.factory';
 import { DatabricksAccessValidator } from './databricks/services/databricks-access.validator';
@@ -57,6 +58,7 @@ import { DataStorageType } from './enums/data-storage-type.enum';
 import { DataStoragePublicCredentialsFactory } from './factories/data-storage-public-credentials.factory';
 import { BlendedQueryBuilder } from './interfaces/blended-query-builder.interface';
 import { CreateViewExecutor } from './interfaces/create-view-executor.interface';
+import { IStorageResourceBrowserProvider } from './interfaces/storage-resource-browser.interface';
 import {
   DataMartQueryBuilder,
   DataMartQueryBuilderAsync,
@@ -97,6 +99,7 @@ import { SnowflakeSqlDryRunExecutor } from './snowflake/services/snowflake-sql-d
 import { SnowflakeBlendedQueryBuilder } from './snowflake/services/snowflake-blended-query-builder';
 import { SnowflakeSqlRunExecutor } from './snowflake/services/snowflake-sql-run.executor';
 
+export const STORAGE_RESOURCE_BROWSER_RESOLVER = Symbol('STORAGE_RESOURCE_BROWSER_RESOLVER');
 export const BLENDED_QUERY_BUILDER_RESOLVER = Symbol('BLENDED_QUERY_BUILDER_RESOLVER');
 export const DATA_STORAGE_ACCESS_VALIDATOR_RESOLVER = Symbol(
   'DATA_STORAGE_ACCESS_VALIDATOR_RESOLVER'
@@ -213,6 +216,7 @@ const publicCredentialsProviders = [
   DataStorageCredentialsUtils,
 ];
 const legacyBigQueryProviders = [LegacyBigQuerySqlPreprocessor];
+const storageResourceBrowserProviders = [BigQueryStorageResourceBrowser];
 const blendedQueryBuilderProviders = [
   BigQueryBlendedQueryBuilder,
   SnowflakeBlendedQueryBuilder,
@@ -237,6 +241,13 @@ export const dataStorageResolverProviders = [
   ...publicCredentialsProviders,
   ...legacyBigQueryProviders,
   ...blendedQueryBuilderProviders,
+  ...storageResourceBrowserProviders,
+  {
+    provide: STORAGE_RESOURCE_BROWSER_RESOLVER,
+    useFactory: (...providers: IStorageResourceBrowserProvider[]) =>
+      new TypeResolver<DataStorageType, IStorageResourceBrowserProvider>(providers),
+    inject: storageResourceBrowserProviders,
+  },
   {
     provide: DATA_MART_QUERY_BUILDER_RESOLVER,
     useFactory: async (...builders: (DataMartQueryBuilder | DataMartQueryBuilderAsync)[]) =>

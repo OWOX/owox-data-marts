@@ -271,6 +271,8 @@ import { SyncLegacyDataMartsByGcpService } from './use-cases/legacy-data-marts/s
 import { LegacyDataMartsSyncController } from './controllers/internal/legacy-data-marts-sync.controller';
 import { ValidateDataStorageAccessService } from './use-cases/validate-data-storage-access.service';
 import { ListDataStoragesByTypeService } from './use-cases/list-data-storages-by-type.service';
+import { ListStorageResourcesService } from './use-cases/list-storage-resources.service';
+import { StorageResourceBrowserFacade } from './data-storage-types/facades/storage-resource-browser.facade';
 import { ListDataDestinationsByTypeService } from './use-cases/list-data-destinations-by-type.service';
 import { BatchDataMartHealthStatusService } from './use-cases/batch-data-mart-health-status.service';
 import { GetStorageOAuthStatusService } from './use-cases/google-oauth/get-storage-oauth-status.service';
@@ -618,6 +620,8 @@ import { SetContextMembersService } from './use-cases/contexts/set-context-membe
     SyncGcpStoragesForProjectTriggerHandler,
     ValidateDataStorageAccessService,
     ListDataStoragesByTypeService,
+    ListStorageResourcesService,
+    StorageResourceBrowserFacade,
     ListDataDestinationsByTypeService,
     BatchDataMartHealthStatusService,
     AgentFlowService,

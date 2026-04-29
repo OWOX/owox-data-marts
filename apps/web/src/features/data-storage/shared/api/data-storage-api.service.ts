@@ -6,7 +6,11 @@ import type {
   DataStorageByTypeResponseDto,
   DataStorageListResponseDto,
   DataStorageResponseDto,
+  ListStorageResourcesResponseDto,
   PublishDataStorageDraftsResponseDto,
+  StorageNamespaceNodeDto,
+  StorageResourceFilter,
+  StorageResourceLeafDto,
   UpdateDataStorageRequestDto,
 } from './types';
 import type { DataStorageType } from '../model/types';
@@ -138,6 +142,36 @@ export class DataStorageApiService extends ApiService {
       skipErrorToast: true,
     } as AxiosRequestConfig);
   }
+
+  async listStorageNamespaces(storageId: string): Promise<StorageNamespaceNodeDto[]> {
+    const response = await this.get<ListStorageResourcesResponseDto>(
+      `/${storageId}/resources`,
+      { level: 'namespaces' },
+      { skipErrorToast: true, timeout: STORAGE_RESOURCES_TIMEOUT_MS } as AxiosRequestConfig
+    );
+    return response.namespaces ?? [];
+  }
+
+  /**
+   * Lists all leaf resources (tables / views) inside a namespace.
+   * Returns a flat list; the caller groups by `groupId` for display.
+   */
+  async listStorageResources(
+    storageId: string,
+    namespaceId: string,
+    resourceType?: StorageResourceFilter
+  ): Promise<StorageResourceLeafDto[]> {
+    const response = await this.get<ListStorageResourcesResponseDto>(
+      `/${storageId}/resources`,
+      { level: 'resources', namespaceId, ...(resourceType ? { resourceType } : {}) },
+      { skipErrorToast: true, timeout: STORAGE_RESOURCES_TIMEOUT_MS } as AxiosRequestConfig
+    );
+    return response.resources ?? [];
+  }
 }
+
+// Storage resource listing calls can take 30s+ on accounts with many namespaces/tables;
+// the default 30s axios timeout aborts before the response arrives.
+const STORAGE_RESOURCES_TIMEOUT_MS = 120_000;
 
 export const dataStorageApiService = new DataStorageApiService();

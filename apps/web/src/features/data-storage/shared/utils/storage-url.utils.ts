@@ -6,6 +6,14 @@ import {
   isSnowflakeStorage,
   isRedshiftStorage,
 } from '../model/types/data-storage.ts';
+import { DataStorageType } from '../model/types/data-storage-type.enum.ts';
+import type {
+  AwsAthenaConfigDto,
+  DataStorageConfigDto,
+  DatabricksConfigDto,
+  RedshiftConfigDto,
+  SnowflakeConfigDto,
+} from '../api/types/response/data-storage.response.dto.ts';
 
 export interface ParsedFullyQualifiedName {
   dataset: string;
@@ -161,4 +169,57 @@ export function getStorageButtonText(storage: DataStorage): string {
   }
 
   return 'Open data in storage';
+}
+
+/**
+ * Builds a storage console URL directly from a data mart definition FQN.
+ *
+ * For BigQuery the project is embedded in the FQN itself (`project.dataset.table`),
+ * so no config is required for that storage type. Other types need their config
+ * (e.g. region for Athena/Redshift, account for Snowflake, host for Databricks).
+ *
+ * Returns `null` when the URL cannot be built (unsupported type, missing config,
+ * or FQN doesn't have enough parts).
+ */
+export function getStorageResourceUrlFromFqn(
+  type: DataStorageType,
+  config: DataStorageConfigDto | null,
+  fqn: string
+): string | null {
+  if (!fqn) return null;
+  const parts = fqn.split('.');
+
+  switch (type) {
+    case DataStorageType.GOOGLE_BIGQUERY:
+    case DataStorageType.LEGACY_GOOGLE_BIGQUERY: {
+      // BQ FQN: project.dataset.table
+      if (parts.length < 3) return null;
+      return getBigQueryTableUrl(parts[0], parts[1], parts[2]);
+    }
+    case DataStorageType.AWS_ATHENA: {
+      const region = (config as AwsAthenaConfigDto | null)?.region;
+      if (!region) return null;
+      return getAthenaRegionUrl(region);
+    }
+    case DataStorageType.SNOWFLAKE: {
+      const account = (config as SnowflakeConfigDto | null)?.account;
+      if (!account || parts.length < 3) return null;
+      const [database, schema, table] = parts;
+      // Build on top of the existing base-URL helper so the account format stays consistent.
+      const base = getSnowflakeConsoleUrl(account).replace(/\/$/, '');
+      return `${base}/#/data/databases/${database}/schemas/${schema}/table/${table}`;
+    }
+    case DataStorageType.AWS_REDSHIFT: {
+      const region = (config as RedshiftConfigDto | null)?.region;
+      if (!region) return null;
+      return getRedshiftQueryEditorUrl(region);
+    }
+    case DataStorageType.DATABRICKS: {
+      const host = (config as DatabricksConfigDto | null)?.host;
+      if (!host) return null;
+      return `https://${host}`;
+    }
+    default:
+      return null;
+  }
 }

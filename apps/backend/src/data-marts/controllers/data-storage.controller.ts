@@ -38,6 +38,7 @@ import { GenerateStorageOAuthUrlService } from '../use-cases/google-oauth/genera
 import { RevokeStorageOAuthService } from '../use-cases/google-oauth/revoke-storage-oauth.service';
 import { ExchangeOAuthCodeService } from '../use-cases/google-oauth/exchange-oauth-code.service';
 import { ListDataStoragesByTypeService } from '../use-cases/list-data-storages-by-type.service';
+import { ListStorageResourcesService } from '../use-cases/list-storage-resources.service';
 import { UpdateAvailabilityService } from '../use-cases/update-availability.service';
 import { UpdateStorageAvailabilityApiDto } from '../dto/presentation/update-availability-api.dto';
 import { ListDataStoragesByTypeCommand } from '../dto/domain/list-data-storages-by-type.command';
@@ -51,6 +52,7 @@ import {
   GetDataStorageSpec,
   ListDataStoragesSpec,
   ListDataStoragesByTypeSpec,
+  ListStorageResourcesSpec,
   UpdateDataStorageSpec,
   ValidateDataStorageAccessSpec,
   OAuthSettingsSpec,
@@ -60,6 +62,8 @@ import {
   OAuthRevokeSpec,
   UpdateStorageAvailabilitySpec,
 } from './spec/data-storage.api';
+import { ListStorageResourcesQueryDto } from '../dto/presentation/storage-resources/list-storage-resources-query.dto';
+import { ListStorageResourcesResponseDto } from '../dto/presentation/storage-resources/list-storage-resources-response.dto';
 
 @Controller('data-storages')
 @ApiTags('DataStorages')
@@ -78,6 +82,7 @@ export class DataStorageController {
     private readonly revokeOAuthService: RevokeStorageOAuthService,
     private readonly exchangeOAuthCodeService: ExchangeOAuthCodeService,
     private readonly listByTypeService: ListDataStoragesByTypeService,
+    private readonly listStorageResourcesService: ListStorageResourcesService,
     private readonly updateAvailabilityService: UpdateAvailabilityService,
     private readonly accessDecisionService: AccessDecisionService
   ) {}
@@ -195,6 +200,18 @@ export class DataStorageController {
   ): Promise<void> {
     const command = this.mapper.toDeleteCommand(id, context);
     await this.deleteService.run(command);
+  }
+
+  @Auth(Role.viewer(Strategy.INTROSPECT))
+  @Get(':id/resources')
+  @ListStorageResourcesSpec()
+  async listStorageResources(
+    @AuthContext() context: AuthorizationContext,
+    @Param('id') id: string,
+    @Query() query: ListStorageResourcesQueryDto
+  ): Promise<ListStorageResourcesResponseDto> {
+    const command = this.mapper.toListStorageResourcesCommand(id, context, query);
+    return this.listStorageResourcesService.run(command);
   }
 
   @Auth(Role.viewer(Strategy.INTROSPECT))

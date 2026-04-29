@@ -23,6 +23,8 @@ import { GoogleOAuthStatusResponseDto } from '../../dto/presentation/google-oaut
 import { GoogleOAuthSettingsResponseDto } from '../../dto/presentation/google-oauth/oauth-settings-response.dto';
 import { DataStorageType } from '../../data-storage-types/enums/data-storage-type.enum';
 import { OwnerFilter } from '../../enums/owner-filter.enum';
+import { ListStorageResourcesResponseDto } from '../../dto/presentation/storage-resources/list-storage-resources-response.dto';
+import { StorageResourceLevel } from '../../dto/domain/list-storage-resources.command';
 
 export function ListDataStoragesByTypeSpec() {
   return applyDecorators(
@@ -135,6 +137,37 @@ export function OAuthRevokeSpec() {
     ApiOperation({ summary: 'Revoke Google OAuth credentials for a Data Storage' }),
     ApiParam({ name: 'id', description: 'Data Storage ID' }),
     ApiNoContentResponse({ description: 'OAuth credentials revoked' })
+  );
+}
+
+export function ListStorageResourcesSpec() {
+  return applyDecorators(
+    ApiOperation({ summary: 'List storage resources (namespaces / leaf resources) for a storage' }),
+    ApiParam({ name: 'id', description: 'Data Storage ID' }),
+    ApiQuery({
+      name: 'level',
+      enum: StorageResourceLevel,
+      description: 'Tree level to load: namespaces | resources',
+    }),
+    ApiQuery({
+      name: 'namespaceId',
+      required: false,
+      description:
+        'Top-level container ID (GCP project, Snowflake database, …). Required for level=resources.',
+    }),
+    ApiQuery({
+      name: 'resourceType',
+      required: false,
+      enum: ['TABLE', 'VIEW'],
+      description: 'Filter leaf resources by type. Only applies to level=resources.',
+    }),
+    ApiOkResponse({ type: ListStorageResourcesResponseDto }),
+    ApiResponse({
+      status: 400,
+      description:
+        'Resource browsing not supported for this storage type, or required params missing',
+    }),
+    ApiResponse({ status: 403, description: 'No access to this Storage' })
   );
 }
 

@@ -13,30 +13,40 @@ import {
 import { Input } from '@owox/ui/components/input';
 import { DataStorageType } from '../../../../../data-storage';
 import type { DataStorageConfigDto } from '../../../../../data-storage/shared/api/types';
-import { getTablePatternPlaceholder, getTablePatternHelpText } from '../../../../shared';
+import {
+  getFullyQualifiedNamePlaceholder,
+  getFullyQualifiedNameHelpText,
+} from '../../../../shared';
 import { getStorageResourceUrlFromFqn } from '../../../../../data-storage/shared/utils/storage-url.utils';
 import { FillFromStorageButton } from './FillFromStorageButton';
+import type { StorageResourceFilter } from '../../../../../data-storage/shared/api/types';
 
-interface TablePatternDefinitionFieldProps {
+interface DefinitionFqnFieldProps {
   control: Control<DataMartDefinitionFormData>;
   storageType: DataStorageType;
   storageId: string;
   storageConfig: DataStorageConfigDto | null;
+  /** Controls the label text and the resource type shown in the picker. */
+  mode: 'TABLE' | 'VIEW';
 }
 
-export function TablePatternDefinitionField({
+export function DefinitionFqnField({
   control,
   storageType,
   storageId,
   storageConfig,
-}: TablePatternDefinitionFieldProps) {
-  const placeholder = getTablePatternPlaceholder(storageType);
-  const helpText = getTablePatternHelpText(storageType);
+  mode,
+}: DefinitionFqnFieldProps) {
+  const placeholder = getFullyQualifiedNamePlaceholder(storageType);
+  const helpText = getFullyQualifiedNameHelpText(storageType);
   const { setValue } = useFormContext<DataMartDefinitionFormData>();
+
+  const label = mode === 'TABLE' ? 'Fully Qualified Table Name' : 'Fully Qualified View Name';
+  const resourceType: StorageResourceFilter = mode;
 
   const handleSelect = useCallback(
     (fqn: string) => {
-      setValue('definition.pattern', fqn, {
+      setValue('definition.fullyQualifiedName', fqn, {
         shouldDirty: true,
         shouldValidate: true,
       });
@@ -47,7 +57,7 @@ export function TablePatternDefinitionField({
   return (
     <FormField
       control={control}
-      name='definition.pattern'
+      name='definition.fullyQualifiedName'
       render={({ field }) => {
         const resourceUrl = field.value
           ? getStorageResourceUrlFromFqn(storageType, storageConfig, field.value)
@@ -55,13 +65,13 @@ export function TablePatternDefinitionField({
 
         return (
           <FormItem className='dm-card-block'>
-            <FormLabel>Table Pattern</FormLabel>
+            <FormLabel>{label}</FormLabel>
             <FormControl>
               <div className='flex items-center gap-2'>
                 <FillFromStorageButton
                   storageId={storageId}
                   storageType={storageType}
-                  resourceType='TABLE'
+                  resourceType={resourceType}
                   onSelect={handleSelect}
                 />
                 <Input

@@ -66,7 +66,7 @@ export function DataMartDefinitionSettings({
   const {
     definition: initialDefinition,
     id: dataMartId,
-    storage: { type: storageType },
+    storage: { id: storageId, type: storageType, config: storageConfig },
   } = dataMart;
 
   const [, setSqlValidationState] = useState<SqlValidationState>(initialSqlValidationState);
@@ -194,6 +194,8 @@ export function DataMartDefinitionSettings({
         <DataMartDefinitionForm
           definitionType={definitionType}
           storageType={storageType}
+          storageId={storageId}
+          storageConfig={storageConfig}
           preset={preset?.connectorSourceTitle}
           saveDataMartDefinition={handleFormSubmit}
         />
