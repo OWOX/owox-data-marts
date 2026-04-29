@@ -34,7 +34,6 @@ describe('CreateDataMartRelationshipService', () => {
       validateNoSelfReference: jest.fn(),
       validateSameStorage: jest.fn(),
       validateUniqueAlias: jest.fn().mockResolvedValue(undefined),
-      detectCycles: jest.fn().mockResolvedValue(false),
       validateJoinFieldTypes: jest.fn(),
       create: jest.fn().mockResolvedValue(relationship),
     };

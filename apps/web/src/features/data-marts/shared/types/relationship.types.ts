@@ -65,6 +65,7 @@ export interface TransientRelationshipRow {
    * produce identical children — distinct rows, but same rel.id/depth).
    */
   rowKey: string;
+  isCycleStub?: boolean;
 }
 
 export interface BlendedField {

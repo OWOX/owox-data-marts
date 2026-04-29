@@ -16,7 +16,7 @@ function makeDataMart(overrides: Partial<DataMart> = {}): DataMart {
     status: 'draft' as DataMart['status'],
     createdAt: new Date(),
     modifiedAt: new Date(),
-    storage: {} as unknown as DataMart['storage'],
+    storage: { id: 'storage-1' } as unknown as DataMart['storage'],
     ...overrides,
   } as DataMart;
 }
@@ -59,7 +59,7 @@ describe('BlendableSchemaService', () => {
         {
           provide: DataMartRelationshipService,
           useValue: {
-            findBySourceDataMartId: jest.fn(),
+            findByStorageId: jest.fn().mockResolvedValue([]),
           },
         },
         {
@@ -85,7 +85,7 @@ describe('BlendableSchemaService', () => {
           schema: makeSchema(nativeSchemaFields),
         })
       );
-      relationshipService.findBySourceDataMartId.mockResolvedValue([]);
+      relationshipService.findByStorageId.mockResolvedValue([]);
 
       const result = await service.computeBlendableSchema('dm-1', 'project-1');
 
@@ -95,7 +95,7 @@ describe('BlendableSchemaService', () => {
 
     it('should return empty arrays when schema is undefined and no relationships exist', async () => {
       dataMartService.getByIdAndProjectId.mockResolvedValue(makeDataMart({ schema: undefined }));
-      relationshipService.findBySourceDataMartId.mockResolvedValue([]);
+      relationshipService.findByStorageId.mockResolvedValue([]);
 
       const result = await service.computeBlendableSchema('dm-1', 'project-1');
 
@@ -120,10 +120,7 @@ describe('BlendableSchemaService', () => {
         }),
       });
 
-      relationshipService.findBySourceDataMartId.mockImplementation(async (sourceId: string) => {
-        if (sourceId === 'dm-a') return [unconfigured];
-        return [];
-      });
+      relationshipService.findByStorageId.mockResolvedValue([unconfigured]);
 
       const result = await service.computeBlendableSchema('dm-a', 'project-1');
 
@@ -149,10 +146,7 @@ describe('BlendableSchemaService', () => {
         }),
       });
 
-      relationshipService.findBySourceDataMartId.mockImplementation(async (id: string) => {
-        if (id === 'dm-1') return [relationship];
-        return [];
-      });
+      relationshipService.findByStorageId.mockResolvedValue([relationship]);
 
       const result = await service.computeBlendableSchema('dm-1', 'project-1');
 
@@ -210,10 +204,7 @@ describe('BlendableSchemaService', () => {
         }),
       });
 
-      relationshipService.findBySourceDataMartId.mockImplementation(async (id: string) => {
-        if (id === 'dm-1') return [relationship];
-        return [];
-      });
+      relationshipService.findByStorageId.mockResolvedValue([relationship]);
 
       const result = await service.computeBlendableSchema('dm-1', 'project-1');
       const field = result.blendedFields.find(f => f.originalFieldName === 'val')!;
@@ -237,10 +228,7 @@ describe('BlendableSchemaService', () => {
           }),
         });
 
-        relationshipService.findBySourceDataMartId.mockImplementation(async (id: string) => {
-          if (id === 'dm-1') return [relationship];
-          return [];
-        });
+        relationshipService.findByStorageId.mockResolvedValue([relationship]);
 
         const result = await service.computeBlendableSchema('dm-1', 'project-1');
         const field = result.blendedFields.find(f => f.originalFieldName === 'val')!;
@@ -280,10 +268,7 @@ describe('BlendableSchemaService', () => {
         }),
       });
 
-      relationshipService.findBySourceDataMartId.mockImplementation(async (id: string) => {
-        if (id === 'dm-1') return [relationship];
-        return [];
-      });
+      relationshipService.findByStorageId.mockResolvedValue([relationship]);
 
       const result = await service.computeBlendableSchema('dm-1', 'project-1');
 
@@ -335,10 +320,7 @@ describe('BlendableSchemaService', () => {
         }),
       });
 
-      relationshipService.findBySourceDataMartId.mockImplementation(async (id: string) => {
-        if (id === 'dm-1') return [relationship];
-        return [];
-      });
+      relationshipService.findByStorageId.mockResolvedValue([relationship]);
 
       const result = await service.computeBlendableSchema('dm-1', 'project-1');
 
@@ -368,7 +350,7 @@ describe('BlendableSchemaService', () => {
         targetDataMart: undefined,
         joinConditions: [{ sourceFieldName: 'a_id', targetFieldName: 'b_id' }],
       } as unknown as DataMartRelationship;
-      relationshipService.findBySourceDataMartId.mockResolvedValue([orphanRel]);
+      relationshipService.findByStorageId.mockResolvedValue([orphanRel]);
 
       await expect(service.computeBlendableSchema('dm-a', 'project-1')).rejects.toThrow(
         /relationship.+rel-broken.+deleted/i
@@ -400,11 +382,7 @@ describe('BlendableSchemaService', () => {
         }),
       });
 
-      relationshipService.findBySourceDataMartId.mockImplementation(async (id: string) => {
-        if (id === 'dm-a') return [relAtoB];
-        if (id === 'dm-b') return [relBtoC];
-        return [];
-      });
+      relationshipService.findByStorageId.mockResolvedValue([relAtoB, relBtoC]);
 
       const result = await service.computeBlendableSchema('dm-a', 'project-1');
 
@@ -422,7 +400,7 @@ describe('BlendableSchemaService', () => {
       expect(cField.transitiveDepth).toBe(2);
     });
 
-    it('should prevent infinite loops via cycle protection (visited set on alias path)', async () => {
+    it('stops branch traversal when a target DM is already on the current path', async () => {
       dataMartService.getByIdAndProjectId.mockResolvedValue(makeDataMart({ id: 'dm-a' }));
 
       const relAtoB = makeRelationship({
@@ -439,15 +417,124 @@ describe('BlendableSchemaService', () => {
         targetDataMart: makeDataMart({ id: 'dm-a', title: 'DM A' }),
       });
 
-      relationshipService.findBySourceDataMartId.mockImplementation(async (id: string) => {
-        if (id === 'dm-a') return [relAtoB];
-        if (id === 'dm-b') return [relBtoA];
-        return [];
+      relationshipService.findByStorageId.mockResolvedValue([relAtoB, relBtoA]);
+
+      const result = await service.computeBlendableSchema('dm-a', 'project-1');
+
+      const aliasPathsFound = result.availableSources.map(s => s.aliasPath);
+      expect(aliasPathsFound).toContain('b_alias');
+      expect(aliasPathsFound.some(p => p.startsWith('b_alias.a_alias'))).toBe(false);
+      expect(result.blendedFields).toEqual([]);
+    });
+
+    it('direct 2-node cycle: only target B fields appear, no back-path fields', async () => {
+      dataMartService.getByIdAndProjectId.mockResolvedValue(
+        makeDataMart({
+          id: 'dm-a',
+          schema: makeSchema([{ name: 'native_a', type: 'STRING' }]),
+        })
+      );
+
+      const relAtoB = makeRelationship({
+        id: 'rel-ab',
+        targetAlias: 'b',
+        sourceDataMart: makeDataMart({ id: 'dm-a' }),
+        targetDataMart: makeDataMart({
+          id: 'dm-b',
+          title: 'DM B',
+          schema: makeSchema([{ name: 'b_field', type: 'STRING' }]),
+        }),
       });
 
-      // Should terminate without error — bounded by MAX_TRANSITIVE_DEPTH (10)
+      const relBtoA = makeRelationship({
+        id: 'rel-ba',
+        targetAlias: 'a_back',
+        sourceDataMart: makeDataMart({ id: 'dm-b' }),
+        targetDataMart: makeDataMart({
+          id: 'dm-a',
+          schema: makeSchema([{ name: 'native_a', type: 'STRING' }]),
+        }),
+      });
+
+      relationshipService.findByStorageId.mockResolvedValue([relAtoB, relBtoA]);
+
       const result = await service.computeBlendableSchema('dm-a', 'project-1');
-      expect(result.blendedFields).toEqual([]);
+
+      expect(result.availableSources).toHaveLength(1);
+      expect(result.availableSources[0].aliasPath).toBe('b');
+      expect(result.availableSources.some(s => s.aliasPath.startsWith('b.a_back'))).toBe(false);
+      expect(result.blendedFields).toHaveLength(1);
+      expect(result.blendedFields[0].name).toBe('b__b_field');
+    });
+
+    it('transitive 3-node cycle: B and B.C appear, back-edge B.C.a_back does not', async () => {
+      dataMartService.getByIdAndProjectId.mockResolvedValue(makeDataMart({ id: 'dm-a' }));
+
+      const relAtoB = makeRelationship({
+        id: 'rel-ab',
+        targetAlias: 'b',
+        sourceDataMart: makeDataMart({ id: 'dm-a' }),
+        targetDataMart: makeDataMart({ id: 'dm-b', schema: makeSchema([]) }),
+      });
+
+      const relBtoC = makeRelationship({
+        id: 'rel-bc',
+        targetAlias: 'c',
+        sourceDataMart: makeDataMart({ id: 'dm-b' }),
+        targetDataMart: makeDataMart({
+          id: 'dm-c',
+          schema: makeSchema([{ name: 'c_field', type: 'INTEGER' }]),
+        }),
+      });
+
+      const relCtoA = makeRelationship({
+        id: 'rel-ca',
+        targetAlias: 'a_back',
+        sourceDataMart: makeDataMart({ id: 'dm-c' }),
+        targetDataMart: makeDataMart({ id: 'dm-a' }),
+      });
+
+      relationshipService.findByStorageId.mockResolvedValue([relAtoB, relBtoC, relCtoA]);
+
+      const result = await service.computeBlendableSchema('dm-a', 'project-1');
+
+      const aliasPathsFound = result.availableSources.map(s => s.aliasPath);
+      expect(aliasPathsFound).toContain('b');
+      expect(aliasPathsFound).toContain('b.c');
+      expect(aliasPathsFound.some(p => p.startsWith('b.c.a_back'))).toBe(false);
+      expect(result.blendedFields).toHaveLength(1);
+      expect(result.blendedFields[0].name).toBe('b_c__c_field');
+    });
+
+    it('deep chain of 15 nodes without cycles traverses all levels', async () => {
+      const chainLength = 15;
+      const dms = Array.from({ length: chainLength }, (_, i) =>
+        makeDataMart({
+          id: `dm-${i}`,
+          title: `DM ${i}`,
+          schema: makeSchema([{ name: `f_${i}`, type: 'STRING' }]),
+        })
+      );
+
+      dataMartService.getByIdAndProjectId.mockResolvedValue(dms[0]);
+
+      const rels = Array.from({ length: chainLength - 1 }, (_, i) =>
+        makeRelationship({
+          id: `rel-${i}`,
+          targetAlias: `alias_${i + 1}`,
+          sourceDataMart: dms[i],
+          targetDataMart: dms[i + 1],
+        })
+      );
+
+      relationshipService.findByStorageId.mockResolvedValue(rels);
+
+      const result = await service.computeBlendableSchema('dm-0', 'project-1');
+
+      expect(result.availableSources).toHaveLength(chainLength - 1);
+      const lastSource = result.availableSources[chainLength - 2];
+      expect(lastSource.depth).toBe(chainLength - 1);
+      expect(result.blendedFields).toHaveLength(chainLength - 1);
     });
 
     it('should support diamond pattern — same DM via two different paths', async () => {
@@ -490,12 +577,12 @@ describe('BlendableSchemaService', () => {
         targetDataMart: sharedDm,
       });
 
-      relationshipService.findBySourceDataMartId.mockImplementation(async (id: string) => {
-        if (id === 'dm-root') return [relRootToLeft, relRootToRight];
-        if (id === 'dm-left') return [relLeftToShared];
-        if (id === 'dm-right') return [relRightToShared];
-        return [];
-      });
+      relationshipService.findByStorageId.mockResolvedValue([
+        relRootToLeft,
+        relRootToRight,
+        relLeftToShared,
+        relRightToShared,
+      ]);
 
       const result = await service.computeBlendableSchema('dm-root', 'project-1');
 
@@ -531,10 +618,7 @@ describe('BlendableSchemaService', () => {
         }),
       });
 
-      relationshipService.findBySourceDataMartId.mockImplementation(async (id: string) => {
-        if (id === 'dm-1') return [relationship];
-        return [];
-      });
+      relationshipService.findByStorageId.mockResolvedValue([relationship]);
 
       const result = await service.computeBlendableSchema('dm-1', 'project-1');
 
@@ -559,10 +643,7 @@ describe('BlendableSchemaService', () => {
         }),
       });
 
-      relationshipService.findBySourceDataMartId.mockImplementation(async (id: string) => {
-        if (id === 'dm-1') return [relationship];
-        return [];
-      });
+      relationshipService.findByStorageId.mockResolvedValue([relationship]);
 
       const result = await service.computeBlendableSchema('dm-1', 'project-1');
 
@@ -589,10 +670,7 @@ describe('BlendableSchemaService', () => {
         }),
       });
 
-      relationshipService.findBySourceDataMartId.mockImplementation(async (id: string) => {
-        if (id === 'dm-1') return [relationship];
-        return [];
-      });
+      relationshipService.findByStorageId.mockResolvedValue([relationship]);
 
       const result = await service.computeBlendableSchema('dm-1', 'project-1');
 
@@ -614,10 +692,7 @@ describe('BlendableSchemaService', () => {
         }),
       });
 
-      relationshipService.findBySourceDataMartId.mockImplementation(async (id: string) => {
-        if (id === 'dm-1') return [relationship];
-        return [];
-      });
+      relationshipService.findByStorageId.mockResolvedValue([relationship]);
 
       const result = await service.computeBlendableSchema('dm-1', 'project-1');
 
@@ -650,10 +725,7 @@ describe('BlendableSchemaService', () => {
         targetDataMart: targetDm,
       });
 
-      relationshipService.findBySourceDataMartId.mockImplementation(async (id: string) => {
-        if (id === 'dm-1') return [rel1, rel2];
-        return [];
-      });
+      relationshipService.findByStorageId.mockResolvedValue([rel1, rel2]);
 
       const result = await service.computeBlendableSchema('dm-1', 'project-1');
 

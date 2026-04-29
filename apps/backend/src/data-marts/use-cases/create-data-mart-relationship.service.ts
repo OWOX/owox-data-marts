@@ -1,6 +1,5 @@
 import { Injectable, ForbiddenException, UnauthorizedException } from '@nestjs/common';
 import { Transactional } from 'typeorm-transactional';
-import { BusinessViolationException } from '../../common/exceptions/business-violation.exception';
 import { CreateRelationshipCommand } from '../dto/domain/create-relationship.command';
 import { RelationshipDto } from '../dto/domain/relationship.dto';
 import { RelationshipMapper } from '../mappers/relationship.mapper';
@@ -68,23 +67,6 @@ export class CreateDataMartRelationshipService {
       command.sourceDataMartId,
       command.targetAlias
     );
-
-    const hasCycle = await this.relationshipService.detectCycles(
-      command.sourceDataMartId,
-      command.targetDataMartId,
-      sourceDataMart.storage.id,
-      command.projectId
-    );
-
-    if (hasCycle) {
-      throw new BusinessViolationException(
-        'Adding this relationship would create a circular reference between data marts',
-        {
-          sourceDataMartId: command.sourceDataMartId,
-          targetDataMartId: command.targetDataMartId,
-        }
-      );
-    }
 
     this.relationshipService.validateJoinFieldTypes(
       sourceDataMart.schema,

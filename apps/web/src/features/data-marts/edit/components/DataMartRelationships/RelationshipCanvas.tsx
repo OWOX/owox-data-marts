@@ -11,6 +11,11 @@ import { Presets as ReactPresets, type ReactArea2D, ReactPlugin } from 'rete-rea
 import { Button } from '../../../../../shared/components/Button';
 import { dataMartRelationshipService } from '../../../shared/services/data-mart-relationship.service';
 import type { DataMartRelationship } from '../../../shared/types/relationship.types';
+import {
+  CYCLE_STUB_TOOLTIP,
+  getRelationshipWarningLabel,
+  hasRelationshipWarning,
+} from './relationship-warning-state';
 
 interface RelationshipCanvasProps {
   dataMartId: string;
@@ -32,7 +37,6 @@ const SRC_H = 48;
 const TGT_H = 74;
 const H_GAP = 280;
 const V_GAP = 24;
-const MAX_DEPTH = 5;
 const NODE_BORDER = '#9ca3af'; // gray-400, visible in both themes
 const HIGHLIGHT_COLOR = '#3b82f6'; // blue-500
 const DRAFT_COLOR = '#f97316'; // orange-500
@@ -50,6 +54,7 @@ class DMNode extends ClassicPreset.Node {
   isDraft: boolean;
   isBlocked: boolean;
   isJoinNotConfigured: boolean;
+  isCycleStub: boolean;
   highlighted = false;
   dimmed = false;
 
@@ -66,6 +71,7 @@ class DMNode extends ClassicPreset.Node {
       isDraft?: boolean;
       isBlocked?: boolean;
       isJoinNotConfigured?: boolean;
+      isCycleStub?: boolean;
     }
   ) {
     super(label);
@@ -79,6 +85,7 @@ class DMNode extends ClassicPreset.Node {
     this.isDraft = opts?.isDraft ?? false;
     this.isBlocked = opts?.isBlocked ?? false;
     this.isJoinNotConfigured = opts?.isJoinNotConfigured ?? false;
+    this.isCycleStub = opts?.isCycleStub ?? false;
     if (!isSource) this.height = TGT_H;
   }
 }
@@ -159,18 +166,12 @@ function NodeComponent(props: { data: Schemes['Node']; emit: (e: ReactArea2D<Sch
     );
   }
 
-  const isOrange = n.isDraft || n.isBlocked || n.isJoinNotConfigured;
-  const borderColor = isOrange ? DRAFT_COLOR : NODE_BORDER;
-  const badgeLabel = n.isDraft
-    ? 'Draft'
-    : n.isJoinNotConfigured
-      ? 'Join not configured'
-      : n.isBlocked
-        ? 'Blocked'
-        : null;
+  const borderColor = hasRelationshipWarning(n) ? DRAFT_COLOR : NODE_BORDER;
+  const badgeLabel = getRelationshipWarningLabel(n);
 
   return (
     <div
+      title={n.isCycleStub ? CYCLE_STUB_TOOLTIP : undefined}
       style={{
         width: n.width,
         height: n.height,
@@ -347,9 +348,11 @@ async function setupEditor(
       src?.isDraft === true ||
       src?.isBlocked === true ||
       src?.isJoinNotConfigured === true ||
+      src?.isCycleStub === true ||
       tgt?.isDraft === true ||
       tgt?.isBlocked === true ||
-      tgt?.isJoinNotConfigured === true;
+      tgt?.isJoinNotConfigured === true ||
+      tgt?.isCycleStub === true;
     const bothDimmed =
       (src?.dimmed === true || src === undefined) && (tgt?.dimmed === true || tgt === undefined);
 
@@ -412,6 +415,7 @@ async function setupEditor(
     isDraft?: boolean;
     isBlocked?: boolean;
     isJoinNotConfigured?: boolean;
+    isCycleStub?: boolean;
   }
   interface EdgeInfo {
     sourceId: string;
@@ -451,6 +455,7 @@ async function setupEditor(
       const isDraft = rel.targetDataMart.status === 'DRAFT';
       const isJoinNotConfigured = rel.joinConditions.length === 0;
       const isBlocked = parentBlocked;
+      const isCycleStub = ancestorDmIds.has(dmId);
 
       edges.push({ sourceId: parentNodeKey, targetId: nodeKey });
 
@@ -466,9 +471,10 @@ async function setupEditor(
         isDraft,
         isBlocked,
         isJoinNotConfigured,
+        isCycleStub,
       });
 
-      if (showTransient && depth < MAX_DEPTH && !ancestorDmIds.has(dmId)) {
+      if (showTransient && !isCycleStub) {
         try {
           const childRels = await dataMartRelationshipService.getRelationships(dmId, {
             skipLoadingIndicator: true,
@@ -505,12 +511,13 @@ async function setupEditor(
       isDraft: info.isDraft,
       isBlocked: info.isBlocked,
       isJoinNotConfigured: info.isJoinNotConfigured,
+      isCycleStub: info.isCycleStub,
       onOpenExternal: () => {
         onOpenExternal(info.dmId);
       },
     });
 
-    if (hasOutgoing.has(nodeKey)) {
+    if (hasOutgoing.has(nodeKey) && !info.isCycleStub) {
       node.addOutput('out', new ClassicPreset.Output(SOCKET));
     }
     if (!info.isSource) {

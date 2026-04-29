@@ -5,8 +5,6 @@ import type {
   TransientRelationshipRow,
 } from '../../../shared/types/relationship.types';
 
-const MAX_DEPTH = 5;
-
 export function useTransientRelationships(
   dataMartId: string,
   dataMartTitle: string,
@@ -28,6 +26,7 @@ export function useTransientRelationships(
       isBlocked: false,
       aliasPath: rel.targetAlias,
       rowKey: rel.id,
+      isCycleStub: false,
     }));
 
     if (!showTransient) {
@@ -71,10 +70,11 @@ export function useTransientRelationships(
             isBlocked: parentBlocked,
             aliasPath,
             rowKey,
+            isCycleStub: false,
           };
 
-          if (depth >= MAX_DEPTH || ancestorDmIds.has(dmId)) {
-            return [row];
+          if (ancestorDmIds.has(dmId)) {
+            return [{ ...row, isCycleStub: true }];
           }
 
           try {
