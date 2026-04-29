@@ -5,6 +5,7 @@ import { DataMartService } from './data-mart.service';
 import { DataMart } from '../entities/data-mart.entity';
 import { DataMartRelationship } from '../entities/data-mart-relationship.entity';
 import { BlendedFieldsConfig } from '../dto/schemas/blended-fields-config.schema';
+import { DataMartStatus } from '../enums/data-mart-status.enum';
 
 function makeDataMart(overrides: Partial<DataMart> = {}): DataMart {
   return {
@@ -13,7 +14,7 @@ function makeDataMart(overrides: Partial<DataMart> = {}): DataMart {
     schema: undefined,
     projectId: 'project-1',
     createdById: 'user-1',
-    status: 'draft' as DataMart['status'],
+    status: DataMartStatus.PUBLISHED,
     createdAt: new Date(),
     modifiedAt: new Date(),
     storage: { id: 'storage-1' } as unknown as DataMart['storage'],
@@ -128,6 +129,64 @@ describe('BlendableSchemaService', () => {
       expect(result.blendedFields).toEqual([]);
     });
 
+    it('should skip relationships targeting a DRAFT data mart and their downstream children', async () => {
+      dataMartService.getByIdAndProjectId.mockResolvedValue(makeDataMart({ id: 'dm-a' }));
+
+      const relAtoB = makeRelationship({
+        id: 'rel-ab',
+        targetAlias: 'b',
+        sourceDataMart: makeDataMart({ id: 'dm-a' }),
+        targetDataMart: makeDataMart({
+          id: 'dm-b',
+          status: DataMartStatus.DRAFT,
+          schema: makeSchema([{ name: 'b_field', type: 'STRING' }]),
+        }),
+      });
+      const relBtoC = makeRelationship({
+        id: 'rel-bc',
+        targetAlias: 'c',
+        sourceDataMart: makeDataMart({ id: 'dm-b' }),
+        targetDataMart: makeDataMart({
+          id: 'dm-c',
+          schema: makeSchema([{ name: 'c_field', type: 'INTEGER' }]),
+        }),
+      });
+
+      relationshipService.findByStorageId.mockResolvedValue([relAtoB, relBtoC]);
+
+      const result = await service.computeBlendableSchema('dm-a', 'project-1');
+
+      expect(result.availableSources).toEqual([]);
+      expect(result.blendedFields).toEqual([]);
+    });
+
+    it('still exposes a draft root data mart, only filters draft relationship targets', async () => {
+      dataMartService.getByIdAndProjectId.mockResolvedValue(
+        makeDataMart({
+          id: 'dm-root',
+          status: DataMartStatus.DRAFT,
+          schema: makeSchema([{ name: 'native_field', type: 'STRING' }]),
+        })
+      );
+
+      const relationship = makeRelationship({
+        id: 'rel-1',
+        targetAlias: 'target',
+        sourceDataMart: makeDataMart({ id: 'dm-root' }),
+        targetDataMart: makeDataMart({
+          id: 'dm-target',
+          schema: makeSchema([{ name: 'target_field', type: 'STRING' }]),
+        }),
+      });
+      relationshipService.findByStorageId.mockResolvedValue([relationship]);
+
+      const result = await service.computeBlendableSchema('dm-root', 'project-1');
+
+      expect(result.nativeFields).toHaveLength(1);
+      expect(result.blendedFields).toHaveLength(1);
+      expect(result.blendedFields[0].originalFieldName).toBe('target_field');
+    });
+
     it('should dynamically compute blended fields from target schema (AUTO_BLEND_ALL default)', async () => {
       dataMartService.getByIdAndProjectId.mockResolvedValue(
         makeDataMart({ id: 'dm-1', blendedFieldsConfig: undefined })
@@ -211,8 +270,39 @@ describe('BlendableSchemaService', () => {
       expect(field.aggregateFunction).toBe('SUM');
     });
 
-    it.each(['STRING', 'DATE', 'TIMESTAMP', 'BOOLEAN', 'JSON', 'VARCHAR'])(
-      'should default aggregateFunction to STRING_AGG for non-numeric type %s',
+    it.each([
+      'DATE',
+      'TIME',
+      'DATETIME',
+      'TIMESTAMP',
+      'TIMESTAMP_LTZ',
+      'TIMESTAMP_NTZ',
+      'TIMESTAMP_TZ',
+      'TIMESTAMPTZ',
+    ])('should default aggregateFunction to MAX for date/time type %s', async dateTimeType => {
+      dataMartService.getByIdAndProjectId.mockResolvedValue(
+        makeDataMart({ id: 'dm-1', blendedFieldsConfig: undefined })
+      );
+
+      const relationship = makeRelationship({
+        id: 'rel-1',
+        targetAlias: 't',
+        targetDataMart: makeDataMart({
+          id: 'dm-2',
+          title: 'Target',
+          schema: makeSchema([{ name: 'val', type: dateTimeType }]),
+        }),
+      });
+
+      relationshipService.findByStorageId.mockResolvedValue([relationship]);
+
+      const result = await service.computeBlendableSchema('dm-1', 'project-1');
+      const field = result.blendedFields.find(f => f.originalFieldName === 'val')!;
+      expect(field.aggregateFunction).toBe('MAX');
+    });
+
+    it.each(['STRING', 'BOOLEAN', 'JSON', 'VARCHAR'])(
+      'should default aggregateFunction to STRING_AGG for non-numeric, non-date/time type %s',
       async nonNumericType => {
         dataMartService.getByIdAndProjectId.mockResolvedValue(
           makeDataMart({ id: 'dm-1', blendedFieldsConfig: undefined })
