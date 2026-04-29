@@ -4,6 +4,7 @@ import { cn } from '@owox/ui/lib/utils';
 import { Badge } from '@owox/ui/components/badge';
 import { Checkbox } from '@owox/ui/components/checkbox';
 import { Collapsible, CollapsibleContent } from '@owox/ui/components/collapsible';
+import { Switch } from '@owox/ui/components/switch';
 import { ChevronDown, ChevronRight } from 'lucide-react';
 import { Skeleton } from '@owox/ui/components/skeleton';
 import { dataMartRelationshipService } from '../../../shared/services/data-mart-relationship.service';
@@ -296,35 +297,28 @@ export function ReportColumnPicker({
     );
   }
 
+  const allSelected = totalFieldsCount > 0 && selectedFieldsCount >= totalFieldsCount;
+  const toggleLabelClass =
+    'text-muted-foreground hover:text-foreground flex cursor-pointer items-center gap-2 text-xs transition-colors';
+
   return (
     <div className='space-y-2'>
       <div className='flex items-center justify-between px-2'>
-        <label className='text-muted-foreground hover:text-foreground flex cursor-pointer items-center gap-2 text-xs transition-colors'>
+        <label className={toggleLabelClass}>
           <Checkbox
-            checked={showSelectedOnly}
+            checked={allSelected}
             onCheckedChange={checked => {
-              setShowSelectedOnly(checked === true);
+              if (checked === true) selectAll();
+              else deselectAll();
             }}
+            aria-label={allSelected ? 'Deselect all fields' : 'Select all fields'}
           />
-          Selected only
+          Select all
         </label>
-        <div className='flex gap-2'>
-          <button
-            type='button'
-            className='text-muted-foreground hover:text-foreground cursor-pointer text-xs transition-colors'
-            onClick={selectAll}
-          >
-            Select All
-          </button>
-          <span className='text-muted-foreground text-xs'>/</span>
-          <button
-            type='button'
-            className='text-muted-foreground hover:text-foreground cursor-pointer text-xs transition-colors'
-            onClick={deselectAll}
-          >
-            Deselect All
-          </button>
-        </div>
+        <label className={toggleLabelClass}>
+          Selected only
+          <Switch checked={showSelectedOnly} onCheckedChange={setShowSelectedOnly} />
+        </label>
       </div>
 
       <div

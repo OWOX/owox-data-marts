@@ -325,7 +325,7 @@ export function JoinSettingsForm({
                 </TooltipContent>
               </Tooltip>
             </label>
-            <div className='text-muted-foreground flex flex-wrap items-center gap-x-1.5 gap-y-1 text-sm'>
+            <div className='text-muted-foreground flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-1 text-sm'>
               <ExternalAnchor
                 href={scope(`/data-marts/${relationship.targetDataMart.id}/data-setup`)}
                 title={relationship.targetDataMart.title}
@@ -333,15 +333,15 @@ export function JoinSettingsForm({
               >
                 <span className='max-w-[360px] truncate'>{relationship.targetDataMart.title}</span>
               </ExternalAnchor>
-              <span className='flex shrink-0 items-center gap-1.5'>
-                <span>Joined {formatDateShort(relationship.createdAt)}</span>
-                {relationship.createdByUser && (
-                  <>
-                    <span>by</span>
-                    <UserReference userProjection={relationship.createdByUser} />
-                  </>
-                )}
+              <span className='whitespace-nowrap'>
+                Joined {formatDateShort(relationship.createdAt)}
               </span>
+              {relationship.createdByUser && (
+                <span className='flex min-w-0 items-center gap-1.5'>
+                  <span>by</span>
+                  <UserReference userProjection={relationship.createdByUser} />
+                </span>
+              )}
             </div>
           </div>
 
