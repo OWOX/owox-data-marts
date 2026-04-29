@@ -16,6 +16,7 @@ import type {
 } from '../../shared/services/types/update-report.request.dto';
 import type { DataDestination } from '../../../../data-destination';
 import { ReportConditionEnum } from '../../shared/enums/report-condition.enum';
+import { DEFAULT_REPORT_TITLE } from '../../shared';
 
 export const EmailReportEditFormSchema = z
   .object({
@@ -89,7 +90,7 @@ export function useEmailReportForm({
   const form = useForm<EmailReportEditFormValues>({
     resolver: zodResolver(EmailReportEditFormSchema),
     defaultValues: {
-      title: initialReport?.title ?? '',
+      title: initialReport?.title ?? DEFAULT_REPORT_TITLE,
       dataDestinationId: initialReport?.dataDestination.id ?? preSelectedDestination?.id ?? '',
       reportCondition:
         initialReport?.destinationConfig &&

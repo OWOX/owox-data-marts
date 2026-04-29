@@ -76,6 +76,7 @@ import {
   ReportColumnsCountBadge,
   type ReportColumnSelectionCount,
 } from '../../../../edit/components/ReportColumnPicker/ReportColumnPicker';
+import { DEFAULT_REPORT_TITLE } from '../../../shared';
 
 export interface EmailReportEditFormProps {
   initialReport?: DataMartReport;
@@ -107,7 +108,7 @@ const MESSAGE_DESTINATION_TYPES: DataDestinationType[] = [
 
 function buildDefaultEmailReportLabel(dataMartTitle?: string | null): string {
   const normalizedTitle = dataMartTitle?.trim();
-  return normalizedTitle ? `Report: ${normalizedTitle}` : 'New report';
+  return normalizedTitle ? `Report: ${normalizedTitle}` : DEFAULT_REPORT_TITLE;
 }
 
 function buildDefaultEmailMessageTemplate(): string {
