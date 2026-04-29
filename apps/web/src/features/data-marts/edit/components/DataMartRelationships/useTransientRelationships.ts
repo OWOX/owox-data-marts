@@ -78,7 +78,9 @@ export function useTransientRelationships(
           }
 
           try {
-            const childRels = await dataMartRelationshipService.getRelationships(dmId);
+            const childRels = await dataMartRelationshipService.getRelationships(dmId, {
+              skipLoadingIndicator: true,
+            });
             if (childRels.length === 0) return [row];
 
             const newAncestors = new Set(ancestorDmIds);

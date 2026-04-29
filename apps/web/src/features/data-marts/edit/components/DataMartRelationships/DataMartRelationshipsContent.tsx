@@ -153,7 +153,9 @@ export function DataMartRelationshipsContent({
     if (!dataMartId) return;
     setIsLoading(true);
     try {
-      const data = await dataMartRelationshipService.getRelationships(dataMartId);
+      const data = await dataMartRelationshipService.getRelationships(dataMartId, {
+        skipLoadingIndicator: true,
+      });
       // Sort by createdAt ASC — oldest on top, newest at bottom
       const sorted = [...data].sort(
         (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
@@ -182,7 +184,7 @@ export function DataMartRelationshipsContent({
       const requestId = ++schemaRequestIdRef.current;
       if (showLoading) setIsLoading(true);
       dataMartRelationshipService
-        .getBlendableSchema(dataMartId)
+        .getBlendableSchema(dataMartId, { skipLoadingIndicator: true })
         .then(data => {
           if (schemaRequestIdRef.current !== requestId) return;
           setBlendableSchema(data);
@@ -262,7 +264,9 @@ export function DataMartRelationshipsContent({
   const handleDelete = useCallback(
     async (id: string) => {
       try {
-        await dataMartRelationshipService.deleteRelationship(dataMartId, id);
+        await dataMartRelationshipService.deleteRelationship(dataMartId, id, {
+          skipLoadingIndicator: true,
+        });
         toast.success('Relationship deleted');
         setRelationships(prev => prev.filter(r => r.id !== id));
         invalidateBlendableSchema();
@@ -293,7 +297,7 @@ export function DataMartRelationshipsContent({
     (newConfig: BlendedFieldsConfig) => {
       setLocalConfig(newConfig);
       void dataMartRelationshipService
-        .updateBlendedFieldsConfig(dataMartId, newConfig)
+        .updateBlendedFieldsConfig(dataMartId, newConfig, { skipLoadingIndicator: true })
         .then(response => {
           void syncDataMartFromResponse(response);
           fetchBlendableSchema();
@@ -588,7 +592,7 @@ export function DataMartRelationshipsContent({
         <CollapsibleCardHeader>
           <CollapsibleCardHeaderTitle
             icon={Link2}
-            tooltip='Joinable data marts connected to this one'
+            tooltip='Business users can add columns from joinable data marts directly into their spreadsheet reports. No hallucinations - row counts remain unchanged'
           >
             Joinable Data Marts
           </CollapsibleCardHeaderTitle>

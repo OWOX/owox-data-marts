@@ -11,6 +11,7 @@ import { Input } from '@owox/ui/components/input';
 import { Separator } from '@owox/ui/components/separator';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@owox/ui/components/tooltip';
 import { cn } from '@owox/ui/lib/utils';
+import { ExternalAnchor } from '@owox/ui/components/common/external-anchor';
 import { ExternalLink, Info, Plus, Trash2 } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useFieldArray, useForm } from 'react-hook-form';
@@ -18,8 +19,10 @@ import { toast } from 'react-hot-toast';
 import { z } from 'zod';
 import { Button } from '../../../../../shared/components/Button';
 import { Combobox } from '../../../../../shared/components/Combobox/combobox';
+import { UserReference } from '../../../../../shared/components/UserReference';
 import { useProjectRoute } from '../../../../../shared/hooks/useProjectRoute';
 import { useDebounce } from '../../../../../hooks/useDebounce';
+import { formatDateShort } from '../../../../../utils/date-formatters';
 import type { DataMartResponseDto } from '../../../shared';
 import { dataMartService } from '../../../shared';
 import { dataMartRelationshipService } from '../../../shared/services/data-mart-relationship.service';
@@ -90,6 +93,15 @@ function getInitialDefaults(relationship: DataMartRelationship): JoinSettingsFor
         ? relationship.joinConditions
         : [{ sourceFieldName: '', targetFieldName: '' }],
   };
+}
+
+function FieldOptionLabel({ label, type }: { label: string; type?: string }) {
+  return (
+    <span className='flex min-w-0 flex-1 items-center justify-between gap-2'>
+      <span className='truncate'>{label}</span>
+      {type && <span className='text-muted-foreground shrink-0 text-xs'>{type}</span>}
+    </span>
+  );
 }
 
 interface JoinSettingsFormProps {
@@ -171,8 +183,10 @@ export function JoinSettingsForm({
     if (!sourceId || !relationship.targetDataMart.id) return;
     setIsLoadingSchemas(true);
     void Promise.all([
-      dataMartService.getDataMartById(sourceId),
-      dataMartService.getDataMartById(relationship.targetDataMart.id),
+      dataMartService.getDataMartById(sourceId, { skipLoadingIndicator: true }),
+      dataMartService.getDataMartById(relationship.targetDataMart.id, {
+        skipLoadingIndicator: true,
+      }),
     ])
       .then(([src, tgt]) => {
         setSourceDM(src);
@@ -187,71 +201,67 @@ export function JoinSettingsForm({
   const targetFields = getSchemaFields(targetDM);
 
   const watchedValues = form.watch();
-  const watchedKey = JSON.stringify(watchedValues);
+  const watchedAlias = watchedValues.targetAlias;
+  const watchedJoinConditions = watchedValues.joinConditions;
+  const watchedJoinKey = JSON.stringify(watchedJoinConditions);
 
   const joinTypeMismatches = useMemo(
     () =>
-      watchedValues.joinConditions.map(jc => {
+      watchedJoinConditions.map(jc => {
         if (!jc.sourceFieldName || !jc.targetFieldName) return null;
         const sourceType = sourceFields.find(f => f.name === jc.sourceFieldName)?.type;
         const targetType = targetFields.find(f => f.name === jc.targetFieldName)?.type;
         if (!sourceType || !targetType) return null;
         return sourceType !== targetType ? { sourceType, targetType } : null;
       }),
-    [watchedValues.joinConditions, sourceFields, targetFields]
+    [watchedJoinConditions, sourceFields, targetFields]
   );
   const hasTypeMismatch = joinTypeMismatches.some(Boolean);
 
-  const debouncedKey = useDebounce(watchedKey, 800);
+  const debouncedAlias = useDebounce(watchedAlias, 800);
+  const debouncedJoinKey = useDebounce(watchedJoinKey, 800);
 
   useEffect(() => {
     if (readOnly || isSaving) return;
 
-    let parsed: JoinSettingsFormValues;
-    try {
-      parsed = JSON.parse(debouncedKey) as JoinSettingsFormValues;
-    } catch {
-      return;
-    }
-
-    const parsedJoinKey = JSON.stringify(parsed.joinConditions);
+    const joinConditions = form.getValues('joinConditions');
     const hasAliasError = !!form.formState.errors.targetAlias;
     const joinsAreComplete =
-      parsed.joinConditions.length > 0 &&
-      parsed.joinConditions.every(jc => jc.sourceFieldName && jc.targetFieldName);
+      joinConditions.length > 0 &&
+      joinConditions.every(jc => jc.sourceFieldName && jc.targetFieldName);
 
     const aliasIsNew =
-      parsed.targetAlias !== lastSavedRef.current.targetAlias &&
-      parsed.targetAlias !== lastAttemptedRef.current.targetAlias;
+      debouncedAlias !== lastSavedRef.current.targetAlias &&
+      debouncedAlias !== lastAttemptedRef.current.targetAlias;
     const joinsAreNew =
-      parsedJoinKey !== lastSavedRef.current.joinConditionsKey &&
-      parsedJoinKey !== lastAttemptedRef.current.joinConditionsKey;
+      debouncedJoinKey !== lastSavedRef.current.joinConditionsKey &&
+      debouncedJoinKey !== lastAttemptedRef.current.joinConditionsKey;
 
     const payload: {
       targetAlias?: string;
       joinConditions?: JoinSettingsFormValues['joinConditions'];
     } = {};
     if (aliasIsNew && !hasAliasError) {
-      payload.targetAlias = parsed.targetAlias;
+      payload.targetAlias = debouncedAlias;
     }
     if (joinsAreNew && joinsAreComplete && !hasTypeMismatch) {
-      payload.joinConditions = parsed.joinConditions;
+      payload.joinConditions = joinConditions;
     }
     if (Object.keys(payload).length === 0) return;
 
-    // Mirror the payload into attempted refs so a failed save cannot loop on the
-    // same value (see original guard), while leaving untouched fields intact so
-    // they still eligible for their own autosave path.
     lastAttemptedRef.current = {
       targetAlias: payload.targetAlias ?? lastAttemptedRef.current.targetAlias,
       joinConditionsKey: payload.joinConditions
-        ? parsedJoinKey
+        ? debouncedJoinKey
         : lastAttemptedRef.current.joinConditionsKey,
     };
     setIsSaving(true);
 
     dataMartRelationshipService
-      .updateRelationship(dataMartId, relationship.id, payload, { skipErrorToast: true })
+      .updateRelationship(dataMartId, relationship.id, payload, {
+        skipErrorToast: true,
+        skipLoadingIndicator: true,
+      })
       .then(updated => {
         lastSavedRef.current = {
           targetAlias: updated.targetAlias,
@@ -268,7 +278,8 @@ export function JoinSettingsForm({
         setIsSaving(false);
       });
   }, [
-    debouncedKey,
+    debouncedAlias,
+    debouncedJoinKey,
     hasTypeMismatch,
     readOnly,
     isSaving,
@@ -302,40 +313,76 @@ export function JoinSettingsForm({
         </div>
       )}
       <Form {...form}>
-        <FormField
-          control={form.control}
-          name='targetAlias'
-          render={({ field }) => (
-            <FormItem
-              variant='light'
-              className='bg-muted/50 flex flex-col gap-1.5 rounded-md p-3 dark:bg-white/5'
-            >
-              <label className='flex items-center gap-1.5 text-sm font-medium'>
-                SQL Alias
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <span className='text-muted-foreground/50 hover:text-muted-foreground shrink-0 transition-colors'>
-                      <Info className='size-4 shrink-0' />
-                    </span>
-                  </TooltipTrigger>
-                  <TooltipContent side='top' className='max-w-xs'>
-                    Internal name used when building the SQL JOIN for this data mart (e.g.
-                    orders_customer_id). Not shown in the output.
-                  </TooltipContent>
-                </Tooltip>
-              </label>
-              <FormControl>
-                <Input
-                  {...field}
-                  placeholder='e.g. orders'
-                  disabled={readOnly}
-                  className='bg-background h-8 text-sm dark:bg-white/5'
-                />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
+        <div className='grid grid-cols-2 gap-3'>
+          <div className='bg-muted/50 flex flex-col gap-1.5 rounded-md p-3 dark:bg-white/5'>
+            <label className='flex items-center gap-1.5 text-sm font-medium'>
+              Joined Data Mart
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span className='text-muted-foreground/50 hover:text-muted-foreground shrink-0 transition-colors'>
+                    <Info className='size-4 shrink-0' />
+                  </span>
+                </TooltipTrigger>
+                <TooltipContent side='top' className='max-w-xs'>
+                  The data mart linked here, plus who configured the join and when.
+                </TooltipContent>
+              </Tooltip>
+            </label>
+            <div className='text-muted-foreground flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-1 text-sm'>
+              <ExternalAnchor
+                href={scope(`/data-marts/${relationship.targetDataMart.id}/data-setup`)}
+                title={relationship.targetDataMart.title}
+                className='min-w-0'
+              >
+                <span className='max-w-[360px] truncate'>{relationship.targetDataMart.title}</span>
+              </ExternalAnchor>
+              <span className='whitespace-nowrap'>
+                Joined {formatDateShort(relationship.createdAt)}
+              </span>
+              {relationship.createdByUser && (
+                <span className='flex min-w-0 items-center gap-1.5'>
+                  <span>by</span>
+                  <UserReference userProjection={relationship.createdByUser} />
+                </span>
+              )}
+            </div>
+          </div>
+
+          <FormField
+            control={form.control}
+            name='targetAlias'
+            render={({ field }) => (
+              <FormItem
+                variant='light'
+                className='bg-muted/50 flex flex-col gap-1.5 rounded-md p-3 dark:bg-white/5'
+              >
+                <label className='flex items-center gap-1.5 text-sm font-medium'>
+                  SQL Alias
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <span className='text-muted-foreground/50 hover:text-muted-foreground shrink-0 transition-colors'>
+                        <Info className='size-4 shrink-0' />
+                      </span>
+                    </TooltipTrigger>
+                    <TooltipContent side='top' className='max-w-xs'>
+                      Internal name used when building the SQL JOIN for this data mart (e.g.
+                      orders_customer_id). Not shown in the output.
+                    </TooltipContent>
+                  </Tooltip>
+                </label>
+                <FormControl>
+                  <Input
+                    {...field}
+                    placeholder='e.g. orders'
+                    disabled={readOnly}
+                    className='bg-background h-8 text-sm dark:bg-white/5'
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        </div>
 
         <Separator />
 
@@ -392,19 +439,12 @@ export function JoinSettingsForm({
                             placeholder='Select field...'
                             disabled={readOnly || isLoadingSchemas}
                             className={cn(mismatch && 'border-destructive')}
-                            renderLabel={option => {
-                              const f = sourceFields.find(sf => sf.name === option.value);
-                              return (
-                                <span className='flex min-w-0 flex-1 items-center justify-between gap-2'>
-                                  <span className='truncate'>{option.label}</span>
-                                  {f && (
-                                    <span className='text-muted-foreground shrink-0 text-xs'>
-                                      {f.type}
-                                    </span>
-                                  )}
-                                </span>
-                              );
-                            }}
+                            renderLabel={option => (
+                              <FieldOptionLabel
+                                label={option.label}
+                                type={sourceFields.find(sf => sf.name === option.value)?.type}
+                              />
+                            )}
                           />
                         </FormControl>
                         <FormMessage />
@@ -438,19 +478,12 @@ export function JoinSettingsForm({
                             placeholder='Select field...'
                             disabled={readOnly || isLoadingSchemas}
                             className={cn(mismatch && 'border-destructive')}
-                            renderLabel={option => {
-                              const f = targetFields.find(tf => tf.name === option.value);
-                              return (
-                                <span className='flex min-w-0 flex-1 items-center justify-between gap-2'>
-                                  <span className='truncate'>{option.label}</span>
-                                  {f && (
-                                    <span className='text-muted-foreground shrink-0 text-xs'>
-                                      {f.type}
-                                    </span>
-                                  )}
-                                </span>
-                              );
-                            }}
+                            renderLabel={option => (
+                              <FieldOptionLabel
+                                label={option.label}
+                                type={targetFields.find(tf => tf.name === option.value)?.type}
+                              />
+                            )}
                           />
                         </FormControl>
                         <FormMessage />

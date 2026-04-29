@@ -1,8 +1,10 @@
-import { useEffect, useMemo, useState } from 'react';
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { cn } from '@owox/ui/lib/utils';
+import { Badge } from '@owox/ui/components/badge';
 import { Checkbox } from '@owox/ui/components/checkbox';
 import { Collapsible, CollapsibleContent } from '@owox/ui/components/collapsible';
+import { Switch } from '@owox/ui/components/switch';
 import { ChevronDown, ChevronRight } from 'lucide-react';
 import { Skeleton } from '@owox/ui/components/skeleton';
 import { dataMartRelationshipService } from '../../../shared/services/data-mart-relationship.service';
@@ -42,7 +44,20 @@ interface BlendedGroup {
   description?: string;
   visibleFields: BlendedField[];
   selectedCount: number;
-  totalCount: number;
+}
+
+export interface ReportColumnSelectionCount {
+  selected: number;
+  total: number;
+}
+
+export function ReportColumnsCountBadge({ count }: { count: ReportColumnSelectionCount }) {
+  if (count.total === 0) return null;
+  return (
+    <Badge className='border-transparent bg-zinc-200 font-mono text-zinc-600 opacity-50 dark:bg-zinc-700 dark:text-zinc-300'>
+      {count.selected}/{count.total}
+    </Badge>
+  );
 }
 
 export interface ReportColumnPickerProps {
@@ -50,94 +65,71 @@ export interface ReportColumnPickerProps {
   value: string[] | null;
   onChange: (value: string[] | null) => void;
   onBlendedSelectionChange?: (hasBlendedSelection: boolean) => void;
+  onCountChange?: (count: ReportColumnSelectionCount) => void;
 }
 
-interface NativeFieldsGroupProps {
-  nativeFields: NativeField[];
-  description?: string;
-  selectedCount: number;
-  totalCount: number;
-  isChecked: (name: string) => boolean;
-  onToggleField: (name: string, checked: boolean) => void;
+type ToggleFieldFn = (name: string, checked: boolean) => void;
+
+interface NativeFieldRowProps {
+  field: NativeField;
+  checked: boolean;
+  onToggleField: ToggleFieldFn;
 }
 
-function NativeFieldsGroup({
-  nativeFields,
-  description,
-  selectedCount,
-  totalCount,
-  isChecked,
+const NativeFieldRow = memo(function NativeFieldRow({
+  field,
+  checked,
   onToggleField,
-}: NativeFieldsGroupProps) {
-  const [isOpen, setIsOpen] = useState(true);
-
-  const counterText = `${selectedCount} / ${totalCount}`;
-  const fieldWord = totalCount === 1 ? 'field' : 'fields';
-
+}: NativeFieldRowProps) {
   return (
-    <Collapsible open={isOpen} onOpenChange={setIsOpen}>
-      <button
-        type='button'
-        aria-expanded={isOpen}
-        aria-label={`${isOpen ? 'Collapse' : 'Expand'} Default Data Mart Columns`}
-        className='group bg-secondary/50 dark:bg-muted/50 hover:bg-secondary/80 dark:hover:bg-muted/80 flex w-full cursor-pointer items-start gap-1.5 rounded px-1 py-1 text-left transition-colors'
-        onClick={() => {
-          setIsOpen(v => !v);
+    <label className='group hover:bg-muted/50 flex cursor-pointer items-center gap-2 rounded px-1 py-1'>
+      <Checkbox
+        checked={checked}
+        onCheckedChange={c => {
+          onToggleField(field.name, c === true);
         }}
-      >
-        {isOpen ? (
-          <ChevronDown className='text-muted-foreground mt-0.5 h-4 w-4 shrink-0' />
-        ) : (
-          <ChevronRight className='text-muted-foreground mt-0.5 h-4 w-4 shrink-0' />
-        )}
-        <div className='min-w-0 flex-1'>
-          <div className='flex items-center justify-between gap-1.5'>
-            <div className='flex min-w-0 items-center gap-1.5'>
-              <span className='truncate text-xs font-semibold'>Default Data Mart Columns</span>
-              <FieldInfoTooltip text={description} />
-            </div>
-            <span className='text-muted-foreground shrink-0 text-xs'>
-              {counterText} {fieldWord}
-            </span>
-          </div>
-        </div>
-      </button>
-      <CollapsibleContent>
-        {nativeFields.length === 0 && (
-          <p className='text-muted-foreground px-1 text-xs'>No fields available.</p>
-        )}
-        {nativeFields.map(field => (
-          <label
-            key={field.name}
-            className='group hover:bg-muted/50 flex cursor-pointer items-center gap-2 rounded px-1 py-1'
-          >
-            <Checkbox
-              checked={isChecked(field.name)}
-              onCheckedChange={checked => {
-                onToggleField(field.name, checked === true);
-              }}
-            />
-            <span className='font-mono text-xs'>{field.alias ?? field.name}</span>
-            {field.type && <span className='text-muted-foreground text-xs'>({field.type})</span>}
-            <FieldInfoTooltip text={field.description} compact />
-          </label>
-        ))}
-      </CollapsibleContent>
-    </Collapsible>
+      />
+      <span className='font-mono text-xs'>{field.alias ?? field.name}</span>
+      {field.type && <span className='text-muted-foreground text-xs'>({field.type})</span>}
+      <FieldInfoTooltip text={field.description} compact />
+    </label>
   );
+});
+
+interface BlendedFieldRowProps {
+  field: BlendedField;
+  checked: boolean;
+  onToggleField: ToggleFieldFn;
 }
+
+const BlendedFieldRow = memo(function BlendedFieldRow({
+  field,
+  checked,
+  onToggleField,
+}: BlendedFieldRowProps) {
+  return (
+    <label className='group hover:bg-muted/50 flex cursor-pointer items-center gap-2 rounded px-1 py-1'>
+      <Checkbox
+        checked={checked}
+        onCheckedChange={c => {
+          onToggleField(field.name, c === true);
+        }}
+      />
+      <span className='font-mono text-xs'>{field.alias || field.originalFieldName}</span>
+      {field.type && <span className='text-muted-foreground text-xs'>({field.type})</span>}
+      <FieldInfoTooltip text={field.description} compact />
+    </label>
+  );
+});
 
 interface BlendedGroupItemProps {
   group: BlendedGroup;
-  isChecked: (name: string) => boolean;
-  onToggleField: (name: string, checked: boolean) => void;
+  selectedSet: Set<string>;
+  onToggleField: ToggleFieldFn;
 }
 
-function BlendedGroupItem({ group, isChecked, onToggleField }: BlendedGroupItemProps) {
+function BlendedGroupItem({ group, selectedSet, onToggleField }: BlendedGroupItemProps) {
   const [isOpen, setIsOpen] = useState(() => group.selectedCount > 0);
-
-  const counterText = `${group.selectedCount} / ${group.totalCount}`;
-  const fieldWord = group.totalCount === 1 ? 'field' : 'fields';
 
   return (
     <Collapsible open={isOpen} onOpenChange={setIsOpen}>
@@ -156,35 +148,22 @@ function BlendedGroupItem({ group, isChecked, onToggleField }: BlendedGroupItemP
           <ChevronRight className='text-muted-foreground mt-0.5 h-4 w-4 shrink-0' />
         )}
         <div className='min-w-0 flex-1'>
-          <div className='flex items-center justify-between gap-1.5'>
-            <div className='flex min-w-0 items-center gap-1.5'>
-              <span className='truncate text-xs font-semibold' title={group.alias}>
-                {group.alias}
-              </span>
-              <FieldInfoTooltip text={group.description} />
-            </div>
-            <span className='text-muted-foreground shrink-0 text-xs'>
-              {counterText} {fieldWord}
+          <div className='flex min-w-0 items-center gap-1.5'>
+            <span className='truncate text-xs font-semibold' title={group.alias}>
+              {group.alias}
             </span>
+            <FieldInfoTooltip text={group.description} />
           </div>
         </div>
       </button>
       <CollapsibleContent>
         {group.visibleFields.map(field => (
-          <label
+          <BlendedFieldRow
             key={field.name}
-            className='group hover:bg-muted/50 flex cursor-pointer items-center gap-2 rounded px-1 py-1'
-          >
-            <Checkbox
-              checked={isChecked(field.name)}
-              onCheckedChange={checked => {
-                onToggleField(field.name, checked === true);
-              }}
-            />
-            <span className='font-mono text-xs'>{field.alias || field.originalFieldName}</span>
-            {field.type && <span className='text-muted-foreground text-xs'>({field.type})</span>}
-            <FieldInfoTooltip text={field.description} compact />
-          </label>
+            field={field}
+            checked={selectedSet.has(field.name)}
+            onToggleField={onToggleField}
+          />
         ))}
       </CollapsibleContent>
     </Collapsible>
@@ -196,6 +175,7 @@ export function ReportColumnPicker({
   value,
   onChange,
   onBlendedSelectionChange,
+  onCountChange,
 }: ReportColumnPickerProps) {
   const { data: schema, isLoading } = useQuery({
     queryKey: [BLENDABLE_SCHEMA_QUERY_KEY, dataMartId],
@@ -228,49 +208,73 @@ export function ReportColumnPicker({
     return nativeFields.map(f => f.name);
   }, [value, nativeFields]);
 
+  const effectiveValueSet = useMemo(() => new Set(effectiveValue), [effectiveValue]);
+
+  const includedBlendedNamesSet = useMemo(
+    () => new Set(includedBlendedFields.map(f => f.name)),
+    [includedBlendedFields]
+  );
+
   const hasBlendedSelection = useMemo(() => {
     if (!schema) return false;
-    const blendedNames = new Set(includedBlendedFields.map(f => f.name));
-    return effectiveValue.some(name => blendedNames.has(name));
-  }, [schema, effectiveValue, includedBlendedFields]);
+    return effectiveValue.some(name => includedBlendedNamesSet.has(name));
+  }, [schema, effectiveValue, includedBlendedNamesSet]);
 
   useEffect(() => {
     onBlendedSelectionChange?.(hasBlendedSelection);
   }, [hasBlendedSelection, onBlendedSelectionChange]);
 
-  function isChecked(fieldName: string): boolean {
-    return effectiveValue.includes(fieldName);
-  }
+  const valueRef = useRef(effectiveValue);
+  valueRef.current = effectiveValue;
 
-  function toggleField(fieldName: string, checked: boolean) {
-    if (checked) {
-      if (effectiveValue.includes(fieldName)) return;
-      onChange([...effectiveValue, fieldName]);
-    } else {
-      onChange(effectiveValue.filter(name => name !== fieldName));
-    }
-  }
+  const toggleField = useCallback<ToggleFieldFn>(
+    (fieldName, checked) => {
+      const current = valueRef.current;
+      if (checked) {
+        if (current.includes(fieldName)) return;
+        onChange([...current, fieldName]);
+      } else {
+        onChange(current.filter(name => name !== fieldName));
+      }
+    },
+    [onChange]
+  );
 
-  function selectAllNative() {
+  function selectAll() {
     if (!schema) return;
     const nativeNames = nativeFields.map(f => f.name);
-    const currentBlended = effectiveValue.filter(name => !nativeNames.includes(name));
-    onChange([...nativeNames, ...currentBlended]);
+    const blendedNames = includedBlendedFields.map(f => f.name);
+    const known = new Set([...nativeNames, ...blendedNames]);
+    const orphanSelections = effectiveValue.filter(name => !known.has(name));
+    onChange([...nativeNames, ...blendedNames, ...orphanSelections]);
   }
 
-  function deselectAllNative() {
+  function deselectAll() {
     if (!schema) return;
-    const nativeNames = new Set(nativeFields.map(f => f.name));
-    onChange(effectiveValue.filter(name => !nativeNames.has(name)));
+    const known = new Set([
+      ...nativeFields.map(f => f.name),
+      ...includedBlendedFields.map(f => f.name),
+    ]);
+    onChange(effectiveValue.filter(name => !known.has(name)));
   }
 
-  const selectedNativeCount = nativeFields.filter(f => isChecked(f.name)).length;
+  const selectedNativeCount = nativeFields.filter(f => effectiveValueSet.has(f.name)).length;
 
   const [showSelectedOnly, setShowSelectedOnly] = useState(false);
 
   const visibleNativeFields = showSelectedOnly
-    ? nativeFields.filter(f => isChecked(f.name))
+    ? nativeFields.filter(f => effectiveValueSet.has(f.name))
     : nativeFields;
+
+  const totalFieldsCount = nativeFields.length + includedBlendedFields.length;
+  const selectedBlendedCount = effectiveValue.filter(name =>
+    includedBlendedNamesSet.has(name)
+  ).length;
+  const selectedFieldsCount = selectedNativeCount + selectedBlendedCount;
+
+  useEffect(() => {
+    onCountChange?.({ selected: selectedFieldsCount, total: totalFieldsCount });
+  }, [selectedFieldsCount, totalFieldsCount, onCountChange]);
 
   const availableSourceDescriptionByPath = useMemo(() => {
     const map = new Map<string, string | undefined>();
@@ -281,7 +285,6 @@ export function ReportColumnPicker({
   }, [schema]);
 
   const groupedBlendedFields = useMemo<BlendedGroup[]>(() => {
-    const selectedSet = new Set(effectiveValue);
     const groupMap = new Map<string, BlendedGroup>();
 
     for (const field of includedBlendedFields) {
@@ -294,19 +297,21 @@ export function ReportColumnPicker({
           description: availableSourceDescriptionByPath.get(field.aliasPath),
           visibleFields: [],
           selectedCount: 0,
-          totalCount: 0,
         };
         groupMap.set(field.aliasPath, group);
       }
-      group.totalCount += 1;
-      const isSelected = selectedSet.has(field.name);
+      const isSelected = effectiveValueSet.has(field.name);
       if (isSelected) group.selectedCount += 1;
       if (!showSelectedOnly || isSelected) group.visibleFields.push(field);
     }
 
-    // У режимі "Selected only" ховаємо групи, у яких немає жодного видимого поля
     return Array.from(groupMap.values()).filter(g => g.visibleFields.length > 0);
-  }, [includedBlendedFields, showSelectedOnly, effectiveValue, availableSourceDescriptionByPath]);
+  }, [
+    includedBlendedFields,
+    showSelectedOnly,
+    effectiveValueSet,
+    availableSourceDescriptionByPath,
+  ]);
 
   if (isLoading) {
     return (
@@ -319,35 +324,28 @@ export function ReportColumnPicker({
     );
   }
 
+  const allSelected = totalFieldsCount > 0 && selectedFieldsCount >= totalFieldsCount;
+  const toggleLabelClass =
+    'text-muted-foreground hover:text-foreground flex cursor-pointer items-center gap-2 text-xs transition-colors';
+
   return (
     <div className='space-y-2'>
-      <div className='flex items-center justify-between'>
-        <label className='text-muted-foreground hover:text-foreground flex cursor-pointer items-center gap-2 text-xs transition-colors'>
+      <div className='flex items-center justify-between px-2'>
+        <label className={toggleLabelClass}>
           <Checkbox
-            checked={showSelectedOnly}
+            checked={allSelected}
             onCheckedChange={checked => {
-              setShowSelectedOnly(checked === true);
+              if (checked === true) selectAll();
+              else deselectAll();
             }}
+            aria-label={allSelected ? 'Deselect all fields' : 'Select all fields'}
           />
-          Selected only
+          Select all
         </label>
-        <div className='flex gap-2'>
-          <button
-            type='button'
-            className='text-muted-foreground hover:text-foreground cursor-pointer text-xs transition-colors'
-            onClick={selectAllNative}
-          >
-            Select All
-          </button>
-          <span className='text-muted-foreground text-xs'>/</span>
-          <button
-            type='button'
-            className='text-muted-foreground hover:text-foreground cursor-pointer text-xs transition-colors'
-            onClick={deselectAllNative}
-          >
-            Deselect All
-          </button>
-        </div>
+        <label className={toggleLabelClass}>
+          Show selected only
+          <Switch checked={showSelectedOnly} onCheckedChange={setShowSelectedOnly} />
+        </label>
       </div>
 
       <div
@@ -356,22 +354,23 @@ export function ReportColumnPicker({
           selectedNativeCount === 0 ? 'border-destructive' : 'border-border'
         )}
       >
-        {/* Default Columns (native fields) */}
-        <NativeFieldsGroup
-          nativeFields={visibleNativeFields}
-          description={schema?.nativeDescription}
-          selectedCount={selectedNativeCount}
-          totalCount={nativeFields.length}
-          isChecked={isChecked}
-          onToggleField={toggleField}
-        />
+        {visibleNativeFields.length === 0 && (
+          <p className='text-muted-foreground px-1 text-xs'>No fields available.</p>
+        )}
+        {visibleNativeFields.map(field => (
+          <NativeFieldRow
+            key={field.name}
+            field={field}
+            checked={effectiveValueSet.has(field.name)}
+            onToggleField={toggleField}
+          />
+        ))}
 
-        {/* Blended field groups */}
         {groupedBlendedFields.map(group => (
           <BlendedGroupItem
             key={group.aliasPath}
             group={group}
-            isChecked={isChecked}
+            selectedSet={effectiveValueSet}
             onToggleField={toggleField}
           />
         ))}

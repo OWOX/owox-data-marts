@@ -12,14 +12,12 @@ import { Switch } from '@owox/ui/components/switch';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@owox/ui/components/tabs';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@owox/ui/components/tooltip';
 import { cn } from '@owox/ui/lib/utils';
-import { Box, Columns3, ExternalLink, GitMerge, Info, MoreHorizontal, Trash2 } from 'lucide-react';
+import { Columns3, ExternalLink, GitMerge, Info, MoreHorizontal, Trash2 } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { Button } from '../../../../../shared/components/Button';
 import { ConfirmationDialog } from '../../../../../shared/components/ConfirmationDialog';
-import { UserReference } from '../../../../../shared/components/UserReference';
 import { useProjectRoute } from '../../../../../shared/hooks/useProjectRoute';
 import { useDebounce } from '../../../../../hooks/useDebounce';
-import { formatDateShort } from '../../../../../utils/date-formatters';
 import type {
   BlendedField,
   BlendedFieldOverride,
@@ -94,25 +92,35 @@ export function RelationshipAccordionItem({
   const [localAlias, setLocalAlias] = useState(displayAlias);
   const debouncedAlias = useDebounce(localAlias, 500);
   const lastSavedAlias = useRef(displayAlias);
+  const isDirtyRef = useRef(false);
 
   useEffect(() => {
     setLocalAlias(displayAlias);
     lastSavedAlias.current = displayAlias;
+    isDirtyRef.current = false;
   }, [displayAlias]);
 
   useEffect(() => {
     if (!source) return;
+    if (!isDirtyRef.current) return;
     if (debouncedAlias !== lastSavedAlias.current) {
       onAliasChange(source, debouncedAlias);
       lastSavedAlias.current = debouncedAlias;
+      isDirtyRef.current = false;
     }
   }, [debouncedAlias, source, onAliasChange]);
+
+  const handleAliasInput = (next: string) => {
+    setLocalAlias(next);
+    isDirtyRef.current = true;
+  };
 
   const handleAliasBlur = () => {
     if (!source) return;
     if (localAlias !== lastSavedAlias.current) {
       onAliasChange(source, localAlias);
       lastSavedAlias.current = localAlias;
+      isDirtyRef.current = false;
     }
   };
 
@@ -162,9 +170,10 @@ export function RelationshipAccordionItem({
   // Keep actions visible while the dropdown is open, otherwise they would
   // disappear as soon as the pointer leaves the row to reach the menu.
   const actionsVisible = isOpen || isMenuOpen;
-  const actionsVisibilityClass = actionsVisible
-    ? 'opacity-100'
-    : 'opacity-0 group-hover:opacity-100';
+  const actionsVisibilityClass = cn(
+    'transition-opacity',
+    actionsVisible ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
+  );
 
   return (
     <>
@@ -244,10 +253,7 @@ export function RelationshipAccordionItem({
 
               {/* Allow for reporting — rendered for both direct and transient rows */}
               <div
-                className={cn(
-                  'flex shrink-0 items-center gap-1.5 transition-opacity',
-                  actionsVisibilityClass
-                )}
+                className={cn('flex shrink-0 items-center gap-1.5', actionsVisibilityClass)}
                 onClick={e => {
                   e.stopPropagation();
                 }}
@@ -271,7 +277,7 @@ export function RelationshipAccordionItem({
 
               {/* Dropdown menu — controlled so siblings stay visible while open */}
               <div
-                className={cn('shrink-0 transition-opacity', actionsVisibilityClass)}
+                className={cn('shrink-0', actionsVisibilityClass)}
                 onClick={e => {
                   e.stopPropagation();
                 }}
@@ -357,51 +363,6 @@ export function RelationshipAccordionItem({
                         Join Settings
                       </TabsTrigger>
                     </TabsList>
-                    <div className='text-muted-foreground ml-auto flex min-w-0 items-center gap-1.5 text-sm'>
-                      <Box className='size-4 shrink-0' />
-                      <span
-                        className='text-foreground max-w-[240px] truncate font-medium'
-                        title={rel.targetDataMart.title}
-                      >
-                        {rel.targetDataMart.title}
-                      </span>
-                      {rel.targetDataMart.description && (
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <span className='text-muted-foreground/50 hover:text-muted-foreground shrink-0 transition-colors'>
-                              <Info className='size-4 shrink-0' />
-                            </span>
-                          </TooltipTrigger>
-                          <TooltipContent side='top' className='max-w-xs'>
-                            {rel.targetDataMart.description}
-                          </TooltipContent>
-                        </Tooltip>
-                      )}
-                      <Button
-                        type='button'
-                        variant='ghost'
-                        size='sm'
-                        className='text-muted-foreground/60 hover:text-muted-foreground h-5 w-5 shrink-0 p-0'
-                        onClick={() => {
-                          window.open(
-                            scope(`/data-marts/${rel.targetDataMart.id}/data-setup`),
-                            '_blank'
-                          );
-                        }}
-                        aria-label='Open target data mart in new tab'
-                      >
-                        <ExternalLink className='size-4' />
-                      </Button>
-                    </div>
-                    <div className='text-muted-foreground flex shrink-0 items-center gap-1.5 text-sm'>
-                      <span>Joined {formatDateShort(rel.createdAt)}</span>
-                      {rel.createdByUser && (
-                        <>
-                          <span>by</span>
-                          <UserReference userProjection={rel.createdByUser} />
-                        </>
-                      )}
-                    </div>
                   </div>
 
                   <TabsContent value='fields' className='px-4 pt-2 pb-2'>
@@ -435,7 +396,7 @@ export function RelationshipAccordionItem({
                             <Input
                               value={localAlias}
                               onChange={e => {
-                                setLocalAlias(e.target.value);
+                                handleAliasInput(e.target.value);
                               }}
                               onBlur={handleAliasBlur}
                               placeholder='e.g. campaign_performance'

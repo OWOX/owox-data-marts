@@ -36,7 +36,11 @@ import { Button } from '@owox/ui/components/button';
 import LookerStudioCacheLifetimeDescription from './LookerStudioCacheLifetimeDescription.tsx';
 import { OwnersSection } from '../../../../../../shared/components/OwnersSection/OwnersSection';
 import type { UserProjectionDto } from '../../../../../../shared/types/api';
-import { ReportColumnPicker } from '../../../../edit/components/ReportColumnPicker/ReportColumnPicker';
+import {
+  ReportColumnPicker,
+  ReportColumnsCountBadge,
+  type ReportColumnSelectionCount,
+} from '../../../../edit/components/ReportColumnPicker/ReportColumnPicker';
 import { GeneratedSqlViewer } from '../../../../edit/components/ReportColumnPicker/GeneratedSqlViewer';
 
 interface LookerStudioReportEditFormProps {
@@ -85,6 +89,10 @@ export const LookerStudioReportEditForm = forwardRef<
 
     const { dataMart } = useOutletContext<DataMartContextType>();
     const [hasBlendedSelection, setHasBlendedSelection] = useState(false);
+    const [columnsCount, setColumnsCount] = useState<ReportColumnSelectionCount>({
+      selected: 0,
+      total: 0,
+    });
 
     const currentUser = useUser();
     const initialOwnerUsers =
@@ -201,6 +209,7 @@ export const LookerStudioReportEditForm = forwardRef<
             <FormSection
               title='Report Columns'
               tooltip='Select which columns to include in the report'
+              titleAdornment={<ReportColumnsCountBadge count={columnsCount} />}
             >
               {dataMart?.id && (
                 <div className='border-border space-y-3 rounded-md border-b bg-white px-4 py-3 dark:border-transparent dark:bg-white/4'>
@@ -211,6 +220,7 @@ export const LookerStudioReportEditForm = forwardRef<
                       form.setValue('columnConfig', value, { shouldDirty: true });
                     }}
                     onBlendedSelectionChange={setHasBlendedSelection}
+                    onCountChange={setColumnsCount}
                   />
                   {hasBlendedSelection &&
                     mode === ReportFormMode.EDIT &&

@@ -58,7 +58,11 @@ import { useReport } from '../../../shared';
 import { ReportFormActions } from '../shared/ReportFormActions';
 import { OwnersSection } from '../../../../../../shared/components/OwnersSection/OwnersSection';
 import type { UserProjectionDto } from '../../../../../../shared/types/api';
-import { ReportColumnPicker } from '../../../../edit/components/ReportColumnPicker/ReportColumnPicker';
+import {
+  ReportColumnPicker,
+  ReportColumnsCountBadge,
+  type ReportColumnSelectionCount,
+} from '../../../../edit/components/ReportColumnPicker/ReportColumnPicker';
 
 interface GoogleSheetsReportEditFormProps {
   initialReport?: DataMartReport;
@@ -121,6 +125,10 @@ export const GoogleSheetsReportEditForm = forwardRef<
     const scheduleRef = useRef<ReportSchedulesInlineListHandle | null>(null);
     const runAfterSaveRef = useRef(false);
     const [triggersDirty, setTriggersDirty] = useState(false);
+    const [columnsCount, setColumnsCount] = useState<ReportColumnSelectionCount>({
+      selected: 0,
+      total: 0,
+    });
     const { runReport } = useReport();
 
     const currentUser = useUser();
@@ -415,6 +423,7 @@ export const GoogleSheetsReportEditForm = forwardRef<
             <FormSection
               title='Report Columns'
               tooltip='Select which columns to include in the report'
+              titleAdornment={<ReportColumnsCountBadge count={columnsCount} />}
             >
               {dataMart?.id && (
                 <div className='border-border space-y-3 rounded-md border-b bg-white px-4 py-3 dark:border-transparent dark:bg-white/4'>
@@ -424,6 +433,7 @@ export const GoogleSheetsReportEditForm = forwardRef<
                     onChange={value => {
                       form.setValue('columnConfig', value, { shouldDirty: true });
                     }}
+                    onCountChange={setColumnsCount}
                   />
                 </div>
               )}

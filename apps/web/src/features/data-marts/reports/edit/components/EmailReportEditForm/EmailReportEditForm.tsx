@@ -71,7 +71,11 @@ import type { DataDestinationFormData } from '../../../../../data-destination';
 import { useReport } from '../../../shared';
 import { isEmailDestinationConfig } from '../../../shared/model/types/data-mart-report';
 import { ReportFormActions } from '../shared/ReportFormActions';
-import { ReportColumnPicker } from '../../../../edit/components/ReportColumnPicker/ReportColumnPicker';
+import {
+  ReportColumnPicker,
+  ReportColumnsCountBadge,
+  type ReportColumnSelectionCount,
+} from '../../../../edit/components/ReportColumnPicker/ReportColumnPicker';
 
 export interface EmailReportEditFormProps {
   initialReport?: DataMartReport;
@@ -134,6 +138,10 @@ export const EmailReportEditForm = forwardRef<HTMLFormElement, EmailReportEditFo
     const scheduleRef = useRef<ReportSchedulesInlineListHandle | null>(null);
     const runAfterSaveRef = useRef(false);
     const [triggersDirty, setTriggersDirty] = useState(false);
+    const [columnsCount, setColumnsCount] = useState<ReportColumnSelectionCount>({
+      selected: 0,
+      total: 0,
+    });
     const [isCreatingInsight, setIsCreatingInsight] = useState(false);
     const [useInsightTemplateMode, setUseInsightTemplateMode] = useState(isInsightContext);
     const [isDestinationSelectOpen, setIsDestinationSelectOpen] = useState(false);
@@ -897,6 +905,7 @@ export const EmailReportEditForm = forwardRef<HTMLFormElement, EmailReportEditFo
               <FormSection
                 title='Report Columns'
                 tooltip='Select which columns to include in the report'
+                titleAdornment={<ReportColumnsCountBadge count={columnsCount} />}
               >
                 {dataMart?.id && (
                   <div className='border-border space-y-3 rounded-md border-b bg-white px-4 py-3 dark:border-transparent dark:bg-white/4'>
@@ -906,6 +915,7 @@ export const EmailReportEditForm = forwardRef<HTMLFormElement, EmailReportEditFo
                       onChange={value => {
                         form.setValue('columnConfig', value, { shouldDirty: true });
                       }}
+                      onCountChange={setColumnsCount}
                     />
                   </div>
                 )}

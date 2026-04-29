@@ -270,6 +270,7 @@ interface FormSectionProps {
   title?: string;
   description?: string;
   tooltip?: React.ReactNode | string;
+  titleAdornment?: React.ReactNode;
   children: React.ReactNode;
   defaultOpen?: boolean;
   collapsible?: boolean;
@@ -305,6 +306,7 @@ function FormSection({
   title,
   description,
   tooltip,
+  titleAdornment,
   children,
   defaultOpen = true,
   collapsible = true,
@@ -346,9 +348,12 @@ function FormSection({
       <div data-slot='form-section' className='mb-4'>
         {title && (
           <div className='group flex items-center justify-between'>
-            <h3 className='text-muted-foreground/75 text-xs font-semibold tracking-wide uppercase'>
-              {title}
-            </h3>
+            <div className='flex items-center gap-2'>
+              <h3 className='text-muted-foreground/75 text-xs font-semibold tracking-wide uppercase'>
+                {title}
+              </h3>
+              {titleAdornment}
+            </div>
             {tooltip && <FormSectionTooltip tooltip={tooltip} />}
           </div>
         )}
@@ -368,10 +373,14 @@ function FormSection({
       {title && (
         <div className='group flex items-center justify-between'>
           <CollapsibleTrigger asChild>
-            <button type='button' className='flex cursor-pointer items-center gap-1'>
+            <button
+              type='button'
+              className={cn('flex cursor-pointer items-center', titleAdornment ? 'gap-2' : 'gap-1')}
+            >
               <span className='text-muted-foreground/75 text-xs font-semibold tracking-wide uppercase'>
                 {title}
               </span>
+              {titleAdornment}
               <ChevronRight
                 className={cn(
                   'text-foreground/75 h-3.5 w-3.5 transition-transform duration-200',

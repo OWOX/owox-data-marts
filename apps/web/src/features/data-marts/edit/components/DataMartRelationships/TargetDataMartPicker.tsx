@@ -33,8 +33,8 @@ export function TargetDataMartPicker({
     void (async () => {
       try {
         const [allDMs, srcDM] = await Promise.all([
-          dataMartService.getDataMarts(),
-          dataMartService.getDataMartById(dataMartId),
+          dataMartService.getDataMarts({ skipLoadingIndicator: true }),
+          dataMartService.getDataMartById(dataMartId, { skipLoadingIndicator: true }),
         ]);
 
         const filtered = allDMs
@@ -61,11 +61,15 @@ export function TargetDataMartPicker({
       const baseAlias = slugify(dm.title) || slugify(targetDMId);
       const targetAlias = generateUniqueAlias(baseAlias, takenAliases);
 
-      const created = await dataMartRelationshipService.createRelationship(dataMartId, {
-        targetDataMartId: targetDMId,
-        targetAlias,
-        joinConditions: [],
-      });
+      const created = await dataMartRelationshipService.createRelationship(
+        dataMartId,
+        {
+          targetDataMartId: targetDMId,
+          targetAlias,
+          joinConditions: [],
+        },
+        { skipLoadingIndicator: true }
+      );
       onCreated(created);
     } catch {
       toast.error('Failed to add relationship');
