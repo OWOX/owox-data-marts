@@ -6,6 +6,10 @@ import {
   collectOptionsFromData,
   type SelectOption,
 } from '../../../../../shared/components/TableFilters/collectOptions.utils';
+import {
+  buildAvailabilityFilter,
+  classifyAvailability,
+} from '../../../../../shared/components/TableFilters/availability-filter.utils';
 import { DataDestinationTypeModel } from '../../../shared';
 import type { DataDestinationTableItem } from './columns';
 import { DataDestinationColumnKey, dataDestinationColumnLabels } from './columns';
@@ -14,12 +18,17 @@ import { DataDestinationColumnKey, dataDestinationColumnLabels } from './columns
  * Filter keys
  * ------------------------------------------------------------------------ */
 
+enum AdditionalFilterKeys {
+  AVAILABILITY = 'availability',
+}
+
 export type DataDestinationFilterKey =
   | DataDestinationColumnKey.TITLE
   | DataDestinationColumnKey.TYPE
   | DataDestinationColumnKey.CREATED_BY
   | DataDestinationColumnKey.OWNERS
-  | DataDestinationColumnKey.CONTEXTS;
+  | DataDestinationColumnKey.CONTEXTS
+  | AdditionalFilterKeys.AVAILABILITY;
 
 /* ---------------------------------------------------------------------------
  * Accessors (used both for filtering and option collection)
@@ -34,6 +43,8 @@ export const dataDestinationFilterAccessors: FilterAccessors<
   [DataDestinationColumnKey.CREATED_BY]: row => row.createdByUser?.userId,
   [DataDestinationColumnKey.OWNERS]: row => (row.ownerUsers ?? []).map(u => u.userId),
   [DataDestinationColumnKey.CONTEXTS]: row => row.contexts.map(c => c.id),
+  [AdditionalFilterKeys.AVAILABILITY]: row =>
+    classifyAvailability(row.availableForUse, row.availableForMaintenance),
 };
 
 /* ---------------------------------------------------------------------------
@@ -139,5 +150,9 @@ export function buildDataDestinationTableFilters(
         { labelMapper: contextLabelMapper }
       ),
     },
+    buildAvailabilityFilter<DataDestinationFilterKey>({
+      id: AdditionalFilterKeys.AVAILABILITY,
+      firstLabel: 'Use',
+    }),
   ];
 }

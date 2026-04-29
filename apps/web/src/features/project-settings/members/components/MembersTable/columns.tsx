@@ -53,14 +53,14 @@ export const getMembersColumns = ({
       const name = displayName ?? email;
       const initials = generateInitials(displayName ?? null, email);
       return (
-        <div className='flex items-center gap-3'>
+        <div className='flex items-start gap-3'>
           <UserAvatar
             avatar={avatarUrl ?? null}
             initials={initials}
             displayName={name}
             size={UserAvatarSize.NORMAL}
           />
-          <span className='font-medium'>{name}</span>
+          <span className='min-w-0 font-medium break-all'>{name}</span>
         </div>
       );
     },
@@ -72,7 +72,7 @@ export const getMembersColumns = ({
     header: ({ column }) => (
       <SortableHeader column={column}>{membersColumnLabels[MembersColumnKey.EMAIL]}</SortableHeader>
     ),
-    cell: ({ row }) => <div className='text-muted-foreground'>{row.original.email}</div>,
+    cell: ({ row }) => <div className='text-muted-foreground break-all'>{row.original.email}</div>,
   },
   {
     accessorKey: MembersColumnKey.ROLE,

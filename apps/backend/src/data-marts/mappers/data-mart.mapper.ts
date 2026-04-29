@@ -293,7 +293,9 @@ export class DataMartMapper {
       createdByUser ?? null,
       businessOwnerUsers,
       technicalOwnerUsers,
-      extractContextSummaries(entity.contexts)
+      extractContextSummaries(entity.contexts),
+      entity.availableForReporting,
+      entity.availableForMaintenance
     );
   }
 
@@ -316,6 +318,8 @@ export class DataMartMapper {
       createdAt: dto.createdAt,
       modifiedAt: dto.modifiedAt,
       contexts: dto.contexts,
+      availableForReporting: dto.availableForReporting,
+      availableForMaintenance: dto.availableForMaintenance,
     };
   }
 

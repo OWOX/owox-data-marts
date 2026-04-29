@@ -20,13 +20,12 @@ export const projectMenuItems: ProjectMenuItem[] = [
     group: 'community',
   },
   {
-    type: 'menu-item',
+    type: 'project-settings-submenu',
     title: 'Project settings',
-    href: '/project-settings',
+    href: '',
     icon: Settings,
     visible: true,
     group: 'project',
-    internal: true,
   },
   {
     type: 'menu-item',

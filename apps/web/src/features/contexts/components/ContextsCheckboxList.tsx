@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import { Checkbox } from '@owox/ui/components/checkbox';
 import { Label } from '@owox/ui/components/label';
 import { Button } from '@owox/ui/components/button';
@@ -10,7 +11,7 @@ interface ContextsCheckboxListProps {
   selectedIds: string[];
   onToggle: (contextId: string, checked: boolean) => void;
   disabled?: boolean;
-  emptyText?: string;
+  emptyText?: ReactNode;
   onRequestCreate?: () => void;
 }
 

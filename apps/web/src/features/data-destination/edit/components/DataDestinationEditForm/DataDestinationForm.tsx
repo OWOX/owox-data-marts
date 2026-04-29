@@ -8,8 +8,7 @@ import { useOwnerState } from '../../../../../shared/hooks/useOwnerState';
 import { OwnersSection } from '../../../../../shared/components/OwnersSection/OwnersSection';
 import { ContextPicker } from '../../../../../features/contexts/components/ContextPicker/ContextPicker';
 import { AddContextSheet } from '../../../../../features/contexts/components/AddContextSheet/AddContextSheet';
-import { projectMembersService } from '../../../../../features/project-members/services/project-members.service';
-import type { MemberWithScopeDto } from '../../../../../features/contexts/types/context.types';
+import { useInlineContextCreate } from '../../../../../features/contexts/hooks/useInlineContextCreate';
 import { UserReference } from '../../../../../shared/components/UserReference/UserReference';
 import { useUser } from '../../../../idp/hooks/useAuthState';
 import { useIsAdmin } from '../../../../idp/hooks/useRole';
@@ -125,22 +124,12 @@ export function DataDestinationForm({
     contextIds.some(id => !initialContextIds.includes(id));
 
   const isAdmin = useIsAdmin();
-  const [addContextOpen, setAddContextOpen] = useState(false);
-  const [contextsRefreshToken, setContextsRefreshToken] = useState(0);
-  // Lazy: fetch members list only when the inner AddContextSheet is opened.
-  // Refetch on every open so the list stays fresh across long-lived destination
-  // sessions.
-  const [contextMembers, setContextMembers] = useState<MemberWithScopeDto[]>([]);
-  useEffect(() => {
-    if (!addContextOpen) return;
-    let cancelled = false;
-    void projectMembersService.getMembers().then(list => {
-      if (!cancelled) setContextMembers(list);
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [addContextOpen]);
+  const inlineContext = useInlineContextCreate({
+    enabled: isAdmin,
+    onCreated: created => {
+      setContextIds(prev => (prev.includes(created.id) ? prev : [...prev, created.id]));
+    },
+  });
 
   const [selectedSource, setSelectedSource] = useState<{
     id: string;
@@ -318,14 +307,7 @@ export function DataDestinationForm({
                   selectedContextIds={contextIds}
                   onChange={setContextIds}
                   idPrefix='destination-ctx'
-                  refreshToken={contextsRefreshToken}
-                  onRequestCreate={
-                    isAdmin
-                      ? () => {
-                          setAddContextOpen(true);
-                        }
-                      : undefined
-                  }
+                  {...inlineContext.pickerProps}
                 />
                 <Accordion variant='common' type='single' collapsible>
                   <AccordionItem value='destination-contexts-help'>
@@ -462,21 +444,10 @@ export function DataDestinationForm({
       </AppForm>
       {/*
        * Sheet-in-sheet: the outer Destination sheet stays mounted beneath,
-       * preserving unsaved form state. After creation, refresh the picker
-       * and auto-check the freshly created context.
+       * preserving unsaved form state. After creation, the hook refreshes
+       * the picker and we auto-check the freshly created context.
        */}
-      <AddContextSheet
-        isOpen={addContextOpen}
-        members={contextMembers}
-        onClose={() => {
-          setAddContextOpen(false);
-        }}
-        onCreated={created => {
-          setContextIds(prev => (prev.includes(created.id) ? prev : [...prev, created.id]));
-          setContextsRefreshToken(t => t + 1);
-          setAddContextOpen(false);
-        }}
-      />
+      <AddContextSheet {...inlineContext.sheetProps} />
     </Form>
   );
 }

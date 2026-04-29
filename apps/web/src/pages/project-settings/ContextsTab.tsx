@@ -1,14 +1,23 @@
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { toast } from 'react-hot-toast';
 import { ContextsTable } from '../../features/contexts/components/ContextsTable/ContextsTable';
 import { ContextDetailsSheet } from '../../features/contexts/components/ContextDetailsSheet/ContextDetailsSheet';
 import { useMembersSettings } from '../../features/project-settings/members/model/members-settings.context';
 import { contextService } from '../../features/contexts/services/context.service';
+import { useProjectRoute } from '../../shared/hooks';
 import { ConfirmationDialog } from '../../shared/components/ConfirmationDialog';
 import type { ContextDto, ContextImpactDto } from '../../features/contexts/types/context.types';
 
+function buildContextsFilterUrl(basePath: string, contextId: string): string {
+  const params = new URLSearchParams();
+  params.set('filters', JSON.stringify([{ f: 'contexts', o: 'eq', v: [contextId] }]));
+  return `${basePath}?${params.toString()}`;
+}
+
 export function ContextsTab() {
   const { contexts, members, refresh, isAdmin, openAddContextSheet } = useMembersSettings();
+  const { scope } = useProjectRoute();
   const [selected, setSelected] = useState<ContextDto | null>(null);
   const [pendingDelete, setPendingDelete] = useState<ContextDto | null>(null);
   const [blocked, setBlocked] = useState<{
@@ -50,21 +59,46 @@ export function ContextsTab() {
     }
   };
 
-  const formatAttachments = (impact: ContextImpactDto): string => {
-    const parts: string[] = [];
+  const renderAttachments = (contextId: string, impact: ContextImpactDto) => {
+    interface Part {
+      label: string;
+      to: string;
+    }
+    const parts: Part[] = [];
     if (impact.dataMartCount > 0)
-      parts.push(
-        `${String(impact.dataMartCount)} Data Mart${impact.dataMartCount === 1 ? '' : 's'}`
-      );
+      parts.push({
+        label: `${String(impact.dataMartCount)} Data Mart${impact.dataMartCount === 1 ? '' : 's'}`,
+        to: buildContextsFilterUrl(scope('/data-marts'), contextId),
+      });
     if (impact.storageCount > 0)
-      parts.push(`${String(impact.storageCount)} Storage${impact.storageCount === 1 ? '' : 's'}`);
+      parts.push({
+        label: `${String(impact.storageCount)} Storage${impact.storageCount === 1 ? '' : 's'}`,
+        to: buildContextsFilterUrl(scope('/data-storages'), contextId),
+      });
     if (impact.destinationCount > 0)
-      parts.push(
-        `${String(impact.destinationCount)} Destination${impact.destinationCount === 1 ? '' : 's'}`
-      );
+      parts.push({
+        label: `${String(impact.destinationCount)} Destination${impact.destinationCount === 1 ? '' : 's'}`,
+        to: buildContextsFilterUrl(scope('/data-destinations'), contextId),
+      });
     if (impact.memberCount > 0)
-      parts.push(`${String(impact.memberCount)} member${impact.memberCount === 1 ? '' : 's'}`);
-    return parts.join(', ');
+      parts.push({
+        label: `${String(impact.memberCount)} member${impact.memberCount === 1 ? '' : 's'}`,
+        to: scope('/project-settings/members'),
+      });
+    return parts.map((part, index) => (
+      <span key={part.to}>
+        {index > 0 && ', '}
+        <Link
+          to={part.to}
+          className='text-primary hover:underline'
+          onClick={() => {
+            setBlocked(null);
+          }}
+        >
+          {part.label}
+        </Link>
+      </span>
+    ));
   };
 
   return (
@@ -128,7 +162,7 @@ export function ContextsTab() {
             <span className='block space-y-2'>
               <span className='block'>
                 <strong>&ldquo;{blocked.context.name}&rdquo;</strong> is attached to{' '}
-                {formatAttachments(blocked.impact)}.
+                {renderAttachments(blocked.context.id, blocked.impact)}.
               </span>
               <span className='text-muted-foreground block'>
                 Detach it from all Data Marts, Storages, Destinations and Members before deleting.

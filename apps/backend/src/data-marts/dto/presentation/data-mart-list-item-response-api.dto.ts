@@ -48,4 +48,10 @@ export class DataMartListItemResponseApiDto {
 
   @ApiProperty({ type: [Object] })
   contexts: ContextSummary[];
+
+  @ApiProperty({ example: true })
+  availableForReporting?: boolean;
+
+  @ApiProperty({ example: true })
+  availableForMaintenance?: boolean;
 }

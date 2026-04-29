@@ -33,4 +33,10 @@ export class DataStorageListResponseApiDto {
 
   @ApiProperty({ type: [Object] })
   contexts: ContextSummary[];
+
+  @ApiProperty({ example: true })
+  availableForUse?: boolean;
+
+  @ApiProperty({ example: true })
+  availableForMaintenance?: boolean;
 }

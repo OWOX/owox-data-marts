@@ -4,6 +4,10 @@ import {
   collectOptionsFromData,
   type SelectOption,
 } from '../../../../../../shared/components/TableFilters/collectOptions.utils';
+import {
+  buildAvailabilityFilter,
+  classifyAvailability,
+} from '../../../../../../shared/components/TableFilters/availability-filter.utils';
 import type { DataMartListItem } from '../../../model/types';
 import { DataStorageTypeModel } from '../../../../../data-storage/shared/types/data-storage-type.model';
 import { DataMartDefinitionTypeModel } from '../../../../shared/types/data-mart-definition-type.model';
@@ -20,6 +24,7 @@ import { dataMartColumnLabels } from '../columns/columnLabels';
 enum AdditionalFilterKeys {
   STORAGE_TITLE = 'storageTitle',
   INPUT_SOURCE = 'inputSource',
+  AVAILABILITY = 'availability',
 }
 
 export type DataMartFilterKey =
@@ -32,7 +37,8 @@ export type DataMartFilterKey =
   | DataMartColumnKey.CREATED_BY_USER
   | DataMartColumnKey.BUSINESS_OWNERS
   | DataMartColumnKey.TECHNICAL_OWNERS
-  | DataMartColumnKey.CONTEXTS;
+  | DataMartColumnKey.CONTEXTS
+  | AdditionalFilterKeys.AVAILABILITY;
 
 /* ---------------------------------------------------------------------------
  * Accessors (used both for filtering and option collection)
@@ -54,6 +60,8 @@ export const dataMartsFilterAccessors: FilterAccessors<DataMartFilterKey, DataMa
   [DataMartColumnKey.BUSINESS_OWNERS]: row => row.businessOwnerUsers.map(u => u.userId),
   [DataMartColumnKey.TECHNICAL_OWNERS]: row => row.technicalOwnerUsers.map(u => u.userId),
   [DataMartColumnKey.CONTEXTS]: row => row.contexts.map(c => c.id),
+  [AdditionalFilterKeys.AVAILABILITY]: row =>
+    classifyAvailability(row.availableForReporting, row.availableForMaintenance),
 };
 
 /* ---------------------------------------------------------------------------
@@ -264,5 +272,9 @@ export function buildDataMartsTableFilters(
         labelMapper: contextLabelMapper,
       }),
     },
+    buildAvailabilityFilter<DataMartFilterKey>({
+      id: AdditionalFilterKeys.AVAILABILITY,
+      firstLabel: 'Reporting',
+    }),
   ];
 }

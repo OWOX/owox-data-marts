@@ -21,5 +21,7 @@ export function mapDataMartListFromDto(
     createdAt: new Date(dmart.createdAt),
     modifiedAt: new Date(dmart.modifiedAt),
     contexts: dmart.contexts,
+    availableForReporting: dmart.availableForReporting,
+    availableForMaintenance: dmart.availableForMaintenance,
   }));
 }

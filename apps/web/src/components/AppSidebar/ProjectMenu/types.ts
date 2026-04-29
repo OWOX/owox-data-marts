@@ -8,7 +8,7 @@ export type VisibilityConfig =
   | boolean;
 
 export interface ProjectMenuItem {
-  type: 'menu-item' | 'separator';
+  type: 'menu-item' | 'separator' | 'project-settings-submenu';
   title: string;
   href: string;
   icon: React.ComponentType<{ className?: string }>;

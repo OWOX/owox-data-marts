@@ -17,7 +17,8 @@ import { useMembersSettings } from '../../features/project-settings/members/mode
 import { dataMartService } from '../../features/data-marts/shared/services/data-mart.service';
 import { dataStorageApiService } from '../../features/data-storage/shared/api/data-storage-api.service';
 import { dataDestinationService } from '../../features/data-destination/shared/services/data-destination.service';
-import { Box, Database, ArchiveRestore, Users as UsersIcon } from 'lucide-react';
+import { contextService } from '../../features/contexts/services/context.service';
+import { Box, Database, ArchiveRestore, Tags, Users as UsersIcon } from 'lucide-react';
 import { CopyButton, CopyButtonVariant } from '@owox/ui/components/common/copy-button';
 import { useClipboard } from '../../hooks/useClipboard';
 
@@ -25,6 +26,7 @@ interface Stats {
   dataMarts: number | null;
   storages: { count: number; types: string[] } | null;
   destinations: { count: number; types: string[] } | null;
+  contexts: { count: number; names: string[] } | null;
 }
 
 function formatTypesList(types: string[], max = 3): string {
@@ -69,6 +71,7 @@ export function OverviewTab() {
     dataMarts: null,
     storages: null,
     destinations: null,
+    contexts: null,
   });
 
   useEffect(() => {
@@ -78,10 +81,11 @@ export function OverviewTab() {
     const state = { cancelled: false };
     void (async () => {
       try {
-        const [dmList, storageList, destList] = await Promise.all([
+        const [dmList, storageList, destList, contextList] = await Promise.all([
           dataMartService.getDataMarts().catch(() => null),
           dataStorageApiService.getDataStorages().catch(() => null),
           dataDestinationService.getDataDestinations().catch(() => null),
+          contextService.getContexts().catch(() => null),
         ]);
         if (state.cancelled) return;
         setStats({
@@ -96,6 +100,12 @@ export function OverviewTab() {
             ? {
                 count: destList.length,
                 types: destList.map(d => humaniseDestinationType(d.type)),
+              }
+            : null,
+          contexts: contextList
+            ? {
+                count: contextList.length,
+                names: contextList.map(c => c.name),
               }
             : null,
         });
@@ -115,9 +125,9 @@ export function OverviewTab() {
   const editorCount = members.filter(m => m.role === 'editor').length;
   const viewerCount = members.filter(m => m.role === 'viewer').length;
   const memberRoleBreakdown = [
-    adminCount > 0 ? `${String(adminCount)} admin${adminCount === 1 ? '' : 's'}` : null,
-    editorCount > 0 ? `${String(editorCount)} editor${editorCount === 1 ? '' : 's'}` : null,
-    viewerCount > 0 ? `${String(viewerCount)} viewer${viewerCount === 1 ? '' : 's'}` : null,
+    adminCount > 0 ? `${String(adminCount)} Project Admin${adminCount === 1 ? '' : 's'}` : null,
+    editorCount > 0 ? `${String(editorCount)} Technical User${editorCount === 1 ? '' : 's'}` : null,
+    viewerCount > 0 ? `${String(viewerCount)} Business User${viewerCount === 1 ? '' : 's'}` : null,
   ]
     .filter(Boolean)
     .join(' · ');
@@ -131,10 +141,7 @@ export function OverviewTab() {
           </CollapsibleCardHeaderTitle>
         </CollapsibleCardHeader>
         <CollapsibleCardContent>
-          {/* Stacked-card layout: each fact gets its own small card with label
-              on top and value below. Same grid feel as "At a glance" so the
-              two sections visually line up. */}
-          <div className='mb-4 grid grid-cols-1 gap-3 sm:grid-cols-3'>
+          <div className='grid grid-cols-1 gap-3 sm:grid-cols-3'>
             <DescriptionCard label='Project name' value={user?.projectTitle ?? '—'} />
             <DescriptionCard
               label='Project ID'
@@ -177,11 +184,11 @@ export function OverviewTab() {
           </CollapsibleCardHeaderTitle>
         </CollapsibleCardHeader>
         <CollapsibleCardContent>
-          {/* Default grid stretch keeps all 4 cards the same height. Uniform
+          {/* Default grid stretch keeps all cards the same height. Uniform
               height is enforced by the StatCard rendering a placeholder hint
               slot when no hint is provided — so Data Marts sits next to
               Members without visual jitter. */}
-          <div className='grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4'>
+          <div className='grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5'>
             <StatCard
               icon={Box}
               label='Data Marts'
@@ -201,6 +208,13 @@ export function OverviewTab() {
               value={stats.destinations?.count ?? null}
               hint={stats.destinations ? formatTypesList(stats.destinations.types) : undefined}
               to={scope('/data-destinations')}
+            />
+            <StatCard
+              icon={Tags}
+              label='Contexts'
+              value={stats.contexts?.count ?? null}
+              hint={stats.contexts ? formatTypesList(stats.contexts.names) : undefined}
+              to={scope('/project-settings/contexts')}
             />
             <StatCard
               icon={UsersIcon}

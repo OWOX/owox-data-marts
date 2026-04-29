@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react';
+import { toast } from 'react-hot-toast';
 import { contextService } from '../../services/context.service';
+import { AdminsHoverCard } from '../../../project-members/components/AdminsHoverCard';
 import type { ContextDto } from '../../types/context.types';
 import { ContextsCheckboxList } from '../ContextsCheckboxList';
 
@@ -30,9 +32,16 @@ export function ContextPicker({
 
   useEffect(() => {
     let cancelled = false;
-    void contextService.getContexts().then(list => {
-      if (!cancelled) setAllContexts(list);
-    });
+    void contextService
+      .getContexts()
+      .then(list => {
+        if (!cancelled) setAllContexts(list);
+      })
+      .catch((err: unknown) => {
+        if (cancelled) return;
+        setAllContexts([]);
+        toast.error(err instanceof Error ? err.message : 'Failed to load contexts');
+      });
     return () => {
       cancelled = true;
     };
@@ -45,6 +54,12 @@ export function ContextPicker({
     onChange(next);
   };
 
+  const adminWord = (
+    <AdminsHoverCard>
+      <span className='cursor-help underline decoration-dotted underline-offset-2'>admin</span>
+    </AdminsHoverCard>
+  );
+
   return (
     <ContextsCheckboxList
       idPrefix={idPrefix}
@@ -54,7 +69,9 @@ export function ContextPicker({
       disabled={disabled}
       onRequestCreate={onRequestCreate}
       emptyText={
-        onRequestCreate ? undefined : 'No contexts available. Ask your admin to create contexts.'
+        onRequestCreate ? undefined : (
+          <>No contexts available. Ask your {adminWord} to create contexts.</>
+        )
       }
     />
   );

@@ -19,6 +19,8 @@ export interface DataDestinationTableItem {
   credentials?: DataDestination['credentials'];
   createdByUser?: UserProjection | null;
   ownerUsers?: UserProjection[];
+  availableForUse?: boolean;
+  availableForMaintenance?: boolean;
   contexts: { id: string; name: string }[];
 }
 

@@ -78,6 +78,8 @@ export class DataMartService {
         'dm.createdById',
         'dm.createdAt',
         'dm.modifiedAt',
+        'dm.availableForReporting',
+        'dm.availableForMaintenance',
         'storage.type',
         'storage.title',
         'businessOwners.userId',

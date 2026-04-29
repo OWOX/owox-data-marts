@@ -12,5 +12,7 @@ export type DataStorageListItemResponseDto = Pick<
   | 'createdByUser'
   | 'ownerUsers'
   | 'contexts'
+  | 'availableForUse'
+  | 'availableForMaintenance'
 >;
 export type DataStorageListResponseDto = DataStorageListItemResponseDto[];

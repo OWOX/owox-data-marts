@@ -18,4 +18,6 @@ export interface DataMartListItem {
   businessOwnerUsers: UserProjectionDto[];
   technicalOwnerUsers: UserProjectionDto[];
   contexts: { id: string; name: string }[];
+  availableForReporting?: boolean;
+  availableForMaintenance?: boolean;
 }

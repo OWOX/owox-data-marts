@@ -20,4 +20,6 @@ export interface DataMartListItemResponseDto {
   createdAt: Date;
   modifiedAt: Date;
   contexts: { id: string; name: string }[];
+  availableForReporting?: boolean;
+  availableForMaintenance?: boolean;
 }

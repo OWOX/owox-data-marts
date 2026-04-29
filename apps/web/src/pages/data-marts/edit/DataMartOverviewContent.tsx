@@ -13,6 +13,9 @@ import {
 } from '../../../shared/components/CollapsibleCard';
 import { BookOpenIcon, CalendarIcon, Globe, Info, Lock, Tags, Users } from 'lucide-react';
 import { ContextPicker } from '../../../features/contexts/components/ContextPicker/ContextPicker';
+import { AddContextSheet } from '../../../features/contexts/components/AddContextSheet/AddContextSheet';
+import { useInlineContextCreate } from '../../../features/contexts/hooks/useInlineContextCreate';
+import { useIsAdmin } from '../../../features/idp/hooks/useRole';
 import { Switch } from '@owox/ui/components/switch';
 import {
   Accordion,
@@ -57,6 +60,8 @@ export default function DataMartOverviewContent() {
   );
   const [contextIds, setContextIds] = useState<string[]>((dataMart.contexts ?? []).map(c => c.id));
 
+  const isAdmin = useIsAdmin();
+
   // Sync local state when dataMart props change (after refetch)
   useEffect(() => {
     setAvailableForReporting(dataMart.availableForReporting !== false);
@@ -78,6 +83,35 @@ export default function DataMartOverviewContent() {
     },
     [dataMart.id, getDataMart]
   );
+
+  const persistContexts = useCallback(
+    (next: string[]) => {
+      setContextIds(next);
+      void (async () => {
+        try {
+          await dataMartService.updateContexts(dataMart.id, next);
+          toast.success('Contexts updated');
+          void getDataMart(dataMart.id);
+        } catch (error) {
+          toast.error(error instanceof Error ? error.message : 'Failed to update contexts');
+          void getDataMart(dataMart.id);
+        }
+      })();
+    },
+    [dataMart.id, getDataMart]
+  );
+
+  const inlineContext = useInlineContextCreate({
+    enabled: isAdmin,
+    onCreated: created => {
+      setContextIds(prev => {
+        if (prev.includes(created.id)) return prev;
+        const next = [...prev, created.id];
+        persistContexts(next);
+        return next;
+      });
+    },
+  });
 
   return (
     <div data-testid='datamartTabOverview' className='flex flex-col gap-4'>
@@ -295,22 +329,9 @@ export default function DataMartOverviewContent() {
           <div className='group flex w-full flex-col gap-4 rounded-md border-b border-gray-200 bg-white p-4 transition-shadow duration-200 hover:shadow-xs dark:border-0 dark:bg-white/2'>
             <ContextPicker
               selectedContextIds={contextIds}
-              onChange={next => {
-                setContextIds(next);
-                void (async () => {
-                  try {
-                    await dataMartService.updateContexts(dataMart.id, next);
-                    toast.success('Contexts updated');
-                    void getDataMart(dataMart.id);
-                  } catch (error) {
-                    toast.error(
-                      error instanceof Error ? error.message : 'Failed to update contexts'
-                    );
-                    void getDataMart(dataMart.id);
-                  }
-                })();
-              }}
+              onChange={persistContexts}
               idPrefix='dm-ctx'
+              {...inlineContext.pickerProps}
             />
             <Accordion variant='common' type='single' collapsible>
               <AccordionItem value='contexts-help'>
@@ -411,6 +432,7 @@ export default function DataMartOverviewContent() {
         </CollapsibleCardContent>
         <CollapsibleCardFooter></CollapsibleCardFooter>
       </CollapsibleCard>
+      <AddContextSheet {...inlineContext.sheetProps} />
     </div>
   );
 }
