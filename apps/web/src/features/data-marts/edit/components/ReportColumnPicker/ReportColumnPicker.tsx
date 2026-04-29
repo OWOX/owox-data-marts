@@ -343,7 +343,7 @@ export function ReportColumnPicker({
           Select all
         </label>
         <label className={toggleLabelClass}>
-          Selected only
+          Show selected only
           <Switch checked={showSelectedOnly} onCheckedChange={setShowSelectedOnly} />
         </label>
       </div>
