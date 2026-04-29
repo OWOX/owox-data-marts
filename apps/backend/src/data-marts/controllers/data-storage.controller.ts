@@ -202,7 +202,7 @@ export class DataStorageController {
     await this.deleteService.run(command);
   }
 
-  @Auth(Role.viewer(Strategy.PARSE))
+  @Auth(Role.viewer(Strategy.INTROSPECT))
   @Get(':id/resources')
   @ListStorageResourcesSpec()
   async listStorageResources(

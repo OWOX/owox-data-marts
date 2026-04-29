@@ -61,6 +61,7 @@ type GbqTableTypeFilter = 'TABLE' | 'VIEW';
 interface BigQueryClients {
   bigQuery: BigQuery;
   authClient: JWT | OAuth2Client;
+  location?: string;
 }
 
 /**
@@ -133,7 +134,9 @@ export class BigQueryStorageResourceBrowser implements IStorageResourceBrowserPr
       ...(shouldAutodetect ? {} : { location: config.location }),
     });
 
-    return { bigQuery, authClient };
+    const resolvedLocation =
+      config.location === BIGQUERY_AUTODETECT_LOCATION ? undefined : config.location;
+    return { bigQuery, authClient, location: resolvedLocation };
   }
 
   // ── Listing helpers ────────────────────────────────────────────────────────
@@ -316,7 +319,14 @@ export class BigQueryStorageResourceBrowser implements IStorageResourceBrowserPr
     return results;
   }
 
-  private cloneForProject({ authClient }: BigQueryClients, projectId: string): BigQuery {
-    return new BigQuery({ projectId, authClient });
+  private cloneForProject({ authClient, location }: BigQueryClients, projectId: string): BigQuery {
+    const config: { projectId: string; authClient: JWT | OAuth2Client; location?: string } = {
+      projectId,
+      authClient,
+    };
+    if (location) {
+      config.location = location;
+    }
+    return new BigQuery(config);
   }
 }

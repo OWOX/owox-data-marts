@@ -21,7 +21,6 @@ import { extractStorageResourceError } from './storage-resource-error.utils';
 /** Storage types that have a working resource browser on the backend. */
 const STORAGE_TYPES_WITH_RESOURCE_BROWSER: ReadonlySet<DataStorageType> = new Set([
   DataStorageType.GOOGLE_BIGQUERY,
-  DataStorageType.LEGACY_GOOGLE_BIGQUERY,
 ]);
 
 interface FillFromStorageButtonProps {
