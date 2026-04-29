@@ -14,14 +14,8 @@ import type {
  * Provides CRUD operations for relationships and blendable schema access.
  */
 class DataMartRelationshipService extends ApiService {
-  /**
-   * Separate service instance for endpoints outside /data-marts base path.
-   */
-  private readonly storageApiService: ApiService;
-
   constructor() {
     super('/data-marts');
-    this.storageApiService = new ApiService('');
   }
 
   /**
@@ -110,23 +104,6 @@ class DataMartRelationshipService extends ApiService {
     return this.put<DataMartResponseDto>(
       `/${dataMartId}/blended-fields-config`,
       { blendedFieldsConfig },
-      config
-    );
-  }
-
-  /**
-   * Get all relationships for a data storage.
-   * Uses a different base path (/data-storages) than the primary service.
-   * @param storageId Data storage ID
-   * @param config Optional axios config (e.g. `skipLoadingIndicator` for silent refreshes)
-   */
-  async getRelationshipsByStorage(
-    storageId: string,
-    config?: AxiosRequestConfig
-  ): Promise<DataMartRelationship[]> {
-    return this.storageApiService.get<DataMartRelationship[]>(
-      `/data-storages/${storageId}/relationships`,
-      undefined,
       config
     );
   }

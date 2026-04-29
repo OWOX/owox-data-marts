@@ -92,25 +92,35 @@ export function RelationshipAccordionItem({
   const [localAlias, setLocalAlias] = useState(displayAlias);
   const debouncedAlias = useDebounce(localAlias, 500);
   const lastSavedAlias = useRef(displayAlias);
+  const isDirtyRef = useRef(false);
 
   useEffect(() => {
     setLocalAlias(displayAlias);
     lastSavedAlias.current = displayAlias;
+    isDirtyRef.current = false;
   }, [displayAlias]);
 
   useEffect(() => {
     if (!source) return;
+    if (!isDirtyRef.current) return;
     if (debouncedAlias !== lastSavedAlias.current) {
       onAliasChange(source, debouncedAlias);
       lastSavedAlias.current = debouncedAlias;
+      isDirtyRef.current = false;
     }
   }, [debouncedAlias, source, onAliasChange]);
+
+  const handleAliasInput = (next: string) => {
+    setLocalAlias(next);
+    isDirtyRef.current = true;
+  };
 
   const handleAliasBlur = () => {
     if (!source) return;
     if (localAlias !== lastSavedAlias.current) {
       onAliasChange(source, localAlias);
       lastSavedAlias.current = localAlias;
+      isDirtyRef.current = false;
     }
   };
 
@@ -160,9 +170,10 @@ export function RelationshipAccordionItem({
   // Keep actions visible while the dropdown is open, otherwise they would
   // disappear as soon as the pointer leaves the row to reach the menu.
   const actionsVisible = isOpen || isMenuOpen;
-  const actionsVisibilityClass = actionsVisible
-    ? 'opacity-100'
-    : 'opacity-0 group-hover:opacity-100';
+  const actionsVisibilityClass = cn(
+    'transition-opacity',
+    actionsVisible ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
+  );
 
   return (
     <>
@@ -242,10 +253,7 @@ export function RelationshipAccordionItem({
 
               {/* Allow for reporting — rendered for both direct and transient rows */}
               <div
-                className={cn(
-                  'flex shrink-0 items-center gap-1.5 transition-opacity',
-                  actionsVisibilityClass
-                )}
+                className={cn('flex shrink-0 items-center gap-1.5', actionsVisibilityClass)}
                 onClick={e => {
                   e.stopPropagation();
                 }}
@@ -269,7 +277,7 @@ export function RelationshipAccordionItem({
 
               {/* Dropdown menu — controlled so siblings stay visible while open */}
               <div
-                className={cn('shrink-0 transition-opacity', actionsVisibilityClass)}
+                className={cn('shrink-0', actionsVisibilityClass)}
                 onClick={e => {
                   e.stopPropagation();
                 }}
@@ -388,7 +396,7 @@ export function RelationshipAccordionItem({
                             <Input
                               value={localAlias}
                               onChange={e => {
-                                setLocalAlias(e.target.value);
+                                handleAliasInput(e.target.value);
                               }}
                               onBlur={handleAliasBlur}
                               placeholder='e.g. campaign_performance'

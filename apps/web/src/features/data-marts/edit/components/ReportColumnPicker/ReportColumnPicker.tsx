@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { cn } from '@owox/ui/lib/utils';
 import { Badge } from '@owox/ui/components/badge';
@@ -68,19 +68,25 @@ export interface ReportColumnPickerProps {
   onCountChange?: (count: ReportColumnSelectionCount) => void;
 }
 
+type ToggleFieldFn = (name: string, checked: boolean) => void;
+
 interface NativeFieldRowProps {
   field: NativeField;
-  isChecked: (name: string) => boolean;
-  onToggleField: (name: string, checked: boolean) => void;
+  checked: boolean;
+  onToggleField: ToggleFieldFn;
 }
 
-function NativeFieldRow({ field, isChecked, onToggleField }: NativeFieldRowProps) {
+const NativeFieldRow = memo(function NativeFieldRow({
+  field,
+  checked,
+  onToggleField,
+}: NativeFieldRowProps) {
   return (
     <label className='group hover:bg-muted/50 flex cursor-pointer items-center gap-2 rounded px-1 py-1'>
       <Checkbox
-        checked={isChecked(field.name)}
-        onCheckedChange={checked => {
-          onToggleField(field.name, checked === true);
+        checked={checked}
+        onCheckedChange={c => {
+          onToggleField(field.name, c === true);
         }}
       />
       <span className='font-mono text-xs'>{field.alias ?? field.name}</span>
@@ -88,15 +94,41 @@ function NativeFieldRow({ field, isChecked, onToggleField }: NativeFieldRowProps
       <FieldInfoTooltip text={field.description} compact />
     </label>
   );
+});
+
+interface BlendedFieldRowProps {
+  field: BlendedField;
+  checked: boolean;
+  onToggleField: ToggleFieldFn;
 }
+
+const BlendedFieldRow = memo(function BlendedFieldRow({
+  field,
+  checked,
+  onToggleField,
+}: BlendedFieldRowProps) {
+  return (
+    <label className='group hover:bg-muted/50 flex cursor-pointer items-center gap-2 rounded px-1 py-1'>
+      <Checkbox
+        checked={checked}
+        onCheckedChange={c => {
+          onToggleField(field.name, c === true);
+        }}
+      />
+      <span className='font-mono text-xs'>{field.alias || field.originalFieldName}</span>
+      {field.type && <span className='text-muted-foreground text-xs'>({field.type})</span>}
+      <FieldInfoTooltip text={field.description} compact />
+    </label>
+  );
+});
 
 interface BlendedGroupItemProps {
   group: BlendedGroup;
-  isChecked: (name: string) => boolean;
-  onToggleField: (name: string, checked: boolean) => void;
+  selectedSet: Set<string>;
+  onToggleField: ToggleFieldFn;
 }
 
-function BlendedGroupItem({ group, isChecked, onToggleField }: BlendedGroupItemProps) {
+function BlendedGroupItem({ group, selectedSet, onToggleField }: BlendedGroupItemProps) {
   const [isOpen, setIsOpen] = useState(() => group.selectedCount > 0);
 
   return (
@@ -126,20 +158,12 @@ function BlendedGroupItem({ group, isChecked, onToggleField }: BlendedGroupItemP
       </button>
       <CollapsibleContent>
         {group.visibleFields.map(field => (
-          <label
+          <BlendedFieldRow
             key={field.name}
-            className='group hover:bg-muted/50 flex cursor-pointer items-center gap-2 rounded px-1 py-1'
-          >
-            <Checkbox
-              checked={isChecked(field.name)}
-              onCheckedChange={checked => {
-                onToggleField(field.name, checked === true);
-              }}
-            />
-            <span className='font-mono text-xs'>{field.alias || field.originalFieldName}</span>
-            {field.type && <span className='text-muted-foreground text-xs'>({field.type})</span>}
-            <FieldInfoTooltip text={field.description} compact />
-          </label>
+            field={field}
+            checked={selectedSet.has(field.name)}
+            onToggleField={onToggleField}
+          />
         ))}
       </CollapsibleContent>
     </Collapsible>
@@ -200,18 +224,21 @@ export function ReportColumnPicker({
     onBlendedSelectionChange?.(hasBlendedSelection);
   }, [hasBlendedSelection, onBlendedSelectionChange]);
 
-  function isChecked(fieldName: string): boolean {
-    return effectiveValueSet.has(fieldName);
-  }
+  const valueRef = useRef(effectiveValue);
+  valueRef.current = effectiveValue;
 
-  function toggleField(fieldName: string, checked: boolean) {
-    if (checked) {
-      if (effectiveValueSet.has(fieldName)) return;
-      onChange([...effectiveValue, fieldName]);
-    } else {
-      onChange(effectiveValue.filter(name => name !== fieldName));
-    }
-  }
+  const toggleField = useCallback<ToggleFieldFn>(
+    (fieldName, checked) => {
+      const current = valueRef.current;
+      if (checked) {
+        if (current.includes(fieldName)) return;
+        onChange([...current, fieldName]);
+      } else {
+        onChange(current.filter(name => name !== fieldName));
+      }
+    },
+    [onChange]
+  );
 
   function selectAll() {
     if (!schema) return;
@@ -231,12 +258,12 @@ export function ReportColumnPicker({
     onChange(effectiveValue.filter(name => !known.has(name)));
   }
 
-  const selectedNativeCount = nativeFields.filter(f => isChecked(f.name)).length;
+  const selectedNativeCount = nativeFields.filter(f => effectiveValueSet.has(f.name)).length;
 
   const [showSelectedOnly, setShowSelectedOnly] = useState(false);
 
   const visibleNativeFields = showSelectedOnly
-    ? nativeFields.filter(f => isChecked(f.name))
+    ? nativeFields.filter(f => effectiveValueSet.has(f.name))
     : nativeFields;
 
   const totalFieldsCount = nativeFields.length + includedBlendedFields.length;
@@ -334,7 +361,7 @@ export function ReportColumnPicker({
           <NativeFieldRow
             key={field.name}
             field={field}
-            isChecked={isChecked}
+            checked={effectiveValueSet.has(field.name)}
             onToggleField={toggleField}
           />
         ))}
@@ -343,7 +370,7 @@ export function ReportColumnPicker({
           <BlendedGroupItem
             key={group.aliasPath}
             group={group}
-            isChecked={isChecked}
+            selectedSet={effectiveValueSet}
             onToggleField={toggleField}
           />
         ))}
