@@ -16,6 +16,7 @@ import { BlendedFieldsConfig, BlendedSource } from '../dto/schemas/blended-field
 import { AggregateFunction } from '../dto/schemas/aggregate-function.schema';
 import { BusinessViolationException } from '../../common/exceptions/business-violation.exception';
 import { DataMartRelationship } from '../entities/data-mart-relationship.entity';
+import { DataMartStatus } from '../enums/data-mart-status.enum';
 
 const DEFAULT_CONFIG: BlendedFieldsConfig = {
   sources: [],
@@ -142,6 +143,10 @@ export class BlendableSchemaService {
           { relationshipId: rel.id, targetAlias: rel.targetAlias }
         );
       }
+
+      // Reports cannot join against an unfinalized schema, so a draft target — and any
+      // descendants reachable only through it — must not surface in the picker.
+      if (rel.targetDataMart.status !== DataMartStatus.PUBLISHED) continue;
 
       if (ctx.branchDmIds.has(rel.targetDataMart.id)) continue;
 
