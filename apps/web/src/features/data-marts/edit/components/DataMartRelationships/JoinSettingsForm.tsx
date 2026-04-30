@@ -22,7 +22,7 @@ import { Combobox } from '../../../../../shared/components/Combobox/combobox';
 import { UserReference } from '../../../../../shared/components/UserReference';
 import { useProjectRoute } from '../../../../../shared/hooks/useProjectRoute';
 import { useDebounce } from '../../../../../hooks/useDebounce';
-import { formatDateShort } from '../../../../../utils/date-formatters';
+import { formatDateOnly, formatDateShort } from '../../../../../utils/date-formatters';
 import type { DataMartResponseDto } from '../../../shared';
 import { dataMartService } from '../../../shared';
 import { dataMartRelationshipService } from '../../../shared/services/data-mart-relationship.service';
@@ -336,9 +336,16 @@ export function JoinSettingsForm({
               >
                 <span className='max-w-[360px] truncate'>{relationship.targetDataMart.title}</span>
               </ExternalAnchor>
-              <span className='whitespace-nowrap'>
-                Joined {formatDateShort(relationship.createdAt)}
-              </span>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span className='whitespace-nowrap'>
+                    {formatDateOnly(relationship.createdAt)}
+                  </span>
+                </TooltipTrigger>
+                <TooltipContent side='top'>
+                  {formatDateShort(relationship.createdAt)}
+                </TooltipContent>
+              </Tooltip>
               {relationship.createdByUser && (
                 <span className='flex min-w-0 items-center gap-1.5'>
                   <span>by</span>

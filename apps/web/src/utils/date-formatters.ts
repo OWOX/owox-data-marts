@@ -28,6 +28,25 @@ export const formatDateShort = (date: Date | string | null): string => {
   }).format(d);
 };
 
+export const formatDateOnly = (date: Date | string | null): string => {
+  if (!date) return '—';
+
+  let d: Date;
+  if (typeof date === 'string') {
+    d = new Date(date);
+    if (isNaN(d.getTime())) return '—';
+  } else {
+    d = date;
+    if (isNaN(d.getTime())) return '—';
+  }
+
+  return new Intl.DateTimeFormat('en-US', {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+  }).format(d);
+};
+
 /**
  * Format a date as a full timestamp string (e.g., "2024-03-15 14:30:00")
  * Uses browser's timezone for display
