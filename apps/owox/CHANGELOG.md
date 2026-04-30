@@ -1,5 +1,109 @@
 # owox
 
+## 0.24.0
+
+### Minor Changes
+
+- b335552: # Joinable Data Marts and Joined Reports
+
+  You can now connect data marts to each other and build reports that combine fields from several joined data marts in a single output.
+
+  On a data mart's **Data Setup** tab, the new **Joinable Data Marts** block lets you add joinable data marts, configure join conditions, choose which fields each joined data mart exposes, and override their aliases or aggregations. When editing a Google Sheets, Looker Studio, or Email report, the **Report Columns** picker now shows fields from the data mart together with fields available from joined data marts, so a single report can combine columns from several data marts at once. The generated SQL is available for inspection, and any joined report can be saved as a standalone data mart.
+
+  Supported on BigQuery, Snowflake, Redshift, Athena, and Databricks.
+
+- d187cdf: # Add project contexts and role scope, project settings page
+
+  Added business-domain Contexts and per-member Role Scope to narrow what shared resources a non-owner can see.
+  Admins define Contexts in Project Settings, attach them to Data Marts, Storages and Destinations, and pick
+  between `Entire project` and `Selected contexts` for each member.
+  Owners and admins are never gated by Contexts. Introduced a unified Project Settings page
+  (Overview, Members, Contexts, Credit consumption, Subscription, Notification) that replaces the separate
+  Members page and wires invite, role change and member removal through the Identity Provider.
+
+- ba44a8d: # Enhanced Security Headers for All Pages
+
+  Your OWOX application is now more secure with improved HTTP security headers on every page.
+  - Added protection against clickjacking attacks with Content Security Policy
+  - Enforced secure HTTPS connections with Strict Transport Security
+  - Improved browser-level XSS and content-type protection
+  - Better privacy control through referrer policy settings
+
+  These security enhancements apply automatically to all application pages and authentication screens, helping protect your data and ensuring compliance with modern security standards.
+
+- c669d11: # Add OAuth for LinkedIn Ads and LinkedIn Pages
+
+  Added OAuth authorization flow for both LinkedIn connectors, including UI login, callback handling, credential exchange, and token-backed execution. Existing LinkedIn configurations are migrated to the OAuth2 structure with compatibility for previously saved settings.
+
+- d8e7e84: # Project Settings documentation
+
+  New documentation section covering how members, roles, and resource access work in OWOX Data Marts. Includes three pages under Project Settings: Members Management (Created By field, owner assignment on creation), Roles and Permissions (Admin, Technical User, Business User capabilities), and Ownership and Availability (ownership model per entity, availability settings, and per-entity access tables for Storage, Data Mart, Destination, Report, and their Triggers).
+
+- d118b10: # Improved Data Mart Publishing Experience
+
+  Publishing a Connector-based Data Marts is now smoother and more intuitive.
+  - Data starts loading automatically after publishing connector-based Data Mart
+  - Guidance now focuses on scheduling automatic updates instead of manual runs
+  - Promo messages appear only once to reduce distractions
+  - Updated button labels and tooltips for better clarity
+
+  These changes make it easier to get started and keep your data up to date.
+
+- ba44a8d: # Easy Table and View Selection for BigQuery Data Marts
+
+  Defining BigQuery-based Data Marts is now faster and more convenient.
+  - New "Fill from Storage" button for Google BigQuery Data Marts
+  - Browse available tables and views through an intuitive project → dataset → table hierarchy
+  - Selecting a table or view automatically fills the Fully Qualified Name field
+  - Manual entry remains available as an alternative for all storage types
+
+  This update eliminates the need to memorize or copy complex table names, reducing setup time and preventing typos when configuring your Data Mart definitions.
+
+- ba44a8d: # Improved BigQuery Configuration Validation
+
+  Configuring BigQuery storages is now safer with better project ID validation.
+  - Invalid project ID values are now caught immediately when saving OAuth-authenticated BigQuery storages
+  - Clear error messages help you correct typos or formatting issues before they cause problems
+  - Data mart runtime errors due to misconfigured project IDs are prevented
+
+  This ensures your BigQuery connections are properly set up from the start, saving debugging time later.
+
+- e817c93: # Introduce Setup Checklist for Guided Onboarding
+
+  We have added a new **Setup Checklist** to guide users through the key steps required to start working with the product. It provides a clear, structured path from initial setup to getting the first results, helping users understand what to do next without confusion.
+
+  Each step includes a direct call to action, allowing users to quickly navigate or perform required actions. The checklist also tracks progress in real time and groups steps into logical stages, making the onboarding experience more intuitive and goal-oriented.
+
+  Overall, this improves time-to-value, reduces friction during onboarding, and helps users reach meaningful outcomes faster.
+
+- 160574a: # Grey health indicator for unconfigured storages
+
+  Previously, a storage that had just been created but not yet configured showed a red health indicator — the same as a storage with broken credentials. Now, unconfigured storages show a distinct grey indicator with the message "Complete setup to activate Storage". Red is reserved for storages that have been configured but fail validation, and green for fully healthy ones.
+
+- 50366c4: # TikTok Ads `campaign_id` and `adgroup_id` in Ad Insights
+
+  Previously, the `campaign_id` and `adgroup_id` fields in the `tiktok_ads_ad_insights` table were always `null`. This happened because TikTok's API requires these parent-hierarchy IDs to be requested as metrics, not dimensions, at the ad data level — and they were missing from the request. Now both fields are correctly requested and populated, so users can join ad-level performance data back to their campaigns and ad groups.
+
+- 3f8b831: # Improve Data Mart page layout, navigation, and table usability
+
+  This update enhances the overall user experience of the Data Mart page by improving layout responsiveness, navigation clarity, and table behavior.
+  - Sticky actions column in tables. Keeps row actions always visible, reducing the need for horizontal scrolling and improving interaction speed.
+  - Contextual action visibility. Actions are emphasized on row hover, reducing visual noise while keeping functionality easily accessible.
+  - Improved text wrapping. Long values (including strings without spaces) now wrap correctly across the UI (tables and titles), preventing layout breaks and ensuring better readability.
+  - Responsive layout improvements. Refined layout behavior for different screen sizes to ensure better alignment, spacing, and adaptability.
+  - Scrollable tabs with fade indicator. Added a gradient fade on the edge of the tabs navigation to indicate horizontal overflow and improve discoverability of hidden tabs.
+
+  These improvements make the interface more stable, scannable, and user-friendly, especially when working with large datasets and long content.
+
+### Patch Changes
+
+- @owox/internal-helpers@0.24.0
+- @owox/idp-protocol@0.24.0
+- @owox/idp-better-auth@0.24.0
+- @owox/idp-owox-better-auth@0.24.0
+- @owox/backend@0.24.0
+- @owox/web@0.24.0
+
 ## 0.23.0
 
 ### Minor Changes 0.23.0
@@ -9,7 +113,6 @@
 - d8b82e5: **Ownership foundations**
 
   Ownership is now explicit and visible across all major entities. This is the first stage of the Permissions Model Evolution — ownership is informational only and does not affect access control.
-
   - Data Mart has **separate Technical Owner and Business Owner**, editable on the Overview tab.
   - Storage, Destination, and Report **each have an Owners list**, editable in the configuration sheet and saved together with the entity.
   - **Creator is auto-assigned** as owner when a new entity is created.
@@ -20,7 +123,6 @@
 - 11c0c77: **Availability model and owner-based access control**
 
   Introduced explicit availability settings for DataMarts, Storages, and Destinations (`Available for reporting / Available for maintenance` and `Available for use / Available for maintenance`). Ownership now affects access: owners have direct access to their entities regardless of availability state, while non-owners see only available entities.
-
   - Implemented table-driven `AccessDecisionService` that evaluates entity type, role, ownership status, availability state, and action for every single-entity operation.
   - Enforced access checks on all endpoints including direct URL access, sub-operations (SQL dry run, validate definition, run history), and report creation.
   - Existing entities default to fully available for backward compatibility; new entities default to not available (secure by default).
@@ -28,7 +130,6 @@
 - 11c0c77: **Extended role definitions and report ownership**
 
   Reinterpreted existing project roles without changing stored identifiers: Viewer becomes Business User with self-service reporting capabilities, Editor becomes Technical User with full technical maintenance access.
-
   - Business Users can now create, edit, delete, and run their own Reports and manage Report Triggers.
   - Business Users can also create, edit, and delete Destinations.
   - Technical Users retain project-wide Report management.
@@ -1469,7 +1570,6 @@
   We're excited to introduce **Time Triggers** - a powerful new feature that allows you to schedule your reports and connectors to run automatically at specified times!
 
   ## Benefits
-
   - ✅ **Save Time**: Automate routine data refreshes without manual intervention
   - 🔄 **Stay Updated**: Keep your data fresh with regular scheduled updates
   - 📊 **Consistent Reporting**: Ensure your reports are generated on a reliable schedule
@@ -1477,7 +1577,6 @@
   - 🔧 **Flexible Scheduling Options**: Choose from daily, weekly, monthly, or interval-based schedules
 
   ## Scheduling Options
-
   - **Daily**: Run your reports or connectors at the same time every day
   - **Weekly**: Select specific days of the week for execution
   - **Monthly**: Schedule runs on specific days of the month
