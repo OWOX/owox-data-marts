@@ -1,5 +1,79 @@
 # owox
 
+## 0.24.0
+
+### Minor Changes 0.24.0
+
+![OWOX Data Marts – v0.24.0](https://github.com/user-attachments/assets/1147e6ca-26c6-41ad-b6ba-b2d1bf4f632c)
+
+- b335552: **Joinable Data Marts and joined reports**
+
+  Data Marts can now be connected to each other, and reports can combine fields from several joined Data Marts in a single output.
+
+  On a Data Mart's **Data Setup** tab, the new **Joinable Data Marts** block lets you add joinable Data Marts, configure join conditions, choose which fields each joined Data Mart exposes, and override their aliases or aggregations. When editing a Google Sheets, Looker Studio, or Email report, the **Report Columns** picker now shows fields from the base Data Mart together with fields from all joined Data Marts. The generated SQL is available for inspection, and any joined report can be saved as a standalone Data Mart.
+
+  Supported on BigQuery, Snowflake, Redshift, Athena, and Databricks.
+
+- d187cdf: **Project contexts and role scope**
+
+  Added business-domain Contexts and per-member Role Scope to narrow what shared resources a non-owner can see.
+
+  - Admins define Contexts in Project Settings, attach them to Data Marts, Storages, and Destinations, and pick between `Entire project` and `Selected contexts` for each member.
+  - Owners and admins are never gated by Contexts.
+  - Introduced a unified **Project Settings** page (Overview, Members, Contexts, Credit consumption, Subscription, Notification) that replaces the separate Members page.
+
+- e817c93: **Setup checklist for guided onboarding**
+
+  Added a **Setup Checklist** that guides new users through the key steps required to start working with the product. Each step includes a direct call to action, the checklist tracks progress in real time, and steps are grouped into logical stages.
+
+- c669d11: **OAuth for LinkedIn Ads and LinkedIn Pages**
+
+  Added OAuth authorization flow for both LinkedIn connectors, including UI login, callback handling, credential exchange, and token-backed execution. Existing LinkedIn configurations are migrated to the OAuth2 structure with compatibility for previously saved settings.
+
+- ba44a8d: **Table and view browser for BigQuery Data Marts**
+
+  A new **Fill from Storage** button lets you browse available tables and views through a `project → dataset → table` hierarchy. Selecting a table or view automatically fills the Fully Qualified Name field. Manual entry remains available as an alternative.
+
+- d118b10: **Improved Data Mart publishing experience**
+
+  - Data starts loading automatically after publishing a connector-based Data Mart.
+  - Guidance now focuses on scheduling automatic updates instead of manual runs.
+  - Promo messages appear only once.
+  - Updated button labels and tooltips for better clarity.
+
+- 3f8b831: **Data Mart page layout and table usability improvements**
+
+  - Sticky actions column keeps row actions always visible during horizontal scroll.
+  - Row actions are emphasized on hover to reduce visual noise.
+  - Long values (including strings without spaces) now wrap correctly in tables and titles.
+  - Refined layout behavior across different screen sizes.
+  - Scrollable tabs now show a gradient fade indicator at the edge to signal hidden overflow.
+
+- d8e7e84: **Project Settings documentation**
+
+  New documentation section covering members, roles, and resource access. Includes three pages: Members Management, Roles and Permissions, and Ownership and Availability (with per-entity access tables for Storage, Data Mart, Destination, Report, and their Triggers).
+
+- ba44a8d: **Enhanced security headers**
+
+  Improved HTTP security headers now apply automatically to all application pages and authentication screens: Content Security Policy against clickjacking, Strict Transport Security for HTTPS enforcement, XSS and content-type protection, and referrer policy controls.
+
+- ba44a8d: **Improved BigQuery configuration validation**
+
+  Invalid project ID values are now caught immediately when saving OAuth-authenticated BigQuery storages, with clear error messages to correct typos or formatting issues before they cause runtime errors.
+
+- 160574a: # **Bug fixes and improvements**
+  - 160574a: Unconfigured storages now show a grey health indicator with the message "Complete setup to activate Storage" instead of a red one. Red is reserved for storages that have been configured but fail validation.
+  - 50366c4: Fixed `campaign_id` and `adgroup_id` fields in `tiktok_ads_ad_insights` — both were always `null` due to missing parent-hierarchy IDs in the API request. Both fields are now correctly populated.
+
+### Patch Changes 0.24.0
+
+- @owox/internal-helpers@0.24.0
+- @owox/idp-protocol@0.24.0
+- @owox/idp-better-auth@0.24.0
+- @owox/idp-owox-better-auth@0.24.0
+- @owox/backend@0.24.0
+- @owox/web@0.24.0
+
 ## 0.23.0
 
 ### Minor Changes 0.23.0
@@ -9,7 +83,6 @@
 - d8b82e5: **Ownership foundations**
 
   Ownership is now explicit and visible across all major entities. This is the first stage of the Permissions Model Evolution — ownership is informational only and does not affect access control.
-
   - Data Mart has **separate Technical Owner and Business Owner**, editable on the Overview tab.
   - Storage, Destination, and Report **each have an Owners list**, editable in the configuration sheet and saved together with the entity.
   - **Creator is auto-assigned** as owner when a new entity is created.
@@ -20,7 +93,6 @@
 - 11c0c77: **Availability model and owner-based access control**
 
   Introduced explicit availability settings for DataMarts, Storages, and Destinations (`Available for reporting / Available for maintenance` and `Available for use / Available for maintenance`). Ownership now affects access: owners have direct access to their entities regardless of availability state, while non-owners see only available entities.
-
   - Implemented table-driven `AccessDecisionService` that evaluates entity type, role, ownership status, availability state, and action for every single-entity operation.
   - Enforced access checks on all endpoints including direct URL access, sub-operations (SQL dry run, validate definition, run history), and report creation.
   - Existing entities default to fully available for backward compatibility; new entities default to not available (secure by default).
@@ -28,7 +100,6 @@
 - 11c0c77: **Extended role definitions and report ownership**
 
   Reinterpreted existing project roles without changing stored identifiers: Viewer becomes Business User with self-service reporting capabilities, Editor becomes Technical User with full technical maintenance access.
-
   - Business Users can now create, edit, delete, and run their own Reports and manage Report Triggers.
   - Business Users can also create, edit, and delete Destinations.
   - Technical Users retain project-wide Report management.
