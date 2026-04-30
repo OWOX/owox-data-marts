@@ -7,6 +7,9 @@ import { Report } from '../entities/report.entity';
 import { ResolvedRelationshipChain } from '../data-storage-types/interfaces/blended-query-builder.interface';
 import { ReportDataHeader } from '../dto/domain/report-data-header.dto';
 import { AvailableSourceDto, BlendedFieldDto } from '../dto/domain/blendable-schema.dto';
+import { DataStorageType } from '../data-storage-types/enums/data-storage-type.enum';
+import { StorageFieldType } from '../dto/domain/storage-field-type';
+import { computeEffectiveType } from '../data-storage-types/field-aggregation';
 import { BlendingDecision } from '../dto/domain/blending-decision.dto';
 import { DataMartRelationship } from '../entities/data-mart-relationship.entity';
 import { PublicOriginService } from '../../common/config/public-origin.service';
@@ -37,7 +40,11 @@ export class BlendedReportDataService {
 
     const blendedFieldsByName = new Map(blendableSchema.blendedFields.map(f => [f.name, f]));
     const hasBlendedColumns = columnConfig.some(col => blendedFieldsByName.has(col));
-    const blendedDataHeaders = this.buildBlendedDataHeaders(columnConfig, blendedFieldsByName);
+    const blendedDataHeaders = this.buildBlendedDataHeaders(
+      columnConfig,
+      blendedFieldsByName,
+      dataMart.storage.type
+    );
 
     if (!hasBlendedColumns) {
       return {
@@ -92,22 +99,25 @@ export class BlendedReportDataService {
 
   private buildBlendedDataHeaders(
     columnConfig: string[],
-    blendedFieldsByName: Map<string, BlendedFieldDto>
+    blendedFieldsByName: Map<string, BlendedFieldDto>,
+    storageType: DataStorageType
   ): ReportDataHeader[] {
     const headers: ReportDataHeader[] = [];
     for (const col of columnConfig) {
       const blendedField = blendedFieldsByName.get(col);
       if (blendedField) {
+        const effectiveType = computeEffectiveType(
+          blendedField.type as StorageFieldType,
+          blendedField.aggregateFunction,
+          storageType
+        );
         headers.push(
           new ReportDataHeader(
             blendedField.name,
             `${blendedField.outputPrefix} ${blendedField.alias || blendedField.originalFieldName}`,
             blendedField.description || undefined,
-            // Blended field types come from the target data mart schema.
-            // They are not typed as the concrete storage-type enum here,
-            // so we leave storageFieldType undefined — destinations only
-            // use it for formatting hints.
-            undefined
+            effectiveType,
+            blendedField.aggregateFunction
           )
         );
       }

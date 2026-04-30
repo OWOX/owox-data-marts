@@ -1,13 +1,19 @@
 import { Response } from 'express';
 import { PassThrough } from 'stream';
 import * as zlib from 'zlib';
+import { Test } from '@nestjs/testing';
+import { BigQueryFieldType } from '../../../data-storage-types/bigquery/enums/bigquery-field-type.enum';
 import { DataStorageType } from '../../../data-storage-types/enums/data-storage-type.enum';
+import { ReportDataHeader } from '../../../dto/domain/report-data-header.dto';
 import { CachedReaderData } from '../../../dto/domain/cached-reader-data.dto';
 import { Report } from '../../../entities/report.entity';
+import { FieldConceptType } from '../enums/field-concept-type.enum';
 import { FieldDataType } from '../enums/field-data-type.enum';
+import { AggregationType } from '../enums/aggregation-type.enum';
 import { GetDataRequest } from '../schemas/get-data.schema';
 import { LookerStudioConnectorApiDataService } from './looker-studio-connector-api-data.service';
 import { LookerStudioTypeMapperService } from './looker-studio-type-mapper.service';
+import { LookerStudioAggregationMapperService } from './looker-studio-aggregation-mapper.service';
 
 describe('LookerStudioConnectorApiDataService', () => {
   let service: LookerStudioConnectorApiDataService;
@@ -16,6 +22,12 @@ describe('LookerStudioConnectorApiDataService', () => {
   beforeEach(() => {
     typeMapperService = {
       mapToLookerStudioDataType: jest.fn().mockReturnValue(FieldDataType.STRING),
+      buildSchemaField: jest.fn().mockImplementation((header: ReportDataHeader) => ({
+        name: header.name,
+        label: header.alias || header.name,
+        dataType: FieldDataType.STRING,
+        semantics: { conceptType: FieldConceptType.DIMENSION },
+      })),
     } as unknown as jest.Mocked<LookerStudioTypeMapperService>;
 
     service = new LookerStudioConnectorApiDataService(typeMapperService);
@@ -47,7 +59,7 @@ describe('LookerStudioConnectorApiDataService', () => {
     }) as GetDataRequest;
 
   const createMockCachedReader = (
-    headers: Array<{ name: string; storageFieldType: string }>,
+    headers: Array<{ name: string; storageFieldType: string; aggregateFunction?: string }>,
     batches: Array<{ rows: unknown[][]; nextBatchId?: string }>
   ): CachedReaderData => {
     let batchIndex = 0;
@@ -58,6 +70,7 @@ describe('LookerStudioConnectorApiDataService', () => {
         dataHeaders: headers.map(h => ({
           name: h.name,
           storageFieldType: h.storageFieldType,
+          aggregateFunction: h.aggregateFunction,
         })),
       },
       reader: {
@@ -327,6 +340,105 @@ describe('LookerStudioConnectorApiDataService', () => {
       expect(meta.limitExceeded).toBe(false);
       expect(meta.rowsSent).toBe(2);
       expect(meta.limitReason).toBeUndefined();
+    });
+
+    it('blended COUNT on STRING field → schema carries NUMBER (regression fix)', async () => {
+      typeMapperService.buildSchemaField.mockImplementation((header: ReportDataHeader) => ({
+        name: header.name,
+        label: header.alias || header.name,
+        dataType: FieldDataType.NUMBER,
+        semantics: { conceptType: FieldConceptType.METRIC, isReaggregatable: true },
+        defaultAggregationType: AggregationType.SUM,
+      }));
+
+      const report = createMockReport();
+      const request = createMockRequest(['b_count']);
+      const cachedReader = createMockCachedReader(
+        [{ name: 'b_count', storageFieldType: 'INTEGER', aggregateFunction: 'COUNT' }],
+        [{ rows: [[42]], nextBatchId: undefined }]
+      );
+
+      const { response } = await service.getData(request, report, cachedReader, false);
+
+      expect(response.schema[0].dataType).toBe(FieldDataType.NUMBER);
+    });
+  });
+
+  describe('getSchema ↔ getData dataType agreement', () => {
+    it('same headers → schema service and data service produce identical dataType per field', async () => {
+      const module = await Test.createTestingModule({
+        providers: [
+          LookerStudioTypeMapperService,
+          LookerStudioAggregationMapperService,
+          LookerStudioConnectorApiDataService,
+        ],
+      }).compile();
+
+      const realDataService = module.get(LookerStudioConnectorApiDataService);
+      const realTypeMapper = module.get(LookerStudioTypeMapperService);
+
+      (realDataService as any).logger = {
+        log: jest.fn(),
+        warn: jest.fn(),
+        error: jest.fn(),
+        debug: jest.fn(),
+      };
+
+      const storageType = DataStorageType.GOOGLE_BIGQUERY;
+
+      const headers: ReportDataHeader[] = [
+        new ReportDataHeader('native_str', 'Native Str', undefined, BigQueryFieldType.STRING),
+        new ReportDataHeader('native_int', 'Native Int', undefined, BigQueryFieldType.INTEGER),
+        new ReportDataHeader('b_count', 'B Count', undefined, BigQueryFieldType.INTEGER, 'COUNT'),
+        new ReportDataHeader(
+          'b_cnt_dist',
+          'B Cnt Dist',
+          undefined,
+          BigQueryFieldType.INTEGER,
+          'COUNT_DISTINCT'
+        ),
+        new ReportDataHeader(
+          'b_str_agg',
+          'B Str Agg',
+          undefined,
+          BigQueryFieldType.STRING,
+          'STRING_AGG'
+        ),
+        new ReportDataHeader('b_max_date', 'B Max Date', undefined, BigQueryFieldType.DATE, 'MAX'),
+        new ReportDataHeader('b_max_int', 'B Max Int', undefined, BigQueryFieldType.INTEGER, 'MAX'),
+        new ReportDataHeader(
+          'b_any_int',
+          'B Any Int',
+          undefined,
+          BigQueryFieldType.INTEGER,
+          'ANY_VALUE'
+        ),
+      ];
+
+      const schemaDataTypes = headers.map(
+        h => realTypeMapper.buildSchemaField(h, storageType).dataType
+      );
+
+      const report = createMockReport();
+      const request = createMockRequest(headers.map(h => h.name));
+      const cachedReader: CachedReaderData = {
+        fromCache: false,
+        dataDescription: { dataHeaders: headers },
+        reader: {
+          readReportDataBatch: jest.fn().mockResolvedValue({
+            dataRows: [headers.map(() => null)],
+            nextDataBatchId: null,
+          }),
+        },
+      } as unknown as CachedReaderData;
+
+      const { response } = await realDataService.getData(request, report, cachedReader, false);
+
+      const responseDataTypes = response.schema.map(
+        (s: { name: string; dataType: FieldDataType }) => s.dataType
+      );
+
+      expect(responseDataTypes).toEqual(schemaDataTypes);
     });
   });
 });

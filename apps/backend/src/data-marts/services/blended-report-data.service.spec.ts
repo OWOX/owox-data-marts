@@ -297,6 +297,94 @@ describe('BlendedReportDataService', () => {
       expect(result.columnFilter).toEqual(columnConfig);
     });
 
+    describe('blendedDataHeaders carry effective type and aggregateFunction', () => {
+      function makeSimpleSchema(
+        fieldName: string,
+        type: string,
+        agg: BlendedFieldDto['aggregateFunction']
+      ): BlendableSchemaDto {
+        const field = new BlendedFieldDto();
+        field.name = fieldName;
+        field.sourceRelationshipId = 'rel-1';
+        field.sourceDataMartId = 'dm-target';
+        field.sourceDataMartTitle = 'Target';
+        field.targetAlias = 'alias_1';
+        field.originalFieldName = fieldName;
+        field.type = type;
+        field.isHidden = false;
+        field.aggregateFunction = agg;
+        field.transitiveDepth = 1;
+        field.aliasPath = 'alias_1';
+        field.outputPrefix = 'alias_1';
+
+        return {
+          nativeFields: [],
+          availableSources: [
+            {
+              aliasPath: 'alias_1',
+              title: 'Target',
+              defaultAlias: 'alias_1',
+              depth: 1,
+              fieldCount: 1,
+              isIncluded: true,
+              relationshipId: 'rel-1',
+              dataMartId: 'dm-target',
+            },
+          ],
+          blendedFields: [field],
+        };
+      }
+
+      async function resolveHeader(
+        fieldName: string,
+        type: string,
+        agg: BlendedFieldDto['aggregateFunction']
+      ) {
+        blendableSchemaService.computeBlendableSchema.mockResolvedValue(
+          makeSimpleSchema(fieldName, type, agg)
+        );
+        relationshipService.findBySourceDataMartId.mockResolvedValue([
+          {
+            id: 'rel-1',
+            targetAlias: 'alias_1',
+            sourceDataMart: { id: 'dm-1' },
+            targetDataMart: { id: 'dm-target' },
+            joinConditions: [],
+          } as unknown as DataMartRelationship,
+        ]);
+        tableReferenceService.resolveTableName.mockResolvedValue('table_ref');
+        blendedQueryBuilderFacade.buildBlendedQuery.mockResolvedValue('SELECT ...');
+
+        const report = makeReport({ columnConfig: [fieldName] });
+        const result = await service.resolveBlendingDecision(report);
+        return result.blendedDataHeaders?.[0];
+      }
+
+      it('SUM/INTEGER: effective storageFieldType=INTEGER, aggregateFunction=SUM', async () => {
+        const header = await resolveHeader('f', 'INTEGER', 'SUM');
+        expect(header?.storageFieldType).toBe('INTEGER');
+        expect(header?.aggregateFunction).toBe('SUM');
+      });
+
+      it('COUNT/STRING: effective storageFieldType=INTEGER, aggregateFunction=COUNT', async () => {
+        const header = await resolveHeader('f', 'STRING', 'COUNT');
+        expect(header?.storageFieldType).toBe('INTEGER');
+        expect(header?.aggregateFunction).toBe('COUNT');
+      });
+
+      it('STRING_AGG/STRING: effective storageFieldType=STRING, aggregateFunction=STRING_AGG', async () => {
+        const header = await resolveHeader('f', 'STRING', 'STRING_AGG');
+        expect(header?.storageFieldType).toBe('STRING');
+        expect(header?.aggregateFunction).toBe('STRING_AGG');
+      });
+
+      it('MAX/DATE: effective storageFieldType=DATE, aggregateFunction=MAX', async () => {
+        const header = await resolveHeader('f', 'DATE', 'MAX');
+        expect(header?.storageFieldType).toBe('DATE');
+        expect(header?.aggregateFunction).toBe('MAX');
+      });
+    });
+
     it('sets parentAlias to main for direct relationships (transitiveDepth=1)', async () => {
       const columnConfig = ['blended_field'];
       const report = makeReport({ columnConfig });

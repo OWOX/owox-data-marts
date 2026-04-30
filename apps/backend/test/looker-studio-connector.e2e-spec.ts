@@ -16,7 +16,12 @@ import { DataMartSchemaProviderFacade } from '../src/data-marts/data-storage-typ
 import { ReportDataHeader } from '../src/data-marts/dto/domain/report-data-header.dto';
 import { ReportDataBatch } from '../src/data-marts/dto/domain/report-data-batch.dto';
 import { ReportDataDescription } from '../src/data-marts/dto/domain/report-data-description.dto';
+import { BlendingDecision } from '../src/data-marts/dto/domain/blending-decision.dto';
 import { BigQueryFieldType } from '../src/data-marts/data-storage-types/bigquery/enums/bigquery-field-type.enum';
+import { AggregateFunction } from '../src/data-marts/dto/schemas/aggregate-function.schema';
+import { FieldDataType } from '../src/data-marts/data-destination-types/looker-studio-connector/enums/field-data-type.enum';
+import { FieldConceptType } from '../src/data-marts/data-destination-types/looker-studio-connector/enums/field-concept-type.enum';
+import { AggregationType } from '../src/data-marts/data-destination-types/looker-studio-connector/enums/aggregation-type.enum';
 
 // ---------------------------------------------------------------------------
 // Mock data for the in-memory reader
@@ -32,24 +37,37 @@ const MOCK_ROWS: unknown[][] = [
   ['2024-01-03', 75.25],
 ];
 
-const mockReader = {
-  prepareReportData: jest
-    .fn()
-    .mockResolvedValue(new ReportDataDescription(MOCK_HEADERS, MOCK_ROWS.length)),
-  readReportDataBatch: jest.fn().mockResolvedValue(new ReportDataBatch(MOCK_ROWS, null)),
-  finalize: jest.fn().mockResolvedValue(undefined),
-  getState: jest.fn().mockReturnValue(null),
-  initFromState: jest.fn().mockResolvedValue(undefined),
-  getType: jest.fn().mockReturnValue('GOOGLE_BIGQUERY'),
-};
+function buildMockReader(headers: ReportDataHeader[], rows: unknown[][]) {
+  return {
+    prepareReportData: jest.fn().mockResolvedValue(new ReportDataDescription(headers, rows.length)),
+    readReportDataBatch: jest.fn().mockResolvedValue(new ReportDataBatch(rows, null)),
+    finalize: jest.fn().mockResolvedValue(undefined),
+    getState: jest.fn().mockReturnValue(null),
+    initFromState: jest.fn().mockResolvedValue(undefined),
+    getType: jest.fn().mockReturnValue('GOOGLE_BIGQUERY'),
+  };
+}
+
+function buildMockCachedReader(
+  reader: ReturnType<typeof buildMockReader>,
+  headers: ReportDataHeader[],
+  rows: unknown[][],
+  blendingDecision: BlendingDecision = { needsBlending: false }
+) {
+  return {
+    reader,
+    dataDescription: new ReportDataDescription(headers, rows.length),
+    fromCache: false,
+    blendingDecision,
+  };
+}
+
+const mockReader = buildMockReader(MOCK_HEADERS, MOCK_ROWS);
 
 const mockCacheService = {
-  getOrCreateCachedReader: jest.fn().mockResolvedValue({
-    reader: mockReader,
-    dataDescription: new ReportDataDescription(MOCK_HEADERS, MOCK_ROWS.length),
-    fromCache: false,
-    blendingDecision: { needsBlending: false },
-  }),
+  getOrCreateCachedReader: jest
+    .fn()
+    .mockResolvedValue(buildMockCachedReader(mockReader, MOCK_HEADERS, MOCK_ROWS)),
 };
 
 const mockSchemaProviderFacade = {
@@ -132,12 +150,9 @@ describe('Looker Studio Connector (e2e)', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     // Re-set default mock return values after clearAllMocks
-    mockCacheService.getOrCreateCachedReader.mockResolvedValue({
-      reader: mockReader,
-      dataDescription: new ReportDataDescription(MOCK_HEADERS, MOCK_ROWS.length),
-      fromCache: false,
-      blendingDecision: { needsBlending: false },
-    });
+    mockCacheService.getOrCreateCachedReader.mockResolvedValue(
+      buildMockCachedReader(mockReader, MOCK_HEADERS, MOCK_ROWS)
+    );
     mockReader.readReportDataBatch.mockResolvedValue(new ReportDataBatch(MOCK_ROWS, null));
     mockSchemaProviderFacade.getActualDataMartSchema.mockResolvedValue({
       type: 'bigquery-data-mart-schema',
@@ -500,6 +515,187 @@ describe('Looker Studio Connector (e2e)', () => {
         .send('invalid.jwt.token');
 
       expect(res.status).toBe(401);
+    });
+  });
+
+  describe('Blended data marts: types and aggregations', () => {
+    function seedReader(headers: ReportDataHeader[], rows: unknown[][]): void {
+      const reader = buildMockReader(headers, rows);
+      mockCacheService.getOrCreateCachedReader.mockResolvedValue(
+        buildMockCachedReader(reader, headers, rows, { needsBlending: true })
+      );
+    }
+
+    function getSchemaRequest() {
+      return postLooker('/api/external/looker/get-schema', {
+        connectionConfig: {
+          deploymentUrl: 'http://localhost',
+          destinationId,
+          destinationSecretKey,
+        },
+        request: { configParams: { destinationId, reportId } },
+      });
+    }
+
+    function getDataRequest(fieldNames: string[]) {
+      return postLooker('/api/external/looker/get-data', {
+        connectionConfig: {
+          deploymentUrl: 'http://localhost',
+          destinationId,
+          destinationSecretKey,
+        },
+        request: {
+          configParams: { destinationId, reportId },
+          fields: fieldNames.map(name => ({ name })),
+        },
+      });
+    }
+
+    type AggCase = {
+      label: string;
+      storageFieldType: BigQueryFieldType;
+      aggregateFunction?: AggregateFunction;
+      expectedDataType: FieldDataType;
+      expectedConceptType: FieldConceptType;
+      expectedDefaultAggregation?: AggregationType;
+      expectedIsReaggregatable?: boolean;
+    };
+
+    const aggCases: AggCase[] = [
+      {
+        label: 'native NUMBER',
+        storageFieldType: BigQueryFieldType.INTEGER,
+        expectedDataType: FieldDataType.NUMBER,
+        expectedConceptType: FieldConceptType.METRIC,
+        expectedDefaultAggregation: AggregationType.SUM,
+        expectedIsReaggregatable: true,
+      },
+      {
+        label: 'native STRING',
+        storageFieldType: BigQueryFieldType.STRING,
+        expectedDataType: FieldDataType.STRING,
+        expectedConceptType: FieldConceptType.DIMENSION,
+      },
+      {
+        label: 'COUNT/INTEGER',
+        storageFieldType: BigQueryFieldType.INTEGER,
+        aggregateFunction: 'COUNT',
+        expectedDataType: FieldDataType.NUMBER,
+        expectedConceptType: FieldConceptType.METRIC,
+        expectedDefaultAggregation: AggregationType.SUM,
+        expectedIsReaggregatable: true,
+      },
+      {
+        label: 'COUNT_DISTINCT/INTEGER',
+        storageFieldType: BigQueryFieldType.INTEGER,
+        aggregateFunction: 'COUNT_DISTINCT',
+        expectedDataType: FieldDataType.NUMBER,
+        expectedConceptType: FieldConceptType.METRIC,
+        expectedIsReaggregatable: false,
+      },
+      {
+        label: 'STRING_AGG',
+        storageFieldType: BigQueryFieldType.STRING,
+        aggregateFunction: 'STRING_AGG',
+        expectedDataType: FieldDataType.STRING,
+        expectedConceptType: FieldConceptType.DIMENSION,
+      },
+      {
+        label: 'ANY_VALUE/INTEGER',
+        storageFieldType: BigQueryFieldType.INTEGER,
+        aggregateFunction: 'ANY_VALUE',
+        expectedDataType: FieldDataType.NUMBER,
+        expectedConceptType: FieldConceptType.DIMENSION,
+      },
+      {
+        label: 'MAX/INTEGER',
+        storageFieldType: BigQueryFieldType.INTEGER,
+        aggregateFunction: 'MAX',
+        expectedDataType: FieldDataType.NUMBER,
+        expectedConceptType: FieldConceptType.METRIC,
+        expectedDefaultAggregation: AggregationType.MAX,
+        expectedIsReaggregatable: true,
+      },
+      {
+        label: 'MAX/DATE',
+        storageFieldType: BigQueryFieldType.DATE,
+        aggregateFunction: 'MAX',
+        expectedDataType: FieldDataType.STRING,
+        expectedConceptType: FieldConceptType.DIMENSION,
+      },
+      {
+        label: 'SUM/INTEGER',
+        storageFieldType: BigQueryFieldType.INTEGER,
+        aggregateFunction: 'SUM',
+        expectedDataType: FieldDataType.NUMBER,
+        expectedConceptType: FieldConceptType.METRIC,
+        expectedDefaultAggregation: AggregationType.SUM,
+        expectedIsReaggregatable: true,
+      },
+    ];
+
+    it.each(aggCases)('$label → schema reflects type and aggregation', async testCase => {
+      seedReader(
+        [
+          new ReportDataHeader(
+            'field',
+            'Field',
+            undefined,
+            testCase.storageFieldType,
+            testCase.aggregateFunction
+          ),
+        ],
+        [[null]]
+      );
+
+      const schemaRes = await getSchemaRequest();
+      expect(schemaRes.status).toBe(200);
+      const [field] = schemaRes.body.schema;
+
+      expect(field.dataType).toBe(testCase.expectedDataType);
+      expect(field.semantics.conceptType).toBe(testCase.expectedConceptType);
+      expect(field.defaultAggregationType).toBe(testCase.expectedDefaultAggregation);
+      expect(field.semantics.isReaggregatable).toBe(testCase.expectedIsReaggregatable);
+    });
+
+    it('getSchema and getData agree on { name, dataType } for the same headers', async () => {
+      const headers = [
+        new ReportDataHeader('country', 'Country', undefined, BigQueryFieldType.STRING),
+        new ReportDataHeader(
+          'orders_count',
+          'Orders Count',
+          undefined,
+          BigQueryFieldType.INTEGER,
+          'COUNT'
+        ),
+        new ReportDataHeader('tags', 'Tags', undefined, BigQueryFieldType.STRING, 'STRING_AGG'),
+        new ReportDataHeader('last_seen', 'Last Seen', undefined, BigQueryFieldType.DATE, 'MAX'),
+        new ReportDataHeader(
+          'max_revenue',
+          'Max Revenue',
+          undefined,
+          BigQueryFieldType.INTEGER,
+          'MAX'
+        ),
+      ];
+      seedReader(headers, [['US', 10, 'a,b', '2024-01-01', 999]]);
+
+      const schemaRes = await getSchemaRequest();
+      expect(schemaRes.status).toBe(200);
+
+      const dataRes = await getDataRequest(headers.map(h => h.name));
+      expect(dataRes.status).toBe(200);
+
+      const schemaPairs = schemaRes.body.schema.map((f: Record<string, unknown>) => ({
+        name: f.name,
+        dataType: f.dataType,
+      }));
+      const dataPairs = dataRes.body.schema.map((f: Record<string, unknown>) => ({
+        name: f.name,
+        dataType: f.dataType,
+      }));
+
+      expect(dataPairs).toEqual(schemaPairs);
     });
   });
 });

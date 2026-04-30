@@ -32,6 +32,7 @@ import { LookerStudioConnectorApiService } from './looker-studio-connector/servi
 import { LookerStudioConnectorCredentialsValidator } from './looker-studio-connector/services/looker-studio-connector-credentials-validator';
 import { LookerStudioConnectorCredentialsProcessor } from './looker-studio-connector/services/looker-studio-connector-credentials-processor';
 import { LookerStudioConnectorSecretKeyRotator } from './looker-studio-connector/services/looker-studio-connector-secret-key-rotator';
+import { LookerStudioAggregationMapperService } from './looker-studio-connector/services/looker-studio-aggregation-mapper.service';
 import { LookerStudioTypeMapperService } from './looker-studio-connector/services/looker-studio-type-mapper.service';
 import {
   EmailAccessValidator,
@@ -113,6 +114,7 @@ export const dataDestinationResolverProviders = [
   LookerStudioConnectorApiSchemaService,
   LookerStudioConnectorApiDataService,
   LookerStudioConnectorApiService,
+  LookerStudioAggregationMapperService,
   LookerStudioTypeMapperService,
   {
     provide: DATA_DESTINATION_ACCESS_VALIDATOR_RESOLVER,

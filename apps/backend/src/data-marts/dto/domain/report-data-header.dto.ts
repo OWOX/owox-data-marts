@@ -1,8 +1,5 @@
-import { BigQueryFieldType } from '../../data-storage-types/bigquery/enums/bigquery-field-type.enum';
-import { AthenaFieldType } from '../../data-storage-types/athena/enums/athena-field-type.enum';
-import { SnowflakeFieldType } from '../../data-storage-types/snowflake/enums/snowflake-field-type.enum';
-import { RedshiftFieldType } from '../../data-storage-types/redshift/enums/redshift-field-type.enum';
-import { DatabricksFieldType } from '../../data-storage-types/databricks/enums/databricks-field-type.enum';
+import { AggregateFunction } from '../schemas/aggregate-function.schema';
+import { StorageFieldType } from './storage-field-type';
 
 /**
  * Represents a single report data header with metadata
@@ -27,11 +24,11 @@ export class ReportDataHeader {
     /**
      * The storage field type
      */
-    public readonly storageFieldType?:
-      | BigQueryFieldType
-      | AthenaFieldType
-      | SnowflakeFieldType
-      | RedshiftFieldType
-      | DatabricksFieldType
+    public readonly storageFieldType?: StorageFieldType,
+
+    /**
+     * The aggregate function applied to the field (if any)
+     */
+    public readonly aggregateFunction?: AggregateFunction
   ) {}
 }
