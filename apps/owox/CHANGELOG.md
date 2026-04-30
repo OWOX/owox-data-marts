@@ -4,96 +4,66 @@
 
 ### Minor Changes 0.24.0
 
-- b335552: # Joinable Data Marts and Joined Reports
+![OWOX Data Marts – v0.24.0](https://github.com/user-attachments/assets/1147e6ca-26c6-41ad-b6ba-b2d1bf4f632c)
 
-  You can now connect data marts to each other and build reports that combine fields from several joined data marts in a single output.
+- b335552: **Joinable Data Marts and joined reports**
 
-  On a data mart's **Data Setup** tab, the new **Joinable Data Marts** block lets you add joinable data marts, configure join conditions, choose which fields each joined data mart exposes, and override their aliases or aggregations. When editing a Google Sheets, Looker Studio, or Email report, the **Report Columns** picker now shows fields from the data mart together with fields available from joined data marts, so a single report can combine columns from several data marts at once. The generated SQL is available for inspection, and any joined report can be saved as a standalone data mart.
+  Data Marts can now be connected to each other, and reports can combine fields from several joined Data Marts in a single output.
+
+  On a Data Mart's **Data Setup** tab, the new **Joinable Data Marts** block lets you add joinable Data Marts, configure join conditions, choose which fields each joined Data Mart exposes, and override their aliases or aggregations. When editing a Google Sheets, Looker Studio, or Email report, the **Report Columns** picker now shows fields from the base Data Mart together with fields from all joined Data Marts. The generated SQL is available for inspection, and any joined report can be saved as a standalone Data Mart.
 
   Supported on BigQuery, Snowflake, Redshift, Athena, and Databricks.
 
-- d187cdf: # Add project contexts and role scope, project settings page
+- d187cdf: **Project contexts and role scope**
 
   Added business-domain Contexts and per-member Role Scope to narrow what shared resources a non-owner can see.
-  Admins define Contexts in Project Settings, attach them to Data Marts, Storages and Destinations, and pick
-  between `Entire project` and `Selected contexts` for each member.
-  Owners and admins are never gated by Contexts. Introduced a unified Project Settings page
-  (Overview, Members, Contexts, Credit consumption, Subscription, Notification) that replaces the separate
-  Members page and wires invite, role change and member removal through the Identity Provider.
 
-- ba44a8d: # Enhanced Security Headers for All Pages
+  - Admins define Contexts in Project Settings, attach them to Data Marts, Storages, and Destinations, and pick between `Entire project` and `Selected contexts` for each member.
+  - Owners and admins are never gated by Contexts.
+  - Introduced a unified **Project Settings** page (Overview, Members, Contexts, Credit consumption, Subscription, Notification) that replaces the separate Members page.
 
-  Your OWOX application is now more secure with improved HTTP security headers on every page.
-  - Added protection against clickjacking attacks with Content Security Policy
-  - Enforced secure HTTPS connections with Strict Transport Security
-  - Improved browser-level XSS and content-type protection
-  - Better privacy control through referrer policy settings
+- e817c93: **Setup checklist for guided onboarding**
 
-  These security enhancements apply automatically to all application pages and authentication screens, helping protect your data and ensuring compliance with modern security standards.
+  Added a **Setup Checklist** that guides new users through the key steps required to start working with the product. Each step includes a direct call to action, the checklist tracks progress in real time, and steps are grouped into logical stages.
 
-- c669d11: # Add OAuth for LinkedIn Ads and LinkedIn Pages
+- c669d11: **OAuth for LinkedIn Ads and LinkedIn Pages**
 
   Added OAuth authorization flow for both LinkedIn connectors, including UI login, callback handling, credential exchange, and token-backed execution. Existing LinkedIn configurations are migrated to the OAuth2 structure with compatibility for previously saved settings.
 
-- d8e7e84: # Project Settings documentation
+- ba44a8d: **Table and view browser for BigQuery Data Marts**
 
-  New documentation section covering how members, roles, and resource access work in OWOX Data Marts. Includes three pages under Project Settings: Members Management (Created By field, owner assignment on creation), Roles and Permissions (Admin, Technical User, Business User capabilities), and Ownership and Availability (ownership model per entity, availability settings, and per-entity access tables for Storage, Data Mart, Destination, Report, and their Triggers).
+  A new **Fill from Storage** button lets you browse available tables and views through a `project → dataset → table` hierarchy. Selecting a table or view automatically fills the Fully Qualified Name field. Manual entry remains available as an alternative.
 
-- d118b10: # Improved Data Mart Publishing Experience
+- d118b10: **Improved Data Mart publishing experience**
 
-  Publishing a Connector-based Data Marts is now smoother and more intuitive.
-  - Data starts loading automatically after publishing connector-based Data Mart
-  - Guidance now focuses on scheduling automatic updates instead of manual runs
-  - Promo messages appear only once to reduce distractions
-  - Updated button labels and tooltips for better clarity
+  - Data starts loading automatically after publishing a connector-based Data Mart.
+  - Guidance now focuses on scheduling automatic updates instead of manual runs.
+  - Promo messages appear only once.
+  - Updated button labels and tooltips for better clarity.
 
-  These changes make it easier to get started and keep your data up to date.
+- 3f8b831: **Data Mart page layout and table usability improvements**
 
-- ba44a8d: # Easy Table and View Selection for BigQuery Data Marts
+  - Sticky actions column keeps row actions always visible during horizontal scroll.
+  - Row actions are emphasized on hover to reduce visual noise.
+  - Long values (including strings without spaces) now wrap correctly in tables and titles.
+  - Refined layout behavior across different screen sizes.
+  - Scrollable tabs now show a gradient fade indicator at the edge to signal hidden overflow.
 
-  Defining BigQuery-based Data Marts is now faster and more convenient.
-  - New "Fill from Storage" button for Google BigQuery Data Marts
-  - Browse available tables and views through an intuitive project → dataset → table hierarchy
-  - Selecting a table or view automatically fills the Fully Qualified Name field
-  - Manual entry remains available as an alternative for all storage types
+- d8e7e84: **Project Settings documentation**
 
-  This update eliminates the need to memorize or copy complex table names, reducing setup time and preventing typos when configuring your Data Mart definitions.
+  New documentation section covering members, roles, and resource access. Includes three pages: Members Management, Roles and Permissions, and Ownership and Availability (with per-entity access tables for Storage, Data Mart, Destination, Report, and their Triggers).
 
-- ba44a8d: # Improved BigQuery Configuration Validation
+- ba44a8d: **Enhanced security headers**
 
-  Configuring BigQuery storages is now safer with better project ID validation.
-  - Invalid project ID values are now caught immediately when saving OAuth-authenticated BigQuery storages
-  - Clear error messages help you correct typos or formatting issues before they cause problems
-  - Data mart runtime errors due to misconfigured project IDs are prevented
+  Improved HTTP security headers now apply automatically to all application pages and authentication screens: Content Security Policy against clickjacking, Strict Transport Security for HTTPS enforcement, XSS and content-type protection, and referrer policy controls.
 
-  This ensures your BigQuery connections are properly set up from the start, saving debugging time later.
+- ba44a8d: **Improved BigQuery configuration validation**
 
-- e817c93: # Introduce Setup Checklist for Guided Onboarding
+  Invalid project ID values are now caught immediately when saving OAuth-authenticated BigQuery storages, with clear error messages to correct typos or formatting issues before they cause runtime errors.
 
-  We have added a new **Setup Checklist** to guide users through the key steps required to start working with the product. It provides a clear, structured path from initial setup to getting the first results, helping users understand what to do next without confusion.
-
-  Each step includes a direct call to action, allowing users to quickly navigate or perform required actions. The checklist also tracks progress in real time and groups steps into logical stages, making the onboarding experience more intuitive and goal-oriented.
-
-  Overall, this improves time-to-value, reduces friction during onboarding, and helps users reach meaningful outcomes faster.
-
-- 160574a: # Grey health indicator for unconfigured storages
-
-  Previously, a storage that had just been created but not yet configured showed a red health indicator — the same as a storage with broken credentials. Now, unconfigured storages show a distinct grey indicator with the message "Complete setup to activate Storage". Red is reserved for storages that have been configured but fail validation, and green for fully healthy ones.
-
-- 50366c4: # TikTok Ads `campaign_id` and `adgroup_id` in Ad Insights
-
-  Previously, the `campaign_id` and `adgroup_id` fields in the `tiktok_ads_ad_insights` table were always `null`. This happened because TikTok's API requires these parent-hierarchy IDs to be requested as metrics, not dimensions, at the ad data level — and they were missing from the request. Now both fields are correctly requested and populated, so users can join ad-level performance data back to their campaigns and ad groups.
-
-- 3f8b831: # Improve Data Mart page layout, navigation, and table usability
-
-  This update enhances the overall user experience of the Data Mart page by improving layout responsiveness, navigation clarity, and table behavior.
-  - Sticky actions column in tables. Keeps row actions always visible, reducing the need for horizontal scrolling and improving interaction speed.
-  - Contextual action visibility. Actions are emphasized on row hover, reducing visual noise while keeping functionality easily accessible.
-  - Improved text wrapping. Long values (including strings without spaces) now wrap correctly across the UI (tables and titles), preventing layout breaks and ensuring better readability.
-  - Responsive layout improvements. Refined layout behavior for different screen sizes to ensure better alignment, spacing, and adaptability.
-  - Scrollable tabs with fade indicator. Added a gradient fade on the edge of the tabs navigation to indicate horizontal overflow and improve discoverability of hidden tabs.
-
-  These improvements make the interface more stable, scannable, and user-friendly, especially when working with large datasets and long content.
+- 160574a: # **Bug fixes and improvements**
+  - 160574a: Unconfigured storages now show a grey health indicator with the message "Complete setup to activate Storage" instead of a red one. Red is reserved for storages that have been configured but fail validation.
+  - 50366c4: Fixed `campaign_id` and `adgroup_id` fields in `tiktok_ads_ad_insights` — both were always `null` due to missing parent-hierarchy IDs in the API request. Both fields are now correctly populated.
 
 ### Patch Changes 0.24.0
 
