@@ -27,7 +27,19 @@ export interface StorageResourceLeaf extends StorageResourceNode {
   fullyQualifiedName: string;
 }
 
-export type StorageResourceFilter = 'TABLE' | 'VIEW';
+/**
+ * Resource filter accepted by {@link IStorageResourceBrowserProvider.listLeafResources}.
+ *
+ * - `TABLE`         — concrete tables only (no views, no wildcard rollups).
+ * - `VIEW`          — concrete views only.
+ * - `TABLE_PATTERN` — wildcard rollups for sharded tables (e.g. BigQuery date-suffixed
+ *                    `events_YYYYMMDD` shards collapsed into a single `events_*` entry).
+ *                    No individual shards or non-sharded tables are included.
+ *
+ * When omitted, the result combines: all views, all non-sharded tables, and the wildcard
+ * rollups for sharded tables (the individual shards are folded into their wildcard).
+ */
+export type StorageResourceFilter = 'TABLE' | 'VIEW' | 'TABLE_PATTERN';
 
 /**
  * Capability interface for singleton provider services that support resource browsing.

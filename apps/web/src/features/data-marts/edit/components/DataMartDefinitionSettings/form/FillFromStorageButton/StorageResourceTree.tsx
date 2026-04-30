@@ -1,6 +1,7 @@
 import { memo, useCallback, useMemo, useRef, useState } from 'react';
 import {
   AlertCircle,
+  Check,
   ChevronDown,
   ChevronRight,
   Database,
@@ -19,14 +20,26 @@ import type {
 } from '../../../../../../data-storage/shared/api/types';
 import { extractStorageResourceError } from './storage-resource-error.utils';
 
+export type StorageResourceTreeSelectionMode = 'single' | 'multi';
+
 interface StorageResourceTreeProps {
   namespaces: StorageNamespaceNodeDto[] | null;
   namespacesLoading: boolean;
   namespacesError: string | null;
   onRetryNamespaces: () => void;
   loadNamespaceResources: (namespaceId: string) => Promise<StorageResourceLeafDto[]>;
-  onSelectResource: (resource: StorageResourceLeafDto) => void;
-  resourceType: StorageResourceFilter;
+  /** Fires when a resource is picked in single-select mode. */
+  onSelectResource?: (resource: StorageResourceLeafDto) => void;
+  /** Optional filter passed to label/copy. When undefined, both tables and views are shown. */
+  resourceType?: StorageResourceFilter;
+  /** Defaults to 'single'. In 'multi' mode, clicking a resource toggles its selection. */
+  selectionMode?: StorageResourceTreeSelectionMode;
+  /** Set of currently-selected FQNs. Required for visual state in multi mode. */
+  selectedFqns?: ReadonlySet<string>;
+  /** Fires when a resource is toggled in multi-select mode. */
+  onToggleResource?: (resource: StorageResourceLeafDto) => void;
+  /** When true and the row is not already selected, the toggle is disabled (selection cap reached). */
+  isSelectionFull?: boolean;
 }
 
 interface ResourcesState {
@@ -47,6 +60,10 @@ export function StorageResourceTree({
   loadNamespaceResources,
   onSelectResource,
   resourceType,
+  selectionMode = 'single',
+  selectedFqns,
+  onToggleResource,
+  isSelectionFull = false,
 }: StorageResourceTreeProps) {
   const [expandedNamespaces, setExpandedNamespaces] = useState<Set<string>>(new Set());
   const [resourcesByNamespace, setResourcesByNamespace] = useState<
@@ -119,12 +136,38 @@ export function StorageResourceTree({
     });
   }, []);
 
-  const emptyLabel = resourceType === 'VIEW' ? 'No views.' : 'No tables.';
-  const loadingLabel = resourceType === 'VIEW' ? 'Loading views…' : 'Loading tables…';
+  const emptyLabel =
+    resourceType === 'VIEW'
+      ? 'No views.'
+      : resourceType === 'TABLE'
+        ? 'No tables.'
+        : resourceType === 'TABLE_PATTERN'
+          ? 'No sharded tables found in this namespace.'
+          : 'No tables or views.';
+  const loadingLabel =
+    resourceType === 'VIEW'
+      ? 'Loading views…'
+      : resourceType === 'TABLE'
+        ? 'Loading tables…'
+        : resourceType === 'TABLE_PATTERN'
+          ? 'Loading table patterns…'
+          : 'Loading resources…';
   const resourceSearchPlaceholder =
     resourceType === 'VIEW'
       ? 'Search views (group or view name)…'
-      : 'Search tables (group or table name)…';
+      : resourceType === 'TABLE'
+        ? 'Search tables (group or table name)…'
+        : resourceType === 'TABLE_PATTERN'
+          ? 'Search table patterns (group or prefix)…'
+          : 'Search resources (group or name)…';
+  const resourceSearchAriaLabel =
+    resourceType === 'VIEW'
+      ? 'views'
+      : resourceType === 'TABLE'
+        ? 'tables'
+        : resourceType === 'TABLE_PATTERN'
+          ? 'table patterns'
+          : 'resources';
 
   const sortedNamespaces = useMemo(() => {
     if (!namespaces) return null;
@@ -257,7 +300,7 @@ export function StorageResourceTree({
                                   }));
                                 }}
                                 className='h-8 pl-7 text-xs'
-                                aria-label={`Search ${resourceType === 'VIEW' ? 'views' : 'tables'} in ${ns.id}`}
+                                aria-label={`Search ${resourceSearchAriaLabel} in ${ns.id}`}
                               />
                             </div>
                             <GroupedResources
@@ -267,6 +310,10 @@ export function StorageResourceTree({
                               expandedGroupKeys={expandedGroupKeys}
                               onToggleGroup={toggleGroup}
                               onSelectResource={onSelectResource}
+                              selectionMode={selectionMode}
+                              selectedFqns={selectedFqns}
+                              onToggleResource={onToggleResource}
+                              isSelectionFull={isSelectionFull}
                             />
                           </>
                         )}
@@ -288,7 +335,11 @@ interface GroupedResourcesProps {
   filter: string;
   expandedGroupKeys: Set<string>;
   onToggleGroup: (namespaceId: string, groupId: string) => void;
-  onSelectResource: (resource: StorageResourceLeafDto) => void;
+  onSelectResource?: (resource: StorageResourceLeafDto) => void;
+  selectionMode: StorageResourceTreeSelectionMode;
+  selectedFqns?: ReadonlySet<string>;
+  onToggleResource?: (resource: StorageResourceLeafDto) => void;
+  isSelectionFull: boolean;
 }
 
 // Memoized so that typing in the namespace search input does not re-render every
@@ -300,6 +351,10 @@ const GroupedResources = memo(function GroupedResources({
   expandedGroupKeys,
   onToggleGroup,
   onSelectResource,
+  selectionMode,
+  selectedFqns,
+  onToggleResource,
+  isSelectionFull,
 }: GroupedResourcesProps) {
   const normalizedFilter = filter.trim().toLowerCase();
   const isFiltering = normalizedFilter.length > 0;
@@ -375,27 +430,53 @@ const GroupedResources = memo(function GroupedResources({
               <span className='ml-auto shrink-0 text-[11px] tabular-nums'>{groupItems.length}</span>
             </button>
             {groupExpanded &&
-              groupItems.map(resource => (
-                <button
-                  key={resource.fullyQualifiedName}
-                  type='button'
-                  className='hover:bg-accent flex w-full items-center gap-2 rounded py-1 pr-2 pl-7 text-left'
-                  onClick={() => {
-                    onSelectResource(resource);
-                  }}
-                  title={resource.fullyQualifiedName}
-                >
-                  {resource.type === 'VIEW' ? (
-                    <Eye className='size-4 shrink-0' />
-                  ) : (
-                    <Table className='size-4 shrink-0' />
-                  )}
-                  <span className='truncate'>{resource.id}</span>
-                  <span className='text-muted-foreground ml-auto shrink-0 text-xs'>
-                    {resource.type}
-                  </span>
-                </button>
-              ))}
+              groupItems.map(resource => {
+                const isSelected = selectedFqns?.has(resource.fullyQualifiedName) ?? false;
+                const isMulti = selectionMode === 'multi';
+                const disabled = isMulti && !isSelected && isSelectionFull;
+                const handleClick = () => {
+                  if (isMulti) {
+                    if (disabled) return;
+                    onToggleResource?.(resource);
+                    return;
+                  }
+                  onSelectResource?.(resource);
+                };
+                return (
+                  <button
+                    key={resource.fullyQualifiedName}
+                    type='button'
+                    role={isMulti ? 'checkbox' : undefined}
+                    aria-checked={isMulti ? isSelected : undefined}
+                    aria-disabled={disabled || undefined}
+                    className={`hover:bg-accent flex w-full items-center gap-2 rounded py-1 pr-2 pl-7 text-left ${
+                      isMulti && isSelected ? 'bg-accent/50' : ''
+                    } ${disabled ? 'cursor-not-allowed opacity-50 hover:bg-transparent' : ''}`}
+                    onClick={handleClick}
+                    disabled={disabled}
+                    title={resource.fullyQualifiedName}
+                  >
+                    {isMulti && (
+                      <span
+                        aria-hidden='true'
+                        data-state={isSelected ? 'checked' : 'unchecked'}
+                        className='border-input data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground data-[state=checked]:border-primary flex size-4 shrink-0 items-center justify-center rounded-[4px] border bg-white shadow-xs dark:bg-white/8'
+                      >
+                        {isSelected && <Check className='size-3 text-white' />}
+                      </span>
+                    )}
+                    {resource.type === 'VIEW' ? (
+                      <Eye className='size-4 shrink-0' />
+                    ) : (
+                      <Table className='size-4 shrink-0' />
+                    )}
+                    <span className='truncate'>{resource.id}</span>
+                    <span className='text-muted-foreground ml-auto shrink-0 text-xs'>
+                      {resource.type}
+                    </span>
+                  </button>
+                );
+              })}
           </div>
         );
       })}

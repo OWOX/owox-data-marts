@@ -13,7 +13,11 @@ import {
 import { Input } from '@owox/ui/components/input';
 import { DataStorageType } from '../../../../../data-storage';
 import type { DataStorageConfigDto } from '../../../../../data-storage/shared/api/types';
-import { getTablePatternPlaceholder, getTablePatternHelpText } from '../../../../shared';
+import {
+  getTablePatternPlaceholder,
+  getTablePatternHelpText,
+  patternFqnToStored,
+} from '../../../../shared';
 import { getStorageResourceUrlFromFqn } from '../../../../../data-storage/shared/utils/storage-url.utils';
 import { FillFromStorageButton } from './FillFromStorageButton';
 
@@ -36,7 +40,10 @@ export function TablePatternDefinitionField({
 
   const handleSelect = useCallback(
     (fqn: string) => {
-      setValue('definition.pattern', fqn, {
+      // Wildcard rollups arrive as `prefix_*`, but the stored TABLE_PATTERN convention is the
+      // bare prefix (the BigQuery query builder appends `*` itself at query time). Strip here
+      // so the input matches what gets persisted.
+      setValue('definition.pattern', patternFqnToStored(fqn), {
         shouldDirty: true,
         shouldValidate: true,
       });
@@ -61,7 +68,7 @@ export function TablePatternDefinitionField({
                 <FillFromStorageButton
                   storageId={storageId}
                   storageType={storageType}
-                  resourceType='TABLE'
+                  resourceType='TABLE_PATTERN'
                   onSelect={handleSelect}
                 />
                 <Input
