@@ -51,7 +51,7 @@ jobs:
 
       - name: Publish to "latest"
         run: |
-          npx changeset publish --access public
+          npx changeset publish
 
       - name: Extract "latest" version
         id: extract_latest_version
@@ -163,7 +163,7 @@ jobs:
       - name: Publish to "next"
         run: |
           npx changeset version --snapshot next
-          npx changeset publish --no-git-tag --snapshot --tag next
+          npx changeset publish --no-git-tag --tag next
 
       - name: Extract "next" version
         id: extract_next_version
