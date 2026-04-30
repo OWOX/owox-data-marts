@@ -4,9 +4,6 @@ import { CachedReaderData } from '../../../dto/domain/cached-reader-data.dto';
 import { ReportDataHeader } from '../../../dto/domain/report-data-header.dto';
 import { Report } from '../../../entities/report.entity';
 import { DataMartService } from '../../../services/data-mart.service';
-import { AggregationType } from '../enums/aggregation-type.enum';
-import { FieldConceptType } from '../enums/field-concept-type.enum';
-import { FieldDataType } from '../enums/field-data-type.enum';
 import { GetSchemaRequest, GetSchemaResponse, SchemaField } from '../schemas/get-schema.schema';
 import { LookerStudioTypeMapperService } from './looker-studio-type-mapper.service';
 
@@ -40,32 +37,12 @@ export class LookerStudioConnectorApiSchemaService {
     };
   }
 
-  private getSchemaFields(
+  getSchemaFields(
     reportDataHeaders: ReportDataHeader[],
     storageType: DataStorageType
   ): SchemaField[] {
-    return reportDataHeaders.map(header => {
-      const schemaField: SchemaField = {
-        name: header.name,
-        label: header.alias || header.name,
-        description: header.description,
-        dataType: this.typeMapperService.mapToLookerStudioDataType(
-          header.storageFieldType!,
-          storageType
-        ),
-      };
-      if (schemaField.dataType === FieldDataType.NUMBER) {
-        schemaField.semantics = {
-          conceptType: FieldConceptType.METRIC,
-          isReaggregatable: true,
-        };
-        schemaField.defaultAggregationType = AggregationType.SUM;
-      } else {
-        schemaField.semantics = {
-          conceptType: FieldConceptType.DIMENSION,
-        };
-      }
-      return schemaField;
-    });
+    return reportDataHeaders.map(header =>
+      this.typeMapperService.buildSchemaField(header, storageType)
+    );
   }
 }

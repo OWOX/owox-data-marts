@@ -5,20 +5,21 @@ import { DatabricksFieldType } from '../../../data-storage-types/databricks/enum
 import { DataStorageType } from '../../../data-storage-types/enums/data-storage-type.enum';
 import { RedshiftFieldType } from '../../../data-storage-types/redshift/enums/redshift-field-type.enum';
 import { SnowflakeFieldType } from '../../../data-storage-types/snowflake/enums/snowflake-field-type.enum';
+import { ReportDataHeader } from '../../../dto/domain/report-data-header.dto';
+import { StorageFieldType } from '../../../dto/domain/storage-field-type';
 import { FieldDataType } from '../enums/field-data-type.enum';
+import { SchemaField } from '../schemas/get-schema.schema';
+import { LookerStudioAggregationMapperService } from './looker-studio-aggregation-mapper.service';
 
 @Injectable()
 export class LookerStudioTypeMapperService {
+  constructor(private readonly aggregationMapper: LookerStudioAggregationMapperService) {}
+
   /**
    * Maps data types from storage types to Looker Studio types
    */
   mapToLookerStudioDataType(
-    fieldType:
-      | BigQueryFieldType
-      | AthenaFieldType
-      | SnowflakeFieldType
-      | RedshiftFieldType
-      | DatabricksFieldType,
+    fieldType: StorageFieldType,
     storageType: DataStorageType
   ): FieldDataType {
     if (
@@ -37,6 +38,31 @@ export class LookerStudioTypeMapperService {
     }
     // Fallback for unknown storage types
     return FieldDataType.STRING;
+  }
+
+  buildSchemaField(header: ReportDataHeader, storageType: DataStorageType): SchemaField {
+    const dataType = header.storageFieldType
+      ? this.mapToLookerStudioDataType(header.storageFieldType, storageType)
+      : FieldDataType.STRING;
+    const { conceptType, defaultAggregationType, isReaggregatable } =
+      this.aggregationMapper.mapAggregateFunctionToLookerType(header.aggregateFunction, dataType);
+
+    const field: SchemaField = {
+      name: header.name,
+      label: header.alias || header.name,
+      description: header.description,
+      dataType,
+      semantics: {
+        conceptType,
+        ...(isReaggregatable !== undefined && { isReaggregatable }),
+      },
+    };
+
+    if (defaultAggregationType !== undefined) {
+      field.defaultAggregationType = defaultAggregationType;
+    }
+
+    return field;
   }
 
   /**

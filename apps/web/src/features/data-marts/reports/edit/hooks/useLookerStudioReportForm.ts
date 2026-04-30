@@ -66,8 +66,8 @@ export function useLookerStudioReportForm({
       if (initialReport) {
         // Only update the destination config, keep existing title and destination
         await updateReport(initialReport.id, {
-          title: initialReport.title, // Keep existing
-          dataDestinationId: initialReport.dataDestination.id, // Keep existing
+          title: initialReport.title || DEFAULT_REPORT_TITLE,
+          dataDestinationId: initialReport.dataDestination.id,
           destinationConfig,
           ...(pendingOwnerIdsRef?.current != null ? { ownerIds: pendingOwnerIdsRef.current } : {}),
           columnConfig: data.columnConfig,

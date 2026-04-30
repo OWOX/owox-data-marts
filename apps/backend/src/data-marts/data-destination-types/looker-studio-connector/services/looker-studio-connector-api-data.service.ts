@@ -15,6 +15,7 @@ import {
   GetDataResult,
   RequestField,
 } from '../schemas/get-data.schema';
+
 import { LookerStudioTypeMapperService } from './looker-studio-type-mapper.service';
 
 /**
@@ -186,13 +187,10 @@ export class LookerStudioConnectorApiDataService {
     filteredHeaders: ReportDataHeader[],
     storageType: DataStorageType
   ): Array<{ name: string; dataType: FieldDataType }> {
-    return filteredHeaders.map(header => ({
-      name: header.name,
-      dataType: this.typeMapperService.mapToLookerStudioDataType(
-        header.storageFieldType!,
-        storageType
-      ),
-    }));
+    return filteredHeaders.map(header => {
+      const field = this.typeMapperService.buildSchemaField(header, storageType);
+      return { name: field.name, dataType: field.dataType };
+    });
   }
 
   /**
