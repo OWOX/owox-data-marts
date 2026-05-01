@@ -71,6 +71,7 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
                 'docs/getting-started/setup-guide/table-data-mart',
                 'docs/getting-started/setup-guide/view-data-mart',
                 'docs/getting-started/setup-guide/pattern-data-mart',
+                'docs/getting-started/setup-guide/joinable-data-marts',
                 'docs/getting-started/setup-guide/connector-triggers',
                 'docs/getting-started/setup-guide/report-triggers',
                 {
