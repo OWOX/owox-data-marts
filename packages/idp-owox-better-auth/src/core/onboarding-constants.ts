@@ -38,6 +38,8 @@ export const PRIMARY_STORAGE_ANSWER = {
   SNOWFLAKE: 'snowflake',
   DATABRICKS: 'databricks',
   AZURE_SYNAPSE: 'azure_synapse',
+  OWOX_CLOUD_EU: 'owox_cloud_eu',
+  OWOX_CLOUD_US: 'owox_cloud_us',
   DONT_KNOW: 'dont_know',
   OTHER: 'other',
 } as const;
@@ -83,6 +85,8 @@ export const PRIMARY_STORAGE_OPTIONS: OnboardingOption[] = [
   { value: PRIMARY_STORAGE_ANSWER.SNOWFLAKE, label: 'Snowflake' },
   { value: PRIMARY_STORAGE_ANSWER.DATABRICKS, label: 'Databricks' },
   { value: PRIMARY_STORAGE_ANSWER.AZURE_SYNAPSE, label: 'Azure Synapse' },
+  { value: PRIMARY_STORAGE_ANSWER.OWOX_CLOUD_EU, label: 'OWOX Cloud (EU)' },
+  { value: PRIMARY_STORAGE_ANSWER.OWOX_CLOUD_US, label: 'OWOX Cloud (US)' },
   { value: PRIMARY_STORAGE_ANSWER.DONT_KNOW, label: "Don't know" },
   { value: PRIMARY_STORAGE_ANSWER.OTHER, label: 'Other' },
 ];

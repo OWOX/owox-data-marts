@@ -160,6 +160,34 @@ export class OnboardingService {
     }
   }
 
+  /**
+   * Extracts registrable-style hostname from pasted URLs (e.g. https://owox.com/demo → owox.com).
+   * Strips a leading `www.` segment.
+   */
+  private normalizeOrgDomainAnswer(raw: string): string {
+    const trimmed = raw.trim();
+    if (!trimmed) return '';
+    let candidate = trimmed;
+    if (!/^[a-z][a-z0-9+.-]*:\/\//i.test(candidate)) {
+      candidate = `https://${candidate}`;
+    }
+    const stripWww = (host: string) => host.replace(/^www\./i, '');
+    try {
+      const u = new URL(candidate);
+      if (u.hostname) return stripWww(u.hostname.toLowerCase());
+    } catch {
+      // fall through
+    }
+    return stripWww(
+      trimmed
+        .replace(/^https?:\/\//i, '')
+        .split('/')[0]!
+        .split('?')[0]!
+        .split('#')[0]!
+        .toLowerCase()
+    );
+  }
+
   private validateQuestionId(questionId: string): void {
     if (!QUESTION_IDS.has(questionId)) {
       throw new Error('Invalid question identifier');
@@ -171,7 +199,7 @@ export class OnboardingService {
     answerValue: string | string[]
   ): string {
     if (questionId === ONBOARDING_QUESTION.ORG_DOMAIN) {
-      const domain = String(answerValue).trim().toLowerCase();
+      const domain = this.normalizeOrgDomainAnswer(String(answerValue));
       if (domain && !ORG_DOMAIN_PATTERN.test(domain)) {
         throw new Error('Invalid organization domain format');
       }
