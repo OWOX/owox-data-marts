@@ -53,7 +53,7 @@ export const getMembersColumns = ({
       const name = displayName ?? email;
       const initials = generateInitials(displayName ?? null, email);
       return (
-        <div className='flex items-start gap-3'>
+        <div className='flex items-center gap-3'>
           <UserAvatar
             avatar={avatarUrl ?? null}
             initials={initials}
@@ -111,6 +111,12 @@ export const getMembersColumns = ({
     meta: { title: membersColumnLabels[MembersColumnKey.CONTEXTS] },
     header: membersColumnLabels[MembersColumnKey.CONTEXTS],
     cell: ({ row }) => {
+      // Members with project-wide scope (admins and any other entire_project
+      // member) implicitly belong to every context — render a dash to avoid
+      // suggesting they are constrained by the context bindings.
+      if (row.original.roleScope === 'entire_project') {
+        return <span className='text-muted-foreground'>—</span>;
+      }
       if (row.original.contextsDetailed.length === 0) {
         return <span className='text-muted-foreground'>—</span>;
       }
@@ -125,7 +131,6 @@ export const getMembersColumns = ({
     cell: ({ row }) => (
       <MembersActionsCell
         userId={row.original.userId}
-        role={row.original.role}
         isAdmin={isAdmin}
         onEdit={onEdit}
         onRemove={onRemove}

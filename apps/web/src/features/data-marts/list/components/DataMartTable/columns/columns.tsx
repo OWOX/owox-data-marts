@@ -15,6 +15,7 @@ import type { ConnectorListItem } from '../../../../../connectors/shared/model/t
 import { RawBase64Icon } from '../../../../../../shared';
 import { SortableHeader, ToggleColumnsHeader } from '../../../../../../shared/components/Table';
 import { ContextBadges } from '../../../../../../features/contexts/components/ContextBadges/ContextBadges';
+import { Check } from 'lucide-react';
 
 interface DataMartTableColumnsProps {
   onDeleteSuccess?: () => void;
@@ -280,8 +281,53 @@ export const getDataMartColumns = ({
     },
   },
   {
+    accessorKey: DataMartColumnKey.AVAILABLE_FOR_REPORTING,
+    size: 110,
+    meta: {
+      title: dataMartColumnLabels[DataMartColumnKey.AVAILABLE_FOR_REPORTING],
+    },
+    sortingFn: (rowA, rowB) =>
+      Number(rowA.original.availableForReporting === true) -
+      Number(rowB.original.availableForReporting === true),
+    header: ({ column }) => (
+      <SortableHeader column={column}>
+        {dataMartColumnLabels[DataMartColumnKey.AVAILABLE_FOR_REPORTING]}
+      </SortableHeader>
+    ),
+    cell: ({ row }) =>
+      row.original.availableForReporting === true ? (
+        <Check className='text-muted-foreground h-4 w-4' aria-label='Available for reporting' />
+      ) : (
+        <div className='text-muted-foreground'>—</div>
+      ),
+  },
+  {
+    accessorKey: DataMartColumnKey.AVAILABLE_FOR_MAINTENANCE,
+    size: 130,
+    meta: {
+      title: dataMartColumnLabels[DataMartColumnKey.AVAILABLE_FOR_MAINTENANCE],
+    },
+    sortingFn: (rowA, rowB) =>
+      Number(rowA.original.availableForMaintenance === true) -
+      Number(rowB.original.availableForMaintenance === true),
+    header: ({ column }) => (
+      <SortableHeader column={column}>
+        {dataMartColumnLabels[DataMartColumnKey.AVAILABLE_FOR_MAINTENANCE]}
+      </SortableHeader>
+    ),
+    cell: ({ row }) =>
+      row.original.availableForMaintenance === true ? (
+        <Check className='text-muted-foreground h-4 w-4' aria-label='Available for maintenance' />
+      ) : (
+        <div className='text-muted-foreground'>—</div>
+      ),
+  },
+  {
     id: DataMartColumnKey.CONTEXTS,
     accessorKey: 'contexts',
+    meta: {
+      title: dataMartColumnLabels[DataMartColumnKey.CONTEXTS],
+    },
     header: dataMartColumnLabels[DataMartColumnKey.CONTEXTS],
     enableSorting: false,
     cell: ({ row }) => {

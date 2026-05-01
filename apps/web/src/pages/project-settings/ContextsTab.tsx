@@ -82,7 +82,7 @@ export function ContextsTab() {
       });
     if (impact.memberCount > 0)
       parts.push({
-        label: `${String(impact.memberCount)} member${impact.memberCount === 1 ? '' : 's'}`,
+        label: `${String(impact.memberCount)} Member${impact.memberCount === 1 ? '' : 's'}`,
         to: scope('/project-settings/members'),
       });
     return parts.map((part, index) => (

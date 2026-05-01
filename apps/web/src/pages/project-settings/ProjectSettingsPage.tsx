@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { NavLink, Outlet } from 'react-router-dom';
 import { cn } from '@owox/ui/lib/utils';
 import { Alert, AlertDescription, AlertTitle } from '@owox/ui/components/alert';
@@ -41,6 +41,12 @@ export function ProjectSettingsPage() {
   const [inviteOpen, setInviteOpen] = useState(false);
   const [addContextOpen, setAddContextOpen] = useState(false);
 
+  // Legacy upstream is eventually consistent — getMembers() can echo a member
+  // we just deleted for several seconds. We tombstone removed userIds locally
+  // so refresh() does not bring them back, and self-evict each tombstone the
+  // moment upstream stops returning it.
+  const removedTombstones = useRef(new Set<string>());
+
   const loadData = useCallback(async () => {
     setLoading(true);
     setError(null);
@@ -50,7 +56,14 @@ export function ProjectSettingsPage() {
         projectMembersService.getMembers(),
       ]);
       setContexts(ctxs);
-      setMembers(mems);
+      const tombstones = removedTombstones.current;
+      if (tombstones.size > 0) {
+        const upstreamIds = new Set(mems.map(m => m.userId));
+        for (const id of [...tombstones]) {
+          if (!upstreamIds.has(id)) tombstones.delete(id);
+        }
+      }
+      setMembers(tombstones.size > 0 ? mems.filter(m => !tombstones.has(m.userId)) : mems);
     } catch (err) {
       // Without a catch the page renders empty arrays + loading=false, which
       // is indistinguishable from "this project really has no members /
@@ -72,6 +85,7 @@ export function ProjectSettingsPage() {
     setAddContextOpen(true);
   }, []);
   const optimisticRemoveMember = useCallback((userId: string) => {
+    removedTombstones.current.add(userId);
     setMembers(prev => prev.filter(m => m.userId !== userId));
   }, []);
 

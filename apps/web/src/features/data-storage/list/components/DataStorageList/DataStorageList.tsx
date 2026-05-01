@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { Link } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { ConfirmationDialog } from '../../../../../shared/components/ConfirmationDialog';
-import { useUrlParam } from '../../../../../shared/hooks';
+import { useUrlParam, useProjectRoute } from '../../../../../shared/hooks';
 import { DataStorageConfigSheet } from '../../../edit';
 import { DataStorageType } from '../../../shared';
 import { DataStorageTypeDialog } from '../../../shared/components/DataStorageTypeDialog.tsx';
@@ -40,6 +41,13 @@ export const DataStorageList = ({
   const [isEditDrawerOpen, setIsEditDrawerOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [storageToDelete, setStorageToDelete] = useState<string | null>(null);
+  const [blocked, setBlocked] = useState<{
+    storageId: string;
+    storageTitle: string;
+    publishedDataMartsCount: number;
+    draftDataMartsCount: number;
+  } | null>(null);
+  const { scope } = useProjectRoute();
   const [publishDialogOpen, setPublishDialogOpen] = useState(false);
   const [storageToPublish, setStorageToPublish] = useState<{
     id: string;
@@ -115,6 +123,19 @@ export const DataStorageList = ({
   };
 
   const handleDelete = (id: string) => {
+    const storage = dataStorages.find(s => s.id === id);
+    if (storage) {
+      const total = storage.publishedDataMartsCount + storage.draftDataMartsCount;
+      if (total > 0) {
+        setBlocked({
+          storageId: id,
+          storageTitle: storage.title,
+          publishedDataMartsCount: storage.publishedDataMartsCount,
+          draftDataMartsCount: storage.draftDataMartsCount,
+        });
+        return;
+      }
+    }
     setStorageToDelete(id);
     setDeleteDialogOpen(true);
   };
@@ -242,6 +263,53 @@ export const DataStorageList = ({
         onClose={handleCloseDrawer}
         dataStorage={currentDataStorage}
         onSaveSuccess={dataStorage => void handleSave(dataStorage.id)}
+      />
+
+      <ConfirmationDialog
+        open={!!blocked}
+        onOpenChange={open => {
+          if (!open) setBlocked(null);
+        }}
+        title='Cannot delete storage'
+        description={
+          blocked ? (
+            <span className='block space-y-2'>
+              <span className='block'>
+                <strong>&ldquo;{blocked.storageTitle}&rdquo;</strong> is referenced by{' '}
+                <Link
+                  to={`${scope('/data-marts')}?${new URLSearchParams({
+                    filters: JSON.stringify([
+                      { f: 'storageTitle', o: 'eq', v: [blocked.storageTitle] },
+                    ]),
+                  }).toString()}`}
+                  className='text-primary hover:underline'
+                  onClick={() => {
+                    setBlocked(null);
+                  }}
+                >
+                  {blocked.publishedDataMartsCount + blocked.draftDataMartsCount} Data Mart
+                  {blocked.publishedDataMartsCount + blocked.draftDataMartsCount === 1 ? '' : 's'}
+                </Link>
+                {blocked.draftDataMartsCount > 0 && blocked.publishedDataMartsCount > 0 ? (
+                  <>
+                    {' '}
+                    ({blocked.publishedDataMartsCount} published, {blocked.draftDataMartsCount}{' '}
+                    draft)
+                  </>
+                ) : null}
+                .
+              </span>
+              <span className='text-muted-foreground block'>
+                Detach or delete those Data Marts before deleting the storage.
+              </span>
+            </span>
+          ) : null
+        }
+        confirmLabel='Got it'
+        variant='default'
+        onConfirm={() => {
+          setBlocked(null);
+        }}
       />
 
       <ConfirmationDialog

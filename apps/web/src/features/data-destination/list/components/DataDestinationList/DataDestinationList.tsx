@@ -1,9 +1,15 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { Link } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { ConfirmationDialog } from '../../../../../shared/components/ConfirmationDialog';
-import { useUrlParam } from '../../../../../shared/hooks';
+import { useUrlParam, useProjectRoute } from '../../../../../shared/hooks';
 import { DataDestinationConfigSheet } from '../../../edit';
-import { generateLookerStudioJsonConfig, useDataDestination } from '../../../shared';
+import {
+  dataDestinationService,
+  generateLookerStudioJsonConfig,
+  useDataDestination,
+} from '../../../shared';
+import type { DataDestinationImpactResponseDto } from '../../../shared/services/types';
 import { isLookerStudioCredentials } from '../../../shared/model/types/looker-studio-credentials.ts';
 import {
   DataDestinationTable,
@@ -38,6 +44,11 @@ export const DataDestinationList = ({
   const [destinationToRotateSecretKey, setDestinationToRotateSecretKey] = useState<string | null>(
     null
   );
+  const [blocked, setBlocked] = useState<{
+    destinationId: string;
+    impact: DataDestinationImpactResponseDto;
+  } | null>(null);
+  const { scope } = useProjectRoute();
 
   const { value: deepLinkId, setParam: setIdParam, removeParam: removeIdParam } = useUrlParam('id');
   const hasAttemptedDeepLink = useRef(false);
@@ -81,9 +92,23 @@ export const DataDestinationList = ({
     }
   }, [isCreateSheetInitiallyOpen, handleOpenCreateForm]);
 
-  const handleDelete = (id: string) => {
-    setDestinationToDelete(id);
-    setDeleteDialogOpen(true);
+  const handleDelete = async (id: string) => {
+    try {
+      const impact = await dataDestinationService.getDataDestinationImpact(id);
+      if (impact.reportsCount > 0) {
+        setBlocked({ destinationId: id, impact });
+        return;
+      }
+      setDestinationToDelete(id);
+      setDeleteDialogOpen(true);
+    } catch (error) {
+      // Network/auth failures fall through to the plain confirm dialog so the
+      // admin can still attempt the delete; the backend will surface the real
+      // reason if there is one.
+      console.error('Failed to load destination impact:', error);
+      setDestinationToDelete(id);
+      setDeleteDialogOpen(true);
+    }
   };
 
   const handleRotateSecretKey = (id: string) => {
@@ -154,9 +179,13 @@ export const DataDestinationList = ({
     contexts: destination.contexts ?? [],
   }));
 
+  const onDeleteCallback = (id: string) => {
+    void handleDelete(id);
+  };
+
   const columns = getDataDestinationColumns({
     onEdit: handleEdit,
-    onDelete: handleDelete,
+    onDelete: onDeleteCallback,
     onRotateSecretKey: handleRotateSecretKey,
   });
 
@@ -166,7 +195,7 @@ export const DataDestinationList = ({
         columns={columns}
         data={tableData}
         onEdit={handleEdit}
-        onDelete={handleDelete}
+        onDelete={onDeleteCallback}
         onRotateSecretKey={handleRotateSecretKey}
         onOpenTypeDialog={handleOpenCreateForm}
       />
@@ -176,6 +205,43 @@ export const DataDestinationList = ({
         onClose={handleCloseSheet}
         dataDestination={currentDataDestination}
         onSaveSuccess={() => void handleSave()}
+      />
+
+      <ConfirmationDialog
+        open={!!blocked}
+        onOpenChange={open => {
+          if (!open) setBlocked(null);
+        }}
+        title='Cannot delete destination'
+        description={
+          blocked ? (
+            <span className='block space-y-2'>
+              <span className='block'>
+                <strong>&ldquo;{blocked.impact.destinationTitle}&rdquo;</strong> is referenced by{' '}
+                <Link
+                  to={scope('/data-marts')}
+                  className='text-primary hover:underline'
+                  onClick={() => {
+                    setBlocked(null);
+                  }}
+                >
+                  {blocked.impact.reportsCount} Report
+                  {blocked.impact.reportsCount === 1 ? '' : 's'}
+                </Link>{' '}
+                across {blocked.impact.dataMartCount} Data Mart
+                {blocked.impact.dataMartCount === 1 ? '' : 's'}.
+              </span>
+              <span className='text-muted-foreground block'>
+                Remove or repoint those reports before deleting the destination.
+              </span>
+            </span>
+          ) : null
+        }
+        confirmLabel='Got it'
+        variant='default'
+        onConfirm={() => {
+          setBlocked(null);
+        }}
       />
 
       <ConfirmationDialog

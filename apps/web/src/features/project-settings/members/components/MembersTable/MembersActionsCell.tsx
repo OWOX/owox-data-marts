@@ -9,12 +9,12 @@ import {
 import { MoreHorizontal, Pencil, UserMinus } from 'lucide-react';
 import { type FC, useState } from 'react';
 import { AdminGuardTooltip } from '../../../../../shared/components/AdminGuardTooltip';
+import { useUser } from '../../../../idp/hooks';
 
 const ADMIN_ONLY_HINT = 'You need the Project Admin role to manage members.';
 
 interface MembersActionsCellProps {
   userId: string;
-  role: string;
   isAdmin: boolean;
   onEdit?: (userId: string) => void;
   onRemove?: (userId: string) => void;
@@ -22,13 +22,14 @@ interface MembersActionsCellProps {
 
 export const MembersActionsCell: FC<MembersActionsCellProps> = ({
   userId,
-  role,
   isAdmin,
   onEdit,
   onRemove,
 }) => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
-  const canRemove = role !== 'admin';
+  const currentUser = useUser();
+  // Backend only blocks self-removal — an admin may remove other admins.
+  const canRemove = userId !== currentUser?.id;
 
   return (
     <div className='actions-cell text-right'>

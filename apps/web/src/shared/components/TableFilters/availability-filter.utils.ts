@@ -31,24 +31,39 @@ export function classifyAvailability(
 
 interface BuildAvailabilityFilterArgs<K extends string> {
   id: K;
+  /** Label for the "first flag" only option (e.g. "Available for reporting"). */
   firstLabel: string;
+  /** Label for the maintenance-only option. */
+  maintenanceLabel?: string;
+  /** Label for the both-flags option. */
+  bothLabel?: string;
+  /** Label for the none-of-the-above option. */
+  noneLabel?: string;
+  /** Filter title. */
   label?: string;
 }
 
 export function buildAvailabilityFilter<K extends string>(
   args: BuildAvailabilityFilterArgs<K>
 ): FilterConfigItem<K> {
-  const { id, firstLabel, label = 'Availability' } = args;
+  const {
+    id,
+    firstLabel,
+    maintenanceLabel = 'Available for maintenance',
+    bothLabel = `${firstLabel} + maintenance`,
+    noneLabel = 'Not available',
+    label = 'Availability',
+  } = args;
   return {
     id,
     label,
     dataType: 'enum',
     operators: DEFAULT_OPERATORS,
     options: [
-      { value: AVAILABILITY_VALUE.BOTH, label: `${firstLabel} + Maintenance` },
+      { value: AVAILABILITY_VALUE.BOTH, label: bothLabel },
       { value: AVAILABILITY_VALUE.FIRST, label: firstLabel },
-      { value: AVAILABILITY_VALUE.MAINTENANCE, label: 'Maintenance' },
-      { value: AVAILABILITY_VALUE.NONE, label: 'None' },
+      { value: AVAILABILITY_VALUE.MAINTENANCE, label: maintenanceLabel },
+      { value: AVAILABILITY_VALUE.NONE, label: noneLabel },
     ],
   };
 }

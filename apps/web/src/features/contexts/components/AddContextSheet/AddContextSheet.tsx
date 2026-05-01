@@ -33,7 +33,7 @@ import {
 import { Loader2 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { contextService } from '../../services/context.service';
-import { MembersCheckboxList } from '../../../../shared/components/MembersCheckboxList';
+import { MembersAssignmentField } from '../../../../shared/components/MembersAssignmentField';
 import { getRoleDisplayName } from '../../../idp/utils/role-display-name';
 import type { ContextDto, MemberWithScopeDto } from '../../types/context.types';
 
@@ -191,25 +191,24 @@ export function AddContextSheet({ isOpen, members, onClose, onCreated }: AddCont
 
               {members.length > 0 && (
                 <FormSection title='Members' name='add-context-members'>
-                  <FormItem>
-                    <FormLabel tooltip='Members you select here will get access to resources tagged with this context'>
-                      Assign to members (optional)
-                    </FormLabel>
-                    <MembersCheckboxList
-                      idPrefix='new-ctx-mem'
-                      members={members.map(m => ({
-                        userId: m.userId,
-                        email: m.email,
-                        displayName: m.displayName,
-                        avatarUrl: m.avatarUrl,
-                        role: m.role,
-                        roleLabel: getRoleDisplayName(m.role),
-                      }))}
-                      selectedIds={selectedMemberIds}
-                      onToggle={handleToggleMember}
-                      disabled={saving}
-                    />
-                  </FormItem>
+                  <MembersAssignmentField
+                    idPrefix='new-ctx-mem'
+                    label='Assign to members (optional)'
+                    tooltip='Members you select here will get access to resources tagged with this context'
+                    members={members.map(m => ({
+                      userId: m.userId,
+                      email: m.email,
+                      displayName: m.displayName,
+                      avatarUrl: m.avatarUrl,
+                      role: m.role,
+                      roleScope: m.roleScope,
+                      roleLabel: getRoleDisplayName(m.role),
+                    }))}
+                    selectedIds={selectedMemberIds}
+                    onToggle={handleToggleMember}
+                    onSetSelected={setSelectedMemberIds}
+                    disabled={saving}
+                  />
                 </FormSection>
               )}
             </FormLayout>

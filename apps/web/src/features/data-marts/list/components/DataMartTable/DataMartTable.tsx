@@ -163,6 +163,8 @@ export function DataMartTable<TData, TValue>({
       createdByUser: false,
       businessOwnerUsers: false,
       technicalOwnerUsers: false,
+      availableForReporting: false,
+      availableForMaintenance: false,
     },
     enableRowSelection: true,
   });

@@ -36,6 +36,7 @@ import { GoogleOAuthSettingsResponseDto } from '../dto/presentation/google-oauth
 import {
   CreateDataDestinationSpec,
   DeleteDataDestinationSpec,
+  GetDataDestinationImpactSpec,
   GetDataDestinationSpec,
   ListDataDestinationsSpec,
   ListDataDestinationsByTypeSpec,
@@ -51,6 +52,8 @@ import {
 } from './spec/data-destination.api';
 import { ApiTags } from '@nestjs/swagger';
 import { DeleteDataDestinationService } from '../use-cases/delete-data-destination.service';
+import { GetDataDestinationImpactService } from '../use-cases/get-data-destination-impact.service';
+import { DataDestinationImpactResponseApiDto } from '../dto/presentation/data-destination-impact-response-api.dto';
 import { RotateSecretKeyService } from '../use-cases/rotate-secret-key.service';
 import { GoogleOAuthFlowService } from '../services/google-oauth/google-oauth-flow.service';
 import { GetDestinationOAuthStatusService } from '../use-cases/google-oauth/get-destination-oauth-status.service';
@@ -71,6 +74,7 @@ export class DataDestinationController {
     private readonly getService: GetDataDestinationService,
     private readonly listService: ListDataDestinationsService,
     private readonly deleteService: DeleteDataDestinationService,
+    private readonly getImpactService: GetDataDestinationImpactService,
     private readonly rotateSecretKeyService: RotateSecretKeyService,
     private readonly mapper: DataDestinationMapper,
     private readonly googleOAuthFlowService: GoogleOAuthFlowService,
@@ -210,6 +214,23 @@ export class DataDestinationController {
     const command = this.mapper.toGetCommand(id, context);
     const dataDestinationDto = await this.getService.run(command);
     return await this.mapper.toApiResponse(dataDestinationDto);
+  }
+
+  @Auth(Role.viewer(Strategy.INTROSPECT))
+  @Get(':id/impact')
+  @GetDataDestinationImpactSpec()
+  async getImpact(
+    @AuthContext() context: AuthorizationContext,
+    @Param('id') id: string
+  ): Promise<DataDestinationImpactResponseApiDto> {
+    await this.checkDestinationAccess(id, context, Action.DELETE);
+    const impact = await this.getImpactService.run(id, context.projectId);
+    return {
+      destinationId: impact.destinationId,
+      destinationTitle: impact.destinationTitle,
+      reportsCount: impact.reportsCount,
+      dataMartCount: impact.dataMartCount,
+    };
   }
 
   @Auth(Role.viewer(Strategy.INTROSPECT))

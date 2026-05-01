@@ -157,8 +157,8 @@ export function MemberDetailsSheet({
       >
         <SheetContent>
           <SheetHeader>
-            <SheetTitle>{member.displayName ?? member.email}</SheetTitle>
-            <SheetDescription>{member.email}</SheetDescription>
+            <SheetTitle>Configure member</SheetTitle>
+            <SheetDescription>Customize role, scope and contexts for this member</SheetDescription>
           </SheetHeader>
 
           <Form {...form}>
