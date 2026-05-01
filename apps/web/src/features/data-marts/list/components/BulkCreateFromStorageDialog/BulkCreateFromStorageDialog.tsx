@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
-import { Box, X } from 'lucide-react';
+import { Box, Eye, Table, X } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { Badge } from '@owox/ui/components/badge';
 import { Button } from '@owox/ui/components/button';
@@ -375,7 +375,8 @@ function BulkCreateFromStorageDialogInner({
                     {Array.from(selected.values()).map(leaf => (
                       <li key={leaf.fullyQualifiedName}>
                         <Badge variant='secondary' className='gap-1 text-xs'>
-                          {leaf.type === 'VIEW' ? 'V' : 'T'}: {leaf.id}
+                          <StorageTypeIcon resourceType={leaf.type} />
+                          {leaf.id}
                           <button
                             type='button'
                             aria-label={`Remove ${leaf.fullyQualifiedName}`}
@@ -437,7 +438,19 @@ function BulkCreateFromStorageDialogInner({
   );
 }
 
-function StorageTypeIcon({ storageType }: { storageType: DataStorageType | null }) {
+function StorageTypeIcon({
+  storageType,
+  resourceType,
+}: {
+  storageType?: DataStorageType | null;
+  resourceType?: StorageResourceLeafDto['type'];
+}) {
+  if (resourceType != null) {
+    if (resourceType === 'VIEW') {
+      return <Eye className='size-3.5 shrink-0' aria-hidden />;
+    }
+    return <Table className='size-3.5 shrink-0' aria-hidden />;
+  }
   if (!storageType) return null;
   const Icon = DataStorageTypeModel.getInfo(storageType).icon;
   return <Icon size={20} className='shrink-0' />;
