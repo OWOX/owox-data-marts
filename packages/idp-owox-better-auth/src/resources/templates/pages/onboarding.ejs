@@ -302,7 +302,7 @@ const storageIcons = {
     btnBack.classList.toggle('hidden', step === 0);
 
     if (step === TOTAL_STEPS - 1) {
-      btnNext.textContent = 'Complete';
+      btnNext.textContent = 'Finish';
     } else {
       btnNext.innerHTML = 'Next &rarr;';
     }
@@ -585,7 +585,7 @@ const storageIcons = {
     }
   }
 
-  // Shuffle primary storage: randomize DWH options; keep OWOX Cloud (EU→US) and Other fixed at end.
+  // Shuffle primary storage: randomize DWH options only; fix OWOX (EU→US), "Don't know", then Other.
   function shufflePrimaryStorageOptions() {
     const container = document.getElementById('q-primary-storage');
     if (!container) return;
@@ -596,6 +596,10 @@ const storageIcons = {
       var input = label.querySelector('input');
       return input && input.value === 'other';
     });
+    const dontKnowCard = cards.find(function (label) {
+      var input = label.querySelector('input');
+      return input && input.value === 'dont_know';
+    });
     const owoxEuCard = cards.find(function (label) {
       var input = label.querySelector('input');
       return input && input.value === 'owox_cloud_eu';
@@ -604,7 +608,9 @@ const storageIcons = {
       var input = label.querySelector('input');
       return input && input.value === 'owox_cloud_us';
     });
-    var pinned = new Set([otherCard, owoxEuCard, owoxUsCard].filter(Boolean));
+    var pinned = new Set(
+      [otherCard, dontKnowCard, owoxEuCard, owoxUsCard].filter(Boolean)
+    );
     var shuffleable = cards.filter(function (c) { return !pinned.has(c); });
 
     for (var i = shuffleable.length - 1; i > 0; i--) {
@@ -617,22 +623,19 @@ const storageIcons = {
     cards.forEach(function (c) { container.removeChild(c); });
 
     var otherWrap = container.querySelector('.other-text-input');
+    function insertBeforeOther(node) {
+      if (node) {
+        if (otherWrap) container.insertBefore(node, otherWrap);
+        else container.appendChild(node);
+      }
+    }
     shuffleable.forEach(function (c) {
-      if (otherWrap) container.insertBefore(c, otherWrap);
-      else container.appendChild(c);
+      insertBeforeOther(c);
     });
-    if (owoxEuCard) {
-      if (otherWrap) container.insertBefore(owoxEuCard, otherWrap);
-      else container.appendChild(owoxEuCard);
-    }
-    if (owoxUsCard) {
-      if (otherWrap) container.insertBefore(owoxUsCard, otherWrap);
-      else container.appendChild(owoxUsCard);
-    }
-    if (otherCard) {
-      if (otherWrap) container.insertBefore(otherCard, otherWrap);
-      else container.appendChild(otherCard);
-    }
+    insertBeforeOther(owoxEuCard);
+    insertBeforeOther(owoxUsCard);
+    insertBeforeOther(dontKnowCard);
+    insertBeforeOther(otherCard);
   }
 
   shuffleOptions('q-use-case');
