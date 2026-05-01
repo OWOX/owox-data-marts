@@ -5,7 +5,7 @@ import { ScheduledTriggerFormSheet } from '../ScheduledTriggerFormSheet/Schedule
 import { useBaseTable } from '../../../../../shared/hooks';
 import { BaseTable } from '../../../../../shared/components/Table';
 import { Button } from '@owox/ui/components/button';
-import { CalendarClock, Plus } from 'lucide-react';
+import { Plus } from 'lucide-react';
 
 interface ScheduledTriggerTableProps {
   triggers: ScheduledTrigger[];
@@ -68,18 +68,12 @@ export function ScheduledTriggerTable({
           }}
           renderEmptyState={() => (
             <div
-              className='flex flex-col items-center justify-center py-8 text-center'
+              className='flex flex-col items-center justify-center gap-4 py-8 text-center'
               role='status'
               aria-live='polite'
               data-testid='triggerEmptyState'
             >
-              <CalendarClock className='text-muted-foreground/50 mb-3 h-10 w-10' />
-              <p className='text-muted-foreground mb-1 text-sm font-medium'>
-                No scheduled triggers yet
-              </p>
-              <p className='text-muted-foreground/75 mb-4 text-xs'>
-                Automate your data updates with scheduled runs
-              </p>
+              <p className='text-muted-foreground text-sm font-medium'>No scheduled triggers yet</p>
               {onRequestCreate && (
                 <Button variant='outline' size='sm' onClick={onRequestCreate}>
                   <Plus className='h-3.5 w-3.5' />

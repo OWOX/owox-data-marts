@@ -39,7 +39,7 @@ export const getScheduledTriggerColumns = ({
   {
     accessorKey: ScheduledTriggerColumnKey.TRIGGER_CONFIG,
     meta: { title: ScheduledTriggerColumnLabels[ScheduledTriggerColumnKey.TRIGGER_CONFIG] },
-    size: 320,
+    size: 220,
     header: ({ column }) => (
       <SortableHeader column={column}>
         {ScheduledTriggerColumnLabels[ScheduledTriggerColumnKey.TRIGGER_CONFIG]}
@@ -50,7 +50,7 @@ export const getScheduledTriggerColumns = ({
   {
     accessorKey: ScheduledTriggerColumnKey.CRON_EXPRESSION,
     meta: { title: ScheduledTriggerColumnLabels[ScheduledTriggerColumnKey.CRON_EXPRESSION] },
-    size: 300,
+    size: 160,
     header: ({ column }) => (
       <SortableHeader column={column}>
         {ScheduledTriggerColumnLabels[ScheduledTriggerColumnKey.CRON_EXPRESSION]}
@@ -72,7 +72,7 @@ export const getScheduledTriggerColumns = ({
   {
     accessorKey: ScheduledTriggerColumnKey.NEXT_RUN,
     meta: { title: ScheduledTriggerColumnLabels[ScheduledTriggerColumnKey.NEXT_RUN] },
-    size: 220,
+    size: 160,
     header: ({ column }) => (
       <SortableHeader column={column}>
         {ScheduledTriggerColumnLabels[ScheduledTriggerColumnKey.NEXT_RUN]}
@@ -112,7 +112,7 @@ export const getScheduledTriggerColumns = ({
   {
     accessorKey: ScheduledTriggerColumnKey.IS_ACTIVE,
     meta: { title: ScheduledTriggerColumnLabels[ScheduledTriggerColumnKey.IS_ACTIVE] },
-    size: 180,
+    size: 160,
     header: ({ column }) => (
       <SortableHeader column={column}>
         {ScheduledTriggerColumnLabels[ScheduledTriggerColumnKey.IS_ACTIVE]}
@@ -138,7 +138,7 @@ export const getScheduledTriggerColumns = ({
       return u?.fullName ?? u?.email;
     },
     meta: { title: ScheduledTriggerColumnLabels[ScheduledTriggerColumnKey.CREATED_BY] },
-    size: 200,
+    size: 160,
     header: ({ column }) => (
       <SortableHeader column={column}>
         {ScheduledTriggerColumnLabels[ScheduledTriggerColumnKey.CREATED_BY]}

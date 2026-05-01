@@ -155,6 +155,7 @@ export function OverviewTab() {
                       variant={CopyButtonVariant.DEFAULT}
                       copiedSection={copiedSection}
                       onCopy={handleCopy}
+                      iconOnly={true}
                     />
                   )}
                 </div>
