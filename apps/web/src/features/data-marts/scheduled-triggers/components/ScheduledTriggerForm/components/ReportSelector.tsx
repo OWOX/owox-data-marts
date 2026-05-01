@@ -39,21 +39,30 @@ export function ReportSelector({ value, onChange, disabled }: ReportSelectorProp
 
   return (
     <Select value={value} onValueChange={onChange} disabled={disabled}>
-      <SelectTrigger className='w-full'>
+      <SelectTrigger className='w-full text-left'>
         <SelectValue placeholder='Select a report' />
       </SelectTrigger>
-      <SelectContent>
-        {filteredReports.map(report => {
-          const Icon = DataDestinationTypeModel.getInfo(report.dataDestination.type).icon;
-          return (
-            <SelectItem key={report.id} value={report.id}>
-              <div className='flex items-center gap-2'>
-                <Icon className='h-4 w-4' size={16} />
-                <span>{report.title}</span>
-              </div>
-            </SelectItem>
-          );
-        })}
+      <SelectContent className='max-w-[var(--radix-select-trigger-width)]'>
+        {filteredReports.length === 0 ? (
+          <div className='text-muted-foreground flex flex-col gap-1 px-3 py-2 text-sm leading-tight'>
+            <div className='font-medium'>No reports yet</div>
+            <div className='text-xs'>Create one in the Destination tab</div>
+          </div>
+        ) : (
+          filteredReports.map(report => {
+            const Icon = DataDestinationTypeModel.getInfo(report.dataDestination.type).icon;
+            return (
+              <SelectItem key={report.id} value={report.id} className='min-w-0 overflow-hidden'>
+                <div className='flex w-full min-w-0 items-center gap-2 overflow-hidden'>
+                  <Icon className='h-4 w-4 shrink-0' size={16} />
+                  <span className='flex-1 truncate' title={report.title}>
+                    {report.title}
+                  </span>
+                </div>
+              </SelectItem>
+            );
+          })
+        )}
       </SelectContent>
     </Select>
   );

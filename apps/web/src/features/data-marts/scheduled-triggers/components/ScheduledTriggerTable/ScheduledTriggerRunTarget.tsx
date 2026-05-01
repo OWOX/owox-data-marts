@@ -18,9 +18,11 @@ function renderReportRunTarget(trigger: ScheduledTrigger) {
   const config = trigger.triggerConfig as ScheduledReportRunConfig;
   const Icon = DataDestinationTypeModel.getInfo(config.report.dataDestination.type).icon;
   return (
-    <div className='group inline-flex items-center gap-2 whitespace-nowrap'>
+    <div className='group inline-flex max-w-full min-w-0 items-center gap-2 overflow-hidden whitespace-nowrap'>
       <Icon className='h-4 w-4' size={16} />
-      {config.report.title}
+      <span className='max-w-full flex-1 truncate' title={config.report.title}>
+        {config.report.title}
+      </span>
       <ReportHoverCard report={config.report}>
         <Info className='inline-block h-4 w-4 align-text-bottom opacity-0 transition-opacity duration-200 group-hover:opacity-100' />
       </ReportHoverCard>
@@ -35,14 +37,16 @@ function renderConnectorRunTarget(trigger: ScheduledTrigger) {
   const triggerConfig = trigger.triggerConfig as ScheduledConnectorRunConfig;
   const { connector } = triggerConfig.connector;
   const connectorIcon = connector.info?.logoBase64 ? (
-    <RawBase64Icon base64={connector.info.logoBase64} className='h-4 w-4' size={16} />
+    <RawBase64Icon base64={connector.info.logoBase64} className='h-4 w-4 shrink-0' size={16} />
   ) : (
     <Database className='h-4 w-4' size={16} />
   );
   return (
-    <div className='group inline-flex items-center gap-2 whitespace-nowrap'>
+    <div className='group inline-flex max-w-full min-w-0 items-center gap-2 overflow-hidden whitespace-nowrap'>
       {connectorIcon}
-      <ConnectorNameDisplay connector={connector} />
+      <span className='max-w-full flex-1 truncate'>
+        <ConnectorNameDisplay connector={connector} />
+      </span>
       <ConnectorHoverCard connector={connector}>
         <Info className='inline-block h-4 w-4 align-text-bottom opacity-0 transition-opacity duration-200 group-hover:opacity-100' />
       </ConnectorHoverCard>

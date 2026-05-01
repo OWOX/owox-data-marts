@@ -62,10 +62,12 @@ export function DataMartRunHistory() {
     <div className='flex flex-col gap-4 pb-4'>
       {runs.length === 0 ? (
         <div
-          className='text-muted-foreground rounded-sm border-b border-gray-200 bg-white p-8 text-center text-sm dark:border-white/4 dark:bg-white/1'
+          className='text-muted-foreground flex h-32 items-center justify-center rounded-sm border-b border-gray-200 bg-white text-center text-sm dark:border-white/4 dark:bg-white/1'
           data-testid='runHistoryEmptyState'
         >
-          No runs found for this Data Mart
+          <span role='status' aria-live='polite'>
+            No runs found for this Data Mart
+          </span>
         </div>
       ) : (
         <div className='space-y-2' data-testid='runHistoryTable'>
