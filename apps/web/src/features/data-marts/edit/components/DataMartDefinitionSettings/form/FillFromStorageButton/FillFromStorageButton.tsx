@@ -80,8 +80,14 @@ export function FillFromStorageButton({
     return null;
   }
 
-  const resourceLabel = resourceType === 'VIEW' ? 'view' : 'table';
-  const resourceLabelPlural = resourceType === 'VIEW' ? 'views' : 'tables';
+  const resourceLabel =
+    resourceType === 'VIEW' ? 'view' : resourceType === 'TABLE_PATTERN' ? 'table pattern' : 'table';
+  const resourceLabelPlural =
+    resourceType === 'VIEW'
+      ? 'views'
+      : resourceType === 'TABLE_PATTERN'
+        ? 'table patterns (sharded tables collapsed into a single wildcard entry)'
+        : 'tables';
 
   return (
     <>

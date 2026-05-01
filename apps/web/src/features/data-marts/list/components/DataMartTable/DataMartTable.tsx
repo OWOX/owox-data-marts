@@ -10,10 +10,11 @@ import {
 } from '@owox/ui/components/alert-dialog';
 import { Button } from '@owox/ui/components/button';
 import { type ColumnDef, type Row } from '@tanstack/react-table';
-import { Check, CircleCheckBig, Plus, Trash2 } from 'lucide-react';
+import { Check, CircleCheckBig, Import, Plus, Trash2 } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { toast } from 'react-hot-toast';
 import { Link, useParams } from 'react-router-dom';
+import { BulkCreateFromStorageDialog } from '../BulkCreateFromStorageDialog';
 import { CardSkeleton } from '../../../../../shared/components/CardSkeleton';
 import {
   BaseTable,
@@ -86,6 +87,7 @@ export function DataMartTable<TData, TValue>({
   const [isDeleting, setIsDeleting] = useState(false);
   const [showPublishConfirmation, setShowPublishConfirmation] = useState(false);
   const [isPublishing, setIsPublishing] = useState(false);
+  const [showBulkCreateFromStorage, setShowBulkCreateFromStorage] = useState(false);
 
   // Show onboarding video if the user has not seen it yet
   const shouldShowOnboarding = !isLoading && data.length === 0;
@@ -336,13 +338,33 @@ export function DataMartTable<TData, TValue>({
           </>
         )}
         renderToolbarRight={() => (
-          <TableCTAButton asChild>
-            <Link to={scope('/data-marts/create')}>
-              <Plus className='h-4 w-4' />
-              <span className='hidden lg:block'>New Data Mart</span>
-            </Link>
-          </TableCTAButton>
+          <div className='flex items-center gap-2'>
+            <Button
+              variant='outline'
+              onClick={() => {
+                setShowBulkCreateFromStorage(true);
+              }}
+              title='Import data marts from storage resources'
+            >
+              <Import className='h-4 w-4' />
+              <span className='hidden lg:block'>Import…</span>
+            </Button>
+            <TableCTAButton asChild>
+              <Link to={scope('/data-marts/create')}>
+                <Plus className='h-4 w-4' />
+                <span className='hidden lg:block'>New Data Mart</span>
+              </Link>
+            </TableCTAButton>
+          </div>
         )}
+      />
+
+      <BulkCreateFromStorageDialog
+        open={showBulkCreateFromStorage}
+        onOpenChange={setShowBulkCreateFromStorage}
+        onCreated={() => {
+          void refetchDataMarts();
+        }}
       />
 
       {/* Delete Confirmation Dialog */}

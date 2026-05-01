@@ -13,6 +13,6 @@ export class ListStorageResourcesCommand {
     /** Top-level container ID (e.g. GCP project, Snowflake database). Required for level=resources. */
     public readonly namespaceId?: string,
     /** Optional type filter. Only meaningful for level=resources. */
-    public readonly resourceType?: 'TABLE' | 'VIEW'
+    public readonly resourceType?: 'TABLE' | 'VIEW' | 'TABLE_PATTERN'
   ) {}
 }

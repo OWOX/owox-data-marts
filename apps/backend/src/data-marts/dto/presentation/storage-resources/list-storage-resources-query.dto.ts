@@ -21,10 +21,12 @@ export class ListStorageResourcesQueryDto {
   namespaceId?: string;
 
   @ApiPropertyOptional({
-    enum: ['TABLE', 'VIEW'],
-    description: 'Filter leaf resources by type. Only applies to level=resources.',
+    enum: ['TABLE', 'VIEW', 'TABLE_PATTERN'],
+    description:
+      'Filter leaf resources by type. Only applies to level=resources. ' +
+      'TABLE_PATTERN returns wildcard rollups for sharded tables (e.g. `events_*`).',
   })
   @IsOptional()
-  @IsIn(['TABLE', 'VIEW'])
-  resourceType?: 'TABLE' | 'VIEW';
+  @IsIn(['TABLE', 'VIEW', 'TABLE_PATTERN'])
+  resourceType?: 'TABLE' | 'VIEW' | 'TABLE_PATTERN';
 }

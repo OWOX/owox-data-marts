@@ -22,6 +22,7 @@ import {
   BigQueryOAuthCredentialsSchema,
   BigQueryServiceAccountCredentialsSchema,
 } from '../schemas/bigquery-credentials.schema';
+import { applyResourceFilter, type RawTableListing } from './bigquery-sharded-tables.util';
 
 // Page size and result cap keep latency bounded on accounts with many datasets/tables.
 const GBQ_LIST_PAGE_SIZE = 500;
@@ -49,13 +50,18 @@ interface GbqDatasetListing {
   location?: string;
 }
 
-interface GbqTableListing {
-  id: string;
-  datasetId: string;
-  type: 'TABLE' | 'VIEW';
-  fullyQualifiedName: string;
-}
+/**
+ * Raw table descriptor used internally by the listing helpers.
+ * Re-exported as {@link RawTableListing} from the sharded-tables util for testability.
+ */
+type GbqTableListing = RawTableListing;
 
+/**
+ * Internal filter used by {@link BigQueryStorageResourceBrowser.listTablesInProject}.
+ * Note: this is the SDK-level filter (matches the underlying BigQuery `type` field) and
+ * therefore does not include `TABLE_PATTERN` — the wildcard rollup is computed after
+ * the listing call returns, in {@link applyResourceFilter}.
+ */
 type GbqTableTypeFilter = 'TABLE' | 'VIEW';
 
 interface BigQueryClients {
@@ -94,13 +100,19 @@ export class BigQueryStorageResourceBrowser implements IStorageResourceBrowserPr
     filter?: StorageResourceFilter
   ): Promise<StorageResourceLeaf[]> {
     const clients = await this.createClients(storage);
-    const tables = await this.listTablesInProject(clients, namespaceId, filter);
-    return tables.map(t => ({
-      id: t.id,
-      groupId: t.datasetId,
-      type: t.type,
-      fullyQualifiedName: t.fullyQualifiedName,
-    }));
+    // Always pull both tables and views so the wildcard rollup can group by dataset
+    // regardless of the caller filter. The filter is applied as a post-step.
+    const rawTables = await this.listTablesInProject(clients, namespaceId);
+    this.logger.debug?.(
+      `listLeafResources(${namespaceId}, ${filter ?? 'unfiltered'}): ` +
+        `${rawTables.length} raw rows from BQ`
+    );
+    const result = applyResourceFilter(rawTables, namespaceId, filter);
+    this.logger.debug?.(
+      `listLeafResources(${namespaceId}, ${filter ?? 'unfiltered'}): ` +
+        `${result.length} leaves after wildcard collapsing`
+    );
+    return result;
   }
 
   // ── Client creation ────────────────────────────────────────────────────────
