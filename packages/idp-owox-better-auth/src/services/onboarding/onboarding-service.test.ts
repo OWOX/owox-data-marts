@@ -363,6 +363,20 @@ describe('OnboardingService', () => {
       expect(saved[0]!.otherText!.length).toBeLessThanOrEqual(500);
     });
 
+    it('saves primary_storage with owox_cloud_eu', async () => {
+      await service.saveAnswers('user-1', 'project-1', 'bi-user-1', 'admin', {
+        answers: [{ questionId: 'primary_storage', answerValue: 'owox_cloud_eu' }],
+      });
+
+      const saved = jest.mocked(store.saveOnboardingAnswers).mock.calls[0]![0] as Array<{
+        questionId: string;
+        answerValue: string;
+      }>;
+      expect(saved).toHaveLength(1);
+      expect(saved[0]!.questionId).toBe('primary_storage');
+      expect(saved[0]!.answerValue).toBe('owox_cloud_eu');
+    });
+
     it('throws on invalid questionId', async () => {
       await expect(
         service.saveAnswers('user-1', 'project-1', 'bi-user-1', 'viewer', {
@@ -388,6 +402,28 @@ describe('OnboardingService', () => {
         answerValue: string;
       }>;
       expect(saved[0]!.answerValue).toBe('example.com');
+    });
+
+    it('normalizes org_domain from a full URL to hostname', async () => {
+      await service.saveAnswers('user-1', 'project-1', 'bi-user-1', 'admin', {
+        answers: [{ questionId: 'org_domain', answerValue: 'https://owox.com/demo' }],
+      });
+
+      const saved = jest.mocked(store.saveOnboardingAnswers).mock.calls[0]![0] as Array<{
+        answerValue: string;
+      }>;
+      expect(saved[0]!.answerValue).toBe('owox.com');
+    });
+
+    it('strips www. from org_domain', async () => {
+      await service.saveAnswers('user-1', 'project-1', 'bi-user-1', 'admin', {
+        answers: [{ questionId: 'org_domain', answerValue: 'https://www.owox.com/demo' }],
+      });
+
+      const saved = jest.mocked(store.saveOnboardingAnswers).mock.calls[0]![0] as Array<{
+        answerValue: string;
+      }>;
+      expect(saved[0]!.answerValue).toBe('owox.com');
     });
 
     it('throws on invalid org_domain format', async () => {
