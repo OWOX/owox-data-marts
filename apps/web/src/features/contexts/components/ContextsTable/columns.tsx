@@ -50,18 +50,6 @@ export const getContextsColumns = ({
     cell: ({ row }) => <div className='font-medium'>{row.original.name}</div>,
   },
   {
-    accessorKey: ContextsColumnKey.DESCRIPTION,
-    size: 360,
-    enableSorting: false,
-    meta: { title: contextsColumnLabels[ContextsColumnKey.DESCRIPTION] },
-    header: contextsColumnLabels[ContextsColumnKey.DESCRIPTION],
-    cell: ({ row }) => {
-      const desc = row.original.description;
-      if (!desc) return <span className='text-muted-foreground'>—</span>;
-      return <div className='text-muted-foreground truncate'>{desc}</div>;
-    },
-  },
-  {
     accessorKey: ContextsColumnKey.MEMBERS,
     size: 160,
     sortingFn: (a, b) => a.original.memberCount - b.original.memberCount,
@@ -72,6 +60,18 @@ export const getContextsColumns = ({
       </SortableHeader>
     ),
     cell: ({ row }) => <UserAvatarGroup users={row.original.memberUsers} />,
+  },
+  {
+    accessorKey: ContextsColumnKey.DESCRIPTION,
+    size: 360,
+    enableSorting: false,
+    meta: { title: contextsColumnLabels[ContextsColumnKey.DESCRIPTION] },
+    header: contextsColumnLabels[ContextsColumnKey.DESCRIPTION],
+    cell: ({ row }) => {
+      const desc = row.original.description;
+      if (!desc) return <span className='text-muted-foreground'>—</span>;
+      return <div className='text-muted-foreground truncate'>{desc}</div>;
+    },
   },
   {
     id: ContextsColumnKey.CREATED_BY,

@@ -271,6 +271,12 @@ interface FormSectionProps {
   description?: string;
   tooltip?: React.ReactNode | string;
   titleAdornment?: React.ReactNode;
+  /**
+   * Right-aligned slot rendered in the section header, OUTSIDE the collapsible
+   * trigger. Use this for buttons that should not toggle the section (search,
+   * add, etc.). Rendered next to the optional tooltip icon.
+   */
+  actions?: React.ReactNode;
   children: React.ReactNode;
   defaultOpen?: boolean;
   collapsible?: boolean;
@@ -307,6 +313,7 @@ function FormSection({
   description,
   tooltip,
   titleAdornment,
+  actions,
   children,
   defaultOpen = true,
   collapsible = true,
@@ -354,7 +361,12 @@ function FormSection({
               </h3>
               {titleAdornment}
             </div>
-            {tooltip && <FormSectionTooltip tooltip={tooltip} />}
+            {(actions || tooltip) && (
+              <div className='flex items-center gap-1'>
+                {actions}
+                {tooltip && <FormSectionTooltip tooltip={tooltip} />}
+              </div>
+            )}
           </div>
         )}
         {description && <p className='text-muted-foreground mt-2 mb-2 text-sm'>{description}</p>}
@@ -389,7 +401,12 @@ function FormSection({
               />
             </button>
           </CollapsibleTrigger>
-          {tooltip && <FormSectionTooltip tooltip={tooltip} />}
+          {(actions || tooltip) && (
+            <div className='flex items-center gap-1'>
+              {actions}
+              {tooltip && <FormSectionTooltip tooltip={tooltip} />}
+            </div>
+          )}
         </div>
       )}
 

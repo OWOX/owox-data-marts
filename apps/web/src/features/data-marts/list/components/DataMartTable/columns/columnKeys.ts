@@ -11,4 +11,6 @@ export enum DataMartColumnKey {
   BUSINESS_OWNERS = 'businessOwnerUsers',
   TECHNICAL_OWNERS = 'technicalOwnerUsers',
   CONTEXTS = 'contexts',
+  AVAILABLE_FOR_REPORTING = 'availableForReporting',
+  AVAILABLE_FOR_MAINTENANCE = 'availableForMaintenance',
 }

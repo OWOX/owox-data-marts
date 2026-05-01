@@ -13,6 +13,7 @@ import { CreateDataDestinationApiDto } from '../../dto/presentation/create-data-
 import { UpdateDataDestinationApiDto } from '../../dto/presentation/update-data-destination-api.dto';
 import { UpdateDestinationAvailabilityApiDto } from '../../dto/presentation/update-availability-api.dto';
 import { DataDestinationResponseApiDto } from '../../dto/presentation/data-destination-response-api.dto';
+import { DataDestinationImpactResponseApiDto } from '../../dto/presentation/data-destination-impact-response-api.dto';
 import { DataDestinationByTypeResponseApiDto } from '../../dto/presentation/data-destination-by-type-response-api.dto';
 import { GenerateAuthorizationUrlRequestDto } from '../../dto/presentation/google-oauth/generate-authorization-url-request.dto';
 import { GenerateAuthorizationUrlResponseDto } from '../../dto/presentation/google-oauth/generate-authorization-url-response.dto';
@@ -75,6 +76,17 @@ export function DeleteDataDestinationSpec() {
     ApiOperation({ summary: 'Delete Data Destination by ID' }),
     ApiParam({ name: 'id', description: 'Data Destination ID' }),
     ApiOkResponse({ description: 'Data Destination successfully deleted' })
+  );
+}
+
+export function GetDataDestinationImpactSpec() {
+  return applyDecorators(
+    ApiOperation({
+      summary:
+        'Get usage impact for a Data Destination (reports + distinct data marts referencing it)',
+    }),
+    ApiParam({ name: 'id', description: 'Data Destination ID' }),
+    ApiOkResponse({ type: DataDestinationImpactResponseApiDto })
   );
 }
 

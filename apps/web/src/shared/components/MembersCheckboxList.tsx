@@ -11,6 +11,9 @@ import { Info, User } from 'lucide-react';
  */
 export type CheckableMemberRole = 'admin' | 'editor' | 'viewer';
 
+/** Role scope mirrors the backend 'entire_project' | 'selected_contexts'. */
+export type CheckableMemberRoleScope = 'entire_project' | 'selected_contexts';
+
 /**
  * Minimal member shape accepted by the list. Callers in `features/` project
  * to this shape before passing in.
@@ -22,6 +25,9 @@ export interface CheckableMember {
   avatarUrl?: string | undefined;
   role: CheckableMemberRole;
   roleLabel: string;
+  /** When 'entire_project' (or role is admin), the member is locked into
+   * every context — the checkbox is forced on and disabled. */
+  roleScope?: CheckableMemberRoleScope;
 }
 
 interface MembersCheckboxListProps {
@@ -32,6 +38,13 @@ interface MembersCheckboxListProps {
   disabled?: boolean;
   excludeAdmins?: boolean;
   emptyText?: string;
+  /**
+   * Controlled search query — case-insensitive substring match against
+   * `displayName` and `email`. Pass `undefined` to disable filtering.
+   * The search input UI lives in the caller so layout can be tailored
+   * per sheet (toggle, inline, etc.).
+   */
+  searchQuery?: string;
 }
 
 const ROLE_PRIORITY: Record<CheckableMemberRole, number> = {
@@ -56,16 +69,35 @@ export function MembersCheckboxList({
   disabled,
   excludeAdmins = false,
   emptyText = 'No members available.',
+  searchQuery,
 }: MembersCheckboxListProps) {
-  const visible = useMemo(() => {
+  const sorted = useMemo(() => {
     const filtered = excludeAdmins ? members.filter(m => m.role !== 'admin') : members;
     return sortMembers(filtered);
   }, [members, excludeAdmins]);
 
-  if (visible.length === 0) {
+  const trimmedQuery = searchQuery?.trim().toLowerCase() ?? '';
+  const visible = useMemo(() => {
+    if (trimmedQuery === '') return sorted;
+    return sorted.filter(m => {
+      const nameMatch = m.displayName?.toLowerCase().includes(trimmedQuery) ?? false;
+      const emailMatch = m.email.toLowerCase().includes(trimmedQuery);
+      return nameMatch || emailMatch;
+    });
+  }, [sorted, trimmedQuery]);
+
+  if (sorted.length === 0) {
     return (
       <div className='border-input text-muted-foreground rounded-md border py-4 text-center text-sm'>
         {emptyText}
+      </div>
+    );
+  }
+
+  if (visible.length === 0) {
+    return (
+      <div className='border-input text-muted-foreground rounded-md border py-4 text-center text-sm'>
+        No members match &ldquo;{searchQuery?.trim() ?? ''}&rdquo;.
       </div>
     );
   }
@@ -74,7 +106,11 @@ export function MembersCheckboxList({
     <div className='border-input flex flex-col gap-1 rounded-md border p-1'>
       {visible.map(m => {
         const isAdmin = m.role === 'admin';
-        const checked = isAdmin || selectedIds.includes(m.userId);
+        const isLocked = isAdmin || m.roleScope === 'entire_project';
+        const lockedReason = isAdmin
+          ? 'Admins always have access to every context.'
+          : 'Members with project-wide scope already see every resource, regardless of context assignments.';
+        const checked = isLocked || selectedIds.includes(m.userId);
         const id = `${idPrefix}-${m.userId}`;
         return (
           <div key={m.userId} className='hover:bg-muted/50 flex items-center gap-3 rounded-md p-2'>
@@ -82,13 +118,13 @@ export function MembersCheckboxList({
               id={id}
               checked={checked}
               onCheckedChange={val => {
-                if (isAdmin) return;
+                if (isLocked) return;
                 onToggle(m.userId, val === true);
               }}
-              disabled={disabled === true || isAdmin}
+              disabled={disabled === true || isLocked}
               aria-label={
-                isAdmin
-                  ? `${m.displayName ?? m.email} — admin, always has access`
+                isLocked
+                  ? `${m.displayName ?? m.email} — ${lockedReason}`
                   : (m.displayName ?? m.email)
               }
             />
@@ -106,14 +142,14 @@ export function MembersCheckboxList({
             <Label
               htmlFor={id}
               className={
-                isAdmin
+                isLocked
                   ? 'flex flex-1 items-center justify-between'
                   : 'flex flex-1 cursor-pointer items-center justify-between'
               }
             >
               <span className='flex items-center gap-1.5 font-medium'>
                 {m.displayName ?? m.email}
-                {isAdmin && (
+                {isLocked && (
                   <Tooltip>
                     <TooltipTrigger asChild>
                       <span
@@ -123,9 +159,7 @@ export function MembersCheckboxList({
                         <Info className='h-3.5 w-3.5' />
                       </span>
                     </TooltipTrigger>
-                    <TooltipContent side='top'>
-                      Admins always have access to every context.
-                    </TooltipContent>
+                    <TooltipContent side='top'>{lockedReason}</TooltipContent>
                   </Tooltip>
                 )}
               </span>

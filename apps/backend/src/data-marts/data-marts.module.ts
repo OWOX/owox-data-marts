@@ -92,6 +92,7 @@ import { ListDataStoragesService } from './use-cases/list-data-storages.service'
 import { ListDataDestinationsService } from './use-cases/list-data-destinations.service';
 import { DeleteDataStorageService } from './use-cases/delete-data-storage.service';
 import { DeleteDataDestinationService } from './use-cases/delete-data-destination.service';
+import { GetDataDestinationImpactService } from './use-cases/get-data-destination-impact.service';
 import { PublishDataStorageDraftsService } from './use-cases/publish-data-storage-drafts.service';
 import { RotateSecretKeyService } from './use-cases/rotate-secret-key.service';
 import { DeleteDataMartService } from './use-cases/delete-data-mart.service';
@@ -451,6 +452,7 @@ import { SetContextMembersService } from './use-cases/contexts/set-context-membe
     DeleteDataStorageService,
     PublishDataStorageDraftsService,
     DeleteDataDestinationService,
+    GetDataDestinationImpactService,
     RotateSecretKeyService,
     DataDestinationSecretKeyRotatorFacade,
     DeleteDataMartService,

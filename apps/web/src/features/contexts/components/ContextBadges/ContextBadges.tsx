@@ -1,4 +1,5 @@
 import { Badge } from '@owox/ui/components/badge';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@owox/ui/components/tooltip';
 
 interface ContextBadgeData {
   id: string;
@@ -11,9 +12,21 @@ export function ContextBadges({ contexts }: { contexts?: ContextBadgeData[] }) {
   return (
     <div className='flex flex-wrap gap-1'>
       {contexts.map(ctx => (
-        <Badge key={ctx.id} variant='secondary' className='text-xs'>
-          {ctx.name}
-        </Badge>
+        <Tooltip key={ctx.id}>
+          <TooltipTrigger asChild>
+            <Badge
+              variant='secondary'
+              // Cap badge width so a single very long context name doesn't
+              // overflow the cell; full name is exposed via tooltip below.
+              className='max-w-[220px] truncate text-xs'
+            >
+              {ctx.name}
+            </Badge>
+          </TooltipTrigger>
+          <TooltipContent side='top' align='start'>
+            {ctx.name}
+          </TooltipContent>
+        </Tooltip>
       ))}
     </div>
   );

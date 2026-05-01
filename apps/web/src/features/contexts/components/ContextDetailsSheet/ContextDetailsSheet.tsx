@@ -33,9 +33,25 @@ import {
 import { Loader2 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { contextService } from '../../services/context.service';
-import { MembersCheckboxList } from '../../../../shared/components/MembersCheckboxList';
+import { MembersAssignmentField } from '../../../../shared/components/MembersAssignmentField';
+import { UserReference } from '../../../../shared/components/UserReference';
 import { getRoleDisplayName } from '../../../idp/utils/role-display-name';
 import type { ContextDto, MemberWithScopeDto } from '../../types/context.types';
+
+const DATE_FORMATTER = new Intl.DateTimeFormat('en-US', {
+  year: 'numeric',
+  month: 'short',
+  day: 'numeric',
+  hour: '2-digit',
+  minute: '2-digit',
+});
+
+function formatDate(value: string | null | undefined): string {
+  if (!value) return '—';
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return '—';
+  return DATE_FORMATTER.format(d);
+}
 
 const contextDetailsSchema = z.object({
   name: z
@@ -68,8 +84,7 @@ export function ContextDetailsSheet({
     defaultValues: { name: '', description: '' },
     mode: 'onChange',
   });
-  const { control, handleSubmit, watch, reset: resetForm, formState } = form;
-  const watchedName = watch('name');
+  const { control, handleSubmit, reset: resetForm, formState } = form;
   const [selectedMemberIds, setSelectedMemberIds] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
 
@@ -137,8 +152,8 @@ export function ContextDetailsSheet({
       >
         <SheetContent>
           <SheetHeader>
-            <SheetTitle>{watchedName || context.name || 'Context'}</SheetTitle>
-            <SheetDescription>Edit context details and manage assigned members.</SheetDescription>
+            <SheetTitle>Configure context</SheetTitle>
+            <SheetDescription>Customize settings for this context</SheetDescription>
           </SheetHeader>
 
           <Form {...form}>
@@ -188,39 +203,64 @@ export function ContextDetailsSheet({
                 </FormSection>
 
                 <FormSection title='Members' name='ctx-details-members'>
+                  <MembersAssignmentField
+                    idPrefix='ctx-mem'
+                    label='Assigned members'
+                    tooltip='Members assigned to this context can access resources tagged with it. Admins and project-wide members are always included.'
+                    members={members.map(m => ({
+                      userId: m.userId,
+                      email: m.email,
+                      displayName: m.displayName,
+                      avatarUrl: m.avatarUrl,
+                      role: m.role,
+                      roleScope: m.roleScope,
+                      roleLabel: getRoleDisplayName(m.role),
+                    }))}
+                    selectedIds={selectedMemberIds}
+                    onToggle={handleToggleMember}
+                    onSetSelected={setSelectedMemberIds}
+                    disabled={saving}
+                    emptyText='No project members to assign yet.'
+                    footer={
+                      <Accordion variant='common' type='single' collapsible>
+                        <AccordionItem value='ctx-members-help'>
+                          <AccordionTrigger className='text-sm'>
+                            Why are some members locked?
+                          </AccordionTrigger>
+                          <AccordionContent>
+                            <p className='text-muted-foreground text-sm'>
+                              Admins and members with project-wide scope already see every resource,
+                              regardless of context assignments. They appear here as a reminder, but
+                              their context membership can&apos;t be changed from this screen —
+                              adjust their role scope in Project settings → Members instead.
+                            </p>
+                          </AccordionContent>
+                        </AccordionItem>
+                      </Accordion>
+                    }
+                  />
+                </FormSection>
+
+                <FormSection title='Details' name='ctx-details-meta' defaultOpen={false}>
                   <FormItem>
-                    <FormLabel tooltip='Non-admin members assigned to this context can access resources tagged with it'>
-                      Assigned members
-                    </FormLabel>
-                    <MembersCheckboxList
-                      idPrefix='ctx-mem'
-                      members={members.map(m => ({
-                        userId: m.userId,
-                        email: m.email,
-                        displayName: m.displayName,
-                        avatarUrl: m.avatarUrl,
-                        role: m.role,
-                        roleLabel: getRoleDisplayName(m.role),
-                      }))}
-                      selectedIds={selectedMemberIds}
-                      onToggle={handleToggleMember}
-                      disabled={saving}
-                      emptyText='No non-admin members in this project yet.'
-                    />
-                    <Accordion variant='common' type='single' collapsible>
-                      <AccordionItem value='ctx-members-help'>
-                        <AccordionTrigger className='text-sm'>
-                          Why don't I see admins here?
-                        </AccordionTrigger>
-                        <AccordionContent>
-                          <p className='text-muted-foreground text-sm'>
-                            Admins have project-wide scope and always see every resource, regardless
-                            of context assignments. Only non-admin members need explicit context
-                            assignments to control their visibility.
-                          </p>
-                        </AccordionContent>
-                      </AccordionItem>
-                    </Accordion>
+                    <FormLabel>Created by</FormLabel>
+                    {context.createdByUser ? (
+                      <UserReference userProjection={context.createdByUser} />
+                    ) : (
+                      <span className='text-muted-foreground text-sm'>—</span>
+                    )}
+                  </FormItem>
+                  <FormItem>
+                    <FormLabel>Created at</FormLabel>
+                    <span className='text-muted-foreground text-sm'>
+                      {formatDate(context.createdAt)}
+                    </span>
+                  </FormItem>
+                  <FormItem>
+                    <FormLabel>Last modified</FormLabel>
+                    <span className='text-muted-foreground text-sm'>
+                      {formatDate(context.modifiedAt)}
+                    </span>
                   </FormItem>
                 </FormSection>
               </FormLayout>

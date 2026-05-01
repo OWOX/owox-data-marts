@@ -5,6 +5,7 @@ import type {
   DataDestinationResponseDto,
   UpdateDataDestinationRequestDto,
   DataDestinationByTypeResponseDto,
+  DataDestinationImpactResponseDto,
 } from './types';
 import type { DataDestinationType } from '../enums';
 
@@ -67,6 +68,15 @@ export class DataDestinationService extends ApiService {
    */
   async deleteDataDestination(id: string): Promise<void> {
     return this.delete(`/${id}`);
+  }
+
+  /**
+   * Get usage impact for a data destination — distinct counts of reports and
+   * data marts that reference it. Used to populate the pre-delete blocked
+   * popup so admins can see what is blocking removal.
+   */
+  async getDataDestinationImpact(id: string): Promise<DataDestinationImpactResponseDto> {
+    return this.get<DataDestinationImpactResponseDto>(`/${id}/impact`);
   }
 
   /**
