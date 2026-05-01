@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { AlertCircle, Database, X } from 'lucide-react';
+import type { ReactNode } from 'react';
+import { Box, X } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { Badge } from '@owox/ui/components/badge';
 import { Button } from '@owox/ui/components/button';
@@ -20,12 +21,15 @@ import type {
   StorageNamespaceNodeDto,
   StorageResourceLeafDto,
 } from '../../../../data-storage/shared/api/types';
+import { DataStorageHealthStatusView } from '../../../../data-storage/shared/components/DataStorageHealthIndicator/DataStorageHealthStatusView';
 import {
   DataStorageActionType,
   DataStorageProvider,
   useDataStorageContext,
 } from '../../../../data-storage/shared/model/context';
+import { useDataStorageHealthStatus } from '../../../../data-storage/shared/model/hooks/useDataStorageHealthStatus';
 import { mapDataStorageListFromDto } from '../../../../data-storage/shared/model/mappers';
+import { DataStorageHealthStatus } from '../../../../data-storage/shared/services/data-storage-health-status.service';
 import { DataStorageTypeModel } from '../../../../data-storage/shared/types/data-storage-type.model';
 import { extractStorageResourceError } from '../../../edit/components/DataMartDefinitionSettings/form/FillFromStorageButton/storage-resource-error.utils';
 import { StorageResourceTree } from '../../../edit/components/DataMartDefinitionSettings/form/FillFromStorageButton/StorageResourceTree';
@@ -65,6 +69,20 @@ function BulkCreateFromStorageDialogInner({
   const fetchedStoragesRef = useRef(false);
 
   const { run, inFlight, progress, reset } = useBulkCreateDataMarts();
+
+  // Front-end health check for the picked storage. The hook is called unconditionally
+  // (rules of hooks) and returns a default state when the id is empty; we only react to
+  // its result once a real storage is selected.
+  const {
+    status: healthStatus,
+    errorMessage: healthErrorMessage,
+    isFetched: healthIsFetched,
+  } = useDataStorageHealthStatus(storageId);
+  const isHealthKnownForStorage = storageId !== '' && healthIsFetched;
+  const isUnhealthyStorage =
+    isHealthKnownForStorage &&
+    (healthStatus === DataStorageHealthStatus.UNCONFIGURED ||
+      healthStatus === DataStorageHealthStatus.INVALID);
 
   const eligibleStorages = useMemo(
     () => dataStorages.filter(s => BULK_CREATE_SUPPORTED_STORAGE_TYPES.has(s.type)),
@@ -132,16 +150,29 @@ function BulkCreateFromStorageDialogInner({
     }
   }, []);
 
-  // Whenever the storage changes (including after auto-select), kick off the namespace fetch
-  // and clear any prior selections — selections from another storage are not portable.
+  // Whenever the storage changes (including after auto-select), wait for the front-end
+  // health check before deciding whether to call the backend. Skip the backend call when the
+  // storage is unhealthy — that case is handled by rendering DataStorageHealthStatusView.
   useEffect(() => {
     if (!open) return;
     if (!storageId) return;
     setSelected(new Map());
     setNamespaces(null);
+    if (!isHealthKnownForStorage) {
+      // Show a loading state while the health check is in flight so the user sees activity.
+      setNamespacesLoading(true);
+      setNamespacesError(null);
+      return;
+    }
+    if (isUnhealthyStorage) {
+      // No backend call — the unhealthy block carries the message. Clear any prior error.
+      setNamespacesLoading(false);
+      setNamespacesError(null);
+      return;
+    }
     setNamespacesError(null);
     void loadNamespaces(storageId);
-  }, [open, storageId, loadNamespaces]);
+  }, [open, storageId, isHealthKnownForStorage, isUnhealthyStorage, loadNamespaces]);
 
   const loadNamespaceResources = useCallback(
     async (namespaceId: string): Promise<StorageResourceLeafDto[]> => {
@@ -226,11 +257,6 @@ function BulkCreateFromStorageDialogInner({
       ? `Create ${String(selected.size)} data mart${selected.size === 1 ? '' : 's'}`
       : 'Create data marts';
 
-  // When namespace listing fails, the storage is effectively unusable from this dialog —
-  // typical causes are missing/invalid credentials or insufficient IAM permissions. Drop the
-  // selection UI and steer the user toward fixing the storage configuration.
-  const isInvalidStorage = Boolean(storageId) && !namespacesLoading && Boolean(namespacesError);
-
   const handleFinishStorageSetup = () => {
     if (!storageId) return;
     onOpenChange(false);
@@ -245,21 +271,18 @@ function BulkCreateFromStorageDialogInner({
         onOpenChange(next);
       }}
     >
-      <DialogContent className='sm:max-w-4xl'>
-        <DialogHeader>
-          <DialogTitle>Create data marts from storage</DialogTitle>
+      <DialogContent className='flex max-h-[90vh] flex-col gap-0 p-0 sm:max-w-4xl'>
+        <DialogHeader className='px-6 pt-6 pb-6'>
+          <DialogTitle>Import data marts from storage</DialogTitle>
           <DialogDescription>
-            Pick a Google BigQuery storage and select up to {MAX_BULK_DATA_MART_COUNT} tables or
-            views. Each selected resource becomes a new data mart with a definition derived from the
-            resource type.
+            Pick up to {MAX_BULK_DATA_MART_COUNT} tables or views — each becomes a new data mart.
           </DialogDescription>
         </DialogHeader>
 
-        <div className='flex flex-col gap-3'>
-          <div className='flex flex-col gap-1.5'>
-            <label className='text-sm font-medium' htmlFor='bulk-create-storage-select'>
-              Data storage
-            </label>
+        <div className='bg-muted dark:bg-sidebar flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto border-t px-6 py-4'>
+          {/* ── Block 1 ──────────────────────────────────────────────────── */}
+          <section className='dm-card-block !gap-2'>
+            <BlockHeading step={1}>Storage</BlockHeading>
             <Combobox
               options={storageOptions}
               value={storageId}
@@ -293,84 +316,90 @@ function BulkCreateFromStorageDialogInner({
                 </div>
               )}
             />
-          </div>
+          </section>
 
-          {isInvalidStorage ? (
-            <div className='flex flex-col gap-2 rounded-md border border-dashed p-3 text-sm'>
-              <div className='text-destructive flex items-start gap-2'>
-                <AlertCircle className='mt-0.5 size-4 shrink-0' />
-                <span>
-                  The selected storage cannot list resources right now. Finish the storage setup —
-                  check credentials and IAM permissions — then try again.
-                </span>
-              </div>
-              <p className='text-muted-foreground pl-6 text-xs'>{namespacesError}</p>
-            </div>
+          {isUnhealthyStorage ? (
+            <UnhealthyStorageBlock status={healthStatus} errorMessage={healthErrorMessage} />
           ) : (
-            storageId && (
-              <StorageResourceTree
-                namespaces={namespaces}
-                namespacesLoading={namespacesLoading}
-                namespacesError={namespacesError}
-                onRetryNamespaces={() => {
-                  void loadNamespaces(storageId);
-                }}
-                loadNamespaceResources={loadNamespaceResources}
-                selectionMode='multi'
-                selectedFqns={selectedFqns}
-                onToggleResource={handleToggle}
-                isSelectionFull={isSelectionFull}
-              />
-            )
-          )}
-
-          {!isInvalidStorage && (
-            <div className='flex flex-col gap-1.5'>
-              <div className='flex items-center justify-between text-xs'>
-                <span className='text-muted-foreground'>
-                  {selected.size} of {MAX_BULK_DATA_MART_COUNT} selected
-                </span>
-                {isSelectionFull && (
-                  <span className='text-muted-foreground'>
-                    Limit reached — remove an item to pick another.
-                  </span>
+            <>
+              {/* ── Block 2 ────────────────────────────────────────────── */}
+              <section className='dm-card-block !gap-2'>
+                <BlockHeading step={2}>Browse resources</BlockHeading>
+                {storageId ? (
+                  <StorageResourceTree
+                    namespaces={namespaces}
+                    namespacesLoading={namespacesLoading}
+                    namespacesError={namespacesError}
+                    onRetryNamespaces={() => {
+                      void loadNamespaces(storageId);
+                    }}
+                    loadNamespaceResources={loadNamespaceResources}
+                    selectionMode='multi'
+                    selectedFqns={selectedFqns}
+                    onToggleResource={handleToggle}
+                    isSelectionFull={isSelectionFull}
+                    singleSearchMode
+                  />
+                ) : (
+                  <BlockPlaceholder>
+                    Pick a data storage above to browse its tables and views.
+                  </BlockPlaceholder>
                 )}
-              </div>
-              {selected.size === 0 ? (
-                <div className='text-muted-foreground rounded-md border border-dashed p-2 text-xs'>
-                  {storageId
-                    ? 'Tick resources in the tree above to add them here.'
-                    : 'Pick a data storage to start selecting resources.'}
-                </div>
-              ) : (
-                <ul className='flex flex-wrap gap-1'>
-                  {Array.from(selected.values()).map(leaf => (
-                    <li key={leaf.fullyQualifiedName}>
-                      <Badge variant='secondary' className='gap-1 text-xs'>
-                        {leaf.type === 'VIEW' ? 'V' : 'T'}: {leaf.id}
-                        <button
-                          type='button'
-                          aria-label={`Remove ${leaf.fullyQualifiedName}`}
-                          title={leaf.fullyQualifiedName}
-                          onClick={() => {
-                            handleRemove(leaf.fullyQualifiedName);
-                          }}
-                          disabled={inFlight}
-                          className='hover:text-destructive ml-0.5 inline-flex shrink-0 items-center justify-center rounded-sm disabled:opacity-50'
-                        >
-                          <X className='size-3' />
-                        </button>
-                      </Badge>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
+              </section>
+
+              {/* ── Block 3 ────────────────────────────────────────────── */}
+              <section className='dm-card-block !gap-2'>
+                <BlockHeading
+                  step={3}
+                  trailing={
+                    <span className='text-muted-foreground text-xs font-normal'>
+                      {selected.size} / {MAX_BULK_DATA_MART_COUNT}
+                      {isSelectionFull && (
+                        <span className='ml-2'>
+                          · Limit reached, remove an item to pick another
+                        </span>
+                      )}
+                    </span>
+                  }
+                >
+                  Selected resources
+                </BlockHeading>
+                {selected.size === 0 ? (
+                  <BlockPlaceholder>
+                    {storageId
+                      ? 'Tick resources in the tree above to add them here.'
+                      : 'Selections appear here once you start ticking resources.'}
+                  </BlockPlaceholder>
+                ) : (
+                  <ul className='flex flex-wrap gap-1.5'>
+                    {Array.from(selected.values()).map(leaf => (
+                      <li key={leaf.fullyQualifiedName}>
+                        <Badge variant='secondary' className='gap-1 text-xs'>
+                          {leaf.type === 'VIEW' ? 'V' : 'T'}: {leaf.id}
+                          <button
+                            type='button'
+                            aria-label={`Remove ${leaf.fullyQualifiedName}`}
+                            title={leaf.fullyQualifiedName}
+                            onClick={() => {
+                              handleRemove(leaf.fullyQualifiedName);
+                            }}
+                            disabled={inFlight}
+                            className='hover:text-destructive ml-0.5 inline-flex shrink-0 items-center justify-center rounded-sm disabled:opacity-50'
+                          >
+                            <X className='size-3' />
+                          </button>
+                        </Badge>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </section>
+            </>
           )}
         </div>
 
-        {isInvalidStorage ? (
-          <DialogFooter className='sm:justify-center'>
+        {isUnhealthyStorage ? (
+          <DialogFooter className='border-t px-6 py-4 sm:justify-center'>
             <Button
               type='button'
               onClick={handleFinishStorageSetup}
@@ -380,7 +409,7 @@ function BulkCreateFromStorageDialogInner({
             </Button>
           </DialogFooter>
         ) : (
-          <DialogFooter>
+          <DialogFooter className='border-t px-6 py-4'>
             <Button
               type='button'
               variant='outline'
@@ -398,7 +427,7 @@ function BulkCreateFromStorageDialogInner({
               }}
               disabled={inFlight || !storageId || selected.size === 0}
             >
-              <Database className='size-4' />
+              <Box className='size-4' />
               {confirmLabel}
             </Button>
           </DialogFooter>
@@ -412,4 +441,59 @@ function StorageTypeIcon({ storageType }: { storageType: DataStorageType | null 
   if (!storageType) return null;
   const Icon = DataStorageTypeModel.getInfo(storageType).icon;
   return <Icon size={20} className='shrink-0' />;
+}
+
+/**
+ * Small heading used at the top of each step-block in the dialog body. The numbered badge
+ * makes the linear flow obvious without forcing the user to read prose.
+ */
+function BlockHeading({
+  step,
+  children,
+  trailing,
+}: {
+  step: number;
+  children: ReactNode;
+  trailing?: ReactNode;
+}) {
+  return (
+    <div className='flex items-center gap-2'>
+      <span
+        className='bg-muted text-muted-foreground flex size-5 shrink-0 items-center justify-center rounded-full text-xs font-semibold'
+        aria-hidden='true'
+      >
+        {step}
+      </span>
+      <h3 className='text-sm font-medium'>{children}</h3>
+      {trailing && <div className='ml-auto'>{trailing}</div>}
+    </div>
+  );
+}
+
+/** Subtle placeholder used when a step's content is not yet available. */
+function BlockPlaceholder({ children }: { children: ReactNode }) {
+  return (
+    <div className='text-muted-foreground bg-muted/40 rounded-md p-3 text-xs dark:bg-white/4'>
+      {children}
+    </div>
+  );
+}
+
+/**
+ * Block shown in place of "Browse resources" / "Selected resources" when the picked storage
+ * is in a known-bad state (UNCONFIGURED or INVALID) per the front-end health cache. Reuses
+ * {@link DataStorageHealthStatusView} so the wording matches the storages list page.
+ */
+function UnhealthyStorageBlock({
+  status,
+  errorMessage,
+}: {
+  status: DataStorageHealthStatus;
+  errorMessage: string | undefined;
+}) {
+  return (
+    <section className='dm-card-block !gap-2 text-sm'>
+      <DataStorageHealthStatusView status={status} errorMessage={errorMessage} />
+    </section>
+  );
 }

@@ -40,6 +40,12 @@ interface StorageResourceTreeProps {
   onToggleResource?: (resource: StorageResourceLeafDto) => void;
   /** When true and the row is not already selected, the toggle is disabled (selection cap reached). */
   isSelectionFull?: boolean;
+  /**
+   * When true, the per-namespace resource search input is hidden and the top search input
+   * filters BOTH namespaces (by name) and resources (within already-loaded namespaces).
+   * Use this in flows where two search inputs add cognitive load.
+   */
+  singleSearchMode?: boolean;
 }
 
 interface ResourcesState {
@@ -64,6 +70,7 @@ export function StorageResourceTree({
   selectedFqns,
   onToggleResource,
   isSelectionFull = false,
+  singleSearchMode = false,
 }: StorageResourceTreeProps) {
   const [expandedNamespaces, setExpandedNamespaces] = useState<Set<string>>(new Set());
   const [resourcesByNamespace, setResourcesByNamespace] = useState<
@@ -181,9 +188,20 @@ export function StorageResourceTree({
     return sortedNamespaces.filter(ns => {
       const id = ns.id.toLowerCase();
       const label = ns.label?.toLowerCase() ?? '';
-      return id.includes(query) || label.includes(query);
+      if (id.includes(query) || label.includes(query)) return true;
+      // In single-search mode the top input also acts as a resource filter; keep a namespace
+      // visible if it has loaded resources whose names match the query — that way the user
+      // can find a table even when its parent namespace name doesn't contain the term.
+      if (!singleSearchMode) return false;
+      const loaded = resourcesByNamespace[ns.id]?.data;
+      if (!loaded) return false;
+      return loaded.some(resource => {
+        const rid = resource.id.toLowerCase();
+        const rgroup = resource.groupId.toLowerCase();
+        return rid.includes(query) || rgroup.includes(query) || `${rgroup}.${rid}`.includes(query);
+      });
     });
-  }, [sortedNamespaces, namespaceFilter]);
+  }, [sortedNamespaces, namespaceFilter, singleSearchMode, resourcesByNamespace]);
 
   const hasAnyNamespaces = (sortedNamespaces?.length ?? 0) > 0;
 
@@ -194,13 +212,17 @@ export function StorageResourceTree({
           <Search className='text-muted-foreground pointer-events-none absolute top-1/2 left-2 size-4 -translate-y-1/2' />
           <Input
             type='search'
-            placeholder={`Search namespaces (${String(sortedNamespaces?.length ?? 0)})…`}
+            placeholder={
+              singleSearchMode
+                ? 'Search projects, datasets, or tables…'
+                : `Search namespaces (${String(sortedNamespaces?.length ?? 0)})…`
+            }
             value={namespaceFilter}
             onChange={event => {
               setNamespaceFilter(event.target.value);
             }}
             className='pl-8'
-            aria-label='Search namespaces'
+            aria-label={singleSearchMode ? 'Search resources' : 'Search namespaces'}
           />
         </div>
       )}
@@ -241,14 +263,24 @@ export function StorageResourceTree({
           filteredNamespaces.length > 0 && (
             <ul className='space-y-0.5'>
               {filteredNamespaces.map(ns => {
-                const nsExpanded = expandedNamespaces.has(ns.id);
                 const resourcesState = resourcesByNamespace[ns.id];
-                const resourceFilter = resourceFilterByNamespace[ns.id] ?? '';
+                // In single-search mode, when the user is typing AND a namespace already has
+                // its resources loaded, auto-expand it so the matching tables become visible
+                // without another click. We deliberately do NOT trigger fetches on un-loaded
+                // namespaces (could fan out to many slow API calls); the user expands those
+                // explicitly to drill in.
+                const isFilteringGlobally = singleSearchMode && namespaceFilter.trim().length > 0;
+                const nsExpanded =
+                  expandedNamespaces.has(ns.id) ||
+                  (isFilteringGlobally && resourcesState?.data != null);
+                const resourceFilter = singleSearchMode
+                  ? namespaceFilter
+                  : (resourceFilterByNamespace[ns.id] ?? '');
                 return (
                   <li key={ns.id}>
                     <button
                       type='button'
-                      className='hover:bg-accent flex w-full items-center gap-2 rounded px-2 py-1 text-left'
+                      className='hover:bg-accent flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm transition-colors'
                       onClick={() => {
                         toggleNamespace(ns.id);
                       }}
@@ -286,23 +318,25 @@ export function StorageResourceTree({
                         )}
                         {resourcesState?.data && resourcesState.data.length > 0 && (
                           <>
-                            <div className='relative my-1'>
-                              <Search className='text-muted-foreground pointer-events-none absolute top-1/2 left-2 size-3.5 -translate-y-1/2' />
-                              <Input
-                                type='search'
-                                placeholder={resourceSearchPlaceholder}
-                                value={resourceFilter}
-                                onChange={event => {
-                                  const value = event.target.value;
-                                  setResourceFilterByNamespace(prev => ({
-                                    ...prev,
-                                    [ns.id]: value,
-                                  }));
-                                }}
-                                className='h-8 pl-7 text-xs'
-                                aria-label={`Search ${resourceSearchAriaLabel} in ${ns.id}`}
-                              />
-                            </div>
+                            {!singleSearchMode && (
+                              <div className='relative my-1'>
+                                <Search className='text-muted-foreground pointer-events-none absolute top-1/2 left-2 size-3.5 -translate-y-1/2' />
+                                <Input
+                                  type='search'
+                                  placeholder={resourceSearchPlaceholder}
+                                  value={resourceFilter}
+                                  onChange={event => {
+                                    const value = event.target.value;
+                                    setResourceFilterByNamespace(prev => ({
+                                      ...prev,
+                                      [ns.id]: value,
+                                    }));
+                                  }}
+                                  className='h-8 pl-7 text-xs'
+                                  aria-label={`Search ${resourceSearchAriaLabel} in ${ns.id}`}
+                                />
+                              </div>
+                            )}
                             <GroupedResources
                               namespaceId={ns.id}
                               resources={resourcesState.data}
@@ -412,22 +446,24 @@ const GroupedResources = memo(function GroupedResources({
           <div key={groupId} className='mt-1 first:mt-0'>
             <button
               type='button'
-              className='hover:bg-accent text-muted-foreground flex w-full items-center gap-1.5 rounded px-2 py-1 text-left text-xs'
+              className='hover:bg-accent flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm transition-colors'
               onClick={() => {
                 onToggleGroup(namespaceId, groupId);
               }}
               aria-expanded={groupExpanded}
             >
               {groupExpanded ? (
-                <ChevronDown className='size-3.5 shrink-0' />
+                <ChevronDown className='text-muted-foreground size-4 shrink-0' />
               ) : (
-                <ChevronRight className='size-3.5 shrink-0' />
+                <ChevronRight className='text-muted-foreground size-4 shrink-0' />
               )}
-              <FolderOpen className='size-3.5 shrink-0' />
+              <FolderOpen className='text-muted-foreground size-4 shrink-0' />
               <span className='truncate' title={groupId}>
                 {groupId}
               </span>
-              <span className='ml-auto shrink-0 text-[11px] tabular-nums'>{groupItems.length}</span>
+              <span className='text-muted-foreground ml-auto shrink-0 text-xs tabular-nums'>
+                {groupItems.length}
+              </span>
             </button>
             {groupExpanded &&
               groupItems.map(resource => {
@@ -449,9 +485,11 @@ const GroupedResources = memo(function GroupedResources({
                     role={isMulti ? 'checkbox' : undefined}
                     aria-checked={isMulti ? isSelected : undefined}
                     aria-disabled={disabled || undefined}
-                    className={`hover:bg-accent flex w-full items-center gap-2 rounded py-1 pr-2 pl-7 text-left ${
-                      isMulti && isSelected ? 'bg-accent/50' : ''
-                    } ${disabled ? 'cursor-not-allowed opacity-50 hover:bg-transparent' : ''}`}
+                    className={`hover:bg-accent flex w-full items-center gap-2.5 rounded text-left transition-colors ${
+                      isMulti ? 'py-1.5 pr-2 pl-7' : 'py-1 pr-2 pl-7'
+                    } ${isMulti && isSelected ? 'bg-accent/50' : ''} ${
+                      disabled ? 'cursor-not-allowed opacity-50 hover:bg-transparent' : ''
+                    }`}
                     onClick={handleClick}
                     disabled={disabled}
                     title={resource.fullyQualifiedName}

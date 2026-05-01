@@ -10,7 +10,7 @@ import {
 } from '@owox/ui/components/alert-dialog';
 import { Button } from '@owox/ui/components/button';
 import { type ColumnDef, type Row } from '@tanstack/react-table';
-import { Check, CircleCheckBig, Database, Plus, Trash2 } from 'lucide-react';
+import { Check, CircleCheckBig, Import, Plus, Trash2 } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { toast } from 'react-hot-toast';
 import { Link, useParams } from 'react-router-dom';
@@ -344,7 +344,7 @@ export function DataMartTable<TData, TValue>({
               }}
               title='Import data marts from storage resources'
             >
-              <Database className='h-4 w-4' />
+              <Import className='h-4 w-4' />
               <span className='hidden lg:block'>Import…</span>
             </Button>
             <TableCTAButton asChild>
