@@ -37,7 +37,7 @@ Supported storages: **Google BigQuery, Snowflake, AWS Redshift, AWS Athena, Data
 
 Open the source Data Mart and go to the **Data Setup** tab. Scroll to the **Joinable Data Marts** block.
 
-![Empty Joinable Data Marts block on the Data Setup tab with the Join Data Mart call to action](../../res/screens/Joinable-DM-Block.png)
+![Empty Joinable Data Marts block on the Data Setup tab with the Join Data Mart call to action](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/f3d7964f-b171-44f5-2a45-6d6dede1cf00/public)
 
 Click **Join Data Mart** and pick the target Data Mart from the dropdown. Only Data Marts on the same storage are listed.
 
@@ -47,7 +47,7 @@ The new relationship appears as an accordion row.
 
 Expand the relationship row and open the **Join Settings** tab.
 
-![Join Settings tab with the joined Data Mart card, SQL Alias, and Join Fields](../../res/screens/Joinable-DM-Join-Settings.png)
+![Join Settings tab with the joined Data Mart card, SQL Alias, and Join Fields](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/91af9809-942f-451a-f28c-1fb482ce0100/public)
 
 ### SQL Alias
 
@@ -68,7 +68,7 @@ For composite keys, click **+ Add Join Field** to chain additional pairs. All co
 
 Open the **Report Fields** tab on the same relationship.
 
-![Report Fields tab listing target fields with Output Alias and Aggregation](../../res/screens/Joinable-DM-Report-Fields.png)
+![Report Fields tab listing target fields with Output Alias and Aggregation](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/c6f5118f-f08d-447d-48a2-8e7b91665f00/public)
 
 By default, all fields from the target Data Mart are available in reports built on the source Data Mart. Use this tab to fine-tune the joined Data Mart and each of its fields.
 
@@ -92,7 +92,7 @@ Each row in the fields table lets you override:
 
 To hide a field from reports, open its **⋯** action menu and click **Hide from reports**. Hidden fields stay configurable in this tab but no longer appear in the Report Columns picker on any report. Use it for fields business users don't need.
 
-![Hide from reports action in the field row menu](../../res/screens/Joinable-DM-Hide-Field.png)
+![Hide from reports action in the field row menu](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/a6426663-3010-47a4-44b5-c99b56960a00/public)
 
 To hide every field of a joined Data Mart in one go, toggle off **Allow for reporting** on the relationship row in the Joinable Data Marts block. The relationship stays in place — only the joined fields disappear from the column picker until you turn the switch back on.
 
@@ -111,7 +111,7 @@ To hide every field of a joined Data Mart in one go, toggle off **Allow for repo
 
 On any report (Google Sheets, Looker Studio, Email) attached to the source Data Mart, open the report editor and locate the **Report Columns** section.
 
-![Report Columns picker with native and joined field groups](../../res/screens/Joinable-DM-Column-Picker.png)
+![Report Columns picker with native and joined field groups](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/4e181ea4-04d3-4eb3-934e-c89a49229700/public)
 
 You'll see:
 
@@ -131,11 +131,11 @@ There are two ways to inspect the SQL OWOX Data Marts builds for a joined report
 - **From the reports list.** Hover over a report row in the source Data Mart's reports table and click the SQL icon — a read-only modal opens with the exact query that will run on the next execution.
 - **From Run History.** Open the Data Mart's **Run History** tab and click any report run to see the SQL that was sent to your storage for that run.
 
-![Action icons on a report row, including the SQL viewer button](../../res/screens/Joinable-DM-Report-Row-Actions.png)
+![Action icons on a report row, including the SQL viewer button](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/db914a0e-2842-460b-2191-b0146158d300/public)
 
 The SQL contains the pre-aggregation CTEs, `LEFT JOIN`s, and output column aliases. Use it to validate the logic, share it with a teammate, or paste it into your warehouse console for manual debugging.
 
-![Joined Data Marts SQL modal with Copy to Clipboard and Copy as Data Mart actions](../../res/screens/Joinable-DM-Generated-SQL.png)
+![Joined Data Marts SQL modal with Copy to Clipboard and Copy as Data Mart actions](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/d761657f-a27b-421a-afd3-cd3e95812f00/public)
 
 ## Copy as Data Mart
 
@@ -155,7 +155,7 @@ You can chain relationships across more than two Data Marts.
 
 The Joinable Data Marts block has a **Graph** view that visualizes every relationship reachable from the source Data Mart, including transitive paths.
 
-![Graph view of the Joinable Data Marts block showing transitive paths and Loop stubs](../../res/screens/Joinable-DM-Canvas.png)
+![Graph view of the Joinable Data Marts block showing transitive paths and Loop stubs](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/52bc4830-7dcd-4968-344d-fdf84dee3f00/public)
 
 If **Campaigns** joins **Orders**, and **Orders** joins **Products**, the column picker on any **Campaigns** report exposes fields from **Products** as available options — prefixed with the alias chain. Existing reports keep their current columns until you pick the new ones.
 
