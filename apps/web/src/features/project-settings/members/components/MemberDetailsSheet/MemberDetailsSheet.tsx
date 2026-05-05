@@ -22,6 +22,7 @@ import {
   Form,
   FormActions,
   FormControl,
+  FormDescription,
   FormField,
   FormItem,
   FormLabel,
@@ -215,14 +216,12 @@ export function MemberDetailsSheet({
                           </Select>
                         </FormControl>
                         <FormMessage />
-                        <Accordion variant='common' type='single' collapsible>
-                          <AccordionItem value='member-role-help'>
-                            <AccordionTrigger className='text-sm'>
-                              Which role should I pick?
-                            </AccordionTrigger>
-                            <AccordionContent>
-                              <div className='text-muted-foreground space-y-3 text-sm'>
-                                <p>
+                        <FormDescription>
+                          <Accordion variant='common' type='single' collapsible>
+                            <AccordionItem value='member-role-help'>
+                              <AccordionTrigger>Which role should I pick?</AccordionTrigger>
+                              <AccordionContent>
+                                <p className='mb-2'>
                                   <strong>Business User</strong> — sees accessible Data Marts and
                                   Reports, creates Reports for Data Marts available for reporting,
                                   manages Reports they own (edit, delete, change owners), manages
@@ -230,7 +229,7 @@ export function MemberDetailsSheet({
                                   available for use. Cannot create, edit, or delete Data Marts, Data
                                   Mart Triggers, or Storages.
                                 </p>
-                                <p>
+                                <p className='mb-2'>
                                   <strong>Technical User</strong> — everything a Business User may
                                   do, plus: creates, edits, and deletes Data Marts, Data Mart
                                   Triggers, and Storages; edits and deletes Reports project-wide;
@@ -241,10 +240,10 @@ export function MemberDetailsSheet({
                                   do, plus: manages Project Members, manages billing, and manages
                                   general Project settings such as the Project title.
                                 </p>
-                              </div>
-                            </AccordionContent>
-                          </AccordionItem>
-                        </Accordion>
+                              </AccordionContent>
+                            </AccordionItem>
+                          </Accordion>
+                        </FormDescription>
                       </FormItem>
                     )}
                   />
@@ -252,7 +251,7 @@ export function MemberDetailsSheet({
 
                 {isAdminRole ? (
                   <FormSection title='Access' collapsible={false} name='member-details-admin'>
-                    <FormItem>
+                    <FormItem className='mt-2'>
                       <p className='text-muted-foreground text-sm'>
                         Project Admin has project-wide access. Scope and context assignments do not
                         apply.
@@ -288,23 +287,24 @@ export function MemberDetailsSheet({
                               </Select>
                             </FormControl>
                             <FormMessage />
-                            <Accordion variant='common' type='single' collapsible>
-                              <AccordionItem value='scope-help'>
-                                <AccordionTrigger className='text-sm'>
-                                  What do the scopes mean?
-                                </AccordionTrigger>
-                                <AccordionContent>
-                                  <p className='text-muted-foreground text-sm'>
-                                    <strong>Entire project</strong> — the member sees every shared
-                                    resource in the project (subject to role and ownership rules).
-                                    <br />
-                                    <strong>Selected contexts only</strong> — the member sees
-                                    resources only if they share at least one assigned context, or
-                                    if the member is an owner.
-                                  </p>
-                                </AccordionContent>
-                              </AccordionItem>
-                            </Accordion>
+                            <FormDescription>
+                              <Accordion variant='common' type='single' collapsible>
+                                <AccordionItem value='scope-help'>
+                                  <AccordionTrigger>What do the scopes mean?</AccordionTrigger>
+                                  <AccordionContent>
+                                    <p className='mb-2'>
+                                      <strong>Entire project</strong> — the member sees every shared
+                                      resource in the project (subject to role and ownership rules).
+                                    </p>
+                                    <p className='mb-2'>
+                                      <strong>Selected contexts only</strong> — the member sees
+                                      resources only if they share at least one assigned context, or
+                                      if the member is an owner.
+                                    </p>
+                                  </AccordionContent>
+                                </AccordionItem>
+                              </Accordion>
+                            </FormDescription>
                           </FormItem>
                         )}
                       />
@@ -330,24 +330,25 @@ export function MemberDetailsSheet({
                                 : undefined
                             }
                           />
-                          <Accordion variant='common' type='single' collapsible>
-                            <AccordionItem value='member-contexts-help'>
-                              <AccordionTrigger className='text-sm'>
-                                What are Contexts?
-                              </AccordionTrigger>
-                              <AccordionContent>
-                                <p className='text-muted-foreground text-sm'>
-                                  Contexts are business domains (e.g. Marketing, Finance, Sales)
-                                  used to group Storages, Destinations and Data Marts. When this
-                                  member&apos;s role scope is set to{' '}
-                                  <strong>Selected contexts only</strong>, they will see a resource
-                                  only if it is assigned to at least one of the contexts checked
-                                  here (ownership still overrides visibility). With scope{' '}
-                                  <strong>Entire project</strong>, these assignments have no effect.
-                                </p>
-                              </AccordionContent>
-                            </AccordionItem>
-                          </Accordion>
+                          <FormDescription>
+                            <Accordion variant='common' type='single' collapsible>
+                              <AccordionItem value='member-contexts-help'>
+                                <AccordionTrigger>What are Contexts?</AccordionTrigger>
+                                <AccordionContent>
+                                  <p>
+                                    Contexts are business domains (e.g. Marketing, Finance, Sales)
+                                    used to group Storages, Destinations and Data Marts. When this
+                                    member&apos;s role scope is set to{' '}
+                                    <strong>Selected contexts only</strong>, they will see a
+                                    resource only if it is assigned to at least one of the contexts
+                                    checked here (ownership still overrides visibility). With scope{' '}
+                                    <strong>Entire project</strong>, these assignments have no
+                                    effect.
+                                  </p>
+                                </AccordionContent>
+                              </AccordionItem>
+                            </Accordion>
+                          </FormDescription>
                         </FormItem>
                       </FormSection>
                     )}

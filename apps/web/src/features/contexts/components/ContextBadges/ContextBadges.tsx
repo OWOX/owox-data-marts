@@ -10,7 +10,7 @@ export function ContextBadges({ contexts }: { contexts?: ContextBadgeData[] }) {
   if (!contexts || contexts.length === 0) return null;
 
   return (
-    <div className='flex flex-wrap gap-1'>
+    <div className='flex max-w-full flex-wrap gap-1'>
       {contexts.map(ctx => (
         <Tooltip key={ctx.id}>
           <TooltipTrigger asChild>
@@ -18,9 +18,9 @@ export function ContextBadges({ contexts }: { contexts?: ContextBadgeData[] }) {
               variant='secondary'
               // Cap badge width so a single very long context name doesn't
               // overflow the cell; full name is exposed via tooltip below.
-              className='max-w-[220px] truncate text-xs'
+              className='max-w-[220px]'
             >
-              {ctx.name}
+              <span className='truncate text-xs'>{ctx.name}</span>
             </Badge>
           </TooltipTrigger>
           <TooltipContent side='top' align='start'>

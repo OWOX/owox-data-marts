@@ -325,11 +325,15 @@ export const getDataMartColumns = ({
   {
     id: DataMartColumnKey.CONTEXTS,
     accessorKey: 'contexts',
+    accessorFn: row => row.contexts.map(c => c.name).join(', '),
     meta: {
       title: dataMartColumnLabels[DataMartColumnKey.CONTEXTS],
     },
-    header: dataMartColumnLabels[DataMartColumnKey.CONTEXTS],
-    enableSorting: false,
+    header: ({ column }) => (
+      <SortableHeader column={column}>
+        {dataMartColumnLabels[DataMartColumnKey.CONTEXTS]}
+      </SortableHeader>
+    ),
     cell: ({ row }) => {
       return <ContextBadges contexts={row.original.contexts} />;
     },

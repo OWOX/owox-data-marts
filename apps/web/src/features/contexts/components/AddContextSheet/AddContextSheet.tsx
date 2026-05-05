@@ -17,6 +17,7 @@ import {
   Form,
   FormActions,
   FormControl,
+  FormDescription,
   FormField,
   FormItem,
   FormLabel,
@@ -169,21 +170,21 @@ export function AddContextSheet({ isOpen, members, onClose, onCreated }: AddCont
                         />
                       </FormControl>
                       <FormMessage />
-                      <Accordion variant='common' type='single' collapsible>
-                        <AccordionItem value='add-ctx-help'>
-                          <AccordionTrigger className='text-sm'>
-                            What is a context?
-                          </AccordionTrigger>
-                          <AccordionContent>
-                            <p className='text-muted-foreground text-sm'>
-                              A context is a business-domain label (e.g. Marketing, Finance) that
-                              you can attach to Data Marts, Storages, Destinations and members.
-                              Non-admin members with "Selected contexts" scope can only access
-                              resources that share at least one of their contexts.
-                            </p>
-                          </AccordionContent>
-                        </AccordionItem>
-                      </Accordion>
+                      <FormDescription>
+                        <Accordion variant='common' type='single' collapsible>
+                          <AccordionItem value='add-ctx-help'>
+                            <AccordionTrigger>What is a context?</AccordionTrigger>
+                            <AccordionContent>
+                              <p className='mb-2'>
+                                A context is a business-domain label (e.g. Marketing, Finance) that
+                                you can attach to Data Marts, Storages, Destinations and members.
+                                Non-admin members with "Selected contexts" scope can only access
+                                resources that share at least one of their contexts.
+                              </p>
+                            </AccordionContent>
+                          </AccordionItem>
+                        </Accordion>
+                      </FormDescription>
                     </FormItem>
                   )}
                 />

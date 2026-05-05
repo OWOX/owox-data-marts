@@ -10,7 +10,7 @@ import {
 } from '@owox/ui/components/alert-dialog';
 import { Button } from '@owox/ui/components/button';
 import { type ColumnDef, type Row } from '@tanstack/react-table';
-import { Check, CircleCheckBig, Import, Plus, Trash2 } from 'lucide-react';
+import { CircleCheckBig, Import, Plus, Trash2 } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { toast } from 'react-hot-toast';
 import { Link, useParams } from 'react-router-dom';
@@ -20,6 +20,7 @@ import {
   BaseTable,
   TableColumnSearch,
   TableCTAButton,
+  TableSelectionCheckbox,
 } from '../../../../../shared/components/Table';
 import { useBaseTable, useOnboardingVideo, useProjectRoute } from '../../../../../shared/hooks';
 import { usePersistentFilters } from '../../../../../shared/hooks/usePersistentFilters';
@@ -105,46 +106,18 @@ export function DataMartTable<TData, TValue>({
         size: 40,
         enableResizing: false,
         header: ({ table }) => (
-          <button
-            type='button'
-            role='checkbox'
-            aria-checked={table.getIsAllPageRowsSelected()}
-            data-state={table.getIsAllPageRowsSelected() ? 'checked' : 'unchecked'}
-            aria-label='Select all rows on this page'
-            className='peer border-input data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground dark:data-[state=checked]:bg-primary data-[state=checked]:border-primary focus-visible:border-ring focus-visible:ring-ring/50 aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive size-4 shrink-0 rounded-[4px] border bg-white shadow-xs transition-shadow outline-none focus-visible:ring-[3px] disabled:cursor-not-allowed disabled:opacity-50 dark:bg-white/8'
+          <TableSelectionCheckbox
+            checked={table.getIsAllPageRowsSelected()}
+            ariaLabel='Select all rows on this page'
             onClick={table.getToggleAllPageRowsSelectedHandler()}
-          >
-            {table.getIsAllPageRowsSelected() && (
-              <span
-                data-state='checked'
-                data-slot='checkbox-indicator'
-                className='pointer-events-none flex items-center justify-center text-current transition-none'
-              >
-                <Check className='size-3.5 text-white' />
-              </span>
-            )}
-          </button>
+          />
         ),
         cell: ({ row }) => (
-          <button
-            type='button'
-            role='checkbox'
-            aria-checked={row.getIsSelected()}
-            data-state={row.getIsSelected() ? 'checked' : 'unchecked'}
-            aria-label='Select row'
-            className='peer border-input data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground dark:data-[state=checked]:bg-primary data-[state=checked]:border-primary focus-visible:border-ring focus-visible:ring-ring/50 aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive size-4 shrink-0 rounded-[4px] border bg-white shadow-xs transition-shadow outline-none focus-visible:ring-[3px] disabled:cursor-not-allowed disabled:opacity-50 dark:bg-white/8'
+          <TableSelectionCheckbox
+            checked={row.getIsSelected()}
+            ariaLabel='Select row'
             onClick={row.getToggleSelectedHandler()}
-          >
-            {row.getIsSelected() && (
-              <span
-                data-state='checked'
-                data-slot='checkbox-indicator'
-                className='pointer-events-none flex items-center justify-center text-current transition-none'
-              >
-                <Check className='size-3.5 text-white' />
-              </span>
-            )}
-          </button>
+          />
         ),
         enableSorting: false,
         enableHiding: false,

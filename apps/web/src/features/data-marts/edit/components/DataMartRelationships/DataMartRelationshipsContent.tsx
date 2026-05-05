@@ -557,7 +557,7 @@ export function DataMartRelationshipsContent({
       <>
         {renderToolbar()}
         {renderViewContent()}
-        <div className='pt-4'>
+        <div>
           {isAddingNew ? (
             <TargetDataMartPicker
               dataMartId={dataMartId}
@@ -576,6 +576,7 @@ export function DataMartRelationshipsContent({
                 setNewlyCreatedId(null);
                 setIsAddingNew(true);
               }}
+              className='h-12 w-full'
             >
               <Plus className='h-4 w-4' />
               Join Data Mart

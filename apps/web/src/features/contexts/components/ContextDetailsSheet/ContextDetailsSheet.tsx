@@ -17,6 +17,7 @@ import {
   Form,
   FormActions,
   FormControl,
+  FormDescription,
   FormField,
   FormItem,
   FormLabel,
@@ -222,21 +223,22 @@ export function ContextDetailsSheet({
                     disabled={saving}
                     emptyText='No project members to assign yet.'
                     footer={
-                      <Accordion variant='common' type='single' collapsible>
-                        <AccordionItem value='ctx-members-help'>
-                          <AccordionTrigger className='text-sm'>
-                            Why are some members locked?
-                          </AccordionTrigger>
-                          <AccordionContent>
-                            <p className='text-muted-foreground text-sm'>
-                              Admins and members with project-wide scope already see every resource,
-                              regardless of context assignments. They appear here as a reminder, but
-                              their context membership can&apos;t be changed from this screen —
-                              adjust their role scope in Project settings → Members instead.
-                            </p>
-                          </AccordionContent>
-                        </AccordionItem>
-                      </Accordion>
+                      <FormDescription>
+                        <Accordion variant='common' type='single' collapsible>
+                          <AccordionItem value='ctx-members-help'>
+                            <AccordionTrigger>Why are some members locked?</AccordionTrigger>
+                            <AccordionContent>
+                              <p className='mb-2'>
+                                Admins and members with project-wide scope already see every
+                                resource, regardless of context assignments. They appear here as a
+                                reminder, but their context membership can&apos;t be changed from
+                                this screen — adjust their role scope in Project settings → Members
+                                instead.
+                              </p>
+                            </AccordionContent>
+                          </AccordionItem>
+                        </Accordion>
+                      </FormDescription>
                     }
                   />
                 </FormSection>

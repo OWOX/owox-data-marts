@@ -173,18 +173,23 @@ export default function DataMartOverviewContent() {
               />
               <Accordion variant='common' type='single' collapsible>
                 <AccordionItem value='technical-owner-help'>
-                  <AccordionTrigger className='text-sm'>
+                  <AccordionTrigger className='text-muted-foreground text-sm'>
                     What is a Technical Owner?
                   </AccordionTrigger>
                   <AccordionContent>
-                    <p className='text-muted-foreground text-sm'>
-                      Technical Owner is direct maintenance ownership of this Data Mart. When the
-                      owner&apos;s role is Technical User or Project Admin, they may edit and delete
-                      the Data Mart, configure its Availability, and maintain its Triggers, Reports
-                      and nested Report Triggers — regardless of Availability settings. Assigning
-                      Technical Owner to a Business User stores the assignment but grants no
-                      maintenance permissions until the role changes.
-                    </p>
+                    <div className='text-muted-foreground space-y-2 text-sm'>
+                      <p>Technical Owner is direct maintenance ownership of this Data Mart.</p>
+                      <p>
+                        When the owner&apos;s role is Technical User or Project Admin, they may edit
+                        and delete the Data Mart, configure its Availability, and maintain its
+                        Triggers, Reports and nested Report Triggers — regardless of Availability
+                        settings.
+                      </p>
+                      <p>
+                        Assigning Technical Owner to a Business User stores the assignment but
+                        grants no maintenance permissions until the role changes.
+                      </p>
+                    </div>
                   </AccordionContent>
                 </AccordionItem>
               </Accordion>
@@ -224,15 +229,22 @@ export default function DataMartOverviewContent() {
               />
               <Accordion variant='common' type='single' collapsible>
                 <AccordionItem value='business-owner-help'>
-                  <AccordionTrigger className='text-sm'>What is a Business Owner?</AccordionTrigger>
+                  <AccordionTrigger className='text-muted-foreground text-sm'>
+                    What is a Business Owner?
+                  </AccordionTrigger>
                   <AccordionContent>
-                    <p className='text-muted-foreground text-sm'>
-                      Business Owner is direct reporting ownership of this Data Mart. Business
-                      Owners may see the Data Mart in the catalog, open it, use it for reporting,
-                      and see its Triggers, Reports and nested Report Triggers — regardless of
-                      Availability settings. This role does not grant editing, deleting, Sharing
-                      management, Trigger maintenance, or changing owners.
-                    </p>
+                    <div className='text-muted-foreground space-y-2 text-sm'>
+                      <p>Business Owner is direct reporting ownership of this Data Mart.</p>
+                      <p>
+                        Business Owners may see the Data Mart in the catalog, open it, use it for
+                        reporting, and see its Triggers, Reports and nested Report Triggers —
+                        regardless of Availability settings.
+                      </p>
+                      <p>
+                        This role does not grant editing, deleting, Sharing management, Trigger
+                        maintenance, or changing owners.
+                      </p>
+                    </div>
                   </AccordionContent>
                 </AccordionItem>
               </Accordion>
@@ -254,59 +266,75 @@ export default function DataMartOverviewContent() {
         <CollapsibleCardContent>
           <div className='flex gap-4'>
             <div className='group flex w-full flex-col gap-3 rounded-md border-b border-gray-200 bg-white p-4 transition-shadow duration-200 hover:shadow-xs dark:border-0 dark:bg-white/2'>
-              <div className='flex items-center gap-4'>
+              <div className='flex items-center gap-2'>
                 <Switch
+                  id='available-for-maintenance'
                   checked={availableForMaintenance}
                   onCheckedChange={v => {
                     setAvailableForMaintenance(v);
-                    void handleAvailabilityChange(availableForReporting, v);
+                    void handleAvailabilityChange(availableForReporting, v).catch(console.error);
                   }}
                 />
-                <div className='text-foreground text-sm font-medium'>Available for maintenance</div>
+                <label
+                  htmlFor='available-for-maintenance'
+                  className='text-foreground cursor-pointer text-sm font-medium select-none'
+                >
+                  Available for maintenance
+                </label>
               </div>
               <p className='text-muted-foreground text-xs'>
                 Technical users can edit, delete, and manage triggers for this Data Mart
               </p>
               <Accordion variant='common' type='single' collapsible>
                 <AccordionItem value='maintenance-help'>
-                  <AccordionTrigger className='text-sm'>
+                  <AccordionTrigger className='text-muted-foreground text-sm'>
                     What does &quot;Available for maintenance&quot; mean?
                   </AccordionTrigger>
                   <AccordionContent>
-                    <p className='text-muted-foreground text-sm'>
-                      When enabled, Technical Users who are not owners can edit the Data Mart
-                      definition, delete it, and manage its scheduled triggers. Business Users are
-                      not affected by this setting.
-                    </p>
+                    <div className='text-muted-foreground space-y-2 text-sm'>
+                      <p>
+                        When enabled, Technical Users who are not owners can edit the Data Mart
+                        definition, delete it, and manage its scheduled triggers.
+                      </p>
+                      <p>Business Users are not affected by this setting.</p>
+                    </div>
                   </AccordionContent>
                 </AccordionItem>
               </Accordion>
             </div>
             <div className='group flex w-full flex-col gap-3 rounded-md border-b border-gray-200 bg-white p-4 transition-shadow duration-200 hover:shadow-xs dark:border-0 dark:bg-white/2'>
-              <div className='flex items-center gap-4'>
+              <div className='flex items-center gap-2'>
                 <Switch
+                  id='available-for-reporting'
                   checked={availableForReporting}
                   onCheckedChange={v => {
                     setAvailableForReporting(v);
                     void handleAvailabilityChange(v, availableForMaintenance);
                   }}
                 />
-                <div className='text-foreground text-sm font-medium'>Available for reporting</div>
+                <label
+                  htmlFor='available-for-reporting'
+                  className='text-foreground cursor-pointer text-sm font-medium select-none'
+                >
+                  Available for reporting
+                </label>
               </div>
               <p className='text-muted-foreground text-xs'>
                 All project members can see this Data Mart and build reports on it
               </p>
               <Accordion variant='common' type='single' collapsible>
                 <AccordionItem value='reporting-help'>
-                  <AccordionTrigger className='text-sm'>
+                  <AccordionTrigger className='text-muted-foreground text-sm'>
                     What does &quot;Available for reporting&quot; mean?
                   </AccordionTrigger>
                   <AccordionContent>
-                    <p className='text-muted-foreground text-sm'>
-                      When enabled, all project members (both Technical and Business Users) can see
-                      this Data Mart in the catalog and use it to create reports. Owners always have
-                      access regardless of this setting.
-                    </p>
+                    <div className='text-muted-foreground space-y-2 text-sm'>
+                      <p>
+                        When enabled, all project members (both Technical and Business Users) can
+                        see this Data Mart in the catalog and use it to create reports.
+                      </p>
+                      <p>Owners always have access regardless of this setting.</p>
+                    </div>
                   </AccordionContent>
                 </AccordionItem>
               </Accordion>
@@ -326,24 +354,35 @@ export default function DataMartOverviewContent() {
           </CollapsibleCardHeaderTitle>
         </CollapsibleCardHeader>
         <CollapsibleCardContent>
-          <div className='group flex w-full flex-col gap-4 rounded-md border-b border-gray-200 bg-white p-4 transition-shadow duration-200 hover:shadow-xs dark:border-0 dark:bg-white/2'>
-            <ContextPicker
-              selectedContextIds={contextIds}
-              onChange={persistContexts}
-              idPrefix='dm-ctx'
-              {...inlineContext.pickerProps}
-            />
+          <div className='group flex w-full flex-col gap-2'>
+            <div className='rounded-md bg-white p-1 transition-shadow duration-200 hover:shadow-xs dark:bg-neutral-900'>
+              <ContextPicker
+                selectedContextIds={contextIds}
+                onChange={persistContexts}
+                idPrefix='dm-ctx'
+                {...inlineContext.pickerProps}
+              />
+            </div>
             <Accordion variant='common' type='single' collapsible>
               <AccordionItem value='contexts-help'>
-                <AccordionTrigger className='text-sm'>What are Contexts?</AccordionTrigger>
+                <AccordionTrigger className='text-muted-foreground text-sm'>
+                  What are Contexts?
+                </AccordionTrigger>
                 <AccordionContent>
-                  <p className='text-muted-foreground text-sm'>
-                    Contexts are business domains (e.g. Marketing, Finance, Sales) used to group
-                    Data Marts, Storages and Destinations. They also control access: a member with
-                    the role scope limited to specific contexts will only see resources assigned to
-                    those contexts. Assign one or more contexts to make this Data Mart discoverable
-                    to the right people.
-                  </p>
+                  <div className='text-muted-foreground space-y-2 text-sm'>
+                    <p>
+                      Contexts are business domains (e.g. Marketing, Finance, Sales) used to group
+                      Data Marts, Storages and Destinations.
+                    </p>
+                    <p>
+                      They also control access: a member with the role scope limited to specific
+                      contexts will only see resources assigned to those contexts.
+                    </p>
+                    <p>
+                      Assign one or more contexts to make this Data Mart discoverable to the right
+                      people.
+                    </p>
+                  </div>
                 </AccordionContent>
               </AccordionItem>
             </Accordion>

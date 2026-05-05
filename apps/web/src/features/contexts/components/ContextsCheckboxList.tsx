@@ -25,16 +25,9 @@ export function ContextsCheckboxList({
   onRequestCreate,
 }: ContextsCheckboxListProps) {
   const createButton = onRequestCreate ? (
-    <Button
-      type='button'
-      variant='ghost'
-      size='sm'
-      className='text-muted-foreground hover:text-foreground mt-1 w-fit'
-      onClick={onRequestCreate}
-      disabled={disabled}
-    >
-      <Plus className='mr-1 h-4 w-4' />
-      Create context
+    <Button type='button' variant='outline' size='sm' onClick={onRequestCreate} disabled={disabled}>
+      <Plus className='size-4' />
+      New context
     </Button>
   ) : null;
 
@@ -44,22 +37,25 @@ export function ContextsCheckboxList({
       : 'No contexts available. Create one in the Contexts tab.';
     return (
       <div className='flex flex-col gap-1'>
-        <div className='border-input text-muted-foreground rounded-md border py-4 text-center text-sm'>
-          {emptyText ?? fallback}
+        <div className='border-border flex flex-col gap-2 rounded-md border px-4 py-8'>
+          <div className='text-muted-foreground text-center text-sm'>{emptyText ?? fallback}</div>
+          <div className='flex justify-center'>{createButton}</div>
         </div>
-        {createButton}
       </div>
     );
   }
 
   return (
     <div className='flex flex-col gap-1'>
-      <div className='border-input flex flex-col gap-1 rounded-md border p-1'>
+      <div className='border-input flex flex-col gap-1 rounded-md border p-2'>
         {contexts.map(ctx => {
           const checked = selectedIds.includes(ctx.id);
           const id = `${idPrefix}-${ctx.id}`;
           return (
-            <div key={ctx.id} className='hover:bg-muted/50 flex items-center gap-3 rounded-md p-2'>
+            <div
+              key={ctx.id}
+              className='hover:bg-muted dark:hover:bg-muted/50 flex items-center gap-3 rounded-md px-3 py-2'
+            >
               <Checkbox
                 id={id}
                 checked={checked}
