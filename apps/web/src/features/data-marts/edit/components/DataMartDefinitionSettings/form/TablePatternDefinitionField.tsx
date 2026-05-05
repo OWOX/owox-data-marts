@@ -10,7 +10,12 @@ import {
   FormMessage,
   FormDescription,
 } from '@owox/ui/components/form';
-import { Input } from '@owox/ui/components/input';
+import {
+  InputGroup,
+  InputGroupInput,
+  InputGroupAddon,
+  InputGroupButton,
+} from '@owox/ui/components/input-group';
 import { DataStorageType } from '../../../../../data-storage';
 import type { DataStorageConfigDto } from '../../../../../data-storage/shared/api/types';
 import {
@@ -64,31 +69,36 @@ export function TablePatternDefinitionField({
           <FormItem className='dm-card-block'>
             <FormLabel>Table Pattern</FormLabel>
             <FormControl>
-              <div className='flex items-center gap-2'>
-                <FillFromStorageButton
-                  storageId={storageId}
-                  storageType={storageType}
-                  resourceType='TABLE_PATTERN'
-                  onSelect={handleSelect}
-                />
-                <Input
+              <InputGroup className='dm-card-formcontrol'>
+                <InputGroupAddon align='inline-start'>
+                  <FillFromStorageButton
+                    storageId={storageId}
+                    storageType={storageType}
+                    resourceType='TABLE_PATTERN'
+                    onSelect={handleSelect}
+                    hasValue={Boolean(field.value)}
+                  />
+                </InputGroupAddon>
+                <InputGroupInput
                   placeholder={placeholder}
                   value={field.value}
                   onChange={field.onChange}
-                  className='dm-card-formcontrol'
                 />
                 {resourceUrl && (
-                  <a
-                    href={resourceUrl}
-                    target='_blank'
-                    rel='noopener noreferrer'
-                    title='Open in storage console'
-                    className='text-muted-foreground hover:text-primary shrink-0 p-1.5 transition-colors'
-                  >
-                    <ExternalLink className='h-4 w-4' />
-                  </a>
+                  <InputGroupAddon align='inline-end'>
+                    <InputGroupButton size='icon-xs' asChild variant='ghost'>
+                      <a
+                        href={resourceUrl}
+                        target='_blank'
+                        rel='noopener noreferrer'
+                        title='Open in storage console'
+                      >
+                        <ExternalLink className='!h-3.5 !w-3.5 shrink-0' />
+                      </a>
+                    </InputGroupButton>
+                  </InputGroupAddon>
                 )}
-              </div>
+              </InputGroup>
             </FormControl>
             <FormDescription className='text-muted-foreground/75'>{helpText}</FormDescription>
             <FormMessage />
