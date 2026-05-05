@@ -22,6 +22,7 @@ import {
   Form,
   FormActions,
   FormControl,
+  FormDescription,
   FormField,
   FormItem,
   FormLabel,
@@ -278,22 +279,23 @@ export function DataDestinationForm({
             <FormItem>
               <FormLabel tooltip='Team members responsible for this destination'>Owners</FormLabel>
               <OwnersSection ownerUsers={ownerUsers} onSave={handleOwnersChange} />
-              <Accordion variant='common' type='single' collapsible>
-                <AccordionItem value='destination-owners-help'>
-                  <AccordionTrigger className='text-sm'>
-                    What is a Destination Owner?
-                  </AccordionTrigger>
-                  <AccordionContent>
-                    <p className='text-muted-foreground text-sm'>
-                      Destination Owner is direct ownership of this Destination. When the
-                      owner&apos;s role is Technical User or Project Admin, they may view, edit,
-                      delete, configure Availability, and copy credentials from this Destination —
-                      regardless of Availability settings. Assigning Owner to a Business User stores
-                      the assignment but grants no maintenance permissions until the role changes.
-                    </p>
-                  </AccordionContent>
-                </AccordionItem>
-              </Accordion>
+              <FormDescription>
+                <Accordion variant='common' type='single' collapsible>
+                  <AccordionItem value='destination-owners-help'>
+                    <AccordionTrigger>What is a Destination Owner?</AccordionTrigger>
+                    <AccordionContent>
+                      <p>
+                        Destination Owner is direct ownership of this Destination. When the
+                        owner&apos;s role is Technical User or Project Admin, they may view, edit,
+                        delete, configure Availability, and copy credentials from this Destination —
+                        regardless of Availability settings. Assigning Owner to a Business User
+                        stores the assignment but grants no maintenance permissions until the role
+                        changes.
+                      </p>
+                    </AccordionContent>
+                  </AccordionItem>
+                </Accordion>
+              </FormDescription>
             </FormItem>
           </FormSection>
 
@@ -309,20 +311,22 @@ export function DataDestinationForm({
                   idPrefix='destination-ctx'
                   {...inlineContext.pickerProps}
                 />
-                <Accordion variant='common' type='single' collapsible>
-                  <AccordionItem value='destination-contexts-help'>
-                    <AccordionTrigger className='text-sm'>What are Contexts?</AccordionTrigger>
-                    <AccordionContent>
-                      <p className='text-muted-foreground text-sm'>
-                        Contexts are business domains (e.g. Marketing, Finance, Sales) used to group
-                        Storages, Destinations and Data Marts. They also control access: a member
-                        whose role scope is limited to specific contexts will only see resources
-                        assigned to those contexts. Assign one or more contexts to make this
-                        Destination discoverable to the right people.
-                      </p>
-                    </AccordionContent>
-                  </AccordionItem>
-                </Accordion>
+                <FormDescription>
+                  <Accordion variant='common' type='single' collapsible>
+                    <AccordionItem value='destination-contexts-help'>
+                      <AccordionTrigger>What are Contexts?</AccordionTrigger>
+                      <AccordionContent>
+                        <p>
+                          Contexts are business domains (e.g. Marketing, Finance, Sales) used to
+                          group Storages, Destinations and Data Marts. They also control access: a
+                          member whose role scope is limited to specific contexts will only see
+                          resources assigned to those contexts. Assign one or more contexts to make
+                          this Destination discoverable to the right people.
+                        </p>
+                      </AccordionContent>
+                    </AccordionItem>
+                  </Accordion>
+                </FormDescription>
               </FormItem>
             </FormSection>
           )}
@@ -342,19 +346,19 @@ export function DataDestinationForm({
                 <p className='text-muted-foreground text-sm'>
                   Project members can use this destination in their reports
                 </p>
-                <Accordion variant='common' type='single' collapsible>
-                  <AccordionItem value='sharing-use-help'>
-                    <AccordionTrigger className='text-sm'>
-                      What does "Available for use" mean?
-                    </AccordionTrigger>
-                    <AccordionContent>
-                      <p className='text-muted-foreground text-sm'>
-                        When enabled, project members can select this destination when configuring
-                        reports. Without this, only destination owners and admins can use it.
-                      </p>
-                    </AccordionContent>
-                  </AccordionItem>
-                </Accordion>
+                <FormDescription>
+                  <Accordion variant='common' type='single' collapsible>
+                    <AccordionItem value='sharing-use-help'>
+                      <AccordionTrigger>What does "Available for use" mean?</AccordionTrigger>
+                      <AccordionContent>
+                        <p>
+                          When enabled, project members can select this destination when configuring
+                          reports. Without this, only destination owners and admins can use it.
+                        </p>
+                      </AccordionContent>
+                    </AccordionItem>
+                  </Accordion>
+                </FormDescription>
               </FormItem>
               <FormItem>
                 <div className='flex items-center justify-between gap-4'>
@@ -366,24 +370,26 @@ export function DataDestinationForm({
                     }}
                   />
                 </div>
-                <p className='text-muted-foreground text-xs'>
+                <p className='text-muted-foreground text-sm'>
                   Project members with access can copy credentials, edit, and delete this
                   destination
                 </p>
-                <Accordion variant='common' type='single' collapsible>
-                  <AccordionItem value='sharing-maintenance-help'>
-                    <AccordionTrigger className='text-sm'>
-                      What does "Available for maintenance" mean?
-                    </AccordionTrigger>
-                    <AccordionContent>
-                      <p className='text-muted-foreground text-sm'>
-                        When enabled, project members can copy credentials from this destination,
-                        edit its configuration, and delete it. Without this, only owners and admins
-                        can perform these actions.
-                      </p>
-                    </AccordionContent>
-                  </AccordionItem>
-                </Accordion>
+                <FormDescription>
+                  <Accordion variant='common' type='single' collapsible>
+                    <AccordionItem value='sharing-maintenance-help'>
+                      <AccordionTrigger>
+                        What does "Available for maintenance" mean?
+                      </AccordionTrigger>
+                      <AccordionContent>
+                        <p>
+                          When enabled, project members can copy credentials from this destination,
+                          edit its configuration, and delete it. Without this, only owners and
+                          admins can perform these actions.
+                        </p>
+                      </AccordionContent>
+                    </AccordionItem>
+                  </Accordion>
+                </FormDescription>
               </FormItem>
             </FormSection>
           )}

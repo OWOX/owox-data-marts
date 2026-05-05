@@ -345,20 +345,23 @@ export function DataStorageForm({
             <FormItem>
               <FormLabel tooltip='Team members responsible for this storage'>Owners</FormLabel>
               <OwnersSection ownerUsers={ownerUsers} onSave={handleOwnersChange} />
-              <Accordion variant='common' type='single' collapsible>
-                <AccordionItem value='storage-owners-help'>
-                  <AccordionTrigger className='text-sm'>What is a Storage Owner?</AccordionTrigger>
-                  <AccordionContent>
-                    <p className='text-muted-foreground text-sm'>
-                      Storage Owner is direct technical ownership of this Storage. When the
-                      owner&apos;s role is Technical User or Project Admin, they may view, edit,
-                      delete, configure Availability, and copy credentials from this Storage —
-                      regardless of Availability settings. Assigning Owner to a Business User stores
-                      the assignment but grants no maintenance permissions until the role changes.
-                    </p>
-                  </AccordionContent>
-                </AccordionItem>
-              </Accordion>
+              <FormDescription>
+                <Accordion variant='common' type='single' collapsible>
+                  <AccordionItem value='storage-owners-help'>
+                    <AccordionTrigger>What is a Storage Owner?</AccordionTrigger>
+                    <AccordionContent>
+                      <p>
+                        Storage Owner is direct technical ownership of this Storage. When the
+                        owner&apos;s role is Technical User or Project Admin, they may view, edit,
+                        delete, configure Availability, and copy credentials from this Storage —
+                        regardless of Availability settings. Assigning Owner to a Business User
+                        stores the assignment but grants no maintenance permissions until the role
+                        changes.
+                      </p>
+                    </AccordionContent>
+                  </AccordionItem>
+                </Accordion>
+              </FormDescription>
             </FormItem>
           </FormSection>
 
@@ -374,20 +377,22 @@ export function DataStorageForm({
                   idPrefix='storage-ctx'
                   {...inlineContext.pickerProps}
                 />
-                <Accordion variant='common' type='single' collapsible>
-                  <AccordionItem value='storage-contexts-help'>
-                    <AccordionTrigger className='text-sm'>What are Contexts?</AccordionTrigger>
-                    <AccordionContent>
-                      <p className='text-muted-foreground text-sm'>
-                        Contexts are business domains (e.g. Marketing, Finance, Sales) used to group
-                        Storages, Destinations and Data Marts. They also control access: a member
-                        whose role scope is limited to specific contexts will only see resources
-                        assigned to those contexts. Assign one or more contexts to make this Storage
-                        discoverable to the right people.
-                      </p>
-                    </AccordionContent>
-                  </AccordionItem>
-                </Accordion>
+                <FormDescription>
+                  <Accordion variant='common' type='single' collapsible>
+                    <AccordionItem value='storage-contexts-help'>
+                      <AccordionTrigger>What are Contexts?</AccordionTrigger>
+                      <AccordionContent>
+                        <p>
+                          Contexts are business domains (e.g. Marketing, Finance, Sales) used to
+                          group Storages, Destinations and Data Marts. They also control access: a
+                          member whose role scope is limited to specific contexts will only see
+                          resources assigned to those contexts. Assign one or more contexts to make
+                          this Storage discoverable to the right people.
+                        </p>
+                      </AccordionContent>
+                    </AccordionItem>
+                  </Accordion>
+                </FormDescription>
               </FormItem>
             </FormSection>
           )}
@@ -404,23 +409,25 @@ export function DataStorageForm({
                     }}
                   />
                 </div>
-                <p className='text-muted-foreground text-xs'>
+                <p className='text-muted-foreground text-sm'>
                   Technical users can use this storage when creating Data Marts
                 </p>
-                <Accordion variant='common' type='single' collapsible>
-                  <AccordionItem value='sharing-use-help'>
-                    <AccordionTrigger className='text-sm'>
-                      What does &quot;Available for use&quot; mean?
-                    </AccordionTrigger>
-                    <AccordionContent>
-                      <p className='text-muted-foreground text-sm'>
-                        When enabled, Technical Users who are not owners can select this storage
-                        when creating new Data Marts. Without this, only storage owners and admins
-                        can use it.
-                      </p>
-                    </AccordionContent>
-                  </AccordionItem>
-                </Accordion>
+                <FormDescription>
+                  <Accordion variant='common' type='single' collapsible>
+                    <AccordionItem value='sharing-use-help'>
+                      <AccordionTrigger>
+                        What does &quot;Available for use&quot; mean?
+                      </AccordionTrigger>
+                      <AccordionContent>
+                        <p>
+                          When enabled, Technical Users who are not owners can select this storage
+                          when creating new Data Marts. Without this, only storage owners and admins
+                          can use it.
+                        </p>
+                      </AccordionContent>
+                    </AccordionItem>
+                  </Accordion>
+                </FormDescription>
               </FormItem>
               <FormItem>
                 <div className='flex items-center justify-between gap-4'>
@@ -432,23 +439,25 @@ export function DataStorageForm({
                     }}
                   />
                 </div>
-                <p className='text-muted-foreground text-xs'>
+                <p className='text-muted-foreground text-sm'>
                   Project members with access can copy credentials, edit, and delete this storage
                 </p>
-                <Accordion variant='common' type='single' collapsible>
-                  <AccordionItem value='sharing-maintenance-help'>
-                    <AccordionTrigger className='text-sm'>
-                      What does &quot;Available for maintenance&quot; mean?
-                    </AccordionTrigger>
-                    <AccordionContent>
-                      <p className='text-muted-foreground text-sm'>
-                        When enabled, project members can copy credentials from this storage, edit
-                        its configuration, and delete it. Without this, only owners and admins can
-                        perform these actions.
-                      </p>
-                    </AccordionContent>
-                  </AccordionItem>
-                </Accordion>
+                <FormDescription>
+                  <Accordion variant='common' type='single' collapsible>
+                    <AccordionItem value='sharing-maintenance-help'>
+                      <AccordionTrigger>
+                        What does &quot;Available for maintenance&quot; mean?
+                      </AccordionTrigger>
+                      <AccordionContent>
+                        <p>
+                          When enabled, project members can copy credentials from this storage, edit
+                          its configuration, and delete it. Without this, only owners and admins can
+                          perform these actions.
+                        </p>
+                      </AccordionContent>
+                    </AccordionItem>
+                  </Accordion>
+                </FormDescription>
               </FormItem>
             </FormSection>
           )}

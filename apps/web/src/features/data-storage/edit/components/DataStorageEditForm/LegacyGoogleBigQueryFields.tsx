@@ -257,10 +257,7 @@ export const LegacyGoogleBigQueryFields = ({ form }: LegacyGoogleBigQueryFieldsP
                       {!isEditing && serviceAccountLink ? (
                         <Tooltip>
                           <TooltipTrigger asChild>
-                            <ExternalAnchor
-                              href={serviceAccountLink.url}
-                              className='text-foreground rounded-md border px-4 py-2 text-sm font-normal'
-                            >
+                            <ExternalAnchor href={serviceAccountLink.url} variant='field'>
                               {serviceAccountLink.email}
                             </ExternalAnchor>
                           </TooltipTrigger>
