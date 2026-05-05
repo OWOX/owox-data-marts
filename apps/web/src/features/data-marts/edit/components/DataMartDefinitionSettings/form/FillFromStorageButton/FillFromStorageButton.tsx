@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Database } from 'lucide-react';
-import { Button } from '@owox/ui/components/button';
 import {
   Dialog,
   DialogContent,
@@ -8,6 +7,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@owox/ui/components/dialog';
+import { InputGroupButton } from '@owox/ui/components/input-group';
 import { DataStorageType } from '../../../../../../data-storage';
 import { dataStorageApiService } from '../../../../../../data-storage/shared/api';
 import type {
@@ -28,6 +28,7 @@ interface FillFromStorageButtonProps {
   storageType: DataStorageType;
   resourceType: StorageResourceFilter;
   onSelect: (fullyQualifiedName: string) => void;
+  hasValue?: boolean;
 }
 
 export function FillFromStorageButton({
@@ -35,6 +36,7 @@ export function FillFromStorageButton({
   storageType,
   resourceType,
   onSelect,
+  hasValue = false,
 }: FillFromStorageButtonProps) {
   const [open, setOpen] = useState(false);
   const [namespaces, setNamespaces] = useState<StorageNamespaceNodeDto[] | null>(null);
@@ -91,17 +93,18 @@ export function FillFromStorageButton({
 
   return (
     <>
-      <Button
-        type='button'
+      <InputGroupButton
+        size={hasValue ? 'icon-xs' : 'xs'}
         variant='outline'
-        size='sm'
         onClick={() => {
           setOpen(true);
         }}
+        title={hasValue ? 'Change selection' : 'Select from storage'}
+        aria-label={hasValue ? 'Change selection' : 'Select from storage'}
       >
-        <Database className='size-4' />
-        Fill from Storage
-      </Button>
+        <Database />
+        {!hasValue && <span className='text-xs'>Select...</span>}
+      </InputGroupButton>
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className='sm:max-w-4xl'>
           <DialogHeader>
