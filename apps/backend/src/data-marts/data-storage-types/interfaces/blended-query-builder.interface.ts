@@ -1,6 +1,9 @@
 import { DataMartRelationship } from '../../entities/data-mart-relationship.entity';
 import { DataStorageType } from '../enums/data-storage-type.enum';
 import { AggregateFunction } from '../../dto/schemas/aggregate-function.schema';
+import { FilterRule } from '../../dto/schemas/filter-config.schema';
+import { SortRule } from '../../dto/schemas/sort-config.schema';
+import { QueryBuildResult } from './data-mart-query-builder.interface';
 
 export interface BlendedFieldConfig {
   targetFieldName: string;
@@ -24,9 +27,12 @@ export interface BlendedQueryContext {
   mainDataMartUrl: string;
   chains: ResolvedRelationshipChain[];
   columns: string[];
+  filters?: FilterRule[];
+  sort?: SortRule[];
+  limit?: number | null;
 }
 
 export interface BlendedQueryBuilder {
   readonly type: DataStorageType;
-  buildBlendedQuery(context: BlendedQueryContext): string;
+  buildBlendedQuery(context: BlendedQueryContext): string | QueryBuildResult;
 }

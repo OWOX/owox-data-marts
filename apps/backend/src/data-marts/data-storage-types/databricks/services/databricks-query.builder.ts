@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotImplementedException } from '@nestjs/common';
 import { DataMartDefinition } from '../../../dto/schemas/data-mart-table-definitions/data-mart-definition';
 import {
   isConnectorDefinition,
@@ -22,6 +22,11 @@ export class DatabricksQueryBuilder implements DataMartQueryBuilder {
   readonly type = DataStorageType.DATABRICKS;
 
   buildQuery(definition: DataMartDefinition, queryOptions?: DataMartQueryOptions): string {
+    if ((queryOptions?.filters?.length ?? 0) > 0 || (queryOptions?.sort?.length ?? 0) > 0) {
+      throw new NotImplementedException(
+        `Output controls not yet supported for storage type ${this.type}`
+      );
+    }
     const selectList = this.buildSelectList(queryOptions?.columns);
     let query: string;
 

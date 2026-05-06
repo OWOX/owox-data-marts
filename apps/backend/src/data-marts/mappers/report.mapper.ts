@@ -43,7 +43,10 @@ export class ReportMapper {
       dto.destinationConfig,
       dto.ownerIds,
       context.roles ?? [],
-      dto.columnConfig
+      dto.columnConfig,
+      dto.filterConfig ?? null,
+      dto.sortConfig ?? null,
+      dto.limitConfig ?? null
     );
   }
 
@@ -66,7 +69,10 @@ export class ReportMapper {
       entity.runsCount,
       createdByUser,
       ownerUsers,
-      entity.columnConfig
+      entity.columnConfig,
+      entity.filterConfig ?? null,
+      entity.sortConfig ?? null,
+      entity.limitConfig ?? null
     );
   }
 
@@ -90,6 +96,9 @@ export class ReportMapper {
       ),
       destinationConfig: dto.destinationConfig,
       columnConfig: dto.columnConfig,
+      filterConfig: dto.filterConfig ?? null,
+      sortConfig: dto.sortConfig ?? null,
+      limitConfig: dto.limitConfig ?? null,
       lastRunAt: dto.lastRunAt,
       lastRunStatus: dto.lastRunStatus,
       lastRunError: dto.lastRunError,
@@ -177,7 +186,10 @@ export class ReportMapper {
       dto.dataDestinationId,
       dto.destinationConfig,
       dto.ownerIds,
-      dto.columnConfig
+      dto.columnConfig,
+      dto.filterConfig ?? null,
+      dto.sortConfig ?? null,
+      dto.limitConfig ?? null
     );
   }
 

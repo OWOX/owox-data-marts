@@ -310,6 +310,9 @@ import { ProjectSetupProgressMapper } from './mappers/project-setup-progress.map
 import { DataMartRelationship } from './entities/data-mart-relationship.entity';
 import { DataMartRelationshipService } from './services/data-mart-relationship.service';
 import { BlendableSchemaService } from './services/blendable-schema.service';
+import { OutputControlsCapabilityService } from './services/output-controls-capability.service';
+import { OutputControlsValidatorService } from './services/output-controls-validator.service';
+import { BigQueryClauseRenderer } from './data-storage-types/bigquery/services/bigquery-clause-renderer';
 import { BlendedReportDataService } from './services/blended-report-data.service';
 import { ReportSqlComposerService } from './services/report-sql-composer.service';
 import { RelationshipMapper } from './mappers/relationship.mapper';
@@ -670,6 +673,9 @@ import { SetContextMembersService } from './use-cases/contexts/set-context-membe
     ProjectSetupProgressMapper,
     DataMartRelationshipService,
     BlendableSchemaService,
+    OutputControlsCapabilityService,
+    OutputControlsValidatorService,
+    BigQueryClauseRenderer,
     BlendedReportDataService,
     ReportSqlComposerService,
     RelationshipMapper,

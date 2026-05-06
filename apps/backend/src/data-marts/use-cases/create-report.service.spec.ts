@@ -27,17 +27,26 @@ jest.mock('../utils/resolve-owner-users', () => ({
   resolveOwnerUsers: jest.fn().mockReturnValue([]),
 }));
 
+import { BadRequestException } from '@nestjs/common';
 import { CreateReportService } from './create-report.service';
 import { CreateReportCommand } from '../dto/domain/create-report.command';
 import { DataMartStatus } from '../enums/data-mart-status.enum';
+import { DataStorageType } from '../data-storage-types/enums/data-storage-type.enum';
 import { syncOwners } from '../utils/sync-owners';
 
 describe('CreateReportService', () => {
-  const dataMart = { id: 'dm-1', status: DataMartStatus.PUBLISHED, projectId: 'proj-1' };
+  const dataMart = {
+    id: 'dm-1',
+    status: DataMartStatus.PUBLISHED,
+    projectId: 'proj-1',
+    storage: { type: DataStorageType.GOOGLE_BIGQUERY },
+  };
   const dataDestination = { id: 'dest-1', type: 'LOOKER_STUDIO' };
   const savedReport = { id: 'report-1', createdById: 'user-0', owners: [], ownerIds: [] };
 
-  const createService = () => {
+  const createService = (
+    outputControlsValidatorOverride?: Partial<{ validateForReport: jest.Mock }>
+  ) => {
     const reportRepository = {
       create: jest.fn().mockReturnValue(savedReport),
       save: jest.fn().mockResolvedValue(savedReport),
@@ -70,6 +79,10 @@ describe('CreateReportService', () => {
     const accessDecisionService = {
       canAccess: jest.fn().mockResolvedValue(true),
     };
+    const outputControlsValidator = {
+      validateForReport: jest.fn().mockResolvedValue(undefined),
+      ...outputControlsValidatorOverride,
+    };
 
     const service = new CreateReportService(
       reportRepository as never,
@@ -82,10 +95,11 @@ describe('CreateReportService', () => {
       userProjectionsFetcherService as never,
       idpProjectionsFacade as never,
       accessDecisionService as never,
-      eventDispatcher as never
+      eventDispatcher as never,
+      outputControlsValidator as never
     );
 
-    return { service };
+    return { service, reportRepository, outputControlsValidator };
   };
 
   beforeEach(() => {
@@ -134,6 +148,86 @@ describe('CreateReportService', () => {
       ['user-1', 'user-2'],
       expect.anything(),
       expect.any(Function)
+    );
+  });
+
+  it('should call outputControlsValidator.validateForReport before create', async () => {
+    const { service, outputControlsValidator } = createService();
+    const command = new CreateReportCommand(
+      'proj-1',
+      'user-0',
+      'Test',
+      'dm-1',
+      'dest-1',
+      { type: 'looker-studio-config', cacheLifetime: 3600 } as never,
+      undefined,
+      [],
+      undefined,
+      [{ column: 'name', operator: 'eq', value: 'X' }],
+      [{ column: 'name', direction: 'asc' }],
+      100
+    );
+
+    await service.run(command);
+
+    expect(outputControlsValidator.validateForReport).toHaveBeenCalledWith({
+      storageType: DataStorageType.GOOGLE_BIGQUERY,
+      dataMartId: 'dm-1',
+      projectId: 'proj-1',
+      columnConfig: null,
+      filterConfig: [{ column: 'name', operator: 'eq', value: 'X' }],
+      sortConfig: [{ column: 'name', direction: 'asc' }],
+      limitConfig: 100,
+    });
+  });
+
+  it('should propagate BadRequestException from outputControlsValidator', async () => {
+    const validateForReport = jest
+      .fn()
+      .mockRejectedValue(new BadRequestException('Output controls validation failed'));
+    const { service } = createService({ validateForReport });
+
+    const command = new CreateReportCommand(
+      'proj-1',
+      'user-0',
+      'Test',
+      'dm-1',
+      'dest-1',
+      { type: 'looker-studio-config', cacheLifetime: 3600 } as never,
+      undefined,
+      [],
+      undefined,
+      [{ column: 'missing', operator: 'eq', value: 'X' }]
+    );
+
+    await expect(service.run(command)).rejects.toThrow(BadRequestException);
+  });
+
+  it('should pass new output control fields to reportRepository.create', async () => {
+    const { service, reportRepository } = createService();
+    const command = new CreateReportCommand(
+      'proj-1',
+      'user-0',
+      'Test',
+      'dm-1',
+      'dest-1',
+      { type: 'looker-studio-config', cacheLifetime: 3600 } as never,
+      undefined,
+      [],
+      undefined,
+      [{ column: 'name', operator: 'eq', value: 'X' }],
+      [{ column: 'name', direction: 'asc' }],
+      50
+    );
+
+    await service.run(command);
+
+    expect(reportRepository.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        filterConfig: [{ column: 'name', operator: 'eq', value: 'X' }],
+        sortConfig: [{ column: 'name', direction: 'asc' }],
+        limitConfig: 50,
+      })
     );
   });
 });

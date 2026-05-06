@@ -4,6 +4,8 @@ import { DataDestinationResponseApiDto } from './data-destination-response-api.d
 import { ReportRunStatus } from '../../enums/report-run-status.enum';
 import { DataDestinationConfig } from '../../data-destination-types/data-destination-config.type';
 import { ReportColumnConfig } from '../schemas/report-column-config.schema';
+import { FilterConfig } from '../schemas/filter-config.schema';
+import { SortConfig } from '../schemas/sort-config.schema';
 import { UserProjectionDto } from '../../../idp/dto/domain/user-projection.dto';
 
 export class ReportResponseApiDto {
@@ -24,6 +26,15 @@ export class ReportResponseApiDto {
 
   @ApiProperty({ nullable: true, required: false, type: [String] })
   columnConfig?: ReportColumnConfig;
+
+  @ApiProperty({ nullable: true, required: false, description: 'Filter rules' })
+  filterConfig?: FilterConfig | null;
+
+  @ApiProperty({ nullable: true, required: false, description: 'Sort rules' })
+  sortConfig?: SortConfig | null;
+
+  @ApiProperty({ nullable: true, required: false, description: 'Row limit', type: Number })
+  limitConfig?: number | null;
 
   @ApiProperty({ nullable: true })
   lastRunAt?: Date;

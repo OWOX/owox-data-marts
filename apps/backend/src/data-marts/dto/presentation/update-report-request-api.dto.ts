@@ -1,7 +1,19 @@
-import { ArrayMaxSize, IsNotEmpty, IsString, IsObject, IsArray, IsOptional } from 'class-validator';
+import {
+  ArrayMaxSize,
+  IsNotEmpty,
+  IsString,
+  IsObject,
+  IsArray,
+  IsOptional,
+  IsInt,
+  IsPositive,
+  Max,
+} from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 import { DataDestinationConfig } from '../../data-destination-types/data-destination-config.type';
 import { ReportColumnConfig } from '../schemas/report-column-config.schema';
+import { FilterConfig } from '../schemas/filter-config.schema';
+import { SortConfig } from '../schemas/sort-config.schema';
 
 export class UpdateReportRequestApiDto {
   @ApiProperty({ example: 'My Report' })
@@ -37,4 +49,36 @@ export class UpdateReportRequestApiDto {
   @IsArray()
   @IsString({ each: true })
   columnConfig?: ReportColumnConfig;
+
+  @ApiProperty({
+    description: 'Filter rules applied to the final SELECT (output filters)',
+    nullable: true,
+    required: false,
+  })
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(50)
+  filterConfig?: FilterConfig | null;
+
+  @ApiProperty({
+    description: 'Sort rules (multi-column with order)',
+    nullable: true,
+    required: false,
+  })
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(10)
+  sortConfig?: SortConfig | null;
+
+  @ApiProperty({
+    description: 'Row limit cap (no offset)',
+    nullable: true,
+    required: false,
+    type: Number,
+  })
+  @IsOptional()
+  @IsInt()
+  @IsPositive()
+  @Max(10_000_000)
+  limitConfig?: number | null;
 }

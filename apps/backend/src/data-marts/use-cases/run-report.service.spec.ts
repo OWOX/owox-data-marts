@@ -53,7 +53,8 @@ describe('RunReportService', () => {
       new ReportExecutionPolicyResolver(),
       {} as never,
       { checkMutateAccess: jest.fn().mockResolvedValue(undefined) } as never,
-      blendedReportDataService as never
+      blendedReportDataService as never,
+      { compose: jest.fn().mockResolvedValue({ sql: 'SELECT 1' }) } as never
     );
 
     return {

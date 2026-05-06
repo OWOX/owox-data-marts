@@ -24,13 +24,17 @@ describe('ReportSqlComposerService', () => {
     const queryBuilderFacade = {
       buildQuery: jest.fn().mockResolvedValue(builtSql),
     };
+    const tableReferenceService = {
+      resolveTableName: jest.fn().mockResolvedValue('p.d.t'),
+    };
 
     const service = new ReportSqlComposerService(
       blendedReportDataService as never,
-      queryBuilderFacade as never
+      queryBuilderFacade as never,
+      tableReferenceService as never
     );
 
-    return { service, blendedReportDataService, queryBuilderFacade };
+    return { service, blendedReportDataService, queryBuilderFacade, tableReferenceService };
   };
 
   it('returns blended SQL when decision.needsBlending and blendedSql is present', async () => {
@@ -57,7 +61,7 @@ describe('ReportSqlComposerService', () => {
     expect(queryBuilderFacade.buildQuery).toHaveBeenCalledWith(
       'BIGQUERY',
       { sqlQuery: 'SELECT 1' },
-      { columns: ['a', 'b'] }
+      expect.objectContaining({ columns: ['a', 'b'] })
     );
   });
 
@@ -85,5 +89,98 @@ describe('ReportSqlComposerService', () => {
     });
 
     await expect(service.compose(report)).rejects.toThrow('Data Mart definition is not set.');
+  });
+
+  it('passes filterConfig/sortConfig/limitConfig from Report to QueryBuilder', async () => {
+    const queryBuilderFacade = {
+      buildQuery: jest
+        .fn()
+        .mockResolvedValue({ sql: 'SELECT 1', params: [{ name: 'p0', value: 1 }] }),
+    };
+    const blendedDataService = {
+      resolveBlendingDecision: jest
+        .fn()
+        .mockResolvedValue({ needsBlending: false, columnFilter: ['a'] }),
+    };
+    const tableReferenceService = { resolveTableName: jest.fn().mockResolvedValue('p.d.view_x') };
+    const composer = new ReportSqlComposerService(
+      blendedDataService as never,
+      queryBuilderFacade as never,
+      tableReferenceService as never
+    );
+    const filterConfig = [{ column: 'a', operator: 'eq', value: 1 }];
+    const sortConfig = [{ column: 'a', direction: 'asc' }];
+    const report = {
+      filterConfig,
+      sortConfig,
+      limitConfig: 10,
+      dataMart: {
+        id: 'm',
+        projectId: 'p',
+        storage: { type: 'GOOGLE_BIGQUERY' },
+        definition: { type: 'sql', sqlQuery: 'SELECT 1' },
+      },
+    } as never;
+    const result = await composer.compose(report);
+    expect(queryBuilderFacade.buildQuery).toHaveBeenCalledWith(
+      'GOOGLE_BIGQUERY',
+      expect.anything(),
+      expect.objectContaining({
+        columns: ['a'],
+        filters: filterConfig,
+        sort: sortConfig,
+        limit: 10,
+        mainTableReference: 'p.d.view_x',
+      })
+    );
+    expect(result).toEqual({ sql: 'SELECT 1', params: [{ name: 'p0', value: 1 }] });
+  });
+
+  it('does not resolve mainTableReference when no output controls', async () => {
+    const tableReferenceService = { resolveTableName: jest.fn() };
+    const queryBuilderFacade = { buildQuery: jest.fn().mockResolvedValue('SELECT * FROM t') };
+    const blendedDataService = {
+      resolveBlendingDecision: jest
+        .fn()
+        .mockResolvedValue({ needsBlending: false, columnFilter: ['a'] }),
+    };
+    const composer = new ReportSqlComposerService(
+      blendedDataService as never,
+      queryBuilderFacade as never,
+      tableReferenceService as never
+    );
+    const report = {
+      dataMart: {
+        id: 'm',
+        projectId: 'p',
+        storage: { type: 'GOOGLE_BIGQUERY' },
+        definition: { type: 'table', fullyQualifiedName: 'p.d.t' },
+      },
+    } as never;
+    const result = await composer.compose(report);
+    expect(tableReferenceService.resolveTableName).not.toHaveBeenCalled();
+    expect(result).toEqual({ sql: 'SELECT * FROM t' });
+  });
+
+  it('uses blended sql + params when needsBlending=true', async () => {
+    const blendedDataService = {
+      resolveBlendingDecision: jest.fn().mockResolvedValue({
+        needsBlending: true,
+        blendedSql: 'WITH ... SELECT ... WHERE @p0',
+        params: [{ name: 'p0', value: 1 }],
+      }),
+    };
+    const composer = new ReportSqlComposerService(
+      blendedDataService as never,
+      {} as never,
+      {} as never
+    );
+    const result = await composer.compose({
+      filterConfig: [{ column: 'a', operator: 'eq', value: 1 }],
+    } as never);
+    expect(result).toEqual({
+      sql: 'WITH ... SELECT ... WHERE @p0',
+      params: [{ name: 'p0', value: 1 }],
+    });
   });
 });

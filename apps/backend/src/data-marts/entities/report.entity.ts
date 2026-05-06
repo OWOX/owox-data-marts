@@ -20,6 +20,8 @@ import {
   ReportColumnConfig,
   ReportColumnConfigSchema,
 } from '../dto/schemas/report-column-config.schema';
+import { FilterConfig, FilterConfigSchema } from '../dto/schemas/filter-config.schema';
+import { SortConfig, SortConfigSchema } from '../dto/schemas/sort-config.schema';
 import { DataDestinationType } from '../data-destination-types/enums/data-destination-type.enum';
 import { ReportRunStatus } from '../enums/report-run-status.enum';
 import { CreatorAwareEntity } from './creator-aware-entity.interface';
@@ -58,6 +60,29 @@ export class Report implements CreatorAwareEntity {
     transformer: createZodTransformer<ReportColumnConfig>(ReportColumnConfigSchema, false),
   })
   columnConfig?: ReportColumnConfig;
+
+  @Column({
+    type: 'json',
+    nullable: true,
+    default: null,
+    transformer: createZodTransformer<FilterConfig>(FilterConfigSchema, false),
+  })
+  filterConfig?: FilterConfig;
+
+  @Column({
+    type: 'json',
+    nullable: true,
+    default: null,
+    transformer: createZodTransformer<SortConfig>(SortConfigSchema, false),
+  })
+  sortConfig?: SortConfig;
+
+  @Column({
+    type: 'int',
+    nullable: true,
+    default: null,
+  })
+  limitConfig?: number | null;
 
   @Column({ nullable: true })
   lastRunAt?: Date;

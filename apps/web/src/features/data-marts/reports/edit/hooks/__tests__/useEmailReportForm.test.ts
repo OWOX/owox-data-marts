@@ -13,6 +13,9 @@ function buildPayload(overrides: Partial<Record<string, unknown>> = {}) {
     insightTemplateId: undefined,
     templateSourceType: TemplateSourceTypeEnum.CUSTOM_MESSAGE,
     columnConfig: null,
+    filterConfig: null,
+    sortConfig: null,
+    limitConfig: null,
     ...overrides,
   };
 }

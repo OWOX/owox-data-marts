@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotImplementedException } from '@nestjs/common';
 import {
   DataMartQueryBuilder,
   DataMartQueryOptions,
@@ -19,6 +19,11 @@ export class RedshiftQueryBuilder implements DataMartQueryBuilder {
   readonly type = DataStorageType.AWS_REDSHIFT;
 
   buildQuery(definition: DataMartDefinition, queryOptions?: DataMartQueryOptions): string {
+    if ((queryOptions?.filters?.length ?? 0) > 0 || (queryOptions?.sort?.length ?? 0) > 0) {
+      throw new NotImplementedException(
+        `Output controls not yet supported for storage type ${this.type}`
+      );
+    }
     const selectList = this.buildSelectList(queryOptions?.columns);
     let query: string;
 

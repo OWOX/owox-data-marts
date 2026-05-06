@@ -17,6 +17,7 @@ import type {
 import type { DataDestination } from '../../../../data-destination';
 import { ReportConditionEnum } from '../../shared/enums/report-condition.enum';
 import { DEFAULT_REPORT_TITLE } from '../../shared';
+import { FilterRuleSchema, SortRuleSchema } from '../../../shared/types/output-config';
 
 export const EmailReportEditFormSchema = z
   .object({
@@ -33,6 +34,9 @@ export const EmailReportEditFormSchema = z
       .array(z.string())
       .nullable()
       .refine(val => val === null || val.length > 0, 'At least one column must be selected'),
+    filterConfig: z.array(FilterRuleSchema).nullable(),
+    sortConfig: z.array(SortRuleSchema).nullable(),
+    limitConfig: z.number().int().positive().max(10_000_000).nullable(),
   })
   .superRefine((data, ctx) => {
     if (data.templateSourceType === TemplateSourceTypeEnum.CUSTOM_MESSAGE) {
@@ -127,6 +131,9 @@ export function useEmailReportForm({
           ? (initialReport.destinationConfig.templateSource.type as TemplateSourceTypeEnum)
           : TemplateSourceTypeEnum.CUSTOM_MESSAGE,
       columnConfig: initialReport?.columnConfig ?? null,
+      filterConfig: initialReport?.filterConfig ?? null,
+      sortConfig: initialReport?.sortConfig ?? null,
+      limitConfig: initialReport?.limitConfig ?? null,
     },
     mode: 'onTouched',
   });
@@ -175,6 +182,9 @@ export function useEmailReportForm({
               ? { ownerIds: pendingOwnerIdsRef.current }
               : {}),
             columnConfig: data.columnConfig,
+            filterConfig: data.filterConfig,
+            sortConfig: data.sortConfig,
+            limitConfig: data.limitConfig,
           });
         } else {
           if (!initialReport) {
@@ -189,6 +199,9 @@ export function useEmailReportForm({
               ? { ownerIds: pendingOwnerIdsRef.current }
               : {}),
             columnConfig: data.columnConfig,
+            filterConfig: data.filterConfig,
+            sortConfig: data.sortConfig,
+            limitConfig: data.limitConfig,
           });
         }
 

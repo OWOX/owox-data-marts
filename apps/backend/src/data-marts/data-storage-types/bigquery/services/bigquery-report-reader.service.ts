@@ -31,6 +31,7 @@ import { BigQueryCredentials } from '../schemas/bigquery-credentials.schema';
 import { BigQueryQueryBuilder } from './bigquery-query.builder';
 import { BigQueryReportHeadersGenerator } from './bigquery-report-headers-generator.service';
 import { DataStorageCredentialsResolver } from '../../data-storage-credentials-resolver.service';
+import type { SqlParameter } from '../../utils/sql-clause-renderer';
 
 @Injectable({ scope: Scope.TRANSIENT })
 export class BigQueryReportReader implements DataStorageReportReader {
@@ -49,6 +50,7 @@ export class BigQueryReportReader implements DataStorageReportReader {
     definitionType: DataMartDefinitionType;
   };
   private sqlOverride?: string;
+  private sqlOverrideParams?: SqlParameter[];
   private columnFilter?: string[];
 
   constructor(
@@ -86,6 +88,7 @@ export class BigQueryReportReader implements DataStorageReportReader {
       definition,
     };
     this.sqlOverride = options?.sqlOverride;
+    this.sqlOverrideParams = options?.sqlOverrideParams;
     this.columnFilter = options?.columnFilter;
 
     this.reportDataHeaders = resolveReportDataHeaders(
@@ -145,7 +148,7 @@ export class BigQueryReportReader implements DataStorageReportReader {
       // When a SQL override is present (e.g. blended SQL), bypass the
       // TABLE/CONNECTOR fast path and always execute the override query.
       if (this.sqlOverride) {
-        await this.prepareQueryData(this.sqlOverride);
+        await this.prepareQueryData(this.sqlOverride, this.sqlOverrideParams);
         return;
       }
 
@@ -164,9 +167,10 @@ export class BigQueryReportReader implements DataStorageReportReader {
           tablePath.length === 2 ? [this.contextGcpProject, ...tablePath] : tablePath;
         this.defineReportResultTable(projectId, datasetId, tableId);
       } else {
-        const query = await this.bigQueryQueryBuilder.buildQuery(dataMartDefinition, {
+        const built = await this.bigQueryQueryBuilder.buildQuery(dataMartDefinition, {
           columns: this.columnFilter,
         });
+        const query = typeof built === 'string' ? built : built.sql;
         await this.prepareQueryData(query);
       }
     } catch (error) {
@@ -175,8 +179,8 @@ export class BigQueryReportReader implements DataStorageReportReader {
     }
   }
 
-  private async prepareQueryData(query: string): Promise<void> {
-    const { jobId } = await this.adapter.executeQuery(query);
+  private async prepareQueryData(query: string, params?: SqlParameter[]): Promise<void> {
+    const { jobId } = await this.adapter.executeQuery(query, params);
     const jobResult = await this.adapter.getJob(jobId);
     const destinationTable = jobResult.metadata.configuration.query.destinationTable;
     this.defineReportResultTable(

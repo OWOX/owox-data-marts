@@ -28,6 +28,8 @@ import {
   ReportExecutionPolicyResolver,
 } from './report-execution-policy.resolver';
 import { ReportAccessService } from '../services/report-access.service';
+import { ReportSqlComposerService } from '../services/report-sql-composer.service';
+import { SqlParameter } from '../data-storage-types/utils/sql-clause-renderer';
 
 const ERROR_NAMES = {
   ABORT: 'AbortError',
@@ -91,7 +93,8 @@ export class RunReportService {
     private readonly reportExecutionPolicyResolver: ReportExecutionPolicyResolver,
     private readonly reportRunTriggerService: ReportRunTriggerService,
     private readonly reportAccessService: ReportAccessService,
-    private readonly blendedReportDataService: BlendedReportDataService
+    private readonly blendedReportDataService: BlendedReportDataService,
+    private readonly reportSqlComposerService: ReportSqlComposerService
   ) {}
 
   /**
@@ -203,8 +206,27 @@ export class RunReportService {
       // receive the result via PrepareReportDataOptions.
       const blendingDecision = await this.blendedReportDataService.resolveBlendingDecision(report);
       logBlendedSqlIfNeeded(blendingDecision, reportRunLogger);
+
+      let sqlOverride: string | undefined;
+      let sqlOverrideParams: SqlParameter[] | undefined;
+      if (blendingDecision.needsBlending) {
+        sqlOverride = blendingDecision.blendedSql;
+        sqlOverrideParams = blendingDecision.params;
+      } else if (
+        (report.filterConfig?.length ?? 0) > 0 ||
+        (report.sortConfig?.length ?? 0) > 0 ||
+        report.limitConfig != null
+      ) {
+        // Non-blended report with output controls — compose the full SQL + params here so
+        // the reader doesn't need to know about output-controls semantics.
+        const composed = await this.reportSqlComposerService.compose(report);
+        sqlOverride = composed.sql;
+        sqlOverrideParams = composed.params;
+      }
+
       const reportDataDescription = await reportReader.prepareReportData(report, {
-        sqlOverride: blendingDecision.needsBlending ? blendingDecision.blendedSql : undefined,
+        sqlOverride,
+        sqlOverrideParams,
         columnFilter: blendingDecision.columnFilter,
         blendedDataHeaders: blendingDecision.blendedDataHeaders,
       });

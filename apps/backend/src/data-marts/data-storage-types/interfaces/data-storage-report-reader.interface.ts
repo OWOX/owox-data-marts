@@ -5,6 +5,7 @@ import { Report } from '../../entities/report.entity';
 import { ReportDataDescription } from '../../dto/domain/report-data-description.dto';
 import { ReportDataBatch } from '../../dto/domain/report-data-batch.dto';
 import { DataStorageReportReaderState } from './data-storage-report-reader-state.interface';
+import { SqlParameter } from '../utils/sql-clause-renderer';
 
 /**
  * Optional runtime hints for report data preparation.
@@ -21,6 +22,8 @@ import { DataStorageReportReaderState } from './data-storage-report-reader-state
  */
 export interface PrepareReportDataOptions {
   sqlOverride?: string;
+  /** Named parameters to bind when executing `sqlOverride`. */
+  sqlOverrideParams?: SqlParameter[];
   columnFilter?: string[];
   /**
    * Precomputed headers for columns that originate from blended schema

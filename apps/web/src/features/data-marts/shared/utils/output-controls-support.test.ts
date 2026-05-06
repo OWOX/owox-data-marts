@@ -1,0 +1,21 @@
+import { describe, it, expect } from 'vitest';
+import { supportsOutputControls } from './output-controls-support';
+import { DataStorageType } from '../../../data-storage/shared/model/types/data-storage-type.enum';
+
+describe('supportsOutputControls', () => {
+  it('returns true for BigQuery', () => {
+    expect(supportsOutputControls(DataStorageType.GOOGLE_BIGQUERY)).toBe(true);
+  });
+
+  it('returns false for legacy BigQuery', () => {
+    expect(supportsOutputControls(DataStorageType.LEGACY_GOOGLE_BIGQUERY)).toBe(false);
+  });
+
+  it('returns false for non-BQ storages', () => {
+    expect(supportsOutputControls(DataStorageType.AWS_ATHENA)).toBe(false);
+    expect(supportsOutputControls(DataStorageType.SNOWFLAKE)).toBe(false);
+    expect(supportsOutputControls(DataStorageType.AWS_REDSHIFT)).toBe(false);
+    expect(supportsOutputControls(DataStorageType.DATABRICKS)).toBe(false);
+    expect(supportsOutputControls(DataStorageType.AZURE_SYNAPSE)).toBe(false);
+  });
+});

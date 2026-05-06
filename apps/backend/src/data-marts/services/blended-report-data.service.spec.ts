@@ -721,5 +721,158 @@ describe('BlendedReportDataService', () => {
       expect(context!.chains[0].relationship.id).toBe('rel-ab');
       expect(context!.chains[1].relationship.id).toBe('rel-bc');
     });
+
+    describe('resolveBlendingDecision — filter on non-selected blended column', () => {
+      it('extends join chain when filterConfig references a blended column not in columnConfig', async () => {
+        // columnConfig = ['main_a'] (native), filterConfig references 'blended_b' (blended, not selected)
+        const columnConfig = ['main_a'];
+        const report = makeReport({
+          columnConfig,
+          filterConfig: [{ column: 'blended_b', operator: 'eq', value: 1 }] as any,
+        });
+
+        const blendedField = new BlendedFieldDto();
+        blendedField.name = 'blended_b';
+        blendedField.sourceRelationshipId = 'rel-1';
+        blendedField.sourceDataMartId = 'dm-target-1';
+        blendedField.sourceDataMartTitle = 'Target DM';
+        blendedField.targetAlias = 'target_alias';
+        blendedField.originalFieldName = 'b';
+        blendedField.type = 'INTEGER';
+        blendedField.isHidden = false;
+        blendedField.aggregateFunction = 'SUM';
+        blendedField.transitiveDepth = 1;
+        blendedField.aliasPath = 'target_alias';
+        blendedField.outputPrefix = 'target_alias';
+
+        blendableSchemaService.computeBlendableSchema.mockResolvedValue({
+          nativeFields: [],
+          availableSources: [
+            {
+              aliasPath: 'target_alias',
+              title: 'Target DM',
+              defaultAlias: 'target_alias',
+              depth: 1,
+              fieldCount: 1,
+              isIncluded: true,
+              relationshipId: 'rel-1',
+              dataMartId: 'dm-target-1',
+            },
+          ],
+          blendedFields: [blendedField],
+        });
+
+        const mockRelationship = {
+          id: 'rel-1',
+          targetAlias: 'target_alias',
+          sourceDataMart: { id: 'dm-1' },
+          targetDataMart: { id: 'dm-target-1', title: 'Target DM' },
+          joinConditions: [],
+        } as unknown as DataMartRelationship;
+
+        relationshipService.findBySourceDataMartId.mockResolvedValue([mockRelationship]);
+        tableReferenceService.resolveTableName
+          .mockResolvedValueOnce('`project.dataset.main_table`')
+          .mockResolvedValueOnce('`project.dataset.target_table`');
+        blendedQueryBuilderFacade.buildBlendedQuery.mockResolvedValue('SELECT ...');
+
+        const result = await service.resolveBlendingDecision(report);
+
+        // hasBlendedColumns must be true because filter references a blended column
+        expect(result.needsBlending).toBe(true);
+        expect(blendedQueryBuilderFacade.buildBlendedQuery).toHaveBeenCalled();
+
+        const [, context] = blendedQueryBuilderFacade.buildBlendedQuery.mock.calls[0];
+        expect(context!.chains).toHaveLength(1);
+
+        const chain = context!.chains[0];
+        expect(chain.relationship.id).toBe('rel-1');
+        // The blended_b field must be present in the chain
+        expect(chain.blendedFields).toHaveLength(1);
+        expect(chain.blendedFields[0].outputAlias).toBe('blended_b');
+        // It is referenced only via filterConfig, so it must be hidden
+        expect(chain.blendedFields[0].isHidden).toBe(true);
+      });
+
+      it('does not include blended chain if filterConfig references only a native column', async () => {
+        const columnConfig = ['main_a'];
+        const report = makeReport({
+          columnConfig,
+          filterConfig: [{ column: 'main_x', operator: 'eq', value: 'foo' }] as any,
+        });
+
+        blendableSchemaService.computeBlendableSchema.mockResolvedValue(
+          makeBlendableSchema(['blended_field'])
+        );
+
+        const result = await service.resolveBlendingDecision(report);
+
+        // Neither columnConfig nor filterConfig references a blended column
+        expect(result.needsBlending).toBe(false);
+        expect(blendedQueryBuilderFacade.buildBlendedQuery).not.toHaveBeenCalled();
+      });
+
+      it('keeps isHidden=false when a blended field appears in both columnConfig and filterConfig', async () => {
+        const columnConfig = ['blended_b'];
+        const report = makeReport({
+          columnConfig,
+          filterConfig: [{ column: 'blended_b', operator: 'eq', value: 42 }] as any,
+        });
+
+        const blendedField = new BlendedFieldDto();
+        blendedField.name = 'blended_b';
+        blendedField.sourceRelationshipId = 'rel-1';
+        blendedField.sourceDataMartId = 'dm-target-1';
+        blendedField.sourceDataMartTitle = 'Target DM';
+        blendedField.targetAlias = 'target_alias';
+        blendedField.originalFieldName = 'b';
+        blendedField.type = 'INTEGER';
+        blendedField.isHidden = false;
+        blendedField.aggregateFunction = 'SUM';
+        blendedField.transitiveDepth = 1;
+        blendedField.aliasPath = 'target_alias';
+        blendedField.outputPrefix = 'target_alias';
+
+        blendableSchemaService.computeBlendableSchema.mockResolvedValue({
+          nativeFields: [],
+          availableSources: [
+            {
+              aliasPath: 'target_alias',
+              title: 'Target DM',
+              defaultAlias: 'target_alias',
+              depth: 1,
+              fieldCount: 1,
+              isIncluded: true,
+              relationshipId: 'rel-1',
+              dataMartId: 'dm-target-1',
+            },
+          ],
+          blendedFields: [blendedField],
+        });
+
+        const mockRelationship = {
+          id: 'rel-1',
+          targetAlias: 'target_alias',
+          sourceDataMart: { id: 'dm-1' },
+          targetDataMart: { id: 'dm-target-1', title: 'Target DM' },
+          joinConditions: [],
+        } as unknown as DataMartRelationship;
+
+        relationshipService.findBySourceDataMartId.mockResolvedValue([mockRelationship]);
+        tableReferenceService.resolveTableName.mockResolvedValue('table_ref');
+        blendedQueryBuilderFacade.buildBlendedQuery.mockResolvedValue('SELECT ...');
+
+        const result = await service.resolveBlendingDecision(report);
+
+        expect(result.needsBlending).toBe(true);
+
+        const [, context] = blendedQueryBuilderFacade.buildBlendedQuery.mock.calls[0];
+        expect(context!.chains).toHaveLength(1);
+        const field = context!.chains[0].blendedFields[0];
+        expect(field.outputAlias).toBe('blended_b');
+        // Present in columnConfig → must NOT be hidden
+        expect(field.isHidden).toBe(false);
+      });
+    });
   });
 });

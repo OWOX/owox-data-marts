@@ -64,6 +64,8 @@ export type DestinationConfigDto =
   | LookerStudioDestinationConfigDto
   | EmailDestinationConfigDto;
 
+import type { FilterRule, SortRule } from '../../../../shared/types/output-config';
+
 /**
  * DTO for updating an existing report
  */
@@ -73,4 +75,7 @@ export interface UpdateReportRequestDto {
   destinationConfig: DestinationConfigDto;
   ownerIds?: string[];
   columnConfig?: string[] | null;
+  filterConfig?: FilterRule[] | null;
+  sortConfig?: SortRule[] | null;
+  limitConfig?: number | null;
 }

@@ -92,7 +92,8 @@ export class BigQueryDataMartSchemaProvider implements DataMartSchemaProvider {
       };
     }
 
-    const query = await this.bigQueryQueryBuilder.buildQuery(dataMartDefinition);
+    const built = await this.bigQueryQueryBuilder.buildQuery(dataMartDefinition);
+    const query = typeof built === 'string' ? built : built.sql;
     const dryRunResult = await adapter.executeDryRunQuery(query);
     return { schema: dryRunResult.schema };
   }

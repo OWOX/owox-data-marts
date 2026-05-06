@@ -1,8 +1,9 @@
-import { BigQuery, Job, Table, TableSchema } from '@google-cloud/bigquery';
+import { BigQuery, Job, Query, Table, TableSchema } from '@google-cloud/bigquery';
 import { Logger } from '@nestjs/common';
 import { JWT, OAuth2Client } from 'google-auth-library';
 import { BIGQUERY_AUTODETECT_LOCATION, BigQueryConfig } from '../schemas/bigquery-config.schema';
 import { BIGQUERY_OAUTH_TYPE, BigQueryCredentials } from '../schemas/bigquery-credentials.schema';
+import type { SqlParameter } from '../../utils/sql-clause-renderer';
 
 /**
  * Adapter for BigQuery API operations.
@@ -47,13 +48,32 @@ export class BigQueryApiAdapter {
   }
 
   /**
-   * Executes a SQL query
+   * Executes a SQL query.
+   * When params are provided, BigQuery named parameter mode is used (@paramName placeholders).
+   * The SDK infers types from JS values (string, number, boolean, Date).
+   * null values are accepted by the SDK but may require explicit typed params in some edge cases.
    */
-  public async executeQuery(query: string): Promise<{ jobId: string }> {
-    const [, , res] = await this.bigQuery.query(query, {
-      maxResults: 0,
-      ...this.getLocationOption(),
-    });
+  public async executeQuery(query: string, params?: SqlParameter[]): Promise<{ jobId: string }> {
+    const queryConfig: Query =
+      params && params.length > 0
+        ? {
+            query,
+            params: Object.fromEntries(params.map(p => [p.name, p.value])),
+            parameterMode: 'NAMED',
+            maxResults: 0,
+            ...this.getLocationOption(),
+          }
+        : {
+            query,
+            maxResults: 0,
+            ...this.getLocationOption(),
+          };
+    // The Query-object overload is typed as SimpleQueryRowsResponse (2-tuple) but at runtime
+    // BigQuery always returns the raw API response as the third element when maxResults=0.
+    // Double-cast through unknown to satisfy the 3-tuple destructure.
+    const [, , res] = await (this.bigQuery.query(queryConfig) as unknown as Promise<
+      [unknown, unknown, { jobReference?: { jobId?: string; location?: string } }]
+    >);
     if (!res || !res.jobReference || !res.jobReference.jobId) {
       throw new Error('Unexpected error during getting sql result job id');
     }

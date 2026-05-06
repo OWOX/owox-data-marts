@@ -9,6 +9,7 @@ import type {
 import { isLookerStudioDestinationConfig } from '../../shared/model/types/data-mart-report.ts';
 import { DEFAULT_REPORT_TITLE, DestinationTypeConfigEnum, useReport } from '../../shared';
 import type { DataDestination } from '../../../../data-destination/shared/model/types';
+import { FilterRuleSchema, SortRuleSchema } from '../../../shared/types/output-config';
 
 // Define the form schema - simplified for editing existing reports
 const lookerStudioReportFormSchema = z.object({
@@ -17,6 +18,9 @@ const lookerStudioReportFormSchema = z.object({
     .array(z.string())
     .nullable()
     .refine(val => val === null || val.length > 0, 'At least one column must be selected'),
+  filterConfig: z.array(FilterRuleSchema).nullable(),
+  sortConfig: z.array(SortRuleSchema).nullable(),
+  limitConfig: z.number().int().positive().max(10_000_000).nullable(),
 });
 
 // Define the form data type
@@ -49,6 +53,9 @@ export function useLookerStudioReportForm({
           ? initialReport.destinationConfig.cacheLifetime
           : 300,
       columnConfig: initialReport?.columnConfig ?? null,
+      filterConfig: initialReport?.filterConfig ?? null,
+      sortConfig: initialReport?.sortConfig ?? null,
+      limitConfig: initialReport?.limitConfig ?? null,
     },
     mode: 'onTouched',
   });
@@ -74,6 +81,9 @@ export function useLookerStudioReportForm({
           destinationConfig,
           ...(pendingOwnerIdsRef?.current != null ? { ownerIds: pendingOwnerIdsRef.current } : {}),
           columnConfig: data.columnConfig,
+          filterConfig: data.filterConfig,
+          sortConfig: data.sortConfig,
+          limitConfig: data.limitConfig,
         });
       } else {
         // This shouldn't happen in our use case, but keeping for compatibility
@@ -84,6 +94,9 @@ export function useLookerStudioReportForm({
           destinationConfig,
           ...(pendingOwnerIdsRef?.current != null ? { ownerIds: pendingOwnerIdsRef.current } : {}),
           columnConfig: data.columnConfig,
+          filterConfig: data.filterConfig,
+          sortConfig: data.sortConfig,
+          limitConfig: data.limitConfig,
         });
       }
       onSuccess?.();

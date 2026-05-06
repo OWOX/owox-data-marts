@@ -51,6 +51,7 @@ export class GetReportGeneratedSqlService {
       );
     }
 
-    return this.reportSqlComposerService.compose(report);
+    const { sql } = await this.reportSqlComposerService.compose(report);
+    return { sql };
   }
 }
