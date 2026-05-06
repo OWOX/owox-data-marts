@@ -72,7 +72,7 @@ export function useGoogleSheetsReportForm({
   });
 
   const { register, handleSubmit, formState, reset } = form;
-  const { errors, isDirty } = formState;
+  const { errors, isDirty, isValid } = formState;
 
   const onSubmit = useCallback(
     async (data: GoogleSheetsReportEditFormValues) => {
@@ -166,6 +166,7 @@ export function useGoogleSheetsReportForm({
     handleSubmit,
     errors,
     isDirty,
+    isValid,
     reset,
     formError,
     isSubmitting,

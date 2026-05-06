@@ -220,6 +220,7 @@ export const EmailReportEditForm = forwardRef<HTMLFormElement, EmailReportEditFo
 
     const {
       isDirty,
+      isValid,
       reset,
       form,
       isSubmitting,
@@ -976,6 +977,7 @@ export const EmailReportEditForm = forwardRef<HTMLFormElement, EmailReportEditFo
               mode={mode}
               isSubmitting={isSubmitting}
               isDirty={isDirty}
+              isValid={isValid}
               triggersDirty={triggersDirty}
               ownersDirty={ownersDirty}
               runAfterSaveRef={runAfterSaveRef}
