@@ -35,19 +35,19 @@ const ACCORDION_VARIANTS: Record<
       'text-muted-foreground pointer-events-none size-4 shrink-0 translate-y-0.5 transition-transform duration-200',
     contentClass:
       'data-[state=closed]:animate-accordion-up data-[state=open]:animate-accordion-down overflow-hidden text-sm',
-    contentInnerClass: 'pt-0 pb-4',
+    contentInnerClass: 'pt-0 pb-4 space-y-2',
     headerClass: 'flex',
   },
   common: {
     itemClass: 'overflow-hidden',
     triggerClass:
-      'group focus-visible:ring-primary hover:bg-muted [&[data-state=open]]:bg-muted flex items-center gap-1 rounded-sm px-2 py-1 transition-all outline-none focus-visible:ring-2 [&[data-state=open]]:rounded-br-none [&[data-state=open]]:rounded-bl-none [&[data-state=open]]:font-semibold',
+      'group focus-visible:ring-primary hover:bg-muted [&[data-state=open]]:bg-muted flex items-center gap-1 rounded-sm px-2 py-1 transition-all outline-none focus-visible:ring-2 [&[data-state=open]]:rounded-br-none [&[data-state=open]]:rounded-bl-none [&[data-state=open]]:font-semibold text-muted-foreground text-sm text-left leading-tight',
     icon: <MessageCircleQuestion className='size-4 shrink-0' aria-hidden='true' />,
     chevronClass:
       'size-3.5 shrink-0 transition-transform duration-200 group-data-[state=open]:rotate-180',
     contentClass:
-      'data-[state=closed]:animate-accordion-up data-[state=open]:animate-accordion-down bg-muted overflow-hidden rounded-sm rounded-tl-none py-0 pr-2 pl-7 text-sm',
-    contentInnerClass: 'pt-2 pb-4',
+      'data-[state=closed]:animate-accordion-up data-[state=open]:animate-accordion-down bg-muted overflow-hidden rounded-sm rounded-tl-none py-0 pr-2 pl-7',
+    contentInnerClass: 'pt-2 pb-4 space-y-2 text-sm text-muted-foreground',
     headerClass: undefined,
   },
 };

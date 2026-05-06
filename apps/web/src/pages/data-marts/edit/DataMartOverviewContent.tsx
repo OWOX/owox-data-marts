@@ -74,12 +74,17 @@ export default function DataMartOverviewContent() {
 
   const handleAvailabilityChange = useCallback(
     async (reporting: boolean, maintenance: boolean) => {
-      await dataMartService.updateDataMartAvailability(dataMart.id, {
-        availableForReporting: reporting,
-        availableForMaintenance: maintenance,
-      });
-      toast.success('Availability updated');
-      void getDataMart(dataMart.id);
+      try {
+        await dataMartService.updateDataMartAvailability(dataMart.id, {
+          availableForReporting: reporting,
+          availableForMaintenance: maintenance,
+        });
+        toast.success('Availability updated');
+      } catch (error) {
+        toast.error(error instanceof Error ? error.message : 'Failed to update availability');
+      } finally {
+        void getDataMart(dataMart.id);
+      }
     },
     [dataMart.id, getDataMart]
   );
@@ -173,23 +178,19 @@ export default function DataMartOverviewContent() {
               />
               <Accordion variant='common' type='single' collapsible>
                 <AccordionItem value='technical-owner-help'>
-                  <AccordionTrigger className='text-muted-foreground text-sm'>
-                    What is a Technical Owner?
-                  </AccordionTrigger>
+                  <AccordionTrigger>What is a Technical Owner?</AccordionTrigger>
                   <AccordionContent>
-                    <div className='text-muted-foreground space-y-2 text-sm'>
-                      <p>Technical Owner is direct maintenance ownership of this Data Mart.</p>
-                      <p>
-                        When the owner&apos;s role is Technical User or Project Admin, they may edit
-                        and delete the Data Mart, configure its Availability, and maintain its
-                        Triggers, Reports and nested Report Triggers — regardless of Availability
-                        settings.
-                      </p>
-                      <p>
-                        Assigning Technical Owner to a Business User stores the assignment but
-                        grants no maintenance permissions until the role changes.
-                      </p>
-                    </div>
+                    <p>Technical Owner is direct maintenance ownership of this Data Mart.</p>
+                    <p>
+                      When the owner&apos;s role is Technical User or Project Admin, they may edit
+                      and delete the Data Mart, configure its Availability, and maintain its
+                      Triggers, Reports and nested Report Triggers — regardless of Availability
+                      settings.
+                    </p>
+                    <p>
+                      Assigning Technical Owner to a Business User stores the assignment but grants
+                      no maintenance permissions until the role changes.
+                    </p>
                   </AccordionContent>
                 </AccordionItem>
               </Accordion>
@@ -229,22 +230,18 @@ export default function DataMartOverviewContent() {
               />
               <Accordion variant='common' type='single' collapsible>
                 <AccordionItem value='business-owner-help'>
-                  <AccordionTrigger className='text-muted-foreground text-sm'>
-                    What is a Business Owner?
-                  </AccordionTrigger>
+                  <AccordionTrigger>What is a Business Owner?</AccordionTrigger>
                   <AccordionContent>
-                    <div className='text-muted-foreground space-y-2 text-sm'>
-                      <p>Business Owner is direct reporting ownership of this Data Mart.</p>
-                      <p>
-                        Business Owners may see the Data Mart in the catalog, open it, use it for
-                        reporting, and see its Triggers, Reports and nested Report Triggers —
-                        regardless of Availability settings.
-                      </p>
-                      <p>
-                        This role does not grant editing, deleting, Sharing management, Trigger
-                        maintenance, or changing owners.
-                      </p>
-                    </div>
+                    <p>Business Owner is direct reporting ownership of this Data Mart.</p>
+                    <p>
+                      Business Owners may see the Data Mart in the catalog, open it, use it for
+                      reporting, and see its Triggers, Reports and nested Report Triggers —
+                      regardless of Availability settings.
+                    </p>
+                    <p>
+                      This role does not grant editing, deleting, Sharing management, Trigger
+                      maintenance, or changing owners.
+                    </p>
                   </AccordionContent>
                 </AccordionItem>
               </Accordion>
@@ -272,7 +269,7 @@ export default function DataMartOverviewContent() {
                   checked={availableForMaintenance}
                   onCheckedChange={v => {
                     setAvailableForMaintenance(v);
-                    void handleAvailabilityChange(availableForReporting, v).catch(console.error);
+                    void handleAvailabilityChange(availableForReporting, v);
                   }}
                 />
                 <label
@@ -287,17 +284,15 @@ export default function DataMartOverviewContent() {
               </p>
               <Accordion variant='common' type='single' collapsible>
                 <AccordionItem value='maintenance-help'>
-                  <AccordionTrigger className='text-muted-foreground text-sm'>
+                  <AccordionTrigger>
                     What does &quot;Available for maintenance&quot; mean?
                   </AccordionTrigger>
                   <AccordionContent>
-                    <div className='text-muted-foreground space-y-2 text-sm'>
-                      <p>
-                        When enabled, Technical Users who are not owners can edit the Data Mart
-                        definition, delete it, and manage its scheduled triggers.
-                      </p>
-                      <p>Business Users are not affected by this setting.</p>
-                    </div>
+                    <p>
+                      When enabled, Technical Users who are not owners can edit the Data Mart
+                      definition, delete it, and manage its scheduled triggers.
+                    </p>
+                    <p>Business Users are not affected by this setting.</p>
                   </AccordionContent>
                 </AccordionItem>
               </Accordion>
@@ -324,17 +319,15 @@ export default function DataMartOverviewContent() {
               </p>
               <Accordion variant='common' type='single' collapsible>
                 <AccordionItem value='reporting-help'>
-                  <AccordionTrigger className='text-muted-foreground text-sm'>
+                  <AccordionTrigger>
                     What does &quot;Available for reporting&quot; mean?
                   </AccordionTrigger>
                   <AccordionContent>
-                    <div className='text-muted-foreground space-y-2 text-sm'>
-                      <p>
-                        When enabled, all project members (both Technical and Business Users) can
-                        see this Data Mart in the catalog and use it to create reports.
-                      </p>
-                      <p>Owners always have access regardless of this setting.</p>
-                    </div>
+                    <p>
+                      When enabled, all project members (both Technical and Business Users) can see
+                      this Data Mart in the catalog and use it to create reports.
+                    </p>
+                    <p>Owners always have access regardless of this setting.</p>
                   </AccordionContent>
                 </AccordionItem>
               </Accordion>
@@ -365,24 +358,20 @@ export default function DataMartOverviewContent() {
             </div>
             <Accordion variant='common' type='single' collapsible>
               <AccordionItem value='contexts-help'>
-                <AccordionTrigger className='text-muted-foreground text-sm'>
-                  What are Contexts?
-                </AccordionTrigger>
+                <AccordionTrigger>What are Contexts?</AccordionTrigger>
                 <AccordionContent>
-                  <div className='text-muted-foreground space-y-2 text-sm'>
-                    <p>
-                      Contexts are business domains (e.g. Marketing, Finance, Sales) used to group
-                      Data Marts, Storages and Destinations.
-                    </p>
-                    <p>
-                      They also control access: a member with the role scope limited to specific
-                      contexts will only see resources assigned to those contexts.
-                    </p>
-                    <p>
-                      Assign one or more contexts to make this Data Mart discoverable to the right
-                      people.
-                    </p>
-                  </div>
+                  <p>
+                    Contexts are business domains (e.g. Marketing, Finance, Sales) used to group
+                    Data Marts, Storages and Destinations.
+                  </p>
+                  <p>
+                    They also control access: a member with the role scope limited to specific
+                    contexts will only see resources assigned to those contexts.
+                  </p>
+                  <p>
+                    Assign one or more contexts to make this Data Mart discoverable to the right
+                    people.
+                  </p>
                 </AccordionContent>
               </AccordionItem>
             </Accordion>
