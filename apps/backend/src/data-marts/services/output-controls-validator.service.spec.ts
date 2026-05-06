@@ -87,6 +87,32 @@ describe('OutputControlsValidatorService', () => {
       ];
       expect(svc.validateFilters(filters, types)).toEqual([]);
     });
+
+    it('accepts a valid regex on STRING', () => {
+      const errors = svc.validateFilters(
+        [{ column: 'name', operator: 'regex', value: '^foo$' }],
+        fieldTypes
+      );
+      expect(errors).toEqual([]);
+    });
+
+    it('rejects unparseable regex on STRING with INVALID_REGEX_PATTERN', () => {
+      const errors = svc.validateFilters(
+        [{ column: 'name', operator: 'regex', value: '[unclosed' }],
+        fieldTypes
+      );
+      expect(errors).toEqual([
+        { code: 'INVALID_REGEX_PATTERN', column: 'name', pattern: '[unclosed' },
+      ]);
+    });
+
+    it('rejects unparseable not_regex on STRING with INVALID_REGEX_PATTERN', () => {
+      const errors = svc.validateFilters(
+        [{ column: 'name', operator: 'not_regex', value: '*' }],
+        fieldTypes
+      );
+      expect(errors[0]).toMatchObject({ code: 'INVALID_REGEX_PATTERN', column: 'name' });
+    });
   });
 
   describe('validateSort', () => {
@@ -335,6 +361,94 @@ describe('OutputControlsValidatorService', () => {
           limitConfig: null,
         })
       ).resolves.toBeUndefined();
+    });
+
+    it('rejects payload with mismatched filter shape via Zod (defence-in-depth)', async () => {
+      // class-validator passes shapeless arrays; the validator must catch
+      // discriminator violations (between operator with scalar value, etc.).
+      const capabilitySvc = makeCapabilityService(true);
+      const schemaSvc = makeBlendableSchemaService([
+        { name: 'amount', type: BigQueryFieldType.INTEGER },
+      ]);
+      const validator = new OutputControlsValidatorService(
+        capabilitySvc as never,
+        schemaSvc as never
+      );
+
+      let caught: BadRequestException | undefined;
+      try {
+        await validator.validateForReport({
+          storageType: supportedStorageType,
+          dataMartId: 'dm-1',
+          projectId: 'proj-1',
+          columnConfig: ['amount'],
+          // 'between' requires { from, to }; passing a scalar should be rejected.
+          filterConfig: [{ column: 'amount', operator: 'between', value: 5 }] as never,
+          sortConfig: null,
+          limitConfig: null,
+        });
+      } catch (e) {
+        caught = e as BadRequestException;
+      }
+
+      expect(caught).toBeDefined();
+      const response = caught!.getResponse() as { message: string };
+      expect(response.message).toContain('invalid shape');
+      expect(schemaSvc.computeBlendableSchema).not.toHaveBeenCalled();
+    });
+
+    it('rejects sortConfig with invalid direction via Zod (defence-in-depth)', async () => {
+      const capabilitySvc = makeCapabilityService(true);
+      const schemaSvc = makeBlendableSchemaService([
+        { name: 'amount', type: BigQueryFieldType.INTEGER },
+      ]);
+      const validator = new OutputControlsValidatorService(
+        capabilitySvc as never,
+        schemaSvc as never
+      );
+
+      await expect(
+        validator.validateForReport({
+          storageType: supportedStorageType,
+          dataMartId: 'dm-1',
+          projectId: 'proj-1',
+          columnConfig: ['amount'],
+          filterConfig: null,
+          sortConfig: [{ column: 'amount', direction: 'sideways' }] as never,
+          limitConfig: null,
+        })
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('rejects relative_date with n above bound via Zod', async () => {
+      const capabilitySvc = makeCapabilityService(true);
+      const schemaSvc = makeBlendableSchemaService([
+        { name: 'created_at', type: BigQueryFieldType.TIMESTAMP },
+      ]);
+      const validator = new OutputControlsValidatorService(
+        capabilitySvc as never,
+        schemaSvc as never
+      );
+
+      await expect(
+        validator.validateForReport({
+          storageType: supportedStorageType,
+          dataMartId: 'dm-1',
+          projectId: 'proj-1',
+          columnConfig: ['created_at'],
+          // n=10000 exceeds the 3650 cap (~10 years), preventing accidental
+          // expensive scans like INTERVAL 9999999999 DAY.
+          filterConfig: [
+            {
+              column: 'created_at',
+              operator: 'relative_date',
+              value: { kind: 'last_n_days', n: 10_000 },
+            },
+          ],
+          sortConfig: null,
+          limitConfig: null,
+        })
+      ).rejects.toThrow(BadRequestException);
     });
 
     it('passes happy path with valid filter and sort', async () => {

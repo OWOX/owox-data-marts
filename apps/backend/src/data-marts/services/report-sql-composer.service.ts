@@ -1,17 +1,19 @@
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
 import { DataMartQueryBuilderFacade } from '../data-storage-types/facades/data-mart-query-builder.facade';
 import { Report } from '../entities/report.entity';
 import { BlendedReportDataService } from './blended-report-data.service';
 import { isQueryBuildResult } from '../data-storage-types/interfaces/data-mart-query-builder.interface';
 import { DataMartTableReferenceService } from './data-mart-table-reference.service';
 import { SqlParameter } from '../data-storage-types/utils/sql-clause-renderer';
+import { OutputControlsCapabilityService } from './output-controls-capability.service';
 
 @Injectable()
 export class ReportSqlComposerService {
   constructor(
     private readonly blendedReportDataService: BlendedReportDataService,
     private readonly queryBuilderFacade: DataMartQueryBuilderFacade,
-    private readonly tableReferenceService: DataMartTableReferenceService
+    private readonly tableReferenceService: DataMartTableReferenceService,
+    private readonly capabilityService: OutputControlsCapabilityService
   ) {}
 
   async compose(report: Report): Promise<{ sql: string; params?: SqlParameter[] }> {
@@ -30,6 +32,15 @@ export class ReportSqlComposerService {
       (report.filterConfig?.length ?? 0) > 0 ||
       (report.sortConfig?.length ?? 0) > 0 ||
       report.limitConfig != null;
+
+    if (hasOutputControls && !this.capabilityService.isSupported(dataMart.storage.type)) {
+      throw new BadRequestException({
+        message: 'Output controls not yet supported for this storage type',
+        details: {
+          errors: [{ code: 'OUTPUT_CONTROLS_NOT_SUPPORTED', storageType: dataMart.storage.type }],
+        },
+      });
+    }
 
     let mainTableReference: string | undefined;
     if (hasOutputControls) {

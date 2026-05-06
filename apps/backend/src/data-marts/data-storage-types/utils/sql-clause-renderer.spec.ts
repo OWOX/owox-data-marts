@@ -54,10 +54,14 @@ describe('SqlClauseRenderer', () => {
 
   it('renders LIMIT', () => {
     expect(r.renderLimit(100).sql).toBe('\nLIMIT 100');
+    expect(r.renderLimit(0).sql).toBe('\nLIMIT 0');
   });
 
-  it('floors fractional limit values', () => {
-    expect(r.renderLimit(10.7).sql).toBe('\nLIMIT 10');
+  it('rejects fractional, negative, NaN, and Infinity limits as defence-in-depth', () => {
+    expect(() => r.renderLimit(10.7)).toThrow(/Invalid LIMIT value/);
+    expect(() => r.renderLimit(-1)).toThrow(/Invalid LIMIT value/);
+    expect(() => r.renderLimit(NaN)).toThrow(/Invalid LIMIT value/);
+    expect(() => r.renderLimit(Infinity)).toThrow(/Invalid LIMIT value/);
   });
 
   it('omits LIMIT when null or undefined', () => {

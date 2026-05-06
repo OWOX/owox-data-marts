@@ -98,7 +98,10 @@ function buildRule(args: { column: string; fieldType: string; state: EditorState
     }
     const from = parseScalar(state.betweenFrom, fieldType);
     const to = parseScalar(state.betweenTo, fieldType);
-    if (typeof from === 'number' && typeof to === 'number' && from > to) {
+    const numericOutOfOrder = typeof from === 'number' && typeof to === 'number' && from > to;
+    const dateOutOfOrder =
+      typeof from === 'string' && typeof to === 'string' && DATE_TYPES.has(fieldType) && from > to;
+    if (numericOutOfOrder || dateOutOfOrder) {
       throw new Error('"From" must be ≤ "To"');
     }
     return { column, operator: 'between', value: { from, to } };

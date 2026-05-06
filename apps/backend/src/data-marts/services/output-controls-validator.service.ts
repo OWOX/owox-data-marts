@@ -1,6 +1,6 @@
 import { Injectable, BadRequestException } from '@nestjs/common';
-import { FilterConfig, FilterRule } from '../dto/schemas/filter-config.schema';
-import { SortConfig, SortRule } from '../dto/schemas/sort-config.schema';
+import { FilterConfig, FilterConfigSchema, FilterRule } from '../dto/schemas/filter-config.schema';
+import { SortConfig, SortConfigSchema, SortRule } from '../dto/schemas/sort-config.schema';
 import { DataStorageType } from '../data-storage-types/enums/data-storage-type.enum';
 import { OutputControlsCapabilityService } from './output-controls-capability.service';
 import { BlendableSchemaService } from './blendable-schema.service';
@@ -8,6 +8,7 @@ import { BlendableSchemaService } from './blendable-schema.service';
 export type ValidationError =
   | { code: 'FILTER_COLUMN_UNKNOWN'; column: string }
   | { code: 'INVALID_OPERATOR_FOR_TYPE'; column: string; type: string; operator: string }
+  | { code: 'INVALID_REGEX_PATTERN'; column: string; pattern: string }
   | { code: 'SORT_COLUMN_NOT_SELECTED'; column: string };
 
 const STRING_TYPES = new Set(['STRING']);
@@ -82,6 +83,15 @@ export class OutputControlsValidatorService {
           type,
           operator: rule.operator,
         });
+        continue;
+      }
+      if (rule.operator === 'regex' || rule.operator === 'not_regex') {
+        const pattern = String(rule.value);
+        try {
+          new RegExp(pattern);
+        } catch {
+          errors.push({ code: 'INVALID_REGEX_PATTERN', column: rule.column, pattern });
+        }
       }
     }
     return errors;
@@ -126,9 +136,32 @@ export class OutputControlsValidatorService {
       });
     }
 
+    let parsedFilters: FilterRule[] = [];
+    let parsedSort: SortRule[] = [];
+    if ((args.filterConfig?.length ?? 0) > 0) {
+      const result = FilterConfigSchema.safeParse(args.filterConfig);
+      if (!result.success) {
+        throw new BadRequestException({
+          message: 'Filter config has invalid shape',
+          details: { errors: result.error.issues },
+        });
+      }
+      parsedFilters = result.data ?? [];
+    }
+    if ((args.sortConfig?.length ?? 0) > 0) {
+      const result = SortConfigSchema.safeParse(args.sortConfig);
+      if (!result.success) {
+        throw new BadRequestException({
+          message: 'Sort config has invalid shape',
+          details: { errors: result.error.issues },
+        });
+      }
+      parsedSort = result.data ?? [];
+    }
+
     const errors: ValidationError[] = [];
 
-    if ((args.filterConfig?.length ?? 0) > 0 || (args.sortConfig?.length ?? 0) > 0) {
+    if (parsedFilters.length > 0 || parsedSort.length > 0) {
       const blendableSchema = await this.blendableSchemaService.computeBlendableSchema(
         args.dataMartId,
         args.projectId
@@ -142,12 +175,12 @@ export class OutputControlsValidatorService {
         fieldTypes.set(blended.name, blended.type);
       }
 
-      if ((args.filterConfig?.length ?? 0) > 0) {
-        errors.push(...this.validateFilters(args.filterConfig!, fieldTypes));
+      if (parsedFilters.length > 0) {
+        errors.push(...this.validateFilters(parsedFilters, fieldTypes));
       }
-      if ((args.sortConfig?.length ?? 0) > 0) {
+      if (parsedSort.length > 0) {
         const selectedSet = new Set(args.columnConfig ?? Array.from(fieldTypes.keys()));
-        errors.push(...this.validateSort(args.sortConfig!, selectedSet));
+        errors.push(...this.validateSort(parsedSort, selectedSet));
       }
     }
 

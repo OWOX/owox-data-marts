@@ -8,8 +8,8 @@ const RelativeDatePresetSchema = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('this_month') }),
   z.object({ kind: z.literal('last_month') }),
   z.object({ kind: z.literal('this_year') }),
-  z.object({ kind: z.literal('last_n_days'), n: z.number().int().positive() }),
-  z.object({ kind: z.literal('last_n_months'), n: z.number().int().positive() }),
+  z.object({ kind: z.literal('last_n_days'), n: z.number().int().positive().max(3650) }),
+  z.object({ kind: z.literal('last_n_months'), n: z.number().int().positive().max(3650) }),
 ]);
 
 const ScalarOperatorEnum = z.enum([

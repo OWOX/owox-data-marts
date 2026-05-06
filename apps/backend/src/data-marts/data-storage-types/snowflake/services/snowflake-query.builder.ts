@@ -46,7 +46,10 @@ export class SnowflakeQueryBuilder implements DataMartQueryBuilder {
       throw new Error('Invalid data mart definition');
     }
 
-    if (queryOptions?.limit !== undefined) {
+    if (queryOptions?.limit !== undefined && queryOptions.limit !== null) {
+      if (!Number.isInteger(queryOptions.limit) || queryOptions.limit < 0) {
+        throw new Error(`Invalid LIMIT value: ${String(queryOptions.limit)}`);
+      }
       const cleanQuery = query.trim().endsWith(';') ? query.trim().slice(0, -1) : query.trim();
       query = `SELECT * FROM (${cleanQuery}) LIMIT ${queryOptions.limit}`;
     }

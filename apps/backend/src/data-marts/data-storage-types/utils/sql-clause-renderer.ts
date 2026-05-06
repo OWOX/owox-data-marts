@@ -38,6 +38,9 @@ export abstract class SqlClauseRenderer {
 
   renderLimit(limit: number | null | undefined): RenderedClause {
     if (limit == null) return { sql: '', params: [] };
-    return { sql: `\nLIMIT ${Math.floor(limit)}`, params: [] };
+    if (!Number.isInteger(limit) || limit < 0) {
+      throw new Error(`Invalid LIMIT value: ${String(limit)}`);
+    }
+    return { sql: `\nLIMIT ${limit}`, params: [] };
   }
 }

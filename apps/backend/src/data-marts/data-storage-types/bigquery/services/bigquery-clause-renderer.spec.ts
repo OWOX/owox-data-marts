@@ -18,21 +18,31 @@ describe('BigQueryClauseRenderer', () => {
       expect(r.renderWhere([{ column: 'a', operator: 'gte', value: 1 }]).sql).toContain('>=');
       expect(r.renderWhere([{ column: 'a', operator: 'lte', value: 1 }]).sql).toContain('<=');
     });
-    it('contains uses LIKE with %wrap', () => {
+    it('contains uses STRPOS with raw value (no wildcard smuggling)', () => {
       const out = r.renderWhere([{ column: 'a', operator: 'contains', value: 'foo' }]);
-      expect(out.sql).toBe('\nWHERE `a` LIKE @p0');
-      expect(out.params).toEqual([{ name: 'p0', value: '%foo%' }]);
+      expect(out.sql).toBe('\nWHERE STRPOS(`a`, @p0) > 0');
+      expect(out.params).toEqual([{ name: 'p0', value: 'foo' }]);
     });
     it('not_contains', () => {
-      expect(r.renderWhere([{ column: 'a', operator: 'not_contains', value: 'X' }]).sql).toBe(
-        '\nWHERE `a` NOT LIKE @p0'
-      );
+      const out = r.renderWhere([{ column: 'a', operator: 'not_contains', value: 'X' }]);
+      expect(out.sql).toBe('\nWHERE STRPOS(`a`, @p0) = 0');
+      expect(out.params).toEqual([{ name: 'p0', value: 'X' }]);
     });
-    it('starts_with / ends_with', () => {
+    it('starts_with / ends_with use BigQuery built-ins with raw values', () => {
       const sw = r.renderWhere([{ column: 'a', operator: 'starts_with', value: 'X' }]);
-      expect(sw.params[0].value).toBe('X%');
+      expect(sw.sql).toBe('\nWHERE STARTS_WITH(`a`, @p0)');
+      expect(sw.params).toEqual([{ name: 'p0', value: 'X' }]);
       const ew = r.renderWhere([{ column: 'a', operator: 'ends_with', value: 'X' }]);
-      expect(ew.params[0].value).toBe('%X');
+      expect(ew.sql).toBe('\nWHERE ENDS_WITH(`a`, @p0)');
+      expect(ew.params).toEqual([{ name: 'p0', value: 'X' }]);
+    });
+    it('substring matchers do not interpret % or _ as wildcards', () => {
+      // With LIKE these would have matched anything; with STRPOS they only
+      // match the exact substring.
+      const c = r.renderWhere([{ column: 'a', operator: 'contains', value: '100%' }]);
+      expect(c.params).toEqual([{ name: 'p0', value: '100%' }]);
+      const sw = r.renderWhere([{ column: 'a', operator: 'starts_with', value: 'a_b' }]);
+      expect(sw.params).toEqual([{ name: 'p0', value: 'a_b' }]);
     });
     it('regex / not_regex use REGEXP_CONTAINS', () => {
       expect(r.renderWhere([{ column: 'a', operator: 'regex', value: '^x' }]).sql).toBe(

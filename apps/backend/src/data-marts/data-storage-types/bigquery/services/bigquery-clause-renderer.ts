@@ -25,25 +25,29 @@ export class BigQueryClauseRenderer extends SqlClauseRenderer {
         return { sql: `${col} >= @${paramName}`, params: [{ name: paramName, value: rule.value }] };
       case 'lte':
         return { sql: `${col} <= @${paramName}`, params: [{ name: paramName, value: rule.value }] };
+      // Substring/affix matchers use BigQuery built-ins instead of LIKE.
+      // BigQuery's LIKE has no ESCAPE clause, so user input "100%" or "a_b"
+      // would smuggle wildcards. STRPOS / STARTS_WITH / ENDS_WITH treat the
+      // bound parameter as a literal substring with no special characters.
       case 'contains':
         return {
-          sql: `${col} LIKE @${paramName}`,
-          params: [{ name: paramName, value: `%${String(rule.value)}%` }],
+          sql: `STRPOS(${col}, @${paramName}) > 0`,
+          params: [{ name: paramName, value: String(rule.value) }],
         };
       case 'not_contains':
         return {
-          sql: `${col} NOT LIKE @${paramName}`,
-          params: [{ name: paramName, value: `%${String(rule.value)}%` }],
+          sql: `STRPOS(${col}, @${paramName}) = 0`,
+          params: [{ name: paramName, value: String(rule.value) }],
         };
       case 'starts_with':
         return {
-          sql: `${col} LIKE @${paramName}`,
-          params: [{ name: paramName, value: `${String(rule.value)}%` }],
+          sql: `STARTS_WITH(${col}, @${paramName})`,
+          params: [{ name: paramName, value: String(rule.value) }],
         };
       case 'ends_with':
         return {
-          sql: `${col} LIKE @${paramName}`,
-          params: [{ name: paramName, value: `%${String(rule.value)}` }],
+          sql: `ENDS_WITH(${col}, @${paramName})`,
+          params: [{ name: paramName, value: String(rule.value) }],
         };
       case 'regex':
         return {
