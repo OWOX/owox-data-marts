@@ -21,58 +21,6 @@ describe('SheetMetadataFormatter', () => {
     });
   });
 
-  describe('createMetadataNoteRequest', () => {
-    it('should create valid metadata note request', () => {
-      const result = formatter.createMetadataNoteRequest(
-        123,
-        '2026-04-02 12:00:00 UTC',
-        'Test Data Mart',
-        'https://app.owox.com/ui/proj-123/dm-456',
-        false,
-        'First column description'
-      );
-
-      expect(result.repeatCell).toBeDefined();
-      expect(result.repeatCell?.range?.sheetId).toBe(123);
-      expect(result.repeatCell?.range?.startRowIndex).toBe(0);
-      expect(result.repeatCell?.range?.endRowIndex).toBe(1);
-      expect(result.repeatCell?.range?.startColumnIndex).toBe(0);
-      expect(result.repeatCell?.range?.endColumnIndex).toBe(1);
-
-      const note = result.repeatCell?.cell?.note;
-      expect(note).toContain('Imported via OWOX Data Marts at 2026-04-02 12:00:00 UTC');
-      expect(note).toContain('Data Mart: Test Data Mart');
-      expect(note).toContain('Data Mart page: https://app.owox.com/ui/proj-123/dm-456');
-      expect(note).toContain('First column description');
-    });
-
-    it('should add Community Edition suffix when isCommunityEdition is true', () => {
-      const result = formatter.createMetadataNoteRequest(
-        123,
-        '2026-04-02 12:00:00 UTC',
-        'Test Data Mart',
-        'https://app.owox.com/ui/proj-123/dm-456',
-        true
-      );
-
-      const note = result.repeatCell?.cell?.note;
-      expect(note).toContain('Imported via OWOX Data Marts Community Edition');
-    });
-
-    it('should omit first column description when not provided', () => {
-      const result = formatter.createMetadataNoteRequest(
-        123,
-        '2026-04-02 12:00:00 UTC',
-        'Test Data Mart',
-        'https://app.owox.com/ui/proj-123/dm-456',
-        false
-      );
-
-      const note = result.repeatCell?.cell?.note;
-      expect(note).not.toContain('---');
-    });
-  });
-
   describe('createDeveloperMetadataRequest', () => {
     it('should create valid developer metadata request per gas.md specification', () => {
       const result = formatter.createDeveloperMetadataRequest(
@@ -156,6 +104,121 @@ describe('SheetMetadataFormatter', () => {
       const result = formatter.createNoteRequest(123, null, 0, 0);
 
       expect(result.repeatCell?.cell?.note).toBeNull();
+    });
+  });
+
+  describe('buildImportedColumnNote', () => {
+    const baseArgs = {
+      title: 'Test Data Mart',
+      url: 'https://app.owox.com/ui/proj-1/dm-2',
+      date: '2026-04-02 12:00:00 UTC',
+    };
+
+    it('places description first followed by the ODM info block', () => {
+      const note = formatter.buildImportedColumnNote(
+        'Total revenue per campaign per day',
+        baseArgs.title,
+        baseArgs.url,
+        baseArgs.date,
+        false
+      );
+
+      const lines = note.split('\n');
+      // Description on the first line; ODM info begins after the `---` separator.
+      expect(lines[0]).toBe('Total revenue per campaign per day');
+      expect(note).toContain('\n---\n');
+      expect(note).toContain('Imported via OWOX Data Marts at 2026-04-02 12:00:00 UTC');
+      expect(note).toContain(`Data Mart: ${baseArgs.title}`);
+      expect(note).toContain(`Data Mart page: ${baseArgs.url}`);
+      expect(note.indexOf('Imported via')).toBeGreaterThan(note.indexOf('---'));
+    });
+
+    it('omits description and separator when description is undefined', () => {
+      const note = formatter.buildImportedColumnNote(
+        undefined,
+        baseArgs.title,
+        baseArgs.url,
+        baseArgs.date,
+        false
+      );
+
+      expect(note.startsWith('Imported via OWOX Data Marts')).toBe(true);
+      expect(note).not.toContain('---');
+    });
+
+    it('appends Community Edition suffix to ODM info', () => {
+      const note = formatter.buildImportedColumnNote(
+        'desc',
+        baseArgs.title,
+        baseArgs.url,
+        baseArgs.date,
+        true
+      );
+      expect(note).toContain('OWOX Data Marts Community Edition');
+    });
+
+    it('truncates oversize descriptions before composing the note', () => {
+      const oversize = 'x'.repeat(46_000);
+      const note = formatter.buildImportedColumnNote(
+        oversize,
+        baseArgs.title,
+        baseArgs.url,
+        baseArgs.date,
+        false
+      );
+
+      // Truncated to 45,000 chars + ellipsis; ODM info block still fits.
+      expect(note.length).toBeLessThan(50_000);
+      expect(note).toContain('…\n---\n');
+      expect(note).toContain('Imported via OWOX Data Marts');
+    });
+  });
+
+  describe('createOwoxColumnsMetadataRequest', () => {
+    it('serializes columns as a JSON array of {name, alias?} bound to the sheet', () => {
+      const result = formatter.createOwoxColumnsMetadataRequest(42, [
+        { name: 'date', alias: 'Date' },
+        { name: 'campaign' },
+        { name: 'cost', alias: 'Cost' },
+      ]);
+
+      expect(result.createDeveloperMetadata).toBeDefined();
+      const metadata = result.createDeveloperMetadata?.developerMetadata;
+      expect(metadata?.metadataKey).toBe('OWOX_COLUMNS');
+      expect(metadata?.visibility).toBe('DOCUMENT');
+      expect(metadata?.location?.sheetId).toBe(42);
+      expect(JSON.parse(metadata!.metadataValue!)).toEqual([
+        { name: 'date', alias: 'Date' },
+        { name: 'campaign' },
+        { name: 'cost', alias: 'Cost' },
+      ]);
+    });
+
+    it('omits the alias key entirely when no alias is provided', () => {
+      const result = formatter.createOwoxColumnsMetadataRequest(1, [{ name: 'a' }]);
+      const value = result.createDeveloperMetadata?.developerMetadata?.metadataValue;
+      // Stricter than `toEqual`: the persisted JSON must not carry
+      // `"alias":null` since downstream parsers treat null as a real value.
+      expect(value).toBe('[{"name":"a"}]');
+    });
+  });
+
+  describe('updateOwoxColumnsMetadataRequest', () => {
+    it('updates only metadataValue and uses dataFilters lookup by metadataId', () => {
+      const result = formatter.updateOwoxColumnsMetadataRequest(7, [
+        { name: 'a' },
+        { name: 'b', alias: 'Bee' },
+      ]);
+
+      const dataFilter = result.updateDeveloperMetadata?.dataFilters?.[0];
+      expect(dataFilter?.developerMetadataLookup?.metadataId).toBe(7);
+      expect(result.updateDeveloperMetadata?.fields).toBe('metadataValue');
+
+      const metadata = result.updateDeveloperMetadata?.developerMetadata;
+      expect(JSON.parse(metadata!.metadataValue!)).toEqual([
+        { name: 'a' },
+        { name: 'b', alias: 'Bee' },
+      ]);
     });
   });
 });

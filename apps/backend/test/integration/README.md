@@ -6,11 +6,12 @@ Tests that validate cloud database adapters against real APIs. These catch SDK v
 
 ```text
 integration/
-├── README.md                      # This file
-├── setup-env.ts                   # Loads root .env.tests via dotenv (Jest setupFiles)
-├── bigquery.integration.ts        # Google BigQuery: 6 tests (access, dry run, schema)
-├── athena.integration.ts          # AWS Athena: 6 tests (access, dry run, schema)
-└── google-sheets.integration.ts   # Google Sheets: 4 tests (metadata CRUD operations) - [NOT WORKING, DO NOT ENABLE ON CI]
+├── README.md                                          # This file
+├── setup-env.ts                                       # Loads root .env.tests via dotenv (Jest setupFiles)
+├── bigquery.integration.ts                            # Google BigQuery: 6 tests (access, dry run, schema)
+├── athena.integration.ts                              # AWS Athena: 6 tests (access, dry run, schema)
+├── google-sheets.integration.ts                       # Google Sheets: 4 tests (metadata CRUD) - [NOT WORKING, DO NOT ENABLE ON CI]
+└── google-sheets-column-preservation.integration.ts   # Google Sheets diff-based writer: 8 tests (DoD A/B/C: imported-rectangle isolation, column-order preservation, fill-down)
 ```
 
 ## Running
@@ -172,12 +173,12 @@ Loaded by Jest via `setupFiles` in `jest-integration.json`. Runs before any test
 
 **Tests:**
 
-| #   | Test                                             | What It Validates                                                                                          |
-| --- | ------------------------------------------------ | ---------------------------------------------------------------------------------------------------------- |
-| 1   | Create developer metadata on report run          | Running a report creates `OWOX_REPORT_META` with correct `reportId`, `dataMartId`, `projectId`            |
-| 2   | Update metadata on re-run                        | Re-running the same report maintains metadata integrity                                                    |
-| 3   | Handle multiple reports on different sheets      | Multiple reports on different sheets create separate metadata entries with correct sheet IDs               |
-| 4   | Delete metadata when report is deleted           | Deleting a report removes its corresponding developer metadata from Google Sheets                          |
+| #   | Test                                        | What It Validates                                                                              |
+| --- | ------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| 1   | Create developer metadata on report run     | Running a report creates `OWOX_REPORT_META` with correct `reportId`, `dataMartId`, `projectId` |
+| 2   | Update metadata on re-run                   | Re-running the same report maintains metadata integrity                                        |
+| 3   | Handle multiple reports on different sheets | Multiple reports on different sheets create separate metadata entries with correct sheet IDs   |
+| 4   | Delete metadata when report is deleted      | Deleting a report removes its corresponding developer metadata from Google Sheets              |
 
 **Key patterns:**
 
@@ -186,6 +187,58 @@ Loaded by Jest via `setupFiles` in `jest-integration.json`. Runs before any test
 - **Sheet-specific metadata:** Each sheet has its own metadata entry identified by `location.sheetId`
 - **Automatic cleanup:** `afterAll` removes all test metadata to avoid accumulation
 - **Graceful skip:** If credentials not configured, entire suite skips with console message
+
+### `google-sheets-column-preservation.integration.ts` — 8 tests
+
+Validates the diff-based Google Sheets writer (DoD A/B/C of the
+column-preservation feature). Each test provisions an ephemeral sheet inside
+the shared test spreadsheet, a fresh BigQuery-backed data mart, and a Google
+Sheets report; cleanup deletes the sheet in `afterEach`.
+
+**Required env vars:**
+
+- `GOOGLE_SHEETS_SERVICE_ACCOUNT_JSON`, `TEST_GOOGLE_SPREADSHEET_ID` — Sheets
+  destination; service account must have **Editor** access on the spreadsheet
+  (sheet add/delete needs Editor).
+- `BQ_SERVICE_ACCOUNT_KEY`, `BQ_PROJECT_ID` — backend storage for the data
+  mart. Tests use `SELECT … UNION ALL` literals, so no warehouse table is read
+  and `BQ_DATASET` is **not** required for this suite.
+
+**Setup (`beforeAll`, 60s):** boots an in-process NestJS test app via
+`createTestApp()` from `@owox/test-utils`. Each `beforeEach` (per-test) calls
+`createTestSheet`, `seedDataMartWithSql`, and `setupGoogleSheetsReport` from
+the same package.
+
+**Async wait policy:** `waitForReportCompletion()` polls
+`GET /api/reports/:id` and returns once `runsCount` increments and
+`lastRunStatus !== 'RUNNING'` (with backoff and a 45-second budget). Replaces
+the legacy `setTimeout(5000)` pattern.
+
+**Tests:**
+
+| #   | Group          | Test                                    | What It Validates                                                                                                                                  |
+| --- | -------------- | --------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | First run      | Writes columns in SQL order             | Row 1 = SQL order; `OWOX_COLUMNS` metadata persisted as `[{name, alias?}, …]`                                                                      |
+| 2   | DoD A          | User content right of imported survives | `K1='ratio'` and `K2='=B2/C2'` stay in place (formula via `valueRenderOption: 'FORMULA'`); imported header row unchanged                           |
+| 3   | DoD B          | User-driven row-1 reorder wins          | `moveDimension` swap survives a refresh; data rows re-aligned with new header order; `OWOX_COLUMNS` reflects user order                            |
+| 4   | DoD B          | New SQL column appended at right edge   | Adding `conversion_rate` to a v2 data mart bound to the same sheet: column lands at the right edge; user marker shifted right by `insertDimension` |
+| 5   | DoD B          | Removed SQL column → `#REF!`            | Dropping `clicks` from SQL deletes the column; user formula referencing it surfaces `#REF!` (verified via FORMULA + EFFECTIVE value)               |
+| 6   | DoD B (alias)  | Output Schema alias propagates          | Setting `country` → `'Country'` updates row 1 and `OWOX_COLUMNS` without structural ops; clearing alias restores `'country'`                       |
+| 7   | DoD C          | Auto fill-down replicates row-2 formula | `K2='=B2/C2'` is replicated to `K3='=B3/C3'` and `K4='=B4/C4'` (Sheets `copyPaste` with `pasteType: 'PASTE_FORMULA'`)                              |
+| 8   | Report Columns | `columnConfig` filters the export       | `columnConfig: ['country', 'cost']` → only those two columns in row 1 and `OWOX_COLUMNS`                                                           |
+
+**Key patterns:**
+
+- **Per-test ephemeral sheets:** `createTestSheet` issues an `addSheet`
+  request with title `it-<timestamp>-<rand>-<slug>`; `afterEach` calls
+  `cleanup()` which sends a `deleteSheet` (idempotent, errors swallowed with
+  warn log).
+- **Fresh data mart per test:** once a data mart is published its SQL is
+  immutable, so tests that need a different SQL provision a brand-new data
+  mart via `seedDataMartWithSql`. Cheap: no warehouse tables created.
+- **Multiple reports on the same sheet (tests 4 and 5):** the writer reads
+  the existing `OWOX_COLUMNS` from the prior run and diffs against the new
+  schema, regardless of which `reportId` produced it.
 
 ## Adding a New Integration Test
 
