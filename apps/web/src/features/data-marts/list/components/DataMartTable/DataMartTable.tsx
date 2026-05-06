@@ -228,7 +228,16 @@ export function DataMartTable<TData, TValue>({
       return;
     }
     const id = (row.original as { id: string }).id;
-    navigate(`/data-marts/${id}/data-setup`);
+    const url = `/data-marts/${id}/data-setup`;
+    const path = scope(url);
+
+    if (e.metaKey || e.ctrlKey) {
+      window.open(path, '_blank', 'noopener,noreferrer');
+      return;
+    }
+    console.log('path clicked: ', path);
+
+    navigate(url);
   };
 
   /**
