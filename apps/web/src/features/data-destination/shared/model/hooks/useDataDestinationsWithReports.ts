@@ -50,5 +50,6 @@ export function useDataDestinationsWithReports() {
   return {
     dataDestinations,
     isLoading: combinedLoading,
+    fetchDataDestinations,
   };
 }

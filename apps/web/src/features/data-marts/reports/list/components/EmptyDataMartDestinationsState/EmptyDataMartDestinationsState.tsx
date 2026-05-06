@@ -1,18 +1,60 @@
-import { Button } from '@owox/ui/components/button';
-import { ArchiveRestore, ChevronRight } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useProjectRoute } from '../../../../../../shared/hooks';
+import { PromoBlock } from '../../../../../../shared/components/PromoBlock/PromoBlock';
+import { GoogleSheetsIcon } from '../../../../../../shared/icons/google-sheets-icon';
+import { Button } from '@owox/ui/components/button';
+import { ArchiveRestore, ChevronRight } from 'lucide-react';
 
-export function EmptyDataMartDestinationsState() {
+interface Props {
+  variant?: 'default' | 'promo';
+  onOpenCreateDestination?: () => void;
+}
+
+export function EmptyDataMartDestinationsState({
+  variant = 'default',
+  onOpenCreateDestination,
+}: Props) {
   const { scope } = useProjectRoute();
+
+  // Promo variant (show after data mart is published)
+  if (variant === 'promo') {
+    return (
+      <PromoBlock
+        icon={GoogleSheetsIcon}
+        title='Use your data in&nbsp;Google&nbsp;Sheets'
+        subtitle='Ready to start reporting?'
+        description='No SQL needed — add columns and analyze data directly in&nbsp;Sheets'
+        primaryAction={{
+          label: 'Add Google Sheets Destination',
+          ...(onOpenCreateDestination
+            ? {
+                onClick: onOpenCreateDestination,
+              }
+            : {
+                href: scope('/data-destinations'),
+              }),
+        }}
+        secondaryAction={{
+          label: 'Learn more',
+          href: 'https://docs.owox.com/docs/destinations/supported-destinations/google-sheets/?utm_source=owox_data_marts&utm_medium=dm_page_destinations_tab&utm_campaign=empty_state',
+          external: true,
+        }}
+      />
+    );
+  }
+
+  // Default empty state (show before data mart is published)
   return (
     <div className='dm-card'>
       <div className='dm-empty-state'>
         <ArchiveRestore className='dm-empty-state-ico' strokeWidth={1} />
+
         <h2 className='dm-empty-state-title'>Google Sheets, Looker Studio, Email… and friends!</h2>
+
         <p className='dm-empty-state-subtitle'>
           To turn data into reports using your favorite tools, create a Destination first.
         </p>
+
         <Button variant='outline' asChild>
           <Link to={scope('/data-destinations')} className='flex items-center gap-1'>
             Go to Destinations
