@@ -117,6 +117,7 @@ export const LookerStudioReportEditForm = forwardRef<
 
     const {
       isDirty,
+      isValid,
       reset,
       form,
       isSubmitting,
@@ -276,7 +277,11 @@ export const LookerStudioReportEditForm = forwardRef<
               type='submit'
               className='w-full'
               aria-label={mode === ReportFormMode.CREATE ? 'Create' : 'Save changes'}
-              disabled={(!isDirty && !ownersDirty) || isSubmitting}
+              // `disabled` logic is duplicated intentionally and needs to be synchronized manually
+              disabled={
+                isSubmitting ||
+                (mode === ReportFormMode.CREATE ? !isValid : !isDirty && !ownersDirty)
+              }
             >
               {isSubmitting
                 ? mode === ReportFormMode.CREATE

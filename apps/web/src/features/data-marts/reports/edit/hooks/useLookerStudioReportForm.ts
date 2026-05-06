@@ -53,6 +53,9 @@ export function useLookerStudioReportForm({
     mode: 'onTouched',
   });
 
+  const { formState, reset } = form;
+  const { isDirty, isValid } = formState;
+
   const onSubmit = async (data: LookerStudioReportFormData) => {
     try {
       setFormError(null);
@@ -95,7 +98,8 @@ export function useLookerStudioReportForm({
     onSubmit,
     formError,
     isSubmitting: form.formState.isSubmitting,
-    isDirty: form.formState.isDirty,
-    reset: form.reset,
+    isDirty,
+    isValid,
+    reset,
   };
 }

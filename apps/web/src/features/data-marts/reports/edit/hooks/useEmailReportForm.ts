@@ -132,7 +132,7 @@ export function useEmailReportForm({
   });
 
   const { handleSubmit, formState, reset } = form;
-  const { isDirty, errors } = formState;
+  const { isDirty, errors, isValid } = formState;
 
   const onSubmit = useCallback(
     async (data: EmailReportEditFormValues) => {
@@ -228,6 +228,7 @@ export function useEmailReportForm({
     handleSubmit,
     errors,
     isDirty,
+    isValid,
     reset,
     formError,
     isSubmitting,

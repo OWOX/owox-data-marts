@@ -155,6 +155,7 @@ export const GoogleSheetsReportEditForm = forwardRef<
 
     const {
       isDirty,
+      isValid,
       reset,
       form,
       isSubmitting,
@@ -494,6 +495,7 @@ export const GoogleSheetsReportEditForm = forwardRef<
             mode={mode}
             isSubmitting={isSubmitting}
             isDirty={isDirty}
+            isValid={isValid}
             triggersDirty={triggersDirty}
             ownersDirty={ownersDirty}
             runAfterSaveRef={runAfterSaveRef}

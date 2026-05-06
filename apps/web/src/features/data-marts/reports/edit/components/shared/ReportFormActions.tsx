@@ -15,6 +15,7 @@ export interface ReportFormActionsProps {
   mode: ReportFormMode;
   isSubmitting: boolean;
   isDirty: boolean;
+  isValid: boolean;
   triggersDirty: boolean;
   ownersDirty?: boolean;
   runAfterSaveRef: RefObject<boolean>;
@@ -26,13 +27,16 @@ export const ReportFormActions = ({
   mode,
   isSubmitting,
   isDirty,
+  isValid,
   triggersDirty,
   ownersDirty = false,
   runAfterSaveRef,
   onSubmit,
   onCancel,
 }: ReportFormActionsProps) => {
-  const disabledPrimary = isSubmitting || !(isDirty || triggersDirty || ownersDirty);
+  const disabledPrimary =
+    isSubmitting ||
+    (mode === ReportFormMode.CREATE ? !isValid : !(isDirty || triggersDirty || ownersDirty));
 
   const primaryLabel =
     mode === ReportFormMode.CREATE ? 'Create & Run report' : 'Save changes to report';
