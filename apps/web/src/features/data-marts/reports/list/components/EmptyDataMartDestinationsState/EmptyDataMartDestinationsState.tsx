@@ -24,17 +24,16 @@ export function EmptyDataMartDestinationsState({
         title='Use your data in&nbsp;Google&nbsp;Sheets'
         subtitle='Ready to start reporting?'
         description='No SQL needed — add columns and analyze data directly in&nbsp;Sheets'
-        primaryAction={
-          onOpenCreateDestination
+        primaryAction={{
+          label: 'Add Google Sheets Destination',
+          ...(onOpenCreateDestination
             ? {
-                label: 'Add Google Sheets Destination',
                 onClick: onOpenCreateDestination,
               }
             : {
-                label: 'Add Google Sheets Destination',
                 href: scope('/data-destinations'),
-              }
-        }
+              }),
+        }}
         secondaryAction={{
           label: 'Learn more',
           href: 'https://docs.owox.com/docs/destinations/supported-destinations/google-sheets/?utm_source=owox_data_marts&utm_medium=dm_page_destinations_tab&utm_campaign=empty_state',

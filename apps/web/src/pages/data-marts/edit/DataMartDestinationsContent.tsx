@@ -11,7 +11,6 @@ import {
   DataDestinationProvider,
   type DataDestination,
   DataDestinationType,
-  type DataDestinationFormData,
 } from '../../../features/data-destination/shared';
 import { DataDestinationConfigSheet } from '../../../features/data-destination/edit';
 import { ReportsProvider } from '../../../features/data-marts/reports/shared/model/context';
@@ -97,12 +96,14 @@ function DataMartDestinationsContentInner() {
         isOpen={isCreateDestinationOpen}
         onClose={handleCloseCreateDestination}
         dataDestination={null}
-        initialFormData={
-          {
-            title: 'New Google Sheets Destination',
-            type: DataDestinationType.GOOGLE_SHEETS,
-          } as DataDestinationFormData
-        }
+        initialFormData={{
+          title: 'New Google Sheets Destination',
+          type: DataDestinationType.GOOGLE_SHEETS,
+          credentials: {
+            serviceAccount: '',
+            credentialId: null,
+          },
+        }}
         allowedDestinationTypes={[DataDestinationType.GOOGLE_SHEETS]}
         onSaveSuccess={() => {
           void fetchDataDestinations().then(() => {

@@ -91,7 +91,13 @@ export const getEmailColumns = ({
   },
   {
     id: ReportColumnKey.OWNERS,
-    accessorFn: row => (row.ownerUsers ?? []).map(u => u.fullName ?? u.email).join(', '),
+    accessorFn: row => {
+      const owners = (row.ownerUsers ?? [])
+        .map(u => u.fullName ?? u.email)
+        .filter(Boolean)
+        .join(', ');
+      return owners || '';
+    },
     size: 200,
     meta: {
       title: ReportColumnLabels[ReportColumnKey.OWNERS],

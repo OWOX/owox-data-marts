@@ -1,4 +1,3 @@
-import { memo } from 'react';
 import { Button } from '@owox/ui/components/button';
 import { ExternalLinkIcon } from 'lucide-react';
 import { cn } from '@owox/ui/lib/utils';
@@ -82,7 +81,7 @@ function renderAction(
   );
 }
 
-export const PromoBlock = memo(function PromoBlock({
+export function PromoBlock({
   icon,
   title,
   description,
@@ -210,7 +209,7 @@ export const PromoBlock = memo(function PromoBlock({
               className={cn(
                 'absolute -bottom-8 -left-8 -z-10',
                 'h-4/5 w-4/5 blur-2xl',
-                'bg-gray-300/40 dark:bg-black/1'
+                'bg-gray-300/40 dark:bg-transparent'
               )}
             />
 
@@ -251,4 +250,4 @@ export const PromoBlock = memo(function PromoBlock({
       </div>
     </div>
   );
-});
+}
