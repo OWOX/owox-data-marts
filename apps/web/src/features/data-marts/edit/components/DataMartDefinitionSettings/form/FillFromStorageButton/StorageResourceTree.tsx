@@ -1,7 +1,6 @@
 import { memo, useCallback, useMemo, useRef, useState } from 'react';
 import {
   AlertCircle,
-  Check,
   ChevronDown,
   ChevronRight,
   Database,
@@ -18,6 +17,7 @@ import type {
   StorageResourceFilter,
   StorageResourceLeafDto,
 } from '../../../../../../data-storage/shared/api/types';
+import { TableSelectionCheckbox } from '../../../../../../../shared/components/Table';
 import { extractStorageResourceError } from './storage-resource-error.utils';
 
 export type StorageResourceTreeSelectionMode = 'single' | 'multi';
@@ -495,13 +495,11 @@ const GroupedResources = memo(function GroupedResources({
                     title={resource.fullyQualifiedName}
                   >
                     {isMulti && (
-                      <span
-                        aria-hidden='true'
-                        data-state={isSelected ? 'checked' : 'unchecked'}
-                        className='border-input data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground data-[state=checked]:border-primary flex size-4 shrink-0 items-center justify-center rounded-[4px] border bg-white shadow-xs dark:bg-white/8'
-                      >
-                        {isSelected && <Check className='size-3 text-white' />}
-                      </span>
+                      <TableSelectionCheckbox
+                        presentationOnly
+                        checked={isSelected}
+                        checkIconClassName='size-3 text-white'
+                      />
                     )}
                     {resource.type === 'VIEW' ? (
                       <Eye className='size-4 shrink-0' />

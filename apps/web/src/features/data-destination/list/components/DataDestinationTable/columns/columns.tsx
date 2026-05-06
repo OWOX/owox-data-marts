@@ -141,8 +141,15 @@ export const getDataDestinationColumns = ({
   {
     id: DataDestinationColumnKey.CONTEXTS,
     accessorKey: 'contexts',
-    header: dataDestinationColumnLabels[DataDestinationColumnKey.CONTEXTS],
-    enableSorting: false,
+    accessorFn: row => row.contexts.map(c => c.name).join(', '),
+    meta: {
+      title: dataDestinationColumnLabels[DataDestinationColumnKey.CONTEXTS],
+    },
+    header: ({ column }) => (
+      <SortableHeader column={column}>
+        {dataDestinationColumnLabels[DataDestinationColumnKey.CONTEXTS]}
+      </SortableHeader>
+    ),
     cell: ({ row }) => {
       return <ContextBadges contexts={row.original.contexts} />;
     },

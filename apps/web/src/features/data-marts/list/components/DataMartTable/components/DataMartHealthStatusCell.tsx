@@ -49,33 +49,33 @@ const HEALTH_STATUS_CONFIG: Record<
   [DataMartHealthStatus.NO_RUNS]: {
     text: 'No runs in the last 30 days',
     dotClass: 'bg-neutral-400 dark:bg-neutral-600',
-    ringClass: 'ring-neutral-400/50',
+    ringClass: 'ring-neutral-400/50 dark:ring-neutral-600/50',
   },
   [DataMartHealthStatus.ALL_RUNS_SUCCESS]: {
     text: 'All recent runs succeeded',
     dotClass: 'bg-green-500',
-    ringClass: 'ring-green-500/50',
+    ringClass: 'ring-green-500/50 dark:ring-green-500/50',
   },
   [DataMartHealthStatus.MIXED_RUNS]: {
     text: 'Mixed results in the last 30 days',
     dotClass: 'bg-yellow-500',
-    ringClass: 'ring-yellow-500/50',
+    ringClass: 'ring-yellow-500/50 dark:ring-yellow-500/50',
   },
   [DataMartHealthStatus.ALL_RUNS_FAILED]: {
     text: 'All recent runs failed',
     dotClass: 'bg-red-500',
-    ringClass: 'ring-red-500/50',
+    ringClass: 'ring-red-500/50 dark:ring-red-500/50',
   },
   [DataMartHealthStatus.RUNS_IN_PROGRESS]: {
     text: 'Some runs are in progress',
     dotClass: 'bg-blue-500',
-    ringClass: 'ring-blue-500/50',
+    ringClass: 'ring-blue-500/50 dark:ring-blue-500/50',
   },
 };
 
 const NOT_FETCHED_STATUS_STYLE = {
   dotClass: 'border border-neutral-400 bg-transparent',
-  ringClass: 'ring-neutral-400/50',
+  ringClass: 'ring-neutral-400/50 dark:ring-neutral-700/50',
 } as const;
 
 function getTooltipText(params: {
@@ -136,7 +136,7 @@ export const DataMartHealthStatusCell = ({ row }: DataMartHealthStatusCellProps)
           <div className='group inline-flex h-6 w-6 items-center justify-center'>
             <div className='relative'>
               <div className='h-2 w-2 rounded-full bg-neutral-300 dark:bg-neutral-700' />
-              <div className='pointer-events-none absolute -inset-[3px] rounded-full opacity-0 ring-1 ring-neutral-300/50 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100' />
+              <div className='pointer-events-none absolute -inset-[3px] rounded-full opacity-0 ring-1 ring-neutral-300/50 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100 dark:ring-neutral-700/50' />
             </div>
           </div>
         </TooltipTrigger>

@@ -1,5 +1,5 @@
 import { type Table, type Column, type ColumnMeta } from '@tanstack/react-table';
-import { MoreHorizontal, Check } from 'lucide-react';
+import { MoreHorizontal } from 'lucide-react';
 import { Button } from '@owox/ui/components/button';
 import {
   DropdownMenu,
@@ -7,6 +7,7 @@ import {
   DropdownMenuContent,
   DropdownMenuTrigger,
 } from '@owox/ui/components/dropdown-menu';
+import { TableSelectionCheckbox } from './TableSelectionCheckbox';
 
 interface ExtendedColumnMeta<TData> extends ColumnMeta<TData, unknown> {
   title?: string;
@@ -52,27 +53,13 @@ export function ToggleColumnsHeader<TData>({
               return (
                 <DropdownMenuItem key={column.id}>
                   <label className='flex items-center space-x-2'>
-                    <button
-                      type='button'
-                      role='checkbox'
-                      aria-checked={column.getIsVisible()}
-                      data-state={column.getIsVisible() ? 'checked' : 'unchecked'}
-                      aria-label={`Toggle column ${label}`}
-                      className='peer border-input data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground dark:data-[state=checked]:bg-primary data-[state=checked]:border-primary focus-visible:border-ring focus-visible:ring-ring/50 aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive size-4 shrink-0 rounded-[4px] border bg-white shadow-xs transition-shadow outline-none focus-visible:ring-[3px] disabled:cursor-not-allowed disabled:opacity-50 dark:bg-white/8'
+                    <TableSelectionCheckbox
+                      checked={column.getIsVisible()}
+                      ariaLabel={`Toggle column ${label}`}
                       onClick={() => {
                         column.toggleVisibility(!column.getIsVisible());
                       }}
-                    >
-                      {column.getIsVisible() && (
-                        <span
-                          data-state='checked'
-                          data-slot='checkbox-indicator'
-                          className='pointer-events-none flex items-center justify-center text-current transition-none'
-                        >
-                          <Check className='size-3.5 text-white' />
-                        </span>
-                      )}
-                    </button>
+                    />
                     <span>{label}</span>
                   </label>
                 </DropdownMenuItem>

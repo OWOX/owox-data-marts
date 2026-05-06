@@ -91,8 +91,8 @@ export function DataMartSchemaSettings({ definitionType }: DataMartSchemaSetting
         storageType={dataMart.storage.type}
         onFieldsChange={handleSchemaFieldsChange}
       />
-      <div className='align-items-center mt-8 flex justify-between'>
-        <div className='flex space-x-4'>
+      <div className='align-items-center mt-4 flex justify-between'>
+        <div className='flex items-center gap-2'>
           <Button
             variant={'default'}
             onClick={handleSave}

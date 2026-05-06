@@ -43,12 +43,14 @@ export function RecipientsSection({
             <AccordionItem value='recipients-info'>
               <AccordionTrigger>How to add new recipients to this notification?</AccordionTrigger>
               <AccordionContent>
-                Only project members can receive notifications. To add new recipients, first invite
-                them to the project through{' '}
-                <ExternalAnchor href='https://platform.owox.com/ui/p/none/settings/members'>
-                  Project Settings → Members
-                </ExternalAnchor>{' '}
-                page.
+                <p className='mb-2'>
+                  Only project members can receive notifications. To add new recipients, first
+                  invite them to the project through{' '}
+                  <ExternalAnchor href='https://platform.owox.com/ui/p/none/settings/members'>
+                    Project Settings → Members
+                  </ExternalAnchor>{' '}
+                  page.
+                </p>
               </AccordionContent>
             </AccordionItem>
           </Accordion>

@@ -24,6 +24,7 @@ import {
   Form,
   FormActions,
   FormControl,
+  FormDescription,
   FormField,
   FormItem,
   FormLabel,
@@ -346,14 +347,12 @@ export function InviteMemberSheet({
                               </Select>
                             </FormControl>
                             <FormMessage />
-                            <Accordion variant='common' type='single' collapsible>
-                              <AccordionItem value='invite-role-help'>
-                                <AccordionTrigger className='text-sm'>
-                                  Which role should I pick?
-                                </AccordionTrigger>
-                                <AccordionContent>
-                                  <div className='text-muted-foreground space-y-3 text-sm'>
-                                    <p>
+                            <FormDescription>
+                              <Accordion variant='common' type='single' collapsible>
+                                <AccordionItem value='invite-role-help'>
+                                  <AccordionTrigger>Which role should I pick?</AccordionTrigger>
+                                  <AccordionContent>
+                                    <p className='mb-2'>
                                       <strong>Business User</strong> — sees accessible Data Marts
                                       and Reports, creates Reports for Data Marts available for
                                       reporting, manages Reports they own (edit, delete, change
@@ -361,22 +360,22 @@ export function InviteMemberSheet({
                                       Destinations available for use. Cannot create, edit, or delete
                                       Data Marts, Data Mart Triggers, or Storages.
                                     </p>
-                                    <p>
+                                    <p className='mb-2'>
                                       <strong>Technical User</strong> — everything a Business User
                                       may do, plus: creates, edits, and deletes Data Marts, Data
                                       Mart Triggers, and Storages; edits and deletes Reports
                                       project-wide; changes Report owners; manages Report Triggers
                                       project-wide.
                                     </p>
-                                    <p>
+                                    <p className='mb-2'>
                                       <strong>Project Admin</strong> — everything a Technical User
                                       may do, plus: manages Project Members, manages billing, and
                                       manages general Project settings such as the Project title.
                                     </p>
-                                  </div>
-                                </AccordionContent>
-                              </AccordionItem>
-                            </Accordion>
+                                  </AccordionContent>
+                                </AccordionItem>
+                              </Accordion>
+                            </FormDescription>
                           </FormItem>
                         )}
                       />
@@ -419,24 +418,26 @@ export function InviteMemberSheet({
                                 </Select>
                               </FormControl>
                               <FormMessage />
-                              <Accordion variant='common' type='single' collapsible>
-                                <AccordionItem value='invite-scope-help'>
-                                  <AccordionTrigger className='text-sm'>
-                                    What do the scopes mean?
-                                  </AccordionTrigger>
-                                  <AccordionContent>
-                                    <p className='text-muted-foreground text-sm'>
-                                      <strong>Entire project</strong> — the member sees every shared
-                                      resource in the project (subject to role and ownership rules).
-                                      <br />
-                                      <strong>Selected contexts only</strong> — the member sees
-                                      resources only if they share at least one assigned context, or
-                                      if the member is an owner. Picking this with no contexts below
-                                      is a valid "no shared access" state.
-                                    </p>
-                                  </AccordionContent>
-                                </AccordionItem>
-                              </Accordion>
+                              <FormDescription>
+                                <Accordion variant='common' type='single' collapsible>
+                                  <AccordionItem value='invite-scope-help'>
+                                    <AccordionTrigger>What do the scopes mean?</AccordionTrigger>
+                                    <AccordionContent>
+                                      <p className='mb-2'>
+                                        <strong>Entire project</strong> — the member sees every
+                                        shared resource in the project (subject to role and
+                                        ownership rules).
+                                      </p>
+                                      <p className='mb-2'>
+                                        <strong>Selected contexts only</strong> — the member sees
+                                        resources only if they share at least one assigned context,
+                                        or if the member is an owner. Picking this with no contexts
+                                        below is a valid "no shared access" state.
+                                      </p>
+                                    </AccordionContent>
+                                  </AccordionItem>
+                                </Accordion>
+                              </FormDescription>
                             </FormItem>
                           )}
                         />

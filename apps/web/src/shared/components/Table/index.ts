@@ -1,5 +1,7 @@
 export { BaseTable } from './BaseTable';
 export type { BaseTableProps } from './BaseTable';
+export { TableSelectionCheckbox } from './TableSelectionCheckbox';
+export type { TableSelectionCheckboxProps } from './TableSelectionCheckbox';
 export { SortableHeader } from './SortableHeader';
 export type { SortableHeaderProps } from './SortableHeader';
 export { ToggleColumnsHeader } from './ToggleColumnsHeader';

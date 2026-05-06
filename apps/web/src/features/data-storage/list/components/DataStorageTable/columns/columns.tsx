@@ -195,8 +195,15 @@ export const getDataStorageColumns = ({
   {
     id: DataStorageColumnKey.CONTEXTS,
     accessorKey: 'contexts',
-    header: dataStorageColumnLabels[DataStorageColumnKey.CONTEXTS],
-    enableSorting: false,
+    accessorFn: row => row.contexts.map(c => c.name).join(', '),
+    meta: {
+      title: dataStorageColumnLabels[DataStorageColumnKey.CONTEXTS],
+    },
+    header: ({ column }) => (
+      <SortableHeader column={column}>
+        {dataStorageColumnLabels[DataStorageColumnKey.CONTEXTS]}
+      </SortableHeader>
+    ),
     cell: ({ row }) => {
       return <ContextBadges contexts={row.original.contexts} />;
     },
