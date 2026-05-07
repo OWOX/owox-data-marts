@@ -34,7 +34,7 @@ describe('CreateScheduledTriggerService', () => {
       toDomainDto: jest.fn().mockReturnValue({ id: 'trigger-1' }),
     };
     const reportAccessService = {
-      canMutate: jest.fn().mockResolvedValue(true),
+      checkOperateAccess: jest.fn().mockResolvedValue(undefined),
       isTechnicalUser: jest
         .fn()
         .mockImplementation(
@@ -60,9 +60,8 @@ describe('CreateScheduledTriggerService', () => {
     jest.clearAllMocks();
   });
 
-  it('should allow viewer to create REPORT_RUN trigger when they own the report', async () => {
+  it('should allow viewer to create REPORT_RUN trigger when they can operate the report', async () => {
     const { service, reportAccessService } = createService();
-    reportAccessService.canMutate.mockResolvedValue(true);
 
     const command = new CreateScheduledTriggerCommand(
       'proj-1',
@@ -78,7 +77,7 @@ describe('CreateScheduledTriggerService', () => {
 
     await service.run(command);
 
-    expect(reportAccessService.canMutate).toHaveBeenCalledWith(
+    expect(reportAccessService.checkOperateAccess).toHaveBeenCalledWith(
       'user-2',
       ['viewer'],
       'report-1',
@@ -86,9 +85,11 @@ describe('CreateScheduledTriggerService', () => {
     );
   });
 
-  it('should throw ForbiddenException when viewer does not own the report', async () => {
+  it('should throw ForbiddenException when viewer cannot operate the report', async () => {
     const { service, reportAccessService } = createService();
-    reportAccessService.canMutate.mockResolvedValue(false);
+    reportAccessService.checkOperateAccess.mockRejectedValueOnce(
+      new ForbiddenException('forbidden')
+    );
 
     const command = new CreateScheduledTriggerCommand(
       'proj-1',
@@ -139,5 +140,50 @@ describe('CreateScheduledTriggerService', () => {
     );
 
     await expect(service.run(command)).resolves.toBeDefined();
+  });
+
+  it('allows viewer who can operate the report (BO DM) to create REPORT_RUN trigger', async () => {
+    const { service, reportAccessService } = createService();
+
+    const command = new CreateScheduledTriggerCommand(
+      'proj-1',
+      'user-2',
+      'dm-1',
+      ScheduledTriggerType.REPORT_RUN,
+      '0 9 * * *',
+      'UTC',
+      true,
+      { type: 'scheduled-report-run-config', reportId: 'report-1' } as never,
+      ['viewer']
+    );
+
+    await expect(service.run(command)).resolves.toBeDefined();
+    expect(reportAccessService.checkOperateAccess).toHaveBeenCalledWith(
+      'user-2',
+      ['viewer'],
+      'report-1',
+      'proj-1'
+    );
+  });
+
+  it('rejects when checkOperateAccess throws for REPORT_RUN', async () => {
+    const { service, reportAccessService } = createService();
+    reportAccessService.checkOperateAccess.mockRejectedValueOnce(
+      new ForbiddenException('forbidden')
+    );
+
+    const command = new CreateScheduledTriggerCommand(
+      'proj-1',
+      'user-2',
+      'dm-1',
+      ScheduledTriggerType.REPORT_RUN,
+      '0 9 * * *',
+      'UTC',
+      true,
+      { type: 'scheduled-report-run-config', reportId: 'report-1' } as never,
+      ['viewer']
+    );
+
+    await expect(service.run(command)).rejects.toBeInstanceOf(ForbiddenException);
   });
 });

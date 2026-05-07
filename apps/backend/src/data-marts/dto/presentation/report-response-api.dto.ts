@@ -59,4 +59,20 @@ export class ReportResponseApiDto {
 
   @ApiProperty({ type: [UserProjectionDto] })
   ownerUsers: UserProjectionDto[];
+
+  @ApiProperty({ example: true, description: 'Whether the caller can manually run this report' })
+  canRun: boolean;
+
+  @ApiProperty({
+    example: true,
+    description: 'Whether the caller can create / edit / delete report triggers',
+  })
+  canManageTriggers: boolean;
+
+  @ApiProperty({
+    example: false,
+    description:
+      'Whether the caller can edit the report configuration (columns, filters, owners, destination)',
+  })
+  canEditConfig: boolean;
 }

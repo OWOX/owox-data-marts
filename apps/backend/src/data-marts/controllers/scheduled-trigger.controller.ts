@@ -15,6 +15,7 @@ import { CreateScheduledTriggerRequestApiDto } from '../dto/presentation/create-
 import { ScheduledTriggerResponseApiDto } from '../dto/presentation/scheduled-trigger-response-api.dto';
 import { UpdateScheduledTriggerRequestApiDto } from '../dto/presentation/update-scheduled-trigger-request-api.dto';
 import { ScheduledTriggerMapper } from '../mappers/scheduled-trigger.mapper';
+import { ScheduledTriggerType } from '../scheduled-trigger-types/enums/scheduled-trigger-type.enum';
 import { AccessDecisionService, EntityType, Action } from '../services/access-decision';
 import { CreateScheduledTriggerService } from '../use-cases/create-scheduled-trigger.service';
 import { DeleteScheduledTriggerService } from '../use-cases/delete-scheduled-trigger.service';
@@ -76,7 +77,9 @@ export class ScheduledTriggerController {
     @Param('dataMartId') dataMartId: string,
     @Body() dto: CreateScheduledTriggerRequestApiDto
   ): Promise<ScheduledTriggerResponseApiDto> {
-    await this.checkDataMartAccess(dataMartId, context, Action.MANAGE_TRIGGERS);
+    if (dto.type === ScheduledTriggerType.CONNECTOR_RUN) {
+      await this.checkDataMartAccess(dataMartId, context, Action.MANAGE_TRIGGERS);
+    }
     const command = this.mapper.toCreateCommand(dataMartId, context, dto);
     const trigger = await this.createService.run(command);
     return this.mapper.toResponse(trigger);
@@ -118,7 +121,7 @@ export class ScheduledTriggerController {
     @Param('id') id: string,
     @Body() dto: UpdateScheduledTriggerRequestApiDto
   ): Promise<ScheduledTriggerResponseApiDto> {
-    await this.checkDataMartAccess(dataMartId, context, Action.MANAGE_TRIGGERS);
+    await this.checkDataMartAccess(dataMartId, context, Action.SEE);
     const command = this.mapper.toUpdateCommand(id, dataMartId, context, dto);
     const trigger = await this.updateService.run(command);
     return this.mapper.toResponse(trigger);
@@ -132,7 +135,7 @@ export class ScheduledTriggerController {
     @Param('dataMartId') dataMartId: string,
     @Param('id') id: string
   ): Promise<void> {
-    await this.checkDataMartAccess(dataMartId, context, Action.MANAGE_TRIGGERS);
+    await this.checkDataMartAccess(dataMartId, context, Action.SEE);
     const command = this.mapper.toDeleteCommand(id, dataMartId, context);
     await this.deleteService.run(command);
   }

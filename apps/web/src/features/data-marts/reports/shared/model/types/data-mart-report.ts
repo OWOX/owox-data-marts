@@ -111,4 +111,7 @@ export interface DataMartReport {
   modifiedAt: Date;
   createdByUser?: UserProjection | null;
   ownerUsers?: UserProjection[];
+  canRun: boolean;
+  canManageTriggers: boolean;
+  canEditConfig: boolean;
 }

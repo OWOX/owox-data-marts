@@ -112,7 +112,7 @@ export class RunReportService {
       if (!command.projectId) {
         throw new ForbiddenException('Manual report runs require project context');
       }
-      await this.reportAccessService.checkMutateAccess(
+      await this.reportAccessService.checkOperateAccess(
         command.userId,
         command.roles ?? [],
         command.reportId,

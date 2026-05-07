@@ -25,6 +25,9 @@ export class ReportDto {
     public readonly columnConfig?: ReportColumnConfig,
     public readonly filterConfig?: FilterConfig | null,
     public readonly sortConfig?: SortConfig | null,
-    public readonly limitConfig?: number | null
+    public readonly limitConfig?: number | null,
+    public readonly canRun: boolean = false,
+    public readonly canManageTriggers: boolean = false,
+    public readonly canEditConfig: boolean = false
   ) {}
 }

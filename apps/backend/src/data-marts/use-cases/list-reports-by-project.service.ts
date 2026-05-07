@@ -10,6 +10,8 @@ import { RoleScope } from '../enums/role-scope.enum';
 import { ContextAccessService } from '../services/context/context-access.service';
 import { buildContextGateSql } from '../utils/build-context-gate-sql';
 import { UserProjectionsFetcherService } from '../services/user-projections-fetcher.service';
+import { ReportAccessService } from '../services/report-access.service';
+import { resolveOwnerUsers } from '../utils/resolve-owner-users';
 
 @Injectable()
 export class ListReportsByProjectService {
@@ -18,7 +20,8 @@ export class ListReportsByProjectService {
     private readonly reportRepository: Repository<Report>,
     private readonly mapper: ReportMapper,
     private readonly userProjectionsFetcherService: UserProjectionsFetcherService,
-    private readonly contextAccessService: ContextAccessService
+    private readonly contextAccessService: ContextAccessService,
+    private readonly reportAccessService: ReportAccessService
   ) {}
 
   async run(command: ListReportsByProjectCommand): Promise<ReportDto[]> {
@@ -82,6 +85,40 @@ export class ListReportsByProjectService {
     const userProjectionsList =
       await this.userProjectionsFetcherService.fetchUserProjectionsList(allUserIds);
 
-    return this.mapper.toDomainDtoList(reports, userProjectionsList);
+    const reportsWithCaps = await Promise.all(
+      reports.map(async report => {
+        const [canOperate, canMutate] = command.userId
+          ? await Promise.all([
+              this.reportAccessService.canOperate(
+                command.userId,
+                command.roles,
+                report.id,
+                command.projectId
+              ),
+              this.reportAccessService.canMutate(
+                command.userId,
+                command.roles,
+                report.id,
+                command.projectId
+              ),
+            ])
+          : [false, false];
+
+        return this.mapper.toDomainDto(
+          report,
+          report.createdById
+            ? (userProjectionsList?.getByUserId(report.createdById) ?? null)
+            : null,
+          userProjectionsList ? resolveOwnerUsers(report.ownerIds, userProjectionsList) : [],
+          {
+            canRun: canOperate,
+            canManageTriggers: canOperate,
+            canEditConfig: canMutate,
+          }
+        );
+      })
+    );
+
+    return reportsWithCaps;
   }
 }

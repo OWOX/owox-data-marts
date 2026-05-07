@@ -1,6 +1,11 @@
 import { Repository } from 'typeorm';
 import { Transactional } from 'typeorm-transactional';
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+  ForbiddenException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { AvailableDestinationTypesService } from '../data-destination-types/available-destination-types.service';
 import { Report } from '../entities/report.entity';
@@ -15,6 +20,7 @@ import { ReportOwner } from '../entities/report-owner.entity';
 import { resolveOwnerUsers } from '../utils/resolve-owner-users';
 import { syncOwners } from '../utils/sync-owners';
 import { IdpProjectionsFacade } from '../../idp/facades/idp-projections.facade';
+import { AccessDecisionService, EntityType, Action } from '../services/access-decision';
 import { ReportAccessService } from '../services/report-access.service';
 import { ReportDataCacheService } from '../services/report-data-cache.service';
 import { OutputControlsValidatorService } from '../services/output-controls-validator.service';
@@ -34,7 +40,8 @@ export class UpdateReportService {
     private readonly reportOwnerRepository: Repository<ReportOwner>,
     private readonly reportAccessService: ReportAccessService,
     private readonly reportDataCacheService: ReportDataCacheService,
-    private readonly outputControlsValidator: OutputControlsValidatorService
+    private readonly outputControlsValidator: OutputControlsValidatorService,
+    private readonly accessDecisionService: AccessDecisionService
   ) {}
 
   @Transactional()
@@ -61,13 +68,29 @@ export class UpdateReportService {
       command.projectId
     );
 
-    // Get the data destination if it's being changed
-    let dataDestination: DataDestination | null = report.dataDestination;
-    if (command.dataDestinationId !== dataDestination.id) {
+    // Get the data destination if it's being changed and verify caller can USE it
+    let dataDestination: DataDestination = report.dataDestination;
+    const destinationIsChanging = command.dataDestinationId !== dataDestination.id;
+    if (destinationIsChanging) {
       dataDestination = await this.dataDestinationService.getByIdAndProjectId(
         command.dataDestinationId,
         command.projectId
       );
+
+      // Permissions Model: caller must have USE on the new destination
+      if (command.userId) {
+        const canUseNewDest = await this.accessDecisionService.canAccess(
+          command.userId,
+          command.roles,
+          EntityType.DESTINATION,
+          dataDestination.id,
+          Action.USE,
+          command.projectId
+        );
+        if (!canUseNewDest) {
+          throw new ForbiddenException('You do not have access to the Destination for this report');
+        }
+      }
     }
 
     this.availableDestinationTypesService.verifyIsAllowed(dataDestination.type);
@@ -172,10 +195,32 @@ export class UpdateReportService {
       ? (userProjections.getByUserId(fresh.createdById) ?? null)
       : null;
 
+    const [canOperate, canMutate] = command.userId
+      ? await Promise.all([
+          this.reportAccessService.canOperate(
+            command.userId,
+            command.roles,
+            command.id,
+            command.projectId
+          ),
+          this.reportAccessService.canMutate(
+            command.userId,
+            command.roles,
+            command.id,
+            command.projectId
+          ),
+        ])
+      : [false, false];
+
     return this.mapper.toDomainDto(
       fresh,
       createdByUser,
-      resolveOwnerUsers(fresh.ownerIds, userProjections)
+      resolveOwnerUsers(fresh.ownerIds, userProjections),
+      {
+        canRun: canOperate,
+        canManageTriggers: canOperate,
+        canEditConfig: canMutate,
+      }
     );
   }
 }

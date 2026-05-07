@@ -97,38 +97,28 @@ describe('ReportAccessService', () => {
     });
 
     it('should return true for report owner who is effective', async () => {
-      const {
-        service,
-        reportRepository,
-        reportOwnerRepository,
-        dataDestinationRepository,
-        accessDecisionService,
-      } = createService();
+      const { service, reportRepository, reportOwnerRepository, accessDecisionService } =
+        createService();
       reportRepository.findOne.mockResolvedValue(mockReport);
       accessDecisionService.canAccess
         .mockResolvedValueOnce(true) // SEE DM
-        .mockResolvedValueOnce(false); // EDIT DM
+        .mockResolvedValueOnce(false) // EDIT DM
+        .mockResolvedValueOnce(true); // USE Destination (effective)
       reportOwnerRepository.count.mockResolvedValue(1);
-      dataDestinationRepository.count.mockResolvedValue(1);
 
       const result = await service.canMutate('user-1', ['viewer'], 'report-1', 'proj-1');
       expect(result).toBe(true);
     });
 
     it('should return false for report owner who is ineffective (destination deleted)', async () => {
-      const {
-        service,
-        reportRepository,
-        reportOwnerRepository,
-        dataDestinationRepository,
-        accessDecisionService,
-      } = createService();
+      const { service, reportRepository, reportOwnerRepository, accessDecisionService } =
+        createService();
       reportRepository.findOne.mockResolvedValue(mockReport);
       accessDecisionService.canAccess
         .mockResolvedValueOnce(true) // SEE DM
-        .mockResolvedValueOnce(false); // EDIT DM
+        .mockResolvedValueOnce(false) // EDIT DM
+        .mockResolvedValueOnce(false); // USE Destination (ineffective)
       reportOwnerRepository.count.mockResolvedValue(1);
-      dataDestinationRepository.count.mockResolvedValue(0);
 
       const result = await service.canMutate('user-1', ['viewer'], 'report-1', 'proj-1');
       expect(result).toBe(false);
@@ -155,28 +145,28 @@ describe('ReportAccessService', () => {
   });
 
   describe('isEffective', () => {
-    it('should return true when destination exists', async () => {
-      const { service, dataDestinationRepository } = createService();
-      dataDestinationRepository.count.mockResolvedValue(1);
+    it('should return true when user has USE access to destination', async () => {
+      const { service, accessDecisionService } = createService();
+      accessDecisionService.canAccess.mockResolvedValue(true);
 
       const report = { dataDestination: { id: 'dest-1' } } as never;
-      const result = await service.isEffective('user-1', report);
+      const result = await service.isEffective('user-1', report, ['viewer'], 'proj-1');
       expect(result).toBe(true);
     });
 
-    it('should return false when destination is soft-deleted', async () => {
-      const { service, dataDestinationRepository } = createService();
-      dataDestinationRepository.count.mockResolvedValue(0);
+    it('should return false when user lacks USE access to destination', async () => {
+      const { service, accessDecisionService } = createService();
+      accessDecisionService.canAccess.mockResolvedValue(false);
 
       const report = { dataDestination: { id: 'dest-1' } } as never;
-      const result = await service.isEffective('user-1', report);
+      const result = await service.isEffective('user-1', report, ['viewer'], 'proj-1');
       expect(result).toBe(false);
     });
 
     it('should return false when destination is null', async () => {
       const { service } = createService();
       const report = { dataDestination: null } as never;
-      const result = await service.isEffective('user-1', report);
+      const result = await service.isEffective('user-1', report, ['viewer'], 'proj-1');
       expect(result).toBe(false);
     });
   });
@@ -298,30 +288,123 @@ describe('ReportAccessService', () => {
     });
 
     it('should throw with "destination" message for ineffective owner', async () => {
-      const {
-        service,
-        reportRepository,
-        reportOwnerRepository,
-        dataDestinationRepository,
-        accessDecisionService,
-      } = createService();
+      const { service, reportRepository, reportOwnerRepository, accessDecisionService } =
+        createService();
       reportRepository.findOne.mockResolvedValue(mockReport);
-      accessDecisionService.canAccess.mockResolvedValueOnce(true).mockResolvedValueOnce(false);
+      accessDecisionService.canAccess
+        .mockResolvedValueOnce(true) // SEE DM
+        .mockResolvedValueOnce(false) // EDIT DM
+        .mockResolvedValueOnce(false); // USE Destination (ineffective)
       reportOwnerRepository.count.mockResolvedValue(1);
-      dataDestinationRepository.count.mockResolvedValue(0);
 
       await expect(
         service.checkMutateAccess('user-1', ['viewer'], 'report-1', 'proj-1')
       ).rejects.toThrow(ForbiddenException);
 
       reportRepository.findOne.mockResolvedValue(mockReport);
-      accessDecisionService.canAccess.mockResolvedValueOnce(true).mockResolvedValueOnce(false);
+      accessDecisionService.canAccess
+        .mockResolvedValueOnce(true)
+        .mockResolvedValueOnce(false)
+        .mockResolvedValueOnce(false);
       reportOwnerRepository.count.mockResolvedValue(1);
-      dataDestinationRepository.count.mockResolvedValue(0);
 
       await expect(
         service.checkMutateAccess('user-1', ['viewer'], 'report-1', 'proj-1')
-      ).rejects.toThrow(/destination.*deleted/i);
+      ).rejects.toThrow(/destination.*not accessible/i);
+    });
+  });
+
+  describe('canOperate', () => {
+    const buildOperateMocks = (canSeeDm: boolean, canUseDest: boolean) => {
+      const { service, reportRepository, accessDecisionService } = createService();
+      reportRepository.findOne.mockResolvedValue(mockReport);
+      accessDecisionService.canAccess.mockImplementation(
+        async (
+          _userId: string,
+          _roles: string[],
+          entityType: string,
+          _entityId: string,
+          action: string,
+          _projectId: string
+        ) => {
+          if (entityType === 'DATA_MART' && action === 'SEE') return canSeeDm;
+          if (entityType === 'DESTINATION' && action === 'USE') return canUseDest;
+          return false;
+        }
+      );
+      return { service, accessDecisionService };
+    };
+
+    it('returns true when user can see DM and use Destination', async () => {
+      const { service } = buildOperateMocks(true, true);
+      await expect(service.canOperate('user-1', ['viewer'], 'report-1', 'proj-1')).resolves.toBe(
+        true
+      );
+    });
+
+    it('returns false when DM is invisible', async () => {
+      const { service } = buildOperateMocks(false, true);
+      await expect(service.canOperate('user-1', ['viewer'], 'report-1', 'proj-1')).resolves.toBe(
+        false
+      );
+    });
+
+    it('returns false when Destination is not usable', async () => {
+      const { service } = buildOperateMocks(true, false);
+      await expect(service.canOperate('user-1', ['viewer'], 'report-1', 'proj-1')).resolves.toBe(
+        false
+      );
+    });
+
+    it('returns false when report does not exist', async () => {
+      const { service, reportRepository } = createService();
+      reportRepository.findOne.mockResolvedValue(null);
+      await expect(service.canOperate('user-1', ['viewer'], 'report-1', 'proj-1')).resolves.toBe(
+        false
+      );
+    });
+
+    it('returns false when report has no destination assigned', async () => {
+      const { service, reportRepository, accessDecisionService } = createService();
+      reportRepository.findOne.mockResolvedValue({
+        ...mockReport,
+        dataDestination: null,
+      });
+      accessDecisionService.canAccess.mockResolvedValueOnce(true); // SEE DM
+      await expect(service.canOperate('user-1', ['viewer'], 'report-1', 'proj-1')).resolves.toBe(
+        false
+      );
+    });
+  });
+
+  describe('checkOperateAccess', () => {
+    it('throws ForbiddenException with dm-invisible reason', async () => {
+      const { service, reportRepository, accessDecisionService } = createService();
+      reportRepository.findOne.mockResolvedValue(mockReport);
+      accessDecisionService.canAccess.mockResolvedValueOnce(false); // SEE DM = false
+      await expect(
+        service.checkOperateAccess('user-1', ['viewer'], 'report-1', 'proj-1')
+      ).rejects.toBeInstanceOf(ForbiddenException);
+    });
+
+    it('throws ForbiddenException with destination-unusable reason', async () => {
+      const { service, reportRepository, accessDecisionService } = createService();
+      reportRepository.findOne.mockResolvedValue(mockReport);
+      accessDecisionService.canAccess
+        .mockResolvedValueOnce(true) // SEE DM
+        .mockResolvedValueOnce(false); // USE Destination
+      await expect(
+        service.checkOperateAccess('user-1', ['viewer'], 'report-1', 'proj-1')
+      ).rejects.toBeInstanceOf(ForbiddenException);
+    });
+
+    it('passes when both DM SEE and Destination USE are allowed', async () => {
+      const { service, reportRepository, accessDecisionService } = createService();
+      reportRepository.findOne.mockResolvedValue(mockReport);
+      accessDecisionService.canAccess.mockResolvedValue(true);
+      await expect(
+        service.checkOperateAccess('user-1', ['viewer'], 'report-1', 'proj-1')
+      ).resolves.toBeUndefined();
     });
   });
 });

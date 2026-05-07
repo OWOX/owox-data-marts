@@ -44,18 +44,12 @@ export class DeleteScheduledTriggerService {
         throw new BadRequestException('Report ID is required for REPORT_RUN triggers');
       }
 
-      const canMutate = await this.reportAccessService.canMutate(
+      await this.reportAccessService.checkOperateAccess(
         command.userId,
         command.roles,
         trigger.triggerConfig.reportId,
         command.projectId
       );
-
-      if (!canMutate) {
-        throw new ForbiddenException(
-          'You do not have permission to delete triggers for this report. Only report owners can manage report triggers.'
-        );
-      }
     } else {
       if (!this.reportAccessService.isTechnicalUser(command.roles)) {
         throw new ForbiddenException('Only Technical Users can delete connector run triggers.');

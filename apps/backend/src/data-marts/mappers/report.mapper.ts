@@ -19,9 +19,7 @@ import { DataMartMapper } from './data-mart.mapper';
 import { DataDestinationMapper } from './data-destination.mapper';
 import { RunType } from '../../common/scheduler/shared/types';
 import { UserProjectionDto } from '../../idp/dto/domain/user-projection.dto';
-import { UserProjectionsListDto } from '../../idp/dto/domain/user-projections-list.dto';
 import { OwnerFilter } from '../enums/owner-filter.enum';
-import { resolveOwnerUsers } from '../utils/resolve-owner-users';
 
 @Injectable()
 export class ReportMapper {
@@ -53,7 +51,12 @@ export class ReportMapper {
   toDomainDto(
     entity: Report,
     createdByUser: UserProjectionDto | null = null,
-    ownerUsers: UserProjectionDto[] = []
+    ownerUsers: UserProjectionDto[] = [],
+    capabilities: { canRun: boolean; canManageTriggers: boolean; canEditConfig: boolean } = {
+      canRun: false,
+      canManageTriggers: false,
+      canEditConfig: false,
+    }
   ): ReportDto {
     return new ReportDto(
       entity.id,
@@ -72,17 +75,10 @@ export class ReportMapper {
       entity.columnConfig,
       entity.filterConfig ?? null,
       entity.sortConfig ?? null,
-      entity.limitConfig ?? null
-    );
-  }
-
-  toDomainDtoList(entities: Report[], userProjectionsList?: UserProjectionsListDto): ReportDto[] {
-    return entities.map(entity =>
-      this.toDomainDto(
-        entity,
-        entity.createdById ? (userProjectionsList?.getByUserId(entity.createdById) ?? null) : null,
-        userProjectionsList ? resolveOwnerUsers(entity.ownerIds, userProjectionsList) : []
-      )
+      entity.limitConfig ?? null,
+      capabilities.canRun,
+      capabilities.canManageTriggers,
+      capabilities.canEditConfig
     );
   }
 
@@ -107,6 +103,9 @@ export class ReportMapper {
       modifiedAt: dto.modifiedAt,
       createdByUser: dto.createdByUser,
       ownerUsers: dto.ownerUsers,
+      canRun: dto.canRun,
+      canManageTriggers: dto.canManageTriggers,
+      canEditConfig: dto.canEditConfig,
     };
   }
 
@@ -142,7 +141,9 @@ export class ReportMapper {
     return new ListReportsByInsightTemplateCommand(
       dataMartId,
       insightTemplateId,
-      context.projectId
+      context.projectId,
+      context.userId,
+      context.roles ?? []
     );
   }
 

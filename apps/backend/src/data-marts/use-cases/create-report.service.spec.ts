@@ -62,7 +62,21 @@ describe('CreateReportService', () => {
       checkAccess: jest.fn().mockResolvedValue(undefined),
     };
     const mapper = {
-      toDomainDto: jest.fn().mockReturnValue({ id: 'report-1' }),
+      toDomainDto: jest
+        .fn()
+        .mockImplementation(
+          (
+            _entity: unknown,
+            _createdByUser: unknown,
+            _ownerUsers: unknown,
+            capabilities?: { canRun: boolean; canManageTriggers: boolean; canEditConfig: boolean }
+          ) => ({
+            id: 'report-1',
+            canRun: capabilities?.canRun ?? false,
+            canManageTriggers: capabilities?.canManageTriggers ?? false,
+            canEditConfig: capabilities?.canEditConfig ?? false,
+          })
+        ),
     };
     const availableDestinationTypesService = {
       verifyIsAllowed: jest.fn(),
@@ -83,6 +97,10 @@ describe('CreateReportService', () => {
       validateForReport: jest.fn().mockResolvedValue(undefined),
       ...outputControlsValidatorOverride,
     };
+    const reportAccessService = {
+      canOperate: jest.fn().mockResolvedValue(true),
+      canMutate: jest.fn().mockResolvedValue(true),
+    };
 
     const service = new CreateReportService(
       reportRepository as never,
@@ -96,7 +114,8 @@ describe('CreateReportService', () => {
       idpProjectionsFacade as never,
       accessDecisionService as never,
       eventDispatcher as never,
-      outputControlsValidator as never
+      outputControlsValidator as never,
+      reportAccessService as never
     );
 
     return { service, reportRepository, outputControlsValidator };
@@ -229,5 +248,21 @@ describe('CreateReportService', () => {
         limitConfig: 50,
       })
     );
+  });
+
+  it('should return DTO carrying capabilities computed for the creator', async () => {
+    const { service } = createService();
+    const command = new CreateReportCommand('proj-1', 'user-0', 'Test', 'dm-1', 'dest-1', {
+      type: 'looker-studio-config',
+      cacheLifetime: 3600,
+    } as never);
+
+    const result = await service.run(command);
+
+    expect(result).toMatchObject({
+      canRun: true,
+      canManageTriggers: true,
+      canEditConfig: true,
+    });
   });
 });

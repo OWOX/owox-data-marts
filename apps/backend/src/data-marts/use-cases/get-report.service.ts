@@ -8,6 +8,7 @@ import { ReportDto } from '../dto/domain/report.dto';
 import { UserProjectionsFetcherService } from '../services/user-projections-fetcher.service';
 import { resolveOwnerUsers } from '../utils/resolve-owner-users';
 import { AccessDecisionService, EntityType, Action } from '../services/access-decision';
+import { ReportAccessService } from '../services/report-access.service';
 
 @Injectable()
 export class GetReportService {
@@ -16,7 +17,8 @@ export class GetReportService {
     private readonly reportRepository: Repository<Report>,
     private readonly mapper: ReportMapper,
     private readonly userProjectionsFetcherService: UserProjectionsFetcherService,
-    private readonly accessDecisionService: AccessDecisionService
+    private readonly accessDecisionService: AccessDecisionService,
+    private readonly reportAccessService: ReportAccessService
   ) {}
 
   async run(command: GetReportCommand): Promise<ReportDto> {
@@ -48,6 +50,23 @@ export class GetReportService {
       }
     }
 
+    const [canOperate, canMutate] = command.userId
+      ? await Promise.all([
+          this.reportAccessService.canOperate(
+            command.userId,
+            command.roles,
+            command.id,
+            command.projectId
+          ),
+          this.reportAccessService.canMutate(
+            command.userId,
+            command.roles,
+            command.id,
+            command.projectId
+          ),
+        ])
+      : [false, false];
+
     const allUserIds = [...(report.createdById ? [report.createdById] : []), ...report.ownerIds];
     const userProjections =
       await this.userProjectionsFetcherService.fetchUserProjectionsList(allUserIds);
@@ -57,7 +76,12 @@ export class GetReportService {
     return this.mapper.toDomainDto(
       report,
       createdByUser,
-      resolveOwnerUsers(report.ownerIds, userProjections)
+      resolveOwnerUsers(report.ownerIds, userProjections),
+      {
+        canRun: canOperate,
+        canManageTriggers: canOperate,
+        canEditConfig: canMutate,
+      }
     );
   }
 }
