@@ -48,32 +48,18 @@ export class ListReportsByInsightTemplateService {
 
     return Promise.all(
       reports.map(async report => {
-        const [canOperate, canMutate] = command.userId
-          ? await Promise.all([
-              this.reportAccessService.canOperate(
-                command.userId,
-                command.roles,
-                report.id,
-                command.projectId
-              ),
-              this.reportAccessService.canMutate(
-                command.userId,
-                command.roles,
-                report.id,
-                command.projectId
-              ),
-            ])
-          : [false, false];
+        const capabilities = await this.reportAccessService.computeCapabilitiesForReport(
+          command.userId,
+          command.roles,
+          report,
+          command.projectId
+        );
 
         return this.mapper.toDomainDto(
           report,
           report.createdById ? (userProjectionsList.getByUserId(report.createdById) ?? null) : null,
           resolveOwnerUsers(report.ownerIds, userProjectionsList),
-          {
-            canRun: canOperate,
-            canManageTriggers: canOperate,
-            canEditConfig: canMutate,
-          }
+          capabilities
         );
       })
     );

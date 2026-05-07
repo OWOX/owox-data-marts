@@ -50,22 +50,12 @@ export class GetReportService {
       }
     }
 
-    const [canOperate, canMutate] = command.userId
-      ? await Promise.all([
-          this.reportAccessService.canOperate(
-            command.userId,
-            command.roles,
-            command.id,
-            command.projectId
-          ),
-          this.reportAccessService.canMutate(
-            command.userId,
-            command.roles,
-            command.id,
-            command.projectId
-          ),
-        ])
-      : [false, false];
+    const capabilities = await this.reportAccessService.computeCapabilitiesForReport(
+      command.userId,
+      command.roles,
+      report,
+      command.projectId
+    );
 
     const allUserIds = [...(report.createdById ? [report.createdById] : []), ...report.ownerIds];
     const userProjections =
@@ -77,11 +67,7 @@ export class GetReportService {
       report,
       createdByUser,
       resolveOwnerUsers(report.ownerIds, userProjections),
-      {
-        canRun: canOperate,
-        canManageTriggers: canOperate,
-        canEditConfig: canMutate,
-      }
+      capabilities
     );
   }
 }

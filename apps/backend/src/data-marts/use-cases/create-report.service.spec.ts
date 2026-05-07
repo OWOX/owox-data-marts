@@ -100,6 +100,11 @@ describe('CreateReportService', () => {
     const reportAccessService = {
       canOperate: jest.fn().mockResolvedValue(true),
       canMutate: jest.fn().mockResolvedValue(true),
+      computeCapabilitiesForReport: jest.fn().mockResolvedValue({
+        canRun: true,
+        canManageTriggers: true,
+        canEditConfig: true,
+      }),
     };
 
     const service = new CreateReportService(

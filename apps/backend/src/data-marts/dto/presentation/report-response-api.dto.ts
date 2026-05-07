@@ -65,7 +65,8 @@ export class ReportResponseApiDto {
 
   @ApiProperty({
     example: true,
-    description: 'Whether the caller can create / edit / delete report triggers',
+    description:
+      'Whether the caller can create / edit / delete report triggers. Equal to canRun today.',
   })
   canManageTriggers: boolean;
 

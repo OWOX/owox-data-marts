@@ -1,4 +1,4 @@
-import { Inject, Injectable, Logger, ForbiddenException } from '@nestjs/common';
+import { Inject, Injectable, Logger } from '@nestjs/common';
 import { Transactional } from 'typeorm-transactional';
 import { BusinessViolationException } from '../../common/exceptions/business-violation.exception';
 import { TypeResolver } from '../../common/resolver/type-resolver';
@@ -99,27 +99,31 @@ export class RunReportService {
 
   /**
    * Creates a pending report run and enqueues it via trigger for worker processing.
-   * Both operations are wrapped in a transaction to ensure atomicity.
+   *
+   * Auth gating runs OUTSIDE the transactional boundary so a 403 doesn't open and
+   * roll back a database transaction. The actual createPending + createTrigger work
+   * stays atomic via `enqueueReportRun`.
    *
    * @param command - Report run command with reportId, userId, runType
    * @param signal - Unused, kept for backward compatibility with scheduled processors
    */
-  @Transactional()
   async run(command: RunReportCommand, _signal?: AbortSignal): Promise<void> {
     this.validateCanRun();
 
     if (command.runType === RunType.manual) {
-      if (!command.projectId) {
-        throw new ForbiddenException('Manual report runs require project context');
-      }
       await this.reportAccessService.checkOperateAccess(
         command.userId,
-        command.roles ?? [],
+        command.roles,
         command.reportId,
         command.projectId
       );
     }
 
+    await this.enqueueReportRun(command);
+  }
+
+  @Transactional()
+  private async enqueueReportRun(command: RunReportCommand): Promise<void> {
     this.logger.log(`Creating report run trigger for report ${command.reportId}`);
 
     const reportRun = await this.reportRunService.createPending(command);

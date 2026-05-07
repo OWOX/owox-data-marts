@@ -3,7 +3,6 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Report } from '../entities/report.entity';
 import { ReportOwner } from '../entities/report-owner.entity';
-import { DataDestination } from '../entities/data-destination.entity';
 import { IdpProjectionsFacade } from '../../idp/facades/idp-projections.facade';
 import { AccessDecisionService, EntityType, Action } from './access-decision';
 
@@ -12,6 +11,23 @@ type OperateDeniedReason = 'not-found' | 'dm-invisible' | 'destination-unusable'
 
 type MutateResult = { allowed: true } | { allowed: false; reason: MutateDeniedReason };
 type OperateResult = { allowed: true } | { allowed: false; reason: OperateDeniedReason };
+
+/**
+ * Capability flags exposed on Report API responses. `canRun` and `canManageTriggers`
+ * are derived from the same `canOperate` predicate today; they are kept as separate
+ * fields so the contract can diverge later without breaking clients.
+ */
+export interface ReportCapabilities {
+  canRun: boolean;
+  canManageTriggers: boolean;
+  canEditConfig: boolean;
+}
+
+const EMPTY_CAPABILITIES: ReportCapabilities = Object.freeze({
+  canRun: false,
+  canManageTriggers: false,
+  canEditConfig: false,
+});
 
 const MUTATE_DENIED_MESSAGES: Record<MutateDeniedReason, string> = {
   'not-owner': 'You are not an owner of this report. Only report owners can modify it.',
@@ -36,11 +52,16 @@ export class ReportAccessService {
     private readonly reportRepository: Repository<Report>,
     @InjectRepository(ReportOwner)
     private readonly reportOwnerRepository: Repository<ReportOwner>,
-    @InjectRepository(DataDestination)
-    private readonly dataDestinationRepository: Repository<DataDestination>,
     private readonly idpProjectionsFacade: IdpProjectionsFacade,
     private readonly accessDecisionService: AccessDecisionService
   ) {}
+
+  private async loadReportForAccess(reportId: string, projectId: string): Promise<Report | null> {
+    return this.reportRepository.findOne({
+      where: { id: reportId, dataMart: { projectId } },
+      relations: ['dataMart', 'dataDestination'],
+    });
+  }
 
   /**
    * Evaluate whether a user can mutate a Report. Single source of truth for access logic.
@@ -54,15 +75,24 @@ export class ReportAccessService {
     reportId: string,
     projectId: string
   ): Promise<MutateResult> {
-    const report = await this.reportRepository.findOne({
-      where: { id: reportId, dataMart: { projectId } },
-      relations: ['dataMart', 'dataDestination'],
-    });
-
+    const report = await this.loadReportForAccess(reportId, projectId);
     if (!report) {
       return { allowed: false, reason: 'not-found' };
     }
+    return this.evaluateMutateAccessForReport(userId, roles, report, projectId);
+  }
 
+  /**
+   * Same as `evaluateMutateAccess`, but operates on an already-loaded `Report`
+   * to avoid an extra `findOne` round-trip (used by list endpoints to defeat N+1).
+   * Caller MUST ensure `report.dataMart` and `report.dataDestination` relations are loaded.
+   */
+  private async evaluateMutateAccessForReport(
+    userId: string,
+    roles: string[],
+    report: Report,
+    projectId: string
+  ): Promise<MutateResult> {
     // Permissions Model: DM must be visible to the user
     const canSeeDm = await this.accessDecisionService.canAccess(
       userId,
@@ -90,16 +120,27 @@ export class ReportAccessService {
     }
 
     // Otherwise: must be report owner + effective
-    const ownerCount = await this.reportOwnerRepository.count({
-      where: { reportId, userId },
+    const isOwner = await this.reportOwnerRepository.exist({
+      where: { reportId: report.id, userId },
     });
 
-    if (ownerCount === 0) {
+    if (!isOwner) {
       return { allowed: false, reason: 'not-owner' };
     }
 
-    const effective = await this.isEffective(userId, report, roles, projectId);
-    return effective ? { allowed: true } : { allowed: false, reason: 'ineffective' };
+    if (!report.dataDestination) {
+      return { allowed: false, reason: 'ineffective' };
+    }
+
+    const canUseDest = await this.accessDecisionService.canAccess(
+      userId,
+      roles,
+      EntityType.DESTINATION,
+      report.dataDestination.id,
+      Action.USE,
+      projectId
+    );
+    return canUseDest ? { allowed: true } : { allowed: false, reason: 'ineffective' };
   }
 
   /**
@@ -144,15 +185,24 @@ export class ReportAccessService {
     reportId: string,
     projectId: string
   ): Promise<OperateResult> {
-    const report = await this.reportRepository.findOne({
-      where: { id: reportId, dataMart: { projectId } },
-      relations: ['dataMart', 'dataDestination'],
-    });
-
+    const report = await this.loadReportForAccess(reportId, projectId);
     if (!report) {
       return { allowed: false, reason: 'not-found' };
     }
+    return this.evaluateOperateAccessForReport(userId, roles, report, projectId);
+  }
 
+  /**
+   * Same as `evaluateOperateAccess`, but operates on an already-loaded `Report`
+   * to avoid an extra `findOne` round-trip. Caller MUST ensure relations
+   * `dataMart` and `dataDestination` are loaded.
+   */
+  private async evaluateOperateAccessForReport(
+    userId: string,
+    roles: string[],
+    report: Report,
+    projectId: string
+  ): Promise<OperateResult> {
     const canSeeDm = await this.accessDecisionService.canAccess(
       userId,
       roles,
@@ -209,6 +259,38 @@ export class ReportAccessService {
       });
       throw new ForbiddenException(OPERATE_DENIED_MESSAGES[result.reason]);
     }
+  }
+
+  /**
+   * Capability flags exposed on Report responses. `canRun` and `canManageTriggers`
+   * are tied to `canOperate` today; `canEditConfig` is tied to `canMutate`.
+   * Computing both with `Promise.all` halves the latency on hot paths.
+   *
+   * Caller must supply an already-loaded `Report` with `dataMart` and `dataDestination`
+   * relations populated. This is the one method use cases should call when assembling
+   * `ReportDto` — do not duplicate the Promise.all + capability assembly elsewhere.
+   */
+  async computeCapabilitiesForReport(
+    userId: string | undefined,
+    roles: string[],
+    report: Report,
+    projectId: string
+  ): Promise<ReportCapabilities> {
+    if (!userId) {
+      return EMPTY_CAPABILITIES;
+    }
+
+    const [operateResult, mutateResult] = await Promise.all([
+      this.evaluateOperateAccessForReport(userId, roles, report, projectId),
+      this.evaluateMutateAccessForReport(userId, roles, report, projectId),
+    ]);
+
+    const canOperate = operateResult.allowed;
+    return {
+      canRun: canOperate,
+      canManageTriggers: canOperate,
+      canEditConfig: mutateResult.allowed,
+    };
   }
 
   /**

@@ -20,9 +20,7 @@ describe('ReportAccessService', () => {
     };
     const reportOwnerRepository = {
       count: jest.fn(),
-    };
-    const dataDestinationRepository = {
-      count: jest.fn(),
+      exist: jest.fn(),
     };
     const idpProjectionsFacade = {
       getProjectMembers: jest.fn(),
@@ -34,7 +32,6 @@ describe('ReportAccessService', () => {
     const service = new ReportAccessService(
       reportRepository as never,
       reportOwnerRepository as never,
-      dataDestinationRepository as never,
       idpProjectionsFacade as never,
       accessDecisionService as never
     );
@@ -43,7 +40,6 @@ describe('ReportAccessService', () => {
       service,
       reportRepository,
       reportOwnerRepository,
-      dataDestinationRepository,
       idpProjectionsFacade,
       accessDecisionService,
     };
@@ -90,7 +86,7 @@ describe('ReportAccessService', () => {
         .mockResolvedValueOnce(true) // SEE DM
         .mockResolvedValueOnce(false); // EDIT DM (no maintenance)
       // Not a report owner
-      reportOwnerRepository.count.mockResolvedValue(0);
+      reportOwnerRepository.exist.mockResolvedValue(false);
 
       const result = await service.canMutate('user-1', ['editor'], 'report-1', 'proj-1');
       expect(result).toBe(false);
@@ -104,7 +100,7 @@ describe('ReportAccessService', () => {
         .mockResolvedValueOnce(true) // SEE DM
         .mockResolvedValueOnce(false) // EDIT DM
         .mockResolvedValueOnce(true); // USE Destination (effective)
-      reportOwnerRepository.count.mockResolvedValue(1);
+      reportOwnerRepository.exist.mockResolvedValue(true);
 
       const result = await service.canMutate('user-1', ['viewer'], 'report-1', 'proj-1');
       expect(result).toBe(true);
@@ -118,7 +114,7 @@ describe('ReportAccessService', () => {
         .mockResolvedValueOnce(true) // SEE DM
         .mockResolvedValueOnce(false) // EDIT DM
         .mockResolvedValueOnce(false); // USE Destination (ineffective)
-      reportOwnerRepository.count.mockResolvedValue(1);
+      reportOwnerRepository.exist.mockResolvedValue(true);
 
       const result = await service.canMutate('user-1', ['viewer'], 'report-1', 'proj-1');
       expect(result).toBe(false);
@@ -271,7 +267,7 @@ describe('ReportAccessService', () => {
         createService();
       reportRepository.findOne.mockResolvedValue(mockReport);
       accessDecisionService.canAccess.mockResolvedValueOnce(true).mockResolvedValueOnce(false);
-      reportOwnerRepository.count.mockResolvedValue(0);
+      reportOwnerRepository.exist.mockResolvedValue(false);
 
       await expect(
         service.checkMutateAccess('user-1', ['viewer'], 'report-1', 'proj-1')
@@ -280,7 +276,7 @@ describe('ReportAccessService', () => {
       // Reset mocks for second assertion
       reportRepository.findOne.mockResolvedValue(mockReport);
       accessDecisionService.canAccess.mockResolvedValueOnce(true).mockResolvedValueOnce(false);
-      reportOwnerRepository.count.mockResolvedValue(0);
+      reportOwnerRepository.exist.mockResolvedValue(false);
 
       await expect(
         service.checkMutateAccess('user-1', ['viewer'], 'report-1', 'proj-1')
@@ -295,7 +291,7 @@ describe('ReportAccessService', () => {
         .mockResolvedValueOnce(true) // SEE DM
         .mockResolvedValueOnce(false) // EDIT DM
         .mockResolvedValueOnce(false); // USE Destination (ineffective)
-      reportOwnerRepository.count.mockResolvedValue(1);
+      reportOwnerRepository.exist.mockResolvedValue(true);
 
       await expect(
         service.checkMutateAccess('user-1', ['viewer'], 'report-1', 'proj-1')
@@ -306,7 +302,7 @@ describe('ReportAccessService', () => {
         .mockResolvedValueOnce(true)
         .mockResolvedValueOnce(false)
         .mockResolvedValueOnce(false);
-      reportOwnerRepository.count.mockResolvedValue(1);
+      reportOwnerRepository.exist.mockResolvedValue(true);
 
       await expect(
         service.checkMutateAccess('user-1', ['viewer'], 'report-1', 'proj-1')

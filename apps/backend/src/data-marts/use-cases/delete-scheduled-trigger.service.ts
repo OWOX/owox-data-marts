@@ -5,6 +5,7 @@ import { DeleteScheduledTriggerCommand } from '../dto/domain/delete-scheduled-tr
 import { DataMartScheduledTrigger } from '../entities/data-mart-scheduled-trigger.entity';
 import { ScheduledTriggerService } from '../services/scheduled-trigger.service';
 import { ReportAccessService } from '../services/report-access.service';
+import { ReportService } from '../services/report.service';
 import { ScheduledTriggerType } from '../scheduled-trigger-types/enums/scheduled-trigger-type.enum';
 import { isScheduledReportRunConfig } from '../scheduled-trigger-types/scheduled-trigger-config.guards';
 
@@ -14,7 +15,8 @@ export class DeleteScheduledTriggerService {
     @InjectRepository(DataMartScheduledTrigger)
     private readonly triggerRepository: Repository<DataMartScheduledTrigger>,
     private readonly scheduledTriggerService: ScheduledTriggerService,
-    private readonly reportAccessService: ReportAccessService
+    private readonly reportAccessService: ReportAccessService,
+    private readonly reportService: ReportService
   ) {}
 
   async run(command: DeleteScheduledTriggerCommand): Promise<void> {
@@ -43,6 +45,12 @@ export class DeleteScheduledTriggerService {
       if (!isScheduledReportRunConfig(trigger.triggerConfig)) {
         throw new BadRequestException('Report ID is required for REPORT_RUN triggers');
       }
+
+      await this.reportService.getByIdAndDataMartIdAndProjectId(
+        trigger.triggerConfig.reportId,
+        command.dataMartId,
+        command.projectId
+      );
 
       await this.reportAccessService.checkOperateAccess(
         command.userId,

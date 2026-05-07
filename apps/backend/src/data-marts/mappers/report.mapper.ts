@@ -11,7 +11,7 @@ import { DeleteReportCommand } from '../dto/domain/delete-report.command';
 import { ListReportsByDataMartCommand } from '../dto/domain/list-reports-by-data-mart.command';
 import { ListReportsByProjectCommand } from '../dto/domain/list-reports-by-project.command';
 import { ListReportsByInsightTemplateCommand } from '../dto/domain/list-reports-by-insight-template.command';
-import { RunReportCommand } from '../dto/domain/run-report.command';
+import { ManualRunReportCommand } from '../dto/domain/run-report.command';
 import { CopyReportAsDataMartCommand } from '../dto/domain/copy-report-as-data-mart.command';
 import { GetReportGeneratedSqlCommand } from '../dto/domain/get-report-generated-sql.command';
 import { AuthorizationContext } from '../../idp';
@@ -159,16 +159,12 @@ export class ReportMapper {
     );
   }
 
-  toRunReportCommand(
-    id: string,
-    context: AuthorizationContext,
-    runType: RunType
-  ): RunReportCommand {
+  toManualRunReportCommand(id: string, context: AuthorizationContext): ManualRunReportCommand {
     return {
       reportId: id,
       userId: context.userId,
       roles: context.roles ?? [],
-      runType,
+      runType: RunType.manual,
       projectId: context.projectId,
     };
   }

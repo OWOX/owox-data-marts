@@ -98,6 +98,11 @@ describe('UpdateReportService', () => {
       canBeOwner: jest.fn().mockResolvedValue(true),
       canOperate: jest.fn().mockResolvedValue(true),
       canMutate: jest.fn().mockResolvedValue(true),
+      computeCapabilitiesForReport: jest.fn().mockResolvedValue({
+        canRun: true,
+        canManageTriggers: true,
+        canEditConfig: true,
+      }),
     };
     const accessDecisionService = {
       canAccess: jest.fn().mockResolvedValue(true),

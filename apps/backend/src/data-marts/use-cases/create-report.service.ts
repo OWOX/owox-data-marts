@@ -163,32 +163,18 @@ export class CreateReportService {
       await this.userProjectionsFetcherService.fetchUserProjectionsList(allUserIds);
     const createdByUser = userProjections.getByUserId(command.userId) ?? null;
 
-    const [canOperate, canMutate] = command.userId
-      ? await Promise.all([
-          this.reportAccessService.canOperate(
-            command.userId,
-            command.roles,
-            newReport.id,
-            command.projectId
-          ),
-          this.reportAccessService.canMutate(
-            command.userId,
-            command.roles,
-            newReport.id,
-            command.projectId
-          ),
-        ])
-      : [false, false];
+    const capabilities = await this.reportAccessService.computeCapabilitiesForReport(
+      command.userId,
+      command.roles,
+      newReport,
+      command.projectId
+    );
 
     return this.mapper.toDomainDto(
       newReport,
       createdByUser,
       resolveOwnerUsers(ownerIdsToSave, userProjections),
-      {
-        canRun: canOperate,
-        canManageTriggers: canOperate,
-        canEditConfig: canMutate,
-      }
+      capabilities
     );
   }
 }
