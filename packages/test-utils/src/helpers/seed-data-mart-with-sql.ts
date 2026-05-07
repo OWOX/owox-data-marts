@@ -61,19 +61,22 @@ export async function seedDataMartWithSql(opts: SeedDataMartOptions): Promise<Se
   const storageId = storageRes.body.id;
 
   // Step 2: install BigQuery credentials + projectId config.
+  // Schema notes (see `bigquery-credentials.schema.ts` and
+  // `bigquery-config.schema.ts`):
+  //   - `credentials` IS the parsed service-account key object directly;
+  //     there is no wrapper with `type` / `serviceAccountKey`.
+  //   - `config` has only `{ projectId, location? }`. `location` is
+  //     optional; if omitted, it defaults to `AUTODETECT`. We pass it
+  //     uppercase to match `BIGQUERY_AUTODETECT_LOCATION`.
   const updateStorageRes = await agent
     .put(`/api/data-storages/${storageId}`)
     .set(AUTH_HEADER)
     .send({
       title: `Integration Test Storage ${Date.now()}`,
-      credentials: {
-        type: 'bigquery-service-account-credentials',
-        serviceAccountKey: JSON.parse(bigQueryServiceAccountJson),
-      },
+      credentials: JSON.parse(bigQueryServiceAccountJson),
       config: {
-        type: 'bigquery-config',
         projectId: bigQueryProjectId,
-        location: 'autodetect',
+        location: 'AUTODETECT',
       },
     });
   expect(updateStorageRes.status).toBe(200);

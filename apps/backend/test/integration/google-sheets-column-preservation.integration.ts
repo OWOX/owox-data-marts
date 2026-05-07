@@ -230,8 +230,10 @@ describeIfConfigured('Google Sheets column preservation (diff-based writer)', ()
     const [k2Formula] = (await readFormulas('K2:K2'))[0] ?? [];
     expect(k2Formula).toBe('=B2/C2');
 
-    // Imported header row is unchanged.
-    expect(await readRow1()).toEqual(['country', 'clicks', 'cost']);
+    // Imported header row is unchanged. We slice to the imported width
+    // because row 1 also holds the user header `K1='ratio'`, which must
+    // survive the refresh — that is exactly what we are verifying here.
+    expect((await readRow1()).slice(0, 3)).toEqual(['country', 'clicks', 'cost']);
   }, 90_000);
 
   // -------------------------------------------------------------------------
@@ -316,7 +318,15 @@ describeIfConfigured('Google Sheets column preservation (diff-based writer)', ()
     });
     await runAndWait(reportV2);
 
-    expect(await readRow1()).toEqual(['country', 'clicks', 'cost', 'conversion_rate']);
+    // Slice to the imported width — row 1 also still holds `user_marker`
+    // (now shifted from F1 to G1 by the structural insert), which must
+    // survive the refresh.
+    expect((await readRow1()).slice(0, 4)).toEqual([
+      'country',
+      'clicks',
+      'cost',
+      'conversion_rate',
+    ]);
     const cols = await readOwoxColumnsMetadata();
     expect(cols.map(c => c.name)).toEqual(['country', 'clicks', 'cost', 'conversion_rate']);
 
@@ -390,7 +400,9 @@ describeIfConfigured('Google Sheets column preservation (diff-based writer)', ()
     await setDataMartAlias(agent, dataMartId, 'country', 'Country');
     await runAndWait(reportId);
 
-    expect(await readRow1()).toEqual(['Country', 'clicks', 'cost']);
+    // Slice to the imported width — `K1='probe'` (user content) lives
+    // further right and must survive untouched.
+    expect((await readRow1()).slice(0, 3)).toEqual(['Country', 'clicks', 'cost']);
     expect(await readOwoxColumnsMetadata()).toEqual([
       { name: 'country', alias: 'Country' },
       { name: 'clicks' },
@@ -402,7 +414,7 @@ describeIfConfigured('Google Sheets column preservation (diff-based writer)', ()
     await setDataMartAlias(agent, dataMartId, 'country', null);
     await runAndWait(reportId);
 
-    expect(await readRow1()).toEqual(['country', 'clicks', 'cost']);
+    expect((await readRow1()).slice(0, 3)).toEqual(['country', 'clicks', 'cost']);
     expect(await readOwoxColumnsMetadata()).toEqual([
       { name: 'country' },
       { name: 'clicks' },
