@@ -24,7 +24,7 @@ If every member should see every resource, you don't need Contexts — leave eac
 
 ## Managing Contexts
 
-Only Project Admins can create, rename, or delete contexts. Other roles can view the context list and see context badges on resources, but cannot edit the catalog.
+Only Project Admins can create, rename, or delete contexts. Other roles can view the context list and see context badges on resources, but cannot create, rename, or delete contexts.
 
 Open **Project Settings → Contexts** to see all contexts in the project. Each row shows:
 
@@ -36,6 +36,8 @@ Open **Project Settings → Contexts** to see all contexts in the project. Each 
 | **Created by** | The Project Admin who created the context |
 | **Created at** | Creation date |
 
+![Project Settings → Contexts table listing three example contexts with their names, member counts, descriptions, and creation details](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/64e04505-faa3-4121-96b4-1092d57c2800/public)
+
 ### Creating a Context
 
 1. In **Project Settings → Contexts**, click **+ Add context**.
@@ -43,6 +45,8 @@ Open **Project Settings → Contexts** to see all contexts in the project. Each 
 3. Optionally add a **Description** to explain what the context represents.
 4. Optionally select members to assign to this context immediately.
 5. Click **Create**.
+
+![Add context panel with fields for Name, Description, and Members](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/717f7601-5999-4177-90ca-166be7d70e00/public)
 
 You can also create a context inline from the **Contexts** field on a Data Mart, Storage, or Destination — a Project Admin sees an option to create a new context without leaving the resource page.
 
@@ -63,6 +67,8 @@ Each entry links to the corresponding list, pre-filtered by the context, so you 
 
 > ☝️ Deleting a context is final, but it does **not** delete the resources tagged with it. Resources stay; only the tag is removed.
 
+![Delete context dialog blocked because the context is still attached to resources, listing Data Marts, Storages, Destinations, and Members with links to each filtered list](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/ca318fa5-faa5-408c-f2be-e9074d3b7e00/public)
+
 ---
 
 ## Attaching Contexts to Resources
@@ -79,7 +85,9 @@ In each place, the **Contexts** picker shows every context defined in the projec
 
 Resource lists (Data Marts, Storages, Destinations) display attached contexts as badges, and the lists can be filtered by context.
 
-### Who can change a resource's contexts
+![Data Marts list showing context badges on each row and a context filter dropdown in the toolbar](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/ee9f757e-fa97-47ce-3361-86b031c3da00/public)
+
+### Who Can Change a Resource's Contexts
 
 Editing a resource's context attachments is more restricted than editing the resource itself. The rules follow the same ownership model as other resource actions (see [Ownership and Availability](ownership-and-availability.md)):
 
@@ -104,6 +112,8 @@ Both paths write to the same assignment, so changes made in one place are reflec
 
 > ☝️ Assigning a member to a context only takes effect when their **Role scope** is set to **Selected contexts only**. See the next section.
 
+![Member settings panel showing the Contexts multi-select field and Role scope set to Selected contexts only](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/cdabfe38-b5f1-4e0d-1620-c00aa860b000/public)
+
 ---
 
 ## How Contexts Affect Access
@@ -119,7 +129,7 @@ Project Admins always have project-wide access. The role-scope setting and conte
 
 > ☝️ **Ownership overrides context filtering.** A member always sees resources they own — Technical Owner of a Data Mart, Owner of a Storage or Destination — even if no context overlaps, and even if their scope is **Selected contexts only**.
 
-### What "Selected contexts only" applies to
+### What "Selected Contexts Only" Applies To
 
 The context filter applies to non-owner visibility of:
 
@@ -130,11 +140,11 @@ The context filter applies to non-owner visibility of:
 
 Triggers do not have their own visibility — they follow their parent (Data Mart or Report).
 
-### Members assigned to zero contexts
+### Members Assigned to Zero Contexts
 
 A member with role scope **Selected contexts only** and no contexts assigned is a valid state. They simply have no shared, non-owner access through context matching. They keep access to anything they own.
 
-### What changes when you re-tag a resource
+### What Changes When You Re-Tag a Resource
 
 Adding or removing a context on a resource immediately changes who can see it:
 
