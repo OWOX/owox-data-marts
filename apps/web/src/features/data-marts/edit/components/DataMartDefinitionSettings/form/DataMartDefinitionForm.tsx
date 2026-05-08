@@ -28,12 +28,33 @@ export function DataMartDefinitionForm({
 }: DataMartDefinitionFormProps) {
   const { control } = useFormContext<DataMartDefinitionFormData>();
   const [shouldAutoOpenConnector, setShouldAutoOpenConnector] = useState(false);
+  const [shouldAutoOpenTable, setShouldAutoOpenTable] = useState(false);
+  const [shouldAutoOpenView, setShouldAutoOpenView] = useState(false);
+  const [shouldAutoOpenTablePattern, setShouldAutoOpenTablePattern] = useState(false);
 
   useEffect(() => {
     if (definitionType === DataMartDefinitionType.CONNECTOR && !preset) {
       setShouldAutoOpenConnector(true);
     } else {
       setShouldAutoOpenConnector(false);
+    }
+
+    if (definitionType === DataMartDefinitionType.TABLE && !preset) {
+      setShouldAutoOpenTable(true);
+    } else {
+      setShouldAutoOpenTable(false);
+    }
+
+    if (definitionType === DataMartDefinitionType.VIEW && !preset) {
+      setShouldAutoOpenView(true);
+    } else {
+      setShouldAutoOpenView(false);
+    }
+
+    if (definitionType === DataMartDefinitionType.TABLE_PATTERN && !preset) {
+      setShouldAutoOpenTablePattern(true);
+    } else {
+      setShouldAutoOpenTablePattern(false);
     }
   }, [definitionType, preset]);
 
@@ -48,6 +69,7 @@ export function DataMartDefinitionForm({
           storageId={storageId}
           storageConfig={storageConfig}
           mode='TABLE'
+          autoOpen={shouldAutoOpenTable}
         />
       )}
 
@@ -58,6 +80,7 @@ export function DataMartDefinitionForm({
           storageId={storageId}
           storageConfig={storageConfig}
           mode='VIEW'
+          autoOpen={shouldAutoOpenView}
         />
       )}
 
@@ -67,6 +90,7 @@ export function DataMartDefinitionForm({
           storageType={storageType}
           storageId={storageId}
           storageConfig={storageConfig}
+          autoOpen={shouldAutoOpenTablePattern}
         />
       )}
 

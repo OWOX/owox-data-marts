@@ -44,7 +44,9 @@ export const ConfirmationDialog = ({
       <DialogContent>
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
-          <DialogDescription>{description}</DialogDescription>
+          <DialogDescription asChild>
+            <div>{description}</div>
+          </DialogDescription>
         </DialogHeader>
         {children}
         <DialogFooter>

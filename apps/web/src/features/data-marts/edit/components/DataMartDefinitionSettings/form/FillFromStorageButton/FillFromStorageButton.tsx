@@ -29,6 +29,7 @@ interface FillFromStorageButtonProps {
   resourceType: StorageResourceFilter;
   onSelect: (fullyQualifiedName: string) => void;
   hasValue?: boolean;
+  autoOpen?: boolean;
 }
 
 export function FillFromStorageButton({
@@ -37,8 +38,16 @@ export function FillFromStorageButton({
   resourceType,
   onSelect,
   hasValue = false,
+  autoOpen = false,
 }: FillFromStorageButtonProps) {
   const [open, setOpen] = useState(false);
+
+  useEffect(() => {
+    if (autoOpen) {
+      setOpen(true);
+    }
+  }, [autoOpen]);
+
   const [namespaces, setNamespaces] = useState<StorageNamespaceNodeDto[] | null>(null);
   const [namespacesError, setNamespacesError] = useState<string | null>(null);
   const [namespacesLoading, setNamespacesLoading] = useState(false);
