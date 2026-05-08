@@ -21,7 +21,7 @@ import type {
   StorageNamespaceNodeDto,
   StorageResourceLeafDto,
 } from '../../../../data-storage/shared/api/types';
-import { DataStorageHealthStatusView } from '../../../../data-storage/shared/components/DataStorageHealthIndicator/DataStorageHealthStatusView';
+import { UnhealthyStorageBlock } from '../../../../data-storage/shared/components';
 import {
   DataStorageActionType,
   DataStorageProvider,
@@ -489,24 +489,5 @@ function BlockPlaceholder({ children }: { children: ReactNode }) {
     <div className='text-muted-foreground bg-muted/40 rounded-md p-3 text-xs dark:bg-white/4'>
       {children}
     </div>
-  );
-}
-
-/**
- * Block shown in place of "Browse resources" / "Selected resources" when the picked storage
- * is in a known-bad state (UNCONFIGURED or INVALID) per the front-end health cache. Reuses
- * {@link DataStorageHealthStatusView} so the wording matches the storages list page.
- */
-function UnhealthyStorageBlock({
-  status,
-  errorMessage,
-}: {
-  status: DataStorageHealthStatus;
-  errorMessage: string | undefined;
-}) {
-  return (
-    <section className='dm-card-block !gap-2 text-sm'>
-      <DataStorageHealthStatusView status={status} errorMessage={errorMessage} />
-    </section>
   );
 }

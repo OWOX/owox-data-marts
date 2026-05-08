@@ -15,6 +15,9 @@ import type {
   StorageResourceFilter,
   StorageResourceLeafDto,
 } from '../../../../../../data-storage/shared/api/types';
+import { UnhealthyStorageBlock } from '../../../../../../data-storage/shared/components';
+import { useDataStorageHealthStatus } from '../../../../../../data-storage/shared/model/hooks/useDataStorageHealthStatus';
+import { DataStorageHealthStatus } from '../../../../../../data-storage/shared/services/data-storage-health-status.service';
 import { StorageResourceTree } from './StorageResourceTree';
 import { extractStorageResourceError } from './storage-resource-error.utils';
 
@@ -51,6 +54,15 @@ export function FillFromStorageButton({
   const [namespaces, setNamespaces] = useState<StorageNamespaceNodeDto[] | null>(null);
   const [namespacesError, setNamespacesError] = useState<string | null>(null);
   const [namespacesLoading, setNamespacesLoading] = useState(false);
+  const {
+    status: healthStatus,
+    errorMessage: healthErrorMessage,
+    isFetched: healthIsFetched,
+  } = useDataStorageHealthStatus(storageId);
+  const isUnhealthyStorage =
+    healthIsFetched &&
+    (healthStatus === DataStorageHealthStatus.UNCONFIGURED ||
+      healthStatus === DataStorageHealthStatus.INVALID);
 
   const loadNamespaces = useCallback(async () => {
     setNamespacesLoading(true);
@@ -67,10 +79,10 @@ export function FillFromStorageButton({
   }, [storageId]);
 
   useEffect(() => {
-    if (open && namespaces === null && !namespacesLoading) {
-      void loadNamespaces();
-    }
-  }, [open, namespaces, namespacesLoading, loadNamespaces]);
+    if (!open || namespaces !== null || namespacesLoading) return;
+    if (!healthIsFetched || isUnhealthyStorage) return;
+    void loadNamespaces();
+  }, [open, namespaces, namespacesLoading, loadNamespaces, healthIsFetched, isUnhealthyStorage]);
 
   const handleSelect = useCallback(
     (resource: StorageResourceLeafDto) => {
@@ -115,25 +127,35 @@ export function FillFromStorageButton({
         {!hasValue && <span className='text-xs'>Select...</span>}
       </InputGroupButton>
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className='sm:max-w-4xl'>
-          <DialogHeader>
+        <DialogContent className='flex max-h-[90vh] flex-col gap-0 p-0 sm:max-w-4xl'>
+          <DialogHeader className='px-6 pt-6 pb-6'>
             <DialogTitle>Pick a {resourceLabel}</DialogTitle>
             <DialogDescription>
               Pick a namespace to see all {resourceLabelPlural} the storage has access to. Selecting
               one fills the Fully Qualified Name.
             </DialogDescription>
           </DialogHeader>
-          <StorageResourceTree
-            namespaces={namespaces}
-            namespacesLoading={namespacesLoading}
-            namespacesError={namespacesError}
-            onRetryNamespaces={() => {
-              void loadNamespaces();
-            }}
-            loadNamespaceResources={loadNamespaceResources}
-            onSelectResource={handleSelect}
-            resourceType={resourceType}
-          />
+          <div className='bg-muted dark:bg-sidebar flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto rounded-b-md border-t px-6 py-4'>
+            {isUnhealthyStorage ? (
+              <>
+                <UnhealthyStorageBlock status={healthStatus} errorMessage={healthErrorMessage} />
+              </>
+            ) : (
+              <section className='dm-card-block !gap-2'>
+                <StorageResourceTree
+                  namespaces={namespaces}
+                  namespacesLoading={namespacesLoading}
+                  namespacesError={namespacesError}
+                  onRetryNamespaces={() => {
+                    void loadNamespaces();
+                  }}
+                  loadNamespaceResources={loadNamespaceResources}
+                  onSelectResource={handleSelect}
+                  resourceType={resourceType}
+                />
+              </section>
+            )}
+          </div>
         </DialogContent>
       </Dialog>
     </>
