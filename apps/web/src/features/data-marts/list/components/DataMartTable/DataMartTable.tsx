@@ -235,7 +235,6 @@ export function DataMartTable<TData, TValue>({
       window.open(path, '_blank', 'noopener,noreferrer');
       return;
     }
-    console.log('path clicked: ', path);
 
     navigate(url);
   };
