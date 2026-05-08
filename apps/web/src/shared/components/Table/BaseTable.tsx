@@ -98,7 +98,7 @@ export function BaseTable<TData>({
 
   const actionsCellClass = cn(
     'sticky right-0 z-10 px-2',
-    'group-hover:bg-table-tbody-sticky-hover-bg',
+    'bg-table-tbody-sticky-bg group-hover:bg-table-tbody-sticky-hover-bg transition-colors duration-200 ease-out',
     'after:pointer-events-none after:absolute after:inset-y-0 after:left-[-24px] after:w-[24px]',
     'after:bg-gradient-to-r after:from-transparent after:to-table-tbody-sticky-hover-bg',
     'after:opacity-0 after:transition-opacity after:duration-200',
