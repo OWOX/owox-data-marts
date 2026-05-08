@@ -27,9 +27,10 @@ export function AddReportButton({ dataMartStatus, onAddReport }: AddReportButton
             aria-label='Add new report'
             disabled={isDisabled}
             data-testid='reportCreateButton'
+            className='text-foreground'
           >
-            <PlusIcon className='h-4 w-4' />
-            Add Report
+            <PlusIcon className='text-foreground h-4 w-4' />
+            New Report
           </Button>
         </span>
       </TooltipTrigger>

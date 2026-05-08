@@ -73,11 +73,18 @@ export function ScheduledTriggerTable({
               aria-live='polite'
               data-testid='triggerEmptyState'
             >
-              <p className='text-muted-foreground text-sm font-medium'>No scheduled triggers yet</p>
+              <p className='text-muted-foreground text-sm font-medium'>
+                Create your first scheduled trigger
+              </p>
               {onRequestCreate && (
-                <Button variant='outline' size='sm' onClick={onRequestCreate}>
-                  <Plus className='h-3.5 w-3.5' />
-                  Add Trigger
+                <Button
+                  variant='outline'
+                  size='sm'
+                  onClick={onRequestCreate}
+                  className='text-foreground'
+                >
+                  <Plus className='text-foreground h-4 w-4' />
+                  New Trigger
                 </Button>
               )}
             </div>
