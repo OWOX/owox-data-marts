@@ -40,7 +40,7 @@ Bring together data from your warehouse (BigQuery, Snowflake, etc.), APIs, or sp
 
 ### 📤 Deliver Trusted Data Anywhere
 
-Connect your Data Marts to Google Sheets, Looker Studio, or Excel – empowering business teams with reports they need to make decisions.
+Connect your Data Marts to Google Sheets, Data Studio, or Excel – empowering business teams with reports they need to make decisions.
 
 ### 🧾 Define a Semantic Layer
 
