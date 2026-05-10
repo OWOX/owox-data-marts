@@ -9,17 +9,20 @@ import {
 import { GoogleOAuthClientService } from '../services/google-oauth/google-oauth-client.service';
 import { StorageCredentialType } from '../enums/storage-credential-type.enum';
 import { DataStorage } from '../entities/data-storage.entity';
+import { DataStorageCredential } from '../entities/data-storage-credential.entity';
+import { DataStorageCredentialService } from '../services/data-storage-credential.service';
 
 @Injectable()
 export class DataStorageCredentialsResolver {
   constructor(
     private readonly googleOAuthClientService: GoogleOAuthClientService,
     @InjectRepository(DataStorage)
-    private readonly dataStorageRepository: Repository<DataStorage>
+    private readonly dataStorageRepository: Repository<DataStorage>,
+    private readonly dataStorageCredentialService: DataStorageCredentialService
   ) {}
 
   async resolve(storage: DataStorage): Promise<DataStorageCredentials> {
-    const credential = storage.credential;
+    const credential = await this.loadCredential(storage);
 
     if (!credential) {
       throw new Error('Storage credentials are not configured');
@@ -41,5 +44,19 @@ export class DataStorageCredentialsResolver {
       throw new Error(`Storage not found: ${storageId}`);
     }
     return this.resolve(storage);
+  }
+
+  // Reads `storage.credential` populated by the eager OneToOne; if it's missing while
+  // `credentialId` is set, refetches the credential explicitly. Guards against TypeORM
+  // hydration glitches where eager + manual `relations` overlap can leave the field null
+  // (observed after typeorm 0.3.29 / PR #11267 changed setValue to mergeDeep).
+  private async loadCredential(storage: DataStorage): Promise<DataStorageCredential | null> {
+    if (storage.credential) {
+      return storage.credential;
+    }
+    if (!storage.credentialId) {
+      return null;
+    }
+    return this.dataStorageCredentialService.getById(storage.credentialId);
   }
 }
