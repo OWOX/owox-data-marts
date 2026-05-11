@@ -52,12 +52,12 @@ ATHENA_DATABASE=my_test_database
 
 # === Google Sheets ===
 # JSON string of a GCP service account key with Google Sheets API access
+# (Editor role on TEST_GOOGLE_SPREADSHEET_ID — sheet add/delete requires Editor).
 GOOGLE_SHEETS_SERVICE_ACCOUNT_JSON={"type":"service_account","project_id":"...","private_key":"-----BEGIN PRIVATE KEY-----\n...","client_email":"...@...iam.gserviceaccount.com","token_uri":"https://oauth2.googleapis.com/token"}
-# Google Spreadsheet ID for testing (must be accessible by the service account)
+# Google Spreadsheet ID for testing (must be accessible by the service account).
+# The column-preservation suite creates and deletes its own tabs inside this
+# spreadsheet; no pre-existing tabs are required.
 TEST_GOOGLE_SPREADSHEET_ID=your_spreadsheet_id_here
-# Sheet IDs within the spreadsheet (typically 0, 1, 2, etc.)
-TEST_GOOGLE_SHEET_ID=0
-TEST_GOOGLE_SHEET_ID_2=1
 ```
 
 ### Minimum Cloud Permissions

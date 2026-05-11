@@ -440,6 +440,31 @@ describeIfConfigured('Google Sheets column preservation (diff-based writer)', ()
   }, 120_000);
 
   // -------------------------------------------------------------------------
+  // Test 7b — Static values right of imported range are NOT overwritten by
+  // fill-down (C2 + H7). A user lookup table that sits in column K starting
+  // from row 5 must survive refresh untouched, even though row 2 of the
+  // same column holds a formula that should fill down across rows 3..N.
+  // -------------------------------------------------------------------------
+  it('does not overwrite static values right of imported range when only some rows hold formulas', async () => {
+    const { reportId } = await provisionFixture({ testName: 'fill-down-static-value' });
+    await runAndWait(reportId);
+
+    // Seed a formula in row 2 (should fill down) AND a static value in
+    // column L (no formula in row 2 → must NOT be touched).
+    await writeCell('K2', '=B2/C2');
+    await writeCell('L5', '999');
+
+    await runAndWait(reportId);
+
+    // Formula column: rows 2..4 carry shifted refs.
+    expect((await readFormulas('K2:K4')).flat()).toEqual(['=B2/C2', '=B3/C3', '=B4/C4']);
+    // Static-value column: row 5 still has the user value. If the writer
+    // blindly applied PASTE_FORMULA over the whole user block, this cell
+    // would have been cleared.
+    expect((await readRange('L5:L5'))[0]?.[0]).toBe('999');
+  }, 120_000);
+
+  // -------------------------------------------------------------------------
   // Test 8 — Report Columns picker (`columnConfig`) filters the export
   // -------------------------------------------------------------------------
   it('honors the Report Columns picker (columnConfig) to omit columns from the export', async () => {

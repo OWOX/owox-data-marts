@@ -267,4 +267,63 @@ describe('ColumnPlanBuilder', () => {
       expect(plan.finalImportedNames).toEqual(['date', 'cost']);
     });
   });
+
+  describe('alias↔name collision (C6)', () => {
+    it('logs a warning, ignores the second mapping, and does not crash on a collision', () => {
+      // Pathological-but-allowed shape: one column named `revenue` exposed
+      // as `Revenue`, another column literally named `Revenue` (no alias).
+      // Both compete for the display key `Revenue`. There is no clean
+      // recovery for "two row-1 cells share the same display string", but
+      // the builder MUST:
+      //   * detect the collision and emit an actionable warning, and
+      //   * still produce a finite plan without throwing.
+      // Operators rely on the log to find and rename one of the colliding
+      // columns. Downstream duplicate detection (C5 / data integrity) is
+      // expected to catch any residual degeneracy.
+      const warn = jest.spyOn(builder['logger'], 'warn').mockImplementation(() => undefined);
+
+      expect(() =>
+        builder.build(
+          ['Revenue', 'Revenue'],
+          [new PreviousImportedColumn('revenue', 'Revenue'), new PreviousImportedColumn('Revenue')],
+          headers('revenue', 'Revenue')
+        )
+      ).not.toThrow();
+
+      expect(warn).toHaveBeenCalledWith(
+        expect.stringContaining('Display string "Revenue" maps to multiple canonical names')
+      );
+      warn.mockRestore();
+    });
+  });
+
+  describe('empty cell in row 1 (H1)', () => {
+    it('substitutes the canonical name from the previous-run snapshot when a header is blank', () => {
+      const warn = jest.spyOn(builder['logger'], 'warn').mockImplementation(() => undefined);
+
+      // User accidentally cleared header `b` in the middle of the imported
+      // range. Without recovery, the diff would treat the column as
+      // "missing" and delete it, shifting data on the next refresh.
+      const plan = builder.build(['a', '', 'c'], prev('a', 'b', 'c'), headers('a', 'b', 'c'));
+
+      // No structural ops needed — the empty cell is recovered to `b` from
+      // the prior snapshot, and the diff is a no-op.
+      expect(plan.ops).toEqual([]);
+      expect(plan.finalImportedNames).toEqual(['a', 'b', 'c']);
+      expect(warn).toHaveBeenCalledWith(
+        expect.stringContaining('Row 1 cell at column index 1 is empty')
+      );
+      warn.mockRestore();
+    });
+
+    it('treats an empty cell as nonexistent when the previous snapshot has no entry for it', () => {
+      // Edge case: prev shorter than existingHeaders width. Slicing keeps
+      // only the imported region, so this only matters when both are short.
+      const plan = builder.build(['a', ''], prev('a', 'b'), headers('a', 'b'));
+
+      // Prev has `b` at index 1 → recover; no structural op needed.
+      expect(plan.ops).toEqual([]);
+      expect(plan.finalImportedNames).toEqual(['a', 'b']);
+    });
+  });
 });

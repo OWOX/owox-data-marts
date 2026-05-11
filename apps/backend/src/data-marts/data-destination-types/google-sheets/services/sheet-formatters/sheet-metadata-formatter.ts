@@ -10,6 +10,37 @@ import { GOOGLE_SHEETS_METADATA_KEYS } from '../../constants/google-sheets-metad
 const MAX_DESCRIPTION_LENGTH_IN_NOTE = 45_000;
 
 /**
+ * Conservative cap for the FINAL assembled note (description + separator +
+ * ODM info block). Set below the Sheets 50,000-character cap so we never
+ * hit "Cell note exceeds limit" rejections on the batchUpdate.
+ *
+ * The description-only guard above is not enough on its own: the ODM info
+ * block embeds `dataMartTitle`, which is user-controlled and unbounded in
+ * the DB schema. A pathologically-long title alone could push the note
+ * past the limit even with no description.
+ */
+const MAX_TOTAL_NOTE_LENGTH = 49_500;
+
+/**
+ * Truncates a string to `maxChars` *Unicode code points* (not UTF-16 code
+ * units), preserving surrogate-pair integrity so we never end up with a
+ * half-emoji at the boundary. Returns the original string when it fits.
+ */
+function safeTruncate(input: string, maxChars: number): string {
+  if (input.length <= maxChars) {
+    return input;
+  }
+  // Array.from splits by code point — slicing here never lands inside a
+  // surrogate pair. Always trim one extra character to reserve room for
+  // the ellipsis marker the caller appends.
+  return (
+    Array.from(input)
+      .slice(0, maxChars - 1)
+      .join('') + '…'
+  );
+}
+
+/**
  * Service for formatting metadata in Google Sheets
  * Provides methods to create metadata formatting requests
  */
@@ -170,19 +201,27 @@ export class SheetMetadataFormatter {
       `Data Mart: ${dataMartTitle}\n` +
       `Data Mart page: ${dataMartUrl}`;
 
-    if (!description) {
-      return odmInfo;
-    }
-
-    let safeDescription = description;
-    if (description.length > MAX_DESCRIPTION_LENGTH_IN_NOTE) {
+    let safeDescription = description ?? '';
+    if (safeDescription.length > MAX_DESCRIPTION_LENGTH_IN_NOTE) {
       this.logger.warn(
         `Column description exceeds ${MAX_DESCRIPTION_LENGTH_IN_NOTE} chars; truncating before writing as cell note.`
       );
-      safeDescription = description.slice(0, MAX_DESCRIPTION_LENGTH_IN_NOTE) + '…';
+      safeDescription = safeTruncate(safeDescription, MAX_DESCRIPTION_LENGTH_IN_NOTE);
     }
 
-    return `${safeDescription}\n---\n${odmInfo}`;
+    const assembled = safeDescription ? `${safeDescription}\n---\n${odmInfo}` : odmInfo;
+
+    // H5 — Even with description truncated, the ODM info block can blow the
+    // limit when `dataMartTitle` (user-controlled, unbounded) is huge. Cap
+    // the entire assembled string as a final safeguard.
+    if (assembled.length <= MAX_TOTAL_NOTE_LENGTH) {
+      return assembled;
+    }
+    this.logger.warn(
+      `Assembled imported-column note exceeds ${MAX_TOTAL_NOTE_LENGTH} chars ` +
+        `(actual: ${assembled.length}); truncating to stay under the Sheets cell-note size cap.`
+    );
+    return safeTruncate(assembled, MAX_TOTAL_NOTE_LENGTH);
   }
 
   /**

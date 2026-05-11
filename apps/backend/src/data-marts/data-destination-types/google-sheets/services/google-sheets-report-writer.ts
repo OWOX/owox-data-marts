@@ -47,6 +47,13 @@ export class GoogleSheetsReportWriter implements DataDestinationReportWriter {
   private headersByName: Map<string, ReportDataHeader>;
   private columnPlan: ColumnPlan;
   private owoxColumnsMetadataId?: number;
+  /**
+   * Metadata IDs of any extra `OWOX_COLUMNS` entries beyond the canonical
+   * one (`owoxColumnsMetadataId`). Populated by {@link readSheetState};
+   * scheduled for atomic deletion in the finalize batchUpdate. Empty in the
+   * common case.
+   */
+  private duplicateOwoxColumnsMetadataIds: number[] = [];
   private spreadsheetTimeZone: string;
   private spreadsheetTitle: string;
   private sheetTitle: string;
@@ -88,6 +95,20 @@ export class GoogleSheetsReportWriter implements DataDestinationReportWriter {
    * Auto fill-down for user formulas in row 2 right of the imported range is
    * replayed in {@link finalize} via a `PASTE_FORMULA` `copyPaste` request,
    * after data rows have been written — Sheets shifts relative refs there too.
+   *
+   * ### Concurrency
+   *
+   * There is a TOCTOU window between {@link readSheetState} and
+   * {@link applyStructuralColumnOps}: in the order of hundreds of
+   * milliseconds. If a user manually reorders columns in row 1 inside this
+   * window, the structural ops can act on the wrong indices and write data
+   * into the wrong cells for that one refresh. We accept this trade-off
+   * because (a) the window is small, (b) Sheets API does not expose
+   * optimistic-concurrency primitives like `If-Match`/`revisionId` on
+   * `batchUpdate`, and (c) the next refresh re-reads the layout and
+   * self-corrects — `OWOX_COLUMNS` is persisted in the same `batchUpdate`
+   * that runs at the end of this flow, so prior-state inconsistency cannot
+   * leak across refreshes. The risk is documented here rather than guarded.
    */
   public async prepareToWriteReport(
     report: Report,
@@ -102,6 +123,20 @@ export class GoogleSheetsReportWriter implements DataDestinationReportWriter {
           'Cannot prepare report: Data mart has no connected fields. Please ensure at least one field is connected.'
         );
       }
+
+      // C5 — Reject duplicate column names from the SQL output up-front. The
+      // diff maps by name, so two columns sharing a name would collide in
+      // `headersByName` and `nameToFinalIndex`, silently dropping one column's
+      // values into another column on every refresh. We surface this as a
+      // business violation rather than logging it.
+      const duplicates = this.findDuplicateColumnNames(this.reportDataHeaders);
+      if (duplicates.length > 0) {
+        throw new BusinessViolationException(
+          `Duplicate column names in SQL output: ${duplicates.join(', ')}. ` +
+            `Rename one of the conflicting columns or apply an alias.`
+        );
+      }
+
       this.headersByName = new Map(this.reportDataHeaders.map(h => [h.name, h]));
 
       const { existingHeaders, previousOwoxColumns } = await this.readSheetState();
@@ -110,6 +145,22 @@ export class GoogleSheetsReportWriter implements DataDestinationReportWriter {
         existingHeaders,
         previousOwoxColumns,
         this.reportDataHeaders
+      );
+
+      // C4 — Structured telemetry log for rollout observability. One line per
+      // refresh; lets us monitor first-run vs diff-run distribution, op
+      // counts, and tie any anomalies back to a specific data mart without a
+      // feature flag.
+      this.logger.log(
+        `gs-export.column-plan ` +
+          `dataMartId=${report.dataMart.id} ` +
+          `reportId=${report.id} ` +
+          `sheetId=${this.destination.sheetId} ` +
+          `isFirstRun=${this.columnPlan.isFirstRun} ` +
+          `prevColumns=${previousOwoxColumns?.length ?? 0} ` +
+          `desiredColumns=${this.reportDataHeaders.length} ` +
+          `inserts=${this.columnPlan.ops.filter(op => op.kind === 'insert').length} ` +
+          `deletes=${this.columnPlan.ops.filter(op => op.kind === 'delete').length}`
       );
 
       if (reportDataDescription.estimatedDataRowsCount) {
@@ -232,8 +283,11 @@ export class GoogleSheetsReportWriter implements DataDestinationReportWriter {
                   `Overwriting with report ${this.report.id} as the new source of truth.`
               );
             }
-          } catch {
-            /* ignore parse error */
+          } catch (err) {
+            this.logger.debug(
+              `Failed to parse existing OWOX_REPORT_META on sheet ${this.destination.sheetId}; ` +
+                `treating as missing reportId. Cause: ${(err as Error).message}`
+            );
           }
           requests.push(
             this.metadataFormatter.updateDeveloperMetadataRequest(
@@ -279,14 +333,37 @@ export class GoogleSheetsReportWriter implements DataDestinationReportWriter {
           );
         }
 
+        // H2 — atomically delete any extra OWOX_COLUMNS entries detected at
+        // read time, in the same batch as the canonical update. Mirrors the
+        // OWOX_REPORT_META dedup branch above.
+        if (this.duplicateOwoxColumnsMetadataIds.length > 0) {
+          requests.push(
+            ...this.adapter.buildDeleteDeveloperMetadataRequests(
+              this.duplicateOwoxColumnsMetadataIds
+            )
+          );
+          this.logger.debug(
+            `Scheduling deletion of ${this.duplicateOwoxColumnsMetadataIds.length} duplicate ` +
+              `OWOX_COLUMNS entries on sheet ${this.destination.sheetId}.`
+          );
+        }
+
+        // C1 + C2 + H4 — append fill-down `copyPaste` requests to the same
+        // batch so either both metadata persist AND fill-down replay land,
+        // or neither lands. Gates fill-down per-column on the presence of a
+        // formula in row 2 (no fill-down for static values / blank cells).
+        const fillDownRequests = await this.buildFillDownRequests();
+        if (fillDownRequests.length > 0) {
+          requests.push(...fillDownRequests);
+        }
+
         await this.adapter.batchUpdate(this.destination.spreadsheetId, requests);
 
         this.logger.debug(
           `Developer metadata written for report ${this.report.id} ` +
-            `(project: ${dataMart.projectId}, datamart: ${dataMart.id})`
+            `(project: ${dataMart.projectId}, datamart: ${dataMart.id}); ` +
+            `fillDownRequests=${fillDownRequests.length}`
         );
-
-        await this.replayFillDownFormulas();
       }
     }, 'Finalizing report with metadata and formatting');
     if (!processingError) {
@@ -447,6 +524,20 @@ export class GoogleSheetsReportWriter implements DataDestinationReportWriter {
         const first = owoxColumnsEntries[0];
         this.owoxColumnsMetadataId = first.metadataId ?? undefined;
         previousOwoxColumns = this.parseOwoxColumnsMetadata(first.metadataValue ?? null);
+
+        // H2 — capture extra OWOX_COLUMNS entries for atomic cleanup in
+        // finalize. Mirrors the OWOX_REPORT_META dedup pattern below.
+        if (owoxColumnsEntries.length > 1) {
+          this.duplicateOwoxColumnsMetadataIds = owoxColumnsEntries
+            .slice(1)
+            .map(m => m.metadataId)
+            .filter((id): id is number => typeof id === 'number');
+          this.logger.warn(
+            `Found ${owoxColumnsEntries.length} OWOX_COLUMNS entries on sheet ` +
+              `${this.destination.sheetId} (dataMartId=${this.report.dataMart.id}). ` +
+              `Keeping the first and scheduling the rest for deletion in finalize.`
+          );
+        }
       }
 
       return { existingHeaders, previousOwoxColumns };
@@ -597,6 +688,24 @@ export class GoogleSheetsReportWriter implements DataDestinationReportWriter {
    * order (i.e. SQL order); we move each value into the slot dictated by
    * `columnPlan.nameToFinalIndex`.
    */
+  /**
+   * Returns the list of column names that appear more than once in the
+   * input headers, with each duplicate listed only once. Empty array when
+   * all names are unique.
+   */
+  private findDuplicateColumnNames(headers: ReportDataHeader[]): string[] {
+    const seen = new Set<string>();
+    const duplicates = new Set<string>();
+    for (const h of headers) {
+      if (seen.has(h.name)) {
+        duplicates.add(h.name);
+      } else {
+        seen.add(h.name);
+      }
+    }
+    return [...duplicates];
+  }
+
   private reorderRowsToFinalLayout(rows: unknown[][]): unknown[][] {
     const finalNames = this.columnPlan.finalImportedNames;
     return rows.map(srcRow => {
@@ -610,39 +719,78 @@ export class GoogleSheetsReportWriter implements DataDestinationReportWriter {
   }
 
   /**
-   * Replays user fill-down formulas in row 2 across rows `[3..writtenRowsCount]`
-   * for every column right of the imported range.
+   * Builds fill-down `copyPaste` requests for user formulas sitting in row 2
+   * right of the imported range. The writer applies these requests as part
+   * of the finalize batchUpdate so that fill-down and metadata persist
+   * atomically — if either part fails, the whole batch is rejected and
+   * `OWOX_COLUMNS` is not advanced past a half-applied state.
    *
-   * Implemented as a single `copyPaste` request with `pasteType:
-   * 'PASTE_FORMULA'` — Google Sheets shifts relative A1 refs the same way
-   * drag-fill does. Cells in row 2 that hold static values (not formulas)
-   * are left untouched by `PASTE_FORMULA`.
+   * Strategy:
+   *   * Read row 2 of the user-content area (right of the imported range)
+   *     with `valueRenderOption: 'FORMULA'`.
+   *   * For each cell whose value starts with `=`, emit one narrow
+   *     `copyPaste` (source: row 2 of that column; destination: rows
+   *     3..writtenRowsCount of the same column; `pasteType: 'PASTE_FORMULA'`).
+   *   * Columns that hold a static value or are empty produce no request,
+   *     so the writer never overwrites a user lookup table in rows 3..N.
+   *
+   * Returns an empty array when there is nothing to fill (no user columns
+   * to the right, no data rows under the headers, or row 2 has no
+   * formulas).
    *
    * NOTE: writing the formula string directly via `values.update` /
    * `values.batchUpdate` would NOT shift refs — that API records formula
    * strings verbatim, regardless of destination row.
    */
-  private async replayFillDownFormulas(): Promise<void> {
-    const sourceCol = this.columnPlan.lastImportedColIndex + 1; // 0-based
-    const lastCol = this.availableColumnsCount; // 0-exclusive end
-    const sourceRow = 1; // 0-based row 2
-    const destStartRow = 2; // 0-based row 3
-    const destEndRow = this.writtenRowsCount; // 0-exclusive end
+  private async buildFillDownRequests(): Promise<sheets_v4.Schema$Request[]> {
+    const firstUserCol1 = this.columnPlan.lastImportedColIndex + 2; // 1-based first col right of imported
+    const lastCol1 = this.availableColumnsCount; // 1-based, inclusive
+    const dataRowFrom = 3; // 1-based; rows 3..writtenRowsCount get the fill-down
+    const dataRowTo = this.writtenRowsCount; // 1-based, inclusive
 
-    // Skip when there's nothing to fill (no rows below row 2, or no user
-    // columns right of imported range).
-    if (sourceCol >= lastCol || destStartRow >= destEndRow) {
-      return;
+    // Nothing to fill: no user columns, or no rows under row 2.
+    if (firstUserCol1 > lastCol1 || dataRowFrom > dataRowTo) {
+      return [];
     }
-    return this.executeWithErrorHandling(async () => {
-      const request = this.adapter.buildCopyPasteRequest(
-        this.destination.sheetId,
-        { startRow: sourceRow, endRow: sourceRow + 1, startCol: sourceCol, endCol: lastCol },
-        { startRow: destStartRow, endRow: destEndRow, startCol: sourceCol, endCol: lastCol },
-        'PASTE_FORMULA'
+
+    const formulas = await this.executeWithErrorHandling(
+      () =>
+        this.adapter.getRowFormulas(
+          this.destination.spreadsheetId,
+          this.sheetTitle,
+          2,
+          firstUserCol1,
+          lastCol1
+        ),
+      'Reading row-2 formulas for fill-down'
+    );
+
+    const requests: sheets_v4.Schema$Request[] = [];
+    formulas.forEach((cell, i) => {
+      if (!cell.startsWith('=')) {
+        return; // gate: skip static values and empties so we don't overwrite user content
+      }
+      const col0Based = firstUserCol1 - 1 + i;
+      requests.push(
+        this.adapter.buildCopyPasteRequest(
+          this.destination.sheetId,
+          {
+            startRow: 1, // 0-based row 2
+            endRow: 2, // exclusive
+            startCol: col0Based,
+            endCol: col0Based + 1,
+          },
+          {
+            startRow: dataRowFrom - 1, // 0-based row 3
+            endRow: dataRowTo, // exclusive end of writtenRowsCount
+            startCol: col0Based,
+            endCol: col0Based + 1,
+          },
+          'PASTE_FORMULA'
+        )
       );
-      await this.adapter.batchUpdate(this.destination.spreadsheetId, [request]);
-    }, 'Replaying user fill-down formulas');
+    });
+    return requests;
   }
 
   /**

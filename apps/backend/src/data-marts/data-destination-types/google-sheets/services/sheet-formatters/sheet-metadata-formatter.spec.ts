@@ -172,6 +172,55 @@ describe('SheetMetadataFormatter', () => {
       expect(note).toContain('…\n---\n');
       expect(note).toContain('Imported via OWOX Data Marts');
     });
+
+    it('also truncates the assembled note when ODM info alone blows the size cap (H5)', () => {
+      // The description-only guard is not enough on its own — `dataMartTitle`
+      // is user-controlled and unbounded. Here we make the title alone push
+      // the assembled note past the cap to verify the final-output truncation.
+      const oversizeTitle = 'T'.repeat(60_000);
+      const note = formatter.buildImportedColumnNote(
+        'short description',
+        oversizeTitle,
+        baseArgs.url,
+        baseArgs.date,
+        false
+      );
+
+      // Final assembled note must stay under the Sheets 50K cap (we use a
+      // 49.5K conservative limit).
+      expect(note.length).toBeLessThanOrEqual(49_500);
+      expect(note.endsWith('…')).toBe(true);
+    });
+
+    it('truncates on a Unicode code-point boundary, not in the middle of a surrogate pair (M8)', () => {
+      // Each "🚀" is one Unicode code point but two UTF-16 code units. A
+      // naïve `String.prototype.slice` could land between the high and low
+      // surrogates and produce an invalid string. We assert truncation
+      // never produces a lone surrogate.
+      const emojiHeavyDescription = '🚀'.repeat(30_000); // 30K code points = 60K UTF-16 units
+      const note = formatter.buildImportedColumnNote(
+        emojiHeavyDescription,
+        baseArgs.title,
+        baseArgs.url,
+        baseArgs.date,
+        false
+      );
+
+      for (let i = 0; i < note.length; i++) {
+        const code = note.charCodeAt(i);
+        const isHighSurrogate = code >= 0xd800 && code <= 0xdbff;
+        const isLowSurrogate = code >= 0xdc00 && code <= 0xdfff;
+        if (isHighSurrogate) {
+          // High surrogate must be immediately followed by a low surrogate.
+          const next = note.charCodeAt(i + 1);
+          expect(next >= 0xdc00 && next <= 0xdfff).toBe(true);
+          i++; // skip the paired low surrogate
+        } else if (isLowSurrogate) {
+          // A lone low surrogate would mean we sliced in the middle of a pair.
+          throw new Error(`Found lone low surrogate at index ${i}`);
+        }
+      }
+    });
   });
 
   describe('createOwoxColumnsMetadataRequest', () => {
