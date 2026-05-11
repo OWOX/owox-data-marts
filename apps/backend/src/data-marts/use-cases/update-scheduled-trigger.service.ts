@@ -10,6 +10,7 @@ import { BusinessViolationException } from '../../common/exceptions/business-vio
 import { DataMartStatus } from '../enums/data-mart-status.enum';
 import { UserProjectionsFetcherService } from '../services/user-projections-fetcher.service';
 import { ReportAccessService } from '../services/report-access.service';
+import { ReportService } from '../services/report.service';
 import { ScheduledTriggerType } from '../scheduled-trigger-types/enums/scheduled-trigger-type.enum';
 import { isScheduledReportRunConfig } from '../scheduled-trigger-types/scheduled-trigger-config.guards';
 
@@ -21,7 +22,8 @@ export class UpdateScheduledTriggerService {
     private readonly scheduledTriggerService: ScheduledTriggerService,
     private readonly mapper: ScheduledTriggerMapper,
     private readonly userProjectionsFetcherService: UserProjectionsFetcherService,
-    private readonly reportAccessService: ReportAccessService
+    private readonly reportAccessService: ReportAccessService,
+    private readonly reportService: ReportService
   ) {}
 
   async run(command: UpdateScheduledTriggerCommand): Promise<ScheduledTriggerDto> {
@@ -70,18 +72,18 @@ export class UpdateScheduledTriggerService {
         throw new BadRequestException('Report ID is required for REPORT_RUN triggers');
       }
 
-      const canMutate = await this.reportAccessService.canMutate(
+      await this.reportService.getByIdAndDataMartIdAndProjectId(
+        trigger.triggerConfig.reportId,
+        command.dataMartId,
+        command.projectId
+      );
+
+      await this.reportAccessService.checkOperateAccess(
         command.userId,
         command.roles,
         trigger.triggerConfig.reportId,
         command.projectId
       );
-
-      if (!canMutate) {
-        throw new ForbiddenException(
-          'You do not have permission to update triggers for this report. Only report owners can manage report triggers.'
-        );
-      }
     } else {
       if (!this.reportAccessService.isTechnicalUser(command.roles)) {
         throw new ForbiddenException('Only Technical Users can update connector run triggers.');

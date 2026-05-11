@@ -67,7 +67,21 @@ describe('UpdateReportService', () => {
       checkAccess: jest.fn().mockResolvedValue(undefined),
     };
     const mapper = {
-      toDomainDto: jest.fn().mockReturnValue({ id: 'report-1' }),
+      toDomainDto: jest
+        .fn()
+        .mockImplementation(
+          (
+            _entity: unknown,
+            _createdByUser: unknown,
+            _ownerUsers: unknown,
+            capabilities?: { canRun: boolean; canManageTriggers: boolean; canEditConfig: boolean }
+          ) => ({
+            id: 'report-1',
+            canRun: capabilities?.canRun ?? false,
+            canManageTriggers: capabilities?.canManageTriggers ?? false,
+            canEditConfig: capabilities?.canEditConfig ?? false,
+          })
+        ),
     };
     const availableDestinationTypesService = {
       verifyIsAllowed: jest.fn(),
@@ -82,6 +96,16 @@ describe('UpdateReportService', () => {
     const reportAccessService = {
       checkMutateAccess: jest.fn().mockResolvedValue(undefined),
       canBeOwner: jest.fn().mockResolvedValue(true),
+      canOperate: jest.fn().mockResolvedValue(true),
+      canMutate: jest.fn().mockResolvedValue(true),
+      computeCapabilitiesForReport: jest.fn().mockResolvedValue({
+        canRun: true,
+        canManageTriggers: true,
+        canEditConfig: true,
+      }),
+    };
+    const accessDecisionService = {
+      canAccess: jest.fn().mockResolvedValue(true),
     };
     const reportDataCacheService = {
       invalidateByReportId: jest.fn().mockResolvedValue(undefined),
@@ -102,12 +126,14 @@ describe('UpdateReportService', () => {
       reportOwnerRepository as never,
       reportAccessService as never,
       reportDataCacheService as never,
-      outputControlsValidator as never
+      outputControlsValidator as never,
+      accessDecisionService as never
     );
 
     return {
       service,
       reportAccessService,
+      accessDecisionService,
       reportRepository,
       reportDataCacheService,
       outputControlsValidator,
@@ -344,5 +370,27 @@ describe('UpdateReportService', () => {
     await service.run(command);
 
     expect(reportDataCacheService.invalidateByReportId).not.toHaveBeenCalled();
+  });
+
+  it('should return DTO carrying capabilities computed for the updater', async () => {
+    const { service } = createService();
+
+    const command = new UpdateReportCommand(
+      'report-1',
+      'proj-1',
+      'user-1',
+      ['editor'],
+      'New Title',
+      'dest-1',
+      {} as never
+    );
+
+    const result = await service.run(command);
+
+    expect(result).toMatchObject({
+      canRun: true,
+      canManageTriggers: true,
+      canEditConfig: true,
+    });
   });
 });

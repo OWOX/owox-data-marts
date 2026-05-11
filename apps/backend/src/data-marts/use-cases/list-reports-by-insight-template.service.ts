@@ -8,6 +8,8 @@ import { ListReportsByInsightTemplateCommand } from '../dto/domain/list-reports-
 import { EmailConfigType } from '../data-destination-types/ee/email/schemas/email-config.schema';
 import { TemplateSourceTypeEnum } from '../enums/template-source-type.enum';
 import { UserProjectionsFetcherService } from '../services/user-projections-fetcher.service';
+import { ReportAccessService } from '../services/report-access.service';
+import { resolveOwnerUsers } from '../utils/resolve-owner-users';
 
 @Injectable()
 export class ListReportsByInsightTemplateService {
@@ -15,7 +17,8 @@ export class ListReportsByInsightTemplateService {
     @InjectRepository(Report)
     private readonly reportRepository: Repository<Report>,
     private readonly mapper: ReportMapper,
-    private readonly userProjectionsFetcherService: UserProjectionsFetcherService
+    private readonly userProjectionsFetcherService: UserProjectionsFetcherService,
+    private readonly reportAccessService: ReportAccessService
   ) {}
 
   async run(command: ListReportsByInsightTemplateCommand): Promise<ReportDto[]> {
@@ -43,6 +46,22 @@ export class ListReportsByInsightTemplateService {
     const userProjectionsList =
       await this.userProjectionsFetcherService.fetchRelevantUserProjections(reports);
 
-    return this.mapper.toDomainDtoList(reports, userProjectionsList);
+    return Promise.all(
+      reports.map(async report => {
+        const capabilities = await this.reportAccessService.computeCapabilitiesForReport(
+          command.userId,
+          command.roles,
+          report,
+          command.projectId
+        );
+
+        return this.mapper.toDomainDto(
+          report,
+          report.createdById ? (userProjectionsList.getByUserId(report.createdById) ?? null) : null,
+          resolveOwnerUsers(report.ownerIds, userProjectionsList),
+          capabilities
+        );
+      })
+    );
   }
 }

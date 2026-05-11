@@ -2,6 +2,11 @@ jest.mock('../../idp/facades/idp-projections.facade', () => ({
   IdpProjectionsFacade: jest.fn(),
 }));
 
+jest.mock('typeorm-transactional', () => ({
+  Transactional: () => (_target: unknown, _key: string, descriptor: PropertyDescriptor) =>
+    descriptor,
+}));
+
 jest.mock('../report-run-logging/log-blended-sql', () => ({
   logBlendedSqlIfNeeded: jest.fn(),
 }));
@@ -16,6 +21,7 @@ import { DataDestination } from '../entities/data-destination.entity';
 import { Report } from '../entities/report.entity';
 import { ReportExecutionPolicyResolver } from './report-execution-policy.resolver';
 import { RunReportService } from './run-report.service';
+import { RunType } from '../../common/scheduler/shared/types';
 
 jest.mock('../data-destination-types/data-destination-providers', () => ({
   DATA_DESTINATION_REPORT_WRITER_RESOLVER: 'DATA_DESTINATION_REPORT_WRITER_RESOLVER',
@@ -40,19 +46,32 @@ describe('RunReportService', () => {
       // Default: no columnConfig -> no blending, no filter.
       resolveBlendingDecision: jest.fn().mockResolvedValue({ needsBlending: false }),
     };
+    const reportRunService = {
+      createPending: jest.fn(),
+    };
+    const reportRunTriggerService = {
+      createTrigger: jest.fn().mockResolvedValue(undefined),
+    };
+    const reportAccessService = {
+      checkOperateAccess: jest.fn().mockResolvedValue(undefined),
+      checkMutateAccess: jest.fn().mockResolvedValue(undefined),
+    };
+    const gracefulShutdownService = {
+      isInShutdownMode: jest.fn().mockReturnValue(false),
+    };
 
     const service = new RunReportService(
       reportReaderResolver as never,
       reportWriterResolver as never,
       {} as never,
+      gracefulShutdownService as never,
       {} as never,
-      {} as never,
-      {} as never,
+      reportRunService as never,
       {} as never,
       projectBalanceService as never,
       new ReportExecutionPolicyResolver(),
-      {} as never,
-      { checkMutateAccess: jest.fn().mockResolvedValue(undefined) } as never,
+      reportRunTriggerService as never,
+      reportAccessService as never,
       blendedReportDataService as never,
       { compose: jest.fn().mockResolvedValue({ sql: 'SELECT 1' }) } as never
     );
@@ -63,6 +82,9 @@ describe('RunReportService', () => {
       reportWriterResolver,
       projectBalanceService,
       blendedReportDataService,
+      reportRunService,
+      reportRunTriggerService,
+      reportAccessService,
     };
   };
 
@@ -182,6 +204,34 @@ describe('RunReportService', () => {
     ).executeReport(report, undefined, mockLogger);
 
     expect(logBlendedSqlIfNeeded).toHaveBeenCalledWith(decision, mockLogger);
+  });
+
+  describe('manual runs', () => {
+    it('uses checkOperateAccess (not checkMutateAccess) for manual runs', async () => {
+      const { service, reportAccessService, reportRunService, reportRunTriggerService } =
+        createService();
+      reportRunService.createPending.mockResolvedValue({
+        getDataMart: () => ({ projectId: 'proj-1' }),
+        getDataMartRun: () => ({ id: 'dmr-1' }),
+      });
+
+      await service.run({
+        reportId: 'report-1',
+        userId: 'user-1',
+        roles: ['viewer'],
+        runType: RunType.manual,
+        projectId: 'proj-1',
+      });
+
+      expect(reportAccessService.checkOperateAccess).toHaveBeenCalledWith(
+        'user-1',
+        ['viewer'],
+        'report-1',
+        'proj-1'
+      );
+      expect(reportAccessService.checkMutateAccess).not.toHaveBeenCalled();
+      expect(reportRunTriggerService.createTrigger).toHaveBeenCalled();
+    });
   });
 
   it('keeps non-email destinations unchanged and reads all batches', async () => {

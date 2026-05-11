@@ -26,4 +26,7 @@ export interface ReportResponseDto {
   modifiedAt: string;
   createdByUser?: UserProjection | null;
   ownerUsers?: UserProjection[];
+  canRun: boolean;
+  canManageTriggers: boolean;
+  canEditConfig: boolean;
 }

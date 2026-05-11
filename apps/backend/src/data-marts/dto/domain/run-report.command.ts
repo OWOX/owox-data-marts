@@ -1,9 +1,18 @@
 import { RunType } from '../../../common/scheduler/shared/types';
 
-export interface RunReportCommand {
+interface BaseRunReportCommand {
   reportId: string;
   userId: string;
-  roles?: string[];
-  runType: RunType;
-  projectId?: string;
 }
+
+export interface ManualRunReportCommand extends BaseRunReportCommand {
+  runType: RunType.manual;
+  roles: string[];
+  projectId: string;
+}
+
+export interface ScheduledRunReportCommand extends BaseRunReportCommand {
+  runType: RunType.scheduled;
+}
+
+export type RunReportCommand = ManualRunReportCommand | ScheduledRunReportCommand;

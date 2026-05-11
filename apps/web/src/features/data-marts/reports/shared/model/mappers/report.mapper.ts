@@ -40,5 +40,8 @@ export function mapReportDtoToEntity(reportDto: ReportResponseDto): DataMartRepo
     modifiedAt: new Date(reportDto.modifiedAt),
     createdByUser: reportDto.createdByUser ?? null,
     ownerUsers: reportDto.ownerUsers ?? [],
+    canRun: reportDto.canRun,
+    canManageTriggers: reportDto.canManageTriggers,
+    canEditConfig: reportDto.canEditConfig,
   };
 }

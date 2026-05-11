@@ -22,6 +22,7 @@ import { IdpProjectionsFacade } from '../../idp/facades/idp-projections.facade';
 import { ForbiddenException } from '@nestjs/common';
 import { AccessDecisionService, EntityType, Action } from '../services/access-decision';
 import { OutputControlsValidatorService } from '../services/output-controls-validator.service';
+import { ReportAccessService } from '../services/report-access.service';
 
 @Injectable()
 export class CreateReportService {
@@ -39,7 +40,8 @@ export class CreateReportService {
     private readonly idpProjectionsFacade: IdpProjectionsFacade,
     private readonly accessDecisionService: AccessDecisionService,
     private readonly eventDispatcher: OwoxEventDispatcher,
-    private readonly outputControlsValidator: OutputControlsValidatorService
+    private readonly outputControlsValidator: OutputControlsValidatorService,
+    private readonly reportAccessService: ReportAccessService
   ) {}
 
   @Transactional()
@@ -161,10 +163,18 @@ export class CreateReportService {
       await this.userProjectionsFetcherService.fetchUserProjectionsList(allUserIds);
     const createdByUser = userProjections.getByUserId(command.userId) ?? null;
 
+    const capabilities = await this.reportAccessService.computeCapabilitiesForReport(
+      command.userId,
+      command.roles,
+      newReport,
+      command.projectId
+    );
+
     return this.mapper.toDomainDto(
       newReport,
       createdByUser,
-      resolveOwnerUsers(ownerIdsToSave, userProjections)
+      resolveOwnerUsers(ownerIdsToSave, userProjections),
+      capabilities
     );
   }
 }
