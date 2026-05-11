@@ -23,7 +23,7 @@ export function TableFiltersTrigger({
     <PopoverTrigger asChild>
       <Button variant='outline' size='sm' className='h-9'>
         <Icon className='size-4' />
-        <span className='hidden md:block'>{label}</span>
+        <span className='hidden lg:block'>{label}</span>
         {isActive && (
           <Badge className='bg-brand-blue-500 rounded-full px-1.5 py-0 text-xs text-white'>
             {badgeCount}

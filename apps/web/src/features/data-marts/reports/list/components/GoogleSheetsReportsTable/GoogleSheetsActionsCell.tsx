@@ -202,7 +202,13 @@ export function GoogleSheetsActionsCell({
           open={isDeleteDialogOpen}
           onOpenChange={setIsDeleteDialogOpen}
           title='Delete Report'
-          description={`Are you sure you want to delete "${row.original.title}"? This action cannot be undone.`}
+          description={
+            <p className='break-words'>
+              Are you sure you want to delete "
+              <span className='font-semibold [overflow-wrap:anywhere]'>{row.original.title}</span>"?
+              This action cannot be undone.
+            </p>
+          }
           confirmLabel='Delete'
           cancelLabel='Cancel'
           onConfirm={() => {

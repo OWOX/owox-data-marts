@@ -63,8 +63,12 @@ export class DataMartService {
       roleScope?: RoleScope;
     }
   ): Promise<{ items: DataMart[]; total: number }> {
+    const DM_ALIAS = 'dm';
+    const RAW_ID_COL = `${DM_ALIAS}_id`; // TypeORM raw alias for dm.id
+    const RAW_DEFINITION_COL = 'dm_definition'; // explicit alias in addSelect below
+
     const qb = this.dataMartRepository
-      .createQueryBuilder('dm')
+      .createQueryBuilder(DM_ALIAS)
       .leftJoin('dm.storage', 'storage')
       .leftJoinAndSelect('dm.businessOwners', 'businessOwners')
       .leftJoinAndSelect('dm.technicalOwners', 'technicalOwners')
@@ -91,7 +95,7 @@ export class DataMartService {
       ])
       .addSelect(
         'CASE WHEN dm.definitionType = :connectorDefinitionType THEN dm.definition ELSE NULL END',
-        'dm_definition'
+        RAW_DEFINITION_COL
       )
       .setParameter('connectorDefinitionType', DataMartDefinitionType.CONNECTOR)
       .where('dm.projectId = :projectId', { projectId })
@@ -151,11 +155,19 @@ export class DataMartService {
       countQb.getCount(),
       qb.getRawAndEntities(),
     ]);
-    const items = entities.map((item, index) => {
-      if (raw[index]?.dm_definition) {
+    // raw has one row per JOIN combination (multiple rows per entity when owners/contexts exist),
+    // so index-based matching is wrong. Build a map keyed by data mart ID instead.
+    const rawDefinitionById = new Map<string, unknown>();
+    for (const row of raw) {
+      if (row[RAW_ID_COL] && row[RAW_DEFINITION_COL] && !rawDefinitionById.has(row[RAW_ID_COL])) {
+        rawDefinitionById.set(row[RAW_ID_COL], row[RAW_DEFINITION_COL]);
+      }
+    }
+    const items = entities.map(item => {
+      const rawDefinition = rawDefinitionById.get(item.id);
+      if (rawDefinition) {
         try {
           // value can be returned as a string or as an object
-          const rawDefinition = raw[index].dm_definition;
           const parsed =
             typeof rawDefinition === 'string' ? JSON.parse(rawDefinition) : rawDefinition;
           const result = DataMartDefinitionSchema.safeParse(parsed);
