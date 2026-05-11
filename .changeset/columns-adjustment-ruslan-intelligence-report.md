@@ -32,3 +32,8 @@ named ranges — stays intact across refreshes.
 - **Every imported header carries provenance.** Hover any imported column
   header and you see its description followed by the OWOX Data Marts link
   back to the source data mart — not just on the first column anymore.
+- **A failed refresh no longer wipes your existing data.** If the warehouse
+  query fails or the connection drops before any new rows have been
+  produced, the sheet stays exactly as you last saw it. The data mart's
+  status flips to "failed" so you know to investigate, but you don't lose
+  the previous successful refresh.

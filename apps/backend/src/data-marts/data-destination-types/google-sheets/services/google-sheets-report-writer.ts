@@ -54,6 +54,16 @@ export class GoogleSheetsReportWriter implements DataDestinationReportWriter {
    * common case.
    */
   private duplicateOwoxColumnsMetadataIds: number[] = [];
+  /**
+   * Tracks whether the destructive part of the refresh — column
+   * insert/delete and header rewrite — has already been issued to the
+   * Sheets API. We defer those operations from `prepareToWriteReport`
+   * to the first successful `writeReportDataBatch` so that any failure
+   * upstream of the first batch (reader connection lost, SQL execution
+   * error, etc.) leaves the destination sheet exactly as the user last
+   * saw it. See {@link applyDeferredSheetMutations}.
+   */
+  private structuralOpsApplied = false;
   private spreadsheetTimeZone: string;
   private spreadsheetTitle: string;
   private sheetTitle: string;
@@ -87,10 +97,17 @@ export class GoogleSheetsReportWriter implements DataDestinationReportWriter {
    *      - `OWOX_COLUMNS` developer metadata (the names + aliases ODM wrote
    *        last time).
    *   3. Build a `ColumnPlan` describing inserts/deletes to apply.
-   *   4. Allocate grid rows/columns, then apply structural ops in a single
-   *      `batchUpdate`. Sheets shifts A1 refs in user formulas automatically
-   *      across these structural changes.
-   *   5. Write headers + per-cell notes inside the imported rectangle only.
+   *
+   * **No sheet mutations happen here.** Column insert/delete and header
+   * rewrite are deferred to the first {@link writeReportDataBatch} call —
+   * see {@link applyDeferredSheetMutations}. The rationale is fault
+   * isolation: if the reader fails before producing the first batch
+   * (transient warehouse error, malformed SQL caught at execution, etc.),
+   * the destination sheet remains exactly as the user last saw it. We
+   * accept partial-data corruption mid-stream (some rows new, some old)
+   * because the alternative — destructive structural ops before data is
+   * known to be available — produces the much worse "headers updated but
+   * data gone" state that triggered this design.
    *
    * Auto fill-down for user formulas in row 2 right of the imported range is
    * replayed in {@link finalize} via a `PASTE_FORMULA` `copyPaste` request,
@@ -99,16 +116,18 @@ export class GoogleSheetsReportWriter implements DataDestinationReportWriter {
    * ### Concurrency
    *
    * There is a TOCTOU window between {@link readSheetState} and
-   * {@link applyStructuralColumnOps}: in the order of hundreds of
-   * milliseconds. If a user manually reorders columns in row 1 inside this
-   * window, the structural ops can act on the wrong indices and write data
-   * into the wrong cells for that one refresh. We accept this trade-off
-   * because (a) the window is small, (b) Sheets API does not expose
-   * optimistic-concurrency primitives like `If-Match`/`revisionId` on
-   * `batchUpdate`, and (c) the next refresh re-reads the layout and
-   * self-corrects — `OWOX_COLUMNS` is persisted in the same `batchUpdate`
-   * that runs at the end of this flow, so prior-state inconsistency cannot
-   * leak across refreshes. The risk is documented here rather than guarded.
+   * {@link applyDeferredSheetMutations}: in the order of hundreds of
+   * milliseconds in the common case but can stretch longer when the reader
+   * is slow to produce its first batch. If a user manually reorders columns
+   * in row 1 inside this window, the structural ops can act on the wrong
+   * indices and write data into the wrong cells for that one refresh. We
+   * accept this trade-off because (a) the window is small in the happy
+   * path, (b) Sheets API does not expose optimistic-concurrency primitives
+   * like `If-Match`/`revisionId` on `batchUpdate`, and (c) the next refresh
+   * re-reads the layout and self-corrects — `OWOX_COLUMNS` is persisted in
+   * the same `batchUpdate` that runs at the end of this flow, so prior-state
+   * inconsistency cannot leak across refreshes. The risk is documented here
+   * rather than guarded.
    */
   public async prepareToWriteReport(
     report: Report,
@@ -163,15 +182,37 @@ export class GoogleSheetsReportWriter implements DataDestinationReportWriter {
           `deletes=${this.columnPlan.ops.filter(op => op.kind === 'delete').length}`
       );
 
+      // Pre-allocate row capacity. `appendDimension('ROWS')` only grows the
+      // grid at the bottom — it does not mutate the user's imported content
+      // or column structure, so it is safe to do here even though the
+      // destructive operations are deferred.
       if (reportDataDescription.estimatedDataRowsCount) {
         await this.ensureRowsAvailable(reportDataDescription.estimatedDataRowsCount + 1); // +1 for headers
       }
-      await this.prepareSheetColumns(this.columnPlan.finalImportedNames.length);
-      await this.applyStructuralColumnOps();
-      await this.writeHeaders();
-
-      this.writtenRowsCount = 1;
     }, 'Preparing Google Sheets document for report');
+  }
+
+  /**
+   * Issues the destructive part of the refresh — grow column count,
+   * apply column insert/delete, write headers — as a one-shot block.
+   * Invoked lazily from the first {@link writeReportDataBatch} call so
+   * that any failure before data starts flowing leaves the sheet
+   * untouched. Subsequent batch calls return immediately because the
+   * `structuralOpsApplied` flag is already set.
+   *
+   * If the reader produces zero batches but completes without error,
+   * {@link finalize} calls this method itself to bring the sheet layout
+   * up to date even though no data rows were written.
+   */
+  private async applyDeferredSheetMutations(): Promise<void> {
+    if (this.structuralOpsApplied) {
+      return;
+    }
+    await this.prepareSheetColumns(this.columnPlan.finalImportedNames.length);
+    await this.applyStructuralColumnOps();
+    await this.writeHeaders();
+    this.writtenRowsCount = 1;
+    this.structuralOpsApplied = true;
   }
 
   /**
@@ -191,6 +232,12 @@ export class GoogleSheetsReportWriter implements DataDestinationReportWriter {
       if (!rows.length) {
         return;
       }
+
+      // Lazily commit the structural changes and headers now that we have
+      // data to write. If the very first batch ever reaches us, this is the
+      // earliest point at which we know the reader has succeeded enough to
+      // produce something — before this, the sheet stays intact.
+      await this.applyDeferredSheetMutations();
 
       await this.ensureRowsAvailable(rows.length);
 
@@ -215,13 +262,28 @@ export class GoogleSheetsReportWriter implements DataDestinationReportWriter {
 
   /**
    * Finalizes the report:
+   *   - if the reader completed successfully but produced zero batches,
+   *     applies the deferred structural ops + headers so the layout is
+   *     refreshed even on an empty result set;
    *   - sets tab color and freezes the header row;
    *   - persists `OWOX_REPORT_META` (one per sheet) and `OWOX_COLUMNS`
    *     (the imported-range column list for next refresh);
    *   - replays user fill-down formulas across all freshly written data rows.
+   *
+   * When `processingError` is set we **skip** the deferred-mutation
+   * fallback: the upstream pipeline failed before producing meaningful
+   * data, and the design contract is that such failures must leave the
+   * sheet exactly as the user last saw it.
    */
   public async finalize(processingError?: Error, _meta?: ReportWriteFinalizeMeta): Promise<void> {
     await this.executeWithErrorHandling(async () => {
+      // Zero-batch happy path: the reader finished cleanly but had nothing
+      // to write. Bring the sheet layout up to date so column changes do
+      // not stall indefinitely on legitimately empty data marts.
+      if (!processingError && !this.structuralOpsApplied && this.reportDataHeaders?.length > 0) {
+        await this.applyDeferredSheetMutations();
+      }
+
       if (this.writtenRowsCount > 0 && this.reportDataHeaders?.[0]) {
         const dataMart = this.report.dataMart;
 

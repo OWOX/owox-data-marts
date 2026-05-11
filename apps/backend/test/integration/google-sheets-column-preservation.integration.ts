@@ -107,6 +107,35 @@ describeIfConfigured('Google Sheets column preservation (diff-based writer)', ()
     await waitForReportCompletion({ agent, reportId, runsCountBefore });
   }
 
+  /**
+   * Triggers a report run and expects it to finalize with `lastRunStatus =
+   * 'ERROR'`. Used by the "preserve data on failed refresh" test below —
+   * the helper rethrows any unexpected exception so the assertion is still
+   * tight when something other than an ERROR status surfaces.
+   */
+  async function runAndExpectFailure(reportId: string): Promise<void> {
+    const beforeRes = await agent.get(`/api/reports/${reportId}`).set(AUTH_HEADER);
+    expect(beforeRes.status).toBe(200);
+    const runsCountBefore = beforeRes.body.runsCount as number;
+
+    const triggerRes = await agent.post(`/api/reports/${reportId}/run`).set(AUTH_HEADER);
+    expect(triggerRes.status).toBe(201);
+
+    let succeeded = false;
+    try {
+      await waitForReportCompletion({ agent, reportId, runsCountBefore });
+      succeeded = true;
+    } catch (err) {
+      const msg = (err as Error).message ?? '';
+      if (!msg.includes('finished with status ERROR')) {
+        throw err;
+      }
+    }
+    if (succeeded) {
+      throw new Error('Expected report run to fail but it completed successfully');
+    }
+  }
+
   /** Provisions a fresh sheet, BQ-backed data mart, and Google Sheets report. */
   async function provisionFixture(opts: {
     testName: string;
@@ -477,4 +506,59 @@ describeIfConfigured('Google Sheets column preservation (diff-based writer)', ()
     expect(await readRow1()).toEqual(['country', 'cost']);
     expect((await readOwoxColumnsMetadata()).map(c => c.name)).toEqual(['country', 'cost']);
   }, 90_000);
+
+  // -------------------------------------------------------------------------
+  // Test 9 — Failed refresh leaves the sheet exactly as it was (no data loss)
+  //
+  // Covers the user-facing scenario the PM raised: refresh fails (warehouse
+  // error / connection drop / malformed SQL caught at execution) → user
+  // opens the sheet expecting their previous data and must NOT find an
+  // empty / half-updated state. The writer satisfies this by deferring all
+  // destructive operations (structural ops + writeHeaders) until the first
+  // successful `writeReportDataBatch`. If the reader fails before that, the
+  // writer issued zero mutations and the sheet is byte-for-byte the same as
+  // before the failed refresh.
+  // -------------------------------------------------------------------------
+  it('preserves the previous data when the refresh fails before producing any batch', async () => {
+    // 1. First refresh: succeeds with normal SQL and populates the sheet.
+    const { reportId: v1ReportId } = await provisionFixture({ testName: 'failed-refresh' });
+    await runAndWait(v1ReportId);
+    const row1Before = await readRow1();
+    const dataBefore = await readRange('A2:C4');
+    const metadataBefore = await readOwoxColumnsMetadata();
+    expect(row1Before.slice(0, 3)).toEqual(['country', 'clicks', 'cost']);
+
+    // Seed a user marker right of the imported range — must also survive.
+    await writeCell('K1', 'preserve_me');
+
+    // 2. Spin up a SECOND data mart whose SQL fails at runtime. Bind a new
+    //    report to the SAME sheet — when its refresh fails before the
+    //    first batch, the writer must leave the sheet exactly as it is.
+    const failingSql = `SELECT ERROR('intentional integration-test failure') AS x FROM UNNEST([1, 2, 3])`;
+    const { dataMartId: failingDmId } = await seedDataMartWithSql({
+      agent,
+      bigQueryServiceAccountJson: BQ_SERVICE_ACCOUNT_KEY!,
+      bigQueryProjectId: BQ_PROJECT_ID!,
+      sqlQuery: failingSql,
+      title: 'Integration Test DM failing',
+    });
+    const { reportId: failingReportId } = await setupGoogleSheetsReport({
+      agent,
+      dataMartId: failingDmId,
+      spreadsheetId: spreadsheetId!,
+      sheetId: sheet.sheetId,
+      serviceAccountJson: serviceAccountJson!,
+      reportTitle: 'Integration Test GS Report failing',
+    });
+
+    await runAndExpectFailure(failingReportId);
+
+    // 3. Sheet content is unchanged: row 1, data, user marker.
+    expect(await readRow1()).toEqual(row1Before);
+    expect(await readRange('A2:C4')).toEqual(dataBefore);
+    expect((await readRange('K1:K1'))[0]?.[0]).toBe('preserve_me');
+    // OWOX_COLUMNS metadata also stayed the same (failed refresh did not
+    // advance its layout pointer).
+    expect(await readOwoxColumnsMetadata()).toEqual(metadataBefore);
+  }, 120_000);
 });
