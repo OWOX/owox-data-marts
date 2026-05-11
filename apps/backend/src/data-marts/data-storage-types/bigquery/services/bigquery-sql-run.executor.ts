@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { SqlRunExecutor } from '../../interfaces/sql-run-executor.interface';
+import { SqlRunExecutor, SqlRunExecuteOptions } from '../../interfaces/sql-run-executor.interface';
 import { DataStorageType } from '../../enums/data-storage-type.enum';
 import { DataStorageCredentials } from '../../data-storage-credentials.type';
 import { DataStorageConfig } from '../../data-storage-config.type';
@@ -9,6 +9,8 @@ import { BigQueryApiAdapterFactory } from '../adapters/bigquery-api-adapter.fact
 import { SqlRunBatch } from '../../../dto/domain/sql-run-batch.dto';
 import { DataMartDefinition } from '../../../dto/schemas/data-mart-table-definitions/data-mart-definition';
 import { BigQueryQueryBuilder } from './bigquery-query.builder';
+import { isQueryBuildResult } from '../../interfaces/data-mart-query-builder.interface';
+import type { SqlParameter } from '../../utils/sql-clause-renderer';
 
 @Injectable()
 export class BigQuerySqlRunExecutor implements SqlRunExecutor {
@@ -24,7 +26,7 @@ export class BigQuerySqlRunExecutor implements SqlRunExecutor {
     config: DataStorageConfig,
     definition: DataMartDefinition,
     sql: string | undefined,
-    options?: { maxRowsPerBatch?: number }
+    options?: SqlRunExecuteOptions
   ): AsyncIterable<SqlRunBatch<Row>> {
     if (!isBigQueryCredentials(credentials)) {
       throw new Error('BigQuery storage credentials expected');
@@ -34,11 +36,19 @@ export class BigQuerySqlRunExecutor implements SqlRunExecutor {
     }
 
     const adapter = this.adapterFactory.create(credentials, config);
+
+    let params: SqlParameter[] | undefined = options?.params;
     if (!sql) {
-      sql = await this.queryBuilder.buildQuery(definition);
+      const built = await this.queryBuilder.buildQuery(definition);
+      if (isQueryBuildResult(built)) {
+        sql = built.sql;
+        params = params ?? built.params;
+      } else {
+        sql = built;
+      }
     }
 
-    const { jobId } = await adapter.executeQuery(sql);
+    const { jobId } = await adapter.executeQuery(sql, params);
     const job = await adapter.getJob(jobId);
 
     await job.promise();

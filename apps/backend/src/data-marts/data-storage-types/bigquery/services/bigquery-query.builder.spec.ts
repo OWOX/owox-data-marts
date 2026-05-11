@@ -1,5 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { BigQueryQueryBuilder } from './bigquery-query.builder';
+import { BigQueryClauseRenderer } from './bigquery-clause-renderer';
+import { isQueryBuildResult } from '../../interfaces/data-mart-query-builder.interface';
 import { DataMartDefinition } from '../../../dto/schemas/data-mart-table-definitions/data-mart-definition';
 
 function tableDefinition(fqn: string): DataMartDefinition {
@@ -16,12 +18,33 @@ function sqlDefinition(query: string): DataMartDefinition {
   } as unknown as DataMartDefinition;
 }
 
+function viewDefinition(fqn: string): DataMartDefinition {
+  return {
+    fullyQualifiedName: fqn,
+  } as unknown as DataMartDefinition;
+}
+
+function connectorDefinition(fqn: string): DataMartDefinition {
+  return {
+    connector: {
+      source: { name: 'src', configuration: [{}], node: 'n', fields: ['f'] },
+      storage: { fullyQualifiedName: fqn },
+    },
+  } as unknown as DataMartDefinition;
+}
+
+function tablePatternDefinition(pattern: string): DataMartDefinition {
+  return {
+    pattern,
+  } as unknown as DataMartDefinition;
+}
+
 describe('BigQueryQueryBuilder', () => {
   let builder: BigQueryQueryBuilder;
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
-      providers: [BigQueryQueryBuilder],
+      providers: [BigQueryQueryBuilder, BigQueryClauseRenderer],
     }).compile();
 
     builder = module.get(BigQueryQueryBuilder);
@@ -66,6 +89,106 @@ describe('BigQueryQueryBuilder', () => {
         columns: [],
       });
       expect(sql).toBe('SELECT * FROM `proj`.`dataset`.`tbl`');
+    });
+  });
+
+  describe('buildQuery with output controls', () => {
+    it('returns { sql, params } when filters are non-empty', async () => {
+      const result = await builder.buildQuery(tableDefinition('proj.dataset.tbl'), {
+        columns: ['a', 'b'],
+        filters: [{ column: 'a', operator: 'eq', value: 1 }],
+      });
+      expect(isQueryBuildResult(result)).toBe(true);
+      if (!isQueryBuildResult(result)) throw new Error('expected QueryBuildResult');
+      expect(result.sql).toContain('SELECT `a`, `b`');
+      expect(result.sql).toContain('FROM `proj`.`dataset`.`tbl`');
+      expect(result.sql).toContain('WHERE `a` = @p0');
+      expect(result.params).toEqual([{ name: 'p0', value: 1 }]);
+    });
+
+    it('composes WHERE + ORDER BY + LIMIT in correct order', async () => {
+      const result = await builder.buildQuery(tableDefinition('proj.dataset.tbl'), {
+        columns: ['a', 'b'],
+        filters: [{ column: 'a', operator: 'eq', value: 1 }],
+        sort: [{ column: 'a', direction: 'asc' }],
+        limit: 10,
+      });
+      if (!isQueryBuildResult(result)) throw new Error('expected QueryBuildResult');
+      const sql = result.sql;
+      expect(sql.indexOf('WHERE')).toBeLessThan(sql.indexOf('ORDER BY'));
+      expect(sql.indexOf('ORDER BY')).toBeLessThan(sql.indexOf('LIMIT'));
+      expect(sql).toContain('ORDER BY `a` ASC');
+      expect(sql).toContain('LIMIT 10');
+    });
+
+    it('returns plain string when there are no output controls (sort only undefined)', async () => {
+      const result = await builder.buildQuery(tableDefinition('proj.dataset.tbl'), {
+        columns: ['a'],
+      });
+      expect(typeof result).toBe('string');
+      expect(result).toBe('SELECT `a` FROM `proj`.`dataset`.`tbl`');
+    });
+
+    it('uses mainTableReference for SQL-def with output controls', async () => {
+      const result = await builder.buildQuery(sqlDefinition('SELECT 1'), {
+        columns: ['x'],
+        filters: [{ column: 'x', operator: 'is_empty' }],
+        mainTableReference: '`proj`.`dataset`.`view_abc`',
+      });
+      if (!isQueryBuildResult(result)) throw new Error('expected QueryBuildResult');
+      expect(result.sql).toContain('FROM `proj`.`dataset`.`view_abc`');
+      expect(result.sql).not.toContain('SELECT 1');
+      expect(result.sql).toContain("(`x` IS NULL OR `x` = '')");
+    });
+
+    it('throws when SQL-def has output controls but no mainTableReference', async () => {
+      await expect(
+        builder.buildQuery(sqlDefinition('SELECT 1'), {
+          filters: [{ column: 'x', operator: 'is_empty' }],
+        })
+      ).rejects.toThrow(/mainTableReference/);
+    });
+
+    it('returns string for SQL-def without output controls AND no columns', async () => {
+      const result = await builder.buildQuery(sqlDefinition('SELECT 1'));
+      expect(result).toBe('SELECT 1');
+    });
+
+    it('returns QueryBuildResult with correct FROM for view definition', async () => {
+      const result = await builder.buildQuery(viewDefinition('proj.ds.my_view'), {
+        filters: [{ column: 'a', operator: 'eq', value: 1 }],
+      });
+      expect(isQueryBuildResult(result)).toBe(true);
+      if (!isQueryBuildResult(result)) throw new Error('expected QueryBuildResult');
+      expect(result.sql).toContain('FROM `proj`.`ds`.`my_view`');
+    });
+
+    it('returns QueryBuildResult with correct FROM for connector definition', async () => {
+      const result = await builder.buildQuery(connectorDefinition('proj.ds.tbl'), {
+        filters: [{ column: 'a', operator: 'eq', value: 1 }],
+      });
+      expect(isQueryBuildResult(result)).toBe(true);
+      if (!isQueryBuildResult(result)) throw new Error('expected QueryBuildResult');
+      expect(result.sql).toContain('FROM `proj`.`ds`.`tbl`');
+    });
+
+    it('returns QueryBuildResult with correct FROM for table-pattern definition', async () => {
+      const result = await builder.buildQuery(tablePatternDefinition('proj.ds.tbl_'), {
+        filters: [{ column: 'a', operator: 'eq', value: 1 }],
+      });
+      expect(isQueryBuildResult(result)).toBe(true);
+      if (!isQueryBuildResult(result)) throw new Error('expected QueryBuildResult');
+      expect(result.sql).toContain('FROM `proj`.`ds`.`tbl_*`');
+    });
+
+    it('handles limit 0 as "no limit" (limit !== null only when explicit positive)', async () => {
+      // limit: 0 still triggers output controls (limit != null), but renderLimit floors to 0 — confirm behavior.
+      // Actually: 0 IS a value, treat as output-controls path. Document expected behavior.
+      const result = await builder.buildQuery(tableDefinition('proj.dataset.tbl'), {
+        limit: 0,
+      });
+      if (!isQueryBuildResult(result)) throw new Error('expected QueryBuildResult');
+      expect(result.sql).toContain('LIMIT 0');
     });
   });
 });

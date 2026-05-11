@@ -1,4 +1,5 @@
 import type { DestinationConfigDto } from './update-report.request.dto';
+import type { FilterRule, SortRule } from '../../../../shared/types/output-config';
 
 /**
  * DTO for creating a new report
@@ -10,4 +11,7 @@ export interface CreateReportRequestDto {
   destinationConfig: DestinationConfigDto;
   ownerIds?: string[];
   columnConfig?: string[] | null;
+  filterConfig?: FilterRule[] | null;
+  sortConfig?: SortRule[] | null;
+  limitConfig?: number | null;
 }

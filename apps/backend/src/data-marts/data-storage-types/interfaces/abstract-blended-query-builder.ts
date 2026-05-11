@@ -5,6 +5,7 @@ import {
 } from './blended-query-builder.interface';
 import { DataStorageType } from '../enums/data-storage-type.enum';
 import { AggregateFunction } from '../../dto/schemas/aggregate-function.schema';
+import { SqlClauseRenderer, SqlParameter } from '../utils/sql-clause-renderer';
 
 interface BlendTreeNode {
   chain: ResolvedRelationshipChain;
@@ -79,7 +80,15 @@ export abstract class AbstractBlendedQueryBuilder implements BlendedQueryBuilder
    */
   protected abstract get identifierQuoteChar(): string;
 
-  buildBlendedQuery(context: BlendedQueryContext): string {
+  /**
+   * Returns the clause renderer used to append WHERE/ORDER BY/LIMIT to the
+   * final SELECT. BigQuery subclass provides a BigQueryClauseRenderer; non-BQ
+   * subclasses return null because their override throws before reaching here
+   * when output-controls fields are set.
+   */
+  protected abstract get clauseRenderer(): SqlClauseRenderer | null;
+
+  buildBlendedQuery(context: BlendedQueryContext): { sql: string; params: SqlParameter[] } {
     const { mainTableReference, mainDataMartTitle, mainDataMartUrl, chains, columns } = context;
     const columnSet = new Set(columns);
 
@@ -109,7 +118,18 @@ export abstract class AbstractBlendedQueryBuilder implements BlendedQueryBuilder
       `SELECT\n  ${selectClause}\nFROM main` +
       (joinParts.length > 0 ? '\n' + joinParts.join('\n') : '');
 
-    return `${withClause}\n\n${body}`;
+    const renderer = this.clauseRenderer;
+    const where = renderer
+      ? renderer.renderWhere(context.filters ?? [])
+      : { sql: '', params: [] as SqlParameter[] };
+    const orderBy = renderer
+      ? renderer.renderOrderBy(context.sort ?? [])
+      : { sql: '', params: [] as SqlParameter[] };
+    const limit = renderer
+      ? renderer.renderLimit(context.limit ?? null)
+      : { sql: '', params: [] as SqlParameter[] };
+    const sql = `${withClause}\n\n${body}${where.sql}${orderBy.sql}${limit.sql}`;
+    return { sql, params: [...where.params, ...orderBy.params, ...limit.params] };
   }
 
   /**

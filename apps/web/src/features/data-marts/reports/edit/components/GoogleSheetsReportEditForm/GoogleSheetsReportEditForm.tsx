@@ -211,6 +211,9 @@ export const GoogleSheetsReportEditForm = forwardRef<
           ),
           dataDestinationId: initialReport.dataDestination.id,
           columnConfig: initialReport.columnConfig ?? null,
+          filterConfig: initialReport.filterConfig ?? null,
+          sortConfig: initialReport.sortConfig ?? null,
+          limitConfig: initialReport.limitConfig ?? null,
         });
       } else if (mode === ReportFormMode.CREATE) {
         // Pre-select destination if provided
@@ -220,6 +223,9 @@ export const GoogleSheetsReportEditForm = forwardRef<
           documentUrl: '',
           dataDestinationId: destinationId,
           columnConfig: null,
+          filterConfig: null,
+          sortConfig: null,
+          limitConfig: null,
         });
       }
     }, [initialReport, mode, reset, preSelectedDestination]);
@@ -436,9 +442,20 @@ export const GoogleSheetsReportEditForm = forwardRef<
                 <div className='border-border space-y-3 rounded-md border-b bg-white px-4 py-3 dark:border-transparent dark:bg-white/4'>
                   <ReportColumnPicker
                     dataMartId={dataMart.id}
+                    storageType={dataMart.storage.type}
                     value={form.watch('columnConfig')}
                     onChange={value => {
                       form.setValue('columnConfig', value, { shouldDirty: true });
+                    }}
+                    outputConfig={{
+                      filterConfig: form.watch('filterConfig') ?? [],
+                      sortConfig: form.watch('sortConfig') ?? [],
+                      limitConfig: form.watch('limitConfig') ?? null,
+                    }}
+                    onOutputConfigChange={config => {
+                      form.setValue('filterConfig', config.filterConfig, { shouldDirty: true });
+                      form.setValue('sortConfig', config.sortConfig, { shouldDirty: true });
+                      form.setValue('limitConfig', config.limitConfig, { shouldDirty: true });
                     }}
                     onCountChange={setColumnsCount}
                   />

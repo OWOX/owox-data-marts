@@ -4,7 +4,7 @@ import { DataStorageConfig } from '../data-storage-config.type';
 import { DataStorageCredentials } from '../data-storage-credentials.type';
 import { DataStorageType } from '../enums/data-storage-type.enum';
 import { SqlRunBatch } from '../../dto/domain/sql-run-batch.dto';
-import { SqlRunExecutor } from '../interfaces/sql-run-executor.interface';
+import { SqlRunExecutor, SqlRunExecuteOptions } from '../interfaces/sql-run-executor.interface';
 import { SQL_RUN_EXECUTOR_RESOLVER } from '../data-storage-providers';
 import { DataMartDefinition } from '../../dto/schemas/data-mart-table-definitions/data-mart-definition';
 
@@ -21,7 +21,7 @@ export class SqlRunExecutorFacade {
     config: DataStorageConfig,
     definition: DataMartDefinition,
     sql: string | undefined,
-    options?: { maxRowsPerBatch?: number }
+    options?: SqlRunExecuteOptions
   ): AsyncGenerator<SqlRunBatch<Row>> {
     const executor = await this.resolver.resolve(type);
     // proxy generator from executor

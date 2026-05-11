@@ -21,6 +21,7 @@ import { syncOwners } from '../utils/sync-owners';
 import { IdpProjectionsFacade } from '../../idp/facades/idp-projections.facade';
 import { ForbiddenException } from '@nestjs/common';
 import { AccessDecisionService, EntityType, Action } from '../services/access-decision';
+import { OutputControlsValidatorService } from '../services/output-controls-validator.service';
 
 @Injectable()
 export class CreateReportService {
@@ -37,7 +38,8 @@ export class CreateReportService {
     private readonly userProjectionsFetcherService: UserProjectionsFetcherService,
     private readonly idpProjectionsFacade: IdpProjectionsFacade,
     private readonly accessDecisionService: AccessDecisionService,
-    private readonly eventDispatcher: OwoxEventDispatcher
+    private readonly eventDispatcher: OwoxEventDispatcher,
+    private readonly outputControlsValidator: OutputControlsValidatorService
   ) {}
 
   @Transactional()
@@ -96,6 +98,16 @@ export class CreateReportService {
       dataDestination
     );
 
+    await this.outputControlsValidator.validateForReport({
+      storageType: dataMart.storage.type,
+      dataMartId: dataMart.id,
+      projectId: command.projectId,
+      columnConfig: command.columnConfig ?? null,
+      filterConfig: command.filterConfig ?? null,
+      sortConfig: command.sortConfig ?? null,
+      limitConfig: command.limitConfig ?? null,
+    });
+
     // Create and save the report
     const report = this.reportRepository.create({
       title: command.title,
@@ -104,6 +116,9 @@ export class CreateReportService {
       createdById: command.userId,
       destinationConfig: command.destinationConfig,
       columnConfig: command.columnConfig ?? null,
+      filterConfig: command.filterConfig ?? null,
+      sortConfig: command.sortConfig ?? null,
+      limitConfig: command.limitConfig ?? null,
     });
 
     const newReport = await this.reportRepository.save(report);

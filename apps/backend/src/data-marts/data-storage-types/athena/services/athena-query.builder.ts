@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotImplementedException } from '@nestjs/common';
 import { DataStorageType } from '../../enums/data-storage-type.enum';
 import { DataMartDefinition } from '../../../dto/schemas/data-mart-table-definitions/data-mart-definition';
 import {
@@ -19,6 +19,11 @@ export class AthenaQueryBuilder implements DataMartQueryBuilder {
   readonly type = DataStorageType.AWS_ATHENA;
 
   buildQuery(definition: DataMartDefinition, queryOptions?: DataMartQueryOptions): string {
+    if ((queryOptions?.filters?.length ?? 0) > 0 || (queryOptions?.sort?.length ?? 0) > 0) {
+      throw new NotImplementedException(
+        `Output controls not yet supported for storage type ${this.type}`
+      );
+    }
     const selectList = this.buildSelectList(queryOptions?.columns);
     let query: string;
 
@@ -40,7 +45,10 @@ export class AthenaQueryBuilder implements DataMartQueryBuilder {
     }
 
     // Apply limit if provided in options
-    if (queryOptions?.limit !== undefined) {
+    if (queryOptions?.limit !== undefined && queryOptions.limit !== null) {
+      if (!Number.isInteger(queryOptions.limit) || queryOptions.limit < 0) {
+        throw new Error(`Invalid LIMIT value: ${String(queryOptions.limit)}`);
+      }
       // Remove trailing semicolon if present before wrapping in subquery
       const cleanQuery = query.endsWith(';') ? query.slice(0, -1) : query;
       query = `SELECT * FROM (${cleanQuery}) LIMIT ${queryOptions.limit}`;

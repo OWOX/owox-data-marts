@@ -17,6 +17,7 @@ import { syncOwners } from '../utils/sync-owners';
 import { IdpProjectionsFacade } from '../../idp/facades/idp-projections.facade';
 import { ReportAccessService } from '../services/report-access.service';
 import { ReportDataCacheService } from '../services/report-data-cache.service';
+import { OutputControlsValidatorService } from '../services/output-controls-validator.service';
 
 @Injectable()
 export class UpdateReportService {
@@ -32,7 +33,8 @@ export class UpdateReportService {
     @InjectRepository(ReportOwner)
     private readonly reportOwnerRepository: Repository<ReportOwner>,
     private readonly reportAccessService: ReportAccessService,
-    private readonly reportDataCacheService: ReportDataCacheService
+    private readonly reportDataCacheService: ReportDataCacheService,
+    private readonly outputControlsValidator: OutputControlsValidatorService
   ) {}
 
   @Transactional()
@@ -93,6 +95,16 @@ export class UpdateReportService {
       }
     }
 
+    await this.outputControlsValidator.validateForReport({
+      storageType: report.dataMart.storage.type,
+      dataMartId: report.dataMart.id,
+      projectId: report.dataMart.projectId,
+      columnConfig: command.columnConfig ?? null,
+      filterConfig: command.filterConfig ?? null,
+      sortConfig: command.sortConfig ?? null,
+      limitConfig: command.limitConfig ?? null,
+    });
+
     // Column order is part of the report output, so a serialized compare is intentional —
     // reordering alone must rebuild the cached reader.
     const previousColumnConfig = report.columnConfig ?? null;
@@ -100,10 +112,25 @@ export class UpdateReportService {
     const columnConfigChanged =
       JSON.stringify(previousColumnConfig) !== JSON.stringify(nextColumnConfig);
 
+    const previousFilterConfig = report.filterConfig ?? null;
+    const nextFilterConfig = command.filterConfig ?? null;
+    const filterChanged = JSON.stringify(previousFilterConfig) !== JSON.stringify(nextFilterConfig);
+
+    const previousSortConfig = report.sortConfig ?? null;
+    const nextSortConfig = command.sortConfig ?? null;
+    const sortChanged = JSON.stringify(previousSortConfig) !== JSON.stringify(nextSortConfig);
+
+    const previousLimitConfig = report.limitConfig ?? null;
+    const nextLimitConfig = command.limitConfig ?? null;
+    const limitChanged = previousLimitConfig !== nextLimitConfig;
+
     report.title = command.title;
     report.dataDestination = dataDestination;
     report.destinationConfig = command.destinationConfig;
     report.columnConfig = nextColumnConfig;
+    report.filterConfig = nextFilterConfig;
+    report.sortConfig = nextSortConfig;
+    report.limitConfig = nextLimitConfig;
 
     const updatedReport = await this.reportRepository.save(report);
 
@@ -124,7 +151,7 @@ export class UpdateReportService {
       );
     }
 
-    if (columnConfigChanged) {
+    if (columnConfigChanged || filterChanged || sortChanged || limitChanged) {
       await this.reportDataCacheService.invalidateByReportId(updatedReport.id);
     }
 

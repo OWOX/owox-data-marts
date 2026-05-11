@@ -2,15 +2,28 @@ import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { cn } from '@owox/ui/lib/utils';
 import { Badge } from '@owox/ui/components/badge';
+import { Button } from '@owox/ui/components/button';
 import { Checkbox } from '@owox/ui/components/checkbox';
 import { Collapsible, CollapsibleContent } from '@owox/ui/components/collapsible';
 import { Switch } from '@owox/ui/components/switch';
-import { ChevronDown, ChevronRight } from 'lucide-react';
+import { AlertTriangle, ChevronDown, ChevronRight } from 'lucide-react';
 import { Skeleton } from '@owox/ui/components/skeleton';
 import { dataMartRelationshipService } from '../../../shared/services/data-mart-relationship.service';
 import { BLENDABLE_SCHEMA_QUERY_KEY } from '../../../shared/hooks/useBlendedFieldNames';
 import type { BlendedField } from '../../../shared/types/relationship.types';
+import { DataStorageType } from '../../../../data-storage/shared/model/types/data-storage-type.enum';
+import {
+  EMPTY_OUTPUT_CONFIG,
+  hasAnyOutputControls,
+  type FilterRule,
+  type OutputConfig,
+} from '../../../shared/types/output-config';
+import { supportsOutputControls } from '../../../shared/utils/output-controls-support';
 import { FieldInfoTooltip } from './FieldInfoTooltip';
+import { OutputSettingsButton } from './OutputSettingsButton';
+import { OutputSettingsDropdown } from './OutputSettingsDropdown';
+import { RowFilterIcon } from './RowFilterIcon';
+import { isFilterableType } from './output-controls-operators';
 
 interface NativeField {
   name: string;
@@ -62,24 +75,44 @@ export function ReportColumnsCountBadge({ count }: { count: ReportColumnSelectio
 
 export interface ReportColumnPickerProps {
   dataMartId: string;
+  storageType?: DataStorageType;
   value: string[] | null;
   onChange: (value: string[] | null) => void;
+  outputConfig?: OutputConfig;
+  onOutputConfigChange?: (config: OutputConfig) => void;
   onBlendedSelectionChange?: (hasBlendedSelection: boolean) => void;
   onCountChange?: (count: ReportColumnSelectionCount) => void;
 }
 
 type ToggleFieldFn = (name: string, checked: boolean) => void;
+type AddFilterFn = (rule: FilterRule) => void;
+type RemoveFilterAtFn = (globalIndex: number) => void;
+
+interface ColumnFilters {
+  rules: FilterRule[];
+  indices: number[];
+}
+
+const EMPTY_COLUMN_FILTERS: ColumnFilters = { rules: [], indices: [] };
 
 interface NativeFieldRowProps {
   field: NativeField;
   checked: boolean;
   onToggleField: ToggleFieldFn;
+  filterableType?: string;
+  columnFilters: ColumnFilters;
+  onAddFilter?: AddFilterFn;
+  onRemoveFilterAt?: RemoveFilterAtFn;
 }
 
 const NativeFieldRow = memo(function NativeFieldRow({
   field,
   checked,
   onToggleField,
+  filterableType,
+  columnFilters,
+  onAddFilter,
+  onRemoveFilterAt,
 }: NativeFieldRowProps) {
   return (
     <label className='group hover:bg-muted/50 flex cursor-pointer items-center gap-2 rounded px-1 py-1'>
@@ -92,6 +125,17 @@ const NativeFieldRow = memo(function NativeFieldRow({
       <span className='font-mono text-xs'>{field.alias ?? field.name}</span>
       {field.type && <span className='text-muted-foreground text-xs'>({field.type})</span>}
       <FieldInfoTooltip text={field.description} compact />
+      {filterableType && onAddFilter && onRemoveFilterAt && (
+        <RowFilterIcon
+          column={field.name}
+          fieldType={filterableType}
+          activeRules={columnFilters.rules}
+          onAdd={onAddFilter}
+          onRemoveAt={localIndex => {
+            onRemoveFilterAt(columnFilters.indices[localIndex]);
+          }}
+        />
+      )}
     </label>
   );
 });
@@ -100,12 +144,20 @@ interface BlendedFieldRowProps {
   field: BlendedField;
   checked: boolean;
   onToggleField: ToggleFieldFn;
+  filterableType?: string;
+  columnFilters: ColumnFilters;
+  onAddFilter?: AddFilterFn;
+  onRemoveFilterAt?: RemoveFilterAtFn;
 }
 
 const BlendedFieldRow = memo(function BlendedFieldRow({
   field,
   checked,
   onToggleField,
+  filterableType,
+  columnFilters,
+  onAddFilter,
+  onRemoveFilterAt,
 }: BlendedFieldRowProps) {
   return (
     <label className='group hover:bg-muted/50 flex cursor-pointer items-center gap-2 rounded px-1 py-1'>
@@ -118,6 +170,17 @@ const BlendedFieldRow = memo(function BlendedFieldRow({
       <span className='font-mono text-xs'>{field.alias || field.originalFieldName}</span>
       {field.type && <span className='text-muted-foreground text-xs'>({field.type})</span>}
       <FieldInfoTooltip text={field.description} compact />
+      {filterableType && onAddFilter && onRemoveFilterAt && (
+        <RowFilterIcon
+          column={field.name}
+          fieldType={filterableType}
+          activeRules={columnFilters.rules}
+          onAdd={onAddFilter}
+          onRemoveAt={localIndex => {
+            onRemoveFilterAt(columnFilters.indices[localIndex]);
+          }}
+        />
+      )}
     </label>
   );
 });
@@ -126,9 +189,21 @@ interface BlendedGroupItemProps {
   group: BlendedGroup;
   selectedSet: Set<string>;
   onToggleField: ToggleFieldFn;
+  filterableTypeFor?: (fieldName: string) => string | undefined;
+  filtersByColumn?: Map<string, ColumnFilters>;
+  onAddFilter?: AddFilterFn;
+  onRemoveFilterAt?: RemoveFilterAtFn;
 }
 
-function BlendedGroupItem({ group, selectedSet, onToggleField }: BlendedGroupItemProps) {
+function BlendedGroupItem({
+  group,
+  selectedSet,
+  onToggleField,
+  filterableTypeFor,
+  filtersByColumn,
+  onAddFilter,
+  onRemoveFilterAt,
+}: BlendedGroupItemProps) {
   const [isOpen, setIsOpen] = useState(() => group.selectedCount > 0);
 
   return (
@@ -163,6 +238,10 @@ function BlendedGroupItem({ group, selectedSet, onToggleField }: BlendedGroupIte
             field={field}
             checked={selectedSet.has(field.name)}
             onToggleField={onToggleField}
+            filterableType={filterableTypeFor?.(field.name)}
+            columnFilters={filtersByColumn?.get(field.name) ?? EMPTY_COLUMN_FILTERS}
+            onAddFilter={onAddFilter}
+            onRemoveFilterAt={onRemoveFilterAt}
           />
         ))}
       </CollapsibleContent>
@@ -172,11 +251,18 @@ function BlendedGroupItem({ group, selectedSet, onToggleField }: BlendedGroupIte
 
 export function ReportColumnPicker({
   dataMartId,
+  storageType,
   value,
   onChange,
+  outputConfig,
+  onOutputConfigChange,
   onBlendedSelectionChange,
   onCountChange,
 }: ReportColumnPickerProps) {
+  const outputControlsSupported = storageType ? supportsOutputControls(storageType) : false;
+  const outputControlsAvailable: boolean = outputControlsSupported && !!onOutputConfigChange;
+  const effectiveOutputConfig: OutputConfig = outputConfig ?? EMPTY_OUTPUT_CONFIG;
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const { data: schema, isLoading } = useQuery({
     queryKey: [BLENDABLE_SCHEMA_QUERY_KEY, dataMartId],
     queryFn: () => dataMartRelationshipService.getBlendableSchema(dataMartId),
@@ -284,6 +370,79 @@ export function ReportColumnPicker({
     return map;
   }, [schema]);
 
+  const filtersByColumn = useMemo<Map<string, ColumnFilters>>(() => {
+    const map = new Map<string, ColumnFilters>();
+    effectiveOutputConfig.filterConfig.forEach((rule, idx) => {
+      const existing = map.get(rule.column);
+      if (existing) {
+        existing.rules.push(rule);
+        existing.indices.push(idx);
+      } else {
+        map.set(rule.column, { rules: [rule], indices: [idx] });
+      }
+    });
+    return map;
+  }, [effectiveOutputConfig.filterConfig]);
+
+  const fieldTypeByName = useMemo<Map<string, string>>(() => {
+    const map = new Map<string, string>();
+    for (const f of nativeFields) {
+      if (f.type) map.set(f.name, f.type);
+    }
+    for (const f of includedBlendedFields) {
+      if (f.type) map.set(f.name, f.type);
+    }
+    return map;
+  }, [nativeFields, includedBlendedFields]);
+
+  const filterableTypeFor = useCallback(
+    (fieldName: string): string | undefined => {
+      if (!outputControlsAvailable) return undefined;
+      const t = fieldTypeByName.get(fieldName);
+      if (!t) return undefined;
+      return isFilterableType(t) ? t : undefined;
+    },
+    [outputControlsAvailable, fieldTypeByName]
+  );
+
+  const handleAddFilter = useCallback<AddFilterFn>(
+    rule => {
+      if (!onOutputConfigChange) return;
+      onOutputConfigChange({
+        ...effectiveOutputConfig,
+        filterConfig: [...effectiveOutputConfig.filterConfig, rule],
+      });
+    },
+    [effectiveOutputConfig, onOutputConfigChange]
+  );
+
+  const handleRemoveFilterAt = useCallback<RemoveFilterAtFn>(
+    globalIndex => {
+      if (!onOutputConfigChange) return;
+      onOutputConfigChange({
+        ...effectiveOutputConfig,
+        filterConfig: effectiveOutputConfig.filterConfig.filter((_, i) => i !== globalIndex),
+      });
+    },
+    [effectiveOutputConfig, onOutputConfigChange]
+  );
+
+  const dropdownColumns = useMemo(() => {
+    const cols: { name: string; type: string }[] = [];
+    for (const f of nativeFields) {
+      if (f.type) cols.push({ name: f.name, type: f.type });
+    }
+    for (const f of includedBlendedFields) {
+      if (f.type) cols.push({ name: f.name, type: f.type });
+    }
+    return cols;
+  }, [nativeFields, includedBlendedFields]);
+
+  const selectedDropdownColumns = useMemo(
+    () => dropdownColumns.filter(c => effectiveValueSet.has(c.name)),
+    [dropdownColumns, effectiveValueSet]
+  );
+
   const groupedBlendedFields = useMemo<BlendedGroup[]>(() => {
     const groupMap = new Map<string, BlendedGroup>();
 
@@ -328,6 +487,12 @@ export function ReportColumnPicker({
   const toggleLabelClass =
     'text-muted-foreground hover:text-foreground flex cursor-pointer items-center gap-2 text-xs transition-colors';
 
+  const showCapabilityFallback =
+    !outputControlsSupported &&
+    !!storageType &&
+    !!outputConfig &&
+    hasAnyOutputControls(outputConfig);
+
   return (
     <div className='space-y-2'>
       <div className='flex items-center justify-between px-2'>
@@ -342,11 +507,52 @@ export function ReportColumnPicker({
           />
           Select all
         </label>
-        <label className={toggleLabelClass}>
-          Show selected only
-          <Switch checked={showSelectedOnly} onCheckedChange={setShowSelectedOnly} />
-        </label>
+        <div className='flex items-center gap-3'>
+          <label className={toggleLabelClass}>
+            Show selected only
+            <Switch checked={showSelectedOnly} onCheckedChange={setShowSelectedOnly} />
+          </label>
+          {outputControlsAvailable && (
+            <OutputSettingsButton
+              active={hasAnyOutputControls(effectiveOutputConfig)}
+              open={settingsOpen}
+              onClick={() => {
+                setSettingsOpen(o => !o);
+              }}
+            />
+          )}
+        </div>
       </div>
+
+      {settingsOpen && onOutputConfigChange && outputControlsSupported && (
+        <div className='rounded-md border'>
+          <OutputSettingsDropdown
+            value={effectiveOutputConfig}
+            onChange={onOutputConfigChange}
+            selectedColumns={selectedDropdownColumns}
+            allColumns={dropdownColumns}
+          />
+        </div>
+      )}
+
+      {showCapabilityFallback && onOutputConfigChange && (
+        <div className='m-2 flex items-center gap-2 rounded bg-amber-50 px-2 py-1.5 text-xs text-amber-700 dark:bg-amber-900/30 dark:text-amber-300'>
+          <AlertTriangle className='h-3 w-3 shrink-0' />
+          <span className='flex-1'>
+            Output controls are not yet supported for this storage type.
+          </span>
+          <Button
+            variant='outline'
+            size='sm'
+            className='h-6 text-xs'
+            onClick={() => {
+              onOutputConfigChange(EMPTY_OUTPUT_CONFIG);
+            }}
+          >
+            Clear
+          </Button>
+        </div>
+      )}
 
       <div
         className={cn(
@@ -363,6 +569,10 @@ export function ReportColumnPicker({
             field={field}
             checked={effectiveValueSet.has(field.name)}
             onToggleField={toggleField}
+            filterableType={filterableTypeFor(field.name)}
+            columnFilters={filtersByColumn.get(field.name) ?? EMPTY_COLUMN_FILTERS}
+            onAddFilter={outputControlsAvailable ? handleAddFilter : undefined}
+            onRemoveFilterAt={outputControlsAvailable ? handleRemoveFilterAt : undefined}
           />
         ))}
 
@@ -372,6 +582,10 @@ export function ReportColumnPicker({
             group={group}
             selectedSet={effectiveValueSet}
             onToggleField={toggleField}
+            filterableTypeFor={filterableTypeFor}
+            filtersByColumn={filtersByColumn}
+            onAddFilter={outputControlsAvailable ? handleAddFilter : undefined}
+            onRemoveFilterAt={outputControlsAvailable ? handleRemoveFilterAt : undefined}
           />
         ))}
       </div>

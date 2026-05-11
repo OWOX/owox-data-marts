@@ -13,6 +13,7 @@ import {
 } from '../../shared';
 import type { DataDestination } from '../../../../data-destination/shared/model/types';
 import { DEFAULT_REPORT_TITLE } from '../../shared';
+import { FilterRuleSchema, SortRuleSchema } from '../../../shared/types/output-config';
 
 export const GoogleSheetsReportEditFormSchema = z.object({
   title: z.string().min(1, 'Title is required'),
@@ -22,6 +23,9 @@ export const GoogleSheetsReportEditFormSchema = z.object({
     .array(z.string())
     .nullable()
     .refine(val => val === null || val.length > 0, 'At least one column must be selected'),
+  filterConfig: z.array(FilterRuleSchema).nullable(),
+  sortConfig: z.array(SortRuleSchema).nullable(),
+  limitConfig: z.number().int().positive().max(10_000_000).nullable(),
 });
 
 export type GoogleSheetsReportEditFormValues = z.infer<typeof GoogleSheetsReportEditFormSchema>;
@@ -67,6 +71,9 @@ export function useGoogleSheetsReportForm({
           : '',
       dataDestinationId: initialReport?.dataDestination.id ?? preSelectedDestination?.id ?? '', // Use preSelectedDestination here
       columnConfig: initialReport?.columnConfig ?? null,
+      filterConfig: initialReport?.filterConfig ?? null,
+      sortConfig: initialReport?.sortConfig ?? null,
+      limitConfig: initialReport?.limitConfig ?? null,
     },
     mode: 'onTouched',
   });
@@ -105,6 +112,9 @@ export function useGoogleSheetsReportForm({
               ? { ownerIds: pendingOwnerIdsRef.current }
               : {}),
             columnConfig: data.columnConfig,
+            filterConfig: data.filterConfig,
+            sortConfig: data.sortConfig,
+            limitConfig: data.limitConfig,
           });
         } else {
           if (!initialReport) {
@@ -123,6 +133,9 @@ export function useGoogleSheetsReportForm({
               ? { ownerIds: pendingOwnerIdsRef.current }
               : {}),
             columnConfig: data.columnConfig,
+            filterConfig: data.filterConfig,
+            sortConfig: data.sortConfig,
+            limitConfig: data.limitConfig,
           });
         }
 

@@ -17,6 +17,7 @@ import { AthenaSqlRunExecutor } from './athena/services/athena-sql-run.executor'
 import { BigQueryApiAdapterFactory } from './bigquery/adapters/bigquery-api-adapter.factory';
 import { BigQueryAccessValidator } from './bigquery/services/bigquery-access.validator';
 import { BigQueryBlendedQueryBuilder } from './bigquery/services/bigquery-blended-query-builder';
+import { BigQueryClauseRenderer } from './bigquery/services/bigquery-clause-renderer';
 import { BigQueryCreateViewExecutor } from './bigquery/services/bigquery-create-view.executor';
 import { BigQueryDataMartSchemaParser } from './bigquery/services/bigquery-data-mart-schema.parser';
 import { BigQueryDataMartSchemaProvider } from './bigquery/services/bigquery-data-mart-schema.provider';
@@ -218,6 +219,7 @@ const publicCredentialsProviders = [
 const legacyBigQueryProviders = [LegacyBigQuerySqlPreprocessor];
 const storageResourceBrowserProviders = [BigQueryStorageResourceBrowser];
 const blendedQueryBuilderProviders = [
+  BigQueryClauseRenderer,
   BigQueryBlendedQueryBuilder,
   SnowflakeBlendedQueryBuilder,
   RedshiftBlendedQueryBuilder,

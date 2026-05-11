@@ -303,6 +303,9 @@ export const EmailReportEditForm = forwardRef<HTMLFormElement, EmailReportEditFo
           insightTemplateId: prefill?.insightTemplateId,
           templateSourceType,
           columnConfig: null,
+          filterConfig: null,
+          sortConfig: null,
+          limitConfig: null,
         });
       }
     }, [
@@ -913,9 +916,20 @@ export const EmailReportEditForm = forwardRef<HTMLFormElement, EmailReportEditFo
                   <div className='border-border space-y-3 rounded-md border-b bg-white px-4 py-3 dark:border-transparent dark:bg-white/4'>
                     <ReportColumnPicker
                       dataMartId={dataMart.id}
+                      storageType={dataMart.storage.type}
                       value={form.watch('columnConfig')}
                       onChange={value => {
                         form.setValue('columnConfig', value, { shouldDirty: true });
+                      }}
+                      outputConfig={{
+                        filterConfig: form.watch('filterConfig') ?? [],
+                        sortConfig: form.watch('sortConfig') ?? [],
+                        limitConfig: form.watch('limitConfig') ?? null,
+                      }}
+                      onOutputConfigChange={config => {
+                        form.setValue('filterConfig', config.filterConfig, { shouldDirty: true });
+                        form.setValue('sortConfig', config.sortConfig, { shouldDirty: true });
+                        form.setValue('limitConfig', config.limitConfig, { shouldDirty: true });
                       }}
                       onCountChange={setColumnsCount}
                     />

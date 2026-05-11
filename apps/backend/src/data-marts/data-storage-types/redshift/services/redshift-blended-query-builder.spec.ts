@@ -1,4 +1,5 @@
 import { Test, TestingModule } from '@nestjs/testing';
+import { NotImplementedException } from '@nestjs/common';
 import { DataStorageType } from '../../enums/data-storage-type.enum';
 import {
   createBuildContext,
@@ -6,6 +7,7 @@ import {
   makeRelationship,
 } from '../../interfaces/__fixtures__/blended-query-builder-fixtures';
 import { RedshiftBlendedQueryBuilder } from './redshift-blended-query-builder';
+import { BlendedQueryContext } from '../../interfaces/blended-query-builder.interface';
 
 const buildContext = createBuildContext('"myschema"."customers"');
 
@@ -39,7 +41,7 @@ describe('RedshiftBlendedQueryBuilder', () => {
       ],
     });
 
-    const sql = builder.buildBlendedQuery(buildContext([chain], ['order_names']));
+    const { sql } = builder.buildBlendedQuery(buildContext([chain], ['order_names']));
 
     expect(sql).toContain(
       "LISTAGG(CAST(order_name AS VARCHAR), ', ') WITHIN GROUP (ORDER BY order_name) AS order_names"
@@ -64,7 +66,7 @@ describe('RedshiftBlendedQueryBuilder', () => {
       ],
     });
 
-    const sql = builder.buildBlendedQuery(buildContext([chain], ['unique_customers']));
+    const { sql } = builder.buildBlendedQuery(buildContext([chain], ['unique_customers']));
 
     expect(sql).toContain('COUNT(DISTINCT customer_id) AS unique_customers');
   });
@@ -87,7 +89,7 @@ describe('RedshiftBlendedQueryBuilder', () => {
       ],
     });
 
-    const sql = builder.buildBlendedQuery(buildContext([chain], ['product_names']));
+    const { sql } = builder.buildBlendedQuery(buildContext([chain], ['product_names']));
 
     expect(sql).toContain('"Product\'s_raw" AS (');
     expect(sql).toContain('"Product\'s" AS (');
@@ -110,8 +112,37 @@ describe('RedshiftBlendedQueryBuilder', () => {
       ],
     });
 
-    const sql = builder.buildBlendedQuery(buildContext([chain], ['order_count']));
+    const { sql } = builder.buildBlendedQuery(buildContext([chain], ['order_count']));
 
     expect(sql).toContain('COUNT(order_id) AS order_count');
+  });
+});
+
+describe('RedshiftBlendedQueryBuilder — output controls guard', () => {
+  const builder = new RedshiftBlendedQueryBuilder();
+  const baseContext: BlendedQueryContext = {
+    mainTableReference: '"myschema"."customers"',
+    mainDataMartTitle: 'M',
+    mainDataMartUrl: 'http://x',
+    chains: [],
+    columns: ['a'],
+  };
+
+  it('throws NotImplemented when filters are non-empty', () => {
+    expect(() =>
+      builder.buildBlendedQuery({
+        ...baseContext,
+        filters: [{ column: 'a', operator: 'eq', value: 1 }],
+      })
+    ).toThrow(NotImplementedException);
+  });
+
+  it('throws NotImplemented when sort is non-empty', () => {
+    expect(() =>
+      builder.buildBlendedQuery({
+        ...baseContext,
+        sort: [{ column: 'a', direction: 'asc' }],
+      })
+    ).toThrow(NotImplementedException);
   });
 });

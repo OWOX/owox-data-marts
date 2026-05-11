@@ -7,6 +7,7 @@ import {
   DataMartQueryBuilder,
   DataMartQueryBuilderAsync,
   DataMartQueryOptions,
+  QueryBuildResult,
 } from '../interfaces/data-mart-query-builder.interface';
 
 @Injectable()
@@ -23,7 +24,7 @@ export class DataMartQueryBuilderFacade {
     storageType: DataStorageType,
     definition: DataMartDefinition,
     queryOptions?: DataMartQueryOptions
-  ): Promise<string> {
+  ): Promise<string | QueryBuildResult> {
     const builder = await this.resolver.resolve(storageType);
     return builder.buildQuery(definition, queryOptions);
   }

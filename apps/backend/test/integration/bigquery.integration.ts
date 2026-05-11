@@ -6,6 +6,7 @@ import {
 } from 'src/data-marts/data-storage-types/bigquery/schemas/bigquery-config.schema';
 import { BigQueryApiAdapterFactory } from 'src/data-marts/data-storage-types/bigquery/adapters/bigquery-api-adapter.factory';
 import { BigQueryDataMartSchemaProvider } from 'src/data-marts/data-storage-types/bigquery/services/bigquery-data-mart-schema.provider';
+import { BigQueryClauseRenderer } from 'src/data-marts/data-storage-types/bigquery/services/bigquery-clause-renderer';
 import { BigQueryQueryBuilder } from 'src/data-marts/data-storage-types/bigquery/services/bigquery-query.builder';
 import { DataStorageCredentialsResolver } from 'src/data-marts/data-storage-types/data-storage-credentials-resolver.service';
 import { TableDefinition } from 'src/data-marts/dto/schemas/data-mart-table-definitions/table-definition.schema';
@@ -119,7 +120,7 @@ describeIfCredentials('BigQuery Integration Tests', () => {
 
   describe('Schema Actualization', () => {
     it('should read real table schema with correct field names and types', async () => {
-      const queryBuilder = new BigQueryQueryBuilder();
+      const queryBuilder = new BigQueryQueryBuilder(new BigQueryClauseRenderer());
       const adapterFactory = new BigQueryApiAdapterFactory({} as DataStorageCredentialsResolver);
       const schemaProvider = new BigQueryDataMartSchemaProvider(adapterFactory, queryBuilder);
 
