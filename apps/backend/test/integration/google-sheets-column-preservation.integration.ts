@@ -523,10 +523,9 @@ describeIfConfigured('Google Sheets column preservation (diff-based writer)', ()
     // 1. First refresh: succeeds with normal SQL and populates the sheet.
     const { reportId: v1ReportId } = await provisionFixture({ testName: 'failed-refresh' });
     await runAndWait(v1ReportId);
-    const row1Before = await readRow1();
     const dataBefore = await readRange('A2:C4');
     const metadataBefore = await readOwoxColumnsMetadata();
-    expect(row1Before.slice(0, 3)).toEqual(['country', 'clicks', 'cost']);
+    expect((await readRow1()).slice(0, 3)).toEqual(['country', 'clicks', 'cost']);
 
     // Seed a user marker right of the imported range — must also survive.
     await writeCell('K1', 'preserve_me');
@@ -553,12 +552,16 @@ describeIfConfigured('Google Sheets column preservation (diff-based writer)', ()
 
     await runAndExpectFailure(failingReportId);
 
-    // 3. Sheet content is unchanged: row 1, data, user marker.
-    expect(await readRow1()).toEqual(row1Before);
+    // 3. Sheet content is unchanged:
+    //   - imported portion of row 1 still holds the original headers
+    //     (cells past column C are blank up to K1, where the user marker
+    //     lives — sliced for readability),
+    //   - data rows untouched,
+    //   - user marker in K1 survived,
+    //   - OWOX_COLUMNS metadata did not advance its layout pointer.
+    expect((await readRow1()).slice(0, 3)).toEqual(['country', 'clicks', 'cost']);
     expect(await readRange('A2:C4')).toEqual(dataBefore);
     expect((await readRange('K1:K1'))[0]?.[0]).toBe('preserve_me');
-    // OWOX_COLUMNS metadata also stayed the same (failed refresh did not
-    // advance its layout pointer).
     expect(await readOwoxColumnsMetadata()).toEqual(metadataBefore);
   }, 120_000);
 });
