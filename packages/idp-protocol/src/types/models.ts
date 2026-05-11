@@ -7,6 +7,12 @@ export const RoleEnum = z.enum(['admin', 'editor', 'viewer']);
 export type Role = z.infer<typeof RoleEnum>;
 
 /**
+ * User provisioning modes supported by OWOX-managed IDP.
+ */
+export const UserProvisioningModeEnum = z.enum(['automatic', 'manual']);
+export type UserProvisioningMode = z.infer<typeof UserProvisioningModeEnum>;
+
+/**
  * Standardized token payload that all IDP implementations must return when introspecting their native tokens.
  */
 export const PayloadSchema = z
@@ -87,3 +93,28 @@ export type ProjectMemberInvitation =
       expiresAt?: string;
       message?: string;
     };
+
+/**
+ * User provisioning settings exposed through the IDP protocol.
+ * Context-scoped defaults are ODM-local and are intentionally not part of this contract.
+ */
+export type UserProvisioningSettings = {
+  isApplicable: boolean;
+  organization: {
+    name: string;
+    mainProjectName?: string | null;
+    mainProjectTitle?: string | null;
+  } | null;
+  settings: {
+    mode: UserProvisioningMode;
+    defaultRole: Role;
+  } | null;
+};
+
+/**
+ * Update payload for user provisioning settings.
+ */
+export type UserProvisioningSettingsUpdate = {
+  mode: UserProvisioningMode;
+  defaultRole: Role;
+};

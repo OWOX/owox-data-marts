@@ -9,6 +9,7 @@ import {
   ProtocolRoute,
   Role,
 } from '@owox/idp-protocol';
+import type { UserProvisioningSettings, UserProvisioningSettingsUpdate } from '@owox/idp-protocol';
 import { createMailingProvider } from '@owox/internal-helpers';
 import { getMigrations } from 'better-auth/db/migration';
 import cookieParser from 'cookie-parser';
@@ -177,6 +178,21 @@ export class OwoxBetterAuthIdp implements IdpProvider {
     actorUserId: string
   ): Promise<void> {
     return this.projectMembersService.changeMemberRole(projectId, userId, newRole, actorUserId);
+  }
+
+  async getUserProvisioningSettings(
+    projectId: string,
+    actorUserId: string
+  ): Promise<UserProvisioningSettings> {
+    return this.identityClient.getUserProvisioningSettings(projectId, actorUserId);
+  }
+
+  async updateUserProvisioningSettings(
+    projectId: string,
+    actorUserId: string,
+    settings: UserProvisioningSettingsUpdate
+  ): Promise<UserProvisioningSettings> {
+    return this.identityClient.updateUserProvisioningSettings(projectId, actorUserId, settings);
   }
 
   static async create(config: BetterAuthProviderConfig): Promise<OwoxBetterAuthIdp> {

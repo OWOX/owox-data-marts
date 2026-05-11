@@ -6,8 +6,8 @@ export default [
     ignores: [
       'dist/**',
       'node_modules/**',
-      '*.test.ts',
-      '*.spec.ts',
+      '**/*.test.ts',
+      '**/*.spec.ts',
       '*.config.js',
       '.prettierrc.js',
     ],

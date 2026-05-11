@@ -2,6 +2,7 @@ import { jest } from '@jest/globals';
 
 // Mock the logger to prevent console output during tests
 jest.unstable_mockModule('@owox/internal-helpers', () => ({
+  disableConditionalCaching: jest.fn(),
   LoggerFactory: {
     createNamedLogger: () => ({
       info: jest.fn(),

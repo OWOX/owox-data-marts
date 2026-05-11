@@ -5,6 +5,8 @@ import {
   ProjectMember,
   ProjectMemberInvitation,
   Role,
+  UserProvisioningSettings,
+  UserProvisioningSettingsUpdate,
 } from './models.js';
 import { Express, NextFunction, Request, Response } from 'express';
 
@@ -173,4 +175,30 @@ export interface IdpProvider {
     newRole: Role,
     actorUserId: string
   ): Promise<void>;
+
+  /**
+   * Get user provisioning settings for a project. `actorUserId` identifies the
+   * current BI user so providers backed by OWOX analytics can perform
+   * project-level authorization.
+   *
+   * Implementations that do not support user provisioning should return
+   * `isApplicable: false` with null organization and settings.
+   */
+  getUserProvisioningSettings(
+    projectId: string,
+    actorUserId: string
+  ): Promise<UserProvisioningSettings>;
+
+  /**
+   * Update user provisioning settings for a project. `actorUserId` identifies
+   * the admin performing the change.
+   *
+   * Implementations that do not support user provisioning updates should throw
+   * `IdpOperationNotSupportedError`.
+   */
+  updateUserProvisioningSettings(
+    projectId: string,
+    actorUserId: string,
+    settings: UserProvisioningSettingsUpdate
+  ): Promise<UserProvisioningSettings>;
 }
