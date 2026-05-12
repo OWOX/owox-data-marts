@@ -15,6 +15,7 @@ interface DataMartDefinitionFormProps {
   storageId: string;
   storageConfig: DataStorageConfigDto | null;
   preset?: string;
+  initialDefinitionType?: DataMartDefinitionType | null;
   saveDataMartDefinition?: (e?: React.SyntheticEvent<HTMLFormElement>) => void;
 }
 
@@ -24,6 +25,7 @@ export function DataMartDefinitionForm({
   storageId,
   storageConfig,
   preset,
+  initialDefinitionType,
   saveDataMartDefinition,
 }: DataMartDefinitionFormProps) {
   const { control } = useFormContext<DataMartDefinitionFormData>();
@@ -33,30 +35,20 @@ export function DataMartDefinitionForm({
   const [shouldAutoOpenTablePattern, setShouldAutoOpenTablePattern] = useState(false);
 
   useEffect(() => {
-    if (definitionType === DataMartDefinitionType.CONNECTOR && !preset) {
-      setShouldAutoOpenConnector(true);
-    } else {
-      setShouldAutoOpenConnector(false);
-    }
+    const isDifferentFromInitial = initialDefinitionType !== definitionType;
 
-    if (definitionType === DataMartDefinitionType.TABLE && !preset) {
-      setShouldAutoOpenTable(true);
-    } else {
-      setShouldAutoOpenTable(false);
-    }
+    setShouldAutoOpenTable(
+      definitionType === DataMartDefinitionType.TABLE && isDifferentFromInitial
+    );
 
-    if (definitionType === DataMartDefinitionType.VIEW && !preset) {
-      setShouldAutoOpenView(true);
-    } else {
-      setShouldAutoOpenView(false);
-    }
+    setShouldAutoOpenView(definitionType === DataMartDefinitionType.VIEW && isDifferentFromInitial);
 
-    if (definitionType === DataMartDefinitionType.TABLE_PATTERN && !preset) {
-      setShouldAutoOpenTablePattern(true);
-    } else {
-      setShouldAutoOpenTablePattern(false);
-    }
-  }, [definitionType, preset]);
+    setShouldAutoOpenTablePattern(
+      definitionType === DataMartDefinitionType.TABLE_PATTERN && isDifferentFromInitial
+    );
+
+    setShouldAutoOpenConnector(definitionType === DataMartDefinitionType.CONNECTOR && !preset);
+  }, [definitionType, initialDefinitionType, preset]);
 
   return (
     <div className='space-y-2'>
