@@ -2,9 +2,9 @@
 'owox': minor
 ---
 
-# Discover BigQuery Bulk Import When You Need It
+# Introduce Promo for Multi Data Mart Creation from Connected BigQuery Storage
 
-**Contextual BigQuery Promo** — When you have exactly one BigQuery Data Mart, you'll now see a helpful prompt suggesting bulk import from your existing BigQuery tables and views, plus a direct manual setup path.
+**Contextual Promo** — When you have exactly one Data Mart with BigQuery storage configured, you’ll now see a prompt to bulk-create Data Marts from existing BigQuery tables and views, with an optional manual setup path.
 
 **Clearer Storage Health UX in Resource Pickers** — If a selected storage is not fully configured, resource browsers now show a consistent health-state block instead of raw loading errors, so it's obvious why tables or views cannot be listed yet.
 
