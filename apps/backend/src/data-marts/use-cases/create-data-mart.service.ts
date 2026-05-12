@@ -74,7 +74,7 @@ export class CreateDataMartService {
       projectId: command.projectId,
       createdById: command.userId,
       storage: dataStorage,
-      availableForReporting: false,
+      availableForReporting: true,
       availableForMaintenance: false,
       ...(isLegacyDataMart
         ? {
