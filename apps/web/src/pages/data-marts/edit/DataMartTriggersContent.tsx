@@ -50,7 +50,7 @@ export default function DataMartTriggersContent() {
               data-testid='triggerCreateButton'
             >
               <Plus className='h-4 w-4' aria-hidden='true' />
-              Add Trigger
+              New Trigger
             </Button>
           </CollapsibleCardHeaderActions>
         </CollapsibleCardHeader>

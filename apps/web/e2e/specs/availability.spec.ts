@@ -83,6 +83,7 @@ test.describe('Storage Availability', () => {
 
     // Open edit sheet
     await page.getByRole('button', { name: 'Open menu' }).first().click();
+    await page.getByRole('menuitem', { name: 'Edit' }).waitFor({ state: 'visible' });
     await page.getByRole('menuitem', { name: 'Edit' }).click();
     const sheet = page.getByTestId(TESTIDS.storageConfigSheet);
     await expect(sheet).toBeVisible();
