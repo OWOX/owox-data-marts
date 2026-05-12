@@ -277,7 +277,7 @@ export const DataDestinationList = ({
           <p className='mb-2'>After rotation, you will need to:</p>
           <ol className='mb-2 list-decimal pl-5'>
             <li>The new JSON Config will be automatically copied to your clipboard</li>
-            <li>Go to your Looker Studio Connector</li>
+            <li>Go to your Data Studio Connector</li>
             <li>Update the configuration with the new JSON Config</li>
             <li>Save the changes to restore access to your data marts</li>
           </ol>

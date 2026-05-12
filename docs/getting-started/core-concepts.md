@@ -18,7 +18,7 @@ OWOX Data Marts has a lot of terms inside, but here are the basic ones:
 - [**Data Mart**](#data-mart) is a set of meaningful data controlled by data analyst and used by business users for reporting (directly or indirectly).
 - [**Source**](#source) is a platform like Meta Ads or TikTok Ads, Reddit Ads, from which raw data is collected via connectors.
 - [**Storage**](#storage) is a data warehouse (e.g., Google BigQuery, AWS Athena) where all data is stored & processed.
-- [**Destination**](#destination) is a BI tool where business users access data (e.g., Google Sheets, Looker Studio).
+- [**Destination**](#destination) is a BI tool where business users access data (e.g., Google Sheets, Data Studio).
 - [**Report**](#report) is a specific spreadsheet tab where data is exported to.
 - [**Trigger**](#trigger) rules for automated data delivery on a schedule.
 - [**Run**](#run-types) is a single manual or an automated data load action.
@@ -43,7 +43,7 @@ and handed off to business users so they can run, filter, and schedule reports �
 Unlike raw data inside your data warehouse, each Data Mart is:
 
 - **Documented** with a description, business outcome, and output schema with friendly metric names
-- **Reusable** across BI tools: Google Sheets, Looker Studio, Excel, and more
+- **Reusable** across BI tools: Google Sheets, Data Studio, Excel, and more
 - **Trustworthy** - no more asking “Whose report is right?”
 - **Modeled** (optional) by setting up relationships with other data marts
 - **Owned** — each Data Mart has explicit **Technical Owners** (responsible for data sources and schema) and **Business Owners** (responsible for business requirements)
@@ -91,7 +91,7 @@ Each Storage has **Owners** — the team members responsible for its configurati
 A [**Destination**](../destinations/manage-destinations.md) is an interface or application used by business users to access the data. Supported destinations include:
 
 - [Google Sheets](../destinations/supported-destinations/google-sheets.md)
-- [Looker Studio](../destinations/supported-destinations/looker-studio.md)
+- [Data Studio](../destinations/supported-destinations/data-studio.md)
 - OData (compatible with Excel, Tableau, Power BI, etc)
 
 Each **Data Mart** can be linked to multiple **Destinations**.

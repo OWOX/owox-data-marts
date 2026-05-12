@@ -20,7 +20,7 @@ export const popoverItems: Record<PopoverId, PopoverConfig> = {
     width: 500,
     height: 410,
     position: 'bottom-left',
-    title: 'Looker Studio Setup',
+    title: 'Data Studio Setup',
     content: Video2LookerAsDestination,
   },
   'video-3-getting-started-with-data-marts': {

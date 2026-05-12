@@ -14,7 +14,7 @@ Easily collect marketing, financial, and CRM data into Google Sheets, BigQuery,
 
 ## 🚀 Data Enablement
 
-Build and manage reliable Data Marts. Deliver clean, business-ready data to stakeholders via Google Sheets, Looker Studio — while retaining full control over data logic and freshness.
+Build and manage reliable Data Marts. Deliver clean, business-ready data to stakeholders via Google Sheets, Data Studio — while retaining full control over data logic and freshness.
 
 The table below summarizes the available options
 

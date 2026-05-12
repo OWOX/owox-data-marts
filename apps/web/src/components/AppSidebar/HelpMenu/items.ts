@@ -61,7 +61,7 @@ export function helpMenuItems(
             },
           },
           {
-            label: 'Looker Studio Setup',
+            label: 'Data Studio Setup',
             icon: Airplay,
             onClick: () => {
               openPopover('video-2-looker');

@@ -172,7 +172,7 @@ owox serve --env-file custom.env --port 3030
   - Default: `http://localhost:${PORT}`
   - In production, set this to your actual deployment URL.
 
-- **LOOKER_STUDIO_DESTINATION_ORIGIN**: Public origin used to generate the deployment URL for the Looker Studio Destination.
+- **LOOKER_STUDIO_DESTINATION_ORIGIN**: Public origin used to generate the deployment URL for the Data Studio Destination.
   - If empty, it falls back to `PUBLIC_ORIGIN`.
   - Example: `https://looker.example.com`
 

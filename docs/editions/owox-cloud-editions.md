@@ -18,7 +18,7 @@ Legend:
 | **Ideal for**                     | _Self-service reporting_ | _Self-service reporting & AI Insights_ | _Self-service reporting built your way_ |
 | **Data Connectors:** [available sources](../../README.md#data-sources) [^1] | ✅ | ✅ | ✅ |
 | **Data Storages** [^2]            | ![Google BigQuery](../res/bigquery.svg) ![AWS Athena](../res/athena.svg) ![Databricks](../res/databricks.svg) ![Snowflake](../res/snowflake.svg) ![Amazon Redshift](../res/redshift.svg) | ![Google BigQuery](../res/bigquery.svg) ![AWS Athena](../res/athena.svg) ![Databricks](../res/databricks.svg) ![Snowflake](../res/snowflake.svg) ![Amazon Redshift](../res/redshift.svg) | ![Google BigQuery](../res/bigquery.svg) ![AWS Athena](../res/athena.svg) ![Databricks](../res/databricks.svg) ![Azure Synapse](../res/synapse.svg) ![Snowflake](../res/snowflake.svg) ![Amazon Redshift](../res/redshift.svg) |
-| **Data Destinations** [^3]        | ![Google Sheets](../res/g-sheets.svg) ![Looker Studio](../res/looker.svg) | ![Google Sheets](../res/g-sheets.svg) ![Looker Studio](../res/looker.svg) ![Email](../res/email.svg) ![Slack](../res/slack.svg) ![Teams](../res/teams.svg) ![Google Chat](../res/google_chat.svg) | ![Google Sheets](../res/g-sheets.svg) ![Looker Studio](../res/looker.svg) ![MS Excel](../res/ms-excel.svg) ![Power BI](../res/power-bi.svg) ![Tableau](../res/tableau.svg) ![Email](../res/email.svg) ![Slack](../res/slack.svg) ![Teams](../res/teams.svg) ![Google Chat](../res/google_chat.svg) |
+| **Data Destinations** [^3]        | ![Google Sheets](../res/g-sheets.svg) ![Data Studio](../res/looker.svg) | ![Google Sheets](../res/g-sheets.svg) ![Data Studio](../res/looker.svg) ![Email](../res/email.svg) ![Slack](../res/slack.svg) ![Teams](../res/teams.svg) ![Google Chat](../res/google_chat.svg) | ![Google Sheets](../res/g-sheets.svg) ![Data Studio](../res/looker.svg) ![MS Excel](../res/ms-excel.svg) ![Power BI](../res/power-bi.svg) ![Tableau](../res/tableau.svg) ![Email](../res/email.svg) ![Slack](../res/slack.svg) ![Teams](../res/teams.svg) ![Google Chat](../res/google_chat.svg) |
 | **Data Marts Management** [^4]    | ✅ | ✅ | ✅ |
 | **Insights** [^5]              | ❌ | ✅ _OWOX AI_ | ✅ _OWOX AI or Your AI_ |
 | **Conversational AI** [^6]        | ❌ | ❌ | ✅ _OWOX AI or Your AI_ |
@@ -59,7 +59,7 @@ _This page will be updated regularly as we develop more features and refine edit
 
     - **Google Sheets Extension** — Empower business users with self-service access to trusted Data Marts. They can filter, schedule, and refresh data directly within the Google Sheets interface, gaining independence while analysts maintain full governance.
     - **Google Sheets Export** — Automate data delivery by pushing Data Mart results to spreadsheets via flexible triggers. Designed for analysts, this feature provides granular control over data flow and schedules directly from the OWOX Data Marts interface.
-    - **Looker Studio Connector** — Connect Data Marts to Looker Studio so teams can build dashboards on trusted, reusable data — without rewriting logic.
+    - **Data Studio Connector** — Connect Data Marts to Data Studio so teams can build dashboards on trusted, reusable data — without rewriting logic.
     - **Open Data Protocol (OData)** _(coming soon)_ — Seamlessly connect your preferred tools to trusted data using OData protocol, empowering business users with flexible, secure access.
 
 [^4]: **Data Mart Management** — Think of Data Marts as your company’s internal API for analytics — structured, reusable, and controlled.

@@ -241,7 +241,7 @@ export abstract class BaseNotification {
     const labels: Record<string, string> = {
       CONNECTOR: 'Connector run',
       GOOGLE_SHEETS_EXPORT: 'Google Sheets report run',
-      LOOKER_STUDIO: 'Looker Studio run',
+      LOOKER_STUDIO: 'Data Studio run',
       EMAIL: 'Email delivery',
       SLACK: 'Slack delivery',
       MS_TEAMS: 'MS Teams delivery',

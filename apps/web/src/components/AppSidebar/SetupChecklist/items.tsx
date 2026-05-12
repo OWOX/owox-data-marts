@@ -57,7 +57,7 @@ export const SETUP_STEPS: SetupStep[] = [
     id: SetupStepId.CREATE_DESTINATION,
     stepTitle: 'Create first destination',
     stepDescription:
-      'Destinations are where your reports are delivered — Google Sheets, Looker Studio, Email, and more.',
+      'Destinations are where your reports are delivered — Google Sheets, Data Studio, Email, and more.',
     successMessage: 'Destination created',
     action: {
       type: StepActionType.LINK,

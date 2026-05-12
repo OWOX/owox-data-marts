@@ -122,7 +122,7 @@ You can automate the connector by setting a trigger to run it on a schedule.
 ## What’s Next?
 
 - Create reports using this Data Mart
-- Add a destination (Google Sheets, Looker Studio, etc.)
+- Add a destination (Google Sheets, Data Studio, etc.)
 - Explore the data in the Output Schema tab
 - Share it with business users so they can build reports
 

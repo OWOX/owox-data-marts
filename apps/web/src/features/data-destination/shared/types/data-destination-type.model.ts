@@ -28,7 +28,7 @@ export const DataDestinationTypeModel = {
     },
     [DataDestinationType.LOOKER_STUDIO]: {
       type: DataDestinationType.LOOKER_STUDIO,
-      displayName: 'Looker Studio',
+      displayName: 'Data Studio',
       icon: LookerStudioIcon,
       status: DataDestinationStatus.ACTIVE,
     },

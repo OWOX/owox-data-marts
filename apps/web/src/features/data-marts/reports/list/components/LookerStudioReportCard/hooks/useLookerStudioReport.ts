@@ -28,7 +28,7 @@ export function useLookerStudioReport(destination: DataDestination) {
   const isChecked = useMemo(() => !!existingReport, [existingReport]);
 
   const dynamicTitle = useMemo(
-    () => (isChecked ? 'Available in Looker Studio' : 'Not available in Looker Studio'),
+    () => (isChecked ? 'Available in Data Studio' : 'Not available in Data Studio'),
     [isChecked]
   );
 
@@ -41,7 +41,7 @@ export function useLookerStudioReport(destination: DataDestination) {
       try {
         if (checked) {
           const reportData = {
-            title: `Looker Studio Report - ${destination.title}`,
+            title: `Data Studio Report - ${destination.title}`,
             dataMartId: dataMart.id,
             dataDestinationId: destination.id,
             destinationConfig: {

@@ -6,13 +6,13 @@ import {
 } from '@owox/ui/components/accordion';
 
 /**
- * Accordion with information about the Looker Studio JSON Config.
+ * Accordion with information about the Data Studio JSON Config.
  */
 export default function LookerStudioCacheLifetimeDescription() {
   return (
     <Accordion variant='common' type='single' collapsible>
       <AccordionItem value='cache-lifetime-details'>
-        <AccordionTrigger>What is the Cache Lifetime for Looker Studio?</AccordionTrigger>
+        <AccordionTrigger>What is the Cache Lifetime for Data Studio?</AccordionTrigger>
         <AccordionContent>
           <p className='mb-2'>
             Cache Lifetime - defines the period during which results from previous query executions

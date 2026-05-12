@@ -20,13 +20,13 @@ Follow the steps below to configure your **Email** destination.
 
 In the OWOX Data Marts web application, open **Destinations** in the main menu and click **+ New Destination**.
 
-![OWOX Data Marts interface showing the Destinations navigation item highlighted in the left sidebar with a red border, and the main panel displaying a Destinations page with a search bar and a red arrow pointing to the New Destination button in the top right corner. Below is a table with columns for Title, Type, and Created at, showing two Google Sheets destinations listed](res/email_newdestination.png)
+![OWOX Data Marts Destinations page with Destinations selected in the left sidebar. The main panel shows a searchable list of existing destinations and a New Destination button in the top right corner](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/1af7228a-145a-4011-2941-4a031d0ad500/public)
 
 #### 1.2. Select the Destination type
 
 Choose **Email** from the **Destination Type** dropdown.
 
-![OWOX Data Marts Configure destination dialog showing a Title field with Email Destination entered, and a Destination Type dropdown expanded with Email selected from options including Google Sheets, Looker Studio, Email, Slack, Microsoft Teams, Google Chat, and OData Coming soon. A red border highlights the Destination Type label and a red arrow points to the Email option](res/email_destinationtype.png)
+![New destination dialog with the Destination Type dropdown open. Email is selected among the available options: Google Sheets, Data Studio, Email, Slack, Microsoft Teams, Google Chat, and OData (Coming soon)](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/0da1c013-d8eb-4c3b-282f-de5a4e519400/public)
 
 #### 1.3. Configure Destination details
 
@@ -38,7 +38,7 @@ Choose **Email** from the **Destination Type** dropdown.
 
 Review the details and click **Save** to create the Destination.
 
-![OWOX Data Marts Configure destination dialog showing a Title field containing Marketing Team outlined in red, Destination Type set to Email with a dropdown arrow, and an Enter user emails list field containing joe.doe@company.com, ceo@company.com, marketing.team@company.com outlined in red. At the bottom is a blue Save button with a red arrow pointing to it, and a Cancel button below](res/email_configuredestination.png)
+![New destination dialog with the Title set to "Marketing Team", Destination Type set to Email, and the recipient email list filled with three addresses. The Save and Cancel buttons are at the bottom](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/649b3722-872d-42b3-b011-d46171eb4200/public)
 
 ---
 
@@ -52,23 +52,23 @@ Go to your **Data Mart** and open the **Destinations** tab.
 
 #### 2.2. Add a new report
 
-In the block labeled with the name of your Destination, click **+ Add report**.
+In the block labeled with the name of your Destination, click **Add Report**.
 
-![OWOX Data Marts interface displaying the Destinations tab of a Data Mart with a Marketing Team destination section that shows a table with columns for Title, Last Run Date, and Last Run Status. The table displays the message No reports for this destination. A red arrow points to the Add Report button with a plus icon in the upper right of the destination section](res/email_addreport.png)
+![Data Mart Destinations tab showing the Marketing Team destination block. The report table is empty with the message "No reports for this destination", and the Add Report button is in the top right of the block](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/708f8681-1820-473e-11e8-d99b2a914600/public)
 
 #### 2.3. Configure general settings
 
-Enter a report title and make sure the report is assigned to the correct Destination.  
+Change a report title if needed and make sure the report is assigned to the correct Destination.  
 You can also view and copy the list of report recipients.
 
-![OWOX Data Marts dialog titled Marketing Team with subtitle Fill in the details to create a new report. The GENERAL section shows a Title field containing Notification for Marketing Team outlined in red. Below is a Destination dropdown showing Marketing Team with an email icon. The Recipients of this report section displays three email addresses: joe.doe@company.com, ceo@company.com, marketing.team@company.com with a Click to copy tooltip and copy icon](res/email_titleofthereport.png)
+![New report dialog showing the General section. The Title field is set to "Notification for Marketing Team", the Destination is set to Marketing Team, and the Recipients section lists the three addresses from the destination with a copy button](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/619caedc-d81a-4db2-f59d-4c4079524f00/public)
 
 #### 2.4. Configure the template
 
 Add a **Subject** and write the **Message** using Markdown.  
-Switch to **Preview** to check how the email will appear to recipients.
+Optionally, switch to the **Insight** tab to attach a pre-built Insight as the email content source instead of a plain message.
 
-![OWOX Data Marts interface showing a report creation dialog for Marketing Team with a TEMPLATE section containing two fields: Subject field displays The Awesome Data Mart report has been updated, and below is a Message field with Markdown and Preview tabs in the top right corner outlined in red. The message text reads: Dear Marketing Team, We're happy to let you know that the Awesome Data Mart report has been updated. If you have questions, contact the Analytics team or mention us in Slack using analytics-support. Best regards, The Analytics Team](res/email_message.png)
+![Report creation dialog showing the Template section. The Subject field reads "The Awesome Data Mart report has been updated" and the Message editor is in Markdown mode with a sample email body — greeting, update notice, support instructions, and sign-off — addressed to the Marketing Team](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/a8518f5a-20e8-472f-fe7e-08daaf847e00/public)
 
 ##### Tags and Variables
 
@@ -96,7 +96,7 @@ Default: `{{value source="main" column="1" row="1"}}`
 
 > This syntax preserves report accuracy when the schema changes — no updates are needed if a column is renamed.
 
-![OWOX Data Marts dialog titled Main Destination with subtitle Update details of an existing report. The Template section shows a Subject field containing Last Marketing Data, and a Message field in Markdown mode with a forward slash typed on line 1. A dropdown autocomplete menu is open below the cursor showing four options: Table (highlighted in blue, with the description Insert a table tag with source binding), Table with limit, Value (Path), and Value (Column/Row). Each option has a blue tag icon. At the bottom of the dialog are a blue Save changes to report button and a Cancel button.](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/4deb6f02-9018-46e9-ea7b-c7f790eb8200/public)
+![Report editor with the Message field in Markdown mode. A forward slash typed on line 1 has triggered an autocomplete menu showing four tag options: Table (highlighted, described as "Insert a table tag with source binding"), Table with limit, Value (Path), and Value (Column/Row)](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/4deb6f02-9018-46e9-ea7b-c7f790eb8200/public)
 
 **Optional parameters for `{{table}}`:**
 
@@ -122,23 +122,23 @@ Decide when the report should be sent based on the Data Mart run result:
 
 OWOX automatically runs the Data Mart before sending the report and checks the result. Your selected condition determines whether the report is sent.
 
-![OWOX Data Marts dialog showing the SENDING CONDITIONS section with Data Mart Run results displayed at the top in a red-bordered box. Below, a dropdown menu labeled Send always is expanded, revealing three options: Send always (selected with a checkmark), Send only when result is empty, and Send only when result is not empty. A red arrow points from the label to the dropdown](res/email_sendingconditions.png)
+![Report dialog showing the Sending Conditions section. The condition dropdown is expanded and displays three options: Send always (currently selected), Send only when result is empty, and Send only when result is not empty](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/4836deeb-fc7e-4afd-32ea-d83593dba400/public)
 
 #### 2.6. (Optional) Scheduling
 
 To run this report automatically on a schedule (for example, every 5 minutes or every Monday and Wednesday at 3:00 PM), create a new trigger in the **Automate Report Runs** section.  
 
-![OWOX Data Marts dialog titled Marketing Team with subtitle Fill in the details to create a new report. The AUTOMATE REPORT RUNS section shows an Enabled toggle switch turned on in blue with a trash icon to the right. Below is a Type dropdown set to Daily, followed by Time field showing 09:00 AM and Timezone field displaying America/New_York (-05:00). At the bottom is a + Add trigger button with a red arrow pointing to it](res/email_trigger.png)
+![Report creation dialog showing the Automate Report Runs section with one active trigger configured: Daily type, 09:00 AM, America/New_York timezone. An Add trigger button is available below to add more triggers](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/3dff85d3-9e8b-4007-dd77-7c0b660e6600/public)
 
 You can also add the trigger later in the **Triggers** tab of your Data Mart.
 
-![OWOX Data Marts interface showing the Triggers tab selected with a red border at the top navigation. The page displays a Time triggers section with a calendar icon and a red arrow pointing to the Add Trigger button with a plus icon on the right. Below is a table with columns for Trigger Type, Run Target, Schedule, Next Run, and Last Run. One row shows Report Run type linked to Notification for Marketing Team, scheduled Daily at 09:00 America/New_York timezone, with Next Run in 22 hours and Last Run showing Never run. Navigation buttons Previous and Next appear at the bottom](res/email_triggers.png)
+![Data Mart Triggers tab showing the Time triggers table with one entry: a Report Run for "Notification for Marketing Team" scheduled Daily at 09:00 America/New_York, with the next run in 22 hours and no previous runs. An Add Trigger button is in the top right of the section](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/ee947a75-737a-496b-ae1c-4d321beeb700/public)
 
 #### 2.7. Create the report
 
-Click **Create New Report** to apply the report settings. If you want to run the report immediately, click **Create & Run report** instead.
+Click **Create & Run report** to save the report and trigger an immediate run. To save without running, open the dropdown next to the button and select **Create new report**.
 
-![OWOX Data Marts dialog showing the Marketing Team report creation interface. Below are sending conditions with Data Mart Run results and a Send always dropdown. At the bottom, a blue Create new report button is outlined in red with an upward arrow icon, and to its right is a Create & Run report option with a red arrow pointing to it. A Cancel button appears at the bottom](res/email_createandrun.png)
+![Bottom of the report creation dialog showing the Sending Conditions section and the action buttons: the primary Create & Run report button, a dropdown chevron for accessing Create new report, and a Cancel button](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/a315ba18-5e1d-42f5-37cd-bc23cc19cc00/public)
 
 ---
 
