@@ -248,6 +248,20 @@ export class GoogleSheetsApiAdapter {
   }
 
   /**
+   * Clears values in the given A1 range while preserving cell formatting,
+   * notes and structural elements. The range string must already include the
+   * sheet title (e.g. `"'Sheet1'!A2:C10"`). Used by the diff-based writer to
+   * truncate stale rows that linger when a new run produces fewer rows than
+   * the previous one (e.g. after a Report `limitConfig` shrinks the result
+   * set).
+   */
+  public async clearValuesInRange(spreadsheetId: string, range: string): Promise<void> {
+    await this.executeWithRetry(() =>
+      this.service.spreadsheets.values.clear({ spreadsheetId, range })
+    );
+  }
+
+  /**
    * Updates values in a sheet
    */
   public async updateValues(

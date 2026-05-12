@@ -564,4 +564,62 @@ describeIfConfigured('Google Sheets column preservation (diff-based writer)', ()
     expect((await readRange('K1:K1'))[0]?.[0]).toBe('preserve_me');
     expect(await readOwoxColumnsMetadata()).toEqual(metadataBefore);
   }, 120_000);
+
+  // -------------------------------------------------------------------------
+  // Test 10 — Output Controls × diff-based writer interaction:
+  // shrinking the result set via Report `limitConfig` must clear stale rows
+  // from the previous (larger) refresh inside the imported rectangle. User
+  // content right of the imported range survives (DoD A still holds).
+  //
+  // This is exactly the user-visible regression that triggered the fix:
+  // a refresh with LIMIT=1 wrote one row but ten old rows lingered below it,
+  // making it look like the limit was being ignored.
+  // -------------------------------------------------------------------------
+  it('clears stale rows below new data when limitConfig shrinks the result set', async () => {
+    const { reportId } = await provisionFixture({ testName: 'limit-shrinks-rows' });
+
+    // First run — full 3-row dataset lands in rows 2..4.
+    await runAndWait(reportId);
+    expect(await readRange('A2:C4')).toEqual([
+      ['A', '10', '2'],
+      ['B', '20', '5'],
+      ['C', '30', '6'],
+    ]);
+
+    // Seed user content right of the imported range — must survive.
+    await writeCell('K1', 'ratio');
+    await writeCell('K2', '=B2/C2');
+
+    // Apply LIMIT=1. The PUT endpoint requires the full report DTO, so we
+    // round-trip through GET to keep the unrelated fields intact.
+    const getRes = await agent.get(`/api/reports/${reportId}`).set(AUTH_HEADER);
+    expect(getRes.status).toBe(200);
+    const current = getRes.body;
+    const putRes = await agent
+      .put(`/api/reports/${reportId}`)
+      .set(AUTH_HEADER)
+      .send({
+        title: current.title,
+        dataDestinationId: current.dataDestinationAccess.id,
+        destinationConfig: current.destinationConfig,
+        ownerIds: (current.ownerUsers ?? []).map((u: { id: string }) => u.id),
+        columnConfig: current.columnConfig,
+        filterConfig: current.filterConfig,
+        sortConfig: current.sortConfig,
+        limitConfig: 1,
+      });
+    expect(putRes.status).toBe(200);
+
+    await runAndWait(reportId);
+
+    // Row 2 holds the single LIMIT=1 record; rows 3..4 in the imported
+    // columns are blank now (Sheets API strips trailing empty rows from the
+    // values response, so an empty array is the expected shape).
+    expect(await readRange('A2:C2')).toEqual([['A', '10', '2']]);
+    expect(await readRange('A3:C4')).toEqual([]);
+
+    // User content right of the imported range survived.
+    expect((await readRange('K1:K1'))[0]?.[0]).toBe('ratio');
+    expect((await readFormulas('K2:K2'))[0]?.[0]).toBe('=B2/C2');
+  }, 150_000);
 });

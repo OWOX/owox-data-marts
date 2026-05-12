@@ -284,6 +284,16 @@ export class GoogleSheetsReportWriter implements DataDestinationReportWriter {
         await this.applyDeferredSheetMutations();
       }
 
+      // Drop stale rows from a previous (larger) refresh that fell outside
+      // the new imported rectangle. Must run BEFORE the metadata batch so
+      // that a truncate failure aborts `finalize` without advancing
+      // `OWOX_COLUMNS` past a half-applied state. Skipped on the error path
+      // — the contract is "failed refresh leaves the sheet exactly as it
+      // was".
+      if (!processingError && this.writtenRowsCount > 0) {
+        await this.truncateTrailingImportedRows();
+      }
+
       if (this.writtenRowsCount > 0 && this.reportDataHeaders?.[0]) {
         const dataMart = this.report.dataMart;
 
@@ -555,6 +565,36 @@ export class GoogleSheetsReportWriter implements DataDestinationReportWriter {
 
       this.availableRowsCount += rowsToAllocate;
     }, 'Adding rows to sheet to accommodate data');
+  }
+
+  /**
+   * Clears values in rows below the last data row of the current run so a
+   * smaller dataset (e.g. when Report `limitConfig` / filters shrink output)
+   * does not leave stale rows from the previous refresh in the imported
+   * column rectangle. Touches ONLY columns `A..lastImportedCol` — user
+   * content right of the imported range is preserved (DoD A of the
+   * column-preservation refactor).
+   *
+   * No-op when:
+   *   - structural ops were never applied (no headers/data written this run);
+   *   - the imported range has zero columns;
+   *   - the sheet has no rows below the last written row.
+   */
+  private async truncateTrailingImportedRows(): Promise<void> {
+    if (!this.structuralOpsApplied || this.columnPlan.finalImportedNames.length === 0) {
+      return;
+    }
+    const rowFrom = this.writtenRowsCount + 1; // 1-based, first row past new data
+    const rowTo = this.availableRowsCount; // 1-based inclusive
+    if (rowFrom > rowTo) {
+      return;
+    }
+    const lastA1 = GoogleSheetsApiAdapter.colToA1(this.columnPlan.finalImportedNames.length);
+    const range = `'${this.sheetTitle}'!A${rowFrom}:${lastA1}${rowTo}`;
+    return this.executeWithErrorHandling(
+      () => this.adapter.clearValuesInRange(this.destination.spreadsheetId, range),
+      'Truncating stale rows below new data'
+    );
   }
 
   /**
