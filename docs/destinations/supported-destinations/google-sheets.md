@@ -61,3 +61,79 @@ Click **Connect Google Account** to authenticate using your personal Google acco
 #### 5. Finalize Setup
 
 Review your entries and click **Save** to integrate the **Destination**, or **Cancel** to discard changes.
+
+---
+
+## Working with Imported Data
+
+OWOX Data Marts owns only the columns it writes — the **imported range** —
+and treats the rest of your sheet as your space. This section describes what
+survives a refresh, what changes, and how the sheet reacts to schema or
+result-set changes.
+
+### What survives a refresh
+
+- **Cells and formulas to the right of the imported range** — currency
+  conversions, `VLOOKUP` enrichments, summary cells, and any other content
+  placed in columns past the last imported one are kept intact across
+  refreshes.
+- **Auto fill-down for row-2 formulas.** A formula placed in row 2 of any
+  user column to the right of the imported range is automatically extended
+  down to every data row on the next refresh. Relative cell references are
+  shifted the same way Google Sheets shifts them when you drag the
+  fill-handle. This is enabled by default — no settings to configure.
+- **Static values in user columns are not overwritten by fill-down.** Auto
+  fill-down only acts on columns where row 2 actually holds a formula. If
+  row 2 of a column to the right of the imported range is empty or holds a
+  static value, that column is skipped entirely — so lookup tables, notes,
+  or any other static content placed in those columns survives untouched.
+- **Your column ordering.** If you rearrange columns in row 1 by dragging
+  headers in Google Sheets, OWOX remembers the new order on the next
+  refresh and writes data rows in your layout. Re-ordering columns in the
+  SQL source **after the first run** does not override your layout — your
+  row 1 wins.
+- **Pivot tables, charts, and named ranges** that reference the imported
+  range keep working. OWOX uses Sheets' native column insert and delete
+  operations, so dependent ranges, charts and pivot sources are updated
+  automatically — the same as when you manually insert or delete a column.
+- **Output Schema aliases.** When you set a display alias for a column in
+  the data mart, the alias appears in row 1 of the destination sheet
+  without inserting or deleting any columns and without touching your other
+  content.
+
+### How schema and result-set changes are reflected
+
+- **A new SQL column** is appended at the right edge of the imported range.
+  Any user content in columns to the right shifts right by one. The new
+  column starts empty until OWOX fills it with values from the SQL — it
+  does not inherit any formulas or formatting from the column to its left.
+- **A removed SQL column** is deleted from the imported range. User
+  formulas that referenced the removed column become `#REF!` — an honest
+  signal that the column they depended on is gone.
+- **Renaming a column in SQL** is treated as removing the old column and
+  adding a new one. Formulas that pointed at the old name become `#REF!`
+  and need to be repointed to the new column.
+- **A smaller result set** (for example, when you set a Report row limit or
+  apply filters that drop rows) only shows the rows produced by the latest
+  run. Rows from a previous, larger refresh are cleared from the imported
+  columns; user content in cells to the right of the imported range is left
+  untouched.
+
+> **Note:** OWOX matches columns by their SQL **name**, not by position.
+> Display aliases are presentation-only and do not affect this matching.
+
+### When a refresh fails
+
+If a refresh fails before any data is delivered — for example, a warehouse
+connection error or a SQL error caught at execution — the destination sheet
+is left exactly as it was before the run. No headers are rewritten, no rows
+are cleared, and your last successful refresh stays visible until the next
+successful run replaces it.
+
+### Per-column header notes
+
+Each imported column header carries a note (hover the cell in Google Sheets
+to view it). The note begins with the column's Output Schema description (if
+one is set) followed by a provenance block: the data mart name, a link to
+it in OWOX Data Marts, and the timestamp of the latest refresh. Use these
+notes to confirm the source and freshness of any column at a glance.
