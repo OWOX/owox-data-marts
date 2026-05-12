@@ -71,6 +71,12 @@ describe('BigQueryClauseRenderer', () => {
         '\nWHERE `a` = FALSE'
       );
     });
+    it('is_null / is_not_null render unambiguous NULL checks (safe for any column type)', () => {
+      expect(r.renderWhere([{ column: 'a', operator: 'is_null' }]).sql).toBe('\nWHERE `a` IS NULL');
+      expect(r.renderWhere([{ column: 'a', operator: 'is_not_null' }]).sql).toBe(
+        '\nWHERE `a` IS NOT NULL'
+      );
+    });
   });
 
   describe('between', () => {

@@ -67,6 +67,8 @@ function summarizeValue(rule: FilterRule): string {
   switch (rule.operator) {
     case 'is_empty':
     case 'is_not_empty':
+    case 'is_null':
+    case 'is_not_null':
     case 'is_true':
     case 'is_false':
       return '';

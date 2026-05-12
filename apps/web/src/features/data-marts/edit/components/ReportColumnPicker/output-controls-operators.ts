@@ -7,6 +7,8 @@ export type FilterOperator =
   | 'ends_with'
   | 'is_empty'
   | 'is_not_empty'
+  | 'is_null'
+  | 'is_not_null'
   | 'regex'
   | 'not_regex'
   | 'gt'
@@ -38,6 +40,8 @@ const STRING_OPERATORS: OperatorMeta[] = [
   { value: 'ends_with', label: 'ends with', shortLabel: '↤' },
   { value: 'is_empty', label: 'is empty', shortLabel: '∅' },
   { value: 'is_not_empty', label: 'is not empty', shortLabel: '¬∅' },
+  { value: 'is_null', label: 'is null', shortLabel: '∅?' },
+  { value: 'is_not_null', label: 'is not null', shortLabel: '¬∅?' },
   { value: 'regex', label: 'matches regex', shortLabel: '/.../' },
   { value: 'not_regex', label: "doesn't match regex", shortLabel: '!/.../' },
 ];
@@ -50,8 +54,8 @@ const NUMBER_OPERATORS: OperatorMeta[] = [
   { value: 'gte', label: 'greater than or equal', shortLabel: '≥' },
   { value: 'lte', label: 'less than or equal', shortLabel: '≤' },
   { value: 'between', label: 'between', shortLabel: 'X..Y' },
-  { value: 'is_empty', label: 'is empty', shortLabel: '∅' },
-  { value: 'is_not_empty', label: 'is not empty', shortLabel: '¬∅' },
+  { value: 'is_null', label: 'is null', shortLabel: '∅' },
+  { value: 'is_not_null', label: 'is not null', shortLabel: '¬∅' },
 ];
 
 const DATE_OPERATORS: OperatorMeta[] = [
@@ -63,14 +67,15 @@ const DATE_OPERATORS: OperatorMeta[] = [
   { value: 'lte', label: 'on or before', shortLabel: '≤' },
   { value: 'between', label: 'between', shortLabel: 'X..Y' },
   { value: 'relative_date', label: 'relative', shortLabel: '⏱' },
-  { value: 'is_empty', label: 'is empty', shortLabel: '∅' },
-  { value: 'is_not_empty', label: 'is not empty', shortLabel: '¬∅' },
+  { value: 'is_null', label: 'is null', shortLabel: '∅' },
+  { value: 'is_not_null', label: 'is not null', shortLabel: '¬∅' },
 ];
 
 const BOOLEAN_OPERATORS: OperatorMeta[] = [
   { value: 'is_true', label: 'is true', shortLabel: '✓' },
   { value: 'is_false', label: 'is false', shortLabel: '✗' },
-  { value: 'is_empty', label: 'is empty', shortLabel: '∅' },
+  { value: 'is_null', label: 'is null', shortLabel: '∅' },
+  { value: 'is_not_null', label: 'is not null', shortLabel: '¬∅' },
 ];
 
 export function operatorsForType(fieldType: string): OperatorMeta[] {

@@ -63,6 +63,10 @@ export class BigQueryClauseRenderer extends SqlClauseRenderer {
         return { sql: `(${col} IS NULL OR ${col} = '')`, params: [] };
       case 'is_not_empty':
         return { sql: `(${col} IS NOT NULL AND ${col} != '')`, params: [] };
+      case 'is_null':
+        return { sql: `${col} IS NULL`, params: [] };
+      case 'is_not_null':
+        return { sql: `${col} IS NOT NULL`, params: [] };
       case 'is_true':
         return { sql: `${col} = TRUE`, params: [] };
       case 'is_false':
