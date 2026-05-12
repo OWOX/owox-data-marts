@@ -40,7 +40,7 @@ export class DataStorage implements CreatorAwareEntity {
   @JoinColumn({ name: 'credentialId' })
   credential?: DataStorageCredential | null;
 
-  @Column({ type: 'boolean', default: false })
+  @Column({ type: 'boolean', default: true })
   availableForUse: boolean;
 
   @Column({ type: 'boolean', default: false })

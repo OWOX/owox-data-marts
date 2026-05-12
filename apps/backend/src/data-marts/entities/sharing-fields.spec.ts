@@ -12,14 +12,14 @@ describe('Sharing fields on entities', () => {
   }
 
   describe('DataMart sharing fields', () => {
-    it('should have availableForReporting boolean column', () => {
+    it('should have availableForReporting boolean column defaulting to true', () => {
       const col = getColumnMeta(DataMart, 'availableForReporting');
       expect(col).toBeDefined();
       expect(col!.options.type).toBe('boolean');
-      expect(col!.options.default).toBe(false);
+      expect(col!.options.default).toBe(true);
     });
 
-    it('should have availableForMaintenance boolean column', () => {
+    it('should have availableForMaintenance boolean column defaulting to false', () => {
       const col = getColumnMeta(DataMart, 'availableForMaintenance');
       expect(col).toBeDefined();
       expect(col!.options.type).toBe('boolean');
@@ -28,14 +28,14 @@ describe('Sharing fields on entities', () => {
   });
 
   describe('DataStorage sharing fields', () => {
-    it('should have availableForUse boolean column', () => {
+    it('should have availableForUse boolean column defaulting to true', () => {
       const col = getColumnMeta(DataStorage, 'availableForUse');
       expect(col).toBeDefined();
       expect(col!.options.type).toBe('boolean');
-      expect(col!.options.default).toBe(false);
+      expect(col!.options.default).toBe(true);
     });
 
-    it('should have availableForMaintenance boolean column', () => {
+    it('should have availableForMaintenance boolean column defaulting to false', () => {
       const col = getColumnMeta(DataStorage, 'availableForMaintenance');
       expect(col).toBeDefined();
       expect(col!.options.type).toBe('boolean');
@@ -44,14 +44,14 @@ describe('Sharing fields on entities', () => {
   });
 
   describe('DataDestination sharing fields', () => {
-    it('should have availableForUse boolean column', () => {
+    it('should have availableForUse boolean column defaulting to true', () => {
       const col = getColumnMeta(DataDestination, 'availableForUse');
       expect(col).toBeDefined();
       expect(col!.options.type).toBe('boolean');
-      expect(col!.options.default).toBe(false);
+      expect(col!.options.default).toBe(true);
     });
 
-    it('should have availableForMaintenance boolean column', () => {
+    it('should have availableForMaintenance boolean column defaulting to false', () => {
       const col = getColumnMeta(DataDestination, 'availableForMaintenance');
       expect(col).toBeDefined();
       expect(col!.options.type).toBe('boolean');
