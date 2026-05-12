@@ -197,6 +197,7 @@ export function DataMartDefinitionSettings({
           storageId={storageId}
           storageConfig={storageConfig}
           preset={preset?.connectorSourceTitle}
+          initialDefinitionType={initialDefinitionType}
           saveDataMartDefinition={handleFormSubmit}
         />
         {definitionType !== DataMartDefinitionType.CONNECTOR && (
