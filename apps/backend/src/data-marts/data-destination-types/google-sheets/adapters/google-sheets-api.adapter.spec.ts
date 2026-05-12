@@ -125,6 +125,32 @@ describe('GoogleSheetsApiAdapter (pure helpers)', () => {
     });
   });
 
+  describe('clearValuesInRange', () => {
+    /**
+     * Thin wrapper over `spreadsheets.values.clear`. We override the private
+     * `service` so the test does not need network or googleapis mocking
+     * machinery — we only care that the method passes through the exact
+     * `spreadsheetId` and `range` it was given.
+     */
+    it('delegates to spreadsheets.values.clear with the provided range', async () => {
+      const adapter = buildAdapter();
+      const clearMock = jest.fn().mockResolvedValue({ data: {} });
+      (
+        adapter as unknown as { service: { spreadsheets: { values: { clear: jest.Mock } } } }
+      ).service = {
+        spreadsheets: { values: { clear: clearMock } },
+      };
+
+      await adapter.clearValuesInRange('spread-1', "'Sheet1'!A2:C10");
+
+      expect(clearMock).toHaveBeenCalledTimes(1);
+      expect(clearMock).toHaveBeenCalledWith({
+        spreadsheetId: 'spread-1',
+        range: "'Sheet1'!A2:C10",
+      });
+    });
+  });
+
   describe('findOwoxColumnsMetadataForSheet', () => {
     /**
      * Build a typed metadata fixture quickly. The adapter's filter only
