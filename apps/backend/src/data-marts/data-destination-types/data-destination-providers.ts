@@ -11,6 +11,7 @@ import { DataDestinationType } from './enums/data-destination-type.enum';
 import { GoogleSheetsApiAdapterFactory } from './google-sheets/adapters/google-sheets-api-adapter.factory';
 import { GoogleSheetsReportCreatedListener } from './google-sheets/listeners/google-sheets-report-created.listener';
 import { GoogleSheetsReportDeletedListener } from './google-sheets/listeners/google-sheets-report-deleted.listener';
+import { ColumnPlanBuilder } from './google-sheets/services/column-plan-builder';
 import { GoogleSheetsAccessValidator } from './google-sheets/services/google-sheets-access-validator';
 import { GoogleSheetsCredentialsValidator } from './google-sheets/services/google-sheets-credentials-validator';
 import { GoogleSheetsReportWriter } from './google-sheets/services/google-sheets-report-writer';
@@ -92,6 +93,7 @@ const googleSheetsUtilityProviders = [
   SheetHeaderFormatter,
   SheetMetadataFormatter,
   SheetValuesFormatter,
+  ColumnPlanBuilder,
   GoogleSheetsReportCreatedListener,
   GoogleSheetsReportDeletedListener,
 ];

@@ -51,6 +51,45 @@ export class SheetValuesFormatter {
     return rows;
   }
 
+  /**
+   * Same as {@link formatRowsValues} but resolves the per-column formatter by
+   * column **name** instead of position. Used by the diff-based writer where
+   * each row has already been reordered to match the user's column layout in
+   * the destination sheet, so positional alignment with the SQL output schema
+   * no longer holds.
+   *
+   * @param orderedRows - Rows already reordered to align with `finalNames`
+   * @param finalNames - Column names in the order they appear in the sheet
+   * @param headersByName - SQL output schema indexed by column name
+   * @param sheetTimeZone - Time zone of the sheet
+   */
+  public formatRowsValuesByName(
+    orderedRows: unknown[][],
+    finalNames: string[],
+    headersByName: ReadonlyMap<string, ReportDataHeader>,
+    sheetTimeZone: string
+  ): unknown[][] {
+    const columnsToFormat = finalNames
+      .map((name, index) => {
+        const header = headersByName.get(name);
+        return {
+          index,
+          formatter: header ? this.formatters.get(header.storageFieldType!) : undefined,
+        };
+      })
+      .filter(item => item.formatter);
+
+    if (columnsToFormat.length > 0) {
+      orderedRows.forEach(row => {
+        columnsToFormat.forEach(({ index, formatter }) => {
+          row[index] = formatter!(row[index], sheetTimeZone);
+        });
+      });
+    }
+
+    return orderedRows;
+  }
+
   private formatTimestamp(value: unknown, sheetTimeZone: string): unknown {
     if (typeof value !== 'string' || !value) return value;
 
