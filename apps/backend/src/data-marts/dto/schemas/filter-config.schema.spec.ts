@@ -19,6 +19,15 @@ describe('FilterConfigSchema', () => {
     expect(FilterConfigSchema.parse(input)).toEqual(input);
   });
 
+  it('accepts is_null and is_not_null no-value operators', () => {
+    expect(FilterConfigSchema.parse([{ column: 'd', operator: 'is_null' }])).toEqual([
+      { column: 'd', operator: 'is_null' },
+    ]);
+    expect(FilterConfigSchema.parse([{ column: 'd', operator: 'is_not_null' }])).toEqual([
+      { column: 'd', operator: 'is_not_null' },
+    ]);
+  });
+
   it('accepts between filter with from/to', () => {
     const input = [{ column: 'amount', operator: 'between', value: { from: 1, to: 100 } }];
     expect(FilterConfigSchema.parse(input)).toEqual(input);

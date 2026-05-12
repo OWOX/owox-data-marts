@@ -27,7 +27,14 @@ const ScalarOperatorEnum = z.enum([
   'not_regex',
 ]);
 
-const NoValueOperatorEnum = z.enum(['is_empty', 'is_not_empty', 'is_true', 'is_false']);
+const NoValueOperatorEnum = z.enum([
+  'is_empty',
+  'is_not_empty',
+  'is_null',
+  'is_not_null',
+  'is_true',
+  'is_false',
+]);
 
 export const FilterRuleSchema = z.discriminatedUnion('operator', [
   z.object({

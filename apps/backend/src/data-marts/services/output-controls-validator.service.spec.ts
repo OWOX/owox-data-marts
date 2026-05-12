@@ -64,6 +64,39 @@ describe('OutputControlsValidatorService', () => {
       expect(errors).toEqual([]);
     });
 
+    it('accepts is_null / is_not_null on every supported type', () => {
+      const filters = [
+        { column: 'name', operator: 'is_null' as const },
+        { column: 'name', operator: 'is_not_null' as const },
+        { column: 'amount', operator: 'is_null' as const },
+        { column: 'amount', operator: 'is_not_null' as const },
+        { column: 'created_at', operator: 'is_null' as const },
+        { column: 'created_at', operator: 'is_not_null' as const },
+        { column: 'flag', operator: 'is_null' as const },
+        { column: 'flag', operator: 'is_not_null' as const },
+      ];
+      expect(svc.validateFilters(filters, fieldTypes)).toEqual([]);
+    });
+
+    it('rejects is_empty / is_not_empty on non-STRING types (use is_null instead)', () => {
+      const filters = [
+        { column: 'amount', operator: 'is_empty' as const },
+        { column: 'created_at', operator: 'is_not_empty' as const },
+        { column: 'flag', operator: 'is_empty' as const },
+      ];
+      const errors = svc.validateFilters(filters, fieldTypes);
+      expect(errors).toHaveLength(3);
+      expect(errors.every(e => e.code === 'INVALID_OPERATOR_FOR_TYPE')).toBe(true);
+    });
+
+    it('still accepts is_empty / is_not_empty on STRING (preserves "" + NULL semantics)', () => {
+      const filters = [
+        { column: 'name', operator: 'is_empty' as const },
+        { column: 'name', operator: 'is_not_empty' as const },
+      ];
+      expect(svc.validateFilters(filters, fieldTypes)).toEqual([]);
+    });
+
     it('accepts relative_date on TIMESTAMP', () => {
       const errors = svc.validateFilters(
         [{ column: 'created_at', operator: 'relative_date', value: { kind: 'last_n_days', n: 7 } }],

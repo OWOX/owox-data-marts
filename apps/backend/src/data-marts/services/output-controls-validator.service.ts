@@ -16,6 +16,10 @@ const NUMBER_TYPES = new Set(['INTEGER', 'FLOAT', 'NUMERIC', 'BIGNUMERIC']);
 const DATE_TYPES = new Set(['DATE', 'DATETIME', 'TIMESTAMP', 'TIME']);
 const BOOL_TYPES = new Set(['BOOLEAN']);
 
+// `is_empty` / `is_not_empty` are kept for STRING only — for non-STRING types
+// they previously rendered as `col = ''` / `col != ''`, which BigQuery rejects
+// for TIMESTAMP/DATE/INTEGER/FLOAT (cannot cast '' to those types). Non-STRING
+// types use the unambiguous `is_null` / `is_not_null` instead.
 const STRING_OPS = new Set([
   'eq',
   'neq',
@@ -25,6 +29,8 @@ const STRING_OPS = new Set([
   'ends_with',
   'is_empty',
   'is_not_empty',
+  'is_null',
+  'is_not_null',
   'regex',
   'not_regex',
 ]);
@@ -36,8 +42,8 @@ const NUMBER_OPS = new Set([
   'gte',
   'lte',
   'between',
-  'is_empty',
-  'is_not_empty',
+  'is_null',
+  'is_not_null',
 ]);
 const DATE_OPS = new Set([
   'eq',
@@ -48,10 +54,10 @@ const DATE_OPS = new Set([
   'lte',
   'between',
   'relative_date',
-  'is_empty',
-  'is_not_empty',
+  'is_null',
+  'is_not_null',
 ]);
-const BOOL_OPS = new Set(['is_true', 'is_false', 'is_empty']);
+const BOOL_OPS = new Set(['is_true', 'is_false', 'is_null', 'is_not_null']);
 
 function operatorAllowed(fieldType: string, operator: string): boolean {
   if (STRING_TYPES.has(fieldType)) return STRING_OPS.has(operator);

@@ -50,7 +50,14 @@ const RELATIVE_KINDS: { value: RelativeDatePreset['kind']; label: string }[] = [
   { value: 'last_n_months', label: 'Last N months' },
 ];
 
-const NO_VALUE_OPS = new Set<FilterOperator>(['is_empty', 'is_not_empty', 'is_true', 'is_false']);
+const NO_VALUE_OPS = new Set<FilterOperator>([
+  'is_empty',
+  'is_not_empty',
+  'is_null',
+  'is_not_null',
+  'is_true',
+  'is_false',
+]);
 
 const NUMBER_TYPES = new Set(['INTEGER', 'FLOAT', 'NUMERIC', 'BIGNUMERIC']);
 const DATE_TYPES = new Set(['DATE', 'DATETIME', 'TIMESTAMP', 'TIME']);
@@ -334,6 +341,8 @@ function summarize(rule: FilterRule): string {
   switch (rule.operator) {
     case 'is_empty':
     case 'is_not_empty':
+    case 'is_null':
+    case 'is_not_null':
     case 'is_true':
     case 'is_false':
       return '';
