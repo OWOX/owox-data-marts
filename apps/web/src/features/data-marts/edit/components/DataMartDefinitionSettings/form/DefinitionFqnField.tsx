@@ -33,6 +33,7 @@ interface DefinitionFqnFieldProps {
   storageConfig: DataStorageConfigDto | null;
   /** Controls the label text and the resource type shown in the picker. */
   mode: 'TABLE' | 'VIEW';
+  autoOpen?: boolean;
 }
 
 export function DefinitionFqnField({
@@ -41,6 +42,7 @@ export function DefinitionFqnField({
   storageId,
   storageConfig,
   mode,
+  autoOpen,
 }: DefinitionFqnFieldProps) {
   const placeholder = getFullyQualifiedNamePlaceholder(storageType);
   const helpText = getFullyQualifiedNameHelpText(storageType);
@@ -80,6 +82,7 @@ export function DefinitionFqnField({
                     resourceType={resourceType}
                     onSelect={handleSelect}
                     hasValue={Boolean(field.value)}
+                    autoOpen={autoOpen}
                   />
                 </InputGroupAddon>
                 <InputGroupInput

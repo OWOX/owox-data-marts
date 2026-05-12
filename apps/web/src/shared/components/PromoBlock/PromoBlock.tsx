@@ -136,7 +136,7 @@ export function PromoBlock({
     title: cn(
       'leading-tight font-semibold',
       isCompact
-        ? 'text-xl md:text-2xl lg:text-3xl mb-1 lg:mb-2'
+        ? 'text-lg md:text-xl lg:text-2xl mb-2 lg:mb-3'
         : 'text-3xl md:text-4xl xl:text-5xl mb-2 lg:mb-8'
     ),
 
@@ -207,7 +207,7 @@ export function PromoBlock({
             {/* Glow */}
             <div
               className={cn(
-                'absolute -bottom-8 -left-8 -z-10',
+                'absolute -bottom-8 -left-8 -z-10 hidden lg:block',
                 'h-4/5 w-4/5 blur-2xl',
                 'bg-gray-300/40 dark:bg-transparent'
               )}

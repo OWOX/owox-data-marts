@@ -67,22 +67,18 @@ export function EmptyDataMartsState() {
         {/* SQL-based and Blank */}
         <EmptyStateCardSection>
           <EmptyStateCardSectionTitle>
-            Use existing SQL or start from scratch
+            Use existing SQL, Table or start from scratch
           </EmptyStateCardSectionTitle>
           <EmptyStateCardSectionContent>
-            {otherPresets.map((preset, index) => (
-              <>
+            {otherPresets.map(preset => (
+              <div className='flex items-center gap-4' key={preset.key}>
                 <EmptyStateCardActionButton
-                  key={preset.key}
                   href={scope(`/data-marts/create?preset=${preset.key}`)}
                   icon={preset.icon && <preset.icon className='h-4 w-4' />}
                   title={preset.title}
                   variant='outline'
                 />
-                {index < otherPresets.length - 1 && (
-                  <span className='text-muted-foreground text-sm'>or</span>
-                )}
-              </>
+              </div>
             ))}
           </EmptyStateCardSectionContent>
         </EmptyStateCardSection>

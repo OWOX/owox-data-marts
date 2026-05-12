@@ -31,6 +31,7 @@ interface TablePatternDefinitionFieldProps {
   storageType: DataStorageType;
   storageId: string;
   storageConfig: DataStorageConfigDto | null;
+  autoOpen?: boolean;
 }
 
 export function TablePatternDefinitionField({
@@ -38,6 +39,7 @@ export function TablePatternDefinitionField({
   storageType,
   storageId,
   storageConfig,
+  autoOpen,
 }: TablePatternDefinitionFieldProps) {
   const placeholder = getTablePatternPlaceholder(storageType);
   const helpText = getTablePatternHelpText(storageType);
@@ -77,6 +79,7 @@ export function TablePatternDefinitionField({
                     resourceType='TABLE_PATTERN'
                     onSelect={handleSelect}
                     hasValue={Boolean(field.value)}
+                    autoOpen={autoOpen}
                   />
                 </InputGroupAddon>
                 <InputGroupInput
