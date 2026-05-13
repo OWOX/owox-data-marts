@@ -5,6 +5,7 @@ import { DataMartTableReferenceService } from './data-mart-table-reference.servi
 import { BlendedQueryBuilderFacade } from '../data-storage-types/facades/blended-query-builder.facade';
 import { Report } from '../entities/report.entity';
 import { ResolvedRelationshipChain } from '../data-storage-types/interfaces/blended-query-builder.interface';
+import { isQueryBuildResult } from '../data-storage-types/interfaces/data-mart-query-builder.interface';
 import { ReportDataHeader } from '../dto/domain/report-data-header.dto';
 import { AvailableSourceDto, BlendedFieldDto } from '../dto/domain/blendable-schema.dto';
 import { DataStorageType } from '../data-storage-types/enums/data-storage-type.enum';
@@ -39,7 +40,11 @@ export class BlendedReportDataService {
     );
 
     const blendedFieldsByName = new Map(blendableSchema.blendedFields.map(f => [f.name, f]));
-    const hasBlendedColumns = columnConfig.some(col => blendedFieldsByName.has(col));
+    const filterColumns = (report.filterConfig ?? []).map(f => f.column);
+    const referencedColumns = new Set<string>([...columnConfig, ...filterColumns]);
+    const hasBlendedColumns = Array.from(referencedColumns).some(col =>
+      blendedFieldsByName.has(col)
+    );
     const blendedDataHeaders = this.buildBlendedDataHeaders(
       columnConfig,
       blendedFieldsByName,
@@ -70,6 +75,7 @@ export class BlendedReportDataService {
     const allRelationships = await this.relationshipService.findBySourceDataMartId(dataMart.id);
     const chains = await this.buildRelationshipChains(
       columnConfig,
+      referencedColumns,
       blendableSchema.blendedFields,
       blendableSchema.availableSources,
       allRelationships,
@@ -78,7 +84,7 @@ export class BlendedReportDataService {
       publicOrigin
     );
 
-    const blendedSql = await this.blendedQueryBuilderFacade.buildBlendedQuery(
+    const blendedResult = await this.blendedQueryBuilderFacade.buildBlendedQuery(
       dataMart.storage.type,
       {
         mainTableReference,
@@ -86,12 +92,18 @@ export class BlendedReportDataService {
         mainDataMartUrl,
         chains,
         columns: columnConfig,
+        filters: report.filterConfig ?? undefined,
+        sort: report.sortConfig ?? undefined,
+        limit: report.limitConfig ?? undefined,
       }
     );
+    const blendedSql = isQueryBuildResult(blendedResult) ? blendedResult.sql : blendedResult;
+    const params = isQueryBuildResult(blendedResult) ? blendedResult.params : undefined;
 
     return {
       needsBlending: true,
       blendedSql,
+      params,
       columnFilter: columnConfig,
       blendedDataHeaders,
     };
@@ -140,6 +152,7 @@ export class BlendedReportDataService {
    */
   private async buildRelationshipChains(
     columnConfig: string[],
+    referencedColumns: ReadonlySet<string>,
     blendedFields: BlendedFieldDto[],
     availableSources: AvailableSourceDto[],
     directRelationships: DataMartRelationship[],
@@ -147,8 +160,7 @@ export class BlendedReportDataService {
     projectId: string,
     publicOrigin: string
   ): Promise<ResolvedRelationshipChain[]> {
-    const requestedNames = new Set(columnConfig);
-    const requestedBlendedFields = blendedFields.filter(f => requestedNames.has(f.name));
+    const requestedBlendedFields = blendedFields.filter(f => referencedColumns.has(f.name));
 
     if (requestedBlendedFields.length === 0) {
       return [];
@@ -197,6 +209,7 @@ export class BlendedReportDataService {
     const dataMartAliasMap = new Map<string, string>();
     dataMartAliasMap.set(rootDataMartId, 'main');
 
+    const columnConfigSet = new Set(columnConfig);
     const chains: ResolvedRelationshipChain[] = [];
     for (const src of sortedSources) {
       const rel = relationshipsById.get(src.relationshipId);
@@ -219,7 +232,9 @@ export class BlendedReportDataService {
       const chainBlendedFields = (fieldsByRelId.get(rel.id) ?? []).map(f => ({
         targetFieldName: f.originalFieldName,
         outputAlias: f.name,
-        isHidden: f.isHidden,
+        // Hide fields referenced only by filterConfig — they flow through CTEs so
+        // WHERE can reference them, but must not appear in the final SELECT.
+        isHidden: f.isHidden || !columnConfigSet.has(f.name),
         aggregateFunction: f.aggregateFunction,
       }));
 

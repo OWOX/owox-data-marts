@@ -1,4 +1,4 @@
-import { Inject, Injectable, Logger, ForbiddenException } from '@nestjs/common';
+import { Inject, Injectable, Logger } from '@nestjs/common';
 import { Transactional } from 'typeorm-transactional';
 import { BusinessViolationException } from '../../common/exceptions/business-violation.exception';
 import { TypeResolver } from '../../common/resolver/type-resolver';
@@ -28,6 +28,8 @@ import {
   ReportExecutionPolicyResolver,
 } from './report-execution-policy.resolver';
 import { ReportAccessService } from '../services/report-access.service';
+import { ReportSqlComposerService } from '../services/report-sql-composer.service';
+import { SqlParameter } from '../data-storage-types/utils/sql-clause-renderer';
 
 const ERROR_NAMES = {
   ABORT: 'AbortError',
@@ -91,32 +93,37 @@ export class RunReportService {
     private readonly reportExecutionPolicyResolver: ReportExecutionPolicyResolver,
     private readonly reportRunTriggerService: ReportRunTriggerService,
     private readonly reportAccessService: ReportAccessService,
-    private readonly blendedReportDataService: BlendedReportDataService
+    private readonly blendedReportDataService: BlendedReportDataService,
+    private readonly reportSqlComposerService: ReportSqlComposerService
   ) {}
 
   /**
    * Creates a pending report run and enqueues it via trigger for worker processing.
-   * Both operations are wrapped in a transaction to ensure atomicity.
+   *
+   * Auth gating runs OUTSIDE the transactional boundary so a 403 doesn't open and
+   * roll back a database transaction. The actual createPending + createTrigger work
+   * stays atomic via `enqueueReportRun`.
    *
    * @param command - Report run command with reportId, userId, runType
    * @param signal - Unused, kept for backward compatibility with scheduled processors
    */
-  @Transactional()
   async run(command: RunReportCommand, _signal?: AbortSignal): Promise<void> {
     this.validateCanRun();
 
     if (command.runType === RunType.manual) {
-      if (!command.projectId) {
-        throw new ForbiddenException('Manual report runs require project context');
-      }
-      await this.reportAccessService.checkMutateAccess(
+      await this.reportAccessService.checkOperateAccess(
         command.userId,
-        command.roles ?? [],
+        command.roles,
         command.reportId,
         command.projectId
       );
     }
 
+    await this.enqueueReportRun(command);
+  }
+
+  @Transactional()
+  private async enqueueReportRun(command: RunReportCommand): Promise<void> {
     this.logger.log(`Creating report run trigger for report ${command.reportId}`);
 
     const reportRun = await this.reportRunService.createPending(command);
@@ -203,8 +210,27 @@ export class RunReportService {
       // receive the result via PrepareReportDataOptions.
       const blendingDecision = await this.blendedReportDataService.resolveBlendingDecision(report);
       logBlendedSqlIfNeeded(blendingDecision, reportRunLogger);
+
+      let sqlOverride: string | undefined;
+      let sqlOverrideParams: SqlParameter[] | undefined;
+      if (blendingDecision.needsBlending) {
+        sqlOverride = blendingDecision.blendedSql;
+        sqlOverrideParams = blendingDecision.params;
+      } else if (
+        (report.filterConfig?.length ?? 0) > 0 ||
+        (report.sortConfig?.length ?? 0) > 0 ||
+        report.limitConfig != null
+      ) {
+        // Non-blended report with output controls — compose the full SQL + params here so
+        // the reader doesn't need to know about output-controls semantics.
+        const composed = await this.reportSqlComposerService.compose(report);
+        sqlOverride = composed.sql;
+        sqlOverrideParams = composed.params;
+      }
+
       const reportDataDescription = await reportReader.prepareReportData(report, {
-        sqlOverride: blendingDecision.needsBlending ? blendingDecision.blendedSql : undefined,
+        sqlOverride,
+        sqlOverrideParams,
         columnFilter: blendingDecision.columnFilter,
         blendedDataHeaders: blendingDecision.blendedDataHeaders,
       });

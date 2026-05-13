@@ -200,19 +200,19 @@ export function BaseTable<TData>({
                 </TableRow>
               ))
             ) : renderEmptyState ? (
-              <TableRow>
+              <TableRow className='cursor-default hover:bg-transparent'>
                 <TableCell
                   colSpan={table.getVisibleLeafColumns().length}
-                  className='text-muted-foreground h-32 text-center'
+                  className='text-muted-foreground min-h-32 text-center'
                 >
                   {renderEmptyState()}
                 </TableCell>
               </TableRow>
             ) : (
-              <TableRow>
+              <TableRow className='cursor-default hover:bg-transparent'>
                 <TableCell
                   colSpan={table.getVisibleLeafColumns().length}
-                  className='text-muted-foreground h-32 text-center'
+                  className='text-muted-foreground min-h-32 text-center'
                 >
                   Oops! No data found
                 </TableCell>

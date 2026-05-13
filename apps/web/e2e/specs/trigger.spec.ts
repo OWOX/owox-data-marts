@@ -12,7 +12,7 @@ test.describe('Triggers - Empty State', () => {
 
     // ScheduledTriggerTable renders empty state with triggerEmptyState testid
     await expect(page.getByTestId(TESTIDS.triggerEmptyState)).toBeVisible();
-    await expect(page.getByText('No scheduled triggers yet')).toBeVisible();
+    await expect(page.getByText('Create your first scheduled trigger')).toBeVisible();
   });
 });
 

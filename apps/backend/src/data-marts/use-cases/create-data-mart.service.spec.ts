@@ -49,7 +49,7 @@ describe('CreateDataMartService', () => {
     jest.clearAllMocks();
   });
 
-  it('should set sharing defaults to false for new data mart', async () => {
+  it('should make a new data mart reporting-visible but maintenance-private by default', async () => {
     const { service, dataMartService } = createService();
     const command = new CreateDataMartCommand('proj-1', 'user-0', 'Test DM', 'storage-1');
 
@@ -57,7 +57,7 @@ describe('CreateDataMartService', () => {
 
     expect(dataMartService.create).toHaveBeenCalledWith(
       expect.objectContaining({
-        availableForReporting: false,
+        availableForReporting: true,
         availableForMaintenance: false,
       })
     );

@@ -38,6 +38,8 @@ import {
   type DataMartFilterKey,
 } from './components/DataMartsTableFilters.config';
 import type { ConnectorListItem } from '../../../../connectors/shared/model/types/connector';
+import { PromoBlock } from '../../../../../shared/components/PromoBlock/PromoBlock';
+import { GoogleBigQueryIcon } from '../../../../../shared/icons/google-bigquery-icon';
 
 interface DataTableProps<TData, TValue> {
   columns: ColumnDef<TData, TValue>[];
@@ -261,160 +263,188 @@ export function DataMartTable<TData, TValue>({
     return <EmptyDataMartsState />;
   }
 
+  const isPromoImportFromBigQuery =
+    data.length === 1 &&
+    data.some(
+      (row: TData) => (row as DataMartListItem).storageType === DataStorageType.GOOGLE_BIGQUERY
+    );
+
   return (
-    <div className='dm-card' data-testid='datamartTable'>
-      <BaseTable
-        tableId={tableId}
-        table={table}
-        onRowClick={handleRowClick}
-        ariaLabel='Data Marts table'
-        renderToolbarLeft={table => (
-          <>
-            {/* BTNs for selected Rows */}
-            {hasSelectedRows && (
-              <div className='mr-2 flex items-center gap-2 border-r pr-4'>
-                <Button
-                  variant='outline'
-                  size='sm'
-                  onClick={() => {
-                    setShowDeleteConfirmation(true);
-                  }}
-                  disabled={isDeleting}
-                  title='Delete selected data marts'
-                >
-                  <Trash2 className='h-4 w-4' />
-                  <span className='hidden md:block'>Delete</span>
-                </Button>
-                <Button
-                  variant='outline'
-                  size='sm'
-                  onClick={() => {
-                    setShowPublishConfirmation(true);
-                  }}
-                  disabled={!hasSelectedDrafts || isPublishing}
-                  title='Publish selected data marts'
-                >
-                  <CircleCheckBig className='h-4 w-4' />
-                  <span className='hidden md:block'>Publish</span>
-                </Button>
+    <div className='flex flex-col gap-4'>
+      <div className='dm-card' data-testid='datamartTable'>
+        <BaseTable
+          tableId={tableId}
+          table={table}
+          onRowClick={handleRowClick}
+          ariaLabel='Data Marts table'
+          renderToolbarLeft={table => (
+            <>
+              {/* BTNs for selected Rows */}
+              {hasSelectedRows && (
+                <div className='mr-2 flex items-center gap-2 border-r pr-4'>
+                  <Button
+                    variant='outline'
+                    size='sm'
+                    onClick={() => {
+                      setShowDeleteConfirmation(true);
+                    }}
+                    disabled={isDeleting}
+                    title='Delete selected data marts'
+                  >
+                    <Trash2 className='h-4 w-4' />
+                    <span className='hidden md:block'>Delete</span>
+                  </Button>
+                  <Button
+                    variant='outline'
+                    size='sm'
+                    onClick={() => {
+                      setShowPublishConfirmation(true);
+                    }}
+                    disabled={!hasSelectedDrafts || isPublishing}
+                    title='Publish selected data marts'
+                  >
+                    <CircleCheckBig className='h-4 w-4' />
+                    <span className='hidden md:block'>Publish</span>
+                  </Button>
+                </div>
+              )}
+              {/* Filters */}
+              <div data-testid='datamartStatusFilter'>
+                <DataMartsTableFilters
+                  appliedState={appliedState}
+                  config={filtersConfig}
+                  onApply={apply}
+                  onClear={clear}
+                />
               </div>
-            )}
-            {/* Filters */}
-            <div data-testid='datamartStatusFilter'>
-              <DataMartsTableFilters
-                appliedState={appliedState}
-                config={filtersConfig}
-                onApply={apply}
-                onClear={clear}
-              />
+              {/* Search */}
+              <div data-testid='datamartSearchInput'>
+                <TableColumnSearch
+                  table={table}
+                  columnId={DataMartColumnKey.TITLE}
+                  placeholder='Search'
+                />
+              </div>
+            </>
+          )}
+          renderToolbarRight={() => (
+            <div className='flex items-center gap-2'>
+              <Button
+                variant='outline'
+                onClick={() => {
+                  setShowBulkCreateFromStorage(true);
+                }}
+                title='Import data marts from storage resources'
+              >
+                <Import className='h-4 w-4' />
+                <span className='hidden lg:block'>Import…</span>
+              </Button>
+              <TableCTAButton asChild>
+                <Link to={scope('/data-marts/create')}>
+                  <Plus className='h-4 w-4' />
+                  <span className='hidden lg:block'>New Data Mart</span>
+                </Link>
+              </TableCTAButton>
             </div>
-            {/* Search */}
-            <div data-testid='datamartSearchInput'>
-              <TableColumnSearch
-                table={table}
-                columnId={DataMartColumnKey.TITLE}
-                placeholder='Search'
-              />
-            </div>
-          </>
-        )}
-        renderToolbarRight={() => (
-          <div className='flex items-center gap-2'>
-            <Button
-              variant='outline'
-              onClick={() => {
-                setShowBulkCreateFromStorage(true);
-              }}
-              title='Import data marts from storage resources'
-            >
-              <Import className='h-4 w-4' />
-              <span className='hidden lg:block'>Import…</span>
-            </Button>
-            <TableCTAButton asChild>
-              <Link to={scope('/data-marts/create')}>
-                <Plus className='h-4 w-4' />
-                <span className='hidden lg:block'>New Data Mart</span>
-              </Link>
-            </TableCTAButton>
-          </div>
-        )}
-      />
+          )}
+        />
 
-      <BulkCreateFromStorageDialog
-        open={showBulkCreateFromStorage}
-        onOpenChange={setShowBulkCreateFromStorage}
-        onCreated={() => {
-          void refetchDataMarts();
-        }}
-      />
+        <BulkCreateFromStorageDialog
+          open={showBulkCreateFromStorage}
+          onOpenChange={setShowBulkCreateFromStorage}
+          onCreated={() => {
+            void refetchDataMarts();
+          }}
+        />
 
-      {/* Delete Confirmation Dialog */}
-      <AlertDialog open={showDeleteConfirmation} onOpenChange={setShowDeleteConfirmation}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
-            <AlertDialogDescription>
-              <span className='mt-2 block space-y-2'>
-                <span className='block'>
-                  You're about to delete{' '}
-                  <strong>
-                    {Object.keys(table.getState().rowSelection).length} selected data mart
-                    {Object.keys(table.getState().rowSelection).length !== 1 ? 's' : ''}
-                  </strong>
-                  . This action cannot be undone.
-                </span>
-                {selectedRows.some(
-                  row =>
-                    (row.original as DataMartListItem).storageType ===
-                    DataStorageType.LEGACY_GOOGLE_BIGQUERY
-                ) && (
-                  <span className='text-destructive block'>
-                    Some of the selected data marts will also become unavailable in the Google
-                    Sheets extension because they use legacy BigQuery storage.
+        {/* Delete Confirmation Dialog */}
+        <AlertDialog open={showDeleteConfirmation} onOpenChange={setShowDeleteConfirmation}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+              <AlertDialogDescription>
+                <span className='mt-2 block space-y-2'>
+                  <span className='block'>
+                    You're about to delete{' '}
+                    <strong>
+                      {Object.keys(table.getState().rowSelection).length} selected data mart
+                      {Object.keys(table.getState().rowSelection).length !== 1 ? 's' : ''}
+                    </strong>
+                    . This action cannot be undone.
                   </span>
-                )}
-              </span>
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={() => {
-                void handleBatchDelete();
-              }}
-              disabled={isDeleting}
-              className='bg-destructive hover:bg-destructive/90'
-            >
-              {isDeleting ? 'Deleting...' : 'Delete'}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+                  {selectedRows.some(
+                    row =>
+                      (row.original as DataMartListItem).storageType ===
+                      DataStorageType.LEGACY_GOOGLE_BIGQUERY
+                  ) && (
+                    <span className='text-destructive block'>
+                      Some of the selected data marts will also become unavailable in the Google
+                      Sheets extension because they use legacy BigQuery storage.
+                    </span>
+                  )}
+                </span>
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={() => {
+                  void handleBatchDelete();
+                }}
+                disabled={isDeleting}
+                className='bg-destructive hover:bg-destructive/90'
+              >
+                {isDeleting ? 'Deleting...' : 'Delete'}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
 
-      {/* Publish Confirmation Dialog */}
-      <AlertDialog open={showPublishConfirmation} onOpenChange={setShowPublishConfirmation}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Publish Draft Data Marts?</AlertDialogTitle>
-            <AlertDialogDescription>
-              You're about to publish {selectedDraftRows.length} draft data mart
-              {selectedDraftRows.length !== 1 ? 's' : ''}.<br />
-              Their schemas will be updated and they will become Published.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={isPublishing}>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={() => {
-                void handleBatchPublish();
-              }}
-              disabled={isPublishing}
-            >
-              {isPublishing ? 'Publishing...' : 'Publish'}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+        {/* Publish Confirmation Dialog */}
+        <AlertDialog open={showPublishConfirmation} onOpenChange={setShowPublishConfirmation}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Publish Draft Data Marts?</AlertDialogTitle>
+              <AlertDialogDescription>
+                You're about to publish {selectedDraftRows.length} draft data mart
+                {selectedDraftRows.length !== 1 ? 's' : ''}.<br />
+                Their schemas will be updated and they will become Published.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel disabled={isPublishing}>Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={() => {
+                  void handleBatchPublish();
+                }}
+                disabled={isPublishing}
+              >
+                {isPublishing ? 'Publishing...' : 'Publish'}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      </div>
+
+      {/* Promo block for importing data marts from BigQuery */}
+      {isPromoImportFromBigQuery && (
+        <PromoBlock
+          icon={GoogleBigQueryIcon}
+          size='compact'
+          title='Use existing BigQuery tables or views'
+          description='Automatically create multiple Data Marts from your BigQuery assets in&nbsp;seconds'
+          primaryAction={{
+            label: 'Create Multiple Data Marts...',
+            onClick: () => {
+              setShowBulkCreateFromStorage(true);
+            },
+          }}
+          secondaryAction={{
+            label: 'Create from a Single Table',
+            href: scope('/data-marts/create?preset=table'),
+          }}
+        />
+      )}
     </div>
   );
 }

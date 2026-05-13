@@ -138,7 +138,7 @@ describe('CreateDataDestinationService', () => {
     );
   });
 
-  it('should set sharing defaults to false for new destination', async () => {
+  it('should make a new destination available for use but private for maintenance by default', async () => {
     const { service } = createService();
     const command = new CreateDataDestinationCommand(
       'proj-1',
@@ -153,7 +153,7 @@ describe('CreateDataDestinationService', () => {
     const repository = (service as unknown as { repository: { create: jest.Mock } }).repository;
     expect(repository.create).toHaveBeenCalledWith(
       expect.objectContaining({
-        availableForUse: false,
+        availableForUse: true,
         availableForMaintenance: false,
       })
     );

@@ -8,6 +8,7 @@ import { ReportDto } from '../dto/domain/report.dto';
 import { UserProjectionsFetcherService } from '../services/user-projections-fetcher.service';
 import { resolveOwnerUsers } from '../utils/resolve-owner-users';
 import { AccessDecisionService, EntityType, Action } from '../services/access-decision';
+import { ReportAccessService } from '../services/report-access.service';
 
 @Injectable()
 export class GetReportService {
@@ -16,7 +17,8 @@ export class GetReportService {
     private readonly reportRepository: Repository<Report>,
     private readonly mapper: ReportMapper,
     private readonly userProjectionsFetcherService: UserProjectionsFetcherService,
-    private readonly accessDecisionService: AccessDecisionService
+    private readonly accessDecisionService: AccessDecisionService,
+    private readonly reportAccessService: ReportAccessService
   ) {}
 
   async run(command: GetReportCommand): Promise<ReportDto> {
@@ -48,6 +50,13 @@ export class GetReportService {
       }
     }
 
+    const capabilities = await this.reportAccessService.computeCapabilitiesForReport(
+      command.userId,
+      command.roles,
+      report,
+      command.projectId
+    );
+
     const allUserIds = [...(report.createdById ? [report.createdById] : []), ...report.ownerIds];
     const userProjections =
       await this.userProjectionsFetcherService.fetchUserProjectionsList(allUserIds);
@@ -57,7 +66,8 @@ export class GetReportService {
     return this.mapper.toDomainDto(
       report,
       createdByUser,
-      resolveOwnerUsers(report.ownerIds, userProjections)
+      resolveOwnerUsers(report.ownerIds, userProjections),
+      capabilities
     );
   }
 }

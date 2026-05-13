@@ -15,11 +15,25 @@ export const LOOKER_STUDIO_CREDENTIALS = {
 
 export const DEFAULT_CRON = '0 * * * *';
 
+/**
+ * Required env vars to enable any Google Sheets integration test against the
+ * real Sheets API:
+ *
+ *   - GOOGLE_SHEETS_SERVICE_ACCOUNT_JSON — full service-account JSON; the
+ *     account must have **Editor** access on `TEST_GOOGLE_SPREADSHEET_ID`
+ *     (sheet add/delete needs Editor).
+ *   - TEST_GOOGLE_SPREADSHEET_ID — the shared test spreadsheet inside which
+ *     each test creates and deletes its own ephemeral tab.
+ *
+ * Suites that need a concrete pre-existing tab (e.g. the legacy
+ * `google-sheets.integration.ts`) read their own sheet IDs directly from
+ * `process.env` — we deliberately keep those out of this shared config so
+ * suites that provision sheets on demand (the column-preservation suite)
+ * stay decoupled from per-tab fixtures.
+ */
 export const GOOGLE_SHEETS_TEST_CONFIG = {
   serviceAccountJson: process.env.GOOGLE_SHEETS_SERVICE_ACCOUNT_JSON,
   spreadsheetId: process.env.TEST_GOOGLE_SPREADSHEET_ID,
-  sheetId: parseInt(process.env.TEST_GOOGLE_SHEET_ID ?? '0', 10),
-  sheetId2: parseInt(process.env.TEST_GOOGLE_SHEET_ID_2 ?? '1', 10),
   isConfigured: !!(
     process.env.GOOGLE_SHEETS_SERVICE_ACCOUNT_JSON && process.env.TEST_GOOGLE_SPREADSHEET_ID
   ),

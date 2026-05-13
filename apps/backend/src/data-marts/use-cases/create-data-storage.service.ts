@@ -43,7 +43,7 @@ export class CreateDataStorageService {
       type: command.type,
       projectId: command.projectId,
       createdById: command.userId,
-      availableForUse: false,
+      availableForUse: true,
       availableForMaintenance: false,
     });
 

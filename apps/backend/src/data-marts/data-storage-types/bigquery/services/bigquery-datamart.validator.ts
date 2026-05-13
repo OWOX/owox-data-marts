@@ -50,7 +50,8 @@ export class BigQueryDataMartValidator implements DataMartValidator {
     }
     try {
       const adapter = this.adapterFactory.create(credentials, config);
-      const query = await this.bigQueryQueryBuilder.buildQuery(definition);
+      const built = await this.bigQueryQueryBuilder.buildQuery(definition);
+      const query = typeof built === 'string' ? built : built.sql;
       const result = await adapter.executeDryRunQuery(query);
       return ValidationResult.success(result);
     } catch (error) {

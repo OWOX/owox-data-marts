@@ -88,18 +88,12 @@ export class CreateScheduledTriggerService {
       }
       const reportId = command.triggerConfig.reportId;
 
-      const canMutate = await this.reportAccessService.canMutate(
+      await this.reportAccessService.checkOperateAccess(
         command.userId,
         command.roles,
         reportId,
         command.projectId
       );
-
-      if (!canMutate) {
-        throw new ForbiddenException(
-          'You do not have permission to create triggers for this report. Only report owners can manage report triggers.'
-        );
-      }
     } else {
       // CONNECTOR_RUN requires editor role
       if (!this.reportAccessService.isTechnicalUser(command.roles)) {

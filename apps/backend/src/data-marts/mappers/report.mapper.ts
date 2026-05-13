@@ -11,7 +11,7 @@ import { DeleteReportCommand } from '../dto/domain/delete-report.command';
 import { ListReportsByDataMartCommand } from '../dto/domain/list-reports-by-data-mart.command';
 import { ListReportsByProjectCommand } from '../dto/domain/list-reports-by-project.command';
 import { ListReportsByInsightTemplateCommand } from '../dto/domain/list-reports-by-insight-template.command';
-import { RunReportCommand } from '../dto/domain/run-report.command';
+import { ManualRunReportCommand } from '../dto/domain/run-report.command';
 import { CopyReportAsDataMartCommand } from '../dto/domain/copy-report-as-data-mart.command';
 import { GetReportGeneratedSqlCommand } from '../dto/domain/get-report-generated-sql.command';
 import { AuthorizationContext } from '../../idp';
@@ -19,9 +19,7 @@ import { DataMartMapper } from './data-mart.mapper';
 import { DataDestinationMapper } from './data-destination.mapper';
 import { RunType } from '../../common/scheduler/shared/types';
 import { UserProjectionDto } from '../../idp/dto/domain/user-projection.dto';
-import { UserProjectionsListDto } from '../../idp/dto/domain/user-projections-list.dto';
 import { OwnerFilter } from '../enums/owner-filter.enum';
-import { resolveOwnerUsers } from '../utils/resolve-owner-users';
 
 @Injectable()
 export class ReportMapper {
@@ -43,14 +41,22 @@ export class ReportMapper {
       dto.destinationConfig,
       dto.ownerIds,
       context.roles ?? [],
-      dto.columnConfig
+      dto.columnConfig,
+      dto.filterConfig ?? null,
+      dto.sortConfig ?? null,
+      dto.limitConfig ?? null
     );
   }
 
   toDomainDto(
     entity: Report,
     createdByUser: UserProjectionDto | null = null,
-    ownerUsers: UserProjectionDto[] = []
+    ownerUsers: UserProjectionDto[] = [],
+    capabilities: { canRun: boolean; canManageTriggers: boolean; canEditConfig: boolean } = {
+      canRun: false,
+      canManageTriggers: false,
+      canEditConfig: false,
+    }
   ): ReportDto {
     return new ReportDto(
       entity.id,
@@ -66,17 +72,13 @@ export class ReportMapper {
       entity.runsCount,
       createdByUser,
       ownerUsers,
-      entity.columnConfig
-    );
-  }
-
-  toDomainDtoList(entities: Report[], userProjectionsList?: UserProjectionsListDto): ReportDto[] {
-    return entities.map(entity =>
-      this.toDomainDto(
-        entity,
-        entity.createdById ? (userProjectionsList?.getByUserId(entity.createdById) ?? null) : null,
-        userProjectionsList ? resolveOwnerUsers(entity.ownerIds, userProjectionsList) : []
-      )
+      entity.columnConfig,
+      entity.filterConfig ?? null,
+      entity.sortConfig ?? null,
+      entity.limitConfig ?? null,
+      capabilities.canRun,
+      capabilities.canManageTriggers,
+      capabilities.canEditConfig
     );
   }
 
@@ -90,6 +92,9 @@ export class ReportMapper {
       ),
       destinationConfig: dto.destinationConfig,
       columnConfig: dto.columnConfig,
+      filterConfig: dto.filterConfig ?? null,
+      sortConfig: dto.sortConfig ?? null,
+      limitConfig: dto.limitConfig ?? null,
       lastRunAt: dto.lastRunAt,
       lastRunStatus: dto.lastRunStatus,
       lastRunError: dto.lastRunError,
@@ -98,6 +103,9 @@ export class ReportMapper {
       modifiedAt: dto.modifiedAt,
       createdByUser: dto.createdByUser,
       ownerUsers: dto.ownerUsers,
+      canRun: dto.canRun,
+      canManageTriggers: dto.canManageTriggers,
+      canEditConfig: dto.canEditConfig,
     };
   }
 
@@ -133,7 +141,9 @@ export class ReportMapper {
     return new ListReportsByInsightTemplateCommand(
       dataMartId,
       insightTemplateId,
-      context.projectId
+      context.projectId,
+      context.userId,
+      context.roles ?? []
     );
   }
 
@@ -149,16 +159,12 @@ export class ReportMapper {
     );
   }
 
-  toRunReportCommand(
-    id: string,
-    context: AuthorizationContext,
-    runType: RunType
-  ): RunReportCommand {
+  toManualRunReportCommand(id: string, context: AuthorizationContext): ManualRunReportCommand {
     return {
       reportId: id,
       userId: context.userId,
       roles: context.roles ?? [],
-      runType,
+      runType: RunType.manual,
       projectId: context.projectId,
     };
   }
@@ -177,7 +183,10 @@ export class ReportMapper {
       dto.dataDestinationId,
       dto.destinationConfig,
       dto.ownerIds,
-      dto.columnConfig
+      dto.columnConfig,
+      dto.filterConfig ?? null,
+      dto.sortConfig ?? null,
+      dto.limitConfig ?? null
     );
   }
 

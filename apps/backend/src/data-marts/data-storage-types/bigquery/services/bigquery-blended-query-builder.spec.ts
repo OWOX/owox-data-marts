@@ -1,4 +1,3 @@
-import { Test, TestingModule } from '@nestjs/testing';
 import { DataStorageType } from '../../enums/data-storage-type.enum';
 import {
   createBuildContext,
@@ -6,18 +5,15 @@ import {
   makeRelationship,
 } from '../../interfaces/__fixtures__/blended-query-builder-fixtures';
 import { BigQueryBlendedQueryBuilder } from './bigquery-blended-query-builder';
+import { BigQueryClauseRenderer } from './bigquery-clause-renderer';
 
 const buildContext = createBuildContext('`project`.`dataset`.`customers`');
 
 describe('BigQueryBlendedQueryBuilder', () => {
   let builder: BigQueryBlendedQueryBuilder;
 
-  beforeEach(async () => {
-    const module: TestingModule = await Test.createTestingModule({
-      providers: [BigQueryBlendedQueryBuilder],
-    }).compile();
-
-    builder = module.get(BigQueryBlendedQueryBuilder);
+  beforeEach(() => {
+    builder = new BigQueryBlendedQueryBuilder(new BigQueryClauseRenderer());
   });
 
   it('should have type GOOGLE_BIGQUERY', () => {
@@ -39,7 +35,7 @@ describe('BigQueryBlendedQueryBuilder', () => {
       ],
     });
 
-    const sql = builder.buildBlendedQuery(buildContext([chain], ['order_names']));
+    const { sql } = builder.buildBlendedQuery(buildContext([chain], ['order_names']));
 
     expect(sql).toContain("STRING_AGG(CAST(order_name AS STRING), ', ') AS order_names");
     expect(sql).not.toContain('LISTAGG');
@@ -64,7 +60,7 @@ describe('BigQueryBlendedQueryBuilder', () => {
       ],
     });
 
-    const sql = builder.buildBlendedQuery(buildContext([chain], ['product_names']));
+    const { sql } = builder.buildBlendedQuery(buildContext([chain], ['product_names']));
 
     expect(sql).toContain("`Product's_raw` AS (");
     expect(sql).toContain("`Product's` AS (");
@@ -87,7 +83,7 @@ describe('BigQueryBlendedQueryBuilder', () => {
       ],
     });
 
-    const sql = builder.buildBlendedQuery(buildContext([chain], ['order_count']));
+    const { sql } = builder.buildBlendedQuery(buildContext([chain], ['order_count']));
 
     expect(sql).toContain('COUNT(order_id) AS order_count');
   });
@@ -107,7 +103,7 @@ describe('BigQueryBlendedQueryBuilder', () => {
       ],
     });
 
-    const sql = builder.buildBlendedQuery(buildContext([chain], ['unique_customers']));
+    const { sql } = builder.buildBlendedQuery(buildContext([chain], ['unique_customers']));
 
     expect(sql).toContain('COUNT(DISTINCT customer_id) AS unique_customers');
   });

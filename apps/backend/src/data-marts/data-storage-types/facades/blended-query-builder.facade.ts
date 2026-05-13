@@ -6,6 +6,7 @@ import {
   BlendedQueryBuilder,
   BlendedQueryContext,
 } from '../interfaces/blended-query-builder.interface';
+import { QueryBuildResult } from '../interfaces/data-mart-query-builder.interface';
 
 @Injectable()
 export class BlendedQueryBuilderFacade {
@@ -17,7 +18,7 @@ export class BlendedQueryBuilderFacade {
   async buildBlendedQuery(
     storageType: DataStorageType,
     context: BlendedQueryContext
-  ): Promise<string> {
+  ): Promise<string | QueryBuildResult> {
     const builder = await this.resolver.resolve(storageType);
     return builder.buildBlendedQuery(context);
   }

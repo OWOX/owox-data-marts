@@ -15,6 +15,7 @@ interface DataMartDefinitionFormProps {
   storageId: string;
   storageConfig: DataStorageConfigDto | null;
   preset?: string;
+  initialDefinitionType?: DataMartDefinitionType | null;
   saveDataMartDefinition?: (e?: React.SyntheticEvent<HTMLFormElement>) => void;
 }
 
@@ -24,18 +25,30 @@ export function DataMartDefinitionForm({
   storageId,
   storageConfig,
   preset,
+  initialDefinitionType,
   saveDataMartDefinition,
 }: DataMartDefinitionFormProps) {
   const { control } = useFormContext<DataMartDefinitionFormData>();
   const [shouldAutoOpenConnector, setShouldAutoOpenConnector] = useState(false);
+  const [shouldAutoOpenTable, setShouldAutoOpenTable] = useState(false);
+  const [shouldAutoOpenView, setShouldAutoOpenView] = useState(false);
+  const [shouldAutoOpenTablePattern, setShouldAutoOpenTablePattern] = useState(false);
 
   useEffect(() => {
-    if (definitionType === DataMartDefinitionType.CONNECTOR && !preset) {
-      setShouldAutoOpenConnector(true);
-    } else {
-      setShouldAutoOpenConnector(false);
-    }
-  }, [definitionType, preset]);
+    const isDifferentFromInitial = initialDefinitionType !== definitionType;
+
+    setShouldAutoOpenTable(
+      definitionType === DataMartDefinitionType.TABLE && isDifferentFromInitial
+    );
+
+    setShouldAutoOpenView(definitionType === DataMartDefinitionType.VIEW && isDifferentFromInitial);
+
+    setShouldAutoOpenTablePattern(
+      definitionType === DataMartDefinitionType.TABLE_PATTERN && isDifferentFromInitial
+    );
+
+    setShouldAutoOpenConnector(definitionType === DataMartDefinitionType.CONNECTOR && !preset);
+  }, [definitionType, initialDefinitionType, preset]);
 
   return (
     <div className='space-y-2'>
@@ -48,6 +61,7 @@ export function DataMartDefinitionForm({
           storageId={storageId}
           storageConfig={storageConfig}
           mode='TABLE'
+          autoOpen={shouldAutoOpenTable}
         />
       )}
 
@@ -58,6 +72,7 @@ export function DataMartDefinitionForm({
           storageId={storageId}
           storageConfig={storageConfig}
           mode='VIEW'
+          autoOpen={shouldAutoOpenView}
         />
       )}
 
@@ -67,6 +82,7 @@ export function DataMartDefinitionForm({
           storageType={storageType}
           storageId={storageId}
           storageConfig={storageConfig}
+          autoOpen={shouldAutoOpenTablePattern}
         />
       )}
 

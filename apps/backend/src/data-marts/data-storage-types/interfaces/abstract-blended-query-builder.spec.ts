@@ -5,7 +5,9 @@ import {
   makeRelationship,
 } from './__fixtures__/blended-query-builder-fixtures';
 import { AbstractBlendedQueryBuilder } from './abstract-blended-query-builder';
-import { ResolvedRelationshipChain } from './blended-query-builder.interface';
+import { ResolvedRelationshipChain, BlendedQueryContext } from './blended-query-builder.interface';
+import { SqlClauseRenderer } from '../utils/sql-clause-renderer';
+import { BigQueryClauseRenderer } from '../bigquery/services/bigquery-clause-renderer';
 
 // Uses backtick quoting and a plain STRING_AGG syntax (no CAST) so that SQL-shape
 // assertions stay readable — dialect-specific CASTs are covered by per-dialect specs.
@@ -13,6 +15,9 @@ class TestBlendedQueryBuilder extends AbstractBlendedQueryBuilder {
   readonly type = DataStorageType.GOOGLE_BIGQUERY;
   protected get identifierQuoteChar() {
     return '`';
+  }
+  protected get clauseRenderer(): SqlClauseRenderer | null {
+    return null;
   }
   protected buildStringAgg(fieldName: string): string {
     return `STRING_AGG(${fieldName})`;
@@ -44,7 +49,7 @@ describe('AbstractBlendedQueryBuilder', () => {
         ],
       });
 
-      const sql = builder.buildBlendedQuery(
+      const { sql } = builder.buildBlendedQuery(
         buildContext([chain], ['customer_name', 'order_names'])
       );
 
@@ -71,7 +76,7 @@ describe('AbstractBlendedQueryBuilder', () => {
         ],
       });
 
-      const sql = builder.buildBlendedQuery({
+      const { sql } = builder.buildBlendedQuery({
         mainTableReference: 'customers_table',
         mainDataMartTitle: 'Customers DM',
         mainDataMartUrl: 'https://app.example.com/dm-main',
@@ -104,7 +109,7 @@ describe('AbstractBlendedQueryBuilder', () => {
         targetDataMartUrl: 'https://app/\r\nSELECT 1',
       };
 
-      const sql = builder.buildBlendedQuery({
+      const { sql } = builder.buildBlendedQuery({
         mainTableReference: 'customers_table',
         mainDataMartTitle: 'Customers\nSELECT 1; --',
         mainDataMartUrl: 'https://app\r\n--evil',
@@ -158,7 +163,7 @@ describe('AbstractBlendedQueryBuilder', () => {
         ],
       });
 
-      const sql = builder.buildBlendedQuery(
+      const { sql } = builder.buildBlendedQuery(
         buildContext([chain1, chain2], ['customer_name', 'order_names', 'total_amount'])
       );
 
@@ -186,7 +191,7 @@ describe('AbstractBlendedQueryBuilder', () => {
         ],
       });
 
-      const sql = builder.buildBlendedQuery(buildContext([chain], ['order_names']));
+      const { sql } = builder.buildBlendedQuery(buildContext([chain], ['order_names']));
       expect(sql).toContain('),\n\n');
     });
   });
@@ -227,7 +232,7 @@ describe('AbstractBlendedQueryBuilder', () => {
         ],
       });
 
-      const sql = builder.buildBlendedQuery(
+      const { sql } = builder.buildBlendedQuery(
         buildContext([chain1, chain2], ['customer_name', 'order_names', 'total_amount'])
       );
 
@@ -259,7 +264,7 @@ describe('AbstractBlendedQueryBuilder', () => {
         ],
       });
 
-      const sql = builder.buildBlendedQuery(buildContext([chain], ['event_names']));
+      const { sql } = builder.buildBlendedQuery(buildContext([chain], ['event_names']));
 
       expect(sql).toContain(
         'ON main.project_id = events.evt_project_id AND main.user_id = events.evt_user_id'
@@ -293,7 +298,7 @@ describe('AbstractBlendedQueryBuilder', () => {
         ],
       });
 
-      const sql = builder.buildBlendedQuery(
+      const { sql } = builder.buildBlendedQuery(
         buildContext([chain], ['customer_name', 'order_names'])
       );
 
@@ -322,7 +327,7 @@ describe('AbstractBlendedQueryBuilder', () => {
         ],
       });
 
-      const sql = builder.buildBlendedQuery(
+      const { sql } = builder.buildBlendedQuery(
         buildContext([chain], ['campaign_name', "Product's__product_name"])
       );
 
@@ -352,7 +357,7 @@ describe('AbstractBlendedQueryBuilder', () => {
         ],
       });
 
-      const sql = builder.buildBlendedQuery(buildContext([chain], ['order_names']));
+      const { sql } = builder.buildBlendedQuery(buildContext([chain], ['order_names']));
 
       expect(sql).toContain("LEFT JOIN orders ON main.`user's_id` = orders.`owner's_id`");
       expect(sql).toContain("GROUP BY `owner's_id`");
@@ -378,7 +383,7 @@ describe('AbstractBlendedQueryBuilder', () => {
         ],
       });
 
-      const sql = builder.buildBlendedQuery(
+      const { sql } = builder.buildBlendedQuery(
         buildContext([chain], ['customer_name', 'order_names'])
       );
 
@@ -416,7 +421,7 @@ describe('AbstractBlendedQueryBuilder', () => {
         ],
       });
 
-      const sql = builder.buildBlendedQuery(
+      const { sql } = builder.buildBlendedQuery(
         buildContext([ab, bc], ['campaign_id', 'b_c__product_name'])
       );
 
@@ -451,7 +456,9 @@ describe('AbstractBlendedQueryBuilder', () => {
         ],
       });
 
-      const sql = builder.buildBlendedQuery(buildContext([chain], ['order_names', 'count_cust']));
+      const { sql } = builder.buildBlendedQuery(
+        buildContext([chain], ['order_names', 'count_cust'])
+      );
 
       expect(sql).toMatch(
         /orders_raw AS \(\s*SELECT\s+cust_id,\s+order_name,\s+proj_id\s+FROM orders_table/
@@ -476,7 +483,7 @@ describe('AbstractBlendedQueryBuilder', () => {
         ],
       });
 
-      const sql = builder.buildBlendedQuery(
+      const { sql } = builder.buildBlendedQuery(
         buildContext([chain], ['customer_name', 'event_names'])
       );
 
@@ -509,7 +516,7 @@ describe('AbstractBlendedQueryBuilder', () => {
         ],
       });
 
-      const sql = builder.buildBlendedQuery(
+      const { sql } = builder.buildBlendedQuery(
         buildContext([chain], ['customer_name', 'order_names', 'hidden_flag'])
       );
 
@@ -548,7 +555,7 @@ describe('AbstractBlendedQueryBuilder', () => {
         ],
       });
 
-      const sql = builder.buildBlendedQuery(
+      const { sql } = builder.buildBlendedQuery(
         buildContext([ab, bc], ['campaign_id', 'b_c__product_name'])
       );
 
@@ -603,7 +610,7 @@ describe('AbstractBlendedQueryBuilder', () => {
         ],
       });
 
-      const sql = builder.buildBlendedQuery(buildContext([ab, bc], ['campaign_id', 'c_val']));
+      const { sql } = builder.buildBlendedQuery(buildContext([ab, bc], ['campaign_id', 'c_val']));
 
       expect(sql).toMatch(
         /\n {2}b AS \(\s*SELECT\s+shared_id,\s+MAX\(c_val\) AS c_val\s+FROM b_joined\s+GROUP BY shared_id\s+\)/
@@ -652,7 +659,7 @@ describe('AbstractBlendedQueryBuilder', () => {
         ],
       });
 
-      const sql = builder.buildBlendedQuery(buildContext([ab, bc, cd], ['col_a', 'd_value']));
+      const { sql } = builder.buildBlendedQuery(buildContext([ab, bc, cd], ['col_a', 'd_value']));
 
       // D (leaf) aggregates by c_key
       expect(sql).toContain('FROM d_raw');
@@ -726,7 +733,7 @@ describe('AbstractBlendedQueryBuilder', () => {
         ],
       });
 
-      const sql = builder.buildBlendedQuery(
+      const { sql } = builder.buildBlendedQuery(
         buildContext(
           [ab, bc, bd],
           ['campaign_name', 'order_names', 'product_names', 'customer_names']
@@ -782,7 +789,7 @@ describe('AbstractBlendedQueryBuilder', () => {
         ],
       });
 
-      const sql = builder.buildBlendedQuery(
+      const { sql } = builder.buildBlendedQuery(
         buildContext([ab, bc], ['customer_name', 'item_count'])
       );
 
@@ -819,7 +826,7 @@ describe('AbstractBlendedQueryBuilder', () => {
         ],
       });
 
-      const sql = builder.buildBlendedQuery(
+      const { sql } = builder.buildBlendedQuery(
         buildContext([ab, bc], ['customer_name', 'unique_items'])
       );
 
@@ -856,7 +863,9 @@ describe('AbstractBlendedQueryBuilder', () => {
         ],
       });
 
-      const sql = builder.buildBlendedQuery(buildContext([ab, bc], ['customer_name', 'item_skus']));
+      const { sql } = builder.buildBlendedQuery(
+        buildContext([ab, bc], ['customer_name', 'item_skus'])
+      );
 
       expect(sql).toContain('orders_joined AS (');
       expect(sql).toMatch(
@@ -919,7 +928,7 @@ describe('AbstractBlendedQueryBuilder', () => {
         ],
       });
 
-      const sql = builder.buildBlendedQuery(
+      const { sql } = builder.buildBlendedQuery(
         buildContext([chainA, chainB, chainD], ['root_col', 'a_vals', 'b_vals', 'd_vals'])
       );
 
@@ -933,5 +942,88 @@ describe('AbstractBlendedQueryBuilder', () => {
       expect(sql).toContain('a.b_vals');
       expect(sql).toContain('d.d_vals');
     });
+  });
+});
+
+// --- Output controls ---
+
+class TestBlendedWithRenderer extends AbstractBlendedQueryBuilder {
+  readonly type = DataStorageType.GOOGLE_BIGQUERY;
+  protected get identifierQuoteChar() {
+    return '`';
+  }
+  protected get clauseRenderer() {
+    return new BigQueryClauseRenderer();
+  }
+  protected buildStringAgg(fieldName: string): string {
+    return `STRING_AGG(${fieldName})`;
+  }
+}
+
+describe('AbstractBlendedQueryBuilder — output controls', () => {
+  let builder: TestBlendedWithRenderer;
+
+  beforeEach(() => {
+    builder = new TestBlendedWithRenderer();
+  });
+
+  it('appends WHERE on final SELECT', () => {
+    const chain = makeChain({
+      relationship: makeRelationship(),
+      targetTableReference: 'orders_table',
+      parentAlias: 'main',
+      blendedFields: [
+        {
+          targetFieldName: 'order_name',
+          outputAlias: 'order_names',
+          isHidden: false,
+          aggregateFunction: 'STRING_AGG',
+        },
+      ],
+    });
+    const ctx: BlendedQueryContext = {
+      ...buildContext([chain], ['customer_name']),
+      filters: [{ column: 'customer_name', operator: 'eq', value: 'X' }],
+    };
+    const { sql, params } = builder.buildBlendedQuery(ctx);
+    expect(sql).toContain('WHERE `customer_name` = @p0');
+    expect(params).toEqual([{ name: 'p0', value: 'X' }]);
+  });
+
+  it('appends ORDER BY and LIMIT in correct order after WHERE', () => {
+    const chain = makeChain({
+      relationship: makeRelationship(),
+      targetTableReference: 'orders_table',
+      parentAlias: 'main',
+      blendedFields: [
+        {
+          targetFieldName: 'order_name',
+          outputAlias: 'order_names',
+          isHidden: false,
+          aggregateFunction: 'STRING_AGG',
+        },
+      ],
+    });
+    const { sql } = builder.buildBlendedQuery({
+      ...buildContext([chain], ['customer_name']),
+      filters: [{ column: 'customer_name', operator: 'eq', value: 'X' }],
+      sort: [{ column: 'customer_name', direction: 'desc' }],
+      limit: 50,
+    });
+    expect(sql.indexOf('WHERE')).toBeLessThan(sql.indexOf('ORDER BY'));
+    expect(sql.indexOf('ORDER BY')).toBeLessThan(sql.indexOf('LIMIT'));
+    expect(sql).toContain('ORDER BY `customer_name` DESC');
+    expect(sql).toContain('LIMIT 50');
+  });
+
+  it('returns empty params when no filters', () => {
+    const chain = makeChain({
+      relationship: makeRelationship(),
+      targetTableReference: 'orders_table',
+      parentAlias: 'main',
+      blendedFields: [],
+    });
+    const { params } = builder.buildBlendedQuery(buildContext([chain], ['customer_name']));
+    expect(params).toEqual([]);
   });
 });

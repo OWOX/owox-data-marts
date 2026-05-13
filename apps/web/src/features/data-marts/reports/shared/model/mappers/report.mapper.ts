@@ -29,6 +29,9 @@ export function mapReportDtoToEntity(reportDto: ReportResponseDto): DataMartRepo
     dataDestination: mapDataDestinationFromDto(reportDto.dataDestinationAccess),
     destinationConfig,
     columnConfig: reportDto.columnConfig ?? null,
+    filterConfig: reportDto.filterConfig ?? null,
+    sortConfig: reportDto.sortConfig ?? null,
+    limitConfig: reportDto.limitConfig ?? null,
     lastRunDate: reportDto.lastRunAt ? new Date(reportDto.lastRunAt) : null,
     lastRunStatus: reportDto.lastRunStatus,
     lastRunError: reportDto.lastRunError,
@@ -37,5 +40,8 @@ export function mapReportDtoToEntity(reportDto: ReportResponseDto): DataMartRepo
     modifiedAt: new Date(reportDto.modifiedAt),
     createdByUser: reportDto.createdByUser ?? null,
     ownerUsers: reportDto.ownerUsers ?? [],
+    canRun: reportDto.canRun,
+    canManageTriggers: reportDto.canManageTriggers,
+    canEditConfig: reportDto.canEditConfig,
   };
 }

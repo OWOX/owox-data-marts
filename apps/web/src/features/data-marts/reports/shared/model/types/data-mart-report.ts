@@ -7,6 +7,7 @@ import { type DataDestination } from '../../../../../data-destination';
 import type { DataMart } from '../../../../edit';
 import type { ReportConditionEnum } from '../../enums/report-condition.enum.ts';
 import type { UserProjection } from '../../../../../../shared/types';
+import type { FilterRule, SortRule } from '../../../../shared/types/output-config';
 
 export interface GoogleSheetsDestinationConfig {
   type: DestinationTypeConfigEnum.GOOGLE_SHEETS_CONFIG;
@@ -99,6 +100,9 @@ export interface DataMartReport {
   dataDestination: DataDestination;
   destinationConfig: DestinationConfig;
   columnConfig: string[] | null;
+  filterConfig: FilterRule[] | null;
+  sortConfig: SortRule[] | null;
+  limitConfig: number | null;
   lastRunDate: Date | null;
   lastRunStatus: ReportStatusEnum | null;
   lastRunError: string | null;
@@ -107,4 +111,7 @@ export interface DataMartReport {
   modifiedAt: Date;
   createdByUser?: UserProjection | null;
   ownerUsers?: UserProjection[];
+  canRun: boolean;
+  canManageTriggers: boolean;
+  canEditConfig: boolean;
 }

@@ -105,7 +105,7 @@ export class CreateDataDestinationService {
         projectId: command.projectId,
         credentialId: newCredId,
         createdById: command.userId,
-        availableForUse: false,
+        availableForUse: true,
         availableForMaintenance: false,
       });
 
@@ -128,7 +128,7 @@ export class CreateDataDestinationService {
         projectId: command.projectId,
         credentialId: command.credentialId,
         createdById: command.userId,
-        availableForUse: false,
+        availableForUse: true,
         availableForMaintenance: false,
       });
 
@@ -171,7 +171,7 @@ export class CreateDataDestinationService {
       projectId: command.projectId,
       credentialId: credentialRecord.id,
       createdById: command.userId,
-      availableForUse: false,
+      availableForUse: true,
       availableForMaintenance: false,
     });
 

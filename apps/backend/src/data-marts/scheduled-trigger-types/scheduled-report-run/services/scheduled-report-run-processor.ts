@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { RunReportCommand } from '../../../dto/domain/run-report.command';
+import { ScheduledRunReportCommand } from '../../../dto/domain/run-report.command';
 import { DataMartScheduledTrigger } from '../../../entities/data-mart-scheduled-trigger.entity';
 import { RunReportService } from '../../../use-cases/run-report.service';
 import { ScheduledTriggerType } from '../../enums/scheduled-trigger-type.enum';
@@ -25,11 +25,11 @@ export class ScheduledReportRunProcessor implements ScheduledTriggerProcessor {
       throw new Error(`Invalid trigger config`);
     }
 
-    const runReportCommand = {
+    const runReportCommand: ScheduledRunReportCommand = {
       reportId: trigger.triggerConfig.reportId,
       userId: trigger.createdById,
       runType: RunType.scheduled,
-    } as RunReportCommand;
+    };
 
     await this.runReportService.run(runReportCommand, signal);
     this.logger.log(`Trigger ${trigger.id} processed`);

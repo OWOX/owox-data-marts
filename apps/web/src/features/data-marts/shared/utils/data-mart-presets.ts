@@ -6,7 +6,7 @@ import {
   TikTokAdsIcon,
   MicrosoftAdsIcon,
 } from '../../../../shared';
-import { Code, Plug, Box } from 'lucide-react';
+import { Code, Plug, Box, Table } from 'lucide-react';
 
 // Keys list and type
 export const DATA_MART_PRESETS = [
@@ -16,6 +16,7 @@ export const DATA_MART_PRESETS = [
   'microsoft',
   'connector',
   'sql',
+  'table',
   'blank',
 ] as const;
 
@@ -71,6 +72,12 @@ export const dataMartPresetsMap: Record<DataMartPresetKey, DataMartPreset> = {
     datamartTitle: 'SQL-based Data Mart',
     definitionType: DataMartDefinitionType.SQL,
     icon: Code,
+  },
+  table: {
+    title: 'Existing Table',
+    datamartTitle: 'Table-based Data Mart',
+    definitionType: DataMartDefinitionType.TABLE,
+    icon: Table,
   },
   blank: {
     title: 'Blank Data Mart',

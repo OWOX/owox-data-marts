@@ -9,8 +9,12 @@ import {
 } from '@owox/test-utils';
 import { google } from 'googleapis';
 
-const { spreadsheetId, sheetId, sheetId2, serviceAccountJson, isConfigured } =
-  GOOGLE_SHEETS_TEST_CONFIG;
+const { spreadsheetId, serviceAccountJson, isConfigured } = GOOGLE_SHEETS_TEST_CONFIG;
+// These sheet IDs are only consumed by this legacy (force-skipped) suite. We
+// read them inline rather than from shared config so other suites that
+// provision tabs on demand do not have to plumb optional env vars.
+const sheetId = parseInt(process.env.TEST_GOOGLE_SHEET_ID ?? '0', 10);
+const sheetId2 = parseInt(process.env.TEST_GOOGLE_SHEET_ID_2 ?? '1', 10);
 
 // @IMPORTANT: These tests are currently not in working condition and should not be enabled on CI.
 // They require additional setup and configuration.

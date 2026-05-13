@@ -1,0 +1,25 @@
+import { OutputControlsCapabilityService } from './output-controls-capability.service';
+import { DataStorageType } from '../data-storage-types/enums/data-storage-type.enum';
+
+describe('OutputControlsCapabilityService', () => {
+  const svc = new OutputControlsCapabilityService();
+
+  it('returns true for BigQuery', () => {
+    expect(svc.isSupported(DataStorageType.GOOGLE_BIGQUERY)).toBe(true);
+  });
+  it('returns false for Athena', () => {
+    expect(svc.isSupported(DataStorageType.AWS_ATHENA)).toBe(false);
+  });
+  it('returns false for Snowflake', () => {
+    expect(svc.isSupported(DataStorageType.SNOWFLAKE)).toBe(false);
+  });
+  it('returns false for Redshift', () => {
+    expect(svc.isSupported(DataStorageType.AWS_REDSHIFT)).toBe(false);
+  });
+  it('returns false for Databricks', () => {
+    expect(svc.isSupported(DataStorageType.DATABRICKS)).toBe(false);
+  });
+  it('returns false for legacy BigQuery', () => {
+    expect(svc.isSupported(DataStorageType.LEGACY_GOOGLE_BIGQUERY)).toBe(false);
+  });
+});

@@ -1,6 +1,11 @@
 import { Repository } from 'typeorm';
 import { Transactional } from 'typeorm-transactional';
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+  ForbiddenException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { AvailableDestinationTypesService } from '../data-destination-types/available-destination-types.service';
 import { Report } from '../entities/report.entity';
@@ -15,8 +20,10 @@ import { ReportOwner } from '../entities/report-owner.entity';
 import { resolveOwnerUsers } from '../utils/resolve-owner-users';
 import { syncOwners } from '../utils/sync-owners';
 import { IdpProjectionsFacade } from '../../idp/facades/idp-projections.facade';
+import { AccessDecisionService, EntityType, Action } from '../services/access-decision';
 import { ReportAccessService } from '../services/report-access.service';
 import { ReportDataCacheService } from '../services/report-data-cache.service';
+import { OutputControlsValidatorService } from '../services/output-controls-validator.service';
 
 @Injectable()
 export class UpdateReportService {
@@ -32,7 +39,9 @@ export class UpdateReportService {
     @InjectRepository(ReportOwner)
     private readonly reportOwnerRepository: Repository<ReportOwner>,
     private readonly reportAccessService: ReportAccessService,
-    private readonly reportDataCacheService: ReportDataCacheService
+    private readonly reportDataCacheService: ReportDataCacheService,
+    private readonly outputControlsValidator: OutputControlsValidatorService,
+    private readonly accessDecisionService: AccessDecisionService
   ) {}
 
   @Transactional()
@@ -59,13 +68,29 @@ export class UpdateReportService {
       command.projectId
     );
 
-    // Get the data destination if it's being changed
-    let dataDestination: DataDestination | null = report.dataDestination;
-    if (command.dataDestinationId !== dataDestination.id) {
+    // Get the data destination if it's being changed and verify caller can USE it
+    let dataDestination: DataDestination = report.dataDestination;
+    const destinationIsChanging = command.dataDestinationId !== dataDestination.id;
+    if (destinationIsChanging) {
       dataDestination = await this.dataDestinationService.getByIdAndProjectId(
         command.dataDestinationId,
         command.projectId
       );
+
+      // Permissions Model: caller must have USE on the new destination
+      if (command.userId) {
+        const canUseNewDest = await this.accessDecisionService.canAccess(
+          command.userId,
+          command.roles,
+          EntityType.DESTINATION,
+          dataDestination.id,
+          Action.USE,
+          command.projectId
+        );
+        if (!canUseNewDest) {
+          throw new ForbiddenException('You do not have access to the Destination for this report');
+        }
+      }
     }
 
     this.availableDestinationTypesService.verifyIsAllowed(dataDestination.type);
@@ -93,6 +118,16 @@ export class UpdateReportService {
       }
     }
 
+    await this.outputControlsValidator.validateForReport({
+      storageType: report.dataMart.storage.type,
+      dataMartId: report.dataMart.id,
+      projectId: report.dataMart.projectId,
+      columnConfig: command.columnConfig ?? null,
+      filterConfig: command.filterConfig ?? null,
+      sortConfig: command.sortConfig ?? null,
+      limitConfig: command.limitConfig ?? null,
+    });
+
     // Column order is part of the report output, so a serialized compare is intentional —
     // reordering alone must rebuild the cached reader.
     const previousColumnConfig = report.columnConfig ?? null;
@@ -100,10 +135,25 @@ export class UpdateReportService {
     const columnConfigChanged =
       JSON.stringify(previousColumnConfig) !== JSON.stringify(nextColumnConfig);
 
+    const previousFilterConfig = report.filterConfig ?? null;
+    const nextFilterConfig = command.filterConfig ?? null;
+    const filterChanged = JSON.stringify(previousFilterConfig) !== JSON.stringify(nextFilterConfig);
+
+    const previousSortConfig = report.sortConfig ?? null;
+    const nextSortConfig = command.sortConfig ?? null;
+    const sortChanged = JSON.stringify(previousSortConfig) !== JSON.stringify(nextSortConfig);
+
+    const previousLimitConfig = report.limitConfig ?? null;
+    const nextLimitConfig = command.limitConfig ?? null;
+    const limitChanged = previousLimitConfig !== nextLimitConfig;
+
     report.title = command.title;
     report.dataDestination = dataDestination;
     report.destinationConfig = command.destinationConfig;
     report.columnConfig = nextColumnConfig;
+    report.filterConfig = nextFilterConfig;
+    report.sortConfig = nextSortConfig;
+    report.limitConfig = nextLimitConfig;
 
     const updatedReport = await this.reportRepository.save(report);
 
@@ -124,7 +174,7 @@ export class UpdateReportService {
       );
     }
 
-    if (columnConfigChanged) {
+    if (columnConfigChanged || filterChanged || sortChanged || limitChanged) {
       await this.reportDataCacheService.invalidateByReportId(updatedReport.id);
     }
 
@@ -145,10 +195,18 @@ export class UpdateReportService {
       ? (userProjections.getByUserId(fresh.createdById) ?? null)
       : null;
 
+    const capabilities = await this.reportAccessService.computeCapabilitiesForReport(
+      command.userId,
+      command.roles,
+      fresh,
+      command.projectId
+    );
+
     return this.mapper.toDomainDto(
       fresh,
       createdByUser,
-      resolveOwnerUsers(fresh.ownerIds, userProjections)
+      resolveOwnerUsers(fresh.ownerIds, userProjections),
+      capabilities
     );
   }
 }

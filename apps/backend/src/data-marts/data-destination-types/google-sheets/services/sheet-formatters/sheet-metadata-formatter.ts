@@ -1,5 +1,44 @@
+import { Injectable, Logger } from '@nestjs/common';
 import { sheets_v4 } from 'googleapis';
-import { Injectable } from '@nestjs/common';
+import { GOOGLE_SHEETS_METADATA_KEYS } from '../../constants/google-sheets-metadata-keys.constants';
+
+/**
+ * Maximum length of a column description embedded into a per-cell note before
+ * we truncate. Google Sheets caps cell notes at ~50,000 characters; the limit
+ * leaves room for the appended ODM info block.
+ */
+const MAX_DESCRIPTION_LENGTH_IN_NOTE = 45_000;
+
+/**
+ * Conservative cap for the FINAL assembled note (description + separator +
+ * ODM info block). Set below the Sheets 50,000-character cap so we never
+ * hit "Cell note exceeds limit" rejections on the batchUpdate.
+ *
+ * The description-only guard above is not enough on its own: the ODM info
+ * block embeds `dataMartTitle`, which is user-controlled and unbounded in
+ * the DB schema. A pathologically-long title alone could push the note
+ * past the limit even with no description.
+ */
+const MAX_TOTAL_NOTE_LENGTH = 49_500;
+
+/**
+ * Truncates a string to `maxChars` *Unicode code points* (not UTF-16 code
+ * units), preserving surrogate-pair integrity so we never end up with a
+ * half-emoji at the boundary. Returns the original string when it fits.
+ */
+function safeTruncate(input: string, maxChars: number): string {
+  if (input.length <= maxChars) {
+    return input;
+  }
+  // Array.from splits by code point — slicing here never lands inside a
+  // surrogate pair. Always trim one extra character to reserve room for
+  // the ellipsis marker the caller appends.
+  return (
+    Array.from(input)
+      .slice(0, maxChars - 1)
+      .join('') + '…'
+  );
+}
 
 /**
  * Service for formatting metadata in Google Sheets
@@ -7,6 +46,8 @@ import { Injectable } from '@nestjs/common';
  */
 @Injectable()
 export class SheetMetadataFormatter {
+  private readonly logger = new Logger(SheetMetadataFormatter.name);
+
   /**
    * Tab color for sheets
    * Blue color (RGB: 30, 136, 229)
@@ -39,39 +80,6 @@ export class SheetMetadataFormatter {
         fields: 'tabColorStyle,gridProperties.frozenRowCount',
       },
     };
-  }
-
-  /**
-   * Creates a request to add a metadata note to the first cell
-   *
-   * @param sheetId - ID of the sheet to add the note to
-   * @param dateFormatted - Formatted date string for the metadata note
-   * @param dataMartTitle - Title of the data mart
-   * @param dataMartUrl - URL to the data mart
-   * @param isCommunityEdition - Whether the app is running in Community Edition
-   * @param firstColumnDescription - Optional description for the first column
-   * @returns Google Sheets API request object for metadata note
-   */
-  public createMetadataNoteRequest(
-    sheetId: number,
-    dateFormatted: string,
-    dataMartTitle: string,
-    dataMartUrl: string,
-    isCommunityEdition: boolean,
-    firstColumnDescription?: string
-  ): sheets_v4.Schema$Request {
-    const editionSuffix = isCommunityEdition ? ' Community Edition' : '';
-
-    let metadataNote =
-      `Imported via OWOX Data Marts${editionSuffix} at ${dateFormatted}\n` +
-      `Data Mart: ${dataMartTitle}\n` +
-      `Data Mart page: ${dataMartUrl}`;
-
-    if (firstColumnDescription) {
-      metadataNote += `\n---\n${firstColumnDescription}`;
-    }
-
-    return this.createNoteRequest(sheetId, metadataNote, 0, 0);
   }
 
   /**
@@ -108,7 +116,7 @@ export class SheetMetadataFormatter {
   /**
    * Creates a request to add developer metadata to a specific sheet
    *
-   * - metadataKey: "OWOX_REPORT_META"
+   * - metadataKey: GOOGLE_SHEETS_METADATA_KEYS.REPORT_META
    * - metadataValue: JSON string with reportId, dataMartId, projectId
    * - visibility: DOCUMENT (accessible to all users with document access)
    * - location: Bound to specific sheet via sheetId
@@ -128,7 +136,7 @@ export class SheetMetadataFormatter {
     return {
       createDeveloperMetadata: {
         developerMetadata: {
-          metadataKey: 'OWOX_REPORT_META',
+          metadataKey: GOOGLE_SHEETS_METADATA_KEYS.REPORT_META,
           metadataValue: this.buildOwoxMetadataValue(reportId, dataMartId, projectId),
           visibility: 'DOCUMENT',
           location: {
@@ -169,6 +177,118 @@ export class SheetMetadataFormatter {
         fields: 'metadataValue',
       },
     };
+  }
+
+  /**
+   * Builds the cell-note text written into every header cell ODM owns.
+   *
+   * The column's own description is placed first (so users see the relevant
+   * context immediately), followed by ODM provenance info — date, data mart
+   * title, and link back to the OWOX UI. If the description is empty or
+   * exceeds {@link MAX_DESCRIPTION_LENGTH_IN_NOTE} characters, it is omitted
+   * or truncated with an ellipsis to stay within Sheets' note size limit.
+   */
+  public buildImportedColumnNote(
+    description: string | undefined,
+    dataMartTitle: string,
+    dataMartUrl: string,
+    dateFormatted: string,
+    isCommunityEdition: boolean
+  ): string {
+    const editionSuffix = isCommunityEdition ? ' Community Edition' : '';
+    const odmInfo =
+      `Imported via OWOX Data Marts${editionSuffix} at ${dateFormatted}\n` +
+      `Data Mart: ${dataMartTitle}\n` +
+      `Data Mart page: ${dataMartUrl}`;
+
+    let safeDescription = description ?? '';
+    if (safeDescription.length > MAX_DESCRIPTION_LENGTH_IN_NOTE) {
+      this.logger.warn(
+        `Column description exceeds ${MAX_DESCRIPTION_LENGTH_IN_NOTE} chars; truncating before writing as cell note.`
+      );
+      safeDescription = safeTruncate(safeDescription, MAX_DESCRIPTION_LENGTH_IN_NOTE);
+    }
+
+    const assembled = safeDescription ? `${safeDescription}\n---\n${odmInfo}` : odmInfo;
+
+    // H5 — Even with description truncated, the ODM info block can blow the
+    // limit when `dataMartTitle` (user-controlled, unbounded) is huge. Cap
+    // the entire assembled string as a final safeguard.
+    if (assembled.length <= MAX_TOTAL_NOTE_LENGTH) {
+      return assembled;
+    }
+    this.logger.warn(
+      `Assembled imported-column note exceeds ${MAX_TOTAL_NOTE_LENGTH} chars ` +
+        `(actual: ${assembled.length}); truncating to stay under the Sheets cell-note size cap.`
+    );
+    return safeTruncate(assembled, MAX_TOTAL_NOTE_LENGTH);
+  }
+
+  /**
+   * Creates a request that persists the (name, alias?) pairs ODM has written
+   * into the imported range. Read back on the next refresh to delineate the
+   * imported region and translate row-1 aliases back to canonical names so
+   * the column diff is robust to user-friendly aliases configured in Output
+   * Schema (see {@link GOOGLE_SHEETS_METADATA_KEYS.COLUMNS}).
+   *
+   * The serialized value is a JSON array of objects:
+   *   `[{"name":"date","alias":"Date"},{"name":"cost"},…]`
+   * `alias` is omitted when the column has no user-facing alias configured.
+   */
+  public createOwoxColumnsMetadataRequest(
+    sheetId: number,
+    columns: Array<{ name: string; alias?: string }>
+  ): sheets_v4.Schema$Request {
+    return {
+      createDeveloperMetadata: {
+        developerMetadata: {
+          metadataKey: GOOGLE_SHEETS_METADATA_KEYS.COLUMNS,
+          metadataValue: this.buildOwoxColumnsMetadataValue(columns),
+          visibility: 'DOCUMENT',
+          location: {
+            sheetId,
+          },
+        },
+      },
+    };
+  }
+
+  /**
+   * Creates a request that updates the existing column-list developer
+   * metadata for a sheet (see {@link createOwoxColumnsMetadataRequest}).
+   */
+  public updateOwoxColumnsMetadataRequest(
+    metadataId: number,
+    columns: Array<{ name: string; alias?: string }>
+  ): sheets_v4.Schema$Request {
+    return {
+      updateDeveloperMetadata: {
+        dataFilters: [
+          {
+            developerMetadataLookup: {
+              metadataId,
+            },
+          },
+        ],
+        developerMetadata: {
+          metadataValue: this.buildOwoxColumnsMetadataValue(columns),
+        },
+        fields: 'metadataValue',
+      },
+    };
+  }
+
+  /**
+   * Serializes the imported column list as a JSON array of `{ name, alias? }`
+   * objects. `alias` is omitted from the serialized form when not provided so
+   * the persisted payload stays minimal.
+   */
+  private buildOwoxColumnsMetadataValue(columns: Array<{ name: string; alias?: string }>): string {
+    return JSON.stringify(
+      columns.map(col =>
+        col.alias !== undefined ? { name: col.name, alias: col.alias } : { name: col.name }
+      )
+    );
   }
 
   private buildOwoxMetadataValue(reportId: string, dataMartId: string, projectId: string): string {

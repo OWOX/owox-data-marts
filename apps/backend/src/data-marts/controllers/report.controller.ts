@@ -38,7 +38,6 @@ import {
   GetReportGeneratedSqlSpec,
   CopyReportAsDataMartSpec,
 } from './spec/report.api';
-import { RunType } from '../../common/scheduler/shared/types';
 import { OwnerFilter } from '../enums/owner-filter.enum';
 
 @Controller('reports')
@@ -142,7 +141,7 @@ export class ReportController {
     @AuthContext() context: AuthorizationContext,
     @Param('id') id: string
   ): Promise<void> {
-    const command = this.mapper.toRunReportCommand(id, context, RunType.manual);
+    const command = this.mapper.toManualRunReportCommand(id, context);
     await this.runReportService.run(command);
   }
 
