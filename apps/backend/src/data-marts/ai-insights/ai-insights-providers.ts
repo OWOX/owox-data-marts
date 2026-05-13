@@ -28,6 +28,7 @@ import { SqlAgent } from './agent/sql.agent';
 import { SqlBuilderAgent } from './agent/sql-builder.agent';
 import { TriageAgent } from './agent/triage.agent';
 import { GenerateInsightAgent } from './agent/generate-insight.agent';
+import { GenerateDataMartMetadataAgent } from './agent/generate-data-mart-metadata.agent';
 import { SqlErrorAdvisorAgent } from './agent/sql-error-advisor.agent';
 import { QueryRepairAgent } from './agent/query-repair.agent';
 import { PromptProcessedEventsService } from './prompt-processed-events.service';
@@ -50,6 +51,7 @@ export const aiInsightsProviders = [
   SqlErrorAdvisorAgent,
   FinalizeAgent,
   GenerateInsightAgent,
+  GenerateDataMartMetadataAgent,
   PromptTagHandler,
   PromptProcessedEventsService,
   DataMartInsightTemplateFacadeImpl,

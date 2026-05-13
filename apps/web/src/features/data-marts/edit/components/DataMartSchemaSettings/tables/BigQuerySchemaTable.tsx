@@ -24,6 +24,8 @@ import {
 import { useDragAndDrop, useNestedFieldOperations, useRecordExpansion } from '../hooks';
 import type { ExtendedColumnDef } from './BaseSchemaTable';
 import { BaseSchemaTable } from './BaseSchemaTable';
+import { renderFieldAliasAi, renderFieldDescriptionAi } from '../utils/render-field-ai';
+import type { SchemaAiHelper } from '../types/ai-helper';
 
 /**
  * Props for the BigQuerySchemaTable component
@@ -33,13 +35,19 @@ interface BigQuerySchemaTableProps {
   fields: BigQuerySchemaField[];
   /** Callback function to call when the fields change */
   onFieldsChange?: (fields: BigQuerySchemaField[]) => void;
+  /** AI helper handlers; omit to hide AI buttons. */
+  aiHelper?: SchemaAiHelper;
 }
 
 /**
  * Component for displaying and editing BigQuery schema fields
  * Handles nested record fields with expand/collapse functionality
  */
-export function BigQuerySchemaTable({ fields, onFieldsChange }: BigQuerySchemaTableProps) {
+export function BigQuerySchemaTable({
+  fields,
+  onFieldsChange,
+  aiHelper,
+}: BigQuerySchemaTableProps) {
   // Use the record expansion hook to manage expanded/collapsed state
   const {
     expandedRecords,
@@ -238,17 +246,22 @@ export function BigQuerySchemaTable({ fields, onFieldsChange }: BigQuerySchemaTa
     }: {
       row: Row<BigQuerySchemaField>;
       updateField: (index: number, updatedField: Partial<BigQuerySchemaField>) => void;
-    }) => (
-      <EditableText
-        value={row.getValue('description')}
-        onValueChange={value => {
-          updateField(row.index, { description: value });
-        }}
-        minRows={5}
-        placeholder='-'
-      />
-    ),
-    [updateField]
+    }) => {
+      const field = flattenedFields[row.index];
+      const isTopLevel = (field.level ?? 0) === 0;
+      return (
+        <EditableText
+          value={row.getValue('description')}
+          onValueChange={value => {
+            updateField(row.index, { description: value });
+          }}
+          minRows={5}
+          placeholder='-'
+          editorAction={isTopLevel ? renderFieldDescriptionAi(aiHelper, field.name) : undefined}
+        />
+      );
+    },
+    [updateField, flattenedFields, aiHelper]
   );
 
   // Custom alias column cell that uses updateField from useNestedFieldOperations
@@ -258,16 +271,21 @@ export function BigQuerySchemaTable({ fields, onFieldsChange }: BigQuerySchemaTa
     }: {
       row: Row<BigQuerySchemaField>;
       updateField: (index: number, updatedField: Partial<BigQuerySchemaField>) => void;
-    }) => (
-      <EditableText
-        value={row.getValue('alias')}
-        onValueChange={value => {
-          updateField(row.index, { alias: value });
-        }}
-        placeholder='-'
-      />
-    ),
-    [updateField]
+    }) => {
+      const field = flattenedFields[row.index];
+      const isTopLevel = (field.level ?? 0) === 0;
+      return (
+        <EditableText
+          value={row.getValue('alias')}
+          onValueChange={value => {
+            updateField(row.index, { alias: value });
+          }}
+          placeholder='-'
+          editorAction={isTopLevel ? renderFieldAliasAi(aiHelper, field.name) : undefined}
+        />
+      );
+    },
+    [updateField, flattenedFields, aiHelper]
   );
 
   // Custom actions column cell with add nested field option for record types
@@ -342,6 +360,7 @@ export function BigQuerySchemaTable({ fields, onFieldsChange }: BigQuerySchemaTa
         aliasColumnCell={aliasColumnCell}
         descriptionColumnCell={descriptionColumnCell}
         actionsColumnCell={actionsColumnCell}
+        aiHelper={aiHelper}
         dragContext={SortableContext}
         dragContextProps={{
           items: flattenedFields.map(f => f.path ?? String(flattenedFields.indexOf(f))),

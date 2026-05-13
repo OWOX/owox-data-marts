@@ -23,6 +23,7 @@ import {
   isRedshiftSchema,
   isSnowflakeSchema,
 } from './utils';
+import type { SchemaAiHelper } from './types/ai-helper';
 
 /**
  * Props for the SchemaContent component
@@ -41,13 +42,20 @@ interface SchemaContentProps {
       | RedshiftSchemaField[]
       | DatabricksSchemaField[]
   ) => void;
+  /** AI helper handlers; omit to hide AI buttons on this deployment. */
+  aiHelper?: SchemaAiHelper;
 }
 
 /**
  * Component that renders the appropriate schema table based on the schema type
  * Handles the conditional rendering logic that was previously in the DataMartSchemaSettings component
  */
-export function SchemaContent({ schema, storageType, onFieldsChange }: SchemaContentProps) {
+export function SchemaContent({
+  schema,
+  storageType,
+  onFieldsChange,
+  aiHelper,
+}: SchemaContentProps) {
   // If schema doesn't exist, create an initial schema based on storage type
   const initialSchema = useMemo(() => {
     if (!schema) {
@@ -61,15 +69,45 @@ export function SchemaContent({ schema, storageType, onFieldsChange }: SchemaCon
 
   // Render the appropriate table based on schema type
   if (isBigQuerySchema(initialSchema)) {
-    return <BigQuerySchemaTable fields={initialSchema.fields} onFieldsChange={onFieldsChange} />;
+    return (
+      <BigQuerySchemaTable
+        fields={initialSchema.fields}
+        onFieldsChange={onFieldsChange}
+        aiHelper={aiHelper}
+      />
+    );
   } else if (isAthenaSchema(initialSchema)) {
-    return <AthenaSchemaTable fields={initialSchema.fields} onFieldsChange={onFieldsChange} />;
+    return (
+      <AthenaSchemaTable
+        fields={initialSchema.fields}
+        onFieldsChange={onFieldsChange}
+        aiHelper={aiHelper}
+      />
+    );
   } else if (isSnowflakeSchema(initialSchema)) {
-    return <SnowflakeSchemaTable fields={initialSchema.fields} onFieldsChange={onFieldsChange} />;
+    return (
+      <SnowflakeSchemaTable
+        fields={initialSchema.fields}
+        onFieldsChange={onFieldsChange}
+        aiHelper={aiHelper}
+      />
+    );
   } else if (isRedshiftSchema(initialSchema)) {
-    return <RedshiftSchemaTable fields={initialSchema.fields} onFieldsChange={onFieldsChange} />;
+    return (
+      <RedshiftSchemaTable
+        fields={initialSchema.fields}
+        onFieldsChange={onFieldsChange}
+        aiHelper={aiHelper}
+      />
+    );
   } else if (isDatabricksSchema(initialSchema)) {
-    return <DatabricksSchemaTable fields={initialSchema.fields} onFieldsChange={onFieldsChange} />;
+    return (
+      <DatabricksSchemaTable
+        fields={initialSchema.fields}
+        onFieldsChange={onFieldsChange}
+        aiHelper={aiHelper}
+      />
+    );
   }
 
   // Fallback for unsupported schema types

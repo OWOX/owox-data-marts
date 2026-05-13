@@ -1,6 +1,8 @@
 import {
   AnswerPromptRequest,
   AnswerPromptResponse,
+  GenerateDataMartMetadataRequest,
+  GenerateDataMartMetadataResponse,
   GenerateInsightRequest,
   GenerateInsightResponse,
 } from '../ai-insights-types';
@@ -20,4 +22,14 @@ export interface AiInsightsFacade {
    * @param request
    */
   generateInsight(request: GenerateInsightRequest): Promise<GenerateInsightResponse>;
+
+  /**
+   * Generates business-friendly metadata suggestions for a data mart
+   * (title / description / per-field aliases / per-field descriptions).
+   * The result is a suggestion only — it is NOT persisted by this method.
+   * @param request
+   */
+  generateDataMartMetadata(
+    request: GenerateDataMartMetadataRequest
+  ): Promise<GenerateDataMartMetadataResponse>;
 }

@@ -33,6 +33,9 @@ import {
 import { useSchemaActualizeTrigger } from '../../shared/hooks/useSchemaActualizeTrigger';
 import { PromoStep, useDataMartNextStepPromo } from '../hooks/useDataMartNextStepPromo';
 import { useDataMart } from '../model';
+import { useAiHelper, useAiHelperAvailability } from '../model/hooks';
+import { DataMartMetadataScope } from '../../shared';
+import { AiHelperButton } from './AiHelperButton';
 import NotFound from '../../../../pages/NotFound.tsx';
 import NoAccess from '../../../../pages/NoAccess.tsx';
 
@@ -150,6 +153,21 @@ export function DataMartDetails({ id }: DataMartDetailsProps) {
     },
     [dataMartId, updateDataMartTitle]
   );
+
+  const { enabled: isAiHelperEnabled } = useAiHelperAvailability();
+  const { generateTitle, pendingScope: aiPendingScope } = useAiHelper();
+
+  const handleGenerateTitle = useCallback(() => {
+    if (!dataMartId) return;
+    void (async () => {
+      const suggested = await generateTitle(dataMartId);
+      if (suggested && suggested !== dataMartTitle) {
+        await updateDataMartTitle(dataMartId, suggested);
+      }
+    })();
+  }, [dataMartId, dataMartTitle, generateTitle, updateDataMartTitle]);
+
+  const isGeneratingTitle = aiPendingScope?.scope === DataMartMetadataScope.TITLE;
 
   const handlePublish = useCallback(async () => {
     if (!dataMartId) return;
@@ -309,6 +327,16 @@ export function DataMartDetails({ id }: DataMartDetailsProps) {
               title={dataMartTitle}
               onUpdate={handleTitleUpdate}
               className='text-2xl font-medium'
+              aiButton={
+                isAiHelperEnabled ? (
+                  <AiHelperButton
+                    onClick={handleGenerateTitle}
+                    isLoading={isGeneratingTitle}
+                    disabled={!dataMartId || aiPendingScope !== null}
+                    tooltip='Generate title with AI'
+                  />
+                ) : undefined
+              }
             />
           </div>
         </div>

@@ -1,8 +1,15 @@
 import { z } from 'zod';
-import { GetMetadataOutput, QueryRow, SqlStepError } from '../ai-insights-types';
+import {
+  DataMartMetadataScope,
+  GetMetadataOutput,
+  QueryRow,
+  SqlStepError,
+} from '../ai-insights-types';
 import { DataMartSchema } from '../../data-storage-types/data-mart-schema.type';
 import { AiRole } from '../../../common/ai-insights/agent/ai-core';
 import type { AgentFlowConversationSnapshot } from '../agent-flow/conversation-snapshot.schema';
+
+export { DataMartMetadataScope };
 
 export function isFinalReasonAnswer(value: FinalReason) {
   return value === FinalReason.ANSWER;
@@ -532,6 +539,68 @@ export const InsightGenerationAgentResponseSchema = z.object({
 });
 
 export type InsightGenerationAgentResponse = z.infer<typeof InsightGenerationAgentResponseSchema>;
+
+// Data Mart Metadata Helper Agent Types
+export interface GenerateDataMartMetadataAgentInput {
+  scope: DataMartMetadataScope;
+  dataMartTitle: string | null;
+  dataMartDescription: string | null;
+  schema: DataMartSchema;
+  sampleColumns: string[] | null;
+  sampleRows: QueryRow[] | null;
+  fieldName?: string;
+}
+
+export const GeneratedFieldMetadataSchema = z.object({
+  name: z
+    .string()
+    .min(1, 'name is required')
+    .describe('Exact field name as it appears in the source schema. Case-sensitive.'),
+  alias: z
+    .string()
+    .optional()
+    .describe(
+      'Business-friendly display name for the field (e.g. "Campaign Name"). ' +
+        'Use Title Case. Avoid technical jargon, abbreviations, and underscores.'
+    ),
+  description: z
+    .string()
+    .optional()
+    .describe(
+      'Short business-friendly description of the field, one sentence. ' +
+        'Start with a capital letter, end with a period. Explain what the value represents, not its type.'
+    ),
+});
+
+export const GenerateDataMartMetadataAgentResponseSchema = z.object({
+  title: z
+    .string()
+    .optional()
+    .describe(
+      'Concise business-friendly title for the data mart, 3-8 words. ' +
+        'Required when scope is "title" or "all".'
+    ),
+  description: z
+    .string()
+    .optional()
+    .describe(
+      'Short business-friendly description of the data mart, 1-3 sentences. ' +
+        'Explain what data it contains and a typical use case. ' +
+        'Required when scope is "description" or "all".'
+    ),
+  fields: z
+    .array(GeneratedFieldMetadataSchema)
+    .optional()
+    .describe(
+      'Per-field metadata suggestions. ' +
+        'For scope "schema" or "all": include every field from the input schema. ' +
+        'For scope "field_alias" or "field_description": include only the requested field.'
+    ),
+});
+
+export type GenerateDataMartMetadataAgentResponse = z.infer<
+  typeof GenerateDataMartMetadataAgentResponseSchema
+>;
 
 export type SqlErrorAdvisorInput = {
   prompt: string;

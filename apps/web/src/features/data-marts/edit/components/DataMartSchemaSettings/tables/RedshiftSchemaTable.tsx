@@ -12,6 +12,7 @@ import {
 import { SchemaFieldTypeSelect } from '../components';
 import { useDragAndDrop } from '../hooks';
 import { BaseSchemaTable } from './BaseSchemaTable';
+import type { SchemaAiHelper } from '../types/ai-helper';
 
 /**
  * Props for the RedshiftSchemaTable component
@@ -21,12 +22,18 @@ interface RedshiftSchemaTableProps {
   fields: RedshiftSchemaField[];
   /** Callback function to call when the fields change */
   onFieldsChange?: (fields: RedshiftSchemaField[]) => void;
+  /** AI helper handlers; omit to hide AI buttons. */
+  aiHelper?: SchemaAiHelper;
 }
 
 /**
  * Component for displaying and editing Redshift schema fields
  */
-export function RedshiftSchemaTable({ fields, onFieldsChange }: RedshiftSchemaTableProps) {
+export function RedshiftSchemaTable({
+  fields,
+  onFieldsChange,
+  aiHelper,
+}: RedshiftSchemaTableProps) {
   // Function to create a new Redshift field
   const createNewField = useCallback(() => {
     return {
@@ -82,6 +89,7 @@ export function RedshiftSchemaTable({ fields, onFieldsChange }: RedshiftSchemaTa
           strategy: verticalListSortingStrategy,
         }}
         rowComponent={SortableTableRow}
+        aiHelper={aiHelper}
       />
     </DndContext>
   );

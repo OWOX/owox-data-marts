@@ -13,6 +13,9 @@ import type {
   UpdateDataMartRequestDto,
   UpdateDataMartSchemaRequestDto,
   BatchDataMartHealthStatusResponseDto,
+  GenerateDataMartMetadataRequestDto,
+  GenerateDataMartMetadataResponseDto,
+  DataMartAiHelperAvailabilityResponseDto,
 } from '../types/api';
 import type { CreateSqlDryRunTaskResponseDto } from '../types/api/response/create-sql-dry-run-task.response.dto.ts';
 import type { TaskStatusResponseDto } from '../types/api/response/task-status.response.dto.ts';
@@ -354,6 +357,36 @@ export class DataMartService extends ApiService {
    */
   async updateContexts(id: string, contextIds: string[]): Promise<void> {
     return this.put(`/${id}/contexts`, { contextIds });
+  }
+
+  /**
+   * Check whether the AI helper is configured on this deployment.
+   * Returns { enabled: false } on self-hosted instances that did not set AI_* env vars.
+   */
+  async getAiHelperAvailability(): Promise<DataMartAiHelperAvailabilityResponseDto> {
+    return this.get<DataMartAiHelperAvailabilityResponseDto>(`/ai-helper/availability`, undefined, {
+      skipLoadingIndicator: true,
+      skipErrorToast: true,
+    } as AxiosRequestConfig);
+  }
+
+  /**
+   * Request AI-generated metadata for a data mart.
+   * Returns a suggestion only — the caller must apply it via the appropriate update endpoint.
+   * @param id Data mart ID
+   * @param data Generation request (scope, useSample, optional fieldName)
+   */
+  async generateDataMartMetadata(
+    id: string,
+    data: GenerateDataMartMetadataRequestDto
+  ): Promise<GenerateDataMartMetadataResponseDto> {
+    return this.post<GenerateDataMartMetadataResponseDto>(
+      `/${id}/ai-helper/generate-metadata`,
+      data,
+      {
+        timeout: 120000,
+      }
+    );
   }
 }
 export const dataMartService = new DataMartService();
