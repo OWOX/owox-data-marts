@@ -19,7 +19,7 @@ Integration with Data Studio as a **Destination** for OWOX Data Marts enables se
 - Copy the **JSON Config** to your clipboard and click **Save**.
 - Click **Save**.
 
-![OWOX Data Marts new destination form with "Data Studio" selected as destination type, showing Title and Deployment URL fields and a JSON Config ready to copy](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/a04e24c6-99b1-4084-fd5c-c3a2e390e700/public)
+![OWOX Data Marts new destination form with "Data Studio" selected as destination type, showing Title and Deployment URL fields and a JSON Config ready to copy](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/8845eaa6-6a31-4bce-cc8c-e29b52d68600/public)
 
 ---
 
@@ -30,7 +30,7 @@ Integration with Data Studio as a **Destination** for OWOX Data Marts enables se
 - If needed, click on on the row in Destination section to adjust default **Cache Lifetime** based on how you want to control data freshness when Data Studio requests this data:
   - This setting defines the period during which results from previous query executions are served from the storage-side cache, eliminating the need to re-execute the query.
 
-![Data Mart Destinations tab showing a Data Studio destination with the availability toggle switched on](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/3eb8ef4f-a9ee-42fa-5915-aa5682245f00/public)
+![Data Mart Destinations tab with a Data Studio destination row expanded. The "Available in Data Studio" toggle is switched on, and the status reads "Waiting for Data Studio to fetch data".](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/0758c088-0ddc-4da7-1b1d-5e7823c33800/public)
 
 ---
 

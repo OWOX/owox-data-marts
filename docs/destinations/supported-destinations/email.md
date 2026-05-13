@@ -20,13 +20,13 @@ Follow the steps below to configure your **Email** destination.
 
 In the OWOX Data Marts web application, open **Destinations** in the main menu and click **+ New Destination**.
 
-![OWOX Data Marts Destinations page with Destinations selected in the left sidebar. The main panel shows a searchable list of existing destinations and a New Destination button in the top right corner](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/1af7228a-145a-4011-2941-4a031d0ad500/public)
+![OWOX Data Marts Destinations page with Destinations selected in the left sidebar. The main panel shows a searchable list of existing destinations and a New Destination button in the top right corner](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/6cbc0c35-2e5e-4513-9f4a-538ae9b11200/public)
 
 #### 1.2. Select the Destination type
 
 Choose **Email** from the **Destination Type** dropdown.
 
-![New destination dialog with the Destination Type dropdown open. Email is selected among the available options: Google Sheets, Data Studio, Email, Slack, Microsoft Teams, Google Chat, and OData (Coming soon)](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/0da1c013-d8eb-4c3b-282f-de5a4e519400/public)
+![New destination dialog with the Destination Type dropdown open. Email is selected among the available options: Google Sheets, Data Studio, Email, Slack, Microsoft Teams, Google Chat, and OData (Coming soon)](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/15f3cd1d-d4c3-47db-5c6d-dc2a85ebea00/public)
 
 #### 1.3. Configure Destination details
 
@@ -38,7 +38,7 @@ Choose **Email** from the **Destination Type** dropdown.
 
 Review the details and click **Save** to create the Destination.
 
-![New destination dialog with the Title set to "Marketing Team", Destination Type set to Email, and the recipient email list filled with three addresses. The Save and Cancel buttons are at the bottom](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/649b3722-872d-42b3-b011-d46171eb4200/public)
+![New destination dialog with the Title set to "Marketing Team", Destination Type set to Email, and the recipient email list filled with three addresses. The Save and Cancel buttons are at the bottom](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/ef93a8a7-36d3-415f-b443-5b870d219700/public)
 
 ---
 
