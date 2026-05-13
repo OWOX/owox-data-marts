@@ -52,7 +52,7 @@ export function LookerStudioReportEditSheet({
       >
         <SheetContent data-testid='reportEditSheet'>
           <SheetHeader>
-            <SheetTitle>{preSelectedDestination?.title ?? 'Looker Studio'}</SheetTitle>
+            <SheetTitle>{preSelectedDestination?.title ?? 'Data Studio'}</SheetTitle>
             <SheetDescription>
               {mode === ReportFormMode.CREATE
                 ? 'Set up Data Mart as a data source'

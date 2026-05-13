@@ -30,16 +30,16 @@ test.describe('Reports - Looker Studio Pattern (Card UI)', () => {
     const card = destTab.getByTestId(TESTIDS.destCard).filter({ hasText: destTitle });
     await expect(card).toBeVisible();
 
-    // Before toggle: card shows "Not available in Looker Studio"
-    await expect(card.getByText('Not available in Looker Studio')).toBeVisible();
+    // Before toggle: card shows "Not available in Data Studio"
+    await expect(card.getByText('Not available in Data Studio')).toBeVisible();
 
     // Toggle the switch ON to create the report
     const toggle = card.getByRole('switch');
     await expect(toggle).toBeVisible();
     await toggle.click();
 
-    // After toggle: card shows "Available in Looker Studio"
-    await expect(card.getByText('Available in Looker Studio')).toBeVisible({ timeout: 10000 });
+    // After toggle: card shows "Available in Data Studio"
+    await expect(card.getByText('Available in Data Studio')).toBeVisible({ timeout: 10000 });
   });
 
   test('edits Looker Studio report cache lifetime (RPT-03)', async ({
@@ -58,8 +58,8 @@ test.describe('Reports - Looker Studio Pattern (Card UI)', () => {
     const card = destTab.getByTestId(TESTIDS.destCard).filter({ hasText: destTitle });
     await expect(card).toBeVisible();
 
-    // Card should show "Available in Looker Studio" (report exists)
-    await expect(card.getByText('Available in Looker Studio')).toBeVisible({ timeout: 10000 });
+    // Card should show "Available in Data Studio" (report exists)
+    await expect(card.getByText('Available in Data Studio')).toBeVisible({ timeout: 10000 });
 
     // Click the card to open edit sheet (LookerStudioReportCard has onClick)
     await card.click();
@@ -96,16 +96,16 @@ test.describe('Reports - Looker Studio Pattern (Card UI)', () => {
     const card = destTab.getByTestId(TESTIDS.destCard).filter({ hasText: destTitle });
     await expect(card).toBeVisible();
 
-    // Card should show "Available in Looker Studio" (report exists)
-    await expect(card.getByText('Available in Looker Studio')).toBeVisible({ timeout: 10000 });
+    // Card should show "Available in Data Studio" (report exists)
+    await expect(card.getByText('Available in Data Studio')).toBeVisible({ timeout: 10000 });
 
     // Toggle the switch OFF to delete the report
     const toggle = card.getByRole('switch');
     await expect(toggle).toBeVisible();
     await toggle.click();
 
-    // After toggle: card should revert to "Not available in Looker Studio"
-    await expect(card.getByText('Not available in Looker Studio')).toBeVisible({ timeout: 10000 });
+    // After toggle: card should revert to "Not available in Data Studio"
+    await expect(card.getByText('Not available in Data Studio')).toBeVisible({ timeout: 10000 });
   });
 });
 

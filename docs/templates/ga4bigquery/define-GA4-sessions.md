@@ -18,7 +18,7 @@ This script standardizes event sessionization logic into a **single, reusable Da
 Use this as the foundation for reporting in:
 
 - Google Sheets  
-- Looker Studio  
+- Data Studio  
 - Tableau / Power BI  
 - AI assistants and analytics workflows  
 

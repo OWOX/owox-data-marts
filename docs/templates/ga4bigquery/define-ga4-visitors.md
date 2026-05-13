@@ -18,7 +18,7 @@ This script standardizes visitor definition logic into a **single, reusable Data
 Use this as the foundation for reporting in:
 
 - Google Sheets  
-- Looker Studio  
+- Data Studio  
 - Tableau / Power BI  
 - AI assistants and analytics workflows  
 

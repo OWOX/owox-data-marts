@@ -109,7 +109,7 @@ To hide every field of a joined Data Mart in one go, toggle off **Allow for repo
 
 ## Step 4: Use Joined Fields in a Report
 
-On any report (Google Sheets, Looker Studio, Email) attached to the source Data Mart, open the report editor and locate the **Report Columns** section.
+On any report (Google Sheets, Data Studio, Email) attached to the source Data Mart, open the report editor and locate the **Report Columns** section.
 
 ![Report Columns picker with native and joined field groups](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/4e181ea4-04d3-4eb3-934e-c89a49229700/public)
 

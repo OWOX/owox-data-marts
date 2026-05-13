@@ -14,7 +14,7 @@ export function toHumanReadable(type: DataDestinationType): string {
     case DataDestinationType.GOOGLE_SHEETS:
       return 'Google Sheets';
     case DataDestinationType.LOOKER_STUDIO:
-      return 'Looker Studio';
+      return 'Data Studio';
     case DataDestinationType.EMAIL:
       return 'Email';
     case DataDestinationType.SLACK:

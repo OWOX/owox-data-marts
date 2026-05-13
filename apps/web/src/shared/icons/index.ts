@@ -4,6 +4,7 @@ export * from './legacy-google-bigquery-icon';
 export * from './aws-athena-icon';
 export * from './google-sheets-icon';
 export * from './looker-studio-icon';
+export * from './data-studio-icon';
 export * from './odata-icon';
 export * from './snowflake-icon';
 export * from './databricks-icon';

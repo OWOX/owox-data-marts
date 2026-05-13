@@ -66,7 +66,7 @@ With this Data Mart:
 This Data Mart is designed to be reused across:
 
 - Google Sheets  
-- Looker Studio  
+- Data Studio  
 - Tableau / Power BI  
 - Downstream Data Marts (Sessions, Pageviews, Conversions, Funnels)  
 - AI and analytics workflows  

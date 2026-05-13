@@ -84,7 +84,7 @@ packages/test-utils/
     constants.ts                          # AUTH_HEADER, NONEXISTENT_UUID, connector list
     helpers/
       create-test-app.ts                  # Bootstraps NestJS app with SQLite :memory:
-      create-looker-jwt.ts                # JWT signing + Google JWK fetch mock for Looker Studio
+      create-looker-jwt.ts                # JWT signing + Google JWK fetch mock for Data Studio
       setup-published-data-mart.ts        # Creates storage + data mart + publishes
       setup-connector-data-mart.ts        # Creates storage + connector-type data mart
       setup-report-prerequisites.ts       # Creates storage + data mart + destination
@@ -113,7 +113,7 @@ apps/backend/test/
   connector-fields.e2e-spec.ts           # Connector field metadata
   connector-specification.e2e-spec.ts    # Connector specification endpoints
   connector-oauth.e2e-spec.ts            # Connector OAuth flow
-  looker-studio-connector.e2e-spec.ts   # Looker Studio external API (JWT auth + mocked reader)
+  looker-studio-connector.e2e-spec.ts   # Data Studio external API (JWT auth + mocked reader)
   notification-settings.e2e-spec.ts     # Notification settings CRUD + webhook + validation
   notification-members.e2e-spec.ts      # Multi-member receiver logic (overridden IdpProjectionsFacade)
 ```
@@ -126,7 +126,7 @@ Creates a production-equivalent NestJS app with:
 - Real migrations applied via `dataSource.runMigrations()`
 - `PRAGMA foreign_keys = ON` for referential integrity
 - `NullIdpProvider` for auth (accepts any `x-owox-authorization` header)
-- `express.text({ type: 'application/jwt' })` for Looker Studio JWT body parsing
+- `express.text({ type: 'application/jwt' })` for Data Studio JWT body parsing
 - Global pipes and exception filters matching production `bootstrap.ts`
 - Optional provider overrides for mocking external dependencies
 

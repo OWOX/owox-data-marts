@@ -66,7 +66,7 @@ Once published, your Data Marts become fully operational in OWOX Data Marts.
 
 After connecting your storage, you can manage your extension Data Marts using additional features available in OWOX Data Marts:
 
-- Export Data Mart results not only to Google Sheets, but also to Looker Studio, Slack, Email, and other supported destinations.
+- Export Data Mart results not only to Google Sheets, but also to Data Studio, Slack, Email, and other supported destinations.
 - Run Data Marts on a schedule.
 - Add descriptions and define aliases for fields in the output schema.
 - Discover insights using AI based on your Data Mart data.

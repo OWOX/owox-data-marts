@@ -4,15 +4,15 @@ import { ExternalAnchor } from '@owox/ui/components/common/external-anchor';
 export default function LookerStudioDescription() {
   return (
     <AccordionItem value='looker-studio-details'>
-      <AccordionTrigger>How do I connect to Looker Studio?</AccordionTrigger>
+      <AccordionTrigger>How do I connect to Data Studio?</AccordionTrigger>
       <AccordionContent>
         <p className='mb-2'>
-          To send data to Looker Studio, you need to provide a deployment URL that the{' '}
+          To send data to Data Studio, you need to provide a deployment URL that the{' '}
           <ExternalAnchor
             className='p-0'
             href='https://datastudio.google.com/datasources/create?connectorId=AKfycbz6kcYn3qGuG0jVNFjcDnkXvVDiz4hewKdAFjOm-_d4VkKVcBidPjqZO991AvGL3FtM4A'
           >
-            Looker Studio connector
+            Data Studio connector
           </ExternalAnchor>{' '}
           will use to access your data.
         </p>

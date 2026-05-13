@@ -4,7 +4,7 @@ import { DataDestinationStatus } from '../enums';
 import {
   GoogleChatIcon,
   GoogleSheetsIcon,
-  LookerStudioIcon,
+  DataStudioIcon,
   MicrosoftTeamsIcon,
   ODataIcon,
   SlackIcon,
@@ -28,8 +28,8 @@ export const DataDestinationTypeModel = {
     },
     [DataDestinationType.LOOKER_STUDIO]: {
       type: DataDestinationType.LOOKER_STUDIO,
-      displayName: 'Looker Studio',
-      icon: LookerStudioIcon,
+      displayName: 'Data Studio',
+      icon: DataStudioIcon,
       status: DataDestinationStatus.ACTIVE,
     },
     [DataDestinationType.EMAIL]: {

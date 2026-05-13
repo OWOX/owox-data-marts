@@ -45,7 +45,7 @@ export function LookerStudioReportCard({
         onCheckedChange={checked => void handleSwitchChange(checked)}
         tooltipTextSwitchOn='Switch off to remove access'
         tooltipTextSwitchOff='Switch on to enable access'
-        tooltipTextSwitchDisabled='Publish the Data Mart first to enable access in Looker Studio'
+        tooltipTextSwitchDisabled='Publish the Data Mart first to enable access in Data Studio'
       />
 
       <SwitchItemCardContent>
@@ -68,7 +68,7 @@ export function LookerStudioReportCard({
                   )}
                 </>
               ) : (
-                'Waiting for Looker Studio to fetch data'
+                'Waiting for Data Studio to fetch data'
               )}
             </>
           ) : (

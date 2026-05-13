@@ -49,7 +49,7 @@ Click **Publish Data Mart**
 You can export the results to:
 
 - **Google Sheets** → Set up destination, choose refresh schedule, and filters
-- **Looker Studio** (coming soon)
+- **Data Studio**
 - **OData** for Excel, Power BI, Tableau (coming soon)
 
 Each destination will reuse the same Data Mart — no need to duplicate logic. You can share the same logic across multiple tools.

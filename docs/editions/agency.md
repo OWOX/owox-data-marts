@@ -64,7 +64,7 @@ This approach allows agencies to **scale operations efficiently** and onboard ne
 Automate data delivery from 3rd party platforms or corporate DWH to reports, giving clients access to **trusted, pre-defined data marts** using:
 
 - Google Sheets;
-- Looker Studio;
+- Data Studio;
 - Excel, Power BI, or Tableau.
 
 Clients gain the freedom to explore data independently, while your team retains control over:

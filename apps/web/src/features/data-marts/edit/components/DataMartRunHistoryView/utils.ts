@@ -138,7 +138,7 @@ export const getRunSummaryParts = (
       runType = 'connector';
       break;
     case DataMartRunType.LOOKER_STUDIO:
-      title = 'Looker Studio data fetching';
+      title = 'Data Studio data fetching';
       runType = 'report';
       break;
     case DataMartRunType.GOOGLE_SHEETS_EXPORT:

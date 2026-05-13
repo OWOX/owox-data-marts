@@ -58,9 +58,7 @@ export function EmptyDataMartDestinationsState({
         <div className='dm-empty-state'>
           <ArchiveRestore className='dm-empty-state-ico' strokeWidth={1} />
 
-          <h2 className='dm-empty-state-title'>
-            Google Sheets, Looker Studio, Email… and friends!
-          </h2>
+          <h2 className='dm-empty-state-title'>Google Sheets, Data Studio, Email… and friends!</h2>
 
           <p className='dm-empty-state-subtitle'>
             To turn data into reports using your favorite tools, create a Destination first.

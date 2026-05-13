@@ -1,13 +1,13 @@
 # Report Trigger
 
-Use this trigger when you want to automatically refresh the results of a **SQL-based**, **table-based**, **view-based**, or **pattern-based** Data Mart — and ensure reports in Google Sheets or Looker Studio stay up to date.
+Use this trigger when you want to automatically refresh the results of a **SQL-based**, **table-based**, **view-based**, or **pattern-based** Data Mart — and ensure reports in Google Sheets or Data Studio stay up to date.
 
 ## When to use
 
 Set up a **Report Run** trigger if:
 
 - Your Data Mart is based on a SQL query, table, view, or pattern
-- You want to refresh the data periodically in tools like Sheets or Looker Studio
+- You want to refresh the data periodically in tools like Sheets or Data Studio
 - You want to automate updates for your shared reports and dashboards
 
 ## How to configure

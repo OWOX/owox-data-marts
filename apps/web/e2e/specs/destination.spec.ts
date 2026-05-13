@@ -45,7 +45,7 @@ test.describe('Destinations - Empty State', () => {
 // Enterprise-only types (EMAIL, MS_TEAMS, GOOGLE_CHAT) require LICENSE_KEY.
 // ---------------------------------------------------------------------------
 const COMMUNITY_DESTINATION_TYPES = [
-  { type: 'LOOKER_STUDIO', label: 'Looker Studio', prefix: 'LS' },
+  { type: 'LOOKER_STUDIO', label: 'Data Studio', prefix: 'LS' },
 ] as const;
 
 const ENTERPRISE_DESTINATION_TYPES = [
