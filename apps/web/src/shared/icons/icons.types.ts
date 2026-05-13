@@ -4,6 +4,7 @@ import { type GitHubIcon } from './github-icon';
 import { type GoogleSheetsIcon } from './google-sheets-icon';
 import { type ODataIcon } from './odata-icon';
 import { type LookerStudioIcon } from './looker-studio-icon';
+import { type DataStudioIcon } from './data-studio-icon';
 import { type SnowflakeIcon } from './snowflake-icon';
 import { type DatabricksIcon } from './databricks-icon';
 import { type AwsRedshiftIcon } from './aws-redshift-icon';
@@ -30,6 +31,7 @@ export type LocalIcon =
   | typeof GoogleSheetsIcon
   | typeof ODataIcon
   | typeof LookerStudioIcon
+  | typeof DataStudioIcon
   | typeof SnowflakeIcon
   | typeof DatabricksIcon
   | typeof AwsRedshiftIcon
