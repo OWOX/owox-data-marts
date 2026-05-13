@@ -22,6 +22,7 @@ import {
   normalizeAiProviderName,
 } from '../../common/ai-insights/services/ai-chat-provider.token';
 import { AiInsightsOrchestratorService } from './ai-insight-orchestrator.service';
+import { GenerateDataMartMetadataOrchestratorService } from './generate-data-mart-metadata.orchestrator.service';
 import { FinalizeAgent } from './agent/finalize.agent';
 import { PlanAgent } from './agent/plan.agent';
 import { SqlAgent } from './agent/sql.agent';
@@ -43,6 +44,7 @@ export const aiInsightsProviders = [
   StorageRelatedPromptResolver,
   AiInsightsFacadeImpl,
   AiInsightsOrchestratorService,
+  GenerateDataMartMetadataOrchestratorService,
   TriageAgent,
   PlanAgent,
   SqlBuilderAgent,

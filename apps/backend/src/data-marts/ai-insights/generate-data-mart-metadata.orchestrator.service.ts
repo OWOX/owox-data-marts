@@ -1,0 +1,156 @@
+import { Inject, Injectable, Logger } from '@nestjs/common';
+import { AI_CHAT_PROVIDER } from '../../common/ai-insights/services/ai-chat-provider.token';
+import { AiChatProvider } from '../../common/ai-insights/agent/ai-core';
+import { ToolRegistry } from '../../common/ai-insights/agent/tool-registry';
+import { BusinessViolationException } from '../../common/exceptions/business-violation.exception';
+import { DataMartDefinitionValidatorFacade } from '../data-storage-types/facades/data-mart-definition-validator-facade.service';
+import { DataMartDefinitionType } from '../enums/data-mart-definition-type.enum';
+import { DataMartService } from '../services/data-mart.service';
+import { DataMartSqlTableService } from '../services/data-mart-sql-table.service';
+import { GenerateDataMartMetadataAgent } from './agent/generate-data-mart-metadata.agent';
+import {
+  DataMartMetadataScope,
+  GenerateDataMartMetadataRequest,
+  GenerateDataMartMetadataResponse,
+  QueryRow,
+  SharedAgentContext,
+} from './ai-insights-types';
+
+const METADATA_SAMPLE_ROW_LIMIT = 30;
+
+/**
+ * Orchestrates a single AI metadata generation request: validates the data mart,
+ * optionally fetches a 30-row sample, runs the agent, and shapes the response per scope.
+ *
+ * Does not emit consumption events — AI helper is a free editor convenience.
+ */
+@Injectable()
+export class GenerateDataMartMetadataOrchestratorService {
+  private readonly logger = new Logger(GenerateDataMartMetadataOrchestratorService.name);
+
+  constructor(
+    private readonly dataMartService: DataMartService,
+    private readonly dataMartSqlTableService: DataMartSqlTableService,
+    private readonly definitionValidatorFacade: DataMartDefinitionValidatorFacade,
+    private readonly generateDataMartMetadataAgent: GenerateDataMartMetadataAgent,
+    @Inject(AI_CHAT_PROVIDER)
+    private readonly aiProvider: AiChatProvider,
+    private readonly toolRegistry: ToolRegistry
+  ) {}
+
+  async run(request: GenerateDataMartMetadataRequest): Promise<GenerateDataMartMetadataResponse> {
+    this.logger.log(
+      `Generating data mart metadata for ${request.dataMartId} (scope=${request.scope}, useSample=${request.useSample})`
+    );
+
+    const dataMart = await this.dataMartService.getByIdAndProjectId(
+      request.dataMartId,
+      request.projectId
+    );
+
+    if (dataMart.definitionType === DataMartDefinitionType.CONNECTOR) {
+      throw new BusinessViolationException(
+        'AI metadata generation is not supported for connector-based data marts'
+      );
+    }
+
+    await this.definitionValidatorFacade.checkIsValid(dataMart);
+
+    const schema = dataMart.schema;
+    if (!schema) {
+      throw new BusinessViolationException(
+        'Data mart has no output schema yet. Actualize the schema before requesting AI metadata.'
+      );
+    }
+
+    if (this.requiresFieldName(request.scope) && !request.fieldName?.trim()) {
+      throw new BusinessViolationException(`fieldName is required for scope "${request.scope}"`);
+    }
+
+    let sampleColumns: string[] | null = null;
+    let sampleRows: QueryRow[] | null = null;
+    if (request.useSample) {
+      const sample = await this.dataMartSqlTableService.executeSqlToTable(dataMart, undefined, {
+        limit: METADATA_SAMPLE_ROW_LIMIT,
+      });
+      sampleColumns = sample.columns;
+      sampleRows = sample.rows.map(row => this.toQueryRow(sample.columns, row));
+    }
+
+    const sharedContext: SharedAgentContext = {
+      aiProvider: this.aiProvider,
+      toolRegistry: this.toolRegistry,
+      budgets: {},
+      telemetry: {
+        llmCalls: [],
+        toolCalls: [],
+        messageHistory: [],
+      },
+      projectId: request.projectId,
+      dataMartId: request.dataMartId,
+    };
+
+    const aiResult = await this.generateDataMartMetadataAgent.run(
+      {
+        scope: request.scope,
+        dataMartTitle: dataMart.title ?? null,
+        dataMartDescription: dataMart.description ?? null,
+        schema,
+        sampleColumns,
+        sampleRows,
+        fieldName: request.fieldName,
+      },
+      sharedContext
+    );
+
+    return this.shapeResponseToScope(aiResult, request);
+  }
+
+  private requiresFieldName(scope: DataMartMetadataScope): boolean {
+    return (
+      scope === DataMartMetadataScope.FIELD_ALIAS ||
+      scope === DataMartMetadataScope.FIELD_DESCRIPTION
+    );
+  }
+
+  private toQueryRow(columns: string[], row: unknown[]): QueryRow {
+    const result: QueryRow = {};
+    for (let i = 0; i < columns.length; i++) {
+      result[columns[i]] = row[i];
+    }
+    return result;
+  }
+
+  private shapeResponseToScope(
+    aiResult: GenerateDataMartMetadataResponse,
+    request: GenerateDataMartMetadataRequest
+  ): GenerateDataMartMetadataResponse {
+    const { scope, fieldName } = request;
+
+    switch (scope) {
+      case DataMartMetadataScope.TITLE:
+        return { title: aiResult.title };
+      case DataMartMetadataScope.DESCRIPTION:
+        return { description: aiResult.description };
+      case DataMartMetadataScope.FIELD_ALIAS: {
+        const match = aiResult.fields?.find(f => f.name === fieldName);
+        return { fields: match ? [{ name: match.name, alias: match.alias }] : [] };
+      }
+      case DataMartMetadataScope.FIELD_DESCRIPTION: {
+        const match = aiResult.fields?.find(f => f.name === fieldName);
+        return {
+          fields: match ? [{ name: match.name, description: match.description }] : [],
+        };
+      }
+      case DataMartMetadataScope.ALL_FIELD_ALIASES:
+        return {
+          fields: aiResult.fields?.map(f => ({ name: f.name, alias: f.alias })) ?? [],
+        };
+      case DataMartMetadataScope.ALL_FIELD_DESCRIPTIONS:
+      default:
+        return {
+          fields: aiResult.fields?.map(f => ({ name: f.name, description: f.description })) ?? [],
+        };
+    }
+  }
+}

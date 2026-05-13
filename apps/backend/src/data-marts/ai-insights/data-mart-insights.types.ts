@@ -11,7 +11,7 @@ export type DataMartAdditionalParams = {
 };
 
 export interface ConsumptionContext {
-  contextType: 'INSIGHT' | 'REPORT' | 'DATA_MART_HELPER';
+  contextType: 'INSIGHT' | 'REPORT';
   contextId: string;
   contextTitle: string;
   dataMart: DataMart;
