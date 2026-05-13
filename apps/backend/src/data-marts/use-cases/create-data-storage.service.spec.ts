@@ -82,7 +82,7 @@ describe('CreateDataStorageService', () => {
     );
   });
 
-  it('should set sharing defaults to false for new storage', async () => {
+  it('should make a new storage available for use but private for maintenance by default', async () => {
     const { service, dataStorageRepository } = createService();
     const command = new CreateDataStorageCommand(
       'proj-1',
@@ -94,7 +94,7 @@ describe('CreateDataStorageService', () => {
 
     expect(dataStorageRepository.create).toHaveBeenCalledWith(
       expect.objectContaining({
-        availableForUse: false,
+        availableForUse: true,
         availableForMaintenance: false,
       })
     );

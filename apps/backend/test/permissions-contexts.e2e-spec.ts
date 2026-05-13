@@ -1553,7 +1553,12 @@ describe('Permissions Model Contexts & Role Scope (e2e)', () => {
       .set(AUTH_HEADER)
       .send(new DataMartBuilder().withStorageId(storageId).build());
     expect(dmRes.status).toBe(201);
-    return { storageId, dataMartId: dmRes.body.id as string };
+    const dataMartId = dmRes.body.id as string;
+    await agent
+      .put(`/api/data-marts/${dataMartId}/availability`)
+      .set(AUTH_HEADER)
+      .send({ availableForReporting: false, availableForMaintenance: false });
+    return { storageId, dataMartId };
   }
 
   async function createDestination(): Promise<string> {

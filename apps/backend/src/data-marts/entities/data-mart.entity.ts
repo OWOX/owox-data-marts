@@ -66,7 +66,7 @@ export class DataMart implements CreatorAwareEntity {
   @Column()
   projectId: string;
 
-  @Column({ type: 'boolean', default: false })
+  @Column({ type: 'boolean', default: true })
   availableForReporting: boolean;
 
   @Column({ type: 'boolean', default: false })

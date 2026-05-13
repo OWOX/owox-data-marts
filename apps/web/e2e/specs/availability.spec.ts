@@ -50,7 +50,7 @@ test.describe('Storage Availability', () => {
     await expect(sheet.getByText('Available for maintenance', { exact: true })).toBeVisible();
   });
 
-  test('availability defaults to both OFF for new storage (AVL-02)', async ({
+  test('availability defaults to use=ON, maintenance=OFF for new storage (AVL-02)', async ({
     page,
     apiHelpers,
   }) => {
@@ -67,9 +67,10 @@ test.describe('Storage Availability', () => {
     // Expand Availability section
     await ensureSectionExpanded(sheet, 'Availability');
 
-    // New storages default to OFF (not shared until owner explicitly enables)
+    // New storages default to "use" ON (shared with the project) but
+    // "maintenance" OFF (granting edit/delete remains an explicit opt-in).
     const [useSwitch, maintenanceSwitch] = getAvailabilitySwitches(sheet);
-    await expect(useSwitch).toHaveAttribute('data-state', 'unchecked');
+    await expect(useSwitch).toHaveAttribute('data-state', 'checked');
     await expect(maintenanceSwitch).toHaveAttribute('data-state', 'unchecked');
   });
 
