@@ -28,6 +28,7 @@ import { ConnectorContextProvider } from '../../../../../connectors/shared/model
 import { ConnectorRunView } from '../../../../../connectors/edit/components/ConnectorRunSheet/ConnectorRunView';
 import type { ConnectorRunFormData } from '../../../../../connectors/shared/model/types/connector';
 import { ConfirmationDialog } from '../../../../../../shared/components/ConfirmationDialog/ConfirmationDialog';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@owox/ui/components/tooltip';
 
 interface ConnectorDefinitionFieldProps {
   control: Control<DataMartDefinitionFormData>;
@@ -44,7 +45,7 @@ export function ConnectorDefinitionField({
   autoOpen = false,
   saveDataMartDefinition,
 }: ConnectorDefinitionFieldProps) {
-  const { dataMart, runDataMart } = useOutletContext<DataMartContextType>();
+  const { dataMart, runDataMart, hasActiveRuns } = useOutletContext<DataMartContextType>();
   const { setValue, getValues, trigger } = useFormContext<DataMartDefinitionFormData>();
   const [isEditSheetOpen, setIsEditSheetOpen] = useState(false);
   const [isSetupSheetOpen, setIsSetupSheetOpen] = useState(false);
@@ -223,6 +224,13 @@ export function ConnectorDefinitionField({
     }
   };
 
+  const manualRunButton = (
+    <Button variant='outline' disabled={hasActiveRuns}>
+      <Play className='h-4 w-4' />
+      <span>Manual Run...</span>
+    </Button>
+  );
+
   return (
     <>
       <FormField
@@ -269,15 +277,25 @@ export function ConnectorDefinitionField({
                       </div>
                       <div className='flex items-center gap-2'>
                         {dataMart?.definitionType === DataMartDefinitionType.CONNECTOR && (
-                          <ConnectorRunView
-                            configuration={dataMart.definition as ConnectorDefinitionConfig}
-                            onManualRun={onManualRunHandler}
-                          >
-                            <Button variant='outline'>
-                              <Play className='h-4 w-4' />
-                              <span>Manual Run...</span>
-                            </Button>
-                          </ConnectorRunView>
+                          <>
+                            {hasActiveRuns ? (
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <div>{manualRunButton}</div>
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                  Please wait for the current run to complete.
+                                </TooltipContent>
+                              </Tooltip>
+                            ) : (
+                              <ConnectorRunView
+                                configuration={dataMart.definition as ConnectorDefinitionConfig}
+                                onManualRun={onManualRunHandler}
+                              >
+                                {manualRunButton}
+                              </ConnectorRunView>
+                            )}
+                          </>
                         )}
                       </div>
                     </div>

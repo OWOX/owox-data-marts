@@ -127,7 +127,7 @@ export function useSchemaActualizeTrigger(
     try {
       const { triggerId } = await dataMartService.createSchemaActualizeTrigger(dataMartId);
 
-      toast.loading('Synchronizing schema with the data storage state. This may take a while.', {
+      toast.loading('Synchronizing output schema with the storage state. Please wait...', {
         duration: Infinity,
         id: triggerId,
       });
