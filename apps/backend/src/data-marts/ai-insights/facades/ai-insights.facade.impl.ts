@@ -4,6 +4,8 @@ import { AiInsightsFacade } from './ai-insights.facade';
 import {
   AnswerPromptRequest,
   AnswerPromptResponse,
+  GenerateDataMartMetadataRequest,
+  GenerateDataMartMetadataResponse,
   GenerateInsightRequest,
   GenerateInsightResponse,
   SharedAgentContext,
@@ -11,6 +13,7 @@ import {
 import { AiInsightsOrchestratorService } from '../ai-insight-orchestrator.service';
 import { DataMartPromptMetaEntry, PromptAnswer } from '../data-mart-insights.types';
 import { GenerateInsightAgent } from '../agent/generate-insight.agent';
+import { GenerateDataMartMetadataOrchestratorService } from '../generate-data-mart-metadata.orchestrator.service';
 import { AI_CHAT_PROVIDER } from '../../../common/ai-insights/services/ai-chat-provider.token';
 import { AiChatProvider } from '../../../common/ai-insights/agent/ai-core';
 import { ToolRegistry } from '../../../common/ai-insights/agent/tool-registry';
@@ -28,6 +31,7 @@ export class AiInsightsFacadeImpl implements AiInsightsFacade {
   constructor(
     private readonly aiInsightsAgentService: AiInsightsOrchestratorService,
     private readonly generateInsightAgent: GenerateInsightAgent,
+    private readonly generateDataMartMetadataOrchestratorService: GenerateDataMartMetadataOrchestratorService,
     @Inject(AI_CHAT_PROVIDER)
     private readonly aiProvider: AiChatProvider,
     private readonly toolRegistry: ToolRegistry
@@ -134,5 +138,24 @@ export class AiInsightsFacadeImpl implements AiInsightsFacade {
       this.logger.error(`Error generating insight for data mart ${request.dataMartId}`, e);
       throw e;
     }
+  }
+
+  async generateDataMartMetadata(
+    request: GenerateDataMartMetadataRequest
+  ): Promise<GenerateDataMartMetadataResponse> {
+    const measured = await measureExecutionTime(
+      () => this.generateDataMartMetadataOrchestratorService.run(request),
+      {
+        onMeasured: m => {
+          this.logger.log('AiGenerateDataMartMetadataTime', {
+            projectId: request.projectId,
+            dataMartId: request.dataMartId,
+            scope: request.scope,
+            measure: toMeasuredExecutionBaseResult(m),
+          });
+        },
+      }
+    );
+    return measured.result;
   }
 }

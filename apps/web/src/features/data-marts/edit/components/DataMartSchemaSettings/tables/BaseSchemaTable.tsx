@@ -14,6 +14,8 @@ import {
 } from '../components';
 import { asString } from '../utils';
 import { SchemaTable } from './SchemaTable';
+import type { SchemaAiHelper } from '../types/ai-helper';
+import { renderFieldAliasAi, renderFieldDescriptionAi } from '../utils/render-field-ai';
 
 // Extended column definition with optional columnIndex property
 export type ExtendedColumnDef<T extends BaseSchemaField> = ColumnDef<T> & {
@@ -95,6 +97,8 @@ export interface BaseSchemaTableProps<T extends BaseSchemaField> {
   rowComponent?: ComponentType<RowComponentProps<Row<T>>>;
   /** Function to get the ID for a row */
   getRowId?: (row: Row<T>) => string | number;
+  /** AI helper handlers passed to per-field actions menu. Omit to hide AI options. */
+  aiHelper?: SchemaAiHelper;
 }
 
 /**
@@ -120,6 +124,7 @@ export function BaseSchemaTable<T extends BaseSchemaField>({
   dragContextProps,
   rowComponent,
   getRowId,
+  aiHelper,
 }: BaseSchemaTableProps<T>) {
   // Handler to update a field
   const updateField = useCallback(
@@ -247,6 +252,7 @@ export function BaseSchemaTable<T extends BaseSchemaField>({
           if (aliasColumnCell) {
             return aliasColumnCell({ row, updateField });
           }
+          const fname = fields[row.index]?.name;
           return (
             <EditableText
               value={row.getValue('alias')}
@@ -254,6 +260,7 @@ export function BaseSchemaTable<T extends BaseSchemaField>({
                 updateField(row.index, { alias: value } as Partial<T>);
               }}
               placeholder='-'
+              editorAction={renderFieldAliasAi(aiHelper, fname)}
             />
           );
         },
@@ -270,6 +277,7 @@ export function BaseSchemaTable<T extends BaseSchemaField>({
           if (descriptionColumnCell) {
             return descriptionColumnCell({ row, updateField });
           }
+          const fname = fields[row.index]?.name;
           return (
             <EditableText
               value={row.getValue('description')}
@@ -278,6 +286,7 @@ export function BaseSchemaTable<T extends BaseSchemaField>({
               }}
               minRows={5}
               placeholder='-'
+              editorAction={renderFieldDescriptionAi(aiHelper, fname)}
             />
           );
         },
@@ -322,6 +331,7 @@ export function BaseSchemaTable<T extends BaseSchemaField>({
       aliasColumnCell,
       descriptionColumnCell,
       actionsColumnCell,
+      aiHelper,
     ]
   );
 

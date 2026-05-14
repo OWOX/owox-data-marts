@@ -12,6 +12,7 @@ import {
 import { SchemaFieldTypeSelect } from '../components';
 import { useDragAndDrop } from '../hooks';
 import { BaseSchemaTable } from './BaseSchemaTable';
+import type { SchemaAiHelper } from '../types/ai-helper';
 
 /**
  * Props for the SnowflakeSchemaTable component
@@ -21,12 +22,18 @@ interface SnowflakeSchemaTableProps {
   fields: SnowflakeSchemaField[];
   /** Callback function to call when the fields change */
   onFieldsChange?: (fields: SnowflakeSchemaField[]) => void;
+  /** AI helper handlers; omit to hide AI buttons. */
+  aiHelper?: SchemaAiHelper;
 }
 
 /**
  * Component for displaying and editing Snowflake schema fields
  */
-export function SnowflakeSchemaTable({ fields, onFieldsChange }: SnowflakeSchemaTableProps) {
+export function SnowflakeSchemaTable({
+  fields,
+  onFieldsChange,
+  aiHelper,
+}: SnowflakeSchemaTableProps) {
   // Function to create a new Snowflake field
   const createNewField = useCallback(() => {
     return {
@@ -82,6 +89,7 @@ export function SnowflakeSchemaTable({ fields, onFieldsChange }: SnowflakeSchema
           strategy: verticalListSortingStrategy,
         }}
         rowComponent={SortableTableRow}
+        aiHelper={aiHelper}
       />
     </DndContext>
   );

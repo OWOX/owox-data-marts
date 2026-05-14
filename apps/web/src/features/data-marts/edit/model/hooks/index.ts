@@ -1,2 +1,5 @@
 export { useDataMartForm, dataMartSchema, type DataMartFormData } from './use-data-mart-form.ts';
 export { useDataMart } from './use-data-mart.ts';
+export { useAiHelperAvailability } from './use-ai-helper-availability.ts';
+export { useAiHelper } from './use-ai-helper.ts';
+export type { UseAiHelperResult, PendingScope } from './use-ai-helper.ts';

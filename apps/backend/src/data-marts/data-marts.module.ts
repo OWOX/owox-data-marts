@@ -121,6 +121,7 @@ import { CancelDataMartRunService } from './use-cases/cancel-data-mart-run.servi
 import { ValidateDataMartDefinitionService } from './use-cases/validate-data-mart-definition.service';
 import { ActualizeDataMartSchemaService } from './use-cases/actualize-data-mart-schema.service';
 import { UpdateDataMartSchemaService } from './use-cases/update-data-mart-schema.service';
+import { GenerateDataMartMetadataService } from './use-cases/generate-data-mart-metadata.service';
 import { SqlDryRunService } from './use-cases/sql-dry-run.service';
 import { DataMartSchemaParserFacade } from './data-storage-types/facades/data-mart-schema-parser-facade.service';
 import { DataMartScheduledTrigger } from './entities/data-mart-scheduled-trigger.entity';
@@ -554,6 +555,7 @@ import { SetContextMembersService } from './use-cases/contexts/set-context-membe
     CreateViewService,
     ActualizeDataMartSchemaService,
     UpdateDataMartSchemaService,
+    GenerateDataMartMetadataService,
     ScheduledTriggersHandlerService,
     SqlDryRunTriggerService,
     SqlDryRunTriggerHandlerService,

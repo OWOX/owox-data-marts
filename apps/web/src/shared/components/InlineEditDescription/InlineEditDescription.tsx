@@ -1,6 +1,15 @@
-import { useState, useEffect, type KeyboardEvent, useRef } from 'react';
+import { useState, useEffect, type KeyboardEvent, type ReactNode, useRef } from 'react';
 import { cn } from '@owox/ui/lib/utils';
 import { Textarea } from '@owox/ui/components/textarea';
+
+export interface InlineEditDescriptionAiContext {
+  /** Replace the current value in the open textarea. Does not persist on its own. */
+  setValue: (value: string) => void;
+}
+
+export type InlineEditDescriptionAi =
+  | ReactNode
+  | ((ctx: InlineEditDescriptionAiContext) => ReactNode);
 
 interface InlineEditDescriptionProps {
   description: string | null;
@@ -9,6 +18,12 @@ interface InlineEditDescriptionProps {
   placeholder?: string;
   minWidth?: string;
   minHeight?: string;
+  /**
+   * Optional action button rendered inside the editor while editing. May be a
+   * render-function that receives `{ setValue }` so the action can write directly
+   * into the editor's local buffer (e.g. AI suggestion).
+   */
+  aiButton?: InlineEditDescriptionAi;
 }
 
 export function InlineEditDescription({
@@ -18,6 +33,7 @@ export function InlineEditDescription({
   placeholder = 'Add description...',
   minWidth = '100%',
   minHeight = '256px',
+  aiButton,
 }: InlineEditDescriptionProps) {
   const [editedDescription, setEditedDescription] = useState(description ?? '');
   const [isEditing, setIsEditing] = useState(false);
@@ -81,8 +97,13 @@ export function InlineEditDescription({
   };
 
   if (isEditing) {
-    return (
-      <div className='w-full'>
+    const resolvedAiButton =
+      typeof aiButton === 'function' ? aiButton({ setValue: setEditedDescription }) : aiButton;
+
+    const editor = aiButton ? (
+      // Shell-style editor: wrapper mimics textarea look; real <textarea> is borderless
+      // and shares the visual surface with the AI button on the right.
+      <div className={cn('flex w-full items-start gap-2 rounded-md bg-white p-2 dark:bg-white/4')}>
         <Textarea
           ref={textareaRef}
           value={editedDescription}
@@ -91,8 +112,8 @@ export function InlineEditDescription({
           onKeyDown={handleKeyDown}
           placeholder={placeholder}
           className={cn(
-            'm-0 w-full border-0 bg-white p-2 shadow-none dark:bg-white/4',
-            'focus-visible:ring-primary focus-visible:ring-0',
+            'm-0 min-w-0 flex-1 border-0 bg-transparent p-0 shadow-none',
+            'focus-visible:border-0 focus-visible:ring-0 focus-visible:ring-offset-0',
             {
               'opacity-50': isLoading,
             }
@@ -101,12 +122,57 @@ export function InlineEditDescription({
             fontSize: 'inherit',
             lineHeight: 'inherit',
             fontFamily: 'inherit',
-            resize: 'vertical',
+            resize: 'none',
             minHeight: minHeight,
-            minWidth: minWidth,
+            // Inside flex shell we must NOT force textarea width — otherwise the AI
+            // button gets pushed off-screen. Let flex-1 + min-w-0 handle sizing.
           }}
           disabled={isLoading}
+          data-gramm='false'
+          data-gramm_editor='false'
+          data-enable-grammarly='false'
         />
+        <span
+          onMouseDown={e => {
+            e.preventDefault();
+          }}
+          className='shrink-0'
+        >
+          {resolvedAiButton}
+        </span>
+      </div>
+    ) : (
+      // Default editor (no AI button): preserves the original look so existing
+      // consumers without `aiButton` see no visual regression.
+      <Textarea
+        ref={textareaRef}
+        value={editedDescription}
+        onChange={handleTextareaChange}
+        onBlur={() => void handleSubmit()}
+        onKeyDown={handleKeyDown}
+        placeholder={placeholder}
+        className={cn(
+          'm-0 w-full border-0 bg-white p-2 shadow-none dark:bg-white/4',
+          'focus-visible:ring-primary focus-visible:ring-0',
+          {
+            'opacity-50': isLoading,
+          }
+        )}
+        style={{
+          fontSize: 'inherit',
+          lineHeight: 'inherit',
+          fontFamily: 'inherit',
+          resize: 'none',
+          minHeight: minHeight,
+          minWidth: minWidth,
+        }}
+        disabled={isLoading}
+      />
+    );
+
+    return (
+      <div className='w-full'>
+        {editor}
         <div className='mt-2 text-xs text-neutral-500'>
           <span>
             Press{' '}
@@ -134,8 +200,13 @@ export function InlineEditDescription({
           setIsEditing(true);
         }}
         className={cn(
-          'min-h-64 cursor-pointer rounded p-2 whitespace-pre-wrap',
+          'min-h-64 w-full cursor-pointer rounded whitespace-pre-wrap',
           'transition-colors duration-150',
+          // Reserve right space equal to the AI-button column in edit mode so the
+          // text wraps identically and doesn't shift when the user opens the editor.
+          // Edit-mode reserves 48px on the right: wrapper p-2 right (8px) +
+          // gap-2 (8px) + AI button width (32px). pl-2 mirrors edit's wrapper p-2 left.
+          aiButton ? 'py-2 pr-12 pl-2' : 'p-2',
           !description && 'text-muted-foreground/50',
           className
         )}

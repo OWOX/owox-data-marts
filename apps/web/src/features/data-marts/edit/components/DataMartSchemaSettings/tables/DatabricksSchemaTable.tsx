@@ -12,6 +12,7 @@ import {
 import { SchemaFieldTypeSelect } from '../components';
 import { useDragAndDrop } from '../hooks';
 import { BaseSchemaTable } from './BaseSchemaTable';
+import type { SchemaAiHelper } from '../types/ai-helper';
 
 /**
  * Props for the DatabricksSchemaTable component
@@ -21,12 +22,18 @@ interface DatabricksSchemaTableProps {
   fields: DatabricksSchemaField[];
   /** Callback function to call when the fields change */
   onFieldsChange?: (fields: DatabricksSchemaField[]) => void;
+  /** AI helper handlers; omit to hide AI buttons. */
+  aiHelper?: SchemaAiHelper;
 }
 
 /**
  * Component for displaying and editing Databricks schema fields
  */
-export function DatabricksSchemaTable({ fields, onFieldsChange }: DatabricksSchemaTableProps) {
+export function DatabricksSchemaTable({
+  fields,
+  onFieldsChange,
+  aiHelper,
+}: DatabricksSchemaTableProps) {
   // Function to create a new Databricks field
   const createNewField = useCallback(() => {
     return {
@@ -82,6 +89,7 @@ export function DatabricksSchemaTable({ fields, onFieldsChange }: DatabricksSche
           strategy: verticalListSortingStrategy,
         }}
         rowComponent={SortableTableRow}
+        aiHelper={aiHelper}
       />
     </DndContext>
   );

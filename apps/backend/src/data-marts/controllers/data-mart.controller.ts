@@ -53,6 +53,11 @@ import { UpdateDataMartAvailabilityApiDto } from '../dto/presentation/update-ava
 import { MemberOwnershipWarningsService } from '../services/member-ownership-warnings.service';
 import { UpdateDataMartTitleService } from '../use-cases/update-data-mart-title.service';
 import { ValidateDataMartDefinitionService } from '../use-cases/validate-data-mart-definition.service';
+import { GenerateDataMartMetadataService } from '../use-cases/generate-data-mart-metadata.service';
+import { GenerateDataMartMetadataRequestApiDto } from '../dto/presentation/generate-data-mart-metadata-request-api.dto';
+import { GenerateDataMartMetadataResponseApiDto } from '../dto/presentation/generate-data-mart-metadata-response-api.dto';
+import { DataMartAiHelperAvailabilityResponseApiDto } from '../dto/presentation/data-mart-ai-helper-availability-response-api.dto';
+import { AiInsightsConfigService } from '../../common/ai-insights/services/ai-insights-config.service';
 import { ContextAccessService } from '../services/context/context-access.service';
 import { UpdateEntityContextsRequestApiDto } from '../dto/presentation/context-api.dto';
 import {
@@ -78,6 +83,8 @@ import {
   UpdateDataMartOwnersSpec,
   UpdateDataMartTitleSpec,
   ValidateDataMartDefinitionSpec,
+  GenerateDataMartMetadataSpec,
+  DataMartAiHelperAvailabilitySpec,
 } from './spec/data-mart.api';
 
 @Controller('data-marts')
@@ -106,7 +113,9 @@ export class DataMartController {
     private readonly memberOwnershipWarningsService: MemberOwnershipWarningsService,
     private readonly getBlendableSchemaService: GetBlendableSchemaService,
     private readonly updateBlendedFieldsConfigService: UpdateBlendedFieldsConfigService,
-    private readonly contextAccessService: ContextAccessService
+    private readonly contextAccessService: ContextAccessService,
+    private readonly generateDataMartMetadataService: GenerateDataMartMetadataService,
+    private readonly aiInsightsConfig: AiInsightsConfigService
   ) {}
 
   @Auth(Role.editor(Strategy.INTROSPECT))
@@ -152,6 +161,13 @@ export class DataMartController {
   @GetMemberOwnershipWarningsSpec()
   async getMemberOwnershipWarnings(@AuthContext() context: AuthorizationContext) {
     return this.memberOwnershipWarningsService.getWarnings(context.projectId);
+  }
+
+  @Auth(Role.viewer(Strategy.PARSE))
+  @Get('ai-helper/availability')
+  @DataMartAiHelperAvailabilitySpec()
+  getAiHelperAvailability(): DataMartAiHelperAvailabilityResponseApiDto {
+    return { enabled: this.aiInsightsConfig.isInsightsEnabled() };
   }
 
   @Auth(Role.viewer(Strategy.PARSE))
@@ -307,6 +323,19 @@ export class DataMartController {
     const command = this.mapper.toUpdateSchemaCommand(id, context, dto);
     const dataMart = await this.updateSchemaService.run(command);
     return this.mapper.toResponse(dataMart);
+  }
+
+  @Auth(Role.editor(Strategy.INTROSPECT))
+  @Post(':id/ai-helper/generate-metadata')
+  @GenerateDataMartMetadataSpec()
+  async generateMetadata(
+    @AuthContext() context: AuthorizationContext,
+    @Param('id') id: string,
+    @Body() dto: GenerateDataMartMetadataRequestApiDto
+  ): Promise<GenerateDataMartMetadataResponseApiDto> {
+    const command = this.mapper.toGenerateMetadataCommand(id, context, dto);
+    const result = await this.generateDataMartMetadataService.run(command);
+    return this.mapper.toGenerateMetadataResponse(result);
   }
 
   @Auth(Role.editor(Strategy.INTROSPECT))

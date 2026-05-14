@@ -1,4 +1,12 @@
 import { Button } from '@owox/ui/components/button';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@owox/ui/components/dropdown-menu';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@owox/ui/components/tooltip';
+import { Loader2, Sparkles } from 'lucide-react';
 import { useCallback, useEffect } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import type {
@@ -11,7 +19,8 @@ import type {
 import type { DataMartContextType } from '../../model/context/types.ts';
 import { useOperationState, useSchemaState } from './hooks';
 import { SchemaContent } from './SchemaContent';
-import type { DataMartDefinitionType } from '../../../shared/index.ts';
+import { DataMartDefinitionType, DataMartMetadataScope } from '../../../shared/index.ts';
+import { useAiHelper, useAiHelperAvailability } from '../../model/hooks';
 
 interface DataMartSchemaSettingsProps {
   definitionType: DataMartDefinitionType | null;
@@ -34,6 +43,19 @@ export function DataMartSchemaSettings({ definitionType }: DataMartSchemaSetting
 
   const { schema, isDirty, updateSchema, resetSchema } = useSchemaState(initialSchema);
   const { operationStatus, startSaveOperation } = useOperationState(isLoading, error);
+
+  const { enabled: isAiHelperEnabled } = useAiHelperAvailability();
+  const {
+    generateFieldAlias,
+    generateFieldDescription,
+    generateAllFieldDescriptions,
+    generateAllFieldAliases,
+    pendingScope: aiPendingScope,
+  } = useAiHelper();
+  // Backend rejects metadata generation for CONNECTOR data marts; hide the buttons
+  // so the user is never offered an action that's guaranteed to 422.
+  const isConnector = definitionType === DataMartDefinitionType.CONNECTOR;
+  const showAiHelper = isAiHelperEnabled && !isConnector;
 
   // Reset schema when operation is successful
   useEffect(() => {
@@ -77,8 +99,57 @@ export function DataMartSchemaSettings({ definitionType }: DataMartSchemaSetting
     resetSchema();
   }, [resetSchema]);
 
+  // Per-field AI handlers return the generated value WITHOUT mutating schema.
+  // The open EditableText popover writes the value into its local buffer via the
+  // `editorAction` render-fn so the user sees it in the textarea and must Apply or
+  // Cancel explicitly.
+  const handleGenerateFieldAlias = useCallback(
+    async (fieldName: string): Promise<string | undefined> => {
+      if (!dataMartId) return undefined;
+      return generateFieldAlias(dataMartId, fieldName);
+    },
+    [dataMartId, generateFieldAlias]
+  );
+
+  const handleGenerateFieldDescription = useCallback(
+    async (fieldName: string): Promise<string | undefined> => {
+      if (!dataMartId) return undefined;
+      return generateFieldDescription(dataMartId, fieldName);
+    },
+    [dataMartId, generateFieldDescription]
+  );
+
+  const handleGenerateAllFieldDescriptions = useCallback(async () => {
+    if (!dataMartId || !schema) return;
+    const generated = await generateAllFieldDescriptions(dataMartId);
+    if (!generated) return;
+    const byName = new Map(generated.map(field => [field.name, field.description]));
+    const updated = schema.fields.map(field => {
+      const description = byName.get(field.name);
+      return description ? { ...field, description } : field;
+    });
+    updateSchema(updated as typeof schema.fields);
+  }, [dataMartId, schema, generateAllFieldDescriptions, updateSchema]);
+
+  const handleGenerateAllFieldAliases = useCallback(async () => {
+    if (!dataMartId || !schema) return;
+    const generated = await generateAllFieldAliases(dataMartId);
+    if (!generated) return;
+    const byName = new Map(generated.map(field => [field.name, field.alias]));
+    const updated = schema.fields.map(field => {
+      const alias = byName.get(field.name);
+      return alias ? { ...field, alias } : field;
+    });
+    updateSchema(updated as typeof schema.fields);
+  }, [dataMartId, schema, generateAllFieldAliases, updateSchema]);
+
   // Disable buttons during schema operations (save or actualization)
   const isSchemaOperationInProgress = isLoading || isSchemaActualizationLoading;
+  const isAiBusy = aiPendingScope !== null;
+  const isBulkAiBusy =
+    aiPendingScope?.scope === DataMartMetadataScope.ALL_FIELD_DESCRIPTIONS ||
+    aiPendingScope?.scope === DataMartMetadataScope.ALL_FIELD_ALIASES;
+  const hasFields = !!schema && schema.fields.length > 0;
 
   if (!dataMart) {
     return <div>Error: Data mart not found</div>;
@@ -90,6 +161,15 @@ export function DataMartSchemaSettings({ definitionType }: DataMartSchemaSetting
         schema={schema}
         storageType={dataMart.storage.type}
         onFieldsChange={handleSchemaFieldsChange}
+        aiHelper={
+          showAiHelper
+            ? {
+                pendingScope: aiPendingScope,
+                onGenerateFieldAlias: handleGenerateFieldAlias,
+                onGenerateFieldDescription: handleGenerateFieldDescription,
+              }
+            : undefined
+        }
       />
       <div className='align-items-center mt-4 flex justify-between'>
         <div className='flex items-center gap-2'>
@@ -110,14 +190,63 @@ export function DataMartSchemaSettings({ definitionType }: DataMartSchemaSetting
           </Button>
         </div>
 
-        <Button
-          type='button'
-          variant='outline'
-          onClick={handleActualize}
-          disabled={!definitionType || isSchemaOperationInProgress}
-        >
-          Refresh schema
-        </Button>
+        <div className='flex items-center gap-2'>
+          {showAiHelper && (
+            <DropdownMenu>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      type='button'
+                      variant='outline'
+                      size='icon'
+                      disabled={!hasFields || Boolean(isSchemaOperationInProgress) || isAiBusy}
+                      aria-label='Generate field metadata with AI'
+                    >
+                      {isBulkAiBusy ? (
+                        <Loader2 className='h-4 w-4 animate-spin' aria-hidden='true' />
+                      ) : (
+                        <Sparkles className='h-4 w-4' aria-hidden='true' />
+                      )}
+                    </Button>
+                  </DropdownMenuTrigger>
+                </TooltipTrigger>
+                <TooltipContent side='bottom'>Generate field metadata with AI</TooltipContent>
+              </Tooltip>
+              <DropdownMenuContent align='end'>
+                <DropdownMenuItem
+                  className='cursor-pointer'
+                  disabled={!hasFields || isAiBusy}
+                  onClick={() => {
+                    void handleGenerateAllFieldDescriptions();
+                  }}
+                >
+                  <Sparkles className='mr-2 h-4 w-4' />
+                  Generate field descriptions
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  className='cursor-pointer'
+                  disabled={!hasFields || isAiBusy}
+                  onClick={() => {
+                    void handleGenerateAllFieldAliases();
+                  }}
+                >
+                  <Sparkles className='mr-2 h-4 w-4' />
+                  Generate field aliases
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
+
+          <Button
+            type='button'
+            variant='outline'
+            onClick={handleActualize}
+            disabled={!definitionType || isSchemaOperationInProgress}
+          >
+            Refresh schema
+          </Button>
+        </div>
       </div>
     </div>
   );

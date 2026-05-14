@@ -52,7 +52,7 @@ export function SchemaFieldActionsButton<TData>({
   const showAddNestedField = isRecordType && onAddNestedField && isRecordType(row.index);
   const showHideToggle = !!onToggleHiddenForReporting;
   const showDeleteField = !!onDeleteRow;
-  const showSeparator = (!!showAddNestedField || showHideToggle) && showDeleteField;
+  const showSeparator = (Boolean(showAddNestedField) || showHideToggle) && showDeleteField;
 
   return (
     <div className='px-3 text-right'>

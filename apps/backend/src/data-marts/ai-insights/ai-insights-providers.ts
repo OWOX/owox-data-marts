@@ -22,12 +22,14 @@ import {
   normalizeAiProviderName,
 } from '../../common/ai-insights/services/ai-chat-provider.token';
 import { AiInsightsOrchestratorService } from './ai-insight-orchestrator.service';
+import { GenerateDataMartMetadataOrchestratorService } from './generate-data-mart-metadata.orchestrator.service';
 import { FinalizeAgent } from './agent/finalize.agent';
 import { PlanAgent } from './agent/plan.agent';
 import { SqlAgent } from './agent/sql.agent';
 import { SqlBuilderAgent } from './agent/sql-builder.agent';
 import { TriageAgent } from './agent/triage.agent';
 import { GenerateInsightAgent } from './agent/generate-insight.agent';
+import { GenerateDataMartMetadataAgent } from './agent/generate-data-mart-metadata.agent';
 import { SqlErrorAdvisorAgent } from './agent/sql-error-advisor.agent';
 import { QueryRepairAgent } from './agent/query-repair.agent';
 import { PromptProcessedEventsService } from './prompt-processed-events.service';
@@ -42,6 +44,7 @@ export const aiInsightsProviders = [
   StorageRelatedPromptResolver,
   AiInsightsFacadeImpl,
   AiInsightsOrchestratorService,
+  GenerateDataMartMetadataOrchestratorService,
   TriageAgent,
   PlanAgent,
   SqlBuilderAgent,
@@ -50,6 +53,7 @@ export const aiInsightsProviders = [
   SqlErrorAdvisorAgent,
   FinalizeAgent,
   GenerateInsightAgent,
+  GenerateDataMartMetadataAgent,
   PromptTagHandler,
   PromptProcessedEventsService,
   DataMartInsightTemplateFacadeImpl,

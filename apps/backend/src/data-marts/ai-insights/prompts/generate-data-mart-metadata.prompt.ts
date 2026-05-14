@@ -1,0 +1,121 @@
+import {
+  DataMartMetadataScope,
+  GenerateDataMartMetadataAgentInput,
+  GenerateDataMartMetadataAgentResponseSchema,
+} from '../agent/types';
+import { buildJsonFormatSection, buildOutputRules } from './json-format.prompt';
+import { prepareSchema } from '../utils/prepare-schema';
+
+export function buildGenerateDataMartMetadataSystemPrompt(): string {
+  return `
+You are an analytics assistant that writes business-friendly metadata for a data mart.
+
+Your role:
+- Read a data mart schema (and optionally a small sample of rows) and produce concise, accurate descriptive metadata that a non-technical business user can understand.
+- You may be asked for the data mart title, the data mart description, a business-friendly alias for a single field, a business-friendly description for a single field, or descriptions for every field at once. Each request is for exactly one of these.
+
+Guidelines for the data mart title:
+- 3-8 words. Title Case.
+- Describe the dataset's subject and grain (e.g. "Daily Campaign Performance", "User Sessions Overview").
+- Avoid generic words like "data", "table", "dataset" alone.
+
+Guidelines for the data mart description:
+- 1-3 short sentences in plain English.
+- Explain WHAT the dataset contains (entities, grain, time coverage if obvious from the data) and a typical use case.
+- Do not enumerate every column.
+
+Guidelines for field aliases:
+- Convert the technical column name into a clear human label (e.g. "camp_name" -> "Campaign Name", "imps" -> "Impressions").
+- Use Title Case. Expand common abbreviations. No underscores.
+- Keep it short (1-4 words). Do not invent meaning that is not implied by the column name and sample values.
+
+Guidelines for field descriptions:
+- One sentence, starts with a capital letter, ends with a period.
+- Explain WHAT the value represents in business terms, not its data type.
+- Use sample values (when provided) to ground the description, but do not quote specific sample values literally.
+- Examples:
+  - "campaign_id" -> "Unique identifier of the advertising campaign."
+  - "ctr" -> "Click-through rate measured as clicks divided by impressions."
+  - "event_ts" -> "Timestamp of when the event occurred, in UTC."
+
+Hard rules:
+- NEVER invent fields that are not present in the input schema.
+- The "name" of every field in your output MUST exactly match a field name from the input schema (case-sensitive).
+- If the input already has a value for a field's alias or description and you have nothing meaningfully better, you MAY repeat it as-is.
+- If sample rows are not provided, base your output on column names and types only; in that case prefer cautious, generic wording.
+
+${buildJsonFormatSection(GenerateDataMartMetadataAgentResponseSchema)}
+`.trim();
+}
+
+export function buildGenerateDataMartMetadataUserPrompt(
+  input: GenerateDataMartMetadataAgentInput
+): string {
+  const {
+    scope,
+    dataMartTitle,
+    dataMartDescription,
+    schema,
+    sampleColumns,
+    sampleRows,
+    fieldName,
+  } = input;
+
+  const sampleSection =
+    sampleRows && sampleRows.length > 0
+      ? `Sample rows (up to 30):\n${JSON.stringify({ columns: sampleColumns ?? [], rows: sampleRows }, null, 2)}`
+      : 'Sample rows: (not provided — base your output on the schema only)';
+
+  return `
+Current data mart metadata:
+- Title: ${dataMartTitle?.trim() || '(not provided)'}
+- Description: ${dataMartDescription?.trim() || '(not provided)'}
+
+Data mart schema:
+${JSON.stringify(prepareSchema(schema), null, 2)}
+
+${sampleSection}
+
+Requested scope: ${scope}
+${fieldName ? `Target field: ${fieldName}` : ''}
+
+What to return in the JSON response:
+${describeScopeRequirements(scope, fieldName)}
+
+${buildOutputRules()}
+`.trim();
+}
+
+function describeScopeRequirements(scope: DataMartMetadataScope, fieldName?: string): string {
+  switch (scope) {
+    case DataMartMetadataScope.TITLE:
+      return '- "title": REQUIRED.\n- "description": OMIT.\n- "fields": OMIT.';
+    case DataMartMetadataScope.DESCRIPTION:
+      return '- "title": OMIT.\n- "description": REQUIRED.\n- "fields": OMIT.';
+    case DataMartMetadataScope.FIELD_ALIAS:
+      return [
+        '- "title": OMIT.',
+        '- "description": OMIT.',
+        `- "fields": REQUIRED. Include EXACTLY ONE entry where "name" == "${fieldName ?? ''}". Populate "alias". OMIT "description".`,
+      ].join('\n');
+    case DataMartMetadataScope.FIELD_DESCRIPTION:
+      return [
+        '- "title": OMIT.',
+        '- "description": OMIT.',
+        `- "fields": REQUIRED. Include EXACTLY ONE entry where "name" == "${fieldName ?? ''}". Populate "description". OMIT "alias".`,
+      ].join('\n');
+    case DataMartMetadataScope.ALL_FIELD_ALIASES:
+      return [
+        '- "title": OMIT.',
+        '- "description": OMIT.',
+        '- "fields": REQUIRED. Include EVERY field from the input schema. Populate "alias" for each. OMIT "description" — descriptions are not generated by this scope.',
+      ].join('\n');
+    case DataMartMetadataScope.ALL_FIELD_DESCRIPTIONS:
+    default:
+      return [
+        '- "title": OMIT.',
+        '- "description": OMIT.',
+        '- "fields": REQUIRED. Include EVERY field from the input schema. Populate "description" for each. OMIT "alias" — aliases are not generated by this scope.',
+      ].join('\n');
+  }
+}
