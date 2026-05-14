@@ -20,12 +20,13 @@ import { DataMartStatus } from '../../../features/data-marts/shared/enums';
 import { PromoBlock } from '../../../shared/components/PromoBlock/PromoBlock';
 import { GoogleSheetsIcon } from '../../../shared/icons/google-sheets-icon';
 import { InviteTeammatesCard } from '../../../shared/components/InviteTeammatesCard';
+import { useProjectRoute } from '../../../shared/hooks/useProjectRoute';
 
 function DataMartDestinationsContentInner() {
   const { dataMart } = useOutletContext<DataMartContextType>();
   const { dataDestinations, isLoading, fetchDataDestinations } = useDataDestinationsWithReports();
   const [isCreateDestinationOpen, setIsCreateDestinationOpen] = useState(false);
-
+  const { scope } = useProjectRoute();
   const handleOpenCreateDestination = useCallback(() => {
     setIsCreateDestinationOpen(true);
   }, []);
@@ -78,16 +79,15 @@ function DataMartDestinationsContentInner() {
               <PromoBlock
                 icon={GoogleSheetsIcon}
                 size='compact'
-                title='Use your data in&nbsp;Google&nbsp;Sheets'
-                description='No SQL needed — add columns and analyze data directly in&nbsp;Sheets'
+                title='Analyze your data in&nbsp;Google Sheets'
+                description='Access live data directly in&nbsp;Sheets&nbsp;— choose columns and build reports without SQL or&nbsp;CSV&nbsp;exports.'
                 primaryAction={{
-                  label: 'Add Google Sheets Destination',
+                  label: 'Connect Google Sheets',
                   onClick: handleOpenCreateDestination,
                 }}
                 secondaryAction={{
-                  label: 'Learn more',
-                  href: 'https://docs.owox.com/docs/destinations/supported-destinations/google-sheets/?utm_source=owox_data_marts&utm_medium=dm_page_destinations_tab&utm_campaign=no_sheets_destination_upsell_promo',
-                  external: true,
+                  label: 'View all destinations',
+                  href: scope('/data-destinations'),
                 }}
               />
               <InviteTeammatesCard

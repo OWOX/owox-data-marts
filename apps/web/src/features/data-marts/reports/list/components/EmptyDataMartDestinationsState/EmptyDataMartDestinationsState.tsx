@@ -16,18 +16,17 @@ export function EmptyDataMartDestinationsState({
   onOpenCreateDestination,
 }: Props) {
   const { scope } = useProjectRoute();
-
   // Promo variant (show after data mart is published)
   if (variant === 'promo') {
     return (
       <div className='flex flex-col gap-0.5'>
         <PromoBlock
           icon={GoogleSheetsIcon}
-          title='Use your data in&nbsp;Google&nbsp;Sheets'
+          title='Analyze your data in&nbsp;Google Sheets'
           subtitle='Ready to start reporting?'
-          description='No SQL needed — add columns and analyze data directly in&nbsp;Sheets'
+          description='Access live data directly in&nbsp;Sheets&nbsp;— choose columns and build reports without SQL or&nbsp;CSV&nbsp;exports.'
           primaryAction={{
-            label: 'Add Google Sheets Destination',
+            label: 'Connect Google Sheets',
             ...(onOpenCreateDestination
               ? {
                   onClick: onOpenCreateDestination,
@@ -37,9 +36,8 @@ export function EmptyDataMartDestinationsState({
                 }),
           }}
           secondaryAction={{
-            label: 'Learn more',
-            href: 'https://docs.owox.com/docs/destinations/supported-destinations/google-sheets/?utm_source=owox_data_marts&utm_medium=dm_page_destinations_tab&utm_campaign=empty_state',
-            external: true,
+            label: 'View all destinations',
+            href: scope('/data-destinations'),
           }}
         />
         <InviteTeammatesCard
