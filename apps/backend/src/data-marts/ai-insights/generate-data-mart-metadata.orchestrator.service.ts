@@ -15,6 +15,7 @@ import {
   QueryRow,
   SharedAgentContext,
 } from './ai-insights-types';
+import { AI_INSIGHTS_SCHEMA_EXPIRES_AFTER_MS } from './ai-insights.constants';
 
 const METADATA_SAMPLE_ROW_LIMIT = 30;
 
@@ -43,9 +44,10 @@ export class GenerateDataMartMetadataOrchestratorService {
       `Generating data mart metadata for ${request.dataMartId} (scope=${request.scope}, useSample=${request.useSample})`
     );
 
-    const dataMart = await this.dataMartService.getByIdAndProjectId(
+    const dataMart = await this.dataMartService.actualizeSchemaIfExpired(
       request.dataMartId,
-      request.projectId
+      request.projectId,
+      AI_INSIGHTS_SCHEMA_EXPIRES_AFTER_MS
     );
 
     if (dataMart.definitionType === DataMartDefinitionType.CONNECTOR) {

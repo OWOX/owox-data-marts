@@ -8,13 +8,12 @@ import {
   measureExecutionTime,
   toMeasuredExecutionBaseResult,
 } from '../../../common/utils/measure-execution-time';
+import { AI_INSIGHTS_SCHEMA_EXPIRES_AFTER_MS } from '../ai-insights.constants';
 
 export interface SqlContextPrefetchInput {
   projectId: string;
   dataMartId: string;
 }
-// refresh metadata if it was loaded more than 30 minutes ago.
-const SCHEMA_EXPIRES_AFTER_MS = 30 * 60 * 1000;
 
 @Injectable()
 export class AiAssistantSqlContextPrefetchService {
@@ -65,7 +64,7 @@ export class AiAssistantSqlContextPrefetchService {
     const dataMart = await this.dataMartService.actualizeSchemaIfExpired(
       input.dataMartId,
       input.projectId,
-      SCHEMA_EXPIRES_AFTER_MS
+      AI_INSIGHTS_SCHEMA_EXPIRES_AFTER_MS
     );
 
     return {
