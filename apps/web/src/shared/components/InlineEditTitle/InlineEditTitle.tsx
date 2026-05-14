@@ -3,6 +3,13 @@ import { cn } from '@owox/ui/lib/utils';
 import { Textarea } from '@owox/ui/components/textarea';
 import toast from 'react-hot-toast';
 
+export interface InlineEditTitleAiContext {
+  /** Replace the current value in the open input. Does not persist on its own. */
+  setValue: (value: string) => void;
+}
+
+export type InlineEditTitleAi = ReactNode | ((ctx: InlineEditTitleAiContext) => ReactNode);
+
 interface InlineEditTitleProps {
   title: string;
   onUpdate: (newTitle: string) => Promise<void>;
@@ -10,8 +17,12 @@ interface InlineEditTitleProps {
   errorMessage?: string;
   minWidth?: string;
   readOnly?: boolean;
-  /** Optional action button rendered absolute on the right of the input, visible only while the field is focused. */
-  aiButton?: ReactNode;
+  /**
+   * Optional action button rendered on the right of the input, visible only while
+   * focused. May be a render-function that receives `{ setValue }` so the action
+   * can write directly into the editor's local buffer (e.g. AI suggestion).
+   */
+  aiButton?: InlineEditTitleAi;
 }
 
 export function InlineEditTitle({
@@ -144,7 +155,7 @@ export function InlineEditTitle({
               }}
               className='shrink-0'
             >
-              {aiButton}
+              {typeof aiButton === 'function' ? aiButton({ setValue: setEditedTitle }) : aiButton}
             </span>
           )}
         </div>

@@ -153,7 +153,7 @@ export function EditableText({
               onChange={handleChange}
               onKeyDown={handleKeyDown}
               className={cn(
-                'min-h-[24px] min-w-0 flex-1 resize-y border-0 bg-transparent p-0 shadow-none',
+                'min-h-[24px] min-w-0 flex-1 resize-none border-0 bg-transparent p-0 shadow-none',
                 'focus-visible:border-0 focus-visible:ring-0 focus-visible:ring-offset-0'
               )}
               style={{ minHeight: String(Math.max(minRows * 24, 24)) + 'px' }}

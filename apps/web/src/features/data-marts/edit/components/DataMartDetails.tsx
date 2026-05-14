@@ -156,18 +156,8 @@ export function DataMartDetails({ id }: DataMartDetailsProps) {
 
   const { enabled: isAiHelperEnabled } = useAiHelperAvailability();
   const { generateTitle, pendingScope: aiPendingScope } = useAiHelper();
-
-  const handleGenerateTitle = useCallback(() => {
-    if (!dataMartId) return;
-    void (async () => {
-      const suggested = await generateTitle(dataMartId);
-      if (suggested && suggested !== dataMartTitle) {
-        await updateDataMartTitle(dataMartId, suggested);
-      }
-    })();
-  }, [dataMartId, dataMartTitle, generateTitle, updateDataMartTitle]);
-
   const isGeneratingTitle = aiPendingScope?.scope === DataMartMetadataScope.TITLE;
+  const showAiTitleHelper = isAiHelperEnabled && !isConnector;
 
   const handlePublish = useCallback(async () => {
     if (!dataMartId) return;
@@ -328,14 +318,21 @@ export function DataMartDetails({ id }: DataMartDetailsProps) {
               onUpdate={handleTitleUpdate}
               className='text-2xl font-medium'
               aiButton={
-                isAiHelperEnabled ? (
-                  <AiHelperButton
-                    onClick={handleGenerateTitle}
-                    isLoading={isGeneratingTitle}
-                    disabled={!dataMartId || aiPendingScope !== null}
-                    tooltip='Generate title with AI'
-                  />
-                ) : undefined
+                showAiTitleHelper
+                  ? ({ setValue }) => (
+                      <AiHelperButton
+                        onClick={() => {
+                          void (async () => {
+                            const suggested = await generateTitle(dataMartId);
+                            if (suggested) setValue(suggested);
+                          })();
+                        }}
+                        isLoading={isGeneratingTitle}
+                        disabled={!dataMartId || aiPendingScope !== null}
+                        tooltip='Generate title with AI'
+                      />
+                    )
+                  : undefined
               }
             />
           </div>

@@ -2,6 +2,15 @@ import { useState, useEffect, type KeyboardEvent, type ReactNode, useRef } from 
 import { cn } from '@owox/ui/lib/utils';
 import { Textarea } from '@owox/ui/components/textarea';
 
+export interface InlineEditDescriptionAiContext {
+  /** Replace the current value in the open textarea. Does not persist on its own. */
+  setValue: (value: string) => void;
+}
+
+export type InlineEditDescriptionAi =
+  | ReactNode
+  | ((ctx: InlineEditDescriptionAiContext) => ReactNode);
+
 interface InlineEditDescriptionProps {
   description: string | null;
   onUpdate: (newDescription: string | null) => Promise<void>;
@@ -9,8 +18,12 @@ interface InlineEditDescriptionProps {
   placeholder?: string;
   minWidth?: string;
   minHeight?: string;
-  /** Optional action button rendered in the bottom-right of the textarea while editing. */
-  aiButton?: ReactNode;
+  /**
+   * Optional action button rendered inside the editor while editing. May be a
+   * render-function that receives `{ setValue }` so the action can write directly
+   * into the editor's local buffer (e.g. AI suggestion).
+   */
+  aiButton?: InlineEditDescriptionAi;
 }
 
 export function InlineEditDescription({
@@ -84,15 +97,13 @@ export function InlineEditDescription({
   };
 
   if (isEditing) {
+    const resolvedAiButton =
+      typeof aiButton === 'function' ? aiButton({ setValue: setEditedDescription }) : aiButton;
+
     const editor = aiButton ? (
       // Shell-style editor: wrapper mimics textarea look; real <textarea> is borderless
       // and shares the visual surface with the AI button on the right.
-      <div
-        className={cn(
-          'flex w-full items-start gap-2 rounded-md bg-white p-2 dark:bg-white/4',
-          'focus-within:ring-primary focus-within:ring-1'
-        )}
-      >
+      <div className={cn('flex w-full items-start gap-2 rounded-md bg-white p-2 dark:bg-white/4')}>
         <Textarea
           ref={textareaRef}
           value={editedDescription}
@@ -111,7 +122,7 @@ export function InlineEditDescription({
             fontSize: 'inherit',
             lineHeight: 'inherit',
             fontFamily: 'inherit',
-            resize: 'vertical',
+            resize: 'none',
             minHeight: minHeight,
             // Inside flex shell we must NOT force textarea width — otherwise the AI
             // button gets pushed off-screen. Let flex-1 + min-w-0 handle sizing.
@@ -127,7 +138,7 @@ export function InlineEditDescription({
           }}
           className='shrink-0'
         >
-          {aiButton}
+          {resolvedAiButton}
         </span>
       </div>
     ) : (
@@ -151,7 +162,7 @@ export function InlineEditDescription({
           fontSize: 'inherit',
           lineHeight: 'inherit',
           fontFamily: 'inherit',
-          resize: 'vertical',
+          resize: 'none',
           minHeight: minHeight,
           minWidth: minWidth,
         }}

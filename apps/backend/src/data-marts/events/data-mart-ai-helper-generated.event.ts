@@ -13,14 +13,11 @@ export interface DataMartAiHelperGeneratedEventPayload {
  * The event `name` varies by scope (e.g. `data-mart.ai-assistant.title.generated`).
  */
 export class DataMartAiHelperGeneratedEvent extends BaseEvent<DataMartAiHelperGeneratedEventPayload> {
-  private readonly eventName: string;
-
   constructor(payload: DataMartAiHelperGeneratedEventPayload) {
     super(payload);
-    this.eventName = `data-mart.ai-assistant.${payload.scope}.generated`;
   }
 
   get name(): string {
-    return this.eventName;
+    return `data-mart.ai-assistant.${this.payload.scope}.generated`;
   }
 }

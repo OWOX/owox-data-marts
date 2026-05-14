@@ -19,7 +19,7 @@ import type {
 import type { DataMartContextType } from '../../model/context/types.ts';
 import { useOperationState, useSchemaState } from './hooks';
 import { SchemaContent } from './SchemaContent';
-import { DataMartMetadataScope, type DataMartDefinitionType } from '../../../shared/index.ts';
+import { DataMartDefinitionType, DataMartMetadataScope } from '../../../shared/index.ts';
 import { useAiHelper, useAiHelperAvailability } from '../../model/hooks';
 
 interface DataMartSchemaSettingsProps {
@@ -52,6 +52,10 @@ export function DataMartSchemaSettings({ definitionType }: DataMartSchemaSetting
     generateAllFieldAliases,
     pendingScope: aiPendingScope,
   } = useAiHelper();
+  // Backend rejects metadata generation for CONNECTOR data marts; hide the buttons
+  // so the user is never offered an action that's guaranteed to 422.
+  const isConnector = definitionType === DataMartDefinitionType.CONNECTOR;
+  const showAiHelper = isAiHelperEnabled && !isConnector;
 
   // Reset schema when operation is successful
   useEffect(() => {
@@ -158,7 +162,7 @@ export function DataMartSchemaSettings({ definitionType }: DataMartSchemaSetting
         storageType={dataMart.storage.type}
         onFieldsChange={handleSchemaFieldsChange}
         aiHelper={
-          isAiHelperEnabled
+          showAiHelper
             ? {
                 pendingScope: aiPendingScope,
                 onGenerateFieldAlias: handleGenerateFieldAlias,
@@ -187,7 +191,7 @@ export function DataMartSchemaSettings({ definitionType }: DataMartSchemaSetting
         </div>
 
         <div className='flex items-center gap-2'>
-          {isAiHelperEnabled && (
+          {showAiHelper && (
             <DropdownMenu>
               <Tooltip>
                 <TooltipTrigger asChild>

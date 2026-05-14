@@ -6,7 +6,7 @@ import { BusinessViolationException } from '../../common/exceptions/business-vio
 import { DataMartDefinitionValidatorFacade } from '../data-storage-types/facades/data-mart-definition-validator-facade.service';
 import { DataMartDefinitionType } from '../enums/data-mart-definition-type.enum';
 import { DataMartService } from '../services/data-mart.service';
-import { DataMartSqlTableService } from '../services/data-mart-sql-table.service';
+import { DataMartSampleDataService } from '../services/data-mart-sample-data.service';
 import { GenerateDataMartMetadataAgent } from './agent/generate-data-mart-metadata.agent';
 import {
   DataMartMetadataScope,
@@ -30,7 +30,7 @@ export class GenerateDataMartMetadataOrchestratorService {
 
   constructor(
     private readonly dataMartService: DataMartService,
-    private readonly dataMartSqlTableService: DataMartSqlTableService,
+    private readonly dataMartSampleDataService: DataMartSampleDataService,
     private readonly definitionValidatorFacade: DataMartDefinitionValidatorFacade,
     private readonly generateDataMartMetadataAgent: GenerateDataMartMetadataAgent,
     @Inject(AI_CHAT_PROVIDER)
@@ -70,9 +70,11 @@ export class GenerateDataMartMetadataOrchestratorService {
     let sampleColumns: string[] | null = null;
     let sampleRows: QueryRow[] | null = null;
     if (request.useSample) {
-      const sample = await this.dataMartSqlTableService.executeSqlToTable(dataMart, undefined, {
-        limit: METADATA_SAMPLE_ROW_LIMIT,
-      });
+      const sample = await this.dataMartSampleDataService.sampleAllRows(
+        request.dataMartId,
+        request.projectId,
+        METADATA_SAMPLE_ROW_LIMIT
+      );
       sampleColumns = sample.columns;
       sampleRows = sample.rows.map(row => this.toQueryRow(sample.columns, row));
     }
