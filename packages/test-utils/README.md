@@ -72,7 +72,7 @@ NONEXISTENT_UUID // '00000000-0000-0000-0000-000000000000'
 
 #### `LOOKER_STUDIO_CONFIG`
 
-Default Looker Studio destination config for report tests.
+Default Data Studio destination config for report tests.
 
 ```typescript
 LOOKER_STUDIO_CONFIG // { type: 'looker-studio-config', cacheLifetime: 3600 }
@@ -80,7 +80,7 @@ LOOKER_STUDIO_CONFIG // { type: 'looker-studio-config', cacheLifetime: 3600 }
 
 #### `LOOKER_STUDIO_CREDENTIALS`
 
-Default Looker Studio credentials for destination tests.
+Default Data Studio credentials for destination tests.
 
 ```typescript
 LOOKER_STUDIO_CREDENTIALS // { type: 'looker-studio-credentials' }
@@ -252,9 +252,9 @@ Fluent builder for DataDestination creation payloads.
 const payload = new DataDestinationBuilder().build();
 // { title: 'Test Destination', type: 'GOOGLE_SHEETS' }
 
-// Looker Studio with credentials
+// Data Studio with credentials
 const looker = new DataDestinationBuilder()
-  .withTitle('My Looker Destination')
+  .withTitle('My Data Studio Destination')
   .withType(DataDestinationType.LOOKER_STUDIO)
   .withCredentials({ type: 'looker-studio-credentials' })
   .build();
@@ -285,7 +285,7 @@ const payload = new ReportBuilder()
 - `.withTitle(title: string)` -- set title (default: `'Test Report'`)
 - `.withDataMartId(dataMartId: string)` -- **required** -- set the data mart ID
 - `.withDataDestinationId(dataDestinationId: string)` -- **required** -- set the data destination ID
-- `.withDestinationConfig(config: Record<string, unknown>)` -- set destination config (default: Looker Studio config)
+- `.withDestinationConfig(config: Record<string, unknown>)` -- set destination config (default: Data Studio config)
 - `.build()` -- returns the full payload. Throws if `dataMartId` or `dataDestinationId` is not set.
 
 #### `ScheduledTriggerBuilder`
