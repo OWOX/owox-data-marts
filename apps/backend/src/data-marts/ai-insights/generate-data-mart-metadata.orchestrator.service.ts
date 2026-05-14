@@ -79,6 +79,9 @@ export class GenerateDataMartMetadataOrchestratorService {
       );
       sampleColumns = sample.columns;
       sampleRows = sample.rows.map(row => this.toQueryRow(sample.columns, row));
+      this.logger.log(
+        `Fetched ${sample.rows.length} sample row(s) across ${sample.columns.length} column(s) for data mart ${request.dataMartId}`
+      );
     }
 
     const sharedContext: SharedAgentContext = {
@@ -149,6 +152,15 @@ export class GenerateDataMartMetadataOrchestratorService {
       case DataMartMetadataScope.ALL_FIELD_ALIASES:
         return {
           fields: aiResult.fields?.map(f => ({ name: f.name, alias: f.alias })) ?? [],
+        };
+      case DataMartMetadataScope.ALL_FIELD_METADATA:
+        return {
+          fields:
+            aiResult.fields?.map(f => ({
+              name: f.name,
+              alias: f.alias,
+              description: f.description,
+            })) ?? [],
         };
       case DataMartMetadataScope.ALL_FIELD_DESCRIPTIONS:
       default:
