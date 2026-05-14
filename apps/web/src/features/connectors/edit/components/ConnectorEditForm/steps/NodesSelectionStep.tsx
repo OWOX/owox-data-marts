@@ -63,6 +63,7 @@ export function NodesSelectionStep({
               name='selectedField'
               value={field.name}
               label={field.overview ?? field.name}
+              subtitle={field.description}
               checked={selectedField === field.name}
               onChange={value => {
                 onFieldSelect(value as string);
