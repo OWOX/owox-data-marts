@@ -23,7 +23,7 @@ e2e/
     ├── datamart-data-setup.spec.ts  # DataMart data setup: storage card, SQL editor, connector wizard
     ├── datamart-tabs.spec.ts        # Tab navigation + console error detection
     ├── destination.spec.ts          # Destinations: empty state, CRUD per type (parameterized)
-    ├── report.spec.ts               # Reports: Looker Studio card toggle, Email table CRUD, list, run
+    ├── report.spec.ts               # Reports: Data Studio card toggle, Email table CRUD, list, run
     ├── trigger.spec.ts              # Triggers: empty state, create, edit, toggle, delete, validation
     ├── run-history.spec.ts          # Run history: empty state, manual run, status badge, timestamps, log views
     ├── notifications.spec.ts        # Notification settings: page render, toggle, edit sheet
@@ -147,7 +147,7 @@ Located in `fixtures/api-helpers.ts`. Uses `page.request` to make API calls that
 |--------|---------|-------------|
 | `createPublishedDataMart(title?)` | `{ storage, datamart }` | Creates storage + datamart + SQL definition + publish in one call |
 | `createPublishedConnectorDataMart(title?)` | `{ storage, datamart }` | Creates storage + datamart + Bank of Canada connector definition + publish |
-| `setupDestinationWithReport(dataMartId)` | `{ destinationId, reportId }` | Creates a Looker Studio destination and links a report to a DataMart |
+| `setupDestinationWithReport(dataMartId)` | `{ destinationId, reportId }` | Creates a Data Studio destination and links a report to a DataMart |
 
 ### Usage in `beforeAll`
 
@@ -346,7 +346,7 @@ Tests empty state and CRUD operations for each destination type.
 Cleans up all existing reports and destinations via API, creates a fresh DM, navigates to the Destinations tab (`/reports`), verifies "Go to Destinations" link is visible.
 
 **Parameterized CRUD (4 types x 3 tests = 12 tests):**
-For each of Looker Studio, Email, Microsoft Teams, and Google Chat:
+For each of Data Studio, Email, Microsoft Teams, and Google Chat:
 
 - Renders destination card on the DM's Destinations tab
 - Edits destination title via the edit sheet on the standalone `/data-destinations` page
@@ -357,13 +357,13 @@ Requires `GOOGLE_SHEETS_SERVICE_ACCOUNT_JSON`. Creates a Google Sheets destinati
 
 ### `specs/report.spec.ts` -- Report Operations
 
-Tests report creation, editing, deletion, listing, and fire-and-forget runs for both Looker Studio (card/toggle pattern) and Email (table pattern).
+Tests report creation, editing, deletion, listing, and fire-and-forget runs for both Data Studio (card/toggle pattern) and Email (table pattern).
 
-**Looker Studio Pattern (3 tests):**
+**Data Studio Pattern (3 tests):**
 
-- Creates report by toggling the SwitchItemCard on (verifies "Available in Looker Studio")
+- Creates report by toggling the SwitchItemCard on (verifies "Available in Data Studio")
 - Edits report cache lifetime via the edit sheet (changes combobox to "4 hours")
-- Deletes report by toggling the card off (verifies "Not available in Looker Studio")
+- Deletes report by toggling the card off (verifies "Not available in Data Studio")
 
 **Email Pattern (3 tests):**
 
