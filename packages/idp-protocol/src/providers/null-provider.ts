@@ -6,6 +6,8 @@ import {
   ProjectMember,
   ProjectMemberInvitation,
   Role,
+  UserProvisioningSettings,
+  UserProvisioningSettingsUpdate,
 } from '../types/models.js';
 import { IdpOperationNotSupportedError } from '../types/errors.js';
 import { Express, Request, Response, NextFunction } from 'express';
@@ -137,6 +139,25 @@ export class NullIdpProvider implements IdpProvider {
     _actorUserId: string
   ): Promise<void> {
     throw new IdpOperationNotSupportedError('changeMemberRole');
+  }
+
+  async getUserProvisioningSettings(
+    _projectId: string,
+    _actorUserId: string
+  ): Promise<UserProvisioningSettings> {
+    return {
+      isApplicable: false,
+      organization: null,
+      settings: null,
+    };
+  }
+
+  async updateUserProvisioningSettings(
+    _projectId: string,
+    _actorUserId: string,
+    _settings: UserProvisioningSettingsUpdate
+  ): Promise<UserProvisioningSettings> {
+    throw new IdpOperationNotSupportedError('updateUserProvisioningSettings');
   }
 
   /**

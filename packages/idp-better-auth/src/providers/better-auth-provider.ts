@@ -11,6 +11,9 @@ import {
   ProjectMemberInvitation,
   GetProjectMembersOptions,
   Role,
+  UserProvisioningSettings,
+  UserProvisioningSettingsUpdate,
+  IdpOperationNotSupportedError,
 } from '@owox/idp-protocol';
 import { Express, type Request, Response, NextFunction } from 'express';
 import express from 'express';
@@ -292,5 +295,24 @@ export class BetterAuthProvider
     _actorUserId: string
   ): Promise<void> {
     await this.userManagementService.ensureUserInDefaultOrganization(userId, newRole);
+  }
+
+  async getUserProvisioningSettings(
+    _projectId: string,
+    _actorUserId: string
+  ): Promise<UserProvisioningSettings> {
+    return {
+      isApplicable: false,
+      organization: null,
+      settings: null,
+    };
+  }
+
+  async updateUserProvisioningSettings(
+    _projectId: string,
+    _actorUserId: string,
+    _settings: UserProvisioningSettingsUpdate
+  ): Promise<UserProvisioningSettings> {
+    throw new IdpOperationNotSupportedError('updateUserProvisioningSettings');
   }
 }

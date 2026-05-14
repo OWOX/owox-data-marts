@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, jest } from '@jest/globals';
+import { IdpOperationNotSupportedError } from '@owox/idp-protocol';
 import type { DatabaseStore } from '../store/DatabaseStore.js';
 import type { UserManagementService } from '../services/user-management-service.js';
 import type { DatabaseUser } from '../types/index.js';
@@ -497,6 +498,31 @@ describe('BetterAuthProvider', () => {
       await expect(
         provider.inviteMember('proj-1', 'bad@x.io', 'viewer', 'admin-1')
       ).rejects.toThrow('db down');
+    });
+  });
+
+  describe('user provisioning settings', () => {
+    it('returns not applicable settings', async () => {
+      const provider = await createProvider();
+
+      const actual = await provider.getUserProvisioningSettings('proj-1', 'admin-1');
+
+      expect(actual).toEqual({
+        isApplicable: false,
+        organization: null,
+        settings: null,
+      });
+    });
+
+    it('throws when updating settings', async () => {
+      const provider = await createProvider();
+
+      await expect(
+        provider.updateUserProvisioningSettings('proj-1', 'admin-1', {
+          mode: 'automatic',
+          defaultRole: 'viewer',
+        })
+      ).rejects.toBeInstanceOf(IdpOperationNotSupportedError);
     });
   });
 });

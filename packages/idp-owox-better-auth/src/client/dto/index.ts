@@ -9,3 +9,4 @@ export * from './revocationDto.js';
 export * from './tokenDto.js';
 export * from './tokenType.js';
 export * from './projectMembersDto.js';
+export * from './userProvisioningDto.js';

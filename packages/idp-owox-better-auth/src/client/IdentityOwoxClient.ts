@@ -24,6 +24,10 @@ import {
   OwoxInviteProjectMemberResponseSchema,
   OwoxProjectMembersResponse,
   OwoxProjectMembersResponseSchema,
+  OwoxUpdateUserProvisioningSettingsRequest,
+  OwoxUpdateUserProvisioningSettingsRequestSchema,
+  OwoxUserProvisioningSettingsResponse,
+  OwoxUserProvisioningSettingsResponseSchema,
   RevocationRequest,
   RevocationResponse,
   TokenRequest,
@@ -367,6 +371,96 @@ export class IdentityOwoxClient {
         err,
         { projectId, userId, newRole },
         'Failed to change project member role'
+      );
+    }
+  }
+
+  /**
+   * GET /idp/bi-project/:projectId/user-provisioning-settings.
+   * See `inviteProjectMember` for C2C backchannel rationale.
+   */
+  async getUserProvisioningSettings(
+    projectId: string,
+    actorUserId: string
+  ): Promise<OwoxUserProvisioningSettingsResponse> {
+    if (
+      !this.impersonatedIdTokenFetcher ||
+      !this.c2cServiceAccountEmail ||
+      !this.c2cTargetAudience ||
+      !this.clientBackchannelPrefix
+    ) {
+      throw new IdpFailedException(
+        'C2C authentication is not configured. Cannot fetch user provisioning settings.',
+        { context: { projectId, actorUserId } }
+      );
+    }
+
+    const idToken = await this.impersonatedIdTokenFetcher.getIdToken(
+      this.c2cServiceAccountEmail,
+      this.c2cTargetAudience
+    );
+    const url = `${this.clientBackchannelPrefix}/idp/bi-project/${projectId}/user-provisioning-settings`;
+
+    try {
+      const { data } = await this.http.get<unknown>(url, {
+        headers: {
+          Authorization: `Bearer ${idToken}`,
+        },
+        params: {
+          biUserId: actorUserId,
+        },
+      });
+      return OwoxUserProvisioningSettingsResponseSchema.parse(data);
+    } catch (err) {
+      this.handleAxiosError(
+        err,
+        { projectId, actorUserId },
+        'Failed to fetch user provisioning settings'
+      );
+    }
+  }
+
+  /**
+   * PUT /idp/bi-project/:projectId/user-provisioning-settings.
+   * See `inviteProjectMember` for C2C backchannel rationale.
+   */
+  async updateUserProvisioningSettings(
+    projectId: string,
+    actorUserId: string,
+    settings: OwoxUpdateUserProvisioningSettingsRequest
+  ): Promise<OwoxUserProvisioningSettingsResponse> {
+    if (
+      !this.impersonatedIdTokenFetcher ||
+      !this.c2cServiceAccountEmail ||
+      !this.c2cTargetAudience ||
+      !this.clientBackchannelPrefix
+    ) {
+      throw new IdpFailedException(
+        'C2C authentication is not configured. Cannot update user provisioning settings.',
+        { context: { projectId, actorUserId, settings } }
+      );
+    }
+
+    const idToken = await this.impersonatedIdTokenFetcher.getIdToken(
+      this.c2cServiceAccountEmail,
+      this.c2cTargetAudience
+    );
+    const url = `${this.clientBackchannelPrefix}/idp/bi-project/${projectId}/user-provisioning-settings`;
+    const parsedSettings = OwoxUpdateUserProvisioningSettingsRequestSchema.parse(settings);
+    const body = { biUserId: actorUserId, ...parsedSettings };
+
+    try {
+      const { data } = await this.http.put<unknown>(url, body, {
+        headers: {
+          Authorization: `Bearer ${idToken}`,
+        },
+      });
+      return OwoxUserProvisioningSettingsResponseSchema.parse(data);
+    } catch (err) {
+      this.handleAxiosError(
+        err,
+        { projectId, actorUserId, settings },
+        'Failed to update user provisioning settings'
       );
     }
   }
