@@ -472,6 +472,8 @@ export class GoogleSheetsReportWriter implements DataDestinationReportWriter {
    * Initializes the Google Sheets service with credentials and finds the target sheet
    */
   private async initializeService(report: Report): Promise<void> {
+    // Assign before any async work — `finalize(error)` reads `this.report.dataMart` on the failure path.
+    this.report = report;
     return this.executeWithErrorHandling(async () => {
       if (!isGoogleSheetsConfig(report.destinationConfig)) {
         throw new Error('Invalid Google Sheets destination configuration provided');
@@ -516,7 +518,6 @@ export class GoogleSheetsReportWriter implements DataDestinationReportWriter {
       this.availableColumnsCount = sheet.properties?.gridProperties?.columnCount ?? 0;
       this.spreadsheetTimeZone = spreadsheet.properties?.timeZone ?? 'UTC';
       this.dataMartTitle = report.dataMart.title;
-      this.report = report;
     }, 'Initializing Google Sheets service and locating target sheet');
   }
 

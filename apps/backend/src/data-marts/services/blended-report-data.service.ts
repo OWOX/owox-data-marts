@@ -79,7 +79,6 @@ export class BlendedReportDataService {
       blendableSchema.blendedFields,
       blendableSchema.availableSources,
       allRelationships,
-      dataMart.id,
       dataMart.projectId,
       publicOrigin
     );
@@ -141,9 +140,11 @@ export class BlendedReportDataService {
    * Builds the minimal set of ResolvedRelationshipChain entries needed to satisfy
    * the columns requested in columnConfig.
    *
-   * For direct relationships (transitiveDepth === 1), parentAlias is 'main'.
-   * For transitive relationships (transitiveDepth > 1), parentAlias is the targetAlias
-   * of the preceding relationship in the chain.
+   * Each chain's `cteName` is derived from the full `aliasPath` (dots → underscores)
+   * and `parentAlias` is the parent's `cteName` ('main' at the root). The path-prefixed
+   * `cteName` is what guarantees CTE uniqueness when two relationships in the join
+   * tree share the same `targetAlias` (allowed under the
+   * `(sourceDataMart, targetAlias)` unique constraint).
    *
    * When a requested field lives at depth ≥ 2 (e.g. A→B→C, C-field requested), ALL
    * ancestor relationships along the aliasPath are also included — otherwise the
@@ -156,7 +157,6 @@ export class BlendedReportDataService {
     blendedFields: BlendedFieldDto[],
     availableSources: AvailableSourceDto[],
     directRelationships: DataMartRelationship[],
-    rootDataMartId: string,
     projectId: string,
     publicOrigin: string
   ): Promise<ResolvedRelationshipChain[]> {
@@ -195,19 +195,15 @@ export class BlendedReportDataService {
       }
     }
 
-    const fieldsByRelId = new Map<string, BlendedFieldDto[]>();
+    // Bucket by `aliasPath`, not `sourceRelationshipId` — one relationship can be the leaf of several paths when its parent is reachable via different aliases.
+    const fieldsByAliasPath = new Map<string, BlendedFieldDto[]>();
     for (const field of requestedBlendedFields) {
-      const bucket = fieldsByRelId.get(field.sourceRelationshipId) ?? [];
+      const bucket = fieldsByAliasPath.get(field.aliasPath) ?? [];
       bucket.push(field);
-      fieldsByRelId.set(field.sourceRelationshipId, bucket);
+      fieldsByAliasPath.set(field.aliasPath, bucket);
     }
 
-    // Parent-first order guarantees dataMartAliasMap has the parent's alias registered
-    // by the time we compute parentAlias for a child.
     const sortedSources = [...neededSources].sort((a, b) => a.depth - b.depth);
-
-    const dataMartAliasMap = new Map<string, string>();
-    dataMartAliasMap.set(rootDataMartId, 'main');
 
     const columnConfigSet = new Set(columnConfig);
     const chains: ResolvedRelationshipChain[] = [];
@@ -215,8 +211,9 @@ export class BlendedReportDataService {
       const rel = relationshipsById.get(src.relationshipId);
       if (!rel) continue;
 
-      const parentAlias =
-        src.depth === 1 ? 'main' : (dataMartAliasMap.get(rel.sourceDataMart.id) ?? 'main');
+      const segments = src.aliasPath.split('.');
+      const cteName = segments.join('_');
+      const parentAlias = segments.length === 1 ? 'main' : segments.slice(0, -1).join('_');
 
       const targetTableReference = await this.tableReferenceService.resolveTableName(
         rel.targetDataMart.id,
@@ -229,7 +226,7 @@ export class BlendedReportDataService {
         '/data-setup'
       );
 
-      const chainBlendedFields = (fieldsByRelId.get(rel.id) ?? []).map(f => ({
+      const chainBlendedFields = (fieldsByAliasPath.get(src.aliasPath) ?? []).map(f => ({
         targetFieldName: f.originalFieldName,
         outputAlias: f.name,
         // Hide fields referenced only by filterConfig — they flow through CTEs so
@@ -242,12 +239,11 @@ export class BlendedReportDataService {
         relationship: rel,
         targetTableReference,
         parentAlias,
+        cteName,
         blendedFields: chainBlendedFields,
         targetDataMartTitle: rel.targetDataMart.title,
         targetDataMartUrl,
       });
-
-      dataMartAliasMap.set(rel.targetDataMart.id, rel.targetAlias);
     }
 
     this.assertNoChainCollisions(chains);
@@ -256,29 +252,34 @@ export class BlendedReportDataService {
   }
 
   /**
-   * Verifies that all chains can co-exist in a single SQL query:
-   *  - `targetAlias` must be unique across chains (otherwise we emit two CTEs
-   *    with the same name).
-   *  - `outputAlias` of every blended field must be unique across all chains
-   *    (otherwise the final SELECT has two columns with the same alias).
+   * Defence-in-depth check that runs after `cteName`/`outputAlias` have been
+   * computed:
+   *  - `cteName` must be unique across chains. Path-prefixed names derived from
+   *    `aliasPath` should make this impossible, but a pathological mix of
+   *    `targetAlias` values (e.g. `"a_b"` at one level and `"a"` then `"b"` at
+   *    two levels) could still flatten to the same identifier — catch it here
+   *    instead of letting the database reject duplicate CTE names.
+   *  - `outputAlias` must be unique across all chains' blended fields, otherwise
+   *    the final SELECT would have two columns with the same name.
    *
-   * Both classes of conflict are user-fixable misconfigurations rather than
-   * platform bugs, so we surface them as `BusinessViolationException` with a
-   * pointer to the offending relationships.
+   * Both classes of conflict are user-fixable, so we surface them as
+   * `BusinessViolationException` with a pointer to the offending relationships.
    */
   private assertNoChainCollisions(chains: ResolvedRelationshipChain[]): void {
-    const aliasOwners = new Map<string, string[]>();
+    const cteNameOwners = new Map<string, string[]>();
     for (const chain of chains) {
-      const owners = aliasOwners.get(chain.relationship.targetAlias) ?? [];
+      const owners = cteNameOwners.get(chain.cteName) ?? [];
       owners.push(chain.relationship.id);
-      aliasOwners.set(chain.relationship.targetAlias, owners);
+      cteNameOwners.set(chain.cteName, owners);
     }
-    for (const [alias, owners] of aliasOwners) {
+    for (const [cteName, owners] of cteNameOwners) {
       if (owners.length > 1) {
         throw new BusinessViolationException(
-          `Duplicate CTE name: targetAlias "${alias}" is used by multiple relationships in the join chain. ` +
+          `Duplicate CTE name: cteName "${cteName}" is produced by multiple relationship chains. ` +
+            `This typically means two relationship targetAlias values flatten to the same identifier ` +
+            `(e.g. "a_b" at one level vs "a"+"b" at two levels). ` +
             `Rename the targetAlias on one of these relationships so each chain produces a unique CTE.`,
-          { targetAlias: alias, relationshipIds: owners }
+          { cteName, relationshipIds: owners }
         );
       }
     }

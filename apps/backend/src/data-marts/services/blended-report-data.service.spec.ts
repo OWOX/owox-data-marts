@@ -517,9 +517,11 @@ describe('BlendedReportDataService', () => {
       );
     });
 
-    it('throws when two chains share the same targetAlias (CTE name collision)', async () => {
-      // A→B (alias="orders") and B→C (alias="orders") — both legit per-source but
-      // would produce duplicate CTE names in the generated SQL.
+    it('disambiguates CTE names with parent path when two chains share the same targetAlias', async () => {
+      // A→B (alias="orders") and B→C (alias="orders") — both legit per-source
+      // (the `(sourceDataMart, targetAlias)` unique constraint allows it). The
+      // builder must produce distinct CTE names ("orders" and "orders_orders")
+      // rather than rejecting the configuration.
       const columnConfig = ['b_orders__field', 'orders__field'];
       const report = makeReport({ columnConfig });
 
@@ -599,10 +601,268 @@ describe('BlendedReportDataService', () => {
         return ids.map(id => byId[id]).filter(Boolean);
       });
       tableReferenceService.resolveTableName.mockResolvedValue('table_ref');
+      blendedQueryBuilderFacade.buildBlendedQuery.mockResolvedValue('SELECT ...');
+
+      await service.resolveBlendingDecision(report);
+
+      const [, context] = blendedQueryBuilderFacade.buildBlendedQuery.mock.calls[0];
+      expect(context!.chains).toHaveLength(2);
+
+      const abChain = context!.chains.find(c => c.relationship.id === 'rel-ab');
+      expect(abChain).toBeDefined();
+      expect(abChain!.parentAlias).toBe('main');
+      expect(abChain!.cteName).toBe('orders');
+
+      const bcChain = context!.chains.find(c => c.relationship.id === 'rel-bc');
+      expect(bcChain).toBeDefined();
+      expect(bcChain!.parentAlias).toBe('orders');
+      expect(bcChain!.cteName).toBe('orders_orders');
+    });
+
+    it('throws when two paths flatten to the same cteName (path-segment ambiguity safeguard)', async () => {
+      // Pathological: targetAlias "a_b" at depth 1 vs targetAlias "a" + "b" at depths 1/2
+      // both flatten to the cteName "a_b". The path-prefix scheme normally guarantees
+      // uniqueness, but with arbitrary underscores in targetAlias the flattening can
+      // collide — the safeguard surfaces this as a clear error instead of broken SQL.
+      const columnConfig = ['a_b__x', 'a_b__y'];
+      const report = makeReport({ columnConfig });
+
+      const fieldFromSingle = new BlendedFieldDto();
+      fieldFromSingle.name = 'a_b__x';
+      fieldFromSingle.sourceRelationshipId = 'rel-ab-direct';
+      fieldFromSingle.sourceDataMartId = 'dm-ab';
+      fieldFromSingle.targetAlias = 'a_b';
+      fieldFromSingle.originalFieldName = 'x';
+      fieldFromSingle.type = 'STRING';
+      fieldFromSingle.isHidden = false;
+      fieldFromSingle.aggregateFunction = 'STRING_AGG';
+      fieldFromSingle.transitiveDepth = 1;
+      fieldFromSingle.aliasPath = 'a_b';
+      fieldFromSingle.outputPrefix = 'a_b';
+
+      const fieldFromTwoStep = new BlendedFieldDto();
+      fieldFromTwoStep.name = 'a_b__y';
+      fieldFromTwoStep.sourceRelationshipId = 'rel-a-b';
+      fieldFromTwoStep.sourceDataMartId = 'dm-b';
+      fieldFromTwoStep.targetAlias = 'b';
+      fieldFromTwoStep.originalFieldName = 'y';
+      fieldFromTwoStep.type = 'STRING';
+      fieldFromTwoStep.isHidden = false;
+      fieldFromTwoStep.aggregateFunction = 'STRING_AGG';
+      fieldFromTwoStep.transitiveDepth = 2;
+      fieldFromTwoStep.aliasPath = 'a.b';
+      fieldFromTwoStep.outputPrefix = 'a_b';
+
+      blendableSchemaService.computeBlendableSchema.mockResolvedValue({
+        nativeFields: [],
+        availableSources: [
+          {
+            aliasPath: 'a_b',
+            title: 'AB',
+            defaultAlias: 'a_b',
+            depth: 1,
+            fieldCount: 1,
+            isIncluded: true,
+            relationshipId: 'rel-ab-direct',
+            dataMartId: 'dm-ab',
+          },
+          {
+            aliasPath: 'a',
+            title: 'A',
+            defaultAlias: 'a',
+            depth: 1,
+            fieldCount: 0,
+            isIncluded: true,
+            relationshipId: 'rel-main-a',
+            dataMartId: 'dm-a',
+          },
+          {
+            aliasPath: 'a.b',
+            title: 'B',
+            defaultAlias: 'a_b',
+            depth: 2,
+            fieldCount: 1,
+            isIncluded: true,
+            relationshipId: 'rel-a-b',
+            dataMartId: 'dm-b',
+          },
+        ],
+        blendedFields: [fieldFromSingle, fieldFromTwoStep],
+      });
+
+      const relAbDirect = {
+        id: 'rel-ab-direct',
+        targetAlias: 'a_b',
+        sourceDataMart: { id: 'dm-1' },
+        targetDataMart: { id: 'dm-ab', title: 'AB' },
+        joinConditions: [{ sourceFieldName: 'id', targetFieldName: 'id' }],
+      } as unknown as DataMartRelationship;
+      const relMainA = {
+        id: 'rel-main-a',
+        targetAlias: 'a',
+        sourceDataMart: { id: 'dm-1' },
+        targetDataMart: { id: 'dm-a', title: 'A' },
+        joinConditions: [{ sourceFieldName: 'id', targetFieldName: 'id' }],
+      } as unknown as DataMartRelationship;
+      const relAB = {
+        id: 'rel-a-b',
+        targetAlias: 'b',
+        sourceDataMart: { id: 'dm-a' },
+        targetDataMart: { id: 'dm-b', title: 'B' },
+        joinConditions: [{ sourceFieldName: 'id', targetFieldName: 'id' }],
+      } as unknown as DataMartRelationship;
+
+      relationshipService.findBySourceDataMartId.mockResolvedValue([relAbDirect, relMainA]);
+      relationshipService.findByIds.mockImplementation(async (ids: string[]) => {
+        const byId: Record<string, DataMartRelationship> = {
+          'rel-ab-direct': relAbDirect,
+          'rel-main-a': relMainA,
+          'rel-a-b': relAB,
+        };
+        return ids.map(id => byId[id]).filter(Boolean);
+      });
+      tableReferenceService.resolveTableName.mockResolvedValue('table_ref');
 
       await expect(service.resolveBlendingDecision(report)).rejects.toThrow(
-        /targetAlias.+orders.+collision|duplicate.+CTE.+orders/i
+        /cteName "a_b" is produced by multiple/
       );
+    });
+
+    it('disambiguates CTE names in a diamond pattern (two paths reaching same target with same targetAlias)', async () => {
+      // Diamond: main→left→shared and main→right→shared, both with targetAlias="shared".
+      // Pre-fix this used to throw a "duplicate CTE name" error; now it must
+      // produce CTE names "left_shared" and "right_shared".
+      const columnConfig = ['left_shared__value', 'right_shared__value'];
+      const report = makeReport({ columnConfig });
+
+      const leftField = new BlendedFieldDto();
+      leftField.name = 'left_shared__value';
+      leftField.sourceRelationshipId = 'rel-left-shared';
+      leftField.sourceDataMartId = 'dm-shared';
+      leftField.targetAlias = 'shared';
+      leftField.originalFieldName = 'value';
+      leftField.type = 'STRING';
+      leftField.isHidden = false;
+      leftField.aggregateFunction = 'STRING_AGG';
+      leftField.transitiveDepth = 2;
+      leftField.aliasPath = 'left.shared';
+      leftField.outputPrefix = 'left_shared';
+
+      const rightField = new BlendedFieldDto();
+      rightField.name = 'right_shared__value';
+      rightField.sourceRelationshipId = 'rel-right-shared';
+      rightField.sourceDataMartId = 'dm-shared';
+      rightField.targetAlias = 'shared';
+      rightField.originalFieldName = 'value';
+      rightField.type = 'STRING';
+      rightField.isHidden = false;
+      rightField.aggregateFunction = 'STRING_AGG';
+      rightField.transitiveDepth = 2;
+      rightField.aliasPath = 'right.shared';
+      rightField.outputPrefix = 'right_shared';
+
+      blendableSchemaService.computeBlendableSchema.mockResolvedValue({
+        nativeFields: [],
+        availableSources: [
+          {
+            aliasPath: 'left',
+            title: 'Left',
+            defaultAlias: 'left',
+            depth: 1,
+            fieldCount: 0,
+            isIncluded: true,
+            relationshipId: 'rel-main-left',
+            dataMartId: 'dm-left',
+          },
+          {
+            aliasPath: 'right',
+            title: 'Right',
+            defaultAlias: 'right',
+            depth: 1,
+            fieldCount: 0,
+            isIncluded: true,
+            relationshipId: 'rel-main-right',
+            dataMartId: 'dm-right',
+          },
+          {
+            aliasPath: 'left.shared',
+            title: 'Shared',
+            defaultAlias: 'left_shared',
+            depth: 2,
+            fieldCount: 1,
+            isIncluded: true,
+            relationshipId: 'rel-left-shared',
+            dataMartId: 'dm-shared',
+          },
+          {
+            aliasPath: 'right.shared',
+            title: 'Shared',
+            defaultAlias: 'right_shared',
+            depth: 2,
+            fieldCount: 1,
+            isIncluded: true,
+            relationshipId: 'rel-right-shared',
+            dataMartId: 'dm-shared',
+          },
+        ],
+        blendedFields: [leftField, rightField],
+      });
+
+      const relMainLeft = {
+        id: 'rel-main-left',
+        targetAlias: 'left',
+        sourceDataMart: { id: 'dm-1' },
+        targetDataMart: { id: 'dm-left', title: 'Left' },
+        joinConditions: [{ sourceFieldName: 'id', targetFieldName: 'id' }],
+      } as unknown as DataMartRelationship;
+      const relMainRight = {
+        id: 'rel-main-right',
+        targetAlias: 'right',
+        sourceDataMart: { id: 'dm-1' },
+        targetDataMart: { id: 'dm-right', title: 'Right' },
+        joinConditions: [{ sourceFieldName: 'id', targetFieldName: 'id' }],
+      } as unknown as DataMartRelationship;
+      const relLeftShared = {
+        id: 'rel-left-shared',
+        targetAlias: 'shared',
+        sourceDataMart: { id: 'dm-left' },
+        targetDataMart: { id: 'dm-shared', title: 'Shared' },
+        joinConditions: [{ sourceFieldName: 'id', targetFieldName: 'id' }],
+      } as unknown as DataMartRelationship;
+      const relRightShared = {
+        id: 'rel-right-shared',
+        targetAlias: 'shared',
+        sourceDataMart: { id: 'dm-right' },
+        targetDataMart: { id: 'dm-shared', title: 'Shared' },
+        joinConditions: [{ sourceFieldName: 'id', targetFieldName: 'id' }],
+      } as unknown as DataMartRelationship;
+
+      relationshipService.findBySourceDataMartId.mockResolvedValue([relMainLeft, relMainRight]);
+      relationshipService.findByIds.mockImplementation(async (ids: string[]) => {
+        const byId: Record<string, DataMartRelationship> = {
+          'rel-main-left': relMainLeft,
+          'rel-main-right': relMainRight,
+          'rel-left-shared': relLeftShared,
+          'rel-right-shared': relRightShared,
+        };
+        return ids.map(id => byId[id]).filter(Boolean);
+      });
+      tableReferenceService.resolveTableName.mockResolvedValue('table_ref');
+      blendedQueryBuilderFacade.buildBlendedQuery.mockResolvedValue('SELECT ...');
+
+      await service.resolveBlendingDecision(report);
+
+      const [, context] = blendedQueryBuilderFacade.buildBlendedQuery.mock.calls[0];
+      const cteNames = context!.chains.map(c => c.cteName).sort();
+      expect(cteNames).toEqual(['left', 'left_shared', 'right', 'right_shared']);
+
+      const leftShared = context!.chains.find(c => c.relationship.id === 'rel-left-shared')!;
+      expect(leftShared.cteName).toBe('left_shared');
+      expect(leftShared.parentAlias).toBe('left');
+
+      const rightShared = context!.chains.find(c => c.relationship.id === 'rel-right-shared')!;
+      expect(rightShared.cteName).toBe('right_shared');
+      expect(rightShared.parentAlias).toBe('right');
     });
 
     it('includes intermediate relationships when only a deep (transitiveDepth>1) field is selected', async () => {
@@ -720,6 +980,138 @@ describe('BlendedReportDataService', () => {
       // Sorted by transitiveDepth: A→B (depth 1) must come before B→C (depth 2).
       expect(context!.chains[0].relationship.id).toBe('rel-ab');
       expect(context!.chains[1].relationship.id).toBe('rel-bc');
+    });
+
+    it('routes blended fields to the chain matching their aliasPath when one relationship is reused by multiple paths', async () => {
+      const columnConfig = ['orders_products__product_price', 'orders_2_products__product_price'];
+      const report = makeReport({ columnConfig });
+
+      const ordersProductsField = new BlendedFieldDto();
+      ordersProductsField.name = 'orders_products__product_price';
+      ordersProductsField.sourceRelationshipId = 'rel-orders-products';
+      ordersProductsField.sourceDataMartId = 'dm-products';
+      ordersProductsField.targetAlias = 'products';
+      ordersProductsField.originalFieldName = 'product_price';
+      ordersProductsField.type = 'INTEGER';
+      ordersProductsField.isHidden = false;
+      ordersProductsField.aggregateFunction = 'SUM';
+      ordersProductsField.transitiveDepth = 2;
+      ordersProductsField.aliasPath = 'orders.products';
+      ordersProductsField.outputPrefix = 'orders_products';
+
+      const orders2ProductsField = new BlendedFieldDto();
+      orders2ProductsField.name = 'orders_2_products__product_price';
+      orders2ProductsField.sourceRelationshipId = 'rel-orders-products';
+      orders2ProductsField.sourceDataMartId = 'dm-products';
+      orders2ProductsField.targetAlias = 'products';
+      orders2ProductsField.originalFieldName = 'product_price';
+      orders2ProductsField.type = 'INTEGER';
+      orders2ProductsField.isHidden = false;
+      orders2ProductsField.aggregateFunction = 'SUM';
+      orders2ProductsField.transitiveDepth = 2;
+      orders2ProductsField.aliasPath = 'orders_2.products';
+      orders2ProductsField.outputPrefix = 'orders_2_products';
+
+      blendableSchemaService.computeBlendableSchema.mockResolvedValue({
+        nativeFields: [],
+        availableSources: [
+          {
+            aliasPath: 'orders',
+            title: 'Orders',
+            defaultAlias: 'orders',
+            depth: 1,
+            fieldCount: 0,
+            isIncluded: true,
+            relationshipId: 'rel-campaigns-orders',
+            dataMartId: 'dm-orders',
+          },
+          {
+            aliasPath: 'orders_2',
+            title: 'Orders',
+            defaultAlias: 'orders_2',
+            depth: 1,
+            fieldCount: 0,
+            isIncluded: true,
+            relationshipId: 'rel-campaigns-orders-2',
+            dataMartId: 'dm-orders',
+          },
+          {
+            aliasPath: 'orders.products',
+            title: 'Products',
+            defaultAlias: 'orders_products',
+            depth: 2,
+            fieldCount: 1,
+            isIncluded: true,
+            relationshipId: 'rel-orders-products',
+            dataMartId: 'dm-products',
+          },
+          {
+            aliasPath: 'orders_2.products',
+            title: 'Products',
+            defaultAlias: 'orders_2_products',
+            depth: 2,
+            fieldCount: 1,
+            isIncluded: true,
+            relationshipId: 'rel-orders-products',
+            dataMartId: 'dm-products',
+          },
+        ],
+        blendedFields: [ordersProductsField, orders2ProductsField],
+      });
+
+      const relCampaignsOrders = {
+        id: 'rel-campaigns-orders',
+        targetAlias: 'orders',
+        sourceDataMart: { id: 'dm-1' },
+        targetDataMart: { id: 'dm-orders', title: 'Orders' },
+        joinConditions: [{ sourceFieldName: 'id', targetFieldName: 'campaign_id' }],
+      } as unknown as DataMartRelationship;
+      const relCampaignsOrders2 = {
+        id: 'rel-campaigns-orders-2',
+        targetAlias: 'orders_2',
+        sourceDataMart: { id: 'dm-1' },
+        targetDataMart: { id: 'dm-orders', title: 'Orders' },
+        joinConditions: [{ sourceFieldName: 'id', targetFieldName: 'campaign_id' }],
+      } as unknown as DataMartRelationship;
+      const relOrdersProducts = {
+        id: 'rel-orders-products',
+        targetAlias: 'products',
+        sourceDataMart: { id: 'dm-orders' },
+        targetDataMart: { id: 'dm-products', title: 'Products' },
+        joinConditions: [{ sourceFieldName: 'product_id', targetFieldName: 'id' }],
+      } as unknown as DataMartRelationship;
+
+      relationshipService.findBySourceDataMartId.mockResolvedValue([
+        relCampaignsOrders,
+        relCampaignsOrders2,
+      ]);
+      relationshipService.findByIds.mockImplementation(async (ids: string[]) => {
+        const byId: Record<string, DataMartRelationship> = {
+          'rel-campaigns-orders': relCampaignsOrders,
+          'rel-campaigns-orders-2': relCampaignsOrders2,
+          'rel-orders-products': relOrdersProducts,
+        };
+        return ids.map(id => byId[id]).filter(Boolean);
+      });
+      tableReferenceService.resolveTableName.mockResolvedValue('table_ref');
+      blendedQueryBuilderFacade.buildBlendedQuery.mockResolvedValue('SELECT ...');
+
+      await service.resolveBlendingDecision(report);
+
+      const [, context] = blendedQueryBuilderFacade.buildBlendedQuery.mock.calls[0];
+      expect(context!.chains).toHaveLength(4);
+
+      const ordersProductsChain = context!.chains.find(c => c.cteName === 'orders_products')!;
+      expect(ordersProductsChain.blendedFields).toHaveLength(1);
+      expect(ordersProductsChain.blendedFields[0].outputAlias).toBe(
+        'orders_products__product_price'
+      );
+
+      const orders2ProductsChain = context!.chains.find(c => c.cteName === 'orders_2_products')!;
+      expect(orders2ProductsChain.blendedFields).toHaveLength(1);
+      expect(orders2ProductsChain.blendedFields[0].outputAlias).toBe(
+        'orders_2_products__product_price'
+      );
     });
 
     describe('resolveBlendingDecision — filter on non-selected blended column', () => {
