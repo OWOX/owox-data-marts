@@ -1,5 +1,102 @@
 # owox
 
+## 0.25.0
+
+### Minor Changes 0.25.0
+
+![OWOX Data Marts – v0.25.0](https://github.com/user-attachments/assets/0e0800ac-f404-4986-a66b-53603cfd6e02)
+
+- 9bb6393: **AI helper for Data Mart metadata**
+
+  A Sparkles ✨ button appears next to title, description, field alias, and field description inputs. Click it to get an AI-generated draft grounded in the Data Mart's schema and up to 30 sample rows. Nothing is saved until you explicitly apply the suggestion.
+
+  - Bulk fill available via **Generate field descriptions** and **Generate field aliases** next to _Refresh schema_ — populates the whole Output Schema at once for review before saving.
+  - Available for SQL, Table, View, and Table Pattern definitions. Connector-based Data Marts are not yet supported.
+  - Self-hosted deployments: set `AI_BASE_URL`, `AI_API_KEY`, and `AI_MODEL` in the environment to enable the buttons.
+
+- 480a3be: **Bulk import of Data Marts from BigQuery**
+
+  A new **Import…** button on the Data Marts page opens a picker that lists every table and view in the selected BigQuery storage. Select up to 20 resources and click **Create** — each becomes its own Data Mart named after the resource. Sharded tables (e.g. `events_20240101`, `events_20240102`) are recognized automatically and shown as a single `events_*` entry that creates a Table Pattern Data Mart. If the storage has broken credentials, the dialog explains what's wrong and offers a one-click shortcut to finish setup.
+
+- 9e5e3e0: **Google Sheets export preserves column layout and side-by-side formulas**
+
+  Refreshing an OWOX → Google Sheets report no longer wipes the entire tab. The exporter only touches the cells it owns, so anything else in the same sheet — extra columns, formulas, pivot tables, charts, named ranges — stays intact across refreshes.
+
+  - Your column order wins. Reordering columns in the Output Schema after the first refresh no longer rearranges the sheet.
+  - New SQL columns are appended on the right; removed columns disappear cleanly and leave a `#REF!` signal on any formula that depended on them.
+  - Formulas in the first data row are automatically filled down across all new rows.
+  - Output Schema aliases update the sheet header without rewriting the whole tab.
+  - A failed refresh no longer wipes existing data — the sheet stays as last seen and the Data Mart status flips to "failed".
+
+- da9bd7e: **Output controls per report — filters, sort, and row limit**
+
+  A new **Output controls** panel in the Report Columns picker lets you shape what each report writes to its destination without changing the underlying Data Mart.
+
+  - **Filters** apply WHERE-style conditions on the final SELECT. Multiple filters on the same column are combined with `AND`. Filtering by a column not selected for output is supported.
+  - **Sort** orders output by one or more columns with `asc`/`desc` per column; drag to reorder priorities.
+  - **Limit** caps the number of rows written. Leave empty for no limit.
+  - Filter values are passed as named parameters (`@p0`, `@p1`, …), not inlined SQL.
+  - Currently supported on BigQuery. Athena, Redshift, Snowflake, and Databricks will return a clear capability error until their adapters land.
+
+- 814790c: **Report runs and trigger management for all Data Mart viewers**
+
+  Manual report runs and Report Trigger CRUD are now available to any project member who can see the Data Mart and use the Destination — not just the Report owner. Report config editing (columns, filters, owners, destination) remains restricted to owners with an effective Destination.
+
+- 99acce6: **New Data Marts, Storages, and Destinations are available by default**
+
+  Newly created entities now default to `Available for reporting / use = ON`, so other project members can see them immediately. The `Available for maintenance` toggle still defaults to OFF. Existing entities are not migrated.
+
+- 8cb62c9: **Improved BigQuery location search and grouping**
+
+  Country names are now included in every location label (e.g. "Saudi Arabia" resolves to `me-central2 Dammam`). The catch-all "Other" group is replaced with dedicated Middle East, South America, and Africa groups. Three previously missing regions added: `northamerica-south1` (Querétaro, Mexico), `us-south1` (Dallas, United States), `europe-west10` (Berlin, Germany).
+
+- 68ff850: **Looker Studio destination renamed to Data Studio**
+
+  Renamed consistently across the destination type dropdown, availability toggle, report cards, run history, sidebar help menu, setup checklist, and notification labels. Existing configurations and dashboards are unaffected.
+
+- a147210: **Storage picker button integrated into input field**
+
+  The table/view picker button now appears inside the Fully Qualified Name input rather than next to it. Shows "Select…" with a database icon when empty; collapses to an icon-only button with "Change selection" tooltip when a value is set.
+
+- 3d3c8d3: **Contextual promo and health UX for bulk Data Mart creation**
+
+  When exactly one BigQuery Data Mart is configured, users now see a prompt to bulk-create Data Marts from existing tables and views. Resource browsers in storage pickers now show a health-state block instead of raw loading errors when the selected storage is not fully configured.
+
+- 118e029: **Google Sheets promo and Email Reports owners column**
+
+  Published Data Marts without a Google Sheets destination now show a contextual promo with a direct CTA to create one. Email Reports table now displays report owners as an avatar group.
+
+- c2099e1: **"New Report" and "New Trigger" labels and empty states**
+
+  Button labels standardized to "New Report" and "New Trigger" across the app. Empty states for destinations now show a prominent "New Report" button directly in place. Google Sheets destination empty state includes suggestions to invite teammates.
+
+- 0cbca4d: **Report creation button enabled as soon as all fields are valid**
+
+  The "Create & Run report" button no longer requires manually editing the default title to become active. It enables as soon as all required fields are filled.
+
+- 661b280: **Data Mart table navigation and dialog improvements**
+
+  - Cmd/Ctrl+Click on a Data Mart row opens it in a new tab.
+  - Long Data Mart and report titles in delete dialogs now wrap correctly.
+  - Sticky action cells no longer show a transparent background during scroll.
+
+- f717600: **Accessibility and dark mode improvements**
+
+  Extracted reusable `TableSelectionCheckbox` component used across all tables. Added `id`/`htmlFor` label associations to Switch components. Enabled sorting by Contexts column in Data Mart, Storage, and Destination tables. Fixed dark mode styles for health status ring indicators.
+
+- 262a9c0: # **Bug fixes and improvements**
+  - 262a9c0: Fixed wrong Input Source shown in the Data Marts list — the mismatch appeared when any Data Mart in the list had multiple owners or contexts assigned.
+  - 4172cb7: Fixed incorrect column types and aggregations for blended fields from joined Data Marts in Looker Studio. `COUNT`/`COUNT_DISTINCT` now appear as numeric metrics; `STRING_AGG`/`ANY_VALUE` as dimensions; `MIN`/`MAX`/`SUM` use the correct matching aggregation. Fix applies across BigQuery, Snowflake, Redshift, Athena, and Databricks.
+
+### Patch Changes 0.25.0
+
+- @owox/internal-helpers@0.25.0
+- @owox/idp-protocol@0.25.0
+- @owox/idp-better-auth@0.25.0
+- @owox/idp-owox-better-auth@0.25.0
+- @owox/backend@0.25.0
+- @owox/web@0.25.0
+
 ## 0.24.0
 
 ### Minor Changes 0.24.0
@@ -17,7 +114,6 @@
 - d187cdf: **Project contexts and role scope**
 
   Added business-domain Contexts and per-member Role Scope to narrow what shared resources a non-owner can see.
-
   - Admins define Contexts in Project Settings, attach them to Data Marts, Storages, and Destinations, and pick between `Entire project` and `Selected contexts` for each member.
   - Owners and admins are never gated by Contexts.
   - Introduced a unified **Project Settings** page (Overview, Members, Contexts, Credit consumption, Subscription, Notification) that replaces the separate Members page.
@@ -35,14 +131,12 @@
   A new **Fill from Storage** button lets you browse available tables and views through a `project → dataset → table` hierarchy. Selecting a table or view automatically fills the Fully Qualified Name field. Manual entry remains available as an alternative.
 
 - d118b10: **Improved Data Mart publishing experience**
-
   - Data starts loading automatically after publishing a connector-based Data Mart.
   - Guidance now focuses on scheduling automatic updates instead of manual runs.
   - Promo messages appear only once.
   - Updated button labels and tooltips for better clarity.
 
 - 3f8b831: **Data Mart page layout and table usability improvements**
-
   - Sticky actions column keeps row actions always visible during horizontal scroll.
   - Row actions are emphasized on hover to reduce visual noise.
   - Long values (including strings without spaces) now wrap correctly in tables and titles.
