@@ -9,4 +9,5 @@ export enum DataMartMetadataScope {
   FIELD_DESCRIPTION = 'field_description',
   ALL_FIELD_DESCRIPTIONS = 'all_field_descriptions',
   ALL_FIELD_ALIASES = 'all_field_aliases',
+  ALL_FIELD_METADATA = 'all_field_metadata',
 }

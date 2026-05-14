@@ -21,6 +21,9 @@ export interface UseAiHelperResult {
     dataMartId: string
   ) => Promise<GeneratedFieldMetadataDto[] | undefined>;
   generateAllFieldAliases: (dataMartId: string) => Promise<GeneratedFieldMetadataDto[] | undefined>;
+  generateAllFieldMetadata: (
+    dataMartId: string
+  ) => Promise<GeneratedFieldMetadataDto[] | undefined>;
 }
 
 export type PendingScope =
@@ -29,7 +32,8 @@ export type PendingScope =
   | { scope: DataMartMetadataScope.FIELD_ALIAS; fieldName: string }
   | { scope: DataMartMetadataScope.FIELD_DESCRIPTION; fieldName: string }
   | { scope: DataMartMetadataScope.ALL_FIELD_DESCRIPTIONS }
-  | { scope: DataMartMetadataScope.ALL_FIELD_ALIASES };
+  | { scope: DataMartMetadataScope.ALL_FIELD_ALIASES }
+  | { scope: DataMartMetadataScope.ALL_FIELD_METADATA };
 
 function isFieldScopedPending(
   pending: PendingScope
@@ -174,6 +178,21 @@ export function useAiHelper(): UseAiHelperResult {
     [generate]
   );
 
+  const generateAllFieldMetadata = useCallback(
+    async (dataMartId: string) => {
+      const result = await generate(dataMartId, {
+        scope: DataMartMetadataScope.ALL_FIELD_METADATA,
+      });
+      const fields = result?.fields ?? [];
+      if (fields.length === 0) {
+        toast.error('AI returned no field metadata. Try again or fill it in manually.');
+        return undefined;
+      }
+      return fields;
+    },
+    [generate]
+  );
+
   return {
     pendingScope,
     generateTitle,
@@ -182,5 +201,6 @@ export function useAiHelper(): UseAiHelperResult {
     generateFieldDescription,
     generateAllFieldDescriptions,
     generateAllFieldAliases,
+    generateAllFieldMetadata,
   };
 }

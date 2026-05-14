@@ -50,6 +50,7 @@ export function DataMartSchemaSettings({ definitionType }: DataMartSchemaSetting
     generateFieldDescription,
     generateAllFieldDescriptions,
     generateAllFieldAliases,
+    generateAllFieldMetadata,
     pendingScope: aiPendingScope,
   } = useAiHelper();
   // Backend rejects metadata generation for CONNECTOR data marts; hide the buttons
@@ -119,12 +120,15 @@ export function DataMartSchemaSettings({ definitionType }: DataMartSchemaSetting
     [dataMartId, generateFieldDescription]
   );
 
+  const isFilled = (value: string | undefined): boolean => !!value && value.trim() !== '';
+
   const handleGenerateAllFieldDescriptions = useCallback(async () => {
     if (!dataMartId || !schema) return;
     const generated = await generateAllFieldDescriptions(dataMartId);
     if (!generated) return;
     const byName = new Map(generated.map(field => [field.name, field.description]));
     const updated = schema.fields.map(field => {
+      if (isFilled(field.description)) return field;
       const description = byName.get(field.name);
       return description ? { ...field, description } : field;
     });
@@ -137,18 +141,36 @@ export function DataMartSchemaSettings({ definitionType }: DataMartSchemaSetting
     if (!generated) return;
     const byName = new Map(generated.map(field => [field.name, field.alias]));
     const updated = schema.fields.map(field => {
+      if (isFilled(field.alias)) return field;
       const alias = byName.get(field.name);
       return alias ? { ...field, alias } : field;
     });
     updateSchema(updated as typeof schema.fields);
   }, [dataMartId, schema, generateAllFieldAliases, updateSchema]);
 
+  const handleGenerateAllFieldMetadata = useCallback(async () => {
+    if (!dataMartId || !schema) return;
+    const generated = await generateAllFieldMetadata(dataMartId);
+    if (!generated) return;
+    const byName = new Map(generated.map(field => [field.name, field]));
+    const updated = schema.fields.map(field => {
+      const gen = byName.get(field.name);
+      if (!gen) return field;
+      const next = { ...field };
+      if (!isFilled(field.alias) && gen.alias) next.alias = gen.alias;
+      if (!isFilled(field.description) && gen.description) next.description = gen.description;
+      return next;
+    });
+    updateSchema(updated as typeof schema.fields);
+  }, [dataMartId, schema, generateAllFieldMetadata, updateSchema]);
+
   // Disable buttons during schema operations (save or actualization)
   const isSchemaOperationInProgress = isLoading || isSchemaActualizationLoading;
   const isAiBusy = aiPendingScope !== null;
   const isBulkAiBusy =
     aiPendingScope?.scope === DataMartMetadataScope.ALL_FIELD_DESCRIPTIONS ||
-    aiPendingScope?.scope === DataMartMetadataScope.ALL_FIELD_ALIASES;
+    aiPendingScope?.scope === DataMartMetadataScope.ALL_FIELD_ALIASES ||
+    aiPendingScope?.scope === DataMartMetadataScope.ALL_FIELD_METADATA;
   const hasFields = !!schema && schema.fields.length > 0;
 
   if (!dataMart) {
@@ -214,6 +236,16 @@ export function DataMartSchemaSettings({ definitionType }: DataMartSchemaSetting
                 <TooltipContent side='bottom'>Generate field metadata with AI</TooltipContent>
               </Tooltip>
               <DropdownMenuContent align='end'>
+                <DropdownMenuItem
+                  className='cursor-pointer'
+                  disabled={!hasFields || isAiBusy}
+                  onClick={() => {
+                    void handleGenerateAllFieldMetadata();
+                  }}
+                >
+                  <Sparkles className='mr-2 h-4 w-4' />
+                  Generate field aliases & descriptions
+                </DropdownMenuItem>
                 <DropdownMenuItem
                   className='cursor-pointer'
                   disabled={!hasFields || isAiBusy}
