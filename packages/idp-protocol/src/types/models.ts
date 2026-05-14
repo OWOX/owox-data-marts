@@ -118,3 +118,32 @@ export type UserProvisioningSettingsUpdate = {
   mode: UserProvisioningMode;
   defaultRole: Role;
 };
+
+/**
+ * A pending request by some user to join a project. Surfaced by the IDP
+ * provider to the BI backend so an admin can approve or decline it.
+ *
+ * `requestId` is a stable identifier from the IDP (NOT a short-lived JWT).
+ * `userId` is present when the requester already exists in the IDP. The
+ * legacy mock flow does not always know it.
+ */
+export type ProjectMembershipRequest = {
+  requestId: string;
+  email: string;
+  fullName?: string;
+  avatar?: string;
+  userId?: string;
+  requestedRole: Role;
+  createdAt: string; // ISO 8601
+};
+
+/**
+ * Result of approving a membership request. Java returns `{ userUid: string }`;
+ * the BI side maps it to `userId` so the caller can chain
+ * `ContextAccessService.updateMember`. Email and role are not echoed — both
+ * are already known to the caller (email from the original request, role from
+ * the approve command).
+ */
+export type ApproveMembershipRequestResult = {
+  userId: string;
+};

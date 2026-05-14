@@ -1,6 +1,13 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Payload, ProjectMember, ProjectMemberInvitation, Role } from '@owox/idp-protocol';
+import {
+  ApproveMembershipRequestResult,
+  Payload,
+  ProjectMember,
+  ProjectMemberInvitation,
+  ProjectMembershipRequest,
+  Role,
+} from '@owox/idp-protocol';
 import { In, Repository } from 'typeorm';
 import { ProjectProjection } from '../entities/project-projection.entity';
 import { UserProjection } from '../entities/user-projection.entity';
@@ -160,6 +167,34 @@ export class IdpProjectionsService {
   ): Promise<void> {
     const provider = this.idpProviderService.getProviderFromApp();
     await provider.changeMemberRole(projectId, userId, newRole, actorUserId);
+  }
+
+  public async listMembershipRequests(
+    projectId: string,
+    actorUserId: string
+  ): Promise<ProjectMembershipRequest[]> {
+    const provider = this.idpProviderService.getProviderFromApp();
+    return provider.listMembershipRequests(projectId, actorUserId);
+  }
+
+  public async approveMembershipRequest(
+    projectId: string,
+    requestId: string,
+    role: Role,
+    actorUserId: string
+  ): Promise<ApproveMembershipRequestResult> {
+    const provider = this.idpProviderService.getProviderFromApp();
+    return provider.approveMembershipRequest(projectId, requestId, role, actorUserId);
+  }
+
+  public async declineMembershipRequest(
+    projectId: string,
+    requestId: string,
+    actorUserId: string,
+    reason?: string
+  ): Promise<void> {
+    const provider = this.idpProviderService.getProviderFromApp();
+    await provider.declineMembershipRequest(projectId, requestId, actorUserId, reason);
   }
 
   /**

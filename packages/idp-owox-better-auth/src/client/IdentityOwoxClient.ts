@@ -20,8 +20,12 @@ import {
   IntrospectionResponseSchema,
   JwksResponse,
   JwksResponseSchema,
+  OwoxApproveMembershipRequestResponse,
+  OwoxApproveMembershipRequestResponseSchema,
   OwoxInviteProjectMemberResponse,
   OwoxInviteProjectMemberResponseSchema,
+  OwoxMembershipRequestsResponse,
+  OwoxMembershipRequestsResponseSchema,
   OwoxProjectMembersResponse,
   OwoxProjectMembersResponseSchema,
   OwoxUpdateUserProvisioningSettingsRequest,
@@ -461,6 +465,131 @@ export class IdentityOwoxClient {
         err,
         { projectId, actorUserId, settings },
         'Failed to update user provisioning settings'
+      );
+    }
+  }
+
+  /**
+   * GET /idp/bi-project/:projectId/membership-requests — list pending requests.
+   *
+   * `actorUserId` is forwarded as the `biUserId` query parameter as required
+   * by the Java contract.
+   */
+  async listProjectMembershipRequests(
+    projectId: string,
+    actorUserId: string
+  ): Promise<OwoxMembershipRequestsResponse> {
+    if (
+      !this.impersonatedIdTokenFetcher ||
+      !this.c2cServiceAccountEmail ||
+      !this.c2cTargetAudience ||
+      !this.clientBackchannelPrefix
+    ) {
+      throw new IdpFailedException(
+        'C2C authentication is not configured. Cannot list project membership requests.',
+        { context: { projectId, actorUserId } }
+      );
+    }
+    const idToken = await this.impersonatedIdTokenFetcher.getIdToken(
+      this.c2cServiceAccountEmail,
+      this.c2cTargetAudience
+    );
+    const url = `${this.clientBackchannelPrefix}/idp/bi-project/${projectId}/membership-requests`;
+    try {
+      const { data } = await this.http.get<unknown>(url, {
+        headers: { Authorization: `Bearer ${idToken}` },
+        params: { biUserId: actorUserId },
+      });
+      return OwoxMembershipRequestsResponseSchema.parse(data);
+    } catch (err) {
+      this.handleAxiosError(
+        err,
+        { projectId, actorUserId },
+        'Failed to list project membership requests'
+      );
+    }
+  }
+
+  /**
+   * POST /idp/bi-project/:projectId/membership-requests/:requestId/approve.
+   *
+   * Response: 200 OK with body `{ userUid: string }` — the resolved user uid
+   * of the approved requester. `MembershipRequestsService` maps `userUid → userId`
+   * on `ApproveMembershipRequestResult`.
+   */
+  async approveProjectMembershipRequest(
+    projectId: string,
+    requestId: string,
+    role: string,
+    actorUserId: string
+  ): Promise<OwoxApproveMembershipRequestResponse> {
+    if (
+      !this.impersonatedIdTokenFetcher ||
+      !this.c2cServiceAccountEmail ||
+      !this.c2cTargetAudience ||
+      !this.clientBackchannelPrefix
+    ) {
+      throw new IdpFailedException(
+        'C2C authentication is not configured. Cannot approve project membership request.',
+        { context: { projectId, requestId, role, actorUserId } }
+      );
+    }
+    const idToken = await this.impersonatedIdTokenFetcher.getIdToken(
+      this.c2cServiceAccountEmail,
+      this.c2cTargetAudience
+    );
+    const url = `${this.clientBackchannelPrefix}/idp/bi-project/${projectId}/membership-requests/${requestId}/approve`;
+    const body = { biUserId: actorUserId, role };
+    try {
+      const { data } = await this.http.post<unknown>(url, body, {
+        headers: { Authorization: `Bearer ${idToken}` },
+      });
+      return OwoxApproveMembershipRequestResponseSchema.parse(data);
+    } catch (err) {
+      this.handleAxiosError(
+        err,
+        { projectId, requestId, role },
+        'Failed to approve project membership request'
+      );
+    }
+  }
+
+  /**
+   * POST /idp/bi-project/:projectId/membership-requests/:requestId/decline.
+   * See `listProjectMembershipRequests` for wiring status.
+   */
+  async declineProjectMembershipRequest(
+    projectId: string,
+    requestId: string,
+    actorUserId: string,
+    reason?: string
+  ): Promise<void> {
+    if (
+      !this.impersonatedIdTokenFetcher ||
+      !this.c2cServiceAccountEmail ||
+      !this.c2cTargetAudience ||
+      !this.clientBackchannelPrefix
+    ) {
+      throw new IdpFailedException(
+        'C2C authentication is not configured. Cannot decline project membership request.',
+        { context: { projectId, requestId, actorUserId } }
+      );
+    }
+    const idToken = await this.impersonatedIdTokenFetcher.getIdToken(
+      this.c2cServiceAccountEmail,
+      this.c2cTargetAudience
+    );
+    const url = `${this.clientBackchannelPrefix}/idp/bi-project/${projectId}/membership-requests/${requestId}/decline`;
+    const body = { biUserId: actorUserId, reason };
+    try {
+      await this.http.post(url, body, {
+        headers: { Authorization: `Bearer ${idToken}` },
+      });
+    } catch (err) {
+      this.handleAxiosError(
+        err,
+        { projectId, requestId, actorUserId },
+        'Failed to decline project membership request'
       );
     }
   }

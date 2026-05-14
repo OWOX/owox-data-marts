@@ -344,6 +344,9 @@ import { ListProjectMembersService } from './use-cases/project-members/list-proj
 import { InviteProjectMemberService } from './use-cases/project-members/invite-project-member.service';
 import { UpdateProjectMemberService } from './use-cases/project-members/update-project-member.service';
 import { RemoveProjectMemberService } from './use-cases/project-members/remove-project-member.service';
+import { ListMembershipRequestsService } from './use-cases/project-members/list-membership-requests.service';
+import { ApproveMembershipRequestService } from './use-cases/project-members/approve-membership-request.service';
+import { DeclineMembershipRequestService } from './use-cases/project-members/decline-membership-request.service';
 import { SetContextMembersService } from './use-cases/contexts/set-context-members.service';
 
 @Module({
@@ -698,6 +701,9 @@ import { SetContextMembersService } from './use-cases/contexts/set-context-membe
     InviteProjectMemberService,
     UpdateProjectMemberService,
     RemoveProjectMemberService,
+    ListMembershipRequestsService,
+    ApproveMembershipRequestService,
+    DeclineMembershipRequestService,
     SetContextMembersService,
   ],
 })

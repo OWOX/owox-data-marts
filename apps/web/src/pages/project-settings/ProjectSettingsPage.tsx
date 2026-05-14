@@ -9,9 +9,11 @@ import { checkVisible } from '../../utils/check-visible';
 import { contextService } from '../../features/contexts/services/context.service';
 import { projectMembersService } from '../../features/project-members/services/project-members.service';
 import type { ContextDto, MemberWithScopeDto } from '../../features/contexts/types/context.types';
+import type { MembershipRequestDto } from '../../features/project-members/types';
 import { InviteMemberSheet } from '../../features/project-settings/members/components/InviteMemberSheet/InviteMemberSheet';
 import { AddContextSheet } from '../../features/contexts/components/AddContextSheet/AddContextSheet';
 import { MembersSettingsProvider } from '../../features/project-settings/members/model/MembersSettingsProvider';
+import { MembershipRequestSheet } from '../../features/project-settings/members/components/MembershipRequestSheet/MembershipRequestSheet';
 
 interface TabLink {
   name: string;
@@ -40,20 +42,26 @@ export function ProjectSettingsPage() {
   const [error, setError] = useState<string | null>(null);
   const [inviteOpen, setInviteOpen] = useState(false);
   const [addContextOpen, setAddContextOpen] = useState(false);
+  const [pendingRequests, setPendingRequests] = useState<MembershipRequestDto[]>([]);
+  const [loadingRequests, setLoadingRequests] = useState(false);
+  const [requestSheetTarget, setRequestSheetTarget] = useState<MembershipRequestDto | null>(null);
 
   // Legacy upstream is eventually consistent — getMembers() can echo a member
   // we just deleted for several seconds. We tombstone removed userIds locally
   // so refresh() does not bring them back, and self-evict each tombstone the
   // moment upstream stops returning it.
   const removedTombstones = useRef(new Set<string>());
+  const removedRequestTombstones = useRef(new Set<string>());
 
   const loadData = useCallback(async () => {
     setLoading(true);
+    setLoadingRequests(isAdmin);
     setError(null);
     try {
-      const [ctxs, mems] = await Promise.all([
+      const [ctxs, mems, reqs] = await Promise.all([
         contextService.getContexts(),
         projectMembersService.getMembers(),
+        isAdmin ? projectMembersService.getMembershipRequests() : Promise.resolve([]),
       ]);
       setContexts(ctxs);
       const tombstones = removedTombstones.current;
@@ -64,6 +72,14 @@ export function ProjectSettingsPage() {
         }
       }
       setMembers(tombstones.size > 0 ? mems.filter(m => !tombstones.has(m.userId)) : mems);
+      const reqTombs = removedRequestTombstones.current;
+      if (reqTombs.size > 0) {
+        const upstreamReqIds = new Set(reqs.map(r => r.requestId));
+        for (const id of [...reqTombs]) {
+          if (!upstreamReqIds.has(id)) reqTombs.delete(id);
+        }
+      }
+      setPendingRequests(reqTombs.size > 0 ? reqs.filter(r => !reqTombs.has(r.requestId)) : reqs);
     } catch (err) {
       // Without a catch the page renders empty arrays + loading=false, which
       // is indistinguishable from "this project really has no members /
@@ -71,8 +87,9 @@ export function ProjectSettingsPage() {
       setError(err instanceof Error ? err.message : 'Failed to load project data');
     } finally {
       setLoading(false);
+      setLoadingRequests(false);
     }
-  }, []);
+  }, [isAdmin]);
 
   useEffect(() => {
     void loadData();
@@ -87,6 +104,15 @@ export function ProjectSettingsPage() {
   const optimisticRemoveMember = useCallback((userId: string) => {
     removedTombstones.current.add(userId);
     setMembers(prev => prev.filter(m => m.userId !== userId));
+  }, []);
+
+  const optimisticRemoveRequest = useCallback((requestId: string) => {
+    removedRequestTombstones.current.add(requestId);
+    setPendingRequests(prev => prev.filter(r => r.requestId !== requestId));
+  }, []);
+
+  const openMembershipRequestSheet = useCallback((request: MembershipRequestDto) => {
+    setRequestSheetTarget(request);
   }, []);
 
   const navigation: TabLink[] = [
@@ -109,22 +135,30 @@ export function ProjectSettingsPage() {
     () => ({
       contexts,
       members,
+      pendingRequests,
       loading,
+      loadingRequests,
       refresh: loadData,
       optimisticRemoveMember,
+      optimisticRemoveRequest,
       isAdmin,
       openInviteSheet,
       openAddContextSheet,
+      openMembershipRequestSheet,
     }),
     [
       contexts,
       members,
+      pendingRequests,
       loading,
+      loadingRequests,
       loadData,
       optimisticRemoveMember,
+      optimisticRemoveRequest,
       isAdmin,
       openInviteSheet,
       openAddContextSheet,
+      openMembershipRequestSheet,
     ]
   );
 
@@ -192,6 +226,19 @@ export function ProjectSettingsPage() {
           onCreated={() => {
             setAddContextOpen(false);
             void loadData();
+          }}
+        />
+
+        <MembershipRequestSheet
+          isOpen={requestSheetTarget !== null}
+          request={requestSheetTarget}
+          contexts={contexts}
+          onClose={() => {
+            setRequestSheetTarget(null);
+          }}
+          onResolved={resolved => {
+            setRequestSheetTarget(null);
+            if (resolved) void loadData();
           }}
         />
       </div>

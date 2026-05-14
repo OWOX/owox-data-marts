@@ -13,4 +13,8 @@ jest.unstable_mockModule('@owox/internal-helpers', () => ({
       log: jest.fn(),
     }),
   },
+  // disableConditionalCaching is imported by @owox/idp-protocol's protocol-middleware
+  // and must be present in the mock so Jest ESM can satisfy the named import binding
+  disableConditionalCaching: jest.fn(),
+  sendSecureHtml: jest.fn(),
 }));

@@ -9,11 +9,13 @@ import {
   Projects,
   ProjectMember,
   ProjectMemberInvitation,
+  ProjectMembershipRequest,
+  ApproveMembershipRequestResult,
   GetProjectMembersOptions,
+  IdpOperationNotSupportedError,
   Role,
   UserProvisioningSettings,
   UserProvisioningSettingsUpdate,
-  IdpOperationNotSupportedError,
 } from '@owox/idp-protocol';
 import { Express, type Request, Response, NextFunction } from 'express';
 import express from 'express';
@@ -314,5 +316,31 @@ export class BetterAuthProvider
     _settings: UserProvisioningSettingsUpdate
   ): Promise<UserProvisioningSettings> {
     throw new IdpOperationNotSupportedError('updateUserProvisioningSettings');
+  }
+
+  async listMembershipRequests(
+    _projectId: string,
+    _actorUserId: string,
+    _options?: { forceFresh?: boolean }
+  ): Promise<ProjectMembershipRequest[]> {
+    return [];
+  }
+
+  async approveMembershipRequest(
+    _projectId: string,
+    _requestId: string,
+    _role: Role,
+    _actorUserId: string
+  ): Promise<ApproveMembershipRequestResult> {
+    throw new IdpOperationNotSupportedError('approveMembershipRequest');
+  }
+
+  async declineMembershipRequest(
+    _projectId: string,
+    _requestId: string,
+    _actorUserId: string,
+    _reason?: string
+  ): Promise<void> {
+    throw new IdpOperationNotSupportedError('declineMembershipRequest');
   }
 }

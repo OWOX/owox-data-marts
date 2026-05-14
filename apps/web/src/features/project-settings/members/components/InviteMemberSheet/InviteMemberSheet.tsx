@@ -13,18 +13,10 @@ import { Badge } from '@owox/ui/components/badge';
 import { Button } from '@owox/ui/components/button';
 import { Input } from '@owox/ui/components/input';
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@owox/ui/components/select';
-import {
   AppForm,
   Form,
   FormActions,
   FormControl,
-  FormDescription,
   FormField,
   FormItem,
   FormLabel,
@@ -32,12 +24,6 @@ import {
   FormMessage,
   FormSection,
 } from '@owox/ui/components/form';
-import {
-  Accordion,
-  AccordionContent,
-  AccordionItem,
-  AccordionTrigger,
-} from '@owox/ui/components/accordion';
 import { Loader2, Check, Copy, Link2, Clock, ShieldCheck } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { projectMembersService } from '../../../../../features/project-members/services/project-members.service';
@@ -47,10 +33,9 @@ import {
   ROLE_SCOPE_VALUES,
 } from '../../../../../features/project-members/types';
 import { getRoleDisplayName } from '../../../../../features/idp/utils/role-display-name';
-import { ContextsCheckboxList } from '../../../../../features/contexts/components/ContextsCheckboxList';
 import { AddContextSheet } from '../../../../../features/contexts/components/AddContextSheet/AddContextSheet';
 import { useMembersSettings } from '../../model/members-settings.context';
-import { useIsAdmin } from '../../../../../features/idp/hooks/useRole';
+import { MemberFormFields } from '../MemberFormFields/MemberFormFields';
 import type { ContextDto } from '../../../../../features/contexts/types/context.types';
 
 const inviteMemberSchema = z.object({
@@ -85,10 +70,7 @@ export function InviteMemberSheet({
     defaultValues: DEFAULT_VALUES,
     mode: 'onChange',
   });
-  const { control, handleSubmit, watch, reset: resetForm } = form;
-  const role = watch('role');
-  const roleScope = watch('roleScope');
-  const isAdmin = useIsAdmin();
+  const { control, handleSubmit, reset: resetForm } = form;
   const { members, refresh } = useMembersSettings();
   const [selectedContextIds, setSelectedContextIds] = useState<string[]>([]);
   const [sending, setSending] = useState(false);
@@ -176,9 +158,6 @@ export function InviteMemberSheet({
       checked ? [...prev, contextId] : prev.filter(id => id !== contextId)
     );
   };
-
-  const isAdminRole = role === 'admin';
-  const showContextsSection = !isAdminRole && roleScope === 'selected_contexts';
 
   return (
     <>
@@ -319,154 +298,18 @@ export function InviteMemberSheet({
                           </FormItem>
                         )}
                       />
-
-                      <FormField
-                        control={control}
-                        name='role'
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel tooltip='Project role granted once the invitation is accepted'>
-                              Role
-                            </FormLabel>
-                            <FormControl>
-                              <Select
-                                value={field.value}
-                                onValueChange={field.onChange}
-                                disabled={sending}
-                              >
-                                <SelectTrigger className='w-full'>
-                                  <SelectValue />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  {PROJECT_ROLE_VALUES.map(r => (
-                                    <SelectItem key={r} value={r}>
-                                      {getRoleDisplayName(r)}
-                                    </SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
-                            </FormControl>
-                            <FormMessage />
-                            <FormDescription>
-                              <Accordion variant='common' type='single' collapsible>
-                                <AccordionItem value='invite-role-help'>
-                                  <AccordionTrigger>Which role should I pick?</AccordionTrigger>
-                                  <AccordionContent>
-                                    <p className='mb-2'>
-                                      <strong>Business User</strong> — sees accessible Data Marts
-                                      and Reports, creates Reports for Data Marts available for
-                                      reporting, manages Reports they own (edit, delete, change
-                                      owners), manages Report Triggers under their Reports, and uses
-                                      Destinations available for use. Cannot create, edit, or delete
-                                      Data Marts, Data Mart Triggers, or Storages.
-                                    </p>
-                                    <p className='mb-2'>
-                                      <strong>Technical User</strong> — everything a Business User
-                                      may do, plus: creates, edits, and deletes Data Marts, Data
-                                      Mart Triggers, and Storages; edits and deletes Reports
-                                      project-wide; changes Report owners; manages Report Triggers
-                                      project-wide.
-                                    </p>
-                                    <p className='mb-2'>
-                                      <strong>Project Admin</strong> — everything a Technical User
-                                      may do, plus: manages Project Members, manages billing, and
-                                      manages general Project settings such as the Project title.
-                                    </p>
-                                  </AccordionContent>
-                                </AccordionItem>
-                              </Accordion>
-                            </FormDescription>
-                          </FormItem>
-                        )}
-                      />
                     </FormSection>
 
-                    {isAdminRole ? (
-                      <FormSection title='Access' collapsible={false} name='invite-admin-access'>
-                        <FormItem>
-                          <p className='text-muted-foreground text-sm'>
-                            Project Admin has project-wide access. Scope and context assignments do
-                            not apply.
-                          </p>
-                        </FormItem>
-                      </FormSection>
-                    ) : (
-                      <FormSection title='Scope' name='invite-scope'>
-                        <FormField
-                          control={control}
-                          name='roleScope'
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormLabel tooltip='Controls what resources this member can see by default after they accept the invitation'>
-                                Role scope
-                              </FormLabel>
-                              <FormControl>
-                                <Select
-                                  value={field.value}
-                                  onValueChange={field.onChange}
-                                  disabled={sending}
-                                >
-                                  <SelectTrigger className='w-full'>
-                                    <SelectValue />
-                                  </SelectTrigger>
-                                  <SelectContent>
-                                    <SelectItem value='entire_project'>Entire project</SelectItem>
-                                    <SelectItem value='selected_contexts'>
-                                      Selected contexts only
-                                    </SelectItem>
-                                  </SelectContent>
-                                </Select>
-                              </FormControl>
-                              <FormMessage />
-                              <FormDescription>
-                                <Accordion variant='common' type='single' collapsible>
-                                  <AccordionItem value='invite-scope-help'>
-                                    <AccordionTrigger>What do the scopes mean?</AccordionTrigger>
-                                    <AccordionContent>
-                                      <p className='mb-2'>
-                                        <strong>Entire project</strong> — the member sees every
-                                        shared resource in the project (subject to role and
-                                        ownership rules).
-                                      </p>
-                                      <p className='mb-2'>
-                                        <strong>Selected contexts only</strong> — the member sees
-                                        resources only if they share at least one assigned context,
-                                        or if the member is an owner. Picking this with no contexts
-                                        below is a valid "no shared access" state.
-                                      </p>
-                                    </AccordionContent>
-                                  </AccordionItem>
-                                </Accordion>
-                              </FormDescription>
-                            </FormItem>
-                          )}
-                        />
-                      </FormSection>
-                    )}
-
-                    {showContextsSection && (
-                      <FormSection title='Contexts' name='invite-contexts'>
-                        <FormItem>
-                          <FormLabel tooltip='Contexts pre-assigned to this member once they accept the invitation'>
-                            Assign to contexts (optional)
-                          </FormLabel>
-                          <ContextsCheckboxList
-                            idPrefix='invite-ctx'
-                            contexts={contexts}
-                            selectedIds={selectedContextIds}
-                            onToggle={handleToggleContext}
-                            disabled={sending}
-                            onRequestCreate={
-                              isAdmin
-                                ? () => {
-                                    setAddContextOpen(true);
-                                  }
-                                : undefined
-                            }
-                          />
-                        </FormItem>
-                      </FormSection>
-                    )}
+                    <MemberFormFields
+                      contexts={contexts}
+                      selectedContextIds={selectedContextIds}
+                      onToggleContext={handleToggleContext}
+                      disabled={sending}
+                      onRequestCreateContext={() => {
+                        setAddContextOpen(true);
+                      }}
+                      contextIdPrefix='invite-ctx'
+                    />
                   </FormLayout>
 
                   <FormActions>
