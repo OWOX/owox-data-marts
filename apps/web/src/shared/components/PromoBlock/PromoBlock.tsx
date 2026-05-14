@@ -134,9 +134,9 @@ export function PromoBlock({
     ),
 
     title: cn(
-      'leading-tight font-semibold',
+      'leading-tight font-medium',
       isCompact
-        ? 'text-lg md:text-xl lg:text-2xl mb-2 lg:mb-3'
+        ? 'text-xl lg:text-2xl mb-2 lg:mb-3'
         : 'text-3xl md:text-4xl xl:text-5xl mb-2 lg:mb-8'
     ),
 
