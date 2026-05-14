@@ -1,22 +1,24 @@
 import {
+  ForbiddenException,
   Injectable,
   NotFoundException,
-  ForbiddenException,
   UnauthorizedException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Transactional } from 'typeorm-transactional';
 import { BusinessViolationException } from '../../common/exceptions/business-violation.exception';
-import { Report } from '../entities/report.entity';
-import { DataMart } from '../entities/data-mart.entity';
-import { DataMartDefinitionType } from '../enums/data-mart-definition-type.enum';
-import { DataMartStatus } from '../enums/data-mart-status.enum';
-import { DataMartService } from '../services/data-mart.service';
-import { ReportSqlComposerService } from '../services/report-sql-composer.service';
-import { SqlDefinition } from '../dto/schemas/data-mart-table-definitions/sql-definition.schema';
 import { CopyReportAsDataMartCommand } from '../dto/domain/copy-report-as-data-mart.command';
-import { AccessDecisionService, EntityType, Action } from '../services/access-decision';
+import { CreateDataMartCommand } from '../dto/domain/create-data-mart.command';
+import { DataMartDto } from '../dto/domain/data-mart.dto';
+import { UpdateDataMartDefinitionCommand } from '../dto/domain/update-data-mart-definition.command';
+import { SqlDefinition } from '../dto/schemas/data-mart-table-definitions/sql-definition.schema';
+import { Report } from '../entities/report.entity';
+import { DataMartDefinitionType } from '../enums/data-mart-definition-type.enum';
+import { AccessDecisionService, Action, EntityType } from '../services/access-decision';
+import { ReportSqlComposerService } from '../services/report-sql-composer.service';
+import { CreateDataMartService } from './create-data-mart.service';
+import { UpdateDataMartDefinitionService } from './update-data-mart-definition.service';
 
 @Injectable()
 export class CopyReportAsDataMartService {
@@ -24,12 +26,13 @@ export class CopyReportAsDataMartService {
     @InjectRepository(Report)
     private readonly reportRepository: Repository<Report>,
     private readonly reportSqlComposerService: ReportSqlComposerService,
-    private readonly dataMartService: DataMartService,
+    private readonly createDataMartService: CreateDataMartService,
+    private readonly updateDataMartDefinitionService: UpdateDataMartDefinitionService,
     private readonly accessDecisionService: AccessDecisionService
   ) {}
 
   @Transactional()
-  async run(command: CopyReportAsDataMartCommand): Promise<DataMart> {
+  async run(command: CopyReportAsDataMartCommand): Promise<DataMartDto> {
     if (!command.userId) {
       throw new UnauthorizedException('Authenticated user is required');
     }
@@ -84,21 +87,27 @@ export class CopyReportAsDataMartService {
       );
     }
 
-    const { dataMart: sourceDataMart } = report;
+    const createdDataMart = await this.createDataMartService.run(
+      new CreateDataMartCommand(
+        command.projectId,
+        command.userId,
+        `Copy of ${report.title}`,
+        report.dataMart.storage.id,
+        command.roles
+      )
+    );
 
-    const definition: SqlDefinition = { sqlQuery: sql };
-
-    const newDataMart = this.dataMartService.create({
-      title: `Copy of ${report.title}`,
-      projectId: command.projectId,
-      createdById: command.userId,
-      technicalOwnerIds: [command.userId],
-      storage: sourceDataMart.storage,
-      definitionType: DataMartDefinitionType.SQL,
-      definition,
-      status: DataMartStatus.DRAFT,
-    });
-
-    return this.dataMartService.save(newDataMart);
+    return this.updateDataMartDefinitionService.run(
+      new UpdateDataMartDefinitionCommand(
+        createdDataMart.id,
+        command.projectId,
+        DataMartDefinitionType.SQL,
+        { sqlQuery: sql } as SqlDefinition,
+        undefined,
+        undefined,
+        command.userId,
+        command.roles
+      )
+    );
   }
 }

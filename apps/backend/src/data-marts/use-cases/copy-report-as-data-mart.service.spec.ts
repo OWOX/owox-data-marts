@@ -7,6 +7,9 @@ import { ForbiddenException, NotFoundException, UnauthorizedException } from '@n
 import { BusinessViolationException } from '../../common/exceptions/business-violation.exception';
 import { CopyReportAsDataMartService } from './copy-report-as-data-mart.service';
 import { CopyReportAsDataMartCommand } from '../dto/domain/copy-report-as-data-mart.command';
+import { CreateDataMartCommand } from '../dto/domain/create-data-mart.command';
+import { UpdateDataMartDefinitionCommand } from '../dto/domain/update-data-mart-definition.command';
+import { DataMartDefinitionType } from '../enums/data-mart-definition-type.enum';
 import { EntityType, Action } from '../services/access-decision';
 
 describe('CopyReportAsDataMartService', () => {
@@ -20,7 +23,8 @@ describe('CopyReportAsDataMartService', () => {
     dataDestination: { id: 'dest-1' },
   };
 
-  const newDataMart = { id: 'dm-new' };
+  const createdDataMart = { id: 'dm-new', title: 'Copy of My Report' };
+  const finalDataMart = { id: 'dm-new', title: 'Copy of My Report', definitionType: 'SQL' };
 
   const createService = (
     accessResults: { canEditDataMart: boolean; canUseStorage: boolean } = {
@@ -34,9 +38,11 @@ describe('CopyReportAsDataMartService', () => {
     const reportSqlComposerService = {
       compose: jest.fn().mockResolvedValue({ sql: 'SELECT 1' }),
     };
-    const dataMartService = {
-      create: jest.fn().mockReturnValue(newDataMart),
-      save: jest.fn().mockResolvedValue(newDataMart),
+    const createDataMartService = {
+      run: jest.fn().mockResolvedValue(createdDataMart),
+    };
+    const updateDataMartDefinitionService = {
+      run: jest.fn().mockResolvedValue(finalDataMart),
     };
     const accessDecisionService = {
       canAccess: jest.fn((_userId, _roles, entityType: EntityType) => {
@@ -50,7 +56,8 @@ describe('CopyReportAsDataMartService', () => {
     const service = new CopyReportAsDataMartService(
       reportRepository as never,
       reportSqlComposerService as never,
-      dataMartService as never,
+      createDataMartService as never,
+      updateDataMartDefinitionService as never,
       accessDecisionService as never
     );
 
@@ -58,15 +65,21 @@ describe('CopyReportAsDataMartService', () => {
       service,
       reportRepository,
       reportSqlComposerService,
-      dataMartService,
+      createDataMartService,
+      updateDataMartDefinitionService,
       accessDecisionService,
     };
   };
 
   beforeEach(() => jest.clearAllMocks());
 
-  it('should copy report when user has EDIT access on parent data mart and USE access on storage', async () => {
-    const { service, dataMartService, accessDecisionService } = createService();
+  it('delegates to CreateDataMartService and UpdateDataMartDefinitionService when user has EDIT on source DM and USE on storage', async () => {
+    const {
+      service,
+      createDataMartService,
+      updateDataMartDefinitionService,
+      accessDecisionService,
+    } = createService();
 
     const command = new CopyReportAsDataMartCommand('report-1', 'user-1', 'proj-1', ['editor']);
 
@@ -88,11 +101,38 @@ describe('CopyReportAsDataMartService', () => {
       Action.USE,
       'proj-1'
     );
-    expect(dataMartService.save).toHaveBeenCalled();
-    expect(result).toEqual(newDataMart);
+
+    expect(createDataMartService.run).toHaveBeenCalledWith(
+      new CreateDataMartCommand('proj-1', 'user-1', 'Copy of My Report', 'storage-1', ['editor'])
+    );
+    expect(updateDataMartDefinitionService.run).toHaveBeenCalledWith(
+      new UpdateDataMartDefinitionCommand(
+        'dm-new',
+        'proj-1',
+        DataMartDefinitionType.SQL,
+        { sqlQuery: 'SELECT 1' },
+        undefined,
+        undefined,
+        'user-1',
+        ['editor']
+      )
+    );
+
+    expect(result).toEqual(finalDataMart);
   });
 
-  it('should throw ForbiddenException when user lacks EDIT access on parent data mart', async () => {
+  it('runs the two use cases in the right order — create then update', async () => {
+    const { service, createDataMartService, updateDataMartDefinitionService } = createService();
+
+    const command = new CopyReportAsDataMartCommand('report-1', 'user-1', 'proj-1', ['editor']);
+    await service.run(command);
+
+    expect(createDataMartService.run.mock.invocationCallOrder[0]).toBeLessThan(
+      updateDataMartDefinitionService.run.mock.invocationCallOrder[0]
+    );
+  });
+
+  it('throws ForbiddenException when user lacks EDIT access on the source data mart', async () => {
     const { service } = createService({ canEditDataMart: false, canUseStorage: true });
 
     const command = new CopyReportAsDataMartCommand('report-1', 'user-1', 'proj-1', ['viewer']);
@@ -100,7 +140,7 @@ describe('CopyReportAsDataMartService', () => {
     await expect(service.run(command)).rejects.toThrow(ForbiddenException);
   });
 
-  it('should throw ForbiddenException when user lacks USE access on storage', async () => {
+  it('throws ForbiddenException when user lacks USE access on the source storage', async () => {
     const { service } = createService({ canEditDataMart: true, canUseStorage: false });
 
     const command = new CopyReportAsDataMartCommand('report-1', 'user-1', 'proj-1', ['editor']);
@@ -108,7 +148,7 @@ describe('CopyReportAsDataMartService', () => {
     await expect(service.run(command)).rejects.toThrow(ForbiddenException);
   });
 
-  it('should throw NotFoundException when report not found', async () => {
+  it('throws NotFoundException when the report does not exist', async () => {
     const { service, reportRepository } = createService();
     reportRepository.findOne = jest.fn().mockResolvedValue(null);
 
@@ -131,15 +171,21 @@ describe('CopyReportAsDataMartService', () => {
   });
 
   it.each(['', '   ', '\n\t  '])(
-    'rejects empty/whitespace SQL from composer with a BusinessViolationException',
+    'rejects empty/whitespace SQL from composer with a BusinessViolationException and does not create a data mart',
     async emptySql => {
-      const { service, reportSqlComposerService, dataMartService } = createService();
+      const {
+        service,
+        reportSqlComposerService,
+        createDataMartService,
+        updateDataMartDefinitionService,
+      } = createService();
       reportSqlComposerService.compose = jest.fn().mockResolvedValue({ sql: emptySql });
 
       const command = new CopyReportAsDataMartCommand('report-1', 'user-1', 'proj-1', ['editor']);
 
       await expect(service.run(command)).rejects.toThrow(BusinessViolationException);
-      expect(dataMartService.save).not.toHaveBeenCalled();
+      expect(createDataMartService.run).not.toHaveBeenCalled();
+      expect(updateDataMartDefinitionService.run).not.toHaveBeenCalled();
     }
   );
 });
