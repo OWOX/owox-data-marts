@@ -1,4 +1,5 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
+import { TenantGuardService } from '../../idp/services/tenant-guard.service';
 import { ProjectNotificationSettingsService } from '../services/project-notification-settings.service';
 import { NotificationWebhookService } from '../services/notification-webhook.service';
 import { TestNotificationWebhookCommand } from '../dto/domain/test-notification-webhook.command';
@@ -7,10 +8,12 @@ import { TestNotificationWebhookCommand } from '../dto/domain/test-notification-
 export class TestNotificationWebhookService {
   constructor(
     private readonly settingsService: ProjectNotificationSettingsService,
-    private readonly webhookService: NotificationWebhookService
+    private readonly webhookService: NotificationWebhookService,
+    private readonly tenantGuard: TenantGuardService
   ) {}
 
   async run(command: TestNotificationWebhookCommand): Promise<void> {
+    this.tenantGuard.assertProject(command.projectId);
     const resolvedUrl =
       command.webhookUrl ??
       (

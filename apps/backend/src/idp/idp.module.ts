@@ -9,6 +9,7 @@ import { IdpExceptionFilter } from './filters/idp-exception.filter';
 import { ProjectionsMapper } from './mappers/projections.mapper';
 import { IdpProjectionsService } from './services/idp-projections.service';
 import { IdpProviderService } from './services/idp-provider.service';
+import { TenantGuardService } from './services/tenant-guard.service';
 import { IntercomController } from './controllers/intercom.controller';
 import { IssueIntercomJwtService } from './use-cases/issue-intercom-jwt.service';
 import { IntercomMapper } from './mappers/intercom.mapper';
@@ -22,6 +23,7 @@ import { IntercomMapper } from './mappers/intercom.mapper';
     IdpGuard,
     IssueIntercomJwtService,
     IntercomMapper,
+    TenantGuardService,
     {
       provide: APP_FILTER,
       useClass: IdpExceptionFilter,
@@ -29,6 +31,12 @@ import { IntercomMapper } from './mappers/intercom.mapper';
     ProjectionsMapper,
     IdpProjectionsFacade,
   ],
-  exports: [IdpProviderService, IdpProjectionsService, IdpGuard, IdpProjectionsFacade],
+  exports: [
+    IdpProviderService,
+    IdpProjectionsService,
+    IdpGuard,
+    IdpProjectionsFacade,
+    TenantGuardService,
+  ],
 })
 export class IdpModule {}

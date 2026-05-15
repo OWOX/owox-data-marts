@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { IdpProjectionsFacade } from '../../idp/facades/idp-projections.facade';
+import { TenantGuardService } from '../../idp/services/tenant-guard.service';
 import { ProjectNotificationSettingsService } from '../services/project-notification-settings.service';
 import { NotificationSettingsMapper } from '../mappers/notification-settings.mapper';
 import { GetNotificationSettingsCommand } from '../dto/domain/get-notification-settings.command';
@@ -11,10 +12,12 @@ export class GetNotificationSettingsService {
   constructor(
     private readonly settingsService: ProjectNotificationSettingsService,
     private readonly idpProjectionsFacade: IdpProjectionsFacade,
-    private readonly mapper: NotificationSettingsMapper
+    private readonly mapper: NotificationSettingsMapper,
+    private readonly tenantGuard: TenantGuardService
   ) {}
 
   async run(command: GetNotificationSettingsCommand): Promise<NotificationSettingsResponseApiDto> {
+    this.tenantGuard.assertProject(command.projectId);
     const allMembers = await this.idpProjectionsFacade.getProjectMembers(command.projectId);
     const activeMembers = allMembers.filter(m => !m.isOutbound);
 
