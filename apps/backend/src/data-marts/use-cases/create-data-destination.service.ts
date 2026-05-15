@@ -120,6 +120,28 @@ export class CreateDataDestinationService {
       if (!credential || credential.projectId !== command.projectId) {
         throw new ForbiddenException('Credential does not belong to this project');
       }
+
+      // If the credential is already linked to another destination, require COPY_CREDENTIALS
+      // on that destination — re-linking a credential is semantically a credential copy.
+      const existingDestination = await this.repository.findOne({
+        where: { credentialId: command.credentialId },
+      });
+      if (existingDestination) {
+        const canCopy = await this.accessDecisionService.canAccess(
+          command.userId,
+          command.roles,
+          EntityType.DESTINATION,
+          existingDestination.id,
+          Action.COPY_CREDENTIALS,
+          command.projectId
+        );
+        if (!canCopy) {
+          throw new ForbiddenException(
+            'You do not have permission to copy credentials from this destination'
+          );
+        }
+      }
+
       const oauth2Client =
         await this.googleOAuthClientService.getDestinationOAuth2ClientByCredentialId(
           command.credentialId
