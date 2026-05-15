@@ -20,9 +20,11 @@ export const OwoxMembershipRequestSchema = z.object({
   avatar: z.string().optional(),
 });
 
-export const OwoxMembershipRequestsResponseSchema = z.array(OwoxMembershipRequestSchema);
+export const OwoxListMembershipRequestsResponseSchema = z.array(OwoxMembershipRequestSchema);
 
-export type OwoxMembershipRequestsResponse = z.infer<typeof OwoxMembershipRequestsResponseSchema>;
+export type OwoxListMembershipRequestsResponse = z.infer<
+  typeof OwoxListMembershipRequestsResponseSchema
+>;
 
 export const OwoxApproveMembershipRequestResponseSchema = z.object({
   userUid: z.string().min(1),

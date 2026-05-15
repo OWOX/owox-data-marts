@@ -105,7 +105,7 @@ export function DeclineMembershipRequestSpec() {
     ApiOperation({
       summary: 'Decline a pending membership request',
       description:
-        'Removes the request from the pending queue. Idempotent: declining an already-removed request returns success.',
+        'Removes the request from the pending queue. Returns 404 if the request was already removed or never existed (symmetric with approve).',
     }),
     ApiParam({ name: 'requestId', description: 'Pending request id (stable identifier from IDP)' }),
     ApiNoContentResponse({ description: 'Request declined' }),

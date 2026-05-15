@@ -24,8 +24,8 @@ import {
   OwoxApproveMembershipRequestResponseSchema,
   OwoxInviteProjectMemberResponse,
   OwoxInviteProjectMemberResponseSchema,
-  OwoxMembershipRequestsResponse,
-  OwoxMembershipRequestsResponseSchema,
+  OwoxListMembershipRequestsResponse,
+  OwoxListMembershipRequestsResponseSchema,
   OwoxProjectMembersResponse,
   OwoxProjectMembersResponseSchema,
   OwoxUpdateUserProvisioningSettingsRequest,
@@ -348,7 +348,7 @@ export class IdentityOwoxClient {
   async listProjectMembershipRequests(
     projectId: string,
     actorUserId: string
-  ): Promise<OwoxMembershipRequestsResponse> {
+  ): Promise<OwoxListMembershipRequestsResponse> {
     const authHeader = await this.getC2cAuthHeader('list project membership requests', {
       projectId,
       actorUserId,
@@ -359,7 +359,7 @@ export class IdentityOwoxClient {
         headers: authHeader,
         params: { biUserId: actorUserId },
       });
-      return OwoxMembershipRequestsResponseSchema.parse(data);
+      return OwoxListMembershipRequestsResponseSchema.parse(data);
     } catch (err) {
       this.handleAxiosError(
         err,

@@ -188,7 +188,7 @@ describe('Membership Requests (e2e)', () => {
       );
     });
 
-    it('is idempotent: IDP 404 still resolves as 204 success', async () => {
+    it('returns 404 when the request is unknown to the IDP (symmetric with approve)', async () => {
       mockFacade.declineMembershipRequest.mockRejectedValue(makeIdpNotFound());
 
       const res = await agent
@@ -196,7 +196,7 @@ describe('Membership Requests (e2e)', () => {
         .set(AUTH_HEADER)
         .send({});
 
-      expect(res.status).toBe(204);
+      expect(res.status).toBe(404);
     });
   });
 });

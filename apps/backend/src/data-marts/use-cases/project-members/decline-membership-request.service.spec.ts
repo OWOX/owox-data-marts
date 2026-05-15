@@ -1,3 +1,4 @@
+import { NotFoundException } from '@nestjs/common';
 import { DeclineMembershipRequestCommand } from '../../dto/domain/decline-membership-request.command';
 import { DeclineMembershipRequestService } from './decline-membership-request.service';
 
@@ -31,7 +32,7 @@ describe('DeclineMembershipRequestService', () => {
     ).rejects.toThrow('IDP down');
   });
 
-  it('treats IDP 404 as idempotent success (per Swagger contract)', async () => {
+  it('translates IDP 404 into NotFoundException (symmetric with approve)', async () => {
     const { service, idpProjectionsFacade } = createService();
     const notFound = Object.assign(new Error('Upstream resource not found'), {
       name: 'IdpNotFoundException',
@@ -41,6 +42,6 @@ describe('DeclineMembershipRequestService', () => {
 
     await expect(
       service.run(new DeclineMembershipRequestCommand('proj-1', 'admin-1', 'req-1'))
-    ).resolves.toBeUndefined();
+    ).rejects.toBeInstanceOf(NotFoundException);
   });
 });
