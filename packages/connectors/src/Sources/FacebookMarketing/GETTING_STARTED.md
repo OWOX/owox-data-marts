@@ -24,6 +24,8 @@ Before proceeding, please make sure that:
     - **Account ID** – you can find it in **[Meta Ads Manager](https://adsmanager.facebook.com/adsmanager/manage/accounts) → Account Overview**.
     - Leave the other fields as default and proceed to the next step.
 
+!Note: You can fill few account ID in the field. Ensure that your authorized account have access to all of them to prevent the error while loading the data.
+
 ![Facebook Input Source](res/facebook_inputsource.png)
 
 ![Facebook Account ID](res/fb_accountid.png)

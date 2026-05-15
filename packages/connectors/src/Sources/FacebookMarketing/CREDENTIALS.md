@@ -2,6 +2,21 @@
 
 To connect to the Facebook Ads API and begin importing data, follow the steps below.
 
+It is two ways to get access to the Facebook Data in Data Mart:
+
+1. OAuth
+2. Access Token
+
+## OAuth
+
+Press 'Continue with Facebook' button in the Configure Settings.
+
+Log into Facebook with account that have access to ad data and confirm access. You'll see 'Authenticated as...' on the button if the authentication is succesfull.
+
+Next step: fill Account ID to fetch data from. [Where to find Account IDs?](https://docs.owox.com/packages/connectors/src/sources/facebook-marketing/getting-started/#set-up-the-connector)
+
+## Access Token
+
 ## Step 1: Sign In to the Meta for Developers Portal
 
 Visit the [Meta for Developers](https://developers.facebook.com/) site and log in with your Facebook account.

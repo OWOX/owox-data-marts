@@ -110,8 +110,8 @@ For more details on the types of deployment in your infrastructure, check out ou
 | Shopify                         | 🟢 Public        | [Get started](packages/connectors/src/Sources/Shopify/GETTING_STARTED.md)           |
 | TikTok Ads                      | 🟢 Public        | [Get started](packages/connectors/src/Sources/TikTokAds/GETTING_STARTED.md)         |
 | X Ads (former Twitter Ads)      | 🟢 Public        | [Get started](packages/connectors/src/Sources/XAds/GETTING_STARTED.md)              |
+| Shopify                         | 🟢 Public        | [Get started](packages/connectors/src/Sources/Shopify/GETTING_STARTED.md)           |
 | Shopify Ads                     | ⚪️ In Development|                                                                                     |
-| Hotline                         | ⚪️ In Discussion | [Discussion](https://github.com/OWOX/owox-data-marts/discussions/55)                |
 | Google Business Profile         | ⚪️ In Discussion | [Discussion](https://github.com/OWOX/owox-data-marts/discussions/61)                |
 
 ### Data Storages

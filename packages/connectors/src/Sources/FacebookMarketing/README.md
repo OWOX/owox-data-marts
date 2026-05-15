@@ -1,16 +1,21 @@
 # Facebook Ads Source
 
-The **Facebook Ads Source** allows you to transfer raw data from Meta advertising services. Use this data for in-depth analysis and reporting.
+**What you can do with this connector:**
 
-## Getting Started
+- Import campaign, ad set, ad-level performance data
+- Pull audience demographics and placement breakdowns
+- Schedule recurring syncs or backfill historical data into BigQuery
 
-To begin, check out [**GETTING STARTED.md**](GETTING_STARTED.md) for step-by-step instructions.
+## Prerequisites
+
+- An active [Meta Business account](https://business.facebook.com/)
+- An ad account with at least Analyst-level access
+- An OWOX Data Marts storage configured [(quick start)](https://docs.owox.com/docs/storages/manage-storages/#adding-a-new-storage)
 
 ## Table of Contents
 
-- [**GETTING STARTED**](GETTING_STARTED.md) – quick and easy setup guide.
-- [**README**](README.md) – general information about the source.
-- [**CREDENTIALS**](CREDENTIALS.md) – detailed guides for each step of the data retrieval process.
+- [**CREDENTIALS**](CREDENTIALS.md) – how to authenticate — OAuth2 or manual access token.
+- [**GETTING STARTED**](GETTING_STARTED.md) – step-by-step setup guide.
 - [**Q&A**](https://github.com/OWOX/owox-data-marts/discussions/categories/q-a) – troubleshooting common issues.
 
 ## Support & Feedback
@@ -18,6 +23,7 @@ To begin, check out [**GETTING STARTED.md**](GETTING_STARTED.md) for step-by-ste
 - If you encounter an issue, please check the [**Q&A**](https://github.com/OWOX/owox-data-marts/discussions/categories/q-a) section first.
 - To report a bug, open an [**issue**](https://github.com/OWOX/owox-data-marts/issues)
 - Have an idea or want a new integration? Submit a [**feature request**](https://github.com/OWOX/owox-data-marts/discussions)
+- Want to discuss with community? Join [**our Slack community**](https://join.slack.com/t/owox-data-marts/shared_invite/zt-3tnigd08g-f2uU_7oNNwzCyTB2tITnqA).
 
 ## Other Data Sources
 
