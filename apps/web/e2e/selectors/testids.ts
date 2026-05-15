@@ -56,4 +56,8 @@ export const TESTIDS = {
 
   // FloatingPopover domain
   floatingPopoverClose: 'floatingPopoverClose',
+
+  // Membership Requests domain
+  pendingRequestsSection: 'pendingRequestsSection',
+  membershipRequestSheet: 'membershipRequestSheet',
 } as const;

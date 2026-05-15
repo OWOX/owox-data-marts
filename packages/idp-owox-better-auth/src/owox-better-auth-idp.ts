@@ -1,10 +1,12 @@
 import {
+  ApproveMembershipRequestResult,
   AuthResult,
   GetProjectMembersOptions,
   IdpProvider,
   Payload,
   ProjectMember,
   ProjectMemberInvitation,
+  ProjectMembershipRequest,
   Projects,
   ProtocolRoute,
   Role,
@@ -30,6 +32,7 @@ import { BetterAuthSessionService } from './services/auth/better-auth-session-se
 import { MagicLinkService } from './services/auth/magic-link-service.js';
 import { PkceFlowOrchestrator } from './services/auth/pkce-flow-orchestrator.js';
 import { PlatformAuthFlowClient } from './services/auth/platform-auth-flow-client.js';
+import { MembershipRequestsService } from './services/core/membership-requests-service.js';
 import { ProjectMembersService } from './services/core/project-members-service.js';
 import type { ProjectMembersServiceOptions } from './types/project-members.js';
 import { UserAccountResolver } from './services/core/user-account-resolver.js';
@@ -75,6 +78,7 @@ export class OwoxBetterAuthIdp implements IdpProvider {
   private readonly platformAuthFlowClient: PlatformAuthFlowClient;
   private readonly pkceFlowOrchestrator: PkceFlowOrchestrator;
   private readonly projectMembersService: ProjectMembersService;
+  private readonly membershipRequestsService: MembershipRequestsService;
   private readonly onboardingService: OnboardingService;
   private readonly onboardingController: OnboardingController;
 
@@ -112,6 +116,7 @@ export class OwoxBetterAuthIdp implements IdpProvider {
       this.identityClient,
       serviceOptions
     );
+    this.membershipRequestsService = new MembershipRequestsService(this.identityClient);
 
     this.onboardingService = new OnboardingService(this.store, this.projectMembersService);
 
@@ -193,6 +198,40 @@ export class OwoxBetterAuthIdp implements IdpProvider {
     settings: UserProvisioningSettingsUpdate
   ): Promise<UserProvisioningSettings> {
     return this.identityClient.updateUserProvisioningSettings(projectId, actorUserId, settings);
+  }
+
+  async listMembershipRequests(
+    projectId: string,
+    actorUserId: string,
+    _options?: { forceFresh?: boolean }
+  ): Promise<ProjectMembershipRequest[]> {
+    return this.membershipRequestsService.listMembershipRequests(projectId, actorUserId);
+  }
+
+  async approveMembershipRequest(
+    projectId: string,
+    requestId: string,
+    role: Role,
+    actorUserId: string
+  ): Promise<ApproveMembershipRequestResult> {
+    return this.membershipRequestsService.approveMembershipRequest(
+      projectId,
+      requestId,
+      role,
+      actorUserId
+    );
+  }
+
+  async declineMembershipRequest(
+    projectId: string,
+    requestId: string,
+    actorUserId: string
+  ): Promise<void> {
+    return this.membershipRequestsService.declineMembershipRequest(
+      projectId,
+      requestId,
+      actorUserId
+    );
   }
 
   static async create(config: BetterAuthProviderConfig): Promise<OwoxBetterAuthIdp> {

@@ -4,6 +4,8 @@ import {
   Projects,
   ProjectMember,
   ProjectMemberInvitation,
+  ProjectMembershipRequest,
+  ApproveMembershipRequestResult,
   Role,
   UserProvisioningSettings,
   UserProvisioningSettingsUpdate,
@@ -201,4 +203,46 @@ export interface IdpProvider {
     actorUserId: string,
     settings: UserProvisioningSettingsUpdate
   ): Promise<UserProvisioningSettings>;
+
+  /**
+   * List pending membership requests for a project.
+   *
+   * `actorUserId` is the BI uid of the admin performing the listing — the
+   * remote IDP needs it for audit / authorization (Java sends it as the
+   * `biUserId` query parameter on
+   * `GET /internal-api/idp/bi-project/{biProjectId}/membership-requests`).
+   *
+   * Local-only providers (null, better-auth) ignore `actorUserId` and return
+   * `[]` rather than throw — an empty list is a valid steady state.
+   */
+  listMembershipRequests(
+    projectId: string,
+    actorUserId: string,
+    options?: { forceFresh?: boolean }
+  ): Promise<ProjectMembershipRequest[]>;
+
+  /**
+   * Approve a pending membership request and add the requester to the project
+   * with the given role. Must return the resolved `userId` so the caller can
+   * apply scope/contexts locally. Implementations that do not support this
+   * should throw `IdpOperationNotSupportedError`.
+   */
+  approveMembershipRequest(
+    projectId: string,
+    requestId: string,
+    role: Role,
+    actorUserId: string
+  ): Promise<ApproveMembershipRequestResult>;
+
+  /**
+   * Decline a pending membership request. Idempotent where possible; if the
+   * request is already gone, implementations should still complete
+   * successfully. Implementations that do not support this should throw
+   * `IdpOperationNotSupportedError`.
+   */
+  declineMembershipRequest(
+    projectId: string,
+    requestId: string,
+    actorUserId: string
+  ): Promise<void>;
 }

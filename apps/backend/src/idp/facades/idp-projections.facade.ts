@@ -1,5 +1,10 @@
 import { Injectable } from '@nestjs/common';
-import type { ProjectMemberInvitation, Role } from '@owox/idp-protocol';
+import type {
+  ApproveMembershipRequestResult,
+  ProjectMemberInvitation,
+  ProjectMembershipRequest,
+  Role,
+} from '@owox/idp-protocol';
 import { ProjectProjectionDto } from '../dto/domain/project-projection.dto';
 import { UserProjectionDto } from '../dto/domain/user-projection.dto';
 import { UserProjectionsListDto } from '../dto/domain/user-projections-list.dto';
@@ -96,5 +101,34 @@ export class IdpProjectionsFacade {
     actorUserId: string
   ): Promise<void> {
     return this.idpProjectionsService.changeMemberRole(projectId, userId, newRole, actorUserId);
+  }
+
+  public async listMembershipRequests(
+    projectId: string,
+    actorUserId: string
+  ): Promise<ProjectMembershipRequest[]> {
+    return this.idpProjectionsService.listMembershipRequests(projectId, actorUserId);
+  }
+
+  public async approveMembershipRequest(
+    projectId: string,
+    requestId: string,
+    role: Role,
+    actorUserId: string
+  ): Promise<ApproveMembershipRequestResult> {
+    return this.idpProjectionsService.approveMembershipRequest(
+      projectId,
+      requestId,
+      role,
+      actorUserId
+    );
+  }
+
+  public async declineMembershipRequest(
+    projectId: string,
+    requestId: string,
+    actorUserId: string
+  ): Promise<void> {
+    await this.idpProjectionsService.declineMembershipRequest(projectId, requestId, actorUserId);
   }
 }

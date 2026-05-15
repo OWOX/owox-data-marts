@@ -17,7 +17,13 @@ describe('IdpProjectionsFacade — member mutation proxies', () => {
   let idpProjectionsService: jest.Mocked<
     Pick<
       IdpProjectionsService,
-      'inviteMember' | 'removeMember' | 'changeMemberRole' | 'getProjectMembers'
+      | 'inviteMember'
+      | 'removeMember'
+      | 'changeMemberRole'
+      | 'getProjectMembers'
+      | 'listMembershipRequests'
+      | 'approveMembershipRequest'
+      | 'declineMembershipRequest'
     >
   >;
   let facade: IdpProjectionsFacade;
@@ -28,10 +34,19 @@ describe('IdpProjectionsFacade — member mutation proxies', () => {
       removeMember: jest.fn(),
       changeMemberRole: jest.fn(),
       getProjectMembers: jest.fn(),
+      listMembershipRequests: jest.fn(),
+      approveMembershipRequest: jest.fn(),
+      declineMembershipRequest: jest.fn(),
     } as unknown as jest.Mocked<
       Pick<
         IdpProjectionsService,
-        'inviteMember' | 'removeMember' | 'changeMemberRole' | 'getProjectMembers'
+        | 'inviteMember'
+        | 'removeMember'
+        | 'changeMemberRole'
+        | 'getProjectMembers'
+        | 'listMembershipRequests'
+        | 'approveMembershipRequest'
+        | 'declineMembershipRequest'
       >
     >;
 
@@ -127,6 +142,64 @@ describe('IdpProjectionsFacade — member mutation proxies', () => {
       idpProjectionsService.getProjectMembers.mockRejectedValue(new Error('IDP timeout'));
 
       await expect(facade.getProjectMember(PROJECT_ID, USER_ID)).rejects.toThrow('IDP timeout');
+    });
+  });
+
+  describe('listMembershipRequests', () => {
+    it('delegates to the projections service with actorUserId', async () => {
+      const stub = [
+        {
+          requestId: 'r1',
+          email: 'a@b.io',
+          requestedRole: 'viewer' as const,
+          createdAt: '2026-05-01',
+        },
+      ];
+      idpProjectionsService.listMembershipRequests = jest.fn().mockResolvedValue(stub);
+
+      const result = await facade.listMembershipRequests(PROJECT_ID, 'actor-1');
+
+      expect(idpProjectionsService.listMembershipRequests).toHaveBeenCalledWith(
+        PROJECT_ID,
+        'actor-1'
+      );
+      expect(result).toEqual(stub);
+    });
+  });
+
+  describe('approveMembershipRequest', () => {
+    it('delegates with the correct argument order', async () => {
+      const stubResult = { userId: 'u-1', email: 'a@b.io', role: 'editor' as const };
+      idpProjectionsService.approveMembershipRequest = jest.fn().mockResolvedValue(stubResult);
+
+      const result = await facade.approveMembershipRequest(
+        PROJECT_ID,
+        'req-1',
+        'editor',
+        ACTOR_USER_ID
+      );
+
+      expect(idpProjectionsService.approveMembershipRequest).toHaveBeenCalledWith(
+        PROJECT_ID,
+        'req-1',
+        'editor',
+        ACTOR_USER_ID
+      );
+      expect(result).toEqual(stubResult);
+    });
+  });
+
+  describe('declineMembershipRequest', () => {
+    it('delegates with the correct argument order', async () => {
+      idpProjectionsService.declineMembershipRequest = jest.fn().mockResolvedValue(undefined);
+
+      await facade.declineMembershipRequest(PROJECT_ID, 'req-1', ACTOR_USER_ID);
+
+      expect(idpProjectionsService.declineMembershipRequest).toHaveBeenCalledWith(
+        PROJECT_ID,
+        'req-1',
+        ACTOR_USER_ID
+      );
     });
   });
 });

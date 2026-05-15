@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { toast } from 'react-hot-toast';
 import { MembersTable } from '../../features/project-settings/members/components/MembersTable/MembersTable';
 import { MemberDetailsSheet } from '../../features/project-settings/members/components/MemberDetailsSheet/MemberDetailsSheet';
+import { PendingRequestsSection } from '../../features/project-settings/members/components/PendingRequestsSection/PendingRequestsSection';
 import { useMembersSettings } from '../../features/project-settings/members/model/members-settings.context';
 import { ConfirmationDialog } from '../../shared/components/ConfirmationDialog';
 import { projectMembersService } from '../../features/project-members/services/project-members.service';
@@ -45,6 +46,8 @@ export function MembersTab() {
 
   return (
     <>
+      <PendingRequestsSection />
+
       <MembersTable
         members={members}
         contexts={contexts}

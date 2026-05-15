@@ -6,3 +6,26 @@ export const PROJECT_ROLE_VALUES = ['admin', 'editor', 'viewer'] as const satisf
 
 export const ROLE_SCOPE_VALUES = ['entire_project', 'selected_contexts'] as const;
 export type RoleScope = (typeof ROLE_SCOPE_VALUES)[number];
+
+export interface MembershipRequestDto {
+  requestId: string;
+  email: string;
+  fullName?: string;
+  avatar?: string;
+  userId?: string;
+  requestedRole: Role;
+  createdAt: string;
+}
+
+export interface ApproveMembershipRequestPayload {
+  role: Role;
+  roleScope?: RoleScope;
+  contextIds?: string[];
+}
+
+export interface ApproveMembershipRequestResult {
+  userId: string;
+  role: Role;
+  roleScope: RoleScope;
+  contextIds: string[];
+}
