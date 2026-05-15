@@ -182,8 +182,7 @@ export class NullIdpProvider implements IdpProvider {
   async declineMembershipRequest(
     _projectId: string,
     _requestId: string,
-    _actorUserId: string,
-    _reason?: string
+    _actorUserId: string
   ): Promise<void> {
     throw new IdpOperationNotSupportedError('declineMembershipRequest');
   }

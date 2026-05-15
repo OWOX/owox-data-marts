@@ -10,25 +10,37 @@ describe('DeclineMembershipRequestService', () => {
     return { service, idpProjectionsFacade };
   };
 
-  it('passes projectId, requestId, actor and reason to facade', async () => {
+  it('passes projectId, requestId and actor to facade', async () => {
     const { service, idpProjectionsFacade } = createService();
 
-    await service.run(new DeclineMembershipRequestCommand('proj-1', 'admin-1', 'req-1', 'spam'));
+    await service.run(new DeclineMembershipRequestCommand('proj-1', 'admin-1', 'req-1'));
 
     expect(idpProjectionsFacade.declineMembershipRequest).toHaveBeenCalledWith(
       'proj-1',
       'req-1',
-      'admin-1',
-      'spam'
+      'admin-1'
     );
   });
 
-  it('propagates facade errors', async () => {
+  it('propagates non-404 facade errors', async () => {
     const { service, idpProjectionsFacade } = createService();
     idpProjectionsFacade.declineMembershipRequest.mockRejectedValue(new Error('IDP down'));
 
     await expect(
       service.run(new DeclineMembershipRequestCommand('proj-1', 'admin-1', 'req-1'))
     ).rejects.toThrow('IDP down');
+  });
+
+  it('treats IDP 404 as idempotent success (per Swagger contract)', async () => {
+    const { service, idpProjectionsFacade } = createService();
+    const notFound = Object.assign(new Error('Upstream resource not found'), {
+      name: 'IdpNotFoundException',
+      status: 404,
+    });
+    idpProjectionsFacade.declineMembershipRequest.mockRejectedValue(notFound);
+
+    await expect(
+      service.run(new DeclineMembershipRequestCommand('proj-1', 'admin-1', 'req-1'))
+    ).resolves.toBeUndefined();
   });
 });

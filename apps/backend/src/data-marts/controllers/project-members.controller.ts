@@ -4,7 +4,6 @@ import { Auth, AuthContext, AuthorizationContext, Role, Strategy } from '../../i
 import {
   ApproveMembershipRequestApiDto,
   ApproveMembershipRequestResponseApiDto,
-  DeclineMembershipRequestApiDto,
   InviteMemberRequestApiDto,
   InviteMemberResponseApiDto,
   MembershipRequestApiDto,
@@ -150,15 +149,7 @@ export class ProjectMembersController {
     @AuthContext() context: AuthorizationContext
   ): Promise<MembershipRequestApiDto[]> {
     const requests = await this.listMembershipRequests.run(context.projectId, context.userId);
-    return requests.map(r => ({
-      requestId: r.requestId,
-      email: r.email,
-      fullName: r.fullName,
-      avatar: r.avatar,
-      userId: r.userId,
-      requestedRole: r.requestedRole as ProjectRole,
-      createdAt: r.createdAt,
-    }));
+    return this.projectMembersMapper.toMembershipRequestApiList(requests);
   }
 
   @Auth(Role.admin(Strategy.INTROSPECT))
@@ -193,11 +184,10 @@ export class ProjectMembersController {
   @DeclineMembershipRequestSpec()
   async declineRequest(
     @AuthContext() context: AuthorizationContext,
-    @Param('requestId') requestId: string,
-    @Body() dto: DeclineMembershipRequestApiDto
+    @Param('requestId') requestId: string
   ): Promise<void> {
     await this.declineMembershipRequest.run(
-      new DeclineMembershipRequestCommand(context.projectId, context.userId, requestId, dto.reason)
+      new DeclineMembershipRequestCommand(context.projectId, context.userId, requestId)
     );
   }
 }

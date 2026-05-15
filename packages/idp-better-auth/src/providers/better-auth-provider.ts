@@ -338,8 +338,7 @@ export class BetterAuthProvider
   async declineMembershipRequest(
     _projectId: string,
     _requestId: string,
-    _actorUserId: string,
-    _reason?: string
+    _actorUserId: string
   ): Promise<void> {
     throw new IdpOperationNotSupportedError('declineMembershipRequest');
   }

@@ -297,11 +297,3 @@ export class ApproveMembershipRequestResponseApiDto {
   @ApiProperty({ type: [String] })
   contextIds: string[];
 }
-
-export class DeclineMembershipRequestApiDto {
-  @ApiPropertyOptional()
-  @IsOptional()
-  @IsString()
-  @MaxLength(500)
-  reason?: string;
-}

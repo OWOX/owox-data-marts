@@ -1,11 +1,19 @@
-import { Injectable, Logger } from '@nestjs/common';
-import type { Role as IdpRole } from '@owox/idp-protocol';
+import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import type { ApproveMembershipRequestResult } from '@owox/idp-protocol';
 import { IdpProjectionsFacade } from '../../../idp/facades/idp-projections.facade';
+import { isIdpNotFoundError } from '../../../idp/utils/is-idp-not-found-error';
 import { ApproveMembershipRequestCommand } from '../../dto/domain/approve-membership-request.command';
 import { ProjectRole } from '../../enums/project-role.enum';
 import { RoleScope } from '../../enums/role-scope.enum';
+import { toIdpRole } from '../../mappers/project-members.mapper';
 import { ContextAccessService } from '../../services/context/context-access.service';
 import { ContextService } from '../../services/context/context.service';
+import {
+  applyLocalMemberScope,
+  readPersistedMemberScope,
+  resolveEffectiveScope,
+  validateContextIdsIfAny,
+} from './util/member-scope-saga.util';
 
 export interface ApproveMembershipRequestUseCaseResult {
   userId: string;
@@ -29,47 +37,47 @@ export class ApproveMembershipRequestService {
   ): Promise<ApproveMembershipRequestUseCaseResult> {
     const { projectId, actorUserId, requestId, role, roleScope, contextIds } = command;
 
-    // Per Fibery spec (`01d:102`): selected_contexts + zero contexts is a
-    // valid state — the member simply gets no shared non-owner access through
-    // Context matching. We do NOT block the approve. Default scope inference
-    // for non-admin without explicit roleScope: presence of contextIds opts
-    // into selected_contexts; otherwise entire_project (least surprising for
-    // the legacy approve shape).
-    const inferredScope =
-      contextIds.length > 0 ? RoleScope.SELECTED_CONTEXTS : RoleScope.ENTIRE_PROJECT;
-    const effectiveScope: RoleScope =
-      role === ProjectRole.ADMIN ? RoleScope.ENTIRE_PROJECT : (roleScope ?? inferredScope);
+    const effectiveScope = resolveEffectiveScope(role, roleScope, contextIds);
 
-    if (contextIds.length > 0) {
-      await this.contextService.validateContextIds(contextIds, projectId);
-    }
+    await validateContextIdsIfAny(this.contextService, contextIds, projectId);
 
-    const result = await this.idpProjectionsFacade.approveMembershipRequest(
-      projectId,
-      requestId,
-      role as IdpRole,
-      actorUserId
-    );
-
+    let result: ApproveMembershipRequestResult;
     try {
-      await this.contextAccessService.updateMember(result.userId, projectId, {
-        role,
-        roleScope: effectiveScope,
-        contextIds,
-      });
-    } catch (err) {
-      this.logger.error(
-        `Approve accepted by IDP for request ${requestId} in project ${projectId}, but local scope/contexts write failed; admin must retry via updateMember.`,
-        err instanceof Error ? err.stack : String(err)
+      result = await this.idpProjectionsFacade.approveMembershipRequest(
+        projectId,
+        requestId,
+        toIdpRole(role),
+        actorUserId
       );
+    } catch (err) {
+      if (isIdpNotFoundError(err)) {
+        throw new NotFoundException(`Membership request "${requestId}" not found`);
+      }
       throw err;
     }
+
+    await applyLocalMemberScope({
+      contextAccessService: this.contextAccessService,
+      logger: this.logger,
+      userId: result.userId,
+      projectId,
+      role,
+      effectiveScope,
+      contextIds,
+      failureLabel: `Approve accepted by IDP for request ${requestId} in project ${projectId}`,
+    });
+
+    const persisted = await readPersistedMemberScope(
+      this.contextAccessService,
+      result.userId,
+      projectId
+    );
 
     return {
       userId: result.userId,
       role,
-      roleScope: effectiveScope,
-      contextIds,
+      roleScope: persisted.roleScope,
+      contextIds: persisted.contextIds,
     };
   }
 }

@@ -225,14 +225,12 @@ export class OwoxBetterAuthIdp implements IdpProvider {
   async declineMembershipRequest(
     projectId: string,
     requestId: string,
-    actorUserId: string,
-    reason?: string
+    actorUserId: string
   ): Promise<void> {
     return this.membershipRequestsService.declineMembershipRequest(
       projectId,
       requestId,
-      actorUserId,
-      reason
+      actorUserId
     );
   }
 

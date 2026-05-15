@@ -190,11 +190,10 @@ export class IdpProjectionsService {
   public async declineMembershipRequest(
     projectId: string,
     requestId: string,
-    actorUserId: string,
-    reason?: string
+    actorUserId: string
   ): Promise<void> {
     const provider = this.idpProviderService.getProviderFromApp();
-    await provider.declineMembershipRequest(projectId, requestId, actorUserId, reason);
+    await provider.declineMembershipRequest(projectId, requestId, actorUserId);
   }
 
   /**

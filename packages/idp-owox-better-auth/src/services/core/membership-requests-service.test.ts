@@ -108,29 +108,15 @@ describe('MembershipRequestsService', () => {
   });
 
   describe('declineMembershipRequest', () => {
-    it('calls client with projectId, requestId, actorUserId and optional reason', async () => {
+    it('calls client with projectId, requestId and actorUserId', async () => {
       identityClient.declineProjectMembershipRequest.mockResolvedValue(undefined);
 
-      await service.declineMembershipRequest('proj-1', 'req-1', 'admin-1', 'not a fit');
+      await service.declineMembershipRequest('proj-1', 'req-1', 'admin-1');
 
       expect(identityClient.declineProjectMembershipRequest).toHaveBeenCalledWith(
         'proj-1',
         'req-1',
-        'admin-1',
-        'not a fit'
-      );
-    });
-
-    it('calls client without reason when omitted', async () => {
-      identityClient.declineProjectMembershipRequest.mockResolvedValue(undefined);
-
-      await service.declineMembershipRequest('proj-1', 'req-2', 'admin-1');
-
-      expect(identityClient.declineProjectMembershipRequest).toHaveBeenCalledWith(
-        'proj-1',
-        'req-2',
-        'admin-1',
-        undefined
+        'admin-1'
       );
     });
 

@@ -190,16 +190,15 @@ describe('IdpProjectionsFacade — member mutation proxies', () => {
   });
 
   describe('declineMembershipRequest', () => {
-    it('delegates with the correct argument order including reason', async () => {
+    it('delegates with the correct argument order', async () => {
       idpProjectionsService.declineMembershipRequest = jest.fn().mockResolvedValue(undefined);
 
-      await facade.declineMembershipRequest(PROJECT_ID, 'req-1', ACTOR_USER_ID, 'spam');
+      await facade.declineMembershipRequest(PROJECT_ID, 'req-1', ACTOR_USER_ID);
 
       expect(idpProjectionsService.declineMembershipRequest).toHaveBeenCalledWith(
         PROJECT_ID,
         'req-1',
-        ACTOR_USER_ID,
-        'spam'
+        ACTOR_USER_ID
       );
     });
   });

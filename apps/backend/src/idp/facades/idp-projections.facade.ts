@@ -127,14 +127,8 @@ export class IdpProjectionsFacade {
   public async declineMembershipRequest(
     projectId: string,
     requestId: string,
-    actorUserId: string,
-    reason?: string
+    actorUserId: string
   ): Promise<void> {
-    await this.idpProjectionsService.declineMembershipRequest(
-      projectId,
-      requestId,
-      actorUserId,
-      reason
-    );
+    await this.idpProjectionsService.declineMembershipRequest(projectId, requestId, actorUserId);
   }
 }

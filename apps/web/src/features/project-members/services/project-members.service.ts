@@ -3,7 +3,6 @@ import type { MemberWithScopeDto } from '../../contexts/types/context.types';
 import type {
   ApproveMembershipRequestPayload,
   ApproveMembershipRequestResult,
-  DeclineMembershipRequestPayload,
   MembershipRequestDto,
   Role,
   RoleScope,
@@ -90,11 +89,8 @@ class ProjectMembersApiService extends ApiService {
     return this.post(`/requests/${requestId}/approve`, payload);
   }
 
-  async declineMembershipRequest(
-    requestId: string,
-    payload: DeclineMembershipRequestPayload = {}
-  ): Promise<void> {
-    return this.post(`/requests/${requestId}/decline`, payload);
+  async declineMembershipRequest(requestId: string): Promise<void> {
+    return this.post(`/requests/${requestId}/decline`, {});
   }
 }
 

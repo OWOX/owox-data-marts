@@ -278,7 +278,7 @@ describe('MembershipRequestSheet', () => {
       fireEvent.click(confirmButtons[confirmButtons.length - 1]);
     });
     await waitFor(() => {
-      expect(projectMembersService.declineMembershipRequest).toHaveBeenCalledWith('req-1', {});
+      expect(projectMembersService.declineMembershipRequest).toHaveBeenCalledWith('req-1');
     });
     expect(optimisticRemoveRequest).toHaveBeenCalledWith('req-1');
     expect(onResolved).toHaveBeenCalledWith(true);

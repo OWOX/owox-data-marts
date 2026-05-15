@@ -1,7 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { z } from 'zod';
 import {
   Sheet,
   SheetContent,
@@ -22,10 +21,7 @@ import {
 import { Loader2 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { projectMembersService } from '../../../../../features/project-members/services/project-members.service';
-import {
-  PROJECT_ROLE_VALUES,
-  ROLE_SCOPE_VALUES,
-} from '../../../../../features/project-members/types';
+import { PROJECT_ROLE_VALUES, type Role } from '../../../../../features/project-members/types';
 import type { MembershipRequestDto } from '../../../../../features/project-members/types';
 import type { ContextDto } from '../../../../../features/contexts/types/context.types';
 import { useMembersSettings } from '../../model/members-settings.context';
@@ -35,12 +31,7 @@ import { AddContextSheet } from '../../../../../features/contexts/components/Add
 import { formatDateShort } from '../../../../../utils/date-formatters';
 import { UserAvatar, UserAvatarSize } from '../../../../../shared/components/UserAvatar';
 import { generateInitials } from '../../../../../shared/utils';
-
-const schema = z.object({
-  role: z.enum(PROJECT_ROLE_VALUES),
-  roleScope: z.enum(ROLE_SCOPE_VALUES),
-});
-type FormValues = z.infer<typeof schema>;
+import { memberRoleFormSchema, type MemberRoleFormValues } from '../../schemas';
 
 interface MembershipRequestSheetProps {
   isOpen: boolean;
@@ -53,6 +44,10 @@ interface MembershipRequestSheetProps {
   onResolved: (mutated: boolean) => void;
 }
 
+function clampRole(role: Role | undefined): Role {
+  return role && (PROJECT_ROLE_VALUES as readonly Role[]).includes(role) ? role : 'viewer';
+}
+
 export function MembershipRequestSheet({
   isOpen,
   request,
@@ -61,20 +56,21 @@ export function MembershipRequestSheet({
   onResolved,
 }: MembershipRequestSheetProps) {
   const { optimisticRemoveRequest, members } = useMembersSettings();
-  const form = useForm<FormValues>({
-    resolver: zodResolver(schema),
+  const form = useForm<MemberRoleFormValues>({
+    resolver: zodResolver(memberRoleFormSchema),
     defaultValues: { role: 'viewer', roleScope: 'entire_project' },
     mode: 'onChange',
   });
   const { handleSubmit, reset } = form;
   const [selectedContextIds, setSelectedContextIds] = useState<string[]>([]);
   const [submitting, setSubmitting] = useState<'approve' | 'decline' | null>(null);
+  const submittingRef = useRef<'approve' | 'decline' | null>(null);
   const [declineConfirm, setDeclineConfirm] = useState(false);
   const [addContextOpen, setAddContextOpen] = useState(false);
 
   useEffect(() => {
     if (request) {
-      reset({ role: request.requestedRole, roleScope: 'entire_project' });
+      reset({ role: clampRole(request.requestedRole), roleScope: 'entire_project' });
       setSelectedContextIds([]);
       setDeclineConfirm(false);
       setAddContextOpen(false);
@@ -94,9 +90,21 @@ export function MembershipRequestSheet({
     onClose();
   };
 
-  const handleApprove = async (values: FormValues) => {
+  const beginSubmit = (action: 'approve' | 'decline'): boolean => {
+    if (submittingRef.current !== null) return false;
+    submittingRef.current = action;
+    setSubmitting(action);
+    return true;
+  };
+
+  const endSubmit = () => {
+    submittingRef.current = null;
+    setSubmitting(null);
+  };
+
+  const handleApprove = async (values: MemberRoleFormValues) => {
     if (!request) return;
-    setSubmitting('approve');
+    if (!beginSubmit('approve')) return;
     try {
       const isAdminRole = values.role === 'admin';
       const effectiveContextIds =
@@ -112,17 +120,19 @@ export function MembershipRequestSheet({
       toast.success(`Approved request from ${request.email}`);
       onResolved(true);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to approve request');
+      toast.error(err instanceof Error ? err.message : 'Failed to approve request', {
+        duration: 8000,
+      });
     } finally {
-      setSubmitting(null);
+      endSubmit();
     }
   };
 
   const handleDecline = async () => {
     if (!request) return;
-    setSubmitting('decline');
+    if (!beginSubmit('decline')) return;
     try {
-      await projectMembersService.declineMembershipRequest(request.requestId, {});
+      await projectMembersService.declineMembershipRequest(request.requestId);
       optimisticRemoveRequest(request.requestId);
       toast.success(`Declined request from ${request.email}`);
       setDeclineConfirm(false);
@@ -130,7 +140,7 @@ export function MembershipRequestSheet({
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to decline request');
     } finally {
-      setSubmitting(null);
+      endSubmit();
     }
   };
 

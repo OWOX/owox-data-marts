@@ -243,7 +243,6 @@ export interface IdpProvider {
   declineMembershipRequest(
     projectId: string,
     requestId: string,
-    actorUserId: string,
-    reason?: string
+    actorUserId: string
   ): Promise<void>;
 }

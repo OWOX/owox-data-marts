@@ -28,7 +28,7 @@ export class MembershipRequestsService {
       fullName: item.fullName,
       avatar: item.avatar,
       userId: item.userId,
-      requestedRole: item.requestedRole as Role,
+      requestedRole: item.requestedRole,
       createdAt: item.createdAt,
     }));
   }
@@ -57,20 +57,13 @@ export class MembershipRequestsService {
   async declineMembershipRequest(
     projectId: string,
     requestId: string,
-    actorUserId: string,
-    reason?: string
+    actorUserId: string
   ): Promise<void> {
     this.logger.debug('declineMembershipRequest', {
       projectId,
       requestId,
       actorUserId,
-      reason,
     });
-    await this.identityClient.declineProjectMembershipRequest(
-      projectId,
-      requestId,
-      actorUserId,
-      reason
-    );
+    await this.identityClient.declineProjectMembershipRequest(projectId, requestId, actorUserId);
   }
 }

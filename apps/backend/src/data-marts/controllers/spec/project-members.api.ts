@@ -10,7 +10,6 @@ import {
 import {
   ApproveMembershipRequestApiDto,
   ApproveMembershipRequestResponseApiDto,
-  DeclineMembershipRequestApiDto,
   InviteMemberRequestApiDto,
   InviteMemberResponseApiDto,
   MembershipRequestApiDto,
@@ -109,7 +108,6 @@ export function DeclineMembershipRequestSpec() {
         'Removes the request from the pending queue. Idempotent: declining an already-removed request returns success.',
     }),
     ApiParam({ name: 'requestId', description: 'Pending request id (stable identifier from IDP)' }),
-    ApiBody({ type: DeclineMembershipRequestApiDto }),
     ApiNoContentResponse({ description: 'Request declined' }),
     ApiResponse({ status: 404, description: 'Membership request not found' }),
     ApiResponse({ status: 501, description: 'IDP provider does not support membership requests' }),

@@ -29,7 +29,3 @@ export interface ApproveMembershipRequestResult {
   roleScope: RoleScope;
   contextIds: string[];
 }
-
-export interface DeclineMembershipRequestPayload {
-  reason?: string;
-}

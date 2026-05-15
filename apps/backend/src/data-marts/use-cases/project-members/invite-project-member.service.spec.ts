@@ -1,7 +1,9 @@
+import { InternalServerErrorException } from '@nestjs/common';
 import { InviteProjectMemberCommand } from '../../dto/domain/invite-project-member.command';
 import { ProjectRole } from '../../enums/project-role.enum';
 import { RoleScope } from '../../enums/role-scope.enum';
 import { InviteProjectMemberService } from './invite-project-member.service';
+import { LOCAL_MEMBER_SCOPE_PARTIAL_FAILURE_MESSAGE } from './util/member-scope-saga.util';
 
 describe('InviteProjectMemberService', () => {
   const PROJECT_ID = 'project-1';
@@ -204,7 +206,7 @@ describe('InviteProjectMemberService', () => {
     expect(contextAccessService.updateMember).not.toHaveBeenCalled();
   });
 
-  it('local write fails after IDP success → error propagates (no silent entire_project fallback)', async () => {
+  it('local write fails after IDP success → wraps to actionable partial-failure error', async () => {
     const { service, idpProjectionsFacade, contextAccessService } = createService();
     idpProjectionsFacade.inviteMember.mockResolvedValue({
       projectId: PROJECT_ID,
@@ -214,16 +216,23 @@ describe('InviteProjectMemberService', () => {
       magicLink: 'https://app/invite/local-fail',
       userId: 'local-fail-stub',
     });
-    contextAccessService.updateMember.mockRejectedValue(new Error('DB blip'));
+    const dbBlip = new Error('DB blip');
+    contextAccessService.updateMember.mockRejectedValue(dbBlip);
 
-    await expect(
-      service.run(
+    let captured: unknown;
+    try {
+      await service.run(
         command({
           role: ProjectRole.EDITOR,
           roleScope: RoleScope.ENTIRE_PROJECT,
           contextIds: [],
         })
-      )
-    ).rejects.toThrow('DB blip');
+      );
+    } catch (err) {
+      captured = err;
+    }
+    expect(captured).toBeInstanceOf(InternalServerErrorException);
+    expect((captured as Error).message).toBe(LOCAL_MEMBER_SCOPE_PARTIAL_FAILURE_MESSAGE);
+    expect((captured as { cause?: unknown }).cause).toBe(dbBlip);
   });
 });
