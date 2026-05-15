@@ -154,6 +154,7 @@ export class ProjectMembersController {
 
   @Auth(Role.admin(Strategy.INTROSPECT))
   @Post('requests/:requestId/approve')
+  @HttpCode(200)
   @ApproveMembershipRequestSpec()
   async approveRequest(
     @AuthContext() context: AuthorizationContext,

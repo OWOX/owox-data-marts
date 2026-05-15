@@ -110,7 +110,7 @@ describe('Membership Requests (e2e)', () => {
         .set(AUTH_HEADER)
         .send({ role: 'editor' });
 
-      expect(res.status).toBe(201);
+      expect(res.status).toBe(200);
       expect(mockFacade.approveMembershipRequest).toHaveBeenCalledWith(
         PROJECT_ID,
         REQUEST_FIXTURE.requestId,
@@ -133,7 +133,7 @@ describe('Membership Requests (e2e)', () => {
         .set(AUTH_HEADER)
         .send({ role: 'admin', roleScope: 'selected_contexts', contextIds: [] });
 
-      expect(res.status).toBe(201);
+      expect(res.status).toBe(200);
       expect(res.body).toMatchObject({
         userId: 'user-bob',
         role: 'admin',
