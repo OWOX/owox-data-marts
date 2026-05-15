@@ -13,9 +13,9 @@ import type {
   UpdateDataMartRequestDto,
   UpdateDataMartSchemaRequestDto,
   BatchDataMartHealthStatusResponseDto,
-  GenerateDataMartMetadataRequestDto,
-  GenerateDataMartMetadataResponseDto,
   DataMartAiHelperAvailabilityResponseDto,
+  CreateAiHelperTriggerRequestDto,
+  AiHelperTriggerResponseDto,
 } from '../types/api';
 import type { CreateSqlDryRunTaskResponseDto } from '../types/api/response/create-sql-dry-run-task.response.dto.ts';
 import type { TaskStatusResponseDto } from '../types/api/response/task-status.response.dto.ts';
@@ -371,22 +371,58 @@ export class DataMartService extends ApiService {
   }
 
   /**
-   * Request AI-generated metadata for a data mart.
-   * Returns a suggestion only — the caller must apply it via the appropriate update endpoint.
+   * Create an AI helper trigger for asynchronous metadata generation.
+   * The trigger runs in the background; poll status, then fetch the response.
+   *
    * @param id Data mart ID
-   * @param data Generation request (scope, useSample, optional fieldName)
+   * @param data Trigger request (scope, useSample, optional fieldName)
+   * @returns Promise with the created trigger ID
    */
-  async generateDataMartMetadata(
+  async createAiHelperTrigger(
     id: string,
-    data: GenerateDataMartMetadataRequestDto
-  ): Promise<GenerateDataMartMetadataResponseDto> {
-    return this.post<GenerateDataMartMetadataResponseDto>(
-      `/${id}/ai-helper/generate-metadata`,
-      data,
-      {
-        timeout: 120000,
-      }
+    data: CreateAiHelperTriggerRequestDto
+  ): Promise<{ triggerId: string }> {
+    return this.post<{ triggerId: string }>(`/${id}/ai-helper/triggers`, data, {
+      skipLoadingIndicator: true,
+      skipErrorToast: true,
+    } as AxiosRequestConfig);
+  }
+
+  /**
+   * Get the current status of an AI helper trigger.
+   */
+  async getAiHelperTriggerStatus(id: string, triggerId: string): Promise<TaskStatus> {
+    const response = await this.get<TaskStatusResponseDto>(
+      `/${id}/ai-helper/triggers/${triggerId}/status`,
+      undefined,
+      { skipLoadingIndicator: true, skipErrorToast: true } as AxiosRequestConfig
     );
+    return response.status;
+  }
+
+  /**
+   * Fetch the trigger response when generation is complete.
+   * Backend returns HTTP 400 with `{ error }` if the trigger errored.
+   */
+  async getAiHelperTriggerResponse(
+    id: string,
+    triggerId: string
+  ): Promise<AiHelperTriggerResponseDto> {
+    return this.get<AiHelperTriggerResponseDto>(
+      `/${id}/ai-helper/triggers/${triggerId}`,
+      undefined,
+      { skipLoadingIndicator: true, skipErrorToast: true } as AxiosRequestConfig
+    );
+  }
+
+  /**
+   * Abort an AI helper trigger (e.g. on hook unmount or when the user starts a new run).
+   */
+  async abortAiHelperTrigger(id: string, triggerId: string): Promise<void> {
+    await this.delete(`/${id}/ai-helper/triggers/${triggerId}`, {
+      skipLoadingIndicator: true,
+      skipErrorToast: true,
+    } as AxiosRequestConfig);
   }
 }
 export const dataMartService = new DataMartService();

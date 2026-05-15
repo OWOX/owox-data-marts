@@ -12,8 +12,6 @@ import { GenerateDataMartMetadataCommand } from '../dto/domain/generate-data-mar
 import { DataMartService } from '../services/data-mart.service';
 import { AccessDecisionService, Action, EntityType } from '../services/access-decision';
 import { AiInsightsConfigService } from '../../common/ai-insights/services/ai-insights-config.service';
-import { OwoxEventDispatcher } from '../../common/event-dispatcher/owox-event-dispatcher';
-import { DataMartAiHelperGeneratedEvent } from '../events/data-mart-ai-helper-generated.event';
 
 @Injectable()
 export class GenerateDataMartMetadataService {
@@ -23,11 +21,20 @@ export class GenerateDataMartMetadataService {
     private readonly dataMartService: DataMartService,
     private readonly accessDecisionService: AccessDecisionService,
     private readonly aiInsightsConfig: AiInsightsConfigService,
-    private readonly eventDispatcher: OwoxEventDispatcher,
     @Inject(AI_INSIGHTS_FACADE)
     private readonly aiInsightsFacade: AiInsightsFacade
   ) {}
 
+  /**
+   * Generate AI metadata for a data mart.
+   *
+   * Access check pattern mirrors `SqlDryRunService`: when `command.userId` is empty,
+   * the check is skipped — callers (today only `AiHelperTriggerHandlerService`) pass
+   * an empty userId because access was already verified at the POST that created
+   * the trigger, and the original request `roles` are no longer available in the
+   * background scheduler context. Analytics events are emitted by the caller, not
+   * here, to keep this use-case caller-agnostic.
+   */
   async run(command: GenerateDataMartMetadataCommand): Promise<GenerateDataMartMetadataResponse> {
     if (!this.aiInsightsConfig.isInsightsEnabled()) {
       throw new ServiceUnavailableException(
@@ -55,31 +62,12 @@ export class GenerateDataMartMetadataService {
       `Generating metadata for data mart ${command.id} (scope=${command.scope}, useSample=${command.useSample})`
     );
 
-    const result = await this.aiInsightsFacade.generateDataMartMetadata({
+    return this.aiInsightsFacade.generateDataMartMetadata({
       projectId: command.projectId,
       dataMartId: command.id,
       scope: command.scope,
       useSample: command.useSample,
       fieldName: command.fieldName,
     });
-
-    // Fire-and-forget analytics — transport failures must not break the user response.
-    try {
-      await this.eventDispatcher.publishExternal(
-        new DataMartAiHelperGeneratedEvent({
-          projectId: command.projectId,
-          dataMartId: command.id,
-          userId: command.userId,
-          scope: command.scope,
-        })
-      );
-    } catch (error) {
-      this.logger.error(
-        `Failed to publish DataMartAiHelperGeneratedEvent (scope=${command.scope})`,
-        error
-      );
-    }
-
-    return result;
   }
 }

@@ -15,5 +15,5 @@ export * from './update-data-mart-connector-definition.request.dto';
 export * from './update-data-mart-schema.request.dto';
 export * from './sql-validation-request.dto';
 export * from './run-data-mart.request.dto';
-export * from './generate-data-mart-metadata.request.dto';
+export * from './create-ai-helper-trigger.request.dto';
 export * from '../shared/data-mart-metadata-scope.enum';
