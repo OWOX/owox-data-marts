@@ -37,7 +37,7 @@ export class GenerateDataMartMetadataService {
 
     await this.dataMartService.getByIdAndProjectId(command.id, command.projectId);
 
-    if (command.userId) {
+    if (command.userId && !command.skipAccessCheck) {
       const canEdit = await this.accessDecisionService.canAccess(
         command.userId,
         command.roles,

@@ -164,6 +164,10 @@ import { PublishDraftsTrigger } from './entities/publish-drafts-trigger.entity';
 import { PublishDraftsTriggerService } from './services/publish-drafts-trigger.service';
 import { PublishDraftsTriggerHandlerService } from './services/publish-drafts-trigger-handler.service';
 import { PublishDraftsTriggerController } from './controllers/publish-drafts-trigger.controller';
+import { AiHelperTrigger } from './entities/ai-helper-trigger.entity';
+import { AiHelperTriggerService } from './services/ai-helper-trigger.service';
+import { AiHelperTriggerHandlerService } from './services/ai-helper-trigger-handler.service';
+import { AiHelperTriggerController } from './controllers/ai-helper-trigger.controller';
 import { ReportRunService } from './services/report-run.service';
 import { LookerStudioReportRunService } from './services/looker-studio-report-run.service';
 import { InsightMapper } from './mappers/insight.mapper';
@@ -373,6 +377,7 @@ import { SetContextMembersService } from './use-cases/contexts/set-context-membe
       SqlDryRunTrigger,
       SchemaActualizeTrigger,
       PublishDraftsTrigger,
+      AiHelperTrigger,
       InsightRunTrigger,
       InsightTemplateRunTrigger,
       ConnectorSourceCredentials,
@@ -417,6 +422,7 @@ import { SetContextMembersService } from './use-cases/contexts/set-context-membe
     SqlDryRunTriggerController,
     SchemaActualizeTriggerController,
     PublishDraftsTriggerController,
+    AiHelperTriggerController,
     InsightRunTriggerController,
     InsightTemplateRunTriggerController,
     MarkdownParserController,
@@ -570,6 +576,8 @@ import { SetContextMembersService } from './use-cases/contexts/set-context-membe
     SchemaActualizeTriggerHandlerService,
     PublishDraftsTriggerService,
     PublishDraftsTriggerHandlerService,
+    AiHelperTriggerService,
+    AiHelperTriggerHandlerService,
     RetryInterruptedConnectorRunsProcessor,
     ScheduledTriggerService,
     ScheduledTriggerMapper,
