@@ -165,11 +165,11 @@ export abstract class AbstractBlendedQueryBuilder implements BlendedQueryBuilder
   private buildTree(chains: ResolvedRelationshipChain[]): BlendTreeNode[] {
     const nodeMap = new Map<string, BlendTreeNode>();
     for (const chain of chains) {
-      nodeMap.set(chain.relationship.targetAlias, { chain, children: [] });
+      nodeMap.set(chain.cteName, { chain, children: [] });
     }
     const roots: BlendTreeNode[] = [];
     for (const chain of chains) {
-      const node = nodeMap.get(chain.relationship.targetAlias)!;
+      const node = nodeMap.get(chain.cteName)!;
       if (chain.parentAlias === 'main') {
         roots.push(node);
       } else {
@@ -196,11 +196,11 @@ export abstract class AbstractBlendedQueryBuilder implements BlendedQueryBuilder
     for (const child of node.children) {
       const childResult = this.buildSubtreeCtes(child);
       ctes.push(...childResult.ctes);
-      childPassthroughs.set(child.chain.relationship.targetAlias, childResult.passthroughFields);
+      childPassthroughs.set(child.chain.cteName, childResult.passthroughFields);
     }
 
     const { chain } = node;
-    const alias = chain.relationship.targetAlias;
+    const alias = chain.cteName;
 
     // 2. Raw CTE for this node
     const subsidiaryColumns = this.collectSubsidiaryReferences(chain, node.children);
@@ -261,7 +261,7 @@ export abstract class AbstractBlendedQueryBuilder implements BlendedQueryBuilder
     childPassthroughs: Map<string, PassthroughField[]>
   ): string {
     const { chain } = node;
-    const alias = chain.relationship.targetAlias;
+    const alias = chain.cteName;
     const rawAlias = `${alias}_raw`;
     const joinedAlias = `${alias}_joined`;
     const quotedRawAlias = this.quoteIdentifier(rawAlias);
@@ -288,7 +288,7 @@ export abstract class AbstractBlendedQueryBuilder implements BlendedQueryBuilder
     // Child aggregated outputs + JOIN clauses (single pass over children)
     const joinClauses: string[] = [];
     for (const child of node.children) {
-      const childAlias = child.chain.relationship.targetAlias;
+      const childAlias = child.chain.cteName;
       const quotedChildAlias = this.quoteIdentifier(childAlias);
 
       for (const pt of childPassthroughs.get(childAlias) ?? []) {
@@ -402,11 +402,11 @@ export abstract class AbstractBlendedQueryBuilder implements BlendedQueryBuilder
     hasChildren: boolean,
     passthroughFields: PassthroughField[]
   ): string {
-    const { relationship, blendedFields } = chain;
-    const alias = this.quoteIdentifier(relationship.targetAlias);
+    const { relationship, blendedFields, cteName } = chain;
+    const alias = this.quoteIdentifier(cteName);
     const sourceAlias = hasChildren
-      ? this.quoteIdentifier(`${relationship.targetAlias}_joined`)
-      : this.quoteIdentifier(`${relationship.targetAlias}_raw`);
+      ? this.quoteIdentifier(`${cteName}_joined`)
+      : this.quoteIdentifier(`${cteName}_raw`);
 
     // Keys this subsidiary uses to join to its parent — always grouped on.
     const parentJoinKeys = relationship.joinConditions.map(jc =>
@@ -455,7 +455,7 @@ export abstract class AbstractBlendedQueryBuilder implements BlendedQueryBuilder
     // Non-hidden blended fields from any depth are routed to their root ancestor.
     const outputAliasToRoot = new Map<string, string>();
     for (const root of roots) {
-      this.mapOutputAliasesToRoot(root, root.chain.relationship.targetAlias, outputAliasToRoot);
+      this.mapOutputAliasesToRoot(root, root.chain.cteName, outputAliasToRoot);
     }
 
     for (const col of columnSet) {
@@ -493,8 +493,8 @@ export abstract class AbstractBlendedQueryBuilder implements BlendedQueryBuilder
    */
   private buildJoinParts(roots: BlendTreeNode[]): string[] {
     return roots.map(root => {
-      const { relationship, parentAlias } = root.chain;
-      const alias = this.quoteIdentifier(relationship.targetAlias);
+      const { relationship, parentAlias, cteName } = root.chain;
+      const alias = this.quoteIdentifier(cteName);
       const parent = this.quoteIdentifier(parentAlias);
 
       const onParts = relationship.joinConditions.map(

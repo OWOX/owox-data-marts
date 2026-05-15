@@ -18,10 +18,21 @@ export function makeRelationship(
 }
 
 export function makeChain(
-  partial: Omit<ResolvedRelationshipChain, 'targetDataMartTitle' | 'targetDataMartUrl'>
+  partial: Omit<
+    ResolvedRelationshipChain,
+    'targetDataMartTitle' | 'targetDataMartUrl' | 'cteName'
+  > & {
+    cteName?: string;
+  }
 ): ResolvedRelationshipChain {
+  const cteName =
+    partial.cteName ??
+    (partial.parentAlias === 'main'
+      ? partial.relationship.targetAlias
+      : `${partial.parentAlias}_${partial.relationship.targetAlias}`);
   return {
     ...partial,
+    cteName,
     targetDataMartTitle: 'Test Subsidiary',
     targetDataMartUrl: '/ui/proj/data-marts/sub-1/data-setup',
   };

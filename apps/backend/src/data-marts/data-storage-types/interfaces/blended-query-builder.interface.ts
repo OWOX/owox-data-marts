@@ -16,6 +16,7 @@ export interface ResolvedRelationshipChain {
   relationship: DataMartRelationship;
   targetTableReference: string;
   parentAlias: string;
+  cteName: string;
   blendedFields: BlendedFieldConfig[];
   targetDataMartTitle: string;
   targetDataMartUrl: string;

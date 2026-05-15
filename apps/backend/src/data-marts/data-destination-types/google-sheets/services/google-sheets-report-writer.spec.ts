@@ -210,6 +210,22 @@ describe('GoogleSheetsReportWriter — truncates trailing rows below new data', 
     expect(adapter.clearValuesInRange).not.toHaveBeenCalled();
   });
 
+  it('finalize emits an unsuccessful event when prepareToWriteReport failed before report was assigned', async () => {
+    const { writer, adapter, report, finalImportedNames } = buildWriter({
+      availableRowsCount: 11,
+    });
+    adapter.getSpreadsheet.mockRejectedValueOnce(new Error('spreadsheet unreachable'));
+
+    await expect(
+      writer.prepareToWriteReport(
+        report as never,
+        new ReportDataDescription(makeHeaders(...finalImportedNames), 0)
+      )
+    ).rejects.toThrow();
+
+    await expect(writer.finalize(new Error('original error'))).resolves.toBeUndefined();
+  });
+
   it('does not call clearValuesInRange when no data was written and structural ops were never applied', async () => {
     // Reader produced zero batches AND finalize was reached on the success
     // path. The writer's deferred mutations apply (so headers land on a

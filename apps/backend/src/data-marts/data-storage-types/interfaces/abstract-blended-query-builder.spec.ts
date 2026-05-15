@@ -559,13 +559,13 @@ describe('AbstractBlendedQueryBuilder', () => {
         buildContext([ab, bc], ['campaign_id', 'b_c__product_name'])
       );
 
-      // C (leaf) aggregation
-      expect(sql).toContain('c AS (');
-      expect(sql).toContain('FROM c_raw');
+      // C (leaf) aggregation — CTE name is path-prefixed
+      expect(sql).toContain('b_c AS (');
+      expect(sql).toContain('FROM b_c_raw');
 
       // B has _joined CTE that LEFT JOINs with aggregated C
       expect(sql).toContain('b_joined AS (');
-      expect(sql).toContain('LEFT JOIN c ON b_raw.product_id = c.product_id');
+      expect(sql).toContain('LEFT JOIN b_c ON b_raw.product_id = b_c.product_id');
 
       // B aggregation reads from b_joined and groups by b_id ONLY
       expect(sql).toMatch(
@@ -575,7 +575,7 @@ describe('AbstractBlendedQueryBuilder', () => {
       // Final JOIN only to B, not C
       expect(sql).toContain('LEFT JOIN b ON main.b_id = b.b_id');
       const finalSection = sql.split('FROM main\n')[1];
-      expect(finalSection).not.toContain('LEFT JOIN c ON');
+      expect(finalSection).not.toContain('LEFT JOIN b_c ON');
 
       // b_c__product_name surfaced through B
       expect(sql).toContain('b.b_c__product_name');
@@ -616,7 +616,7 @@ describe('AbstractBlendedQueryBuilder', () => {
         /\n {2}b AS \(\s*SELECT\s+shared_id,\s+MAX\(c_val\) AS c_val\s+FROM b_joined\s+GROUP BY shared_id\s+\)/
       );
       expect(sql).toMatch(
-        /\n {2}c AS \(\s*SELECT\s+shared_id,\s+MAX\(val\) AS c_val\s+FROM c_raw\s+GROUP BY shared_id\s+\)/
+        /\n {2}b_c AS \(\s*SELECT\s+shared_id,\s+MAX\(val\) AS c_val\s+FROM b_c_raw\s+GROUP BY shared_id\s+\)/
       );
     });
 
@@ -648,7 +648,7 @@ describe('AbstractBlendedQueryBuilder', () => {
           joinConditions: [{ sourceFieldName: 'c_key', targetFieldName: 'c_key' }],
         }),
         targetTableReference: 'd_table',
-        parentAlias: 'c',
+        parentAlias: 'b_c',
         blendedFields: [
           {
             targetFieldName: 'value',
@@ -661,18 +661,18 @@ describe('AbstractBlendedQueryBuilder', () => {
 
       const { sql } = builder.buildBlendedQuery(buildContext([ab, bc, cd], ['col_a', 'd_value']));
 
-      // D (leaf) aggregates by c_key
-      expect(sql).toContain('FROM d_raw');
+      // D (leaf, cteName=b_c_d) aggregates by c_key
+      expect(sql).toContain('FROM b_c_d_raw');
       expect(sql).toContain('GROUP BY c_key');
 
-      // C (intermediate) has _joined CTE with D, aggregates by b_key
-      expect(sql).toContain('c_joined AS (');
-      expect(sql).toContain('LEFT JOIN d ON c_raw.c_key = d.c_key');
-      expect(sql).toMatch(/\n {2}c AS \([\s\S]*?FROM c_joined\s+GROUP BY b_key\s+\)/);
+      // C (intermediate, cteName=b_c) has _joined CTE with D, aggregates by b_key
+      expect(sql).toContain('b_c_joined AS (');
+      expect(sql).toContain('LEFT JOIN b_c_d ON b_c_raw.c_key = b_c_d.c_key');
+      expect(sql).toMatch(/\n {2}b_c AS \([\s\S]*?FROM b_c_joined\s+GROUP BY b_key\s+\)/);
 
       // B (intermediate) has _joined CTE with C, aggregates by a_key
       expect(sql).toContain('b_joined AS (');
-      expect(sql).toContain('LEFT JOIN c ON b_raw.b_key = c.b_key');
+      expect(sql).toContain('LEFT JOIN b_c ON b_raw.b_key = b_c.b_key');
       expect(sql).toMatch(/\n {2}b AS \([\s\S]*?FROM b_joined\s+GROUP BY a_key\s+\)/);
 
       // Final SELECT references only main and b
@@ -741,9 +741,11 @@ describe('AbstractBlendedQueryBuilder', () => {
       );
 
       expect(sql).toContain('orders_joined AS (');
-      expect(sql).toContain('LEFT JOIN products ON orders_raw.product_id = products.product_id');
       expect(sql).toContain(
-        'LEFT JOIN customers ON orders_raw.customer_id = customers.customer_id'
+        'LEFT JOIN orders_products ON orders_raw.product_id = orders_products.product_id'
+      );
+      expect(sql).toContain(
+        'LEFT JOIN orders_customers ON orders_raw.customer_id = orders_customers.customer_id'
       );
 
       expect(sql).toMatch(
@@ -756,8 +758,8 @@ describe('AbstractBlendedQueryBuilder', () => {
 
       const finalJoins = sql.split('FROM main\n')[1];
       expect(finalJoins).toContain('LEFT JOIN orders ON');
-      expect(finalJoins).not.toContain('LEFT JOIN products ON');
-      expect(finalJoins).not.toContain('LEFT JOIN customers ON');
+      expect(finalJoins).not.toContain('LEFT JOIN orders_products ON');
+      expect(finalJoins).not.toContain('LEFT JOIN orders_customers ON');
     });
 
     it('re-aggregation: COUNT becomes SUM at parent level', () => {
@@ -873,6 +875,81 @@ describe('AbstractBlendedQueryBuilder', () => {
       );
       expect(sql).toContain('STRING_AGG(item_skus) AS item_skus');
       expect(sql).toContain('orders.item_skus');
+    });
+
+    it('diamond pattern: two chains sharing targetAlias produce distinct path-prefixed CTEs', () => {
+      const left = makeChain({
+        relationship: makeRelationship({
+          id: 'rel-main-left',
+          targetAlias: 'left',
+          joinConditions: [{ sourceFieldName: 'id', targetFieldName: 'id' }],
+        }),
+        targetTableReference: 'left_table',
+        parentAlias: 'main',
+        blendedFields: [],
+      });
+      const right = makeChain({
+        relationship: makeRelationship({
+          id: 'rel-main-right',
+          targetAlias: 'right',
+          joinConditions: [{ sourceFieldName: 'id', targetFieldName: 'id' }],
+        }),
+        targetTableReference: 'right_table',
+        parentAlias: 'main',
+        blendedFields: [],
+      });
+      const leftShared = makeChain({
+        relationship: makeRelationship({
+          id: 'rel-left-shared',
+          targetAlias: 'shared',
+          joinConditions: [{ sourceFieldName: 'left_id', targetFieldName: 'left_id' }],
+        }),
+        targetTableReference: 'shared_table',
+        parentAlias: 'left',
+        blendedFields: [
+          {
+            targetFieldName: 'value',
+            outputAlias: 'left_shared__value',
+            isHidden: false,
+            aggregateFunction: 'STRING_AGG',
+          },
+        ],
+      });
+      const rightShared = makeChain({
+        relationship: makeRelationship({
+          id: 'rel-right-shared',
+          targetAlias: 'shared',
+          joinConditions: [{ sourceFieldName: 'right_id', targetFieldName: 'right_id' }],
+        }),
+        targetTableReference: 'shared_table',
+        parentAlias: 'right',
+        blendedFields: [
+          {
+            targetFieldName: 'value',
+            outputAlias: 'right_shared__value',
+            isHidden: false,
+            aggregateFunction: 'STRING_AGG',
+          },
+        ],
+      });
+
+      const { sql } = builder.buildBlendedQuery(
+        buildContext(
+          [left, right, leftShared, rightShared],
+          ['root_col', 'left_shared__value', 'right_shared__value']
+        )
+      );
+
+      expect(sql).toContain('left_shared AS (');
+      expect(sql).toContain('left_shared_raw AS (');
+      expect(sql).toContain('right_shared AS (');
+      expect(sql).toContain('right_shared_raw AS (');
+
+      expect(sql).toContain('LEFT JOIN left_shared ON left_raw.left_id = left_shared.left_id');
+      expect(sql).toContain('LEFT JOIN right_shared ON right_raw.right_id = right_shared.right_id');
+
+      expect(sql).toContain('left.left_shared__value');
+      expect(sql).toContain('right.right_shared__value');
     });
 
     it('row-count guarantee: only root-level LEFT JOINs in final FROM clause', () => {
