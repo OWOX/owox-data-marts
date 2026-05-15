@@ -51,13 +51,6 @@ import { UpdateBlendedFieldsConfigApiDto } from '../dto/presentation/update-blen
 import { UpdateDataMartDescriptionApiDto } from '../dto/presentation/update-data-mart-description-api.dto';
 import { UpdateDataMartSchemaApiDto } from '../dto/presentation/update-data-mart-schema-api.dto';
 import { UpdateDataMartTitleApiDto } from '../dto/presentation/update-data-mart-title-api.dto';
-import { GenerateDataMartMetadataCommand } from '../dto/domain/generate-data-mart-metadata.command';
-import { GenerateDataMartMetadataRequestApiDto } from '../dto/presentation/generate-data-mart-metadata-request-api.dto';
-import {
-  GenerateDataMartMetadataResponseApiDto,
-  GeneratedFieldMetadataApiDto,
-} from '../dto/presentation/generate-data-mart-metadata-response-api.dto';
-import { GenerateDataMartMetadataResponse } from '../ai-insights/ai-insights-types';
 import { ConnectorDefinition } from '../dto/schemas/data-mart-table-definitions/connector-definition.schema';
 import { DataMartDefinition } from '../dto/schemas/data-mart-table-definitions/data-mart-definition';
 import { isConnectorDefinition } from '../dto/schemas/data-mart-table-definitions/data-mart-definition.guards';
@@ -365,38 +358,6 @@ export class DataMartMapper {
       context.userId,
       context.roles ?? []
     );
-  }
-
-  toGenerateMetadataCommand(
-    id: string,
-    context: AuthorizationContext,
-    dto: GenerateDataMartMetadataRequestApiDto
-  ): GenerateDataMartMetadataCommand {
-    return new GenerateDataMartMetadataCommand(
-      id,
-      context.projectId,
-      dto.scope,
-      dto.useSample,
-      dto.fieldName?.trim() ? dto.fieldName.trim() : undefined,
-      context.userId,
-      context.roles ?? []
-    );
-  }
-
-  toGenerateMetadataResponse(
-    domain: GenerateDataMartMetadataResponse
-  ): GenerateDataMartMetadataResponseApiDto {
-    const response = new GenerateDataMartMetadataResponseApiDto();
-    response.title = domain.title;
-    response.description = domain.description;
-    response.fields = domain.fields?.map(field => {
-      const item = new GeneratedFieldMetadataApiDto();
-      item.name = field.name;
-      item.alias = field.alias;
-      item.description = field.description;
-      return item;
-    });
-    return response;
   }
 
   toGetBlendableSchemaCommand(

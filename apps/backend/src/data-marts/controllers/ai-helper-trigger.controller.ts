@@ -27,11 +27,10 @@ import {
 /**
  * Controller for AI helper triggers.
  *
- * Provides the trigger-based replacement for the legacy synchronous endpoint
- * `POST /data-marts/:id/ai-helper/generate-metadata`. The async flow is required
- * because the upstream ingress drops idle connections at ~30s, but our AI generation
- * routinely exceeds that — so we accept the request, kick off background processing,
- * and let the client poll for the result.
+ * AI metadata generation runs asynchronously because the upstream ingress drops
+ * idle connections at ~30s while LLM responses routinely exceed that — the POST
+ * here accepts the request and kicks off background processing, and clients
+ * poll for the result.
  *
  * Lifecycle endpoints inherited from `UiTriggerController`:
  * - GET    /:triggerId/status — Get trigger status

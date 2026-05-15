@@ -5,9 +5,8 @@ import { DataMartMetadataScope } from '../../ai-insights/ai-insights-types';
 /**
  * Request body for creating a new AI helper trigger.
  *
- * Mirrors `GenerateDataMartMetadataRequestApiDto` (the body of the legacy synchronous
- * endpoint) so the trigger flow accepts exactly the same input shape — the only
- * difference is what the controller returns (a triggerId vs. the AI result inline).
+ * The controller returns a triggerId and the actual generation runs in the
+ * background; clients poll status and fetch the result via the trigger's GET endpoints.
  */
 export class CreateAiHelperTriggerRequestApiDto {
   @ApiProperty({

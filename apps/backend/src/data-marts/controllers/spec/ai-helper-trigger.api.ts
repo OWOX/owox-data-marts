@@ -20,9 +20,7 @@ export function CreateAiHelperTriggerSpec() {
       summary: 'Create a new AI helper trigger',
       description:
         'Creates an asynchronous AI metadata generation trigger for the specified DataMart. ' +
-        'Poll the trigger status, then retrieve the result when processing is finished. ' +
-        'This is the preferred replacement for `POST /data-marts/:id/ai-helper/generate-metadata`, ' +
-        'which is bound by the ingress idle timeout.',
+        'Poll the trigger status, then retrieve the result when processing is finished.',
     }),
     ApiParam({ name: 'dataMartId', description: 'DataMart ID' }),
     ApiBody({ type: CreateAiHelperTriggerRequestApiDto }),

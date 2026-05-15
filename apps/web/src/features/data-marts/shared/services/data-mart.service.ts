@@ -13,8 +13,6 @@ import type {
   UpdateDataMartRequestDto,
   UpdateDataMartSchemaRequestDto,
   BatchDataMartHealthStatusResponseDto,
-  GenerateDataMartMetadataRequestDto,
-  GenerateDataMartMetadataResponseDto,
   DataMartAiHelperAvailabilityResponseDto,
   CreateAiHelperTriggerRequestDto,
   AiHelperTriggerResponseDto,
@@ -370,30 +368,6 @@ export class DataMartService extends ApiService {
       skipLoadingIndicator: true,
       skipErrorToast: true,
     } as AxiosRequestConfig);
-  }
-
-  /**
-   * Request AI-generated metadata for a data mart.
-   * Returns a suggestion only — the caller must apply it via the appropriate update endpoint.
-   *
-   * @deprecated Use the trigger-based `createAiHelperTrigger` + polling flow instead.
-   * The synchronous endpoint is bound by the ingress 30s idle timeout and will be
-   * removed in a follow-up release; this method is kept only for back-compat during
-   * the transition.
-   * @param id Data mart ID
-   * @param data Generation request (scope, useSample, optional fieldName)
-   */
-  async generateDataMartMetadata(
-    id: string,
-    data: GenerateDataMartMetadataRequestDto
-  ): Promise<GenerateDataMartMetadataResponseDto> {
-    return this.post<GenerateDataMartMetadataResponseDto>(
-      `/${id}/ai-helper/generate-metadata`,
-      data,
-      {
-        timeout: 120000,
-      }
-    );
   }
 
   /**

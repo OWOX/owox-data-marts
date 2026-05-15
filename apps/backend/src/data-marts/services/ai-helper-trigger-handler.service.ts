@@ -1,20 +1,27 @@
 import { Inject, Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
+import { OwoxEventDispatcher } from '../../common/event-dispatcher/owox-event-dispatcher';
 import { SCHEDULER_FACADE, SchedulerFacade } from '../../common/scheduler/shared/scheduler.facade';
 import { TriggerHandler } from '../../common/scheduler/shared/trigger-handler.interface';
 import { GenerateDataMartMetadataCommand } from '../dto/domain/generate-data-mart-metadata.command';
 import { AiHelperTrigger } from '../entities/ai-helper-trigger.entity';
+import { DataMartAiHelperGeneratedEvent } from '../events/data-mart-ai-helper-generated.event';
 import { GenerateDataMartMetadataService } from '../use-cases/generate-data-mart-metadata.service';
 
 /**
  * Handler service for processing AI helper triggers.
  *
- * Picked up by the scheduler every ~2 seconds; delegates the actual work to the
- * existing `GenerateDataMartMetadataService` so the use-case (validation, sample, agent,
- * analytics event) stays a single source of truth and is shared with any other entry
- * point. Failures are written into `uiResponse.error` rather than rethrown — the
- * scheduler considers the run "complete" either way; the UI then surfaces the message.
+ * Picked up by the scheduler every ~2 seconds; delegates the actual work to
+ * `GenerateDataMartMetadataService`. Mirrors the `SqlDryRunTriggerHandler` pattern:
+ * we pass an empty `userId` so the use-case's in-process EDIT access check is
+ * skipped — access was already verified at the POST that created this trigger,
+ * and the original request `roles` are not available in the background context.
+ *
+ * Failures are written into `uiResponse.error` rather than rethrown — the
+ * scheduler considers the run "complete" either way; the UI then surfaces the
+ * message. Analytics events are emitted from here so the use-case stays clean
+ * of caller-specific instrumentation.
  */
 @Injectable()
 export class AiHelperTriggerHandlerService
@@ -27,7 +34,8 @@ export class AiHelperTriggerHandlerService
     private readonly repository: Repository<AiHelperTrigger>,
     @Inject(SCHEDULER_FACADE)
     private readonly schedulerFacade: SchedulerFacade,
-    private readonly generateDataMartMetadataService: GenerateDataMartMetadataService
+    private readonly generateDataMartMetadataService: GenerateDataMartMetadataService,
+    private readonly eventDispatcher: OwoxEventDispatcher
   ) {}
 
   async handleTrigger(trigger: AiHelperTrigger, options?: { signal?: AbortSignal }): Promise<void> {
@@ -41,21 +49,16 @@ export class AiHelperTriggerHandlerService
         return;
       }
 
-      // Access was already verified by the POST controller that created the trigger.
-      // We can't re-check here because the user's roles are not available in the
-      // background scheduler context — a fresh matrix check with `roles=[]` would
-      // reject any user whose edit rights came from a role rather than ownership.
-      // `skipAccessCheck=true` documents this intent; `userId` is still carried so
-      // the use-case emits the analytics event for the correct actor.
+      // Pass empty userId/roles so the use-case skips its access check — same trick
+      // as SqlDryRunTriggerHandler. Access is already enforced at trigger creation.
       const command = new GenerateDataMartMetadataCommand(
         trigger.dataMartId,
         trigger.projectId,
         trigger.scope,
         trigger.useSample,
         trigger.fieldName ?? undefined,
-        trigger.userId,
-        [],
-        true
+        '',
+        []
       );
 
       const result = await this.generateDataMartMetadataService.run(command);
@@ -63,6 +66,9 @@ export class AiHelperTriggerHandlerService
       trigger.uiResponse = { result };
       trigger.onSuccess();
       await this.repository.save(trigger);
+
+      // Fire-and-forget analytics — failures must not flip a SUCCESSful trigger.
+      void this.publishGeneratedEvent(trigger);
 
       this.logger.debug(`Successfully processed AI helper trigger ${trigger.id}`);
     } catch (error) {
@@ -72,6 +78,24 @@ export class AiHelperTriggerHandlerService
       };
       trigger.onError();
       await this.repository.save(trigger);
+    }
+  }
+
+  private async publishGeneratedEvent(trigger: AiHelperTrigger): Promise<void> {
+    try {
+      await this.eventDispatcher.publishExternal(
+        new DataMartAiHelperGeneratedEvent({
+          projectId: trigger.projectId,
+          dataMartId: trigger.dataMartId,
+          userId: trigger.userId,
+          scope: trigger.scope,
+        })
+      );
+    } catch (error) {
+      this.logger.error(
+        `Failed to publish DataMartAiHelperGeneratedEvent (trigger=${trigger.id}, scope=${trigger.scope})`,
+        error
+      );
     }
   }
 
