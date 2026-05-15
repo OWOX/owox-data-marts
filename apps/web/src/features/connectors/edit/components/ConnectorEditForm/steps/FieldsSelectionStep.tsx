@@ -38,7 +38,7 @@ export function FieldsSelectionStep({
   onSelectAllFields,
 }: FieldsSelectionStepProps) {
   const filterInputRef = useRef<HTMLInputElement>(null);
-  const defaultsInitializedForRef = useRef<string | null>(null);
+  const prevSelectedFieldRef = useRef<string | null>(null);
   const [filterText, setFilterText] = useState('');
   const [sortOrder, setSortOrder] = useState<ConnectorFieldSortOrder>(
     ConnectorFieldSortOrder.ORIGINAL
@@ -100,8 +100,12 @@ export function FieldsSelectionStep({
       }
     });
 
-    if (defaultsInitializedForRef.current !== selectedField) {
-      const hasFieldsBeyondUniqueKeys = selectedFields.some(f => !uniqueKeysSet.has(f));
+    const isEndpointSwitch = prevSelectedFieldRef.current !== selectedField;
+    if (isEndpointSwitch) {
+      prevSelectedFieldRef.current = selectedField;
+      const hasFieldsBeyondUniqueKeys = selectedFields.some(
+        f => !uniqueKeysSet.has(f) && availableFieldNamesSet.has(f)
+      );
       if (!hasFieldsBeyondUniqueKeys) {
         const defaultFields = selectedFieldData?.defaultFields ?? [];
         defaultFields.forEach(fieldName => {
@@ -110,7 +114,6 @@ export function FieldsSelectionStep({
           }
         });
       }
-      defaultsInitializedForRef.current = selectedField;
     }
 
     if (fieldsToAutoSelect.size > 0) {
