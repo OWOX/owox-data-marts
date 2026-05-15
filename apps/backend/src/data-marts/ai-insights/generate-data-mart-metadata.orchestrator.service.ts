@@ -4,6 +4,7 @@ import { AiChatProvider } from '../../common/ai-insights/agent/ai-core';
 import { ToolRegistry } from '../../common/ai-insights/agent/tool-registry';
 import { BusinessViolationException } from '../../common/exceptions/business-violation.exception';
 import { DataMartDefinitionValidatorFacade } from '../data-storage-types/facades/data-mart-definition-validator-facade.service';
+import type { DataMartSchema } from '../data-storage-types/data-mart-schema.type';
 import { DataMartDefinitionType } from '../enums/data-mart-definition-type.enum';
 import { DataMartService } from '../services/data-mart.service';
 import { DataMartSampleDataService } from '../services/data-mart-sample-data.service';
@@ -110,7 +111,39 @@ export class GenerateDataMartMetadataOrchestratorService {
       sharedContext
     );
 
-    return this.shapeResponseToScope(aiResult, request);
+    // LLMs occasionally slip on long camelCase identifiers (e.g.
+    // `firstPaidSubscriptionDateTime` -> `firstpaidsubscriptiondatetime`).
+    // Map any returned field name back to its canonical schema name before
+    // the exact-string filter in `shapeResponseToScope` runs.
+    const normalized = this.normalizeAiFields(aiResult, schema);
+
+    const rawNames = (aiResult.fields ?? []).map(f => f.name);
+    const canonicalNames = (normalized.fields ?? []).map(f => f.name);
+    this.logger.log(
+      `AI returned ${rawNames.length} field(s) ` +
+        `names_raw=[${rawNames.join(', ')}] names_canonical=[${canonicalNames.join(', ')}]`
+    );
+
+    return this.shapeResponseToScope(normalized, request);
+  }
+
+  private normalizeAiFields(
+    aiResult: GenerateDataMartMetadataResponse,
+    schema: DataMartSchema
+  ): GenerateDataMartMetadataResponse {
+    if (!aiResult.fields) return aiResult;
+    const norm = (s: string): string => s.toLowerCase().replace(/[^a-z0-9]/g, '');
+    const canonicalByNormalized = new Map<string, string>();
+    for (const f of schema.fields) {
+      canonicalByNormalized.set(norm(f.name), f.name);
+    }
+    return {
+      ...aiResult,
+      fields: aiResult.fields.map(f => ({
+        ...f,
+        name: canonicalByNormalized.get(norm(f.name)) ?? f.name,
+      })),
+    };
   }
 
   private requiresFieldName(scope: DataMartMetadataScope): boolean {

@@ -41,6 +41,7 @@ Guidelines for field descriptions:
 Hard rules:
 - NEVER invent fields that are not present in the input schema.
 - The "name" of every field in your output MUST exactly match a field name from the input schema (case-sensitive).
+- Field names are identifiers. Echo them BYTE-FOR-BYTE. Do NOT lowercase, snake_case-ify, hyphenate, or otherwise rewrite them. Example: if the schema contains \`firstPaidSubscriptionDateTime\`, your response MUST use \`firstPaidSubscriptionDateTime\`, not \`firstpaidsubscriptiondatetime\` and not \`first_paid_subscription_date_time\`.
 - If the input already has a value for a field's alias or description and you have nothing meaningfully better, you MAY repeat it as-is.
 - If sample rows are not provided, base your output on column names and types only; in that case prefer cautious, generic wording.
 
