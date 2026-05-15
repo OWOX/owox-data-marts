@@ -60,10 +60,6 @@ interface RunState {
   abortController: AbortController;
 }
 
-/**
- * Sleep with cancellation support — resolves immediately if the signal aborts mid-wait
- * so the polling loop can react to user-initiated cancels without an extra delay.
- */
 function sleepWithSignal(ms: number, signal: AbortSignal): Promise<void> {
   return new Promise(resolve => {
     if (signal.aborted) {
@@ -83,50 +79,14 @@ function sleepWithSignal(ms: number, signal: AbortSignal): Promise<void> {
   });
 }
 
-/**
- * Calls the AI helper backend endpoint and returns suggested metadata.
- *
- * Internally uses an asynchronous trigger + polling flow (POST creates a trigger,
- * status is polled every 1s, response is fetched when complete) to dodge the
- * ingress 30s idle timeout that previously killed long-running synchronous calls.
- * The public API is unchanged from the caller's perspective: each method still
- * returns either the suggestion or `undefined`.
- *
- * This hook does NOT persist suggestions — callers apply them via the
- * existing update endpoints (or push them into local schema state).
- *
- * The polling/cancellation architecture mirrors `useSqlDryRunTrigger`: a single
- * try/catch around the poll body, ownership gated by `isCurrentRun(triggerId)` +
- * `!signal.aborted` in the while condition, and terminal state (`pendingScope` /
- * `runStateRef`) cleared inline at the terminal branches rather than in `finally`.
- */
-
-/**
- * One generate() invocation's outcome:
- * - `ok`     — AI returned a payload (the per-scope caller may still find its slice empty)
- * - `failed` — backend or network error; a user-facing toast has already been shown
- * - `cancelled` — the run was aborted (signal) or backend-cancelled; silent
- */
 type GenerateOutcome =
   | { kind: 'ok'; data: GenerateDataMartMetadataResponseDto }
   | { kind: 'failed' }
   | { kind: 'cancelled' };
 
 /**
- * Resolve a user-facing error message from an axios error inside `pollTriggerStatus`.
- *
- * The catch covers two distinct error shapes that look identical at the network
- * level but write the human message into different fields:
- *
- * 1. Trigger ERROR — `UiTriggerService.getTriggerResponse` does
- *    `throw new BadRequestException(uiResponse)` with `uiResponse = { error: '…' }`.
- *    NestJS spreads our object into the body verbatim, so the real text is at
- *    `data.error` (and `data.message` becomes the default `'BadRequestException'`).
- * 2. Transport / framework errors (4xx with string-arg exceptions, 5xx, etc.) —
- *    NestJS's `createBody(string, …)` puts the human text into `data.message`.
- *
- * The 400-with-data.error shape is unambiguously case (1) since case (2) for 400
- * doesn't carry an `error` field of its own.
+ * Trigger ERROR wraps `{ error: '…' }` inside a `BadRequestException`, so the real
+ * message lives at `data.error`. Other 4xx/5xx use `data.message`.
  */
 function extractPollErrorMessage(error: unknown): string | undefined {
   const response = (
@@ -138,6 +98,11 @@ function extractPollErrorMessage(error: unknown): string | undefined {
   return data.message ?? data.error;
 }
 
+/**
+ * Hook for AI metadata generation using triggers.
+ * Per-scope methods return the suggestion (or `undefined`); `pendingScope` lets the
+ * UI render a per-scope spinner while a generation is in flight.
+ */
 export function useAiHelper(): UseAiHelperResult {
   const [pendingScope, setPendingScope] = useState<PendingScope | null>(null);
   const runStateRef = useRef<RunState | null>(null);
@@ -146,9 +111,6 @@ export function useAiHelper(): UseAiHelperResult {
     return runStateRef.current?.triggerId === triggerId;
   }, []);
 
-  // Best-effort cancel of any prior in-flight run (also DELETEs the trigger on the
-  // backend so the scheduler stops processing it). Called when the user clicks AI again
-  // before the previous run finishes, and on unmount.
   const cancelCurrentRun = useCallback((): void => {
     const state = runStateRef.current;
     if (!state) return;
@@ -163,24 +125,6 @@ export function useAiHelper(): UseAiHelperResult {
     };
   }, [cancelCurrentRun]);
 
-  /**
-   * Poll the trigger until it reaches a terminal status, mirroring
-   * `useSqlDryRunTrigger.pollTriggerStatus` shape:
-   *
-   * - Ownership gate `!signal.aborted && isCurrentRun(triggerId)` in the while
-   *   condition — if a newer run has taken over `runStateRef`, our next iteration
-   *   exits without touching shared state.
-   * - Single try/catch around the body: transport errors and the
-   *   `BadRequestException` thrown by `getTriggerResponse` on status=ERROR both
-   *   land in the same handler.
-   * - `runStateRef`/`pendingScope` cleared inline at terminal branches (success
-   *   path or error path), never in a `finally`. A stolen run that exits via the
-   *   loop check returns `{ kind: 'cancelled' }` without mutating state.
-   *
-   * The only special case is backend status=CANCELLED: we drain the response
-   * silently (no toast) because the row is only ever produced by our own
-   * `cancelCurrentRun` flow — the user already knows.
-   */
   const pollTriggerStatus = useCallback(
     async (
       dataMartId: string,
@@ -221,8 +165,7 @@ export function useAiHelper(): UseAiHelperResult {
           return { kind: 'failed' };
         }
       }
-      // Stolen by a newer run (signal aborted or runStateRef replaced) — leave
-      // shared state alone, the active run owns it.
+      // Stolen by a newer run — leave shared state to the active run.
       return { kind: 'cancelled' };
     },
     [isCurrentRun]
@@ -230,7 +173,6 @@ export function useAiHelper(): UseAiHelperResult {
 
   const generate = useCallback(
     async (dataMartId: string, pending: PendingScope): Promise<GenerateOutcome> => {
-      // A new click while another run is in flight aborts the previous one.
       cancelCurrentRun();
       setPendingScope(pending);
 
@@ -249,17 +191,12 @@ export function useAiHelper(): UseAiHelperResult {
 
         outcome = await pollTriggerStatus(dataMartId, triggerId, abortController.signal);
       } catch (error) {
-        // POST createAiHelperTrigger failed (403 / 400 / 503 / network). Surface the
-        // backend message — without this the global axios interceptor stays muted
-        // (our service-level `skipErrorToast`) and the user gets no feedback.
-        // `extractApiError` lies about its declared return type — for non-axios
-        // errors it can be undefined — so re-narrow before reading `.message`.
+        // POST failed (403 / 400 / 503 / network) — service-level `skipErrorToast`
+        // keeps the global interceptor muted, so toast the backend message here.
+        // `extractApiError` can return undefined for non-axios errors despite its type.
         const apiError = extractApiError(error) as ApiError | undefined;
         const message = apiError?.message;
         if (message) toast.error(message);
-        // Mirror dry-run's setErrorResult — clear the spinner unconditionally on
-        // POST failure. (The dry-run-style concurrent-POST race remains: if a
-        // parallel newer generate is mid-POST, this clears its spinner too.)
         setPendingScope(null);
         outcome = { kind: 'failed' };
       }
