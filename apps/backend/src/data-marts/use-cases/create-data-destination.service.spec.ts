@@ -74,8 +74,13 @@ describe('CreateDataDestinationService', () => {
     };
     const dataDestinationCredentialService = {
       create: jest.fn().mockResolvedValue({ id: 'cred-1' }),
+      getById: jest.fn(),
     };
-    const googleOAuthClientService = {};
+    const googleOAuthClientService = {
+      getDestinationOAuth2ClientByCredentialId: jest.fn().mockResolvedValue({
+        getAccessToken: jest.fn().mockResolvedValue(undefined),
+      }),
+    };
     const dataDestinationService = {};
     const copyCredentialService = {};
     const userProjectionsFetcherService = {
@@ -108,7 +113,7 @@ describe('CreateDataDestinationService', () => {
       eventDispatcher as never
     );
 
-    return { service };
+    return { service, dataDestinationCredentialService, googleOAuthClientService };
   };
 
   beforeEach(() => {
@@ -183,5 +188,71 @@ describe('CreateDataDestinationService', () => {
       expect.anything(),
       expect.any(Function)
     );
+  });
+
+  describe('credentialId ownership check', () => {
+    it('throws ForbiddenException when credentialId belongs to a different project', async () => {
+      const { service, dataDestinationCredentialService } = createService();
+      dataDestinationCredentialService.getById.mockResolvedValue({
+        id: 'cred-1',
+        projectId: 'other-project',
+      });
+
+      const command = new CreateDataDestinationCommand(
+        'proj-1',
+        'Test',
+        DataDestinationType.GOOGLE_SHEETS,
+        'user-0',
+        undefined,
+        'cred-1'
+      );
+
+      await expect(service.run(command)).rejects.toThrow(
+        'Credential does not belong to this project'
+      );
+    });
+
+    it('throws ForbiddenException when credentialId does not exist', async () => {
+      const { service, dataDestinationCredentialService } = createService();
+      dataDestinationCredentialService.getById.mockResolvedValue(null);
+
+      const command = new CreateDataDestinationCommand(
+        'proj-1',
+        'Test',
+        DataDestinationType.GOOGLE_SHEETS,
+        'user-0',
+        undefined,
+        'cred-missing'
+      );
+
+      await expect(service.run(command)).rejects.toThrow(
+        'Credential does not belong to this project'
+      );
+    });
+
+    it('creates destination when credentialId belongs to the same project', async () => {
+      const { service, dataDestinationCredentialService, googleOAuthClientService } =
+        createService();
+      dataDestinationCredentialService.getById.mockResolvedValue({
+        id: 'cred-1',
+        projectId: 'proj-1',
+      });
+
+      const command = new CreateDataDestinationCommand(
+        'proj-1',
+        'Test',
+        DataDestinationType.GOOGLE_SHEETS,
+        'user-0',
+        undefined,
+        'cred-1'
+      );
+
+      const result = await service.run(command);
+
+      expect(
+        googleOAuthClientService.getDestinationOAuth2ClientByCredentialId
+      ).toHaveBeenCalledWith('cred-1');
+      expect(result).toEqual({ id: 'dest-1' });
+    });
   });
 });
