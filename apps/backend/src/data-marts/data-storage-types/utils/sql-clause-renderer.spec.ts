@@ -1,4 +1,4 @@
-import { SqlClauseRenderer, RenderedClause } from './sql-clause-renderer';
+import { ColumnRefResolver, SqlClauseRenderer, RenderedClause } from './sql-clause-renderer';
 import { FilterRule } from '../../dto/schemas/filter-config.schema';
 import { SortRule } from '../../dto/schemas/sort-config.schema';
 
@@ -6,15 +6,19 @@ class StubRenderer extends SqlClauseRenderer {
   protected quoteIdentifier(name: string): string {
     return `"${name}"`;
   }
-  protected renderFilterFragment(rule: FilterRule, paramName: string): RenderedClause {
+  protected renderFilterFragment(
+    rule: FilterRule,
+    paramName: string,
+    columnRef: string
+  ): RenderedClause {
     if (rule.operator === 'eq') {
       return {
-        sql: `${this.quoteIdentifier(rule.column)} = @${paramName}`,
+        sql: `${columnRef} = @${paramName}`,
         params: [{ name: paramName, value: rule.value }],
       };
     }
     if (rule.operator === 'is_empty') {
-      return { sql: `${this.quoteIdentifier(rule.column)} IS NULL`, params: [] };
+      return { sql: `${columnRef} IS NULL`, params: [] };
     }
     return { sql: '1=1', params: [] };
   }
@@ -67,5 +71,44 @@ describe('SqlClauseRenderer', () => {
   it('omits LIMIT when null or undefined', () => {
     expect(r.renderLimit(null).sql).toBe('');
     expect(r.renderLimit(undefined).sql).toBe('');
+  });
+
+  describe('column qualification via ColumnRefResolver', () => {
+    const qualify: ColumnRefResolver = column => `main."${column}"`;
+
+    it('passes the resolved column reference into WHERE fragments', () => {
+      const out = r.renderWhere(
+        [
+          { column: 'a', operator: 'eq', value: 1 },
+          { column: 'b', operator: 'is_empty' },
+        ],
+        qualify
+      );
+      expect(out.sql).toBe('\nWHERE main."a" = @p0 AND main."b" IS NULL');
+    });
+
+    it('passes the resolved column reference into ORDER BY fragments', () => {
+      const out = r.renderOrderBy(
+        [
+          { column: 'date', direction: 'desc' },
+          { column: 'amount', direction: 'asc' },
+        ],
+        qualify
+      );
+      expect(out.sql).toBe('\nORDER BY main."date" DESC, main."amount" ASC');
+    });
+
+    it('lets the resolver route different columns to different prefixes', () => {
+      const routed: ColumnRefResolver = column =>
+        column === 'b' ? `orders."${column}"` : `main."${column}"`;
+      const out = r.renderWhere(
+        [
+          { column: 'a', operator: 'eq', value: 1 },
+          { column: 'b', operator: 'eq', value: 2 },
+        ],
+        routed
+      );
+      expect(out.sql).toBe('\nWHERE main."a" = @p0 AND orders."b" = @p1');
+    });
   });
 });

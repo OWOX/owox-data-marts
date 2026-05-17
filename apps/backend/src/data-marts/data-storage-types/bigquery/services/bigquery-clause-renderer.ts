@@ -9,9 +9,7 @@ export class BigQueryClauseRenderer extends SqlClauseRenderer {
     return escapeBigQueryIdentifier(name);
   }
 
-  protected renderFilterFragment(rule: FilterRule, paramName: string): RenderedClause {
-    const col = this.quoteIdentifier(rule.column);
-
+  protected renderFilterFragment(rule: FilterRule, paramName: string, col: string): RenderedClause {
     switch (rule.operator) {
       case 'eq':
         return { sql: `${col} = @${paramName}`, params: [{ name: paramName, value: rule.value }] };

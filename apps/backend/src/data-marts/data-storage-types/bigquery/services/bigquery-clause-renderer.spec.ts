@@ -1,4 +1,5 @@
 import { BigQueryClauseRenderer } from './bigquery-clause-renderer';
+import { ColumnRefResolver } from '../../utils/sql-clause-renderer';
 
 describe('BigQueryClauseRenderer', () => {
   const r = new BigQueryClauseRenderer();
@@ -154,5 +155,81 @@ describe('BigQueryClauseRenderer', () => {
   it('quotes dotted identifiers correctly', () => {
     const out = r.renderWhere([{ column: 'project.dataset.col', operator: 'eq', value: 1 }]);
     expect(out.sql).toBe('\nWHERE `project`.`dataset`.`col` = @p0');
+  });
+
+  describe('column qualification', () => {
+    const qualify: ColumnRefResolver = column => `main.\`${column}\``;
+
+    it('honours the resolver in scalar operators', () => {
+      expect(r.renderWhere([{ column: 'a', operator: 'eq', value: 1 }], qualify).sql).toBe(
+        '\nWHERE main.`a` = @p0'
+      );
+      expect(
+        r.renderWhere([{ column: 'a', operator: 'between', value: { from: 1, to: 2 } }], qualify)
+          .sql
+      ).toBe('\nWHERE main.`a` BETWEEN @p0 AND @p1');
+    });
+
+    it('honours the resolver in substring/regex operators', () => {
+      expect(r.renderWhere([{ column: 'a', operator: 'contains', value: 'x' }], qualify).sql).toBe(
+        '\nWHERE STRPOS(main.`a`, @p0) > 0'
+      );
+      expect(
+        r.renderWhere([{ column: 'a', operator: 'starts_with', value: 'x' }], qualify).sql
+      ).toBe('\nWHERE STARTS_WITH(main.`a`, @p0)');
+      expect(r.renderWhere([{ column: 'a', operator: 'regex', value: '^x' }], qualify).sql).toBe(
+        '\nWHERE REGEXP_CONTAINS(main.`a`, @p0)'
+      );
+    });
+
+    it('honours the resolver in no-value operators', () => {
+      expect(r.renderWhere([{ column: 'a', operator: 'is_null' }], qualify).sql).toBe(
+        '\nWHERE main.`a` IS NULL'
+      );
+      expect(r.renderWhere([{ column: 'a', operator: 'is_empty' }], qualify).sql).toBe(
+        "\nWHERE (main.`a` IS NULL OR main.`a` = '')"
+      );
+    });
+
+    it('honours the resolver in relative_date presets', () => {
+      expect(
+        r.renderWhere(
+          [{ column: 'd', operator: 'relative_date', value: { kind: 'today' } }],
+          qualify
+        ).sql
+      ).toBe('\nWHERE main.`d` = CURRENT_DATE()');
+    });
+
+    it('honours the resolver on both column references in last_month', () => {
+      const sql = r.renderWhere(
+        [{ column: 'd', operator: 'relative_date', value: { kind: 'last_month' } }],
+        qualify
+      ).sql;
+      expect(sql).toContain(
+        'main.`d` >= DATE_TRUNC(DATE_SUB(CURRENT_DATE(), INTERVAL 1 MONTH), MONTH)'
+      );
+      expect(sql).toContain('main.`d` < DATE_TRUNC(CURRENT_DATE(), MONTH)');
+      expect(sql).not.toMatch(/\s`d`\s</);
+    });
+
+    it('honours the resolver in ORDER BY', () => {
+      expect(r.renderOrderBy([{ column: 'a', direction: 'asc' }], qualify).sql).toBe(
+        '\nORDER BY main.`a` ASC'
+      );
+    });
+
+    it('routes different columns to different CTE prefixes', () => {
+      const routed: ColumnRefResolver = column =>
+        column === 'b' ? `orders.\`${column}\`` : `main.\`${column}\``;
+      expect(
+        r.renderWhere(
+          [
+            { column: 'a', operator: 'eq', value: 1 },
+            { column: 'b', operator: 'gt', value: 2 },
+          ],
+          routed
+        ).sql
+      ).toBe('\nWHERE main.`a` = @p0 AND orders.`b` > @p1');
+    });
   });
 });

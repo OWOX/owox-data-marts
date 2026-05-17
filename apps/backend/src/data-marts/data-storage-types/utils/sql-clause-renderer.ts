@@ -11,18 +11,34 @@ export interface RenderedClause {
   params: SqlParameter[];
 }
 
+/**
+ * Returns the SQL fragment for a column reference — fully quoted and, when
+ * needed, prefixed with a CTE alias. The renderer cannot derive the prefix
+ * from the column name alone, so the caller supplies one.
+ */
+export type ColumnRefResolver = (column: string) => string;
+
 export abstract class SqlClauseRenderer {
   protected abstract quoteIdentifier(name: string): string;
-  protected abstract renderFilterFragment(rule: FilterRule, paramName: string): RenderedClause;
+  protected abstract renderFilterFragment(
+    rule: FilterRule,
+    paramName: string,
+    columnRef: string
+  ): RenderedClause;
 
-  renderWhere(filters: FilterRule[]): RenderedClause {
+  private resolverOrFallback(qualifyColumn: ColumnRefResolver | undefined): ColumnRefResolver {
+    return qualifyColumn ?? (c => this.quoteIdentifier(c));
+  }
+
+  renderWhere(filters: FilterRule[], qualifyColumn?: ColumnRefResolver): RenderedClause {
     if (!filters.length) return { sql: '', params: [] };
+    const resolve = this.resolverOrFallback(qualifyColumn);
     const fragments: string[] = [];
     const params: SqlParameter[] = [];
     let nextIndex = 0;
     for (const rule of filters) {
       const paramName = `p${nextIndex}`;
-      const out = this.renderFilterFragment(rule, paramName);
+      const out = this.renderFilterFragment(rule, paramName, resolve(rule.column));
       fragments.push(out.sql);
       params.push(...out.params);
       nextIndex += out.params.length;
@@ -30,9 +46,10 @@ export abstract class SqlClauseRenderer {
     return { sql: `\nWHERE ${fragments.join(' AND ')}`, params };
   }
 
-  renderOrderBy(sort: SortRule[]): RenderedClause {
+  renderOrderBy(sort: SortRule[], qualifyColumn?: ColumnRefResolver): RenderedClause {
     if (!sort.length) return { sql: '', params: [] };
-    const parts = sort.map(r => `${this.quoteIdentifier(r.column)} ${r.direction.toUpperCase()}`);
+    const resolve = this.resolverOrFallback(qualifyColumn);
+    const parts = sort.map(r => `${resolve(r.column)} ${r.direction.toUpperCase()}`);
     return { sql: `\nORDER BY ${parts.join(', ')}`, params: [] };
   }
 

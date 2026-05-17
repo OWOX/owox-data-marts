@@ -5,7 +5,7 @@ import {
 } from './blended-query-builder.interface';
 import { DataStorageType } from '../enums/data-storage-type.enum';
 import { AggregateFunction } from '../../dto/schemas/aggregate-function.schema';
-import { SqlClauseRenderer, SqlParameter } from '../utils/sql-clause-renderer';
+import { ColumnRefResolver, SqlClauseRenderer, SqlParameter } from '../utils/sql-clause-renderer';
 
 interface BlendTreeNode {
   chain: ResolvedRelationshipChain;
@@ -91,12 +91,28 @@ export abstract class AbstractBlendedQueryBuilder implements BlendedQueryBuilder
   buildBlendedQuery(context: BlendedQueryContext): { sql: string; params: SqlParameter[] } {
     const { mainTableReference, mainDataMartTitle, mainDataMartUrl, chains, columns } = context;
     const columnSet = new Set(columns);
+    const referencedColumns = new Set<string>([
+      ...columns,
+      ...(context.filters ?? []).map(f => f.column),
+      ...(context.sort ?? []).map(s => s.column),
+    ]);
+
+    const roots = this.buildTree(chains);
+
+    // Single walk over the chain forest: collect every blended outputAlias and
+    // its root CTE alias. Hidden aliases are included (filters legitimately
+    // reference them) but tracked separately so `buildSelectParts` can still
+    // keep them out of the final SELECT.
+    const outputAliasToRoot = new Map<string, string>();
+    const hiddenOutputAliases = new Set<string>();
+    for (const root of roots) {
+      this.mapOutputAliasesToRoot(root, root.chain.cteName, outputAliasToRoot, hiddenOutputAliases);
+    }
 
     const cteBlocks: string[] = [];
 
     // 1. Raw CTE for main data mart — projects only the columns actually referenced.
-    const roots = this.buildTree(chains);
-    const mainColumns = this.collectMainReferences(roots, columnSet);
+    const mainColumns = this.collectMainReferences(roots, referencedColumns, outputAliasToRoot);
     cteBlocks.push(
       this.buildRawCte('main', mainTableReference, mainDataMartTitle, mainDataMartUrl, mainColumns)
     );
@@ -110,7 +126,7 @@ export abstract class AbstractBlendedQueryBuilder implements BlendedQueryBuilder
 
     const withClause = `WITH\n${cteBlocks.join(',\n\n')}`;
 
-    const selectParts = this.buildSelectParts(roots, columnSet);
+    const selectParts = this.buildSelectParts(columnSet, outputAliasToRoot, hiddenOutputAliases);
     const joinParts = this.buildJoinParts(roots);
     const selectClause = selectParts.length > 0 ? selectParts.join(',\n  ') : '*';
 
@@ -118,18 +134,35 @@ export abstract class AbstractBlendedQueryBuilder implements BlendedQueryBuilder
       `SELECT\n  ${selectClause}\nFROM main` +
       (joinParts.length > 0 ? '\n' + joinParts.join('\n') : '');
 
+    const qualifyColumn = this.buildColumnQualifier(outputAliasToRoot);
     const renderer = this.clauseRenderer;
     const where = renderer
-      ? renderer.renderWhere(context.filters ?? [])
+      ? renderer.renderWhere(context.filters ?? [], qualifyColumn)
       : { sql: '', params: [] as SqlParameter[] };
     const orderBy = renderer
-      ? renderer.renderOrderBy(context.sort ?? [])
+      ? renderer.renderOrderBy(context.sort ?? [], qualifyColumn)
       : { sql: '', params: [] as SqlParameter[] };
     const limit = renderer
       ? renderer.renderLimit(context.limit ?? null)
       : { sql: '', params: [] as SqlParameter[] };
     const sql = `${withClause}\n\n${body}${where.sql}${orderBy.sql}${limit.sql}`;
     return { sql, params: [...where.params, ...orderBy.params, ...limit.params] };
+  }
+
+  /**
+   * Returns a resolver that prefixes blended outputAliases with their root
+   * CTE alias and everything else with `main.`. Without this, WHERE/ORDER BY
+   * would emit bare names and fail with "column X is ambiguous" whenever a
+   * name lives in two CTEs (join keys are the typical trigger).
+   */
+  private buildColumnQualifier(outputAliasToRoot: Map<string, string>): ColumnRefResolver {
+    return (column: string) => {
+      const rootAlias = outputAliasToRoot.get(column);
+      if (rootAlias) {
+        return `${this.quoteIdentifier(rootAlias)}.${this.quoteIdentifier(column)}`;
+      }
+      return `main.${this.quoteFieldRef(column)}`;
+    };
   }
 
   /**
@@ -335,38 +368,24 @@ export abstract class AbstractBlendedQueryBuilder implements BlendedQueryBuilder
 
   /**
    * Columns of the main DM that need to be projected in its raw CTE:
-   *  - native columns from the user's `columnConfig` (everything in `columnSet`
-   *    that is not the outputAlias of a non-hidden subsidiary blended field)
+   *  - referenced columns (columnConfig + filter columns + sort columns) that
+   *    are NOT blended outputAliases (hidden ones included — those flow
+   *    through subsidiary CTEs, not through main)
    *  - join keys used by root-level (direct children of main) chains
    */
-  private collectMainReferences(roots: BlendTreeNode[], columnSet: Set<string>): string[] {
-    const subsidiaryOutputAliases = this.collectAllOutputAliases(roots);
-
+  private collectMainReferences(
+    roots: BlendTreeNode[],
+    referencedColumns: Set<string>,
+    blendedAliases: Map<string, string>
+  ): string[] {
     const refs = new Set<string>();
-    for (const col of columnSet) {
-      if (!subsidiaryOutputAliases.has(col)) refs.add(col);
+    for (const col of referencedColumns) {
+      if (!blendedAliases.has(col)) refs.add(col);
     }
     for (const root of roots) {
       for (const jc of root.chain.relationship.joinConditions) refs.add(jc.sourceFieldName);
     }
     return Array.from(refs).sort();
-  }
-
-  /**
-   * Recursively collects all non-hidden outputAlias values from a tree.
-   * In bottom-up mode, deep blended fields are surfaced through root nodes,
-   * so we need to traverse the entire tree.
-   */
-  private collectAllOutputAliases(nodes: BlendTreeNode[]): Set<string> {
-    const result = new Set<string>();
-    for (const node of nodes) {
-      for (const field of node.chain.blendedFields) {
-        if (!field.isHidden) result.add(field.outputAlias);
-      }
-      const childAliases = this.collectAllOutputAliases(node.children);
-      for (const alias of childAliases) result.add(alias);
-    }
-    return result;
   }
 
   /**
@@ -446,44 +465,44 @@ export abstract class AbstractBlendedQueryBuilder implements BlendedQueryBuilder
   /**
    * Final SELECT: references main columns and blended columns from root-level
    * aggregation CTEs only. Deep blended fields are surfaced through root nodes
-   * via re-aggregation.
+   * via re-aggregation. Hidden blended fields fall through to the `main.<col>`
+   * branch so they never appear in the final SELECT, even though they live in
+   * `outputAliasToRoot` (filters need them).
    */
-  private buildSelectParts(roots: BlendTreeNode[], columnSet: Set<string>): string[] {
+  private buildSelectParts(
+    columnSet: Set<string>,
+    outputAliasToRoot: Map<string, string>,
+    hiddenOutputAliases: Set<string>
+  ): string[] {
     const parts: string[] = [];
-
-    // Build a map: outputAlias → root alias that surfaces it.
-    // Non-hidden blended fields from any depth are routed to their root ancestor.
-    const outputAliasToRoot = new Map<string, string>();
-    for (const root of roots) {
-      this.mapOutputAliasesToRoot(root, root.chain.cteName, outputAliasToRoot);
-    }
-
     for (const col of columnSet) {
       const rootAlias = outputAliasToRoot.get(col);
-      if (rootAlias) {
+      if (rootAlias && !hiddenOutputAliases.has(col)) {
         parts.push(`${this.quoteIdentifier(rootAlias)}.${this.quoteIdentifier(col)}`);
       } else {
-        parts.push(`main.${this.quoteIdentifier(col)}`);
+        parts.push(`main.${this.quoteFieldRef(col)}`);
       }
     }
-
     return parts;
   }
 
   /**
-   * Recursively maps every non-hidden outputAlias in a subtree to the root
-   * alias that will surface it after bottom-up aggregation.
+   * Recursively maps every blended outputAlias in a subtree to the root alias
+   * that will surface it after bottom-up aggregation, also flagging hidden
+   * fields so callers can apply visibility rules without a second traversal.
    */
   private mapOutputAliasesToRoot(
     node: BlendTreeNode,
     rootAlias: string,
-    result: Map<string, string>
+    outputAliasToRoot: Map<string, string>,
+    hiddenOutputAliases: Set<string>
   ): void {
     for (const field of node.chain.blendedFields) {
-      if (!field.isHidden) result.set(field.outputAlias, rootAlias);
+      outputAliasToRoot.set(field.outputAlias, rootAlias);
+      if (field.isHidden) hiddenOutputAliases.add(field.outputAlias);
     }
     for (const child of node.children) {
-      this.mapOutputAliasesToRoot(child, rootAlias, result);
+      this.mapOutputAliasesToRoot(child, rootAlias, outputAliasToRoot, hiddenOutputAliases);
     }
   }
 
