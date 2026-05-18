@@ -19,47 +19,11 @@ Next step: fill Account ID to fetch data from. [Where to find Account IDs?](http
 
 ## Step 1: Sign In to the Meta for Developers Portal
 
-Visit the [Meta for Developers](https://developers.facebook.com/) site and log in with your Facebook account.
+Visit the [Meta for Developers](https://developers.facebook.com/) site and log in with your Facebook account. Navigate to **My Apps** and click the **Create App** button. Enter the **App Name** in the provided field.
 
-![Facebook login portal](res/facebook_login_portal.png)
-
-![Facebook login page](res/facebook_login.png)
-
-## Step 2: Create a New App
-
-Navigate to **My Apps** and click the **Create App** button.
-
-![Facebook My apps](res/facebook_myapps.png)
-
-![Facebook creating app](res/facebook_createapp.png)
-
-Enter the **App Name** in the provided field.
-
-![Facebook app name](res/facebook_appname.png)
-
-Select **Other** as the use case.  
-
-![Facebook Other use case](res/facebook_other.png)
-
-Select **Business** as the app type and click **Next**.  
-
-![Facebook Business app type](res/facebook_business.png)
-
-Choose the appropriate **Business Portfolio**, then click the **Create App** button.  
-
-![Facebook Business portfolio option](res/facebook_portfolio.png)
-
-## Step 3: Set Up Marketing API
-
-Go to the new app. In your app dashboard, locate **Marketing API** and click **Set Up**.  
-
-![Facebook Marketing API set up](res/facebook_setup.png)
+Select **Measure ad performance data with Marketing API** as the use case. Connect your Business Portfolio. Leave all other fields as default and press 'Create app' button on the final step.
 
 ## Step 4: Get the temporary token
-
-First, ensure your app is in **Development Mode**:
-
-![Facebook Development Mode](res/facebook_devmode.png)
 
 - Go to **App Settings → Basic**  
 - Copy your **App ID**  
@@ -70,7 +34,7 @@ First, ensure your app is in **Development Mode**:
 Please, build the authorization URL. Use the template below and replace `YOUR_APP_ID` with your actual **App ID**.  
 
 ``` code
-https://www.facebook.com/v25.0/dialog/oauth?client_id=YOUR_APP_ID&redirect_uri=http://localhost:8080/&scope=ads_read,read_insights&state=abc123
+https://www.facebook.com/v25.0/dialog/oauth?client_id=YOUR_APP_ID&redirect_uri=http://localhost:8080/&scope=ads_read&state=abc123
 ```
 
 > **Example**:

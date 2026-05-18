@@ -4,7 +4,7 @@
 
 - Import campaign, ad set, ad-level performance data
 - Pull audience demographics and placement breakdowns
-- Schedule recurring syncs or backfill historical data into BigQuery
+- Schedule recurring syncs or backfill historical data into data warehouse
 
 ## Prerequisites
 
@@ -14,7 +14,7 @@
 
 ## Table of Contents
 
-- [**CREDENTIALS**](CREDENTIALS.md) – how to authenticate — OAuth2 or manual access token.
+- [**CREDENTIALS**](CREDENTIALS.md) – how to authenticate (OAuth2 or manual access token).
 - [**GETTING STARTED**](GETTING_STARTED.md) – step-by-step setup guide.
 - [**Q&A**](https://github.com/OWOX/owox-data-marts/discussions/categories/q-a) – troubleshooting common issues.
 
@@ -23,7 +23,7 @@
 - If you encounter an issue, please check the [**Q&A**](https://github.com/OWOX/owox-data-marts/discussions/categories/q-a) section first.
 - To report a bug, open an [**issue**](https://github.com/OWOX/owox-data-marts/issues)
 - Have an idea or want a new integration? Submit a [**feature request**](https://github.com/OWOX/owox-data-marts/discussions)
-- Want to discuss with community? Join [**our Slack community**](https://join.slack.com/t/owox-data-marts/shared_invite/zt-3tnigd08g-f2uU_7oNNwzCyTB2tITnqA).
+- Want to discuss with community? Join [**our Slack community**](https://join.slack.com/t/owox-data-marts/shared_invite/zt-3tnigd08g-f2uU_7oNNwzCyTB2tITnqA)
 
 ## Other Data Sources
 
