@@ -168,6 +168,11 @@ export function DataMartDetails({ id }: DataMartDetailsProps) {
       await publishDataMart(dataMartId);
       void runSchemaActualization();
 
+      // Load runs for connector data marts
+      if (isConnector) {
+        void getDataMartRuns(dataMartId);
+      }
+
       // Show promo toast based on a data mart type
       showPromo({
         step: isConnector ? PromoStep.SCHEDULE_DATA : PromoStep.USE_DATA,
@@ -186,6 +191,7 @@ export function DataMartDetails({ id }: DataMartDetailsProps) {
     isConnector,
     publishDataMart,
     runSchemaActualization,
+    getDataMartRuns,
     showPromo,
     projectId,
     shouldShowInsights,
@@ -371,8 +377,12 @@ export function DataMartDetails({ id }: DataMartDetailsProps) {
                     : 'max-w-0 border-r-0 pr-0 opacity-0'
                 )}
               >
-                <div className='text-muted-foreground flex items-center gap-1 text-sm whitespace-nowrap'>
-                  <Loader2 className='h-4 w-4 animate-spin' />
+                <div
+                  role='status'
+                  aria-live='polite'
+                  className='text-muted-foreground flex items-center gap-1 text-sm whitespace-nowrap'
+                >
+                  <Loader2 className='h-4 w-4 animate-spin' aria-hidden='true' />
                   <span>Updating data</span>
                 </div>
 
@@ -459,28 +469,30 @@ export function DataMartDetails({ id }: DataMartDetailsProps) {
             <DropdownMenuContent align='end'>
               {isConnector && (
                 <>
-                  {hasActiveRuns ? (
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <div>
-                          <DropdownMenuItem disabled>
-                            <Play className='text-foreground h-4 w-4' />
-                            <span>Manual Run...</span>
-                          </DropdownMenuItem>
-                        </div>
-                      </TooltipTrigger>
-                      <TooltipContent side='left'>Already running. Please wait...</TooltipContent>
-                    </Tooltip>
-                  ) : (
-                    <DropdownMenuItem
-                      onClick={() => {
-                        setIsConnectorRunSheetOpen(true);
-                      }}
-                    >
-                      <Play className='text-foreground h-4 w-4' />
-                      <span>Manual Run...</span>
-                    </DropdownMenuItem>
-                  )}
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <div>
+                        <DropdownMenuItem
+                          disabled={hasActiveRuns || isDraft}
+                          onClick={() => {
+                            if (hasActiveRuns || isDraft) return;
+
+                            setIsConnectorRunSheetOpen(true);
+                          }}
+                        >
+                          <Play className='text-foreground h-4 w-4' />
+                          <span>Manual Run...</span>
+                        </DropdownMenuItem>
+                      </div>
+                    </TooltipTrigger>
+                    {(hasActiveRuns || isDraft) && (
+                      <TooltipContent side='left'>
+                        {hasActiveRuns
+                          ? 'Please wait for the current run to complete.'
+                          : 'Manual run is available only for published Data Marts.'}
+                      </TooltipContent>
+                    )}
+                  </Tooltip>
                   <DropdownMenuSeparator />
                 </>
               )}
@@ -555,7 +567,7 @@ export function DataMartDetails({ id }: DataMartDetailsProps) {
         />
       </div>
 
-      {connectorRunSheet}
+      {isConnector && connectorRunSheet}
 
       <ConfirmationDialog
         open={isDeleteDialogOpen}

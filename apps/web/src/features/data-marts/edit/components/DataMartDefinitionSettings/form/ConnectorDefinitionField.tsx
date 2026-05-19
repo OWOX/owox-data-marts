@@ -224,8 +224,13 @@ export function ConnectorDefinitionField({
     }
   };
 
+  const normalizedDataMartStatus =
+    typeof datamartStatus === 'object' ? datamartStatus.code : datamartStatus;
+
+  const isManualRunDisabled = hasActiveRuns || normalizedDataMartStatus === DataMartStatus.DRAFT;
+
   const manualRunButton = (
-    <Button variant='outline' disabled={hasActiveRuns}>
+    <Button variant='outline' disabled={isManualRunDisabled}>
       <Play className='h-4 w-4' />
       <span>Manual Run...</span>
     </Button>
@@ -278,13 +283,16 @@ export function ConnectorDefinitionField({
                       <div className='flex items-center gap-2'>
                         {dataMart?.definitionType === DataMartDefinitionType.CONNECTOR && (
                           <>
-                            {hasActiveRuns ? (
+                            {isManualRunDisabled ? (
                               <Tooltip>
                                 <TooltipTrigger asChild>
                                   <div>{manualRunButton}</div>
                                 </TooltipTrigger>
+
                                 <TooltipContent>
-                                  Please wait for the current run to complete.
+                                  {hasActiveRuns
+                                    ? 'Please wait for the current run to complete.'
+                                    : 'Manual run is available only for published Data Marts.'}
                                 </TooltipContent>
                               </Tooltip>
                             ) : (
@@ -320,11 +328,7 @@ export function ConnectorDefinitionField({
                                     onUpdateConfiguration={configIndex =>
                                       updateConnectorConfiguration(configIndex)
                                     }
-                                    dataMartStatus={
-                                      typeof datamartStatus === 'object'
-                                        ? datamartStatus.code
-                                        : datamartStatus
-                                    }
+                                    dataMartStatus={normalizedDataMartStatus}
                                     totalConfigurations={
                                       connectorDef.connector.source.configuration.length
                                     }
