@@ -1044,7 +1044,7 @@ describe('AbstractBlendedQueryBuilder — output controls', () => {
     builder = new TestBlendedWithRenderer();
   });
 
-  it('appends WHERE on final SELECT', () => {
+  it('qualifies WHERE on a native main column with the main alias', () => {
     const chain = makeChain({
       relationship: makeRelationship(),
       targetTableReference: 'orders_table',
@@ -1063,11 +1063,63 @@ describe('AbstractBlendedQueryBuilder — output controls', () => {
       filters: [{ column: 'customer_name', operator: 'eq', value: 'X' }],
     };
     const { sql, params } = builder.buildBlendedQuery(ctx);
-    expect(sql).toContain('WHERE `customer_name` = @p0');
+    expect(sql).toContain('WHERE main.customer_name = @p0');
     expect(params).toEqual([{ name: 'p0', value: 'X' }]);
   });
 
-  it('appends ORDER BY and LIMIT in correct order after WHERE', () => {
+  it('qualifies WHERE on a blended outputAlias with its root CTE alias', () => {
+    const chain = makeChain({
+      relationship: makeRelationship(),
+      targetTableReference: 'orders_table',
+      parentAlias: 'main',
+      blendedFields: [
+        {
+          targetFieldName: 'order_name',
+          outputAlias: 'order_names',
+          isHidden: false,
+          aggregateFunction: 'STRING_AGG',
+        },
+      ],
+    });
+    const { sql } = builder.buildBlendedQuery({
+      ...buildContext([chain], ['customer_name', 'order_names']),
+      filters: [{ column: 'order_names', operator: 'eq', value: 'X' }],
+    });
+    expect(sql).toContain('WHERE orders.order_names = @p0');
+  });
+
+  it('qualifies WHERE on a hidden blended outputAlias and keeps it out of SELECT', () => {
+    const chain = makeChain({
+      relationship: makeRelationship(),
+      targetTableReference: 'orders_table',
+      parentAlias: 'main',
+      blendedFields: [
+        {
+          targetFieldName: 'order_name',
+          outputAlias: 'order_names',
+          isHidden: false,
+          aggregateFunction: 'STRING_AGG',
+        },
+        {
+          targetFieldName: 'total',
+          outputAlias: 'orders__total',
+          isHidden: true,
+          aggregateFunction: 'SUM',
+        },
+      ],
+    });
+    const { sql } = builder.buildBlendedQuery({
+      ...buildContext([chain], ['customer_name', 'order_names']),
+      filters: [{ column: 'orders__total', operator: 'gt', value: 100 }],
+    });
+    expect(sql).toContain('WHERE orders.orders__total > @p0');
+    expect(sql).toContain('SUM(total) AS orders__total');
+    const selectSection = sql.split('FROM main\n')[0];
+    expect(selectSection).not.toContain('orders.orders__total,');
+    expect(selectSection.match(/orders\.orders__total\b/g)).toBeNull();
+  });
+
+  it('appends ORDER BY and LIMIT in correct order after WHERE with qualified references', () => {
     const chain = makeChain({
       relationship: makeRelationship(),
       targetTableReference: 'orders_table',
@@ -1089,8 +1141,93 @@ describe('AbstractBlendedQueryBuilder — output controls', () => {
     });
     expect(sql.indexOf('WHERE')).toBeLessThan(sql.indexOf('ORDER BY'));
     expect(sql.indexOf('ORDER BY')).toBeLessThan(sql.indexOf('LIMIT'));
-    expect(sql).toContain('ORDER BY `customer_name` DESC');
+    expect(sql).toContain('ORDER BY main.customer_name DESC');
     expect(sql).toContain('LIMIT 50');
+  });
+
+  it('projects native main columns referenced only by filter/sort into the main raw CTE', () => {
+    const chain = makeChain({
+      relationship: makeRelationship(),
+      targetTableReference: 'orders_table',
+      parentAlias: 'main',
+      blendedFields: [
+        {
+          targetFieldName: 'order_name',
+          outputAlias: 'order_names',
+          isHidden: false,
+          aggregateFunction: 'STRING_AGG',
+        },
+      ],
+    });
+    const { sql } = builder.buildBlendedQuery({
+      ...buildContext([chain], ['order_names']),
+      filters: [{ column: 'customer_name', operator: 'eq', value: 'X' }],
+      sort: [{ column: 'signup_date', direction: 'desc' }],
+    });
+    expect(sql).toMatch(
+      /main AS \(\s*SELECT\s+customer_name,\s+id,\s+signup_date\s+FROM main_table/
+    );
+    expect(sql).toContain('WHERE main.customer_name = @p0');
+    expect(sql).toContain('ORDER BY main.signup_date DESC');
+  });
+
+  it('routes a depth-2 blended outputAlias to its root CTE in WHERE', () => {
+    const ab = makeChain({
+      relationship: makeRelationship({
+        id: 'rel-ab',
+        targetAlias: 'orders',
+        joinConditions: [{ sourceFieldName: 'id', targetFieldName: 'customer_id' }],
+      }),
+      targetTableReference: 'orders_table',
+      parentAlias: 'main',
+      blendedFields: [],
+    });
+    const bc = makeChain({
+      relationship: makeRelationship({
+        id: 'rel-bc',
+        targetAlias: 'items',
+        joinConditions: [{ sourceFieldName: 'order_id', targetFieldName: 'order_id' }],
+      }),
+      targetTableReference: 'items_table',
+      parentAlias: 'orders',
+      blendedFields: [
+        {
+          targetFieldName: 'item_id',
+          outputAlias: 'orders_items__count',
+          isHidden: false,
+          aggregateFunction: 'COUNT',
+        },
+      ],
+    });
+    const { sql } = builder.buildBlendedQuery({
+      ...buildContext([ab, bc], ['customer_name', 'orders_items__count']),
+      filters: [{ column: 'orders_items__count', operator: 'gt', value: 0 }],
+    });
+    expect(sql).toContain('WHERE orders.orders_items__count > @p0');
+  });
+
+  it('emits segment-aware quoting for dotted native main columns', () => {
+    const chain = makeChain({
+      relationship: makeRelationship(),
+      targetTableReference: 'orders_table',
+      parentAlias: 'main',
+      blendedFields: [
+        {
+          targetFieldName: 'order_name',
+          outputAlias: 'order_names',
+          isHidden: false,
+          aggregateFunction: 'STRING_AGG',
+        },
+      ],
+    });
+    const { sql } = builder.buildBlendedQuery({
+      ...buildContext([chain], ['order_names']),
+      filters: [{ column: 'user.email', operator: 'eq', value: 'a@b' }],
+      sort: [{ column: 'user.email', direction: 'asc' }],
+    });
+    expect(sql).toContain('WHERE main.user.email = @p0');
+    expect(sql).toContain('ORDER BY main.user.email ASC');
+    expect(sql).not.toContain('main.`user.email`');
   });
 
   it('returns empty params when no filters', () => {
@@ -1102,5 +1239,97 @@ describe('AbstractBlendedQueryBuilder — output controls', () => {
     });
     const { params } = builder.buildBlendedQuery(buildContext([chain], ['customer_name']));
     expect(params).toEqual([]);
+  });
+});
+
+describe('AbstractBlendedQueryBuilder — regression: ambiguous column in WHERE/ORDER BY', () => {
+  let builder: TestBlendedWithRenderer;
+
+  beforeEach(() => {
+    builder = new TestBlendedWithRenderer();
+  });
+
+  it('qualifies every WHERE / ORDER BY reference when columns are shared across CTEs', () => {
+    const visitors = makeChain({
+      relationship: makeRelationship({
+        id: 'rel-visitors',
+        targetAlias: 'visitors_e_commerce',
+        joinConditions: [{ sourceFieldName: 'visitor_id', targetFieldName: 'visitor_id' }],
+      }),
+      targetTableReference: 'visitors_table',
+      parentAlias: 'main',
+      blendedFields: [
+        {
+          targetFieldName: 'total_sessions',
+          outputAlias: 'visitors_e_commerce__total_sessions',
+          isHidden: true,
+          aggregateFunction: 'SUM',
+        },
+      ],
+    });
+    const unifiedAdSpend = makeChain({
+      relationship: makeRelationship({
+        id: 'rel-ad-spend',
+        targetAlias: 'unified_ad_spend_e_commerce',
+        joinConditions: [
+          { sourceFieldName: 'date', targetFieldName: 'date' },
+          { sourceFieldName: 'source', targetFieldName: 'source' },
+          { sourceFieldName: 'medium', targetFieldName: 'medium' },
+        ],
+      }),
+      targetTableReference: 'unified_ad_spend_table',
+      parentAlias: 'main',
+      blendedFields: [
+        {
+          targetFieldName: 'spend',
+          outputAlias: 'unified_ad_spend_e_commerce__spend',
+          isHidden: false,
+          aggregateFunction: 'SUM',
+        },
+      ],
+    });
+
+    const { sql, params } = builder.buildBlendedQuery({
+      ...buildContext(
+        [visitors, unifiedAdSpend],
+        [
+          'date',
+          'customer_id',
+          'device_category',
+          'is_conversion',
+          'source',
+          'medium',
+          'unified_ad_spend_e_commerce__spend',
+        ]
+      ),
+      filters: [
+        {
+          column: 'date',
+          operator: 'between',
+          value: { from: '2025-01-01', to: '2025-01-31' },
+        },
+        { column: 'visitors_e_commerce__total_sessions', operator: 'gt', value: 5 },
+      ],
+      sort: [{ column: 'source', direction: 'asc' }],
+      limit: 1000,
+    });
+
+    expect(sql).toContain('WHERE main.date BETWEEN @p0 AND @p1');
+    expect(sql).toContain('AND visitors_e_commerce.visitors_e_commerce__total_sessions > @p2');
+    expect(sql).toContain('ORDER BY main.source ASC');
+    expect(sql).toContain('LIMIT 1000');
+
+    const tail = sql.slice(sql.indexOf('\nWHERE'));
+    expect(tail).not.toMatch(/WHERE\s+`?date`?\s/);
+    expect(tail).not.toMatch(/AND\s+`?date`?\s/);
+    expect(tail).not.toMatch(/ORDER BY\s+`?source`?\s/);
+    expect(tail).not.toMatch(/AND\s+`?source`?\s/);
+    expect(tail).not.toMatch(/WHERE\s+`?visitors_e_commerce__total_sessions`?\s/);
+
+    expect(params).toEqual([
+      { name: 'p0', value: '2025-01-01' },
+      { name: 'p1', value: '2025-01-31' },
+      { name: 'p2', value: 5 },
+    ]);
   });
 });

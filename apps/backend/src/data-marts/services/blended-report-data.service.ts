@@ -40,8 +40,11 @@ export class BlendedReportDataService {
     );
 
     const blendedFieldsByName = new Map(blendableSchema.blendedFields.map(f => [f.name, f]));
-    const filterColumns = (report.filterConfig ?? []).map(f => f.column);
-    const referencedColumns = new Set<string>([...columnConfig, ...filterColumns]);
+    const referencedColumns = new Set<string>([
+      ...columnConfig,
+      ...(report.filterConfig ?? []).map(f => f.column),
+      ...(report.sortConfig ?? []).map(s => s.column),
+    ]);
     const hasBlendedColumns = Array.from(referencedColumns).some(col =>
       blendedFieldsByName.has(col)
     );
