@@ -211,7 +211,12 @@ export class CreateDataDestinationService {
     command: CreateDataDestinationCommand
   ): Promise<DataDestinationDto> {
     this.eventDispatcher.publishLocalOnCommit(
-      new DataDestinationCreatedEvent(savedEntity.id, command.projectId, command.userId)
+      new DataDestinationCreatedEvent(
+        savedEntity.id,
+        command.projectId,
+        command.userId,
+        savedEntity.type
+      )
     );
 
     const ownerIdsToSave = command.ownerIds ?? [command.userId];

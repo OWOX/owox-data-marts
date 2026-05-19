@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import type { User } from '../../../features/idp/types';
 
 export interface ProjectSetupResponse {
   version: number;
@@ -20,6 +21,9 @@ export enum ProgressKey {
   HAS_REPORT = 'hasReport',
   HAS_REPORT_RUN = 'hasReportRun',
   HAS_TEAMMATES_INVITED = 'hasTeammatesInvited',
+  HAS_GOOGLE_SHEETS_DESTINATION = 'hasGoogleSheetsDestination',
+  HAS_GOOGLE_SHEETS_EXTENSION = 'hasGoogleSheetsExtension',
+  HAS_GOOGLE_SHEETS_REPORT_RUN = 'hasGoogleSheetsReportRun',
 }
 
 export type ProjectSetupProgress = Record<ProgressKey, SetupStepProgress>;
@@ -34,7 +38,7 @@ export interface StepActionRenderContext {
 }
 
 export type StepAction =
-  | { type: StepActionType.LINK; href: string; label: string }
+  | { type: StepActionType.LINK; href: string; label: string; openInNewTab?: boolean }
   | {
       type: StepActionType.COMPONENT;
       label?: string;
@@ -49,6 +53,9 @@ export enum SetupStepId {
   CREATE_REPORT = 'create_report',
   REPORT_RUN = 'report_run',
   INVITE_TEAMMATES = 'invite_teammates',
+  CREATE_GOOGLE_SHEETS_DESTINATION = 'create_google_sheets_destination',
+  INSTALL_GOOGLE_SHEETS_EXTENSION = 'install_google_sheets_extension',
+  CREATE_RUN_REPORT_FROM_EXTENSION = 'create_run_report_from_extension',
 }
 
 export interface SetupStep {
@@ -73,6 +80,7 @@ export enum GroupId {
   PUBLISH = 'group_publish',
   REPORT = 'group_report',
   INVITE_TEAMMATES = 'group_invite_teammates',
+  ENABLE_GOOGLE_SHEETS = 'group_enable_google_sheets',
 }
 
 export interface SetupGroup {
@@ -80,6 +88,8 @@ export interface SetupGroup {
   title: string;
   description: string;
   stepIds: SetupStepId[];
+  isConditional?: boolean;
+  showCondition?: (user: User | null) => boolean;
 }
 
 export interface GroupProgress {

@@ -9,6 +9,8 @@ import { useBaseTable } from '../../../../../../shared/hooks';
 import { BaseTable } from '../../../../../../shared/components/Table';
 import { AddReportButton } from '../DestinationCard/AddReportButton';
 import type { DataMartStatusInfo } from '../../../../shared/types/data-mart-status.model';
+import { useRefreshSetupProgress } from '../../../../../../components/AppSidebar/SetupChecklist/useSetupProgress';
+import { ReportStatusEnum } from '../../../shared/enums';
 
 interface GoogleSheetsReportsTableProps {
   destination: DataDestination;
@@ -48,6 +50,18 @@ export function GoogleSheetsReportsTable({
       regularPollingIntervalMs: 5000, // 5 seconds
     });
   }, [setPollingConfig]);
+
+  // Refresh setup progress when a successful report is found
+  const refreshSetupProgress = useRefreshSetupProgress();
+  useEffect(() => {
+    const hasSuccessfulReport = googleSheetsReports.some(
+      report => report.lastRunStatus === ReportStatusEnum.SUCCESS
+    );
+
+    if (hasSuccessfulReport) {
+      refreshSetupProgress();
+    }
+  }, [googleSheetsReports, refreshSetupProgress]);
 
   // Define table columns
   const columns = useMemo(

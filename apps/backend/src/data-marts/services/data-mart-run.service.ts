@@ -257,7 +257,8 @@ export class DataMartRunService {
         new ReportRunCompletedSuccessfullyEvent(
           dataMartRun.id,
           dataMartRun.dataMartId,
-          dataMartRun.createdById
+          dataMartRun.createdById,
+          dataMartRun.type
         )
       );
     }

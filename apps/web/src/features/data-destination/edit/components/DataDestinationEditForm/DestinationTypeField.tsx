@@ -63,7 +63,7 @@ export function DestinationTypeField({
                     const isCloudOnly =
                       status === DataDestinationStatus.CLOUD_ONLY && checkIsCommunityEdition(flags);
                     return (
-                      <>
+                      <div key={type}>
                         {isCloudOnly ? (
                           <Tooltip>
                             <TooltipTrigger asChild>
@@ -108,7 +108,7 @@ export function DestinationTypeField({
                             </div>
                           </SelectItem>
                         )}
-                      </>
+                      </div>
                     );
                   })}
               </SelectGroup>

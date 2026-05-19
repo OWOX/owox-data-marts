@@ -7,6 +7,8 @@ import { DataMartPublishedEvent } from '../events/data-mart-published.event';
 import { DataDestinationCreatedEvent } from '../events/data-destination-created.event';
 import { ReportCreatedEvent } from '../events/report-created.event';
 import { ReportRunCompletedSuccessfullyEvent } from '../events/report-run-completed-successfully.event';
+import { DataDestinationType } from '../data-destination-types/enums/data-destination-type.enum';
+import { DataMartRunType } from '../enums/data-mart-run-type.enum';
 
 @Injectable()
 export class ProjectSetupProgressListenerService {
@@ -31,6 +33,12 @@ export class ProjectSetupProgressListenerService {
   @OnEvent('data-destination.created', { async: true })
   async onDestinationCreated(event: DataDestinationCreatedEvent): Promise<void> {
     await this.progressService.markProjectStepDone(event.payload.projectId, 'hasDestination');
+    if (event.payload.destinationType === DataDestinationType.GOOGLE_SHEETS) {
+      await this.progressService.markProjectStepDone(
+        event.payload.projectId,
+        'hasGoogleSheetsDestination'
+      );
+    }
   }
 
   @OnEvent('report.created', { async: true })
@@ -40,12 +48,17 @@ export class ProjectSetupProgressListenerService {
 
   @OnEvent('report-run.completed.successfully', { async: true })
   async onReportRunSuccess(event: ReportRunCompletedSuccessfullyEvent): Promise<void> {
-    const { dataMartId, userId } = event.payload;
+    const { dataMartId, userId, runType } = event.payload;
     if (!userId) return;
 
     const projectId = await this.progressService.resolveProjectIdByDataMartId(dataMartId);
-    if (projectId) {
-      await this.progressService.markUserStepDone(projectId, userId, 'hasReportRun');
+    if (!projectId) return;
+
+    await this.progressService.markUserStepDone(projectId, userId, 'hasReportRun');
+
+    if (runType === DataMartRunType.GOOGLE_SHEETS_EXPORT) {
+      await this.progressService.markUserStepDone(projectId, userId, 'hasGoogleSheetsExtension');
+      await this.progressService.markUserStepDone(projectId, userId, 'hasGoogleSheetsReportRun');
     }
   }
 }

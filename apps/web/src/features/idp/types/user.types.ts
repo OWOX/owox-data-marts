@@ -1,6 +1,14 @@
 export type Role = 'admin' | 'editor' | 'viewer';
 
 /**
+ * Onboarding answer from the onboarding questionnaire
+ */
+export interface OnboardingAnswer {
+  questionId: string;
+  answerValue: string | string[];
+}
+
+/**
  * User information
  */
 export interface User {
@@ -11,6 +19,7 @@ export interface User {
   roles?: Role[];
   projectId: string;
   projectTitle?: string;
+  onboarding?: OnboardingAnswer[];
 }
 
 /**

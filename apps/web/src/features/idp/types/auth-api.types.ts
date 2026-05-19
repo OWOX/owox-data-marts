@@ -1,4 +1,4 @@
-import type { Role } from './user.types.js';
+import type { OnboardingAnswer, Role } from './user.types.js';
 
 /**
  * Access token response
@@ -19,6 +19,7 @@ export interface TokenPayload {
   avatar?: string;
   roles?: Role[];
   projectTitle?: string;
+  onboarding?: OnboardingAnswer[];
 }
 
 /**

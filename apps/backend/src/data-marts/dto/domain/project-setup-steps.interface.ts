@@ -11,6 +11,9 @@ export interface ProjectSetupSteps {
   hasReport: StepState;
   hasReportRun: StepState;
   hasTeammatesInvited: StepState;
+  hasGoogleSheetsDestination: StepState;
+  hasGoogleSheetsExtension: StepState;
+  hasGoogleSheetsReportRun: StepState;
 }
 
 export type SetupStepKey = keyof ProjectSetupSteps;
@@ -23,10 +26,17 @@ export const SETUP_STEP_KEYS: SetupStepKey[] = [
   'hasReport',
   'hasReportRun',
   'hasTeammatesInvited',
+  'hasGoogleSheetsDestination',
+  'hasGoogleSheetsExtension',
+  'hasGoogleSheetsReportRun',
 ];
 
 /** Steps scoped to user + project (each user tracks independently) */
-export const USER_SCOPED_STEP_KEYS: SetupStepKey[] = ['hasReportRun'];
+export const USER_SCOPED_STEP_KEYS: SetupStepKey[] = [
+  'hasReportRun',
+  'hasGoogleSheetsExtension',
+  'hasGoogleSheetsReportRun',
+];
 
 /** Steps scoped to project only (shared across all users) */
 export const PROJECT_SCOPED_STEP_KEYS: SetupStepKey[] = [
@@ -36,6 +46,7 @@ export const PROJECT_SCOPED_STEP_KEYS: SetupStepKey[] = [
   'hasDestination',
   'hasReport',
   'hasTeammatesInvited',
+  'hasGoogleSheetsDestination',
 ];
 
 export function createEmptySteps(): ProjectSetupSteps {
@@ -47,5 +58,8 @@ export function createEmptySteps(): ProjectSetupSteps {
     hasReport: { done: false, completedAt: null },
     hasReportRun: { done: false, completedAt: null },
     hasTeammatesInvited: { done: false, completedAt: null },
+    hasGoogleSheetsDestination: { done: false, completedAt: null },
+    hasGoogleSheetsExtension: { done: false, completedAt: null },
+    hasGoogleSheetsReportRun: { done: false, completedAt: null },
   };
 }

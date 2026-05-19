@@ -19,6 +19,7 @@ import { DataMartRun } from '../entities/data-mart-run.entity';
 import { DataMartStatus } from '../enums/data-mart-status.enum';
 import { DataMartRunStatus } from '../enums/data-mart-run-status.enum';
 import { DataMartRunType } from '../enums/data-mart-run-type.enum';
+import { DataDestinationType } from '../data-destination-types/enums/data-destination-type.enum';
 import { IdpProjectionsFacade } from '../../idp/facades/idp-projections.facade';
 
 const OPTIMISTIC_LOCK_MAX_ATTEMPTS = 5;
@@ -247,6 +248,7 @@ export class ProjectSetupProgressService {
       hasDestination,
       hasReport,
       hasTeammates,
+      hasGoogleSheetsDestination,
     ] = await Promise.all([
       this.checkStorageExists(projectId),
       this.checkDraftDataMartExists(projectId),
@@ -254,16 +256,21 @@ export class ProjectSetupProgressService {
       this.checkDestinationExists(projectId),
       this.checkReportExists(projectId),
       this.checkTeammatesInvited(projectId),
+      this.checkGoogleSheetsDestinationExists(projectId),
     ]);
 
     if (hasStorage) steps.hasStorage = { done: true, completedAt: now };
     if (hasDraftDataMart) steps.hasDraftDataMart = { done: true, completedAt: now };
     if (hasPublishedDataMart) steps.hasPublishedDataMart = { done: true, completedAt: now };
     if (hasDestination) steps.hasDestination = { done: true, completedAt: now };
+    if (hasGoogleSheetsDestination) {
+      steps.hasGoogleSheetsDestination = { done: true, completedAt: now };
+    }
     if (hasReport) steps.hasReport = { done: true, completedAt: now };
     if (hasTeammates) steps.hasTeammatesInvited = { done: true, completedAt: now };
 
-    // hasReportRun is user-scoped — stays false at project level
+    // hasReportRun, hasGoogleSheetsExtension and hasGoogleSheetsReportRun are user-scoped
+    // — stays false at project level
 
     return steps;
   }
@@ -306,11 +313,26 @@ export class ProjectSetupProgressService {
   ): Promise<Record<string, StepState>> {
     const steps: Record<string, StepState> = {
       hasReportRun: { done: false, completedAt: null },
+      hasGoogleSheetsExtension: { done: false, completedAt: null },
+      hasGoogleSheetsReportRun: { done: false, completedAt: null },
     };
 
-    const hasReportRun = await this.checkUserReportRunExists(projectId, userId);
+    const [hasReportRun, hasGoogleSheetsExtension, hasGoogleSheetsReportRun] = await Promise.all([
+      this.checkUserReportRunExists(projectId, userId),
+      this.checkGoogleSheetsReportRunExists(projectId, userId),
+      this.checkGoogleSheetsReportRunExists(projectId, userId),
+    ]);
+
     if (hasReportRun) {
       steps.hasReportRun = { done: true, completedAt: new Date().toISOString() };
+    }
+
+    if (hasGoogleSheetsExtension) {
+      steps.hasGoogleSheetsExtension = { done: true, completedAt: new Date().toISOString() };
+    }
+
+    if (hasGoogleSheetsReportRun) {
+      steps.hasGoogleSheetsReportRun = { done: true, completedAt: new Date().toISOString() };
     }
 
     return steps;
@@ -392,5 +414,37 @@ export class ProjectSetupProgressService {
     } catch {
       return false;
     }
+  }
+
+  // ── Google Sheets progress checks ──
+
+  private async checkGoogleSheetsDestinationExists(projectId: string): Promise<boolean> {
+    const count = await this.dataDestinationRepository.count({
+      where: { projectId, type: DataDestinationType.GOOGLE_SHEETS },
+      take: 1,
+    });
+    return count > 0;
+  }
+
+  private async checkGoogleSheetsReportRunExists(
+    projectId: string,
+    userId: string
+  ): Promise<boolean> {
+    const dataMarts = await this.dataMartRepository.find({
+      where: { projectId },
+      select: ['id'],
+    });
+    if (dataMarts.length === 0) return false;
+
+    const dataMartIds = dataMarts.map(dm => dm.id);
+    const count = await this.dataMartRunRepository
+      .createQueryBuilder('run')
+      .where('run.dataMartId IN (:...dataMartIds)', { dataMartIds })
+      .andWhere('run.status = :status', { status: DataMartRunStatus.SUCCESS })
+      .andWhere('run.createdById = :userId', { userId })
+      .andWhere('run.type = :type', { type: DataMartRunType.GOOGLE_SHEETS_EXPORT })
+      .limit(1)
+      .getCount();
+    return count > 0;
   }
 }
