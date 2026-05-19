@@ -317,27 +317,24 @@ export class ProjectSetupProgressService {
       hasGoogleSheetsReportRun: { done: false, completedAt: null },
     };
 
-    // Note: `hasGoogleSheetsExtension` intentionally reuses the same check as
-    // `hasGoogleSheetsReportRunExists()`. In the current onboarding logic,
+    const now = new Date().toISOString();
+
+    // Note: In the current onboarding logic,
     // "Google Sheets extension connected" is interpreted as
     // "user successfully ran a report via Google Sheets", not just extension installation.
     // Because of this, both setup steps become completed after the first successful report run.
-    const [hasReportRun, hasGoogleSheetsExtension, hasGoogleSheetsReportRun] = await Promise.all([
+    const [hasReportRun, hasGoogleSheetsRun] = await Promise.all([
       this.checkUserReportRunExists(projectId, userId),
-      this.checkGoogleSheetsReportRunExists(projectId, userId),
       this.checkGoogleSheetsReportRunExists(projectId, userId),
     ]);
 
     if (hasReportRun) {
-      steps.hasReportRun = { done: true, completedAt: new Date().toISOString() };
+      steps.hasReportRun = { done: true, completedAt: now };
     }
 
-    if (hasGoogleSheetsExtension) {
-      steps.hasGoogleSheetsExtension = { done: true, completedAt: new Date().toISOString() };
-    }
-
-    if (hasGoogleSheetsReportRun) {
-      steps.hasGoogleSheetsReportRun = { done: true, completedAt: new Date().toISOString() };
+    if (hasGoogleSheetsRun) {
+      steps.hasGoogleSheetsExtension = { done: true, completedAt: now };
+      steps.hasGoogleSheetsReportRun = { done: true, completedAt: now };
     }
 
     return steps;
