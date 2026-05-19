@@ -15,6 +15,7 @@ import { Input } from '@owox/ui/components/input';
 import { Plus } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { EmojiPickerButton } from './EmojiPickerButton';
+import { prependEmoji } from './emoji-picker.constants';
 import { useForm } from 'react-hook-form';
 import { Combobox } from '../../../../shared/components/Combobox/combobox';
 import { DataStorageHealthIndicator, DataStorageType } from '../../../data-storage';
@@ -158,7 +159,7 @@ export function DataMartCreateForm({ initialData, onSuccess }: DataMartFormProps
                       />
                       <EmojiPickerButton
                         onSelect={emoji => {
-                          field.onChange(`${emoji} ${field.value}`);
+                          field.onChange(prependEmoji(emoji, field.value));
                         }}
                       />
                     </div>

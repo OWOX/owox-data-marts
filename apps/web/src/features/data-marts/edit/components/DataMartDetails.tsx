@@ -37,6 +37,7 @@ import { useAiHelper, useAiHelperAvailability } from '../model/hooks';
 import { DataMartMetadataScope } from '../../shared';
 import { AiHelperButton } from './AiHelperButton';
 import { EmojiPickerButton } from './EmojiPickerButton';
+import { prependEmoji } from './emoji-picker.constants';
 import NotFound from '../../../../pages/NotFound.tsx';
 import NoAccess from '../../../../pages/NoAccess.tsx';
 
@@ -318,11 +319,11 @@ export function DataMartDetails({ id }: DataMartDetailsProps) {
               title={dataMartTitle}
               onUpdate={handleTitleUpdate}
               className='text-2xl font-medium'
-              aiButton={({ value, setValue }) => (
+              aiButton={({ setValue }) => (
                 <>
                   <EmojiPickerButton
                     onSelect={emoji => {
-                      setValue(`${emoji} ${value}`);
+                      setValue(prev => prependEmoji(emoji, prev));
                     }}
                   />
                   {showAiTitleHelper && (

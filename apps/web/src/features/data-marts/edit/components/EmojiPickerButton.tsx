@@ -1,23 +1,9 @@
-import { Button } from '../../../../shared/components/Button';
+import { Button } from '@owox/ui/components/button';
 import { Popover, PopoverContent, PopoverTrigger } from '@owox/ui/components/popover';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@owox/ui/components/tooltip';
 import { SmilePlus } from 'lucide-react';
 import { useState } from 'react';
-
-const EMOJI_GROUPS: { label: string; emojis: string[] }[] = [
-  {
-    label: 'Status',
-    emojis: ['🥇', '🥈', '🥉', '⭐', '🏆', '✅', '❌', '⚠️', '🔥', '💎', '🎯', '🚀'],
-  },
-  {
-    label: 'Category',
-    emojis: ['📊', '📈', '📉', '💰', '🛒', '👥', '🌍', '📦', '🔧', '📱', '🖥️', '🔍'],
-  },
-  {
-    label: 'Priority',
-    emojis: ['🔴', '🟠', '🟡', '🟢', '🔵', '🟣', '⚫', '⚪', '🟤', '💜', '💚', '💙'],
-  },
-];
+import { EMOJI_GROUPS } from './emoji-picker.constants';
 
 interface EmojiPickerButtonProps {
   onSelect: (emoji: string) => void;
