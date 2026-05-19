@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import { getGoogleSheetsColumns } from './columns';
 import type { Row } from '@tanstack/react-table';
 import type { DataMartReport } from '../../../shared/model/types/data-mart-report';
@@ -53,12 +53,15 @@ export function GoogleSheetsReportsTable({
 
   // Refresh setup progress when a successful report is found
   const refreshSetupProgress = useRefreshSetupProgress();
+  const hasRefreshedRef = useRef(false);
   useEffect(() => {
+    if (hasRefreshedRef.current) return;
     const hasSuccessfulReport = googleSheetsReports.some(
       report => report.lastRunStatus === ReportStatusEnum.SUCCESS
     );
 
     if (hasSuccessfulReport) {
+      hasRefreshedRef.current = true;
       refreshSetupProgress();
     }
   }, [googleSheetsReports, refreshSetupProgress]);
