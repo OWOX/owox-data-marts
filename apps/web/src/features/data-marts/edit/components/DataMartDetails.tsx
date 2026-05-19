@@ -36,6 +36,7 @@ import { useDataMart } from '../model';
 import { useAiHelper, useAiHelperAvailability } from '../model/hooks';
 import { DataMartMetadataScope } from '../../shared';
 import { AiHelperButton } from './AiHelperButton';
+import { EmojiPickerButton } from './EmojiPickerButton';
 import NotFound from '../../../../pages/NotFound.tsx';
 import NoAccess from '../../../../pages/NoAccess.tsx';
 
@@ -317,23 +318,28 @@ export function DataMartDetails({ id }: DataMartDetailsProps) {
               title={dataMartTitle}
               onUpdate={handleTitleUpdate}
               className='text-2xl font-medium'
-              aiButton={
-                showAiTitleHelper
-                  ? ({ setValue }) => (
-                      <AiHelperButton
-                        onClick={() => {
-                          void (async () => {
-                            const suggested = await generateTitle(dataMartId);
-                            if (suggested) setValue(suggested);
-                          })();
-                        }}
-                        isLoading={isGeneratingTitle}
-                        disabled={!dataMartId || aiPendingScope !== null}
-                        tooltip='Generate title with AI'
-                      />
-                    )
-                  : undefined
-              }
+              aiButton={({ value, setValue }) => (
+                <>
+                  <EmojiPickerButton
+                    onSelect={emoji => {
+                      setValue(`${emoji} ${value}`);
+                    }}
+                  />
+                  {showAiTitleHelper && (
+                    <AiHelperButton
+                      onClick={() => {
+                        void (async () => {
+                          const suggested = await generateTitle(dataMartId);
+                          if (suggested) setValue(suggested);
+                        })();
+                      }}
+                      isLoading={isGeneratingTitle}
+                      disabled={!dataMartId || aiPendingScope !== null}
+                      tooltip='Generate title with AI'
+                    />
+                  )}
+                </>
+              )}
             />
           </div>
         </div>

@@ -4,8 +4,10 @@ import { Textarea } from '@owox/ui/components/textarea';
 import toast from 'react-hot-toast';
 
 export interface InlineEditTitleAiContext {
+  /** Current value in the editor buffer. */
+  value: string;
   /** Replace the current value in the open input. Does not persist on its own. */
-  setValue: (value: string) => void;
+  setValue: (value: string | ((prev: string) => string)) => void;
 }
 
 export type InlineEditTitleAi = ReactNode | ((ctx: InlineEditTitleAiContext) => ReactNode);
@@ -155,7 +157,9 @@ export function InlineEditTitle({
               }}
               className='shrink-0'
             >
-              {typeof aiButton === 'function' ? aiButton({ setValue: setEditedTitle }) : aiButton}
+              {typeof aiButton === 'function'
+                ? aiButton({ value: editedTitle, setValue: setEditedTitle })
+                : aiButton}
             </span>
           )}
         </div>
