@@ -13,6 +13,8 @@ export interface TableSelectionCheckboxProps {
   checkIconClassName?: string;
   /** Decorative checkbox inside another interactive element (e.g. tree row button). */
   presentationOnly?: boolean;
+  /** Extend the hit area of the checkbox to the parent element. */
+  extendedHitArea?: boolean;
 }
 
 const indicatorClassName =
@@ -29,18 +31,26 @@ export function TableSelectionCheckbox({
   disabled,
   className,
   presentationOnly = false,
+  extendedHitArea = false,
   checkIconClassName = 'size-3.5 text-white',
 }: TableSelectionCheckboxProps) {
   const boxClassName = cn(
-    'border-input data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground dark:data-[state=checked]:bg-primary data-[state=checked]:border-primary aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive size-4 shrink-0 rounded-[4px] border bg-white shadow-xs transition-shadow dark:bg-white/8',
-    presentationOnly && 'flex items-center justify-center',
-    !presentationOnly &&
-      'peer focus-visible:border-ring focus-visible:ring-ring/50 outline-none focus-visible:ring-[3px] disabled:cursor-not-allowed disabled:opacity-50',
+    'border-input data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground dark:data-[state=checked]:bg-primary data-[state=checked]:border-primary size-4 shrink-0 rounded-[4px] border bg-white shadow-xs dark:bg-white/8',
+    'flex items-center justify-center',
+    !presentationOnly && 'pointer-events-none',
     className
+  );
+  const buttonClassName = cn(
+    'inline-flex items-center justify-center rounded-md',
+    extendedHitArea ? 'size-8' : 'size-5',
+    'transition-colors focus-visible:outline-none',
+    'hover:bg-black/4 dark:hover:bg-white/4',
+    'focus-visible:ring-ring/50 focus-visible:ring-[3px]',
+    'disabled:cursor-not-allowed disabled:opacity-50'
   );
 
   const indicator = checked ? (
-    <span data-state='checked' data-slot='checkbox-indicator' className={indicatorClassName}>
+    <span data-slot='checkbox-indicator' className={indicatorClassName}>
       <Check className={checkIconClassName} />
     </span>
   ) : null;
@@ -60,11 +70,13 @@ export function TableSelectionCheckbox({
       aria-checked={checked}
       data-state={checked ? 'checked' : 'unchecked'}
       aria-label={ariaLabel}
-      className={boxClassName}
+      className={buttonClassName}
       onClick={onClick}
       disabled={disabled}
     >
-      {indicator}
+      <span data-state={checked ? 'checked' : 'unchecked'} className={boxClassName}>
+        {indicator}
+      </span>
     </button>
   );
 }

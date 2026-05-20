@@ -212,7 +212,7 @@ export function DataMartDefinitionSettings({
             {/* SQL Validator for SQL definition type */}
             {definitionType === DataMartDefinitionType.SQL && sqlCode && (
               <>
-                <div className='h-6 w-px bg-gray-300'></div>
+                <div className='bg-muted h-6 w-px'></div>
                 <SqlValidator
                   // We remount validator by key when storage-change token increments,
                   // so SQL dry-run is re-triggered after storage edit sheet closes.
