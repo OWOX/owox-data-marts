@@ -20,11 +20,18 @@ export interface JoinCondition {
   targetFieldName: string;
 }
 
+export interface RelatedDataMartAccess {
+  canSee: boolean;
+  canUse: boolean;
+  canEdit: boolean;
+}
+
 export interface RelatedDataMart {
   id: string;
   title: string;
   description?: string;
   status: string;
+  access?: RelatedDataMartAccess;
 }
 
 export interface DataMartRelationship {

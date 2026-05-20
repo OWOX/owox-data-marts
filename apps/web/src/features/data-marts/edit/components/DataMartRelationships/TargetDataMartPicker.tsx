@@ -1,8 +1,8 @@
 import { X } from 'lucide-react';
 import { useEffect, useState } from 'react';
-import { toast } from 'react-hot-toast';
 import { Button } from '../../../../../shared/components/Button';
 import { Combobox } from '../../../../../shared/components/Combobox/combobox';
+import { showApiErrorToast } from '../../../../../shared/utils';
 import { generateUniqueAlias, slugify } from '../../../../../utils/string-utils';
 import { dataMartService } from '../../../shared';
 import { dataMartRelationshipService } from '../../../shared/services/data-mart-relationship.service';
@@ -42,6 +42,9 @@ export function TargetDataMartPicker({
           .map(dm => ({ id: dm.id, title: dm.title }));
 
         setAvailableDMs(filtered);
+      } catch (err) {
+        showApiErrorToast(err, 'Failed to load data marts');
+        setAvailableDMs([]);
       } finally {
         setIsLoadingDMs(false);
       }
@@ -68,11 +71,11 @@ export function TargetDataMartPicker({
           targetAlias,
           joinConditions: [],
         },
-        { skipLoadingIndicator: true }
+        { skipLoadingIndicator: true, skipErrorToast: true }
       );
       onCreated(created);
-    } catch {
-      toast.error('Failed to add relationship');
+    } catch (err) {
+      showApiErrorToast(err, 'Failed to add relationship');
     } finally {
       setIsCreating(false);
     }

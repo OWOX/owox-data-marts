@@ -1,5 +1,13 @@
 import { Badge } from '@owox/ui/components/badge';
-import { ExternalLink, Info, Locate, Maximize2, ZoomIn, ZoomOut } from 'lucide-react';
+import {
+  AlertTriangle,
+  ExternalLink,
+  Info,
+  Locate,
+  Maximize2,
+  ZoomIn,
+  ZoomOut,
+} from 'lucide-react';
 import { useCallback, useEffect, useRef } from 'react';
 import { createRoot } from 'react-dom/client';
 import type { GetSchemes } from 'rete';
@@ -11,8 +19,10 @@ import { Presets as ReactPresets, type ReactArea2D, ReactPlugin } from 'rete-rea
 import { Button } from '../../../../../shared/components/Button';
 import { dataMartRelationshipService } from '../../../shared/services/data-mart-relationship.service';
 import type { DataMartRelationship } from '../../../shared/types/relationship.types';
+import { deriveTransientInaccessible } from './compute-graph-state';
 import {
   CYCLE_STUB_TOOLTIP,
+  INACCESSIBLE_TOOLTIP,
   getRelationshipWarningLabel,
   hasRelationshipWarning,
 } from './relationship-warning-state';
@@ -40,6 +50,7 @@ const V_GAP = 24;
 const NODE_BORDER = '#9ca3af'; // gray-400, visible in both themes
 const HIGHLIGHT_COLOR = '#3b82f6'; // blue-500
 const DRAFT_COLOR = '#f97316'; // orange-500
+const INACCESSIBLE_COLOR = '#9ca3af'; // gray-400
 
 class DMNode extends ClassicPreset.Node {
   width = NODE_W;
@@ -53,6 +64,7 @@ class DMNode extends ClassicPreset.Node {
   onOpenExternal?: () => void;
   isDraft: boolean;
   isBlocked: boolean;
+  isInaccessible: boolean;
   isJoinNotConfigured: boolean;
   isCycleStub: boolean;
   highlighted = false;
@@ -70,6 +82,7 @@ class DMNode extends ClassicPreset.Node {
       onOpenExternal?: () => void;
       isDraft?: boolean;
       isBlocked?: boolean;
+      isInaccessible?: boolean;
       isJoinNotConfigured?: boolean;
       isCycleStub?: boolean;
     }
@@ -84,6 +97,7 @@ class DMNode extends ClassicPreset.Node {
     this.onOpenExternal = opts?.onOpenExternal;
     this.isDraft = opts?.isDraft ?? false;
     this.isBlocked = opts?.isBlocked ?? false;
+    this.isInaccessible = opts?.isInaccessible ?? false;
     this.isJoinNotConfigured = opts?.isJoinNotConfigured ?? false;
     this.isCycleStub = opts?.isCycleStub ?? false;
     if (!isSource) this.height = TGT_H;
@@ -101,7 +115,9 @@ function NodeComponent(props: { data: Schemes['Node']; emit: (e: ReactArea2D<Sch
   function handleExtClick(e: React.MouseEvent) {
     e.stopPropagation();
     e.preventDefault();
-    n.onOpenExternal?.();
+    if (!n.isInaccessible) {
+      n.onOpenExternal?.();
+    }
   }
 
   const outputs = Object.entries(n.outputs);
@@ -168,10 +184,15 @@ function NodeComponent(props: { data: Schemes['Node']; emit: (e: ReactArea2D<Sch
 
   const borderColor = hasRelationshipWarning(n) ? DRAFT_COLOR : NODE_BORDER;
   const badgeLabel = getRelationshipWarningLabel(n);
+  const nodeTitle = n.isCycleStub
+    ? CYCLE_STUB_TOOLTIP
+    : n.isInaccessible
+      ? INACCESSIBLE_TOOLTIP
+      : undefined;
 
   return (
     <div
-      title={n.isCycleStub ? CYCLE_STUB_TOOLTIP : undefined}
+      title={nodeTitle}
       style={{
         width: n.width,
         height: n.height,
@@ -183,8 +204,8 @@ function NodeComponent(props: { data: Schemes['Node']; emit: (e: ReactArea2D<Sch
           : '0 1px 4px 0 rgba(0,0,0,0.12)',
         cursor: 'default',
         position: 'relative',
-        opacity: n.dimmed ? 0.15 : 1,
-        filter: n.dimmed ? 'grayscale(0.8)' : undefined,
+        opacity: n.dimmed ? 0.15 : n.isInaccessible ? 0.6 : 1,
+        filter: n.dimmed ? 'grayscale(0.8)' : n.isInaccessible ? 'grayscale(0.6)' : undefined,
         animation: n.highlighted ? 'node-pulse 1.5s ease-in-out infinite' : undefined,
         transition: 'opacity 0.2s, filter 0.2s',
       }}
@@ -236,7 +257,15 @@ function NodeComponent(props: { data: Schemes['Node']; emit: (e: ReactArea2D<Sch
           {n.label}
         </span>
         <div className='ml-2 flex shrink-0 items-center gap-0.5'>
-          {n.description && (
+          {n.isInaccessible && (
+            <span
+              className='text-muted-foreground inline-flex cursor-default rounded p-0.5'
+              title={INACCESSIBLE_TOOLTIP}
+            >
+              <AlertTriangle style={{ width: 14, height: 14 }} />
+            </span>
+          )}
+          {!n.isInaccessible && n.description && (
             <span
               className='text-muted-foreground hover:text-foreground inline-flex cursor-default rounded p-0.5 transition-colors'
               title={n.description}
@@ -244,17 +273,19 @@ function NodeComponent(props: { data: Schemes['Node']; emit: (e: ReactArea2D<Sch
               <Info style={{ width: 14, height: 14 }} />
             </span>
           )}
-          <button
-            className='text-muted-foreground hover:text-foreground shrink-0 cursor-pointer rounded p-0.5 transition-colors'
-            onPointerDown={e => {
-              e.stopPropagation();
-            }}
-            onClick={handleExtClick}
-            title='Open in new tab'
-            aria-label='Open in new tab'
-          >
-            <ExternalLink style={{ width: 14, height: 14 }} />
-          </button>
+          {!n.isInaccessible && (
+            <button
+              className='text-muted-foreground hover:text-foreground shrink-0 cursor-pointer rounded p-0.5 transition-colors'
+              onPointerDown={e => {
+                e.stopPropagation();
+              }}
+              onClick={handleExtClick}
+              title='Open in new tab'
+              aria-label='Open in new tab'
+            >
+              <ExternalLink style={{ width: 14, height: 14 }} />
+            </button>
+          )}
         </div>
       </div>
       <div
@@ -344,17 +375,22 @@ async function setupEditor(
     if (!path) return null;
     const src = editor.getNode(props.data.source);
     const tgt = editor.getNode(props.data.target);
+    const inaccessible = tgt?.isInaccessible === true;
     const orange =
-      src?.isDraft === true ||
-      src?.isBlocked === true ||
-      src?.isJoinNotConfigured === true ||
-      src?.isCycleStub === true ||
-      tgt?.isDraft === true ||
-      tgt?.isBlocked === true ||
-      tgt?.isJoinNotConfigured === true ||
-      tgt?.isCycleStub === true;
+      !inaccessible &&
+      (src?.isDraft === true ||
+        src?.isBlocked === true ||
+        src?.isJoinNotConfigured === true ||
+        src?.isCycleStub === true ||
+        tgt?.isDraft === true ||
+        tgt?.isBlocked === true ||
+        tgt?.isJoinNotConfigured === true ||
+        tgt?.isCycleStub === true);
     const bothDimmed =
       (src?.dimmed === true || src === undefined) && (tgt?.dimmed === true || tgt === undefined);
+
+    const strokeColor = inaccessible ? INACCESSIBLE_COLOR : orange ? DRAFT_COLOR : 'steelblue';
+    const strokeDash = inaccessible ? '4 4' : orange ? '8 4' : undefined;
 
     return (
       <svg
@@ -371,9 +407,9 @@ async function setupEditor(
           d={path}
           fill='none'
           strokeWidth='5px'
-          stroke={orange ? DRAFT_COLOR : 'steelblue'}
-          strokeDasharray={orange ? '8 4' : undefined}
-          opacity={bothDimmed ? 0.15 : 1}
+          stroke={strokeColor}
+          strokeDasharray={strokeDash}
+          opacity={bothDimmed ? 0.15 : inaccessible ? 0.5 : 1}
           style={{ pointerEvents: 'auto', transition: 'opacity 0.2s' }}
         />
       </svg>
@@ -414,6 +450,7 @@ async function setupEditor(
     fieldCount?: number;
     isDraft?: boolean;
     isBlocked?: boolean;
+    isInaccessible?: boolean;
     isJoinNotConfigured?: boolean;
     isCycleStub?: boolean;
   }
@@ -445,7 +482,8 @@ async function setupEditor(
     rels: DataMartRelationship[],
     depth: number,
     ancestorDmIds: Set<string>,
-    parentBlocked: boolean
+    parentBlocked: boolean,
+    parentInaccessible: boolean
   ) {
     if (rels.length > 0) hasOutgoing.add(parentNodeKey);
 
@@ -455,6 +493,10 @@ async function setupEditor(
       const isDraft = rel.targetDataMart.status === 'DRAFT';
       const isJoinNotConfigured = rel.joinConditions.length === 0;
       const isBlocked = parentBlocked;
+      const isInaccessible = deriveTransientInaccessible(
+        parentInaccessible,
+        rel.targetDataMart.access
+      );
       const isCycleStub = ancestorDmIds.has(dmId);
 
       edges.push({ sourceId: parentNodeKey, targetId: nodeKey });
@@ -470,11 +512,12 @@ async function setupEditor(
         fieldCount: fieldCounts?.get(rel.id) ?? 0,
         isDraft,
         isBlocked,
+        isInaccessible,
         isJoinNotConfigured,
         isCycleStub,
       });
 
-      if (showTransient && !isCycleStub) {
+      if (showTransient && !isCycleStub && !isInaccessible) {
         try {
           const childRels = await dataMartRelationshipService.getRelationships(dmId, {
             skipLoadingIndicator: true,
@@ -487,18 +530,25 @@ async function setupEditor(
               childRels,
               depth + 1,
               newAncestors,
-              parentBlocked || isDraft || isJoinNotConfigured
+              parentBlocked || isDraft || isJoinNotConfigured,
+              isInaccessible
             );
           }
         } catch {
-          // Render partial graph if a transitive child fetch fails
-          // (e.g. missing permission) rather than failing the canvas.
+          // intentional: partial graph is acceptable when a transitive fetch fails
         }
       }
     }
   }
 
-  await collectGraph(dataMartId, initialRelationships, 1, new Set([dataMartId]), rootIsDraft);
+  await collectGraph(
+    dataMartId,
+    initialRelationships,
+    1,
+    new Set([dataMartId]),
+    rootIsDraft,
+    false
+  );
 
   const nodeMap = new Map<string, DMNode>();
   const columns = new Map<number, DMNode[]>();
@@ -510,6 +560,7 @@ async function setupEditor(
       description: info.description,
       isDraft: info.isDraft,
       isBlocked: info.isBlocked,
+      isInaccessible: info.isInaccessible,
       isJoinNotConfigured: info.isJoinNotConfigured,
       isCycleStub: info.isCycleStub,
       onOpenExternal: () => {
