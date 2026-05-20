@@ -382,12 +382,13 @@ export class ProjectSetupProgressService {
     if (dataMarts.length === 0) return false;
 
     const dataMartIds = dataMarts.map(dm => dm.id);
-    const count = await this.reportRepository
+    const report = await this.reportRepository
       .createQueryBuilder('report')
+      .select('report.id')
       .where('report.dataMartId IN (:...dataMartIds)', { dataMartIds })
       .limit(1)
-      .getCount();
-    return count > 0;
+      .getOne();
+    return report !== null;
   }
 
   private async checkUserReportRunExists(projectId: string, userId: string): Promise<boolean> {
@@ -398,15 +399,16 @@ export class ProjectSetupProgressService {
     if (dataMarts.length === 0) return false;
 
     const dataMartIds = dataMarts.map(dm => dm.id);
-    const count = await this.dataMartRunRepository
+    const run = await this.dataMartRunRepository
       .createQueryBuilder('run')
+      .select('run.id')
       .where('run.dataMartId IN (:...dataMartIds)', { dataMartIds })
       .andWhere('run.status = :status', { status: DataMartRunStatus.SUCCESS })
       .andWhere('run.createdById = :userId', { userId })
       .andWhere('run.type IN (:...types)', { types: REPORT_RUN_TYPES })
       .limit(1)
-      .getCount();
-    return count > 0;
+      .getOne();
+    return run !== null;
   }
 
   private async checkTeammatesInvited(projectId: string): Promise<boolean> {
@@ -439,14 +441,15 @@ export class ProjectSetupProgressService {
     if (dataMarts.length === 0) return false;
 
     const dataMartIds = dataMarts.map(dm => dm.id);
-    const count = await this.dataMartRunRepository
+    const run = await this.dataMartRunRepository
       .createQueryBuilder('run')
+      .select('run.id')
       .where('run.dataMartId IN (:...dataMartIds)', { dataMartIds })
       .andWhere('run.status = :status', { status: DataMartRunStatus.SUCCESS })
       .andWhere('run.createdById = :userId', { userId })
       .andWhere('run.type = :type', { type: DataMartRunType.GOOGLE_SHEETS_EXPORT })
       .limit(1)
-      .getCount();
-    return count > 0;
+      .getOne();
+    return run !== null;
   }
 }
