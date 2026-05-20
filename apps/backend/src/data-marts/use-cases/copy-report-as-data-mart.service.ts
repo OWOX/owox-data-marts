@@ -16,7 +16,9 @@ import { SqlDefinition } from '../dto/schemas/data-mart-table-definitions/sql-de
 import { Report } from '../entities/report.entity';
 import { DataMartDefinitionType } from '../enums/data-mart-definition-type.enum';
 import { AccessDecisionService, Action, EntityType } from '../services/access-decision';
+import { BlendableSchemaService } from '../services/blendable-schema.service';
 import { ReportSqlComposerService } from '../services/report-sql-composer.service';
+import { createDataMartUseAccessFilter } from '../utils/create-dm-access-filter';
 import { CreateDataMartService } from './create-data-mart.service';
 import { UpdateDataMartDefinitionService } from './update-data-mart-definition.service';
 
@@ -28,7 +30,8 @@ export class CopyReportAsDataMartService {
     private readonly reportSqlComposerService: ReportSqlComposerService,
     private readonly createDataMartService: CreateDataMartService,
     private readonly updateDataMartDefinitionService: UpdateDataMartDefinitionService,
-    private readonly accessDecisionService: AccessDecisionService
+    private readonly accessDecisionService: AccessDecisionService,
+    private readonly blendableSchemaService: BlendableSchemaService
   ) {}
 
   @Transactional()
@@ -77,6 +80,20 @@ export class CopyReportAsDataMartService {
         'You do not have permission to copy this report: use access to the source data storage is required.'
       );
     }
+
+    const accessFilter = createDataMartUseAccessFilter(
+      this.accessDecisionService,
+      command.userId,
+      command.roles,
+      command.projectId
+    );
+    await this.blendableSchemaService.assertNoInaccessibleReportRefs(
+      report,
+      report.dataMart.id,
+      command.projectId,
+      accessFilter,
+      'Cannot copy report'
+    );
 
     const { sql } = await this.reportSqlComposerService.compose(report);
 

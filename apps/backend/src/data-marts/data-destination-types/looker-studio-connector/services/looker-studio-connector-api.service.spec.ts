@@ -1,6 +1,7 @@
 import { Response } from 'express';
 import { Report } from '../../../entities/report.entity';
 import { GetDataRequest } from '../schemas/get-data.schema';
+import { GetSchemaRequest } from '../schemas/get-schema.schema';
 
 // Mock external modules before importing service
 jest.mock('@owox/internal-helpers', () => ({
@@ -23,6 +24,8 @@ import { LookerStudioReportRunService } from '../../../services/looker-studio-re
 import { ProjectBalanceService } from '../../../services/project-balance.service';
 import { ReportDataCacheService } from '../../../services/report-data-cache.service';
 import { ReportService } from '../../../services/report.service';
+import { BusinessViolationException } from '../../../../common/exceptions/business-violation.exception';
+import { ReportRunAccessValidatorService } from '../../../services/report-run-access-validator.service';
 import { LookerStudioConnectorApiConfigService } from './looker-studio-connector-api-config.service';
 import { LookerStudioConnectorApiDataService } from './looker-studio-connector-api-data.service';
 import { LookerStudioConnectorApiSchemaService } from './looker-studio-connector-api-schema.service';
@@ -39,6 +42,7 @@ describe('LookerStudioConnectorApiService', () => {
   let eventDispatcher: jest.Mocked<{ publishExternal: jest.Mock }>;
   let blendedReportDataService: jest.Mocked<BlendedReportDataService>;
   let systemTimeService: jest.Mocked<SystemTimeService>;
+  let reportRunAccessValidatorService: jest.Mocked<ReportRunAccessValidatorService>;
 
   const originalEnv = process.env;
 
@@ -86,6 +90,10 @@ describe('LookerStudioConnectorApiService', () => {
       now: jest.fn().mockReturnValue(new Date('2026-04-17T00:00:00.000Z').toISOString()),
     } as unknown as jest.Mocked<SystemTimeService>;
 
+    reportRunAccessValidatorService = {
+      validate: jest.fn().mockResolvedValue(undefined),
+    } as unknown as jest.Mocked<ReportRunAccessValidatorService>;
+
     service = new LookerStudioConnectorApiService(
       {} as LookerStudioConnectorApiConfigService,
       {} as LookerStudioConnectorApiSchemaService,
@@ -97,7 +105,8 @@ describe('LookerStudioConnectorApiService', () => {
       reportRunService,
       projectBalanceService,
       blendedReportDataService,
-      systemTimeService
+      systemTimeService,
+      reportRunAccessValidatorService
     );
 
     (service as any).logger = {
@@ -141,6 +150,58 @@ describe('LookerStudioConnectorApiService', () => {
     headersSent: false,
   });
 
+  const createMockSchemaRequest = (): GetSchemaRequest =>
+    ({
+      connectionConfig: {
+        deploymentUrl: 'https://example.com',
+        destinationId: 'dest-1',
+        destinationSecretKey: 'secret',
+      },
+      request: {
+        configParams: { destinationId: 'dest-1', reportId: 'report-1' },
+      },
+    }) as GetSchemaRequest;
+
+  describe('getSchema', () => {
+    beforeEach(() => {
+      const mockReport = createMockReport();
+      reportService.getByIdAndLookerStudioSecret.mockResolvedValue(mockReport);
+    });
+
+    it('validates BEFORE creating cached reader', async () => {
+      reportRunAccessValidatorService.validate.mockRejectedValue(
+        new BusinessViolationException(
+          'Looker Studio request blocked: report creator is no longer a member of this project.'
+        )
+      );
+
+      await expect(service.getSchema(createMockSchemaRequest())).rejects.toThrow(
+        BusinessViolationException
+      );
+      expect(cacheService.getOrCreateCachedReader).not.toHaveBeenCalled();
+    });
+
+    it('validates and then creates cached reader on success', async () => {
+      const mockCachedReader = {
+        fromCache: true,
+        reader: {},
+        dataDescription: { dataHeaders: [] },
+      };
+      cacheService.getOrCreateCachedReader.mockResolvedValue(mockCachedReader as any);
+      (service as any).schemaService = { getSchema: jest.fn().mockResolvedValue({ schema: [] }) };
+
+      await service.getSchema(createMockSchemaRequest());
+
+      expect(reportRunAccessValidatorService.validate).toHaveBeenCalledWith(
+        expect.objectContaining({ id: 'report-1' }),
+        'user-1',
+        'project-1',
+        'Looker Studio request'
+      );
+      expect(cacheService.getOrCreateCachedReader).toHaveBeenCalled();
+    });
+  });
+
   describe('getDataStreaming', () => {
     beforeEach(() => {
       const mockReport = createMockReport();
@@ -175,6 +236,85 @@ describe('LookerStudioConnectorApiService', () => {
 
         expect(res.json).toHaveBeenCalledWith(mockResult);
         expect(dataService.streamData).not.toHaveBeenCalled();
+      });
+    });
+
+    describe('access validation', () => {
+      it('validates sample extraction the same as full extraction', async () => {
+        const request = createMockRequest(true);
+        const res = createMockResponse();
+
+        dataService.getData.mockResolvedValue({
+          response: { schema: [], rows: [], filtersApplied: [] },
+          meta: { limitExceeded: false, rowsSent: 0, bytesSent: undefined, limitReason: undefined },
+        } as any);
+
+        await service.getDataStreaming(request, res as Response);
+
+        expect(reportRunAccessValidatorService.validate).toHaveBeenCalledWith(
+          expect.objectContaining({ id: 'report-1' }),
+          'user-1',
+          'project-1',
+          'Looker Studio request'
+        );
+      });
+
+      it('validates using report creator id and project id for full extraction', async () => {
+        const request = createMockRequest(false);
+        const res = createMockResponse();
+        const mockReportRun = {
+          markAsSuccess: jest.fn(),
+          markAsUnsuccessful: jest.fn(),
+          getReport: jest.fn().mockReturnValue(createMockReport()),
+          getReportId: jest.fn().mockReturnValue('report-1'),
+        };
+
+        reportRunService.create.mockResolvedValue(mockReportRun as any);
+        dataService.getData.mockResolvedValue({
+          response: { schema: [], rows: [], filtersApplied: [] },
+          meta: { limitExceeded: false, rowsSent: 0, bytesSent: undefined, limitReason: undefined },
+        } as any);
+
+        await service.getDataStreaming(request, res as Response);
+
+        expect(reportRunAccessValidatorService.validate).toHaveBeenCalledWith(
+          expect.objectContaining({ id: 'report-1' }),
+          'user-1',
+          'project-1',
+          'Looker Studio request'
+        );
+      });
+
+      it('throws and does not create run when creator is offboarded', async () => {
+        const request = createMockRequest(false);
+        const res = createMockResponse();
+
+        reportRunAccessValidatorService.validate.mockRejectedValue(
+          new BusinessViolationException(
+            'Looker Studio request blocked: report creator is no longer a member of this project. Recreate the report with an active owner.'
+          )
+        );
+
+        await expect(service.getDataStreaming(request, res as Response)).rejects.toThrow(
+          BusinessViolationException
+        );
+        expect(reportRunService.create).not.toHaveBeenCalled();
+      });
+
+      it('throws and does not create run when creator has orphan columns', async () => {
+        const request = createMockRequest(false);
+        const res = createMockResponse();
+
+        reportRunAccessValidatorService.validate.mockRejectedValue(
+          new BusinessViolationException(
+            'Looker Studio request blocked: column(s) dm2__col reference DataMarts no longer accessible to the report creator.'
+          )
+        );
+
+        await expect(service.getDataStreaming(request, res as Response)).rejects.toThrow(
+          BusinessViolationException
+        );
+        expect(reportRunService.create).not.toHaveBeenCalled();
       });
     });
 
@@ -497,6 +637,73 @@ describe('LookerStudioConnectorApiService', () => {
         expect.anything(),
         expect.objectContaining({ logs: [], errors: [] })
       );
+    });
+  });
+
+  describe('getData access validation', () => {
+    beforeEach(() => {
+      const mockReport = createMockReport();
+      const mockCachedReader = {
+        fromCache: true,
+        reader: {},
+        dataDescription: { dataHeaders: [] },
+      };
+
+      reportService.getByIdAndLookerStudioSecret.mockResolvedValue(mockReport);
+      cacheService.getOrCreateCachedReader.mockResolvedValue(mockCachedReader as any);
+    });
+
+    it('validates sample extraction the same as full extraction', async () => {
+      dataService.getData.mockResolvedValue({
+        response: { schema: [], rows: [], filtersApplied: [] },
+        meta: { limitExceeded: false, rowsSent: 0, bytesSent: undefined, limitReason: undefined },
+      } as any);
+
+      await service.getData(createMockRequest(true));
+
+      expect(reportRunAccessValidatorService.validate).toHaveBeenCalledWith(
+        expect.objectContaining({ id: 'report-1' }),
+        'user-1',
+        'project-1',
+        'Looker Studio request'
+      );
+    });
+
+    it('validates using report creator id and project id for full extraction', async () => {
+      const mockReportRun = {
+        markAsSuccess: jest.fn(),
+        markAsUnsuccessful: jest.fn(),
+        getReport: jest.fn().mockReturnValue(createMockReport()),
+        getReportId: jest.fn().mockReturnValue('report-1'),
+      };
+
+      reportRunService.create.mockResolvedValue(mockReportRun as any);
+      dataService.getData.mockResolvedValue({
+        response: { schema: [], rows: [], filtersApplied: [] },
+        meta: { limitExceeded: false, rowsSent: 0, bytesSent: undefined, limitReason: undefined },
+      } as any);
+
+      await service.getData(createMockRequest(false));
+
+      expect(reportRunAccessValidatorService.validate).toHaveBeenCalledWith(
+        expect.objectContaining({ id: 'report-1' }),
+        'user-1',
+        'project-1',
+        'Looker Studio request'
+      );
+    });
+
+    it('throws and does not create run when creator is offboarded', async () => {
+      reportRunAccessValidatorService.validate.mockRejectedValue(
+        new BusinessViolationException(
+          'Looker Studio request blocked: report creator is no longer a member of this project. Recreate the report with an active owner.'
+        )
+      );
+
+      await expect(service.getData(createMockRequest(false))).rejects.toThrow(
+        BusinessViolationException
+      );
+      expect(reportRunService.create).not.toHaveBeenCalled();
     });
   });
 });

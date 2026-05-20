@@ -11,7 +11,9 @@ jest.mock('../report-run-logging/log-blended-sql', () => ({
   logBlendedSqlIfNeeded: jest.fn(),
 }));
 
+import { NotFoundException } from '@nestjs/common';
 import { logBlendedSqlIfNeeded } from '../report-run-logging/log-blended-sql';
+import { BusinessViolationException } from '../../common/exceptions/business-violation.exception';
 import { DataDestinationType } from '../data-destination-types/enums/data-destination-type.enum';
 import { DataStorageType } from '../data-storage-types/enums/data-storage-type.enum';
 import { ReportDataBatch } from '../dto/domain/report-data-batch.dto';
@@ -22,6 +24,7 @@ import { Report } from '../entities/report.entity';
 import { ReportExecutionPolicyResolver } from './report-execution-policy.resolver';
 import { RunReportService } from './run-report.service';
 import { RunType } from '../../common/scheduler/shared/types';
+import { ScheduledRunReportCommand } from '../dto/domain/run-report.command';
 
 jest.mock('../data-destination-types/data-destination-providers', () => ({
   DATA_DESTINATION_REPORT_WRITER_RESOLVER: 'DATA_DESTINATION_REPORT_WRITER_RESOLVER',
@@ -52,12 +55,20 @@ describe('RunReportService', () => {
     const reportRunTriggerService = {
       createTrigger: jest.fn().mockResolvedValue(undefined),
     };
-    const reportAccessService = {
-      checkOperateAccess: jest.fn().mockResolvedValue(undefined),
-      checkMutateAccess: jest.fn().mockResolvedValue(undefined),
-    };
     const gracefulShutdownService = {
       isInShutdownMode: jest.fn().mockReturnValue(false),
+    };
+
+    const reportRepository = {
+      findOne: jest.fn().mockResolvedValue({
+        id: 'report-1',
+        columnConfig: null,
+        dataMart: { id: 'dm-1', projectId: 'proj-1' },
+      }),
+    };
+
+    const reportRunAccessValidatorService = {
+      validate: jest.fn().mockResolvedValue(undefined),
     };
 
     const service = new RunReportService(
@@ -71,9 +82,10 @@ describe('RunReportService', () => {
       projectBalanceService as never,
       new ReportExecutionPolicyResolver(),
       reportRunTriggerService as never,
-      reportAccessService as never,
       blendedReportDataService as never,
-      { compose: jest.fn().mockResolvedValue({ sql: 'SELECT 1' }) } as never
+      { compose: jest.fn().mockResolvedValue({ sql: 'SELECT 1' }) } as never,
+      reportRepository as never,
+      reportRunAccessValidatorService as never
     );
 
     return {
@@ -84,7 +96,8 @@ describe('RunReportService', () => {
       blendedReportDataService,
       reportRunService,
       reportRunTriggerService,
-      reportAccessService,
+      reportRepository,
+      reportRunAccessValidatorService,
     };
   };
 
@@ -207,9 +220,32 @@ describe('RunReportService', () => {
   });
 
   describe('manual runs', () => {
-    it('uses checkOperateAccess (not checkMutateAccess) for manual runs', async () => {
-      const { service, reportAccessService, reportRunService, reportRunTriggerService } =
-        createService();
+    it('throws BusinessViolationException when validator rejects for orphan columns', async () => {
+      const { service, reportRunAccessValidatorService } = createService();
+      reportRunAccessValidatorService.validate.mockRejectedValue(
+        new BusinessViolationException(
+          'Manual run blocked: column(s) b__orphan reference DataMarts no longer accessible to the report creator.'
+        )
+      );
+
+      await expect(
+        service.run({
+          reportId: 'report-1',
+          userId: 'user-1',
+          roles: ['editor'],
+          runType: RunType.manual,
+          projectId: 'proj-1',
+        })
+      ).rejects.toThrow(BusinessViolationException);
+    });
+
+    it('calls validator with pre-resolved roles for manual run', async () => {
+      const {
+        service,
+        reportRunAccessValidatorService,
+        reportRunService,
+        reportRunTriggerService,
+      } = createService();
       reportRunService.createPending.mockResolvedValue({
         getDataMart: () => ({ projectId: 'proj-1' }),
         getDataMartRun: () => ({ id: 'dmr-1' }),
@@ -218,19 +254,98 @@ describe('RunReportService', () => {
       await service.run({
         reportId: 'report-1',
         userId: 'user-1',
-        roles: ['viewer'],
+        roles: ['editor'],
         runType: RunType.manual,
         projectId: 'proj-1',
       });
 
-      expect(reportAccessService.checkOperateAccess).toHaveBeenCalledWith(
+      expect(reportRunAccessValidatorService.validate).toHaveBeenCalledWith(
+        expect.objectContaining({ id: 'report-1' }),
         'user-1',
-        ['viewer'],
-        'report-1',
-        'proj-1'
+        'proj-1',
+        'Manual run',
+        ['editor']
       );
-      expect(reportAccessService.checkMutateAccess).not.toHaveBeenCalled();
       expect(reportRunTriggerService.createTrigger).toHaveBeenCalled();
+    });
+  });
+
+  describe('scheduled runs', () => {
+    const scheduledCommand: ScheduledRunReportCommand = {
+      reportId: 'report-1',
+      userId: 'user-1',
+      runType: RunType.scheduled,
+      projectId: 'proj-1',
+    };
+
+    it('validates access and enqueues when report exists and validator passes', async () => {
+      const {
+        service,
+        reportRunService,
+        reportRunTriggerService,
+        reportRunAccessValidatorService,
+      } = createService();
+      reportRunService.createPending.mockResolvedValue({
+        getDataMart: () => ({ projectId: 'proj-1' }),
+        getDataMartRun: () => ({ id: 'dmr-1' }),
+      });
+
+      await service.run(scheduledCommand);
+
+      expect(reportRunAccessValidatorService.validate).toHaveBeenCalledWith(
+        expect.objectContaining({ id: 'report-1' }),
+        'user-1',
+        'proj-1',
+        'Scheduled run',
+        undefined
+      );
+      expect(reportRunTriggerService.createTrigger).toHaveBeenCalled();
+    });
+
+    it('throws when report is not found', async () => {
+      const { service, reportRepository } = createService();
+      reportRepository.findOne.mockResolvedValue(null);
+
+      await expect(service.run(scheduledCommand)).rejects.toThrow(NotFoundException);
+    });
+
+    it('throws BusinessViolationException when creator is offboarded', async () => {
+      const { service, reportRunAccessValidatorService } = createService();
+      reportRunAccessValidatorService.validate.mockRejectedValue(
+        new BusinessViolationException(
+          'Scheduled run blocked: schedule creator is no longer a member of this project.'
+        )
+      );
+
+      await expect(service.run(scheduledCommand)).rejects.toThrow(BusinessViolationException);
+    });
+
+    it('throws BusinessViolationException when creator lost DM access', async () => {
+      const { service, reportRunAccessValidatorService } = createService();
+      reportRunAccessValidatorService.validate.mockRejectedValue(
+        new BusinessViolationException(
+          'Scheduled run blocked: schedule creator no longer has access to DataMart "My DM".'
+        )
+      );
+
+      await expect(service.run(scheduledCommand)).rejects.toThrow(BusinessViolationException);
+    });
+
+    it('throws BusinessViolationException when report has orphan columns', async () => {
+      const { service, reportRepository, reportRunAccessValidatorService } = createService();
+      reportRepository.findOne.mockResolvedValue({
+        id: 'report-1',
+        columnConfig: ['dm2__field_a'],
+        dataMart: { id: 'dm-1', projectId: 'proj-1' },
+        dataDestination: { id: 'dest-1' },
+      });
+      reportRunAccessValidatorService.validate.mockRejectedValue(
+        new BusinessViolationException(
+          'Scheduled run blocked: column(s) dm2__field_a reference DataMarts no longer accessible.'
+        )
+      );
+
+      await expect(service.run(scheduledCommand)).rejects.toThrow(BusinessViolationException);
     });
   });
 

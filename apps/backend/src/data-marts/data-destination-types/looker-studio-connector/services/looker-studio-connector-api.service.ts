@@ -27,6 +27,7 @@ import { GetSchemaRequest, GetSchemaResponse } from '../schemas/get-schema.schem
 import { LookerStudioConnectorApiConfigService } from './looker-studio-connector-api-config.service';
 import { LookerStudioConnectorApiDataService } from './looker-studio-connector-api-data.service';
 import { LookerStudioConnectorApiSchemaService } from './looker-studio-connector-api-schema.service';
+import { ReportRunAccessValidatorService } from '../../../services/report-run-access-validator.service';
 
 interface ValidatedRequestData {
   connectionConfig: { destinationSecretKey: string };
@@ -78,7 +79,8 @@ export class LookerStudioConnectorApiService {
     private readonly lookerStudioReportRunService: LookerStudioReportRunService,
     private readonly projectBalanceService: ProjectBalanceService,
     private readonly blendedReportDataService: BlendedReportDataService,
-    private readonly systemTimeService: SystemTimeService
+    private readonly systemTimeService: SystemTimeService,
+    private readonly reportRunAccessValidatorService: ReportRunAccessValidatorService
   ) {}
 
   /**
@@ -92,18 +94,17 @@ export class LookerStudioConnectorApiService {
     return this.configService.getConfig(request);
   }
 
-  /**
-   * Handles getSchema request from Looker Studio.
-   * Returns available fields (dimensions and metrics) for the report.
-   *
-   * @param request - Looker Studio getSchema request with authentication
-   * @returns Schema response with field definitions
-   */
   public async getSchema(request: GetSchemaRequest): Promise<GetSchemaResponse> {
-    // Get report and cached reader centrally
-    const { report, cachedReader } = await this.getReportAndCachedReader(request);
+    const report = await this.loadReport(request);
 
-    // Pass cached data to schema service
+    await this.reportRunAccessValidatorService.validate(
+      report,
+      report.createdById,
+      report.dataMart.projectId,
+      'Looker Studio request'
+    );
+
+    const cachedReader = await this.cacheService.getOrCreateCachedReader(report);
     return this.schemaService.getSchema(request, report, cachedReader);
   }
 
@@ -124,13 +125,22 @@ export class LookerStudioConnectorApiService {
    * @returns Data response with rows and schema
    */
   public async getData(request: GetDataRequest): Promise<GetDataResponse> {
-    // Get report and cached reader centrally
-    const { report, cachedReader } = await this.getReportAndCachedReader(request);
-    const isSampleExtraction = Boolean(request.request.scriptParams?.sampleExtraction);
+    const report = await this.loadReport(request);
 
-    return isSampleExtraction
-      ? await this.getSampleDataExtraction(request, report, cachedReader)
-      : await this.getFullDataExtraction(request, report, cachedReader);
+    await this.reportRunAccessValidatorService.validate(
+      report,
+      report.createdById,
+      report.dataMart.projectId,
+      'Looker Studio request'
+    );
+
+    const cachedReader = await this.cacheService.getOrCreateCachedReader(report);
+
+    const isSampleExtraction = Boolean(request.request.scriptParams?.sampleExtraction);
+    if (isSampleExtraction) {
+      return await this.getSampleDataExtraction(request, report, cachedReader);
+    }
+    return await this.getFullDataExtraction(request, report, cachedReader);
   }
 
   /**
@@ -154,22 +164,28 @@ export class LookerStudioConnectorApiService {
    * @param res - Express response object for streaming
    */
   public async getDataStreaming(request: GetDataRequest, res: Response): Promise<void> {
-    const { report, cachedReader } = await this.getReportAndCachedReader(request);
-    const isSampleExtraction = Boolean(request.request.scriptParams?.sampleExtraction);
+    const report = await this.loadReport(request);
 
-    // Sample extraction always uses non-streaming (only 100 rows)
+    await this.reportRunAccessValidatorService.validate(
+      report,
+      report.createdById,
+      report.dataMart.projectId,
+      'Looker Studio request'
+    );
+
+    const cachedReader = await this.cacheService.getOrCreateCachedReader(report);
+
+    const isSampleExtraction = Boolean(request.request.scriptParams?.sampleExtraction);
     if (isSampleExtraction) {
       const result = await this.getSampleDataExtraction(request, report, cachedReader);
       res.json(result);
       return;
     }
 
-    // Check feature flag for full extraction
     if (this.isStreamingEnabled()) {
       this.logger.log('Using streaming mode for getData (LOOKER_STREAMING_ENABLED=true)');
       await this.getFullDataExtractionStreaming(request, report, cachedReader, res);
     } else {
-      // Non-streaming mode (default)
       const result = await this.getFullDataExtraction(request, report, cachedReader);
       res.json(result);
     }
@@ -230,26 +246,9 @@ export class LookerStudioConnectorApiService {
     }
   }
 
-  /**
-   * Retrieves and validates report with cached data reader.
-   *
-   * Steps:
-   * 1. Validates request structure and authentication secret
-   * 2. Fetches report by ID and secret key
-   * 3. Gets or creates cached reader for the report
-   *
-   * @param request - getSchema or getData request with authentication
-   * @returns Report entity and cached reader data
-   * @throws BusinessViolationException if validation fails or report not found
-   */
-  private async getReportAndCachedReader(request: GetSchemaRequest | GetDataRequest): Promise<{
-    report: Report;
-    cachedReader: CachedReaderData;
-  }> {
-    // Validate and extract request data
+  private async loadReport(request: GetSchemaRequest | GetDataRequest): Promise<Report> {
     const { connectionConfig, requestConfig } = this.validateAndExtractRequestData(request);
 
-    // Get report by ID and secret
     const report = await this.reportService.getByIdAndLookerStudioSecret(
       requestConfig.reportId,
       connectionConfig.destinationSecretKey
@@ -259,10 +258,7 @@ export class LookerStudioConnectorApiService {
       throw new BusinessViolationException('No report found for the provided secret and reportId');
     }
 
-    // Get cached reader
-    const cachedReader = await this.cacheService.getOrCreateCachedReader(report);
-
-    return { report, cachedReader };
+    return report;
   }
 
   /**

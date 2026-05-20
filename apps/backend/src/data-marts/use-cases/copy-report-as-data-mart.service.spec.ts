@@ -52,13 +52,17 @@ describe('CopyReportAsDataMartService', () => {
         return Promise.resolve(false);
       }),
     };
+    const blendableSchemaService = {
+      assertNoInaccessibleReportRefs: jest.fn().mockResolvedValue(undefined),
+    };
 
     const service = new CopyReportAsDataMartService(
       reportRepository as never,
       reportSqlComposerService as never,
       createDataMartService as never,
       updateDataMartDefinitionService as never,
-      accessDecisionService as never
+      accessDecisionService as never,
+      blendableSchemaService as never
     );
 
     return {
@@ -68,6 +72,7 @@ describe('CopyReportAsDataMartService', () => {
       createDataMartService,
       updateDataMartDefinitionService,
       accessDecisionService,
+      blendableSchemaService,
     };
   };
 
@@ -188,4 +193,21 @@ describe('CopyReportAsDataMartService', () => {
       expect(updateDataMartDefinitionService.run).not.toHaveBeenCalled();
     }
   );
+
+  it('throws BusinessViolationException when report has inaccessible column/filter/sort refs', async () => {
+    const { service, blendableSchemaService, createDataMartService } = createService();
+    blendableSchemaService.assertNoInaccessibleReportRefs.mockRejectedValue(
+      new BusinessViolationException(
+        'Cannot copy report: columns reference inaccessible data marts: dm2__field_a'
+      )
+    );
+
+    const command = new CopyReportAsDataMartCommand('report-1', 'user-1', 'proj-1', ['editor']);
+
+    await expect(service.run(command)).rejects.toThrow(BusinessViolationException);
+    await expect(service.run(command)).rejects.toThrow(
+      'Cannot copy report: columns reference inaccessible data marts: dm2__field_a'
+    );
+    expect(createDataMartService.run).not.toHaveBeenCalled();
+  });
 });

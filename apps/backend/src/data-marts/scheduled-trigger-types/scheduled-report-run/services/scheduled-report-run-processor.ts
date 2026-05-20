@@ -29,6 +29,7 @@ export class ScheduledReportRunProcessor implements ScheduledTriggerProcessor {
       reportId: trigger.triggerConfig.reportId,
       userId: trigger.createdById,
       runType: RunType.scheduled,
+      projectId: trigger.dataMart.projectId,
     };
 
     await this.runReportService.run(runReportCommand, signal);

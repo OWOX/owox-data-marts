@@ -1,4 +1,4 @@
-import { Inject, Injectable, Logger } from '@nestjs/common';
+import { Inject, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { Transactional } from 'typeorm-transactional';
 import { BusinessViolationException } from '../../common/exceptions/business-violation.exception';
 import { TypeResolver } from '../../common/resolver/type-resolver';
@@ -27,51 +27,16 @@ import {
   ReportExecutionPolicy,
   ReportExecutionPolicyResolver,
 } from './report-execution-policy.resolver';
-import { ReportAccessService } from '../services/report-access.service';
 import { ReportSqlComposerService } from '../services/report-sql-composer.service';
 import { SqlParameter } from '../data-storage-types/utils/sql-clause-renderer';
+import { Repository } from 'typeorm';
+import { InjectRepository } from '@nestjs/typeorm';
+import { ReportRunAccessValidatorService } from '../services/report-run-access-validator.service';
 
 const ERROR_NAMES = {
   ABORT: 'AbortError',
 } as const;
 
-/**
- * Use case for executing scheduled and manual report runs.
- *
- * This is the main orchestrator for report execution, coordinating multiple services
- * to read data from storage, transform it, and write to destination.
- *
- * Responsibilities:
- * - Managing complete report execution lifecycle
- * - Coordinating data readers and writers via resolver pattern
- * - Handling cancellation via AbortSignal
- * - Preventing new runs during graceful shutdown
- * - Actualizing data mart schema before execution
- * - Tracking active processes for graceful shutdown
- *
- * Execution flow:
- * 1. Validate system can run (not in shutdown)
- * 2. Create pending ReportRun with optimistic locking
- * 3. Register process for graceful shutdown tracking
- * 4. Actualize data mart schema
- * 5. Mark run as started
- * 6. Execute data extraction and writing in batches
- * 7. Handle success/failure/cancellation
- * 8. Persist final status in transaction
- * 9. Unregister process
- *
- * Concurrency handling:
- * - Returns early if report already running (null from createPending)
- * - Optimistic locking prevents concurrent runs of same report
- * - Multiple different reports can run concurrently
- *
- * Cancellation support:
- * - Accepts optional AbortSignal for user/system cancellation
- * - Checks signal before each batch operation
- * - Marks run as CANCELLED on AbortError
- *
- * @see ReportRun - Domain model for report run
- */
 @Injectable()
 export class RunReportService {
   private readonly logger = new Logger(RunReportService.name);
@@ -92,32 +57,32 @@ export class RunReportService {
     private readonly projectBalanceService: ProjectBalanceService,
     private readonly reportExecutionPolicyResolver: ReportExecutionPolicyResolver,
     private readonly reportRunTriggerService: ReportRunTriggerService,
-    private readonly reportAccessService: ReportAccessService,
     private readonly blendedReportDataService: BlendedReportDataService,
-    private readonly reportSqlComposerService: ReportSqlComposerService
+    private readonly reportSqlComposerService: ReportSqlComposerService,
+    @InjectRepository(Report)
+    private readonly reportRepository: Repository<Report>,
+    private readonly reportRunAccessValidatorService: ReportRunAccessValidatorService
   ) {}
 
-  /**
-   * Creates a pending report run and enqueues it via trigger for worker processing.
-   *
-   * Auth gating runs OUTSIDE the transactional boundary so a 403 doesn't open and
-   * roll back a database transaction. The actual createPending + createTrigger work
-   * stays atomic via `enqueueReportRun`.
-   *
-   * @param command - Report run command with reportId, userId, runType
-   * @param signal - Unused, kept for backward compatibility with scheduled processors
-   */
   async run(command: RunReportCommand, _signal?: AbortSignal): Promise<void> {
     this.validateCanRun();
 
-    if (command.runType === RunType.manual) {
-      await this.reportAccessService.checkOperateAccess(
-        command.userId,
-        command.roles,
-        command.reportId,
-        command.projectId
-      );
+    const report = await this.reportRepository.findOne({
+      where: { id: command.reportId, dataMart: { projectId: command.projectId } },
+      relations: ['dataMart', 'dataDestination'],
+    });
+    if (!report) {
+      throw new NotFoundException(`Report ${command.reportId} not found`);
     }
+
+    const isManual = command.runType === RunType.manual;
+    await this.reportRunAccessValidatorService.validate(
+      report,
+      command.userId,
+      command.projectId,
+      isManual ? 'Manual run' : 'Scheduled run',
+      isManual ? command.roles : undefined
+    );
 
     await this.enqueueReportRun(command);
   }
@@ -143,13 +108,6 @@ export class RunReportService {
     });
   }
 
-  /**
-   * Execute a pre-created report run. Called by ReportRunTriggerHandler on worker.
-   *
-   * @param dataMartRunId - The ID of the DataMartRun to execute
-   * @param expectedProjectId - The projectId from the trigger, used to validate ownership
-   * @param signal - Optional AbortSignal for cancellation
-   */
   async executeExistingRun(
     dataMartRunId: string,
     expectedProjectId: string,
@@ -171,24 +129,6 @@ export class RunReportService {
     await this.executeReportRunWithCleanup(reportRun, signal);
   }
 
-  /**
-   * Executes core report data extraction and writing logic.
-   *
-   * Process:
-   * 1. Resolves reader for data storage type (BigQuery, Athena, etc.)
-   * 2. Resolves writer for destination type (Looker Studio, Google Sheets, etc.)
-   * 3. Prepares report data (gets metadata, row count, etc.)
-   * 4. Initializes writer for batch writing
-   * 5. Reads and writes data in batches until complete
-   * 6. Finalizes both reader and writer (cleanup resources)
-   *
-   * Cancellation: Checks AbortSignal before each batch operation.
-   *
-   * @param report - Report entity with storage and destination config
-   * @param signal - Optional AbortSignal for cancellation
-   * @param reportRunLogger - Optional run-scoped structured logger.
-   * @throws Error if read/write fails, propagated to caller
-   */
   private async executeReport(
     report: Report,
     signal?: AbortSignal,
@@ -221,8 +161,6 @@ export class RunReportService {
         (report.sortConfig?.length ?? 0) > 0 ||
         report.limitConfig != null
       ) {
-        // Non-blended report with output controls — compose the full SQL + params here so
-        // the reader doesn't need to know about output-controls semantics.
         const composed = await this.reportSqlComposerService.compose(report);
         sqlOverride = composed.sql;
         sqlOverrideParams = composed.params;
@@ -261,23 +199,6 @@ export class RunReportService {
     }
   }
 
-  /**
-   * Wraps report execution with lifecycle management and cleanup.
-   *
-   * Ensures proper resource cleanup and status persistence even if execution fails.
-   *
-   * Steps:
-   * 1. Generates unique process ID for tracking
-   * 2. Registers process for graceful shutdown
-   * 3. Actualizes data mart schema
-   * 4. Marks run as started
-   * 5. Executes report data extraction
-   * 6. Handles success/error/cancellation
-   * 7. Always unregisters process in finally block
-   *
-   * @param reportRun - Report run domain model
-   * @param signal - Optional AbortSignal for cancellation
-   */
   private async executeReportRunWithCleanup(
     reportRun: ReportRun,
     signal?: AbortSignal
@@ -304,10 +225,6 @@ export class RunReportService {
     }
   }
 
-  /**
-   * Validates that system can start new report runs.
-   * @throws BusinessViolationException if system is in shutdown mode
-   */
   private validateCanRun() {
     if (this.gracefulShutdownService.isInShutdownMode()) {
       throw new BusinessViolationException(
@@ -374,38 +291,17 @@ export class RunReportService {
     }
   }
 
-  /**
-   * Generates unique process ID for graceful shutdown tracking.
-   * Format: report-{reportId}-{timestamp}-{random}
-   *
-   * @param reportId - Report identifier
-   * @returns Unique process ID
-   */
   private generateProcessId(reportId: string): string {
     const timestamp = this.systemTimeService.now();
     const random = Math.random().toString(36).substring(2, 11);
     return `report-${reportId}-${timestamp}-${random}`;
   }
 
-  /**
-   * Actualizes (refreshes) data mart schema before execution.
-   * Ensures report reads from latest table structure.
-   *
-   * @param dataMart - DataMart entity to actualize
-   */
   private async actualizeSchemaInDataMart(dataMart: DataMart): Promise<void> {
     await this.dataMartService.actualizeSchemaInEntity(dataMart);
     await this.dataMartService.save(dataMart);
   }
 
-  /**
-   * Handles successful report run completion.
-   * Marks as success and persists results.
-   *
-   * @param reportRun - Completed report run
-   * @param logs - Structured logs collected during the run
-   * @param errors - Structured errors collected during the run
-   */
   private async handleReportRunSuccess(
     reportRun: ReportRun,
     logs: string[] = [],
@@ -419,18 +315,6 @@ export class RunReportService {
     }
   }
 
-  /**
-   * Handles report run error or cancellation.
-   *
-   * Distinguishes between:
-   * - AbortError: User/system cancellation -> marks as CANCELLED
-   * - Other errors: Execution failure -> marks as FAILED with error message
-   *
-   * @param reportRun - Failed or cancelled report run
-   * @param error - Error that occurred
-   * @param logs - Structured logs collected before failure
-   * @param errors - Structured errors including the failure reason
-   */
   private async handleReportRunError(
     reportRun: ReportRun,
     error: Error,
@@ -450,14 +334,7 @@ export class RunReportService {
     await this.saveReportRunResultSafely(reportRun, logs, errors);
   }
 
-  /**
-   * Attempts to save report run results to the database.
-   * If save fails, logs the error but does not throw to prevent losing the in-memory state.
-   *
-   * TODO: Implement proper error handling strategy (retry mechanism, dead letter queue, etc.)
-   *
-   * @returns true if saved successfully, false otherwise
-   */
+  // TODO: Implement proper error handling strategy (retry mechanism, dead letter queue, etc.)
   private async saveReportRunResultSafely(
     reportRun: ReportRun,
     logs: string[] = [],

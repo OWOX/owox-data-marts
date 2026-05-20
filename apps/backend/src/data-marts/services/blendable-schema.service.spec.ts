@@ -827,4 +827,475 @@ describe('BlendableSchemaService', () => {
       expect(result.blendedFields[3].name).toBe('orders_v2__country');
     });
   });
+
+  describe('computeBlendableSchema — access filter', () => {
+    it('filters out target DM and its fields when accessFilter returns false', async () => {
+      dataMartService.getByIdAndProjectId.mockResolvedValue(makeDataMart({ id: 'dm-a' }));
+
+      const relAtoB = makeRelationship({
+        id: 'rel-ab',
+        targetAlias: 'b',
+        sourceDataMart: makeDataMart({ id: 'dm-a' }),
+        targetDataMart: makeDataMart({
+          id: 'dm-b',
+          schema: makeSchema([{ name: 'b_field', type: 'STRING' }]),
+        }),
+      });
+
+      relationshipService.findByStorageId.mockResolvedValue([relAtoB]);
+
+      const accessFilter = jest.fn().mockResolvedValue(false);
+      const result = await service.computeBlendableSchema('dm-a', 'project-1', accessFilter);
+
+      expect(result.availableSources).toEqual([]);
+      expect(result.blendedFields).toEqual([]);
+      expect(accessFilter).toHaveBeenCalledWith('dm-b');
+    });
+
+    it('cuts entire branch when intermediate DM is inaccessible (A→B→C, B blocked)', async () => {
+      dataMartService.getByIdAndProjectId.mockResolvedValue(makeDataMart({ id: 'dm-a' }));
+
+      const relAtoB = makeRelationship({
+        id: 'rel-ab',
+        targetAlias: 'b',
+        sourceDataMart: makeDataMart({ id: 'dm-a' }),
+        targetDataMart: makeDataMart({
+          id: 'dm-b',
+          schema: makeSchema([{ name: 'b_field', type: 'STRING' }]),
+        }),
+      });
+
+      const relBtoC = makeRelationship({
+        id: 'rel-bc',
+        targetAlias: 'c',
+        sourceDataMart: makeDataMart({ id: 'dm-b' }),
+        targetDataMart: makeDataMart({
+          id: 'dm-c',
+          schema: makeSchema([{ name: 'c_field', type: 'INTEGER' }]),
+        }),
+      });
+
+      relationshipService.findByStorageId.mockResolvedValue([relAtoB, relBtoC]);
+
+      const accessFilter = jest.fn().mockImplementation(async (dmId: string) => dmId !== 'dm-b');
+      const result = await service.computeBlendableSchema('dm-a', 'project-1', accessFilter);
+
+      expect(result.availableSources).toEqual([]);
+      expect(result.blendedFields).toEqual([]);
+    });
+
+    it('does not call accessFilter when not provided (backward-compatible)', async () => {
+      dataMartService.getByIdAndProjectId.mockResolvedValue(makeDataMart({ id: 'dm-a' }));
+
+      const relAtoB = makeRelationship({
+        id: 'rel-ab',
+        targetAlias: 'b',
+        sourceDataMart: makeDataMart({ id: 'dm-a' }),
+        targetDataMart: makeDataMart({
+          id: 'dm-b',
+          schema: makeSchema([{ name: 'b_field', type: 'STRING' }]),
+        }),
+      });
+
+      relationshipService.findByStorageId.mockResolvedValue([relAtoB]);
+
+      const result = await service.computeBlendableSchema('dm-a', 'project-1');
+
+      expect(result.availableSources).toHaveLength(1);
+      expect(result.blendedFields).toHaveLength(1);
+    });
+
+    it('accessible parallel branch still visible when sibling branch is blocked', async () => {
+      dataMartService.getByIdAndProjectId.mockResolvedValue(makeDataMart({ id: 'dm-a' }));
+
+      const relAtoB = makeRelationship({
+        id: 'rel-ab',
+        targetAlias: 'b',
+        sourceDataMart: makeDataMart({ id: 'dm-a' }),
+        targetDataMart: makeDataMart({
+          id: 'dm-b',
+          schema: makeSchema([{ name: 'b_field', type: 'STRING' }]),
+        }),
+      });
+
+      const relAtoC = makeRelationship({
+        id: 'rel-ac',
+        targetAlias: 'c',
+        sourceDataMart: makeDataMart({ id: 'dm-a' }),
+        targetDataMart: makeDataMart({
+          id: 'dm-c',
+          schema: makeSchema([{ name: 'c_field', type: 'INTEGER' }]),
+        }),
+      });
+
+      relationshipService.findByStorageId.mockResolvedValue([relAtoB, relAtoC]);
+
+      const accessFilter = jest.fn().mockImplementation(async (dmId: string) => dmId === 'dm-c');
+      const result = await service.computeBlendableSchema('dm-a', 'project-1', accessFilter);
+
+      expect(result.availableSources).toHaveLength(1);
+      expect(result.availableSources[0].aliasPath).toBe('c');
+      expect(result.blendedFields).toHaveLength(1);
+      expect(result.blendedFields[0].name).toBe('c__c_field');
+    });
+  });
+
+  describe('findInaccessibleColumnRefs', () => {
+    it('returns empty array when columnConfig is empty', async () => {
+      dataMartService.getByIdAndProjectId.mockResolvedValue(makeDataMart({ id: 'dm-a' }));
+      relationshipService.findByStorageId.mockResolvedValue([]);
+
+      const accessFilter = jest.fn().mockResolvedValue(true);
+      const result = await service.findInaccessibleColumnRefs(
+        [],
+        'dm-a',
+        'project-1',
+        accessFilter
+      );
+
+      expect(result).toEqual([]);
+      expect(accessFilter).not.toHaveBeenCalled();
+    });
+
+    it('returns empty array when all column refs are native fields', async () => {
+      dataMartService.getByIdAndProjectId.mockResolvedValue(
+        makeDataMart({
+          id: 'dm-a',
+          schema: makeSchema([{ name: 'native_col', type: 'STRING' }]),
+        })
+      );
+      relationshipService.findByStorageId.mockResolvedValue([]);
+
+      const accessFilter = jest.fn().mockResolvedValue(true);
+      const result = await service.findInaccessibleColumnRefs(
+        ['native_col'],
+        'dm-a',
+        'project-1',
+        accessFilter
+      );
+
+      expect(result).toEqual([]);
+    });
+
+    it('returns orphan when column references physically missing blended field', async () => {
+      dataMartService.getByIdAndProjectId.mockResolvedValue(makeDataMart({ id: 'dm-a' }));
+      relationshipService.findByStorageId.mockResolvedValue([]);
+
+      const accessFilter = jest.fn().mockResolvedValue(true);
+      const result = await service.findInaccessibleColumnRefs(
+        ['b__deleted_field'],
+        'dm-a',
+        'project-1',
+        accessFilter
+      );
+
+      expect(result).toEqual(['b__deleted_field']);
+    });
+
+    it('returns orphan when source DM has no USE access', async () => {
+      dataMartService.getByIdAndProjectId.mockResolvedValue(makeDataMart({ id: 'dm-a' }));
+
+      const relAtoB = makeRelationship({
+        id: 'rel-ab',
+        targetAlias: 'b',
+        sourceDataMart: makeDataMart({ id: 'dm-a' }),
+        targetDataMart: makeDataMart({
+          id: 'dm-b',
+          schema: makeSchema([{ name: 'b_field', type: 'STRING' }]),
+        }),
+      });
+
+      relationshipService.findByStorageId.mockResolvedValue([relAtoB]);
+
+      const accessFilter = jest.fn().mockResolvedValue(false);
+      const result = await service.findInaccessibleColumnRefs(
+        ['b__b_field'],
+        'dm-a',
+        'project-1',
+        accessFilter
+      );
+
+      expect(result).toEqual(['b__b_field']);
+    });
+
+    it('returns empty when all blended columns have accessible source DMs', async () => {
+      dataMartService.getByIdAndProjectId.mockResolvedValue(makeDataMart({ id: 'dm-a' }));
+
+      const relAtoB = makeRelationship({
+        id: 'rel-ab',
+        targetAlias: 'b',
+        sourceDataMart: makeDataMart({ id: 'dm-a' }),
+        targetDataMart: makeDataMart({
+          id: 'dm-b',
+          schema: makeSchema([{ name: 'b_field', type: 'STRING' }]),
+        }),
+      });
+
+      relationshipService.findByStorageId.mockResolvedValue([relAtoB]);
+
+      const accessFilter = jest.fn().mockResolvedValue(true);
+      const result = await service.findInaccessibleColumnRefs(
+        ['b__b_field'],
+        'dm-a',
+        'project-1',
+        accessFilter
+      );
+
+      expect(result).toEqual([]);
+    });
+
+    it('returns sorted orphan list with mixed native, accessible blended, and inaccessible', async () => {
+      dataMartService.getByIdAndProjectId.mockResolvedValue(
+        makeDataMart({
+          id: 'dm-a',
+          schema: makeSchema([{ name: 'native_col', type: 'STRING' }]),
+        })
+      );
+
+      const relAtoB = makeRelationship({
+        id: 'rel-ab',
+        targetAlias: 'b',
+        sourceDataMart: makeDataMart({ id: 'dm-a' }),
+        targetDataMart: makeDataMart({
+          id: 'dm-b',
+          schema: makeSchema([{ name: 'ok_field', type: 'STRING' }]),
+        }),
+      });
+
+      const relAtoC = makeRelationship({
+        id: 'rel-ac',
+        targetAlias: 'c',
+        sourceDataMart: makeDataMart({ id: 'dm-a' }),
+        targetDataMart: makeDataMart({
+          id: 'dm-c',
+          schema: makeSchema([{ name: 'blocked_field', type: 'STRING' }]),
+        }),
+      });
+
+      relationshipService.findByStorageId.mockResolvedValue([relAtoB, relAtoC]);
+
+      const accessFilter = jest.fn().mockImplementation(async (dmId: string) => dmId === 'dm-b');
+      const result = await service.findInaccessibleColumnRefs(
+        ['native_col', 'b__ok_field', 'c__blocked_field', 'missing__orphan'],
+        'dm-a',
+        'project-1',
+        accessFilter
+      );
+
+      expect(result).toEqual(['c__blocked_field', 'missing__orphan']);
+    });
+
+    it('diamond graph: C reachable via accessible A is NOT orphan even if B (other path to C) is blocked', async () => {
+      dataMartService.getByIdAndProjectId.mockResolvedValue(makeDataMart({ id: 'dm-root' }));
+
+      const dmC = makeDataMart({
+        id: 'dm-c',
+        schema: makeSchema([{ name: 'c_field', type: 'STRING' }]),
+      });
+
+      const relRootToA = makeRelationship({
+        id: 'rel-root-a',
+        targetAlias: 'a',
+        sourceDataMart: makeDataMart({ id: 'dm-root' }),
+        targetDataMart: makeDataMart({ id: 'dm-a', schema: makeSchema([]) }),
+      });
+
+      const relRootToB = makeRelationship({
+        id: 'rel-root-b',
+        targetAlias: 'b',
+        sourceDataMart: makeDataMart({ id: 'dm-root' }),
+        targetDataMart: makeDataMart({ id: 'dm-b', schema: makeSchema([]) }),
+      });
+
+      const relAtoC = makeRelationship({
+        id: 'rel-a-c',
+        targetAlias: 'c',
+        sourceDataMart: makeDataMart({ id: 'dm-a' }),
+        targetDataMart: dmC,
+      });
+
+      const relBtoC = makeRelationship({
+        id: 'rel-b-c',
+        targetAlias: 'c',
+        sourceDataMart: makeDataMart({ id: 'dm-b' }),
+        targetDataMart: dmC,
+      });
+
+      relationshipService.findByStorageId.mockResolvedValue([
+        relRootToA,
+        relRootToB,
+        relAtoC,
+        relBtoC,
+      ]);
+
+      const accessFilter = jest.fn().mockImplementation(async (dmId: string) => dmId !== 'dm-b');
+      const result = await service.findInaccessibleColumnRefs(
+        ['a_c__c_field'],
+        'dm-root',
+        'project-1',
+        accessFilter
+      );
+
+      expect(result).toEqual([]);
+    });
+
+    it('transitive path: b_c__field is orphan when intermediate B is inaccessible even if C is accessible', async () => {
+      dataMartService.getByIdAndProjectId.mockResolvedValue(makeDataMart({ id: 'dm-root' }));
+
+      const relRootToB = makeRelationship({
+        id: 'rel-root-b',
+        targetAlias: 'b',
+        sourceDataMart: makeDataMart({ id: 'dm-root' }),
+        targetDataMart: makeDataMart({ id: 'dm-b', schema: makeSchema([]) }),
+      });
+
+      const relBtoC = makeRelationship({
+        id: 'rel-b-c',
+        targetAlias: 'c',
+        sourceDataMart: makeDataMart({ id: 'dm-b' }),
+        targetDataMart: makeDataMart({
+          id: 'dm-c',
+          schema: makeSchema([{ name: 'c_field', type: 'STRING' }]),
+        }),
+      });
+
+      relationshipService.findByStorageId.mockResolvedValue([relRootToB, relBtoC]);
+
+      const accessFilter = jest.fn().mockImplementation(async (dmId: string) => dmId === 'dm-c');
+      const result = await service.findInaccessibleColumnRefs(
+        ['b_c__c_field'],
+        'dm-root',
+        'project-1',
+        accessFilter
+      );
+
+      expect(result).toEqual(['b_c__c_field']);
+    });
+
+    it('native nested struct field profile.city is not flagged as orphan', async () => {
+      dataMartService.getByIdAndProjectId.mockResolvedValue(
+        makeDataMart({
+          id: 'dm-a',
+          schema: {
+            type: 'bigquery-data-mart-schema',
+            fields: [
+              {
+                name: 'profile',
+                type: 'RECORD',
+                fields: [{ name: 'city', type: 'STRING' }],
+              },
+            ],
+          } as unknown as DataMart['schema'],
+        })
+      );
+      relationshipService.findByStorageId.mockResolvedValue([]);
+
+      const accessFilter = jest.fn().mockResolvedValue(true);
+      const result = await service.findInaccessibleColumnRefs(
+        ['profile.city'],
+        'dm-a',
+        'project-1',
+        accessFilter
+      );
+
+      expect(result).toEqual([]);
+    });
+  });
+
+  describe('findInaccessibleReportRefs', () => {
+    it('groups orphans by config source (columns / filters / sorts)', async () => {
+      dataMartService.getByIdAndProjectId.mockResolvedValue(makeDataMart({ id: 'dm-root' }));
+
+      const relRootToX = makeRelationship({
+        id: 'rel-x',
+        targetAlias: 'x',
+        sourceDataMart: makeDataMart({ id: 'dm-root' }),
+        targetDataMart: makeDataMart({
+          id: 'dm-x',
+          schema: makeSchema([{ name: 'a', type: 'STRING' }]),
+        }),
+      });
+      const relRootToY = makeRelationship({
+        id: 'rel-y',
+        targetAlias: 'y',
+        sourceDataMart: makeDataMart({ id: 'dm-root' }),
+        targetDataMart: makeDataMart({
+          id: 'dm-y',
+          schema: makeSchema([{ name: 'b', type: 'STRING' }]),
+        }),
+      });
+      const relRootToZ = makeRelationship({
+        id: 'rel-z',
+        targetAlias: 'z',
+        sourceDataMart: makeDataMart({ id: 'dm-root' }),
+        targetDataMart: makeDataMart({
+          id: 'dm-z',
+          schema: makeSchema([{ name: 'c', type: 'STRING' }]),
+        }),
+      });
+
+      relationshipService.findByStorageId.mockResolvedValue([relRootToX, relRootToY, relRootToZ]);
+
+      const accessFilter = jest.fn().mockImplementation(async (dmId: string) => dmId === 'dm-x');
+      const result = await service.findInaccessibleReportRefs(
+        {
+          columnConfig: ['x__a'],
+          filterConfig: [{ column: 'y__b', operator: 'EQUALS', values: ['1'] }],
+          sortConfig: [{ column: 'z__c', direction: 'ASC' }],
+        },
+        'dm-root',
+        'project-1',
+        accessFilter
+      );
+
+      expect(result.columns).toEqual([]);
+      expect(result.filters).toEqual(['y__b']);
+      expect(result.sorts).toEqual(['z__c']);
+    });
+
+    it('returns all empty when all columns are accessible', async () => {
+      dataMartService.getByIdAndProjectId.mockResolvedValue(makeDataMart({ id: 'dm-root' }));
+
+      const relRootToB = makeRelationship({
+        id: 'rel-b',
+        targetAlias: 'b',
+        sourceDataMart: makeDataMart({ id: 'dm-root' }),
+        targetDataMart: makeDataMart({
+          id: 'dm-b',
+          schema: makeSchema([{ name: 'field', type: 'STRING' }]),
+        }),
+      });
+      relationshipService.findByStorageId.mockResolvedValue([relRootToB]);
+
+      const accessFilter = jest.fn().mockResolvedValue(true);
+      const result = await service.findInaccessibleReportRefs(
+        {
+          columnConfig: ['b__field'],
+          filterConfig: [{ column: 'b__field', operator: 'EQUALS', values: ['v'] }],
+          sortConfig: [{ column: 'b__field', direction: 'DESC' }],
+        },
+        'dm-root',
+        'project-1',
+        accessFilter
+      );
+
+      expect(result).toEqual({ columns: [], filters: [], sorts: [] });
+    });
+
+    it('returns empty object when all configs are empty', async () => {
+      dataMartService.getByIdAndProjectId.mockResolvedValue(makeDataMart({ id: 'dm-root' }));
+      relationshipService.findByStorageId.mockResolvedValue([]);
+
+      const accessFilter = jest.fn().mockResolvedValue(false);
+      const result = await service.findInaccessibleReportRefs(
+        { columnConfig: [], filterConfig: [], sortConfig: [] },
+        'dm-root',
+        'project-1',
+        accessFilter
+      );
+
+      expect(result).toEqual({ columns: [], filters: [], sorts: [] });
+      expect(accessFilter).not.toHaveBeenCalled();
+    });
+  });
 });

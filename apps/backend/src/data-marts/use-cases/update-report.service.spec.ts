@@ -28,6 +28,7 @@ jest.mock('../utils/resolve-owner-users', () => ({
 }));
 
 import { ForbiddenException, BadRequestException } from '@nestjs/common';
+import { BusinessViolationException } from '../../common/exceptions/business-violation.exception';
 import { UpdateReportService } from './update-report.service';
 import { UpdateReportCommand } from '../dto/domain/update-report.command';
 import { DataStorageType } from '../data-storage-types/enums/data-storage-type.enum';
@@ -115,6 +116,10 @@ describe('UpdateReportService', () => {
       ...outputControlsValidatorOverride,
     };
 
+    const blendableSchemaService = {
+      assertNoInaccessibleReportRefs: jest.fn().mockResolvedValue(undefined),
+    };
+
     const service = new UpdateReportService(
       reportRepository as never,
       dataDestinationService as never,
@@ -127,7 +132,8 @@ describe('UpdateReportService', () => {
       reportAccessService as never,
       reportDataCacheService as never,
       outputControlsValidator as never,
-      accessDecisionService as never
+      accessDecisionService as never,
+      blendableSchemaService as never
     );
 
     return {
@@ -137,6 +143,7 @@ describe('UpdateReportService', () => {
       reportRepository,
       reportDataCacheService,
       outputControlsValidator,
+      blendableSchemaService,
     };
   };
 
@@ -392,5 +399,31 @@ describe('UpdateReportService', () => {
       canManageTriggers: true,
       canEditConfig: true,
     });
+  });
+
+  it('throws BusinessViolationException when report refs inaccessible data marts', async () => {
+    const { service, blendableSchemaService } = createService();
+    blendableSchemaService.assertNoInaccessibleReportRefs.mockRejectedValue(
+      new BusinessViolationException(
+        'Cannot update report: columns reference inaccessible data marts: b__orphan, c__missing'
+      )
+    );
+
+    const command = new UpdateReportCommand(
+      'report-1',
+      'proj-1',
+      'user-1',
+      ['editor'],
+      'New Title',
+      'dest-1',
+      {} as never,
+      undefined,
+      [{ dataMartId: 'dm-2', fieldName: 'b__orphan', alias: 'b__orphan' }] as never
+    );
+
+    await expect(service.run(command)).rejects.toThrow(BusinessViolationException);
+    await expect(service.run(command)).rejects.toThrow(
+      /b__orphan.*c__missing|c__missing.*b__orphan/
+    );
   });
 });

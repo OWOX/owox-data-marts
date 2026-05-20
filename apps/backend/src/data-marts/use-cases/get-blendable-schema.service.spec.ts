@@ -43,7 +43,11 @@ describe('GetBlendableSchemaService', () => {
       Action.SEE,
       'proj-1'
     );
-    expect(blendableSchemaService.computeBlendableSchema).toHaveBeenCalledWith('dm-1', 'proj-1');
+    expect(blendableSchemaService.computeBlendableSchema).toHaveBeenCalledWith(
+      'dm-1',
+      'proj-1',
+      expect.any(Function)
+    );
     expect(result).toBe(blendableSchema);
   });
 

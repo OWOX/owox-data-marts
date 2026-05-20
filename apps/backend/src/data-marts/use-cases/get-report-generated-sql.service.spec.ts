@@ -1,4 +1,5 @@
 import { ForbiddenException, NotFoundException, UnauthorizedException } from '@nestjs/common';
+import { BusinessViolationException } from '../../common/exceptions/business-violation.exception';
 import { GetReportGeneratedSqlService } from './get-report-generated-sql.service';
 import { GetReportGeneratedSqlCommand } from '../dto/domain/get-report-generated-sql.command';
 import { EntityType, Action } from '../services/access-decision';
@@ -6,6 +7,9 @@ import { EntityType, Action } from '../services/access-decision';
 describe('GetReportGeneratedSqlService', () => {
   const report = {
     id: 'report-1',
+    columnConfig: null,
+    filterConfig: null,
+    sortConfig: null,
     dataMart: {
       id: 'dm-1',
       storage: { id: 'storage-1', type: 'BIGQUERY' },
@@ -23,14 +27,24 @@ describe('GetReportGeneratedSqlService', () => {
     const accessDecisionService = {
       canAccess: jest.fn().mockResolvedValue(canEditDataMart),
     };
+    const blendableSchemaService = {
+      assertNoInaccessibleReportRefs: jest.fn().mockResolvedValue(undefined),
+    };
 
     const service = new GetReportGeneratedSqlService(
       reportRepository as never,
       reportSqlComposerService as never,
-      accessDecisionService as never
+      accessDecisionService as never,
+      blendableSchemaService as never
     );
 
-    return { service, reportRepository, reportSqlComposerService, accessDecisionService };
+    return {
+      service,
+      reportRepository,
+      reportSqlComposerService,
+      accessDecisionService,
+      blendableSchemaService,
+    };
   };
 
   beforeEach(() => jest.clearAllMocks());
@@ -79,6 +93,23 @@ describe('GetReportGeneratedSqlService', () => {
     const command = new GetReportGeneratedSqlCommand('report-1', 'user-1', 'proj-1', ['viewer']);
 
     await expect(service.run(command)).rejects.toThrow(ForbiddenException);
+    expect(reportSqlComposerService.compose).not.toHaveBeenCalled();
+  });
+
+  it('throws BusinessViolationException when report has inaccessible column/filter/sort refs', async () => {
+    const { service, blendableSchemaService, reportSqlComposerService } = createService(true);
+    blendableSchemaService.assertNoInaccessibleReportRefs.mockRejectedValue(
+      new BusinessViolationException(
+        'Cannot view SQL: columns reference inaccessible data marts: dm2__field_a'
+      )
+    );
+
+    const command = new GetReportGeneratedSqlCommand('report-1', 'user-1', 'proj-1', ['editor']);
+
+    await expect(service.run(command)).rejects.toThrow(BusinessViolationException);
+    await expect(service.run(command)).rejects.toThrow(
+      'Cannot view SQL: columns reference inaccessible data marts: dm2__field_a'
+    );
     expect(reportSqlComposerService.compose).not.toHaveBeenCalled();
   });
 });

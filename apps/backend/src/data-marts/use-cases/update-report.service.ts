@@ -24,6 +24,8 @@ import { AccessDecisionService, EntityType, Action } from '../services/access-de
 import { ReportAccessService } from '../services/report-access.service';
 import { ReportDataCacheService } from '../services/report-data-cache.service';
 import { OutputControlsValidatorService } from '../services/output-controls-validator.service';
+import { BlendableSchemaService } from '../services/blendable-schema.service';
+import { createDataMartUseAccessFilter } from '../utils/create-dm-access-filter';
 
 @Injectable()
 export class UpdateReportService {
@@ -41,12 +43,12 @@ export class UpdateReportService {
     private readonly reportAccessService: ReportAccessService,
     private readonly reportDataCacheService: ReportDataCacheService,
     private readonly outputControlsValidator: OutputControlsValidatorService,
-    private readonly accessDecisionService: AccessDecisionService
+    private readonly accessDecisionService: AccessDecisionService,
+    private readonly blendableSchemaService: BlendableSchemaService
   ) {}
 
   @Transactional()
   async run(command: UpdateReportCommand): Promise<ReportDto> {
-    // Find the existing report
     const report = await this.reportRepository.findOne({
       where: {
         id: command.id,
@@ -68,7 +70,29 @@ export class UpdateReportService {
       command.projectId
     );
 
-    // Get the data destination if it's being changed and verify caller can USE it
+    if (
+      command.userId &&
+      (command.columnConfig?.length || command.filterConfig?.length || command.sortConfig?.length)
+    ) {
+      const accessFilter = createDataMartUseAccessFilter(
+        this.accessDecisionService,
+        command.userId,
+        command.roles,
+        command.projectId
+      );
+      await this.blendableSchemaService.assertNoInaccessibleReportRefs(
+        {
+          columnConfig: command.columnConfig,
+          filterConfig: command.filterConfig,
+          sortConfig: command.sortConfig,
+        },
+        report.dataMart.id,
+        command.projectId,
+        accessFilter,
+        'Cannot save report'
+      );
+    }
+
     let dataDestination: DataDestination = report.dataDestination;
     const destinationIsChanging = command.dataDestinationId !== dataDestination.id;
     if (destinationIsChanging) {
@@ -77,7 +101,6 @@ export class UpdateReportService {
         command.projectId
       );
 
-      // Permissions Model: caller must have USE on the new destination
       if (command.userId) {
         const canUseNewDest = await this.accessDecisionService.canAccess(
           command.userId,
@@ -95,14 +118,12 @@ export class UpdateReportService {
 
     this.availableDestinationTypesService.verifyIsAllowed(dataDestination.type);
 
-    // Validate access to the data destination
     await this.dataDestinationAccessValidationFacade.checkAccess(
       dataDestination.type,
       command.destinationConfig,
       dataDestination
     );
 
-    // Validate owners BEFORE mutating
     if (command.ownerIds !== undefined) {
       for (const ownerId of command.ownerIds) {
         const canOwn = await this.reportAccessService.canBeOwner(
@@ -178,7 +199,6 @@ export class UpdateReportService {
       await this.reportDataCacheService.invalidateByReportId(updatedReport.id);
     }
 
-    // Reload to get fresh owners
     const fresh = await this.reportRepository.findOne({
       where: { id: updatedReport.id },
       relations: ['dataMart', 'dataDestination', 'owners'],

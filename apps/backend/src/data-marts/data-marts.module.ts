@@ -352,6 +352,7 @@ import { ListMembershipRequestsService } from './use-cases/project-members/list-
 import { ApproveMembershipRequestService } from './use-cases/project-members/approve-membership-request.service';
 import { DeclineMembershipRequestService } from './use-cases/project-members/decline-membership-request.service';
 import { SetContextMembersService } from './use-cases/contexts/set-context-members.service';
+import { ReportRunAccessValidatorService } from './services/report-run-access-validator.service';
 
 @Module({
   imports: [
@@ -713,6 +714,7 @@ import { SetContextMembersService } from './use-cases/contexts/set-context-membe
     ApproveMembershipRequestService,
     DeclineMembershipRequestService,
     SetContextMembersService,
+    ReportRunAccessValidatorService,
   ],
 })
 export class DataMartsModule {

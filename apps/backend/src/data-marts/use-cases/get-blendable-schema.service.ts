@@ -4,6 +4,7 @@ import { GetBlendableSchemaCommand } from '../dto/domain/get-blendable-schema.co
 import { AccessDecisionService, Action, EntityType } from '../services/access-decision';
 import { BlendableSchemaService } from '../services/blendable-schema.service';
 import { DataMartService } from '../services/data-mart.service';
+import { createDataMartUseAccessFilter } from '../utils/create-dm-access-filter';
 
 @Injectable()
 export class GetBlendableSchemaService {
@@ -32,9 +33,17 @@ export class GetBlendableSchemaService {
       throw new ForbiddenException('You do not have access to this DataMart');
     }
 
+    const accessFilter = createDataMartUseAccessFilter(
+      this.accessDecisionService,
+      command.userId,
+      command.roles,
+      command.projectId
+    );
+
     return this.blendableSchemaService.computeBlendableSchema(
       command.dataMartId,
-      command.projectId
+      command.projectId,
+      accessFilter
     );
   }
 }

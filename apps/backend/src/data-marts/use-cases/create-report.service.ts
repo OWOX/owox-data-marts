@@ -23,6 +23,8 @@ import { ForbiddenException } from '@nestjs/common';
 import { AccessDecisionService, EntityType, Action } from '../services/access-decision';
 import { OutputControlsValidatorService } from '../services/output-controls-validator.service';
 import { ReportAccessService } from '../services/report-access.service';
+import { BlendableSchemaService } from '../services/blendable-schema.service';
+import { createDataMartUseAccessFilter } from '../utils/create-dm-access-filter';
 
 @Injectable()
 export class CreateReportService {
@@ -41,12 +43,12 @@ export class CreateReportService {
     private readonly accessDecisionService: AccessDecisionService,
     private readonly eventDispatcher: OwoxEventDispatcher,
     private readonly outputControlsValidator: OutputControlsValidatorService,
-    private readonly reportAccessService: ReportAccessService
+    private readonly reportAccessService: ReportAccessService,
+    private readonly blendableSchemaService: BlendableSchemaService
   ) {}
 
   @Transactional()
   async run(command: CreateReportCommand): Promise<ReportDto> {
-    // Get the data mart and verify it's in published status
     const dataMart = await this.dataMartService.getByIdAndProjectId(
       command.dataMartId,
       command.projectId
@@ -57,7 +59,6 @@ export class CreateReportService {
       );
     }
 
-    // Permissions Model: verify user has reporting access to this DataMart
     if (command.userId) {
       const canUseDm = await this.accessDecisionService.canAccess(
         command.userId,
@@ -70,9 +71,32 @@ export class CreateReportService {
       if (!canUseDm) {
         throw new ForbiddenException('You do not have access to the DataMart for this report');
       }
+
+      if (
+        command.columnConfig?.length ||
+        command.filterConfig?.length ||
+        command.sortConfig?.length
+      ) {
+        const accessFilter = createDataMartUseAccessFilter(
+          this.accessDecisionService,
+          command.userId,
+          command.roles,
+          command.projectId
+        );
+        await this.blendableSchemaService.assertNoInaccessibleReportRefs(
+          {
+            columnConfig: command.columnConfig,
+            filterConfig: command.filterConfig,
+            sortConfig: command.sortConfig,
+          },
+          command.dataMartId,
+          command.projectId,
+          accessFilter,
+          'Cannot save report'
+        );
+      }
     }
 
-    // Permissions Model: verify user has access to this Destination
     if (command.userId) {
       const canUseDest = await this.accessDecisionService.canAccess(
         command.userId,
@@ -87,7 +111,6 @@ export class CreateReportService {
       }
     }
 
-    // Get the data destination
     const dataDestination = await this.dataDestinationService.getByIdAndProjectId(
       command.dataDestinationId,
       command.projectId
@@ -110,7 +133,6 @@ export class CreateReportService {
       limitConfig: command.limitConfig ?? null,
     });
 
-    // Create and save the report
     const report = this.reportRepository.create({
       title: command.title,
       dataMart,

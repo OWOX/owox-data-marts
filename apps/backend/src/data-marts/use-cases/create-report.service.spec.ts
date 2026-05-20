@@ -28,6 +28,7 @@ jest.mock('../utils/resolve-owner-users', () => ({
 }));
 
 import { BadRequestException } from '@nestjs/common';
+import { BusinessViolationException } from '../../common/exceptions/business-violation.exception';
 import { CreateReportService } from './create-report.service';
 import { CreateReportCommand } from '../dto/domain/create-report.command';
 import { DataMartStatus } from '../enums/data-mart-status.enum';
@@ -107,6 +108,10 @@ describe('CreateReportService', () => {
       }),
     };
 
+    const blendableSchemaService = {
+      assertNoInaccessibleReportRefs: jest.fn().mockResolvedValue(undefined),
+    };
+
     const service = new CreateReportService(
       reportRepository as never,
       reportOwnerRepository as never,
@@ -120,10 +125,11 @@ describe('CreateReportService', () => {
       accessDecisionService as never,
       eventDispatcher as never,
       outputControlsValidator as never,
-      reportAccessService as never
+      reportAccessService as never,
+      blendableSchemaService as never
     );
 
-    return { service, reportRepository, outputControlsValidator };
+    return { service, reportRepository, outputControlsValidator, blendableSchemaService };
   };
 
   beforeEach(() => {
@@ -269,5 +275,31 @@ describe('CreateReportService', () => {
       canManageTriggers: true,
       canEditConfig: true,
     });
+  });
+
+  it('throws BusinessViolationException when report refs inaccessible data marts', async () => {
+    const { service, blendableSchemaService } = createService();
+    blendableSchemaService.assertNoInaccessibleReportRefs.mockRejectedValue(
+      new BusinessViolationException(
+        'Cannot create report: columns reference inaccessible data marts: b__orphan, c__missing'
+      )
+    );
+
+    const command = new CreateReportCommand(
+      'proj-1',
+      'user-0',
+      'Test',
+      'dm-1',
+      'dest-1',
+      { type: 'looker-studio-config', cacheLifetime: 3600 } as never,
+      undefined,
+      [],
+      [{ dataMartId: 'dm-2', fieldName: 'b__orphan', alias: 'b__orphan' }] as never
+    );
+
+    await expect(service.run(command)).rejects.toThrow(BusinessViolationException);
+    await expect(service.run(command)).rejects.toThrow(
+      /b__orphan.*c__missing|c__missing.*b__orphan/
+    );
   });
 });

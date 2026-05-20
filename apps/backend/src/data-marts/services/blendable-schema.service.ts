@@ -17,6 +17,8 @@ import { AggregateFunction } from '../dto/schemas/aggregate-function.schema';
 import { BusinessViolationException } from '../../common/exceptions/business-violation.exception';
 import { DataMartRelationship } from '../entities/data-mart-relationship.entity';
 import { DataMartStatus } from '../enums/data-mart-status.enum';
+import { FilterConfig } from '../dto/schemas/filter-config.schema';
+import { SortConfig } from '../dto/schemas/sort-config.schema';
 
 const DEFAULT_CONFIG: BlendedFieldsConfig = {
   sources: [],
@@ -63,6 +65,8 @@ export function flattenSchemaFields(fields: RawSchemaField[], prefix = ''): Flat
   return result;
 }
 
+export type AccessFilter = (dmId: string) => Promise<boolean>;
+
 interface CollectContext {
   sourceId: string;
   parentPath: string;
@@ -72,6 +76,9 @@ interface CollectContext {
   availableSources: AvailableSourceDto[];
   branchDmIds: Set<string>;
   depth: number;
+  accessFilter?: AccessFilter;
+  pathByFieldName?: Map<string, string[]>;
+  ancestorDmIds?: string[];
 }
 
 @Injectable()
@@ -81,7 +88,11 @@ export class BlendableSchemaService {
     private readonly dataMartService: DataMartService
   ) {}
 
-  async computeBlendableSchema(dataMartId: string, projectId: string): Promise<BlendableSchemaDto> {
+  async computeBlendableSchema(
+    dataMartId: string,
+    projectId: string,
+    accessFilter?: AccessFilter
+  ): Promise<BlendableSchemaDto> {
     const dataMart = await this.dataMartService.getByIdAndProjectId(dataMartId, projectId);
     const nativeFields = (dataMart.schema?.fields ?? []).filter(
       f => !f.isHiddenForReporting
@@ -105,7 +116,7 @@ export class BlendableSchemaService {
     const availableSources: AvailableSourceDto[] = [];
     const branchDmIds = new Set<string>([dataMartId]);
 
-    this.collectBlendedFields({
+    await this.collectBlendedFields({
       sourceId: dataMartId,
       parentPath: '',
       sourcesByPath,
@@ -114,6 +125,7 @@ export class BlendableSchemaService {
       availableSources,
       branchDmIds,
       depth: 1,
+      accessFilter,
     });
 
     return {
@@ -124,18 +136,140 @@ export class BlendableSchemaService {
     };
   }
 
-  private collectBlendedFields(ctx: CollectContext): void {
+  async findInaccessibleReportRefs(
+    report: {
+      columnConfig?: string[] | null;
+      filterConfig?: FilterConfig;
+      sortConfig?: SortConfig;
+    },
+    dataMartId: string,
+    projectId: string,
+    accessFilter: AccessFilter
+  ): Promise<{ columns: string[]; filters: string[]; sorts: string[] }> {
+    const columnColumns = report.columnConfig ?? [];
+    const filterColumns = (report.filterConfig ?? []).map(r => r.column);
+    const sortColumns = (report.sortConfig ?? []).map(r => r.column);
+
+    const allColumns = [...new Set([...columnColumns, ...filterColumns, ...sortColumns])];
+    if (!allColumns.length) return { columns: [], filters: [], sorts: [] };
+
+    const orphans = await this.findInaccessibleColumnRefs(
+      allColumns,
+      dataMartId,
+      projectId,
+      accessFilter
+    );
+
+    const orphanSet = new Set(orphans);
+    return {
+      columns: columnColumns.filter(c => orphanSet.has(c)).sort(),
+      filters: [...new Set(filterColumns.filter(c => orphanSet.has(c)))].sort(),
+      sorts: [...new Set(sortColumns.filter(c => orphanSet.has(c)))].sort(),
+    };
+  }
+
+  async assertNoInaccessibleReportRefs(
+    report: {
+      columnConfig?: string[] | null;
+      filterConfig?: FilterConfig;
+      sortConfig?: SortConfig;
+    },
+    dataMartId: string,
+    projectId: string,
+    accessFilter: AccessFilter,
+    contextLabel: string
+  ): Promise<void> {
+    const { columns, filters, sorts } = await this.findInaccessibleReportRefs(
+      report,
+      dataMartId,
+      projectId,
+      accessFilter
+    );
+
+    if (!columns.length && !filters.length && !sorts.length) return;
+
+    const parts: string[] = [];
+    if (columns.length)
+      parts.push(`columns reference inaccessible data marts: ${columns.join(', ')}`);
+    if (filters.length)
+      parts.push(`filters reference inaccessible data marts: ${filters.join(', ')}`);
+    if (sorts.length) parts.push(`sorts reference inaccessible data marts: ${sorts.join(', ')}`);
+
+    throw new BusinessViolationException(`${contextLabel}: ${parts.join('; ')}`);
+  }
+
+  async findInaccessibleColumnRefs(
+    columnConfig: string[],
+    dataMartId: string,
+    projectId: string,
+    accessFilter: AccessFilter
+  ): Promise<string[]> {
+    if (!columnConfig.length) return [];
+
+    const dataMart = await this.dataMartService.getByIdAndProjectId(dataMartId, projectId);
+
+    const nativeSchemaFields = (dataMart.schema?.fields ?? []).filter(f => !f.isHiddenForReporting);
+    const nativeFieldNames = new Set(
+      flattenSchemaFields(nativeSchemaFields as RawSchemaField[]).map(f => f.name)
+    );
+
+    const allStorageRelationships = await this.relationshipService.findByStorageId(
+      dataMart.storage.id,
+      projectId
+    );
+    const relationshipsBySource = new Map<string, DataMartRelationship[]>();
+    for (const rel of allStorageRelationships) {
+      const list = relationshipsBySource.get(rel.sourceDataMart.id);
+      if (list) list.push(rel);
+      else relationshipsBySource.set(rel.sourceDataMart.id, [rel]);
+    }
+
+    const pathByFieldName = new Map<string, string[]>();
+    await this.collectBlendedFields({
+      sourceId: dataMartId,
+      parentPath: '',
+      sourcesByPath: new Map(
+        (dataMart.blendedFieldsConfig ?? DEFAULT_CONFIG).sources.map(s => [s.path, s])
+      ),
+      relationshipsBySource,
+      result: [],
+      availableSources: [],
+      branchDmIds: new Set<string>([dataMartId]),
+      depth: 1,
+      pathByFieldName,
+      ancestorDmIds: [],
+    });
+
+    const orphans: string[] = [];
+    for (const col of columnConfig) {
+      if (nativeFieldNames.has(col)) continue;
+
+      const path = pathByFieldName.get(col);
+      if (!path) {
+        orphans.push(col);
+        continue;
+      }
+
+      let pathInaccessible = false;
+      for (const dmId of path) {
+        const accessible = await accessFilter(dmId);
+        if (!accessible) {
+          pathInaccessible = true;
+          break;
+        }
+      }
+      if (pathInaccessible) orphans.push(col);
+    }
+
+    return orphans.sort();
+  }
+
+  private async collectBlendedFields(ctx: CollectContext): Promise<void> {
     const relationships = ctx.relationshipsBySource.get(ctx.sourceId) ?? [];
 
     for (const rel of relationships) {
-      // Skip relationships that don't have join conditions configured yet. They — and any
-      // relationships they transitively expose — must not surface in the reporting column
-      // picker, since without a JOIN there is no valid SQL to produce their rows.
       if (!rel.joinConditions || rel.joinConditions.length === 0) continue;
 
-      // TypeORM eager join silently drops soft-deleted DMs, leaving targetDataMart undefined.
-      // Surface this as a clear, actionable error so report-run failures point to the broken
-      // relationship rather than collapsing into a generic "cannot read 'schema' of undefined".
       if (!rel.targetDataMart) {
         throw new BusinessViolationException(
           `Relationship "${rel.targetAlias ?? rel.id}" (id=${rel.id}) targets a data mart that has been deleted. ` +
@@ -144,11 +278,14 @@ export class BlendableSchemaService {
         );
       }
 
-      // Reports cannot join against an unfinalized schema, so a draft target — and any
-      // descendants reachable only through it — must not surface in the picker.
       if (rel.targetDataMart.status !== DataMartStatus.PUBLISHED) continue;
 
       if (ctx.branchDmIds.has(rel.targetDataMart.id)) continue;
+
+      if (ctx.accessFilter) {
+        const allowed = await ctx.accessFilter(rel.targetDataMart.id);
+        if (!allowed) continue;
+      }
 
       const currentPath = ctx.parentPath ? `${ctx.parentPath}.${rel.targetAlias}` : rel.targetAlias;
 
@@ -160,11 +297,8 @@ export class BlendableSchemaService {
       );
       const flatTargetFields = flattenSchemaFields(targetSchemaFields);
 
-      // `sqlPrefix` is SQL‑safe because each `targetAlias` segment in
-      // `currentPath` is validated against `^[a-z0-9_]+$` in the Join
-      // Settings form. `displayPrefix` is free‑form and must never flow
-      // into SQL identifiers.
       const sqlPrefix = currentPath.replace(/\./g, '_');
+      // SQL-safe: alias segments validated against ^[a-z0-9_]+$; displayPrefix is free-form and must never flow into SQL identifiers.
       const displayPrefix = sourceConfig?.alias ?? rel.targetDataMart.title;
 
       const availableSource = new AvailableSourceDto();
@@ -179,13 +313,18 @@ export class BlendableSchemaService {
       availableSource.dataMartId = rel.targetDataMart.id;
       ctx.availableSources.push(availableSource);
 
+      const fieldPath = [...(ctx.ancestorDmIds ?? []), rel.targetDataMart.id];
+
       for (const field of flatTargetFields) {
         const fieldOverride = sourceConfig?.fields?.[field.name];
+        const fieldName = `${sqlPrefix}__${field.name.replace(/\./g, '_')}`;
+
+        if (ctx.pathByFieldName) {
+          ctx.pathByFieldName.set(fieldName, fieldPath);
+        }
 
         const dto = new BlendedFieldDto();
-        // Replace dots in nested struct field paths (e.g. `struct.field`) with
-        // underscores so the resulting alias is a valid SQL identifier.
-        dto.name = `${sqlPrefix}__${field.name.replace(/\./g, '_')}`;
+        dto.name = fieldName;
         dto.aliasPath = currentPath;
         dto.outputPrefix = displayPrefix;
         dto.sourceRelationshipId = rel.id;
@@ -204,12 +343,13 @@ export class BlendableSchemaService {
         ctx.result.push(dto);
       }
 
-      this.collectBlendedFields({
+      await this.collectBlendedFields({
         ...ctx,
         sourceId: rel.targetDataMart.id,
         parentPath: currentPath,
         branchDmIds: new Set([...ctx.branchDmIds, rel.targetDataMart.id]),
         depth: ctx.depth + 1,
+        ancestorDmIds: fieldPath,
       });
     }
   }

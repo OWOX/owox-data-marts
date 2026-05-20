@@ -13,6 +13,7 @@ export interface ManualRunReportCommand extends BaseRunReportCommand {
 
 export interface ScheduledRunReportCommand extends BaseRunReportCommand {
   runType: RunType.scheduled;
+  projectId: string;
 }
 
 export type RunReportCommand = ManualRunReportCommand | ScheduledRunReportCommand;
