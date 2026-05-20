@@ -6,6 +6,7 @@ import { AccessDecisionService, Action, EntityType } from '../services/access-de
 import { DataMartRelationshipService } from '../services/data-mart-relationship.service';
 import { DataStorageService } from '../services/data-storage.service';
 import { UserProjectionsFetcherService } from '../services/user-projections-fetcher.service';
+import { buildDmAccessFlags } from '../utils/build-dm-access-flags';
 
 @Injectable()
 export class ListRelationshipsByStorageService {
@@ -44,6 +45,20 @@ export class ListRelationshipsByStorageService {
     const userProjectionsList =
       await this.userProjectionsFetcherService.fetchRelevantUserProjections(relationships);
 
-    return this.mapper.toDomainDtoList(relationships, userProjectionsList);
+    const uniqueDmIds = new Set<string>();
+    for (const rel of relationships) {
+      uniqueDmIds.add(rel.sourceDataMart.id);
+      uniqueDmIds.add(rel.targetDataMart.id);
+    }
+
+    const accessByDmId = await buildDmAccessFlags(
+      uniqueDmIds,
+      command.userId,
+      command.roles,
+      command.projectId,
+      this.accessDecisionService
+    );
+
+    return this.mapper.toDomainDtoList(relationships, userProjectionsList, accessByDmId);
   }
 }

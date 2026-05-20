@@ -7,7 +7,7 @@ import { GetRelationshipCommand } from '../dto/domain/get-relationship.command';
 import { DeleteRelationshipCommand } from '../dto/domain/delete-relationship.command';
 import { ListRelationshipsCommand } from '../dto/domain/list-relationships.command';
 import { ListRelationshipsByStorageCommand } from '../dto/domain/list-relationships-by-storage.command';
-import { RelationshipDto } from '../dto/domain/relationship.dto';
+import { RelationshipDataMartAccess, RelationshipDto } from '../dto/domain/relationship.dto';
 import {
   CreateRelationshipRequestApiDto,
   JoinConditionApiDto,
@@ -104,7 +104,8 @@ export class RelationshipMapper {
 
   toDomainDto(
     entity: DataMartRelationship,
-    createdByUser: UserProjectionDto | null = null
+    createdByUser: UserProjectionDto | null = null,
+    accessByDmId?: Map<string, RelationshipDataMartAccess>
   ): RelationshipDto {
     return {
       id: entity.id,
@@ -114,12 +115,14 @@ export class RelationshipMapper {
         title: entity.sourceDataMart.title,
         description: entity.sourceDataMart.description,
         status: entity.sourceDataMart.status,
+        access: accessByDmId?.get(entity.sourceDataMart.id),
       },
       targetDataMart: {
         id: entity.targetDataMart.id,
         title: entity.targetDataMart.title,
         description: entity.targetDataMart.description,
         status: entity.targetDataMart.status,
+        access: accessByDmId?.get(entity.targetDataMart.id),
       },
       targetAlias: entity.targetAlias,
       joinConditions: entity.joinConditions,
@@ -132,12 +135,14 @@ export class RelationshipMapper {
 
   toDomainDtoList(
     entities: DataMartRelationship[],
-    userProjectionsList?: UserProjectionsListDto
+    userProjectionsList?: UserProjectionsListDto,
+    accessByDmId?: Map<string, RelationshipDataMartAccess>
   ): RelationshipDto[] {
     return entities.map(entity =>
       this.toDomainDto(
         entity,
-        entity.createdById ? (userProjectionsList?.getByUserId(entity.createdById) ?? null) : null
+        entity.createdById ? (userProjectionsList?.getByUserId(entity.createdById) ?? null) : null,
+        accessByDmId
       )
     );
   }

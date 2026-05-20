@@ -15,6 +15,7 @@ import { ManualRunReportCommand } from '../dto/domain/run-report.command';
 import { CopyReportAsDataMartCommand } from '../dto/domain/copy-report-as-data-mart.command';
 import { GetReportGeneratedSqlCommand } from '../dto/domain/get-report-generated-sql.command';
 import { AuthorizationContext } from '../../idp';
+import { EMPTY_CAPABILITIES } from '../services/report-access.service';
 import { DataMartMapper } from './data-mart.mapper';
 import { DataDestinationMapper } from './data-destination.mapper';
 import { RunType } from '../../common/scheduler/shared/types';
@@ -52,11 +53,13 @@ export class ReportMapper {
     entity: Report,
     createdByUser: UserProjectionDto | null = null,
     ownerUsers: UserProjectionDto[] = [],
-    capabilities: { canRun: boolean; canManageTriggers: boolean; canEditConfig: boolean } = {
-      canRun: false,
-      canManageTriggers: false,
-      canEditConfig: false,
-    }
+    capabilities: {
+      canRun: boolean;
+      canManageTriggers: boolean;
+      canEditConfig: boolean;
+      canViewSql: boolean;
+      canCopyAsDataMart: boolean;
+    } = EMPTY_CAPABILITIES
   ): ReportDto {
     return new ReportDto(
       entity.id,
@@ -78,7 +81,9 @@ export class ReportMapper {
       entity.limitConfig ?? null,
       capabilities.canRun,
       capabilities.canManageTriggers,
-      capabilities.canEditConfig
+      capabilities.canEditConfig,
+      capabilities.canViewSql,
+      capabilities.canCopyAsDataMart
     );
   }
 
@@ -106,6 +111,8 @@ export class ReportMapper {
       canRun: dto.canRun,
       canManageTriggers: dto.canManageTriggers,
       canEditConfig: dto.canEditConfig,
+      canViewSql: dto.canViewSql,
+      canCopyAsDataMart: dto.canCopyAsDataMart,
     };
   }
 

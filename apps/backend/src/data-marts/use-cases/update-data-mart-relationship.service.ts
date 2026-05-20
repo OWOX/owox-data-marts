@@ -13,6 +13,7 @@ import { DataMartRelationshipService } from '../services/data-mart-relationship.
 import { DataMartService } from '../services/data-mart.service';
 import { ReportDataCacheService } from '../services/report-data-cache.service';
 import { UserProjectionsFetcherService } from '../services/user-projections-fetcher.service';
+import { buildDmAccessFlags } from '../utils/build-dm-access-flags';
 
 @Injectable()
 export class UpdateDataMartRelationshipService {
@@ -81,8 +82,17 @@ export class UpdateDataMartRelationshipService {
 
     await this.reportDataCacheService.invalidateByDataMartId(command.sourceDataMartId);
 
-    const createdByUser = await this.userProjectionsFetcherService.fetchCreatedByUser(updated);
-    return this.mapper.toDomainDto(updated, createdByUser);
+    const [createdByUser, accessByDmId] = await Promise.all([
+      this.userProjectionsFetcherService.fetchCreatedByUser(updated),
+      buildDmAccessFlags(
+        new Set([updated.sourceDataMart.id, updated.targetDataMart.id]),
+        command.userId,
+        command.roles,
+        command.projectId,
+        this.accessDecisionService
+      ),
+    ]);
+    return this.mapper.toDomainDto(updated, createdByUser, accessByDmId);
   }
 
   private async cascadeAliasRename(

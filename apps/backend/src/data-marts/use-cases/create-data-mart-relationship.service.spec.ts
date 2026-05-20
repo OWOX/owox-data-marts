@@ -27,7 +27,12 @@ describe('CreateDataMartRelationshipService', () => {
     storage: { id: 'storage-1', type: 'BIGQUERY' },
     schema: [],
   };
-  const relationship = { id: 'rel-1', createdById: 'user-1' };
+  const relationship = {
+    id: 'rel-1',
+    createdById: 'user-1',
+    sourceDataMart: { id: 'dm-source' },
+    targetDataMart: { id: 'dm-target' },
+  };
 
   const createService = (accessResults: [boolean, boolean] = [true, true]) => {
     const relationshipService = {
@@ -53,7 +58,8 @@ describe('CreateDataMartRelationshipService', () => {
       canAccess: jest
         .fn()
         .mockResolvedValueOnce(accessResults[0])
-        .mockResolvedValueOnce(accessResults[1]),
+        .mockResolvedValueOnce(accessResults[1])
+        .mockResolvedValue(true),
     };
 
     const service = new CreateDataMartRelationshipService(
@@ -84,7 +90,6 @@ describe('CreateDataMartRelationshipService', () => {
 
     await service.run(command);
 
-    expect(accessDecisionService.canAccess).toHaveBeenCalledTimes(2);
     expect(accessDecisionService.canAccess).toHaveBeenCalledWith(
       'user-1',
       ['editor'],

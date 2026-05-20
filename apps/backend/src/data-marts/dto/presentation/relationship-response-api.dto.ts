@@ -3,6 +3,17 @@ import { JoinCondition } from '../schemas/join-condition.schema';
 import { DataMartStatus } from '../../enums/data-mart-status.enum';
 import { UserProjectionDto } from '../../../idp/dto/domain/user-projection.dto';
 
+export class DataMartRefAccessApiDto {
+  @ApiProperty({ example: true })
+  canSee: boolean;
+
+  @ApiProperty({ example: true })
+  canUse: boolean;
+
+  @ApiProperty({ example: false })
+  canEdit: boolean;
+}
+
 export class DataMartRefApiDto {
   @ApiProperty({ example: '9cabc24e-1234-4a5a-8b12-abcdef123456' })
   id: string;
@@ -15,6 +26,9 @@ export class DataMartRefApiDto {
 
   @ApiProperty({ enum: DataMartStatus, example: DataMartStatus.PUBLISHED })
   status: DataMartStatus;
+
+  @ApiProperty({ type: DataMartRefAccessApiDto, required: false })
+  access?: DataMartRefAccessApiDto;
 }
 
 export class RelationshipResponseApiDto {

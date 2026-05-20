@@ -51,7 +51,7 @@ describe('ReportAccessService', () => {
 
   const mockReport = {
     id: 'report-1',
-    dataMart: { id: 'dm-1', projectId: 'proj-1' },
+    dataMart: { id: 'dm-1', projectId: 'proj-1', storage: { id: 'storage-1' } },
     dataDestination: { id: 'dest-1' },
   };
 
@@ -401,6 +401,89 @@ describe('ReportAccessService', () => {
       await expect(
         service.checkOperateAccess('user-1', ['viewer'], 'report-1', 'proj-1')
       ).resolves.toBeUndefined();
+    });
+  });
+
+  describe('computeCapabilitiesForReport', () => {
+    it('returns EMPTY_CAPABILITIES when userId is undefined', async () => {
+      const { service } = createService();
+      const result = await service.computeCapabilitiesForReport(
+        undefined,
+        [],
+        mockReport as never,
+        'proj-1'
+      );
+      expect(result).toEqual({
+        canRun: false,
+        canManageTriggers: false,
+        canEditConfig: false,
+        canViewSql: false,
+        canCopyAsDataMart: false,
+      });
+    });
+
+    it('sets canViewSql=true only when user has EDIT on DM', async () => {
+      const { service, accessDecisionService } = createService();
+      accessDecisionService.canAccess.mockImplementation(
+        async (_userId, _roles, entityType, _entityId, action) => {
+          if (entityType === 'DATA_MART' && action === 'SEE') return true;
+          if (entityType === 'DATA_MART' && action === 'EDIT') return true;
+          if (entityType === 'DESTINATION' && action === 'USE') return true;
+          if (entityType === 'STORAGE' && action === 'USE') return false;
+          return false;
+        }
+      );
+      const result = await service.computeCapabilitiesForReport(
+        'user-1',
+        ['editor'],
+        mockReport as never,
+        'proj-1'
+      );
+      expect(result.canViewSql).toBe(true);
+      expect(result.canCopyAsDataMart).toBe(false);
+    });
+
+    it('sets canCopyAsDataMart=true only when user has both EDIT(DM) and USE(Storage)', async () => {
+      const { service, accessDecisionService } = createService();
+      accessDecisionService.canAccess.mockImplementation(
+        async (_userId, _roles, entityType, _entityId, action) => {
+          if (entityType === 'DATA_MART' && action === 'SEE') return true;
+          if (entityType === 'DATA_MART' && action === 'EDIT') return true;
+          if (entityType === 'DESTINATION' && action === 'USE') return true;
+          if (entityType === 'STORAGE' && action === 'USE') return true;
+          return false;
+        }
+      );
+      const result = await service.computeCapabilitiesForReport(
+        'user-1',
+        ['editor'],
+        mockReport as never,
+        'proj-1'
+      );
+      expect(result.canViewSql).toBe(true);
+      expect(result.canCopyAsDataMart).toBe(true);
+    });
+
+    it('sets canViewSql=false when user lacks EDIT on DM even if other flags are true', async () => {
+      const { service, reportOwnerRepository, accessDecisionService } = createService();
+      reportOwnerRepository.exist.mockResolvedValue(true);
+      accessDecisionService.canAccess.mockImplementation(
+        async (_userId, _roles, entityType, _entityId, action) => {
+          if (entityType === 'DATA_MART' && action === 'SEE') return true;
+          if (entityType === 'DATA_MART' && action === 'EDIT') return false;
+          if (entityType === 'DESTINATION' && action === 'USE') return true;
+          if (entityType === 'STORAGE' && action === 'USE') return true;
+          return false;
+        }
+      );
+      const result = await service.computeCapabilitiesForReport(
+        'user-1',
+        ['viewer'],
+        mockReport as never,
+        'proj-1'
+      );
+      expect(result.canViewSql).toBe(false);
+      expect(result.canCopyAsDataMart).toBe(false);
     });
   });
 });

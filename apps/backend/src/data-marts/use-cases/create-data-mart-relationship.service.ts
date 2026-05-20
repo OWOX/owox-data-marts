@@ -7,6 +7,7 @@ import { DataMartRelationshipService } from '../services/data-mart-relationship.
 import { DataMartService } from '../services/data-mart.service';
 import { UserProjectionsFetcherService } from '../services/user-projections-fetcher.service';
 import { AccessDecisionService, EntityType, Action } from '../services/access-decision';
+import { buildDmAccessFlags } from '../utils/build-dm-access-flags';
 
 @Injectable()
 export class CreateDataMartRelationshipService {
@@ -53,8 +54,9 @@ export class CreateDataMartRelationshipService {
       ),
     ]);
     if (!canEditSource || !canEditTarget) {
+      const blockedTitle = !canEditSource ? sourceDataMart.title : targetDataMart.title;
       throw new ForbiddenException(
-        'You do not have permission to create relationship between these DataMarts'
+        `You do not have permission to create a relationship with "${blockedTitle}"`
       );
     }
 
@@ -79,7 +81,16 @@ export class CreateDataMartRelationshipService {
       sourceDataMart,
       targetDataMart
     );
-    const createdByUser = await this.userProjectionsFetcherService.fetchCreatedByUser(relationship);
-    return this.mapper.toDomainDto(relationship, createdByUser);
+    const [createdByUser, accessByDmId] = await Promise.all([
+      this.userProjectionsFetcherService.fetchCreatedByUser(relationship),
+      buildDmAccessFlags(
+        new Set([relationship.sourceDataMart.id, relationship.targetDataMart.id]),
+        command.userId,
+        command.roles,
+        command.projectId,
+        this.accessDecisionService
+      ),
+    ]);
+    return this.mapper.toDomainDto(relationship, createdByUser, accessByDmId);
   }
 }

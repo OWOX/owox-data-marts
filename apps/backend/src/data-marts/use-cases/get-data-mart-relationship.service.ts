@@ -11,6 +11,7 @@ import { AccessDecisionService, Action, EntityType } from '../services/access-de
 import { DataMartRelationshipService } from '../services/data-mart-relationship.service';
 import { DataMartService } from '../services/data-mart.service';
 import { UserProjectionsFetcherService } from '../services/user-projections-fetcher.service';
+import { buildDmAccessFlags } from '../utils/build-dm-access-flags';
 
 @Injectable()
 export class GetDataMartRelationshipService {
@@ -49,8 +50,17 @@ export class GetDataMartRelationshipService {
       );
     }
 
-    const createdByUser = await this.userProjectionsFetcherService.fetchCreatedByUser(relationship);
+    const [createdByUser, accessByDmId] = await Promise.all([
+      this.userProjectionsFetcherService.fetchCreatedByUser(relationship),
+      buildDmAccessFlags(
+        new Set([relationship.sourceDataMart.id, relationship.targetDataMart.id]),
+        command.userId,
+        command.roles,
+        command.projectId,
+        this.accessDecisionService
+      ),
+    ]);
 
-    return this.mapper.toDomainDto(relationship, createdByUser);
+    return this.mapper.toDomainDto(relationship, createdByUser, accessByDmId);
   }
 }

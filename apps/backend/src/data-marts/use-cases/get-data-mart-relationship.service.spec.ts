@@ -14,6 +14,7 @@ describe('GetDataMartRelationshipService', () => {
   const relationship = {
     id: 'rel-1',
     sourceDataMart: { id: 'dm-source' },
+    targetDataMart: { id: 'dm-target' },
   };
 
   const createService = (canAccess = true, foundRelationship = relationship) => {

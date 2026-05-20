@@ -76,4 +76,16 @@ export class ReportResponseApiDto {
       'Whether the caller can edit the report configuration (columns, filters, owners, destination)',
   })
   canEditConfig: boolean;
+
+  @ApiProperty({
+    example: true,
+    description: 'Whether the caller can view the generated SQL for this report',
+  })
+  canViewSql: boolean;
+
+  @ApiProperty({
+    example: false,
+    description: 'Whether the caller can copy this report as a new DataMart',
+  })
+  canCopyAsDataMart: boolean;
 }

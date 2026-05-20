@@ -12,21 +12,20 @@ type OperateDeniedReason = 'not-found' | 'dm-invisible' | 'destination-unusable'
 type MutateResult = { allowed: true } | { allowed: false; reason: MutateDeniedReason };
 type OperateResult = { allowed: true } | { allowed: false; reason: OperateDeniedReason };
 
-/**
- * Capability flags exposed on Report API responses. `canRun` and `canManageTriggers`
- * are derived from the same `canOperate` predicate today; they are kept as separate
- * fields so the contract can diverge later without breaking clients.
- */
 export interface ReportCapabilities {
   canRun: boolean;
   canManageTriggers: boolean;
   canEditConfig: boolean;
+  canViewSql: boolean;
+  canCopyAsDataMart: boolean;
 }
 
-const EMPTY_CAPABILITIES: ReportCapabilities = Object.freeze({
+export const EMPTY_CAPABILITIES: ReportCapabilities = Object.freeze({
   canRun: false,
   canManageTriggers: false,
   canEditConfig: false,
+  canViewSql: false,
+  canCopyAsDataMart: false,
 });
 
 const MUTATE_DENIED_MESSAGES: Record<MutateDeniedReason, string> = {
@@ -59,16 +58,10 @@ export class ReportAccessService {
   private async loadReportForAccess(reportId: string, projectId: string): Promise<Report | null> {
     return this.reportRepository.findOne({
       where: { id: reportId, dataMart: { projectId } },
-      relations: ['dataMart', 'dataDestination'],
+      relations: ['dataMart', 'dataMart.storage', 'dataDestination'],
     });
   }
 
-  /**
-   * Evaluate whether a user can mutate a Report. Single source of truth for access logic.
-   *
-   * Permissions Model: Editor no longer has project-wide bypass.
-   * Access requires: DM visible + (DM maintenance access OR Report ownership with effective dest).
-   */
   private async evaluateMutateAccess(
     userId: string,
     roles: string[],
@@ -82,18 +75,12 @@ export class ReportAccessService {
     return this.evaluateMutateAccessForReport(userId, roles, report, projectId);
   }
 
-  /**
-   * Same as `evaluateMutateAccess`, but operates on an already-loaded `Report`
-   * to avoid an extra `findOne` round-trip (used by list endpoints to defeat N+1).
-   * Caller MUST ensure `report.dataMart` and `report.dataDestination` relations are loaded.
-   */
   private async evaluateMutateAccessForReport(
     userId: string,
     roles: string[],
     report: Report,
     projectId: string
   ): Promise<MutateResult> {
-    // Permissions Model: DM must be visible to the user
     const canSeeDm = await this.accessDecisionService.canAccess(
       userId,
       roles,
@@ -106,7 +93,6 @@ export class ReportAccessService {
       return { allowed: false, reason: 'dm-invisible' };
     }
 
-    // DM maintenance access = can mutate any report on this DM
     const hasDmMaintenance = await this.accessDecisionService.canAccess(
       userId,
       roles,
@@ -119,7 +105,6 @@ export class ReportAccessService {
       return { allowed: true };
     }
 
-    // Otherwise: must be report owner + effective
     const isOwner = await this.reportOwnerRepository.exist({
       where: { reportId: report.id, userId },
     });
@@ -143,9 +128,6 @@ export class ReportAccessService {
     return canUseDest ? { allowed: true } : { allowed: false, reason: 'ineffective' };
   }
 
-  /**
-   * Check if a user can mutate (edit/delete/run) a Report. Returns boolean.
-   */
   async canMutate(
     userId: string,
     roles: string[],
@@ -156,9 +138,6 @@ export class ReportAccessService {
     return result.allowed;
   }
 
-  /**
-   * Assert that a user can mutate a Report, throwing descriptive ForbiddenException if not.
-   */
   async checkMutateAccess(
     userId: string,
     roles: string[],
@@ -172,13 +151,6 @@ export class ReportAccessService {
     }
   }
 
-  /**
-   * Evaluate whether a user can OPERATE a Report — manual run + CRUD report triggers.
-   * Decoupled from `canMutate` (which controls report config edits / owner changes).
-   *
-   * Operate = canSee(DataMart) AND canUse(Destination).
-   * No Report ownership requirement.
-   */
   private async evaluateOperateAccess(
     userId: string,
     roles: string[],
@@ -192,11 +164,6 @@ export class ReportAccessService {
     return this.evaluateOperateAccessForReport(userId, roles, report, projectId);
   }
 
-  /**
-   * Same as `evaluateOperateAccess`, but operates on an already-loaded `Report`
-   * to avoid an extra `findOne` round-trip. Caller MUST ensure relations
-   * `dataMart` and `dataDestination` are loaded.
-   */
   private async evaluateOperateAccessForReport(
     userId: string,
     roles: string[],
@@ -261,15 +228,8 @@ export class ReportAccessService {
     }
   }
 
-  /**
-   * Capability flags exposed on Report responses. `canRun` and `canManageTriggers`
-   * are tied to `canOperate` today; `canEditConfig` is tied to `canMutate`.
-   * Computing both with `Promise.all` halves the latency on hot paths.
-   *
-   * Caller must supply an already-loaded `Report` with `dataMart` and `dataDestination`
-   * relations populated. This is the one method use cases should call when assembling
-   * `ReportDto` — do not duplicate the Promise.all + capability assembly elsewhere.
-   */
+  // Caller must supply an already-loaded `Report` with `dataMart`, `dataMart.storage`,
+  // and `dataDestination` relations populated.
   async computeCapabilitiesForReport(
     userId: string | undefined,
     roles: string[],
@@ -280,24 +240,36 @@ export class ReportAccessService {
       return EMPTY_CAPABILITIES;
     }
 
-    const [operateResult, mutateResult] = await Promise.all([
+    const [operateResult, mutateResult, canEditDm, canUseStorage] = await Promise.all([
       this.evaluateOperateAccessForReport(userId, roles, report, projectId),
       this.evaluateMutateAccessForReport(userId, roles, report, projectId),
+      this.accessDecisionService.canAccess(
+        userId,
+        roles,
+        EntityType.DATA_MART,
+        report.dataMart.id,
+        Action.EDIT,
+        projectId
+      ),
+      this.accessDecisionService.canAccess(
+        userId,
+        roles,
+        EntityType.STORAGE,
+        report.dataMart.storage.id,
+        Action.USE,
+        projectId
+      ),
     ]);
 
-    const canOperate = operateResult.allowed;
     return {
-      canRun: canOperate,
-      canManageTriggers: canOperate,
+      canRun: operateResult.allowed,
+      canManageTriggers: operateResult.allowed,
       canEditConfig: mutateResult.allowed,
+      canViewSql: canEditDm,
+      canCopyAsDataMart: canEditDm && canUseStorage,
     };
   }
 
-  /**
-   * Check if a user is "effective" for this report — has USE access to its Destination.
-   * Per Stage 2 §76 of the permissions spec, an Owner who loses Destination accessibility
-   * becomes ineffective for mutation and running.
-   */
   async isEffective(
     userId: string,
     report: Report,
@@ -322,10 +294,6 @@ export class ReportAccessService {
     return roles.includes('editor') || roles.includes('admin');
   }
 
-  /**
-   * Check if a user can be added as an owner of a Report.
-   * Must be an active project member with access to the Report's DataMart.
-   */
   async canBeOwner(userId: string, report: Report, projectId: string): Promise<boolean> {
     const members = await this.idpProjectionsFacade.getProjectMembers(projectId);
     const member = members.find(
@@ -336,7 +304,6 @@ export class ReportAccessService {
       return false;
     }
 
-    // Permissions Model: check DataMart visibility for this user
     if (report.dataMart) {
       const canSeeDm = await this.accessDecisionService.canAccess(
         userId,
@@ -351,7 +318,6 @@ export class ReportAccessService {
       }
     }
 
-    // Permissions Model: check Destination USE access for this user
     if (report.dataDestination) {
       const canUseDest = await this.accessDecisionService.canAccess(
         userId,

@@ -28,6 +28,8 @@ export class ReportDto {
     public readonly limitConfig?: number | null,
     public readonly canRun: boolean = false,
     public readonly canManageTriggers: boolean = false,
-    public readonly canEditConfig: boolean = false
+    public readonly canEditConfig: boolean = false,
+    public readonly canViewSql: boolean = false,
+    public readonly canCopyAsDataMart: boolean = false
   ) {}
 }

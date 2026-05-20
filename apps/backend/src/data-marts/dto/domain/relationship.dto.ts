@@ -2,11 +2,18 @@ import { JoinCondition } from '../schemas/join-condition.schema';
 import { DataMartStatus } from '../../enums/data-mart-status.enum';
 import { UserProjectionDto } from '../../../idp/dto/domain/user-projection.dto';
 
+export interface RelationshipDataMartAccess {
+  canSee: boolean;
+  canUse: boolean;
+  canEdit: boolean;
+}
+
 export interface RelationshipDataMartRef {
   id: string;
   title: string;
   description?: string;
   status: DataMartStatus;
+  access?: RelationshipDataMartAccess;
 }
 
 export interface RelationshipDto {

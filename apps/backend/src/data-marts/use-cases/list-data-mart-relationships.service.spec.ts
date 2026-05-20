@@ -11,7 +11,10 @@ import { ListRelationshipsCommand } from '../dto/domain/list-relationships.comma
 import { EntityType, Action } from '../services/access-decision';
 
 describe('ListDataMartRelationshipsService', () => {
-  const relationships = [{ id: 'rel-1' }, { id: 'rel-2' }];
+  const relationships = [
+    { id: 'rel-1', sourceDataMart: { id: 'dm-1' }, targetDataMart: { id: 'dm-2' } },
+    { id: 'rel-2', sourceDataMart: { id: 'dm-1' }, targetDataMart: { id: 'dm-3' } },
+  ];
 
   const createService = (canAccess = true) => {
     const relationshipService = {
@@ -60,6 +63,49 @@ describe('ListDataMartRelationshipsService', () => {
     );
     expect(relationshipService.findBySourceDataMartId).toHaveBeenCalledWith('dm-1');
     expect(result).toHaveLength(2);
+  });
+
+  it('passes accessByDmId map with per-DM flags to mapper', async () => {
+    const { service, mapper } = createService(true);
+
+    const command = new ListRelationshipsCommand('dm-1', 'proj-1', 'user-1', ['viewer']);
+
+    await service.run(command);
+
+    const [, , accessByDmId] = mapper.toDomainDtoList.mock.calls[0] as [
+      unknown,
+      unknown,
+      Map<string, { canSee: boolean; canUse: boolean; canEdit: boolean }>,
+    ];
+    expect(accessByDmId).toBeInstanceOf(Map);
+    expect(accessByDmId.has('dm-1')).toBe(true);
+    expect(accessByDmId.has('dm-2')).toBe(true);
+    expect(accessByDmId.has('dm-3')).toBe(true);
+    expect(accessByDmId.get('dm-1')).toEqual({ canSee: true, canUse: true, canEdit: true });
+  });
+
+  it('passes per-DM asymmetric access flags from AccessDecisionService to mapper', async () => {
+    const { service, accessDecisionService, mapper } = createService(true);
+
+    accessDecisionService.canAccess.mockImplementation(
+      (_userId: string, _roles: string[], _entityType: string, dmId: string, action: string) => {
+        if (dmId === 'dm-2' && action !== Action.SEE) return Promise.resolve(false);
+        if (dmId === 'dm-3' && action !== Action.SEE) return Promise.resolve(false);
+        return Promise.resolve(true);
+      }
+    );
+
+    const command = new ListRelationshipsCommand('dm-1', 'proj-1', 'user-1', ['viewer']);
+
+    await service.run(command);
+
+    const [, , accessByDmId] = mapper.toDomainDtoList.mock.calls[0] as [
+      unknown,
+      unknown,
+      Map<string, { canSee: boolean; canUse: boolean; canEdit: boolean }>,
+    ];
+    expect(accessByDmId.get('dm-1')).toEqual({ canSee: true, canUse: true, canEdit: true });
+    expect(accessByDmId.get('dm-2')).toEqual({ canSee: true, canUse: false, canEdit: false });
   });
 
   it('throws ForbiddenException when user lacks SEE on DataMart', async () => {
