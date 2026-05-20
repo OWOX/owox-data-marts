@@ -29,4 +29,6 @@ export interface ReportResponseDto {
   canRun: boolean;
   canManageTriggers: boolean;
   canEditConfig: boolean;
+  canViewSql: boolean;
+  canCopyAsDataMart: boolean;
 }

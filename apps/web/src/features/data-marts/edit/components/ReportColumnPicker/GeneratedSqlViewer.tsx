@@ -2,7 +2,6 @@ import { useState } from 'react';
 import { Editor } from '@monaco-editor/react';
 import { useTheme } from 'next-themes';
 import { Copy, Loader2, Network } from 'lucide-react';
-import { toast } from 'react-hot-toast';
 import { Button } from '@owox/ui/components/button';
 import {
   Dialog,
@@ -14,6 +13,8 @@ import {
 } from '@owox/ui/components/dialog';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@owox/ui/components/tooltip';
 import { Skeleton } from '@owox/ui/components/skeleton';
+import { toast } from 'react-hot-toast';
+import { showApiErrorToast } from '../../../../../shared/utils';
 import { reportService } from '../../../reports/shared/services/report.service';
 import { useProjectRoute } from '../../../../../shared/hooks';
 import SqlValidator from '../SqlValidator/SqlValidator';
@@ -22,36 +23,20 @@ type GeneratedSqlViewerVariant = 'action-icon' | 'outline-button';
 
 interface GeneratedSqlViewerProps {
   reportId: string;
-  /**
-   * Data mart ID the report belongs to. Required to run the SQL dry-run
-   * validation (size estimate + syntax check) against the correct storage.
-   */
   dataMartId: string;
-  /**
-   * Visual variant of the trigger:
-   * - 'action-icon' (default): ghost icon button with tooltip, intended for
-   *   table row action cells. Uses hover-reveal styling that matches sibling
-   *   row actions.
-   * - 'outline-button': outline button with "View joined Data Marts SQL" text,
-   *   intended for use inside forms where a full button label makes sense.
-   */
   variant?: GeneratedSqlViewerVariant;
-  /**
-   * Optional report title, used to build a descriptive aria-label for the
-   * action icon variant (e.g. "View joined Data Marts SQL: Test Report").
-   */
   reportTitle?: string;
+  canViewSql: boolean;
+  canCopyAsDataMart: boolean;
 }
 
-/**
- * Button that opens a dialog with the generated SQL for a report.
- * Provides copy-to-clipboard and copy-as-data-mart actions.
- */
 export function GeneratedSqlViewer({
   reportId,
   dataMartId,
   variant = 'action-icon',
   reportTitle,
+  canViewSql,
+  canCopyAsDataMart,
 }: GeneratedSqlViewerProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [sql, setSql] = useState<string | null>(null);
@@ -60,13 +45,17 @@ export function GeneratedSqlViewer({
   const { resolvedTheme } = useTheme();
   const { scope } = useProjectRoute();
 
+  if (!canViewSql) return null;
+
   async function loadSql() {
     setIsLoading(true);
     try {
-      const result = await reportService.getGeneratedSql(reportId);
+      const result = await reportService.getGeneratedSql(reportId, {
+        skipErrorToast: true,
+      });
       setSql(result.sql);
-    } catch {
-      toast.error('Failed to load generated SQL');
+    } catch (err) {
+      showApiErrorToast(err, 'Failed to load generated SQL');
       setSql('');
     } finally {
       setIsLoading(false);
@@ -76,7 +65,6 @@ export function GeneratedSqlViewer({
   function handleOpenChange(open: boolean) {
     setIsOpen(open);
     if (open) {
-      // Always refetch on open — skip cache, show fresh SQL.
       setSql(null);
       void loadSql();
     }
@@ -95,7 +83,9 @@ export function GeneratedSqlViewer({
   async function handleCopyAsDataMart() {
     setIsCopyingAsDataMart(true);
     try {
-      const { dataMartId: newDataMartId } = await reportService.copyAsDataMart(reportId);
+      const { dataMartId: newDataMartId } = await reportService.copyAsDataMart(reportId, {
+        skipErrorToast: true,
+      });
       toast.success('Data Mart created from report');
       setIsOpen(false);
       window.open(
@@ -103,8 +93,8 @@ export function GeneratedSqlViewer({
         '_blank',
         'noopener,noreferrer'
       );
-    } catch {
-      toast.error('Failed to create Data Mart from report');
+    } catch (err) {
+      showApiErrorToast(err, 'Failed to create Data Mart from report');
     } finally {
       setIsCopyingAsDataMart(false);
     }
@@ -203,14 +193,16 @@ export function GeneratedSqlViewer({
               <Copy className='mr-2 h-4 w-4' />
               Copy to Clipboard
             </Button>
-            <Button
-              type='button'
-              variant='default'
-              onClick={() => void handleCopyAsDataMart()}
-              disabled={isLoading || isCopyingAsDataMart}
-            >
-              Copy as Data Mart
-            </Button>
+            {canCopyAsDataMart && (
+              <Button
+                type='button'
+                variant='default'
+                onClick={() => void handleCopyAsDataMart()}
+                disabled={isLoading || isCopyingAsDataMart}
+              >
+                Copy as Data Mart
+              </Button>
+            )}
           </div>
         </DialogFooter>
       </DialogContent>

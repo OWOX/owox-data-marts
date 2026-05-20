@@ -33,6 +33,8 @@ import type { DataMartContextType } from '../../../../edit/model/context/types.t
 import { type DataDestination } from '../../../../../data-destination';
 import { ReportFormMode } from '../../../shared';
 import { Button } from '@owox/ui/components/button';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@owox/ui/components/tooltip';
+import { useSaveDisabled } from '../../hooks/useSaveDisabled';
 import LookerStudioCacheLifetimeDescription from './LookerStudioCacheLifetimeDescription.tsx';
 import { OwnersSection } from '../../../../../../shared/components/OwnersSection/OwnersSection';
 import type { UserProjectionDto } from '../../../../../../shared/types/api';
@@ -93,6 +95,7 @@ export const LookerStudioReportEditForm = forwardRef<
       selected: 0,
       total: 0,
     });
+    const [orphanCount, setOrphanCount] = useState(0);
 
     const currentUser = useUser();
     const initialOwnerUsers =
@@ -154,7 +157,6 @@ export const LookerStudioReportEditForm = forwardRef<
           limitConfig: initialReport.limitConfig ?? null,
         });
       } else if (mode === ReportFormMode.CREATE) {
-        // Pre-select destination if provided
         reset({
           cacheLifetime: 300,
           columnConfig: null,
@@ -168,6 +170,15 @@ export const LookerStudioReportEditForm = forwardRef<
     useEffect(() => {
       onDirtyChange?.(isDirty || ownersDirty);
     }, [isDirty, ownersDirty, onDirtyChange]);
+
+    const saveDisabled = useSaveDisabled({
+      mode,
+      isSubmitting,
+      isValid,
+      isDirty,
+      ownersDirty,
+      hasOrphans: orphanCount > 0,
+    });
 
     return (
       <Form {...form}>
@@ -242,6 +253,7 @@ export const LookerStudioReportEditForm = forwardRef<
                     }}
                     onBlendedSelectionChange={setHasBlendedSelection}
                     onCountChange={setColumnsCount}
+                    onOrphanCountChange={setOrphanCount}
                   />
                   {hasBlendedSelection &&
                     mode === ReportFormMode.EDIT &&
@@ -252,6 +264,8 @@ export const LookerStudioReportEditForm = forwardRef<
                           reportId={initialReport.id}
                           dataMartId={dataMart.id}
                           variant='outline-button'
+                          canViewSql={initialReport.canViewSql}
+                          canCopyAsDataMart={initialReport.canCopyAsDataMart}
                         />
                       </div>
                     )}
@@ -292,25 +306,30 @@ export const LookerStudioReportEditForm = forwardRef<
             )}
           </FormLayout>
           <FormActions>
-            <Button
-              variant='default'
-              type='submit'
-              className='w-full'
-              aria-label={mode === ReportFormMode.CREATE ? 'Create' : 'Save changes'}
-              // `disabled` logic is duplicated intentionally and needs to be synchronized manually
-              disabled={
-                isSubmitting ||
-                (mode === ReportFormMode.CREATE ? !isValid : !isDirty && !ownersDirty)
-              }
-            >
-              {isSubmitting
-                ? mode === ReportFormMode.CREATE
-                  ? 'Creating...'
-                  : 'Saving...'
-                : mode === ReportFormMode.CREATE
-                  ? 'Create'
-                  : 'Save changes'}
-            </Button>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span className='w-full'>
+                  <Button
+                    variant='default'
+                    type='submit'
+                    className='w-full'
+                    aria-label={mode === ReportFormMode.CREATE ? 'Create' : 'Save changes'}
+                    disabled={saveDisabled}
+                  >
+                    {isSubmitting
+                      ? mode === ReportFormMode.CREATE
+                        ? 'Creating...'
+                        : 'Saving...'
+                      : mode === ReportFormMode.CREATE
+                        ? 'Create'
+                        : 'Save changes'}
+                  </Button>
+                </span>
+              </TooltipTrigger>
+              {orphanCount > 0 && (
+                <TooltipContent>Remove inaccessible columns before saving</TooltipContent>
+              )}
+            </Tooltip>
             {onCancel && (
               <Button
                 variant='outline'

@@ -114,4 +114,6 @@ export interface DataMartReport {
   canRun: boolean;
   canManageTriggers: boolean;
   canEditConfig: boolean;
+  canViewSql: boolean;
+  canCopyAsDataMart: boolean;
 }

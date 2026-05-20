@@ -113,12 +113,13 @@ export function EmailActionsCell({ row, onDeleteSuccess, onEditReport }: EmailAc
           </TooltipContent>
         </Tooltip>
 
-        {/* View SQL (only when report uses blending) */}
-        {hasBlending && (
+        {hasBlending && row.original.canViewSql && (
           <GeneratedSqlViewer
             reportId={row.original.id}
             dataMartId={row.original.dataMart.id}
             reportTitle={row.original.title}
+            canViewSql={row.original.canViewSql}
+            canCopyAsDataMart={row.original.canCopyAsDataMart}
           />
         )}
 

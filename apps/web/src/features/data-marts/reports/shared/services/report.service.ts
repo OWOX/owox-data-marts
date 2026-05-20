@@ -98,22 +98,12 @@ export class ReportService extends ApiService {
     return this.post(`/${id}/run`);
   }
 
-  /**
-   * Get the generated SQL for a report
-   * @param id Report ID
-   * @returns Object containing the generated SQL string
-   */
-  async getGeneratedSql(id: string): Promise<{ sql: string }> {
-    return this.get<{ sql: string }>(`/${id}/generated-sql`);
+  async getGeneratedSql(id: string, config?: AxiosRequestConfig): Promise<{ sql: string }> {
+    return this.get<{ sql: string }>(`/${id}/generated-sql`, undefined, config);
   }
 
-  /**
-   * Copy a report as a new Data Mart
-   * @param id Report ID
-   * @returns Promise with the created data mart id
-   */
-  async copyAsDataMart(id: string): Promise<{ dataMartId: string }> {
-    return this.post<{ dataMartId: string }>(`/${id}/copy-as-data-mart`);
+  async copyAsDataMart(id: string, config?: AxiosRequestConfig): Promise<{ dataMartId: string }> {
+    return this.post<{ dataMartId: string }>(`/${id}/copy-as-data-mart`, undefined, config);
   }
 }
 

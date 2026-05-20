@@ -82,6 +82,7 @@ export interface ReportColumnPickerProps {
   onOutputConfigChange?: (config: OutputConfig) => void;
   onBlendedSelectionChange?: (hasBlendedSelection: boolean) => void;
   onCountChange?: (count: ReportColumnSelectionCount) => void;
+  onOrphanCountChange?: (count: number) => void;
 }
 
 type ToggleFieldFn = (name: string, checked: boolean) => void;
@@ -249,6 +250,67 @@ function BlendedGroupItem({
   );
 }
 
+interface OrphanFieldsSectionProps {
+  orphanNames: string[];
+  onRemove: (name: string) => void;
+}
+
+function OrphanFieldsSection({ orphanNames, onRemove }: OrphanFieldsSectionProps) {
+  const [isOpen, setIsOpen] = useState(true);
+
+  return (
+    <Collapsible open={isOpen} onOpenChange={setIsOpen}>
+      <button
+        type='button'
+        aria-expanded={isOpen}
+        aria-label={`${isOpen ? 'Collapse' : 'Expand'} inaccessible columns`}
+        className='group bg-destructive/10 hover:bg-destructive/15 flex w-full cursor-pointer items-start gap-1.5 rounded px-1 py-1 text-left transition-colors'
+        onClick={() => {
+          setIsOpen(v => !v);
+        }}
+      >
+        {isOpen ? (
+          <ChevronDown className='text-destructive mt-0.5 h-4 w-4 shrink-0' />
+        ) : (
+          <ChevronRight className='text-destructive mt-0.5 h-4 w-4 shrink-0' />
+        )}
+        <AlertTriangle className='text-destructive mt-0.5 h-4 w-4 shrink-0' />
+        <span className='text-destructive text-xs font-semibold'>
+          Inaccessible columns ({orphanNames.length})
+        </span>
+      </button>
+      <CollapsibleContent>
+        <p className='text-muted-foreground px-1 py-1 text-xs'>
+          You no longer have access to the data marts these columns come from. Remove them before
+          saving.
+        </p>
+        <div className='space-y-1'>
+          {orphanNames.map(name => (
+            <div key={name} className='flex items-center gap-2 rounded px-1 py-1'>
+              <Checkbox checked disabled aria-label={name} />
+              <span className='text-muted-foreground flex-1 truncate font-mono text-xs'>
+                {name}
+              </span>
+              <Button
+                type='button'
+                variant='ghost'
+                size='sm'
+                className='text-destructive hover:text-destructive h-5 px-1 text-xs'
+                onClick={() => {
+                  onRemove(name);
+                }}
+                aria-label={`Remove ${name}`}
+              >
+                Remove
+              </Button>
+            </div>
+          ))}
+        </div>
+      </CollapsibleContent>
+    </Collapsible>
+  );
+}
+
 export function ReportColumnPicker({
   dataMartId,
   storageType,
@@ -258,6 +320,7 @@ export function ReportColumnPicker({
   onOutputConfigChange,
   onBlendedSelectionChange,
   onCountChange,
+  onOrphanCountChange,
 }: ReportColumnPickerProps) {
   const outputControlsSupported = storageType ? supportsOutputControls(storageType) : false;
   const outputControlsAvailable: boolean = outputControlsSupported && !!onOutputConfigChange;
@@ -274,7 +337,6 @@ export function ReportColumnPicker({
     [schema]
   );
 
-  // Only show blended fields from included sources
   const includedPaths = useMemo(() => {
     if (!schema?.availableSources) return new Set<string>();
     return new Set(schema.availableSources.filter(s => s.isIncluded).map(s => s.aliasPath));
@@ -285,10 +347,6 @@ export function ReportColumnPicker({
     return schema.blendedFields.filter(f => includedPaths.has(f.aliasPath) && !f.isHidden);
   }, [schema, includedPaths]);
 
-  // Legacy reports with columnConfig === null had the "all native fields, no blended"
-  // meaning. Treat them the same for display/toggle math — the picker stays a pure
-  // controlled component: it only calls onChange when the user actually toggles
-  // something, so simply opening such a report does not mark the form dirty.
   const effectiveValue = useMemo<string[]>(() => {
     if (value !== null) return value;
     return nativeFields.map(f => f.name);
@@ -300,6 +358,13 @@ export function ReportColumnPicker({
     () => new Set(includedBlendedFields.map(f => f.name)),
     [includedBlendedFields]
   );
+
+  const orphanNames = useMemo<string[]>(() => {
+    if (!schema) return [];
+    const nativeNames = new Set(nativeFields.map(f => f.name));
+    const allBlendedNames = new Set(schema.blendedFields.map(f => f.name));
+    return effectiveValue.filter(n => !nativeNames.has(n) && !allBlendedNames.has(n));
+  }, [schema, nativeFields, effectiveValue]);
 
   const hasBlendedSelection = useMemo(() => {
     if (!schema) return false;
@@ -361,6 +426,10 @@ export function ReportColumnPicker({
   useEffect(() => {
     onCountChange?.({ selected: selectedFieldsCount, total: totalFieldsCount });
   }, [selectedFieldsCount, totalFieldsCount, onCountChange]);
+
+  useEffect(() => {
+    onOrphanCountChange?.(orphanNames.length);
+  }, [orphanNames.length, onOrphanCountChange]);
 
   const availableSourceDescriptionByPath = useMemo(() => {
     const map = new Map<string, string | undefined>();
@@ -588,6 +657,15 @@ export function ReportColumnPicker({
             onRemoveFilterAt={outputControlsAvailable ? handleRemoveFilterAt : undefined}
           />
         ))}
+
+        {orphanNames.length > 0 && (
+          <OrphanFieldsSection
+            orphanNames={orphanNames}
+            onRemove={name => {
+              onChange(effectiveValue.filter(n => n !== name));
+            }}
+          />
+        )}
       </div>
 
       {selectedNativeCount === 0 && (

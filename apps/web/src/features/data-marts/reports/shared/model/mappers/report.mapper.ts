@@ -43,5 +43,7 @@ export function mapReportDtoToEntity(reportDto: ReportResponseDto): DataMartRepo
     canRun: reportDto.canRun,
     canManageTriggers: reportDto.canManageTriggers,
     canEditConfig: reportDto.canEditConfig,
+    canViewSql: reportDto.canViewSql,
+    canCopyAsDataMart: reportDto.canCopyAsDataMart,
   };
 }

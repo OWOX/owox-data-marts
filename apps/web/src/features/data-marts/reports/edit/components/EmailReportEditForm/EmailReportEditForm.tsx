@@ -143,6 +143,7 @@ export const EmailReportEditForm = forwardRef<HTMLFormElement, EmailReportEditFo
       selected: 0,
       total: 0,
     });
+    const [orphanCount, setOrphanCount] = useState(0);
     const [isCreatingInsight, setIsCreatingInsight] = useState(false);
     const [useInsightTemplateMode, setUseInsightTemplateMode] = useState(isInsightContext);
     const [isDestinationSelectOpen, setIsDestinationSelectOpen] = useState(false);
@@ -932,6 +933,7 @@ export const EmailReportEditForm = forwardRef<HTMLFormElement, EmailReportEditFo
                         form.setValue('limitConfig', config.limitConfig, { shouldDirty: true });
                       }}
                       onCountChange={setColumnsCount}
+                      onOrphanCountChange={setOrphanCount}
                     />
                   </div>
                 )}
@@ -994,6 +996,7 @@ export const EmailReportEditForm = forwardRef<HTMLFormElement, EmailReportEditFo
               isValid={isValid}
               triggersDirty={triggersDirty}
               ownersDirty={ownersDirty}
+              hasOrphans={orphanCount > 0}
               runAfterSaveRef={runAfterSaveRef}
               onSubmit={() => void form.handleSubmit(handleFormSubmit)()}
               onCancel={onCancel}

@@ -130,6 +130,7 @@ export const GoogleSheetsReportEditForm = forwardRef<
       selected: 0,
       total: 0,
     });
+    const [orphanCount, setOrphanCount] = useState(0);
     const { runReport } = useReport();
 
     const currentUser = useUser();
@@ -458,6 +459,7 @@ export const GoogleSheetsReportEditForm = forwardRef<
                       form.setValue('limitConfig', config.limitConfig, { shouldDirty: true });
                     }}
                     onCountChange={setColumnsCount}
+                    onOrphanCountChange={setOrphanCount}
                   />
                 </div>
               )}
@@ -515,6 +517,7 @@ export const GoogleSheetsReportEditForm = forwardRef<
             isValid={isValid}
             triggersDirty={triggersDirty}
             ownersDirty={ownersDirty}
+            hasOrphans={orphanCount > 0}
             runAfterSaveRef={runAfterSaveRef}
             onSubmit={() => void form.handleSubmit(handleFormSubmit)()}
             onCancel={onCancel}
