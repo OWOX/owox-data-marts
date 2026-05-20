@@ -76,6 +76,24 @@ describe('MembershipRequestsService', () => {
       expect(result[1]!.userId).toBeUndefined();
     });
 
+    it('normalizes null avatar from upstream to undefined', async () => {
+      identityClient.listProjectMembershipRequests.mockResolvedValue([
+        {
+          requestId: 'req-3',
+          email: 'carol@example.com',
+          requestedRole: 'viewer',
+          createdAt: '2026-05-05T09:00:00.000Z',
+          fullName: 'Carol Example',
+          avatar: null as unknown as string | undefined,
+          userId: 'uid-carol',
+        },
+      ]);
+
+      const [mapped] = await service.listMembershipRequests('proj-1', 'admin-1');
+
+      expect(mapped!.avatar).toBeUndefined();
+    });
+
     it('propagates client errors', async () => {
       identityClient.listProjectMembershipRequests.mockRejectedValue(new Error('upstream error'));
       await expect(service.listMembershipRequests('proj-1', 'admin-1')).rejects.toThrow(

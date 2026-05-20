@@ -26,7 +26,7 @@ export class MembershipRequestsService {
       requestId: item.requestId,
       email: item.email,
       fullName: item.fullName,
-      avatar: item.avatar,
+      avatar: item.avatar ?? undefined,
       userId: item.userId,
       requestedRole: item.requestedRole,
       createdAt: item.createdAt,

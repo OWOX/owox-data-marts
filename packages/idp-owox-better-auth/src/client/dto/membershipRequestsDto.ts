@@ -17,7 +17,7 @@ export const OwoxMembershipRequestSchema = z.object({
   createdAt: z.string().min(1),
   userId: z.string().min(1).optional(),
   fullName: z.string().optional(),
-  avatar: z.string().optional(),
+  avatar: z.string().nullish(),
 });
 
 export const OwoxListMembershipRequestsResponseSchema = z.array(OwoxMembershipRequestSchema);
