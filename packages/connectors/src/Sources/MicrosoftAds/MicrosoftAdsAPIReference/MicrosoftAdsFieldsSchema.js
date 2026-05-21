@@ -8,7 +8,7 @@
 var MicrosoftAdsFieldsSchema = {
   ad_performance_report: {
     overview: "Ad Performance Report",
-    description: "Performance metrics for ads in Microsoft Ads campaigns.",
+    description: "Daily ad performance — impressions, clicks, spend, and conversions segmented by device, network, and match type.",
     documentation: "https://learn.microsoft.com/en-us/advertising/reporting-service/adperformancereportrequest",
     reportType: "AdPerformanceReportRequest",
     fields: adPerformanceReportFields,
@@ -29,12 +29,13 @@ var MicrosoftAdsFieldsSchema = {
       "Language",
       "CampaignType"
     ],
+    defaultFields: ["TimePeriod", "AccountId", "AccountName", "CampaignId", "CampaignName", "CampaignType", "AdGroupId", "AdGroupName", "AdId", "AdType", "AdStatus", "AdDistribution", "DeviceType", "Network", "Impressions", "Clicks", "Spend", "Conversions", "Ctr", "AverageCpc", "CostPerConversion"],
     destinationName: "microsoft_ads_ad_performance_report",
     isTimeSeries: true
   },
   user_location_performance_report: {
     overview: "User Location Performance Report",
-    description: "Performance metrics by user location for Microsoft Ads campaigns.",
+    description: "Daily performance by user physical location — impressions, clicks, spend, and conversions broken down by country, state, and city.",
     documentation: "https://learn.microsoft.com/en-us/advertising/reporting-service/userlocationperformancereportrequest",
     reportType: "UserLocationPerformanceReportRequest",
     fields: userLocationPerformanceReportFields,
@@ -69,7 +70,7 @@ var MicrosoftAdsFieldsSchema = {
   },
   campaigns: {
     overview: "Microsoft Ads Campaigns",
-    description: "Campaign data from Microsoft Ads API.",
+    description: "Your campaign and ad group structure — type, status, bid strategy, budget, and keyword settings.",
     documentation: "https://learn.microsoft.com/en-us/advertising/bulk-service/bulk-service-reference",
     fields: campaignFields,
     defaultFields: [

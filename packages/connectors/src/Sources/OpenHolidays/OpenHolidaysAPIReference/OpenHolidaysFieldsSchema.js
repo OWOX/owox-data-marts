@@ -12,6 +12,7 @@ var OpenHolidaysFieldsSchema = {
     documentation: "https://www.openholidaysapi.org/en/",
     fields: publicHolidaysFields,
     uniqueKeys: ["id"],
+    defaultFields: ["id", "date", "name", "type", "regionalScope", "temporalScope", "nationwide"],
     destinationName: "open_holidays_public_holidays",
     isTimeSeries: true
   }
