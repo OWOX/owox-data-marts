@@ -44,6 +44,7 @@ export class BlendedReportDataService {
       filterConfig: report.filterConfig ?? null,
       sortConfig: report.sortConfig ?? null,
       limitConfig: report.limitConfig ?? null,
+      accessor,
     });
 
     if (columnConfig === null || columnConfig === undefined) {
@@ -88,6 +89,13 @@ export class BlendedReportDataService {
         blendedDataHeaders,
       };
     }
+
+    this.assertAllRequestedSourcesAccessible(
+      blendableSchema.blendedFields,
+      blendableSchema.availableSources,
+      referencedColumns,
+      preJoinAliasPaths
+    );
 
     const mainTableReference = await this.tableReferenceService.resolveTableName(
       dataMart.id,
@@ -201,20 +209,7 @@ export class BlendedReportDataService {
 
     // Requesting a field at aliasPath "b.c" requires resolving "b" as well so the join
     // chain is contiguous; otherwise C would try to join directly to main using B's keys.
-    const neededPaths = new Set<string>();
-    for (const field of requestedBlendedFields) {
-      const segments = field.aliasPath.split('.');
-      for (let i = 1; i <= segments.length; i++) {
-        neededPaths.add(segments.slice(0, i).join('.'));
-      }
-    }
-    // Walk ancestors for every pre-join aliasPath too, so filter-only chains are included.
-    for (const aliasPath of preJoinAliasPaths) {
-      const segments = aliasPath.split('.');
-      for (let i = 1; i <= segments.length; i++) {
-        neededPaths.add(segments.slice(0, i).join('.'));
-      }
-    }
+    const neededPaths = this.collectNeededAliasPaths(requestedBlendedFields, preJoinAliasPaths);
 
     const sourceByPath = new Map(availableSources.map(s => [s.aliasPath, s]));
     const neededSources: AvailableSourceDto[] = [];
@@ -289,6 +284,53 @@ export class BlendedReportDataService {
     this.assertNoChainCollisions(chains);
 
     return chains;
+  }
+
+  private assertAllRequestedSourcesAccessible(
+    blendedFields: BlendedFieldDto[],
+    availableSources: AvailableSourceDto[],
+    referencedColumns: ReadonlySet<string>,
+    preJoinAliasPaths: ReadonlySet<string>
+  ): void {
+    const requested = blendedFields.filter(f => referencedColumns.has(f.name));
+    const neededPaths = this.collectNeededAliasPaths(requested, preJoinAliasPaths);
+
+    const sourceByPath = new Map(availableSources.map(s => [s.aliasPath, s]));
+    const denied: AvailableSourceDto[] = [];
+    for (const path of neededPaths) {
+      const src = sourceByPath.get(path);
+      if (src && !src.isAccessibleForReporting) denied.push(src);
+    }
+    if (denied.length === 0) return;
+
+    const titles = denied.map(s => `"${s.title}"`).join(', ');
+    throw new BusinessViolationException(
+      `Cannot build report SQL, missing access to data marts: ${titles}`,
+      {
+        deniedDataMartIds: denied.map(s => s.dataMartId),
+        deniedAliasPaths: denied.map(s => s.aliasPath),
+      }
+    );
+  }
+
+  private collectNeededAliasPaths(
+    requestedFields: BlendedFieldDto[],
+    preJoinAliasPaths?: ReadonlySet<string>
+  ): Set<string> {
+    const paths = new Set<string>();
+    for (const field of requestedFields) {
+      const segments = field.aliasPath.split('.');
+      for (let i = 1; i <= segments.length; i++) {
+        paths.add(segments.slice(0, i).join('.'));
+      }
+    }
+    for (const aliasPath of preJoinAliasPaths ?? []) {
+      const segments = aliasPath.split('.');
+      for (let i = 1; i <= segments.length; i++) {
+        paths.add(segments.slice(0, i).join('.'));
+      }
+    }
+    return paths;
   }
 
   /**

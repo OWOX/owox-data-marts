@@ -210,9 +210,9 @@ export class RunReportService {
   ): Promise<void> {
     signal?.throwIfAborted();
     const { dataMart, dataDestination } = report;
-    const reportReader = await this.reportReaderResolver.resolve(dataMart.storage.type);
-    const reportWriter = await this.reportWriterResolver.resolve(dataDestination.type);
     const executionPolicy = this.reportExecutionPolicyResolver.resolve(report);
+    let reportReader: DataStorageReportReader | null = null;
+    let reportWriter: DataDestinationReportWriter | null = null;
     let processingError: Error | undefined = undefined;
     try {
       signal?.throwIfAborted();
@@ -227,6 +227,9 @@ export class RunReportService {
         accessor
       );
       logBlendedSqlIfNeeded(blendingDecision, reportRunLogger);
+
+      reportReader = await this.reportReaderResolver.resolve(dataMart.storage.type);
+      reportWriter = await this.reportWriterResolver.resolve(dataDestination.type);
 
       let sqlOverride: string | undefined;
       let sqlOverrideParams: SqlParameter[] | undefined;
@@ -271,10 +274,14 @@ export class RunReportService {
       processingError = error;
       throw error;
     } finally {
-      await reportWriter.finalize(processingError, {
-        mainRowsTruncationInfo: executionPolicy.getRowsTruncationInfo(),
-      });
-      await reportReader.finalize();
+      if (reportWriter) {
+        await reportWriter.finalize(processingError, {
+          mainRowsTruncationInfo: executionPolicy.getRowsTruncationInfo(),
+        });
+      }
+      if (reportReader) {
+        await reportReader.finalize();
+      }
     }
   }
 

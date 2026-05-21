@@ -11,7 +11,11 @@ import { DataMart } from '../entities/data-mart.entity';
 import { DataStorage } from '../entities/data-storage.entity';
 import { DataStorageType } from '../data-storage-types/enums/data-storage-type.enum';
 import { DataMartRelationship } from '../entities/data-mart-relationship.entity';
-import { BlendableSchemaDto, BlendedFieldDto } from '../dto/domain/blendable-schema.dto';
+import {
+  AvailableSourceDto,
+  BlendableSchemaDto,
+  BlendedFieldDto,
+} from '../dto/domain/blendable-schema.dto';
 import { PublicOriginService } from '../../common/config/public-origin.service';
 
 function makeReport(overrides: Partial<Report> = {}): Report {
@@ -1158,6 +1162,247 @@ describe('BlendedReportDataService', () => {
       expect(orders2ProductsChain.blendedFields[0].outputAlias).toBe(
         'orders_2_products__product_price'
       );
+    });
+
+    describe('access denial', () => {
+      function makeAccessibleSource(
+        overrides: Partial<AvailableSourceDto> = {}
+      ): AvailableSourceDto {
+        return {
+          aliasPath: 'b',
+          title: 'Joined DM',
+          defaultAlias: 'b',
+          depth: 1,
+          fieldCount: 1,
+          isIncluded: true,
+          isAccessibleForReporting: true,
+          relationshipId: 'rel-1',
+          dataMartId: 'dm-target-1',
+          ...overrides,
+        };
+      }
+
+      function makeField(name: string, aliasPath: string): BlendedFieldDto {
+        const segments = aliasPath.split('.');
+        const f = new BlendedFieldDto();
+        f.name = name;
+        f.targetAlias = segments[segments.length - 1];
+        f.originalFieldName = name;
+        f.type = 'STRING';
+        f.isHidden = false;
+        f.aggregateFunction = 'STRING_AGG';
+        f.transitiveDepth = segments.length;
+        f.aliasPath = aliasPath;
+        f.outputPrefix = segments.join('_');
+        return f;
+      }
+
+      it('throws BusinessViolationException listing the inaccessible DM title', async () => {
+        const report = makeReport({ columnConfig: ['b__field'] });
+
+        blendableSchemaService.computeBlendableSchema.mockResolvedValue({
+          nativeFields: [],
+          availableSources: [
+            makeAccessibleSource({
+              aliasPath: 'b',
+              title: 'Inaccessible DM',
+              dataMartId: 'dm-secret',
+              isAccessibleForReporting: false,
+            }),
+          ],
+          blendedFields: [makeField('b__field', 'b')],
+        });
+
+        await expect(
+          service.resolveBlendingDecision(report, { userId: 'user-1', roles: ['admin'] })
+        ).rejects.toMatchObject({
+          message: expect.stringContaining('"Inaccessible DM"'),
+          errorDetails: {
+            deniedDataMartIds: ['dm-secret'],
+            deniedAliasPaths: ['b'],
+          },
+        });
+
+        expect(blendedQueryBuilderFacade.buildBlendedQuery).not.toHaveBeenCalled();
+        expect(tableReferenceService.resolveTableName).not.toHaveBeenCalled();
+      });
+
+      it('throws when only an ancestor on the aliasPath is inaccessible (cascade)', async () => {
+        const report = makeReport({ columnConfig: ['b_c__field'] });
+
+        blendableSchemaService.computeBlendableSchema.mockResolvedValue({
+          nativeFields: [],
+          availableSources: [
+            makeAccessibleSource({
+              aliasPath: 'b',
+              title: 'Parent DM',
+              dataMartId: 'dm-b',
+              isAccessibleForReporting: false,
+            }),
+            makeAccessibleSource({
+              aliasPath: 'b.c',
+              title: 'Child DM',
+              defaultAlias: 'b_c',
+              depth: 2,
+              dataMartId: 'dm-c',
+              relationshipId: 'rel-bc',
+              isAccessibleForReporting: false,
+            }),
+          ],
+          blendedFields: [makeField('b_c__field', 'b.c')],
+        });
+
+        await expect(
+          service.resolveBlendingDecision(report, { userId: 'user-1', roles: ['admin'] })
+        ).rejects.toMatchObject({
+          message: 'Cannot build report SQL, missing access to data marts: "Parent DM", "Child DM"',
+          errorDetails: {
+            deniedDataMartIds: ['dm-b', 'dm-c'],
+            deniedAliasPaths: ['b', 'b.c'],
+          },
+        });
+      });
+
+      it('lists multiple inaccessible DMs comma-separated when several chains are denied', async () => {
+        const report = makeReport({ columnConfig: ['b__x', 'c__y'] });
+
+        blendableSchemaService.computeBlendableSchema.mockResolvedValue({
+          nativeFields: [],
+          availableSources: [
+            makeAccessibleSource({
+              aliasPath: 'b',
+              title: 'DM Bravo',
+              dataMartId: 'dm-bravo',
+              relationshipId: 'rel-b',
+              isAccessibleForReporting: false,
+            }),
+            makeAccessibleSource({
+              aliasPath: 'c',
+              title: 'DM Charlie',
+              defaultAlias: 'c',
+              dataMartId: 'dm-charlie',
+              relationshipId: 'rel-c',
+              isAccessibleForReporting: false,
+            }),
+          ],
+          blendedFields: [makeField('b__x', 'b'), makeField('c__y', 'c')],
+        });
+
+        await expect(
+          service.resolveBlendingDecision(report, { userId: 'user-1', roles: ['admin'] })
+        ).rejects.toMatchObject({
+          message:
+            'Cannot build report SQL, missing access to data marts: "DM Bravo", "DM Charlie"',
+          errorDetails: {
+            deniedDataMartIds: ['dm-bravo', 'dm-charlie'],
+            deniedAliasPaths: ['b', 'c'],
+          },
+        });
+      });
+
+      it('does not throw when all requested sources are accessible (regression guard)', async () => {
+        const report = makeReport({ columnConfig: ['b__field'] });
+
+        blendableSchemaService.computeBlendableSchema.mockResolvedValue({
+          nativeFields: [],
+          availableSources: [
+            makeAccessibleSource({
+              aliasPath: 'b',
+              isAccessibleForReporting: true,
+            }),
+          ],
+          blendedFields: [makeField('b__field', 'b')],
+        });
+
+        relationshipService.findBySourceDataMartId.mockResolvedValue([
+          {
+            id: 'rel-1',
+            targetAlias: 'b',
+            sourceDataMart: { id: 'dm-1' },
+            targetDataMart: { id: 'dm-target-1', title: 'Joined DM' },
+            joinConditions: [],
+          } as unknown as DataMartRelationship,
+        ]);
+        tableReferenceService.resolveTableName.mockResolvedValue('table_ref');
+        blendedQueryBuilderFacade.buildBlendedQuery.mockResolvedValue('SELECT ...');
+
+        const result = await service.resolveBlendingDecision(report, {
+          userId: 'user-1',
+          roles: ['admin'],
+        });
+
+        expect(result.needsBlending).toBe(true);
+        expect(blendedQueryBuilderFacade.buildBlendedQuery).toHaveBeenCalled();
+      });
+
+      it('does not throw when no blended columns are referenced (native-only report)', async () => {
+        const report = makeReport({ columnConfig: ['native_only'] });
+
+        blendableSchemaService.computeBlendableSchema.mockResolvedValue({
+          nativeFields: [],
+          availableSources: [
+            makeAccessibleSource({
+              aliasPath: 'b',
+              title: 'Inaccessible',
+              isAccessibleForReporting: false,
+            }),
+          ],
+          blendedFields: [makeField('b__field', 'b')],
+        });
+
+        const result = await service.resolveBlendingDecision(report, {
+          userId: 'user-1',
+          roles: ['admin'],
+        });
+
+        expect(result).toEqual({
+          needsBlending: false,
+          columnFilter: ['native_only'],
+          blendedDataHeaders: [],
+        });
+        expect(blendedQueryBuilderFacade.buildBlendedQuery).not.toHaveBeenCalled();
+      });
+
+      it('does not throw when an inaccessible source exists but is not in the join chain', async () => {
+        const report = makeReport({ columnConfig: ['b__field'] });
+
+        blendableSchemaService.computeBlendableSchema.mockResolvedValue({
+          nativeFields: [],
+          availableSources: [
+            makeAccessibleSource({
+              aliasPath: 'b',
+              isAccessibleForReporting: true,
+            }),
+            makeAccessibleSource({
+              aliasPath: 'z',
+              title: 'Unused Inaccessible',
+              dataMartId: 'dm-z',
+              relationshipId: 'rel-z',
+              isAccessibleForReporting: false,
+            }),
+          ],
+          blendedFields: [makeField('b__field', 'b'), makeField('z__other', 'z')],
+        });
+
+        relationshipService.findBySourceDataMartId.mockResolvedValue([
+          {
+            id: 'rel-1',
+            targetAlias: 'b',
+            sourceDataMart: { id: 'dm-1' },
+            targetDataMart: { id: 'dm-target-1', title: 'Joined DM' },
+            joinConditions: [],
+          } as unknown as DataMartRelationship,
+        ]);
+        tableReferenceService.resolveTableName.mockResolvedValue('table_ref');
+        blendedQueryBuilderFacade.buildBlendedQuery.mockResolvedValue('SELECT ...');
+
+        const result = await service.resolveBlendingDecision(report, {
+          userId: 'user-1',
+          roles: ['admin'],
+        });
+
+        expect(result.needsBlending).toBe(true);
+      });
     });
 
     describe('resolveBlendingDecision — filter on non-selected blended column', () => {
