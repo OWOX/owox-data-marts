@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import { ArrowRight, CircleCheckBig, PartyPopper } from 'lucide-react';
+import { ArrowRight, CircleCheckBig, ExternalLink, PartyPopper } from 'lucide-react';
 import { AccordionContent, AccordionItem, AccordionTrigger } from '@owox/ui/components/accordion';
 import { Button } from '@owox/ui/components/button';
 import { useProjectRoute } from '../../../shared/hooks';
@@ -30,7 +30,24 @@ export function SetupStepAccordion({ step, stepProgress, onClose }: SetupStepAcc
   const actionNode = (() => {
     switch (step.action.type) {
       case StepActionType.LINK: {
+        if (step.action.openInNewTab) {
+          return (
+            <Button size='sm' asChild>
+              <a
+                href={step.action.href}
+                target='_blank'
+                rel='noopener noreferrer'
+                onClick={handleCtaClick}
+              >
+                {step.action.label}
+                <ExternalLink className='size-4' />
+              </a>
+            </Button>
+          );
+        }
+
         const targetUrl = scope(step.action.href);
+
         return (
           <Button size='sm' asChild>
             <Link to={targetUrl} onClick={handleCtaClick}>

@@ -12,6 +12,7 @@ export function tokenPayloadToUser(payload: TokenPayload): User {
     projectId: payload.projectId,
     projectTitle: payload.projectTitle,
     avatar: payload.avatar,
+    onboarding: payload.onboarding,
   };
 }
 

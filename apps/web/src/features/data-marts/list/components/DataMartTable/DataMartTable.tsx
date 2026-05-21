@@ -112,6 +112,7 @@ export function DataMartTable<TData, TValue>({
             checked={table.getIsAllPageRowsSelected()}
             ariaLabel='Select all rows on this page'
             onClick={table.getToggleAllPageRowsSelectedHandler()}
+            extendedHitArea
           />
         ),
         cell: ({ row }) => (
@@ -119,6 +120,7 @@ export function DataMartTable<TData, TValue>({
             checked={row.getIsSelected()}
             ariaLabel='Select row'
             onClick={row.getToggleSelectedHandler()}
+            extendedHitArea
           />
         ),
         enableSorting: false,

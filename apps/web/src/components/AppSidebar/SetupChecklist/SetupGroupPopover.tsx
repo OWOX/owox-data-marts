@@ -7,6 +7,8 @@ import { SETUP_STEPS } from './items';
 import type { GroupProgress, ProjectSetupProgress } from './types';
 import { formatDateShort } from '../../../utils/date-formatters';
 import { GroupStatusType } from './types';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@owox/ui/components/tooltip';
+import { Info } from 'lucide-react';
 
 interface SetupGroupPopoverProps {
   groupProgress: GroupProgress;
@@ -41,7 +43,17 @@ export function SetupGroupPopover({ groupProgress, progress }: SetupGroupPopover
         <div className='flex flex-col gap-4'>
           {/* Header */}
           <div className='flex flex-col gap-0.5'>
-            <h3 className='text-base font-semibold'>{group.title}</h3>
+            <div className='flex items-center justify-between gap-2'>
+              <h3 className='text-base font-semibold'>{group.title}</h3>
+              {group.description && status !== GroupStatusType.DONE && (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Info className='text-muted-foreground/75 hover:text-muted-foreground size-4 shrink-0' />
+                  </TooltipTrigger>
+                  <TooltipContent>{group.description}</TooltipContent>
+                </Tooltip>
+              )}
+            </div>
             {status === GroupStatusType.DONE && completedAt ? (
               <p className='text-muted-foreground text-xs'>
                 Completed on {formatDateShort(completedAt)}
