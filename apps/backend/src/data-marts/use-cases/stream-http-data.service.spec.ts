@@ -512,6 +512,7 @@ describe('StreamHttpDataService', () => {
 
     expect(sqlComposer.compose).toHaveBeenCalledWith(
       expect.objectContaining({ limitConfig: 5 }),
+      expect.anything(),
       expect.anything()
     );
   });

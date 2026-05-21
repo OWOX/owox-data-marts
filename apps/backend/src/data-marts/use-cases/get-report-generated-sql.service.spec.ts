@@ -50,7 +50,10 @@ describe('GetReportGeneratedSqlService', () => {
       Action.EDIT,
       'proj-1'
     );
-    expect(reportSqlComposerService.compose).toHaveBeenCalledWith(report);
+    expect(reportSqlComposerService.compose).toHaveBeenCalledWith(report, {
+      userId: 'user-1',
+      roles: ['editor'],
+    });
     expect(result).toEqual({ sql: 'SELECT 1' });
   });
 

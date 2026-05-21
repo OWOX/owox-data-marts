@@ -373,6 +373,7 @@ describe('OutputControlsValidatorService', () => {
           filterConfig: null,
           sortConfig: null,
           limitConfig: null,
+          accessor: { userId: 'user-1', roles: ['admin'] },
         })
       ).resolves.toBeUndefined();
 
@@ -396,6 +397,7 @@ describe('OutputControlsValidatorService', () => {
           filterConfig: [{ column: 'name', operator: 'eq', value: 'X' }],
           sortConfig: null,
           limitConfig: null,
+          accessor: { userId: 'user-1', roles: ['admin'] },
         })
       ).rejects.toThrow(BadRequestException);
 
@@ -421,6 +423,7 @@ describe('OutputControlsValidatorService', () => {
           filterConfig: [{ column: 'name', operator: 'eq', value: 'X' }],
           sortConfig: null,
           limitConfig: null,
+          accessor: { userId: 'user-1', roles: ['admin'] },
         });
       } catch (e) {
         caught = e as BadRequestException;
@@ -448,6 +451,7 @@ describe('OutputControlsValidatorService', () => {
           filterConfig: null,
           sortConfig: null,
           limitConfig: 100,
+          accessor: { userId: 'user-1', roles: ['admin'] },
         })
       ).resolves.toBeUndefined();
 
@@ -474,6 +478,7 @@ describe('OutputControlsValidatorService', () => {
           filterConfig: [{ column: 'missing', operator: 'eq', value: 'X' }],
           sortConfig: null,
           limitConfig: null,
+          accessor: { userId: 'user-1', roles: ['admin'] },
         });
       } catch (e) {
         caught = e as BadRequestException;
@@ -504,6 +509,7 @@ describe('OutputControlsValidatorService', () => {
           filterConfig: [{ column: 'amount', operator: 'regex', value: '^1' }],
           sortConfig: null,
           limitConfig: null,
+          accessor: { userId: 'user-1', roles: ['admin'] },
         });
       } catch (e) {
         caught = e as BadRequestException;
@@ -535,6 +541,7 @@ describe('OutputControlsValidatorService', () => {
           filterConfig: null,
           sortConfig: [{ column: 'amount', direction: 'asc' }],
           limitConfig: null,
+          accessor: { userId: 'user-1', roles: ['admin'] },
         });
       } catch (e) {
         caught = e as BadRequestException;
@@ -565,6 +572,7 @@ describe('OutputControlsValidatorService', () => {
           filterConfig: null,
           sortConfig: [{ column: 'amount', direction: 'asc' }],
           limitConfig: null,
+          accessor: { userId: 'user-1', roles: ['admin'] },
         })
       ).resolves.toBeUndefined();
     });
@@ -589,6 +597,7 @@ describe('OutputControlsValidatorService', () => {
           filterConfig: [{ column: 'amount', operator: 'between', value: 5 }] as never,
           sortConfig: null,
           limitConfig: null,
+          accessor: { userId: 'user-1', roles: ['admin'] },
         });
       } catch (e) {
         caught = e as BadRequestException;
@@ -619,6 +628,7 @@ describe('OutputControlsValidatorService', () => {
           filterConfig: null,
           sortConfig: [{ column: 'amount', direction: 'sideways' }] as never,
           limitConfig: null,
+          accessor: { userId: 'user-1', roles: ['admin'] },
         })
       ).rejects.toThrow(BadRequestException);
     });
@@ -648,6 +658,7 @@ describe('OutputControlsValidatorService', () => {
           ],
           sortConfig: null,
           limitConfig: null,
+          accessor: { userId: 'user-1', roles: ['admin'] },
         })
       ).rejects.toThrow(BadRequestException);
     });
@@ -672,6 +683,7 @@ describe('OutputControlsValidatorService', () => {
           filterConfig: [{ column: 'name', operator: 'eq', value: 'test' }],
           sortConfig: [{ column: 'amount', direction: 'desc' }],
           limitConfig: 50,
+          accessor: { userId: 'user-1', roles: ['admin'] },
         })
       ).resolves.toBeUndefined();
     });
@@ -701,6 +713,7 @@ describe('OutputControlsValidatorService', () => {
           ],
           sortConfig: null,
           limitConfig: null,
+          accessor: { userId: 'user-1', roles: ['admin'] },
         });
       } catch (e) {
         caught = e as BadRequestException;
@@ -745,6 +758,7 @@ describe('OutputControlsValidatorService', () => {
           ],
           sortConfig: null,
           limitConfig: null,
+          accessor: { userId: 'user-1', roles: ['admin'] },
         });
       } catch (e) {
         caught = e as BadRequestException;
@@ -787,6 +801,7 @@ describe('OutputControlsValidatorService', () => {
           ],
           sortConfig: null,
           limitConfig: null,
+          accessor: { userId: 'user-1', roles: ['admin'] },
         })
       ).resolves.toBeUndefined();
     });
@@ -829,6 +844,7 @@ describe('OutputControlsValidatorService', () => {
           ],
           sortConfig: null,
           limitConfig: null,
+          accessor: { userId: 'user-1', roles: ['admin'] },
         });
       } catch (e) {
         caught = e as BadRequestException;
@@ -872,6 +888,7 @@ describe('OutputControlsValidatorService', () => {
           ],
           sortConfig: null,
           limitConfig: null,
+          accessor: { userId: 'user-1', roles: ['admin'] },
         })
       ).resolves.toBeUndefined();
     });

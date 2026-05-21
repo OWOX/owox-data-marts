@@ -73,7 +73,8 @@ describe('RunReportService', () => {
       reportRunTriggerService as never,
       reportAccessService as never,
       blendedReportDataService as never,
-      { compose: jest.fn().mockResolvedValue({ sql: 'SELECT 1' }) } as never
+      { compose: jest.fn().mockResolvedValue({ sql: 'SELECT 1' }) } as never,
+      { getProjectMember: jest.fn().mockResolvedValue({ role: 'admin' }) } as never
     );
 
     return {
@@ -150,8 +151,13 @@ describe('RunReportService', () => {
     reportWriterResolver.resolve.mockResolvedValue(writer);
 
     await (
-      service as unknown as { executeReport: (report: Report) => Promise<void> }
-    ).executeReport(report);
+      service as unknown as {
+        executeReport: (
+          report: Report,
+          accessor: { userId: string; roles: string[] }
+        ) => Promise<void>;
+      }
+    ).executeReport(report, { userId: 'user-1', roles: ['admin'] });
 
     expect(projectBalanceService.verifyCanPerformOperations).toHaveBeenCalledWith('project-1');
     expect(reader.readReportDataBatch).toHaveBeenNthCalledWith(1, undefined, 101);
@@ -199,9 +205,14 @@ describe('RunReportService', () => {
 
     await (
       service as unknown as {
-        executeReport: (report: Report, signal?: AbortSignal, logger?: unknown) => Promise<void>;
+        executeReport: (
+          report: Report,
+          accessor: { userId: string; roles: string[] },
+          signal?: AbortSignal,
+          logger?: unknown
+        ) => Promise<void>;
       }
-    ).executeReport(report, undefined, mockLogger);
+    ).executeReport(report, { userId: 'user-1', roles: ['admin'] }, undefined, mockLogger);
 
     expect(logBlendedSqlIfNeeded).toHaveBeenCalledWith(decision, mockLogger);
   });
@@ -248,8 +259,13 @@ describe('RunReportService', () => {
     reportWriterResolver.resolve.mockResolvedValue(writer);
 
     await (
-      service as unknown as { executeReport: (report: Report) => Promise<void> }
-    ).executeReport(report);
+      service as unknown as {
+        executeReport: (
+          report: Report,
+          accessor: { userId: string; roles: string[] }
+        ) => Promise<void>;
+      }
+    ).executeReport(report, { userId: 'user-1', roles: ['admin'] });
 
     expect(reader.readReportDataBatch).toHaveBeenNthCalledWith(1, undefined);
     expect(reader.readReportDataBatch).toHaveBeenNthCalledWith(2, 'b2');

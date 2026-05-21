@@ -13,8 +13,13 @@ import { CachedReaderData } from '../dto/domain/cached-reader-data.dto';
 import { Report } from '../entities/report.entity';
 import { isLookerStudioConnectorConfig } from '../data-destination-types/data-destination-config.guards';
 import { ReportDataCache } from '../entities/report-data-cache.entity';
+import {
+  BlendableSchemaAccessor,
+  resolveBlendableSchemaAccessor,
+} from './blendable-schema.service';
 import { BlendedReportDataService } from './blended-report-data.service';
 import { BlendingDecision } from '../dto/domain/blending-decision.dto';
+import { IdpProjectionsFacade } from '../../idp/facades/idp-projections.facade';
 
 /**
  * Service for managing persistent cache of report data readers
@@ -30,7 +35,8 @@ export class ReportDataCacheService {
     private readonly cacheRepository: Repository<ReportDataCache>,
     @Inject(DATA_STORAGE_REPORT_READER_RESOLVER)
     private readonly readerResolver: TypeResolver<DataStorageType, DataStorageReportReader>,
-    private readonly blendedReportDataService: BlendedReportDataService
+    private readonly blendedReportDataService: BlendedReportDataService,
+    private readonly idpProjectionsFacade: IdpProjectionsFacade
   ) {}
 
   /**
@@ -40,9 +46,10 @@ export class ReportDataCacheService {
    * without issuing a second metadata resolution.
    */
   private async resolvePrepareOptions(
-    report: Report
+    report: Report,
+    accessor: BlendableSchemaAccessor
   ): Promise<{ options: PrepareReportDataOptions; decision: BlendingDecision }> {
-    const decision = await this.blendedReportDataService.resolveBlendingDecision(report);
+    const decision = await this.blendedReportDataService.resolveBlendingDecision(report, accessor);
     return {
       options: {
         sqlOverride: decision.needsBlending ? decision.blendedSql : undefined,
@@ -53,10 +60,21 @@ export class ReportDataCacheService {
     };
   }
 
+  private resolveCreatorAccessor(report: Report): Promise<BlendableSchemaAccessor> {
+    return resolveBlendableSchemaAccessor(
+      this.idpProjectionsFacade,
+      report.dataMart.projectId,
+      report.createdById
+    );
+  }
+
   /**
    * Gets cached reader or creates new one if cache miss
    */
-  async getOrCreateCachedReader(report: Report): Promise<CachedReaderData> {
+  async getOrCreateCachedReader(
+    report: Report,
+    accessor: BlendableSchemaAccessor
+  ): Promise<CachedReaderData> {
     const reportId = report.id;
 
     const existingOperation = this.pendingOperations.get(reportId);
@@ -65,7 +83,7 @@ export class ReportDataCacheService {
       return existingOperation;
     }
 
-    const operationPromise = this.executeGetOrCreateOperation(report);
+    const operationPromise = this.executeGetOrCreateOperation(report, accessor);
     this.pendingOperations.set(reportId, operationPromise);
 
     try {
@@ -75,9 +93,12 @@ export class ReportDataCacheService {
     }
   }
 
-  private async executeGetOrCreateOperation(report: Report): Promise<CachedReaderData> {
+  private async executeGetOrCreateOperation(
+    report: Report,
+    accessor: BlendableSchemaAccessor
+  ): Promise<CachedReaderData> {
     const now = new Date();
-    const { options, decision } = await this.resolvePrepareOptions(report);
+    const { options, decision } = await this.resolvePrepareOptions(report, accessor);
 
     const cachedData = await this.cacheRepository.findOne({
       where: {
@@ -180,7 +201,8 @@ export class ReportDataCacheService {
   private async finalizeExpiredCacheEntry(cacheEntry: ReportDataCache): Promise<void> {
     try {
       if (cacheEntry.readerState) {
-        const { options } = await this.resolvePrepareOptions(cacheEntry.report);
+        const accessor = await this.resolveCreatorAccessor(cacheEntry.report);
+        const { options } = await this.resolvePrepareOptions(cacheEntry.report, accessor);
         const reader = await this.restoreReaderFromCache(cacheEntry, cacheEntry.report, options);
         await reader.finalize();
       }

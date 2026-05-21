@@ -34,7 +34,8 @@ export class GetBlendableSchemaService {
 
     return this.blendableSchemaService.computeBlendableSchema(
       command.dataMartId,
-      command.projectId
+      command.projectId,
+      { userId: command.userId, roles: command.roles }
     );
   }
 }

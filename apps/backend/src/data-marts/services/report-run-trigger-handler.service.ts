@@ -56,6 +56,7 @@ export class ReportRunTriggerHandlerService extends BaseRunTriggerHandlerService
       await this.runReportService.executeExistingRun(
         trigger.dataMartRunId,
         trigger.projectId,
+        trigger.createdById,
         options?.signal
       );
     } catch (error) {

@@ -2,6 +2,7 @@ import { BadRequestException, Injectable } from '@nestjs/common';
 import { DataMartQueryBuilderFacade } from '../data-storage-types/facades/data-mart-query-builder.facade';
 import { BlendingDecision } from '../dto/domain/blending-decision.dto';
 import { ReportLike } from '../dto/domain/report-like-read-plan';
+import { BlendableSchemaAccessor } from './blendable-schema.service';
 import { BlendedReportDataService } from './blended-report-data.service';
 import { isQueryBuildResult } from '../data-storage-types/interfaces/data-mart-query-builder.interface';
 import { DataMartTableReferenceService } from './data-mart-table-reference.service';
@@ -19,11 +20,12 @@ export class ReportSqlComposerService {
 
   async compose(
     report: ReportLike,
+    accessor: BlendableSchemaAccessor,
     precomputedDecision?: BlendingDecision
   ): Promise<{ sql: string; params?: SqlParameter[] }> {
-    // Schema-drift validation lives inside resolveBlendingDecision (shared with the run path).
     const decision =
-      precomputedDecision ?? (await this.blendedReportDataService.resolveBlendingDecision(report));
+      precomputedDecision ??
+      (await this.blendedReportDataService.resolveBlendingDecision(report, accessor));
 
     if (decision.needsBlending && decision.blendedSql) {
       return { sql: decision.blendedSql, params: decision.params };

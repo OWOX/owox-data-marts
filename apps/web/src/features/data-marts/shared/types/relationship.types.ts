@@ -96,6 +96,7 @@ export interface AvailableSource {
   isIncluded: boolean;
   relationshipId: string;
   dataMartId: string;
+  isAccessibleForReporting: boolean;
 }
 
 export interface BlendableSchema {

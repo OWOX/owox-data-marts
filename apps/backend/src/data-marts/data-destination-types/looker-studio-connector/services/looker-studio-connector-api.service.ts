@@ -13,7 +13,9 @@ import {
   createReportRunLogger,
   ReportRunLogger,
 } from '../../../report-run-logging/report-run-logger';
+import { resolveBlendableSchemaAccessor } from '../../../services/blendable-schema.service';
 import { BlendedReportDataService } from '../../../services/blended-report-data.service';
+import { IdpProjectionsFacade } from '../../../../idp/facades/idp-projections.facade';
 import { ConsumptionTrackingService } from '../../../services/consumption-tracking.service';
 import { LookerStudioReportRunService } from '../../../services/looker-studio-report-run.service';
 import { ProjectBalanceService } from '../../../services/project-balance.service';
@@ -78,7 +80,8 @@ export class LookerStudioConnectorApiService {
     private readonly lookerStudioReportRunService: LookerStudioReportRunService,
     private readonly projectBalanceService: ProjectBalanceService,
     private readonly blendedReportDataService: BlendedReportDataService,
-    private readonly systemTimeService: SystemTimeService
+    private readonly systemTimeService: SystemTimeService,
+    private readonly idpProjectionsFacade: IdpProjectionsFacade
   ) {}
 
   /**
@@ -259,8 +262,13 @@ export class LookerStudioConnectorApiService {
       throw new BusinessViolationException('No report found for the provided secret and reportId');
     }
 
-    // Get cached reader
-    const cachedReader = await this.cacheService.getOrCreateCachedReader(report);
+    const accessor = await resolveBlendableSchemaAccessor(
+      this.idpProjectionsFacade,
+      report.dataMart.projectId,
+      report.createdById
+    );
+
+    const cachedReader = await this.cacheService.getOrCreateCachedReader(report, accessor);
 
     return { report, cachedReader };
   }

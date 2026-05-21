@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { BlendableSchemaService } from './blendable-schema.service';
+import { BlendableSchemaAccessor, BlendableSchemaService } from './blendable-schema.service';
 import { DataMartRelationshipService } from './data-mart-relationship.service';
 import { DataMartTableReferenceService } from './data-mart-table-reference.service';
 import { OutputControlsValidatorService } from './output-controls-validator.service';
@@ -29,7 +29,10 @@ export class BlendedReportDataService {
     private readonly outputControlsValidator: OutputControlsValidatorService
   ) {}
 
-  async resolveBlendingDecision(report: ReportLike): Promise<BlendingDecision> {
+  async resolveBlendingDecision(
+    report: ReportLike,
+    accessor: BlendableSchemaAccessor
+  ): Promise<BlendingDecision> {
     const { columnConfig, dataMart } = report;
 
     // Single chokepoint for both /generated-sql and the run path — catches schema drift since save.
@@ -49,7 +52,8 @@ export class BlendedReportDataService {
 
     const blendableSchema = await this.blendableSchemaService.computeBlendableSchema(
       dataMart.id,
-      dataMart.projectId
+      dataMart.projectId,
+      accessor
     );
 
     const blendedFieldsByName = new Map(blendableSchema.blendedFields.map(f => [f.name, f]));

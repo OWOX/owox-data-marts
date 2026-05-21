@@ -18,8 +18,13 @@ import { Report } from '../entities/report.entity';
 import { ReportRun } from '../models/report-run.model';
 import { logBlendedSqlIfNeeded } from '../report-run-logging/log-blended-sql';
 import { createReportRunLogger, ReportRunLogger } from '../report-run-logging/report-run-logger';
+import {
+  BlendableSchemaAccessor,
+  resolveBlendableSchemaAccessor,
+} from '../services/blendable-schema.service';
 import { BlendedReportDataService } from '../services/blended-report-data.service';
 import { DataMartService } from '../services/data-mart.service';
+import { IdpProjectionsFacade } from '../../idp/facades/idp-projections.facade';
 import { ProjectBalanceService } from '../services/project-balance.service';
 import { ReportRunService } from '../services/report-run.service';
 import { ReportRunTriggerService } from '../services/report-run-trigger.service';
@@ -94,7 +99,8 @@ export class RunReportService {
     private readonly reportRunTriggerService: ReportRunTriggerService,
     private readonly reportAccessService: ReportAccessService,
     private readonly blendedReportDataService: BlendedReportDataService,
-    private readonly reportSqlComposerService: ReportSqlComposerService
+    private readonly reportSqlComposerService: ReportSqlComposerService,
+    private readonly idpProjectionsFacade: IdpProjectionsFacade
   ) {}
 
   /**
@@ -153,6 +159,7 @@ export class RunReportService {
   async executeExistingRun(
     dataMartRunId: string,
     expectedProjectId: string,
+    runByUserId: string,
     signal?: AbortSignal
   ): Promise<void> {
     const reportRun = await this.reportRunService.loadByDataMartRunId(dataMartRunId);
@@ -168,7 +175,13 @@ export class RunReportService {
       );
     }
 
-    await this.executeReportRunWithCleanup(reportRun, signal);
+    const accessor = await this.resolveAccessor(runByUserId, actualProjectId);
+
+    await this.executeReportRunWithCleanup(reportRun, accessor, signal);
+  }
+
+  private resolveAccessor(userId: string, projectId: string): Promise<BlendableSchemaAccessor> {
+    return resolveBlendableSchemaAccessor(this.idpProjectionsFacade, projectId, userId);
   }
 
   /**
@@ -191,6 +204,7 @@ export class RunReportService {
    */
   private async executeReport(
     report: Report,
+    accessor: BlendableSchemaAccessor,
     signal?: AbortSignal,
     reportRunLogger?: ReportRunLogger
   ): Promise<void> {
@@ -208,7 +222,10 @@ export class RunReportService {
       // config, this produces either a pre-built blended SQL (for cross-DM
       // joins) or a column filter (for native-only projections). Readers
       // receive the result via PrepareReportDataOptions.
-      const blendingDecision = await this.blendedReportDataService.resolveBlendingDecision(report);
+      const blendingDecision = await this.blendedReportDataService.resolveBlendingDecision(
+        report,
+        accessor
+      );
       logBlendedSqlIfNeeded(blendingDecision, reportRunLogger);
 
       let sqlOverride: string | undefined;
@@ -223,7 +240,7 @@ export class RunReportService {
       ) {
         // Non-blended report with output controls — compose the full SQL + params here so
         // the reader doesn't need to know about output-controls semantics.
-        const composed = await this.reportSqlComposerService.compose(report);
+        const composed = await this.reportSqlComposerService.compose(report, accessor);
         sqlOverride = composed.sql;
         sqlOverrideParams = composed.params;
       }
@@ -280,6 +297,7 @@ export class RunReportService {
    */
   private async executeReportRunWithCleanup(
     reportRun: ReportRun,
+    accessor: BlendableSchemaAccessor,
     signal?: AbortSignal
   ): Promise<void> {
     const processId = this.generateProcessId(reportRun.getReportId());
@@ -293,7 +311,7 @@ export class RunReportService {
       await this.actualizeSchemaInDataMart(reportRun.getDataMart());
       await this.reportRunService.markAsStarted(reportRun);
       this.logger.log(`Report ${reportRun.getReportId()} execution started`);
-      await this.executeReport(reportRun.getReport(), signal, reportRunLogger);
+      await this.executeReport(reportRun.getReport(), accessor, signal, reportRunLogger);
       const { logs, errors } = reportRunLogger.asArrays();
       await this.handleReportRunSuccess(reportRun, logs, errors);
     } catch (error) {
