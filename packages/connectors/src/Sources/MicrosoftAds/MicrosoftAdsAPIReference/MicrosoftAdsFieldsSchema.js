@@ -39,16 +39,6 @@ var MicrosoftAdsFieldsSchema = {
     documentation: "https://learn.microsoft.com/en-us/advertising/reporting-service/userlocationperformancereportrequest",
     reportType: "UserLocationPerformanceReportRequest",
     fields: userLocationPerformanceReportFields,
-    defaultFields: [
-      "AccountName",
-      "CampaignName",
-      "AdGroupName",
-      "Country",
-      "Impressions",
-      "Clicks",
-      "Spend",
-      "AssetGroupName"
-    ],
     uniqueKeys: [
       "AccountId",
       "CampaignId",
@@ -65,6 +55,16 @@ var MicrosoftAdsFieldsSchema = {
       "DeviceOS",
       "TopVsOther"
     ],
+    defaultFields: [
+      "AccountName",
+      "CampaignName",
+      "AdGroupName",
+      "Country",
+      "Impressions",
+      "Clicks",
+      "Spend",
+      "AssetGroupName"
+    ],
     destinationName: "microsoft_ads_user_location_performance_report",
     isTimeSeries: true
   },
@@ -73,6 +73,7 @@ var MicrosoftAdsFieldsSchema = {
     description: "Your campaign and ad group structure — type, status, bid strategy, budget, and keyword settings.",
     documentation: "https://learn.microsoft.com/en-us/advertising/bulk-service/bulk-service-reference",
     fields: campaignFields,
+    uniqueKeys: ["Id"],
     defaultFields: [
       "Type",
       "ParentId",
@@ -83,7 +84,6 @@ var MicrosoftAdsFieldsSchema = {
       "AdGroupType",
       "Keyword"
     ],
-    uniqueKeys: ["Id"],
     destinationName: "microsoft_ads_campaigns",
     isTimeSeries: false
   }
