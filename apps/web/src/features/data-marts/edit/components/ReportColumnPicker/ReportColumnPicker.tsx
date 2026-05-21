@@ -8,9 +8,10 @@ import { Collapsible, CollapsibleContent } from '@owox/ui/components/collapsible
 import { Switch } from '@owox/ui/components/switch';
 import { AlertTriangle, ChevronDown, ChevronRight } from 'lucide-react';
 import { Skeleton } from '@owox/ui/components/skeleton';
+import { NoAccessIndicator } from '../DataMartRelationships/NoAccessIndicator';
 import { dataMartRelationshipService } from '../../../shared/services/data-mart-relationship.service';
 import { BLENDABLE_SCHEMA_QUERY_KEY } from '../../../shared/hooks/useBlendedFieldNames';
-import type { BlendedField } from '../../../shared/types/relationship.types';
+import type { AvailableSource, BlendedField } from '../../../shared/types/relationship.types';
 import { DataStorageType } from '../../../../data-storage/shared/model/types/data-storage-type.enum';
 import {
   EMPTY_OUTPUT_CONFIG,
@@ -56,6 +57,7 @@ interface BlendedGroup {
   title: string;
   alias: string;
   description?: string;
+  isAccessibleForReporting: boolean;
   visibleFields: BlendedField[];
   selectedCount: number;
 }
@@ -161,6 +163,7 @@ interface BlendedFieldRowProps {
   onRemoveFilterAt?: RemoveFilterAtFn;
   onReplaceFilterAt?: ReplaceFilterAtFn;
   preJoinSlices: ColumnFilters;
+  hoverClassName?: string;
 }
 
 const BlendedFieldRow = memo(function BlendedFieldRow({
@@ -173,9 +176,15 @@ const BlendedFieldRow = memo(function BlendedFieldRow({
   onRemoveFilterAt,
   onReplaceFilterAt,
   preJoinSlices,
+  hoverClassName = 'hover:bg-muted/50',
 }: BlendedFieldRowProps) {
   return (
-    <label className='group hover:bg-muted/50 flex cursor-pointer items-center gap-2 rounded px-1 py-1'>
+    <label
+      className={cn(
+        'group flex cursor-pointer items-center gap-2 rounded px-1 py-1',
+        hoverClassName
+      )}
+    >
       <Checkbox
         checked={checked}
         onCheckedChange={c => {
@@ -244,31 +253,42 @@ function BlendedGroupItem({
   preJoinByAliasPathColumn,
 }: BlendedGroupItemProps) {
   const [isOpen, setIsOpen] = useState(() => group.selectedCount > 0);
+  const inaccessible = !group.isAccessibleForReporting;
+  const Chevron = isOpen ? ChevronDown : ChevronRight;
+  const accentClass = inaccessible ? 'text-destructive' : 'text-muted-foreground';
 
   return (
-    <Collapsible open={isOpen} onOpenChange={setIsOpen}>
+    <Collapsible
+      open={isOpen}
+      onOpenChange={setIsOpen}
+      className={cn('rounded', inaccessible && 'border-destructive bg-destructive/10 border')}
+    >
       <button
         type='button'
         aria-expanded={isOpen}
         aria-label={`${isOpen ? 'Collapse' : 'Expand'} ${group.alias}`}
-        className='group bg-secondary/50 dark:bg-muted/50 hover:bg-secondary/80 dark:hover:bg-muted/80 flex w-full cursor-pointer items-start gap-1.5 rounded px-1 py-1 text-left transition-colors'
+        className={cn(
+          'group flex w-full cursor-pointer items-start gap-1.5 rounded px-1 py-1 text-left transition-colors',
+          !inaccessible &&
+            'bg-secondary/50 dark:bg-muted/50 hover:bg-secondary/80 dark:hover:bg-muted/80'
+        )}
         onClick={() => {
           setIsOpen(v => !v);
         }}
       >
-        {isOpen ? (
-          <ChevronDown className='text-muted-foreground mt-0.5 h-4 w-4 shrink-0' />
-        ) : (
-          <ChevronRight className='text-muted-foreground mt-0.5 h-4 w-4 shrink-0' />
-        )}
+        <Chevron className={cn('mt-0.5 h-4 w-4 shrink-0', accentClass)} />
         <div className='min-w-0 flex-1'>
           <div className='flex min-w-0 items-center gap-1.5'>
-            <span className='truncate text-xs font-semibold' title={group.alias}>
+            <span
+              className={cn('truncate text-xs font-semibold', inaccessible && 'text-destructive')}
+              title={group.alias}
+            >
               {group.alias}
             </span>
             <FieldInfoTooltip text={group.description} />
           </div>
         </div>
+        {inaccessible && <NoAccessIndicator variant='destructive' className='mt-0.5' />}
       </button>
       <CollapsibleContent>
         {group.visibleFields.map(field => {
@@ -285,6 +305,7 @@ function BlendedGroupItem({
               onRemoveFilterAt={onRemoveFilterAt}
               onReplaceFilterAt={onReplaceFilterAt}
               preJoinSlices={preJoinByAliasPathColumn?.get(sliceKey) ?? EMPTY_COLUMN_FILTERS}
+              hoverClassName={inaccessible ? 'hover:bg-destructive/20' : undefined}
             />
           );
         })}
@@ -401,13 +422,13 @@ export function ReportColumnPicker({
     onCountChange?.({ selected: selectedFieldsCount, total: totalFieldsCount });
   }, [selectedFieldsCount, totalFieldsCount, onCountChange]);
 
-  const availableSourceDescriptionByPath = useMemo(() => {
-    const map = new Map<string, string | undefined>();
+  const availableSourceByPath = useMemo(() => {
+    const map = new Map<string, AvailableSource>();
     for (const source of schema?.availableSources ?? []) {
-      map.set(source.aliasPath, source.description);
+      map.set(source.aliasPath, source);
     }
     return map;
-  }, [schema]);
+  }, [schema?.availableSources]);
 
   // Post-join filters keyed by their output-alias column.
   const filtersByColumn = useMemo<Map<string, ColumnFilters>>(() => {
@@ -547,11 +568,13 @@ export function ReportColumnPicker({
     for (const field of includedBlendedFields) {
       let group = groupMap.get(field.aliasPath);
       if (!group) {
+        const source = availableSourceByPath.get(field.aliasPath);
         group = {
           aliasPath: field.aliasPath,
           title: field.sourceDataMartTitle,
           alias: field.outputPrefix,
-          description: availableSourceDescriptionByPath.get(field.aliasPath),
+          description: source?.description,
+          isAccessibleForReporting: source?.isAccessibleForReporting ?? false,
           visibleFields: [],
           selectedCount: 0,
         };
@@ -559,16 +582,15 @@ export function ReportColumnPicker({
       }
       const isSelected = effectiveValueSet.has(field.name);
       if (isSelected) group.selectedCount += 1;
-      if (!showSelectedOnly || isSelected) group.visibleFields.push(field);
+      if (group.isAccessibleForReporting) {
+        if (!showSelectedOnly || isSelected) group.visibleFields.push(field);
+      } else if (isSelected) {
+        group.visibleFields.push(field);
+      }
     }
 
     return Array.from(groupMap.values()).filter(g => g.visibleFields.length > 0);
-  }, [
-    includedBlendedFields,
-    showSelectedOnly,
-    effectiveValueSet,
-    availableSourceDescriptionByPath,
-  ]);
+  }, [includedBlendedFields, showSelectedOnly, effectiveValueSet, availableSourceByPath]);
 
   if (isLoading) {
     return (
