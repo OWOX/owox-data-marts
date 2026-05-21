@@ -12,6 +12,7 @@ var GitHubFieldsSchema = {
     documentation: "https://docs.github.com/en/rest/repos/repos",
     fields: repositoryFields,
     uniqueKeys: ["id"],
+    defaultFields: ["id", "name", "full_name", "private", "owner_login", "description", "language", "visibility", "default_branch", "stargazers_count", "forks_count", "open_issues_count", "created_at", "updated_at"],
     destinationName: "github_repository",
     isTimeSeries: false
   },
@@ -21,6 +22,7 @@ var GitHubFieldsSchema = {
     documentation: "https://docs.github.com/en/rest/repos/repos#list-repository-contributors",
     fields: contributorsFields,
     uniqueKeys: ["id"],
+    defaultFields: ["id", "login", "type", "contributions"],
     destinationName: "github_contributors",
     isTimeSeries: false
   },
@@ -30,6 +32,7 @@ var GitHubFieldsSchema = {
     documentation: "https://docs.github.com/en/rest/repos/repos",
     fields: repositoryStatsFields,
     uniqueKeys: ["date"],
+    defaultFields: ["date", "stars", "contributors"],
     destinationName: "github_repository_stats",
     isTimeSeries: false
   }

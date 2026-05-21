@@ -22,6 +22,7 @@ var OpenExchangeRatesFieldsSchema = {
     documentation: "https://docs.openexchangerates.org/reference/historical-json",
     fields: historicalFields,
     uniqueKeys: ["date", "base", "currency"],
+    defaultFields: ["date", "base", "currency", "rate"],
     destinationName: "open_exchange_rates_historical",
     isTimeSeries: true
   }
