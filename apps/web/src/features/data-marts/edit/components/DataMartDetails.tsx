@@ -33,9 +33,10 @@ import {
 import { useSchemaActualizeTrigger } from '../../shared/hooks/useSchemaActualizeTrigger';
 import { PromoStep, useDataMartNextStepPromo } from '../hooks/useDataMartNextStepPromo';
 import { useDataMart } from '../model';
-import { useAiHelper, useAiHelperAvailability } from '../model/hooks';
+import { useAiHelper, useAiHelperAvailability } from '../model';
 import { DataMartMetadataScope } from '../../shared';
 import { AiHelperButton } from './AiHelperButton';
+import { containsNonBmpCharacters, LEGACY_TITLE_ERROR } from '../../shared';
 import NotFound from '../../../../pages/NotFound.tsx';
 import NoAccess from '../../../../pages/NoAccess.tsx';
 
@@ -150,9 +151,16 @@ export function DataMartDetails({ id }: DataMartDetailsProps) {
   const handleTitleUpdate = useCallback(
     async (newTitle: string) => {
       if (!dataMartId) return;
+      if (
+        dataMart?.storage.type === DataStorageType.LEGACY_GOOGLE_BIGQUERY &&
+        containsNonBmpCharacters(newTitle)
+      ) {
+        toast.error(LEGACY_TITLE_ERROR);
+        throw new Error(LEGACY_TITLE_ERROR);
+      }
       await updateDataMartTitle(dataMartId, newTitle);
     },
-    [dataMartId, updateDataMartTitle]
+    [dataMartId, dataMart?.storage.type, updateDataMartTitle]
   );
 
   const { enabled: isAiHelperEnabled } = useAiHelperAvailability();
