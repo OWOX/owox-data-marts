@@ -566,6 +566,44 @@ describeIfConfigured('Google Sheets column preservation (diff-based writer)', ()
   }, 120_000);
 
   // -------------------------------------------------------------------------
+  // Test 9b — Inside the imported rectangle, manual edits NEVER survive a
+  // refresh, even when SQL returns NULL for that cell.
+  //
+  // Pre-fix: `null` in the 2D array passed to Sheets `values.update` is
+  // treated as "skip this cell", so a user's manual edit on a cell that the
+  // new SQL produces NULL for would silently survive across refresh. The
+  // formatter now coerces nullish to "" so the cell is explicitly cleared.
+  // -------------------------------------------------------------------------
+  it('overwrites manual edits inside imported range even when SQL produces NULL', async () => {
+    // Row 2: clicks = NULL. Row 3: clicks = 20. Lets us assert both halves of
+    // the contract in one report run.
+    const SQL_WITH_NULL = `
+      SELECT 'A' AS country, CAST(NULL AS INT64) AS clicks, 2 AS cost UNION ALL
+      SELECT 'B' AS country, 20 AS clicks, 5 AS cost
+    `;
+    const { reportId } = await provisionFixture({
+      testName: 'null-overwrites-manual-edit',
+      sql: SQL_WITH_NULL,
+    });
+    await runAndWait(reportId);
+
+    // Seed manual edits inside the imported rectangle:
+    //   B2 — the cell that SQL will produce NULL for on next refresh
+    //   B3 — the cell that SQL will produce 20 for on next refresh (control)
+    await writeCell('B2', 'manual-keep-me');
+    await writeCell('B3', 'manual-also');
+
+    await runAndWait(reportId);
+
+    // B2: was NULL in SQL → must be cleared (pre-fix this kept "manual-keep-me").
+    // B3: was 20 in SQL → must be overwritten with "20".
+    expect(await readRange('A2:C3')).toEqual([
+      ['A', '', '2'],
+      ['B', '20', '5'],
+    ]);
+  }, 120_000);
+
+  // -------------------------------------------------------------------------
   // Test 10 — Output Controls × diff-based writer interaction:
   // shrinking the result set via Report `limitConfig` must clear stale rows
   // from the previous (larger) refresh inside the imported rectangle. User
