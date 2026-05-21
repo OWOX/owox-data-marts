@@ -1,9 +1,4 @@
-import {
-  ForbiddenException,
-  Injectable,
-  NotFoundException,
-  UnauthorizedException,
-} from '@nestjs/common';
+import { Injectable, NotFoundException, UnauthorizedException } from '@nestjs/common';
 import { GetRelationshipCommand } from '../dto/domain/get-relationship.command';
 import { RelationshipDto } from '../dto/domain/relationship.dto';
 import { RelationshipMapper } from '../mappers/relationship.mapper';
@@ -29,18 +24,6 @@ export class GetDataMartRelationshipService {
 
     await this.dataMartService.getByIdAndProjectId(command.sourceDataMartId, command.projectId);
 
-    const canSee = await this.accessDecisionService.canAccess(
-      command.userId,
-      command.roles,
-      EntityType.DATA_MART,
-      command.sourceDataMartId,
-      Action.SEE,
-      command.projectId
-    );
-    if (!canSee) {
-      throw new ForbiddenException('You do not have access to this DataMart');
-    }
-
     const relationship = await this.relationshipService.findById(command.relationshipId);
 
     if (!relationship || relationship.sourceDataMart.id !== command.sourceDataMartId) {
@@ -49,8 +32,18 @@ export class GetDataMartRelationshipService {
       );
     }
 
-    const createdByUser = await this.userProjectionsFetcherService.fetchCreatedByUser(relationship);
+    const [accessByDataMartId, createdByUser] = await Promise.all([
+      this.accessDecisionService.canAccessMany(
+        command.userId,
+        command.roles,
+        EntityType.DATA_MART,
+        [relationship.sourceDataMart.id, relationship.targetDataMart.id],
+        Action.SEE,
+        command.projectId
+      ),
+      this.userProjectionsFetcherService.fetchCreatedByUser(relationship),
+    ]);
 
-    return this.mapper.toDomainDto(relationship, createdByUser);
+    return this.mapper.toDomainDto(relationship, createdByUser, accessByDataMartId);
   }
 }

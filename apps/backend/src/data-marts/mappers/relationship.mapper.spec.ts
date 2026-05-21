@@ -108,8 +108,13 @@ describe('RelationshipMapper', () => {
   });
 
   describe('toDomainDto', () => {
+    const fullAccess = new Map<string, boolean>([
+      ['source-dm-1', true],
+      ['target-dm-2', true],
+    ]);
+
     it('should map entity to RelationshipDto', () => {
-      const dto = mapper.toDomainDto(mockEntity);
+      const dto = mapper.toDomainDto(mockEntity, null, fullAccess);
 
       expect(dto.id).toBe('rel-1');
       expect(dto.dataStorageId).toBe('storage-1');
@@ -126,9 +131,33 @@ describe('RelationshipMapper', () => {
       expect(dto.modifiedAt).toEqual(new Date('2024-01-02T00:00:00.000Z'));
       expect(dto.createdByUser).toBeNull();
     });
+
+    it('falls back to userHasAccess=false when access map lacks the data mart id', () => {
+      const dto = mapper.toDomainDto(mockEntity, null, new Map());
+
+      expect(dto.sourceDataMart.userHasAccess).toBe(false);
+      expect(dto.targetDataMart.userHasAccess).toBe(false);
+    });
+
+    it('reads userHasAccess from the access map per data mart id', () => {
+      const accessByDataMartId = new Map<string, boolean>([
+        ['source-dm-1', true],
+        ['target-dm-2', false],
+      ]);
+
+      const dto = mapper.toDomainDto(mockEntity, null, accessByDataMartId);
+
+      expect(dto.sourceDataMart.userHasAccess).toBe(true);
+      expect(dto.targetDataMart.userHasAccess).toBe(false);
+    });
   });
 
   describe('toDomainDtoList', () => {
+    const fullAccess = new Map<string, boolean>([
+      ['source-dm-1', true],
+      ['target-dm-2', true],
+    ]);
+
     it('should map array of entities to array of RelationshipDto', () => {
       const secondEntity: DataMartRelationship = {
         ...mockEntity,
@@ -136,7 +165,7 @@ describe('RelationshipMapper', () => {
         targetAlias: 'sessions',
       };
 
-      const dtos = mapper.toDomainDtoList([mockEntity, secondEntity]);
+      const dtos = mapper.toDomainDtoList([mockEntity, secondEntity], undefined, fullAccess);
 
       expect(dtos).toHaveLength(2);
       expect(dtos[0].id).toBe('rel-1');
@@ -144,15 +173,45 @@ describe('RelationshipMapper', () => {
       expect(dtos[1].targetAlias).toBe('sessions');
     });
 
+    it('propagates the access map into every mapped DTO', () => {
+      const secondEntity: DataMartRelationship = {
+        ...mockEntity,
+        id: 'rel-2',
+        targetAlias: 'sessions',
+      };
+      const accessByDataMartId = new Map<string, boolean>([
+        ['source-dm-1', true],
+        ['target-dm-2', false],
+      ]);
+
+      const dtos = mapper.toDomainDtoList(
+        [mockEntity, secondEntity],
+        undefined,
+        accessByDataMartId
+      );
+
+      expect(dtos[0].sourceDataMart.userHasAccess).toBe(true);
+      expect(dtos[0].targetDataMart.userHasAccess).toBe(false);
+      expect(dtos[1].sourceDataMart.userHasAccess).toBe(true);
+      expect(dtos[1].targetDataMart.userHasAccess).toBe(false);
+    });
+
     it('should return empty array for empty input', () => {
-      const dtos = mapper.toDomainDtoList([]);
+      const dtos = mapper.toDomainDtoList([], undefined, new Map());
       expect(dtos).toHaveLength(0);
     });
   });
 
   describe('toResponse', () => {
     it('should map RelationshipDto to RelationshipResponseApiDto', () => {
-      const dto = mapper.toDomainDto(mockEntity);
+      const dto = mapper.toDomainDto(
+        mockEntity,
+        null,
+        new Map([
+          ['source-dm-1', true],
+          ['target-dm-2', true],
+        ])
+      );
       const response = mapper.toResponse(dto);
 
       expect(response.id).toBe(dto.id);
@@ -166,10 +225,14 @@ describe('RelationshipMapper', () => {
 
   describe('toResponseList', () => {
     it('maps an array of RelationshipDto to an array of API DTOs', () => {
-      const dtos = mapper.toDomainDtoList([
-        mockEntity,
-        { ...mockEntity, id: 'rel-2', targetAlias: 'sessions' },
-      ]);
+      const dtos = mapper.toDomainDtoList(
+        [mockEntity, { ...mockEntity, id: 'rel-2', targetAlias: 'sessions' }],
+        undefined,
+        new Map([
+          ['source-dm-1', true],
+          ['target-dm-2', true],
+        ])
+      );
 
       const responses = mapper.toResponseList(dtos);
 

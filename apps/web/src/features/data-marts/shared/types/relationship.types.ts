@@ -25,6 +25,7 @@ export interface RelatedDataMart {
   title: string;
   description?: string;
   status: string;
+  userHasAccess: boolean;
 }
 
 export interface DataMartRelationship {

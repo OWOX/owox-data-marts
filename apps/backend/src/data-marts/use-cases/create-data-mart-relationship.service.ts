@@ -80,6 +80,10 @@ export class CreateDataMartRelationshipService {
       targetDataMart
     );
     const createdByUser = await this.userProjectionsFetcherService.fetchCreatedByUser(relationship);
-    return this.mapper.toDomainDto(relationship, createdByUser);
+    const accessByDataMartId = new Map<string, boolean>([
+      [command.sourceDataMartId, true],
+      [command.targetDataMartId, true],
+    ]);
+    return this.mapper.toDomainDto(relationship, createdByUser, accessByDataMartId);
   }
 }

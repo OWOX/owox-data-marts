@@ -104,7 +104,8 @@ export class RelationshipMapper {
 
   toDomainDto(
     entity: DataMartRelationship,
-    createdByUser: UserProjectionDto | null = null
+    createdByUser: UserProjectionDto | null,
+    accessByDataMartId: ReadonlyMap<string, boolean>
   ): RelationshipDto {
     return {
       id: entity.id,
@@ -114,12 +115,14 @@ export class RelationshipMapper {
         title: entity.sourceDataMart.title,
         description: entity.sourceDataMart.description,
         status: entity.sourceDataMart.status,
+        userHasAccess: accessByDataMartId.get(entity.sourceDataMart.id) ?? false,
       },
       targetDataMart: {
         id: entity.targetDataMart.id,
         title: entity.targetDataMart.title,
         description: entity.targetDataMart.description,
         status: entity.targetDataMart.status,
+        userHasAccess: accessByDataMartId.get(entity.targetDataMart.id) ?? false,
       },
       targetAlias: entity.targetAlias,
       joinConditions: entity.joinConditions,
@@ -132,12 +135,14 @@ export class RelationshipMapper {
 
   toDomainDtoList(
     entities: DataMartRelationship[],
-    userProjectionsList?: UserProjectionsListDto
+    userProjectionsList: UserProjectionsListDto | undefined,
+    accessByDataMartId: ReadonlyMap<string, boolean>
   ): RelationshipDto[] {
     return entities.map(entity =>
       this.toDomainDto(
         entity,
-        entity.createdById ? (userProjectionsList?.getByUserId(entity.createdById) ?? null) : null
+        entity.createdById ? (userProjectionsList?.getByUserId(entity.createdById) ?? null) : null,
+        accessByDataMartId
       )
     );
   }

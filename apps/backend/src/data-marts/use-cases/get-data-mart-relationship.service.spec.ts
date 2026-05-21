@@ -5,7 +5,7 @@ jest.mock('../../idp/facades/idp-projections.facade', () => ({
   IdpProjectionsFacade: jest.fn(),
 }));
 
-import { ForbiddenException, NotFoundException, UnauthorizedException } from '@nestjs/common';
+import { NotFoundException, UnauthorizedException } from '@nestjs/common';
 import { GetDataMartRelationshipService } from './get-data-mart-relationship.service';
 import { GetRelationshipCommand } from '../dto/domain/get-relationship.command';
 import { EntityType, Action } from '../services/access-decision';
@@ -14,9 +14,16 @@ describe('GetDataMartRelationshipService', () => {
   const relationship = {
     id: 'rel-1',
     sourceDataMart: { id: 'dm-source' },
+    targetDataMart: { id: 'dm-target' },
   };
 
-  const createService = (canAccess = true, foundRelationship = relationship) => {
+  const createService = (
+    accessMap: Map<string, boolean> = new Map([
+      ['dm-source', true],
+      ['dm-target', true],
+    ]),
+    foundRelationship: typeof relationship | null = relationship
+  ) => {
     const relationshipService = {
       findById: jest.fn().mockResolvedValue(foundRelationship),
     };
@@ -30,7 +37,7 @@ describe('GetDataMartRelationshipService', () => {
       fetchCreatedByUser: jest.fn().mockResolvedValue(null),
     };
     const accessDecisionService = {
-      canAccess: jest.fn().mockResolvedValue(canAccess),
+      canAccessMany: jest.fn().mockResolvedValue(accessMap),
     };
 
     const service = new GetDataMartRelationshipService(
@@ -46,8 +53,13 @@ describe('GetDataMartRelationshipService', () => {
 
   beforeEach(() => jest.clearAllMocks());
 
-  it('returns relationship when user has SEE access on source DataMart', async () => {
-    const { service, accessDecisionService, relationshipService } = createService(true);
+  it('returns relationship with computed access flags for source and target', async () => {
+    const accessMap = new Map([
+      ['dm-source', true],
+      ['dm-target', false],
+    ]);
+    const { service, accessDecisionService, relationshipService, mapper } =
+      createService(accessMap);
 
     const command = new GetRelationshipCommand('rel-1', 'dm-source', 'proj-1', 'user-1', [
       'viewer',
@@ -55,28 +67,34 @@ describe('GetDataMartRelationshipService', () => {
 
     const result = await service.run(command);
 
-    expect(accessDecisionService.canAccess).toHaveBeenCalledWith(
+    expect(accessDecisionService.canAccessMany).toHaveBeenCalledWith(
       'user-1',
       ['viewer'],
       EntityType.DATA_MART,
-      'dm-source',
+      ['dm-source', 'dm-target'],
       Action.SEE,
       'proj-1'
     );
     expect(relationshipService.findById).toHaveBeenCalledWith('rel-1');
+    expect(mapper.toDomainDto).toHaveBeenCalledWith(relationship, null, accessMap);
     expect(result).toEqual({ id: 'rel-1' });
   });
 
-  it('throws ForbiddenException when user lacks SEE on DataMart', async () => {
-    const { service } = createService(false);
+  it('does not throw when user lacks SEE on source or target data mart', async () => {
+    const accessMap = new Map([
+      ['dm-source', false],
+      ['dm-target', false],
+    ]);
+    const { service, mapper } = createService(accessMap);
 
     const command = new GetRelationshipCommand('rel-1', 'dm-source', 'proj-1', 'user-1', []);
 
-    await expect(service.run(command)).rejects.toThrow(ForbiddenException);
+    await expect(service.run(command)).resolves.toEqual({ id: 'rel-1' });
+    expect(mapper.toDomainDto).toHaveBeenCalledWith(relationship, null, accessMap);
   });
 
   it('throws NotFoundException when relationship is not found', async () => {
-    const { service } = createService(true, null as never);
+    const { service } = createService(undefined, null);
 
     const command = new GetRelationshipCommand('rel-1', 'dm-source', 'proj-1', 'user-1', [
       'viewer',
@@ -86,9 +104,10 @@ describe('GetDataMartRelationshipService', () => {
   });
 
   it('throws NotFoundException when relationship belongs to a different source DataMart', async () => {
-    const { service } = createService(true, {
+    const { service } = createService(undefined, {
       id: 'rel-1',
       sourceDataMart: { id: 'dm-other' },
+      targetDataMart: { id: 'dm-target' },
     });
 
     const command = new GetRelationshipCommand('rel-1', 'dm-source', 'proj-1', 'user-1', []);
@@ -97,17 +116,17 @@ describe('GetDataMartRelationshipService', () => {
   });
 
   it('throws UnauthorizedException when userId is empty', async () => {
-    const { service, accessDecisionService, dataMartService } = createService(true);
+    const { service, accessDecisionService, dataMartService } = createService();
 
     const command = new GetRelationshipCommand('rel-1', 'dm-source', 'proj-1', '', []);
 
     await expect(service.run(command)).rejects.toThrow(UnauthorizedException);
-    expect(accessDecisionService.canAccess).not.toHaveBeenCalled();
+    expect(accessDecisionService.canAccessMany).not.toHaveBeenCalled();
     expect(dataMartService.getByIdAndProjectId).not.toHaveBeenCalled();
   });
 
-  it('performs project-scope check via dataMartService before the access check', async () => {
-    const { service, dataMartService, accessDecisionService } = createService(true);
+  it('performs project-scope check via dataMartService before fetching the relationship', async () => {
+    const { service, dataMartService, relationshipService } = createService();
 
     const command = new GetRelationshipCommand('rel-1', 'dm-source', 'proj-1', 'user-1', [
       'viewer',
@@ -117,12 +136,12 @@ describe('GetDataMartRelationshipService', () => {
 
     expect(dataMartService.getByIdAndProjectId).toHaveBeenCalledWith('dm-source', 'proj-1');
     const lookupOrder = dataMartService.getByIdAndProjectId.mock.invocationCallOrder[0];
-    const accessOrder = accessDecisionService.canAccess.mock.invocationCallOrder[0];
-    expect(lookupOrder).toBeLessThan(accessOrder);
+    const findOrder = relationshipService.findById.mock.invocationCallOrder[0];
+    expect(lookupOrder).toBeLessThan(findOrder);
   });
 
-  it('does not call canAccess when the project-scope lookup fails', async () => {
-    const { service, dataMartService, accessDecisionService } = createService(true);
+  it('does not call canAccessMany when the project-scope lookup fails', async () => {
+    const { service, dataMartService, accessDecisionService } = createService();
     dataMartService.getByIdAndProjectId.mockRejectedValueOnce(new NotFoundException('not found'));
 
     const command = new GetRelationshipCommand('rel-1', 'dm-source', 'proj-1', 'user-1', [
@@ -130,6 +149,6 @@ describe('GetDataMartRelationshipService', () => {
     ]);
 
     await expect(service.run(command)).rejects.toThrow(NotFoundException);
-    expect(accessDecisionService.canAccess).not.toHaveBeenCalled();
+    expect(accessDecisionService.canAccessMany).not.toHaveBeenCalled();
   });
 });

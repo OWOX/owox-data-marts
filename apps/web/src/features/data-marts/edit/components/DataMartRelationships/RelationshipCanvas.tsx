@@ -11,6 +11,7 @@ import { Presets as ReactPresets, type ReactArea2D, ReactPlugin } from 'rete-rea
 import { Button } from '../../../../../shared/components/Button';
 import { dataMartRelationshipService } from '../../../shared/services/data-mart-relationship.service';
 import type { DataMartRelationship } from '../../../shared/types/relationship.types';
+import { NoAccessIndicatorNative } from './NoAccessIndicator';
 import {
   CYCLE_STUB_TOOLTIP,
   getRelationshipWarningLabel,
@@ -55,6 +56,7 @@ class DMNode extends ClassicPreset.Node {
   isBlocked: boolean;
   isJoinNotConfigured: boolean;
   isCycleStub: boolean;
+  userHasAccess: boolean;
   highlighted = false;
   dimmed = false;
 
@@ -63,7 +65,8 @@ class DMNode extends ClassicPreset.Node {
     dmId: string,
     isSource: boolean,
     depth: number,
-    opts?: {
+    opts: {
+      userHasAccess: boolean;
       targetAlias?: string;
       fieldCount?: number;
       description?: string | null;
@@ -78,14 +81,15 @@ class DMNode extends ClassicPreset.Node {
     this.dmId = dmId;
     this.isSource = isSource;
     this.depth = depth;
-    this.targetAlias = opts?.targetAlias;
-    this.fieldCount = opts?.fieldCount;
-    this.description = opts?.description;
-    this.onOpenExternal = opts?.onOpenExternal;
-    this.isDraft = opts?.isDraft ?? false;
-    this.isBlocked = opts?.isBlocked ?? false;
-    this.isJoinNotConfigured = opts?.isJoinNotConfigured ?? false;
-    this.isCycleStub = opts?.isCycleStub ?? false;
+    this.targetAlias = opts.targetAlias;
+    this.fieldCount = opts.fieldCount;
+    this.description = opts.description;
+    this.onOpenExternal = opts.onOpenExternal;
+    this.isDraft = opts.isDraft ?? false;
+    this.isBlocked = opts.isBlocked ?? false;
+    this.isJoinNotConfigured = opts.isJoinNotConfigured ?? false;
+    this.isCycleStub = opts.isCycleStub ?? false;
+    this.userHasAccess = opts.userHasAccess;
     if (!isSource) this.height = TGT_H;
   }
 }
@@ -232,8 +236,11 @@ function NodeComponent(props: { data: Schemes['Node']; emit: (e: ReactArea2D<Sch
           borderRadius: '6px 6px 0 0',
         }}
       >
-        <span className='truncate' title={n.label}>
-          {n.label}
+        <span className='flex min-w-0 items-center gap-1.5'>
+          <span className='truncate' title={n.label}>
+            {n.label}
+          </span>
+          {!n.userHasAccess && <NoAccessIndicatorNative />}
         </span>
         <div className='ml-2 flex shrink-0 items-center gap-0.5'>
           {n.description && (
@@ -410,6 +417,7 @@ async function setupEditor(
     description?: string | null;
     depth: number;
     isSource: boolean;
+    userHasAccess: boolean;
     targetAlias?: string;
     fieldCount?: number;
     isDraft?: boolean;
@@ -436,6 +444,7 @@ async function setupEditor(
     depth: 0,
     isSource: true,
     isDraft: rootIsDraft,
+    userHasAccess: true,
   });
 
   let nodeCounter = 0;
@@ -472,9 +481,10 @@ async function setupEditor(
         isBlocked,
         isJoinNotConfigured,
         isCycleStub,
+        userHasAccess: rel.targetDataMart.userHasAccess,
       });
 
-      if (showTransient && !isCycleStub) {
+      if (showTransient && !isCycleStub && rel.targetDataMart.userHasAccess) {
         try {
           const childRels = await dataMartRelationshipService.getRelationships(dmId, {
             skipLoadingIndicator: true,
@@ -512,6 +522,7 @@ async function setupEditor(
       isBlocked: info.isBlocked,
       isJoinNotConfigured: info.isJoinNotConfigured,
       isCycleStub: info.isCycleStub,
+      userHasAccess: info.userHasAccess,
       onOpenExternal: () => {
         onOpenExternal(info.dmId);
       },

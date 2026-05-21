@@ -77,6 +77,10 @@ export function useTransientRelationships(
             return [{ ...row, isCycleStub: true }];
           }
 
+          if (!rel.targetDataMart.userHasAccess) {
+            return [row];
+          }
+
           try {
             const childRels = await dataMartRelationshipService.getRelationships(dmId, {
               skipLoadingIndicator: true,
