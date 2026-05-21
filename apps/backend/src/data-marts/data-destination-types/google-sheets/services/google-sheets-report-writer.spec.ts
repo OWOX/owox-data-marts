@@ -3,6 +3,7 @@ import { ReportDataBatch } from '../../../dto/domain/report-data-batch.dto';
 import { ReportDataDescription } from '../../../dto/domain/report-data-description.dto';
 import { ReportDataHeader } from '../../../dto/domain/report-data-header.dto';
 import { GoogleSheetsReportWriter } from './google-sheets-report-writer';
+import { SheetValuesFormatter } from './sheet-formatters/sheet-values-formatter';
 
 /**
  * Targeted unit spec for {@link GoogleSheetsReportWriter}'s row-truncation
@@ -54,6 +55,12 @@ interface BuildOpts {
    * the right edge of the imported rectangle the writer truncates.
    */
   finalImportedNames?: string[];
+  /**
+   * Override the default no-op `formatRowsValuesByName` mock with a real
+   * formatter instance. Used by the null-overwrite test to exercise the
+   * full path from `writeReportDataBatch` to `adapter.updateValues`.
+   */
+  valuesFormatter?: SheetValuesFormatter;
 }
 
 /**
@@ -128,7 +135,7 @@ function buildWriter(opts: BuildOpts) {
     createOwoxColumnsMetadataRequest: jest.fn().mockReturnValue({}),
     updateOwoxColumnsMetadataRequest: jest.fn().mockReturnValue({}),
   };
-  const valuesFormatter = {
+  const valuesFormatter = opts.valuesFormatter ?? {
     formatRowsValuesByName: jest.fn().mockImplementation((rows: unknown[][]) => rows),
   };
 
@@ -260,5 +267,40 @@ describe('GoogleSheetsReportWriter — truncates trailing rows below new data', 
     } else {
       expect(adapter.clearValuesInRange).not.toHaveBeenCalled();
     }
+  });
+});
+
+describe('GoogleSheetsReportWriter — never sends null cells inside imported rectangle', () => {
+  it('coerces null SQL cells to "" in the array passed to adapter.updateValues', async () => {
+    // Exercise the full path with the real formatter: SQL produces null for
+    // the middle column; the array that reaches the adapter must contain ""
+    // at that index — not null, not undefined, not a sparse-array hole.
+    // Sheets `values.update` interprets all three as "skip this cell" and
+    // would silently preserve a stale or manually-edited value.
+    const { writer, adapter, report, finalImportedNames } = buildWriter({
+      availableRowsCount: 10,
+      valuesFormatter: new SheetValuesFormatter(),
+    });
+
+    await writer.prepareToWriteReport(
+      report as never,
+      new ReportDataDescription(makeHeaders(...finalImportedNames), 1)
+    );
+    await writer.writeReportDataBatch(new ReportDataBatch([['A', null, 2]]));
+    await writer.finalize();
+
+    // The header write targets row 1; the data write is the call into row 2.
+    const dataCall = adapter.updateValues.mock.calls.find(
+      ([, range]: [string, string, unknown[][]]) => range.includes('!A2:')
+    );
+    expect(dataCall).toBeDefined();
+    const sentValues = dataCall![2] as unknown[][];
+    expect(sentValues).toEqual([['A', '', 2]]);
+
+    // Anti-regression: no null / undefined / sparse hole anywhere in the row.
+    expect(sentValues[0].every(v => v !== null && v !== undefined)).toBe(true);
+    expect(0 in sentValues[0]).toBe(true);
+    expect(1 in sentValues[0]).toBe(true);
+    expect(2 in sentValues[0]).toBe(true);
   });
 });

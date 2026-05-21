@@ -811,8 +811,12 @@ export class GoogleSheetsReportWriter implements DataDestinationReportWriter {
 
   private reorderRowsToFinalLayout(rows: unknown[][]): unknown[][] {
     const finalNames = this.columnPlan.finalImportedNames;
+    const width = finalNames.length;
     return rows.map(srcRow => {
-      const out: unknown[] = new Array(finalNames.length);
+      // Pre-fill with "" so any index left unassigned below stays a defined
+      // empty cell rather than a sparse-array hole — see the null-overwrite
+      // contract documented on `SheetValuesFormatter.formatRowsValuesByName`.
+      const out: unknown[] = new Array(width).fill('');
       for (let i = 0; i < this.reportDataHeaders.length; i++) {
         const finalIdx = this.columnPlan.nameToFinalIndex.get(this.reportDataHeaders[i].name)!;
         out[finalIdx] = srcRow[i];
