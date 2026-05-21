@@ -73,6 +73,100 @@ var AwsRedshiftStorage = class AwsRedshiftStorage extends AbstractStorage {
   async init() {
     await this.checkConnection();
     this.config.logMessage('Connection to Redshift established');
+    await this.loadTableSchema();
+  }
+  //----------------------------------------------------------------
+
+  //---- loadTableSchema --------------------------------------------
+  async loadTableSchema() {
+    this.existingColumns = await this.getAListOfExistingColumns();
+
+    if (Object.keys(this.existingColumns).length === 0) {
+      await this.createTable();
+    } else {
+      const selectedFields = this.getSelectedFields();
+      const newFields = selectedFields.filter(col => !(col in this.existingColumns));
+      if (newFields.length > 0) {
+        await this.addNewColumns(newFields);
+      }
+    }
+  }
+  //----------------------------------------------------------------
+
+  //---- getAListOfExistingColumns ----------------------------------
+  async getAListOfExistingColumns() {
+    // Redshift stores unquoted identifiers as lowercase; strip any surrounding
+    // double-quotes from config values before comparing against information_schema.
+    const rawSchema = this.config.Schema.value.replace(/^"|"$/g, '').toLowerCase();
+    const rawTable = this.config.DestinationTableName.value.replace(/^"|"$/g, '').toLowerCase();
+
+    const sql = `SELECT column_name, data_type
+      FROM information_schema.columns
+      WHERE table_schema = '${rawSchema}'
+        AND table_name = '${rawTable}'
+      ORDER BY ordinal_position`;
+
+    let rows;
+    try {
+      rows = await this.executeQueryWithResults(sql);
+    } catch (error) {
+      if (error.message && error.message.includes('does not exist')) {
+        return {};
+      }
+      throw error;
+    }
+
+    const columns = {};
+    for (const row of rows) {
+      const columnName = row.column_name;
+      columns[columnName] = columnName in this.schema
+        ? this.getColumnType(columnName)
+        : row.data_type;
+    }
+    return columns;
+  }
+  //----------------------------------------------------------------
+
+  //---- executeQueryWithResults ------------------------------------
+  async executeQueryWithResults(sql) {
+    const params = {
+      Sql: sql,
+      Database: this.config.Database.value
+    };
+    if (this.config.WorkgroupName.value) {
+      params.WorkgroupName = this.config.WorkgroupName.value;
+    } else if (this.config.ClusterIdentifier.value) {
+      params.ClusterIdentifier = this.config.ClusterIdentifier.value;
+    }
+
+    const command = new ExecuteStatementCommand(params);
+    const response = await this.redshiftDataClient.send(command);
+    await this.waitForQueryCompletion(response.Id);
+
+    const rows = [];
+    let nextToken;
+    do {
+      const resultParams = { Id: response.Id };
+      if (nextToken) resultParams.NextToken = nextToken;
+      const result = await this.redshiftDataClient.send(new GetStatementResultCommand(resultParams));
+      const columnNames = result.ColumnMetadata.map(col => col.name);
+      for (const record of result.Records) {
+        const row = {};
+        columnNames.forEach((colName, i) => {
+          const field = record[i];
+          if (field.isNull) row[colName] = null;
+          else if ('stringValue' in field) row[colName] = field.stringValue;
+          else if ('longValue' in field) row[colName] = Number(field.longValue);
+          else if ('doubleValue' in field) row[colName] = field.doubleValue;
+          else if ('booleanValue' in field) row[colName] = field.booleanValue;
+          else row[colName] = null;
+        });
+        rows.push(row);
+      }
+      nextToken = result.NextToken;
+    } while (nextToken);
+
+    return rows;
   }
   //----------------------------------------------------------------
 
@@ -393,12 +487,7 @@ var AwsRedshiftStorage = class AwsRedshiftStorage extends AbstractStorage {
       return Promise.resolve();
     }
 
-    // Create table if it doesn't exist
-    if (Object.keys(this.existingColumns).length === 0) {
-      await this.createTable();
-    }
-
-    // Check for new columns and add them
+    // Check for new columns in incoming data not yet in the table
     const dataKeys = Object.keys(data[0]);
     const newColumns = dataKeys.filter(key => !(key in this.existingColumns));
 

@@ -217,11 +217,15 @@ var SnowflakeStorage = class SnowflakeStorage extends AbstractStorage {
      */
     async getAListOfExistingColumns() {
 
+      // Config values may already contain surrounding double-quotes (e.g. '"PUBLIC"');
+      // INFORMATION_SCHEMA stores bare identifiers, so strip them before comparing.
+      const rawSchemaName = this.config.SnowflakeSchema.value.replace(/^"|"$/g, '');
+      const rawTableName = this.config.DestinationTableName.value.replace(/^"|"$/g, '');
+
       let query = `SELECT COLUMN_NAME, DATA_TYPE, IS_NULLABLE
         FROM ${this.config.SnowflakeDatabase.value}.INFORMATION_SCHEMA.COLUMNS
-        WHERE TABLE_CATALOG = '${this.config.SnowflakeDatabase.value}'
-          AND TABLE_SCHEMA = UPPER('${this.config.SnowflakeSchema.value}')
-          AND TABLE_NAME = UPPER('${this.config.DestinationTableName.value}')
+        WHERE TABLE_SCHEMA = UPPER('${rawSchemaName}')
+          AND TABLE_NAME = '${rawTableName}'
         ORDER BY ORDINAL_POSITION`;
 
       let queryResults = [];
@@ -354,14 +358,14 @@ var SnowflakeStorage = class SnowflakeStorage extends AbstractStorage {
 
       }
 
-      // there are columns to add to table
       if( columns.length > 0 ) {
         const quotedSchema = quoteIdentifier(this.config.SnowflakeSchema.value);
         const quotedTable = quoteIdentifier(this.config.DestinationTableName.value);
-        let query = `ALTER TABLE ${this.config.SnowflakeDatabase.value}.${quotedSchema}.${quotedTable}\n`;
-        query += columns.join(",\n");
-        await this.executeQuery(query);
-        this.config.logMessage(`Columns '${newColumns.join(",")}' were added to ${this.config.SnowflakeDatabase.value}.${quotedSchema}.${quotedTable}`);
+        const tableRef = `${this.config.SnowflakeDatabase.value}.${quotedSchema}.${quotedTable}`;
+        for (const columnDef of columns) {
+          await this.executeQuery(`ALTER TABLE ${tableRef}\n${columnDef}`);
+        }
+        this.config.logMessage(`Columns '${newColumns.join(",")}' were added to ${tableRef}`);
       }
 
     }
