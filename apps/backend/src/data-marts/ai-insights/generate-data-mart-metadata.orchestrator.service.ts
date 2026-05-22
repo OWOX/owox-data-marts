@@ -73,9 +73,12 @@ export class GenerateDataMartMetadataOrchestratorService {
     let sampleColumns: string[] | null = null;
     let sampleRows: QueryRow[] | null = null;
     if (request.useSample) {
-      const sample = await this.dataMartSampleDataService.sampleAllRows(
+      const schemaColumns = schema.fields.map(f => f.name);
+      const sample = await this.dataMartSampleDataService.sampleColumns(
         request.dataMartId,
         request.projectId,
+        schemaColumns,
+        undefined,
         METADATA_SAMPLE_ROW_LIMIT
       );
       sampleColumns = sample.columns;
