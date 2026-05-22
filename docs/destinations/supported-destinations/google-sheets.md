@@ -1,7 +1,7 @@
 # Google Sheets
 
 Google Sheets is a cloud-based spreadsheet application that allows users to create, edit, and collaborate on spreadsheets in real-time.  
-Configure Google Sheets as a **Destination** in OWOX Data Marts to enable business users to access and analyze data directly within their spreadsheets.  
+Configure Google Sheets as a **Destination** in OWOX Data Marts to enable business users to access and analyze data directly within their spreadsheets.
 
 ---
 
@@ -70,6 +70,27 @@ OWOX Data Marts owns only the columns it writes — the **imported range** —
 and treats the rest of your sheet as your space. This section describes what
 survives a refresh, what changes, and how the sheet reacts to schema or
 result-set changes.
+
+### What gets overwritten on every refresh
+
+The **imported rectangle** — every cell from row 1 down to the last data
+row, across columns that came from the data mart — is fully owned by OWOX
+and rewritten from scratch on each refresh. Practical consequences:
+
+- **Headers in row 1 are rewritten** to the latest column names (or their
+  aliases). Manual edits to header cells inside the imported columns will
+  not persist.
+- **Data cells inside imported columns are replaced** by the values from
+  the latest run. If you type a note or a formula directly into one of the
+  imported columns, it disappears on the next refresh — even when SQL
+  returns `NULL` for that cell. To keep your own content alongside the
+  data, place it in columns **to the right** of the imported range
+  (see [What survives a refresh](#what-survives-a-refresh) below).
+- **Cells in the imported columns below the last data row are cleared.**
+  When a refresh produces fewer rows than the previous one — for example,
+  after you apply a row limit or a filter — the leftover rows from the
+  earlier run are wiped, so the user never sees stale numbers under fresh
+  ones.
 
 ### What survives a refresh
 

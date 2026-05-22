@@ -141,7 +141,7 @@ describeIfConfigured('Google Sheets column preservation (diff-based writer)', ()
     testName: string;
     sql?: string;
     columnConfig?: string[] | null;
-  }): Promise<{ dataMartId: string; reportId: string }> {
+  }): Promise<{ dataMartId: string; reportId: string; dataDestinationId: string }> {
     sheet = await createTestSheet(spreadsheetId!, serviceAccountJson!, opts.testName);
     const { dataMartId } = await seedDataMartWithSql({
       agent,
@@ -149,7 +149,7 @@ describeIfConfigured('Google Sheets column preservation (diff-based writer)', ()
       bigQueryProjectId: BQ_PROJECT_ID!,
       sqlQuery: opts.sql ?? BASE_SQL,
     });
-    const { reportId } = await setupGoogleSheetsReport({
+    const { reportId, dataDestinationId } = await setupGoogleSheetsReport({
       agent,
       dataMartId,
       spreadsheetId: spreadsheetId!,
@@ -157,7 +157,7 @@ describeIfConfigured('Google Sheets column preservation (diff-based writer)', ()
       serviceAccountJson: serviceAccountJson!,
       columnConfig: opts.columnConfig,
     });
-    return { dataMartId, reportId };
+    return { dataMartId, reportId, dataDestinationId };
   }
 
   /** Reads row 1 of the current `sheet` as a string array (FORMATTED_VALUE). */
@@ -614,7 +614,9 @@ describeIfConfigured('Google Sheets column preservation (diff-based writer)', ()
   // making it look like the limit was being ignored.
   // -------------------------------------------------------------------------
   it('clears stale rows below new data when limitConfig shrinks the result set', async () => {
-    const { reportId } = await provisionFixture({ testName: 'limit-shrinks-rows' });
+    const { reportId, dataDestinationId } = await provisionFixture({
+      testName: 'limit-shrinks-rows',
+    });
 
     // First run — full 3-row dataset lands in rows 2..4.
     await runAndWait(reportId);
@@ -628,22 +630,24 @@ describeIfConfigured('Google Sheets column preservation (diff-based writer)', ()
     await writeCell('K1', 'ratio');
     await writeCell('K2', '=B2/C2');
 
-    // Apply LIMIT=1. The PUT endpoint requires the full report DTO, so we
-    // round-trip through GET to keep the unrelated fields intact.
-    const getRes = await agent.get(`/api/reports/${reportId}`).set(AUTH_HEADER);
-    expect(getRes.status).toBe(200);
-    const current = getRes.body;
+    // Apply LIMIT=1 via PUT. Send only the required DTO fields plus
+    // `limitConfig`; class-validator's `@IsOptional()` lets us omit the
+    // unrelated optional fields (filterConfig / sortConfig / ownerIds /
+    // columnConfig), matching the working pattern in
+    // `output-controls.e2e-spec.ts`. Round-tripping the full GET body
+    // previously triggered a 400 — likely from sending nullable optional
+    // fields back as explicit `null` or owner ids missing on the response.
     const putRes = await agent
       .put(`/api/reports/${reportId}`)
       .set(AUTH_HEADER)
       .send({
-        title: current.title,
-        dataDestinationId: current.dataDestinationAccess.id,
-        destinationConfig: current.destinationConfig,
-        ownerIds: (current.ownerUsers ?? []).map((u: { id: string }) => u.id),
-        columnConfig: current.columnConfig,
-        filterConfig: current.filterConfig,
-        sortConfig: current.sortConfig,
+        title: 'Integration Test GS Report (limit=1)',
+        dataDestinationId,
+        destinationConfig: {
+          type: 'google-sheets-config',
+          spreadsheetId,
+          sheetId: sheet.sheetId,
+        },
         limitConfig: 1,
       });
     expect(putRes.status).toBe(200);

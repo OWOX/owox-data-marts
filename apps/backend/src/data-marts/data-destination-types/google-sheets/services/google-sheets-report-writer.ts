@@ -194,15 +194,23 @@ export class GoogleSheetsReportWriter implements DataDestinationReportWriter {
 
   /**
    * Issues the destructive part of the refresh — grow column count,
-   * apply column insert/delete, write headers — as a one-shot block.
-   * Invoked lazily from the first {@link writeReportDataBatch} call so
-   * that any failure before data starts flowing leaves the sheet
-   * untouched. Subsequent batch calls return immediately because the
-   * `structuralOpsApplied` flag is already set.
+   * apply column insert/delete, write headers, pre-clear the imported
+   * rectangle — as a one-shot block. Invoked lazily from the first
+   * {@link writeReportDataBatch} call so that any failure before data
+   * starts flowing leaves the sheet untouched. Subsequent batch calls
+   * return immediately because the `structuralOpsApplied` flag is set.
+   *
+   * The pre-clear step (`values.clear` on `A2..lastImportedColA1:availableRows`)
+   * is what gives the writer its "ODM owns the imported rectangle" contract:
+   * after it runs, every cell in the imported rectangle is empty, and the
+   * subsequent `writeReportDataBatch` calls fill only the cells SQL produced
+   * a value for. Cells where SQL returned NULL stay empty (no manual user
+   * edit bleeds across refresh); cells beyond the last written row stay
+   * empty too (so shrunk datasets don't leave stale trailing data).
    *
    * If the reader produces zero batches but completes without error,
    * {@link finalize} calls this method itself to bring the sheet layout
-   * up to date even though no data rows were written.
+   * up to date and wipe stale data even on an empty result set.
    */
   private async applyDeferredSheetMutations(): Promise<void> {
     if (this.structuralOpsApplied) {
@@ -211,8 +219,40 @@ export class GoogleSheetsReportWriter implements DataDestinationReportWriter {
     await this.prepareSheetColumns(this.columnPlan.finalImportedNames.length);
     await this.applyStructuralColumnOps();
     await this.writeHeaders();
+    await this.preClearImportedRectangle();
     this.writtenRowsCount = 1;
     this.structuralOpsApplied = true;
+  }
+
+  /**
+   * Clears values in the imported rectangle's data area
+   * (`A2..lastImportedColA1:availableRowsCount`) so that subsequent
+   * `writeReportDataBatch` calls operate on a clean slate. Empties cells in
+   * imported columns only — user content right of the imported range stays
+   * untouched (DoD A of the column-preservation refactor).
+   *
+   * No-op when the imported rectangle has zero columns or zero data rows in
+   * the current grid (e.g. a brand-new sheet trimmed to one row).
+   */
+  private async preClearImportedRectangle(): Promise<void> {
+    // Defensive: should be unreachable given `prepareToWriteReport` rejects
+    // empty data headers up-front. Kept as a silent no-op so that any
+    // future invariant break here surfaces as a missing pre-clear rather
+    // than a malformed Sheets API range.
+    if (this.columnPlan.finalImportedNames.length === 0) {
+      return;
+    }
+    const rowFrom = 2; // row 1 holds the headers we just wrote
+    const rowTo = this.availableRowsCount;
+    if (rowFrom > rowTo) {
+      return;
+    }
+    const lastA1 = GoogleSheetsApiAdapter.colToA1(this.columnPlan.finalImportedNames.length);
+    const range = `'${this.sheetTitle}'!A${rowFrom}:${lastA1}${rowTo}`;
+    return this.executeWithErrorHandling(
+      () => this.adapter.clearValuesInRange(this.destination.spreadsheetId, range),
+      'Pre-clearing imported rectangle before writing new data'
+    );
   }
 
   /**
@@ -222,6 +262,11 @@ export class GoogleSheetsReportWriter implements DataDestinationReportWriter {
    * captured in `this.columnPlan.nameToFinalIndex`, then written into the
    * imported rectangle (`A{rowFrom}:{lastA1}{rowTo}`). Cells outside this
    * rectangle are not touched.
+   *
+   * The first call triggers {@link applyDeferredSheetMutations}, which
+   * pre-clears the imported rectangle. As a consequence, nullish values in
+   * the batch payload land on cells that are already empty — the writer
+   * does not need to normalize NULL into "" to overwrite stale content.
    *
    * @param reportDataBatch - Batch of data to write to the sheet
    * @throws Error if writing fails
@@ -263,8 +308,9 @@ export class GoogleSheetsReportWriter implements DataDestinationReportWriter {
   /**
    * Finalizes the report:
    *   - if the reader completed successfully but produced zero batches,
-   *     applies the deferred structural ops + headers so the layout is
-   *     refreshed even on an empty result set;
+   *     applies the deferred structural ops + headers + pre-clear so the
+   *     layout is refreshed and stale data is wiped even on an empty
+   *     result set;
    *   - sets tab color and freezes the header row;
    *   - persists `OWOX_REPORT_META` (one per sheet) and `OWOX_COLUMNS`
    *     (the imported-range column list for next refresh);
@@ -279,19 +325,11 @@ export class GoogleSheetsReportWriter implements DataDestinationReportWriter {
     await this.executeWithErrorHandling(async () => {
       // Zero-batch happy path: the reader finished cleanly but had nothing
       // to write. Bring the sheet layout up to date so column changes do
-      // not stall indefinitely on legitimately empty data marts.
+      // not stall indefinitely on legitimately empty data marts. The
+      // pre-clear inside `applyDeferredSheetMutations` also wipes stale
+      // data rows from any previous refresh.
       if (!processingError && !this.structuralOpsApplied && this.reportDataHeaders?.length > 0) {
         await this.applyDeferredSheetMutations();
-      }
-
-      // Drop stale rows from a previous (larger) refresh that fell outside
-      // the new imported rectangle. Must run BEFORE the metadata batch so
-      // that a truncate failure aborts `finalize` without advancing
-      // `OWOX_COLUMNS` past a half-applied state. Skipped on the error path
-      // — the contract is "failed refresh leaves the sheet exactly as it
-      // was".
-      if (!processingError && this.writtenRowsCount > 0) {
-        await this.truncateTrailingImportedRows();
       }
 
       if (this.writtenRowsCount > 0 && this.reportDataHeaders?.[0]) {
@@ -569,36 +607,6 @@ export class GoogleSheetsReportWriter implements DataDestinationReportWriter {
   }
 
   /**
-   * Clears values in rows below the last data row of the current run so a
-   * smaller dataset (e.g. when Report `limitConfig` / filters shrink output)
-   * does not leave stale rows from the previous refresh in the imported
-   * column rectangle. Touches ONLY columns `A..lastImportedCol` — user
-   * content right of the imported range is preserved (DoD A of the
-   * column-preservation refactor).
-   *
-   * No-op when:
-   *   - structural ops were never applied (no headers/data written this run);
-   *   - the imported range has zero columns;
-   *   - the sheet has no rows below the last written row.
-   */
-  private async truncateTrailingImportedRows(): Promise<void> {
-    if (!this.structuralOpsApplied || this.columnPlan.finalImportedNames.length === 0) {
-      return;
-    }
-    const rowFrom = this.writtenRowsCount + 1; // 1-based, first row past new data
-    const rowTo = this.availableRowsCount; // 1-based inclusive
-    if (rowFrom > rowTo) {
-      return;
-    }
-    const lastA1 = GoogleSheetsApiAdapter.colToA1(this.columnPlan.finalImportedNames.length);
-    const range = `'${this.sheetTitle}'!A${rowFrom}:${lastA1}${rowTo}`;
-    return this.executeWithErrorHandling(
-      () => this.adapter.clearValuesInRange(this.destination.spreadsheetId, range),
-      'Truncating stale rows below new data'
-    );
-  }
-
-  /**
    * Reads the current state of the destination sheet that drives the diff:
    *   - row 1 values (current header layout — source of truth for ordering);
    *   - `OWOX_COLUMNS` developer metadata from the previous refresh.
@@ -811,12 +819,8 @@ export class GoogleSheetsReportWriter implements DataDestinationReportWriter {
 
   private reorderRowsToFinalLayout(rows: unknown[][]): unknown[][] {
     const finalNames = this.columnPlan.finalImportedNames;
-    const width = finalNames.length;
     return rows.map(srcRow => {
-      // Pre-fill with "" so any index left unassigned below stays a defined
-      // empty cell rather than a sparse-array hole — see the null-overwrite
-      // contract documented on `SheetValuesFormatter.formatRowsValuesByName`.
-      const out: unknown[] = new Array(width).fill('');
+      const out: unknown[] = new Array(finalNames.length);
       for (let i = 0; i < this.reportDataHeaders.length; i++) {
         const finalIdx = this.columnPlan.nameToFinalIndex.get(this.reportDataHeaders[i].name)!;
         out[finalIdx] = srcRow[i];
