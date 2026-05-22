@@ -17,6 +17,8 @@ import {
   BlendedFieldDto,
 } from '../dto/domain/blendable-schema.dto';
 import { PublicOriginService } from '../../common/config/public-origin.service';
+import { UserProjectionsFetcherService } from './user-projections-fetcher.service';
+import { UserProjectionDto } from '../../idp/dto/domain/user-projection.dto';
 
 function makeReport(overrides: Partial<Report> = {}): Report {
   const storage = { id: 'storage-1', type: DataStorageType.GOOGLE_BIGQUERY } as DataStorage;
@@ -76,6 +78,7 @@ describe('BlendedReportDataService', () => {
   let relationshipService: jest.Mocked<DataMartRelationshipService>;
   let tableReferenceService: jest.Mocked<DataMartTableReferenceService>;
   let blendedQueryBuilderFacade: jest.Mocked<BlendedQueryBuilderFacade>;
+  let userProjectionsFetcher: jest.Mocked<UserProjectionsFetcherService>;
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
@@ -123,6 +126,12 @@ describe('BlendedReportDataService', () => {
           provide: OutputControlsValidatorService,
           useValue: { validateForReport: jest.fn().mockResolvedValue(undefined) },
         },
+        {
+          provide: UserProjectionsFetcherService,
+          useValue: {
+            fetchUserProjection: jest.fn().mockResolvedValue(undefined),
+          },
+        },
       ],
     }).compile();
 
@@ -131,6 +140,7 @@ describe('BlendedReportDataService', () => {
     relationshipService = module.get(DataMartRelationshipService);
     tableReferenceService = module.get(DataMartTableReferenceService);
     blendedQueryBuilderFacade = module.get(BlendedQueryBuilderFacade);
+    userProjectionsFetcher = module.get(UserProjectionsFetcherService);
   });
 
   describe('resolveBlendingDecision', () => {
@@ -1197,7 +1207,7 @@ describe('BlendedReportDataService', () => {
         return f;
       }
 
-      it('throws BusinessViolationException listing the inaccessible DM title', async () => {
+      it('throws BusinessViolationException listing the user and inaccessible DM title', async () => {
         const report = makeReport({ columnConfig: ['b__field'] });
 
         blendableSchemaService.computeBlendableSchema.mockResolvedValue({
@@ -1212,12 +1222,17 @@ describe('BlendedReportDataService', () => {
           ],
           blendedFields: [makeField('b__field', 'b')],
         });
+        userProjectionsFetcher.fetchUserProjection.mockResolvedValue(
+          new UserProjectionDto('user-1', 'Alice Example', 'alice@example.com')
+        );
 
         await expect(
           service.resolveBlendingDecision(report, { userId: 'user-1', roles: ['admin'] })
         ).rejects.toMatchObject({
-          message: expect.stringContaining('"Inaccessible DM"'),
+          message:
+            'Cannot build report SQL, user "Alice Example" is missing access to data marts: "Inaccessible DM"',
           errorDetails: {
+            userId: 'user-1',
             deniedDataMartIds: ['dm-secret'],
             deniedAliasPaths: ['b'],
           },
@@ -1225,6 +1240,59 @@ describe('BlendedReportDataService', () => {
 
         expect(blendedQueryBuilderFacade.buildBlendedQuery).not.toHaveBeenCalled();
         expect(tableReferenceService.resolveTableName).not.toHaveBeenCalled();
+        expect(userProjectionsFetcher.fetchUserProjection).toHaveBeenCalledWith('user-1');
+      });
+
+      it('falls back to email when fullName is missing', async () => {
+        const report = makeReport({ columnConfig: ['b__field'] });
+
+        blendableSchemaService.computeBlendableSchema.mockResolvedValue({
+          nativeFields: [],
+          availableSources: [
+            makeAccessibleSource({
+              aliasPath: 'b',
+              title: 'Inaccessible DM',
+              dataMartId: 'dm-secret',
+              isAccessibleForReporting: false,
+            }),
+          ],
+          blendedFields: [makeField('b__field', 'b')],
+        });
+        userProjectionsFetcher.fetchUserProjection.mockResolvedValue(
+          new UserProjectionDto('user-1', null, 'alice@example.com')
+        );
+
+        await expect(
+          service.resolveBlendingDecision(report, { userId: 'user-1', roles: ['admin'] })
+        ).rejects.toMatchObject({
+          message:
+            'Cannot build report SQL, user "alice@example.com" is missing access to data marts: "Inaccessible DM"',
+        });
+      });
+
+      it('falls back to userId when no user projection is available', async () => {
+        const report = makeReport({ columnConfig: ['b__field'] });
+
+        blendableSchemaService.computeBlendableSchema.mockResolvedValue({
+          nativeFields: [],
+          availableSources: [
+            makeAccessibleSource({
+              aliasPath: 'b',
+              title: 'Inaccessible DM',
+              dataMartId: 'dm-secret',
+              isAccessibleForReporting: false,
+            }),
+          ],
+          blendedFields: [makeField('b__field', 'b')],
+        });
+        userProjectionsFetcher.fetchUserProjection.mockResolvedValue(undefined);
+
+        await expect(
+          service.resolveBlendingDecision(report, { userId: 'user-1', roles: ['admin'] })
+        ).rejects.toMatchObject({
+          message:
+            'Cannot build report SQL, user "user-1" is missing access to data marts: "Inaccessible DM"',
+        });
       });
 
       it('throws when only an ancestor on the aliasPath is inaccessible (cascade)', async () => {
@@ -1251,12 +1319,17 @@ describe('BlendedReportDataService', () => {
           ],
           blendedFields: [makeField('b_c__field', 'b.c')],
         });
+        userProjectionsFetcher.fetchUserProjection.mockResolvedValue(
+          new UserProjectionDto('user-1', 'Alice Example', 'alice@example.com')
+        );
 
         await expect(
           service.resolveBlendingDecision(report, { userId: 'user-1', roles: ['admin'] })
         ).rejects.toMatchObject({
-          message: 'Cannot build report SQL, missing access to data marts: "Parent DM", "Child DM"',
+          message:
+            'Cannot build report SQL, user "Alice Example" is missing access to data marts: "Parent DM", "Child DM"',
           errorDetails: {
+            userId: 'user-1',
             deniedDataMartIds: ['dm-b', 'dm-c'],
             deniedAliasPaths: ['b', 'b.c'],
           },
@@ -1287,13 +1360,17 @@ describe('BlendedReportDataService', () => {
           ],
           blendedFields: [makeField('b__x', 'b'), makeField('c__y', 'c')],
         });
+        userProjectionsFetcher.fetchUserProjection.mockResolvedValue(
+          new UserProjectionDto('user-1', 'Alice Example', 'alice@example.com')
+        );
 
         await expect(
           service.resolveBlendingDecision(report, { userId: 'user-1', roles: ['admin'] })
         ).rejects.toMatchObject({
           message:
-            'Cannot build report SQL, missing access to data marts: "DM Bravo", "DM Charlie"',
+            'Cannot build report SQL, user "Alice Example" is missing access to data marts: "DM Bravo", "DM Charlie"',
           errorDetails: {
+            userId: 'user-1',
             deniedDataMartIds: ['dm-bravo', 'dm-charlie'],
             deniedAliasPaths: ['b', 'c'],
           },

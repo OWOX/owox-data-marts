@@ -17,6 +17,7 @@ import { DataMartRelationship } from '../entities/data-mart-relationship.entity'
 import { PublicOriginService } from '../../common/config/public-origin.service';
 import { BusinessViolationException } from '../../common/exceptions/business-violation.exception';
 import { buildDataMartUrl } from '../../common/helpers/data-mart-url.helper';
+import { UserProjectionsFetcherService } from './user-projections-fetcher.service';
 
 @Injectable()
 export class BlendedReportDataService {
@@ -26,7 +27,8 @@ export class BlendedReportDataService {
     private readonly blendedQueryBuilderFacade: BlendedQueryBuilderFacade,
     private readonly tableReferenceService: DataMartTableReferenceService,
     private readonly publicOriginService: PublicOriginService,
-    private readonly outputControlsValidator: OutputControlsValidatorService
+    private readonly outputControlsValidator: OutputControlsValidatorService,
+    private readonly userProjectionsFetcher: UserProjectionsFetcherService
   ) {}
 
   async resolveBlendingDecision(
@@ -90,11 +92,12 @@ export class BlendedReportDataService {
       };
     }
 
-    this.assertAllRequestedSourcesAccessible(
+    await this.assertAllRequestedSourcesAccessible(
       blendableSchema.blendedFields,
       blendableSchema.availableSources,
       referencedColumns,
-      preJoinAliasPaths
+      preJoinAliasPaths,
+      accessor
     );
 
     const mainTableReference = await this.tableReferenceService.resolveTableName(
@@ -286,12 +289,13 @@ export class BlendedReportDataService {
     return chains;
   }
 
-  private assertAllRequestedSourcesAccessible(
+  private async assertAllRequestedSourcesAccessible(
     blendedFields: BlendedFieldDto[],
     availableSources: AvailableSourceDto[],
     referencedColumns: ReadonlySet<string>,
-    preJoinAliasPaths: ReadonlySet<string>
-  ): void {
+    preJoinAliasPaths: ReadonlySet<string>,
+    accessor: BlendableSchemaAccessor
+  ): Promise<void> {
     const requested = blendedFields.filter(f => referencedColumns.has(f.name));
     const neededPaths = this.collectNeededAliasPaths(requested, preJoinAliasPaths);
 
@@ -303,10 +307,14 @@ export class BlendedReportDataService {
     }
     if (denied.length === 0) return;
 
+    const userProjection = await this.userProjectionsFetcher.fetchUserProjection(accessor.userId);
+    const userLabel =
+      userProjection?.fullName?.trim() || userProjection?.email?.trim() || accessor.userId;
     const titles = denied.map(s => `"${s.title}"`).join(', ');
     throw new BusinessViolationException(
-      `Cannot build report SQL, missing access to data marts: ${titles}`,
+      `Cannot build report SQL, user "${userLabel}" is missing access to data marts: ${titles}`,
       {
+        userId: accessor.userId,
         deniedDataMartIds: denied.map(s => s.dataMartId),
         deniedAliasPaths: denied.map(s => s.aliasPath),
       }
