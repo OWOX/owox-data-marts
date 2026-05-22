@@ -208,7 +208,16 @@ export class GoogleSheetsReportWriter implements DataDestinationReportWriter {
     if (this.structuralOpsApplied) {
       return;
     }
-    await this.prepareSheetColumns(this.columnPlan.finalImportedNames.length);
+    // When the batch contains both deletes and inserts, the deletes run first
+    // and temporarily shrink the grid to `survivors.length`. The subsequent
+    // insertDimension (inheritFromBefore: false) requires startIndex < gridSize,
+    // so we must pre-allocate `deleteCount` extra columns to keep room for the
+    // inserts after the deletes have been applied.
+    const deleteCount = this.columnPlan.ops.filter(op => op.kind === 'delete').length;
+    const insertCount = this.columnPlan.ops.filter(op => op.kind === 'insert').length;
+    const columnsToPreAllocate =
+      this.columnPlan.finalImportedNames.length + (insertCount > 0 ? deleteCount : 0);
+    await this.prepareSheetColumns(columnsToPreAllocate);
     await this.applyStructuralColumnOps();
     await this.writeHeaders();
     this.writtenRowsCount = 1;
