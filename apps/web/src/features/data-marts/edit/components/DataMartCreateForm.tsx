@@ -22,6 +22,7 @@ import { useDataStorage } from '../../../data-storage/shared/model/hooks/useData
 import type { DataStorageList } from '../../../data-storage/shared/model/types/data-storage-list.ts';
 import { DataStorageTypeModel } from '../../../data-storage/shared/types/data-storage-type.model.ts';
 import { type DataMart, type DataMartFormData, dataMartSchema, useDataMartForm } from '../model';
+import { containsNonBmpCharacters, LEGACY_TITLE_ERROR } from '../../shared';
 
 interface DataMartFormProps {
   initialData?: {
@@ -85,6 +86,15 @@ export function DataMartCreateForm({ initialData, onSuccess }: DataMartFormProps
   }, [dataStorages, loadingStorages, form]);
 
   const onSubmit = async (data: DataMartFormData) => {
+    const selectedStorage = dataStorages.find(s => s.id === data.storageId);
+    if (
+      selectedStorage?.type === DataStorageType.LEGACY_GOOGLE_BIGQUERY &&
+      containsNonBmpCharacters(data.title)
+    ) {
+      form.setError('title', { message: LEGACY_TITLE_ERROR });
+      return;
+    }
+
     const response = await handleCreate(data);
     if (response && onSuccess) {
       onSuccess(response);
