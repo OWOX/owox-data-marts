@@ -149,8 +149,8 @@ var AwsRedshiftStorage = class AwsRedshiftStorage extends AbstractStorage {
       const resultParams = { Id: response.Id };
       if (nextToken) resultParams.NextToken = nextToken;
       const result = await this.redshiftDataClient.send(new GetStatementResultCommand(resultParams));
-      const columnNames = result.ColumnMetadata.map(col => col.name);
-      for (const record of result.Records) {
+      const columnNames = (result.ColumnMetadata || []).map(col => col.name);
+      for (const record of (result.Records || [])) {
         const row = {};
         columnNames.forEach((colName, i) => {
           const field = record[i];
@@ -417,13 +417,11 @@ var AwsRedshiftStorage = class AwsRedshiftStorage extends AbstractStorage {
     }
 
     if (columnsToAdd.length > 0) {
-      const query = `
-        ALTER TABLE "${this.config.Schema.value}"."${this.config.DestinationTableName.value}"
-        ADD COLUMN ${columnsToAdd.join(', ADD COLUMN ')}
-      `;
-
-      await this.executeQuery(query, 'ddl');
-      this.config.logMessage(`Columns '${newColumns.join(',')}' were added to "${this.config.Schema.value}"."${this.config.DestinationTableName.value}" table`);
+      const tableRef = `"${this.config.Schema.value}"."${this.config.DestinationTableName.value}"`;
+      for (const columnDef of columnsToAdd) {
+        await this.executeQuery(`ALTER TABLE ${tableRef} ADD COLUMN ${columnDef}`, 'ddl');
+      }
+      this.config.logMessage(`Columns '${newColumns.join(',')}' were added to ${tableRef}`);
 
       await this.applyColumnComments(newColumns);
       return newColumns;
