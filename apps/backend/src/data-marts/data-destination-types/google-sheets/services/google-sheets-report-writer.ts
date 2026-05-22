@@ -208,17 +208,25 @@ export class GoogleSheetsReportWriter implements DataDestinationReportWriter {
     if (this.structuralOpsApplied) {
       return;
     }
-    // When the batch contains both deletes and inserts, the deletes run first
-    // and temporarily shrink the grid to `survivors.length`. The subsequent
-    // insertDimension (inheritFromBefore: false) requires startIndex < gridSize,
-    // so we must pre-allocate `deleteCount` extra columns to keep room for the
-    // inserts after the deletes have been applied.
+    // Deletes run before inserts in the batch, shrinking the grid by deleteCount.
+    // If that shrinkage brings the grid to exactly survivors.length, the next
+    // insertDimension (inheritFromBefore: false) fails because startIndex must
+    // be strictly less than gridSize. Pre-allocating deleteCount extra columns
+    // ensures the grid stays wide enough for all inserts after the deletes land.
+    // Those extra columns sit past finalCount after the batch; extraAllocated
+    // tracks how many cleanup deletions to append to the same batch so the
+    // grid ends at exactly finalCount.
     const deleteCount = this.columnPlan.ops.filter(op => op.kind === 'delete').length;
     const insertCount = this.columnPlan.ops.filter(op => op.kind === 'insert').length;
-    const columnsToPreAllocate =
-      this.columnPlan.finalImportedNames.length + (insertCount > 0 ? deleteCount : 0);
+    const finalCount = this.columnPlan.finalImportedNames.length;
+    const columnsToPreAllocate = finalCount + (insertCount > 0 ? deleteCount : 0);
+
+    const prevAvailableColumnsCount = this.availableColumnsCount;
     await this.prepareSheetColumns(columnsToPreAllocate);
-    await this.applyStructuralColumnOps();
+    const extraAllocated =
+      this.availableColumnsCount - Math.max(prevAvailableColumnsCount, finalCount);
+
+    await this.applyStructuralColumnOps(extraAllocated);
     await this.writeHeaders();
     this.writtenRowsCount = 1;
     this.structuralOpsApplied = true;
@@ -712,8 +720,13 @@ export class GoogleSheetsReportWriter implements DataDestinationReportWriter {
    * Applies structural column ops (`insertDimension`/`deleteDimension`) from
    * the column plan in a single `batchUpdate`. No-op on first run or when the
    * plan reports no changes.
+   *
+   * @param extraAllocated - Number of columns appended by the pre-allocation
+   *   step that exceed `finalCount`. They land past the imported range after
+   *   the main ops complete; this method appends matching `deleteDimension`
+   *   requests to trim them so the grid ends at exactly `finalCount`.
    */
-  private async applyStructuralColumnOps(): Promise<void> {
+  private async applyStructuralColumnOps(extraAllocated: number = 0): Promise<void> {
     if (this.columnPlan.ops.length === 0) {
       return;
     }
@@ -723,11 +736,24 @@ export class GoogleSheetsReportWriter implements DataDestinationReportWriter {
           ? this.adapter.buildDeleteColumnRequest(this.destination.sheetId, op.atIndex)
           : this.adapter.buildInsertColumnRequest(this.destination.sheetId, op.atIndex)
       );
+
+      if (extraAllocated > 0) {
+        const finalCount = this.columnPlan.finalImportedNames.length;
+        // After the main ops, extra pre-allocated columns sit at
+        // [finalCount .. finalCount + extraAllocated - 1]. Delete descending
+        // so each removal doesn't shift the next target index.
+        for (let i = extraAllocated - 1; i >= 0; i--) {
+          requests.push(
+            this.adapter.buildDeleteColumnRequest(this.destination.sheetId, finalCount + i)
+          );
+        }
+      }
+
       await this.adapter.batchUpdate(this.destination.spreadsheetId, requests);
 
       const inserts = this.columnPlan.ops.filter(op => op.kind === 'insert').length;
       const deletes = this.columnPlan.ops.length - inserts;
-      this.availableColumnsCount += inserts - deletes;
+      this.availableColumnsCount += inserts - deletes - extraAllocated;
     }, 'Applying structural column changes');
   }
 
