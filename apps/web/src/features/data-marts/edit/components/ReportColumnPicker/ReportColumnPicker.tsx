@@ -386,22 +386,38 @@ export function ReportColumnPicker({
     [onChange]
   );
 
+  const availableSourceByPath = useMemo(() => {
+    const map = new Map<string, AvailableSource>();
+    for (const source of schema?.availableSources ?? []) {
+      map.set(source.aliasPath, source);
+    }
+    return map;
+  }, [schema?.availableSources]);
+
+  const accessibleBlendedFieldNames = useMemo(
+    () =>
+      includedBlendedFields
+        .filter(f => availableSourceByPath.get(f.aliasPath)?.isAccessibleForReporting === true)
+        .map(f => f.name),
+    [includedBlendedFields, availableSourceByPath]
+  );
+
+  const selectableFieldNames = useMemo(
+    () => [...nativeFields.map(f => f.name), ...accessibleBlendedFieldNames],
+    [nativeFields, accessibleBlendedFieldNames]
+  );
+
   function selectAll() {
     if (!schema) return;
-    const nativeNames = nativeFields.map(f => f.name);
-    const blendedNames = includedBlendedFields.map(f => f.name);
-    const known = new Set([...nativeNames, ...blendedNames]);
-    const orphanSelections = effectiveValue.filter(name => !known.has(name));
-    onChange([...nativeNames, ...blendedNames, ...orphanSelections]);
+    const selectableSet = new Set(selectableFieldNames);
+    const preserved = effectiveValue.filter(name => !selectableSet.has(name));
+    onChange([...selectableFieldNames, ...preserved]);
   }
 
   function deselectAll() {
     if (!schema) return;
-    const known = new Set([
-      ...nativeFields.map(f => f.name),
-      ...includedBlendedFields.map(f => f.name),
-    ]);
-    onChange(effectiveValue.filter(name => !known.has(name)));
+    const selectableSet = new Set(selectableFieldNames);
+    onChange(effectiveValue.filter(name => !selectableSet.has(name)));
   }
 
   const selectedNativeCount = nativeFields.filter(f => effectiveValueSet.has(f.name)).length;
@@ -412,25 +428,27 @@ export function ReportColumnPicker({
     ? nativeFields.filter(f => effectiveValueSet.has(f.name))
     : nativeFields;
 
-  const totalFieldsCount = nativeFields.length + includedBlendedFields.length;
   const selectedBlendedCount = effectiveValue.filter(name =>
     includedBlendedNamesSet.has(name)
   ).length;
   const selectedFieldsCount = selectedNativeCount + selectedBlendedCount;
+  const accessibleBlendedNamesSet = useMemo(
+    () => new Set(accessibleBlendedFieldNames),
+    [accessibleBlendedFieldNames]
+  );
+  const selectedInaccessibleBlendedCount = useMemo(
+    () =>
+      effectiveValue.filter(
+        name => includedBlendedNamesSet.has(name) && !accessibleBlendedNamesSet.has(name)
+      ).length,
+    [effectiveValue, includedBlendedNamesSet, accessibleBlendedNamesSet]
+  );
+  const totalFieldsCount = selectableFieldNames.length + selectedInaccessibleBlendedCount;
 
   useEffect(() => {
     onCountChange?.({ selected: selectedFieldsCount, total: totalFieldsCount });
   }, [selectedFieldsCount, totalFieldsCount, onCountChange]);
 
-  const availableSourceByPath = useMemo(() => {
-    const map = new Map<string, AvailableSource>();
-    for (const source of schema?.availableSources ?? []) {
-      map.set(source.aliasPath, source);
-    }
-    return map;
-  }, [schema?.availableSources]);
-
-  // Post-join filters keyed by their output-alias column.
   const filtersByColumn = useMemo<Map<string, ColumnFilters>>(() => {
     const map = new Map<string, ColumnFilters>();
     effectiveOutputConfig.filterConfig.forEach((rule, idx) => {
@@ -603,7 +621,9 @@ export function ReportColumnPicker({
     );
   }
 
-  const allSelected = totalFieldsCount > 0 && selectedFieldsCount >= totalFieldsCount;
+  const allSelected =
+    selectableFieldNames.length > 0 &&
+    selectableFieldNames.every(name => effectiveValueSet.has(name));
   const toggleLabelClass =
     'text-muted-foreground hover:text-foreground flex cursor-pointer items-center gap-2 text-xs transition-colors';
 

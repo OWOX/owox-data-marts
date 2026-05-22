@@ -145,6 +145,65 @@ describe('ReportColumnPicker access flag', () => {
     expect(screen.queryByText('hide_me')).not.toBeInTheDocument();
   });
 
+  it('Select all toggles only accessible fields and preserves already-selected inaccessible ones', () => {
+    const schema = buildSchema({
+      blendedFields: [
+        buildBlendedField({
+          name: 'b__yes',
+          originalFieldName: 'yes',
+          aliasPath: 'b',
+          outputPrefix: 'b',
+          targetAlias: 'b',
+          sourceRelationshipId: 'rel-b',
+          sourceDataMartId: 'dm-b',
+        }),
+        buildBlendedField({
+          name: 'c__no_new',
+          originalFieldName: 'no_new',
+          aliasPath: 'c',
+          outputPrefix: 'c',
+          targetAlias: 'c',
+          sourceRelationshipId: 'rel-c',
+          sourceDataMartId: 'dm-c',
+        }),
+        buildBlendedField({
+          name: 'c__keep',
+          originalFieldName: 'keep',
+          aliasPath: 'c',
+          outputPrefix: 'c',
+          targetAlias: 'c',
+          sourceRelationshipId: 'rel-c',
+          sourceDataMartId: 'dm-c',
+        }),
+      ],
+      availableSources: [
+        buildAvailableSource({
+          aliasPath: 'b',
+          relationshipId: 'rel-b',
+          dataMartId: 'dm-b',
+          isAccessibleForReporting: true,
+        }),
+        buildAvailableSource({
+          aliasPath: 'c',
+          title: 'Locked DM',
+          relationshipId: 'rel-c',
+          dataMartId: 'dm-c',
+          isAccessibleForReporting: false,
+        }),
+      ],
+    });
+
+    const { onChange } = renderPicker(schema, ['c__keep']);
+
+    const masterCheckbox = screen.getByRole('checkbox', { name: 'Select all fields' });
+    fireEvent.click(masterCheckbox);
+
+    expect(onChange).toHaveBeenCalledTimes(1);
+    const next = onChange.mock.calls[0][0] as string[];
+    expect(next).toEqual(expect.arrayContaining(['native_one', 'b__yes', 'c__keep']));
+    expect(next).not.toContain('c__no_new');
+  });
+
   it('removes the inaccessible block from the DOM after the last selected field is unchecked', () => {
     const schema = buildSchema({
       blendedFields: [buildBlendedField({ name: 'b__only', originalFieldName: 'only' })],
