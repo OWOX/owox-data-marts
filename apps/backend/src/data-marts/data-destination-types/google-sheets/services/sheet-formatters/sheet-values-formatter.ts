@@ -58,13 +58,11 @@ export class SheetValuesFormatter {
    * the destination sheet, so positional alignment with the SQL output schema
    * no longer holds.
    *
-   * Also normalizes every cell to a concrete primitive: `null`, `undefined`,
-   * and sparse-array holes collapse to `""`. The Sheets `values.update` API
-   * treats those three as "skip this cell, preserve existing content", which
-   * would let manual user edits bleed across refreshes inside the imported
-   * rectangle. `""` explicitly clears the cell, matching the writer's
-   * contract that the imported rectangle is fully owned by ODM. Other falsy
-   * values (`0`, `false`, the literal empty string) pass through unchanged.
+   * Nullish cells (SQL `NULL` → JavaScript `null`/`undefined`) pass through
+   * unchanged. The writer pre-clears the imported rectangle before writing
+   * data, so any cell the payload does not explicitly overwrite is already
+   * empty — `null`-in-payload (which Sheets `values.update` treats as
+   * "skip this cell") therefore leaves the cell in its pre-cleared state.
    *
    * @param orderedRows - Rows already reordered to align with `finalNames`
    * @param finalNames - Column names in the order they appear in the sheet
@@ -77,19 +75,23 @@ export class SheetValuesFormatter {
     headersByName: ReadonlyMap<string, ReportDataHeader>,
     sheetTimeZone: string
   ): unknown[][] {
-    const formatters = finalNames.map(name => {
-      const header = headersByName.get(name);
-      return header ? this.formatters.get(header.storageFieldType!) : undefined;
-    });
-    const width = finalNames.length;
+    const columnsToFormat = finalNames
+      .map((name, index) => {
+        const header = headersByName.get(name);
+        return {
+          index,
+          formatter: header ? this.formatters.get(header.storageFieldType!) : undefined,
+        };
+      })
+      .filter(item => item.formatter);
 
-    orderedRows.forEach(row => {
-      for (let i = 0; i < width; i++) {
-        const fmt = formatters[i];
-        const raw = fmt ? fmt(row[i], sheetTimeZone) : row[i];
-        row[i] = raw == null ? '' : raw;
-      }
-    });
+    if (columnsToFormat.length > 0) {
+      orderedRows.forEach(row => {
+        columnsToFormat.forEach(({ index, formatter }) => {
+          row[index] = formatter!(row[index], sheetTimeZone);
+        });
+      });
+    }
 
     return orderedRows;
   }
