@@ -4,6 +4,7 @@ import { Report } from '../entities/report.entity';
 import { BigQueryQueryBuilder } from '../data-storage-types/bigquery/services/bigquery-query.builder';
 import { BigQueryClauseRenderer } from '../data-storage-types/bigquery/services/bigquery-clause-renderer';
 import { isQueryBuildResult } from '../data-storage-types/interfaces/data-mart-query-builder.interface';
+import { DataStorageType } from '../data-storage-types/enums/data-storage-type.enum';
 
 describe('ReportSqlComposerService', () => {
   const buildReport = (overrides: Partial<Report> = {}): Report =>
@@ -36,11 +37,16 @@ describe('ReportSqlComposerService', () => {
       isSupported: jest.fn().mockReturnValue(capabilitySupported),
     };
 
+    const outputControlsValidator = {
+      validateForReport: jest.fn().mockResolvedValue(undefined),
+    };
+
     const service = new ReportSqlComposerService(
       blendedReportDataService as never,
       queryBuilderFacade as never,
       tableReferenceService as never,
-      capabilityService as never
+      capabilityService as never,
+      outputControlsValidator as never
     );
 
     return {
@@ -49,8 +55,49 @@ describe('ReportSqlComposerService', () => {
       queryBuilderFacade,
       tableReferenceService,
       capabilityService,
+      outputControlsValidator,
     };
   };
+
+  it('re-validates output controls against the current schema before composing', async () => {
+    const { service, outputControlsValidator } = createService(
+      { needsBlending: false, columnFilter: ['a'] },
+      'SELECT 1'
+    );
+    const report = buildReport({
+      columnConfig: ['a'],
+      filterConfig: [{ column: 'a', operator: 'eq', value: 1 }],
+      sortConfig: [{ column: 'a', direction: 'asc' }],
+      limitConfig: 50,
+    } as Partial<Report>);
+
+    await service.compose(report);
+
+    expect(outputControlsValidator.validateForReport).toHaveBeenCalledTimes(1);
+    expect(outputControlsValidator.validateForReport).toHaveBeenCalledWith({
+      storageType: 'GOOGLE_BIGQUERY',
+      dataMartId: 'dm-1',
+      projectId: undefined,
+      columnConfig: ['a'],
+      filterConfig: report.filterConfig,
+      sortConfig: report.sortConfig,
+      limitConfig: 50,
+    });
+  });
+
+  it('propagates validator rejection (stale stored rule against drifted schema)', async () => {
+    const { service, outputControlsValidator } = createService({
+      needsBlending: false,
+      columnFilter: ['a'],
+    });
+    const validatorError = new BadRequestException({
+      message: 'Output controls validation failed',
+      details: { errors: [{ code: 'FILTER_COLUMN_UNKNOWN', column: 'stale_col' }] },
+    });
+    outputControlsValidator.validateForReport.mockRejectedValue(validatorError);
+
+    await expect(service.compose(buildReport())).rejects.toBe(validatorError);
+  });
 
   it('returns blended SQL when decision.needsBlending and blendedSql is present', async () => {
     const { service, queryBuilderFacade } = createService({
@@ -80,16 +127,22 @@ describe('ReportSqlComposerService', () => {
     );
   });
 
-  it('falls back to the query builder facade when needsBlending is true but blendedSql is missing', async () => {
+  it('throws BLENDED_SQL_UNAVAILABLE when needsBlending is true but blendedSql is missing', async () => {
+    // Previously this case silently fell through to the simple-query path, which
+    // would drop slice/filter semantics for the joined mart. The composer must
+    // now fail loudly so the user (and oncall) immediately know that no blended
+    // builder is registered for this storage type.
     const { service, queryBuilderFacade } = createService(
       { needsBlending: true, columnFilter: undefined },
       'SELECT fallback FROM dm'
     );
 
-    const result = await service.compose(buildReport());
-
-    expect(result.sql).toBe('SELECT fallback FROM dm');
-    expect(queryBuilderFacade.buildQuery).toHaveBeenCalled();
+    await expect(service.compose(buildReport())).rejects.toMatchObject({
+      response: {
+        details: { errors: [{ code: 'BLENDED_SQL_UNAVAILABLE' }] },
+      },
+    });
+    expect(queryBuilderFacade.buildQuery).not.toHaveBeenCalled();
   });
 
   it('throws when the fallback path is taken but the DataMart has no definition', async () => {
@@ -123,7 +176,8 @@ describe('ReportSqlComposerService', () => {
       blendedDataService as never,
       queryBuilderFacade as never,
       tableReferenceService as never,
-      capabilityService as never
+      capabilityService as never,
+      { validateForReport: jest.fn().mockResolvedValue(undefined) } as never
     );
     const filterConfig = [{ column: 'a', operator: 'eq', value: 1 }];
     const sortConfig = [{ column: 'a', direction: 'asc' }];
@@ -166,7 +220,8 @@ describe('ReportSqlComposerService', () => {
       blendedDataService as never,
       queryBuilderFacade as never,
       tableReferenceService as never,
-      capabilityService as never
+      capabilityService as never,
+      { validateForReport: jest.fn().mockResolvedValue(undefined) } as never
     );
     const report = {
       dataMart: {
@@ -193,10 +248,16 @@ describe('ReportSqlComposerService', () => {
       blendedDataService as never,
       {} as never,
       {} as never,
-      { isSupported: jest.fn() } as never
+      { isSupported: jest.fn() } as never,
+      { validateForReport: jest.fn().mockResolvedValue(undefined) } as never
     );
     const result = await composer.compose({
       filterConfig: [{ column: 'a', operator: 'eq', value: 1 }],
+      dataMart: {
+        id: 'm',
+        projectId: 'p',
+        storage: { type: 'GOOGLE_BIGQUERY' },
+      },
     } as never);
     expect(result).toEqual({
       sql: 'WITH ... SELECT ... WHERE @p0',
@@ -251,6 +312,52 @@ describe('ReportSqlComposerService', () => {
     expect(capabilityService.isSupported).not.toHaveBeenCalled();
   });
 
+  it('throws PRE_JOIN_FILTERS_REQUIRE_JOINED_DATA_MART when a pre-join filter is set on a simple data mart', async () => {
+    const { service } = createService({ needsBlending: false, columnFilter: ['a'] });
+    const report = buildReport({
+      filterConfig: [
+        {
+          column: 'userRole',
+          operator: 'eq',
+          value: 'admin',
+          placement: 'pre-join',
+          aliasPath: 'users',
+        },
+      ],
+    } as never);
+    await expect(service.compose(report)).rejects.toMatchObject({
+      response: {
+        details: { errors: [{ code: 'PRE_JOIN_FILTERS_REQUIRE_JOINED_DATA_MART' }] },
+      },
+    });
+  });
+
+  it('throws OUTPUT_CONTROLS_NOT_SUPPORTED on the simple-query path for unsupported storages', async () => {
+    // Non-blended path with output controls on a storage that lacks output
+    // controls support — must throw the existing structured error before
+    // calling the query builder facade.
+    const { service, queryBuilderFacade, capabilityService } = createService(
+      { needsBlending: false, columnFilter: ['a'] },
+      'SELECT 1',
+      /* capabilitySupported */ false
+    );
+    const report = buildReport({
+      dataMart: {
+        id: 'dm-1',
+        definition: { sqlQuery: 'SELECT 1' },
+        storage: { id: 'storage-1', type: DataStorageType.SNOWFLAKE },
+      },
+      filterConfig: [{ column: 'a', operator: 'eq', value: 1 }],
+    } as never);
+    await expect(service.compose(report)).rejects.toMatchObject({
+      response: {
+        details: { errors: [{ code: 'OUTPUT_CONTROLS_NOT_SUPPORTED' }] },
+      },
+    });
+    expect(capabilityService.isSupported).toHaveBeenCalledWith(DataStorageType.SNOWFLAKE);
+    expect(queryBuilderFacade.buildQuery).not.toHaveBeenCalled();
+  });
+
   // E2E composition: wires the *real* BigQueryQueryBuilder + BigQueryClauseRenderer
   // behind a stub facade so we can assert that the SQL emitted to the executor
   // contains named parameter placeholders (@p0, @p1, ...) and the matching
@@ -280,7 +387,8 @@ describe('ReportSqlComposerService', () => {
         blendedDataService as never,
         facade as never,
         tableReferenceService as never,
-        capabilityService as never
+        capabilityService as never,
+        { validateForReport: jest.fn().mockResolvedValue(undefined) } as never
       );
     }
 

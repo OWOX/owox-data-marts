@@ -12,7 +12,7 @@ import type { DataDestination } from '../../../../data-destination/shared/model/
 import { FilterRuleSchema, SortRuleSchema } from '../../../shared/types/output-config';
 
 // Define the form schema - simplified for editing existing reports
-const lookerStudioReportFormSchema = z.object({
+export const lookerStudioReportFormSchema = z.object({
   cacheLifetime: z.number().min(300, 'Cache time must be at least 5 minutes (300 seconds)'),
   columnConfig: z
     .array(z.string())

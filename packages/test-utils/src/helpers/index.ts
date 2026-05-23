@@ -21,3 +21,8 @@ export {
   type SetupGoogleSheetsReportResult,
 } from './setup-google-sheets-report';
 export { setDataMartAlias } from './set-data-mart-alias';
+export { extractCteBody } from './extract-cte-body';
+export {
+  setupBlendedReportPrerequisites,
+  type BlendedReportPrerequisites,
+} from './setup-blended-report-prerequisites';

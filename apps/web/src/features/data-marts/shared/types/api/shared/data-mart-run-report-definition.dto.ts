@@ -11,6 +11,12 @@ export interface LookerStudioConfigDto {
 
 export type DataMartRunReportDestinationConfigDto = GoogleSheetsConfigDto | LookerStudioConfigDto;
 
+export interface DataMartRunReportOutputConfigDto {
+  filterConfig?: unknown;
+  sortConfig?: unknown;
+  limitConfig?: number | null;
+}
+
 export interface DataMartRunReportDefinitionDto {
   title: string;
   destination: {
@@ -19,6 +25,7 @@ export interface DataMartRunReportDefinitionDto {
     type: string;
   };
   destinationConfig: DataMartRunReportDestinationConfigDto;
+  outputConfig?: DataMartRunReportOutputConfigDto | null;
 }
 
 export interface DataMartRunInsightDefinitionDto {

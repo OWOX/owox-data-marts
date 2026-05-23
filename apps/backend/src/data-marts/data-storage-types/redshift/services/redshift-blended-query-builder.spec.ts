@@ -145,4 +145,30 @@ describe('RedshiftBlendedQueryBuilder — output controls guard', () => {
       })
     ).toThrow(NotImplementedException);
   });
+
+  it('throws NotImplemented when limit is set', () => {
+    expect(() =>
+      builder.buildBlendedQuery({
+        ...baseContext,
+        limit: 100,
+      })
+    ).toThrow(NotImplementedException);
+  });
+
+  it('throws NotImplemented on pre-join filters (slices)', () => {
+    expect(() =>
+      builder.buildBlendedQuery({
+        ...baseContext,
+        filters: [
+          {
+            column: 'userRole',
+            operator: 'eq',
+            value: 'admin',
+            placement: 'pre-join',
+            aliasPath: 'users',
+          },
+        ],
+      })
+    ).toThrow(NotImplementedException);
+  });
 });

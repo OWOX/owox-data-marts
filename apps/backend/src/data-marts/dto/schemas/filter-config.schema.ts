@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { ALIAS_PATH_REGEX } from './blended-fields-config.schema';
 
 const ScalarValueSchema = z.union([z.string(), z.number(), z.boolean()]);
 
@@ -36,7 +37,7 @@ const NoValueOperatorEnum = z.enum([
   'is_false',
 ]);
 
-export const FilterRuleSchema = z.discriminatedUnion('operator', [
+const FilterRuleBaseSchema = z.discriminatedUnion('operator', [
   z.object({
     column: z.string().min(1),
     operator: ScalarOperatorEnum,
@@ -58,6 +59,39 @@ export const FilterRuleSchema = z.discriminatedUnion('operator', [
   }),
 ]);
 
+const AliasPathSchema = z.string().min(1).max(255).regex(ALIAS_PATH_REGEX);
+
+const PlacementExtrasSchema = z.object({
+  placement: z.enum(['pre-join', 'post-join']).optional(),
+  aliasPath: AliasPathSchema.optional(),
+});
+
+export const FilterRuleSchema = z
+  .intersection(FilterRuleBaseSchema, PlacementExtrasSchema)
+  .superRefine((rule, ctx) => {
+    if (rule.placement === 'pre-join') {
+      if (!rule.aliasPath) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['aliasPath'],
+          message: 'aliasPath is required when placement is "pre-join"',
+        });
+      } else if (rule.aliasPath === 'main') {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['aliasPath'],
+          message: 'pre-join filter on the home data mart ("main") is not allowed',
+        });
+      }
+    } else if (rule.aliasPath != null) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['aliasPath'],
+        message: 'aliasPath is only valid when placement is "pre-join"',
+      });
+    }
+  });
+
 export const FilterConfigSchema = z.array(FilterRuleSchema).nullable();
 
 export type FilterRule = z.infer<typeof FilterRuleSchema>;
@@ -65,3 +99,10 @@ export type FilterConfig = z.infer<typeof FilterConfigSchema>;
 export type RelativeDatePreset = z.infer<typeof RelativeDatePresetSchema>;
 export const FILTER_SCALAR_OPERATORS = ScalarOperatorEnum.options;
 export const FILTER_NO_VALUE_OPERATORS = NoValueOperatorEnum.options;
+
+export function aliasPathToCteName(aliasPath: string): string {
+  if (!ALIAS_PATH_REGEX.test(aliasPath)) {
+    throw new Error(`Invalid aliasPath: ${aliasPath}`);
+  }
+  return aliasPath.replace(/\./g, '_');
+}

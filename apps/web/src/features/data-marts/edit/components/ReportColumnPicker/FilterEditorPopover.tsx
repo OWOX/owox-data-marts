@@ -1,22 +1,12 @@
-import { type ReactNode, useEffect, useState } from 'react';
+import { type ReactNode, useCallback, useEffect, useRef, useState } from 'react';
 import { Popover, PopoverContent, PopoverTrigger } from '@owox/ui/components/popover';
 import { Button } from '@owox/ui/components/button';
-import { Input } from '@owox/ui/components/input';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@owox/ui/components/select';
 import { Label } from '@owox/ui/components/label';
 import { X } from 'lucide-react';
-import type { FilterRule, RelativeDatePreset } from '../../../shared/types/output-config';
-import {
-  type FilterOperator,
-  operatorLabelFor,
-  operatorsForType,
-} from './output-controls-operators';
+import type { FilterRule } from '../../../shared/types/output-config';
+import { operatorLabelFor } from './output-controls-operators';
+import { summarizeFilterRule } from './filter-rule-summary';
+import { FilterValueEditor } from './FilterValueEditor';
 
 export interface FilterEditorPopoverProps {
   open: boolean;
@@ -31,152 +21,39 @@ export interface FilterEditorPopoverProps {
   onRemoveExistingAt?: (index: number) => void;
 }
 
-interface EditorState {
-  op: FilterOperator;
-  scalar: string;
-  betweenFrom: string;
-  betweenTo: string;
-  relativeKind: RelativeDatePreset['kind'];
-  relativeN: number;
-}
-
-const RELATIVE_KINDS: { value: RelativeDatePreset['kind']; label: string }[] = [
-  { value: 'today', label: 'Today' },
-  { value: 'yesterday', label: 'Yesterday' },
-  { value: 'this_month', label: 'This month' },
-  { value: 'last_month', label: 'Last month' },
-  { value: 'this_year', label: 'This year' },
-  { value: 'last_n_days', label: 'Last N days' },
-  { value: 'last_n_months', label: 'Last N months' },
-];
-
-const NO_VALUE_OPS = new Set<FilterOperator>([
-  'is_empty',
-  'is_not_empty',
-  'is_null',
-  'is_not_null',
-  'is_true',
-  'is_false',
-]);
-
-const NUMBER_TYPES = new Set(['INTEGER', 'FLOAT', 'NUMERIC', 'BIGNUMERIC']);
-const DATE_TYPES = new Set(['DATE', 'DATETIME', 'TIMESTAMP', 'TIME']);
-
-function getInitialState(rule: FilterRule | undefined, fallbackOp: FilterOperator): EditorState {
-  const state: EditorState = {
-    op: fallbackOp,
-    scalar: '',
-    betweenFrom: '',
-    betweenTo: '',
-    relativeKind: 'today',
-    relativeN: 7,
-  };
-  if (!rule) return state;
-  state.op = rule.operator as FilterOperator;
-  if (rule.operator === 'between') {
-    state.betweenFrom = String(rule.value.from);
-    state.betweenTo = String(rule.value.to);
-  } else if (rule.operator === 'relative_date') {
-    state.relativeKind = rule.value.kind;
-    if ('n' in rule.value) state.relativeN = rule.value.n;
-  } else if (!NO_VALUE_OPS.has(rule.operator as FilterOperator)) {
-    const value = (rule as { value: string | number | boolean }).value;
-    state.scalar = String(value);
-  }
-  return state;
-}
-
-function parseScalar(raw: string, fieldType: string): string | number | boolean {
-  if (NUMBER_TYPES.has(fieldType)) {
-    const n = Number(raw);
-    if (!Number.isFinite(n)) throw new Error('Invalid number');
-    return n;
-  }
-  return raw;
-}
-
-function buildRule(args: { column: string; fieldType: string; state: EditorState }): FilterRule {
-  const { column, fieldType, state } = args;
-  const { op } = state;
-
-  if (op === 'between') {
-    if (state.betweenFrom === '' || state.betweenTo === '') {
-      throw new Error('Both bounds are required');
-    }
-    const from = parseScalar(state.betweenFrom, fieldType);
-    const to = parseScalar(state.betweenTo, fieldType);
-    const numericOutOfOrder = typeof from === 'number' && typeof to === 'number' && from > to;
-    const dateOutOfOrder =
-      typeof from === 'string' && typeof to === 'string' && DATE_TYPES.has(fieldType) && from > to;
-    if (numericOutOfOrder || dateOutOfOrder) {
-      throw new Error('"From" must be ≤ "To"');
-    }
-    return { column, operator: 'between', value: { from, to } };
-  }
-
-  if (op === 'relative_date') {
-    if (state.relativeKind === 'last_n_days' || state.relativeKind === 'last_n_months') {
-      if (!Number.isInteger(state.relativeN) || state.relativeN <= 0) {
-        throw new Error('N must be a positive integer');
-      }
-      return {
-        column,
-        operator: 'relative_date',
-        value: { kind: state.relativeKind, n: state.relativeN },
-      };
-    }
-    return { column, operator: 'relative_date', value: { kind: state.relativeKind } };
-  }
-
-  if (NO_VALUE_OPS.has(op)) {
-    return { column, operator: op } as FilterRule;
-  }
-
-  if (state.scalar === '') {
-    throw new Error('Value is required');
-  }
-
-  if (op === 'regex' || op === 'not_regex') {
-    try {
-      new RegExp(state.scalar);
-    } catch {
-      throw new Error('Invalid regex pattern');
-    }
-  }
-
-  return { column, operator: op, value: parseScalar(state.scalar, fieldType) } as FilterRule;
-}
-
 export function FilterEditorPopover(props: FilterEditorPopoverProps) {
-  const operators = operatorsForType(props.fieldType);
-  const fallbackOp = operators[0]?.value ?? 'eq';
-
-  const [state, setState] = useState<EditorState>(() =>
-    getInitialState(props.initialRule, fallbackOp)
-  );
+  const [draftRule, setDraftRule] = useState<FilterRule | null>(props.initialRule ?? null);
   const [error, setError] = useState<string | null>(null);
 
+  // Reset draft and error ONLY on the closed→open transition. The bare
+  // `if (props.open)` check would fire on every render-while-open whenever the
+  // parent passes a new `initialRule` object identity (typical for derived
+  // values), wiping the user's in-progress edits. `openInstanceId` also keys
+  // the inner editor so it remounts on each open without remounting on
+  // unrelated parent re-renders.
+  const [openInstanceId, setOpenInstanceId] = useState(0);
+  const prevOpen = useRef(false);
   useEffect(() => {
-    if (props.open) {
-      setState(getInitialState(props.initialRule, fallbackOp));
+    if (props.open && !prevOpen.current) {
+      setOpenInstanceId(id => id + 1);
+      setDraftRule(props.initialRule ?? null);
       setError(null);
     }
-  }, [props.open, props.initialRule, fallbackOp]);
+    prevOpen.current = props.open;
+  }, [props.open, props.initialRule]);
 
-  const isDateType = DATE_TYPES.has(props.fieldType);
+  const handleChange = useCallback((rule: FilterRule | null) => {
+    setDraftRule(rule);
+    setError(null);
+  }, []);
 
   function handleApply() {
-    try {
-      const rule = buildRule({
-        column: props.column,
-        fieldType: props.fieldType,
-        state,
-      });
-      props.onApply(rule);
-      props.onOpenChange(false);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Invalid value');
+    if (!draftRule) {
+      setError('Value is required');
+      return;
     }
+    props.onApply(draftRule);
+    props.onOpenChange(false);
   }
 
   function handleCancel() {
@@ -207,9 +84,9 @@ export function FilterEditorPopover(props: FilterEditorPopoverProps) {
                   key={idx}
                   className='bg-muted/40 flex items-center gap-2 rounded px-2 py-1 text-xs'
                 >
-                  <span className='flex-1 truncate font-mono' title={summarize(rule)}>
+                  <span className='flex-1 truncate font-mono' title={summarizeFilterRule(rule)}>
                     <b>{operatorLabelFor(rule.operator, props.fieldType)}</b>
-                    {summarize(rule) && <>: {summarize(rule)}</>}
+                    {summarizeFilterRule(rule) && <>: {summarizeFilterRule(rule)}</>}
                   </span>
                   {props.onRemoveExistingAt && (
                     <Button
@@ -230,97 +107,13 @@ export function FilterEditorPopover(props: FilterEditorPopoverProps) {
           </div>
         )}
 
-        <div>
-          <Label>Condition</Label>
-          <Select
-            value={state.op}
-            onValueChange={v => {
-              setState(s => ({ ...s, op: v as FilterOperator }));
-            }}
-          >
-            <SelectTrigger>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {operators.map(o => (
-                <SelectItem key={o.value} value={o.value}>
-                  {o.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-
-        {state.op === 'between' && (
-          <div className='space-y-2'>
-            <Label>From / To</Label>
-            <div className='flex gap-2'>
-              <Input
-                type={NUMBER_TYPES.has(props.fieldType) ? 'number' : isDateType ? 'date' : 'text'}
-                value={state.betweenFrom}
-                onChange={e => {
-                  setState(s => ({ ...s, betweenFrom: e.target.value }));
-                }}
-                placeholder='from'
-              />
-              <Input
-                type={NUMBER_TYPES.has(props.fieldType) ? 'number' : isDateType ? 'date' : 'text'}
-                value={state.betweenTo}
-                onChange={e => {
-                  setState(s => ({ ...s, betweenTo: e.target.value }));
-                }}
-                placeholder='to'
-              />
-            </div>
-          </div>
-        )}
-
-        {state.op === 'relative_date' && (
-          <div className='space-y-2'>
-            <Label>Preset</Label>
-            <Select
-              value={state.relativeKind}
-              onValueChange={v => {
-                setState(s => ({ ...s, relativeKind: v as RelativeDatePreset['kind'] }));
-              }}
-            >
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {RELATIVE_KINDS.map(p => (
-                  <SelectItem key={p.value} value={p.value}>
-                    {p.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            {(state.relativeKind === 'last_n_days' || state.relativeKind === 'last_n_months') && (
-              <Input
-                type='number'
-                min={1}
-                value={state.relativeN}
-                onChange={e => {
-                  setState(s => ({ ...s, relativeN: Number(e.target.value) || 0 }));
-                }}
-              />
-            )}
-          </div>
-        )}
-
-        {!NO_VALUE_OPS.has(state.op) && state.op !== 'between' && state.op !== 'relative_date' && (
-          <div className='space-y-1'>
-            <Label>Value</Label>
-            <Input
-              type={NUMBER_TYPES.has(props.fieldType) ? 'number' : isDateType ? 'date' : 'text'}
-              value={state.scalar}
-              onChange={e => {
-                setState(s => ({ ...s, scalar: e.target.value }));
-              }}
-              placeholder={state.op === 'regex' ? 'pattern' : ''}
-            />
-          </div>
-        )}
+        <FilterValueEditor
+          key={String(openInstanceId)}
+          column={props.column}
+          fieldType={props.fieldType}
+          initialRule={props.initialRule}
+          onChange={handleChange}
+        />
 
         {error && <div className='text-destructive text-xs'>{error}</div>}
 
@@ -335,25 +128,4 @@ export function FilterEditorPopover(props: FilterEditorPopoverProps) {
       </PopoverContent>
     </Popover>
   );
-}
-
-function summarize(rule: FilterRule): string {
-  switch (rule.operator) {
-    case 'is_empty':
-    case 'is_not_empty':
-    case 'is_null':
-    case 'is_not_null':
-    case 'is_true':
-    case 'is_false':
-      return '';
-    case 'between':
-      return `${String(rule.value.from)} … ${String(rule.value.to)}`;
-    case 'relative_date': {
-      const v = rule.value;
-      if ('n' in v) return v.kind.replace('_n_', ` ${String(v.n)} `);
-      return v.kind;
-    }
-    default:
-      return JSON.stringify(rule.value);
-  }
 }

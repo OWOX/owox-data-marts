@@ -6,6 +6,7 @@ import { isQueryBuildResult } from '../data-storage-types/interfaces/data-mart-q
 import { DataMartTableReferenceService } from './data-mart-table-reference.service';
 import { SqlParameter } from '../data-storage-types/utils/sql-clause-renderer';
 import { OutputControlsCapabilityService } from './output-controls-capability.service';
+import { OutputControlsValidatorService } from './output-controls-validator.service';
 
 @Injectable()
 export class ReportSqlComposerService {
@@ -13,14 +14,54 @@ export class ReportSqlComposerService {
     private readonly blendedReportDataService: BlendedReportDataService,
     private readonly queryBuilderFacade: DataMartQueryBuilderFacade,
     private readonly tableReferenceService: DataMartTableReferenceService,
-    private readonly capabilityService: OutputControlsCapabilityService
+    private readonly capabilityService: OutputControlsCapabilityService,
+    private readonly outputControlsValidator: OutputControlsValidatorService
   ) {}
 
   async compose(report: Report): Promise<{ sql: string; params?: SqlParameter[] }> {
+    // Re-validate against current schema (drift, renamed column, excluded source).
+    await this.outputControlsValidator.validateForReport({
+      storageType: report.dataMart.storage.type,
+      dataMartId: report.dataMart.id,
+      projectId: report.dataMart.projectId,
+      columnConfig: report.columnConfig ?? null,
+      filterConfig: report.filterConfig ?? null,
+      sortConfig: report.sortConfig ?? null,
+      limitConfig: report.limitConfig ?? null,
+    });
+
     const decision = await this.blendedReportDataService.resolveBlendingDecision(report);
 
     if (decision.needsBlending && decision.blendedSql) {
       return { sql: decision.blendedSql, params: decision.params };
+    }
+
+    if (decision.needsBlending && !decision.blendedSql) {
+      throw new BadRequestException({
+        message: 'Joined query builder did not produce SQL for this data mart',
+        details: {
+          errors: [
+            {
+              code: 'BLENDED_SQL_UNAVAILABLE',
+              storageType: report.dataMart.storage.type,
+            },
+          ],
+        },
+      });
+    }
+
+    // Pre-join filters on a non-blended data mart are nonsensical (no joined CTE
+    // to filter); BlendedReportDataService promotes the report to blended path
+    // whenever any pre-join filter is present, so this branch only sees a
+    // truly non-blended report.
+    if (
+      !decision.needsBlending &&
+      (report.filterConfig ?? []).some(r => r.placement === 'pre-join')
+    ) {
+      throw new BadRequestException({
+        message: 'Pre-join filters are only applicable to joined data marts',
+        details: { errors: [{ code: 'PRE_JOIN_FILTERS_REQUIRE_JOINED_DATA_MART' }] },
+      });
     }
 
     const { dataMart } = report;

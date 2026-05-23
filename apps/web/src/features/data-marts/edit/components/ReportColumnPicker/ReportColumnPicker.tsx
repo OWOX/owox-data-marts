@@ -16,6 +16,7 @@ import {
   EMPTY_OUTPUT_CONFIG,
   hasAnyOutputControls,
   type FilterRule,
+  type JoinedSource,
   type OutputConfig,
 } from '../../../shared/types/output-config';
 import { supportsOutputControls } from '../../../shared/utils/output-controls-support';
@@ -87,6 +88,7 @@ export interface ReportColumnPickerProps {
 type ToggleFieldFn = (name: string, checked: boolean) => void;
 type AddFilterFn = (rule: FilterRule) => void;
 type RemoveFilterAtFn = (globalIndex: number) => void;
+type ReplaceFilterAtFn = (globalIndex: number, rule: FilterRule) => void;
 
 interface ColumnFilters {
   rules: FilterRule[];
@@ -103,6 +105,7 @@ interface NativeFieldRowProps {
   columnFilters: ColumnFilters;
   onAddFilter?: AddFilterFn;
   onRemoveFilterAt?: RemoveFilterAtFn;
+  onReplaceFilterAt?: ReplaceFilterAtFn;
 }
 
 const NativeFieldRow = memo(function NativeFieldRow({
@@ -113,6 +116,7 @@ const NativeFieldRow = memo(function NativeFieldRow({
   columnFilters,
   onAddFilter,
   onRemoveFilterAt,
+  onReplaceFilterAt,
 }: NativeFieldRowProps) {
   return (
     <label className='group hover:bg-muted/50 flex cursor-pointer items-center gap-2 rounded px-1 py-1'>
@@ -134,6 +138,13 @@ const NativeFieldRow = memo(function NativeFieldRow({
           onRemoveAt={localIndex => {
             onRemoveFilterAt(columnFilters.indices[localIndex]);
           }}
+          onReplaceAt={
+            onReplaceFilterAt
+              ? (localIndex, rule) => {
+                  onReplaceFilterAt(columnFilters.indices[localIndex], rule);
+                }
+              : undefined
+          }
         />
       )}
     </label>
@@ -148,6 +159,8 @@ interface BlendedFieldRowProps {
   columnFilters: ColumnFilters;
   onAddFilter?: AddFilterFn;
   onRemoveFilterAt?: RemoveFilterAtFn;
+  onReplaceFilterAt?: ReplaceFilterAtFn;
+  preJoinSlices: ColumnFilters;
 }
 
 const BlendedFieldRow = memo(function BlendedFieldRow({
@@ -158,6 +171,8 @@ const BlendedFieldRow = memo(function BlendedFieldRow({
   columnFilters,
   onAddFilter,
   onRemoveFilterAt,
+  onReplaceFilterAt,
+  preJoinSlices,
 }: BlendedFieldRowProps) {
   return (
     <label className='group hover:bg-muted/50 flex cursor-pointer items-center gap-2 rounded px-1 py-1'>
@@ -179,6 +194,26 @@ const BlendedFieldRow = memo(function BlendedFieldRow({
           onRemoveAt={localIndex => {
             onRemoveFilterAt(columnFilters.indices[localIndex]);
           }}
+          onReplaceAt={
+            onReplaceFilterAt
+              ? (localIndex, rule) => {
+                  onReplaceFilterAt(columnFilters.indices[localIndex], rule);
+                }
+              : undefined
+          }
+          sliceIconProps={{
+            aliasPath: field.aliasPath,
+            originalFieldName: field.originalFieldName,
+            existingSlices: preJoinSlices.rules,
+            existingSliceIndices: preJoinSlices.indices,
+            onAddSlice: onAddFilter,
+            onRemoveSliceAt: onRemoveFilterAt,
+            onReplaceSliceAt: onReplaceFilterAt
+              ? (localIndex, rule) => {
+                  onReplaceFilterAt(preJoinSlices.indices[localIndex], rule);
+                }
+              : undefined,
+          }}
         />
       )}
     </label>
@@ -193,6 +228,8 @@ interface BlendedGroupItemProps {
   filtersByColumn?: Map<string, ColumnFilters>;
   onAddFilter?: AddFilterFn;
   onRemoveFilterAt?: RemoveFilterAtFn;
+  onReplaceFilterAt?: ReplaceFilterAtFn;
+  preJoinByAliasPathColumn?: Map<string, ColumnFilters>;
 }
 
 function BlendedGroupItem({
@@ -203,6 +240,8 @@ function BlendedGroupItem({
   filtersByColumn,
   onAddFilter,
   onRemoveFilterAt,
+  onReplaceFilterAt,
+  preJoinByAliasPathColumn,
 }: BlendedGroupItemProps) {
   const [isOpen, setIsOpen] = useState(() => group.selectedCount > 0);
 
@@ -232,18 +271,23 @@ function BlendedGroupItem({
         </div>
       </button>
       <CollapsibleContent>
-        {group.visibleFields.map(field => (
-          <BlendedFieldRow
-            key={field.name}
-            field={field}
-            checked={selectedSet.has(field.name)}
-            onToggleField={onToggleField}
-            filterableType={filterableTypeFor?.(field.name)}
-            columnFilters={filtersByColumn?.get(field.name) ?? EMPTY_COLUMN_FILTERS}
-            onAddFilter={onAddFilter}
-            onRemoveFilterAt={onRemoveFilterAt}
-          />
-        ))}
+        {group.visibleFields.map(field => {
+          const sliceKey = `${field.aliasPath}\0${field.originalFieldName}`;
+          return (
+            <BlendedFieldRow
+              key={field.name}
+              field={field}
+              checked={selectedSet.has(field.name)}
+              onToggleField={onToggleField}
+              filterableType={filterableTypeFor?.(field.name)}
+              columnFilters={filtersByColumn?.get(field.name) ?? EMPTY_COLUMN_FILTERS}
+              onAddFilter={onAddFilter}
+              onRemoveFilterAt={onRemoveFilterAt}
+              onReplaceFilterAt={onReplaceFilterAt}
+              preJoinSlices={preJoinByAliasPathColumn?.get(sliceKey) ?? EMPTY_COLUMN_FILTERS}
+            />
+          );
+        })}
       </CollapsibleContent>
     </Collapsible>
   );
@@ -274,7 +318,6 @@ export function ReportColumnPicker({
     [schema]
   );
 
-  // Only show blended fields from included sources
   const includedPaths = useMemo(() => {
     if (!schema?.availableSources) return new Set<string>();
     return new Set(schema.availableSources.filter(s => s.isIncluded).map(s => s.aliasPath));
@@ -285,10 +328,6 @@ export function ReportColumnPicker({
     return schema.blendedFields.filter(f => includedPaths.has(f.aliasPath) && !f.isHidden);
   }, [schema, includedPaths]);
 
-  // Legacy reports with columnConfig === null had the "all native fields, no blended"
-  // meaning. Treat them the same for display/toggle math — the picker stays a pure
-  // controlled component: it only calls onChange when the user actually toggles
-  // something, so simply opening such a report does not mark the form dirty.
   const effectiveValue = useMemo<string[]>(() => {
     if (value !== null) return value;
     return nativeFields.map(f => f.name);
@@ -370,15 +409,34 @@ export function ReportColumnPicker({
     return map;
   }, [schema]);
 
+  // Post-join filters keyed by their output-alias column.
   const filtersByColumn = useMemo<Map<string, ColumnFilters>>(() => {
     const map = new Map<string, ColumnFilters>();
     effectiveOutputConfig.filterConfig.forEach((rule, idx) => {
+      if (rule.placement === 'pre-join') return;
       const existing = map.get(rule.column);
       if (existing) {
         existing.rules.push(rule);
         existing.indices.push(idx);
       } else {
         map.set(rule.column, { rules: [rule], indices: [idx] });
+      }
+    });
+    return map;
+  }, [effectiveOutputConfig.filterConfig]);
+
+  // Pre-join filters (slices) keyed by aliasPath + raw column.
+  const preJoinByAliasPathColumn = useMemo<Map<string, ColumnFilters>>(() => {
+    const map = new Map<string, ColumnFilters>();
+    effectiveOutputConfig.filterConfig.forEach((rule, idx) => {
+      if (rule.placement !== 'pre-join' || !rule.aliasPath) return;
+      const key = `${rule.aliasPath}\0${rule.column}`;
+      const existing = map.get(key);
+      if (existing) {
+        existing.rules.push(rule);
+        existing.indices.push(idx);
+      } else {
+        map.set(key, { rules: [rule], indices: [idx] });
       }
     });
     return map;
@@ -426,6 +484,46 @@ export function ReportColumnPicker({
     },
     [effectiveOutputConfig, onOutputConfigChange]
   );
+
+  const handleReplaceFilterAt = useCallback<ReplaceFilterAtFn>(
+    (globalIndex, rule) => {
+      if (!onOutputConfigChange) return;
+      onOutputConfigChange({
+        ...effectiveOutputConfig,
+        filterConfig: effectiveOutputConfig.filterConfig.map((existing, i) =>
+          i === globalIndex ? rule : existing
+        ),
+      });
+    },
+    [effectiveOutputConfig, onOutputConfigChange]
+  );
+
+  const joinedSources = useMemo<JoinedSource[]>(() => {
+    if (!schema) return [];
+    const byPath = new Map<string, JoinedSource & { columns: { name: string; type: string }[] }>();
+    for (const source of schema.availableSources) {
+      if (!source.isIncluded) continue;
+      byPath.set(source.aliasPath, {
+        aliasPath: source.aliasPath,
+        title: source.title,
+        columns: [],
+      });
+    }
+    for (const field of schema.blendedFields) {
+      const entry = byPath.get(field.aliasPath);
+      if (!entry || !field.type) continue;
+      entry.columns.push({ name: field.originalFieldName, type: field.type });
+    }
+    for (const entry of byPath.values()) {
+      const seen = new Set<string>();
+      entry.columns = entry.columns.filter(c => {
+        if (seen.has(c.name)) return false;
+        seen.add(c.name);
+        return true;
+      });
+    }
+    return Array.from(byPath.values()).filter(s => s.columns.length > 0);
+  }, [schema]);
 
   const dropdownColumns = useMemo(() => {
     const cols: { name: string; type: string }[] = [];
@@ -531,6 +629,7 @@ export function ReportColumnPicker({
             onChange={onOutputConfigChange}
             selectedColumns={selectedDropdownColumns}
             allColumns={dropdownColumns}
+            joinedSources={joinedSources}
           />
         </div>
       )}
@@ -573,6 +672,7 @@ export function ReportColumnPicker({
             columnFilters={filtersByColumn.get(field.name) ?? EMPTY_COLUMN_FILTERS}
             onAddFilter={outputControlsAvailable ? handleAddFilter : undefined}
             onRemoveFilterAt={outputControlsAvailable ? handleRemoveFilterAt : undefined}
+            onReplaceFilterAt={outputControlsAvailable ? handleReplaceFilterAt : undefined}
           />
         ))}
 
@@ -586,6 +686,8 @@ export function ReportColumnPicker({
             filtersByColumn={filtersByColumn}
             onAddFilter={outputControlsAvailable ? handleAddFilter : undefined}
             onRemoveFilterAt={outputControlsAvailable ? handleRemoveFilterAt : undefined}
+            onReplaceFilterAt={outputControlsAvailable ? handleReplaceFilterAt : undefined}
+            preJoinByAliasPathColumn={preJoinByAliasPathColumn}
           />
         ))}
       </div>

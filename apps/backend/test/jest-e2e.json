@@ -35,6 +35,7 @@
     "^@owox/internal-helpers$": "<rootDir>/../../../packages/internal-helpers/src"
   },
   "maxWorkers": 1,
+  "workerIdleMemoryLimit": "1500MB",
   "testTimeout": 120000,
   "resolver": "<rootDir>/jest-e2e-resolver.js"
 }

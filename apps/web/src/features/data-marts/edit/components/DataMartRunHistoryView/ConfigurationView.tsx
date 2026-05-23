@@ -48,8 +48,23 @@ export function ConfigurationView({
             <>
               <h4 className='text-foreground mt-3 mb-3 text-sm font-medium'>Report definition:</h4>
               <pre className='bg-muted text-foreground overflow-x-auto rounded p-3 font-mono text-xs whitespace-pre-wrap dark:bg-white/3'>
-                {JSON.stringify(reportDefinition, null, 2)}
+                {JSON.stringify(
+                  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+                  (({ outputConfig: _outputConfig, ...rest }) => rest)(reportDefinition),
+                  null,
+                  2
+                )}
               </pre>
+              {reportDefinition.outputConfig && (
+                <>
+                  <h4 className='text-foreground mt-3 mb-3 text-sm font-medium'>
+                    Output controls:
+                  </h4>
+                  <pre className='bg-muted text-foreground overflow-x-auto rounded p-3 font-mono text-xs whitespace-pre-wrap dark:bg-white/3'>
+                    {JSON.stringify(reportDefinition.outputConfig, null, 2)}
+                  </pre>
+                </>
+              )}
             </>
           )}
           {insightDefinition && (
