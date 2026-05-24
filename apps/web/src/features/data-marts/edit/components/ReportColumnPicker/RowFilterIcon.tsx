@@ -49,43 +49,38 @@ export function RowFilterIcon({
       ? sliceIconProps.existingSlices[0]
       : undefined;
 
-  const targetFilterRef = useRef<FilterRule | null>(null);
-  const targetSliceRef = useRef<FilterRule | null>(null);
+  // Snapshot index on open — reference identity flips when the parent rerenders mid-edit.
+  const editingFilterIndexRef = useRef<number | null>(null);
+  const editingSliceIndexRef = useRef<number | null>(null);
   const prevOpenRef = useRef(false);
   useEffect(() => {
     if (open && !prevOpenRef.current) {
-      targetFilterRef.current = editFilter ?? null;
-      targetSliceRef.current = editSlice ?? null;
+      editingFilterIndexRef.current = editFilter ? activeRules.indexOf(editFilter) : null;
+      editingSliceIndexRef.current =
+        editSlice && sliceIconProps ? sliceIconProps.existingSlices.indexOf(editSlice) : null;
     } else if (!open && prevOpenRef.current) {
-      targetFilterRef.current = null;
-      targetSliceRef.current = null;
+      editingFilterIndexRef.current = null;
+      editingSliceIndexRef.current = null;
     }
     prevOpenRef.current = open;
-  }, [open, editFilter, editSlice]);
+  }, [open, editFilter, editSlice, activeRules, sliceIconProps]);
 
   const handleFilterApply = (rule: FilterRule) => {
-    const target = targetFilterRef.current ?? editFilter;
-    if (target && onReplaceAt) {
-      const currentIdx = activeRules.indexOf(target);
-      if (currentIdx >= 0) {
-        onReplaceAt(currentIdx, rule);
-        return;
-      }
+    const idx = editingFilterIndexRef.current;
+    if (idx != null && idx >= 0 && onReplaceAt) {
+      onReplaceAt(idx, rule);
+      return;
     }
     onAdd(rule);
   };
   const replaceSliceAt = sliceIconProps?.onReplaceSliceAt;
   const addSlice = sliceIconProps?.onAddSlice;
-  const sliceList = sliceIconProps?.existingSlices;
   const handleSliceApply = addSlice
     ? (rule: FilterRule) => {
-        const target = targetSliceRef.current ?? editSlice;
-        if (target && replaceSliceAt && sliceList) {
-          const currentIdx = sliceList.indexOf(target);
-          if (currentIdx >= 0) {
-            replaceSliceAt(currentIdx, rule);
-            return;
-          }
+        const idx = editingSliceIndexRef.current;
+        if (idx != null && idx >= 0 && replaceSliceAt) {
+          replaceSliceAt(idx, rule);
+          return;
         }
         addSlice(rule);
       }

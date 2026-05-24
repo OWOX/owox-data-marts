@@ -37,16 +37,11 @@ describe('ReportSqlComposerService', () => {
       isSupported: jest.fn().mockReturnValue(capabilitySupported),
     };
 
-    const outputControlsValidator = {
-      validateForReport: jest.fn().mockResolvedValue(undefined),
-    };
-
     const service = new ReportSqlComposerService(
       blendedReportDataService as never,
       queryBuilderFacade as never,
       tableReferenceService as never,
-      capabilityService as never,
-      outputControlsValidator as never
+      capabilityService as never
     );
 
     return {
@@ -55,12 +50,11 @@ describe('ReportSqlComposerService', () => {
       queryBuilderFacade,
       tableReferenceService,
       capabilityService,
-      outputControlsValidator,
     };
   };
 
-  it('re-validates output controls against the current schema before composing', async () => {
-    const { service, outputControlsValidator } = createService(
+  it('delegates schema-drift validation to resolveBlendingDecision (single chokepoint)', async () => {
+    const { service, blendedReportDataService } = createService(
       { needsBlending: false, columnFilter: ['a'] },
       'SELECT 1'
     );
@@ -73,20 +67,12 @@ describe('ReportSqlComposerService', () => {
 
     await service.compose(report);
 
-    expect(outputControlsValidator.validateForReport).toHaveBeenCalledTimes(1);
-    expect(outputControlsValidator.validateForReport).toHaveBeenCalledWith({
-      storageType: 'GOOGLE_BIGQUERY',
-      dataMartId: 'dm-1',
-      projectId: undefined,
-      columnConfig: ['a'],
-      filterConfig: report.filterConfig,
-      sortConfig: report.sortConfig,
-      limitConfig: 50,
-    });
+    expect(blendedReportDataService.resolveBlendingDecision).toHaveBeenCalledTimes(1);
+    expect(blendedReportDataService.resolveBlendingDecision).toHaveBeenCalledWith(report);
   });
 
-  it('propagates validator rejection (stale stored rule against drifted schema)', async () => {
-    const { service, outputControlsValidator } = createService({
+  it('propagates validator rejection thrown by resolveBlendingDecision', async () => {
+    const { service, blendedReportDataService } = createService({
       needsBlending: false,
       columnFilter: ['a'],
     });
@@ -94,7 +80,7 @@ describe('ReportSqlComposerService', () => {
       message: 'Output controls validation failed',
       details: { errors: [{ code: 'FILTER_COLUMN_UNKNOWN', column: 'stale_col' }] },
     });
-    outputControlsValidator.validateForReport.mockRejectedValue(validatorError);
+    blendedReportDataService.resolveBlendingDecision.mockRejectedValue(validatorError);
 
     await expect(service.compose(buildReport())).rejects.toBe(validatorError);
   });
@@ -176,8 +162,7 @@ describe('ReportSqlComposerService', () => {
       blendedDataService as never,
       queryBuilderFacade as never,
       tableReferenceService as never,
-      capabilityService as never,
-      { validateForReport: jest.fn().mockResolvedValue(undefined) } as never
+      capabilityService as never
     );
     const filterConfig = [{ column: 'a', operator: 'eq', value: 1 }];
     const sortConfig = [{ column: 'a', direction: 'asc' }];
@@ -220,8 +205,7 @@ describe('ReportSqlComposerService', () => {
       blendedDataService as never,
       queryBuilderFacade as never,
       tableReferenceService as never,
-      capabilityService as never,
-      { validateForReport: jest.fn().mockResolvedValue(undefined) } as never
+      capabilityService as never
     );
     const report = {
       dataMart: {
@@ -248,8 +232,7 @@ describe('ReportSqlComposerService', () => {
       blendedDataService as never,
       {} as never,
       {} as never,
-      { isSupported: jest.fn() } as never,
-      { validateForReport: jest.fn().mockResolvedValue(undefined) } as never
+      { isSupported: jest.fn() } as never
     );
     const result = await composer.compose({
       filterConfig: [{ column: 'a', operator: 'eq', value: 1 }],
@@ -387,8 +370,7 @@ describe('ReportSqlComposerService', () => {
         blendedDataService as never,
         facade as never,
         tableReferenceService as never,
-        capabilityService as never,
-        { validateForReport: jest.fn().mockResolvedValue(undefined) } as never
+        capabilityService as never
       );
     }
 

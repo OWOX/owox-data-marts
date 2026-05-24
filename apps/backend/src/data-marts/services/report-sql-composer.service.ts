@@ -6,7 +6,6 @@ import { isQueryBuildResult } from '../data-storage-types/interfaces/data-mart-q
 import { DataMartTableReferenceService } from './data-mart-table-reference.service';
 import { SqlParameter } from '../data-storage-types/utils/sql-clause-renderer';
 import { OutputControlsCapabilityService } from './output-controls-capability.service';
-import { OutputControlsValidatorService } from './output-controls-validator.service';
 
 @Injectable()
 export class ReportSqlComposerService {
@@ -14,22 +13,11 @@ export class ReportSqlComposerService {
     private readonly blendedReportDataService: BlendedReportDataService,
     private readonly queryBuilderFacade: DataMartQueryBuilderFacade,
     private readonly tableReferenceService: DataMartTableReferenceService,
-    private readonly capabilityService: OutputControlsCapabilityService,
-    private readonly outputControlsValidator: OutputControlsValidatorService
+    private readonly capabilityService: OutputControlsCapabilityService
   ) {}
 
   async compose(report: Report): Promise<{ sql: string; params?: SqlParameter[] }> {
-    // Re-validate against current schema (drift, renamed column, excluded source).
-    await this.outputControlsValidator.validateForReport({
-      storageType: report.dataMart.storage.type,
-      dataMartId: report.dataMart.id,
-      projectId: report.dataMart.projectId,
-      columnConfig: report.columnConfig ?? null,
-      filterConfig: report.filterConfig ?? null,
-      sortConfig: report.sortConfig ?? null,
-      limitConfig: report.limitConfig ?? null,
-    });
-
+    // Schema-drift validation lives inside resolveBlendingDecision (shared with the run path).
     const decision = await this.blendedReportDataService.resolveBlendingDecision(report);
 
     if (decision.needsBlending && decision.blendedSql) {

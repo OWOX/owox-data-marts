@@ -18,9 +18,7 @@ export type ValidationError =
   | { code: 'SORT_COLUMN_NOT_SELECTED'; column: string }
   | { code: 'FILTER_ALIAS_PATH_UNKNOWN'; aliasPath: string }
   | { code: 'FILTER_ALIAS_PATH_NOT_INCLUDED'; aliasPath: string }
-  | { code: 'FILTER_ALIAS_PATH_NOT_ALLOWED_ON_HOME'; aliasPath: string }
-  | { code: 'FILTER_ALIAS_PATH_REQUIRED'; column: string }
-  | { code: 'FILTER_ALIAS_PATH_FORBIDDEN_ON_POST_JOIN'; column: string; aliasPath: string };
+  | { code: 'PRE_JOIN_FILTERS_REQUIRE_COLUMN_CONFIG' };
 
 const STRING_TYPES = new Set(['STRING']);
 const NUMBER_TYPES = new Set(['INTEGER', 'FLOAT', 'NUMERIC', 'BIGNUMERIC']);
@@ -102,15 +100,7 @@ export class OutputControlsValidatorService {
     const errors: ValidationError[] = [];
     for (const rule of filters) {
       if (rule.placement === 'pre-join') {
-        const aliasPath = rule.aliasPath;
-        if (!aliasPath) {
-          errors.push({ code: 'FILTER_ALIAS_PATH_REQUIRED', column: rule.column });
-          continue;
-        }
-        if (aliasPath === 'main') {
-          errors.push({ code: 'FILTER_ALIAS_PATH_NOT_ALLOWED_ON_HOME', aliasPath });
-          continue;
-        }
+        const aliasPath = rule.aliasPath!;
         if (excludedPaths?.has(aliasPath)) {
           errors.push({ code: 'FILTER_ALIAS_PATH_NOT_INCLUDED', aliasPath });
           continue;
@@ -127,14 +117,6 @@ export class OutputControlsValidatorService {
         }
         this.validateRuleAgainstType(rule, type, aliasPath, errors);
       } else {
-        if (rule.aliasPath != null) {
-          errors.push({
-            code: 'FILTER_ALIAS_PATH_FORBIDDEN_ON_POST_JOIN',
-            column: rule.column,
-            aliasPath: rule.aliasPath,
-          });
-          continue;
-        }
         const type = homeFieldTypes.get(rule.column);
         if (type === undefined) {
           errors.push({ code: 'FILTER_COLUMN_UNKNOWN', column: rule.column });
@@ -235,6 +217,11 @@ export class OutputControlsValidatorService {
     }
 
     const errors: ValidationError[] = [];
+
+    const hasColumnConfig = (args.columnConfig?.length ?? 0) > 0;
+    if (!hasColumnConfig && parsedFilters.some(r => r.placement === 'pre-join')) {
+      errors.push({ code: 'PRE_JOIN_FILTERS_REQUIRE_COLUMN_CONFIG' });
+    }
 
     const needsSchema = parsedFilters.length > 0 || parsedSort.length > 0;
     if (needsSchema) {

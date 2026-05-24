@@ -46,7 +46,8 @@ const SECTION_INFO = {
   filters:
     'Filters narrow the final result — applied to the SELECT after all JOINs. Use slices below to narrow a joined data mart BEFORE it is JOINed in.',
   slices:
-    'Slices are pre-join filters: they narrow a joined data mart before it is JOINed into the main one, reducing the rows pulled in.',
+    'Slices are pre-join filters: they narrow a joined data mart INSIDE its own subquery before the JOIN, reducing the rows pulled in.\n\n' +
+    'Because joins are LEFT JOINs, a slice does NOT reduce the number of rows in the final result — main-mart rows that no longer match a sliced row pass through with NULL on the joined columns. To drop those rows from the output, add a Filter on the joined column above.',
   sort: 'Order rows in the final result. Drag to reorder priority; multiple columns are supported.',
   limit:
     'Cap the number of rows returned. Applied last, after filters and sort. Leave empty for no limit.',
@@ -165,7 +166,7 @@ function FiltersSection({
           <FilterRow
             key={filterRowKey(rule, index)}
             rule={rule}
-            fieldType={columnTypeMap.get(rule.column) ?? 'STRING'}
+            fieldType={columnTypeMap.get(rule.column) ?? null}
             onChange={next => {
               onUpdateAt(index, next);
             }}
@@ -233,11 +234,9 @@ function SlicesSection({
     }
   }
 
-  function fieldTypeFor(rule: FilterRule): string {
-    if (rule.aliasPath) {
-      return fieldTypeMap.get(`${rule.aliasPath}\0${rule.column}`) ?? 'STRING';
-    }
-    return 'STRING';
+  function fieldTypeFor(rule: FilterRule): string | null {
+    if (!rule.aliasPath) return null;
+    return fieldTypeMap.get(`${rule.aliasPath}\0${rule.column}`) ?? null;
   }
 
   return (

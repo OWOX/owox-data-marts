@@ -3,6 +3,7 @@ import { BlendedReportDataService } from './blended-report-data.service';
 import { BlendableSchemaService } from './blendable-schema.service';
 import { DataMartRelationshipService } from './data-mart-relationship.service';
 import { DataMartTableReferenceService } from './data-mart-table-reference.service';
+import { OutputControlsValidatorService } from './output-controls-validator.service';
 import { BlendedQueryBuilderFacade } from '../data-storage-types/facades/blended-query-builder.facade';
 import { DataMartQueryBuilderFacade } from '../data-storage-types/facades/data-mart-query-builder.facade';
 import { Report } from '../entities/report.entity';
@@ -112,6 +113,10 @@ describe('BlendedReportDataService', () => {
           useValue: {
             getPublicOrigin: jest.fn().mockReturnValue('https://app.example.com'),
           },
+        },
+        {
+          provide: OutputControlsValidatorService,
+          useValue: { validateForReport: jest.fn().mockResolvedValue(undefined) },
         },
       ],
     }).compile();

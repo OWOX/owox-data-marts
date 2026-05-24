@@ -1,4 +1,4 @@
-import { NotImplementedException } from '@nestjs/common';
+import { Logger, NotImplementedException } from '@nestjs/common';
 import {
   BlendedQueryBuilder,
   BlendedQueryContext,
@@ -46,6 +46,10 @@ interface PassthroughField {
  * JOINed in. Filter rules with `placement: 'post-join'` (the default) are
  * applied to the final SELECT.
  *
+ * Slice semantics: subsidiaries are LEFT JOINed, so a slice narrows the
+ * subsidiary CTE but does NOT drop home rows (unmatched home rows pass through
+ * with NULL). Use a post-join filter on top for row elimination.
+ *
  * ```sql
  * WITH
  *   main AS (SELECT ... FROM <mainTable>),
@@ -74,6 +78,8 @@ export abstract class AbstractBlendedQueryBuilder implements BlendedQueryBuilder
   protected abstract get identifierQuoteChar(): string;
 
   protected abstract get clauseRenderer(): SqlClauseRenderer | null;
+
+  private readonly logger = new Logger(AbstractBlendedQueryBuilder.name);
 
   buildBlendedQuery(context: BlendedQueryContext): { sql: string; params: SqlParameter[] } {
     const allFilters = context.filters ?? [];
@@ -350,7 +356,15 @@ export abstract class AbstractBlendedQueryBuilder implements BlendedQueryBuilder
     preJoinFilters?: FilterRule[],
     preJoinParamPrefix?: string
   ): { sql: string; params: SqlParameter[] } {
-    const safeForExplicitProjection = columns.length > 0 && columns.every(c => !c.includes('.'));
+    // `quoteIdentifier` treats the input as one identifier — dotted paths
+    // can't be projected, so we widen to SELECT *. Warn so the perf hit is visible.
+    const hasNestedColumns = columns.some(c => c.includes('.'));
+    const safeForExplicitProjection = columns.length > 0 && !hasNestedColumns;
+    if (columns.length > 0 && hasNestedColumns) {
+      this.logger.warn(
+        `buildRawCte(${alias}): nested-path column(s) forced SELECT * on ${tableReference}`
+      );
+    }
     const safeTitle = sanitizeSqlComment(title);
     const safeUrl = sanitizeSqlComment(url);
     const header = `  -- ${safeTitle}\n  -- ${safeUrl}\n  ${this.quoteIdentifier(alias)} AS (\n`;

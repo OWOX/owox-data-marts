@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Input } from '@owox/ui/components/input';
 import {
   Select,
@@ -146,21 +146,32 @@ export function FilterValueEditor({
 
   const [state, setState] = useState<EditorState>(() => getInitialState(initialRule, fallbackOp));
 
-  // Reset state when initialRule changes (e.g. popover re-opens with a different existing rule)
   useEffect(() => {
     setState(getInitialState(initialRule, fallbackOp));
   }, [initialRule, fallbackOp]);
 
-  // Emit a parsed rule (or null) on every state change so the parent can track validity
-  useEffect(() => {
-    let rule: FilterRule | null = null;
+  const rule = useMemo<FilterRule | null>(() => {
     try {
-      rule = buildRule({ column, fieldType, state });
+      return buildRule({ column, fieldType, state });
     } catch {
-      rule = null;
+      return null;
     }
-    onChange(rule);
-  }, [state, column, fieldType, onChange]);
+  }, [state, column, fieldType]);
+
+  // Emit only on actual content change. `onChange` identity flips per parent
+  // render, so we read the latest via ref to keep this effect deps minimal.
+  const onChangeRef = useRef(onChange);
+  useEffect(() => {
+    onChangeRef.current = onChange;
+  }, [onChange]);
+
+  const lastEmittedKeyRef = useRef<string | null>(null);
+  useEffect(() => {
+    const key = rule === null ? '__null__' : JSON.stringify(rule);
+    if (lastEmittedKeyRef.current === key) return;
+    lastEmittedKeyRef.current = key;
+    onChangeRef.current(rule);
+  }, [rule]);
 
   const isDateType = DATE_TYPES.has(fieldType);
 

@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { BlendableSchemaService } from './blendable-schema.service';
 import { DataMartRelationshipService } from './data-mart-relationship.service';
 import { DataMartTableReferenceService } from './data-mart-table-reference.service';
+import { OutputControlsValidatorService } from './output-controls-validator.service';
 import { BlendedQueryBuilderFacade } from '../data-storage-types/facades/blended-query-builder.facade';
 import { Report } from '../entities/report.entity';
 import { ResolvedRelationshipChain } from '../data-storage-types/interfaces/blended-query-builder.interface';
@@ -24,11 +25,23 @@ export class BlendedReportDataService {
     private readonly blendableSchemaService: BlendableSchemaService,
     private readonly blendedQueryBuilderFacade: BlendedQueryBuilderFacade,
     private readonly tableReferenceService: DataMartTableReferenceService,
-    private readonly publicOriginService: PublicOriginService
+    private readonly publicOriginService: PublicOriginService,
+    private readonly outputControlsValidator: OutputControlsValidatorService
   ) {}
 
   async resolveBlendingDecision(report: Report): Promise<BlendingDecision> {
     const { columnConfig, dataMart } = report;
+
+    // Single chokepoint for both /generated-sql and the run path — catches schema drift since save.
+    await this.outputControlsValidator.validateForReport({
+      storageType: dataMart.storage.type,
+      dataMartId: dataMart.id,
+      projectId: dataMart.projectId,
+      columnConfig: columnConfig ?? null,
+      filterConfig: report.filterConfig ?? null,
+      sortConfig: report.sortConfig ?? null,
+      limitConfig: report.limitConfig ?? null,
+    });
 
     if (columnConfig === null || columnConfig === undefined) {
       return { needsBlending: false };

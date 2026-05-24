@@ -211,17 +211,6 @@ describe('OutputControlsValidatorService', () => {
       expect(errors).toEqual([{ code: 'FILTER_ALIAS_PATH_UNKNOWN', aliasPath: 'orgs' }]);
     });
 
-    it('rejects home aliasPath', () => {
-      const errors = svc.validateFilters(
-        [{ column: 'x', operator: 'eq', value: 1, placement: 'pre-join', aliasPath: 'main' }],
-        homeFieldTypes,
-        knownPaths
-      );
-      expect(errors).toEqual([
-        { code: 'FILTER_ALIAS_PATH_NOT_ALLOWED_ON_HOME', aliasPath: 'main' },
-      ]);
-    });
-
     it('rejects unknown column inside known aliasPath (includes aliasPath in payload)', () => {
       const errors = svc.validateFilters(
         [
@@ -308,19 +297,6 @@ describe('OutputControlsValidatorService', () => {
       expect(errors).toEqual([{ code: 'FILTER_ALIAS_PATH_NOT_INCLUDED', aliasPath: 'users' }]);
     });
 
-    it('home-rejection wins over excluded-rejection', () => {
-      const excluded = new Set(['main']);
-      const errors = svc.validateFilters(
-        [{ column: 'x', operator: 'eq', value: 1, placement: 'pre-join', aliasPath: 'main' }],
-        homeFieldTypes,
-        new Map(),
-        excluded
-      );
-      expect(errors).toEqual([
-        { code: 'FILTER_ALIAS_PATH_NOT_ALLOWED_ON_HOME', aliasPath: 'main' },
-      ]);
-    });
-
     it('post-join rule without placement defaults to post-join lookup (does not need knownPaths)', () => {
       const homeTypes = new Map<string, string>([['name', BigQueryFieldType.STRING]]);
       const errors = svc.validateFilters(
@@ -330,38 +306,6 @@ describe('OutputControlsValidatorService', () => {
         homeTypes
       );
       expect(errors).toEqual([]);
-    });
-
-    it('rejects pre-join rule that is missing aliasPath (defense in depth past Zod)', () => {
-      const errors = svc.validateFilters(
-        [{ column: 'userRole', operator: 'eq', value: 'admin', placement: 'pre-join' } as never],
-        homeFieldTypes,
-        knownPaths
-      );
-      expect(errors).toEqual([{ code: 'FILTER_ALIAS_PATH_REQUIRED', column: 'userRole' }]);
-    });
-
-    it('rejects post-join rule that carries aliasPath (must mirror Zod contract)', () => {
-      const homeTypes = new Map<string, string>([['name', BigQueryFieldType.STRING]]);
-      const errors = svc.validateFilters(
-        [
-          {
-            column: 'name',
-            operator: 'eq',
-            value: 'X',
-            placement: 'post-join',
-            aliasPath: 'users',
-          } as never,
-        ],
-        homeTypes
-      );
-      expect(errors).toEqual([
-        {
-          code: 'FILTER_ALIAS_PATH_FORBIDDEN_ON_POST_JOIN',
-          column: 'name',
-          aliasPath: 'users',
-        },
-      ]);
     });
   });
 
@@ -751,7 +695,7 @@ describe('OutputControlsValidatorService', () => {
           storageType: supportedStorageType,
           dataMartId: 'dm-1',
           projectId: 'proj-1',
-          columnConfig: null,
+          columnConfig: ['some_col'],
           filterConfig: [
             { column: 'x', operator: 'eq', value: 1, placement: 'pre-join', aliasPath: 'orgs' },
           ],
@@ -765,6 +709,52 @@ describe('OutputControlsValidatorService', () => {
       expect(caught).toBeDefined();
       const response = caught!.getResponse() as { details: { errors: { code: string }[] } };
       expect(response.details.errors[0].code).toBe('FILTER_ALIAS_PATH_UNKNOWN');
+    });
+
+    it('rejects pre-join filter when columnConfig is null/empty (PRE_JOIN_FILTERS_REQUIRE_COLUMN_CONFIG)', async () => {
+      // Without a columnConfig the report renders as a flat passthrough — no
+      // blended SQL is generated, so the slice would silently no-op. Validator
+      // catches this at save time with a structured code.
+      const capabilitySvc = makeCapabilityService(true);
+      const schemaSvc = makeBlendableSchemaService([], {
+        blendedFields: [
+          { aliasPath: 'users', originalFieldName: 'userRole', type: BigQueryFieldType.STRING },
+        ],
+        availableSources: [{ aliasPath: 'users' }],
+      });
+      const validator = new OutputControlsValidatorService(
+        capabilitySvc as never,
+        schemaSvc as never
+      );
+
+      let caught: BadRequestException | undefined;
+      try {
+        await validator.validateForReport({
+          storageType: supportedStorageType,
+          dataMartId: 'dm-1',
+          projectId: 'proj-1',
+          columnConfig: null,
+          filterConfig: [
+            {
+              column: 'userRole',
+              operator: 'eq',
+              value: 'admin',
+              placement: 'pre-join',
+              aliasPath: 'users',
+            },
+          ],
+          sortConfig: null,
+          limitConfig: null,
+        });
+      } catch (e) {
+        caught = e as BadRequestException;
+      }
+
+      expect(caught).toBeDefined();
+      const response = caught!.getResponse() as { details: { errors: { code: string }[] } };
+      expect(
+        response.details.errors.some(e => e.code === 'PRE_JOIN_FILTERS_REQUIRE_COLUMN_CONFIG')
+      ).toBe(true);
     });
 
     it('resolves when pre-join filter aliasPath and column are valid', async () => {
@@ -785,7 +775,7 @@ describe('OutputControlsValidatorService', () => {
           storageType: supportedStorageType,
           dataMartId: 'dm-1',
           projectId: 'proj-1',
-          columnConfig: null,
+          columnConfig: ['some_col'],
           filterConfig: [
             {
               column: 'userRole',
@@ -827,7 +817,7 @@ describe('OutputControlsValidatorService', () => {
           storageType: supportedStorageType,
           dataMartId: 'dm-1',
           projectId: 'proj-1',
-          columnConfig: null,
+          columnConfig: ['some_col'],
           filterConfig: [
             {
               column: 'userRole',
@@ -870,7 +860,7 @@ describe('OutputControlsValidatorService', () => {
           storageType: supportedStorageType,
           dataMartId: 'dm-1',
           projectId: 'proj-1',
-          columnConfig: null,
+          columnConfig: ['some_col'],
           filterConfig: [
             {
               column: 'userRole',

@@ -203,7 +203,7 @@ describe('Output controls API (e2e)', () => {
     expect(JSON.stringify(putRes.body)).toContain('FILTER_ALIAS_PATH_UNKNOWN');
   });
 
-  it('PUT pre-join filter with aliasPath="main" → 400 FILTER_ALIAS_PATH_NOT_ALLOWED_ON_HOME', async () => {
+  it('PUT pre-join filter with aliasPath="main" → 400 with Zod shape error', async () => {
     const res = await agent
       .put(`/api/reports/${reportId}`)
       .set(AUTH_HEADER)
@@ -217,14 +217,9 @@ describe('Output controls API (e2e)', () => {
         ],
       });
     expect(res.status).toBe(400);
-    // Zod superRefine catches this BEFORE the validator service, so the
-    // response body carries the schema-level message (path: ["aliasPath"])
-    // rather than the validator's FILTER_ALIAS_PATH_NOT_ALLOWED_ON_HOME code.
+    // Owned by Zod superRefine — FE consumes the schema-level issue, not a validator code.
     const body = JSON.stringify(res.body);
-    expect(
-      body.includes('FILTER_ALIAS_PATH_NOT_ALLOWED_ON_HOME') ||
-        body.includes('pre-join filter on the home data mart')
-    ).toBe(true);
+    expect(body).toContain('pre-join filter on the home data mart');
   });
 
   it('PUT rejects filterConfig with > 50 entries via @ArrayMaxSize(50)', async () => {
