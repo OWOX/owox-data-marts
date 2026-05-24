@@ -6,7 +6,7 @@ import { DataStorageType } from '../data-storage-types/enums/data-storage-type.e
 describe('OutputControlsValidatorService', () => {
   const svc = new OutputControlsValidatorService(undefined as never, undefined as never);
 
-  describe('validateFilters', () => {
+  describe('validateFilters (post-join)', () => {
     const fieldTypes = new Map<string, string>([
       ['name', BigQueryFieldType.STRING],
       ['amount', BigQueryFieldType.INTEGER],
@@ -17,7 +17,7 @@ describe('OutputControlsValidatorService', () => {
 
     it('accepts eq on STRING', () => {
       const errors = svc.validateFilters(
-        [{ column: 'name', operator: 'eq', value: 'X' }],
+        [{ column: 'name', operator: 'eq', value: 'X', placement: 'post-join' }],
         fieldTypes
       );
       expect(errors).toEqual([]);
@@ -25,7 +25,7 @@ describe('OutputControlsValidatorService', () => {
 
     it('rejects regex on INTEGER', () => {
       const errors = svc.validateFilters(
-        [{ column: 'amount', operator: 'regex', value: '^1' }],
+        [{ column: 'amount', operator: 'regex', value: '^1', placement: 'post-join' }],
         fieldTypes
       );
       expect(errors).toEqual([
@@ -40,49 +40,66 @@ describe('OutputControlsValidatorService', () => {
 
     it('rejects between on STRING', () => {
       const errors = svc.validateFilters(
-        [{ column: 'name', operator: 'between', value: { from: 'a', to: 'z' } }],
+        [
+          {
+            column: 'name',
+            operator: 'between',
+            value: { from: 'a', to: 'z' },
+            placement: 'post-join',
+          },
+        ],
         fieldTypes
       );
       expect(errors[0].code).toBe('INVALID_OPERATOR_FOR_TYPE');
     });
 
     it('rejects filter on RECORD column', () => {
-      const errors = svc.validateFilters([{ column: 'nested', operator: 'is_empty' }], fieldTypes);
+      const errors = svc.validateFilters(
+        [{ column: 'nested', operator: 'is_empty', placement: 'post-join' }],
+        fieldTypes
+      );
       expect(errors[0].code).toBe('INVALID_OPERATOR_FOR_TYPE');
     });
 
     it('rejects filter on unknown column', () => {
       const errors = svc.validateFilters(
-        [{ column: 'missing', operator: 'eq', value: 'X' }],
+        [{ column: 'missing', operator: 'eq', value: 'X', placement: 'post-join' }],
         fieldTypes
       );
       expect(errors).toEqual([{ code: 'FILTER_COLUMN_UNKNOWN', column: 'missing' }]);
     });
 
     it('accepts is_true on BOOLEAN', () => {
-      const errors = svc.validateFilters([{ column: 'flag', operator: 'is_true' }], fieldTypes);
+      const errors = svc.validateFilters(
+        [{ column: 'flag', operator: 'is_true', placement: 'post-join' }],
+        fieldTypes
+      );
       expect(errors).toEqual([]);
     });
 
     it('accepts is_null / is_not_null on every supported type', () => {
       const filters = [
-        { column: 'name', operator: 'is_null' as const },
-        { column: 'name', operator: 'is_not_null' as const },
-        { column: 'amount', operator: 'is_null' as const },
-        { column: 'amount', operator: 'is_not_null' as const },
-        { column: 'created_at', operator: 'is_null' as const },
-        { column: 'created_at', operator: 'is_not_null' as const },
-        { column: 'flag', operator: 'is_null' as const },
-        { column: 'flag', operator: 'is_not_null' as const },
+        { column: 'name', operator: 'is_null' as const, placement: 'post-join' as const },
+        { column: 'name', operator: 'is_not_null' as const, placement: 'post-join' as const },
+        { column: 'amount', operator: 'is_null' as const, placement: 'post-join' as const },
+        { column: 'amount', operator: 'is_not_null' as const, placement: 'post-join' as const },
+        { column: 'created_at', operator: 'is_null' as const, placement: 'post-join' as const },
+        { column: 'created_at', operator: 'is_not_null' as const, placement: 'post-join' as const },
+        { column: 'flag', operator: 'is_null' as const, placement: 'post-join' as const },
+        { column: 'flag', operator: 'is_not_null' as const, placement: 'post-join' as const },
       ];
       expect(svc.validateFilters(filters, fieldTypes)).toEqual([]);
     });
 
     it('rejects is_empty / is_not_empty on non-STRING types (use is_null instead)', () => {
       const filters = [
-        { column: 'amount', operator: 'is_empty' as const },
-        { column: 'created_at', operator: 'is_not_empty' as const },
-        { column: 'flag', operator: 'is_empty' as const },
+        { column: 'amount', operator: 'is_empty' as const, placement: 'post-join' as const },
+        {
+          column: 'created_at',
+          operator: 'is_not_empty' as const,
+          placement: 'post-join' as const,
+        },
+        { column: 'flag', operator: 'is_empty' as const, placement: 'post-join' as const },
       ];
       const errors = svc.validateFilters(filters, fieldTypes);
       expect(errors).toHaveLength(3);
@@ -91,15 +108,22 @@ describe('OutputControlsValidatorService', () => {
 
     it('still accepts is_empty / is_not_empty on STRING (preserves "" + NULL semantics)', () => {
       const filters = [
-        { column: 'name', operator: 'is_empty' as const },
-        { column: 'name', operator: 'is_not_empty' as const },
+        { column: 'name', operator: 'is_empty' as const, placement: 'post-join' as const },
+        { column: 'name', operator: 'is_not_empty' as const, placement: 'post-join' as const },
       ];
       expect(svc.validateFilters(filters, fieldTypes)).toEqual([]);
     });
 
     it('accepts relative_date on TIMESTAMP', () => {
       const errors = svc.validateFilters(
-        [{ column: 'created_at', operator: 'relative_date', value: { kind: 'last_n_days', n: 7 } }],
+        [
+          {
+            column: 'created_at',
+            operator: 'relative_date',
+            value: { kind: 'last_n_days', n: 7 },
+            placement: 'post-join',
+          },
+        ],
         fieldTypes
       );
       expect(errors).toEqual([]);
@@ -113,17 +137,17 @@ describe('OutputControlsValidatorService', () => {
         ['b', BigQueryFieldType.BIGNUMERIC],
       ]);
       const filters = [
-        { column: 'i', operator: 'gt' as const, value: 1 },
-        { column: 'f', operator: 'gt' as const, value: 1 },
-        { column: 'n', operator: 'gt' as const, value: 1 },
-        { column: 'b', operator: 'gt' as const, value: 1 },
+        { column: 'i', operator: 'gt' as const, value: 1, placement: 'post-join' as const },
+        { column: 'f', operator: 'gt' as const, value: 1, placement: 'post-join' as const },
+        { column: 'n', operator: 'gt' as const, value: 1, placement: 'post-join' as const },
+        { column: 'b', operator: 'gt' as const, value: 1, placement: 'post-join' as const },
       ];
       expect(svc.validateFilters(filters, types)).toEqual([]);
     });
 
     it('accepts a valid regex on STRING', () => {
       const errors = svc.validateFilters(
-        [{ column: 'name', operator: 'regex', value: '^foo$' }],
+        [{ column: 'name', operator: 'regex', value: '^foo$', placement: 'post-join' }],
         fieldTypes
       );
       expect(errors).toEqual([]);
@@ -131,7 +155,7 @@ describe('OutputControlsValidatorService', () => {
 
     it('rejects unparseable regex on STRING with INVALID_REGEX_PATTERN', () => {
       const errors = svc.validateFilters(
-        [{ column: 'name', operator: 'regex', value: '[unclosed' }],
+        [{ column: 'name', operator: 'regex', value: '[unclosed', placement: 'post-join' }],
         fieldTypes
       );
       expect(errors).toEqual([
@@ -141,10 +165,147 @@ describe('OutputControlsValidatorService', () => {
 
     it('rejects unparseable not_regex on STRING with INVALID_REGEX_PATTERN', () => {
       const errors = svc.validateFilters(
-        [{ column: 'name', operator: 'not_regex', value: '*' }],
+        [{ column: 'name', operator: 'not_regex', value: '*', placement: 'post-join' }],
         fieldTypes
       );
       expect(errors[0]).toMatchObject({ code: 'INVALID_REGEX_PATTERN', column: 'name' });
+    });
+  });
+
+  describe('validateFilters (pre-join)', () => {
+    const homeFieldTypes = new Map<string, string>();
+    const knownPaths = new Map<string, ReadonlyMap<string, string>>([
+      [
+        'users',
+        new Map([
+          ['userRole', BigQueryFieldType.STRING],
+          ['createdAt', BigQueryFieldType.TIMESTAMP],
+        ]),
+      ],
+      ['users.profiles', new Map([['country', BigQueryFieldType.STRING]])],
+    ]);
+
+    it('accepts a known aliasPath + known column + valid operator', () => {
+      const errors = svc.validateFilters(
+        [
+          {
+            column: 'userRole',
+            operator: 'eq',
+            value: 'admin',
+            placement: 'pre-join',
+            aliasPath: 'users',
+          },
+        ],
+        homeFieldTypes,
+        knownPaths
+      );
+      expect(errors).toEqual([]);
+    });
+
+    it('rejects unknown aliasPath', () => {
+      const errors = svc.validateFilters(
+        [{ column: 'x', operator: 'eq', value: 1, placement: 'pre-join', aliasPath: 'orgs' }],
+        homeFieldTypes,
+        knownPaths
+      );
+      expect(errors).toEqual([{ code: 'FILTER_ALIAS_PATH_UNKNOWN', aliasPath: 'orgs' }]);
+    });
+
+    it('rejects unknown column inside known aliasPath (includes aliasPath in payload)', () => {
+      const errors = svc.validateFilters(
+        [
+          {
+            column: 'missing',
+            operator: 'eq',
+            value: 1,
+            placement: 'pre-join',
+            aliasPath: 'users',
+          },
+        ],
+        homeFieldTypes,
+        knownPaths
+      );
+      expect(errors).toEqual([
+        { code: 'FILTER_COLUMN_UNKNOWN', column: 'missing', aliasPath: 'users' },
+      ]);
+    });
+
+    it('rejects regex on INTEGER inside pre-join filter (carries aliasPath)', () => {
+      const pathsWithInt = new Map<string, ReadonlyMap<string, string>>([
+        ['users', new Map([['amount', BigQueryFieldType.INTEGER]])],
+      ]);
+      const errors = svc.validateFilters(
+        [
+          {
+            column: 'amount',
+            operator: 'regex',
+            value: '^1',
+            placement: 'pre-join',
+            aliasPath: 'users',
+          },
+        ],
+        homeFieldTypes,
+        pathsWithInt
+      );
+      expect(errors[0]).toMatchObject({
+        code: 'INVALID_OPERATOR_FOR_TYPE',
+        column: 'amount',
+        aliasPath: 'users',
+      });
+    });
+
+    it('rejects malformed regex pattern inside pre-join filter (carries aliasPath)', () => {
+      const errors = svc.validateFilters(
+        [
+          {
+            column: 'userRole',
+            operator: 'regex',
+            value: '[unclosed',
+            placement: 'pre-join',
+            aliasPath: 'users',
+          },
+        ],
+        homeFieldTypes,
+        knownPaths
+      );
+      expect(errors).toEqual([
+        {
+          code: 'INVALID_REGEX_PATTERN',
+          column: 'userRole',
+          pattern: '[unclosed',
+          aliasPath: 'users',
+        },
+      ]);
+    });
+
+    it('rejects pre-join filter on excluded source', () => {
+      const excluded = new Set(['users']);
+      const errors = svc.validateFilters(
+        [
+          {
+            column: 'userRole',
+            operator: 'eq',
+            value: 'admin',
+            placement: 'pre-join',
+            aliasPath: 'users',
+          },
+        ],
+        homeFieldTypes,
+        new Map(),
+        excluded
+      );
+      expect(errors).toEqual([{ code: 'FILTER_ALIAS_PATH_NOT_INCLUDED', aliasPath: 'users' }]);
+    });
+
+    it('post-join rule without placement defaults to post-join lookup (does not need knownPaths)', () => {
+      const homeTypes = new Map<string, string>([['name', BigQueryFieldType.STRING]]);
+      const errors = svc.validateFilters(
+        // No placement field — Zod default would set 'post-join'; raw call here
+        // simulates a rule that was passed through unparsed.
+        [{ column: 'name', operator: 'eq', value: 'X' } as never],
+        homeTypes
+      );
+      expect(errors).toEqual([]);
     });
   });
 
@@ -176,10 +337,22 @@ describe('OutputControlsValidatorService', () => {
       isSupported: jest.fn().mockReturnValue(supported),
     });
 
-    const makeBlendableSchemaService = (fields: { name: string; type: string }[] = []) => ({
+    const makeBlendableSchemaService = (
+      nativeFields: { name: string; type: string }[] = [],
+      extras: {
+        blendedFields?: {
+          name?: string;
+          aliasPath?: string;
+          originalFieldName?: string;
+          type: string;
+        }[];
+        availableSources?: { aliasPath: string; isIncluded?: boolean }[];
+      } = {}
+    ) => ({
       computeBlendableSchema: jest.fn().mockResolvedValue({
-        nativeFields: fields,
-        blendedFields: [],
+        nativeFields,
+        blendedFields: extras.blendedFields ?? [],
+        availableSources: extras.availableSources ?? [],
       }),
     });
 
@@ -358,7 +531,7 @@ describe('OutputControlsValidatorService', () => {
           storageType: supportedStorageType,
           dataMartId: 'dm-1',
           projectId: 'proj-1',
-          columnConfig: ['date'], // only 'date' selected, not 'amount'
+          columnConfig: ['date'],
           filterConfig: null,
           sortConfig: [{ column: 'amount', direction: 'asc' }],
           limitConfig: null,
@@ -388,7 +561,7 @@ describe('OutputControlsValidatorService', () => {
           storageType: supportedStorageType,
           dataMartId: 'dm-1',
           projectId: 'proj-1',
-          columnConfig: null, // no explicit projection → all fields allowed
+          columnConfig: null,
           filterConfig: null,
           sortConfig: [{ column: 'amount', direction: 'asc' }],
           limitConfig: null,
@@ -397,8 +570,6 @@ describe('OutputControlsValidatorService', () => {
     });
 
     it('rejects payload with mismatched filter shape via Zod (defence-in-depth)', async () => {
-      // class-validator passes shapeless arrays; the validator must catch
-      // discriminator violations (between operator with scalar value, etc.).
       const capabilitySvc = makeCapabilityService(true);
       const schemaSvc = makeBlendableSchemaService([
         { name: 'amount', type: BigQueryFieldType.INTEGER },
@@ -415,7 +586,6 @@ describe('OutputControlsValidatorService', () => {
           dataMartId: 'dm-1',
           projectId: 'proj-1',
           columnConfig: ['amount'],
-          // 'between' requires { from, to }; passing a scalar should be rejected.
           filterConfig: [{ column: 'amount', operator: 'between', value: 5 }] as never,
           sortConfig: null,
           limitConfig: null,
@@ -469,8 +639,6 @@ describe('OutputControlsValidatorService', () => {
           dataMartId: 'dm-1',
           projectId: 'proj-1',
           columnConfig: ['created_at'],
-          // n=10000 exceeds the 3650 cap (~10 years), preventing accidental
-          // expensive scans like INTERVAL 9999999999 DAY.
           filterConfig: [
             {
               column: 'created_at',
@@ -504,6 +672,206 @@ describe('OutputControlsValidatorService', () => {
           filterConfig: [{ column: 'name', operator: 'eq', value: 'test' }],
           sortConfig: [{ column: 'amount', direction: 'desc' }],
           limitConfig: 50,
+        })
+      ).resolves.toBeUndefined();
+    });
+
+    it('throws FILTER_ALIAS_PATH_UNKNOWN when pre-join filter aliasPath is not in blendableSchema', async () => {
+      const capabilitySvc = makeCapabilityService(true);
+      const schemaSvc = makeBlendableSchemaService([], {
+        blendedFields: [
+          { aliasPath: 'users', originalFieldName: 'userRole', type: BigQueryFieldType.STRING },
+        ],
+        availableSources: [{ aliasPath: 'users' }],
+      });
+      const validator = new OutputControlsValidatorService(
+        capabilitySvc as never,
+        schemaSvc as never
+      );
+
+      let caught: BadRequestException | undefined;
+      try {
+        await validator.validateForReport({
+          storageType: supportedStorageType,
+          dataMartId: 'dm-1',
+          projectId: 'proj-1',
+          columnConfig: ['some_col'],
+          filterConfig: [
+            { column: 'x', operator: 'eq', value: 1, placement: 'pre-join', aliasPath: 'orgs' },
+          ],
+          sortConfig: null,
+          limitConfig: null,
+        });
+      } catch (e) {
+        caught = e as BadRequestException;
+      }
+
+      expect(caught).toBeDefined();
+      const response = caught!.getResponse() as { details: { errors: { code: string }[] } };
+      expect(response.details.errors[0].code).toBe('FILTER_ALIAS_PATH_UNKNOWN');
+    });
+
+    it('rejects pre-join filter when columnConfig is null/empty (PRE_JOIN_FILTERS_REQUIRE_COLUMN_CONFIG)', async () => {
+      // Without a columnConfig the report renders as a flat passthrough — no
+      // blended SQL is generated, so the slice would silently no-op. Validator
+      // catches this at save time with a structured code.
+      const capabilitySvc = makeCapabilityService(true);
+      const schemaSvc = makeBlendableSchemaService([], {
+        blendedFields: [
+          { aliasPath: 'users', originalFieldName: 'userRole', type: BigQueryFieldType.STRING },
+        ],
+        availableSources: [{ aliasPath: 'users' }],
+      });
+      const validator = new OutputControlsValidatorService(
+        capabilitySvc as never,
+        schemaSvc as never
+      );
+
+      let caught: BadRequestException | undefined;
+      try {
+        await validator.validateForReport({
+          storageType: supportedStorageType,
+          dataMartId: 'dm-1',
+          projectId: 'proj-1',
+          columnConfig: null,
+          filterConfig: [
+            {
+              column: 'userRole',
+              operator: 'eq',
+              value: 'admin',
+              placement: 'pre-join',
+              aliasPath: 'users',
+            },
+          ],
+          sortConfig: null,
+          limitConfig: null,
+        });
+      } catch (e) {
+        caught = e as BadRequestException;
+      }
+
+      expect(caught).toBeDefined();
+      const response = caught!.getResponse() as { details: { errors: { code: string }[] } };
+      expect(
+        response.details.errors.some(e => e.code === 'PRE_JOIN_FILTERS_REQUIRE_COLUMN_CONFIG')
+      ).toBe(true);
+    });
+
+    it('resolves when pre-join filter aliasPath and column are valid', async () => {
+      const capabilitySvc = makeCapabilityService(true);
+      const schemaSvc = makeBlendableSchemaService([], {
+        blendedFields: [
+          { aliasPath: 'users', originalFieldName: 'userRole', type: BigQueryFieldType.STRING },
+        ],
+        availableSources: [{ aliasPath: 'users' }],
+      });
+      const validator = new OutputControlsValidatorService(
+        capabilitySvc as never,
+        schemaSvc as never
+      );
+
+      await expect(
+        validator.validateForReport({
+          storageType: supportedStorageType,
+          dataMartId: 'dm-1',
+          projectId: 'proj-1',
+          columnConfig: ['some_col'],
+          filterConfig: [
+            {
+              column: 'userRole',
+              operator: 'eq',
+              value: 'admin',
+              placement: 'pre-join',
+              aliasPath: 'users',
+            },
+          ],
+          sortConfig: null,
+          limitConfig: null,
+        })
+      ).resolves.toBeUndefined();
+    });
+  });
+
+  describe('buildKnownPaths via validateForReport', () => {
+    const supportedStorageType = DataStorageType.GOOGLE_BIGQUERY;
+
+    it('emits FILTER_ALIAS_PATH_NOT_INCLUDED when source.isIncluded === false', async () => {
+      const capabilitySvc = { isSupported: jest.fn().mockReturnValue(true) };
+      const schemaSvc = {
+        computeBlendableSchema: jest.fn().mockResolvedValue({
+          nativeFields: [],
+          blendedFields: [
+            { aliasPath: 'users', originalFieldName: 'userRole', type: BigQueryFieldType.STRING },
+          ],
+          availableSources: [{ aliasPath: 'users', isIncluded: false }],
+        }),
+      };
+      const validator = new OutputControlsValidatorService(
+        capabilitySvc as never,
+        schemaSvc as never
+      );
+
+      let caught: BadRequestException | undefined;
+      try {
+        await validator.validateForReport({
+          storageType: supportedStorageType,
+          dataMartId: 'dm-1',
+          projectId: 'proj-1',
+          columnConfig: ['some_col'],
+          filterConfig: [
+            {
+              column: 'userRole',
+              operator: 'eq',
+              value: 'admin',
+              placement: 'pre-join',
+              aliasPath: 'users',
+            },
+          ],
+          sortConfig: null,
+          limitConfig: null,
+        });
+      } catch (e) {
+        caught = e as BadRequestException;
+      }
+
+      expect(caught).toBeDefined();
+      const response = caught!.getResponse() as { details: { errors: { code: string }[] } };
+      expect(response.details.errors[0].code).toBe('FILTER_ALIAS_PATH_NOT_INCLUDED');
+    });
+
+    it('included sources still accept pre-join filters on their columns (no false positive)', async () => {
+      const capabilitySvc = { isSupported: jest.fn().mockReturnValue(true) };
+      const schemaSvc = {
+        computeBlendableSchema: jest.fn().mockResolvedValue({
+          nativeFields: [],
+          blendedFields: [
+            { aliasPath: 'users', originalFieldName: 'userRole', type: BigQueryFieldType.STRING },
+          ],
+          availableSources: [{ aliasPath: 'users', isIncluded: true }],
+        }),
+      };
+      const validator = new OutputControlsValidatorService(
+        capabilitySvc as never,
+        schemaSvc as never
+      );
+
+      await expect(
+        validator.validateForReport({
+          storageType: supportedStorageType,
+          dataMartId: 'dm-1',
+          projectId: 'proj-1',
+          columnConfig: ['some_col'],
+          filterConfig: [
+            {
+              column: 'userRole',
+              operator: 'eq',
+              value: 'admin',
+              placement: 'pre-join',
+              aliasPath: 'users',
+            },
+          ],
+          sortConfig: null,
+          limitConfig: null,
         })
       ).resolves.toBeUndefined();
     });

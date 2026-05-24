@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { BlendableSchemaService } from './blendable-schema.service';
 import { DataMartRelationshipService } from './data-mart-relationship.service';
 import { DataMartTableReferenceService } from './data-mart-table-reference.service';
+import { OutputControlsValidatorService } from './output-controls-validator.service';
 import { BlendedQueryBuilderFacade } from '../data-storage-types/facades/blended-query-builder.facade';
 import { Report } from '../entities/report.entity';
 import { ResolvedRelationshipChain } from '../data-storage-types/interfaces/blended-query-builder.interface';
@@ -24,11 +25,23 @@ export class BlendedReportDataService {
     private readonly blendableSchemaService: BlendableSchemaService,
     private readonly blendedQueryBuilderFacade: BlendedQueryBuilderFacade,
     private readonly tableReferenceService: DataMartTableReferenceService,
-    private readonly publicOriginService: PublicOriginService
+    private readonly publicOriginService: PublicOriginService,
+    private readonly outputControlsValidator: OutputControlsValidatorService
   ) {}
 
   async resolveBlendingDecision(report: Report): Promise<BlendingDecision> {
     const { columnConfig, dataMart } = report;
+
+    // Single chokepoint for both /generated-sql and the run path — catches schema drift since save.
+    await this.outputControlsValidator.validateForReport({
+      storageType: dataMart.storage.type,
+      dataMartId: dataMart.id,
+      projectId: dataMart.projectId,
+      columnConfig: columnConfig ?? null,
+      filterConfig: report.filterConfig ?? null,
+      sortConfig: report.sortConfig ?? null,
+      limitConfig: report.limitConfig ?? null,
+    });
 
     if (columnConfig === null || columnConfig === undefined) {
       return { needsBlending: false };
@@ -40,21 +53,31 @@ export class BlendedReportDataService {
     );
 
     const blendedFieldsByName = new Map(blendableSchema.blendedFields.map(f => [f.name, f]));
+    const postJoinFilterColumns: string[] = [];
+    const preJoinAliasPaths = new Set<string>();
+    for (const rule of report.filterConfig ?? []) {
+      if (rule.placement === 'pre-join' && rule.aliasPath) {
+        preJoinAliasPaths.add(rule.aliasPath);
+      } else {
+        postJoinFilterColumns.push(rule.column);
+      }
+    }
     const referencedColumns = new Set<string>([
       ...columnConfig,
-      ...(report.filterConfig ?? []).map(f => f.column),
+      ...postJoinFilterColumns,
       ...(report.sortConfig ?? []).map(s => s.column),
     ]);
     const hasBlendedColumns = Array.from(referencedColumns).some(col =>
       blendedFieldsByName.has(col)
     );
+    const hasPreJoinFilters = preJoinAliasPaths.size > 0;
     const blendedDataHeaders = this.buildBlendedDataHeaders(
       columnConfig,
       blendedFieldsByName,
       dataMart.storage.type
     );
 
-    if (!hasBlendedColumns) {
+    if (!hasBlendedColumns && !hasPreJoinFilters) {
       return {
         needsBlending: false,
         columnFilter: columnConfig,
@@ -83,7 +106,8 @@ export class BlendedReportDataService {
       blendableSchema.availableSources,
       allRelationships,
       dataMart.projectId,
-      publicOrigin
+      publicOrigin,
+      preJoinAliasPaths
     );
 
     const blendedResult = await this.blendedQueryBuilderFacade.buildBlendedQuery(
@@ -108,6 +132,7 @@ export class BlendedReportDataService {
       params,
       columnFilter: columnConfig,
       blendedDataHeaders,
+      chains,
     };
   }
 
@@ -161,11 +186,12 @@ export class BlendedReportDataService {
     availableSources: AvailableSourceDto[],
     directRelationships: DataMartRelationship[],
     projectId: string,
-    publicOrigin: string
+    publicOrigin: string,
+    preJoinAliasPaths: ReadonlySet<string>
   ): Promise<ResolvedRelationshipChain[]> {
     const requestedBlendedFields = blendedFields.filter(f => referencedColumns.has(f.name));
 
-    if (requestedBlendedFields.length === 0) {
+    if (requestedBlendedFields.length === 0 && preJoinAliasPaths.size === 0) {
       return [];
     }
 
@@ -174,6 +200,13 @@ export class BlendedReportDataService {
     const neededPaths = new Set<string>();
     for (const field of requestedBlendedFields) {
       const segments = field.aliasPath.split('.');
+      for (let i = 1; i <= segments.length; i++) {
+        neededPaths.add(segments.slice(0, i).join('.'));
+      }
+    }
+    // Walk ancestors for every pre-join aliasPath too, so filter-only chains are included.
+    for (const aliasPath of preJoinAliasPaths) {
+      const segments = aliasPath.split('.');
       for (let i = 1; i <= segments.length; i++) {
         neededPaths.add(segments.slice(0, i).join('.'));
       }

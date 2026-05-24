@@ -498,6 +498,18 @@ export class DataMartRunService {
   private createReportRunFromReport(report: Report, context: ReportRunContext): DataMartRun {
     const { id, title, dataMart, destinationConfig, dataDestination } = report;
 
+    const hasOutputControls =
+      (report.filterConfig?.length ?? 0) > 0 ||
+      (report.sortConfig?.length ?? 0) > 0 ||
+      report.limitConfig != null;
+    const outputConfig = hasOutputControls
+      ? {
+          filterConfig: report.filterConfig ?? undefined,
+          sortConfig: report.sortConfig ?? undefined,
+          limitConfig: report.limitConfig ?? undefined,
+        }
+      : undefined;
+
     const reportDefinition = {
       title,
       destination: {
@@ -506,6 +518,7 @@ export class DataMartRunService {
         title: dataDestination.title,
       },
       destinationConfig,
+      ...(outputConfig ? { outputConfig } : {}),
     };
 
     const dataMartRunDraft = {

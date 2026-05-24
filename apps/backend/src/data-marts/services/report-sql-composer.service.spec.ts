@@ -4,6 +4,7 @@ import { Report } from '../entities/report.entity';
 import { BigQueryQueryBuilder } from '../data-storage-types/bigquery/services/bigquery-query.builder';
 import { BigQueryClauseRenderer } from '../data-storage-types/bigquery/services/bigquery-clause-renderer';
 import { isQueryBuildResult } from '../data-storage-types/interfaces/data-mart-query-builder.interface';
+import { DataStorageType } from '../data-storage-types/enums/data-storage-type.enum';
 
 describe('ReportSqlComposerService', () => {
   const buildReport = (overrides: Partial<Report> = {}): Report =>
@@ -52,6 +53,38 @@ describe('ReportSqlComposerService', () => {
     };
   };
 
+  it('delegates schema-drift validation to resolveBlendingDecision (single chokepoint)', async () => {
+    const { service, blendedReportDataService } = createService(
+      { needsBlending: false, columnFilter: ['a'] },
+      'SELECT 1'
+    );
+    const report = buildReport({
+      columnConfig: ['a'],
+      filterConfig: [{ column: 'a', operator: 'eq', value: 1 }],
+      sortConfig: [{ column: 'a', direction: 'asc' }],
+      limitConfig: 50,
+    } as Partial<Report>);
+
+    await service.compose(report);
+
+    expect(blendedReportDataService.resolveBlendingDecision).toHaveBeenCalledTimes(1);
+    expect(blendedReportDataService.resolveBlendingDecision).toHaveBeenCalledWith(report);
+  });
+
+  it('propagates validator rejection thrown by resolveBlendingDecision', async () => {
+    const { service, blendedReportDataService } = createService({
+      needsBlending: false,
+      columnFilter: ['a'],
+    });
+    const validatorError = new BadRequestException({
+      message: 'Output controls validation failed',
+      details: { errors: [{ code: 'FILTER_COLUMN_UNKNOWN', column: 'stale_col' }] },
+    });
+    blendedReportDataService.resolveBlendingDecision.mockRejectedValue(validatorError);
+
+    await expect(service.compose(buildReport())).rejects.toBe(validatorError);
+  });
+
   it('returns blended SQL when decision.needsBlending and blendedSql is present', async () => {
     const { service, queryBuilderFacade } = createService({
       needsBlending: true,
@@ -80,16 +113,22 @@ describe('ReportSqlComposerService', () => {
     );
   });
 
-  it('falls back to the query builder facade when needsBlending is true but blendedSql is missing', async () => {
+  it('throws BLENDED_SQL_UNAVAILABLE when needsBlending is true but blendedSql is missing', async () => {
+    // Previously this case silently fell through to the simple-query path, which
+    // would drop slice/filter semantics for the joined mart. The composer must
+    // now fail loudly so the user (and oncall) immediately know that no blended
+    // builder is registered for this storage type.
     const { service, queryBuilderFacade } = createService(
       { needsBlending: true, columnFilter: undefined },
       'SELECT fallback FROM dm'
     );
 
-    const result = await service.compose(buildReport());
-
-    expect(result.sql).toBe('SELECT fallback FROM dm');
-    expect(queryBuilderFacade.buildQuery).toHaveBeenCalled();
+    await expect(service.compose(buildReport())).rejects.toMatchObject({
+      response: {
+        details: { errors: [{ code: 'BLENDED_SQL_UNAVAILABLE' }] },
+      },
+    });
+    expect(queryBuilderFacade.buildQuery).not.toHaveBeenCalled();
   });
 
   it('throws when the fallback path is taken but the DataMart has no definition', async () => {
@@ -197,6 +236,11 @@ describe('ReportSqlComposerService', () => {
     );
     const result = await composer.compose({
       filterConfig: [{ column: 'a', operator: 'eq', value: 1 }],
+      dataMart: {
+        id: 'm',
+        projectId: 'p',
+        storage: { type: 'GOOGLE_BIGQUERY' },
+      },
     } as never);
     expect(result).toEqual({
       sql: 'WITH ... SELECT ... WHERE @p0',
@@ -249,6 +293,52 @@ describe('ReportSqlComposerService', () => {
 
     await expect(service.compose(report)).resolves.toBeDefined();
     expect(capabilityService.isSupported).not.toHaveBeenCalled();
+  });
+
+  it('throws PRE_JOIN_FILTERS_REQUIRE_JOINED_DATA_MART when a pre-join filter is set on a simple data mart', async () => {
+    const { service } = createService({ needsBlending: false, columnFilter: ['a'] });
+    const report = buildReport({
+      filterConfig: [
+        {
+          column: 'userRole',
+          operator: 'eq',
+          value: 'admin',
+          placement: 'pre-join',
+          aliasPath: 'users',
+        },
+      ],
+    } as never);
+    await expect(service.compose(report)).rejects.toMatchObject({
+      response: {
+        details: { errors: [{ code: 'PRE_JOIN_FILTERS_REQUIRE_JOINED_DATA_MART' }] },
+      },
+    });
+  });
+
+  it('throws OUTPUT_CONTROLS_NOT_SUPPORTED on the simple-query path for unsupported storages', async () => {
+    // Non-blended path with output controls on a storage that lacks output
+    // controls support — must throw the existing structured error before
+    // calling the query builder facade.
+    const { service, queryBuilderFacade, capabilityService } = createService(
+      { needsBlending: false, columnFilter: ['a'] },
+      'SELECT 1',
+      /* capabilitySupported */ false
+    );
+    const report = buildReport({
+      dataMart: {
+        id: 'dm-1',
+        definition: { sqlQuery: 'SELECT 1' },
+        storage: { id: 'storage-1', type: DataStorageType.SNOWFLAKE },
+      },
+      filterConfig: [{ column: 'a', operator: 'eq', value: 1 }],
+    } as never);
+    await expect(service.compose(report)).rejects.toMatchObject({
+      response: {
+        details: { errors: [{ code: 'OUTPUT_CONTROLS_NOT_SUPPORTED' }] },
+      },
+    });
+    expect(capabilityService.isSupported).toHaveBeenCalledWith(DataStorageType.SNOWFLAKE);
+    expect(queryBuilderFacade.buildQuery).not.toHaveBeenCalled();
   });
 
   // E2E composition: wires the *real* BigQueryQueryBuilder + BigQueryClauseRenderer

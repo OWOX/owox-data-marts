@@ -18,6 +18,9 @@ export interface RenderedClause {
  */
 export type ColumnRefResolver = (column: string) => string;
 
+// Matches BigQuery named-parameter rules — fail fast instead of waiting for BQ to reject it.
+const PARAM_PREFIX_PATTERN = /^[A-Za-z_][A-Za-z0-9_]*$/;
+
 export abstract class SqlClauseRenderer {
   protected abstract quoteIdentifier(name: string): string;
   protected abstract renderFilterFragment(
@@ -30,14 +33,23 @@ export abstract class SqlClauseRenderer {
     return qualifyColumn ?? (c => this.quoteIdentifier(c));
   }
 
-  renderWhere(filters: FilterRule[], qualifyColumn?: ColumnRefResolver): RenderedClause {
+  renderWhere(
+    filters: FilterRule[],
+    qualifyColumn?: ColumnRefResolver,
+    paramPrefix = 'p'
+  ): RenderedClause {
     if (!filters.length) return { sql: '', params: [] };
+    if (!PARAM_PREFIX_PATTERN.test(paramPrefix)) {
+      throw new Error(
+        `renderWhere: invalid paramPrefix '${paramPrefix}' — must match ${PARAM_PREFIX_PATTERN.source}`
+      );
+    }
     const resolve = this.resolverOrFallback(qualifyColumn);
     const fragments: string[] = [];
     const params: SqlParameter[] = [];
     let nextIndex = 0;
     for (const rule of filters) {
-      const paramName = `p${nextIndex}`;
+      const paramName = `${paramPrefix}${nextIndex}`;
       const out = this.renderFilterFragment(rule, paramName, resolve(rule.column));
       fragments.push(out.sql);
       params.push(...out.params);

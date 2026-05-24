@@ -8,19 +8,10 @@ import {
   AUTH_HEADER,
 } from '@owox/test-utils';
 
-// e2e coverage for the output-controls feature on the report API surface.
-//
-// Tasks 22 (SQL execution) and 23 (blended e2e) require a real BigQuery
-// project and view-creation roundtrip. They are covered by unit tests:
-//   - bigquery-clause-renderer.spec.ts (operator → SQL fragment matrix)
-//   - bigquery-query.builder.spec.ts (WHERE/ORDER BY/LIMIT composition)
-//   - abstract-blended-query-builder.spec.ts (output controls on blended)
-//   - blended-report-data.service.spec.ts (filter-on-non-selected chain)
-//
-// What this file covers (Task 24 + DTO surface):
-//   - happy-path persistence/retrieval of limit-only output controls
-//   - validator-service rejection: SORT_COLUMN_NOT_SELECTED, FILTER_COLUMN_UNKNOWN
-//   - class-validator rejections: limit <= 0, limit > 10_000_000, sortConfig length > 10
+// e2e coverage for the output-controls feature on the report API surface
+// (limit/filter/sort persistence + class-validator and validator-service
+// rejection paths). SQL-emission paths are covered by unit tests in
+// abstract-blended-query-builder.spec.ts and bigquery-clause-renderer.spec.ts.
 
 describe('Output controls API (e2e)', () => {
   let app: INestApplication;
@@ -187,5 +178,66 @@ describe('Output controls API (e2e)', () => {
     expect(getRes.body.filterConfig).toBeNull();
     expect(getRes.body.sortConfig).toBeNull();
     expect(getRes.body.limitConfig).toBeNull();
+  });
+
+  it('PUT pre-join filter on simple (non-joined) report → 400 FILTER_ALIAS_PATH_UNKNOWN', async () => {
+    const putRes = await agent
+      .put(`/api/reports/${reportId}`)
+      .set(AUTH_HEADER)
+      .send({
+        title: 'Pre-join on simple',
+        dataDestinationId,
+        destinationConfig: { type: 'looker-studio-config', cacheLifetime: 3600 },
+        columnConfig: ['col_a'],
+        filterConfig: [
+          {
+            column: 'userRole',
+            operator: 'eq',
+            value: 'admin',
+            placement: 'pre-join',
+            aliasPath: 'users',
+          },
+        ],
+      });
+    expect(putRes.status).toBe(400);
+    expect(JSON.stringify(putRes.body)).toContain('FILTER_ALIAS_PATH_UNKNOWN');
+  });
+
+  it('PUT pre-join filter with aliasPath="main" → 400 with Zod shape error', async () => {
+    const res = await agent
+      .put(`/api/reports/${reportId}`)
+      .set(AUTH_HEADER)
+      .send({
+        title: 'Pre-join on home',
+        dataDestinationId,
+        destinationConfig: { type: 'looker-studio-config', cacheLifetime: 3600 },
+        columnConfig: ['col_a'],
+        filterConfig: [
+          { column: 'x', operator: 'eq', value: 1, placement: 'pre-join', aliasPath: 'main' },
+        ],
+      });
+    expect(res.status).toBe(400);
+    // Owned by Zod superRefine — FE consumes the schema-level issue, not a validator code.
+    const body = JSON.stringify(res.body);
+    expect(body).toContain('pre-join filter on the home data mart');
+  });
+
+  it('PUT rejects filterConfig with > 50 entries via @ArrayMaxSize(50)', async () => {
+    const tooMany = Array.from({ length: 51 }, (_, i) => ({
+      column: 'col_a',
+      operator: 'eq',
+      value: `v${i}`,
+    }));
+    const res = await agent
+      .put(`/api/reports/${reportId}`)
+      .set(AUTH_HEADER)
+      .send({
+        title: 'Too many filters',
+        dataDestinationId,
+        destinationConfig: { type: 'looker-studio-config', cacheLifetime: 3600 },
+        columnConfig: ['col_a'],
+        filterConfig: tooMany,
+      });
+    expect(res.status).toBe(400);
   });
 });

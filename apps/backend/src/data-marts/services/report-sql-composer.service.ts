@@ -17,10 +17,39 @@ export class ReportSqlComposerService {
   ) {}
 
   async compose(report: Report): Promise<{ sql: string; params?: SqlParameter[] }> {
+    // Schema-drift validation lives inside resolveBlendingDecision (shared with the run path).
     const decision = await this.blendedReportDataService.resolveBlendingDecision(report);
 
     if (decision.needsBlending && decision.blendedSql) {
       return { sql: decision.blendedSql, params: decision.params };
+    }
+
+    if (decision.needsBlending && !decision.blendedSql) {
+      throw new BadRequestException({
+        message: 'Joined query builder did not produce SQL for this data mart',
+        details: {
+          errors: [
+            {
+              code: 'BLENDED_SQL_UNAVAILABLE',
+              storageType: report.dataMart.storage.type,
+            },
+          ],
+        },
+      });
+    }
+
+    // Pre-join filters on a non-blended data mart are nonsensical (no joined CTE
+    // to filter); BlendedReportDataService promotes the report to blended path
+    // whenever any pre-join filter is present, so this branch only sees a
+    // truly non-blended report.
+    if (
+      !decision.needsBlending &&
+      (report.filterConfig ?? []).some(r => r.placement === 'pre-join')
+    ) {
+      throw new BadRequestException({
+        message: 'Pre-join filters are only applicable to joined data marts',
+        details: { errors: [{ code: 'PRE_JOIN_FILTERS_REQUIRE_JOINED_DATA_MART' }] },
+      });
     }
 
     const { dataMart } = report;

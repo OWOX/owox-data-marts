@@ -1,3 +1,4 @@
+import { Logger, NotImplementedException } from '@nestjs/common';
 import {
   BlendedQueryBuilder,
   BlendedQueryContext,
@@ -6,15 +7,15 @@ import {
 import { DataStorageType } from '../enums/data-storage-type.enum';
 import { AggregateFunction } from '../../dto/schemas/aggregate-function.schema';
 import { ColumnRefResolver, SqlClauseRenderer, SqlParameter } from '../utils/sql-clause-renderer';
+import { FilterRule, aliasPathToCteName } from '../../dto/schemas/filter-config.schema';
 
 interface BlendTreeNode {
   chain: ResolvedRelationshipChain;
   children: BlendTreeNode[];
 }
 
-// `title`/`url` flow into single-line SQL comments inside generated queries;
-// embedded newlines would close the comment and expose the rest of the input as
-// executable SQL, so strip any line break or additional comment marker.
+// Embedded newlines / `--` in title/url would close the SQL comment and expose
+// trailing input as executable SQL.
 function sanitizeSqlComment(text: string): string {
   return text
     .replace(/[\r\n]+/g, ' ')
@@ -22,12 +23,6 @@ function sanitizeSqlComment(text: string): string {
     .trim();
 }
 
-/**
- * Tracks a blended field flowing upward through the tree during bottom-up
- * aggregation. At the leaf level this is the original field; at each
- * intermediate level the aggregated result is re-aggregated using
- * {@link getReAggregateFunction}.
- */
 interface PassthroughField {
   outputAlias: string;
   aggregateFunction: AggregateFunction;
@@ -45,6 +40,15 @@ interface PassthroughField {
  * into the parent's raw data, and aggregating again — all the way up to the
  * root level. At each level the GROUP BY contains ONLY the join key to that
  * node's parent, ensuring at most one output row per parent-key value.
+ *
+ * Filter rules with `placement: 'pre-join'` are pushed down into the
+ * subsidiary `*_raw` CTE so the joined data mart is narrowed before being
+ * JOINed in. Filter rules with `placement: 'post-join'` (the default) are
+ * applied to the final SELECT.
+ *
+ * Slice semantics: subsidiaries are LEFT JOINed, so a slice narrows the
+ * subsidiary CTE but does NOT drop home rows (unmatched home rows pass through
+ * with NULL). Use a post-join filter on top for row elimination.
  *
  * ```sql
  * WITH
@@ -71,38 +75,58 @@ interface PassthroughField {
 export abstract class AbstractBlendedQueryBuilder implements BlendedQueryBuilder {
   abstract readonly type: DataStorageType;
 
-  /**
-   * The quoting character this dialect uses for identifiers (BigQuery/Databricks
-   * use backticks; Snowflake/Redshift/Athena use double quotes). Subclasses
-   * provide this so the abstract builder can safely emit user-controlled names
-   * (aliases, column names with apostrophes/spaces, reserved keywords, etc.)
-   * without breaking the generated SQL.
-   */
   protected abstract get identifierQuoteChar(): string;
 
-  /**
-   * Returns the clause renderer used to append WHERE/ORDER BY/LIMIT to the
-   * final SELECT. BigQuery subclass provides a BigQueryClauseRenderer; non-BQ
-   * subclasses return null because their override throws before reaching here
-   * when output-controls fields are set.
-   */
   protected abstract get clauseRenderer(): SqlClauseRenderer | null;
 
+  private readonly logger = new Logger(AbstractBlendedQueryBuilder.name);
+
   buildBlendedQuery(context: BlendedQueryContext): { sql: string; params: SqlParameter[] } {
+    const allFilters = context.filters ?? [];
+
+    // Capability guard first — storages without a clauseRenderer can't honour any controls.
+    const hasOutputControls =
+      allFilters.length > 0 || (context.sort?.length ?? 0) > 0 || (context.limit ?? null) !== null;
+    if (hasOutputControls && this.clauseRenderer === null) {
+      throw new NotImplementedException(
+        `Output controls not yet supported for storage type ${this.type}`
+      );
+    }
+
+    const validCteNames = new Set(context.chains.map(c => c.cteName));
+    const preJoinByCte = new Map<string, FilterRule[]>();
+    const postJoinFilters: FilterRule[] = [];
+    for (const rule of allFilters) {
+      if (rule.placement === 'pre-join') {
+        // aliasPath presence and "main" exclusion enforced at schema level.
+        if (!rule.aliasPath) {
+          throw new Error('buildBlendedQuery: pre-join rule missing aliasPath (schema bug)');
+        }
+        const cteName = aliasPathToCteName(rule.aliasPath);
+        if (!validCteNames.has(cteName)) {
+          throw new Error(
+            `buildBlendedQuery: pre-join filter aliasPath='${rule.aliasPath}' ` +
+              `does not resolve to any chain (cteName='${cteName}')`
+          );
+        }
+        const list = preJoinByCte.get(cteName) ?? [];
+        list.push(rule);
+        preJoinByCte.set(cteName, list);
+      } else {
+        postJoinFilters.push(rule);
+      }
+    }
+
     const { mainTableReference, mainDataMartTitle, mainDataMartUrl, chains, columns } = context;
     const columnSet = new Set(columns);
     const referencedColumns = new Set<string>([
       ...columns,
-      ...(context.filters ?? []).map(f => f.column),
+      ...postJoinFilters.map(f => f.column),
       ...(context.sort ?? []).map(s => s.column),
     ]);
 
     const roots = this.buildTree(chains);
 
-    // Single walk over the chain forest: collect every blended outputAlias and
-    // its root CTE alias. Hidden aliases are included (filters legitimately
-    // reference them) but tracked separately so `buildSelectParts` can still
-    // keep them out of the final SELECT.
     const outputAliasToRoot = new Map<string, string>();
     const hiddenOutputAliases = new Set<string>();
     for (const root of roots) {
@@ -110,18 +134,24 @@ export abstract class AbstractBlendedQueryBuilder implements BlendedQueryBuilder
     }
 
     const cteBlocks: string[] = [];
+    const cteParams: SqlParameter[] = [];
 
-    // 1. Raw CTE for main data mart — projects only the columns actually referenced.
     const mainColumns = this.collectMainReferences(roots, referencedColumns, outputAliasToRoot);
-    cteBlocks.push(
-      this.buildRawCte('main', mainTableReference, mainDataMartTitle, mainDataMartUrl, mainColumns)
+    const mainRaw = this.buildRawCte(
+      'main',
+      mainTableReference,
+      mainDataMartTitle,
+      mainDataMartUrl,
+      mainColumns,
+      /* preJoinFilters */ undefined
     );
+    cteBlocks.push(mainRaw.sql);
+    cteParams.push(...mainRaw.params);
 
-    // 2. Bottom-up CTEs for each subtree rooted at a direct child of main.
-    //    Post-order traversal ensures leaf CTEs come first.
     for (const root of roots) {
-      const { ctes } = this.buildSubtreeCtes(root);
+      const { ctes, params } = this.buildSubtreeCtes(root, preJoinByCte);
       cteBlocks.push(...ctes);
+      cteParams.push(...params);
     }
 
     const withClause = `WITH\n${cteBlocks.join(',\n\n')}`;
@@ -137,7 +167,7 @@ export abstract class AbstractBlendedQueryBuilder implements BlendedQueryBuilder
     const qualifyColumn = this.buildColumnQualifier(outputAliasToRoot);
     const renderer = this.clauseRenderer;
     const where = renderer
-      ? renderer.renderWhere(context.filters ?? [], qualifyColumn)
+      ? renderer.renderWhere(postJoinFilters, qualifyColumn, 'p')
       : { sql: '', params: [] as SqlParameter[] };
     const orderBy = renderer
       ? renderer.renderOrderBy(context.sort ?? [], qualifyColumn)
@@ -146,15 +176,9 @@ export abstract class AbstractBlendedQueryBuilder implements BlendedQueryBuilder
       ? renderer.renderLimit(context.limit ?? null)
       : { sql: '', params: [] as SqlParameter[] };
     const sql = `${withClause}\n\n${body}${where.sql}${orderBy.sql}${limit.sql}`;
-    return { sql, params: [...where.params, ...orderBy.params, ...limit.params] };
+    return { sql, params: [...cteParams, ...where.params, ...orderBy.params, ...limit.params] };
   }
 
-  /**
-   * Returns a resolver that prefixes blended outputAliases with their root
-   * CTE alias and everything else with `main.`. Without this, WHERE/ORDER BY
-   * would emit bare names and fail with "column X is ambiguous" whenever a
-   * name lives in two CTEs (join keys are the typical trigger).
-   */
   private buildColumnQualifier(outputAliasToRoot: Map<string, string>): ColumnRefResolver {
     return (column: string) => {
       const rootAlias = outputAliasToRoot.get(column);
@@ -165,25 +189,12 @@ export abstract class AbstractBlendedQueryBuilder implements BlendedQueryBuilder
     };
   }
 
-  /**
-   * Wraps a single identifier (CTE alias, column alias, single-segment column
-   * name) in dialect-specific quotes only when needed — names that already
-   * match `[A-Za-z_][A-Za-z0-9_]*` stay unquoted to keep the generated SQL
-   * readable. The quote character itself is escaped by doubling, the standard
-   * SQL convention across all supported dialects.
-   */
   protected quoteIdentifier(name: string): string {
     if (/^[A-Za-z_][A-Za-z0-9_]*$/.test(name)) return name;
     const q = this.identifierQuoteChar;
     return `${q}${name.split(q).join(q + q)}${q}`;
   }
 
-  /**
-   * Quotes a (possibly dotted) column reference, treating each segment
-   * independently. `user.email` becomes e.g. `` `user`.`email` `` — required
-   * for nested struct fields in BigQuery — while a flat `Product's_id` becomes
-   * `` `Product's_id` ``.
-   */
   protected quoteFieldRef(ref: string): string {
     return ref
       .split('.')
@@ -191,10 +202,6 @@ export abstract class AbstractBlendedQueryBuilder implements BlendedQueryBuilder
       .join('.');
   }
 
-  /**
-   * Converts the flat sorted `chains` array into a forest of trees where
-   * root nodes are chains with `parentAlias === 'main'`.
-   */
   private buildTree(chains: ResolvedRelationshipChain[]): BlendTreeNode[] {
     const nodeMap = new Map<string, BlendTreeNode>();
     for (const chain of chains) {
@@ -213,52 +220,55 @@ export abstract class AbstractBlendedQueryBuilder implements BlendedQueryBuilder
     return roots;
   }
 
-  /**
-   * Recursively builds CTEs for a subtree using post-order (bottom-up)
-   * traversal. Returns the CTE blocks and the list of output columns
-   * (passthrough fields) that this subtree exposes after aggregation.
-   */
-  private buildSubtreeCtes(node: BlendTreeNode): {
+  private buildSubtreeCtes(
+    node: BlendTreeNode,
+    preJoinByCte: ReadonlyMap<string, FilterRule[]>
+  ): {
     ctes: string[];
     passthroughFields: PassthroughField[];
+    params: SqlParameter[];
   } {
     const ctes: string[] = [];
+    const params: SqlParameter[] = [];
 
-    // 1. Recurse into children first (post-order)
     const childPassthroughs = new Map<string, PassthroughField[]>();
     for (const child of node.children) {
-      const childResult = this.buildSubtreeCtes(child);
+      const childResult = this.buildSubtreeCtes(child, preJoinByCte);
       ctes.push(...childResult.ctes);
+      params.push(...childResult.params);
       childPassthroughs.set(child.chain.cteName, childResult.passthroughFields);
     }
 
     const { chain } = node;
     const alias = chain.cteName;
 
-    // 2. Raw CTE for this node
-    const subsidiaryColumns = this.collectSubsidiaryReferences(chain, node.children);
-    ctes.push(
-      this.buildRawCte(
-        `${alias}_raw`,
-        chain.targetTableReference,
-        chain.targetDataMartTitle,
-        chain.targetDataMartUrl,
-        subsidiaryColumns
-      )
+    const preJoinFilters = preJoinByCte.get(alias) ?? [];
+    const preJoinColumns = new Set(preJoinFilters.map(r => r.column));
+    const subsidiaryColumns = this.collectSubsidiaryReferences(
+      chain,
+      node.children,
+      preJoinColumns
     );
+    const rawCte = this.buildRawCte(
+      `${alias}_raw`,
+      chain.targetTableReference,
+      chain.targetDataMartTitle,
+      chain.targetDataMartUrl,
+      subsidiaryColumns,
+      preJoinFilters,
+      `s_${alias}_`
+    );
+    ctes.push(rawCte.sql);
+    params.push(...rawCte.params);
 
-    // 3. If this node has children, emit a _joined CTE
     const hasChildren = node.children.length > 0;
     if (hasChildren) {
       ctes.push(this.buildJoinedCte(node, childPassthroughs));
     }
 
-    // 4. Aggregation CTE — groups by parent join keys only
     const allPassthroughFields = this.collectAllPassthroughs(childPassthroughs);
     ctes.push(this.buildAggregationCte(chain, hasChildren, allPassthroughFields));
 
-    // 5. Compute passthrough fields for the parent level:
-    //    own blended fields + re-mapped child passthrough fields
     const passthroughFields: PassthroughField[] = chain.blendedFields.map(f => ({
       outputAlias: f.outputAlias,
       aggregateFunction: f.aggregateFunction,
@@ -272,7 +282,7 @@ export abstract class AbstractBlendedQueryBuilder implements BlendedQueryBuilder
       });
     }
 
-    return { ctes, passthroughFields };
+    return { ctes, passthroughFields, params };
   }
 
   private collectAllPassthroughs(
@@ -285,10 +295,6 @@ export abstract class AbstractBlendedQueryBuilder implements BlendedQueryBuilder
     return result;
   }
 
-  /**
-   * Builds the `{alias}_joined` CTE that LEFT JOINs a node's raw data with
-   * all of its children's aggregated CTEs.
-   */
   private buildJoinedCte(
     node: BlendTreeNode,
     childPassthroughs: Map<string, PassthroughField[]>
@@ -300,15 +306,12 @@ export abstract class AbstractBlendedQueryBuilder implements BlendedQueryBuilder
     const quotedRawAlias = this.quoteIdentifier(rawAlias);
     const quotedJoinedAlias = this.quoteIdentifier(joinedAlias);
 
-    // SELECT columns: parent join keys + own blended fields from raw, then child outputs
     const selectParts: string[] = [];
 
-    // Parent join keys from raw
     for (const jc of chain.relationship.joinConditions) {
       selectParts.push(`${quotedRawAlias}.${this.quoteFieldRef(jc.targetFieldName)}`);
     }
 
-    // Own blended field columns from raw
     const seen = new Set(selectParts);
     for (const field of chain.blendedFields) {
       const ref = `${quotedRawAlias}.${this.quoteFieldRef(field.targetFieldName)}`;
@@ -318,7 +321,6 @@ export abstract class AbstractBlendedQueryBuilder implements BlendedQueryBuilder
       }
     }
 
-    // Child aggregated outputs + JOIN clauses (single pass over children)
     const joinClauses: string[] = [];
     for (const child of node.children) {
       const childAlias = child.chain.cteName;
@@ -350,29 +352,45 @@ export abstract class AbstractBlendedQueryBuilder implements BlendedQueryBuilder
     tableReference: string,
     title: string,
     url: string,
-    columns: string[]
-  ): string {
-    // Fall back to `*` when no explicit columns are known or any column uses
-    // dot-notation (BigQuery nested struct path) — projecting `user.email`
-    // directly would rename it to `email`, breaking downstream references.
-    const safeForExplicitProjection = columns.length > 0 && columns.every(c => !c.includes('.'));
+    columns: string[],
+    preJoinFilters?: FilterRule[],
+    preJoinParamPrefix?: string
+  ): { sql: string; params: SqlParameter[] } {
+    // `quoteIdentifier` treats the input as one identifier — dotted paths
+    // can't be projected, so we widen to SELECT *. Warn so the perf hit is visible.
+    const hasNestedColumns = columns.some(c => c.includes('.'));
+    const safeForExplicitProjection = columns.length > 0 && !hasNestedColumns;
+    if (columns.length > 0 && hasNestedColumns) {
+      this.logger.warn(
+        `buildRawCte(${alias}): nested-path column(s) forced SELECT * on ${tableReference}`
+      );
+    }
     const safeTitle = sanitizeSqlComment(title);
     const safeUrl = sanitizeSqlComment(url);
     const header = `  -- ${safeTitle}\n  -- ${safeUrl}\n  ${this.quoteIdentifier(alias)} AS (\n`;
-    if (!safeForExplicitProjection) {
-      return `${header}    SELECT * FROM ${tableReference}\n  )`;
+
+    const renderer = this.clauseRenderer;
+    if (preJoinFilters?.length && !preJoinParamPrefix) {
+      throw new Error(
+        `buildRawCte: preJoinParamPrefix is required when preJoinFilters are present (alias='${alias}')`
+      );
     }
-    const projection = columns.map(c => this.quoteIdentifier(c)).join(',\n      ');
-    return `${header}    SELECT\n      ${projection}\n    FROM ${tableReference}\n  )`;
+    const paramPrefix = preJoinParamPrefix ?? '';
+    const qualifyForRawCte: ColumnRefResolver = column => this.quoteFieldRef(column);
+    const where =
+      preJoinFilters?.length && renderer
+        ? renderer.renderWhere(preJoinFilters, qualifyForRawCte, paramPrefix)
+        : { sql: '', params: [] as SqlParameter[] };
+
+    const indentedWhere = where.sql ? where.sql.replace(/^\n/, '\n    ') : '';
+
+    const body = safeForExplicitProjection
+      ? `${header}    SELECT\n      ${columns.map(c => this.quoteIdentifier(c)).join(',\n      ')}\n    FROM ${tableReference}`
+      : `${header}    SELECT * FROM ${tableReference}`;
+
+    return { sql: `${body}${indentedWhere}\n  )`, params: where.params };
   }
 
-  /**
-   * Columns of the main DM that need to be projected in its raw CTE:
-   *  - referenced columns (columnConfig + filter columns + sort columns) that
-   *    are NOT blended outputAliases (hidden ones included — those flow
-   *    through subsidiary CTEs, not through main)
-   *  - join keys used by root-level (direct children of main) chains
-   */
   private collectMainReferences(
     roots: BlendTreeNode[],
     referencedColumns: Set<string>,
@@ -388,15 +406,10 @@ export abstract class AbstractBlendedQueryBuilder implements BlendedQueryBuilder
     return Array.from(refs).sort();
   }
 
-  /**
-   * Columns of a subsidiary DM that need to be projected in its raw CTE:
-   *  - join keys this subsidiary uses to join to its parent (targetFieldName)
-   *  - aggregated columns (blendedFields.targetFieldName)
-   *  - join keys used by children (sourceFieldName — needed for the _joined CTE)
-   */
   private collectSubsidiaryReferences(
     chain: ResolvedRelationshipChain,
-    children: BlendTreeNode[]
+    children: BlendTreeNode[],
+    preJoinColumns: ReadonlySet<string>
   ): string[] {
     const refs = new Set<string>();
     for (const jc of chain.relationship.joinConditions) refs.add(jc.targetFieldName);
@@ -404,18 +417,10 @@ export abstract class AbstractBlendedQueryBuilder implements BlendedQueryBuilder
     for (const child of children) {
       for (const jc of child.chain.relationship.joinConditions) refs.add(jc.sourceFieldName);
     }
+    for (const col of preJoinColumns) refs.add(col);
     return Array.from(refs).sort();
   }
 
-  /**
-   * Builds the aggregation CTE for a single node. Groups by parent join keys
-   * ONLY — child join keys are no longer needed because downstream joins happen
-   * inside the `_joined` CTE, not in the final FROM/JOIN clause.
-   *
-   * For intermediate nodes (hasChildren=true), the source is the `_joined` CTE
-   * and passthrough fields from children are re-aggregated. For leaf nodes,
-   * the source is the `_raw` CTE.
-   */
   private buildAggregationCte(
     chain: ResolvedRelationshipChain,
     hasChildren: boolean,
@@ -427,14 +432,12 @@ export abstract class AbstractBlendedQueryBuilder implements BlendedQueryBuilder
       ? this.quoteIdentifier(`${cteName}_joined`)
       : this.quoteIdentifier(`${cteName}_raw`);
 
-    // Keys this subsidiary uses to join to its parent — always grouped on.
     const parentJoinKeys = relationship.joinConditions.map(jc =>
       this.quoteFieldRef(jc.targetFieldName)
     );
 
     const groupByKeys = [...parentJoinKeys];
 
-    // Own blended field aggregations
     const aggregatedParts = blendedFields.map(field => {
       const aggregated = this.buildAggregation(
         field.aggregateFunction,
@@ -443,7 +446,6 @@ export abstract class AbstractBlendedQueryBuilder implements BlendedQueryBuilder
       return `${aggregated} AS ${this.quoteIdentifier(field.outputAlias)}`;
     });
 
-    // Passthrough fields from children — re-aggregated
     const passthroughParts = passthroughFields.map(pt => {
       const reAggFunc = this.getReAggregateFunction(pt.aggregateFunction);
       const aggregated = this.buildAggregation(reAggFunc, this.quoteIdentifier(pt.outputAlias));
@@ -462,13 +464,6 @@ export abstract class AbstractBlendedQueryBuilder implements BlendedQueryBuilder
     );
   }
 
-  /**
-   * Final SELECT: references main columns and blended columns from root-level
-   * aggregation CTEs only. Deep blended fields are surfaced through root nodes
-   * via re-aggregation. Hidden blended fields fall through to the `main.<col>`
-   * branch so they never appear in the final SELECT, even though they live in
-   * `outputAliasToRoot` (filters need them).
-   */
   private buildSelectParts(
     columnSet: Set<string>,
     outputAliasToRoot: Map<string, string>,
@@ -486,11 +481,6 @@ export abstract class AbstractBlendedQueryBuilder implements BlendedQueryBuilder
     return parts;
   }
 
-  /**
-   * Recursively maps every blended outputAlias in a subtree to the root alias
-   * that will surface it after bottom-up aggregation, also flagging hidden
-   * fields so callers can apply visibility rules without a second traversal.
-   */
   private mapOutputAliasesToRoot(
     node: BlendTreeNode,
     rootAlias: string,
@@ -506,10 +496,6 @@ export abstract class AbstractBlendedQueryBuilder implements BlendedQueryBuilder
     }
   }
 
-  /**
-   * Final JOINs: only root-level nodes (direct children of main) are LEFT
-   * JOINed to main. Deeper joins happen inside `_joined` CTEs.
-   */
   private buildJoinParts(roots: BlendTreeNode[]): string[] {
     return roots.map(root => {
       const { relationship, parentAlias, cteName } = root.chain;
@@ -526,13 +512,6 @@ export abstract class AbstractBlendedQueryBuilder implements BlendedQueryBuilder
     });
   }
 
-  /**
-   * Maps an aggregate function to the function used when re-aggregating an
-   * already-aggregated value at a higher tree level. SUM-of-SUMs and
-   * MAX-of-MAXes stay idempotent; COUNT and COUNT_DISTINCT become SUM
-   * (distinct-sum across parent groups is approximate — same caveat as COUNT);
-   * ANY_VALUE becomes MAX (safe across all dialects).
-   */
   protected getReAggregateFunction(aggregateFunction: AggregateFunction): AggregateFunction {
     switch (aggregateFunction) {
       case 'COUNT':
@@ -558,9 +537,5 @@ export abstract class AbstractBlendedQueryBuilder implements BlendedQueryBuilder
     }
   }
 
-  /**
-   * Must wrap `fieldName` in a CAST to the dialect's native string type so
-   * non-string inputs don't raise runtime errors.
-   */
   protected abstract buildStringAgg(fieldName: string): string;
 }

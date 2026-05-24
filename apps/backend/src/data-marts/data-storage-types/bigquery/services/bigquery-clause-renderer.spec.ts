@@ -232,4 +232,30 @@ describe('BigQueryClauseRenderer', () => {
       ).toBe('\nWHERE main.`a` = @p0 AND orders.`b` > @p1');
     });
   });
+
+  describe('paramPrefix', () => {
+    it('uses default param prefix `p` when none given', () => {
+      const out = r.renderWhere([{ column: 'x', operator: 'eq', value: 1 }]);
+      expect(out.sql).toContain('@p0');
+      expect(out.params[0].name).toBe('p0');
+    });
+
+    it('uses custom paramPrefix when given', () => {
+      const out = r.renderWhere([{ column: 'x', operator: 'eq', value: 1 }], undefined, 's_users_');
+      expect(out.sql).toContain('@s_users_0');
+      expect(out.params[0].name).toBe('s_users_0');
+    });
+
+    it('keeps param naming sequential across multiple filters with custom prefix', () => {
+      const out = r.renderWhere(
+        [
+          { column: 'x', operator: 'eq', value: 1 },
+          { column: 'y', operator: 'between', value: { from: 1, to: 2 } },
+        ],
+        undefined,
+        's_users_'
+      );
+      expect(out.params.map(p => p.name)).toEqual(['s_users_0', 's_users_1', 's_users_2']);
+    });
+  });
 });
