@@ -45,6 +45,9 @@ describe('ContextAccessService', () => {
       validateContextIds: jest.fn(),
       getByIdAndProject: jest.fn(),
     };
+    const userProvisioningContextSettingsService = {
+      applyDefaultScopeToMember: jest.fn().mockResolvedValue(RoleScope.ENTIRE_PROJECT),
+    };
 
     const accessDecisionService = {
       getOwnerStatus: jest.fn(),
@@ -57,6 +60,7 @@ describe('ContextAccessService', () => {
       memberRoleScopeRepository as never,
       memberRoleContextRepository as never,
       contextService as never,
+      userProvisioningContextSettingsService as never,
       accessDecisionService as never
     );
 
@@ -68,6 +72,7 @@ describe('ContextAccessService', () => {
       memberRoleScopeRepository,
       memberRoleContextRepository,
       contextService,
+      userProvisioningContextSettingsService,
       accessDecisionService,
     };
   };
@@ -211,18 +216,27 @@ describe('ContextAccessService', () => {
   });
 
   describe('getRoleScope', () => {
-    it('should return ENTIRE_PROJECT when no record found (lazy default)', async () => {
-      const { service, memberRoleScopeRepository } = createService();
+    it('should apply user-provisioning default when no local role-scope record exists', async () => {
+      const { service, memberRoleScopeRepository, userProvisioningContextSettingsService } =
+        createService();
 
       memberRoleScopeRepository.findOne.mockResolvedValue(null);
+      userProvisioningContextSettingsService.applyDefaultScopeToMember.mockResolvedValue(
+        RoleScope.SELECTED_CONTEXTS
+      );
 
       const result = await service.getRoleScope(USER_ID, PROJECT_ID);
 
-      expect(result).toBe(RoleScope.ENTIRE_PROJECT);
+      expect(result).toBe(RoleScope.SELECTED_CONTEXTS);
+      expect(userProvisioningContextSettingsService.applyDefaultScopeToMember).toHaveBeenCalledWith(
+        USER_ID,
+        PROJECT_ID
+      );
     });
 
     it('should return stored value when record exists', async () => {
-      const { service, memberRoleScopeRepository } = createService();
+      const { service, memberRoleScopeRepository, userProvisioningContextSettingsService } =
+        createService();
 
       memberRoleScopeRepository.findOne.mockResolvedValue({
         userId: USER_ID,
@@ -233,6 +247,9 @@ describe('ContextAccessService', () => {
       const result = await service.getRoleScope(USER_ID, PROJECT_ID);
 
       expect(result).toBe(RoleScope.SELECTED_CONTEXTS);
+      expect(
+        userProvisioningContextSettingsService.applyDefaultScopeToMember
+      ).not.toHaveBeenCalled();
     });
   });
 

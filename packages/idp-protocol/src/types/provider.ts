@@ -9,6 +9,9 @@ import {
   Role,
   UserProvisioningSettings,
   UserProvisioningSettingsUpdate,
+  UserProvisioningRequestAccessContext,
+  RequestProjectAccessResult,
+  CreateNewProjectResult,
 } from './models.js';
 import { Express, NextFunction, Request, Response } from 'express';
 
@@ -259,4 +262,36 @@ export interface IdpProvider {
     requestId: string,
     actorUserId: string
   ): Promise<void>;
+
+  /**
+   * Get request-access context for the authenticated user and target project.
+   *
+   * Implementations that do not support OWOX-managed user provisioning should
+   * throw `IdpOperationNotSupportedError`.
+   */
+  getUserProvisioningRequestAccessContext(
+    userId: string,
+    projectId: string
+  ): Promise<UserProvisioningRequestAccessContext>;
+
+  /**
+   * Request access to the project for a user authenticated
+   * without project roles.
+   *
+   * Implementations that do not support OWOX-managed user provisioning should
+   * throw `IdpOperationNotSupportedError`.
+   */
+  requestProjectAccess(
+    userId: string,
+    projectId: string,
+    role: Role
+  ): Promise<RequestProjectAccessResult>;
+
+  /**
+   * Create a new project for the user from request-access flow.
+   *
+   * Implementations that do not support OWOX-managed user provisioning should
+   * throw `IdpOperationNotSupportedError`.
+   */
+  createNewProject(userId: string, integration: string): Promise<CreateNewProjectResult>;
 }

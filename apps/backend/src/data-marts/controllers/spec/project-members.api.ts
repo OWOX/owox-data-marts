@@ -17,6 +17,10 @@ import {
   UpdateMemberRequestApiDto,
   UpdateMemberResponseApiDto,
 } from '../../dto/presentation/context-api.dto';
+import {
+  UpdateUserProvisioningSettingsRequestApiDto,
+  UserProvisioningSettingsResponseApiDto,
+} from '../../dto/presentation/user-provisioning-settings-api.dto';
 
 export function ListProjectMembersSpec() {
   return applyDecorators(
@@ -38,6 +42,35 @@ export function InviteProjectMemberSpec() {
     ApiResponse({ status: 202, type: InviteMemberResponseApiDto }),
     ApiResponse({ status: 400, description: 'Invalid email, role, or context ids' }),
     ApiResponse({ status: 409, description: 'Member with this email already exists' }),
+    ApiResponse({ status: 502, description: 'Upstream IDP failure' })
+  );
+}
+
+export function GetUserProvisioningSettingsSpec() {
+  return applyDecorators(
+    ApiOperation({
+      summary: 'Get user provisioning settings for the current project',
+      description:
+        'Returns `isApplicable=false` when the active IDP/project does not support organization-backed user provisioning.',
+    }),
+    ApiOkResponse({ type: UserProvisioningSettingsResponseApiDto }),
+    ApiResponse({ status: 502, description: 'Upstream IDP failure' })
+  );
+}
+
+export function UpdateUserProvisioningSettingsSpec() {
+  return applyDecorators(
+    ApiOperation({
+      summary: 'Update user provisioning defaults for the current project',
+      description:
+        'IDP/analytics owns provisioning mode and default role; ODM stores context-scope defaults locally.',
+    }),
+    ApiBody({ type: UpdateUserProvisioningSettingsRequestApiDto }),
+    ApiOkResponse({ type: UserProvisioningSettingsResponseApiDto }),
+    ApiResponse({
+      status: 400,
+      description: 'Invalid context ids or selected_contexts without contexts',
+    }),
     ApiResponse({ status: 502, description: 'Upstream IDP failure' })
   );
 }

@@ -3,14 +3,22 @@ import { toast } from 'react-hot-toast';
 import { MembersTable } from '../../features/project-settings/members/components/MembersTable/MembersTable';
 import { MemberDetailsSheet } from '../../features/project-settings/members/components/MemberDetailsSheet/MemberDetailsSheet';
 import { PendingRequestsSection } from '../../features/project-settings/members/components/PendingRequestsSection/PendingRequestsSection';
+import { UserProvisioningSettings } from '../../features/project-settings/members/components/UserProvisioningSettings/UserProvisioningSettings';
 import { useMembersSettings } from '../../features/project-settings/members/model/members-settings.context';
 import { ConfirmationDialog } from '../../shared/components/ConfirmationDialog';
 import { projectMembersService } from '../../features/project-members/services/project-members.service';
 import type { MemberWithScopeDto } from '../../features/contexts/types/context.types';
 
 export function MembersTab() {
-  const { members, contexts, refresh, optimisticRemoveMember, isAdmin, openInviteSheet } =
-    useMembersSettings();
+  const {
+    members,
+    contexts,
+    refresh,
+    optimisticRemoveMember,
+    isAdmin,
+    openInviteSheet,
+    hasLoadError,
+  } = useMembersSettings();
   const [selected, setSelected] = useState<MemberWithScopeDto | null>(null);
   const [pendingRemove, setPendingRemove] = useState<MemberWithScopeDto | null>(null);
   const [removing, setRemoving] = useState(false);
@@ -47,6 +55,7 @@ export function MembersTab() {
   return (
     <>
       <PendingRequestsSection />
+      {!hasLoadError && <UserProvisioningSettings contexts={contexts} isAdmin={isAdmin} />}
 
       <MembersTable
         members={members}

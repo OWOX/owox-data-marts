@@ -82,6 +82,9 @@ export class ContextImpactResponseApiDto {
   @ApiProperty()
   memberCount: number;
 
+  @ApiProperty()
+  userProvisioningDefaultsCount: number;
+
   @ApiProperty({ type: [String] })
   affectedMemberIds: string[];
 }

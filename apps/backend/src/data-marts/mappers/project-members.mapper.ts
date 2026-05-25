@@ -6,7 +6,13 @@ import {
 } from '../dto/presentation/context-api.dto';
 import { ProjectRole } from '../enums/project-role.enum';
 import type { ProjectMembershipRequestDto } from '../use-cases/project-members/dto/project-membership-request.dto';
+import { UpdateUserProvisioningSettingsCommand } from '../dto/domain/user-provisioning-settings.dto';
+import {
+  UpdateUserProvisioningSettingsRequestApiDto,
+  UserProvisioningSettingsResponseApiDto,
+} from '../dto/presentation/user-provisioning-settings-api.dto';
 import type { ProjectMemberWithScope } from '../use-cases/project-members/list-project-members.service';
+import type { UserProvisioningSettingsDto } from '../dto/domain/user-provisioning-settings.dto';
 
 @Injectable()
 export class ProjectMembersMapper {
@@ -40,6 +46,27 @@ export class ProjectMembersMapper {
 
   toMembershipRequestApiList(requests: ProjectMembershipRequestDto[]): MembershipRequestApiDto[] {
     return requests.map(r => this.toMembershipRequestApi(r));
+  }
+
+  toUserProvisioningSettingsApiResponse(
+    settings: UserProvisioningSettingsDto
+  ): UserProvisioningSettingsResponseApiDto {
+    return settings;
+  }
+
+  toUpdateUserProvisioningSettingsCommand(
+    projectId: string,
+    actorUserId: string,
+    dto: UpdateUserProvisioningSettingsRequestApiDto
+  ): UpdateUserProvisioningSettingsCommand {
+    return new UpdateUserProvisioningSettingsCommand(
+      projectId,
+      actorUserId,
+      dto.mode,
+      dto.defaultRole,
+      dto.roleScope,
+      dto.contextIds
+    );
   }
 }
 

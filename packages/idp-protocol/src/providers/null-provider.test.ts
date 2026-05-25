@@ -23,6 +23,20 @@ describe('NullIdpProvider user provisioning settings', () => {
       })
     ).rejects.toBeInstanceOf(IdpOperationNotSupportedError);
   });
+
+  it('throws for request-access operations', async () => {
+    const provider = new NullIdpProvider();
+
+    await expect(
+      provider.getUserProvisioningRequestAccessContext('user-1', 'project-1')
+    ).rejects.toBeInstanceOf(IdpOperationNotSupportedError);
+    await expect(
+      provider.requestProjectAccess('user-1', 'project-1', 'viewer')
+    ).rejects.toBeInstanceOf(IdpOperationNotSupportedError);
+    await expect(provider.createNewProject('user-1', 'extension-v2')).rejects.toBeInstanceOf(
+      IdpOperationNotSupportedError
+    );
+  });
 });
 
 describe('NullIdpProvider project member API keys', () => {

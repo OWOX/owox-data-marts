@@ -12,6 +12,7 @@ import { RoleScope } from '../../enums/role-scope.enum';
 import { ContextService } from './context.service';
 import { AccessDecisionService } from '../access-decision/access-decision.service';
 import { EntityType, OwnerStatus } from '../access-decision/access-decision.types';
+import { UserProvisioningContextSettingsService } from './user-provisioning-context-settings.service';
 
 @Injectable()
 export class ContextAccessService {
@@ -27,6 +28,7 @@ export class ContextAccessService {
     @InjectRepository(MemberRoleContext)
     private readonly memberRoleContextRepository: Repository<MemberRoleContext>,
     private readonly contextService: ContextService,
+    private readonly userProvisioningContextSettingsService: UserProvisioningContextSettingsService,
     @Inject(forwardRef(() => AccessDecisionService))
     private readonly accessDecisionService: AccessDecisionService
   ) {}
@@ -140,7 +142,11 @@ export class ContextAccessService {
       where: { userId, projectId },
     });
 
-    return record?.roleScope ?? RoleScope.ENTIRE_PROJECT;
+    if (record) {
+      return record.roleScope;
+    }
+
+    return this.userProvisioningContextSettingsService.applyDefaultScopeToMember(userId, projectId);
   }
 
   async getMemberContextIds(userId: string, projectId: string): Promise<string[]> {

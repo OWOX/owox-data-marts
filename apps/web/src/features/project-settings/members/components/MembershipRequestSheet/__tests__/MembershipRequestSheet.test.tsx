@@ -152,6 +152,7 @@ const store = (overrides: Partial<MembersSettingsStoreValue> = {}): MembersSetti
   pendingRequests: [request],
   loading: false,
   loadingRequests: false,
+  hasLoadError: false,
   refresh: vi.fn().mockResolvedValue(undefined),
   optimisticRemoveMember: vi.fn(),
   optimisticRemoveRequest: vi.fn(),

@@ -29,3 +29,26 @@ export interface ApproveMembershipRequestResult {
   roleScope: RoleScope;
   contextIds: string[];
 }
+
+export type UserProvisioningMode = 'automatic' | 'manual';
+
+export interface UserProvisioningOrganization {
+  name: string;
+  mainProjectId?: string | null;
+  mainProjectTitle?: string | null;
+}
+
+export interface UserProvisioningSettingsValue {
+  mode: UserProvisioningMode;
+  defaultRole: Role;
+  roleScope: RoleScope;
+  contextIds: string[];
+}
+
+export interface UserProvisioningSettingsResponse {
+  isApplicable: boolean;
+  organization: UserProvisioningOrganization | null;
+  settings: UserProvisioningSettingsValue | null;
+}
+
+export type UpdateUserProvisioningSettingsPayload = UserProvisioningSettingsValue;

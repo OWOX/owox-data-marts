@@ -16,6 +16,17 @@ import {
   DefaultTokenProvider,
 } from '../../../app/api/token-provider';
 import { pushToDataLayer, trackUserIdentified, trackLogout } from '../../../utils';
+import { buildProjectPath } from '../../../utils/path';
+import {
+  buildProjectRequestAccessPath,
+  getSafeProjectRedirect,
+  isProjectRequestAccessPath,
+  LEGACY_REQUEST_ACCESS_PATH,
+} from '../../user-provisioning/utils/request-access-routing';
+
+function hasEmptyProjectRoles(user: User): boolean {
+  return Array.isArray(user.roles) && user.roles.length === 0;
+}
 
 /**
  * Auth reducer actions
@@ -188,6 +199,41 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
       try {
         const { user } = await refresh();
+        const currentPath = window.location.pathname;
+        const currentUrl = window.location.pathname + window.location.search + window.location.hash;
+
+        if (hasEmptyProjectRoles(user)) {
+          const isRequestAccessPath =
+            currentPath === LEGACY_REQUEST_ACCESS_PATH ||
+            isProjectRequestAccessPath(currentPath, user.projectId);
+
+          if (!isRequestAccessPath) {
+            const storedRedirect = RedirectStorageService.retrieve();
+            if (storedRedirect) {
+              RedirectStorageService.clear();
+            }
+            const storedProjectId = storedRedirect ? getProjectIdFromPath(storedRedirect) : null;
+            let redirectTo = currentUrl;
+            if (storedRedirect && (!storedProjectId || storedProjectId === user.projectId)) {
+              redirectTo = storedRedirect;
+            } else if (currentPath === '/') {
+              redirectTo = buildProjectPath(user.projectId, '/data-marts');
+            }
+            window.location.replace(buildProjectRequestAccessPath(user.projectId, redirectTo));
+          }
+          return;
+        }
+
+        if (
+          currentPath === LEGACY_REQUEST_ACCESS_PATH ||
+          isProjectRequestAccessPath(currentPath, user.projectId)
+        ) {
+          window.location.replace(
+            getSafeProjectRedirect(window.location.search, user.projectId) ??
+              buildProjectPath(user.projectId, '/data-marts')
+          );
+          return;
+        }
 
         const storedRedirect = RedirectStorageService.retrieve();
         if (storedRedirect) {

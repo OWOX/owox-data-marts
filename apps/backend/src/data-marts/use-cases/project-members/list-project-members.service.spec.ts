@@ -76,4 +76,38 @@ describe('ListProjectMembersService', () => {
 
     expect(result).toEqual([]);
   });
+
+  it('loads member scopes sequentially to avoid concurrent SQLite transactions', async () => {
+    const { service, idpProjectionsFacade, contextAccessService } = createService();
+    idpProjectionsFacade.getProjectMembers.mockResolvedValue([
+      {
+        userId: 'u1',
+        email: 'u1@test.io',
+        displayName: undefined,
+        avatarUrl: undefined,
+        role: 'viewer',
+      },
+      {
+        userId: 'u2',
+        email: 'u2@test.io',
+        displayName: undefined,
+        avatarUrl: undefined,
+        role: 'viewer',
+      },
+    ]);
+
+    const calls: string[] = [];
+    contextAccessService.getRoleScope.mockImplementation(async (userId: string) => {
+      calls.push(`scope:${userId}`);
+      return RoleScope.ENTIRE_PROJECT;
+    });
+    contextAccessService.getMemberContextIds.mockImplementation(async (userId: string) => {
+      calls.push(`contexts:${userId}`);
+      return [];
+    });
+
+    await service.run(PROJECT_ID);
+
+    expect(calls).toEqual(['scope:u1', 'contexts:u1', 'scope:u2', 'contexts:u2']);
+  });
 });

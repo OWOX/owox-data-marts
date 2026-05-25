@@ -7,6 +7,11 @@ import {
   ProjectMemberInvitation,
   ProjectMembershipRequest,
   Role,
+  UserProvisioningRequestAccessContext,
+  RequestProjectAccessResult,
+  CreateNewProjectResult,
+  UserProvisioningSettings,
+  UserProvisioningSettingsUpdate,
 } from '@owox/idp-protocol';
 import { In, Repository } from 'typeorm';
 import { ProjectProjection } from '../entities/project-projection.entity';
@@ -194,6 +199,48 @@ export class IdpProjectionsService {
   ): Promise<void> {
     const provider = this.idpProviderService.getProviderFromApp();
     await provider.declineMembershipRequest(projectId, requestId, actorUserId);
+  }
+
+  public async getUserProvisioningSettings(
+    projectId: string,
+    actorUserId: string
+  ): Promise<UserProvisioningSettings> {
+    const provider = this.idpProviderService.getProviderFromApp();
+    return provider.getUserProvisioningSettings(projectId, actorUserId);
+  }
+
+  public async updateUserProvisioningSettings(
+    projectId: string,
+    actorUserId: string,
+    settings: UserProvisioningSettingsUpdate
+  ): Promise<UserProvisioningSettings> {
+    const provider = this.idpProviderService.getProviderFromApp();
+    return provider.updateUserProvisioningSettings(projectId, actorUserId, settings);
+  }
+
+  public async getUserProvisioningRequestAccessContext(
+    userId: string,
+    projectId: string
+  ): Promise<UserProvisioningRequestAccessContext> {
+    const provider = this.idpProviderService.getProviderFromApp();
+    return provider.getUserProvisioningRequestAccessContext(userId, projectId);
+  }
+
+  public async requestProjectAccess(
+    userId: string,
+    projectId: string,
+    role: Role
+  ): Promise<RequestProjectAccessResult> {
+    const provider = this.idpProviderService.getProviderFromApp();
+    return provider.requestProjectAccess(userId, projectId, role);
+  }
+
+  public async createNewProject(
+    userId: string,
+    integration: string
+  ): Promise<CreateNewProjectResult> {
+    const provider = this.idpProviderService.getProviderFromApp();
+    return provider.createNewProject(userId, integration);
   }
 
   /**

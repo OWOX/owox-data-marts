@@ -1,9 +1,14 @@
 import { Injectable } from '@nestjs/common';
 import type {
   ApproveMembershipRequestResult,
+  CreateNewProjectResult,
   ProjectMemberInvitation,
   ProjectMembershipRequest,
+  RequestProjectAccessResult,
   Role,
+  UserProvisioningRequestAccessContext,
+  UserProvisioningSettings,
+  UserProvisioningSettingsUpdate,
 } from '@owox/idp-protocol';
 import { ProjectProjectionDto } from '../dto/domain/project-projection.dto';
 import { UserProjectionDto } from '../dto/domain/user-projection.dto';
@@ -144,5 +149,46 @@ export class IdpProjectionsFacade {
     actorUserId: string
   ): Promise<void> {
     await this.idpProjectionsService.declineMembershipRequest(projectId, requestId, actorUserId);
+  }
+
+  public async getUserProvisioningSettings(
+    projectId: string,
+    actorUserId: string
+  ): Promise<UserProvisioningSettings> {
+    return this.idpProjectionsService.getUserProvisioningSettings(projectId, actorUserId);
+  }
+
+  public async updateUserProvisioningSettings(
+    projectId: string,
+    actorUserId: string,
+    settings: UserProvisioningSettingsUpdate
+  ): Promise<UserProvisioningSettings> {
+    return this.idpProjectionsService.updateUserProvisioningSettings(
+      projectId,
+      actorUserId,
+      settings
+    );
+  }
+
+  public async getUserProvisioningRequestAccessContext(
+    userId: string,
+    projectId: string
+  ): Promise<UserProvisioningRequestAccessContext> {
+    return this.idpProjectionsService.getUserProvisioningRequestAccessContext(userId, projectId);
+  }
+
+  public async requestProjectAccess(
+    userId: string,
+    projectId: string,
+    role: Role
+  ): Promise<RequestProjectAccessResult> {
+    return this.idpProjectionsService.requestProjectAccess(userId, projectId, role);
+  }
+
+  public async createNewProject(
+    userId: string,
+    integration: string
+  ): Promise<CreateNewProjectResult> {
+    return this.idpProjectionsService.createNewProject(userId, integration);
   }
 }

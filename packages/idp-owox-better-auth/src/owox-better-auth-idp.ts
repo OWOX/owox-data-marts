@@ -9,9 +9,15 @@ import {
   ProjectMembershipRequest,
   Projects,
   ProtocolRoute,
+  RequestProjectAccessResult,
   Role,
+  UserProvisioningRequestAccessContext,
 } from '@owox/idp-protocol';
-import type { UserProvisioningSettings, UserProvisioningSettingsUpdate } from '@owox/idp-protocol';
+import type {
+  CreateNewProjectResult,
+  UserProvisioningSettings,
+  UserProvisioningSettingsUpdate,
+} from '@owox/idp-protocol';
 import { createMailingProvider } from '@owox/internal-helpers';
 import { getMigrations } from 'better-auth/db/migration';
 import cookieParser from 'cookie-parser';
@@ -232,6 +238,54 @@ export class OwoxBetterAuthIdp implements IdpProvider {
       requestId,
       actorUserId
     );
+  }
+
+  async getUserProvisioningRequestAccessContext(
+    userId: string,
+    projectId: string
+  ): Promise<UserProvisioningRequestAccessContext> {
+    const requestAccessContext = await this.identityClient.getUserProvisioningRequestAccessContext(
+      userId,
+      projectId
+    );
+    return {
+      decision: requestAccessContext.decision,
+      user: {
+        userId: requestAccessContext.user.userUid,
+        email: requestAccessContext.user.email,
+      },
+      organization: requestAccessContext.organization,
+      project: {
+        projectId: requestAccessContext.project.projectName,
+        projectTitle: requestAccessContext.project.projectTitle,
+      },
+      availableRoles: requestAccessContext.availableRoles,
+      defaultRole: requestAccessContext.defaultRole,
+      existingRequest: requestAccessContext.existingRequest ?? null,
+    };
+  }
+
+  async requestProjectAccess(
+    userId: string,
+    projectId: string,
+    role: Role
+  ): Promise<RequestProjectAccessResult> {
+    const response = await this.identityClient.requestProjectAccess(userId, projectId, role);
+
+    return {
+      userId: response.user.userUid,
+      projectId: response.project.projectName,
+      projectTitle: response.project.projectTitle,
+      request: response.request,
+    };
+  }
+
+  async createNewProject(userId: string, integration: string): Promise<CreateNewProjectResult> {
+    const response = await this.identityClient.createNewProject(userId, integration);
+    return {
+      projectId: response.projectName,
+      projectTitle: response.projectTitle,
+    };
   }
 
   static async create(config: BetterAuthProviderConfig): Promise<OwoxBetterAuthIdp> {
