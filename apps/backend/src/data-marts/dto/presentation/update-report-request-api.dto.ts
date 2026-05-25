@@ -26,7 +26,11 @@ export class UpdateReportRequestApiDto {
   @IsNotEmpty()
   dataDestinationId: string;
 
-  @ApiProperty({ description: 'Configuration for the data destination' })
+  @ApiProperty({
+    type: 'object',
+    additionalProperties: true,
+    description: 'Configuration for the data destination',
+  })
   @IsObject()
   @IsNotEmpty()
   destinationConfig: DataDestinationConfig;
@@ -54,6 +58,8 @@ export class UpdateReportRequestApiDto {
     description: 'Filter rules applied to the final SELECT (output filters)',
     nullable: true,
     required: false,
+    type: 'array',
+    items: { type: 'object' },
   })
   @IsOptional()
   @IsArray()
@@ -64,6 +70,8 @@ export class UpdateReportRequestApiDto {
     description: 'Sort rules (multi-column with order)',
     nullable: true,
     required: false,
+    type: 'array',
+    items: { type: 'object' },
   })
   @IsOptional()
   @IsArray()
@@ -74,7 +82,9 @@ export class UpdateReportRequestApiDto {
     description: 'Row limit cap (no offset)',
     nullable: true,
     required: false,
-    type: Number,
+    type: 'integer',
+    minimum: 1,
+    maximum: 10_000_000,
   })
   @IsOptional()
   @IsInt()

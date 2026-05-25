@@ -21,19 +21,40 @@ export class ReportResponseApiDto {
   @ApiProperty()
   dataDestinationAccess: DataDestinationResponseApiDto;
 
-  @ApiProperty()
+  @ApiProperty({
+    type: 'object',
+    additionalProperties: true,
+    description: 'Configuration for the data destination',
+  })
   destinationConfig: DataDestinationConfig;
 
   @ApiProperty({ nullable: true, required: false, type: [String] })
   columnConfig?: ReportColumnConfig;
 
-  @ApiProperty({ nullable: true, required: false, description: 'Filter rules' })
+  @ApiProperty({
+    nullable: true,
+    required: false,
+    description: 'Filter rules',
+    type: 'array',
+    items: { type: 'object' },
+  })
   filterConfig?: FilterConfig | null;
 
-  @ApiProperty({ nullable: true, required: false, description: 'Sort rules' })
+  @ApiProperty({
+    nullable: true,
+    required: false,
+    description: 'Sort rules',
+    type: 'array',
+    items: { type: 'object' },
+  })
   sortConfig?: SortConfig | null;
 
-  @ApiProperty({ nullable: true, required: false, description: 'Row limit', type: Number })
+  @ApiProperty({
+    nullable: true,
+    required: false,
+    description: 'Row limit',
+    type: 'integer',
+  })
   limitConfig?: number | null;
 
   @ApiProperty({ nullable: true })
