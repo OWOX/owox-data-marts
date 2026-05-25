@@ -580,6 +580,25 @@ export function ReportColumnPicker({
     [dropdownColumns, effectiveValueSet]
   );
 
+  const referencedFieldNames = useMemo(() => {
+    const names = new Set<string>();
+    for (const rule of effectiveOutputConfig.filterConfig) {
+      if (rule.placement !== 'pre-join') names.add(rule.column);
+    }
+    for (const rule of effectiveOutputConfig.sortConfig) names.add(rule.column);
+    return names;
+  }, [effectiveOutputConfig.filterConfig, effectiveOutputConfig.sortConfig]);
+
+  const referencedPreJoinKeys = useMemo(() => {
+    const keys = new Set<string>();
+    for (const rule of effectiveOutputConfig.filterConfig) {
+      if (rule.placement === 'pre-join' && rule.aliasPath) {
+        keys.add(`${rule.aliasPath}\0${rule.column}`);
+      }
+    }
+    return keys;
+  }, [effectiveOutputConfig.filterConfig]);
+
   const groupedBlendedFields = useMemo<BlendedGroup[]>(() => {
     const groupMap = new Map<string, BlendedGroup>();
 
@@ -599,16 +618,27 @@ export function ReportColumnPicker({
         groupMap.set(field.aliasPath, group);
       }
       const isSelected = effectiveValueSet.has(field.name);
+      const isReferenced =
+        isSelected ||
+        referencedFieldNames.has(field.name) ||
+        referencedPreJoinKeys.has(`${field.aliasPath}\0${field.originalFieldName}`);
       if (isSelected) group.selectedCount += 1;
       if (group.isAccessibleForReporting) {
-        if (!showSelectedOnly || isSelected) group.visibleFields.push(field);
-      } else if (isSelected) {
+        if (!showSelectedOnly || isReferenced) group.visibleFields.push(field);
+      } else if (isReferenced) {
         group.visibleFields.push(field);
       }
     }
 
     return Array.from(groupMap.values()).filter(g => g.visibleFields.length > 0);
-  }, [includedBlendedFields, showSelectedOnly, effectiveValueSet, availableSourceByPath]);
+  }, [
+    includedBlendedFields,
+    showSelectedOnly,
+    effectiveValueSet,
+    availableSourceByPath,
+    referencedFieldNames,
+    referencedPreJoinKeys,
+  ]);
 
   if (isLoading) {
     return (
