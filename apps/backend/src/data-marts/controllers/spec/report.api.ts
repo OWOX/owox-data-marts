@@ -2,20 +2,25 @@ import { applyDecorators } from '@nestjs/common';
 import {
   ApiBody,
   ApiCreatedResponse,
+  ApiExtraModels,
   ApiOkResponse,
   ApiOperation,
   ApiParam,
   ApiQuery,
 } from '@nestjs/swagger';
 import { ReportResponseApiDto } from '../../dto/presentation/report-response-api.dto';
-import { CreateReportRequestApiDto } from '../../dto/presentation/create-report-request-api.dto';
-import { UpdateReportRequestApiDto } from '../../dto/presentation/update-report-request-api.dto';
 import { OwnerFilter } from '../../enums/owner-filter.enum';
+import {
+  createReportRequestBodySchema,
+  REPORT_OPENAPI_MODELS,
+  updateReportRequestBodySchema,
+} from './report-openapi';
 
 export function CreateReportSpec() {
   return applyDecorators(
     ApiOperation({ summary: 'Create a new report' }),
-    ApiBody({ type: CreateReportRequestApiDto }),
+    ApiExtraModels(...REPORT_OPENAPI_MODELS),
+    ApiBody({ schema: createReportRequestBodySchema }),
     ApiCreatedResponse({
       description: 'The report has been successfully created.',
       type: ReportResponseApiDto,
@@ -86,7 +91,8 @@ export function UpdateReportSpec() {
   return applyDecorators(
     ApiOperation({ summary: 'Update an existing report' }),
     ApiParam({ name: 'id', description: 'Report ID' }),
-    ApiBody({ type: UpdateReportRequestApiDto }),
+    ApiExtraModels(...REPORT_OPENAPI_MODELS),
+    ApiBody({ schema: updateReportRequestBodySchema }),
     ApiOkResponse({
       description: 'The report has been successfully updated.',
       type: ReportResponseApiDto,
@@ -112,7 +118,11 @@ export function GetReportGeneratedSqlSpec() {
     ApiParam({ name: 'id', description: 'Report ID' }),
     ApiOkResponse({
       description: 'The generated SQL query for the report.',
-      schema: { type: 'object', properties: { sql: { type: 'string' } } },
+      schema: {
+        type: 'object',
+        required: ['sql'],
+        properties: { sql: { type: 'string' } },
+      },
     })
   );
 }
@@ -123,7 +133,11 @@ export function CopyReportAsDataMartSpec() {
     ApiParam({ name: 'id', description: 'Report ID' }),
     ApiCreatedResponse({
       description: 'The new data mart has been successfully created.',
-      schema: { type: 'object', properties: { dataMartId: { type: 'string' } } },
+      schema: {
+        type: 'object',
+        required: ['dataMartId'],
+        properties: { dataMartId: { type: 'string', format: 'uuid' } },
+      },
     })
   );
 }
