@@ -198,7 +198,10 @@ const destinationConfigRequestProperty = {
   description: 'Configuration for the selected data destination.',
   oneOf: [
     { $ref: getSchemaPath(ReportEmailDestinationConfigApiDto) },
-    { $ref: getSchemaPath(ReportLegacyEmailDestinationConfigApiDto) },
+    {
+      allOf: [{ $ref: getSchemaPath(ReportLegacyEmailDestinationConfigApiDto) }],
+      not: { required: ['templateSource'] },
+    },
     { $ref: getSchemaPath(ReportGoogleSheetsDestinationConfigApiDto) },
     { $ref: getSchemaPath(ReportLookerStudioDestinationConfigApiDto) },
   ],

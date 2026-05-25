@@ -85,6 +85,10 @@ describe('ReportController OpenAPI', () => {
 
     const updateProperties = requestSchema('/api/reports/{id}', 'put').properties;
     expect(updateProperties.destinationConfig.oneOf).toHaveLength(4);
+    expect(updateProperties.destinationConfig.oneOf[1]).toMatchObject({
+      allOf: [{ $ref: expect.stringContaining('ReportLegacyEmailDestinationConfigApiDto') }],
+      not: { required: ['templateSource'] },
+    });
     expect(updateProperties.limitConfig).toMatchObject({ type: 'integer', nullable: true });
   });
 
