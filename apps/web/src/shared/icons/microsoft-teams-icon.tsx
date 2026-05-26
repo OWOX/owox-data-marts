@@ -88,9 +88,9 @@ export const MicrosoftTeamsIcon = ({ className, size = 24 }: MicrosoftTeamsIconP
           y2='18.837'
           gradientUnits='userSpaceOnUse'
         >
-          <stop stop-color='#5A62C3' />
-          <stop offset='0.5' stop-color='#4D55BD' />
-          <stop offset='1' stop-color='#3940AB' />
+          <stop stopColor='#5A62C3' />
+          <stop offset='0.5' stopColor='#4D55BD' />
+          <stop offset='1' stopColor='#3940AB' />
         </linearGradient>
         <clipPath id='clip0_377_3451'>
           <rect width='23.65' height='22' fill='white' transform='translate(0 1)' />

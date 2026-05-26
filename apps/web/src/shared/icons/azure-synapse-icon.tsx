@@ -39,8 +39,8 @@ export const AzureSynapseIcon = ({ className, size = 24 }: AzureSynapseIconProps
           y2='0'
           gradientUnits='userSpaceOnUse'
         >
-          <stop offset='0.199' stop-color='#005BA1' />
-          <stop offset='1' stop-color='#0078D4' />
+          <stop offset='0.199' stopColor='#005BA1' />
+          <stop offset='1' stopColor='#0078D4' />
         </linearGradient>
         <linearGradient
           id='paint1_linear_19_1262'
@@ -50,11 +50,11 @@ export const AzureSynapseIcon = ({ className, size = 24 }: AzureSynapseIconProps
           y2='14.0987'
           gradientUnits='userSpaceOnUse'
         >
-          <stop stop-color='#198AB3' />
-          <stop offset='0.172' stop-color='#32BEDD' />
-          <stop offset='0.5' stop-color='#198AB3' />
-          <stop offset='0.662' stop-color='#32BEDD' />
-          <stop offset='0.975' stop-color='#50E6FF' />
+          <stop stopColor='#198AB3' />
+          <stop offset='0.172' stopColor='#32BEDD' />
+          <stop offset='0.5' stopColor='#198AB3' />
+          <stop offset='0.662' stopColor='#32BEDD' />
+          <stop offset='0.975' stopColor='#50E6FF' />
         </linearGradient>
       </defs>
     </svg>
