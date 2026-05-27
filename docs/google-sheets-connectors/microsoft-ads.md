@@ -16,7 +16,12 @@ Once you have copied the template, fill in the required information:
 In your newly copied spreadsheet, navigate to the "Config" sheet.
 
 Log in to your Bing Ads account at [https://ads.microsoft.com/](https://ads.microsoft.com/).  
-Your **Account ID** and **Customer ID** can be found in the account URL.
+Switch to the account you want to import and open the Campaigns page. Copy the numeric IDs from the browser URL:
+
+- Use the `aid` value as **Account ID**.
+- Use the `cid` value as **Customer ID**.
+
+> Important: Microsoft Ads also shows account/customer numbers in some places. Those values can be alphanumeric, for example `A00000A0AA`, and should not be used here. The connector requires the numeric API IDs from `aid` and `cid`.
 
 ![Bing Add Account](./res/bing_addaccount.png)
 
@@ -45,7 +50,7 @@ Next, access the custom menu: **OWOX → Manage Credentials**.
 
 ![Bing Credentials](./res/bing_credentials.png)
 
-Enter your credentials obtained by following this guide: [**How to obtain the credentials for Bing Ads connector**](../../packages/connectors/src/Sources/BingAds/CREDENTIALS.md).
+Enter your credentials obtained by following this guide: [**How to obtain the credentials for Microsoft Ads connector**](../../packages/connectors/src/Sources/MicrosoftAds/CREDENTIALS.md).
 
 ![Bing Token](./res/bing_creds.png)
 

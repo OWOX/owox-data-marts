@@ -128,6 +128,33 @@ describe('Connector Specification (e2e)', () => {
         expect(typeof oauthVariant.value).toBe('string');
       }
     );
+
+    it('GET /api/connectors/MicrosoftAds/specification - explains numeric API identifiers', async () => {
+      const res = await agent.get('/api/connectors/MicrosoftAds/specification').set(AUTH_HEADER);
+
+      expect(res.status).toBe(200);
+
+      const accountIdsField = res.body.find(
+        (item: Record<string, unknown>) => item.name === 'AccountIDs'
+      );
+      const customerIdField = res.body.find(
+        (item: Record<string, unknown>) => item.name === 'CustomerID'
+      );
+
+      expect(accountIdsField?.description).toContain('numeric');
+      expect(accountIdsField?.description).toContain('aid');
+      expect(accountIdsField?.description).toContain('123456789');
+      expect(accountIdsField?.description).toContain('Do not use the alphanumeric account number');
+      expect(accountIdsField?.description).toContain('A00000A0AA');
+      expect(accountIdsField?.placeholder).toBe('000000000');
+
+      expect(customerIdField?.description).toContain('numeric');
+      expect(customerIdField?.description).toContain('cid');
+      expect(customerIdField?.description).toContain('987654321');
+      expect(customerIdField?.description).toContain('Do not use the alphanumeric customer number');
+      expect(customerIdField?.description).toContain('C00000C0CC');
+      expect(customerIdField?.placeholder).toBe('000000000');
+    });
   });
 
   // ---------------------------------------------------------------------------
