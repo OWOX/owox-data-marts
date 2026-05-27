@@ -142,13 +142,15 @@ var MicrosoftAdsSource = class MicrosoftAdsSource extends AbstractSource {
         isRequired: true,
         requiredType: "string",
         label: "Account ID(s)",
-        description: "Your Microsoft Ads Account IDs (comma separated)"
+        description: "Use the numeric Account ID from the Microsoft Ads URL aid parameter, for example 123456789. Do not use the alphanumeric account number shown elsewhere, such as A00000A0AA. For multiple accounts, separate IDs with commas.",
+        placeholder: "000000000"
       },
       CustomerID: {
         isRequired: true,
         requiredType: "string",
         label: "Customer ID",
-        description: "Your Microsoft Ads Customer ID"
+        description: "Use the numeric Customer ID from the Microsoft Ads URL cid parameter, for example 987654321. Do not use the alphanumeric customer number shown elsewhere, such as C00000C0CC.",
+        placeholder: "000000000"
       },
       StartDate: {
         requiredType: "date",

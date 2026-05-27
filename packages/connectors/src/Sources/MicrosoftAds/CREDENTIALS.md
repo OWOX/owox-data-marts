@@ -60,7 +60,12 @@ At this point, you have:
 ## Step 3: Get Account ID and Customer ID
 
 1. Go to [https://ads.microsoft.com/](https://ads.microsoft.com/) and log in to your Microsoft Ads account.  
-2. Your **Account ID** and **Customer ID** can be found in the URL.
+2. Switch to the account you want to import and open the Campaigns page.
+3. Copy the numeric IDs from the browser URL:
+   - Use the `aid` value as **Account ID**.
+   - Use the `cid` value as **Customer ID**.
+
+> Important: Microsoft Ads also shows account/customer numbers in some places. Those values can be alphanumeric, for example `A00000A0AA`, and should not be used here. The connector requires the numeric API IDs from `aid` and `cid`.
 
 ![Microsoft Add Account](res/microsoft_addaccount.png)
 
