@@ -5,7 +5,7 @@ export type ProjectMemberApiKeyMetadata = {
   projectId: string;
   userId: string;
   name: string;
-  role: Role;
+  role: Role | null;
   readOnly: boolean;
   expiresAt: Date | null;
   revokedAt: Date | null;

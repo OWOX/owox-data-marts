@@ -17,8 +17,8 @@ export class ProjectMemberApiKey {
   @Column({ type: 'varchar', length: 255 })
   name: string;
 
-  @Column({ type: 'varchar', length: 20 })
-  role: Role;
+  @Column({ type: 'varchar', length: 20, nullable: true })
+  role: Role | null;
 
   @Column({ type: 'boolean', default: false })
   readOnly: boolean;

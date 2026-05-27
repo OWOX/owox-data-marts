@@ -25,7 +25,7 @@ export class ProjectMemberApiKeyService {
     projectId: string,
     userId: string,
     name: string,
-    role: Role,
+    role: Role | null,
     readOnly: boolean,
     expiresAt?: Date | null
   ): Promise<CreateProjectMemberApiKeyResult> {

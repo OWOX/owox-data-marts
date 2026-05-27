@@ -19,7 +19,7 @@ export class CreateProjectMemberApiKeyTable1777000000000 implements MigrationInt
           { name: 'projectId', type: 'varchar', length: '255', isNullable: false },
           { name: 'userId', type: 'varchar', length: '255', isNullable: false },
           { name: 'name', type: 'varchar', length: '255', isNullable: false },
-          { name: 'role', type: 'varchar', length: '20', isNullable: false },
+          { name: 'role', type: 'varchar', length: '20', isNullable: true },
           { name: 'readOnly', type: 'boolean', isNullable: false, default: false },
           { name: 'expiresAt', type: 'datetime', isNullable: true, default: null },
           { name: 'revokedAt', type: 'datetime', isNullable: true, default: null },
