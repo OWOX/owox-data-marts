@@ -31,7 +31,13 @@ export async function resolveBlendableSchemaAccessor(
   userId: string
 ): Promise<BlendableSchemaAccessor> {
   const member = await idpProjectionsFacade.getProjectMember(projectId, userId);
-  return { userId, roles: member ? [member.role] : [] };
+  if (!member) {
+    throw new BusinessViolationException(
+      `User is no longer a member of this project; report cannot run on their behalf.`,
+      { userId, projectId }
+    );
+  }
+  return { userId, roles: [member.role] };
 }
 
 const DEFAULT_CONFIG: BlendedFieldsConfig = {

@@ -1,5 +1,9 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { BlendableSchemaAccessor, BlendableSchemaService } from './blendable-schema.service';
+import {
+  BlendableSchemaAccessor,
+  BlendableSchemaService,
+  resolveBlendableSchemaAccessor,
+} from './blendable-schema.service';
 import { DataMartRelationshipService } from './data-mart-relationship.service';
 import { DataMartService } from './data-mart.service';
 import { AccessDecisionService } from './access-decision';
@@ -7,6 +11,8 @@ import { DataMart } from '../entities/data-mart.entity';
 import { DataMartRelationship } from '../entities/data-mart-relationship.entity';
 import { BlendedFieldsConfig } from '../dto/schemas/blended-fields-config.schema';
 import { DataMartStatus } from '../enums/data-mart-status.enum';
+import { BusinessViolationException } from '../../common/exceptions/business-violation.exception';
+import { IdpProjectionsFacade } from '../../idp/facades/idp-projections.facade';
 
 const defaultAccessor: BlendableSchemaAccessor = { userId: 'user-1', roles: ['admin'] };
 
@@ -907,5 +913,42 @@ describe('BlendableSchemaService', () => {
         expect(flag('d')).toBe(true);
       });
     });
+  });
+});
+
+describe('resolveBlendableSchemaAccessor', () => {
+  function makeFacade(getProjectMemberImpl: jest.Mock): IdpProjectionsFacade {
+    return { getProjectMember: getProjectMemberImpl } as unknown as IdpProjectionsFacade;
+  }
+
+  it('returns the resolved role when the user is still a project member', async () => {
+    const facade = makeFacade(jest.fn().mockResolvedValue({ userId: 'user-1', role: 'editor' }));
+
+    const accessor = await resolveBlendableSchemaAccessor(facade, 'project-1', 'user-1');
+
+    expect(accessor).toEqual({ userId: 'user-1', roles: ['editor'] });
+  });
+
+  it('throws BusinessViolationException when the user is no longer a project member', async () => {
+    const facade = makeFacade(jest.fn().mockResolvedValue(undefined));
+
+    await expect(
+      resolveBlendableSchemaAccessor(facade, 'project-1', 'removed-user')
+    ).rejects.toBeInstanceOf(BusinessViolationException);
+  });
+
+  it('includes userId and projectId in the exception details', async () => {
+    const facade = makeFacade(jest.fn().mockResolvedValue(undefined));
+
+    try {
+      await resolveBlendableSchemaAccessor(facade, 'project-1', 'removed-user');
+      fail('expected throw');
+    } catch (err) {
+      expect(err).toBeInstanceOf(BusinessViolationException);
+      expect((err as BusinessViolationException).errorDetails).toMatchObject({
+        userId: 'removed-user',
+        projectId: 'project-1',
+      });
+    }
   });
 });
