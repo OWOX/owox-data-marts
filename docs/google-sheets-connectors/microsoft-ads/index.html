@@ -123,7 +123,14 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
 </ul>
 <p>In your newly copied spreadsheet, navigate to the “Config” sheet.</p>
 <p>Log in to your Bing Ads account at <a href="https://ads.microsoft.com/" rel="noopener noreferrer" target="_blank">https://ads.microsoft.com/</a>.<br>
-Your <strong>Account ID</strong> and <strong>Customer ID</strong> can be found in the account URL.</p>
+Switch to the account you want to import and open the Campaigns page. Copy the numeric IDs from the browser URL:</p>
+<ul>
+<li>Use the <code dir="auto">aid</code> value as <strong>Account ID</strong>.</li>
+<li>Use the <code dir="auto">cid</code> value as <strong>Customer ID</strong>.</li>
+</ul>
+<blockquote>
+<p>Important: Microsoft Ads also shows account/customer numbers in some places. Those values can be alphanumeric, for example <code dir="auto">A00000A0AA</code>, and should not be used here. The connector requires the numeric API IDs from <code dir="auto">aid</code> and <code dir="auto">cid</code>.</p>
+</blockquote>
 <p><img alt="Bing Add Account" loading="lazy" decoding="async" fetchpriority="auto" width="2858" height="670" src="/_astro/bing-addaccount.Ss_vERFV_Z1gYkEF.webp" ></p>
 <p>Copy and paste both values into the template.</p>
 <p><img alt="Account ID" loading="lazy" decoding="async" fetchpriority="auto" width="2858" height="854" src="/_astro/bing-pasteid.CmgJQNpz_Z2s9lcy.webp" ></p>
@@ -138,7 +145,7 @@ Refer to the <a href="https://learn.microsoft.com/en-us/advertising/reporting-se
 <div class="sl-heading-wrapper level-h2"><h2 id="step-3-fill-in-access-credentials">Step 3: Fill in Access Credentials</h2><a class="sl-anchor-link" href="#step-3-fill-in-access-credentials"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24"><path fill="currentcolor" d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 0 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 1 0-1.42-1.42Zm8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 0 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 1 0 1.42 1.42l3.88-3.89a4.49 4.49 0 0 0 0-6.33ZM8.83 15.17a1 1 0 0 0 1.1.22 1 1 0 0 0 .32-.22l4.92-4.92a1 1 0 0 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42Z"></path></svg></span><span class="sr-only">Section titled “Step 3: Fill in Access Credentials”</span></a></div>
 <p>Next, access the custom menu: <strong>OWOX → Manage Credentials</strong>.</p>
 <p><img alt="Bing Credentials" loading="lazy" decoding="async" fetchpriority="auto" width="2858" height="932" src="/_astro/bing-credentials.C29hAWWb_1ASD2f.webp" ></p>
-<p>Enter your credentials obtained by following this guide: <a href="/packages/connectors/src/sources/bing-ads/credentials/"><strong>How to obtain the credentials for Bing Ads connector</strong></a>.</p>
+<p>Enter your credentials obtained by following this guide: <a href="/packages/connectors/src/sources/microsoft-ads/credentials/"><strong>How to obtain the credentials for Microsoft Ads connector</strong></a>.</p>
 <p><img alt="Bing Token" loading="lazy" decoding="async" fetchpriority="auto" width="2858" height="3470" src="/_astro/bing-creds.BzTJDUta_ZUwE4v.webp" ></p>
 <div class="sl-heading-wrapper level-h2"><h2 id="step-3-run-connector">Step 3: Run connector</h2><a class="sl-anchor-link" href="#step-3-run-connector"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24"><path fill="currentcolor" d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 0 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 1 0-1.42-1.42Zm8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 0 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 1 0 1.42 1.42l3.88-3.89a4.49 4.49 0 0 0 0-6.33ZM8.83 15.17a1 1 0 0 0 1.1.22 1 1 0 0 0 .32-.22l4.92-4.92a1 1 0 0 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42Z"></path></svg></span><span class="sr-only">Section titled “Step 3: Run connector”</span></a></div>
 <p>Now you have <strong>two options</strong> for importing Microsoft Ads data:</p>
