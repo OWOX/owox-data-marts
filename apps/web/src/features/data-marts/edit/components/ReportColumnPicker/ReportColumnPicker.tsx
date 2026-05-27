@@ -542,6 +542,7 @@ export function ReportColumnPicker({
     const byPath = new Map<string, JoinedSource & { columns: { name: string; type: string }[] }>();
     for (const source of schema.availableSources) {
       if (!source.isIncluded) continue;
+      if (!source.isAccessibleForReporting) continue;
       byPath.set(source.aliasPath, {
         aliasPath: source.aliasPath,
         title: source.title,
@@ -570,10 +571,12 @@ export function ReportColumnPicker({
       if (f.type) cols.push({ name: f.name, type: f.type });
     }
     for (const f of includedBlendedFields) {
-      if (f.type) cols.push({ name: f.name, type: f.type });
+      if (!f.type) continue;
+      if (!availableSourceByPath.get(f.aliasPath)?.isAccessibleForReporting) continue;
+      cols.push({ name: f.name, type: f.type });
     }
     return cols;
-  }, [nativeFields, includedBlendedFields]);
+  }, [nativeFields, includedBlendedFields, availableSourceByPath]);
 
   const selectedDropdownColumns = useMemo(
     () => dropdownColumns.filter(c => effectiveValueSet.has(c.name)),
