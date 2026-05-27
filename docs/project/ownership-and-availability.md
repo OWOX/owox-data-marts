@@ -4,6 +4,28 @@ A member's [role](roles-and-permissions.md) defines their capabilities across th
 
 ---
 
+## Permission Model
+
+Access to a specific resource is decided by combining several **paths**:
+
+- The member's **role** (Project Admin, Technical User, Business User).
+- Their **ownership status** for the resource (Technical Owner, Business Owner, Owner, or non-owner).
+- The resource's **availability** toggles (*Available for use* / *Available for reporting*, *Available for maintenance*).
+- The member's **role scope** and assigned **contexts** (for non-owners with `Selected contexts only`).
+
+**Permissions are additive.** When more than one path applies, the member receives the **union** of allowed actions from all valid paths. Being assigned as an owner can only add access — it never reduces what the member could already do without that assignment.
+
+The following restrictions still apply on top of the union:
+
+- **Role gate** — a Business User never gains maintenance-level actions on Storages or Data Marts, even when they are an owner; that level of access requires the Technical User role or Project Admin.
+- **Availability gate** — non-owners only get the actions enabled by the resource's availability toggles. Ownership guarantees See + Use even when the resource is not shared.
+- **Context gate** — for non-owners with `Selected contexts only` scope, at least one context must overlap between the member and the resource. Owners bypass this check.
+- **Owner-only and admin-only actions** — *Configure Availability* and *Manage Owners* require a Technical Owner with Technical User role (for Data Marts and Storages), or a Project Admin. They are never granted through availability or non-owner paths.
+
+Project Admins bypass all of the above and have full access to every resource.
+
+---
+
 ## Ownership
 
 Every resource — [Storage](../storages/manage-storages.md), Data Mart, [Destination](../destinations/manage-destinations.md), Report — has owners. Any project member can be assigned as an owner. The member who creates a resource is automatically assigned as its first owner. Additional owners can be assigned from the resource settings page.
@@ -13,7 +35,9 @@ Most resources have a single **Owner** role. Data Marts are the exception — th
 | Owner type | Responsibility | Access level |
 |---|---|---|
 | **Technical Owner** | Data definition, schema, and source connections | Full control |
-| **Business Owner** | Business requirements and usage | View and use only |
+| **Business Owner** | Business requirements and usage | Guaranteed See + Use; further actions inherit what the same user would have as a non-owner of their role |
+
+A Data Mart may have multiple Technical Owners and multiple Business Owners. Ownership is additive — being assigned as an owner only adds access (guaranteed visibility, and, where the role permits, maintenance through the availability toggle); it never reduces what the user could already do without the assignment.
 
 ![Data Mart settings showing Technical Owner and Business Owner fields with assigned project members](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/c12de869-ff73-4a5e-16f6-5ff26fcee900/public)
 
@@ -120,11 +144,14 @@ The following actions can be granted or restricted by the combination of ownersh
 |---|---|---|---|---|
 | **Technical Owner (Technical User)** | All actions | All actions | All actions | All actions |
 | **Technical Owner (Business User)** | See, Use | See, Use | See, Use | See, Use |
-| **Business Owner (any role)** | See, Use | See, Use | See, Use | See, Use |
+| **Business Owner (Technical User)** | See, Use | See, Use | See, Use, Edit, Delete, Manage Triggers | See, Use, Edit, Delete, Manage Triggers |
+| **Business Owner (Business User)** | See, Use | See, Use | See, Use | See, Use |
 | **Non-owner Technical User** | No access | See, Use | See, Use, Edit, Delete, Manage Triggers | See, Use, Edit, Delete, Manage Triggers |
 | **Non-owner Business User** | No access | See, Use | No access | See, Use |
 
 > ☝️ When a Data Mart is available for maintenance, Business Users who are not owners still cannot access it — maintenance access is reserved for Technical Users.
+>
+> ☝️ Business Owner is additive: it always grants See + Use, and — when the user is a Technical User and the Data Mart is available for maintenance — also grants Edit, Delete, and Manage Triggers. It never grants Configure Availability or Manage Owners; those still require a Technical Owner with Technical User role or a Project Admin.
 
 ---
 
@@ -136,7 +163,9 @@ Data Mart Triggers have no dedicated ownership. Who can see them and who can man
 |---|---|---|
 | **Technical Owner (Technical User)** | Yes | Yes |
 | **Technical Owner (Business User)** | Yes | No |
-| **Business Owner of parent Data Mart** | Yes | No |
+| **Business Owner (Technical User)** of parent Data Mart available for maintenance | Yes | Yes |
+| **Business Owner (Technical User)** of parent Data Mart not available for maintenance | Yes | No |
+| **Business Owner (Business User)** of parent Data Mart | Yes | No |
 | **Non-owner Technical User** (DM available for maintenance) | Yes | Yes |
 | **Non-owner Technical User** (DM available for reporting only) | Yes | No |
 | **Non-owner Business User** (DM visible) | Yes | No |

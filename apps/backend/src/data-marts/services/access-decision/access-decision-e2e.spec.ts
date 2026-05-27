@@ -327,6 +327,122 @@ describe('AccessDecisionService — E2E sharing flows', () => {
     });
   });
 
+  describe('Scenario: Biz Owner (TU role) + DM available for maintenance = full maintenance access', () => {
+    it('should allow SEE, USE, EDIT, DELETE, MANAGE_TRIGGERS for a TU who is Business Owner of a DM available for maintenance', async () => {
+      const m = createService();
+      m.dataMartRepository.findOne.mockResolvedValue({
+        id: 'dm-1',
+        availableForReporting: true,
+        availableForMaintenance: true,
+      });
+      m.dataMartTechnicalOwnerRepository.count.mockResolvedValue(0);
+      m.dataMartBusinessOwnerRepository.count.mockResolvedValue(1);
+
+      for (const action of [
+        Action.SEE,
+        Action.USE,
+        Action.EDIT,
+        Action.DELETE,
+        Action.MANAGE_TRIGGERS,
+      ]) {
+        const result = await m.service.canAccess(
+          'tu-biz-owner',
+          ['editor'],
+          EntityType.DATA_MART,
+          'dm-1',
+          action,
+          'proj-1'
+        );
+        expect(result).toBe(true);
+      }
+
+      expect(
+        await m.service.canAccess(
+          'tu-biz-owner',
+          ['editor'],
+          EntityType.DATA_MART,
+          'dm-1',
+          Action.CONFIGURE_SHARING,
+          'proj-1'
+        )
+      ).toBe(false);
+      expect(
+        await m.service.canAccess(
+          'tu-biz-owner',
+          ['editor'],
+          EntityType.DATA_MART,
+          'dm-1',
+          Action.MANAGE_OWNERS,
+          'proj-1'
+        )
+      ).toBe(false);
+    });
+
+    it('should keep SEE+USE only for a TU Business Owner when the DM is not shared', async () => {
+      const m = createService();
+      m.dataMartRepository.findOne.mockResolvedValue({
+        id: 'dm-1',
+        availableForReporting: false,
+        availableForMaintenance: false,
+      });
+      m.dataMartTechnicalOwnerRepository.count.mockResolvedValue(0);
+      m.dataMartBusinessOwnerRepository.count.mockResolvedValue(1);
+
+      expect(
+        await m.service.canAccess(
+          'tu-biz-owner',
+          ['editor'],
+          EntityType.DATA_MART,
+          'dm-1',
+          Action.SEE,
+          'proj-1'
+        )
+      ).toBe(true);
+      expect(
+        await m.service.canAccess(
+          'tu-biz-owner',
+          ['editor'],
+          EntityType.DATA_MART,
+          'dm-1',
+          Action.EDIT,
+          'proj-1'
+        )
+      ).toBe(false);
+    });
+
+    it('should keep SEE+USE only for a Business User Business Owner regardless of sharing', async () => {
+      const m = createService();
+      m.dataMartRepository.findOne.mockResolvedValue({
+        id: 'dm-1',
+        availableForReporting: true,
+        availableForMaintenance: true,
+      });
+      m.dataMartTechnicalOwnerRepository.count.mockResolvedValue(0);
+      m.dataMartBusinessOwnerRepository.count.mockResolvedValue(1);
+
+      expect(
+        await m.service.canAccess(
+          'bu-biz-owner',
+          ['viewer'],
+          EntityType.DATA_MART,
+          'dm-1',
+          Action.SEE,
+          'proj-1'
+        )
+      ).toBe(true);
+      expect(
+        await m.service.canAccess(
+          'bu-biz-owner',
+          ['viewer'],
+          EntityType.DATA_MART,
+          'dm-1',
+          Action.EDIT,
+          'proj-1'
+        )
+      ).toBe(false);
+    });
+  });
+
   describe('Scenario: Destination non-owner BU + shared_for_maintenance = full maintenance', () => {
     it('should allow SEE, USE, COPY_CREDENTIALS, EDIT, DELETE for BU on shared-for-maintenance destination', async () => {
       const m = createService();
