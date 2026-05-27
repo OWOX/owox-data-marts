@@ -3,17 +3,18 @@ import { AuthorizationContext } from '../../idp';
 import { DataMartRelationship } from '../entities/data-mart-relationship.entity';
 import { CreateRelationshipCommand } from '../dto/domain/create-relationship.command';
 import { UpdateRelationshipCommand } from '../dto/domain/update-relationship.command';
-import { GetRelationshipCommand } from '../dto/domain/get-relationship.command';
 import { DeleteRelationshipCommand } from '../dto/domain/delete-relationship.command';
-import { ListRelationshipsCommand } from '../dto/domain/list-relationships.command';
 import { ListRelationshipsByStorageCommand } from '../dto/domain/list-relationships-by-storage.command';
+import { GetRelationshipGraphCommand } from '../dto/domain/get-relationship-graph.command';
 import { RelationshipDto } from '../dto/domain/relationship.dto';
+import { RelationshipGraphDto } from '../dto/domain/relationship-graph.dto';
 import {
   CreateRelationshipRequestApiDto,
   JoinConditionApiDto,
 } from '../dto/presentation/create-relationship-request-api.dto';
 import { UpdateRelationshipRequestApiDto } from '../dto/presentation/update-relationship-request-api.dto';
 import { RelationshipResponseApiDto } from '../dto/presentation/relationship-response-api.dto';
+import { RelationshipGraphResponseApiDto } from '../dto/presentation/relationship-graph-response-api.dto';
 import { JoinCondition } from '../dto/schemas/join-condition.schema';
 import { UserProjectionDto } from '../../idp/dto/domain/user-projection.dto';
 import { UserProjectionsListDto } from '../../idp/dto/domain/user-projections-list.dto';
@@ -53,20 +54,6 @@ export class RelationshipMapper {
     );
   }
 
-  toGetCommand(
-    relationshipId: string,
-    dataMartId: string,
-    context: AuthorizationContext
-  ): GetRelationshipCommand {
-    return new GetRelationshipCommand(
-      relationshipId,
-      dataMartId,
-      context.projectId,
-      context.userId,
-      context.roles ?? []
-    );
-  }
-
   toDeleteCommand(
     relationshipId: string,
     dataMartId: string,
@@ -81,21 +68,24 @@ export class RelationshipMapper {
     );
   }
 
-  toListCommand(dataMartId: string, context: AuthorizationContext): ListRelationshipsCommand {
-    return new ListRelationshipsCommand(
-      dataMartId,
-      context.projectId,
-      context.userId,
-      context.roles ?? []
-    );
-  }
-
   toListByStorageCommand(
     storageId: string,
     context: AuthorizationContext
   ): ListRelationshipsByStorageCommand {
     return new ListRelationshipsByStorageCommand(
       storageId,
+      context.projectId,
+      context.userId,
+      context.roles ?? []
+    );
+  }
+
+  toGetRelationshipGraphCommand(
+    rootDataMartId: string,
+    context: AuthorizationContext
+  ): GetRelationshipGraphCommand {
+    return new GetRelationshipGraphCommand(
+      rootDataMartId,
       context.projectId,
       context.userId,
       context.roles ?? []
@@ -153,6 +143,19 @@ export class RelationshipMapper {
 
   toResponseList(dtos: RelationshipDto[]): RelationshipResponseApiDto[] {
     return dtos.map(dto => this.toResponse(dto));
+  }
+
+  toGraphResponse(dto: RelationshipGraphDto): RelationshipGraphResponseApiDto {
+    return {
+      rootDataMartId: dto.rootDataMartId,
+      nodes: dto.nodes.map(node => ({
+        relationship: this.toResponse(node.relationship),
+        aliasPath: node.aliasPath,
+        depth: node.depth,
+        isCycleStub: node.isCycleStub,
+        isBlocked: node.isBlocked,
+      })),
+    };
   }
 
   private toJoinCondition(dto: JoinConditionApiDto): JoinCondition {

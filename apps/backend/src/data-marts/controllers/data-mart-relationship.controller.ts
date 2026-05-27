@@ -3,18 +3,17 @@ import { ApiTags } from '@nestjs/swagger';
 import { Auth, AuthContext, AuthorizationContext, Role, Strategy } from '../../idp';
 import { CreateRelationshipRequestApiDto } from '../dto/presentation/create-relationship-request-api.dto';
 import { RelationshipResponseApiDto } from '../dto/presentation/relationship-response-api.dto';
+import { RelationshipGraphResponseApiDto } from '../dto/presentation/relationship-graph-response-api.dto';
 import { UpdateRelationshipRequestApiDto } from '../dto/presentation/update-relationship-request-api.dto';
 import { RelationshipMapper } from '../mappers/relationship.mapper';
 import { CreateDataMartRelationshipService } from '../use-cases/create-data-mart-relationship.service';
 import { DeleteDataMartRelationshipService } from '../use-cases/delete-data-mart-relationship.service';
-import { GetDataMartRelationshipService } from '../use-cases/get-data-mart-relationship.service';
-import { ListDataMartRelationshipsService } from '../use-cases/list-data-mart-relationships.service';
+import { GetDataMartRelationshipGraphService } from '../use-cases/get-data-mart-relationship-graph.service';
 import { UpdateDataMartRelationshipService } from '../use-cases/update-data-mart-relationship.service';
 import {
   CreateRelationshipSpec,
   DeleteRelationshipSpec,
-  GetRelationshipSpec,
-  ListRelationshipsByDataMartSpec,
+  GetRelationshipGraphSpec,
   UpdateRelationshipSpec,
 } from './spec/data-mart-relationship.api';
 
@@ -25,8 +24,7 @@ export class DataMartRelationshipController {
     private readonly createService: CreateDataMartRelationshipService,
     private readonly updateService: UpdateDataMartRelationshipService,
     private readonly deleteService: DeleteDataMartRelationshipService,
-    private readonly listService: ListDataMartRelationshipsService,
-    private readonly getService: GetDataMartRelationshipService,
+    private readonly graphService: GetDataMartRelationshipGraphService,
     private readonly mapper: RelationshipMapper
   ) {}
 
@@ -44,28 +42,15 @@ export class DataMartRelationshipController {
   }
 
   @Auth(Role.viewer(Strategy.PARSE))
-  @Get()
-  @ListRelationshipsByDataMartSpec()
-  async list(
+  @Get('graph')
+  @GetRelationshipGraphSpec()
+  async getGraph(
     @AuthContext() context: AuthorizationContext,
     @Param('dataMartId') dataMartId: string
-  ): Promise<RelationshipResponseApiDto[]> {
-    const command = this.mapper.toListCommand(dataMartId, context);
-    const result = await this.listService.run(command);
-    return this.mapper.toResponseList(result);
-  }
-
-  @Auth(Role.viewer(Strategy.PARSE))
-  @Get(':id')
-  @GetRelationshipSpec()
-  async get(
-    @AuthContext() context: AuthorizationContext,
-    @Param('dataMartId') dataMartId: string,
-    @Param('id') id: string
-  ): Promise<RelationshipResponseApiDto> {
-    const command = this.mapper.toGetCommand(id, dataMartId, context);
-    const result = await this.getService.run(command);
-    return this.mapper.toResponse(result);
+  ): Promise<RelationshipGraphResponseApiDto> {
+    const command = this.mapper.toGetRelationshipGraphCommand(dataMartId, context);
+    const result = await this.graphService.run(command);
+    return this.mapper.toGraphResponse(result);
   }
 
   @Auth(Role.editor(Strategy.INTROSPECT))

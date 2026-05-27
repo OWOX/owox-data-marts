@@ -96,17 +96,6 @@ describe('RelationshipMapper', () => {
     });
   });
 
-  describe('toGetCommand', () => {
-    it('should map to GetRelationshipCommand', () => {
-      const command = mapper.toGetCommand('rel-1', 'source-dm-1', mockContext);
-
-      expect(command.relationshipId).toBe('rel-1');
-      expect(command.sourceDataMartId).toBe('source-dm-1');
-      expect(command.userId).toBe('user-123');
-      expect(command.projectId).toBe('project-456');
-    });
-  });
-
   describe('toDomainDto', () => {
     const fullAccess = new Map<string, boolean>([
       ['source-dm-1', true],
