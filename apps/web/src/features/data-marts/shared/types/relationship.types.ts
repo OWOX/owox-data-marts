@@ -52,6 +52,19 @@ export interface UpdateRelationshipRequest {
   joinConditions?: JoinCondition[];
 }
 
+export interface RelationshipGraphNode {
+  relationship: DataMartRelationship;
+  aliasPath: string;
+  depth: number;
+  isCycleStub: boolean;
+  isBlocked: boolean;
+}
+
+export interface RelationshipGraph {
+  rootDataMartId: string;
+  nodes: RelationshipGraphNode[];
+}
+
 export interface TransientRelationshipRow {
   relationship: DataMartRelationship;
   depth: number;
