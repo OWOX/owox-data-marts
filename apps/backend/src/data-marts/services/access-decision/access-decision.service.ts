@@ -96,16 +96,43 @@ export class AccessDecisionService {
       this.getSharingState(entityType, entityId),
     ]);
 
-    const matrixResult = this.lookupMatrix(entityType, action, role, ownerStatus, sharingState);
-    if (!matrixResult) {
+    // Path 1 — Ownership path. The matrix row for the user's actual owner status
+    // describes the ownership floor (e.g. Business Owner guarantees See + Use). This
+    // path bypasses the context gate; ownership of a resource implies visibility of it.
+    const isOwner = ownerStatus !== OwnerStatus.NON_OWNER;
+    if (isOwner) {
+      const ownershipResult = this.lookupMatrix(
+        entityType,
+        action,
+        role,
+        ownerStatus,
+        sharingState
+      );
+      if (ownershipResult) {
+        return true;
+      }
+    }
+
+    // Path 2 — Non-owner sharing path. Anything the user could do as a non-owner of
+    // their role given the resource's availability. Applies to actual non-owners and,
+    // as a union, to owners whose ownership floor did not already grant the action.
+    // This path is gated by role scope / contexts — being an owner does not bypass
+    // the context gate for permissions granted through the sharing path.
+    const nonOwnerResult = this.lookupMatrix(
+      entityType,
+      action,
+      role,
+      OwnerStatus.NON_OWNER,
+      sharingState
+    );
+    if (!nonOwnerResult) {
       this.logger.debug(
         `Access denied (matrix): user=${userId} entity=${entityType}/${entityId} action=${action} role=${role} owner=${ownerStatus} sharing=${sharingState}`
       );
       return false;
     }
 
-    const isOwner = ownerStatus !== OwnerStatus.NON_OWNER;
-    if (!isOwner && projectId) {
+    if (projectId) {
       const roleScope = await this.contextAccessService.getRoleScope(userId, projectId);
       if (roleScope === RoleScope.SELECTED_CONTEXTS) {
         const hasOverlap = await this.contextAccessService.hasContextOverlap(

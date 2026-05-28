@@ -188,17 +188,43 @@ describe('AccessDecisionService', () => {
       r.entityType === EntityType.DESTINATION
   );
 
-  // Build test cases
-  const testCases = directEntityRules.map(rule => ({
-    name: `${rule.entityType} | ${rule.role} | ${rule.ownershipStatus} | ${rule.sharingState} | ${rule.action} → ${rule.result ? 'ALLOW' : 'DENY'}`,
-    rule,
-  }));
+  /**
+   * Mirror canAccess's path-based decision under the default mock (Entire Project,
+   * hasContextOverlap=true). Expected = ownership floor OR non-owner sharing path.
+   */
+  function expectedFor(rule: (typeof directEntityRules)[number]): boolean {
+    if (rule.ownershipStatus === OwnerStatus.ADMIN) {
+      // Admin short-circuits inside canAccess; result is always rule.result (true).
+      return rule.result;
+    }
+    if (rule.ownershipStatus !== OwnerStatus.NON_OWNER && rule.result) {
+      return true;
+    }
+    const nonOwnerRule = ACCESS_MATRIX.find(
+      r =>
+        r.entityType === rule.entityType &&
+        r.action === rule.action &&
+        r.role === rule.role &&
+        r.ownershipStatus === OwnerStatus.NON_OWNER &&
+        r.sharingState === rule.sharingState
+    );
+    return nonOwnerRule?.result ?? false;
+  }
+
+  const testCases = directEntityRules.map(rule => {
+    const expected = expectedFor(rule);
+    return {
+      name: `${rule.entityType} | ${rule.role} | ${rule.ownershipStatus} | ${rule.sharingState} | ${rule.action} → ${expected ? 'ALLOW' : 'DENY'}`,
+      rule,
+      expected,
+    };
+  });
 
   it(`should have ${testCases.length} parametrized test cases (expect 200+)`, () => {
     expect(testCases.length).toBeGreaterThanOrEqual(200);
   });
 
-  it.each(testCases)('$name', async ({ rule }) => {
+  it.each(testCases)('$name', async ({ rule, expected }) => {
     const mocks = createService();
 
     configureMocks(mocks, rule.entityType, rule.ownershipStatus, rule.sharingState);
@@ -212,6 +238,6 @@ describe('AccessDecisionService', () => {
       'proj-1'
     );
 
-    expect(result).toBe(rule.result);
+    expect(result).toBe(expected);
   });
 });

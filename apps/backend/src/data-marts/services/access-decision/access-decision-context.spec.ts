@@ -297,6 +297,84 @@ describe('AccessDecisionService – Context Gate (Stage 4)', () => {
     expect(result).toBe(false);
   });
 
+  // ─── 12a. Biz Owner (TU) + entire_project + maintenance on + EDIT → allow (union)
+  it('12a. Biz Owner (TU) + entire_project + DM available for maintenance + EDIT → allow', async () => {
+    // Maintenance permissions for a Biz Owner come from the non-owner sharing path,
+    // not the ownership floor. Under entire_project scope the context gate passes.
+    getOwnerStatusSpy.mockResolvedValue(OwnerStatus.BIZ_OWNER);
+    getSharingStateSpy.mockResolvedValue(SharingState.SHARED_FOR_BOTH);
+    // Ownership floor for Biz Owner + EDIT = false; non-owner path for the same role +
+    // shared-for-both + EDIT = true. Reproduce that via lookupMatrix sequencing.
+    lookupMatrixSpy.mockImplementation((_e, _a, _r, ownerStatus) =>
+      ownerStatus === OwnerStatus.NON_OWNER ? true : false
+    );
+    contextAccessService.getRoleScope.mockResolvedValue(RoleScope.ENTIRE_PROJECT);
+
+    const result = await service.canAccess(
+      USER_ID,
+      ['editor'],
+      EntityType.DATA_MART,
+      ENTITY_ID,
+      Action.EDIT,
+      PROJECT_ID
+    );
+
+    expect(result).toBe(true);
+    expect(contextAccessService.getRoleScope).toHaveBeenCalledWith(USER_ID, PROJECT_ID);
+    expect(contextAccessService.hasContextOverlap).not.toHaveBeenCalled();
+  });
+
+  // ─── 12b. Biz Owner (TU) + selected_contexts + no overlap + maintenance + EDIT → deny
+  it('12b. Biz Owner (TU) + selected_contexts + no overlap + maintenance + EDIT → DENY', async () => {
+    // Ownership of the Data Mart does not lift the context gate for permissions that
+    // come from the non-owner sharing path.
+    getOwnerStatusSpy.mockResolvedValue(OwnerStatus.BIZ_OWNER);
+    getSharingStateSpy.mockResolvedValue(SharingState.SHARED_FOR_BOTH);
+    lookupMatrixSpy.mockImplementation((_e, _a, _r, ownerStatus) =>
+      ownerStatus === OwnerStatus.NON_OWNER ? true : false
+    );
+    contextAccessService.getRoleScope.mockResolvedValue(RoleScope.SELECTED_CONTEXTS);
+    contextAccessService.hasContextOverlap.mockResolvedValue(false);
+
+    const result = await service.canAccess(
+      USER_ID,
+      ['editor'],
+      EntityType.DATA_MART,
+      ENTITY_ID,
+      Action.EDIT,
+      PROJECT_ID
+    );
+
+    expect(result).toBe(false);
+    expect(contextAccessService.hasContextOverlap).toHaveBeenCalled();
+  });
+
+  // ─── 12c. Biz Owner + selected_contexts + no overlap + SEE → allow (ownership floor)
+  it('12c. Biz Owner + selected_contexts + no overlap + SEE → allow (ownership floor bypasses gate)', async () => {
+    // See/Use are granted by the ownership floor; the context gate does not apply.
+    getOwnerStatusSpy.mockResolvedValue(OwnerStatus.BIZ_OWNER);
+    getSharingStateSpy.mockResolvedValue(SharingState.SHARED_FOR_BOTH);
+    // Only the ownership-floor lookup grants SEE; the non-owner lookup denies. This
+    // proves the result comes from the ownership path, not the sharing path.
+    lookupMatrixSpy.mockImplementation((_e, _a, _r, ownerStatus) =>
+      ownerStatus === OwnerStatus.BIZ_OWNER ? true : false
+    );
+    contextAccessService.getRoleScope.mockResolvedValue(RoleScope.SELECTED_CONTEXTS);
+    contextAccessService.hasContextOverlap.mockResolvedValue(false);
+
+    const result = await service.canAccess(
+      USER_ID,
+      ['editor'],
+      EntityType.DATA_MART,
+      ENTITY_ID,
+      Action.SEE,
+      PROJECT_ID
+    );
+
+    expect(result).toBe(true);
+    expect(contextAccessService.hasContextOverlap).not.toHaveBeenCalled();
+  });
+
   // ─── 12. projectId not provided → skip context check (backward compat) ─
   it('12. projectId not provided → skip context check (backward compatibility)', async () => {
     getOwnerStatusSpy.mockResolvedValue(OwnerStatus.NON_OWNER);
