@@ -29,4 +29,5 @@ export interface DataMartRunResponseDto {
   insightTemplateId: string | null;
   aiSourceDefinition: DataMartRunAiSourceDefinitionDto | null;
   createdByUser: UserProjectionDto | null;
+  additionalParams: Record<string, unknown> | null;
 }

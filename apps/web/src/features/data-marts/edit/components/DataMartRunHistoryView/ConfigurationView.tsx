@@ -13,6 +13,7 @@ interface ConfigurationViewProps {
   reportDefinition: DataMartRunReportDefinition | null;
   insightDefinition: DataMartRunInsightDefinition | null;
   insightTemplateDefinition: DataMartRunInsightTemplateDefinition | null;
+  additionalParams: Record<string, unknown> | null;
 }
 
 export function ConfigurationView({
@@ -20,77 +21,99 @@ export function ConfigurationView({
   reportDefinition,
   insightDefinition,
   insightTemplateDefinition,
+  additionalParams,
 }: ConfigurationViewProps) {
+  const httpDataParams =
+    additionalParams != null &&
+    typeof additionalParams.httpData === 'object' &&
+    additionalParams.httpData !== null &&
+    !Array.isArray(additionalParams.httpData)
+      ? (additionalParams.httpData as Record<string, unknown>)
+      : null;
   const { copiedSection, handleCopy } = useClipboard();
 
   const handleStopPropagation = (e: React.MouseEvent) => {
     e.stopPropagation();
   };
 
-  return (
-    <div className='border-border rounded-lg border' onClick={handleStopPropagation}>
-      {definitionRun != null ? (
-        <div className='p-4'>
-          <div className='mb-3 flex items-center justify-between'>
-            <h4 className='text-foreground text-sm font-medium'>Configuration:</h4>
-            <CopyButton
-              text={JSON.stringify(definitionRun, null, 2)}
-              section='configuration'
-              variant={CopyButtonVariant.DEFAULT}
-              copiedSection={copiedSection}
-              onCopy={handleCopy}
-            />
-          </div>
-          <pre className='bg-muted text-foreground overflow-x-auto rounded p-3 font-mono text-xs whitespace-pre-wrap dark:bg-white/3'>
-            {JSON.stringify(definitionRun, null, 2)}
-          </pre>
-          {reportDefinition && (
-            <>
-              <h4 className='text-foreground mt-3 mb-3 text-sm font-medium'>Report definition:</h4>
-              <pre className='bg-muted text-foreground overflow-x-auto rounded p-3 font-mono text-xs whitespace-pre-wrap dark:bg-white/3'>
-                {JSON.stringify(
-                  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-                  (({ outputConfig: _outputConfig, ...rest }) => rest)(reportDefinition),
-                  null,
-                  2
-                )}
-              </pre>
-              {reportDefinition.outputConfig && (
-                <>
-                  <h4 className='text-foreground mt-3 mb-3 text-sm font-medium'>
-                    Output controls:
-                  </h4>
-                  <pre className='bg-muted text-foreground overflow-x-auto rounded p-3 font-mono text-xs whitespace-pre-wrap dark:bg-white/3'>
-                    {JSON.stringify(reportDefinition.outputConfig, null, 2)}
-                  </pre>
-                </>
-              )}
-            </>
-          )}
-          {insightDefinition && (
-            <>
-              <h4 className='text-foreground mt-3 mb-3 text-sm font-medium'>Insight definition:</h4>
-              <pre className='bg-muted text-foreground overflow-x-auto rounded p-3 font-mono text-xs whitespace-pre-wrap dark:bg-white/3'>
-                {JSON.stringify(insightDefinition, null, 2)}
-              </pre>
-            </>
-          )}
-          {insightTemplateDefinition && (
-            <>
-              <h4 className='text-foreground mt-3 mb-3 text-sm font-medium'>
-                Insight template definition:
-              </h4>
-              <pre className='bg-muted text-foreground overflow-x-auto rounded p-3 font-mono text-xs whitespace-pre-wrap dark:bg-white/3'>
-                {JSON.stringify(insightTemplateDefinition, null, 2)}
-              </pre>
-            </>
-          )}
-        </div>
-      ) : (
+  if (definitionRun == null && httpDataParams == null) {
+    return (
+      <div className='border-border rounded-lg border' onClick={handleStopPropagation}>
         <div className='text-muted-foreground p-8 text-center'>
           No configuration data available for this run
         </div>
-      )}
+      </div>
+    );
+  }
+
+  return (
+    <div className='border-border rounded-lg border' onClick={handleStopPropagation}>
+      <div className='p-4'>
+        {definitionRun != null && (
+          <>
+            <div className='mb-3 flex items-center justify-between'>
+              <h4 className='text-foreground text-sm font-medium'>Configuration:</h4>
+              <CopyButton
+                text={JSON.stringify(definitionRun, null, 2)}
+                section='configuration'
+                variant={CopyButtonVariant.DEFAULT}
+                copiedSection={copiedSection}
+                onCopy={handleCopy}
+              />
+            </div>
+            <pre className='bg-muted text-foreground overflow-x-auto rounded p-3 font-mono text-xs whitespace-pre-wrap dark:bg-white/3'>
+              {JSON.stringify(definitionRun, null, 2)}
+            </pre>
+          </>
+        )}
+        {definitionRun != null && reportDefinition && (
+          <>
+            <h4 className='text-foreground mt-3 mb-3 text-sm font-medium'>Report definition:</h4>
+            <pre className='bg-muted text-foreground overflow-x-auto rounded p-3 font-mono text-xs whitespace-pre-wrap dark:bg-white/3'>
+              {JSON.stringify(
+                // eslint-disable-next-line @typescript-eslint/no-unused-vars
+                (({ outputConfig: _outputConfig, ...rest }) => rest)(reportDefinition),
+                null,
+                2
+              )}
+            </pre>
+            {reportDefinition.outputConfig && (
+              <>
+                <h4 className='text-foreground mt-3 mb-3 text-sm font-medium'>Output controls:</h4>
+                <pre className='bg-muted text-foreground overflow-x-auto rounded p-3 font-mono text-xs whitespace-pre-wrap dark:bg-white/3'>
+                  {JSON.stringify(reportDefinition.outputConfig, null, 2)}
+                </pre>
+              </>
+            )}
+          </>
+        )}
+        {definitionRun != null && insightDefinition && (
+          <>
+            <h4 className='text-foreground mt-3 mb-3 text-sm font-medium'>Insight definition:</h4>
+            <pre className='bg-muted text-foreground overflow-x-auto rounded p-3 font-mono text-xs whitespace-pre-wrap dark:bg-white/3'>
+              {JSON.stringify(insightDefinition, null, 2)}
+            </pre>
+          </>
+        )}
+        {definitionRun != null && insightTemplateDefinition && (
+          <>
+            <h4 className='text-foreground mt-3 mb-3 text-sm font-medium'>
+              Insight template definition:
+            </h4>
+            <pre className='bg-muted text-foreground overflow-x-auto rounded p-3 font-mono text-xs whitespace-pre-wrap dark:bg-white/3'>
+              {JSON.stringify(insightTemplateDefinition, null, 2)}
+            </pre>
+          </>
+        )}
+        {httpDataParams && (
+          <>
+            <h4 className='text-foreground mt-3 mb-3 text-sm font-medium'>HTTP Data parameters:</h4>
+            <pre className='bg-muted text-foreground overflow-x-auto rounded p-3 font-mono text-xs whitespace-pre-wrap dark:bg-white/3'>
+              {JSON.stringify(httpDataParams, null, 2)}
+            </pre>
+          </>
+        )}
+      </div>
     </div>
   );
 }
