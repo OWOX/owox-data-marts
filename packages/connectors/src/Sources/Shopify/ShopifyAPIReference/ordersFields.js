@@ -103,6 +103,11 @@ var ordersFields = {
     'type': DATA_TYPES.NUMBER,
     'graphqlPath': 'totalRefundedSet { shopMoney { amount } }'
   },
+  'totalOutstanding': {
+    'description': 'The total amount not yet transacted for the order.',
+    'type': DATA_TYPES.NUMBER,
+    'graphqlPath': 'totalOutstandingSet { shopMoney { amount } }'
+  },
   'totalWeight': {
     'description': 'The total weight of the order.',
     'type': DATA_TYPES.NUMBER,
