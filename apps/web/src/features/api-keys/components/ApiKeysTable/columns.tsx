@@ -7,23 +7,10 @@ import {
   DropdownMenuTrigger,
 } from '@owox/ui/components/dropdown-menu';
 import { Copy, MoreHorizontal, Pencil, Trash2 } from 'lucide-react';
+import RelativeTime from '@owox/ui/components/common/relative-time';
 import { SortableHeader, ToggleColumnsHeader } from '../../../../shared/components/Table';
 import type { ProjectMemberApiKey } from '../../types';
 import toast from 'react-hot-toast';
-
-function formatRelativeDate(dateStr: string | null): string {
-  if (!dateStr) return 'Never';
-  const date = new Date(dateStr);
-  const now = new Date();
-  const diffMs = now.getTime() - date.getTime();
-  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-
-  if (diffDays === 0) return 'Today';
-  if (diffDays === 1) return 'Yesterday';
-  if (diffDays < 30) return `${String(diffDays)} days ago`;
-  if (diffDays < 365) return `${String(Math.floor(diffDays / 30))} months ago`;
-  return date.toLocaleDateString();
-}
 
 function isExpiringSoon(dateStr: string | null): boolean {
   if (!dateStr) return false;
@@ -95,7 +82,7 @@ export const getApiKeysColumns = ({
     meta: { title: 'Created' },
     header: ({ column }) => <SortableHeader column={column}>Created</SortableHeader>,
     cell: ({ row }) => (
-      <span className='text-muted-foreground'>{formatRelativeDate(row.original.createdAt)}</span>
+      <RelativeTime date={new Date(row.original.createdAt)} className='text-muted-foreground' />
     ),
   },
   {
@@ -103,11 +90,13 @@ export const getApiKeysColumns = ({
     size: 150,
     meta: { title: 'Last authenticated' },
     header: ({ column }) => <SortableHeader column={column}>Last authenticated</SortableHeader>,
-    cell: ({ row }) => (
-      <span className='text-muted-foreground'>
-        {formatRelativeDate(row.original.lastAuthenticatedAt)}
-      </span>
-    ),
+    cell: ({ row }) => {
+      const { lastAuthenticatedAt } = row.original;
+      if (!lastAuthenticatedAt) return <span className='text-muted-foreground'>Never</span>;
+      return (
+        <RelativeTime date={new Date(lastAuthenticatedAt)} className='text-muted-foreground' />
+      );
+    },
   },
   {
     id: 'actions',
