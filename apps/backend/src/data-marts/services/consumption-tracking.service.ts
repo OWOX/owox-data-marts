@@ -24,6 +24,7 @@ export class ConsumptionTrackingService {
   private readonly slackReportRunConsumptionTopic?: string;
   private readonly googleChatReportRunConsumptionTopic?: string;
   private readonly msTeamsReportRunConsumptionTopic?: string;
+  private readonly httpDataRunConsumptionTopic?: string;
 
   constructor(
     private readonly connectorService: ConnectorService,
@@ -100,6 +101,13 @@ export class ConsumptionTrackingService {
       );
       if (this.aiProcessRunConsumptionTopic) {
         this.logger.log(`Consumption AI Process Run topic: ${this.aiProcessRunConsumptionTopic}`);
+      }
+
+      this.httpDataRunConsumptionTopic = configService.get<string>(
+        'CONSUMPTION_HTTP_DATA_RUN_TOPIC'
+      );
+      if (this.httpDataRunConsumptionTopic) {
+        this.logger.log(`Consumption HTTP Data Run topic: ${this.httpDataRunConsumptionTopic}`);
       }
     }
   }
@@ -184,6 +192,17 @@ export class ConsumptionTrackingService {
       return;
     }
     await this.sendConsumptionCommand(consumptionTopic, this.baseReportConsumptionPayload(report));
+  }
+
+  public async registerHttpDataRunConsumption(dataMart: DataMart, runId: string): Promise<void> {
+    if (!this.pubSubService || !this.httpDataRunConsumptionTopic) {
+      this.logger.debug('HTTP Data run consumption tracking is not configured, skipping...');
+      return;
+    }
+    await this.sendConsumptionCommand(this.httpDataRunConsumptionTopic, {
+      ...this.baseDataMartConsumptionPayload(dataMart),
+      processRunId: runId,
+    });
   }
 
   public async registerAiProcessRunConsumption(

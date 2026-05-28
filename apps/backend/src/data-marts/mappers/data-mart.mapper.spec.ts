@@ -84,4 +84,41 @@ describe('DataMartMapper', () => {
       expect(mappedItem.insight).toBeNull();
     });
   });
+
+  describe('maskAdditionalParams (via toRunResponse)', () => {
+    it('exposes only the httpData subtree for HTTP_DATA runs', async () => {
+      const entity = {
+        id: 'run-1',
+        status: 'SUCCESS',
+        type: DataMartRunType.HTTP_DATA,
+        runType: 'manual',
+        dataMartId: 'dm-1',
+        definitionRun: { kind: 'sql', sql: 'SELECT 1' },
+        additionalParams: { httpData: { format: 'ndjson', columns: ['date'] }, internalNote: 'x' },
+        createdAt: new Date('2026-05-28T10:00:00Z'),
+      } as unknown as DataMartRunEntity;
+
+      const response = await mapper.toRunResponse(mapper.toDataMartRunDto(entity));
+
+      expect(response.additionalParams).toEqual({
+        httpData: { format: 'ndjson', columns: ['date'] },
+      });
+    });
+
+    it('returns null additionalParams for non-HTTP_DATA runs', async () => {
+      const entity = {
+        id: 'run-2',
+        status: 'SUCCESS',
+        type: DataMartRunType.CONNECTOR,
+        runType: 'manual',
+        dataMartId: 'dm-1',
+        additionalParams: { somethingElse: true },
+        createdAt: new Date('2026-05-28T10:00:00Z'),
+      } as unknown as DataMartRunEntity;
+
+      const response = await mapper.toRunResponse(mapper.toDataMartRunDto(entity));
+
+      expect(response.additionalParams).toBeNull();
+    });
+  });
 });

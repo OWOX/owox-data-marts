@@ -245,6 +245,18 @@ export class DataMartService {
     return dataMart;
   }
 
+  async actualizeSchemaInEntityIfExpired(
+    dataMart: DataMart,
+    expiresAfterMs: number
+  ): Promise<DataMart> {
+    if (!this.isSchemaExpired(dataMart, expiresAfterMs)) {
+      return dataMart;
+    }
+    await this.actualizeSchemaInEntity(dataMart);
+    await this.dataMartRepository.save(dataMart);
+    return dataMart;
+  }
+
   async actualizeSchemaInEntity(dataMart: DataMart): Promise<DataMart> {
     // Get the new schema from the provider
     const newSchema = await this.dataMartSchemaProviderFacade.getActualDataMartSchema(dataMart);

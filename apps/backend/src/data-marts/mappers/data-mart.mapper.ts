@@ -64,6 +64,7 @@ import { UpdateDataMartOwnersApiDto } from '../dto/presentation/update-data-mart
 import { UpdateDataMartOwnersCommand } from '../dto/domain/update-data-mart-owners.command';
 import { DataStorageMapper } from './data-storage.mapper';
 import { extractContextSummaries } from '../utils/extract-context-summaries';
+import { HTTP_DATA_PARAMS_KEY } from '../services/http-data/http-data.constants';
 
 @Injectable()
 export class DataMartMapper {
@@ -529,7 +530,8 @@ export class DataMartMapper {
       entity.createdAt,
       entity.startedAt || null,
       entity.finishedAt || null,
-      userProjection
+      userProjection,
+      entity.additionalParams ?? null
     );
   }
 
@@ -569,6 +571,7 @@ export class DataMartMapper {
           startedAt: run.startedAt,
           finishedAt: run.finishedAt,
           createdByUser: run.createdByUser,
+          additionalParams: this.maskAdditionalParams(run),
         };
       })
     );
@@ -617,6 +620,7 @@ export class DataMartMapper {
       createdAt: run.createdAt,
       startedAt: run.startedAt,
       finishedAt: run.finishedAt,
+      additionalParams: this.maskAdditionalParams(run),
     };
   }
 
@@ -643,5 +647,13 @@ export class DataMartMapper {
     }
 
     return undefined;
+  }
+
+  private maskAdditionalParams(run: DataMartRunDto): Record<string, unknown> | null {
+    if (run.type !== DataMartRunType.HTTP_DATA) {
+      return null;
+    }
+    const httpData = run.additionalParams?.[HTTP_DATA_PARAMS_KEY];
+    return httpData ? { [HTTP_DATA_PARAMS_KEY]: httpData } : null;
   }
 }
