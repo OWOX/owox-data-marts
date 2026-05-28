@@ -29,6 +29,8 @@ export const IdpOwoxPayloadSchema = z
     ),
     projectTitle: z.string().min(1, 'projectTitle is required'),
     signinProvider: z.string().optional().nullable(),
+    authFlow: z.string().optional().nullable(),
+    apiKeyId: z.string().optional().nullable(),
   })
   .passthrough();
 

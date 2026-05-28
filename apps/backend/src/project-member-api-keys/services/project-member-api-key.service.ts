@@ -2,10 +2,14 @@ import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import type { Role } from '@owox/idp-protocol';
 import { IsNull, Repository } from 'typeorm';
+import type { ProjectMemberApiKeyIssuingParameters } from '../dto/domain/project-member-api-key-issuing-parameters.dto';
 import type { ProjectMemberApiKeyMetadata } from '../dto/domain/project-member-api-key-metadata.dto';
 import { ProjectMemberApiKey } from '../entities/project-member-api-key.entity';
 import { ProjectMemberApiKeyMapper } from '../mappers/project-member-api-key.mapper';
-import { ProjectMemberApiKeyCryptoService } from './project-member-api-key-crypto.service';
+import {
+  ProjectMemberApiKeyCryptoService,
+  type ProjectMemberApiKeyStoredHash,
+} from './project-member-api-key-crypto.service';
 
 export type CreateProjectMemberApiKeyResult = {
   apiKey: ProjectMemberApiKeyMetadata;
@@ -98,8 +102,33 @@ export class ProjectMemberApiKeyService {
     return this.mapper.toMetadata(await this.projectMemberApiKeyRepository.save(apiKey));
   }
 
-  async findByApiKeyId(apiKeyId: string): Promise<ProjectMemberApiKey | null> {
-    return this.projectMemberApiKeyRepository.findOne({ where: { apiKeyId } });
+  async verifyCredential(
+    apiKeyId: string | undefined,
+    apiKeySecret: string
+  ): Promise<ProjectMemberApiKeyIssuingParameters | null> {
+    if (
+      !apiKeyId ||
+      !this.cryptoService.isValidApiKeyId(apiKeyId) ||
+      !this.cryptoService.isValidApiKeySecret(apiKeySecret)
+    ) {
+      return null;
+    }
+
+    const apiKey = await this.findByApiKeyId(apiKeyId);
+    if (!apiKey || this.isRevoked(apiKey) || this.isExpired(apiKey)) {
+      return null;
+    }
+
+    const isSecretValid = await this.cryptoService.verifySecret(
+      apiKeyId,
+      apiKeySecret,
+      this.toStoredHash(apiKey)
+    );
+    if (!isSecretValid) {
+      return null;
+    }
+
+    return this.mapper.toIssuingParameters(apiKey);
   }
 
   async markAuthenticated(
@@ -113,5 +142,25 @@ export class ProjectMemberApiKeyService {
 
     apiKey.lastAuthenticatedAt = authenticatedAt;
     return this.projectMemberApiKeyRepository.save(apiKey);
+  }
+
+  private async findByApiKeyId(apiKeyId: string): Promise<ProjectMemberApiKey | null> {
+    return this.projectMemberApiKeyRepository.findOne({ where: { apiKeyId } });
+  }
+
+  private isRevoked(apiKey: ProjectMemberApiKey): boolean {
+    return apiKey.revokedAt !== null;
+  }
+
+  private isExpired(apiKey: ProjectMemberApiKey): boolean {
+    return apiKey.expiresAt !== null && apiKey.expiresAt.getTime() <= Date.now();
+  }
+
+  private toStoredHash(apiKey: ProjectMemberApiKey): ProjectMemberApiKeyStoredHash {
+    return {
+      keyHash: apiKey.keyHash,
+      keyHashSalt: apiKey.keyHashSalt,
+      keyHashParams: apiKey.keyHashParams as ProjectMemberApiKeyStoredHash['keyHashParams'],
+    };
   }
 }

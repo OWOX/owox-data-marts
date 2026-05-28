@@ -25,6 +25,8 @@ export const PayloadSchema = z
     roles: z.array(RoleEnum).nonempty().optional(),
     projectTitle: z.string().optional(),
     signinProvider: z.string().optional(),
+    authFlow: z.string().optional(),
+    apiKeyId: z.string().optional(),
   })
   .passthrough();
 

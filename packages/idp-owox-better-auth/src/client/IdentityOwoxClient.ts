@@ -28,6 +28,8 @@ import {
   OwoxListMembershipRequestsResponseSchema,
   OwoxProjectMembersResponse,
   OwoxProjectMembersResponseSchema,
+  ProjectMemberApiKeyAuthFlowRequest,
+  ProjectMemberApiKeyAuthFlowRequestSchema,
   OwoxUpdateUserProvisioningSettingsRequest,
   OwoxUpdateUserProvisioningSettingsRequestSchema,
   OwoxUserProvisioningSettingsResponse,
@@ -62,7 +64,7 @@ export class IdentityOwoxClient {
       },
     });
 
-    this.clientBackchannelPrefix = config.clientBackchannelPrefix;
+    this.clientBackchannelPrefix = config.clientBackchannelPrefix.replace(/\/+$/, '');
 
     // Initialize service account authentication if configured
     if (config.c2cServiceAccountEmail && config.c2cTargetAudience) {
@@ -99,6 +101,39 @@ export class IdentityOwoxClient {
       return TokenResponseSchema.parse(data);
     } catch (err) {
       this.handleAxiosError(err, { req }, 'Failed to exchange Google identity token');
+    }
+  }
+
+  /**
+   * POST /idp/auth-flow/project-member-api-key
+   */
+  async issueAccessTokenForProjectMemberApiKey(
+    req: ProjectMemberApiKeyAuthFlowRequest
+  ): Promise<TokenResponse> {
+    const parsed = ProjectMemberApiKeyAuthFlowRequestSchema.parse(req);
+    const authHeader = await this.getC2cAuthHeader('issue project member API key token', {
+      projectId: parsed.projectId,
+      userId: parsed.userId,
+      apiKeyId: parsed.apiKeyId,
+      hasRole: parsed.role !== null,
+    });
+    const body = {
+      projectId: parsed.projectId,
+      userId: parsed.userId,
+      ...(parsed.role === null ? {} : { roles: [parsed.role] }),
+      readOnly: parsed.readOnly,
+      apiKeyId: parsed.apiKeyId,
+    };
+
+    try {
+      const { data } = await this.http.post<TokenResponse>(
+        `${this.clientBackchannelPrefix}/idp/auth-flow/project-member-api-key`,
+        body,
+        { headers: authHeader }
+      );
+      return TokenResponseSchema.parse(data);
+    } catch (err) {
+      this.handleAxiosError(err, { req }, 'Failed to issue project member API key token');
     }
   }
 
@@ -443,8 +478,7 @@ export class IdentityOwoxClient {
     if (
       !this.impersonatedIdTokenFetcher ||
       !this.c2cServiceAccountEmail ||
-      !this.c2cTargetAudience ||
-      !this.clientBackchannelPrefix
+      !this.c2cTargetAudience
     ) {
       throw new IdpFailedException(
         `C2C authentication is not configured. Cannot ${operationLabel}.`,

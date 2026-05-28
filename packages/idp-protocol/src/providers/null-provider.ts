@@ -22,6 +22,7 @@ export class NullIdpProvider implements IdpProvider {
   private defaultPayload: Payload;
   private defaultAccessToken: string;
   private defaultRefreshToken: string;
+  private readonly issuedAccessTokens = new Map<string, Payload>();
 
   constructor() {
     this.defaultPayload = {
@@ -39,6 +40,26 @@ export class NullIdpProvider implements IdpProvider {
     return {
       accessToken: this.defaultAccessToken,
     };
+  }
+
+  async issueAccessTokenForProjectMemberApiKey(
+    apiKeyId: string,
+    userId: string,
+    projectId: string,
+    role: Role | null,
+    _readOnly: boolean
+  ): Promise<AuthResult> {
+    const accessToken = `apiKeyAccessToken:${apiKeyId}`;
+    this.issuedAccessTokens.set(accessToken, {
+      ...this.defaultPayload,
+      userId,
+      projectId,
+      roles: [role ?? 'admin'],
+      authFlow: 'api_key',
+      apiKeyId,
+    });
+
+    return { accessToken };
   }
 
   signInMiddleware(req: Request, res: Response, _next: NextFunction): Promise<void> {
@@ -94,12 +115,12 @@ export class NullIdpProvider implements IdpProvider {
     // Nothing to cleanup
   }
 
-  async introspectToken(_token: string): Promise<Payload | null> {
-    return this.defaultPayload;
+  async introspectToken(token: string): Promise<Payload | null> {
+    return this.issuedAccessTokens.get(this.normalizeBearer(token)) ?? this.defaultPayload;
   }
 
-  async parseToken(_token: string): Promise<Payload | null> {
-    return this.defaultPayload;
+  async parseToken(token: string): Promise<Payload | null> {
+    return this.issuedAccessTokens.get(this.normalizeBearer(token)) ?? this.defaultPayload;
   }
 
   async revokeToken(_token: string): Promise<void> {
@@ -205,5 +226,10 @@ export class NullIdpProvider implements IdpProvider {
       maxAge: 60 * 60 * 24 * 30 * 1000,
     });
     return Promise.resolve(res.redirect('/'));
+  }
+
+  private normalizeBearer(rawToken: string): string {
+    const token = rawToken.trim();
+    return token.toLowerCase().startsWith('bearer ') ? token.slice(7).trim() : token;
   }
 }

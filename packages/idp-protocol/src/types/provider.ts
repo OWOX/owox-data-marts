@@ -102,6 +102,20 @@ export interface IdpProvider {
   refreshToken(refreshToken: string): Promise<AuthResult>;
 
   /**
+   * Issue an ODM access token after the backend has validated a project member API key.
+   *
+   * `role` is nullable in the first iteration. Null means the IDP should issue
+   * the token with the member's current project role.
+   */
+  issueAccessTokenForProjectMemberApiKey(
+    apiKeyId: string,
+    userId: string,
+    projectId: string,
+    role: Role | null,
+    readOnly: boolean
+  ): Promise<AuthResult>;
+
+  /**
    * Revoke a token. In different IDP implementations, this may have different token types.
    * @param token - The token to revoke
    */

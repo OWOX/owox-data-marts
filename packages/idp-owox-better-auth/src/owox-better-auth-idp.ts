@@ -540,6 +540,29 @@ export class OwoxBetterAuthIdp implements IdpProvider {
     return this.tokenFacade.refreshToken(refreshToken);
   }
 
+  async issueAccessTokenForProjectMemberApiKey(
+    apiKeyId: string,
+    userId: string,
+    projectId: string,
+    role: Role | null,
+    readOnly: boolean
+  ): Promise<AuthResult> {
+    const response = await this.identityClient.issueAccessTokenForProjectMemberApiKey({
+      apiKeyId,
+      userId,
+      projectId,
+      role,
+      readOnly,
+    });
+
+    return {
+      accessToken: response.accessToken,
+      refreshToken: response.refreshToken,
+      accessTokenExpiresIn: response.accessTokenExpiresIn,
+      refreshTokenExpiresIn: response.refreshTokenExpiresIn,
+    };
+  }
+
   async revokeToken(token: string): Promise<void> {
     await this.tokenFacade.revokeToken(token);
   }

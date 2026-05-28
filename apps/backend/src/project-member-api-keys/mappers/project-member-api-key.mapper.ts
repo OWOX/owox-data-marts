@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import type { ProjectMemberApiKeyIssuingParameters } from '../dto/domain/project-member-api-key-issuing-parameters.dto';
 import type { ProjectMemberApiKeyMetadata } from '../dto/domain/project-member-api-key-metadata.dto';
 import type { ProjectMemberApiKey } from '../entities/project-member-api-key.entity';
 
@@ -22,5 +23,15 @@ export class ProjectMemberApiKeyMapper {
 
   toMetadataList(entities: ProjectMemberApiKey[]): ProjectMemberApiKeyMetadata[] {
     return entities.map(entity => this.toMetadata(entity));
+  }
+
+  toIssuingParameters(entity: ProjectMemberApiKey): ProjectMemberApiKeyIssuingParameters {
+    return {
+      apiKeyId: entity.apiKeyId,
+      projectId: entity.projectId,
+      userId: entity.userId,
+      role: entity.role,
+      readOnly: entity.readOnly,
+    };
   }
 }

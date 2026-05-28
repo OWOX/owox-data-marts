@@ -223,6 +223,16 @@ export class BetterAuthProvider
     return this.tokenService.refreshToken(refreshToken);
   }
 
+  async issueAccessTokenForProjectMemberApiKey(
+    _apiKeyId: string,
+    _userId: string,
+    _projectId: string,
+    _role: Role | null,
+    _readOnly: boolean
+  ): Promise<AuthResult> {
+    throw new IdpOperationNotSupportedError('issueAccessTokenForProjectMemberApiKey');
+  }
+
   async revokeToken(token: string): Promise<void> {
     return this.tokenService.revokeToken(token);
   }

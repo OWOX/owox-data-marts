@@ -10,6 +10,8 @@ const IdpOwoxToPayloadSchema = IdpOwoxPayloadSchema.transform((src: IdpOwoxPaylo
   avatar: src.userAvatar ?? undefined,
   roles: src.roles,
   projectTitle: src.projectTitle,
+  authFlow: src.authFlow ?? undefined,
+  apiKeyId: src.apiKeyId ?? undefined,
 })).pipe(PayloadSchema);
 
 /**

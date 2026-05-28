@@ -29,7 +29,7 @@ describe('ProjectMemberApiKeyService', () => {
       'project-1',
       'user-1',
       'CI import job',
-      'editor',
+      null,
       false,
       null
     );
@@ -41,7 +41,7 @@ describe('ProjectMemberApiKeyService', () => {
         projectId: 'project-1',
         userId: 'user-1',
         name: 'CI import job',
-        role: 'editor',
+        role: null,
         readOnly: false,
         expiresAt: null,
         revokedAt: null,
@@ -57,6 +57,27 @@ describe('ProjectMemberApiKeyService', () => {
     expect(result.apiKey).not.toHaveProperty('keyHash');
     expect(result.apiKey).not.toHaveProperty('keyHashSalt');
     expect(result.apiKey).not.toHaveProperty('keyHashParams');
+  });
+
+  it('can store an explicit requested role for future lower-role keys', async () => {
+    const { service, repository } = createService();
+
+    const result = await service.createForMember(
+      'project-1',
+      'user-1',
+      'Read-only report sync',
+      'viewer',
+      true,
+      null
+    );
+
+    expect(repository.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        role: 'viewer',
+        readOnly: true,
+      })
+    );
+    expect(result.apiKey.role).toBe('viewer');
   });
 
   it('lists only active key metadata for the current project member by default', async () => {
@@ -176,16 +197,55 @@ describe('ProjectMemberApiKeyService', () => {
     expect(revoked).not.toHaveProperty('keyHash');
   });
 
-  it('finds keys by public API key id for exchange internals', async () => {
-    const { service, repository } = createService();
-    const row = { apiKeyId: 'pmk_1234567890123456789012' } as ProjectMemberApiKey;
+  it('verifies credentials and returns token-issuing parameters without secret hash material', async () => {
+    const { service, repository, cryptoService } = createService();
+    const apiKeyId = 'pmk_1234567890123456789012';
+    const apiKeySecret = 'vjqmM5GfJ6QklV8mFqM5Ior2hK6vK4mY8pE9T7aZr6Q';
+    const row = {
+      apiKeyId,
+      projectId: 'project-1',
+      userId: 'user-1',
+      role: null,
+      readOnly: true,
+      expiresAt: null,
+      revokedAt: null,
+      keyHash: 'stored-hash',
+      keyHashSalt: 'stored-salt',
+      keyHashParams: {
+        algorithm: 'scrypt',
+        version: 1,
+        keyLength: 64,
+        cost: 16384,
+        blockSize: 8,
+        parallelization: 1,
+      },
+    } as ProjectMemberApiKey;
     repository.findOne.mockResolvedValue(row);
+    jest.spyOn(cryptoService, 'verifySecret').mockResolvedValue(true);
 
-    await expect(service.findByApiKeyId('pmk_1234567890123456789012')).resolves.toBe(row);
+    const result = await service.verifyCredential(apiKeyId, apiKeySecret);
 
     expect(repository.findOne).toHaveBeenCalledWith({
-      where: { apiKeyId: 'pmk_1234567890123456789012' },
+      where: { apiKeyId },
     });
+    expect(cryptoService.verifySecret).toHaveBeenCalledWith(
+      apiKeyId,
+      apiKeySecret,
+      expect.objectContaining({
+        keyHash: 'stored-hash',
+        keyHashSalt: 'stored-salt',
+      })
+    );
+    expect(result).toEqual({
+      apiKeyId,
+      projectId: 'project-1',
+      userId: 'user-1',
+      role: null,
+      readOnly: true,
+    });
+    expect(result).not.toHaveProperty('keyHash');
+    expect(result).not.toHaveProperty('keyHashSalt');
+    expect(result).not.toHaveProperty('keyHashParams');
   });
 
   it('marks successful API key authentication time', async () => {

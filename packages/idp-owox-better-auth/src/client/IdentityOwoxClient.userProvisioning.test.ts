@@ -46,11 +46,11 @@ jest.unstable_mockModule('@owox/internal-helpers', () => ({
 
 const { IdentityOwoxClient } = await import('./IdentityOwoxClient.js');
 
-function createClient() {
+function createClient(clientBackchannelPrefix = '/internal') {
   return new IdentityOwoxClient({
     clientBaseUrl: 'https://idp.example.com',
     clientTimeout: '3s',
-    clientBackchannelPrefix: '/internal',
+    clientBackchannelPrefix,
     c2cServiceAccountEmail: 'service@example.iam.gserviceaccount.com',
     c2cTargetAudience: 'https://idp.example.com/internal',
   });
@@ -107,6 +107,30 @@ describe('IdentityOwoxClient user provisioning settings', () => {
     );
     expect(actual.isApplicable).toBe(true);
     expect(actual.settings).toMatchObject({ defaultRole: 'viewer' });
+  });
+
+  it('normalizes a trailing slash in the C2C backchannel prefix for existing endpoints', async () => {
+    httpMock.get.mockResolvedValue({
+      data: {
+        isApplicable: true,
+        organization: {
+          name: 'owox.com',
+          mainProjectName: 'main-project',
+          mainProjectTitle: 'Main Project',
+        },
+        settings: {
+          mode: 'automatic',
+          defaultRole: 'viewer',
+        },
+      },
+    });
+
+    await createClient('/internal/').getUserProvisioningSettings('project-1', 'actor-1');
+
+    expect(httpMock.get).toHaveBeenCalledWith(
+      '/internal/idp/bi-project/project-1/user-provisioning-settings',
+      expect.any(Object)
+    );
   });
 
   it('updates settings through the C2C backchannel with the actor user id body field', async () => {
