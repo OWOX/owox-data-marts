@@ -147,10 +147,10 @@ export class DataMartService {
 
     qb.orderBy('dm.createdAt', 'DESC')
       .addOrderBy('dm.id', 'ASC')
-      .limit(options?.limit)
-      .offset(options?.offset);
+      .take(options?.limit)
+      .skip(options?.offset);
 
-    const countQb = qb.clone().limit(undefined).offset(undefined);
+    const countQb = qb.clone().take(undefined).skip(undefined);
     const [total, { raw, entities }] = await Promise.all([
       countQb.getCount(),
       qb.getRawAndEntities(),
