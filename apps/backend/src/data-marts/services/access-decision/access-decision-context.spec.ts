@@ -354,9 +354,10 @@ describe('AccessDecisionService – Context Gate (Stage 4)', () => {
     // See/Use are granted by the ownership floor; the context gate does not apply.
     getOwnerStatusSpy.mockResolvedValue(OwnerStatus.BIZ_OWNER);
     getSharingStateSpy.mockResolvedValue(SharingState.SHARED_FOR_BOTH);
-    // Ownership floor allows SEE for Biz Owner across all sharing states.
+    // Only the ownership-floor lookup grants SEE; the non-owner lookup denies. This
+    // proves the result comes from the ownership path, not the sharing path.
     lookupMatrixSpy.mockImplementation((_e, _a, _r, ownerStatus) =>
-      ownerStatus === OwnerStatus.BIZ_OWNER ? true : true
+      ownerStatus === OwnerStatus.BIZ_OWNER ? true : false
     );
     contextAccessService.getRoleScope.mockResolvedValue(RoleScope.SELECTED_CONTEXTS);
     contextAccessService.hasContextOverlap.mockResolvedValue(false);

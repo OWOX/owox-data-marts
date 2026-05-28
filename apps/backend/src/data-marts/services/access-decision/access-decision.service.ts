@@ -116,8 +116,8 @@ export class AccessDecisionService {
     // Path 2 — Non-owner sharing path. Anything the user could do as a non-owner of
     // their role given the resource's availability. Applies to actual non-owners and,
     // as a union, to owners whose ownership floor did not already grant the action.
-    // This path is gated by role scope / contexts — being an owner of one resource
-    // does not lift the context restriction for unrelated maintenance permissions.
+    // This path is gated by role scope / contexts — being an owner does not bypass
+    // the context gate for permissions granted through the sharing path.
     const nonOwnerResult = this.lookupMatrix(
       entityType,
       action,

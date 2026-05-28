@@ -199,15 +199,16 @@ The owner of a Destination has full control regardless of their role — even a 
 
 Reports do not have availability settings. **Visibility follows the parent Data Mart** — if you can see a Data Mart, you can see all Reports built on it.
 
-Access to edit, delete, run, manage owners, and manage triggers requires one of two conditions:
+Access to edit, delete, or run a Report requires one of two conditions:
 
 | Who | Can see | Can edit, delete, or run |
 |---|---|---|
-| **Has Data Mart maintenance access** (Technical Owner with Technical User role, or non-owner Technical User with DM available for maintenance) | Yes | Yes — for all Reports on that Data Mart |
+| **Has Data Mart maintenance access** § | Yes | Yes — for all Reports on that Data Mart |
 | **Report Owner** (Destination exists) | Yes | Yes |
 | **Report Owner** (Destination deleted) | Yes | No — read-only until Destination is restored or replaced |
-| **Business Owner of parent Data Mart** | Yes | No |
-| **Non-owner without DM maintenance access** | Yes, if DM is visible | No |
+| **DM visible without maintenance access** | Yes | No |
+
+§ "Has Data Mart maintenance access" means the user receives `Edit` on the parent Data Mart through any path defined in the [Data Mart access table](#data-mart) — that is, Technical Owner with Technical User role, or Technical User (including a Business Owner who is a Technical User) receiving maintenance through the non-owner sharing path on a Data Mart that is *Available for maintenance*. The non-owner sharing path is gated by role scope and contexts; the Report-level decision inherits that gate.
 
 > ☝️ A Report owner can edit, delete, and run the Report only while its Destination still exists. If the Destination is deleted, the owner can still see the Report but cannot edit, delete, or run it until the Destination is restored or ownership is reassigned by a Technical User.
 
@@ -219,7 +220,9 @@ Access to edit, delete, run, manage owners, and manage triggers requires one of 
 
 | Who | Can see | Can manage (create, edit, delete) |
 |---|---|---|
-| **Has Data Mart maintenance access** | Yes | Yes — for all Report Triggers on that Data Mart |
+| **Has Data Mart maintenance access** § | Yes | Yes — for all Report Triggers on that Data Mart |
 | **Report Owner** (Destination exists) | Yes | Yes — for own Report's triggers only |
 | **Report Owner** (Destination deleted) | Yes | No |
-| **Non-owner** (DM visible) | Yes | No |
+| **DM visible without maintenance access** | Yes | No |
+
+§ Defined under [Report](#report) above — includes any path that grants `Edit` on the parent Data Mart, with the same role scope / context gating.
