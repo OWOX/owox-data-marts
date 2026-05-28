@@ -1,6 +1,5 @@
 import { Body, Controller, Delete, Get, HttpCode, Param, Patch, Post, Query } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
-import type { Role as IdpRole } from '@owox/idp-protocol';
 import { Auth, AuthContext, AuthorizationContext, Role, Strategy } from '../../idp';
 import {
   CreateProjectMemberApiKeyRequestDto,
@@ -8,29 +7,17 @@ import {
   ProjectMemberApiKeyResponseDto,
   UpdateProjectMemberApiKeyRequestDto,
 } from '../dto/presentation/project-member-api-key-api.dto';
-import { ListProjectMemberApiKeysCommand } from '../dto/domain/list-project-member-api-keys.command';
-import { CreateProjectMemberApiKeyCommand } from '../dto/domain/create-project-member-api-key.command';
-import { UpdateProjectMemberApiKeyCommand } from '../dto/domain/update-project-member-api-key.command';
-import { RevokeProjectMemberApiKeyCommand } from '../dto/domain/revoke-project-member-api-key.command';
 import { ListProjectMemberApiKeysService } from '../use-cases/project-member-api-keys/list-project-member-api-keys.service';
 import { CreateProjectMemberApiKeyService } from '../use-cases/project-member-api-keys/create-project-member-api-key.service';
 import { UpdateProjectMemberApiKeyService } from '../use-cases/project-member-api-keys/update-project-member-api-key.service';
 import { RevokeProjectMemberApiKeyService } from '../use-cases/project-member-api-keys/revoke-project-member-api-key.service';
+import { ProjectMemberApiKeysMapper } from '../mappers/project-member-api-keys.mapper';
 import {
   ListProjectMemberApiKeysSpec,
   CreateProjectMemberApiKeySpec,
   UpdateProjectMemberApiKeySpec,
   RevokeProjectMemberApiKeySpec,
 } from './spec/project-member-api-keys.api';
-
-const ROLE_PRIORITY: Record<string, number> = { admin: 2, editor: 1, viewer: 0 };
-
-function getHighestRole(roles?: IdpRole[]): IdpRole {
-  if (!roles?.length) return 'viewer';
-  return roles.reduce((highest, role) =>
-    (ROLE_PRIORITY[role] ?? 0) > (ROLE_PRIORITY[highest] ?? 0) ? role : highest
-  );
-}
 
 @Controller('project-member-api-keys')
 @ApiTags('Project Member API Keys')
@@ -39,7 +26,8 @@ export class ProjectMemberApiKeysController {
     private readonly listKeys: ListProjectMemberApiKeysService,
     private readonly createKey: CreateProjectMemberApiKeyService,
     private readonly updateKey: UpdateProjectMemberApiKeyService,
-    private readonly revokeKey: RevokeProjectMemberApiKeyService
+    private readonly revokeKey: RevokeProjectMemberApiKeyService,
+    private readonly mapper: ProjectMemberApiKeysMapper
   ) {}
 
   @Auth(Role.viewer(Strategy.PARSE))
@@ -49,12 +37,9 @@ export class ProjectMemberApiKeysController {
     @AuthContext() context: AuthorizationContext,
     @Query('includeRevoked') includeRevoked?: string
   ): Promise<ProjectMemberApiKeyResponseDto[]> {
-    const command = new ListProjectMemberApiKeysCommand(
-      context.projectId,
-      context.userId,
-      includeRevoked === 'true'
-    );
-    return this.listKeys.run(command);
+    const command = this.mapper.toListCommand(context, includeRevoked === 'true');
+    const keys = await this.listKeys.run(command);
+    return keys.map(k => this.mapper.toApiResponse(k));
   }
 
   @Auth(Role.viewer(Strategy.PARSE))
@@ -65,15 +50,12 @@ export class ProjectMemberApiKeysController {
     @AuthContext() context: AuthorizationContext,
     @Body() dto: CreateProjectMemberApiKeyRequestDto
   ): Promise<CreateProjectMemberApiKeyResponseDto> {
-    const role = getHighestRole(context.roles);
-    const command = new CreateProjectMemberApiKeyCommand(
-      context.projectId,
-      context.userId,
-      dto.name,
-      role,
-      dto.expiresAt
-    );
-    return this.createKey.run(command);
+    const command = this.mapper.toCreateCommand(context, dto);
+    const result = await this.createKey.run(command);
+    return this.mapper.toCreateApiResponse({
+      ...result.apiKey,
+      apiKeySecret: result.apiKeySecret,
+    });
   }
 
   @Auth(Role.viewer(Strategy.PARSE))
@@ -84,13 +66,9 @@ export class ProjectMemberApiKeysController {
     @Param('apiKeyId') apiKeyId: string,
     @Body() dto: UpdateProjectMemberApiKeyRequestDto
   ): Promise<ProjectMemberApiKeyResponseDto> {
-    const command = new UpdateProjectMemberApiKeyCommand(
-      context.projectId,
-      context.userId,
-      apiKeyId,
-      dto.name
-    );
-    return this.updateKey.run(command);
+    const command = this.mapper.toUpdateCommand(context, apiKeyId, dto);
+    const updated = await this.updateKey.run(command);
+    return this.mapper.toApiResponse(updated);
   }
 
   @Auth(Role.viewer(Strategy.PARSE))
@@ -101,11 +79,7 @@ export class ProjectMemberApiKeysController {
     @AuthContext() context: AuthorizationContext,
     @Param('apiKeyId') apiKeyId: string
   ): Promise<void> {
-    const command = new RevokeProjectMemberApiKeyCommand(
-      context.projectId,
-      context.userId,
-      apiKeyId
-    );
+    const command = this.mapper.toRevokeCommand(context, apiKeyId);
     return this.revokeKey.run(command);
   }
 }

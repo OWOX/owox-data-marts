@@ -1,22 +1,17 @@
 import { Injectable } from '@nestjs/common';
 import type { ListProjectMemberApiKeysCommand } from '../../dto/domain/list-project-member-api-keys.command';
-import type { ProjectMemberApiKeyResponseDto } from '../../dto/presentation/project-member-api-key-api.dto';
+import type { ProjectMemberApiKeyMetadata } from '../../../project-member-api-keys/dto/domain/project-member-api-key-metadata.dto';
 import { ProjectMemberApiKeyService } from '../../../project-member-api-keys/services/project-member-api-key.service';
-import { ProjectMemberApiKeysMapper } from '../../mappers/project-member-api-keys.mapper';
 
 @Injectable()
 export class ListProjectMemberApiKeysService {
-  constructor(
-    private readonly apiKeyService: ProjectMemberApiKeyService,
-    private readonly mapper: ProjectMemberApiKeysMapper
-  ) {}
+  constructor(private readonly apiKeyService: ProjectMemberApiKeyService) {}
 
-  async run(command: ListProjectMemberApiKeysCommand): Promise<ProjectMemberApiKeyResponseDto[]> {
-    const keys = await this.apiKeyService.listForMember(
+  async run(command: ListProjectMemberApiKeysCommand): Promise<ProjectMemberApiKeyMetadata[]> {
+    return this.apiKeyService.listForMember(
       command.projectId,
       command.userId,
       command.includeRevoked
     );
-    return keys.map(k => this.mapper.toApiResponse(k));
   }
 }

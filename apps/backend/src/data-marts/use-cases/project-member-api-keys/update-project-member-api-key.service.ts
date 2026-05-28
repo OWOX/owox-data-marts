@@ -1,17 +1,13 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import type { UpdateProjectMemberApiKeyCommand } from '../../dto/domain/update-project-member-api-key.command';
-import type { ProjectMemberApiKeyResponseDto } from '../../dto/presentation/project-member-api-key-api.dto';
+import type { ProjectMemberApiKeyMetadata } from '../../../project-member-api-keys/dto/domain/project-member-api-key-metadata.dto';
 import { ProjectMemberApiKeyService } from '../../../project-member-api-keys/services/project-member-api-key.service';
-import { ProjectMemberApiKeysMapper } from '../../mappers/project-member-api-keys.mapper';
 
 @Injectable()
 export class UpdateProjectMemberApiKeyService {
-  constructor(
-    private readonly apiKeyService: ProjectMemberApiKeyService,
-    private readonly mapper: ProjectMemberApiKeysMapper
-  ) {}
+  constructor(private readonly apiKeyService: ProjectMemberApiKeyService) {}
 
-  async run(command: UpdateProjectMemberApiKeyCommand): Promise<ProjectMemberApiKeyResponseDto> {
+  async run(command: UpdateProjectMemberApiKeyCommand): Promise<ProjectMemberApiKeyMetadata> {
     const updated = await this.apiKeyService.updateName(
       command.projectId,
       command.userId,
@@ -23,6 +19,6 @@ export class UpdateProjectMemberApiKeyService {
       throw new NotFoundException('API key not found');
     }
 
-    return this.mapper.toApiResponse(updated);
+    return updated;
   }
 }

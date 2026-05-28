@@ -69,7 +69,7 @@ export function CreateApiKeySheet({ isOpen, onClose, onCreated }: CreateApiKeySh
     try {
       const result = await apiKeysService.createKey({
         name: values.name,
-        expiresAt: values.expiresAt ?? undefined,
+        expiresAt: values.expiresAt ? `${values.expiresAt}T23:59:59.999Z` : undefined,
       });
       reset(DEFAULT_VALUES);
       onCreated(result);

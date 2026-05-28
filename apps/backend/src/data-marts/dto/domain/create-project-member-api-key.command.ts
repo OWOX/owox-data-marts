@@ -5,7 +5,7 @@ export class CreateProjectMemberApiKeyCommand {
     public readonly projectId: string,
     public readonly userId: string,
     public readonly name: string,
-    public readonly role: Role,
+    public readonly role: Role | null,
     public readonly expiresAt: string | undefined
   ) {}
 }
