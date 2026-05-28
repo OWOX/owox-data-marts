@@ -53,8 +53,9 @@ export function MembersTab() {
   };
 
   return (
-    <>
+    <div className='flex flex-col gap-4'>
       <PendingRequestsSection />
+
       {!hasLoadError && <UserProvisioningSettings contexts={contexts} isAdmin={isAdmin} />}
 
       <MembersTable
@@ -102,6 +103,6 @@ export function MembersTab() {
           void confirmRemove();
         }}
       />
-    </>
+    </div>
   );
 }

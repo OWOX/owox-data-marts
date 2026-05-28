@@ -1,4 +1,4 @@
-import { UserCog } from 'lucide-react';
+import { UserPlus } from 'lucide-react';
 import {
   CollapsibleCard,
   CollapsibleCardHeader,
@@ -20,10 +20,10 @@ export function PendingRequestsSection() {
   if (pendingRequests.length === 0) return null;
 
   return (
-    <section className='mb-6' aria-labelledby='pending-requests-heading' data-testid={TESTID}>
+    <section aria-labelledby='pending-requests-heading' data-testid={TESTID}>
       <CollapsibleCard collapsible defaultCollapsed={false}>
         <CollapsibleCardHeader>
-          <CollapsibleCardHeaderTitle icon={UserCog}>
+          <CollapsibleCardHeaderTitle icon={UserPlus}>
             <span id='pending-requests-heading'>Access requests</span>
           </CollapsibleCardHeaderTitle>
         </CollapsibleCardHeader>
