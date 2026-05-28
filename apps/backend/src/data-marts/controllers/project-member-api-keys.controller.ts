@@ -42,7 +42,7 @@ export class ProjectMemberApiKeysController {
     return keys.map(k => this.mapper.toApiResponse(k));
   }
 
-  @Auth(Role.viewer(Strategy.PARSE))
+  @Auth(Role.viewer(Strategy.INTROSPECT))
   @CreateProjectMemberApiKeySpec()
   @Post()
   @HttpCode(201)
@@ -58,7 +58,7 @@ export class ProjectMemberApiKeysController {
     });
   }
 
-  @Auth(Role.viewer(Strategy.PARSE))
+  @Auth(Role.viewer(Strategy.INTROSPECT))
   @UpdateProjectMemberApiKeySpec()
   @Patch(':apiKeyId')
   async update(
@@ -71,7 +71,7 @@ export class ProjectMemberApiKeysController {
     return this.mapper.toApiResponse(updated);
   }
 
-  @Auth(Role.viewer(Strategy.PARSE))
+  @Auth(Role.viewer(Strategy.INTROSPECT))
   @RevokeProjectMemberApiKeySpec()
   @Delete(':apiKeyId')
   @HttpCode(204)
