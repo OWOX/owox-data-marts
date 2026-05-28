@@ -80,14 +80,19 @@ export function RowFilterIcon({
   };
   const replaceSliceAt = sliceIconProps?.onReplaceSliceAt;
   const addSlice = sliceIconProps?.onAddSlice;
-  const handleSliceApply = addSlice
+  // Surface the slice tab whenever we can either add a slice or clear an
+  // existing one — otherwise the remove path inside an inaccessible group
+  // disappears together with the add path.
+  const sliceTabAvailable =
+    !!sliceIconProps && (!!addSlice || sliceIconProps.existingSlices.length > 0);
+  const handleSliceApply = sliceTabAvailable
     ? (rule: FilterRule) => {
         const idx = editingSliceIndexRef.current;
         if (idx != null && idx >= 0 && replaceSliceAt) {
           replaceSliceAt(idx, rule);
           return;
         }
-        addSlice(rule);
+        addSlice?.(rule);
       }
     : undefined;
 
