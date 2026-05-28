@@ -352,9 +352,17 @@ import { ListMembershipRequestsService } from './use-cases/project-members/list-
 import { ApproveMembershipRequestService } from './use-cases/project-members/approve-membership-request.service';
 import { DeclineMembershipRequestService } from './use-cases/project-members/decline-membership-request.service';
 import { SetContextMembersService } from './use-cases/contexts/set-context-members.service';
+import { ProjectMemberApiKeysController } from './controllers/project-member-api-keys.controller';
+import { ListProjectMemberApiKeysService } from './use-cases/project-member-api-keys/list-project-member-api-keys.service';
+import { CreateProjectMemberApiKeyService } from './use-cases/project-member-api-keys/create-project-member-api-key.service';
+import { UpdateProjectMemberApiKeyService } from './use-cases/project-member-api-keys/update-project-member-api-key.service';
+import { RevokeProjectMemberApiKeyService } from './use-cases/project-member-api-keys/revoke-project-member-api-key.service';
+import { ProjectMemberApiKeysMapper } from './mappers/project-member-api-keys.mapper';
+import { ProjectMemberApiKeysModule } from '../project-member-api-keys/project-member-api-keys.module';
 
 @Module({
   imports: [
+    ProjectMemberApiKeysModule,
     TypeOrmModule.forFeature([
       DataMart,
       DataMartBusinessOwner,
@@ -432,6 +440,7 @@ import { SetContextMembersService } from './use-cases/contexts/set-context-membe
     DataStorageRelationshipController,
     ContextController,
     ProjectMembersController,
+    ProjectMemberApiKeysController,
   ],
   providers: [
     ...dataStorageResolverProviders,
@@ -713,6 +722,11 @@ import { SetContextMembersService } from './use-cases/contexts/set-context-membe
     ApproveMembershipRequestService,
     DeclineMembershipRequestService,
     SetContextMembersService,
+    ListProjectMemberApiKeysService,
+    CreateProjectMemberApiKeyService,
+    UpdateProjectMemberApiKeyService,
+    RevokeProjectMemberApiKeyService,
+    ProjectMemberApiKeysMapper,
   ],
 })
 export class DataMartsModule {

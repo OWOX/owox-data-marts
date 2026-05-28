@@ -14,6 +14,7 @@ import { projectSettingsRoutes } from './project-settings/routes';
 import { ProjectRedirect } from '../components/ProjectRedirect';
 import { oauthRoutes } from './oauth.routes';
 import { RootErrorBoundary, LayoutErrorBoundary } from '../components/errors';
+import { MyApiKeysPage } from '../features/api-keys/pages/MyApiKeysPage';
 
 const routes: RouteObject[] = [
   {
@@ -80,6 +81,11 @@ const routes: RouteObject[] = [
       {
         path: 'members/contexts',
         element: <Navigate to='../project-settings/contexts' replace />,
+        errorElement: <LayoutErrorBoundary />,
+      },
+      {
+        path: 'me/api-keys',
+        element: <MyApiKeysPage />,
         errorElement: <LayoutErrorBoundary />,
       },
       {

@@ -1,26 +1,36 @@
-import { BriefcaseBusiness, Bell, Gem, Settings, Tags, Users, type LucideIcon } from 'lucide-react';
+import {
+  BriefcaseBusiness,
+  Bell,
+  Gem,
+  KeyRound,
+  Settings,
+  Tags,
+  Users,
+  type LucideIcon,
+} from 'lucide-react';
 import {
   DropdownMenuSub,
   DropdownMenuSubTrigger,
   DropdownMenuSubContent,
   DropdownMenuItem,
   DropdownMenuPortal,
+  DropdownMenuSeparator,
 } from '@owox/ui/components/dropdown-menu';
 import type { MouseEvent } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { useFlags } from '../../../app/store/hooks';
-import { useProjectId } from '../../../shared/hooks/useProjectId';
-import { checkVisible } from '../../../utils/check-visible';
+import { useProjectId } from '../../../shared/hooks';
+import { checkVisible } from '../../../utils';
 import { useProjectRoute } from '../../../shared/hooks';
 
 type SettingsSubItem =
   | {
       kind: 'internal';
       title: string;
-      /** Path relative to /project-settings, '' = index. */
+      /** Path relative to /project-settings, '' = index. For absolute paths starting with '/' — used as-is. */
       path: string;
       icon: LucideIcon;
-      isVisible?: (isOwoxIdpProvider: boolean) => boolean;
+      isVisible?: (isOwoxIdpProvider: boolean, flags: Record<string, unknown> | null) => boolean;
     }
   | {
       kind: 'external';
@@ -28,7 +38,10 @@ type SettingsSubItem =
       /** Builds full external URL given the current projectId. */
       buildHref: (projectId: string) => string;
       icon: LucideIcon;
-      isVisible?: (isOwoxIdpProvider: boolean) => boolean;
+      isVisible?: (isOwoxIdpProvider: boolean, flags: Record<string, unknown> | null) => boolean;
+    }
+  | {
+      kind: 'separator';
     };
 
 const PLATFORM_BASE_URL =
@@ -53,6 +66,14 @@ const settingsItems: SettingsSubItem[] = [
     isVisible: isOwoxIdpProvider => isOwoxIdpProvider,
   },
   { kind: 'internal', title: 'Notifications', path: 'notifications', icon: Bell },
+  { kind: 'separator' },
+  {
+    kind: 'internal',
+    title: 'My API Keys',
+    path: '/me/api-keys',
+    icon: KeyRound,
+    isVisible: (_isOwoxIdpProvider, flags) => checkVisible('API_KEYS_ENABLED', 'true', flags),
+  },
 ];
 
 /**
@@ -72,7 +93,10 @@ export function ProjectSettingsSubmenu({ onClose }: ProjectSettingsSubmenuProps)
   const navigate = useNavigate();
   const isOwoxIdpProvider = checkVisible('IDP_PROVIDER', ['owox-better-auth'], flags);
 
-  const visible = settingsItems.filter(item => item.isVisible?.(isOwoxIdpProvider) ?? true);
+  const visible = settingsItems.filter(item => {
+    if (item.kind === 'separator') return true;
+    return item.isVisible?.(isOwoxIdpProvider, flags) ?? true;
+  });
 
   const handleTriggerClick = (event: MouseEvent) => {
     event.preventDefault();
@@ -91,7 +115,10 @@ export function ProjectSettingsSubmenu({ onClose }: ProjectSettingsSubmenuProps)
       </DropdownMenuSubTrigger>
       <DropdownMenuPortal>
         <DropdownMenuSubContent>
-          {visible.map(item => {
+          {visible.map((item, index) => {
+            if (item.kind === 'separator') {
+              return <DropdownMenuSeparator key={`sep-${String(index)}`} />;
+            }
             const Icon = item.icon;
             if (item.kind === 'external') {
               if (!projectId) return null;
@@ -109,12 +136,12 @@ export function ProjectSettingsSubmenu({ onClose }: ProjectSettingsSubmenuProps)
                 </DropdownMenuItem>
               );
             }
+            const to = item.path.startsWith('/')
+              ? scope(item.path)
+              : scope(`/project-settings${item.path ? `/${item.path}` : ''}`);
             return (
               <DropdownMenuItem asChild key={item.path || 'overview'}>
-                <NavLink
-                  to={scope(`/project-settings${item.path ? `/${item.path}` : ''}`)}
-                  className='flex items-center gap-2'
-                >
+                <NavLink to={to} className='flex items-center gap-2'>
                   <Icon className='h-4 w-4' />
                   {item.title}
                 </NavLink>
