@@ -5,6 +5,10 @@
  * file that was distributed with this source code.
  */
 
+function stripQuotes(value) {
+  return value ? value.replace(/^"|"$/g, '') : value;
+}
+
 var AwsRedshiftStorage = class AwsRedshiftStorage extends AbstractStorage {
   //---- constructor -------------------------------------------------
   /**
@@ -95,15 +99,16 @@ var AwsRedshiftStorage = class AwsRedshiftStorage extends AbstractStorage {
 
   //---- getAListOfExistingColumns ----------------------------------
   async getAListOfExistingColumns() {
-    // Redshift stores unquoted identifiers as lowercase; strip any surrounding
-    // double-quotes from config values before comparing against information_schema.
-    const rawSchema = this.config.Schema.value.replace(/^"|"$/g, '').toLowerCase();
-    const rawTable = this.config.DestinationTableName.value.replace(/^"|"$/g, '').toLowerCase();
+    // Strip surrounding double-quotes that may be present in config values,
+    // then compare case-insensitively via LOWER() so the query works regardless
+    // of whether enable_case_sensitive_identifier is on or off.
+    const rawSchema = stripQuotes(this.config.Schema.value);
+    const rawTable = stripQuotes(this.config.DestinationTableName.value);
 
     const sql = `SELECT column_name, data_type
       FROM information_schema.columns
-      WHERE table_schema = '${rawSchema}'
-        AND table_name = '${rawTable}'
+      WHERE LOWER(table_schema) = LOWER('${rawSchema}')
+        AND LOWER(table_name) = LOWER('${rawTable}')
       ORDER BY ordinal_position`;
 
     let rows;
@@ -116,11 +121,21 @@ var AwsRedshiftStorage = class AwsRedshiftStorage extends AbstractStorage {
       throw error;
     }
 
+    // Build a lowercase → configured-key map so that info_schema's lowercased names
+    // (Redshift folds unquoted identifiers to lowercase) resolve back to the
+    // connector's schema key (which may be mixed-case, e.g. CampaignId).
+    // This ensures existingColumns keys match getSelectedFields() output and
+    // loadTableSchema() does not treat already-present columns as missing.
+    const schemaKeyByLower = {};
+    for (const key of Object.keys(this.schema || {})) {
+      schemaKeyByLower[key.toLowerCase()] = key;
+    }
+
     const columns = {};
     for (const row of rows) {
-      const columnName = row.column_name;
-      columns[columnName] = columnName in this.schema
-        ? this.getColumnType(columnName)
+      const schemaKey = schemaKeyByLower[row.column_name.toLowerCase()] || row.column_name;
+      columns[schemaKey] = (this.schema && schemaKey in this.schema)
+        ? this.getColumnType(schemaKey)
         : row.data_type;
     }
     return columns;
@@ -339,7 +354,7 @@ var AwsRedshiftStorage = class AwsRedshiftStorage extends AbstractStorage {
    * @returns {Promise}
    */
   async createSchemaIfNotExist() {
-    const schemaName = this.config.Schema.value;
+    const schemaName = stripQuotes(this.config.Schema.value);
     if (!schemaName) {
       throw new Error('Schema name is required but not provided');
     }
@@ -383,15 +398,17 @@ var AwsRedshiftStorage = class AwsRedshiftStorage extends AbstractStorage {
     // Build primary key constraint
     const pkColumns = this.uniqueKeyColumns.map(col => `"${col}"`).join(', ');
 
+    const schemaName = stripQuotes(this.config.Schema.value);
+    const tableName = stripQuotes(this.config.DestinationTableName.value);
     const query = `
-      CREATE TABLE IF NOT EXISTS "${this.config.Schema.value}"."${this.config.DestinationTableName.value}" (
+      CREATE TABLE IF NOT EXISTS "${schemaName}"."${tableName}" (
         ${columnDefinitions.join(',\n        ')},
         PRIMARY KEY (${pkColumns})
       )
     `;
 
     await this.executeQuery(query, 'ddl');
-    this.config.logMessage(`Table "${this.config.Schema.value}"."${this.config.DestinationTableName.value}" created`);
+    this.config.logMessage(`Table "${schemaName}"."${tableName}" created`);
     await this.applyColumnComments(Object.keys(existingColumns));
     this.existingColumns = existingColumns;
 
@@ -417,7 +434,7 @@ var AwsRedshiftStorage = class AwsRedshiftStorage extends AbstractStorage {
     }
 
     if (columnsToAdd.length > 0) {
-      const tableRef = `"${this.config.Schema.value}"."${this.config.DestinationTableName.value}"`;
+      const tableRef = `"${stripQuotes(this.config.Schema.value)}"."${stripQuotes(this.config.DestinationTableName.value)}"`;
       for (const columnDef of columnsToAdd) {
         await this.executeQuery(`ALTER TABLE ${tableRef} ADD COLUMN ${columnDef}`, 'ddl');
       }
@@ -437,8 +454,8 @@ var AwsRedshiftStorage = class AwsRedshiftStorage extends AbstractStorage {
    * @param {Array<string>} columns - columns to process
    */
   async applyColumnComments(columns) {
-    const schemaName = this.config.Schema.value;
-    const tableName = this.config.DestinationTableName.value;
+    const schemaName = stripQuotes(this.config.Schema.value);
+    const tableName = stripQuotes(this.config.DestinationTableName.value);
 
     for (let columnName of columns) {
       const field = this.schema[columnName];
@@ -498,8 +515,8 @@ var AwsRedshiftStorage = class AwsRedshiftStorage extends AbstractStorage {
     const columnsToInsert = dataKeys.filter(key => selectedFields.includes(key));
 
     // Build MERGE statement
-    const tempTableName = `temp_${this.config.DestinationTableName.value}_${Date.now()}`;
-    const schemaName = this.config.Schema.value;
+    const tempTableName = `temp_${stripQuotes(this.config.DestinationTableName.value)}_${Date.now()}`;
+    const schemaName = stripQuotes(this.config.Schema.value);
 
     if (!schemaName) {
       throw new Error('Schema name is required but not provided');
@@ -595,7 +612,7 @@ var AwsRedshiftStorage = class AwsRedshiftStorage extends AbstractStorage {
     const columnList = columns.map(col => `"${col}"`).join(', ');
 
     const query = `
-      INSERT INTO "${this.config.Schema.value}"."${tableName}" (${columnList})
+      INSERT INTO "${stripQuotes(this.config.Schema.value)}"."${tableName}" (${columnList})
       VALUES ${values}
     `;
 
@@ -611,8 +628,8 @@ var AwsRedshiftStorage = class AwsRedshiftStorage extends AbstractStorage {
    * @returns {Promise}
    */
   async mergeTempTable(tempTableName, columns) {
-    const targetTable = `"${this.config.Schema.value}"."${this.config.DestinationTableName.value}"`;
-    const sourceTable = `"${this.config.Schema.value}"."${tempTableName}"`;
+    const targetTable = `"${stripQuotes(this.config.Schema.value)}"."${stripQuotes(this.config.DestinationTableName.value)}"`;
+    const sourceTable = `"${stripQuotes(this.config.Schema.value)}"."${tempTableName}"`;
 
     // Build ON clause for matching
     const onClause = this.uniqueKeyColumns.map(col =>

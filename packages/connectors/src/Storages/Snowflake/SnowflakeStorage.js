@@ -10,6 +10,10 @@
  * @param {string} identifier - The identifier to quote
  * @returns {string} - Quoted identifier
  */
+function stripQuotes(value) {
+  return value ? value.replace(/^"|"$/g, '') : value;
+}
+
 function quoteIdentifier(identifier) {
   if (!identifier) return identifier;
   // If already quoted, return as-is
@@ -217,14 +221,15 @@ var SnowflakeStorage = class SnowflakeStorage extends AbstractStorage {
      */
     async getAListOfExistingColumns() {
 
-      // Config values may already contain surrounding double-quotes (e.g. '"PUBLIC"');
-      // INFORMATION_SCHEMA stores bare identifiers, so strip them before comparing.
-      const rawSchemaName = this.config.SnowflakeSchema.value.replace(/^"|"$/g, '');
-      const rawTableName = this.config.DestinationTableName.value.replace(/^"|"$/g, '');
+      // Config values may contain surrounding double-quotes (e.g. '"PUBLIC"'); strip them
+      // to get the bare identifier. The DDL path always wraps via quoteIdentifier(), so
+      // Snowflake stores the identifier in its exact configured case — no UPPER() needed.
+      const rawSchemaName = stripQuotes(this.config.SnowflakeSchema.value);
+      const rawTableName = stripQuotes(this.config.DestinationTableName.value);
 
       let query = `SELECT COLUMN_NAME, DATA_TYPE, IS_NULLABLE
         FROM ${this.config.SnowflakeDatabase.value}.INFORMATION_SCHEMA.COLUMNS
-        WHERE TABLE_SCHEMA = UPPER('${rawSchemaName}')
+        WHERE TABLE_SCHEMA = '${rawSchemaName}'
           AND TABLE_NAME = '${rawTableName}'
         ORDER BY ORDINAL_POSITION`;
 
@@ -240,13 +245,21 @@ var SnowflakeStorage = class SnowflakeStorage extends AbstractStorage {
         throw error;
       }
 
+      // Snowflake stores unquoted identifiers as uppercase; quoted ones are exact-case.
+      // Map info_schema names back to the configured schema key (case-insensitively) so
+      // existingColumns keys match getSelectedFields() output regardless of how columns
+      // were originally created.
+      const schemaKeyByLower = {};
+      for (const key of Object.keys(this.schema || {})) {
+        schemaKeyByLower[key.toLowerCase()] = key;
+      }
+
       let columns = {};
 
       if (Array.isArray(queryResults)) {
         queryResults.forEach(row => {
-          const columnName = row.COLUMN_NAME;
-          const dataType = row.DATA_TYPE;
-          columns[columnName] = {"name": columnName, "type": dataType};
+          const schemaKey = schemaKeyByLower[row.COLUMN_NAME.toLowerCase()] || row.COLUMN_NAME;
+          columns[schemaKey] = {"name": schemaKey, "type": row.DATA_TYPE};
         });
       }
 
