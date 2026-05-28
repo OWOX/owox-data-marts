@@ -175,9 +175,7 @@ export class RunReportService {
       );
     }
 
-    const accessor = await this.resolveAccessor(runByUserId, actualProjectId);
-
-    await this.executeReportRunWithCleanup(reportRun, accessor, signal);
+    await this.executeReportRunWithCleanup(reportRun, runByUserId, signal);
   }
 
   private resolveAccessor(userId: string, projectId: string): Promise<BlendableSchemaAccessor> {
@@ -304,7 +302,7 @@ export class RunReportService {
    */
   private async executeReportRunWithCleanup(
     reportRun: ReportRun,
-    accessor: BlendableSchemaAccessor,
+    runByUserId: string,
     signal?: AbortSignal
   ): Promise<void> {
     const processId = this.generateProcessId(reportRun.getReportId());
@@ -312,6 +310,7 @@ export class RunReportService {
 
     try {
       this.gracefulShutdownService.registerActiveProcess(processId);
+      const accessor = await this.resolveAccessor(runByUserId, reportRun.getDataMart().projectId);
       this.availableDestinationTypesService.verifyIsAllowed(
         reportRun.getReport().dataDestination.type
       );

@@ -98,7 +98,7 @@ describe('LookerStudioConnectorApiService', () => {
       projectBalanceService,
       blendedReportDataService,
       systemTimeService,
-      { getProjectMember: jest.fn().mockResolvedValue({ role: 'admin' }) } as never
+      { getProjectMemberOrThrow: jest.fn().mockResolvedValue({ role: 'admin' }) } as never
     );
 
     (service as any).logger = {

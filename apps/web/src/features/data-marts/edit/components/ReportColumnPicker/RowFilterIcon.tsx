@@ -10,8 +10,12 @@ interface SliceIconProps {
   originalFieldName: string;
   /** Pre-join filters already active for this aliasPath+column combination. */
   existingSlices: readonly FilterRule[];
-  /** Add a pre-join FilterRule (placement+aliasPath already set by the popover). */
-  onAddSlice: (rule: FilterRule) => void;
+  /**
+   * Add a pre-join FilterRule (placement+aliasPath already set by the popover).
+   * Omit for remove-only mode (the slice tab is hidden and existing slices
+   * can only be cleared).
+   */
+  onAddSlice?: (rule: FilterRule) => void;
   onRemoveSliceAt: (globalIndex: number) => void;
   onReplaceSliceAt?: (localIndex: number, rule: FilterRule) => void;
   existingSliceIndices: readonly number[];
@@ -21,7 +25,8 @@ interface RowFilterIconProps {
   column: string;
   fieldType: string;
   activeRules: readonly FilterRule[];
-  onAdd: (rule: FilterRule) => void;
+  /** Omit to render the icon in remove-only mode (still shows count and exposes onRemoveAt). */
+  onAdd?: (rule: FilterRule) => void;
   onRemoveAt: (index: number) => void;
   onReplaceAt?: (localIndex: number, rule: FilterRule) => void;
   sliceIconProps?: SliceIconProps;
@@ -71,7 +76,7 @@ export function RowFilterIcon({
       onReplaceAt(idx, rule);
       return;
     }
-    onAdd(rule);
+    onAdd?.(rule);
   };
   const replaceSliceAt = sliceIconProps?.onReplaceSliceAt;
   const addSlice = sliceIconProps?.onAddSlice;

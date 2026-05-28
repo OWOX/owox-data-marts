@@ -164,6 +164,13 @@ interface BlendedFieldRowProps {
   onReplaceFilterAt?: ReplaceFilterAtFn;
   preJoinSlices: ColumnFilters;
   hoverClassName?: string;
+  /**
+   * If true, the row only exposes paths that remove existing references —
+   * the checkbox cannot select an unchecked field, filter/slice add and
+   * edit actions are hidden. Used for fields inside an inaccessible group
+   * so users can clear stale references without creating new ones.
+   */
+  removeOnly?: boolean;
 }
 
 const BlendedFieldRow = memo(function BlendedFieldRow({
@@ -177,7 +184,10 @@ const BlendedFieldRow = memo(function BlendedFieldRow({
   onReplaceFilterAt,
   preJoinSlices,
   hoverClassName = 'hover:bg-muted/50',
+  removeOnly = false,
 }: BlendedFieldRowProps) {
+  const effectiveAddFilter = removeOnly ? undefined : onAddFilter;
+  const effectiveReplaceFilter = removeOnly ? undefined : onReplaceFilterAt;
   return (
     <label
       className={cn(
@@ -187,6 +197,7 @@ const BlendedFieldRow = memo(function BlendedFieldRow({
     >
       <Checkbox
         checked={checked}
+        disabled={removeOnly && !checked}
         onCheckedChange={c => {
           onToggleField(field.name, c === true);
         }}
@@ -194,37 +205,41 @@ const BlendedFieldRow = memo(function BlendedFieldRow({
       <span className='font-mono text-xs'>{field.alias || field.originalFieldName}</span>
       {field.type && <span className='text-muted-foreground text-xs'>({field.type})</span>}
       <FieldInfoTooltip text={field.description} compact />
-      {filterableType && onAddFilter && onRemoveFilterAt && (
-        <RowFilterIcon
-          column={field.name}
-          fieldType={filterableType}
-          activeRules={columnFilters.rules}
-          onAdd={onAddFilter}
-          onRemoveAt={localIndex => {
-            onRemoveFilterAt(columnFilters.indices[localIndex]);
-          }}
-          onReplaceAt={
-            onReplaceFilterAt
-              ? (localIndex, rule) => {
-                  onReplaceFilterAt(columnFilters.indices[localIndex], rule);
-                }
-              : undefined
-          }
-          sliceIconProps={{
-            aliasPath: field.aliasPath,
-            originalFieldName: field.originalFieldName,
-            existingSlices: preJoinSlices.rules,
-            existingSliceIndices: preJoinSlices.indices,
-            onAddSlice: onAddFilter,
-            onRemoveSliceAt: onRemoveFilterAt,
-            onReplaceSliceAt: onReplaceFilterAt
-              ? (localIndex, rule) => {
-                  onReplaceFilterAt(preJoinSlices.indices[localIndex], rule);
-                }
-              : undefined,
-          }}
-        />
-      )}
+      {filterableType &&
+        onRemoveFilterAt &&
+        (effectiveAddFilter !== undefined ||
+          columnFilters.rules.length > 0 ||
+          preJoinSlices.rules.length > 0) && (
+          <RowFilterIcon
+            column={field.name}
+            fieldType={filterableType}
+            activeRules={columnFilters.rules}
+            onAdd={effectiveAddFilter}
+            onRemoveAt={localIndex => {
+              onRemoveFilterAt(columnFilters.indices[localIndex]);
+            }}
+            onReplaceAt={
+              effectiveReplaceFilter
+                ? (localIndex, rule) => {
+                    effectiveReplaceFilter(columnFilters.indices[localIndex], rule);
+                  }
+                : undefined
+            }
+            sliceIconProps={{
+              aliasPath: field.aliasPath,
+              originalFieldName: field.originalFieldName,
+              existingSlices: preJoinSlices.rules,
+              existingSliceIndices: preJoinSlices.indices,
+              onAddSlice: effectiveAddFilter,
+              onRemoveSliceAt: onRemoveFilterAt,
+              onReplaceSliceAt: effectiveReplaceFilter
+                ? (localIndex, rule) => {
+                    effectiveReplaceFilter(preJoinSlices.indices[localIndex], rule);
+                  }
+                : undefined,
+            }}
+          />
+        )}
     </label>
   );
 });
@@ -306,6 +321,7 @@ function BlendedGroupItem({
               onReplaceFilterAt={onReplaceFilterAt}
               preJoinSlices={preJoinByAliasPathColumn?.get(sliceKey) ?? EMPTY_COLUMN_FILTERS}
               hoverClassName={inaccessible ? 'hover:bg-destructive/20' : undefined}
+              removeOnly={inaccessible}
             />
           );
         })}

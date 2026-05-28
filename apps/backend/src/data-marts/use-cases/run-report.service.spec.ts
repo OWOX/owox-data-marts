@@ -74,7 +74,7 @@ describe('RunReportService', () => {
       reportAccessService as never,
       blendedReportDataService as never,
       { compose: jest.fn().mockResolvedValue({ sql: 'SELECT 1' }) } as never,
-      { getProjectMember: jest.fn().mockResolvedValue({ role: 'admin' }) } as never
+      { getProjectMemberOrThrow: jest.fn().mockResolvedValue({ role: 'admin' }) } as never
     );
 
     return {

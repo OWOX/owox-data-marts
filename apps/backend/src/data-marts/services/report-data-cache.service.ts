@@ -69,6 +69,19 @@ export class ReportDataCacheService {
   }
 
   /**
+   * Sentinel accessor used by the cache-cleanup path only. Reader.finalize
+   * must not be skipped just because the creator was removed from the
+   * project, but we still need a valid BlendableSchemaAccessor to resolve
+   * prepare options. The admin role bypasses USE/SEE checks so resource
+   * cleanup never blocks on user membership; this constant is private to
+   * the cleanup path and never reaches user-driven read flows.
+   */
+  private readonly cleanupAccessor: BlendableSchemaAccessor = {
+    userId: '__cache-cleanup__',
+    roles: ['admin'],
+  };
+
+  /**
    * Gets cached reader or creates new one if cache miss
    */
   async getOrCreateCachedReader(
@@ -201,8 +214,10 @@ export class ReportDataCacheService {
   private async finalizeExpiredCacheEntry(cacheEntry: ReportDataCache): Promise<void> {
     try {
       if (cacheEntry.readerState) {
-        const accessor = await this.resolveCreatorAccessor(cacheEntry.report);
-        const { options } = await this.resolvePrepareOptions(cacheEntry.report, accessor);
+        const { options } = await this.resolvePrepareOptions(
+          cacheEntry.report,
+          this.cleanupAccessor
+        );
         const reader = await this.restoreReaderFromCache(cacheEntry, cacheEntry.report, options);
         await reader.finalize();
       }

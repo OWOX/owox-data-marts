@@ -72,6 +72,20 @@ export class IdpProjectionsFacade {
   }
 
   /**
+   * Strict variant of `getProjectMember` — propagates IDP failures instead
+   * of silently treating them as "user removed". Use on run-accessor paths
+   * where a transient IDP outage must not get persisted as a membership-loss
+   * business violation.
+   */
+  public async getProjectMemberOrThrow(
+    projectId: string,
+    userId: string
+  ): Promise<ProjectMemberDto | undefined> {
+    const members = await this.getProjectMembersOrThrow(projectId);
+    return members.find(m => m.userId === userId);
+  }
+
+  /**
    * Invite a member via the active IDP provider.
    *
    * NOTE: per `project_idp_invite_semantics`, providers return distinct

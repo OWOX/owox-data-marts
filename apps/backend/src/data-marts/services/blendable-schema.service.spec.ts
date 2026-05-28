@@ -917,8 +917,10 @@ describe('BlendableSchemaService', () => {
 });
 
 describe('resolveBlendableSchemaAccessor', () => {
-  function makeFacade(getProjectMemberImpl: jest.Mock): IdpProjectionsFacade {
-    return { getProjectMember: getProjectMemberImpl } as unknown as IdpProjectionsFacade;
+  function makeFacade(getProjectMemberOrThrowImpl: jest.Mock): IdpProjectionsFacade {
+    return {
+      getProjectMemberOrThrow: getProjectMemberOrThrowImpl,
+    } as unknown as IdpProjectionsFacade;
   }
 
   it('returns the resolved role when the user is still a project member', async () => {

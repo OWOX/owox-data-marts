@@ -30,7 +30,7 @@ export async function resolveBlendableSchemaAccessor(
   projectId: string,
   userId: string
 ): Promise<BlendableSchemaAccessor> {
-  const member = await idpProjectionsFacade.getProjectMember(projectId, userId);
+  const member = await idpProjectionsFacade.getProjectMemberOrThrow(projectId, userId);
   if (!member) {
     throw new BusinessViolationException(
       `User is no longer a member of this project; report cannot run on their behalf.`,

@@ -49,17 +49,6 @@ export class BlendedReportDataService {
       accessor,
     });
 
-    if (columnConfig === null || columnConfig === undefined) {
-      return { needsBlending: false };
-    }
-
-    const blendableSchema = await this.blendableSchemaService.computeBlendableSchema(
-      dataMart.id,
-      dataMart.projectId,
-      accessor
-    );
-
-    const blendedFieldsByName = new Map(blendableSchema.blendedFields.map(f => [f.name, f]));
     const postJoinFilterColumns: string[] = [];
     const preJoinAliasPaths = new Set<string>();
     for (const rule of report.filterConfig ?? []) {
@@ -69,15 +58,56 @@ export class BlendedReportDataService {
         postJoinFilterColumns.push(rule.column);
       }
     }
+    const sortColumns = (report.sortConfig ?? []).map(s => s.column);
+    const hasPreJoinFilters = preJoinAliasPaths.size > 0;
+
+    if (columnConfig === null || columnConfig === undefined) {
+      // Without an explicit column config the native projection is "all native
+      // columns". A blended SQL build needs an explicit column list, so any
+      // blended reference (post-join filter / sort / pre-join slice) while
+      // columnConfig is null is malformed — reject early instead of falling
+      // through to a native query that can't resolve the blended column.
+      if (postJoinFilterColumns.length === 0 && sortColumns.length === 0 && !hasPreJoinFilters) {
+        return { needsBlending: false };
+      }
+
+      const blendableSchema = await this.blendableSchemaService.computeBlendableSchema(
+        dataMart.id,
+        dataMart.projectId,
+        accessor
+      );
+      const blendedFieldsByName = new Map(blendableSchema.blendedFields.map(f => [f.name, f]));
+      const blendedRefs = [...postJoinFilterColumns, ...sortColumns].filter(c =>
+        blendedFieldsByName.has(c)
+      );
+      if (blendedRefs.length === 0 && !hasPreJoinFilters) {
+        return { needsBlending: false };
+      }
+
+      throw new BusinessViolationException(
+        'Cannot build report SQL: blended output controls require an explicit column selection',
+        {
+          blendedFilterOrSortColumns: blendedRefs,
+          preJoinAliasPaths: Array.from(preJoinAliasPaths),
+        }
+      );
+    }
+
+    const blendableSchema = await this.blendableSchemaService.computeBlendableSchema(
+      dataMart.id,
+      dataMart.projectId,
+      accessor
+    );
+
+    const blendedFieldsByName = new Map(blendableSchema.blendedFields.map(f => [f.name, f]));
     const referencedColumns = new Set<string>([
       ...columnConfig,
       ...postJoinFilterColumns,
-      ...(report.sortConfig ?? []).map(s => s.column),
+      ...sortColumns,
     ]);
     const hasBlendedColumns = Array.from(referencedColumns).some(col =>
       blendedFieldsByName.has(col)
     );
-    const hasPreJoinFilters = preJoinAliasPaths.size > 0;
     const blendedDataHeaders = this.buildBlendedDataHeaders(
       columnConfig,
       blendedFieldsByName,
