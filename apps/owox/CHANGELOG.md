@@ -4,110 +4,55 @@
 
 ### Minor Changes 0.26.0
 
-- dcd4b55: # Fix: Business Owner assignment no longer reduces a Technical User's access to a Data Mart
+![OWOX Data Marts – v0.25.0](https://github.com/user-attachments/assets/b3d79515-3034-4273-93e6-00e83d92b83b)
 
-  A Technical User assigned as a Business Owner of a Data Mart that was _Available for maintenance_ could only **See** and **Use** the Data Mart — losing the **Edit**, **Delete**, and **Manage Triggers** actions they would have had as a non-owner Technical User with the same availability. Being tagged as a Business Owner effectively downgraded their access instead of adding to it.
+- 10c540e: **New OWOX Extension for Google Sheets — public release 🎉**
 
-  Permissions on a Data Mart are now decided by combining two paths: the **ownership floor** (always guarantees **See** and **Use** for any owner, even when the Data Mart is not shared) and the **non-owner sharing path** (the same actions a non-owner of the member's role would receive given the Data Mart's availability). A Technical User who is a Business Owner of a Data Mart that is _Available for maintenance_ now receives **Edit**, **Delete**, and **Manage Triggers** through the non-owner path. The non-owner path still respects role scope and contexts: a member with `Selected contexts only` scope needs a context overlap with the Data Mart for the maintenance actions to apply, while the See + Use floor remains available without overlap.
+  The next-generation [OWOX Extension for Google Sheets](https://workspace.google.com/marketplace/app/owox_data_marts/94902851409?utm_source=changelog) is now published on the Google Workspace Marketplace, replacing the legacy add-on. It brings Data Marts directly into Google Sheets with a redesigned UX and reaches parity with the previous Extension on the workflows users relied on.
 
-  Business Users assigned as Business Owner are unchanged — they still get **See** and **Use** only, because the Business User role does not permit maintenance on Data Marts. _Configure Availability_ and _Manage Owners_ continue to require a Technical Owner with Technical User role or a Project Admin.
+  - **Column picker with field-level descriptions** — pick which Data Mart fields to pull into the sheet without SQL, with the alias and description from the Data Mart's Output Schema shown next to each field.
+  - **All Scheduled Reports page** — a single place to see every report scheduled from the Extension, across spreadsheets and projects, subject to the user's permissions.
+  - **Filters and slices on report output** — apply pre-join slices and post-join filters to shape what a report returns without editing the Data Mart.
+  - **Refresh Current and Refresh All** — re-run a single report or every report on the sheet in one click.
+  - **Granular permissions with Contexts support** — the Extension honours the full permissions model: per-member, per-entity availability flags, and Project Contexts so a user sees only the Data Marts, Storages, and Destinations relevant to their team. When OAuth scopes are missing or revoked, the Extension explains what's wrong and walks the user through re-granting access.
+  - **In-product support via Intercom** — chat with the OWOX team without leaving the sidebar.
 
-- 85b150c: # Default fields for connector endpoints
+- 85b150c: **Default fields for connector endpoints**
 
-  Each connector endpoint now ships with a curated set of default fields that are pre-selected when a user first picks that endpoint. Previously, users had to manually choose fields from scratch every time.
+  Each connector endpoint now ships with a curated set of pre-selected default fields, so users no longer have to choose fields from scratch on first use. Endpoint overviews and descriptions were also rewritten for clarity.
 
-  Endpoint overviews and descriptions were also rewritten across these connectors to be clearer and more informative.
+- c083319: **Data Mart run indicator**
 
-- ce7d14d: # Fixed empty Data Mart titles after adding emoji
+  An "Updating data" badge with an animated spinner now appears in the Data Mart header during active runs. The badge includes a "View runs" button for one-click access to run history. The manual run button is disabled while another run is in progress, with a tooltip explaining why.
 
-  Data Mart titles no longer become empty when emoji or certain special symbols are entered. Users now see a clear message explaining that these characters are not supported for Legacy BigQuery storage, preventing accidental data loss.
+- 5b55bf2: **Membership requests on the Members page**
 
-- 134884f: # Add "Enable Google Sheets" conditional checklist group for users who selected Sheets-related use cases during onboarding
+  Project Admins can now review and act on pending project join requests from Project Settings → Members. Pending requests appear as a collapsible card above the members list. Clicking a request opens a side sheet to assign role, role scope, and contexts before approving, or to decline with a confirmation dialog. The section is admin-only and hidden when there are no pending requests.
 
-  **Problem**
-  Data analysts who selected Google Sheets use cases during onboarding didn't understand:
-  - That Sheets is a key workflow in OWOX
-  - That they should share data with business users
-  - That the Google Sheets Extension exists
-    This led to low engagement, business users not being involved, and missed product value.
+- 134884f: **"Enable Google Sheets" checklist group for onboarding**
 
-  **Solution**
-  Replace the generic "Get data to your report" group with a Sheets-specific "Enable Google Sheets" group for targeted users.
+  Users whose `onboarding.use_case` contains `sync_dwh_sheets` or `import_external_sheets` now see a dedicated "Enable Google Sheets" group in the Setup Checklist instead of the generic "Get data to your report" group. Three steps: create a Google Sheets Destination, install the Extension, and create and run a report from it. The group is non-blocking and auto-updates as users complete each step.
 
-  **Added new "Enable Google Sheets" group in the Setup Checklist**
-  Shown to: Users with `onboarding.use_case` containing `sync_dwh_sheets` or `import_external_sheets`
+- c520e17: **Stricter OAuth credential checks when creating Destinations**
 
-  **Steps:**
-  1. **Create Destination - Google Sheets** → Links to `/data-destinations`
-  2. **Install Google Sheets Extension** → Opens [Google Workspace Marketplace](https://workspace.google.com/marketplace/app/owox_data_marts/94902851409)
-  3. **Create & Run Report from Extension** → Opens `sheets.new`
+  Creating a Google Sheets destination with a pre-existing `credentialId` now enforces two checks already present on destination updates:
 
-  **Features:**
-  - Non-blocking (doesn't prevent progress on other checklist items)
-  - Auto-updates when user creates destination or runs report
-  - Uses `refetchInterval` to sync status in real-time
+  - **Project ownership** — the credential must belong to the same project. Cross-project references are rejected with `403 Forbidden — Credential does not belong to this project`.
+  - **Copy permission** — if the credential is already linked to another destination, the caller must have copy-credentials access on that destination. Without it, the request is rejected with `403 Forbidden — You do not have permission to copy credentials from this destination`.
 
-- da6e5f0: # Fix: SQL generation errors in blended reports
+  Legitimate flows are unaffected — a fresh `credentialId` returned by the OAuth callback is not yet linked to any destination and passes both checks transparently.
 
-  Two related fixes in the blended-report SQL builder:
-  - **Ambiguous column errors in filters and sorting.** Blended reports that filtered or sorted on a column whose name also existed in another joined data mart (for example, a shared `date` join key) failed with database errors like `Column name date is ambiguous`. The generated WHERE and ORDER BY clauses referenced bare column names while the rest of the query already qualified every column with its CTE alias. The query builder now qualifies every WHERE and ORDER BY reference with the correct CTE alias (`main.<col>` for native columns, `<subsidiary>.<alias>` for blended fields, including hidden ones referenced only by filters). Filtering or sorting on a native column that isn't selected for display also now correctly projects that column into the main CTE, so those queries no longer fail with "unknown column" errors.
-  - **Duplicate CTE names in joined chains.** Two relationships sharing the same `targetAlias` (legal — uniqueness is scoped to `sourceDataMart`) made the SQL builder emit two CTEs with the same name, and the query failed at run / view-SQL / Looker Studio time. CTE names are now derived from the full `aliasPath` (dots → underscores), so every chain gets a unique identifier. The previous targetAlias-collision validation is replaced by a defence-in-depth `cteName` check that surfaces the (rare) path-segment-flatten case with an actionable error.
+- 31ae838: **Clarified Microsoft Ads account and customer ID fields**
 
-- ce7d14d: # Fixed delay when loading Destinations in the Extension
+  Docs and in-product field tips now explicitly state that Account ID and Customer ID must be the numeric API identifiers from the `aid` and `cid` URL parameters, not the alphanumeric numbers shown elsewhere in the Microsoft Ads UI.
 
-  Destinations now load and appear faster in the Extension without unexpected delays.
-
-- ce7d14d: # Fixed hidden reporting fields appearing in the Extension column picker
-
-  Reporting fields marked as hidden are no longer shown in the Extension column picker, keeping the interface clean and relevant.
-
-- d0f5455: # Fix React SVG Attribute Warnings in Icons
-
-  Fixed React SVG attribute warnings in Microsoft Teams and Azure Synapse icon components by replacing invalid SVG kebab-case properties with JSX-compatible camelCase attributes.
-
-- ce7d14d: # Improved empty screen for new Extension users
-
-  The Extension now shows a more helpful empty state for new users, making it clearer how to get started and what steps to take next.
-
-- c520e17: # Stricter project ownership and copy-permission checks when linking an existing OAuth credential to a new destination
-
-  Creating a Google Sheets destination with a pre-existing `credentialId` is now protected by the same two checks that already guarded credential copying from a source destination.
-  - **Project ownership.** The credential must belong to the same project as the destination being created. Requests that reference a credential from a different project are rejected with `403 Forbidden — Credential does not belong to this project`. This brings the create endpoint in line with the destination update endpoint, which has always performed this check.
-  - **Copy permission.** If the supplied credential is already linked to another destination in your project, creating a new destination with that same credential now requires explicit copy-credentials access on the existing destination — the same permission the **Copy from destination** flow has always required. If you do not have access, the request is rejected with `403 Forbidden — You do not have permission to copy credentials from this destination`.
-
-  Legitimate flows are unaffected. When you finish the Google OAuth flow and the UI immediately creates a destination with the returned `credentialId`, the credential is fresh (not yet linked to any destination) and lives in your project, so both checks pass transparently. No database migration or configuration change is required, and existing destinations and credentials are not modified.
-
-- c083319: # Data Mart Run Indicator and other improvements
-
-  **Live Run Indicator** — When your Data Mart is actively processing data, a clear "Updating data" badge with an animated spinner now appears in the header. You'll always know when work is happening.
-
-  **One-Click Run History** — The new indicator includes a "View runs" button that jumps straight to your run history — no navigation hunting required.
-
-  **Conflict-Free Manual Runs** — Trying to start a manual run while another is in progress? The button is now smartly disabled with an explanation tooltip: "Please wait for the current run to complete." No more accidental overlapping runs.
-
-- 5b55bf2: # Membership requests on the new Members page
-
-  Project Admins can now see and act on pending requests to join a project from the new Project Settings → Members page. The section is admin-only, hidden when empty, and renders as a collapsible card of inline request rows above the members list. Clicking a row opens a side sheet where the admin picks the final role, role scope and (optionally) the contexts to pre-assign before approving, or declines the request with a confirmation dialog.
-
-  The full path ships in this release: IDP protocol contract, backend use-cases, web UI, and a real C2C call to the Integrated backend's `/membership-requests` endpoints from the OWOX IDP provider.
-
-- 31ae838: # Clarify Microsoft Ads account and customer IDs
-
-  Microsoft Ads connector docs and in-product field tips now explain that Account ID and Customer ID must be the numeric API identifiers from the `aid` and `cid` URL parameters, not the alphanumeric account/customer numbers shown in parts of the Microsoft Ads UI.
-
-- c9f5bea: # Security: scope project notification settings API to the authenticated project
-
-  Project notification settings endpoints are now scoped strictly to the project of the authenticated user.
-  The previous routes (`projects/:projectId/notification-settings*`) trusted a caller-controlled URL segment for
-  tenant access, while role checks were performed against the token's own project — this allowed an authenticated
-  user from one project to read or modify another project's notification configuration.
-
-- 10c540e: # Slices: filter joined data marts before they are joined
-
-  Reports on joined data marts gain pre-join filters ("slices") — a filter applied INSIDE the joined data mart's `*_raw` CTE before the JOIN,
-  so large subsidiary tables can be narrowed to the rows you need upstream.
-  The Slices section appears next to Filters / Sort / Limit in the Report editor; a tooltip explains that under LEFT JOIN a slice narrows the subsidiary but does not drop home-mart rows — add a Filter on the joined column for row elimination.
-  BigQuery only for v1; columns that disappear from the schema after save are flagged in the UI and rejected with a structured 400 on save.
+- dcd4b55: # **Bug fixes and improvements**
+  - dcd4b55: Fixed Business Owner assignment reducing a Technical User's access. A Technical User tagged as Business Owner of a Data Mart that was _Available for maintenance_ lost Edit, Delete, and Manage Triggers — actions they would have had as a non-owner Technical User. Permissions now combine two paths: an ownership floor (always guarantees See + Use for any owner) and the non-owner sharing path (role-based maintenance actions). Context and role scope still apply to maintenance actions: a member with `Selected contexts only` scope needs a context overlap with the Data Mart for maintenance access. Business Users assigned as Business Owner are unchanged — they still receive See + Use only, as the Business User role does not permit Data Mart maintenance.
+  - ce7d14d: Fixed empty Data Mart titles when emoji or special characters are entered — users now see a clear message that these characters are not supported for Legacy BigQuery storage.
+  - ce7d14d: Fixed unexpected delay when loading Destinations in the Extension; hidden reporting fields no longer appear in the column picker; improved empty state for new users.
+  - da6e5f0: Fixed ambiguous column errors in blended report filters and sorting — WHERE and ORDER BY clauses now qualify every reference with the correct CTE alias (`main.<col>` for native columns, `<subsidiary>.<alias>` for blended fields). Fixed duplicate CTE names when two relationships shared the same `targetAlias` — CTE names are now derived from the full `aliasPath` (dots → underscores) to guarantee uniqueness.
+  - d0f5455: Fixed React SVG attribute warnings in Microsoft Teams and Azure Synapse icon components.
+  - c9f5bea: Fixed project notification settings endpoints (`projects/:projectId/notification-settings*`) accepting a caller-controlled project ID — an authenticated user could previously read or modify another project's notification configuration.
 
 ### Patch Changes 0.26.0
 
