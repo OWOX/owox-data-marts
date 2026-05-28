@@ -9,7 +9,7 @@ import {
   isConnectorDefinition,
   isTableDefinition,
 } from '../../../dto/schemas/data-mart-table-definitions/data-mart-definition.guards';
-import { Report } from '../../../entities/report.entity';
+import { ReportLike } from '../../../dto/domain/report-like-read-plan';
 import { DataMartDefinitionType } from '../../../enums/data-mart-definition-type.enum';
 import { isBigQueryDataMartSchema } from '../../data-mart-schema.guards';
 import { isBigQueryConfig } from '../../data-storage-config.guards';
@@ -61,7 +61,7 @@ export class BigQueryReportReader implements DataStorageReportReader {
   ) {}
 
   public async prepareReportData(
-    report: Report,
+    report: ReportLike,
     options?: PrepareReportDataOptions
   ): Promise<ReportDataDescription> {
     const { storage, definitionType, definition, schema } = report.dataMart;
