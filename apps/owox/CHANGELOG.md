@@ -1,5 +1,68 @@
 # owox
 
+## 0.26.0
+
+### Minor Changes 0.26.0
+
+![OWOX Data Marts – v0.25.0](https://github.com/user-attachments/assets/b3d79515-3034-4273-93e6-00e83d92b83b)
+
+- 10c540e: **New OWOX Extension for Google Sheets — public release 🎉**
+
+  The next-generation [OWOX Extension for Google Sheets](https://workspace.google.com/marketplace/app/owox_data_marts/94902851409?utm_source=changelog) is now published on the Google Workspace Marketplace, replacing the legacy add-on. It brings Data Marts directly into Google Sheets with a redesigned UX and reaches parity with the previous Extension on the workflows users relied on.
+
+  - **Column picker with field-level descriptions** — pick which Data Mart fields to pull into the sheet without SQL, with the alias and description from the Data Mart's Output Schema shown next to each field.
+  - **All Scheduled Reports page** — a single place to see every report scheduled from the Extension, across spreadsheets and projects, subject to the user's permissions.
+  - **Filters and slices on report output** — apply pre-join slices and post-join filters to shape what a report returns without editing the Data Mart.
+  - **Refresh Current and Refresh All** — re-run a single report or every report on the sheet in one click.
+  - **Granular permissions with Contexts support** — the Extension honours the full permissions model: per-member, per-entity availability flags, and Project Contexts so a user sees only the Data Marts, Storages, and Destinations relevant to their team. When OAuth scopes are missing or revoked, the Extension explains what's wrong and walks the user through re-granting access.
+  - **In-product support via Intercom** — chat with the OWOX team without leaving the sidebar.
+
+- 85b150c: **Default fields for connector endpoints**
+
+  Each connector endpoint now ships with a curated set of pre-selected default fields, so users no longer have to choose fields from scratch on first use. Endpoint overviews and descriptions were also rewritten for clarity.
+
+- c083319: **Data Mart run indicator**
+
+  An "Updating data" badge with an animated spinner now appears in the Data Mart header during active runs. The badge includes a "View runs" button for one-click access to run history. The manual run button is disabled while another run is in progress, with a tooltip explaining why.
+
+- 5b55bf2: **Membership requests on the Members page**
+
+  Project Admins can now review and act on pending project join requests from Project Settings → Members. Pending requests appear as a collapsible card above the members list. Clicking a request opens a side sheet to assign role, role scope, and contexts before approving, or to decline with a confirmation dialog. The section is admin-only and hidden when there are no pending requests.
+
+- 134884f: **"Enable Google Sheets" checklist group for onboarding**
+
+  Users whose `onboarding.use_case` contains `sync_dwh_sheets` or `import_external_sheets` now see a dedicated "Enable Google Sheets" group in the Setup Checklist instead of the generic "Get data to your report" group. Three steps: create a Google Sheets Destination, install the Extension, and create and run a report from it. The group is non-blocking and auto-updates as users complete each step.
+
+- c520e17: **Stricter OAuth credential checks when creating Destinations**
+
+  Creating a Google Sheets destination with a pre-existing `credentialId` now enforces two checks already present on destination updates:
+
+  - **Project ownership** — the credential must belong to the same project. Cross-project references are rejected with `403 Forbidden — Credential does not belong to this project`.
+  - **Copy permission** — if the credential is already linked to another destination, the caller must have copy-credentials access on that destination. Without it, the request is rejected with `403 Forbidden — You do not have permission to copy credentials from this destination`.
+
+  Legitimate flows are unaffected — a fresh `credentialId` returned by the OAuth callback is not yet linked to any destination and passes both checks transparently.
+
+- 31ae838: **Clarified Microsoft Ads account and customer ID fields**
+
+  Docs and in-product field tips now explicitly state that Account ID and Customer ID must be the numeric API identifiers from the `aid` and `cid` URL parameters, not the alphanumeric numbers shown elsewhere in the Microsoft Ads UI.
+
+- dcd4b55: # **Bug fixes and improvements**
+  - dcd4b55: Fixed Business Owner assignment reducing a Technical User's access. A Technical User tagged as Business Owner of a Data Mart that was _Available for maintenance_ lost Edit, Delete, and Manage Triggers — actions they would have had as a non-owner Technical User. Permissions now combine two paths: an ownership floor (always guarantees See + Use for any owner) and the non-owner sharing path (role-based maintenance actions). Context and role scope still apply to maintenance actions: a member with `Selected contexts only` scope needs a context overlap with the Data Mart for maintenance access. Business Users assigned as Business Owner are unchanged — they still receive See + Use only, as the Business User role does not permit Data Mart maintenance.
+  - ce7d14d: Fixed empty Data Mart titles when emoji or special characters are entered — users now see a clear message that these characters are not supported for Legacy BigQuery storage.
+  - ce7d14d: Fixed unexpected delay when loading Destinations in the Extension; hidden reporting fields no longer appear in the column picker; improved empty state for new users.
+  - da6e5f0: Fixed ambiguous column errors in blended report filters and sorting — WHERE and ORDER BY clauses now qualify every reference with the correct CTE alias (`main.<col>` for native columns, `<subsidiary>.<alias>` for blended fields). Fixed duplicate CTE names when two relationships shared the same `targetAlias` — CTE names are now derived from the full `aliasPath` (dots → underscores) to guarantee uniqueness.
+  - d0f5455: Fixed React SVG attribute warnings in Microsoft Teams and Azure Synapse icon components.
+  - c9f5bea: Fixed project notification settings endpoints (`projects/:projectId/notification-settings*`) accepting a caller-controlled project ID — an authenticated user could previously read or modify another project's notification configuration.
+
+### Patch Changes 0.26.0
+
+- @owox/internal-helpers@0.26.0
+- @owox/idp-protocol@0.26.0
+- @owox/idp-better-auth@0.26.0
+- @owox/idp-owox-better-auth@0.26.0
+- @owox/backend@0.26.0
+- @owox/web@0.26.0
+
 ## 0.25.0
 
 ### Minor Changes 0.25.0
@@ -9,7 +72,6 @@
 - 9bb6393: **AI helper for Data Mart metadata**
 
   A Sparkles ✨ button appears next to title, description, field alias, and field description inputs. Click it to get an AI-generated draft grounded in the Data Mart's schema and up to 30 sample rows. Nothing is saved until you explicitly apply the suggestion.
-
   - Bulk fill available via **Generate field descriptions** and **Generate field aliases** next to _Refresh schema_ — populates the whole Output Schema at once for review before saving.
   - Available for SQL, Table, View, and Table Pattern definitions. Connector-based Data Marts are not yet supported.
   - Self-hosted deployments: set `AI_BASE_URL`, `AI_API_KEY`, and `AI_MODEL` in the environment to enable the buttons.
@@ -21,7 +83,6 @@
 - 9e5e3e0: **Google Sheets export preserves column layout and side-by-side formulas**
 
   Refreshing an OWOX → Google Sheets report no longer wipes the entire tab. The exporter only touches the cells it owns, so anything else in the same sheet — extra columns, formulas, pivot tables, charts, named ranges — stays intact across refreshes.
-
   - Your column order wins. Reordering columns in the Output Schema after the first refresh no longer rearranges the sheet.
   - New SQL columns are appended on the right; removed columns disappear cleanly and leave a `#REF!` signal on any formula that depended on them.
   - Formulas in the first data row are automatically filled down across all new rows.
@@ -31,7 +92,6 @@
 - da9bd7e: **Output controls per report — filters, sort, and row limit**
 
   A new **Output controls** panel in the Report Columns picker lets you shape what each report writes to its destination without changing the underlying Data Mart.
-
   - **Filters** apply WHERE-style conditions on the final SELECT. Multiple filters on the same column are combined with `AND`. Filtering by a column not selected for output is supported.
   - **Sort** orders output by one or more columns with `asc`/`desc` per column; drag to reorder priorities.
   - **Limit** caps the number of rows written. Leave empty for no limit.
@@ -75,7 +135,6 @@
   The "Create & Run report" button no longer requires manually editing the default title to become active. It enables as soon as all required fields are filled.
 
 - 661b280: **Data Mart table navigation and dialog improvements**
-
   - Cmd/Ctrl+Click on a Data Mart row opens it in a new tab.
   - Long Data Mart and report titles in delete dialogs now wrap correctly.
   - Sticky action cells no longer show a transparent background during scroll.
