@@ -327,6 +327,75 @@ describe('AccessDecisionService — E2E sharing flows', () => {
     });
   });
 
+  describe('Scenario: Biz Owner (TU) + Selected contexts (no overlap) + maintenance ON', () => {
+    // Regression for the CTO review: ownership of the DM grants See/Use unconditionally,
+    // but maintenance permissions come from the non-owner sharing path and must still
+    // respect the context gate. A TU scoped to selected contexts with no overlap must
+    // not gain EDIT just because they are also Business Owner.
+    it('should deny EDIT and allow SEE for a TU Business Owner without context overlap', async () => {
+      const m = createService();
+      m.dataMartRepository.findOne.mockResolvedValue({
+        id: 'dm-1',
+        availableForReporting: true,
+        availableForMaintenance: true,
+      });
+      m.dataMartTechnicalOwnerRepository.count.mockResolvedValue(0);
+      m.dataMartBusinessOwnerRepository.count.mockResolvedValue(1);
+      m.contextAccessService.getRoleScope.mockResolvedValue(RoleScope.SELECTED_CONTEXTS);
+      m.contextAccessService.hasContextOverlap.mockResolvedValue(false);
+
+      // Ownership floor still grants See/Use regardless of context.
+      expect(
+        await m.service.canAccess(
+          'tu-biz-owner',
+          ['editor'],
+          EntityType.DATA_MART,
+          'dm-1',
+          Action.SEE,
+          'proj-1'
+        )
+      ).toBe(true);
+
+      // Maintenance permissions are denied because the non-owner sharing path is
+      // gated by the context overlap, which fails.
+      for (const action of [Action.EDIT, Action.DELETE, Action.MANAGE_TRIGGERS]) {
+        const result = await m.service.canAccess(
+          'tu-biz-owner',
+          ['editor'],
+          EntityType.DATA_MART,
+          'dm-1',
+          action,
+          'proj-1'
+        );
+        expect(result).toBe(false);
+      }
+    });
+
+    it('should allow EDIT for a TU Business Owner with context overlap under Selected contexts', async () => {
+      const m = createService();
+      m.dataMartRepository.findOne.mockResolvedValue({
+        id: 'dm-1',
+        availableForReporting: true,
+        availableForMaintenance: true,
+      });
+      m.dataMartTechnicalOwnerRepository.count.mockResolvedValue(0);
+      m.dataMartBusinessOwnerRepository.count.mockResolvedValue(1);
+      m.contextAccessService.getRoleScope.mockResolvedValue(RoleScope.SELECTED_CONTEXTS);
+      m.contextAccessService.hasContextOverlap.mockResolvedValue(true);
+
+      expect(
+        await m.service.canAccess(
+          'tu-biz-owner',
+          ['editor'],
+          EntityType.DATA_MART,
+          'dm-1',
+          Action.EDIT,
+          'proj-1'
+        )
+      ).toBe(true);
+    });
+  });
+
   describe('Scenario: Biz Owner (TU role) + DM available for maintenance = full maintenance access', () => {
     it('should allow SEE, USE, EDIT, DELETE, MANAGE_TRIGGERS for a TU who is Business Owner of a DM available for maintenance', async () => {
       const m = createService();

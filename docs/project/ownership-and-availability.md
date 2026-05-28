@@ -15,11 +15,16 @@ Access to a specific resource is decided by combining several **paths**:
 
 **Permissions are additive.** When more than one path applies, the member receives the **union** of allowed actions from all valid paths. Being assigned as an owner can only add access — it never reduces what the member could already do without that assignment.
 
+Two paths combine into the final decision:
+
+1. **Ownership floor** — what the ownership assignment alone grants (e.g. a Business Owner is guaranteed *See* and *Use* of the Data Mart). This path bypasses the context gate; ownership of a resource implies visibility of it.
+2. **Non-owner sharing path** — what any member of the same role would be able to do on the resource given its availability toggles (e.g. a Technical User on a Data Mart that is *Available for maintenance* can edit, delete, and manage triggers). This path is gated by role scope and contexts even for owners — being an owner of one resource does not lift the context restriction for actions that come from the shared sharing path.
+
 The following restrictions still apply on top of the union:
 
 - **Role gate** — a Business User never gains maintenance-level actions on Storages or Data Marts, even when they are an owner; that level of access requires the Technical User role or Project Admin.
 - **Availability gate** — non-owners only get the actions enabled by the resource's availability toggles. Ownership guarantees See + Use even when the resource is not shared.
-- **Context gate** — for non-owners with `Selected contexts only` scope, at least one context must overlap between the member and the resource. Owners bypass this check.
+- **Context gate** — for `Selected contexts only` members, at least one context must overlap between the member and the resource for the non-owner sharing path to apply. The ownership floor still grants See + Use regardless of overlap.
 - **Owner-only and admin-only actions** — *Configure Availability* and *Manage Owners* require a Technical Owner with Technical User role (for Data Marts and Storages), or a Project Admin. They are never granted through availability or non-owner paths.
 
 Project Admins bypass all of the above and have full access to every resource.
@@ -144,14 +149,16 @@ The following actions can be granted or restricted by the combination of ownersh
 |---|---|---|---|---|
 | **Technical Owner (Technical User)** | All actions | All actions | All actions | All actions |
 | **Technical Owner (Business User)** | See, Use | See, Use | See, Use | See, Use |
-| **Business Owner (Technical User)** | See, Use | See, Use | See, Use, Edit, Delete, Manage Triggers | See, Use, Edit, Delete, Manage Triggers |
+| **Business Owner (Technical User)** | See, Use | See, Use | See, Use; + Edit, Delete, Manage Triggers via non-owner path † | See, Use; + Edit, Delete, Manage Triggers via non-owner path † |
 | **Business Owner (Business User)** | See, Use | See, Use | See, Use | See, Use |
-| **Non-owner Technical User** | No access | See, Use | See, Use, Edit, Delete, Manage Triggers | See, Use, Edit, Delete, Manage Triggers |
-| **Non-owner Business User** | No access | See, Use | No access | See, Use |
+| **Non-owner Technical User** | No access ‡ | See, Use ‡ | See, Use, Edit, Delete, Manage Triggers ‡ | See, Use, Edit, Delete, Manage Triggers ‡ |
+| **Non-owner Business User** | No access ‡ | See, Use ‡ | No access ‡ | See, Use ‡ |
+
+† The maintenance actions in the **Business Owner (Technical User)** row are granted through the non-owner sharing path. Under `Selected contexts only` scope they require a context overlap between the member and the Data Mart; the See + Use floor is still granted without overlap.
+
+‡ Non-owner access is subject to the context gate: under `Selected contexts only` scope, all actions in these rows require a context overlap between the member and the Data Mart.
 
 > ☝️ When a Data Mart is available for maintenance, Business Users who are not owners still cannot access it — maintenance access is reserved for Technical Users.
->
-> ☝️ Business Owner is additive: it always grants See + Use, and — when the user is a Technical User and the Data Mart is available for maintenance — also grants Edit, Delete, and Manage Triggers. It never grants Configure Availability or Manage Owners; those still require a Technical Owner with Technical User role or a Project Admin.
 
 ---
 
@@ -163,12 +170,16 @@ Data Mart Triggers have no dedicated ownership. Who can see them and who can man
 |---|---|---|
 | **Technical Owner (Technical User)** | Yes | Yes |
 | **Technical Owner (Business User)** | Yes | No |
-| **Business Owner (Technical User)** of parent Data Mart available for maintenance | Yes | Yes |
+| **Business Owner (Technical User)** of parent Data Mart available for maintenance | Yes | Yes, via non-owner path † |
 | **Business Owner (Technical User)** of parent Data Mart not available for maintenance | Yes | No |
 | **Business Owner (Business User)** of parent Data Mart | Yes | No |
-| **Non-owner Technical User** (DM available for maintenance) | Yes | Yes |
-| **Non-owner Technical User** (DM available for reporting only) | Yes | No |
-| **Non-owner Business User** (DM visible) | Yes | No |
+| **Non-owner Technical User** (DM available for maintenance) | Yes ‡ | Yes ‡ |
+| **Non-owner Technical User** (DM available for reporting only) | Yes ‡ | No |
+| **Non-owner Business User** (DM visible) | Yes ‡ | No |
+
+† Under `Selected contexts only` scope this requires a context overlap between the member and the parent Data Mart.
+
+‡ Under `Selected contexts only` scope this requires a context overlap between the member and the parent Data Mart.
 
 ---
 

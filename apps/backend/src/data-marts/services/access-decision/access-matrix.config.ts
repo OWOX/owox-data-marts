@@ -193,66 +193,15 @@ const dmTechOwnerBuRules: AccessRule[] = dmActions.flatMap(action => {
   );
 });
 
-// Biz Owner (TU) + Not shared = SEE + USE (ownership guarantees visibility)
-const dmBizOwnerTuNotShared: AccessRule[] = dmActions.flatMap(action => {
+// Biz Owner (editor) = SEE + USE only — maintenance comes from the non-owner sharing path
+const dmBizOwnerEditorRules: AccessRule[] = dmActions.flatMap(action => {
   const allowed = action === Action.SEE || action === Action.USE;
   return expandSharingStates(
     EntityType.DATA_MART,
     action,
     Role.EDITOR,
     OwnerStatus.BIZ_OWNER,
-    [SharingState.NOT_SHARED],
-    allowed
-  );
-});
-
-// Biz Owner (TU) + Shared for reporting = SEE + USE
-const dmBizOwnerTuSharedReporting: AccessRule[] = dmActions.flatMap(action => {
-  const allowed = action === Action.SEE || action === Action.USE;
-  return expandSharingStates(
-    EntityType.DATA_MART,
-    action,
-    Role.EDITOR,
-    OwnerStatus.BIZ_OWNER,
-    [SharingState.SHARED_FOR_REPORTING],
-    allowed
-  );
-});
-
-// Biz Owner (TU) + Shared for maintenance = SEE + USE + EDIT + DELETE + MANAGE_TRIGGERS
-const dmBizOwnerTuSharedMaint: AccessRule[] = dmActions.flatMap(action => {
-  const allowed = [
-    Action.SEE,
-    Action.USE,
-    Action.EDIT,
-    Action.DELETE,
-    Action.MANAGE_TRIGGERS,
-  ].includes(action);
-  return expandSharingStates(
-    EntityType.DATA_MART,
-    action,
-    Role.EDITOR,
-    OwnerStatus.BIZ_OWNER,
-    [SharingState.SHARED_FOR_MAINTENANCE],
-    allowed
-  );
-});
-
-// Biz Owner (TU) + Shared for both = same as maintenance
-const dmBizOwnerTuSharedBoth: AccessRule[] = dmActions.flatMap(action => {
-  const allowed = [
-    Action.SEE,
-    Action.USE,
-    Action.EDIT,
-    Action.DELETE,
-    Action.MANAGE_TRIGGERS,
-  ].includes(action);
-  return expandSharingStates(
-    EntityType.DATA_MART,
-    action,
-    Role.EDITOR,
-    OwnerStatus.BIZ_OWNER,
-    [SharingState.SHARED_FOR_BOTH],
+    'any',
     allowed
   );
 });
@@ -544,10 +493,7 @@ export const ACCESS_MATRIX: AccessRule[] = [
   ...adminRules(EntityType.DATA_MART),
   ...dmTechOwnerTuRules,
   ...dmTechOwnerBuRules,
-  ...dmBizOwnerTuNotShared,
-  ...dmBizOwnerTuSharedReporting,
-  ...dmBizOwnerTuSharedMaint,
-  ...dmBizOwnerTuSharedBoth,
+  ...dmBizOwnerEditorRules,
   ...dmBizOwnerViewerRules,
   ...dmNonOwnerTuNotShared,
   ...dmNonOwnerTuSharedReporting,
