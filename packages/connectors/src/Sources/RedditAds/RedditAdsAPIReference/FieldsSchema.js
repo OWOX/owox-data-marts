@@ -12,7 +12,7 @@ var RedditFieldsSchema = {
     "documentation": "https://ads-api.reddit.com/docs/v3/operations/Get%20Me",
     "fields": adAccountUserFields,
     "uniqueKeys": ["id"],
-    "defaultFields": ["id", "email", "firstname", "lastname", "reddit_user_id", "reddit_username"],
+    "defaultFields": ["email", "firstname", "lastname", "reddit_user_id", "reddit_username"],
     "destinationName": "reddit_ads_ad_account_user"
   },
   "ad-account": {
@@ -21,7 +21,7 @@ var RedditFieldsSchema = {
     "documentation": "https://ads-api.reddit.com/docs/v3/operations/Get%20Ad%20Account",
     "fields": adAccountFields,
     "uniqueKeys": ["id"],
-    "defaultFields": ["id", "name", "type", "currency", "attribution_type", "click_attribution_window", "view_attribution_window", "created_at", "modified_at"],
+    "defaultFields": ["name", "type", "currency", "attribution_type", "click_attribution_window", "view_attribution_window", "created_at", "modified_at"],
     "destinationName": "reddit_ads_ad_account"
   },
   "ad-group": {
@@ -30,7 +30,7 @@ var RedditFieldsSchema = {
     "documentation": "https://ads-api.reddit.com/docs/v3/operations/List%20Ad%20Groups",
     "fields": adGroupFields,
     "uniqueKeys": ["id"],
-    "defaultFields": ["id", "name", "ad_account_id", "campaign_id", "configured_status", "effective_status", "bid_strategy", "bid_type", "goal_type", "start_time", "end_time", "is_campaign_budget_optimization"],
+    "defaultFields": ["name", "ad_account_id", "campaign_id", "configured_status", "effective_status", "bid_strategy", "bid_type", "goal_type", "start_time", "end_time", "is_campaign_budget_optimization"],
     "destinationName": "reddit_ads_ad_group",
     "parameters": {
       "pageSize": {
@@ -46,7 +46,7 @@ var RedditFieldsSchema = {
     "documentation": "https://ads-api.reddit.com/docs/v3/operations/List%20Ads",
     "fields": adsFields,
     "uniqueKeys": ["id"],
-    "defaultFields": ["id", "name", "type", "ad_account_id", "ad_group_id", "campaign_id", "configured_status", "effective_status", "post_id"],
+    "defaultFields": ["ad_account_id", "campaign_id", "name"],
     "destinationName": "reddit_ads_ads"
   },
   "campaigns": {
@@ -55,7 +55,7 @@ var RedditFieldsSchema = {
     "documentation": "https://ads-api.reddit.com/docs/v3/operations/List%20Campaigns",
     "fields": campaignsFields,
     "uniqueKeys": ["id"],
-    "defaultFields": ["id", "name", "objective", "ad_account_id", "configured_status", "effective_status", "spend_cap", "created_at"],
+    "defaultFields": ["ad_account_id", "name"],
     "destinationName": "reddit_ads_campaigns"
   },
   "user-custom-audience": {
@@ -64,7 +64,7 @@ var RedditFieldsSchema = {
     "documentation": "https://ads-api.reddit.com/docs/v3/operations/List%20User%20Custom%20Audiences",
     "fields": userCustomAudienceFields,
     "uniqueKeys": ["id"],
-    "defaultFields": ["id", "name", "type", "status", "ad_account_id", "size_range_lower", "size_range_upper"],
+    "defaultFields": ["name", "type", "status", "ad_account_id", "size_range_lower", "size_range_upper"],
     "destinationName": "reddit_ads_user_custom_audience"
   },
   "funding-instruments": {
@@ -73,7 +73,7 @@ var RedditFieldsSchema = {
     "documentation": "https://ads-api.reddit.com/docs/v3/operations/List%20Funding%20Instruments",
     "fields": fundingInstrumentFields,
     "uniqueKeys": ["id"],
-    "defaultFields": ["id", "name", "currency", "credit_limit", "billable_amount", "is_servable"],
+    "defaultFields": ["name", "currency", "credit_limit", "billable_amount", "is_servable"],
     "destinationName": "reddit_ads_funding_instruments"
   },
   "lead-gen-form": {
@@ -82,7 +82,7 @@ var RedditFieldsSchema = {
     "documentation": "https://ads-api.reddit.com/docs/v3/operations/List%20Lead%20Gen%20Forms",
     "fields": leadGenFormFields,
     "uniqueKeys": ["id"],
-    "defaultFields": ["id", "name", "ad_account_id", "prompt", "created_at"],
+    "defaultFields": ["name", "ad_account_id", "prompt", "created_at"],
     "destinationName": "reddit_ads_lead_gen_form"
   },
   "report": {
@@ -91,7 +91,7 @@ var RedditFieldsSchema = {
     "documentation": "https://ads-api.reddit.com/docs/v3/operations/List%20Ad%20Metrics",
     "fields": reportFields,
     "uniqueKeys": ["ad_id", "date"],
-    "defaultFields": ["ad_id", "date", "impressions", "clicks", "spend", "ctr", "cpc", "ecpm", "reach", "frequency", "key_conversion_total_count", "key_conversion_ecpa", "conversion_purchase_clicks", "conversion_purchase_total_value", "conversion_roas"],
+    "defaultFields": ["impressions", "clicks", "spend", "ctr", "cpc", "ecpm", "reach", "frequency", "key_conversion_total_count", "key_conversion_ecpa", "conversion_purchase_clicks", "conversion_purchase_total_value", "conversion_roas"],
     "destinationName": "reddit_ads_report",
     "isTimeSeries": true
   },
@@ -101,7 +101,7 @@ var RedditFieldsSchema = {
     "documentation": "https://ads-api.reddit.com/docs/v3/operations/List%20Ad%20Metrics",
     "fields": reportCountryFields,
     "uniqueKeys": ["ad_id", "date", "country"],
-    "defaultFields": ["ad_id", "date", "country", "impressions", "clicks", "spend", "ctr", "cpc", "ecpm", "reach", "frequency", "key_conversion_total_count", "key_conversion_ecpa", "conversion_purchase_clicks", "conversion_purchase_total_value", "conversion_roas"],
+    "defaultFields": ["clicks", "hour", "impressions", "post_id", "spend"],
     "destinationName": "reddit_ads_report_by_COUNTRY",
     "isTimeSeries": true
   },
@@ -111,7 +111,7 @@ var RedditFieldsSchema = {
     "documentation": "https://ads-api.reddit.com/docs/v3/operations/List%20Ad%20Metrics",
     "fields": reportAdGroupIdFields,
     "uniqueKeys": ["ad_id", "date", "ad_group_id"],
-    "defaultFields": ["ad_id", "date", "ad_group_id", "impressions", "clicks", "spend", "ctr", "cpc", "ecpm", "reach", "frequency", "key_conversion_total_count", "key_conversion_ecpa", "conversion_purchase_clicks", "conversion_purchase_total_value", "conversion_roas"],
+    "defaultFields": ["impressions", "clicks", "spend", "ctr", "cpc", "ecpm", "reach", "frequency", "key_conversion_total_count", "key_conversion_ecpa", "conversion_purchase_clicks", "conversion_purchase_total_value", "conversion_roas"],
     "destinationName": "reddit_ads_report_by_AD_GROUP_ID",
     "isTimeSeries": true
   },
@@ -121,7 +121,7 @@ var RedditFieldsSchema = {
     "documentation": "https://ads-api.reddit.com/docs/v3/operations/List%20Ad%20Metrics",
     "fields": reportCampaignIdFields,
     "uniqueKeys": ["ad_id", "date", "campaign_id"],
-    "defaultFields": ["ad_id", "date", "campaign_id", "impressions", "clicks", "spend", "ctr", "cpc", "ecpm", "reach", "frequency", "key_conversion_total_count", "key_conversion_ecpa", "conversion_purchase_clicks", "conversion_purchase_total_value", "conversion_roas"],
+    "defaultFields": ["impressions", "clicks", "spend", "ctr", "cpc", "ecpm", "reach", "frequency", "key_conversion_total_count", "key_conversion_ecpa", "conversion_purchase_clicks", "conversion_purchase_total_value", "conversion_roas"],
     "destinationName": "reddit_ads_report_by_CAMPAIGN_ID",
     "isTimeSeries": true
   },
@@ -131,7 +131,7 @@ var RedditFieldsSchema = {
     "documentation": "https://ads-api.reddit.com/docs/v3/operations/List%20Ad%20Metrics",
     "fields": reportDmaBasedFields,
     "uniqueKeys": ["ad_id", "date", "dma"],
-    "defaultFields": ["ad_id", "date", "dma", "impressions", "clicks", "spend", "ctr", "cpc", "ecpm", "reach", "frequency", "key_conversion_total_count", "key_conversion_ecpa", "conversion_purchase_clicks", "conversion_purchase_total_value", "conversion_roas"],
+    "defaultFields": ["impressions", "clicks", "spend", "ctr", "cpc", "ecpm", "reach", "frequency", "key_conversion_total_count", "key_conversion_ecpa", "conversion_purchase_clicks", "conversion_purchase_total_value", "conversion_roas"],
     "destinationName": "reddit_ads_report_by_DMA",
     "isTimeSeries": true
   },
@@ -141,7 +141,7 @@ var RedditFieldsSchema = {
     "documentation": "https://ads-api.reddit.com/docs/v3/operations/List%20Ad%20Metrics",
     "fields": reportInterestFields,
     "uniqueKeys": ["ad_id", "date", "interest"],
-    "defaultFields": ["ad_id", "date", "interest", "impressions", "clicks", "spend", "ctr", "cpc", "ecpm", "reach", "frequency", "key_conversion_total_count", "key_conversion_ecpa", "conversion_purchase_clicks", "conversion_purchase_total_value", "conversion_roas"],
+    "defaultFields": ["impressions", "clicks", "spend", "ctr", "cpc", "ecpm", "reach", "frequency", "key_conversion_total_count", "key_conversion_ecpa", "conversion_purchase_clicks", "conversion_purchase_total_value", "conversion_roas"],
     "destinationName": "reddit_ads_report_by_INTEREST",
     "isTimeSeries": true
   },
@@ -151,7 +151,7 @@ var RedditFieldsSchema = {
     "documentation": "https://ads-api.reddit.com/docs/v3/operations/List%20Ad%20Metrics",
     "fields": reportKeywordFields,
     "uniqueKeys": ["ad_id", "date", "keyword"],
-    "defaultFields": ["ad_id", "date", "keyword", "impressions", "clicks", "spend", "ctr", "cpc", "ecpm", "reach", "frequency", "key_conversion_total_count", "key_conversion_ecpa", "conversion_purchase_clicks", "conversion_purchase_total_value", "conversion_roas"],
+    "defaultFields": ["impressions", "clicks", "spend", "ctr", "cpc", "ecpm", "reach", "frequency", "key_conversion_total_count", "key_conversion_ecpa", "conversion_purchase_clicks", "conversion_purchase_total_value", "conversion_roas"],
     "destinationName": "reddit_ads_report_by_KEYWORD",
     "isTimeSeries": true
   },
@@ -161,7 +161,7 @@ var RedditFieldsSchema = {
     "documentation": "https://ads-api.reddit.com/docs/v3/operations/List%20Ad%20Metrics",
     "fields": reportPlacementFields,
     "uniqueKeys": ["ad_id", "date", "placement"],
-    "defaultFields": ["ad_id", "date", "placement", "impressions", "clicks", "spend", "ctr", "cpc", "ecpm", "reach", "frequency", "key_conversion_total_count", "key_conversion_ecpa", "conversion_purchase_clicks", "conversion_purchase_total_value", "conversion_roas"],
+    "defaultFields": ["impressions", "clicks", "spend", "ctr", "cpc", "ecpm", "reach", "frequency", "key_conversion_total_count", "key_conversion_ecpa", "conversion_purchase_clicks", "conversion_purchase_total_value", "conversion_roas"],
     "destinationName": "reddit_ads_report_by_PLACEMENT",
     "isTimeSeries": true
   },
@@ -171,7 +171,7 @@ var RedditFieldsSchema = {
     "documentation": "https://ads-api.reddit.com/docs/v3/operations/List%20Ad%20Metrics",
     "fields": reportAdAccountIdFields,
     "uniqueKeys": ["ad_id", "date", "account_id"],
-    "defaultFields": ["ad_id", "date", "account_id", "impressions", "clicks", "spend", "ctr", "cpc", "ecpm", "reach", "frequency", "key_conversion_total_count", "key_conversion_ecpa", "conversion_purchase_clicks", "conversion_purchase_total_value", "conversion_roas"],
+    "defaultFields": ["impressions", "clicks", "spend", "ctr", "cpc", "ecpm", "reach", "frequency", "key_conversion_total_count", "key_conversion_ecpa", "conversion_purchase_clicks", "conversion_purchase_total_value", "conversion_roas"],
     "destinationName": "reddit_ads_report_by_AD_ACCOUNT_ID",
     "isTimeSeries": true
   },
@@ -181,7 +181,7 @@ var RedditFieldsSchema = {
     "documentation": "https://ads-api.reddit.com/docs/v3/operations/List%20Ad%20Metrics",
     "fields": reportCommunityFields,
     "uniqueKeys": ["ad_id", "date", "community"],
-    "defaultFields": ["ad_id", "date", "community", "impressions", "clicks", "spend", "ctr", "cpc", "ecpm", "reach", "frequency", "key_conversion_total_count", "key_conversion_ecpa", "conversion_purchase_clicks", "conversion_purchase_total_value", "conversion_roas"],
+    "defaultFields": ["impressions", "clicks", "spend", "ctr", "cpc", "ecpm", "reach", "frequency", "key_conversion_total_count", "key_conversion_ecpa", "conversion_purchase_clicks", "conversion_purchase_total_value", "conversion_roas"],
     "destinationName": "reddit_ads_report_by_COMMUNITY",
     "isTimeSeries": true
   }

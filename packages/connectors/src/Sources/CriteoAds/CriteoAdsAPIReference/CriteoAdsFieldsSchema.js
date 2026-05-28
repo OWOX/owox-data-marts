@@ -12,7 +12,7 @@ var CriteoAdsFieldsSchema = {
     documentation: "https://developers.criteo.com/marketing-solutions/docs/campaign-statistics",
     fields: adStatisticsFields,
     uniqueKeys: ["CampaignId", "AdvertiserId", "AdsetId", "AdId", "Day"],
-    defaultFields: ["Day", "CampaignId", "Campaign", "AdvertiserId", "Advertiser", "AdsetId", "Adset", "AdId", "Ad", "Clicks", "Displays", "AdvertiserCost", "SalesClientAttribution", "RevenueGeneratedClientAttribution"],
+    defaultFields: ["Clicks", "Displays", "AdvertiserCost", "Campaign", "Advertiser", "Adset", "Ad", "Currency"],
     destinationName: "criteo_ads_statistics",
     isTimeSeries: true
   }

@@ -100,7 +100,7 @@ var FacebookMarketingFieldsSchema = {
         "fields": adAccountInsightsFieldsByCountry,
         "breakdowns": ["country"],
         'uniqueKeys': ["ad_id", "date_start", "date_stop", "country"],
-        'defaultFields': ["account_id", "account_name", "campaign_id", "campaign_name", "adset_id", "adset_name", "ad_name", "impressions", "reach", "clicks", "spend", "cpc", "cpm", "ctr", "frequency", "actions", "action_values"],
+        'defaultFields': ["account_currency", "account_id", "account_name", "ad_name", "adset_id", "adset_name", "campaign_id", "campaign_name", "clicks", "impressions", "inline_link_clicks", "reach", "spend"],
         "isTimeSeries": true,
         "destinationName": "facebook_ads_ad_account_insights_by_country"
     },
@@ -165,7 +165,7 @@ var FacebookMarketingFieldsSchema = {
         "documentation": "https://developers.facebook.com/docs/marketing-api/reference/adgroup/",
         "fields": adGroupFields,
         'uniqueKeys': ["id"],
-        'defaultFields': ["name", "account_id", "status", "effective_status", "adset_id", "campaign_id", "creative_id", "created_time", "updated_time"],
+        'defaultFields': ["account_id", "creative_effective_object_story_id", "creative_name", "creative_object_story_spec", "creative_url_tags", "creative_asset_groups_spec", "name"],
         "isTimeSeries": false,
         "destinationName": "facebook_ads_ad_group"
     },

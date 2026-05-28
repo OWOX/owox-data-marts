@@ -12,7 +12,7 @@ var XAdsFieldsSchema = {
     documentation: "https://developer.twitter.com/en/docs/twitter-ads-api/account-structure",
     fields: accountFields,
     uniqueKeys: ["id"],
-    defaultFields: ["id", "name", "business_name", "country_code", "timezone", "industry_type", "approval_status", "created_at", "updated_at"],
+    defaultFields: ["name", "business_name"],
     destinationName: "x_ads_accounts"
   },
   campaigns: {
@@ -21,7 +21,7 @@ var XAdsFieldsSchema = {
     documentation: "https://developer.twitter.com/en/docs/twitter-ads-api/campaign-management",
     fields: campaignFields,
     uniqueKeys: ["id"],
-    defaultFields: ["id", "name", "account_id", "entity_status", "effective_status", "budget_optimization", "daily_budget_amount_local_micro", "total_budget_amount_local_micro", "currency", "created_at", "updated_at"],
+    defaultFields: ["name", "currency", "account_id"],
     destinationName: "x_ads_campaigns"
   },
   line_items: {
@@ -30,7 +30,7 @@ var XAdsFieldsSchema = {
     documentation: "https://developer.twitter.com/en/docs/twitter-ads-api/line-items",
     fields: lineItemFields,
     uniqueKeys: ["id"],
-    defaultFields: ["id", "name", "campaign_id", "entity_status", "product_type", "objective", "goal", "bid_strategy", "bid_amount_local_micro", "daily_budget_amount_local_micro", "total_budget_amount_local_micro", "start_time", "end_time", "created_at", "updated_at"],
+    defaultFields: ["name", "campaign_id"],
     destinationName: "x_ads_line_items"
   },
   promoted_tweets: {
@@ -39,7 +39,7 @@ var XAdsFieldsSchema = {
     documentation: "https://developer.twitter.com/en/docs/twitter-ads-api/promoted-tweets",
     fields: promotedTweetFields,
     uniqueKeys: ["id"],
-    defaultFields: ["id", "tweet_id", "line_item_id", "entity_status", "approval_status", "created_at", "updated_at"],
+    defaultFields: ["tweet_id", "line_item_id"],
     destinationName: "x_ads_promoted_tweets",
     requiredFields: ["id"]
   },
@@ -49,7 +49,7 @@ var XAdsFieldsSchema = {
     documentation: "https://developer.twitter.com/en/docs/twitter-ads-api/tweets",
     fields: tweetFields,
     uniqueKeys: ["id"],
-    defaultFields: ["id", "id_str", "full_text", "tweet_type", "lang", "created_at", "favorite_count", "retweet_count", "nullcast", "card_uri"],
+    defaultFields: ["name", "id_str", "card_uri"],
     destinationName: "x_ads_tweets",
     requiredFields: ["card_uri"]
   },
@@ -59,7 +59,7 @@ var XAdsFieldsSchema = {
     documentation: "https://developer.twitter.com/en/docs/twitter-ads-api/stats",
     fields: statsFields,
     uniqueKeys: ["id", "date", "placement"],
-    defaultFields: ["id", "date", "placement", "impressions", "clicks", "url_clicks", "engagements", "billed_charge_local_micro", "likes", "retweets", "replies", "follows"],
+    defaultFields: ["impressions", "billed_charge_local_micro", "url_clicks"],
     destinationName: "x_ads_stats",
     isTimeSeries: true
   },
@@ -69,7 +69,7 @@ var XAdsFieldsSchema = {
     documentation: "https://developer.x.com/en/docs/x-ads-api/analytics/api-reference/asynchronous",
     fields: statsByCountryFields,
     uniqueKeys: ["id", "date", "placement", "country"],
-    defaultFields: ["id", "date", "placement", "country", "impressions", "clicks", "url_clicks", "engagements", "billed_charge_local_micro", "likes", "retweets", "replies", "follows"],
+    defaultFields: ["impressions", "clicks", "url_clicks", "engagements", "billed_charge_local_micro", "likes", "retweets", "replies", "follows"],
     destinationName: "x_ads_stats_by_country",
     isTimeSeries: true,
     // asyncTimeSeries: uses the X Ads async jobs API (submit → poll → download
@@ -89,7 +89,7 @@ var XAdsFieldsSchema = {
     documentation: "https://developer.x.com/en/docs/x-ads-api/campaign-management/api-reference/targeting-criteria",
     fields: targetingLocationsFields,
     uniqueKeys: ["targeting_value"],
-    defaultFields: ["targeting_value", "name", "location_type", "country_code"],
+    defaultFields: ["name", "location_type", "country_code"],
     destinationName: "x_ads_targeting_locations"
   },
   cards: {
@@ -98,7 +98,7 @@ var XAdsFieldsSchema = {
     documentation: "https://developer.twitter.com/en/docs/twitter-ads-api/cards",
     fields: cardFields,
     uniqueKeys: ["id"],
-    defaultFields: ["id", "name", "card_type", "card_uri", "created_at", "updated_at"],
+    defaultFields: ["name", "card_uri", "components"],
     destinationName: "x_ads_cards"
   },
   cards_all: {
@@ -107,7 +107,7 @@ var XAdsFieldsSchema = {
     documentation: "https://developer.twitter.com/en/docs/twitter-ads-api/cards",
     fields: cardAllFields,
     uniqueKeys: ["id"],
-    defaultFields: ["id", "name", "card_type", "card_uri", "title", "website_url", "app_cta", "country_code", "created_at", "updated_at"],
+    defaultFields: ["name", "card_type", "card_uri", "title", "website_url", "app_cta", "country_code", "created_at", "updated_at"],
     destinationName: "x_ads_cards_all"
   }
 };
