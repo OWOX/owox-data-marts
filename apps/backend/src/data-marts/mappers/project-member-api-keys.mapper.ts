@@ -3,7 +3,10 @@ import {
   CreateProjectMemberApiKeyResponseDto,
   ProjectMemberApiKeyResponseDto,
 } from '../dto/presentation/project-member-api-key-api.dto';
-import type { CreateProjectMemberApiKeyRequestDto, UpdateProjectMemberApiKeyRequestDto } from '../dto/presentation/project-member-api-key-api.dto';
+import type {
+  CreateProjectMemberApiKeyRequestDto,
+  UpdateProjectMemberApiKeyRequestDto,
+} from '../dto/presentation/project-member-api-key-api.dto';
 import type { ProjectMemberApiKeyMetadata } from '../../project-member-api-keys/dto/domain/project-member-api-key-metadata.dto';
 import type { AuthorizationContext } from '../../idp';
 import { CreateProjectMemberApiKeyCommand } from '../dto/domain/create-project-member-api-key.command';
@@ -13,11 +16,17 @@ import { RevokeProjectMemberApiKeyCommand } from '../dto/domain/revoke-project-m
 
 @Injectable()
 export class ProjectMemberApiKeysMapper {
-  toListCommand(context: AuthorizationContext, includeRevoked: boolean): ListProjectMemberApiKeysCommand {
+  toListCommand(
+    context: AuthorizationContext,
+    includeRevoked: boolean
+  ): ListProjectMemberApiKeysCommand {
     return new ListProjectMemberApiKeysCommand(context.projectId, context.userId, includeRevoked);
   }
 
-  toCreateCommand(context: AuthorizationContext, dto: CreateProjectMemberApiKeyRequestDto): CreateProjectMemberApiKeyCommand {
+  toCreateCommand(
+    context: AuthorizationContext,
+    dto: CreateProjectMemberApiKeyRequestDto
+  ): CreateProjectMemberApiKeyCommand {
     return new CreateProjectMemberApiKeyCommand(
       context.projectId,
       context.userId,
@@ -27,11 +36,23 @@ export class ProjectMemberApiKeysMapper {
     );
   }
 
-  toUpdateCommand(context: AuthorizationContext, apiKeyId: string, dto: UpdateProjectMemberApiKeyRequestDto): UpdateProjectMemberApiKeyCommand {
-    return new UpdateProjectMemberApiKeyCommand(context.projectId, context.userId, apiKeyId, dto.name);
+  toUpdateCommand(
+    context: AuthorizationContext,
+    apiKeyId: string,
+    dto: UpdateProjectMemberApiKeyRequestDto
+  ): UpdateProjectMemberApiKeyCommand {
+    return new UpdateProjectMemberApiKeyCommand(
+      context.projectId,
+      context.userId,
+      apiKeyId,
+      dto.name
+    );
   }
 
-  toRevokeCommand(context: AuthorizationContext, apiKeyId: string): RevokeProjectMemberApiKeyCommand {
+  toRevokeCommand(
+    context: AuthorizationContext,
+    apiKeyId: string
+  ): RevokeProjectMemberApiKeyCommand {
     return new RevokeProjectMemberApiKeyCommand(context.projectId, context.userId, apiKeyId);
   }
 
