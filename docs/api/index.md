@@ -17,8 +17,8 @@ API access is an integration and automation layer on top of OWOX Data Marts conc
 
 API Keys authenticate external tools and integrations without an interactive browser session. Create an API key before using other API access options.
 
-`owox-ctl` is the OWOX Data Marts Control CLI for terminal, CI, automation, and local agent usage.
+[`owox-ctl`](./owox-ctl/) is the OWOX Data Marts Control CLI for terminal, CI, automation, and local agent usage.
 
-`@owox/api-client` is the TypeScript/JavaScript API Client for custom applications, scripts, and internal tools.
+[`@owox/api-client`](./api-client/) is the TypeScript/JavaScript API Client for custom applications, scripts, and internal tools.
 
 OpenAPI and Swagger UI help developers inspect the raw HTTP API endpoints, request schemas, and response schemas.
