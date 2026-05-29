@@ -529,6 +529,84 @@ function FormRadioGroup({
 }
 
 /**
+ * Card-style radio option. Renders a bordered card with a radio input, label,
+ * optional description, and optional children slot for extra content.
+ */
+
+interface FormRadioCardProps {
+  value: string;
+  label: string;
+  description?: string;
+  checked: boolean;
+  onChange: (value: string) => void;
+  disabled?: boolean;
+  children?: React.ReactNode;
+  className?: string;
+  'data-testid'?: string;
+}
+
+function FormRadioCard({
+  value,
+  label,
+  description,
+  checked,
+  onChange,
+  disabled = false,
+  children,
+  className,
+  'data-testid': dataTestId,
+}: FormRadioCardProps) {
+  return (
+    <label
+      className={cn(
+        'border-border flex cursor-pointer items-start gap-3 rounded-md border-b bg-white px-6 py-4 transition-shadow duration-200 select-none hover:shadow-xs dark:border-white/4 dark:bg-white/4 dark:hover:bg-white/8',
+        disabled && 'cursor-not-allowed opacity-50',
+        className
+      )}
+    >
+      <input
+        type='radio'
+        value={value}
+        checked={checked}
+        onChange={() => onChange(value)}
+        disabled={disabled}
+        data-testid={dataTestId}
+        className={cn(
+          'accent-primary mt-1 h-4 w-4 shrink-0',
+          'focus-visible:ring-ring focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2',
+          'disabled:cursor-not-allowed disabled:opacity-50'
+        )}
+      />
+      <div className='flex min-w-0 flex-1 flex-col gap-2'>
+        <div className='flex flex-col gap-1'>
+          <div className='text-md font-medium'>{label}</div>
+          {description && <div className='text-muted-foreground pb-1 text-sm'>{description}</div>}
+        </div>
+        {children}
+      </div>
+    </label>
+  );
+}
+
+/**
+ * Grid wrapper for FormRadioCard options.
+ * Renders 1 column on mobile, 2 columns on sm+ breakpoint.
+ */
+
+interface FormRadioCardGroupProps {
+  children: React.ReactNode;
+  className?: string;
+}
+
+function FormRadioCardGroup({ children, className }: FormRadioCardGroupProps) {
+  return (
+    <div className={cn('grid grid-cols-1 gap-2 sm:grid-cols-2 sm:gap-4', className)}>
+      {children}
+    </div>
+  );
+}
+
+/**
  * AppForm — base wrapper for all forms.
  * Applies standard layout classes to the <form> element.
  * Use this instead of a raw <form> to avoid style duplication.
@@ -563,4 +641,6 @@ export {
   FormSection,
   FormRadioGroup,
   FormRadio,
+  FormRadioCard,
+  FormRadioCardGroup,
 };
