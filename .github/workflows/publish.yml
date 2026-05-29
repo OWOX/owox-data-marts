@@ -42,8 +42,8 @@ jobs:
       - name: Update wildcard version for internal packages
         run: node tools/update-package-versions-for-publishing.mjs
 
-      - name: Build all internal packages
-        run: npm run build -w owox
+      - name: Build publishable packages
+        run: npm run build --workspace owox --workspace @owox/ctl
 
       # TODO: re-enable after fixing shrinkwrap generation for snapshot publishes
       # - name: Generate npm-shrinkwrap.json for owox
@@ -113,6 +113,24 @@ jobs:
               break
             fi
             echo "Waiting for @owox/idp-owox-better-auth@${{ steps.extract_latest_version.outputs.version }} to appear on npm ($i/30)..."
+            sleep 10
+          done
+
+          for i in {1..30}; do
+            if npm view @owox/api-client@${{ steps.extract_latest_version.outputs.version }} > /dev/null 2>&1; then
+              echo "✅ @owox/api-client@${{ steps.extract_latest_version.outputs.version }} exists on npm"
+              break
+            fi
+            echo "Waiting for @owox/api-client@${{ steps.extract_latest_version.outputs.version }} to appear on npm ($i/30)..."
+            sleep 10
+          done
+
+          for i in {1..30}; do
+            if npm view @owox/ctl@${{ steps.extract_latest_version.outputs.version }} > /dev/null 2>&1; then
+              echo "✅ @owox/ctl@${{ steps.extract_latest_version.outputs.version }} exists on npm"
+              break
+            fi
+            echo "Waiting for @owox/ctl@${{ steps.extract_latest_version.outputs.version }} to appear on npm ($i/30)..."
             sleep 10
           done
 
@@ -225,6 +243,24 @@ jobs:
               break
             fi
             echo "Waiting for @owox/idp-owox-better-auth@${{ steps.extract_next_version.outputs.version }} to appear on npm ($i/30)..."
+            sleep 10
+          done
+
+          for i in {1..30}; do
+            if npm view @owox/api-client@${{ steps.extract_next_version.outputs.version }} > /dev/null 2>&1; then
+              echo "✅ @owox/api-client@${{ steps.extract_next_version.outputs.version }} exists on npm"
+              break
+            fi
+            echo "Waiting for @owox/api-client@${{ steps.extract_next_version.outputs.version }} to appear on npm ($i/30)..."
+            sleep 10
+          done
+
+          for i in {1..30}; do
+            if npm view @owox/ctl@${{ steps.extract_next_version.outputs.version }} > /dev/null 2>&1; then
+              echo "✅ @owox/ctl@${{ steps.extract_next_version.outputs.version }} exists on npm"
+              break
+            fi
+            echo "Waiting for @owox/ctl@${{ steps.extract_next_version.outputs.version }} to appear on npm ($i/30)..."
             sleep 10
           done
 

@@ -1,0 +1,57 @@
+{
+  "name": "@owox/api-client",
+  "version": "0.26.0",
+  "description": "HTTP API client for OWOX Data Marts",
+  "type": "module",
+  "author": "OWOX",
+  "license": "ELv2",
+  "publishConfig": {
+    "access": "public"
+  },
+  "engines": {
+    "node": ">=22.16.0"
+  },
+  "homepage": "https://github.com/OWOX/owox-data-marts",
+  "bugs": "https://github.com/OWOX/owox-data-marts/issues",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/OWOX/owox-data-marts.git",
+    "directory": "packages/api-client"
+  },
+  "scripts": {
+    "build": "tsc",
+    "clean": "shx rm -rf dist",
+    "test": "NODE_OPTIONS=--experimental-vm-modules jest --passWithNoTests",
+    "lint": "eslint . --config ./eslint.config.js",
+    "lint:fix": "eslint . --fix --config ./eslint.config.js",
+    "format": "prettier --write \"**/*.{ts,js,json,md}\" --ignore-path ../../.prettierignore",
+    "format:check": "prettier --check \"**/*.{ts,js,json,md}\" --ignore-path ../../.prettierignore",
+    "typecheck": "tsc --noEmit",
+    "prepublishOnly": "npm run lint && npm run typecheck"
+  },
+  "keywords": [
+    "owox",
+    "data-marts",
+    "api-client",
+    "http"
+  ],
+  "devDependencies": {
+    "@owox/eslint-config": "*",
+    "@owox/prettier-config": "*",
+    "@types/jest": "29.5.14",
+    "@types/node": "^22.10.7",
+    "jest": "^30.2.0",
+    "ts-jest": "^29.4.6"
+  },
+  "files": [
+    "dist"
+  ],
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts"
+}
