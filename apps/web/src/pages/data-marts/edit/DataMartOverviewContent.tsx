@@ -276,7 +276,7 @@ export default function DataMartOverviewContent() {
                   htmlFor='available-for-maintenance'
                   className='text-foreground cursor-pointer text-sm font-medium select-none'
                 >
-                  Available for maintenance
+                  Shared for maintenance
                 </label>
               </div>
               <p className='text-muted-foreground text-xs'>
@@ -285,7 +285,7 @@ export default function DataMartOverviewContent() {
               <Accordion variant='common' type='single' collapsible>
                 <AccordionItem value='maintenance-help'>
                   <AccordionTrigger>
-                    What does &quot;Available for maintenance&quot; mean?
+                    What does &quot;Shared for maintenance&quot; mean?
                   </AccordionTrigger>
                   <AccordionContent>
                     <p>
@@ -311,7 +311,7 @@ export default function DataMartOverviewContent() {
                   htmlFor='available-for-reporting'
                   className='text-foreground cursor-pointer text-sm font-medium select-none'
                 >
-                  Available for reporting
+                  Shared for reporting
                 </label>
               </div>
               <p className='text-muted-foreground text-xs'>
@@ -320,7 +320,7 @@ export default function DataMartOverviewContent() {
               <Accordion variant='common' type='single' collapsible>
                 <AccordionItem value='reporting-help'>
                   <AccordionTrigger>
-                    What does &quot;Available for reporting&quot; mean?
+                    What does &quot;Shared for reporting&quot; mean?
                   </AccordionTrigger>
                   <AccordionContent>
                     <p>

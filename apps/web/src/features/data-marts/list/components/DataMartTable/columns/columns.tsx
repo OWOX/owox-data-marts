@@ -296,7 +296,7 @@ export const getDataMartColumns = ({
     ),
     cell: ({ row }) =>
       row.original.availableForReporting === true ? (
-        <Check className='text-muted-foreground h-4 w-4' aria-label='Available for reporting' />
+        <Check className='text-muted-foreground h-4 w-4' aria-label='Shared for reporting' />
       ) : (
         <div className='text-muted-foreground'>—</div>
       ),
@@ -317,7 +317,7 @@ export const getDataMartColumns = ({
     ),
     cell: ({ row }) =>
       row.original.availableForMaintenance === true ? (
-        <Check className='text-muted-foreground h-4 w-4' aria-label='Available for maintenance' />
+        <Check className='text-muted-foreground h-4 w-4' aria-label='Shared for maintenance' />
       ) : (
         <div className='text-muted-foreground'>—</div>
       ),

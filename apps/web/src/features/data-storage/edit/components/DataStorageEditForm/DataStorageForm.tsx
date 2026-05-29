@@ -401,7 +401,7 @@ export function DataStorageForm({
             <FormSection title='Availability' defaultOpen={false} name='storage-availability'>
               <FormItem>
                 <div className='flex items-center justify-between gap-4'>
-                  <FormLabel>Available for use</FormLabel>
+                  <FormLabel>Shared for use</FormLabel>
                   <Switch
                     checked={sharingState.availableForUse}
                     onCheckedChange={v => {
@@ -416,7 +416,7 @@ export function DataStorageForm({
                   <Accordion variant='common' type='single' collapsible>
                     <AccordionItem value='sharing-use-help'>
                       <AccordionTrigger>
-                        What does &quot;Available for use&quot; mean?
+                        What does &quot;Shared for use&quot; mean?
                       </AccordionTrigger>
                       <AccordionContent>
                         <p>
@@ -431,7 +431,7 @@ export function DataStorageForm({
               </FormItem>
               <FormItem>
                 <div className='flex items-center justify-between gap-4'>
-                  <FormLabel>Available for maintenance</FormLabel>
+                  <FormLabel>Shared for maintenance</FormLabel>
                   <Switch
                     checked={sharingState.availableForMaintenance}
                     onCheckedChange={v => {
@@ -446,7 +446,7 @@ export function DataStorageForm({
                   <Accordion variant='common' type='single' collapsible>
                     <AccordionItem value='sharing-maintenance-help'>
                       <AccordionTrigger>
-                        What does &quot;Available for maintenance&quot; mean?
+                        What does &quot;Shared for maintenance&quot; mean?
                       </AccordionTrigger>
                       <AccordionContent>
                         <p>

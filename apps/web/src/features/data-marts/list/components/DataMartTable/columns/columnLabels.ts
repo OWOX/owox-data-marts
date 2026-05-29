@@ -13,6 +13,6 @@ export const dataMartColumnLabels: Record<DataMartColumnKey, string> = {
   [DataMartColumnKey.BUSINESS_OWNERS]: 'Business Owner',
   [DataMartColumnKey.TECHNICAL_OWNERS]: 'Technical Owner',
   [DataMartColumnKey.CONTEXTS]: 'Contexts',
-  [DataMartColumnKey.AVAILABLE_FOR_REPORTING]: 'Available for reporting',
-  [DataMartColumnKey.AVAILABLE_FOR_MAINTENANCE]: 'Available for maintenance',
+  [DataMartColumnKey.AVAILABLE_FOR_REPORTING]: 'Shared for reporting',
+  [DataMartColumnKey.AVAILABLE_FOR_MAINTENANCE]: 'Shared for maintenance',
 };
