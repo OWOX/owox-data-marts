@@ -126,7 +126,7 @@ export function UserProvisioningSettings({ contexts, isAdmin }: UserProvisioning
         <CollapsibleCardHeader>
           <CollapsibleCardHeaderTitle
             icon={UserCog}
-            tooltip={`Control how new users from your organization domain '${organization?.name}' join to '${organization?.mainProjectTitle}' project`}
+            tooltip={`Control how new members from your organization domain '${organization?.name}' join the '${organization?.mainProjectTitle}' project`}
           >
             Organization-level access settings
           </CollapsibleCardHeaderTitle>
@@ -140,8 +140,8 @@ export function UserProvisioningSettings({ contexts, isAdmin }: UserProvisioning
                   <FormRadioCard
                     data-testid='radio-auto-join'
                     value='automatic'
-                    label='Automatically join new users to project'
-                    description='Users with your organization domain are automatically added to this project with default roles and scopes'
+                    label={`Automatically join new members to the '${organization?.mainProjectTitle}' project`}
+                    description={`New members with your '${organization?.name}' organization domain are automatically added to this project with default roles and scopes`}
                     checked={mode === 'automatic'}
                     onChange={v => {
                       form.setValue('mode', v as UserProvisioningMode, { shouldDirty: true });
@@ -173,7 +173,7 @@ export function UserProvisioningSettings({ contexts, isAdmin }: UserProvisioning
                     data-testid='radio-require-request'
                     value='manual'
                     label='Require access request'
-                    description='Users must request access before joining. Project Admins can approve or reject requests manually'
+                    description='New members must request access before joining. Project Admins can approve or reject requests manually'
                     checked={mode === 'manual'}
                     onChange={v => {
                       form.setValue('mode', v as UserProvisioningMode, { shouldDirty: true });

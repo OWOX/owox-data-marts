@@ -25,6 +25,7 @@ import {
   type RoleScope,
 } from '../../../../project-members/types';
 import type { ContextDto } from '../../../../contexts/types/context.types';
+import { RoleHelpAccordion, ScopeHelpAccordion } from '../MemberFormFields/MemberRoleHelp';
 
 const ROLE_SCOPE_LABELS: Record<RoleScope, string> = {
   entire_project: 'Entire Project',
@@ -118,9 +119,9 @@ export function DefaultRoleSheet({
     >
       <SheetContent>
         <SheetHeader>
-          <SheetTitle>Default user roles</SheetTitle>
+          <SheetTitle>Default roles and scopes</SheetTitle>
           <SheetDescription>
-            Configure the default role assigned to users who automatically join this project.
+            Configure the defaults for new members who automatically join this project
           </SheetDescription>
         </SheetHeader>
 
@@ -140,6 +141,7 @@ export function DefaultRoleSheet({
                   ))}
                 </SelectContent>
               </Select>
+              <RoleHelpAccordion />
             </FormItem>
           </FormSection>
 
@@ -173,6 +175,7 @@ export function DefaultRoleSheet({
                     ))}
                   </SelectContent>
                 </Select>
+                <ScopeHelpAccordion />
               </FormItem>
             </FormSection>
           )}
@@ -190,8 +193,9 @@ export function DefaultRoleSheet({
                 />
                 {staleContextCount > 0 && (
                   <p className='text-muted-foreground text-sm'>
-                    {staleContextCount} saved context is no longer available and will be removed on
-                    save.
+                    {staleContextCount} saved{' '}
+                    {staleContextCount === 1 ? 'context is' : 'contexts are'} no longer available
+                    and will be removed on save.
                   </p>
                 )}
               </FormItem>
