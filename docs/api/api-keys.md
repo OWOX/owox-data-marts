@@ -22,7 +22,7 @@ API keys are associated with project access. Available data and actions depend o
 ## Create an API key
 
 1. Open your OWOX Data Marts project.
-2. In the project menu, open **Project settings -> My API Keys**.
+2. In the project menu, open **Project settings → My API Keys**.
 3. Click **Create API Key**.
 4. Enter a **Name**.
 5. Optionally set **Expires (optional)**.
@@ -55,7 +55,7 @@ Automation and local agent workflows commonly use:
 
 ## Revoke or rotate API keys
 
-1. Open **Project settings -> My API Keys**.
+1. Open **Project settings → My API Keys**.
 2. Find the API key.
 3. Open the row actions menu.
 4. Click **Revoke**.
