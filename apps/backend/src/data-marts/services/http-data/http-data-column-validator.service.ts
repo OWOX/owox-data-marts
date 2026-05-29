@@ -2,8 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { BusinessViolationException } from '../../../common/exceptions/business-violation.exception';
 import { FilterConfig } from '../../dto/schemas/filter-config.schema';
 import { SortConfig } from '../../dto/schemas/sort-config.schema';
-import { DataMart } from '../../entities/data-mart.entity';
-import { BlendableSchemaService } from '../blendable-schema.service';
+import { ReportingColumns } from './http-data-column-sets.util';
 
 export interface HttpDataColumnValidationInput {
   selectedColumns: string[];
@@ -13,18 +12,8 @@ export interface HttpDataColumnValidationInput {
 
 @Injectable()
 export class HttpDataColumnValidator {
-  constructor(private readonly blendableSchemaService: BlendableSchemaService) {}
-
-  async validate(dataMart: DataMart, input: HttpDataColumnValidationInput): Promise<void> {
-    const schema = await this.blendableSchemaService.computeBlendableSchema(
-      dataMart.id,
-      dataMart.projectId
-    );
-
-    const knownColumns = new Set([
-      ...schema.nativeFields.map(field => field.name),
-      ...schema.blendedFields.map(field => field.name),
-    ]);
+  validate(input: HttpDataColumnValidationInput, columns: ReportingColumns): void {
+    const knownColumns = new Set([...columns.native, ...columns.blended]);
 
     const unknownColumns = Array.from(this.collectReferencedColumns(input)).filter(
       column => !knownColumns.has(column)

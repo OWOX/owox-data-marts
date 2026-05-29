@@ -15,11 +15,12 @@ export function StreamHttpDataSpec() {
       summary: 'Stream Data Mart data as NDJSON',
       description:
         'Streams rows of a published Data Mart as newline-delimited JSON ' +
-        '(one data row per line, no envelope). The caller must explicitly select ' +
-        'columns via the repeated `column` query parameter; row objects use those ' +
-        'column names as keys in the requested order. Authenticated with the ODM ' +
-        'member token via `x-owox-authorization`. Creates one DataMartRun of type ' +
-        'HTTP_DATA per request, available through the run history endpoint.',
+        '(one data row per line, no envelope). Columns are chosen via the repeated ' +
+        '`column` query parameter; row objects use those column names as keys in the ' +
+        'requested order. Omit `column` (or pass `*`) for all native columns, or pass ' +
+        '`**` for all native plus all reporting-visible blended columns. Authenticated ' +
+        'with the ODM member token via `x-owox-authorization`. Creates one DataMartRun ' +
+        'of type HTTP_DATA per request, available through the run history endpoint.',
     }),
     ApiHeader({
       name: 'x-owox-authorization',
@@ -35,8 +36,12 @@ export function StreamHttpDataSpec() {
       name: 'column',
       description:
         'Column to include in the output. Repeat the parameter to select multiple ' +
-        'columns; the order of repetition is preserved in row objects.',
-      required: true,
+        'columns; the order of repetition is preserved in row objects. Two reserved ' +
+        'values expand to column sets: `*` = all native columns, `**` = all native plus ' +
+        'all reporting-visible blended columns. `*` may be combined with explicit ' +
+        'columns (e.g. `column=*&column=orders__revenue` = all native plus that blended ' +
+        'field). Omitting the parameter is equivalent to `*`. Overlaps are de-duplicated.',
+      required: false,
       isArray: true,
       type: String,
       example: ['date', 'revenue'],
@@ -67,7 +72,7 @@ export function StreamHttpDataSpec() {
     }),
     ApiQuery({
       name: 'limit',
-      description: 'Optional row cap (1..10_000_000).',
+      description: 'Optional row cap (positive integer).',
       required: false,
       type: Number,
     }),
@@ -75,18 +80,11 @@ export function StreamHttpDataSpec() {
     ApiOkResponse({
       description:
         'NDJSON stream of row objects. Each line is a complete JSON object whose ' +
-        'keys match the requested columns. Response headers include `x-owox-run-id` ' +
-        'with the created DataMartRun ID and `x-owox-columns` with the requested ' +
-        'column list as a base64url-encoded JSON array.',
+        'keys match the requested columns, in the requested order. The response ' +
+        'includes the `x-owox-run-id` header with the created DataMartRun ID.',
       headers: {
         'x-owox-run-id': {
           description: 'ID of the created DataMartRun (HTTP_DATA) for traceability',
-          schema: { type: 'string' },
-        },
-        'x-owox-columns': {
-          description:
-            'Requested columns, in row-object order, as a base64url-encoded JSON array ' +
-            '(lets clients recover the column list even for an empty result stream)',
           schema: { type: 'string' },
         },
       },
@@ -103,9 +101,8 @@ export function StreamHttpDataSpec() {
     ApiResponse({
       status: 400,
       description:
-        'Invalid request: missing or unknown column, duplicate columns, ' +
-        'forbidden pagination parameter (`pageToken`/`offset`), malformed filter/sort/limit, ' +
-        'or unsupported storage type.',
+        'Invalid request: unknown column, forbidden pagination parameter ' +
+        '(`pageToken`/`offset`), malformed filter/sort/limit, or unsupported storage type.',
     }),
     ApiResponse({ status: 401, description: 'Missing or invalid `x-owox-authorization` token.' }),
     ApiResponse({

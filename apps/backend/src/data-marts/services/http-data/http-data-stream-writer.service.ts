@@ -1,17 +1,13 @@
 import { Injectable } from '@nestjs/common';
 import type { Response } from 'express';
-import { HTTP_DATA_COLUMNS_HEADER, HTTP_DATA_RUN_ID_HEADER } from './http-data.constants';
+import { HTTP_DATA_RUN_ID_HEADER } from './http-data.constants';
 
 @Injectable()
 export class HttpDataStreamWriter {
-  initHeaders(res: Response, meta: { runId: string; columns: string[] }): void {
+  initHeaders(res: Response, meta: { runId: string }): void {
     res.setHeader('Content-Type', 'application/x-ndjson; charset=utf-8');
     res.setHeader('Cache-Control', 'no-store');
     res.setHeader(HTTP_DATA_RUN_ID_HEADER, meta.runId);
-    res.setHeader(
-      HTTP_DATA_COLUMNS_HEADER,
-      Buffer.from(JSON.stringify(meta.columns), 'utf-8').toString('base64url')
-    );
     res.flushHeaders();
   }
 

@@ -2,11 +2,28 @@ import { z } from 'zod';
 import { FilterConfigSchema } from './filter-config.schema';
 import { SortConfigSchema } from './sort-config.schema';
 
-export const HTTP_DATA_MAX_COLUMNS = 100;
-export const HTTP_DATA_MAX_USER_LIMIT = 10_000_000;
 export const HTTP_DATA_MAX_ENCODED_PARAM_LENGTH = 8192;
 
+export const ALL_NATIVE_COLUMNS = '*';
+export const ALL_BLENDABLE_COLUMNS = '**';
+
+export type ColumnSelector =
+  | { mode: 'allNative'; explicit: string[] }
+  | { mode: 'allBlendable' }
+  | { mode: 'explicit'; explicit: string[] };
+
 const REJECTED_PAGINATION_KEYS = ['pageToken', 'offset'] as const;
+
+function toColumnSelector(tokens: string[]): ColumnSelector {
+  if (tokens.includes(ALL_BLENDABLE_COLUMNS)) {
+    return { mode: 'allBlendable' };
+  }
+  const explicit = tokens.filter(token => token !== ALL_NATIVE_COLUMNS);
+  if (tokens.includes(ALL_NATIVE_COLUMNS) || tokens.length === 0) {
+    return { mode: 'allNative', explicit };
+  }
+  return { mode: 'explicit', explicit };
+}
 
 function decodeBase64UrlJson(raw: string): unknown {
   let decoded: string;
@@ -77,21 +94,16 @@ const SortParamSchema = z
 const LimitParamSchema = z.coerce
   .number({ invalid_type_error: 'limit must be an integer' })
   .int('limit must be an integer')
-  .min(1, 'limit must be ≥ 1')
-  .max(HTTP_DATA_MAX_USER_LIMIT, `limit must be ≤ ${HTTP_DATA_MAX_USER_LIMIT}`);
+  .min(1, 'limit must be ≥ 1');
 
 const ColumnsParamSchema = z
   .union([z.string(), z.array(z.string())])
-  .transform(value => (Array.isArray(value) ? value : [value]))
-  .pipe(
-    z
-      .array(z.string().min(1, 'column value must not be empty'))
-      .min(1, 'at least one column is required')
-      .max(HTTP_DATA_MAX_COLUMNS, `at most ${HTTP_DATA_MAX_COLUMNS} columns are allowed`)
-      .refine(arr => new Set(arr).size === arr.length, {
-        message: 'duplicate column names are not allowed',
-      })
-  );
+  .optional()
+  .transform(value => {
+    if (value === undefined) return [];
+    return Array.isArray(value) ? value : [value];
+  })
+  .pipe(z.array(z.string().min(1, 'column value must not be empty')));
 
 export const HttpDataQuerySchema = z
   .object({
@@ -111,9 +123,16 @@ export const HttpDataQuerySchema = z
         });
       }
     }
+    if (value.column.includes(ALL_BLENDABLE_COLUMNS) && value.column.length > 1) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['column'],
+        message: `"${ALL_BLENDABLE_COLUMNS}" cannot be combined with other column values`,
+      });
+    }
   })
   .transform(value => ({
-    columns: value.column,
+    columnSelector: toColumnSelector(value.column),
     filter: value.filter,
     sort: value.sort,
     limit: value.limit,

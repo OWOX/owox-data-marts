@@ -1,6 +1,6 @@
 import type { Response } from 'express';
 import { HttpDataStreamWriter } from './http-data-stream-writer.service';
-import { HTTP_DATA_COLUMNS_HEADER, HTTP_DATA_RUN_ID_HEADER } from './http-data.constants';
+import { HTTP_DATA_RUN_ID_HEADER } from './http-data.constants';
 
 type Mock = {
   res: Response;
@@ -74,26 +74,13 @@ function createMockResponse(
 describe('HttpDataStreamWriter', () => {
   const writer = new HttpDataStreamWriter();
 
-  it('initHeaders sets NDJSON content type, runId, base64url columns and flushes headers', () => {
+  it('initHeaders sets NDJSON content type, runId and flushes headers', () => {
     const mock = createMockResponse();
-    writer.initHeaders(mock.res, { runId: 'run-1', columns: ['date', 'Revenue Total'] });
+    writer.initHeaders(mock.res, { runId: 'run-1' });
     expect(mock.headers['Content-Type']).toBe('application/x-ndjson; charset=utf-8');
     expect(mock.headers['Cache-Control']).toBe('no-store');
     expect(mock.headers[HTTP_DATA_RUN_ID_HEADER]).toBe('run-1');
-    const decoded = Buffer.from(mock.headers[HTTP_DATA_COLUMNS_HEADER], 'base64url').toString(
-      'utf-8'
-    );
-    expect(JSON.parse(decoded)).toEqual(['date', 'Revenue Total']);
     expect(mock.flushHeadersCalls).toBe(1);
-  });
-
-  it('base64url-encodes non-ASCII column names (URL-safe alphabet, no padding)', () => {
-    const mock = createMockResponse();
-    writer.initHeaders(mock.res, { runId: 'run-2', columns: ['Доход', '📊'] });
-    const encoded = mock.headers[HTTP_DATA_COLUMNS_HEADER];
-    expect(/^[A-Za-z0-9_-]+$/.test(encoded)).toBe(true);
-    const decoded = JSON.parse(Buffer.from(encoded, 'base64url').toString('utf-8'));
-    expect(decoded).toEqual(['Доход', '📊']);
   });
 
   it('serializeRow serializes JSON + newline as a buffer with the correct byte length', () => {

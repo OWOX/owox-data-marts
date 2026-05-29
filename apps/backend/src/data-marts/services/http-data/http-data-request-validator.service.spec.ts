@@ -4,32 +4,47 @@ import { HttpDataRequestValidator } from './http-data-request-validator.service'
 describe('HttpDataRequestValidator', () => {
   const validator = new HttpDataRequestValidator();
 
-  it('parses a single string column into an array of one', () => {
+  it('parses a single string column into an explicit selector', () => {
     const result = validator.validate({ column: 'date' });
-    expect(result.columns).toEqual(['date']);
+    expect(result.columnSelector).toEqual({ mode: 'explicit', explicit: ['date'] });
   });
 
-  it('preserves repeated column order', () => {
+  it('preserves repeated column order in an explicit selector', () => {
     const result = validator.validate({ column: ['date', 'Revenue Total', 'user_id'] });
-    expect(result.columns).toEqual(['date', 'Revenue Total', 'user_id']);
+    expect(result.columnSelector).toEqual({
+      mode: 'explicit',
+      explicit: ['date', 'Revenue Total', 'user_id'],
+    });
   });
 
-  it('rejects empty column list', () => {
-    expect(() => validator.validate({ column: [] })).toThrow(BusinessViolationException);
+  it('treats a missing column param as all-native', () => {
+    const result = validator.validate({});
+    expect(result.columnSelector).toEqual({ mode: 'allNative', explicit: [] });
   });
 
-  it('rejects missing column param', () => {
-    expect(() => validator.validate({})).toThrow(BusinessViolationException);
+  it('treats "*" as all-native', () => {
+    const result = validator.validate({ column: '*' });
+    expect(result.columnSelector).toEqual({ mode: 'allNative', explicit: [] });
+  });
+
+  it('keeps explicit columns alongside "*" as all-native additions', () => {
+    const result = validator.validate({ column: ['*', 'orders__revenue'] });
+    expect(result.columnSelector).toEqual({ mode: 'allNative', explicit: ['orders__revenue'] });
+  });
+
+  it('treats "**" as all-blendable', () => {
+    expect(validator.validate({ column: '**' }).columnSelector).toEqual({ mode: 'allBlendable' });
+  });
+
+  it('rejects "**" combined with other column values', () => {
+    expect(() => validator.validate({ column: ['**', 'date'] })).toThrow(
+      BusinessViolationException
+    );
+    expect(() => validator.validate({ column: ['**', '*'] })).toThrow(BusinessViolationException);
   });
 
   it('rejects empty column value', () => {
     expect(() => validator.validate({ column: ['date', ''] })).toThrow(BusinessViolationException);
-  });
-
-  it('rejects duplicate columns', () => {
-    expect(() => validator.validate({ column: ['date', 'date'] })).toThrow(
-      BusinessViolationException
-    );
   });
 
   it('rejects forbidden pagination params', () => {
@@ -46,7 +61,7 @@ describe('HttpDataRequestValidator', () => {
     expect(result.limit).toBe(50);
   });
 
-  it('rejects non-integer / out-of-range limit', () => {
+  it('rejects non-integer or non-positive limit', () => {
     expect(() => validator.validate({ column: 'date', limit: '0' })).toThrow(
       BusinessViolationException
     );

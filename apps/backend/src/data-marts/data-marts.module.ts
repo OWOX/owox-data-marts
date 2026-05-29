@@ -13,6 +13,7 @@ import { HttpDataMapper } from './mappers/http-data.mapper';
 import { StreamHttpDataService } from './use-cases/stream-http-data.service';
 import { HttpDataStreamWriter } from './services/http-data/http-data-stream-writer.service';
 import { HttpDataRequestValidator } from './services/http-data/http-data-request-validator.service';
+import { HttpDataColumnResolver } from './services/http-data/http-data-column-resolver.service';
 import { HttpDataColumnValidator } from './services/http-data/http-data-column-validator.service';
 import { MarkdownParserController } from './controllers/markdown-parser.controller';
 import { ReportController } from './controllers/report.controller';
@@ -738,6 +739,7 @@ import { ProjectMemberApiKeysModule } from '../project-member-api-keys/project-m
     StreamHttpDataService,
     HttpDataStreamWriter,
     HttpDataRequestValidator,
+    HttpDataColumnResolver,
     HttpDataColumnValidator,
   ],
 })
