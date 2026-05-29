@@ -11,7 +11,7 @@ import {
 } from '../interfaces/athena-reader-state.interface';
 import { Injectable, Logger, Scope } from '@nestjs/common';
 import { DataStorageType } from '../../enums/data-storage-type.enum';
-import { Report } from '../../../entities/report.entity';
+import { ReportLike } from '../../../dto/domain/report-like-read-plan';
 import { ReportDataDescription } from '../../../dto/domain/report-data-description.dto';
 import { ReportDataBatch } from '../../../dto/domain/report-data-batch.dto';
 import { DataMartDefinition } from '../../../dto/schemas/data-mart-table-definitions/data-mart-definition';
@@ -46,12 +46,16 @@ export class AthenaReportReader implements DataStorageReportReader {
   ) {}
 
   async prepareReportData(
-    report: Report,
+    report: ReportLike,
     options?: PrepareReportDataOptions
   ): Promise<ReportDataDescription> {
     const { storage, definition, schema } = report.dataMart;
     if (!storage || !definition) {
       throw new Error('Data Mart is not properly configured');
+    }
+
+    if (options?.sqlOverrideParams?.length) {
+      throw new Error('Athena report reader does not support parameterized sqlOverride');
     }
 
     if (!schema) {

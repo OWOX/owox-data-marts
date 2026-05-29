@@ -1,7 +1,7 @@
 import { TypedComponent } from '../../../common/resolver/typed-component.resolver';
 import { ReportDataHeader } from '../../dto/domain/report-data-header.dto';
 import { DataStorageType } from '../enums/data-storage-type.enum';
-import { Report } from '../../entities/report.entity';
+import { ReportLike } from '../../dto/domain/report-like-read-plan';
 import { ReportDataDescription } from '../../dto/domain/report-data-description.dto';
 import { ReportDataBatch } from '../../dto/domain/report-data-batch.dto';
 import { DataStorageReportReaderState } from './data-storage-report-reader-state.interface';
@@ -44,7 +44,7 @@ export interface DataStorageReportReader extends TypedComponent<DataStorageType>
    * Prepares report data for reading
    */
   prepareReportData(
-    report: Report,
+    report: ReportLike,
     options?: PrepareReportDataOptions
   ): Promise<ReportDataDescription>;
 

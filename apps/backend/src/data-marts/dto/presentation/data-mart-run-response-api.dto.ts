@@ -131,4 +131,13 @@ export class DataMartRunResponseApiDto {
 
   @ApiProperty({ example: '2025-10-09T15:20:06.930Z', required: false, nullable: true })
   finishedAt: string | Date | null;
+
+  @ApiProperty({
+    example: { httpData: { format: 'ndjson', columns: ['date'], rowCount: 10, completed: true } },
+    description:
+      'Run-type-specific metadata captured by the use case (e.g. `httpData` for HTTP Data API runs)',
+    required: false,
+    nullable: true,
+  })
+  additionalParams: Record<string, unknown> | null;
 }

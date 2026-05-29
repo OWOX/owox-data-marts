@@ -8,6 +8,12 @@ import { AccessDecisionService } from './services/access-decision';
 import { UpdateAvailabilityService } from './use-cases/update-availability.service';
 import { MemberOwnershipWarningsService } from './services/member-ownership-warnings.service';
 import { LookerStudioConnectorController } from './controllers/external/looker-studio-connector.controller';
+import { HttpDataController } from './controllers/external/http-data.controller';
+import { HttpDataMapper } from './mappers/http-data.mapper';
+import { StreamHttpDataService } from './use-cases/stream-http-data.service';
+import { HttpDataStreamWriter } from './services/http-data/http-data-stream-writer.service';
+import { HttpDataRequestValidator } from './services/http-data/http-data-request-validator.service';
+import { HttpDataColumnValidator } from './services/http-data/http-data-column-validator.service';
 import { MarkdownParserController } from './controllers/markdown-parser.controller';
 import { ReportController } from './controllers/report.controller';
 import { InsightController } from './controllers/insight.controller';
@@ -441,6 +447,7 @@ import { ProjectMemberApiKeysModule } from '../project-member-api-keys/project-m
     ContextController,
     ProjectMembersController,
     ProjectMemberApiKeysController,
+    HttpDataController,
   ],
   providers: [
     ...dataStorageResolverProviders,
@@ -727,6 +734,11 @@ import { ProjectMemberApiKeysModule } from '../project-member-api-keys/project-m
     UpdateProjectMemberApiKeyService,
     RevokeProjectMemberApiKeyService,
     ProjectMemberApiKeysMapper,
+    HttpDataMapper,
+    StreamHttpDataService,
+    HttpDataStreamWriter,
+    HttpDataRequestValidator,
+    HttpDataColumnValidator,
   ],
 })
 export class DataMartsModule {

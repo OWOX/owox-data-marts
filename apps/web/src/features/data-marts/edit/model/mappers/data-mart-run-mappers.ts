@@ -36,6 +36,7 @@ export const mapDataMartRunResponseDtoToEntity = (
     ? (dto.aiSourceDefinition as DataMartRunAiAssistantDefinition)
     : null,
   createdByUser: dto.createdByUser,
+  additionalParams: dto.additionalParams ?? null,
 });
 
 export const mapDataMartRunListResponseDtoToEntity = (

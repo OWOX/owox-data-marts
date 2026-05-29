@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { DataMartQueryBuilderFacade } from '../data-storage-types/facades/data-mart-query-builder.facade';
-import { Report } from '../entities/report.entity';
+import { BlendingDecision } from '../dto/domain/blending-decision.dto';
+import { ReportLike } from '../dto/domain/report-like-read-plan';
 import { BlendedReportDataService } from './blended-report-data.service';
 import { isQueryBuildResult } from '../data-storage-types/interfaces/data-mart-query-builder.interface';
 import { DataMartTableReferenceService } from './data-mart-table-reference.service';
@@ -16,9 +17,13 @@ export class ReportSqlComposerService {
     private readonly capabilityService: OutputControlsCapabilityService
   ) {}
 
-  async compose(report: Report): Promise<{ sql: string; params?: SqlParameter[] }> {
+  async compose(
+    report: ReportLike,
+    precomputedDecision?: BlendingDecision
+  ): Promise<{ sql: string; params?: SqlParameter[] }> {
     // Schema-drift validation lives inside resolveBlendingDecision (shared with the run path).
-    const decision = await this.blendedReportDataService.resolveBlendingDecision(report);
+    const decision =
+      precomputedDecision ?? (await this.blendedReportDataService.resolveBlendingDecision(report));
 
     if (decision.needsBlending && decision.blendedSql) {
       return { sql: decision.blendedSql, params: decision.params };

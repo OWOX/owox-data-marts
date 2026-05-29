@@ -4,7 +4,7 @@ import { DataMartRelationshipService } from './data-mart-relationship.service';
 import { DataMartTableReferenceService } from './data-mart-table-reference.service';
 import { OutputControlsValidatorService } from './output-controls-validator.service';
 import { BlendedQueryBuilderFacade } from '../data-storage-types/facades/blended-query-builder.facade';
-import { Report } from '../entities/report.entity';
+import { ReportLike } from '../dto/domain/report-like-read-plan';
 import { ResolvedRelationshipChain } from '../data-storage-types/interfaces/blended-query-builder.interface';
 import { isQueryBuildResult } from '../data-storage-types/interfaces/data-mart-query-builder.interface';
 import { ReportDataHeader } from '../dto/domain/report-data-header.dto';
@@ -29,7 +29,7 @@ export class BlendedReportDataService {
     private readonly outputControlsValidator: OutputControlsValidatorService
   ) {}
 
-  async resolveBlendingDecision(report: Report): Promise<BlendingDecision> {
+  async resolveBlendingDecision(report: ReportLike): Promise<BlendingDecision> {
     const { columnConfig, dataMart } = report;
 
     // Single chokepoint for both /generated-sql and the run path — catches schema drift since save.

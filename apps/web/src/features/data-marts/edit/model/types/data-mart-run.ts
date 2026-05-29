@@ -26,4 +26,5 @@ export interface DataMartRunItem {
   insightTemplateId: string | null;
   aiAssistantDefinition: DataMartRunAiAssistantDefinition | null;
   createdByUser: UserProjection | null;
+  additionalParams: Record<string, unknown> | null;
 }

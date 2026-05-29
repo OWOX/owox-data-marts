@@ -15,6 +15,8 @@ import { Report } from '../entities/report.entity';
 import { DataMartRunStatus } from '../enums/data-mart-run-status.enum';
 import { DataMartRunType } from '../enums/data-mart-run-type.enum';
 import { ReportRunCompletedSuccessfullyEvent } from '../events/report-run-completed-successfully.event';
+import { HttpDataRunMetadata } from '../dto/schemas/http-data-run-metadata.schema';
+import { HTTP_DATA_PARAMS_KEY } from './http-data/http-data.constants';
 
 /**
  * Context for creating a new report run.
@@ -64,6 +66,17 @@ export interface AiSourceRunContext {
   createdById: string;
   runType: RunType;
   turnId?: string | null;
+}
+
+// Terminal-only HTTP Data run: written once at the end, no RUNNING phase, no orphan recovery.
+export interface HttpDataRunRecord {
+  runId: string;
+  dataMart: DataMart;
+  createdById: string;
+  startedAt: Date;
+  status: DataMartRunStatus.SUCCESS | DataMartRunStatus.FAILED;
+  metadata: HttpDataRunMetadata;
+  errors?: string[];
 }
 
 /**
@@ -453,6 +466,25 @@ export class DataMartRunService {
     dataMartRun.finishedAt = this.systemClock.now();
 
     await this.dataMartRunRepository.save(dataMartRun);
+  }
+
+  // Terminal-only: persisted once at the end; id is caller-provided to match x-owox-run-id.
+  public async recordHttpDataRun(record: HttpDataRunRecord): Promise<void> {
+    const run = this.dataMartRunRepository.create({
+      id: record.runId,
+      dataMartId: record.dataMart.id,
+      type: DataMartRunType.HTTP_DATA,
+      runType: RunType.manual,
+      status: record.status,
+      createdById: record.createdById,
+      definitionRun: record.dataMart.definition,
+      additionalParams: { [HTTP_DATA_PARAMS_KEY]: record.metadata },
+      startedAt: record.startedAt,
+      finishedAt: this.systemClock.now(),
+      errors: record.errors?.length ? record.errors : null,
+    });
+
+    await this.dataMartRunRepository.save(run);
   }
 
   /**
