@@ -132,6 +132,16 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
           autogenerate: { directory: 'packages/connectors/src/sources' },
         },
         {
+          label: 'API',
+          items: [
+            'docs/api',
+            'docs/api/api-keys',
+            'docs/api/owox-ctl',
+            'docs/api/api-client',
+            'docs/api/openapi',
+          ],
+        },
+        {
           label: 'Contributing',
           items: [
             {

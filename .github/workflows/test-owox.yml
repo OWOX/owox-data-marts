@@ -4,6 +4,7 @@ on:
   pull_request:
     paths:
       - 'apps/backend/**'
+      - 'apps/ctl/**'
       - 'apps/owox/**'
       - 'apps/web/**'
       - 'packages/**'
@@ -43,6 +44,12 @@ jobs:
           - name: 'Overall test @owox/idp-owox-better-auth'
             command: 'npm run test -w @owox/idp-owox-better-auth'
             timeout: 10
+          - name: 'Overall test @owox/api-client'
+            command: 'npm run test -w @owox/api-client'
+            timeout: 10
+          - name: 'Overall test @owox/ctl'
+            command: 'npm run test -w @owox/ctl'
+            timeout: 10
 
     steps:
       - name: Checkout repository
@@ -57,8 +64,8 @@ jobs:
       - name: Install dependencies
         run: npm ci --prefer-offline --no-audit --ignore-scripts --no-fund --loglevel error
 
-      - name: Build all internal packages
-        run: npm run build -w owox
+      - name: Build publishable CLI packages
+        run: npm run build --workspace owox --workspace @owox/ctl
 
       - name: Run ${{ matrix.test.name }}
         run: ${{ matrix.test.command }}
