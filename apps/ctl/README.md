@@ -5,7 +5,8 @@ OWOX Data Marts Control CLI.
 `owox` runs and manages a local or self-managed OWOX Data Marts runtime.
 `owox-ctl` controls an existing OWOX Data Marts instance through the HTTP API.
 
-The full user documentation lives in [docs/api/owox-ctl.md](../../docs/api/owox-ctl.md).
+The full user documentation lives in
+[owox-ctl API documentation](https://github.com/OWOX/owox-data-marts/blob/main/docs/api/owox-ctl.md).
 
 ## Install
 
