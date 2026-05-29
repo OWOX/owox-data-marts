@@ -38,6 +38,14 @@ export class OWOXApiClient {
   }
 
   async getJson<T>(path: string, query?: Record<string, string>): Promise<T> {
+    return this.getJsonWithAuth<T>(path, query, true);
+  }
+
+  private async getJsonWithAuth<T>(
+    path: string,
+    query: Record<string, string> | undefined,
+    retryOnUnauthorized: boolean
+  ): Promise<T> {
     const response = await this.fetchImpl(this.buildUrl(path, query), {
       method: 'GET',
       headers: {
@@ -46,6 +54,12 @@ export class OWOXApiClient {
         'x-owox-api-key-id': this.apiKeyId,
       },
     });
+
+    if (response.status === 401 && retryOnUnauthorized) {
+      this.accessToken = undefined;
+      return this.getJsonWithAuth<T>(path, query, false);
+    }
+
     const body = await readResponseBody(response);
 
     if (!response.ok) {

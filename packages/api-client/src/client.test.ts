@@ -154,6 +154,45 @@ describe('OWOXApiClient', () => {
     await client.dataMarts.list();
   });
 
+  it('refreshes the cached access token once after an authenticated request returns 401', async () => {
+    let exchangeCount = 0;
+    const seenAuthorizationHeaders: unknown[] = [];
+    const fetchMock = createFetchMock(request => {
+      if (request.method === 'POST' && request.url === '/api/auth/api-keys/exchange') {
+        exchangeCount += 1;
+        return createJsonResponse(200, { accessToken: `token-${exchangeCount}` });
+      }
+
+      if (request.method === 'GET' && request.url === '/api/data-storages') {
+        seenAuthorizationHeaders.push(request.headers['x-owox-authorization']);
+
+        if (request.headers['x-owox-authorization'] === 'Bearer token-1') {
+          return createJsonResponse(401, { code: 'TOKEN_EXPIRED', message: 'Token expired' });
+        }
+
+        return createJsonResponse(200, [
+          { id: 'storage-1', title: 'Storage', type: 'GOOGLE_BIGQUERY' },
+        ]);
+      }
+
+      return createJsonResponse(404, { message: 'Not found' });
+    });
+
+    const client = new OWOXApiClient({
+      apiOrigin,
+      apiKeyId,
+      apiKeySecret,
+      fetchImpl: fetchMock.fetchImpl,
+    });
+
+    await expect(client.storages.list()).resolves.toEqual([
+      { id: 'storage-1', title: 'Storage', type: 'GOOGLE_BIGQUERY' },
+    ]);
+
+    expect(exchangeCount).toBe(2);
+    expect(seenAuthorizationHeaders).toEqual(['Bearer token-1', 'Bearer token-2']);
+  });
+
   it('keeps access tokens scoped to a client instance instead of persisting them', async () => {
     let exchangeCount = 0;
     const seenAuthorizationHeaders: unknown[] = [];
