@@ -72,7 +72,7 @@ export const getApiKeysColumns = ({
       const expiring = isExpiringSoon(expiresAt);
       return (
         <span className={expiring ? 'font-medium text-amber-600' : ''}>
-          {formatDateOnly(expiresAt)}
+          {formatDateOnly(expiresAt, { timeZone: 'UTC' })}
         </span>
       );
     },

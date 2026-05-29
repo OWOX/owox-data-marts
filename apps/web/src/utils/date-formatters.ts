@@ -28,7 +28,10 @@ export const formatDateShort = (date: Date | string | null): string => {
   }).format(d);
 };
 
-export const formatDateOnly = (date: Date | string | null): string => {
+export const formatDateOnly = (
+  date: Date | string | null,
+  options?: { timeZone?: string }
+): string => {
   if (!date) return '—';
 
   let d: Date;
@@ -44,6 +47,7 @@ export const formatDateOnly = (date: Date | string | null): string => {
     year: 'numeric',
     month: 'short',
     day: 'numeric',
+    ...options,
   }).format(d);
 };
 
