@@ -18,12 +18,14 @@ import { DataMart } from '../entities/data-mart.entity';
 import { DataMartStatus } from '../enums/data-mart-status.enum';
 import { DataMartRunStatus } from '../enums/data-mart-run-status.enum';
 import { AccessDecisionService } from '../services/access-decision/access-decision.service';
+import { BlendableSchemaService } from '../services/blendable-schema.service';
 import { BlendedReportDataService } from '../services/blended-report-data.service';
 import { ConsumptionTrackingService } from '../services/consumption-tracking.service';
 import { DataMartRunService } from '../services/data-mart-run.service';
 import { DataMartService } from '../services/data-mart.service';
 import { ProjectBalanceService } from '../services/project-balance.service';
 import { ReportSqlComposerService } from '../services/report-sql-composer.service';
+import { HttpDataColumnResolver } from '../services/http-data/http-data-column-resolver.service';
 import { HttpDataColumnValidator } from '../services/http-data/http-data-column-validator.service';
 import { HttpDataRequestValidator } from '../services/http-data/http-data-request-validator.service';
 import { HttpDataStreamWriter } from '../services/http-data/http-data-stream-writer.service';
@@ -117,11 +119,13 @@ function mockResponse(): MockResponse {
 
 describe('StreamHttpDataService', () => {
   let requestValidator: jest.Mocked<HttpDataRequestValidator>;
+  let columnResolver: jest.Mocked<HttpDataColumnResolver>;
   let columnValidator: jest.Mocked<HttpDataColumnValidator>;
   let streamWriter: HttpDataStreamWriter;
   let dataMartRunService: jest.Mocked<DataMartRunService>;
   let dataMartService: jest.Mocked<DataMartService>;
   let access: jest.Mocked<AccessDecisionService>;
+  let blendableSchema: jest.Mocked<BlendableSchemaService>;
   let blended: jest.Mocked<BlendedReportDataService>;
   let sqlComposer: jest.Mocked<ReportSqlComposerService>;
   let balance: jest.Mocked<ProjectBalanceService>;
@@ -135,16 +139,33 @@ describe('StreamHttpDataService', () => {
   beforeEach(() => {
     requestValidator = {
       validate: jest.fn(rawQuery => ({
-        columns: (rawQuery as { column: string[] }).column,
+        columnSelector: {
+          mode: 'explicit' as const,
+          explicit: (rawQuery as { column: string[] }).column,
+        },
         filter: undefined,
         sort: undefined,
         limit: undefined,
       })),
     } as unknown as jest.Mocked<HttpDataRequestValidator>;
 
+    columnResolver = {
+      resolve: jest.fn((selector, columns) =>
+        selector.mode === 'explicit' ? selector.explicit : columns.native
+      ),
+    } as unknown as jest.Mocked<HttpDataColumnResolver>;
+
     columnValidator = {
-      validate: jest.fn(async () => undefined),
+      validate: jest.fn(() => undefined),
     } as unknown as jest.Mocked<HttpDataColumnValidator>;
+
+    blendableSchema = {
+      computeBlendableSchema: jest.fn(async () => ({
+        nativeFields: [{ name: 'date' }, { name: 'revenue' }],
+        blendedFields: [],
+        availableSources: [],
+      })),
+    } as unknown as jest.Mocked<BlendableSchemaService>;
 
     streamWriter = new HttpDataStreamWriter();
 
@@ -213,11 +234,13 @@ describe('StreamHttpDataService', () => {
 
     service = new StreamHttpDataService(
       requestValidator,
+      columnResolver,
       columnValidator,
       streamWriter,
       dataMartRunService,
       dataMartService,
       access,
+      blendableSchema,
       blended,
       sqlComposer,
       balance,
@@ -478,9 +501,9 @@ describe('StreamHttpDataService', () => {
     );
   });
 
-  it('composes SQL with the capped limit when a limit is requested', async () => {
+  it('composes SQL with the requested limit', async () => {
     requestValidator.validate.mockReturnValueOnce({
-      columns: ['date', 'revenue'],
+      columnSelector: { mode: 'explicit' as const, explicit: ['date', 'revenue'] },
       filter: undefined,
       sort: undefined,
       limit: 5,
@@ -498,11 +521,11 @@ describe('StreamHttpDataService', () => {
     expect(sqlComposer.compose).not.toHaveBeenCalled();
   });
 
-  it('records decoded filter/sort/capped limit in the run metadata', async () => {
+  it('records decoded filter/sort/limit in the run metadata', async () => {
     const filter = [{ column: 'date', operator: 'gte', value: '2026-05-01' }];
     const sort = [{ column: 'date', direction: 'desc' }];
     requestValidator.validate.mockReturnValueOnce({
-      columns: ['date'],
+      columnSelector: { mode: 'explicit', explicit: ['date'] },
       filter,
       sort,
       limit: 5,
@@ -542,92 +565,35 @@ describe('StreamHttpDataService', () => {
     );
   });
 
-  it('records a FAILED run when the configured row limit is exceeded', async () => {
-    jest.resetModules();
-    process.env.HTTP_DATA_MAX_ROWS = '1';
-    try {
-      const { StreamHttpDataService: IsolatedStreamHttpDataService } =
-        await import('./stream-http-data.service');
-      const isolated = new IsolatedStreamHttpDataService(
-        requestValidator,
-        columnValidator,
-        streamWriter,
-        dataMartRunService,
-        dataMartService,
-        access,
-        blended,
-        sqlComposer,
-        balance,
-        consumption,
-        gracefulShutdown,
-        systemTime,
-        resolver
-      );
-      reader.readReportDataBatch.mockResolvedValueOnce(
-        new ReportDataBatch(
-          [
-            ['2026-05-01', 1],
-            ['2026-05-02', 2],
-          ],
-          null
-        )
-      );
-      const res = mockResponse();
+  it('resolves an all-blendable selector and streams every resolved column', async () => {
+    requestValidator.validate.mockReturnValueOnce({
+      columnSelector: { mode: 'allBlendable' as const },
+      filter: undefined,
+      sort: undefined,
+      limit: undefined,
+    });
+    columnResolver.resolve.mockReturnValueOnce(['date', 'revenue', 'orders__cost']);
+    reader.prepareReportData.mockResolvedValueOnce(
+      new ReportDataDescription([
+        new ReportDataHeader('date'),
+        new ReportDataHeader('revenue'),
+        new ReportDataHeader('orders__cost'),
+      ])
+    );
+    reader.readReportDataBatch.mockResolvedValueOnce(
+      new ReportDataBatch([['2026-05-01', 42, 7]], null)
+    );
+    const res = mockResponse();
 
-      await expect(isolated.stream(fakeCommand(), res)).resolves.toBeUndefined();
+    await service.stream(fakeCommand(), res);
 
-      expect(res._writes).toHaveLength(1);
-      expect(dataMartRunService.recordHttpDataRun).toHaveBeenCalledWith(
-        expect.objectContaining({
-          status: DataMartRunStatus.FAILED,
-          errors: expect.arrayContaining([expect.stringContaining('Row limit')]),
-        })
-      );
-    } finally {
-      delete process.env.HTTP_DATA_MAX_ROWS;
-      jest.resetModules();
-    }
-  });
-
-  it('records a FAILED run and does not write the row that would exceed the byte cap', async () => {
-    jest.resetModules();
-    process.env.HTTP_DATA_MAX_BYTES = '10';
-    try {
-      const { StreamHttpDataService: IsolatedStreamHttpDataService } =
-        await import('./stream-http-data.service');
-      const isolated = new IsolatedStreamHttpDataService(
-        requestValidator,
-        columnValidator,
-        streamWriter,
-        dataMartRunService,
-        dataMartService,
-        access,
-        blended,
-        sqlComposer,
-        balance,
-        consumption,
-        gracefulShutdown,
-        systemTime,
-        resolver
-      );
-      reader.readReportDataBatch.mockResolvedValueOnce(
-        new ReportDataBatch([['2026-05-01', 1]], null)
-      );
-      const res = mockResponse();
-
-      await expect(isolated.stream(fakeCommand(), res)).resolves.toBeUndefined();
-
-      expect(res._writes).toHaveLength(0);
-      expect(dataMartRunService.recordHttpDataRun).toHaveBeenCalledWith(
-        expect.objectContaining({
-          status: DataMartRunStatus.FAILED,
-          errors: expect.arrayContaining([expect.stringContaining('Byte limit')]),
-        })
-      );
-    } finally {
-      delete process.env.HTTP_DATA_MAX_BYTES;
-      jest.resetModules();
-    }
+    expect(res._writes).toEqual(['{"date":"2026-05-01","revenue":42,"orders__cost":7}\n']);
+    expect(dataMartRunService.recordHttpDataRun).toHaveBeenCalledWith(
+      expect.objectContaining({
+        status: DataMartRunStatus.SUCCESS,
+        metadata: expect.objectContaining({ columns: ['date', 'revenue', 'orders__cost'] }),
+      })
+    );
   });
 
   it('uses the blended SQL as sqlOverride when the decision needs blending', async () => {

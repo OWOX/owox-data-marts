@@ -26,15 +26,19 @@ import { ConsumptionTrackingService } from '../services/consumption-tracking.ser
 import { DataMartService } from '../services/data-mart.service';
 import { ProjectBalanceService } from '../services/project-balance.service';
 import { ReportSqlComposerService } from '../services/report-sql-composer.service';
+import { HttpDataColumnResolver } from '../services/http-data/http-data-column-resolver.service';
 import { HttpDataColumnValidator } from '../services/http-data/http-data-column-validator.service';
+import {
+  nativeColumnNames,
+  visibleBlendedColumnNames,
+  ReportingColumns,
+} from '../services/http-data/http-data-column-sets.util';
 import { HttpDataRequestValidator } from '../services/http-data/http-data-request-validator.service';
 import { HttpDataStreamWriter } from '../services/http-data/http-data-stream-writer.service';
+import { BlendableSchemaService } from '../services/blendable-schema.service';
 import { DataMartRunService } from '../services/data-mart-run.service';
 import { DataMartRunStatus } from '../enums/data-mart-run-status.enum';
 import {
-  HTTP_DATA_MAX_BYTES,
-  HTTP_DATA_MAX_ROWS,
-  HTTP_DATA_REQUEST_TIMEOUT_MS,
   HTTP_DATA_SCHEMA_EXPIRES_AFTER_MS,
   STREAM_BATCH_SIZE,
 } from '../services/http-data/http-data.constants';
@@ -55,11 +59,13 @@ export class StreamHttpDataService {
 
   constructor(
     private readonly requestValidator: HttpDataRequestValidator,
+    private readonly columnResolver: HttpDataColumnResolver,
     private readonly columnValidator: HttpDataColumnValidator,
     private readonly streamWriter: HttpDataStreamWriter,
     private readonly dataMartRunService: DataMartRunService,
     private readonly dataMartService: DataMartService,
     private readonly accessDecisionService: AccessDecisionService,
+    private readonly blendableSchemaService: BlendableSchemaService,
     private readonly blendedReportDataService: BlendedReportDataService,
     private readonly reportSqlComposerService: ReportSqlComposerService,
     private readonly projectBalanceService: ProjectBalanceService,
@@ -76,8 +82,7 @@ export class StreamHttpDataService {
     }
 
     const query = this.requestValidator.validate(command.rawQuery);
-    const effectiveLimit =
-      query.limit == null ? undefined : Math.min(query.limit, HTTP_DATA_MAX_ROWS);
+    const limit = query.limit;
     const ctx: AuthorizationContext = {
       userId: command.userId,
       projectId: command.projectId,
@@ -89,19 +94,27 @@ export class StreamHttpDataService {
       dataMart,
       HTTP_DATA_SCHEMA_EXPIRES_AFTER_MS
     );
-    await this.columnValidator.validate(dataMart, {
-      selectedColumns: query.columns,
-      filter: query.filter,
-      sort: query.sort,
-    });
+    const blendableSchema = await this.blendableSchemaService.computeBlendableSchema(
+      dataMart.id,
+      dataMart.projectId
+    );
+    const reportingColumns: ReportingColumns = {
+      native: nativeColumnNames(blendableSchema),
+      blended: visibleBlendedColumnNames(blendableSchema),
+    };
+    const columns = this.columnResolver.resolve(query.columnSelector, reportingColumns);
+    this.columnValidator.validate(
+      { selectedColumns: columns, filter: query.filter, sort: query.sort },
+      reportingColumns
+    );
     await this.projectBalanceService.verifyCanPerformOperations(dataMart.projectId);
 
     const readPlan: ReportLikeReadPlan = {
       dataMart,
-      columnConfig: query.columns,
+      columnConfig: columns,
       filterConfig: query.filter,
       sortConfig: query.sort,
-      limitConfig: effectiveLimit ?? null,
+      limitConfig: limit ?? null,
     };
 
     const decision = await this.blendedReportDataService.resolveBlendingDecision(readPlan);
@@ -113,7 +126,7 @@ export class StreamHttpDataService {
     let sqlOverride: string | undefined = decision.blendedSql;
     let sqlOverrideParams = decision.params;
     const hasOutputControls =
-      (query.filter?.length ?? 0) > 0 || (query.sort?.length ?? 0) > 0 || effectiveLimit != null;
+      (query.filter?.length ?? 0) > 0 || (query.sort?.length ?? 0) > 0 || limit != null;
     if (!decision.needsBlending && hasOutputControls) {
       const composed = await this.reportSqlComposerService.compose(readPlan, decision);
       sqlOverride = composed.sql;
@@ -124,10 +137,10 @@ export class StreamHttpDataService {
     const startedAt = this.systemTimeService.now();
     const baseMetadata: HttpDataRunMetadata = {
       format: HTTP_DATA_FORMAT,
-      columns: query.columns,
+      columns,
       filter: query.filter,
       sort: query.sort,
-      limit: effectiveLimit,
+      limit,
     };
 
     let reader: DataStorageReportReader | null = null;
@@ -145,7 +158,7 @@ export class StreamHttpDataService {
         res,
         reader,
         description.dataHeaders,
-        query.columns,
+        columns,
         runId
       );
 
@@ -278,12 +291,6 @@ export class StreamHttpDataService {
   ): Promise<{ rowCount: number; bytesWritten: number }> {
     const fieldIndexMap = this.buildFieldIndexMap(dataHeaders, requestedColumns);
     const abortController = new AbortController();
-    const timeoutHandle = setTimeout(() => {
-      abortController.abort(
-        new StreamCancelledError(`Stream timed out after ${HTTP_DATA_REQUEST_TIMEOUT_MS}ms`)
-      );
-    }, HTTP_DATA_REQUEST_TIMEOUT_MS);
-    timeoutHandle.unref?.();
     const onClose = () =>
       abortController.abort(
         new StreamCancelledError('Client disconnected before stream completion')
@@ -315,9 +322,6 @@ export class StreamHttpDataService {
 
         for (const row of batch.dataRows) {
           this.throwIfAborted(abortController.signal);
-          if (rowCount >= HTTP_DATA_MAX_ROWS) {
-            throw new Error(`Row limit reached (${HTTP_DATA_MAX_ROWS})`);
-          }
 
           const obj: Record<string, unknown> = {};
           for (let i = 0; i < requestedColumns.length; i++) {
@@ -326,9 +330,6 @@ export class StreamHttpDataService {
           }
 
           const chunk = this.streamWriter.serializeRow(obj);
-          if (bytesWritten + chunk.length > HTTP_DATA_MAX_BYTES) {
-            throw new Error(`Byte limit reached (${HTTP_DATA_MAX_BYTES})`);
-          }
           await this.streamWriter.writeChunk(res, chunk, abortController.signal);
           bytesWritten += chunk.length;
           rowCount += 1;
@@ -339,7 +340,6 @@ export class StreamHttpDataService {
 
       return { rowCount, bytesWritten };
     } finally {
-      clearTimeout(timeoutHandle);
       res.off('close', onClose);
       res.off('error', onError);
     }
