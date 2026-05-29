@@ -39,19 +39,9 @@ Do not share API key secrets in chat, email, screenshots, support tickets, promp
 
 After creating an API key, use it with one of the supported API access options:
 
-| Use case | Recommended option |
-| --- | --- |
-| Work from a terminal | [owox-ctl](./owox-ctl/) |
-| Run CI jobs or automation scripts | [owox-ctl with environment variables](./owox-ctl/#use-environment-variables) |
-| Let a local agent inspect OWOX Data Marts resources through shell commands | [owox-ctl](./owox-ctl/#use-owox-ctl-with-local-agents) |
-| Build a TypeScript or JavaScript integration | [@owox/api-client](./api-client/) |
-| Inspect the raw HTTP API contract | [OpenAPI and Swagger UI](./openapi/) |
-
-Automation and local agent workflows commonly use:
-
-- `OWOX_API_ORIGIN`
-- `OWOX_API_KEY_ID`
-- `OWOX_API_KEY_SECRET`
+- [owox-ctl](./owox-ctl/) for terminal, CI, automation, and local agent workflows.
+- [@owox/api-client](./api-client/) for TypeScript or JavaScript integrations.
+- [OpenAPI and Swagger UI](./openapi/) for inspecting the raw HTTP API contract.
 
 ## Revoke or rotate API keys
 
