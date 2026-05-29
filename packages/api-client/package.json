@@ -44,6 +44,7 @@
     "ts-jest": "^29.4.6"
   },
   "files": [
+    "README.md",
     "dist"
   ],
   "exports": {
