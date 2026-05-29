@@ -2,11 +2,11 @@
 
 OWOX Data Marts exposes OpenAPI specifications and Swagger UI for the HTTP API.
 
-For an OWOX Data Marts instance at `https://app.owox.com`, API documentation is available at:
+For OWOX Data Marts Cloud at [https://app.owox.com](https://app.owox.com), API documentation is available at:
 
-- `https://app.owox.com/api/openapi.json`
-- `https://app.owox.com/api/openapi.yaml`
-- `https://app.owox.com/api/swagger-ui`
+- [https://app.owox.com/api/openapi.json](https://app.owox.com/api/openapi.json)
+- [https://app.owox.com/api/openapi.yaml](https://app.owox.com/api/openapi.yaml)
+- [https://app.owox.com/api/swagger-ui](https://app.owox.com/api/swagger-ui)
 
 For a self-managed OWOX Data Marts instance at `https://your-owox.example.com`, use:
 
