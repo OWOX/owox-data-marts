@@ -32,11 +32,15 @@ describe('HttpDataRequestValidator', () => {
     expect(result.columnSelector).toEqual({ mode: 'allNative', explicit: ['orders__revenue'] });
   });
 
-  it('treats "**" as all-blendable and lets it dominate other tokens', () => {
+  it('treats "**" as all-blendable', () => {
     expect(validator.validate({ column: '**' }).columnSelector).toEqual({ mode: 'allBlendable' });
-    expect(validator.validate({ column: ['**', 'date', '*'] }).columnSelector).toEqual({
-      mode: 'allBlendable',
-    });
+  });
+
+  it('rejects "**" combined with other column values', () => {
+    expect(() => validator.validate({ column: ['**', 'date'] })).toThrow(
+      BusinessViolationException
+    );
+    expect(() => validator.validate({ column: ['**', '*'] })).toThrow(BusinessViolationException);
   });
 
   it('rejects empty column value', () => {

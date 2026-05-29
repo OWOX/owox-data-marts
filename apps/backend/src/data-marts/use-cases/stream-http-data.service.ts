@@ -316,7 +316,7 @@ export class StreamHttpDataService {
         const batch = await this.readBatchOrAbort(reader, nextBatchId, abortController.signal);
 
         if (!headersSent) {
-          this.streamWriter.initHeaders(res, { runId, columns: requestedColumns });
+          this.streamWriter.initHeaders(res, { runId });
           headersSent = true;
         }
 

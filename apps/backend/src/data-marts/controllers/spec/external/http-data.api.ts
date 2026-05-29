@@ -80,18 +80,11 @@ export function StreamHttpDataSpec() {
     ApiOkResponse({
       description:
         'NDJSON stream of row objects. Each line is a complete JSON object whose ' +
-        'keys match the requested columns. Response headers include `x-owox-run-id` ' +
-        'with the created DataMartRun ID and `x-owox-columns` with the requested ' +
-        'column list as a base64url-encoded JSON array.',
+        'keys match the requested columns, in the requested order. The response ' +
+        'includes the `x-owox-run-id` header with the created DataMartRun ID.',
       headers: {
         'x-owox-run-id': {
           description: 'ID of the created DataMartRun (HTTP_DATA) for traceability',
-          schema: { type: 'string' },
-        },
-        'x-owox-columns': {
-          description:
-            'Requested columns, in row-object order, as a base64url-encoded JSON array ' +
-            '(lets clients recover the column list even for an empty result stream)',
           schema: { type: 'string' },
         },
       },

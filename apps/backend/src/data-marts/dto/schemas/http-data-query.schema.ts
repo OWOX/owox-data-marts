@@ -123,6 +123,13 @@ export const HttpDataQuerySchema = z
         });
       }
     }
+    if (value.column.includes(ALL_BLENDABLE_COLUMNS) && value.column.length > 1) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['column'],
+        message: `"${ALL_BLENDABLE_COLUMNS}" cannot be combined with other column values`,
+      });
+    }
   })
   .transform(value => ({
     columnSelector: toColumnSelector(value.column),

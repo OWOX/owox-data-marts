@@ -1,4 +1,5 @@
 import { BlendableSchemaDto } from '../../dto/domain/blendable-schema.dto';
+import { DataMartSchemaFieldStatus } from '../../data-storage-types/enums/data-mart-schema-field-status.enum';
 
 export interface ReportingColumns {
   native: string[];
@@ -7,6 +8,7 @@ export interface ReportingColumns {
 
 interface NativeSchemaField {
   name: string;
+  status?: string;
   isHiddenForReporting?: boolean;
   fields?: NativeSchemaField[];
 }
@@ -19,6 +21,7 @@ function collectNative(fields: NativeSchemaField[], prefix = ''): string[] {
   const result: string[] = [];
   for (const field of fields) {
     if (field.isHiddenForReporting) continue;
+    if (field.status === DataMartSchemaFieldStatus.DISCONNECTED) continue;
     const fullName = prefix ? `${prefix}.${field.name}` : field.name;
     result.push(fullName);
     if (field.fields && field.fields.length > 0) {

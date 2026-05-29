@@ -1,4 +1,5 @@
 import { BlendableSchemaDto } from '../../dto/domain/blendable-schema.dto';
+import { DataMartSchemaFieldStatus } from '../../data-storage-types/enums/data-mart-schema-field-status.enum';
 import { nativeColumnNames, visibleBlendedColumnNames } from './http-data-column-sets.util';
 
 function schemaOf(partial: Partial<BlendableSchemaDto>): BlendableSchemaDto {
@@ -32,6 +33,16 @@ describe('nativeColumnNames', () => {
       ] as never,
     });
     expect(nativeColumnNames(schema)).toEqual(['date', 'user', 'user.id']);
+  });
+
+  it('excludes fields with DISCONNECTED status', () => {
+    const schema = schemaOf({
+      nativeFields: [
+        { name: 'date', status: DataMartSchemaFieldStatus.CONNECTED },
+        { name: 'gone', status: DataMartSchemaFieldStatus.DISCONNECTED },
+      ] as never,
+    });
+    expect(nativeColumnNames(schema)).toEqual(['date']);
   });
 });
 

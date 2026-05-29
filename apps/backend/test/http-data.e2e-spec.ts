@@ -116,13 +116,6 @@ describe('HTTP Data API (e2e)', () => {
   // multi-tenant IdpProvider example if real 401 coverage is needed.
 
   describe('Request validation', () => {
-    it('returns 400 when column param is missing', async () => {
-      const res = await agent
-        .get(`/api/external/http-data/data-marts/${dataMartId}.ndjson`)
-        .set(AUTH_HEADER);
-      expect(res.status).toBe(400);
-    });
-
     it('returns 400 when column is empty string', async () => {
       const res = await agent
         .get(`/api/external/http-data/data-marts/${dataMartId}.ndjson?column=`)
@@ -130,9 +123,9 @@ describe('HTTP Data API (e2e)', () => {
       expect(res.status).toBe(400);
     });
 
-    it('returns 400 when columns are duplicated', async () => {
+    it('returns 400 when ** is combined with other columns', async () => {
       const res = await agent
-        .get(`/api/external/http-data/data-marts/${dataMartId}.ndjson?column=date&column=date`)
+        .get(`/api/external/http-data/data-marts/${dataMartId}.ndjson?column=**&column=date`)
         .set(AUTH_HEADER);
       expect(res.status).toBe(400);
     });
@@ -168,9 +161,7 @@ describe('HTTP Data API (e2e)', () => {
       expect(res.status).toBe(200);
       expect(res.headers['content-type']).toContain('application/x-ndjson');
       expect(res.headers['x-owox-run-id']).toBeDefined();
-      expect(
-        JSON.parse(Buffer.from(res.headers['x-owox-columns'], 'base64url').toString('utf-8'))
-      ).toEqual(['date', 'revenue']);
+      expect(res.headers['x-owox-columns']).toBeUndefined();
 
       const lines = parseNdjson(res.text);
       expect(lines).toEqual([
@@ -196,6 +187,38 @@ describe('HTTP Data API (e2e)', () => {
       expect(res.status).toBe(200);
       expect(res.text).not.toMatch(/"type"\s*:/);
       expect(res.text).not.toMatch(/"meta"|"done"/);
+    });
+
+    it('streams all native columns when column is omitted', async () => {
+      const res = await agent
+        .get(`/api/external/http-data/data-marts/${dataMartId}.ndjson`)
+        .set(AUTH_HEADER);
+      expect(res.status).toBe(200);
+      expect(parseNdjson(res.text)).toEqual([
+        { date: '2026-05-01', revenue: 42.5 },
+        { date: '2026-05-02', revenue: 51.0 },
+        { date: '2026-05-03', revenue: 100.25 },
+      ]);
+    });
+
+    it('treats * as all native columns', async () => {
+      const res = await agent
+        .get(`/api/external/http-data/data-marts/${dataMartId}.ndjson?column=*`)
+        .set(AUTH_HEADER);
+      expect(res.status).toBe(200);
+      expect(parseNdjson(res.text)).toEqual([
+        { date: '2026-05-01', revenue: 42.5 },
+        { date: '2026-05-02', revenue: 51.0 },
+        { date: '2026-05-03', revenue: 100.25 },
+      ]);
+    });
+
+    it('de-duplicates repeated columns instead of rejecting them', async () => {
+      const res = await agent
+        .get(`/api/external/http-data/data-marts/${dataMartId}.ndjson?column=date&column=date`)
+        .set(AUTH_HEADER);
+      expect(res.status).toBe(200);
+      expect(res.text.split('\n')[0]).toBe('{"date":"2026-05-01"}');
     });
   });
 
