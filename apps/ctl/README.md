@@ -6,7 +6,7 @@ OWOX Data Marts Control CLI.
 `owox-ctl` controls an existing OWOX Data Marts instance through the HTTP API.
 
 The full user documentation lives in
-[owox-ctl API documentation](https://github.com/OWOX/owox-data-marts/blob/main/docs/api/owox-ctl.md).
+[owox-ctl API documentation](https://docs.owox.com/docs/api/owox-ctl/).
 
 ## Install
 
