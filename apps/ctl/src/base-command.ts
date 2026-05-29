@@ -31,8 +31,12 @@ export function setupEnvironmentFromFlags(
 ): void {
   const envFileValue = flags['env-file'];
   const envFile = typeof envFileValue === 'string' ? envFileValue : '';
+  const hasExplicitEnvFile = envFile.trim().length > 0;
+  const result = setupEnvironment({ envFile });
 
-  setupEnvironment({ envFile });
+  if (hasExplicitEnvFile && !result.success) {
+    throw new OWOXConfigError(`Failed to load environment file: ${envFile}`);
+  }
 }
 
 export abstract class BaseCommand extends Command {
