@@ -12,7 +12,7 @@ var LinkedInAdsFieldsSchema = {
     "documentation": "https://learn.microsoft.com/en-us/linkedin/marketing/integrations/ads/account-structure/create-and-manage-accounts",
     "fields": adAccountFields,
     "uniqueKeys": ["id"],
-    "defaultFields": ["id", "name", "status", "currency", "type", "reference"],
+    "defaultFields": ["name", "currency"],
     "destinationName": "linkedin_ads_ad_accounts"
   },
   "adCampaignGroups": {
@@ -21,7 +21,7 @@ var LinkedInAdsFieldsSchema = {
     "documentation": "https://learn.microsoft.com/en-us/linkedin/marketing/integrations/ads/account-structure/create-and-manage-campaign-groups",
     "fields": adCampaignGroupFields,
     "uniqueKeys": ["id"],
-    "defaultFields": ["id", "name", "status", "account", "objectiveType", "runSchedule", "totalBudget", "servingStatuses"],
+    "defaultFields": ["name", "status", "account"],
     "destinationName": "linkedin_ads_ad_campaign_groups"
   },
   "adCampaigns": {
@@ -30,7 +30,7 @@ var LinkedInAdsFieldsSchema = {
     "documentation": "https://learn.microsoft.com/en-us/linkedin/marketing/integrations/ads/account-structure/create-and-manage-campaigns",
     "fields": adCampaignFields,
     "uniqueKeys": ["id"],
-    "defaultFields": ["id", "name", "status", "account", "campaignGroup", "objectiveType", "type", "runSchedule"],
+    "defaultFields": ["account", "costType", "dailyBudget", "locale", "name", "objectiveType", "totalBudget", "type", "unitCost", "status", "format"],
     "destinationName": "linkedin_ads_ad_campaigns"
   },
   "creatives": {
@@ -39,7 +39,7 @@ var LinkedInAdsFieldsSchema = {
     "documentation": "https://learn.microsoft.com/en-us/linkedin/marketing/integrations/ads/account-structure/create-and-manage-creatives",
     "fields": creativesFields,
     "uniqueKeys": ["id"],
-    "defaultFields": ["id", "name", "intendedStatus", "account", "campaign", "isServing", "createdAt"],
+    "defaultFields": ["account", "intendedStatus", "name"],
     "destinationName": "linkedin_ads_creatives"
   },
   "adAnalytics": {
@@ -48,7 +48,7 @@ var LinkedInAdsFieldsSchema = {
     "documentation": "https://learn.microsoft.com/en-us/linkedin/marketing/integrations/ads-reporting/ads-reporting",
     "fields": adAnalyticsFields,
     "uniqueKeys": ["dateRangeStart", "dateRangeEnd", "pivotValues"],
-    "defaultFields": ["dateRangeStart", "dateRangeEnd", "pivotValues", "impressions", "clicks", "costInLocalCurrency", "costInUsd", "totalEngagements", "landingPageClicks", "externalWebsiteConversions"],
+    "defaultFields": ["actionClicks", "adUnitClicks", "approximateMemberReach", "clicks", "commentLikes", "comments", "companyPageClicks", "conversionValueInLocalCurrency", "costInLocalCurrency", "costInUsd", "externalWebsiteConversions", "externalWebsitePostClickConversions", "externalWebsitePostViewConversions", "follows", "impressions", "landingPageClicks", "leadGenerationMailContactInfoShares", "leadGenerationMailInterestedClicks", "likes", "oneClickLeadFormOpens", "oneClickLeads", "opens", "otherEngagements", "reactions", "sends", "shares", "textUrlClicks", "totalEngagements", "viralClicks", "viralCommentLikes", "viralComments", "viralCompanyPageClicks", "viralExternalWebsiteConversions", "viralExternalWebsitePostClickConversions", "viralFollows", "viralImpressions", "viralLandingPageClicks", "viralLikes", "viralOneClickLeadFormOpens", "viralOneClickLeads", "viralOtherEngagements", "viralReactions", "viralShares", "viralTotalEngagements"],
     "destinationName": "linkedin_ads_ad_analytics",
     "isTimeSeries": true
   }

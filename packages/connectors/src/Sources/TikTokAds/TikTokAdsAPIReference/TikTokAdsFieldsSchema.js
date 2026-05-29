@@ -12,7 +12,7 @@ var TikTokAdsFieldsSchema = {
     "documentation": "https://ads.tiktok.com/marketing_api/docs",
     "fields": advertiserFields,
     "uniqueKeys": ["advertiser_id"],
-    "defaultFields": ["advertiser_id", "advertiser_name", "company_name", "currency"],
+    "defaultFields": ["advertiser_name", "currency"],
     "destinationName": "tiktok_ads_advertiser"
   },
   "campaigns": {
@@ -21,7 +21,7 @@ var TikTokAdsFieldsSchema = {
     "documentation": "https://ads.tiktok.com/marketing_api/docs?id=1739318962329602",
     "fields": campaignsFields,
     "uniqueKeys": ["campaign_id"],
-    "defaultFields": ["campaign_id", "campaign_name", "advertiser_id", "objective_type", "campaign_type", "operation_status", "secondary_status", "budget_mode", "budget", "create_time", "modify_time"],
+    "defaultFields": ["campaign_name", "advertiser_id", "objective_type", "campaign_type", "operation_status", "secondary_status", "budget_mode", "budget", "create_time", "modify_time"],
     "destinationName": "tiktok_ads_campaigns"
   },
   "ad_groups": {
@@ -30,7 +30,7 @@ var TikTokAdsFieldsSchema = {
     "documentation": "https://ads.tiktok.com/marketing_api/docs?id=1739314558673922",
     "fields": adGroupsFields,
     "uniqueKeys": ["adgroup_id"],
-    "defaultFields": ["adgroup_id", "adgroup_name", "advertiser_id", "campaign_id", "campaign_name", "operation_status", "budget_mode", "budget", "bid_type", "optimization_goal", "placement_type", "schedule_start_time", "schedule_end_time", "create_time", "modify_time"],
+    "defaultFields": ["adgroup_name", "advertiser_id", "campaign_id", "campaign_name", "operation_status", "budget_mode", "budget", "bid_type", "optimization_goal", "placement_type", "schedule_start_time", "schedule_end_time", "create_time", "modify_time"],
     "destinationName": "tiktok_ads_ad_groups"
   },
   "ads": {
@@ -39,7 +39,7 @@ var TikTokAdsFieldsSchema = {
     "documentation": "https://ads.tiktok.com/marketing_api/docs?id=1735735588640770",
     "fields": adsFields,
     "uniqueKeys": ["ad_id"],
-    "defaultFields": ["ad_id", "ad_name", "advertiser_id", "campaign_id", "campaign_name", "adgroup_id", "adgroup_name", "operation_status", "secondary_status", "creative_type", "ad_format", "call_to_action", "create_time", "modify_time"],
+    "defaultFields": ["ad_name", "advertiser_id", "campaign_id", "campaign_name", "adgroup_id", "adgroup_name"],
     "destinationName": "tiktok_ads_ads"
   },
   "ad_insights": {
@@ -48,7 +48,7 @@ var TikTokAdsFieldsSchema = {
     "documentation": "https://ads.tiktok.com/marketing_api/docs?id=1738864915188737",
     "fields": adInsightsFields,
     "uniqueKeys": ["ad_id", "stat_time_day"],
-    "defaultFields": ["ad_id", "stat_time_day", "advertiser_id", "campaign_id", "adgroup_id", "impressions", "clicks", "spend", "ctr", "cpc", "cpm", "reach", "conversion", "cost_per_conversion", "video_views", "video_completion"],
+    "defaultFields": ["advertiser_id", "date_start", "date_end", "impressions", "clicks", "spend"],
     "destinationName": "tiktok_ads_ad_insights",
     "isTimeSeries": true
   },
@@ -58,7 +58,7 @@ var TikTokAdsFieldsSchema = {
     "documentation": "https://ads.tiktok.com/marketing_api/docs?id=1738864915188737",
     "fields": adInsightsByCountryFields,
     "uniqueKeys": ["ad_id", "stat_time_day", "country_code"],
-    "defaultFields": ["ad_id", "stat_time_day", "country_code", "advertiser_id", "campaign_id", "adgroup_id", "impressions", "clicks", "spend", "ctr", "cpc", "cpm", "reach", "conversion", "cost_per_conversion", "video_views", "video_completion"],
+    "defaultFields": ["advertiser_id", "date_start", "date_end", "impressions", "clicks", "spend"],
     "destinationName": "tiktok_ads_ad_insights_by_country",
     "isTimeSeries": true
   },
@@ -68,7 +68,7 @@ var TikTokAdsFieldsSchema = {
     "documentation": "https://ads.tiktok.com/marketing_api/docs?id=1739314536665090",
     "fields": audiencesFields,
     "uniqueKeys": ["audience_id"],
-    "defaultFields": ["audience_id", "advertiser_id", "name", "audience_type", "cover_num", "is_valid", "is_expiring", "create_time"],
+    "defaultFields": ["advertiser_id", "name", "audience_type", "cover_num", "is_valid", "is_expiring", "create_time"],
     "destinationName": "tiktok_ads_audiences"
   }
 };
