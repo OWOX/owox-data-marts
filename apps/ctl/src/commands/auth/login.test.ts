@@ -1,12 +1,14 @@
 import { mkdtemp, rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
+import { EventEmitter } from 'node:events';
+import { Writable } from 'node:stream';
 
 import { jest } from '@jest/globals';
 import { OWOXAuthError } from '@owox/api-client';
 
 import { ConfigStore } from '../../config-store.js';
-import { performLogin, resolveLoginInput } from './login.js';
+import { performLogin, promptSecret, resolveLoginInput } from './login.js';
 
 describe('auth login', () => {
   async function createStore(): Promise<{ store: ConfigStore; cleanup: () => Promise<void> }> {
@@ -123,5 +125,34 @@ describe('auth login', () => {
 
     expect(promptText).not.toHaveBeenCalled();
     expect(promptSecret).not.toHaveBeenCalled();
+  });
+
+  it('pauses stdin after reading a masked secret', async () => {
+    const input = Object.assign(new EventEmitter(), {
+      isTTY: true,
+      pause: jest.fn(),
+      resume: jest.fn(),
+      setRawMode: jest.fn(),
+    });
+    const output = new Writable({
+      write(_chunk, _encoding, callback) {
+        callback();
+      },
+    });
+
+    const secret = promptSecret(
+      'API key secret: ',
+      input as unknown as NodeJS.ReadStream,
+      output as unknown as NodeJS.WriteStream
+    );
+
+    input.emit('data', Buffer.from('oks_secret'));
+    input.emit('data', Buffer.from('\r'));
+
+    await expect(secret).resolves.toBe('oks_secret');
+    expect(input.resume).toHaveBeenCalled();
+    expect(input.pause).toHaveBeenCalled();
+    expect(input.setRawMode).toHaveBeenNthCalledWith(1, true);
+    expect(input.setRawMode).toHaveBeenNthCalledWith(2, false);
   });
 });

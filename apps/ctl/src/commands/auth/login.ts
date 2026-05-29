@@ -53,10 +53,14 @@ export async function performLogin(
   return config;
 }
 
-async function promptText(message: string): Promise<string> {
+async function promptText(
+  message: string,
+  input: NodeJS.ReadStream = process.stdin,
+  output: NodeJS.WriteStream = process.stdout
+): Promise<string> {
   const readline = createInterface({
-    input: process.stdin,
-    output: process.stdout,
+    input,
+    output,
   });
 
   try {
@@ -66,22 +70,27 @@ async function promptText(message: string): Promise<string> {
   }
 }
 
-async function promptSecret(message: string): Promise<string> {
-  if (!process.stdin.isTTY) {
-    return promptText(message);
+export async function promptSecret(
+  message: string,
+  input: NodeJS.ReadStream = process.stdin,
+  output: NodeJS.WriteStream = process.stdout
+): Promise<string> {
+  if (!input.isTTY) {
+    return promptText(message, input, output);
   }
 
-  process.stdout.write(message);
-  process.stdin.setRawMode(true);
-  process.stdin.resume();
+  output.write(message);
+  input.setRawMode(true);
+  input.resume();
 
   return new Promise((resolve, reject) => {
     let value = '';
 
     const cleanup = () => {
-      process.stdin.setRawMode(false);
-      process.stdin.off('data', onData);
-      process.stdout.write('\n');
+      input.setRawMode(false);
+      input.off('data', onData);
+      input.pause();
+      output.write('\n');
     };
 
     const onData = (chunk: Buffer) => {
@@ -107,7 +116,7 @@ async function promptSecret(message: string): Promise<string> {
       value += text;
     };
 
-    process.stdin.on('data', onData);
+    input.on('data', onData);
   });
 }
 
