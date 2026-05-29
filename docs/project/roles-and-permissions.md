@@ -54,7 +54,7 @@ Assigned to members who create and run reports on data prepared by Technical Use
 **Data access:**
 
 - View Data Marts and their scheduled triggers made available to them
-- Create Reports on Data Marts available for reporting, using Destinations they have access to
+- Create Reports on Data Marts shared for reporting, using Destinations they have access to
 - Edit, delete, and run Reports they own
 - Create and manage Destinations they own or have maintenance access to
 - Cannot create, edit, or delete Data Marts, Storages, or Data Mart scheduled triggers

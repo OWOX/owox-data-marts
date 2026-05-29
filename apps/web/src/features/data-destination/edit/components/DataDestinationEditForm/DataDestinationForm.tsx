@@ -335,7 +335,7 @@ export function DataDestinationForm({
             <FormSection title='Availability' defaultOpen={false} name='destination-availability'>
               <FormItem>
                 <div className='flex items-center justify-between gap-4'>
-                  <FormLabel>Available for use</FormLabel>
+                  <FormLabel>Shared for use</FormLabel>
                   <Switch
                     checked={sharingState.availableForUse}
                     onCheckedChange={v => {
@@ -349,7 +349,7 @@ export function DataDestinationForm({
                 <FormDescription>
                   <Accordion variant='common' type='single' collapsible>
                     <AccordionItem value='sharing-use-help'>
-                      <AccordionTrigger>What does "Available for use" mean?</AccordionTrigger>
+                      <AccordionTrigger>What does "Shared for use" mean?</AccordionTrigger>
                       <AccordionContent>
                         <p>
                           When enabled, project members can select this destination when configuring
@@ -362,7 +362,7 @@ export function DataDestinationForm({
               </FormItem>
               <FormItem>
                 <div className='flex items-center justify-between gap-4'>
-                  <FormLabel>Available for maintenance</FormLabel>
+                  <FormLabel>Shared for maintenance</FormLabel>
                   <Switch
                     checked={sharingState.availableForMaintenance}
                     onCheckedChange={v => {
@@ -377,9 +377,7 @@ export function DataDestinationForm({
                 <FormDescription>
                   <Accordion variant='common' type='single' collapsible>
                     <AccordionItem value='sharing-maintenance-help'>
-                      <AccordionTrigger>
-                        What does "Available for maintenance" mean?
-                      </AccordionTrigger>
+                      <AccordionTrigger>What does "Shared for maintenance" mean?</AccordionTrigger>
                       <AccordionContent>
                         <p>
                           When enabled, project members can copy credentials from this destination,

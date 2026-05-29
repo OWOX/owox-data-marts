@@ -98,9 +98,9 @@ export function MemberFormFields({
                     <AccordionContent>
                       <p className='mb-2'>
                         <strong>Business User</strong> — sees accessible Data Marts and Reports,
-                        creates Reports for Data Marts available for reporting, manages Reports they
+                        creates Reports for Data Marts shared for reporting, manages Reports they
                         own (edit, delete, change owners), manages Report Triggers under their
-                        Reports, and uses Destinations available for use. Cannot create, edit, or
+                        Reports, and uses Destinations shared for use. Cannot create, edit, or
                         delete Data Marts, Data Mart Triggers, or Storages.
                       </p>
                       <p className='mb-2'>

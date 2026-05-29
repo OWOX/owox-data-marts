@@ -97,7 +97,7 @@ Editing a resource's context attachments is more restricted than editing the res
 | **Storage** | Project Admin, or Owner with Technical User role |
 | **Destination** | Project Admin, or Owner (any role) |
 
-Members who can edit a resource for other reasons (for example, a non-owner Technical User editing a Data Mart that is *Available for maintenance*) cannot change its contexts unless they meet the rules above.
+Members who can edit a resource for other reasons (for example, a non-owner Technical User editing a Data Mart that is *Shared for maintenance*) cannot change its contexts unless they meet the rules above.
 
 ---
 
