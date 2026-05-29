@@ -219,7 +219,10 @@ export class ProjectSetupProgressService {
 
   private async getOrInitializeProject(projectId: string): Promise<ProjectSetupProgress> {
     const existing = await this.progressRepository.findOne({ where: { projectId } });
-    if (existing) return existing;
+    if (existing) {
+      existing.steps = this.normalizeProjectSteps(existing.steps);
+      return existing;
+    }
 
     const steps = await this.computeProjectInitialState(projectId);
     const entity = this.progressRepository.create({
@@ -284,7 +287,10 @@ export class ProjectSetupProgressService {
     const existing = await this.userProgressRepository.findOne({
       where: { projectId, userId },
     });
-    if (existing) return existing;
+    if (existing) {
+      existing.steps = this.normalizeUserSteps(existing.steps);
+      return existing;
+    }
 
     const steps = await this.computeUserInitialState(projectId, userId);
     const entity = this.userProgressRepository.create({
@@ -338,6 +344,28 @@ export class ProjectSetupProgressService {
     }
 
     return steps;
+  }
+
+  private normalizeProjectSteps(steps: ProjectSetupSteps): ProjectSetupSteps {
+    const defaults = createEmptySteps();
+    const normalized = { ...defaults, ...steps };
+
+    for (const key of SETUP_STEP_KEYS) {
+      normalized[key] ??= defaults[key];
+    }
+
+    return normalized;
+  }
+
+  private normalizeUserSteps(steps: Record<string, StepState>): Record<string, StepState> {
+    const defaults = createEmptySteps();
+    const normalized = { ...steps };
+
+    for (const key of USER_SCOPED_STEP_KEYS) {
+      normalized[key] ??= defaults[key];
+    }
+
+    return normalized;
   }
 
   // ── Existence checks ──
