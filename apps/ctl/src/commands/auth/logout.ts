@@ -8,8 +8,8 @@ type LogoutDeps = {
 
 export async function performLogout(
   deps: LogoutDeps = { store: new ConfigStore() }
-): Promise<void> {
-  await deps.store.remove();
+): Promise<{ removed: boolean }> {
+  return { removed: await deps.store.remove() };
 }
 
 export default class AuthLogout extends BaseCommand {
@@ -22,14 +22,19 @@ export default class AuthLogout extends BaseCommand {
     const { flags } = await this.parse(AuthLogout);
 
     try {
-      await performLogout({ store: new ConfigStore() });
+      this.loadEnvironment(flags);
+      const result = await performLogout({ store: new ConfigStore() });
       if (this.outputFormat(flags) === 'json') {
-        this.log(renderJson({ loggedOut: true }));
+        this.log(renderJson({ loggedOut: true, removed: result.removed }));
         return;
       }
 
       const palette = colors({ enabled: this.colorEnabled(flags) });
-      this.log(palette.success('Stored credentials removed'));
+      this.log(
+        result.removed
+          ? palette.success('Stored credentials removed')
+          : palette.warning('No stored credentials found')
+      );
     } catch (error) {
       this.handleCliError(error, flags);
     }

@@ -1,4 +1,4 @@
-import { chmod, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
+import { chmod, mkdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 
 import envPaths from 'env-paths';
@@ -81,8 +81,31 @@ export class ConfigStore {
     await chmod(this.path, 0o600).catch(() => undefined);
   }
 
-  async remove(): Promise<void> {
-    await rm(this.path, { force: true });
+  async remove(): Promise<boolean> {
+    let removed = true;
+
+    try {
+      await rm(this.path);
+    } catch (error) {
+      if (error && typeof error === 'object' && 'code' in error && error.code === 'ENOENT') {
+        removed = false;
+      } else {
+        throw error;
+      }
+    }
+
+    if (removed) {
+      try {
+        await stat(this.path);
+        throw new OWOXConfigError(`Failed to remove owox-ctl config file at ${this.path}`);
+      } catch (error) {
+        if (!(error && typeof error === 'object' && 'code' in error && error.code === 'ENOENT')) {
+          throw error;
+        }
+      }
+    }
+
+    return removed;
   }
 }
 
