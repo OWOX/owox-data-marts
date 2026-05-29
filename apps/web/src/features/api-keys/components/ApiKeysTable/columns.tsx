@@ -8,6 +8,7 @@ import {
 } from '@owox/ui/components/dropdown-menu';
 import { Copy, MoreHorizontal, Pencil, Trash2 } from 'lucide-react';
 import RelativeTime from '@owox/ui/components/common/relative-time';
+import { formatDateOnly } from '../../../../utils';
 import { SortableHeader, ToggleColumnsHeader } from '../../../../shared/components/Table';
 import type { ProjectMemberApiKey } from '../../types';
 import toast from 'react-hot-toast';
@@ -71,7 +72,7 @@ export const getApiKeysColumns = ({
       const expiring = isExpiringSoon(expiresAt);
       return (
         <span className={expiring ? 'font-medium text-amber-600' : ''}>
-          {new Date(expiresAt).toLocaleDateString()}
+          {formatDateOnly(expiresAt)}
         </span>
       );
     },
