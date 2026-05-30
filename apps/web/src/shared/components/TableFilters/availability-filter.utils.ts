@@ -52,7 +52,7 @@ export function buildAvailabilityFilter<K extends string>(
     maintenanceLabel = 'Shared for maintenance',
     bothLabel = `${firstLabel} + maintenance`,
     noneLabel = 'Not shared',
-    label = 'Availability',
+    label = 'Sharing',
   } = args;
   return {
     id,

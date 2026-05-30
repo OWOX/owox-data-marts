@@ -1,6 +1,6 @@
-# Ownership and Availability
+# Ownership and Sharing
 
-A member's [role](roles-and-permissions.md) defines their capabilities across the whole project. **Access rights** go one level deeper: they control what a member can do with a specific resource, based on two factors — their **ownership status** and the resource's **availability settings**.
+A member's [role](roles-and-permissions.md) defines their capabilities across the whole project. **Access rights** go one level deeper: they control what a member can do with a specific resource, based on two factors — their **ownership status** and the resource's **sharing settings**.
 
 ---
 
@@ -10,7 +10,7 @@ Access to a specific resource is decided by combining several **paths**:
 
 - The member's **role** (Project Admin, Technical User, Business User).
 - Their **ownership status** for the resource (Technical Owner, Business Owner, Owner, or non-owner).
-- The resource's **availability** toggles (*Shared for use* / *Shared for reporting*, *Shared for maintenance*).
+- The resource's **sharing** toggles (*Shared for use* / *Shared for reporting*, *Shared for maintenance*).
 - The member's **role scope** and assigned **contexts** (for non-owners with `Selected contexts only`).
 
 **Permissions are additive.** When more than one path applies, the member receives the **union** of allowed actions from all valid paths. Being assigned as an owner can only add access — it never reduces what the member could already do without that assignment.
@@ -18,14 +18,14 @@ Access to a specific resource is decided by combining several **paths**:
 Two paths combine into the final decision:
 
 1. **Ownership floor** — what the ownership assignment alone grants (e.g. a Business Owner is guaranteed *See* and *Use* of the Data Mart). This path bypasses the context gate; ownership of a resource implies visibility of it.
-2. **Non-owner sharing path** — what any member of the same role would be able to do on the resource given its availability toggles (e.g. a Technical User on a Data Mart that is *Shared for maintenance* can edit, delete, and manage triggers). This path is gated by role scope and contexts even for owners — being an owner of one resource does not lift the context restriction for actions that come from the shared sharing path.
+2. **Non-owner sharing path** — what any member of the same role would be able to do on the resource given its sharing toggles (e.g. a Technical User on a Data Mart that is *Shared for maintenance* can edit, delete, and manage triggers). This path is gated by role scope and contexts even for owners — being an owner of one resource does not lift the context restriction for actions that come from the shared sharing path.
 
 The following restrictions still apply on top of the union:
 
 - **Role gate** — a Business User never gains maintenance-level actions on Storages or Data Marts, even when they are an owner; that level of access requires the Technical User role or Project Admin.
-- **Availability gate** — non-owners only get the actions enabled by the resource's availability toggles. Ownership guarantees See + Use even when the resource is not shared.
+- **Sharing gate** — non-owners only get the actions enabled by the resource's sharing toggles. Ownership guarantees See + Use even when the resource is not shared.
 - **Context gate** — for `Selected contexts only` members, at least one context must overlap between the member and the resource for the non-owner sharing path to apply. The ownership floor still grants See + Use regardless of overlap.
-- **Owner-only and admin-only actions** — *Configure Availability* and *Manage Owners* require a Technical Owner with Technical User role (for Data Marts and Storages), or a Project Admin. They are never granted through availability or non-owner paths.
+- **Owner-only and admin-only actions** — *Configure Sharing* and *Manage Owners* require a Technical Owner with Technical User role (for Data Marts and Storages), or a Project Admin. They are never granted through sharing or non-owner paths.
 
 Project Admins bypass all of the above and have full access to every resource.
 
@@ -42,7 +42,7 @@ Most resources have a single **Owner** role. Data Marts are the exception — th
 | **Technical Owner** | Data definition, schema, and source connections | Full control |
 | **Business Owner** | Business requirements and usage | Guaranteed See + Use; further actions inherit what the same user would have as a non-owner of their role |
 
-A Data Mart may have multiple Technical Owners and multiple Business Owners. Ownership is additive — being assigned as an owner only adds access (guaranteed visibility, and, where the role permits, maintenance through the availability toggle); it never reduces what the user could already do without the assignment.
+A Data Mart may have multiple Technical Owners and multiple Business Owners. Ownership is additive — being assigned as an owner only adds access (guaranteed visibility, and, where the role permits, maintenance through the sharing toggle); it never reduces what the user could already do without the assignment.
 
 ![Data Mart settings showing Technical Owner and Business Owner fields with assigned project members](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/c12de869-ff73-4a5e-16f6-5ff26fcee900/public)
 
@@ -68,11 +68,11 @@ A warning for Data Mart Technical Owners with an insufficient role appears on th
 
 ---
 
-## Availability
+## Sharing
 
-Availability settings control what non-owners can do with a resource. Owners and Project Admins always have full access regardless of availability.
+Sharing settings control what non-owners can do with a resource. Owners and Project Admins always have full access regardless of sharing settings.
 
-Each resource has two independent availability toggles. The first toggle name differs by entity type:
+Each resource has two independent sharing toggles. The first toggle name differs by entity type:
 
 - **Data Mart** — first toggle is **Shared for reporting**
 - **Storage, Destination** — first toggle is **Shared for use**
@@ -86,13 +86,13 @@ The second toggle is **Shared for maintenance** for all resource types. The comb
 | First toggle off, second on | Can see, use, edit, and delete the resource |
 | Both toggles on | Both of the above |
 
-> ☝️ New resources start with both toggles off. Existing resources were migrated to both toggles on to preserve previous access patterns. Owners can gradually reconfigure availability to match their intended access model.
+> ☝️ New resources start with both toggles off. Existing resources were migrated to both toggles on to preserve previous access patterns. Owners can gradually reconfigure sharing to match their intended access model.
 
-![Resource settings page with the Shared for reporting and Shared for maintenance toggles](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/1fb39e7a-4e85-48c4-6758-9ac173b86b00/public)
+![Resource settings page with the Shared for reporting and Shared for maintenance toggles](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/f8622cf6-8d75-46ee-e9e2-b869f987a500/public)
 
-**Who can configure availability** depends on the entity type and the owner's role:
+**Who can configure sharing** depends on the entity type and the owner's role:
 
-| Entity | Can configure availability |
+| Entity | Can configure sharing |
 |---|---|
 | Data Mart | Technical Owner with Technical User or Project Admin role; Project Admin |
 | Storage | Owner with Technical User or Project Admin role; Project Admin |
@@ -102,7 +102,7 @@ The second toggle is **Shared for maintenance** for all resource types. The comb
 
 ## Actions
 
-The following actions can be granted or restricted by the combination of ownership and availability settings:
+The following actions can be granted or restricted by the combination of ownership and sharing settings:
 
 | Action | Description |
 |---|---|
@@ -111,7 +111,7 @@ The following actions can be granted or restricted by the combination of ownersh
 | **Edit** | Modify the resource configuration |
 | **Delete** | Remove the resource |
 | **Copy Credentials** | Access connection credentials *(Storage, Destination)* |
-| **Configure Availability** | Change the availability settings of the resource |
+| **Configure Sharing** | Change the sharing settings of the resource |
 | **Manage Owners** | Assign or revoke ownership |
 | **Manage Triggers** | Create, edit, or delete triggers *(Data Mart)* |
 | **Run** | Execute the Report manually *(Report)* |
@@ -197,7 +197,7 @@ The owner of a Destination has full control regardless of their role — even a 
 
 ### Report
 
-Reports do not have availability settings. **Visibility follows the parent Data Mart** — if you can see a Data Mart, you can see all Reports built on it.
+Reports do not have sharing settings. **Visibility follows the parent Data Mart** — if you can see a Data Mart, you can see all Reports built on it.
 
 Access to edit, delete, or run a Report requires one of two conditions:
 

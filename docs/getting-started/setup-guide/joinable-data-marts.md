@@ -29,7 +29,7 @@ Before you can join two Data Marts:
 
 - Both Data Marts must live on the **same storage**. Cross-storage joins are not supported.
 - The source Data Mart needs an **Output Schema** (created automatically once it's saved with a valid input source).
-- You need **maintenance** access to both the source and the target Data Mart. See [Ownership and Availability](../../project/ownership-and-availability.md) for details on availability levels.
+- You need **maintenance** access to both the source and the target Data Mart. See [Ownership and Sharing](../../project/ownership-and-sharing.md) for details on sharing levels.
 
 Supported storages: **Google BigQuery, Snowflake, AWS Redshift, AWS Athena, Databricks**.
 
@@ -197,4 +197,4 @@ A Data Mart further upstream in the chain is in Draft status or has a relationsh
 - [Adding a Report Destination →](../../destinations/manage-destinations.md)
 - [Scheduling Reports Updates →](report-triggers.md)
 - [Manage Storages →](../../storages/manage-storages.md)
-- [Ownership and Availability →](../../project/ownership-and-availability.md)
+- [Ownership and Sharing →](../../project/ownership-and-sharing.md)
