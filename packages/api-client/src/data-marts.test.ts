@@ -43,6 +43,29 @@ function createNdjsonResponse(chunks: string[], headers: Record<string, string> 
   });
 }
 
+function createOpenNdjsonResponse(chunk: string, onCancel: () => void): Response {
+  const encoder = new TextEncoder();
+  let pulled = false;
+  const body = new ReadableStream<Uint8Array>({
+    pull(controller) {
+      if (!pulled) {
+        pulled = true;
+        controller.enqueue(encoder.encode(chunk));
+      }
+    },
+    cancel() {
+      onCancel();
+    },
+  });
+
+  return new Response(body, {
+    status: 200,
+    headers: {
+      'content-type': 'application/x-ndjson',
+    },
+  });
+}
+
 async function readRequestBody(request: Request): Promise<unknown> {
   const text = await request.text();
   if (!text) {
@@ -177,17 +200,52 @@ describe('DataMartsApi.traverseData', () => {
 
     const data = await client.dataMarts.traverseData('dm-1');
 
-    await collectRows(data).catch(error => {
-      expect(error).toBeInstanceOf(OWOXApiError);
-      expect(error).toMatchObject({
-        name: 'OWOXApiError',
-        details: {
-          dataMartId: 'dm-1',
-          lineNumber: 2,
-          runId: 'run-bad',
-        },
-      });
+    const rows = collectRows(data);
+    await expect(rows).rejects.toBeInstanceOf(OWOXApiError);
+    await expect(rows).rejects.toMatchObject({
+      name: 'OWOXApiError',
+      details: {
+        dataMartId: 'dm-1',
+        lineNumber: 2,
+        runId: 'run-bad',
+      },
     });
+  });
+
+  it('cancels the NDJSON response body when traversal stops early', async () => {
+    let wasCancelled = false;
+    const fetchMock = createFetchMock(request => {
+      if (request.method === 'POST' && request.url === '/api/auth/api-keys/exchange') {
+        return createJsonResponse(200, { accessToken: 'access-token-1' });
+      }
+
+      if (
+        request.method === 'GET' &&
+        request.url === '/api/external/http-data/data-marts/dm-1.ndjson'
+      ) {
+        return createOpenNdjsonResponse('{"date":"2026-05-01"}\n', () => {
+          wasCancelled = true;
+        });
+      }
+
+      return createJsonResponse(404, { message: 'Not found' });
+    });
+
+    const client = new OWOXApiClient({
+      apiOrigin,
+      apiKeyId,
+      apiKeySecret,
+      fetchImpl: fetchMock.fetchImpl,
+    });
+
+    const data = await client.dataMarts.traverseData('dm-1');
+
+    for await (const rows of data.rowChunks()) {
+      expect(rows).toEqual([{ date: '2026-05-01' }]);
+      break;
+    }
+
+    expect(wasCancelled).toBe(true);
   });
 
   it('wraps network failures while opening the stream with data mart context', async () => {
@@ -213,11 +271,10 @@ describe('DataMartsApi.traverseData', () => {
       fetchImpl: fetchMock.fetchImpl,
     });
 
-    await client.dataMarts.traverseData('dm-1').catch(error => {
-      expect(error).toBeInstanceOf(OWOXApiError);
-      expect(error).toMatchObject({
-        details: { dataMartId: 'dm-1' },
-      });
+    const data = client.dataMarts.traverseData('dm-1');
+    await expect(data).rejects.toBeInstanceOf(OWOXApiError);
+    await expect(data).rejects.toMatchObject({
+      details: { dataMartId: 'dm-1' },
     });
   });
 

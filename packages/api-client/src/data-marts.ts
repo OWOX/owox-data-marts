@@ -105,10 +105,12 @@ export class DataMartDataTraversal {
     const decoder = new TextDecoder();
     let pending = '';
     let lineNumber = 0;
+    let streamEnded = false;
 
     try {
       while (true) {
         const { done, value } = await reader.read();
+        streamEnded = done;
         pending += decoder.decode(value, { stream: !done });
 
         const lines = pending.split('\n');
@@ -146,6 +148,9 @@ export class DataMartDataTraversal {
         cause: error,
       });
     } finally {
+      if (!streamEnded) {
+        await reader.cancel().catch(() => undefined);
+      }
       reader.releaseLock();
     }
   }
