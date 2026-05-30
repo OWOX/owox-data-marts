@@ -46,6 +46,38 @@ console.log(dataMarts);
 const dataMarts = await client.dataMarts.list();
 ```
 
+## Stream Data Mart rows
+
+Use `dataMarts.traverseData()` to stream rows from a published Data Mart without direct storage credentials.
+The method returns stream metadata and exposes `rowChunks()` as the traversal primitive, so callers can append to a cache or write output without loading the full result into memory.
+
+```ts
+const data = await client.dataMarts.traverseData('dm_123', {
+  columns: '*',
+  column: ['Revenue: net = USD'],
+  filter: [{ column: 'Event Date (local)', operator: 'gte', value: '2026-01-01' }],
+  sort: [{ column: 'Event Date (local)', direction: 'asc' }],
+  limit: 1000,
+});
+
+console.log(data.runId);
+
+for await (const rows of data.rowChunks()) {
+  await cache.appendRows(rows);
+}
+```
+
+Column selection uses two separate fields:
+
+- `columns: '*'` selects all current Data Mart output columns.
+- `columns: '**'` selects all columns available to Reports, including joined fields.
+- `column: ['Event Date (local)', 'Revenue: net = USD']` selects exact column names.
+- `column: ['*', '**']` selects literal columns named `*` and `**`.
+
+Do not pass comma-separated column lists. Column names are opaque strings and may contain commas, equals signs, spaces, quotes, or other symbols.
+
+Use `filter` and `sort` arrays with the same rule shapes as report output controls. For normal filters on the streamed output, omit `placement` or use `placement: 'post-join'`. Use `placement: 'pre-join'` with `aliasPath` only when filtering a joined source before it is joined into the result.
+
 ## List storages
 
 ```ts

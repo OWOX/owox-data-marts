@@ -22,29 +22,40 @@ describe('HttpDataRequestValidator', () => {
     expect(result.columnSelector).toEqual({ mode: 'allNative', explicit: [] });
   });
 
-  it('treats "*" as all-native', () => {
-    const result = validator.validate({ column: '*' });
+  it('treats columns="*" as all-native', () => {
+    const result = validator.validate({ columns: '*' });
     expect(result.columnSelector).toEqual({ mode: 'allNative', explicit: [] });
   });
 
-  it('keeps explicit columns alongside "*" as all-native additions', () => {
-    const result = validator.validate({ column: ['*', 'orders__revenue'] });
-    expect(result.columnSelector).toEqual({ mode: 'allNative', explicit: ['orders__revenue'] });
+  it('keeps exact columns alongside columns="*" as all-native additions', () => {
+    const result = validator.validate({ columns: '*', column: ['*', 'orders__revenue'] });
+    expect(result.columnSelector).toEqual({
+      mode: 'allNative',
+      explicit: ['*', 'orders__revenue'],
+    });
   });
 
-  it('treats "**" as all-blendable', () => {
-    expect(validator.validate({ column: '**' }).columnSelector).toEqual({ mode: 'allBlendable' });
+  it('treats column="*" and column="**" as exact column names', () => {
+    const result = validator.validate({ column: ['*', '**'] });
+    expect(result.columnSelector).toEqual({ mode: 'explicit', explicit: ['*', '**'] });
   });
 
-  it('rejects "**" combined with other column values', () => {
-    expect(() => validator.validate({ column: ['**', 'date'] })).toThrow(
+  it('treats columns="**" as all-blendable', () => {
+    expect(validator.validate({ columns: '**' }).columnSelector).toEqual({ mode: 'allBlendable' });
+  });
+
+  it('rejects columns="**" combined with exact column values', () => {
+    expect(() => validator.validate({ columns: '**', column: 'date' })).toThrow(
       BusinessViolationException
     );
-    expect(() => validator.validate({ column: ['**', '*'] })).toThrow(BusinessViolationException);
   });
 
   it('rejects empty column value', () => {
     expect(() => validator.validate({ column: ['date', ''] })).toThrow(BusinessViolationException);
+  });
+
+  it('rejects repeated columns selector values', () => {
+    expect(() => validator.validate({ columns: ['*', '**'] })).toThrow(BusinessViolationException);
   });
 
   it('rejects forbidden pagination params', () => {

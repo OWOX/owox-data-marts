@@ -123,9 +123,9 @@ describe('HTTP Data API (e2e)', () => {
       expect(res.status).toBe(400);
     });
 
-    it('returns 400 when ** is combined with other columns', async () => {
+    it('returns 400 when columns=** is combined with exact columns', async () => {
       const res = await agent
-        .get(`/api/external/http-data/data-marts/${dataMartId}.ndjson?column=**&column=date`)
+        .get(`/api/external/http-data/data-marts/${dataMartId}.ndjson?columns=**&column=date`)
         .set(AUTH_HEADER);
       expect(res.status).toBe(400);
     });
@@ -201,9 +201,9 @@ describe('HTTP Data API (e2e)', () => {
       ]);
     });
 
-    it('treats * as all native columns', async () => {
+    it('treats columns=* as all native columns', async () => {
       const res = await agent
-        .get(`/api/external/http-data/data-marts/${dataMartId}.ndjson?column=*`)
+        .get(`/api/external/http-data/data-marts/${dataMartId}.ndjson?columns=*`)
         .set(AUTH_HEADER);
       expect(res.status).toBe(200);
       expect(parseNdjson(res.text)).toEqual([
@@ -211,6 +211,13 @@ describe('HTTP Data API (e2e)', () => {
         { date: '2026-05-02', revenue: 51.0 },
         { date: '2026-05-03', revenue: 100.25 },
       ]);
+    });
+
+    it('treats column=* as a literal exact column name', async () => {
+      const res = await agent
+        .get(`/api/external/http-data/data-marts/${dataMartId}.ndjson?column=*`)
+        .set(AUTH_HEADER);
+      expect(res.status).toBe(400);
     });
 
     it('de-duplicates repeated columns instead of rejecting them', async () => {

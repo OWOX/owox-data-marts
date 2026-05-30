@@ -15,10 +15,11 @@ export function StreamHttpDataSpec() {
       summary: 'Stream Data Mart data as NDJSON',
       description:
         'Streams rows of a published Data Mart as newline-delimited JSON ' +
-        '(one data row per line, no envelope). Columns are chosen via the repeated ' +
-        '`column` query parameter; row objects use those column names as keys in the ' +
-        'requested order. Omit `column` (or pass `*`) for all native columns, or pass ' +
-        '`**` for all native plus all reporting-visible blended columns. Authenticated ' +
+        '(one data row per line, no envelope). Output selectors use `columns=*` or ' +
+        '`columns=**`; exact column names use repeated `column` parameters. Row objects ' +
+        'use resolved column names as keys in the requested order. Omit both `columns` ' +
+        'and `column`, or pass `columns=*`, for all native columns. Pass `columns=**` ' +
+        'for all native plus all reporting-visible blended columns. Authenticated ' +
         'with the ODM member token via `x-owox-authorization`. Creates one DataMartRun ' +
         'of type HTTP_DATA per request, available through the run history endpoint.',
     }),
@@ -33,14 +34,25 @@ export function StreamHttpDataSpec() {
         'Data Mart identifier (UUID for native Data Marts, free-form string for legacy ones)',
     }),
     ApiQuery({
+      name: 'columns',
+      description:
+        'Optional column-set selector. `*` selects all current Data Mart output columns; ' +
+        '`**` selects all columns available to Reports, including joined fields. ' +
+        '`columns=*` may be combined with repeated `column` values. `columns=**` cannot ' +
+        'be combined with `column` or another `columns` value. Omit `columns` and ' +
+        '`column` to select all current Data Mart output columns.',
+      required: false,
+      enum: ['*', '**'],
+      example: '*',
+    }),
+    ApiQuery({
       name: 'column',
       description:
-        'Column to include in the output. Repeat the parameter to select multiple ' +
-        'columns; the order of repetition is preserved in row objects. Two reserved ' +
-        'values expand to column sets: `*` = all native columns, `**` = all native plus ' +
-        'all reporting-visible blended columns. `*` may be combined with explicit ' +
-        'columns (e.g. `column=*&column=orders__revenue` = all native plus that blended ' +
-        'field). Omitting the parameter is equivalent to `*`. Overlaps are de-duplicated.',
+        'Exact column name to include in the output. Repeat the parameter to select ' +
+        'multiple exact column names; the order of repetition is preserved in row ' +
+        'objects. Values are opaque strings. `column=*` and `column=**` refer to literal ' +
+        'columns named `*` and `**`; use `columns=*` or `columns=**` for selectors. ' +
+        'Overlaps are de-duplicated.',
       required: false,
       isArray: true,
       type: String,
