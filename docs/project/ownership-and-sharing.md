@@ -1,4 +1,4 @@
-# Ownership and Availability
+# Ownership and Sharing
 
 A member's [role](roles-and-permissions.md) defines their capabilities across the whole project. **Access rights** go one level deeper: they control what a member can do with a specific resource, based on two factors — their **ownership status** and the resource's **availability settings**.
 
@@ -23,9 +23,9 @@ Two paths combine into the final decision:
 The following restrictions still apply on top of the union:
 
 - **Role gate** — a Business User never gains maintenance-level actions on Storages or Data Marts, even when they are an owner; that level of access requires the Technical User role or Project Admin.
-- **Availability gate** — non-owners only get the actions enabled by the resource's availability toggles. Ownership guarantees See + Use even when the resource is not shared.
+- **Sharing gate** — non-owners only get the actions enabled by the resource's sharing toggles. Ownership guarantees See + Use even when the resource is not shared.
 - **Context gate** — for `Selected contexts only` members, at least one context must overlap between the member and the resource for the non-owner sharing path to apply. The ownership floor still grants See + Use regardless of overlap.
-- **Owner-only and admin-only actions** — *Configure Availability* and *Manage Owners* require a Technical Owner with Technical User role (for Data Marts and Storages), or a Project Admin. They are never granted through availability or non-owner paths.
+- **Owner-only and admin-only actions** — *Configure Sharing* and *Manage Owners* require a Technical Owner with Technical User role (for Data Marts and Storages), or a Project Admin. They are never granted through sharing or non-owner paths.
 
 Project Admins bypass all of the above and have full access to every resource.
 
@@ -68,9 +68,9 @@ A warning for Data Mart Technical Owners with an insufficient role appears on th
 
 ---
 
-## Availability
+## Sharing
 
-Availability settings control what non-owners can do with a resource. Owners and Project Admins always have full access regardless of availability.
+Sharing settings control what non-owners can do with a resource. Owners and Project Admins always have full access regardless of sharing settings.
 
 Each resource has two independent availability toggles. The first toggle name differs by entity type:
 
@@ -88,11 +88,11 @@ The second toggle is **Shared for maintenance** for all resource types. The comb
 
 > ☝️ New resources start with both toggles off. Existing resources were migrated to both toggles on to preserve previous access patterns. Owners can gradually reconfigure availability to match their intended access model.
 
-![Resource settings page with the Shared for reporting and Shared for maintenance toggles](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/1fb39e7a-4e85-48c4-6758-9ac173b86b00/public)
+![Resource settings page with the Shared for reporting and Shared for maintenance toggles](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/f8622cf6-8d75-46ee-e9e2-b869f987a500/public)
 
-**Who can configure availability** depends on the entity type and the owner's role:
+**Who can configure sharing** depends on the entity type and the owner's role:
 
-| Entity | Can configure availability |
+| Entity | Can configure sharing |
 |---|---|
 | Data Mart | Technical Owner with Technical User or Project Admin role; Project Admin |
 | Storage | Owner with Technical User or Project Admin role; Project Admin |
@@ -111,7 +111,7 @@ The following actions can be granted or restricted by the combination of ownersh
 | **Edit** | Modify the resource configuration |
 | **Delete** | Remove the resource |
 | **Copy Credentials** | Access connection credentials *(Storage, Destination)* |
-| **Configure Availability** | Change the availability settings of the resource |
+| **Configure Sharing** | Change the sharing settings of the resource |
 | **Manage Owners** | Assign or revoke ownership |
 | **Manage Triggers** | Create, edit, or delete triggers *(Data Mart)* |
 | **Run** | Execute the Report manually *(Report)* |
