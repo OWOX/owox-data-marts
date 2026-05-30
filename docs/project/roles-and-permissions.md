@@ -21,7 +21,7 @@ Assigned to members who manage the project team and need full access to all reso
 **Data access:**
 
 - Create, edit, and delete any Data Mart, Storage, Destination, Report, and Trigger
-- Full owner and availability management
+- Full owner and sharing management
 
 **Notifications:**
 
