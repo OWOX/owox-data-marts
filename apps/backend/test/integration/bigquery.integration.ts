@@ -142,4 +142,60 @@ describeIfCredentials('BigQuery Integration Tests', () => {
       }
     }, 30000);
   });
+
+  // Regression net for the `executeQuery` rewrite (createQueryJob + job-status
+  // polling instead of `bigQuery.query()`). These run against real BigQuery
+  // and lock the two contracts the rewrite changed:
+  //   1. executeQuery waits for the job to finish, then its jobId resolves to
+  //      a materialized anonymous destination table that streams rows — the
+  //      exact path the report reader and the SQL-run executor depend on.
+  //   2. an invalid query still surfaces as a thrown error (previously thrown
+  //      by `bigQuery.query()`, now from the job's error status).
+  // The DDL path (CREATE/DROP) is already exercised by beforeAll/afterAll.
+  describe('Query Execution (executeQuery → job → destination table)', () => {
+    it('runs a SELECT as a job and streams rows from the destination table', async () => {
+      const { jobId } = await adapter.executeQuery(
+        `SELECT n, label FROM UNNEST([
+          STRUCT(1 AS n, 'a' AS label),
+          STRUCT(2 AS n, 'b' AS label)
+        ]) ORDER BY n`
+      );
+      expect(jobId).toBeTruthy();
+
+      const job = await adapter.getJob(jobId);
+      const destinationTable = job.metadata.configuration.query.destinationTable;
+      expect(destinationTable).toBeDefined();
+
+      const table = adapter.createTableReference(
+        destinationTable.projectId,
+        destinationTable.datasetId,
+        destinationTable.tableId
+      );
+      const [rows] = await table.getRows({ maxResults: 5000, autoPaginate: false });
+
+      expect(rows).toHaveLength(2);
+      expect(rows.map((r: Record<string, unknown>) => String(r.label))).toEqual(['a', 'b']);
+      expect(rows.map((r: Record<string, unknown>) => Number(r.n))).toEqual([1, 2]);
+    }, 60000);
+
+    it('supports NAMED query parameters end-to-end', async () => {
+      const { jobId } = await adapter.executeQuery('SELECT @n AS n', [{ name: 'n', value: 42 }]);
+
+      const job = await adapter.getJob(jobId);
+      const destinationTable = job.metadata.configuration.query.destinationTable;
+      const table = adapter.createTableReference(
+        destinationTable.projectId,
+        destinationTable.datasetId,
+        destinationTable.tableId
+      );
+      const [rows] = await table.getRows({ maxResults: 10, autoPaginate: false });
+
+      expect(rows).toHaveLength(1);
+      expect(Number((rows[0] as Record<string, unknown>).n)).toBe(42);
+    }, 60000);
+
+    it('rejects when the query is invalid (error surfaces from job status)', async () => {
+      await expect(adapter.executeQuery('SELEKT * FORM nope')).rejects.toThrow();
+    }, 60000);
+  });
 });
