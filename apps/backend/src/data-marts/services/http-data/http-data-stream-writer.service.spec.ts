@@ -74,11 +74,12 @@ function createMockResponse(
 describe('HttpDataStreamWriter', () => {
   const writer = new HttpDataStreamWriter();
 
-  it('initHeaders sets NDJSON content type, runId and flushes headers', () => {
+  it('initHeaders sets NDJSON content type, runId, disables proxy buffering and flushes headers', () => {
     const mock = createMockResponse();
     writer.initHeaders(mock.res, { runId: 'run-1' });
     expect(mock.headers['Content-Type']).toBe('application/x-ndjson; charset=utf-8');
     expect(mock.headers['Cache-Control']).toBe('no-store');
+    expect(mock.headers['X-Accel-Buffering']).toBe('no');
     expect(mock.headers[HTTP_DATA_RUN_ID_HEADER]).toBe('run-1');
     expect(mock.flushHeadersCalls).toBe(1);
   });

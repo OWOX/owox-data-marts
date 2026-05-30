@@ -7,6 +7,7 @@ export class HttpDataStreamWriter {
   initHeaders(res: Response, meta: { runId: string }): void {
     res.setHeader('Content-Type', 'application/x-ndjson; charset=utf-8');
     res.setHeader('Cache-Control', 'no-store');
+    res.setHeader('X-Accel-Buffering', 'no');
     res.setHeader(HTTP_DATA_RUN_ID_HEADER, meta.runId);
     res.flushHeaders();
   }
