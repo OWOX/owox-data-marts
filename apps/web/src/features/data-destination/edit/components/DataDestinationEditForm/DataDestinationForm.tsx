@@ -287,10 +287,9 @@ export function DataDestinationForm({
                       <p>
                         Destination Owner is direct ownership of this Destination. When the
                         owner&apos;s role is Technical User or Project Admin, they may view, edit,
-                        delete, configure Availability, and copy credentials from this Destination —
-                        regardless of Availability settings. Assigning Owner to a Business User
-                        stores the assignment but grants no maintenance permissions until the role
-                        changes.
+                        delete, configure Sharing, and copy credentials from this Destination —
+                        regardless of Sharing settings. Assigning Owner to a Business User stores
+                        the assignment but grants no maintenance permissions until the role changes.
                       </p>
                     </AccordionContent>
                   </AccordionItem>
@@ -332,7 +331,7 @@ export function DataDestinationForm({
           )}
 
           {isEditMode && (
-            <FormSection title='Availability' defaultOpen={false} name='destination-availability'>
+            <FormSection title='Sharing' defaultOpen={false} name='destination-availability'>
               <FormItem>
                 <div className='flex items-center justify-between gap-4'>
                   <FormLabel>Shared for use</FormLabel>

@@ -24,7 +24,7 @@ function getAvailabilitySwitches(container: Locator | Page): [Locator, Locator] 
 }
 
 // ---------------------------------------------------------------------------
-// AVL-01..03: Storage — Availability section in edit drawer
+// AVL-01..03: Storage — Sharing section in edit drawer
 // ---------------------------------------------------------------------------
 test.describe('Storage Availability', () => {
   test('availability section visible in edit mode with two switches (AVL-01)', async ({
@@ -42,8 +42,8 @@ test.describe('Storage Availability', () => {
 
     const sheet = page.getByTestId(TESTIDS.storageConfigSheet);
 
-    // Expand Availability section
-    await ensureSectionExpanded(sheet, 'Availability');
+    // Expand Sharing section
+    await ensureSectionExpanded(sheet, 'Sharing');
 
     // Both labels should be visible
     await expect(sheet.getByText('Shared for use', { exact: true })).toBeVisible();
@@ -64,8 +64,8 @@ test.describe('Storage Availability', () => {
     const sheet = page.getByTestId(TESTIDS.storageConfigSheet);
     await expect(sheet).toBeVisible();
 
-    // Expand Availability section
-    await ensureSectionExpanded(sheet, 'Availability');
+    // Expand Sharing section
+    await ensureSectionExpanded(sheet, 'Sharing');
 
     // New storages default to "use" ON (shared with the project) but
     // "maintenance" OFF (granting edit/delete remains an explicit opt-in).
@@ -89,8 +89,8 @@ test.describe('Storage Availability', () => {
     const sheet = page.getByTestId(TESTIDS.storageConfigSheet);
     await expect(sheet).toBeVisible();
 
-    // Expand Availability section
-    await ensureSectionExpanded(sheet, 'Availability');
+    // Expand Sharing section
+    await ensureSectionExpanded(sheet, 'Sharing');
 
     // "Shared for use" should be ON, "Shared for maintenance" should be OFF
     const [useSwitch, maintenanceSwitch] = getAvailabilitySwitches(sheet);
@@ -100,7 +100,7 @@ test.describe('Storage Availability', () => {
 });
 
 // ---------------------------------------------------------------------------
-// AVL-04..05: Destination — Availability section in edit drawer
+// AVL-04..05: Destination — Sharing section in edit drawer
 // ---------------------------------------------------------------------------
 test.describe('Destination Availability', () => {
   test('availability section visible in edit mode (AVL-04)', async ({ page, apiHelpers }) => {
@@ -113,8 +113,8 @@ test.describe('Destination Availability', () => {
     const sheet = page.getByTestId(TESTIDS.destEditSheet);
     await expect(sheet).toBeVisible();
 
-    // Expand Availability section
-    await ensureSectionExpanded(sheet, 'Availability');
+    // Expand Sharing section
+    await ensureSectionExpanded(sheet, 'Sharing');
 
     await expect(sheet.getByText('Shared for use', { exact: true })).toBeVisible();
     await expect(sheet.getByText('Shared for maintenance', { exact: true })).toBeVisible();
@@ -136,8 +136,8 @@ test.describe('Destination Availability', () => {
     const sheet = page.getByTestId(TESTIDS.destEditSheet);
     await expect(sheet).toBeVisible();
 
-    // Expand Availability section
-    await ensureSectionExpanded(sheet, 'Availability');
+    // Expand Sharing section
+    await ensureSectionExpanded(sheet, 'Sharing');
 
     // "Shared for use" should be OFF, "Shared for maintenance" should be ON
     const [useSwitch, maintenanceSwitch] = getAvailabilitySwitches(sheet);
@@ -147,7 +147,7 @@ test.describe('Destination Availability', () => {
 });
 
 // ---------------------------------------------------------------------------
-// AVL-06..08: DataMart — Availability on Overview tab
+// AVL-06..08: DataMart — Sharing on Overview tab
 // ---------------------------------------------------------------------------
 test.describe('DataMart Availability', () => {
   test('overview tab shows availability card with two switches (AVL-06)', async ({
@@ -160,7 +160,7 @@ test.describe('DataMart Availability', () => {
     await page.goto(`/ui/0/data-marts/${dm.id}/overview`);
     await expect(page.getByTestId(TESTIDS.datamartTabOverview)).toBeVisible();
 
-    await expect(page.getByText('Availability')).toBeVisible();
+    await expect(page.getByText('Sharing')).toBeVisible();
     await expect(page.getByText('Shared for reporting', { exact: true })).toBeVisible();
     await expect(page.getByText('Shared for maintenance', { exact: true })).toBeVisible();
   });
@@ -181,7 +181,7 @@ test.describe('DataMart Availability', () => {
     await reportingSwitch.click();
 
     // Toast should appear immediately (no Save button needed)
-    await expect(page.getByText('Availability updated')).toBeVisible();
+    await expect(page.getByText('Sharing updated')).toBeVisible();
   });
 
   test('DM availability persists after page reload (AVL-08)', async ({ page, apiHelpers }) => {
@@ -195,7 +195,7 @@ test.describe('DataMart Availability', () => {
     // Toggle "Shared for maintenance" OFF (second switch)
     const [, maintenanceSwitch] = getAvailabilitySwitches(page);
     await maintenanceSwitch.click();
-    await expect(page.getByText('Availability updated')).toBeVisible();
+    await expect(page.getByText('Sharing updated')).toBeVisible();
 
     // Reload page
     await page.reload();

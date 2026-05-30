@@ -353,10 +353,9 @@ export function DataStorageForm({
                       <p>
                         Storage Owner is direct technical ownership of this Storage. When the
                         owner&apos;s role is Technical User or Project Admin, they may view, edit,
-                        delete, configure Availability, and copy credentials from this Storage —
-                        regardless of Availability settings. Assigning Owner to a Business User
-                        stores the assignment but grants no maintenance permissions until the role
-                        changes.
+                        delete, configure Sharing, and copy credentials from this Storage —
+                        regardless of Sharing settings. Assigning Owner to a Business User stores
+                        the assignment but grants no maintenance permissions until the role changes.
                       </p>
                     </AccordionContent>
                   </AccordionItem>
@@ -398,7 +397,7 @@ export function DataStorageForm({
           )}
 
           {initialData?.id && (
-            <FormSection title='Availability' defaultOpen={false} name='storage-availability'>
+            <FormSection title='Sharing' defaultOpen={false} name='storage-availability'>
               <FormItem>
                 <div className='flex items-center justify-between gap-4'>
                   <FormLabel>Shared for use</FormLabel>

@@ -89,7 +89,7 @@ Resource lists (Data Marts, Storages, Destinations) display attached contexts as
 
 ### Who Can Change a Resource's Contexts
 
-Editing a resource's context attachments is more restricted than editing the resource itself. The rules follow the same ownership model as other resource actions (see [Ownership and Availability](ownership-and-availability.md)):
+Editing a resource's context attachments is more restricted than editing the resource itself. The rules follow the same ownership model as other resource actions (see [Ownership and Sharing](ownership-and-sharing.md)):
 
 | Resource | Who can edit attached contexts |
 |---|---|
@@ -136,7 +136,7 @@ The context filter applies to non-owner visibility of:
 - **Data Marts**
 - **Storages**
 - **Destinations**
-- **Reports** (visibility follows the parent Data Mart, as documented in [Ownership and Availability](ownership-and-availability.md#report))
+- **Reports** (visibility follows the parent Data Mart, as documented in [Ownership and Sharing](ownership-and-sharing.md#report))
 
 Triggers do not have their own visibility — they follow their parent (Data Mart or Report).
 
@@ -157,4 +157,4 @@ Adding or removing a context on a resource immediately changes who can see it:
 
 - [Managing Project Members](members.md) — invite members, change role and scope.
 - [Roles and Permissions](roles-and-permissions.md) — what each role can do, independent of contexts.
-- [Ownership and Availability](ownership-and-availability.md) — the other two layers that determine resource access.
+- [Ownership and Sharing](ownership-and-sharing.md) — the other two layers that determine resource access.

@@ -37,7 +37,7 @@ Assigned to members who build and maintain the data infrastructure — creating 
 
 - Create and manage Data Marts, Storages, and Destinations
 - Create Reports using Data Marts and Destinations they have access to
-- What they can do with a specific resource depends on their ownership status and the resource's availability settings (see [Ownership and Availability](ownership-and-availability.md))
+- What they can do with a specific resource depends on their ownership status and the resource's sharing settings (see [Ownership and Sharing](ownership-and-sharing.md))
 - Manage scheduled triggers for Data Marts they have maintenance access to
 - Edit, delete, run, and manage owners of Reports they have access to — either through maintenance access to the parent Data Mart, or as the Report owner
 
