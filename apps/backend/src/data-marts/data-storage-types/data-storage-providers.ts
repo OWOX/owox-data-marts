@@ -14,6 +14,7 @@ import { AthenaSchemaMerger } from './athena/services/athena-schema-merger';
 import { AthenaSqlDryRunExecutor } from './athena/services/athena-sql-dry-run.executor';
 import { AthenaBlendedQueryBuilder } from './athena/services/athena-blended-query-builder';
 import { AthenaSqlRunExecutor } from './athena/services/athena-sql-run.executor';
+import { AthenaStorageErrorMapper } from './athena/services/athena-storage-error.mapper';
 import { BigQueryApiAdapterFactory } from './bigquery/adapters/bigquery-api-adapter.factory';
 import { BigQueryAccessValidator } from './bigquery/services/bigquery-access.validator';
 import { BigQueryBlendedQueryBuilder } from './bigquery/services/bigquery-blended-query-builder';
@@ -28,6 +29,7 @@ import { BigQueryReportReader } from './bigquery/services/bigquery-report-reader
 import { BigQuerySchemaMerger } from './bigquery/services/bigquery-schema-merger';
 import { BigquerySqlDryRunExecutor } from './bigquery/services/bigquery-sql-dry-run.executor';
 import { BigQuerySqlRunExecutor } from './bigquery/services/bigquery-sql-run.executor';
+import { BigQueryStorageErrorMapper } from './bigquery/services/bigquery-storage-error.mapper';
 import { LegacyBigQueryAccessValidator } from './bigquery/services/legacy/legacy-bigquery-access.validator';
 import { LegacyBigQueryCreateViewExecutor } from './bigquery/services/legacy/legacy-bigquery-create-view.executor';
 import { LegacyBigQueryDataMartSchemaParser } from './bigquery/services/legacy/legacy-bigquery-data-mart-schema.parser';
@@ -40,6 +42,7 @@ import { LegacyBigQuerySchemaMerger } from './bigquery/services/legacy/legacy-bi
 import { LegacyBigQuerySqlDryRunExecutor } from './bigquery/services/legacy/legacy-bigquery-sql-dry-run.executor';
 import { LegacyBigQuerySqlPreprocessor } from './bigquery/services/legacy/legacy-bigquery-sql-preprocessor.service';
 import { LegacyBigQuerySqlRunExecutor } from './bigquery/services/legacy/legacy-bigquery-sql-run.executor';
+import { LegacyBigQueryStorageErrorMapper } from './bigquery/services/legacy/legacy-bigquery-storage-error.mapper';
 import { BigQueryStorageResourceBrowser } from './bigquery/services/bigquery-storage-resource-browser.service';
 import { DataStorageCredentialsUtils } from './data-mart-schema.utils';
 import { DatabricksApiAdapterFactory } from './databricks/adapters/databricks-api-adapter.factory';
@@ -55,6 +58,7 @@ import { DatabricksSchemaMerger } from './databricks/services/databricks-schema-
 import { DatabricksSqlDryRunExecutor } from './databricks/services/databricks-sql-dry-run.executor';
 import { DatabricksBlendedQueryBuilder } from './databricks/services/databricks-blended-query-builder';
 import { DatabricksSqlRunExecutor } from './databricks/services/databricks-sql-run.executor';
+import { DatabricksStorageErrorMapper } from './databricks/services/databricks-storage-error.mapper';
 import { DataStorageType } from './enums/data-storage-type.enum';
 import { DataStoragePublicCredentialsFactory } from './factories/data-storage-public-credentials.factory';
 import { BlendedQueryBuilder } from './interfaces/blended-query-builder.interface';
@@ -69,6 +73,7 @@ import { DataMartSchemaParser } from './interfaces/data-mart-schema-parser.inter
 import { DataMartSchemaProvider } from './interfaces/data-mart-schema-provider.interface';
 import { DataMartValidator } from './interfaces/data-mart-validator.interface';
 import { DataStorageAccessValidator } from './interfaces/data-storage-access-validator.interface';
+import { DataStorageErrorMapper } from './interfaces/data-storage-error-mapper.interface';
 import { DataStorageReportReader } from './interfaces/data-storage-report-reader.interface';
 import { ReportHeadersGenerator } from './interfaces/report-headers-generator.interface';
 import { SqlDryRunExecutor } from './interfaces/sql-dry-run-executor.interface';
@@ -86,6 +91,7 @@ import { RedshiftSchemaMerger } from './redshift/services/redshift-schema-merger
 import { RedshiftSqlDryRunExecutor } from './redshift/services/redshift-sql-dry-run.executor';
 import { RedshiftBlendedQueryBuilder } from './redshift/services/redshift-blended-query-builder';
 import { RedshiftSqlRunExecutor } from './redshift/services/redshift-sql-run.executor';
+import { RedshiftStorageErrorMapper } from './redshift/services/redshift-storage-error.mapper';
 import { SnowflakeApiAdapterFactory } from './snowflake/adapters/snowflake-api-adapter.factory';
 import { SnowflakeAccessValidator } from './snowflake/services/snowflake-access.validator';
 import { SnowflakeCreateViewExecutor } from './snowflake/services/snowflake-create-view.executor';
@@ -99,6 +105,7 @@ import { SnowflakeSchemaMerger } from './snowflake/services/snowflake-schema-mer
 import { SnowflakeSqlDryRunExecutor } from './snowflake/services/snowflake-sql-dry-run.executor';
 import { SnowflakeBlendedQueryBuilder } from './snowflake/services/snowflake-blended-query-builder';
 import { SnowflakeSqlRunExecutor } from './snowflake/services/snowflake-sql-run.executor';
+import { SnowflakeStorageErrorMapper } from './snowflake/services/snowflake-storage-error.mapper';
 
 export const STORAGE_RESOURCE_BROWSER_RESOLVER = Symbol('STORAGE_RESOURCE_BROWSER_RESOLVER');
 export const BLENDED_QUERY_BUILDER_RESOLVER = Symbol('BLENDED_QUERY_BUILDER_RESOLVER');
@@ -106,6 +113,7 @@ export const DATA_STORAGE_ACCESS_VALIDATOR_RESOLVER = Symbol(
   'DATA_STORAGE_ACCESS_VALIDATOR_RESOLVER'
 );
 export const DATA_STORAGE_REPORT_READER_RESOLVER = Symbol('DATA_STORAGE_REPORT_READER_RESOLVER');
+export const DATA_STORAGE_ERROR_MAPPER_RESOLVER = Symbol('DATA_STORAGE_ERROR_MAPPER_RESOLVER');
 export const DATA_MART_VALIDATOR_RESOLVER = Symbol('DATA_MART_VALIDATOR_RESOLVER');
 export const DATA_MART_SCHEMA_PROVIDER_RESOLVER = Symbol('DATA_MART_SCHEMA_PROVIDER_RESOLVER');
 export const DATA_MART_SCHEMA_MERGER_RESOLVER = Symbol('DATA_MART_SCHEMA_MERGER_RESOLVER');
@@ -131,6 +139,14 @@ const storageDataProviders = [
   SnowflakeReportReader,
   RedshiftReportReader,
   DatabricksReportReader,
+];
+const storageErrorMapperProviders = [
+  BigQueryStorageErrorMapper,
+  LegacyBigQueryStorageErrorMapper,
+  AthenaStorageErrorMapper,
+  SnowflakeStorageErrorMapper,
+  RedshiftStorageErrorMapper,
+  DatabricksStorageErrorMapper,
 ];
 const adapterFactories = [
   BigQueryApiAdapterFactory,
@@ -230,6 +246,7 @@ const blendedQueryBuilderProviders = [
 export const dataStorageResolverProviders = [
   ...accessValidatorProviders,
   ...storageDataProviders,
+  ...storageErrorMapperProviders,
   ...adapterFactories,
   ...queryBuilderProviders,
   ...validatorProviders,
@@ -267,6 +284,12 @@ export const dataStorageResolverProviders = [
     useFactory: (moduleRef: ModuleRef, ...storageDataProviders: DataStorageReportReader[]) =>
       new TypeResolver<DataStorageType, DataStorageReportReader>(storageDataProviders, moduleRef),
     inject: [ModuleRef, ...storageDataProviders],
+  },
+  {
+    provide: DATA_STORAGE_ERROR_MAPPER_RESOLVER,
+    useFactory: (...mappers: DataStorageErrorMapper[]) =>
+      new TypeResolver<DataStorageType, DataStorageErrorMapper>(mappers),
+    inject: storageErrorMapperProviders,
   },
   {
     provide: DATA_MART_VALIDATOR_RESOLVER,

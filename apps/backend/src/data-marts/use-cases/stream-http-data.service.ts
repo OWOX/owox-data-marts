@@ -1,5 +1,6 @@
 import {
   ForbiddenException,
+  HttpException,
   Inject,
   Injectable,
   InternalServerErrorException,
@@ -11,8 +12,12 @@ import type { Response } from 'express';
 import { GracefulShutdownService } from '../../common/scheduler/services/graceful-shutdown.service';
 import { TypeResolver } from '../../common/resolver/type-resolver';
 import { AuthorizationContext } from '../../idp/types/auth.types';
-import { DATA_STORAGE_REPORT_READER_RESOLVER } from '../data-storage-types/data-storage-providers';
+import {
+  DATA_STORAGE_ERROR_MAPPER_RESOLVER,
+  DATA_STORAGE_REPORT_READER_RESOLVER,
+} from '../data-storage-types/data-storage-providers';
 import { DataStorageType } from '../data-storage-types/enums/data-storage-type.enum';
+import { DataStorageErrorMapper } from '../data-storage-types/interfaces/data-storage-error-mapper.interface';
 import { DataStorageReportReader } from '../data-storage-types/interfaces/data-storage-report-reader.interface';
 import { ReportLikeReadPlan } from '../dto/domain/report-like-read-plan';
 import { ReportDataHeader } from '../dto/domain/report-data-header.dto';
@@ -76,7 +81,9 @@ export class StreamHttpDataService {
     private readonly gracefulShutdownService: GracefulShutdownService,
     private readonly systemTimeService: SystemTimeService,
     @Inject(DATA_STORAGE_REPORT_READER_RESOLVER)
-    private readonly readerResolver: TypeResolver<DataStorageType, DataStorageReportReader>
+    private readonly readerResolver: TypeResolver<DataStorageType, DataStorageReportReader>,
+    @Inject(DATA_STORAGE_ERROR_MAPPER_RESOLVER)
+    private readonly errorMapperResolver: TypeResolver<DataStorageType, DataStorageErrorMapper>
   ) {}
 
   async stream(command: StreamHttpDataCommand, res: Response): Promise<void> {
@@ -94,66 +101,68 @@ export class StreamHttpDataService {
     const accessor: BlendableSchemaAccessor = { userId: ctx.userId, roles: ctx.roles ?? [] };
 
     const dataMart = await this.loadAccessibleDataMart(command.dataMartId, ctx);
-    await this.dataMartService.actualizeSchemaInEntityIfExpired(
-      dataMart,
-      HTTP_DATA_SCHEMA_EXPIRES_AFTER_MS
-    );
-    const blendableSchema = await this.blendableSchemaService.computeBlendableSchema(
-      dataMart.id,
-      dataMart.projectId,
-      accessor
-    );
-    const reportingColumns: ReportingColumns = {
-      native: nativeColumnNames(blendableSchema),
-      blended: visibleBlendedColumnNames(blendableSchema),
-    };
-    const columns = this.columnResolver.resolve(query.columnSelector, reportingColumns);
-    this.columnValidator.validate(
-      { selectedColumns: columns, filter: query.filter, sort: query.sort },
-      reportingColumns
-    );
-    await this.projectBalanceService.verifyCanPerformOperations(dataMart.projectId);
-
-    const readPlan: ReportLikeReadPlan = {
-      dataMart,
-      columnConfig: columns,
-      filterConfig: query.filter,
-      sortConfig: query.sort,
-      limitConfig: limit ?? null,
-    };
-
-    const decision = await this.blendedReportDataService.resolveBlendingDecision(
-      readPlan,
-      accessor
-    );
-
-    if (decision.needsBlending && !decision.blendedSql) {
-      throw new InternalServerErrorException('Blended SQL was not produced for this Data Mart');
-    }
-
-    let sqlOverride: string | undefined = decision.blendedSql;
-    let sqlOverrideParams = decision.params;
-    const hasOutputControls =
-      (query.filter?.length ?? 0) > 0 || (query.sort?.length ?? 0) > 0 || limit != null;
-    if (!decision.needsBlending && hasOutputControls) {
-      const composed = await this.reportSqlComposerService.compose(readPlan, accessor, decision);
-      sqlOverride = composed.sql;
-      sqlOverrideParams = composed.params;
-    }
-
     const runId = randomUUID();
     const startedAt = this.systemTimeService.now();
-    const baseMetadata: HttpDataRunMetadata = {
-      format: HTTP_DATA_FORMAT,
-      columns,
-      filter: query.filter,
-      sort: query.sort,
-      limit,
-    };
 
     let reader: DataStorageReportReader | null = null;
+    let baseMetadata: HttpDataRunMetadata | null = null;
 
     try {
+      await this.dataMartService.actualizeSchemaInEntityIfExpired(
+        dataMart,
+        HTTP_DATA_SCHEMA_EXPIRES_AFTER_MS
+      );
+      const blendableSchema = await this.blendableSchemaService.computeBlendableSchema(
+        dataMart.id,
+        dataMart.projectId,
+        accessor
+      );
+      const reportingColumns: ReportingColumns = {
+        native: nativeColumnNames(blendableSchema),
+        blended: visibleBlendedColumnNames(blendableSchema),
+      };
+      const columns = this.columnResolver.resolve(query.columnSelector, reportingColumns);
+      this.columnValidator.validate(
+        { selectedColumns: columns, filter: query.filter, sort: query.sort },
+        reportingColumns
+      );
+      await this.projectBalanceService.verifyCanPerformOperations(dataMart.projectId);
+
+      const readPlan: ReportLikeReadPlan = {
+        dataMart,
+        columnConfig: columns,
+        filterConfig: query.filter,
+        sortConfig: query.sort,
+        limitConfig: limit ?? null,
+      };
+
+      const decision = await this.blendedReportDataService.resolveBlendingDecision(
+        readPlan,
+        accessor
+      );
+
+      if (decision.needsBlending && !decision.blendedSql) {
+        throw new InternalServerErrorException('Blended SQL was not produced for this Data Mart');
+      }
+
+      let sqlOverride: string | undefined = decision.blendedSql;
+      let sqlOverrideParams = decision.params;
+      const hasOutputControls =
+        (query.filter?.length ?? 0) > 0 || (query.sort?.length ?? 0) > 0 || limit != null;
+      if (!decision.needsBlending && hasOutputControls) {
+        const composed = await this.reportSqlComposerService.compose(readPlan, accessor, decision);
+        sqlOverride = composed.sql;
+        sqlOverrideParams = composed.params;
+      }
+
+      baseMetadata = {
+        format: HTTP_DATA_FORMAT,
+        columns,
+        filter: query.filter,
+        sort: query.sort,
+        limit,
+      };
+
       reader = await this.readerResolver.resolve(dataMart.storage.type);
       const description = await reader.prepareReportData(readPlan, {
         sqlOverride,
@@ -180,18 +189,35 @@ export class StreamHttpDataService {
 
       res.end();
     } catch (error) {
-      await this.recordFailedRun(
-        dataMart,
-        ctx.userId,
-        runId,
-        startedAt,
-        { ...baseMetadata, completed: false },
-        error
-      );
-      this.handleStreamFailure(res, error);
+      const mappedError = await this.toClientFacingReadError(error, reader, dataMart, res);
+      if (baseMetadata) {
+        await this.recordFailedRun(
+          dataMart,
+          ctx.userId,
+          runId,
+          startedAt,
+          { ...baseMetadata, completed: false },
+          mappedError
+        );
+      }
+      this.handleStreamFailure(res, mappedError);
     } finally {
       if (reader) await this.safelyFinalizeReader(reader);
     }
+  }
+
+  private async toClientFacingReadError(
+    error: unknown,
+    reader: DataStorageReportReader | null,
+    dataMart: DataMart,
+    res: Response
+  ): Promise<unknown> {
+    if (res.headersSent || error instanceof StreamCancelledError) {
+      return error;
+    }
+
+    const mapper = await this.errorMapperResolver.resolve(dataMart.storage.type);
+    return mapper.toStorageReadError(error, { force: reader !== null });
   }
 
   private async recordSuccessfulRun(
@@ -234,7 +260,7 @@ export class StreamHttpDataService {
     metadata: HttpDataRunMetadata,
     error: unknown
   ): Promise<void> {
-    const message = error instanceof Error ? error.message : String(error);
+    const message = this.clientFacingErrorMessage(error);
     try {
       await this.dataMartRunService.recordHttpDataRun({
         runId,
@@ -250,6 +276,19 @@ export class StreamHttpDataService {
         `Failed to persist FAILED HTTP Data run ${runId}: ${err instanceof Error ? err.message : String(err)}`
       );
     }
+  }
+
+  private clientFacingErrorMessage(error: unknown): string {
+    if (error instanceof HttpException) {
+      const response = error.getResponse();
+      if (typeof response === 'string') return response;
+      if (typeof response === 'object' && response !== null && !Array.isArray(response)) {
+        const message = (response as { message?: unknown }).message;
+        if (typeof message === 'string' && message.length > 0) return message;
+      }
+    }
+
+    return error instanceof Error ? error.message : String(error);
   }
 
   private toMetadataDataDescription(

@@ -1,10 +1,10 @@
 import { jest } from '@jest/globals';
-import { OWOXConfigError } from '@owox/api-client';
+import { OWOXApiError, OWOXConfigError } from '@owox/api-client';
 import { mkdtempSync, mkdirSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 
-import { setupEnvironmentFromFlags } from './base-command.js';
+import { normalizeCliError, setupEnvironmentFromFlags } from './base-command.js';
 import DataMartsList from './commands/data-marts/list.js';
 
 describe('base command environment setup', () => {
@@ -94,5 +94,34 @@ describe('base command environment setup', () => {
       stderrWrite.mockRestore();
       process.exitCode = previousExitCode;
     }
+  });
+});
+
+describe('base command error normalization', () => {
+  it('preserves API error details for JSON output', () => {
+    const error = new OWOXApiError(
+      'OWOX API request failed with 424 Failed Dependency: Storage dependency failed',
+      {
+        status: 424,
+        code: 'STORAGE_PERMISSION_DENIED',
+        details: {
+          dependency: 'storage',
+          providerName: 'Google BigQuery',
+          providerStatusCode: 403,
+        },
+      }
+    );
+
+    expect(normalizeCliError(error)).toEqual({
+      message: 'OWOX API request failed with 424 Failed Dependency: Storage dependency failed',
+      status: 424,
+      code: 'STORAGE_PERMISSION_DENIED',
+      name: 'OWOXApiError',
+      details: {
+        dependency: 'storage',
+        providerName: 'Google BigQuery',
+        providerStatusCode: 403,
+      },
+    });
   });
 });

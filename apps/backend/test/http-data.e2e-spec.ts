@@ -85,6 +85,17 @@ function parseNdjson(body: string): unknown[] {
     .map(line => JSON.parse(line));
 }
 
+function buildStoragePermissionDeniedError(): Error {
+  const message = 'Access Denied: missing storage permission.';
+  const error = new Error(message) as Error & {
+    errors: Array<{ reason: string; message: string }>;
+    response: { status: { errorResult: { reason: string; message: string } } };
+  };
+  error.errors = [{ reason: 'accessDenied', message }];
+  error.response = { status: { errorResult: { reason: 'accessDenied', message } } };
+  return error;
+}
+
 describe('HTTP Data API (e2e)', () => {
   let app: INestApplication;
   let agent: supertest.Agent;
@@ -236,6 +247,46 @@ describe('HTTP Data API (e2e)', () => {
         .get(`/api/external/http-data/data-marts/${legacyId}.ndjson?column=date`)
         .set(AUTH_HEADER);
       expect(res.status).toBe(404);
+    });
+  });
+
+  describe('Storage error guidance', () => {
+    it('returns actionable guidance when storage credentials are denied by the provider', async () => {
+      jest
+        .mocked(mockReader.prepareReportData)
+        .mockRejectedValueOnce(buildStoragePermissionDeniedError());
+
+      const res = await agent
+        .get(`/api/external/http-data/data-marts/${dataMartId}.ndjson?column=date`)
+        .set(AUTH_HEADER);
+
+      expect(res.status).toBe(424);
+      expect(res.body).toMatchObject({
+        code: 'STORAGE_PERMISSION_DENIED',
+        message: expect.stringContaining('returned 403 Forbidden'),
+        details: expect.objectContaining({
+          dependency: 'storage',
+          providerMessage: 'Access Denied: missing storage permission.',
+          providerReason: 'accessDenied',
+          providerStatusCode: 403,
+        }),
+      });
+    });
+
+    it('returns the provider message instead of an opaque 500 for storage read failures', async () => {
+      jest
+        .mocked(mockReader.prepareReportData)
+        .mockRejectedValueOnce(new Error('Invalid cast from ARRAY<STRING> to STRING at [57:23]'));
+
+      const res = await agent
+        .get(`/api/external/http-data/data-marts/${dataMartId}.ndjson?column=date`)
+        .set(AUTH_HEADER);
+
+      expect(res.status).toBe(424);
+      expect(res.body).toMatchObject({
+        code: 'STORAGE_READ_FAILED',
+        message: expect.stringContaining('Invalid cast from ARRAY<STRING> to STRING'),
+      });
     });
   });
 

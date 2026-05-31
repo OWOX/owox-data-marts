@@ -1,5 +1,7 @@
 import {
   ForbiddenException,
+  HttpException,
+  HttpStatus,
   InternalServerErrorException,
   NotFoundException,
   ServiceUnavailableException,
@@ -8,6 +10,7 @@ import type { Response } from 'express';
 import { GracefulShutdownService } from '../../common/scheduler/services/graceful-shutdown.service';
 import { SystemTimeService } from '../../common/scheduler/services/system-time.service';
 import { TypeResolver } from '../../common/resolver/type-resolver';
+import { DataStorageErrorMapper } from '../data-storage-types/interfaces/data-storage-error-mapper.interface';
 import { DataStorageReportReader } from '../data-storage-types/interfaces/data-storage-report-reader.interface';
 import { DataStorageType } from '../data-storage-types/enums/data-storage-type.enum';
 import { ReportDataDescription } from '../dto/domain/report-data-description.dto';
@@ -48,11 +51,56 @@ function fakeDataMart(overrides: Partial<DataMart> = {}): DataMart {
     id: 'dm-1',
     projectId: 'proj-1',
     status: DataMartStatus.PUBLISHED,
-    storage: { type: DataStorageType.GOOGLE_BIGQUERY, id: 'storage-1', title: 'bq' },
+    storage: { type: DataStorageType.SNOWFLAKE, id: 'storage-1', title: 'warehouse' },
     definition: { kind: 'sql', sql: 'SELECT 1' },
     title: 'My DM',
     ...overrides,
   } as unknown as DataMart;
+}
+
+function storageAccessDeniedError(): Error {
+  const message = 'Access Denied: missing storage.objects.read permission.';
+  const error = new Error(message) as Error & {
+    errors: Array<{ reason: string; message: string }>;
+    response: {
+      status: { errorResult: { reason: string; message: string } };
+    };
+  };
+  error.errors = [{ reason: 'accessDenied', message }];
+  error.response = {
+    status: { errorResult: { reason: 'accessDenied', message } },
+  };
+  return error;
+}
+
+function providerReason(error: unknown): string | undefined {
+  const shaped = error as {
+    errors?: Array<{ reason?: string }>;
+    response?: { status?: { errorResult?: { reason?: string } } };
+  };
+  return shaped.response?.status?.errorResult?.reason ?? shaped.errors?.[0]?.reason;
+}
+
+function storageReadFailure(error: unknown): HttpException {
+  const message = error instanceof Error ? error.message : String(error);
+  const reason = providerReason(error);
+  const providerStatusCode = reason === 'accessDenied' ? HttpStatus.FORBIDDEN : undefined;
+
+  return new HttpException(
+    {
+      code: reason === 'accessDenied' ? 'STORAGE_PERMISSION_DENIED' : 'STORAGE_READ_FAILED',
+      message: `Storage dependency failed while reading this Data Mart data: Test storage returned an error: ${message}`,
+      details: {
+        dependency: 'storage',
+        providerMessage: message,
+        providerName: 'Test storage',
+        ...(reason ? { providerReason: reason } : {}),
+        ...(providerStatusCode ? { providerStatusCode } : {}),
+        storageType: DataStorageType.SNOWFLAKE,
+      },
+    },
+    HttpStatus.FAILED_DEPENDENCY
+  );
 }
 
 type MockResponse = Response & {
@@ -133,7 +181,9 @@ describe('StreamHttpDataService', () => {
   let gracefulShutdown: jest.Mocked<GracefulShutdownService>;
   let systemTime: jest.Mocked<SystemTimeService>;
   let reader: jest.Mocked<DataStorageReportReader>;
-  let resolver: jest.Mocked<TypeResolver<DataStorageType, DataStorageReportReader>>;
+  let readerResolver: jest.Mocked<TypeResolver<DataStorageType, DataStorageReportReader>>;
+  let errorMapper: jest.Mocked<DataStorageErrorMapper>;
+  let errorMapperResolver: jest.Mocked<TypeResolver<DataStorageType, DataStorageErrorMapper>>;
   let service: StreamHttpDataService;
 
   beforeEach(() => {
@@ -225,12 +275,23 @@ describe('StreamHttpDataService', () => {
       finalize: jest.fn(async () => undefined),
       getState: jest.fn(() => null),
       initFromState: jest.fn(async () => undefined),
-      type: DataStorageType.GOOGLE_BIGQUERY,
+      type: DataStorageType.SNOWFLAKE,
     } as unknown as jest.Mocked<DataStorageReportReader>;
 
-    resolver = {
+    readerResolver = {
       resolve: jest.fn(async () => reader),
     } as unknown as jest.Mocked<TypeResolver<DataStorageType, DataStorageReportReader>>;
+
+    errorMapper = {
+      type: DataStorageType.SNOWFLAKE,
+      toStorageReadError: jest.fn(error =>
+        error instanceof HttpException ? error : storageReadFailure(error)
+      ),
+    } as unknown as jest.Mocked<DataStorageErrorMapper>;
+
+    errorMapperResolver = {
+      resolve: jest.fn(async () => errorMapper),
+    } as unknown as jest.Mocked<TypeResolver<DataStorageType, DataStorageErrorMapper>>;
 
     service = new StreamHttpDataService(
       requestValidator,
@@ -247,7 +308,8 @@ describe('StreamHttpDataService', () => {
       consumption,
       gracefulShutdown,
       systemTime,
-      resolver
+      readerResolver,
+      errorMapperResolver
     );
   });
 
@@ -300,29 +362,60 @@ describe('StreamHttpDataService', () => {
   it('records a FAILED run when prepareReportData fails before headers are sent', async () => {
     reader.prepareReportData.mockRejectedValueOnce(new Error('schema mismatch'));
     const res = mockResponse();
-    await expect(service.stream(fakeCommand(), res)).rejects.toThrow('schema mismatch');
+    await expect(service.stream(fakeCommand(), res)).rejects.toMatchObject({
+      status: HttpStatus.FAILED_DEPENDENCY,
+    });
     expect(res._writes).toHaveLength(0);
     expect(dataMartRunService.recordHttpDataRun).toHaveBeenCalledTimes(1);
     expect(dataMartRunService.recordHttpDataRun).toHaveBeenCalledWith(
       expect.objectContaining({
         status: DataMartRunStatus.FAILED,
         metadata: expect.objectContaining({ completed: false }),
-        errors: expect.arrayContaining([expect.stringContaining('schema mismatch')]),
+        errors: expect.arrayContaining([
+          expect.stringContaining('Storage dependency failed while reading this Data Mart data'),
+        ]),
       })
     );
+  });
+
+  it('maps storage provider failures before reader resolution to failed dependency', async () => {
+    dataMartService.actualizeSchemaInEntityIfExpired.mockRejectedValueOnce(
+      storageAccessDeniedError()
+    );
+    const res = mockResponse();
+
+    await expect(service.stream(fakeCommand(), res)).rejects.toMatchObject({
+      status: HttpStatus.FAILED_DEPENDENCY,
+      response: expect.objectContaining({
+        code: 'STORAGE_PERMISSION_DENIED',
+        details: expect.objectContaining({
+          dependency: 'storage',
+          providerReason: 'accessDenied',
+          providerStatusCode: 403,
+          storageType: DataStorageType.SNOWFLAKE,
+        }),
+      }),
+    });
+    expect(readerResolver.resolve).not.toHaveBeenCalled();
+    expect(errorMapperResolver.resolve).toHaveBeenCalledWith(DataStorageType.SNOWFLAKE);
+    expect(dataMartRunService.recordHttpDataRun).not.toHaveBeenCalled();
   });
 
   it('defers the 200 response until the first batch read succeeds', async () => {
     reader.readReportDataBatch.mockRejectedValueOnce(new Error('relation does not exist'));
     const res = mockResponse();
 
-    await expect(service.stream(fakeCommand(), res)).rejects.toThrow('relation does not exist');
+    await expect(service.stream(fakeCommand(), res)).rejects.toMatchObject({
+      status: HttpStatus.FAILED_DEPENDENCY,
+    });
     expect(res.flushHeaders).not.toHaveBeenCalled();
     expect(res._writes).toHaveLength(0);
     expect(dataMartRunService.recordHttpDataRun).toHaveBeenCalledWith(
       expect.objectContaining({
         status: DataMartRunStatus.FAILED,
-        errors: expect.arrayContaining([expect.stringContaining('relation does not exist')]),
+        errors: expect.arrayContaining([
+          expect.stringContaining('Storage dependency failed while reading this Data Mart data'),
+        ]),
       })
     );
   });
