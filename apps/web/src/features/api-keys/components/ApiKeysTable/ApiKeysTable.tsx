@@ -34,7 +34,7 @@ export function ApiKeysTable({
 
   const handleRowClick = (row: Row<ProjectMemberApiKey>, e: React.MouseEvent) => {
     if (
-      e.target instanceof HTMLElement &&
+      e.target instanceof Element &&
       (e.target.closest('button') ||
         e.target.closest('a') ||
         e.target.closest('[role="button"]') ||

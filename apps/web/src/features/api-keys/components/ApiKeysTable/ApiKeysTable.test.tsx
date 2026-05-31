@@ -82,6 +82,26 @@ describe('ApiKeysTable', () => {
     expect(onOpenDetails).not.toHaveBeenCalled();
   });
 
+  it('does not open API key details when clicking the actions icon', () => {
+    const onOpenDetails = vi.fn();
+    const { container } = render(
+      <ApiKeysTable
+        keys={[key]}
+        onCreateKey={vi.fn()}
+        onOpenDetails={onOpenDetails}
+        onEditName={vi.fn()}
+        onRevoke={vi.fn()}
+      />
+    );
+
+    const actionsIcon = container.querySelector('button svg.lucide-ellipsis');
+    expect(actionsIcon).not.toBeNull();
+
+    fireEvent.click(actionsIcon as SVGElement);
+
+    expect(onOpenDetails).not.toHaveBeenCalled();
+  });
+
   it('explains expiration dates that expire soon', () => {
     const expiresAt = futureIso(2);
 
