@@ -284,8 +284,8 @@ describe('StreamHttpDataService', () => {
 
     errorMapper = {
       type: DataStorageType.SNOWFLAKE,
-      toStorageReadError: jest.fn(error =>
-        error instanceof HttpException ? error : storageReadFailure(error)
+      toStorageReadError: jest.fn((error, options) =>
+        error instanceof HttpException || !options?.force ? error : storageReadFailure(error)
       ),
     } as unknown as jest.Mocked<DataStorageErrorMapper>;
 
@@ -398,6 +398,9 @@ describe('StreamHttpDataService', () => {
     });
     expect(readerResolver.resolve).not.toHaveBeenCalled();
     expect(errorMapperResolver.resolve).toHaveBeenCalledWith(DataStorageType.SNOWFLAKE);
+    expect(errorMapper.toStorageReadError).toHaveBeenCalledWith(expect.any(Error), {
+      force: true,
+    });
     expect(dataMartRunService.recordHttpDataRun).not.toHaveBeenCalled();
   });
 

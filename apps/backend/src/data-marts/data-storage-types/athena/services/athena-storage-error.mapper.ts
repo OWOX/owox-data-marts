@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { HttpException, Injectable } from '@nestjs/common';
 import { DataStorageType, toHumanReadable } from '../../enums/data-storage-type.enum';
 import {
   DataStorageErrorMapper,
@@ -11,7 +11,7 @@ export class AthenaStorageErrorMapper implements DataStorageErrorMapper {
   readonly type = DataStorageType.AWS_ATHENA;
 
   toStorageReadError(error: unknown, options?: StorageReadErrorMappingOptions): unknown {
-    if (!options?.force) return error;
+    if (error instanceof HttpException || !options?.force) return error;
 
     return createStorageReadError(
       { storageType: this.type, providerName: toHumanReadable(this.type) },

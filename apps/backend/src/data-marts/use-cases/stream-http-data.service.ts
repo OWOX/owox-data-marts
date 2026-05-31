@@ -106,12 +106,15 @@ export class StreamHttpDataService {
 
     let reader: DataStorageReportReader | null = null;
     let baseMetadata: HttpDataRunMetadata | null = null;
+    let schemaActualizationInProgress = false;
 
     try {
+      schemaActualizationInProgress = true;
       await this.dataMartService.actualizeSchemaInEntityIfExpired(
         dataMart,
         HTTP_DATA_SCHEMA_EXPIRES_AFTER_MS
       );
+      schemaActualizationInProgress = false;
       const blendableSchema = await this.blendableSchemaService.computeBlendableSchema(
         dataMart.id,
         dataMart.projectId,
@@ -189,7 +192,13 @@ export class StreamHttpDataService {
 
       res.end();
     } catch (error) {
-      const mappedError = await this.toClientFacingReadError(error, reader, dataMart, res);
+      const mappedError = await this.toClientFacingReadError(
+        error,
+        reader,
+        dataMart,
+        res,
+        schemaActualizationInProgress
+      );
       if (baseMetadata) {
         await this.recordFailedRun(
           dataMart,
@@ -210,14 +219,15 @@ export class StreamHttpDataService {
     error: unknown,
     reader: DataStorageReportReader | null,
     dataMart: DataMart,
-    res: Response
+    res: Response,
+    forceStorageReadError: boolean
   ): Promise<unknown> {
     if (res.headersSent || error instanceof StreamCancelledError) {
       return error;
     }
 
     const mapper = await this.errorMapperResolver.resolve(dataMart.storage.type);
-    return mapper.toStorageReadError(error, { force: reader !== null });
+    return mapper.toStorageReadError(error, { force: forceStorageReadError || reader !== null });
   }
 
   private async recordSuccessfulRun(

@@ -124,6 +124,13 @@ export function StreamHttpDataSpec() {
     ApiResponse({
       status: 404,
       description: 'Data Mart not visible in the caller’s project, or not published.',
+    }),
+    ApiResponse({
+      status: 424,
+      description:
+        'Storage dependency failed while preparing or reading Data Mart data. ' +
+        'The response includes provider context such as storage type, provider message, ' +
+        'provider status code, and provider reason when available.',
     })
   );
 }
