@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { KeyRound, Plus } from 'lucide-react';
 import { Button } from '@owox/ui/components/button';
 import { ApiKeysTable } from '../components/ApiKeysTable/ApiKeysTable';
@@ -8,16 +8,33 @@ import { SecretRevealDialog } from '../components/SecretRevealDialog';
 import { ConfirmationDialog } from '../../../shared/components/ConfirmationDialog/ConfirmationDialog';
 import { useApiKeys } from '../hooks/useApiKeys';
 import type { ProjectMemberApiKey, CreateProjectMemberApiKeyResponse } from '../types';
+import { useUrlParam } from '../../../shared/hooks/useUrlParam';
+
+const API_KEY_DETAILS_PARAM = 'apiKeyId';
 
 export function MyApiKeysPage() {
   const { keys, loading, fetchKeys, revokeKey } = useApiKeys();
+  const {
+    value: selectedApiKeyId,
+    setParam: setSelectedApiKeyId,
+    removeParam: removeSelectedApiKeyId,
+  } = useUrlParam(API_KEY_DETAILS_PARAM);
 
   const [createSheetOpen, setCreateSheetOpen] = useState(false);
-  const [editingKey, setEditingKey] = useState<ProjectMemberApiKey | null>(null);
   const [revokingKey, setRevokingKey] = useState<ProjectMemberApiKey | null>(null);
   const [createdKeyData, setCreatedKeyData] = useState<CreateProjectMemberApiKeyResponse | null>(
     null
   );
+  const selectedApiKey = useMemo(
+    () => keys.find(key => key.apiKeyId === selectedApiKeyId) ?? null,
+    [keys, selectedApiKeyId]
+  );
+
+  useEffect(() => {
+    if (loading || !selectedApiKeyId || selectedApiKey) return;
+
+    removeSelectedApiKeyId();
+  }, [loading, removeSelectedApiKeyId, selectedApiKey, selectedApiKeyId]);
 
   const handleCreated = (result: CreateProjectMemberApiKeyResponse) => {
     setCreateSheetOpen(false);
@@ -29,12 +46,16 @@ export function MyApiKeysPage() {
     setCreatedKeyData(null);
   };
 
+  const handleOpenDetails = (key: ProjectMemberApiKey) => {
+    setSelectedApiKeyId(key.apiKeyId);
+  };
+
   const handleEditClose = () => {
-    setEditingKey(null);
+    removeSelectedApiKeyId();
   };
 
   const handleEditUpdated = () => {
-    setEditingKey(null);
+    removeSelectedApiKeyId();
     void fetchKeys();
   };
 
@@ -42,6 +63,11 @@ export function MyApiKeysPage() {
     if (!revokingKey) return;
     const keyToRevoke = revokingKey;
     setRevokingKey(null);
+
+    if (keyToRevoke.apiKeyId === selectedApiKeyId) {
+      removeSelectedApiKeyId();
+    }
+
     await revokeKey(keyToRevoke.apiKeyId);
   };
 
@@ -81,8 +107,11 @@ export function MyApiKeysPage() {
                 onCreateKey={() => {
                   setCreateSheetOpen(true);
                 }}
+                onOpenDetails={key => {
+                  handleOpenDetails(key);
+                }}
                 onEditName={key => {
-                  setEditingKey(key);
+                  handleOpenDetails(key);
                 }}
                 onRevoke={key => {
                   setRevokingKey(key);
@@ -108,9 +137,12 @@ export function MyApiKeysPage() {
       />
 
       <EditApiKeySheet
-        apiKey={editingKey}
+        apiKey={selectedApiKey}
         onClose={handleEditClose}
         onUpdated={handleEditUpdated}
+        onRevoke={key => {
+          setRevokingKey(key);
+        }}
       />
 
       <SecretRevealDialog data={createdKeyData} onDone={handleSecretDone} />

@@ -6,21 +6,18 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@owox/ui/components/dropdown-menu';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@owox/ui/components/tooltip';
 import { Copy, MoreHorizontal, Pencil, Trash2 } from 'lucide-react';
 import RelativeTime from '@owox/ui/components/common/relative-time';
 import { formatDateOnly } from '../../../../utils';
 import { SortableHeader, ToggleColumnsHeader } from '../../../../shared/components/Table';
 import type { ProjectMemberApiKey } from '../../types';
 import toast from 'react-hot-toast';
-
-function isExpiringSoon(dateStr: string | null): boolean {
-  if (!dateStr) return false;
-  const date = new Date(dateStr);
-  const now = new Date();
-  const diffMs = date.getTime() - now.getTime();
-  const diffDays = diffMs / (1000 * 60 * 60 * 24);
-  return diffDays > 0 && diffDays <= 30;
-}
+import {
+  API_KEY_EXPIRING_SOON_CLASS_NAME,
+  API_KEY_EXPIRING_SOON_NOTICE,
+  isApiKeyExpiringSoon,
+} from '../../utils';
 
 interface ApiKeysColumnsProps {
   onEditName: (key: ProjectMemberApiKey) => void;
@@ -50,6 +47,7 @@ export const getApiKeysColumns = ({
           variant='ghost'
           size='icon'
           className='size-6'
+          aria-label='Copy API Key ID'
           onClick={e => {
             e.stopPropagation();
             void navigator.clipboard.writeText(row.original.apiKeyId);
@@ -69,11 +67,18 @@ export const getApiKeysColumns = ({
     cell: ({ row }) => {
       const { expiresAt } = row.original;
       if (!expiresAt) return <span className='text-muted-foreground'>Never</span>;
-      const expiring = isExpiringSoon(expiresAt);
+      const dateLabel = formatDateOnly(expiresAt, { timeZone: 'UTC' });
+      if (!isApiKeyExpiringSoon(expiresAt)) return <span>{dateLabel}</span>;
+
       return (
-        <span className={expiring ? 'font-medium text-amber-600' : ''}>
-          {formatDateOnly(expiresAt, { timeZone: 'UTC' })}
-        </span>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <span className={API_KEY_EXPIRING_SOON_CLASS_NAME}>{dateLabel}</span>
+          </TooltipTrigger>
+          <TooltipContent side='top' align='start'>
+            {API_KEY_EXPIRING_SOON_NOTICE}
+          </TooltipContent>
+        </Tooltip>
       );
     },
   },
