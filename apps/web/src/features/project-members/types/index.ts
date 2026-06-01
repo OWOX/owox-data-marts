@@ -47,6 +47,7 @@ export interface UserProvisioningSettingsValue {
 
 export interface UserProvisioningSettingsResponse {
   isApplicable: boolean;
+  isMainProject: boolean;
   organization: UserProvisioningOrganization | null;
   settings: UserProvisioningSettingsValue | null;
 }

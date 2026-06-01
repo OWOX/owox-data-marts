@@ -51,7 +51,7 @@ describe('MainLayout', () => {
 
     expect(screen.getByTestId('restricted-project-sidebar')).toBeInTheDocument();
     expect(screen.queryByTestId('full-app-sidebar')).not.toBeInTheDocument();
-    expect(screen.getByText('Access pending')).toBeInTheDocument();
+    expect(screen.getByText('Access required')).toBeInTheDocument();
     expect(screen.getByText('Data Marts').closest('button')).toHaveAttribute(
       'aria-disabled',
       'true'

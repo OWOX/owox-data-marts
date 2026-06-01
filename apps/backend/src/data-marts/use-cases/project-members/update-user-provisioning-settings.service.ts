@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { ForbiddenException, Injectable } from '@nestjs/common';
 import type { Role as IdpRole } from '@owox/idp-protocol';
 import { IdpProjectionsFacade } from '../../../idp/facades/idp-projections.facade';
 import {
@@ -20,6 +20,31 @@ export class UpdateUserProvisioningSettingsService {
 
   async run(command: UpdateUserProvisioningSettingsCommand): Promise<UserProvisioningSettingsDto> {
     const { projectId, actorUserId, mode, defaultRole, roleScope, contextIds } = command;
+    const currentSettings = await this.idpProjectionsFacade.getUserProvisioningSettings(
+      projectId,
+      actorUserId
+    );
+
+    if (
+      !currentSettings.isApplicable ||
+      !currentSettings.organization ||
+      !currentSettings.settings
+    ) {
+      return {
+        isApplicable: false,
+        isMainProject: false,
+        organization: null,
+        settings: null,
+      };
+    }
+
+    const mainProjectId = currentSettings.organization?.mainProjectName ?? null;
+    if (mainProjectId !== projectId) {
+      throw new ForbiddenException(
+        'User provisioning settings can be managed only from the organization main project.'
+      );
+    }
+
     const contextDefaults = await this.contextSettingsService.normalizeAndValidate(
       projectId,
       defaultRole,
@@ -46,6 +71,7 @@ export class UpdateUserProvisioningSettingsService {
     if (!idpSettings.isApplicable || !idpSettings.settings) {
       return {
         isApplicable: false,
+        isMainProject: false,
         organization: null,
         settings: null,
       };
@@ -66,6 +92,7 @@ export class UpdateUserProvisioningSettingsService {
 
     return {
       isApplicable: true,
+      isMainProject: true,
       organization: idpSettings.organization
         ? {
             name: idpSettings.organization.name,

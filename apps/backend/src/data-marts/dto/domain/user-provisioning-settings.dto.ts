@@ -21,6 +21,7 @@ export interface UserProvisioningSettingsValueDto extends UserProvisioningContex
 
 export interface UserProvisioningSettingsDto {
   isApplicable: boolean;
+  isMainProject: boolean;
   organization: UserProvisioningOrganizationDto | null;
   settings: UserProvisioningSettingsValueDto | null;
 }

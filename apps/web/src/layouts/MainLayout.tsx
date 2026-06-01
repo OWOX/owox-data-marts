@@ -79,7 +79,7 @@ function RestrictedProjectSidebar({ user }: { user: User }) {
                   tooltip='Waiting for project access'
                 >
                   <LockKeyhole className='size-4 shrink-0' />
-                  <span>Access pending</span>
+                  <span>Access required</span>
                 </SidebarMenuButton>
               </SidebarMenuItem>
             </SidebarMenu>

@@ -6,17 +6,14 @@ import { toast } from 'react-hot-toast';
 import { Button } from '@owox/ui/components/button';
 import { FormRadioCard, FormRadioCardGroup } from '@owox/ui/components/form';
 import { getRoleDisplayName } from '../../../../idp/utils/role-display-name';
+import { buildProjectPath } from '../../../../../utils/path';
 import {
   type Role,
   type RoleScope,
+  type UserProvisioningOrganization,
   type UserProvisioningMode,
   type UserProvisioningSettingsValue,
 } from '../../../../project-members/types';
-
-const ROLE_SCOPE_LABELS: Record<RoleScope, string> = {
-  entire_project: 'Entire Project',
-  selected_contexts: 'Selected Contexts',
-};
 import type { ContextDto } from '../../../../contexts/types/context.types';
 import { useUserProvisioningSettings } from '../../hooks/useUserProvisioningSettings';
 import { userProvisioningFormSchema, type UserProvisioningFormData } from '../../schemas';
@@ -28,6 +25,11 @@ import {
   CollapsibleCardFooter,
 } from '../../../../../shared/components/CollapsibleCard';
 import { DefaultRoleSheet } from './DefaultRoleSheet';
+
+const ROLE_SCOPE_LABELS: Record<RoleScope, string> = {
+  entire_project: 'Entire Project',
+  selected_contexts: 'Selected Contexts',
+};
 
 interface UserProvisioningSettingsProps {
   contexts: ContextDto[];
@@ -51,6 +53,53 @@ function normalizeDraft(draft: UserProvisioningSettingsValue): UserProvisioningF
   }
 
   return draft;
+}
+
+function ProjectLevelAccessNotice({
+  organization,
+}: {
+  organization: UserProvisioningOrganization | null;
+}) {
+  if (!organization) {
+    return null;
+  }
+
+  const mainProjectLabel =
+    organization.mainProjectTitle ?? organization.mainProjectId ?? 'the main project';
+  const mainProjectHref = organization.mainProjectId
+    ? buildProjectPath(organization.mainProjectId, '/project-settings/members')
+    : null;
+
+  return (
+    <CollapsibleCard collapsible defaultCollapsed={false} name='user-provisioning-project-access'>
+      <CollapsibleCardHeader>
+        <CollapsibleCardHeaderTitle icon={UserCog}>Project-level access</CollapsibleCardHeaderTitle>
+      </CollapsibleCardHeader>
+
+      <CollapsibleCardContent>
+        <div className='bg-background rounded-md border px-6 py-5 shadow-sm'>
+          <h3 className='text-foreground text-sm font-semibold'>Manual access request</h3>
+          <p className='text-muted-foreground mt-2 text-sm leading-6'>
+            New members must request access before joining this project.
+            <br />
+            Automatically adding new members cannot be enabled here because this project belongs to
+            the '{organization.name}' organization but is not the main project.
+            <br />
+            Organization-level provisioning is managed from the main project
+            {mainProjectHref ? (
+              <>
+                :{' '}
+                <a className='text-primary hover:underline' href={mainProjectHref}>
+                  {mainProjectLabel}
+                </a>
+              </>
+            ) : null}
+          </p>
+        </div>
+      </CollapsibleCardContent>
+      <CollapsibleCardFooter />
+    </CollapsibleCard>
+  );
 }
 
 export function UserProvisioningSettings({ contexts, isAdmin }: UserProvisioningSettingsProps) {
@@ -90,6 +139,10 @@ export function UserProvisioningSettings({ contexts, isAdmin }: UserProvisioning
 
   if (!isAdmin) {
     return null;
+  }
+
+  if (!settings.isMainProject) {
+    return <ProjectLevelAccessNotice organization={organization} />;
   }
 
   const isAdminRole = defaultRole === 'admin';

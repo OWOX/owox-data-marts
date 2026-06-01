@@ -51,7 +51,7 @@ export function GetUserProvisioningSettingsSpec() {
     ApiOperation({
       summary: 'Get user provisioning settings for the current project',
       description:
-        'Returns `isApplicable=false` when the active IDP/project does not support organization-backed user provisioning.',
+        'Returns `isApplicable=false` when the active IDP/project does not support organization-backed user provisioning. `isMainProject` tells the UI whether settings are editable for this project.',
     }),
     ApiOkResponse({ type: UserProvisioningSettingsResponseApiDto }),
     ApiResponse({ status: 502, description: 'Upstream IDP failure' })
@@ -63,13 +63,17 @@ export function UpdateUserProvisioningSettingsSpec() {
     ApiOperation({
       summary: 'Update user provisioning defaults for the current project',
       description:
-        'IDP/analytics owns provisioning mode and default role; ODM stores context-scope defaults locally.',
+        'Only the organization main project can update provisioning settings. IDP/analytics owns provisioning mode and default role; ODM stores context-scope defaults locally.',
     }),
     ApiBody({ type: UpdateUserProvisioningSettingsRequestApiDto }),
     ApiOkResponse({ type: UserProvisioningSettingsResponseApiDto }),
     ApiResponse({
       status: 400,
       description: 'Invalid context ids or selected_contexts without contexts',
+    }),
+    ApiResponse({
+      status: 403,
+      description: 'Current project is not the organization main project',
     }),
     ApiResponse({ status: 502, description: 'Upstream IDP failure' })
   );

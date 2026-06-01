@@ -20,6 +20,7 @@ describe('projectMembersService user provisioning settings', () => {
   it('fetches user provisioning settings from the members API', async () => {
     const response = {
       isApplicable: true,
+      isMainProject: true,
       organization: {
         name: 'owox.com',
         mainProjectId: 'main-project',
@@ -50,6 +51,7 @@ describe('projectMembersService user provisioning settings', () => {
     };
     const response = {
       isApplicable: true,
+      isMainProject: true,
       organization: {
         name: 'owox.com',
         mainProjectId: 'main-project',

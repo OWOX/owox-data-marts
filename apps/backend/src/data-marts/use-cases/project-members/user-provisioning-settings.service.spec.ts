@@ -1,4 +1,4 @@
-import { BadRequestException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException } from '@nestjs/common';
 import { ProjectRole } from '../../enums/project-role.enum';
 import { RoleScope } from '../../enums/role-scope.enum';
 import { UserProvisioningContextSettingsService } from '../../services/context/user-provisioning-context-settings.service';
@@ -22,8 +22,8 @@ describe('GetUserProvisioningSettingsService', () => {
         isApplicable: true,
         organization: {
           name: 'owox.com',
-          mainProjectName: 'main-project',
-          mainProjectTitle: 'Main Project',
+          mainProjectName: PROJECT_ID,
+          mainProjectTitle: 'Project 1',
         },
         settings: {
           mode: 'automatic',
@@ -45,10 +45,11 @@ describe('GetUserProvisioningSettingsService', () => {
 
     await expect(service.run(PROJECT_ID, ACTOR_USER_ID)).resolves.toEqual({
       isApplicable: true,
+      isMainProject: true,
       organization: {
         name: 'owox.com',
-        mainProjectId: 'main-project',
-        mainProjectTitle: 'Main Project',
+        mainProjectId: PROJECT_ID,
+        mainProjectTitle: 'Project 1',
       },
       settings: {
         mode: 'automatic',
@@ -83,6 +84,36 @@ describe('GetUserProvisioningSettingsService', () => {
 
     await expect(service.run(PROJECT_ID, ACTOR_USER_ID)).resolves.toEqual({
       isApplicable: false,
+      isMainProject: false,
+      organization: null,
+      settings: null,
+    });
+    expect(contextSettingsService.getEffectiveDefaultSettings).not.toHaveBeenCalled();
+  });
+
+  it('returns not-applicable response when upstream has settings but no organization', async () => {
+    const idpProjectionsFacade = {
+      getUserProvisioningSettings: jest.fn().mockResolvedValue({
+        isApplicable: true,
+        organization: null,
+        settings: {
+          mode: 'automatic',
+          defaultRole: ProjectRole.VIEWER,
+        },
+      }),
+    };
+    const contextSettingsService = {
+      getEffectiveDefaultSettings: jest.fn(),
+    };
+
+    const service = new GetUserProvisioningSettingsService(
+      idpProjectionsFacade as never,
+      contextSettingsService as never
+    );
+
+    await expect(service.run(PROJECT_ID, ACTOR_USER_ID)).resolves.toEqual({
+      isApplicable: false,
+      isMainProject: false,
       organization: null,
       settings: null,
     });
@@ -96,6 +127,18 @@ describe('UpdateUserProvisioningSettingsService', () => {
 
   it('persists local selected-context defaults only after successful IDP update', async () => {
     const idpProjectionsFacade = {
+      getUserProvisioningSettings: jest.fn().mockResolvedValue({
+        isApplicable: true,
+        organization: {
+          name: 'owox.com',
+          mainProjectName: PROJECT_ID,
+          mainProjectTitle: 'Project 1',
+        },
+        settings: {
+          mode: 'automatic',
+          defaultRole: ProjectRole.VIEWER,
+        },
+      }),
       getProjectMembersOrThrow: jest.fn().mockResolvedValue([
         {
           userId: 'existing-user-1',
@@ -116,8 +159,8 @@ describe('UpdateUserProvisioningSettingsService', () => {
         isApplicable: true,
         organization: {
           name: 'owox.com',
-          mainProjectName: 'main-project',
-          mainProjectTitle: 'Main Project',
+          mainProjectName: PROJECT_ID,
+          mainProjectTitle: 'Project 1',
         },
         settings: {
           mode: 'manual',
@@ -199,6 +242,11 @@ describe('UpdateUserProvisioningSettingsService', () => {
 
   it('does not persist local defaults when IDP returns not-applicable', async () => {
     const idpProjectionsFacade = {
+      getUserProvisioningSettings: jest.fn().mockResolvedValue({
+        isApplicable: false,
+        organization: null,
+        settings: null,
+      }),
       getProjectMembersOrThrow: jest.fn().mockResolvedValue([{ userId: 'existing-user-1' }]),
       updateUserProvisioningSettings: jest.fn().mockResolvedValue({
         isApplicable: false,
@@ -236,23 +284,89 @@ describe('UpdateUserProvisioningSettingsService', () => {
       )
     ).resolves.toEqual({
       isApplicable: false,
+      isMainProject: false,
       organization: null,
       settings: null,
     });
 
+    expect(contextSettingsService.normalizeAndValidate).not.toHaveBeenCalled();
+    expect(idpProjectionsFacade.updateUserProvisioningSettings).not.toHaveBeenCalled();
+    expect(contextSettingsService.saveDefaultSettings).not.toHaveBeenCalled();
+    expect(applyDefaultsService.preserveExistingMembersAsEntireProject).not.toHaveBeenCalled();
+  });
+
+  it('does not update settings when upstream has settings but no organization', async () => {
+    const idpProjectionsFacade = {
+      getUserProvisioningSettings: jest.fn().mockResolvedValue({
+        isApplicable: true,
+        organization: null,
+        settings: {
+          mode: 'manual',
+          defaultRole: ProjectRole.VIEWER,
+        },
+      }),
+      getProjectMembersOrThrow: jest.fn(),
+      updateUserProvisioningSettings: jest.fn(),
+    };
+    const contextSettingsService = {
+      normalizeAndValidate: jest.fn(),
+      saveDefaultSettings: jest.fn(),
+    };
+    const applyDefaultsService = {
+      preserveExistingMembersAsEntireProject: jest.fn(),
+    };
+
+    const service = new UpdateUserProvisioningSettingsService(
+      idpProjectionsFacade as never,
+      contextSettingsService as never,
+      applyDefaultsService as never
+    );
+
+    await expect(
+      service.run(
+        new UpdateUserProvisioningSettingsCommand(
+          PROJECT_ID,
+          ACTOR_USER_ID,
+          'automatic',
+          ProjectRole.VIEWER,
+          RoleScope.ENTIRE_PROJECT,
+          []
+        )
+      )
+    ).resolves.toEqual({
+      isApplicable: false,
+      isMainProject: false,
+      organization: null,
+      settings: null,
+    });
+
+    expect(contextSettingsService.normalizeAndValidate).not.toHaveBeenCalled();
+    expect(idpProjectionsFacade.updateUserProvisioningSettings).not.toHaveBeenCalled();
     expect(contextSettingsService.saveDefaultSettings).not.toHaveBeenCalled();
     expect(applyDefaultsService.preserveExistingMembersAsEntireProject).not.toHaveBeenCalled();
   });
 
   it('does not preserve existing members when effective default is entire project', async () => {
     const idpProjectionsFacade = {
+      getUserProvisioningSettings: jest.fn().mockResolvedValue({
+        isApplicable: true,
+        organization: {
+          name: 'owox.com',
+          mainProjectName: PROJECT_ID,
+          mainProjectTitle: 'Project 1',
+        },
+        settings: {
+          mode: 'manual',
+          defaultRole: ProjectRole.VIEWER,
+        },
+      }),
       getProjectMembersOrThrow: jest.fn(),
       updateUserProvisioningSettings: jest.fn().mockResolvedValue({
         isApplicable: true,
         organization: {
           name: 'owox.com',
-          mainProjectName: 'main-project',
-          mainProjectTitle: 'Main Project',
+          mainProjectName: PROJECT_ID,
+          mainProjectTitle: 'Project 1',
         },
         settings: {
           mode: 'automatic',
@@ -292,6 +406,56 @@ describe('UpdateUserProvisioningSettingsService', () => {
     );
 
     expect(idpProjectionsFacade.getProjectMembersOrThrow).not.toHaveBeenCalled();
+    expect(applyDefaultsService.preserveExistingMembersAsEntireProject).not.toHaveBeenCalled();
+  });
+
+  it('rejects updates for organization projects that are not the main project', async () => {
+    const idpProjectionsFacade = {
+      getUserProvisioningSettings: jest.fn().mockResolvedValue({
+        isApplicable: true,
+        organization: {
+          name: 'owox.com',
+          mainProjectName: 'main-project',
+          mainProjectTitle: 'Main Project',
+        },
+        settings: {
+          mode: 'manual',
+          defaultRole: ProjectRole.VIEWER,
+        },
+      }),
+      getProjectMembersOrThrow: jest.fn(),
+      updateUserProvisioningSettings: jest.fn(),
+    };
+    const contextSettingsService = {
+      normalizeAndValidate: jest.fn(),
+      saveDefaultSettings: jest.fn(),
+    };
+    const applyDefaultsService = {
+      preserveExistingMembersAsEntireProject: jest.fn(),
+    };
+
+    const service = new UpdateUserProvisioningSettingsService(
+      idpProjectionsFacade as never,
+      contextSettingsService as never,
+      applyDefaultsService as never
+    );
+
+    await expect(
+      service.run(
+        new UpdateUserProvisioningSettingsCommand(
+          PROJECT_ID,
+          ACTOR_USER_ID,
+          'automatic',
+          ProjectRole.VIEWER,
+          RoleScope.ENTIRE_PROJECT,
+          []
+        )
+      )
+    ).rejects.toThrow(ForbiddenException);
+
+    expect(contextSettingsService.normalizeAndValidate).not.toHaveBeenCalled();
+    expect(idpProjectionsFacade.updateUserProvisioningSettings).not.toHaveBeenCalled();
+    expect(contextSettingsService.saveDefaultSettings).not.toHaveBeenCalled();
     expect(applyDefaultsService.preserveExistingMembersAsEntireProject).not.toHaveBeenCalled();
   });
 });

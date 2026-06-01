@@ -56,6 +56,9 @@ export class UserProvisioningSettingsResponseApiDto {
   @ApiProperty()
   isApplicable: boolean;
 
+  @ApiProperty()
+  isMainProject: boolean;
+
   @ApiPropertyOptional({ type: UserProvisioningOrganizationApiDto, nullable: true })
   organization: UserProvisioningOrganizationApiDto | null;
 

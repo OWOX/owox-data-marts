@@ -17,15 +17,17 @@ export class GetUserProvisioningSettingsService {
       actorUserId
     );
 
-    if (!idpSettings.isApplicable || !idpSettings.settings) {
+    if (!idpSettings.isApplicable || !idpSettings.organization || !idpSettings.settings) {
       return {
         isApplicable: false,
+        isMainProject: false,
         organization: null,
         settings: null,
       };
     }
 
     const defaultRole = idpSettings.settings.defaultRole as ProjectRole;
+    const mainProjectId = idpSettings.organization?.mainProjectName ?? null;
     const contextDefaults = await this.contextSettingsService.getEffectiveDefaultSettings(
       projectId,
       defaultRole
@@ -33,10 +35,11 @@ export class GetUserProvisioningSettingsService {
 
     return {
       isApplicable: true,
+      isMainProject: mainProjectId === projectId,
       organization: idpSettings.organization
         ? {
             name: idpSettings.organization.name,
-            mainProjectId: idpSettings.organization.mainProjectName ?? null,
+            mainProjectId,
             mainProjectTitle: idpSettings.organization.mainProjectTitle ?? null,
           }
         : null,

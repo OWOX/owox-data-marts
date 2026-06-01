@@ -109,6 +109,7 @@ vi.mock('./DefaultRoleSheet', () => ({
 
 const applicableResponse: UserProvisioningSettingsResponse = {
   isApplicable: true,
+  isMainProject: true,
   organization: {
     name: 'owox.com',
     mainProjectId: 'main-project',
@@ -146,6 +147,7 @@ describe('UserProvisioningSettings', () => {
   it('does not render when backend marks provisioning as not applicable', async () => {
     vi.mocked(projectMembersService.getUserProvisioningSettings).mockResolvedValueOnce({
       isApplicable: false,
+      isMainProject: false,
       organization: null,
       settings: null,
     });
@@ -155,6 +157,45 @@ describe('UserProvisioningSettings', () => {
     await waitFor(() => {
       expect(projectMembersService.getUserProvisioningSettings).toHaveBeenCalled();
     });
+    expect(screen.queryByText('Organization-level access settings')).not.toBeInTheDocument();
+  });
+
+  it('renders a read-only project-level access notice for non-main organization projects', async () => {
+    vi.mocked(projectMembersService.getUserProvisioningSettings).mockResolvedValueOnce({
+      ...applicableResponse,
+      isMainProject: false,
+    });
+
+    render(<UserProvisioningSettings contexts={[]} isAdmin={true} />);
+
+    expect(await screen.findByText('Project-level access')).toBeInTheDocument();
+    expect(screen.getByText('Manual access request')).toBeInTheDocument();
+    expect(
+      screen.getByText(/Automatically adding new members cannot be enabled here/)
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/Organization-level provisioning is managed from the main project/)
+    ).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Main Project' })).toHaveAttribute(
+      'href',
+      '/ui/main-project/project-settings/members'
+    );
+    expect(screen.queryByTestId('radio-auto-join')).not.toBeInTheDocument();
+  });
+
+  it('does not render when organization is missing', async () => {
+    vi.mocked(projectMembersService.getUserProvisioningSettings).mockResolvedValueOnce({
+      ...applicableResponse,
+      isMainProject: false,
+      organization: null,
+    });
+
+    render(<UserProvisioningSettings contexts={[]} isAdmin={true} />);
+
+    await waitFor(() => {
+      expect(projectMembersService.getUserProvisioningSettings).toHaveBeenCalled();
+    });
+    expect(screen.queryByText('Project-level access')).not.toBeInTheDocument();
     expect(screen.queryByText('Organization-level access settings')).not.toBeInTheDocument();
   });
 
