@@ -49,8 +49,8 @@ describe('nativeColumnNames', () => {
 describe('visibleBlendedColumnNames', () => {
   const schema = schemaOf({
     availableSources: [
-      { aliasPath: 'orders', isIncluded: true },
-      { aliasPath: 'archive', isIncluded: false },
+      { aliasPath: 'orders', isIncluded: true, isAccessibleForReporting: true },
+      { aliasPath: 'archive', isIncluded: false, isAccessibleForReporting: true },
     ] as never,
     blendedFields: [
       { name: 'orders__cost', aliasPath: 'orders', isHidden: false } as never,
@@ -60,6 +60,21 @@ describe('visibleBlendedColumnNames', () => {
   });
 
   it('keeps only non-hidden fields from included sources', () => {
+    expect(visibleBlendedColumnNames(schema)).toEqual(['orders__cost']);
+  });
+
+  it('excludes fields from sources inaccessible for reporting', () => {
+    const schema = schemaOf({
+      availableSources: [
+        { aliasPath: 'orders', isIncluded: true, isAccessibleForReporting: true },
+        { aliasPath: 'secret', isIncluded: true, isAccessibleForReporting: false },
+      ] as never,
+      blendedFields: [
+        { name: 'orders__cost', aliasPath: 'orders', isHidden: false } as never,
+        { name: 'secret__margin', aliasPath: 'secret', isHidden: false } as never,
+      ],
+    });
+
     expect(visibleBlendedColumnNames(schema)).toEqual(['orders__cost']);
   });
 });

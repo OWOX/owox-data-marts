@@ -597,6 +597,50 @@ describe('StreamHttpDataService', () => {
     );
   });
 
+  it('does not offer inaccessible blended columns to the all-blendable selector', async () => {
+    requestValidator.validate.mockReturnValueOnce({
+      columnSelector: { mode: 'allBlendable' as const },
+      filter: undefined,
+      sort: undefined,
+      limit: undefined,
+    });
+    blendableSchema.computeBlendableSchema.mockResolvedValueOnce({
+      nativeFields: [{ name: 'date' }],
+      availableSources: [
+        { aliasPath: 'orders', isIncluded: true, isAccessibleForReporting: true },
+        { aliasPath: 'secret', isIncluded: true, isAccessibleForReporting: false },
+      ],
+      blendedFields: [
+        { name: 'orders__cost', aliasPath: 'orders', isHidden: false },
+        { name: 'secret__margin', aliasPath: 'secret', isHidden: false },
+      ],
+    } as never);
+    columnResolver.resolve.mockImplementationOnce((_selector, columns) => [
+      ...columns.native,
+      ...columns.blended,
+    ]);
+    reader.prepareReportData.mockResolvedValueOnce(
+      new ReportDataDescription([
+        new ReportDataHeader('date'),
+        new ReportDataHeader('orders__cost'),
+      ])
+    );
+    reader.readReportDataBatch.mockResolvedValueOnce(
+      new ReportDataBatch([['2026-05-01', 7]], null)
+    );
+
+    await service.stream(fakeCommand(), mockResponse());
+
+    expect(columnResolver.resolve).toHaveBeenCalledWith(
+      { mode: 'allBlendable' },
+      { native: ['date'], blended: ['orders__cost'] }
+    );
+    expect(blended.resolveBlendingDecision).toHaveBeenCalledWith(
+      expect.objectContaining({ columnConfig: ['date', 'orders__cost'] }),
+      { userId: 'user-1', roles: ['viewer'] }
+    );
+  });
+
   it('uses the blended SQL as sqlOverride when the decision needs blending', async () => {
     blended.resolveBlendingDecision.mockResolvedValueOnce({
       needsBlending: true,
