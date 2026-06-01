@@ -11,6 +11,11 @@ import {
 import { CreateNewProjectService } from '../use-cases/project-members/create-new-project.service';
 import { GetRequestAccessContextService } from '../use-cases/project-members/get-request-access-context.service';
 import { RequestProjectAccessService } from '../use-cases/project-members/request-project-access.service';
+import {
+  CreateNewProjectSpec,
+  GetRequestAccessContextSpec,
+  RequestProjectAccessSpec,
+} from './spec/request-access.api';
 
 @Controller('user-provisioning')
 @ApiTags('User Provisioning')
@@ -23,6 +28,7 @@ export class RequestAccessController {
 
   @Auth(Role.authenticated(Strategy.PARSE))
   @Get('request-access-context')
+  @GetRequestAccessContextSpec()
   async getContext(
     @AuthContext() context: AuthorizationContext
   ): Promise<RequestAccessContextApiDto> {
@@ -41,6 +47,7 @@ export class RequestAccessController {
   @Auth(Role.authenticated(Strategy.INTROSPECT))
   @Post('request-access')
   @HttpCode(202)
+  @RequestProjectAccessSpec()
   async requestAccess(
     @AuthContext() context: AuthorizationContext,
     @Body() dto: RequestProjectAccessApiDto
@@ -55,6 +62,7 @@ export class RequestAccessController {
 
   @Auth(Role.authenticated(Strategy.INTROSPECT))
   @Post('create-new-project')
+  @CreateNewProjectSpec()
   async createNewProject(
     @AuthContext() context: AuthorizationContext
   ): Promise<CreateNewProjectResponseApiDto> {

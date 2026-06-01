@@ -94,7 +94,7 @@ describe('UpdateUserProvisioningSettingsService', () => {
   const PROJECT_ID = 'project-1';
   const ACTOR_USER_ID = 'actor-1';
 
-  it('preserves existing members as entire project before saving selected-context defaults', async () => {
+  it('persists local selected-context defaults only after successful IDP update', async () => {
     const idpProjectionsFacade = {
       getProjectMembersOrThrow: jest.fn().mockResolvedValue([
         {
@@ -178,15 +178,70 @@ describe('UpdateUserProvisioningSettingsService', () => {
       roleScope: RoleScope.SELECTED_CONTEXTS,
       contextIds: ['ctx-1'],
     });
-    expect(contextSettingsService.saveDefaultSettings.mock.invocationCallOrder[0]).toBeLessThan(
+    expect(
       idpProjectionsFacade.updateUserProvisioningSettings.mock.invocationCallOrder[0]
+    ).toBeLessThan(
+      applyDefaultsService.preserveExistingMembersAsEntireProject.mock.invocationCallOrder[0]
     );
+    expect(
+      idpProjectionsFacade.updateUserProvisioningSettings.mock.invocationCallOrder[0]
+    ).toBeLessThan(contextSettingsService.saveDefaultSettings.mock.invocationCallOrder[0]);
+    expect(
+      applyDefaultsService.preserveExistingMembersAsEntireProject.mock.invocationCallOrder[0]
+    ).toBeLessThan(contextSettingsService.saveDefaultSettings.mock.invocationCallOrder[0]);
     expect(result.settings).toEqual({
       mode: 'manual',
       defaultRole: ProjectRole.VIEWER,
       roleScope: RoleScope.SELECTED_CONTEXTS,
       contextIds: ['ctx-1'],
     });
+  });
+
+  it('does not persist local defaults when IDP returns not-applicable', async () => {
+    const idpProjectionsFacade = {
+      getProjectMembersOrThrow: jest.fn().mockResolvedValue([{ userId: 'existing-user-1' }]),
+      updateUserProvisioningSettings: jest.fn().mockResolvedValue({
+        isApplicable: false,
+        organization: null,
+        settings: null,
+      }),
+    };
+    const contextSettingsService = {
+      normalizeAndValidate: jest.fn().mockResolvedValue({
+        roleScope: RoleScope.SELECTED_CONTEXTS,
+        contextIds: ['ctx-1'],
+      }),
+      saveDefaultSettings: jest.fn(),
+    };
+    const applyDefaultsService = {
+      preserveExistingMembersAsEntireProject: jest.fn(),
+    };
+
+    const service = new UpdateUserProvisioningSettingsService(
+      idpProjectionsFacade as never,
+      contextSettingsService as never,
+      applyDefaultsService as never
+    );
+
+    await expect(
+      service.run(
+        new UpdateUserProvisioningSettingsCommand(
+          PROJECT_ID,
+          ACTOR_USER_ID,
+          'manual',
+          ProjectRole.VIEWER,
+          RoleScope.SELECTED_CONTEXTS,
+          ['ctx-1']
+        )
+      )
+    ).resolves.toEqual({
+      isApplicable: false,
+      organization: null,
+      settings: null,
+    });
+
+    expect(contextSettingsService.saveDefaultSettings).not.toHaveBeenCalled();
+    expect(applyDefaultsService.preserveExistingMembersAsEntireProject).not.toHaveBeenCalled();
   });
 
   it('does not preserve existing members when effective default is entire project', async () => {

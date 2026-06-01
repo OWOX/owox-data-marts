@@ -27,18 +27,12 @@ export class UpdateUserProvisioningSettingsService {
       contextIds
     );
 
-    if (contextDefaults.roleScope === RoleScope.SELECTED_CONTEXTS) {
-      const members = await this.idpProjectionsFacade.getProjectMembersOrThrow(projectId);
-      await this.applyDefaultsService.preserveExistingMembersAsEntireProject(
-        projectId,
-        members.map(member => member.userId)
-      );
-    }
-
-    const shouldSaveLocalDefaultsFirst = contextDefaults.roleScope === RoleScope.SELECTED_CONTEXTS;
-    const savedContextDefaults = shouldSaveLocalDefaultsFirst
-      ? await this.contextSettingsService.saveDefaultSettings(projectId, contextDefaults)
-      : null;
+    const existingMemberIds =
+      contextDefaults.roleScope === RoleScope.SELECTED_CONTEXTS
+        ? (await this.idpProjectionsFacade.getProjectMembersOrThrow(projectId)).map(
+            member => member.userId
+          )
+        : [];
 
     const idpSettings = await this.idpProjectionsFacade.updateUserProvisioningSettings(
       projectId,
@@ -57,9 +51,17 @@ export class UpdateUserProvisioningSettingsService {
       };
     }
 
-    const effectiveContextDefaults =
-      savedContextDefaults ??
-      (await this.contextSettingsService.saveDefaultSettings(projectId, contextDefaults));
+    if (contextDefaults.roleScope === RoleScope.SELECTED_CONTEXTS) {
+      await this.applyDefaultsService.preserveExistingMembersAsEntireProject(
+        projectId,
+        existingMemberIds
+      );
+    }
+
+    const effectiveContextDefaults = await this.contextSettingsService.saveDefaultSettings(
+      projectId,
+      contextDefaults
+    );
     const savedDefaultRole = idpSettings.settings.defaultRole as ProjectRole;
 
     return {

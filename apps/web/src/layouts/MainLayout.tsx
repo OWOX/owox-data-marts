@@ -137,7 +137,7 @@ function MainLayoutContent() {
       <AuthGuard>
         <ProjectIdGuard>
           <ProjectRoleGuard>
-            {hasEmptyProjectRoles ? (
+            {user && hasEmptyProjectRoles ? (
               <>
                 <RestrictedProjectSidebar user={user} />
                 <SidebarInset className='min-w-0'>
