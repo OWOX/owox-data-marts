@@ -76,6 +76,22 @@ function buildTraverseDataQuery(options: TraverseDataOptions): URLSearchParams |
   return query.size === 0 ? undefined : query;
 }
 
+function withDataMartContext(error: OWOXApiError, dataMartId: string): OWOXApiError {
+  const details = isRecord(error.details)
+    ? { dataMartId, ...error.details }
+    : {
+        dataMartId,
+        ...(error.details === undefined ? {} : { details: error.details }),
+      };
+
+  return new OWOXApiError(error.message, {
+    status: error.status,
+    code: error.code,
+    details,
+    cause: error,
+  });
+}
+
 export class DataMartDataTraversal {
   readonly runId: string | undefined;
   private consumed = false;
@@ -237,7 +253,7 @@ export class DataMartsApi {
       );
     } catch (error) {
       if (error instanceof OWOXApiError) {
-        throw error;
+        throw withDataMartContext(error, dataMartId);
       }
 
       throw new OWOXApiError('Failed to open OWOX Data Mart data stream', {
