@@ -161,7 +161,7 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
 
 <table><thead><tr><th>Owner type</th><th>Responsibility</th><th>Access level</th></tr></thead><tbody><tr><td><strong>Technical Owner</strong></td><td>Data definition, schema, and source connections</td><td>Full control</td></tr><tr><td><strong>Business Owner</strong></td><td>Business requirements and usage</td><td>Guaranteed See + Use; further actions inherit what the same user would have as a non-owner of their role</td></tr></tbody></table>
 <p>A Data Mart may have multiple Technical Owners and multiple Business Owners. Ownership is additive — being assigned as an owner only adds access (guaranteed visibility, and, where the role permits, maintenance through the sharing toggle); it never reduces what the user could already do without the assignment.</p>
-<p><img src="https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/c12de869-ff73-4a5e-16f6-5ff26fcee900/public" alt="Data Mart settings showing Technical Owner and Business Owner fields with assigned project members"></p>
+<p><img src="https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/3a8505f3-9bfc-445f-8679-36853567e900/public" alt="Data Mart settings showing Technical Owner and Business Owner fields with assigned project members"></p>
 <p><strong>What an owner can do depends on their role.</strong> For Destinations and Reports, owners have full control regardless of role. For Data Marts and Storages, full control requires Technical User or Project Admin:</p>
 
 
@@ -379,7 +379,7 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
 
 <table><thead><tr><th>Who</th><th>Not shared</th><th>Shared for use</th><th>Shared for maintenance</th><th>Shared for both</th></tr></thead><tbody><tr><td><strong>Owner (Technical User)</strong></td><td>All actions</td><td>All actions</td><td>All actions</td><td>All actions</td></tr><tr><td><strong>Non-owner Technical User</strong></td><td>No access</td><td>See, Use</td><td>See, Use, Copy Credentials, Edit, Delete</td><td>See, Use, Copy Credentials, Edit, Delete</td></tr><tr><td><strong>Any Business User</strong></td><td>No access</td><td>No access</td><td>No access</td><td>No access</td></tr></tbody></table>
 <blockquote>
-<p>☝️ Business Users do not have direct access to Storages. They interact with data through Data Marts and Destinations available to them.</p>
+<p>☝️ Business Users do not have direct access to Storages. They interact with data through Data Marts and Destinations shared with them.</p>
 </blockquote>
 <hr>
 <div class="sl-heading-wrapper level-h3"><h3 id="data-mart">Data Mart</h3><a class="sl-anchor-link" href="#data-mart"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24"><path fill="currentcolor" d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 0 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 1 0-1.42-1.42Zm8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 0 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 1 0 1.42 1.42l3.88-3.89a4.49 4.49 0 0 0 0-6.33ZM8.83 15.17a1 1 0 0 0 1.1.22 1 1 0 0 0 .32-.22l4.92-4.92a1 1 0 0 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42Z"></path></svg></span><span class="sr-only">Section titled “Data Mart”</span></a></div>
