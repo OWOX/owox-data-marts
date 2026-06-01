@@ -108,6 +108,7 @@ export class CreateReportService {
       filterConfig: command.filterConfig ?? null,
       sortConfig: command.sortConfig ?? null,
       limitConfig: command.limitConfig ?? null,
+      accessor: { userId: command.userId, roles: command.roles },
     });
 
     // Create and save the report

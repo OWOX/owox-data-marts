@@ -8,6 +8,7 @@ import {
   ApiParam,
 } from '@nestjs/swagger';
 import { RelationshipResponseApiDto } from '../../dto/presentation/relationship-response-api.dto';
+import { RelationshipGraphResponseApiDto } from '../../dto/presentation/relationship-graph-response-api.dto';
 import { CreateRelationshipRequestApiDto } from '../../dto/presentation/create-relationship-request-api.dto';
 import { UpdateRelationshipRequestApiDto } from '../../dto/presentation/update-relationship-request-api.dto';
 
@@ -23,25 +24,16 @@ export function CreateRelationshipSpec() {
   );
 }
 
-export function ListRelationshipsByDataMartSpec() {
+export function GetRelationshipGraphSpec() {
   return applyDecorators(
-    ApiOperation({ summary: 'List all relationships for a data mart' }),
-    ApiParam({ name: 'dataMartId', description: 'Source data mart ID' }),
+    ApiOperation({
+      summary:
+        'Get the full relationship graph rooted at this data mart (single SEE check on root)',
+    }),
+    ApiParam({ name: 'dataMartId', description: 'Root data mart ID' }),
     ApiOkResponse({
-      description: 'List of relationships for the data mart',
-      type: [RelationshipResponseApiDto],
-    })
-  );
-}
-
-export function GetRelationshipSpec() {
-  return applyDecorators(
-    ApiOperation({ summary: 'Get a relationship by ID' }),
-    ApiParam({ name: 'dataMartId', description: 'Source data mart ID' }),
-    ApiParam({ name: 'id', description: 'Relationship ID' }),
-    ApiOkResponse({
-      description: 'The relationship',
-      type: RelationshipResponseApiDto,
+      description: 'Flat list of relationship nodes with aliasPath, depth, cycle and blocked flags',
+      type: RelationshipGraphResponseApiDto,
     })
   );
 }

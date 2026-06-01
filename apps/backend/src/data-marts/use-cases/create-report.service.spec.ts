@@ -202,6 +202,7 @@ describe('CreateReportService', () => {
       filterConfig: [{ column: 'name', operator: 'eq', value: 'X' }],
       sortConfig: [{ column: 'name', direction: 'asc' }],
       limitConfig: 100,
+      accessor: { userId: 'user-0', roles: [] },
     });
   });
 

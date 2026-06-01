@@ -331,9 +331,8 @@ import { RelationshipMapper } from './mappers/relationship.mapper';
 import { CreateDataMartRelationshipService } from './use-cases/create-data-mart-relationship.service';
 import { UpdateDataMartRelationshipService } from './use-cases/update-data-mart-relationship.service';
 import { DeleteDataMartRelationshipService } from './use-cases/delete-data-mart-relationship.service';
-import { ListDataMartRelationshipsService } from './use-cases/list-data-mart-relationships.service';
 import { ListRelationshipsByStorageService } from './use-cases/list-relationships-by-storage.service';
-import { GetDataMartRelationshipService } from './use-cases/get-data-mart-relationship.service';
+import { GetDataMartRelationshipGraphService } from './use-cases/get-data-mart-relationship-graph.service';
 import { GetBlendableSchemaService } from './use-cases/get-blendable-schema.service';
 import { GetReportGeneratedSqlService } from './use-cases/get-report-generated-sql.service';
 import { CopyReportAsDataMartService } from './use-cases/copy-report-as-data-mart.service';
@@ -712,9 +711,8 @@ import { ProjectMemberApiKeysModule } from '../project-member-api-keys/project-m
     CreateDataMartRelationshipService,
     UpdateDataMartRelationshipService,
     DeleteDataMartRelationshipService,
-    ListDataMartRelationshipsService,
     ListRelationshipsByStorageService,
-    GetDataMartRelationshipService,
+    GetDataMartRelationshipGraphService,
     GetBlendableSchemaService,
     GetReportGeneratedSqlService,
     CopyReportAsDataMartService,

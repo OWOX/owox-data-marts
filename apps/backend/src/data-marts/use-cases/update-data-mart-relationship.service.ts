@@ -81,8 +81,22 @@ export class UpdateDataMartRelationshipService {
 
     await this.reportDataCacheService.invalidateByDataMartId(command.sourceDataMartId);
 
-    const createdByUser = await this.userProjectionsFetcherService.fetchCreatedByUser(updated);
-    return this.mapper.toDomainDto(updated, createdByUser);
+    const [createdByUser, targetHasAccess] = await Promise.all([
+      this.userProjectionsFetcherService.fetchCreatedByUser(updated),
+      this.accessDecisionService.canAccess(
+        command.userId,
+        command.roles,
+        EntityType.DATA_MART,
+        updated.targetDataMart.id,
+        Action.SEE,
+        command.projectId
+      ),
+    ]);
+    const accessByDataMartId = new Map<string, boolean>([
+      [updated.sourceDataMart.id, true],
+      [updated.targetDataMart.id, targetHasAccess],
+    ]);
+    return this.mapper.toDomainDto(updated, createdByUser, accessByDataMartId);
   }
 
   private async cascadeAliasRename(

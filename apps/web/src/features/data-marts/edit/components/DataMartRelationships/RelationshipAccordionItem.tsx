@@ -27,6 +27,7 @@ import type {
 } from '../../../shared/types/relationship.types';
 import { SourceFieldsTable } from '../DataMartSchemaSettings/SourceFieldsTable';
 import { JoinSettingsForm } from './JoinSettingsForm';
+import { NoAccessIndicator } from './NoAccessIndicator';
 import { CYCLE_STUB_TOOLTIP } from './relationship-warning-state';
 
 function WarningBadge({
@@ -239,6 +240,8 @@ export function RelationshipAccordionItem({
                 }}
               >
                 <span className='truncate text-sm font-semibold'>{displayAlias}</span>
+
+                {!rel.targetDataMart.userHasAccess && <NoAccessIndicator />}
 
                 {/* Fields badge */}
                 {!row.isCycleStub && (

@@ -7,6 +7,7 @@ export interface RelationshipDataMartRef {
   title: string;
   description?: string;
   status: DataMartStatus;
+  userHasAccess: boolean;
 }
 
 export interface RelationshipDto {

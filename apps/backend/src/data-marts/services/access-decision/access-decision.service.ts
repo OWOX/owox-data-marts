@@ -153,6 +153,21 @@ export class AccessDecisionService {
     return true;
   }
 
+  async canAccessMany(
+    userId: string,
+    roles: string[],
+    entityType: EntityType,
+    entityIds: readonly string[],
+    action: Action,
+    projectId?: string
+  ): Promise<Map<string, boolean>> {
+    const uniqueIds = Array.from(new Set(entityIds));
+    const results = await Promise.all(
+      uniqueIds.map(id => this.canAccess(userId, roles, entityType, id, action, projectId))
+    );
+    return new Map(uniqueIds.map((id, index) => [id, results[index]]));
+  }
+
   private lookupMatrix(
     entityType: EntityType,
     action: Action,

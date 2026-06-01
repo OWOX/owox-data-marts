@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { BlendableSchemaService } from './blendable-schema.service';
+import { BlendableSchemaAccessor, BlendableSchemaService } from './blendable-schema.service';
 import { DataMartRelationshipService } from './data-mart-relationship.service';
 import { DataMartTableReferenceService } from './data-mart-table-reference.service';
 import { OutputControlsValidatorService } from './output-controls-validator.service';
@@ -17,6 +17,7 @@ import { DataMartRelationship } from '../entities/data-mart-relationship.entity'
 import { PublicOriginService } from '../../common/config/public-origin.service';
 import { BusinessViolationException } from '../../common/exceptions/business-violation.exception';
 import { buildDataMartUrl } from '../../common/helpers/data-mart-url.helper';
+import { UserProjectionsFetcherService } from './user-projections-fetcher.service';
 
 @Injectable()
 export class BlendedReportDataService {
@@ -26,10 +27,14 @@ export class BlendedReportDataService {
     private readonly blendedQueryBuilderFacade: BlendedQueryBuilderFacade,
     private readonly tableReferenceService: DataMartTableReferenceService,
     private readonly publicOriginService: PublicOriginService,
-    private readonly outputControlsValidator: OutputControlsValidatorService
+    private readonly outputControlsValidator: OutputControlsValidatorService,
+    private readonly userProjectionsFetcher: UserProjectionsFetcherService
   ) {}
 
-  async resolveBlendingDecision(report: ReportLike): Promise<BlendingDecision> {
+  async resolveBlendingDecision(
+    report: ReportLike,
+    accessor: BlendableSchemaAccessor
+  ): Promise<BlendingDecision> {
     const { columnConfig, dataMart } = report;
 
     // Single chokepoint for both /generated-sql and the run path — catches schema drift since save.
@@ -41,18 +46,9 @@ export class BlendedReportDataService {
       filterConfig: report.filterConfig ?? null,
       sortConfig: report.sortConfig ?? null,
       limitConfig: report.limitConfig ?? null,
+      accessor,
     });
 
-    if (columnConfig === null || columnConfig === undefined) {
-      return { needsBlending: false };
-    }
-
-    const blendableSchema = await this.blendableSchemaService.computeBlendableSchema(
-      dataMart.id,
-      dataMart.projectId
-    );
-
-    const blendedFieldsByName = new Map(blendableSchema.blendedFields.map(f => [f.name, f]));
     const postJoinFilterColumns: string[] = [];
     const preJoinAliasPaths = new Set<string>();
     for (const rule of report.filterConfig ?? []) {
@@ -62,15 +58,56 @@ export class BlendedReportDataService {
         postJoinFilterColumns.push(rule.column);
       }
     }
+    const sortColumns = (report.sortConfig ?? []).map(s => s.column);
+    const hasPreJoinFilters = preJoinAliasPaths.size > 0;
+
+    if (columnConfig === null || columnConfig === undefined) {
+      // Without an explicit column config the native projection is "all native
+      // columns". A blended SQL build needs an explicit column list, so any
+      // blended reference (post-join filter / sort / pre-join slice) while
+      // columnConfig is null is malformed — reject early instead of falling
+      // through to a native query that can't resolve the blended column.
+      if (postJoinFilterColumns.length === 0 && sortColumns.length === 0 && !hasPreJoinFilters) {
+        return { needsBlending: false };
+      }
+
+      const blendableSchema = await this.blendableSchemaService.computeBlendableSchema(
+        dataMart.id,
+        dataMart.projectId,
+        accessor
+      );
+      const blendedFieldsByName = new Map(blendableSchema.blendedFields.map(f => [f.name, f]));
+      const blendedRefs = [...postJoinFilterColumns, ...sortColumns].filter(c =>
+        blendedFieldsByName.has(c)
+      );
+      if (blendedRefs.length === 0 && !hasPreJoinFilters) {
+        return { needsBlending: false };
+      }
+
+      throw new BusinessViolationException(
+        'Cannot build report SQL: blended output controls require an explicit column selection',
+        {
+          blendedFilterOrSortColumns: blendedRefs,
+          preJoinAliasPaths: Array.from(preJoinAliasPaths),
+        }
+      );
+    }
+
+    const blendableSchema = await this.blendableSchemaService.computeBlendableSchema(
+      dataMart.id,
+      dataMart.projectId,
+      accessor
+    );
+
+    const blendedFieldsByName = new Map(blendableSchema.blendedFields.map(f => [f.name, f]));
     const referencedColumns = new Set<string>([
       ...columnConfig,
       ...postJoinFilterColumns,
-      ...(report.sortConfig ?? []).map(s => s.column),
+      ...sortColumns,
     ]);
     const hasBlendedColumns = Array.from(referencedColumns).some(col =>
       blendedFieldsByName.has(col)
     );
-    const hasPreJoinFilters = preJoinAliasPaths.size > 0;
     const blendedDataHeaders = this.buildBlendedDataHeaders(
       columnConfig,
       blendedFieldsByName,
@@ -84,6 +121,14 @@ export class BlendedReportDataService {
         blendedDataHeaders,
       };
     }
+
+    await this.assertAllRequestedSourcesAccessible(
+      blendableSchema.blendedFields,
+      blendableSchema.availableSources,
+      referencedColumns,
+      preJoinAliasPaths,
+      accessor
+    );
 
     const mainTableReference = await this.tableReferenceService.resolveTableName(
       dataMart.id,
@@ -197,20 +242,7 @@ export class BlendedReportDataService {
 
     // Requesting a field at aliasPath "b.c" requires resolving "b" as well so the join
     // chain is contiguous; otherwise C would try to join directly to main using B's keys.
-    const neededPaths = new Set<string>();
-    for (const field of requestedBlendedFields) {
-      const segments = field.aliasPath.split('.');
-      for (let i = 1; i <= segments.length; i++) {
-        neededPaths.add(segments.slice(0, i).join('.'));
-      }
-    }
-    // Walk ancestors for every pre-join aliasPath too, so filter-only chains are included.
-    for (const aliasPath of preJoinAliasPaths) {
-      const segments = aliasPath.split('.');
-      for (let i = 1; i <= segments.length; i++) {
-        neededPaths.add(segments.slice(0, i).join('.'));
-      }
-    }
+    const neededPaths = this.collectNeededAliasPaths(requestedBlendedFields, preJoinAliasPaths);
 
     const sourceByPath = new Map(availableSources.map(s => [s.aliasPath, s]));
     const neededSources: AvailableSourceDto[] = [];
@@ -285,6 +317,58 @@ export class BlendedReportDataService {
     this.assertNoChainCollisions(chains);
 
     return chains;
+  }
+
+  private async assertAllRequestedSourcesAccessible(
+    blendedFields: BlendedFieldDto[],
+    availableSources: AvailableSourceDto[],
+    referencedColumns: ReadonlySet<string>,
+    preJoinAliasPaths: ReadonlySet<string>,
+    accessor: BlendableSchemaAccessor
+  ): Promise<void> {
+    const requested = blendedFields.filter(f => referencedColumns.has(f.name));
+    const neededPaths = this.collectNeededAliasPaths(requested, preJoinAliasPaths);
+
+    const sourceByPath = new Map(availableSources.map(s => [s.aliasPath, s]));
+    const denied: AvailableSourceDto[] = [];
+    for (const path of neededPaths) {
+      const src = sourceByPath.get(path);
+      if (src && !src.isAccessibleForReporting) denied.push(src);
+    }
+    if (denied.length === 0) return;
+
+    const userProjection = await this.userProjectionsFetcher.fetchUserProjection(accessor.userId);
+    const userLabel =
+      userProjection?.fullName?.trim() || userProjection?.email?.trim() || accessor.userId;
+    const titles = denied.map(s => `"${s.title}"`).join(', ');
+    throw new BusinessViolationException(
+      `Cannot build report SQL, user "${userLabel}" is missing access to data marts: ${titles}`,
+      {
+        userId: accessor.userId,
+        deniedDataMartIds: denied.map(s => s.dataMartId),
+        deniedAliasPaths: denied.map(s => s.aliasPath),
+      }
+    );
+  }
+
+  private collectNeededAliasPaths(
+    requestedFields: BlendedFieldDto[],
+    preJoinAliasPaths?: ReadonlySet<string>
+  ): Set<string> {
+    const paths = new Set<string>();
+    for (const field of requestedFields) {
+      const segments = field.aliasPath.split('.');
+      for (let i = 1; i <= segments.length; i++) {
+        paths.add(segments.slice(0, i).join('.'));
+      }
+    }
+    for (const aliasPath of preJoinAliasPaths ?? []) {
+      const segments = aliasPath.split('.');
+      for (let i = 1; i <= segments.length; i++) {
+        paths.add(segments.slice(0, i).join('.'));
+      }
+    }
+    return paths;
   }
 
   /**

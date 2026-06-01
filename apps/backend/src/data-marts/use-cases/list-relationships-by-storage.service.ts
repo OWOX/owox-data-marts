@@ -41,9 +41,23 @@ export class ListRelationshipsByStorageService {
       command.projectId
     );
 
-    const userProjectionsList =
-      await this.userProjectionsFetcherService.fetchRelevantUserProjections(relationships);
+    const involvedDataMartIds = relationships.flatMap(r => [
+      r.sourceDataMart.id,
+      r.targetDataMart.id,
+    ]);
 
-    return this.mapper.toDomainDtoList(relationships, userProjectionsList);
+    const [userProjectionsList, accessByDataMartId] = await Promise.all([
+      this.userProjectionsFetcherService.fetchRelevantUserProjections(relationships),
+      this.accessDecisionService.canAccessMany(
+        command.userId,
+        command.roles,
+        EntityType.DATA_MART,
+        involvedDataMartIds,
+        Action.SEE,
+        command.projectId
+      ),
+    ]);
+
+    return this.mapper.toDomainDtoList(relationships, userProjectionsList, accessByDataMartId);
   }
 }

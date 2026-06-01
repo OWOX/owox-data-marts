@@ -28,6 +28,7 @@ export class AvailableSourceDto {
   isIncluded: boolean;
   relationshipId: string;
   dataMartId: string;
+  isAccessibleForReporting: boolean;
 }
 
 export class BlendableSchemaDto {

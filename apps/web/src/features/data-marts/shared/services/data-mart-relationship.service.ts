@@ -6,6 +6,7 @@ import type {
   BlendedFieldsConfig,
   CreateRelationshipRequest,
   DataMartRelationship,
+  RelationshipGraph,
   UpdateRelationshipRequest,
 } from '../types/relationship.types';
 
@@ -19,15 +20,14 @@ class DataMartRelationshipService extends ApiService {
   }
 
   /**
-   * Get all relationships for a data mart.
-   * @param dataMartId Data mart ID
-   * @param config Optional axios config (e.g. `skipLoadingIndicator` for silent refreshes)
+   * Get the full relationship graph rooted at this data mart.
+   * Backend walks the graph in one pass with a single SEE check on the root.
    */
-  async getRelationships(
+  async getRelationshipGraph(
     dataMartId: string,
     config?: AxiosRequestConfig
-  ): Promise<DataMartRelationship[]> {
-    return this.get<DataMartRelationship[]>(`/${dataMartId}/relationships`, undefined, config);
+  ): Promise<RelationshipGraph> {
+    return this.get<RelationshipGraph>(`/${dataMartId}/relationships/graph`, undefined, config);
   }
 
   /**

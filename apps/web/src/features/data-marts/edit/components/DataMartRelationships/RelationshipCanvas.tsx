@@ -9,8 +9,11 @@ import { ConnectionPlugin, Presets as ConnectionPresets } from 'rete-connection-
 import { type MinimapExtra, MinimapPlugin } from 'rete-minimap-plugin';
 import { Presets as ReactPresets, type ReactArea2D, ReactPlugin } from 'rete-react-plugin';
 import { Button } from '../../../../../shared/components/Button';
-import { dataMartRelationshipService } from '../../../shared/services/data-mart-relationship.service';
-import type { DataMartRelationship } from '../../../shared/types/relationship.types';
+import type {
+  DataMartRelationship,
+  RelationshipGraph,
+} from '../../../shared/types/relationship.types';
+import { NoAccessIndicatorNative } from './NoAccessIndicator';
 import {
   CYCLE_STUB_TOOLTIP,
   getRelationshipWarningLabel,
@@ -23,9 +26,9 @@ interface RelationshipCanvasProps {
   dataMartDescription?: string | null;
   dataMartStatus: string;
   relationships: DataMartRelationship[];
+  relationshipGraph: RelationshipGraph | null;
   connectedFieldCounts?: Map<string, number>;
   searchQuery: string;
-  showTransient: boolean;
   onRequestFullscreen?: () => void;
   className?: string;
   style?: React.CSSProperties;
@@ -55,6 +58,7 @@ class DMNode extends ClassicPreset.Node {
   isBlocked: boolean;
   isJoinNotConfigured: boolean;
   isCycleStub: boolean;
+  userHasAccess: boolean;
   highlighted = false;
   dimmed = false;
 
@@ -63,7 +67,8 @@ class DMNode extends ClassicPreset.Node {
     dmId: string,
     isSource: boolean,
     depth: number,
-    opts?: {
+    opts: {
+      userHasAccess: boolean;
       targetAlias?: string;
       fieldCount?: number;
       description?: string | null;
@@ -78,14 +83,15 @@ class DMNode extends ClassicPreset.Node {
     this.dmId = dmId;
     this.isSource = isSource;
     this.depth = depth;
-    this.targetAlias = opts?.targetAlias;
-    this.fieldCount = opts?.fieldCount;
-    this.description = opts?.description;
-    this.onOpenExternal = opts?.onOpenExternal;
-    this.isDraft = opts?.isDraft ?? false;
-    this.isBlocked = opts?.isBlocked ?? false;
-    this.isJoinNotConfigured = opts?.isJoinNotConfigured ?? false;
-    this.isCycleStub = opts?.isCycleStub ?? false;
+    this.targetAlias = opts.targetAlias;
+    this.fieldCount = opts.fieldCount;
+    this.description = opts.description;
+    this.onOpenExternal = opts.onOpenExternal;
+    this.isDraft = opts.isDraft ?? false;
+    this.isBlocked = opts.isBlocked ?? false;
+    this.isJoinNotConfigured = opts.isJoinNotConfigured ?? false;
+    this.isCycleStub = opts.isCycleStub ?? false;
+    this.userHasAccess = opts.userHasAccess;
     if (!isSource) this.height = TGT_H;
   }
 }
@@ -232,8 +238,11 @@ function NodeComponent(props: { data: Schemes['Node']; emit: (e: ReactArea2D<Sch
           borderRadius: '6px 6px 0 0',
         }}
       >
-        <span className='truncate' title={n.label}>
-          {n.label}
+        <span className='flex min-w-0 items-center gap-1.5'>
+          <span className='truncate' title={n.label}>
+            {n.label}
+          </span>
+          {!n.userHasAccess && <NoAccessIndicatorNative />}
         </span>
         <div className='ml-2 flex shrink-0 items-center gap-0.5'>
           {n.description && (
@@ -324,9 +333,9 @@ async function setupEditor(
   dataMartDescription: string | null | undefined,
   dataMartStatus: string,
   initialRelationships: DataMartRelationship[],
+  graph: RelationshipGraph | null,
   fieldCounts: Map<string, number> | undefined,
-  onOpenExternal: (targetDmId: string) => void,
-  showTransient: boolean
+  onOpenExternal: (targetDmId: string) => void
 ): Promise<EditorHandle> {
   const editor = new NodeEditor<Schemes>();
   const area = new AreaPlugin<Schemes, AreaExtra>(container);
@@ -410,6 +419,7 @@ async function setupEditor(
     description?: string | null;
     depth: number;
     isSource: boolean;
+    userHasAccess: boolean;
     targetAlias?: string;
     fieldCount?: number;
     isDraft?: boolean;
@@ -436,69 +446,74 @@ async function setupEditor(
     depth: 0,
     isSource: true,
     isDraft: rootIsDraft,
+    userHasAccess: true,
   });
 
   let nodeCounter = 0;
+  const aliasPathToNodeKey = new Map<string, string>();
+  aliasPathToNodeKey.set('', dataMartId);
 
-  async function collectGraph(
+  function addEdgeAndNode(
     parentNodeKey: string,
-    rels: DataMartRelationship[],
-    depth: number,
-    ancestorDmIds: Set<string>,
-    parentBlocked: boolean
-  ) {
-    if (rels.length > 0) hasOutgoing.add(parentNodeKey);
-
-    for (const rel of rels) {
-      const dmId = rel.targetDataMart.id;
-      const nodeKey = `${dmId}-${nodeCounter++}`;
-      const isDraft = rel.targetDataMart.status === 'DRAFT';
-      const isJoinNotConfigured = rel.joinConditions.length === 0;
-      const isBlocked = parentBlocked;
-      const isCycleStub = ancestorDmIds.has(dmId);
-
-      edges.push({ sourceId: parentNodeKey, targetId: nodeKey });
-
-      nodeInfos.set(nodeKey, {
-        id: nodeKey,
-        dmId,
-        title: rel.targetDataMart.title,
-        description: rel.targetDataMart.description,
-        depth,
-        isSource: false,
-        targetAlias: rel.targetAlias,
-        fieldCount: fieldCounts?.get(rel.id) ?? 0,
-        isDraft,
-        isBlocked,
-        isJoinNotConfigured,
-        isCycleStub,
-      });
-
-      if (showTransient && !isCycleStub) {
-        try {
-          const childRels = await dataMartRelationshipService.getRelationships(dmId, {
-            skipLoadingIndicator: true,
-          });
-          if (childRels.length > 0) {
-            const newAncestors = new Set(ancestorDmIds);
-            newAncestors.add(dmId);
-            await collectGraph(
-              nodeKey,
-              childRels,
-              depth + 1,
-              newAncestors,
-              parentBlocked || isDraft || isJoinNotConfigured
-            );
-          }
-        } catch {
-          // Render partial graph if a transitive child fetch fails
-          // (e.g. missing permission) rather than failing the canvas.
-        }
-      }
-    }
+    dmId: string,
+    info: Omit<NodeInfo, 'id' | 'dmId'>,
+    aliasPath: string
+  ): string {
+    const nodeKey = `${dmId}-${nodeCounter++}`;
+    edges.push({ sourceId: parentNodeKey, targetId: nodeKey });
+    hasOutgoing.add(parentNodeKey);
+    nodeInfos.set(nodeKey, { id: nodeKey, dmId, ...info });
+    aliasPathToNodeKey.set(aliasPath, nodeKey);
+    return nodeKey;
   }
 
-  await collectGraph(dataMartId, initialRelationships, 1, new Set([dataMartId]), rootIsDraft);
+  if (graph) {
+    for (const node of graph.nodes) {
+      const lastDot = node.aliasPath.lastIndexOf('.');
+      const parentAliasPath = lastDot === -1 ? '' : node.aliasPath.slice(0, lastDot);
+      const parentNodeKey = aliasPathToNodeKey.get(parentAliasPath);
+      if (!parentNodeKey) continue;
+      addEdgeAndNode(
+        parentNodeKey,
+        node.relationship.targetDataMart.id,
+        {
+          title: node.relationship.targetDataMart.title,
+          description: node.relationship.targetDataMart.description,
+          depth: node.depth,
+          isSource: false,
+          targetAlias: node.relationship.targetAlias,
+          fieldCount: fieldCounts?.get(node.relationship.id) ?? 0,
+          isDraft: node.relationship.targetDataMart.status === 'DRAFT',
+          isBlocked: node.isBlocked,
+          isJoinNotConfigured: node.relationship.joinConditions.length === 0,
+          isCycleStub: node.isCycleStub,
+          userHasAccess: node.relationship.targetDataMart.userHasAccess,
+        },
+        node.aliasPath
+      );
+    }
+  } else {
+    for (const rel of initialRelationships) {
+      addEdgeAndNode(
+        dataMartId,
+        rel.targetDataMart.id,
+        {
+          title: rel.targetDataMart.title,
+          description: rel.targetDataMart.description,
+          depth: 1,
+          isSource: false,
+          targetAlias: rel.targetAlias,
+          fieldCount: fieldCounts?.get(rel.id) ?? 0,
+          isDraft: rel.targetDataMart.status === 'DRAFT',
+          isBlocked: rootIsDraft,
+          isJoinNotConfigured: rel.joinConditions.length === 0,
+          isCycleStub: rel.targetDataMart.id === dataMartId,
+          userHasAccess: rel.targetDataMart.userHasAccess,
+        },
+        rel.targetAlias
+      );
+    }
+  }
 
   const nodeMap = new Map<string, DMNode>();
   const columns = new Map<number, DMNode[]>();
@@ -512,6 +527,7 @@ async function setupEditor(
       isBlocked: info.isBlocked,
       isJoinNotConfigured: info.isJoinNotConfigured,
       isCycleStub: info.isCycleStub,
+      userHasAccess: info.userHasAccess,
       onOpenExternal: () => {
         onOpenExternal(info.dmId);
       },
@@ -660,9 +676,9 @@ export function RelationshipCanvas({
   dataMartDescription,
   dataMartStatus,
   relationships,
+  relationshipGraph,
   connectedFieldCounts,
   searchQuery,
-  showTransient,
   onRequestFullscreen,
   className,
   style,
@@ -681,6 +697,7 @@ export function RelationshipCanvas({
     const el = containerRef.current;
     if (!el || relationships.length === 0) return;
 
+    let cancelled = false;
     void setupEditor(
       el,
       dataMartId,
@@ -688,10 +705,14 @@ export function RelationshipCanvas({
       dataMartDescription,
       dataMartStatus,
       relationships,
+      relationshipGraph,
       connectedFieldCounts,
-      handleOpenExternal,
-      showTransient
+      handleOpenExternal
     ).then(h => {
+      if (cancelled) {
+        h.destroy();
+        return;
+      }
       editorRef.current = h;
       if (searchQueryRef.current) {
         h.highlightNodes(searchQueryRef.current);
@@ -699,6 +720,7 @@ export function RelationshipCanvas({
     });
 
     return () => {
+      cancelled = true;
       editorRef.current?.destroy();
       editorRef.current = null;
       el.replaceChildren();
@@ -709,9 +731,9 @@ export function RelationshipCanvas({
     dataMartDescription,
     dataMartStatus,
     relationships,
+    relationshipGraph,
     connectedFieldCounts,
     handleOpenExternal,
-    showTransient,
   ]);
 
   useEffect(() => {

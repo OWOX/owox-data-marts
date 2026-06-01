@@ -3,7 +3,7 @@ import { FilterConfig, FilterConfigSchema, FilterRule } from '../dto/schemas/fil
 import { SortConfig, SortConfigSchema, SortRule } from '../dto/schemas/sort-config.schema';
 import { DataStorageType } from '../data-storage-types/enums/data-storage-type.enum';
 import { OutputControlsCapabilityService } from './output-controls-capability.service';
-import { BlendableSchemaService } from './blendable-schema.service';
+import { BlendableSchemaAccessor, BlendableSchemaService } from './blendable-schema.service';
 
 export type ValidationError =
   | { code: 'FILTER_COLUMN_UNKNOWN'; column: string; aliasPath?: string }
@@ -177,6 +177,7 @@ export class OutputControlsValidatorService {
     filterConfig: FilterConfig | null | undefined;
     sortConfig: SortConfig | null | undefined;
     limitConfig: number | null | undefined;
+    accessor: BlendableSchemaAccessor;
   }): Promise<void> {
     const hasOutputControls =
       (args.filterConfig?.length ?? 0) > 0 ||
@@ -227,7 +228,8 @@ export class OutputControlsValidatorService {
     if (needsSchema) {
       const blendableSchema = await this.blendableSchemaService.computeBlendableSchema(
         args.dataMartId,
-        args.projectId
+        args.projectId,
+        args.accessor
       );
 
       const homeFieldTypes = new Map<string, string>();

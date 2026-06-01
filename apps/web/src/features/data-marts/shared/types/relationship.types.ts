@@ -25,6 +25,7 @@ export interface RelatedDataMart {
   title: string;
   description?: string;
   status: string;
+  userHasAccess: boolean;
 }
 
 export interface DataMartRelationship {
@@ -49,6 +50,19 @@ export interface CreateRelationshipRequest {
 export interface UpdateRelationshipRequest {
   targetAlias?: string;
   joinConditions?: JoinCondition[];
+}
+
+export interface RelationshipGraphNode {
+  relationship: DataMartRelationship;
+  aliasPath: string;
+  depth: number;
+  isCycleStub: boolean;
+  isBlocked: boolean;
+}
+
+export interface RelationshipGraph {
+  rootDataMartId: string;
+  nodes: RelationshipGraphNode[];
 }
 
 export interface TransientRelationshipRow {
@@ -95,6 +109,7 @@ export interface AvailableSource {
   isIncluded: boolean;
   relationshipId: string;
   dataMartId: string;
+  isAccessibleForReporting: boolean;
 }
 
 export interface BlendableSchema {

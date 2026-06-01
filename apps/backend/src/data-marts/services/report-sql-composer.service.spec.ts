@@ -65,10 +65,13 @@ describe('ReportSqlComposerService', () => {
       limitConfig: 50,
     } as Partial<Report>);
 
-    await service.compose(report);
+    await service.compose(report, { userId: 'user-1', roles: ['admin'] });
 
     expect(blendedReportDataService.resolveBlendingDecision).toHaveBeenCalledTimes(1);
-    expect(blendedReportDataService.resolveBlendingDecision).toHaveBeenCalledWith(report);
+    expect(blendedReportDataService.resolveBlendingDecision).toHaveBeenCalledWith(report, {
+      userId: 'user-1',
+      roles: ['admin'],
+    });
   });
 
   it('propagates validator rejection thrown by resolveBlendingDecision', async () => {
@@ -82,7 +85,9 @@ describe('ReportSqlComposerService', () => {
     });
     blendedReportDataService.resolveBlendingDecision.mockRejectedValue(validatorError);
 
-    await expect(service.compose(buildReport())).rejects.toBe(validatorError);
+    await expect(
+      service.compose(buildReport(), { userId: 'user-1', roles: ['admin'] })
+    ).rejects.toBe(validatorError);
   });
 
   it('returns blended SQL when decision.needsBlending and blendedSql is present', async () => {
@@ -91,7 +96,7 @@ describe('ReportSqlComposerService', () => {
       blendedSql: 'SELECT blended FROM cte',
     });
 
-    const result = await service.compose(buildReport());
+    const result = await service.compose(buildReport(), { userId: 'user-1', roles: ['admin'] });
 
     expect(result.sql).toBe('SELECT blended FROM cte');
     expect(queryBuilderFacade.buildQuery).not.toHaveBeenCalled();
@@ -103,7 +108,7 @@ describe('ReportSqlComposerService', () => {
       'SELECT a, b FROM dm'
     );
 
-    const result = await service.compose(buildReport());
+    const result = await service.compose(buildReport(), { userId: 'user-1', roles: ['admin'] });
 
     expect(result.sql).toBe('SELECT a, b FROM dm');
     expect(queryBuilderFacade.buildQuery).toHaveBeenCalledWith(
@@ -123,7 +128,9 @@ describe('ReportSqlComposerService', () => {
       'SELECT fallback FROM dm'
     );
 
-    await expect(service.compose(buildReport())).rejects.toMatchObject({
+    await expect(
+      service.compose(buildReport(), { userId: 'user-1', roles: ['admin'] })
+    ).rejects.toMatchObject({
       response: {
         details: { errors: [{ code: 'BLENDED_SQL_UNAVAILABLE' }] },
       },
@@ -142,7 +149,9 @@ describe('ReportSqlComposerService', () => {
       } as never,
     });
 
-    await expect(service.compose(report)).rejects.toThrow('Data Mart definition is not set.');
+    await expect(service.compose(report, { userId: 'user-1', roles: ['admin'] })).rejects.toThrow(
+      'Data Mart definition is not set.'
+    );
   });
 
   it('passes filterConfig/sortConfig/limitConfig from Report to QueryBuilder', async () => {
@@ -177,7 +186,7 @@ describe('ReportSqlComposerService', () => {
         definition: { type: 'sql', sqlQuery: 'SELECT 1' },
       },
     } as never;
-    const result = await composer.compose(report);
+    const result = await composer.compose(report, { userId: 'user-1', roles: ['admin'] });
     expect(queryBuilderFacade.buildQuery).toHaveBeenCalledWith(
       'GOOGLE_BIGQUERY',
       expect.anything(),
@@ -215,7 +224,7 @@ describe('ReportSqlComposerService', () => {
         definition: { type: 'table', fullyQualifiedName: 'p.d.t' },
       },
     } as never;
-    const result = await composer.compose(report);
+    const result = await composer.compose(report, { userId: 'user-1', roles: ['admin'] });
     expect(tableReferenceService.resolveTableName).not.toHaveBeenCalled();
     expect(result).toEqual({ sql: 'SELECT * FROM t' });
   });
@@ -234,14 +243,17 @@ describe('ReportSqlComposerService', () => {
       {} as never,
       { isSupported: jest.fn() } as never
     );
-    const result = await composer.compose({
-      filterConfig: [{ column: 'a', operator: 'eq', value: 1 }],
-      dataMart: {
-        id: 'm',
-        projectId: 'p',
-        storage: { type: 'GOOGLE_BIGQUERY' },
-      },
-    } as never);
+    const result = await composer.compose(
+      {
+        filterConfig: [{ column: 'a', operator: 'eq', value: 1 }],
+        dataMart: {
+          id: 'm',
+          projectId: 'p',
+          storage: { type: 'GOOGLE_BIGQUERY' },
+        },
+      } as never,
+      { userId: 'user-1', roles: ['admin'] }
+    );
     expect(result).toEqual({
       sql: 'WITH ... SELECT ... WHERE @p0',
       params: [{ name: 'p0', value: 1 }],
@@ -267,7 +279,9 @@ describe('ReportSqlComposerService', () => {
       },
     } as never;
 
-    await expect(service.compose(report)).rejects.toThrow(BadRequestException);
+    await expect(service.compose(report, { userId: 'user-1', roles: ['admin'] })).rejects.toThrow(
+      BadRequestException
+    );
     expect(capabilityService.isSupported).toHaveBeenCalledWith('AWS_REDSHIFT');
     expect(queryBuilderFacade.buildQuery).not.toHaveBeenCalled();
   });
@@ -291,7 +305,9 @@ describe('ReportSqlComposerService', () => {
       },
     } as never;
 
-    await expect(service.compose(report)).resolves.toBeDefined();
+    await expect(
+      service.compose(report, { userId: 'user-1', roles: ['admin'] })
+    ).resolves.toBeDefined();
     expect(capabilityService.isSupported).not.toHaveBeenCalled();
   });
 
@@ -308,7 +324,9 @@ describe('ReportSqlComposerService', () => {
         },
       ],
     } as never);
-    await expect(service.compose(report)).rejects.toMatchObject({
+    await expect(
+      service.compose(report, { userId: 'user-1', roles: ['admin'] })
+    ).rejects.toMatchObject({
       response: {
         details: { errors: [{ code: 'PRE_JOIN_FILTERS_REQUIRE_JOINED_DATA_MART' }] },
       },
@@ -332,7 +350,9 @@ describe('ReportSqlComposerService', () => {
       },
       filterConfig: [{ column: 'a', operator: 'eq', value: 1 }],
     } as never);
-    await expect(service.compose(report)).rejects.toMatchObject({
+    await expect(
+      service.compose(report, { userId: 'user-1', roles: ['admin'] })
+    ).rejects.toMatchObject({
       response: {
         details: { errors: [{ code: 'OUTPUT_CONTROLS_NOT_SUPPORTED' }] },
       },
@@ -391,7 +411,7 @@ describe('ReportSqlComposerService', () => {
         },
       } as never;
 
-      const result = await composer.compose(report);
+      const result = await composer.compose(report, { userId: 'user-1', roles: ['admin'] });
 
       expect(result.sql).toContain('SELECT `name`, `amount`');
       expect(result.sql).toContain('FROM `proj`.`ds`.`tbl`');
@@ -427,7 +447,7 @@ describe('ReportSqlComposerService', () => {
         },
       } as never;
 
-      const result = await composer.compose(report);
+      const result = await composer.compose(report, { userId: 'user-1', roles: ['admin'] });
 
       expect(result.sql).toContain('STRPOS(`name`, @p0) > 0');
       expect(result.sql).not.toMatch(/LIKE/);
@@ -448,7 +468,7 @@ describe('ReportSqlComposerService', () => {
         },
       } as never;
 
-      const result = await composer.compose(report);
+      const result = await composer.compose(report, { userId: 'user-1', roles: ['admin'] });
 
       // is_empty has zero params but the result still must come back as a
       // QueryBuildResult shape so the executor handles it uniformly.

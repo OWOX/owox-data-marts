@@ -15,6 +15,12 @@ export class DataMartRefApiDto {
 
   @ApiProperty({ enum: DataMartStatus, example: DataMartStatus.PUBLISHED })
   status: DataMartStatus;
+
+  @ApiProperty({
+    example: true,
+    description: 'Whether the requesting user has SEE access to this data mart',
+  })
+  userHasAccess: boolean;
 }
 
 export class RelationshipResponseApiDto {

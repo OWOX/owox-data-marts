@@ -1,7 +1,6 @@
-export class GetRelationshipCommand {
+export class GetRelationshipGraphCommand {
   constructor(
-    public readonly relationshipId: string,
-    public readonly sourceDataMartId: string,
+    public readonly rootDataMartId: string,
     public readonly projectId: string,
     public readonly userId: string,
     public readonly roles: string[]

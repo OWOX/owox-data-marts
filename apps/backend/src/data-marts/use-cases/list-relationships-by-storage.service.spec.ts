@@ -11,7 +11,18 @@ import { ListRelationshipsByStorageCommand } from '../dto/domain/list-relationsh
 import { EntityType, Action } from '../services/access-decision';
 
 describe('ListRelationshipsByStorageService', () => {
-  const relationships = [{ id: 'rel-1' }, { id: 'rel-2' }];
+  const relationships = [
+    {
+      id: 'rel-1',
+      sourceDataMart: { id: 'dm-source-1' },
+      targetDataMart: { id: 'dm-target-1' },
+    },
+    {
+      id: 'rel-2',
+      sourceDataMart: { id: 'dm-source-2' },
+      targetDataMart: { id: 'dm-target-2' },
+    },
+  ];
 
   const createService = (canAccess = true) => {
     const relationshipService = {
@@ -28,6 +39,14 @@ describe('ListRelationshipsByStorageService', () => {
     };
     const accessDecisionService = {
       canAccess: jest.fn().mockResolvedValue(canAccess),
+      canAccessMany: jest.fn().mockResolvedValue(
+        new Map([
+          ['dm-source-1', true],
+          ['dm-target-1', true],
+          ['dm-source-2', true],
+          ['dm-target-2', true],
+        ])
+      ),
     };
 
     const service = new ListRelationshipsByStorageService(

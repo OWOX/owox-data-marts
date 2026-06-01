@@ -35,7 +35,10 @@ import {
 } from '../services/http-data/http-data-column-sets.util';
 import { HttpDataRequestValidator } from '../services/http-data/http-data-request-validator.service';
 import { HttpDataStreamWriter } from '../services/http-data/http-data-stream-writer.service';
-import { BlendableSchemaService } from '../services/blendable-schema.service';
+import {
+  BlendableSchemaAccessor,
+  BlendableSchemaService,
+} from '../services/blendable-schema.service';
 import { DataMartRunService } from '../services/data-mart-run.service';
 import { DataMartRunStatus } from '../enums/data-mart-run-status.enum';
 import {
@@ -88,6 +91,7 @@ export class StreamHttpDataService {
       projectId: command.projectId,
       roles: command.roles,
     };
+    const accessor: BlendableSchemaAccessor = { userId: ctx.userId, roles: ctx.roles ?? [] };
 
     const dataMart = await this.loadAccessibleDataMart(command.dataMartId, ctx);
     await this.dataMartService.actualizeSchemaInEntityIfExpired(
@@ -96,7 +100,8 @@ export class StreamHttpDataService {
     );
     const blendableSchema = await this.blendableSchemaService.computeBlendableSchema(
       dataMart.id,
-      dataMart.projectId
+      dataMart.projectId,
+      accessor
     );
     const reportingColumns: ReportingColumns = {
       native: nativeColumnNames(blendableSchema),
@@ -117,7 +122,10 @@ export class StreamHttpDataService {
       limitConfig: limit ?? null,
     };
 
-    const decision = await this.blendedReportDataService.resolveBlendingDecision(readPlan);
+    const decision = await this.blendedReportDataService.resolveBlendingDecision(
+      readPlan,
+      accessor
+    );
 
     if (decision.needsBlending && !decision.blendedSql) {
       throw new InternalServerErrorException('Blended SQL was not produced for this Data Mart');
@@ -128,7 +136,7 @@ export class StreamHttpDataService {
     const hasOutputControls =
       (query.filter?.length ?? 0) > 0 || (query.sort?.length ?? 0) > 0 || limit != null;
     if (!decision.needsBlending && hasOutputControls) {
-      const composed = await this.reportSqlComposerService.compose(readPlan, decision);
+      const composed = await this.reportSqlComposerService.compose(readPlan, accessor, decision);
       sqlOverride = composed.sql;
       sqlOverrideParams = composed.params;
     }

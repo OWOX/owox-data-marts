@@ -126,6 +126,7 @@ export class UpdateReportService {
       filterConfig: command.filterConfig ?? null,
       sortConfig: command.sortConfig ?? null,
       limitConfig: command.limitConfig ?? null,
+      accessor: { userId: command.userId, roles: command.roles },
     });
 
     // Column order is part of the report output, so a serialized compare is intentional —
