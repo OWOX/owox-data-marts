@@ -348,6 +348,7 @@ export class LookerStudioConnectorApiDataService {
     res.setHeader('Content-Type', 'application/json');
     res.setHeader('Content-Encoding', 'gzip');
     res.setHeader('Transfer-Encoding', 'chunked');
+    res.setHeader('X-Accel-Buffering', 'no');
 
     // Pipe gzip stream to response
     gzip.pipe(res);

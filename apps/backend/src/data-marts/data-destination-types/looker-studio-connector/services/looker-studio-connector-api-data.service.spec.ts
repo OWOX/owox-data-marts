@@ -189,6 +189,7 @@ describe('LookerStudioConnectorApiDataService', () => {
       expect(headers['Content-Type']).toBe('application/json');
       expect(headers['Content-Encoding']).toBe('gzip');
       expect(headers['Transfer-Encoding']).toBe('chunked');
+      expect(headers['X-Accel-Buffering']).toBe('no');
       expect(result.rowCount).toBe(2);
       expect(result.limitExceeded).toBe(false);
       expect(result.limitReason).toBeUndefined();
