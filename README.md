@@ -98,16 +98,21 @@ Your data never leaves your infrastructure. Once normalized into your warehouse,
 **OWOX Data Marts** can be run just about anywhere in minutes.  
 Here’s how to get started locally on your machine:
 
-1. **Install Node.js** 22.16.0+ [download](https://nodejs.org)
-2. **Install OWOX Data Marts**
+(1) **Install Node.js** 22.16.0+ [download](https://nodejs.org)
+
+(2) **Install OWOX Data Marts**
+
 ```bash
 npm install -g owox
 ```
-3. Start locally
+
+(3) Start locally
+
 ```bash
 owox serve
 ```
-4. **Open** <http://localhost:3000> 🎉
+
+(4) **Open** <http://localhost:3000> 🎉
 
 Live in under 5 minutes.
 For **Docker** and **cloud deployment options**, see the [Quick Start Guide](./docs/getting-started/quick-start.md).
