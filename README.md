@@ -41,7 +41,7 @@ We analyzed **1,438 job postings** for reporting data analysts at US ecommerce S
 
 ## Why Teams Choose OWOX Over Alternatives
 
-### 1. No AI Hallucinations. Ever.
+### 1. No AI Hallucinations. Ever
 
 > *"Even one hallucination is too many in this line of work."*
 > — u/Cynot88, r/dataengineering
@@ -100,17 +100,13 @@ Here’s how to get started locally on your machine:
 
 1. **Install Node.js** 22.16.0+ [download](https://nodejs.org)
 2. **Install OWOX Data Marts**
-   
 ```bash
 npm install -g owox
 ```
-   
 3. Start locally
-   
 ```bash
 owox serve
 ```
-   
 4. **Open** <http://localhost:3000> 🎉
 
 Live in under 5 minutes.
@@ -118,12 +114,10 @@ For **Docker** and **cloud deployment options**, see the [Quick Start Guide](./d
 
 ## 🗣️ What People Are Saying
 
-> *"Connected BigQuery, set up 37 data marts, built a data model and had live reports in Sheets in under 15 minutes. 
+> *"Connected BigQuery, set up 37 data marts, built a data model and had live reports in Sheets in under 15 minutes.
 My team thought I was joking when I showed them how they can now get live reports right in their sheets."*
-
-> *"We migrated 200+ reports from Looker to OWOX Data Marts. Our team now self-serves without filing a single Jira ticket. 
+> *"We migrated 200+ reports from Looker to OWOX Data Marts. Our team now self-serves without filing a single Jira ticket.
 Easily the best infrastructure decision we made this year."*
-
 > *"75% of CDAOs who fail to demonstrate AI's positive impact will be reassigned or removed from the C-suite by 2027."*
 > — Gartner, via TechRadar, November 2025
 
