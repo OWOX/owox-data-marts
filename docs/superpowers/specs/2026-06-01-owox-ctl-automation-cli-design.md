@@ -104,20 +104,13 @@ The CLI keeps oclif and the existing command structure, but simplifies the share
 
 Resource list commands return the raw API arrays as JSON.
 
-## API Client Alignment
+## API Client Boundary
 
-`@owox/api-client` should also default `apiOrigin` to `https://app.owox.com` when `apiOrigin` is omitted. Its constructor options should make `apiOrigin` optional while keeping `apiKeyId` and `apiKeySecret` required.
+The `https://app.owox.com` default belongs to `owox-ctl`, not `@owox/api-client`.
 
-Docs should demonstrate:
+`@owox/api-client` stays explicit about `apiOrigin` so lower-level integrations do not inherit CLI-specific configuration behavior. Its constructor options continue requiring `apiOrigin`, `apiKeyId`, and `apiKeySecret`.
 
-```ts
-const client = new OWOXApiClient({
-  apiKeyId: process.env.OWOX_API_KEY_ID!,
-  apiKeySecret: process.env.OWOX_API_KEY_SECRET!,
-});
-```
-
-Self-managed instances can still pass `apiOrigin` explicitly.
+Docs for `@owox/api-client` should continue showing `apiOrigin`, typically from `OWOX_API_ORIGIN`. The CLI docs should document that `OWOX_API_ORIGIN` is optional for `owox-ctl` and defaults to OWOX Data Marts Cloud.
 
 ## Documentation Scope
 
@@ -125,7 +118,7 @@ Update:
 
 - `docs/api/owox-ctl.md`
 - `apps/ctl/README.md`
-- `docs/api/api-client.md`
+- `docs/api/api-client.md`, only if related wording needs to distinguish the API client from the CLI default
 - `docs/api/api-keys.md`
 - `docs/api/index.md`
 - `docs/api/openapi.md`, if wording still implies a human/table CLI
@@ -141,7 +134,7 @@ Update `.changeset/add-api-control-cli.md` instead of adding a new changeset. Th
 Update focused tests for:
 
 - env-only config resolution
-- default `https://app.owox.com` API origin
+- default `https://app.owox.com` API origin in `@owox/ctl`
 - `--env-file` success and failure behavior
 - JSON-only list command output
 - top-level `status` success output, including nullable `envFile`
@@ -152,7 +145,6 @@ Run at minimum:
 
 ```bash
 npm run test -w @owox/ctl
-npm run test -w @owox/api-client
 ```
 
-Typecheck or lint the touched workspaces if implementation changes TypeScript public types or command registration.
+Run `npm run test -w @owox/api-client` only if implementation changes touch the API client package. Typecheck or lint the touched workspaces if implementation changes TypeScript public types or command registration.
