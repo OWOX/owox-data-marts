@@ -105,7 +105,7 @@ export function EditApiKeySheet({ apiKey, onClose, onUpdated, onRevoke }: EditAp
 
   const { control, handleSubmit, reset } = form;
 
-  const apiOrigin = typeof flags?.PUBLIC_ORIGIN === 'string' ? flags.PUBLIC_ORIGIN : '';
+  const apiOrigin = flags?.PUBLIC_ORIGIN as string;
   const createdAt = apiKey?.createdAt ? formatDateShort(apiKey.createdAt) : 'Unknown';
   const expiresAt = apiKey?.expiresAt
     ? formatDateOnly(apiKey.expiresAt, { timeZone: 'UTC' })

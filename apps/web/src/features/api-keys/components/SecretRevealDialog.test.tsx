@@ -159,15 +159,4 @@ describe('SecretRevealDialog', () => {
 
     expect(screen.getAllByRole('button', { name: 'Help information' })).toHaveLength(3);
   });
-
-  it('does not derive the API origin from window location when PUBLIC_ORIGIN is missing', () => {
-    useFlagsMock.mockReturnValue({
-      flags: {},
-      callState: 'loaded' as UseFlagsResult['callState'],
-    });
-
-    render(<SecretRevealDialog data={createdKey} onDone={vi.fn()} />);
-
-    expect(screen.getByLabelText('API Origin')).toHaveValue('');
-  });
 });

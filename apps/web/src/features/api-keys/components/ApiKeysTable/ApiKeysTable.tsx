@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useCallback, useMemo } from 'react';
 import type { Row } from '@tanstack/react-table';
 import { BaseTable, TableCTAButton } from '../../../../shared/components/Table';
 import { useBaseTable } from '../../../../shared/hooks';
@@ -32,20 +32,23 @@ export function ApiKeysTable({
     enableRowSelection: false,
   });
 
-  const handleRowClick = (row: Row<ProjectMemberApiKey>, e: React.MouseEvent) => {
-    if (
-      e.target instanceof Element &&
-      (e.target.closest('button') ||
-        e.target.closest('a') ||
-        e.target.closest('[role="button"]') ||
-        e.target.closest('[role="menuitem"]') ||
-        e.target.closest('[role="checkbox"]'))
-    ) {
-      return;
-    }
+  const handleRowClick = useCallback(
+    (row: Row<ProjectMemberApiKey>, e: React.MouseEvent) => {
+      if (
+        e.target instanceof Element &&
+        (e.target.closest('button') ||
+          e.target.closest('a') ||
+          e.target.closest('[role="button"]') ||
+          e.target.closest('[role="menuitem"]') ||
+          e.target.closest('[role="checkbox"]'))
+      ) {
+        return;
+      }
 
-    onOpenDetails(row.original);
-  };
+      onOpenDetails(row.original);
+    },
+    [onOpenDetails]
+  );
 
   return (
     <div className='dm-card'>

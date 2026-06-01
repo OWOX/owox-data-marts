@@ -10,10 +10,12 @@ describe('registerPublicFlagsRoute', () => {
     path: string;
   }>;
   const originalPublicOrigin = process.env.PUBLIC_ORIGIN;
+  const originalPort = process.env.PORT;
 
   beforeEach(() => {
     routes = [];
     process.env.PUBLIC_ORIGIN = 'https://public.example.test';
+    process.env.PORT = '3127';
   });
 
   afterEach(() => {
@@ -21,6 +23,12 @@ describe('registerPublicFlagsRoute', () => {
       delete process.env.PUBLIC_ORIGIN;
     } else {
       process.env.PUBLIC_ORIGIN = originalPublicOrigin;
+    }
+
+    if (originalPort === undefined) {
+      delete process.env.PORT;
+    } else {
+      process.env.PORT = originalPort;
     }
   });
 
@@ -48,7 +56,7 @@ describe('registerPublicFlagsRoute', () => {
     expect(body?.PUBLIC_ORIGIN).to.equal('https://public.example.test');
   });
 
-  it('does not synthesize PUBLIC_ORIGIN when the environment value is absent', async () => {
+  it('exposes fallback PUBLIC_ORIGIN when the environment value is absent', async () => {
     delete process.env.PUBLIC_ORIGIN;
     const app = {
       get(path: string, handler: (req: Request, res: Response) => void) {
@@ -70,6 +78,30 @@ describe('registerPublicFlagsRoute', () => {
     expect(route).not.to.equal(undefined);
     route?.handler({} as Request, res);
 
-    expect(body).not.to.have.property('PUBLIC_ORIGIN');
+    expect(body?.PUBLIC_ORIGIN).to.equal('http://localhost:3127');
+  });
+
+  it('exposes resolved PUBLIC_ORIGIN when a custom whitelist omits it', async () => {
+    const app = {
+      get(path: string, handler: (req: Request, res: Response) => void) {
+        routes.push({ handler, path });
+      },
+    } as unknown as Express;
+
+    registerPublicFlagsRoute(app, { whitelist: ['API_KEYS_ENABLED'] });
+
+    const route = routes.find(route => route.path === '/api/flags');
+    let body: Record<string, unknown> | undefined;
+    const res = {
+      json(payload: Record<string, unknown>) {
+        body = payload;
+      },
+      setHeader() {},
+    } as unknown as Response;
+
+    expect(route).not.to.equal(undefined);
+    route?.handler({} as Request, res);
+
+    expect(body?.PUBLIC_ORIGIN).to.equal('https://public.example.test');
   });
 });

@@ -2,6 +2,8 @@ import type { Express, Request, Response } from 'express';
 
 import { z } from 'zod';
 
+import { resolvePublicOrigin } from '../utils/public-origin.js';
+
 /**
  * Default HTTP route that exposes selected environment variables
  */
@@ -27,7 +29,6 @@ const DEFAULT_PUBLIC_ENV_WHITELIST = [
   'INSIGHTS_ENABLED',
   'INSIGHT_ASSISTANT_ENABLED_PROJECT_IDS',
   'API_KEYS_ENABLED',
-  'PUBLIC_ORIGIN',
 ] as const;
 
 /**
@@ -94,6 +95,7 @@ export function registerPublicFlagsRoute(app: Express, rawOptions: FlagsRouteOpt
     const payload: Record<string, unknown> = Object.fromEntries(
       resultEntries as Array<readonly [string, unknown]>
     );
+    payload.PUBLIC_ORIGIN = resolvePublicOrigin();
 
     // Do not cache this response; values may change across deploys
     res.setHeader('Cache-Control', 'no-store');

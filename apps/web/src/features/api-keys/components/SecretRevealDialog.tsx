@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -24,36 +24,6 @@ interface SecretRevealDialogProps {
 const API_KEYS_DOCS_URL = 'https://docs.owox.com/docs/api/api-keys/';
 const SECRET_NOTICE = "Copy the secret now. You won't be able to see it again.";
 
-interface FieldLabelProps {
-  children: ReactNode;
-  description: string;
-  htmlFor?: string;
-}
-
-function FieldLabel({ children, description, htmlFor }: FieldLabelProps) {
-  return (
-    <div className='mb-1 flex items-center gap-1.5'>
-      <Label htmlFor={htmlFor} className='text-muted-foreground text-xs'>
-        {children}
-      </Label>
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <button
-            type='button'
-            aria-label='Help information'
-            className='text-muted-foreground/60 hover:text-muted-foreground focus-visible:ring-ring/50 inline-flex size-4 shrink-0 items-center justify-center rounded-sm transition-colors focus-visible:ring-2 focus-visible:outline-none'
-          >
-            <Info className='size-3.5' aria-hidden='true' />
-          </button>
-        </TooltipTrigger>
-        <TooltipContent side='top' align='start' role='tooltip'>
-          {description}
-        </TooltipContent>
-      </Tooltip>
-    </div>
-  );
-}
-
 export function SecretRevealDialog({ data, onDone }: SecretRevealDialogProps) {
   const apiOriginInputId = useId();
   const apiKeySecretInputId = useId();
@@ -68,7 +38,7 @@ export function SecretRevealDialog({ data, onDone }: SecretRevealDialogProps) {
 
   if (!data) return null;
 
-  const apiOrigin = typeof flags?.PUBLIC_ORIGIN === 'string' ? flags.PUBLIC_ORIGIN : '';
+  const apiOrigin = flags?.PUBLIC_ORIGIN as string;
 
   const copyToClipboard = async (text: string, label: string) => {
     await navigator.clipboard.writeText(text);
@@ -105,13 +75,28 @@ export function SecretRevealDialog({ data, onDone }: SecretRevealDialogProps) {
 
         <div className='space-y-4'>
           <div className='space-y-3'>
-            <div>
-              <FieldLabel
-                htmlFor={apiOriginInputId}
-                description='Base URL for API requests from external tools.'
-              >
-                API Origin
-              </FieldLabel>
+            <div className='group'>
+              <div className='text-muted-foreground mb-1 flex items-center justify-between gap-2 text-xs font-medium'>
+                <Label htmlFor={apiOriginInputId}>API Origin</Label>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button
+                      type='button'
+                      tabIndex={-1}
+                      className='pointer-events-none opacity-0 transition group-hover:pointer-events-auto group-hover:opacity-100'
+                      aria-label='Help information'
+                    >
+                      <Info
+                        className='text-muted-foreground/50 hover:text-muted-foreground size-4 shrink-0 transition-colors'
+                        aria-hidden='true'
+                      />
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent side='top' align='center' role='tooltip'>
+                    Base URL for API requests from external tools.
+                  </TooltipContent>
+                </Tooltip>
+              </div>
               <div className='bg-muted flex items-center justify-between gap-2 rounded-md px-3 py-2'>
                 <input
                   id={apiOriginInputId}
@@ -134,8 +119,28 @@ export function SecretRevealDialog({ data, onDone }: SecretRevealDialogProps) {
               </div>
             </div>
 
-            <div>
-              <FieldLabel description='Public identifier for this API key.'>API Key ID</FieldLabel>
+            <div className='group'>
+              <div className='text-muted-foreground mb-1 flex items-center justify-between gap-2 text-xs font-medium'>
+                <Label>API Key ID</Label>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button
+                      type='button'
+                      tabIndex={-1}
+                      className='pointer-events-none opacity-0 transition group-hover:pointer-events-auto group-hover:opacity-100'
+                      aria-label='Help information'
+                    >
+                      <Info
+                        className='text-muted-foreground/50 hover:text-muted-foreground size-4 shrink-0 transition-colors'
+                        aria-hidden='true'
+                      />
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent side='top' align='center' role='tooltip'>
+                    Public identifier for this API key.
+                  </TooltipContent>
+                </Tooltip>
+              </div>
               <div className='bg-muted flex items-center justify-between gap-2 rounded-md px-3 py-2'>
                 <code className='text-sm'>{data.apiKeyId}</code>
                 <Button
@@ -152,13 +157,28 @@ export function SecretRevealDialog({ data, onDone }: SecretRevealDialogProps) {
               </div>
             </div>
 
-            <div>
-              <FieldLabel
-                htmlFor={apiKeySecretInputId}
-                description='Secret credential shown only once. Store it securely.'
-              >
-                API Key Secret
-              </FieldLabel>
+            <div className='group'>
+              <div className='text-muted-foreground mb-1 flex items-center justify-between gap-2 text-xs font-medium'>
+                <Label htmlFor={apiKeySecretInputId}>API Key Secret</Label>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button
+                      type='button'
+                      tabIndex={-1}
+                      className='pointer-events-none opacity-0 transition group-hover:pointer-events-auto group-hover:opacity-100'
+                      aria-label='Help information'
+                    >
+                      <Info
+                        className='text-muted-foreground/50 hover:text-muted-foreground size-4 shrink-0 transition-colors'
+                        aria-hidden='true'
+                      />
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent side='top' align='center' role='tooltip'>
+                    Secret credential shown only once. Store it securely.
+                  </TooltipContent>
+                </Tooltip>
+              </div>
               <div className='bg-muted flex items-center justify-between gap-2 rounded-md px-3 py-2'>
                 <input
                   id={apiKeySecretInputId}
