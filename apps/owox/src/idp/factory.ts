@@ -9,6 +9,7 @@ import { IdpConfig, IdpProvider, NullIdpProvider } from '@owox/idp-protocol';
 import { parseMysqlSslEnv } from '@owox/internal-helpers';
 
 import { BaseCommand } from '../commands/base.js';
+import { resolvePublicOrigin } from '../utils/public-origin.js';
 
 export enum IdpProviderType {
   BetterAuth = 'better-auth',
@@ -128,16 +129,7 @@ export class IdpFactory {
       }
     }
 
-    const publicOriginOrDefault = (() => {
-      const po = process.env.PUBLIC_ORIGIN;
-      if (po && po.trim() !== '') {
-        return po;
-      }
-
-      return `http://localhost:${process.env.PORT}`;
-    })();
-
-    const baseURL = process.env.IDP_BETTER_AUTH_BASE_URL || publicOriginOrDefault;
+    const baseURL = process.env.IDP_BETTER_AUTH_BASE_URL || resolvePublicOrigin();
 
     const trustedOrigins = (() => {
       const list = process.env.IDP_BETTER_AUTH_TRUSTED_ORIGINS;

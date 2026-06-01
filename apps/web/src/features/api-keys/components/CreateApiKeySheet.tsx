@@ -17,7 +17,6 @@ import {
   FormDescription,
   FormField,
   FormItem,
-  FormLabel,
   FormLayout,
   FormMessage,
   FormSection,
@@ -34,6 +33,7 @@ import { Loader2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { apiKeysService } from '../services/api-keys.service';
 import type { CreateProjectMemberApiKeyResponse } from '../types';
+import { ApiKeyDocumentationSection, ApiKeyFormLabel } from './ApiKeyFormShared';
 
 const createApiKeySchema = z.object({
   name: z.string().min(1, 'Name is required').max(100, 'Name must be 100 characters or less'),
@@ -103,15 +103,15 @@ export function CreateApiKeySheet({ isOpen, onClose, onCreated }: CreateApiKeySh
         <Form {...form}>
           <AppForm onSubmit={e => void handleSubmit(onSubmit)(e)}>
             <FormLayout>
-              <FormSection title='Key settings' name='key-settings'>
+              <FormSection title='General' name='create-api-key-general'>
                 <FormField
                   control={control}
                   name='name'
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel tooltip='A human-readable label so you can identify this key later'>
+                      <ApiKeyFormLabel description='A human-readable label so you can identify this key later.'>
                         Name
-                      </FormLabel>
+                      </ApiKeyFormLabel>
                       <FormControl>
                         <Input {...field} placeholder='e.g. CI import job' />
                       </FormControl>
@@ -137,9 +137,9 @@ export function CreateApiKeySheet({ isOpen, onClose, onCreated }: CreateApiKeySh
                   name='expiresAt'
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel tooltip='Optional date after which the key stops working'>
+                      <ApiKeyFormLabel description='Optional UTC date after which the key stops working.'>
                         Expires (optional)
-                      </FormLabel>
+                      </ApiKeyFormLabel>
                       <FormControl>
                         <Input
                           type='date'
@@ -166,6 +166,8 @@ export function CreateApiKeySheet({ isOpen, onClose, onCreated }: CreateApiKeySh
                   )}
                 />
               </FormSection>
+
+              <ApiKeyDocumentationSection name='create-api-key-documentation' />
             </FormLayout>
 
             <FormActions>

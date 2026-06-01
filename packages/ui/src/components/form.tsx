@@ -352,7 +352,7 @@ function FormSection({
   // Non-collapsible section
   if (!collapsible) {
     return (
-      <div data-slot='form-section' className='mb-4'>
+      <div data-slot='form-section' className='flex flex-col gap-2'>
         {title && (
           <div className='group flex items-center justify-between'>
             <div className='flex items-center gap-2'>
@@ -380,7 +380,7 @@ function FormSection({
       open={isOpen}
       onOpenChange={handleOpenChange}
       data-slot='form-section'
-      className='mb-4 flex flex-col gap-2'
+      className='flex flex-col gap-2'
     >
       {title && (
         <div className='group flex items-center justify-between'>
