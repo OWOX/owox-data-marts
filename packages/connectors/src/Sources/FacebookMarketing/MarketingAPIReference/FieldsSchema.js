@@ -159,6 +159,28 @@ var FacebookMarketingFieldsSchema = {
         "isTimeSeries": true,
         "destinationName": "facebook_ads_ad_account_insights_by_region"
     },
+    "ad-account/insights-by-adset": {
+        "overview": "Ad Insights by Ad Set",
+        "description": "Daily ad set performance with reach deduplicated to match Meta Ads Manager.",
+        "documentation": "https://developers.facebook.com/docs/marketing-api/reference/ad-account/insights",
+        "fields": adAccountInsightsFieldsByAdset,
+        "level": "adset",
+        'uniqueKeys': ["adset_id", "date_start", "date_stop"],
+        'defaultFields': ["account_id", "account_name", "campaign_id", "campaign_name", "adset_id", "adset_name", "impressions", "reach", "frequency", "clicks", "spend", "cpc", "cpm", "cpp", "ctr", "actions", "action_values"],
+        "isTimeSeries": true,
+        "destinationName": "facebook_ads_ad_account_insights_by_adset"
+    },
+    "ad-account/insights-by-campaign": {
+        "overview": "Ad Insights by Campaign",
+        "description": "Daily campaign performance with reach deduplicated to match Meta Ads Manager.",
+        "documentation": "https://developers.facebook.com/docs/marketing-api/reference/ad-account/insights",
+        "fields": adAccountInsightsFieldsByCampaign,
+        "level": "campaign",
+        "uniqueKeys": ["campaign_id", "date_start", "date_stop"],
+        "defaultFields": ["account_id", "campaign_id", "campaign_name", "impressions", "reach", "frequency", "clicks", "spend", "cpm", "cpp"],
+        "isTimeSeries": true,
+        "destinationName": "facebook_ads_ad_account_insights_by_campaign"
+    },
     "ad-group": {
         "overview": "Ad",
         "description": "Individual ads with their creative, status, and links to their campaign and ad set.",

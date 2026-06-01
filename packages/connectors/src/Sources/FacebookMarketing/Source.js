@@ -335,6 +335,8 @@ var FacebookMarketingSource = class FacebookMarketingSource extends AbstractSour
       case 'ad-account/insights-by-region':
       case 'ad-account/insights-by-product-id':
       case 'ad-account/insights-by-age-and-gender':
+      case 'ad-account/insights-by-adset':
+      case 'ad-account/insights-by-campaign':
         return await this._fetchInsightsData({ nodeName, accountId, fields, timeRange, url });
 
       case 'ad-group':
@@ -357,18 +359,25 @@ var FacebookMarketingSource = class FacebookMarketingSource extends AbstractSour
   //---- castRecordFields -------------------------------------------------
   /**
    * Cast of record fields to the types defined in schema
-   * 
+   *
    * @param nodeName string name of the facebook api node
    * @param record object with all the row fields
-   * 
+   *
    * @return record
-   * 
+   *
    */
   castRecordFields(nodeName, record) {
 
     for (var field in record) {
       if (field in this.fieldsSchema[nodeName]["fields"]
         && "type" in this.fieldsSchema[nodeName]["fields"][field]) {
+
+        // Facebook omits empty metrics from the response; don't coerce missing
+        // values into NaN (parseFloat(undefined) === NaN) — keep them null.
+        if (record[field] === null || record[field] === undefined || record[field] === "") {
+          record[field] = null;
+          continue;
+        }
 
         let type = this.fieldsSchema[nodeName]["fields"][field]["type"];
 
@@ -427,6 +436,7 @@ var FacebookMarketingSource = class FacebookMarketingSource extends AbstractSour
    */
   async _fetchInsightsData({ nodeName, accountId, fields, timeRange, url }) {
     const breakdowns = this.fieldsSchema[nodeName].breakdowns || [];
+    const level = this.fieldsSchema[nodeName].level || 'ad';
     const regularFields = this._prepareFields({ nodeName, fields, breakdowns });
 
     const requestUrl = this._buildInsightsUrl({
@@ -435,6 +445,7 @@ var FacebookMarketingSource = class FacebookMarketingSource extends AbstractSour
       breakdowns,
       timeRange,
       nodeName,
+      level,
       url
     });
 
@@ -492,9 +503,9 @@ var FacebookMarketingSource = class FacebookMarketingSource extends AbstractSour
    * @return {string} Complete URL
    * @private
    */
-  _buildInsightsUrl({ accountId, fields, breakdowns, timeRange, nodeName, url }) {
+  _buildInsightsUrl({ accountId, fields, breakdowns, timeRange, nodeName, level, url }) {
     console.log('Insights request fields for', nodeName, ':', fields);
-    let insightsUrl = `${url}act_${accountId}/insights?level=ad&period=day&time_range=${timeRange}&fields=${fields.join(",")}&limit=${this.config.Limit.value}`;
+    let insightsUrl = `${url}act_${accountId}/insights?level=${level}&period=day&time_range=${timeRange}&fields=${fields.join(",")}&limit=${this.config.Limit.value}`;
     if (breakdowns.length > 0) {
       insightsUrl += `&breakdowns=${breakdowns.join(",")}`;
     }
