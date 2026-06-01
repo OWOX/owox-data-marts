@@ -8,7 +8,7 @@ Each project member has one of three roles.
 |---|---|
 | **Project Admin** | Full access across all entities |
 | **Technical User** | Build and maintain data resources; can edit any Report they have access to |
-| **Business User** | Self-service reporting on Data Marts available to them; manage own Reports and Destinations |
+| **Business User** | Self-service reporting on Data Marts shared with them; manage own Reports and Destinations |
 
 ## Project Admin
 
@@ -53,7 +53,7 @@ Assigned to members who create and run reports on data prepared by Technical Use
 
 **Data access:**
 
-- View Data Marts and their scheduled triggers made available to them
+- View Data Marts and their scheduled triggers shared with them
 - Create Reports on Data Marts shared for reporting, using Destinations they have access to
 - Edit, delete, and run Reports they own
 - Create and manage Destinations they own or have maintenance access to

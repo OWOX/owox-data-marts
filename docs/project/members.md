@@ -19,7 +19,7 @@ This applies to Data Marts, Storages, Destinations, Reports, Scheduled Triggers,
 - **Data Marts, Storages, Destinations, Reports**: sortable `Created By` column in list views, and in the **Details** section of each resource's page
 - **Run history**: inline `by [member name]` when a creator profile is available
 
-![Resource list view with a sortable Created By column showing which member created each resource](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/97cca939-e070-48d1-c874-cf3dda4bdc00/public)
+![Resource list view with a sortable Created By column showing which member created each resource](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/c53dcd3d-3bbd-4547-a5a3-f8dd2450de00/public)
 
 ## Initial Ownership
 
@@ -34,7 +34,7 @@ When creating a Storage, Destination, or Report, you can assign owners directly 
 
 Scheduled Triggers do not have dedicated ownership. Access to them follows the same rules as their parent Data Mart or Report.
 
-![Resource creation form with an Owners field for assigning initial owners during setup](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/e8b00bd7-8710-45df-1d3f-3685eddbe500/public)
+![Resource creation form with an Owners field for assigning initial owners during setup](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/7b347212-b2a0-42c5-fa6e-788a32833700/public)
 
 ## Member Removal Impact
 
