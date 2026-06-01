@@ -136,9 +136,6 @@ function buildWriter(opts: BuildOpts) {
     formatRowsValuesByName: jest.fn().mockImplementation((rows: unknown[][]) => rows),
   };
 
-  const consumptionTrackingService = {
-    registerSheetsReportRunConsumption: jest.fn().mockResolvedValue(undefined),
-  };
   const appEditionConfig = { isEnterpriseEdition: jest.fn().mockReturnValue(true) };
   const publicOriginService = {
     getPublicOrigin: jest.fn().mockReturnValue('https://example.test'),
@@ -151,7 +148,6 @@ function buildWriter(opts: BuildOpts) {
     valuesFormatter as never,
     columnPlanBuilder as never,
     adapterFactory as never,
-    consumptionTrackingService as never,
     appEditionConfig as never,
     publicOriginService as never,
     eventDispatcher as never
@@ -176,6 +172,29 @@ const makeHeaders = (...names: string[]): ReportDataHeader[] =>
   names.map(n => new ReportDataHeader(n));
 
 describe('GoogleSheetsReportWriter — pre-clears imported rectangle before writing', () => {
+  it('returns Sheets consumption metadata without registering consumption directly', async () => {
+    const { writer, report, finalImportedNames } = buildWriter({
+      availableRowsCount: 11,
+    });
+
+    await writer.prepareToWriteReport(
+      report as never,
+      new ReportDataDescription(makeHeaders(...finalImportedNames), 1)
+    );
+    await writer.writeReportDataBatch(new ReportDataBatch([['A', '10', '2']]));
+
+    const result = await writer.finalize();
+
+    expect(result).toEqual({
+      consumption: {
+        googleSheets: {
+          googleSheetsDocumentTitle: 'Test Spreadsheet',
+          googleSheetsListTitle: SHEET_TITLE,
+        },
+      },
+    });
+  });
+
   it('pre-clears A2..lastImportedColA1:availableRows on the first batch', async () => {
     // Sheet had 11 rows from a previous (larger) refresh; this run will write
     // header (row 1) + a single data row (row 2). The pre-clear must wipe
