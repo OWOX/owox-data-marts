@@ -55,11 +55,11 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
             },
             {
               label: 'Billing',
-              autogenerate: { directory: 'docs/getting-started/billing' },
+              items: [{ autogenerate: { directory: 'docs/getting-started/billing' } }],
             },
             {
               label: 'Deployment Guide',
-              autogenerate: { directory: 'docs/getting-started/deployment-guide' },
+              items: [{ autogenerate: { directory: 'docs/getting-started/deployment-guide' } }],
             },
             {
               label: 'Setup Guide',
@@ -76,10 +76,14 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
                 'docs/getting-started/setup-guide/report-triggers',
                 {
                   label: 'Self-Managed Authentication',
-                  autogenerate: {
-                    directory: 'docs/getting-started/setup-guide/members-management',
-                  },
                   collapsed: true,
+                  items: [
+                    {
+                      autogenerate: {
+                        directory: 'docs/getting-started/setup-guide/members-management',
+                      },
+                    },
+                  ],
                 },
               ],
             },
@@ -113,7 +117,7 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
             'docs/destinations/manage-destinations',
             {
               label: 'Supported Destinations',
-              autogenerate: { directory: 'docs/destinations/supported-destinations' },
+              items: [{ autogenerate: { directory: 'docs/destinations/supported-destinations' } }],
             },
           ],
         },
@@ -123,13 +127,13 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
             'docs/storages/manage-storages',
             {
               label: 'Supported Storages',
-              autogenerate: { directory: 'docs/storages/supported-storages' },
+              items: [{ autogenerate: { directory: 'docs/storages/supported-storages' } }],
             },
           ],
         },
         {
           label: 'Sources',
-          autogenerate: { directory: 'packages/connectors/src/sources' },
+          items: [{ autogenerate: { directory: 'packages/connectors/src/sources' } }],
         },
         {
           label: 'API',
@@ -146,7 +150,7 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
           items: [
             {
               label: 'Repository',
-              autogenerate: { directory: 'docs/contributing/repository' },
+              items: [{ autogenerate: { directory: 'docs/contributing/repository' } }],
               collapsed: true,
             },
             {
@@ -158,7 +162,11 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
               ],
               collapsed: true,
             },
-            { label: 'Documentation', autogenerate: { directory: 'apps/docs' }, collapsed: true },
+            {
+              label: 'Documentation',
+              items: [{ autogenerate: { directory: 'apps/docs' } }],
+              collapsed: true,
+            },
             {
               label: 'CLI Application',
               items: [
@@ -169,7 +177,11 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
               ],
               collapsed: true,
             },
-            { label: 'Web Application', autogenerate: { directory: 'apps/web' }, collapsed: true },
+            {
+              label: 'Web Application',
+              items: [{ autogenerate: { directory: 'apps/web' } }],
+              collapsed: true,
+            },
             {
               label: 'Backend Application',
               items: [
@@ -181,7 +193,11 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
               ],
               collapsed: true,
             },
-            { label: 'Licenses', autogenerate: { directory: 'licenses' }, collapsed: true },
+            {
+              label: 'Licenses',
+              items: [{ autogenerate: { directory: 'licenses' } }],
+              collapsed: true,
+            },
             'docs/changelog',
           ],
         },
