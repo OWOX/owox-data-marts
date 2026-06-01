@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 
 import { setupEnvironmentFromFlags } from './base-command.js';
+import DataMartsList from './commands/data-marts/list.js';
 
 describe('base command environment setup', () => {
   it('passes env-file through the shared environment manager contract', () => {
@@ -65,6 +66,33 @@ describe('base command environment setup', () => {
     } finally {
       process.chdir(previousCwd);
       delete process.env.OWOX_CTL_ENV_MANAGER_TEST;
+    }
+  });
+
+  it('renders command parse errors as JSON', async () => {
+    const previousExitCode = process.exitCode;
+    const stderrWrite = jest.spyOn(process.stderr, 'write').mockImplementation(() => true);
+
+    try {
+      await expect(DataMartsList.run(['--unknown'], process.cwd())).rejects.toMatchObject({
+        code: 'EEXIT',
+      });
+
+      const stderr = stderrWrite.mock.calls.map(([chunk]) => String(chunk)).join('');
+      const jsonStart = stderr.indexOf('{');
+      const jsonEnd = stderr.lastIndexOf('}');
+
+      expect(jsonStart).toBeGreaterThanOrEqual(0);
+      expect(JSON.parse(stderr.slice(jsonStart, jsonEnd + 1))).toEqual({
+        error: expect.objectContaining({
+          message: expect.stringContaining('--unknown'),
+          name: expect.any(String),
+        }),
+      });
+      expect(stderr).not.toContain('USAGE');
+    } finally {
+      stderrWrite.mockRestore();
+      process.exitCode = previousExitCode;
     }
   });
 });

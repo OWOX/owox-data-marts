@@ -15,9 +15,8 @@ export default class DataMartsList extends BaseCommand {
   };
 
   async run(): Promise<void> {
-    const { flags } = await this.parse(DataMartsList);
-
     try {
+      const { flags } = await this.parse(DataMartsList);
       this.loadEnvironment(flags);
       this.writeJson(await listDataMarts(this.getAuthenticatedClient()));
     } catch (error) {

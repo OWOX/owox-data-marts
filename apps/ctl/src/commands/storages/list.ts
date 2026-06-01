@@ -15,9 +15,8 @@ export default class StoragesList extends BaseCommand {
   };
 
   async run(): Promise<void> {
-    const { flags } = await this.parse(StoragesList);
-
     try {
+      const { flags } = await this.parse(StoragesList);
       this.loadEnvironment(flags);
       this.writeJson(await listStorages(this.getAuthenticatedClient()));
     } catch (error) {

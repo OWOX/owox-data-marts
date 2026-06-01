@@ -15,9 +15,8 @@ export default class DestinationsList extends BaseCommand {
   };
 
   async run(): Promise<void> {
-    const { flags } = await this.parse(DestinationsList);
-
     try {
+      const { flags } = await this.parse(DestinationsList);
       this.loadEnvironment(flags);
       this.writeJson(await listDestinations(this.getAuthenticatedClient()));
     } catch (error) {

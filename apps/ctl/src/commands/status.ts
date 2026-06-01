@@ -100,10 +100,10 @@ export default class StatusCommand extends BaseCommand {
   };
 
   async run(): Promise<void> {
-    const { flags } = await this.parse(StatusCommand);
     let status: Status;
 
     try {
+      const { flags } = await this.parse(StatusCommand);
       const envFile = this.loadEnvironment(flags);
 
       try {
