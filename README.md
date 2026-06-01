@@ -41,12 +41,12 @@ We analyzed **1,438 job postings** for reporting data analysts at US ecommerce S
 
 ## Why Teams Choose OWOX Over Alternatives
 
-### 1. No AI Hallucinations. Ever
+### 1. No AI Hallucinations — Patented Technology
 
 > *"Even one hallucination is too many in this line of work."*
 > — u/Cynot88, r/dataengineering
 
-Most "AI analytics" tools generate numbers from LLM guesses. OWOX AI Insights run **pre-approved SQL your analyst approves**. AI helps with narrative prose, not the numbers. Every value is the result of a deterministic SQL query — not a prediction. Backed by [patented technology](https://www.owox.com?utm_source=github&utm_medium=referral&utm_campaign=readme).
+Most "AI analytics" tools generate numbers from LLM guesses. OWOX AI Insights run **pre-approved SQL your analyst manages**. AI helps with narrative prose, not the numbers. Every value is the result of a deterministic SQL query — not a prediction. Backed by [patented technology](https://www.owox.com?utm_source=github&utm_medium=referral&utm_campaign=readme).
 
 **Why it matters:**
 - Specialized legal AI tools hallucinate 17%+ of the time; general-purpose chatbots hit 58–82% ([Stanford HAI, 2025](https://mitsloanedtech.mit.edu/ai/basics/addressing-ai-hallucinations-and-bias/))
@@ -58,14 +58,14 @@ Most "AI analytics" tools generate numbers from LLM guesses. OWOX AI Insights ru
 > *"The semantic layer is fragmented between tools, suffers from vendor lock-in and requires duplicate encoding of business logic that is costly to maintain... making adoption economically unviable for many firms."*
 > — Semantic Layer Substack
 
-Skip the 6–12 month semantic layer implementation. Plug in your existing SQL and self-service analytics is here. Business users get reports in minutes, not quarters.
+Skip the 6–12 month semantic layer implementation. Plug in your existing SQL and ship. Business users get self-service in minutes, not quarters.
 
 **Why it matters:**
-- Production-ready semantic layer environments typically take 6–12 months for enterprise teams ([Datacoves, 2026](https://datacoves.com/post/dbt-core-key-differences))
+- Production-ready dbt semantic layer environments typically take 6–12 months for enterprise teams ([Datacoves, 2026](https://datacoves.com/post/dbt-core-key-differences))
 - Only 27% of teams plan to increase semantic layer investment ([dbt Labs State of Analytics Engineering, 2025](https://www.getdbt.com/resources/state-of-analytics-engineering-2025))
 - Of the 30% using AI to consume data via natural language, two-thirds do so with vanilla SQL generation — not via a semantic layer
 
-### 3. Data Stays in Your Data Warehouse
+### 3. Data Stays in Your Warehouse — No Vendor Lock-In
 
 > *"I didn't get an error message — instead I got a column that is entirely blank. No zeroes, just blank all the way down."*
 > — Supermetrics customer, Community Forum, July 2025 (after Meta cut historical data access)
@@ -95,20 +95,18 @@ Your data never leaves your infrastructure. Once normalized into your warehouse,
 **OWOX Data Marts** can be run just about anywhere in minutes.  
 Here’s how to get started locally on your machine:
 
-1. **Install Node.js** 22.16.0+ (https://nodejs.org)
-
+1. **Install Node.js** 22.16.0+ [download](https://nodejs.org)
 2. **Install OWOX Data Marts**
-
+   
    ```bash
    npm install -g owox
    ```
    
-3. **Start** locally
-
+3. Start locally
    ```bash
    owox serve
    ```
-
+   
 4. **Open** <http://localhost:3000> 🎉
 
 Live in under 5 minutes.
@@ -116,7 +114,7 @@ For **Docker** and **cloud deployment options**, see the [Quick Start Guide](./d
 
 ## 🗣️ What People Are Saying
 
-> *"Connected BigQuery, set up 37 data marts, joined them and enabled live reports in Sheets in under 30 minutes. My team thought I was joking when I showed them how they can now get live reports right in their sheets."*
+> *"Connected BigQuery, set up 37 data marts, built a data model and had live reports in Sheets in under 15 minutes. My team thought I was joking when I showed them how they can now get live reports right in their sheets."*
 
 > *"We migrated 200+ reports from Looker to OWOX Data Marts. Our team now self-serves without filing a single Jira ticket. Easily the best infrastructure decision we made this year."*
 
