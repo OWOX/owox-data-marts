@@ -85,7 +85,7 @@ In each place, the **Contexts** picker shows every context defined in the projec
 
 Resource lists (Data Marts, Storages, Destinations) display attached contexts as badges, and the lists can be filtered by context.
 
-![Data Marts list showing context badges on each row and a context filter dropdown in the toolbar](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/ee9f757e-fa97-47ce-3361-86b031c3da00/public)
+![Data Marts list showing context badges on each row and a context filter dropdown in the toolbar](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/2a131338-482e-43c0-ded7-40fafe0b5000/public)
 
 ### Who Can Change a Resource's Contexts
 

@@ -44,7 +44,7 @@ Most resources have a single **Owner** role. Data Marts are the exception — th
 
 A Data Mart may have multiple Technical Owners and multiple Business Owners. Ownership is additive — being assigned as an owner only adds access (guaranteed visibility, and, where the role permits, maintenance through the sharing toggle); it never reduces what the user could already do without the assignment.
 
-![Data Mart settings showing Technical Owner and Business Owner fields with assigned project members](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/c12de869-ff73-4a5e-16f6-5ff26fcee900/public)
+![Data Mart settings showing Technical Owner and Business Owner fields with assigned project members](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/3a8505f3-9bfc-445f-8679-36853567e900/public)
 
 **What an owner can do depends on their role.** For Destinations and Reports, owners have full control regardless of role. For Data Marts and Storages, full control requires Technical User or Project Admin:
 
@@ -139,7 +139,7 @@ The following actions can be granted or restricted by the combination of ownersh
 | **Non-owner Technical User** | No access | See, Use | See, Use, Copy Credentials, Edit, Delete | See, Use, Copy Credentials, Edit, Delete |
 | **Any Business User** | No access | No access | No access | No access |
 
-> ☝️ Business Users do not have direct access to Storages. They interact with data through Data Marts and Destinations available to them.
+> ☝️ Business Users do not have direct access to Storages. They interact with data through Data Marts and Destinations shared with them.
 
 ---
 
