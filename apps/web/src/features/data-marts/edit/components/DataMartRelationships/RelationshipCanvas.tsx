@@ -19,6 +19,11 @@ import {
   getRelationshipWarningLabel,
   hasRelationshipWarning,
 } from './relationship-warning-state';
+import {
+  getGraphZoomRange,
+  getNextGraphZoom,
+  isGraphZoomAllowed,
+} from './relationship-canvas-zoom';
 
 interface RelationshipCanvasProps {
   dataMartId: string;
@@ -43,6 +48,7 @@ const V_GAP = 24;
 const NODE_BORDER = '#9ca3af'; // gray-400, visible in both themes
 const HIGHLIGHT_COLOR = '#3b82f6'; // blue-500
 const DRAFT_COLOR = '#f97316'; // orange-500
+const FIT_VIEW_SCALE = 0.85;
 
 class DMNode extends ClassicPreset.Node {
   width = NODE_W;
@@ -592,8 +598,22 @@ async function setupEditor(
     container.style.backgroundPosition = `${x}px ${y}px`;
   };
 
+  let zoomRange = getGraphZoomRange(area.area.transform.k);
+
+  const updateZoomRangeFromCurrentTransform = () => {
+    zoomRange = getGraphZoomRange(area.area.transform.k);
+  };
+
+  let isFittingView = false;
+
   const fitView = async () => {
-    await AreaExtensions.zoomAt(area, editor.getNodes(), { scale: 0.85 });
+    isFittingView = true;
+    try {
+      await AreaExtensions.zoomAt(area, editor.getNodes(), { scale: FIT_VIEW_SCALE });
+    } finally {
+      isFittingView = false;
+    }
+    updateZoomRangeFromCurrentTransform();
     updateGrid();
   };
   await fitView();
@@ -602,9 +622,9 @@ async function setupEditor(
     const cx = container.clientWidth / 2;
     const cy = container.clientHeight / 2;
     const { k } = area.area.transform;
-    const nextK = k * (1 + delta);
-    if (nextK < 0.33 || nextK > 3) return;
-    await area.area.zoom(nextK, cx * delta, cy * delta);
+    const next = getNextGraphZoom(k, delta, zoomRange);
+    if (!next) return;
+    await area.area.zoom(next.zoom, -cx * next.delta, -cy * next.delta);
     updateGrid();
   };
 
@@ -627,7 +647,9 @@ async function setupEditor(
     if (ctx.type === 'zoom') {
       if (ctx.data.source === 'dblclick') return undefined;
       const nextK = ctx.data.zoom;
-      if (nextK < 0.33 || nextK > 3) return undefined;
+      if (!isGraphZoomAllowed(nextK, zoomRange, { allowBelowMin: isFittingView })) {
+        return undefined;
+      }
     }
     if (ctx.type === 'nodetranslate') return undefined;
     if (ctx.type === 'translated' || ctx.type === 'zoomed') {
@@ -656,7 +678,8 @@ async function setupEditor(
     }
 
     if (matching.length > 0) {
-      void AreaExtensions.zoomAt(area, matching, { scale: 0.85 });
+      // Keep the full-graph fit as the zoom-out floor; search only focuses matching nodes.
+      void AreaExtensions.zoomAt(area, matching, { scale: FIT_VIEW_SCALE });
     }
   };
 
