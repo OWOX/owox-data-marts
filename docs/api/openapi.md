@@ -8,7 +8,7 @@ For OWOX Data Marts Cloud at [https://app.owox.com](https://app.owox.com), API d
 - [https://app.owox.com/api/openapi.yaml](https://app.owox.com/api/openapi.yaml)
 - [https://app.owox.com/api/swagger-ui](https://app.owox.com/api/swagger-ui)
 
-For a self-managed OWOX Data Marts instance at `https://your-owox.example.com`, use:
+For a self-managed OWOX Data Marts deployment at `https://your-owox.example.com`, use:
 
 - `https://your-owox.example.com/api/openapi.json`
 - `https://your-owox.example.com/api/openapi.yaml`
@@ -18,7 +18,7 @@ Use OpenAPI and Swagger UI to inspect available endpoints, request schemas, and 
 
 ## Relationship to other API tools
 
-- Use [owox-ctl](./owox-ctl/) when you want terminal commands.
+- Use [owox-ctl](./owox-ctl/) when you want JSON terminal commands for automation or AI agents.
 - Use [@owox/api-client](./api-client/) when you build TypeScript or JavaScript integrations.
 - Use OpenAPI and Swagger UI when you need to inspect or integrate with the raw HTTP API directly.
 

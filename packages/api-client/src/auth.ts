@@ -1,4 +1,5 @@
 import { createHttpError, OWOXAuthError, OWOXConfigError } from './errors.js';
+import { requestApi } from './transport.js';
 
 export const API_KEY_EXCHANGE_PATH = '/api/auth/api-keys/exchange';
 
@@ -57,15 +58,15 @@ export async function readResponseBody(response: Response): Promise<unknown> {
 }
 
 export async function exchangeAccessToken(config: AuthConfig): Promise<string> {
-  const response = await config.fetchImpl(new URL(API_KEY_EXCHANGE_PATH, config.apiOrigin), {
+  const response = await requestApi({
+    apiOrigin: config.apiOrigin,
+    fetchImpl: config.fetchImpl,
+    path: API_KEY_EXCHANGE_PATH,
     method: 'POST',
-    headers: {
-      accept: 'application/json',
-      'content-type': 'application/json',
-      'x-owox-api-key-id': config.apiKeyId,
-    },
-    body: JSON.stringify({ apiKeySecret: config.apiKeySecret }),
+    apiKeyId: config.apiKeyId,
+    jsonBody: { apiKeySecret: config.apiKeySecret },
   });
+
   const body = await readResponseBody(response);
 
   if (!response.ok) {

@@ -28,6 +28,16 @@ export class OWOXConfigError extends Error {
   }
 }
 
+export function createNetworkError(apiOrigin: string, cause: unknown): OWOXApiError {
+  return new OWOXApiError(
+    `Unable to reach OWOX Data Marts API at ${apiOrigin}. Check OWOX_API_ORIGIN and network connectivity.`,
+    {
+      code: 'NETWORK_ERROR',
+      cause,
+    }
+  );
+}
+
 type ErrorResponseBody = {
   code?: unknown;
   error?: unknown;

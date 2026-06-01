@@ -1,8 +1,11 @@
 # owox-ctl
 
-`owox-ctl` is the OWOX Data Marts Control CLI for accessing an existing OWOX Data Marts instance through API keys.
+`owox-ctl` is the OWOX Data Marts Control CLI for scripts, CI jobs, and AI agents.
 
-> `owox-ctl` controls an existing OWOX Data Marts instance through the HTTP API.
+By default, `owox-ctl` connects to OWOX Data Marts Cloud at `https://app.owox.com`.
+Set `OWOX_API_ORIGIN` only when targeting a self-managed deployment.
+
+> `owox-ctl` controls an existing OWOX Data Marts deployment through the HTTP API.
 > The existing `owox` CLI is used to run or manage a local/self-managed OWOX Data Marts runtime.
 
 ## Install
@@ -21,123 +24,81 @@ owox-ctl --help
 
 Before using `owox-ctl`, create an API key. See [API Keys](./api-keys/).
 
-## Authenticate
+## Configure credentials
 
-For local interactive use, run:
-
-```bash
-owox-ctl auth login
-```
-
-The command prompts for:
-
-- OWOX Data Marts API origin
-- API key ID
-- API key secret
-
-Example prompt:
-
-```text
-OWOX Data Marts API origin: https://app.owox.com
-API key ID: pmk_xxx
-API key secret: ********
-```
-
-API origin means scheme + host + optional port, for example `https://app.owox.com`.
-
-`owox-ctl auth login` validates credentials before saving them. It stores API origin, API key ID, and API key secret in the platform-specific OWOX application config directory under `ctl/config.json`. The file is created as readable and writable only by the current user where supported.
-
-`owox-ctl` does not persist access tokens. Access tokens are kept in memory only for the current command.
-
-Flag-based login is available for tests and scripted setup:
+Set the API key credentials in the process environment:
 
 ```bash
-owox-ctl auth login \
-  --api-origin https://app.owox.com \
-  --api-key-id pmk_xxx \
-  --api-key-secret your_api_key_secret
+export OWOX_API_KEY_ID=pmk_xxx
+export OWOX_API_KEY_SECRET=your_api_key_secret
 ```
 
-For local interactive use, prefer `owox-ctl auth login` without flags so the API key secret is not saved in shell history.
-
-## Check authentication status
+For self-managed deployments, also set the API origin:
 
 ```bash
-owox-ctl auth status
+export OWOX_API_ORIGIN=https://your-owox.example.com
 ```
 
-The command validates credentials and masks sensitive values.
+API origin means scheme + host + optional port.
+
+## Load credentials from an env file
+
+`owox-ctl` loads `.env` from the current directory when it exists. You can load a different environment file with `--env-file`:
+
+```bash
+owox-ctl status --env-file .env
+```
+
+Values already present in the process environment take precedence over values loaded from an environment file.
+
+## Check status
+
+```bash
+owox-ctl status
+```
+
+The command validates credentials, reports the API key ID, and reports the env file path used for the command.
 
 Example:
 
-```text
-API origin: https://app.owox.com
-API key ID: pmk_1234...
-Authenticated: yes
+```json
+{
+  "apiOrigin": "https://app.owox.com",
+  "apiKeyId": "pmk_1234567890abcdef",
+  "authenticated": true,
+  "envFile": null
+}
 ```
 
-## Log out
+With auto-loaded `.env`, `envFile` is the default path used:
 
-```bash
-owox-ctl auth logout
+```json
+{
+  "apiOrigin": "https://app.owox.com",
+  "apiKeyId": "pmk_1234567890abcdef",
+  "authenticated": true,
+  "envFile": "/path/to/project/.env"
+}
 ```
 
-This removes locally stored CLI credentials.
+With `--env-file ../../.env`, `envFile` is the resolved absolute path.
 
-## Use environment variables
+When credentials are missing or invalid, `authenticated` is `false` and the command exits non-zero:
 
-```bash
-export OWOX_API_ORIGIN=https://app.owox.com
-export OWOX_API_KEY_ID=pmk_xxx
-export OWOX_API_KEY_SECRET=your_api_key_secret
+```json
+{
+  "apiOrigin": "https://app.owox.com",
+  "apiKeyId": null,
+  "authenticated": false,
+  "envFile": null,
+  "error": {
+    "message": "OWOX_API_KEY_ID and OWOX_API_KEY_SECRET are required",
+    "name": "OWOXConfigError"
+  }
+}
 ```
 
-Then run:
-
-```bash
-owox-ctl data-marts list --format json
-```
-
-Environment variables take precedence over credentials saved by `owox-ctl auth login`.
-
-CI jobs and local agents do not need to run `owox-ctl auth login`.
-
-You can also load these variables from an environment file:
-
-```bash
-owox-ctl data-marts list --env-file .env --format json
-```
-
-Values already present in the process environment take precedence over values loaded from the environment file.
-
-## Use owox-ctl with local agents
-
-Local agents can call `owox-ctl` as a regular terminal command. This lets agents inspect available data marts, storages, and destinations without building a direct integration with the OWOX Data Marts API.
-
-Recommended setup:
-
-```bash
-export OWOX_API_ORIGIN=https://app.owox.com
-export OWOX_API_KEY_ID=pmk_xxx
-export OWOX_API_KEY_SECRET=your_api_key_secret
-```
-
-Agent-friendly examples:
-
-```bash
-owox-ctl data-marts list --format json
-owox-ctl storages list --format json
-owox-ctl destinations list --format json
-```
-
-Security notes:
-
-- Do not put API key secrets into agent instruction files.
-- Prefer environment variables or a secret manager supported by the agent runtime.
-- Use `--format json` when an agent needs machine-readable output.
-- Revoke API keys when agent access is no longer needed.
-
-## First supported commands
+## Commands
 
 ```bash
 owox-ctl data-marts list
@@ -145,18 +106,33 @@ owox-ctl storages list
 owox-ctl destinations list
 ```
 
-## Output formats
+All commands emit JSON.
+
+## Use owox-ctl with AI agents
+
+AI agents can call `owox-ctl` as a regular terminal command. This lets AI agents inspect available data marts, storages, and destinations without building a direct integration with the OWOX Data Marts API.
+
+Recommended setup:
 
 ```bash
---format table
---format json
+export OWOX_API_KEY_ID=pmk_xxx
+export OWOX_API_KEY_SECRET=your_api_key_secret
 ```
 
-`table` is the default for humans.
+Examples for AI agents:
 
-`json` is recommended for scripts, CI jobs, and local agents. JSON output does not use color.
+```bash
+owox-ctl status
+owox-ctl data-marts list
+owox-ctl storages list
+owox-ctl destinations list
+```
 
-Use `--no-color` to disable color output for human-readable output.
+Security notes:
+
+- Do not put API key secrets into AI agent instruction files.
+- Prefer environment variables, `--env-file`, or a secret manager supported by the AI agent runtime.
+- Revoke API keys when AI agent access is no longer needed.
 
 ## Build custom integrations
 

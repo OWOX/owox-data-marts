@@ -3,6 +3,7 @@ import { DataMartsApi } from './data-marts.js';
 import { DestinationsApi } from './destinations.js';
 import { createHttpError } from './errors.js';
 import { StoragesApi } from './storages.js';
+import { requestApi } from './transport.js';
 
 export type OWOXApiClientOptions = {
   apiOrigin: string;
@@ -46,13 +47,15 @@ export class OWOXApiClient {
     query: Record<string, string> | undefined,
     retryOnUnauthorized: boolean
   ): Promise<T> {
-    const response = await this.fetchImpl(this.buildUrl(path, query), {
+    const accessToken = await this.getAccessToken();
+    const response = await requestApi({
+      apiOrigin: this.apiOrigin,
+      fetchImpl: this.fetchImpl,
+      path,
       method: 'GET',
-      headers: {
-        accept: 'application/json',
-        'x-owox-authorization': `Bearer ${await this.getAccessToken()}`,
-        'x-owox-api-key-id': this.apiKeyId,
-      },
+      apiKeyId: this.apiKeyId,
+      accessToken,
+      query,
     });
 
     if (response.status === 401 && retryOnUnauthorized) {
@@ -80,15 +83,5 @@ export class OWOXApiClient {
     }
 
     return this.accessToken;
-  }
-
-  private buildUrl(path: string, query?: Record<string, string>): URL {
-    const url = new URL(path, this.apiOrigin);
-
-    for (const [key, value] of Object.entries(query ?? {})) {
-      url.searchParams.set(key, value);
-    }
-
-    return url;
   }
 }

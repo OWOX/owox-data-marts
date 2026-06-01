@@ -15,22 +15,12 @@ export default class DataMartsList extends BaseCommand {
   };
 
   async run(): Promise<void> {
-    const { flags } = await this.parse(DataMartsList);
-
     try {
+      const { flags } = await this.parse(DataMartsList);
       this.loadEnvironment(flags);
-      const rows = await listDataMarts(await this.getAuthenticatedClient());
-      this.writeRows(
-        rows,
-        [
-          { key: 'id', label: 'ID' },
-          { key: 'title', label: 'Title' },
-          { key: 'status', label: 'Status' },
-        ],
-        flags
-      );
+      this.writeJson(await listDataMarts(this.getAuthenticatedClient()));
     } catch (error) {
-      this.handleCliError(error, flags);
+      this.handleCliError(error);
     }
   }
 }

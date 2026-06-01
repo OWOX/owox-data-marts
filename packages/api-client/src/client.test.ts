@@ -129,6 +129,31 @@ describe('OWOXApiClient', () => {
     });
   });
 
+  it('normalizes token exchange network failures without leaking the secret', async () => {
+    const fetchMock = createFetchMock(() => {
+      throw new TypeError('fetch failed');
+    });
+
+    const client = new OWOXApiClient({
+      apiOrigin,
+      apiKeyId,
+      apiKeySecret,
+      fetchImpl: fetchMock.fetchImpl,
+    });
+
+    await client.authenticate().catch(error => {
+      expect(error).toBeInstanceOf(OWOXApiError);
+      expect(error).not.toBeInstanceOf(OWOXAuthError);
+      expect(error).toMatchObject({
+        name: 'OWOXApiError',
+        code: 'NETWORK_ERROR',
+      });
+      expect(error.message).toContain(`Unable to reach OWOX Data Marts API at ${apiOrigin}`);
+      expect(error.message).not.toContain('fetch failed');
+      expect(error.message).not.toContain(apiKeySecret);
+    });
+  });
+
   it('adds Bearer token and API key binding headers to authenticated requests', async () => {
     const fetchMock = createFetchMock(request => {
       if (request.method === 'POST' && request.url === '/api/auth/api-keys/exchange') {
@@ -259,6 +284,35 @@ describe('OWOXApiClient', () => {
         code: 'DATA_STORAGES_FAILED',
         details: { requestId: 'request-1' },
       });
+    });
+  });
+
+  it('normalizes authenticated request network failures without leaking the secret', async () => {
+    const fetchMock = createFetchMock(request => {
+      if (request.method === 'POST' && request.url === '/api/auth/api-keys/exchange') {
+        return createJsonResponse(200, { accessToken: 'access-token-1' });
+      }
+
+      throw new TypeError('fetch failed');
+    });
+
+    const client = new OWOXApiClient({
+      apiOrigin,
+      apiKeyId,
+      apiKeySecret,
+      fetchImpl: fetchMock.fetchImpl,
+    });
+
+    await client.storages.list().catch(error => {
+      expect(error).toBeInstanceOf(OWOXApiError);
+      expect(error).not.toBeInstanceOf(OWOXAuthError);
+      expect(error).toMatchObject({
+        name: 'OWOXApiError',
+        code: 'NETWORK_ERROR',
+      });
+      expect(error.message).toContain(`Unable to reach OWOX Data Marts API at ${apiOrigin}`);
+      expect(error.message).not.toContain('fetch failed');
+      expect(error.message).not.toContain(apiKeySecret);
     });
   });
 

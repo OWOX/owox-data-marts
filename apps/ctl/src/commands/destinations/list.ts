@@ -15,22 +15,12 @@ export default class DestinationsList extends BaseCommand {
   };
 
   async run(): Promise<void> {
-    const { flags } = await this.parse(DestinationsList);
-
     try {
+      const { flags } = await this.parse(DestinationsList);
       this.loadEnvironment(flags);
-      const rows = await listDestinations(await this.getAuthenticatedClient());
-      this.writeRows(
-        rows,
-        [
-          { key: 'id', label: 'ID' },
-          { key: 'title', label: 'Title' },
-          { key: 'type', label: 'Type' },
-        ],
-        flags
-      );
+      this.writeJson(await listDestinations(this.getAuthenticatedClient()));
     } catch (error) {
-      this.handleCliError(error, flags);
+      this.handleCliError(error);
     }
   }
 }
