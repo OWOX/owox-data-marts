@@ -16,8 +16,7 @@
     "@oclif/core": "^4",
     "@oclif/plugin-help": "^6",
     "@owox/api-client": "*",
-    "@owox/internal-helpers": "*",
-    "env-paths": "^3.0.0"
+    "@owox/internal-helpers": "*"
   },
   "devDependencies": {
     "@owox/eslint-config": "*",
@@ -43,7 +42,7 @@
     "owox",
     "data-marts",
     "cli",
-    "control"
+    "automation"
   ],
   "main": "dist/index.js",
   "oclif": {

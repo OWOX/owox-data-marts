@@ -1,78 +1,53 @@
-import { mkdtemp, rm, stat } from 'node:fs/promises';
-import { join } from 'node:path';
-import { tmpdir } from 'node:os';
+import { OWOXConfigError } from '@owox/api-client';
 
-import {
-  ConfigStore,
-  getDefaultConfigPath,
-  maskApiKeyId,
-  resolveAuthConfig,
-} from './config-store.js';
+import { DEFAULT_API_ORIGIN, resolveAuthConfig } from './config-store.js';
 
-describe('config-store', () => {
-  async function createStore(): Promise<{ store: ConfigStore; cleanup: () => Promise<void> }> {
-    const dir = await mkdtemp(join(tmpdir(), 'owox-ctl-test-'));
-    return {
-      store: new ConfigStore(join(dir, 'config.json')),
-      cleanup: () => rm(dir, { recursive: true, force: true }),
-    };
-  }
-
-  it('env vars override stored config', async () => {
-    const { store, cleanup } = await createStore();
-    try {
-      await store.save({
-        apiOrigin: 'https://stored.example',
-        apiKeyId: 'pmk_stored',
-        apiKeySecret: 'stored-secret',
-      });
-
-      await expect(
-        resolveAuthConfig({
-          env: {
-            OWOX_API_ORIGIN: 'https://env.example',
-            OWOX_API_KEY_ID: 'pmk_env',
-            OWOX_API_KEY_SECRET: 'env-secret',
-          },
-          store,
-        })
-      ).resolves.toEqual({
-        source: 'env',
-        config: {
-          apiOrigin: 'https://env.example',
-          apiKeyId: 'pmk_env',
-          apiKeySecret: 'env-secret',
-        },
-      });
-    } finally {
-      await cleanup();
-    }
+describe('auth config', () => {
+  it('defaults API origin to OWOX Data Marts Cloud', () => {
+    expect(
+      resolveAuthConfig({
+        OWOX_API_KEY_ID: 'pmk_env',
+        OWOX_API_KEY_SECRET: 'env-secret',
+      })
+    ).toEqual({
+      apiOrigin: DEFAULT_API_ORIGIN,
+      apiKeyId: 'pmk_env',
+      apiKeySecret: 'env-secret',
+    });
   });
 
-  it('uses the OWOX application config directory by default', () => {
-    expect(getDefaultConfigPath({})).toEqual(
-      expect.stringContaining(join('owox', 'ctl', 'config.json'))
+  it('uses explicit API origin when provided', () => {
+    expect(
+      resolveAuthConfig({
+        OWOX_API_ORIGIN: 'https://self-managed.example',
+        OWOX_API_KEY_ID: 'pmk_env',
+        OWOX_API_KEY_SECRET: 'env-secret',
+      })
+    ).toEqual({
+      apiOrigin: 'https://self-managed.example',
+      apiKeyId: 'pmk_env',
+      apiKeySecret: 'env-secret',
+    });
+  });
+
+  it('requires API key ID and secret', () => {
+    expect(() => resolveAuthConfig({})).toThrow(OWOXConfigError);
+    expect(() => resolveAuthConfig({})).toThrow(
+      'OWOX_API_KEY_ID and OWOX_API_KEY_SECRET are required'
     );
   });
 
-  it('masks API key IDs without exposing the secret', () => {
-    expect(maskApiKeyId('pmk_AbCdEfGhIjKlMnOpQrStUv')).toBe('pmk_AbCd...');
-  });
+  it('reports only the missing credential variable', () => {
+    expect(() =>
+      resolveAuthConfig({
+        OWOX_API_KEY_ID: 'pmk_env',
+      })
+    ).toThrow('OWOX_API_KEY_SECRET is required');
 
-  it('stores credentials in a current-user-only config file', async () => {
-    const { store, cleanup } = await createStore();
-    try {
-      await store.save({
-        apiOrigin: 'https://stored.example',
-        apiKeyId: 'pmk_stored',
-        apiKeySecret: 'stored-secret',
-      });
-
-      const fileMode = (await stat(store.path)).mode & 0o777;
-
-      expect(fileMode).toBe(0o600);
-    } finally {
-      await cleanup();
-    }
+    expect(() =>
+      resolveAuthConfig({
+        OWOX_API_KEY_SECRET: 'env-secret',
+      })
+    ).toThrow('OWOX_API_KEY_ID is required');
   });
 });

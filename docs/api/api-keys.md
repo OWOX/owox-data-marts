@@ -7,7 +7,7 @@ Use API keys with:
 - [owox-ctl](./owox-ctl/)
 - [@owox/api-client](./api-client/)
 - CI and automation scripts
-- local agents
+- AI agents
 - custom scripts and internal tools
 
 Each API key has two parts:
@@ -39,7 +39,7 @@ Do not share API key secrets in chat, email, screenshots, support tickets, promp
 
 After creating an API key, use it with one of the supported API access options:
 
-- [owox-ctl](./owox-ctl/) for terminal, CI, automation, and local agent workflows.
+- [owox-ctl](./owox-ctl/) for terminal, CI, automation, and AI agent workflows that need JSON command output.
 - [@owox/api-client](./api-client/) for TypeScript or JavaScript integrations.
 - [OpenAPI and Swagger UI](./openapi/) for inspecting the raw HTTP API contract.
 
@@ -59,8 +59,8 @@ Rotate a key by creating a new API key, updating the tool or automation that use
 
 - Create separate API keys for different users, tools, or automation contexts.
 - Do not commit API key secrets to Git.
-- Do not store API key secrets in prompts, agent instruction files, screenshots, or support tickets.
-- Prefer environment variables or secret managers for CI and local agents.
+- Do not store API key secrets in prompts, AI agent instruction files, screenshots, or support tickets.
+- Prefer environment variables or secret managers for CI and AI agents.
 - Revoke keys that are no longer used.
 - Rotate keys if the secret may have been exposed.
 

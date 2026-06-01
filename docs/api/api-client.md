@@ -1,6 +1,6 @@
 # TypeScript/JavaScript API Client
 
-`@owox/api-client` is a TypeScript/JavaScript package for calling the OWOX Data Marts API from custom scripts, internal tools, automation, and local agent workflows.
+`@owox/api-client` is a TypeScript/JavaScript package for calling the OWOX Data Marts API from custom scripts, internal tools, automation, and AI agent workflows.
 
 Use `owox-ctl` for terminal commands. Use `@owox/api-client` for code-level integrations.
 
@@ -58,9 +58,9 @@ const storages = await client.storages.list();
 const destinations = await client.destinations.list();
 ```
 
-## Use in local agents and scripts
+## Use in AI agents and scripts
 
-Local agents can run scripts that use `@owox/api-client` when they need structured access to OWOX Data Marts from TypeScript or JavaScript.
+AI agents can run scripts that use `@owox/api-client` when they need structured access to OWOX Data Marts from TypeScript or JavaScript.
 
 ```ts
 import { OWOXApiClient } from '@owox/api-client';
@@ -95,7 +95,7 @@ Security notes:
 - Do not hard-code API key secrets in source code.
 - Use environment variables or a secret manager.
 - Do not commit `.env` files containing API key secrets.
-- Avoid putting API key secrets in agent instructions or prompts.
+- Avoid putting API key secrets in AI agent instructions or prompts.
 - Revoke keys that are no longer used.
 
 ## Authentication behavior

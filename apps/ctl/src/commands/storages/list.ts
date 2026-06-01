@@ -19,18 +19,9 @@ export default class StoragesList extends BaseCommand {
 
     try {
       this.loadEnvironment(flags);
-      const rows = await listStorages(await this.getAuthenticatedClient());
-      this.writeRows(
-        rows,
-        [
-          { key: 'id', label: 'ID' },
-          { key: 'title', label: 'Title' },
-          { key: 'type', label: 'Type' },
-        ],
-        flags
-      );
+      this.writeJson(await listStorages(this.getAuthenticatedClient()));
     } catch (error) {
-      this.handleCliError(error, flags);
+      this.handleCliError(error);
     }
   }
 }
