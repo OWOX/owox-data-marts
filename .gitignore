@@ -26,6 +26,7 @@ yarn-error.log*
 .vscode/
 .cursor/
 .claude/
+.codex/
 .superpowers/
 docs/superpowers/
 .cursorignore
