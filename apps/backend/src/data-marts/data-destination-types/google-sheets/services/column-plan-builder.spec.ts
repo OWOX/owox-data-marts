@@ -59,6 +59,8 @@ describe('ColumnPlanBuilder', () => {
       expect(plan.nameToFinalIndex.get('a')).toBe(0);
       expect(plan.nameToFinalIndex.get('b')).toBe(1);
       expect(plan.nameToFinalIndex.get('c')).toBe(2);
+      // Nothing imported before the first run — no formats to capture.
+      expect(plan.currentImportedNames).toEqual([]);
     });
 
     it('overwrites stale row-1 content when metadata is missing', () => {
@@ -110,6 +112,21 @@ describe('ColumnPlanBuilder', () => {
       expect(plan.finalImportedNames).toEqual(['date', 'cost', 'campaign', 'clicks']);
       expect(plan.nameToFinalIndex.get('cost')).toBe(1);
       expect(plan.nameToFinalIndex.get('campaign')).toBe(2);
+      // `currentImportedNames` reflects the sheet's pre-write order so the
+      // writer can key captured column formats to the right canonical name.
+      expect(plan.currentImportedNames).toEqual(['date', 'cost', 'campaign', 'clicks']);
+    });
+
+    it('exposes currentImportedNames with aliases resolved back to canonical names', () => {
+      // Row 1 shows aliases; currentImportedNames must be the canonical names
+      // (keys the writer uses for the captured-format map).
+      const plan = builder.build(
+        ['Date', 'Cost'],
+        prevAliased('date|Date', 'cost|Cost'),
+        aliased('date|Date', 'cost|Cost')
+      );
+
+      expect(plan.currentImportedNames).toEqual(['date', 'cost']);
     });
 
     it('ignores user content right of the imported range', () => {

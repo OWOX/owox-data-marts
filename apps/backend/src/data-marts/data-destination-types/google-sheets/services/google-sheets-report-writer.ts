@@ -64,6 +64,16 @@ export class GoogleSheetsReportWriter implements DataDestinationReportWriter {
    * saw it. See {@link applyDeferredSheetMutations}.
    */
   private structuralOpsApplied = false;
+  /**
+   * User-applied number formats captured from the imported columns *before*
+   * the destructive write, keyed by canonical column name. Restored over the
+   * freshly written data rows in {@link finalize} so that the date / number /
+   * currency formats the user set in the Sheets UI survive a refresh — Sheets
+   * re-derives a cell's number format from the value on every `USER_ENTERED`
+   * write, which would otherwise discard them. Empty on the first run (nothing
+   * imported yet) and for columns the user never formatted.
+   */
+  private capturedColumnFormats = new Map<string, sheets_v4.Schema$NumberFormat>();
   private spreadsheetTimeZone: string;
   private spreadsheetTitle: string;
   private sheetTitle: string;
@@ -181,6 +191,14 @@ export class GoogleSheetsReportWriter implements DataDestinationReportWriter {
           `inserts=${this.columnPlan.ops.filter(op => op.kind === 'insert').length} ` +
           `deletes=${this.columnPlan.ops.filter(op => op.kind === 'delete').length}`
       );
+
+      // Capture the user's per-column number formats while the previous
+      // refresh's data is still in place. Must run before any write mutates
+      // the imported rectangle (the writes themselves are deferred, but the
+      // read has to reflect the pre-write state regardless). Restored in
+      // `finalize` so dates / numbers / currencies keep the formatting the
+      // user set in the Sheets UI. No-op on the first run.
+      await this.captureUserColumnFormats();
 
       // Pre-allocate row capacity. `appendDimension('ROWS')` only grows the
       // grid at the bottom — it does not mutate the user's imported content
@@ -467,12 +485,23 @@ export class GoogleSheetsReportWriter implements DataDestinationReportWriter {
           requests.push(...fillDownRequests);
         }
 
+        // Restore the user's per-column number formats over the freshly
+        // written data rows, in the same atomic batch. This must come after
+        // the value write (which `USER_ENTERED` may have re-derived a format
+        // from) so the user's captured format is the one that sticks. See
+        // `captureUserColumnFormats`.
+        const restoreFormatRequests = this.buildRestoreColumnFormatRequests();
+        if (restoreFormatRequests.length > 0) {
+          requests.push(...restoreFormatRequests);
+        }
+
         await this.adapter.batchUpdate(this.destination.spreadsheetId, requests);
 
         this.logger.debug(
           `Developer metadata written for report ${this.report.id} ` +
             `(project: ${dataMart.projectId}, datamart: ${dataMart.id}); ` +
-            `fillDownRequests=${fillDownRequests.length}`
+            `fillDownRequests=${fillDownRequests.length}; ` +
+            `restoreFormatRequests=${restoreFormatRequests.length}`
         );
       }
     }, 'Finalizing report with metadata and formatting');
@@ -653,6 +682,83 @@ export class GoogleSheetsReportWriter implements DataDestinationReportWriter {
 
       return { existingHeaders, previousOwoxColumns };
     }, 'Reading sheet state for column diff');
+  }
+
+  /**
+   * Captures the number format a user applied to each imported column so it
+   * can be restored after the value write (see {@link restoreUserColumnFormats}).
+   *
+   * Why this is needed: the data write uses `valueInputOption: 'USER_ENTERED'`,
+   * which makes Sheets re-derive each cell's number format from the value it
+   * parses — discarding any date / number / currency format the user set in
+   * the UI on every refresh. The old OWOX Sheets extension never re-derived
+   * formats (it wrote typed values via `setValues`); we reproduce that
+   * "preserve the user's column formatting" behaviour by snapshotting it here
+   * and re-applying it in `finalize`.
+   *
+   * Strategy: sample row 2 (the first data row) of each imported column. A
+   * format the user applies to a whole column is present on every cell —
+   * including blank ones — so a single representative cell is enough. The
+   * result is keyed by the column's canonical *name* (not position) so a
+   * later `delete` op that shifts the column to a new final index still
+   * restores the right format. Columns the user never formatted, and the
+   * first run (nothing imported yet), produce no entries.
+   */
+  private async captureUserColumnFormats(): Promise<void> {
+    this.capturedColumnFormats.clear();
+    const currentNames = this.columnPlan.currentImportedNames;
+    if (currentNames.length === 0) {
+      return;
+    }
+    return this.executeWithErrorHandling(async () => {
+      const formats = await this.adapter.getColumnNumberFormats(
+        this.destination.spreadsheetId,
+        this.sheetTitle,
+        2, // first data row
+        1,
+        currentNames.length
+      );
+      currentNames.forEach((name, idx) => {
+        const fmt = formats[idx];
+        // Only capture an explicit, meaningful format. Default ("Automatic")
+        // cells report no numberFormat; treat `NUMBER_FORMAT_TYPE_UNSPECIFIED`
+        // the same so we never re-impose a non-format over the data.
+        if (name && fmt && fmt.type && fmt.type !== 'NUMBER_FORMAT_TYPE_UNSPECIFIED') {
+          this.capturedColumnFormats.set(name, fmt);
+        }
+      });
+    }, 'Capturing user column number formats before write');
+  }
+
+  /**
+   * Builds requests that re-apply the captured user number formats
+   * ({@link capturedColumnFormats}) over the freshly written data rows
+   * (`rows 2..writtenRowsCount`). Each captured column is mapped from its
+   * canonical name to its final index in the post-ops layout; columns dropped
+   * from the export (no longer in `nameToFinalIndex`) are skipped. Returns an
+   * empty array when there is nothing to restore or no data rows were written.
+   */
+  private buildRestoreColumnFormatRequests(): sheets_v4.Schema$Request[] {
+    if (this.capturedColumnFormats.size === 0 || this.writtenRowsCount < 2) {
+      return [];
+    }
+    const requests: sheets_v4.Schema$Request[] = [];
+    for (const [name, numberFormat] of this.capturedColumnFormats) {
+      const finalIdx = this.columnPlan.nameToFinalIndex.get(name);
+      if (finalIdx === undefined) {
+        continue; // column was removed from the export — nothing to restore
+      }
+      requests.push(
+        this.adapter.buildSetColumnNumberFormatRequest(
+          this.destination.sheetId,
+          finalIdx,
+          1, // 0-based row 2 — first data row
+          this.writtenRowsCount, // exclusive end == last written row
+          numberFormat
+        )
+      );
+    }
+    return requests;
   }
 
   /**

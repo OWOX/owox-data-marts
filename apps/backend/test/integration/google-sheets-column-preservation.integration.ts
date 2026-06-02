@@ -221,6 +221,56 @@ describeIfConfigured('Google Sheets column preservation (diff-based writer)', ()
     });
   }
 
+  /**
+   * Applies a number format to a column's data rows (0-based `columnIndex`,
+   * rows 2..`endRow` inclusive) the way a user would via Format → Number.
+   */
+  async function setColumnNumberFormat(
+    columnIndex: number,
+    endRow: number,
+    numberFormat: sheets_v4.Schema$NumberFormat
+  ): Promise<void> {
+    await sheet.sheets.spreadsheets.batchUpdate({
+      spreadsheetId: sheet.spreadsheetId,
+      requestBody: {
+        requests: [
+          {
+            repeatCell: {
+              range: {
+                sheetId: sheet.sheetId,
+                startRowIndex: 1, // row 2 (0-based)
+                endRowIndex: endRow,
+                startColumnIndex: columnIndex,
+                endColumnIndex: columnIndex + 1,
+              },
+              cell: { userEnteredFormat: { numberFormat } },
+              fields: 'userEnteredFormat.numberFormat',
+            },
+          },
+        ],
+      },
+    });
+  }
+
+  /** Reads the `userEnteredFormat.numberFormat` of a single cell (0-based indexes). */
+  async function readCellNumberFormat(
+    rowIndex: number,
+    columnIndex: number
+  ): Promise<sheets_v4.Schema$NumberFormat | undefined> {
+    const res = await sheet.sheets.spreadsheets.get({
+      spreadsheetId: sheet.spreadsheetId,
+      ranges: [
+        `'${sheet.sheetTitle}'!${String.fromCharCode(65 + columnIndex)}${rowIndex + 1}:${String.fromCharCode(65 + columnIndex)}${rowIndex + 1}`,
+      ],
+      includeGridData: true,
+      fields: 'sheets(data(rowData(values(userEnteredFormat(numberFormat)))))',
+    });
+    return (
+      res.data.sheets?.[0]?.data?.[0]?.rowData?.[0]?.values?.[0]?.userEnteredFormat?.numberFormat ??
+      undefined
+    );
+  }
+
   // -------------------------------------------------------------------------
   // Test 1 — First run lays down SQL order + persists OWOX_COLUMNS metadata
   // -------------------------------------------------------------------------
@@ -664,4 +714,54 @@ describeIfConfigured('Google Sheets column preservation (diff-based writer)', ()
     expect((await readRange('K1:K1'))[0]?.[0]).toBe('ratio');
     expect((await readFormulas('K2:K2'))[0]?.[0]).toBe('=B2/C2');
   }, 150_000);
+
+  // -------------------------------------------------------------------------
+  // Test 11 — User column formatting survives a refresh.
+  //
+  // The user-visible regression: a user formats the imported data columns in
+  // the Sheets UI (currency, custom number, date) and on the next Report Run
+  // the formatting "flies off" — because the writer committed values with
+  // `valueInputOption: 'USER_ENTERED'`, which makes Sheets re-derive each
+  // cell's number format from the value. The writer now captures the user's
+  // per-column number format before the write and re-applies it over the
+  // written rows in finalize, reproducing the old extension's behaviour of
+  // never clobbering user formatting.
+  //
+  // We assert on BOTH a previously-existing data row (row 2) and a row that
+  // is freshly grown by this refresh (the format must extend down to every
+  // written row, not just the rows that carried the format before).
+  // -------------------------------------------------------------------------
+  it('preserves user-applied column number formats (currency / custom number) across refresh', async () => {
+    const { reportId } = await provisionFixture({ testName: 'preserve-number-format' });
+
+    // First run lays down country | clicks | cost into A | B | C, rows 2..4.
+    await runAndWait(reportId);
+
+    // User formats the imported columns:
+    //   B (clicks, index 1) — custom thousands integer.
+    //   C (cost,   index 2) — currency.
+    const CLICKS_FORMAT: sheets_v4.Schema$NumberFormat = { type: 'NUMBER', pattern: '#,##0' };
+    const COST_FORMAT: sheets_v4.Schema$NumberFormat = { type: 'CURRENCY', pattern: '"$"#,##0.00' };
+    await setColumnNumberFormat(1, 4, CLICKS_FORMAT);
+    await setColumnNumberFormat(2, 4, COST_FORMAT);
+
+    // Refresh again — without the fix, USER_ENTERED writes wipe these formats.
+    await runAndWait(reportId);
+
+    // Row 2 (existed before) keeps the user's formats.
+    expect(await readCellNumberFormat(1, 1)).toEqual(CLICKS_FORMAT);
+    expect(await readCellNumberFormat(1, 2)).toEqual(COST_FORMAT);
+
+    // Row 4 (also within the dataset) keeps them too — format is re-applied
+    // across the whole written range, not just the first data row.
+    expect(await readCellNumberFormat(3, 1)).toEqual(CLICKS_FORMAT);
+    expect(await readCellNumberFormat(3, 2)).toEqual(COST_FORMAT);
+
+    // The data itself is still correct (formatting did not corrupt values).
+    expect(await readRange('A2:C4')).toEqual([
+      ['A', '10', '$2.00'],
+      ['B', '20', '$5.00'],
+      ['C', '30', '$6.00'],
+    ]);
+  }, 120_000);
 });

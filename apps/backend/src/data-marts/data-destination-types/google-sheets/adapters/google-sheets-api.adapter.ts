@@ -178,6 +178,87 @@ export class GoogleSheetsApiAdapter {
   }
 
   /**
+   * Reads the user-entered number format of each cell in a single row across
+   * a column span. Used to capture the date/number/currency formats a user
+   * applied to the imported columns *before* the writer overwrites their
+   * values, so they can be restored afterwards (Sheets re-derives a cell's
+   * number format from the value on every `USER_ENTERED` write, which would
+   * otherwise discard the user's formatting on each refresh).
+   *
+   * The returned array is positionally aligned with `[fromCol..toCol]`; a slot
+   * is `undefined` when the corresponding cell carries no explicit number
+   * format (default / "Automatic" cell). Returns all-`undefined` (and never
+   * throws) when the requested range lies outside the current grid.
+   *
+   * @param spreadsheetId - ID of the spreadsheet
+   * @param sheetTitle - Title of the sheet (used in the A1 range)
+   * @param row - 1-based row index to sample (typically the first data row)
+   * @param fromCol - 1-based, inclusive
+   * @param toCol - 1-based, inclusive
+   */
+  public async getColumnNumberFormats(
+    spreadsheetId: string,
+    sheetTitle: string,
+    row: number,
+    fromCol: number,
+    toCol: number
+  ): Promise<(sheets_v4.Schema$NumberFormat | undefined)[]> {
+    const width = toCol - fromCol + 1;
+    if (width <= 0) {
+      return [];
+    }
+    const range = `'${sheetTitle}'!${GoogleSheetsApiAdapter.colToA1(fromCol)}${row}:${GoogleSheetsApiAdapter.colToA1(toCol)}${row}`;
+    const resp = await this.executeWithRetry(() =>
+      this.service.spreadsheets.get({
+        spreadsheetId,
+        ranges: [range],
+        includeGridData: true,
+        fields: 'sheets(data(rowData(values(userEnteredFormat(numberFormat)))))',
+      })
+    );
+    const cells = resp.data.sheets?.[0]?.data?.[0]?.rowData?.[0]?.values ?? [];
+    const formats: (sheets_v4.Schema$NumberFormat | undefined)[] = new Array(width).fill(undefined);
+    for (let i = 0; i < width; i++) {
+      formats[i] = cells[i]?.userEnteredFormat?.numberFormat ?? undefined;
+    }
+    return formats;
+  }
+
+  /**
+   * Builds a `repeatCell` request that applies a number format to every cell
+   * of a single column within a row span, touching only
+   * `userEnteredFormat.numberFormat` and leaving all other cell formatting
+   * intact. Used to restore a user's captured column format over the freshly
+   * written data rows after the value write.
+   *
+   * All indexes are 0-based; `startRowIndex` is inclusive, `endRowIndex`
+   * exclusive (Sheets API GridRange contract).
+   */
+  public buildSetColumnNumberFormatRequest(
+    sheetId: number,
+    columnIndex: number,
+    startRowIndex: number,
+    endRowIndex: number,
+    numberFormat: sheets_v4.Schema$NumberFormat
+  ): sheets_v4.Schema$Request {
+    return {
+      repeatCell: {
+        range: {
+          sheetId,
+          startRowIndex,
+          endRowIndex,
+          startColumnIndex: columnIndex,
+          endColumnIndex: columnIndex + 1,
+        },
+        cell: {
+          userEnteredFormat: { numberFormat },
+        },
+        fields: 'userEnteredFormat.numberFormat',
+      },
+    };
+  }
+
+  /**
    * Finds OWOX report metadata by key and sheet
    *
    * @param metadata - Array of developer metadata
