@@ -1,4 +1,4 @@
-import { OWOXApiClient, OWOXApiError } from './index.js';
+import { OWOXApiClient, OWOXApiError, OWOXAuthError } from './index.js';
 
 type RecordedRequest = {
   method: string;
@@ -309,6 +309,32 @@ describe('DataMartsApi.traverseData', () => {
     const data = client.dataMarts.traverseData('dm-1');
     await expect(data).rejects.toBeInstanceOf(OWOXApiError);
     await expect(data).rejects.toMatchObject({
+      details: { dataMartId: 'dm-1' },
+    });
+  });
+
+  it('preserves auth errors while opening the stream with data mart context', async () => {
+    const fetchMock = createFetchMock(request => {
+      if (request.method === 'POST' && request.url === '/api/auth/api-keys/exchange') {
+        return createJsonResponse(401, { code: 'INVALID_API_KEY', message: 'Unauthorized' });
+      }
+
+      return createJsonResponse(404, { message: 'Not found' });
+    });
+
+    const client = new OWOXApiClient({
+      apiOrigin,
+      apiKeyId,
+      apiKeySecret,
+      fetchImpl: fetchMock.fetchImpl,
+    });
+
+    const data = client.dataMarts.traverseData('dm-1');
+    await expect(data).rejects.toBeInstanceOf(OWOXAuthError);
+    await expect(data).rejects.toMatchObject({
+      name: 'OWOXAuthError',
+      status: 401,
+      code: 'INVALID_API_KEY',
       details: { dataMartId: 'dm-1' },
     });
   });

@@ -1,6 +1,6 @@
 import { Buffer } from 'node:buffer';
 
-import { OWOXApiError } from './errors.js';
+import { OWOXApiError, OWOXAuthError } from './errors.js';
 
 export type OWOXDataMart = Record<string, unknown> & {
   id: string;
@@ -83,8 +83,9 @@ function withDataMartContext(error: OWOXApiError, dataMartId: string): OWOXApiEr
         dataMartId,
         ...(error.details === undefined ? {} : { details: error.details }),
       };
+  const ErrorClass = error instanceof OWOXAuthError ? OWOXAuthError : OWOXApiError;
 
-  return new OWOXApiError(error.message, {
+  return new ErrorClass(error.message, {
     status: error.status,
     code: error.code,
     details,
