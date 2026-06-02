@@ -3,7 +3,7 @@
 Before proceeding, please make sure that:
 
 - You have created a [CREDENTIALS](CREDENTIALS): API Key, API Secret, Access Token, Access Token Secret.  
-- You have [set up **OWOX Data Marts**](https://docs.owox.com/docs/getting-started/quick-start/) and created at least one storage in the **Storages** section.
+- You have [set up **OWOX Data Marts**](https://docs.owox.com/docs/getting-started/quick-start/) and [created at least one storage in the **Storages** section](https://docs.owox.com/docs/storages/manage-storages/). If you didn't create the storage, you can configure it later.
 
 ![X Ads Storage](res/x_ads_storage.png)
 
