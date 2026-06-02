@@ -122,7 +122,7 @@ Each Report has **Owners** — the team members responsible for its configuratio
 ### Run Types
 
 - **Connector Run** – import data from a **Source** into **Storage**.
-- **Report Runs** – push or pull data (stored in **Storage**) to a **Destination**.
+- **Report Runs** – push or pull data (stored in **Storage**) to a **Destination**, or access data through the HTTP Data API.
 
 ### Notification
 
