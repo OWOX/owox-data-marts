@@ -33,10 +33,10 @@ describe('ConsumptionTrackingService.registerHttpDataRunConsumption', () => {
     (PubSubService as unknown as jest.Mock).mockClear();
   });
 
-  it('publishes one consumption command with the run id as processRunId', async () => {
+  it('publishes one consumption command with the run id as reportRunId', async () => {
     const service = buildService({
       CONSUMPTION_PUBSUB_PROJECT_ID: 'consumption-project',
-      CONSUMPTION_HTTP_DATA_RUN_TOPIC: 'http-data-topic',
+      CONSUMPTION_HTTP_DATA_REPORT_RUN_TOPIC: 'http-data-topic',
     });
 
     await service.registerHttpDataRunConsumption(fakeDataMart(), 'run-1');
@@ -49,7 +49,7 @@ describe('ConsumptionTrackingService.registerHttpDataRunConsumption', () => {
         dataMartId: 'dm-1',
         dataStorageId: 'storage-1',
         dataStorageType: 'GOOGLE_BIGQUERY',
-        processRunId: 'run-1',
+        reportRunId: 'run-1',
       })
     );
   });
@@ -64,7 +64,7 @@ describe('ConsumptionTrackingService.registerHttpDataRunConsumption', () => {
   });
 
   it('skips silently when PubSub is not configured', async () => {
-    const service = buildService({ CONSUMPTION_HTTP_DATA_RUN_TOPIC: 'http-data-topic' });
+    const service = buildService({ CONSUMPTION_HTTP_DATA_REPORT_RUN_TOPIC: 'http-data-topic' });
 
     await expect(
       service.registerHttpDataRunConsumption(fakeDataMart(), 'run-1')
