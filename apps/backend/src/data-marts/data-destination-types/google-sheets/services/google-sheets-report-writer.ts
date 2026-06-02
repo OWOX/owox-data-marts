@@ -758,9 +758,16 @@ export class GoogleSheetsReportWriter implements DataDestinationReportWriter {
         headerRow,
       ]);
 
-      // Per-column note: description first, ODM info second. Every imported
-      // column carries the ODM provenance block so users can see ownership at
-      // a glance on any header — not just A1.
+      // Per-column note: only the FIRST column of the range (index 0, i.e. A1)
+      // carries the full provenance block — the user's column description plus
+      // the ODM metadata (import time, data mart title, link). Every other
+      // imported column gets just a short `--- Imported via OWOX Data Marts ---`
+      // marker, enough to show the column is ODM-managed without burying the
+      // user's content under the same metadata repeated in every header.
+      //
+      // `dataMart` is always the main/home data mart — columns pulled in from
+      // joinable data marts only change the column alias, never this note — so
+      // A1 already references the right (original) data mart for blended marts.
       const dateNow = DateTime.now().setZone(this.spreadsheetTimeZone);
       const dateNowFormatted = `${dateNow.toFormat('yyyy LLL d, HH:mm:ss')} ${dateNow.zoneName}`;
       const dataMart = this.report.dataMart;
@@ -775,13 +782,17 @@ export class GoogleSheetsReportWriter implements DataDestinationReportWriter {
 
       const noteRequests = this.reportDataHeaders.map(header => {
         const idx = this.columnPlan.nameToFinalIndex.get(header.name)!;
-        const note = this.metadataFormatter.buildImportedColumnNote(
-          header.description,
-          this.dataMartTitle,
-          dataMartUrl,
-          dateNowFormatted,
-          isCommunityEdition
-        );
+        // The range always starts at column A, so index 0 is the first column.
+        const note =
+          idx === 0
+            ? this.metadataFormatter.buildImportedColumnNote(
+                header.description,
+                this.dataMartTitle,
+                dataMartUrl,
+                dateNowFormatted,
+                isCommunityEdition
+              )
+            : this.metadataFormatter.buildImportedColumnMarker(isCommunityEdition);
         return this.metadataFormatter.createNoteRequest(sheetId, note, 0, idx);
       });
 

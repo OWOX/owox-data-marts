@@ -125,6 +125,7 @@ function buildWriter(opts: BuildOpts) {
   };
   const metadataFormatter = {
     buildImportedColumnNote: jest.fn().mockReturnValue('note'),
+    buildImportedColumnMarker: jest.fn().mockReturnValue('marker'),
     createNoteRequest: jest.fn().mockReturnValue({}),
     createTabColorAndFreezeHeaderRequest: jest.fn().mockReturnValue({}),
     createDeveloperMetadataRequest: jest.fn().mockReturnValue({}),
@@ -169,7 +170,7 @@ function buildWriter(opts: BuildOpts) {
     dataMart: { id: 'dm-1', projectId: 'proj-1', title: 'DM' },
   };
 
-  return { writer, adapter, report, finalImportedNames };
+  return { writer, adapter, report, finalImportedNames, metadataFormatter };
 }
 
 const makeHeaders = (...names: string[]): ReportDataHeader[] =>
@@ -413,5 +414,34 @@ describe('GoogleSheetsReportWriter — pre-clear range invariants', () => {
       range.includes('!A2:')
     );
     expect(dataWrites).toHaveLength(0);
+  });
+});
+
+describe('GoogleSheetsReportWriter — per-column header notes', () => {
+  it('writes the full ODM note only on the first column and the short marker on the rest', async () => {
+    const { writer, report, finalImportedNames, metadataFormatter } = buildWriter({
+      availableRowsCount: 11,
+    });
+
+    await writer.prepareToWriteReport(
+      report as never,
+      new ReportDataDescription(makeHeaders(...finalImportedNames), 1)
+    );
+    await writer.writeReportDataBatch(new ReportDataBatch([['A', '10', '2']]));
+    await writer.finalize();
+
+    // Three imported columns → exactly one full note (A1) + two short markers.
+    expect(metadataFormatter.buildImportedColumnNote).toHaveBeenCalledTimes(1);
+    expect(metadataFormatter.buildImportedColumnMarker).toHaveBeenCalledTimes(
+      finalImportedNames.length - 1
+    );
+    // The full note belongs to the first column's description ('country').
+    expect(metadataFormatter.buildImportedColumnNote).toHaveBeenCalledWith(
+      undefined,
+      'DM',
+      expect.any(String),
+      expect.any(String),
+      expect.any(Boolean)
+    );
   });
 });
