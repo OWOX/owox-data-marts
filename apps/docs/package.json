@@ -18,10 +18,10 @@
     "format:check": "prettier --check \"**/*.{ts,js,mjs,json}\" --ignore-path ../../.prettierignore"
   },
   "dependencies": {
-    "@astrojs/starlight": "^0.34.4",
-    "astro": "^5.16.11",
-    "sharp": "^0.32.5",
-    "starlight-auto-sidebar": "^0.1.2"
+    "@astrojs/starlight": "^0.39.2",
+    "astro": "^6.4.2",
+    "sharp": "^0.34.0",
+    "starlight-auto-sidebar": "^0.4.0"
   },
   "devDependencies": {
     "@owox/eslint-config": "*",
