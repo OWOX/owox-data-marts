@@ -49,6 +49,11 @@ describe('BigQueryStorageErrorMapper', () => {
     expect(mapper.toStorageReadError(original)).toBe(original);
   });
 
+  it('preserves app HttpExceptions when forced into storage-read scope', () => {
+    const original = new BadRequestException('Invalid request');
+    expect(mapper.toStorageReadError(original, { force: true })).toBe(original);
+  });
+
   it('maps plain storage read failures when already in storage-read scope', () => {
     const mapped = expectHttpException(
       mapper.toStorageReadError(new Error('Invalid cast at [57:23]'), { force: true })

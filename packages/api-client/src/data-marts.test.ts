@@ -248,6 +248,41 @@ describe('DataMartsApi.traverseData', () => {
     expect(wasCancelled).toBe(true);
   });
 
+  it('can cancel an opened traversal without iterating it', async () => {
+    let wasCancelled = false;
+    const fetchMock = createFetchMock(request => {
+      if (request.method === 'POST' && request.url === '/api/auth/api-keys/exchange') {
+        return createJsonResponse(200, { accessToken: 'access-token-1' });
+      }
+
+      if (
+        request.method === 'GET' &&
+        request.url === '/api/external/http-data/data-marts/dm-1.ndjson'
+      ) {
+        return createOpenNdjsonResponse('{"date":"2026-05-01"}\n', () => {
+          wasCancelled = true;
+        });
+      }
+
+      return createJsonResponse(404, { message: 'Not found' });
+    });
+
+    const client = new OWOXApiClient({
+      apiOrigin,
+      apiKeyId,
+      apiKeySecret,
+      fetchImpl: fetchMock.fetchImpl,
+    });
+
+    const data = await client.dataMarts.traverseData('dm-1');
+    await data.cancel();
+
+    expect(wasCancelled).toBe(true);
+    await expect(collectRows(data)).rejects.toThrow(
+      'OWOX Data Mart data stream can only be traversed once'
+    );
+  });
+
   it('wraps network failures while opening the stream with data mart context', async () => {
     const fetchMock = createFetchMock(request => {
       if (request.method === 'POST' && request.url === '/api/auth/api-keys/exchange') {

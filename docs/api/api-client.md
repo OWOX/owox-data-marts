@@ -67,6 +67,8 @@ for await (const rows of data.rowChunks()) {
 }
 ```
 
+Call `await data.cancel()` if you open a traversal and decide not to iterate `rowChunks()`.
+
 Column selection uses two separate fields:
 
 - `columns: '*'` selects all current Data Mart output columns.

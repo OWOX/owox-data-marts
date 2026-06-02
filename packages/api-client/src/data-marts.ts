@@ -95,6 +95,7 @@ function withDataMartContext(error: OWOXApiError, dataMartId: string): OWOXApiEr
 export class DataMartDataTraversal {
   readonly runId: string | undefined;
   private consumed = false;
+  private cancelled = false;
 
   constructor(
     private readonly response: Response,
@@ -103,8 +104,17 @@ export class DataMartDataTraversal {
     this.runId = response.headers.get('x-owox-run-id') ?? undefined;
   }
 
+  async cancel(): Promise<void> {
+    if (this.consumed || this.cancelled) {
+      return;
+    }
+
+    this.cancelled = true;
+    await this.response.body?.cancel().catch(() => undefined);
+  }
+
   async *rowChunks(): AsyncIterable<OWOXDataMartRow[]> {
-    if (this.consumed) {
+    if (this.consumed || this.cancelled) {
       throw new OWOXApiError('OWOX Data Mart data stream can only be traversed once', {
         details: this.contextDetails(),
       });

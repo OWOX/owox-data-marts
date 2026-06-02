@@ -60,6 +60,8 @@ export function mapBigQueryStorageReadError(
   error: unknown,
   options: StorageReadErrorMappingOptions = {}
 ): unknown {
+  if (error instanceof HttpException) return error;
+
   const context = {
     storageType: type,
     providerName: toHumanReadable(type),

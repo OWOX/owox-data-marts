@@ -107,12 +107,12 @@ owox-ctl storages list
 owox-ctl destinations list
 ```
 
-All commands emit JSON.
+Commands emit JSON unless noted; `data-marts stream` emits NDJSON rows.
 
 ## Stream Data Mart rows
 
 Use `data-marts stream` to write Data Mart rows to stdout as newline-delimited JSON.
-Rows are written as they arrive, so shell redirection and pipelines can handle file output without an `--output` flag.
+Rows are written as they arrive, so shell redirection and pipelines can handle file output.
 
 ```bash
 owox-ctl data-marts stream dm_123 --columns '*'
