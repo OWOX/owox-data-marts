@@ -279,7 +279,7 @@ describe('UserProvisioningSettings', () => {
     expect(screen.queryByTestId('default-role-sheet')).not.toBeInTheDocument();
   });
 
-  it('switches mode to manual when "Require access request" radio is clicked', async () => {
+  it('switches mode to manual when "Manual access request" radio is clicked', async () => {
     vi.mocked(projectMembersService.getUserProvisioningSettings).mockResolvedValueOnce(
       applicableResponse
     );

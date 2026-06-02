@@ -225,7 +225,7 @@ export function UserProvisioningSettings({ contexts, isAdmin }: UserProvisioning
                   <FormRadioCard
                     data-testid='radio-require-request'
                     value='manual'
-                    label='Require access request'
+                    label='Manual access request'
                     description='New members must request access before joining. Project Admins can approve or reject requests manually'
                     checked={mode === 'manual'}
                     onChange={v => {
