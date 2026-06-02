@@ -1,7 +1,9 @@
-import { vi, describe, it, expect, beforeEach } from 'vitest';
+import { vi, describe, it, expect, beforeEach, type Mock } from 'vitest';
 import { render, screen, fireEvent, act } from '@testing-library/react';
 import type { FilterRule } from '../../../shared/types/output-config';
 import { FilterValueEditor } from './FilterValueEditor';
+
+type OnChangeMock = Mock<(rule: FilterRule | null) => void>;
 
 // ---------------------------------------------------------------------------
 // Mocks
@@ -43,14 +45,14 @@ interface RenderOptions {
   column?: string;
   fieldType?: string;
   initialRule?: FilterRule;
-  onChange?: ReturnType<typeof vi.fn>;
+  onChange?: OnChangeMock;
 }
 
 function renderEditor({
   column = COL,
   fieldType = STRING_TYPE,
   initialRule,
-  onChange = vi.fn(),
+  onChange = vi.fn<(rule: FilterRule | null) => void>(),
 }: RenderOptions = {}) {
   render(
     <FilterValueEditor
@@ -64,7 +66,7 @@ function renderEditor({
 }
 
 /** Returns the arg of the most recent onChange call. */
-function lastCall(onChange: ReturnType<typeof vi.fn>): FilterRule | null | undefined {
+function lastCall(onChange: OnChangeMock): FilterRule | null | undefined {
   const calls = onChange.mock.calls;
   if (calls.length === 0) return undefined;
   return calls[calls.length - 1][0];
