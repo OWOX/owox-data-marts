@@ -1,9 +1,9 @@
 import { ReportDataHeader } from '../../../dto/domain/report-data-header.dto';
 import { ColumnPlan, PreviousImportedColumn } from '../../../dto/domain/column-plan.dto';
-import { ConsumptionTrackingService } from '../../../services/consumption-tracking.service';
 import {
   DataDestinationReportWriter,
   ReportWriteFinalizeMeta,
+  ReportWriteFinalizeResult,
 } from '../../interfaces/data-destination-report-writer.interface';
 import { DataDestinationType } from '../../enums/data-destination-type.enum';
 import { Injectable, Logger, Scope } from '@nestjs/common';
@@ -78,7 +78,6 @@ export class GoogleSheetsReportWriter implements DataDestinationReportWriter {
     private readonly valuesFormatter: SheetValuesFormatter,
     private readonly columnPlanBuilder: ColumnPlanBuilder,
     private readonly adapterFactory: GoogleSheetsApiAdapterFactory,
-    private readonly consumptionTrackingService: ConsumptionTrackingService,
     private readonly appEditionConfig: AppEditionConfig,
     private readonly publicOriginService: PublicOriginService,
     private readonly eventDispatcher: OwoxEventDispatcher
@@ -321,7 +320,10 @@ export class GoogleSheetsReportWriter implements DataDestinationReportWriter {
    * data, and the design contract is that such failures must leave the
    * sheet exactly as the user last saw it.
    */
-  public async finalize(processingError?: Error, _meta?: ReportWriteFinalizeMeta): Promise<void> {
+  public async finalize(
+    processingError?: Error,
+    _meta?: ReportWriteFinalizeMeta
+  ): Promise<ReportWriteFinalizeResult | void> {
     await this.executeWithErrorHandling(async () => {
       // Zero-batch happy path: the reader finished cleanly but had nothing
       // to write. Bring the sheet layout up to date so column changes do
@@ -477,11 +479,6 @@ export class GoogleSheetsReportWriter implements DataDestinationReportWriter {
       }
     }, 'Finalizing report with metadata and formatting');
     if (!processingError) {
-      await this.consumptionTrackingService.registerSheetsReportRunConsumption(this.report, {
-        googleSheetsDocumentTitle: this.spreadsheetTitle,
-        googleSheetsListTitle: this.sheetTitle,
-      });
-
       const dataMart = this.report.dataMart;
       await this.eventDispatcher.publishExternal(
         new SheetsReportRunEvent(
@@ -492,6 +489,14 @@ export class GoogleSheetsReportWriter implements DataDestinationReportWriter {
           'successfully'
         )
       );
+      return {
+        consumption: {
+          googleSheets: {
+            googleSheetsDocumentTitle: this.spreadsheetTitle,
+            googleSheetsListTitle: this.sheetTitle,
+          },
+        },
+      };
     } else {
       const dataMart = this.report.dataMart;
       await this.eventDispatcher.publishExternal(

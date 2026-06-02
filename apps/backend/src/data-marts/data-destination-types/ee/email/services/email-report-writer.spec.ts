@@ -38,9 +38,6 @@ describe('EmailReportWriter', () => {
         prompts: [],
       }),
     };
-    const consumptionTrackingService = {
-      registerEmailBasedReportRunConsumption: jest.fn().mockResolvedValue(undefined),
-    };
     const eventDispatcher = {
       publishExternal: jest.fn().mockResolvedValue(undefined),
     };
@@ -72,7 +69,6 @@ describe('EmailReportWriter', () => {
         markdownParser as never as MarkdownParser,
         publicOriginService as never,
         insightTemplateFacade as never as DataMartInsightTemplateFacadeImpl,
-        consumptionTrackingService as never,
         eventDispatcher as never,
         credentialsResolver as never as DataDestinationCredentialsResolver,
         sourceDataService as never as InsightTemplateSourceDataService,
@@ -86,7 +82,6 @@ describe('EmailReportWriter', () => {
       insightTemplateService,
       sourceUsageService,
       credentialsResolver,
-      consumptionTrackingService,
       eventDispatcher,
     };
   };
@@ -133,6 +128,30 @@ describe('EmailReportWriter', () => {
         },
       },
     }) as Report;
+
+  it('finalizes delivery without returning consumption metadata', async () => {
+    const { writer, emailProvider, eventDispatcher } = createWriter();
+    const report = createReport();
+
+    await writer.prepareToWriteReport(report, new ReportDataDescription([]));
+    const result = await writer.finalize();
+
+    expect(result).toBeUndefined();
+    expect(emailProvider.sendEmail).toHaveBeenCalledTimes(1);
+    expect(eventDispatcher.publishExternal).toHaveBeenCalledTimes(1);
+    const event = eventDispatcher.publishExternal.mock.calls[0][0] as {
+      name: string;
+      payload: unknown;
+    };
+    expect(event.name).toBe('email.report.run.successfully');
+    expect(event.payload).toEqual({
+      dataMartId: 'data-mart-1',
+      runId: 'report-1',
+      biProjectId: 'project-1',
+      userId: 'user-1',
+      status: 'successfully',
+    });
+  });
 
   it('passes preloaded main source to buildRenderContext for insight template reports', async () => {
     const { writer, sourceDataService, insightTemplateFacade, emailProvider, sourceUsageService } =

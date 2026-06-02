@@ -10,6 +10,15 @@ export interface ReportWriteFinalizeMeta {
   mainRowsTruncationInfo?: RowsTruncationInfo | null;
 }
 
+export interface ReportWriteFinalizeResult {
+  consumption?: {
+    googleSheets?: {
+      googleSheetsDocumentTitle: string;
+      googleSheetsListTitle: string;
+    };
+  };
+}
+
 /**
  * Interface for writing reports to data destinations
  * Implementations handle the specifics of writing data to different destination types
@@ -42,5 +51,8 @@ export interface DataDestinationReportWriter extends TypedComponent<DataDestinat
    * @param processingError - Optional error that occurred during report processing
    * @param meta - Optional report-level metadata computed during execution
    */
-  finalize(processingError?: Error, meta?: ReportWriteFinalizeMeta): Promise<void>;
+  finalize(
+    processingError?: Error,
+    meta?: ReportWriteFinalizeMeta
+  ): Promise<ReportWriteFinalizeResult | void>;
 }

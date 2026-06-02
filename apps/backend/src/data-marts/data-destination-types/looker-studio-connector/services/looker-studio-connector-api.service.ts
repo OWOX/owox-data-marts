@@ -415,13 +415,23 @@ export class LookerStudioConnectorApiService {
     reportRun.markAsSuccess();
 
     const saved = await this.saveReportRunResultSafely(reportRun, reportRunLogger);
-    if (saved) {
-      this.logger.log(`Report ${reportRun.getReportId()} completed successfully`);
+    if (!saved) {
+      return;
     }
+
+    this.logger.log(`Report ${reportRun.getReportId()} completed successfully`);
 
     const report = reportRun.getReport();
     if (!cachedReader.fromCache) {
-      await this.consumptionTrackingService.registerLookerReportRunConsumption(report);
+      try {
+        await this.consumptionTrackingService.registerLookerReportRunConsumption(report);
+      } catch (error) {
+        this.logger.warn(
+          `Failed to register Looker report consumption for ${report.id}: ${
+            error instanceof Error ? error.message : String(error)
+          }`
+        );
+      }
     }
 
     const {
