@@ -1,6 +1,8 @@
 import { FilterRule } from '../../dto/schemas/filter-config.schema';
 import { SortRule } from '../../dto/schemas/sort-config.schema';
 
+// Array order MUST match placeholder order in the SQL: positional dialects
+// (Athena `?`) bind by position and ignore `name`.
 export interface SqlParameter {
   name: string;
   value: string | number | boolean | null;
@@ -71,5 +73,13 @@ export abstract class SqlClauseRenderer {
       throw new Error(`Invalid LIMIT value: ${String(limit)}`);
     }
     return { sql: `\nLIMIT ${limit}`, params: [] };
+  }
+
+  protected nextParamName(paramName: string): string {
+    const match = paramName.match(/^(.*?)(\d+)$/);
+    if (!match) {
+      throw new Error(`Cannot derive next param name from "${paramName}"`);
+    }
+    return `${match[1]}${Number(match[2]) + 1}`;
   }
 }

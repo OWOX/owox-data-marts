@@ -1,9 +1,10 @@
-import { Injectable, NotImplementedException } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { DataStorageType } from '../../enums/data-storage-type.enum';
 import { DataMartDefinition } from '../../../dto/schemas/data-mart-table-definitions/data-mart-definition';
 import {
   DataMartQueryBuilder,
   DataMartQueryOptions,
+  QueryBuildResult,
 } from '../../interfaces/data-mart-query-builder.interface';
 import {
   isConnectorDefinition,
@@ -13,48 +14,85 @@ import {
   isViewDefinition,
 } from '../../../dto/schemas/data-mart-table-definitions/data-mart-definition.guards';
 import { escapeAthenaIdentifier } from '../utils/athena-identifier.utils';
+import { AthenaClauseRenderer } from './athena-clause-renderer';
 
 @Injectable()
 export class AthenaQueryBuilder implements DataMartQueryBuilder {
   readonly type = DataStorageType.AWS_ATHENA;
 
-  buildQuery(definition: DataMartDefinition, queryOptions?: DataMartQueryOptions): string {
-    if ((queryOptions?.filters?.length ?? 0) > 0 || (queryOptions?.sort?.length ?? 0) > 0) {
-      throw new NotImplementedException(
-        `Output controls not yet supported for storage type ${this.type}`
-      );
-    }
-    const selectList = this.buildSelectList(queryOptions?.columns);
-    let query: string;
+  constructor(private readonly clauseRenderer: AthenaClauseRenderer) {}
 
+  buildQuery(
+    definition: DataMartDefinition,
+    queryOptions?: DataMartQueryOptions
+  ): string | QueryBuildResult {
+    const hasOutputControls =
+      (queryOptions?.filters?.length ?? 0) > 0 ||
+      (queryOptions?.sort?.length ?? 0) > 0 ||
+      queryOptions?.limit != null;
+
+    const selectList = this.buildSelectList(queryOptions?.columns);
+
+    if (!hasOutputControls) {
+      return this.buildPlainQuery(definition, selectList, queryOptions);
+    }
+
+    const fromClause = this.resolveFromClauseWithOutputControls(definition, queryOptions);
+    const where = this.clauseRenderer.renderWhere(queryOptions?.filters ?? []);
+    const orderBy = this.clauseRenderer.renderOrderBy(queryOptions?.sort ?? []);
+    const limit = this.clauseRenderer.renderLimit(queryOptions?.limit ?? null);
+
+    return {
+      sql: `SELECT ${selectList} FROM ${fromClause}${where.sql}${orderBy.sql}${limit.sql}`,
+      params: [...where.params, ...orderBy.params, ...limit.params],
+    };
+  }
+
+  private buildPlainQuery(
+    definition: DataMartDefinition,
+    selectList: string,
+    queryOptions?: DataMartQueryOptions
+  ): string {
     if (isTableDefinition(definition) || isViewDefinition(definition)) {
-      query = `SELECT ${selectList} FROM ${escapeAthenaIdentifier(definition.fullyQualifiedName)}`;
-    } else if (isConnectorDefinition(definition)) {
-      query = `SELECT ${selectList} FROM ${escapeAthenaIdentifier(definition.connector.storage.fullyQualifiedName)}`;
-    } else if (isSqlDefinition(definition)) {
+      return `SELECT ${selectList} FROM ${escapeAthenaIdentifier(definition.fullyQualifiedName)}`;
+    }
+    if (isConnectorDefinition(definition)) {
+      return `SELECT ${selectList} FROM ${escapeAthenaIdentifier(definition.connector.storage.fullyQualifiedName)}`;
+    }
+    if (isSqlDefinition(definition)) {
       if (queryOptions?.columns?.length) {
         const cleanQuery = definition.sqlQuery.trim().replace(/;\s*$/, '');
-        query = `SELECT ${selectList} FROM (${cleanQuery})`;
-      } else {
-        query = definition.sqlQuery.trim();
+        return `SELECT ${selectList} FROM (${cleanQuery})`;
       }
-    } else if (isTablePatternDefinition(definition)) {
+      return definition.sqlQuery.trim();
+    }
+    if (isTablePatternDefinition(definition)) {
       throw new Error('Table pattern queries are not supported in Athena');
-    } else {
-      throw new Error('Invalid data mart definition');
     }
+    throw new Error('Invalid data mart definition');
+  }
 
-    // Apply limit if provided in options
-    if (queryOptions?.limit !== undefined && queryOptions.limit !== null) {
-      if (!Number.isInteger(queryOptions.limit) || queryOptions.limit < 0) {
-        throw new Error(`Invalid LIMIT value: ${String(queryOptions.limit)}`);
+  private resolveFromClauseWithOutputControls(
+    definition: DataMartDefinition,
+    options: DataMartQueryOptions | undefined
+  ): string {
+    if (isTableDefinition(definition) || isViewDefinition(definition)) {
+      return escapeAthenaIdentifier(definition.fullyQualifiedName);
+    }
+    if (isConnectorDefinition(definition)) {
+      return escapeAthenaIdentifier(definition.connector.storage.fullyQualifiedName);
+    }
+    if (isTablePatternDefinition(definition)) {
+      throw new Error('Table pattern queries are not supported in Athena');
+    }
+    if (isSqlDefinition(definition)) {
+      if (options?.mainTableReference) {
+        return options.mainTableReference;
       }
-      // Remove trailing semicolon if present before wrapping in subquery
-      const cleanQuery = query.endsWith(';') ? query.slice(0, -1) : query;
-      query = `SELECT * FROM (${cleanQuery}) LIMIT ${queryOptions.limit}`;
+      const cleanQuery = definition.sqlQuery.trim().replace(/;\s*$/, '');
+      return `(${cleanQuery})`;
     }
-
-    return query;
+    throw new Error('Invalid data mart definition');
   }
 
   private buildSelectList(columns?: string[]): string {

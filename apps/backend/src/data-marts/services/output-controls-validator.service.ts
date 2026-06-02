@@ -20,13 +20,32 @@ export type ValidationError =
   | { code: 'FILTER_ALIAS_PATH_NOT_INCLUDED'; aliasPath: string }
   | { code: 'PRE_JOIN_FILTERS_REQUIRE_COLUMN_CONFIG' };
 
-const STRING_TYPES = new Set(['STRING']);
-const NUMBER_TYPES = new Set(['INTEGER', 'FLOAT', 'NUMERIC', 'BIGNUMERIC']);
-const DATE_TYPES = new Set(['DATE', 'DATETIME', 'TIMESTAMP', 'TIME']);
-const BOOL_TYPES = new Set(['BOOLEAN']);
+const STRING_TYPES = new Set(['STRING', 'VARCHAR', 'CHAR']);
+const NUMBER_TYPES = new Set([
+  'INTEGER',
+  'BIGINT',
+  'SMALLINT',
+  'TINYINT',
+  'FLOAT',
+  'REAL',
+  'DOUBLE',
+  'NUMERIC',
+  'BIGNUMERIC',
+  'DECIMAL',
+]);
+const DATE_TYPES = new Set([
+  'DATE',
+  'DATETIME',
+  'TIME',
+  'TIMESTAMP',
+  'TIMESTAMP WITH TIME ZONE',
+  'TIME WITH TIME ZONE',
+]);
+const BOOL_TYPES = new Set(['BOOLEAN', 'BOOL']);
 
-// `is_empty`/`is_not_empty` are STRING-only — on non-STRING they used to render
-// as `col = ''` which BigQuery rejects for TIMESTAMP/DATE/INTEGER/FLOAT.
+// Valid for any column type, including ones not in the sets above.
+const TYPE_AGNOSTIC_OPS = new Set(['is_null', 'is_not_null']);
+
 const STRING_OPS = new Set([
   'eq',
   'neq',
@@ -67,6 +86,7 @@ const DATE_OPS = new Set([
 const BOOL_OPS = new Set(['is_true', 'is_false', 'is_null', 'is_not_null']);
 
 function operatorAllowed(fieldType: string, operator: string): boolean {
+  if (TYPE_AGNOSTIC_OPS.has(operator)) return true;
   if (STRING_TYPES.has(fieldType)) return STRING_OPS.has(operator);
   if (NUMBER_TYPES.has(fieldType)) return NUMBER_OPS.has(operator);
   if (DATE_TYPES.has(fieldType)) return DATE_OPS.has(operator);

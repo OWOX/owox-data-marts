@@ -7,12 +7,15 @@ describe('supportsOutputControls', () => {
     expect(supportsOutputControls(DataStorageType.GOOGLE_BIGQUERY)).toBe(true);
   });
 
+  it('returns true for Athena', () => {
+    expect(supportsOutputControls(DataStorageType.AWS_ATHENA)).toBe(true);
+  });
+
   it('returns false for legacy BigQuery', () => {
     expect(supportsOutputControls(DataStorageType.LEGACY_GOOGLE_BIGQUERY)).toBe(false);
   });
 
-  it('returns false for non-BQ storages', () => {
-    expect(supportsOutputControls(DataStorageType.AWS_ATHENA)).toBe(false);
+  it('returns false for not-yet-supported storages', () => {
     expect(supportsOutputControls(DataStorageType.SNOWFLAKE)).toBe(false);
     expect(supportsOutputControls(DataStorageType.AWS_REDSHIFT)).toBe(false);
     expect(supportsOutputControls(DataStorageType.DATABRICKS)).toBe(false);

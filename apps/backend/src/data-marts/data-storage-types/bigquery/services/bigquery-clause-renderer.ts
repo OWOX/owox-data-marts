@@ -85,14 +85,6 @@ export class BigQueryClauseRenderer extends SqlClauseRenderer {
     }
   }
 
-  private nextParamName(paramName: string): string {
-    const match = paramName.match(/^(.*?)(\d+)$/);
-    if (!match) {
-      throw new Error(`Cannot derive next param name from "${paramName}"`);
-    }
-    return `${match[1]}${Number(match[2]) + 1}`;
-  }
-
   private renderRelativeDate(
     col: string,
     preset: Extract<FilterRule, { operator: 'relative_date' }>['value']
