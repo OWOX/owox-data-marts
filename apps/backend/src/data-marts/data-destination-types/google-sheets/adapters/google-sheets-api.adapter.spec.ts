@@ -151,6 +151,94 @@ describe('GoogleSheetsApiAdapter (pure helpers)', () => {
     });
   });
 
+  describe('getColumnNumberFormats', () => {
+    /**
+     * Builds a `spreadsheets.get` response whose `sheets` array lists a
+     * decoy tab FIRST and the target tab second. This reproduces the real
+     * failure mode: `ranges` only scopes which grid data is included, it does
+     * not reorder `sheets` so that the requested tab is `sheets[0]`. The
+     * adapter must therefore select by `sheetId`, not by position.
+     */
+    const buildGetMock = (rows: Array<{ numberFormat?: sheets_v4.Schema$NumberFormat }>) =>
+      jest.fn().mockResolvedValue({
+        data: {
+          sheets: [
+            // Decoy tab at index 0 with no grid data (would yield all-undefined).
+            { properties: { sheetId: 999 }, data: [{ rowData: [{ values: [] }] }] },
+            // Target tab at index 1 carrying the real formats.
+            {
+              properties: { sheetId: 7 },
+              data: [
+                {
+                  rowData: [
+                    {
+                      values: rows.map(r =>
+                        r.numberFormat
+                          ? { userEnteredFormat: { numberFormat: r.numberFormat } }
+                          : {}
+                      ),
+                    },
+                  ],
+                },
+              ],
+            },
+          ],
+        },
+      });
+
+    const withGetMock = (adapter: GoogleSheetsApiAdapter, getMock: jest.Mock) => {
+      (adapter as unknown as { service: { spreadsheets: { get: jest.Mock } } }).service = {
+        spreadsheets: { get: getMock },
+      };
+    };
+
+    it('selects the target tab by sheetId, not by array position', async () => {
+      const adapter = buildAdapter();
+      const currency: sheets_v4.Schema$NumberFormat = { type: 'CURRENCY', pattern: '"$"#,##0.00' };
+      const getMock = buildGetMock([{}, { numberFormat: currency }, {}]);
+      withGetMock(adapter, getMock);
+
+      const formats = await adapter.getColumnNumberFormats('spread-1', 7, 'Sheet1', 2, 1, 3);
+
+      // Despite the decoy tab being sheets[0], we read the sheetId=7 tab.
+      expect(formats).toEqual([undefined, currency, undefined]);
+      // Sanity: the request scoped the fields to include sheetId for selection.
+      expect(getMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          spreadsheetId: 'spread-1',
+          ranges: ["'Sheet1'!A2:C2"],
+          includeGridData: true,
+          fields: expect.stringContaining('properties(sheetId)'),
+        })
+      );
+    });
+
+    it('returns all-undefined when the requested sheetId is absent from the response', async () => {
+      const adapter = buildAdapter();
+      // Response only carries the decoy tab (sheetId 999); target 7 is missing.
+      const getMock = jest.fn().mockResolvedValue({
+        data: { sheets: [{ properties: { sheetId: 999 }, data: [{ rowData: [{ values: [] }] }] }] },
+      });
+      withGetMock(adapter, getMock);
+
+      const formats = await adapter.getColumnNumberFormats('spread-1', 7, 'Sheet1', 2, 1, 3);
+
+      expect(formats).toEqual([undefined, undefined, undefined]);
+    });
+
+    it('returns an empty array without calling the API when the span is empty', async () => {
+      const adapter = buildAdapter();
+      const getMock = jest.fn();
+      withGetMock(adapter, getMock);
+
+      // toCol < fromCol → width <= 0.
+      const formats = await adapter.getColumnNumberFormats('spread-1', 7, 'Sheet1', 2, 3, 1);
+
+      expect(formats).toEqual([]);
+      expect(getMock).not.toHaveBeenCalled();
+    });
+  });
+
   describe('findOwoxColumnsMetadataForSheet', () => {
     /**
      * Build a typed metadata fixture quickly. The adapter's filter only

@@ -489,9 +489,11 @@ describe('GoogleSheetsReportWriter — preserves user column number formats acro
       report as never,
       new ReportDataDescription(makeHeaders(...finalImportedNames), 2)
     );
-    // Capture samples row 2 across the imported width, before any write.
+    // Capture samples row 2 across the imported width, before any write —
+    // and targets the destination tab by sheetId (not by position).
     expect(adapter.getColumnNumberFormats).toHaveBeenCalledWith(
       SPREADSHEET_ID,
+      SHEET_ID,
       SHEET_TITLE,
       2,
       1,

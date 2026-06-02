@@ -263,10 +263,13 @@ describeIfConfigured('Google Sheets column preservation (diff-based writer)', ()
         `'${sheet.sheetTitle}'!${String.fromCharCode(65 + columnIndex)}${rowIndex + 1}:${String.fromCharCode(65 + columnIndex)}${rowIndex + 1}`,
       ],
       includeGridData: true,
-      fields: 'sheets(data(rowData(values(userEnteredFormat(numberFormat)))))',
+      fields: 'sheets(properties(sheetId),data(rowData(values(userEnteredFormat(numberFormat)))))',
     });
+    // Select the target tab by sheetId — `ranges` does not guarantee the
+    // requested sheet is `sheets[0]` (the test spreadsheet holds many tabs).
+    const targetSheet = res.data.sheets?.find(s => s.properties?.sheetId === sheet.sheetId);
     return (
-      res.data.sheets?.[0]?.data?.[0]?.rowData?.[0]?.values?.[0]?.userEnteredFormat?.numberFormat ??
+      targetSheet?.data?.[0]?.rowData?.[0]?.values?.[0]?.userEnteredFormat?.numberFormat ??
       undefined
     );
   }

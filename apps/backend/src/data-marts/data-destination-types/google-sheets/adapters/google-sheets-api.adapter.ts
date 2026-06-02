@@ -190,7 +190,14 @@ export class GoogleSheetsApiAdapter {
    * format (default / "Automatic" cell). Returns all-`undefined` (and never
    * throws) when the requested range lies outside the current grid.
    *
+   * The target sheet is selected by `sheetId`, not by position: `ranges` only
+   * limits which grid-data portions are included in the response, it does NOT
+   * guarantee that `sheets[0]` is the requested tab. Relying on `sheets[0]`
+   * would read empty/other-tab grid data for any destination that is not the
+   * first sheet, silently skipping the format restore.
+   *
    * @param spreadsheetId - ID of the spreadsheet
+   * @param sheetId - ID of the destination sheet to read from
    * @param sheetTitle - Title of the sheet (used in the A1 range)
    * @param row - 1-based row index to sample (typically the first data row)
    * @param fromCol - 1-based, inclusive
@@ -198,6 +205,7 @@ export class GoogleSheetsApiAdapter {
    */
   public async getColumnNumberFormats(
     spreadsheetId: string,
+    sheetId: number,
     sheetTitle: string,
     row: number,
     fromCol: number,
@@ -213,10 +221,12 @@ export class GoogleSheetsApiAdapter {
         spreadsheetId,
         ranges: [range],
         includeGridData: true,
-        fields: 'sheets(data(rowData(values(userEnteredFormat(numberFormat)))))',
+        fields:
+          'sheets(properties(sheetId),data(rowData(values(userEnteredFormat(numberFormat)))))',
       })
     );
-    const cells = resp.data.sheets?.[0]?.data?.[0]?.rowData?.[0]?.values ?? [];
+    const sheet = resp.data.sheets?.find(s => s.properties?.sheetId === sheetId);
+    const cells = sheet?.data?.[0]?.rowData?.[0]?.values ?? [];
     const formats: (sheets_v4.Schema$NumberFormat | undefined)[] = new Array(width).fill(undefined);
     for (let i = 0; i < width; i++) {
       formats[i] = cells[i]?.userEnteredFormat?.numberFormat ?? undefined;

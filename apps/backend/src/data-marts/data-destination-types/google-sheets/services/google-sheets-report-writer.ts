@@ -713,6 +713,7 @@ export class GoogleSheetsReportWriter implements DataDestinationReportWriter {
     return this.executeWithErrorHandling(async () => {
       const formats = await this.adapter.getColumnNumberFormats(
         this.destination.spreadsheetId,
+        this.destination.sheetId,
         this.sheetTitle,
         2, // first data row
         1,
