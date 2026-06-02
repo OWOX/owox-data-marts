@@ -85,6 +85,17 @@ function parseNdjson(body: string): unknown[] {
     .map(line => JSON.parse(line));
 }
 
+function buildStoragePermissionDeniedError(): Error {
+  const message = 'Access Denied: missing storage permission.';
+  const error = new Error(message) as Error & {
+    errors: Array<{ reason: string; message: string }>;
+    response: { status: { errorResult: { reason: string; message: string } } };
+  };
+  error.errors = [{ reason: 'accessDenied', message }];
+  error.response = { status: { errorResult: { reason: 'accessDenied', message } } };
+  return error;
+}
+
 describe('HTTP Data API (e2e)', () => {
   let app: INestApplication;
   let agent: supertest.Agent;
@@ -123,9 +134,9 @@ describe('HTTP Data API (e2e)', () => {
       expect(res.status).toBe(400);
     });
 
-    it('returns 400 when ** is combined with other columns', async () => {
+    it('returns 400 when columns=** is combined with exact columns', async () => {
       const res = await agent
-        .get(`/api/external/http-data/data-marts/${dataMartId}.ndjson?column=**&column=date`)
+        .get(`/api/external/http-data/data-marts/${dataMartId}.ndjson?columns=**&column=date`)
         .set(AUTH_HEADER);
       expect(res.status).toBe(400);
     });
@@ -201,9 +212,9 @@ describe('HTTP Data API (e2e)', () => {
       ]);
     });
 
-    it('treats * as all native columns', async () => {
+    it('treats columns=* as all native columns', async () => {
       const res = await agent
-        .get(`/api/external/http-data/data-marts/${dataMartId}.ndjson?column=*`)
+        .get(`/api/external/http-data/data-marts/${dataMartId}.ndjson?columns=*`)
         .set(AUTH_HEADER);
       expect(res.status).toBe(200);
       expect(parseNdjson(res.text)).toEqual([
@@ -211,6 +222,13 @@ describe('HTTP Data API (e2e)', () => {
         { date: '2026-05-02', revenue: 51.0 },
         { date: '2026-05-03', revenue: 100.25 },
       ]);
+    });
+
+    it('treats column=* as a literal exact column name', async () => {
+      const res = await agent
+        .get(`/api/external/http-data/data-marts/${dataMartId}.ndjson?column=*`)
+        .set(AUTH_HEADER);
+      expect(res.status).toBe(400);
     });
 
     it('de-duplicates repeated columns instead of rejecting them', async () => {
@@ -229,6 +247,46 @@ describe('HTTP Data API (e2e)', () => {
         .get(`/api/external/http-data/data-marts/${legacyId}.ndjson?column=date`)
         .set(AUTH_HEADER);
       expect(res.status).toBe(404);
+    });
+  });
+
+  describe('Storage error guidance', () => {
+    it('returns actionable guidance when storage credentials are denied by the provider', async () => {
+      jest
+        .mocked(mockReader.prepareReportData)
+        .mockRejectedValueOnce(buildStoragePermissionDeniedError());
+
+      const res = await agent
+        .get(`/api/external/http-data/data-marts/${dataMartId}.ndjson?column=date`)
+        .set(AUTH_HEADER);
+
+      expect(res.status).toBe(424);
+      expect(res.body).toMatchObject({
+        code: 'STORAGE_PERMISSION_DENIED',
+        message: expect.stringContaining('returned 403 Forbidden'),
+        details: expect.objectContaining({
+          dependency: 'storage',
+          providerMessage: 'Access Denied: missing storage permission.',
+          providerReason: 'accessDenied',
+          providerStatusCode: 403,
+        }),
+      });
+    });
+
+    it('returns the provider message instead of an opaque 500 for storage read failures', async () => {
+      jest
+        .mocked(mockReader.prepareReportData)
+        .mockRejectedValueOnce(new Error('Invalid cast from ARRAY<STRING> to STRING at [57:23]'));
+
+      const res = await agent
+        .get(`/api/external/http-data/data-marts/${dataMartId}.ndjson?column=date`)
+        .set(AUTH_HEADER);
+
+      expect(res.status).toBe(424);
+      expect(res.body).toMatchObject({
+        code: 'STORAGE_READ_FAILED',
+        message: expect.stringContaining('Invalid cast from ARRAY<STRING> to STRING'),
+      });
     });
   });
 

@@ -26,8 +26,8 @@ describe('HttpDataColumnResolver', () => {
   });
 
   it('returns explicit columns verbatim', () => {
-    const selector: ColumnSelector = { mode: 'explicit', explicit: ['revenue', 'orders__cost'] };
-    expect(resolver.resolve(selector, columns)).toEqual(['revenue', 'orders__cost']);
+    const selector: ColumnSelector = { mode: 'explicit', explicit: ['revenue', '*', '**'] };
+    expect(resolver.resolve(selector, columns)).toEqual(['revenue', '*', '**']);
   });
 
   it('throws a business violation when the selection resolves to no columns', () => {

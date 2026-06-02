@@ -11,5 +11,6 @@ This includes [`owox-ctl`](../docs/api/owox-ctl.md), the OWOX Data Marts Control
 
 - `owox-ctl status`
 - `owox-ctl data-marts list`
+- `owox-ctl data-marts stream`
 - `owox-ctl storages list`
 - `owox-ctl destinations list`

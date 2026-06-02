@@ -17,6 +17,37 @@ type BaseFlags = {
 
 type SetupEnvironment = (config?: EnvSetupConfig) => EnvSetupResult;
 
+export type NormalizedCliError = {
+  message: string;
+  status?: number;
+  code?: string;
+  name?: string;
+  details?: unknown;
+};
+
+export function normalizeCliError(error: unknown): NormalizedCliError {
+  if (error instanceof OWOXApiError || error instanceof OWOXAuthError) {
+    return {
+      message: error.message,
+      status: error.status,
+      code: error.code,
+      name: error.name,
+      details: error.details,
+    };
+  }
+
+  if (error instanceof OWOXConfigError || error instanceof Error) {
+    return {
+      message: error.message,
+      name: error.name,
+    };
+  }
+
+  return {
+    message: String(error),
+  };
+}
+
 export function setupEnvironmentFromFlags(
   flags: Pick<BaseFlags, 'env-file'>,
   setupEnvironment: SetupEnvironment = EnvManager.setupEnvironment.bind(EnvManager)
@@ -59,34 +90,7 @@ export abstract class BaseCommand extends Command {
   }
 
   protected handleCliError(error: unknown): never {
-    process.stderr.write(`${renderJson({ error: this.normalizeError(error) })}\n`);
+    process.stderr.write(`${renderJson({ error: normalizeCliError(error) })}\n`);
     this.exit(1);
-  }
-
-  private normalizeError(error: unknown): {
-    message: string;
-    status?: number;
-    code?: string;
-    name?: string;
-  } {
-    if (error instanceof OWOXApiError || error instanceof OWOXAuthError) {
-      return {
-        message: error.message,
-        status: error.status,
-        code: error.code,
-        name: error.name,
-      };
-    }
-
-    if (error instanceof OWOXConfigError || error instanceof Error) {
-      return {
-        message: error.message,
-        name: error.name,
-      };
-    }
-
-    return {
-      message: String(error),
-    };
   }
 }

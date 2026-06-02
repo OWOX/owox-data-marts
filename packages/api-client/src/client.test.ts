@@ -1,3 +1,5 @@
+import { jest } from '@jest/globals';
+
 import { OWOXApiClient, OWOXApiError, OWOXAuthError } from './index.js';
 
 type RecordedRequest = {
@@ -353,6 +355,47 @@ describe('OWOXApiClient', () => {
       { id: 'mart-2', title: 'Second Data Mart' },
     ]);
     expect(fetchMock.requests.map(request => request.url)).toContain('/api/data-marts?offset=1');
+  });
+
+  it('configures default stream requests without standard Undici streaming timeouts', async () => {
+    let streamRequestInit: RequestInit | undefined;
+    const fetchSpy = jest.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {
+      const request = new Request(input, init);
+      const parsedUrl = new URL(request.url);
+
+      if (request.method === 'POST' && parsedUrl.pathname === '/api/auth/api-keys/exchange') {
+        return createJsonResponse(200, { accessToken: 'access-token-1' });
+      }
+
+      if (
+        request.method === 'GET' &&
+        parsedUrl.pathname === '/api/external/http-data/data-marts/dm-1.ndjson'
+      ) {
+        streamRequestInit = init;
+        return new Response('{"id":"row-1"}\n', {
+          status: 200,
+          headers: { 'content-type': 'application/x-ndjson' },
+        });
+      }
+
+      return createJsonResponse(404, { message: 'Not found' });
+    });
+
+    try {
+      const client = new OWOXApiClient({
+        apiOrigin,
+        apiKeyId,
+        apiKeySecret,
+      });
+
+      await client.dataMarts.traverseData('dm-1');
+
+      expect(
+        (streamRequestInit as RequestInit & { dispatcher?: unknown }).dispatcher
+      ).toBeDefined();
+    } finally {
+      fetchSpy.mockRestore();
+    }
   });
 
   it('storages.list calls the real list endpoint shape', async () => {

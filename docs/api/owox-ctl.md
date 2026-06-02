@@ -102,15 +102,49 @@ When credentials are missing or invalid, `authenticated` is `false` and the comm
 
 ```bash
 owox-ctl data-marts list
+owox-ctl data-marts stream <dataMartId> --columns '*'
 owox-ctl storages list
 owox-ctl destinations list
 ```
 
-All commands emit JSON.
+Commands emit JSON unless noted; `data-marts stream` emits NDJSON rows.
+
+## Stream Data Mart rows
+
+Use `data-marts stream` to write Data Mart rows to stdout as newline-delimited JSON.
+Rows are written as they arrive, so shell redirection and pipelines can handle file output.
+
+```bash
+owox-ctl data-marts stream dm_123 --columns '*'
+owox-ctl data-marts stream dm_123 --columns '**'
+owox-ctl data-marts stream dm_123 --column '*'
+owox-ctl data-marts stream dm_123 \
+  --column 'Event Date (local)' \
+  --column 'Revenue: net = USD' \
+  --filter '[{"column":"Event Date (local)","operator":"gte","value":"2026-01-01"}]' \
+  --sort '[{"column":"Event Date (local)","direction":"asc"}]' \
+  --limit 1000
+owox-ctl data-marts stream dm_123 \
+  --columns '**' \
+  --filter '[{"placement":"pre-join","aliasPath":"users","column":"country","operator":"eq","value":"US"}]' \
+  --limit 1000
+```
+
+Use `--columns '*'` or `--columns '**'` for column-set selectors. Quote `*` and `**` so your shell does not expand them.
+
+Use repeatable `--column` flags for exact column names. `--column '*'` and `--column '**'` mean literal columns named `*` and `**`.
+
+`--columns '**'` cannot be combined with `--column`. `--columns '*'` can be combined with explicit `--column` values, and overlaps are de-duplicated by the server.
+
+Use `--filter` and `--sort` with JSON arrays. Column names inside filter and sort rules are ordinary JSON string fields, so values can contain spaces, commas, equals signs, and other symbols.
+
+For normal filters on the streamed output, omit `placement` or use `"placement":"post-join"`.
+
+Use `"placement":"pre-join"` only when you need to filter a joined source before it is joined into the result. In that case `aliasPath` identifies which joined source path the filter applies to, for example `"users"` or `"users.profiles"`. Pre-join filters are advanced joined-field filters; they require `aliasPath`, and `aliasPath` is not valid for normal post-join filters.
 
 ## Use owox-ctl with AI agents
 
-AI agents can call `owox-ctl` as a regular terminal command. This lets AI agents inspect available data marts, storages, and destinations without building a direct integration with the OWOX Data Marts API.
+AI agents can call `owox-ctl` as a regular terminal command. This lets AI agents inspect available data marts, storages, destinations, and Data Mart rows without building a direct integration with the OWOX Data Marts API.
 
 Recommended setup:
 
@@ -124,6 +158,7 @@ Examples for AI agents:
 ```bash
 owox-ctl status
 owox-ctl data-marts list
+owox-ctl data-marts stream dm_123 --columns '*'
 owox-ctl storages list
 owox-ctl destinations list
 ```

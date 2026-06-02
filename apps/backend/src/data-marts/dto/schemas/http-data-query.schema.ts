@@ -14,15 +14,19 @@ export type ColumnSelector =
 
 const REJECTED_PAGINATION_KEYS = ['pageToken', 'offset'] as const;
 
-function toColumnSelector(tokens: string[]): ColumnSelector {
-  if (tokens.includes(ALL_BLENDABLE_COLUMNS)) {
+type ColumnSetSelector = typeof ALL_NATIVE_COLUMNS | typeof ALL_BLENDABLE_COLUMNS;
+
+function toColumnSelector(
+  columnsSelector: ColumnSetSelector | undefined,
+  exactColumns: string[]
+): ColumnSelector {
+  if (columnsSelector === ALL_BLENDABLE_COLUMNS) {
     return { mode: 'allBlendable' };
   }
-  const explicit = tokens.filter(token => token !== ALL_NATIVE_COLUMNS);
-  if (tokens.includes(ALL_NATIVE_COLUMNS) || tokens.length === 0) {
-    return { mode: 'allNative', explicit };
+  if (columnsSelector === ALL_NATIVE_COLUMNS || exactColumns.length === 0) {
+    return { mode: 'allNative', explicit: exactColumns };
   }
-  return { mode: 'explicit', explicit };
+  return { mode: 'explicit', explicit: exactColumns };
 }
 
 function decodeBase64UrlJson(raw: string): unknown {
@@ -96,7 +100,7 @@ const LimitParamSchema = z.coerce
   .int('limit must be an integer')
   .min(1, 'limit must be ≥ 1');
 
-const ColumnsParamSchema = z
+const ExactColumnParamSchema = z
   .union([z.string(), z.array(z.string())])
   .optional()
   .transform(value => {
@@ -105,9 +109,36 @@ const ColumnsParamSchema = z
   })
   .pipe(z.array(z.string().min(1, 'column value must not be empty')));
 
+const ColumnsSelectorParamSchema = z
+  .union([z.string(), z.array(z.string())])
+  .optional()
+  .transform((value, ctx): ColumnSetSelector | undefined => {
+    if (value === undefined) return undefined;
+    const values = Array.isArray(value) ? value : [value];
+    if (values.length > 1) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Parameter "columns" cannot be repeated',
+      });
+      return z.NEVER;
+    }
+
+    const selector = values[0];
+    if (selector !== ALL_NATIVE_COLUMNS && selector !== ALL_BLENDABLE_COLUMNS) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: `"columns" must be "${ALL_NATIVE_COLUMNS}" or "${ALL_BLENDABLE_COLUMNS}"`,
+      });
+      return z.NEVER;
+    }
+
+    return selector;
+  });
+
 export const HttpDataQuerySchema = z
   .object({
-    column: ColumnsParamSchema,
+    columns: ColumnsSelectorParamSchema,
+    column: ExactColumnParamSchema,
     filter: FilterParamSchema.optional(),
     sort: SortParamSchema.optional(),
     limit: LimitParamSchema.optional(),
@@ -123,16 +154,16 @@ export const HttpDataQuerySchema = z
         });
       }
     }
-    if (value.column.includes(ALL_BLENDABLE_COLUMNS) && value.column.length > 1) {
+    if (value.columns === ALL_BLENDABLE_COLUMNS && value.column.length > 0) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
-        path: ['column'],
-        message: `"${ALL_BLENDABLE_COLUMNS}" cannot be combined with other column values`,
+        path: ['columns'],
+        message: `"${ALL_BLENDABLE_COLUMNS}" cannot be combined with exact column values`,
       });
     }
   })
   .transform(value => ({
-    columnSelector: toColumnSelector(value.column),
+    columnSelector: toColumnSelector(value.columns, value.column),
     filter: value.filter,
     sort: value.sort,
     limit: value.limit,
