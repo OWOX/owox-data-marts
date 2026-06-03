@@ -4,9 +4,15 @@ To use the X Ads connector, you need to generate the required API credentials by
 
 ## Step 1: Create and Configure Your Developer App
 
-Visit the [X Developer Portal](https://developer.x.com/) and sign in with your account.
+Visit the [X Developer Portal](https://developer.x.com/) and sign in with your account. Press 'Start Building' button.
 
-After signing up, an app will be created for you automatically.
+After signing up, you will be prompted create a project.
+Fill the name of the project (for example, OWOX Project) and choose 'Exploring the API' use case.
+Description is optional.
+
+Click Create button.
+
+The app will create for you automatically. Ensure that you selected Free tier.
 
 > ⚠️ **Note:** If X prompts you to upgrade your account, select the **Free tier** to continue without additional charges.
 
