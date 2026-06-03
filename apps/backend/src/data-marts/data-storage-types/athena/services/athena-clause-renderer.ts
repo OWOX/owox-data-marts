@@ -4,6 +4,21 @@ import { FilterRule } from '../../../dto/schemas/filter-config.schema';
 import { escapeAthenaIdentifier } from '../utils/athena-identifier.utils';
 
 /**
+ * Counts positional `?` placeholders, ignoring any `?` inside a double-quoted
+ * identifier or single-quoted string literal (Athena never treats those as
+ * parameter markers, e.g. a column literally named `"a?b"` or the `''` in an
+ * is_empty check). Used to enforce the placeholder/param-count invariant.
+ */
+export function countPositionalPlaceholders(sql: string): number {
+  const withoutQuoted = sql.replace(/"[^"]*"|'[^']*'/g, '');
+  let count = 0;
+  for (const ch of withoutQuoted) {
+    if (ch === '?') count++;
+  }
+  return count;
+}
+
+/**
  * Trino/Presto (Athena engine v3) renderer. Uses positional `?` placeholders
  * bound via Athena ExecutionParameters — order of the returned params MUST match
  * the textual order of `?` in the final SQL. Substring matchers use strpos/substr
@@ -13,6 +28,20 @@ import { escapeAthenaIdentifier } from '../utils/athena-identifier.utils';
 export class AthenaClauseRenderer extends SqlClauseRenderer {
   protected quoteIdentifier(name: string): string {
     return escapeAthenaIdentifier(name);
+  }
+
+  // Positional binding maps params to `?` by order, so a fragment that emits a
+  // different number of `?` than params would silently shift every later value.
+  // Fail fast at render time instead.
+  protected validateFragment(clause: RenderedClause): void {
+    const placeholders = countPositionalPlaceholders(clause.sql);
+    if (placeholders !== clause.params.length) {
+      throw new Error(
+        `AthenaClauseRenderer placeholder/param mismatch: ${placeholders} '?' vs ` +
+          `${clause.params.length} param(s) in fragment "${clause.sql}". ` +
+          `Positional binding requires exactly one param per '?' in textual order.`
+      );
+    }
   }
 
   protected renderFilterFragment(rule: FilterRule, paramName: string, col: string): RenderedClause {

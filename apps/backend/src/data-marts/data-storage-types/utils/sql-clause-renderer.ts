@@ -53,6 +53,7 @@ export abstract class SqlClauseRenderer {
     for (const rule of filters) {
       const paramName = `${paramPrefix}${nextIndex}`;
       const out = this.renderFilterFragment(rule, paramName, resolve(rule.column));
+      this.validateFragment(out);
       fragments.push(out.sql);
       params.push(...out.params);
       nextIndex += out.params.length;
@@ -73,6 +74,18 @@ export abstract class SqlClauseRenderer {
       throw new Error(`Invalid LIMIT value: ${String(limit)}`);
     }
     return { sql: `\nLIMIT ${limit}`, params: [] };
+  }
+
+  /**
+   * Hook for a dialect-specific invariant check on a freshly rendered fragment.
+   * Default: no-op. Positional dialects (Athena `?`) override this to assert that
+   * the placeholder count equals params.length — positional binding silently
+   * misaligns every subsequent value when a fragment emits the wrong count, so
+   * we fail fast at render time instead of producing a subtly wrong query.
+   */
+  protected validateFragment(_clause: RenderedClause): void {
+    // no-op by default; named-parameter dialects (BigQuery `@name`) may reuse a
+    // name across placeholders, so occurrence count need not equal params.length.
   }
 
   protected nextParamName(paramName: string): string {

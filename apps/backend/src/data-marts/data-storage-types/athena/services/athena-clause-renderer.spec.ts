@@ -1,5 +1,6 @@
-import { AthenaClauseRenderer } from './athena-clause-renderer';
-import { ColumnRefResolver } from '../../utils/sql-clause-renderer';
+import { AthenaClauseRenderer, countPositionalPlaceholders } from './athena-clause-renderer';
+import { ColumnRefResolver, RenderedClause } from '../../utils/sql-clause-renderer';
+import { FilterRule } from '../../../dto/schemas/filter-config.schema';
 
 describe('AthenaClauseRenderer', () => {
   const r = new AthenaClauseRenderer();
@@ -225,6 +226,66 @@ describe('AthenaClauseRenderer', () => {
     it('rejects negative/non-integer', () => {
       expect(() => r.renderLimit(-1)).toThrow();
       expect(() => r.renderLimit(1.5)).toThrow();
+    });
+  });
+
+  describe('positional placeholder/param invariant', () => {
+    describe('countPositionalPlaceholders', () => {
+      it('counts bare placeholders', () => {
+        expect(countPositionalPlaceholders('"a" = ? AND "b" BETWEEN ? AND ?')).toBe(3);
+      });
+      it('ignores ? inside double-quoted identifiers', () => {
+        expect(countPositionalPlaceholders('"weird?col" = ?')).toBe(1);
+      });
+      it('ignores ? inside single-quoted string literals', () => {
+        expect(countPositionalPlaceholders('("c" IS NULL OR "c" = \'\') AND "d" = ?')).toBe(1);
+        expect(countPositionalPlaceholders('"c" = \'why?\'')).toBe(0);
+      });
+    });
+
+    it('every real operator renders a self-consistent fragment (no throw)', () => {
+      // The renderer applies the invariant via validateFragment on every fragment;
+      // exercising the full operator matrix proves none are mismatched today.
+      const rules: FilterRule[] = [
+        { column: 'a', operator: 'eq', value: 'x' },
+        { column: 'a', operator: 'contains', value: 'x' },
+        { column: 'a', operator: 'ends_with', value: 'x' },
+        { column: 'a', operator: 'between', value: { from: 1, to: 9 } },
+        { column: 'a', operator: 'is_empty' },
+        { column: 'a', operator: 'is_null' },
+        { column: 'd', operator: 'relative_date', value: { kind: 'last_n_days', n: 7 } },
+      ];
+      expect(() => rules.forEach(rule => r.renderWhere([rule]))).not.toThrow();
+    });
+
+    it('throws when a fragment emits more ? than params', () => {
+      class BrokenTooManyPlaceholders extends AthenaClauseRenderer {
+        protected renderFilterFragment(): RenderedClause {
+          return { sql: '"a" = ? AND "b" = ?', params: [{ name: 'p0', value: 1 }] };
+        }
+      }
+      const broken = new BrokenTooManyPlaceholders();
+      expect(() => broken.renderWhere([{ column: 'a', operator: 'eq', value: 1 }])).toThrow(
+        /placeholder\/param mismatch/
+      );
+    });
+
+    it('throws when a fragment emits fewer ? than params', () => {
+      class BrokenTooFewPlaceholders extends AthenaClauseRenderer {
+        protected renderFilterFragment(): RenderedClause {
+          return {
+            sql: '"a" = ?',
+            params: [
+              { name: 'p0', value: 1 },
+              { name: 'p1', value: 2 },
+            ],
+          };
+        }
+      }
+      const broken = new BrokenTooFewPlaceholders();
+      expect(() => broken.renderWhere([{ column: 'a', operator: 'eq', value: 1 }])).toThrow(
+        /placeholder\/param mismatch/
+      );
     });
   });
 });
