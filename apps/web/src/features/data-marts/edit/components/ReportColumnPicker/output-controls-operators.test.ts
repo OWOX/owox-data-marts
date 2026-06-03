@@ -1,7 +1,48 @@
 import { describe, it, expect } from 'vitest';
-import { operatorsForType, isFilterableType } from './output-controls-operators';
+import {
+  operatorsForType,
+  isFilterableType,
+  isNumberType,
+  isDateType,
+} from './output-controls-operators';
 
 const opValues = (type: string) => operatorsForType(type).map(o => o.value);
+
+describe('isNumberType / isDateType (shared with FilterValueEditor parsing)', () => {
+  it('treats BigQuery + Athena numeric types as numbers', () => {
+    for (const t of [
+      'INTEGER',
+      'FLOAT',
+      'NUMERIC',
+      'BIGNUMERIC',
+      'BIGINT',
+      'SMALLINT',
+      'TINYINT',
+      'REAL',
+      'DOUBLE',
+      'DECIMAL',
+    ]) {
+      expect(isNumberType(t)).toBe(true);
+    }
+  });
+  it('does not treat string/date/bool types as numbers', () => {
+    for (const t of ['VARCHAR', 'STRING', 'TIMESTAMP', 'DATE', 'BOOLEAN', 'BOOL']) {
+      expect(isNumberType(t)).toBe(false);
+    }
+  });
+  it('treats date/time types (incl. zoned) as dates', () => {
+    for (const t of [
+      'DATE',
+      'DATETIME',
+      'TIME',
+      'TIMESTAMP',
+      'TIMESTAMP WITH TIME ZONE',
+      'TIME WITH TIME ZONE',
+    ]) {
+      expect(isDateType(t)).toBe(true);
+    }
+  });
+});
 
 describe('operatorsForType', () => {
   describe('BigQuery type names', () => {

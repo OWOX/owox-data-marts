@@ -110,6 +110,17 @@ export function isFilterableType(fieldType: string): boolean {
   return operatorsForType(fieldType).length > 0;
 }
 
+// Shared so FilterValueEditor parses values with the SAME type sets — a number
+// column must emit a JS number, not a string (Athena quotes strings, breaking a
+// `bigint > '10'` comparison); a date column keeps its string for the backend cast.
+export function isNumberType(fieldType: string): boolean {
+  return NUMBER_TYPES.has(fieldType);
+}
+
+export function isDateType(fieldType: string): boolean {
+  return DATE_TYPES.has(fieldType);
+}
+
 export function operatorLabelFor(operator: FilterOperator, fieldType: string): string {
   const meta = operatorsForType(fieldType).find(o => o.value === operator);
   return meta?.label ?? operator;

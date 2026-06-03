@@ -213,6 +213,22 @@ describe('FilterValueEditor — number coercion', () => {
     expect(typeof rule.value).toBe('number');
   });
 
+  // Regression: Athena numeric types must coerce to JS numbers too, else the value
+  // ships as a string and the backend quotes it ("bigint > '10'" → Athena rejects).
+  it.each(['BIGINT', 'SMALLINT', 'TINYINT', 'REAL', 'DOUBLE', 'DECIMAL'])(
+    'typing 10 for Athena %s type emits value: 10 (number, not string)',
+    fieldType => {
+      const { onChange } = renderEditor({ fieldType });
+
+      const input = screen.getByRole('spinbutton');
+      fireEvent.change(input, { target: { value: '10' } });
+
+      const rule = lastCall(onChange) as { value: number };
+      expect(rule.value).toBe(10);
+      expect(typeof rule.value).toBe('number');
+    }
+  );
+
   it('typing a non-numeric value for INTEGER type emits null', () => {
     const { onChange } = renderEditor({ fieldType: INT_TYPE });
 

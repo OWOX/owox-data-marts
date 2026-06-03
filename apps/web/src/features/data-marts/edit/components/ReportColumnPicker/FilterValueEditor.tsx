@@ -9,7 +9,12 @@ import {
 } from '@owox/ui/components/select';
 import { Label } from '@owox/ui/components/label';
 import type { FilterRule, RelativeDatePreset } from '../../../shared/types/output-config';
-import { type FilterOperator, operatorsForType } from './output-controls-operators';
+import {
+  type FilterOperator,
+  operatorsForType,
+  isNumberType,
+  isDateType,
+} from './output-controls-operators';
 
 export interface FilterValueEditorProps {
   column: string;
@@ -47,9 +52,6 @@ const NO_VALUE_OPS = new Set<FilterOperator>([
   'is_false',
 ]);
 
-const NUMBER_TYPES = new Set(['INTEGER', 'FLOAT', 'NUMERIC', 'BIGNUMERIC']);
-const DATE_TYPES = new Set(['DATE', 'DATETIME', 'TIMESTAMP', 'TIME']);
-
 function getInitialState(rule: FilterRule | undefined, fallbackOp: FilterOperator): EditorState {
   const state: EditorState = {
     op: fallbackOp,
@@ -75,7 +77,7 @@ function getInitialState(rule: FilterRule | undefined, fallbackOp: FilterOperato
 }
 
 function parseScalar(raw: string, fieldType: string): string | number | boolean {
-  if (NUMBER_TYPES.has(fieldType)) {
+  if (isNumberType(fieldType)) {
     const n = Number(raw);
     if (!Number.isFinite(n)) throw new Error('Invalid number');
     return n;
@@ -95,7 +97,7 @@ function buildRule(args: { column: string; fieldType: string; state: EditorState
     const to = parseScalar(state.betweenTo, fieldType);
     const numericOutOfOrder = typeof from === 'number' && typeof to === 'number' && from > to;
     const dateOutOfOrder =
-      typeof from === 'string' && typeof to === 'string' && DATE_TYPES.has(fieldType) && from > to;
+      typeof from === 'string' && typeof to === 'string' && isDateType(fieldType) && from > to;
     if (numericOutOfOrder || dateOutOfOrder) {
       throw new Error('"From" must be ≤ "To"');
     }
@@ -173,7 +175,7 @@ export function FilterValueEditor({
     onChangeRef.current(rule);
   }, [rule]);
 
-  const isDateType = DATE_TYPES.has(fieldType);
+  const dateField = isDateType(fieldType);
 
   return (
     <>
@@ -203,7 +205,7 @@ export function FilterValueEditor({
           <Label>From / To</Label>
           <div className='flex gap-2'>
             <Input
-              type={NUMBER_TYPES.has(fieldType) ? 'number' : isDateType ? 'date' : 'text'}
+              type={isNumberType(fieldType) ? 'number' : dateField ? 'date' : 'text'}
               value={state.betweenFrom}
               onChange={e => {
                 setState(s => ({ ...s, betweenFrom: e.target.value }));
@@ -211,7 +213,7 @@ export function FilterValueEditor({
               placeholder='from'
             />
             <Input
-              type={NUMBER_TYPES.has(fieldType) ? 'number' : isDateType ? 'date' : 'text'}
+              type={isNumberType(fieldType) ? 'number' : dateField ? 'date' : 'text'}
               value={state.betweenTo}
               onChange={e => {
                 setState(s => ({ ...s, betweenTo: e.target.value }));
@@ -259,7 +261,7 @@ export function FilterValueEditor({
         <div className='space-y-1'>
           <Label>Value</Label>
           <Input
-            type={NUMBER_TYPES.has(fieldType) ? 'number' : isDateType ? 'date' : 'text'}
+            type={isNumberType(fieldType) ? 'number' : dateField ? 'date' : 'text'}
             value={state.scalar}
             onChange={e => {
               setState(s => ({ ...s, scalar: e.target.value }));
