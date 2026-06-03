@@ -88,6 +88,7 @@ export class ContextController {
       storageCount: impact.storageCount,
       destinationCount: impact.destinationCount,
       memberCount: impact.memberCount,
+      userProvisioningDefaultsCount: impact.userProvisioningDefaultsCount,
       affectedMemberIds: impact.affectedMemberIds,
     };
   }

@@ -344,16 +344,26 @@ import { StorageContext } from './entities/storage-context.entity';
 import { DestinationContext } from './entities/destination-context.entity';
 import { MemberRoleScope } from './entities/member-role-scope.entity';
 import { MemberRoleContext } from './entities/member-role-context.entity';
+import { UserProvisioningContextSettings } from './entities/user-provisioning-context-settings.entity';
+import { UserProvisioningContextSettingsContext } from './entities/user-provisioning-context-settings-context.entity';
 import { ContextService } from './services/context/context.service';
 import { ContextAccessService } from './services/context/context-access.service';
+import { UserProvisioningContextSettingsService } from './services/context/user-provisioning-context-settings.service';
+import { ApplyUserProvisioningContextDefaultsService } from './services/context/apply-user-provisioning-context-defaults.service';
 import { ContextMapper } from './mappers/context.mapper';
 import { ProjectMembersMapper } from './mappers/project-members.mapper';
 import { ContextController } from './controllers/context.controller';
 import { ProjectMembersController } from './controllers/project-members.controller';
+import { RequestAccessController } from './controllers/request-access.controller';
 import { ListProjectMembersService } from './use-cases/project-members/list-project-members.service';
 import { InviteProjectMemberService } from './use-cases/project-members/invite-project-member.service';
 import { UpdateProjectMemberService } from './use-cases/project-members/update-project-member.service';
 import { RemoveProjectMemberService } from './use-cases/project-members/remove-project-member.service';
+import { GetUserProvisioningSettingsService } from './use-cases/project-members/get-user-provisioning-settings.service';
+import { UpdateUserProvisioningSettingsService } from './use-cases/project-members/update-user-provisioning-settings.service';
+import { GetRequestAccessContextService } from './use-cases/project-members/get-request-access-context.service';
+import { RequestProjectAccessService } from './use-cases/project-members/request-project-access.service';
+import { CreateNewProjectService } from './use-cases/project-members/create-new-project.service';
 import { ListMembershipRequestsService } from './use-cases/project-members/list-membership-requests.service';
 import { ApproveMembershipRequestService } from './use-cases/project-members/approve-membership-request.service';
 import { DeclineMembershipRequestService } from './use-cases/project-members/decline-membership-request.service';
@@ -415,6 +425,8 @@ import { ProjectMemberApiKeysModule } from '../project-member-api-keys/project-m
       DestinationContext,
       MemberRoleScope,
       MemberRoleContext,
+      UserProvisioningContextSettings,
+      UserProvisioningContextSettingsContext,
     ]),
     CommonModule,
     IdpModule,
@@ -448,6 +460,7 @@ import { ProjectMemberApiKeysModule } from '../project-member-api-keys/project-m
     ProjectMembersController,
     ProjectMemberApiKeysController,
     HttpDataController,
+    RequestAccessController,
   ],
   providers: [
     ...dataStorageResolverProviders,
@@ -718,12 +731,19 @@ import { ProjectMemberApiKeysModule } from '../project-member-api-keys/project-m
     CopyReportAsDataMartService,
     ContextService,
     ContextAccessService,
+    UserProvisioningContextSettingsService,
+    ApplyUserProvisioningContextDefaultsService,
     ContextMapper,
     ProjectMembersMapper,
     ListProjectMembersService,
     InviteProjectMemberService,
     UpdateProjectMemberService,
     RemoveProjectMemberService,
+    GetUserProvisioningSettingsService,
+    UpdateUserProvisioningSettingsService,
+    GetRequestAccessContextService,
+    RequestProjectAccessService,
+    CreateNewProjectService,
     ListMembershipRequestsService,
     ApproveMembershipRequestService,
     DeclineMembershipRequestService,

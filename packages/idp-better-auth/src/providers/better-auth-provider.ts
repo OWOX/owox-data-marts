@@ -16,6 +16,9 @@ import {
   Role,
   UserProvisioningSettings,
   UserProvisioningSettingsUpdate,
+  UserProvisioningRequestAccessContext,
+  RequestProjectAccessResult,
+  CreateNewProjectResult,
 } from '@owox/idp-protocol';
 import { Express, type Request, Response, NextFunction } from 'express';
 import express from 'express';
@@ -351,5 +354,24 @@ export class BetterAuthProvider
     _actorUserId: string
   ): Promise<void> {
     throw new IdpOperationNotSupportedError('declineMembershipRequest');
+  }
+
+  async getUserProvisioningRequestAccessContext(
+    _userId: string,
+    _projectId: string
+  ): Promise<UserProvisioningRequestAccessContext> {
+    throw new IdpOperationNotSupportedError('getUserProvisioningRequestAccessContext');
+  }
+
+  async requestProjectAccess(
+    _userId: string,
+    _projectId: string,
+    _role: Role
+  ): Promise<RequestProjectAccessResult> {
+    throw new IdpOperationNotSupportedError('requestProjectAccess');
+  }
+
+  async createNewProject(_userId: string, _integration: string): Promise<CreateNewProjectResult> {
+    throw new IdpOperationNotSupportedError('createNewProject');
   }
 }

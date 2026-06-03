@@ -23,24 +23,28 @@ export class ListProjectMembersService {
 
   async run(projectId: string): Promise<ProjectMemberWithScope[]> {
     const members = await this.idpProjectionsFacade.getProjectMembers(projectId);
+    const result: ProjectMemberWithScope[] = [];
 
-    return Promise.all(
-      members.map(async member => {
-        const [roleScope, contextIds] = await Promise.all([
-          this.contextAccessService.getRoleScope(member.userId, projectId),
-          this.contextAccessService.getMemberContextIds(member.userId, projectId),
-        ]);
+    // getRoleScope() can materialize provisioning defaults inside a transaction.
+    // Keep this sequential so SQLite does not receive concurrent BEGINs.
+    for (const member of members) {
+      const roleScope = await this.contextAccessService.getRoleScope(member.userId, projectId);
+      const contextIds = await this.contextAccessService.getMemberContextIds(
+        member.userId,
+        projectId
+      );
 
-        return {
-          userId: member.userId,
-          email: member.email,
-          displayName: member.displayName,
-          avatarUrl: member.avatarUrl,
-          role: member.role as ProjectRole,
-          roleScope,
-          contextIds,
-        };
-      })
-    );
+      result.push({
+        userId: member.userId,
+        email: member.email,
+        displayName: member.displayName,
+        avatarUrl: member.avatarUrl,
+        role: member.role as ProjectRole,
+        roleScope,
+        contextIds,
+      });
+    }
+
+    return result;
   }
 }

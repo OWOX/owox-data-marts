@@ -49,6 +49,7 @@ function buildServices() {
   const destContextRepo = createMockRepository();
   const memberRoleContextRepo = createMockRepository();
   const memberRoleScopeRepo = createMockRepository();
+  const userProvisioningContextSettingsContextRepo = createMockRepository();
 
   // AccessDecision repos (entity + owner)
   const dataMartRepo = createMockRepository();
@@ -77,6 +78,7 @@ function buildServices() {
     destContextRepo as never,
     memberRoleContextRepo as never,
     memberRoleScopeRepo as never,
+    userProvisioningContextSettingsContextRepo as never,
     contextMapper,
     userProjectionsFetcherService as never
   );
@@ -90,6 +92,7 @@ function buildServices() {
     memberRoleScopeRepo as never,
     memberRoleContextRepo as never,
     contextService as never,
+    { applyDefaultScopeToMember: jest.fn().mockResolvedValue(RoleScope.ENTIRE_PROJECT) } as never,
     /* accessDecisionService placeholder */ {} as never
   );
 
@@ -121,6 +124,7 @@ function buildServices() {
     destContextRepo,
     memberRoleContextRepo,
     memberRoleScopeRepo,
+    userProvisioningContextSettingsContextRepo,
     dataMartRepo,
     dataStorageRepo,
     dataDestRepo,
@@ -630,6 +634,7 @@ describe('Context Integration Tests', () => {
       s.storageContextRepo.count.mockResolvedValue(0);
       s.destContextRepo.count.mockResolvedValue(0);
       s.memberRoleContextRepo.count.mockResolvedValue(0);
+      s.userProvisioningContextSettingsContextRepo.count.mockResolvedValue(0);
     };
 
     // 22. Context delete throws ConflictException when still attached
@@ -643,6 +648,7 @@ describe('Context Integration Tests', () => {
       s.storageContextRepo.count.mockResolvedValue(1);
       s.destContextRepo.count.mockResolvedValue(3);
       s.memberRoleContextRepo.count.mockResolvedValue(4);
+      s.userProvisioningContextSettingsContextRepo.count.mockResolvedValue(0);
 
       await expect(s.contextService.delete(CONTEXT_ID, PROJECT_ID)).rejects.toMatchObject({
         response: {
@@ -690,6 +696,7 @@ describe('Context Integration Tests', () => {
       s.storageContextRepo.count.mockResolvedValue(3);
       s.destContextRepo.count.mockResolvedValue(2);
       s.memberRoleContextRepo.count.mockResolvedValue(7);
+      s.userProvisioningContextSettingsContextRepo.count.mockResolvedValue(4);
       s.memberRoleContextRepo.createQueryBuilder.mockReturnValue({
         innerJoin: jest.fn().mockReturnThis(),
         select: jest.fn().mockReturnThis(),
@@ -710,6 +717,7 @@ describe('Context Integration Tests', () => {
       expect(impact.storageCount).toBe(3);
       expect(impact.destinationCount).toBe(2);
       expect(impact.memberCount).toBe(7);
+      expect(impact.userProvisioningDefaultsCount).toBe(4);
       expect(impact.affectedMemberIds).toEqual(['affected-1', 'affected-2']);
     });
   });

@@ -30,8 +30,15 @@ import {
   OwoxProjectMembersResponseSchema,
   ProjectMemberApiKeyAuthFlowRequest,
   ProjectMemberApiKeyAuthFlowRequestSchema,
+  OwoxCreateNewProjectResponse,
+  OwoxCreateNewProjectResponseSchema,
+  OwoxRequestProjectAccessRequestSchema,
+  OwoxRequestProjectAccessResponse,
+  OwoxRequestProjectAccessResponseSchema,
   OwoxUpdateUserProvisioningSettingsRequest,
   OwoxUpdateUserProvisioningSettingsRequestSchema,
+  OwoxUserProvisioningRequestAccessContextResponse,
+  OwoxUserProvisioningRequestAccessContextResponseSchema,
   OwoxUserProvisioningSettingsResponse,
   OwoxUserProvisioningSettingsResponseSchema,
   RevocationRequest,
@@ -461,6 +468,82 @@ export class IdentityOwoxClient {
         { projectId, requestId, actorUserId },
         'Failed to decline project membership request'
       );
+    }
+  }
+
+  /**
+   * GET /idp/bi-project/:projectId/user-provisioning/request-access-context.
+   */
+  async getUserProvisioningRequestAccessContext(
+    userUid: string,
+    projectId: string
+  ): Promise<OwoxUserProvisioningRequestAccessContextResponse> {
+    const authHeader = await this.getC2cAuthHeader('get user provisioning request-access context', {
+      userUid,
+      projectId,
+    });
+    const url = `${this.clientBackchannelPrefix}/idp/bi-project/${projectId}/user-provisioning/request-access-context`;
+
+    try {
+      const { data } = await this.http.get<unknown>(url, {
+        headers: authHeader,
+        params: {
+          biUserId: userUid,
+        },
+      });
+      return OwoxUserProvisioningRequestAccessContextResponseSchema.parse(data);
+    } catch (err) {
+      this.handleAxiosError(
+        err,
+        { userUid, projectId },
+        'Failed to get user provisioning request-access context'
+      );
+    }
+  }
+
+  /**
+   * POST /idp/bi-project/:projectId/user-provisioning/request-access.
+   */
+  async requestProjectAccess(
+    userUid: string,
+    projectId: string,
+    role: string
+  ): Promise<OwoxRequestProjectAccessResponse> {
+    const authHeader = await this.getC2cAuthHeader('request project access', {
+      userUid,
+      projectId,
+      role,
+    });
+    const url = `${this.clientBackchannelPrefix}/idp/bi-project/${projectId}/user-provisioning/request-access`;
+    const body = OwoxRequestProjectAccessRequestSchema.parse({ biUserId: userUid, role });
+
+    try {
+      const { data } = await this.http.post<unknown>(url, body, { headers: authHeader });
+      return OwoxRequestProjectAccessResponseSchema.parse(data);
+    } catch (err) {
+      this.handleAxiosError(err, { userUid, projectId, role }, 'Failed to request project access');
+    }
+  }
+
+  /**
+   * POST /idp/user-provisioning/create-new-project.
+   */
+  async createNewProject(
+    userUid: string,
+    integration: string
+  ): Promise<OwoxCreateNewProjectResponse> {
+    const authHeader = await this.getC2cAuthHeader('create new project', {
+      userUid,
+      integration,
+    });
+    const url = `${this.clientBackchannelPrefix}/idp/user-provisioning/create-new-project`;
+    const body = { biUserId: userUid, integration };
+
+    try {
+      const { data } = await this.http.post<unknown>(url, body, { headers: authHeader });
+      return OwoxCreateNewProjectResponseSchema.parse(data);
+    } catch (err) {
+      this.handleAxiosError(err, { userUid, integration }, 'Failed to create new project');
     }
   }
 

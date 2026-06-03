@@ -11,6 +11,7 @@ export interface MembersSettingsStoreValue {
   pendingRequests: MembershipRequestDto[];
   loading: boolean;
   loadingRequests: boolean;
+  hasLoadError: boolean;
   refresh: () => Promise<void>;
   /**
    * Drop a member from the local cache right after a successful DELETE.

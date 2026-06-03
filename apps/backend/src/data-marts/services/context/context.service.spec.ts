@@ -38,6 +38,7 @@ describe('ContextService', () => {
     const destinationContextRepository = createMockRepository();
     const memberRoleContextRepository = createMockRepository();
     const memberRoleScopeRepository = createMockRepository();
+    const userProvisioningContextSettingsContextRepository = createMockRepository();
 
     const contextMapper = new ContextMapper();
 
@@ -55,6 +56,7 @@ describe('ContextService', () => {
       destinationContextRepository as never,
       memberRoleContextRepository as never,
       memberRoleScopeRepository as never,
+      userProvisioningContextSettingsContextRepository as never,
       contextMapper,
       userProjectionsFetcherService as never
     );
@@ -67,6 +69,7 @@ describe('ContextService', () => {
       destinationContextRepository,
       memberRoleContextRepository,
       memberRoleScopeRepository,
+      userProvisioningContextSettingsContextRepository,
       contextMapper,
       userProjectionsFetcherService,
     };
@@ -274,6 +277,7 @@ describe('ContextService', () => {
         storageContextRepository,
         destinationContextRepository,
         memberRoleContextRepository,
+        userProvisioningContextSettingsContextRepository,
       } = createService();
 
       const existingEntity = createContextEntity();
@@ -283,6 +287,7 @@ describe('ContextService', () => {
       storageContextRepository.count.mockResolvedValue(2);
       destinationContextRepository.count.mockResolvedValue(1);
       memberRoleContextRepository.count.mockResolvedValue(4);
+      userProvisioningContextSettingsContextRepository.count.mockResolvedValue(5);
 
       // No affected members (those with selected_contexts scope and only this context)
       memberRoleContextRepository.createQueryBuilder.mockReturnValue({
@@ -303,6 +308,7 @@ describe('ContextService', () => {
       expect(result.storageCount).toBe(2);
       expect(result.destinationCount).toBe(1);
       expect(result.memberCount).toBe(4);
+      expect(result.userProvisioningDefaultsCount).toBe(5);
       expect(result.affectedMemberIds).toEqual([]);
     });
 
@@ -314,6 +320,7 @@ describe('ContextService', () => {
         storageContextRepository,
         destinationContextRepository,
         memberRoleContextRepository,
+        userProvisioningContextSettingsContextRepository,
       } = createService();
 
       const existingEntity = createContextEntity();
@@ -323,6 +330,7 @@ describe('ContextService', () => {
       storageContextRepository.count.mockResolvedValue(0);
       destinationContextRepository.count.mockResolvedValue(0);
       memberRoleContextRepository.count.mockResolvedValue(2);
+      userProvisioningContextSettingsContextRepository.count.mockResolvedValue(0);
 
       // Two members with selected_contexts scope that only have this context
       memberRoleContextRepository.createQueryBuilder.mockReturnValue({
@@ -338,6 +346,7 @@ describe('ContextService', () => {
       const result = await service.getImpact(CONTEXT_ID, PROJECT_ID);
 
       expect(result.memberCount).toBe(2);
+      expect(result.userProvisioningDefaultsCount).toBe(0);
       expect(result.affectedMemberIds).toEqual(['member-1', 'member-2']);
     });
   });
@@ -351,6 +360,7 @@ describe('ContextService', () => {
         storageContextRepository,
         destinationContextRepository,
         memberRoleContextRepository,
+        userProvisioningContextSettingsContextRepository,
       } = createService();
 
       const existingEntity = createContextEntity();
@@ -361,6 +371,7 @@ describe('ContextService', () => {
       storageContextRepository.count.mockResolvedValue(0);
       destinationContextRepository.count.mockResolvedValue(0);
       memberRoleContextRepository.count.mockResolvedValue(0);
+      userProvisioningContextSettingsContextRepository.count.mockResolvedValue(0);
 
       await service.delete(CONTEXT_ID, PROJECT_ID);
 
@@ -379,6 +390,7 @@ describe('ContextService', () => {
         storageContextRepository,
         destinationContextRepository,
         memberRoleContextRepository,
+        userProvisioningContextSettingsContextRepository,
       } = createService();
 
       const existingEntity = createContextEntity();
@@ -388,10 +400,40 @@ describe('ContextService', () => {
       storageContextRepository.count.mockResolvedValue(0);
       destinationContextRepository.count.mockResolvedValue(1);
       memberRoleContextRepository.count.mockResolvedValue(0);
+      userProvisioningContextSettingsContextRepository.count.mockResolvedValue(0);
 
       await expect(service.delete(CONTEXT_ID, PROJECT_ID)).rejects.toBeInstanceOf(
         ConflictException
       );
+
+      expect(contextRepository.softRemove).not.toHaveBeenCalled();
+    });
+
+    it('should throw ConflictException when context is used by user provisioning defaults', async () => {
+      const {
+        service,
+        contextRepository,
+        dataMartContextRepository,
+        storageContextRepository,
+        destinationContextRepository,
+        memberRoleContextRepository,
+        userProvisioningContextSettingsContextRepository,
+      } = createService();
+
+      const existingEntity = createContextEntity();
+      contextRepository.findOne.mockResolvedValue(existingEntity);
+
+      dataMartContextRepository.count.mockResolvedValue(0);
+      storageContextRepository.count.mockResolvedValue(0);
+      destinationContextRepository.count.mockResolvedValue(0);
+      memberRoleContextRepository.count.mockResolvedValue(0);
+      userProvisioningContextSettingsContextRepository.count.mockResolvedValue(1);
+
+      await expect(service.delete(CONTEXT_ID, PROJECT_ID)).rejects.toMatchObject({
+        response: expect.objectContaining({
+          userProvisioningDefaultsCount: 1,
+        }),
+      });
 
       expect(contextRepository.softRemove).not.toHaveBeenCalled();
     });

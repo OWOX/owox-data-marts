@@ -9,6 +9,8 @@ import { DataStorageListPage } from '../pages/data-storage';
 import { DataDestinationListPage } from '../pages/data-destination/DataDestinationListPage';
 import { ProjectSettingsPage } from '../pages/project-settings/ProjectSettingsPage';
 import { ProjectNotificationsPage } from '../pages/notifications/project';
+import { RequestAccessPage } from '../pages/request-access/RequestAccessPage';
+import { LegacyRequestAccessRedirect } from '../pages/request-access/LegacyRequestAccessRedirect';
 import { dataMartDetailsRoutes } from './data-marts/routes';
 import { projectSettingsRoutes } from './project-settings/routes';
 import { ProjectRedirect } from '../components/ProjectRedirect';
@@ -28,6 +30,11 @@ const routes: RouteObject[] = [
     element: <MainLayout />,
     errorElement: <RootErrorBoundary />,
     children: [
+      {
+        path: 'request-access',
+        element: <RequestAccessPage />,
+        errorElement: <LayoutErrorBoundary />,
+      },
       {
         path: 'about',
         element: <About />,
@@ -101,6 +108,11 @@ const routes: RouteObject[] = [
   },
   {
     ...oauthRoutes,
+    errorElement: <RootErrorBoundary />,
+  },
+  {
+    path: '/request-access',
+    element: <LegacyRequestAccessRedirect />,
     errorElement: <RootErrorBoundary />,
   },
   {

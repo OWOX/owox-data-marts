@@ -20,12 +20,9 @@ export const IdpOwoxPayloadSchema = z
         if (Array.isArray(val)) {
           return val.map(r => String(r).trim().toLowerCase()).filter(Boolean);
         }
-        return [];
+        return val;
       },
-      z
-        .array(RoleEnum)
-        .nonempty()
-        .transform(arr => Array.from(new Set(arr)))
+      z.array(RoleEnum).transform(arr => Array.from(new Set(arr)))
     ),
     projectTitle: z.string().min(1, 'projectTitle is required'),
     signinProvider: z.string().optional().nullable(),

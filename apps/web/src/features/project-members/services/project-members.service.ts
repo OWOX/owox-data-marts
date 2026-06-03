@@ -6,6 +6,8 @@ import type {
   MembershipRequestDto,
   Role,
   RoleScope,
+  UpdateUserProvisioningSettingsPayload,
+  UserProvisioningSettingsResponse,
 } from '../types';
 
 /**
@@ -91,6 +93,16 @@ class ProjectMembersApiService extends ApiService {
 
   async declineMembershipRequest(requestId: string): Promise<void> {
     return this.post(`/requests/${requestId}/decline`, {});
+  }
+
+  async getUserProvisioningSettings(): Promise<UserProvisioningSettingsResponse> {
+    return this.get<UserProvisioningSettingsResponse>('/user-provisioning-settings');
+  }
+
+  async updateUserProvisioningSettings(
+    payload: UpdateUserProvisioningSettingsPayload
+  ): Promise<UserProvisioningSettingsResponse> {
+    return this.put<UserProvisioningSettingsResponse>('/user-provisioning-settings', payload);
   }
 }
 

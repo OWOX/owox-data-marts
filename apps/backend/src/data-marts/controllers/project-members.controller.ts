@@ -13,6 +13,10 @@ import {
 } from '../dto/presentation/context-api.dto';
 import { ApproveMembershipRequestCommand } from '../dto/domain/approve-membership-request.command';
 import { DeclineMembershipRequestCommand } from '../dto/domain/decline-membership-request.command';
+import {
+  UpdateUserProvisioningSettingsRequestApiDto,
+  UserProvisioningSettingsResponseApiDto,
+} from '../dto/presentation/user-provisioning-settings-api.dto';
 import { InviteProjectMemberCommand } from '../dto/domain/invite-project-member.command';
 import { RemoveProjectMemberCommand } from '../dto/domain/remove-project-member.command';
 import { UpdateProjectMemberCommand } from '../dto/domain/update-project-member.command';
@@ -25,14 +29,18 @@ import { RemoveProjectMemberService } from '../use-cases/project-members/remove-
 import { ListMembershipRequestsService } from '../use-cases/project-members/list-membership-requests.service';
 import { ApproveMembershipRequestService } from '../use-cases/project-members/approve-membership-request.service';
 import { DeclineMembershipRequestService } from '../use-cases/project-members/decline-membership-request.service';
+import { GetUserProvisioningSettingsService } from '../use-cases/project-members/get-user-provisioning-settings.service';
+import { UpdateUserProvisioningSettingsService } from '../use-cases/project-members/update-user-provisioning-settings.service';
 import {
   ApproveMembershipRequestSpec,
   DeclineMembershipRequestSpec,
+  GetUserProvisioningSettingsSpec,
   InviteProjectMemberSpec,
   ListMembershipRequestsSpec,
   ListProjectMembersSpec,
   RemoveProjectMemberSpec,
   UpdateProjectMemberSpec,
+  UpdateUserProvisioningSettingsSpec,
 } from './spec/project-members.api';
 
 @Controller('members')
@@ -52,6 +60,8 @@ export class ProjectMembersController {
     private readonly listMembershipRequests: ListMembershipRequestsService,
     private readonly approveMembershipRequest: ApproveMembershipRequestService,
     private readonly declineMembershipRequest: DeclineMembershipRequestService,
+    private readonly getUserProvisioningSettings: GetUserProvisioningSettingsService,
+    private readonly updateUserProvisioningSettings: UpdateUserProvisioningSettingsService,
     private readonly projectMembersMapper: ProjectMembersMapper
   ) {}
 
@@ -99,6 +109,34 @@ export class ProjectMembersController {
     }
 
     return { ...base, kind: 'email-sent' };
+  }
+
+  @Auth(Role.viewer(Strategy.PARSE))
+  @Get('user-provisioning-settings')
+  @GetUserProvisioningSettingsSpec()
+  async getProvisioningSettings(
+    @AuthContext() context: AuthorizationContext
+  ): Promise<UserProvisioningSettingsResponseApiDto> {
+    const settings = await this.getUserProvisioningSettings.run(context.projectId, context.userId);
+    return this.projectMembersMapper.toUserProvisioningSettingsApiResponse(settings);
+  }
+
+  @Auth(Role.admin(Strategy.INTROSPECT))
+  @Put('user-provisioning-settings')
+  @UpdateUserProvisioningSettingsSpec()
+  async updateProvisioningSettings(
+    @AuthContext() context: AuthorizationContext,
+    @Body() dto: UpdateUserProvisioningSettingsRequestApiDto
+  ): Promise<UserProvisioningSettingsResponseApiDto> {
+    const settings = await this.updateUserProvisioningSettings.run(
+      this.projectMembersMapper.toUpdateUserProvisioningSettingsCommand(
+        context.projectId,
+        context.userId,
+        dto
+      )
+    );
+
+    return this.projectMembersMapper.toUserProvisioningSettingsApiResponse(settings);
   }
 
   @Auth(Role.admin(Strategy.INTROSPECT))

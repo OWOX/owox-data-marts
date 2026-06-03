@@ -62,23 +62,24 @@ export function AppBootstrap({ children }: { children: React.ReactNode }) {
   const flagsState = useAppSelector((s: RootState) => s.flags);
   const flagsStatus: FlagsState['callState'] = flagsState.callState;
   const isReady = useAppSelector((s: RootState) => s.app.ready);
+  const hasEmptyProjectRoles = Array.isArray(user?.roles) && user.roles.length === 0;
 
   useEffect(() => {
     if (status === AuthStatus.AUTHENTICATED && user?.projectId) {
       dispatch(setProject({ id: user.projectId, title: user.projectTitle ?? null }));
-      if (flagsStatus === RequestStatus.IDLE) {
+      if (!hasEmptyProjectRoles && flagsStatus === RequestStatus.IDLE) {
         void fetchFlags(dispatch);
       }
     }
-  }, [status, user?.projectId, user?.projectTitle, flagsStatus, dispatch]);
+  }, [status, user?.projectId, user?.projectTitle, hasEmptyProjectRoles, flagsStatus, dispatch]);
 
   useEffect(() => {
     const ready =
       status === AuthStatus.AUTHENTICATED &&
       Boolean(user?.projectId) &&
-      flagsStatus === RequestStatus.LOADED;
+      (hasEmptyProjectRoles || flagsStatus === RequestStatus.LOADED);
     dispatch({ type: APP_SET_READY, payload: ready });
-  }, [status, user?.projectId, flagsStatus, dispatch]);
+  }, [status, user?.projectId, hasEmptyProjectRoles, flagsStatus, dispatch]);
 
   const loader = useMemo(() => <LoadingSpinner fullScreen message='Loading application...' />, []);
 

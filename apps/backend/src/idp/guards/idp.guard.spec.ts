@@ -1,67 +1,100 @@
 import { ExecutionContext } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
-import { AuthorizationError, type IdpProvider } from '@owox/idp-protocol';
+import { AuthorizationError, type Payload } from '@owox/idp-protocol';
 import { ClsService } from 'nestjs-cls';
-import { IdpProjectionsService } from '../services/idp-projections.service';
 import { IdpProviderService } from '../services/idp-provider.service';
-import { RoleConfig, Strategy } from '../types';
+import { IdpProjectionsService } from '../services/idp-projections.service';
+import { Role, Strategy, type RoleConfig } from '../types';
 import { AuthenticatedRequest, AUTH_CONTEXT, IdpGuard } from './idp.guard';
 
-describe('IdpGuard API key auth flow', () => {
-  const createContext = (request: Partial<AuthenticatedRequest>): ExecutionContext =>
-    ({
-      getHandler: jest.fn(),
-      getClass: jest.fn(),
-      switchToHttp: () => ({
-        getRequest: () => request,
-      }),
-    }) as unknown as ExecutionContext;
-
-  const createGuard = () => {
-    const roleConfig: RoleConfig = { role: 'viewer', strategy: Strategy.PARSE };
-    const reflector = {
-      getAllAndOverride: jest.fn(() => roleConfig),
-    } as unknown as jest.Mocked<Reflector>;
-
-    const idpProvider = {
-      parseToken: jest.fn(),
-    } as unknown as jest.Mocked<IdpProvider>;
-
-    const idpProviderService = {
-      getProvider: jest.fn(() => idpProvider),
-    } as unknown as jest.Mocked<IdpProviderService>;
-
-    const cls = {
-      set: jest.fn(),
-    } as unknown as jest.Mocked<ClsService>;
-
-    const idpProjectionsService = {
-      updateProjectionsFromIdpPayload: jest.fn(),
-    } as unknown as jest.Mocked<IdpProjectionsService>;
-
-    const guard = new IdpGuard(reflector, idpProviderService, cls, idpProjectionsService);
-
-    return { guard, idpProvider, cls };
+describe('IdpGuard', () => {
+  let roleConfig: RoleConfig;
+  let request: AuthenticatedRequest;
+  let idpProvider: {
+    parseToken: jest.Mock<Promise<Payload | null>, [string]>;
+    introspectToken: jest.Mock<Promise<Payload | null>, [string]>;
   };
+  let clsService: jest.Mocked<Pick<ClsService, 'set'>>;
+  let idpProjectionsService: jest.Mocked<
+    Pick<IdpProjectionsService, 'updateProjectionsFromIdpPayload'>
+  >;
+  let guard: IdpGuard;
 
-  it('requires X-OWOX-Api-Key-Id to match the apiKeyId claim for api_key tokens', async () => {
-    const { guard, idpProvider, cls } = createGuard();
-    idpProvider.parseToken.mockResolvedValue({
-      userId: 'user-1',
-      projectId: 'project-1',
-      roles: ['viewer'],
-      authFlow: 'api_key',
-      apiKeyId: 'pmk_AbCdEfGhIjKlMnOpQrStUv',
-    });
-    const request = {
-      method: 'GET',
+  beforeEach(() => {
+    roleConfig = Role.authenticated(Strategy.PARSE);
+    request = {
       headers: {
         'x-owox-authorization': 'Bearer access-token',
-        'x-owox-api-key-id': 'pmk_AbCdEfGhIjKlMnOpQrStUv',
       },
-    } as Partial<AuthenticatedRequest>;
+      method: 'GET',
+    } as AuthenticatedRequest;
 
-    await expect(guard.canActivate(createContext(request))).resolves.toBe(true);
+    idpProvider = {
+      parseToken: jest.fn(),
+      introspectToken: jest.fn(),
+    };
+
+    clsService = {
+      set: jest.fn(),
+    };
+
+    idpProjectionsService = {
+      updateProjectionsFromIdpPayload: jest.fn(),
+    };
+
+    guard = new IdpGuard(
+      { getAllAndOverride: jest.fn(() => roleConfig) } as unknown as Reflector,
+      { getProvider: jest.fn(() => idpProvider) } as unknown as IdpProviderService,
+      clsService as unknown as ClsService,
+      idpProjectionsService as unknown as IdpProjectionsService
+    );
+  });
+
+  it('allows an authenticated user with empty roles when no project role is required', async () => {
+    idpProvider.parseToken.mockResolvedValue(payload([]));
+
+    await expect(guard.canActivate(context())).resolves.toBe(true);
+
+    expect(request.idpContext.roles).toEqual([]);
+    expect(clsService.set).toHaveBeenCalledWith(AUTH_CONTEXT, {
+      userId: 'user-1',
+      projectId: 'project-1',
+      roles: [],
+      authFlow: undefined,
+      apiKeyId: undefined,
+    });
+  });
+
+  it('rejects viewer authorization when token has empty roles', async () => {
+    roleConfig = Role.viewer(Strategy.PARSE);
+    idpProvider.parseToken.mockResolvedValue(payload([]));
+
+    await expect(guard.canActivate(context())).rejects.toThrow(AuthorizationError);
+  });
+
+  it('keeps Role.none optional and does not authenticate', async () => {
+    roleConfig = Role.none();
+
+    await expect(guard.canActivate(context())).resolves.toBe(true);
+
+    expect(idpProvider.parseToken).not.toHaveBeenCalled();
+    expect(idpProvider.introspectToken).not.toHaveBeenCalled();
+  });
+
+  it('requires X-OWOX-Api-Key-Id to match the apiKeyId claim for api_key tokens', async () => {
+    roleConfig = Role.viewer(Strategy.PARSE);
+    idpProvider.parseToken.mockResolvedValue(
+      payload(['viewer'], {
+        authFlow: 'api_key',
+        apiKeyId: 'pmk_AbCdEfGhIjKlMnOpQrStUv',
+      })
+    );
+    request.headers = {
+      'x-owox-authorization': 'Bearer access-token',
+      'x-owox-api-key-id': 'pmk_AbCdEfGhIjKlMnOpQrStUv',
+    };
+
+    await expect(guard.canActivate(context())).resolves.toBe(true);
 
     expect(request.idpContext).toEqual(
       expect.objectContaining({
@@ -71,7 +104,7 @@ describe('IdpGuard API key auth flow', () => {
         apiKeyId: 'pmk_AbCdEfGhIjKlMnOpQrStUv',
       })
     );
-    expect(cls.set).toHaveBeenCalledWith(
+    expect(clsService.set).toHaveBeenCalledWith(
       AUTH_CONTEXT,
       expect.objectContaining({
         userId: 'user-1',
@@ -84,41 +117,49 @@ describe('IdpGuard API key auth flow', () => {
   });
 
   it('rejects api_key tokens when X-OWOX-Api-Key-Id is missing', async () => {
-    const { guard, idpProvider } = createGuard();
-    idpProvider.parseToken.mockResolvedValue({
-      userId: 'user-1',
-      projectId: 'project-1',
-      roles: ['viewer'],
-      authFlow: 'api_key',
-      apiKeyId: 'pmk_AbCdEfGhIjKlMnOpQrStUv',
-    });
+    roleConfig = Role.viewer(Strategy.PARSE);
+    idpProvider.parseToken.mockResolvedValue(
+      payload(['viewer'], {
+        authFlow: 'api_key',
+        apiKeyId: 'pmk_AbCdEfGhIjKlMnOpQrStUv',
+      })
+    );
 
-    await expect(
-      guard.canActivate(
-        createContext({
-          method: 'GET',
-          headers: { 'x-owox-authorization': 'Bearer access-token' },
-        })
-      )
-    ).rejects.toBeInstanceOf(AuthorizationError);
+    await expect(guard.canActivate(context())).rejects.toBeInstanceOf(AuthorizationError);
   });
 
   it('allows normal user tokens without X-OWOX-Api-Key-Id', async () => {
-    const { guard, idpProvider } = createGuard();
-    idpProvider.parseToken.mockResolvedValue({
+    roleConfig = Role.viewer(Strategy.PARSE);
+    idpProvider.parseToken.mockResolvedValue(
+      payload(['viewer'], {
+        authFlow: 'app_owox',
+      })
+    );
+
+    await expect(guard.canActivate(context())).resolves.toBe(true);
+  });
+
+  function context(): ExecutionContext {
+    return {
+      getHandler: jest.fn(),
+      getClass: jest.fn(),
+      switchToHttp: () => ({
+        getRequest: () => request,
+      }),
+    } as unknown as ExecutionContext;
+  }
+
+  function payload(roles: Payload['roles'], overrides: Partial<Payload> = {}): Payload {
+    return {
       userId: 'user-1',
       projectId: 'project-1',
-      roles: ['viewer'],
-      authFlow: 'app_owox',
-    });
-
-    await expect(
-      guard.canActivate(
-        createContext({
-          method: 'GET',
-          headers: { 'x-owox-authorization': 'Bearer access-token' },
-        })
-      )
-    ).resolves.toBe(true);
-  });
+      email: 'user@example.com',
+      fullName: 'User Example',
+      avatar: 'https://img.test/a.png',
+      roles,
+      projectTitle: 'Project 1',
+      signinProvider: 'google',
+      ...overrides,
+    };
+  }
 });

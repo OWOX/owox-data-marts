@@ -176,4 +176,104 @@ describe('IdentityOwoxClient user provisioning settings', () => {
       createClientWithoutC2c().getUserProvisioningSettings('project-1', 'actor-1')
     ).rejects.toBeInstanceOf(IdpFailedException);
   });
+
+  it('gets request-access context through the C2C backchannel', async () => {
+    httpMock.get.mockResolvedValue({
+      data: {
+        decision: 'request_access',
+        user: {
+          userUid: 'user-1',
+          email: 'user@company.com',
+        },
+        organization: {
+          name: 'company.com',
+        },
+        project: {
+          projectName: 'main-project',
+          projectTitle: 'Main Project',
+        },
+        availableRoles: ['viewer', 'editor', 'admin'],
+        defaultRole: 'viewer',
+        existingRequest: null,
+      },
+    });
+
+    const actual = await createClient().getUserProvisioningRequestAccessContext(
+      'user-1',
+      'project-1'
+    );
+
+    expect(httpMock.get).toHaveBeenCalledWith(
+      '/internal/idp/bi-project/project-1/user-provisioning/request-access-context',
+      {
+        headers: {
+          Authorization: 'Bearer id-token',
+        },
+        params: {
+          biUserId: 'user-1',
+        },
+      }
+    );
+    expect(actual.decision).toBe('request_access');
+    expect(actual.project.projectName).toBe('main-project');
+  });
+
+  it('requests project access through the C2C backchannel', async () => {
+    httpMock.post.mockResolvedValue({
+      data: {
+        user: {
+          userUid: 'user-1',
+        },
+        project: {
+          projectName: 'main-project',
+          projectTitle: 'Main Project',
+        },
+        request: {
+          role: 'viewer',
+          status: 'processing',
+        },
+      },
+    });
+
+    const actual = await createClient().requestProjectAccess('user-1', 'main-project', 'viewer');
+
+    expect(httpMock.post).toHaveBeenCalledWith(
+      '/internal/idp/bi-project/main-project/user-provisioning/request-access',
+      {
+        biUserId: 'user-1',
+        role: 'viewer',
+      },
+      {
+        headers: {
+          Authorization: 'Bearer id-token',
+        },
+      }
+    );
+    expect(actual.request).toMatchObject({ role: 'viewer', status: 'processing' });
+  });
+
+  it('creates a new project through the C2C backchannel', async () => {
+    httpMock.post.mockResolvedValue({
+      data: {
+        projectName: 'new-project',
+        projectTitle: 'New Project',
+      },
+    });
+
+    const actual = await createClient().createNewProject('user-1', 'extension-v2');
+
+    expect(httpMock.post).toHaveBeenCalledWith(
+      '/internal/idp/user-provisioning/create-new-project',
+      {
+        biUserId: 'user-1',
+        integration: 'extension-v2',
+      },
+      {
+        headers: {
+          Authorization: 'Bearer id-token',
+        },
+      }
+    );
+    expect(actual.projectName).toBe('new-project');
+  });
 });

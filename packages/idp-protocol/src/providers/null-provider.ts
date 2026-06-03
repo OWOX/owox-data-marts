@@ -10,6 +10,9 @@ import {
   Role,
   UserProvisioningSettings,
   UserProvisioningSettingsUpdate,
+  UserProvisioningRequestAccessContext,
+  RequestProjectAccessResult,
+  CreateNewProjectResult,
 } from '../types/models.js';
 import { IdpOperationNotSupportedError } from '../types/errors.js';
 import { Express, Request, Response, NextFunction } from 'express';
@@ -206,6 +209,25 @@ export class NullIdpProvider implements IdpProvider {
     _actorUserId: string
   ): Promise<void> {
     throw new IdpOperationNotSupportedError('declineMembershipRequest');
+  }
+
+  async getUserProvisioningRequestAccessContext(
+    _userId: string,
+    _projectId: string
+  ): Promise<UserProvisioningRequestAccessContext> {
+    throw new IdpOperationNotSupportedError('getUserProvisioningRequestAccessContext');
+  }
+
+  async requestProjectAccess(
+    _userId: string,
+    _projectId: string,
+    _role: Role
+  ): Promise<RequestProjectAccessResult> {
+    throw new IdpOperationNotSupportedError('requestProjectAccess');
+  }
+
+  async createNewProject(_userId: string, _integration: string): Promise<CreateNewProjectResult> {
+    throw new IdpOperationNotSupportedError('createNewProject');
   }
 
   /**

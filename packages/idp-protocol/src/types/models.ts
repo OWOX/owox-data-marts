@@ -22,7 +22,7 @@ export const PayloadSchema = z
     email: z.string().optional(),
     fullName: z.string().optional(),
     avatar: z.string().url().optional(),
-    roles: z.array(RoleEnum).nonempty().optional(),
+    roles: z.array(RoleEnum).optional(),
     projectTitle: z.string().optional(),
     signinProvider: z.string().optional(),
     authFlow: z.string().optional(),
@@ -148,4 +148,49 @@ export type ProjectMembershipRequest = {
  */
 export type ApproveMembershipRequestResult = {
   userId: string;
+};
+
+/**
+ * Request-access context for a user authenticated in a project context without roles.
+ */
+export type UserProvisioningRequestAccessContext = {
+  decision: 'request_access';
+  user: {
+    userId: string;
+    email: string;
+  };
+  organization?: {
+    name: string;
+  } | null;
+  project: {
+    projectId: string;
+    projectTitle: string;
+  };
+  availableRoles: Role[];
+  defaultRole: Role;
+  existingRequest?: {
+    role: Role;
+    status: string;
+  } | null;
+};
+
+/**
+ * Result of creating or finding a pending request to join the project.
+ */
+export type RequestProjectAccessResult = {
+  userId: string;
+  projectId: string;
+  projectTitle: string;
+  request: {
+    role: Role;
+    status: string;
+  };
+};
+
+/**
+ * Result of creating a new project from request-access flow.
+ */
+export type CreateNewProjectResult = {
+  projectId: string;
+  projectTitle: string;
 };
