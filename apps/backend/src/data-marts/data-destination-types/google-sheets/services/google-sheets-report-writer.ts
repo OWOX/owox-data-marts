@@ -65,15 +65,17 @@ export class GoogleSheetsReportWriter implements DataDestinationReportWriter {
    */
   private structuralOpsApplied = false;
   /**
-   * User-applied number formats captured from the imported columns *before*
-   * the destructive write, keyed by canonical column name. Restored over the
-   * freshly written data rows in {@link finalize} so that the date / number /
-   * currency formats the user set in the Sheets UI survive a refresh — Sheets
-   * re-derives a cell's number format from the value on every `USER_ENTERED`
-   * write, which would otherwise discard them. Empty on the first run (nothing
-   * imported yet) and for columns the user never formatted.
+   * User-applied cell formats captured from the imported columns *before* the
+   * destructive write, keyed by canonical column name. Holds the full
+   * `userEnteredFormat` (number/date/currency format, background & text colors,
+   * bold/italic, alignment, borders, wrap), restored over the freshly written
+   * data rows in {@link finalize} so the formatting the user set in the Sheets
+   * UI survives a refresh — Sheets re-derives a cell's number format from the
+   * value on every `USER_ENTERED` write, which would otherwise discard it, and
+   * restoring the whole format keeps the contract consistent. Empty on the
+   * first run (nothing imported yet) and for columns the user never formatted.
    */
-  private capturedColumnFormats = new Map<string, sheets_v4.Schema$NumberFormat>();
+  private capturedColumnFormats = new Map<string, sheets_v4.Schema$CellFormat>();
   private spreadsheetTimeZone: string;
   private spreadsheetTitle: string;
   private sheetTitle: string;
@@ -192,21 +194,25 @@ export class GoogleSheetsReportWriter implements DataDestinationReportWriter {
           `deletes=${this.columnPlan.ops.filter(op => op.kind === 'delete').length}`
       );
 
-      // Capture the user's per-column number formats while the previous
-      // refresh's data is still in place. Must run before any write mutates
-      // the imported rectangle (the writes themselves are deferred, but the
-      // read has to reflect the pre-write state regardless). Restored in
-      // `finalize` so dates / numbers / currencies keep the formatting the
-      // user set in the Sheets UI. No-op on the first run.
-      await this.captureUserColumnFormats();
-
-      // Pre-allocate row capacity. `appendDimension('ROWS')` only grows the
-      // grid at the bottom — it does not mutate the user's imported content
-      // or column structure, so it is safe to do here even though the
-      // destructive operations are deferred.
-      if (reportDataDescription.estimatedDataRowsCount) {
-        await this.ensureRowsAvailable(reportDataDescription.estimatedDataRowsCount + 1); // +1 for headers
-      }
+      // Run two independent prep steps concurrently:
+      //   - Capture the user's per-column cell formats while the previous
+      //     refresh's data is still in place (a read; restored in `finalize`
+      //     so dates / numbers / currencies keep the user's formatting). It
+      //     reads row 2..N, which `appendDimension('ROWS')` below never
+      //     touches (rows are added at the bottom), so the two cannot race.
+      //   - Pre-allocate row capacity. `appendDimension('ROWS')` only grows
+      //     the grid at the bottom — it does not mutate the user's imported
+      //     content or column structure, so it is safe here even though the
+      //     destructive operations are deferred.
+      // Overlapping them avoids an extra sequential round-trip on every
+      // refresh. Capture is best-effort and never rejects; only a row-
+      // allocation failure can reject this `Promise.all`.
+      await Promise.all([
+        this.captureUserColumnFormats(),
+        reportDataDescription.estimatedDataRowsCount
+          ? this.ensureRowsAvailable(reportDataDescription.estimatedDataRowsCount + 1) // +1 for headers
+          : Promise.resolve(),
+      ]);
     }, 'Preparing Google Sheets document for report');
   }
 
@@ -485,7 +491,7 @@ export class GoogleSheetsReportWriter implements DataDestinationReportWriter {
           requests.push(...fillDownRequests);
         }
 
-        // Restore the user's per-column number formats over the freshly
+        // Restore the user's per-column cell formats over the freshly
         // written data rows, in the same atomic batch. This must come after
         // the value write (which `USER_ENTERED` may have re-derived a format
         // from) so the user's captured format is the one that sticks. See
@@ -685,54 +691,80 @@ export class GoogleSheetsReportWriter implements DataDestinationReportWriter {
   }
 
   /**
-   * Captures the number format a user applied to each imported column so it
-   * can be restored after the value write (see {@link restoreUserColumnFormats}).
+   * Captures the cell formatting a user applied to each imported column so it
+   * can be restored after the value write (see
+   * {@link buildRestoreColumnFormatRequests}).
    *
    * Why this is needed: the data write uses `valueInputOption: 'USER_ENTERED'`,
    * which makes Sheets re-derive each cell's number format from the value it
    * parses — discarding any date / number / currency format the user set in
    * the UI on every refresh. The old OWOX Sheets extension never re-derived
    * formats (it wrote typed values via `setValues`); we reproduce that
-   * "preserve the user's column formatting" behaviour by snapshotting it here
-   * and re-applying it in `finalize`.
+   * "preserve the user's column formatting" behaviour by snapshotting the full
+   * `userEnteredFormat` (number format + background/text colors + alignment +
+   * borders + wrap) here and re-applying it in `finalize`.
    *
-   * Strategy: sample row 2 (the first data row) of each imported column. A
-   * format the user applies to a whole column is present on every cell —
-   * including blank ones — so a single representative cell is enough. The
-   * result is keyed by the column's canonical *name* (not position) so a
+   * Strategy: sample a bounded window of data rows (rows 2..N, capped) and
+   * take the first explicit format found per column. A format the user applies
+   * to a whole column sits on every cell — including blank ones — so row 2
+   * alone usually suffices; the window additionally recovers the case where
+   * row 2 is unformatted but the rest of the column carries the user's format.
+   * The result is keyed by the column's canonical *name* (not position) so a
    * later `delete` op that shifts the column to a new final index still
    * restores the right format. Columns the user never formatted, and the
    * first run (nothing imported yet), produce no entries.
+   *
+   * Best-effort by contract: capturing formats is cosmetic and must never fail
+   * the export. Any error (transient `spreadsheets.get` failure, malformed
+   * response) is logged and swallowed — the refresh proceeds and simply does
+   * not restore formats this run, rather than turning a successful data export
+   * into a failed run.
    */
   private async captureUserColumnFormats(): Promise<void> {
+    // Number of data rows to scan for an explicit per-column format. Bounded so
+    // the grid-data response stays small regardless of dataset size.
+    const SAMPLE_ROWS = 100;
+
     this.capturedColumnFormats.clear();
     const currentNames = this.columnPlan.currentImportedNames;
     if (currentNames.length === 0) {
       return;
     }
-    return this.executeWithErrorHandling(async () => {
-      const formats = await this.adapter.getColumnNumberFormats(
+    try {
+      const formats = await this.adapter.getColumnFormats(
         this.destination.spreadsheetId,
         this.destination.sheetId,
         this.sheetTitle,
         2, // first data row
+        Math.min(this.availableRowsCount, 2 + SAMPLE_ROWS - 1),
         1,
         currentNames.length
       );
       currentNames.forEach((name, idx) => {
         const fmt = formats[idx];
-        // Only capture an explicit, meaningful format. Default ("Automatic")
-        // cells report no numberFormat; treat `NUMBER_FORMAT_TYPE_UNSPECIFIED`
-        // the same so we never re-impose a non-format over the data.
-        if (name && fmt && fmt.type && fmt.type !== 'NUMBER_FORMAT_TYPE_UNSPECIFIED') {
+        // Capture any explicit, non-empty cell format. Default ("Automatic")
+        // cells report no userEnteredFormat, so we never re-impose a format
+        // on a column the user left untouched.
+        if (name && fmt && Object.keys(fmt).length > 0) {
           this.capturedColumnFormats.set(name, fmt);
         }
       });
-    }, 'Capturing user column number formats before write');
+      this.logger.debug(
+        `Captured ${this.capturedColumnFormats.size}/${currentNames.length} user column ` +
+          `formats on sheet ${this.destination.sheetId}`
+      );
+    } catch (error) {
+      // Cosmetic capture must not break the export — see method contract.
+      this.capturedColumnFormats.clear();
+      this.logger.warn(
+        `Capturing user column formats failed on sheet ${this.destination.sheetId}; ` +
+          `proceeding without restoring formats this refresh. Cause: ${(error as Error).message}`
+      );
+    }
   }
 
   /**
-   * Builds requests that re-apply the captured user number formats
+   * Builds requests that re-apply the captured user cell formats
    * ({@link capturedColumnFormats}) over the freshly written data rows
    * (`rows 2..writtenRowsCount`). Each captured column is mapped from its
    * canonical name to its final index in the post-ops layout; columns dropped
@@ -744,18 +776,18 @@ export class GoogleSheetsReportWriter implements DataDestinationReportWriter {
       return [];
     }
     const requests: sheets_v4.Schema$Request[] = [];
-    for (const [name, numberFormat] of this.capturedColumnFormats) {
+    for (const [name, format] of this.capturedColumnFormats) {
       const finalIdx = this.columnPlan.nameToFinalIndex.get(name);
       if (finalIdx === undefined) {
         continue; // column was removed from the export — nothing to restore
       }
       requests.push(
-        this.adapter.buildSetColumnNumberFormatRequest(
+        this.adapter.buildSetColumnFormatRequest(
           this.destination.sheetId,
           finalIdx,
           1, // 0-based row 2 — first data row
           this.writtenRowsCount, // exclusive end == last written row
-          numberFormat
+          format
         )
       );
     }
