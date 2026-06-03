@@ -79,22 +79,25 @@ function ProjectLevelAccessNotice({
       <CollapsibleCardContent>
         <div className='bg-background rounded-md border px-6 py-5 shadow-sm'>
           <h3 className='text-foreground text-sm font-semibold'>Manual access request</h3>
-          <p className='text-muted-foreground mt-2 text-sm leading-6'>
-            New members must request access before joining this project.
-            <br />
-            Automatically adding new members cannot be enabled here because this project belongs to
-            the '{organization.name}' organization but is not the main project.
-            <br />
-            Organization-level provisioning is managed from the main project
-            {mainProjectHref ? (
-              <>
-                :{' '}
-                <a className='text-primary hover:underline' href={mainProjectHref}>
-                  {mainProjectLabel}
-                </a>
-              </>
-            ) : null}
-          </p>
+          <div className='text-muted-foreground mt-2 text-sm leading-6'>
+            <p>New members must request access before joining this project.</p>
+            <div className='my-4 border-t' />
+            <p>
+              To manage automatic provisioning for the {organization.name} organization, please
+              visit the main project
+              {mainProjectHref ? (
+                <>
+                  :{' '}
+                  <a className='text-primary hover:underline' href={mainProjectHref}>
+                    {mainProjectLabel}
+                  </a>
+                  .
+                </>
+              ) : (
+                '.'
+              )}
+            </p>
+          </div>
         </div>
       </CollapsibleCardContent>
       <CollapsibleCardFooter />

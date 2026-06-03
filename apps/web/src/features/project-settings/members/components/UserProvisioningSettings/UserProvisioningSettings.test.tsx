@@ -171,10 +171,7 @@ describe('UserProvisioningSettings', () => {
     expect(await screen.findByText('Project-level access')).toBeInTheDocument();
     expect(screen.getByText('Manual access request')).toBeInTheDocument();
     expect(
-      screen.getByText(/Automatically adding new members cannot be enabled here/)
-    ).toBeInTheDocument();
-    expect(
-      screen.getByText(/Organization-level provisioning is managed from the main project/)
+      screen.getByText(/To manage automatic provisioning for the owox.com organization/)
     ).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Main Project' })).toHaveAttribute(
       'href',
