@@ -258,6 +258,42 @@ AS SELECT * FROM (VALUES
       expect(rows.map(r => r.id).sort()).toEqual(['2', '3']);
     }, 60000);
 
+    // Date/time value comparisons. The UI sends dates as strings and Athena binds
+    // params as VARCHAR; Trino refuses to compare a TIMESTAMP column to varchar, so
+    // columnTypes drives the renderer to emit CAST(? AS TIMESTAMP). Without it these
+    // would fail at execution.
+    it('date eq on a TIMESTAMP column (CAST(? AS TIMESTAMP)) → id 2', async () => {
+      const rows = await runWithOutputControls({
+        filters: [{ column: 'created_at', operator: 'eq', value: '2024-02-01' }],
+        columnTypes: new Map([['created_at', 'TIMESTAMP']]),
+      });
+      expect(rows.map(r => r.id).sort()).toEqual(['2']);
+    }, 60000);
+
+    it('date gte on a TIMESTAMP column → ids 3,4', async () => {
+      const rows = await runWithOutputControls({
+        filters: [{ column: 'created_at', operator: 'gte', value: '2024-03-01' }],
+        sort: [{ column: 'id', direction: 'asc' }],
+        columnTypes: new Map([['created_at', 'TIMESTAMP']]),
+      });
+      expect(rows.map(r => r.id)).toEqual(['3', '4']);
+    }, 60000);
+
+    it('date between on a TIMESTAMP column → ids 2,3', async () => {
+      const rows = await runWithOutputControls({
+        filters: [
+          {
+            column: 'created_at',
+            operator: 'between',
+            value: { from: '2024-02-01', to: '2024-03-01' },
+          },
+        ],
+        sort: [{ column: 'id', direction: 'asc' }],
+        columnTypes: new Map([['created_at', 'TIMESTAMP']]),
+      });
+      expect(rows.map(r => r.id)).toEqual(['2', '3']);
+    }, 60000);
+
     it('is_true on a boolean column', async () => {
       const rows = await runWithOutputControls({
         filters: [{ column: 'active', operator: 'is_true' }],

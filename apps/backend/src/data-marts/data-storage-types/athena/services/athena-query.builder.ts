@@ -15,6 +15,7 @@ import {
 } from '../../../dto/schemas/data-mart-table-definitions/data-mart-definition.guards';
 import { escapeAthenaIdentifier } from '../utils/athena-identifier.utils';
 import { AthenaClauseRenderer } from './athena-clause-renderer';
+import { FilterRule } from '../../../dto/schemas/filter-config.schema';
 
 @Injectable()
 export class AthenaQueryBuilder implements DataMartQueryBuilder {
@@ -38,7 +39,16 @@ export class AthenaQueryBuilder implements DataMartQueryBuilder {
     }
 
     const fromClause = this.resolveFromClauseWithOutputControls(definition, queryOptions);
-    const where = this.clauseRenderer.renderWhere(queryOptions?.filters ?? []);
+    const columnTypes = queryOptions?.columnTypes;
+    const resolveColumnType = columnTypes
+      ? (rule: FilterRule) => columnTypes.get(rule.column)
+      : undefined;
+    const where = this.clauseRenderer.renderWhere(
+      queryOptions?.filters ?? [],
+      undefined,
+      'p',
+      resolveColumnType
+    );
     const orderBy = this.clauseRenderer.renderOrderBy(queryOptions?.sort ?? []);
     const limit = this.clauseRenderer.renderLimit(queryOptions?.limit ?? null);
 

@@ -221,4 +221,55 @@ describe('AthenaBlendedQueryBuilder — output controls', () => {
     // pre-join value first (lives inside the users_raw CTE), post-join value last.
     expect(params.map(p => p.value)).toEqual(['admin', 'post']);
   });
+
+  it('casts a post-join date filter placeholder via columnTypes.postJoin', () => {
+    const { sql, params } = builder.buildBlendedQuery(
+      ctx({
+        columns: ['a'],
+        filters: [
+          { column: 'created_at', operator: 'gte', value: '2024-01-01', placement: 'post-join' },
+        ],
+        columnTypes: { postJoin: new Map([['created_at', 'TIMESTAMP']]) },
+      })
+    );
+    expect(sql).toContain('WHERE main.created_at >= CAST(? AS TIMESTAMP)');
+    expect(params.map(p => p.value)).toEqual(['2024-01-01']);
+  });
+
+  it('casts a pre-join date slice placeholder inside the subsidiary CTE', () => {
+    const chain = makeChain({
+      relationship: makeRelationship({
+        targetAlias: 'users',
+        joinConditions: [{ sourceFieldName: 'user_id', targetFieldName: 'user_id' }],
+      }),
+      targetTableReference: '"mydb"."users"',
+      parentAlias: 'main',
+      blendedFields: [
+        {
+          targetFieldName: 'signup_date',
+          outputAlias: 'signup',
+          isHidden: true,
+          aggregateFunction: 'MAX',
+        },
+      ],
+    });
+    const { sql, params } = builder.buildBlendedQuery(
+      ctx({
+        chains: [chain],
+        columns: ['a'],
+        filters: [
+          {
+            column: 'signup_date',
+            operator: 'gte',
+            value: '2024-01-01',
+            placement: 'pre-join',
+            aliasPath: 'users',
+          },
+        ],
+        columnTypes: { preJoin: new Map([['users', new Map([['signup_date', 'DATE']])]]) },
+      })
+    );
+    expect(sql).toContain('signup_date >= CAST(? AS DATE)');
+    expect(params.map(p => p.value)).toEqual(['2024-01-01']);
+  });
 });

@@ -86,6 +86,13 @@ export class ReportSqlComposerService {
       );
     }
 
+    // Column types let Athena cast date/time filter placeholders. Sourced from the
+    // persisted schema (same native fields the validator types against).
+    const schemaFields = dataMart.schema?.fields ?? [];
+    const columnTypes: ReadonlyMap<string, string> | undefined = schemaFields.length
+      ? new Map(schemaFields.map((f): [string, string] => [f.name, String(f.type)]))
+      : undefined;
+
     const queryResult = await this.queryBuilderFacade.buildQuery(
       dataMart.storage.type,
       dataMart.definition,
@@ -95,6 +102,7 @@ export class ReportSqlComposerService {
         sort: report.sortConfig ?? undefined,
         limit: report.limitConfig ?? undefined,
         mainTableReference,
+        columnTypes,
       }
     );
 

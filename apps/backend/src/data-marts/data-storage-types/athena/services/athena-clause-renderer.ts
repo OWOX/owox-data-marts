@@ -44,20 +44,43 @@ export class AthenaClauseRenderer extends SqlClauseRenderer {
     }
   }
 
-  protected renderFilterFragment(rule: FilterRule, paramName: string, col: string): RenderedClause {
+  // Date/time column types whose value comparisons need a typed placeholder.
+  // ExecutionParameters bind as VARCHAR literals and Trino refuses to compare a
+  // DATE/TIMESTAMP column to varchar, so `?` becomes `CAST(? AS <type>)`.
+  private static readonly DATE_CAST_TYPES = new Set([
+    'DATE',
+    'TIME',
+    'TIMESTAMP',
+    'TIME WITH TIME ZONE',
+    'TIMESTAMP WITH TIME ZONE',
+  ]);
+
+  private placeholder(columnType?: string): string {
+    return columnType && AthenaClauseRenderer.DATE_CAST_TYPES.has(columnType)
+      ? `CAST(? AS ${columnType})`
+      : '?';
+  }
+
+  protected renderFilterFragment(
+    rule: FilterRule,
+    paramName: string,
+    col: string,
+    columnType?: string
+  ): RenderedClause {
+    const ph = this.placeholder(columnType);
     switch (rule.operator) {
       case 'eq':
-        return { sql: `${col} = ?`, params: [{ name: paramName, value: rule.value }] };
+        return { sql: `${col} = ${ph}`, params: [{ name: paramName, value: rule.value }] };
       case 'neq':
-        return { sql: `${col} != ?`, params: [{ name: paramName, value: rule.value }] };
+        return { sql: `${col} != ${ph}`, params: [{ name: paramName, value: rule.value }] };
       case 'gt':
-        return { sql: `${col} > ?`, params: [{ name: paramName, value: rule.value }] };
+        return { sql: `${col} > ${ph}`, params: [{ name: paramName, value: rule.value }] };
       case 'lt':
-        return { sql: `${col} < ?`, params: [{ name: paramName, value: rule.value }] };
+        return { sql: `${col} < ${ph}`, params: [{ name: paramName, value: rule.value }] };
       case 'gte':
-        return { sql: `${col} >= ?`, params: [{ name: paramName, value: rule.value }] };
+        return { sql: `${col} >= ${ph}`, params: [{ name: paramName, value: rule.value }] };
       case 'lte':
-        return { sql: `${col} <= ?`, params: [{ name: paramName, value: rule.value }] };
+        return { sql: `${col} <= ${ph}`, params: [{ name: paramName, value: rule.value }] };
       case 'contains':
         return {
           sql: `strpos(${col}, ?) > 0`,
@@ -105,7 +128,7 @@ export class AthenaClauseRenderer extends SqlClauseRenderer {
       case 'between': {
         const p2 = this.nextParamName(paramName);
         return {
-          sql: `${col} BETWEEN ? AND ?`,
+          sql: `${col} BETWEEN ${ph} AND ${ph}`,
           params: [
             { name: paramName, value: rule.value.from },
             { name: p2, value: rule.value.to },

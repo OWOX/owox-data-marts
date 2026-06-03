@@ -26,10 +26,30 @@ export interface OperatorMeta {
   shortLabel: string;
 }
 
-const STRING_TYPES = new Set(['STRING']);
-const NUMBER_TYPES = new Set(['INTEGER', 'FLOAT', 'NUMERIC', 'BIGNUMERIC']);
-const DATE_TYPES = new Set(['DATE', 'DATETIME', 'TIMESTAMP', 'TIME']);
-const BOOL_TYPES = new Set(['BOOLEAN']);
+// Mirror of backend OutputControlsValidatorService type sets — cover every type
+// name each supported provider emits (BigQuery + Athena), keep the two in sync.
+const STRING_TYPES = new Set(['STRING', 'VARCHAR', 'CHAR']);
+const NUMBER_TYPES = new Set([
+  'INTEGER',
+  'BIGINT',
+  'SMALLINT',
+  'TINYINT',
+  'FLOAT',
+  'REAL',
+  'DOUBLE',
+  'NUMERIC',
+  'BIGNUMERIC',
+  'DECIMAL',
+]);
+const DATE_TYPES = new Set([
+  'DATE',
+  'DATETIME',
+  'TIME',
+  'TIMESTAMP',
+  'TIMESTAMP WITH TIME ZONE',
+  'TIME WITH TIME ZONE',
+]);
+const BOOL_TYPES = new Set(['BOOLEAN', 'BOOL']);
 
 const STRING_OPERATORS: OperatorMeta[] = [
   { value: 'eq', label: 'is', shortLabel: '=' },

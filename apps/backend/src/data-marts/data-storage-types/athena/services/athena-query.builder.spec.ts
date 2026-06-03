@@ -41,6 +41,35 @@ describe('AthenaQueryBuilder output controls', () => {
     expect(out.params).toEqual([{ name: 'p0', value: 'paid' }]);
   });
 
+  it('casts date/time filter placeholders using columnTypes, leaves others bare', () => {
+    const out = builder.buildQuery(tableDefinition('mydb.orders'), {
+      filters: [
+        { column: 'created_at', operator: 'gte', value: '2024-01-01' },
+        { column: 'status', operator: 'eq', value: 'paid' },
+      ],
+      columnTypes: new Map([
+        ['created_at', 'TIMESTAMP'],
+        ['status', 'VARCHAR'],
+      ]),
+    });
+    if (typeof out === 'string') throw new Error('expected QueryBuildResult');
+    expect(out.sql).toContain('"created_at" >= CAST(? AS TIMESTAMP)');
+    expect(out.sql).toContain('"status" = ?');
+    expect(out.params).toEqual([
+      { name: 'p0', value: '2024-01-01' },
+      { name: 'p1', value: 'paid' },
+    ]);
+  });
+
+  it('leaves placeholders bare when columnTypes is absent', () => {
+    const out = builder.buildQuery(tableDefinition('mydb.orders'), {
+      filters: [{ column: 'created_at', operator: 'gte', value: '2024-01-01' }],
+    });
+    if (typeof out === 'string') throw new Error('expected QueryBuildResult');
+    expect(out.sql).toContain('"created_at" >= ?');
+    expect(out.sql).not.toContain('CAST');
+  });
+
   it('returns plain string for table definition without output controls', () => {
     const out = builder.buildQuery(tableDefinition('db.schema.tbl'));
     expect(out).toBe('SELECT * FROM "db"."schema"."tbl"');

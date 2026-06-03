@@ -97,6 +97,75 @@ describe('AthenaClauseRenderer', () => {
     });
   });
 
+  // Athena ExecutionParameters substitute as VARCHAR literals; Trino will not
+  // compare a DATE/TIMESTAMP column to a varchar literal, so date/time value
+  // comparisons must wrap the placeholder in CAST(? AS <type>).
+  describe('typed date/time comparisons wrap the placeholder in CAST', () => {
+    it('casts the placeholder for a value comparison on a TIMESTAMP column', () => {
+      const out = r.renderWhere(
+        [{ column: 'created_at', operator: 'gte', value: '2024-01-01' }],
+        undefined,
+        'p',
+        () => 'TIMESTAMP'
+      );
+      expect(out.sql).toBe('\nWHERE "created_at" >= CAST(? AS TIMESTAMP)');
+      expect(out.params).toEqual([{ name: 'p0', value: '2024-01-01' }]);
+    });
+
+    it('casts both bounds of a BETWEEN on a DATE column', () => {
+      const out = r.renderWhere(
+        [{ column: 'd', operator: 'between', value: { from: '2024-01-01', to: '2024-02-01' } }],
+        undefined,
+        'p',
+        () => 'DATE'
+      );
+      expect(out.sql).toBe('\nWHERE "d" BETWEEN CAST(? AS DATE) AND CAST(? AS DATE)');
+      expect(out.params.map(p => p.value)).toEqual(['2024-01-01', '2024-02-01']);
+    });
+
+    it('casts to the zoned-timestamp type verbatim', () => {
+      const out = r.renderWhere(
+        [{ column: 'ts', operator: 'eq', value: '2024-01-01 00:00:00 UTC' }],
+        undefined,
+        'p',
+        () => 'TIMESTAMP WITH TIME ZONE'
+      );
+      expect(out.sql).toBe('\nWHERE "ts" = CAST(? AS TIMESTAMP WITH TIME ZONE)');
+    });
+
+    it('does NOT cast string / number / bool columns', () => {
+      expect(
+        r.renderWhere(
+          [{ column: 'name', operator: 'eq', value: 'x' }],
+          undefined,
+          'p',
+          () => 'VARCHAR'
+        ).sql
+      ).toBe('\nWHERE "name" = ?');
+      expect(
+        r.renderWhere([{ column: 'n', operator: 'gt', value: 5 }], undefined, 'p', () => 'BIGINT')
+          .sql
+      ).toBe('\nWHERE "n" > ?');
+    });
+
+    it('does NOT cast when no type resolver is supplied (back-compat)', () => {
+      expect(r.renderWhere([{ column: 'd', operator: 'gte', value: '2024-01-01' }]).sql).toBe(
+        '\nWHERE "d" >= ?'
+      );
+    });
+
+    it('keeps the placeholder/param invariant intact for cast fragments', () => {
+      expect(() =>
+        r.renderWhere(
+          [{ column: 'd', operator: 'between', value: { from: '2024-01-01', to: '2024-02-01' } }],
+          undefined,
+          'p',
+          () => 'TIMESTAMP'
+        )
+      ).not.toThrow();
+    });
+  });
+
   describe('relative_date (Trino date functions)', () => {
     it('today', () => {
       expect(

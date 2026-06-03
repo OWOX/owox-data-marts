@@ -22,6 +22,17 @@ export interface ResolvedRelationshipChain {
   targetDataMartUrl: string;
 }
 
+/**
+ * Storage field types for filter columns, so positional dialects (Athena) can cast
+ * date/time placeholders. Split because pre-join slices target a subsidiary CTE's
+ * raw columns (keyed by aliasPath) while post-join filters target final-SELECT
+ * columns (home native + blended output aliases).
+ */
+export interface BlendedColumnTypes {
+  postJoin?: ReadonlyMap<string, string>;
+  preJoin?: ReadonlyMap<string, ReadonlyMap<string, string>>;
+}
+
 export interface BlendedQueryContext {
   mainTableReference: string;
   mainDataMartTitle: string;
@@ -31,6 +42,7 @@ export interface BlendedQueryContext {
   filters?: FilterRule[];
   sort?: SortRule[];
   limit?: number | null;
+  columnTypes?: BlendedColumnTypes;
 }
 
 export interface BlendedQueryBuilder {

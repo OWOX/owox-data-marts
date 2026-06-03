@@ -20,6 +20,14 @@ export interface RenderedClause {
  */
 export type ColumnRefResolver = (column: string) => string;
 
+/**
+ * Resolves the storage field type for a filter rule's column. Positional dialects
+ * (Athena) use it to cast date/time placeholders so a varchar literal is not
+ * compared against a DATE/TIMESTAMP column. Returns undefined when unknown — the
+ * renderer then emits a plain placeholder.
+ */
+export type ColumnTypeResolver = (rule: FilterRule) => string | undefined;
+
 // Matches BigQuery named-parameter rules — fail fast instead of waiting for BQ to reject it.
 const PARAM_PREFIX_PATTERN = /^[A-Za-z_][A-Za-z0-9_]*$/;
 
@@ -28,7 +36,8 @@ export abstract class SqlClauseRenderer {
   protected abstract renderFilterFragment(
     rule: FilterRule,
     paramName: string,
-    columnRef: string
+    columnRef: string,
+    columnType?: string
   ): RenderedClause;
 
   private resolverOrFallback(qualifyColumn: ColumnRefResolver | undefined): ColumnRefResolver {
@@ -38,7 +47,8 @@ export abstract class SqlClauseRenderer {
   renderWhere(
     filters: FilterRule[],
     qualifyColumn?: ColumnRefResolver,
-    paramPrefix = 'p'
+    paramPrefix = 'p',
+    resolveColumnType?: ColumnTypeResolver
   ): RenderedClause {
     if (!filters.length) return { sql: '', params: [] };
     if (!PARAM_PREFIX_PATTERN.test(paramPrefix)) {
@@ -52,7 +62,12 @@ export abstract class SqlClauseRenderer {
     let nextIndex = 0;
     for (const rule of filters) {
       const paramName = `${paramPrefix}${nextIndex}`;
-      const out = this.renderFilterFragment(rule, paramName, resolve(rule.column));
+      const out = this.renderFilterFragment(
+        rule,
+        paramName,
+        resolve(rule.column),
+        resolveColumnType?.(rule)
+      );
       this.validateFragment(out);
       fragments.push(out.sql);
       params.push(...out.params);
