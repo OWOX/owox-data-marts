@@ -12,7 +12,7 @@ export interface CreateProjectMemberApiKeyRequest {
 }
 
 export interface CreateProjectMemberApiKeyResponse extends ProjectMemberApiKey {
-  apiKeySecret: string;
+  apiKey: string;
 }
 
 export interface UpdateProjectMemberApiKeyRequest {

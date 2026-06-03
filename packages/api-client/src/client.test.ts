@@ -1,6 +1,6 @@
 import { jest } from '@jest/globals';
 
-import { OWOXApiClient, OWOXApiError, OWOXAuthError } from './index.js';
+import { OWOXApiClient, OWOXApiError, OWOXAuthError, OWOXConfigError } from './index.js';
 
 type RecordedRequest = {
   method: string;
@@ -15,6 +15,14 @@ type FetchMock = {
 };
 
 const apiOrigin = 'https://example.test';
+
+function createApiKey(payload: {
+  apiOrigin: string;
+  apiKeyId: string;
+  apiKeySecret: string;
+}): string {
+  return `owox_key_${Buffer.from(JSON.stringify(payload), 'utf8').toString('base64url')}`;
+}
 
 function createJsonResponse(status: number, body: unknown): Response {
   return new Response(JSON.stringify(body), {
@@ -63,6 +71,16 @@ function createFetchMock(
 describe('OWOXApiClient', () => {
   const apiKeyId = 'pmk_AbCdEfGhIjKlMnOpQrStUv';
   const apiKeySecret = 'secret-value-that-must-not-leak';
+  const apiKey = createApiKey({ apiOrigin, apiKeyId, apiKeySecret });
+
+  it('rejects invalid API key configuration before making network requests', () => {
+    const fetchImpl = jest.fn<typeof fetch>();
+
+    expect(() => new OWOXApiClient({ apiKey: 'not-an-owox-key', fetchImpl })).toThrow(
+      OWOXConfigError
+    );
+    expect(fetchImpl).not.toHaveBeenCalled();
+  });
 
   it('exchanges API key credentials for an access token and reuses it in memory', async () => {
     let exchangeCount = 0;
@@ -92,9 +110,7 @@ describe('OWOXApiClient', () => {
     });
 
     const client = new OWOXApiClient({
-      apiOrigin,
-      apiKeyId,
-      apiKeySecret,
+      apiKey,
       fetchImpl: fetchMock.fetchImpl,
     });
 
@@ -113,9 +129,7 @@ describe('OWOXApiClient', () => {
     });
 
     const client = new OWOXApiClient({
-      apiOrigin,
-      apiKeyId,
-      apiKeySecret,
+      apiKey,
       fetchImpl: fetchMock.fetchImpl,
     });
 
@@ -137,9 +151,7 @@ describe('OWOXApiClient', () => {
     });
 
     const client = new OWOXApiClient({
-      apiOrigin,
-      apiKeyId,
-      apiKeySecret,
+      apiKey,
       fetchImpl: fetchMock.fetchImpl,
     });
 
@@ -172,9 +184,7 @@ describe('OWOXApiClient', () => {
     });
 
     const client = new OWOXApiClient({
-      apiOrigin,
-      apiKeyId,
-      apiKeySecret,
+      apiKey,
       fetchImpl: fetchMock.fetchImpl,
     });
 
@@ -206,9 +216,7 @@ describe('OWOXApiClient', () => {
     });
 
     const client = new OWOXApiClient({
-      apiOrigin,
-      apiKeyId,
-      apiKeySecret,
+      apiKey,
       fetchImpl: fetchMock.fetchImpl,
     });
 
@@ -238,15 +246,11 @@ describe('OWOXApiClient', () => {
     });
 
     await new OWOXApiClient({
-      apiOrigin,
-      apiKeyId,
-      apiKeySecret,
+      apiKey,
       fetchImpl: fetchMock.fetchImpl,
     }).storages.list();
     await new OWOXApiClient({
-      apiOrigin,
-      apiKeyId,
-      apiKeySecret,
+      apiKey,
       fetchImpl: fetchMock.fetchImpl,
     }).storages.list();
 
@@ -272,9 +276,7 @@ describe('OWOXApiClient', () => {
     });
 
     const client = new OWOXApiClient({
-      apiOrigin,
-      apiKeyId,
-      apiKeySecret,
+      apiKey,
       fetchImpl: fetchMock.fetchImpl,
     });
 
@@ -299,9 +301,7 @@ describe('OWOXApiClient', () => {
     });
 
     const client = new OWOXApiClient({
-      apiOrigin,
-      apiKeyId,
-      apiKeySecret,
+      apiKey,
       fetchImpl: fetchMock.fetchImpl,
     });
 
@@ -344,9 +344,7 @@ describe('OWOXApiClient', () => {
     });
 
     const client = new OWOXApiClient({
-      apiOrigin,
-      apiKeyId,
-      apiKeySecret,
+      apiKey,
       fetchImpl: fetchMock.fetchImpl,
     });
 
@@ -383,9 +381,7 @@ describe('OWOXApiClient', () => {
 
     try {
       const client = new OWOXApiClient({
-        apiOrigin,
-        apiKeyId,
-        apiKeySecret,
+        apiKey,
       });
 
       await client.dataMarts.traverseData('dm-1');
@@ -414,9 +410,7 @@ describe('OWOXApiClient', () => {
     });
 
     const client = new OWOXApiClient({
-      apiOrigin,
-      apiKeyId,
-      apiKeySecret,
+      apiKey,
       fetchImpl: fetchMock.fetchImpl,
     });
 
@@ -442,9 +436,7 @@ describe('OWOXApiClient', () => {
     });
 
     const client = new OWOXApiClient({
-      apiOrigin,
-      apiKeyId,
-      apiKeySecret,
+      apiKey,
       fetchImpl: fetchMock.fetchImpl,
     });
 

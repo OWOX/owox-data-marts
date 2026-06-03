@@ -10,14 +10,14 @@ Use API keys with:
 - AI agents
 - custom scripts and internal tools
 
-Each API key has two parts:
+Each API key is one secret value that starts with `owox_key_`.
+The API key is shown only when the key is created. Store the full value securely.
 
-- API key ID
-- API key secret
+API Key ID is a non-secret identifier that starts with `pmk_`, for example
+`pmk_AbCdEfGhIjKlMnOpQrStUv`. It is used in status output, logs, support, and
+debugging. You do not need to copy it separately for setup.
 
-The API key secret is shown only when the key is created. Store it securely.
-
-API keys are associated with project access. Available data and actions depend on the permissions granted to the project member who owns the key.
+API keys are associated with project member access. Available data and actions depend on the permissions granted to the project member who owns the key.
 
 ## Create an API key
 
@@ -25,15 +25,15 @@ API keys are associated with project access. Available data and actions depend o
 2. In the project menu, open **Project settings → My API Keys**.
 3. Click **Create API Key**.
 4. Enter a **Name**.
-5. Optionally set **Expires (optional)**.
+5. Set **Expires** if the key should have an expiration date.
 6. Click **Create**.
-7. In the **API Key Created** dialog, copy the **API Key ID** and **API Key Secret**.
-8. Store the API key secret securely.
-9. Click **I have saved the secret**.
+7. In the **API Key Created** dialog, copy the **API Key**.
+8. Store the API key securely.
+9. Click **I have saved the API Key**.
 
-The API key secret is shown only once.
+The API key is shown only once.
 
-Do not share API key secrets in chat, email, screenshots, support tickets, prompts, or repository files.
+Do not share API keys in chat, email, screenshots, support tickets, prompts, or repository files.
 
 ## Use an API key
 
@@ -41,7 +41,7 @@ After creating an API key, use it with one of the supported API access options:
 
 - [owox-ctl](./owox-ctl/) for terminal, CI, automation, and AI agent workflows that need JSON command output.
 - [@owox/api-client](./api-client/) for TypeScript or JavaScript integrations.
-- [OpenAPI and Swagger UI](./openapi/) for inspecting the raw HTTP API contract.
+- [OpenAPI and Swagger UI](./openapi/#raw-http-api-contract) for inspecting the raw HTTP API contract.
 
 ## Revoke or rotate API keys
 
@@ -58,8 +58,8 @@ Rotate a key by creating a new API key, updating the tool or automation that use
 ## Security recommendations
 
 - Create separate API keys for different users, tools, or automation contexts.
-- Do not commit API key secrets to Git.
-- Do not store API key secrets in prompts, AI agent instruction files, screenshots, or support tickets.
+- Do not commit API keys to Git.
+- Do not store API keys in prompts, AI agent instruction files, screenshots, or support tickets.
 - Prefer environment variables or secret managers for CI and AI agents.
 - Revoke keys that are no longer used.
 - Rotate keys if the secret may have been exposed.

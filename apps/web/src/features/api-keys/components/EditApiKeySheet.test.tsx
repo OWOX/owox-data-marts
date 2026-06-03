@@ -3,21 +3,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { fireEvent, render, screen } from '@testing-library/react';
 import { EditApiKeySheet } from './EditApiKeySheet';
 import type { ProjectMemberApiKey } from '../types';
-import type { useFlags } from '../../../app/store/hooks/useFlags';
 import { formatDateOnly } from '../../../utils';
-
-type UseFlagsResult = ReturnType<typeof useFlags>;
-
-const useFlagsMock = vi.hoisted(() =>
-  vi.fn<() => UseFlagsResult>(() => ({
-    flags: { PUBLIC_ORIGIN: 'https://public.example.test' },
-    callState: 'loaded' as UseFlagsResult['callState'],
-  }))
-);
-
-vi.mock('../../../app/store/hooks/useFlags', () => ({
-  useFlags: useFlagsMock,
-}));
 
 vi.mock('@owox/ui/components/sheet', () => ({
   Sheet: ({ open, children }: { open: boolean; children: ReactNode }) =>
@@ -62,18 +48,14 @@ describe('EditApiKeySheet', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     localStorage.clear();
-    useFlagsMock.mockReturnValue({
-      flags: { PUBLIC_ORIGIN: 'https://public.example.test' },
-      callState: 'loaded' as UseFlagsResult['callState'],
-    });
   });
 
-  it('opens as an API key details sheet with the same copyable values as the creation dialog', () => {
+  it('opens as an API key details sheet with the API Key ID for debugging', () => {
     renderEditApiKeySheet();
 
     expect(screen.getByRole('heading', { name: 'API Key Details' })).toBeInTheDocument();
-    expect(screen.getByDisplayValue('https://public.example.test')).toBeInTheDocument();
     expect(screen.getByText('pmk_1234567890123456789012')).toBeInTheDocument();
+    expect(screen.queryByText('API Origin')).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: /Documentation/i }));
     expect(screen.getByRole('link', { name: 'API Keys' })).toHaveAttribute(
       'href',
@@ -110,21 +92,23 @@ describe('EditApiKeySheet', () => {
     expect(screen.getByText('This API key expires within 30 days.')).toBeInTheDocument();
   });
 
-  it('does not expose the API Key Secret after the creation dialog is closed', () => {
+  it('does not expose the full API Key after the creation dialog is closed', () => {
     renderEditApiKeySheet();
 
-    expect(screen.getByText(/The API key secret is only shown once/i)).toBeInTheDocument();
+    expect(screen.getByText(/The API Key is only shown once/i)).toBeInTheDocument();
+    expect(screen.queryByText('API Key Secret')).not.toBeInTheDocument();
     expect(screen.queryByText('Secret unavailable')).not.toBeInTheDocument();
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Show API Key Secret' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Copy API Key Secret' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Show API Key' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Copy API Key' })).not.toBeInTheDocument();
   });
 
   it('shows help controls for each editable and details caption', () => {
     renderEditApiKeySheet();
 
-    expect(screen.getAllByRole('button', { name: 'Help information' })).toHaveLength(7);
+    expect(screen.getAllByRole('button', { name: 'Help information' })).toHaveLength(6);
     expect(screen.getByText('Friendly label used to identify this API key.')).toBeInTheDocument();
+    expect(screen.getByText(/Non-secret identifier used in status output/i)).toBeInTheDocument();
     expect(screen.getByText('When this API key was created.')).toBeInTheDocument();
     expect(screen.getByText(/UTC date when this API key stops working/i)).toBeInTheDocument();
     expect(
@@ -136,13 +120,11 @@ describe('EditApiKeySheet', () => {
     renderEditApiKeySheet();
 
     const labels = screen
-      .getAllByText(
-        /^(Name|Expires|Created|Last authenticated|API Origin|API Key ID|API Key Secret)$/
-      )
+      .getAllByText(/^(Name|API Key ID|Expires|Created|Last authenticated|API Key)$/)
       .map(label => label.closest('[data-slot="form-label"]'))
       .filter(Boolean);
 
-    expect(labels).toHaveLength(7);
+    expect(labels).toHaveLength(6);
     labels.forEach(label => {
       expect(label).toHaveClass('justify-between', 'gap-2');
       expect(label).not.toHaveClass('justify-start', '[&_button]:opacity-100');
@@ -157,17 +139,13 @@ describe('EditApiKeySheet', () => {
     renderEditApiKeySheet();
 
     const nameField = screen.getByDisplayValue('Automation').closest('[data-slot="form-item"]');
-    const apiOriginField = screen
-      .getByDisplayValue('https://public.example.test')
-      .closest('[data-slot="form-item"]');
     const apiKeyIdField = screen.getByText('API Key ID').closest('[data-slot="form-item"]');
-    const secretField = screen.getByText('API Key Secret').closest('[data-slot="form-item"]');
+    const apiKeyField = screen.getByText('API Key').closest('[data-slot="form-item"]');
 
     expect(nameField).not.toBeNull();
-    expect(apiOriginField).toHaveClass('group', 'border-border', 'flex', 'flex-col', 'gap-2');
-    expect(apiOriginField?.className).toBe(nameField?.className);
+    expect(apiKeyIdField).toHaveClass('group', 'border-border', 'flex', 'flex-col', 'gap-2');
     expect(apiKeyIdField?.className).toBe(nameField?.className);
-    expect(secretField?.className).toBe(nameField?.className);
+    expect(apiKeyField?.className).toBe(nameField?.className);
   });
 
   it('orders the general fields like the table after the editable name', () => {
@@ -180,7 +158,7 @@ describe('EditApiKeySheet', () => {
       generalSection?.querySelectorAll('[data-slot="form-label"]') ?? []
     ).map(label => label.firstElementChild?.textContent);
 
-    expect(labels).toEqual(['Name', 'Expires', 'Created', 'Last authenticated']);
+    expect(labels).toEqual(['Name', 'API Key ID', 'Expires', 'Created', 'Last authenticated']);
   });
 
   it('uses collapsible sidebar sections for details and secondary actions', () => {

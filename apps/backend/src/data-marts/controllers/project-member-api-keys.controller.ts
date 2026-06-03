@@ -52,10 +52,7 @@ export class ProjectMemberApiKeysController {
   ): Promise<CreateProjectMemberApiKeyResponseDto> {
     const command = this.mapper.toCreateCommand(context, dto);
     const result = await this.createKey.run(command);
-    return this.mapper.toCreateApiResponse({
-      ...result.apiKey,
-      apiKeySecret: result.apiKeySecret,
-    });
+    return this.mapper.toCreateApiResponse(result);
   }
 
   @Auth(Role.viewer(Strategy.INTROSPECT))

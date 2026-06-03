@@ -9,6 +9,16 @@ scripts, internal tools, automation, and local agent workflows.
 npm install @owox/api-client
 ```
 
+## Usage
+
+```ts
+import { OWOXApiClient } from '@owox/api-client';
+
+const client = new OWOXApiClient({
+  apiKey: process.env.OWOX_API_KEY!,
+});
+```
+
 ## Documentation
 
 - [@owox/api-client guide](https://docs.owox.com/docs/api/api-client/)

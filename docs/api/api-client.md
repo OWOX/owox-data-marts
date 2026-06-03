@@ -19,9 +19,7 @@ Before using `@owox/api-client`, create an API key. See [API Keys](./api-keys/).
 Set credentials as environment variables:
 
 ```bash
-export OWOX_API_ORIGIN=https://app.owox.com
-export OWOX_API_KEY_ID=pmk_xxx
-export OWOX_API_KEY_SECRET=your_api_key_secret
+export OWOX_API_KEY=owox_key_xxx
 ```
 
 Then create a client:
@@ -30,9 +28,7 @@ Then create a client:
 import { OWOXApiClient } from '@owox/api-client';
 
 const client = new OWOXApiClient({
-  apiOrigin: process.env.OWOX_API_ORIGIN!,
-  apiKeyId: process.env.OWOX_API_KEY_ID!,
-  apiKeySecret: process.env.OWOX_API_KEY_SECRET!,
+  apiKey: process.env.OWOX_API_KEY!,
 });
 
 const dataMarts = await client.dataMarts.list();
@@ -100,9 +96,7 @@ AI agents can run scripts that use `@owox/api-client` when they need structured 
 import { OWOXApiClient } from '@owox/api-client';
 
 const client = new OWOXApiClient({
-  apiOrigin: process.env.OWOX_API_ORIGIN!,
-  apiKeyId: process.env.OWOX_API_KEY_ID!,
-  apiKeySecret: process.env.OWOX_API_KEY_SECRET!,
+  apiKey: process.env.OWOX_API_KEY!,
 });
 
 const [dataMarts, storages, destinations] = await Promise.all([
@@ -126,15 +120,15 @@ console.log(
 
 Security notes:
 
-- Do not hard-code API key secrets in source code.
+- Do not hard-code API keys in source code.
 - Use environment variables or a secret manager.
-- Do not commit `.env` files containing API key secrets.
-- Avoid putting API key secrets in AI agent instructions or prompts.
+- Do not commit `.env` files containing API keys.
+- Avoid putting API keys in AI agent instructions or prompts.
 - Revoke keys that are no longer used.
 
 ## Authentication behavior
 
-`@owox/api-client` uses the API key ID and API key secret to request a short-lived access token.
+`@owox/api-client` parses the `owox_key_...` value and uses the API key ID and secret inside it to request a short-lived access token.
 
 The access token is kept in memory for the current process and is not persisted.
 

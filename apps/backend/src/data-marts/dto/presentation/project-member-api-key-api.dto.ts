@@ -40,6 +40,6 @@ export class ProjectMemberApiKeyResponseDto {
 }
 
 export class CreateProjectMemberApiKeyResponseDto extends ProjectMemberApiKeyResponseDto {
-  @ApiProperty({ description: 'Shown only once at creation time' })
-  apiKeySecret: string;
+  @ApiProperty({ description: 'Full API key value shown only once at creation time' })
+  apiKey: string;
 }

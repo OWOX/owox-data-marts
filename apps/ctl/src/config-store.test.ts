@@ -1,53 +1,50 @@
 import { OWOXConfigError } from '@owox/api-client';
 
-import { DEFAULT_API_ORIGIN, resolveAuthConfig } from './config-store.js';
+import { resolveAuthConfig } from './config-store.js';
+
+const validApiKey = `owox_key_${Buffer.from(
+  JSON.stringify({
+    apiOrigin: 'https://app.owox.com',
+    apiKeyId: 'pmk_AbCdEfGhIjKlMnOpQrStUv',
+    apiKeySecret: 'env-secret',
+  }),
+  'utf8'
+).toString('base64url')}`;
 
 describe('auth config', () => {
-  it('defaults API origin to OWOX Data Marts Cloud', () => {
+  it('parses the combined OWOX API key', () => {
     expect(
       resolveAuthConfig({
-        OWOX_API_KEY_ID: 'pmk_env',
-        OWOX_API_KEY_SECRET: 'env-secret',
+        OWOX_API_KEY: validApiKey,
       })
     ).toEqual({
-      apiOrigin: DEFAULT_API_ORIGIN,
-      apiKeyId: 'pmk_env',
+      apiKey: validApiKey,
+      apiOrigin: 'https://app.owox.com',
+      apiKeyId: 'pmk_AbCdEfGhIjKlMnOpQrStUv',
       apiKeySecret: 'env-secret',
     });
   });
 
-  it('uses explicit API origin when provided', () => {
-    expect(
-      resolveAuthConfig({
-        OWOX_API_ORIGIN: 'https://self-managed.example',
-        OWOX_API_KEY_ID: 'pmk_env',
-        OWOX_API_KEY_SECRET: 'env-secret',
-      })
-    ).toEqual({
-      apiOrigin: 'https://self-managed.example',
-      apiKeyId: 'pmk_env',
-      apiKeySecret: 'env-secret',
-    });
-  });
-
-  it('requires API key ID and secret', () => {
+  it('requires the combined OWOX API key', () => {
     expect(() => resolveAuthConfig({})).toThrow(OWOXConfigError);
-    expect(() => resolveAuthConfig({})).toThrow(
-      'OWOX_API_KEY_ID and OWOX_API_KEY_SECRET are required'
-    );
+    expect(() => resolveAuthConfig({})).toThrow('OWOX_API_KEY is required');
   });
 
-  it('reports only the missing credential variable', () => {
+  it('does not accept legacy split credential variables', () => {
     expect(() =>
       resolveAuthConfig({
-        OWOX_API_KEY_ID: 'pmk_env',
-      })
-    ).toThrow('OWOX_API_KEY_SECRET is required');
-
-    expect(() =>
-      resolveAuthConfig({
+        OWOX_API_ORIGIN: 'https://app.owox.com',
+        OWOX_API_KEY_ID: 'pmk_AbCdEfGhIjKlMnOpQrStUv',
         OWOX_API_KEY_SECRET: 'env-secret',
       })
-    ).toThrow('OWOX_API_KEY_ID is required');
+    ).toThrow('OWOX_API_KEY is required');
+  });
+
+  it('reports invalid combined keys with a safe config error', () => {
+    expect(() =>
+      resolveAuthConfig({
+        OWOX_API_KEY: 'not-an-owox-key',
+      })
+    ).toThrow('OWOX_API_KEY is required');
   });
 });
