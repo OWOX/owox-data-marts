@@ -151,6 +151,166 @@ describe('GoogleSheetsApiAdapter (pure helpers)', () => {
     });
   });
 
+  describe('getColumnFormats', () => {
+    /**
+     * Builds a `spreadsheets.get` response whose `sheets` array lists a
+     * decoy tab FIRST and the target tab second. This reproduces the real
+     * failure mode: `ranges` only scopes which grid data is included, it does
+     * not reorder `sheets` so that the requested tab is `sheets[0]`. The
+     * adapter must therefore select by `sheetId`, not by position.
+     */
+    const buildGetMock = (cells: Array<sheets_v4.Schema$CellFormat | undefined>) =>
+      jest.fn().mockResolvedValue({
+        data: {
+          sheets: [
+            // Decoy tab at index 0 with no grid data (would yield all-undefined).
+            { properties: { sheetId: 999 }, data: [{ rowData: [{ values: [] }] }] },
+            // Target tab at index 1 carrying the real formats.
+            {
+              properties: { sheetId: 7 },
+              data: [
+                {
+                  rowData: [
+                    {
+                      values: cells.map(fmt => (fmt ? { userEnteredFormat: fmt } : {})),
+                    },
+                  ],
+                },
+              ],
+            },
+          ],
+        },
+      });
+
+    const withGetMock = (adapter: GoogleSheetsApiAdapter, getMock: jest.Mock) => {
+      (adapter as unknown as { service: { spreadsheets: { get: jest.Mock } } }).service = {
+        spreadsheets: { get: getMock },
+      };
+    };
+
+    it('selects the target tab by sheetId, not by array position', async () => {
+      const adapter = buildAdapter();
+      const currency: sheets_v4.Schema$CellFormat = {
+        numberFormat: { type: 'CURRENCY', pattern: '"$"#,##0.00' },
+      };
+      const getMock = buildGetMock([undefined, currency, undefined]);
+      withGetMock(adapter, getMock);
+
+      const formats = await adapter.getColumnFormats('spread-1', 7, 'Sheet1', 2, 2, 1, 3);
+
+      // Despite the decoy tab being sheets[0], we read the sheetId=7 tab.
+      expect(formats).toEqual([undefined, currency, undefined]);
+      // Sanity: the request scoped the fields to include sheetId for selection
+      // and the full userEnteredFormat (not just numberFormat).
+      expect(getMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          spreadsheetId: 'spread-1',
+          ranges: ["'Sheet1'!A2:C2"],
+          includeGridData: true,
+          fields: expect.stringContaining('properties(sheetId)'),
+        })
+      );
+      const calledFields = getMock.mock.calls[0][0].fields as string;
+      expect(calledFields).toContain('userEnteredFormat');
+      expect(calledFields).not.toContain('numberFormat'); // whole-format mask, not numberFormat-only
+    });
+
+    it('captures the whole userEnteredFormat (background, text, alignment), not just numberFormat', async () => {
+      const adapter = buildAdapter();
+      const styled: sheets_v4.Schema$CellFormat = {
+        backgroundColor: { red: 1, green: 0.9, blue: 0.6 },
+        textFormat: { bold: true },
+        horizontalAlignment: 'RIGHT',
+      };
+      const getMock = buildGetMock([styled, undefined]);
+      withGetMock(adapter, getMock);
+
+      const formats = await adapter.getColumnFormats('spread-1', 7, 'Sheet1', 2, 2, 1, 2);
+
+      expect(formats).toEqual([styled, undefined]);
+    });
+
+    it('takes the first non-empty format per column when scanning a multi-row window', async () => {
+      // Column 0: row 2 unformatted, row 3 carries DATE → DATE must win.
+      // Column 1: never formatted across the window → undefined.
+      const adapter = buildAdapter();
+      const date: sheets_v4.Schema$CellFormat = {
+        numberFormat: { type: 'DATE', pattern: 'dd.mm.yyyy' },
+      };
+      const getMock = jest.fn().mockResolvedValue({
+        data: {
+          sheets: [
+            {
+              properties: { sheetId: 7 },
+              data: [
+                {
+                  rowData: [
+                    { values: [{}, {}] }, // row 2: both unformatted
+                    { values: [{ userEnteredFormat: date }, {}] }, // row 3
+                  ],
+                },
+              ],
+            },
+          ],
+        },
+      });
+      withGetMock(adapter, getMock);
+
+      const formats = await adapter.getColumnFormats('spread-1', 7, 'Sheet1', 2, 3, 1, 2);
+
+      expect(formats).toEqual([date, undefined]);
+      expect(getMock).toHaveBeenCalledWith(expect.objectContaining({ ranges: ["'Sheet1'!A2:B3"] }));
+    });
+
+    it('treats an empty userEnteredFormat object as no format', async () => {
+      const adapter = buildAdapter();
+      // Cell carries an empty userEnteredFormat ({}) — must be ignored, not captured.
+      const getMock = buildGetMock([{}, undefined]);
+      withGetMock(adapter, getMock);
+
+      const formats = await adapter.getColumnFormats('spread-1', 7, 'Sheet1', 2, 2, 1, 2);
+
+      expect(formats).toEqual([undefined, undefined]);
+    });
+
+    it('returns all-undefined when the requested sheetId is absent from the response', async () => {
+      const adapter = buildAdapter();
+      // Response only carries the decoy tab (sheetId 999); target 7 is missing.
+      const getMock = jest.fn().mockResolvedValue({
+        data: { sheets: [{ properties: { sheetId: 999 }, data: [{ rowData: [{ values: [] }] }] }] },
+      });
+      withGetMock(adapter, getMock);
+
+      const formats = await adapter.getColumnFormats('spread-1', 7, 'Sheet1', 2, 2, 1, 3);
+
+      expect(formats).toEqual([undefined, undefined, undefined]);
+    });
+
+    it('returns an empty array without calling the API when the column span is empty', async () => {
+      const adapter = buildAdapter();
+      const getMock = jest.fn();
+      withGetMock(adapter, getMock);
+
+      // toCol < fromCol → width <= 0.
+      const formats = await adapter.getColumnFormats('spread-1', 7, 'Sheet1', 2, 2, 3, 1);
+
+      expect(formats).toEqual([]);
+      expect(getMock).not.toHaveBeenCalled();
+    });
+
+    it('returns an empty array without calling the API when the row window is empty', async () => {
+      const adapter = buildAdapter();
+      const getMock = jest.fn();
+      withGetMock(adapter, getMock);
+
+      // rowTo < rowFrom → no rows to sample (e.g. sheet has only the header row).
+      const formats = await adapter.getColumnFormats('spread-1', 7, 'Sheet1', 2, 1, 1, 3);
+
+      expect(formats).toEqual([]);
+      expect(getMock).not.toHaveBeenCalled();
+    });
+  });
+
   describe('findOwoxColumnsMetadataForSheet', () => {
     /**
      * Build a typed metadata fixture quickly. The adapter's filter only

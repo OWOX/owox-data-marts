@@ -73,7 +73,8 @@ export class ColumnPlanBuilder {
       [], // ops
       nameToFinalIndex,
       desiredNames.length - 1, // lastImportedColIndex (-1 if empty)
-      -1 // prevLastImportedColIndex
+      -1, // prevLastImportedColIndex
+      [] // currentImportedNames — nothing imported before the first run
     );
   }
 
@@ -188,7 +189,8 @@ export class ColumnPlanBuilder {
       ops,
       nameToFinalIndex,
       finalImportedNames.length - 1,
-      prevLastImportedColIndex
+      prevLastImportedColIndex,
+      currentImportedNames // canonical names at current row-1 positions
     );
   }
 }

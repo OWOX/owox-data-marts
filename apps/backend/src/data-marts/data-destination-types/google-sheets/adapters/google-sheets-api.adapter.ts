@@ -178,6 +178,132 @@ export class GoogleSheetsApiAdapter {
   }
 
   /**
+   * Reads, for each column in a span, the first non-empty user-entered cell
+   * format found while scanning a window of data rows top-down. Used to
+   * capture the formatting a user applied to the imported columns *before* the
+   * writer overwrites their values, so it can be restored afterwards. This
+   * covers the full `userEnteredFormat` — number/date/currency format,
+   * background & text colors, bold/italic, alignment, borders, wrap — not just
+   * the number format (the `USER_ENTERED` value write re-derives the number
+   * format, and restoring the whole format keeps the contract consistent).
+   *
+   * Why a window and not a single row: a format applied to a whole column sits
+   * on every cell (including blank ones), so row 2 alone usually suffices. But
+   * when row 2 happens to be unformatted while the rest of the column carries
+   * the user's format (e.g. only the data rows were formatted, or row 2 was
+   * reset by a prior buggy run), a single-row sample would miss it. Scanning a
+   * bounded window and taking the first formatted cell per column recovers
+   * that case in one request.
+   *
+   * The returned array is positionally aligned with `[fromCol..toCol]`; a slot
+   * is `undefined` when no cell in the window carries an explicit format
+   * (default / "Automatic" column). Returns all-`undefined` (and never throws)
+   * when the requested range lies outside the current grid.
+   *
+   * The target sheet is selected by `sheetId`, not by position: `ranges` only
+   * limits which grid-data portions are included in the response, it does NOT
+   * guarantee that `sheets[0]` is the requested tab. Relying on `sheets[0]`
+   * would read empty/other-tab grid data for any destination that is not the
+   * first sheet, silently skipping the format restore.
+   *
+   * @param spreadsheetId - ID of the spreadsheet
+   * @param sheetId - ID of the destination sheet to read from
+   * @param sheetTitle - Title of the sheet (used in the A1 range)
+   * @param rowFrom - 1-based first row of the sample window, inclusive
+   * @param rowTo - 1-based last row of the sample window, inclusive
+   * @param fromCol - 1-based, inclusive
+   * @param toCol - 1-based, inclusive
+   */
+  public async getColumnFormats(
+    spreadsheetId: string,
+    sheetId: number,
+    sheetTitle: string,
+    rowFrom: number,
+    rowTo: number,
+    fromCol: number,
+    toCol: number
+  ): Promise<(sheets_v4.Schema$CellFormat | undefined)[]> {
+    const width = toCol - fromCol + 1;
+    if (width <= 0 || rowTo < rowFrom) {
+      return [];
+    }
+    const range = `'${sheetTitle}'!${GoogleSheetsApiAdapter.colToA1(fromCol)}${rowFrom}:${GoogleSheetsApiAdapter.colToA1(toCol)}${rowTo}`;
+    const resp = await this.executeWithRetry(() =>
+      this.service.spreadsheets.get({
+        spreadsheetId,
+        ranges: [range],
+        includeGridData: true,
+        fields: 'sheets(properties(sheetId),data(rowData(values(userEnteredFormat))))',
+      })
+    );
+    const sheet = resp.data.sheets?.find(s => s.properties?.sheetId === sheetId);
+    if (!sheet) {
+      // The destination tab was not present in the response — capture cannot
+      // proceed for this refresh. Surface it: silently returning all-undefined
+      // would be indistinguishable from "user set no formats".
+      GoogleSheetsApiAdapter.LOGGER.warn(
+        `getColumnFormats: sheetId ${sheetId} not found in spreadsheet ` +
+          `${spreadsheetId} response; column formats will not be restored this refresh.`
+      );
+      return new Array(width).fill(undefined);
+    }
+    const rowData = sheet.data?.[0]?.rowData ?? [];
+    const formats: (sheets_v4.Schema$CellFormat | undefined)[] = new Array(width).fill(undefined);
+    for (let i = 0; i < width; i++) {
+      // First non-empty format wins, scanning the window top-down.
+      for (const row of rowData) {
+        const fmt = row.values?.[i]?.userEnteredFormat;
+        if (fmt && Object.keys(fmt).length > 0) {
+          formats[i] = fmt;
+          break;
+        }
+      }
+    }
+    return formats;
+  }
+
+  /**
+   * Builds a `repeatCell` request that applies a captured cell format to every
+   * cell of a single column within a row span. The field mask is the whole
+   * `userEnteredFormat`, so the full set of user-applied cell formatting is
+   * restored — number format, background/text colors, bold/italic, horizontal
+   * & vertical alignment, borders, wrap, padding, etc. — not just the number
+   * format. The provided `format` is treated as the source of truth for the
+   * range: subfields absent from it are reset to default (matching "copy this
+   * representative cell's formatting onto the column").
+   *
+   * Sheet-level constructs (conditional formatting, data validation) live
+   * outside `userEnteredFormat` and are intentionally NOT touched here — the
+   * value write does not affect them either.
+   *
+   * All indexes are 0-based; `startRowIndex` is inclusive, `endRowIndex`
+   * exclusive (Sheets API GridRange contract).
+   */
+  public buildSetColumnFormatRequest(
+    sheetId: number,
+    columnIndex: number,
+    startRowIndex: number,
+    endRowIndex: number,
+    format: sheets_v4.Schema$CellFormat
+  ): sheets_v4.Schema$Request {
+    return {
+      repeatCell: {
+        range: {
+          sheetId,
+          startRowIndex,
+          endRowIndex,
+          startColumnIndex: columnIndex,
+          endColumnIndex: columnIndex + 1,
+        },
+        cell: {
+          userEnteredFormat: format,
+        },
+        fields: 'userEnteredFormat',
+      },
+    };
+  }
+
+  /**
    * Finds OWOX report metadata by key and sheet
    *
    * @param metadata - Array of developer metadata

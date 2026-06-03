@@ -1,3 +1,4 @@
+import { sheets_v4 } from 'googleapis';
 import { ColumnPlan } from '../../../dto/domain/column-plan.dto';
 import { ReportDataBatch } from '../../../dto/domain/report-data-batch.dto';
 import { ReportDataDescription } from '../../../dto/domain/report-data-description.dto';
@@ -43,6 +44,8 @@ interface AdapterMock {
   buildDeleteColumnRequest: jest.Mock;
   buildCopyPasteRequest: jest.Mock;
   clearValuesInRange: jest.Mock;
+  getColumnFormats: jest.Mock;
+  buildSetColumnFormatRequest: jest.Mock;
 }
 
 interface BuildOpts {
@@ -58,6 +61,18 @@ interface BuildOpts {
    * the right edge of the imported rectangle the writer pre-clears.
    */
   finalImportedNames?: string[];
+  /**
+   * Canonical names occupying the imported row-1 cells before the write.
+   * Drives the user-format capture (keyed by name). Defaults to `[]` (first
+   * run — nothing to capture).
+   */
+  currentImportedNames?: string[];
+  /**
+   * Cell formats `adapter.getColumnFormats` resolves to, positionally aligned
+   * with {@link currentImportedNames}. `undefined` slot == an unformatted
+   * ("Automatic") column. Defaults to all-`undefined`.
+   */
+  columnFormats?: (sheets_v4.Schema$CellFormat | undefined)[];
 }
 
 /**
@@ -101,21 +116,46 @@ function buildWriter(opts: BuildOpts) {
     buildDeleteColumnRequest: jest.fn().mockReturnValue({}),
     buildCopyPasteRequest: jest.fn().mockReturnValue({}),
     clearValuesInRange: jest.fn().mockResolvedValue(undefined),
+    getColumnFormats: jest
+      .fn()
+      .mockResolvedValue(
+        opts.columnFormats ?? (opts.currentImportedNames ?? []).map(() => undefined)
+      ),
+    // Echo a tagged marker so tests can assert which (column, format) pairs
+    // were scheduled for restore in the finalize batch.
+    buildSetColumnFormatRequest: jest
+      .fn()
+      .mockImplementation(
+        (
+          _sheetId: number,
+          columnIndex: number,
+          startRowIndex: number,
+          endRowIndex: number,
+          format: sheets_v4.Schema$CellFormat
+        ) => ({
+          __restoreFormat: { columnIndex, startRowIndex, endRowIndex, format },
+        })
+      ),
   };
 
   const adapterFactory = {
     createFromDestination: jest.fn().mockResolvedValue(adapter),
   };
 
-  // First-run column plan: no structural ops, names mapped 1:1 to indexes.
+  // Column plan: no structural ops, names mapped 1:1 to indexes. Defaults to
+  // a first-run plan (no imported columns yet) unless the test supplies
+  // `currentImportedNames` to exercise the capture/restore path.
+  const currentImportedNames = opts.currentImportedNames ?? [];
+  const isFirstRun = currentImportedNames.length === 0;
   const nameToFinalIndex = new Map(finalImportedNames.map((name, i) => [name, i]));
   const columnPlan = new ColumnPlan(
-    true,
+    isFirstRun,
     finalImportedNames,
     [],
     nameToFinalIndex,
     finalImportedNames.length - 1,
-    -1
+    isFirstRun ? -1 : currentImportedNames.length - 1,
+    currentImportedNames
   );
   const columnPlanBuilder = { build: jest.fn().mockReturnValue(columnPlan) };
 
@@ -433,6 +473,211 @@ describe('GoogleSheetsReportWriter — pre-clear range invariants', () => {
       range.includes('!A2:')
     );
     expect(dataWrites).toHaveLength(0);
+  });
+});
+
+describe('GoogleSheetsReportWriter — preserves user column formats across refresh', () => {
+  // Full userEnteredFormat shapes — number format AND non-number formatting.
+  const CURRENCY: sheets_v4.Schema$CellFormat = {
+    numberFormat: { type: 'CURRENCY', pattern: '"$"#,##0.00' },
+  };
+  const DATE: sheets_v4.Schema$CellFormat = {
+    numberFormat: { type: 'DATE', pattern: 'dd.MM.yyyy' },
+  };
+  // A non-number format: background + bold text + right alignment, no numberFormat.
+  const STYLED: sheets_v4.Schema$CellFormat = {
+    backgroundColor: { red: 1, green: 0.9, blue: 0.6 },
+    textFormat: { bold: true, foregroundColor: { red: 0.2, green: 0.2, blue: 0.2 } },
+    horizontalAlignment: 'RIGHT',
+  };
+
+  /** Collects the restore-format markers scheduled into the finalize batch. */
+  function restoreMarkers(adapter: AdapterMock) {
+    return adapter.batchUpdate.mock.calls
+      .flatMap(
+        ([, requests]: [string, unknown[]]) => requests as Array<{ __restoreFormat?: unknown }>
+      )
+      .map(r => r.__restoreFormat)
+      .filter(Boolean) as Array<{
+      columnIndex: number;
+      startRowIndex: number;
+      endRowIndex: number;
+      format: sheets_v4.Schema$CellFormat;
+    }>;
+  }
+
+  it('captures row-2 formats before the write and re-applies them over the written data rows', async () => {
+    // Subsequent run: user has applied a DATE format to col A (country... say a
+    // date column) and a CURRENCY format to col C (cost). Col B is unformatted.
+    const { writer, adapter, report, finalImportedNames } = buildWriter({
+      availableRowsCount: 11,
+      currentImportedNames: ['country', 'clicks', 'cost'],
+      columnFormats: [DATE, undefined, CURRENCY],
+    });
+
+    await writer.prepareToWriteReport(
+      report as never,
+      new ReportDataDescription(makeHeaders(...finalImportedNames), 2)
+    );
+    // Capture samples a bounded row window starting at row 2 across the
+    // imported width, before any write — and targets the destination tab by
+    // sheetId (not by position). rowTo = min(availableRowsCount, 2+100-1) = 11.
+    expect(adapter.getColumnFormats).toHaveBeenCalledWith(
+      SPREADSHEET_ID,
+      SHEET_ID,
+      SHEET_TITLE,
+      2,
+      11,
+      1,
+      3
+    );
+
+    await writer.writeReportDataBatch(new ReportDataBatch([['A', '10', '2']]));
+    await writer.writeReportDataBatch(new ReportDataBatch([['B', '20', '5']]));
+    await writer.finalize();
+
+    // Two formatted columns → two restore requests, each over rows 2..3
+    // (writtenRowsCount = 1 header-marker + 2 data rows = 3 → endRowIndex 3).
+    const markers = restoreMarkers(adapter);
+    expect(markers).toEqual(
+      expect.arrayContaining([
+        { columnIndex: 0, startRowIndex: 1, endRowIndex: 3, format: DATE },
+        { columnIndex: 2, startRowIndex: 1, endRowIndex: 3, format: CURRENCY },
+      ])
+    );
+    // The unformatted column is never restored — we must not impose a format.
+    expect(markers.find(m => m.columnIndex === 1)).toBeUndefined();
+  });
+
+  it('preserves non-number formatting (background, text color, alignment), not just numberFormat', async () => {
+    // The whole userEnteredFormat is captured and restored, so a column the
+    // user styled WITHOUT a number format still survives a refresh.
+    const { writer, adapter, report, finalImportedNames } = buildWriter({
+      availableRowsCount: 11,
+      currentImportedNames: ['country', 'clicks', 'cost'],
+      columnFormats: [STYLED, undefined, undefined],
+    });
+
+    await writer.prepareToWriteReport(
+      report as never,
+      new ReportDataDescription(makeHeaders(...finalImportedNames), 1)
+    );
+    await writer.writeReportDataBatch(new ReportDataBatch([['A', '10', '2']]));
+    await writer.finalize();
+
+    const markers = restoreMarkers(adapter);
+    expect(markers).toEqual([{ columnIndex: 0, startRowIndex: 1, endRowIndex: 2, format: STYLED }]);
+  });
+
+  it('restores the format AFTER the data write so it wins over USER_ENTERED inference', async () => {
+    const { writer, adapter, report, finalImportedNames } = buildWriter({
+      availableRowsCount: 11,
+      currentImportedNames: ['country', 'clicks', 'cost'],
+      columnFormats: [undefined, undefined, CURRENCY],
+    });
+
+    await writer.prepareToWriteReport(
+      report as never,
+      new ReportDataDescription(makeHeaders(...finalImportedNames), 1)
+    );
+    await writer.writeReportDataBatch(new ReportDataBatch([['A', '10', '2']]));
+    await writer.finalize();
+
+    const dataWriteIdx = adapter.updateValues.mock.calls.findIndex(([, range]: [string, string]) =>
+      range.includes('!A2:')
+    );
+    const dataWriteOrder = adapter.updateValues.mock.invocationCallOrder[dataWriteIdx]!;
+    const restoreBatchOrder = adapter.buildSetColumnFormatRequest.mock.invocationCallOrder[0]!;
+    // The restore request is built as part of the finalize batch, which is
+    // issued strictly after the data values were written.
+    expect(restoreBatchOrder).toBeGreaterThan(dataWriteOrder);
+  });
+
+  it('does not capture or restore anything on the first run', async () => {
+    const { writer, adapter, report, finalImportedNames } = buildWriter({
+      availableRowsCount: 11,
+      // currentImportedNames defaults to [] → first run.
+    });
+
+    await writer.prepareToWriteReport(
+      report as never,
+      new ReportDataDescription(makeHeaders(...finalImportedNames), 1)
+    );
+    await writer.writeReportDataBatch(new ReportDataBatch([['A', '10', '2']]));
+    await writer.finalize();
+
+    expect(adapter.getColumnFormats).not.toHaveBeenCalled();
+    expect(adapter.buildSetColumnFormatRequest).not.toHaveBeenCalled();
+  });
+
+  it('does not restore formats when the refresh fails before any data is written', async () => {
+    const { writer, adapter, report, finalImportedNames } = buildWriter({
+      availableRowsCount: 11,
+      currentImportedNames: ['country', 'clicks', 'cost'],
+      columnFormats: [DATE, undefined, CURRENCY],
+    });
+
+    await writer.prepareToWriteReport(
+      report as never,
+      new ReportDataDescription(makeHeaders(...finalImportedNames), 1)
+    );
+    // Reader failed before producing any batch.
+    await writer.finalize(new Error('reader failed'));
+
+    expect(adapter.buildSetColumnFormatRequest).not.toHaveBeenCalled();
+  });
+
+  it('skips restoring a captured format for a column dropped from the export', async () => {
+    // User had a CURRENCY format on `clicks`, but the new export omits it
+    // (finalImportedNames lacks `clicks`). The captured format must not be
+    // re-applied to whatever column now sits at that index.
+    const { writer, adapter, report } = buildWriter({
+      availableRowsCount: 11,
+      finalImportedNames: ['country', 'cost'],
+      currentImportedNames: ['country', 'clicks', 'cost'],
+      columnFormats: [undefined, CURRENCY, undefined],
+    });
+
+    await writer.prepareToWriteReport(
+      report as never,
+      new ReportDataDescription(makeHeaders('country', 'cost'), 1)
+    );
+    await writer.writeReportDataBatch(new ReportDataBatch([['A', '2']]));
+    await writer.finalize();
+
+    expect(restoreMarkers(adapter)).toEqual([]);
+  });
+
+  it('does not fail the report run when capturing formats throws (best-effort)', async () => {
+    // Capturing formats is cosmetic: a transient spreadsheets.get failure must
+    // NOT abort the export. The run proceeds and simply restores no formats.
+    const { writer, adapter, report, finalImportedNames } = buildWriter({
+      availableRowsCount: 11,
+      currentImportedNames: ['country', 'clicks', 'cost'],
+      columnFormats: [DATE, undefined, CURRENCY],
+    });
+    adapter.getColumnFormats.mockRejectedValueOnce(new Error('Sheets get API blew up'));
+
+    // prepareToWriteReport must NOT reject despite the capture failure — a
+    // plain await fails the test if it rejects. We intentionally do not assert
+    // the resolved value: the best-effort contract is about "does not throw",
+    // and finalize's resolved value is not part of it.
+    await writer.prepareToWriteReport(
+      report as never,
+      new ReportDataDescription(makeHeaders(...finalImportedNames), 1)
+    );
+
+    // The data write and finalize proceed normally (must not reject).
+    await writer.writeReportDataBatch(new ReportDataBatch([['A', '10', '2']]));
+    await writer.finalize();
+
+    // ...but nothing is restored, since the capture never completed.
+    expect(restoreMarkers(adapter)).toEqual([]);
+    // Data was still written — the export did its job.
+    const dataWrites = adapter.updateValues.mock.calls.filter(([, range]: [string, string]) =>
+      range.includes('!A2:')
+    );
+    expect(dataWrites.length).toBeGreaterThan(0);
   });
 });
 
