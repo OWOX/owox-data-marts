@@ -242,38 +242,47 @@ export class GoogleSheetsReportWriter implements DataDestinationReportWriter {
 
     const finalCount = this.columnPlan.finalImportedNames.length;
     const insertCount = this.columnPlan.ops.filter(op => op.kind === 'insert').length;
-    const deleteCount = this.columnPlan.ops.length - insertCount;
-
-    // Sentinel guard for the one narrow case where `insertDimension` would be
-    // rejected. When the imported range fills the entire grid (no user column
-    // to its right) AND the plan both deletes and inserts columns, a single
-    // batchUpdate applies the deletes first — shrinking the grid — and the
-    // first `insertDimension { inheritFromBefore: false }` then lands on
-    // `startIndex == survivors.length == gridSize`, which Sheets rejects
-    // ("range.startIndex must be less than the grid size"). Pre-allocating
-    // exactly one spare column at the right edge keeps the post-delete grid one
-    // wider than `survivors.length`, so the first insert fits; every subsequent
-    // insert grows the grid by one on its own. The spare is removed at the end
-    // of the same structural batch (see {@link applyStructuralColumnOps}).
-    //
-    // We activate this on the exact precondition of the bug and nothing more:
-    // when a user column sits to the right of the imported range, the grid
-    // after deletes is `survivors.length + userColCount`, which already leaves
-    // room — and pre-allocating there would risk clobbering that user content.
     const prevWidth = this.columnPlan.prevLastImportedColIndex + 1;
-    const noUserColumnsRight = this.availableColumnsCount === prevWidth;
-    const needsSentinel = noUserColumnsRight && insertCount > 0 && deleteCount > 0;
 
-    const target = needsSentinel ? Math.max(finalCount, prevWidth + 1) : finalCount;
-    await this.prepareSheetColumns(target);
+    // Column sizing rests on a single invariant: every `insertDimension` op
+    // CREATES a column and every `deleteDimension` op REMOVES one, so a refresh
+    // that has structural ops already reaches `finalImportedNames.length`
+    // columns on its own — `availableColumnsCount + insertCount - deleteCount`.
+    // Pre-allocating the grid to the final width on top of that would
+    // double-count the inserts and strand `insertCount - deleteCount` empty
+    // orphan columns to the right of the imported rectangle on every
+    // net-growing refresh (breaking the "ODM owns the imported rectangle"
+    // contract and corrupting the slack detection used on the next refresh).
+    //
+    // So we pre-allocate columns only when the ops cannot size the grid
+    // themselves:
+    //   1. No structural ops (first run, or an unchanged schema): there are no
+    //      inserts to grow the grid, so grow it directly to the final width.
+    //   2. Otherwise, append a single SENTINEL column iff the imported range
+    //      fills the grid to its right edge (no user/slack column beyond it)
+    //      AND the plan inserts at least one column. Without a slack column the
+    //      first `insertDimension { inheritFromBefore: false }` lands on
+    //      `startIndex == survivors.length == gridSize`, which Sheets rejects
+    //      ("range.startIndex must be less than the grid size"). One spare keeps
+    //      the grid one wider than `survivors.length` so the first insert fits;
+    //      every subsequent insert grows the grid by one on its own. The spare
+    //      is removed inside the SAME structural batch (see
+    //      {@link applyStructuralColumnOps}), so the final width is exact.
+    //
+    // When a user/slack column already sits to the right the first insert is
+    // in range without a sentinel, and pre-allocating there would risk
+    // clobbering that user content — so we leave the grid to the ops alone.
+    const hasStructuralOps = this.columnPlan.ops.length > 0;
+    const noColumnsRightOfImported = this.availableColumnsCount <= prevWidth;
+    const needsSentinel = hasStructuralOps && insertCount > 0 && noColumnsRightOfImported;
 
-    // A sentinel column is physically appended only when `target` exceeds the
-    // final width — i.e. when `insertCount <= deleteCount`. When more columns
-    // are inserted than deleted, `finalCount > prevWidth` already widens the
-    // grid past `survivors.length`, so no separate spare (and no cleanup) is
-    // needed.
-    const sentinelAllocated = needsSentinel && target > finalCount;
-    await this.applyStructuralColumnOps(sentinelAllocated);
+    if (!hasStructuralOps) {
+      await this.prepareSheetColumns(finalCount);
+    } else if (needsSentinel) {
+      await this.prepareSheetColumns(this.availableColumnsCount + 1);
+    }
+
+    await this.applyStructuralColumnOps(needsSentinel);
     await this.writeHeaders();
     await this.preClearImportedRectangle();
     this.writtenRowsCount = 1;

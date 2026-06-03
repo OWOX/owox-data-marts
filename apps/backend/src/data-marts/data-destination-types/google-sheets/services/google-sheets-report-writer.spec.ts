@@ -1060,4 +1060,83 @@ describe('GoogleSheetsReportWriter — insertDimension grid-size guard (sentinel
       });
     }).toThrow(/grid size/);
   });
+
+  it('insert-heavy, no user columns (prevWidth=3, avail=3, deletes=1, inserts=2): leaves no orphan trailing column — grid == finalImportedNames', async () => {
+    // The imported range fills the whole grid and the new schema is net-growing
+    // (drops c, adds x & y). The `insertDimension` ops create their own columns,
+    // so pre-allocating the grid to `finalImportedNames.length` up front
+    // double-counts the inserts: every refresh would leave `inserts - deletes`
+    // empty orphan columns to the right of the imported rectangle, silently
+    // violating the "ODM owns the imported rectangle" contract and corrupting
+    // the slack / user-column detection used on the next refresh.
+    const h = buildStructuralWriter({
+      previousImported: ['a', 'b', 'c'],
+      desired: ['a', 'c', 'x', 'y'],
+    });
+
+    expect(h.columnPlan.finalImportedNames).toEqual(['a', 'c', 'x', 'y']);
+
+    await expect(h.runRefresh()).resolves.toBeDefined();
+
+    // The grid is exactly the final imported width — no stray column survives.
+    expect(h.grid).toEqual(['a', 'c', 'x', 'y']);
+
+    // Exactly one sentinel column is appended (and removed in the same
+    // structural batch), regardless of how many columns are inserted.
+    const colAppends = h.adapter.appendDimensionToSheet.mock.calls.filter(
+      ([, , , dim]: [string, number, number, string]) => dim === 'COLUMNS'
+    );
+    expect(colAppends).toEqual([[SPREADSHEET_ID, SHEET_ID, 1, 'COLUMNS']]);
+    expect(h.structuralBatch()).toHaveLength(h.columnPlan.ops.length + 1);
+  });
+
+  it('insert-only, no user columns (prevWidth=3, avail=3, deletes=0, inserts=2): first insert stays in range and no orphan column remains', async () => {
+    // Pure append with the imported range filling the grid. With no deletes,
+    // the first `insertDimension { inheritFromBefore: false }` lands on
+    // `startIndex == prevWidth == gridSize` and the live API rejects it — yet
+    // the previous `needsSentinel` predicate required `deleteCount > 0`, so the
+    // guard never engaged for this case. It instead relied on pre-allocating to
+    // `finalImportedNames.length`, which avoided the rejection but left
+    // `insertCount` orphan columns behind.
+    const h = buildStructuralWriter({
+      previousImported: ['a', 'b', 'c'],
+      desired: ['a', 'b', 'c', 'x', 'y'],
+    });
+
+    expect(h.columnPlan.finalImportedNames).toEqual(['a', 'b', 'c', 'x', 'y']);
+
+    await expect(h.runRefresh()).resolves.toBeDefined();
+
+    expect(h.grid).toEqual(['a', 'b', 'c', 'x', 'y']);
+    const colAppends = h.adapter.appendDimensionToSheet.mock.calls.filter(
+      ([, , , dim]: [string, number, number, string]) => dim === 'COLUMNS'
+    );
+    expect(colAppends).toEqual([[SPREADSHEET_ID, SHEET_ID, 1, 'COLUMNS']]);
+    expect(h.structuralBatch()).toHaveLength(h.columnPlan.ops.length + 1);
+  });
+
+  it('net-growing past existing slack, one user column (prevWidth=3, avail=4, deletes=1, inserts=3): user column preserved, no orphan column', async () => {
+    // A user column provides one slack column to the right, but the schema adds
+    // three and drops one (net +2), so the final imported width exceeds the
+    // current grid. Pre-allocating to the final width would again double-count
+    // the inserts and strand the user column behind orphan cells. No sentinel
+    // is needed here (the slack column keeps the first insert in range), but the
+    // grid must still end at finalImportedNames + the user column.
+    const h = buildStructuralWriter({
+      previousImported: ['a', 'b', 'c'],
+      userColsRight: ['U'],
+      desired: ['a', 'c', 'x', 'y', 'z'],
+    });
+
+    expect(h.columnPlan.finalImportedNames).toEqual(['a', 'c', 'x', 'y', 'z']);
+
+    await expect(h.runRefresh()).resolves.toBeDefined();
+
+    expect(h.grid).toEqual(['a', 'c', 'x', 'y', 'z', 'U']);
+    const colAppends = h.adapter.appendDimensionToSheet.mock.calls.filter(
+      ([, , , dim]: [string, number, number, string]) => dim === 'COLUMNS'
+    );
+    expect(colAppends).toEqual([]);
+    expect(h.structuralBatch()).toHaveLength(h.columnPlan.ops.length);
+  });
 });
