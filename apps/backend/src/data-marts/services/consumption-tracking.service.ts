@@ -104,7 +104,7 @@ export class ConsumptionTrackingService {
       }
 
       this.httpDataRunConsumptionTopic = configService.get<string>(
-        'CONSUMPTION_HTTP_DATA_RUN_TOPIC'
+        'CONSUMPTION_HTTP_DATA_REPORT_RUN_TOPIC'
       );
       if (this.httpDataRunConsumptionTopic) {
         this.logger.log(`Consumption HTTP Data Run topic: ${this.httpDataRunConsumptionTopic}`);
@@ -201,7 +201,7 @@ export class ConsumptionTrackingService {
     }
     await this.sendConsumptionCommand(this.httpDataRunConsumptionTopic, {
       ...this.baseDataMartConsumptionPayload(dataMart),
-      processRunId: runId,
+      reportRunId: runId,
     });
   }
 
