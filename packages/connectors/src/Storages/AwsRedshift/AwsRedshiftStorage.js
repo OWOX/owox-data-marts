@@ -85,9 +85,10 @@ var AwsRedshiftStorage = class AwsRedshiftStorage extends AbstractStorage {
   async loadTableSchema() {
     this.existingColumns = await this.getAListOfExistingColumns();
 
-    if (Object.keys(this.existingColumns).length === 0) {
-      await this.createTable();
-    } else {
+    // Only add new columns here — createTable() is intentionally deferred to
+    // saveData() so it only fires when data is actually written, preserving
+    // the CreateEmptyTables semantics enforced at the connector level.
+    if (Object.keys(this.existingColumns).length > 0) {
       const selectedFields = this.getSelectedFields();
       const newFields = selectedFields.filter(col => !(col in this.existingColumns));
       if (newFields.length > 0) {
@@ -500,6 +501,11 @@ var AwsRedshiftStorage = class AwsRedshiftStorage extends AbstractStorage {
   async saveData(data) {
     if (!data || data.length === 0) {
       return Promise.resolve();
+    }
+
+    // Create table on first write if it doesn't exist yet
+    if (Object.keys(this.existingColumns).length === 0) {
+      await this.createTable();
     }
 
     // Check for new columns in incoming data not yet in the table
