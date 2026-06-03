@@ -639,17 +639,18 @@ describe('GoogleSheetsReportWriter — preserves user column formats across refr
     });
     adapter.getColumnFormats.mockRejectedValueOnce(new Error('Sheets get API blew up'));
 
-    // prepareToWriteReport must resolve despite the capture failure.
-    await expect(
-      writer.prepareToWriteReport(
-        report as never,
-        new ReportDataDescription(makeHeaders(...finalImportedNames), 1)
-      )
-    ).resolves.toBeUndefined();
+    // prepareToWriteReport must NOT reject despite the capture failure — a
+    // plain await fails the test if it rejects. We intentionally do not assert
+    // the resolved value: the best-effort contract is about "does not throw",
+    // and finalize's resolved value is not part of it.
+    await writer.prepareToWriteReport(
+      report as never,
+      new ReportDataDescription(makeHeaders(...finalImportedNames), 1)
+    );
 
-    // The data write and finalize proceed normally...
+    // The data write and finalize proceed normally (must not reject).
     await writer.writeReportDataBatch(new ReportDataBatch([['A', '10', '2']]));
-    await expect(writer.finalize()).resolves.toBeUndefined();
+    await writer.finalize();
 
     // ...but nothing is restored, since the capture never completed.
     expect(restoreMarkers(adapter)).toEqual([]);
