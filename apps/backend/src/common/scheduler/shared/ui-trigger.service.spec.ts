@@ -65,6 +65,17 @@ describe('UiTriggerService tenant scoping', () => {
         NotFoundException
       );
     });
+
+    it('fails closed without querying when projectId is missing', async () => {
+      const { service, repository } = createService();
+
+      await expect(
+        service.getTriggerStatus('trigger-1', undefined as unknown as string)
+      ).rejects.toThrow(NotFoundException);
+      // An undefined projectId must never reach the repository, where TypeORM
+      // would drop it from the where clause and disable the tenant filter.
+      expect(repository.findOne).not.toHaveBeenCalled();
+    });
   });
 
   describe('getTriggerResponse', () => {

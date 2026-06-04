@@ -108,6 +108,13 @@ export abstract class UiTriggerService<UiResponseType> {
     id: string,
     projectId: string
   ): Promise<UiTrigger<UiResponseType>> {
+    // Fail closed when projectId is missing: TypeORM drops `undefined` keys from
+    // the where clause, which would otherwise collapse the query to `{ id }` and
+    // silently disable the tenant boundary.
+    if (!projectId) {
+      throw new NotFoundException(`Trigger with id ${id} not found`);
+    }
+
     const trigger = await this.triggerRepository.findOne({
       where: { id, projectId },
     });
