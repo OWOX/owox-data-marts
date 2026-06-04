@@ -499,14 +499,18 @@ var AwsRedshiftStorage = class AwsRedshiftStorage extends AbstractStorage {
    * @returns {Promise}
    */
   async saveData(data) {
-    // Create table before the empty-data guard so that CreateEmptyTables=true
-    // calls with data=[] still result in the table being created.
-    if (Object.keys(this.existingColumns).length === 0) {
-      await this.createTable();
+    if (!data || data.length === 0) {
+      // Only create the table for an empty batch when explicitly requested —
+      // some connectors pass empty batches without checking CreateEmptyTables first.
+      if (Object.keys(this.existingColumns).length === 0 && this.config.CreateEmptyTables?.value) {
+        await this.createTable();
+      }
+      return Promise.resolve();
     }
 
-    if (!data || data.length === 0) {
-      return Promise.resolve();
+    // Create table on first write with actual data
+    if (Object.keys(this.existingColumns).length === 0) {
+      await this.createTable();
     }
 
     // Check for new columns in incoming data not yet in the table
