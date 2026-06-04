@@ -709,5 +709,99 @@ describe('ReportSqlComposerService', () => {
       expect(result.sql).not.toMatch(/LIKE/);
       expect(result.params).toEqual([{ name: 'p0', value: '100%' }]);
     });
+
+    // composeStatic() must emit runnable, param-free SQL for paths with no binding
+    // channel (copied data-mart definition, generated-SQL preview).
+    it('composeStatic inlines positional ? into literals for Athena', async () => {
+      const composer = makeAthenaComposer(['name', 'amount']);
+      const report = {
+        filterConfig: [
+          { column: 'name', operator: 'eq', value: "O'Brien" },
+          { column: 'amount', operator: 'gte', value: 50 },
+        ],
+        sortConfig: null,
+        limitConfig: null,
+        dataMart: {
+          id: 'dm-a',
+          projectId: 'proj-a',
+          storage: { type: DataStorageType.AWS_ATHENA },
+          definition: { fullyQualifiedName: 'mydb.myschema.orders' },
+        },
+      } as never;
+
+      const { sql } = await composer.composeStatic(report, { userId: 'u1', roles: ['viewer'] });
+
+      // No unbound placeholders survive; values are inlined (quotes escaped).
+      expect(sql).not.toContain('?');
+      expect(sql).toContain(`WHERE "name" = 'O''Brien' AND "amount" >= 50`);
+    });
+  });
+
+  describe('composeStatic — non-Athena dialects', () => {
+    it('inlines named @params into literals for BigQuery (CAST wrapper makes date literals valid)', async () => {
+      const queryBuilderFacade = {
+        buildQuery: jest.fn().mockResolvedValue({
+          sql: 'SELECT * FROM t WHERE `name` = @p0 AND `d` = CAST(@p1 AS DATE)',
+          params: [
+            { name: 'p0', value: "O'Brien" },
+            { name: 'p1', value: '2024-01-01' },
+          ],
+        }),
+      };
+      const blendedDataService = {
+        resolveBlendingDecision: jest
+          .fn()
+          .mockResolvedValue({ needsBlending: false, columnFilter: ['name', 'd'] }),
+      };
+      const tableReferenceService = { resolveTableName: jest.fn().mockResolvedValue('p.d.t') };
+      const capabilityService = { isSupported: jest.fn().mockReturnValue(true) };
+      const composer = new ReportSqlComposerService(
+        blendedDataService as never,
+        queryBuilderFacade as never,
+        tableReferenceService as never,
+        capabilityService as never
+      );
+      const report = {
+        filterConfig: [{ column: 'name', operator: 'eq', value: "O'Brien" }],
+        dataMart: {
+          id: 'm',
+          projectId: 'p',
+          storage: { type: 'GOOGLE_BIGQUERY' },
+          definition: { type: 'table', fullyQualifiedName: 'p.d.t' },
+        },
+      } as never;
+
+      const { sql } = await composer.composeStatic(report, { userId: 'u1', roles: ['admin'] });
+      expect(sql).not.toContain('@p');
+      expect(sql).toBe(
+        "SELECT * FROM t WHERE `name` = 'O\\'Brien' AND `d` = CAST('2024-01-01' AS DATE)"
+      );
+    });
+
+    it('returns SQL unchanged when there are no params (sort/limit-only or no controls)', async () => {
+      const queryBuilderFacade = { buildQuery: jest.fn().mockResolvedValue('SELECT * FROM t') };
+      const blendedDataService = {
+        resolveBlendingDecision: jest
+          .fn()
+          .mockResolvedValue({ needsBlending: false, columnFilter: ['a'] }),
+      };
+      const composer = new ReportSqlComposerService(
+        blendedDataService as never,
+        queryBuilderFacade as never,
+        { resolveTableName: jest.fn() } as never,
+        { isSupported: jest.fn().mockReturnValue(true) } as never
+      );
+      const report = {
+        dataMart: {
+          id: 'm',
+          projectId: 'p',
+          storage: { type: DataStorageType.AWS_ATHENA },
+          definition: { type: 'table', fullyQualifiedName: 'p.d.t' },
+        },
+      } as never;
+
+      const { sql } = await composer.composeStatic(report, { userId: 'u1', roles: ['admin'] });
+      expect(sql).toBe('SELECT * FROM t');
+    });
   });
 });

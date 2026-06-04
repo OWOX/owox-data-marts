@@ -410,16 +410,19 @@ describeIfCredentials('Output controls — operator matrix & dates (real Athena)
     //
     // Date expressions use date_add so the relative_date assertions hold
     // regardless of when the suite runs.
+    // `created_ts` mirrors `created_at` but as a TIMESTAMP at 13:00 (NOT midnight)
+    // for the "today" rows, so the relative_date half-open range is exercised on a
+    // sub-day value — the case the old `= current_date` equality silently missed.
     const ctasQuery = `CREATE TABLE "${database}"."${MATRIX_TABLE_SUFFIX}"
 WITH (format = 'PARQUET', external_location = 's3://${config.outputBucket}/${MATRIX_S3_PREFIX}data/')
 AS SELECT * FROM (VALUES
-  (1, 'alpha',    'a',    10,  true,  current_date),
-  (2, 'beta',     'b',    20,  false, date_add('day', -40, current_date)),
-  (3, 'gamma',    'c',    30,  true,  date_add('day', -400, current_date)),
-  (4, 'alphabet', 'a%b',  40,  true,  date_add('day', -5, current_date)),
-  (5, 'ALPHA',    'a_b',  50,  false, current_date),
-  (6, '',         'x',     0,  true,  date_add('day', -200, current_date))
-) AS t (id, name, tag, score, active, created_at)`;
+  (1, 'alpha',    'a',    10,  true,  current_date,                          date_add('hour', 13, cast(current_date AS timestamp))),
+  (2, 'beta',     'b',    20,  false, date_add('day', -40, current_date),    cast(date_add('day', -40, current_date) AS timestamp)),
+  (3, 'gamma',    'c',    30,  true,  date_add('day', -400, current_date),   cast(date_add('day', -400, current_date) AS timestamp)),
+  (4, 'alphabet', 'a%b',  40,  true,  date_add('day', -5, current_date),     cast(date_add('day', -5, current_date) AS timestamp)),
+  (5, 'ALPHA',    'a_b',  50,  false, current_date,                          date_add('hour', 13, cast(current_date AS timestamp))),
+  (6, '',         'x',     0,  true,  date_add('day', -200, current_date),   cast(date_add('day', -200, current_date) AS timestamp))
+) AS t (id, name, tag, score, active, created_at, created_ts)`;
 
     const { queryExecutionId } = await adapter.executeQuery(
       ctasQuery,
@@ -624,6 +627,29 @@ AS SELECT * FROM (VALUES
       filters: [{ column: 'created_at', operator: 'relative_date', value: { kind: 'today' } }],
     });
     expect(ids(rows)).toEqual(['1', '5']);
+  }, 60000);
+
+  // Regression guard for the midnight-equality bug: rows 1 and 5 are stamped TODAY
+  // at 13:00. The old `created_ts = current_date` form coerces DATE→TIMESTAMP at
+  // midnight and returns NOTHING; the half-open range matches the whole day.
+  it('relative_date today on a non-midnight TIMESTAMP column → rows 1,5 (half-open range)', async () => {
+    const rows = await runMatrix({
+      filters: [{ column: 'created_ts', operator: 'relative_date', value: { kind: 'today' } }],
+      columnTypes: new Map([['created_ts', 'TIMESTAMP']]),
+    });
+    expect(ids(rows)).toEqual(['1', '5']);
+  }, 60000);
+
+  // The same TIMESTAMP column with a date-only value must run (CAST(? AS TIMESTAMP))
+  // and behave as a range bound — proves the cast path on a real sub-day column.
+  it('date gte on a non-midnight TIMESTAMP column → rows 1,5 (today is the only date >= today)', async () => {
+    const rows = await runMatrix({
+      filters: [{ column: 'created_ts', operator: 'gte', value: '2024-01-01' }],
+      columnTypes: new Map([['created_ts', 'TIMESTAMP']]),
+    });
+    // every seeded row is >= 2024-01-01, so this mainly proves CAST(? AS TIMESTAMP)
+    // parses and runs against a real TIMESTAMP column carrying a time component.
+    expect(ids(rows)).toEqual(['1', '2', '3', '4', '5', '6']);
   }, 60000);
 
   it('relative_date last_n_days(7) on created_at → rows 1,4,5', async () => {

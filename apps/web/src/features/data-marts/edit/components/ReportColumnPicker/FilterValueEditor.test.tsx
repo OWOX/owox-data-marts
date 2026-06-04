@@ -576,3 +576,35 @@ describe('FilterValueEditor — switching operator clears invalid state', () => 
     expect(lastCall(onChange)).toEqual({ column: COL, operator: 'is_empty' });
   });
 });
+
+// ---------------------------------------------------------------------------
+// Group 9 — Time-of-day types (regression: TIME must not behave like a date)
+// ---------------------------------------------------------------------------
+
+describe('FilterValueEditor — time-of-day types', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('renders a time input (not date) for a TIME column and offers no relative_date', () => {
+    const { container } = render(
+      <FilterValueEditor column={COL} fieldType='TIME WITH TIME ZONE' onChange={vi.fn()} />
+    );
+
+    expect(container.querySelector('input[type="time"]')).toBeInTheDocument();
+    expect(container.querySelector('input[type="date"]')).toBeNull();
+
+    const options = Array.from(getConditionSelect().querySelectorAll('option')).map(o => o.value);
+    expect(options).not.toContain('relative_date');
+    expect(options).toContain('between');
+  });
+
+  it('keeps a date input for a zoned TIMESTAMP column', () => {
+    const { container } = render(
+      <FilterValueEditor column={COL} fieldType='TIMESTAMP WITH TIME ZONE' onChange={vi.fn()} />
+    );
+
+    expect(container.querySelector('input[type="date"]')).toBeInTheDocument();
+    expect(container.querySelector('input[type="time"]')).toBeNull();
+  });
+});

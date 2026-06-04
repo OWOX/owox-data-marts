@@ -337,7 +337,8 @@ describeIfCredentials('Output controls — operator matrix & dates (real BigQuer
         tag STRING,
         score INT64,
         active BOOL,
-        created_at DATE
+        created_at DATE,
+        created_ts TIMESTAMP
       )`
     );
 
@@ -350,14 +351,17 @@ describeIfCredentials('Output controls — operator matrix & dates (real BigQuer
     //   6  (empty)  x       0  true   200 days ago (last year)
     //
     // DATE_SUB expressions ensure relative_date assertions hold whenever the suite runs.
+    // created_ts mirrors created_at as a TIMESTAMP at 13:00 (NOT midnight) for the
+    // "today" rows, so relative_date exercises the DATE(col) wrapper on a sub-day
+    // value — without it BigQuery raises "No matching signature for =" (TIMESTAMP vs DATE).
     await adapter.executeQuery(
-      `INSERT INTO \`${matrixFQN}\` (id, name, tag, score, active, created_at) VALUES
-        (1, 'alpha',    'a',    10,  true,  CURRENT_DATE()),
-        (2, 'beta',     'b',    20,  false, DATE_SUB(CURRENT_DATE(), INTERVAL 40 DAY)),
-        (3, 'gamma',    'c',    30,  true,  DATE_SUB(CURRENT_DATE(), INTERVAL 400 DAY)),
-        (4, 'alphabet', 'a%b',  40,  true,  DATE_SUB(CURRENT_DATE(), INTERVAL 5 DAY)),
-        (5, 'ALPHA',    'a_b',  50,  false, CURRENT_DATE()),
-        (6, '',         'x',     0,  true,  DATE_SUB(CURRENT_DATE(), INTERVAL 200 DAY))`
+      `INSERT INTO \`${matrixFQN}\` (id, name, tag, score, active, created_at, created_ts) VALUES
+        (1, 'alpha',    'a',    10,  true,  CURRENT_DATE(),                                TIMESTAMP_ADD(TIMESTAMP(CURRENT_DATE()), INTERVAL 13 HOUR)),
+        (2, 'beta',     'b',    20,  false, DATE_SUB(CURRENT_DATE(), INTERVAL 40 DAY),     TIMESTAMP(DATE_SUB(CURRENT_DATE(), INTERVAL 40 DAY))),
+        (3, 'gamma',    'c',    30,  true,  DATE_SUB(CURRENT_DATE(), INTERVAL 400 DAY),    TIMESTAMP(DATE_SUB(CURRENT_DATE(), INTERVAL 400 DAY))),
+        (4, 'alphabet', 'a%b',  40,  true,  DATE_SUB(CURRENT_DATE(), INTERVAL 5 DAY),      TIMESTAMP(DATE_SUB(CURRENT_DATE(), INTERVAL 5 DAY))),
+        (5, 'ALPHA',    'a_b',  50,  false, CURRENT_DATE(),                                TIMESTAMP_ADD(TIMESTAMP(CURRENT_DATE()), INTERVAL 13 HOUR)),
+        (6, '',         'x',     0,  true,  DATE_SUB(CURRENT_DATE(), INTERVAL 200 DAY),    TIMESTAMP(DATE_SUB(CURRENT_DATE(), INTERVAL 200 DAY)))`
     );
   }, 120000);
 
@@ -539,6 +543,27 @@ describeIfCredentials('Output controls — operator matrix & dates (real BigQuer
       filters: [{ column: 'created_at', operator: 'relative_date', value: { kind: 'today' } }],
     });
     expect(ids(rows)).toEqual([1, 5]);
+  }, 60000);
+
+  // Regression guard: on a TIMESTAMP column `col = CURRENT_DATE()` is a hard type
+  // error in BigQuery. The DATE(col) wrapper compares the date part, so the today
+  // rows (stamped at 13:00) match without error.
+  it('relative_date today on a TIMESTAMP column → rows 1,5 (DATE(col) wrapper)', async () => {
+    const rows = await runMatrix({
+      filters: [{ column: 'created_ts', operator: 'relative_date', value: { kind: 'today' } }],
+      columnTypes: new Map([['created_ts', 'TIMESTAMP']]),
+    });
+    expect(ids(rows)).toEqual([1, 5]);
+  }, 60000);
+
+  // Regression guard: a date filter value binds as STRING, so `ts_col = @p` errors.
+  // The CAST(@p AS TIMESTAMP) wrapper parses the string to the column type and runs.
+  it('value filter on a TIMESTAMP column runs via CAST(@p AS TIMESTAMP) → all rows >= 2024-01-01', async () => {
+    const rows = await runMatrix({
+      filters: [{ column: 'created_ts', operator: 'gte', value: '2024-01-01' }],
+      columnTypes: new Map([['created_ts', 'TIMESTAMP']]),
+    });
+    expect(ids(rows)).toEqual([1, 2, 3, 4, 5, 6]);
   }, 60000);
 
   it('relative_date last_n_days(7) on created_at → rows 1,4,5', async () => {

@@ -4,6 +4,7 @@ import {
   isFilterableType,
   isNumberType,
   isDateType,
+  isTimeType,
 } from './output-controls-operators';
 
 const opValues = (type: string) => operatorsForType(type).map(o => o.value);
@@ -30,16 +31,17 @@ describe('isNumberType / isDateType (shared with FilterValueEditor parsing)', ()
       expect(isNumberType(t)).toBe(false);
     }
   });
-  it('treats date/time types (incl. zoned) as dates', () => {
-    for (const t of [
-      'DATE',
-      'DATETIME',
-      'TIME',
-      'TIMESTAMP',
-      'TIMESTAMP WITH TIME ZONE',
-      'TIME WITH TIME ZONE',
-    ]) {
+  it('treats calendar date/timestamp types (incl. zoned) as dates, not time-only', () => {
+    for (const t of ['DATE', 'DATETIME', 'TIMESTAMP', 'TIMESTAMP WITH TIME ZONE']) {
       expect(isDateType(t)).toBe(true);
+      expect(isTimeType(t)).toBe(false);
+    }
+  });
+
+  it('treats time-of-day types as time, not date', () => {
+    for (const t of ['TIME', 'TIME WITH TIME ZONE']) {
+      expect(isTimeType(t)).toBe(true);
+      expect(isDateType(t)).toBe(false);
     }
   });
 });
@@ -55,10 +57,15 @@ describe('operatorsForType', () => {
         expect(opValues(t)).not.toContain('contains');
       }
     });
-    it('maps DATE / DATETIME / TIMESTAMP / TIME to the date set', () => {
-      for (const t of ['DATE', 'DATETIME', 'TIMESTAMP', 'TIME']) {
+    it('maps DATE / DATETIME / TIMESTAMP to the date set (with relative_date)', () => {
+      for (const t of ['DATE', 'DATETIME', 'TIMESTAMP']) {
         expect(opValues(t)).toContain('relative_date');
       }
+    });
+
+    it('maps TIME to the time set: comparison ops but NOT relative_date', () => {
+      expect(opValues('TIME')).toContain('between');
+      expect(opValues('TIME')).not.toContain('relative_date');
     });
     it('maps BOOLEAN to the boolean set', () => {
       expect(opValues('BOOLEAN')).toContain('is_true');
@@ -80,10 +87,15 @@ describe('operatorsForType', () => {
         expect(opValues(t)).not.toContain('contains');
       }
     });
-    it('treats zoned timestamps as date types', () => {
-      for (const t of ['TIMESTAMP WITH TIME ZONE', 'TIME WITH TIME ZONE']) {
-        expect(opValues(t)).toContain('relative_date');
-      }
+    it('treats zoned TIMESTAMP as a date type (relative_date offered)', () => {
+      expect(opValues('TIMESTAMP WITH TIME ZONE')).toContain('relative_date');
+    });
+
+    // Regression: a time-of-day column must not offer relative_date — its presets
+    // resolve to calendar dates (current_date), which Trino rejects for TIME.
+    it('treats zoned TIME as a time type (relative_date withheld)', () => {
+      expect(opValues('TIME WITH TIME ZONE')).toContain('between');
+      expect(opValues('TIME WITH TIME ZONE')).not.toContain('relative_date');
     });
     it('treats BOOL as a boolean type', () => {
       expect(opValues('BOOL')).toContain('is_true');

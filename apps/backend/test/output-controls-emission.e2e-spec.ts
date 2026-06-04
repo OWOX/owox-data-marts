@@ -23,16 +23,18 @@ import { ReportDataBatch } from '../src/data-marts/dto/domain/report-data-batch.
 import { ReportDataDescription } from '../src/data-marts/dto/domain/report-data-description.dto';
 import { AthenaFieldType } from '../src/data-marts/data-storage-types/athena/enums/athena-field-type.enum';
 
-// e2e for the Looker Studio CACHED-reader path (ReportDataCacheService). Unlike
-// looker-studio-connector.e2e-spec.ts — which mocks the whole cache service — here
-// the cache service runs FOR REAL; only the storage reader is replaced with a spy.
-// That makes the real resolvePrepareOptions() execute (resolveBlendingDecision →
-// ReportSqlComposerService.compose), so we can assert the reader receives the
-// composed SQL + bound params for an Athena report with output controls. The
-// publish-time validator is stubbed (orthogonal — needs live Athena).
+// HTTP-layer e2e for Athena output-controls SQL emission. ONE app + ONE Athena
+// report (date filter on a TIMESTAMP column) drives two assertions to keep the
+// e2e suite fast — booting createTestApp() is the dominant cost:
 //
-// Regression: before the fix the cache path dropped output controls (non-blended)
-// and emitted unbound `?` placeholders, failing at execution.
+//   1. GET /generated-sql emits CAST(? AS TIMESTAMP) — the date-literal-typing fix.
+//   2. POST /looker/get-data runs the REAL ReportDataCacheService (only the storage
+//      reader is a spy), proving resolvePrepareOptions() composes + forwards bound
+//      params instead of dropping output controls / emitting unbound placeholders.
+//
+// The publish-time validator is stubbed (orthogonal — it dry-runs live Athena);
+// everything else (composer → builder → renderer, types from the persisted schema)
+// runs for real.
 
 const HEADERS: ReportDataHeader[] = [
   new ReportDataHeader('id', 'id', undefined, AthenaFieldType.INTEGER),
@@ -64,7 +66,7 @@ const mockSchemaProviderFacade = {
   }),
 };
 
-describe('Output controls — Looker cached-reader path (e2e)', () => {
+describe('Output controls — Athena SQL emission (e2e)', () => {
   let app: INestApplication;
   let agent: supertest.Agent;
   let destinationId: string;
@@ -206,11 +208,23 @@ describe('Output controls — Looker cached-reader path (e2e)', () => {
     await closeTestApp(app);
   });
 
+  it('GET /generated-sql emits static SQL with the date value inlined into the CAST', async () => {
+    const res = await agent.get(`/api/reports/${reportId}/generated-sql`).set(AUTH_HEADER);
+    expect(res.status).toBe(200);
+    // composeStatic() inlines Athena's positional params, so the preview is runnable
+    // SQL (no unbound `?`) and the date literal stays valid inside the CAST.
+    expect(res.body.sql).toContain(`"created_at" >= CAST('2024-01-01' AS TIMESTAMP)`);
+    expect(res.body.sql).not.toContain('?');
+  });
+
   it('carries composed output-controls SQL + bound params into the cached reader', async () => {
     const res = await postLooker('/api/external/looker/get-data', {
       connectionConfig: { deploymentUrl: 'http://localhost', destinationId, destinationSecretKey },
       request: {
         configParams: { destinationId, reportId },
+        // Sample extraction still resolves the cached reader (our assertion target)
+        // but skips creating a report run + its async success handlers — faster, no noise.
+        scriptParams: { sampleExtraction: true },
         fields: [{ name: 'id' }, { name: 'created_at' }],
       },
     });

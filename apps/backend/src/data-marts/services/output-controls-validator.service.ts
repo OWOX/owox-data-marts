@@ -33,14 +33,11 @@ const NUMBER_TYPES = new Set([
   'BIGNUMERIC',
   'DECIMAL',
 ]);
-const DATE_TYPES = new Set([
-  'DATE',
-  'DATETIME',
-  'TIME',
-  'TIMESTAMP',
-  'TIMESTAMP WITH TIME ZONE',
-  'TIME WITH TIME ZONE',
-]);
+const DATE_TYPES = new Set(['DATE', 'DATETIME', 'TIMESTAMP', 'TIMESTAMP WITH TIME ZONE']);
+// Time-of-day types are kept separate from DATE/TIMESTAMP: relative_date renders
+// `current_date` / `date_add(..., current_date)` predicates that are meaningless
+// (and rejected by Trino) for a column with no date component.
+const TIME_TYPES = new Set(['TIME', 'TIME WITH TIME ZONE']);
 const BOOL_TYPES = new Set(['BOOLEAN', 'BOOL']);
 
 // Valid for any column type, including ones not in the sets above.
@@ -83,6 +80,18 @@ const DATE_OPS = new Set([
   'is_null',
   'is_not_null',
 ]);
+// Same comparison ops as DATE_OPS minus relative_date (date-arithmetic presets).
+const TIME_OPS = new Set([
+  'eq',
+  'neq',
+  'gt',
+  'lt',
+  'gte',
+  'lte',
+  'between',
+  'is_null',
+  'is_not_null',
+]);
 const BOOL_OPS = new Set(['is_true', 'is_false', 'is_null', 'is_not_null']);
 
 function operatorAllowed(fieldType: string, operator: string): boolean {
@@ -90,6 +99,7 @@ function operatorAllowed(fieldType: string, operator: string): boolean {
   if (STRING_TYPES.has(fieldType)) return STRING_OPS.has(operator);
   if (NUMBER_TYPES.has(fieldType)) return NUMBER_OPS.has(operator);
   if (DATE_TYPES.has(fieldType)) return DATE_OPS.has(operator);
+  if (TIME_TYPES.has(fieldType)) return TIME_OPS.has(operator);
   if (BOOL_TYPES.has(fieldType)) return BOOL_OPS.has(operator);
   return false;
 }
@@ -267,7 +277,14 @@ export class OutputControlsValidatorService {
         );
       }
       if (parsedSort.length > 0) {
-        const selectedSet = new Set(args.columnConfig ?? Array.from(homeFieldTypes.keys()));
+        // With no explicit columnConfig the projection is `SELECT *` over the home
+        // mart's NATIVE fields only — blended output aliases are NOT projected, and
+        // the blended run path rejects output controls without an explicit column
+        // selection. Validate sort against that same native-only set so a sort on a
+        // blended column is caught here at save time instead of failing at run time.
+        const selectedSet = new Set(
+          args.columnConfig ?? blendableSchema.nativeFields.map(f => f.name)
+        );
         errors.push(...this.validateSort(parsedSort, selectedSet));
       }
     }

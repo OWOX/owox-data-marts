@@ -167,16 +167,17 @@ describe('AthenaClauseRenderer', () => {
   });
 
   describe('relative_date (Trino date functions)', () => {
+    // Half-open ranges (not equality) so the whole day matches on TIMESTAMP columns.
     it('today', () => {
       expect(
         r.renderWhere([{ column: 'd', operator: 'relative_date', value: { kind: 'today' } }]).sql
-      ).toBe('\nWHERE "d" = current_date');
+      ).toBe('\nWHERE "d" >= current_date AND "d" < date_add(\'day\', 1, current_date)');
     });
     it('yesterday', () => {
       expect(
         r.renderWhere([{ column: 'd', operator: 'relative_date', value: { kind: 'yesterday' } }])
           .sql
-      ).toBe('\nWHERE "d" = date_add(\'day\', -1, current_date)');
+      ).toBe('\nWHERE "d" >= date_add(\'day\', -1, current_date) AND "d" < current_date');
     });
     it('last_n_days', () => {
       expect(
@@ -233,7 +234,7 @@ describe('AthenaClauseRenderer', () => {
           [{ column: 'd', operator: 'relative_date', value: { kind: 'today' } }],
           qualify
         ).sql
-      ).toBe('\nWHERE main."d" = current_date');
+      ).toBe('\nWHERE main."d" >= current_date AND main."d" < date_add(\'day\', 1, current_date)');
     });
     it('honours the resolver in ORDER BY', () => {
       expect(r.renderOrderBy([{ column: 'a', direction: 'asc' }], qualify).sql).toBe(

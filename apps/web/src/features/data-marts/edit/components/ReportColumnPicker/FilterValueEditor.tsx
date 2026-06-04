@@ -14,6 +14,7 @@ import {
   operatorsForType,
   isNumberType,
   isDateType,
+  isTimeType,
 } from './output-controls-operators';
 
 export interface FilterValueEditorProps {
@@ -97,7 +98,10 @@ function buildRule(args: { column: string; fieldType: string; state: EditorState
     const to = parseScalar(state.betweenTo, fieldType);
     const numericOutOfOrder = typeof from === 'number' && typeof to === 'number' && from > to;
     const dateOutOfOrder =
-      typeof from === 'string' && typeof to === 'string' && isDateType(fieldType) && from > to;
+      typeof from === 'string' &&
+      typeof to === 'string' &&
+      (isDateType(fieldType) || isTimeType(fieldType)) &&
+      from > to;
     if (numericOutOfOrder || dateOutOfOrder) {
       throw new Error('"From" must be ≤ "To"');
     }
@@ -176,6 +180,7 @@ export function FilterValueEditor({
   }, [rule]);
 
   const dateField = isDateType(fieldType);
+  const timeField = isTimeType(fieldType);
 
   return (
     <>
@@ -205,7 +210,15 @@ export function FilterValueEditor({
           <Label>From / To</Label>
           <div className='flex gap-2'>
             <Input
-              type={isNumberType(fieldType) ? 'number' : dateField ? 'date' : 'text'}
+              type={
+                isNumberType(fieldType)
+                  ? 'number'
+                  : timeField
+                    ? 'time'
+                    : dateField
+                      ? 'date'
+                      : 'text'
+              }
               value={state.betweenFrom}
               onChange={e => {
                 setState(s => ({ ...s, betweenFrom: e.target.value }));
@@ -213,7 +226,15 @@ export function FilterValueEditor({
               placeholder='from'
             />
             <Input
-              type={isNumberType(fieldType) ? 'number' : dateField ? 'date' : 'text'}
+              type={
+                isNumberType(fieldType)
+                  ? 'number'
+                  : timeField
+                    ? 'time'
+                    : dateField
+                      ? 'date'
+                      : 'text'
+              }
               value={state.betweenTo}
               onChange={e => {
                 setState(s => ({ ...s, betweenTo: e.target.value }));
@@ -261,7 +282,9 @@ export function FilterValueEditor({
         <div className='space-y-1'>
           <Label>Value</Label>
           <Input
-            type={isNumberType(fieldType) ? 'number' : dateField ? 'date' : 'text'}
+            type={
+              isNumberType(fieldType) ? 'number' : timeField ? 'time' : dateField ? 'date' : 'text'
+            }
             value={state.scalar}
             onChange={e => {
               setState(s => ({ ...s, scalar: e.target.value }));

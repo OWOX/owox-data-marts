@@ -15,6 +15,7 @@ import {
 } from '../../interfaces/data-mart-query-builder.interface';
 import { escapeBigQueryIdentifier } from '../utils/bigquery-identifier.utils';
 import { BigQueryClauseRenderer } from './bigquery-clause-renderer';
+import { FilterRule } from '../../../dto/schemas/filter-config.schema';
 
 @Injectable()
 export class BigQueryQueryBuilder implements DataMartQueryBuilderAsync {
@@ -42,7 +43,19 @@ export class BigQueryQueryBuilder implements DataMartQueryBuilderAsync {
     }
 
     const fromClause = this.resolveFromClauseWithOutputControls(definition, queryOptions);
-    const where = this.clauseRenderer.renderWhere(queryOptions?.filters ?? []);
+    // Field types let the renderer compare the date part of TIMESTAMP/DATETIME
+    // columns against CURRENT_DATE() for relative_date filters (a bare TIMESTAMP =
+    // DATE comparison is a type error in BigQuery).
+    const columnTypes = queryOptions?.columnTypes;
+    const resolveColumnType = columnTypes
+      ? (rule: FilterRule) => columnTypes.get(rule.column)
+      : undefined;
+    const where = this.clauseRenderer.renderWhere(
+      queryOptions?.filters ?? [],
+      undefined,
+      'p',
+      resolveColumnType
+    );
     const orderBy = this.clauseRenderer.renderOrderBy(queryOptions?.sort ?? []);
     const limit = this.clauseRenderer.renderLimit(queryOptions?.limit ?? null);
 

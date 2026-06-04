@@ -553,7 +553,7 @@ describe('OutputControlsValidatorService', () => {
       expect(response.details.errors[0].code).toBe('SORT_COLUMN_NOT_SELECTED');
     });
 
-    it('falls back to all known columns when columnConfig is null for sort validation', async () => {
+    it('falls back to NATIVE columns when columnConfig is null for sort validation', async () => {
       const capabilitySvc = makeCapabilityService(true);
       const schemaSvc = makeBlendableSchemaService([
         { name: 'date', type: BigQueryFieldType.DATE },
@@ -576,6 +576,57 @@ describe('OutputControlsValidatorService', () => {
           accessor: { userId: 'user-1', roles: ['admin'] },
         })
       ).resolves.toBeUndefined();
+    });
+
+    // Regression: with columnConfig null the projection is SELECT * over NATIVE
+    // fields only — blended aliases are not projected, and the blended run path
+    // rejects output controls without an explicit column selection. Save-time
+    // validation must reject a sort on a blended column here, not pass and then
+    // blow up at run time.
+    it('rejects sort on a BLENDED column when columnConfig is null', async () => {
+      const capabilitySvc = makeCapabilityService(true);
+      const schemaSvc = makeBlendableSchemaService(
+        [{ name: 'amount', type: BigQueryFieldType.INTEGER }],
+        {
+          blendedFields: [
+            {
+              name: 'partner_revenue',
+              aliasPath: 'partner',
+              originalFieldName: 'revenue',
+              type: BigQueryFieldType.INTEGER,
+            },
+          ],
+        }
+      );
+      const validator = new OutputControlsValidatorService(
+        capabilitySvc as never,
+        schemaSvc as never
+      );
+
+      let caught: BadRequestException | undefined;
+      try {
+        await validator.validateForReport({
+          storageType: supportedStorageType,
+          dataMartId: 'dm-1',
+          projectId: 'proj-1',
+          columnConfig: null,
+          filterConfig: null,
+          sortConfig: [{ column: 'partner_revenue', direction: 'asc' }],
+          limitConfig: null,
+          accessor: { userId: 'user-1', roles: ['admin'] },
+        });
+      } catch (e) {
+        caught = e as BadRequestException;
+      }
+
+      expect(caught).toBeDefined();
+      const response = caught!.getResponse() as {
+        details: { errors: { code: string; column: string }[] };
+      };
+      expect(response.details.errors[0]).toMatchObject({
+        code: 'SORT_COLUMN_NOT_SELECTED',
+        column: 'partner_revenue',
+      });
     });
 
     it('rejects payload with mismatched filter shape via Zod (defence-in-depth)', async () => {
@@ -1442,6 +1493,45 @@ describe('OutputControlsValidatorService', () => {
           fieldTypes
         )
       ).toEqual([]);
+    });
+
+    it('allows comparison/between ops on time-only columns', () => {
+      expect(
+        svc.validateFilters(
+          [
+            { column: 'tz_time', operator: 'eq', value: '08:00:00', placement: 'post-join' },
+            {
+              column: 'tz_time',
+              operator: 'between',
+              value: { from: '08:00:00', to: '17:00:00' },
+              placement: 'post-join',
+            },
+          ],
+          fieldTypes
+        )
+      ).toEqual([]);
+    });
+
+    // Regression: relative_date emits current_date / date_add(..., current_date),
+    // which is invalid for a time-of-day column — time-only types must not offer it.
+    it('rejects relative_date on TIME / TIME WITH TIME ZONE', () => {
+      const errors = svc.validateFilters(
+        [
+          {
+            column: 'tz_time',
+            operator: 'relative_date',
+            value: { kind: 'last_n_days', n: 7 },
+            placement: 'post-join',
+          },
+        ],
+        fieldTypes
+      );
+      expect(errors).toHaveLength(1);
+      expect(errors[0]).toMatchObject({
+        code: 'INVALID_OPERATOR_FOR_TYPE',
+        column: 'tz_time',
+        operator: 'relative_date',
+      });
     });
 
     it('rejects a type-inappropriate operator on a zoned timestamp', () => {

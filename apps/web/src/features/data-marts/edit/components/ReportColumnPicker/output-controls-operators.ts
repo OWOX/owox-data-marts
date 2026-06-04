@@ -41,14 +41,11 @@ const NUMBER_TYPES = new Set([
   'BIGNUMERIC',
   'DECIMAL',
 ]);
-const DATE_TYPES = new Set([
-  'DATE',
-  'DATETIME',
-  'TIME',
-  'TIMESTAMP',
-  'TIMESTAMP WITH TIME ZONE',
-  'TIME WITH TIME ZONE',
-]);
+const DATE_TYPES = new Set(['DATE', 'DATETIME', 'TIMESTAMP', 'TIMESTAMP WITH TIME ZONE']);
+// Time-of-day types are kept out of DATE_TYPES: relative_date presets resolve to
+// calendar dates (current_date / date_add), which are meaningless for a column
+// with no date component and rejected by the backend renderer.
+const TIME_TYPES = new Set(['TIME', 'TIME WITH TIME ZONE']);
 const BOOL_TYPES = new Set(['BOOLEAN', 'BOOL']);
 
 const STRING_OPERATORS: OperatorMeta[] = [
@@ -98,10 +95,14 @@ const BOOLEAN_OPERATORS: OperatorMeta[] = [
   { value: 'is_not_null', label: 'is not null', shortLabel: '¬∅' },
 ];
 
+// Same comparison operators as dates minus relative_date (calendar-only presets).
+const TIME_OPERATORS: OperatorMeta[] = DATE_OPERATORS.filter(o => o.value !== 'relative_date');
+
 export function operatorsForType(fieldType: string): OperatorMeta[] {
   if (STRING_TYPES.has(fieldType)) return STRING_OPERATORS;
   if (NUMBER_TYPES.has(fieldType)) return NUMBER_OPERATORS;
   if (DATE_TYPES.has(fieldType)) return DATE_OPERATORS;
+  if (TIME_TYPES.has(fieldType)) return TIME_OPERATORS;
   if (BOOL_TYPES.has(fieldType)) return BOOLEAN_OPERATORS;
   return [];
 }
@@ -119,6 +120,10 @@ export function isNumberType(fieldType: string): boolean {
 
 export function isDateType(fieldType: string): boolean {
   return DATE_TYPES.has(fieldType);
+}
+
+export function isTimeType(fieldType: string): boolean {
+  return TIME_TYPES.has(fieldType);
 }
 
 export function operatorLabelFor(operator: FilterOperator, fieldType: string): string {

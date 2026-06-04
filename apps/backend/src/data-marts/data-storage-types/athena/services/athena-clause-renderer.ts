@@ -145,10 +145,14 @@ export class AthenaClauseRenderer extends SqlClauseRenderer {
     preset: Extract<FilterRule, { operator: 'relative_date' }>['value']
   ): string {
     switch (preset.kind) {
+      // Half-open ranges, not equality: `col = current_date` only matches the
+      // midnight instant on a TIMESTAMP/DATETIME column (a row at 13:45 is
+      // excluded). A range covers the whole day for both DATE and TIMESTAMP
+      // columns (Trino coerces DATE → TIMESTAMP in the comparison).
       case 'today':
-        return `${col} = current_date`;
+        return `${col} >= current_date AND ${col} < date_add('day', 1, current_date)`;
       case 'yesterday':
-        return `${col} = date_add('day', -1, current_date)`;
+        return `${col} >= date_add('day', -1, current_date) AND ${col} < current_date`;
       case 'last_n_days':
         return `${col} >= date_add('day', -${preset.n}, current_date)`;
       case 'last_n_months':
