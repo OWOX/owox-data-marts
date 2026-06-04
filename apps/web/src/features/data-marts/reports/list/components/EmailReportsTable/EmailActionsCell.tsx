@@ -17,7 +17,7 @@ import {
 import { ConfirmationDialog } from '../../../../../../shared/components/ConfirmationDialog';
 import type { DataMartReport } from '../../../shared/model/types/data-mart-report';
 import { ReportStatusEnum } from '../../../shared/enums';
-import { reportHasBlending, useReport } from '../../../shared';
+import { reportHasBlending, reportHasOutputControls, useReport } from '../../../shared';
 import { useBlendedFieldNames } from '../../../../shared/hooks/useBlendedFieldNames';
 import { GeneratedSqlViewer } from '../../../../edit/components/ReportColumnPicker/GeneratedSqlViewer';
 
@@ -35,10 +35,9 @@ export function EmailActionsCell({ row, onDeleteSuccess, onEditReport }: EmailAc
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const { deleteReport, fetchReportsByDataMartId, runReport } = useReport();
 
-  // Show the "View SQL" icon only when the report actually produces blended output.
-  // The hook is safe to call per-row: React Query dedupes concurrent requests by key.
   const blendedFieldNames = useBlendedFieldNames(row.original.dataMart.id);
   const hasBlending = reportHasBlending(row.original, blendedFieldNames);
+  const usesSourceDirectly = !hasBlending && !reportHasOutputControls(row.original);
 
   const actionsMenuId = `actions-menu-${row.original.id}`;
 
@@ -113,14 +112,13 @@ export function EmailActionsCell({ row, onDeleteSuccess, onEditReport }: EmailAc
           </TooltipContent>
         </Tooltip>
 
-        {/* View SQL (only when report uses blending) */}
-        {hasBlending && (
-          <GeneratedSqlViewer
-            reportId={row.original.id}
-            dataMartId={row.original.dataMart.id}
-            reportTitle={row.original.title}
-          />
-        )}
+        {/* View SQL */}
+        <GeneratedSqlViewer
+          reportId={row.original.id}
+          dataMartId={row.original.dataMart.id}
+          reportTitle={row.original.title}
+          usesSourceDirectly={usesSourceDirectly}
+        />
 
         {/* More actions */}
         <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
