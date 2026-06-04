@@ -72,7 +72,6 @@ const settingsItems: SettingsSubItem[] = [
     title: 'My API Keys',
     path: '/me/api-keys',
     icon: KeyRound,
-    isVisible: (_isOwoxIdpProvider, flags) => checkVisible('API_KEYS_ENABLED', 'true', flags),
   },
 ];
 
