@@ -1,11 +1,12 @@
-import { Search, Download, X } from 'lucide-react';
-import { toast } from 'react-hot-toast';
+import { Search, Download } from 'lucide-react';
 import { Button } from '@owox/ui/components/button';
 import { Input } from '@owox/ui/components/input';
 import { LogViewType } from './types';
 import type { DataMartDefinitionConfig } from '../../model/types/data-mart-definition-config';
-import { DataMartRunStatus } from '../../../shared';
+import { DataMartRunStatus, DataMartRunType } from '../../../shared';
 import { downloadLogs } from './utils';
+import { canCancelDataMartRun } from './cancellable-runs';
+import { CancelRunButton } from './CancelRunButton';
 
 interface LogControlsProps {
   logViewType: LogViewType;
@@ -15,6 +16,7 @@ interface LogControlsProps {
   run: {
     id: string;
     status: DataMartRunStatus;
+    type: DataMartRunType;
     logs: string[];
     errors: string[];
     definitionRun: DataMartDefinitionConfig | null;
@@ -34,18 +36,6 @@ export function LogControls({
 }: LogControlsProps) {
   const handleStopPropagation = (e: React.MouseEvent) => {
     e.stopPropagation();
-  };
-
-  const handleCancelRun = async (e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (dataMartId) {
-      try {
-        await cancelDataMartRun(dataMartId, run.id);
-        toast.success('Data mart run cancelled successfully');
-      } catch (error) {
-        toast.error(error instanceof Error ? error.message : 'Failed to cancel data mart run');
-      }
-    }
   };
 
   const getButtonSwitchClasses = (isActive: boolean) => {
@@ -106,11 +96,16 @@ export function LogControls({
         )}
       </div>
       <div className='flex items-center gap-2'>
-        {run.status === DataMartRunStatus.RUNNING && (
-          <Button variant='destructive' size='sm' onClick={e => void handleCancelRun(e)}>
-            <X className='h-4 w-4' />
-            Cancel
-          </Button>
+        {canCancelDataMartRun(run.type, run.status) && (
+          <CancelRunButton
+            runId={run.id}
+            dataMartId={dataMartId}
+            cancelDataMartRun={cancelDataMartRun}
+            variant='destructive'
+            className='flex items-center gap-2'
+            iconClassName='h-4 w-4'
+            labelClassName='inline'
+          />
         )}
         <Button
           variant='outline'

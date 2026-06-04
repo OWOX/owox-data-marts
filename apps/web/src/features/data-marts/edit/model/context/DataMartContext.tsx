@@ -549,6 +549,7 @@ export function DataMartProvider({ children }: DataMartProviderProps) {
           action: 'CancelRunError',
           error: apiError.message,
         });
+        throw error;
       }
     },
     [getDataMartRuns]
