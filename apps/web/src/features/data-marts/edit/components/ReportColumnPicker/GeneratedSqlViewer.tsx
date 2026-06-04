@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Editor } from '@monaco-editor/react';
 import { useTheme } from 'next-themes';
-import { Copy, FileCode2, Loader2 } from 'lucide-react';
+import { Copy, ExternalLink, FileCode2, Loader2 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { Button } from '@owox/ui/components/button';
 import {
@@ -136,14 +136,16 @@ export function GeneratedSqlViewer({
       joins.{' '}
       <Link
         to={dataSetupUrl}
-        className='underline'
+        className='inline-flex items-center gap-0.5 underline'
+        target='_blank'
+        rel='noopener noreferrer'
         onClick={e => {
           e.stopPropagation();
         }}
       >
         Open Data Setup
+        <ExternalLink className='!h-3 !w-3 shrink-0' />
       </Link>
-      .
     </>
   );
 
