@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { Link } from 'react-router';
 import {
   DropdownMenuContent,
@@ -8,12 +9,46 @@ import { ProjectSettingsSubmenu } from './ProjectSettingsSubmenu';
 import { SwitchProjectMenu } from './SwitchProjectMenu';
 import { useProjectMenu } from './useProjectMenu';
 import { useProjectRoute } from '../../../shared/hooks';
+import { useProjects } from '../../../features/idp/hooks/useProjects.ts';
+import { RequestStatus } from '../../../shared/types/request-status.ts';
 
 interface ProjectMenuContentProps {
   onClose: () => void;
+  restricted?: boolean;
 }
 
-export function ProjectMenuContent({ onClose }: ProjectMenuContentProps) {
+export function ProjectMenuContent({ onClose, restricted = false }: ProjectMenuContentProps) {
+  if (restricted) {
+    return <RestrictedProjectMenuContent />;
+  }
+
+  return <RegularProjectMenuContent onClose={onClose} />;
+}
+
+function RestrictedProjectMenuContent() {
+  const { projects, loadProjects, callState, error, isLoading } = useProjects();
+
+  useEffect(() => {
+    if (callState === RequestStatus.IDLE) {
+      void loadProjects();
+    }
+  }, [callState, loadProjects]);
+
+  const shouldShowSwitchProject =
+    callState === RequestStatus.IDLE || isLoading || error !== null || projects.length > 0;
+
+  return (
+    <DropdownMenuContent align='start' side='right' className='w-56'>
+      {shouldShowSwitchProject ? (
+        <SwitchProjectMenu showSeparator={false} />
+      ) : (
+        <DropdownMenuItem disabled>No other projects available</DropdownMenuItem>
+      )}
+    </DropdownMenuContent>
+  );
+}
+
+function RegularProjectMenuContent({ onClose }: { onClose: () => void }) {
   const { visibleMenuItems, canSwitchProject } = useProjectMenu();
   const { scope } = useProjectRoute();
 

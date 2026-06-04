@@ -13,13 +13,17 @@ import { useAuth } from '../../../features/idp';
 import { useProjects } from '../../../features/idp/hooks/useProjects.ts';
 import { buildProjectPath } from '../../../utils/path.ts';
 
-function SwitchProjectMenuInner() {
+interface SwitchProjectMenuProps {
+  showSeparator?: boolean;
+}
+
+function SwitchProjectMenuInner({ showSeparator = true }: SwitchProjectMenuProps) {
   const { projects, loadProjects, error, isLoading } = useProjects();
   const { user } = useAuth();
 
   return (
     <DropdownMenuSub>
-      <DropdownMenuSeparator />
+      {showSeparator && <DropdownMenuSeparator />}
       <DropdownMenuSubTrigger className='flex items-center gap-2'>
         <ArrowRightLeft className='h-4 w-4' />
         Switch project
@@ -63,6 +67,6 @@ function SwitchProjectMenuInner() {
   );
 }
 
-export function SwitchProjectMenu() {
-  return <SwitchProjectMenuInner />;
+export function SwitchProjectMenu({ showSeparator = true }: SwitchProjectMenuProps) {
+  return <SwitchProjectMenuInner showSeparator={showSeparator} />;
 }
