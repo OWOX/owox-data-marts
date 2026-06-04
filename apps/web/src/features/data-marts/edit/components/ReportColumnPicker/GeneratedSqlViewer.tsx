@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Editor } from '@monaco-editor/react';
 import { useTheme } from 'next-themes';
-import { Copy, Loader2, Network } from 'lucide-react';
+import { Copy, FileCode2, Loader2 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { Button } from '@owox/ui/components/button';
 import {
@@ -12,6 +12,7 @@ import {
   DialogTrigger,
   DialogFooter,
 } from '@owox/ui/components/dialog';
+import { Link } from 'react-router-dom';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@owox/ui/components/tooltip';
 import { Skeleton } from '@owox/ui/components/skeleton';
 import { reportService } from '../../../reports/shared/services/report.service';
@@ -24,35 +25,45 @@ interface GeneratedSqlViewerProps {
   reportId: string;
   /**
    * Data mart ID the report belongs to. Required to run the SQL dry-run
-   * validation (size estimate + syntax check) against the correct storage.
+   * validation (size estimate + syntax check) against the correct storage,
+   * and to build the Data Setup link shown in the info tooltip.
    */
   dataMartId: string;
   /**
    * Visual variant of the trigger:
    * - 'action-icon' (default): ghost icon button with tooltip, intended for
-   *   table row action cells. Uses hover-reveal styling that matches sibling
-   *   row actions.
-   * - 'outline-button': outline button with "View joined Data Marts SQL" text,
-   *   intended for use inside forms where a full button label makes sense.
+   *   table row action cells.
+   * - 'outline-button': outline button with label text, intended for use
+   *   inside forms.
    */
   variant?: GeneratedSqlViewerVariant;
   /**
    * Optional report title, used to build a descriptive aria-label for the
-   * action icon variant (e.g. "View joined Data Marts SQL: Test Report").
+   * action icon variant.
    */
   reportTitle?: string;
+  /**
+   * When true, no SQL dialog is opened. Instead, the icon shows an
+   * informational tooltip explaining that no output controls or joined fields
+   * are used and linking to the Data Setup page.
+   */
+  usesSourceDirectly?: boolean;
 }
 
 /**
- * Button that opens a dialog with the generated SQL for a report.
- * Provides copy-to-clipboard and copy-as-data-mart actions.
+ * Button that opens a dialog with the generated SQL for a report, or —
+ * when usesSourceDirectly is true — shows an informational tooltip with a link
+ * to the Data Setup page instead.
  */
 export function GeneratedSqlViewer({
   reportId,
   dataMartId,
   variant = 'action-icon',
   reportTitle,
+  usesSourceDirectly = false,
 }: GeneratedSqlViewerProps) {
+  // All state and handlers below are used only in SQL dialog mode.
+  // Hooks cannot be moved below the usesSourceDirectly early return (Rules of Hooks).
   const [isOpen, setIsOpen] = useState(false);
   const [sql, setSql] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -110,10 +121,75 @@ export function GeneratedSqlViewer({
     }
   }
 
-  const ariaLabel = reportTitle
-    ? `View joined Data Marts SQL: ${reportTitle}`
-    : 'View joined Data Marts SQL';
+  const ariaLabel = usesSourceDirectly
+    ? reportTitle
+      ? `Uses Data Mart source directly: ${reportTitle}`
+      : 'Uses Data Mart source directly'
+    : reportTitle
+      ? `Preview SQL: ${reportTitle}`
+      : 'Preview SQL';
+  const dataSetupUrl = scope(`/data-marts/${dataMartId}/data-setup`);
 
+  const infoTooltipContent = (
+    <>
+      No custom SQL generated: this report queries the Data Mart source directly without filters or
+      joins.{' '}
+      <Link to={dataSetupUrl} className='underline' onClick={e => e.stopPropagation()}>
+        Open Data Setup
+      </Link>
+      .
+    </>
+  );
+
+  // ── Info-tooltip mode (no output controls or joined fields) ──────────────
+  if (usesSourceDirectly) {
+    if (variant === 'action-icon') {
+      return (
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              type='button'
+              variant='ghost'
+              className='dm-card-table-body-row-actionbtn !cursor-default opacity-0 transition-opacity group-hover:opacity-100'
+              aria-label={ariaLabel}
+              onClick={e => e.stopPropagation()}
+              onPointerDown={e => e.preventDefault()}
+            >
+              <FileCode2
+                className='dm-card-table-body-row-actionbtn-icon text-muted-foreground'
+                aria-hidden='true'
+              />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent side='bottom' role='tooltip' className='w-fit max-w-[270px] text-balance'>
+            {infoTooltipContent}
+          </TooltipContent>
+        </Tooltip>
+      );
+    }
+
+    return (
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button
+            type='button'
+            variant='outline'
+            size='sm'
+            className='opacity-50 !cursor-default'
+            onPointerDown={e => e.preventDefault()}
+          >
+            <FileCode2 className='mr-2 h-4 w-4' />
+            Preview SQL
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent side='bottom' role='tooltip' className='w-fit max-w-[270px] text-balance'>
+          {infoTooltipContent}
+        </TooltipContent>
+      </Tooltip>
+    );
+  }
+
+  // ── SQL dialog mode ───────────────────────────────────────────────────────
   return (
     <Dialog open={isOpen} onOpenChange={handleOpenChange}>
       {variant === 'action-icon' ? (
@@ -123,32 +199,32 @@ export function GeneratedSqlViewer({
               <Button
                 type='button'
                 variant='ghost'
-                className='dm-card-table-body-row-actionbtn opacity-0 transition-opacity group-hover:opacity-100'
+                className='dm-card-table-body-row-actionbtn cursor-pointer opacity-0 transition-opacity group-hover:opacity-100'
                 aria-label={ariaLabel}
                 onClick={e => {
                   e.stopPropagation();
                 }}
               >
-                <Network className='dm-card-table-body-row-actionbtn-icon' aria-hidden='true' />
+                <FileCode2 className='dm-card-table-body-row-actionbtn-icon' aria-hidden='true' />
               </Button>
             </DialogTrigger>
           </TooltipTrigger>
           <TooltipContent side='bottom' role='tooltip'>
-            View joined Data Marts SQL
+            Preview SQL
           </TooltipContent>
         </Tooltip>
       ) : (
         <DialogTrigger asChild>
           <Button type='button' variant='outline' size='sm'>
-            <Network className='mr-2 h-4 w-4' />
-            View joined Data Marts SQL
+            <FileCode2 className='mr-2 h-4 w-4' />
+            Preview SQL
           </Button>
         </DialogTrigger>
       )}
 
       <DialogContent className='flex flex-col gap-4 sm:max-w-[80vw]'>
         <DialogHeader>
-          <DialogTitle>Joined Data Marts SQL</DialogTitle>
+          <DialogTitle>Report SQL</DialogTitle>
         </DialogHeader>
 
         <div className='min-h-[600px]'>

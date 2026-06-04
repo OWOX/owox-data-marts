@@ -169,6 +169,12 @@ export const LookerStudioReportEditForm = forwardRef<
       onDirtyChange?.(isDirty || ownersDirty);
     }, [isDirty, ownersDirty, onDirtyChange]);
 
+    const usesSourceDirectly =
+      !hasBlendedSelection &&
+      !(form.watch('filterConfig')?.length) &&
+      !(form.watch('sortConfig')?.length) &&
+      form.watch('limitConfig') === null;
+
     return (
       <Form {...form}>
         <AppForm
@@ -243,8 +249,7 @@ export const LookerStudioReportEditForm = forwardRef<
                     onBlendedSelectionChange={setHasBlendedSelection}
                     onCountChange={setColumnsCount}
                   />
-                  {hasBlendedSelection &&
-                    mode === ReportFormMode.EDIT &&
+                  {mode === ReportFormMode.EDIT &&
                     initialReport?.id &&
                     dataMart.id && (
                       <div className='pt-1'>
@@ -252,6 +257,7 @@ export const LookerStudioReportEditForm = forwardRef<
                           reportId={initialReport.id}
                           dataMartId={dataMart.id}
                           variant='outline-button'
+                          usesSourceDirectly={usesSourceDirectly}
                         />
                       </div>
                     )}
