@@ -74,6 +74,7 @@ export class ConnectorExecutorService {
     const capturedLogs: ConnectorMessage[] = [];
     const capturedErrors: ConnectorMessage[] = [];
     let hasSuccessfulRun = false;
+    let wasCancelled = false;
     let operationBlockedException: ProjectOperationBlockedException | undefined;
 
     try {
@@ -100,6 +101,7 @@ export class ConnectorExecutorService {
         payload,
         signal
       );
+      wasCancelled = signal?.aborted === true;
 
       configurationResults.forEach(result => {
         result.logs.forEach(log => addMessageToArray(capturedLogs, log));
@@ -114,6 +116,7 @@ export class ConnectorExecutorService {
         { dataMartId: dataMart.id, projectId: dataMart.projectId, runId, successCount, totalCount }
       );
     } catch (error) {
+      wasCancelled = signal?.aborted === true;
       const errorMessage = error instanceof Error ? error.message : String(error);
       addMessageToArray(capturedErrors, {
         type: ConnectorMessageType.ERROR,
@@ -146,10 +149,11 @@ export class ConnectorExecutorService {
         capturedLogs,
         capturedErrors,
         mergeWithExisting,
-        operationBlockedException
+        operationBlockedException,
+        wasCancelled
       );
 
-      if (hasSuccessfulRun) {
+      if (hasSuccessfulRun && !wasCancelled) {
         await this.consumptionTracker.registerConnectorRunConsumption(dataMart, runId);
         await this.eventDispatcher.publishExternal(
           new ConnectorRunEvent(
@@ -161,7 +165,7 @@ export class ConnectorExecutorService {
             'successfully'
           )
         );
-      } else if (!this.gracefulShutdownService.isInShutdownMode()) {
+      } else if (!wasCancelled && !this.gracefulShutdownService.isInShutdownMode()) {
         await this.eventDispatcher.publishExternal(
           new ConnectorRunEvent(
             dataMart.id,
@@ -371,15 +375,18 @@ export class ConnectorExecutorService {
     capturedLogs: ConnectorMessage[],
     capturedErrors: ConnectorMessage[],
     mergeWithExisting: boolean = false,
-    operationBlockedException?: ProjectOperationBlockedException
+    operationBlockedException?: ProjectOperationBlockedException,
+    wasCancelled: boolean = false
   ): Promise<void> {
     const hasLogs = capturedLogs.length > 0;
     const hasErrors = capturedErrors.length > 0;
-    let status = hasSuccessfulRun
-      ? DataMartRunStatus.SUCCESS
-      : operationBlockedException
-        ? DataMartRunStatus.RESTRICTED
-        : DataMartRunStatus.FAILED;
+    let status = wasCancelled
+      ? DataMartRunStatus.CANCELLED
+      : hasSuccessfulRun
+        ? DataMartRunStatus.SUCCESS
+        : operationBlockedException
+          ? DataMartRunStatus.RESTRICTED
+          : DataMartRunStatus.FAILED;
     if (this.gracefulShutdownService.isInShutdownMode()) {
       status = DataMartRunStatus.INTERRUPTED;
     }

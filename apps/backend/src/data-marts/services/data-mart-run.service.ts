@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { In, Repository } from 'typeorm';
 import { OwoxEventDispatcher } from '../../common/event-dispatcher/owox-event-dispatcher';
 import { SystemTimeService } from '../../common/scheduler/services/system-time.service';
 
@@ -17,6 +17,8 @@ import { DataMartRunType } from '../enums/data-mart-run-type.enum';
 import { ReportRunCompletedSuccessfullyEvent } from '../events/report-run-completed-successfully.event';
 import { HttpDataRunMetadata } from '../dto/schemas/http-data-run-metadata.schema';
 import { HTTP_DATA_PARAMS_KEY } from './http-data/http-data.constants';
+
+const CANCELLABLE_RUN_STATUSES = [DataMartRunStatus.PENDING, DataMartRunStatus.RUNNING];
 
 /**
  * Context for creating a new report run.
@@ -182,6 +184,24 @@ export class DataMartRunService {
     return this.dataMartRunRepository.findOne({
       where: { id: runId, dataMartId },
     });
+  }
+
+  /**
+   * Marks an existing DataMartRun as CANCELLED.
+   */
+  public async markAsCancelled(dataMartRun: DataMartRun): Promise<boolean> {
+    const result = await this.dataMartRunRepository.update(
+      {
+        id: dataMartRun.id,
+        status: In(CANCELLABLE_RUN_STATUSES),
+      },
+      {
+        status: DataMartRunStatus.CANCELLED,
+        finishedAt: this.systemClock.now(),
+      }
+    );
+
+    return (result.affected ?? 0) > 0;
   }
 
   /**

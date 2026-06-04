@@ -12,7 +12,7 @@ export class ConnectorRunTrigger extends Trigger {
    * to keep the trigger active for the next processing cycle.
    */
   override onSuccess(_lastRunTimestamp?: Date) {
-    if (this.status === TriggerStatus.IDLE) {
+    if (this.status === TriggerStatus.IDLE || this.status === TriggerStatus.CANCELLED) {
       return;
     }
     super.onSuccess(_lastRunTimestamp);

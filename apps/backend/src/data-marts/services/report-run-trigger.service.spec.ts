@@ -1,18 +1,18 @@
 import { In, Repository } from 'typeorm';
-import { ConnectorRunTriggerService } from './connector-run-trigger.service';
-import { ConnectorRunTrigger } from '../../entities/connector-run-trigger.entity';
-import { TriggerStatus } from '../../../common/scheduler/shared/entities/trigger-status';
-import { RunType } from '../../../common/scheduler/shared/types';
+import { ReportRunTriggerService } from './report-run-trigger.service';
+import { ReportRunTrigger } from '../entities/report-run-trigger.entity';
+import { TriggerStatus } from '../../common/scheduler/shared/entities/trigger-status';
+import { RunType } from '../../common/scheduler/shared/types';
 
-describe('ConnectorRunTriggerService', () => {
+describe('ReportRunTriggerService', () => {
   const createService = () => {
     const repository = {
       create: jest.fn().mockImplementation(data => data),
       save: jest.fn().mockImplementation(data => Promise.resolve({ ...data, id: 'trigger-1' })),
       update: jest.fn().mockResolvedValue(undefined),
-    } as unknown as Repository<ConnectorRunTrigger>;
+    } as unknown as Repository<ReportRunTrigger>;
 
-    const service = new ConnectorRunTriggerService(repository);
+    const service = new ReportRunTriggerService(repository);
 
     return { service, repository };
   };
@@ -22,46 +22,26 @@ describe('ConnectorRunTriggerService', () => {
       const { service, repository } = createService();
 
       const result = await service.createTrigger({
-        dataMartId: 'dm-1',
+        reportId: 'report-1',
         projectId: 'proj-1',
         createdById: 'user-1',
         dataMartRunId: 'run-1',
         runType: RunType.manual,
-        payload: { key: 'value' },
       });
 
       expect(repository.create).toHaveBeenCalledWith(
         expect.objectContaining({
-          dataMartId: 'dm-1',
+          reportId: 'report-1',
           projectId: 'proj-1',
           createdById: 'user-1',
           dataMartRunId: 'run-1',
           runType: RunType.manual,
-          payload: { key: 'value' },
           isActive: true,
           status: TriggerStatus.IDLE,
         })
       );
       expect(repository.save).toHaveBeenCalled();
       expect(result).toBe('trigger-1');
-    });
-
-    it('sets payload to null when not provided', async () => {
-      const { service, repository } = createService();
-
-      await service.createTrigger({
-        dataMartId: 'dm-1',
-        projectId: 'proj-1',
-        createdById: 'user-1',
-        dataMartRunId: 'run-1',
-        runType: RunType.manual,
-      });
-
-      expect(repository.create).toHaveBeenCalledWith(
-        expect.objectContaining({
-          payload: null,
-        })
-      );
     });
   });
 

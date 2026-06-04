@@ -162,6 +162,15 @@ export class ReportService {
   }
 
   /**
+   * Marks the latest persisted report run state as cancelled without incrementing run counters.
+   */
+  async markRunAsCancelled(reportId: string): Promise<void> {
+    await this.repository.update(reportId, {
+      lastRunStatus: ReportRunStatus.CANCELLED,
+    });
+  }
+
+  /**
    * Persists Report entity changes.
    *
    * @param report - Report entity to save

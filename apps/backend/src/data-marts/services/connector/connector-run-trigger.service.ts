@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { In, Repository } from 'typeorm';
 import { ConnectorRunTrigger } from '../../entities/connector-run-trigger.entity';
 import { TriggerStatus } from '../../../common/scheduler/shared/entities/trigger-status';
 import { RunType } from '../../../common/scheduler/shared/types';
@@ -35,5 +35,16 @@ export class ConnectorRunTriggerService {
 
     const saved = await this.repository.save(trigger);
     return saved.id;
+  }
+
+  async stopTriggersForRun(dataMartRunId: string): Promise<void> {
+    await this.repository.update(
+      { dataMartRunId, status: In([TriggerStatus.IDLE, TriggerStatus.READY]) },
+      { status: TriggerStatus.CANCELLED, isActive: false, version: () => 'version + 1' }
+    );
+    await this.repository.update(
+      { dataMartRunId, status: TriggerStatus.PROCESSING },
+      { status: TriggerStatus.CANCELLING, isActive: false, version: () => 'version + 1' }
+    );
   }
 }

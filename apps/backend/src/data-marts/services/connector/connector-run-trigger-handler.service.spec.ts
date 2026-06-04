@@ -175,6 +175,63 @@ describe('ConnectorRunTriggerHandlerService', () => {
       expect(dataMartRunRepository.save).not.toHaveBeenCalled();
     });
 
+    it('marks trigger cancelled and skips execution when run is already CANCELLED', async () => {
+      const {
+        service,
+        dataMartService,
+        dataMartRunService,
+        triggerRepository,
+        connectorExecutionService,
+        mockManager,
+      } = createService();
+
+      (dataMartService.getByIdAndProjectId as jest.Mock).mockResolvedValue(mockDataMart);
+      (mockManager.update as jest.Mock).mockResolvedValue({ affected: 0 });
+      (dataMartRunService.findById as jest.Mock).mockResolvedValue({
+        id: 'run-1',
+        status: DataMartRunStatus.CANCELLED,
+      });
+
+      await expect(service.handleTrigger(mockTrigger)).resolves.toBeUndefined();
+
+      expect(triggerRepository.save).toHaveBeenCalledWith(
+        expect.objectContaining({
+          status: TriggerStatus.CANCELLED,
+          isActive: false,
+        })
+      );
+      expect(connectorExecutionService.executeExistingRun).not.toHaveBeenCalled();
+    });
+
+    it('marks trigger cancelled after execution is aborted by scheduler signal', async () => {
+      const {
+        service,
+        dataMartService,
+        triggerRepository,
+        connectorExecutionService,
+        mockManager,
+      } = createService();
+      const abortController = new AbortController();
+      const trigger = Object.assign(new ConnectorRunTrigger(), mockTrigger);
+
+      (dataMartService.getByIdAndProjectId as jest.Mock).mockResolvedValue(mockDataMart);
+      (mockManager.findOneOrFail as jest.Mock).mockResolvedValue(mockRun);
+      (connectorExecutionService.executeExistingRun as jest.Mock).mockImplementation(async () => {
+        abortController.abort();
+      });
+
+      await service.handleTrigger(trigger, { signal: abortController.signal });
+
+      expect(triggerRepository.save).toHaveBeenCalledWith(
+        expect.objectContaining({
+          status: TriggerStatus.CANCELLED,
+          isActive: false,
+        })
+      );
+      trigger.onSuccess(new Date('2026-06-04T12:00:00.000Z'));
+      expect(trigger.status).toBe(TriggerStatus.CANCELLED);
+    });
+
     it('fails the run when claim fails and run is not RUNNING', async () => {
       const { service, dataMartService, dataMartRunService, mockManager } = createService();
 

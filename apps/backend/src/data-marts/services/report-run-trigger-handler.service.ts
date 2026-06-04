@@ -47,6 +47,10 @@ export class ReportRunTriggerHandlerService extends BaseRunTriggerHandlerService
     options?: { signal?: AbortSignal }
   ): Promise<void> {
     try {
+      if (await this.cancelTriggerIfRunAlreadyCancelled(trigger)) {
+        return;
+      }
+
       await this.claimRunSlotAtomically(trigger.dataMartRunId, trigger.projectId);
 
       this.logger.log(
@@ -59,6 +63,9 @@ export class ReportRunTriggerHandlerService extends BaseRunTriggerHandlerService
         trigger.createdById,
         options?.signal
       );
+      if (options?.signal?.aborted) {
+        await this.markTriggerAsCancelled(trigger);
+      }
     } catch (error) {
       if (error instanceof ConcurrencyLimitExceededException) {
         this.logger.warn(
@@ -77,6 +84,10 @@ export class ReportRunTriggerHandlerService extends BaseRunTriggerHandlerService
         );
         return;
       }
+      if (existingRun?.status === DataMartRunStatus.CANCELLED) {
+        await this.markTriggerAsCancelled(trigger);
+        return;
+      }
 
       await this.failDataMartRunSafely(trigger.dataMartRunId, error);
 
@@ -85,6 +96,25 @@ export class ReportRunTriggerHandlerService extends BaseRunTriggerHandlerService
       );
       throw error;
     }
+  }
+
+  private async cancelTriggerIfRunAlreadyCancelled(trigger: ReportRunTrigger): Promise<boolean> {
+    const existingRun = await this.dataMartRunService.findById(trigger.dataMartRunId);
+    if (existingRun?.status !== DataMartRunStatus.CANCELLED) {
+      return false;
+    }
+
+    await this.markTriggerAsCancelled(trigger);
+    return true;
+  }
+
+  private async markTriggerAsCancelled(trigger: ReportRunTrigger): Promise<void> {
+    trigger.status = TriggerStatus.CANCELLED;
+    trigger.isActive = false;
+    await this.repository.save(trigger);
+    this.logger.log(
+      `Skipping report run trigger ${trigger.id}: DataMartRun ${trigger.dataMartRunId} is already CANCELLED`
+    );
   }
 
   /**

@@ -271,4 +271,21 @@ describe('ConnectorExecutorService', () => {
     expect(updateCall).toBeDefined();
     expect(updateCall![1]).not.toHaveProperty('startedAt');
   });
+
+  it('marks an aborted connector run as CANCELLED', async () => {
+    const { service, dataMartRunRepository, processSpawner, eventDispatcher } = createService();
+    const controller = new AbortController();
+    controller.abort();
+    (processSpawner.spawnConnector as jest.Mock).mockRejectedValue(
+      new Error('Connector process was aborted')
+    );
+
+    await service.executeInBackground(createDataMart(), createRun(), null, controller.signal);
+
+    expect(dataMartRunRepository.update).toHaveBeenLastCalledWith(
+      'run-1',
+      expect.objectContaining({ status: DataMartRunStatus.CANCELLED })
+    );
+    expect(eventDispatcher.publishExternal).not.toHaveBeenCalled();
+  });
 });
