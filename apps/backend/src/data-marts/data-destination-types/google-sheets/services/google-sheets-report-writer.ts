@@ -239,8 +239,50 @@ export class GoogleSheetsReportWriter implements DataDestinationReportWriter {
     if (this.structuralOpsApplied) {
       return;
     }
-    await this.prepareSheetColumns(this.columnPlan.finalImportedNames.length);
-    await this.applyStructuralColumnOps();
+
+    const finalCount = this.columnPlan.finalImportedNames.length;
+    const insertCount = this.columnPlan.ops.filter(op => op.kind === 'insert').length;
+    const prevWidth = this.columnPlan.prevLastImportedColIndex + 1;
+
+    // Column sizing rests on a single invariant: every `insertDimension` op
+    // CREATES a column and every `deleteDimension` op REMOVES one, so a refresh
+    // that has structural ops already reaches `finalImportedNames.length`
+    // columns on its own — `availableColumnsCount + insertCount - deleteCount`.
+    // Pre-allocating the grid to the final width on top of that would
+    // double-count the inserts and strand `insertCount - deleteCount` empty
+    // orphan columns to the right of the imported rectangle on every
+    // net-growing refresh (breaking the "ODM owns the imported rectangle"
+    // contract and corrupting the slack detection used on the next refresh).
+    //
+    // So we pre-allocate columns only when the ops cannot size the grid
+    // themselves:
+    //   1. No structural ops (first run, or an unchanged schema): there are no
+    //      inserts to grow the grid, so grow it directly to the final width.
+    //   2. Otherwise, append a single SENTINEL column iff the imported range
+    //      fills the grid to its right edge (no user/slack column beyond it)
+    //      AND the plan inserts at least one column. Without a slack column the
+    //      first `insertDimension { inheritFromBefore: false }` lands on
+    //      `startIndex == survivors.length == gridSize`, which Sheets rejects
+    //      ("range.startIndex must be less than the grid size"). One spare keeps
+    //      the grid one wider than `survivors.length` so the first insert fits;
+    //      every subsequent insert grows the grid by one on its own. The spare
+    //      is removed inside the SAME structural batch (see
+    //      {@link applyStructuralColumnOps}), so the final width is exact.
+    //
+    // When a user/slack column already sits to the right the first insert is
+    // in range without a sentinel, and pre-allocating there would risk
+    // clobbering that user content — so we leave the grid to the ops alone.
+    const hasStructuralOps = this.columnPlan.ops.length > 0;
+    const noColumnsRightOfImported = this.availableColumnsCount <= prevWidth;
+    const needsSentinel = hasStructuralOps && insertCount > 0 && noColumnsRightOfImported;
+
+    if (!hasStructuralOps) {
+      await this.prepareSheetColumns(finalCount);
+    } else if (needsSentinel) {
+      await this.prepareSheetColumns(this.availableColumnsCount + 1);
+    }
+
+    await this.applyStructuralColumnOps(needsSentinel);
     await this.writeHeaders();
     await this.preClearImportedRectangle();
     this.writtenRowsCount = 1;
@@ -855,8 +897,17 @@ export class GoogleSheetsReportWriter implements DataDestinationReportWriter {
    * Applies structural column ops (`insertDimension`/`deleteDimension`) from
    * the column plan in a single `batchUpdate`. No-op on first run or when the
    * plan reports no changes.
+   *
+   * @param sentinelAllocated - `true` when {@link applyDeferredSheetMutations}
+   *   pre-appended one spare column at the right edge of the grid to keep the
+   *   first `insertDimension` in range (see that method for the why). When set,
+   *   a final `deleteDimension` is appended to the SAME batch to drop the spare
+   *   from the grid's right edge, so the resulting width is exactly
+   *   `finalImportedNames.length`. The delete+insert ops on the imported range
+   *   shift everything to the spare's right as one block, leaving the spare the
+   *   grid's last column — so it is always at `gridAfterMainOps - 1`.
    */
-  private async applyStructuralColumnOps(): Promise<void> {
+  private async applyStructuralColumnOps(sentinelAllocated = false): Promise<void> {
     if (this.columnPlan.ops.length === 0) {
       return;
     }
@@ -866,11 +917,23 @@ export class GoogleSheetsReportWriter implements DataDestinationReportWriter {
           ? this.adapter.buildDeleteColumnRequest(this.destination.sheetId, op.atIndex)
           : this.adapter.buildInsertColumnRequest(this.destination.sheetId, op.atIndex)
       );
-      await this.adapter.batchUpdate(this.destination.spreadsheetId, requests);
 
       const inserts = this.columnPlan.ops.filter(op => op.kind === 'insert').length;
       const deletes = this.columnPlan.ops.length - inserts;
-      this.availableColumnsCount += inserts - deletes;
+
+      if (sentinelAllocated) {
+        // Target the grid's last column by computed position rather than an
+        // absolute index, so the spare — and only the spare — is removed
+        // regardless of how the imported-range ops reshuffled the grid.
+        const gridAfterMainOps = this.availableColumnsCount + inserts - deletes;
+        requests.push(
+          this.adapter.buildDeleteColumnRequest(this.destination.sheetId, gridAfterMainOps - 1)
+        );
+      }
+
+      await this.adapter.batchUpdate(this.destination.spreadsheetId, requests);
+
+      this.availableColumnsCount += inserts - deletes - (sentinelAllocated ? 1 : 0);
     }, 'Applying structural column changes');
   }
 

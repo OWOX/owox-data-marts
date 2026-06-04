@@ -1,9 +1,10 @@
 import { sheets_v4 } from 'googleapis';
-import { ColumnPlan } from '../../../dto/domain/column-plan.dto';
+import { ColumnPlan, PreviousImportedColumn } from '../../../dto/domain/column-plan.dto';
 import { ReportDataBatch } from '../../../dto/domain/report-data-batch.dto';
 import { ReportDataDescription } from '../../../dto/domain/report-data-description.dto';
 import { ReportDataHeader } from '../../../dto/domain/report-data-header.dto';
 import { GoogleSheetsReportWriter } from './google-sheets-report-writer';
+import { ColumnPlanBuilder } from './column-plan-builder';
 
 /**
  * Targeted unit spec for {@link GoogleSheetsReportWriter}'s pre-clear
@@ -707,5 +708,435 @@ describe('GoogleSheetsReportWriter — per-column header notes', () => {
       expect.any(String),
       expect.any(Boolean)
     );
+  });
+});
+
+/**
+ * Structural-ops harness that *simulates the destination grid* so we can assert
+ * the real Sheets-API contract: an `insertDimension { inheritFromBefore: false }`
+ * request is rejected when `startIndex >= gridSize`.
+ *
+ * Unlike {@link buildWriter} (which mocks the column plan and treats request
+ * builders as opaque), this harness:
+ *   - builds a *real* {@link ColumnPlan} via {@link ColumnPlanBuilder} from
+ *     previous/desired column lists, so ops + indices are exactly what
+ *     production would produce;
+ *   - has `appendDimensionToSheet` / `batchUpdate` mutate an in-memory column
+ *     array, with `insertDimension` throwing the same "startIndex must be less
+ *     than the grid size" error the live API throws — so a test that triggers
+ *     the original bug fails loudly here too.
+ *
+ * The sheet's `columnCount` is the labeled grid width (imported + user cols),
+ * i.e. no trailing empty columns — which is the only configuration in which the
+ * bug can occur (`availableColumnsCount === prevWidth`).
+ */
+function buildStructuralWriter(opts: {
+  previousImported: string[];
+  desired: string[];
+  userColsRight?: string[];
+  availableRowsCount?: number;
+}) {
+  const userColsRight = opts.userColsRight ?? [];
+  const availableRowsCount = opts.availableRowsCount ?? 100;
+
+  // In-memory grid: one entry per column. Survivors keep their name, inserts
+  // become 'NEW', a pre-allocated spare becomes 'SENT', user columns keep their
+  // given label. We read this back after the run to assert the final layout.
+  const grid: string[] = [...opts.previousImported, ...userColsRight];
+  const initialColumnCount = grid.length;
+
+  const applyRequestToGrid = (req: {
+    insertDimension?: {
+      range?: { dimension?: string; startIndex?: number; endIndex?: number };
+      inheritFromBefore?: boolean;
+    };
+    deleteDimension?: { range?: { dimension?: string; startIndex?: number; endIndex?: number } };
+  }) => {
+    if (req?.insertDimension?.range?.dimension === 'COLUMNS') {
+      const { startIndex = 0, endIndex } = req.insertDimension.range;
+      const count = (endIndex ?? startIndex + 1) - startIndex;
+      if (req.insertDimension.inheritFromBefore === false && startIndex >= grid.length) {
+        // Mirror the live Sheets API rejection that motivated the sentinel fix.
+        throw new Error(
+          `Invalid requests.insertDimension: range.startIndex (${startIndex}) must be less ` +
+            `than the grid size (${grid.length}) if inheritFromBefore is false`
+        );
+      }
+      grid.splice(startIndex, 0, ...Array.from({ length: count }, () => 'NEW'));
+    } else if (req?.deleteDimension?.range?.dimension === 'COLUMNS') {
+      const { startIndex = 0, endIndex } = req.deleteDimension.range;
+      const count = (endIndex ?? startIndex + 1) - startIndex;
+      grid.splice(startIndex, count);
+    }
+  };
+
+  const adapter = {
+    getSpreadsheet: jest.fn().mockResolvedValue({
+      properties: { title: 'Test Spreadsheet', timeZone: 'UTC' },
+      sheets: [
+        {
+          properties: {
+            sheetId: SHEET_ID,
+            title: SHEET_TITLE,
+            gridProperties: { rowCount: availableRowsCount, columnCount: initialColumnCount },
+          },
+        },
+      ],
+    }),
+    findSheetById: jest
+      .fn()
+      .mockImplementation((spreadsheet, sheetId: number) =>
+        spreadsheet.sheets.find(
+          (s: { properties: { sheetId: number } }) => s.properties.sheetId === sheetId
+        )
+      ),
+    getDeveloperMetadata: jest.fn().mockResolvedValue([]),
+    getRowValues: jest.fn().mockResolvedValue([]),
+    getRowFormulas: jest.fn().mockResolvedValue([]),
+    findOwoxColumnsMetadataForSheet: jest.fn().mockReturnValue([]),
+    findAllOwoxReportMetadataForSheet: jest.fn().mockReturnValue([]),
+    buildDeleteDeveloperMetadataRequests: jest.fn().mockReturnValue([]),
+    appendDimensionToSheet: jest
+      .fn()
+      .mockImplementation(
+        (_spreadsheetId: string, _sheetId: number, size: number, dimension: string) => {
+          if (dimension === 'COLUMNS') {
+            for (let i = 0; i < size; i++) {
+              grid.push('SENT');
+            }
+          }
+          return Promise.resolve();
+        }
+      ),
+    updateValues: jest
+      .fn()
+      .mockImplementation((_spreadsheetId: string, range: string, values: unknown[][]) => {
+        // Header write (row 1) relabels the imported columns with their final
+        // names — overwriting the 'NEW' placeholders inserts produced — so the
+        // post-run grid reads as the user would see it.
+        if (/!A1:/.test(range) && Array.isArray(values?.[0])) {
+          values[0].forEach((v, i) => {
+            if (i < grid.length) {
+              grid[i] = String(v);
+            }
+          });
+        }
+        return Promise.resolve();
+      }),
+    batchUpdate: jest
+      .fn()
+      .mockImplementation(
+        (_spreadsheetId: string, requests: Parameters<typeof applyRequestToGrid>[0][]) => {
+          requests.forEach(applyRequestToGrid);
+          return Promise.resolve();
+        }
+      ),
+    buildInsertColumnRequest: jest.fn((sheetId: number, atColIndex: number) => ({
+      insertDimension: {
+        range: { sheetId, dimension: 'COLUMNS', startIndex: atColIndex, endIndex: atColIndex + 1 },
+        inheritFromBefore: false,
+      },
+    })),
+    buildDeleteColumnRequest: jest.fn((sheetId: number, atColIndex: number) => ({
+      deleteDimension: {
+        range: { sheetId, dimension: 'COLUMNS', startIndex: atColIndex, endIndex: atColIndex + 1 },
+      },
+    })),
+    buildCopyPasteRequest: jest.fn().mockReturnValue({}),
+    clearValuesInRange: jest.fn().mockResolvedValue(undefined),
+    getColumnFormats: jest.fn().mockResolvedValue(opts.previousImported.map(() => undefined)),
+    buildSetColumnFormatRequest: jest.fn().mockReturnValue({}),
+  };
+
+  const adapterFactory = { createFromDestination: jest.fn().mockResolvedValue(adapter) };
+
+  // Real plan: indices and op ordering exactly as production computes them.
+  const existingHeaders = [...opts.previousImported, ...userColsRight];
+  const previousOwoxColumns = opts.previousImported.map(n => new PreviousImportedColumn(n));
+  const desiredHeaders = opts.desired.map(n => new ReportDataHeader(n));
+  const columnPlan = new ColumnPlanBuilder().build(
+    existingHeaders,
+    previousOwoxColumns,
+    desiredHeaders
+  );
+  const columnPlanBuilder = { build: jest.fn().mockReturnValue(columnPlan) };
+
+  const headerFormatter = {
+    createHeaderClearFormatRequest: jest.fn().mockReturnValue({}),
+    createHeaderFormatRequest: jest.fn().mockReturnValue({}),
+  };
+  const metadataFormatter = {
+    buildImportedColumnNote: jest.fn().mockReturnValue('note'),
+    buildImportedColumnMarker: jest.fn().mockReturnValue('marker'),
+    createNoteRequest: jest.fn().mockReturnValue({}),
+    createTabColorAndFreezeHeaderRequest: jest.fn().mockReturnValue({}),
+    createDeveloperMetadataRequest: jest.fn().mockReturnValue({}),
+    updateDeveloperMetadataRequest: jest.fn().mockReturnValue({}),
+    createOwoxColumnsMetadataRequest: jest.fn().mockReturnValue({}),
+    updateOwoxColumnsMetadataRequest: jest.fn().mockReturnValue({}),
+  };
+  const valuesFormatter = {
+    formatRowsValuesByName: jest.fn().mockImplementation((rows: unknown[][]) => rows),
+  };
+  const appEditionConfig = { isEnterpriseEdition: jest.fn().mockReturnValue(true) };
+  const publicOriginService = {
+    getPublicOrigin: jest.fn().mockReturnValue('https://example.test'),
+  };
+  const eventDispatcher = { publishExternal: jest.fn().mockResolvedValue(undefined) };
+
+  const writer = new GoogleSheetsReportWriter(
+    headerFormatter as never,
+    metadataFormatter as never,
+    valuesFormatter as never,
+    columnPlanBuilder as never,
+    adapterFactory as never,
+    appEditionConfig as never,
+    publicOriginService as never,
+    eventDispatcher as never
+  );
+
+  const report = {
+    id: 'report-1',
+    createdById: 'user-1',
+    destinationConfig: {
+      type: 'google-sheets-config',
+      spreadsheetId: SPREADSHEET_ID,
+      sheetId: SHEET_ID,
+    },
+    dataDestination: {},
+    dataMart: { id: 'dm-1', projectId: 'proj-1', title: 'DM' },
+  };
+
+  /** The structural batch is the (single) one carrying insert/delete dimension ops. */
+  const structuralBatch = (): unknown[] | undefined => {
+    const call = adapter.batchUpdate.mock.calls.find(([, reqs]: [string, Array<unknown>]) =>
+      reqs.some(
+        (r: { insertDimension?: unknown; deleteDimension?: unknown }) =>
+          r.insertDimension || r.deleteDimension
+      )
+    );
+    return call?.[1];
+  };
+
+  /** Run the full happy-path refresh: prepare → one data batch → finalize. */
+  const runRefresh = async () => {
+    await writer.prepareToWriteReport(
+      report as never,
+      new ReportDataDescription(desiredHeaders, 1)
+    );
+    await writer.writeReportDataBatch(new ReportDataBatch([opts.desired.map((_, i) => `v${i}`)]));
+    return writer.finalize();
+  };
+
+  return { writer, adapter, report, columnPlan, grid, structuralBatch, runRefresh };
+}
+
+describe('GoogleSheetsReportWriter — insertDimension grid-size guard (sentinel)', () => {
+  it('original bug scenario: prevWidth=3, prevAvail=3, deletes=2, inserts=1 — refresh succeeds, grid == finalCount', async () => {
+    // Imported A,B,C fill the whole grid (no user columns). The new schema
+    // keeps A, drops B & C, and adds X. On `main` the two deletes shrink the
+    // grid to 1, and the single insert at index 1 (== gridSize) is rejected.
+    const h = buildStructuralWriter({
+      previousImported: ['a', 'b', 'c'],
+      desired: ['a', 'x'],
+    });
+
+    // finalImportedNames = [a, x]; deletes c@2, b@1; insert @1.
+    expect(h.columnPlan.finalImportedNames).toEqual(['a', 'x']);
+
+    await expect(h.runRefresh()).resolves.toBeDefined();
+
+    // Final grid is exactly the imported width — sentinel cleaned up.
+    expect(h.grid).toEqual(['a', 'x']);
+
+    // Exactly one spare column was appended (size 1), and the structural batch
+    // carried plan.ops + a single cleanup delete.
+    const colAppends = h.adapter.appendDimensionToSheet.mock.calls.filter(
+      ([, , , dim]: [string, number, number, string]) => dim === 'COLUMNS'
+    );
+    expect(colAppends).toEqual([[SPREADSHEET_ID, SHEET_ID, 1, 'COLUMNS']]);
+    expect(h.structuralBatch()).toHaveLength(h.columnPlan.ops.length + 1);
+  });
+
+  it('survivors.length === 0: prevWidth=5, prevAvail=5, deletes=5, inserts=1 — refresh succeeds, grid == finalCount (1)', async () => {
+    // All five imported columns are dropped and one new column added. After the
+    // five deletes only the sentinel remains, so the insert at index 0 fits.
+    const h = buildStructuralWriter({
+      previousImported: ['a', 'b', 'c', 'd', 'e'],
+      desired: ['x'],
+    });
+
+    expect(h.columnPlan.finalImportedNames).toEqual(['x']);
+
+    await expect(h.runRefresh()).resolves.toBeDefined();
+
+    expect(h.grid).toEqual(['x']);
+    const colAppends = h.adapter.appendDimensionToSheet.mock.calls.filter(
+      ([, , , dim]: [string, number, number, string]) => dim === 'COLUMNS'
+    );
+    expect(colAppends).toEqual([[SPREADSHEET_ID, SHEET_ID, 1, 'COLUMNS']]);
+  });
+
+  it('user column to the right (prevWidth=3, prevAvail=4, deletes=1, inserts=2) — U preserved, no sentinel allocated', async () => {
+    // The bug cannot occur here: the grid after the delete is
+    // survivors.length(2) + userCol(1) = 3, leaving room for the inserts. The
+    // fix must NOT engage — no spare column, no cleanup delete — and the user
+    // column U must survive untouched at the right edge.
+    const h = buildStructuralWriter({
+      previousImported: ['a', 'b', 'c'],
+      userColsRight: ['U'],
+      desired: ['a', 'b', 'x', 'y'],
+    });
+
+    expect(h.columnPlan.finalImportedNames).toEqual(['a', 'b', 'x', 'y']);
+
+    await expect(h.runRefresh()).resolves.toBeDefined();
+
+    // Imported width grows to 4; U stays as the last (5th) column.
+    expect(h.grid).toEqual(['a', 'b', 'x', 'y', 'U']);
+
+    // No spare column was pre-allocated, and the structural batch carried only
+    // the plan ops — byte-for-byte the `main` behaviour.
+    const colAppends = h.adapter.appendDimensionToSheet.mock.calls.filter(
+      ([, , , dim]: [string, number, number, string]) => dim === 'COLUMNS'
+    );
+    expect(colAppends).toEqual([]);
+    expect(h.structuralBatch()).toHaveLength(h.columnPlan.ops.length);
+  });
+
+  it('invariant regression: multiple user columns right of the imported range are left untouched across a delete+insert refresh', async () => {
+    // Two user columns (a formula column and a static one) sit to the right of
+    // the imported range. A refresh that both deletes and inserts imported
+    // columns must leave them in place — the docstring invariant on ColumnPlan.
+    const h = buildStructuralWriter({
+      previousImported: ['a', 'b', 'c'],
+      userColsRight: ['=A2*2', 'notes'],
+      desired: ['a', 'x'],
+    });
+
+    await expect(h.runRefresh()).resolves.toBeDefined();
+
+    // Imported collapses to [a, x]; both user columns remain at the right edge
+    // in their original order.
+    expect(h.grid).toEqual(['a', 'x', '=A2*2', 'notes']);
+    const colAppends = h.adapter.appendDimensionToSheet.mock.calls.filter(
+      ([, , , dim]: [string, number, number, string]) => dim === 'COLUMNS'
+    );
+    expect(colAppends).toEqual([]);
+  });
+
+  it('proves the harness reproduces the bug: without the sentinel the insert is rejected', async () => {
+    // Sanity check on the simulator itself — drive the exact op sequence the
+    // unfixed code would issue (delete, delete, insert) against the bug grid
+    // and confirm it throws the grid-size error. Guards against a false-green
+    // simulator that would let a regression slip through.
+    const grid = ['a', 'b', 'c'];
+    const apply = (req: {
+      insertDimension?: {
+        range?: { dimension?: string; startIndex?: number; endIndex?: number };
+        inheritFromBefore?: boolean;
+      };
+      deleteDimension?: { range?: { dimension?: string; startIndex?: number; endIndex?: number } };
+    }) => {
+      if (req.deleteDimension?.range?.dimension === 'COLUMNS') {
+        grid.splice(req.deleteDimension.range.startIndex ?? 0, 1);
+      } else if (req.insertDimension?.range?.dimension === 'COLUMNS') {
+        const s = req.insertDimension.range?.startIndex ?? 0;
+        if (req.insertDimension.inheritFromBefore === false && s >= grid.length) {
+          throw new Error('range.startIndex must be less than the grid size');
+        }
+        grid.splice(s, 0, 'NEW');
+      }
+    };
+
+    expect(() => {
+      apply({ deleteDimension: { range: { dimension: 'COLUMNS', startIndex: 2 } } });
+      apply({ deleteDimension: { range: { dimension: 'COLUMNS', startIndex: 1 } } });
+      apply({
+        insertDimension: {
+          range: { dimension: 'COLUMNS', startIndex: 1 },
+          inheritFromBefore: false,
+        },
+      });
+    }).toThrow(/grid size/);
+  });
+
+  it('insert-heavy, no user columns (prevWidth=3, avail=3, deletes=1, inserts=2): leaves no orphan trailing column — grid == finalImportedNames', async () => {
+    // The imported range fills the whole grid and the new schema is net-growing
+    // (drops c, adds x & y). The `insertDimension` ops create their own columns,
+    // so pre-allocating the grid to `finalImportedNames.length` up front
+    // double-counts the inserts: every refresh would leave `inserts - deletes`
+    // empty orphan columns to the right of the imported rectangle, silently
+    // violating the "ODM owns the imported rectangle" contract and corrupting
+    // the slack / user-column detection used on the next refresh.
+    const h = buildStructuralWriter({
+      previousImported: ['a', 'b', 'c'],
+      desired: ['a', 'c', 'x', 'y'],
+    });
+
+    expect(h.columnPlan.finalImportedNames).toEqual(['a', 'c', 'x', 'y']);
+
+    await expect(h.runRefresh()).resolves.toBeDefined();
+
+    // The grid is exactly the final imported width — no stray column survives.
+    expect(h.grid).toEqual(['a', 'c', 'x', 'y']);
+
+    // Exactly one sentinel column is appended (and removed in the same
+    // structural batch), regardless of how many columns are inserted.
+    const colAppends = h.adapter.appendDimensionToSheet.mock.calls.filter(
+      ([, , , dim]: [string, number, number, string]) => dim === 'COLUMNS'
+    );
+    expect(colAppends).toEqual([[SPREADSHEET_ID, SHEET_ID, 1, 'COLUMNS']]);
+    expect(h.structuralBatch()).toHaveLength(h.columnPlan.ops.length + 1);
+  });
+
+  it('insert-only, no user columns (prevWidth=3, avail=3, deletes=0, inserts=2): first insert stays in range and no orphan column remains', async () => {
+    // Pure append with the imported range filling the grid. With no deletes,
+    // the first `insertDimension { inheritFromBefore: false }` lands on
+    // `startIndex == prevWidth == gridSize` and the live API rejects it — yet
+    // the previous `needsSentinel` predicate required `deleteCount > 0`, so the
+    // guard never engaged for this case. It instead relied on pre-allocating to
+    // `finalImportedNames.length`, which avoided the rejection but left
+    // `insertCount` orphan columns behind.
+    const h = buildStructuralWriter({
+      previousImported: ['a', 'b', 'c'],
+      desired: ['a', 'b', 'c', 'x', 'y'],
+    });
+
+    expect(h.columnPlan.finalImportedNames).toEqual(['a', 'b', 'c', 'x', 'y']);
+
+    await expect(h.runRefresh()).resolves.toBeDefined();
+
+    expect(h.grid).toEqual(['a', 'b', 'c', 'x', 'y']);
+    const colAppends = h.adapter.appendDimensionToSheet.mock.calls.filter(
+      ([, , , dim]: [string, number, number, string]) => dim === 'COLUMNS'
+    );
+    expect(colAppends).toEqual([[SPREADSHEET_ID, SHEET_ID, 1, 'COLUMNS']]);
+    expect(h.structuralBatch()).toHaveLength(h.columnPlan.ops.length + 1);
+  });
+
+  it('net-growing past existing slack, one user column (prevWidth=3, avail=4, deletes=1, inserts=3): user column preserved, no orphan column', async () => {
+    // A user column provides one slack column to the right, but the schema adds
+    // three and drops one (net +2), so the final imported width exceeds the
+    // current grid. Pre-allocating to the final width would again double-count
+    // the inserts and strand the user column behind orphan cells. No sentinel
+    // is needed here (the slack column keeps the first insert in range), but the
+    // grid must still end at finalImportedNames + the user column.
+    const h = buildStructuralWriter({
+      previousImported: ['a', 'b', 'c'],
+      userColsRight: ['U'],
+      desired: ['a', 'c', 'x', 'y', 'z'],
+    });
+
+    expect(h.columnPlan.finalImportedNames).toEqual(['a', 'c', 'x', 'y', 'z']);
+
+    await expect(h.runRefresh()).resolves.toBeDefined();
+
+    expect(h.grid).toEqual(['a', 'c', 'x', 'y', 'z', 'U']);
+    const colAppends = h.adapter.appendDimensionToSheet.mock.calls.filter(
+      ([, , , dim]: [string, number, number, string]) => dim === 'COLUMNS'
+    );
+    expect(colAppends).toEqual([]);
+    expect(h.structuralBatch()).toHaveLength(h.columnPlan.ops.length);
   });
 });
