@@ -32,14 +32,14 @@ describe('reportHasOutputControls', () => {
   });
 
   it('returns false when filterConfig and sortConfig are empty arrays', () => {
-    expect(
-      reportHasOutputControls(makeReport({ filterConfig: [], sortConfig: [] }))
-    ).toBe(false);
+    expect(reportHasOutputControls(makeReport({ filterConfig: [], sortConfig: [] }))).toBe(false);
   });
 
   it('returns true when filterConfig has items', () => {
     expect(
-      reportHasOutputControls(makeReport({ filterConfig: [{ field: 'x', operator: 'eq', value: '1' } as any] }))
+      reportHasOutputControls(
+        makeReport({ filterConfig: [{ field: 'x', operator: 'eq', value: '1' } as any] })
+      )
     ).toBe(true);
   });
 

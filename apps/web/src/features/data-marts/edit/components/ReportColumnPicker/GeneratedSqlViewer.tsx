@@ -134,7 +134,13 @@ export function GeneratedSqlViewer({
     <>
       No custom SQL generated: this report queries the Data Mart source directly without filters or
       joins.{' '}
-      <Link to={dataSetupUrl} className='underline' onClick={e => e.stopPropagation()}>
+      <Link
+        to={dataSetupUrl}
+        className='underline'
+        onClick={e => {
+          e.stopPropagation();
+        }}
+      >
         Open Data Setup
       </Link>
       .
@@ -152,8 +158,12 @@ export function GeneratedSqlViewer({
               variant='ghost'
               className='dm-card-table-body-row-actionbtn !cursor-default opacity-0 transition-opacity group-hover:opacity-100'
               aria-label={ariaLabel}
-              onClick={e => e.stopPropagation()}
-              onPointerDown={e => e.preventDefault()}
+              onClick={e => {
+                e.stopPropagation();
+              }}
+              onPointerDown={e => {
+                e.preventDefault();
+              }}
             >
               <FileCode2
                 className='dm-card-table-body-row-actionbtn-icon text-muted-foreground'
@@ -175,8 +185,10 @@ export function GeneratedSqlViewer({
             type='button'
             variant='outline'
             size='sm'
-            className='opacity-50 !cursor-default'
-            onPointerDown={e => e.preventDefault()}
+            className='!cursor-default opacity-50'
+            onPointerDown={e => {
+              e.preventDefault();
+            }}
           >
             <FileCode2 className='mr-2 h-4 w-4' />
             Preview SQL
