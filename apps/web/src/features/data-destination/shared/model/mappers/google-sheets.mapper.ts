@@ -32,6 +32,10 @@ export class GoogleSheetsMapper implements DestinationMapper {
       credentials: {
         serviceAccount: serviceAccountJson,
         credentialId: dto.credentialId,
+        identity:
+          dto.credentials.type === DataDestinationCredentialsType.GOOGLE_SHEETS_OAUTH_CREDENTIALS
+            ? dto.credentials.identity
+            : null,
       },
       createdAt: new Date(dto.createdAt),
       modifiedAt: new Date(dto.modifiedAt),

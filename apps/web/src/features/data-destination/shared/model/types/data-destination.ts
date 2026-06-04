@@ -1,4 +1,5 @@
 import { DataDestinationType } from '../../enums';
+import type { CredentialIdentity, UserProjection } from '../../../../../shared/types';
 import type { DataDestinationCredentials } from './credentials.ts';
 import type { EmailCredentials } from './email-credentials.ts';
 import type { LookerStudioCredentials } from './looker-studio-credentials.ts';
@@ -11,8 +12,8 @@ export interface BaseDataDestination<T extends DataDestinationCredentials> {
   credentials: T;
   createdAt: Date;
   modifiedAt: Date;
-  createdByUser?: import('../../../../../shared/types').UserProjection | null;
-  ownerUsers?: import('../../../../../shared/types').UserProjection[];
+  createdByUser?: UserProjection | null;
+  ownerUsers?: UserProjection[];
   availableForUse?: boolean;
   availableForMaintenance?: boolean;
   contexts?: { id: string; name: string }[];
@@ -25,6 +26,7 @@ export interface GoogleSheetsCredentials {
 export interface GoogleSheetsOAuthCredentials {
   serviceAccount?: string;
   credentialId?: string | null;
+  identity?: CredentialIdentity | null;
 }
 
 export interface GoogleSheetsDataDestination extends BaseDataDestination<GoogleSheetsOAuthCredentials> {

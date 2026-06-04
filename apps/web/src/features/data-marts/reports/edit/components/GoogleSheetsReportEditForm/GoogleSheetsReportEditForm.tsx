@@ -1,7 +1,7 @@
 import { forwardRef, useEffect, useState, useRef } from 'react';
-import { useOwnerState } from '../../../../../../shared/hooks/useOwnerState';
-import { UserReference } from '../../../../../../shared/components/UserReference/UserReference';
-import { useUser } from '../../../../../idp/hooks/useAuthState';
+import { useOwnerState } from '../../../../../../shared/hooks';
+import { UserReference } from '../../../../../../shared/components/UserReference';
+import { useUser } from '../../../../../idp';
 import { Input } from '@owox/ui/components/input';
 import { useAutoFocus } from '../../../../../../hooks/useAutoFocus.ts';
 import {
@@ -41,8 +41,8 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@owox/ui/components/too
 import { Alert, AlertDescription, AlertTitle } from '@owox/ui/components/alert';
 import { AlertCircle, ExternalLink } from 'lucide-react';
 import {
-  extractServiceAccountEmail,
   getGoogleSheetTabUrl,
+  getGoogleSheetsDestinationEmail,
   isValidGoogleSheetsUrl,
   ReportFormMode,
 } from '../../../shared';
@@ -52,7 +52,6 @@ import {
   type ReportSchedulesInlineListHandle,
 } from '../../../../scheduled-triggers/components/ReportSchedulesInlineList/ReportSchedulesInlineList';
 import DocumentLinkDescription from './FormDescriptions/DocumentLinkDescription.tsx';
-import { isGoogleServiceAccountCredentials } from '../../../../../../shared/types';
 import { CopyableField } from '@owox/ui/components/common/copyable-field';
 import { useReport } from '../../../shared';
 import { ReportFormActions } from '../shared/ReportFormActions';
@@ -312,18 +311,16 @@ export const GoogleSheetsReportEditForm = forwardRef<
                         {filteredDestinations.map(destination => {
                           const typeInfo = DataDestinationTypeModel.getInfo(destination.type);
                           const IconComponent = typeInfo.icon;
-                          const saEmail = isGoogleServiceAccountCredentials(destination.credentials)
-                            ? extractServiceAccountEmail(destination.credentials.serviceAccount)
-                            : null;
+                          const accessEmail = getGoogleSheetsDestinationEmail(destination);
                           return (
                             <SelectItem key={destination.id} value={destination.id}>
                               <div className='flex w-full min-w-0 items-center gap-2'>
                                 <IconComponent className='flex-shrink-0' size={18} />
                                 <div className='flex min-w-0 flex-col'>
                                   <span className='truncate'>{destination.title}</span>
-                                  {saEmail && (
+                                  {accessEmail && (
                                     <span className='text-muted-foreground truncate text-xs'>
-                                      {saEmail}
+                                      {accessEmail}
                                     </span>
                                   )}
                                 </div>
@@ -355,18 +352,14 @@ export const GoogleSheetsReportEditForm = forwardRef<
                           destination => destination.id === field.value
                         );
                         if (selectedDestination) {
-                          const saEmail = isGoogleServiceAccountCredentials(
-                            selectedDestination.credentials
-                          )
-                            ? extractServiceAccountEmail(
-                                selectedDestination.credentials.serviceAccount
-                              )
-                            : null;
-                          if (!saEmail) return null;
+                          const accessEmail = getGoogleSheetsDestinationEmail(selectedDestination);
+                          if (!accessEmail) return null;
                           return (
                             <div className='mt-2 flex flex-col gap-1'>
-                              <FormLabel>Service Account Email</FormLabel>
-                              <CopyableField value={saEmail}>{saEmail}</CopyableField>
+                              <FormLabel tooltip='Share the Google Sheet with this email to allow writing'>
+                                Share document with
+                              </FormLabel>
+                              <CopyableField value={accessEmail}>{accessEmail}</CopyableField>
                             </div>
                           );
                         }
