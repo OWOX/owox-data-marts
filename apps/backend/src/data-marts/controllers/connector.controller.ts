@@ -96,12 +96,14 @@ export class ConnectorController {
   @Get(':connectorName/oauth/status/:credentialId')
   @GetConnectorOAuthStatusSpec()
   async getConnectorOAuthStatus(
+    @AuthContext() context: AuthorizationContext,
     @Param('connectorName') connectorName: string,
     @Param('credentialId') credentialId: string
   ): Promise<ConnectorOAuthStatusResponseApiDto> {
     const status = await this.connectorOauthService.getCredentialStatus(
       connectorName,
-      credentialId
+      credentialId,
+      context.projectId
     );
     return this.mapper.toStatusResponse(status);
   }

@@ -8,8 +8,5 @@ export class InsightRunTrigger extends UiTrigger<InsightRunResponseApiDto> {
   dataMartId: string;
 
   @Column()
-  projectId: string;
-
-  @Column()
   insightId: string;
 }

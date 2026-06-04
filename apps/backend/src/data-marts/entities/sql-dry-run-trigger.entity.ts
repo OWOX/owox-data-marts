@@ -15,12 +15,6 @@ export class SqlDryRunTrigger extends UiTrigger<SqlDryRunResponseApiDto> {
   dataMartId: string;
 
   /**
-   * ID of the user's project
-   */
-  @Column()
-  projectId: string;
-
-  /**
    * SQL query to validate
    */
   @Column({ type: 'text' })

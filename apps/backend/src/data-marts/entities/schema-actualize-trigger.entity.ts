@@ -6,7 +6,4 @@ import { SchemaActualizeResponseApiDto } from '../dto/presentation/schema-actual
 export class SchemaActualizeTrigger extends UiTrigger<SchemaActualizeResponseApiDto> {
   @Column()
   dataMartId: string;
-
-  @Column()
-  projectId: string;
 }

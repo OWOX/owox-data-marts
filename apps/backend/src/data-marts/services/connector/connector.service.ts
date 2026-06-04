@@ -238,6 +238,12 @@ export class ConnectorService {
       throw new Error(`Credential with ID ${credentialId} not found`);
     }
 
+    // Tenant boundary: never read or copy a credential that belongs to another
+    // project, even if its id is referenced from this project's configuration.
+    if (credential.projectId !== projectId) {
+      throw new Error(`Credential with ID ${credentialId} not found`);
+    }
+
     const connector = this.createConnectorSource(connectorName);
 
     const oauthVariables = await this.getOAuthVariablesForRefresh(connectorName, configuration);
