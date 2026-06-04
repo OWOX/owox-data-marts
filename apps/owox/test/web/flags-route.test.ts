@@ -88,7 +88,7 @@ describe('registerPublicFlagsRoute', () => {
       },
     } as unknown as Express;
 
-    registerPublicFlagsRoute(app, { whitelist: ['API_KEYS_ENABLED'] });
+    registerPublicFlagsRoute(app, { whitelist: ['LICENSED_APP_EDITION'] });
 
     const route = routes.find(route => route.path === '/api/flags');
     let body: Record<string, unknown> | undefined;
