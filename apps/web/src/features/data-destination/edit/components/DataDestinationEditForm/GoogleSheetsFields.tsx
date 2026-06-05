@@ -68,9 +68,10 @@ export function GoogleSheetsFields({ form }: GoogleSheetsFieldsProps) {
   const credentialIdValue = form.watch('credentials.credentialId');
 
   useEffect(() => {
+    const abortController = new AbortController();
     if (authMethod === 'oauth' && credentialIdValue) {
       destinationOAuthApi
-        .getCredentialStatus(credentialIdValue)
+        .getCredentialStatus(credentialIdValue, { signal: abortController.signal })
         .then(status => {
           setOauthEmail(status.user?.email ?? null);
         })
@@ -80,6 +81,9 @@ export function GoogleSheetsFields({ form }: GoogleSheetsFieldsProps) {
     } else {
       setOauthEmail(null);
     }
+    return () => {
+      abortController.abort();
+    };
   }, [authMethod, credentialIdValue]);
 
   const handleOAuthStatusChange = (isConnected: boolean, credentialId?: string) => {
