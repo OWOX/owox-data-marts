@@ -1,8 +1,10 @@
 import { Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
-import { Repository } from 'typeorm';
+import { FindOptionsWhere, In, Repository } from 'typeorm';
+import { QueryDeepPartialEntity } from 'typeorm/query-builder/QueryPartialEntity';
 import { SchedulerFacade } from '../../common/scheduler/shared/scheduler.facade';
 import { TriggerHandler } from '../../common/scheduler/shared/trigger-handler.interface';
 import { Trigger } from '../../common/scheduler/shared/entities/trigger.entity';
+import { TriggerStatus } from '../../common/scheduler/shared/entities/trigger-status';
 import { DataMartRun } from '../entities/data-mart-run.entity';
 import { DataMartRunStatus } from '../enums/data-mart-run-status.enum';
 import { DataMartRunService } from './data-mart-run.service';
@@ -46,6 +48,42 @@ export abstract class BaseRunTriggerHandlerService<T extends Trigger>
    * Returns the field name used to link trigger to DataMartRun.
    */
   protected abstract getTriggerRunIdField(): string;
+
+  protected async cancelTriggerIfRunAlreadyCancelled(trigger: T): Promise<boolean> {
+    const dataMartRunId = this.getTriggerDataMartRunId(trigger);
+    const existingRun = await this.dataMartRunService.findById(dataMartRunId);
+    if (existingRun?.status !== DataMartRunStatus.CANCELLED) {
+      return false;
+    }
+
+    await this.markTriggerAsCancelled(trigger);
+    return true;
+  }
+
+  protected async markTriggerAsCancelled(trigger: T): Promise<void> {
+    trigger.status = TriggerStatus.CANCELLED;
+    trigger.isActive = false;
+
+    await this.getTriggerRepository().update(
+      {
+        id: trigger.id,
+        status: In([TriggerStatus.PROCESSING, TriggerStatus.CANCELLING]),
+      } as FindOptionsWhere<T>,
+      {
+        status: TriggerStatus.CANCELLED,
+        isActive: false,
+        version: () => 'version + 1',
+      } as QueryDeepPartialEntity<T>
+    );
+
+    this.logger.log(
+      `Skipping run trigger ${trigger.id}: DataMartRun ${this.getTriggerDataMartRunId(trigger)} is already CANCELLED`
+    );
+  }
+
+  private getTriggerDataMartRunId(trigger: T): string {
+    return (trigger as unknown as Record<string, string>)[this.getTriggerRunIdField()];
+  }
 
   /**
    * Safely marks a DataMartRun as FAILED, handling any errors during the operation.

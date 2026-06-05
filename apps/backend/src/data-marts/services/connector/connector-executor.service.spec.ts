@@ -332,4 +332,46 @@ describe('ConnectorExecutorService', () => {
     );
     expect(eventDispatcher.publishExternal).not.toHaveBeenCalled();
   });
+
+  it('keeps an aborted connector run CANCELLED during graceful shutdown', async () => {
+    const { service, dataMartRunRepository, gracefulShutdownService } = createService();
+    const controller = new AbortController();
+    controller.abort();
+    (gracefulShutdownService.isInShutdownMode as jest.Mock).mockReturnValue(true);
+
+    await service.executeInBackground(createDataMart(), createRun(), null, controller.signal);
+
+    expect(dataMartRunRepository.update).toHaveBeenLastCalledWith(
+      'run-1',
+      expect.objectContaining({ status: DataMartRunStatus.CANCELLED })
+    );
+  });
+
+  it('registers consumption when abort arrives after a successful connector upload', async () => {
+    const {
+      service,
+      dataMartRunRepository,
+      processSpawner,
+      consumptionTracker,
+      eventDispatcher,
+      emitSuccessMessage,
+    } = createService();
+    const controller = new AbortController();
+    (processSpawner.spawnConnector as jest.Mock).mockImplementation(async () => {
+      emitSuccessMessage();
+      controller.abort();
+    });
+
+    await service.executeInBackground(createDataMart(), createRun(), null, controller.signal);
+
+    expect(dataMartRunRepository.update).toHaveBeenLastCalledWith(
+      'run-1',
+      expect.objectContaining({ status: DataMartRunStatus.SUCCESS })
+    );
+    expect(consumptionTracker.registerConnectorRunConsumption).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'dm-1' }),
+      'run-1'
+    );
+    expect(eventDispatcher.publishExternal).toHaveBeenCalled();
+  });
 });

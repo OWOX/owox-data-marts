@@ -7,7 +7,6 @@ import { Repository } from 'typeorm';
 import { ConnectorRunService } from './connector-run.service';
 import { ConnectorRunTriggerService } from './connector-run-trigger.service';
 import { ConnectorExecutorService } from './connector-executor.service';
-import { SystemTimeService } from '../../../common/scheduler/services/system-time.service';
 import { DataMartRun } from '../../entities/data-mart-run.entity';
 import { DataMart } from '../../entities/data-mart.entity';
 import { DataMartRunStatus } from '../../enums/data-mart-run-status.enum';
@@ -34,15 +33,10 @@ describe('ConnectorRunService', () => {
       executeInBackground: jest.fn().mockResolvedValue(undefined),
     } as unknown as ConnectorExecutorService;
 
-    const systemTimeService = {
-      now: jest.fn().mockReturnValue(new Date('2025-01-15')),
-    } as unknown as SystemTimeService;
-
     const service = new ConnectorRunService(
       dataMartRunRepository,
       connectorRunTriggerService,
-      connectorExecutorService,
-      systemTimeService
+      connectorExecutorService
     );
 
     return {
@@ -50,7 +44,6 @@ describe('ConnectorRunService', () => {
       dataMartRunRepository,
       connectorRunTriggerService,
       connectorExecutorService,
-      systemTimeService,
     };
   };
 
@@ -105,73 +98,6 @@ describe('ConnectorRunService', () => {
       await expect(
         service.run(publishedConnectorDataMart, 'user-1', RunType.manual)
       ).rejects.toThrow('Connector is already running');
-    });
-  });
-
-  describe('cancelRun', () => {
-    it('cancels a PENDING run', async () => {
-      const { service, dataMartRunRepository } = createService();
-      (dataMartRunRepository.findOne as jest.Mock).mockResolvedValue({
-        id: 'run-1',
-        dataMartId: 'dm-1',
-        status: DataMartRunStatus.PENDING,
-      });
-
-      await service.cancelRun('dm-1', 'run-1');
-
-      expect(dataMartRunRepository.update).toHaveBeenCalledWith('run-1', {
-        status: DataMartRunStatus.CANCELLED,
-        finishedAt: expect.any(Date),
-      });
-    });
-
-    it('cancels a RUNNING run', async () => {
-      const { service, dataMartRunRepository } = createService();
-      (dataMartRunRepository.findOne as jest.Mock).mockResolvedValue({
-        id: 'run-1',
-        dataMartId: 'dm-1',
-        status: DataMartRunStatus.RUNNING,
-      });
-
-      await service.cancelRun('dm-1', 'run-1');
-
-      expect(dataMartRunRepository.update).toHaveBeenCalledWith('run-1', {
-        status: DataMartRunStatus.CANCELLED,
-        finishedAt: expect.any(Date),
-      });
-    });
-
-    it('throws when run not found', async () => {
-      const { service, dataMartRunRepository } = createService();
-      (dataMartRunRepository.findOne as jest.Mock).mockResolvedValue(null);
-
-      await expect(service.cancelRun('dm-1', 'run-1')).rejects.toThrow('Data mart run not found');
-    });
-
-    it('throws when run is already SUCCESS', async () => {
-      const { service, dataMartRunRepository } = createService();
-      (dataMartRunRepository.findOne as jest.Mock).mockResolvedValue({
-        id: 'run-1',
-        dataMartId: 'dm-1',
-        status: DataMartRunStatus.SUCCESS,
-      });
-
-      await expect(service.cancelRun('dm-1', 'run-1')).rejects.toThrow(
-        'Cannot cancel completed data mart run'
-      );
-    });
-
-    it('throws when run is already CANCELLED', async () => {
-      const { service, dataMartRunRepository } = createService();
-      (dataMartRunRepository.findOne as jest.Mock).mockResolvedValue({
-        id: 'run-1',
-        dataMartId: 'dm-1',
-        status: DataMartRunStatus.CANCELLED,
-      });
-
-      await expect(service.cancelRun('dm-1', 'run-1')).rejects.toThrow(
-        'Data mart run is already cancelled'
-      );
     });
   });
 

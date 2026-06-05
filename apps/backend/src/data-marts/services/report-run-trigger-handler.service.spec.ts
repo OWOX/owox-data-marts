@@ -1,4 +1,4 @@
-import { DataSource, EntityManager, Repository } from 'typeorm';
+import { DataSource, EntityManager, Repository, In } from 'typeorm';
 import { ConfigService } from '@nestjs/config';
 import { ReportRunTriggerHandlerService } from './report-run-trigger-handler.service';
 import { ReportRunTrigger } from '../entities/report-run-trigger.entity';
@@ -13,6 +13,7 @@ describe('ReportRunTriggerHandlerService', () => {
   const createService = () => {
     const triggerRepository = {
       save: jest.fn().mockImplementation(data => Promise.resolve(data)),
+      update: jest.fn().mockResolvedValue({ affected: 1 }),
     } as unknown as Repository<ReportRunTrigger>;
 
     const dataMartRunRepository = {
@@ -92,11 +93,9 @@ describe('ReportRunTriggerHandlerService', () => {
 
     await expect(service.handleTrigger(mockTrigger)).resolves.toBeUndefined();
 
-    expect(triggerRepository.save).toHaveBeenCalledWith(
-      expect.objectContaining({
-        status: TriggerStatus.CANCELLED,
-        isActive: false,
-      })
+    expect(triggerRepository.update).toHaveBeenCalledWith(
+      { id: 'trigger-1', status: In([TriggerStatus.PROCESSING, TriggerStatus.CANCELLING]) },
+      { status: TriggerStatus.CANCELLED, isActive: false, version: expect.any(Function) }
     );
     expect(runReportService.executeExistingRun).not.toHaveBeenCalled();
   });
@@ -112,11 +111,9 @@ describe('ReportRunTriggerHandlerService', () => {
 
     await service.handleTrigger(trigger, { signal: abortController.signal });
 
-    expect(triggerRepository.save).toHaveBeenCalledWith(
-      expect.objectContaining({
-        status: TriggerStatus.CANCELLED,
-        isActive: false,
-      })
+    expect(triggerRepository.update).toHaveBeenCalledWith(
+      { id: 'trigger-1', status: In([TriggerStatus.PROCESSING, TriggerStatus.CANCELLING]) },
+      { status: TriggerStatus.CANCELLED, isActive: false, version: expect.any(Function) }
     );
     trigger.onSuccess(new Date('2026-06-04T12:00:00.000Z'));
     expect(trigger.status).toBe(TriggerStatus.CANCELLED);

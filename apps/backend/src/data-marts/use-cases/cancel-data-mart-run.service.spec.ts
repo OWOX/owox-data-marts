@@ -4,8 +4,12 @@ jest.mock('typeorm-transactional', () => ({
   ),
 }));
 
-import { BadRequestException, ConflictException, ForbiddenException } from '@nestjs/common';
-import { Transactional } from 'typeorm-transactional';
+import {
+  BadRequestException,
+  ConflictException,
+  ForbiddenException,
+  NotFoundException,
+} from '@nestjs/common';
 import { DataMartService } from '../services/data-mart.service';
 import { AccessDecisionService } from '../services/access-decision';
 import { CancelDataMartRunService } from './cancel-data-mart-run.service';
@@ -74,10 +78,6 @@ describe('CancelDataMartRunService', () => {
     roles: [],
   };
 
-  it('runs cancellation state changes in a transaction', () => {
-    expect(Transactional).toHaveBeenCalled();
-  });
-
   it('cancels a connector run and stops its trigger', async () => {
     const { service, dataMartRunService, connectorRunTriggerService } = createService();
     const run = {
@@ -122,6 +122,13 @@ describe('CancelDataMartRunService', () => {
     });
 
     await expect(service.run(command)).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it('returns not found when the run does not belong to the data mart', async () => {
+    const { service, dataMartRunService } = createService();
+    (dataMartRunService.getByIdAndDataMartId as jest.Mock).mockResolvedValue(null);
+
+    await expect(service.run(command)).rejects.toBeInstanceOf(NotFoundException);
   });
 
   it('rejects completed runs', async () => {

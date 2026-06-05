@@ -161,13 +161,13 @@ export class ReportService {
     });
   }
 
-  /**
-   * Marks the latest persisted report run state as cancelled without incrementing run counters.
-   */
   async markRunAsCancelled(reportId: string): Promise<void> {
-    await this.repository.update(reportId, {
-      lastRunStatus: ReportRunStatus.CANCELLED,
-    });
+    await this.repository.update(
+      { id: reportId, lastRunStatus: ReportRunStatus.RUNNING },
+      {
+        lastRunStatus: ReportRunStatus.CANCELLED,
+      }
+    );
   }
 
   /**

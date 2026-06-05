@@ -17,8 +17,7 @@ import { DataMartRunType } from '../enums/data-mart-run-type.enum';
 import { ReportRunCompletedSuccessfullyEvent } from '../events/report-run-completed-successfully.event';
 import { HttpDataRunMetadata } from '../dto/schemas/http-data-run-metadata.schema';
 import { HTTP_DATA_PARAMS_KEY } from './http-data/http-data.constants';
-
-const CANCELLABLE_RUN_STATUSES = [DataMartRunStatus.PENDING, DataMartRunStatus.RUNNING];
+import { CANCELLABLE_DATA_MART_RUN_STATUSES } from '../utils/data-mart-run-cancellation';
 
 /**
  * Context for creating a new report run.
@@ -174,9 +173,6 @@ export class DataMartRunService {
     });
   }
 
-  /**
-   * Returns a run by id that belongs to specified Data Mart.
-   */
   public async getByIdAndDataMartId(
     runId: string,
     dataMartId: string
@@ -186,14 +182,11 @@ export class DataMartRunService {
     });
   }
 
-  /**
-   * Marks an existing DataMartRun as CANCELLED.
-   */
   public async markAsCancelled(dataMartRun: DataMartRun): Promise<boolean> {
     const result = await this.dataMartRunRepository.update(
       {
         id: dataMartRun.id,
-        status: In(CANCELLABLE_RUN_STATUSES),
+        status: In(CANCELLABLE_DATA_MART_RUN_STATUSES),
       },
       {
         status: DataMartRunStatus.CANCELLED,

@@ -1,4 +1,4 @@
-import { Repository, DataSource, EntityManager } from 'typeorm';
+import { Repository, DataSource, EntityManager, In } from 'typeorm';
 import { ConfigService } from '@nestjs/config';
 import { ConnectorRunTriggerHandlerService } from './connector-run-trigger-handler.service';
 import { ConnectorExecutionService } from './connector-execution.service';
@@ -14,6 +14,7 @@ describe('ConnectorRunTriggerHandlerService', () => {
   const createService = () => {
     const triggerRepository = {
       save: jest.fn().mockImplementation(data => Promise.resolve(data)),
+      update: jest.fn().mockResolvedValue({ affected: 1 }),
     } as unknown as Repository<ConnectorRunTrigger>;
 
     const dataMartRunRepository = {
@@ -194,11 +195,9 @@ describe('ConnectorRunTriggerHandlerService', () => {
 
       await expect(service.handleTrigger(mockTrigger)).resolves.toBeUndefined();
 
-      expect(triggerRepository.save).toHaveBeenCalledWith(
-        expect.objectContaining({
-          status: TriggerStatus.CANCELLED,
-          isActive: false,
-        })
+      expect(triggerRepository.update).toHaveBeenCalledWith(
+        { id: 'trigger-1', status: In([TriggerStatus.PROCESSING, TriggerStatus.CANCELLING]) },
+        { status: TriggerStatus.CANCELLED, isActive: false, version: expect.any(Function) }
       );
       expect(connectorExecutionService.executeExistingRun).not.toHaveBeenCalled();
     });
@@ -222,11 +221,9 @@ describe('ConnectorRunTriggerHandlerService', () => {
 
       await service.handleTrigger(trigger, { signal: abortController.signal });
 
-      expect(triggerRepository.save).toHaveBeenCalledWith(
-        expect.objectContaining({
-          status: TriggerStatus.CANCELLED,
-          isActive: false,
-        })
+      expect(triggerRepository.update).toHaveBeenCalledWith(
+        { id: 'trigger-1', status: In([TriggerStatus.PROCESSING, TriggerStatus.CANCELLING]) },
+        { status: TriggerStatus.CANCELLED, isActive: false, version: expect.any(Function) }
       );
       trigger.onSuccess(new Date('2026-06-04T12:00:00.000Z'));
       expect(trigger.status).toBe(TriggerStatus.CANCELLED);

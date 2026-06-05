@@ -24,8 +24,11 @@ describe('ReportService', () => {
 
     await service.markRunAsCancelled('report-1');
 
-    expect(repository.update).toHaveBeenCalledWith('report-1', {
-      lastRunStatus: ReportRunStatus.CANCELLED,
-    });
+    expect(repository.update).toHaveBeenCalledWith(
+      { id: 'report-1', lastRunStatus: ReportRunStatus.RUNNING },
+      {
+        lastRunStatus: ReportRunStatus.CANCELLED,
+      }
+    );
   });
 });

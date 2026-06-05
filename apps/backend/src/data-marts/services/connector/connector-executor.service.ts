@@ -101,7 +101,6 @@ export class ConnectorExecutorService {
         payload,
         signal
       );
-      wasCancelled = signal?.aborted === true;
 
       configurationResults.forEach(result => {
         result.logs.forEach(log => addMessageToArray(capturedLogs, log));
@@ -111,12 +110,13 @@ export class ConnectorExecutorService {
       const successCount = configurationResults.filter(r => r.success).length;
       const totalCount = configurationResults.length;
       hasSuccessfulRun = successCount > 0;
+      wasCancelled = signal?.aborted === true && !hasSuccessfulRun;
       this.logger.log(
         `Connector execution completed: ${successCount}/${totalCount} configurations successful`,
         { dataMartId: dataMart.id, projectId: dataMart.projectId, runId, successCount, totalCount }
       );
     } catch (error) {
-      wasCancelled = signal?.aborted === true;
+      wasCancelled = signal?.aborted === true && !hasSuccessfulRun;
       const errorMessage = error instanceof Error ? error.message : String(error);
       addMessageToArray(capturedErrors, {
         type: ConnectorMessageType.ERROR,
@@ -153,7 +153,7 @@ export class ConnectorExecutorService {
         wasCancelled
       );
 
-      if (hasSuccessfulRun && !wasCancelled) {
+      if (hasSuccessfulRun) {
         await this.consumptionTracker.registerConnectorRunConsumption(dataMart, runId);
         await this.eventDispatcher.publishExternal(
           new ConnectorRunEvent(
@@ -387,7 +387,7 @@ export class ConnectorExecutorService {
         : operationBlockedException
           ? DataMartRunStatus.RESTRICTED
           : DataMartRunStatus.FAILED;
-    if (this.gracefulShutdownService.isInShutdownMode()) {
+    if (!wasCancelled && !hasSuccessfulRun && this.gracefulShutdownService.isInShutdownMode()) {
       status = DataMartRunStatus.INTERRUPTED;
     }
 

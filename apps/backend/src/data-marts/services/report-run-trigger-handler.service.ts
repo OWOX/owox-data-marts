@@ -98,25 +98,6 @@ export class ReportRunTriggerHandlerService extends BaseRunTriggerHandlerService
     }
   }
 
-  private async cancelTriggerIfRunAlreadyCancelled(trigger: ReportRunTrigger): Promise<boolean> {
-    const existingRun = await this.dataMartRunService.findById(trigger.dataMartRunId);
-    if (existingRun?.status !== DataMartRunStatus.CANCELLED) {
-      return false;
-    }
-
-    await this.markTriggerAsCancelled(trigger);
-    return true;
-  }
-
-  private async markTriggerAsCancelled(trigger: ReportRunTrigger): Promise<void> {
-    trigger.status = TriggerStatus.CANCELLED;
-    trigger.isActive = false;
-    await this.repository.save(trigger);
-    this.logger.log(
-      `Skipping report run trigger ${trigger.id}: DataMartRun ${trigger.dataMartRunId} is already CANCELLED`
-    );
-  }
-
   /**
    * Claims a run slot using optimistic approach: claim first, then verify the limit.
    * 1. Atomically set run status to RUNNING (UPDATE WHERE status=PENDING)

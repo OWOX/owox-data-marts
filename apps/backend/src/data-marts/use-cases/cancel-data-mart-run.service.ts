@@ -3,30 +3,22 @@ import {
   ConflictException,
   Injectable,
   ForbiddenException,
+  NotFoundException,
 } from '@nestjs/common';
 import { Transactional } from 'typeorm-transactional';
 import { DataMartService } from '../services/data-mart.service';
 import { CancelDataMartRunCommand } from '../dto/domain/cancel-data-mart-run.command';
 import { AccessDecisionService, EntityType, Action } from '../services/access-decision';
-import { DataMartRunStatus } from '../enums/data-mart-run-status.enum';
 import { DataMartRunType } from '../enums/data-mart-run-type.enum';
+import { DataMartRun } from '../entities/data-mart-run.entity';
 import { DataMartRunService } from '../services/data-mart-run.service';
 import { ConnectorRunTriggerService } from '../services/connector/connector-run-trigger.service';
 import { ReportRunTriggerService } from '../services/report-run-trigger.service';
 import { ReportService } from '../services/report.service';
-
-const STANDARD_REPORT_RUN_TYPES = new Set<DataMartRunType>([
-  DataMartRunType.GOOGLE_SHEETS_EXPORT,
-  DataMartRunType.EMAIL,
-  DataMartRunType.SLACK,
-  DataMartRunType.MS_TEAMS,
-  DataMartRunType.GOOGLE_CHAT,
-]);
-
-const CANCELLABLE_RUN_STATUSES = new Set<DataMartRunStatus>([
-  DataMartRunStatus.PENDING,
-  DataMartRunStatus.RUNNING,
-]);
+import {
+  isCancellableDataMartRunStatus,
+  isStandardReportRunType,
+} from '../utils/data-mart-run-cancellation';
 
 @Injectable()
 export class CancelDataMartRunService {
@@ -60,37 +52,31 @@ export class CancelDataMartRunService {
   }
 
   @Transactional()
-  private async cancelRunState(command: CancelDataMartRunCommand): Promise<void> {
+  async cancelRunState(command: CancelDataMartRunCommand): Promise<void> {
     const run = await this.dataMartRunService.getByIdAndDataMartId(command.runId, command.id);
 
     if (!run) {
-      throw new ConflictException('Data mart run not found');
+      throw new NotFoundException('Data mart run not found');
     }
 
     if (!this.isSupportedRunType(run.type)) {
       throw new BadRequestException('Only connector and standard report runs can be cancelled');
     }
 
-    if (!CANCELLABLE_RUN_STATUSES.has(run.status)) {
+    if (!isCancellableDataMartRunStatus(run.status)) {
       throw new ConflictException(`Cannot cancel data mart run in ${run.status} status`);
     }
 
-    if (this.isStandardReportRun(run.type) && !run.reportId) {
-      throw new ConflictException('Report run is missing report reference');
-    }
-
-    const wasCancelled = await this.dataMartRunService.markAsCancelled(run);
-    if (!wasCancelled) {
-      throw new ConflictException('Cannot cancel data mart run because it is no longer active');
-    }
-
     if (run.type === DataMartRunType.CONNECTOR) {
+      await this.markActiveRunAsCancelled(run);
       await this.connectorRunTriggerService.stopTriggersForRun(run.id);
       return;
     }
 
+    const reportId = this.getStandardReportRunReportId(run);
+    await this.markActiveRunAsCancelled(run);
     await this.reportRunTriggerService.stopTriggersForRun(run.id);
-    await this.reportService.markRunAsCancelled(run.reportId!);
+    await this.reportService.markRunAsCancelled(reportId);
   }
 
   private isSupportedRunType(type: DataMartRunType): boolean {
@@ -98,6 +84,21 @@ export class CancelDataMartRunService {
   }
 
   private isStandardReportRun(type: DataMartRunType): boolean {
-    return STANDARD_REPORT_RUN_TYPES.has(type);
+    return isStandardReportRunType(type);
+  }
+
+  private async markActiveRunAsCancelled(run: DataMartRun): Promise<void> {
+    const wasCancelled = await this.dataMartRunService.markAsCancelled(run);
+    if (!wasCancelled) {
+      throw new ConflictException('Cannot cancel data mart run because it is no longer active');
+    }
+  }
+
+  private getStandardReportRunReportId(run: { reportId?: string | null }): string {
+    if (!run.reportId) {
+      throw new ConflictException('Report run is missing report reference');
+    }
+
+    return run.reportId;
   }
 }
