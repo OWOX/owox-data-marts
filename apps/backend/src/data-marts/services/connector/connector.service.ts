@@ -244,6 +244,15 @@ export class ConnectorService {
       throw new Error(`Credential with ID ${credentialId} not found`);
     }
 
+    // Connector boundary: a credential must only be refreshed under the connector
+    // it was issued for. Otherwise one connector's stored tokens could be rotated
+    // and re-stored under a different connector name.
+    if (credential.connectorName !== connectorName) {
+      throw new Error(
+        `Credential belongs to connector ${credential.connectorName}, not ${connectorName}`
+      );
+    }
+
     const connector = this.createConnectorSource(connectorName);
 
     const oauthVariables = await this.getOAuthVariablesForRefresh(connectorName, configuration);

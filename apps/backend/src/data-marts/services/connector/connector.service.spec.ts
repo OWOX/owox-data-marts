@@ -177,5 +177,24 @@ describe('ConnectorService', () => {
       // A cross-project credential must never be copied into the caller's project.
       expect(connectorSourceCredentialsService.createCredentials).not.toHaveBeenCalled();
     });
+
+    it('rejects a credential issued for a different connector', async () => {
+      const { service, connectorSourceCredentialsService } = createService();
+
+      (connectorSourceCredentialsService.getCredentialsById as jest.Mock).mockResolvedValue({
+        id: 'cred-1',
+        projectId: 'proj-1',
+        connectorName: 'OtherConnector',
+        credentials: { refresh_token: 'secret' },
+        expiresAt: null,
+        userId: 'user-1',
+      });
+
+      await expect(
+        service.refreshCredentials('proj-1', 'TestConnector', {}, 'cred-1')
+      ).rejects.toThrow('Credential belongs to connector OtherConnector, not TestConnector');
+      // Tokens of one connector must never be rotated under another connector name.
+      expect(connectorSourceCredentialsService.createCredentials).not.toHaveBeenCalled();
+    });
   });
 });
