@@ -243,8 +243,8 @@ describe('UserProvisioningSettings', () => {
 
     await waitFor(() => {
       expect(screen.getByTestId('radio-require-request')).toBeChecked();
+      expect(screen.queryByTestId('change-default-roles-btn')).not.toBeInTheDocument();
     });
-    expect(screen.queryByTestId('change-default-roles-btn')).not.toBeInTheDocument();
   });
 
   it('opens DefaultRoleSheet when role/scope button is clicked', async () => {
