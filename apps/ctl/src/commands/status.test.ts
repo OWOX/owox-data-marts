@@ -19,7 +19,6 @@ describe('status', () => {
         apiKey,
         apiOrigin: 'https://app.owox.com',
         apiKeyId: 'pmk_AbCdEfGhIjKlMnOpQrStUv',
-        apiKeySecret: 'secret-value-that-must-not-leak',
       },
       '/work/.env',
       {
@@ -47,7 +46,6 @@ describe('status', () => {
           apiKey,
           apiOrigin: 'https://app.owox.com',
           apiKeyId: 'pmk_AbCdEfGhIjKlMnOpQrStUv',
-          apiKeySecret: 'secret-value-that-must-not-leak',
         },
         null,
         {
@@ -87,7 +85,6 @@ describe('status', () => {
         apiKey,
         apiOrigin: 'https://app.owox.com',
         apiKeyId: 'pmk_AbCdEfGhIjKlMnOpQrStUv',
-        apiKeySecret: 'secret-value-that-must-not-leak',
       },
       '/work/.env',
       {

@@ -25,7 +25,7 @@ function renderCreateApiKeySheet() {
 describe('CreateApiKeySheet', () => {
   beforeEach(() => {
     localStorage.clear();
-    vi.restoreAllMocks();
+    vi.clearAllMocks();
   });
 
   it('uses the General section for key creation fields', () => {
@@ -52,11 +52,15 @@ describe('CreateApiKeySheet', () => {
   });
 
   it('prefills an editable draft name with a random four-digit suffix', () => {
-    vi.spyOn(Math, 'random').mockReturnValue(0.3456);
+    const randomSpy = vi.spyOn(Math, 'random').mockReturnValue(0.3456);
 
-    renderCreateApiKeySheet();
+    try {
+      renderCreateApiKeySheet();
 
-    expect(screen.getByDisplayValue('API key 4110')).toBeInTheDocument();
+      expect(screen.getByDisplayValue('API key 4110')).toBeInTheDocument();
+    } finally {
+      randomSpy.mockRestore();
+    }
   });
 
   it('keeps the native expiration date input without an extra readable caption', () => {

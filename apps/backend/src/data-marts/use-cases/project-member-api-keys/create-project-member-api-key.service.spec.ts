@@ -2,6 +2,7 @@ import { PublicOriginService } from '../../../common/config/public-origin.servic
 import type { ProjectMemberApiKeyMetadata } from '../../../project-member-api-keys/dto/domain/project-member-api-key-metadata.dto';
 import { ProjectMemberApiKeyCodecService } from '../../../project-member-api-keys/services/project-member-api-key-codec.service';
 import { ProjectMemberApiKeyService } from '../../../project-member-api-keys/services/project-member-api-key.service';
+import { decodeProjectMemberApiKey } from '../../../../test/utils/project-member-api-key-codec';
 import { CreateProjectMemberApiKeyCommand } from '../../dto/domain/create-project-member-api-key.command';
 import { CreateProjectMemberApiKeyService } from './create-project-member-api-key.service';
 
@@ -60,10 +61,7 @@ describe('CreateProjectMemberApiKeyService', () => {
     expect(result.apiKey).toMatch(/^owox_key_[A-Za-z0-9_-]+$/);
     expect(result).not.toHaveProperty('apiKeySecret');
 
-    const payload = JSON.parse(
-      Buffer.from(result.apiKey.slice('owox_key_'.length), 'base64url').toString('utf8')
-    ) as unknown;
-    expect(payload).toEqual({
+    expect(decodeProjectMemberApiKey(result.apiKey)).toEqual({
       apiOrigin: 'https://app.owox.com',
       apiKeyId: 'pmk_AbCdEfGhIjKlMnOpQrStUv',
       apiKeySecret: 'secret-value',

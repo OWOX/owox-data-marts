@@ -17,7 +17,12 @@ API Key ID is a non-secret identifier that starts with `pmk_`, for example
 `pmk_AbCdEfGhIjKlMnOpQrStUv`. It is used in status output, logs, support, and
 debugging. You do not need to copy it separately for setup.
 
-API keys are associated with project member access. Available data and actions depend on the permissions granted to the project member who owns the key.
+API keys are associated with project member access. Available data and actions
+depend on the permissions granted to the project member who owns the key.
+
+For self-managed deployments, set `PUBLIC_ORIGIN` to the actual public URL before
+creating API keys. The origin is included in the API key, so keys created with a
+`localhost` fallback will not work from external tools.
 
 ## Create an API key
 

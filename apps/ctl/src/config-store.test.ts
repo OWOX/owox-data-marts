@@ -21,7 +21,6 @@ describe('auth config', () => {
       apiKey: validApiKey,
       apiOrigin: 'https://app.owox.com',
       apiKeyId: 'pmk_AbCdEfGhIjKlMnOpQrStUv',
-      apiKeySecret: 'env-secret',
     });
   });
 
