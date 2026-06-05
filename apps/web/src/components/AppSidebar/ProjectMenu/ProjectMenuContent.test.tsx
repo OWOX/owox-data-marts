@@ -1,46 +1,24 @@
 import type { ReactNode } from 'react';
-import { render, screen, waitFor } from '@testing-library/react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { RequestStatus } from '../../../shared/types/request-status.ts';
+import { render, screen } from '@testing-library/react';
+import { describe, expect, it, vi } from 'vitest';
 import { ProjectMenuContent } from './ProjectMenuContent';
-
-const projectsState = vi.hoisted(() => ({
-  value: {
-    projects: [] as { id: string; title: string }[],
-    callState: 'idle' as RequestStatus,
-    error: null,
-    isLoading: false,
-    loadProjects: vi.fn(),
-    reset: vi.fn(),
-  },
-}));
-
-const authState = vi.hoisted(() => ({
-  value: {
-    user: {
-      projectId: 'project-1',
-    },
-  },
-}));
-
-vi.mock('../../../features/idp', () => ({
-  useAuth: () => authState.value,
-}));
-
-vi.mock('../../../features/idp/hooks/useProjects.ts', () => ({
-  useProjects: () => projectsState.value,
-}));
 
 vi.mock('./SwitchProjectMenu', () => ({
   SwitchProjectMenu: ({
-    projectsOverride,
+    autoLoad,
+    emptyMessage,
+    excludeCurrentProject,
     showSeparator,
   }: {
-    projectsOverride?: { id: string; title: string }[];
+    autoLoad?: boolean;
+    emptyMessage?: string;
+    excludeCurrentProject?: boolean;
     showSeparator?: boolean;
   }) => (
     <div
-      data-projects-count={String(projectsOverride?.length ?? 0)}
+      data-auto-load={String(Boolean(autoLoad))}
+      data-empty-message={emptyMessage}
+      data-exclude-current-project={String(Boolean(excludeCurrentProject))}
       data-show-separator={String(Boolean(showSeparator))}
     >
       Switch project
@@ -57,56 +35,14 @@ vi.mock('@owox/ui/components/dropdown-menu', () => ({
 }));
 
 describe('ProjectMenuContent', () => {
-  beforeEach(() => {
-    projectsState.value = {
-      projects: [],
-      callState: RequestStatus.IDLE,
-      error: null,
-      isLoading: false,
-      loadProjects: vi.fn(),
-      reset: vi.fn(),
-    };
-    authState.value = {
-      user: {
-        projectId: 'project-1',
-      },
-    };
-  });
+  it('uses restricted switch-project menu without requiring onClose', () => {
+    render(<ProjectMenuContent restricted />);
 
-  it('loads projects and keeps switch-project available while restricted menu is idle', async () => {
-    render(<ProjectMenuContent restricted onClose={vi.fn()} />);
-
-    expect(screen.getByText('Switch project')).toBeInTheDocument();
-    expect(screen.queryByText('No other projects available')).not.toBeInTheDocument();
-
-    await waitFor(() => {
-      expect(projectsState.value.loadProjects).toHaveBeenCalledTimes(1);
-    });
-  });
-
-  it('shows switch-project in restricted menu when at least one accessible project exists', () => {
-    projectsState.value = {
-      ...projectsState.value,
-      projects: [{ id: 'project-2', title: 'Project 2' }],
-      callState: RequestStatus.LOADED,
-    };
-
-    render(<ProjectMenuContent restricted onClose={vi.fn()} />);
-
-    expect(screen.getByText('Switch project')).toBeInTheDocument();
-    expect(screen.queryByText('No other projects available')).not.toBeInTheDocument();
-  });
-
-  it('does not show switch-project in restricted menu when only the current project exists', () => {
-    projectsState.value = {
-      ...projectsState.value,
-      projects: [{ id: 'project-1', title: 'Current Project' }],
-      callState: RequestStatus.LOADED,
-    };
-
-    render(<ProjectMenuContent restricted onClose={vi.fn()} />);
-
-    expect(screen.getByText('No other projects available')).toBeInTheDocument();
-    expect(screen.queryByText('Switch project')).not.toBeInTheDocument();
+    const switchProjectMenu = screen.getByText('Switch project');
+    expect(switchProjectMenu).toBeInTheDocument();
+    expect(switchProjectMenu).toHaveAttribute('data-auto-load', 'true');
+    expect(switchProjectMenu).toHaveAttribute('data-empty-message', 'No other projects available');
+    expect(switchProjectMenu).toHaveAttribute('data-exclude-current-project', 'true');
+    expect(switchProjectMenu).toHaveAttribute('data-show-separator', 'false');
   });
 });

@@ -1,4 +1,3 @@
-import { useEffect } from 'react';
 import { Link } from 'react-router';
 import {
   DropdownMenuContent,
@@ -9,12 +8,9 @@ import { ProjectSettingsSubmenu } from './ProjectSettingsSubmenu';
 import { SwitchProjectMenu } from './SwitchProjectMenu';
 import { useProjectMenu } from './useProjectMenu';
 import { useProjectRoute } from '../../../shared/hooks';
-import { useAuth } from '../../../features/idp';
-import { useProjects } from '../../../features/idp/hooks/useProjects.ts';
-import { RequestStatus } from '../../../shared/types/request-status.ts';
 
 interface ProjectMenuContentProps {
-  onClose: () => void;
+  onClose?: () => void;
   restricted?: boolean;
 }
 
@@ -23,36 +19,23 @@ export function ProjectMenuContent({ onClose, restricted = false }: ProjectMenuC
     return <RestrictedProjectMenuContent />;
   }
 
-  return <RegularProjectMenuContent onClose={onClose} />;
+  return <RegularProjectMenuContent onClose={onClose ?? ignoreMenuClose} />;
 }
 
 function RestrictedProjectMenuContent() {
-  const { projects, loadProjects, callState, error, isLoading } = useProjects();
-  const { user } = useAuth();
-
-  useEffect(() => {
-    if (callState === RequestStatus.IDLE) {
-      void loadProjects();
-    }
-  }, [callState, loadProjects]);
-
-  const switchableProjects = projects.filter(project => project.id !== user?.projectId);
-  const shouldShowSwitchProject =
-    callState === RequestStatus.IDLE ||
-    isLoading ||
-    error !== null ||
-    switchableProjects.length > 0;
-
   return (
     <DropdownMenuContent align='start' side='right' className='w-56'>
-      {shouldShowSwitchProject ? (
-        <SwitchProjectMenu projectsOverride={switchableProjects} showSeparator={false} />
-      ) : (
-        <DropdownMenuItem disabled>No other projects available</DropdownMenuItem>
-      )}
+      <SwitchProjectMenu
+        autoLoad
+        emptyMessage='No other projects available'
+        excludeCurrentProject
+        showSeparator={false}
+      />
     </DropdownMenuContent>
   );
 }
+
+const ignoreMenuClose = () => undefined;
 
 function RegularProjectMenuContent({ onClose }: { onClose: () => void }) {
   const { visibleMenuItems, canSwitchProject } = useProjectMenu();
