@@ -15,13 +15,36 @@ const projectsState = vi.hoisted(() => ({
   },
 }));
 
+const authState = vi.hoisted(() => ({
+  value: {
+    user: {
+      projectId: 'project-1',
+    },
+  },
+}));
+
+vi.mock('../../../features/idp', () => ({
+  useAuth: () => authState.value,
+}));
+
 vi.mock('../../../features/idp/hooks/useProjects.ts', () => ({
   useProjects: () => projectsState.value,
 }));
 
 vi.mock('./SwitchProjectMenu', () => ({
-  SwitchProjectMenu: ({ showSeparator }: { showSeparator?: boolean }) => (
-    <div data-show-separator={String(Boolean(showSeparator))}>Switch project</div>
+  SwitchProjectMenu: ({
+    projectsOverride,
+    showSeparator,
+  }: {
+    projectsOverride?: { id: string; title: string }[];
+    showSeparator?: boolean;
+  }) => (
+    <div
+      data-projects-count={String(projectsOverride?.length ?? 0)}
+      data-show-separator={String(Boolean(showSeparator))}
+    >
+      Switch project
+    </div>
   ),
 }));
 
@@ -42,6 +65,11 @@ describe('ProjectMenuContent', () => {
       isLoading: false,
       loadProjects: vi.fn(),
       reset: vi.fn(),
+    };
+    authState.value = {
+      user: {
+        projectId: 'project-1',
+      },
     };
   });
 
@@ -67,5 +95,18 @@ describe('ProjectMenuContent', () => {
 
     expect(screen.getByText('Switch project')).toBeInTheDocument();
     expect(screen.queryByText('No other projects available')).not.toBeInTheDocument();
+  });
+
+  it('does not show switch-project in restricted menu when only the current project exists', () => {
+    projectsState.value = {
+      ...projectsState.value,
+      projects: [{ id: 'project-1', title: 'Current Project' }],
+      callState: RequestStatus.LOADED,
+    };
+
+    render(<ProjectMenuContent restricted onClose={vi.fn()} />);
+
+    expect(screen.getByText('No other projects available')).toBeInTheDocument();
+    expect(screen.queryByText('Switch project')).not.toBeInTheDocument();
   });
 });

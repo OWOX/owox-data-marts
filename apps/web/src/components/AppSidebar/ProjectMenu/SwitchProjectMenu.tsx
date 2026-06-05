@@ -11,15 +11,21 @@ import { Check } from 'lucide-react';
 import { NavLink } from 'react-router-dom';
 import { useAuth } from '../../../features/idp';
 import { useProjects } from '../../../features/idp/hooks/useProjects.ts';
+import type { Project } from '../../../features/idp/types';
 import { buildProjectPath } from '../../../utils/path.ts';
 
 interface SwitchProjectMenuProps {
+  projectsOverride?: Project[];
   showSeparator?: boolean;
 }
 
-function SwitchProjectMenuInner({ showSeparator = true }: SwitchProjectMenuProps) {
+function SwitchProjectMenuInner({
+  projectsOverride,
+  showSeparator = true,
+}: SwitchProjectMenuProps) {
   const { projects, loadProjects, error, isLoading } = useProjects();
   const { user } = useAuth();
+  const visibleProjects = projectsOverride ?? projects;
 
   return (
     <DropdownMenuSub>
@@ -47,7 +53,7 @@ function SwitchProjectMenuInner({ showSeparator = true }: SwitchProjectMenuProps
           )}
           {!isLoading &&
             !error &&
-            projects.map(project => {
+            visibleProjects.map(project => {
               const isCurrent = project.id === user?.projectId;
               return (
                 <DropdownMenuItem asChild key={project.id}>
@@ -67,6 +73,11 @@ function SwitchProjectMenuInner({ showSeparator = true }: SwitchProjectMenuProps
   );
 }
 
-export function SwitchProjectMenu({ showSeparator = true }: SwitchProjectMenuProps) {
-  return <SwitchProjectMenuInner showSeparator={showSeparator} />;
+export function SwitchProjectMenu({
+  projectsOverride,
+  showSeparator = true,
+}: SwitchProjectMenuProps) {
+  return (
+    <SwitchProjectMenuInner projectsOverride={projectsOverride} showSeparator={showSeparator} />
+  );
 }

@@ -9,6 +9,7 @@ import { ProjectSettingsSubmenu } from './ProjectSettingsSubmenu';
 import { SwitchProjectMenu } from './SwitchProjectMenu';
 import { useProjectMenu } from './useProjectMenu';
 import { useProjectRoute } from '../../../shared/hooks';
+import { useAuth } from '../../../features/idp';
 import { useProjects } from '../../../features/idp/hooks/useProjects.ts';
 import { RequestStatus } from '../../../shared/types/request-status.ts';
 
@@ -27,6 +28,7 @@ export function ProjectMenuContent({ onClose, restricted = false }: ProjectMenuC
 
 function RestrictedProjectMenuContent() {
   const { projects, loadProjects, callState, error, isLoading } = useProjects();
+  const { user } = useAuth();
 
   useEffect(() => {
     if (callState === RequestStatus.IDLE) {
@@ -34,13 +36,17 @@ function RestrictedProjectMenuContent() {
     }
   }, [callState, loadProjects]);
 
+  const switchableProjects = projects.filter(project => project.id !== user?.projectId);
   const shouldShowSwitchProject =
-    callState === RequestStatus.IDLE || isLoading || error !== null || projects.length > 0;
+    callState === RequestStatus.IDLE ||
+    isLoading ||
+    error !== null ||
+    switchableProjects.length > 0;
 
   return (
     <DropdownMenuContent align='start' side='right' className='w-56'>
       {shouldShowSwitchProject ? (
-        <SwitchProjectMenu showSeparator={false} />
+        <SwitchProjectMenu projectsOverride={switchableProjects} showSeparator={false} />
       ) : (
         <DropdownMenuItem disabled>No other projects available</DropdownMenuItem>
       )}
