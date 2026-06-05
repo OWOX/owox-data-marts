@@ -2,7 +2,6 @@ import { useState } from 'react';
 import { DropdownMenu } from '@owox/ui/components/dropdown-menu';
 import { ProjectMenuTrigger } from './ProjectMenuTrigger';
 import { ProjectMenuContent } from './ProjectMenuContent';
-import { ProjectsProvider } from '../../../features/idp/context/ProjectsContext.tsx';
 
 export function SidebarProjectMenu() {
   const [isOpen, setIsOpen] = useState(false);
@@ -21,13 +20,11 @@ export function SidebarProjectMenu() {
         >
           <DropdownMenu open={isOpen} onOpenChange={setIsOpen}>
             <ProjectMenuTrigger isOpen={isOpen} />
-            <ProjectsProvider>
-              <ProjectMenuContent
-                onClose={() => {
-                  setIsOpen(false);
-                }}
-              />
-            </ProjectsProvider>
+            <ProjectMenuContent
+              onClose={() => {
+                setIsOpen(false);
+              }}
+            />
           </DropdownMenu>
         </li>
       </ul>

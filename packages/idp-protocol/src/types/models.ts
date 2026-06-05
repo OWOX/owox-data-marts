@@ -13,6 +13,12 @@ export const UserProvisioningModeEnum = z.enum(['automatic', 'manual']);
 export type UserProvisioningMode = z.infer<typeof UserProvisioningModeEnum>;
 
 /**
+ * Project lifecycle statuses exposed by the IDP project list.
+ */
+export const ProjectStatusEnum = z.enum(['active', 'blocked', 'removed']);
+export type ProjectStatus = z.infer<typeof ProjectStatusEnum>;
+
+/**
  * Standardized token payload that all IDP implementations must return when introspecting their native tokens.
  */
 export const PayloadSchema = z
@@ -36,6 +42,7 @@ const ProjectSchema = z
   .object({
     id: z.string(),
     title: z.string(),
+    status: ProjectStatusEnum.optional(),
   })
   .passthrough();
 
