@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import '@testing-library/jest-dom';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import toast from 'react-hot-toast';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { RunItem } from './RunItem';
@@ -82,7 +82,7 @@ describe('RunItem', () => {
     expect(screen.getByText('Cancel run?')).toBeInTheDocument();
     expect(screen.getByText(/may result in incomplete data/i)).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Cancel run' }));
 
     await waitFor(() => {
       expect(cancelDataMartRun).toHaveBeenCalledWith('dm-1', 'run-1');
@@ -101,13 +101,33 @@ describe('RunItem', () => {
     renderRunItem(createRun(), true, cancelDataMartRun);
 
     fireEvent.click(screen.getByRole('button', { name: 'Cancel run' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Cancel run' }));
 
     await waitFor(() => {
       expect(cancelDataMartRun).toHaveBeenCalledWith('dm-1', 'run-1');
     });
     expect(screen.getByRole('dialog')).toBeInTheDocument();
     expect(toast.error).toHaveBeenCalledWith('Cannot cancel data mart run in SUCCESS status');
+  });
+
+  it('disables the dialog confirmation while cancellation is in progress', async () => {
+    const cancelDataMartRun = vi.fn(
+      () =>
+        new Promise<void>(() => {
+          // Keep request pending to inspect the in-flight UI state.
+        })
+    );
+    renderRunItem(createRun(), true, cancelDataMartRun);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel run' }));
+    const dialog = screen.getByRole('dialog');
+    const confirmButton = within(dialog).getByRole('button', { name: 'Cancel run' });
+    fireEvent.click(confirmButton);
+
+    await waitFor(() => {
+      expect(confirmButton).toBeDisabled();
+    });
+    expect(cancelDataMartRun).toHaveBeenCalledTimes(1);
   });
 
   it('shows the expanded controls cancel button for a pending standard report run', () => {

@@ -5,8 +5,6 @@ import { Button } from '@owox/ui/components/button';
 import { ConfirmationDialog } from '../../../../../shared/components/ConfirmationDialog';
 import { cn } from '@owox/ui/lib/utils';
 
-const GLOBALLY_TOASTED_HTTP_STATUSES = new Set([400, 403, 404]);
-
 function getErrorResponse(error: unknown):
   | {
       status?: number;
@@ -38,11 +36,6 @@ function getCancelErrorMessage(error: unknown): string {
   }
 
   return 'Failed to cancel data mart run';
-}
-
-function shouldShowLocalErrorToast(error: unknown): boolean {
-  const status = getErrorResponse(error)?.status;
-  return status === undefined || !GLOBALLY_TOASTED_HTTP_STATUSES.has(status);
 }
 
 interface CancelRunButtonProps {
@@ -80,9 +73,7 @@ export function CancelRunButton({
       await cancelDataMartRun(dataMartId, runId);
       setIsConfirmOpen(false);
     } catch (error) {
-      if (shouldShowLocalErrorToast(error)) {
-        toast.error(getCancelErrorMessage(error));
-      }
+      toast.error(getCancelErrorMessage(error));
     } finally {
       setIsCancelling(false);
     }
@@ -112,8 +103,9 @@ export function CancelRunButton({
         onOpenChange={setIsConfirmOpen}
         title='Cancel run?'
         description='This will request cancellation and stop the run if it is still in progress. Cancelling a run may result in incomplete data.'
-        confirmLabel='Cancel'
+        confirmLabel='Cancel run'
         cancelLabel='Keep running'
+        confirmDisabled={isCancelling}
         onConfirm={() => {
           void handleConfirm();
         }}
