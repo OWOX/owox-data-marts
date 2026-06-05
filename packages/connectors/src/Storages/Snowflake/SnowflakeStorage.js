@@ -245,21 +245,12 @@ var SnowflakeStorage = class SnowflakeStorage extends AbstractStorage {
         throw error;
       }
 
-      // Snowflake stores unquoted identifiers as uppercase; quoted ones are exact-case.
-      // Map info_schema names back to the configured schema key (case-insensitively) so
-      // existingColumns keys match getSelectedFields() output regardless of how columns
-      // were originally created.
-      const schemaKeyByLower = {};
-      for (const key of Object.keys(this.schema || {})) {
-        schemaKeyByLower[key.toLowerCase()] = key;
-      }
-
       let columns = {};
 
       if (Array.isArray(queryResults)) {
         queryResults.forEach(row => {
-          const schemaKey = schemaKeyByLower[row.COLUMN_NAME.toLowerCase()] || row.COLUMN_NAME;
-          columns[schemaKey] = {"name": schemaKey, "type": row.DATA_TYPE};
+          const columnName = row.COLUMN_NAME;
+          columns[columnName] = {"name": columnName, "type": row.DATA_TYPE};
         });
       }
 

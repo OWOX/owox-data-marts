@@ -100,13 +100,19 @@ var AwsRedshiftStorage = class AwsRedshiftStorage extends AbstractStorage {
 
   //---- getAListOfExistingColumns ----------------------------------
   async getAListOfExistingColumns() {
-    // Strip surrounding double-quotes that may be present in config values,
-    // then compare case-insensitively via LOWER() so the query works regardless
-    // of whether enable_case_sensitive_identifier is on or off.
+    // Strip surrounding double-quotes that may be present in config values.
+    // Prefer exact matching first because quoted Redshift identifiers can be
+    // case-sensitive; fall back to LOWER() for clusters that fold identifiers.
     const rawSchema = stripQuotes(this.config.Schema.value);
     const rawTable = stripQuotes(this.config.DestinationTableName.value);
 
-    const sql = `SELECT column_name, data_type
+    const exactSql = `SELECT column_name, data_type
+      FROM information_schema.columns
+      WHERE table_schema = '${rawSchema}'
+        AND table_name = '${rawTable}'
+      ORDER BY ordinal_position`;
+
+    const fallbackSql = `SELECT column_name, data_type
       FROM information_schema.columns
       WHERE LOWER(table_schema) = LOWER('${rawSchema}')
         AND LOWER(table_name) = LOWER('${rawTable}')
@@ -114,7 +120,10 @@ var AwsRedshiftStorage = class AwsRedshiftStorage extends AbstractStorage {
 
     let rows;
     try {
-      rows = await this.executeQueryWithResults(sql);
+      rows = await this.executeQueryWithResults(exactSql);
+      if (rows.length === 0) {
+        rows = await this.executeQueryWithResults(fallbackSql);
+      }
     } catch (error) {
       if (error.message && error.message.includes('does not exist')) {
         return {};
@@ -122,11 +131,12 @@ var AwsRedshiftStorage = class AwsRedshiftStorage extends AbstractStorage {
       throw error;
     }
 
-    // Build a lowercase → configured-key map so that info_schema's lowercased names
-    // (Redshift folds unquoted identifiers to lowercase) resolve back to the
-    // connector's schema key (which may be mixed-case, e.g. CampaignId).
-    // This ensures existingColumns keys match getSelectedFields() output and
-    // loadTableSchema() does not treat already-present columns as missing.
+    // Redshift folds even quoted identifiers to lowercase by default, so a column
+    // created as "CampaignId" comes back as campaignid. Map info_schema names back
+    // to the configured schema key (case-insensitively) whenever the returned name
+    // doesn't already match a key exactly, so existingColumns keys line up with
+    // getSelectedFields() and loadTableSchema() doesn't re-add existing columns.
+    // An exact name always wins (handles case-sensitive clusters untouched).
     const schemaKeyByLower = {};
     for (const key of Object.keys(this.schema || {})) {
       schemaKeyByLower[key.toLowerCase()] = key;
@@ -134,7 +144,10 @@ var AwsRedshiftStorage = class AwsRedshiftStorage extends AbstractStorage {
 
     const columns = {};
     for (const row of rows) {
-      const schemaKey = schemaKeyByLower[row.column_name.toLowerCase()] || row.column_name;
+      const columnName = row.column_name;
+      const schemaKey = (this.schema && columnName in this.schema)
+        ? columnName
+        : (schemaKeyByLower[columnName.toLowerCase()] || columnName);
       columns[schemaKey] = (this.schema && schemaKey in this.schema)
         ? this.getColumnType(schemaKey)
         : row.data_type;
