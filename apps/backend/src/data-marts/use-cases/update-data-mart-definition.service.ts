@@ -128,7 +128,10 @@ export class UpdateDataMartDefinitionService {
       dataMart.definition = command.definition;
     }
 
-    if (dataMart.definitionType !== DataMartDefinitionType.SQL) {
+    if (
+      dataMart.definitionType !== DataMartDefinitionType.SQL &&
+      dataMart.definitionType !== DataMartDefinitionType.CONNECTOR
+    ) {
       await this.definitionValidatorFacade.checkIsValid(dataMart);
     }
 
