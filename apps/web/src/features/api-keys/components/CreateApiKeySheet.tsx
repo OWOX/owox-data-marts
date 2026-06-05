@@ -42,10 +42,16 @@ const createApiKeySchema = z.object({
 
 type CreateApiKeyFormValues = z.infer<typeof createApiKeySchema>;
 
-const DEFAULT_VALUES: CreateApiKeyFormValues = {
-  name: '',
-  expiresAt: undefined,
-};
+function generateDraftApiKeyName(): string {
+  return `API key ${Math.floor(1000 + Math.random() * 9000)}`;
+}
+
+function createDefaultValues(): CreateApiKeyFormValues {
+  return {
+    name: generateDraftApiKeyName(),
+    expiresAt: undefined,
+  };
+}
 
 interface CreateApiKeySheetProps {
   isOpen: boolean;
@@ -55,10 +61,11 @@ interface CreateApiKeySheetProps {
 
 export function CreateApiKeySheet({ isOpen, onClose, onCreated }: CreateApiKeySheetProps) {
   const [submitting, setSubmitting] = useState(false);
+  const [initialDefaultValues] = useState<CreateApiKeyFormValues>(() => createDefaultValues());
 
   const form = useForm<CreateApiKeyFormValues>({
     resolver: zodResolver(createApiKeySchema),
-    defaultValues: DEFAULT_VALUES,
+    defaultValues: initialDefaultValues,
     mode: 'onChange',
   });
 
@@ -71,7 +78,7 @@ export function CreateApiKeySheet({ isOpen, onClose, onCreated }: CreateApiKeySh
         name: values.name,
         expiresAt: values.expiresAt ? `${values.expiresAt}T23:59:59.999Z` : undefined,
       });
-      reset(DEFAULT_VALUES);
+      reset(createDefaultValues());
       onCreated(result);
     } catch {
       toast.error('Failed to create API key');
@@ -81,7 +88,7 @@ export function CreateApiKeySheet({ isOpen, onClose, onCreated }: CreateApiKeySh
   };
 
   const handleClose = () => {
-    reset(DEFAULT_VALUES);
+    reset(createDefaultValues());
     onClose();
   };
 

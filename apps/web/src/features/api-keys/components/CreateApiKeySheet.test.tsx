@@ -25,6 +25,7 @@ function renderCreateApiKeySheet() {
 describe('CreateApiKeySheet', () => {
   beforeEach(() => {
     localStorage.clear();
+    vi.clearAllMocks();
   });
 
   it('uses the General section for key creation fields', () => {
@@ -48,6 +49,33 @@ describe('CreateApiKeySheet', () => {
     screen.getAllByRole('button', { name: 'Help information' }).forEach(button => {
       expect(button).toHaveClass('pointer-events-none', 'opacity-0', 'group-hover:opacity-100');
     });
+  });
+
+  it('prefills an editable draft name with a random four-digit suffix', () => {
+    const randomSpy = vi.spyOn(Math, 'random').mockReturnValue(0.3456);
+
+    try {
+      renderCreateApiKeySheet();
+
+      expect(screen.getByDisplayValue('API key 4110')).toBeInTheDocument();
+    } finally {
+      randomSpy.mockRestore();
+    }
+  });
+
+  it('keeps the native expiration date input without an extra readable caption', () => {
+    renderCreateApiKeySheet();
+
+    const expiresField = screen.getByText('Expires (optional)').closest('[data-slot="form-item"]');
+    const expiresInput = expiresField?.querySelector('input');
+
+    expect(expiresInput).not.toBeNull();
+
+    fireEvent.change(expiresInput!, {
+      target: { value: '2026-06-03' },
+    });
+
+    expect(screen.queryByText(/Selected:/)).not.toBeInTheDocument();
   });
 
   it('includes a collapsed documentation section with API integration links', () => {

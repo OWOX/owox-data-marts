@@ -67,11 +67,11 @@ export class ProjectMemberApiKeysMapper {
   }
 
   toCreateApiResponse(
-    data: ProjectMemberApiKeyMetadata & { apiKeySecret: string }
+    data: ProjectMemberApiKeyMetadata & { apiKey: string }
   ): CreateProjectMemberApiKeyResponseDto {
     const response = new CreateProjectMemberApiKeyResponseDto();
     Object.assign(response, this.toApiResponse(data));
-    response.apiKeySecret = data.apiKeySecret;
+    response.apiKey = data.apiKey;
     return response;
   }
 }

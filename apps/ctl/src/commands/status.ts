@@ -1,13 +1,7 @@
-import {
-  OWOXApiClient,
-  OWOXApiError,
-  OWOXAuthError,
-  OWOXConfigError,
-  type OWOXApiClientOptions,
-} from '@owox/api-client';
+import { OWOXApiClient, OWOXApiError, OWOXAuthError, OWOXConfigError } from '@owox/api-client';
 
 import { BaseCommand } from '../base-command.js';
-import { DEFAULT_API_ORIGIN, resolveAuthConfig, type AuthConfig } from '../config-store.js';
+import { resolveAuthConfig, type AuthConfig } from '../config-store.js';
 
 type StatusError = {
   message: string;
@@ -17,7 +11,7 @@ type StatusError = {
 };
 
 type Status = {
-  apiOrigin: string;
+  apiOrigin: string | null;
   apiKeyId: string | null;
   authenticated: boolean;
   envFile: string | null;
@@ -25,7 +19,7 @@ type Status = {
 };
 
 type StatusDeps = {
-  createClient: (config: OWOXApiClientOptions) => {
+  createClient: (config: AuthConfig) => {
     authenticate(): Promise<void>;
   };
 };
@@ -57,11 +51,9 @@ export function getMissingConfigStatus(
   envFile: string | null,
   error: OWOXConfigError
 ): Status {
-  const apiKeyId = env.OWOX_API_KEY_ID;
-
   return {
-    apiOrigin: env.OWOX_API_ORIGIN?.trim() || DEFAULT_API_ORIGIN,
-    apiKeyId: apiKeyId ?? null,
+    apiOrigin: null,
+    apiKeyId: null,
     authenticated: false,
     envFile,
     error: normalizeStatusError(error),

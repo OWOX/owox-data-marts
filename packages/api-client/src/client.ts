@@ -1,5 +1,6 @@
 import { Agent, type Dispatcher } from 'undici';
 
+import { parseOWOXApiKey } from './api-key.js';
 import { exchangeAccessToken, normalizeApiOrigin, readResponseBody } from './auth.js';
 import { DataMartsApi } from './data-marts.js';
 import { DestinationsApi } from './destinations.js';
@@ -8,9 +9,7 @@ import { StoragesApi } from './storages.js';
 import { requestApi } from './transport.js';
 
 export type OWOXApiClientOptions = {
-  apiOrigin: string;
-  apiKeyId: string;
-  apiKeySecret: string;
+  apiKey: string;
   fetchImpl?: typeof fetch;
 };
 
@@ -31,9 +30,10 @@ export class OWOXApiClient {
   private accessToken: string | undefined;
 
   constructor(options: OWOXApiClientOptions) {
-    this.apiOrigin = normalizeApiOrigin(options.apiOrigin);
-    this.apiKeyId = options.apiKeyId;
-    this.apiKeySecret = options.apiKeySecret;
+    const parsedApiKey = parseOWOXApiKey(options.apiKey);
+    this.apiOrigin = normalizeApiOrigin(parsedApiKey.apiOrigin);
+    this.apiKeyId = parsedApiKey.apiKeyId;
+    this.apiKeySecret = parsedApiKey.apiKeySecret;
     this.fetchImpl = options.fetchImpl ?? fetch;
 
     this.dataMarts = new DataMartsApi(this);

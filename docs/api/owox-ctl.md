@@ -2,9 +2,6 @@
 
 `owox-ctl` is the OWOX Data Marts Control CLI for scripts, CI jobs, and AI agents.
 
-By default, `owox-ctl` connects to OWOX Data Marts Cloud at `https://app.owox.com`.
-Set `OWOX_API_ORIGIN` only when targeting a self-managed deployment.
-
 > `owox-ctl` controls an existing OWOX Data Marts deployment through the HTTP API.
 > The existing `owox` CLI is used to run or manage a local/self-managed OWOX Data Marts runtime.
 
@@ -26,20 +23,13 @@ Before using `owox-ctl`, create an API key. See [API Keys](./api-keys/).
 
 ## Configure credentials
 
-Set the API key credentials in the process environment:
+Set the API key in the process environment:
 
 ```bash
-export OWOX_API_KEY_ID=pmk_xxx
-export OWOX_API_KEY_SECRET=your_api_key_secret
+export OWOX_API_KEY=owox_key_xxx
 ```
 
-For self-managed deployments, also set the API origin:
-
-```bash
-export OWOX_API_ORIGIN=https://your-owox.example.com
-```
-
-API origin means scheme + host + optional port.
+The API key contains the API origin, API Key ID, and secret internally. Store the full `owox_key_...` value securely.
 
 ## Load credentials from an env file
 
@@ -87,12 +77,12 @@ When credentials are missing or invalid, `authenticated` is `false` and the comm
 
 ```json
 {
-  "apiOrigin": "https://app.owox.com",
+  "apiOrigin": null,
   "apiKeyId": null,
   "authenticated": false,
   "envFile": null,
   "error": {
-    "message": "OWOX_API_KEY_ID and OWOX_API_KEY_SECRET are required",
+    "message": "OWOX_API_KEY is required and must start with owox_key_",
     "name": "OWOXConfigError"
   }
 }
@@ -149,8 +139,7 @@ AI agents can call `owox-ctl` as a regular terminal command. This lets AI agents
 Recommended setup:
 
 ```bash
-export OWOX_API_KEY_ID=pmk_xxx
-export OWOX_API_KEY_SECRET=your_api_key_secret
+export OWOX_API_KEY=owox_key_xxx
 ```
 
 Examples for AI agents:
@@ -165,7 +154,7 @@ owox-ctl destinations list
 
 Security notes:
 
-- Do not put API key secrets into AI agent instruction files.
+- Do not put API keys into AI agent instruction files.
 - Prefer environment variables, `--env-file`, or a secret manager supported by the AI agent runtime.
 - Revoke API keys when AI agent access is no longer needed.
 

@@ -27,7 +27,6 @@ import { cn } from '@owox/ui/lib/utils';
 import { Copy, Loader2, Trash2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { apiKeysService } from '../services/api-keys.service';
-import { useFlags } from '../../../app/store/hooks/useFlags';
 import { formatDateOnly, formatDateShort } from '../../../utils';
 import type { ProjectMemberApiKey } from '../types';
 import { ApiKeyDocumentationSection, ApiKeyFormLabel } from './ApiKeyFormShared';
@@ -43,8 +42,8 @@ const editApiKeySchema = z.object({
 
 type EditApiKeyFormValues = z.infer<typeof editApiKeySchema>;
 
-const SECRET_UNAVAILABLE_NOTICE =
-  'The API key secret is only shown once in the creation dialog. If you no longer have it, create a new API key and revoke this one.';
+const API_KEY_UNAVAILABLE_NOTICE =
+  'The API Key is only shown once in the creation dialog. If you no longer have it, create a new API key and revoke this one.';
 
 interface EditApiKeySheetProps {
   apiKey: ProjectMemberApiKey | null;
@@ -95,7 +94,6 @@ function MetadataItem({
 export function EditApiKeySheet({ apiKey, onClose, onUpdated, onRevoke }: EditApiKeySheetProps) {
   const [submitting, setSubmitting] = useState(false);
   const titleRef = useRef<HTMLHeadingElement>(null);
-  const { flags } = useFlags();
 
   const form = useForm<EditApiKeyFormValues>({
     resolver: zodResolver(editApiKeySchema),
@@ -105,7 +103,6 @@ export function EditApiKeySheet({ apiKey, onClose, onUpdated, onRevoke }: EditAp
 
   const { control, handleSubmit, reset } = form;
 
-  const apiOrigin = flags?.PUBLIC_ORIGIN as string;
   const createdAt = apiKey?.createdAt ? formatDateShort(apiKey.createdAt) : 'Unknown';
   const expiresAt = apiKey?.expiresAt
     ? formatDateOnly(apiKey.expiresAt, { timeZone: 'UTC' })
@@ -157,7 +154,7 @@ export function EditApiKeySheet({ apiKey, onClose, onUpdated, onRevoke }: EditAp
           <SheetTitle ref={titleRef} tabIndex={-1} className='focus:outline-none'>
             API Key Details
           </SheetTitle>
-          <SheetDescription>Manage this API key and copy values for integrations.</SheetDescription>
+          <SheetDescription>Manage this API key and review integration details.</SheetDescription>
         </SheetHeader>
 
         <Form {...form}>
@@ -179,6 +176,26 @@ export function EditApiKeySheet({ apiKey, onClose, onUpdated, onRevoke }: EditAp
                     </FormItem>
                   )}
                 />
+                <FormItem>
+                  <ApiKeyFormLabel description='Non-secret identifier used in status output, logs, support, and debugging.'>
+                    API Key ID
+                  </ApiKeyFormLabel>
+                  <div className='bg-muted flex items-center justify-between gap-2 rounded-md px-3 py-2'>
+                    <code className='text-sm'>{apiKey?.apiKeyId}</code>
+                    <Button
+                      type='button'
+                      variant='ghost'
+                      size='icon'
+                      className='size-7'
+                      aria-label='Copy API Key ID'
+                      onClick={() => {
+                        if (apiKey) void copyToClipboard(apiKey.apiKeyId, 'API Key ID');
+                      }}
+                    >
+                      <Copy className='size-3.5' />
+                    </Button>
+                  </div>
+                </FormItem>
                 <MetadataItem
                   label='Expires'
                   value={expiresAt}
@@ -200,59 +217,10 @@ export function EditApiKeySheet({ apiKey, onClose, onUpdated, onRevoke }: EditAp
 
               <FormSection title='Credentials' name='api-key-credentials'>
                 <FormItem>
-                  <ApiKeyFormLabel description='Base URL for API requests from external tools.'>
-                    API Origin
+                  <ApiKeyFormLabel description='Full encoded API Key shown only once. Store it securely.'>
+                    API Key
                   </ApiKeyFormLabel>
-                  <div className='bg-muted flex items-center justify-between gap-2 rounded-md px-3 py-2'>
-                    <FormControl>
-                      <input
-                        value={apiOrigin}
-                        readOnly
-                        tabIndex={-1}
-                        className='min-w-0 flex-1 bg-transparent font-mono text-sm outline-none'
-                      />
-                    </FormControl>
-                    <Button
-                      type='button'
-                      variant='ghost'
-                      size='icon'
-                      className='size-7'
-                      aria-label='Copy API Origin'
-                      onClick={() => {
-                        void copyToClipboard(apiOrigin, 'API Origin');
-                      }}
-                    >
-                      <Copy className='size-3.5' />
-                    </Button>
-                  </div>
-                </FormItem>
-
-                <FormItem>
-                  <ApiKeyFormLabel description='Public identifier for this API key.'>
-                    API Key ID
-                  </ApiKeyFormLabel>
-                  <div className='bg-muted flex items-center justify-between gap-2 rounded-md px-3 py-2'>
-                    <code className='text-sm'>{apiKey?.apiKeyId}</code>
-                    <Button
-                      type='button'
-                      variant='ghost'
-                      size='icon'
-                      className='size-7'
-                      aria-label='Copy API Key ID'
-                      onClick={() => {
-                        if (apiKey) void copyToClipboard(apiKey.apiKeyId, 'API Key ID');
-                      }}
-                    >
-                      <Copy className='size-3.5' />
-                    </Button>
-                  </div>
-                </FormItem>
-
-                <FormItem>
-                  <ApiKeyFormLabel description='Secret credential shown only once. Store it securely.'>
-                    API Key Secret
-                  </ApiKeyFormLabel>
-                  <p className='text-muted-foreground text-sm'>{SECRET_UNAVAILABLE_NOTICE}</p>
+                  <p className='text-muted-foreground text-sm'>{API_KEY_UNAVAILABLE_NOTICE}</p>
                 </FormItem>
               </FormSection>
 
