@@ -10,6 +10,7 @@ import { isAthenaCredentials } from '../../data-storage-credentials.guards';
 import { isAthenaConfig } from '../../data-storage-config.guards';
 import { DataStorageConfig } from '../../data-storage-config.type';
 import { DataStorageCredentials } from '../../data-storage-credentials.type';
+import { isQueryBuildResult } from '../../interfaces/data-mart-query-builder.interface';
 import { AthenaQueryBuilder } from './athena-query.builder';
 import {
   isConnectorDefinition,
@@ -60,7 +61,8 @@ export class AthenaDataMartValidator implements DataMartValidator {
     try {
       const adapter = this.adapterFactory.create(credentials, config);
 
-      const query = this.athenaQueryBuilder.buildQuery(definition);
+      const built = this.athenaQueryBuilder.buildQuery(definition);
+      const query = isQueryBuildResult(built) ? built.sql : built;
       await adapter.executeDryRunQuery(query, config.outputBucket);
 
       return ValidationResult.success();

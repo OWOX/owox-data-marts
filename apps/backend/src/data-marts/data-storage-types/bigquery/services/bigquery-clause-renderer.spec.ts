@@ -150,6 +150,111 @@ describe('BigQueryClauseRenderer', () => {
           .sql
       ).toBe('\nWHERE `d` >= DATE_TRUNC(CURRENT_DATE(), YEAR)');
     });
+
+    // Regression: `timestamp_col = CURRENT_DATE()` is a type error in BigQuery (no
+    // TIMESTAMP↔DATE coercion). For sub-day columns the date part is compared so the
+    // whole day matches and the DATE-typed bounds are type-compatible.
+    describe('sub-day column types compare the DATE part', () => {
+      const withType = (type: string) => () => type;
+
+      it.each(['TIMESTAMP', 'DATETIME', 'TIMESTAMP WITH TIME ZONE'])(
+        'wraps a %s column in DATE() for today (equality stays correct)',
+        type => {
+          expect(
+            r.renderWhere(
+              [{ column: 'd', operator: 'relative_date', value: { kind: 'today' } }],
+              undefined,
+              'p',
+              withType(type)
+            ).sql
+          ).toBe('\nWHERE DATE(`d`) = CURRENT_DATE()');
+        }
+      );
+
+      it('wraps a TIMESTAMP column in DATE() for last_n_days', () => {
+        expect(
+          r.renderWhere(
+            [{ column: 'd', operator: 'relative_date', value: { kind: 'last_n_days', n: 7 } }],
+            undefined,
+            'p',
+            withType('TIMESTAMP')
+          ).sql
+        ).toBe('\nWHERE DATE(`d`) >= DATE_SUB(CURRENT_DATE(), INTERVAL 7 DAY)');
+      });
+
+      it('wraps both bounds of last_month for a TIMESTAMP column', () => {
+        const sql = r.renderWhere(
+          [{ column: 'd', operator: 'relative_date', value: { kind: 'last_month' } }],
+          undefined,
+          'p',
+          withType('TIMESTAMP')
+        ).sql;
+        expect(sql).toContain('DATE(`d`) >= DATE_TRUNC(DATE_SUB(CURRENT_DATE(), INTERVAL 1 MONTH)');
+        expect(sql).toContain('DATE(`d`) < DATE_TRUNC(CURRENT_DATE(), MONTH)');
+      });
+
+      it('does NOT wrap a DATE column (compares directly)', () => {
+        expect(
+          r.renderWhere(
+            [{ column: 'd', operator: 'relative_date', value: { kind: 'today' } }],
+            undefined,
+            'p',
+            withType('DATE')
+          ).sql
+        ).toBe('\nWHERE `d` = CURRENT_DATE()');
+      });
+    });
+  });
+
+  // Regression: BigQuery infers a param's type from its JS value, so a date filter
+  // binds as STRING and `date_col = @p` raises a type error. Date/time columns wrap
+  // the placeholder in CAST(@p AS <type>) so the string is parsed to the column type.
+  describe('date/time value placeholders are CAST', () => {
+    const withType = (type: string) => () => type;
+
+    it('wraps eq on a DATE column', () => {
+      expect(
+        r.renderWhere(
+          [{ column: 'd', operator: 'eq', value: '2024-01-01' }],
+          undefined,
+          'p',
+          withType('DATE')
+        ).sql
+      ).toBe('\nWHERE `d` = CAST(@p0 AS DATE)');
+    });
+
+    it.each(['DATETIME', 'TIME', 'TIMESTAMP'])('wraps gte on a %s column', type => {
+      expect(
+        r.renderWhere(
+          [{ column: 'd', operator: 'gte', value: 'v' }],
+          undefined,
+          'p',
+          withType(type)
+        ).sql
+      ).toBe(`\nWHERE \`d\` >= CAST(@p0 AS ${type})`);
+    });
+
+    it('wraps both bounds of between on a TIMESTAMP column', () => {
+      expect(
+        r.renderWhere(
+          [{ column: 'd', operator: 'between', value: { from: 'a', to: 'b' } }],
+          undefined,
+          'p',
+          withType('TIMESTAMP')
+        ).sql
+      ).toBe('\nWHERE `d` BETWEEN CAST(@p0 AS TIMESTAMP) AND CAST(@p1 AS TIMESTAMP)');
+    });
+
+    it('does NOT cast a non-date column (STRING)', () => {
+      expect(
+        r.renderWhere(
+          [{ column: 'name', operator: 'eq', value: 'x' }],
+          undefined,
+          'p',
+          withType('STRING')
+        ).sql
+      ).toBe('\nWHERE `name` = @p0');
+    });
   });
 
   it('quotes dotted identifiers correctly', () => {

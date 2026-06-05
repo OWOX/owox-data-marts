@@ -26,10 +26,27 @@ export interface OperatorMeta {
   shortLabel: string;
 }
 
-const STRING_TYPES = new Set(['STRING']);
-const NUMBER_TYPES = new Set(['INTEGER', 'FLOAT', 'NUMERIC', 'BIGNUMERIC']);
-const DATE_TYPES = new Set(['DATE', 'DATETIME', 'TIMESTAMP', 'TIME']);
-const BOOL_TYPES = new Set(['BOOLEAN']);
+// Mirror of backend OutputControlsValidatorService type sets — cover every type
+// name each supported provider emits (BigQuery + Athena), keep the two in sync.
+const STRING_TYPES = new Set(['STRING', 'VARCHAR', 'CHAR']);
+const NUMBER_TYPES = new Set([
+  'INTEGER',
+  'BIGINT',
+  'SMALLINT',
+  'TINYINT',
+  'FLOAT',
+  'REAL',
+  'DOUBLE',
+  'NUMERIC',
+  'BIGNUMERIC',
+  'DECIMAL',
+]);
+const DATE_TYPES = new Set(['DATE', 'DATETIME', 'TIMESTAMP', 'TIMESTAMP WITH TIME ZONE']);
+// Time-of-day types are kept out of DATE_TYPES: relative_date presets resolve to
+// calendar dates (current_date / date_add), which are meaningless for a column
+// with no date component and rejected by the backend renderer.
+const TIME_TYPES = new Set(['TIME', 'TIME WITH TIME ZONE']);
+const BOOL_TYPES = new Set(['BOOLEAN', 'BOOL']);
 
 const STRING_OPERATORS: OperatorMeta[] = [
   { value: 'eq', label: 'is', shortLabel: '=' },
@@ -78,16 +95,35 @@ const BOOLEAN_OPERATORS: OperatorMeta[] = [
   { value: 'is_not_null', label: 'is not null', shortLabel: '¬∅' },
 ];
 
+// Same comparison operators as dates minus relative_date (calendar-only presets).
+const TIME_OPERATORS: OperatorMeta[] = DATE_OPERATORS.filter(o => o.value !== 'relative_date');
+
 export function operatorsForType(fieldType: string): OperatorMeta[] {
   if (STRING_TYPES.has(fieldType)) return STRING_OPERATORS;
   if (NUMBER_TYPES.has(fieldType)) return NUMBER_OPERATORS;
   if (DATE_TYPES.has(fieldType)) return DATE_OPERATORS;
+  if (TIME_TYPES.has(fieldType)) return TIME_OPERATORS;
   if (BOOL_TYPES.has(fieldType)) return BOOLEAN_OPERATORS;
   return [];
 }
 
 export function isFilterableType(fieldType: string): boolean {
   return operatorsForType(fieldType).length > 0;
+}
+
+// Shared so FilterValueEditor parses values with the SAME type sets — a number
+// column must emit a JS number, not a string (Athena quotes strings, breaking a
+// `bigint > '10'` comparison); a date column keeps its string for the backend cast.
+export function isNumberType(fieldType: string): boolean {
+  return NUMBER_TYPES.has(fieldType);
+}
+
+export function isDateType(fieldType: string): boolean {
+  return DATE_TYPES.has(fieldType);
+}
+
+export function isTimeType(fieldType: string): boolean {
+  return TIME_TYPES.has(fieldType);
 }
 
 export function operatorLabelFor(operator: FilterOperator, fieldType: string): string {

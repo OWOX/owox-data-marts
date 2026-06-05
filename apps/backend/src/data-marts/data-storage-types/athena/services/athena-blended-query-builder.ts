@@ -2,14 +2,19 @@ import { Injectable } from '@nestjs/common';
 import { DataStorageType } from '../../enums/data-storage-type.enum';
 import { AbstractBlendedQueryBuilder } from '../../interfaces/abstract-blended-query-builder';
 import { SqlClauseRenderer } from '../../utils/sql-clause-renderer';
+import { AthenaClauseRenderer } from './athena-clause-renderer';
 
 @Injectable()
 export class AthenaBlendedQueryBuilder extends AbstractBlendedQueryBuilder {
   readonly type = DataStorageType.AWS_ATHENA;
   protected readonly identifierQuoteChar = '"';
 
-  protected get clauseRenderer(): SqlClauseRenderer | null {
-    return null;
+  constructor(private readonly _renderer: AthenaClauseRenderer) {
+    super();
+  }
+
+  protected get clauseRenderer(): SqlClauseRenderer {
+    return this._renderer;
   }
 
   protected buildStringAgg(fieldName: string): string {

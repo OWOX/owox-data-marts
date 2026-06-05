@@ -20,6 +20,7 @@ import {
 import { BlendedReportDataService } from './blended-report-data.service';
 import { BlendingDecision } from '../dto/domain/blending-decision.dto';
 import { IdpProjectionsFacade } from '../../idp/facades/idp-projections.facade';
+import { ReportSqlComposerService } from './report-sql-composer.service';
 
 /**
  * Service for managing persistent cache of report data readers
@@ -36,7 +37,8 @@ export class ReportDataCacheService {
     @Inject(DATA_STORAGE_REPORT_READER_RESOLVER)
     private readonly readerResolver: TypeResolver<DataStorageType, DataStorageReportReader>,
     private readonly blendedReportDataService: BlendedReportDataService,
-    private readonly idpProjectionsFacade: IdpProjectionsFacade
+    private readonly idpProjectionsFacade: IdpProjectionsFacade,
+    private readonly reportSqlComposerService: ReportSqlComposerService
   ) {}
 
   /**
@@ -47,17 +49,41 @@ export class ReportDataCacheService {
    */
   private async resolvePrepareOptions(
     report: Report,
-    accessor: BlendableSchemaAccessor
+    accessor: BlendableSchemaAccessor,
+    composeOutputControls = true
   ): Promise<{ options: PrepareReportDataOptions; decision: BlendingDecision }> {
     const decision = await this.blendedReportDataService.resolveBlendingDecision(report, accessor);
+
+    let sqlOverride = decision.needsBlending ? decision.blendedSql : undefined;
+    let sqlOverrideParams = decision.needsBlending ? decision.params : undefined;
+
+    // Non-blended reports with output controls must compose their filter/sort/limit
+    // SQL + bound params here, exactly as RunReportService does — otherwise this
+    // (Looker Studio) cached-reader path drops them, and Athena's positional `?`
+    // placeholders execute unbound. The cleanup path only finalizes, never executes.
+    if (composeOutputControls && !decision.needsBlending && this.hasOutputControls(report)) {
+      const composed = await this.reportSqlComposerService.compose(report, accessor, decision);
+      sqlOverride = composed.sql;
+      sqlOverrideParams = composed.params;
+    }
+
     return {
       options: {
-        sqlOverride: decision.needsBlending ? decision.blendedSql : undefined,
+        sqlOverride,
+        sqlOverrideParams,
         columnFilter: decision.columnFilter,
         blendedDataHeaders: decision.blendedDataHeaders,
       },
       decision,
     };
+  }
+
+  private hasOutputControls(report: Report): boolean {
+    return (
+      (report.filterConfig?.length ?? 0) > 0 ||
+      (report.sortConfig?.length ?? 0) > 0 ||
+      report.limitConfig != null
+    );
   }
 
   private resolveCreatorAccessor(report: Report): Promise<BlendableSchemaAccessor> {
@@ -216,7 +242,8 @@ export class ReportDataCacheService {
       if (cacheEntry.readerState) {
         const { options } = await this.resolvePrepareOptions(
           cacheEntry.report,
-          this.cleanupAccessor
+          this.cleanupAccessor,
+          false
         );
         const reader = await this.restoreReaderFromCache(cacheEntry, cacheEntry.report, options);
         await reader.finalize();

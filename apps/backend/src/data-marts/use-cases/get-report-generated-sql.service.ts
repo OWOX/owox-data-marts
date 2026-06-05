@@ -51,7 +51,7 @@ export class GetReportGeneratedSqlService {
       );
     }
 
-    const { sql } = await this.reportSqlComposerService.compose(report, {
+    const { sql } = await this.reportSqlComposerService.composeStatic(report, {
       userId: command.userId,
       roles: command.roles,
     });

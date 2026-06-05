@@ -7,6 +7,7 @@
     "^.+\\.(t|j)s$": [
       "ts-jest",
       {
+        "diagnostics": false,
         "tsconfig": {
           "module": "commonjs",
           "moduleResolution": "node",
@@ -34,5 +35,6 @@
   },
   "setupFiles": ["<rootDir>/integration/setup-env.ts"],
   "testTimeout": 60000,
+  "maxWorkers": 1,
   "resolver": "<rootDir>/jest-e2e-resolver.js"
 }

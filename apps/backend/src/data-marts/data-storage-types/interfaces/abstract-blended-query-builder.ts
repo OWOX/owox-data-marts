@@ -1,12 +1,18 @@
 import { Logger, NotImplementedException } from '@nestjs/common';
 import {
+  BlendedColumnTypes,
   BlendedQueryBuilder,
   BlendedQueryContext,
   ResolvedRelationshipChain,
 } from './blended-query-builder.interface';
 import { DataStorageType } from '../enums/data-storage-type.enum';
 import { AggregateFunction } from '../../dto/schemas/aggregate-function.schema';
-import { ColumnRefResolver, SqlClauseRenderer, SqlParameter } from '../utils/sql-clause-renderer';
+import {
+  ColumnRefResolver,
+  ColumnTypeResolver,
+  SqlClauseRenderer,
+  SqlParameter,
+} from '../utils/sql-clause-renderer';
 import { FilterRule, aliasPathToCteName } from '../../dto/schemas/filter-config.schema';
 
 interface BlendTreeNode {
@@ -83,6 +89,7 @@ export abstract class AbstractBlendedQueryBuilder implements BlendedQueryBuilder
 
   buildBlendedQuery(context: BlendedQueryContext): { sql: string; params: SqlParameter[] } {
     const allFilters = context.filters ?? [];
+    const resolveColumnType = this.buildColumnTypeResolver(context.columnTypes);
 
     // Capability guard first — storages without a clauseRenderer can't honour any controls.
     const hasOutputControls =
@@ -149,7 +156,7 @@ export abstract class AbstractBlendedQueryBuilder implements BlendedQueryBuilder
     cteParams.push(...mainRaw.params);
 
     for (const root of roots) {
-      const { ctes, params } = this.buildSubtreeCtes(root, preJoinByCte);
+      const { ctes, params } = this.buildSubtreeCtes(root, preJoinByCte, resolveColumnType);
       cteBlocks.push(...ctes);
       cteParams.push(...params);
     }
@@ -167,7 +174,7 @@ export abstract class AbstractBlendedQueryBuilder implements BlendedQueryBuilder
     const qualifyColumn = this.buildColumnQualifier(outputAliasToRoot);
     const renderer = this.clauseRenderer;
     const where = renderer
-      ? renderer.renderWhere(postJoinFilters, qualifyColumn, 'p')
+      ? renderer.renderWhere(postJoinFilters, qualifyColumn, 'p', resolveColumnType)
       : { sql: '', params: [] as SqlParameter[] };
     const orderBy = renderer
       ? renderer.renderOrderBy(context.sort ?? [], qualifyColumn)
@@ -177,6 +184,18 @@ export abstract class AbstractBlendedQueryBuilder implements BlendedQueryBuilder
       : { sql: '', params: [] as SqlParameter[] };
     const sql = `${withClause}\n\n${body}${where.sql}${orderBy.sql}${limit.sql}`;
     return { sql, params: [...cteParams, ...where.params, ...orderBy.params, ...limit.params] };
+  }
+
+  // Pre-join slices filter a subsidiary's raw columns (keyed by aliasPath); every
+  // other rule filters a final-SELECT column. Mirrors the validator's type lookup.
+  private buildColumnTypeResolver(
+    columnTypes: BlendedColumnTypes | undefined
+  ): ColumnTypeResolver | undefined {
+    if (!columnTypes) return undefined;
+    return rule =>
+      rule.placement === 'pre-join' && rule.aliasPath
+        ? columnTypes.preJoin?.get(rule.aliasPath)?.get(rule.column)
+        : columnTypes.postJoin?.get(rule.column);
   }
 
   private buildColumnQualifier(outputAliasToRoot: Map<string, string>): ColumnRefResolver {
@@ -222,7 +241,8 @@ export abstract class AbstractBlendedQueryBuilder implements BlendedQueryBuilder
 
   private buildSubtreeCtes(
     node: BlendTreeNode,
-    preJoinByCte: ReadonlyMap<string, FilterRule[]>
+    preJoinByCte: ReadonlyMap<string, FilterRule[]>,
+    resolveColumnType?: ColumnTypeResolver
   ): {
     ctes: string[];
     passthroughFields: PassthroughField[];
@@ -233,7 +253,7 @@ export abstract class AbstractBlendedQueryBuilder implements BlendedQueryBuilder
 
     const childPassthroughs = new Map<string, PassthroughField[]>();
     for (const child of node.children) {
-      const childResult = this.buildSubtreeCtes(child, preJoinByCte);
+      const childResult = this.buildSubtreeCtes(child, preJoinByCte, resolveColumnType);
       ctes.push(...childResult.ctes);
       params.push(...childResult.params);
       childPassthroughs.set(child.chain.cteName, childResult.passthroughFields);
@@ -256,7 +276,8 @@ export abstract class AbstractBlendedQueryBuilder implements BlendedQueryBuilder
       chain.targetDataMartUrl,
       subsidiaryColumns,
       preJoinFilters,
-      `s_${alias}_`
+      `s_${alias}_`,
+      resolveColumnType
     );
     ctes.push(rawCte.sql);
     params.push(...rawCte.params);
@@ -354,7 +375,8 @@ export abstract class AbstractBlendedQueryBuilder implements BlendedQueryBuilder
     url: string,
     columns: string[],
     preJoinFilters?: FilterRule[],
-    preJoinParamPrefix?: string
+    preJoinParamPrefix?: string,
+    resolveColumnType?: ColumnTypeResolver
   ): { sql: string; params: SqlParameter[] } {
     // `quoteIdentifier` treats the input as one identifier — dotted paths
     // can't be projected, so we widen to SELECT *. Warn so the perf hit is visible.
@@ -379,7 +401,7 @@ export abstract class AbstractBlendedQueryBuilder implements BlendedQueryBuilder
     const qualifyForRawCte: ColumnRefResolver = column => this.quoteFieldRef(column);
     const where =
       preJoinFilters?.length && renderer
-        ? renderer.renderWhere(preJoinFilters, qualifyForRawCte, paramPrefix)
+        ? renderer.renderWhere(preJoinFilters, qualifyForRawCte, paramPrefix, resolveColumnType)
         : { sql: '', params: [] as SqlParameter[] };
 
     const indentedWhere = where.sql ? where.sql.replace(/^\n/, '\n    ') : '';

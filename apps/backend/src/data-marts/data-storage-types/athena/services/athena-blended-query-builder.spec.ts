@@ -1,5 +1,4 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { NotImplementedException } from '@nestjs/common';
 import { DataStorageType } from '../../enums/data-storage-type.enum';
 import {
   createBuildContext,
@@ -7,6 +6,7 @@ import {
   makeRelationship,
 } from '../../interfaces/__fixtures__/blended-query-builder-fixtures';
 import { AthenaBlendedQueryBuilder } from './athena-blended-query-builder';
+import { AthenaClauseRenderer } from './athena-clause-renderer';
 import { BlendedQueryContext } from '../../interfaces/blended-query-builder.interface';
 
 const buildContext = createBuildContext('"mydb"."customers"');
@@ -16,7 +16,7 @@ describe('AthenaBlendedQueryBuilder', () => {
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
-      providers: [AthenaBlendedQueryBuilder],
+      providers: [AthenaBlendedQueryBuilder, AthenaClauseRenderer],
     }).compile();
 
     builder = module.get(AthenaBlendedQueryBuilder);
@@ -118,57 +118,158 @@ describe('AthenaBlendedQueryBuilder', () => {
   });
 });
 
-describe('AthenaBlendedQueryBuilder — output controls guard', () => {
-  const builder = new AthenaBlendedQueryBuilder();
-  const baseContext: BlendedQueryContext = {
-    mainTableReference: '"mydb"."customers"',
-    mainDataMartTitle: 'M',
-    mainDataMartUrl: 'http://x',
-    chains: [],
-    columns: ['a'],
-  };
+describe('AthenaBlendedQueryBuilder — output controls', () => {
+  let builder: AthenaBlendedQueryBuilder;
 
-  it('throws NotImplemented when filters are non-empty', () => {
-    expect(() =>
-      builder.buildBlendedQuery({
-        ...baseContext,
-        filters: [{ column: 'a', operator: 'eq', value: 1 }],
-      })
-    ).toThrow(NotImplementedException);
+  beforeEach(async () => {
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [AthenaBlendedQueryBuilder, AthenaClauseRenderer],
+    }).compile();
+    builder = module.get(AthenaBlendedQueryBuilder);
   });
 
-  it('throws NotImplemented when sort is non-empty', () => {
-    expect(() =>
-      builder.buildBlendedQuery({
-        ...baseContext,
-        sort: [{ column: 'a', direction: 'asc' }],
-      })
-    ).toThrow(NotImplementedException);
+  function ctx(over: Partial<BlendedQueryContext>): BlendedQueryContext {
+    return {
+      mainTableReference: '"mydb"."customers"',
+      mainDataMartTitle: 'M',
+      mainDataMartUrl: 'http://x',
+      chains: [],
+      columns: ['a'],
+      ...over,
+    };
+  }
+
+  it('renders post-join WHERE with positional ?', () => {
+    const { sql, params } = builder.buildBlendedQuery(
+      ctx({ filters: [{ column: 'a', operator: 'eq', value: 1 }] })
+    );
+    expect(sql).toContain('WHERE main.a = ?');
+    expect(params.map(p => p.value)).toEqual([1]);
   });
 
-  it('throws NotImplemented when limit is set', () => {
-    expect(() =>
-      builder.buildBlendedQuery({
-        ...baseContext,
-        limit: 100,
-      })
-    ).toThrow(NotImplementedException);
+  it('renders ORDER BY and LIMIT', () => {
+    const { sql } = builder.buildBlendedQuery(
+      ctx({ sort: [{ column: 'a', direction: 'desc' }], limit: 10 })
+    );
+    expect(sql).toContain('ORDER BY main.a DESC');
+    expect(sql).toContain('LIMIT 10');
   });
 
-  it('throws NotImplemented on pre-join filters (slices)', () => {
-    expect(() =>
-      builder.buildBlendedQuery({
-        ...baseContext,
+  it('post-join filter on a column NOT in context.columns still appears in WHERE', () => {
+    // "hidden_metric" is used as a filter target but is absent from context.columns.
+    // The abstract builder adds postJoin filter columns to referencedColumns so
+    // the main CTE fetches the column, and the final WHERE references it.
+    const { sql, params } = builder.buildBlendedQuery(
+      ctx({
+        columns: ['a'],
+        filters: [{ column: 'hidden_metric', operator: 'gt', value: 0, placement: 'post-join' }],
+      })
+    );
+    // The final outer WHERE must reference the filter column via the main qualifier
+    expect(sql).toContain('WHERE main.hidden_metric > ?');
+    expect(params.map(p => p.value)).toEqual([0]);
+    // The final outer SELECT (after FROM main) must not project hidden_metric;
+    // only the explicitly requested column 'a' should appear there.
+    const outerSelectMatch = sql.match(/\nSELECT\n([\s\S]*?)\nFROM main/);
+    const outerSelect = outerSelectMatch?.[1] ?? '';
+    expect(outerSelect).toContain('main.a');
+    expect(outerSelect).not.toContain('hidden_metric');
+  });
+
+  it('multiple post-join filters combine with AND in correct param order', () => {
+    const { sql, params } = builder.buildBlendedQuery(
+      ctx({
+        columns: ['a'],
+        filters: [
+          { column: 'a', operator: 'eq', value: 'x', placement: 'post-join' },
+          { column: 'a', operator: 'neq', value: 'y', placement: 'post-join' },
+        ],
+      })
+    );
+    expect(sql).toContain('WHERE main.a = ? AND main.a != ?');
+    expect(params.map(p => p.value)).toEqual(['x', 'y']);
+  });
+
+  it('positional params come out in textual order: pre-join (CTE) before post-join', () => {
+    const chain = makeChain({
+      relationship: makeRelationship({
+        targetAlias: 'users',
+        joinConditions: [{ sourceFieldName: 'user_id', targetFieldName: 'user_id' }],
+      }),
+      targetTableReference: '"mydb"."users"',
+      parentAlias: 'main',
+      blendedFields: [
+        { targetFieldName: 'role', outputAlias: 'role', isHidden: true, aggregateFunction: 'MAX' },
+      ],
+    });
+    const { params } = builder.buildBlendedQuery(
+      ctx({
+        chains: [chain],
+        columns: ['a'],
         filters: [
           {
-            column: 'userRole',
+            column: 'role',
             operator: 'eq',
             value: 'admin',
             placement: 'pre-join',
             aliasPath: 'users',
           },
+          { column: 'a', operator: 'eq', value: 'post', placement: 'post-join' },
         ],
       })
-    ).toThrow(NotImplementedException);
+    );
+    // pre-join value first (lives inside the users_raw CTE), post-join value last.
+    expect(params.map(p => p.value)).toEqual(['admin', 'post']);
+  });
+
+  it('casts a post-join date filter placeholder via columnTypes.postJoin', () => {
+    const { sql, params } = builder.buildBlendedQuery(
+      ctx({
+        columns: ['a'],
+        filters: [
+          { column: 'created_at', operator: 'gte', value: '2024-01-01', placement: 'post-join' },
+        ],
+        columnTypes: { postJoin: new Map([['created_at', 'TIMESTAMP']]) },
+      })
+    );
+    expect(sql).toContain('WHERE main.created_at >= CAST(? AS TIMESTAMP)');
+    expect(params.map(p => p.value)).toEqual(['2024-01-01']);
+  });
+
+  it('casts a pre-join date slice placeholder inside the subsidiary CTE', () => {
+    const chain = makeChain({
+      relationship: makeRelationship({
+        targetAlias: 'users',
+        joinConditions: [{ sourceFieldName: 'user_id', targetFieldName: 'user_id' }],
+      }),
+      targetTableReference: '"mydb"."users"',
+      parentAlias: 'main',
+      blendedFields: [
+        {
+          targetFieldName: 'signup_date',
+          outputAlias: 'signup',
+          isHidden: true,
+          aggregateFunction: 'MAX',
+        },
+      ],
+    });
+    const { sql, params } = builder.buildBlendedQuery(
+      ctx({
+        chains: [chain],
+        columns: ['a'],
+        filters: [
+          {
+            column: 'signup_date',
+            operator: 'gte',
+            value: '2024-01-01',
+            placement: 'pre-join',
+            aliasPath: 'users',
+          },
+        ],
+        columnTypes: { preJoin: new Map([['users', new Map([['signup_date', 'DATE']])]]) },
+      })
+    );
+    expect(sql).toContain('signup_date >= CAST(? AS DATE)');
+    expect(params.map(p => p.value)).toEqual(['2024-01-01']);
   });
 });

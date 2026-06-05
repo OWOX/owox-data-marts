@@ -80,6 +80,71 @@ TEST_GOOGLE_SPREADSHEET_ID=your_spreadsheet_id_here
 - `s3:GetObject`, `s3:PutObject`, `s3:DeleteObject`, `s3:ListBucket` (on output bucket)
 - `glue:GetTable`, `glue:CreateTable`, `glue:DeleteTable`, `glue:GetDatabase` (on Glue catalog)
 
+## CI Setup (GitHub Actions)
+
+The scheduled workflow [`.github/workflows/test-integration.yml`](../../../../.github/workflows/test-integration.yml)
+runs these same suites in CI. Locally the credentials come from `.env.tests`; in
+CI they come from **GitHub Actions secrets**. Same variable names, different home.
+
+### Where to put them
+
+`Settings → Secrets and variables → Actions → Secrets` tab →
+**`Repository secrets`** → green **`New repository secret`** button.
+
+> Use the **Repository secrets** section (the one with `DOCS_GTM_ID`,
+> `NODE_AUTH_TOKEN`, …), **not** "Environment secrets". The workflow does not
+> declare an `environment:`, so environment-scoped secrets are never injected.
+
+For each secret: **Name** = the exact name from the table below (case-sensitive,
+must match the workflow verbatim), **Value** = the raw value (no surrounding
+quotes — not even for the JSON ones).
+
+### Secrets to add (10 total)
+
+| Secret name                        | Group         | Value / where to get it                                                                                              |
+| ---------------------------------- | ------------- | ------------------------------------------------------------------------------------------------------------------- |
+| `BQ_SERVICE_ACCOUNT_KEY`           | BigQuery      | The **entire** GCP service-account key JSON blob (the `{ "type": "service_account", … }` file contents, not a path) |
+| `BQ_PROJECT_ID`                    | BigQuery      | GCP project ID, e.g. `my-gcp-project`                                                                                |
+| `BQ_DATASET`                       | BigQuery      | Existing BigQuery dataset name, e.g. `integration_tests`                                                             |
+| `AWS_ACCESS_KEY_ID`                | Athena        | IAM access key id (`AKIA…`) with the Athena/S3/Glue permissions listed above                                        |
+| `AWS_SECRET_ACCESS_KEY`            | Athena        | The matching IAM secret access key                                                                                  |
+| `ATHENA_REGION`                    | Athena        | AWS region of the Athena workgroup, e.g. `eu-west-1`                                                                 |
+| `ATHENA_OUTPUT_BUCKET`             | Athena        | S3 bucket for query results, **without** the `s3://` prefix                                                         |
+| `ATHENA_DATABASE`                  | Athena        | Existing Athena database (create once via `CREATE DATABASE …`)                                                      |
+| `GOOGLE_SHEETS_SERVICE_ACCOUNT_JSON` | Google Sheets | Full GCP service-account key JSON, **Editor**-shared on the test spreadsheet                                       |
+| `TEST_GOOGLE_SPREADSHEET_ID`       | Google Sheets | The spreadsheet ID (the long token in its URL)                                                                       |
+
+`NODE_ENV`, `TEST_GOOGLE_SHEET_ID` (`'0'`) and `TEST_GOOGLE_SHEET_ID_2` (`'1'`)
+are **not** secrets — they are hard-coded in the workflow, nothing to add.
+
+### Notes that bite people
+
+- **JSON secrets** (`BQ_SERVICE_ACCOUNT_KEY`, `GOOGLE_SHEETS_SERVICE_ACCOUNT_JSON`):
+  paste the JSON exactly as downloaded. Do **not** wrap it in quotes and do **not**
+  unescape the `\n` inside `private_key` — the test does `JSON.parse(...)` and
+  expects the raw blob.
+- **Partial credentials are fine.** Each suite is credential-gated: a job with
+  missing secrets skips its tests and still exits 0. So you can land Athena
+  secrets first and the BigQuery/Sheets jobs just skip until you add theirs.
+- **Which secret feeds which matrix job:** `BigQuery` → BQ\_\*; `Athena` → AWS\_\* +
+  ATHENA\_\*; `HTTP Data` → both AWS\_\* + BQ\_\*; `Report read` → AWS\_\* + ATHENA\_\*;
+  `Google Sheets` → GOOGLE*SHEETS*\* + BQ\_\* (no `BQ_DATASET` needed there).
+  The env block is shared across all jobs, so add everything for a fully green run.
+- **Fork PRs get nothing.** GitHub does not pass secrets to workflows triggered
+  from forks (the secrets page says this too). Not an issue here — this workflow
+  only runs on `schedule` and manual `workflow_dispatch`, never on PRs.
+
+### Run it / verify
+
+- Manual: `Actions` tab → **Integration Tests (Real DB)** → **Run workflow**
+  (this is the `workflow_dispatch` trigger). Pick the branch and start it.
+- Scheduled: runs automatically at `0 5,13 * * *` UTC (08:00 & 16:00 Kyiv).
+  A failed scheduled run opens/updates a tracking issue labeled
+  `integration-failure`; manual dispatches don't (the person who clicked is
+  already watching).
+- Green = secrets wired correctly. A job that shows all-skipped means its
+  secrets are missing or misnamed.
+
 ## Test Files
 
 ### `setup-env.ts`

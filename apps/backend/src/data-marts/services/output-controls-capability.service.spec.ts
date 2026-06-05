@@ -7,8 +7,8 @@ describe('OutputControlsCapabilityService', () => {
   it('returns true for BigQuery', () => {
     expect(svc.isSupported(DataStorageType.GOOGLE_BIGQUERY)).toBe(true);
   });
-  it('returns false for Athena', () => {
-    expect(svc.isSupported(DataStorageType.AWS_ATHENA)).toBe(false);
+  it('supports AWS_ATHENA', () => {
+    expect(svc.isSupported(DataStorageType.AWS_ATHENA)).toBe(true);
   });
   it('returns false for Snowflake', () => {
     expect(svc.isSupported(DataStorageType.SNOWFLAKE)).toBe(false);

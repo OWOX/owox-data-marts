@@ -12,6 +12,7 @@ import { ReportDataBatch } from '../src/data-marts/dto/domain/report-data-batch.
 import { ReportDataDescription } from '../src/data-marts/dto/domain/report-data-description.dto';
 import { ReportDataHeader } from '../src/data-marts/dto/domain/report-data-header.dto';
 import { BlendableSchemaService } from '../src/data-marts/services/blendable-schema.service';
+import { DataMartTableReferenceService } from '../src/data-marts/services/data-mart-table-reference.service';
 import { Report } from '../src/data-marts/entities/report.entity';
 import { DataDestination } from '../src/data-marts/entities/data-destination.entity';
 
@@ -23,6 +24,9 @@ interface HttpRunView {
     httpData?: {
       format?: string;
       columns?: string[];
+      filter?: Array<{ column: string; operator: string; value: string }>;
+      sort?: Array<{ column: string; direction: string }>;
+      limit?: number;
       completed?: boolean;
       rowCount?: number;
       bytesWritten?: number;
@@ -42,10 +46,17 @@ const MOCK_ROWS: unknown[][] = [
   ['2026-05-03', 100.25],
 ];
 
+// Captures the options arg passed to prepareReportData on each call.
+// Reset to null before each output-controls happy-path test.
+let capturedPrepareOptions: Record<string, unknown> | null = null;
+
 function buildMockReader(headers: ReportDataHeader[], rows: unknown[][]): DataStorageReportReader {
   return {
     type: DataStorageType.GOOGLE_BIGQUERY,
-    prepareReportData: jest.fn(async () => new ReportDataDescription(headers, rows.length)),
+    prepareReportData: jest.fn(async (_plan: unknown, options: unknown) => {
+      capturedPrepareOptions = options as Record<string, unknown>;
+      return new ReportDataDescription(headers, rows.length);
+    }),
     readReportDataBatch: jest.fn(async () => new ReportDataBatch(rows, null)),
     finalize: jest.fn(async () => undefined),
     getState: jest.fn(() => null),
@@ -62,7 +73,12 @@ function buildMockResolver(reader: DataStorageReportReader) {
 function buildMockBlendableSchema() {
   return {
     computeBlendableSchema: jest.fn(async () => ({
-      nativeFields: [{ name: 'date' }, { name: 'revenue' }],
+      // Include field types so OutputControlsValidatorService can validate
+      // filter operators against column types (e.g. 'eq' is valid for STRING).
+      nativeFields: [
+        { name: 'date', type: 'STRING' },
+        { name: 'revenue', type: 'NUMERIC' },
+      ],
       blendedFields: [],
       availableSources: [],
     })),
@@ -75,6 +91,18 @@ function buildMockSchemaProviderFacade() {
       type: 'bigquery-data-mart-schema',
       fields: [],
     })),
+  };
+}
+
+// Dummy FQN returned by the DataMartTableReferenceService mock so the
+// BigQueryQueryBuilder can compose SQL for the SQL-defined test mart without
+// hitting CreateViewService (which requires real credentials).
+const DUMMY_FQN = '`proj.ds.tbl`';
+
+function buildMockTableReferenceService() {
+  return {
+    resolveTableName: jest.fn(async () => DUMMY_FQN),
+    ensureSqlViewIsUpToDate: jest.fn(async () => DUMMY_FQN),
   };
 }
 
@@ -109,6 +137,10 @@ describe('HTTP Data API (e2e)', () => {
       { provide: DATA_STORAGE_REPORT_READER_RESOLVER, useValue: buildMockResolver(mockReader) },
       { provide: BlendableSchemaService, useValue: buildMockBlendableSchema() },
       { provide: DataMartSchemaProviderFacade, useValue: buildMockSchemaProviderFacade() },
+      // Override DataMartTableReferenceService so that output-controls composer
+      // tests (Part B) can use the SQL-defined mart without CreateViewService.
+      // This override is harmless for tests that don't use output controls.
+      { provide: DataMartTableReferenceService, useValue: buildMockTableReferenceService() },
     ]);
     app = testApp.app;
     agent = testApp.agent;
@@ -318,6 +350,40 @@ describe('HTTP Data API (e2e)', () => {
       expect(httpData?.dataDescription?.dataHeaders?.map(h => h.name)).toEqual(['date', 'revenue']);
     });
 
+    it('records filter/sort/limit in the persisted HTTP_DATA run metadata', async () => {
+      const b64 = (v: unknown) => Buffer.from(JSON.stringify(v)).toString('base64url');
+      const filter = [{ column: 'date', operator: 'eq', value: '2026-05-01' }];
+      const sort = [{ column: 'date', direction: 'asc' }];
+      const filterParam = b64(filter);
+      const sortParam = b64(sort);
+
+      const before = await agent.get(`/api/data-marts/${dataMartId}/runs`).set(AUTH_HEADER);
+      const beforeHttpRuns = ((before.body?.runs ?? []) as Array<{ type: string }>).filter(
+        r => r.type === 'HTTP_DATA'
+      ).length;
+
+      await agent
+        .get(
+          `/api/external/http-data/data-marts/${dataMartId}.ndjson?column=date&filter=${filterParam}&sort=${sortParam}&limit=5`
+        )
+        .set(AUTH_HEADER);
+
+      const after = await agent.get(`/api/data-marts/${dataMartId}/runs`).set(AUTH_HEADER);
+      const httpRuns: HttpRunView[] = (after.body?.runs ?? []).filter(
+        (r: HttpRunView) => r.type === 'HTTP_DATA'
+      );
+      expect(httpRuns.length).toBe(beforeHttpRuns + 1);
+
+      const newest = httpRuns[0];
+      const httpData = newest.additionalParams?.httpData;
+      expect(httpData?.format).toBe('ndjson');
+      expect(httpData?.columns).toEqual(['date']);
+      expect(httpData?.filter).toEqual(filter);
+      expect(httpData?.sort).toEqual(sort);
+      expect(httpData?.limit).toBe(5);
+      expect(httpData?.completed).toBe(true);
+    });
+
     it('never leaks the authorization token into persisted run metadata', async () => {
       await agent
         .get(`/api/external/http-data/data-marts/${dataMartId}.ndjson?column=date`)
@@ -345,6 +411,130 @@ describe('HTTP Data API (e2e)', () => {
 
       expect(await reportRepo.count()).toBe(reportsBefore);
       expect(await destinationRepo.count()).toBe(destinationsBefore);
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // Part A: Output controls — request validation (400 before composer runs)
+  // ---------------------------------------------------------------------------
+  // These tests exercise base64url param parsing and FilterConfig/SortConfig/limit
+  // schema validation. All rejections happen in HttpDataQuerySchema.parse() before
+  // any composer logic is invoked — no risk of hitting the CreateView wall.
+  // ---------------------------------------------------------------------------
+  describe('Output controls — request validation', () => {
+    const b64 = (v: unknown) => Buffer.from(JSON.stringify(v)).toString('base64url');
+
+    it('returns 400 for malformed base64url filter', async () => {
+      const res = await agent
+        .get(
+          `/api/external/http-data/data-marts/${dataMartId}.ndjson?column=date&filter=@@@notbase64@@@`
+        )
+        .set(AUTH_HEADER);
+      expect(res.status).toBe(400);
+    });
+
+    it('returns 400 for valid base64url but invalid FilterConfig shape (unknown operator)', async () => {
+      const invalid = b64([{ column: 'date', operator: 'NOT_A_REAL_OP', value: '2026-05-01' }]);
+      const res = await agent
+        .get(
+          `/api/external/http-data/data-marts/${dataMartId}.ndjson?column=date&filter=${invalid}`
+        )
+        .set(AUTH_HEADER);
+      expect(res.status).toBe(400);
+    });
+
+    it('returns 400 for valid base64url but invalid SortConfig shape (unknown direction)', async () => {
+      const invalid = b64([{ column: 'date', direction: 'sideways' }]);
+      const res = await agent
+        .get(`/api/external/http-data/data-marts/${dataMartId}.ndjson?column=date&sort=${invalid}`)
+        .set(AUTH_HEADER);
+      expect(res.status).toBe(400);
+    });
+
+    it('returns 400 when limit=0 (below minimum of 1)', async () => {
+      const res = await agent
+        .get(`/api/external/http-data/data-marts/${dataMartId}.ndjson?column=date&limit=0`)
+        .set(AUTH_HEADER);
+      expect(res.status).toBe(400);
+    });
+
+    it('returns 400 when limit is a non-integer float', async () => {
+      const res = await agent
+        .get(`/api/external/http-data/data-marts/${dataMartId}.ndjson?column=date&limit=1.5`)
+        .set(AUTH_HEADER);
+      expect(res.status).toBe(400);
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // Part B: Output controls actually applied (happy-path, B2 approach)
+  // ---------------------------------------------------------------------------
+  // Proves that a valid filter+sort+limit reach the ReportSqlComposerService and
+  // the composed sqlOverride is handed to the reader. The DataMartTableReferenceService
+  // is mocked (dummy FQN) so the SQL-defined test mart bypasses CreateViewService
+  // entirely. The mock reader captures the options passed to prepareReportData.
+  // ---------------------------------------------------------------------------
+  describe('Output controls — applied (filter/sort/limit flow through composer)', () => {
+    const b64 = (v: unknown) => Buffer.from(JSON.stringify(v)).toString('base64url');
+
+    beforeEach(() => {
+      capturedPrepareOptions = null;
+    });
+
+    it('sends a composed sqlOverride to the reader that reflects filter, sort, and limit', async () => {
+      const filter = b64([{ column: 'date', operator: 'eq', value: '2026-05-01' }]);
+      const sort = b64([{ column: 'date', direction: 'asc' }]);
+
+      const res = await agent
+        .get(
+          `/api/external/http-data/data-marts/${dataMartId}.ndjson?column=date&filter=${filter}&sort=${sort}&limit=2`
+        )
+        .set(AUTH_HEADER);
+
+      expect(res.status).toBe(200);
+      // Mock reader still returns all MOCK_ROWS regardless of limit (limit is
+      // applied by the storage layer in production; the mock ignores it).
+      // We assert on the NDJSON output using only the date column.
+      const rows = parseNdjson(res.text);
+      expect(rows.length).toBe(MOCK_ROWS.length);
+      expect(rows[0]).toHaveProperty('date');
+
+      // The prepareReportData options must contain a composed sqlOverride
+      expect(capturedPrepareOptions).not.toBeNull();
+      const sqlOverride = capturedPrepareOptions!['sqlOverride'] as string;
+      const sqlOverrideParams = capturedPrepareOptions!['sqlOverrideParams'] as unknown[];
+
+      // sqlOverride must use the dummy FQN as the FROM clause
+      expect(typeof sqlOverride).toBe('string');
+      expect(sqlOverride).toContain(DUMMY_FQN);
+
+      // BigQuery renderer uses @<paramName> placeholders for filter values
+      expect(sqlOverride).toMatch(/@\w+/);
+
+      // WHERE clause must reference the `date` column (backtick-quoted in BQ)
+      expect(sqlOverride).toContain('`date`');
+
+      // ORDER BY clause must be present for sort
+      expect(sqlOverride.toUpperCase()).toContain('ORDER BY');
+
+      // LIMIT clause must be present
+      expect(sqlOverride.toUpperCase()).toContain('LIMIT');
+
+      // sqlOverrideParams carries the filter value ('2026-05-01')
+      expect(Array.isArray(sqlOverrideParams)).toBe(true);
+      expect((sqlOverrideParams as unknown[]).length).toBeGreaterThan(0);
+    });
+
+    it('sends no sqlOverride when no output controls are present', async () => {
+      const res = await agent
+        .get(`/api/external/http-data/data-marts/${dataMartId}.ndjson?column=date`)
+        .set(AUTH_HEADER);
+
+      expect(res.status).toBe(200);
+      expect(capturedPrepareOptions).not.toBeNull();
+      // Without output controls the service skips the composer path entirely —
+      // sqlOverride is undefined (not set).
+      expect(capturedPrepareOptions!['sqlOverride']).toBeUndefined();
     });
   });
 });

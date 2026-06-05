@@ -36,7 +36,7 @@ describe('CopyReportAsDataMartService', () => {
       findOne: jest.fn().mockResolvedValue(report),
     };
     const reportSqlComposerService = {
-      compose: jest.fn().mockResolvedValue({ sql: 'SELECT 1' }),
+      composeStatic: jest.fn().mockResolvedValue({ sql: 'SELECT 1' }),
     };
     const createDataMartService = {
       run: jest.fn().mockResolvedValue(createdDataMart),
@@ -179,7 +179,7 @@ describe('CopyReportAsDataMartService', () => {
         createDataMartService,
         updateDataMartDefinitionService,
       } = createService();
-      reportSqlComposerService.compose = jest.fn().mockResolvedValue({ sql: emptySql });
+      reportSqlComposerService.composeStatic = jest.fn().mockResolvedValue({ sql: emptySql });
 
       const command = new CopyReportAsDataMartCommand('report-1', 'user-1', 'proj-1', ['editor']);
 

@@ -3,6 +3,8 @@ import { ReportSqlComposerService } from './report-sql-composer.service';
 import { Report } from '../entities/report.entity';
 import { BigQueryQueryBuilder } from '../data-storage-types/bigquery/services/bigquery-query.builder';
 import { BigQueryClauseRenderer } from '../data-storage-types/bigquery/services/bigquery-clause-renderer';
+import { AthenaQueryBuilder } from '../data-storage-types/athena/services/athena-query.builder';
+import { AthenaClauseRenderer } from '../data-storage-types/athena/services/athena-clause-renderer';
 import { isQueryBuildResult } from '../data-storage-types/interfaces/data-mart-query-builder.interface';
 import { DataStorageType } from '../data-storage-types/enums/data-storage-type.enum';
 
@@ -475,6 +477,331 @@ describe('ReportSqlComposerService', () => {
       expect(isQueryBuildResult({ sql: result.sql, params: result.params ?? [] })).toBe(true);
       expect(result.params).toEqual([]);
       expect(result.sql).toContain("(`name` IS NULL OR `name` = '')");
+    });
+  });
+
+  // Schema-drift re-validation (Athena storage context)
+  //
+  // The composer re-validates output controls against the CURRENT data mart schema
+  // before composing by delegating to blendedReportDataService.resolveBlendingDecision.
+  // When the validator detects a stale/renamed column or an operator now invalid for
+  // the changed column type, resolveBlendingDecision throws a BadRequestException with
+  // structured details.errors — the composer must surface it as-is (not swallow it as
+  // a 500).  These tests verify the plumbing on an AWS_ATHENA-typed data mart.
+  describe('schema-drift re-validation — Athena storage context', () => {
+    function makeAthenaComposerWithValidationError(validationError: Error) {
+      // blendedReportDataService.resolveBlendingDecision is the single chokepoint
+      // where schema drift is surfaced (upstream validator runs inside it).
+      // We stub it to throw a pre-built BadRequestException exactly as the real
+      // OutputControlsValidatorService would.
+      const blendedReportDataService = {
+        resolveBlendingDecision: jest.fn().mockRejectedValue(validationError),
+      };
+      const queryBuilderFacade = { buildQuery: jest.fn() };
+      const tableReferenceService = { resolveTableName: jest.fn() };
+      const capabilityService = { isSupported: jest.fn().mockReturnValue(true) };
+
+      return new ReportSqlComposerService(
+        blendedReportDataService as never,
+        queryBuilderFacade as never,
+        tableReferenceService as never,
+        capabilityService as never
+      );
+    }
+
+    const athenaReport = (filterConfig: object[]) =>
+      ({
+        id: 'rep-athena',
+        filterConfig,
+        sortConfig: null,
+        limitConfig: null,
+        dataMart: {
+          id: 'dm-athena',
+          projectId: 'proj-a',
+          storage: { type: DataStorageType.AWS_ATHENA },
+          definition: { fullyQualifiedName: 'mydb.myschema.orders' },
+        },
+      }) as never;
+
+    it('filter on a column no longer in the schema (renamed/excluded) surfaces as 400 BadRequestException with FILTER_COLUMN_UNKNOWN', async () => {
+      // Simulates: report was saved with a filter on "old_column"; the data mart
+      // schema was later updated and "old_column" was renamed / excluded.  The
+      // validator running inside resolveBlendingDecision raises a structured 400.
+      const schemaDriftError = new BadRequestException({
+        message: 'Output controls validation failed',
+        details: {
+          errors: [{ code: 'FILTER_COLUMN_UNKNOWN', column: 'old_column' }],
+        },
+      });
+      const service = makeAthenaComposerWithValidationError(schemaDriftError);
+
+      const report = athenaReport([{ column: 'old_column', operator: 'eq', value: 'stale' }]);
+
+      // Must re-throw the BadRequestException (400), not a generic Error (500).
+      await expect(service.compose(report, { userId: 'u1', roles: ['viewer'] })).rejects.toThrow(
+        BadRequestException
+      );
+      await expect(
+        service.compose(report, { userId: 'u1', roles: ['viewer'] })
+      ).rejects.toMatchObject({
+        response: {
+          details: {
+            errors: [{ code: 'FILTER_COLUMN_UNKNOWN', column: 'old_column' }],
+          },
+        },
+      });
+    });
+
+    it('operator now invalid for the column type after schema type change surfaces as 400 with INVALID_OPERATOR_FOR_TYPE', async () => {
+      // Simulates: "created_at" was VARCHAR (operator "contains" valid), but
+      // the schema was altered to TIMESTAMP — "contains" is no longer valid.
+      const typeChangedError = new BadRequestException({
+        message: 'Output controls validation failed',
+        details: {
+          errors: [
+            {
+              code: 'INVALID_OPERATOR_FOR_TYPE',
+              column: 'created_at',
+              type: 'TIMESTAMP',
+              operator: 'contains',
+            },
+          ],
+        },
+      });
+      const service = makeAthenaComposerWithValidationError(typeChangedError);
+
+      const report = athenaReport([{ column: 'created_at', operator: 'contains', value: '2024' }]);
+
+      await expect(service.compose(report, { userId: 'u1', roles: ['viewer'] })).rejects.toThrow(
+        BadRequestException
+      );
+      await expect(
+        service.compose(report, { userId: 'u1', roles: ['viewer'] })
+      ).rejects.toMatchObject({
+        response: {
+          details: {
+            errors: [
+              expect.objectContaining({
+                code: 'INVALID_OPERATOR_FOR_TYPE',
+                column: 'created_at',
+                operator: 'contains',
+              }),
+            ],
+          },
+        },
+      });
+    });
+
+    it('queryBuilderFacade is never called when schema-drift validation fails', async () => {
+      const schemaDriftError = new BadRequestException({
+        message: 'Output controls validation failed',
+        details: { errors: [{ code: 'FILTER_COLUMN_UNKNOWN', column: 'stale' }] },
+      });
+      const blendedReportDataService = {
+        resolveBlendingDecision: jest.fn().mockRejectedValue(schemaDriftError),
+      };
+      const queryBuilderFacade = { buildQuery: jest.fn() };
+      const tableReferenceService = { resolveTableName: jest.fn() };
+      const capabilityService = { isSupported: jest.fn().mockReturnValue(true) };
+
+      const service = new ReportSqlComposerService(
+        blendedReportDataService as never,
+        queryBuilderFacade as never,
+        tableReferenceService as never,
+        capabilityService as never
+      );
+
+      await expect(
+        service.compose(athenaReport([{ column: 'stale', operator: 'eq', value: 'x' }]), {
+          userId: 'u1',
+          roles: ['viewer'],
+        })
+      ).rejects.toThrow(BadRequestException);
+
+      expect(queryBuilderFacade.buildQuery).not.toHaveBeenCalled();
+    });
+  });
+
+  // E2E SQL + parameter binding for non-blended Athena report
+  //
+  // Mirrors the BQ E2E suite but uses the real AthenaQueryBuilder + AthenaClauseRenderer
+  // to assert positional ? placeholders, double-quote identifiers, and strpos-based
+  // substring matching on an AWS_ATHENA-typed data mart.
+  describe('E2E SQL + parameter binding for non-blended Athena report', () => {
+    function makeAthenaComposer(columnFilter = ['name', 'amount']) {
+      const realBuilder = new AthenaQueryBuilder(new AthenaClauseRenderer());
+      const facade = {
+        buildQuery: (
+          _type: unknown,
+          definition: Parameters<AthenaQueryBuilder['buildQuery']>[0],
+          options: Parameters<AthenaQueryBuilder['buildQuery']>[1]
+        ) => realBuilder.buildQuery(definition, options),
+      };
+      const blendedDataService = {
+        resolveBlendingDecision: jest
+          .fn()
+          .mockResolvedValue({ needsBlending: false, columnFilter }),
+      };
+      const tableReferenceService = {
+        resolveTableName: jest.fn().mockResolvedValue('"mydb"."myschema"."orders"'),
+      };
+      const capabilityService = { isSupported: jest.fn().mockReturnValue(true) };
+
+      return new ReportSqlComposerService(
+        blendedDataService as never,
+        facade as never,
+        tableReferenceService as never,
+        capabilityService as never
+      );
+    }
+
+    it('parameterizes scalar filter values with positional ? and double-quote identifiers', async () => {
+      const composer = makeAthenaComposer();
+      const report = {
+        filterConfig: [
+          { column: 'name', operator: 'eq', value: 'Alice' },
+          { column: 'amount', operator: 'gte', value: 50 },
+        ],
+        sortConfig: [{ column: 'amount', direction: 'desc' }],
+        limitConfig: 100,
+        dataMart: {
+          id: 'dm-a',
+          projectId: 'proj-a',
+          storage: { type: DataStorageType.AWS_ATHENA },
+          definition: { fullyQualifiedName: 'mydb.myschema.orders' },
+        },
+      } as never;
+
+      const result = await composer.compose(report, { userId: 'u1', roles: ['viewer'] });
+
+      expect(result.sql).toContain('SELECT "name", "amount"');
+      expect(result.sql).toContain('FROM "mydb"."myschema"."orders"');
+      // Athena uses positional ? (not named @p0)
+      expect(result.sql).toContain('WHERE "name" = ? AND "amount" >= ?');
+      expect(result.sql).toContain('ORDER BY "amount" DESC');
+      expect(result.sql).toContain('LIMIT 100');
+      expect(result.params).toEqual([
+        { name: 'p0', value: 'Alice' },
+        { name: 'p1', value: 50 },
+      ]);
+      // No raw user values interpolated into the SQL
+      expect(result.sql).not.toContain("'Alice'");
+      expect(result.sql).not.toContain('"Alice"');
+    });
+
+    it('uses strpos for substring matching (no LIKE wildcards)', async () => {
+      const composer = makeAthenaComposer(['name']);
+      const report = {
+        filterConfig: [{ column: 'name', operator: 'contains', value: '100%' }],
+        sortConfig: null,
+        limitConfig: null,
+        dataMart: {
+          id: 'dm-a',
+          projectId: 'proj-a',
+          storage: { type: DataStorageType.AWS_ATHENA },
+          definition: { fullyQualifiedName: 'mydb.myschema.orders' },
+        },
+      } as never;
+
+      const result = await composer.compose(report, { userId: 'u1', roles: ['viewer'] });
+
+      expect(result.sql).toContain('strpos("name", ?) > 0');
+      expect(result.sql).not.toMatch(/LIKE/);
+      expect(result.params).toEqual([{ name: 'p0', value: '100%' }]);
+    });
+
+    // composeStatic() must emit runnable, param-free SQL for paths with no binding
+    // channel (copied data-mart definition, generated-SQL preview).
+    it('composeStatic inlines positional ? into literals for Athena', async () => {
+      const composer = makeAthenaComposer(['name', 'amount']);
+      const report = {
+        filterConfig: [
+          { column: 'name', operator: 'eq', value: "O'Brien" },
+          { column: 'amount', operator: 'gte', value: 50 },
+        ],
+        sortConfig: null,
+        limitConfig: null,
+        dataMart: {
+          id: 'dm-a',
+          projectId: 'proj-a',
+          storage: { type: DataStorageType.AWS_ATHENA },
+          definition: { fullyQualifiedName: 'mydb.myschema.orders' },
+        },
+      } as never;
+
+      const { sql } = await composer.composeStatic(report, { userId: 'u1', roles: ['viewer'] });
+
+      // No unbound placeholders survive; values are inlined (quotes escaped).
+      expect(sql).not.toContain('?');
+      expect(sql).toContain(`WHERE "name" = 'O''Brien' AND "amount" >= 50`);
+    });
+  });
+
+  describe('composeStatic — non-Athena dialects', () => {
+    it('inlines named @params into literals for BigQuery (CAST wrapper makes date literals valid)', async () => {
+      const queryBuilderFacade = {
+        buildQuery: jest.fn().mockResolvedValue({
+          sql: 'SELECT * FROM t WHERE `name` = @p0 AND `d` = CAST(@p1 AS DATE)',
+          params: [
+            { name: 'p0', value: "O'Brien" },
+            { name: 'p1', value: '2024-01-01' },
+          ],
+        }),
+      };
+      const blendedDataService = {
+        resolveBlendingDecision: jest
+          .fn()
+          .mockResolvedValue({ needsBlending: false, columnFilter: ['name', 'd'] }),
+      };
+      const tableReferenceService = { resolveTableName: jest.fn().mockResolvedValue('p.d.t') };
+      const capabilityService = { isSupported: jest.fn().mockReturnValue(true) };
+      const composer = new ReportSqlComposerService(
+        blendedDataService as never,
+        queryBuilderFacade as never,
+        tableReferenceService as never,
+        capabilityService as never
+      );
+      const report = {
+        filterConfig: [{ column: 'name', operator: 'eq', value: "O'Brien" }],
+        dataMart: {
+          id: 'm',
+          projectId: 'p',
+          storage: { type: 'GOOGLE_BIGQUERY' },
+          definition: { type: 'table', fullyQualifiedName: 'p.d.t' },
+        },
+      } as never;
+
+      const { sql } = await composer.composeStatic(report, { userId: 'u1', roles: ['admin'] });
+      expect(sql).not.toContain('@p');
+      expect(sql).toBe(
+        "SELECT * FROM t WHERE `name` = 'O\\'Brien' AND `d` = CAST('2024-01-01' AS DATE)"
+      );
+    });
+
+    it('returns SQL unchanged when there are no params (sort/limit-only or no controls)', async () => {
+      const queryBuilderFacade = { buildQuery: jest.fn().mockResolvedValue('SELECT * FROM t') };
+      const blendedDataService = {
+        resolveBlendingDecision: jest
+          .fn()
+          .mockResolvedValue({ needsBlending: false, columnFilter: ['a'] }),
+      };
+      const composer = new ReportSqlComposerService(
+        blendedDataService as never,
+        queryBuilderFacade as never,
+        { resolveTableName: jest.fn() } as never,
+        { isSupported: jest.fn().mockReturnValue(true) } as never
+      );
+      const report = {
+        dataMart: {
+          id: 'm',
+          projectId: 'p',
+          storage: { type: DataStorageType.AWS_ATHENA },
+          definition: { type: 'table', fullyQualifiedName: 'p.d.t' },
+        },
+      } as never;
+
+      const { sql } = await composer.composeStatic(report, { userId: 'u1', roles: ['admin'] });
+      expect(sql).toBe('SELECT * FROM t');
     });
   });
 });

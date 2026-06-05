@@ -28,6 +28,13 @@ export interface DataMartQueryOptions {
    * DataMartTableReferenceService) instead of wrapping the user SQL.
    */
   mainTableReference?: string;
+
+  /**
+   * Column name → storage field type. Positional dialects (Athena) use it to cast
+   * date/time filter placeholders so a varchar literal is not compared against a
+   * DATE/TIMESTAMP column. Optional; dialects that bind typed params ignore it.
+   */
+  columnTypes?: ReadonlyMap<string, string>;
 }
 
 export interface QueryBuildResult {

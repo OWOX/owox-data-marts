@@ -12,6 +12,13 @@ import {
 // (limit/filter/sort persistence + class-validator and validator-service
 // rejection paths). SQL-emission paths are covered by unit tests in
 // abstract-blended-query-builder.spec.ts and bigquery-clause-renderer.spec.ts.
+//
+// Athena output-controls SQL emission is covered by unit specs
+// (athena-clause-renderer.spec.ts, athena-query.builder.spec.ts,
+// athena-blended-query-builder.spec.ts). Capability acceptance is asserted in
+// output-controls-capability.service.spec.ts. No live-warehouse e2e by design:
+// the /generated-sql path for SQL-defined data marts calls CreateViewService
+// which requires real storage credentials — unavailable in the SQLite test harness.
 
 describe('Output controls API (e2e)', () => {
   let app: INestApplication;

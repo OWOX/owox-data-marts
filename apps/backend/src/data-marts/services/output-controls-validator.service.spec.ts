@@ -1,6 +1,7 @@
 import { BadRequestException } from '@nestjs/common';
 import { OutputControlsValidatorService } from './output-controls-validator.service';
 import { BigQueryFieldType } from '../data-storage-types/bigquery/enums/bigquery-field-type.enum';
+import { AthenaFieldType } from '../data-storage-types/athena/enums/athena-field-type.enum';
 import { DataStorageType } from '../data-storage-types/enums/data-storage-type.enum';
 
 describe('OutputControlsValidatorService', () => {
@@ -552,7 +553,7 @@ describe('OutputControlsValidatorService', () => {
       expect(response.details.errors[0].code).toBe('SORT_COLUMN_NOT_SELECTED');
     });
 
-    it('falls back to all known columns when columnConfig is null for sort validation', async () => {
+    it('falls back to NATIVE columns when columnConfig is null for sort validation', async () => {
       const capabilitySvc = makeCapabilityService(true);
       const schemaSvc = makeBlendableSchemaService([
         { name: 'date', type: BigQueryFieldType.DATE },
@@ -575,6 +576,57 @@ describe('OutputControlsValidatorService', () => {
           accessor: { userId: 'user-1', roles: ['admin'] },
         })
       ).resolves.toBeUndefined();
+    });
+
+    // Regression: with columnConfig null the projection is SELECT * over NATIVE
+    // fields only — blended aliases are not projected, and the blended run path
+    // rejects output controls without an explicit column selection. Save-time
+    // validation must reject a sort on a blended column here, not pass and then
+    // blow up at run time.
+    it('rejects sort on a BLENDED column when columnConfig is null', async () => {
+      const capabilitySvc = makeCapabilityService(true);
+      const schemaSvc = makeBlendableSchemaService(
+        [{ name: 'amount', type: BigQueryFieldType.INTEGER }],
+        {
+          blendedFields: [
+            {
+              name: 'partner_revenue',
+              aliasPath: 'partner',
+              originalFieldName: 'revenue',
+              type: BigQueryFieldType.INTEGER,
+            },
+          ],
+        }
+      );
+      const validator = new OutputControlsValidatorService(
+        capabilitySvc as never,
+        schemaSvc as never
+      );
+
+      let caught: BadRequestException | undefined;
+      try {
+        await validator.validateForReport({
+          storageType: supportedStorageType,
+          dataMartId: 'dm-1',
+          projectId: 'proj-1',
+          columnConfig: null,
+          filterConfig: null,
+          sortConfig: [{ column: 'partner_revenue', direction: 'asc' }],
+          limitConfig: null,
+          accessor: { userId: 'user-1', roles: ['admin'] },
+        });
+      } catch (e) {
+        caught = e as BadRequestException;
+      }
+
+      expect(caught).toBeDefined();
+      const response = caught!.getResponse() as {
+        details: { errors: { code: string; column: string }[] };
+      };
+      expect(response.details.errors[0]).toMatchObject({
+        code: 'SORT_COLUMN_NOT_SELECTED',
+        column: 'partner_revenue',
+      });
     });
 
     it('rejects payload with mismatched filter shape via Zod (defence-in-depth)', async () => {
@@ -807,6 +859,512 @@ describe('OutputControlsValidatorService', () => {
     });
   });
 
+  describe('validateFilters — Athena column types (regression: VARCHAR/INTEGER/BOOLEAN/TIMESTAMP)', () => {
+    const athenaFieldTypes = new Map<string, string>([
+      ['name', AthenaFieldType.VARCHAR],
+      ['id', AthenaFieldType.INTEGER],
+      ['active', AthenaFieldType.BOOLEAN],
+      ['created_at', AthenaFieldType.TIMESTAMP],
+    ]);
+
+    it('accepts eq on VARCHAR', () => {
+      const errors = svc.validateFilters(
+        [{ column: 'name', operator: 'eq', value: 'alpha', placement: 'post-join' }],
+        athenaFieldTypes
+      );
+      expect(errors).toEqual([]);
+    });
+
+    it('accepts contains on VARCHAR', () => {
+      const errors = svc.validateFilters(
+        [{ column: 'name', operator: 'contains', value: 'alph', placement: 'post-join' }],
+        athenaFieldTypes
+      );
+      expect(errors).toEqual([]);
+    });
+
+    it('accepts between on INTEGER', () => {
+      const errors = svc.validateFilters(
+        [
+          {
+            column: 'id',
+            operator: 'between',
+            value: { from: 2, to: 3 },
+            placement: 'post-join',
+          },
+        ],
+        athenaFieldTypes
+      );
+      expect(errors).toEqual([]);
+    });
+
+    it('accepts gt on INTEGER', () => {
+      const errors = svc.validateFilters(
+        [{ column: 'id', operator: 'gt', value: 1, placement: 'post-join' }],
+        athenaFieldTypes
+      );
+      expect(errors).toEqual([]);
+    });
+
+    it('accepts is_true on BOOLEAN', () => {
+      const errors = svc.validateFilters(
+        [{ column: 'active', operator: 'is_true', placement: 'post-join' }],
+        athenaFieldTypes
+      );
+      expect(errors).toEqual([]);
+    });
+
+    it('accepts relative_date on TIMESTAMP', () => {
+      const errors = svc.validateFilters(
+        [
+          {
+            column: 'created_at',
+            operator: 'relative_date',
+            value: { kind: 'last_n_days', n: 7 },
+            placement: 'post-join',
+          },
+        ],
+        athenaFieldTypes
+      );
+      expect(errors).toEqual([]);
+    });
+
+    it('rejects a numeric-only operator (between) on VARCHAR (type mismatch)', () => {
+      const errors = svc.validateFilters(
+        [
+          {
+            column: 'name',
+            operator: 'between',
+            value: { from: 'a', to: 'z' },
+            placement: 'post-join',
+          },
+        ],
+        athenaFieldTypes
+      );
+      expect(errors[0]).toMatchObject({ code: 'INVALID_OPERATOR_FOR_TYPE', column: 'name' });
+    });
+  });
+
+  // ─── Athena type matrix — extended coverage ────────────────────────────────
+  // The basic block above checks a few happy/sad paths. These blocks fill the
+  // gap: every Athena type has at least one clearly-invalid op rejected with
+  // INVALID_OPERATOR_FOR_TYPE, additional valid ops are confirmed, and the
+  // INVALID_REGEX_PATTERN code is tested with Athena VARCHAR specifically.
+
+  describe('validateFilters — Athena VARCHAR extended', () => {
+    const fieldTypes = new Map<string, string>([['name', AthenaFieldType.VARCHAR]]);
+
+    it('accepts regex on VARCHAR with valid pattern', () => {
+      const errors = svc.validateFilters(
+        [{ column: 'name', operator: 'regex', value: '^foo.*bar$', placement: 'post-join' }],
+        fieldTypes
+      );
+      expect(errors).toEqual([]);
+    });
+
+    it('rejects regex on VARCHAR with invalid pattern → INVALID_REGEX_PATTERN', () => {
+      const errors = svc.validateFilters(
+        [{ column: 'name', operator: 'regex', value: '[unclosed', placement: 'post-join' }],
+        fieldTypes
+      );
+      expect(errors).toEqual([
+        { code: 'INVALID_REGEX_PATTERN', column: 'name', pattern: '[unclosed' },
+      ]);
+    });
+
+    it('rejects not_regex on VARCHAR with invalid pattern → INVALID_REGEX_PATTERN', () => {
+      const errors = svc.validateFilters(
+        [{ column: 'name', operator: 'not_regex', value: '*bad', placement: 'post-join' }],
+        fieldTypes
+      );
+      expect(errors[0]).toMatchObject({ code: 'INVALID_REGEX_PATTERN', column: 'name' });
+    });
+
+    it('accepts starts_with on VARCHAR', () => {
+      expect(
+        svc.validateFilters(
+          [{ column: 'name', operator: 'starts_with', value: 'foo', placement: 'post-join' }],
+          fieldTypes
+        )
+      ).toEqual([]);
+    });
+
+    it('accepts ends_with on VARCHAR', () => {
+      expect(
+        svc.validateFilters(
+          [{ column: 'name', operator: 'ends_with', value: 'bar', placement: 'post-join' }],
+          fieldTypes
+        )
+      ).toEqual([]);
+    });
+
+    it('accepts is_empty / is_not_empty on VARCHAR', () => {
+      expect(
+        svc.validateFilters(
+          [
+            { column: 'name', operator: 'is_empty', placement: 'post-join' },
+            { column: 'name', operator: 'is_not_empty', placement: 'post-join' },
+          ],
+          fieldTypes
+        )
+      ).toEqual([]);
+    });
+
+    it('rejects gt on VARCHAR → INVALID_OPERATOR_FOR_TYPE', () => {
+      const errors = svc.validateFilters(
+        [{ column: 'name', operator: 'gt', value: 5, placement: 'post-join' }],
+        fieldTypes
+      );
+      expect(errors).toEqual([
+        expect.objectContaining({
+          code: 'INVALID_OPERATOR_FOR_TYPE',
+          column: 'name',
+          type: AthenaFieldType.VARCHAR,
+          operator: 'gt',
+        }),
+      ]);
+    });
+
+    it('rejects relative_date on VARCHAR → INVALID_OPERATOR_FOR_TYPE', () => {
+      const errors = svc.validateFilters(
+        [
+          {
+            column: 'name',
+            operator: 'relative_date',
+            value: { kind: 'last_n_days', n: 7 },
+            placement: 'post-join',
+          },
+        ],
+        fieldTypes
+      );
+      expect(errors[0]).toMatchObject({
+        code: 'INVALID_OPERATOR_FOR_TYPE',
+        column: 'name',
+        operator: 'relative_date',
+      });
+    });
+
+    it('rejects is_true on VARCHAR → INVALID_OPERATOR_FOR_TYPE', () => {
+      const errors = svc.validateFilters(
+        [{ column: 'name', operator: 'is_true', placement: 'post-join' }],
+        fieldTypes
+      );
+      expect(errors[0]).toMatchObject({ code: 'INVALID_OPERATOR_FOR_TYPE', column: 'name' });
+    });
+  });
+
+  describe('validateFilters — Athena numeric types (INTEGER / DOUBLE / DECIMAL)', () => {
+    const fieldTypes = new Map<string, string>([
+      ['count', AthenaFieldType.INTEGER],
+      ['price', AthenaFieldType.DOUBLE],
+      ['amount', AthenaFieldType.DECIMAL],
+    ]);
+
+    it('accepts eq / neq on INTEGER', () => {
+      expect(
+        svc.validateFilters(
+          [
+            { column: 'count', operator: 'eq', value: 0, placement: 'post-join' },
+            { column: 'count', operator: 'neq', value: 0, placement: 'post-join' },
+          ],
+          fieldTypes
+        )
+      ).toEqual([]);
+    });
+
+    it('accepts gt / lt / gte / lte on DOUBLE', () => {
+      expect(
+        svc.validateFilters(
+          [
+            { column: 'price', operator: 'gt', value: 1.5, placement: 'post-join' },
+            { column: 'price', operator: 'lt', value: 100, placement: 'post-join' },
+            { column: 'price', operator: 'gte', value: 0, placement: 'post-join' },
+            { column: 'price', operator: 'lte', value: 99, placement: 'post-join' },
+          ],
+          fieldTypes
+        )
+      ).toEqual([]);
+    });
+
+    it('accepts between on DECIMAL', () => {
+      expect(
+        svc.validateFilters(
+          [
+            {
+              column: 'amount',
+              operator: 'between',
+              value: { from: 10, to: 50 },
+              placement: 'post-join',
+            },
+          ],
+          fieldTypes
+        )
+      ).toEqual([]);
+    });
+
+    it('accepts is_null / is_not_null on every numeric Athena type', () => {
+      expect(
+        svc.validateFilters(
+          [
+            { column: 'count', operator: 'is_null', placement: 'post-join' },
+            { column: 'price', operator: 'is_not_null', placement: 'post-join' },
+            { column: 'amount', operator: 'is_null', placement: 'post-join' },
+          ],
+          fieldTypes
+        )
+      ).toEqual([]);
+    });
+
+    it('rejects contains on INTEGER → INVALID_OPERATOR_FOR_TYPE', () => {
+      const errors = svc.validateFilters(
+        [{ column: 'count', operator: 'contains', value: '1', placement: 'post-join' }],
+        fieldTypes
+      );
+      expect(errors).toEqual([
+        expect.objectContaining({
+          code: 'INVALID_OPERATOR_FOR_TYPE',
+          column: 'count',
+          type: AthenaFieldType.INTEGER,
+          operator: 'contains',
+        }),
+      ]);
+    });
+
+    it('rejects regex on DOUBLE → INVALID_OPERATOR_FOR_TYPE', () => {
+      const errors = svc.validateFilters(
+        [{ column: 'price', operator: 'regex', value: '^1', placement: 'post-join' }],
+        fieldTypes
+      );
+      expect(errors[0]).toMatchObject({
+        code: 'INVALID_OPERATOR_FOR_TYPE',
+        column: 'price',
+        type: AthenaFieldType.DOUBLE,
+        operator: 'regex',
+      });
+    });
+
+    it('rejects relative_date on DECIMAL → INVALID_OPERATOR_FOR_TYPE', () => {
+      const errors = svc.validateFilters(
+        [
+          {
+            column: 'amount',
+            operator: 'relative_date',
+            value: { kind: 'last_n_days', n: 7 },
+            placement: 'post-join',
+          },
+        ],
+        fieldTypes
+      );
+      expect(errors[0]).toMatchObject({
+        code: 'INVALID_OPERATOR_FOR_TYPE',
+        column: 'amount',
+        operator: 'relative_date',
+      });
+    });
+  });
+
+  describe('validateFilters — Athena BOOLEAN', () => {
+    const fieldTypes = new Map<string, string>([['active', AthenaFieldType.BOOLEAN]]);
+
+    it('accepts is_true / is_false on BOOLEAN', () => {
+      expect(
+        svc.validateFilters(
+          [
+            { column: 'active', operator: 'is_true', placement: 'post-join' },
+            { column: 'active', operator: 'is_false', placement: 'post-join' },
+          ],
+          fieldTypes
+        )
+      ).toEqual([]);
+    });
+
+    it('accepts is_null / is_not_null on BOOLEAN', () => {
+      expect(
+        svc.validateFilters(
+          [
+            { column: 'active', operator: 'is_null', placement: 'post-join' },
+            { column: 'active', operator: 'is_not_null', placement: 'post-join' },
+          ],
+          fieldTypes
+        )
+      ).toEqual([]);
+    });
+
+    it('rejects eq on BOOLEAN → INVALID_OPERATOR_FOR_TYPE', () => {
+      const errors = svc.validateFilters(
+        [{ column: 'active', operator: 'eq', value: true, placement: 'post-join' }],
+        fieldTypes
+      );
+      expect(errors).toEqual([
+        expect.objectContaining({
+          code: 'INVALID_OPERATOR_FOR_TYPE',
+          column: 'active',
+          type: AthenaFieldType.BOOLEAN,
+          operator: 'eq',
+        }),
+      ]);
+    });
+
+    it('rejects contains on BOOLEAN → INVALID_OPERATOR_FOR_TYPE', () => {
+      const errors = svc.validateFilters(
+        [{ column: 'active', operator: 'contains', value: 'true', placement: 'post-join' }],
+        fieldTypes
+      );
+      expect(errors[0]).toMatchObject({ code: 'INVALID_OPERATOR_FOR_TYPE', column: 'active' });
+    });
+
+    it('rejects between on BOOLEAN → INVALID_OPERATOR_FOR_TYPE', () => {
+      const errors = svc.validateFilters(
+        [
+          {
+            column: 'active',
+            operator: 'between',
+            value: { from: 0, to: 1 },
+            placement: 'post-join',
+          },
+        ],
+        fieldTypes
+      );
+      expect(errors[0]).toMatchObject({ code: 'INVALID_OPERATOR_FOR_TYPE', column: 'active' });
+    });
+  });
+
+  describe('validateFilters — Athena TIMESTAMP / DATE', () => {
+    const fieldTypes = new Map<string, string>([
+      ['created_at', AthenaFieldType.TIMESTAMP],
+      ['event_date', AthenaFieldType.DATE],
+    ]);
+
+    it('accepts eq / neq on TIMESTAMP', () => {
+      expect(
+        svc.validateFilters(
+          [
+            { column: 'created_at', operator: 'eq', value: '2024-01-01', placement: 'post-join' },
+            { column: 'created_at', operator: 'neq', value: '2024-01-01', placement: 'post-join' },
+          ],
+          fieldTypes
+        )
+      ).toEqual([]);
+    });
+
+    it('accepts gt / lt / gte / lte on TIMESTAMP', () => {
+      expect(
+        svc.validateFilters(
+          [
+            { column: 'created_at', operator: 'gt', value: '2024-01-01', placement: 'post-join' },
+            { column: 'created_at', operator: 'lte', value: '2024-12-31', placement: 'post-join' },
+          ],
+          fieldTypes
+        )
+      ).toEqual([]);
+    });
+
+    it('accepts between on TIMESTAMP', () => {
+      expect(
+        svc.validateFilters(
+          [
+            {
+              column: 'created_at',
+              operator: 'between',
+              value: { from: '2024-01-01', to: '2024-12-31' },
+              placement: 'post-join',
+            },
+          ],
+          fieldTypes
+        )
+      ).toEqual([]);
+    });
+
+    it('accepts gt / between / relative_date on DATE', () => {
+      expect(
+        svc.validateFilters(
+          [
+            { column: 'event_date', operator: 'gt', value: '2024-01-01', placement: 'post-join' },
+            {
+              column: 'event_date',
+              operator: 'between',
+              value: { from: '2024-01-01', to: '2024-12-31' },
+              placement: 'post-join',
+            },
+            {
+              column: 'event_date',
+              operator: 'relative_date',
+              value: { kind: 'last_n_days', n: 30 },
+              placement: 'post-join',
+            },
+          ],
+          fieldTypes
+        )
+      ).toEqual([]);
+    });
+
+    it('accepts is_null / is_not_null on TIMESTAMP and DATE', () => {
+      expect(
+        svc.validateFilters(
+          [
+            { column: 'created_at', operator: 'is_null', placement: 'post-join' },
+            { column: 'event_date', operator: 'is_not_null', placement: 'post-join' },
+          ],
+          fieldTypes
+        )
+      ).toEqual([]);
+    });
+
+    it('rejects contains on TIMESTAMP → INVALID_OPERATOR_FOR_TYPE', () => {
+      const errors = svc.validateFilters(
+        [{ column: 'created_at', operator: 'contains', value: '2024', placement: 'post-join' }],
+        fieldTypes
+      );
+      expect(errors).toEqual([
+        expect.objectContaining({
+          code: 'INVALID_OPERATOR_FOR_TYPE',
+          column: 'created_at',
+          type: AthenaFieldType.TIMESTAMP,
+          operator: 'contains',
+        }),
+      ]);
+    });
+
+    it('rejects regex on DATE → INVALID_OPERATOR_FOR_TYPE', () => {
+      const errors = svc.validateFilters(
+        [{ column: 'event_date', operator: 'regex', value: '2024', placement: 'post-join' }],
+        fieldTypes
+      );
+      expect(errors[0]).toMatchObject({
+        code: 'INVALID_OPERATOR_FOR_TYPE',
+        column: 'event_date',
+        type: AthenaFieldType.DATE,
+        operator: 'regex',
+      });
+    });
+
+    it('rejects is_true on DATE → INVALID_OPERATOR_FOR_TYPE', () => {
+      const errors = svc.validateFilters(
+        [{ column: 'event_date', operator: 'is_true', placement: 'post-join' }],
+        fieldTypes
+      );
+      expect(errors[0]).toMatchObject({ code: 'INVALID_OPERATOR_FOR_TYPE', column: 'event_date' });
+    });
+  });
+
+  describe('validateSort — Athena column not in selected set', () => {
+    it('rejects sort on Athena column not present in selected columns', () => {
+      const errors = svc.validateSort(
+        [{ column: 'created_at', direction: 'desc' }],
+        new Set<string>(['name', 'id'])
+      );
+      expect(errors).toEqual([{ code: 'SORT_COLUMN_NOT_SELECTED', column: 'created_at' }]);
+    });
+
+    it('accepts sort on Athena column that IS in selected columns', () => {
+      const errors = svc.validateSort(
+        [{ column: 'created_at', direction: 'asc' }],
+        new Set<string>(['name', 'created_at'])
+      );
+      expect(errors).toEqual([]);
+    });
+  });
+
   describe('buildKnownPaths via validateForReport', () => {
     const supportedStorageType = DataStorageType.GOOGLE_BIGQUERY;
 
@@ -891,6 +1449,120 @@ describe('OutputControlsValidatorService', () => {
           accessor: { userId: 'user-1', roles: ['admin'] },
         })
       ).resolves.toBeUndefined();
+    });
+  });
+
+  describe('type completeness (zoned timestamps + type-agnostic is_null)', () => {
+    const fieldTypes = new Map<string, string>([
+      ['tz_ts', AthenaFieldType.TIMESTAMP_WITH_TIME_ZONE],
+      ['tz_time', AthenaFieldType.TIME_WITH_TIME_ZONE],
+      ['bin', AthenaFieldType.VARBINARY],
+      ['j', BigQueryFieldType.JSON],
+    ]);
+
+    it('allows date operators on TIMESTAMP/TIME WITH TIME ZONE', () => {
+      expect(
+        svc.validateFilters(
+          [
+            {
+              column: 'tz_ts',
+              operator: 'between',
+              value: { from: '2024-01-01', to: '2024-12-31' },
+              placement: 'post-join',
+            },
+          ],
+          fieldTypes
+        )
+      ).toEqual([]);
+      expect(
+        svc.validateFilters(
+          [
+            {
+              column: 'tz_ts',
+              operator: 'relative_date',
+              value: { kind: 'last_n_days', n: 7 },
+              placement: 'post-join',
+            },
+          ],
+          fieldTypes
+        )
+      ).toEqual([]);
+      expect(
+        svc.validateFilters(
+          [{ column: 'tz_time', operator: 'gt', value: '00:00:00', placement: 'post-join' }],
+          fieldTypes
+        )
+      ).toEqual([]);
+    });
+
+    it('allows comparison/between ops on time-only columns', () => {
+      expect(
+        svc.validateFilters(
+          [
+            { column: 'tz_time', operator: 'eq', value: '08:00:00', placement: 'post-join' },
+            {
+              column: 'tz_time',
+              operator: 'between',
+              value: { from: '08:00:00', to: '17:00:00' },
+              placement: 'post-join',
+            },
+          ],
+          fieldTypes
+        )
+      ).toEqual([]);
+    });
+
+    // Regression: relative_date emits current_date / date_add(..., current_date),
+    // which is invalid for a time-of-day column — time-only types must not offer it.
+    it('rejects relative_date on TIME / TIME WITH TIME ZONE', () => {
+      const errors = svc.validateFilters(
+        [
+          {
+            column: 'tz_time',
+            operator: 'relative_date',
+            value: { kind: 'last_n_days', n: 7 },
+            placement: 'post-join',
+          },
+        ],
+        fieldTypes
+      );
+      expect(errors).toHaveLength(1);
+      expect(errors[0]).toMatchObject({
+        code: 'INVALID_OPERATOR_FOR_TYPE',
+        column: 'tz_time',
+        operator: 'relative_date',
+      });
+    });
+
+    it('rejects a type-inappropriate operator on a zoned timestamp', () => {
+      const errors = svc.validateFilters(
+        [{ column: 'tz_ts', operator: 'contains', value: 'x', placement: 'post-join' }],
+        fieldTypes
+      );
+      expect(errors).toHaveLength(1);
+      expect(errors[0].code).toBe('INVALID_OPERATOR_FOR_TYPE');
+    });
+
+    it('allows is_null / is_not_null on any known column regardless of type (binary, json)', () => {
+      expect(
+        svc.validateFilters(
+          [
+            { column: 'bin', operator: 'is_null', placement: 'post-join' },
+            { column: 'bin', operator: 'is_not_null', placement: 'post-join' },
+            { column: 'j', operator: 'is_null', placement: 'post-join' },
+          ],
+          fieldTypes
+        )
+      ).toEqual([]);
+    });
+
+    it('still rejects non-null operators on uncategorized types', () => {
+      const errors = svc.validateFilters(
+        [{ column: 'bin', operator: 'eq', value: 'x', placement: 'post-join' }],
+        fieldTypes
+      );
+      expect(errors).toHaveLength(1);
+      expect(errors[0].code).toBe('INVALID_OPERATOR_FOR_TYPE');
     });
   });
 });
