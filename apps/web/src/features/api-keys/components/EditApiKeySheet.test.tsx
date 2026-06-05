@@ -32,6 +32,10 @@ function futureIso(days: number) {
   return new Date(Date.now() + days * 24 * 60 * 60 * 1000).toISOString();
 }
 
+function pastIso(days: number) {
+  return new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
+}
+
 function renderEditApiKeySheet(props?: Partial<ComponentProps<typeof EditApiKeySheet>>) {
   return render(
     <EditApiKeySheet
@@ -90,6 +94,17 @@ describe('EditApiKeySheet', () => {
 
     expect(expirationDate).toHaveClass('font-medium', 'text-amber-600');
     expect(screen.getByText('This API key expires within 30 days.')).toBeInTheDocument();
+  });
+
+  it('makes expired API keys visually obvious', () => {
+    const expiresAt = pastIso(2);
+
+    renderEditApiKeySheet({ apiKey: { ...apiKey, expiresAt } });
+
+    const expirationDate = screen.getByText(formatDateOnly(expiresAt, { timeZone: 'UTC' }));
+
+    expect(expirationDate).toHaveClass('font-medium', 'text-destructive');
+    expect(screen.getByText('This API key has expired.')).toBeInTheDocument();
   });
 
   it('does not expose the full API Key after the creation dialog is closed', () => {

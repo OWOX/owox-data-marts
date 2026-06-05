@@ -14,8 +14,11 @@ import { SortableHeader, ToggleColumnsHeader } from '../../../../shared/componen
 import type { ProjectMemberApiKey } from '../../types';
 import toast from 'react-hot-toast';
 import {
+  API_KEY_EXPIRED_CLASS_NAME,
+  API_KEY_EXPIRED_NOTICE,
   API_KEY_EXPIRING_SOON_CLASS_NAME,
   API_KEY_EXPIRING_SOON_NOTICE,
+  isApiKeyExpired,
   isApiKeyExpiringSoon,
 } from '../../utils';
 
@@ -68,6 +71,19 @@ export const getApiKeysColumns = ({
       const { expiresAt } = row.original;
       if (!expiresAt) return <span className='text-muted-foreground'>Never</span>;
       const dateLabel = formatDateOnly(expiresAt, { timeZone: 'UTC' });
+      if (isApiKeyExpired(expiresAt)) {
+        return (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <span className={API_KEY_EXPIRED_CLASS_NAME}>{dateLabel}</span>
+            </TooltipTrigger>
+            <TooltipContent side='top' align='start'>
+              {API_KEY_EXPIRED_NOTICE}
+            </TooltipContent>
+          </Tooltip>
+        );
+      }
+
       if (!isApiKeyExpiringSoon(expiresAt)) return <span>{dateLabel}</span>;
 
       return (

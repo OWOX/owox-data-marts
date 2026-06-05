@@ -28,6 +28,10 @@ function futureIso(days: number) {
   return new Date(Date.now() + days * 24 * 60 * 60 * 1000).toISOString();
 }
 
+function pastIso(days: number) {
+  return new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
+}
+
 describe('ApiKeysTable', () => {
   beforeEach(() => {
     Object.defineProperty(navigator, 'clipboard', {
@@ -119,5 +123,25 @@ describe('ApiKeysTable', () => {
 
     expect(expirationDate).toHaveClass('font-medium', 'text-amber-600');
     expect(screen.getByRole('tooltip')).toHaveTextContent('This API key expires within 30 days.');
+  });
+
+  it('makes expired API keys visually obvious', () => {
+    const expiresAt = pastIso(2);
+
+    const { container } = render(
+      <ApiKeysTable
+        keys={[{ ...key, expiresAt }]}
+        onCreateKey={vi.fn()}
+        onOpenDetails={vi.fn()}
+        onEditName={vi.fn()}
+        onRevoke={vi.fn()}
+      />
+    );
+
+    const expirationDate = screen.getByText(formatDateOnly(expiresAt, { timeZone: 'UTC' }));
+
+    expect(expirationDate).toHaveClass('font-medium', 'text-destructive');
+    expect(screen.getByRole('tooltip')).toHaveTextContent('This API key has expired.');
+    expect(container.querySelector('svg.lucide-circle-alert')).toBeNull();
   });
 });
