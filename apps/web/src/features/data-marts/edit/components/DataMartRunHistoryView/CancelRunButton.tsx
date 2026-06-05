@@ -40,7 +40,7 @@ function getCancelErrorMessage(error: unknown): string {
 
 interface CancelRunButtonProps {
   runId: string;
-  dataMartId?: string;
+  dataMartId: string;
   cancelDataMartRun: (id: string, runId: string) => Promise<void>;
   className?: string;
   variant?: 'destructive' | 'secondary';
@@ -66,7 +66,7 @@ export function CancelRunButton({
   }, []);
 
   const handleConfirm = useCallback(async () => {
-    if (!dataMartId || isCancelling) return;
+    if (isCancelling) return;
 
     setIsCancelling(true);
     try {

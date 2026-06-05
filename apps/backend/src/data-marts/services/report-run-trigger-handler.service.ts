@@ -64,7 +64,10 @@ export class ReportRunTriggerHandlerService extends BaseRunTriggerHandlerService
         options?.signal
       );
       if (options?.signal?.aborted) {
-        await this.markTriggerAsCancelled(trigger);
+        await this.markTriggerAsCancelled(
+          trigger,
+          `Cancelled run trigger ${trigger.id}: abort signal received for DataMartRun ${trigger.dataMartRunId}`
+        );
       }
     } catch (error) {
       if (error instanceof ConcurrencyLimitExceededException) {
@@ -85,7 +88,10 @@ export class ReportRunTriggerHandlerService extends BaseRunTriggerHandlerService
         return;
       }
       if (existingRun?.status === DataMartRunStatus.CANCELLED) {
-        await this.markTriggerAsCancelled(trigger);
+        await this.markTriggerAsCancelled(
+          trigger,
+          `Skipping run trigger ${trigger.id}: DataMartRun ${trigger.dataMartRunId} is already CANCELLED`
+        );
         return;
       }
 

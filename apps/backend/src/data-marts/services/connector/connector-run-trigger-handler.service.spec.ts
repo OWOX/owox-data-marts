@@ -212,6 +212,9 @@ describe('ConnectorRunTriggerHandlerService', () => {
       } = createService();
       const abortController = new AbortController();
       const trigger = Object.assign(new ConnectorRunTrigger(), mockTrigger);
+      const logSpy = jest
+        .spyOn((service as unknown as { logger: { log: (message: string) => void } }).logger, 'log')
+        .mockImplementation();
 
       (dataMartService.getByIdAndProjectId as jest.Mock).mockResolvedValue(mockDataMart);
       (mockManager.findOneOrFail as jest.Mock).mockResolvedValue(mockRun);
@@ -227,6 +230,7 @@ describe('ConnectorRunTriggerHandlerService', () => {
       );
       trigger.onSuccess(new Date('2026-06-04T12:00:00.000Z'));
       expect(trigger.status).toBe(TriggerStatus.CANCELLED);
+      expect(logSpy).not.toHaveBeenCalledWith(expect.stringContaining('already CANCELLED'));
     });
 
     it('fails the run when claim fails and run is not RUNNING', async () => {

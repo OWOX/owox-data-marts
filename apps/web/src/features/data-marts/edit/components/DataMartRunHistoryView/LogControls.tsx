@@ -96,7 +96,7 @@ export function LogControls({
         )}
       </div>
       <div className='flex items-center gap-2'>
-        {canCancelDataMartRun(run.type, run.status) && (
+        {dataMartId && canCancelDataMartRun(run.type, run.status) && (
           <CancelRunButton
             runId={run.id}
             dataMartId={dataMartId}

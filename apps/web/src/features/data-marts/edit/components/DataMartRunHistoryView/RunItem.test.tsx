@@ -41,7 +41,8 @@ const createRun = (overrides: Partial<DataMartRunItem> = {}): DataMartRunItem =>
 const renderRunItem = (
   run: DataMartRunItem,
   isExpanded = false,
-  cancelDataMartRun = vi.fn().mockResolvedValue(undefined)
+  cancelDataMartRun = vi.fn().mockResolvedValue(undefined),
+  dataMartId: string | undefined = 'dm-1'
 ) => {
   const onToggle = vi.fn();
 
@@ -55,7 +56,7 @@ const renderRunItem = (
       searchTerm=''
       setSearchTerm={vi.fn()}
       cancelDataMartRun={cancelDataMartRun}
-      dataMartId='dm-1'
+      dataMartId={dataMartId}
       dataMartConnectorInfo={null}
     />
   );
@@ -141,6 +142,24 @@ describe('RunItem', () => {
     );
 
     expect(screen.getByRole('button', { name: 'Cancel run' })).toBeInTheDocument();
+  });
+
+  it('does not show a cancel button when data mart id is unavailable', () => {
+    render(
+      <RunItem
+        run={createRun()}
+        isExpanded={true}
+        onToggle={vi.fn()}
+        logViewType={LogViewType.STRUCTURED}
+        setLogViewType={vi.fn()}
+        searchTerm=''
+        setSearchTerm={vi.fn()}
+        cancelDataMartRun={vi.fn()}
+        dataMartConnectorInfo={null}
+      />
+    );
+
+    expect(screen.queryByRole('button', { name: 'Cancel run' })).not.toBeInTheDocument();
   });
 
   it('does not show a cancel button in the collapsed row', () => {

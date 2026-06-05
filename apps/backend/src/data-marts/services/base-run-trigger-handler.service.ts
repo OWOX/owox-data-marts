@@ -56,11 +56,14 @@ export abstract class BaseRunTriggerHandlerService<T extends Trigger>
       return false;
     }
 
-    await this.markTriggerAsCancelled(trigger);
+    await this.markTriggerAsCancelled(
+      trigger,
+      `Skipping run trigger ${trigger.id}: DataMartRun ${dataMartRunId} is already CANCELLED`
+    );
     return true;
   }
 
-  protected async markTriggerAsCancelled(trigger: T): Promise<void> {
+  protected async markTriggerAsCancelled(trigger: T, logMessage?: string): Promise<void> {
     trigger.status = TriggerStatus.CANCELLED;
     trigger.isActive = false;
 
@@ -76,9 +79,9 @@ export abstract class BaseRunTriggerHandlerService<T extends Trigger>
       } as QueryDeepPartialEntity<T>
     );
 
-    this.logger.log(
-      `Skipping run trigger ${trigger.id}: DataMartRun ${this.getTriggerDataMartRunId(trigger)} is already CANCELLED`
-    );
+    if (logMessage) {
+      this.logger.log(logMessage);
+    }
   }
 
   private getTriggerDataMartRunId(trigger: T): string {
