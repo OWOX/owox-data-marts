@@ -51,17 +51,21 @@ describe('ConnectorExecutorService', () => {
       }),
     } as unknown as ConnectorOutputCaptureService;
 
+    const emitSuccessMessage = () => {
+      if (capturedOnMessage) {
+        capturedOnMessage({
+          type: ConnectorMessageType.STATUS,
+          status: 'SUCCESS',
+          at: new Date().toISOString(),
+          toFormattedString: () => 'STATUS: SUCCESS',
+        });
+      }
+    };
+
     const processSpawner = {
       spawnConnector: jest.fn().mockImplementation(() => {
         // Simulate a successful connector run by triggering a STATUS SUCCESS message
-        if (capturedOnMessage) {
-          capturedOnMessage({
-            type: ConnectorMessageType.STATUS,
-            status: 'SUCCESS',
-            at: new Date().toISOString(),
-            toFormattedString: () => 'STATUS: SUCCESS',
-          });
-        }
+        emitSuccessMessage();
         return Promise.resolve();
       }),
     } as unknown as ConnectorProcessSpawnerService;
@@ -144,6 +148,7 @@ describe('ConnectorExecutorService', () => {
       eventDispatcher,
       projectBalanceService,
       dataMartService,
+      emitSuccessMessage,
     };
   };
 
@@ -189,6 +194,45 @@ describe('ConnectorExecutorService', () => {
     expect(consumptionTracker.registerConnectorRunConsumption).toHaveBeenCalled();
     expect(eventDispatcher.publishExternal).toHaveBeenCalled();
     expect(dataMartService.actualizeSchema).toHaveBeenCalledWith('dm-1', 'proj-1');
+  });
+
+  it('lets normal completion replace a committed cancellation when abort is not delivered', async () => {
+    const {
+      service,
+      dataMartRunRepository,
+      processSpawner,
+      consumptionTracker,
+      eventDispatcher,
+      emitSuccessMessage,
+    } = createService();
+    const statusHistory: DataMartRunStatus[] = [];
+    (dataMartRunRepository.update as jest.Mock).mockImplementation(async (_runId, update) => {
+      if (update.status) {
+        statusHistory.push(update.status);
+      }
+    });
+    (processSpawner.spawnConnector as jest.Mock).mockImplementation(async () => {
+      // Simulate the cancel endpoint committing CANCELLED while this worker keeps running.
+      statusHistory.push(DataMartRunStatus.CANCELLED);
+      emitSuccessMessage();
+    });
+
+    await service.executeInBackground(createDataMart(), createRun(), null);
+
+    expect(statusHistory).toEqual([
+      DataMartRunStatus.RUNNING,
+      DataMartRunStatus.CANCELLED,
+      DataMartRunStatus.SUCCESS,
+    ]);
+    expect(dataMartRunRepository.update).toHaveBeenLastCalledWith(
+      'run-1',
+      expect.objectContaining({ status: DataMartRunStatus.SUCCESS })
+    );
+    expect(consumptionTracker.registerConnectorRunConsumption).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'dm-1' }),
+      'run-1'
+    );
+    expect(eventDispatcher.publishExternal).toHaveBeenCalled();
   });
 
   it('skips execution in shutdown mode', async () => {
