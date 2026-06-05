@@ -10,6 +10,10 @@
  * @param {string} identifier - The identifier to quote
  * @returns {string} - Quoted identifier
  */
+function stripQuotes(value) {
+  return value ? value.replace(/^"|"$/g, '') : value;
+}
+
 function quoteIdentifier(identifier) {
   if (!identifier) return identifier;
   // If already quoted, return as-is
@@ -217,11 +221,16 @@ var SnowflakeStorage = class SnowflakeStorage extends AbstractStorage {
      */
     async getAListOfExistingColumns() {
 
+      // Config values may contain surrounding double-quotes (e.g. '"PUBLIC"'); strip them
+      // to get the bare identifier. The DDL path always wraps via quoteIdentifier(), so
+      // Snowflake stores the identifier in its exact configured case — no UPPER() needed.
+      const rawSchemaName = stripQuotes(this.config.SnowflakeSchema.value);
+      const rawTableName = stripQuotes(this.config.DestinationTableName.value);
+
       let query = `SELECT COLUMN_NAME, DATA_TYPE, IS_NULLABLE
         FROM ${this.config.SnowflakeDatabase.value}.INFORMATION_SCHEMA.COLUMNS
-        WHERE TABLE_CATALOG = '${this.config.SnowflakeDatabase.value}'
-          AND TABLE_SCHEMA = UPPER('${this.config.SnowflakeSchema.value}')
-          AND TABLE_NAME = UPPER('${this.config.DestinationTableName.value}')
+        WHERE TABLE_SCHEMA = '${rawSchemaName}'
+          AND TABLE_NAME = '${rawTableName}'
         ORDER BY ORDINAL_POSITION`;
 
       let queryResults = [];
@@ -241,8 +250,7 @@ var SnowflakeStorage = class SnowflakeStorage extends AbstractStorage {
       if (Array.isArray(queryResults)) {
         queryResults.forEach(row => {
           const columnName = row.COLUMN_NAME;
-          const dataType = row.DATA_TYPE;
-          columns[columnName] = {"name": columnName, "type": dataType};
+          columns[columnName] = {"name": columnName, "type": row.DATA_TYPE};
         });
       }
 
@@ -354,14 +362,14 @@ var SnowflakeStorage = class SnowflakeStorage extends AbstractStorage {
 
       }
 
-      // there are columns to add to table
       if( columns.length > 0 ) {
         const quotedSchema = quoteIdentifier(this.config.SnowflakeSchema.value);
         const quotedTable = quoteIdentifier(this.config.DestinationTableName.value);
-        let query = `ALTER TABLE ${this.config.SnowflakeDatabase.value}.${quotedSchema}.${quotedTable}\n`;
-        query += columns.join(",\n");
-        await this.executeQuery(query);
-        this.config.logMessage(`Columns '${newColumns.join(",")}' were added to ${this.config.SnowflakeDatabase.value}.${quotedSchema}.${quotedTable}`);
+        const tableRef = `${this.config.SnowflakeDatabase.value}.${quotedSchema}.${quotedTable}`;
+        for (const columnDef of columns) {
+          await this.executeQuery(`ALTER TABLE ${tableRef}\n${columnDef}`);
+        }
+        this.config.logMessage(`Columns '${newColumns.join(",")}' were added to ${tableRef}`);
       }
 
     }
