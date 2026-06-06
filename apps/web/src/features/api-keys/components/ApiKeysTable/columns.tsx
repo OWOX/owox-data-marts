@@ -63,9 +63,12 @@ export const getApiKeysColumns = ({
     ),
   },
   {
-    accessorKey: 'expiresAt',
+    id: 'expiresAt',
+    accessorFn: row =>
+      row.expiresAt ? new Date(row.expiresAt).getTime() : Number.POSITIVE_INFINITY,
     size: 140,
     meta: { title: 'Expires' },
+    sortingFn: 'basic',
     header: ({ column }) => <SortableHeader column={column}>Expires</SortableHeader>,
     cell: ({ row }) => {
       const { expiresAt } = row.original;

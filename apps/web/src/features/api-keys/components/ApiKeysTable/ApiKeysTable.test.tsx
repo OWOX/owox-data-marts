@@ -34,6 +34,7 @@ function pastIso(days: number) {
 
 describe('ApiKeysTable', () => {
   beforeEach(() => {
+    localStorage.clear();
     Object.defineProperty(navigator, 'clipboard', {
       value: {
         writeText: vi.fn().mockResolvedValue(undefined),
@@ -143,5 +144,66 @@ describe('ApiKeysTable', () => {
     expect(expirationDate).toHaveClass('font-medium', 'text-destructive');
     expect(screen.getByRole('tooltip')).toHaveTextContent('This API key has expired.');
     expect(container.querySelector('svg.lucide-circle-alert')).toBeNull();
+  });
+
+  it('sorts keys that never expire as the furthest expiration date', () => {
+    const keys: ProjectMemberApiKey[] = [
+      { ...key, apiKeyId: 'pmk_never_1', name: 'Never 1', expiresAt: null },
+      {
+        ...key,
+        apiKeyId: 'pmk_future_later',
+        name: 'Future later',
+        expiresAt: '2026-08-06T23:59:59.999Z',
+      },
+      {
+        ...key,
+        apiKeyId: 'pmk_expired',
+        name: 'Expired',
+        expiresAt: '2026-05-29T23:59:59.999Z',
+      },
+      {
+        ...key,
+        apiKeyId: 'pmk_future_soon',
+        name: 'Future soon',
+        expiresAt: '2026-06-18T23:59:59.999Z',
+      },
+      { ...key, apiKeyId: 'pmk_never_2', name: 'Never 2', expiresAt: null },
+    ];
+
+    render(
+      <ApiKeysTable
+        keys={keys}
+        onCreateKey={vi.fn()}
+        onOpenDetails={vi.fn()}
+        onEditName={vi.fn()}
+        onRevoke={vi.fn()}
+      />
+    );
+
+    const getRenderedNames = () =>
+      screen
+        .getAllByRole('row')
+        .slice(1)
+        .map(row => within(row).getAllByRole('cell')[0].textContent);
+
+    fireEvent.click(screen.getByRole('button', { name: /Expires - not sorted/i }));
+
+    expect(getRenderedNames()).toEqual([
+      'Expired',
+      'Future soon',
+      'Future later',
+      'Never 1',
+      'Never 2',
+    ]);
+
+    fireEvent.click(screen.getByRole('button', { name: /Expires - sorted ascending/i }));
+
+    expect(getRenderedNames()).toEqual([
+      'Never 1',
+      'Never 2',
+      'Future later',
+      'Future soon',
+      'Expired',
+    ]);
   });
 });
