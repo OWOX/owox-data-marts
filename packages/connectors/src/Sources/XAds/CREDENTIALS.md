@@ -117,12 +117,12 @@ Open [Postman](https://web.postman.co/). Click the **+** button to open a new ta
 1. Change the method dropdown from **GET** to **POST**
 2. Paste this URL into the address bar:
 
-```text
-https://api.x.com/oauth/request_token
-```
+   ```text
+   https://api.x.com/oauth/request_token
+   ```
 
-1. Click the **Authorization** tab (below the URL bar)
-2. Open the **Auth Type** dropdown and select **OAuth 1.0**
+3. Click the **Authorization** tab (below the URL bar)
+4. Open the **Auth Type** dropdown and select **OAuth 1.0**
 
 Fill in the fields that appear on the right:
 
@@ -189,11 +189,11 @@ In [Postman](https://web.postman.co/), open a **new tab** (click **+**) to keep 
 1. Change the method to **POST**
 2. Paste this URL:
 
-```text
-https://api.x.com/oauth/access_token
-```
+   ```text
+   https://api.x.com/oauth/access_token
+   ```
 
-1. Click the **Authorization** tab and select **OAuth 1.0**
+3. Click the **Authorization** tab and select **OAuth 1.0**
 
 Fill in the fields. Note: the **Access Token** and **Access Token Secret** here are the *temporary* values from Step 5 — not the ones from Step 4.
 
