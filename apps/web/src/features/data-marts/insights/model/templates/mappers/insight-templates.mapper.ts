@@ -3,9 +3,12 @@ import type {
   CreateInsightTemplateRequestDto,
   InsightTemplateListItemDto,
   InsightTemplateListResponseDto,
+  ProjectInsightTemplateListItemDto,
+  ProjectInsightTemplateListResponseDto,
   InsightTemplateResponseDto,
   UpdateInsightTemplateRequestDto,
 } from '../types/insight-templates.dto';
+import type { ProjectInsightTemplateEntity } from '../types/insight-template.entity';
 
 export const mapInsightTemplateFromDto = (
   dto: InsightTemplateResponseDto
@@ -53,6 +56,20 @@ export const mapInsightTemplateListItemFromDto = (
 export const mapInsightTemplateListFromDto = (
   dto: InsightTemplateListResponseDto
 ): InsightTemplateEntity[] => dto.data.map(mapInsightTemplateListItemFromDto);
+
+export const mapProjectInsightTemplateListItemFromDto = (
+  dto: ProjectInsightTemplateListItemDto
+): ProjectInsightTemplateEntity => ({
+  ...mapInsightTemplateListItemFromDto(dto),
+  dataMart: {
+    id: dto.dataMart.id,
+    title: dto.dataMart.title,
+  },
+});
+
+export const mapProjectInsightTemplateListFromDto = (
+  dto: ProjectInsightTemplateListResponseDto
+): ProjectInsightTemplateEntity[] => dto.insights.map(mapProjectInsightTemplateListItemFromDto);
 
 export const mapToCreateInsightTemplateRequest = (data: {
   title: string;
