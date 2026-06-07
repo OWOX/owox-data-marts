@@ -70,11 +70,11 @@ export class ReportService extends ApiService {
    */
   async getReportsByProject(limit?: number, offset?: number): Promise<ReportResponseDto[]> {
     const params =
-      limit === undefined
+      limit === undefined && offset === undefined
         ? undefined
         : {
-            limit,
-            offset: offset ?? 0,
+            ...(limit !== undefined ? { limit } : {}),
+            ...(offset !== undefined ? { offset } : {}),
           };
 
     return this.get<ReportResponseDto[]>('/', params);
