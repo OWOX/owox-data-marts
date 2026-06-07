@@ -1,6 +1,7 @@
 // @vitest-environment happy-dom
 import '@testing-library/jest-dom';
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { MemoryRouter } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { RunItem } from './RunItem';
@@ -38,31 +39,73 @@ const createRun = (overrides: Partial<DataMartRunItem> = {}): DataMartRunItem =>
     ...overrides,
   }) as DataMartRunItem;
 
+type DataMartRef = {
+  id: string;
+  title: string;
+  href: string;
+};
+
 const renderRunItem = (
   run: DataMartRunItem,
   isExpanded = false,
   cancelDataMartRun = vi.fn().mockResolvedValue(undefined),
-  dataMartId: string | undefined = 'dm-1'
+  dataMartId: string | undefined = 'dm-1',
+  dataMartRef?: DataMartRef
 ) => {
   const onToggle = vi.fn();
 
   render(
-    <RunItem
-      run={run}
-      isExpanded={isExpanded}
-      onToggle={onToggle}
-      logViewType={LogViewType.STRUCTURED}
-      setLogViewType={vi.fn()}
-      searchTerm=''
-      setSearchTerm={vi.fn()}
-      cancelDataMartRun={cancelDataMartRun}
-      dataMartId={dataMartId}
-      dataMartConnectorInfo={null}
-    />
+    <MemoryRouter>
+      <RunItem
+        run={run}
+        isExpanded={isExpanded}
+        onToggle={onToggle}
+        logViewType={LogViewType.STRUCTURED}
+        setLogViewType={vi.fn()}
+        searchTerm=''
+        setSearchTerm={vi.fn()}
+        cancelDataMartRun={cancelDataMartRun}
+        dataMartId={dataMartId}
+        dataMartConnectorInfo={null}
+        dataMartRef={dataMartRef}
+      />
+    </MemoryRouter>
   );
 
   return { onToggle, cancelDataMartRun };
 };
+
+const createReportRun = (dataMartRef?: DataMartRef): DataMartRunItem =>
+  createRun({
+    type: DataMartRunType.EMAIL,
+    triggerType: DataMartRunTriggerType.SCHEDULED,
+    createdAt: new Date('2026-06-07T15:35:00.000Z'),
+    startedAt: new Date('2026-06-07T15:35:00.000Z'),
+    definitionRun: {
+      sqlQuery: 'select 1',
+    } as DataMartRunItem['definitionRun'],
+    reportDefinition: {
+      title: 'Campaigns Campaigns Campaigns Campaigns Campaigns Campaigns',
+      destination: {
+        id: 'destination-1',
+        title: 'Looker Studio',
+        type: 'LOOKER_STUDIO',
+      },
+      destinationConfig: {
+        type: 'looker-studio-config',
+        cacheLifetime: 3600,
+      },
+    },
+    reportId: 'report-1',
+    createdByUser: dataMartRef
+      ? {
+          userId: '320',
+          fullName: 'Oleksandr Kalnyk',
+          email: 'a.kalnik@owox.com',
+          avatar: null,
+        }
+      : null,
+  });
 
 describe('RunItem', () => {
   beforeEach(() => {
@@ -146,17 +189,19 @@ describe('RunItem', () => {
 
   it('does not show a cancel button when data mart id is unavailable', () => {
     render(
-      <RunItem
-        run={createRun()}
-        isExpanded={true}
-        onToggle={vi.fn()}
-        logViewType={LogViewType.STRUCTURED}
-        setLogViewType={vi.fn()}
-        searchTerm=''
-        setSearchTerm={vi.fn()}
-        cancelDataMartRun={vi.fn()}
-        dataMartConnectorInfo={null}
-      />
+      <MemoryRouter>
+        <RunItem
+          run={createRun()}
+          isExpanded={true}
+          onToggle={vi.fn()}
+          logViewType={LogViewType.STRUCTURED}
+          setLogViewType={vi.fn()}
+          searchTerm=''
+          setSearchTerm={vi.fn()}
+          cancelDataMartRun={vi.fn()}
+          dataMartConnectorInfo={null}
+        />
+      </MemoryRouter>
     );
 
     expect(screen.queryByRole('button', { name: 'Cancel run' })).not.toBeInTheDocument();
@@ -170,37 +215,69 @@ describe('RunItem', () => {
 
   it('does not show a cancel button for Looker Studio or HTTP Data runs', () => {
     const { rerender } = render(
-      <RunItem
-        run={createRun({ type: DataMartRunType.LOOKER_STUDIO })}
-        isExpanded={true}
-        onToggle={vi.fn()}
-        logViewType={LogViewType.STRUCTURED}
-        setLogViewType={vi.fn()}
-        searchTerm=''
-        setSearchTerm={vi.fn()}
-        cancelDataMartRun={vi.fn()}
-        dataMartId='dm-1'
-        dataMartConnectorInfo={null}
-      />
+      <MemoryRouter>
+        <RunItem
+          run={createRun({ type: DataMartRunType.LOOKER_STUDIO })}
+          isExpanded={true}
+          onToggle={vi.fn()}
+          logViewType={LogViewType.STRUCTURED}
+          setLogViewType={vi.fn()}
+          searchTerm=''
+          setSearchTerm={vi.fn()}
+          cancelDataMartRun={vi.fn()}
+          dataMartId='dm-1'
+          dataMartConnectorInfo={null}
+        />
+      </MemoryRouter>
     );
 
     expect(screen.queryByRole('button', { name: /cancel/i })).not.toBeInTheDocument();
 
     rerender(
-      <RunItem
-        run={createRun({ type: DataMartRunType.HTTP_DATA })}
-        isExpanded={true}
-        onToggle={vi.fn()}
-        logViewType={LogViewType.STRUCTURED}
-        setLogViewType={vi.fn()}
-        searchTerm=''
-        setSearchTerm={vi.fn()}
-        cancelDataMartRun={vi.fn()}
-        dataMartId='dm-1'
-        dataMartConnectorInfo={null}
-      />
+      <MemoryRouter>
+        <RunItem
+          run={createRun({ type: DataMartRunType.HTTP_DATA })}
+          isExpanded={true}
+          onToggle={vi.fn()}
+          logViewType={LogViewType.STRUCTURED}
+          setLogViewType={vi.fn()}
+          searchTerm=''
+          setSearchTerm={vi.fn()}
+          cancelDataMartRun={vi.fn()}
+          dataMartId='dm-1'
+          dataMartConnectorInfo={null}
+        />
+      </MemoryRouter>
     );
 
     expect(screen.queryByRole('button', { name: /cancel/i })).not.toBeInTheDocument();
+  });
+
+  it('keeps the Data Mart tab row on one line when no Data Mart reference is shown', () => {
+    renderRunItem(createReportRun());
+
+    expect(screen.queryByRole('link', { name: 'Campaigns' })).not.toBeInTheDocument();
+
+    const startedAt = screen.getByText(/2026-06-07 \d{2}:35:00/);
+    const summary = screen.getByText('Scheduled report run');
+    expect(startedAt).toHaveClass('shrink-0', 'whitespace-nowrap');
+    expect(startedAt.closest('.flex-wrap')).toBeNull();
+    expect(summary.closest('.flex-wrap')).toBeNull();
+  });
+
+  it('uses the wrapped two-line layout when a project-wide Data Mart reference is shown', () => {
+    const dataMartRef = {
+      id: 'dm-1',
+      title: 'Campaigns',
+      href: '/ui/project-1/data-marts/dm-1/run-history',
+    };
+
+    renderRunItem(createReportRun(dataMartRef), false, undefined, 'dm-1', dataMartRef);
+
+    expect(screen.getByRole('link', { name: 'Campaigns' })).toHaveAttribute(
+      'href',
+      '/ui/project-1/data-marts/dm-1/run-history'
+    );
+    expect(screen.getByText(/2026-06-07 \d{2}:35:00/).closest('.flex-wrap')).not.toBeNull();
   });
 });

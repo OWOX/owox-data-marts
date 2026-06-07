@@ -1,4 +1,12 @@
-import { Box, DatabaseIcon, ArchiveRestore } from 'lucide-react';
+import {
+  ArchiveRestore,
+  Box,
+  CalendarClock,
+  DatabaseIcon,
+  FileText,
+  HistoryIcon,
+  Sparkles,
+} from 'lucide-react';
 import type { MainMenuItem } from './types';
 
 export const MainMenuItems: MainMenuItem[] = [
@@ -16,5 +24,25 @@ export const MainMenuItems: MainMenuItem[] = [
     title: 'Destinations',
     url: '/data-destinations',
     icon: ArchiveRestore,
+  },
+  {
+    title: 'Triggers',
+    url: '/data-marts/schedules',
+    icon: CalendarClock,
+  },
+  {
+    title: 'Reports',
+    url: '/data-marts/reports',
+    icon: FileText,
+  },
+  {
+    title: 'Insights',
+    url: '/data-marts/insights',
+    icon: Sparkles,
+  },
+  {
+    title: 'Run History',
+    url: '/data-marts/runs',
+    icon: HistoryIcon,
   },
 ];

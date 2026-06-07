@@ -3,6 +3,10 @@ import MainLayout from '../layouts/MainLayout';
 import About from '../pages/About';
 import NotFound from '../pages/NotFound';
 import DataMartsPage from '../pages/data-marts/list/DataMartsPage.tsx';
+import DataMartInsightsPage from '../pages/data-marts/insights/DataMartInsightsPage.tsx';
+import DataMartReportsPage from '../pages/data-marts/reports/DataMartReportsPage.tsx';
+import DataMartRunsPage from '../pages/data-marts/runs/DataMartRunsPage.tsx';
+import DataMartSchedulesPage from '../pages/data-marts/schedules/DataMartSchedulesPage.tsx';
 import { DataMartDetailsPage } from '../pages/data-marts/edit';
 import CreateDataMartPage from '../pages/data-marts/create/CreateDataMartPage.tsx';
 import { DataStorageListPage } from '../pages/data-storage';
@@ -53,6 +57,26 @@ const routes: RouteObject[] = [
       {
         path: 'data-marts/create',
         element: <CreateDataMartPage />,
+        errorElement: <LayoutErrorBoundary />,
+      },
+      {
+        path: 'data-marts/runs',
+        element: <DataMartRunsPage />,
+        errorElement: <LayoutErrorBoundary />,
+      },
+      {
+        path: 'data-marts/schedules',
+        element: <DataMartSchedulesPage />,
+        errorElement: <LayoutErrorBoundary />,
+      },
+      {
+        path: 'data-marts/reports',
+        element: <DataMartReportsPage />,
+        errorElement: <LayoutErrorBoundary />,
+      },
+      {
+        path: 'data-marts/insights',
+        element: <DataMartInsightsPage />,
         errorElement: <LayoutErrorBoundary />,
       },
       {
