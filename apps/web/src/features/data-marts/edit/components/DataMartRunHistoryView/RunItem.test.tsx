@@ -79,8 +79,8 @@ const createReportRun = (dataMartRef?: DataMartRef): DataMartRunItem =>
   createRun({
     type: DataMartRunType.EMAIL,
     triggerType: DataMartRunTriggerType.SCHEDULED,
-    createdAt: new Date('2026-06-07T15:35:00.000Z'),
-    startedAt: new Date('2026-06-07T15:35:00.000Z'),
+    createdAt: buildRunTimestamp(),
+    startedAt: buildRunTimestamp(),
     definitionRun: {
       sqlQuery: 'select 1',
     } as DataMartRunItem['definitionRun'],
@@ -106,6 +106,11 @@ const createReportRun = (dataMartRef?: DataMartRef): DataMartRunItem =>
         }
       : null,
   });
+
+function buildRunTimestamp(): Date {
+  // Keep the expected local display stable across developer and CI time zones.
+  return new Date(2026, 5, 7, 18, 35, 0);
+}
 
 describe('RunItem', () => {
   beforeEach(() => {
@@ -258,7 +263,7 @@ describe('RunItem', () => {
 
     expect(screen.queryByRole('link', { name: 'Campaigns' })).not.toBeInTheDocument();
 
-    const startedAt = screen.getByText(/2026-06-07 \d{2}:35:00/);
+    const startedAt = screen.getByText('2026-06-07 18:35:00');
     const summary = screen.getByText('Scheduled report run');
     expect(startedAt).toHaveClass('shrink-0', 'whitespace-nowrap');
     expect(startedAt.closest('.flex-wrap')).toBeNull();
@@ -278,6 +283,6 @@ describe('RunItem', () => {
       'href',
       '/ui/project-1/data-marts/dm-1/run-history'
     );
-    expect(screen.getByText(/2026-06-07 \d{2}:35:00/).closest('.flex-wrap')).not.toBeNull();
+    expect(screen.getByText('2026-06-07 18:35:00').closest('.flex-wrap')).not.toBeNull();
   });
 });
