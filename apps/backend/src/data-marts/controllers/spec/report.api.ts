@@ -6,10 +6,8 @@ import {
   ApiOkResponse,
   ApiOperation,
   ApiParam,
-  ApiQuery,
 } from '@nestjs/swagger';
 import { ReportResponseApiDto } from '../../dto/presentation/report-response-api.dto';
-import { OwnerFilter } from '../../enums/owner-filter.enum';
 import {
   createReportRequestBodySchema,
   REPORT_OPENAPI_MODELS,
@@ -34,23 +32,6 @@ export function ListReportsByDataMartSpec() {
     ApiParam({ name: 'dataMartId', description: 'Data mart ID' }),
     ApiOkResponse({
       description: 'List of reports for the data mart',
-      type: [ReportResponseApiDto],
-    })
-  );
-}
-
-export function ListReportsByProjectSpec() {
-  return applyDecorators(
-    ApiOperation({ summary: 'Get all reports for a project' }),
-    ApiQuery({
-      name: 'ownerFilter',
-      required: false,
-      enum: OwnerFilter,
-      example: OwnerFilter.HAS_OWNERS,
-      description: 'Filter reports by whether they have owners',
-    }),
-    ApiOkResponse({
-      description: 'List of reports for the project',
       type: [ReportResponseApiDto],
     })
   );

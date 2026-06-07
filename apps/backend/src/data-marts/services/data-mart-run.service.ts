@@ -14,8 +14,10 @@ import { InsightTemplate } from '../entities/insight-template.entity';
 import { Report } from '../entities/report.entity';
 import { DataMartRunStatus } from '../enums/data-mart-run-status.enum';
 import { DataMartRunType } from '../enums/data-mart-run-type.enum';
+import { RoleScope } from '../enums/role-scope.enum';
 import { ReportRunCompletedSuccessfullyEvent } from '../events/report-run-completed-successfully.event';
 import { HttpDataRunMetadata } from '../dto/schemas/http-data-run-metadata.schema';
+import { applyDataMartVisibilityFilter } from '../utils/apply-data-mart-visibility-filter';
 import { HTTP_DATA_PARAMS_KEY } from './http-data/http-data.constants';
 import { CANCELLABLE_DATA_MART_RUN_STATUSES } from '../utils/data-mart-run-cancellation';
 
@@ -80,6 +82,15 @@ export interface HttpDataRunRecord {
   errors?: string[];
 }
 
+export interface ListVisibleProjectRunsOptions {
+  projectId: string;
+  userId: string;
+  roles: string[];
+  roleScope: RoleScope;
+  limit?: number;
+  offset?: number;
+}
+
 /**
  * Service managing the underlying DataMartRun entity lifecycle.
  *
@@ -123,6 +134,33 @@ export class DataMartRunService {
       take: limit,
       skip: offset,
     });
+  }
+
+  /**
+   * Lists project runs for Data Marts visible to the current user.
+   */
+  public async listVisibleByProject(
+    options: ListVisibleProjectRunsOptions
+  ): Promise<DataMartRun[]> {
+    const qb = this.dataMartRunRepository
+      .createQueryBuilder('run')
+      .innerJoinAndSelect('run.dataMart', 'dataMart')
+      .where('dataMart.projectId = :projectId', { projectId: options.projectId })
+      .andWhere('dataMart.deletedAt IS NULL')
+      .orderBy('run.createdAt', 'DESC')
+      .addOrderBy('run.id', 'DESC')
+      .take(options.limit ?? 20)
+      .skip(options.offset ?? 0);
+
+    applyDataMartVisibilityFilter(qb, {
+      dataMartAlias: 'dataMart',
+      projectId: options.projectId,
+      userId: options.userId,
+      roles: options.roles,
+      roleScope: options.roleScope,
+    });
+
+    return qb.getMany();
   }
 
   /**

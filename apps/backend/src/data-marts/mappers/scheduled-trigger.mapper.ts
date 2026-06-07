@@ -4,9 +4,11 @@ import { CreateScheduledTriggerCommand } from '../dto/domain/create-scheduled-tr
 import { DeleteScheduledTriggerCommand } from '../dto/domain/delete-scheduled-trigger.command';
 import { GetScheduledTriggerCommand } from '../dto/domain/get-scheduled-trigger.command';
 import { ListScheduledTriggersCommand } from '../dto/domain/list-scheduled-triggers.command';
+import { ProjectScheduledTriggerDto } from '../dto/domain/project-scheduled-trigger.dto';
 import { ScheduledTriggerDto } from '../dto/domain/scheduled-trigger.dto';
 import { UpdateScheduledTriggerCommand } from '../dto/domain/update-scheduled-trigger.command';
 import { CreateScheduledTriggerRequestApiDto } from '../dto/presentation/create-scheduled-trigger-request-api.dto';
+import { ProjectScheduledTriggersResponseApiDto } from '../dto/presentation/project-scheduled-triggers-response-api.dto';
 import { ScheduledTriggerResponseApiDto } from '../dto/presentation/scheduled-trigger-response-api.dto';
 import { UpdateScheduledTriggerRequestApiDto } from '../dto/presentation/update-scheduled-trigger-request-api.dto';
 import { DataMartScheduledTrigger } from '../entities/data-mart-scheduled-trigger.entity';
@@ -69,6 +71,17 @@ export class ScheduledTriggerMapper {
 
   toResponseList(dtos: ScheduledTriggerDto[]): ScheduledTriggerResponseApiDto[] {
     return dtos.map(dto => this.toResponse(dto));
+  }
+
+  toProjectResponseList(
+    dtos: ProjectScheduledTriggerDto[]
+  ): ProjectScheduledTriggersResponseApiDto {
+    return {
+      triggers: dtos.map(dto => ({
+        ...this.toResponse(dto.trigger),
+        dataMart: dto.dataMart,
+      })),
+    };
   }
 
   toCreateCommand(

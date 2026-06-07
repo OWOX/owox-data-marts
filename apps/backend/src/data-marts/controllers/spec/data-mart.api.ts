@@ -193,8 +193,8 @@ export function GetDataMartRunsSpec() {
       name: 'limit',
       required: false,
       type: Number,
-      example: 20,
-      description: 'Maximum number of runs to return',
+      example: 100,
+      description: 'Maximum number of runs to return. Defaults to 100.',
     }),
     ApiQuery({
       name: 'offset',

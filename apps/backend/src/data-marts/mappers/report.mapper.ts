@@ -149,13 +149,17 @@ export class ReportMapper {
 
   toListByProjectCommand(
     context: AuthorizationContext,
-    ownerFilter?: OwnerFilter
+    ownerFilter?: OwnerFilter,
+    limit?: number,
+    offset?: number
   ): ListReportsByProjectCommand {
     return new ListReportsByProjectCommand(
       context.projectId,
       context.userId,
       context.roles ?? [],
-      ownerFilter
+      ownerFilter,
+      limit,
+      offset
     );
   }
 
