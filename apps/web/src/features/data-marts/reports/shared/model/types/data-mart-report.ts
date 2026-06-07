@@ -5,6 +5,7 @@ import {
 } from '../../enums';
 import { type DataDestination } from '../../../../../data-destination';
 import type { DataMart } from '../../../../edit';
+import type { DataStorage } from '../../../../../data-storage/shared/model/types/data-storage';
 import type { ReportConditionEnum } from '../../enums/report-condition.enum.ts';
 import type { UserProjection } from '../../../../../../shared/types';
 import type { FilterRule, SortRule } from '../../../../shared/types/output-config';
@@ -96,7 +97,7 @@ export function isCustomMessageTemplateSource(
 export interface DataMartReport {
   id: string;
   title: string;
-  dataMart: Pick<DataMart, 'id'>;
+  dataMart: Pick<DataMart, 'id' | 'title'> & { storage?: DataStorage | null };
   dataDestination: DataDestination;
   destinationConfig: DestinationConfig;
   columnConfig: string[] | null;

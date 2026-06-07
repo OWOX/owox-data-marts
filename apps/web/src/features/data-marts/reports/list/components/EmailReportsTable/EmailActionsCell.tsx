@@ -25,9 +25,17 @@ interface EmailActionsCellProps {
   row: { original: DataMartReport };
   onDeleteSuccess?: () => void;
   onEditReport?: (report: DataMartReport) => void;
+  onRunSuccess?: () => void | Promise<void>;
 }
 
-export function EmailActionsCell({ row, onDeleteSuccess, onEditReport }: EmailActionsCellProps) {
+export function EmailActionsCell({
+  row,
+  onDeleteSuccess,
+  onEditReport,
+  onRunSuccess,
+}: EmailActionsCellProps) {
+  const canRun = row.original.canRun;
+  const canEditConfig = row.original.canEditConfig;
   const [isRunning, setIsRunning] = useState(
     row.original.lastRunStatus === ReportStatusEnum.RUNNING
   );
@@ -47,6 +55,8 @@ export function EmailActionsCell({ row, onDeleteSuccess, onEditReport }: EmailAc
   }, [row.original.lastRunStatus]);
 
   const handleDelete = useCallback(async () => {
+    if (!canEditConfig) return;
+
     try {
       await deleteReport(row.original.id);
       await fetchReportsByDataMartId(row.original.dataMart.id);
@@ -58,30 +68,38 @@ export function EmailActionsCell({ row, onDeleteSuccess, onEditReport }: EmailAc
   }, [
     deleteReport,
     fetchReportsByDataMartId,
+    canEditConfig,
     onDeleteSuccess,
     row.original.id,
     row.original.dataMart.id,
   ]);
 
   const handleEdit = useCallback(() => {
+    if (!canEditConfig) return;
+
     onEditReport?.(row.original);
     setMenuOpen(false);
-  }, [onEditReport, row.original]);
+  }, [canEditConfig, onEditReport, row.original]);
 
   const handleRun = useCallback(async () => {
+    if (!canRun) return;
+
     try {
       setIsRunning(true);
       await runReport(row.original.id);
+      await onRunSuccess?.();
     } catch (error) {
       setIsRunning(false);
       console.error('Failed to run report:', error);
     }
-  }, [runReport, row.original.id]);
+  }, [canRun, onRunSuccess, runReport, row.original.id]);
 
   const handleDeleteClick = useCallback(() => {
+    if (!canEditConfig) return;
+
     setIsDeleteDialogOpen(true);
     setMenuOpen(false);
-  }, []);
+  }, [canEditConfig]);
 
   return (
     <TooltipProvider>
@@ -101,7 +119,7 @@ export function EmailActionsCell({ row, onDeleteSuccess, onEditReport }: EmailAc
               }}
               variant='ghost'
               className='dm-card-table-body-row-actionbtn opacity-0 transition-opacity group-hover:opacity-100 disabled:opacity-0 disabled:group-hover:opacity-50'
-              disabled={isRunning}
+              disabled={isRunning || !canRun}
               aria-label={isRunning ? 'Running report...' : `Run report: ${row.original.title}`}
             >
               <Play className='dm-card-table-body-row-actionbtn-icon' aria-hidden='true' />
@@ -142,6 +160,7 @@ export function EmailActionsCell({ row, onDeleteSuccess, onEditReport }: EmailAc
 
           <DropdownMenuContent id={actionsMenuId} align='end' role='menu'>
             <DropdownMenuItem
+              disabled={!canEditConfig}
               onClick={e => {
                 e.stopPropagation();
                 handleEdit();
@@ -155,6 +174,7 @@ export function EmailActionsCell({ row, onDeleteSuccess, onEditReport }: EmailAc
             <DropdownMenuSeparator />
 
             <DropdownMenuItem
+              disabled={!canEditConfig}
               onClick={e => {
                 e.stopPropagation();
                 handleDeleteClick();
