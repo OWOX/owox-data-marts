@@ -5,7 +5,6 @@ import { SkeletonList } from '@owox/ui/components/common/skeleton-list';
 import { extractApiError } from '../../../app/api';
 import { DataMartRunType, dataMartService } from '../../../features/data-marts/shared';
 import { isDataMartRunFinalStatus } from '../../../features/data-marts/shared/utils/status.utils';
-import { DATA_MART_RUNS_PAGE_SIZE } from '../../../features/data-marts/edit/constants';
 import { RunItem } from '../../../features/data-marts/edit/components/DataMartRunHistoryView';
 import { LogViewType } from '../../../features/data-marts/edit/components/DataMartRunHistoryView/types';
 import { mapProjectDataMartRunListResponseDtoToEntity } from '../../../features/data-marts/edit/model/mappers';
@@ -14,6 +13,8 @@ import type { ConnectorListItem } from '../../../features/connectors/shared/mode
 import { getConnectorInfoByName } from '../../../features/connectors/shared/utils';
 import { useProjectRoute } from '../../../shared/hooks';
 import { ProjectDataMartEmptyState } from '../shared/ProjectDataMartEmptyState';
+
+const PROJECT_RUNS_PAGE_SIZE = 100;
 
 export default function DataMartRunsPage() {
   const { scope } = useProjectRoute();
@@ -46,7 +47,7 @@ export default function DataMartRunsPage() {
 
     try {
       const response = await dataMartService.getProjectDataMartRuns(
-        DATA_MART_RUNS_PAGE_SIZE,
+        PROJECT_RUNS_PAGE_SIZE,
         offset,
         isSilent ? { skipLoadingIndicator: true } : undefined
       );
@@ -66,7 +67,7 @@ export default function DataMartRunsPage() {
       });
 
       if (!isSilent) {
-        setHasMoreRunsToLoad(nextRuns.length >= DATA_MART_RUNS_PAGE_SIZE);
+        setHasMoreRunsToLoad(nextRuns.length >= PROJECT_RUNS_PAGE_SIZE);
       }
     } catch (caught) {
       if (!isSilent) {
@@ -220,9 +221,13 @@ export default function DataMartRunsPage() {
 }
 
 function getConnectorSourceName(run: ProjectDataMartRunItem): string | null {
-  if (run.type !== DataMartRunType.CONNECTOR || !('connector' in run.definitionRun)) return null;
+  const definitionRun = run.definitionRun as ProjectDataMartRunItem['definitionRun'] | null;
 
-  return run.definitionRun.connector.source.name;
+  if (run.type !== DataMartRunType.CONNECTOR || !definitionRun || !('connector' in definitionRun)) {
+    return null;
+  }
+
+  return definitionRun.connector.source.name;
 }
 
 function getConnectorInfoForRun(

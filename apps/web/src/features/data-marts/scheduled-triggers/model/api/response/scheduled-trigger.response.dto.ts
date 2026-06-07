@@ -84,4 +84,6 @@ export interface ProjectScheduledTriggerDataMartRefResponseApiDto {
 
 export interface ProjectScheduledTriggerResponseApiDto extends ScheduledTriggerResponseApiDto {
   dataMart: ProjectScheduledTriggerDataMartRefResponseApiDto;
+  canEdit: boolean;
+  canDelete: boolean;
 }

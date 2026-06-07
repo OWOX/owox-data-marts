@@ -65,6 +65,7 @@ export const mapProjectInsightTemplateListItemFromDto = (
     id: dto.dataMart.id,
     title: dto.dataMart.title,
   },
+  canDelete: dto.canDelete,
 });
 
 export const mapProjectInsightTemplateListFromDto = (

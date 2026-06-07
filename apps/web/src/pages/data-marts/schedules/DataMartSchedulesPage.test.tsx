@@ -211,6 +211,19 @@ describe('DataMartSchedulesPage', () => {
     expect(screen.getByText('Delete trigger')).toBeInTheDocument();
   });
 
+  it('does not expose trigger edit or delete actions when the row cannot be managed', async () => {
+    vi.mocked(scheduledTriggerService.getProjectScheduledTriggers).mockResolvedValueOnce({
+      triggers: [buildProjectReportTrigger({ canEdit: false, canDelete: false })],
+    });
+
+    renderPage();
+
+    fireEvent.click(await screen.findByText('Daily Sales Report'));
+
+    expect(screen.queryByTestId('projectTriggerEditSheet')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Open menu' })).not.toBeInTheDocument();
+  });
+
   it('restores hidden columns like the Data Mart triggers tab', async () => {
     localStorage.setItem(
       'project-data-mart-scheduled-triggers-column-visibility',
@@ -329,11 +342,18 @@ function getColumnHeaderLabels() {
 }
 
 function buildProjectReportTrigger(
-  overrides: { id?: string; reportId?: string; reportTitle?: string; dataMartTitle?: string } = {}
+  overrides: {
+    id?: string;
+    reportId?: string;
+    reportTitle?: string;
+    dataMartTitle?: string;
+    canEdit?: boolean;
+    canDelete?: boolean;
+  } = {}
 ): ProjectScheduledTriggerResponseApiDto {
   const reportId = overrides.reportId ?? 'report-1';
 
-  return {
+  const trigger = {
     id: overrides.id ?? 'trigger-1',
     type: ScheduledTriggerType.REPORT_RUN,
     cronExpression: '0 9 * * *',
@@ -357,7 +377,11 @@ function buildProjectReportTrigger(
       id: 'dm-1',
       title: overrides.dataMartTitle ?? 'Marketing Mart',
     },
+    canEdit: overrides.canEdit ?? true,
+    canDelete: overrides.canDelete ?? true,
   };
+
+  return trigger as ProjectScheduledTriggerResponseApiDto;
 }
 
 function buildReportResponse(overrides: { id?: string; title?: string } = {}): ReportResponseDto {

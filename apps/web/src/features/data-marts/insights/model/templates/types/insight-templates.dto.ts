@@ -47,6 +47,7 @@ export interface ProjectInsightTemplateDataMartRefDto {
 
 export interface ProjectInsightTemplateListItemDto extends InsightTemplateListItemDto {
   dataMart: ProjectInsightTemplateDataMartRefDto;
+  canDelete: boolean;
 }
 
 export interface ProjectInsightTemplateListResponseDto {

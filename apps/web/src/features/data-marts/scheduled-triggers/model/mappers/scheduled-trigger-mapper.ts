@@ -42,6 +42,8 @@ export const ScheduledTriggerMapper = {
     return {
       ...this.mapFromDto(dto),
       dataMart: dto.dataMart,
+      canEdit: dto.canEdit,
+      canDelete: dto.canDelete,
     };
   },
 

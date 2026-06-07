@@ -21,7 +21,7 @@ vi.mock('../../../features/data-marts/insights/model', async importOriginal => {
 vi.mock('../../../features/idp', () => ({
   useRole: () => ({
     isAdmin: false,
-    canEdit: false,
+    canEdit: true,
   }),
   useAuth: () => ({
     status: 'authenticated',
@@ -214,6 +214,17 @@ describe('DataMartInsightsPage', () => {
     expect(await screen.findByText('Delete insight')).toBeInTheDocument();
   });
 
+  it('does not expose insight delete actions when the row cannot be deleted', async () => {
+    vi.mocked(insightTemplatesService.getProjectInsightTemplates).mockResolvedValueOnce({
+      insights: [buildInsightTemplateResponse({ canDelete: false })],
+    });
+
+    renderPage();
+
+    expect(await screen.findByText('Revenue Summary')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Insight actions' })).not.toBeInTheDocument();
+  });
+
   it('loads additional insight pages when project search is active', async () => {
     vi.mocked(insightTemplatesService.getProjectInsightTemplates)
       .mockResolvedValueOnce({
@@ -276,7 +287,7 @@ function getColumnHeaderLabels() {
 }
 
 function buildInsightTemplateResponse(
-  overrides: { id?: string; title?: string; dataMartTitle?: string } = {}
+  overrides: { id?: string; title?: string; dataMartTitle?: string; canDelete?: boolean } = {}
 ) {
   return {
     id: overrides.id ?? 'insight-1',
@@ -291,5 +302,6 @@ function buildInsightTemplateResponse(
       id: 'dm-1',
       title: overrides.dataMartTitle ?? 'Marketing Mart',
     },
+    canDelete: overrides.canDelete ?? true,
   };
 }

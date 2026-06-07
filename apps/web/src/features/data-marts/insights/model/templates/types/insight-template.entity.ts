@@ -21,4 +21,5 @@ export interface ProjectInsightTemplateEntity extends InsightTemplateEntity {
     id: string;
     title: string;
   };
+  canDelete: boolean;
 }

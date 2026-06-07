@@ -8,6 +8,7 @@ export interface ProjectInsightTemplateDataMartRefDto {
 export class ProjectInsightTemplateDto {
   constructor(
     public readonly insightTemplate: InsightTemplateDto,
-    public readonly dataMart: ProjectInsightTemplateDataMartRefDto
+    public readonly dataMart: ProjectInsightTemplateDataMartRefDto,
+    public readonly canDelete: boolean
   ) {}
 }

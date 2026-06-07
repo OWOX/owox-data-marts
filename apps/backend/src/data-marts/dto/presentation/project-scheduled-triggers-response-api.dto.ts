@@ -92,6 +92,12 @@ export class ProjectScheduledTriggerResponseApiDto {
 
   @ApiProperty({ type: ProjectScheduledTriggerDataMartRefResponseApiDto })
   dataMart: ProjectScheduledTriggerDataMartRefResponseApiDto;
+
+  @ApiProperty({ example: true })
+  canEdit: boolean;
+
+  @ApiProperty({ example: true })
+  canDelete: boolean;
 }
 
 export class ProjectScheduledTriggersResponseApiDto {

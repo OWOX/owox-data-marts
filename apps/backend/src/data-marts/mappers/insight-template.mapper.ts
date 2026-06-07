@@ -121,6 +121,7 @@ export class InsightTemplateMapper {
       insights: dtos.map(dto => ({
         ...this.toListItemResponse(dto.insightTemplate),
         dataMart: dto.dataMart,
+        canDelete: dto.canDelete,
       })),
     };
   }

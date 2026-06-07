@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import type { ReactNode } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import type { ColumnDef } from '@tanstack/react-table';
 import { RefreshCw } from 'lucide-react';
@@ -140,14 +141,22 @@ function ProjectReportActionsCell({
     onRunSuccess: onReportActionComplete,
   };
 
+  let actionsCell: ReactNode = null;
+
+  switch (report.dataDestination.type) {
+    case DataDestinationType.GOOGLE_SHEETS:
+      actionsCell = <GoogleSheetsActionsCell {...actionProps} />;
+      break;
+    case DataDestinationType.EMAIL:
+    case DataDestinationType.SLACK:
+    case DataDestinationType.GOOGLE_CHAT:
+    case DataDestinationType.MS_TEAMS:
+      actionsCell = <EmailActionsCell {...actionProps} />;
+      break;
+  }
+
   return (
-    <DataMartContext.Provider value={dataMartContextValue}>
-      {report.dataDestination.type === DataDestinationType.GOOGLE_SHEETS ? (
-        <GoogleSheetsActionsCell {...actionProps} />
-      ) : report.dataDestination.type === DataDestinationType.EMAIL ? (
-        <EmailActionsCell {...actionProps} />
-      ) : null}
-    </DataMartContext.Provider>
+    <DataMartContext.Provider value={dataMartContextValue}>{actionsCell}</DataMartContext.Provider>
   );
 }
 
@@ -185,10 +194,23 @@ export default function DataMartReportsPage() {
     try {
       const response = await reportService.getReportsByProject(PROJECT_REPORTS_PAGE_SIZE, offset);
       const nextReports = response.map(mapReportDtoToEntity);
-      setReports(currentReports =>
-        isInitialLoad ? nextReports : [...currentReports, ...nextReports]
-      );
-      setHasMoreReportsToLoad(nextReports.length >= PROJECT_REPORTS_PAGE_SIZE);
+      setReports(currentReports => {
+        if (!isInitialLoad) {
+          return [...currentReports, ...nextReports];
+        }
+
+        if (!isSilent) {
+          return nextReports;
+        }
+
+        const nextReportIds = new Set(nextReports.map(report => report.id));
+        const loadedOlderReports = currentReports.filter(report => !nextReportIds.has(report.id));
+        return [...nextReports, ...loadedOlderReports];
+      });
+
+      if (!isInitialLoad || !isSilent) {
+        setHasMoreReportsToLoad(nextReports.length >= PROJECT_REPORTS_PAGE_SIZE);
+      }
     } catch (caught) {
       if (!isSilent) {
         setError(extractApiError(caught).message ?? 'Failed to fetch Data Mart reports');

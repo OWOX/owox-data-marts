@@ -12,6 +12,9 @@ export class ProjectInsightTemplateDataMartRefResponseApiDto {
 export class ProjectInsightTemplateResponseApiDto extends InsightTemplateListItemResponseApiDto {
   @ApiProperty({ type: ProjectInsightTemplateDataMartRefResponseApiDto })
   dataMart: ProjectInsightTemplateDataMartRefResponseApiDto;
+
+  @ApiProperty({ example: true })
+  canDelete: boolean;
 }
 
 export class ProjectInsightTemplatesResponseApiDto {

@@ -427,6 +427,8 @@ function DataMartSchedulesPageContent() {
         cell: ({ row }) => (
           <ScheduledTriggerActionsCell
             trigger={row.original}
+            canEdit={row.original.canEdit}
+            canDelete={row.original.canDelete}
             onEditTrigger={() => {
               setEditingTrigger(row.original);
             }}
@@ -492,7 +494,9 @@ function DataMartSchedulesPageContent() {
                 </div>
               )}
               onRowClick={row => {
-                setEditingTrigger(row.original);
+                if (row.original.canEdit) {
+                  setEditingTrigger(row.original);
+                }
               }}
             />
 

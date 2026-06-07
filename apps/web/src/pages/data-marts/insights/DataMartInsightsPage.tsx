@@ -5,7 +5,6 @@ import { RefreshCw } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { Button } from '@owox/ui/components/button';
 import { SkeletonList } from '@owox/ui/components/common/skeleton-list';
-import { usePermissions } from '../../../app/permissions';
 import { extractApiError } from '../../../app/api';
 import { InsightRowActionsCell } from '../../../features/data-marts/insights/components/InsightRowActionsCell';
 import {
@@ -83,7 +82,6 @@ function buildProjectInsightFilters(
 export default function DataMartInsightsPage() {
   const { projectId = '' } = useParams<{ projectId: string }>();
   const { scope } = useProjectRoute();
-  const { canDelete } = usePermissions();
   const [insights, setInsights] = useState<ProjectInsightTemplateEntity[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
@@ -278,18 +276,19 @@ export default function DataMartInsightsPage() {
         enableResizing: false,
         enableSorting: false,
         header: ({ table }) => <ToggleColumnsHeader table={table} />,
-        cell: ({ row }) => (
-          <InsightRowActionsCell
-            id={row.original.id}
-            canDelete={canDelete}
-            onDelete={() => {
-              setDeletingInsight(row.original);
-            }}
-          />
-        ),
+        cell: ({ row }) =>
+          row.original.canDelete ? (
+            <InsightRowActionsCell
+              id={row.original.id}
+              canDelete={row.original.canDelete}
+              onDelete={() => {
+                setDeletingInsight(row.original);
+              }}
+            />
+          ) : null,
       },
     ],
-    [canDelete, scope]
+    [scope]
   );
 
   const { table } = useBaseTable<ProjectInsightTemplateEntity>({

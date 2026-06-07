@@ -43,6 +43,7 @@ describe('ListProjectScheduledTriggersService', () => {
     const reportResponse = { id: 'report-1', title: 'Report target' };
     const reportService = {
       getByIdsAndProjectIdAndDataMartIds: jest.fn().mockResolvedValue([report]),
+      getByIdAndDataMartIdAndProjectId: jest.fn().mockResolvedValue(report),
     };
     const reportMapper = {
       toDomainDto: jest.fn().mockReturnValue(reportDto),
@@ -50,6 +51,12 @@ describe('ListProjectScheduledTriggersService', () => {
     };
     const connectorSecretService = {
       mask: jest.fn(async definition => definition),
+    };
+    const reportAccessService = {
+      canOperate: jest.fn().mockResolvedValue(true),
+      isTechnicalUser: jest.fn(
+        (roles: string[]) => roles.includes('editor') || roles.includes('admin')
+      ),
     };
 
     const service = new ListProjectScheduledTriggersService(
@@ -59,7 +66,8 @@ describe('ListProjectScheduledTriggersService', () => {
       mapper as never,
       reportService as never,
       reportMapper as never,
-      connectorSecretService as never
+      connectorSecretService as never,
+      reportAccessService as never
     );
 
     return {
@@ -71,6 +79,7 @@ describe('ListProjectScheduledTriggersService', () => {
       reportService,
       reportMapper,
       connectorSecretService,
+      reportAccessService,
       reportResponse,
     };
   };
@@ -108,6 +117,8 @@ describe('ListProjectScheduledTriggersService', () => {
           id: 'dm-1',
           title: 'Marketing data mart',
         },
+        canEdit: true,
+        canDelete: true,
       },
     ]);
   });
@@ -153,6 +164,61 @@ describe('ListProjectScheduledTriggersService', () => {
         },
       }),
       expect.anything()
+    );
+  });
+
+  it('marks project report-run triggers manageable only when the report can be operated', async () => {
+    const { service, reportAccessService, reportService } = createService();
+    reportAccessService.canOperate.mockResolvedValueOnce(false);
+
+    const result = await service.run(
+      new ListProjectScheduledTriggersCommand('project-1', 20, 0, 'user-1', ['viewer'])
+    );
+
+    expect(reportAccessService.canOperate).toHaveBeenCalledWith(
+      'user-1',
+      ['viewer'],
+      'report-1',
+      'project-1'
+    );
+    expect(reportService.getByIdAndDataMartIdAndProjectId).toHaveBeenCalledWith(
+      'report-1',
+      'dm-1',
+      'project-1'
+    );
+    expect(result[0]).toEqual(
+      expect.objectContaining({
+        canEdit: false,
+        canDelete: false,
+      })
+    );
+  });
+
+  it('marks project connector-run triggers manageable only for technical users', async () => {
+    const { service, scheduledTriggerService, reportAccessService } = createService();
+    scheduledTriggerService.listVisibleByProject.mockResolvedValueOnce([
+      {
+        ...trigger,
+        id: 'trigger-2',
+        type: ScheduledTriggerType.CONNECTOR_RUN,
+        triggerConfig: undefined,
+        dataMart: {
+          id: 'dm-2',
+          title: 'Connector data mart',
+        },
+      },
+    ]);
+
+    const result = await service.run(
+      new ListProjectScheduledTriggersCommand('project-1', 20, 0, 'user-1', ['viewer'])
+    );
+
+    expect(reportAccessService.canOperate).not.toHaveBeenCalled();
+    expect(result[0]).toEqual(
+      expect.objectContaining({
+        canEdit: false,
+        canDelete: false,
+      })
     );
   });
 

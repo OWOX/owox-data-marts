@@ -1,5 +1,6 @@
 export const DEFAULT_PROJECT_LIST_LIMIT = 100;
 export const MAX_PROJECT_LIST_LIMIT = 100;
+export const MAX_PROJECT_LIST_OFFSET = 100_000;
 
 export interface ProjectListPagination {
   limit: number;
@@ -33,7 +34,7 @@ function normalizeOffset(value: unknown): number {
     return 0;
   }
 
-  return parsed;
+  return Math.min(parsed, MAX_PROJECT_LIST_OFFSET);
 }
 
 function parseInteger(value: unknown): number | null {

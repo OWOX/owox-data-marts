@@ -1,6 +1,7 @@
 import { ListProjectInsightTemplatesCommand } from '../dto/domain/list-project-insight-templates.command';
 import type { InsightTemplateDto } from '../dto/domain/insight-template.dto';
 import { RoleScope } from '../enums/role-scope.enum';
+import { Action, EntityType } from '../services/access-decision';
 import { ListProjectInsightTemplatesService } from './list-project-insight-templates.service';
 
 describe('ListProjectInsightTemplatesService', () => {
@@ -31,12 +32,16 @@ describe('ListProjectInsightTemplatesService', () => {
     const mapper = {
       toDomainDto: jest.fn().mockReturnValue(insightTemplateDto),
     };
+    const accessDecisionService = {
+      canAccess: jest.fn().mockResolvedValue(true),
+    };
 
     const service = new ListProjectInsightTemplatesService(
       insightTemplateService as never,
       contextAccessService as never,
       userProjectionsFetcherService as never,
-      mapper as never
+      mapper as never,
+      accessDecisionService as never
     );
 
     return {
@@ -45,6 +50,7 @@ describe('ListProjectInsightTemplatesService', () => {
       contextAccessService,
       userProjections,
       mapper,
+      accessDecisionService,
     };
   };
 
@@ -77,6 +83,7 @@ describe('ListProjectInsightTemplatesService', () => {
           id: 'dm-1',
           title: 'Marketing data mart',
         },
+        canDelete: true,
       },
     ]);
   });
@@ -97,5 +104,28 @@ describe('ListProjectInsightTemplatesService', () => {
       limit: 10,
       offset: 0,
     });
+  });
+
+  it('marks project insights deletable only when the caller can edit the owning data mart', async () => {
+    const { service, accessDecisionService } = createService();
+    accessDecisionService.canAccess.mockResolvedValueOnce(false);
+
+    const result = await service.run(
+      new ListProjectInsightTemplatesCommand('project-1', 20, 0, 'user-1', ['viewer'])
+    );
+
+    expect(accessDecisionService.canAccess).toHaveBeenCalledWith(
+      'user-1',
+      ['viewer'],
+      EntityType.DATA_MART,
+      'dm-1',
+      Action.EDIT,
+      'project-1'
+    );
+    expect(result[0]).toEqual(
+      expect.objectContaining({
+        canDelete: false,
+      })
+    );
   });
 });

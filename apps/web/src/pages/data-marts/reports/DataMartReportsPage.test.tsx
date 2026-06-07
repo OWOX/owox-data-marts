@@ -194,6 +194,7 @@ describe('DataMartReportsPage', () => {
     expect(container.querySelector('.dm-card')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Filters/ })).toBeInTheDocument();
     expect(screen.getByPlaceholderText('Search')).toBeInTheDocument();
+    expect(screen.getByRole('textbox', { name: 'Search' })).toBeInTheDocument();
   });
 
   it('searches reports by the Data Mart column', async () => {
@@ -305,6 +306,24 @@ describe('DataMartReportsPage', () => {
     expect(screen.getByText('Delete report')).toBeInTheDocument();
   });
 
+  it('renders notification report row actions like the Data Mart reports tab', async () => {
+    vi.mocked(reportService.getReportsByProject).mockResolvedValueOnce([
+      buildReportResponse({
+        title: 'Slack Alert',
+        destinationTitle: 'Slack workspace',
+        destinationType: DataDestinationType.SLACK,
+      }),
+    ]);
+
+    renderPage();
+
+    expect(await screen.findByText('Slack Alert')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Run report: Slack Alert' })).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: 'Actions for report: Slack Alert' })
+    ).toBeInTheDocument();
+  });
+
   it('runs a report from the project-wide reports action cell', async () => {
     vi.mocked(reportService.getReportsByProject)
       .mockResolvedValueOnce([
@@ -370,6 +389,55 @@ describe('DataMartReportsPage', () => {
     await waitFor(() => {
       expect(reportService.getReportsByProject).toHaveBeenCalledTimes(2);
     });
+
+    vi.useRealTimers();
+  });
+
+  it('keeps already loaded report pages during silent polling', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    vi.mocked(reportService.getReportsByProject)
+      .mockResolvedValueOnce(
+        Array.from({ length: 100 }, (_, index) =>
+          buildReportResponse({
+            id: `report-${index + 1}`,
+            title: `Report ${index + 1}`,
+            lastRunStatus: index === 0 ? ReportStatusEnum.RUNNING : ReportStatusEnum.SUCCESS,
+          })
+        )
+      )
+      .mockResolvedValueOnce([
+        buildReportResponse({
+          id: 'report-101',
+          title: 'Loaded Second Page Report',
+          lastRunStatus: ReportStatusEnum.SUCCESS,
+        }),
+      ])
+      .mockResolvedValueOnce([
+        buildReportResponse({
+          id: 'report-1',
+          title: 'Report 1',
+          lastRunStatus: ReportStatusEnum.RUNNING,
+        }),
+      ]);
+
+    renderPage();
+
+    expect(await screen.findByText('Report 1')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Load More' }));
+    await waitFor(() => {
+      expect(reportService.getReportsByProject).toHaveBeenCalledWith(100, 100);
+    });
+    fireEvent.change(screen.getByPlaceholderText('Search'), {
+      target: { value: 'Loaded Second' },
+    });
+    expect(await screen.findByText('Loaded Second Page Report')).toBeInTheDocument();
+
+    await vi.advanceTimersByTimeAsync(5000);
+
+    expect(await screen.findByText('Loaded Second Page Report')).toBeInTheDocument();
+    expect(reportService.getReportsByProject).toHaveBeenCalledWith(100, 0);
+    expect(reportService.getReportsByProject).toHaveBeenCalledWith(100, 100);
 
     vi.useRealTimers();
   });
@@ -449,8 +517,8 @@ function buildReportResponse(overrides: ReportFixtureOverrides = {}): ReportResp
     },
     dataDestinationAccess: {
       id: 'dest-1',
-      title: 'Email',
-      type: DataDestinationType.EMAIL,
+      title: overrides.destinationTitle ?? 'Email',
+      type: overrides.destinationType ?? DataDestinationType.EMAIL,
       projectId: 'project-1',
       credentials: {
         type: DataDestinationCredentialsType.EMAIL_CREDENTIALS,
@@ -518,6 +586,8 @@ interface ReportFixtureOverrides extends Partial<
   Pick<ReportResponseDto, 'id' | 'title' | 'lastRunAt' | 'lastRunStatus'>
 > {
   dataMartTitle?: string;
+  destinationTitle?: string;
+  destinationType?: DataDestinationType;
   columnConfig?: ReportResponseDto['columnConfig'];
   canRun?: boolean;
   canManageTriggers?: boolean;

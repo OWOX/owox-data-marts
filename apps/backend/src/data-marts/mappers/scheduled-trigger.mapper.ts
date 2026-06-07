@@ -80,6 +80,8 @@ export class ScheduledTriggerMapper {
       triggers: dtos.map(dto => ({
         ...this.toResponse(dto.trigger),
         dataMart: dto.dataMart,
+        canEdit: dto.canEdit,
+        canDelete: dto.canDelete,
       })),
     };
   }

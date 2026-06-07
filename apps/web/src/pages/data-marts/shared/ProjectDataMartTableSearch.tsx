@@ -14,8 +14,12 @@ export function ProjectDataMartTableSearch({
 }: ProjectDataMartTableSearchProps) {
   return (
     <div className='relative max-w-md min-w-0 flex-1'>
-      <Search className='text-muted-foreground absolute top-2.5 left-2 h-4 w-4' />
+      <Search
+        className='text-muted-foreground absolute top-2.5 left-2 h-4 w-4'
+        aria-hidden='true'
+      />
       <Input
+        aria-label={placeholder}
         placeholder={placeholder}
         value={value}
         onChange={event => {

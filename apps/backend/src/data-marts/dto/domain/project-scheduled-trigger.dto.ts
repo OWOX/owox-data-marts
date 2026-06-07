@@ -8,6 +8,8 @@ export interface ProjectScheduledTriggerDataMartRefDto {
 export class ProjectScheduledTriggerDto {
   constructor(
     public readonly trigger: ScheduledTriggerDto,
-    public readonly dataMart: ProjectScheduledTriggerDataMartRefDto
+    public readonly dataMart: ProjectScheduledTriggerDataMartRefDto,
+    public readonly canEdit: boolean,
+    public readonly canDelete: boolean
   ) {}
 }

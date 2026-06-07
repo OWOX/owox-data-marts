@@ -5,11 +5,13 @@ import { ReportMapper } from '../mappers/report.mapper';
 import { RoleScope } from '../enums/role-scope.enum';
 import { ScheduledTriggerType } from '../scheduled-trigger-types/enums/scheduled-trigger-type.enum';
 import { ScheduledReportRunConfigType } from '../scheduled-trigger-types/scheduled-report-run/schemas/scheduled-report-run-config.schema';
+import { isScheduledReportRunConfig } from '../scheduled-trigger-types/scheduled-trigger-config.guards';
 import { isConnectorDefinition } from '../dto/schemas/data-mart-table-definitions/data-mart-definition.guards';
 import { DataMartScheduledTrigger } from '../entities/data-mart-scheduled-trigger.entity';
 import { ScheduledTriggerMapper } from '../mappers/scheduled-trigger.mapper';
 import { ConnectorSecretService } from '../services/connector/connector-secret.service';
 import { ContextAccessService } from '../services/context/context-access.service';
+import { ReportAccessService } from '../services/report-access.service';
 import { ReportService } from '../services/report.service';
 import { ScheduledTriggerService } from '../services/scheduled-trigger.service';
 import { UserProjectionsFetcherService } from '../services/user-projections-fetcher.service';
@@ -25,7 +27,8 @@ export class ListProjectScheduledTriggersService {
     private readonly mapper: ScheduledTriggerMapper,
     private readonly reportService: ReportService,
     private readonly reportMapper: ReportMapper,
-    private readonly connectorSecretService: ConnectorSecretService
+    private readonly connectorSecretService: ConnectorSecretService,
+    private readonly reportAccessService: ReportAccessService
   ) {}
 
   async run(command: ListProjectScheduledTriggersCommand): Promise<ProjectScheduledTriggerDto[]> {
@@ -48,16 +51,54 @@ export class ListProjectScheduledTriggersService {
 
     const triggersWithRunTargets = await this.enrichRunTargets(triggers, command.projectId);
 
-    return triggersWithRunTargets.map(trigger => {
-      const createdByUser = trigger.createdById
-        ? (userProjections.getByUserId(trigger.createdById) ?? null)
-        : null;
+    return Promise.all(
+      triggersWithRunTargets.map(async trigger => {
+        const createdByUser = trigger.createdById
+          ? (userProjections.getByUserId(trigger.createdById) ?? null)
+          : null;
+        const canManage = await this.canManageTrigger(trigger, command);
 
-      return new ProjectScheduledTriggerDto(this.mapper.toDomainDto(trigger, createdByUser), {
-        id: trigger.dataMart.id,
-        title: trigger.dataMart.title,
-      });
-    });
+        return new ProjectScheduledTriggerDto(
+          this.mapper.toDomainDto(trigger, createdByUser),
+          {
+            id: trigger.dataMart.id,
+            title: trigger.dataMart.title,
+          },
+          canManage,
+          canManage
+        );
+      })
+    );
+  }
+
+  private async canManageTrigger(
+    trigger: DataMartScheduledTrigger,
+    command: ListProjectScheduledTriggersCommand
+  ): Promise<boolean> {
+    if (trigger.type !== ScheduledTriggerType.REPORT_RUN) {
+      return this.reportAccessService.isTechnicalUser(command.roles);
+    }
+
+    if (!isScheduledReportRunConfig(trigger.triggerConfig)) {
+      return false;
+    }
+
+    try {
+      await this.reportService.getByIdAndDataMartIdAndProjectId(
+        trigger.triggerConfig.reportId,
+        trigger.dataMart.id,
+        command.projectId
+      );
+    } catch {
+      return false;
+    }
+
+    return this.reportAccessService.canOperate(
+      command.userId,
+      command.roles,
+      trigger.triggerConfig.reportId,
+      command.projectId
+    );
   }
 
   private async enrichRunTargets(

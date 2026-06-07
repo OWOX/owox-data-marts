@@ -74,6 +74,8 @@ export interface ScheduledTriggerDataMartRef {
 
 export interface ProjectScheduledTrigger extends ScheduledTrigger {
   dataMart: ScheduledTriggerDataMartRef;
+  canEdit: boolean;
+  canDelete: boolean;
 }
 
 /**

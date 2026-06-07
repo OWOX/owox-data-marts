@@ -94,6 +94,22 @@ describe('DataMartRunsPage', () => {
     );
   });
 
+  it('does not crash when a project connector run has no definition payload', async () => {
+    vi.mocked(dataMartService.getProjectDataMartRuns).mockResolvedValueOnce({
+      runs: [
+        {
+          ...buildProjectRun({ status: DataMartRunStatus.SUCCESS }),
+          definitionRun: null as never,
+        },
+      ],
+    });
+
+    renderPage();
+
+    expect(await screen.findByRole('link', { name: 'Marketing Mart' })).toBeInTheDocument();
+    expect(getConnectorInfoByName).not.toHaveBeenCalled();
+  });
+
   it('refreshes the first page while a loaded run is not final and stops after completion', async () => {
     vi.useFakeTimers();
     vi.mocked(dataMartService.getProjectDataMartRuns)
