@@ -135,7 +135,9 @@ describe('BigQueryClauseRenderer', () => {
       expect(
         r.renderWhere([{ column: 'd', operator: 'relative_date', value: { kind: 'this_month' } }])
           .sql
-      ).toBe('\nWHERE `d` >= DATE_TRUNC(CURRENT_DATE(), MONTH)');
+      ).toBe(
+        '\nWHERE `d` >= DATE_TRUNC(CURRENT_DATE(), MONTH) AND `d` < DATE_ADD(DATE_TRUNC(CURRENT_DATE(), MONTH), INTERVAL 1 MONTH)'
+      );
     });
     it('last_month', () => {
       const sql = r.renderWhere([
@@ -148,7 +150,9 @@ describe('BigQueryClauseRenderer', () => {
       expect(
         r.renderWhere([{ column: 'd', operator: 'relative_date', value: { kind: 'this_year' } }])
           .sql
-      ).toBe('\nWHERE `d` >= DATE_TRUNC(CURRENT_DATE(), YEAR)');
+      ).toBe(
+        '\nWHERE `d` >= DATE_TRUNC(CURRENT_DATE(), YEAR) AND `d` < DATE_ADD(DATE_TRUNC(CURRENT_DATE(), YEAR), INTERVAL 1 YEAR)'
+      );
     });
 
     // Regression: `timestamp_col = CURRENT_DATE()` is a type error in BigQuery (no
@@ -191,6 +195,32 @@ describe('BigQueryClauseRenderer', () => {
         ).sql;
         expect(sql).toContain('DATE(`d`) >= DATE_TRUNC(DATE_SUB(CURRENT_DATE(), INTERVAL 1 MONTH)');
         expect(sql).toContain('DATE(`d`) < DATE_TRUNC(CURRENT_DATE(), MONTH)');
+      });
+
+      it('wraps both bounds of this_month for a TIMESTAMP column', () => {
+        const sql = r.renderWhere(
+          [{ column: 'd', operator: 'relative_date', value: { kind: 'this_month' } }],
+          undefined,
+          'p',
+          withType('TIMESTAMP')
+        ).sql;
+        expect(sql).toContain('DATE(`d`) >= DATE_TRUNC(CURRENT_DATE(), MONTH)');
+        expect(sql).toContain(
+          'DATE(`d`) < DATE_ADD(DATE_TRUNC(CURRENT_DATE(), MONTH), INTERVAL 1 MONTH)'
+        );
+      });
+
+      it('wraps both bounds of this_year for a TIMESTAMP column', () => {
+        const sql = r.renderWhere(
+          [{ column: 'd', operator: 'relative_date', value: { kind: 'this_year' } }],
+          undefined,
+          'p',
+          withType('TIMESTAMP')
+        ).sql;
+        expect(sql).toContain('DATE(`d`) >= DATE_TRUNC(CURRENT_DATE(), YEAR)');
+        expect(sql).toContain(
+          'DATE(`d`) < DATE_ADD(DATE_TRUNC(CURRENT_DATE(), YEAR), INTERVAL 1 YEAR)'
+        );
       });
 
       it('does NOT wrap a DATE column (compares directly)', () => {

@@ -2,6 +2,7 @@ import { BadRequestException } from '@nestjs/common';
 import { OutputControlsValidatorService } from './output-controls-validator.service';
 import { BigQueryFieldType } from '../data-storage-types/bigquery/enums/bigquery-field-type.enum';
 import { AthenaFieldType } from '../data-storage-types/athena/enums/athena-field-type.enum';
+import { RedshiftFieldType } from '../data-storage-types/redshift/enums/redshift-field-type.enum';
 import { DataStorageType } from '../data-storage-types/enums/data-storage-type.enum';
 
 describe('OutputControlsValidatorService', () => {
@@ -1563,6 +1564,31 @@ describe('OutputControlsValidatorService', () => {
       );
       expect(errors).toHaveLength(1);
       expect(errors[0].code).toBe('INVALID_OPERATOR_FOR_TYPE');
+    });
+  });
+
+  describe('validateFilters — Redshift type names', () => {
+    const ok = (type: string, operator: string, value?: unknown) =>
+      svc.validateFilters([{ column: 'c', operator, value } as never], new Map([['c', type]]));
+
+    it('treats Redshift TEXT/BPCHAR as string types (contains allowed)', () => {
+      expect(ok(RedshiftFieldType.TEXT, 'contains', 'x')).toEqual([]);
+      expect(ok(RedshiftFieldType.BPCHAR, 'contains', 'x')).toEqual([]);
+    });
+
+    it('treats DOUBLE PRECISION as a number type (between allowed)', () => {
+      expect(ok(RedshiftFieldType.DOUBLE_PRECISION, 'between', { from: 1, to: 2 })).toEqual([]);
+    });
+
+    it('treats TIMESTAMPTZ as a date type (relative_date allowed)', () => {
+      expect(ok(RedshiftFieldType.TIMESTAMPTZ, 'relative_date', { kind: 'today' })).toEqual([]);
+    });
+
+    it('treats TIMETZ as a time type (relative_date withheld)', () => {
+      expect(ok(RedshiftFieldType.TIMETZ, 'between', { from: '01:00', to: '02:00' })).toEqual([]);
+      expect(ok(RedshiftFieldType.TIMETZ, 'relative_date', { kind: 'today' })[0]?.code).toBe(
+        'INVALID_OPERATOR_FOR_TYPE'
+      );
     });
   });
 });

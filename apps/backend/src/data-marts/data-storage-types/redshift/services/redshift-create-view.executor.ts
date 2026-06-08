@@ -9,6 +9,7 @@ import { DataStorageCredentials } from '../../data-storage-credentials.type';
 import { RedshiftApiAdapterFactory } from '../adapters/redshift-api-adapter.factory';
 import { isRedshiftConfig } from '../../data-storage-config.guards';
 import { isRedshiftCredentials } from '../../data-storage-credentials.guards';
+import { escapeRedshiftIdentifier } from '../utils/redshift-identifier.utils';
 
 @Injectable()
 export class RedshiftCreateViewExecutor implements CreateViewExecutor {
@@ -32,7 +33,7 @@ export class RedshiftCreateViewExecutor implements CreateViewExecutor {
 
     const adapter = this.adapterFactory.create(credentials, config);
 
-    const fullyQualifiedName = this.escapeIdentifier(viewName);
+    const fullyQualifiedName = escapeRedshiftIdentifier(viewName);
 
     const parts = viewName.split('.').filter(p => p.trim().length > 0);
     if (parts.length >= 2) {
@@ -40,7 +41,7 @@ export class RedshiftCreateViewExecutor implements CreateViewExecutor {
       if (!schemaName || !schemaName.trim()) {
         throw new Error(`Invalid view name format: ${viewName}. Schema name cannot be empty.`);
       }
-      const createSchemaQuery = `CREATE SCHEMA IF NOT EXISTS "${schemaName}"`;
+      const createSchemaQuery = `CREATE SCHEMA IF NOT EXISTS ${escapeRedshiftIdentifier(schemaName)}`;
 
       const { statementId: schemaStatementId } = await adapter.executeQuery(createSchemaQuery);
       await adapter.waitForQueryToComplete(schemaStatementId);
@@ -51,12 +52,5 @@ export class RedshiftCreateViewExecutor implements CreateViewExecutor {
 
     await adapter.waitForQueryToComplete(statementId);
     return { fullyQualifiedName };
-  }
-
-  private escapeIdentifier(identifier: string): string {
-    return identifier
-      .split('.')
-      .map(part => (part.startsWith('"') && part.endsWith('"') ? part : `"${part}"`))
-      .join('.');
   }
 }

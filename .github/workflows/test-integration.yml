@@ -26,6 +26,8 @@ jobs:
             pattern: bigquery.integration
           - name: Athena
             pattern: athena.integration
+          - name: Redshift
+            pattern: redshift.integration
           - name: HTTP Data (Athena + BigQuery)
             pattern: http-data-real
           - name: Report read (Athena)
@@ -59,12 +61,16 @@ jobs:
           BQ_PROJECT_ID: ${{ secrets.BQ_PROJECT_ID }}
           BQ_DATASET: ${{ secrets.BQ_DATASET }}
           BQ_SERVICE_ACCOUNT_KEY: ${{ secrets.BQ_SERVICE_ACCOUNT_KEY }}
-          # Athena (also used by Redshift later)
+          # Athena
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           ATHENA_REGION: ${{ secrets.ATHENA_REGION }}
           ATHENA_OUTPUT_BUCKET: ${{ secrets.ATHENA_OUTPUT_BUCKET }}
           ATHENA_DATABASE: ${{ secrets.ATHENA_DATABASE }}
+          # Redshift Serverless (AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY shared with Athena)
+          REDSHIFT_REGION: ${{ secrets.REDSHIFT_REGION }}
+          REDSHIFT_WORKGROUP_NAME: ${{ secrets.REDSHIFT_WORKGROUP_NAME }}
+          REDSHIFT_DATABASE: ${{ secrets.REDSHIFT_DATABASE }}
           # Google Sheets
           GOOGLE_SHEETS_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SHEETS_SERVICE_ACCOUNT_JSON }}
           TEST_GOOGLE_SPREADSHEET_ID: ${{ secrets.TEST_GOOGLE_SPREADSHEET_ID }}

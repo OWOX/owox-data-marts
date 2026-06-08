@@ -158,14 +158,20 @@ export class AthenaClauseRenderer extends SqlClauseRenderer {
       case 'last_n_months':
         return `${col} >= date_add('month', -${preset.n}, current_date)`;
       case 'this_month':
-        return `${col} >= date_trunc('month', current_date)`;
+        return (
+          `${col} >= date_trunc('month', current_date)` +
+          ` AND ${col} < date_add('month', 1, date_trunc('month', current_date))`
+        );
       case 'last_month':
         return (
           `${col} >= date_trunc('month', date_add('month', -1, current_date))` +
           ` AND ${col} < date_trunc('month', current_date)`
         );
       case 'this_year':
-        return `${col} >= date_trunc('year', current_date)`;
+        return (
+          `${col} >= date_trunc('year', current_date)` +
+          ` AND ${col} < date_add('year', 1, date_trunc('year', current_date))`
+        );
     }
   }
 }

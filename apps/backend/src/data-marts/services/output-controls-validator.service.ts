@@ -20,7 +20,7 @@ export type ValidationError =
   | { code: 'FILTER_ALIAS_PATH_NOT_INCLUDED'; aliasPath: string }
   | { code: 'PRE_JOIN_FILTERS_REQUIRE_COLUMN_CONFIG' };
 
-const STRING_TYPES = new Set(['STRING', 'VARCHAR', 'CHAR']);
+const STRING_TYPES = new Set(['STRING', 'VARCHAR', 'CHAR', 'TEXT', 'BPCHAR']);
 const NUMBER_TYPES = new Set([
   'INTEGER',
   'BIGINT',
@@ -29,15 +29,22 @@ const NUMBER_TYPES = new Set([
   'FLOAT',
   'REAL',
   'DOUBLE',
+  'DOUBLE PRECISION',
   'NUMERIC',
   'BIGNUMERIC',
   'DECIMAL',
 ]);
-const DATE_TYPES = new Set(['DATE', 'DATETIME', 'TIMESTAMP', 'TIMESTAMP WITH TIME ZONE']);
+const DATE_TYPES = new Set([
+  'DATE',
+  'DATETIME',
+  'TIMESTAMP',
+  'TIMESTAMP WITH TIME ZONE',
+  'TIMESTAMPTZ',
+]);
 // Time-of-day types are kept separate from DATE/TIMESTAMP: relative_date renders
 // `current_date` / `date_add(..., current_date)` predicates that are meaningless
 // (and rejected by Trino) for a column with no date component.
-const TIME_TYPES = new Set(['TIME', 'TIME WITH TIME ZONE']);
+const TIME_TYPES = new Set(['TIME', 'TIME WITH TIME ZONE', 'TIMETZ']);
 const BOOL_TYPES = new Set(['BOOLEAN', 'BOOL']);
 
 // Valid for any column type, including ones not in the sets above.

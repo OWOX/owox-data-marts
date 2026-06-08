@@ -13,8 +13,8 @@ describe('OutputControlsCapabilityService', () => {
   it('returns false for Snowflake', () => {
     expect(svc.isSupported(DataStorageType.SNOWFLAKE)).toBe(false);
   });
-  it('returns false for Redshift', () => {
-    expect(svc.isSupported(DataStorageType.AWS_REDSHIFT)).toBe(false);
+  it('supports AWS_REDSHIFT', () => {
+    expect(svc.isSupported(DataStorageType.AWS_REDSHIFT)).toBe(true);
   });
   it('returns false for Databricks', () => {
     expect(svc.isSupported(DataStorageType.DATABRICKS)).toBe(false);

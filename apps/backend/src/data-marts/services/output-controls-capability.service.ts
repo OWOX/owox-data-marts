@@ -7,6 +7,7 @@ export class OutputControlsCapabilityService {
   private readonly supported: ReadonlySet<DataStorageType> = new Set([
     DataStorageType.GOOGLE_BIGQUERY,
     DataStorageType.AWS_ATHENA,
+    DataStorageType.AWS_REDSHIFT,
   ]);
 
   isSupported(type: DataStorageType): boolean {

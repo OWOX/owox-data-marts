@@ -110,8 +110,8 @@ function buildRule(args: { column: string; fieldType: string; state: EditorState
 
   if (op === 'relative_date') {
     if (state.relativeKind === 'last_n_days' || state.relativeKind === 'last_n_months') {
-      if (!Number.isInteger(state.relativeN) || state.relativeN <= 0) {
-        throw new Error('N must be a positive integer');
+      if (!Number.isInteger(state.relativeN) || state.relativeN <= 0 || state.relativeN > 3650) {
+        throw new Error('N must be between 1 and 3650');
       }
       return {
         column,
@@ -181,6 +181,13 @@ export function FilterValueEditor({
 
   const dateField = isDateType(fieldType);
   const timeField = isTimeType(fieldType);
+  const inputType = isNumberType(fieldType)
+    ? 'number'
+    : timeField
+      ? 'time'
+      : dateField
+        ? 'date'
+        : 'text';
 
   return (
     <>
@@ -210,15 +217,7 @@ export function FilterValueEditor({
           <Label>From / To</Label>
           <div className='flex gap-2'>
             <Input
-              type={
-                isNumberType(fieldType)
-                  ? 'number'
-                  : timeField
-                    ? 'time'
-                    : dateField
-                      ? 'date'
-                      : 'text'
-              }
+              type={inputType}
               value={state.betweenFrom}
               onChange={e => {
                 setState(s => ({ ...s, betweenFrom: e.target.value }));
@@ -226,15 +225,7 @@ export function FilterValueEditor({
               placeholder='from'
             />
             <Input
-              type={
-                isNumberType(fieldType)
-                  ? 'number'
-                  : timeField
-                    ? 'time'
-                    : dateField
-                      ? 'date'
-                      : 'text'
-              }
+              type={inputType}
               value={state.betweenTo}
               onChange={e => {
                 setState(s => ({ ...s, betweenTo: e.target.value }));
@@ -269,6 +260,7 @@ export function FilterValueEditor({
             <Input
               type='number'
               min={1}
+              max={3650}
               value={state.relativeN}
               onChange={e => {
                 setState(s => ({ ...s, relativeN: Number(e.target.value) || 0 }));
@@ -282,9 +274,7 @@ export function FilterValueEditor({
         <div className='space-y-1'>
           <Label>Value</Label>
           <Input
-            type={
-              isNumberType(fieldType) ? 'number' : timeField ? 'time' : dateField ? 'date' : 'text'
-            }
+            type={inputType}
             value={state.scalar}
             onChange={e => {
               setState(s => ({ ...s, scalar: e.target.value }));

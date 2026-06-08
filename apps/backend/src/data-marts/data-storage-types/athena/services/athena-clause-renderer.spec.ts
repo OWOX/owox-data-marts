@@ -197,7 +197,9 @@ describe('AthenaClauseRenderer', () => {
       expect(
         r.renderWhere([{ column: 'd', operator: 'relative_date', value: { kind: 'this_month' } }])
           .sql
-      ).toBe('\nWHERE "d" >= date_trunc(\'month\', current_date)');
+      ).toBe(
+        `\nWHERE "d" >= date_trunc('month', current_date) AND "d" < date_add('month', 1, date_trunc('month', current_date))`
+      );
     });
     it('last_month', () => {
       const sql = r.renderWhere([
@@ -210,7 +212,9 @@ describe('AthenaClauseRenderer', () => {
       expect(
         r.renderWhere([{ column: 'd', operator: 'relative_date', value: { kind: 'this_year' } }])
           .sql
-      ).toBe('\nWHERE "d" >= date_trunc(\'year\', current_date)');
+      ).toBe(
+        `\nWHERE "d" >= date_trunc('year', current_date) AND "d" < date_add('year', 1, date_trunc('year', current_date))`
+      );
     });
   });
 

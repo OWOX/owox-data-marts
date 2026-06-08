@@ -407,12 +407,14 @@ describeIfCredentials('Output controls — operator matrix & dates (real Athena)
     //   4  alphabet a%b    40  true   5 days ago
     //   5  ALPHA    a_b    50  false  today
     //   6  (empty)  x       0  true   200 days ago (last year)
+    //   7  future   f      70  true   ~13 months from now (next calendar year)
     //
     // Date expressions use date_add so the relative_date assertions hold
     // regardless of when the suite runs.
     // `created_ts` mirrors `created_at` but as a TIMESTAMP at 13:00 (NOT midnight)
     // for the "today" rows, so the relative_date half-open range is exercised on a
     // sub-day value — the case the old `= current_date` equality silently missed.
+    // Row 7 is future-dated to prove the this_year / this_month UPPER BOUND excludes it.
     const ctasQuery = `CREATE TABLE "${database}"."${MATRIX_TABLE_SUFFIX}"
 WITH (format = 'PARQUET', external_location = 's3://${config.outputBucket}/${MATRIX_S3_PREFIX}data/')
 AS SELECT * FROM (VALUES
@@ -421,7 +423,8 @@ AS SELECT * FROM (VALUES
   (3, 'gamma',    'c',    30,  true,  date_add('day', -400, current_date),   cast(date_add('day', -400, current_date) AS timestamp)),
   (4, 'alphabet', 'a%b',  40,  true,  date_add('day', -5, current_date),     cast(date_add('day', -5, current_date) AS timestamp)),
   (5, 'ALPHA',    'a_b',  50,  false, current_date,                          date_add('hour', 13, cast(current_date AS timestamp))),
-  (6, '',         'x',     0,  true,  date_add('day', -200, current_date),   cast(date_add('day', -200, current_date) AS timestamp))
+  (6, '',         'x',     0,  true,  date_add('day', -200, current_date),   cast(date_add('day', -200, current_date) AS timestamp)),
+  (7, 'future',   'f',    70,  true,  date_add('month', 13, current_date),   cast(date_add('month', 13, current_date) AS timestamp))
 ) AS t (id, name, tag, score, active, created_at, created_ts)`;
 
     const { queryExecutionId } = await adapter.executeQuery(
@@ -454,18 +457,18 @@ AS SELECT * FROM (VALUES
 
   // --- Scalar operators on score ---
 
-  it('neq: score != 20 → rows 1,3,4,5,6', async () => {
+  it('neq: score != 20 → rows 1,3,4,5,6,7', async () => {
     const rows = await runMatrix({
       filters: [{ column: 'score', operator: 'neq', value: 20 }],
     });
-    expect(ids(rows)).toEqual(['1', '3', '4', '5', '6']);
+    expect(ids(rows)).toEqual(['1', '3', '4', '5', '6', '7']);
   }, 60000);
 
-  it('gt: score > 30 → rows 4,5', async () => {
+  it('gt: score > 30 → rows 4,5,7', async () => {
     const rows = await runMatrix({
       filters: [{ column: 'score', operator: 'gt', value: 30 }],
     });
-    expect(ids(rows)).toEqual(['4', '5']);
+    expect(ids(rows)).toEqual(['4', '5', '7']);
   }, 60000);
 
   it('lt: score < 30 → rows 1,2,6', async () => {
@@ -475,11 +478,11 @@ AS SELECT * FROM (VALUES
     expect(ids(rows)).toEqual(['1', '2', '6']);
   }, 60000);
 
-  it('gte: score >= 30 → rows 3,4,5', async () => {
+  it('gte: score >= 30 → rows 3,4,5,7', async () => {
     const rows = await runMatrix({
       filters: [{ column: 'score', operator: 'gte', value: 30 }],
     });
-    expect(ids(rows)).toEqual(['3', '4', '5']);
+    expect(ids(rows)).toEqual(['3', '4', '5', '7']);
   }, 60000);
 
   it('lte: score <= 30 → rows 1,2,3,6', async () => {
@@ -491,11 +494,11 @@ AS SELECT * FROM (VALUES
 
   // --- Substring / affix operators on name ---
 
-  it('not_contains: name not contains "alpha" → rows 2,3,5,6 (case-sensitive; ALPHA excluded)', async () => {
+  it('not_contains: name not contains "alpha" → rows 2,3,5,6,7 (case-sensitive; ALPHA excluded; future row 7)', async () => {
     const rows = await runMatrix({
       filters: [{ column: 'name', operator: 'not_contains', value: 'alpha' }],
     });
-    expect(ids(rows)).toEqual(['2', '3', '5', '6']);
+    expect(ids(rows)).toEqual(['2', '3', '5', '6', '7']);
   }, 60000);
 
   it('starts_with: name starts with "alpha" → rows 1,4', async () => {
@@ -556,11 +559,11 @@ AS SELECT * FROM (VALUES
     expect(ids(rows)).toEqual(['1', '4']);
   }, 60000);
 
-  it('not_regex: name not matching "^alpha" → rows 2,3,5,6', async () => {
+  it('not_regex: name not matching "^alpha" → rows 2,3,5,6,7', async () => {
     const rows = await runMatrix({
       filters: [{ column: 'name', operator: 'not_regex', value: '^alpha' }],
     });
-    expect(ids(rows)).toEqual(['2', '3', '5', '6']);
+    expect(ids(rows)).toEqual(['2', '3', '5', '6', '7']);
   }, 60000);
 
   // --- No-value operators ---
@@ -572,11 +575,11 @@ AS SELECT * FROM (VALUES
     expect(ids(rows)).toEqual(['6']);
   }, 60000);
 
-  it('is_not_empty on name → rows 1,2,3,4,5', async () => {
+  it('is_not_empty on name → rows 1,2,3,4,5,7', async () => {
     const rows = await runMatrix({
       filters: [{ column: 'name', operator: 'is_not_empty' }],
     });
-    expect(ids(rows)).toEqual(['1', '2', '3', '4', '5']);
+    expect(ids(rows)).toEqual(['1', '2', '3', '4', '5', '7']);
   }, 60000);
 
   it('is_null on name → 0 rows (no NULLs in seed)', async () => {
@@ -586,18 +589,18 @@ AS SELECT * FROM (VALUES
     expect(rows).toHaveLength(0);
   }, 60000);
 
-  it('is_not_null on name → all 6 rows', async () => {
+  it('is_not_null on name → all 7 rows', async () => {
     const rows = await runMatrix({
       filters: [{ column: 'name', operator: 'is_not_null' }],
     });
-    expect(ids(rows)).toEqual(['1', '2', '3', '4', '5', '6']);
+    expect(ids(rows)).toEqual(['1', '2', '3', '4', '5', '6', '7']);
   }, 60000);
 
-  it('is_true on active → rows 1,3,4,6', async () => {
+  it('is_true on active → rows 1,3,4,6,7', async () => {
     const rows = await runMatrix({
       filters: [{ column: 'active', operator: 'is_true' }],
     });
-    expect(ids(rows)).toEqual(['1', '3', '4', '6']);
+    expect(ids(rows)).toEqual(['1', '3', '4', '6', '7']);
   }, 60000);
 
   it('is_false on active → rows 2,5', async () => {
@@ -642,34 +645,38 @@ AS SELECT * FROM (VALUES
 
   // The same TIMESTAMP column with a date-only value must run (CAST(? AS TIMESTAMP))
   // and behave as a range bound — proves the cast path on a real sub-day column.
-  it('date gte on a non-midnight TIMESTAMP column → rows 1,5 (today is the only date >= today)', async () => {
+  it('date gte on a non-midnight TIMESTAMP column → all seeded rows >= 2024-01-01', async () => {
     const rows = await runMatrix({
       filters: [{ column: 'created_ts', operator: 'gte', value: '2024-01-01' }],
       columnTypes: new Map([['created_ts', 'TIMESTAMP']]),
     });
-    // every seeded row is >= 2024-01-01, so this mainly proves CAST(? AS TIMESTAMP)
-    // parses and runs against a real TIMESTAMP column carrying a time component.
-    expect(ids(rows)).toEqual(['1', '2', '3', '4', '5', '6']);
+    // every seeded row (including future row 7) is >= 2024-01-01, so this mainly
+    // proves CAST(? AS TIMESTAMP) parses and runs against a real TIMESTAMP column
+    // carrying a time component.
+    expect(ids(rows)).toEqual(['1', '2', '3', '4', '5', '6', '7']);
   }, 60000);
 
-  it('relative_date last_n_days(7) on created_at → rows 1,4,5', async () => {
+  it('relative_date last_n_days(7) on created_at → rows 1,4,5,7 (no upper bound; future row 7 satisfies >= today-7)', async () => {
     const rows = await runMatrix({
       filters: [
         { column: 'created_at', operator: 'relative_date', value: { kind: 'last_n_days', n: 7 } },
       ],
     });
-    expect(ids(rows)).toEqual(['1', '4', '5']);
+    expect(ids(rows)).toEqual(['1', '4', '5', '7']);
   }, 60000);
 
-  it('relative_date this_year on created_at → rows 1,2,4,5', async () => {
+  it('relative_date this_year on created_at → rows 1,2,4,5 (excludes future row 7)', async () => {
     const rows = await runMatrix({
       filters: [{ column: 'created_at', operator: 'relative_date', value: { kind: 'this_year' } }],
     });
+    // Row 7 is ~13 months in the future (next calendar year) and must NOT appear.
+    expect(ids(rows)).not.toContain('7');
     expect(ids(rows)).toEqual(['1', '2', '4', '5']);
   }, 60000);
 
-  it('relative_date last_n_months(3) on created_at → rows 1,4,5 (row 2 at -40 days is within ~1.3 months)', async () => {
-    // -40 days is within 3 months → row 2 included too
+  it('relative_date last_n_months(3) on created_at → rows 1,2,4,5,7 (no upper bound; future row 7 satisfies >= today-3m)', async () => {
+    // -40 days is within 3 months → row 2 included too.
+    // Row 7 (+13 months) satisfies the lower-bound-only predicate and is included.
     const rows = await runMatrix({
       filters: [
         {
@@ -679,7 +686,7 @@ AS SELECT * FROM (VALUES
         },
       ],
     });
-    expect(ids(rows)).toEqual(['1', '2', '4', '5']);
+    expect(ids(rows)).toEqual(['1', '2', '4', '5', '7']);
   }, 60000);
 
   // --- Adversarial / safety ---

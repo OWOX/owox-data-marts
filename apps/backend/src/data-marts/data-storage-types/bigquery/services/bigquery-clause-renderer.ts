@@ -131,14 +131,20 @@ export class BigQueryClauseRenderer extends SqlClauseRenderer {
       case 'last_n_months':
         return `${lhs} >= DATE_SUB(CURRENT_DATE(), INTERVAL ${preset.n} MONTH)`;
       case 'this_month':
-        return `${lhs} >= DATE_TRUNC(CURRENT_DATE(), MONTH)`;
+        return (
+          `${lhs} >= DATE_TRUNC(CURRENT_DATE(), MONTH)` +
+          ` AND ${lhs} < DATE_ADD(DATE_TRUNC(CURRENT_DATE(), MONTH), INTERVAL 1 MONTH)`
+        );
       case 'last_month':
         return (
           `${lhs} >= DATE_TRUNC(DATE_SUB(CURRENT_DATE(), INTERVAL 1 MONTH), MONTH)` +
           ` AND ${lhs} < DATE_TRUNC(CURRENT_DATE(), MONTH)`
         );
       case 'this_year':
-        return `${lhs} >= DATE_TRUNC(CURRENT_DATE(), YEAR)`;
+        return (
+          `${lhs} >= DATE_TRUNC(CURRENT_DATE(), YEAR)` +
+          ` AND ${lhs} < DATE_ADD(DATE_TRUNC(CURRENT_DATE(), YEAR), INTERVAL 1 YEAR)`
+        );
     }
   }
 }

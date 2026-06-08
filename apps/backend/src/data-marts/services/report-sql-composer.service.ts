@@ -142,9 +142,10 @@ export class ReportSqlComposerService {
       case DataStorageType.GOOGLE_BIGQUERY:
         return { sql: inlineBigQueryNamedParams(composed.sql, composed.params) };
       default:
-        // Only Athena + BigQuery support output controls (so only they produce
-        // params); guard the contract for any future dialect added before its
-        // inliner exists, rather than emit SQL with unbound parameters.
+        // Redshift inlines all literals and produces no params (early-returned above).
+        // Athena (positional ?) and BigQuery (named @p) are the only current param
+        // producers. This guard catches a future dialect added with output controls
+        // before its inliner is wired, rather than emit SQL with unbound parameters.
         throw new BusinessViolationException(
           'Generating static SQL for a report with value filters is not supported for this storage type.',
           { storageType: report.dataMart.storage.type }
