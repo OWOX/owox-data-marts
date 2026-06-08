@@ -45,8 +45,10 @@ jobs:
           node-version: '22'
           cache: 'npm'
 
+      # No --ignore-scripts: native modules (better-sqlite3) and workspace
+      # postinstall hooks must run for the app-booting suites to work.
       - name: Install dependencies
-        run: npm ci --prefer-offline --no-audit --ignore-scripts --no-fund --loglevel error
+        run: npm ci --prefer-offline --no-audit --no-fund --loglevel error
 
       - name: Build all workspace packages
         run: npm run build --workspaces --if-present
