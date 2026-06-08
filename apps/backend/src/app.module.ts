@@ -16,6 +16,7 @@ import { validateConfig } from './config/env-validation.config';
 import { ClsModule } from 'nestjs-cls';
 import { DataSource } from 'typeorm';
 import { addTransactionalDataSource } from 'typeorm-transactional';
+import { serializeSqliteTransactions } from './config/sqlite-transaction-serializer';
 
 @Module({
   imports: [
@@ -40,7 +41,7 @@ import { addTransactionalDataSource } from 'typeorm-transactional';
         }
         const dataSource = new DataSource(options);
         await dataSource.initialize();
-        return addTransactionalDataSource(dataSource);
+        return serializeSqliteTransactions(addTransactionalDataSource(dataSource));
       },
     }),
     ScheduleModule.forRoot(),
