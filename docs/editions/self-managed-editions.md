@@ -49,6 +49,38 @@ Legend:
 | [**Support Level**](https://support.owox.com/hc/en-us/articles/115000216754-Support-Options) | _Community_                                                  | _Agency_                                                  | _Enterprise_                                     |
 | **How to start**                                                                             | [Install on your desktop](../getting-started/quick-start.md) | [Upgrade Community Edition](https://www.owox.com/pricing) | [Contact our team](https://www.owox.com/pricing) |
 
+## Anonymous Usage Analytics
+
+> Note: This is distinct from the **Telemetry** feature listed above, which gives Enterprise
+> users insight into their own data-usage patterns. This section is about anonymous product
+> analytics that OWOX collects to understand CLI usage.
+
+When you run `owox serve`, the CLI sends a single anonymous event so we can understand how many
+people run OWOX Data Marts. This helps us prioritize what to build.
+
+**What is collected** (anonymous, no personal data):
+
+- A random anonymous identifier (a UUID, not derived from your machine or network).
+- OWOX CLI version, Node.js version, OS platform and architecture.
+- Whether the process runs in Docker, the configured identity-provider type, and whether the
+  web interface is enabled.
+
+**What is never collected:** hostnames, file paths, email addresses, environment variable
+values, or IP-derived identity.
+
+The anonymous identifier is stored locally in your OS application-data directory (alongside the
+OWOX SQLite data).
+
+**How to opt out:** set either environment variable before starting the server:
+
+```env
+OWOX_TELEMETRY_DISABLED=1
+# or the cross-tool standard:
+DO_NOT_TRACK=1
+```
+
+With telemetry disabled, nothing is collected, stored, or sent.
+
 _This page will be updated regularly as we develop more features and refine editions._
 
 ## 📝 Feature Descriptions

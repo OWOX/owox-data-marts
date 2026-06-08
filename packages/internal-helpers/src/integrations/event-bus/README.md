@@ -28,6 +28,7 @@ Examples:
 ## Supported transports
 
 - `logger` — Writes structured event messages to the application logger.
+- `posthog` — Sends `TelemetryEvent` instances to the PostHog capture API. No-op for non-telemetry events.
 
 Additional transports can be added in `transports/` and wired in `createEventBusFromEnv`.
 

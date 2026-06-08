@@ -42,6 +42,11 @@ jobs:
       - name: Update wildcard version for internal packages
         run: node tools/update-package-versions-for-publishing.mjs
 
+      - name: Inject PostHog telemetry key
+        run: node packages/internal-helpers/scripts/inject-posthog-key.mjs
+        env:
+          POSTHOG_API_KEY: ${{ secrets.POSTHOG_API_KEY }}
+
       - name: Build publishable packages
         run: npm run build --workspace owox --workspace @owox/ctl
 
