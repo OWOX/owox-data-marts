@@ -187,7 +187,16 @@ export function OverviewTab() {
                 </div>
               }
             />
-            <DescriptionCard label='Status' value={<ProjectStatusBadge status={projectStatus} />} />
+            <DescriptionCard
+              label='Status'
+              value={
+                callState === RequestStatus.LOADED ? (
+                  <ProjectStatusBadge status={projectStatus} />
+                ) : (
+                  '—'
+                )
+              }
+            />
           </div>
         </CollapsibleCardContent>
         <CollapsibleCardFooter></CollapsibleCardFooter>

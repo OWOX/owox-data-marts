@@ -17,20 +17,7 @@ const currentUser = vi.hoisted(() => ({
 }));
 
 const projectsContext = vi.hoisted(() => ({
-  value: {
-    projects: [
-      {
-        id: 'blocked-project',
-        title: 'Blocked Project',
-        status: 'blocked',
-      },
-    ],
-    callState: 'loaded',
-    error: null,
-    isLoading: false,
-    loadProjects: vi.fn(),
-    reset: vi.fn(),
-  } as unknown as ProjectsContextType,
+  value: {} as ProjectsContextType,
 }));
 
 vi.mock('../../features/idp/hooks/useAuthState', () => ({
@@ -99,6 +86,7 @@ describe('OverviewTab project status', () => {
     renderOverview();
 
     expect(loadProjects).toHaveBeenCalledTimes(1);
+    expect(screen.queryByText('Unknown')).not.toBeInTheDocument();
   });
 });
 
