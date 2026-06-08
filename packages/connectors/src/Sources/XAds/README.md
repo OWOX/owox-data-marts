@@ -1,29 +1,46 @@
-# X Ads (former Twitter Ads) Source
+# X Ads Source
 
-The **X Ads Source** allows you to seamlessly export raw data from X Ads. Use this data for custom analysis, reporting, or to power your marketing dashboards.
+Export raw data from X Ads (formerly Twitter Ads) into your data warehouse for custom analysis, reporting, and marketing dashboards.
+
+## Available Data
+
+| Endpoint | Description |
+|----------|-------------|
+| Accounts | Advertising accounts — name, business, country, timezone, and approval status |
+| Campaigns | Campaigns — status, budget optimization, daily and total budget, and currency |
+| Line Items | Ad groups within campaigns — bid strategy, goal, budget, and schedule |
+| Promoted Tweets | Tweets running as ads — status, approval, and links to their line items |
+| Tweets | Original tweets used as ad creatives — text, engagement counts, and card URI |
+| Ad Performance | Daily performance by placement — impressions, clicks, spend, and engagements |
+| Ad Performance by Country | Daily performance broken down by country — impressions, clicks, and spend |
+| Targeting Locations | Reference table of location IDs with names and country codes |
+| Cards | Website and app cards — type, URI, and components |
+| All Cards | All card types with full creative details — title, destination URL, and call to action |
+
+## Prerequisites
+
+Before setting up this connector, make sure you have:
+
+- An active X Ads account with at least one advertising campaign
+- Standard Ads API access approved by X (requires a separate request — see [Credentials Guide](CREDENTIALS.md))
+- An OWOX Data Marts account with at least one storage configured
 
 ## Getting Started
 
-Ready to get up and running? Follow our [**Getting Started Guide**](GETTING_STARTED.md) for a simple, step-by-step walkthrough.
+Follow the [**Getting Started Guide**](GETTING_STARTED.md) for step-by-step setup instructions.
 
-## Documentation
+To obtain your API credentials, see the [**Credentials Guide**](CREDENTIALS.md).
 
-Here's everything you need to know about the X Ads Connector:
+## Support
 
-- [**Getting Started**](GETTING_STARTED.md) – quick setup instructions.
-- [**README**](README.md) – general overview and usage.
-- [**Credentials Guide**](CREDENTIALS.md) – how to obtain and configure required access tokens.
-- [**Q&A Section**](https://github.com/OWOX/owox-data-marts/discussions/categories/q-a) – answers to common questions and issues.
-
-## Support & Feedback
-
-- Having issues? Check the [**Q&A Section**](https://github.com/OWOX/owox-data-marts/discussions/categories/q-a) first.
+- Join the [**Slack Community**](https://join.slack.com/t/owox-data-marts/shared_invite/zt-3tnigd08g-f2uU_7oNNwzCyTB2tITnqA) to ask questions and connect with other users
+- Check the [**Q&A section**](https://github.com/OWOX/owox-data-marts/discussions/categories/q-a) for answers to common questions
 - Found a bug? [**Open an issue**](https://github.com/OWOX/owox-data-marts/issues)
-- Want to suggest a feature or a new integration? [**Submit a request**](https://github.com/OWOX/owox-data-marts/discussions)
+- Have a feature request or new integration idea? [**Start a discussion**](https://github.com/OWOX/owox-data-marts/discussions)
 
 ## Other Data Sources
 
-Looking for other data sources? Check out our [full list of data sources](../../../../../README.md#data-sources).
+Looking for other data sources? See the [full list of data sources](../../../../../README.md#data-sources).
 
 ## License
 
