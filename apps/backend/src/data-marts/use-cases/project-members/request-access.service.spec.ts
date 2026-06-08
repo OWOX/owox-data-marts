@@ -65,7 +65,7 @@ describe('User provisioning request access use cases', () => {
     );
   });
 
-  it('creates a separate project through extension-v2 legacy integration', async () => {
+  it('creates a separate project through OWOX Data Marts legacy integration', async () => {
     const result = { projectId: 'created-project', projectTitle: 'Created Project' };
     idpProjectionsFacade.createNewProject.mockResolvedValue(result);
 
@@ -74,6 +74,6 @@ describe('User provisioning request access use cases', () => {
     );
 
     await expect(service.run('user-1')).resolves.toBe(result);
-    expect(idpProjectionsFacade.createNewProject).toHaveBeenCalledWith('user-1', 'extension-v2');
+    expect(idpProjectionsFacade.createNewProject).toHaveBeenCalledWith('user-1', 'owox-data-marts');
   });
 });
