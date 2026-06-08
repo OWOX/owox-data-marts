@@ -67,9 +67,11 @@ The form asks for your **Developer App ID**. To find it:
 
 ![X Developer Console app detail page showing the App ID highlighted next to the app name](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/cf0286b1-4731-4387-376a-df8a877ae600/public)
 
-The form also asks you to describe how you'll use the API. Adapt this example:
+The form also asks you to describe how you'll use the API. X grants access based on this description, so name the data areas the connector needs: **Analytics, Campaign Management, and Creatives**. These belong to Standard Access. Conversion Only access covers conversion tracking alone and won't work with this connector.
 
-> *"We are advertisers connecting to the X Ads API to access campaign data for analysis and optimization. The data will be pulled via the OWOX Data Marts platform to support strategic marketing decisions."*
+Adapt this example:
+
+> *"We are advertisers connecting to the X Ads API to access campaign analytics, campaign management, and ad creative data for reporting and optimization. The data will be imported via the OWOX Data Marts platform to support strategic marketing decisions."*
 
 ![Ads API Access Form with fields for company info, contact details, Developer App ID, and API purpose description](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/daaf25b4-209d-4ee6-04fd-2e513164d600/public)
 
@@ -173,6 +175,8 @@ Open the URL in your browser. An authorization page appears. Click **Authorize a
 ![X authorization page in the browser showing the Authorize app button circled, with the oauth_token visible in the URL bar](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/9c0193cf-c076-480c-6732-b883cbd6a700/public)
 
 After you click Authorize app, X shows a page with a **numeric PIN**. Copy the PIN and save it — you'll enter it in Step 7.
+
+> ℹ️ If X redirects you to a website instead of showing a PIN, look at the URL bar. Copy the `oauth_verifier` value from it — that value serves the same purpose as the PIN. Use it as the **Verifier** in Step 7.
 
 **Possible errors:**
 

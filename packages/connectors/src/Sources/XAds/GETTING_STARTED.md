@@ -100,7 +100,9 @@ The Consumer Key or Consumer Secret is wrong. Re-enter them from [Step 1](CREDEN
 
 **`[UNKNOWN] HttpRequestException: Invalid or expired token.`**
 
-The Access Token or Access Token Secret is wrong or was regenerated after setup. Return to [Step 4](CREDENTIALS.md#step-4-generate-access-token-and-token-secret) of the Credentials Guide to get fresh tokens, then update them in the **Data Setup** tab.
+The Access Token or Access Token Secret in the connector is wrong, revoked, or does not match the other credentials. Redo [Steps 5–7](CREDENTIALS.md#step-5-get-a-temporary-oauth-token) of the Credentials Guide and use the final `oauth_token` and `oauth_token_secret` from Step 7.
+
+Update both values in the **Data Setup** tab. Use the permanent token pair from Step 7, not the temporary token pair from Step 5.
 
 **`[UNKNOWN] HttpRequestException: Account was not found`**
 
