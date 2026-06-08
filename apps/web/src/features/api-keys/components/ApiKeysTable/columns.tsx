@@ -6,21 +6,12 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@owox/ui/components/dropdown-menu';
-import { Tooltip, TooltipContent, TooltipTrigger } from '@owox/ui/components/tooltip';
 import { Copy, MoreHorizontal, Pencil, Trash2 } from 'lucide-react';
 import RelativeTime from '@owox/ui/components/common/relative-time';
-import { formatDateOnly } from '../../../../utils';
 import { SortableHeader, ToggleColumnsHeader } from '../../../../shared/components/Table';
 import type { ProjectMemberApiKey } from '../../types';
 import toast from 'react-hot-toast';
-import {
-  API_KEY_EXPIRED_CLASS_NAME,
-  API_KEY_EXPIRED_NOTICE,
-  API_KEY_EXPIRING_SOON_CLASS_NAME,
-  API_KEY_EXPIRING_SOON_NOTICE,
-  isApiKeyExpired,
-  isApiKeyExpiringSoon,
-} from '../../utils';
+import { ApiKeyExpirationValue } from '../ApiKeyExpirationValue';
 
 interface ApiKeysColumnsProps {
   onEditName: (key: ProjectMemberApiKey) => void;
@@ -33,14 +24,14 @@ export const getApiKeysColumns = ({
 }: ApiKeysColumnsProps): ColumnDef<ProjectMemberApiKey>[] => [
   {
     accessorKey: 'name',
-    size: 200,
+    size: 190,
     meta: { title: 'Name' },
     header: ({ column }) => <SortableHeader column={column}>Name</SortableHeader>,
     cell: ({ row }) => <span className='font-medium'>{row.original.name}</span>,
   },
   {
     accessorKey: 'apiKeyId',
-    size: 260,
+    size: 240,
     meta: { title: 'API Key ID' },
     header: ({ column }) => <SortableHeader column={column}>API Key ID</SortableHeader>,
     cell: ({ row }) => (
@@ -66,40 +57,11 @@ export const getApiKeysColumns = ({
     id: 'expiresAt',
     accessorFn: row =>
       row.expiresAt ? new Date(row.expiresAt).getTime() : Number.POSITIVE_INFINITY,
-    size: 140,
+    size: 200,
     meta: { title: 'Expires' },
     sortingFn: 'basic',
     header: ({ column }) => <SortableHeader column={column}>Expires</SortableHeader>,
-    cell: ({ row }) => {
-      const { expiresAt } = row.original;
-      if (!expiresAt) return <span className='text-muted-foreground'>Never</span>;
-      const dateLabel = formatDateOnly(expiresAt, { timeZone: 'UTC' });
-      if (isApiKeyExpired(expiresAt)) {
-        return (
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <span className={API_KEY_EXPIRED_CLASS_NAME}>{dateLabel}</span>
-            </TooltipTrigger>
-            <TooltipContent side='top' align='start'>
-              {API_KEY_EXPIRED_NOTICE}
-            </TooltipContent>
-          </Tooltip>
-        );
-      }
-
-      if (!isApiKeyExpiringSoon(expiresAt)) return <span>{dateLabel}</span>;
-
-      return (
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <span className={API_KEY_EXPIRING_SOON_CLASS_NAME}>{dateLabel}</span>
-          </TooltipTrigger>
-          <TooltipContent side='top' align='start'>
-            {API_KEY_EXPIRING_SOON_NOTICE}
-          </TooltipContent>
-        </Tooltip>
-      );
-    },
+    cell: ({ row }) => <ApiKeyExpirationValue expiresAt={row.original.expiresAt} />,
   },
   {
     accessorKey: 'createdAt',

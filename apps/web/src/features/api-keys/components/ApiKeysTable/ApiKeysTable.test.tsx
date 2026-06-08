@@ -121,8 +121,18 @@ describe('ApiKeysTable', () => {
     );
 
     const expirationDate = screen.getByText(formatDateOnly(expiresAt, { timeZone: 'UTC' }));
+    const expiresCell = expirationDate.closest('td');
+    expect(expiresCell).not.toBeNull();
+    const statusBadge = within(expiresCell as HTMLElement).getByText('Expires soon');
 
-    expect(expirationDate).toHaveClass('font-medium', 'text-amber-600');
+    expect(expirationDate).toHaveClass('text-foreground');
+    expect(expirationDate).not.toHaveClass('text-amber-600');
+    expect(expirationDate).not.toHaveClass('font-medium');
+    expect(statusBadge).toHaveAttribute('data-slot', 'badge');
+    expect(statusBadge).toHaveClass('text-[11px]', 'text-amber-700');
+    expect(
+      expirationDate.compareDocumentPosition(statusBadge) & Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy();
     expect(screen.getByRole('tooltip')).toHaveTextContent('This API key expires within 30 days.');
   });
 
@@ -140,8 +150,18 @@ describe('ApiKeysTable', () => {
     );
 
     const expirationDate = screen.getByText(formatDateOnly(expiresAt, { timeZone: 'UTC' }));
+    const expiresCell = expirationDate.closest('td');
+    expect(expiresCell).not.toBeNull();
+    const statusBadge = within(expiresCell as HTMLElement).getByText('Expired');
 
-    expect(expirationDate).toHaveClass('font-medium', 'text-destructive');
+    expect(expirationDate).toHaveClass('text-foreground');
+    expect(expirationDate).not.toHaveClass('text-destructive');
+    expect(expirationDate).not.toHaveClass('font-medium');
+    expect(statusBadge).toHaveAttribute('data-slot', 'badge');
+    expect(statusBadge).toHaveClass('text-[11px]', 'text-destructive');
+    expect(
+      expirationDate.compareDocumentPosition(statusBadge) & Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy();
     expect(screen.getByRole('tooltip')).toHaveTextContent('This API key has expired.');
     expect(container.querySelector('svg.lucide-circle-alert')).toBeNull();
   });
