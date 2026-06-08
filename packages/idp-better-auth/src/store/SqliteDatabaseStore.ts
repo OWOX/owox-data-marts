@@ -172,6 +172,17 @@ export class SqliteDatabaseStore implements DatabaseStore {
     }
   }
 
+  async revokeOtherUserSessions(userId: string, exceptSessionToken: string): Promise<void> {
+    await this.connect();
+    try {
+      this.getDb()
+        .prepare('DELETE FROM session WHERE userId = ? AND token != ?')
+        .run(userId, exceptSessionToken);
+    } catch {
+      // Non-fatal: sessions might not exist
+    }
+  }
+
   async updateUserName(userId: string, name: string): Promise<void> {
     await this.connect();
     const stmt = this.getDb().prepare('UPDATE user SET name = ? WHERE id = ?');

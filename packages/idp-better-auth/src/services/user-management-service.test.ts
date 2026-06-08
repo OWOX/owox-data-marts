@@ -136,3 +136,83 @@ describe('UserManagementService — inviteAndCreateStub', () => {
     );
   });
 });
+
+describe('UserManagementService — resetUserPassword (session revocation)', () => {
+  let store: jest.Mocked<DatabaseStore>;
+  let magicLinkService: jest.Mocked<MagicLinkService>;
+  let cryptoService: jest.Mocked<CryptoService>;
+
+  const ADMIN_ID = 'admin-1';
+  const TARGET_ID = 'target-1';
+  const CURRENT_TOKEN = 'current-session-token';
+
+  beforeEach(() => {
+    store = {
+      getUserRole: jest.fn<DatabaseStore['getUserRole']>(),
+      getUserById: jest.fn<DatabaseStore['getUserById']>(),
+      revokeUserSessions: jest.fn<DatabaseStore['revokeUserSessions']>(),
+      revokeOtherUserSessions: jest.fn<DatabaseStore['revokeOtherUserSessions']>(),
+      clearUserPassword: jest.fn<DatabaseStore['clearUserPassword']>(),
+    } as unknown as jest.Mocked<DatabaseStore>;
+    magicLinkService = {
+      generateMagicLink: jest.fn<MagicLinkService['generateMagicLink']>(),
+    } as unknown as jest.Mocked<MagicLinkService>;
+    cryptoService = {} as unknown as jest.Mocked<CryptoService>;
+
+    store.getUserById.mockResolvedValue({ id: TARGET_ID, email: 'target@x.io' } as never);
+    magicLinkService.generateMagicLink.mockResolvedValue('https://app/magic/tok');
+  });
+
+  function build() {
+    const auth = {
+      options: { baseURL: 'http://localhost:3000' },
+      handler: jest.fn(),
+    } as unknown as Parameters<typeof UserManagementService>[0];
+    return new UserManagementService(auth, magicLinkService, cryptoService, store);
+  }
+
+  it('admin resetting ANOTHER user revokes ALL of that user’s sessions', async () => {
+    // store.getUserRole is called as (orgId, userId) — branch on the userId arg.
+    store.getUserRole.mockImplementation(async (_orgId, userId) =>
+      userId === ADMIN_ID ? 'admin' : 'editor'
+    );
+
+    const service = build();
+    await service.resetUserPassword(TARGET_ID, ADMIN_ID, CURRENT_TOKEN);
+
+    expect(store.revokeUserSessions).toHaveBeenCalledWith(TARGET_ID);
+    expect(store.revokeOtherUserSessions).not.toHaveBeenCalled();
+    expect(store.clearUserPassword).toHaveBeenCalledWith(TARGET_ID);
+  });
+
+  it('self-reset revokes OTHER sessions while preserving the current session', async () => {
+    store.getUserRole.mockResolvedValue('admin');
+
+    const service = build();
+    await service.resetUserPassword(ADMIN_ID, ADMIN_ID, CURRENT_TOKEN);
+
+    expect(store.revokeOtherUserSessions).toHaveBeenCalledWith(ADMIN_ID, CURRENT_TOKEN);
+    expect(store.revokeUserSessions).not.toHaveBeenCalled();
+  });
+
+  it('self-reset without a known current session falls back to revoking all sessions', async () => {
+    store.getUserRole.mockResolvedValue('admin');
+
+    const service = build();
+    await service.resetUserPassword(ADMIN_ID, ADMIN_ID);
+
+    expect(store.revokeUserSessions).toHaveBeenCalledWith(ADMIN_ID);
+    expect(store.revokeOtherUserSessions).not.toHaveBeenCalled();
+  });
+
+  it('rejects when the acting user is not an admin', async () => {
+    store.getUserRole.mockResolvedValue('editor');
+
+    const service = build();
+    await expect(service.resetUserPassword(TARGET_ID, ADMIN_ID, CURRENT_TOKEN)).rejects.toThrow(
+      /administrators/
+    );
+    expect(store.revokeUserSessions).not.toHaveBeenCalled();
+    expect(store.revokeOtherUserSessions).not.toHaveBeenCalled();
+  });
+});
