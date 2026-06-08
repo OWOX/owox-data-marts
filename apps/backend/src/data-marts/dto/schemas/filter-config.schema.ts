@@ -1,7 +1,10 @@
 import { z } from 'zod';
 import { ALIAS_PATH_REGEX } from './blended-fields-config.schema';
 
-const ScalarValueSchema = z.union([z.string(), z.number(), z.boolean()]);
+// .finite() rejects Infinity/-Infinity/NaN: a numeric filter value reaches the SQL
+// either as a bound param or inlined as a literal, and `String(Infinity)` would render
+// `> Infinity` (invalid SQL), not a safe rejection.
+const ScalarValueSchema = z.union([z.string(), z.number().finite(), z.boolean()]);
 
 const RelativeDatePresetSchema = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('today') }),

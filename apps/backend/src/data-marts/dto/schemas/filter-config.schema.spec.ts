@@ -61,6 +61,23 @@ describe('FilterConfigSchema', () => {
       ])
     ).toThrow();
   });
+
+  it('rejects a non-finite scalar number value (Infinity → invalid SQL when inlined)', () => {
+    expect(() =>
+      FilterConfigSchema.parse([{ column: 'amount', operator: 'gt', value: Infinity }])
+    ).toThrow();
+    expect(() =>
+      FilterConfigSchema.parse([{ column: 'amount', operator: 'eq', value: -Infinity }])
+    ).toThrow();
+  });
+
+  it('rejects a non-finite bound in a between filter', () => {
+    expect(() =>
+      FilterConfigSchema.parse([
+        { column: 'amount', operator: 'between', value: { from: 1, to: Infinity } },
+      ])
+    ).toThrow();
+  });
 });
 
 describe('FilterRuleSchema placement / aliasPath', () => {

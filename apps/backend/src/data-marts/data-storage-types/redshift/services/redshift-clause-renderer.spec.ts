@@ -217,6 +217,13 @@ describe('RedshiftClauseRenderer', () => {
         '\nWHERE "n" = 0'
       );
     });
+    // The schema rejects non-finite numbers, but the renderer inlines them, so it
+    // re-guards: String(Infinity) would emit a bare `Infinity` token, not safe SQL.
+    it('throws on a non-finite number that bypassed the schema', () => {
+      expect(() => r.renderWhere([{ column: 'amount', operator: 'gt', value: Infinity }])).toThrow(
+        'Non-finite numeric filter value'
+      );
+    });
     it('renders an empty string value as two adjacent single quotes', () => {
       expect(r.renderWhere([{ column: 'a', operator: 'eq', value: '' }]).sql).toBe(
         `\nWHERE "a" = ''`

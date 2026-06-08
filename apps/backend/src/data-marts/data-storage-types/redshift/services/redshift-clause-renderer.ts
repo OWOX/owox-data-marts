@@ -12,7 +12,14 @@ import { escapeRedshiftIdentifier } from '../utils/redshift-identifier.utils';
  */
 function formatRedshiftLiteral(value: string | number | boolean | null): string {
   if (value === null) return 'NULL';
-  if (typeof value === 'number') return String(value);
+  if (typeof value === 'number') {
+    // Inlined directly, so re-assert finiteness even though the schema validates it:
+    // String(Infinity) would emit `Infinity` as a bare SQL token, not a safe rejection.
+    if (!Number.isFinite(value)) {
+      throw new Error(`Non-finite numeric filter value: ${String(value)}`);
+    }
+    return String(value);
+  }
   if (typeof value === 'boolean') return value ? 'TRUE' : 'FALSE';
   return `'${value.split("'").join("''")}'`;
 }
