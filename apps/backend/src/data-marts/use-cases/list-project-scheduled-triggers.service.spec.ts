@@ -3,6 +3,7 @@ import type { ScheduledTriggerDto } from '../dto/domain/scheduled-trigger.dto';
 import { RoleScope } from '../enums/role-scope.enum';
 import { ScheduledReportRunConfigType } from '../scheduled-trigger-types/scheduled-report-run/schemas/scheduled-report-run-config.schema';
 import { ScheduledTriggerType } from '../scheduled-trigger-types/enums/scheduled-trigger-type.enum';
+import { Action } from '../services/access-decision';
 import { ListProjectScheduledTriggersService } from './list-project-scheduled-triggers.service';
 
 describe('ListProjectScheduledTriggersService', () => {
@@ -58,6 +59,13 @@ describe('ListProjectScheduledTriggersService', () => {
         (roles: string[]) => roles.includes('editor') || roles.includes('admin')
       ),
     };
+    const accessDecisionService = {
+      canAccessDmTrigger: jest
+        .fn()
+        .mockImplementation((_userId, roles: string[]) =>
+          Promise.resolve(roles.includes('editor') || roles.includes('admin'))
+        ),
+    };
 
     const service = new ListProjectScheduledTriggersService(
       scheduledTriggerService as never,
@@ -67,7 +75,8 @@ describe('ListProjectScheduledTriggersService', () => {
       reportService as never,
       reportMapper as never,
       connectorSecretService as never,
-      reportAccessService as never
+      reportAccessService as never,
+      accessDecisionService as never
     );
 
     return {
@@ -80,6 +89,7 @@ describe('ListProjectScheduledTriggersService', () => {
       reportMapper,
       connectorSecretService,
       reportAccessService,
+      accessDecisionService,
       reportResponse,
     };
   };
@@ -194,8 +204,9 @@ describe('ListProjectScheduledTriggersService', () => {
     );
   });
 
-  it('marks project connector-run triggers manageable only for technical users', async () => {
-    const { service, scheduledTriggerService, reportAccessService } = createService();
+  it('uses Data Mart trigger management access for project connector-run trigger capabilities', async () => {
+    const { service, scheduledTriggerService, reportAccessService, accessDecisionService } =
+      createService();
     scheduledTriggerService.listVisibleByProject.mockResolvedValueOnce([
       {
         ...trigger,
@@ -214,6 +225,50 @@ describe('ListProjectScheduledTriggersService', () => {
     );
 
     expect(reportAccessService.canOperate).not.toHaveBeenCalled();
+    expect(accessDecisionService.canAccessDmTrigger).toHaveBeenCalledWith(
+      'user-1',
+      ['viewer'],
+      'trigger-2',
+      'dm-2',
+      Action.MANAGE_TRIGGERS,
+      'project-1'
+    );
+    expect(result[0]).toEqual(
+      expect.objectContaining({
+        canEdit: false,
+        canDelete: false,
+      })
+    );
+  });
+
+  it('does not mark connector-run triggers manageable when Data Mart trigger management is denied', async () => {
+    const { service, scheduledTriggerService, accessDecisionService } = createService();
+    accessDecisionService.canAccessDmTrigger.mockResolvedValueOnce(false);
+    scheduledTriggerService.listVisibleByProject.mockResolvedValueOnce([
+      {
+        ...trigger,
+        id: 'trigger-2',
+        type: ScheduledTriggerType.CONNECTOR_RUN,
+        triggerConfig: undefined,
+        dataMart: {
+          id: 'dm-2',
+          title: 'Connector data mart',
+        },
+      },
+    ]);
+
+    const result = await service.run(
+      new ListProjectScheduledTriggersCommand('project-1', 20, 0, 'user-1', ['editor'])
+    );
+
+    expect(accessDecisionService.canAccessDmTrigger).toHaveBeenCalledWith(
+      'user-1',
+      ['editor'],
+      'trigger-2',
+      'dm-2',
+      Action.MANAGE_TRIGGERS,
+      'project-1'
+    );
     expect(result[0]).toEqual(
       expect.objectContaining({
         canEdit: false,

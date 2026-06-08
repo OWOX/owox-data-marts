@@ -8,6 +8,7 @@ import { ReportAccessService } from '../services/report-access.service';
 import { ReportService } from '../services/report.service';
 import { ScheduledTriggerType } from '../scheduled-trigger-types/enums/scheduled-trigger-type.enum';
 import { isScheduledReportRunConfig } from '../scheduled-trigger-types/scheduled-trigger-config.guards';
+import { AccessDecisionService, Action } from '../services/access-decision';
 
 @Injectable()
 export class DeleteScheduledTriggerService {
@@ -16,7 +17,8 @@ export class DeleteScheduledTriggerService {
     private readonly triggerRepository: Repository<DataMartScheduledTrigger>,
     private readonly scheduledTriggerService: ScheduledTriggerService,
     private readonly reportAccessService: ReportAccessService,
-    private readonly reportService: ReportService
+    private readonly reportService: ReportService,
+    private readonly accessDecisionService: AccessDecisionService
   ) {}
 
   async run(command: DeleteScheduledTriggerCommand): Promise<void> {
@@ -59,8 +61,19 @@ export class DeleteScheduledTriggerService {
         command.projectId
       );
     } else {
-      if (!this.reportAccessService.isTechnicalUser(command.roles)) {
-        throw new ForbiddenException('Only Technical Users can delete connector run triggers.');
+      const canManageTriggers = await this.accessDecisionService.canAccessDmTrigger(
+        command.userId,
+        command.roles,
+        trigger.id,
+        command.dataMartId,
+        Action.MANAGE_TRIGGERS,
+        command.projectId
+      );
+
+      if (!canManageTriggers) {
+        throw new ForbiddenException(
+          'You do not have permission to manage triggers for this DataMart.'
+        );
       }
     }
   }

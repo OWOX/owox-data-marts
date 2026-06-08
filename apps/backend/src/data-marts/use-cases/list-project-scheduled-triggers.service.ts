@@ -15,6 +15,7 @@ import { ReportAccessService } from '../services/report-access.service';
 import { ReportService } from '../services/report.service';
 import { ScheduledTriggerService } from '../services/scheduled-trigger.service';
 import { UserProjectionsFetcherService } from '../services/user-projections-fetcher.service';
+import { AccessDecisionService, Action } from '../services/access-decision';
 
 const ScheduledConnectorRunConfigType = 'scheduled-connector-run-config';
 
@@ -28,7 +29,8 @@ export class ListProjectScheduledTriggersService {
     private readonly reportService: ReportService,
     private readonly reportMapper: ReportMapper,
     private readonly connectorSecretService: ConnectorSecretService,
-    private readonly reportAccessService: ReportAccessService
+    private readonly reportAccessService: ReportAccessService,
+    private readonly accessDecisionService: AccessDecisionService
   ) {}
 
   async run(command: ListProjectScheduledTriggersCommand): Promise<ProjectScheduledTriggerDto[]> {
@@ -76,7 +78,14 @@ export class ListProjectScheduledTriggersService {
     command: ListProjectScheduledTriggersCommand
   ): Promise<boolean> {
     if (trigger.type !== ScheduledTriggerType.REPORT_RUN) {
-      return this.reportAccessService.isTechnicalUser(command.roles);
+      return this.accessDecisionService.canAccessDmTrigger(
+        command.userId,
+        command.roles,
+        trigger.id,
+        trigger.dataMart.id,
+        Action.MANAGE_TRIGGERS,
+        command.projectId
+      );
     }
 
     if (!isScheduledReportRunConfig(trigger.triggerConfig)) {
