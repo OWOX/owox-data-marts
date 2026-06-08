@@ -1,5 +1,13 @@
+import 'reflect-metadata';
 import { DataSource, EntityManager } from 'typeorm';
 import { IsolationLevel } from 'typeorm/driver/types/IsolationLevel';
+import {
+  addTransactionalDataSource,
+  deleteDataSourceByName,
+  initializeTransactionalContext,
+  StorageDriver,
+  Transactional,
+} from 'typeorm-transactional';
 import { serializeSqliteTransactions } from './sqlite-transaction-serializer';
 
 describe('serializeSqliteTransactions', () => {
@@ -33,11 +41,16 @@ describe('serializeSqliteTransactions', () => {
     } as unknown as DataSource;
   };
 
+  const wait = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
+  beforeAll(() => {
+    initializeTransactionalContext({ storageDriver: StorageDriver.AUTO });
+  });
+
   it('serializes concurrent better-sqlite3 transactions while preserving nested transactions', async () => {
     const dataSource = createDataSource('better-sqlite3');
     serializeSqliteTransactions(dataSource);
 
-    const wait = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
     const activeTopLevelTransactions = new Set<string>();
     const executionOrder: string[] = [];
     let maxActiveTopLevelTransactions = 0;
@@ -87,6 +100,78 @@ describe('serializeSqliteTransactions', () => {
       'nested:third',
       'end:third',
     ]);
+  });
+
+  it('continues queued transactions after a transaction rejects', async () => {
+    const dataSource = createDataSource('better-sqlite3');
+    serializeSqliteTransactions(dataSource);
+
+    const firstError = new Error('first transaction failed');
+    const executionOrder: string[] = [];
+
+    const first = dataSource.transaction(async () => {
+      executionOrder.push('start:first');
+      throw firstError;
+    });
+    const second = dataSource.transaction(async () => {
+      executionOrder.push('start:second');
+      return 'second result';
+    });
+
+    const [firstResult, secondResult] = await Promise.allSettled([first, second]);
+
+    expect(firstResult.status).toBe('rejected');
+    if (firstResult.status === 'rejected') {
+      expect(firstResult.reason).toBe(firstError);
+    }
+    expect(secondResult).toEqual({
+      status: 'fulfilled',
+      value: 'second result',
+    });
+    expect(executionOrder).toEqual(['start:first', 'start:second']);
+  });
+
+  it('serializes @Transactional methods through the registered sqlite data source', async () => {
+    const dataSource = createDataSource('better-sqlite3');
+    const connectionName = 'sqlite-transaction-serializer-decorator-test';
+    serializeSqliteTransactions(
+      addTransactionalDataSource({
+        name: connectionName,
+        dataSource,
+        patch: false,
+      })
+    );
+
+    const activeTransactions = new Set<string>();
+    const executionOrder: string[] = [];
+    let maxActiveTransactions = 0;
+
+    class ScheduledTransactionFlow {
+      @Transactional({ connectionName })
+      async process(label: string, delay: number): Promise<void> {
+        activeTransactions.add(label);
+        executionOrder.push(`start:${label}`);
+        maxActiveTransactions = Math.max(maxActiveTransactions, activeTransactions.size);
+
+        try {
+          await wait(delay);
+        } finally {
+          executionOrder.push(`end:${label}`);
+          activeTransactions.delete(label);
+        }
+      }
+    }
+
+    try {
+      const flow = new ScheduledTransactionFlow();
+
+      await Promise.all([flow.process('first', 20), flow.process('second', 1)]);
+
+      expect(maxActiveTransactions).toBe(1);
+      expect(executionOrder).toEqual(['start:first', 'end:first', 'start:second', 'end:second']);
+    } finally {
+      deleteDataSourceByName(connectionName);
+    }
   });
 
   it('does not wrap a sqlite data source more than once', async () => {
