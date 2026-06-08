@@ -167,25 +167,29 @@ describe('ApiKeysTable', () => {
   });
 
   it('sorts keys that never expire as the furthest expiration date', () => {
+    const expiredAt = pastIso(10);
+    const futureSoonAt = futureIso(20);
+    const futureLaterAt = futureIso(60);
+
     const keys: ProjectMemberApiKey[] = [
       { ...key, apiKeyId: 'pmk_never_1', name: 'Never 1', expiresAt: null },
       {
         ...key,
         apiKeyId: 'pmk_future_later',
         name: 'Future later',
-        expiresAt: '2026-08-06T23:59:59.999Z',
+        expiresAt: futureLaterAt,
       },
       {
         ...key,
         apiKeyId: 'pmk_expired',
         name: 'Expired',
-        expiresAt: '2026-05-29T23:59:59.999Z',
+        expiresAt: expiredAt,
       },
       {
         ...key,
         apiKeyId: 'pmk_future_soon',
         name: 'Future soon',
-        expiresAt: '2026-06-18T23:59:59.999Z',
+        expiresAt: futureSoonAt,
       },
       { ...key, apiKeyId: 'pmk_never_2', name: 'Never 2', expiresAt: null },
     ];

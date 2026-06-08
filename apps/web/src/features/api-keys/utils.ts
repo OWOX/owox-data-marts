@@ -1,7 +1,5 @@
 export const API_KEY_EXPIRING_SOON_NOTICE = 'This API key expires within 30 days.';
-export const API_KEY_EXPIRING_SOON_CLASS_NAME = 'font-medium text-amber-600';
 export const API_KEY_EXPIRED_NOTICE = 'This API key has expired.';
-export const API_KEY_EXPIRED_CLASS_NAME = 'font-medium text-destructive';
 
 export function isApiKeyExpired(dateStr: string | null | undefined): boolean {
   if (!dateStr) return false;
