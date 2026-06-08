@@ -6,7 +6,4 @@ import { PublishDataStorageDraftsResponseApiDto } from '../dto/presentation/publ
 export class PublishDraftsTrigger extends UiTrigger<PublishDataStorageDraftsResponseApiDto> {
   @Column()
   dataStorageId: string;
-
-  @Column()
-  projectId: string;
 }

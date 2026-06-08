@@ -8,9 +8,6 @@ export class AiAssistantRunTrigger extends UiTrigger<AiRunTriggerResponseApiDto>
   dataMartId: string;
 
   @Column()
-  projectId: string;
-
-  @Column()
   sessionId: string;
 
   @Column()

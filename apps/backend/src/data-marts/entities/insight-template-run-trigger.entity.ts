@@ -8,8 +8,5 @@ export class InsightTemplateRunTrigger extends UiTrigger<InsightTemplateRunRespo
   dataMartId: string;
 
   @Column()
-  projectId: string;
-
-  @Column()
   insightTemplateId: string;
 }

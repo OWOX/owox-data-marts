@@ -29,20 +29,20 @@ export abstract class UiTriggerService<UiResponseType> {
   }
 
   /**
-   * Get trigger status by ID
+   * Get trigger status by ID, scoped to the authenticated project.
    */
-  async getTriggerStatus(triggerId: string): Promise<TriggerStatus> {
+  async getTriggerStatus(triggerId: string, projectId: string): Promise<TriggerStatus> {
     this.logger.debug(`Checking trigger status for trigger ${triggerId}`);
-    const trigger = await this.getTriggerById(triggerId);
+    const trigger = await this.getTriggerById(triggerId, projectId);
     return trigger.status;
   }
 
   /**
-   * Get trigger response and handle different status cases
+   * Get trigger response and handle different status cases, scoped to the authenticated project.
    */
-  async getTriggerResponse(triggerId: string): Promise<UiResponseType> {
+  async getTriggerResponse(triggerId: string, projectId: string): Promise<UiResponseType> {
     this.logger.debug(`Getting trigger response for trigger ${triggerId}`);
-    const trigger = await this.getTriggerById(triggerId);
+    const trigger = await this.getTriggerById(triggerId, projectId);
 
     if (trigger.status === TriggerStatus.SUCCESS) {
       const response = trigger.uiResponse;
@@ -65,11 +65,11 @@ export abstract class UiTriggerService<UiResponseType> {
   }
 
   /**
-   * Abort trigger run
+   * Abort trigger run, scoped to the authenticated project and user.
    */
-  async abortTriggerRun(triggerId: string, userId: string): Promise<void> {
+  async abortTriggerRun(triggerId: string, userId: string, projectId: string): Promise<void> {
     this.logger.debug(`Aborting trigger run for trigger ${triggerId}`);
-    const trigger = await this.getTriggerById(triggerId);
+    const trigger = await this.getTriggerById(triggerId, projectId);
 
     if (trigger.userId !== userId) {
       throw new ForbiddenException('You are not allowed to cancel this trigger');
@@ -98,11 +98,25 @@ export abstract class UiTriggerService<UiResponseType> {
   }
 
   /**
-   * Get trigger by ID
+   * Get trigger by ID, scoped to the authenticated project.
+   *
+   * The `projectId` filter is the tenant boundary: a trigger that belongs to a
+   * different project is treated as non-existent so callers cannot read, remove,
+   * or abort triggers outside their project.
    */
-  protected async getTriggerById(id: string): Promise<UiTrigger<UiResponseType>> {
+  protected async getTriggerById(
+    id: string,
+    projectId: string
+  ): Promise<UiTrigger<UiResponseType>> {
+    // Fail closed when projectId is missing: TypeORM drops `undefined` keys from
+    // the where clause, which would otherwise collapse the query to `{ id }` and
+    // silently disable the tenant boundary.
+    if (!projectId) {
+      throw new NotFoundException(`Trigger with id ${id} not found`);
+    }
+
     const trigger = await this.triggerRepository.findOne({
-      where: { id },
+      where: { id, projectId },
     });
     if (!trigger) {
       throw new NotFoundException(`Trigger with id ${id} not found`);

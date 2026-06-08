@@ -26,12 +26,6 @@ export interface AiHelperUiResponse {
 @Entity('ai_helper_triggers')
 export class AiHelperTrigger extends UiTrigger<AiHelperUiResponse> {
   /**
-   * ID of the user's project.
-   */
-  @Column()
-  projectId: string;
-
-  /**
    * ID of the data mart for which metadata is generated.
    */
   @Column()

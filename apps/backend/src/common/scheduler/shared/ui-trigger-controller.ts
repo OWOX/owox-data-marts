@@ -21,16 +21,20 @@ export abstract class UiTriggerController<UiResponseType> {
   @Auth(Role.viewer(Strategy.PARSE))
   @Get('/:triggerId/status')
   public async getTriggerStatus(
-    @Param('triggerId') triggerId: string
+    @Param('triggerId') triggerId: string,
+    @AuthContext() context: AuthorizationContext
   ): Promise<{ status: TriggerStatus }> {
-    const status = await this.triggerService.getTriggerStatus(triggerId);
+    const status = await this.triggerService.getTriggerStatus(triggerId, context.projectId);
     return { status };
   }
 
   @Auth(Role.viewer(Strategy.PARSE))
   @Get('/:triggerId')
-  public async getTriggerResponse(@Param('triggerId') triggerId: string): Promise<UiResponseType> {
-    return this.triggerService.getTriggerResponse(triggerId);
+  public async getTriggerResponse(
+    @Param('triggerId') triggerId: string,
+    @AuthContext() context: AuthorizationContext
+  ): Promise<UiResponseType> {
+    return this.triggerService.getTriggerResponse(triggerId, context.projectId);
   }
 
   @Auth(Role.viewer(Strategy.PARSE))
@@ -39,6 +43,6 @@ export abstract class UiTriggerController<UiResponseType> {
     @Param('triggerId') triggerId: string,
     @AuthContext() context: AuthorizationContext
   ): Promise<void> {
-    return this.triggerService.abortTriggerRun(triggerId, context.userId);
+    return this.triggerService.abortTriggerRun(triggerId, context.userId, context.projectId);
   }
 }
