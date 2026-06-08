@@ -14,6 +14,28 @@ export const MainMenuItems: MainMenuItem[] = [
     title: 'Data Marts',
     url: '/data-marts',
     icon: Box,
+    children: [
+      {
+        title: 'Reports',
+        url: '/data-marts/reports',
+        icon: FileText,
+      },
+      {
+        title: 'Insights',
+        url: '/data-marts/insights',
+        icon: Sparkles,
+      },
+      {
+        title: 'Triggers',
+        url: '/data-marts/schedules',
+        icon: CalendarClock,
+      },
+      {
+        title: 'Run History',
+        url: '/data-marts/runs',
+        icon: HistoryIcon,
+      },
+    ],
   },
   {
     title: 'Storages',
@@ -24,25 +46,5 @@ export const MainMenuItems: MainMenuItem[] = [
     title: 'Destinations',
     url: '/data-destinations',
     icon: ArchiveRestore,
-  },
-  {
-    title: 'Triggers',
-    url: '/data-marts/schedules',
-    icon: CalendarClock,
-  },
-  {
-    title: 'Reports',
-    url: '/data-marts/reports',
-    icon: FileText,
-  },
-  {
-    title: 'Insights',
-    url: '/data-marts/insights',
-    icon: Sparkles,
-  },
-  {
-    title: 'Run History',
-    url: '/data-marts/runs',
-    icon: HistoryIcon,
   },
 ];
