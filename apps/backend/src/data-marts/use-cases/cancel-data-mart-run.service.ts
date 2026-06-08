@@ -52,7 +52,7 @@ export class CancelDataMartRunService {
   }
 
   @Transactional()
-  async cancelRunState(command: CancelDataMartRunCommand): Promise<void> {
+  private async cancelRunState(command: CancelDataMartRunCommand): Promise<void> {
     const run = await this.dataMartRunService.getByIdAndDataMartId(command.runId, command.id);
 
     if (!run) {
