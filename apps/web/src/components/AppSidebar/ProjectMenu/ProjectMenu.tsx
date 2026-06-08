@@ -4,7 +4,11 @@ import { ProjectMenuTrigger } from './ProjectMenuTrigger';
 import { ProjectMenuContent } from './ProjectMenuContent';
 import { ProjectsProvider } from '../../../features/idp/context/ProjectsContext.tsx';
 
-export function SidebarProjectMenu() {
+interface SidebarProjectMenuProps {
+  restricted?: boolean;
+}
+
+export function SidebarProjectMenu({ restricted = false }: SidebarProjectMenuProps) {
   const [isOpen, setIsOpen] = useState(false);
 
   return (
@@ -23,6 +27,7 @@ export function SidebarProjectMenu() {
             <ProjectMenuTrigger isOpen={isOpen} />
             <ProjectsProvider>
               <ProjectMenuContent
+                restricted={restricted}
                 onClose={() => {
                   setIsOpen(false);
                 }}
