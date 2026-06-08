@@ -18,8 +18,7 @@
     "@owox/idp-protocol": "*",
     "@owox/internal-helpers": "*",
     "@owox/web": "*",
-    "cors": "^2.8.6",
-    "env-paths": "^3.0.0"
+    "cors": "^2.8.6"
   },
   "peerDependencies": {
     "@nestjs/platform-express": "^11",

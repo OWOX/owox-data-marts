@@ -87,4 +87,18 @@ export abstract class BaseCommand extends Command {
     process.stderr.write(`${renderJson({ error: normalizeCliError(error) })}\n`);
     this.exit(1);
   }
+
+  protected async finally(error: Error | undefined): Promise<void> {
+    try {
+      const { trackCommand } = await import('./telemetry/track-command.js');
+      trackCommand({
+        cliVersion: this.config.version,
+        command: this.id ?? 'unknown',
+        log: (message: string) => this.log(message),
+      });
+    } catch {
+      // Telemetry must never affect command completion.
+    }
+    return super.finally(error);
+  }
 }

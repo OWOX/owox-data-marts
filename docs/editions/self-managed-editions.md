@@ -55,8 +55,8 @@ Legend:
 > users insight into their own data-usage patterns. This section is about anonymous product
 > analytics that OWOX collects to understand CLI usage.
 
-When you run `owox serve`, the CLI sends a single anonymous event so we can understand how many
-people run OWOX Data Marts. This helps us prioritize what to build.
+When you run `owox serve` or an `owox-ctl` command, the CLI sends a single anonymous event so we
+can understand how many people use OWOX Data Marts. This helps us prioritize what to build.
 
 **What is collected** (anonymous, no personal data):
 
@@ -64,6 +64,8 @@ people run OWOX Data Marts. This helps us prioritize what to build.
 - OWOX CLI version, Node.js version, OS platform and architecture.
 - Whether the process runs in Docker, the configured identity-provider type, and whether the
   web interface is enabled.
+- For `owox-ctl` commands: the name of the command invoked (e.g. `data-marts:list`). Command
+  arguments are never collected.
 
 **What is never collected:** hostnames, file paths, email addresses, environment variable
 values, or IP-derived identity.
