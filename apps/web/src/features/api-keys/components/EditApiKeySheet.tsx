@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, type ReactNode } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -27,14 +27,10 @@ import { cn } from '@owox/ui/lib/utils';
 import { Copy, Loader2, Trash2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { apiKeysService } from '../services/api-keys.service';
-import { formatDateOnly, formatDateShort } from '../../../utils';
+import { formatDateShort } from '../../../utils';
 import type { ProjectMemberApiKey } from '../types';
 import { ApiKeyDocumentationSection, ApiKeyFormLabel } from './ApiKeyFormShared';
-import {
-  API_KEY_EXPIRING_SOON_CLASS_NAME,
-  API_KEY_EXPIRING_SOON_NOTICE,
-  isApiKeyExpiringSoon,
-} from '../utils';
+import { ApiKeyExpirationValue } from './ApiKeyExpirationValue';
 
 const editApiKeySchema = z.object({
   name: z.string().min(1, 'Name is required').max(100, 'Name must be 100 characters or less'),
@@ -60,19 +56,22 @@ function MetadataItem({
   valueTooltip,
 }: {
   label: string;
-  value: string;
+  value: ReactNode;
   description: string;
   valueClassName?: string;
   valueTooltip?: string;
 }) {
-  const valueNode = (
-    <span
-      tabIndex={valueTooltip ? 0 : undefined}
-      className={cn('text-sm', valueClassName ?? 'text-muted-foreground')}
-    >
-      {value}
-    </span>
-  );
+  const valueNode =
+    typeof value === 'string' ? (
+      <span
+        tabIndex={valueTooltip ? 0 : undefined}
+        className={cn('text-sm', valueClassName ?? 'text-muted-foreground')}
+      >
+        {value}
+      </span>
+    ) : (
+      value
+    );
 
   return (
     <FormItem>
@@ -104,10 +103,6 @@ export function EditApiKeySheet({ apiKey, onClose, onUpdated, onRevoke }: EditAp
   const { control, handleSubmit, reset } = form;
 
   const createdAt = apiKey?.createdAt ? formatDateShort(apiKey.createdAt) : 'Unknown';
-  const expiresAt = apiKey?.expiresAt
-    ? formatDateOnly(apiKey.expiresAt, { timeZone: 'UTC' })
-    : 'Never';
-  const expiresSoon = isApiKeyExpiringSoon(apiKey?.expiresAt);
   const lastAuthenticatedAt = apiKey?.lastAuthenticatedAt
     ? formatDateShort(apiKey.lastAuthenticatedAt)
     : 'Never';
@@ -198,10 +193,8 @@ export function EditApiKeySheet({ apiKey, onClose, onUpdated, onRevoke }: EditAp
                 </FormItem>
                 <MetadataItem
                   label='Expires'
-                  value={expiresAt}
+                  value={<ApiKeyExpirationValue expiresAt={apiKey?.expiresAt} focusable />}
                   description='UTC date when this API key stops working. Never means it does not expire automatically.'
-                  valueClassName={expiresSoon ? API_KEY_EXPIRING_SOON_CLASS_NAME : undefined}
-                  valueTooltip={expiresSoon ? API_KEY_EXPIRING_SOON_NOTICE : undefined}
                 />
                 <MetadataItem
                   label='Created'

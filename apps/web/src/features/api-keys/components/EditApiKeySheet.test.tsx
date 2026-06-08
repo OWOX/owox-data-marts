@@ -1,6 +1,6 @@
 import type { ComponentProps, ReactNode } from 'react';
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import { EditApiKeySheet } from './EditApiKeySheet';
 import type { ProjectMemberApiKey } from '../types';
 import { formatDateOnly } from '../../../utils';
@@ -30,6 +30,10 @@ const apiKey: ProjectMemberApiKey = {
 
 function futureIso(days: number) {
   return new Date(Date.now() + days * 24 * 60 * 60 * 1000).toISOString();
+}
+
+function pastIso(days: number) {
+  return new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
 }
 
 function renderEditApiKeySheet(props?: Partial<ComponentProps<typeof EditApiKeySheet>>) {
@@ -74,9 +78,10 @@ describe('EditApiKeySheet', () => {
     expect(generalSection?.textContent).toContain('Created');
     expect(generalSection?.textContent).toContain('Expires');
     expect(generalSection?.textContent).toContain('Last authenticated');
-    expect(
-      screen.getByText(formatDateOnly(apiKey.expiresAt, { timeZone: 'UTC' }))
-    ).toBeInTheDocument();
+    expect(generalSection?.textContent).toContain(
+      formatDateOnly(apiKey.expiresAt, { timeZone: 'UTC' })
+    );
+    expect(generalSection?.textContent).toContain('Expired');
     expect(screen.queryByText(/02:59/)).not.toBeInTheDocument();
     expect(screen.getAllByText('Never')).toHaveLength(1);
   });
@@ -87,9 +92,40 @@ describe('EditApiKeySheet', () => {
     renderEditApiKeySheet({ apiKey: { ...apiKey, expiresAt } });
 
     const expirationDate = screen.getByText(formatDateOnly(expiresAt, { timeZone: 'UTC' }));
+    const expiresField = expirationDate.closest('[data-slot="form-item"]');
+    expect(expiresField).not.toBeNull();
+    const statusBadge = within(expiresField as HTMLElement).getByText('Expires soon');
 
-    expect(expirationDate).toHaveClass('font-medium', 'text-amber-600');
+    expect(expirationDate).toHaveClass('text-foreground');
+    expect(expirationDate).not.toHaveClass('text-amber-600');
+    expect(expirationDate).not.toHaveClass('font-medium');
+    expect(statusBadge).toHaveAttribute('data-slot', 'badge');
+    expect(statusBadge).toHaveClass('text-[11px]', 'text-amber-700');
+    expect(
+      expirationDate.compareDocumentPosition(statusBadge) & Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy();
     expect(screen.getByText('This API key expires within 30 days.')).toBeInTheDocument();
+  });
+
+  it('makes expired API keys visually obvious', () => {
+    const expiresAt = pastIso(2);
+
+    renderEditApiKeySheet({ apiKey: { ...apiKey, expiresAt } });
+
+    const expirationDate = screen.getByText(formatDateOnly(expiresAt, { timeZone: 'UTC' }));
+    const expiresField = expirationDate.closest('[data-slot="form-item"]');
+    expect(expiresField).not.toBeNull();
+    const statusBadge = within(expiresField as HTMLElement).getByText('Expired');
+
+    expect(expirationDate).toHaveClass('text-foreground');
+    expect(expirationDate).not.toHaveClass('text-destructive');
+    expect(expirationDate).not.toHaveClass('font-medium');
+    expect(statusBadge).toHaveAttribute('data-slot', 'badge');
+    expect(statusBadge).toHaveClass('text-[11px]', 'text-destructive');
+    expect(
+      expirationDate.compareDocumentPosition(statusBadge) & Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy();
+    expect(screen.getByText('This API key has expired.')).toBeInTheDocument();
   });
 
   it('does not expose the full API Key after the creation dialog is closed', () => {
