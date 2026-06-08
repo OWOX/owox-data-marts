@@ -116,19 +116,23 @@ describe('RedshiftClauseRenderer', () => {
           .sql
       ).toBe('\nWHERE "d" >= DATEADD(day, -1, CURRENT_DATE) AND "d" < CURRENT_DATE');
     });
-    it('last_n_days', () => {
+    it('last_n_days has an upper bound', () => {
       expect(
         r.renderWhere([
           { column: 'd', operator: 'relative_date', value: { kind: 'last_n_days', n: 7 } },
         ]).sql
-      ).toBe('\nWHERE "d" >= DATEADD(day, -7, CURRENT_DATE)');
+      ).toBe(
+        '\nWHERE "d" >= DATEADD(day, -7, CURRENT_DATE) AND "d" < DATEADD(day, 1, CURRENT_DATE)'
+      );
     });
-    it('last_n_months', () => {
+    it('last_n_months has an upper bound', () => {
       expect(
         r.renderWhere([
           { column: 'd', operator: 'relative_date', value: { kind: 'last_n_months', n: 3 } },
         ]).sql
-      ).toBe('\nWHERE "d" >= DATEADD(month, -3, CURRENT_DATE)');
+      ).toBe(
+        '\nWHERE "d" >= DATEADD(month, -3, CURRENT_DATE) AND "d" < DATEADD(day, 1, CURRENT_DATE)'
+      );
     });
     it('this_month has an upper bound', () => {
       expect(
@@ -153,6 +157,26 @@ describe('RedshiftClauseRenderer', () => {
       ).toBe(
         `\nWHERE "d" >= DATE_TRUNC('year', CURRENT_DATE) AND "d" < DATEADD(year, 1, DATE_TRUNC('year', CURRENT_DATE))`
       );
+    });
+    // `n` is inlined into SQL, so the renderer re-guards it even if a write path
+    // bypassed the zod schema (z.number().int().positive().max(3650)).
+    it('rejects a non-integer n', () => {
+      expect(() =>
+        r.renderWhere([
+          { column: 'd', operator: 'relative_date', value: { kind: 'last_n_days', n: 7.5 } },
+        ])
+      ).toThrow('Invalid relative_date n');
+    });
+    it('rejects a non-numeric n that bypassed the validator', () => {
+      expect(() =>
+        r.renderWhere([
+          {
+            column: 'd',
+            operator: 'relative_date',
+            value: { kind: 'last_n_days', n: '1); DROP TABLE t --' as unknown as number },
+          },
+        ])
+      ).toThrow('Invalid relative_date n');
     });
   });
 

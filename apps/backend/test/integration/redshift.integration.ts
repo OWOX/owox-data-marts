@@ -558,18 +558,17 @@ describeIfCredentials(
       expect(ids(rows)).toEqual(['2', '3']);
     }, 30000);
 
-    it('relative_date last_n_days(7): rows 1,2,5,6 (lower-bound only; future row 5 included)', async () => {
+    it('relative_date last_n_days(7): rows 1,2,6 (upper bound excludes future row 5)', async () => {
       const rows = await runFilter({
         filters: [
           { column: 'date_col', operator: 'relative_date', value: { kind: 'last_n_days', n: 7 } },
         ],
       });
-      // last_n_days has NO upper bound by design (deferred item): future-dated rows
-      // (row 5 is +13 months) are included. Asserts the actual lower-bound-only behavior.
-      expect(ids(rows)).toEqual(['1', '2', '5', '6']);
+      // last_n_days is bounded `< tomorrow`: future-dated row 5 (+13 months) is excluded.
+      expect(ids(rows)).toEqual(['1', '2', '6']);
     }, 30000);
 
-    it('relative_date last_n_months(3): rows 1,2,3,5,6 (lower-bound only; future row 5 included)', async () => {
+    it('relative_date last_n_months(3): rows 1,2,3,6 (upper bound excludes future row 5)', async () => {
       const rows = await runFilter({
         filters: [
           {
@@ -579,8 +578,8 @@ describeIfCredentials(
           },
         ],
       });
-      // last_n_months has NO upper bound by design (deferred): future row 5 included.
-      expect(ids(rows)).toEqual(['1', '2', '3', '5', '6']);
+      // last_n_months is bounded `< tomorrow`: future-dated row 5 is excluded; row 3 (-40d) stays.
+      expect(ids(rows)).toEqual(['1', '2', '3', '6']);
     }, 30000);
 
     // -------------------------------------------------------------------------

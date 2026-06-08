@@ -117,19 +117,19 @@ describe('BigQueryClauseRenderer', () => {
           .sql
       ).toBe('\nWHERE `d` = DATE_SUB(CURRENT_DATE(), INTERVAL 1 DAY)');
     });
-    it('last_n_days', () => {
+    it('last_n_days has an upper bound', () => {
       expect(
         r.renderWhere([
           { column: 'd', operator: 'relative_date', value: { kind: 'last_n_days', n: 7 } },
         ]).sql
-      ).toBe('\nWHERE `d` >= DATE_SUB(CURRENT_DATE(), INTERVAL 7 DAY)');
+      ).toBe('\nWHERE `d` >= DATE_SUB(CURRENT_DATE(), INTERVAL 7 DAY) AND `d` <= CURRENT_DATE()');
     });
-    it('last_n_months', () => {
+    it('last_n_months has an upper bound', () => {
       expect(
         r.renderWhere([
           { column: 'd', operator: 'relative_date', value: { kind: 'last_n_months', n: 3 } },
         ]).sql
-      ).toBe('\nWHERE `d` >= DATE_SUB(CURRENT_DATE(), INTERVAL 3 MONTH)');
+      ).toBe('\nWHERE `d` >= DATE_SUB(CURRENT_DATE(), INTERVAL 3 MONTH) AND `d` <= CURRENT_DATE()');
     });
     it('this_month', () => {
       expect(
@@ -175,7 +175,7 @@ describe('BigQueryClauseRenderer', () => {
         }
       );
 
-      it('wraps a TIMESTAMP column in DATE() for last_n_days', () => {
+      it('wraps both bounds in DATE() for last_n_days on a TIMESTAMP column', () => {
         expect(
           r.renderWhere(
             [{ column: 'd', operator: 'relative_date', value: { kind: 'last_n_days', n: 7 } }],
@@ -183,7 +183,9 @@ describe('BigQueryClauseRenderer', () => {
             'p',
             withType('TIMESTAMP')
           ).sql
-        ).toBe('\nWHERE DATE(`d`) >= DATE_SUB(CURRENT_DATE(), INTERVAL 7 DAY)');
+        ).toBe(
+          '\nWHERE DATE(`d`) >= DATE_SUB(CURRENT_DATE(), INTERVAL 7 DAY) AND DATE(`d`) <= CURRENT_DATE()'
+        );
       });
 
       it('wraps both bounds of last_month for a TIMESTAMP column', () => {

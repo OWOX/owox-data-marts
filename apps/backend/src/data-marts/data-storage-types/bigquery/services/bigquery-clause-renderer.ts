@@ -127,9 +127,15 @@ export class BigQueryClauseRenderer extends SqlClauseRenderer {
       case 'yesterday':
         return `${lhs} = DATE_SUB(CURRENT_DATE(), INTERVAL 1 DAY)`;
       case 'last_n_days':
-        return `${lhs} >= DATE_SUB(CURRENT_DATE(), INTERVAL ${preset.n} DAY)`;
+        return (
+          `${lhs} >= DATE_SUB(CURRENT_DATE(), INTERVAL ${preset.n} DAY)` +
+          ` AND ${lhs} <= CURRENT_DATE()`
+        );
       case 'last_n_months':
-        return `${lhs} >= DATE_SUB(CURRENT_DATE(), INTERVAL ${preset.n} MONTH)`;
+        return (
+          `${lhs} >= DATE_SUB(CURRENT_DATE(), INTERVAL ${preset.n} MONTH)` +
+          ` AND ${lhs} <= CURRENT_DATE()`
+        );
       case 'this_month':
         return (
           `${lhs} >= DATE_TRUNC(CURRENT_DATE(), MONTH)` +

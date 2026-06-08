@@ -570,13 +570,15 @@ describeIfCredentials('Output controls — operator matrix & dates (real BigQuer
     expect(ids(rows)).toEqual([1, 2, 3, 4, 5, 6, 7]);
   }, 60000);
 
-  it('relative_date last_n_days(7) on created_at → rows 1,4,5,7 (no upper bound; future row 7 satisfies >= today-7)', async () => {
+  it('relative_date last_n_days(7) on created_at → rows 1,4,5 (upper bound excludes future row 7)', async () => {
     const rows = await runMatrix({
       filters: [
         { column: 'created_at', operator: 'relative_date', value: { kind: 'last_n_days', n: 7 } },
       ],
     });
-    expect(ids(rows)).toEqual([1, 4, 5, 7]);
+    // Bounded `<= CURRENT_DATE()`: future row 7 (+13 months) is excluded.
+    expect(ids(rows)).not.toContain(7);
+    expect(ids(rows)).toEqual([1, 4, 5]);
   }, 60000);
 
   it('relative_date this_year on created_at → rows 1,2,4,5 (excludes future row 7)', async () => {
@@ -588,7 +590,7 @@ describeIfCredentials('Output controls — operator matrix & dates (real BigQuer
     expect(ids(rows)).toEqual([1, 2, 4, 5]);
   }, 60000);
 
-  it('relative_date last_n_months(3) on created_at → rows 1,2,4,5,7 (no upper bound; future row 7 satisfies >= today-3m)', async () => {
+  it('relative_date last_n_months(3) on created_at → rows 1,2,4,5 (upper bound excludes future row 7)', async () => {
     const rows = await runMatrix({
       filters: [
         {
@@ -598,7 +600,9 @@ describeIfCredentials('Output controls — operator matrix & dates (real BigQuer
         },
       ],
     });
-    expect(ids(rows)).toEqual([1, 2, 4, 5, 7]);
+    // Bounded `<= CURRENT_DATE()`: future row 7 (+13 months) is excluded.
+    expect(ids(rows)).not.toContain(7);
+    expect(ids(rows)).toEqual([1, 2, 4, 5]);
   }, 60000);
 
   // --- Adversarial / safety ---

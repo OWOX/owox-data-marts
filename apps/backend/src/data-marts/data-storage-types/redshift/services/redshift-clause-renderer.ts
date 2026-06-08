@@ -104,6 +104,11 @@ export class RedshiftClauseRenderer extends SqlClauseRenderer {
     col: string,
     preset: Extract<FilterRule, { operator: 'relative_date' }>['value']
   ): string {
+    // `n` is inlined into SQL below; re-assert the integer locally so the injection
+    // barrier does not live solely in the zod schema on the request path.
+    if ('n' in preset && (!Number.isInteger(preset.n) || preset.n < 0)) {
+      throw new Error(`Invalid relative_date n: ${String(preset.n)}`);
+    }
     switch (preset.kind) {
       // Half-open ranges (not equality): `col = CURRENT_DATE` matches only the
       // midnight instant on TIMESTAMP/TIMESTAMPTZ columns. A range covers the
@@ -113,9 +118,15 @@ export class RedshiftClauseRenderer extends SqlClauseRenderer {
       case 'yesterday':
         return `${col} >= DATEADD(day, -1, CURRENT_DATE) AND ${col} < CURRENT_DATE`;
       case 'last_n_days':
-        return `${col} >= DATEADD(day, -${preset.n}, CURRENT_DATE)`;
+        return (
+          `${col} >= DATEADD(day, -${preset.n}, CURRENT_DATE)` +
+          ` AND ${col} < DATEADD(day, 1, CURRENT_DATE)`
+        );
       case 'last_n_months':
-        return `${col} >= DATEADD(month, -${preset.n}, CURRENT_DATE)`;
+        return (
+          `${col} >= DATEADD(month, -${preset.n}, CURRENT_DATE)` +
+          ` AND ${col} < DATEADD(day, 1, CURRENT_DATE)`
+        );
       case 'this_month':
         return (
           `${col} >= DATE_TRUNC('month', CURRENT_DATE)` +

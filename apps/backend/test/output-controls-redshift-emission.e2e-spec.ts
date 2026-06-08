@@ -60,7 +60,7 @@ const mockSchemaProviderFacade = {
     type: 'redshift-data-mart-schema',
     fields: HEADERS.map(h => ({
       name: h.name,
-      type: h.type,
+      type: h.storageFieldType,
       status: 'CONNECTED',
       isPrimaryKey: false,
     })),
