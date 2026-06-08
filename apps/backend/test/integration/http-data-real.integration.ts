@@ -95,7 +95,9 @@ if (NEED_APP) {
     const testApp = await createTestApp();
     sharedApp = testApp.app;
     sharedAgent = testApp.agent;
-  }, 60000);
+    // Cold NestJS + TypeORM bootstrap on a fresh CI runner can exceed 60s;
+    // match report-run-real's 180s budget for the app-creating hook.
+  }, 180000);
 
   afterAll(async () => {
     if (sharedApp) {
