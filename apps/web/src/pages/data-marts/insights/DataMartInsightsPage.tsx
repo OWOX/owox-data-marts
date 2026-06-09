@@ -1,9 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import type { ColumnDef } from '@tanstack/react-table';
-import { RefreshCw } from 'lucide-react';
 import { toast } from 'react-hot-toast';
-import { Button } from '@owox/ui/components/button';
 import { SkeletonList } from '@owox/ui/components/common/skeleton-list';
 import { extractApiError } from '../../../app/api';
 import { InsightRowActionsCell } from '../../../features/data-marts/insights/components/InsightRowActionsCell';
@@ -32,7 +30,7 @@ import { ProjectDataMartEmptyState } from '../shared/ProjectDataMartEmptyState';
 import { ProjectDataMartTitleLink } from '../shared/ProjectDataMartTitleLink';
 import { formatDateShort, trackEvent } from '../../../utils';
 
-const PROJECT_INSIGHTS_PAGE_SIZE = 100;
+const PROJECT_INSIGHTS_PAGE_SIZE = 15;
 const PROJECT_INSIGHTS_TABLE_ID = 'project-insights-table';
 
 type ProjectInsightFilterKey = 'dataMart' | 'insight' | 'createdBy';
@@ -85,47 +83,27 @@ export default function DataMartInsightsPage() {
   const { scope } = useProjectRoute();
   const [insights, setInsights] = useState<ProjectInsightTemplateEntity[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [hasMoreInsightsToLoad, setHasMoreInsightsToLoad] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [deletingInsight, setDeletingInsight] = useState<ProjectInsightTemplateEntity | null>(null);
 
-  const loadInsights = useCallback(async (offset = 0) => {
-    const isInitialLoad = offset === 0;
-    if (isInitialLoad) {
-      setIsLoading(true);
-    } else {
-      setIsLoadingMore(true);
-    }
+  const loadInsights = useCallback(async () => {
+    setIsLoading(true);
     setError(null);
 
     try {
-      const response = await insightTemplatesService.getProjectInsightTemplates(
-        PROJECT_INSIGHTS_PAGE_SIZE,
-        offset
-      );
-      const nextInsights = mapProjectInsightTemplateListFromDto(response);
-      setInsights(currentInsights =>
-        isInitialLoad ? nextInsights : [...currentInsights, ...nextInsights]
-      );
-      setHasMoreInsightsToLoad(nextInsights.length >= PROJECT_INSIGHTS_PAGE_SIZE);
+      const response = await insightTemplatesService.getProjectInsightTemplates();
+      setInsights(mapProjectInsightTemplateListFromDto(response));
     } catch (caught) {
       setError(extractApiError(caught).message ?? 'Failed to fetch Data Mart insights');
     } finally {
       setIsLoading(false);
-      setIsLoadingMore(false);
     }
   }, []);
 
   useEffect(() => {
-    void loadInsights(0);
+    void loadInsights();
   }, [loadInsights]);
-
-  const loadMoreInsights = useCallback(async () => {
-    if (isLoadingMore || !hasMoreInsightsToLoad) return;
-    await loadInsights(insights.length);
-  }, [hasMoreInsightsToLoad, insights.length, isLoadingMore, loadInsights]);
 
   const handleConfirmDelete = useCallback(() => {
     void (async () => {
@@ -170,24 +148,6 @@ export default function DataMartInsightsPage() {
     urlParam: 'filters',
     config: filtersConfig,
   });
-
-  const shouldLoadAllInsightsForQuery =
-    searchQuery.trim().length > 0 || appliedState.filters.length > 0;
-
-  useEffect(() => {
-    if (!shouldLoadAllInsightsForQuery || !hasMoreInsightsToLoad || isLoading || isLoadingMore) {
-      return;
-    }
-
-    void loadInsights(insights.length);
-  }, [
-    hasMoreInsightsToLoad,
-    insights.length,
-    isLoading,
-    isLoadingMore,
-    loadInsights,
-    shouldLoadAllInsightsForQuery,
-  ]);
 
   const filteredInsights = useMemo(
     () =>
@@ -339,27 +299,6 @@ export default function DataMartInsightsPage() {
                 </div>
               )}
             />
-
-            {hasMoreInsightsToLoad && (
-              <div className='flex justify-center pt-4 pb-6'>
-                <Button
-                  variant='outline'
-                  size='sm'
-                  onClick={() => void loadMoreInsights()}
-                  disabled={isLoadingMore}
-                  className='flex items-center gap-2'
-                >
-                  {isLoadingMore ? (
-                    <>
-                      <RefreshCw className='h-4 w-4 animate-spin' />
-                      Loading...
-                    </>
-                  ) : (
-                    'Load More'
-                  )}
-                </Button>
-              </div>
-            )}
           </div>
         )}
       </div>

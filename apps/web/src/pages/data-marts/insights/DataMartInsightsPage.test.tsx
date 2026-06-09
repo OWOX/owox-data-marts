@@ -40,7 +40,7 @@ describe('DataMartInsightsPage', () => {
     insightTemplatesServiceMock.deleteInsightTemplate.mockResolvedValue(undefined);
   });
 
-  it('loads project insights by 100 and shows their Data Mart context', async () => {
+  it('loads all project insights and shows their Data Mart context', async () => {
     vi.mocked(insightTemplatesService.getProjectInsightTemplates).mockResolvedValueOnce({
       insights: [buildInsightTemplateResponse()],
     });
@@ -54,7 +54,29 @@ describe('DataMartInsightsPage', () => {
       '/ui/project-1/data-marts/dm-1/insights-v2'
     );
     expect(screen.getByRole('button', { name: 'Toggle columns' })).toBeInTheDocument();
-    expect(insightTemplatesService.getProjectInsightTemplates).toHaveBeenCalledWith(100, 0);
+    expect(insightTemplatesService.getProjectInsightTemplates).toHaveBeenCalledWith();
+  });
+
+  it('uses table pagination over the full insights list', async () => {
+    vi.mocked(insightTemplatesService.getProjectInsightTemplates).mockResolvedValueOnce({
+      insights: Array.from({ length: 16 }, (_, index) =>
+        buildInsightTemplateResponse({
+          id: `insight-${index + 1}`,
+          title: `Insight ${index + 1}`,
+        })
+      ),
+    });
+
+    renderPage();
+
+    expect(await screen.findByText('Insight 1')).toBeInTheDocument();
+    expect(screen.getByText('1–15 of 16 rows')).toBeInTheDocument();
+    expect(screen.queryByText('Insight 16')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Go to next page' }));
+
+    expect(await screen.findByText('Insight 16')).toBeInTheDocument();
+    expect(screen.getByText('16–16 of 16 rows')).toBeInTheDocument();
   });
 
   it('shows Data Mart as the first table column', async () => {
@@ -238,24 +260,21 @@ describe('DataMartInsightsPage', () => {
     expect(screen.queryByRole('button', { name: 'Insight actions' })).not.toBeInTheDocument();
   });
 
-  it('loads additional insight pages when project search is active', async () => {
-    vi.mocked(insightTemplatesService.getProjectInsightTemplates)
-      .mockResolvedValueOnce({
-        insights: Array.from({ length: 100 }, (_, index) =>
+  it('searches across the full loaded insights list without fetching another page', async () => {
+    vi.mocked(insightTemplatesService.getProjectInsightTemplates).mockResolvedValueOnce({
+      insights: [
+        ...Array.from({ length: 15 }, (_, index) =>
           buildInsightTemplateResponse({
             id: `insight-${index + 1}`,
             title: `Insight ${index + 1}`,
           })
         ),
-      })
-      .mockResolvedValueOnce({
-        insights: [
-          buildInsightTemplateResponse({
-            id: 'insight-needle',
-            title: 'Needle Insight',
-          }),
-        ],
-      });
+        buildInsightTemplateResponse({
+          id: 'insight-needle',
+          title: 'Needle Insight',
+        }),
+      ],
+    });
 
     renderPage();
 
@@ -266,7 +285,7 @@ describe('DataMartInsightsPage', () => {
     });
 
     expect(await screen.findByText('Needle Insight')).toBeInTheDocument();
-    expect(insightTemplatesService.getProjectInsightTemplates).toHaveBeenCalledWith(100, 100);
+    expect(insightTemplatesService.getProjectInsightTemplates).toHaveBeenCalledTimes(1);
   });
 });
 

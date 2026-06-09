@@ -1,9 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import type { ColumnDef } from '@tanstack/react-table';
-import { RefreshCw } from 'lucide-react';
 import { Badge } from '@owox/ui/components/badge';
-import { Button } from '@owox/ui/components/button';
 import RelativeTime from '@owox/ui/components/common/relative-time';
 import { SkeletonList } from '@owox/ui/components/common/skeleton-list';
 import { extractApiError } from '../../../app/api';
@@ -47,7 +45,7 @@ import { ProjectDataMartEmptyState } from '../shared/ProjectDataMartEmptyState';
 import { ProjectDataMartTitleLink } from '../shared/ProjectDataMartTitleLink';
 import { ProjectScheduledTriggerEditSheet } from './ProjectScheduledTriggerEditSheet';
 
-const DATA_MART_SCHEDULES_PAGE_SIZE = 100;
+const DATA_MART_SCHEDULES_PAGE_SIZE = 15;
 const PROJECT_SCHEDULED_TRIGGERS_TABLE_ID = 'project-scheduled-triggers-table';
 
 type ProjectScheduledTriggerFilterKey =
@@ -160,64 +158,44 @@ function DataMartSchedulesPageContent() {
   const { connectors, fetchAvailableConnectors } = useConnector();
   const [triggers, setTriggers] = useState<ProjectScheduledTrigger[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [hasMoreTriggersToLoad, setHasMoreTriggersToLoad] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [editingTrigger, setEditingTrigger] = useState<ProjectScheduledTrigger | null>(null);
 
-  const loadTriggers = useCallback(async (offset = 0) => {
-    const isInitialLoad = offset === 0;
-    if (isInitialLoad) {
-      setIsLoading(true);
-    } else {
-      setIsLoadingMore(true);
-    }
+  const loadTriggers = useCallback(async () => {
+    setIsLoading(true);
     setError(null);
 
     try {
-      const response = await scheduledTriggerService.getProjectScheduledTriggers(
-        DATA_MART_SCHEDULES_PAGE_SIZE,
-        offset
-      );
-      const nextTriggers = ScheduledTriggerMapper.mapProjectFromDtoList(response);
-      setTriggers(currentTriggers =>
-        isInitialLoad ? nextTriggers : [...currentTriggers, ...nextTriggers]
-      );
-      setHasMoreTriggersToLoad(nextTriggers.length >= DATA_MART_SCHEDULES_PAGE_SIZE);
+      const response = await scheduledTriggerService.getProjectScheduledTriggers();
+      setTriggers(ScheduledTriggerMapper.mapProjectFromDtoList(response));
     } catch (caught) {
       setError(extractApiError(caught).message ?? 'Failed to fetch Data Mart triggers');
     } finally {
       setIsLoading(false);
-      setIsLoadingMore(false);
     }
   }, []);
 
   useEffect(() => {
-    void loadTriggers(0);
+    void loadTriggers();
   }, [loadTriggers]);
 
   useEffect(() => {
     void fetchAvailableConnectors();
   }, [fetchAvailableConnectors]);
 
-  const loadMoreTriggers = useCallback(async () => {
-    if (isLoadingMore || !hasMoreTriggersToLoad) return;
-    await loadTriggers(triggers.length);
-  }, [hasMoreTriggersToLoad, isLoadingMore, loadTriggers, triggers.length]);
-
   const handleCloseTriggerEditSheet = useCallback(() => {
     setEditingTrigger(null);
   }, []);
 
   const handleTriggerSaved = useCallback(async () => {
-    await loadTriggers(0);
+    await loadTriggers();
   }, [loadTriggers]);
 
   const handleDeleteTrigger = useCallback(
     async (trigger: ProjectScheduledTrigger) => {
       await scheduledTriggerService.deleteScheduledTrigger(trigger.dataMart.id, trigger.id);
-      await loadTriggers(0);
+      await loadTriggers();
     },
     [loadTriggers]
   );
@@ -238,24 +216,6 @@ function DataMartSchedulesPageContent() {
     urlParam: 'filters',
     config: filtersConfig,
   });
-
-  const shouldLoadAllTriggersForQuery =
-    searchQuery.trim().length > 0 || appliedState.filters.length > 0;
-
-  useEffect(() => {
-    if (!shouldLoadAllTriggersForQuery || !hasMoreTriggersToLoad || isLoading || isLoadingMore) {
-      return;
-    }
-
-    void loadTriggers(triggers.length);
-  }, [
-    hasMoreTriggersToLoad,
-    isLoading,
-    isLoadingMore,
-    loadTriggers,
-    shouldLoadAllTriggersForQuery,
-    triggers.length,
-  ]);
 
   const filteredTriggers = useMemo(
     () =>
@@ -495,27 +455,6 @@ function DataMartSchedulesPageContent() {
                 }
               }}
             />
-
-            {hasMoreTriggersToLoad && (
-              <div className='flex justify-center pt-4 pb-6'>
-                <Button
-                  variant='outline'
-                  size='sm'
-                  onClick={() => void loadMoreTriggers()}
-                  disabled={isLoadingMore}
-                  className='flex items-center gap-2'
-                >
-                  {isLoadingMore ? (
-                    <>
-                      <RefreshCw className='h-4 w-4 animate-spin' />
-                      Loading...
-                    </>
-                  ) : (
-                    'Load More'
-                  )}
-                </Button>
-              </div>
-            )}
           </div>
         )}
       </div>

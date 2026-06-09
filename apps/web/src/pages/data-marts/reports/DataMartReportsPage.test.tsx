@@ -13,7 +13,9 @@ import {
 import { ReportConditionEnum } from '../../../features/data-marts/reports/shared/enums/report-condition.enum';
 import type { ReportResponseDto } from '../../../features/data-marts/reports/shared/services';
 import { reportService } from '../../../features/data-marts/reports/shared/services';
+import { mapReportDtoToEntity } from '../../../features/data-marts/reports/shared/model/mappers';
 import DataMartReportsPage from './DataMartReportsPage';
+import { mergeReportPagePreservingRows } from './DataMartReportsPage.utils';
 
 const reportServiceMock = vi.hoisted(() => ({
   getReportsByProject: vi.fn(),
@@ -63,9 +65,13 @@ vi.mock(
       ReportEditSheetRenderer: ({
         isOpen,
         initialReport,
+        onClose,
+        onSubmitSuccess,
       }: {
         isOpen: boolean;
         initialReport?: { title: string } | null;
+        onClose: () => void;
+        onSubmitSuccess?: () => void | Promise<void>;
       }) => {
         const { dataMart } = useDataMartContext();
         useReportContext();
@@ -73,6 +79,18 @@ vi.mock(
         return isOpen ? (
           <div role='dialog' aria-label='Report edit sheet'>
             Editing report {initialReport?.title} for {dataMart?.title} via {dataMart?.storage.type}
+            <button type='button' onClick={onClose}>
+              Close report edit sheet
+            </button>
+            <button
+              type='button'
+              onClick={() => {
+                void onSubmitSuccess?.();
+                onClose();
+              }}
+            >
+              Submit report edit sheet
+            </button>
           </div>
         ) : null;
       },
@@ -108,7 +126,38 @@ describe('DataMartReportsPage', () => {
     vi.useRealTimers();
   });
 
-  it('loads project reports by 100 and shows their Data Mart context', async () => {
+  it('preserves unchanged report row objects during silent page refreshes', () => {
+    const unchangedReport = mapReportDtoToEntity(
+      buildReportResponse({ id: 'report-1', title: 'Unchanged Report' })
+    );
+    const changedReport = mapReportDtoToEntity(
+      buildReportResponse({ id: 'report-2', title: 'Pending Report' })
+    );
+    const oldTailReport = mapReportDtoToEntity(
+      buildReportResponse({ id: 'report-3', title: 'Loaded Tail Report' })
+    );
+    const nextUnchangedReport = mapReportDtoToEntity(
+      buildReportResponse({ id: 'report-1', title: 'Unchanged Report' })
+    );
+    const nextChangedReport = mapReportDtoToEntity(
+      buildReportResponse({
+        id: 'report-2',
+        title: 'Pending Report',
+        lastRunStatus: ReportStatusEnum.RUNNING,
+      })
+    );
+
+    const mergedReports = mergeReportPagePreservingRows(
+      [unchangedReport, changedReport, oldTailReport],
+      [nextUnchangedReport, nextChangedReport]
+    );
+
+    expect(mergedReports[0]).toBe(unchangedReport);
+    expect(mergedReports[1]).toBe(nextChangedReport);
+    expect(mergedReports[2]).toBe(oldTailReport);
+  });
+
+  it('loads all project reports and shows their Data Mart context', async () => {
     vi.mocked(reportService.getReportsByProject).mockResolvedValueOnce([buildReportResponse()]);
 
     renderPage();
@@ -122,7 +171,29 @@ describe('DataMartReportsPage', () => {
     expect(screen.getByText('Email')).toBeInTheDocument();
     expect(screen.getByRole('img', { name: 'Success' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Toggle columns' })).toBeInTheDocument();
-    expect(reportService.getReportsByProject).toHaveBeenCalledWith(100, 0);
+    expect(reportService.getReportsByProject).toHaveBeenCalledWith();
+  });
+
+  it('uses table pagination over the full reports list', async () => {
+    vi.mocked(reportService.getReportsByProject).mockResolvedValueOnce(
+      Array.from({ length: 16 }, (_, index) =>
+        buildReportResponse({
+          id: `report-${index + 1}`,
+          title: `Report ${index + 1}`,
+        })
+      )
+    );
+
+    renderPage();
+
+    expect(await screen.findByText('Report 1')).toBeInTheDocument();
+    expect(screen.getByText('1–15 of 16 rows')).toBeInTheDocument();
+    expect(screen.queryByText('Report 16')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Go to next page' }));
+
+    expect(await screen.findByText('Report 16')).toBeInTheDocument();
+    expect(screen.getByText('16–16 of 16 rows')).toBeInTheDocument();
   });
 
   it('shows Data Mart as the first table column', async () => {
@@ -269,6 +340,37 @@ describe('DataMartReportsPage', () => {
     );
   });
 
+  it('closes the report edit sheet without reloading the project reports list', async () => {
+    vi.mocked(reportService.getReportsByProject).mockResolvedValueOnce([buildReportResponse()]);
+
+    renderPage();
+
+    fireEvent.click(await screen.findByText('Daily Sales Report'));
+    fireEvent.click(screen.getByRole('button', { name: 'Close report edit sheet' }));
+
+    expect(screen.queryByRole('dialog', { name: 'Report edit sheet' })).not.toBeInTheDocument();
+    expect(reportService.getReportsByProject).toHaveBeenCalledTimes(1);
+  });
+
+  it('reloads the project reports list after a report edit submit succeeds', async () => {
+    vi.mocked(reportService.getReportsByProject)
+      .mockResolvedValueOnce([buildReportResponse()])
+      .mockResolvedValueOnce([
+        buildReportResponse({
+          title: 'Updated Daily Sales Report',
+        }),
+      ]);
+
+    renderPage();
+
+    fireEvent.click(await screen.findByText('Daily Sales Report'));
+    fireEvent.click(screen.getByRole('button', { name: 'Submit report edit sheet' }));
+
+    await waitFor(() => {
+      expect(reportService.getReportsByProject).toHaveBeenCalledTimes(2);
+    });
+  });
+
   it('does not open the report edit sheet when the caller cannot edit report config', async () => {
     vi.mocked(reportService.getReportsByProject).mockResolvedValueOnce([
       buildReportResponse({ canEditConfig: false }),
@@ -385,7 +487,7 @@ describe('DataMartReportsPage', () => {
     expect(reportService.runReport).not.toHaveBeenCalled();
   });
 
-  it('polls project reports while any loaded report is still running', async () => {
+  it('polls project reports while any visible report is still running', async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true });
     vi.mocked(reportService.getReportsByProject).mockResolvedValue([
       buildReportResponse({
@@ -406,11 +508,34 @@ describe('DataMartReportsPage', () => {
     vi.useRealTimers();
   });
 
+  it('does not poll project reports when a running report is outside the visible page', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    vi.mocked(reportService.getReportsByProject).mockResolvedValue(
+      Array.from({ length: 16 }, (_, index) =>
+        buildReportResponse({
+          id: `report-${index + 1}`,
+          title: `Report ${index + 1}`,
+          lastRunStatus: index === 15 ? ReportStatusEnum.RUNNING : ReportStatusEnum.SUCCESS,
+        })
+      )
+    );
+
+    renderPage();
+
+    expect(await screen.findByText('Report 1')).toBeInTheDocument();
+
+    await vi.advanceTimersByTimeAsync(5000);
+
+    expect(reportService.getReportsByProject).toHaveBeenCalledTimes(1);
+
+    vi.useRealTimers();
+  });
+
   it('keeps already loaded report pages during silent polling', async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true });
     vi.mocked(reportService.getReportsByProject)
       .mockResolvedValueOnce(
-        Array.from({ length: 100 }, (_, index) =>
+        Array.from({ length: 16 }, (_, index) =>
           buildReportResponse({
             id: `report-${index + 1}`,
             title: `Report ${index + 1}`,
@@ -418,13 +543,6 @@ describe('DataMartReportsPage', () => {
           })
         )
       )
-      .mockResolvedValueOnce([
-        buildReportResponse({
-          id: 'report-101',
-          title: 'Loaded Second Page Report',
-          lastRunStatus: ReportStatusEnum.SUCCESS,
-        }),
-      ])
       .mockResolvedValueOnce([
         buildReportResponse({
           id: 'report-1',
@@ -436,41 +554,33 @@ describe('DataMartReportsPage', () => {
     renderPage();
 
     expect(await screen.findByText('Report 1')).toBeInTheDocument();
-
-    fireEvent.click(screen.getByRole('button', { name: 'Load More' }));
-    await waitFor(() => {
-      expect(reportService.getReportsByProject).toHaveBeenCalledWith(100, 100);
-    });
-    fireEvent.change(screen.getByPlaceholderText('Search'), {
-      target: { value: 'Loaded Second' },
-    });
-    expect(await screen.findByText('Loaded Second Page Report')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Load More' })).not.toBeInTheDocument();
 
     await vi.advanceTimersByTimeAsync(5000);
 
-    expect(await screen.findByText('Loaded Second Page Report')).toBeInTheDocument();
+    fireEvent.change(screen.getByPlaceholderText('Search'), {
+      target: { value: 'Report 16' },
+    });
+    expect(await screen.findByText('Report 16')).toBeInTheDocument();
+    expect(reportService.getReportsByProject).toHaveBeenCalledWith();
     expect(reportService.getReportsByProject).toHaveBeenCalledWith(100, 0);
-    expect(reportService.getReportsByProject).toHaveBeenCalledWith(100, 100);
 
     vi.useRealTimers();
   });
 
-  it('loads additional report pages when project search is active', async () => {
-    vi.mocked(reportService.getReportsByProject)
-      .mockResolvedValueOnce(
-        Array.from({ length: 100 }, (_, index) =>
-          buildReportResponse({
-            id: `report-${index + 1}`,
-            title: `Report ${index + 1}`,
-          })
-        )
-      )
-      .mockResolvedValueOnce([
+  it('searches across the full loaded reports list without fetching another page', async () => {
+    vi.mocked(reportService.getReportsByProject).mockResolvedValueOnce([
+      ...Array.from({ length: 15 }, (_, index) =>
         buildReportResponse({
-          id: 'report-needle',
-          title: 'Needle Report',
-        }),
-      ]);
+          id: `report-${index + 1}`,
+          title: `Report ${index + 1}`,
+        })
+      ),
+      buildReportResponse({
+        id: 'report-needle',
+        title: 'Needle Report',
+      }),
+    ]);
 
     renderPage();
 
@@ -481,7 +591,7 @@ describe('DataMartReportsPage', () => {
     });
 
     expect(await screen.findByText('Needle Report')).toBeInTheDocument();
-    expect(reportService.getReportsByProject).toHaveBeenCalledWith(100, 100);
+    expect(reportService.getReportsByProject).toHaveBeenCalledTimes(1);
   });
 });
 

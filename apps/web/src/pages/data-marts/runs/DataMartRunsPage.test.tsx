@@ -1,4 +1,4 @@
-import { act, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
@@ -67,6 +67,7 @@ describe('DataMartRunsPage', () => {
       'href',
       '/ui/project-1/data-marts'
     );
+    expect(dataMartService.getProjectDataMartRuns).toHaveBeenCalledWith(50, 0, undefined);
   });
 
   afterEach(() => {
@@ -129,7 +130,7 @@ describe('DataMartRunsPage', () => {
     });
 
     expect(dataMartService.getProjectDataMartRuns).toHaveBeenCalledTimes(2);
-    expect(dataMartService.getProjectDataMartRuns).toHaveBeenLastCalledWith(100, 0, {
+    expect(dataMartService.getProjectDataMartRuns).toHaveBeenLastCalledWith(50, 0, {
       skipLoadingIndicator: true,
     });
 
@@ -139,6 +140,30 @@ describe('DataMartRunsPage', () => {
     });
 
     expect(dataMartService.getProjectDataMartRuns).toHaveBeenCalledTimes(2);
+  });
+
+  it('loads the next run history batch with a 50-run offset', async () => {
+    vi.mocked(dataMartService.getProjectDataMartRuns)
+      .mockResolvedValueOnce({
+        runs: Array.from({ length: 50 }, (_, index) =>
+          buildProjectRun({
+            id: `run-${index + 1}`,
+            status: DataMartRunStatus.SUCCESS,
+          })
+        ),
+      })
+      .mockResolvedValueOnce({
+        runs: [buildProjectRun({ id: 'run-51', status: DataMartRunStatus.SUCCESS })],
+      });
+
+    renderPage();
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Load More' }));
+
+    await waitFor(() => {
+      expect(dataMartService.getProjectDataMartRuns).toHaveBeenCalledTimes(2);
+    });
+    expect(dataMartService.getProjectDataMartRuns).toHaveBeenLastCalledWith(50, 50, undefined);
   });
 });
 
@@ -150,9 +175,9 @@ function renderPage() {
   );
 }
 
-function buildProjectRun({ status }: { status: DataMartRunStatus }) {
+function buildProjectRun({ id = 'run-1', status }: { id?: string; status: DataMartRunStatus }) {
   return {
-    id: 'run-1',
+    id,
     dataMartId: 'dm-1',
     status,
     createdAt: '2026-06-05T10:00:00.000Z',

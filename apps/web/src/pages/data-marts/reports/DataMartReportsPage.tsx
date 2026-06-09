@@ -2,8 +2,6 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
 import { useParams } from 'react-router-dom';
 import type { ColumnDef } from '@tanstack/react-table';
-import { RefreshCw } from 'lucide-react';
-import { Button } from '@owox/ui/components/button';
 import RelativeTime from '@owox/ui/components/common/relative-time';
 import { SkeletonList } from '@owox/ui/components/common/skeleton-list';
 import { extractApiError } from '../../../app/api';
@@ -40,8 +38,10 @@ import {
 import { buildProjectDataMartContextValue } from '../shared/projectDataMartContext';
 import { ProjectDataMartEmptyState } from '../shared/ProjectDataMartEmptyState';
 import { ProjectDataMartTitleLink } from '../shared/ProjectDataMartTitleLink';
+import { mergeReportPagePreservingRows } from './DataMartReportsPage.utils';
 
-const PROJECT_REPORTS_PAGE_SIZE = 100;
+const PROJECT_REPORTS_TABLE_PAGE_SIZE = 15;
+const PROJECT_REPORTS_FETCH_PAGE_SIZE = 100;
 const PROJECT_REPORTS_TABLE_ID = 'project-reports-table';
 
 type ProjectReportFilterKey =
@@ -166,9 +166,7 @@ export default function DataMartReportsPage() {
   const { scope } = useProjectRoute();
   const [reports, setReports] = useState<DataMartReport[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [hasMoreReportsToLoad, setHasMoreReportsToLoad] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const {
     isOpen: isReportEditSheetOpen,
@@ -178,87 +176,51 @@ export default function DataMartReportsPage() {
     handleCloseModal,
   } = useReportSidesheet();
 
-  const loadReports = useCallback(async (offset = 0, options?: { silent?: boolean }) => {
-    const isInitialLoad = offset === 0;
-    const isSilent = options?.silent === true;
+  const loadReports = useCallback(
+    async (options?: { silent?: boolean; firstPageOnly?: boolean }) => {
+      const isSilent = options?.silent === true;
 
-    if (isInitialLoad && !isSilent) {
-      setIsLoading(true);
-    } else if (!isInitialLoad) {
-      setIsLoadingMore(true);
-    }
-
-    if (!isSilent) {
-      setError(null);
-    }
-
-    try {
-      const response = await reportService.getReportsByProject(PROJECT_REPORTS_PAGE_SIZE, offset);
-      const nextReports = response.map(mapReportDtoToEntity);
-      setReports(currentReports => {
-        if (!isInitialLoad) {
-          return [...currentReports, ...nextReports];
-        }
-
-        if (!isSilent) {
-          return nextReports;
-        }
-
-        const nextReportIds = new Set(nextReports.map(report => report.id));
-        const loadedOlderReports = currentReports.filter(report => !nextReportIds.has(report.id));
-        return [...nextReports, ...loadedOlderReports];
-      });
-
-      if (!isInitialLoad || !isSilent) {
-        setHasMoreReportsToLoad(nextReports.length >= PROJECT_REPORTS_PAGE_SIZE);
-      }
-    } catch (caught) {
       if (!isSilent) {
-        setError(extractApiError(caught).message ?? 'Failed to fetch Data Mart reports');
+        setIsLoading(true);
+        setError(null);
       }
-    } finally {
-      if (isInitialLoad && !isSilent) {
-        setIsLoading(false);
-      } else if (!isInitialLoad) {
-        setIsLoadingMore(false);
+
+      try {
+        const response = options?.firstPageOnly
+          ? await reportService.getReportsByProject(PROJECT_REPORTS_FETCH_PAGE_SIZE, 0)
+          : await reportService.getReportsByProject();
+        const nextReports = response.map(mapReportDtoToEntity);
+        setReports(currentReports => {
+          if (!isSilent) {
+            return nextReports;
+          }
+
+          return mergeReportPagePreservingRows(currentReports, nextReports);
+        });
+      } catch (caught) {
+        if (!isSilent) {
+          setError(extractApiError(caught).message ?? 'Failed to fetch Data Mart reports');
+        }
+      } finally {
+        if (!isSilent) {
+          setIsLoading(false);
+        }
       }
-    }
-  }, []);
-
-  useEffect(() => {
-    void loadReports(0);
-  }, [loadReports]);
-
-  const loadMoreReports = useCallback(async () => {
-    if (isLoadingMore || !hasMoreReportsToLoad) return;
-    await loadReports(reports.length);
-  }, [hasMoreReportsToLoad, isLoadingMore, loadReports, reports.length]);
-
-  const handleCloseReportEditSheet = useCallback(() => {
-    handleCloseModal();
-    void loadReports(0);
-  }, [handleCloseModal, loadReports]);
-
-  const handleReportActionComplete = useCallback(async () => {
-    await loadReports(0);
-  }, [loadReports]);
-
-  const hasRunningReports = useMemo(
-    () => reports.some(report => report.lastRunStatus === ReportStatusEnum.RUNNING),
-    [reports]
+    },
+    []
   );
 
   useEffect(() => {
-    if (!hasRunningReports || isLoadingMore) return;
+    void loadReports();
+  }, [loadReports]);
 
-    const intervalId = window.setInterval(() => {
-      void loadReports(0, { silent: true });
-    }, 5000);
+  const handleCloseReportEditSheet = useCallback(() => {
+    handleCloseModal();
+  }, [handleCloseModal]);
 
-    return () => {
-      window.clearInterval(intervalId);
-    };
-  }, [hasRunningReports, isLoadingMore, loadReports]);
+  const handleReportActionComplete = useCallback(async () => {
+    await loadReports();
+  }, [loadReports]);
 
   const reportDataMartContextValue = useMemo(
     () => (editingReport ? buildProjectDataMartContextValue(editingReport.dataMart) : null),
@@ -273,24 +235,6 @@ export default function DataMartReportsPage() {
     urlParam: 'filters',
     config: filtersConfig,
   });
-
-  const shouldLoadAllReportsForQuery =
-    searchQuery.trim().length > 0 || appliedState.filters.length > 0;
-
-  useEffect(() => {
-    if (!shouldLoadAllReportsForQuery || !hasMoreReportsToLoad || isLoading || isLoadingMore) {
-      return;
-    }
-
-    void loadReports(reports.length, { silent: true });
-  }, [
-    hasMoreReportsToLoad,
-    isLoading,
-    isLoadingMore,
-    loadReports,
-    reports.length,
-    shouldLoadAllReportsForQuery,
-  ]);
 
   const filteredReports = useMemo(
     () =>
@@ -444,9 +388,25 @@ export default function DataMartReportsPage() {
     columns,
     storageKeyPrefix: 'project-data-mart-reports',
     defaultSortingColumn: 'lastRunDate',
-    defaultPageSize: PROJECT_REPORTS_PAGE_SIZE,
+    defaultPageSize: PROJECT_REPORTS_TABLE_PAGE_SIZE,
     enableRowSelection: false,
   });
+
+  const hasRunningVisibleReports = table
+    .getRowModel()
+    .rows.some(row => row.original.lastRunStatus === ReportStatusEnum.RUNNING);
+
+  useEffect(() => {
+    if (!hasRunningVisibleReports) return;
+
+    const intervalId = window.setInterval(() => {
+      void loadReports({ silent: true, firstPageOnly: true });
+    }, 5000);
+
+    return () => {
+      window.clearInterval(intervalId);
+    };
+  }, [hasRunningVisibleReports, loadReports]);
 
   return (
     <ReportsProvider>
@@ -497,27 +457,6 @@ export default function DataMartReportsPage() {
                   }
                 }}
               />
-
-              {hasMoreReportsToLoad && (
-                <div className='flex justify-center pt-4 pb-6'>
-                  <Button
-                    variant='outline'
-                    size='sm'
-                    onClick={() => void loadMoreReports()}
-                    disabled={isLoadingMore}
-                    className='flex items-center gap-2'
-                  >
-                    {isLoadingMore ? (
-                      <>
-                        <RefreshCw className='h-4 w-4 animate-spin' />
-                        Loading...
-                      </>
-                    ) : (
-                      'Load More'
-                    )}
-                  </Button>
-                </div>
-              )}
             </div>
           )}
         </div>
@@ -528,6 +467,7 @@ export default function DataMartReportsPage() {
               destination={editingReport.dataDestination}
               isOpen={isReportEditSheetOpen}
               onClose={handleCloseReportEditSheet}
+              onSubmitSuccess={handleReportActionComplete}
               mode={reportEditMode}
               initialReport={editingReport}
             />

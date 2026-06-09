@@ -75,4 +75,32 @@ describe('InsightTemplatesService', () => {
     });
     expect(result).toEqual(response);
   });
+
+  it('fetches all project-wide insight templates when pagination is omitted', async () => {
+    const firstInsight = { id: 'insight-1', title: 'Insight 1' };
+    const secondInsight = { id: 'insight-101', title: 'Insight 101' };
+    (apiClient.get as any)
+      .mockResolvedValueOnce({
+        data: {
+          insights: Array.from({ length: 100 }, (_, index) => ({
+            id: `insight-${index + 1}`,
+            title: `Insight ${index + 1}`,
+          })),
+        },
+      })
+      .mockResolvedValueOnce({ data: { insights: [secondInsight] } });
+
+    const result = await service.getProjectInsightTemplates();
+
+    expect(apiClient.get).toHaveBeenCalledTimes(2);
+    expect(apiClient.get).toHaveBeenNthCalledWith(1, '/data-marts/insight-templates', {
+      params: { limit: 100, offset: 0 },
+    });
+    expect(apiClient.get).toHaveBeenNthCalledWith(2, '/data-marts/insight-templates', {
+      params: { limit: 100, offset: 100 },
+    });
+    expect(result.insights).toHaveLength(101);
+    expect(result.insights[0]).toEqual(firstInsight);
+    expect(result.insights[100]).toEqual(secondInsight);
+  });
 });

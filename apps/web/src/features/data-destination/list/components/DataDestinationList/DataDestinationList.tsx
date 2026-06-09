@@ -22,6 +22,14 @@ interface DataDestinationListProps {
   onCreateSheetClose?: () => void;
 }
 
+function buildReportsDestinationFilterPath(destinationTitle: string) {
+  const params = new URLSearchParams({
+    filters: JSON.stringify([{ f: 'destination', o: 'eq', v: [destinationTitle] }]),
+  });
+
+  return `/data-marts/reports?${params.toString()}`;
+}
+
 export const DataDestinationList = ({
   isCreateSheetInitiallyOpen = false,
   onCreateSheetClose,
@@ -219,7 +227,7 @@ export const DataDestinationList = ({
               <span className='block'>
                 <strong>&ldquo;{blocked.impact.destinationTitle}&rdquo;</strong> is referenced by{' '}
                 <Link
-                  to={scope('/data-marts')}
+                  to={scope(buildReportsDestinationFilterPath(blocked.impact.destinationTitle))}
                   className='text-primary hover:underline'
                   onClick={() => {
                     setBlocked(null);

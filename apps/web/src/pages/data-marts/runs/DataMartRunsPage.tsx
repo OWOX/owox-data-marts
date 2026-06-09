@@ -14,7 +14,7 @@ import { getConnectorInfoByName } from '../../../features/connectors/shared/util
 import { useProjectRoute } from '../../../shared/hooks';
 import { ProjectDataMartEmptyState } from '../shared/ProjectDataMartEmptyState';
 
-const PROJECT_RUNS_PAGE_SIZE = 100;
+const PROJECT_RUNS_PAGE_SIZE = 50;
 
 export default function DataMartRunsPage() {
   const { scope } = useProjectRoute();
