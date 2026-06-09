@@ -20,10 +20,22 @@ describe('ReportService', () => {
     (apiClient.get as any).mockResolvedValue({ data: [] });
   });
 
-  it('fetches project reports without pagination when no pagination parameters are provided', async () => {
-    await service.getReportsByProject();
+  it('fetches all project reports when pagination is omitted', async () => {
+    const firstPage = Array.from({ length: 100 }, (_, index) => ({ id: `report-${index + 1}` }));
+    const secondPage = [{ id: 'report-101' }];
+    (apiClient.get as any)
+      .mockResolvedValueOnce({ data: firstPage })
+      .mockResolvedValueOnce({ data: secondPage });
 
-    expect(apiClient.get).toHaveBeenCalledWith('/reports/', { params: undefined });
+    const result = await service.getReportsByProject();
+
+    expect(apiClient.get).toHaveBeenNthCalledWith(1, '/reports/', {
+      params: { limit: 100, offset: 0 },
+    });
+    expect(apiClient.get).toHaveBeenNthCalledWith(2, '/reports/', {
+      params: { limit: 100, offset: 100 },
+    });
+    expect(result).toEqual([...firstPage, ...secondPage]);
   });
 
   it('fetches project reports with limit-only pagination', async () => {
@@ -46,7 +58,7 @@ describe('ReportService', () => {
     await service.getReportsByProject(undefined, 200);
 
     expect(apiClient.get).toHaveBeenCalledWith('/reports/', {
-      params: { offset: 200 },
+      params: { limit: 100, offset: 200 },
     });
   });
 });

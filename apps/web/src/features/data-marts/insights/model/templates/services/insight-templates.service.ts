@@ -11,6 +11,8 @@ import type {
   UpdateInsightTemplateRequestDto,
 } from '../types/insight-templates.dto';
 
+const PROJECT_INSIGHT_TEMPLATES_FETCH_PAGE_SIZE = 100;
+
 export class InsightTemplatesService extends ApiService {
   constructor() {
     super('/data-marts');
@@ -21,12 +23,33 @@ export class InsightTemplatesService extends ApiService {
   }
 
   async getProjectInsightTemplates(
-    limit = 100,
-    offset = 0
+    limit?: number,
+    offset?: number
   ): Promise<ProjectInsightTemplateListResponseDto> {
+    if (limit === undefined && offset === undefined) {
+      const insights: ProjectInsightTemplateListResponseDto['insights'] = [];
+      let nextOffset = 0;
+      let fetchedCount: number;
+
+      do {
+        const response = await this.get<ProjectInsightTemplateListResponseDto>(
+          '/insight-templates',
+          {
+            limit: PROJECT_INSIGHT_TEMPLATES_FETCH_PAGE_SIZE,
+            offset: nextOffset,
+          }
+        );
+        insights.push(...response.insights);
+        fetchedCount = response.insights.length;
+        nextOffset += PROJECT_INSIGHT_TEMPLATES_FETCH_PAGE_SIZE;
+      } while (fetchedCount === PROJECT_INSIGHT_TEMPLATES_FETCH_PAGE_SIZE);
+
+      return { insights };
+    }
+
     return this.get<ProjectInsightTemplateListResponseDto>('/insight-templates', {
-      limit,
-      offset,
+      limit: limit ?? PROJECT_INSIGHT_TEMPLATES_FETCH_PAGE_SIZE,
+      offset: offset ?? 0,
     });
   }
 

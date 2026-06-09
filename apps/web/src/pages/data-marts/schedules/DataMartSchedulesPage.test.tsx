@@ -75,7 +75,30 @@ describe('DataMartSchedulesPage', () => {
     expect(await screen.findByText('Run Target')).toBeInTheDocument();
     expect(await screen.findByText('Daily Sales Report')).toBeInTheDocument();
     expect(await screen.findByRole('button', { name: 'Toggle columns' })).toBeInTheDocument();
-    expect(scheduledTriggerService.getProjectScheduledTriggers).toHaveBeenCalledWith(100, 0);
+    expect(scheduledTriggerService.getProjectScheduledTriggers).toHaveBeenCalledWith();
+  });
+
+  it('uses table pagination over the full triggers list', async () => {
+    vi.mocked(scheduledTriggerService.getProjectScheduledTriggers).mockResolvedValueOnce({
+      triggers: Array.from({ length: 16 }, (_, index) =>
+        buildProjectReportTrigger({
+          id: `trigger-${index + 1}`,
+          reportId: `report-${index + 1}`,
+          reportTitle: `Report ${index + 1}`,
+        })
+      ),
+    });
+
+    renderPage();
+
+    expect(await screen.findByText('Report 1')).toBeInTheDocument();
+    expect(screen.getByText('1–15 of 16 rows')).toBeInTheDocument();
+    expect(screen.queryByText('Report 16')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Go to next page' }));
+
+    expect(await screen.findByText('Report 16')).toBeInTheDocument();
+    expect(screen.getByText('16–16 of 16 rows')).toBeInTheDocument();
   });
 
   it('shows Data Mart as the first table column', async () => {
@@ -298,26 +321,23 @@ describe('DataMartSchedulesPage', () => {
     expect(connectorIcon).toHaveAttribute('src', 'data:image/png;base64,facebook-logo');
   });
 
-  it('loads additional trigger pages when project search is active', async () => {
-    vi.mocked(scheduledTriggerService.getProjectScheduledTriggers)
-      .mockResolvedValueOnce({
-        triggers: Array.from({ length: 100 }, (_, index) =>
+  it('searches across the full loaded triggers list without fetching another page', async () => {
+    vi.mocked(scheduledTriggerService.getProjectScheduledTriggers).mockResolvedValueOnce({
+      triggers: [
+        ...Array.from({ length: 15 }, (_, index) =>
           buildProjectReportTrigger({
             id: `trigger-${index + 1}`,
             reportId: `report-${index + 1}`,
             reportTitle: `Report ${index + 1}`,
           })
         ),
-      })
-      .mockResolvedValueOnce({
-        triggers: [
-          buildProjectReportTrigger({
-            id: 'trigger-needle',
-            reportId: 'report-needle',
-            reportTitle: 'Needle Trigger Target',
-          }),
-        ],
-      });
+        buildProjectReportTrigger({
+          id: 'trigger-needle',
+          reportId: 'report-needle',
+          reportTitle: 'Needle Trigger Target',
+        }),
+      ],
+    });
 
     renderPage();
 
@@ -328,7 +348,7 @@ describe('DataMartSchedulesPage', () => {
     });
 
     expect(await screen.findByText('Needle Trigger Target')).toBeInTheDocument();
-    expect(scheduledTriggerService.getProjectScheduledTriggers).toHaveBeenCalledWith(100, 100);
+    expect(scheduledTriggerService.getProjectScheduledTriggers).toHaveBeenCalledTimes(1);
   });
 });
 

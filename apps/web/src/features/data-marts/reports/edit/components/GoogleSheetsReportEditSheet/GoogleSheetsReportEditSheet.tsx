@@ -17,6 +17,7 @@ import { useIntercomLauncher } from '../../../../../../shared/hooks/useIntercomL
 interface GoogleSheetsReportEditSheetProps {
   isOpen: boolean;
   onClose: () => void;
+  onSubmitSuccess?: () => void | Promise<void>;
   initialReport?: DataMartReport;
   mode: ReportFormMode;
   preSelectedDestination?: DataDestination | null;
@@ -25,6 +26,7 @@ interface GoogleSheetsReportEditSheetProps {
 export function GoogleSheetsReportEditSheet({
   isOpen,
   onClose,
+  onSubmitSuccess,
   initialReport,
   mode,
   preSelectedDestination,
@@ -67,7 +69,10 @@ export function GoogleSheetsReportEditSheet({
               initialReport={initialReport}
               mode={mode}
               onDirtyChange={handleFormDirtyChange}
-              onSubmit={handleFormSubmitSuccess}
+              onSubmit={() => {
+                void onSubmitSuccess?.();
+                handleFormSubmitSuccess();
+              }}
               onCancel={handleClose}
               preSelectedDestination={preSelectedDestination}
             />
