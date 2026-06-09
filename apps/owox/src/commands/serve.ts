@@ -6,8 +6,10 @@ import { Flags } from '@oclif/core';
 import { IdpProtocolMiddleware } from '@owox/idp-protocol';
 import cors, { CorsOptions } from 'cors';
 import express from 'express';
+import { existsSync } from 'node:fs';
 
 import { IdpFactory } from '../idp/factory.js';
+import { trackServeStarted } from '../telemetry/index.js';
 import { getPackageInfo } from '../utils/package-info.js';
 import {
   registerHealthRoutes,
@@ -278,6 +280,22 @@ export default class Serve extends BaseCommand {
 
       this.log(`Process ID: ${process.pid}`);
       this.log(`Server started successfully. Open http://localhost:${port} in your browser.`);
+
+      const packageInfo = getPackageInfo();
+      trackServeStarted({
+        log: (message: string) => this.log(message),
+        payload: {
+          /* eslint-disable camelcase */
+          cli_version: packageInfo.version,
+          idp_provider: process.env.IDP_PROVIDER ?? 'none',
+          is_docker: existsSync('/.dockerenv'),
+          node_version: process.version,
+          os_arch: process.arch,
+          os_platform: process.platform,
+          web_enabled: flags['web-enabled'],
+          /* eslint-enable camelcase */
+        },
+      });
 
       // Keep process alive until shutdown
       await this.waitForShutdown();

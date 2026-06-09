@@ -16,3 +16,6 @@ export * from './security/security-headers.js';
 export * from './integrations/event-bus/index.js';
 export * from './integrations/email/index.js';
 export * from './utils/impersonatedIdToken.js';
+export * from './telemetry/is-telemetry-enabled.js';
+export * from './telemetry/anonymous-id.js';
+export * from './telemetry/emit-telemetry.js';
