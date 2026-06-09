@@ -11,8 +11,8 @@ describe('supportsOutputControls', () => {
     expect(supportsOutputControls(DataStorageType.AWS_ATHENA)).toBe(true);
   });
 
-  it('returns false for legacy BigQuery', () => {
-    expect(supportsOutputControls(DataStorageType.LEGACY_GOOGLE_BIGQUERY)).toBe(false);
+  it('returns true for legacy BigQuery', () => {
+    expect(supportsOutputControls(DataStorageType.LEGACY_GOOGLE_BIGQUERY)).toBe(true);
   });
 
   it('returns true for Redshift', () => {

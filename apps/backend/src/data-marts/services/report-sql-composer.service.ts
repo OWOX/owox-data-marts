@@ -140,6 +140,7 @@ export class ReportSqlComposerService {
       case DataStorageType.AWS_ATHENA:
         return { sql: inlineAthenaPositionalParams(composed.sql, composed.params) };
       case DataStorageType.GOOGLE_BIGQUERY:
+      case DataStorageType.LEGACY_GOOGLE_BIGQUERY:
         return { sql: inlineBigQueryNamedParams(composed.sql, composed.params) };
       default:
         // Redshift inlines all literals and produces no params (early-returned above).

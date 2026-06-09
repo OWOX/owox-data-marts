@@ -44,6 +44,7 @@ import { LegacyBigQuerySqlDryRunExecutor } from './bigquery/services/legacy/lega
 import { LegacyBigQuerySqlPreprocessor } from './bigquery/services/legacy/legacy-bigquery-sql-preprocessor.service';
 import { LegacyBigQuerySqlRunExecutor } from './bigquery/services/legacy/legacy-bigquery-sql-run.executor';
 import { LegacyBigQueryStorageErrorMapper } from './bigquery/services/legacy/legacy-bigquery-storage-error.mapper';
+import { LegacyBigQueryBlendedQueryBuilder } from './bigquery/services/legacy/legacy-bigquery-blended-query-builder';
 import { BigQueryStorageResourceBrowser } from './bigquery/services/bigquery-storage-resource-browser.service';
 import { DataStorageCredentialsUtils } from './data-mart-schema.utils';
 import { DatabricksApiAdapterFactory } from './databricks/adapters/databricks-api-adapter.factory';
@@ -245,6 +246,7 @@ const blendedQueryBuilderProviders = [
   RedshiftBlendedQueryBuilder,
   AthenaBlendedQueryBuilder,
   DatabricksBlendedQueryBuilder,
+  LegacyBigQueryBlendedQueryBuilder,
 ];
 
 export const dataStorageResolverProviders = [
