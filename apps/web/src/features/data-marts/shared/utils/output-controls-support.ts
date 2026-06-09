@@ -4,6 +4,7 @@ import { DataStorageType } from '../../../data-storage/shared/model/types/data-s
 const SUPPORTED: ReadonlySet<DataStorageType> = new Set([
   DataStorageType.GOOGLE_BIGQUERY,
   DataStorageType.AWS_ATHENA,
+  DataStorageType.AWS_REDSHIFT,
 ]);
 
 export function supportsOutputControls(type: DataStorageType): boolean {

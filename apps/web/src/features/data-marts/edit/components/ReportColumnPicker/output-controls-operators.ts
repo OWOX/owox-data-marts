@@ -27,8 +27,8 @@ export interface OperatorMeta {
 }
 
 // Mirror of backend OutputControlsValidatorService type sets — cover every type
-// name each supported provider emits (BigQuery + Athena), keep the two in sync.
-const STRING_TYPES = new Set(['STRING', 'VARCHAR', 'CHAR']);
+// name each supported provider emits (BigQuery + Athena + Redshift), keep in sync.
+const STRING_TYPES = new Set(['STRING', 'VARCHAR', 'CHAR', 'TEXT', 'BPCHAR']);
 const NUMBER_TYPES = new Set([
   'INTEGER',
   'BIGINT',
@@ -37,15 +37,22 @@ const NUMBER_TYPES = new Set([
   'FLOAT',
   'REAL',
   'DOUBLE',
+  'DOUBLE PRECISION',
   'NUMERIC',
   'BIGNUMERIC',
   'DECIMAL',
 ]);
-const DATE_TYPES = new Set(['DATE', 'DATETIME', 'TIMESTAMP', 'TIMESTAMP WITH TIME ZONE']);
+const DATE_TYPES = new Set([
+  'DATE',
+  'DATETIME',
+  'TIMESTAMP',
+  'TIMESTAMP WITH TIME ZONE',
+  'TIMESTAMPTZ',
+]);
 // Time-of-day types are kept out of DATE_TYPES: relative_date presets resolve to
 // calendar dates (current_date / date_add), which are meaningless for a column
 // with no date component and rejected by the backend renderer.
-const TIME_TYPES = new Set(['TIME', 'TIME WITH TIME ZONE']);
+const TIME_TYPES = new Set(['TIME', 'TIME WITH TIME ZONE', 'TIMETZ']);
 const BOOL_TYPES = new Set(['BOOLEAN', 'BOOL']);
 
 const STRING_OPERATORS: OperatorMeta[] = [
@@ -96,7 +103,20 @@ const BOOLEAN_OPERATORS: OperatorMeta[] = [
 ];
 
 // Same comparison operators as dates minus relative_date (calendar-only presets).
-const TIME_OPERATORS: OperatorMeta[] = DATE_OPERATORS.filter(o => o.value !== 'relative_date');
+// "at"-framed labels read naturally for a time of day, which has no calendar date
+// to be "on" / "on or after".
+const TIME_LABEL_OVERRIDES: Partial<Record<FilterOperator, string>> = {
+  eq: 'at',
+  neq: 'not at',
+  gte: 'at or after',
+  lte: 'at or before',
+};
+const TIME_OPERATORS: OperatorMeta[] = DATE_OPERATORS.filter(o => o.value !== 'relative_date').map(
+  o => {
+    const label = TIME_LABEL_OVERRIDES[o.value];
+    return label ? { ...o, label } : o;
+  }
+);
 
 export function operatorsForType(fieldType: string): OperatorMeta[] {
   if (STRING_TYPES.has(fieldType)) return STRING_OPERATORS;

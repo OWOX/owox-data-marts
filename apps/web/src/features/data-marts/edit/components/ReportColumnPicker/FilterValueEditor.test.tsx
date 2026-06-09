@@ -442,6 +442,16 @@ describe('FilterValueEditor — relative_date operator', () => {
 
     expect(lastCall(onChange)).toBeNull();
   });
+
+  it('rejects a Last-N value above 3650 with a friendly message', () => {
+    const { onChange } = renderEditor({ fieldType: DATE_TYPE });
+
+    fireEvent.change(getConditionSelect(), { target: { value: 'relative_date' } });
+    fireEvent.change(getPresetSelect(), { target: { value: 'last_n_days' } });
+    fireEvent.change(screen.getByRole('spinbutton'), { target: { value: '4000' } });
+
+    expect(lastCall(onChange)).toBeNull();
+  });
 });
 
 // ---------------------------------------------------------------------------

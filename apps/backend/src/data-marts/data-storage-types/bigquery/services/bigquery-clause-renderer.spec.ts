@@ -117,25 +117,27 @@ describe('BigQueryClauseRenderer', () => {
           .sql
       ).toBe('\nWHERE `d` = DATE_SUB(CURRENT_DATE(), INTERVAL 1 DAY)');
     });
-    it('last_n_days', () => {
+    it('last_n_days has an upper bound', () => {
       expect(
         r.renderWhere([
           { column: 'd', operator: 'relative_date', value: { kind: 'last_n_days', n: 7 } },
         ]).sql
-      ).toBe('\nWHERE `d` >= DATE_SUB(CURRENT_DATE(), INTERVAL 7 DAY)');
+      ).toBe('\nWHERE `d` >= DATE_SUB(CURRENT_DATE(), INTERVAL 7 DAY) AND `d` <= CURRENT_DATE()');
     });
-    it('last_n_months', () => {
+    it('last_n_months has an upper bound', () => {
       expect(
         r.renderWhere([
           { column: 'd', operator: 'relative_date', value: { kind: 'last_n_months', n: 3 } },
         ]).sql
-      ).toBe('\nWHERE `d` >= DATE_SUB(CURRENT_DATE(), INTERVAL 3 MONTH)');
+      ).toBe('\nWHERE `d` >= DATE_SUB(CURRENT_DATE(), INTERVAL 3 MONTH) AND `d` <= CURRENT_DATE()');
     });
     it('this_month', () => {
       expect(
         r.renderWhere([{ column: 'd', operator: 'relative_date', value: { kind: 'this_month' } }])
           .sql
-      ).toBe('\nWHERE `d` >= DATE_TRUNC(CURRENT_DATE(), MONTH)');
+      ).toBe(
+        '\nWHERE `d` >= DATE_TRUNC(CURRENT_DATE(), MONTH) AND `d` < DATE_ADD(DATE_TRUNC(CURRENT_DATE(), MONTH), INTERVAL 1 MONTH)'
+      );
     });
     it('last_month', () => {
       const sql = r.renderWhere([
@@ -148,7 +150,9 @@ describe('BigQueryClauseRenderer', () => {
       expect(
         r.renderWhere([{ column: 'd', operator: 'relative_date', value: { kind: 'this_year' } }])
           .sql
-      ).toBe('\nWHERE `d` >= DATE_TRUNC(CURRENT_DATE(), YEAR)');
+      ).toBe(
+        '\nWHERE `d` >= DATE_TRUNC(CURRENT_DATE(), YEAR) AND `d` < DATE_ADD(DATE_TRUNC(CURRENT_DATE(), YEAR), INTERVAL 1 YEAR)'
+      );
     });
 
     // Regression: `timestamp_col = CURRENT_DATE()` is a type error in BigQuery (no
@@ -171,7 +175,7 @@ describe('BigQueryClauseRenderer', () => {
         }
       );
 
-      it('wraps a TIMESTAMP column in DATE() for last_n_days', () => {
+      it('wraps both bounds in DATE() for last_n_days on a TIMESTAMP column', () => {
         expect(
           r.renderWhere(
             [{ column: 'd', operator: 'relative_date', value: { kind: 'last_n_days', n: 7 } }],
@@ -179,7 +183,9 @@ describe('BigQueryClauseRenderer', () => {
             'p',
             withType('TIMESTAMP')
           ).sql
-        ).toBe('\nWHERE DATE(`d`) >= DATE_SUB(CURRENT_DATE(), INTERVAL 7 DAY)');
+        ).toBe(
+          '\nWHERE DATE(`d`) >= DATE_SUB(CURRENT_DATE(), INTERVAL 7 DAY) AND DATE(`d`) <= CURRENT_DATE()'
+        );
       });
 
       it('wraps both bounds of last_month for a TIMESTAMP column', () => {
@@ -191,6 +197,32 @@ describe('BigQueryClauseRenderer', () => {
         ).sql;
         expect(sql).toContain('DATE(`d`) >= DATE_TRUNC(DATE_SUB(CURRENT_DATE(), INTERVAL 1 MONTH)');
         expect(sql).toContain('DATE(`d`) < DATE_TRUNC(CURRENT_DATE(), MONTH)');
+      });
+
+      it('wraps both bounds of this_month for a TIMESTAMP column', () => {
+        const sql = r.renderWhere(
+          [{ column: 'd', operator: 'relative_date', value: { kind: 'this_month' } }],
+          undefined,
+          'p',
+          withType('TIMESTAMP')
+        ).sql;
+        expect(sql).toContain('DATE(`d`) >= DATE_TRUNC(CURRENT_DATE(), MONTH)');
+        expect(sql).toContain(
+          'DATE(`d`) < DATE_ADD(DATE_TRUNC(CURRENT_DATE(), MONTH), INTERVAL 1 MONTH)'
+        );
+      });
+
+      it('wraps both bounds of this_year for a TIMESTAMP column', () => {
+        const sql = r.renderWhere(
+          [{ column: 'd', operator: 'relative_date', value: { kind: 'this_year' } }],
+          undefined,
+          'p',
+          withType('TIMESTAMP')
+        ).sql;
+        expect(sql).toContain('DATE(`d`) >= DATE_TRUNC(CURRENT_DATE(), YEAR)');
+        expect(sql).toContain(
+          'DATE(`d`) < DATE_ADD(DATE_TRUNC(CURRENT_DATE(), YEAR), INTERVAL 1 YEAR)'
+        );
       });
 
       it('does NOT wrap a DATE column (compares directly)', () => {

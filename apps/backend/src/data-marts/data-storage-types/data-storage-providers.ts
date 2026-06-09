@@ -91,6 +91,7 @@ import { RedshiftReportReader } from './redshift/services/redshift-report-reader
 import { RedshiftSchemaMerger } from './redshift/services/redshift-schema-merger';
 import { RedshiftSqlDryRunExecutor } from './redshift/services/redshift-sql-dry-run.executor';
 import { RedshiftBlendedQueryBuilder } from './redshift/services/redshift-blended-query-builder';
+import { RedshiftClauseRenderer } from './redshift/services/redshift-clause-renderer';
 import { RedshiftSqlRunExecutor } from './redshift/services/redshift-sql-run.executor';
 import { RedshiftStorageErrorMapper } from './redshift/services/redshift-storage-error.mapper';
 import { SnowflakeApiAdapterFactory } from './snowflake/adapters/snowflake-api-adapter.factory';
@@ -238,6 +239,7 @@ const storageResourceBrowserProviders = [BigQueryStorageResourceBrowser];
 const blendedQueryBuilderProviders = [
   BigQueryClauseRenderer,
   AthenaClauseRenderer,
+  RedshiftClauseRenderer,
   BigQueryBlendedQueryBuilder,
   SnowflakeBlendedQueryBuilder,
   RedshiftBlendedQueryBuilder,

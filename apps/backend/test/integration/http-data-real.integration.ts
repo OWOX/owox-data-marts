@@ -11,6 +11,10 @@ import {
   BigQueryConfig,
   BIGQUERY_AUTODETECT_LOCATION,
 } from 'src/data-marts/data-storage-types/bigquery/schemas/bigquery-config.schema';
+import { RedshiftApiAdapter } from 'src/data-marts/data-storage-types/redshift/adapters/redshift-api.adapter';
+import { RedshiftCredentials } from 'src/data-marts/data-storage-types/redshift/schemas/redshift-credentials.schema';
+import { RedshiftConfig } from 'src/data-marts/data-storage-types/redshift/schemas/redshift-config.schema';
+import { RedshiftConnectionType } from 'src/data-marts/data-storage-types/redshift/enums/redshift-connection-type.enum';
 import { STREAM_BATCH_SIZE } from 'src/data-marts/services/http-data/http-data.constants';
 
 /**
@@ -34,6 +38,12 @@ import { STREAM_BATCH_SIZE } from 'src/data-marts/services/http-data/http-data.c
  *     BQ_SERVICE_ACCOUNT_KEY - JSON string of a GCP service account key
  *     BQ_PROJECT_ID          - GCP project ID
  *     BQ_DATASET             - BigQuery dataset name (must already exist)
+ *   Redshift (Serverless):
+ *     AWS_ACCESS_KEY_ID       - AWS access key ID (shared with Athena)
+ *     AWS_SECRET_ACCESS_KEY   - AWS secret access key (shared with Athena)
+ *     REDSHIFT_REGION         - AWS region (e.g., eu-west-1)
+ *     REDSHIFT_DATABASE       - database name inside the workgroup (e.g., dev)
+ *     REDSHIFT_WORKGROUP_NAME - Serverless workgroup name
  */
 
 // ---------------------------------------------------------------------------
@@ -79,6 +89,29 @@ if (!BQ_CREDENTIALS_AVAILABLE) {
 const describeIfBqCredentials = BQ_CREDENTIALS_AVAILABLE ? describe : describe.skip;
 
 // ---------------------------------------------------------------------------
+// Redshift env vars / credential gate (Serverless; shares the AWS keys)
+// ---------------------------------------------------------------------------
+const REDSHIFT_REGION = process.env.REDSHIFT_REGION;
+const REDSHIFT_DATABASE = process.env.REDSHIFT_DATABASE;
+const REDSHIFT_WORKGROUP_NAME = process.env.REDSHIFT_WORKGROUP_NAME;
+
+const RS_CREDENTIALS_AVAILABLE = !!(
+  AWS_ACCESS_KEY_ID &&
+  AWS_SECRET_ACCESS_KEY &&
+  REDSHIFT_REGION &&
+  REDSHIFT_DATABASE &&
+  REDSHIFT_WORKGROUP_NAME
+);
+
+if (!RS_CREDENTIALS_AVAILABLE) {
+  console.log(
+    'Skipping HTTP Data real Redshift integration tests: AWS credentials or REDSHIFT_* config not set'
+  );
+}
+
+const describeIfRsCredentials = RS_CREDENTIALS_AVAILABLE ? describe : describe.skip;
+
+// ---------------------------------------------------------------------------
 // Shared NestJS app — ONE instance for the entire file.
 // Both describe blocks share the same SQLite :memory: app to avoid the
 // TypeORM / typeorm-transactional DataSource singleton conflict that arises
@@ -88,7 +121,8 @@ let sharedApp: INestApplication;
 let sharedAgent: supertest.Agent;
 
 // Create the shared app if at least one credential set is present.
-const NEED_APP = ATHENA_CREDENTIALS_AVAILABLE || BQ_CREDENTIALS_AVAILABLE;
+const NEED_APP =
+  ATHENA_CREDENTIALS_AVAILABLE || BQ_CREDENTIALS_AVAILABLE || RS_CREDENTIALS_AVAILABLE;
 
 if (NEED_APP) {
   beforeAll(async () => {
@@ -527,6 +561,213 @@ describeIfBqCredentials('HTTP Data API real-data (live BigQuery)', () => {
         `&sort=${bqB64([{ column: 'id', direction: 'asc' }])}`
     );
     // BQ returns id as number — coerce to Number for comparison
+    expect(rows.map(r => Number(r.id))).toEqual([2, 3]);
+  }, 120000);
+});
+
+// =============================================================================
+// REDSHIFT BLOCK — full-stack HTTP Data API against a live Redshift Serverless
+// workgroup (TABLE-def mart, stream + output controls). Mirrors the BQ block.
+// =============================================================================
+
+describeIfRsCredentials('HTTP Data API real-data (live Redshift)', () => {
+  let rsDataMartId: string;
+
+  let rsAdapter: RedshiftApiAdapter;
+  let rsFullyQualifiedName: string;
+
+  const RS_TEST_TABLE_SUFFIX = `http_data_real_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+
+  // The Redshift Data API runs DDL/DML through executeQuery + waitForQueryToComplete:
+  // executeQueryAndGetRows would call GetStatementResult, which throws for any
+  // statement that produces no result set (CREATE/INSERT/DROP).
+  async function rsExecDdl(sql: string): Promise<void> {
+    const { statementId } = await rsAdapter.executeQuery(sql);
+    await rsAdapter.waitForQueryToComplete(statementId);
+  }
+
+  // -------------------------------------------------------------------------
+  // beforeAll: seed real Redshift table + build credentialed storage + mart
+  // via HTTP API (uses sharedAgent — no second createTestApp() call)
+  // -------------------------------------------------------------------------
+  beforeAll(async () => {
+    const rsCredentials: RedshiftCredentials = {
+      accessKeyId: AWS_ACCESS_KEY_ID!,
+      secretAccessKey: AWS_SECRET_ACCESS_KEY!,
+    };
+    const rsConfig: RedshiftConfig = {
+      connectionType: RedshiftConnectionType.SERVERLESS,
+      region: REDSHIFT_REGION!,
+      database: REDSHIFT_DATABASE!,
+      workgroupName: REDSHIFT_WORKGROUP_NAME!,
+    };
+    rsAdapter = new RedshiftApiAdapter(rsCredentials, rsConfig);
+
+    // Mart TABLE definition is the 3-part FQN database.schema.table; the table
+    // itself lives in the connected database's public schema.
+    rsFullyQualifiedName = `${REDSHIFT_DATABASE}.public.${RS_TEST_TABLE_SUFFIX}`;
+
+    // --- Step 1: Pre-cleanup in case a previous run crashed ---
+    try {
+      await rsExecDdl(`DROP TABLE IF EXISTS public."${RS_TEST_TABLE_SUFFIX}"`);
+    } catch {
+      // ignore — table may not exist on first run
+    }
+
+    // --- Step 2: Seed a real (permanent) Redshift table ---
+    // Permanent, not TEMP: each ExecuteStatement is its own session, so a temp
+    // table would not survive to the streaming request.
+    await rsExecDdl(
+      `CREATE TABLE public."${RS_TEST_TABLE_SUFFIX}" ` +
+        `(id INTEGER, name VARCHAR(100), active BOOLEAN, created_at TIMESTAMP)`
+    );
+    await rsExecDdl(
+      `INSERT INTO public."${RS_TEST_TABLE_SUFFIX}" (id, name, active, created_at) VALUES
+        (1, 'alpha',    true,  TIMESTAMP '2024-01-01 00:00:00'),
+        (2, 'beta',     false, TIMESTAMP '2024-02-01 00:00:00'),
+        (3, 'gamma',    true,  TIMESTAMP '2024-03-01 00:00:00'),
+        (4, 'alphabet', true,  TIMESTAMP '2024-04-01 00:00:00')`
+    );
+
+    // --- Step 3: Create credentialed Redshift storage via HTTP API ---
+    const storageCreateRes = await sharedAgent
+      .post('/api/data-storages')
+      .set(AUTH_HEADER)
+      .send({ type: 'AWS_REDSHIFT' });
+    if (storageCreateRes.status !== 201) {
+      console.error('RS storage create failed:', JSON.stringify(storageCreateRes.body, null, 2));
+    }
+    expect(storageCreateRes.status).toBe(201);
+    const rsStorageId: string = storageCreateRes.body.id;
+
+    const storageUpdateRes = await sharedAgent
+      .put(`/api/data-storages/${rsStorageId}`)
+      .set(AUTH_HEADER)
+      .send({
+        title: 'rs-real',
+        config: {
+          connectionType: 'SERVERLESS',
+          region: REDSHIFT_REGION!,
+          database: REDSHIFT_DATABASE!,
+          workgroupName: REDSHIFT_WORKGROUP_NAME!,
+        },
+        credentials: { accessKeyId: AWS_ACCESS_KEY_ID!, secretAccessKey: AWS_SECRET_ACCESS_KEY! },
+      });
+    if (storageUpdateRes.status !== 200) {
+      console.error('RS storage update failed:', JSON.stringify(storageUpdateRes.body, null, 2));
+    }
+    expect(storageUpdateRes.status).toBe(200);
+
+    // --- Step 4: Create data mart ---
+    const dataMartCreateRes = await sharedAgent
+      .post('/api/data-marts')
+      .set(AUTH_HEADER)
+      .send({ title: 'real-rs-test-mart', storageId: rsStorageId });
+    if (dataMartCreateRes.status !== 201) {
+      console.error('RS data mart create failed:', JSON.stringify(dataMartCreateRes.body, null, 2));
+    }
+    expect(dataMartCreateRes.status).toBe(201);
+    rsDataMartId = dataMartCreateRes.body.id;
+
+    // --- Step 5: Set TABLE definition (pointing at the real seeded table) ---
+    const defRes = await sharedAgent
+      .put(`/api/data-marts/${rsDataMartId}/definition`)
+      .set(AUTH_HEADER)
+      .send({
+        definitionType: 'TABLE',
+        definition: { fullyQualifiedName: rsFullyQualifiedName },
+      });
+    if (defRes.status !== 200) {
+      console.error('RS definition set failed:', JSON.stringify(defRes.body, null, 2));
+    }
+    expect(defRes.status).toBe(200);
+
+    // --- Step 6: Publish (reads real schema from Redshift) ---
+    const publishRes = await sharedAgent
+      .put(`/api/data-marts/${rsDataMartId}/publish`)
+      .set(AUTH_HEADER);
+    if (publishRes.status !== 200) {
+      console.error('RS publish failed:', JSON.stringify(publishRes.body, null, 2));
+    }
+    expect(publishRes.status).toBe(200);
+  }, 180000);
+
+  // -------------------------------------------------------------------------
+  // afterAll: drop Redshift table
+  // -------------------------------------------------------------------------
+  afterAll(async () => {
+    try {
+      await rsExecDdl(`DROP TABLE IF EXISTS public."${RS_TEST_TABLE_SUFFIX}"`);
+    } catch (error) {
+      console.warn('Failed to drop Redshift test table during teardown:', error);
+    }
+  }, 60000);
+
+  // -------------------------------------------------------------------------
+  // Helpers scoped to Redshift block
+  // -------------------------------------------------------------------------
+  async function fetchRsNdjson(qs: string): Promise<Record<string, unknown>[]> {
+    const res = await sharedAgent
+      .get(`/api/external/http-data/data-marts/${rsDataMartId}.ndjson${qs ? '?' + qs : ''}`)
+      .set(AUTH_HEADER);
+    if (res.status !== 200) {
+      console.error('fetchRsNdjson failed:', res.status, JSON.stringify(res.body, null, 2));
+      console.error('Response text:', res.text?.slice(0, 500));
+    }
+    expect(res.status).toBe(200);
+    expect(res.headers['content-type']).toContain('application/x-ndjson');
+    return res.text
+      .split('\n')
+      .filter(Boolean)
+      .map(l => JSON.parse(l));
+  }
+
+  const rsB64 = (v: unknown) => Buffer.from(JSON.stringify(v)).toString('base64url');
+
+  // -------------------------------------------------------------------------
+  // Test A — WITHOUT output controls (streams all real rows)
+  // -------------------------------------------------------------------------
+  it('streams all real rows from Redshift without output controls', async () => {
+    const rows = await fetchRsNdjson('column=id&column=name&column=active');
+    expect(rows).toHaveLength(4);
+
+    // Redshift Data API returns scalars as strings — coerce id for safe lookup.
+    const byId = Object.fromEntries(rows.map(r => [String(r.id), r]));
+    expect(byId['1'].name).toBe('alpha');
+    expect(byId['2'].name).toBe('beta');
+    expect(byId['4'].name).toBe('alphabet');
+  }, 120000);
+
+  // -------------------------------------------------------------------------
+  // Test B — WITH output controls (filter/sort/limit on real Redshift data)
+  // -------------------------------------------------------------------------
+  it('applies eq filter on real Redshift data', async () => {
+    const rows = await fetchRsNdjson(
+      `column=id&column=name&filter=${rsB64([{ column: 'name', operator: 'eq', value: 'alpha' }])}`
+    );
+    expect(rows).toHaveLength(1);
+    expect(rows[0].name).toBe('alpha');
+  }, 120000);
+
+  it('applies contains + sort desc + limit on real Redshift data', async () => {
+    // Both 'alpha' (id=1) and 'alphabet' (id=4) contain 'alpha'.
+    // sort desc by id + limit 1 → id=4 ('alphabet').
+    const rows = await fetchRsNdjson(
+      `column=id&column=name` +
+        `&filter=${rsB64([{ column: 'name', operator: 'contains', value: 'alpha' }])}` +
+        `&sort=${rsB64([{ column: 'id', direction: 'desc' }])}` +
+        `&limit=1`
+    );
+    expect(rows).toHaveLength(1);
+    expect(rows[0].name).toBe('alphabet');
+  }, 120000);
+
+  it('applies a numeric between filter on real Redshift data', async () => {
+    const rows = await fetchRsNdjson(
+      `column=id&column=name` +
+        `&filter=${rsB64([{ column: 'id', operator: 'between', value: { from: 2, to: 3 } }])}` +
+        `&sort=${rsB64([{ column: 'id', direction: 'asc' }])}`
+    );
     expect(rows.map(r => Number(r.id))).toEqual([2, 3]);
   }, 120000);
 });

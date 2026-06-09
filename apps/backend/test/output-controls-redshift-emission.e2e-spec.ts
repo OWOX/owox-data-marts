@@ -21,24 +21,25 @@ import { DATA_STORAGE_REPORT_READER_RESOLVER } from '../src/data-marts/data-stor
 import { ReportDataHeader } from '../src/data-marts/dto/domain/report-data-header.dto';
 import { ReportDataBatch } from '../src/data-marts/dto/domain/report-data-batch.dto';
 import { ReportDataDescription } from '../src/data-marts/dto/domain/report-data-description.dto';
-import { AthenaFieldType } from '../src/data-marts/data-storage-types/athena/enums/athena-field-type.enum';
+import { RedshiftFieldType } from '../src/data-marts/data-storage-types/redshift/enums/redshift-field-type.enum';
 
-// HTTP-layer e2e for Athena output-controls SQL emission. ONE app + ONE Athena
+// HTTP-layer e2e for Redshift output-controls SQL emission. ONE app + ONE Redshift
 // report (date filter on a TIMESTAMP column) drives two assertions to keep the
 // e2e suite fast — booting createTestApp() is the dominant cost:
 //
-//   1. GET /generated-sql emits CAST(? AS TIMESTAMP) — the date-literal-typing fix.
+//   1. GET /generated-sql emits a bare literal '2024-01-01' (no CAST, no bound params).
+//      Redshift uses Postgres unknown-literal coercion, so no explicit CAST is needed.
 //   2. POST /looker/get-data runs the REAL ReportDataCacheService (only the storage
-//      reader is a spy), proving resolvePrepareOptions() composes + forwards bound
-//      params instead of dropping output controls / emitting unbound placeholders.
+//      reader is a spy), proving resolvePrepareOptions() composes + forwards the inlined
+//      SQL with no bound params into sqlOverride / sqlOverrideParams.
 //
-// The publish-time validator is stubbed (orthogonal — it dry-runs live Athena);
+// The publish-time validator is stubbed (orthogonal — it dry-runs live Redshift);
 // everything else (composer → builder → renderer, types from the persisted schema)
 // runs for real.
 
 const HEADERS: ReportDataHeader[] = [
-  new ReportDataHeader('id', 'id', undefined, AthenaFieldType.INTEGER),
-  new ReportDataHeader('created_at', 'created_at', undefined, AthenaFieldType.TIMESTAMP),
+  new ReportDataHeader('id', 'id', undefined, RedshiftFieldType.INTEGER),
+  new ReportDataHeader('created_at', 'created_at', undefined, RedshiftFieldType.TIMESTAMP),
 ];
 
 // Real ReportDataCacheService → spyReader.prepareReportData(report, options).
@@ -51,12 +52,12 @@ const spyReader = {
   finalize: jest.fn().mockResolvedValue(undefined),
   getState: jest.fn().mockReturnValue(null),
   initFromState: jest.fn().mockResolvedValue(undefined),
-  getType: jest.fn().mockReturnValue(DataStorageType.AWS_ATHENA),
+  getType: jest.fn().mockReturnValue(DataStorageType.AWS_REDSHIFT),
 };
 
 const mockSchemaProviderFacade = {
   getActualDataMartSchema: jest.fn().mockResolvedValue({
-    type: 'athena-data-mart-schema',
+    type: 'redshift-data-mart-schema',
     fields: HEADERS.map(h => ({
       name: h.name,
       type: h.storageFieldType,
@@ -66,7 +67,7 @@ const mockSchemaProviderFacade = {
   }),
 };
 
-describe('Output controls — Athena SQL emission (e2e)', () => {
+describe('Output controls — Redshift SQL emission (e2e)', () => {
   let app: INestApplication;
   let agent: supertest.Agent;
   let destinationId: string;
@@ -96,7 +97,7 @@ describe('Output controls — Athena SQL emission (e2e)', () => {
     const storageRes = await agent
       .post('/api/data-storages')
       .set(AUTH_HEADER)
-      .send(new StorageBuilder().withType(DataStorageType.AWS_ATHENA).build());
+      .send(new StorageBuilder().withType(DataStorageType.AWS_REDSHIFT).build());
     expect(storageRes.status).toBe(201);
     const storageId = storageRes.body.id;
 
@@ -110,14 +111,14 @@ describe('Output controls — Athena SQL emission (e2e)', () => {
     await agent
       .put(`/api/data-marts/${dataMartId}/definition`)
       .set(AUTH_HEADER)
-      .send({ definitionType: 'TABLE', definition: { fullyQualifiedName: 'testdb.events' } });
+      .send({ definitionType: 'TABLE', definition: { fullyQualifiedName: 'dev.public.events' } });
 
     await agent
       .put(`/api/data-marts/${dataMartId}/schema`)
       .set(AUTH_HEADER)
       .send({
         schema: {
-          type: 'athena-data-mart-schema',
+          type: 'redshift-data-mart-schema',
           fields: [
             { name: 'id', type: 'INTEGER', status: 'CONNECTED', isPrimaryKey: false },
             { name: 'created_at', type: 'TIMESTAMP', status: 'CONNECTED', isPrimaryKey: false },
@@ -167,12 +168,17 @@ describe('Output controls — Athena SQL emission (e2e)', () => {
       [
         credentialId,
         '0',
-        'aws_athena_credentials',
+        'aws_iam',
         JSON.stringify({ accessKeyId: 'test-key', secretAccessKey: 'test-secret' }),
       ]
     );
     await dataSource.query(`UPDATE data_storage SET config = ?, credentialId = ? WHERE id = ?`, [
-      JSON.stringify({ region: 'us-east-1', outputBucket: 'test-bucket' }),
+      JSON.stringify({
+        connectionType: 'PROVISIONED',
+        region: 'us-east-1',
+        database: 'dev',
+        clusterIdentifier: 'test-cluster',
+      }),
       credentialId,
       storageId,
     ]);
@@ -194,7 +200,7 @@ describe('Output controls — Athena SQL emission (e2e)', () => {
       .put(`/api/reports/${reportId}`)
       .set(AUTH_HEADER)
       .send({
-        title: 'Looker Athena date filter',
+        title: 'Looker Redshift date filter',
         dataDestinationId: destinationId,
         destinationConfig: { type: 'looker-studio-config', cacheLifetime: 3600 },
         columnConfig: ['id', 'created_at'],
@@ -208,16 +214,17 @@ describe('Output controls — Athena SQL emission (e2e)', () => {
     await closeTestApp(app);
   });
 
-  it('GET /generated-sql emits static SQL with the date value inlined into the CAST', async () => {
+  it('GET /generated-sql emits static SQL with the date value inlined as a literal (no cast)', async () => {
     const res = await agent.get(`/api/reports/${reportId}/generated-sql`).set(AUTH_HEADER);
     expect(res.status).toBe(200);
-    // composeStatic() inlines Athena's positional params, so the preview is runnable
-    // SQL (no unbound `?`) and the date literal stays valid inside the CAST.
-    expect(res.body.sql).toContain(`"created_at" >= CAST('2024-01-01' AS TIMESTAMP)`);
+    // Redshift renderer inlines all values as bare literals — no bound params, no CAST.
+    // Postgres unknown-literal coercion handles TIMESTAMP comparison transparently.
+    expect(res.body.sql).toContain(`"created_at" >= '2024-01-01'`);
     expect(res.body.sql).not.toContain('?');
+    expect(res.body.sql).not.toContain('CAST(');
   });
 
-  it('carries composed output-controls SQL + bound params into the cached reader', async () => {
+  it('carries composed output-controls SQL with no bound params into the cached reader', async () => {
     const res = await postLooker('/api/external/looker/get-data', {
       connectionConfig: { deploymentUrl: 'http://localhost', destinationId, destinationSecretKey },
       request: {
@@ -232,7 +239,9 @@ describe('Output controls — Athena SQL emission (e2e)', () => {
     expect(res.status).toBe(200);
     expect(spyReader.prepareReportData).toHaveBeenCalled();
     const options = spyReader.prepareReportData.mock.calls[0][1];
-    expect(options.sqlOverride).toContain('"created_at" >= CAST(? AS TIMESTAMP)');
-    expect(options.sqlOverrideParams).toEqual([{ name: 'p0', value: '2024-01-01' }]);
+    expect(options.sqlOverride).toContain(`"created_at" >= '2024-01-01'`);
+    expect(options.sqlOverrideParams ?? []).toEqual([]);
+    expect(options.sqlOverride).not.toContain('?');
+    expect(options.sqlOverride).not.toContain('CAST(');
   });
 });
