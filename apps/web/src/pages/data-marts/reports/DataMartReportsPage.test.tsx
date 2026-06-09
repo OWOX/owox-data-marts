@@ -134,6 +134,19 @@ describe('DataMartReportsPage', () => {
     expect(getColumnHeaderLabels().slice(0, 2)).toEqual(['Data Mart', 'Report']);
   });
 
+  it('renders the Data Mart title without truncation so long titles can wrap', async () => {
+    const longDataMartTitle = 'Marketing Campaign Performance Data Mart With Long Title';
+    vi.mocked(reportService.getReportsByProject).mockResolvedValueOnce([
+      buildReportResponse({ dataMartTitle: longDataMartTitle }),
+    ]);
+
+    renderPage();
+
+    const dataMartLink = await screen.findByRole('link', { name: longDataMartTitle });
+    expect(dataMartLink).toHaveClass('block', 'w-full', 'whitespace-normal', 'break-words');
+    expect(dataMartLink).not.toHaveClass('truncate');
+  });
+
   it('shows a Data Mart-focused empty state when there are no project-wide reports', async () => {
     vi.mocked(reportService.getReportsByProject).mockResolvedValueOnce([]);
 

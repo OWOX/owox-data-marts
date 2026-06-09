@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
 import type { ColumnDef } from '@tanstack/react-table';
 import { RefreshCw } from 'lucide-react';
 import { Button } from '@owox/ui/components/button';
@@ -39,6 +39,7 @@ import {
 } from '../shared/ProjectDataMartTableFilters.utils';
 import { buildProjectDataMartContextValue } from '../shared/projectDataMartContext';
 import { ProjectDataMartEmptyState } from '../shared/ProjectDataMartEmptyState';
+import { ProjectDataMartTitleLink } from '../shared/ProjectDataMartTitleLink';
 
 const PROJECT_REPORTS_PAGE_SIZE = 100;
 const PROJECT_REPORTS_TABLE_ID = 'project-reports-table';
@@ -326,15 +327,10 @@ export default function DataMartReportsPage() {
         meta: { title: 'Data Mart' },
         header: ({ column }) => <SortableHeader column={column}>Data Mart</SortableHeader>,
         cell: ({ row }) => (
-          <Link
+          <ProjectDataMartTitleLink
             to={scope(`/data-marts/${row.original.dataMart.id}/reports`)}
-            onClick={event => {
-              event.stopPropagation();
-            }}
-            className='text-foreground hover:text-primary inline-block max-w-full truncate transition-colors'
-          >
-            {row.original.dataMart.title}
-          </Link>
+            title={row.original.dataMart.title}
+          />
         ),
       },
       {

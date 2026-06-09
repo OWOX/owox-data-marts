@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
 import type { ColumnDef } from '@tanstack/react-table';
 import { RefreshCw } from 'lucide-react';
 import { Badge } from '@owox/ui/components/badge';
@@ -44,6 +44,7 @@ import {
 } from '../shared/ProjectDataMartTableFilters.utils';
 import { buildProjectDataMartContextValue } from '../shared/projectDataMartContext';
 import { ProjectDataMartEmptyState } from '../shared/ProjectDataMartEmptyState';
+import { ProjectDataMartTitleLink } from '../shared/ProjectDataMartTitleLink';
 import { ProjectScheduledTriggerEditSheet } from './ProjectScheduledTriggerEditSheet';
 
 const DATA_MART_SCHEDULES_PAGE_SIZE = 100;
@@ -291,15 +292,10 @@ function DataMartSchedulesPageContent() {
         size: 260,
         header: ({ column }) => <SortableHeader column={column}>Data Mart</SortableHeader>,
         cell: ({ row }) => (
-          <Link
+          <ProjectDataMartTitleLink
             to={scope(`/data-marts/${row.original.dataMart.id}/triggers`)}
-            onClick={event => {
-              event.stopPropagation();
-            }}
-            className='text-foreground hover:text-primary inline-block max-w-full truncate transition-colors'
-          >
-            {row.original.dataMart.title}
-          </Link>
+            title={row.original.dataMart.title}
+          />
         ),
       },
       {

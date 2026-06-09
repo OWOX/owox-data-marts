@@ -29,6 +29,7 @@ import {
 } from '../shared/ProjectDataMartTableFilters.utils';
 import { ConfirmationDialog } from '../../../shared/components/ConfirmationDialog';
 import { ProjectDataMartEmptyState } from '../shared/ProjectDataMartEmptyState';
+import { ProjectDataMartTitleLink } from '../shared/ProjectDataMartTitleLink';
 import { formatDateShort, trackEvent } from '../../../utils';
 
 const PROJECT_INSIGHTS_PAGE_SIZE = 100;
@@ -220,15 +221,10 @@ export default function DataMartInsightsPage() {
         meta: { title: 'Data Mart' },
         header: ({ column }) => <SortableHeader column={column}>Data Mart</SortableHeader>,
         cell: ({ row }) => (
-          <Link
+          <ProjectDataMartTitleLink
             to={scope(`/data-marts/${row.original.dataMart.id}/insights-v2`)}
-            onClick={event => {
-              event.stopPropagation();
-            }}
-            className='text-foreground hover:text-primary inline-block max-w-full truncate transition-colors'
-          >
-            {row.original.dataMart.title}
-          </Link>
+            title={row.original.dataMart.title}
+          />
         ),
       },
       {
