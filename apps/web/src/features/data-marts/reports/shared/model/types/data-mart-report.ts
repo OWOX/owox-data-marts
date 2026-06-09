@@ -9,7 +9,7 @@ import type { DataStorage } from '../../../../../data-storage/shared/model/types
 import type { ReportConditionEnum } from '../../enums/report-condition.enum';
 import type { UserProjection } from '../../../../../../shared/types';
 import type { FilterRule, SortRule } from '../../../../shared/types/output-config';
-import { DataMartDefinitionType } from '../../../../shared';
+import type { DataMartDefinitionType } from '../../../../shared';
 
 export interface GoogleSheetsDestinationConfig {
   type: DestinationTypeConfigEnum.GOOGLE_SHEETS_CONFIG;

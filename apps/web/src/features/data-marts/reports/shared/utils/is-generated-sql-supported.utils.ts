@@ -5,7 +5,7 @@ import { DataStorageType } from '../../../../data-storage/shared/model/types/dat
  * Returns true when the generated SQL preview is supported for the given
  * data mart definition type and storage type combination.
  *
- * Currently, TABLE_PATTERN definitions are only supported on BigQuery storages.
+ * Currently, TABLE_PATTERN definitions are only supported on non-legacy Google BigQuery storage.
  */
 export function isGeneratedSqlSupported(
   definitionType: DataMartDefinitionType | null,
