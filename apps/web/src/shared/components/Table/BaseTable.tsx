@@ -175,7 +175,12 @@ export function BaseTable<TData>({
                 <TableRow
                   key={row.id}
                   data-state={row.getIsSelected() && 'selected'}
-                  className='group cursor-pointer transition-colors duration-200 hover:bg-black/4 dark:border-white/4 dark:bg-transparent dark:hover:bg-white/4'
+                  className={cn(
+                    'group transition-colors duration-200 dark:border-white/4 dark:bg-transparent',
+                    onRowClick
+                      ? 'cursor-pointer hover:bg-black/4 dark:hover:bg-white/4'
+                      : 'cursor-default'
+                  )}
                   onClick={
                     onRowClick
                       ? e => {

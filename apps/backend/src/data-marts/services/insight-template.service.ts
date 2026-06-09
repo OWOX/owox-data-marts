@@ -2,7 +2,18 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { InsightTemplate } from '../entities/insight-template.entity';
+import { RoleScope } from '../enums/role-scope.enum';
+import { applyDataMartVisibilityFilter } from '../utils/apply-data-mart-visibility-filter';
 import { DEFAULT_INSIGHT_TITLE } from '../use-cases/utils/generate-ai-assistant-session-title-from-message.util';
+
+export interface ListVisibleProjectInsightTemplatesOptions {
+  projectId: string;
+  userId: string;
+  roles: string[];
+  roleScope: RoleScope;
+  limit?: number;
+  offset?: number;
+}
 
 @Injectable()
 export class InsightTemplateService {
@@ -69,6 +80,31 @@ export class InsightTemplateService {
       relations: ['dataMart'],
       order: { createdAt: 'DESC' },
     });
+  }
+
+  async listVisibleByProject(
+    options: ListVisibleProjectInsightTemplatesOptions
+  ): Promise<InsightTemplate[]> {
+    const qb = this.repository
+      .createQueryBuilder('insightTemplate')
+      .innerJoinAndSelect('insightTemplate.dataMart', 'dataMart')
+      .leftJoinAndSelect('insightTemplate.sourceEntities', 'sourceEntities')
+      .where('dataMart.projectId = :projectId', { projectId: options.projectId })
+      .andWhere('dataMart.deletedAt IS NULL')
+      .orderBy('insightTemplate.modifiedAt', 'DESC')
+      .addOrderBy('insightTemplate.id', 'DESC')
+      .take(options.limit ?? 100)
+      .skip(options.offset ?? 0);
+
+    applyDataMartVisibilityFilter(qb, {
+      dataMartAlias: 'dataMart',
+      projectId: options.projectId,
+      userId: options.userId,
+      roles: options.roles,
+      roleScope: options.roleScope,
+    });
+
+    return qb.getMany();
   }
 
   async updateTitleOnlyIfHasDefaultTitle(

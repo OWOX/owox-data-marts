@@ -6,7 +6,7 @@ function makeReport(overrides: Partial<DataMartReport> = {}): DataMartReport {
   return {
     id: 'r1',
     title: 'Test Report',
-    dataMart: { id: 'dm1' },
+    dataMart: { id: 'dm1', title: 'Test Data Mart' },
     dataDestination: {} as any,
     destinationConfig: {} as any,
     columnConfig: null,

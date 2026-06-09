@@ -63,4 +63,16 @@ describe('InsightTemplatesService', () => {
     );
     expect(result).toEqual({ triggerId: 'trigger-2' });
   });
+
+  it('fetches paginated project-wide insight templates', async () => {
+    const response = { insights: [] };
+    (apiClient.get as any).mockResolvedValueOnce({ data: response });
+
+    const result = await service.getProjectInsightTemplates(100, 200);
+
+    expect(apiClient.get).toHaveBeenCalledWith('/data-marts/insight-templates', {
+      params: { limit: 100, offset: 200 },
+    });
+    expect(result).toEqual(response);
+  });
 });

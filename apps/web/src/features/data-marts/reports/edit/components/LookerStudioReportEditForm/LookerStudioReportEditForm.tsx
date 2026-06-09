@@ -28,8 +28,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@owox/ui/components/select';
-import { useOutletContext } from 'react-router-dom';
-import type { DataMartContextType } from '../../../../edit/model/context/types.ts';
 import { type DataDestination } from '../../../../../data-destination';
 import { ReportFormMode } from '../../../shared';
 import { Button } from '@owox/ui/components/button';
@@ -42,6 +40,7 @@ import {
   type ReportColumnSelectionCount,
 } from '../../../../edit/components/ReportColumnPicker/ReportColumnPicker';
 import { GeneratedSqlViewer } from '../../../../edit/components/ReportColumnPicker/GeneratedSqlViewer';
+import { useDataMartContext } from '../../../../edit/model';
 
 interface LookerStudioReportEditFormProps {
   initialReport?: DataMartReport;
@@ -87,7 +86,7 @@ export const LookerStudioReportEditForm = forwardRef<
   ) => {
     const formId = 'looker-studio-edit-form';
 
-    const { dataMart } = useOutletContext<DataMartContextType>();
+    const { dataMart } = useDataMartContext();
     const [hasBlendedSelection, setHasBlendedSelection] = useState(false);
     const [columnsCount, setColumnsCount] = useState<ReportColumnSelectionCount>({
       selected: 0,

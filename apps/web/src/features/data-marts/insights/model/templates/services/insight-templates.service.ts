@@ -4,6 +4,7 @@ import type {
   CreateInsightTemplateRequestDto,
   InsightTemplateExecutionStatusResponseDto,
   InsightTemplateListResponseDto,
+  ProjectInsightTemplateListResponseDto,
   InsightTemplateResponseDto,
   InsightTemplateRunTriggersListResponseDto,
   StartInsightTemplateExecutionRequestDto,
@@ -17,6 +18,16 @@ export class InsightTemplatesService extends ApiService {
 
   async getInsightTemplates(dataMartId: string): Promise<InsightTemplateListResponseDto> {
     return this.get<InsightTemplateListResponseDto>(`/${dataMartId}/insight-templates`);
+  }
+
+  async getProjectInsightTemplates(
+    limit = 100,
+    offset = 0
+  ): Promise<ProjectInsightTemplateListResponseDto> {
+    return this.get<ProjectInsightTemplateListResponseDto>('/insight-templates', {
+      limit,
+      offset,
+    });
   }
 
   async getInsightTemplateById(

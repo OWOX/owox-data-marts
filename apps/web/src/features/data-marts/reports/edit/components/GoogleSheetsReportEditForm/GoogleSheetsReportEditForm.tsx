@@ -34,9 +34,8 @@ import {
   DataDestinationTypeModel,
   useDataDestination,
 } from '../../../../../data-destination';
-import { Link, useOutletContext } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { useProjectRoute } from '../../../../../../shared/hooks';
-import type { DataMartContextType } from '../../../../edit/model/context/types.ts';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@owox/ui/components/tooltip';
 import { Alert, AlertDescription, AlertTitle } from '@owox/ui/components/alert';
 import { AlertCircle, ExternalLink } from 'lucide-react';
@@ -63,6 +62,7 @@ import {
   type ReportColumnSelectionCount,
 } from '../../../../edit/components/ReportColumnPicker/ReportColumnPicker';
 import { DEFAULT_REPORT_TITLE } from '../../../shared';
+import { useDataMartContext } from '../../../../edit/model';
 
 interface GoogleSheetsReportEditFormProps {
   initialReport?: DataMartReport;
@@ -96,7 +96,7 @@ export const GoogleSheetsReportEditForm = forwardRef<
     const documentUrlInputId = 'google-sheets-document-url-input';
     const dataDestinationSelectId = 'google-sheets-data-destination-select';
 
-    const { dataMart } = useOutletContext<DataMartContextType>();
+    const { dataMart } = useDataMartContext();
     const { scope } = useProjectRoute();
     const {
       dataDestinations,

@@ -76,3 +76,14 @@ export interface ScheduledTriggerResponseApiDto {
    */
   createdByUser?: UserProjection | null;
 }
+
+export interface ProjectScheduledTriggerDataMartRefResponseApiDto {
+  id: string;
+  title: string;
+}
+
+export interface ProjectScheduledTriggerResponseApiDto extends ScheduledTriggerResponseApiDto {
+  dataMart: ProjectScheduledTriggerDataMartRefResponseApiDto;
+  canEdit: boolean;
+  canDelete: boolean;
+}

@@ -15,15 +15,23 @@ interface ScheduledTriggerActionsCellProps {
   trigger: ScheduledTrigger;
   onEditTrigger: (id: string) => void;
   onDeleteTrigger: (id: string) => void;
+  canEdit?: boolean;
+  canDelete?: boolean;
 }
 
 export function ScheduledTriggerActionsCell({
   trigger,
   onEditTrigger,
   onDeleteTrigger,
+  canEdit = true,
+  canDelete = true,
 }: ScheduledTriggerActionsCellProps) {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+
+  if (!canEdit && !canDelete) {
+    return null;
+  }
 
   const handleDelete = () => {
     setIsDeleteDialogOpen(false);
@@ -48,23 +56,27 @@ export function ScheduledTriggerActionsCell({
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align='end'>
-          <DropdownMenuItem
-            onClick={() => {
-              onEditTrigger(trigger.id);
-            }}
-          >
-            <Pencil className='text-foreground h-4 w-4' aria-hidden='true' />
-            Edit trigger
-          </DropdownMenuItem>
-          <DropdownMenuSeparator />
-          <DropdownMenuItem
-            onClick={() => {
-              setIsDeleteDialogOpen(true);
-            }}
-          >
-            <Trash2 className='h-4 w-4 text-red-600' aria-hidden='true' />
-            <span className='text-red-600'>Delete trigger</span>
-          </DropdownMenuItem>
+          {canEdit && (
+            <DropdownMenuItem
+              onClick={() => {
+                onEditTrigger(trigger.id);
+              }}
+            >
+              <Pencil className='text-foreground h-4 w-4' aria-hidden='true' />
+              Edit trigger
+            </DropdownMenuItem>
+          )}
+          {canEdit && canDelete && <DropdownMenuSeparator />}
+          {canDelete && (
+            <DropdownMenuItem
+              onClick={() => {
+                setIsDeleteDialogOpen(true);
+              }}
+            >
+              <Trash2 className='h-4 w-4 text-red-600' aria-hidden='true' />
+              <span className='text-red-600'>Delete trigger</span>
+            </DropdownMenuItem>
+          )}
         </DropdownMenuContent>
       </DropdownMenu>
 

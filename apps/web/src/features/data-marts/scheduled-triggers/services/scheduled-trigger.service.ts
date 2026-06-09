@@ -1,6 +1,7 @@
 import { ApiService } from '../../../../services';
 import type {
   CreateScheduledTriggerRequestApiDto,
+  ProjectScheduledTriggerListResponseApiDto,
   ScheduledTriggerListResponseApiDto,
   ScheduledTriggerResponseApiDto,
   UpdateScheduledTriggerRequestApiDto,
@@ -25,6 +26,19 @@ export class ScheduledTriggerService extends ApiService {
    */
   async getScheduledTriggers(dataMartId: string): Promise<ScheduledTriggerListResponseApiDto> {
     return this.get<ScheduledTriggerListResponseApiDto>(`/${dataMartId}/scheduled-triggers`);
+  }
+
+  /**
+   * Fetch scheduled triggers across all accessible data marts in the current project.
+   */
+  async getProjectScheduledTriggers(
+    limit = 100,
+    offset = 0
+  ): Promise<ProjectScheduledTriggerListResponseApiDto> {
+    return this.get<ProjectScheduledTriggerListResponseApiDto>('/scheduled-triggers', {
+      limit,
+      offset,
+    });
   }
 
   /**

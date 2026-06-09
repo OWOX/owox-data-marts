@@ -16,6 +16,10 @@ import { HttpDataRequestValidator } from './services/http-data/http-data-request
 import { HttpDataColumnResolver } from './services/http-data/http-data-column-resolver.service';
 import { HttpDataColumnValidator } from './services/http-data/http-data-column-validator.service';
 import { MarkdownParserController } from './controllers/markdown-parser.controller';
+import { ProjectDataMartRunsController } from './controllers/project-data-mart-runs.controller';
+import { ProjectInsightTemplatesController } from './controllers/project-insight-templates.controller';
+import { ProjectReportsController } from './controllers/project-reports.controller';
+import { ProjectScheduledTriggersController } from './controllers/project-scheduled-triggers.controller';
 import { ReportController } from './controllers/report.controller';
 import { InsightController } from './controllers/insight.controller';
 import { AiAssistantController } from './controllers/ai-assistant.controller';
@@ -39,6 +43,9 @@ import { MoveLegacyDataStorageService } from './use-cases/legacy-data-marts/move
 import { SyncLegacyGcpStoragesForProjectService } from './use-cases/legacy-data-marts/sync-legacy-gcp-storages-for-project.service';
 import { ListDataMartsService } from './use-cases/list-data-marts.service';
 import { ListDataMartsByConnectorNameService } from './use-cases/list-data-marts-by-connector-name.service';
+import { ListProjectDataMartRunsService } from './use-cases/list-project-data-mart-runs.service';
+import { ListProjectInsightTemplatesService } from './use-cases/list-project-insight-templates.service';
+import { ListProjectScheduledTriggersService } from './use-cases/list-project-scheduled-triggers.service';
 import { GetDataMartService } from './use-cases/get-data-mart.service';
 import { DataMartMapper } from './mappers/data-mart.mapper';
 import { ScheduledTriggerMapper } from './mappers/scheduled-trigger.mapper';
@@ -432,6 +439,10 @@ import { ProjectMemberApiKeysModule } from '../project-member-api-keys/project-m
     IdpModule,
   ],
   controllers: [
+    ProjectDataMartRunsController,
+    ProjectScheduledTriggersController,
+    ProjectInsightTemplatesController,
+    ProjectReportsController,
     DataMartController,
     DataStorageController,
     DataDestinationController,
@@ -476,6 +487,9 @@ import { ProjectMemberApiKeysModule } from '../project-member-api-keys/project-m
     ListDataMartsByConnectorNameService,
     GetDataMartService,
     ListDataMartRunsService,
+    ListProjectDataMartRunsService,
+    ListProjectInsightTemplatesService,
+    ListProjectScheduledTriggersService,
     UpdateDataMartDefinitionService,
     PublishDataMartService,
     UpdateBlendedFieldsConfigService,

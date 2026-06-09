@@ -28,3 +28,12 @@ export interface DataMartRunItem {
   createdByUser: UserProjection | null;
   additionalParams: Record<string, unknown> | null;
 }
+
+export interface DataMartRunDataMartRef {
+  id: string;
+  title: string;
+}
+
+export interface ProjectDataMartRunItem extends DataMartRunItem {
+  dataMart: DataMartRunDataMartRef;
+}

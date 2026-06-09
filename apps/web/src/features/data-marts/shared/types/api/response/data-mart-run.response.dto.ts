@@ -31,3 +31,12 @@ export interface DataMartRunResponseDto {
   createdByUser: UserProjectionDto | null;
   additionalParams: Record<string, unknown> | null;
 }
+
+export interface ProjectDataMartRunRefResponseDto {
+  id: string;
+  title: string;
+}
+
+export interface ProjectDataMartRunResponseDto extends DataMartRunResponseDto {
+  dataMart: ProjectDataMartRunRefResponseDto;
+}

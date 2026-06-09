@@ -67,6 +67,17 @@ export interface ScheduledTrigger {
   createdByUser?: UserProjection | null;
 }
 
+export interface ScheduledTriggerDataMartRef {
+  id: string;
+  title: string;
+}
+
+export interface ProjectScheduledTrigger extends ScheduledTrigger {
+  dataMart: ScheduledTriggerDataMartRef;
+  canEdit: boolean;
+  canDelete: boolean;
+}
+
 /**
  * Maps trigger types to their respective configuration types
  */

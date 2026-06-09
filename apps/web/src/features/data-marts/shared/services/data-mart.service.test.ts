@@ -90,6 +90,20 @@ describe('DataMartService', () => {
     });
   });
 
+  describe('getProjectDataMartRuns', () => {
+    it('should fetch project-wide data mart runs', async () => {
+      const response = { runs: [] };
+      (apiClient.get as any).mockResolvedValueOnce({ data: response });
+
+      const result = await service.getProjectDataMartRuns(20, 40);
+
+      expect(apiClient.get).toHaveBeenCalledWith('/data-marts/runs', {
+        params: { limit: 20, offset: 40 },
+      });
+      expect(result).toEqual(response);
+    });
+  });
+
   describe('createDataMart', () => {
     it('should create a new data mart', async () => {
       (apiClient.post as any).mockResolvedValueOnce({ data: mockDataMartResponse });

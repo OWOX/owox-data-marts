@@ -68,8 +68,16 @@ export class ReportService extends ApiService {
    * List reports by project
    * @returns Promise with list of reports
    */
-  async getReportsByProject(): Promise<ReportResponseDto[]> {
-    return this.get<ReportResponseDto[]>('/');
+  async getReportsByProject(limit?: number, offset?: number): Promise<ReportResponseDto[]> {
+    const params =
+      limit === undefined && offset === undefined
+        ? undefined
+        : {
+            ...(limit !== undefined ? { limit } : {}),
+            ...(offset !== undefined ? { offset } : {}),
+          };
+
+    return this.get<ReportResponseDto[]>('/', params);
   }
 
   /**
