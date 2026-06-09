@@ -39,11 +39,11 @@ const createRun = (overrides: Partial<DataMartRunItem> = {}): DataMartRunItem =>
     ...overrides,
   }) as DataMartRunItem;
 
-type DataMartRef = {
+interface DataMartRef {
   id: string;
   title: string;
   href: string;
-};
+}
 
 const renderRunItem = (
   run: DataMartRunItem,
