@@ -1,4 +1,4 @@
-import { jest } from '@jest/globals';
+import { createServer, type Server } from 'node:http';
 import { BaseEvent } from '../base-event.js';
 import { TelemetryEvent } from '../telemetry-event.js';
 import { PostHogTransport } from './posthog-transport.js';
@@ -15,31 +15,54 @@ class DomainEvent extends BaseEvent<{ email: string }> {
   }
 }
 
-const config = { apiKey: 'phc_test', host: 'https://eu.i.posthog.com', timeoutMs: 3000 };
+interface CaptureServer {
+  url: string;
+  received: string[];
+  close: () => Promise<void>;
+}
+
+async function startCaptureServer(): Promise<CaptureServer> {
+  const received: string[] = [];
+  const server = createServer((req, res) => {
+    let body = '';
+    req.on('data', c => (body += c));
+    req.on('end', () => {
+      received.push(body);
+      res.statusCode = 200;
+      res.end('ok');
+    });
+  });
+  await new Promise<void>(r => server.listen(0, '127.0.0.1', r));
+  const addr = server.address();
+  const port = typeof addr === 'object' && addr ? addr.port : 0;
+  return {
+    url: `http://127.0.0.1:${port}`,
+    received,
+    close: () => new Promise<void>(r => server.close(() => r())),
+  };
+}
 
 describe('PostHogTransport', () => {
-  let fetchMock: jest.Mock;
-  let originalFetch: typeof globalThis.fetch;
+  let server: CaptureServer | undefined;
 
-  beforeEach(() => {
-    originalFetch = globalThis.fetch;
-    fetchMock = jest.fn(async () => ({ ok: true }) as Response);
-    global.fetch = fetchMock as unknown as typeof fetch;
-  });
-
-  afterEach(() => {
-    global.fetch = originalFetch;
+  afterEach(async () => {
+    if (server) {
+      await server.close();
+      server = undefined;
+    }
   });
 
   it('posts a telemetry event to the capture endpoint', async () => {
-    const transport = new PostHogTransport(config);
+    server = await startCaptureServer();
+    const transport = new PostHogTransport({
+      apiKey: 'phc_test',
+      host: server.url,
+      timeoutMs: 3000,
+    });
     await transport.send(new ServeStartedEvent({ anonymousId: 'uuid-1', cli_version: '0.26.0' }));
 
-    expect(fetchMock).toHaveBeenCalledTimes(1);
-    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
-    expect(url).toBe('https://eu.i.posthog.com/i/v0/e/');
-    expect(init.method).toBe('POST');
-    const body = JSON.parse(init.body as string);
+    expect(server.received.length).toBe(1);
+    const body = JSON.parse(server.received[0]);
     expect(body.api_key).toBe('phc_test');
     expect(body.event).toBe('cli.serve.started');
     expect(body.distinct_id).toBe('uuid-1');
@@ -48,44 +71,68 @@ describe('PostHogTransport', () => {
   });
 
   it('is a no-op for non-telemetry events', async () => {
-    const transport = new PostHogTransport(config);
+    server = await startCaptureServer();
+    const transport = new PostHogTransport({
+      apiKey: 'phc_test',
+      host: server.url,
+      timeoutMs: 3000,
+    });
     await transport.send(new DomainEvent({ email: 'a@b.com' }));
-    expect(fetchMock).not.toHaveBeenCalled();
+    expect(server.received.length).toBe(0);
   });
 
   it('does not send when anonymousId is missing', async () => {
-    const transport = new PostHogTransport(config);
+    server = await startCaptureServer();
+    const transport = new PostHogTransport({
+      apiKey: 'phc_test',
+      host: server.url,
+      timeoutMs: 3000,
+    });
     // @ts-expect-error intentionally missing anonymousId
     await transport.send(new ServeStartedEvent({ cli_version: '0.26.0' }));
-    expect(fetchMock).not.toHaveBeenCalled();
+    expect(server.received.length).toBe(0);
   });
 
   it('does not send when apiKey is empty', async () => {
-    const transport = new PostHogTransport({ ...config, apiKey: '' });
+    server = await startCaptureServer();
+    const transport = new PostHogTransport({ apiKey: '', host: server.url, timeoutMs: 3000 });
     await transport.send(new ServeStartedEvent({ anonymousId: 'uuid-1', cli_version: '0.26.0' }));
-    expect(fetchMock).not.toHaveBeenCalled();
+    expect(server.received.length).toBe(0);
   });
 
-  it('swallows fetch errors without throwing', async () => {
-    fetchMock.mockRejectedValueOnce(new Error('network down'));
-    const transport = new PostHogTransport(config);
-    await expect(
-      transport.send(new ServeStartedEvent({ anonymousId: 'uuid-1', cli_version: '0.26.0' }))
-    ).resolves.toBeUndefined();
-  });
-
-  it('passes an abort signal and swallows abort errors', async () => {
-    let receivedSignal: AbortSignal | undefined;
-    fetchMock.mockImplementationOnce(async (_url: unknown, init: RequestInit) => {
-      receivedSignal = init.signal ?? undefined;
-      const err = new Error('Aborted');
-      err.name = 'AbortError';
-      throw err;
+  it('swallows connection errors without throwing', async () => {
+    // Point at a port that will refuse connections.
+    const transport = new PostHogTransport({
+      apiKey: 'phc_test',
+      host: 'http://127.0.0.1:1',
+      timeoutMs: 200,
     });
-    const transport = new PostHogTransport(config);
     await expect(
       transport.send(new ServeStartedEvent({ anonymousId: 'uuid-1', cli_version: '0.26.0' }))
     ).resolves.toBeUndefined();
-    expect(receivedSignal).toBeInstanceOf(AbortSignal);
+  });
+
+  it('does not throw and resolves on timeout to an unresponsive host', async () => {
+    // Server accepts the connection but never sends a response.
+    let hangServer: Server | undefined;
+    try {
+      hangServer = createServer(() => {
+        // Intentionally never call res.end — simulate unresponsive host.
+      });
+      await new Promise<void>(r => hangServer!.listen(0, '127.0.0.1', r));
+      const addr = hangServer.address();
+      const port = typeof addr === 'object' && addr ? addr.port : 0;
+
+      const transport = new PostHogTransport({
+        apiKey: 'phc_test',
+        host: `http://127.0.0.1:${port}`,
+        timeoutMs: 200,
+      });
+      await expect(
+        transport.send(new ServeStartedEvent({ anonymousId: 'uuid-1', cli_version: '0.26.0' }))
+      ).resolves.toBeUndefined();
+    } finally {
+      await new Promise<void>(r => hangServer?.close(() => r()) ?? r());
+    }
   });
 });

@@ -1,61 +1,93 @@
 import { expect } from 'chai';
 import { mkdtempSync, rmSync } from 'node:fs';
+import { createServer } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { trackServeStarted } from '../../src/telemetry/track-serve-started.js';
 
+interface CaptureServer {
+  close: () => Promise<void>;
+  received: string[];
+  url: string;
+}
+
+async function startCaptureServer(): Promise<CaptureServer> {
+  const received: string[] = [];
+  const server = createServer((req, res) => {
+    let body = '';
+    req.on('data', c => {
+      body += c;
+    });
+    req.on('end', () => {
+      received.push(body);
+      res.statusCode = 200;
+      res.end('ok');
+    });
+  });
+  await new Promise<void>(r => {
+    server.listen(0, '127.0.0.1', r);
+  });
+  const addr = server.address();
+  const port = typeof addr === 'object' && addr ? addr.port : 0;
+  return {
+    close: () =>
+      new Promise<void>(r => {
+        server.close(() => {
+          r();
+        });
+      }),
+    received,
+    url: `http://127.0.0.1:${port}`,
+  };
+}
+
 describe('trackServeStarted', () => {
-  let fetchCalls: number;
-  let originalFetch: typeof globalThis.fetch;
+  let server: CaptureServer | undefined;
   let dataDir: string;
 
   beforeEach(() => {
     // Hermetic anonymous-id store: keep telemetry.json out of the real OS app-data dir.
     dataDir = mkdtempSync(join(tmpdir(), 'owox-telemetry-test-'));
-    fetchCalls = 0;
-    originalFetch = globalThis.fetch;
-    globalThis.fetch = (async () => {
-      fetchCalls += 1;
-      return { ok: true } as Response;
-    }) as typeof globalThis.fetch;
   });
 
-  afterEach(() => {
-    globalThis.fetch = originalFetch;
+  afterEach(async () => {
     rmSync(dataDir, { force: true, recursive: true });
+    if (server) {
+      await server.close();
+      server = undefined;
+    }
   });
 
   it('does not send when telemetry is disabled', async () => {
+    server = await startCaptureServer();
     trackServeStarted({
       dataDir,
-      env: { OWOX_TELEMETRY_DISABLED: '1', POSTHOG_API_KEY: 'phc_test' },
+      env: { OWOX_TELEMETRY_DISABLED: '1', POSTHOG_API_KEY: 'phc_test', POSTHOG_HOST: server.url },
       log() {},
       payload: basePayload(),
     });
     await tick();
-    expect(fetchCalls).to.equal(0);
+    expect(server.received.length).to.equal(0);
   });
 
   it('does not send when no PostHog key is configured', async () => {
+    server = await startCaptureServer();
     trackServeStarted({
       dataDir,
-      env: {},
+      env: { POSTHOG_HOST: server.url },
       log() {},
       payload: basePayload(),
     });
     await tick();
-    expect(fetchCalls).to.equal(0);
+    expect(server.received.length).to.equal(0);
   });
 
   it('never throws even if sending fails', () => {
-    globalThis.fetch = (() => {
-      throw new Error('boom');
-    }) as typeof globalThis.fetch;
     expect(() =>
       trackServeStarted({
         dataDir,
-        env: { POSTHOG_API_KEY: 'phc_test' },
+        env: { POSTHOG_API_KEY: 'phc_test', POSTHOG_HOST: 'http://127.0.0.1:1' },
         log() {},
         payload: basePayload(),
       })
