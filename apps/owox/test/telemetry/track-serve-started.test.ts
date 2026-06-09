@@ -83,6 +83,29 @@ describe('trackServeStarted', () => {
     expect(server.received.length).to.equal(0);
   });
 
+  it('sends the cli.serve.started event with an anonymous, PII-free payload', async () => {
+    server = await startCaptureServer();
+    trackServeStarted({
+      dataDir,
+      env: { POSTHOG_API_KEY: 'phc_test', POSTHOG_HOST: server.url },
+      log() {},
+      payload: basePayload(),
+    });
+    await waitForReceived(server);
+
+    expect(server.received.length).to.equal(1);
+    const body = JSON.parse(server.received[0]) as {
+      distinct_id: string;
+      event: string;
+      properties: Record<string, unknown>;
+    };
+    expect(body.event).to.equal('cli.serve.started');
+    expect(body.distinct_id).to.be.a('string').with.length.greaterThan(0);
+    // anonymousId is the distinct_id only — it must never appear in properties.
+    expect(body.properties).to.not.have.property('anonymousId');
+    expect(body.properties).to.deep.equal(basePayload());
+  });
+
   it('never throws even if sending fails', () => {
     expect(() =>
       trackServeStarted({
@@ -112,5 +135,21 @@ function basePayload() {
 function tick(): Promise<void> {
   return new Promise<void>(resolve => {
     setTimeout(resolve, 10);
+  });
+}
+
+/** Poll until the capture server receives a request (fire-and-forget delivery is async). */
+function waitForReceived(s: CaptureServer, timeoutMs = 1000): Promise<void> {
+  const start = Date.now();
+  return new Promise<void>(resolve => {
+    const check = (): void => {
+      if (s.received.length > 0 || Date.now() - start >= timeoutMs) {
+        resolve();
+      } else {
+        setTimeout(check, 10);
+      }
+    };
+
+    check();
   });
 }

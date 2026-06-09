@@ -12,7 +12,6 @@ export interface AnonymousIdResult {
 
 interface TelemetryFile {
   anonymousId: string;
-  noticeShownAt?: string;
 }
 
 /** Resolve the default app-data directory used to persist the telemetry id. */
@@ -47,7 +46,7 @@ export function getOrCreateAnonymousId(dataDir?: string): AnonymousIdResult {
     }
 
     const anonymousId = randomUUID();
-    const file: TelemetryFile = { anonymousId, noticeShownAt: new Date().toISOString() };
+    const file: TelemetryFile = { anonymousId };
     writeFileSync(filePath, JSON.stringify(file), 'utf8');
     return { anonymousId, isFirstRun: true };
   } catch {
