@@ -161,6 +161,15 @@ export class ReportService {
     });
   }
 
+  async markRunAsCancelled(reportId: string): Promise<void> {
+    await this.repository.update(
+      { id: reportId, lastRunStatus: ReportRunStatus.RUNNING },
+      {
+        lastRunStatus: ReportRunStatus.CANCELLED,
+      }
+    );
+  }
+
   /**
    * Persists Report entity changes.
    *

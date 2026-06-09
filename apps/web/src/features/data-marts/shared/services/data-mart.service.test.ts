@@ -126,6 +126,18 @@ describe('DataMartService', () => {
     });
   });
 
+  describe('cancelDataMartRun', () => {
+    it('should suppress the global error toast so the run history button can show the specific message', async () => {
+      await service.cancelDataMartRun(mockDataMartId, 'run-1');
+
+      expect(apiClient.post).toHaveBeenCalledWith(
+        `/data-marts/${mockDataMartId}/runs/run-1/cancel`,
+        undefined,
+        { skipErrorToast: true }
+      );
+    });
+  });
+
   describe('updateDataMartDescription', () => {
     it('should update a data mart description', async () => {
       const description = 'New description';

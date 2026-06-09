@@ -74,6 +74,7 @@ export class ConnectorExecutorService {
     const capturedLogs: ConnectorMessage[] = [];
     const capturedErrors: ConnectorMessage[] = [];
     let hasSuccessfulRun = false;
+    let wasCancelled = false;
     let operationBlockedException: ProjectOperationBlockedException | undefined;
 
     try {
@@ -109,11 +110,13 @@ export class ConnectorExecutorService {
       const successCount = configurationResults.filter(r => r.success).length;
       const totalCount = configurationResults.length;
       hasSuccessfulRun = successCount > 0;
+      wasCancelled = signal?.aborted === true && !hasSuccessfulRun;
       this.logger.log(
         `Connector execution completed: ${successCount}/${totalCount} configurations successful`,
         { dataMartId: dataMart.id, projectId: dataMart.projectId, runId, successCount, totalCount }
       );
     } catch (error) {
+      wasCancelled = signal?.aborted === true && !hasSuccessfulRun;
       const errorMessage = error instanceof Error ? error.message : String(error);
       addMessageToArray(capturedErrors, {
         type: ConnectorMessageType.ERROR,
@@ -146,7 +149,8 @@ export class ConnectorExecutorService {
         capturedLogs,
         capturedErrors,
         mergeWithExisting,
-        operationBlockedException
+        operationBlockedException,
+        wasCancelled
       );
 
       if (hasSuccessfulRun) {
@@ -161,7 +165,7 @@ export class ConnectorExecutorService {
             'successfully'
           )
         );
-      } else if (!this.gracefulShutdownService.isInShutdownMode()) {
+      } else if (!wasCancelled && !this.gracefulShutdownService.isInShutdownMode()) {
         await this.eventDispatcher.publishExternal(
           new ConnectorRunEvent(
             dataMart.id,
@@ -371,16 +375,19 @@ export class ConnectorExecutorService {
     capturedLogs: ConnectorMessage[],
     capturedErrors: ConnectorMessage[],
     mergeWithExisting: boolean = false,
-    operationBlockedException?: ProjectOperationBlockedException
+    operationBlockedException?: ProjectOperationBlockedException,
+    wasCancelled: boolean = false
   ): Promise<void> {
     const hasLogs = capturedLogs.length > 0;
     const hasErrors = capturedErrors.length > 0;
-    let status = hasSuccessfulRun
-      ? DataMartRunStatus.SUCCESS
-      : operationBlockedException
-        ? DataMartRunStatus.RESTRICTED
-        : DataMartRunStatus.FAILED;
-    if (this.gracefulShutdownService.isInShutdownMode()) {
+    let status = wasCancelled
+      ? DataMartRunStatus.CANCELLED
+      : hasSuccessfulRun
+        ? DataMartRunStatus.SUCCESS
+        : operationBlockedException
+          ? DataMartRunStatus.RESTRICTED
+          : DataMartRunStatus.FAILED;
+    if (!wasCancelled && !hasSuccessfulRun && this.gracefulShutdownService.isInShutdownMode()) {
       status = DataMartRunStatus.INTERRUPTED;
     }
 

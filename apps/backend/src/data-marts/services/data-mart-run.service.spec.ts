@@ -1,4 +1,4 @@
-import { Repository } from 'typeorm';
+import { In, Repository } from 'typeorm';
 import { RunType } from '../../common/scheduler/shared/types';
 import { SystemTimeService } from '../../common/scheduler/services/system-time.service';
 import { OwoxEventDispatcher } from '../../common/event-dispatcher/owox-event-dispatcher';
@@ -56,6 +56,7 @@ function createService() {
     }),
     find: jest.fn(async () => []),
     findOne: jest.fn(async () => null),
+    update: jest.fn(async () => ({ affected: 1 })),
     createQueryBuilder: jest.fn(),
   } as unknown as jest.Mocked<Repository<DataMartRun>>;
 
@@ -187,6 +188,40 @@ describe('DataMartRunService', () => {
       expect(outputConfig).toBeDefined();
       expect(outputConfig['filterConfig']).toEqual(filterConfig);
       expect(runArg.status).toBe(DataMartRunStatus.RUNNING);
+    });
+  });
+
+  describe('markAsCancelled', () => {
+    it('marks an active data mart run as cancelled', async () => {
+      const { service, dataMartRunRepository, systemClock } = createService();
+      const run = {
+        id: 'run-1',
+        status: DataMartRunStatus.RUNNING,
+      } as DataMartRun;
+
+      await expect(service.markAsCancelled(run)).resolves.toBe(true);
+
+      expect(dataMartRunRepository.update).toHaveBeenCalledWith(
+        {
+          id: 'run-1',
+          status: In([DataMartRunStatus.PENDING, DataMartRunStatus.RUNNING]),
+        },
+        {
+          status: DataMartRunStatus.CANCELLED,
+          finishedAt: systemClock.now(),
+        }
+      );
+    });
+
+    it('does not overwrite a run that already left an active status', async () => {
+      const { service, dataMartRunRepository } = createService();
+      dataMartRunRepository.update.mockResolvedValue({ affected: 0, raw: [], generatedMaps: [] });
+      const run = {
+        id: 'run-1',
+        status: DataMartRunStatus.RUNNING,
+      } as DataMartRun;
+
+      await expect(service.markAsCancelled(run)).resolves.toBe(false);
     });
   });
 });

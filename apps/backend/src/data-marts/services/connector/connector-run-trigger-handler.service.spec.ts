@@ -1,4 +1,4 @@
-import { Repository, DataSource, EntityManager } from 'typeorm';
+import { Repository, DataSource, EntityManager, In } from 'typeorm';
 import { ConfigService } from '@nestjs/config';
 import { ConnectorRunTriggerHandlerService } from './connector-run-trigger-handler.service';
 import { ConnectorExecutionService } from './connector-execution.service';
@@ -14,6 +14,7 @@ describe('ConnectorRunTriggerHandlerService', () => {
   const createService = () => {
     const triggerRepository = {
       save: jest.fn().mockImplementation(data => Promise.resolve(data)),
+      update: jest.fn().mockResolvedValue({ affected: 1 }),
     } as unknown as Repository<ConnectorRunTrigger>;
 
     const dataMartRunRepository = {
@@ -173,6 +174,63 @@ describe('ConnectorRunTriggerHandlerService', () => {
 
       // Should NOT fail the run
       expect(dataMartRunRepository.save).not.toHaveBeenCalled();
+    });
+
+    it('marks trigger cancelled and skips execution when run is already CANCELLED', async () => {
+      const {
+        service,
+        dataMartService,
+        dataMartRunService,
+        triggerRepository,
+        connectorExecutionService,
+        mockManager,
+      } = createService();
+
+      (dataMartService.getByIdAndProjectId as jest.Mock).mockResolvedValue(mockDataMart);
+      (mockManager.update as jest.Mock).mockResolvedValue({ affected: 0 });
+      (dataMartRunService.findById as jest.Mock).mockResolvedValue({
+        id: 'run-1',
+        status: DataMartRunStatus.CANCELLED,
+      });
+
+      await expect(service.handleTrigger(mockTrigger)).resolves.toBeUndefined();
+
+      expect(triggerRepository.update).toHaveBeenCalledWith(
+        { id: 'trigger-1', status: In([TriggerStatus.PROCESSING, TriggerStatus.CANCELLING]) },
+        { status: TriggerStatus.CANCELLED, isActive: false, version: expect.any(Function) }
+      );
+      expect(connectorExecutionService.executeExistingRun).not.toHaveBeenCalled();
+    });
+
+    it('marks trigger cancelled after execution is aborted by scheduler signal', async () => {
+      const {
+        service,
+        dataMartService,
+        triggerRepository,
+        connectorExecutionService,
+        mockManager,
+      } = createService();
+      const abortController = new AbortController();
+      const trigger = Object.assign(new ConnectorRunTrigger(), mockTrigger);
+      const logSpy = jest
+        .spyOn((service as unknown as { logger: { log: (message: string) => void } }).logger, 'log')
+        .mockImplementation();
+
+      (dataMartService.getByIdAndProjectId as jest.Mock).mockResolvedValue(mockDataMart);
+      (mockManager.findOneOrFail as jest.Mock).mockResolvedValue(mockRun);
+      (connectorExecutionService.executeExistingRun as jest.Mock).mockImplementation(async () => {
+        abortController.abort();
+      });
+
+      await service.handleTrigger(trigger, { signal: abortController.signal });
+
+      expect(triggerRepository.update).toHaveBeenCalledWith(
+        { id: 'trigger-1', status: In([TriggerStatus.PROCESSING, TriggerStatus.CANCELLING]) },
+        { status: TriggerStatus.CANCELLED, isActive: false, version: expect.any(Function) }
+      );
+      trigger.onSuccess(new Date('2026-06-04T12:00:00.000Z'));
+      expect(trigger.status).toBe(TriggerStatus.CANCELLED);
+      expect(logSpy).not.toHaveBeenCalledWith(expect.stringContaining('already CANCELLED'));
     });
 
     it('fails the run when claim fails and run is not RUNNING', async () => {

@@ -158,7 +158,9 @@ export class DataMartService extends ApiService {
    * @returns Promise<void>
    */
   async cancelDataMartRun(id: string, runId: string): Promise<void> {
-    await this.post(`/${id}/runs/${runId}/cancel`);
+    await this.post(`/${id}/runs/${runId}/cancel`, undefined, {
+      skipErrorToast: true,
+    } as AxiosRequestConfig);
   }
 
   /**
