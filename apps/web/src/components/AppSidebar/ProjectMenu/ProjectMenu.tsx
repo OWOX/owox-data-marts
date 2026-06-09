@@ -2,7 +2,6 @@ import { useState } from 'react';
 import { DropdownMenu } from '@owox/ui/components/dropdown-menu';
 import { ProjectMenuTrigger } from './ProjectMenuTrigger';
 import { ProjectMenuContent } from './ProjectMenuContent';
-import { ProjectsProvider } from '../../../features/idp/context/ProjectsContext.tsx';
 
 interface SidebarProjectMenuProps {
   restricted?: boolean;
@@ -25,14 +24,12 @@ export function SidebarProjectMenu({ restricted = false }: SidebarProjectMenuPro
         >
           <DropdownMenu open={isOpen} onOpenChange={setIsOpen}>
             <ProjectMenuTrigger isOpen={isOpen} />
-            <ProjectsProvider>
-              <ProjectMenuContent
-                restricted={restricted}
-                onClose={() => {
-                  setIsOpen(false);
-                }}
-              />
-            </ProjectsProvider>
+            <ProjectMenuContent
+              restricted={restricted}
+              onClose={() => {
+                setIsOpen(false);
+              }}
+            />
           </DropdownMenu>
         </li>
       </ul>

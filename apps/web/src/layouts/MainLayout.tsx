@@ -26,6 +26,7 @@ import { AuthGuard } from '../features/idp';
 import { ProjectIdGuard } from '../features/idp/components/ProjectIdGuard';
 import { ProjectRoleGuard } from '../features/idp/components/ProjectRoleGuard';
 import { useUser } from '../features/idp/hooks';
+import { ProjectsProvider } from '../features/idp/context/ProjectsContext';
 import { Separator } from '@owox/ui/components/separator';
 import { ArchiveRestore, Box, DatabaseIcon, LockKeyhole } from 'lucide-react';
 import { HelpMenu } from '../components/AppSidebar/HelpMenu';
@@ -117,23 +118,25 @@ function MainLayoutContent() {
       <AuthGuard>
         <ProjectIdGuard>
           <ProjectRoleGuard>
-            {user && hasEmptyProjectRoles ? (
-              <>
-                <RestrictedProjectSidebar />
-                <SidebarInset className='min-w-0'>
-                  {showTrigger && <SidebarTrigger />}
-                  <Outlet />
-                </SidebarInset>
-              </>
-            ) : (
-              <>
-                <AppSidebar variant='inset' collapsible='icon' />
-                <SidebarInset className='min-w-0'>
-                  {showTrigger && <SidebarTrigger />}
-                  <Outlet />
-                </SidebarInset>
-              </>
-            )}
+            <ProjectsProvider>
+              {user && hasEmptyProjectRoles ? (
+                <>
+                  <RestrictedProjectSidebar />
+                  <SidebarInset className='min-w-0'>
+                    {showTrigger && <SidebarTrigger />}
+                    <Outlet />
+                  </SidebarInset>
+                </>
+              ) : (
+                <>
+                  <AppSidebar variant='inset' collapsible='icon' />
+                  <SidebarInset className='min-w-0'>
+                    {showTrigger && <SidebarTrigger />}
+                    <Outlet />
+                  </SidebarInset>
+                </>
+              )}
+            </ProjectsProvider>
           </ProjectRoleGuard>
         </ProjectIdGuard>
       </AuthGuard>
