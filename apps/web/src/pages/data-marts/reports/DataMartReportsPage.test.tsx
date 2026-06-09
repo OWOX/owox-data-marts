@@ -487,9 +487,9 @@ describe('DataMartReportsPage', () => {
     expect(reportService.runReport).not.toHaveBeenCalled();
   });
 
-  it('polls project reports while any visible report is still running', async () => {
+  it('polls visible running reports by id', async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true });
-    vi.mocked(reportService.getReportsByProject).mockResolvedValue([
+    vi.mocked(reportService.getReportsByProject).mockResolvedValueOnce([
       buildReportResponse({
         lastRunStatus: ReportStatusEnum.RUNNING,
       }),
@@ -502,8 +502,9 @@ describe('DataMartReportsPage', () => {
     await vi.advanceTimersByTimeAsync(5000);
 
     await waitFor(() => {
-      expect(reportService.getReportsByProject).toHaveBeenCalledTimes(2);
+      expect(reportService.getReportById).toHaveBeenCalledWith('report-1');
     });
+    expect(reportService.getReportsByProject).toHaveBeenCalledTimes(1);
 
     vi.useRealTimers();
   });
@@ -527,29 +528,61 @@ describe('DataMartReportsPage', () => {
     await vi.advanceTimersByTimeAsync(5000);
 
     expect(reportService.getReportsByProject).toHaveBeenCalledTimes(1);
+    expect(reportService.getReportById).not.toHaveBeenCalled();
+
+    vi.useRealTimers();
+  });
+
+  it('stops polling after a visible running report finishes', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    vi.mocked(reportService.getReportsByProject).mockResolvedValueOnce([
+      buildReportResponse({
+        lastRunStatus: ReportStatusEnum.RUNNING,
+      }),
+    ]);
+    vi.mocked(reportService.getReportById).mockResolvedValueOnce(
+      buildReportResponse({
+        lastRunStatus: ReportStatusEnum.SUCCESS,
+      })
+    );
+
+    renderPage();
+
+    expect(await screen.findByText('Daily Sales Report')).toBeInTheDocument();
+    expect(screen.getByRole('img', { name: 'In progress' })).toBeInTheDocument();
+
+    await vi.advanceTimersByTimeAsync(5000);
+
+    await waitFor(() => {
+      expect(reportService.getReportById).toHaveBeenCalledTimes(1);
+    });
+    expect(await screen.findByRole('img', { name: 'Success' })).toBeInTheDocument();
+
+    await vi.advanceTimersByTimeAsync(5000);
+
+    expect(reportService.getReportById).toHaveBeenCalledTimes(1);
 
     vi.useRealTimers();
   });
 
   it('keeps already loaded report pages during silent polling', async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true });
-    vi.mocked(reportService.getReportsByProject)
-      .mockResolvedValueOnce(
-        Array.from({ length: 16 }, (_, index) =>
-          buildReportResponse({
-            id: `report-${index + 1}`,
-            title: `Report ${index + 1}`,
-            lastRunStatus: index === 0 ? ReportStatusEnum.RUNNING : ReportStatusEnum.SUCCESS,
-          })
-        )
-      )
-      .mockResolvedValueOnce([
+    vi.mocked(reportService.getReportsByProject).mockResolvedValueOnce(
+      Array.from({ length: 16 }, (_, index) =>
         buildReportResponse({
-          id: 'report-1',
-          title: 'Report 1',
-          lastRunStatus: ReportStatusEnum.RUNNING,
-        }),
-      ]);
+          id: `report-${index + 1}`,
+          title: `Report ${index + 1}`,
+          lastRunStatus: index === 0 ? ReportStatusEnum.RUNNING : ReportStatusEnum.SUCCESS,
+        })
+      )
+    );
+    vi.mocked(reportService.getReportById).mockResolvedValueOnce(
+      buildReportResponse({
+        id: 'report-1',
+        title: 'Report 1',
+        lastRunStatus: ReportStatusEnum.RUNNING,
+      })
+    );
 
     renderPage();
 
@@ -563,7 +596,49 @@ describe('DataMartReportsPage', () => {
     });
     expect(await screen.findByText('Report 16')).toBeInTheDocument();
     expect(reportService.getReportsByProject).toHaveBeenCalledWith();
-    expect(reportService.getReportsByProject).toHaveBeenCalledWith(100, 0);
+    expect(reportService.getReportsByProject).toHaveBeenCalledTimes(1);
+    expect(reportService.getReportById).toHaveBeenCalledWith('report-1');
+
+    vi.useRealTimers();
+  });
+
+  it('refreshes visible running reports by id when they are outside the first API page', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    vi.mocked(reportService.getReportsByProject).mockResolvedValueOnce(
+      Array.from({ length: 105 }, (_, index) =>
+        buildReportResponse({
+          id: `report-${index + 1}`,
+          title: index === 104 ? 'Tail Running Report' : `Report ${index + 1}`,
+          lastRunStatus: index === 104 ? ReportStatusEnum.RUNNING : ReportStatusEnum.SUCCESS,
+        })
+      )
+    );
+    vi.mocked(reportService.getReportById).mockResolvedValueOnce(
+      buildReportResponse({
+        id: 'report-105',
+        title: 'Tail Running Report',
+        lastRunStatus: ReportStatusEnum.SUCCESS,
+      })
+    );
+
+    renderPage();
+
+    expect(await screen.findByText('Report 1')).toBeInTheDocument();
+
+    fireEvent.change(screen.getByPlaceholderText('Search'), {
+      target: { value: 'Tail' },
+    });
+
+    expect(await screen.findByText('Tail Running Report')).toBeInTheDocument();
+    expect(screen.getByRole('img', { name: 'In progress' })).toBeInTheDocument();
+
+    await vi.advanceTimersByTimeAsync(5000);
+
+    await waitFor(() => {
+      expect(reportService.getReportById).toHaveBeenCalledWith('report-105');
+    });
+    expect(reportService.getReportsByProject).toHaveBeenCalledTimes(1);
+    expect(await screen.findByRole('img', { name: 'Success' })).toBeInTheDocument();
 
     vi.useRealTimers();
   });
