@@ -17,8 +17,7 @@ import {
 import { ConfirmationDialog } from '../../../../../../shared/components/ConfirmationDialog';
 import type { DataMartReport } from '../../../shared/model/types/data-mart-report';
 import { ReportStatusEnum } from '../../../shared/enums';
-import { reportHasBlending, reportHasOutputControls, useReport } from '../../../shared';
-import { useBlendedFieldNames } from '../../../../shared/hooks/useBlendedFieldNames';
+import { isGeneratedSqlSupported, useReport } from '../../../shared';
 import { GeneratedSqlViewer } from '../../../../edit/components/ReportColumnPicker/GeneratedSqlViewer';
 
 interface EmailActionsCellProps {
@@ -42,10 +41,6 @@ export function EmailActionsCell({
   const [menuOpen, setMenuOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const { deleteReport, fetchReportsByDataMartId, runReport } = useReport();
-
-  const blendedFieldNames = useBlendedFieldNames(row.original.dataMart.id);
-  const hasBlending = reportHasBlending(row.original, blendedFieldNames);
-  const usesSourceDirectly = !hasBlending && !reportHasOutputControls(row.original);
 
   const actionsMenuId = `actions-menu-${row.original.id}`;
 
@@ -131,12 +126,16 @@ export function EmailActionsCell({
         </Tooltip>
 
         {/* View SQL */}
-        <GeneratedSqlViewer
-          reportId={row.original.id}
-          dataMartId={row.original.dataMart.id}
-          reportTitle={row.original.title}
-          usesSourceDirectly={usesSourceDirectly}
-        />
+        {isGeneratedSqlSupported(
+          row.original.dataMart.definitionType,
+          row.original.dataMart.storage.type
+        ) && (
+          <GeneratedSqlViewer
+            reportId={row.original.id}
+            dataMartId={row.original.dataMart.id}
+            reportTitle={row.original.title}
+          />
+        )}
 
         {/* More actions */}
         <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>

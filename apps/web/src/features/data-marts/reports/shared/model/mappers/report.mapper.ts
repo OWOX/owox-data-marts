@@ -29,6 +29,7 @@ export function mapReportDtoToEntity(reportDto: ReportResponseDto): DataMartRepo
     dataMart: {
       id: reportDto.dataMart.id,
       title: reportDto.dataMart.title,
+      definitionType: reportDto.dataMart.definitionType ?? null,
       storage: mapDataStorageFromDto(reportDto.dataMart.storage),
     },
     dataDestination: mapDataDestinationFromDto(reportDto.dataDestinationAccess),

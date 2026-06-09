@@ -10,7 +10,7 @@ import { AlertTriangle, ChevronDown, ChevronRight } from 'lucide-react';
 import { Skeleton } from '@owox/ui/components/skeleton';
 import { NoAccessIndicator } from '../DataMartRelationships/NoAccessIndicator';
 import { dataMartRelationshipService } from '../../../shared/services/data-mart-relationship.service';
-import { BLENDABLE_SCHEMA_QUERY_KEY } from '../../../shared/hooks/useBlendedFieldNames';
+import { BLENDABLE_SCHEMA_QUERY_KEY } from '../../../shared/hooks/blendable-schema-query-key';
 import type { AvailableSource, BlendedField } from '../../../shared/types/relationship.types';
 import { DataStorageType } from '../../../../data-storage/shared/model/types/data-storage-type.enum';
 import {
@@ -83,7 +83,6 @@ export interface ReportColumnPickerProps {
   onChange: (value: string[] | null) => void;
   outputConfig?: OutputConfig;
   onOutputConfigChange?: (config: OutputConfig) => void;
-  onBlendedSelectionChange?: (hasBlendedSelection: boolean) => void;
   onCountChange?: (count: ReportColumnSelectionCount) => void;
 }
 
@@ -337,7 +336,6 @@ export function ReportColumnPicker({
   onChange,
   outputConfig,
   onOutputConfigChange,
-  onBlendedSelectionChange,
   onCountChange,
 }: ReportColumnPickerProps) {
   const outputControlsSupported = storageType ? supportsOutputControls(storageType) : false;
@@ -376,15 +374,6 @@ export function ReportColumnPicker({
     () => new Set(includedBlendedFields.map(f => f.name)),
     [includedBlendedFields]
   );
-
-  const hasBlendedSelection = useMemo(() => {
-    if (!schema) return false;
-    return effectiveValue.some(name => includedBlendedNamesSet.has(name));
-  }, [schema, effectiveValue, includedBlendedNamesSet]);
-
-  useEffect(() => {
-    onBlendedSelectionChange?.(hasBlendedSelection);
-  }, [hasBlendedSelection, onBlendedSelectionChange]);
 
   const valueRef = useRef(effectiveValue);
   valueRef.current = effectiveValue;

@@ -1,7 +1,14 @@
-import { ForbiddenException, NotFoundException, UnauthorizedException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ForbiddenException,
+  NotFoundException,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { GetReportGeneratedSqlService } from './get-report-generated-sql.service';
 import { GetReportGeneratedSqlCommand } from '../dto/domain/get-report-generated-sql.command';
 import { EntityType, Action } from '../services/access-decision';
+import { DataMartDefinitionType } from '../enums/data-mart-definition-type.enum';
+import { DataStorageType } from '../data-storage-types/enums/data-storage-type.enum';
 
 describe('GetReportGeneratedSqlService', () => {
   const report = {
@@ -83,5 +90,42 @@ describe('GetReportGeneratedSqlService', () => {
 
     await expect(service.run(command)).rejects.toThrow(ForbiddenException);
     expect(reportSqlComposerService.composeStatic).not.toHaveBeenCalled();
+  });
+
+  it('throws BadRequestException for TABLE_PATTERN on unsupported storages', async () => {
+    const { service, reportRepository, reportSqlComposerService } = createService(true);
+    reportRepository.findOne = jest.fn().mockResolvedValue({
+      id: 'report-1',
+      dataMart: {
+        id: 'dm-1',
+        definitionType: DataMartDefinitionType.TABLE_PATTERN,
+        storage: { id: 'storage-1', type: DataStorageType.AWS_ATHENA },
+      },
+      dataDestination: { id: 'dest-1' },
+    });
+
+    const command = new GetReportGeneratedSqlCommand('report-1', 'user-1', 'proj-1', ['editor']);
+
+    await expect(service.run(command)).rejects.toThrow(BadRequestException);
+    expect(reportSqlComposerService.composeStatic).not.toHaveBeenCalled();
+  });
+
+  it('allows TABLE_PATTERN on GOOGLE_BIGQUERY', async () => {
+    const { service, reportRepository, reportSqlComposerService } = createService(true);
+    reportRepository.findOne = jest.fn().mockResolvedValue({
+      id: 'report-1',
+      dataMart: {
+        id: 'dm-1',
+        definitionType: DataMartDefinitionType.TABLE_PATTERN,
+        storage: { id: 'storage-1', type: DataStorageType.GOOGLE_BIGQUERY },
+      },
+      dataDestination: { id: 'dest-1' },
+    });
+
+    const command = new GetReportGeneratedSqlCommand('report-1', 'user-1', 'proj-1', ['editor']);
+
+    const result = await service.run(command);
+    expect(reportSqlComposerService.composeStatic).toHaveBeenCalled();
+    expect(result).toEqual({ sql: 'SELECT 1' });
   });
 });

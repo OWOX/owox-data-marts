@@ -15,7 +15,7 @@ import { toast } from 'react-hot-toast';
 import { useQueryClient } from '@tanstack/react-query';
 import { useDataMartContext } from '../../model/context/useDataMartContext';
 import { useDebounce } from '../../../../../hooks/useDebounce';
-import { BLENDABLE_SCHEMA_QUERY_KEY } from '../../../shared/hooks/useBlendedFieldNames';
+import { BLENDABLE_SCHEMA_QUERY_KEY } from '../../../shared/hooks/blendable-schema-query-key';
 import { Button } from '../../../../../shared/components/Button';
 import {
   CollapsibleCard,
