@@ -15,9 +15,19 @@ concurrency:
 
 jobs:
   e2e-api:
-    name: API E2E Tests
+    name: API E2E Tests (shard ${{ matrix.shard }}/${{ strategy.job-total }})
     runs-on: ubuntu-latest
     timeout-minutes: 15
+
+    # The e2e suite runs jest with maxWorkers:1 (parallel workers flake — they
+    # share process state and overwrite the in-memory DB). To cut wall-clock
+    # without reintroducing that flakiness, split the test files across separate
+    # runner jobs with jest --shard: each shard stays single-worker and fully
+    # isolated on its own runner. Bump the shard count if the suite grows.
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3]
 
     steps:
       - name: Checkout repository
@@ -38,6 +48,6 @@ jobs:
         run: npm run build --workspaces --if-present
 
       - name: Run API E2E tests
-        run: npm run test:e2e -w @owox/backend
+        run: npm run test:e2e -w @owox/backend -- --shard=${{ matrix.shard }}/${{ strategy.job-total }}
         env:
           NODE_ENV: test
