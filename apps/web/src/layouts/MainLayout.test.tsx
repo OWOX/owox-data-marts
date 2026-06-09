@@ -29,6 +29,14 @@ vi.mock('../components/AppSidebar', () => ({
   AppSidebar: () => <div data-testid='full-app-sidebar'>Full app sidebar</div>,
 }));
 
+vi.mock('../components/AppSidebar/ProjectMenu', () => ({
+  SidebarProjectMenu: ({ restricted }: { restricted?: boolean }) => (
+    <div data-restricted={String(Boolean(restricted))} data-testid='sidebar-project-menu'>
+      Switch project
+    </div>
+  ),
+}));
+
 vi.mock('../components/AppSidebar/HelpMenu', () => ({
   HelpMenu: () => <div>Help</div>,
 }));
@@ -51,6 +59,8 @@ describe('MainLayout', () => {
 
     expect(screen.getByTestId('restricted-project-sidebar')).toBeInTheDocument();
     expect(screen.queryByTestId('full-app-sidebar')).not.toBeInTheDocument();
+    expect(screen.getByTestId('sidebar-project-menu')).toHaveAttribute('data-restricted', 'true');
+    expect(screen.getByText('Switch project')).toBeInTheDocument();
     expect(screen.getByText('Access required')).toBeInTheDocument();
     expect(screen.getByText('Data Marts').closest('button')).toHaveAttribute(
       'aria-disabled',

@@ -101,7 +101,9 @@ describe('Blended output controls full-flow (e2e)', () => {
       expect(put.status).toBe(200);
 
       const sql = await getGeneratedSql();
-      expect(sql).toMatch(/WHERE[\s\S]+amount[\s\S]+>[\s\S]+@p0/);
+      // /generated-sql returns static, runnable SQL — params are inlined as literals.
+      expect(sql).toMatch(/WHERE[\s\S]+amount[\s\S]+>[\s\S]+100\b/);
+      expect(sql).not.toContain('@p');
     });
 
     it('emits a final WHERE when placement="post-join" is explicit', async () => {
@@ -112,7 +114,8 @@ describe('Blended output controls full-flow (e2e)', () => {
       expect(put.status).toBe(200);
 
       const sql = await getGeneratedSql();
-      expect(sql).toMatch(/WHERE[\s\S]+amount[\s\S]+>=[\s\S]+@p0/);
+      expect(sql).toMatch(/WHERE[\s\S]+amount[\s\S]+>=[\s\S]+50\b/);
+      expect(sql).not.toContain('@p');
     });
   });
 
@@ -139,7 +142,8 @@ describe('Blended output controls full-flow (e2e)', () => {
       // though only native columns are selected.
       expect(sql).toMatch(/users_raw AS \(/);
       const usersRawBody = extractCteBody(sql, 'users_raw');
-      expect(usersRawBody).toMatch(/WHERE[\s\S]+`role`\s*=\s*@s_users_0/);
+      // Pre-join filter renders inside the CTE WHERE; its value is inlined.
+      expect(usersRawBody).toMatch(/WHERE[\s\S]+`role`\s*=\s*'admin'/);
     });
 
     it('combines multiple pre-join filters on the same CTE with AND', async () => {
@@ -170,7 +174,7 @@ describe('Blended output controls full-flow (e2e)', () => {
       expect(usersRawBody).toContain('`is_active`');
     });
 
-    it('uses isolated s_<cte>_ prefix per joined mart so params never collide across CTEs', async () => {
+    it('routes each pre-join filter into its own joined-mart CTE (no cross-CTE leakage)', async () => {
       const put = await putReportConfig({
         columnConfig: ['event_id'],
         filterConfig: [
@@ -193,12 +197,14 @@ describe('Blended output controls full-flow (e2e)', () => {
       expect(put.status).toBe(200);
 
       const sql = await getGeneratedSql();
-      // Distinct param prefixes per CTE — no `@s_users_0` ↔ `@s_orgs_0` collision
-      // because the prefixes themselves are different.
+      // Each pre-join filter lands only in its own joined-mart CTE — the users
+      // filter value in users_raw, the orgs filter value in orgs_raw, no crossover.
       const usersRawBody = extractCteBody(sql, 'users_raw');
       const orgsRawBody = extractCteBody(sql, 'orgs_raw');
-      expect(usersRawBody).toContain('@s_users_0');
-      expect(orgsRawBody).toContain('@s_orgs_0');
+      expect(usersRawBody).toContain("'admin'");
+      expect(usersRawBody).not.toContain("'pro'");
+      expect(orgsRawBody).toContain("'pro'");
+      expect(orgsRawBody).not.toContain("'admin'");
     });
 
     it('projects pre-join filter column into the raw CTE SELECT even if not in columnConfig', async () => {
@@ -227,7 +233,7 @@ describe('Blended output controls full-flow (e2e)', () => {
   // ── Group 4: Combos ──────────────────────────────────────────────────────
 
   describe('4. Combos (post-join + pre-join)', () => {
-    it('post-join `@p0` and pre-join `@s_users_0` coexist with isolated prefixes', async () => {
+    it('post-join filter (outer WHERE) and pre-join filter (CTE) coexist in their own scopes', async () => {
       const put = await putReportConfig({
         columnConfig: ['event_id', 'amount'],
         filterConfig: [
@@ -244,11 +250,13 @@ describe('Blended output controls full-flow (e2e)', () => {
       expect(put.status).toBe(200);
 
       const sql = await getGeneratedSql();
-      // Outer SELECT must reference @p0 — post-join WHERE
-      expect(sql).toContain('@p0');
-      // Inner users_raw CTE must reference @s_users_0 — pre-join WHERE
+      // Post-join filter inlined into the outer WHERE; pre-join filter inlined into
+      // the users_raw CTE. No unbound params survive in the static SQL.
       const usersRawBody = extractCteBody(sql, 'users_raw');
-      expect(usersRawBody).toContain('@s_users_0');
+      expect(usersRawBody).toContain("'admin'");
+      expect(sql).toMatch(/amount[\s\S]+>[\s\S]+50\b/);
+      expect(sql).not.toContain('@p');
+      expect(sql).not.toContain('@s_');
     });
 
     it('post-join + sort + limit + pre-join all coexist on the same report', async () => {
@@ -395,7 +403,8 @@ describe('Blended output controls full-flow (e2e)', () => {
       expect(res.status).toBe(200);
 
       const sql = await getGeneratedSql();
-      expect(sql).toMatch(/WHERE[\s\S]+amount[\s\S]+<[\s\S]+@p0/);
+      expect(sql).toMatch(/WHERE[\s\S]+amount[\s\S]+<[\s\S]+1000000\b/);
+      expect(sql).not.toContain('@p');
     });
 
     it('rejects post-join filter on unknown native column with FILTER_COLUMN_UNKNOWN', async () => {

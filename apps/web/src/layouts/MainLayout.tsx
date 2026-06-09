@@ -17,7 +17,6 @@ import {
   useSidebar,
 } from '@owox/ui/components/sidebar';
 import { AppSidebar } from '../components/AppSidebar';
-import { Logo } from '../components/Logo';
 import { ThemeProvider } from '../app/providers/theme-provider.tsx';
 import { storageService } from '../services';
 import { GlobalLoader, LoadingProvider, useLoading } from '../shared/components/GlobalLoader';
@@ -27,12 +26,12 @@ import { AuthGuard } from '../features/idp';
 import { ProjectIdGuard } from '../features/idp/components/ProjectIdGuard';
 import { ProjectRoleGuard } from '../features/idp/components/ProjectRoleGuard';
 import { useUser } from '../features/idp/hooks';
-import type { User } from '../features/idp/types';
 import { ProjectsProvider } from '../features/idp/context/ProjectsContext';
 import { Separator } from '@owox/ui/components/separator';
 import { ArchiveRestore, Box, DatabaseIcon, LockKeyhole } from 'lucide-react';
 import { HelpMenu } from '../components/AppSidebar/HelpMenu';
 import { UserMenu } from '../components/AppSidebar/UserMenu';
+import { SidebarProjectMenu } from '../components/AppSidebar/ProjectMenu';
 
 // Constants
 const SIDEBAR_STATE_KEY = 'sidebar_state';
@@ -43,30 +42,11 @@ const RESTRICTED_NAV_ITEMS = [
 ];
 const ignoreSetupChecklist = () => undefined;
 
-function RestrictedProjectSidebar({ user }: { user: User }) {
-  const projectTitle = user.projectTitle ?? user.projectId;
-
+function RestrictedProjectSidebar() {
   return (
     <Sidebar variant='inset' collapsible='icon' data-testid='restricted-project-sidebar'>
       <SidebarHeader>
-        <SidebarMenu>
-          <SidebarMenuItem>
-            <SidebarMenuButton
-              size='lg'
-              aria-disabled='true'
-              className='cursor-default hover:bg-transparent hover:text-inherit active:bg-transparent active:text-inherit'
-              tooltip='Project access is required'
-            >
-              <div className='text-sidebar-primary-foreground flex aspect-square size-8 items-center justify-center rounded-md border bg-white dark:bg-white/10'>
-                <Logo width={24} height={24} />
-              </div>
-              <div className='grid flex-1 text-left text-sm leading-tight'>
-                <span className='truncate font-medium'>OWOX Data Marts</span>
-                <span className='text-muted-foreground truncate text-xs'>{projectTitle}</span>
-              </div>
-            </SidebarMenuButton>
-          </SidebarMenuItem>
-        </SidebarMenu>
+        <SidebarProjectMenu restricted />
       </SidebarHeader>
 
       <SidebarContent>
@@ -138,23 +118,25 @@ function MainLayoutContent() {
       <AuthGuard>
         <ProjectIdGuard>
           <ProjectRoleGuard>
-            {user && hasEmptyProjectRoles ? (
-              <>
-                <RestrictedProjectSidebar user={user} />
-                <SidebarInset className='min-w-0'>
-                  {showTrigger && <SidebarTrigger />}
-                  <Outlet />
-                </SidebarInset>
-              </>
-            ) : (
-              <ProjectsProvider>
-                <AppSidebar variant='inset' collapsible='icon' />
-                <SidebarInset className='min-w-0'>
-                  {showTrigger && <SidebarTrigger />}
-                  <Outlet />
-                </SidebarInset>
-              </ProjectsProvider>
-            )}
+            <ProjectsProvider>
+              {user && hasEmptyProjectRoles ? (
+                <>
+                  <RestrictedProjectSidebar />
+                  <SidebarInset className='min-w-0'>
+                    {showTrigger && <SidebarTrigger />}
+                    <Outlet />
+                  </SidebarInset>
+                </>
+              ) : (
+                <>
+                  <AppSidebar variant='inset' collapsible='icon' />
+                  <SidebarInset className='min-w-0'>
+                    {showTrigger && <SidebarTrigger />}
+                    <Outlet />
+                  </SidebarInset>
+                </>
+              )}
+            </ProjectsProvider>
           </ProjectRoleGuard>
         </ProjectIdGuard>
       </AuthGuard>

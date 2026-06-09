@@ -12,6 +12,42 @@ export class GoogleSheetsApiAdapter {
   private static readonly SHEETS_SCOPE = ['https://www.googleapis.com/auth/spreadsheets'];
   private static readonly LOGGER = new Logger(GoogleSheetsApiAdapter.name);
 
+  /**
+   * Field mask used to restore a user's captured column format. It enumerates
+   * every `userEnteredFormat` subfield we copy column-wide — number format,
+   * colors, borders, alignment, wrap, and the cosmetic `textFormat` props —
+   * but deliberately OMITS `userEnteredFormat.textFormat.link`.
+   *
+   * Why exclude the link: a hyperlink is per-cell content, not a column-wide
+   * format. We sample one representative row's format and apply it to the whole
+   * column; if `textFormat.link` were in the mask, every row would be stamped
+   * with the sampled row's URL (the cell shows `…/id-5` but its link points to
+   * `…/id-1`). Leaving `link` out of the mask preserves each row's own link
+   * (and never propagates one row's link onto the others).
+   */
+  private static readonly RESTORE_FORMAT_FIELD_MASK = [
+    'userEnteredFormat.numberFormat',
+    'userEnteredFormat.backgroundColor',
+    'userEnteredFormat.backgroundColorStyle',
+    'userEnteredFormat.borders',
+    'userEnteredFormat.padding',
+    'userEnteredFormat.horizontalAlignment',
+    'userEnteredFormat.verticalAlignment',
+    'userEnteredFormat.wrapStrategy',
+    'userEnteredFormat.textDirection',
+    'userEnteredFormat.textRotation',
+    'userEnteredFormat.hyperlinkDisplayType',
+    'userEnteredFormat.textFormat.foregroundColor',
+    'userEnteredFormat.textFormat.foregroundColorStyle',
+    'userEnteredFormat.textFormat.fontFamily',
+    'userEnteredFormat.textFormat.fontSize',
+    'userEnteredFormat.textFormat.bold',
+    'userEnteredFormat.textFormat.italic',
+    'userEnteredFormat.textFormat.strikethrough',
+    'userEnteredFormat.textFormat.underline',
+    // NOTE: `userEnteredFormat.textFormat.link` is intentionally excluded.
+  ].join(',');
+
   private readonly service: sheets_v4.Sheets;
 
   /**
@@ -264,13 +300,15 @@ export class GoogleSheetsApiAdapter {
 
   /**
    * Builds a `repeatCell` request that applies a captured cell format to every
-   * cell of a single column within a row span. The field mask is the whole
-   * `userEnteredFormat`, so the full set of user-applied cell formatting is
-   * restored — number format, background/text colors, bold/italic, horizontal
-   * & vertical alignment, borders, wrap, padding, etc. — not just the number
-   * format. The provided `format` is treated as the source of truth for the
-   * range: subfields absent from it are reset to default (matching "copy this
-   * representative cell's formatting onto the column").
+   * cell of a single column within a row span. The field mask restores the set
+   * of user-applied formatting — number format, background/text colors,
+   * bold/italic, horizontal & vertical alignment, borders, wrap, padding,
+   * etc. — but deliberately EXCLUDES `textFormat.link` (a per-cell hyperlink is
+   * content, not a column-wide format; see
+   * {@link GoogleSheetsApiAdapter.RESTORE_FORMAT_FIELD_MASK}). Subfields inside
+   * the mask that are absent from `format` are reset to default on the range;
+   * subfields outside the mask (notably each cell's own link) are left
+   * untouched.
    *
    * Sheet-level constructs (conditional formatting, data validation) live
    * outside `userEnteredFormat` and are intentionally NOT touched here — the
@@ -298,7 +336,7 @@ export class GoogleSheetsApiAdapter {
         cell: {
           userEnteredFormat: format,
         },
-        fields: 'userEnteredFormat',
+        fields: GoogleSheetsApiAdapter.RESTORE_FORMAT_FIELD_MASK,
       },
     };
   }

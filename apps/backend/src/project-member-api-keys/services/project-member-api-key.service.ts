@@ -11,9 +11,9 @@ import {
   type ProjectMemberApiKeyStoredHash,
 } from './project-member-api-key-crypto.service';
 
-export type CreateProjectMemberApiKeyResult = {
-  apiKey: ProjectMemberApiKeyMetadata;
-  apiKeySecret: string;
+export type GeneratedProjectMemberApiKey = {
+  metadata: ProjectMemberApiKeyMetadata;
+  secret: string;
 };
 
 @Injectable()
@@ -32,10 +32,10 @@ export class ProjectMemberApiKeyService {
     role: Role | null,
     readOnly: boolean,
     expiresAt?: Date | null
-  ): Promise<CreateProjectMemberApiKeyResult> {
+  ): Promise<GeneratedProjectMemberApiKey> {
     const apiKeyId = this.cryptoService.generateApiKeyId();
-    const apiKeySecret = this.cryptoService.generateApiKeySecret();
-    const storedHash = await this.cryptoService.hashSecret(apiKeyId, apiKeySecret);
+    const secret = this.cryptoService.generateApiKeySecret();
+    const storedHash = await this.cryptoService.hashSecret(apiKeyId, secret);
     const apiKey = this.projectMemberApiKeyRepository.create({
       apiKeyId,
       projectId,
@@ -50,8 +50,8 @@ export class ProjectMemberApiKeyService {
     });
 
     return {
-      apiKey: this.mapper.toMetadata(await this.projectMemberApiKeyRepository.save(apiKey)),
-      apiKeySecret,
+      metadata: this.mapper.toMetadata(await this.projectMemberApiKeyRepository.save(apiKey)),
+      secret,
     };
   }
 

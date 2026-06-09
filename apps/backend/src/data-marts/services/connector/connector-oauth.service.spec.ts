@@ -105,11 +105,12 @@ describe('ConnectorOauthService', () => {
   });
 
   describe('getCredentialStatus', () => {
-    it('returns valid status for non-expired credential', async () => {
+    it('returns valid status for non-expired credential in the same project', async () => {
       const { service, connectorSourceCredentialsService } = createService();
 
       const credential = {
         id: 'cred-1',
+        projectId: 'proj-1',
         connectorName: 'TestConnector',
         expiresAt: new Date(Date.now() + 1000 * 60 * 60),
         user: { name: 'Test User' },
@@ -120,17 +121,18 @@ describe('ConnectorOauthService', () => {
       );
       (connectorSourceCredentialsService.isExpired as jest.Mock).mockResolvedValue(false);
 
-      const result = await service.getCredentialStatus('TestConnector', 'cred-1');
+      const result = await service.getCredentialStatus('TestConnector', 'cred-1', 'proj-1');
 
       expect(result.isValid).toBe(true);
       expect(result.user).toEqual({ name: 'Test User' });
     });
 
-    it('returns expired status for expired credential', async () => {
+    it('returns expired status for expired credential in the same project', async () => {
       const { service, connectorSourceCredentialsService } = createService();
 
       const credential = {
         id: 'cred-1',
+        projectId: 'proj-1',
         connectorName: 'TestConnector',
         expiresAt: new Date(Date.now() - 1000 * 60 * 60),
         user: undefined,
@@ -141,7 +143,7 @@ describe('ConnectorOauthService', () => {
       );
       (connectorSourceCredentialsService.isExpired as jest.Mock).mockResolvedValue(true);
 
-      const result = await service.getCredentialStatus('TestConnector', 'cred-1');
+      const result = await service.getCredentialStatus('TestConnector', 'cred-1', 'proj-1');
 
       expect(result.isValid).toBe(false);
     });
@@ -151,9 +153,31 @@ describe('ConnectorOauthService', () => {
 
       (connectorSourceCredentialsService.getCredentialsById as jest.Mock).mockResolvedValue(null);
 
-      await expect(service.getCredentialStatus('TestConnector', 'missing')).rejects.toThrow(
-        'Credential with ID missing not found'
+      await expect(
+        service.getCredentialStatus('TestConnector', 'missing', 'proj-1')
+      ).rejects.toThrow('Credential with ID missing not found');
+    });
+
+    it('rejects a credential that belongs to another project', async () => {
+      const { service, connectorSourceCredentialsService } = createService();
+
+      const credential = {
+        id: 'cred-1',
+        projectId: 'other-proj',
+        connectorName: 'TestConnector',
+        expiresAt: new Date(Date.now() + 1000 * 60 * 60),
+        user: { name: 'Test User' },
+      } as ConnectorSourceCredentials;
+
+      (connectorSourceCredentialsService.getCredentialsById as jest.Mock).mockResolvedValue(
+        credential
       );
+
+      await expect(
+        service.getCredentialStatus('TestConnector', 'cred-1', 'proj-1')
+      ).rejects.toThrow('Credential with ID cred-1 not found');
+      // Cross-project lookups must not leak validity by probing expiry.
+      expect(connectorSourceCredentialsService.isExpired).not.toHaveBeenCalled();
     });
   });
 });

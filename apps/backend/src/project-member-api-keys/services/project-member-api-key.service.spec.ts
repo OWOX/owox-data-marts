@@ -34,8 +34,8 @@ describe('ProjectMemberApiKeyService', () => {
       null
     );
 
-    expect(result.apiKey.apiKeyId).toMatch(/^pmk_[A-Za-z0-9_-]{22}$/);
-    expect(result.apiKeySecret).toMatch(/^[A-Za-z0-9_-]{43}$/);
+    expect(result.metadata.apiKeyId).toMatch(/^pmk_[A-Za-z0-9_-]{22}$/);
+    expect(result.secret).toMatch(/^[A-Za-z0-9_-]{43}$/);
     expect(repository.create).toHaveBeenCalledWith(
       expect.objectContaining({
         projectId: 'project-1',
@@ -52,11 +52,11 @@ describe('ProjectMemberApiKeyService', () => {
       })
     );
     expect(repository.create).not.toHaveBeenCalledWith(
-      expect.objectContaining({ apiKeySecret: expect.any(String) })
+      expect.objectContaining({ secret: expect.any(String) })
     );
-    expect(result.apiKey).not.toHaveProperty('keyHash');
-    expect(result.apiKey).not.toHaveProperty('keyHashSalt');
-    expect(result.apiKey).not.toHaveProperty('keyHashParams');
+    expect(result.metadata).not.toHaveProperty('keyHash');
+    expect(result.metadata).not.toHaveProperty('keyHashSalt');
+    expect(result.metadata).not.toHaveProperty('keyHashParams');
   });
 
   it('can store an explicit requested role for future lower-role keys', async () => {
@@ -77,7 +77,7 @@ describe('ProjectMemberApiKeyService', () => {
         readOnly: true,
       })
     );
-    expect(result.apiKey.role).toBe('viewer');
+    expect(result.metadata.role).toBe('viewer');
   });
 
   it('lists only active key metadata for the current project member by default', async () => {

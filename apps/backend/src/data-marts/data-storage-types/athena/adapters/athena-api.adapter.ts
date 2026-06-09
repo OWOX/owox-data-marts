@@ -10,6 +10,8 @@ import { AthenaConfig } from '../schemas/athena-config.schema';
 import { AthenaCredentials } from '../schemas/athena-credentials.schema';
 import { ResultSetMetadata } from '@aws-sdk/client-athena/dist-types/models/models_0';
 import { GetQueryResultsCommandOutput } from '@aws-sdk/client-athena/dist-types/commands/GetQueryResultsCommand';
+import { SqlParameter } from '../../utils/sql-clause-renderer';
+import { toAthenaExecutionParameters } from './athena-execution-parameters.utils';
 
 /**
  * Adapter for Athena API operations
@@ -50,13 +52,15 @@ export class AthenaApiAdapter {
   public async executeQuery(
     query: string,
     outputBucket: string,
-    outputPrefix: string
+    outputPrefix: string,
+    params?: SqlParameter[]
   ): Promise<{ queryExecutionId: string }> {
     const startQueryCommand = new StartQueryExecutionCommand({
       QueryString: query,
       ResultConfiguration: {
         OutputLocation: `s3://${outputBucket}/${outputPrefix}`,
       },
+      ExecutionParameters: toAthenaExecutionParameters(params),
     });
 
     const response = await this.athenaClient.send(startQueryCommand);

@@ -1,14 +1,8 @@
 import { Command, Flags } from '@oclif/core';
 import { EnvManager, type EnvSetupConfig, type EnvSetupResult } from '@owox/internal-helpers';
-import {
-  OWOXApiClient,
-  OWOXApiError,
-  OWOXAuthError,
-  OWOXConfigError,
-  type OWOXApiClientOptions,
-} from '@owox/api-client';
+import { OWOXApiClient, OWOXApiError, OWOXAuthError, OWOXConfigError } from '@owox/api-client';
 
-import { resolveAuthConfig } from './config-store.js';
+import { resolveAuthConfig, type AuthConfig } from './config-store.js';
 import { renderJson } from './output.js';
 
 type BaseFlags = {
@@ -73,8 +67,8 @@ export abstract class BaseCommand extends Command {
     }),
   };
 
-  protected createClient(config: OWOXApiClientOptions): OWOXApiClient {
-    return new OWOXApiClient(config);
+  protected createClient(config: AuthConfig): OWOXApiClient {
+    return new OWOXApiClient({ apiKey: config.apiKey });
   }
 
   protected loadEnvironment(flags: Pick<BaseFlags, 'env-file'>): string | null {

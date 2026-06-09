@@ -5,10 +5,17 @@ import { DataMartTableReferenceService } from './data-mart-table-reference.servi
 import { OutputControlsValidatorService } from './output-controls-validator.service';
 import { BlendedQueryBuilderFacade } from '../data-storage-types/facades/blended-query-builder.facade';
 import { ReportLike } from '../dto/domain/report-like-read-plan';
-import { ResolvedRelationshipChain } from '../data-storage-types/interfaces/blended-query-builder.interface';
+import {
+  BlendedColumnTypes,
+  ResolvedRelationshipChain,
+} from '../data-storage-types/interfaces/blended-query-builder.interface';
 import { isQueryBuildResult } from '../data-storage-types/interfaces/data-mart-query-builder.interface';
 import { ReportDataHeader } from '../dto/domain/report-data-header.dto';
-import { AvailableSourceDto, BlendedFieldDto } from '../dto/domain/blendable-schema.dto';
+import {
+  AvailableSourceDto,
+  BlendableSchemaDto,
+  BlendedFieldDto,
+} from '../dto/domain/blendable-schema.dto';
 import { DataStorageType } from '../data-storage-types/enums/data-storage-type.enum';
 import { StorageFieldType } from '../dto/domain/storage-field-type';
 import { computeEffectiveType } from '../data-storage-types/field-aggregation';
@@ -166,6 +173,7 @@ export class BlendedReportDataService {
         filters: report.filterConfig ?? undefined,
         sort: report.sortConfig ?? undefined,
         limit: report.limitConfig ?? undefined,
+        columnTypes: this.buildBlendedColumnTypes(blendableSchema),
       }
     );
     const blendedSql = isQueryBuildResult(blendedResult) ? blendedResult.sql : blendedResult;
@@ -179,6 +187,26 @@ export class BlendedReportDataService {
       blendedDataHeaders,
       chains,
     };
+  }
+
+  // Declared field types for the Athena placeholder casts, matching what the
+  // validator types filters against: post-join columns are home native fields +
+  // blended output aliases; pre-join slices target subsidiary raw columns by aliasPath.
+  private buildBlendedColumnTypes(blendableSchema: BlendableSchemaDto): BlendedColumnTypes {
+    const postJoin = new Map<string, string>();
+    for (const nf of blendableSchema.nativeFields) postJoin.set(nf.name, String(nf.type));
+    for (const bf of blendableSchema.blendedFields) postJoin.set(bf.name, bf.type);
+
+    const preJoin = new Map<string, Map<string, string>>();
+    for (const bf of blendableSchema.blendedFields) {
+      let cols = preJoin.get(bf.aliasPath);
+      if (!cols) {
+        cols = new Map();
+        preJoin.set(bf.aliasPath, cols);
+      }
+      cols.set(bf.originalFieldName, bf.type);
+    }
+    return { postJoin, preJoin };
   }
 
   private buildBlendedDataHeaders(

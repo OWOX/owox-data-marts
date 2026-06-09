@@ -18,7 +18,7 @@ describe('GetReportGeneratedSqlService', () => {
       findOne: jest.fn().mockResolvedValue(report),
     };
     const reportSqlComposerService = {
-      compose: jest.fn().mockResolvedValue({ sql: 'SELECT 1' }),
+      composeStatic: jest.fn().mockResolvedValue({ sql: 'SELECT 1' }),
     };
     const accessDecisionService = {
       canAccess: jest.fn().mockResolvedValue(canEditDataMart),
@@ -50,7 +50,7 @@ describe('GetReportGeneratedSqlService', () => {
       Action.EDIT,
       'proj-1'
     );
-    expect(reportSqlComposerService.compose).toHaveBeenCalledWith(report, {
+    expect(reportSqlComposerService.composeStatic).toHaveBeenCalledWith(report, {
       userId: 'user-1',
       roles: ['editor'],
     });
@@ -82,6 +82,6 @@ describe('GetReportGeneratedSqlService', () => {
     const command = new GetReportGeneratedSqlCommand('report-1', 'user-1', 'proj-1', ['viewer']);
 
     await expect(service.run(command)).rejects.toThrow(ForbiddenException);
-    expect(reportSqlComposerService.compose).not.toHaveBeenCalled();
+    expect(reportSqlComposerService.composeStatic).not.toHaveBeenCalled();
   });
 });

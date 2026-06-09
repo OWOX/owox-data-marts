@@ -14,6 +14,14 @@ type FetchMock = {
 
 const apiOrigin = 'https://example.test';
 
+function createApiKey(payload: {
+  apiOrigin: string;
+  apiKeyId: string;
+  apiKeySecret: string;
+}): string {
+  return `owox_key_${Buffer.from(JSON.stringify(payload), 'utf8').toString('base64url')}`;
+}
+
 function createJsonResponse(status: number, body: unknown): Response {
   return new Response(JSON.stringify(body), {
     status,
@@ -114,6 +122,7 @@ async function collectRows(data: {
 describe('DataMartsApi.traverseData', () => {
   const apiKeyId = 'pmk_AbCdEfGhIjKlMnOpQrStUv';
   const apiKeySecret = 'secret-value-that-must-not-leak';
+  const apiKey = createApiKey({ apiOrigin, apiKeyId, apiKeySecret });
 
   it('requests the NDJSON endpoint and exposes incremental row chunks with run metadata', async () => {
     const filter = [{ column: 'Event Date (local)', operator: 'gte', value: '2026-01-01' }];
@@ -138,9 +147,7 @@ describe('DataMartsApi.traverseData', () => {
     });
 
     const client = new OWOXApiClient({
-      apiOrigin,
-      apiKeyId,
-      apiKeySecret,
+      apiKey,
       fetchImpl: fetchMock.fetchImpl,
     });
 
@@ -192,9 +199,7 @@ describe('DataMartsApi.traverseData', () => {
     });
 
     const client = new OWOXApiClient({
-      apiOrigin,
-      apiKeyId,
-      apiKeySecret,
+      apiKey,
       fetchImpl: fetchMock.fetchImpl,
     });
 
@@ -232,9 +237,7 @@ describe('DataMartsApi.traverseData', () => {
     });
 
     const client = new OWOXApiClient({
-      apiOrigin,
-      apiKeyId,
-      apiKeySecret,
+      apiKey,
       fetchImpl: fetchMock.fetchImpl,
     });
 
@@ -268,9 +271,7 @@ describe('DataMartsApi.traverseData', () => {
     });
 
     const client = new OWOXApiClient({
-      apiOrigin,
-      apiKeyId,
-      apiKeySecret,
+      apiKey,
       fetchImpl: fetchMock.fetchImpl,
     });
 
@@ -300,9 +301,7 @@ describe('DataMartsApi.traverseData', () => {
     });
 
     const client = new OWOXApiClient({
-      apiOrigin,
-      apiKeyId,
-      apiKeySecret,
+      apiKey,
       fetchImpl: fetchMock.fetchImpl,
     });
 
@@ -323,9 +322,7 @@ describe('DataMartsApi.traverseData', () => {
     });
 
     const client = new OWOXApiClient({
-      apiOrigin,
-      apiKeyId,
-      apiKeySecret,
+      apiKey,
       fetchImpl: fetchMock.fetchImpl,
     });
 
@@ -342,9 +339,7 @@ describe('DataMartsApi.traverseData', () => {
   it('rejects columns="**" combined with exact column names before making a request', async () => {
     const fetchMock = createFetchMock(() => createJsonResponse(500, { message: 'unexpected' }));
     const client = new OWOXApiClient({
-      apiOrigin,
-      apiKeyId,
-      apiKeySecret,
+      apiKey,
       fetchImpl: fetchMock.fetchImpl,
     });
 

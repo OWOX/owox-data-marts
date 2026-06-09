@@ -8,6 +8,10 @@ import { isQueryBuildResult } from '../data-storage-types/interfaces/data-mart-q
 import { DataMartTableReferenceService } from './data-mart-table-reference.service';
 import { SqlParameter } from '../data-storage-types/utils/sql-clause-renderer';
 import { OutputControlsCapabilityService } from './output-controls-capability.service';
+import { DataStorageType } from '../data-storage-types/enums/data-storage-type.enum';
+import { inlineAthenaPositionalParams } from '../data-storage-types/athena/adapters/athena-execution-parameters.utils';
+import { inlineBigQueryNamedParams } from '../data-storage-types/bigquery/adapters/bigquery-execution-parameters.utils';
+import { BusinessViolationException } from '../../common/exceptions/business-violation.exception';
 
 @Injectable()
 export class ReportSqlComposerService {
@@ -86,6 +90,13 @@ export class ReportSqlComposerService {
       );
     }
 
+    // Column types let Athena cast date/time filter placeholders. Sourced from the
+    // persisted schema (same native fields the validator types against).
+    const schemaFields = dataMart.schema?.fields ?? [];
+    const columnTypes: ReadonlyMap<string, string> | undefined = schemaFields.length
+      ? new Map(schemaFields.map((f): [string, string] => [f.name, String(f.type)]))
+      : undefined;
+
     const queryResult = await this.queryBuilderFacade.buildQuery(
       dataMart.storage.type,
       dataMart.definition,
@@ -95,6 +106,7 @@ export class ReportSqlComposerService {
         sort: report.sortConfig ?? undefined,
         limit: report.limitConfig ?? undefined,
         mainTableReference,
+        columnTypes,
       }
     );
 
@@ -102,5 +114,41 @@ export class ReportSqlComposerService {
       return { sql: queryResult.sql, params: queryResult.params };
     }
     return { sql: queryResult };
+  }
+
+  /**
+   * Like {@link compose}, but returns a STATIC, self-contained SQL string with no
+   * runtime parameters — for paths that have no parameter-binding channel: a copied
+   * data-mart SQL definition (persisted) and the "generated SQL" preview (shown +
+   * dry-run-validated). Returning the bound SQL with bare `?`/`@p` there would
+   * persist / preview SQL that cannot run.
+   *
+   * Both supported dialects render value placeholders inside a CAST for date/time
+   * columns, so inlining a string literal yields runnable SQL: Athena's positional
+   * `?` becomes a literal, BigQuery's named `@p` becomes a literal. Reports without
+   * output-control params (sort/limit-only, relative_date, or no controls) pass
+   * through unchanged.
+   */
+  async composeStatic(
+    report: ReportLike,
+    accessor: BlendableSchemaAccessor,
+    precomputedDecision?: BlendingDecision
+  ): Promise<{ sql: string }> {
+    const composed = await this.compose(report, accessor, precomputedDecision);
+    if (!composed.params?.length) return { sql: composed.sql };
+    switch (report.dataMart.storage.type) {
+      case DataStorageType.AWS_ATHENA:
+        return { sql: inlineAthenaPositionalParams(composed.sql, composed.params) };
+      case DataStorageType.GOOGLE_BIGQUERY:
+        return { sql: inlineBigQueryNamedParams(composed.sql, composed.params) };
+      default:
+        // Only Athena + BigQuery support output controls (so only they produce
+        // params); guard the contract for any future dialect added before its
+        // inliner exists, rather than emit SQL with unbound parameters.
+        throw new BusinessViolationException(
+          'Generating static SQL for a report with value filters is not supported for this storage type.',
+          { storageType: report.dataMart.storage.type }
+        );
+    }
   }
 }

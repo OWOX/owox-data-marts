@@ -15,14 +15,14 @@ var XAdsSource = class XAdsSource extends AbstractSource {
       ConsumerKey: {
         isRequired: true,
         requiredType: "string",
-        label: "Consumer Key (API Key)",
+        label: "Consumer Key",
         description: "Your X Ads API Consumer Key",
         attributes: [CONFIG_ATTRIBUTES.SECRET]
       },
       ConsumerSecret: {
         isRequired: true,
         requiredType: "string",
-        label: "Consumer Secret (API Secret)",
+        label: "Consumer Secret",
         description: "Your X Ads API Consumer Secret",
         attributes: [CONFIG_ATTRIBUTES.SECRET]
       },
@@ -601,7 +601,7 @@ var XAdsSource = class XAdsSource extends AbstractSource {
   /**
    * Determines if a X Ads API error is valid for retry
    * Based on X Ads API error codes and HTTP status codes
-   * 
+   *
    * @param {HttpRequestException} error - The error to check
    * @return {boolean} True if the error should trigger a retry, false otherwise
    */

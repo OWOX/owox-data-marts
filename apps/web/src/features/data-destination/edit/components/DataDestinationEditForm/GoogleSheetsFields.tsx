@@ -14,13 +14,11 @@ import { type DataDestinationFormData, DataDestinationType } from '../../../shar
 import GoogleSheetsServiceAccountDescription from './FormDescriptions/GoogleSheetsServiceAccountDescription';
 import GoogleSheetsOAuthDescription from './FormDescriptions/GoogleSheetsOAuthDescription';
 import GoogleSheetsAuthMethodDescription from './FormDescriptions/GoogleSheetsAuthMethodDescription';
-import { Tooltip, TooltipContent, TooltipTrigger } from '@owox/ui/components/tooltip';
+import { CopyableField } from '@owox/ui/components/common/copyable-field';
 import { ExternalAnchor } from '@owox/ui/components/common/external-anchor';
-import { getServiceAccountLink } from '../../../../../utils/google-cloud-utils';
-import {
-  GoogleOAuthConnectButton,
-  destinationOAuthApi,
-} from '../../../../../features/google-oauth';
+import { getServiceAccountLink } from '../../../../../utils';
+import { Copy, Check } from 'lucide-react';
+import { GoogleOAuthConnectButton, destinationOAuthApi } from '../../../../google-oauth';
 import { Tabs, TabsList, TabsTrigger } from '@owox/ui/components/tabs';
 import { AuthenticationSectionHeader } from '../../../../../shared/components/AuthenticationSectionHeader';
 import { CopyDestinationCredentialsButton } from '../CopyDestinationCredentialsButton';
@@ -48,6 +46,8 @@ export function GoogleSheetsFields({ form }: GoogleSheetsFieldsProps) {
   const [stashedCredentialId, setStashedCredentialId] = useState<string | null | undefined>(
     undefined
   );
+  const [oauthEmail, setOauthEmail] = useState<string | null>(null);
+  const [saCopied, setSaCopied] = useState(false);
 
   useEffect(() => {
     destinationOAuthApi
@@ -66,6 +66,25 @@ export function GoogleSheetsFields({ form }: GoogleSheetsFieldsProps) {
   }, []);
 
   const credentialIdValue = form.watch('credentials.credentialId');
+
+  useEffect(() => {
+    const abortController = new AbortController();
+    if (authMethod === 'oauth' && credentialIdValue) {
+      destinationOAuthApi
+        .getCredentialStatus(credentialIdValue, { signal: abortController.signal })
+        .then(status => {
+          setOauthEmail(status.user?.email ?? null);
+        })
+        .catch(() => {
+          setOauthEmail(null);
+        });
+    } else {
+      setOauthEmail(null);
+    }
+    return () => {
+      abortController.abort();
+    };
+  }, [authMethod, credentialIdValue]);
 
   const handleOAuthStatusChange = (isConnected: boolean, credentialId?: string) => {
     if (isConnected && credentialId) {
@@ -170,6 +189,12 @@ export function GoogleSheetsFields({ form }: GoogleSheetsFieldsProps) {
                 onSuccess={handleOAuthSuccess}
                 onStatusChange={handleOAuthStatusChange}
               />
+              {oauthEmail && (
+                <div className='mt-2 flex flex-col gap-1'>
+                  <FormLabel>Authenticated email</FormLabel>
+                  <CopyableField value={oauthEmail}>{oauthEmail}</CopyableField>
+                </div>
+              )}
               <FormDescription>
                 <GoogleSheetsOAuthDescription />
               </FormDescription>
@@ -199,16 +224,33 @@ export function GoogleSheetsFields({ form }: GoogleSheetsFieldsProps) {
                   </div>
                   <FormControl>
                     {!isEditing && serviceAccountLink ? (
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <ExternalAnchor href={serviceAccountLink.url} variant='field'>
-                            {serviceAccountLink.email}
-                          </ExternalAnchor>
-                        </TooltipTrigger>
-                        <TooltipContent>
-                          <p>View in Google Cloud Console</p>
-                        </TooltipContent>
-                      </Tooltip>
+                      <div className='flex items-center gap-2'>
+                        <ExternalAnchor
+                          href={serviceAccountLink.url}
+                          variant='field'
+                          className='flex-1 truncate'
+                        >
+                          {serviceAccountLink.email}
+                        </ExternalAnchor>
+                        <button
+                          type='button'
+                          onClick={() => {
+                            void navigator.clipboard.writeText(serviceAccountLink.email);
+                            setSaCopied(true);
+                            setTimeout(() => {
+                              setSaCopied(false);
+                            }, 2000);
+                          }}
+                          className='text-muted-foreground hover:text-foreground hover:bg-accent shrink-0 rounded-md p-1 transition-colors'
+                          aria-label='Copy email'
+                        >
+                          {saCopied ? (
+                            <Check className='h-4 w-4 text-green-500' />
+                          ) : (
+                            <Copy className='h-4 w-4' />
+                          )}
+                        </button>
+                      </div>
                     ) : (
                       <Textarea
                         {...field}

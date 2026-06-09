@@ -1,39 +1,18 @@
-import { OWOXConfigError } from '@owox/api-client';
-
-export const DEFAULT_API_ORIGIN = 'https://app.owox.com';
+import { parseOWOXApiKey } from '@owox/api-client';
 
 export type AuthConfig = {
+  apiKey: string;
   apiOrigin: string;
   apiKeyId: string;
-  apiKeySecret: string;
 };
 
-function requiredEnvValue(
-  env: NodeJS.ProcessEnv,
-  key: 'OWOX_API_KEY_ID' | 'OWOX_API_KEY_SECRET'
-): string | undefined {
-  const value = env[key];
-  return typeof value === 'string' && value.trim().length > 0 ? value : undefined;
-}
-
 export function resolveAuthConfig(env: NodeJS.ProcessEnv = process.env): AuthConfig {
-  const apiKeyId = requiredEnvValue(env, 'OWOX_API_KEY_ID');
-  const apiKeySecret = requiredEnvValue(env, 'OWOX_API_KEY_SECRET');
-  if (!apiKeyId && !apiKeySecret) {
-    throw new OWOXConfigError('OWOX_API_KEY_ID and OWOX_API_KEY_SECRET are required');
-  }
-
-  if (!apiKeyId) {
-    throw new OWOXConfigError('OWOX_API_KEY_ID is required');
-  }
-
-  if (!apiKeySecret) {
-    throw new OWOXConfigError('OWOX_API_KEY_SECRET is required');
-  }
+  const apiKey = env.OWOX_API_KEY;
+  const { apiOrigin, apiKeyId } = parseOWOXApiKey(apiKey);
 
   return {
-    apiOrigin: env.OWOX_API_ORIGIN?.trim() || DEFAULT_API_ORIGIN,
+    apiKey: apiKey!,
+    apiOrigin,
     apiKeyId,
-    apiKeySecret,
   };
 }

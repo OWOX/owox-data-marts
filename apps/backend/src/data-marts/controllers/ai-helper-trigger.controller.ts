@@ -100,18 +100,20 @@ export class AiHelperTriggerController extends UiTriggerController<AiHelperUiRes
   @Auth(Role.viewer(Strategy.PARSE))
   @Get('/:triggerId/status')
   public override async getTriggerStatus(
-    @Param('triggerId') triggerId: string
+    @Param('triggerId') triggerId: string,
+    @AuthContext() context: AuthorizationContext
   ): Promise<{ status: TriggerStatus }> {
-    return super.getTriggerStatus(triggerId);
+    return super.getTriggerStatus(triggerId, context);
   }
 
   @GetAiHelperTriggerResponseSpec()
   @Auth(Role.viewer(Strategy.PARSE))
   @Get('/:triggerId')
   public override async getTriggerResponse(
-    @Param('triggerId') triggerId: string
+    @Param('triggerId') triggerId: string,
+    @AuthContext() context: AuthorizationContext
   ): Promise<AiHelperUiResponse> {
-    return super.getTriggerResponse(triggerId);
+    return super.getTriggerResponse(triggerId, context);
   }
 
   @CancelAiHelperTriggerSpec()

@@ -3,20 +3,6 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { SecretRevealDialog } from './SecretRevealDialog';
 import type { CreateProjectMemberApiKeyResponse } from '../types';
-import type { useFlags } from '../../../app/store/hooks/useFlags';
-
-type UseFlagsResult = ReturnType<typeof useFlags>;
-
-const useFlagsMock = vi.hoisted(() =>
-  vi.fn<() => UseFlagsResult>(() => ({
-    flags: { PUBLIC_ORIGIN: 'https://public.example.test' },
-    callState: 'loaded' as UseFlagsResult['callState'],
-  }))
-);
-
-vi.mock('../../../app/store/hooks/useFlags', () => ({
-  useFlags: useFlagsMock,
-}));
 
 vi.mock('@owox/ui/components/dialog', () => ({
   Dialog: ({ open, children }: { open: boolean; children: ReactNode }) =>
@@ -45,7 +31,7 @@ vi.mock('react-hot-toast', () => ({
 
 const createdKey: CreateProjectMemberApiKeyResponse = {
   apiKeyId: 'pmk_1234567890123456789012',
-  apiKeySecret: 'secret-value',
+  apiKey: 'owox_key_fixture',
   name: 'Automation',
   expiresAt: null,
   createdAt: '2026-05-30T18:00:00.000Z',
@@ -55,10 +41,6 @@ const createdKey: CreateProjectMemberApiKeyResponse = {
 describe('SecretRevealDialog', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    useFlagsMock.mockReturnValue({
-      flags: { PUBLIC_ORIGIN: 'https://public.example.test' },
-      callState: 'loaded' as UseFlagsResult['callState'],
-    });
     Object.defineProperty(navigator, 'clipboard', {
       value: {
         writeText: vi.fn().mockResolvedValue(undefined),
@@ -67,80 +49,61 @@ describe('SecretRevealDialog', () => {
     });
   });
 
-  it('shows the current API Origin as a read-only input', () => {
+  it('shows one API Key field', () => {
     render(<SecretRevealDialog data={createdKey} onDone={vi.fn()} />);
 
-    const originInput = screen.getByLabelText('API Origin');
+    const apiKeyInput = screen.getByLabelText('API Key');
 
-    expect(originInput).toHaveValue('https://public.example.test');
-    expect(originInput).toHaveAttribute('readonly');
+    expect(apiKeyInput).toHaveValue('owox_key_fixture');
+    expect(apiKeyInput).toHaveAttribute('readonly');
+    expect(screen.queryByText('API Origin')).not.toBeInTheDocument();
+    expect(screen.queryByText('API Key Secret')).not.toBeInTheDocument();
   });
 
-  it('keeps the API Origin input out of the initial dialog focus order', () => {
+  it('keeps the API Key input out of the initial dialog focus order', () => {
     render(<SecretRevealDialog data={createdKey} onDone={vi.fn()} />);
 
-    expect(screen.getByLabelText('API Origin')).toHaveAttribute('tabindex', '-1');
+    expect(screen.getByLabelText('API Key')).toHaveAttribute('tabindex', '-1');
   });
 
-  it('uses the same compact copy button styling for API Origin as other values', () => {
+  it('hides the API Key by default and allows revealing it', () => {
     render(<SecretRevealDialog data={createdKey} onDone={vi.fn()} />);
 
-    expect(screen.getByRole('button', { name: 'Copy API Origin' })).toHaveClass('size-7');
+    const apiKeyInput = screen.getByLabelText('API Key');
+
+    expect(apiKeyInput).toHaveAttribute('type', 'password');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Show API Key' }));
+    expect(apiKeyInput).toHaveAttribute('type', 'text');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Hide API Key' }));
+    expect(apiKeyInput).toHaveAttribute('type', 'password');
   });
 
-  it('copies the API Origin', async () => {
+  it('uses a compact copy button for the API Key', () => {
     render(<SecretRevealDialog data={createdKey} onDone={vi.fn()} />);
 
-    fireEvent.click(screen.getByRole('button', { name: 'Copy API Origin' }));
+    expect(screen.getByRole('button', { name: 'Copy API Key' })).toHaveClass('size-7');
+  });
+
+  it('copies the API Key', async () => {
+    render(<SecretRevealDialog data={createdKey} onDone={vi.fn()} />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Copy API Key' }));
 
     await waitFor(() => {
-      expect(navigator.clipboard.writeText).toHaveBeenCalledWith('https://public.example.test');
+      expect(navigator.clipboard.writeText).toHaveBeenCalledWith('owox_key_fixture');
     });
   });
 
-  it('keeps the API Key Secret copy button as a copy icon after copying', async () => {
+  it('places the one-time key notice under the API Key field', () => {
     render(<SecretRevealDialog data={createdKey} onDone={vi.fn()} />);
 
-    const secretButton = screen.getByRole('button', { name: 'Copy API Key Secret' });
+    const apiKeyInput = screen.getByLabelText('API Key');
+    const apiKeyField = apiKeyInput.closest('div')?.parentElement;
 
-    fireEvent.click(secretButton);
-
-    await waitFor(() => {
-      expect(navigator.clipboard.writeText).toHaveBeenCalledWith('secret-value');
-    });
-    expect(secretButton.querySelector('.lucide-copy')).toBeTruthy();
-    expect(secretButton.querySelector('.lucide-check')).toBeNull();
-  });
-
-  it('hides the API Key Secret until explicitly revealed', () => {
-    render(<SecretRevealDialog data={createdKey} onDone={vi.fn()} />);
-
-    const secretInput = screen.getByLabelText('API Key Secret');
-
-    expect(secretInput).toHaveAttribute('type', 'password');
-    expect(screen.queryByText('secret-value')).not.toBeInTheDocument();
-  });
-
-  it('allows the API Key Secret to be revealed and hidden again', () => {
-    render(<SecretRevealDialog data={createdKey} onDone={vi.fn()} />);
-
-    const secretInput = screen.getByLabelText('API Key Secret');
-
-    fireEvent.click(screen.getByRole('button', { name: 'Show API Key Secret' }));
-    expect(secretInput).toHaveAttribute('type', 'text');
-
-    fireEvent.click(screen.getByRole('button', { name: 'Hide API Key Secret' }));
-    expect(secretInput).toHaveAttribute('type', 'password');
-  });
-
-  it('places the one-time secret notice under the API Key Secret field', () => {
-    render(<SecretRevealDialog data={createdKey} onDone={vi.fn()} />);
-
-    const secretInput = screen.getByLabelText('API Key Secret');
-    const secretField = secretInput.closest('div')?.parentElement;
-
-    expect(secretField).toHaveTextContent(
-      "Copy the secret now. You won't be able to see it again."
+    expect(apiKeyField).toHaveTextContent(
+      "Copy the API Key now. You won't be able to see it again."
     );
   });
 
@@ -154,9 +117,9 @@ describe('SecretRevealDialog', () => {
     expect(docsLink).not.toHaveClass('hover:bg-muted');
   });
 
-  it('shows help controls for each value caption', () => {
+  it('shows one help control for the API Key caption', () => {
     render(<SecretRevealDialog data={createdKey} onDone={vi.fn()} />);
 
-    expect(screen.getAllByRole('button', { name: 'Help information' })).toHaveLength(3);
+    expect(screen.getAllByRole('button', { name: 'Help information' })).toHaveLength(1);
   });
 });

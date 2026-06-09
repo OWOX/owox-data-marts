@@ -1,16 +1,24 @@
 import { OWOXAuthError, OWOXConfigError } from '@owox/api-client';
 
-import { DEFAULT_API_ORIGIN } from '../config-store.js';
 import { renderJson } from '../output.js';
 import { getMissingConfigStatus, getStatus } from './status.js';
 
 describe('status', () => {
+  const apiKey = `owox_key_${Buffer.from(
+    JSON.stringify({
+      apiOrigin: 'https://app.owox.com',
+      apiKeyId: 'pmk_AbCdEfGhIjKlMnOpQrStUv',
+      apiKeySecret: 'secret-value-that-must-not-leak',
+    }),
+    'utf8'
+  ).toString('base64url')}`;
+
   it('includes API key ID, includes envFile, and never prints the secret', async () => {
     const status = await getStatus(
       {
+        apiKey,
         apiOrigin: 'https://app.owox.com',
         apiKeyId: 'pmk_AbCdEfGhIjKlMnOpQrStUv',
-        apiKeySecret: 'secret-value-that-must-not-leak',
       },
       '/work/.env',
       {
@@ -28,15 +36,16 @@ describe('status', () => {
     });
 
     expect(renderJson(status)).not.toContain('secret-value-that-must-not-leak');
+    expect(renderJson(status)).not.toContain(apiKey);
   });
 
   it('uses null envFile when no env file was loaded', async () => {
     await expect(
       getStatus(
         {
+          apiKey,
           apiOrigin: 'https://app.owox.com',
           apiKeyId: 'pmk_AbCdEfGhIjKlMnOpQrStUv',
-          apiKeySecret: 'secret-value-that-must-not-leak',
         },
         null,
         {
@@ -55,16 +64,16 @@ describe('status', () => {
     const status = getMissingConfigStatus(
       {},
       null,
-      new OWOXConfigError('OWOX_API_KEY_ID and OWOX_API_KEY_SECRET are required')
+      new OWOXConfigError('OWOX_API_KEY is required and must start with owox_key_')
     );
 
     expect(status).toEqual({
-      apiOrigin: DEFAULT_API_ORIGIN,
+      apiOrigin: null,
       apiKeyId: null,
       authenticated: false,
       envFile: null,
       error: {
-        message: 'OWOX_API_KEY_ID and OWOX_API_KEY_SECRET are required',
+        message: 'OWOX_API_KEY is required and must start with owox_key_',
         name: 'OWOXConfigError',
       },
     });
@@ -73,9 +82,9 @@ describe('status', () => {
   it('returns authenticated false with API key ID when authentication fails', async () => {
     const status = await getStatus(
       {
+        apiKey,
         apiOrigin: 'https://app.owox.com',
         apiKeyId: 'pmk_AbCdEfGhIjKlMnOpQrStUv',
-        apiKeySecret: 'secret-value-that-must-not-leak',
       },
       '/work/.env',
       {
@@ -101,5 +110,6 @@ describe('status', () => {
     });
 
     expect(renderJson(status)).not.toContain('secret-value-that-must-not-leak');
+    expect(renderJson(status)).not.toContain(apiKey);
   });
 });

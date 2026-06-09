@@ -238,6 +238,21 @@ export class ConnectorService {
       throw new Error(`Credential with ID ${credentialId} not found`);
     }
 
+    // Tenant boundary: never read or copy a credential that belongs to another
+    // project, even if its id is referenced from this project's configuration.
+    if (credential.projectId !== projectId) {
+      throw new Error(`Credential with ID ${credentialId} not found`);
+    }
+
+    // Connector boundary: a credential must only be refreshed under the connector
+    // it was issued for. Otherwise one connector's stored tokens could be rotated
+    // and re-stored under a different connector name.
+    if (credential.connectorName !== connectorName) {
+      throw new Error(
+        `Credential belongs to connector ${credential.connectorName}, not ${connectorName}`
+      );
+    }
+
     const connector = this.createConnectorSource(connectorName);
 
     const oauthVariables = await this.getOAuthVariablesForRefresh(connectorName, configuration);

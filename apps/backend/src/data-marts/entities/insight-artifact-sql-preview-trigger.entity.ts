@@ -8,9 +8,6 @@ export class InsightArtifactSqlPreviewTrigger extends UiTrigger<InsightArtifactS
   dataMartId: string;
 
   @Column()
-  projectId: string;
-
-  @Column()
   insightArtifactId: string;
 
   @Column({ type: 'text', nullable: true })

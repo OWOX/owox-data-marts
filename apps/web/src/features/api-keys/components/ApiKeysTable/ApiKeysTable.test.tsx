@@ -28,8 +28,13 @@ function futureIso(days: number) {
   return new Date(Date.now() + days * 24 * 60 * 60 * 1000).toISOString();
 }
 
+function pastIso(days: number) {
+  return new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
+}
+
 describe('ApiKeysTable', () => {
   beforeEach(() => {
+    localStorage.clear();
     Object.defineProperty(navigator, 'clipboard', {
       value: {
         writeText: vi.fn().mockResolvedValue(undefined),
@@ -116,8 +121,113 @@ describe('ApiKeysTable', () => {
     );
 
     const expirationDate = screen.getByText(formatDateOnly(expiresAt, { timeZone: 'UTC' }));
+    const expiresCell = expirationDate.closest('td');
+    expect(expiresCell).not.toBeNull();
+    const statusBadge = within(expiresCell as HTMLElement).getByText('Expires soon');
 
-    expect(expirationDate).toHaveClass('font-medium', 'text-amber-600');
+    expect(expirationDate).toHaveClass('text-foreground');
+    expect(expirationDate).not.toHaveClass('text-amber-600');
+    expect(expirationDate).not.toHaveClass('font-medium');
+    expect(statusBadge).toHaveAttribute('data-slot', 'badge');
+    expect(statusBadge).toHaveClass('text-[11px]', 'text-amber-700');
+    expect(
+      expirationDate.compareDocumentPosition(statusBadge) & Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy();
     expect(screen.getByRole('tooltip')).toHaveTextContent('This API key expires within 30 days.');
+  });
+
+  it('makes expired API keys visually obvious', () => {
+    const expiresAt = pastIso(2);
+
+    const { container } = render(
+      <ApiKeysTable
+        keys={[{ ...key, expiresAt }]}
+        onCreateKey={vi.fn()}
+        onOpenDetails={vi.fn()}
+        onEditName={vi.fn()}
+        onRevoke={vi.fn()}
+      />
+    );
+
+    const expirationDate = screen.getByText(formatDateOnly(expiresAt, { timeZone: 'UTC' }));
+    const expiresCell = expirationDate.closest('td');
+    expect(expiresCell).not.toBeNull();
+    const statusBadge = within(expiresCell as HTMLElement).getByText('Expired');
+
+    expect(expirationDate).toHaveClass('text-foreground');
+    expect(expirationDate).not.toHaveClass('text-destructive');
+    expect(expirationDate).not.toHaveClass('font-medium');
+    expect(statusBadge).toHaveAttribute('data-slot', 'badge');
+    expect(statusBadge).toHaveClass('text-[11px]', 'text-destructive');
+    expect(
+      expirationDate.compareDocumentPosition(statusBadge) & Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy();
+    expect(screen.getByRole('tooltip')).toHaveTextContent('This API key has expired.');
+    expect(container.querySelector('svg.lucide-circle-alert')).toBeNull();
+  });
+
+  it('sorts keys that never expire as the furthest expiration date', () => {
+    const expiredAt = pastIso(10);
+    const futureSoonAt = futureIso(20);
+    const futureLaterAt = futureIso(60);
+
+    const keys: ProjectMemberApiKey[] = [
+      { ...key, apiKeyId: 'pmk_never_1', name: 'Never 1', expiresAt: null },
+      {
+        ...key,
+        apiKeyId: 'pmk_future_later',
+        name: 'Future later',
+        expiresAt: futureLaterAt,
+      },
+      {
+        ...key,
+        apiKeyId: 'pmk_expired',
+        name: 'Expired',
+        expiresAt: expiredAt,
+      },
+      {
+        ...key,
+        apiKeyId: 'pmk_future_soon',
+        name: 'Future soon',
+        expiresAt: futureSoonAt,
+      },
+      { ...key, apiKeyId: 'pmk_never_2', name: 'Never 2', expiresAt: null },
+    ];
+
+    render(
+      <ApiKeysTable
+        keys={keys}
+        onCreateKey={vi.fn()}
+        onOpenDetails={vi.fn()}
+        onEditName={vi.fn()}
+        onRevoke={vi.fn()}
+      />
+    );
+
+    const getRenderedNames = () =>
+      screen
+        .getAllByRole('row')
+        .slice(1)
+        .map(row => within(row).getAllByRole('cell')[0].textContent);
+
+    fireEvent.click(screen.getByRole('button', { name: /Expires - not sorted/i }));
+
+    expect(getRenderedNames()).toEqual([
+      'Expired',
+      'Future soon',
+      'Future later',
+      'Never 1',
+      'Never 2',
+    ]);
+
+    fireEvent.click(screen.getByRole('button', { name: /Expires - sorted ascending/i }));
+
+    expect(getRenderedNames()).toEqual([
+      'Never 1',
+      'Never 2',
+      'Future later',
+      'Future soon',
+      'Expired',
+    ]);
   });
 });

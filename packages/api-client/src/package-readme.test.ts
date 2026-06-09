@@ -15,8 +15,12 @@ describe('package README', () => {
     expect(readme).toContain('https://docs.owox.com/docs/api/api-client/');
     expect(readme).toContain('https://docs.owox.com/docs/api/api-keys/');
     expect(readme).toContain('https://docs.owox.com/docs/api/openapi/');
+    expect(readme).toContain('new OWOXApiClient');
+    expect(readme).toContain('apiKey: process.env.OWOX_API_KEY!');
     expect(readme).not.toContain('github.com/OWOX/owox-data-marts/blob/main/docs');
-    expect(readme).not.toContain('new OWOXApiClient');
+    expect(readme).not.toContain('apiOrigin:');
+    expect(readme).not.toContain('apiKeyId:');
+    expect(readme).not.toContain('apiKeySecret:');
     expect(readme).not.toContain('## Basic usage');
     expect(readme).not.toContain('## Error handling');
     expect(readme).not.toContain('./api-keys/');

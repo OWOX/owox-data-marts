@@ -10,10 +10,34 @@ import { useProjectMenu } from './useProjectMenu';
 import { useProjectRoute } from '../../../shared/hooks';
 
 interface ProjectMenuContentProps {
-  onClose: () => void;
+  onClose?: () => void;
+  restricted?: boolean;
 }
 
-export function ProjectMenuContent({ onClose }: ProjectMenuContentProps) {
+export function ProjectMenuContent({ onClose, restricted = false }: ProjectMenuContentProps) {
+  if (restricted) {
+    return <RestrictedProjectMenuContent />;
+  }
+
+  return <RegularProjectMenuContent onClose={onClose ?? ignoreMenuClose} />;
+}
+
+function RestrictedProjectMenuContent() {
+  return (
+    <DropdownMenuContent align='start' side='right' className='w-56'>
+      <SwitchProjectMenu
+        autoLoad
+        emptyMessage='No other projects available'
+        excludeCurrentProject
+        showSeparator={false}
+      />
+    </DropdownMenuContent>
+  );
+}
+
+const ignoreMenuClose = () => undefined;
+
+function RegularProjectMenuContent({ onClose }: { onClose: () => void }) {
   const { visibleMenuItems, canSwitchProject } = useProjectMenu();
   const { scope } = useProjectRoute();
 

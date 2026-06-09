@@ -13,6 +13,7 @@ import { AthenaReportReader } from './athena/services/athena-report-reader.servi
 import { AthenaSchemaMerger } from './athena/services/athena-schema-merger';
 import { AthenaSqlDryRunExecutor } from './athena/services/athena-sql-dry-run.executor';
 import { AthenaBlendedQueryBuilder } from './athena/services/athena-blended-query-builder';
+import { AthenaClauseRenderer } from './athena/services/athena-clause-renderer';
 import { AthenaSqlRunExecutor } from './athena/services/athena-sql-run.executor';
 import { AthenaStorageErrorMapper } from './athena/services/athena-storage-error.mapper';
 import { BigQueryApiAdapterFactory } from './bigquery/adapters/bigquery-api-adapter.factory';
@@ -236,6 +237,7 @@ const legacyBigQueryProviders = [LegacyBigQuerySqlPreprocessor];
 const storageResourceBrowserProviders = [BigQueryStorageResourceBrowser];
 const blendedQueryBuilderProviders = [
   BigQueryClauseRenderer,
+  AthenaClauseRenderer,
   BigQueryBlendedQueryBuilder,
   SnowflakeBlendedQueryBuilder,
   RedshiftBlendedQueryBuilder,

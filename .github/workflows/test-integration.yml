@@ -2,6 +2,11 @@ name: Integration Tests (Real DB)
 
 on:
   workflow_dispatch:
+  schedule:
+    - cron: '0 5,13 * * *'
+
+permissions:
+  contents: read
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -9,9 +14,26 @@ concurrency:
 
 jobs:
   integration-tests:
-    name: Real Database Tests
+    name: ${{ matrix.suite.name }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
+
+    strategy:
+      fail-fast: false
+      matrix:
+        suite:
+          - name: BigQuery
+            pattern: bigquery.integration
+          - name: Athena
+            pattern: athena.integration
+          - name: HTTP Data (Athena + BigQuery)
+            pattern: http-data-real
+          - name: Report read (Athena)
+            pattern: report-run-real
+          # google-sheets.integration.ts is intentionally skipped (not CI-ready);
+          # only the working column-preservation suite runs here.
+          - name: Google Sheets (column preservation)
+            pattern: google-sheets-column-preservation.integration
 
     steps:
       - name: Checkout repository
@@ -23,25 +45,80 @@ jobs:
           node-version: '22'
           cache: 'npm'
 
+      # No --ignore-scripts: native modules (better-sqlite3) and workspace
+      # postinstall hooks must run for the app-booting suites to work.
       - name: Install dependencies
-        run: npm ci --prefer-offline --no-audit --ignore-scripts --no-fund --loglevel error
+        run: npm ci --prefer-offline --no-audit --no-fund --loglevel error
 
       - name: Build all workspace packages
         run: npm run build --workspaces --if-present
 
-      - name: Run integration tests
-        run: npm run test:integration -w @owox/backend
+      - name: Run integration tests (${{ matrix.suite.name }})
+        run: npm run test:integration -w @owox/backend -- ${{ matrix.suite.pattern }}
         env:
           NODE_ENV: test
+          # BigQuery
           BQ_PROJECT_ID: ${{ secrets.BQ_PROJECT_ID }}
           BQ_DATASET: ${{ secrets.BQ_DATASET }}
           BQ_SERVICE_ACCOUNT_KEY: ${{ secrets.BQ_SERVICE_ACCOUNT_KEY }}
+          # Athena (also used by Redshift later)
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           ATHENA_REGION: ${{ secrets.ATHENA_REGION }}
           ATHENA_OUTPUT_BUCKET: ${{ secrets.ATHENA_OUTPUT_BUCKET }}
           ATHENA_DATABASE: ${{ secrets.ATHENA_DATABASE }}
+          # Google Sheets
           GOOGLE_SHEETS_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SHEETS_SERVICE_ACCOUNT_JSON }}
           TEST_GOOGLE_SPREADSHEET_ID: ${{ secrets.TEST_GOOGLE_SPREADSHEET_ID }}
           TEST_GOOGLE_SHEET_ID: '0'
           TEST_GOOGLE_SHEET_ID_2: '1'
+
+  # Scheduled runs are credential-gated and unattended — a silent red run would
+  # otherwise rot unnoticed. Open (or comment on an existing) tracking issue so a
+  # failure is visible. Skipped for manual dispatches: the person who triggered
+  # them is already watching. Uses the built-in GITHUB_TOKEN — no extra secret.
+  notify-on-failure:
+    name: Notify on scheduled failure
+    needs: integration-tests
+    if: ${{ failure() && github.event_name == 'schedule' }}
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+    steps:
+      - name: Open or update tracking issue
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const label = 'integration-failure';
+            const runUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+            const body = [
+              'The scheduled **Integration Tests (Real DB)** workflow failed.',
+              '',
+              `- Run: ${runUrl}`,
+              `- Commit: \`${context.sha}\``,
+              '',
+              '_Opened/updated automatically on scheduled failures._',
+            ].join('\n');
+            const existing = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              labels: label,
+              per_page: 1,
+            });
+            if (existing.data.length > 0) {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: existing.data[0].number,
+                body,
+              });
+            } else {
+              await github.rest.issues.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                title: 'Scheduled integration tests failed',
+                body,
+                labels: [label],
+              });
+            }

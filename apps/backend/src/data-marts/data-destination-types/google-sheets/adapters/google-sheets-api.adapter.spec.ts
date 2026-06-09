@@ -311,6 +311,41 @@ describe('GoogleSheetsApiAdapter (pure helpers)', () => {
     });
   });
 
+  describe('buildSetColumnFormatRequest', () => {
+    it('targets a single column over the row span as a repeatCell', () => {
+      const adapter = buildAdapter();
+      const format: sheets_v4.Schema$CellFormat = {
+        numberFormat: { type: 'CURRENCY', pattern: '"$"#,##0.00' },
+      };
+      const req = adapter.buildSetColumnFormatRequest(7, 2, 1, 4, format);
+
+      expect(req.repeatCell?.range).toEqual({
+        sheetId: 7,
+        startRowIndex: 1,
+        endRowIndex: 4,
+        startColumnIndex: 2,
+        endColumnIndex: 3,
+      });
+      expect(req.repeatCell?.cell?.userEnteredFormat).toBe(format);
+    });
+
+    it('excludes textFormat.link from the field mask so per-cell hyperlinks are not propagated', () => {
+      const adapter = buildAdapter();
+      const req = adapter.buildSetColumnFormatRequest(7, 0, 1, 3, { textFormat: { bold: true } });
+      const fields = req.repeatCell?.fields ?? '';
+
+      // The link must NOT be in the mask — otherwise the sampled row's URL is
+      // stamped over every row (cell shows id-5 but its link points to id-1).
+      expect(fields).not.toContain('textFormat.link');
+      // But the rest of the formatting IS restored.
+      expect(fields).toContain('userEnteredFormat.numberFormat');
+      expect(fields).toContain('userEnteredFormat.backgroundColor');
+      expect(fields).toContain('userEnteredFormat.textFormat.bold');
+      // It is a scoped mask, not the coarse whole-format mask.
+      expect(fields).not.toBe('userEnteredFormat');
+    });
+  });
+
   describe('findOwoxColumnsMetadataForSheet', () => {
     /**
      * Build a typed metadata fixture quickly. The adapter's filter only

@@ -3,7 +3,11 @@ import { DropdownMenu } from '@owox/ui/components/dropdown-menu';
 import { ProjectMenuTrigger } from './ProjectMenuTrigger';
 import { ProjectMenuContent } from './ProjectMenuContent';
 
-export function SidebarProjectMenu() {
+interface SidebarProjectMenuProps {
+  restricted?: boolean;
+}
+
+export function SidebarProjectMenu({ restricted = false }: SidebarProjectMenuProps) {
   const [isOpen, setIsOpen] = useState(false);
 
   return (
@@ -21,6 +25,7 @@ export function SidebarProjectMenu() {
           <DropdownMenu open={isOpen} onOpenChange={setIsOpen}>
             <ProjectMenuTrigger isOpen={isOpen} />
             <ProjectMenuContent
+              restricted={restricted}
               onClose={() => {
                 setIsOpen(false);
               }}
