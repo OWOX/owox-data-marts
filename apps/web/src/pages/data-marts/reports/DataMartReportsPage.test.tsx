@@ -32,8 +32,6 @@ const reportStatusPollingServiceMock = vi.hoisted(() => ({
   stopAllPolling: vi.fn(),
 }));
 
-const useBlendedFieldNamesMock = vi.hoisted(() => vi.fn(() => new Set(['joined_field'])));
-
 vi.mock('../../../features/data-marts/reports/shared/services', async importOriginal => {
   const actual =
     await importOriginal<typeof import('../../../features/data-marts/reports/shared/services')>();
@@ -43,10 +41,6 @@ vi.mock('../../../features/data-marts/reports/shared/services', async importOrig
     reportStatusPollingService: reportStatusPollingServiceMock,
   };
 });
-
-vi.mock('../../../features/data-marts/shared/hooks/useBlendedFieldNames', () => ({
-  useBlendedFieldNames: useBlendedFieldNamesMock,
-}));
 
 vi.mock('../../../components/AppSidebar/SetupChecklist/useSetupProgress', () => ({
   useRefreshSetupProgress: () => vi.fn(),
@@ -101,7 +95,6 @@ describe('DataMartReportsPage', () => {
     reportServiceMock.deleteReport.mockResolvedValue(undefined);
     reportServiceMock.getGeneratedSql.mockResolvedValue({ sql: 'select 1' });
     reportServiceMock.copyAsDataMart.mockResolvedValue({ dataMartId: 'dm-copy' });
-    useBlendedFieldNamesMock.mockReturnValue(new Set(['joined_field']));
   });
 
   afterEach(() => {
