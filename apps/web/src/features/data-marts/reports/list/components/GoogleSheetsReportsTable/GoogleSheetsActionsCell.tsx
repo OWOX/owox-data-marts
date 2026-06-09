@@ -15,14 +15,13 @@ import {
   TooltipTrigger,
 } from '@owox/ui/components/tooltip';
 import { ConfirmationDialog } from '../../../../../../shared/components/ConfirmationDialog';
-import { getGoogleSheetTabUrl, reportHasBlending, reportHasOutputControls } from '../../../shared';
+import { getGoogleSheetTabUrl, isGeneratedSqlSupported } from '../../../shared';
 import type {
   DataMartReport,
   GoogleSheetsDestinationConfig,
 } from '../../../shared/model/types/data-mart-report';
 import { ReportStatusEnum } from '../../../shared/enums';
 import { useReport } from '../../../shared';
-import { useBlendedFieldNames } from '../../../../shared/hooks/useBlendedFieldNames';
 import { GeneratedSqlViewer } from '../../../../edit/components/ReportColumnPicker/GeneratedSqlViewer';
 
 interface GoogleSheetsActionsCellProps {
@@ -46,11 +45,6 @@ export function GoogleSheetsActionsCell({
   const [menuOpen, setMenuOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const { deleteReport, fetchReportsByDataMartId, runReport } = useReport();
-
-  // The hook is safe to call per-row: React Query dedupes concurrent requests by key.
-  const blendedFieldNames = useBlendedFieldNames(row.original.dataMart.id);
-  const hasBlending = reportHasBlending(row.original, blendedFieldNames);
-  const usesSourceDirectly = !hasBlending && !reportHasOutputControls(row.original);
 
   // Generate unique ID for the actions menu
   const actionsMenuId = `actions-menu-${row.original.id}`;
@@ -161,12 +155,16 @@ export function GoogleSheetsActionsCell({
         </Tooltip>
 
         {/* View SQL */}
-        <GeneratedSqlViewer
-          reportId={row.original.id}
-          dataMartId={row.original.dataMart.id}
-          reportTitle={row.original.title}
-          usesSourceDirectly={usesSourceDirectly}
-        />
+        {isGeneratedSqlSupported(
+          row.original.dataMart.definitionType,
+          row.original.dataMart.storage.type
+        ) && (
+          <GeneratedSqlViewer
+            reportId={row.original.id}
+            dataMartId={row.original.dataMart.id}
+            reportTitle={row.original.title}
+          />
+        )}
 
         {/* More actions */}
         <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>

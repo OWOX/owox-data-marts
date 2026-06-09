@@ -22,6 +22,7 @@ vi.mock('../../../../../data-marts/reports/shared/model/hooks/useReport', () => 
 import { useReport } from '../../../../../data-marts/reports/shared/model/hooks/useReport';
 import { useLookerStudioReportForm } from '../useLookerStudioReportForm';
 import { DestinationTypeConfigEnum } from '../../../shared/enums/destination-type-config.enum';
+import { DataStorageType } from '../../../../../data-storage/shared/model/types/data-storage-type.enum';
 import type { DataMartReport } from '../../../shared/model/types/data-mart-report';
 import type { FilterRule } from '../../../../shared/types/output-config';
 
@@ -59,7 +60,11 @@ function buildReport(overrides: Partial<DataMartReport> = {}): DataMartReport {
   return {
     id: 'report-1',
     title: 'Existing',
-    dataMart: { id: 'dm-1' },
+    dataMart: {
+      id: 'dm-1',
+      definitionType: null,
+      storage: { type: DataStorageType.GOOGLE_BIGQUERY },
+    },
     dataDestination: {
       id: 'dest-1',
       type: 'looker-studio',

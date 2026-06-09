@@ -2,12 +2,14 @@ import type { UserProjection } from '../../../shared/types';
 import type { DataMart } from '../../../features/data-marts/edit/model/types';
 import type { DataMartContextType } from '../../../features/data-marts/edit/model/context/types';
 import { DataMartStatus, DataMartStatusModel } from '../../../features/data-marts/shared';
+import type { DataMartDefinitionType } from '../../../features/data-marts/shared';
 import { DataStorageType } from '../../../features/data-storage/shared/model/types/data-storage-type.enum';
 import type { DataStorage } from '../../../features/data-storage/shared/model/types/data-storage';
 
 interface ProjectDataMartContextRef {
   id: string;
   title: string;
+  definitionType?: DataMartDefinitionType | null;
   createdAt?: Date;
   modifiedAt?: Date;
   createdByUser?: UserProjection | null;
@@ -24,7 +26,7 @@ export function buildProjectDataMartContextValue(
     description: null,
     status: DataMartStatusModel.getInfo(DataMartStatus.PUBLISHED),
     storage: dataMartRef.storage ?? buildFallbackStorage(fallbackDate),
-    definitionType: null,
+    definitionType: dataMartRef.definitionType ?? null,
     definition: null,
     canPublish: false,
     validationErrors: [],

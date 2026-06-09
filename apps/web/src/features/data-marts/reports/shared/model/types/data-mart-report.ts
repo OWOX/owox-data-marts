@@ -6,9 +6,10 @@ import {
 import { type DataDestination } from '../../../../../data-destination';
 import type { DataMart } from '../../../../edit';
 import type { DataStorage } from '../../../../../data-storage/shared/model/types/data-storage';
-import type { ReportConditionEnum } from '../../enums/report-condition.enum.ts';
+import type { ReportConditionEnum } from '../../enums/report-condition.enum';
 import type { UserProjection } from '../../../../../../shared/types';
 import type { FilterRule, SortRule } from '../../../../shared/types/output-config';
+import type { DataMartDefinitionType } from '../../../../shared';
 
 export interface GoogleSheetsDestinationConfig {
   type: DestinationTypeConfigEnum.GOOGLE_SHEETS_CONFIG;
@@ -97,7 +98,10 @@ export function isCustomMessageTemplateSource(
 export interface DataMartReport {
   id: string;
   title: string;
-  dataMart: Pick<DataMart, 'id' | 'title'> & { storage?: DataStorage | null };
+  dataMart: Pick<DataMart, 'id' | 'title'> & {
+    definitionType: DataMartDefinitionType | null;
+    storage: DataStorage;
+  };
   dataDestination: DataDestination;
   destinationConfig: DestinationConfig;
   columnConfig: string[] | null;
