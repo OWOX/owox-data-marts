@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import type { CreateNewProjectResult } from '@owox/idp-protocol';
 import { IdpProjectionsFacade } from '../../../idp/facades/idp-projections.facade';
 
-const ODM_SIGN_IN_INTEGRATION = 'extension-v2';
+const ODM_SIGN_IN_INTEGRATION = 'owox-data-marts';
 
 @Injectable()
 export class CreateNewProjectService {
