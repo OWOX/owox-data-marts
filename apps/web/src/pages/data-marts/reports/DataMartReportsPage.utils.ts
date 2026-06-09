@@ -9,15 +9,20 @@ export function mergeReportPagePreservingRows(
   nextReports: DataMartReport[]
 ) {
   const currentReportsById = new Map(currentReports.map(report => [report.id, report]));
-  const nextReportIds = new Set(nextReports.map(report => report.id));
-  const refreshedReports = nextReports.map(nextReport => {
-    const currentReport = currentReportsById.get(nextReport.id);
-    return currentReport && areReportSnapshotsEqual(currentReport, nextReport)
-      ? currentReport
-      : nextReport;
+  const nextReportsById = new Map(nextReports.map(report => [report.id, report]));
+  const refreshedReports = currentReports.map(currentReport => {
+    const nextReport = nextReportsById.get(currentReport.id);
+    if (!nextReport) {
+      return currentReport;
+    }
+
+    return areReportSnapshotsEqual(currentReport, nextReport) ? currentReport : nextReport;
   });
-  const loadedOlderReports = currentReports.filter(report => !nextReportIds.has(report.id));
-  const mergedReports = [...refreshedReports, ...loadedOlderReports];
+  const appendedReports = nextReports.filter(nextReport => {
+    const currentReport = currentReportsById.get(nextReport.id);
+    return !currentReport;
+  });
+  const mergedReports = [...refreshedReports, ...appendedReports];
   const hasChanges =
     mergedReports.length !== currentReports.length ||
     mergedReports.some((report, index) => report !== currentReports[index]);

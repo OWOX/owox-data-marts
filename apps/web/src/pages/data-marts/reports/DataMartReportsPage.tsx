@@ -41,7 +41,6 @@ import { ProjectDataMartTitleLink } from '../shared/ProjectDataMartTitleLink';
 import { mergeReportPagePreservingRows } from './DataMartReportsPage.utils';
 
 const PROJECT_REPORTS_TABLE_PAGE_SIZE = 15;
-const PROJECT_REPORTS_FETCH_PAGE_SIZE = 100;
 const PROJECT_REPORTS_TABLE_ID = 'project-reports-table';
 
 type ProjectReportFilterKey =
@@ -176,39 +175,49 @@ export default function DataMartReportsPage() {
     handleCloseModal,
   } = useReportSidesheet();
 
-  const loadReports = useCallback(
-    async (options?: { silent?: boolean; firstPageOnly?: boolean }) => {
-      const isSilent = options?.silent === true;
+  const loadReports = useCallback(async (options?: { silent?: boolean }) => {
+    const isSilent = options?.silent === true;
 
+    if (!isSilent) {
+      setIsLoading(true);
+      setError(null);
+    }
+
+    try {
+      const response = await reportService.getReportsByProject();
+      const nextReports = response.map(mapReportDtoToEntity);
+      setReports(currentReports => {
+        if (!isSilent) {
+          return nextReports;
+        }
+
+        return mergeReportPagePreservingRows(currentReports, nextReports);
+      });
+    } catch (caught) {
       if (!isSilent) {
-        setIsLoading(true);
-        setError(null);
+        setError(extractApiError(caught).message ?? 'Failed to fetch Data Mart reports');
       }
-
-      try {
-        const response = options?.firstPageOnly
-          ? await reportService.getReportsByProject(PROJECT_REPORTS_FETCH_PAGE_SIZE, 0)
-          : await reportService.getReportsByProject();
-        const nextReports = response.map(mapReportDtoToEntity);
-        setReports(currentReports => {
-          if (!isSilent) {
-            return nextReports;
-          }
-
-          return mergeReportPagePreservingRows(currentReports, nextReports);
-        });
-      } catch (caught) {
-        if (!isSilent) {
-          setError(extractApiError(caught).message ?? 'Failed to fetch Data Mart reports');
-        }
-      } finally {
-        if (!isSilent) {
-          setIsLoading(false);
-        }
+    } finally {
+      if (!isSilent) {
+        setIsLoading(false);
       }
-    },
-    []
-  );
+    }
+  }, []);
+
+  const refreshReportsByIds = useCallback(async (reportIds: string[]) => {
+    const responses = await Promise.allSettled(
+      reportIds.map(reportId => reportService.getReportById(reportId))
+    );
+    const nextReports = responses.flatMap(response =>
+      response.status === 'fulfilled' ? [mapReportDtoToEntity(response.value)] : []
+    );
+
+    if (nextReports.length === 0) {
+      return;
+    }
+
+    setReports(currentReports => mergeReportPagePreservingRows(currentReports, nextReports));
+  }, []);
 
   useEffect(() => {
     void loadReports();
@@ -392,21 +401,25 @@ export default function DataMartReportsPage() {
     enableRowSelection: false,
   });
 
-  const hasRunningVisibleReports = table
+  const visibleRunningReportIds = table
     .getRowModel()
-    .rows.some(row => row.original.lastRunStatus === ReportStatusEnum.RUNNING);
+    .rows.filter(row => row.original.lastRunStatus === ReportStatusEnum.RUNNING)
+    .map(row => row.original.id);
+  const visibleRunningReportIdsKey = visibleRunningReportIds.join('\0');
 
   useEffect(() => {
-    if (!hasRunningVisibleReports) return;
+    if (!visibleRunningReportIdsKey) return;
+
+    const reportIds = visibleRunningReportIdsKey.split('\0');
 
     const intervalId = window.setInterval(() => {
-      void loadReports({ silent: true, firstPageOnly: true });
+      void refreshReportsByIds(reportIds);
     }, 5000);
 
     return () => {
       window.clearInterval(intervalId);
     };
-  }, [hasRunningVisibleReports, loadReports]);
+  }, [refreshReportsByIds, visibleRunningReportIdsKey]);
 
   return (
     <ReportsProvider>
