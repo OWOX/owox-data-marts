@@ -8,6 +8,8 @@ import {
   setupBlendedReportPrerequisites,
   type BlendedReportPrerequisites,
 } from '@owox/test-utils';
+import { CreateViewService } from 'src/data-marts/use-cases/create-view.service';
+import { CreateViewCommand } from 'src/data-marts/dto/domain/create-view.command';
 
 // Full-flow e2e: PUT /api/reports/:id → GET /api/reports/:id/generated-sql.
 // Exercises the entire pipeline (DTO → validator → entity persist → composer
@@ -28,8 +30,21 @@ describe('Blended output controls full-flow (e2e)', () => {
   let agent: supertest.Agent;
   let prereqs: BlendedReportPrerequisites;
 
+  // The /generated-sql path materializes a real BigQuery view for SQL-defined
+  // marts (composer → resolveTableName → ensureSqlViewIsUpToDate → CreateViewService),
+  // which needs live BigQuery credentials. These tests assert SQL *composition*
+  // (CTEs / WHERE), not real BQ execution, so stub CreateViewService to return a
+  // deterministic view name without hitting BigQuery — keeping the suite CI-runnable.
+  const createViewServiceMock = {
+    run: jest.fn(async (command: CreateViewCommand) => ({
+      fullyQualifiedName: `\`blended_test.${command.viewName}\``,
+    })),
+  };
+
   beforeAll(async () => {
-    const testApp = await createTestApp();
+    const testApp = await createTestApp([
+      { provide: CreateViewService, useValue: createViewServiceMock },
+    ]);
     app = testApp.app;
     agent = testApp.agent;
     prereqs = await setupBlendedReportPrerequisites(agent, { withSchemas: true });
@@ -143,7 +158,8 @@ describe('Blended output controls full-flow (e2e)', () => {
       expect(sql).toMatch(/users_raw AS \(/);
       const usersRawBody = extractCteBody(sql, 'users_raw');
       // Pre-join filter renders inside the CTE WHERE; its value is inlined.
-      expect(usersRawBody).toMatch(/WHERE[\s\S]+`role`\s*=\s*'admin'/);
+      // Simple identifiers are emitted unquoted (quoteIdentifier skips them).
+      expect(usersRawBody).toMatch(/WHERE[\s\S]+\brole\b\s*=\s*'admin'/);
     });
 
     it('combines multiple pre-join filters on the same CTE with AND', async () => {
@@ -170,8 +186,8 @@ describe('Blended output controls full-flow (e2e)', () => {
       const sql = await getGeneratedSql();
       const usersRawBody = extractCteBody(sql, 'users_raw');
       expect(usersRawBody).toMatch(/WHERE[\s\S]+AND/);
-      expect(usersRawBody).toContain('`role`');
-      expect(usersRawBody).toContain('`is_active`');
+      expect(usersRawBody).toContain('role');
+      expect(usersRawBody).toContain('is_active');
     });
 
     it('routes each pre-join filter into its own joined-mart CTE (no cross-CTE leakage)', async () => {
