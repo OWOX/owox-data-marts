@@ -94,7 +94,9 @@ export abstract class BaseCommand extends Command {
       trackCommand({
         cliVersion: this.config.version,
         command: this.id ?? 'unknown',
-        log: (message: string) => this.log(message),
+        // Route the first-run notice to stderr: owox-ctl emits machine-readable
+        // JSON/NDJSON on stdout, so the notice must not pollute that stream.
+        log: (message: string) => process.stderr.write(`${message}\n`),
       });
     } catch {
       // Telemetry must never affect command completion.
