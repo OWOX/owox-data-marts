@@ -444,6 +444,43 @@ describe('ConnectorSecretService', () => {
       expect(cfg[1]._id).not.toBe('source-id-3');
     });
 
+    it('copies source secrets from externalized secrets', async () => {
+      const { service, credentialsService } = createService(['RefreshToken']);
+
+      (credentialsService.getCredentialsByIds as jest.Mock).mockResolvedValue(
+        new Map([
+          [
+            'secrets-1',
+            {
+              id: 'secrets-1',
+              credentials: {
+                'AuthType.oauth2.RefreshToken': 'stored-refresh-token',
+                generated_refresh_token: 'generated-refresh-token',
+              },
+            },
+          ],
+        ])
+      );
+
+      const sourceDefinition = makeDefinition([
+        { _id: 'source-id-1', _secrets_id: 'secrets-1', AuthType: { oauth2: {} } },
+      ]);
+
+      const incoming = makeDefinition([
+        {
+          AuthType: { oauth2: { RefreshToken: SECRET_MASK } },
+          _copiedFrom: { configId: 'source-id-1' },
+        },
+      ]);
+
+      const merged = await service.mergeDefinitionSecretsFromSource(incoming, sourceDefinition);
+      const cfg = merged.connector.source.configuration as Array<Record<string, unknown>>;
+      const authType = cfg[0].AuthType as Record<string, Record<string, unknown>>;
+
+      expect(authType.oauth2.RefreshToken).toBe('stored-refresh-token');
+      expect(cfg[0].generated_refresh_token).toBe('generated-refresh-token');
+    });
+
     it('throws error when connector types do not match', async () => {
       const { service } = createService(['AccessToken']);
 
