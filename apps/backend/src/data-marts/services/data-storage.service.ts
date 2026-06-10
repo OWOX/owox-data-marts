@@ -17,7 +17,9 @@ export class DataStorageService {
     });
 
     if (!entity) {
-      throw new NotFoundException(`DataStorage with id ${id} and projectId ${projectId} not found`);
+      throw new NotFoundException(
+        `Data Storage with id ${id} and projectId ${projectId} not found`
+      );
     }
 
     return entity;
