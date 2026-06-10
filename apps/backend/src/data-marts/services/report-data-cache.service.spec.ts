@@ -2,6 +2,7 @@ import { ReportDataCacheService } from './report-data-cache.service';
 import { Report } from '../entities/report.entity';
 import { BlendingDecision } from '../dto/domain/blending-decision.dto';
 import { PrepareReportDataOptions } from '../data-storage-types/interfaces/data-storage-report-reader.interface';
+import { DataStorageType } from '../data-storage-types/enums/data-storage-type.enum';
 
 /**
  * Regression coverage for the Looker Studio cached-reader path: it must carry
@@ -48,7 +49,6 @@ describe('ReportDataCacheService — output controls on the cached path', () => 
       cacheRepository as never,
       readerResolver as never,
       blendedReportDataService as never,
-      {} as never,
       reportSqlComposerService as never
     );
 
@@ -109,5 +109,86 @@ describe('ReportDataCacheService — output controls on the cached path', () => 
     const opts = optionsPassedToReader(reader);
     expect(opts.sqlOverride).toBeUndefined();
     expect(opts.sqlOverrideParams).toBeUndefined();
+  });
+});
+
+/**
+ * The cleanup path must release external cached artifacts only where persisted
+ * state can be finalized without starting a fresh read. Athena has S3 result
+ * files to remove; other storages are deleted without reader restoration because
+ * their current restore path either finalizes as a no-op or starts a new query.
+ */
+describe('ReportDataCacheService — cleanup finalize path', () => {
+  const setupCleanup = (storageType = DataStorageType.AWS_ATHENA) => {
+    const reader = {
+      prepareReportData: jest.fn().mockResolvedValue({ dataHeaders: [] }),
+      initFromState: jest.fn().mockResolvedValue(undefined),
+      finalize: jest.fn().mockResolvedValue(undefined),
+    };
+    const entry = {
+      id: 'cache-1',
+      storageType,
+      readerState: { outputBucket: 'bucket', outputPrefix: 'prefix' },
+      dataDescription: { dataHeaders: [] },
+      report: {
+        id: 'rep-1',
+        dataMart: { id: 'dm-1', projectId: 'proj-1', storage: { type: storageType } },
+      } as unknown as Report,
+    };
+    const cacheRepository = {
+      find: jest.fn().mockResolvedValue([entry]),
+      delete: jest.fn().mockResolvedValue({ affected: 1 }),
+    };
+    const readerResolver = { resolve: jest.fn().mockResolvedValue(reader) };
+    const blendedReportDataService = { resolveBlendingDecision: jest.fn() };
+
+    const service = new ReportDataCacheService(
+      cacheRepository as never,
+      readerResolver as never,
+      blendedReportDataService as never,
+      {} as never
+    );
+
+    return { service, reader, entry, cacheRepository, readerResolver, blendedReportDataService };
+  };
+
+  it('finalizes from cached state without resolving a fresh blending decision', async () => {
+    const { service, reader, entry, cacheRepository, blendedReportDataService } = setupCleanup();
+
+    await service.invalidateByReportId('rep-1');
+
+    expect(blendedReportDataService.resolveBlendingDecision).not.toHaveBeenCalled();
+    expect(reader.prepareReportData).toHaveBeenCalledWith(entry.report, {});
+    expect(reader.initFromState).toHaveBeenCalledWith(
+      entry.readerState,
+      entry.dataDescription.dataHeaders
+    );
+    expect(reader.finalize).toHaveBeenCalledTimes(1);
+    expect(cacheRepository.delete).toHaveBeenCalled();
+  });
+
+  it.each([
+    DataStorageType.DATABRICKS,
+    DataStorageType.SNOWFLAKE,
+    DataStorageType.GOOGLE_BIGQUERY,
+    DataStorageType.AWS_REDSHIFT,
+  ])('deletes %s entries without restoring a reader during cleanup', async storageType => {
+    const { service, cacheRepository, readerResolver, blendedReportDataService } =
+      setupCleanup(storageType);
+
+    await service.invalidateByReportId('rep-1');
+
+    expect(blendedReportDataService.resolveBlendingDecision).not.toHaveBeenCalled();
+    expect(readerResolver.resolve).not.toHaveBeenCalled();
+    expect(cacheRepository.delete).toHaveBeenCalled();
+  });
+
+  it('still deletes entries when finalize itself fails', async () => {
+    const { service, reader, cacheRepository } = setupCleanup();
+    reader.finalize.mockRejectedValue(new Error('storage unavailable'));
+
+    await service.invalidateByReportId('rep-1');
+
+    expect(cacheRepository.delete).toHaveBeenCalled();
   });
 });

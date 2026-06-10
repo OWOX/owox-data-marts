@@ -7,6 +7,7 @@ import { AthenaQueryBuilder } from '../data-storage-types/athena/services/athena
 import { AthenaClauseRenderer } from '../data-storage-types/athena/services/athena-clause-renderer';
 import { isQueryBuildResult } from '../data-storage-types/interfaces/data-mart-query-builder.interface';
 import { DataStorageType } from '../data-storage-types/enums/data-storage-type.enum';
+import { BusinessViolationException } from '../../common/exceptions/business-violation.exception';
 
 describe('ReportSqlComposerService', () => {
   const buildReport = (overrides: Partial<Report> = {}): Report =>
@@ -201,6 +202,59 @@ describe('ReportSqlComposerService', () => {
       })
     );
     expect(result).toEqual({ sql: 'SELECT 1', params: [{ name: 'p0', value: 1 }] });
+  });
+
+  it('passes recursive native field types to QueryBuilder for nested output controls', async () => {
+    const queryBuilderFacade = {
+      buildQuery: jest.fn().mockResolvedValue({ sql: 'SELECT 1', params: [] }),
+    };
+    const blendedDataService = {
+      resolveBlendingDecision: jest.fn().mockResolvedValue({
+        needsBlending: false,
+        columnFilter: ['user.created_at'],
+      }),
+    };
+    const tableReferenceService = { resolveTableName: jest.fn().mockResolvedValue('p.d.view_x') };
+    const capabilityService = { isSupported: jest.fn().mockReturnValue(true) };
+    const composer = new ReportSqlComposerService(
+      blendedDataService as never,
+      queryBuilderFacade as never,
+      tableReferenceService as never,
+      capabilityService as never
+    );
+    const filterConfig = [
+      {
+        column: 'user.created_at',
+        operator: 'relative_date',
+        value: { kind: 'last_n_days', n: 7 },
+      },
+    ];
+    const report = {
+      filterConfig,
+      sortConfig: [{ column: 'user.created_at', direction: 'asc' }],
+      limitConfig: null,
+      dataMart: {
+        id: 'm',
+        projectId: 'p',
+        storage: { type: 'GOOGLE_BIGQUERY' },
+        definition: { type: 'sql', sqlQuery: 'SELECT 1' },
+        schema: {
+          fields: [
+            {
+              name: 'user',
+              type: 'RECORD',
+              status: 'CONNECTED',
+              fields: [{ name: 'created_at', type: 'TIMESTAMP', status: 'CONNECTED' }],
+            },
+          ],
+        },
+      },
+    } as never;
+
+    await composer.compose(report, { userId: 'user-1', roles: ['admin'] });
+
+    const options = queryBuilderFacade.buildQuery.mock.calls[0][2];
+    expect(options.columnTypes.get('user.created_at')).toBe('TIMESTAMP');
   });
 
   it('does not resolve mainTableReference when no output controls', async () => {
@@ -523,31 +577,29 @@ describe('ReportSqlComposerService', () => {
         },
       }) as never;
 
-    it('filter on a column no longer in the schema (renamed/excluded) surfaces as 400 BadRequestException with FILTER_COLUMN_UNKNOWN', async () => {
+    it('filter on a column no longer in the schema (renamed/excluded) surfaces as 400 BusinessViolationException with unknownColumns', async () => {
       // Simulates: report was saved with a filter on "old_column"; the data mart
       // schema was later updated and "old_column" was renamed / excluded.  The
-      // validator running inside resolveBlendingDecision raises a structured 400.
-      const schemaDriftError = new BadRequestException({
-        message: 'Output controls validation failed',
-        details: {
-          errors: [{ code: 'FILTER_COLUMN_UNKNOWN', column: 'old_column' }],
-        },
-      });
+      // validator running inside resolveBlendingDecision raises the same structured
+      // 400 used for disconnected selected columns.
+      const schemaDriftError = new BusinessViolationException(
+        'Cannot build report SQL, report references columns that are disconnected from the current data mart schema or joined data marts setup: "old_column".',
+        { unknownColumns: ['old_column'], dataMartId: 'dm-athena' }
+      );
       const service = makeAthenaComposerWithValidationError(schemaDriftError);
 
       const report = athenaReport([{ column: 'old_column', operator: 'eq', value: 'stale' }]);
 
-      // Must re-throw the BadRequestException (400), not a generic Error (500).
+      // Must re-throw the BusinessViolationException (mapped to HTTP 400), not a generic Error (500).
       await expect(service.compose(report, { userId: 'u1', roles: ['viewer'] })).rejects.toThrow(
-        BadRequestException
+        BusinessViolationException
       );
       await expect(
         service.compose(report, { userId: 'u1', roles: ['viewer'] })
       ).rejects.toMatchObject({
-        response: {
-          details: {
-            errors: [{ code: 'FILTER_COLUMN_UNKNOWN', column: 'old_column' }],
-          },
+        errorDetails: {
+          unknownColumns: ['old_column'],
+          dataMartId: 'dm-athena',
         },
       });
     });
@@ -593,10 +645,10 @@ describe('ReportSqlComposerService', () => {
     });
 
     it('queryBuilderFacade is never called when schema-drift validation fails', async () => {
-      const schemaDriftError = new BadRequestException({
-        message: 'Output controls validation failed',
-        details: { errors: [{ code: 'FILTER_COLUMN_UNKNOWN', column: 'stale' }] },
-      });
+      const schemaDriftError = new BusinessViolationException(
+        'Cannot build report SQL, report references columns that are disconnected from the current data mart schema or joined data marts setup: "stale".',
+        { unknownColumns: ['stale'], dataMartId: 'dm-athena' }
+      );
       const blendedReportDataService = {
         resolveBlendingDecision: jest.fn().mockRejectedValue(schemaDriftError),
       };
@@ -616,7 +668,7 @@ describe('ReportSqlComposerService', () => {
           userId: 'u1',
           roles: ['viewer'],
         })
-      ).rejects.toThrow(BadRequestException);
+      ).rejects.toThrow(BusinessViolationException);
 
       expect(queryBuilderFacade.buildQuery).not.toHaveBeenCalled();
     });

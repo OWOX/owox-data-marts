@@ -12,6 +12,7 @@ import { DataStorageType } from '../data-storage-types/enums/data-storage-type.e
 import { inlineAthenaPositionalParams } from '../data-storage-types/athena/adapters/athena-execution-parameters.utils';
 import { inlineBigQueryNamedParams } from '../data-storage-types/bigquery/adapters/bigquery-execution-parameters.utils';
 import { BusinessViolationException } from '../../common/exceptions/business-violation.exception';
+import { collectSchemaFieldPathTypes } from '../data-storage-types/data-mart-schema.utils';
 
 @Injectable()
 export class ReportSqlComposerService {
@@ -94,7 +95,7 @@ export class ReportSqlComposerService {
     // persisted schema (same native fields the validator types against).
     const schemaFields = dataMart.schema?.fields ?? [];
     const columnTypes: ReadonlyMap<string, string> | undefined = schemaFields.length
-      ? new Map(schemaFields.map((f): [string, string] => [f.name, String(f.type)]))
+      ? new Map(collectSchemaFieldPathTypes(schemaFields).map(f => [f.name, f.type]))
       : undefined;
 
     const queryResult = await this.queryBuilderFacade.buildQuery(

@@ -22,6 +22,7 @@ export function FilterRow({ rule, fieldType, onChange, onRemove }: FilterRowProp
   const opLabel = operatorLabelFor(rule.operator, resolvedType);
   const valueText = summarizeFilterRule(rule);
   const isPreJoin = rule.placement === 'pre-join' && !!rule.aliasPath;
+  const displayColumn = isPreJoin ? `${rule.aliasPath}.${rule.column}` : rule.column;
 
   return (
     <div
@@ -31,7 +32,7 @@ export function FilterRow({ rule, fieldType, onChange, onRemove }: FilterRowProp
       )}
     >
       <div className='min-w-0 flex-1'>
-        <div className='flex items-center gap-1 truncate font-mono text-xs' title={rule.column}>
+        <div className='flex items-center gap-1 truncate font-mono text-xs' title={displayColumn}>
           {isOrphaned && (
             <span
               className='inline-flex items-center text-red-600'
@@ -41,18 +42,27 @@ export function FilterRow({ rule, fieldType, onChange, onRemove }: FilterRowProp
               <AlertTriangle className='h-3 w-3' />
             </span>
           )}
-          {isPreJoin && (
-            <span
-              className='inline-flex items-center gap-1 text-blue-600'
-              title='Pre-join filter (slice)'
-            >
+          {isPreJoin && isOrphaned ? (
+            <span className='inline-flex items-center gap-1 text-red-700 dark:text-red-300'>
               <Layers className='h-3 w-3' />
-              <span>{rule.aliasPath}.</span>
+              <span className='line-through'>{displayColumn}</span>
             </span>
+          ) : (
+            <>
+              {isPreJoin && (
+                <span
+                  className='inline-flex items-center gap-1 text-blue-600'
+                  title='Pre-join filter (slice)'
+                >
+                  <Layers className='h-3 w-3' />
+                  <span>{rule.aliasPath}.</span>
+                </span>
+              )}
+              <span className={cn(isOrphaned && 'text-red-700 line-through dark:text-red-300')}>
+                {rule.column}
+              </span>
+            </>
           )}
-          <span className={cn(isOrphaned && 'text-red-700 line-through dark:text-red-300')}>
-            {rule.column}
-          </span>
         </div>
         <div className='truncate font-mono text-[11px]'>
           <span className='text-foreground/70 font-medium'>{opLabel}</span>

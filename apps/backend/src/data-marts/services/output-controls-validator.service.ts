@@ -4,6 +4,8 @@ import { SortConfig, SortConfigSchema, SortRule } from '../dto/schemas/sort-conf
 import { DataStorageType } from '../data-storage-types/enums/data-storage-type.enum';
 import { OutputControlsCapabilityService } from './output-controls-capability.service';
 import { BlendableSchemaAccessor, BlendableSchemaService } from './blendable-schema.service';
+import { throwDisconnectedReportColumnsError } from '../errors/disconnected-report-columns.error';
+import { collectSchemaFieldPathTypes } from '../data-storage-types/data-mart-schema.utils';
 
 export type ValidationError =
   | { code: 'FILTER_COLUMN_UNKNOWN'; column: string; aliasPath?: string }
@@ -16,8 +18,8 @@ export type ValidationError =
     }
   | { code: 'INVALID_REGEX_PATTERN'; column: string; pattern: string; aliasPath?: string }
   | { code: 'SORT_COLUMN_NOT_SELECTED'; column: string }
-  | { code: 'FILTER_ALIAS_PATH_UNKNOWN'; aliasPath: string }
-  | { code: 'FILTER_ALIAS_PATH_NOT_INCLUDED'; aliasPath: string }
+  | { code: 'FILTER_ALIAS_PATH_UNKNOWN'; aliasPath: string; column: string }
+  | { code: 'FILTER_ALIAS_PATH_NOT_INCLUDED'; aliasPath: string; column: string }
   | { code: 'PRE_JOIN_FILTERS_REQUIRE_COLUMN_CONFIG' };
 
 const STRING_TYPES = new Set(['STRING', 'VARCHAR', 'CHAR', 'TEXT', 'BPCHAR']);
@@ -139,12 +141,12 @@ export class OutputControlsValidatorService {
       if (rule.placement === 'pre-join') {
         const aliasPath = rule.aliasPath!;
         if (excludedPaths?.has(aliasPath)) {
-          errors.push({ code: 'FILTER_ALIAS_PATH_NOT_INCLUDED', aliasPath });
+          errors.push({ code: 'FILTER_ALIAS_PATH_NOT_INCLUDED', aliasPath, column: rule.column });
           continue;
         }
         const subsidiaryTypes = knownPaths?.get(aliasPath);
         if (!subsidiaryTypes) {
-          errors.push({ code: 'FILTER_ALIAS_PATH_UNKNOWN', aliasPath });
+          errors.push({ code: 'FILTER_ALIAS_PATH_UNKNOWN', aliasPath, column: rule.column });
           continue;
         }
         const type = subsidiaryTypes.get(rule.column);
@@ -270,11 +272,17 @@ export class OutputControlsValidatorService {
       );
 
       const homeFieldTypes = new Map<string, string>();
-      for (const native of blendableSchema.nativeFields) {
+      const knownOutputColumns = new Set<string>();
+      const connectedNativeNames: string[] = [];
+      for (const native of collectSchemaFieldPathTypes(blendableSchema.nativeFields)) {
         homeFieldTypes.set(native.name, native.type);
+        knownOutputColumns.add(native.name);
+        connectedNativeNames.push(native.name);
       }
       for (const blended of blendableSchema.blendedFields) {
+        if (blended.isHidden) continue;
         homeFieldTypes.set(blended.name, blended.type);
+        knownOutputColumns.add(blended.name);
       }
 
       if (parsedFilters.length > 0) {
@@ -289,10 +297,17 @@ export class OutputControlsValidatorService {
         // the blended run path rejects output controls without an explicit column
         // selection. Validate sort against that same native-only set so a sort on a
         // blended column is caught here at save time instead of failing at run time.
-        const selectedSet = new Set(
-          args.columnConfig ?? blendableSchema.nativeFields.map(f => f.name)
-        );
+        const selectedSet = new Set(args.columnConfig ?? connectedNativeNames);
         errors.push(...this.validateSort(parsedSort, selectedSet));
+      }
+
+      const disconnectedOutputControlRefs = this.collectDisconnectedOutputControlRefs(
+        errors,
+        parsedSort,
+        knownOutputColumns
+      );
+      if (disconnectedOutputControlRefs.length > 0) {
+        throwDisconnectedReportColumnsError(args.dataMartId, disconnectedOutputControlRefs);
       }
     }
 
@@ -306,7 +321,12 @@ export class OutputControlsValidatorService {
 
   private buildKnownPaths(blendableSchema: {
     availableSources: { aliasPath: string; isIncluded?: boolean }[];
-    blendedFields: { aliasPath: string; originalFieldName: string; type: string }[];
+    blendedFields: {
+      aliasPath: string;
+      originalFieldName: string;
+      type: string;
+      isHidden?: boolean;
+    }[];
   }): { knownPaths: Map<string, Map<string, string>>; excludedPaths: Set<string> } {
     const knownPaths = new Map<string, Map<string, string>>();
     const excludedPaths = new Set<string>();
@@ -321,6 +341,7 @@ export class OutputControlsValidatorService {
     }
     for (const field of blendableSchema.blendedFields) {
       if (excludedPaths.has(field.aliasPath)) continue;
+      if (field.isHidden) continue;
       let fields = knownPaths.get(field.aliasPath);
       if (!fields) {
         fields = new Map();
@@ -329,5 +350,37 @@ export class OutputControlsValidatorService {
       fields.set(field.originalFieldName, field.type);
     }
     return { knownPaths, excludedPaths };
+  }
+
+  private collectDisconnectedOutputControlRefs(
+    errors: ValidationError[],
+    sort: SortRule[],
+    knownOutputColumns: ReadonlySet<string>
+  ): string[] {
+    const refs: string[] = [];
+
+    for (const error of errors) {
+      switch (error.code) {
+        case 'FILTER_COLUMN_UNKNOWN':
+          refs.push(this.formatFilterRef(error.column, error.aliasPath));
+          break;
+        case 'FILTER_ALIAS_PATH_UNKNOWN':
+        case 'FILTER_ALIAS_PATH_NOT_INCLUDED':
+          refs.push(this.formatFilterRef(error.column, error.aliasPath));
+          break;
+      }
+    }
+
+    for (const rule of sort) {
+      if (!knownOutputColumns.has(rule.column)) {
+        refs.push(rule.column);
+      }
+    }
+
+    return Array.from(new Set(refs));
+  }
+
+  private formatFilterRef(column: string, aliasPath?: string): string {
+    return aliasPath ? `${aliasPath}.${column}` : column;
   }
 }
