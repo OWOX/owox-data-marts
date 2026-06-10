@@ -48,8 +48,9 @@ export function escapeSnowflakeIdentifier(identifier: string): string {
     return `${database}.${quoteIdentifierPart(parts[1])}.${quoteIdentifierPart(parts[2])}`;
   }
 
-  // Fallback for unexpected format
-  return identifier;
+  // 4+ parts is never a valid Snowflake identifier (max is database.schema.table).
+  // Returning it raw would emit unescaped user input into SQL, so fail closed.
+  throw new Error(`Invalid Snowflake identifier (too many parts): "${identifier}"`);
 }
 
 /**

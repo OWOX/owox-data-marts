@@ -6,6 +6,7 @@ const SUPPORTED: ReadonlySet<DataStorageType> = new Set([
   DataStorageType.LEGACY_GOOGLE_BIGQUERY,
   DataStorageType.AWS_ATHENA,
   DataStorageType.AWS_REDSHIFT,
+  DataStorageType.SNOWFLAKE,
 ]);
 
 export function supportsOutputControls(type: DataStorageType): boolean {

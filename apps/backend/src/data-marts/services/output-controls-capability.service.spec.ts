@@ -10,8 +10,8 @@ describe('OutputControlsCapabilityService', () => {
   it('supports AWS_ATHENA', () => {
     expect(svc.isSupported(DataStorageType.AWS_ATHENA)).toBe(true);
   });
-  it('returns false for Snowflake', () => {
-    expect(svc.isSupported(DataStorageType.SNOWFLAKE)).toBe(false);
+  it('supports Snowflake', () => {
+    expect(svc.isSupported(DataStorageType.SNOWFLAKE)).toBe(true);
   });
   it('supports AWS_REDSHIFT', () => {
     expect(svc.isSupported(DataStorageType.AWS_REDSHIFT)).toBe(true);
