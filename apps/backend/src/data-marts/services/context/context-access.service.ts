@@ -55,7 +55,7 @@ export class ContextAccessService {
 
       if (!isTechOwnerWithEditorRole) {
         throw new ForbiddenException(
-          'Only Data Mart Technical Owners with editor role or admins can manage data mart contexts'
+          'Only Data Mart Technical Owners with Technical User role or Project Admins can manage Data Mart contexts'
         );
       }
     }
@@ -90,7 +90,7 @@ export class ContextAccessService {
 
       if (!isOwnerWithEditorRole) {
         throw new ForbiddenException(
-          'Only Storage Owners with editor role or admins can manage storage contexts'
+          'Only Data Storage Owners with Technical User role or Project Admins can manage Data Storage contexts'
         );
       }
     }
@@ -123,7 +123,7 @@ export class ContextAccessService {
 
       if (ownerStatus !== OwnerStatus.OWNER) {
         throw new ForbiddenException(
-          'Only Destination Owners or admins can manage destination contexts'
+          'Only Data Destination Owners or Project Admins can manage Data Destination contexts'
         );
       }
     }
