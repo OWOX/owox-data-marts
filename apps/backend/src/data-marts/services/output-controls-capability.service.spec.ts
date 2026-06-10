@@ -19,7 +19,7 @@ describe('OutputControlsCapabilityService', () => {
   it('returns false for Databricks', () => {
     expect(svc.isSupported(DataStorageType.DATABRICKS)).toBe(false);
   });
-  it('returns false for legacy BigQuery', () => {
-    expect(svc.isSupported(DataStorageType.LEGACY_GOOGLE_BIGQUERY)).toBe(false);
+  it('supports legacy BigQuery', () => {
+    expect(svc.isSupported(DataStorageType.LEGACY_GOOGLE_BIGQUERY)).toBe(true);
   });
 });

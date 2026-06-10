@@ -778,6 +778,39 @@ describe('ReportSqlComposerService', () => {
       );
     });
 
+    it('inlines named @params into literals for Legacy BigQuery (shares the BigQuery branch)', async () => {
+      const queryBuilderFacade = {
+        buildQuery: jest.fn().mockResolvedValue({
+          sql: 'SELECT * FROM t WHERE `d` = CAST(@p0 AS DATE)',
+          params: [{ name: 'p0', value: '2024-01-01' }],
+        }),
+      };
+      const blendedDataService = {
+        resolveBlendingDecision: jest
+          .fn()
+          .mockResolvedValue({ needsBlending: false, columnFilter: ['d'] }),
+      };
+      const composer = new ReportSqlComposerService(
+        blendedDataService as never,
+        queryBuilderFacade as never,
+        { resolveTableName: jest.fn().mockResolvedValue('p.d.t') } as never,
+        { isSupported: jest.fn().mockReturnValue(true) } as never
+      );
+      const report = {
+        filterConfig: [{ column: 'd', operator: 'gte', value: '2024-01-01' }],
+        dataMart: {
+          id: 'm',
+          projectId: 'p',
+          storage: { type: DataStorageType.LEGACY_GOOGLE_BIGQUERY },
+          definition: { type: 'sql', sqlQuery: 'SELECT * FROM t' },
+        },
+      } as never;
+
+      const { sql } = await composer.composeStatic(report, { userId: 'u1', roles: ['admin'] });
+      expect(sql).not.toContain('@p');
+      expect(sql).toBe("SELECT * FROM t WHERE `d` = CAST('2024-01-01' AS DATE)");
+    });
+
     it('returns SQL unchanged when there are no params (sort/limit-only or no controls)', async () => {
       const queryBuilderFacade = { buildQuery: jest.fn().mockResolvedValue('SELECT * FROM t') };
       const blendedDataService = {

@@ -6,6 +6,7 @@ export class OutputControlsCapabilityService {
   // Source of truth — keep frontend mirrors (web + extension output-controls-support.ts) in sync.
   private readonly supported: ReadonlySet<DataStorageType> = new Set([
     DataStorageType.GOOGLE_BIGQUERY,
+    DataStorageType.LEGACY_GOOGLE_BIGQUERY,
     DataStorageType.AWS_ATHENA,
     DataStorageType.AWS_REDSHIFT,
   ]);
