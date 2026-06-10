@@ -108,16 +108,37 @@ describe('SheetMetadataFormatter', () => {
   });
 
   describe('buildImportedColumnMarker', () => {
-    it('returns only the short ODM ownership marker', () => {
-      expect(formatter.buildImportedColumnMarker(false)).toBe(
+    it('places the column description first, separated by a blank line from the marker', () => {
+      expect(formatter.buildImportedColumnMarker('Revenue per campaign', false)).toBe(
+        'Revenue per campaign\n\n--- Imported via OWOX Data Marts ---'
+      );
+    });
+
+    it('returns only the short ODM ownership marker when there is no description', () => {
+      expect(formatter.buildImportedColumnMarker(undefined, false)).toBe(
+        '--- Imported via OWOX Data Marts ---'
+      );
+    });
+
+    it('collapses an empty-string description to the bare marker (no leading blank line)', () => {
+      expect(formatter.buildImportedColumnMarker('', false)).toBe(
         '--- Imported via OWOX Data Marts ---'
       );
     });
 
     it('includes the Community Edition suffix inside the marker', () => {
-      expect(formatter.buildImportedColumnMarker(true)).toBe(
+      expect(formatter.buildImportedColumnMarker(undefined, true)).toBe(
         '--- Imported via OWOX Data Marts Community Edition ---'
       );
+    });
+
+    it('truncates an oversize description before composing the marker note', () => {
+      const oversize = 'x'.repeat(46_000);
+      const note = formatter.buildImportedColumnMarker(oversize, false);
+
+      // Description truncated to 45,000 chars + ellipsis, then the marker.
+      expect(note.length).toBeLessThan(50_000);
+      expect(note).toContain('…\n\n--- Imported via OWOX Data Marts ---');
     });
   });
 

@@ -965,12 +965,13 @@ export class GoogleSheetsReportWriter implements DataDestinationReportWriter {
         headerRow,
       ]);
 
-      // Per-column note: only the FIRST column of the range (index 0, i.e. A1)
-      // carries the full provenance block — the user's column description plus
-      // the ODM metadata (import time, data mart title, link). Every other
-      // imported column gets just a short `--- Imported via OWOX Data Marts ---`
-      // marker, enough to show the column is ODM-managed without burying the
-      // user's content under the same metadata repeated in every header.
+      // Per-column note: every imported column carries its own description.
+      // Only the FIRST column of the range (index 0, i.e. A1) additionally
+      // carries the full provenance block — the ODM metadata (import time,
+      // data mart title, link). Every other imported column gets its
+      // description followed by just a short `--- Imported via OWOX Data
+      // Marts ---` marker, so the per-column description is preserved without
+      // repeating the same provenance metadata across every header.
       //
       // `dataMart` is always the main/home data mart — columns pulled in from
       // joinable data marts only change the column alias, never this note — so
@@ -999,7 +1000,10 @@ export class GoogleSheetsReportWriter implements DataDestinationReportWriter {
                 dateNowFormatted,
                 isCommunityEdition
               )
-            : this.metadataFormatter.buildImportedColumnMarker(isCommunityEdition);
+            : this.metadataFormatter.buildImportedColumnMarker(
+                header.description,
+                isCommunityEdition
+              );
         return this.metadataFormatter.createNoteRequest(sheetId, note, 0, idx);
       });
 
