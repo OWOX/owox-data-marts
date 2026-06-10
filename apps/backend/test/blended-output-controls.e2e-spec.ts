@@ -90,6 +90,15 @@ describe('Blended output controls full-flow (e2e)', () => {
     return res.body as Record<string, unknown>;
   }
 
+  function expectDisconnectedColumns(res: supertest.Response, unknownColumns: string[]): void {
+    expect(res.status).toBe(400);
+    expect(res.body.message).toContain('report references columns that are disconnected');
+    expect(res.body.errorDetails).toEqual({
+      unknownColumns,
+      dataMartId: prereqs.mainDataMartId,
+    });
+  }
+
   // ── Group 1: Baseline ─────────────────────────────────────────────────────
 
   describe('1. Baseline', () => {
@@ -316,8 +325,7 @@ describe('Blended output controls full-flow (e2e)', () => {
           },
         ],
       });
-      expect(res.status).toBe(400);
-      expect(JSON.stringify(res.body)).toContain('FILTER_ALIAS_PATH_UNKNOWN');
+      expectDisconnectedColumns(res, ['nonexistent_alias.something']);
     });
 
     it('rejects pre-join filter with aliasPath="main" (home mart not slicable)', async () => {
@@ -356,9 +364,7 @@ describe('Blended output controls full-flow (e2e)', () => {
           },
         ],
       });
-      expect(res.status).toBe(400);
-      const body = JSON.stringify(res.body);
-      expect(body).toContain('FILTER_COLUMN_UNKNOWN');
+      expectDisconnectedColumns(res, ['users.no_such_column']);
     });
 
     it('rejects operator/type mismatch on pre-join (regex on INTEGER native field)', async () => {
@@ -428,8 +434,7 @@ describe('Blended output controls full-flow (e2e)', () => {
         columnConfig: ['event_id'],
         filterConfig: [{ column: 'no_such_native', operator: 'eq', value: 'X' }],
       });
-      expect(res.status).toBe(400);
-      expect(JSON.stringify(res.body)).toContain('FILTER_COLUMN_UNKNOWN');
+      expectDisconnectedColumns(res, ['no_such_native']);
     });
   });
 
@@ -521,8 +526,7 @@ describe('Blended output controls full-flow (e2e)', () => {
       const sqlRes = await agent
         .get(`/api/reports/${prereqs.reportId}/generated-sql`)
         .set(AUTH_HEADER);
-      expect(sqlRes.status).toBe(400);
-      expect(JSON.stringify(sqlRes.body)).toContain('FILTER_ALIAS_PATH_NOT_INCLUDED');
+      expectDisconnectedColumns(sqlRes, ['users.role']);
 
       const restore = await agent
         .put(`/api/data-marts/${prereqs.mainDataMartId}/blended-fields-config`)

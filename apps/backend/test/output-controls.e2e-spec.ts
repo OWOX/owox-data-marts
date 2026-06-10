@@ -27,6 +27,12 @@ describe('Output controls API (e2e)', () => {
   let dataDestinationId: string;
   let reportId: string;
 
+  function expectDisconnectedColumns(res: supertest.Response, unknownColumns: string[]): void {
+    expect(res.status).toBe(400);
+    expect(res.body.message).toContain('report references columns that are disconnected');
+    expect(res.body.errorDetails).toEqual({ unknownColumns, dataMartId });
+  }
+
   beforeAll(async () => {
     const testApp = await createTestApp();
     app = testApp.app;
@@ -35,6 +41,20 @@ describe('Output controls API (e2e)', () => {
     const prereqs = await setupReportPrerequisites(agent);
     dataMartId = prereqs.dataMartId;
     dataDestinationId = prereqs.dataDestinationId;
+
+    const schemaRes = await agent
+      .put(`/api/data-marts/${dataMartId}/schema`)
+      .set(AUTH_HEADER)
+      .send({
+        schema: {
+          type: 'bigquery-data-mart-schema',
+          fields: [
+            { name: 'col_a', type: 'STRING', mode: 'NULLABLE', status: 'CONNECTED' },
+            { name: 'col_b', type: 'STRING', mode: 'NULLABLE', status: 'CONNECTED' },
+          ],
+        },
+      });
+    expect(schemaRes.status).toBe(200);
 
     // Seed baseline report. LOOKER_STUDIO destinations use a deterministic
     // UUID v5 derived from (dataMartId, dataDestinationId), so there can be
@@ -82,7 +102,7 @@ describe('Output controls API (e2e)', () => {
     });
   });
 
-  it('PUT rejects sort on non-selected column with SORT_COLUMN_NOT_SELECTED', async () => {
+  it('PUT rejects sort on existing non-selected column with SORT_COLUMN_NOT_SELECTED', async () => {
     const res = await agent
       .put(`/api/reports/${reportId}`)
       .set(AUTH_HEADER)
@@ -91,17 +111,14 @@ describe('Output controls API (e2e)', () => {
         dataDestinationId,
         destinationConfig: { type: 'looker-studio-config', cacheLifetime: 3600 },
         columnConfig: ['col_a'],
-        sortConfig: [{ column: 'not_in_columns', direction: 'asc' }],
+        sortConfig: [{ column: 'col_b', direction: 'asc' }],
       });
 
     expect(res.status).toBe(400);
     expect(JSON.stringify(res.body)).toContain('SORT_COLUMN_NOT_SELECTED');
   });
 
-  it('PUT with filter on a column missing from the data mart schema reports FILTER_COLUMN_UNKNOWN', async () => {
-    // The seeded data mart has no schema actualized, so every filter column
-    // is unknown to BlendableSchemaService — this exercises the structured
-    // error path of the validator end-to-end.
+  it('PUT with filter on a column missing from the data mart schema reports disconnected columns', async () => {
     const res = await agent
       .put(`/api/reports/${reportId}`)
       .set(AUTH_HEADER)
@@ -113,8 +130,7 @@ describe('Output controls API (e2e)', () => {
         filterConfig: [{ column: 'definitely_does_not_exist', operator: 'is_empty' }],
       });
 
-    expect(res.status).toBe(400);
-    expect(JSON.stringify(res.body)).toContain('FILTER_COLUMN_UNKNOWN');
+    expectDisconnectedColumns(res, ['definitely_does_not_exist']);
   });
 
   it('PUT rejects limitConfig <= 0 via class-validator @IsPositive', async () => {
@@ -187,7 +203,7 @@ describe('Output controls API (e2e)', () => {
     expect(getRes.body.limitConfig).toBeNull();
   });
 
-  it('PUT pre-join filter on simple (non-joined) report → 400 FILTER_ALIAS_PATH_UNKNOWN', async () => {
+  it('PUT pre-join filter on simple report reports disconnected columns', async () => {
     const putRes = await agent
       .put(`/api/reports/${reportId}`)
       .set(AUTH_HEADER)
@@ -206,8 +222,7 @@ describe('Output controls API (e2e)', () => {
           },
         ],
       });
-    expect(putRes.status).toBe(400);
-    expect(JSON.stringify(putRes.body)).toContain('FILTER_ALIAS_PATH_UNKNOWN');
+    expectDisconnectedColumns(putRes, ['users.userRole']);
   });
 
   it('PUT pre-join filter with aliasPath="main" → 400 with Zod shape error', async () => {
