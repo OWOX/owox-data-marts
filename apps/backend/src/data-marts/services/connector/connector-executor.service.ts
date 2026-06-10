@@ -29,6 +29,7 @@ import { ConnectorProcessSpawnerService } from './connector-process-spawner.serv
 import { ConnectorStorageConfigService } from './connector-storage-config.service';
 import { ConnectorSourceConfigService } from './connector-source-config.service';
 import { ConnectorCredentialInjectorService } from './connector-credential-injector.service';
+import { ConnectorSourceCredentialsService } from './connector-source-credentials.service';
 import { addMessageToArray } from './connector-message.utils';
 
 interface ConfigurationExecutionResult {
@@ -56,7 +57,8 @@ export class ConnectorExecutorService {
     private readonly systemTimeService: SystemTimeService,
     private readonly eventDispatcher: OwoxEventDispatcher,
     private readonly projectBalanceService: ProjectBalanceService,
-    private readonly dataMartService: DataMartService
+    private readonly dataMartService: DataMartService,
+    private readonly connectorSourceCredentialsService: ConnectorSourceCredentialsService
   ) {}
 
   async executeInBackground(
@@ -221,6 +223,7 @@ export class ConnectorExecutorService {
       const configLogs: ConnectorMessage[] = [];
       const configErrors: ConnectorMessage[] = [];
       let success = false;
+      let credentialUpdates: Record<string, unknown> | undefined;
 
       const logCaptureConfig = this.connectorOutputCaptureService.createCapture(
         (message: ConnectorMessage) => {
@@ -254,6 +257,9 @@ export class ConnectorExecutorService {
                     }
                   );
                 });
+              break;
+            case ConnectorMessageType.CREDENTIALS_UPDATE:
+              credentialUpdates = { ...(credentialUpdates ?? {}), ...message.credentials };
               break;
             case ConnectorMessageType.STATUS:
               if (message.status === Core.EXECUTION_STATUS.ERROR) {
@@ -327,6 +333,16 @@ export class ConnectorExecutorService {
         );
 
         if (success) {
+          if (credentialUpdates) {
+            await this.saveConnectorCredentials(
+              config as Record<string, unknown>,
+              credentialUpdates,
+              dataMart,
+              runId,
+              configId
+            );
+          }
+
           this.logger.log(`Configuration ${configIndex + 1} completed successfully`, {
             dataMartId: dataMart.id,
             projectId: dataMart.projectId,
@@ -363,6 +379,88 @@ export class ConnectorExecutorService {
     }
 
     return configurationResults;
+  }
+
+  private async saveConnectorCredentials(
+    config: Record<string, unknown>,
+    credentials: Record<string, unknown>,
+    dataMart: DataMart,
+    runId: string,
+    configId: string
+  ): Promise<void> {
+    try {
+      const credentialId = this.getCredentialIdForConfig(config);
+      if (!credentialId) {
+        this.logger.warn(`Cannot update connector credentials: no credential reference found`, {
+          dataMartId: dataMart.id,
+          projectId: dataMart.projectId,
+          runId,
+          configId,
+          credentialKeys: Object.keys(credentials),
+        });
+        return;
+      }
+
+      await this.connectorSourceCredentialsService.updateCredentialFields(
+        credentialId,
+        dataMart.projectId,
+        credentials
+      );
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      this.logger.error(
+        `Failed to update connector credentials: ${errorMessage}`,
+        (error as Error)?.stack,
+        {
+          dataMartId: dataMart.id,
+          projectId: dataMart.projectId,
+          runId,
+          configId,
+          error: errorMessage,
+          credentialKeys: Object.keys(credentials),
+        }
+      );
+    }
+  }
+
+  private getCredentialIdForConfig(config: Record<string, unknown>): string | undefined {
+    const secretsId = config._secrets_id;
+    if (typeof secretsId === 'string' && secretsId) {
+      return secretsId;
+    }
+
+    return this.findSourceCredentialId(config);
+  }
+
+  private findSourceCredentialId(value: unknown): string | undefined {
+    if (!value || typeof value !== 'object') {
+      return undefined;
+    }
+
+    if (Array.isArray(value)) {
+      for (const item of value) {
+        const credentialId = this.findSourceCredentialId(item);
+        if (credentialId) {
+          return credentialId;
+        }
+      }
+      return undefined;
+    }
+
+    const obj = value as Record<string, unknown>;
+    const credentialId = obj._source_credential_id;
+    if (typeof credentialId === 'string' && credentialId) {
+      return credentialId;
+    }
+
+    for (const item of Object.values(obj)) {
+      const nestedCredentialId = this.findSourceCredentialId(item);
+      if (nestedCredentialId) {
+        return nestedCredentialId;
+      }
+    }
+
+    return undefined;
   }
 
   private async updateRunStatus(

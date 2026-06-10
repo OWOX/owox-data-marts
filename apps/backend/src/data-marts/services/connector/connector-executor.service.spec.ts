@@ -18,6 +18,7 @@ import { ConnectorProcessSpawnerService } from './connector-process-spawner.serv
 import { ConnectorStorageConfigService } from './connector-storage-config.service';
 import { ConnectorSourceConfigService } from './connector-source-config.service';
 import { ConnectorCredentialInjectorService } from './connector-credential-injector.service';
+import { ConnectorSourceCredentialsService } from './connector-source-credentials.service';
 import { ConnectorOutputCaptureService } from '../../connector-types/connector-message/services/connector-output-capture.service';
 import { ConnectorStateService } from '../../connector-types/connector-message/services/connector-state.service';
 import { ConsumptionTrackingService } from '../consumption-tracking.service';
@@ -113,6 +114,10 @@ describe('ConnectorExecutorService', () => {
       actualizeSchema: jest.fn().mockResolvedValue(undefined),
     } as unknown as DataMartService;
 
+    const connectorSourceCredentialsService = {
+      updateCredentialFields: jest.fn().mockResolvedValue(undefined),
+    } as unknown as ConnectorSourceCredentialsService;
+
     const service = new ConnectorExecutorService(
       dataMartRunRepository,
       processSpawner,
@@ -126,7 +131,8 @@ describe('ConnectorExecutorService', () => {
       systemTimeService,
       eventDispatcher as unknown as OwoxEventDispatcher,
       projectBalanceService,
-      dataMartService
+      dataMartService,
+      connectorSourceCredentialsService
     );
 
     return {

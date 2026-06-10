@@ -144,6 +144,34 @@ describe('ConnectorCredentialInjectorService', () => {
       );
     });
 
+    it('injects generated refresh token from externalized secrets', async () => {
+      const { service, connectorSourceCredentialsService, connectorSecretService } =
+        createService();
+      const config = { _secrets_id: 'secret-1', field1: 'value1' };
+      const secrets = {
+        'AuthType.oauth2.RefreshToken': 'original-refresh-token',
+        generated_refresh_token: 'generated-refresh-token',
+      };
+
+      (connectorSourceCredentialsService.getCredentialsById as jest.Mock).mockResolvedValue({
+        id: 'secret-1',
+        projectId: 'proj-1',
+        credentials: secrets,
+      });
+      (connectorSecretService.injectSecretsAtPaths as jest.Mock).mockImplementation(
+        () => undefined
+      );
+
+      const result = await service.injectSecrets(config, 'proj-1');
+
+      expect(result.GeneratedRefreshToken).toBe('generated-refresh-token');
+      expect(result).not.toHaveProperty('generated_refresh_token');
+      expect(connectorSecretService.injectSecretsAtPaths).toHaveBeenCalledWith(
+        expect.objectContaining({ field1: 'value1' }),
+        { 'AuthType.oauth2.RefreshToken': 'original-refresh-token' }
+      );
+    });
+
     it('returns config when secrets entity not found', async () => {
       const { service, connectorSourceCredentialsService } = createService();
       const config = { _secrets_id: 'missing-secret', field1: 'value1' };

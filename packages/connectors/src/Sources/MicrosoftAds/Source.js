@@ -261,15 +261,17 @@ var MicrosoftAdsSource = class MicrosoftAdsSource extends AbstractSource {
   async getAccessToken() {
     const tokenUrl = "https://login.microsoftonline.com/common/oauth2/v2.0/token";
     const scopes = [
-      'https://ads.microsoft.com/msads.manage', // New scope
-      'https://ads.microsoft.com/ads.manage'    // Old scope
+      'https://ads.microsoft.com/msads.manage offline_access', // New scope
+      'https://ads.microsoft.com/ads.manage offline_access'    // Old scope
     ];
 
     for (const scope of scopes) {
       try {
         const clientId = this.config.AuthType?.items?.ClientId?.value || this.config.ClientID?.value || process.env.OAUTH_MICROSOFT_ADS_CLIENT_ID;
         const clientSecret = this.config.AuthType?.items?.ClientSecret?.value || this.config.ClientSecret?.value || process.env.OAUTH_MICROSOFT_ADS_CLIENT_SECRET;
-        const refreshToken = this.config.AuthType?.items?.RefreshToken?.value || this.config.RefreshToken?.value;
+        const originalRefreshToken = this.config.AuthType?.items?.RefreshToken?.value || this.config.RefreshToken?.value;
+        const generatedRefreshToken = this.config.AuthType?.items?.GeneratedRefreshToken?.value || this.config.GeneratedRefreshToken?.value;
+        const refreshToken = generatedRefreshToken || originalRefreshToken;
 
         const form = {
           client_id: clientId,
@@ -298,6 +300,10 @@ var MicrosoftAdsSource = class MicrosoftAdsSource extends AbstractSource {
         }
 
         this.config.AccessToken = { value: json.access_token };
+        if (json.refresh_token) {
+          this._setGeneratedRefreshToken(json.refresh_token);
+          this._updateCredentials({ generated_refresh_token: json.refresh_token });
+        }
         this.config.logMessage(`Successfully obtained access token with scope (${scope})`);
         return;
       } catch (error) {
@@ -308,6 +314,22 @@ var MicrosoftAdsSource = class MicrosoftAdsSource extends AbstractSource {
         this.config.logMessage(`Scope ${scope} failed, trying next scope...`);
       }
     }
+  }
+
+  _setGeneratedRefreshToken(refreshToken) {
+    this.config.GeneratedRefreshToken = {
+      ...(this.config.GeneratedRefreshToken || {}),
+      value: refreshToken,
+    };
+  }
+
+  _updateCredentials(credentials) {
+    const at = new Date();
+    console.log(JSON.stringify({
+      type: 'updateCredentials',
+      at: at.toISOString().split('T')[0] + ' ' + at.toISOString().split('T')[1].split('.')[0],
+      credentials,
+    }));
   }
 
   _getDeveloperToken() {

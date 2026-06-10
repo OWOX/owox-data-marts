@@ -4,6 +4,8 @@ import { ConnectorSourceCredentialsService } from './connector-source-credential
 import { ConnectorService } from './connector.service';
 import { ConnectorSecretService } from './connector-secret.service';
 
+const GENERATED_REFRESH_TOKEN_FIELD = 'generated_refresh_token';
+
 @Injectable()
 export class ConnectorCredentialInjectorService {
   private readonly logger = new Logger(ConnectorCredentialInjectorService.name);
@@ -91,12 +93,24 @@ export class ConnectorCredentialInjectorService {
           this.logger.warn(
             `No mapping found for OAuth field ${currentPath}. Using credentials directly.`
           );
-          return { ...restObj, ...credentialsEntity.credentials };
+          const { [GENERATED_REFRESH_TOKEN_FIELD]: generatedRefreshToken, ...credentials } =
+            credentialsEntity.credentials;
+          return {
+            ...restObj,
+            ...credentials,
+            ...(typeof generatedRefreshToken === 'string' && generatedRefreshToken
+              ? { GeneratedRefreshToken: generatedRefreshToken }
+              : {}),
+          };
         }
 
         const resolvedConfig: Record<string, unknown> = {};
         for (const [key, mappingConfig] of Object.entries(mapping)) {
           resolvedConfig[key] = this.resolveMapping(mappingConfig, credentialsEntity.credentials);
+        }
+        const generatedRefreshToken = credentialsEntity.credentials[GENERATED_REFRESH_TOKEN_FIELD];
+        if (typeof generatedRefreshToken === 'string' && generatedRefreshToken) {
+          resolvedConfig.GeneratedRefreshToken = generatedRefreshToken;
         }
 
         return { ...restObj, ...resolvedConfig };
@@ -205,8 +219,13 @@ export class ConnectorCredentialInjectorService {
 
       const { _secrets_id: _, ...restConfig } = config;
       const result = JSON.parse(JSON.stringify(restConfig)) as Record<string, unknown>;
+      const { [GENERATED_REFRESH_TOKEN_FIELD]: generatedRefreshToken, ...credentials } =
+        secretsEntity.credentials;
 
-      this.connectorSecretService.injectSecretsAtPaths(result, secretsEntity.credentials);
+      this.connectorSecretService.injectSecretsAtPaths(result, credentials);
+      if (typeof generatedRefreshToken === 'string' && generatedRefreshToken) {
+        result.GeneratedRefreshToken = generatedRefreshToken;
+      }
 
       return result;
     } catch (error) {
