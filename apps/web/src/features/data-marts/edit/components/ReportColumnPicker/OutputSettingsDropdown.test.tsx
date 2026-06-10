@@ -44,4 +44,34 @@ describe('OutputSettingsDropdown disconnected controls', () => {
     expect(screen.getByText('ghost_sort')).toHaveClass('line-through');
     expect(screen.getAllByLabelText('Column not found in schema')).toHaveLength(3);
   });
+
+  it('shows readable operator labels for stale filters and slices without a known field type', () => {
+    const value: OutputConfig = {
+      filterConfig: [
+        { column: 'ghost_filter', operator: 'gte', value: 10 },
+        {
+          column: 'ghost_slice',
+          operator: 'gte',
+          value: 20,
+          placement: 'pre-join',
+          aliasPath: 'old',
+        },
+      ],
+      sortConfig: [],
+      limitConfig: null,
+    };
+
+    render(
+      <OutputSettingsDropdown
+        value={value}
+        onChange={() => {}}
+        allColumns={[]}
+        selectedColumns={[]}
+        joinedSources={[]}
+      />
+    );
+
+    expect(screen.getAllByText('greater than or equal')).toHaveLength(2);
+    expect(screen.queryByText('gte')).not.toBeInTheDocument();
+  });
 });
