@@ -71,6 +71,9 @@ describe('SnowflakeClauseRenderer', () => {
         'DATE'
       )
     ).toBe(`\nWHERE "d" BETWEEN CAST('2024-01-01' AS DATE) AND CAST('2024-02-01' AS DATE)`);
+    expect(where(r, { column: 't', operator: 'gte', value: '08:00:00' }, 'TIME')).toBe(
+      `\nWHERE "t" >= CAST('08:00:00' AS TIME)`
+    );
     expect(where(r, { column: 'age', operator: 'gte', value: 18 }, 'INTEGER')).toBe(
       `\nWHERE "age" >= 18`
     );

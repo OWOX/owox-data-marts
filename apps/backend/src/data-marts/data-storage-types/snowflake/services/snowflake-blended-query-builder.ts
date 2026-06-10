@@ -17,6 +17,14 @@ export class SnowflakeBlendedQueryBuilder extends AbstractBlendedQueryBuilder {
     return this._renderer;
   }
 
+  // Snowflake folds UNQUOTED identifiers to UPPERCASE, so the base class's bare return
+  // for simple names would miss the lowercase columns the OWOX connector creates (as
+  // quoted). Always quote — case-stable, and consistent with the non-blended builder.
+  protected quoteIdentifier(name: string): string {
+    const q = this.identifierQuoteChar;
+    return `${q}${name.split(q).join(q + q)}${q}`;
+  }
+
   protected buildStringAgg(fieldName: string): string {
     // WITHIN GROUP (ORDER BY) makes the concatenation deterministic — Snowflake allows
     // omitting it (Redshift requires it), but a stable order matches the Redshift sibling.

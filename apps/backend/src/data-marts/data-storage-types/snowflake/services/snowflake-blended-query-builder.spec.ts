@@ -44,7 +44,7 @@ describe('SnowflakeBlendedQueryBuilder', () => {
     const { sql } = builder.buildBlendedQuery(buildContext([chain], ['order_names']));
 
     expect(sql).toContain(
-      "LISTAGG(CAST(order_name AS VARCHAR), ', ') WITHIN GROUP (ORDER BY order_name) AS order_names"
+      'LISTAGG(CAST("order_name" AS VARCHAR), \', \') WITHIN GROUP (ORDER BY "order_name") AS "order_names"'
     );
     expect(sql).not.toContain('STRING_AGG');
     expect(sql).not.toContain('ARRAY_JOIN');
@@ -68,7 +68,7 @@ describe('SnowflakeBlendedQueryBuilder', () => {
 
     const { sql } = builder.buildBlendedQuery(buildContext([chain], ['unique_customers']));
 
-    expect(sql).toContain('COUNT(DISTINCT customer_id) AS unique_customers');
+    expect(sql).toContain('COUNT(DISTINCT "customer_id") AS "unique_customers"');
   });
 
   it('uses " (double-quote) quoting for identifiers', () => {
@@ -97,6 +97,31 @@ describe('SnowflakeBlendedQueryBuilder', () => {
     expect(sql).not.toMatch(/`Product's`/);
   });
 
+  it('always quotes simple lowercase identifiers (Snowflake folds unquoted to UPPERCASE)', () => {
+    // The base builder returns simple names bare — safe for lowercase-folding engines but
+    // NOT Snowflake: a bare `campaign_id` resolves to CAMPAIGN_ID and misses the lowercase
+    // column the OWOX connector creates (as quoted) → "invalid identifier".
+    const chain = makeChain({
+      relationship: makeRelationship(),
+      targetTableReference: 'mydb."myschema"."orders"',
+      parentAlias: 'main',
+      blendedFields: [
+        {
+          targetFieldName: 'campaign_id',
+          outputAlias: 'campaign_ids',
+          isHidden: false,
+          aggregateFunction: 'STRING_AGG',
+        },
+      ],
+    });
+
+    const { sql } = builder.buildBlendedQuery(buildContext([chain], ['campaign_ids']));
+
+    expect(sql).toContain('LISTAGG(CAST("campaign_id" AS VARCHAR)');
+    expect(sql).toContain('AS "campaign_ids"');
+    expect(sql).not.toContain('CAST(campaign_id AS'); // never bare
+  });
+
   it('uses COUNT function correctly', () => {
     const chain = makeChain({
       relationship: makeRelationship(),
@@ -114,7 +139,7 @@ describe('SnowflakeBlendedQueryBuilder', () => {
 
     const { sql } = builder.buildBlendedQuery(buildContext([chain], ['order_count']));
 
-    expect(sql).toContain('COUNT(order_id) AS order_count');
+    expect(sql).toContain('COUNT("order_id") AS "order_count"');
   });
 });
 
@@ -143,7 +168,7 @@ describe('SnowflakeBlendedQueryBuilder — output controls', () => {
     const { sql, params } = builder.buildBlendedQuery(
       ctx({ filters: [{ column: 'a', operator: 'eq', value: 1 }] })
     );
-    expect(sql).toContain('WHERE main.a = 1');
+    expect(sql).toContain('WHERE main."a" = 1');
     expect(params).toEqual([]);
   });
 
@@ -151,7 +176,7 @@ describe('SnowflakeBlendedQueryBuilder — output controls', () => {
     const { sql, params } = builder.buildBlendedQuery(
       ctx({ filters: [{ column: 'status', operator: 'contains', value: 'active' }] })
     );
-    expect(sql).toContain("CONTAINS(main.status, 'active')");
+    expect(sql).toContain('CONTAINS(main."status", \'active\')');
     expect(sql).not.toMatch(/[?]|@p\d/);
     expect(params).toEqual([]);
   });
@@ -160,7 +185,7 @@ describe('SnowflakeBlendedQueryBuilder — output controls', () => {
     const { sql } = builder.buildBlendedQuery(
       ctx({ sort: [{ column: 'a', direction: 'desc' }], limit: 10 })
     );
-    expect(sql).toContain('ORDER BY main.a DESC');
+    expect(sql).toContain('ORDER BY main."a" DESC');
     expect(sql).toContain('LIMIT 10');
   });
 
@@ -174,7 +199,7 @@ describe('SnowflakeBlendedQueryBuilder — output controls', () => {
         ],
       })
     );
-    expect(sql).toContain("WHERE main.a = 'x' AND main.a <> 'y'");
+    expect(sql).toContain('WHERE main."a" = \'x\' AND main."a" <> \'y\'');
     expect(params).toEqual([]);
   });
 
@@ -206,14 +231,14 @@ describe('SnowflakeBlendedQueryBuilder — output controls', () => {
       })
     );
     // The inlined literal predicate must appear inside the subsidiary raw CTE.
-    const rawCteStart = sql.indexOf('users_raw AS (');
-    const predicatePos = sql.indexOf("role = 'admin'");
+    const rawCteStart = sql.indexOf('"users_raw" AS (');
+    const predicatePos = sql.indexOf('"role" = \'admin\'');
     const outerSelectPos = sql.lastIndexOf('\nSELECT\n');
     expect(rawCteStart).toBeGreaterThanOrEqual(0);
     expect(predicatePos).toBeGreaterThan(rawCteStart);
     expect(predicatePos).toBeLessThan(outerSelectPos);
     // The outer WHERE must not reference the pre-join column
-    expect(sql).not.toContain('WHERE main.role');
+    expect(sql).not.toContain('main."role"');
     // Snowflake uses inlined literals — no bound params
     expect(params).toEqual([]);
   });

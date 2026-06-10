@@ -143,8 +143,8 @@ export class ReportSqlComposerService {
       case DataStorageType.LEGACY_GOOGLE_BIGQUERY:
         return { sql: inlineBigQueryNamedParams(composed.sql, composed.params) };
       default:
-        // Redshift inlines all literals and produces no params (early-returned above).
-        // Athena (positional ?) and BigQuery (named @p) are the only current param
+        // Redshift and Snowflake inline all literals and produce no params (early-returned
+        // above). Athena (positional ?) and BigQuery (named @p) are the only current param
         // producers. This guard catches a future dialect added with output controls
         // before its inliner is wired, rather than emit SQL with unbound parameters.
         throw new BusinessViolationException(
