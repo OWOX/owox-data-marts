@@ -18,7 +18,7 @@ export class DataDestinationService {
 
     if (!entity) {
       throw new NotFoundException(
-        `DataDestination with id ${id} and projectId ${projectId} not found`
+        `Data Destination with id ${id} and projectId ${projectId} not found`
       );
     }
 

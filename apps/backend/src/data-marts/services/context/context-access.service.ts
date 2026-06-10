@@ -55,7 +55,7 @@ export class ContextAccessService {
 
       if (!isTechOwnerWithEditorRole) {
         throw new ForbiddenException(
-          'Only DM Technical Owners with editor role or admins can manage data mart contexts'
+          'Only Data Mart Technical Owners with editor role or admins can manage data mart contexts'
         );
       }
     }
