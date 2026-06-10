@@ -118,6 +118,19 @@ describe('operatorsForType', () => {
     });
   });
 
+  // Databricks emits INT (not INTEGER) and TIMESTAMP_NTZ, and has no standalone TIME type.
+  describe('Databricks type names', () => {
+    it('maps INT to number ops (comparison + between, no relative_date)', () => {
+      expect(opValues('INT')).toContain('between');
+      expect(opValues('INT')).not.toContain('relative_date');
+      expect(isNumberType('INT')).toBe(true);
+    });
+    it('maps TIMESTAMP_NTZ to date ops with relative_date', () => {
+      expect(opValues('TIMESTAMP_NTZ')).toContain('relative_date');
+      expect(isDateType('TIMESTAMP_NTZ')).toBe(true);
+    });
+  });
+
   it('returns no operators for unrecognised (complex/binary) types', () => {
     for (const t of ['ARRAY', 'MAP', 'STRUCT', 'JSON', 'VARBINARY', 'GEOGRAPHY']) {
       expect(operatorsForType(t)).toEqual([]);

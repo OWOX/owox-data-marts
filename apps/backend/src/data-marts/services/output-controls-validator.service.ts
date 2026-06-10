@@ -23,6 +23,7 @@ export type ValidationError =
 const STRING_TYPES = new Set(['STRING', 'VARCHAR', 'CHAR', 'TEXT', 'BPCHAR']);
 const NUMBER_TYPES = new Set([
   'INTEGER',
+  'INT',
   'BIGINT',
   'SMALLINT',
   'TINYINT',
@@ -40,6 +41,7 @@ const DATE_TYPES = new Set([
   'TIMESTAMP',
   'TIMESTAMP WITH TIME ZONE',
   'TIMESTAMPTZ',
+  'TIMESTAMP_NTZ',
 ]);
 // Time-of-day types are kept separate from DATE/TIMESTAMP: relative_date renders
 // `current_date` / `date_add(..., current_date)` predicates that are meaningless

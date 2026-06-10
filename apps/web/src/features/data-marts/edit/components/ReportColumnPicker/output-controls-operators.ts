@@ -31,6 +31,7 @@ export interface OperatorMeta {
 const STRING_TYPES = new Set(['STRING', 'VARCHAR', 'CHAR', 'TEXT', 'BPCHAR']);
 const NUMBER_TYPES = new Set([
   'INTEGER',
+  'INT',
   'BIGINT',
   'SMALLINT',
   'TINYINT',
@@ -48,6 +49,7 @@ const DATE_TYPES = new Set([
   'TIMESTAMP',
   'TIMESTAMP WITH TIME ZONE',
   'TIMESTAMPTZ',
+  'TIMESTAMP_NTZ',
 ]);
 // Time-of-day types are kept out of DATE_TYPES: relative_date presets resolve to
 // calendar dates (current_date / date_add), which are meaningless for a column

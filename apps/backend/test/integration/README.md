@@ -50,6 +50,17 @@ ATHENA_OUTPUT_BUCKET=my-athena-results-bucket
 # Athena database name (must already exist — create via: CREATE DATABASE name)
 ATHENA_DATABASE=my_test_database
 
+# === Databricks ===
+# Workspace host (with https://) of the SQL warehouse
+DATABRICKS_HOST=https://dbc-xxxxxxxx.cloud.databricks.com
+# SQL warehouse HTTP path (Warehouse → Connection details → HTTP path)
+DATABRICKS_HTTP_PATH=/sql/1.0/warehouses/abcdef1234567890
+# Personal access token (User Settings → Developer → Access tokens)
+DATABRICKS_TOKEN=dapi...
+# Catalog + schema that host the seed table (the token needs CREATE/DROP TABLE there)
+DATABRICKS_CATALOG=main
+DATABRICKS_SCHEMA=default
+
 # === Google Sheets ===
 # JSON string of a GCP service account key with Google Sheets API access
 # (Editor role on TEST_GOOGLE_SPREADSHEET_ID — sheet add/delete requires Editor).
@@ -79,6 +90,12 @@ TEST_GOOGLE_SPREADSHEET_ID=your_spreadsheet_id_here
 - `athena:StartQueryExecution`, `athena:GetQueryExecution`, `athena:GetQueryResults`
 - `s3:GetObject`, `s3:PutObject`, `s3:DeleteObject`, `s3:ListBucket` (on output bucket)
 - `glue:GetTable`, `glue:CreateTable`, `glue:DeleteTable`, `glue:GetDatabase` (on Glue catalog)
+
+**Databricks token:**
+
+- `CREATE TABLE` / `DROP TABLE` on `DATABRICKS_CATALOG`.`DATABRICKS_SCHEMA` (the suite
+  seeds and drops its own table)
+- `SELECT` on that schema; the SQL warehouse must be running (or auto-start enabled)
 
 ## CI Setup (GitHub Actions)
 
@@ -113,6 +130,12 @@ quotes — not even for the JSON ones).
 | `ATHENA_DATABASE`                  | Athena        | Existing Athena database (create once via `CREATE DATABASE …`)                                                      |
 | `GOOGLE_SHEETS_SERVICE_ACCOUNT_JSON` | Google Sheets | Full GCP service-account key JSON, **Editor**-shared on the test spreadsheet                                       |
 | `TEST_GOOGLE_SPREADSHEET_ID`       | Google Sheets | The spreadsheet ID (the long token in its URL)                                                                       |
+
+Redshift (`REDSHIFT_REGION`, `REDSHIFT_WORKGROUP_NAME`, `REDSHIFT_DATABASE`) reuses the
+Athena `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY`. Databricks needs five DATABRICKS\_-prefixed
+secrets: `DATABRICKS_HOST`, `DATABRICKS_HTTP_PATH`, `DATABRICKS_TOKEN`, `DATABRICKS_CATALOG`,
+`DATABRICKS_SCHEMA`. As with every other suite, a job whose secrets are missing just skips
+(green), so they can be added independently.
 
 `NODE_ENV`, `TEST_GOOGLE_SHEET_ID` (`'0'`) and `TEST_GOOGLE_SHEET_ID_2` (`'1'`)
 are **not** secrets — they are hard-coded in the workflow, nothing to add.

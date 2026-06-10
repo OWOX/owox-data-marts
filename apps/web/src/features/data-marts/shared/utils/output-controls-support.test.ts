@@ -19,9 +19,12 @@ describe('supportsOutputControls', () => {
     expect(supportsOutputControls(DataStorageType.AWS_REDSHIFT)).toBe(true);
   });
 
+  it('returns true for Databricks', () => {
+    expect(supportsOutputControls(DataStorageType.DATABRICKS)).toBe(true);
+  });
+
   it('returns false for not-yet-supported storages', () => {
     expect(supportsOutputControls(DataStorageType.SNOWFLAKE)).toBe(false);
-    expect(supportsOutputControls(DataStorageType.DATABRICKS)).toBe(false);
     expect(supportsOutputControls(DataStorageType.AZURE_SYNAPSE)).toBe(false);
   });
 });

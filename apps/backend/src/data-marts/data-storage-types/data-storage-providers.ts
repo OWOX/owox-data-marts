@@ -59,6 +59,7 @@ import { DatabricksReportReader } from './databricks/services/databricks-report-
 import { DatabricksSchemaMerger } from './databricks/services/databricks-schema-merger';
 import { DatabricksSqlDryRunExecutor } from './databricks/services/databricks-sql-dry-run.executor';
 import { DatabricksBlendedQueryBuilder } from './databricks/services/databricks-blended-query-builder';
+import { DatabricksClauseRenderer } from './databricks/services/databricks-clause-renderer';
 import { DatabricksSqlRunExecutor } from './databricks/services/databricks-sql-run.executor';
 import { DatabricksStorageErrorMapper } from './databricks/services/databricks-storage-error.mapper';
 import { DataStorageType } from './enums/data-storage-type.enum';
@@ -241,6 +242,7 @@ const blendedQueryBuilderProviders = [
   BigQueryClauseRenderer,
   AthenaClauseRenderer,
   RedshiftClauseRenderer,
+  DatabricksClauseRenderer,
   BigQueryBlendedQueryBuilder,
   SnowflakeBlendedQueryBuilder,
   RedshiftBlendedQueryBuilder,

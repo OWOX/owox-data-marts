@@ -15,6 +15,10 @@ import { RedshiftApiAdapter } from 'src/data-marts/data-storage-types/redshift/a
 import { RedshiftCredentials } from 'src/data-marts/data-storage-types/redshift/schemas/redshift-credentials.schema';
 import { RedshiftConfig } from 'src/data-marts/data-storage-types/redshift/schemas/redshift-config.schema';
 import { RedshiftConnectionType } from 'src/data-marts/data-storage-types/redshift/enums/redshift-connection-type.enum';
+import { DatabricksApiAdapter } from 'src/data-marts/data-storage-types/databricks/adapters/databricks-api.adapter';
+import { DatabricksCredentials } from 'src/data-marts/data-storage-types/databricks/schemas/databricks-credentials.schema';
+import { DatabricksConfig } from 'src/data-marts/data-storage-types/databricks/schemas/databricks-config.schema';
+import { DatabricksAuthMethod } from 'src/data-marts/data-storage-types/databricks/enums/databricks-auth-method.enum';
 import { STREAM_BATCH_SIZE } from 'src/data-marts/services/http-data/http-data.constants';
 
 /**
@@ -112,6 +116,29 @@ if (!RS_CREDENTIALS_AVAILABLE) {
 const describeIfRsCredentials = RS_CREDENTIALS_AVAILABLE ? describe : describe.skip;
 
 // ---------------------------------------------------------------------------
+// Databricks env vars / credential gate (all DATABRICKS_-prefixed)
+// ---------------------------------------------------------------------------
+const DATABRICKS_HOST = process.env.DATABRICKS_HOST;
+const DATABRICKS_HTTP_PATH = process.env.DATABRICKS_HTTP_PATH;
+const DATABRICKS_TOKEN = process.env.DATABRICKS_TOKEN;
+const DATABRICKS_CATALOG = process.env.DATABRICKS_CATALOG;
+const DATABRICKS_SCHEMA = process.env.DATABRICKS_SCHEMA;
+
+const DB_CREDENTIALS_AVAILABLE = !!(
+  DATABRICKS_HOST &&
+  DATABRICKS_HTTP_PATH &&
+  DATABRICKS_TOKEN &&
+  DATABRICKS_CATALOG &&
+  DATABRICKS_SCHEMA
+);
+
+if (!DB_CREDENTIALS_AVAILABLE) {
+  console.log('Skipping HTTP Data real Databricks integration tests: DATABRICKS_* config not set');
+}
+
+const describeIfDbCredentials = DB_CREDENTIALS_AVAILABLE ? describe : describe.skip;
+
+// ---------------------------------------------------------------------------
 // Shared NestJS app — ONE instance for the entire file.
 // Both describe blocks share the same SQLite :memory: app to avoid the
 // TypeORM / typeorm-transactional DataSource singleton conflict that arises
@@ -122,7 +149,10 @@ let sharedAgent: supertest.Agent;
 
 // Create the shared app if at least one credential set is present.
 const NEED_APP =
-  ATHENA_CREDENTIALS_AVAILABLE || BQ_CREDENTIALS_AVAILABLE || RS_CREDENTIALS_AVAILABLE;
+  ATHENA_CREDENTIALS_AVAILABLE ||
+  BQ_CREDENTIALS_AVAILABLE ||
+  RS_CREDENTIALS_AVAILABLE ||
+  DB_CREDENTIALS_AVAILABLE;
 
 if (NEED_APP) {
   beforeAll(async () => {
@@ -767,6 +797,180 @@ describeIfRsCredentials('HTTP Data API real-data (live Redshift)', () => {
       `column=id&column=name` +
         `&filter=${rsB64([{ column: 'id', operator: 'between', value: { from: 2, to: 3 } }])}` +
         `&sort=${rsB64([{ column: 'id', direction: 'asc' }])}`
+    );
+    expect(rows.map(r => Number(r.id))).toEqual([2, 3]);
+  }, 120000);
+});
+
+// =============================================================================
+// DATABRICKS BLOCK — full-stack HTTP Data API against a live Databricks SQL
+// warehouse (TABLE-def mart, stream + output controls). Mirrors the RS block.
+// =============================================================================
+
+describeIfDbCredentials('HTTP Data API real-data (live Databricks)', () => {
+  let dbDataMartId: string;
+
+  let dbAdapter: DatabricksApiAdapter;
+  let dbFullyQualifiedName: string;
+
+  const DB_TEST_TABLE_SUFFIX = `http_data_real_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+
+  beforeAll(async () => {
+    const dbCredentials: DatabricksCredentials = {
+      authMethod: DatabricksAuthMethod.PERSONAL_ACCESS_TOKEN,
+      token: DATABRICKS_TOKEN!,
+    };
+    const dbConfig: DatabricksConfig = {
+      host: DATABRICKS_HOST!,
+      httpPath: DATABRICKS_HTTP_PATH!,
+    };
+    dbAdapter = new DatabricksApiAdapter(dbCredentials, dbConfig);
+
+    dbFullyQualifiedName = `${DATABRICKS_CATALOG}.${DATABRICKS_SCHEMA}.${DB_TEST_TABLE_SUFFIX}`;
+    const qualified = `\`${DATABRICKS_CATALOG}\`.\`${DATABRICKS_SCHEMA}\`.\`${DB_TEST_TABLE_SUFFIX}\``;
+
+    // --- Step 1: Pre-cleanup in case a previous run crashed ---
+    try {
+      await dbAdapter.executeQuery(`DROP TABLE IF EXISTS ${qualified}`);
+    } catch {
+      // ignore — table may not exist on first run
+    }
+
+    // --- Step 2: Seed a real (permanent) Databricks table ---
+    await dbAdapter.executeQuery(
+      `CREATE TABLE ${qualified} ` +
+        `(id INT, name STRING, active BOOLEAN, created_at TIMESTAMP) USING DELTA`
+    );
+    await dbAdapter.executeQuery(
+      `INSERT INTO ${qualified} (id, name, active, created_at) VALUES
+        (1, 'alpha',    true,  TIMESTAMP '2024-01-01 00:00:00'),
+        (2, 'beta',     false, TIMESTAMP '2024-02-01 00:00:00'),
+        (3, 'gamma',    true,  TIMESTAMP '2024-03-01 00:00:00'),
+        (4, 'alphabet', true,  TIMESTAMP '2024-04-01 00:00:00')`
+    );
+
+    // --- Step 3: Create credentialed Databricks storage via HTTP API ---
+    const storageCreateRes = await sharedAgent
+      .post('/api/data-storages')
+      .set(AUTH_HEADER)
+      .send({ type: 'DATABRICKS' });
+    if (storageCreateRes.status !== 201) {
+      console.error('DB storage create failed:', JSON.stringify(storageCreateRes.body, null, 2));
+    }
+    expect(storageCreateRes.status).toBe(201);
+    const dbStorageId: string = storageCreateRes.body.id;
+
+    const storageUpdateRes = await sharedAgent
+      .put(`/api/data-storages/${dbStorageId}`)
+      .set(AUTH_HEADER)
+      .send({
+        title: 'db-real',
+        config: { host: DATABRICKS_HOST!, httpPath: DATABRICKS_HTTP_PATH! },
+        credentials: { authMethod: 'PERSONAL_ACCESS_TOKEN', token: DATABRICKS_TOKEN! },
+      });
+    if (storageUpdateRes.status !== 200) {
+      console.error('DB storage update failed:', JSON.stringify(storageUpdateRes.body, null, 2));
+    }
+    expect(storageUpdateRes.status).toBe(200);
+
+    // --- Step 4: Create data mart ---
+    const dataMartCreateRes = await sharedAgent
+      .post('/api/data-marts')
+      .set(AUTH_HEADER)
+      .send({ title: 'real-db-test-mart', storageId: dbStorageId });
+    if (dataMartCreateRes.status !== 201) {
+      console.error('DB data mart create failed:', JSON.stringify(dataMartCreateRes.body, null, 2));
+    }
+    expect(dataMartCreateRes.status).toBe(201);
+    dbDataMartId = dataMartCreateRes.body.id;
+
+    // --- Step 5: Set TABLE definition (pointing at the real seeded table) ---
+    const defRes = await sharedAgent
+      .put(`/api/data-marts/${dbDataMartId}/definition`)
+      .set(AUTH_HEADER)
+      .send({
+        definitionType: 'TABLE',
+        definition: { fullyQualifiedName: dbFullyQualifiedName },
+      });
+    if (defRes.status !== 200) {
+      console.error('DB definition set failed:', JSON.stringify(defRes.body, null, 2));
+    }
+    expect(defRes.status).toBe(200);
+
+    // --- Step 6: Publish (reads real schema from Databricks) ---
+    const publishRes = await sharedAgent
+      .put(`/api/data-marts/${dbDataMartId}/publish`)
+      .set(AUTH_HEADER);
+    if (publishRes.status !== 200) {
+      console.error('DB publish failed:', JSON.stringify(publishRes.body, null, 2));
+    }
+    expect(publishRes.status).toBe(200);
+  }, 180000);
+
+  afterAll(async () => {
+    try {
+      const qualified = `\`${DATABRICKS_CATALOG}\`.\`${DATABRICKS_SCHEMA}\`.\`${DB_TEST_TABLE_SUFFIX}\``;
+      await dbAdapter.executeQuery(`DROP TABLE IF EXISTS ${qualified}`);
+    } catch (error) {
+      console.warn('Failed to drop Databricks test table during teardown:', error);
+    } finally {
+      await dbAdapter.destroy();
+    }
+  }, 60000);
+
+  async function fetchDbNdjson(qs: string): Promise<Record<string, unknown>[]> {
+    const res = await sharedAgent
+      .get(`/api/external/http-data/data-marts/${dbDataMartId}.ndjson${qs ? '?' + qs : ''}`)
+      .set(AUTH_HEADER);
+    if (res.status !== 200) {
+      console.error('fetchDbNdjson failed:', res.status, JSON.stringify(res.body, null, 2));
+      console.error('Response text:', res.text?.slice(0, 500));
+    }
+    expect(res.status).toBe(200);
+    expect(res.headers['content-type']).toContain('application/x-ndjson');
+    return res.text
+      .split('\n')
+      .filter(Boolean)
+      .map(l => JSON.parse(l));
+  }
+
+  const dbB64 = (v: unknown) => Buffer.from(JSON.stringify(v)).toString('base64url');
+
+  it('streams all real rows from Databricks without output controls', async () => {
+    const rows = await fetchDbNdjson('column=id&column=name&column=active');
+    expect(rows).toHaveLength(4);
+    const byId = Object.fromEntries(rows.map(r => [String(r.id), r]));
+    expect(byId['1'].name).toBe('alpha');
+    expect(byId['2'].name).toBe('beta');
+    expect(byId['4'].name).toBe('alphabet');
+  }, 120000);
+
+  it('applies eq filter on real Databricks data', async () => {
+    const rows = await fetchDbNdjson(
+      `column=id&column=name&filter=${dbB64([{ column: 'name', operator: 'eq', value: 'alpha' }])}`
+    );
+    expect(rows).toHaveLength(1);
+    expect(rows[0].name).toBe('alpha');
+  }, 120000);
+
+  it('applies contains + sort desc + limit on real Databricks data', async () => {
+    // Both 'alpha' (id=1) and 'alphabet' (id=4) contain 'alpha'.
+    // sort desc by id + limit 1 → id=4 ('alphabet').
+    const rows = await fetchDbNdjson(
+      `column=id&column=name` +
+        `&filter=${dbB64([{ column: 'name', operator: 'contains', value: 'alpha' }])}` +
+        `&sort=${dbB64([{ column: 'id', direction: 'desc' }])}` +
+        `&limit=1`
+    );
+    expect(rows).toHaveLength(1);
+    expect(rows[0].name).toBe('alphabet');
+  }, 120000);
+
+  it('applies a numeric between filter on real Databricks data', async () => {
+    const rows = await fetchDbNdjson(
+      `column=id&column=name` +
+        `&filter=${dbB64([{ column: 'id', operator: 'between', value: { from: 2, to: 3 } }])}` +
+        `&sort=${dbB64([{ column: 'id', direction: 'asc' }])}`
     );
     expect(rows.map(r => Number(r.id))).toEqual([2, 3]);
   }, 120000);

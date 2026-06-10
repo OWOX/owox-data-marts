@@ -16,8 +16,8 @@ describe('OutputControlsCapabilityService', () => {
   it('supports AWS_REDSHIFT', () => {
     expect(svc.isSupported(DataStorageType.AWS_REDSHIFT)).toBe(true);
   });
-  it('returns false for Databricks', () => {
-    expect(svc.isSupported(DataStorageType.DATABRICKS)).toBe(false);
+  it('supports Databricks', () => {
+    expect(svc.isSupported(DataStorageType.DATABRICKS)).toBe(true);
   });
   it('supports legacy BigQuery', () => {
     expect(svc.isSupported(DataStorageType.LEGACY_GOOGLE_BIGQUERY)).toBe(true);
