@@ -157,7 +157,7 @@ var CriteoAdsSource = class CriteoAdsSource extends AbstractSource {
    * @private
    */
   async _makeApiRequest(requestBody) {
-    const apiVersion = "2025-07";
+    const apiVersion = "2026-01";
     const apiUrl = `https://api.criteo.com/${apiVersion}/statistics/report`;
     const options = {
       method: 'post',

@@ -15,5 +15,37 @@ var CriteoAdsFieldsSchema = {
     defaultFields: ["Clicks", "Displays", "AdvertiserCost", "Campaign", "Advertiser", "Adset", "Ad", "Currency"],
     destinationName: "criteo_ads_statistics",
     isTimeSeries: true
+  },
+  placements: {
+    overview: "Criteo Placements",
+    description: "Performance metrics broken down by publisher placement.",
+    documentation: "https://developers.criteo.com/marketing-solutions/docs/placement-report",
+    fields: placementFields,
+    uniqueKeys: ["advertiserId", "adsetId", "Day", "environment", "placement"],
+    defaultFields: ["advertiserId", "adsetId", "adsetName", "environment", "placement", "clicks", "displays", "cost"],
+    destinationName: "criteo_ads_placements",
+    isTimeSeries: true,
+    injectDay: true
+  },
+  placement_categories: {
+    overview: "Criteo Placement Categories",
+    description: "Performance metrics broken down by content category and publisher domain. Web only.",
+    documentation: "https://developers.criteo.com/marketing-solutions/docs/placement-category-report",
+    fields: placementCategoryFields,
+    uniqueKeys: ["advertiserId", "Day", "category", "domain"],
+    defaultFields: ["advertiserId", "category", "domain", "displays", "clicks", "salesPc30d"],
+    destinationName: "criteo_ads_placement_categories",
+    isTimeSeries: true,
+    injectDay: true
+  },
+  transactions: {
+    overview: "Criteo Transactions",
+    description: "Transaction-level data with individual order details attributed to Criteo ads.",
+    documentation: "https://developers.criteo.com/marketing-solutions/docs/transaction-id-report",
+    fields: transactionFields,
+    uniqueKeys: ["TransactionId"],
+    defaultFields: ["TransactionId", "TransactionDate", "AdvertiserId", "AdsetName", "EventType", "Amount", "Currency"],
+    destinationName: "criteo_ads_transactions",
+    isTimeSeries: true
   }
 };
