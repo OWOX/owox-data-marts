@@ -1,5 +1,140 @@
 # owox
 
+## 0.27.0
+
+### Minor Changes
+
+- 3d80135: # OWOX Data Marts API access
+
+  Add the OWOX Data Marts API access layer for external tools and automation.
+  This includes [`owox-ctl`](../docs/api/owox-ctl.md), the OWOX Data Marts Control CLI for automation-first JSON commands against existing OWOX Data Marts deployments, and [`@owox/api-client`](../docs/api/api-client.md), a TypeScript/JavaScript API client for custom integrations.
+
+  `owox-ctl` resolves credentials from environment variables, loads `.env` or `--env-file`, reports the absolute env file path when one is loaded, defaults to OWOX Data Marts Cloud at `https://app.owox.com`, and supports:
+  - `owox-ctl status`
+  - `owox-ctl data-marts list`
+  - `owox-ctl data-marts stream`
+  - `owox-ctl storages list`
+  - `owox-ctl destinations list`
+
+- 8d83268: # Add output controls for Athena data marts
+
+  Reports and the HTTP Data API now support output controls (filters, slices, sort, and limit) on AWS Athena data marts, matching the existing BigQuery support. The web app and Google Sheets extension unlock these controls for Athena.
+
+- 4656de0: # Anonymous CLI usage telemetry
+
+  `owox serve` now sends a single anonymous event on successful startup so OWOX can understand how many people run the server and prioritize accordingly.
+
+  The data is fully anonymous — a random identifier (not derived from your machine or network), CLI/Node versions, OS platform/arch, and Docker/IDP/web flags. No hostnames, file paths, emails, environment values, or IP-derived identity are ever collected.
+
+  Telemetry is opt-out. Disable it by setting `OWOX_TELEMETRY_DISABLED=1` or the cross-tool standard `DO_NOT_TRACK=1`. It is also automatically disabled in CI. See [Self-Managed Editions → Anonymous Usage Analytics](../docs/editions/self-managed-editions.md) for details.
+
+- 2f28f1d: # Availability labels renamed to "Shared for use / reporting / maintenance"
+
+  The availability toggle labels throughout the product have been renamed from "Available for use", "Available for reporting", and "Available for maintenance" to "Shared for use", "Shared for reporting", and "Shared for maintenance". The filter option previously labelled "Not available" is now "Not shared". This change makes the language more consistent and better reflects the collaborative sharing intent behind the toggles.
+
+- 0753de2: # Faster and more reliable Google Sheets import from BigQuery views
+
+  Data marts based on a BigQuery VIEW now import into Google Sheets faster and more reliably, even for very large datasets. Previously, large views could stop responding partway through and deliver no data at all; now rows are loaded steadily and the report completes successfully.
+
+- 64fca08: # Cancel Data Mart runs from Run History
+
+  Added cancellation for in-progress connector and standard report runs from Run History. Cancellation now stops associated run triggers, marks cancelled runs in history, and asks users to confirm that stopping a run can leave data incomplete.
+
+- 4409afe: # Clearer error messages for resource access
+
+  Error messages returned by the API when access is denied or a resource is not found now use product names instead of internal class names. "Data Mart", "Data Storage", and "Data Destination" replace the former `DataMart`, `DataStorage`, and `DataDestination` identifiers, and role references now read "Technical User" and "Project Admin" instead of "editor" and "admin".
+
+- 62af9fb: # Add default limit to sheets report output config
+
+  Google Sheets reports now apply a default row limit of 10,000 rows instead of returning all rows. This helps prevent hitting Google Sheets cell limits when Data Marts return large datasets. A notification tooltip is shown when creating a new report before the first run, and the output controls icon reflects the applied limit.
+
+- 62af9fb: # Definition type appears empty after tab switching
+
+  Fixed an issue where creating a connector-based Data Mart without a configured Storage prevented saving and caused the Definition Type and all connector settings to appear empty after switching tabs.
+
+  Connector-based Data Marts can now be saved regardless of whether a Storage is configured. This ensures connector settings are preserved while users continue setting up the rest of the Data Mart.
+
+- 4f38486: # Facebook Ads reach reporting by ad set and campaign
+
+  Two new Facebook Ads endpoints report daily performance aggregated at the ad set and
+  campaign level, with reach deduplicated to match the numbers shown in Meta Ads Manager.
+  Previously, reach was only available per ad, so totals summed across ads overcounted the
+  same people; now you can pull reach that lines up with your account.
+
+- fd7d9be: # Google Sheets destination access email is now visible and copyable for both auth methods
+
+  Previously, you could only see the email address that needs document access when the
+  destination was connected via a Service Account. If you used Google OAuth, the email was
+  hidden, so you had to guess which account to share the Google Sheet with.
+
+  Now, whether you connect via Service Account or Google OAuth, the exact email address is
+  shown right in the destination form and the report form — and you can copy it in one click.
+
+- c6d9af1: # Data mart relationship graph zoom controls
+
+  Fix graph zoom controls for deep relationship graphs after fit-to-view scales the graph below the previous fixed zoom floor.
+
+- cb97897: # Add the HTTP Data API — stream a published Data Mart's rows over HTTP as NDJSON
+
+  A new `GET /api/external/http-data/data-marts/{id}.ndjson` endpoint streams the columns
+  of a published Data Mart as newline-delimited JSON for project members authenticated with
+  their ODM member token (`x-owox-authorization`). Column-set selectors use `columns=*`
+  for Data Mart output columns and `columns=**` for all report-available columns, including
+  joined fields. Repeated `column` parameters select exact column names, so `column=*` and
+  `column=**` mean literal columns named `*` and `**`. Only reporting-visible columns are
+  selectable — fields hidden from reporting and columns from excluded blend sources are
+  rejected. Callers may also pass optional base64url-encoded `filter`/`sort` and a `limit`.
+  Every pull is recorded as an `HTTP_DATA` Data Mart run (visible in run history) and counted
+  for consumption; no persisted Report or Data Destination is created.
+
+- 3aefb24: # Add output controls for Legacy Google BigQuery data marts
+
+  Add report-level output controls (filters, slices, sort, limit) for Legacy Google BigQuery data marts, reaching parity with the standard Google BigQuery storage. Reuses the BigQuery SQL renderer and adapter, so filtered/sorted/limited reports — including the generated-SQL preview and the Looker Studio cached path — now work for legacy BigQuery marts in both the web app and the Google Sheets extension.
+
+- 02d3048: # SQL preview icon shown for every report
+
+  The SQL preview icon is now visible on all reports (Google Sheets, Email, Looker Studio).
+  When a report uses output controls (filters, sorting, or limits) or joined fields, clicking
+  the icon opens the generated SQL dialog. Otherwise, the icon shows an informational tooltip
+  explaining that the report queries the Data Mart source directly, with a link to Data Setup.
+
+- a47929c: # Project-wide Data Mart activity pages
+
+  Added project-wide pages for Data Mart triggers, reports, insights, and run history.
+  The lists reuse Data Mart table controls, support project-level search and filters,
+  and preserve row-level permissions for actions.
+
+- 29c3af2: # Add output controls for Redshift data marts
+
+  Add output controls (filters, slices, sort, limit) for AWS Redshift data marts, and
+  tighten the relative-date presets across all storages: `last_n_days`/`last_n_months`
+  now stop at today (previously lower-bound only, so future-dated rows leaked in), and
+  `this_month`/`this_year` are clamped to the current period (a future date still inside
+  the current month/year continues to match).
+
+- 060e2f9: # Automatic schema evolution when adding fields to Snowflake and Redshift data marts
+
+  Previously, adding new fields to an existing Snowflake or Redshift data mart caused MERGE or INSERT failures with "invalid identifier" or "column does not exist" errors. This happened because the storage layer did not check the live table schema and skipped the ALTER TABLE step needed to add the new columns.
+
+  Now, both Snowflake and Redshift storages query the real table schema on every run and automatically add any missing columns via ALTER TABLE before writing data. Users can safely add fields to an existing data mart without any manual database intervention.
+
+- f573073: # Improve SQLite runtime stability
+
+  Improved runtime stability when using SQLite-backed deployments, with particular focus on scheduled run processing and transaction coordination during concurrent background activity.
+
+- c721847: # User provisioning and project access requests
+
+  Added project-level user provisioning settings, context-scoped defaults for newly provisioned users, and a request-access flow for users who receive a project token without assigned roles. Users without project roles now stay inside a restricted ODM app shell, can request access to the current project, or create a new project.
+
+### Patch Changes
+
+- @owox/internal-helpers@0.27.0
+- @owox/idp-protocol@0.27.0
+- @owox/idp-better-auth@0.27.0
+- @owox/idp-owox-better-auth@0.27.0
+- @owox/backend@0.27.0
+- @owox/web@0.27.0
+
 ## 0.26.0
 
 ### Minor Changes 0.26.0
@@ -9,7 +144,6 @@
 - 10c540e: **New OWOX Extension for Google Sheets — public release 🎉**
 
   The next-generation [OWOX Extension for Google Sheets](https://workspace.google.com/marketplace/app/owox_data_marts/94902851409?utm_source=changelog) is now published on the Google Workspace Marketplace, replacing the legacy add-on. It brings Data Marts directly into Google Sheets with a redesigned UX and reaches parity with the previous Extension on the workflows users relied on.
-
   - **Column picker with field-level descriptions** — pick which Data Mart fields to pull into the sheet without SQL, with the alias and description from the Data Mart's Output Schema shown next to each field.
   - **All Scheduled Reports page** — a single place to see every report scheduled from the Extension, across spreadsheets and projects, subject to the user's permissions.
   - **Filters and slices on report output** — apply pre-join slices and post-join filters to shape what a report returns without editing the Data Mart.
@@ -36,7 +170,6 @@
 - c520e17: **Stricter OAuth credential checks when creating Destinations**
 
   Creating a Google Sheets destination with a pre-existing `credentialId` now enforces two checks already present on destination updates:
-
   - **Project ownership** — the credential must belong to the same project. Cross-project references are rejected with `403 Forbidden — Credential does not belong to this project`.
   - **Copy permission** — if the credential is already linked to another destination, the caller must have copy-credentials access on that destination. Without it, the request is rejected with `403 Forbidden — You do not have permission to copy credentials from this destination`.
 
@@ -1693,7 +1826,6 @@
   We're excited to introduce **Time Triggers** - a powerful new feature that allows you to schedule your reports and connectors to run automatically at specified times!
 
   ## Benefits
-
   - ✅ **Save Time**: Automate routine data refreshes without manual intervention
   - 🔄 **Stay Updated**: Keep your data fresh with regular scheduled updates
   - 📊 **Consistent Reporting**: Ensure your reports are generated on a reliable schedule
@@ -1701,7 +1833,6 @@
   - 🔧 **Flexible Scheduling Options**: Choose from daily, weekly, monthly, or interval-based schedules
 
   ## Scheduling Options
-
   - **Daily**: Run your reports or connectors at the same time every day
   - **Weekly**: Select specific days of the week for execution
   - **Monthly**: Schedule runs on specific days of the month

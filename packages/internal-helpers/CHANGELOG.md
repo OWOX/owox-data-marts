@@ -1,5 +1,7 @@
 # @owox/internal-helpers
 
+## 0.27.0
+
 ## 0.26.0
 
 ## 0.25.0
