@@ -18,7 +18,7 @@ import { TableDefinition } from 'src/data-marts/dto/schemas/data-mart-table-defi
 //       Spark also coerces (so the cast is defensive-only).
 //
 // Required env (all DATABRICKS_-prefixed):
-//   DATABRICKS_HOST      — workspace host, e.g. https://dbc-xxxx.cloud.databricks.com
+//   DATABRICKS_HOST      — workspace host, HOSTNAME ONLY (no https://), e.g. dbc-xxxx.cloud.databricks.com
 //   DATABRICKS_HTTP_PATH — SQL warehouse HTTP path, e.g. /sql/1.0/warehouses/abc123
 //   DATABRICKS_TOKEN     — personal access token
 //   DATABRICKS_CATALOG   — catalog for the seed table (e.g. main)

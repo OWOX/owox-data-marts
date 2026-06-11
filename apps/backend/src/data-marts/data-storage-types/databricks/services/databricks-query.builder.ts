@@ -79,7 +79,7 @@ export class DatabricksQueryBuilder implements DataMartQueryBuilder {
     if (isSqlDefinition(definition)) {
       if (queryOptions?.columns?.length) {
         const cleanQuery = definition.sqlQuery.trim().replace(/;\s*$/, '');
-        return `SELECT ${selectList} FROM (${cleanQuery})`;
+        return `SELECT ${selectList} FROM (${cleanQuery}) AS subq`;
       }
       return definition.sqlQuery.trim();
     }
@@ -108,7 +108,9 @@ export class DatabricksQueryBuilder implements DataMartQueryBuilder {
         return options.mainTableReference;
       }
       const cleanQuery = definition.sqlQuery.trim().replace(/;\s*$/, '');
-      return `(${cleanQuery})`;
+      // Alias the derived table (mirrors the Redshift sibling). Spark tolerates an
+      // unaliased subquery, but `AS subq` keeps the dialect builders uniform.
+      return `(${cleanQuery}) AS subq`;
     }
     if (isTablePatternDefinition(definition)) {
       throw new Error('Table pattern definitions are not supported for Databricks');

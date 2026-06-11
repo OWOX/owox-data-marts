@@ -15,8 +15,20 @@ describe('DatabricksQueryBuilder', () => {
   });
 
   it('wraps a SQL definition with limit (legacy schema-probe path), trailing semicolon stripped', () => {
-    expect(build().buildQuery(sqlDef, { limit: 0 })).toBe('SELECT * FROM (SELECT 1)\nLIMIT 0');
-    expect(build().buildQuery(sqlDef, { limit: 10 })).toBe('SELECT * FROM (SELECT 1)\nLIMIT 10');
+    expect(build().buildQuery(sqlDef, { limit: 0 })).toBe(
+      'SELECT * FROM (SELECT 1) AS subq\nLIMIT 0'
+    );
+    expect(build().buildQuery(sqlDef, { limit: 10 })).toBe(
+      'SELECT * FROM (SELECT 1) AS subq\nLIMIT 10'
+    );
+  });
+
+  it('wraps the raw SQL as an aliased subquery when no mainTableReference is supplied (SQL def + filters)', () => {
+    const sql = build().buildQuery(sqlDef, {
+      filters: [{ column: 'a', operator: 'eq', value: 1 }],
+    });
+    expect(sql).toContain('FROM (SELECT 1) AS subq');
+    expect(sql).toContain('WHERE `a` = 1');
   });
 
   it('applies filters, sort and limit via the clause renderer', () => {

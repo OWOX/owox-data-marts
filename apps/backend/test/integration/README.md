@@ -51,8 +51,8 @@ ATHENA_OUTPUT_BUCKET=my-athena-results-bucket
 ATHENA_DATABASE=my_test_database
 
 # === Databricks ===
-# Workspace host (with https://) of the SQL warehouse
-DATABRICKS_HOST=https://dbc-xxxxxxxx.cloud.databricks.com
+# Workspace host — HOSTNAME ONLY, no https:// (passed straight to DBSQLClient.connect({ host }))
+DATABRICKS_HOST=dbc-xxxxxxxx.cloud.databricks.com
 # SQL warehouse HTTP path (Warehouse → Connection details → HTTP path)
 DATABRICKS_HTTP_PATH=/sql/1.0/warehouses/abcdef1234567890
 # Personal access token (User Settings → Developer → Access tokens)

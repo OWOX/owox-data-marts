@@ -176,7 +176,7 @@ describe('Output controls — Databricks SQL emission (e2e)', () => {
     );
     await dataSource.query(`UPDATE data_storage SET config = ?, credentialId = ? WHERE id = ?`, [
       JSON.stringify({
-        host: 'https://test.cloud.databricks.com',
+        host: 'test.cloud.databricks.com',
         httpPath: '/sql/1.0/warehouses/test',
       }),
       credentialId,
