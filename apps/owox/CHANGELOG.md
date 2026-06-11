@@ -1,5 +1,17 @@
 # owox
 
+## 0.27.1
+
+### Patch Changes 0.27.1
+
+- c782374: # Fix release build broken by duplicate google-auth-library
+
+  A transitive dependency drift left two copies of `google-auth-library` (v10) in the
+  tree — one hoisted at the root and a second pinned exactly by `googleapis-common` —
+  which produced incompatible `OAuth2Client` types and broke the TypeScript build of the
+  Google Sheets and BigQuery integrations. A scoped npm override now makes
+  `googleapis-common` reuse the root copy, so the packages build and publish reliably again.
+
 ## 0.27.0
 
 ### Minor Changes 0.27.0
@@ -20,7 +32,6 @@
 - cb97897: **HTTP Data API — stream Data Mart rows over HTTP**
 
   A new `GET /api/external/http-data/data-marts/{id}.ndjson` endpoint streams a published Data Mart's rows as newline-delimited JSON for project members authenticated with their ODM member token (`x-owox-authorization`).
-
   - `columns=*` returns Data Mart output columns; `columns=**` includes joined fields. Repeated `column=<name>` parameters select exact columns.
   - Optional base64url-encoded `filter`/`sort` and a `limit` are supported.
   - Only reporting-visible columns are selectable — hidden fields and excluded blend sources are rejected.
