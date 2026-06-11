@@ -71,7 +71,10 @@ export const GoogleBigQueryFields = ({ form }: GoogleBigQueryFieldsProps) => {
   const handleOAuthStatusChange = (isConnected: boolean, credentialId?: string) => {
     if (isConnected && credentialId) {
       setAuthMethod('oauth');
-      form.setValue('credentials.credentialId', credentialId, { shouldDirty: false });
+      form.setValue('credentials.credentialId', credentialId, {
+        shouldDirty: false,
+        shouldValidate: true,
+      });
       form.setValue('credentials.serviceAccount', '');
     }
   };
@@ -206,23 +209,30 @@ export const GoogleBigQueryFields = ({ form }: GoogleBigQueryFieldsProps) => {
             )}
 
             {isOAuthAvailable && authMethod === 'oauth' && storageId && (
-              <FormItem>
-                <div className='mb-4 flex items-center justify-between'>
-                  <FormLabel tooltip='Authorize Owox to access your BigQuery datasets'>
-                    Connect with Google OAuth
-                  </FormLabel>
-                </div>
-                <GoogleOAuthConnectButton
-                  resourceType='storage'
-                  resourceId={storageId}
-                  redirectUri={oauthRedirectUri}
-                  onSuccess={handleOAuthSuccess}
-                  onStatusChange={handleOAuthStatusChange}
-                />
-                <FormDescription>
-                  <GoogleBigQueryOAuthDescription />
-                </FormDescription>
-              </FormItem>
+              <FormField
+                control={form.control}
+                name='credentials.credentialId'
+                render={() => (
+                  <FormItem>
+                    <div className='mb-4 flex items-center justify-between'>
+                      <FormLabel tooltip='Authorize Owox to access your BigQuery datasets'>
+                        Connect with Google OAuth
+                      </FormLabel>
+                    </div>
+                    <GoogleOAuthConnectButton
+                      resourceType='storage'
+                      resourceId={storageId}
+                      redirectUri={oauthRedirectUri}
+                      onSuccess={handleOAuthSuccess}
+                      onStatusChange={handleOAuthStatusChange}
+                    />
+                    <FormDescription>
+                      <GoogleBigQueryOAuthDescription />
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
             )}
 
             {authMethod === 'service-account' && (
