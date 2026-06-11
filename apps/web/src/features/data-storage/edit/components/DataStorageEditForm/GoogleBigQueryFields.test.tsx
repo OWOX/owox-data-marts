@@ -4,7 +4,11 @@ import { useForm } from 'react-hook-form';
 import { describe, expect, it, vi } from 'vitest';
 
 import { Form } from '@owox/ui/components/form';
-import { DataStorageType, googleBigQuerySchema, type GoogleBigQueryFormData } from '../../../shared';
+import {
+  DataStorageType,
+  googleBigQuerySchema,
+  type GoogleBigQueryFormData,
+} from '../../../shared';
 import { CopyCredentialContext } from '../../model/context/copy-credential-context';
 import { GoogleBigQueryFields } from './GoogleBigQueryFields';
 
