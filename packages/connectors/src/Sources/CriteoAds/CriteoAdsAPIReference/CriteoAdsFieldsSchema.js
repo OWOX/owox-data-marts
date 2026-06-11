@@ -19,9 +19,9 @@ var CriteoAdsFieldsSchema = {
   placements: {
     overview: "Criteo Placements",
     description: "Performance metrics broken down by publisher placement.",
-    documentation: "https://developers.criteo.com/marketing-solutions/docs/placement-report",
+    documentation: "https://developers.criteo.com/marketing-solutions/docs/placement",
     fields: placementFields,
-    uniqueKeys: ["advertiserId", "adsetId", "Day", "environment", "placement"],
+    uniqueKeys: ["advertiserId", "adsetId", "day", "environment", "placement"],
     defaultFields: ["advertiserId", "adsetId", "adsetName", "environment", "placement", "clicks", "displays", "cost"],
     destinationName: "criteo_ads_placements",
     isTimeSeries: true,
@@ -30,9 +30,9 @@ var CriteoAdsFieldsSchema = {
   placement_categories: {
     overview: "Criteo Placement Categories",
     description: "Performance metrics broken down by content category and publisher domain. Web only.",
-    documentation: "https://developers.criteo.com/marketing-solutions/docs/placement-category-report",
+    documentation: "https://developers.criteo.com/marketing-solutions/docs/placement-category",
     fields: placementCategoryFields,
-    uniqueKeys: ["advertiserId", "Day", "category", "domain"],
+    uniqueKeys: ["advertiserId", "day", "category", "domain"],
     defaultFields: ["advertiserId", "category", "domain", "displays", "clicks", "salesPc30d"],
     destinationName: "criteo_ads_placement_categories",
     isTimeSeries: true,
@@ -43,8 +43,8 @@ var CriteoAdsFieldsSchema = {
     description: "Transaction-level data with individual order details attributed to Criteo ads.",
     documentation: "https://developers.criteo.com/marketing-solutions/docs/transaction-id-report",
     fields: transactionFields,
-    uniqueKeys: ["TransactionId"],
-    defaultFields: ["TransactionId", "TransactionDate", "AdvertiserId", "AdsetName", "EventType", "Amount", "Currency"],
+    uniqueKeys: ["transactionId"],
+    defaultFields: ["transactionId", "transactionDate", "advertiserId", "adsetName", "eventType", "amount", "currency"],
     destinationName: "criteo_ads_transactions",
     isTimeSeries: true
   }

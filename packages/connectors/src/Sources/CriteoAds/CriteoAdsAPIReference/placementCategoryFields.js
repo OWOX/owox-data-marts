@@ -21,10 +21,9 @@ var placementCategoryFields = {
     'type': DATA_TYPES.STRING,
     'fieldType': 'dimension'
   },
-  'Day': {
+  'day': {
     'description': 'The day of the placement category data (YYYY-MM-DD format).',
-    'type': DATA_TYPES.DATE,
-    'fieldType': 'dimension'
+    'type': DATA_TYPES.DATE
   },
   'displays': {
     'description': 'The number of ad impressions served in this category.',

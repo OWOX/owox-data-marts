@@ -5,49 +5,53 @@
  * file that was distributed with this source code.
  */
 
+// Note: the transactions report has a fixed schema and returns camelCase keys
+// (unlike statistics/placements, which echo back the PascalCase dimension names
+// requested). The keys below must match the response keys exactly so that
+// _filterBySchema keeps them.
 var transactionFields = {
-  'TransactionId': {
+  'transactionId': {
     'description': 'The unique identifier for the transaction.',
     'type': DATA_TYPES.STRING
   },
-  'TransactionDate': {
-    'description': 'The date and time when the transaction occurred.',
+  'transactionDate': {
+    'description': 'The date and time when the transaction occurred (MM/DD/YYYY HH:MM:SS).',
     'type': DATA_TYPES.STRING
   },
-  'AdvertiserId': {
+  'advertiserId': {
     'description': 'The unique identifier for the advertiser.',
     'type': DATA_TYPES.STRING
   },
-  'AdvertiserName': {
+  'advertiserName': {
     'description': 'The name of the advertiser.',
     'type': DATA_TYPES.STRING
   },
-  'AdsetName': {
+  'adsetName': {
     'description': 'The name of the adset that drove the transaction.',
     'type': DATA_TYPES.STRING
   },
-  'EventType': {
+  'eventType': {
     'description': 'The type of event that triggered the attribution (click or display).',
     'type': DATA_TYPES.STRING
   },
-  'EventDate': {
-    'description': 'The date and time of the click or view event that drove the transaction.',
+  'eventDate': {
+    'description': 'The date and time of the click or view event that drove the transaction (MM/DD/YYYY HH:MM:SS).',
     'type': DATA_TYPES.STRING
   },
-  'AttributedTransaction': {
-    'description': 'Whether the transaction was attributed to a Criteo ad.',
-    'type': DATA_TYPES.BOOLEAN
+  'attributedTransaction': {
+    'description': 'Whether the transaction was attributed to a Criteo ad (returned as "True" / "False").',
+    'type': DATA_TYPES.STRING
   },
-  'Currency': {
+  'currency': {
     'description': 'The currency of the transaction amount.',
     'type': DATA_TYPES.STRING
   },
-  'Amount': {
+  'amount': {
     'description': 'The transaction amount (order value).',
     'type': DATA_TYPES.NUMBER
   },
-  'CrossDeviceTransaction': {
-    'description': 'Whether the transaction occurred on a different device from the one where the ad was viewed.',
-    'type': DATA_TYPES.BOOLEAN
+  'crossDeviceTransaction': {
+    'description': 'Whether the transaction occurred on a different device from the one where the ad was viewed (returned as "Yes" / "No").',
+    'type': DATA_TYPES.STRING
   }
 };

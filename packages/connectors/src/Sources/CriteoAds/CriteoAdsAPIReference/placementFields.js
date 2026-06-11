@@ -22,7 +22,7 @@ var placementFields = {
     'fieldType': 'dimension'
   },
   'environment': {
-    'description': 'The environment where the ad was served (e.g., web, app).',
+    'description': 'The environment where the ad was served (Web, Android, iOS).',
     'type': DATA_TYPES.STRING,
     'fieldType': 'dimension'
   },
@@ -31,10 +31,9 @@ var placementFields = {
     'type': DATA_TYPES.STRING,
     'fieldType': 'dimension'
   },
-  'Day': {
+  'day': {
     'description': 'The day of the placement data (YYYY-MM-DD format).',
-    'type': DATA_TYPES.DATE,
-    'fieldType': 'dimension'
+    'type': DATA_TYPES.DATE
   },
   'clicks': {
     'description': 'The number of clicks on this placement.',
