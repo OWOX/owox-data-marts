@@ -53,7 +53,6 @@ import { STREAM_BATCH_SIZE } from 'src/data-marts/services/http-data/http-data.c
  *     SNOWFLAKE_PASSWORD   - Login password
  *     SNOWFLAKE_DATABASE   - Database containing the test schema
  *     SNOWFLAKE_SCHEMA     - Schema in which the test table is created
- *     SNOWFLAKE_ROLE       - (optional) Role to activate
  */
 
 // ---------------------------------------------------------------------------
@@ -130,7 +129,6 @@ const SNOWFLAKE_USERNAME = process.env.SNOWFLAKE_USERNAME;
 const SNOWFLAKE_PASSWORD = process.env.SNOWFLAKE_PASSWORD;
 const SNOWFLAKE_DATABASE = process.env.SNOWFLAKE_DATABASE;
 const SNOWFLAKE_SCHEMA = process.env.SNOWFLAKE_SCHEMA;
-const SNOWFLAKE_ROLE = process.env.SNOWFLAKE_ROLE;
 
 const SNOWFLAKE_CREDENTIALS_AVAILABLE = !!(
   SNOWFLAKE_ACCOUNT &&
@@ -847,7 +845,6 @@ describeIfSnowflakeCredentials('HTTP Data API real-data (live Snowflake)', () =>
       {
         account: SNOWFLAKE_ACCOUNT!,
         warehouse: SNOWFLAKE_WAREHOUSE!,
-        ...(SNOWFLAKE_ROLE ? { role: SNOWFLAKE_ROLE } : {}),
       }
     );
 
@@ -900,7 +897,6 @@ describeIfSnowflakeCredentials('HTTP Data API real-data (live Snowflake)', () =>
         config: {
           account: SNOWFLAKE_ACCOUNT!,
           warehouse: SNOWFLAKE_WAREHOUSE!,
-          ...(SNOWFLAKE_ROLE ? { role: SNOWFLAKE_ROLE } : {}),
         },
         credentials: {
           authMethod: SnowflakeAuthMethod.PASSWORD,

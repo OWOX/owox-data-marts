@@ -168,15 +168,27 @@ describe('SnowflakeBlendedQueryBuilder — output controls', () => {
     const { sql, params } = builder.buildBlendedQuery(
       ctx({ filters: [{ column: 'a', operator: 'eq', value: 1 }] })
     );
-    expect(sql).toContain('WHERE main."a" = 1');
+    expect(sql).toContain('WHERE "main"."a" = 1');
     expect(params).toEqual([]);
+  });
+
+  it('quotes the main CTE alias consistently in its definition AND references', () => {
+    // Snowflake folds a bare `main` to MAIN, which cannot resolve the lowercase-quoted
+    // "main" CTE. The definition (always quoted) and every reference (FROM / qualifier)
+    // must use the same "main" form, or blended OC reports fail at runtime.
+    const { sql } = builder.buildBlendedQuery(
+      ctx({ filters: [{ column: 'a', operator: 'eq', value: 1 }] })
+    );
+    expect(sql).toContain('"main" AS (');
+    expect(sql).toContain('FROM "main"');
+    expect(sql).not.toContain('FROM main');
   });
 
   it('uses CONTAINS for string contains operator (no ? / @p placeholders)', () => {
     const { sql, params } = builder.buildBlendedQuery(
       ctx({ filters: [{ column: 'status', operator: 'contains', value: 'active' }] })
     );
-    expect(sql).toContain('CONTAINS(main."status", \'active\')');
+    expect(sql).toContain('CONTAINS("main"."status", \'active\')');
     expect(sql).not.toMatch(/[?]|@p\d/);
     expect(params).toEqual([]);
   });
@@ -185,7 +197,7 @@ describe('SnowflakeBlendedQueryBuilder — output controls', () => {
     const { sql } = builder.buildBlendedQuery(
       ctx({ sort: [{ column: 'a', direction: 'desc' }], limit: 10 })
     );
-    expect(sql).toContain('ORDER BY main."a" DESC');
+    expect(sql).toContain('ORDER BY "main"."a" DESC');
     expect(sql).toContain('LIMIT 10');
   });
 
@@ -199,7 +211,7 @@ describe('SnowflakeBlendedQueryBuilder — output controls', () => {
         ],
       })
     );
-    expect(sql).toContain('WHERE main."a" = \'x\' AND main."a" <> \'y\'');
+    expect(sql).toContain('WHERE "main"."a" = \'x\' AND "main"."a" <> \'y\'');
     expect(params).toEqual([]);
   });
 
@@ -238,7 +250,7 @@ describe('SnowflakeBlendedQueryBuilder — output controls', () => {
     expect(predicatePos).toBeGreaterThan(rawCteStart);
     expect(predicatePos).toBeLessThan(outerSelectPos);
     // The outer WHERE must not reference the pre-join column
-    expect(sql).not.toContain('main."role"');
+    expect(sql).not.toContain('"main"."role"');
     // Snowflake uses inlined literals — no bound params
     expect(params).toEqual([]);
   });

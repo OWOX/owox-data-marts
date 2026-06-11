@@ -6,7 +6,8 @@ import { createIdentifierEscaper } from '../../utils/identifier-escaper.utils';
 // Column references (filter/sort columns) are user-controlled (`FilterRule.column` is
 // only `z.string().min(1)`), so they MUST go through the robust shared escaper that
 // quotes every dotted part and doubles inner quotes — NOT `escapeSnowflakeIdentifier`,
-// whose FQN-oriented fallback returns 4+-part identifiers unescaped (a WHERE-injection).
+// which is FQN-oriented (database.schema.table) and throws on 4+-part input, so it would
+// reject legitimate dotted/struct column refs the shared escaper quotes per part.
 const escapeColumnIdentifier = createIdentifierEscaper({ quoteChar: '"' });
 
 /**
@@ -32,8 +33,8 @@ function formatSnowflakeLiteral(value: string | number | boolean | null): string
  * Snowflake renderer (option B). Inlines every value as a literal — fragments always
  * return params: []. Substring/affix matchers use CONTAINS/STARTSWITH/ENDSWITH (never
  * LIKE) so user %/_ stay literal; regex uses REGEXP_INSTR>0 (partial match). Date/time
- * value comparisons get a
- * defensive CAST to the column type (the live integration may relax this).
+ * value comparisons get a defensive CAST to the column type — kept explicit even though the
+ * live integration confirmed Snowflake also coerces a bare literal (explicit > implicit).
  */
 @Injectable()
 export class SnowflakeClauseRenderer extends SqlClauseRenderer {

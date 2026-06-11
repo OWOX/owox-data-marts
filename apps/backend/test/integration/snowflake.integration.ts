@@ -27,7 +27,6 @@ import { DataMartQueryOptions } from 'src/data-marts/data-storage-types/interfac
  *   SNOWFLAKE_PASSWORD   — Login password
  *   SNOWFLAKE_DATABASE   — Database containing the test schema
  *   SNOWFLAKE_SCHEMA     — Schema in which the test table is created
- *   SNOWFLAKE_ROLE       — (optional) Role to activate
  */
 
 const SNOWFLAKE_ACCOUNT = process.env.SNOWFLAKE_ACCOUNT;
@@ -36,7 +35,6 @@ const SNOWFLAKE_USERNAME = process.env.SNOWFLAKE_USERNAME;
 const SNOWFLAKE_PASSWORD = process.env.SNOWFLAKE_PASSWORD;
 const SNOWFLAKE_DATABASE = process.env.SNOWFLAKE_DATABASE;
 const SNOWFLAKE_SCHEMA = process.env.SNOWFLAKE_SCHEMA;
-const SNOWFLAKE_ROLE = process.env.SNOWFLAKE_ROLE;
 
 const SNOWFLAKE_CREDENTIALS_AVAILABLE = !!(
   SNOWFLAKE_ACCOUNT &&
@@ -114,7 +112,6 @@ describeIfSnowflakeCredentials(
       const config: SnowflakeConfig = {
         account: SNOWFLAKE_ACCOUNT!,
         warehouse: SNOWFLAKE_WAREHOUSE!,
-        ...(SNOWFLAKE_ROLE ? { role: SNOWFLAKE_ROLE } : {}),
       };
       adapter = new SnowflakeApiAdapter(credentials, config);
 
@@ -220,13 +217,13 @@ describeIfSnowflakeCredentials(
     }, 30000);
 
     // -------------------------------------------------------------------------
-    // §0 PROBE 2 — CAST necessity
+    // §0 PROBE 2 — CAST necessity (DECISION: keep the CAST, it is defensive-only)
     // -------------------------------------------------------------------------
-    // Does Snowflake accept a bare string literal in a TIMESTAMP_NTZ comparison
-    // without a CAST? The renderer currently emits CAST(...), but if bare literals
-    // work the defensive CAST could be dropped.
+    // Snowflake accepts BOTH the renderer's CAST(...) form AND a bare string literal in a
+    // TIMESTAMP_NTZ comparison (it coerces). The defensive CAST is therefore kept for
+    // explicitness, not necessity. This is now asserted, not just logged.
 
-    it('§0 PROBE 2 — CAST necessity: bare-literal date comparison on TIMESTAMP_NTZ', async () => {
+    it('§0 PROBE 2 — CAST is defensive-only: both CAST and bare-literal date comparisons work', async () => {
       // First — run what the renderer already emits (with CAST). This must work.
       const withCastRows = await runFilter({
         filters: [{ column: 'ts_col', operator: 'gte', value: '2020-01-01' }],
@@ -254,8 +251,11 @@ describeIfSnowflakeCredentials(
           (bareResult === 'works' ? ` (${bareCount} rows)` : '')
       );
       console.log(`[CAST NECESSITY] bare-literal date comparison: ${bareResult}`);
-      // Regardless of bare result, the renderer's CAST form must return rows.
+      // The renderer's CAST form must return rows...
       expect(withCastRows.length).toBeGreaterThan(0);
+      // ...and the bare-literal form must ALSO work, proving Snowflake coerces and the
+      // defensive CAST is explicit-not-required (the finalized §0 decision).
+      expect(bareResult).toBe('works');
     }, 30000);
 
     // -------------------------------------------------------------------------
