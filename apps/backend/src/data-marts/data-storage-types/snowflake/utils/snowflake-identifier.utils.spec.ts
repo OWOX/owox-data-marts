@@ -50,6 +50,29 @@ describe('snowflake-identifier.utils', () => {
         'database."my-schema"."my_table"'
       );
     });
+
+    it('should quote a database name that is not a valid unquoted identifier', () => {
+      expect(escapeSnowflakeIdentifier('my-db.schema.table')).toBe('"my-db"."schema"."table"');
+      expect(escapeSnowflakeIdentifier('"my-db".schema.table')).toBe('"my-db"."schema"."table"');
+    });
+
+    it('should never pass embedded double quotes through raw', () => {
+      // unpaired quote is dropped by part splitting; the output stays fully quoted
+      expect(escapeSnowflakeIdentifier('col"name')).toBe('"col"."name"');
+      // paired quotes inside a part are escaped by doubling
+      expect(escapeSnowflakeIdentifier('"col" name')).toBe('"""col"" name"');
+    });
+
+    it('should fail closed on inputs with more than three parts', () => {
+      expect(escapeSnowflakeIdentifier('a.b.c.d')).toBe('"a"."b"."c"."d"');
+    });
+
+    it('should neutralize SQL breakout attempts instead of returning them raw', () => {
+      expect(escapeSnowflakeIdentifier('a.b.c.d FROM sensitive_table --')).toBe(
+        '"a"."b"."c"."d FROM sensitive_table --"'
+      );
+      expect(escapeSnowflakeIdentifier('"x" FROM y --"')).toBe('"""x"" FROM y --"');
+    });
   });
 
   describe('escapeSnowflakeSchema', () => {
@@ -67,6 +90,10 @@ describe('snowflake-identifier.utils', () => {
 
     it('should handle case-sensitive schema names', () => {
       expect(escapeSnowflakeSchema('database', '"MySchema"')).toBe('database."MySchema"');
+    });
+
+    it('should quote a database name that is not a valid unquoted identifier', () => {
+      expect(escapeSnowflakeSchema('my-db', 'schema')).toBe('"my-db"."schema"');
     });
   });
 });

@@ -29,9 +29,15 @@ describe('IdentifierEscaperFacade', () => {
     [DataStorageType.AWS_ATHENA, '"test-project"."TestDataset"."dashed-table-name"'],
     [DataStorageType.AWS_REDSHIFT, '"test-project"."TestDataset"."dashed-table-name"'],
     [DataStorageType.DATABRICKS, '`test-project`.`TestDataset`.`dashed-table-name`'],
-    [DataStorageType.SNOWFLAKE, 'test-project."TestDataset"."dashed-table-name"'],
+    [DataStorageType.SNOWFLAKE, '"test-project"."TestDataset"."dashed-table-name"'],
   ])('escapes a dashed fully qualified name for %s', async (type, expected) => {
     await expect(facade.escapeIdentifier(type, fqn)).resolves.toBe(expected);
+  });
+
+  it('keeps a valid unquoted Snowflake database part unquoted', async () => {
+    await expect(
+      facade.escapeIdentifier(DataStorageType.SNOWFLAKE, 'test_db.TestDataset.dashed-table-name')
+    ).resolves.toBe('test_db."TestDataset"."dashed-table-name"');
   });
 
   it('does not double-quote already escaped parts', async () => {
