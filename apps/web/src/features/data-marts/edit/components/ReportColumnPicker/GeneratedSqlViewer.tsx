@@ -16,9 +16,10 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@owox/ui/components/too
 import { Skeleton } from '@owox/ui/components/skeleton';
 import { reportService } from '../../../reports/shared/services/report.service';
 import { useProjectRoute } from '../../../../../shared/hooks';
+import { DropdownMenuItem } from '@owox/ui/components/dropdown-menu';
 import SqlValidator from '../SqlValidator/SqlValidator';
 
-type GeneratedSqlViewerVariant = 'action-icon' | 'outline-button';
+type GeneratedSqlViewerVariant = 'action-icon' | 'outline-button' | 'dropdown-item';
 
 interface GeneratedSqlViewerProps {
   reportId: string;
@@ -133,6 +134,19 @@ export function GeneratedSqlViewer({
             Preview SQL
           </TooltipContent>
         </Tooltip>
+      ) : variant === 'dropdown-item' ? (
+        <DialogTrigger asChild>
+          <DropdownMenuItem
+            className='cursor-pointer'
+            aria-label={ariaLabel}
+            onSelect={e => {
+              e.preventDefault();
+            }}
+          >
+            <FileCode2 className='mr-2 h-4 w-4 text-muted-foreground' aria-hidden='true' />
+            Preview SQL
+          </DropdownMenuItem>
+        </DialogTrigger>
       ) : (
         <DialogTrigger asChild>
           <Button type='button' variant='outline' size='sm'>

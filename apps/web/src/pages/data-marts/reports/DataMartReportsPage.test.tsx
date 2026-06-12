@@ -394,11 +394,6 @@ describe('DataMartReportsPage', () => {
         'a[href="https://docs.google.com/spreadsheets/d/spreadsheet-1/edit#gid=123"]'
       )
     ).toBeInTheDocument();
-    expect(
-      screen.getByRole('button', {
-        name: 'Preview SQL: Blended Sheet Report',
-      })
-    ).toBeInTheDocument();
 
     fireEvent.pointerDown(
       screen.getByRole('button', {
@@ -412,6 +407,12 @@ describe('DataMartReportsPage', () => {
 
     expect(await screen.findByText('Edit report')).toBeInTheDocument();
     expect(screen.getByText('Delete report')).toBeInTheDocument();
+    expect(
+      screen.getByRole('menuitem', {
+        name: 'Preview SQL: Blended Sheet Report',
+      })
+    ).toBeInTheDocument();
+
   });
 
   it('renders notification report row actions like the Data Mart reports tab', async () => {

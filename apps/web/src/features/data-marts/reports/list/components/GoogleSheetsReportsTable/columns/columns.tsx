@@ -4,6 +4,7 @@ import { SortableHeader, ToggleColumnsHeader } from '../../../../../../../shared
 import { StatusIcon } from '../../StatusIcon';
 import { GoogleSheetsActionsCell } from '../GoogleSheetsActionsCell';
 import type { DataMartReport } from '../../../../shared/model/types/data-mart-report';
+import { ReportQuickRunCell } from '../../../../shared';
 import { ReportColumnKey } from './columnKeys';
 import { ReportColumnLabels } from './columnLabels';
 import { UserReference } from '../../../../../../../shared/components/UserReference';
@@ -18,6 +19,14 @@ export const getGoogleSheetsColumns = ({
   onDeleteSuccess,
   onEditReport,
 }: GoogleSheetsTableColumnsProps = {}): ColumnDef<DataMartReport>[] => [
+  {
+    id: 'quickRun',
+    size: 50,
+    enableResizing: false,
+    enableSorting: false,
+    header: () => null,
+    cell: ({ row }) => <ReportQuickRunCell report={row.original} />,
+  },
   {
     accessorKey: ReportColumnKey.TITLE,
     size: 320,
@@ -109,7 +118,7 @@ export const getGoogleSheetsColumns = ({
   },
   {
     id: 'actions',
-    size: 140,
+    size: 90,
     enableResizing: false,
     header: ({ table }) => <ToggleColumnsHeader table={table} />,
     cell: ({ row }) => (

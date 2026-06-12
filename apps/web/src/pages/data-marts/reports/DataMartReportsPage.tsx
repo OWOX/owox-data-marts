@@ -16,6 +16,7 @@ import { ReportEditSheetRenderer } from '../../../features/data-marts/reports/li
 import { useReportSidesheet } from '../../../features/data-marts/reports/list/model/hooks';
 import { mapReportDtoToEntity } from '../../../features/data-marts/reports/shared/model/mappers';
 import { ReportsProvider } from '../../../features/data-marts/reports/shared/model/context';
+import { ReportQuickRunCell } from '../../../features/data-marts/reports/shared';
 import type { DataMartReport } from '../../../features/data-marts/reports/shared/model/types/data-mart-report';
 import { ReportStatusEnum } from '../../../features/data-marts/reports/shared/enums';
 import { reportService } from '../../../features/data-marts/reports/shared/services';
@@ -274,6 +275,19 @@ export default function DataMartReportsPage() {
   const columns = useMemo<ColumnDef<DataMartReport>[]>(
     () => [
       {
+        id: 'quickRun',
+        size: 50,
+        enableResizing: false,
+        enableSorting: false,
+        header: () => null,
+        cell: ({ row }) => (
+          <ReportQuickRunCell
+            report={row.original}
+            onRunSuccess={handleReportActionComplete}
+          />
+        ),
+      },
+      {
         id: 'dataMart',
         accessorFn: row => row.dataMart.title,
         size: 260,
@@ -376,7 +390,7 @@ export default function DataMartReportsPage() {
       },
       {
         id: 'actions',
-        size: 140,
+        size: 90,
         enableResizing: false,
         enableSorting: false,
         header: ({ table }) => <ToggleColumnsHeader table={table} />,
