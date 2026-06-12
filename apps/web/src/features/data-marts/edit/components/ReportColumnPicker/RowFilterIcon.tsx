@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Filter } from 'lucide-react';
 import { cn } from '@owox/ui/lib/utils';
+import { ActiveRulesPopover } from './ActiveRulesPopover';
 import { FilterEditorPopover } from './FilterEditorPopover';
 import { FilterOrSliceEditorPopover } from './FilterOrSliceEditorPopover';
 import type { FilterRule } from '../../../shared/types/output-config';
@@ -12,8 +13,7 @@ interface SliceIconProps {
   existingSlices: readonly FilterRule[];
   /**
    * Add a pre-join FilterRule (placement+aliasPath already set by the popover).
-   * Omit for remove-only mode (the slice tab is hidden and existing slices
-   * can only be cleared).
+   * Omit when adding slices is not allowed.
    */
   onAddSlice?: (rule: FilterRule) => void;
   onRemoveSliceAt: (globalIndex: number) => void;
@@ -80,9 +80,7 @@ export function RowFilterIcon({
   };
   const replaceSliceAt = sliceIconProps?.onReplaceSliceAt;
   const addSlice = sliceIconProps?.onAddSlice;
-  // Surface the slice tab whenever we can either add a slice or clear an
-  // existing one — otherwise the remove path inside an inaccessible group
-  // disappears together with the add path.
+  const canEdit = !!onAdd || !!onReplaceAt || !!addSlice || !!replaceSliceAt;
   const sliceTabAvailable =
     !!sliceIconProps && (!!addSlice || sliceIconProps.existingSlices.length > 0);
   const handleSliceApply = sliceTabAvailable
@@ -113,6 +111,32 @@ export function RowFilterIcon({
       )}
     </button>
   );
+
+  // Nothing editable (disconnected / no-access rows) — stale references can only be cleared.
+  if (!canEdit) {
+    return (
+      <ActiveRulesPopover
+        open={open}
+        onOpenChange={setOpen}
+        trigger={trigger}
+        column={column}
+        fieldType={fieldType}
+        aliasPath={sliceIconProps?.aliasPath}
+        sliceColumn={sliceIconProps?.originalFieldName}
+        filters={{ rules: activeRules, onRemoveAt }}
+        slices={
+          sliceIconProps
+            ? {
+                rules: sliceIconProps.existingSlices,
+                onRemoveAt: localIdx => {
+                  sliceIconProps.onRemoveSliceAt(sliceIconProps.existingSliceIndices[localIdx]);
+                },
+              }
+            : undefined
+        }
+      />
+    );
+  }
 
   if (sliceIconProps && handleSliceApply) {
     return (

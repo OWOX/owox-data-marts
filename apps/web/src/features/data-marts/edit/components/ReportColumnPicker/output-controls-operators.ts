@@ -104,6 +104,29 @@ const BOOLEAN_OPERATORS: OperatorMeta[] = [
   { value: 'is_not_null', label: 'is not null', shortLabel: '¬∅' },
 ];
 
+const FALLBACK_OPERATOR_LABELS: Record<FilterOperator, string> = {
+  eq: 'is',
+  neq: 'is not',
+  contains: 'contains',
+  not_contains: "doesn't contain",
+  starts_with: 'starts with',
+  ends_with: 'ends with',
+  is_empty: 'is empty',
+  is_not_empty: 'is not empty',
+  is_null: 'is null',
+  is_not_null: 'is not null',
+  regex: 'matches regex',
+  not_regex: "doesn't match regex",
+  gt: 'greater than',
+  lt: 'less than',
+  gte: 'greater than or equal',
+  lte: 'less than or equal',
+  between: 'between',
+  is_true: 'is true',
+  is_false: 'is false',
+  relative_date: 'relative',
+};
+
 // Same comparison operators as dates minus relative_date (calendar-only presets).
 // "at"-framed labels read naturally for a time of day, which has no calendar date
 // to be "on" / "on or after".
@@ -150,5 +173,5 @@ export function isTimeType(fieldType: string): boolean {
 
 export function operatorLabelFor(operator: FilterOperator, fieldType: string): string {
   const meta = operatorsForType(fieldType).find(o => o.value === operator);
-  return meta?.label ?? operator;
+  return meta?.label ?? FALLBACK_OPERATOR_LABELS[operator];
 }

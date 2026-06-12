@@ -20,11 +20,17 @@ import { DataStorageType } from '../data-storage-types/enums/data-storage-type.e
 import { StorageFieldType } from '../dto/domain/storage-field-type';
 import { computeEffectiveType } from '../data-storage-types/field-aggregation';
 import { BlendingDecision } from '../dto/domain/blending-decision.dto';
+import { DataMart } from '../entities/data-mart.entity';
 import { DataMartRelationship } from '../entities/data-mart-relationship.entity';
+import {
+  collectSchemaFieldPaths,
+  collectSchemaFieldPathTypes,
+} from '../data-storage-types/data-mart-schema.utils';
 import { PublicOriginService } from '../../common/config/public-origin.service';
 import { BusinessViolationException } from '../../common/exceptions/business-violation.exception';
 import { buildDataMartUrl } from '../../common/helpers/data-mart-url.helper';
 import { UserProjectionsFetcherService } from './user-projections-fetcher.service';
+import { throwDisconnectedReportColumnsError } from '../errors/disconnected-report-columns.error';
 
 @Injectable()
 export class BlendedReportDataService {
@@ -107,6 +113,8 @@ export class BlendedReportDataService {
     );
 
     const blendedFieldsByName = new Map(blendableSchema.blendedFields.map(f => [f.name, f]));
+    this.assertNoOrphanedColumnReferences(dataMart, columnConfig, blendedFieldsByName);
+
     const referencedColumns = new Set<string>([
       ...columnConfig,
       ...postJoinFilterColumns,
@@ -194,7 +202,9 @@ export class BlendedReportDataService {
   // blended output aliases; pre-join slices target subsidiary raw columns by aliasPath.
   private buildBlendedColumnTypes(blendableSchema: BlendableSchemaDto): BlendedColumnTypes {
     const postJoin = new Map<string, string>();
-    for (const nf of blendableSchema.nativeFields) postJoin.set(nf.name, String(nf.type));
+    for (const nf of collectSchemaFieldPathTypes(blendableSchema.nativeFields)) {
+      postJoin.set(nf.name, nf.type);
+    }
     for (const bf of blendableSchema.blendedFields) postJoin.set(bf.name, bf.type);
 
     const preJoin = new Map<string, Map<string, string>>();
@@ -345,6 +355,32 @@ export class BlendedReportDataService {
     this.assertNoChainCollisions(chains);
 
     return chains;
+  }
+
+  // Blended column refs are flat `<aliasPath>__<field>` strings; an alias rename or
+  // relationship removal orphans them, and unmatched names would otherwise be projected
+  // as native main columns — producing a cryptic storage error instead of this one.
+  // Hidden fields are equally unavailable: schema-hidden ones are excluded from
+  // reporting by definition, and blend-hidden ones are dropped from the final SELECT
+  // while their data headers are still emitted — selecting either must fail here.
+  private assertNoOrphanedColumnReferences(
+    dataMart: DataMart,
+    columnConfig: string[],
+    blendedFieldsByName: ReadonlyMap<string, BlendedFieldDto>
+  ): void {
+    const schemaFields = dataMart.schema?.fields ?? [];
+    if (schemaFields.length === 0) return;
+
+    const nativeNames = new Set(collectSchemaFieldPaths(schemaFields));
+
+    const unknownColumns = columnConfig.filter(col => {
+      if (nativeNames.has(col)) return false;
+      const blendedField = blendedFieldsByName.get(col);
+      return !blendedField || blendedField.isHidden;
+    });
+    if (unknownColumns.length === 0) return;
+
+    throwDisconnectedReportColumnsError(dataMart.id, unknownColumns);
   }
 
   private async assertAllRequestedSourcesAccessible(

@@ -92,7 +92,7 @@ export function OutputSettingsDropdown({
     });
   };
 
-  const hasJoinedSources = (joinedSources ?? []).length > 0;
+  const hasSlicesSection = (joinedSources ?? []).length > 0 || preJoinIndexed.length > 0;
 
   return (
     <div className='space-y-4 p-3'>
@@ -103,7 +103,7 @@ export function OutputSettingsDropdown({
         onUpdateAt={onUpdateAt}
         onRemoveAt={onRemoveAt}
       />
-      {hasJoinedSources && (
+      {hasSlicesSection && (
         <SlicesSection
           indexedRules={preJoinIndexed}
           joinedSources={joinedSources ?? []}
@@ -395,6 +395,7 @@ interface SortSectionProps {
 
 function SortSection({ sort, selectedColumns, onChange }: SortSectionProps) {
   const sortColumns = new Set(sort.map(s => s.column));
+  const selectedColumnSet = new Set(selectedColumns);
   const available = selectedColumns.filter(c => !sortColumns.has(c));
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
@@ -455,6 +456,7 @@ function SortSection({ sort, selectedColumns, onChange }: SortSectionProps) {
             <SortRow
               rule={rule}
               index={index}
+              isOrphaned={!selectedColumnSet.has(rule.column)}
               onChange={next => {
                 const updated = [...sort];
                 updated[index] = next;

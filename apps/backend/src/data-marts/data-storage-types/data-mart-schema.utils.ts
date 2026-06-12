@@ -1,10 +1,37 @@
 import { z } from 'zod';
 import { DataStorageCredentials } from './data-storage-credentials.type';
+import type { DataMartSchemaField } from './data-mart-schema.type';
 import { DataMartSchemaFieldStatus } from './enums/data-mart-schema-field-status.enum';
 import { DataStorageType } from './enums/data-storage-type.enum';
 import { Injectable } from '@nestjs/common';
 import { DataStoragePublicCredentialsFactory } from './factories/data-storage-public-credentials.factory';
 import { DataStorageCredentialsPublic } from '../dto/presentation/data-storage-response-api.dto';
+
+// A hidden-for-reporting or DISCONNECTED node prunes its whole subtree; container
+// nodes count as referenceable paths alongside their nested `a.b` leaves.
+export function collectSchemaFieldPaths(
+  fields: readonly DataMartSchemaField[],
+  prefix = ''
+): string[] {
+  return collectSchemaFieldPathTypes(fields, prefix).map(field => field.name);
+}
+
+export function collectSchemaFieldPathTypes(
+  fields: readonly DataMartSchemaField[],
+  prefix = ''
+): { name: string; type: string }[] {
+  const result: { name: string; type: string }[] = [];
+  for (const field of fields) {
+    if (field.isHiddenForReporting) continue;
+    if (field.status === DataMartSchemaFieldStatus.DISCONNECTED) continue;
+    const fullName = prefix ? `${prefix}.${field.name}` : field.name;
+    result.push({ name: fullName, type: String(field.type) });
+    if ('fields' in field && field.fields?.length) {
+      result.push(...collectSchemaFieldPathTypes(field.fields, fullName));
+    }
+  }
+  return result;
+}
 
 export function createBaseFieldSchemaForType<T extends z.ZodTypeAny>(schemaFieldType: T) {
   const typedSchema = z
