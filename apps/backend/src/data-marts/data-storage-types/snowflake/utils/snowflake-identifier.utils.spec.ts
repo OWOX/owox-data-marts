@@ -50,6 +50,10 @@ describe('snowflake-identifier.utils', () => {
         'database."my-schema"."my_table"'
       );
     });
+
+    it('throws on identifiers with too many parts (fail closed, no raw passthrough)', () => {
+      expect(() => escapeSnowflakeIdentifier('a.b.c.d')).toThrow(/too many parts/i);
+    });
   });
 
   describe('escapeSnowflakeSchema', () => {

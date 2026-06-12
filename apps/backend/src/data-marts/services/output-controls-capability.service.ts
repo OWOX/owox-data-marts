@@ -9,6 +9,7 @@ export class OutputControlsCapabilityService {
     DataStorageType.LEGACY_GOOGLE_BIGQUERY,
     DataStorageType.AWS_ATHENA,
     DataStorageType.AWS_REDSHIFT,
+    DataStorageType.SNOWFLAKE,
   ]);
 
   isSupported(type: DataStorageType): boolean {

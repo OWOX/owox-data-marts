@@ -15,6 +15,8 @@ import { RedshiftApiAdapter } from 'src/data-marts/data-storage-types/redshift/a
 import { RedshiftCredentials } from 'src/data-marts/data-storage-types/redshift/schemas/redshift-credentials.schema';
 import { RedshiftConfig } from 'src/data-marts/data-storage-types/redshift/schemas/redshift-config.schema';
 import { RedshiftConnectionType } from 'src/data-marts/data-storage-types/redshift/enums/redshift-connection-type.enum';
+import { SnowflakeApiAdapter } from 'src/data-marts/data-storage-types/snowflake/adapters/snowflake-api.adapter';
+import { SnowflakeAuthMethod } from 'src/data-marts/data-storage-types/snowflake/enums/snowflake-auth-method.enum';
 import { STREAM_BATCH_SIZE } from 'src/data-marts/services/http-data/http-data.constants';
 
 /**
@@ -44,6 +46,13 @@ import { STREAM_BATCH_SIZE } from 'src/data-marts/services/http-data/http-data.c
  *     REDSHIFT_REGION         - AWS region (e.g., eu-west-1)
  *     REDSHIFT_DATABASE       - database name inside the workgroup (e.g., dev)
  *     REDSHIFT_WORKGROUP_NAME - Serverless workgroup name
+ *   Snowflake:
+ *     SNOWFLAKE_ACCOUNT    - Snowflake account identifier
+ *     SNOWFLAKE_WAREHOUSE  - Warehouse to use
+ *     SNOWFLAKE_USERNAME   - Login username
+ *     SNOWFLAKE_PASSWORD   - Login password
+ *     SNOWFLAKE_DATABASE   - Database containing the test schema
+ *     SNOWFLAKE_SCHEMA     - Schema in which the test table is created
  */
 
 // ---------------------------------------------------------------------------
@@ -112,6 +121,40 @@ if (!RS_CREDENTIALS_AVAILABLE) {
 const describeIfRsCredentials = RS_CREDENTIALS_AVAILABLE ? describe : describe.skip;
 
 // ---------------------------------------------------------------------------
+// Snowflake env vars / credential gate
+// ---------------------------------------------------------------------------
+const SNOWFLAKE_ACCOUNT = process.env.SNOWFLAKE_ACCOUNT;
+const SNOWFLAKE_WAREHOUSE = process.env.SNOWFLAKE_WAREHOUSE;
+const SNOWFLAKE_USERNAME = process.env.SNOWFLAKE_USERNAME;
+const SNOWFLAKE_PASSWORD = process.env.SNOWFLAKE_PASSWORD;
+const SNOWFLAKE_DATABASE = process.env.SNOWFLAKE_DATABASE;
+const SNOWFLAKE_SCHEMA = process.env.SNOWFLAKE_SCHEMA;
+
+const SNOWFLAKE_CREDENTIALS_AVAILABLE = !!(
+  SNOWFLAKE_ACCOUNT &&
+  SNOWFLAKE_WAREHOUSE &&
+  SNOWFLAKE_USERNAME &&
+  SNOWFLAKE_PASSWORD &&
+  SNOWFLAKE_DATABASE &&
+  SNOWFLAKE_SCHEMA
+);
+
+if (!SNOWFLAKE_CREDENTIALS_AVAILABLE) {
+  const sfMissing: string[] = [];
+  if (!SNOWFLAKE_ACCOUNT) sfMissing.push('SNOWFLAKE_ACCOUNT');
+  if (!SNOWFLAKE_WAREHOUSE) sfMissing.push('SNOWFLAKE_WAREHOUSE');
+  if (!SNOWFLAKE_USERNAME) sfMissing.push('SNOWFLAKE_USERNAME');
+  if (!SNOWFLAKE_PASSWORD) sfMissing.push('SNOWFLAKE_PASSWORD');
+  if (!SNOWFLAKE_DATABASE) sfMissing.push('SNOWFLAKE_DATABASE');
+  if (!SNOWFLAKE_SCHEMA) sfMissing.push('SNOWFLAKE_SCHEMA');
+  console.log(
+    `Skipping HTTP Data real Snowflake integration tests: missing env vars: ${sfMissing.join(', ')}`
+  );
+}
+
+const describeIfSnowflakeCredentials = SNOWFLAKE_CREDENTIALS_AVAILABLE ? describe : describe.skip;
+
+// ---------------------------------------------------------------------------
 // Shared NestJS app — ONE instance for the entire file.
 // Both describe blocks share the same SQLite :memory: app to avoid the
 // TypeORM / typeorm-transactional DataSource singleton conflict that arises
@@ -122,7 +165,10 @@ let sharedAgent: supertest.Agent;
 
 // Create the shared app if at least one credential set is present.
 const NEED_APP =
-  ATHENA_CREDENTIALS_AVAILABLE || BQ_CREDENTIALS_AVAILABLE || RS_CREDENTIALS_AVAILABLE;
+  ATHENA_CREDENTIALS_AVAILABLE ||
+  BQ_CREDENTIALS_AVAILABLE ||
+  RS_CREDENTIALS_AVAILABLE ||
+  SNOWFLAKE_CREDENTIALS_AVAILABLE;
 
 if (NEED_APP) {
   beforeAll(async () => {
@@ -767,6 +813,216 @@ describeIfRsCredentials('HTTP Data API real-data (live Redshift)', () => {
       `column=id&column=name` +
         `&filter=${rsB64([{ column: 'id', operator: 'between', value: { from: 2, to: 3 } }])}` +
         `&sort=${rsB64([{ column: 'id', direction: 'asc' }])}`
+    );
+    expect(rows.map(r => Number(r.id))).toEqual([2, 3]);
+  }, 120000);
+});
+
+// =============================================================================
+// SNOWFLAKE BLOCK — full-stack HTTP Data API against a live Snowflake account
+// (TABLE-def mart, stream + output controls). Mirrors the Redshift block.
+// =============================================================================
+
+describeIfSnowflakeCredentials('HTTP Data API real-data (live Snowflake)', () => {
+  let sfDataMartId: string;
+
+  let sfAdapter: SnowflakeApiAdapter;
+  let sfFullyQualifiedName: string;
+
+  const SF_TEST_TABLE_SUFFIX = `http_data_real_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+
+  // -------------------------------------------------------------------------
+  // beforeAll: seed real Snowflake table + build credentialed storage + mart
+  // via HTTP API (uses sharedAgent — no second createTestApp() call)
+  // -------------------------------------------------------------------------
+  beforeAll(async () => {
+    sfAdapter = new SnowflakeApiAdapter(
+      {
+        authMethod: SnowflakeAuthMethod.PASSWORD,
+        username: SNOWFLAKE_USERNAME!,
+        password: SNOWFLAKE_PASSWORD!,
+      },
+      {
+        account: SNOWFLAKE_ACCOUNT!,
+        warehouse: SNOWFLAKE_WAREHOUSE!,
+      }
+    );
+
+    // FQN uses QUOTED lowercase table suffix so "id"/"name" etc. match.
+    sfFullyQualifiedName = `${SNOWFLAKE_DATABASE}.${SNOWFLAKE_SCHEMA}."${SF_TEST_TABLE_SUFFIX}"`;
+
+    // Establish the connection BEFORE the pre-cleanup try/catch (Snowflake SDK
+    // transitions to StateDisconnected on any connect failure, which cannot be
+    // retried — failing here loudly is correct).
+    await sfAdapter.checkAccess();
+
+    // --- Step 1: Pre-cleanup in case a previous run crashed ---
+    try {
+      await sfAdapter.executeQuery(`DROP TABLE IF EXISTS ${sfFullyQualifiedName}`);
+    } catch {
+      // ignore — table may not exist on first run
+    }
+
+    // --- Step 2: Seed a real (permanent) Snowflake table ---
+    // QUOTED lowercase column names: Snowflake folds unquoted identifiers to UPPERCASE;
+    // the clause renderer emits `"id"` (lowercase), so column names must be lowercase-quoted.
+    await sfAdapter.executeQuery(
+      `CREATE TABLE ${sfFullyQualifiedName} ` +
+        `("id" INTEGER, "name" VARCHAR(100), "active" BOOLEAN, "created_at" TIMESTAMP_NTZ)`
+    );
+    await sfAdapter.executeQuery(
+      `INSERT INTO ${sfFullyQualifiedName} ("id", "name", "active", "created_at") VALUES ` +
+        `(1, 'alpha',    TRUE,  TIMESTAMP_NTZ '2024-01-01 00:00:00'), ` +
+        `(2, 'beta',     FALSE, TIMESTAMP_NTZ '2024-02-01 00:00:00'), ` +
+        `(3, 'gamma',    TRUE,  TIMESTAMP_NTZ '2024-03-01 00:00:00'), ` +
+        `(4, 'alphabet', TRUE,  TIMESTAMP_NTZ '2024-04-01 00:00:00')`
+    );
+
+    // --- Step 3: Create credentialed Snowflake storage via HTTP API ---
+    const storageCreateRes = await sharedAgent
+      .post('/api/data-storages')
+      .set(AUTH_HEADER)
+      .send({ type: 'SNOWFLAKE' });
+    if (storageCreateRes.status !== 201) {
+      console.error('SF storage create failed:', JSON.stringify(storageCreateRes.body, null, 2));
+    }
+    expect(storageCreateRes.status).toBe(201);
+    const sfStorageId: string = storageCreateRes.body.id;
+
+    const storageUpdateRes = await sharedAgent
+      .put(`/api/data-storages/${sfStorageId}`)
+      .set(AUTH_HEADER)
+      .send({
+        title: 'sf-real',
+        config: {
+          account: SNOWFLAKE_ACCOUNT!,
+          warehouse: SNOWFLAKE_WAREHOUSE!,
+        },
+        credentials: {
+          authMethod: SnowflakeAuthMethod.PASSWORD,
+          username: SNOWFLAKE_USERNAME!,
+          password: SNOWFLAKE_PASSWORD!,
+        },
+      });
+    if (storageUpdateRes.status !== 200) {
+      console.error('SF storage update failed:', JSON.stringify(storageUpdateRes.body, null, 2));
+    }
+    expect(storageUpdateRes.status).toBe(200);
+
+    // --- Step 4: Create data mart ---
+    const dataMartCreateRes = await sharedAgent
+      .post('/api/data-marts')
+      .set(AUTH_HEADER)
+      .send({ title: 'real-sf-test-mart', storageId: sfStorageId });
+    if (dataMartCreateRes.status !== 201) {
+      console.error('SF data mart create failed:', JSON.stringify(dataMartCreateRes.body, null, 2));
+    }
+    expect(dataMartCreateRes.status).toBe(201);
+    sfDataMartId = dataMartCreateRes.body.id;
+
+    // --- Step 5: Set TABLE definition (pointing at the real seeded table) ---
+    const defRes = await sharedAgent
+      .put(`/api/data-marts/${sfDataMartId}/definition`)
+      .set(AUTH_HEADER)
+      .send({
+        definitionType: 'TABLE',
+        definition: { fullyQualifiedName: sfFullyQualifiedName },
+      });
+    if (defRes.status !== 200) {
+      console.error('SF definition set failed:', JSON.stringify(defRes.body, null, 2));
+    }
+    expect(defRes.status).toBe(200);
+
+    // --- Step 6: Publish (reads real schema from Snowflake) ---
+    const publishRes = await sharedAgent
+      .put(`/api/data-marts/${sfDataMartId}/publish`)
+      .set(AUTH_HEADER);
+    if (publishRes.status !== 200) {
+      console.error('SF publish failed:', JSON.stringify(publishRes.body, null, 2));
+    }
+    expect(publishRes.status).toBe(200);
+  }, 180000);
+
+  // -------------------------------------------------------------------------
+  // afterAll: drop Snowflake table + destroy adapter
+  // -------------------------------------------------------------------------
+  afterAll(async () => {
+    try {
+      await sfAdapter.executeQuery(`DROP TABLE IF EXISTS ${sfFullyQualifiedName}`);
+    } catch (error) {
+      console.warn('Failed to drop Snowflake test table during teardown:', error);
+    }
+    try {
+      await sfAdapter.destroy();
+    } catch (error) {
+      console.warn('Failed to destroy Snowflake adapter during teardown:', error);
+    }
+  }, 60000);
+
+  // -------------------------------------------------------------------------
+  // Helpers scoped to Snowflake block
+  // -------------------------------------------------------------------------
+  async function fetchSfNdjson(qs: string): Promise<Record<string, unknown>[]> {
+    const res = await sharedAgent
+      .get(`/api/external/http-data/data-marts/${sfDataMartId}.ndjson${qs ? '?' + qs : ''}`)
+      .set(AUTH_HEADER);
+    if (res.status !== 200) {
+      console.error('fetchSfNdjson failed:', res.status, JSON.stringify(res.body, null, 2));
+      console.error('Response text:', res.text?.slice(0, 500));
+    }
+    expect(res.status).toBe(200);
+    expect(res.headers['content-type']).toContain('application/x-ndjson');
+    return res.text
+      .split('\n')
+      .filter(Boolean)
+      .map(l => JSON.parse(l));
+  }
+
+  const sfB64 = (v: unknown) => Buffer.from(JSON.stringify(v)).toString('base64url');
+
+  // -------------------------------------------------------------------------
+  // Test A — WITHOUT output controls (streams all real rows)
+  // -------------------------------------------------------------------------
+  it('streams all real rows from Snowflake without output controls', async () => {
+    const rows = await fetchSfNdjson('column=id&column=name&column=active');
+    expect(rows).toHaveLength(4);
+
+    // Coerce id to string for safe lookup (Snowflake may return numbers).
+    const byId = Object.fromEntries(rows.map(r => [String(r.id), r]));
+    expect(byId['1'].name).toBe('alpha');
+    expect(byId['2'].name).toBe('beta');
+    expect(byId['4'].name).toBe('alphabet');
+  }, 120000);
+
+  // -------------------------------------------------------------------------
+  // Test B — WITH output controls (filter/sort/limit on real Snowflake data)
+  // -------------------------------------------------------------------------
+  it('applies eq filter on real Snowflake data', async () => {
+    const rows = await fetchSfNdjson(
+      `column=id&column=name&filter=${sfB64([{ column: 'name', operator: 'eq', value: 'alpha' }])}`
+    );
+    expect(rows).toHaveLength(1);
+    expect(rows[0].name).toBe('alpha');
+  }, 120000);
+
+  it('applies contains + sort desc + limit on real Snowflake data', async () => {
+    // Both 'alpha' (id=1) and 'alphabet' (id=4) contain 'alpha'.
+    // sort desc by id + limit 1 → id=4 ('alphabet').
+    const rows = await fetchSfNdjson(
+      `column=id&column=name` +
+        `&filter=${sfB64([{ column: 'name', operator: 'contains', value: 'alpha' }])}` +
+        `&sort=${sfB64([{ column: 'id', direction: 'desc' }])}` +
+        `&limit=1`
+    );
+    expect(rows).toHaveLength(1);
+    expect(rows[0].name).toBe('alphabet');
+  }, 120000);
+
+  it('applies a numeric between filter on real Snowflake data', async () => {
+    const rows = await fetchSfNdjson(
+      `column=id&column=name` +
+        `&filter=${sfB64([{ column: 'id', operator: 'between', value: { from: 2, to: 3 } }])}` +
+        `&sort=${sfB64([{ column: 'id', direction: 'asc' }])}`
     );
     expect(rows.map(r => Number(r.id))).toEqual([2, 3]);
   }, 120000);

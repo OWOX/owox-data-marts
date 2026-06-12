@@ -1,3 +1,5 @@
+import { BusinessViolationException } from '../../../../common/exceptions/business-violation.exception';
+
 /**
  * Helper function to quote a single identifier part if not already quoted
  * @param part - The identifier part to quote
@@ -48,8 +50,13 @@ export function escapeSnowflakeIdentifier(identifier: string): string {
     return `${database}.${quoteIdentifierPart(parts[1])}.${quoteIdentifierPart(parts[2])}`;
   }
 
-  // Fallback for unexpected format
-  return identifier;
+  // 4+ parts is never a valid Snowflake identifier (max is database.schema.table).
+  // `fullyQualifiedName` is user-typed, so surface a 400 (BusinessViolation) rather than a
+  // bare Error/500. Returning it raw would emit unescaped user input into SQL — fail closed.
+  throw new BusinessViolationException(
+    `Invalid Snowflake identifier (too many parts): "${identifier}"`,
+    { identifier }
+  );
 }
 
 /**
