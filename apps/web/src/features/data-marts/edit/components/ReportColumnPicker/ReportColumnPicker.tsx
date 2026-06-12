@@ -871,9 +871,12 @@ export function ReportColumnPicker({
                   />
                 </TooltipTrigger>
                 <TooltipContent side='top' className='max-w-xs'>
-                  These columns are disconnected from the current data mart schema or joined data
-                  marts setup. Uncheck them or remove their filters, or restore the previous schema
-                  or joined data marts setup to reconnect them.
+                  <div className='space-y-1'>
+                    <p>
+                      They are missing from the current Data Mart output schema. Uncheck them to
+                      remove them from the report, or contact your analyst to restore the schema.
+                    </p>
+                  </div>
                 </TooltipContent>
               </Tooltip>
             </div>

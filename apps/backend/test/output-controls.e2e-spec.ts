@@ -29,7 +29,10 @@ describe('Output controls API (e2e)', () => {
 
   function expectDisconnectedColumns(res: supertest.Response, unknownColumns: string[]): void {
     expect(res.status).toBe(400);
-    expect(res.body.message).toContain('report references columns that are disconnected');
+    expect(res.body.message).toContain('Disconnected columns:');
+    expect(res.body.message).toContain(
+      'They are missing from the current Data Mart output schema.'
+    );
     expect(res.body.errorDetails).toEqual({ unknownColumns, dataMartId });
   }
 

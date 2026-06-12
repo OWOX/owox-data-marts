@@ -8,9 +8,9 @@ export function throwDisconnectedReportColumnsError(
   const list = uniqueUnknownColumns.map(column => `"${column}"`).join(', ');
 
   throw new BusinessViolationException(
-    `Cannot build report SQL, report references columns that are disconnected from the current ` +
-      `data mart schema or joined data marts setup: ${list}. ` +
-      `Update the report column selection, or restore the previous schema or joined data marts setup to reconnect them.`,
+    `Cannot build report SQL. Disconnected columns: ${list}. ` +
+      `They are missing from the current Data Mart output schema. ` +
+      `Uncheck them to remove them from the report, or contact your analyst to restore the schema.`,
     { unknownColumns: uniqueUnknownColumns, dataMartId }
   );
 }

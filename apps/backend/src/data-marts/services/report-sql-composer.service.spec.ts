@@ -583,7 +583,7 @@ describe('ReportSqlComposerService', () => {
       // validator running inside resolveBlendingDecision raises the same structured
       // 400 used for disconnected selected columns.
       const schemaDriftError = new BusinessViolationException(
-        'Cannot build report SQL, report references columns that are disconnected from the current data mart schema or joined data marts setup: "old_column".',
+        'Cannot build report SQL. Disconnected columns: "old_column". They are missing from the current Data Mart output schema. Uncheck them to remove them from the report, or contact your analyst to restore the schema.',
         { unknownColumns: ['old_column'], dataMartId: 'dm-athena' }
       );
       const service = makeAthenaComposerWithValidationError(schemaDriftError);
@@ -646,7 +646,7 @@ describe('ReportSqlComposerService', () => {
 
     it('queryBuilderFacade is never called when schema-drift validation fails', async () => {
       const schemaDriftError = new BusinessViolationException(
-        'Cannot build report SQL, report references columns that are disconnected from the current data mart schema or joined data marts setup: "stale".',
+        'Cannot build report SQL. Disconnected columns: "stale". They are missing from the current Data Mart output schema. Uncheck them to remove them from the report, or contact your analyst to restore the schema.',
         { unknownColumns: ['stale'], dataMartId: 'dm-athena' }
       );
       const blendedReportDataService = {

@@ -16,9 +16,8 @@ describe('OutputControlsValidatorService', () => {
   ) => {
     expect(caught).toBeInstanceOf(BusinessViolationException);
     const error = caught as BusinessViolationException;
-    expect(error.message).toContain(
-      'Cannot build report SQL, report references columns that are disconnected'
-    );
+    expect(error.message).toContain('Cannot build report SQL. Disconnected columns:');
+    expect(error.message).toContain('They are missing from the current Data Mart output schema.');
     for (const column of unknownColumns) {
       expect(error.message).toContain(`"${column}"`);
     }
