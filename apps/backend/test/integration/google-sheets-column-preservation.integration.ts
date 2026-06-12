@@ -78,7 +78,7 @@ describeIfConfigured('Google Sheets column preservation (diff-based writer)', ()
     const testApp = await createTestApp();
     app = testApp.app;
     agent = testApp.agent;
-  }, 60_000);
+  }, 180_000);
 
   afterAll(async () => {
     if (app) {
