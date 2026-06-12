@@ -131,6 +131,46 @@ describe('OutputControlsValidatorService', () => {
       expect(errors).toEqual([]);
     });
 
+    it('treats Databricks INT as a number type (comparison allowed, relative_date rejected)', () => {
+      const types = new Map<string, string>([['n', 'INT']]);
+      expect(
+        svc.validateFilters(
+          [{ column: 'n', operator: 'gte', value: 1, placement: 'post-join' }],
+          types
+        )
+      ).toEqual([]);
+      const bad = svc.validateFilters(
+        [
+          {
+            column: 'n',
+            operator: 'relative_date',
+            value: { kind: 'today' },
+            placement: 'post-join',
+          },
+        ],
+        types
+      );
+      expect(bad).toHaveLength(1);
+      expect(bad[0].code).toBe('INVALID_OPERATOR_FOR_TYPE');
+    });
+
+    it('treats Databricks TIMESTAMP_NTZ as a date type (relative_date allowed)', () => {
+      const types = new Map<string, string>([['t', 'TIMESTAMP_NTZ']]);
+      expect(
+        svc.validateFilters(
+          [
+            {
+              column: 't',
+              operator: 'relative_date',
+              value: { kind: 'today' },
+              placement: 'post-join',
+            },
+          ],
+          types
+        )
+      ).toEqual([]);
+    });
+
     it('accepts gt on NUMERIC types (INTEGER/FLOAT/NUMERIC/BIGNUMERIC)', () => {
       const types = new Map<string, string>([
         ['i', BigQueryFieldType.INTEGER],

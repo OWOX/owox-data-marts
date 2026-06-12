@@ -1,5 +1,4 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { NotImplementedException } from '@nestjs/common';
 import { DataStorageType } from '../../enums/data-storage-type.enum';
 import {
   createBuildContext,
@@ -7,6 +6,7 @@ import {
   makeRelationship,
 } from '../../interfaces/__fixtures__/blended-query-builder-fixtures';
 import { DatabricksBlendedQueryBuilder } from './databricks-blended-query-builder';
+import { DatabricksClauseRenderer } from './databricks-clause-renderer';
 import { BlendedQueryContext } from '../../interfaces/blended-query-builder.interface';
 
 const buildContext = createBuildContext('`catalog`.`schema`.`customers`');
@@ -16,7 +16,7 @@ describe('DatabricksBlendedQueryBuilder', () => {
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
-      providers: [DatabricksBlendedQueryBuilder],
+      providers: [DatabricksBlendedQueryBuilder, DatabricksClauseRenderer],
     }).compile();
 
     builder = module.get(DatabricksBlendedQueryBuilder);
@@ -118,50 +118,72 @@ describe('DatabricksBlendedQueryBuilder', () => {
   });
 });
 
-describe('DatabricksBlendedQueryBuilder — output controls guard', () => {
-  const builder = new DatabricksBlendedQueryBuilder();
-  const baseContext: BlendedQueryContext = {
-    mainTableReference: '`catalog`.`schema`.`customers`',
-    mainDataMartTitle: 'M',
-    mainDataMartUrl: 'http://x',
-    chains: [],
-    columns: ['a'],
-  };
+describe('DatabricksBlendedQueryBuilder — output controls', () => {
+  let builder: DatabricksBlendedQueryBuilder;
 
-  it('throws NotImplemented when filters are non-empty', () => {
-    expect(() =>
-      builder.buildBlendedQuery({
-        ...baseContext,
-        filters: [{ column: 'a', operator: 'eq', value: 1 }],
-      })
-    ).toThrow(NotImplementedException);
+  beforeEach(async () => {
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [DatabricksBlendedQueryBuilder, DatabricksClauseRenderer],
+    }).compile();
+    builder = module.get(DatabricksBlendedQueryBuilder);
   });
 
-  it('throws NotImplemented when sort is non-empty', () => {
-    expect(() =>
-      builder.buildBlendedQuery({
-        ...baseContext,
-        sort: [{ column: 'a', direction: 'asc' }],
-      })
-    ).toThrow(NotImplementedException);
+  function ctx(over: Partial<BlendedQueryContext>): BlendedQueryContext {
+    return {
+      mainTableReference: '`catalog`.`schema`.`customers`',
+      mainDataMartTitle: 'M',
+      mainDataMartUrl: 'http://x',
+      chains: [],
+      columns: ['a'],
+      ...over,
+    };
+  }
+
+  it('applies a post-join filter as an inlined literal predicate with no bound params', () => {
+    const { sql, params } = builder.buildBlendedQuery(
+      ctx({ filters: [{ column: 'a', operator: 'eq', value: 1 }] })
+    );
+    // Spark is case-insensitive, so simple post-join columns stay bare (main.a, not main.`a`).
+    expect(sql).toContain('WHERE main.a = 1');
+    expect(params).toEqual([]);
   });
 
-  it('throws NotImplemented when limit is set', () => {
-    expect(() =>
-      builder.buildBlendedQuery({
-        ...baseContext,
-        limit: 100,
-      })
-    ).toThrow(NotImplementedException);
+  it('uses contains for the string contains operator (no ? / @p placeholders)', () => {
+    const { sql, params } = builder.buildBlendedQuery(
+      ctx({ filters: [{ column: 'status', operator: 'contains', value: 'active' }] })
+    );
+    expect(sql).toContain("contains(main.status, 'active')");
+    expect(sql).not.toMatch(/[?]|@p\d/);
+    expect(params).toEqual([]);
   });
 
-  it('throws NotImplemented on pre-join filters (slices)', () => {
-    expect(() =>
-      builder.buildBlendedQuery({
-        ...baseContext,
+  it('renders ORDER BY and LIMIT', () => {
+    const { sql } = builder.buildBlendedQuery(
+      ctx({ sort: [{ column: 'a', direction: 'desc' }], limit: 10 })
+    );
+    expect(sql).toContain('ORDER BY main.a DESC');
+    expect(sql).toContain('LIMIT 10');
+  });
+
+  it('inlines a pre-join slice filter as a literal inside the subsidiary raw CTE with no params', () => {
+    const chain = makeChain({
+      relationship: makeRelationship({
+        targetAlias: 'users',
+        joinConditions: [{ sourceFieldName: 'user_id', targetFieldName: 'user_id' }],
+      }),
+      targetTableReference: '`catalog`.`schema`.`users`',
+      parentAlias: 'main',
+      blendedFields: [
+        { targetFieldName: 'role', outputAlias: 'role', isHidden: true, aggregateFunction: 'MAX' },
+      ],
+    });
+    const { sql, params } = builder.buildBlendedQuery(
+      ctx({
+        chains: [chain],
+        columns: ['a'],
         filters: [
           {
-            column: 'userRole',
+            column: 'role',
             operator: 'eq',
             value: 'admin',
             placement: 'pre-join',
@@ -169,6 +191,16 @@ describe('DatabricksBlendedQueryBuilder — output controls guard', () => {
           },
         ],
       })
-    ).toThrow(NotImplementedException);
+    );
+    // The inlined predicate must sit inside the subsidiary raw CTE, before the outer SELECT.
+    // Spark is case-insensitive so the simple alias/column stay bare (users_raw, role).
+    const rawCteStart = sql.indexOf('users_raw AS (');
+    const predicatePos = sql.indexOf("role = 'admin'");
+    const outerSelectPos = sql.lastIndexOf('\nSELECT\n');
+    expect(rawCteStart).toBeGreaterThanOrEqual(0);
+    expect(predicatePos).toBeGreaterThan(rawCteStart);
+    expect(predicatePos).toBeLessThan(outerSelectPos);
+    expect(sql).not.toContain('main.role');
+    expect(params).toEqual([]);
   });
 });
