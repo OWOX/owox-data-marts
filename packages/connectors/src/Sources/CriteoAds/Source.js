@@ -6,6 +6,23 @@
  */
 
 const CRITEO_API_VERSION = "2026-01";
+// Source: Criteo v2026.01 Campaign Statistics docs, "Currencies" section.
+// Advisory only: membership produces a warning, not an error, because this
+// list drifts as Criteo adds currencies — the API is the authority.
+const CRITEO_SUPPORTED_CURRENCIES = new Set([
+  "EUR", "USD", "GBP", "CHF", "JPY", "BGN", "CZK", "DKK", "HUF", "LTL",
+  "PLN", "RON", "SEK", "NOK", "HRK", "RUB", "TRY", "AUD", "BRL", "CAD",
+  "CNY", "HKD", "IDR", "INR", "KRW", "MXN", "MYR", "NZD", "PHP", "SGD",
+  "THB", "ZAR", "ARS", "COP", "AED", "KZT", "SAR", "UAH", "EGP", "MAD",
+  "ILS", "BHD", "JOD", "KWD", "LBP", "OMR", "QAR", "NGN", "KES", "ALL",
+  "ETB", "BSD", "BDT", "BAM", "BWP", "MMK", "AFN", "BTN", "GEL", "GHS",
+  "GIP", "ISK", "KHR", "JMD", "LAK", "MKD", "MUR", "MNT", "NPR", "NAD",
+  "PKR", "RWF", "LKR", "SZL", "TZS", "TTD", "UGX", "ZMW", "BOB", "CRC",
+  "DOP", "GTQ", "HNL", "NIO", "PAB", "PYG", "PEN", "UYU", "VEF", "XAF",
+  "XOF", "HTG", "MGA", "DZD", "IQD", "LYD", "TND", "YER", "BND", "AOA",
+  "MZN", "AMD", "AZN", "KGS", "TJS", "UZS", "MDL", "RSD", "XPF", "MOP",
+  "VND", "TWD", "CLP"
+]);
 
 var CriteoAdsSource = class CriteoAdsSource extends AbstractSource {
 
@@ -67,7 +84,7 @@ var CriteoAdsSource = class CriteoAdsSource extends AbstractSource {
         isRequired: true,
         default: "USD",
         label: "Currency",
-        description: "ISO 4217 code (e.g. USD, EUR). Supported currencies: developers.criteo.com/marketing-solutions/docs/campaign-statistics#currencies"
+        description: "ISO 4217 code (e.g. USD, EUR). Supported currencies: https://developers.criteo.com/marketing-solutions/docs/campaign-statistics#currencies"
       },
       CreateEmptyTables: {
         requiredType: "boolean",
@@ -115,11 +132,16 @@ var CriteoAdsSource = class CriteoAdsSource extends AbstractSource {
    * (e.g. 'day' for streams with injectDay) are exempt since they are not requested.
    * @param {string} nodeName
    * @param {Array<string>} fields
-   * @throws {Error} when a required unique key is missing
+   * @throws {Error} when a field is unknown or a required unique key is missing
    * @private
    */
   _validateUniqueKeys(nodeName, fields) {
     const schema = this.fieldsSchema[nodeName];
+    const unknownFields = fields.filter(field => !Object.hasOwn(schema.fields, field));
+    if (unknownFields.length > 0) {
+      throw new Error(`Unknown fields for endpoint '${nodeName}': ${unknownFields.join(', ')}`);
+    }
+
     const uniqueKeys = schema.uniqueKeys || [];
     const injectedKeys = schema.injectDay ? ['day'] : [];
     const missingKeys = uniqueKeys.filter(key => !injectedKeys.includes(key) && !fields.includes(key));
@@ -127,6 +149,34 @@ var CriteoAdsSource = class CriteoAdsSource extends AbstractSource {
     if (missingKeys.length > 0) {
       throw new Error(`Missing required unique fields for endpoint '${nodeName}'. Missing fields: ${missingKeys.join(', ')}`);
     }
+  }
+
+  /**
+   * Normalize and validate the configured report currency before it reaches Criteo.
+   * Malformed codes fail fast; codes outside the known Criteo list only log a
+   * warning, since that list drifts and Criteo rejects unsupported codes with a
+   * clear API error anyway.
+   * @returns {string} ISO 4217 currency code
+   * @throws {Error} when Currency is not a three-letter ISO 4217 code
+   * @private
+   */
+  _getCurrency() {
+    if (this._currency) {
+      return this._currency;
+    }
+
+    const currency = String(this.config.Currency?.value || "USD").trim().toUpperCase();
+
+    if (!/^[A-Z]{3}$/.test(currency)) {
+      throw new Error(`Invalid Currency '${currency}'. Expected ISO 4217 code, e.g. USD.`);
+    }
+
+    if (!CRITEO_SUPPORTED_CURRENCIES.has(currency)) {
+      this.config.logMessage(`Currency '${currency}' is not in the known Criteo-supported list; passing it through. If the API rejects it, pick a supported code, e.g. USD, EUR, JPY.`);
+    }
+
+    this._currency = currency;
+    return currency;
   }
 
   /**
@@ -140,14 +190,12 @@ var CriteoAdsSource = class CriteoAdsSource extends AbstractSource {
    */
   async _fetchStatistics({ accountId, fields, date }) {
     this._validateUniqueKeys('statistics', fields);
-
     await this.getAccessToken();
-    
     const requestBody = this._buildStatisticsRequestBody({ accountId, fields, date });
-    const response = await this._makeApiRequest(`https://api.criteo.com/${CRITEO_API_VERSION}/statistics/report`, requestBody);
+    const apiUrl = `https://api.criteo.com/${CRITEO_API_VERSION}/statistics/report`;
+    const response = await this._makeApiRequest(apiUrl, requestBody);
     const text = await response.getContentText();
     const jsonObject = JSON.parse(text);
-
     return this.parseApiResponse({ apiResponse: jsonObject, date, fields, nodeName: 'statistics' });
   }
 
@@ -172,7 +220,10 @@ var CriteoAdsSource = class CriteoAdsSource extends AbstractSource {
   }
 
   /**
-   * Fetching placement category report data
+   * Fetching placement category report data.
+   * Uses the same /placements/report endpoint as the placements stream, with
+   * category dimensions: the dedicated categories endpoint does not exist in
+   * the 2026-01 OpenAPI spec and returns 404.
    * @param {Object} options
    * @param {string} options.accountId
    * @param {Array<string>} options.fields
@@ -183,8 +234,8 @@ var CriteoAdsSource = class CriteoAdsSource extends AbstractSource {
   async _fetchPlacementCategories({ accountId, fields, date }) {
     this._validateUniqueKeys('placement_categories', fields);
     await this.getAccessToken();
-    const requestBody = this._buildPlacementCategoriesRequestBody({ accountId, date });
-    const apiUrl = `https://api.criteo.com/${CRITEO_API_VERSION}/categories/report`;
+    const requestBody = this._buildPlacementsRequestBody({ nodeName: 'placement_categories', accountId, fields, date });
+    const apiUrl = `https://api.criteo.com/${CRITEO_API_VERSION}/placements/report`;
     const response = await this._makeApiRequest(apiUrl, requestBody);
     const text = await response.getContentText();
     const jsonObject = JSON.parse(text);
@@ -206,10 +257,10 @@ var CriteoAdsSource = class CriteoAdsSource extends AbstractSource {
     const formattedDate = DateUtils.formatDate(date);
     const requestBody = {
       data: [{
-        type: "report",
+        type: "Report",
         attributes: {
           advertiserIds: accountId.toString(),
-          currency: this.config.Currency?.value || "USD",
+          currency: this._getCurrency(),
           timezone: "UTC",
           format: "json",
           startDate: formattedDate,
@@ -235,31 +286,33 @@ var CriteoAdsSource = class CriteoAdsSource extends AbstractSource {
    */
   _buildStatisticsRequestBody({ accountId, fields, date }) {
     const fieldsSchema = this.fieldsSchema.statistics.fields;
-    
+    const formattedDate = DateUtils.formatDate(date);
+
     // Filter fields into dimensions and metrics based on fieldType
-    const dimensions = fields.filter(field => 
+    const dimensions = fields.filter(field =>
       fieldsSchema[field] && fieldsSchema[field].fieldType === 'dimension'
     );
-    const metrics = fields.filter(field => 
+    const metrics = fields.filter(field =>
       fieldsSchema[field] && fieldsSchema[field].fieldType === 'metric'
     );
-    
+
     return {
       advertiserIds: accountId.toString(),
       timezone: "UTC",
       dimensions: dimensions,
-      currency: this.config.Currency?.value || "USD",
+      currency: this._getCurrency(),
       format: "json",
-      startDate: date,
-      endDate: date,
+      startDate: formattedDate,
+      endDate: formattedDate,
       metrics: metrics
     };
   }
 
   /**
    * Build JSON:API request body for the placements/report endpoint.
+   * Used by both placements and placement_categories streams.
    * @param {Object} options
-   * @param {string} options.nodeName - 'placements'
+   * @param {string} options.nodeName - 'placements' or 'placement_categories'
    * @param {string} options.accountId
    * @param {Array<string>} options.fields
    * @param {Date} options.date
@@ -270,48 +323,26 @@ var CriteoAdsSource = class CriteoAdsSource extends AbstractSource {
     const fieldsSchema = this.fieldsSchema[nodeName].fields;
     const formattedDate = DateUtils.formatDate(date);
 
-    const dimensions = fields.filter(f => fieldsSchema[f]?.fieldType === 'dimension');
+    const dimensions = fields
+      .filter(f => fieldsSchema[f]?.fieldType === 'dimension')
+      .map(f => fieldsSchema[f].apiName || f);
     const metrics = fields.filter(f => fieldsSchema[f]?.fieldType === 'metric');
 
     return {
       data: [{
-        type: "ReportOrder",
+        type: "Report",
         attributes: {
           advertiserIds: accountId.toString(),
-          currency: this.config.Currency?.value || "USD",
+          currency: this._getCurrency(),
           timezone: "UTC",
           dimensions,
           metrics,
           format: "json",
-          disclosed: "true",
+          disclosed: true,
           startDate: formattedDate,
           endDate: formattedDate
         }
       }]
-    };
-  }
-
-  /**
-   * Build request body for the categories/report endpoint.
-   * The category report has a fixed response schema, so requested fields are only
-   * applied when filtering the response before storage.
-   * @param {Object} options
-   * @param {string} options.accountId
-   * @param {Date} options.date
-   * @returns {Object}
-   * @private
-   */
-  _buildPlacementCategoriesRequestBody({ accountId, date }) {
-    const formattedDate = DateUtils.formatDate(date);
-
-    return {
-      data: {
-        startDate: formattedDate,
-        endDate: formattedDate,
-        advertiserIds: [accountId.toString()],
-        timezone: "UTC",
-        format: "json"
-      }
     };
   }
 
@@ -334,15 +365,7 @@ var CriteoAdsSource = class CriteoAdsSource extends AbstractSource {
       body: JSON.stringify(requestBody) // TODO: body is for Node.js; refactor to centralize JSON option creation
     };
 
-    const response = await this.urlFetchWithRetry(url, options);
-    const responseCode = response.getResponseCode();
-    
-    if (responseCode === HTTP_STATUS.OK) {
-      return response;
-    } else {
-      const text = await response.getContentText();
-      throw new Error(`API Error (${responseCode}): ${text}`);
-    }
+    return await this.urlFetchWithRetry(url, options);
   }
 
   /**
@@ -372,13 +395,13 @@ var CriteoAdsSource = class CriteoAdsSource extends AbstractSource {
         .join('&'), // TODO: body is for Node.js; refactor to centralize JSON option creation
       muteHttpExceptions: true
     };
-    
+
     try {
       const response = await this.urlFetchWithRetry(tokenUrl, options);
       const text = await response.getContentText();
       const responseData = JSON.parse(text);
       const accessToken = responseData["access_token"];
-      
+
       this.config.AccessToken = {
         value: accessToken
       };
@@ -390,6 +413,10 @@ var CriteoAdsSource = class CriteoAdsSource extends AbstractSource {
 
   /**
    * Keep only requestedFields plus any schema-required keys.
+   * Response keys are matched to canonical schema field names case-insensitively,
+   * because Criteo's report responses echo field names in unpredictable casing
+   * (e.g. `AdvertiserId`, `adSetId`). This protects unique keys from being dropped
+   * — and dedup from silently breaking — when the API casing differs from the schema.
    * @param {Array<Object>} items
    * @param {string} nodeName
    * @param {Array<string>} requestedFields
@@ -399,12 +426,15 @@ var CriteoAdsSource = class CriteoAdsSource extends AbstractSource {
     const schema = this.fieldsSchema[nodeName];
     const requiredFields = new Set(schema.uniqueKeys || []);
     const keepFields = new Set([ ...requiredFields, ...requestedFields ]);
+    const keyResolver = this._buildKeyResolver(schema);
 
     return items.map(item => {
       const result = {};
       for (const key of Object.keys(item)) {
-        if (keepFields.has(key)) {
-          result[key] = item[key];
+        const canonicalKey = keyResolver[key.toLowerCase()] || key;
+        // An exact-case canonical key always wins over a differently-cased variant.
+        if (keepFields.has(canonicalKey) && (canonicalKey === key || !(canonicalKey in result))) {
+          result[canonicalKey] = item[key];
         }
       }
       return result;
@@ -412,10 +442,28 @@ var CriteoAdsSource = class CriteoAdsSource extends AbstractSource {
   }
 
   /**
+   * Build a case-insensitive map of response keys to canonical schema field names.
+   * Includes each canonical field name and any explicitly declared aliases.
+   * @param {Object} schema
+   * @returns {Object<string, string>} Map of lowercased response key to canonical field name
+   * @private
+   */
+  _buildKeyResolver(schema) {
+    const resolver = {};
+    for (const [fieldName, fieldConfig] of Object.entries(schema.fields || {})) {
+      resolver[fieldName.toLowerCase()] = fieldName;
+      for (const alias of fieldConfig.aliases || []) {
+        resolver[alias.toLowerCase()] = fieldName;
+      }
+    }
+    return resolver;
+  }
+
+  /**
    * Extract the row array from a Criteo report response, handling the known shapes:
-   *  - bare array: `[ {...}, ... ]`                         (statistics, categories)
+   *  - bare array: `[ {...}, ... ]`                         (statistics)
    *  - JSON:API envelope: `{ data: [ { attributes: { rows: [...] } } ] }`
-   *                                                          (placements)
+   *                                                          (placements, categories)
    *  - JSON:API per-row entries: `{ data: [ { attributes: { ...row } }, ... ] }`
    *                                                          (transactions: one entry per row)
    *  - legacy envelope: `{ Rows: [...] }`                    (kept for safety)

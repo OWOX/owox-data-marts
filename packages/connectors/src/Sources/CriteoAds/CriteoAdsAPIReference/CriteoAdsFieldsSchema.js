@@ -29,11 +29,11 @@ var CriteoAdsFieldsSchema = {
   },
   placement_categories: {
     overview: "Criteo Placement Categories",
-    description: "Performance metrics broken down by content category and publisher domain. Web only.",
+    description: "Performance metrics broken down by content category.",
     documentation: "https://developers.criteo.com/marketing-solutions/docs/placement-category",
     fields: placementCategoryFields,
-    uniqueKeys: ["advertiserId", "day", "category", "domain"],
-    defaultFields: ["advertiserId", "category", "domain", "displays", "clicks", "salesPc30d"],
+    uniqueKeys: ["advertiserId", "day", "categoryId"],
+    defaultFields: ["advertiserId", "categoryId", "categoryName", "displays", "clicks", "salesPc30d"],
     destinationName: "criteo_ads_placement_categories",
     isTimeSeries: true,
     injectDay: true
@@ -41,9 +41,9 @@ var CriteoAdsFieldsSchema = {
   transactions: {
     overview: "Criteo Transactions",
     description: "Transaction-level data with individual order details attributed to Criteo ads.",
-    documentation: "https://developers.criteo.com/marketing-solutions/docs/transaction-id-report",
+    documentation: "https://developers.criteo.com/marketing-solutions/docs/transaction-ids",
     fields: transactionFields,
-    uniqueKeys: ["transactionId"],
+    uniqueKeys: ["advertiserId", "transactionId"],
     defaultFields: ["transactionId", "transactionDate", "advertiserId", "adsetName", "eventType", "amount", "currency"],
     destinationName: "criteo_ads_transactions",
     isTimeSeries: true

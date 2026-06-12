@@ -11,15 +11,17 @@ var placementCategoryFields = {
     'type': DATA_TYPES.STRING,
     'fieldType': 'dimension'
   },
-  'category': {
+  'categoryId': {
+    'description': 'The unique identifier for the content category.',
+    'type': DATA_TYPES.STRING,
+    'fieldType': 'dimension',
+    'apiName': 'CategoryId'
+  },
+  'categoryName': {
     'description': 'The IAB content category of the publisher page where the ad was served.',
     'type': DATA_TYPES.STRING,
-    'fieldType': 'dimension'
-  },
-  'domain': {
-    'description': 'The publisher domain where the ad was served.',
-    'type': DATA_TYPES.STRING,
-    'fieldType': 'dimension'
+    'fieldType': 'dimension',
+    'apiName': 'CategoryName'
   },
   'day': {
     'description': 'The day of the placement category data (YYYY-MM-DD format).',

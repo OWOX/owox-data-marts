@@ -14,7 +14,8 @@ var placementFields = {
   'adsetId': {
     'description': 'The unique identifier for the adset.',
     'type': DATA_TYPES.STRING,
-    'fieldType': 'dimension'
+    'fieldType': 'dimension',
+    'apiName': 'adSetId'
   },
   'adsetName': {
     'description': 'The name of the adset.',
