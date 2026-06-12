@@ -1,5 +1,5 @@
 ---
-'owox': patch
+'owox': minor
 ---
 
 # Escape table and column identifiers in AI Helper sample-data SQL
