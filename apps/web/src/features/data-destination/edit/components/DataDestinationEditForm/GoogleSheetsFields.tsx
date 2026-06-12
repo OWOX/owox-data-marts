@@ -89,7 +89,10 @@ export function GoogleSheetsFields({ form }: GoogleSheetsFieldsProps) {
   const handleOAuthStatusChange = (isConnected: boolean, credentialId?: string) => {
     if (isConnected && credentialId) {
       setAuthMethod('oauth');
-      form.setValue('credentials.credentialId', credentialId, { shouldDirty: false });
+      form.setValue('credentials.credentialId', credentialId, {
+        shouldDirty: false,
+        shouldValidate: true,
+      });
       form.setValue('credentials.serviceAccount', '');
     }
   };
@@ -175,30 +178,37 @@ export function GoogleSheetsFields({ form }: GoogleSheetsFieldsProps) {
           )}
 
           {isOAuthAvailable && authMethod === 'oauth' && (
-            <FormItem>
-              <div className='mb-4 flex items-center justify-between'>
-                <FormLabel tooltip='Authorize OWOX to access your Google Sheets'>
-                  Connect with Google OAuth
-                </FormLabel>
-              </div>
-              <GoogleOAuthConnectButton
-                resourceType='destination'
-                resourceId={destinationId}
-                credentialId={credentialIdValue ?? undefined}
-                redirectUri={oauthRedirectUri}
-                onSuccess={handleOAuthSuccess}
-                onStatusChange={handleOAuthStatusChange}
-              />
-              {oauthEmail && (
-                <div className='mt-2 flex flex-col gap-1'>
-                  <FormLabel>Authenticated email</FormLabel>
-                  <CopyableField value={oauthEmail}>{oauthEmail}</CopyableField>
-                </div>
+            <FormField
+              control={form.control}
+              name='credentials.credentialId'
+              render={() => (
+                <FormItem>
+                  <div className='mb-4 flex items-center justify-between'>
+                    <FormLabel tooltip='Authorize OWOX to access your Google Sheets'>
+                      Connect with Google OAuth
+                    </FormLabel>
+                  </div>
+                  <GoogleOAuthConnectButton
+                    resourceType='destination'
+                    resourceId={destinationId}
+                    credentialId={credentialIdValue ?? undefined}
+                    redirectUri={oauthRedirectUri}
+                    onSuccess={handleOAuthSuccess}
+                    onStatusChange={handleOAuthStatusChange}
+                  />
+                  {oauthEmail && (
+                    <div className='mt-2 flex flex-col gap-1'>
+                      <FormLabel>Authenticated email</FormLabel>
+                      <CopyableField value={oauthEmail}>{oauthEmail}</CopyableField>
+                    </div>
+                  )}
+                  <FormDescription>
+                    <GoogleSheetsOAuthDescription />
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
               )}
-              <FormDescription>
-                <GoogleSheetsOAuthDescription />
-              </FormDescription>
-            </FormItem>
+            />
           )}
 
           {authMethod === 'service-account' && (
