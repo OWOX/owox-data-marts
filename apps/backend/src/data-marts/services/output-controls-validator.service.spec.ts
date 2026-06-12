@@ -436,6 +436,28 @@ describe('OutputControlsValidatorService', () => {
       expect(schemaSvc.computeBlendableSchema).not.toHaveBeenCalled();
     });
 
+    it('does not classify output controls as disconnected before schema actualization', async () => {
+      const capabilitySvc = makeCapabilityService(true);
+      const schemaSvc = makeBlendableSchemaService();
+      const validator = new OutputControlsValidatorService(
+        capabilitySvc as never,
+        schemaSvc as never
+      );
+
+      await expect(
+        validator.validateForReport({
+          storageType: supportedStorageType,
+          dataMartId: 'dm-1',
+          projectId: 'proj-1',
+          columnConfig: ['not_yet_actualized'],
+          filterConfig: [{ column: 'not_yet_actualized', operator: 'eq', value: 'x' }],
+          sortConfig: [{ column: 'not_yet_actualized', direction: 'asc' }],
+          limitConfig: null,
+          accessor: { userId: 'user-1', roles: ['admin'] },
+        })
+      ).resolves.toBeUndefined();
+    });
+
     it('throws BadRequestException with OUTPUT_CONTROLS_NOT_SUPPORTED for unsupported storage', async () => {
       const capabilitySvc = makeCapabilityService(false);
       const schemaSvc = makeBlendableSchemaService();

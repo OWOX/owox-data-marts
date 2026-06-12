@@ -412,13 +412,19 @@ export function ReportColumnPicker({
     return names;
   }, [schema, effectiveOutputConfig.filterConfig, knownFieldNames, effectiveValueSet]);
 
+  const knownSliceKeys = useMemo(() => {
+    const keys = new Set<string>();
+    for (const f of schema?.blendedFields ?? []) {
+      if (!f.isHidden) keys.add(`${f.aliasPath}\0${f.originalFieldName}`);
+    }
+    return keys;
+  }, [schema]);
+
   const unresolvedSlices = useMemo(() => {
     if (!schema) return [];
-    const visibleSliceKeys = new Set<string>();
     const typeByKey = new Map<string, string>();
     for (const f of schema.blendedFields) {
       const key = `${f.aliasPath}\0${f.originalFieldName}`;
-      if (!f.isHidden) visibleSliceKeys.add(key);
       if (f.type) typeByKey.set(key, f.type);
     }
     const seen = new Set<string>();
@@ -426,7 +432,7 @@ export function ReportColumnPicker({
     for (const rule of effectiveOutputConfig.filterConfig) {
       if (rule.placement !== 'pre-join' || !rule.aliasPath) continue;
       const key = `${rule.aliasPath}\0${rule.column}`;
-      if (visibleSliceKeys.has(key) || seen.has(key)) continue;
+      if (knownSliceKeys.has(key) || seen.has(key)) continue;
       seen.add(key);
       result.push({
         aliasPath: rule.aliasPath,
@@ -435,7 +441,7 @@ export function ReportColumnPicker({
       });
     }
     return result;
-  }, [schema, effectiveOutputConfig.filterConfig]);
+  }, [schema, effectiveOutputConfig.filterConfig, knownSliceKeys]);
 
   const valueRef = useRef(effectiveValue);
   valueRef.current = effectiveValue;
@@ -660,44 +666,26 @@ export function ReportColumnPicker({
     );
   }, [effectiveOutputConfig]);
 
-  const dropdownColumnNames = useMemo(() => {
-    return new Set(dropdownColumns.map(c => c.name));
-  }, [dropdownColumns]);
-
-  const selectedDropdownColumnNames = useMemo(() => {
-    return new Set(selectedDropdownColumns.map(c => c.name));
-  }, [selectedDropdownColumns]);
-
-  const joinedColumnKeys = useMemo(() => {
-    const keys = new Set<string>();
-    for (const source of joinedSources) {
-      for (const column of source.columns) {
-        keys.add(`${source.aliasPath}\0${column.name}`);
-      }
-    }
-    return keys;
-  }, [joinedSources]);
-
   const hasDisconnectedOutputControls = useMemo(() => {
     for (const rule of effectiveOutputConfig.filterConfig) {
       if (rule.placement === 'pre-join') {
-        if (!rule.aliasPath || !joinedColumnKeys.has(`${rule.aliasPath}\0${rule.column}`)) {
+        if (!rule.aliasPath || !knownSliceKeys.has(`${rule.aliasPath}\0${rule.column}`)) {
           return true;
         }
-      } else if (!dropdownColumnNames.has(rule.column)) {
+      } else if (!knownFieldNames.has(rule.column)) {
         return true;
       }
     }
 
     return effectiveOutputConfig.sortConfig.some(
-      rule => !selectedDropdownColumnNames.has(rule.column)
+      rule => !effectiveValueSet.has(rule.column) || !knownFieldNames.has(rule.column)
     );
   }, [
     effectiveOutputConfig.filterConfig,
     effectiveOutputConfig.sortConfig,
-    dropdownColumnNames,
-    joinedColumnKeys,
-    selectedDropdownColumnNames,
+    knownFieldNames,
+    knownSliceKeys,
+    effectiveValueSet,
   ]);
 
   const referencedFieldNames = useMemo(() => {

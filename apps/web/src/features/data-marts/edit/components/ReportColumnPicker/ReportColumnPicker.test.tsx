@@ -577,6 +577,30 @@ describe('ReportColumnPicker unresolved columns', () => {
     expect(screen.queryByLabelText('Disconnected output controls')).not.toBeInTheDocument();
   });
 
+  it('does not mark output controls on inaccessible but known blended fields as disconnected', () => {
+    const schema = buildSchema({
+      blendedFields: [buildBlendedField({ name: 'b__field', originalFieldName: 'field' })],
+      availableSources: [buildAvailableSource({ isAccessibleForReporting: false })],
+    });
+
+    renderPicker(schema, ['native_one'], {
+      storageType: DataStorageType.GOOGLE_BIGQUERY,
+      outputConfig: {
+        filterConfig: [
+          { column: 'b__field', operator: 'eq', value: 'x' },
+          { column: 'field', operator: 'eq', value: 'y', placement: 'pre-join', aliasPath: 'b' },
+        ] as never,
+        sortConfig: [],
+        limitConfig: null,
+      },
+      onOutputConfigChange: () => {},
+    });
+
+    expect(screen.getByLabelText('Output controls count')).toHaveTextContent('2');
+    expect(screen.queryByLabelText('Disconnected output controls')).not.toBeInTheDocument();
+    expect(screen.queryByText('Disconnected columns')).not.toBeInTheDocument();
+  });
+
   it('counts unresolved columns in both selected and total', () => {
     const schema = buildSchema();
     vi.mocked(dataMartRelationshipService.getBlendableSchema).mockResolvedValue(schema);

@@ -271,43 +271,48 @@ export class OutputControlsValidatorService {
         args.accessor
       );
 
-      const homeFieldTypes = new Map<string, string>();
-      const knownOutputColumns = new Set<string>();
-      const connectedNativeNames: string[] = [];
-      for (const native of collectSchemaFieldPathTypes(blendableSchema.nativeFields)) {
-        homeFieldTypes.set(native.name, native.type);
-        knownOutputColumns.add(native.name);
-        connectedNativeNames.push(native.name);
-      }
-      for (const blended of blendableSchema.blendedFields) {
-        if (blended.isHidden) continue;
-        homeFieldTypes.set(blended.name, blended.type);
-        knownOutputColumns.add(blended.name);
-      }
+      const hasActualizedSchema =
+        blendableSchema.nativeFields.length > 0 || blendableSchema.blendedFields.length > 0;
 
-      if (parsedFilters.length > 0) {
-        const { knownPaths, excludedPaths } = this.buildKnownPaths(blendableSchema);
-        errors.push(
-          ...this.validateFilters(parsedFilters, homeFieldTypes, knownPaths, excludedPaths)
+      if (hasActualizedSchema) {
+        const homeFieldTypes = new Map<string, string>();
+        const knownOutputColumns = new Set<string>();
+        const connectedNativeNames: string[] = [];
+        for (const native of collectSchemaFieldPathTypes(blendableSchema.nativeFields)) {
+          homeFieldTypes.set(native.name, native.type);
+          knownOutputColumns.add(native.name);
+          connectedNativeNames.push(native.name);
+        }
+        for (const blended of blendableSchema.blendedFields) {
+          if (blended.isHidden) continue;
+          homeFieldTypes.set(blended.name, blended.type);
+          knownOutputColumns.add(blended.name);
+        }
+
+        if (parsedFilters.length > 0) {
+          const { knownPaths, excludedPaths } = this.buildKnownPaths(blendableSchema);
+          errors.push(
+            ...this.validateFilters(parsedFilters, homeFieldTypes, knownPaths, excludedPaths)
+          );
+        }
+        if (parsedSort.length > 0) {
+          // With no explicit columnConfig the projection is `SELECT *` over the home
+          // mart's NATIVE fields only — blended output aliases are NOT projected, and
+          // the blended run path rejects output controls without an explicit column
+          // selection. Validate sort against that same native-only set so a sort on a
+          // blended column is caught here at save time instead of failing at run time.
+          const selectedSet = new Set(args.columnConfig ?? connectedNativeNames);
+          errors.push(...this.validateSort(parsedSort, selectedSet));
+        }
+
+        const disconnectedOutputControlRefs = this.collectDisconnectedOutputControlRefs(
+          errors,
+          parsedSort,
+          knownOutputColumns
         );
-      }
-      if (parsedSort.length > 0) {
-        // With no explicit columnConfig the projection is `SELECT *` over the home
-        // mart's NATIVE fields only — blended output aliases are NOT projected, and
-        // the blended run path rejects output controls without an explicit column
-        // selection. Validate sort against that same native-only set so a sort on a
-        // blended column is caught here at save time instead of failing at run time.
-        const selectedSet = new Set(args.columnConfig ?? connectedNativeNames);
-        errors.push(...this.validateSort(parsedSort, selectedSet));
-      }
-
-      const disconnectedOutputControlRefs = this.collectDisconnectedOutputControlRefs(
-        errors,
-        parsedSort,
-        knownOutputColumns
-      );
-      if (disconnectedOutputControlRefs.length > 0) {
-        throwDisconnectedReportColumnsError(args.dataMartId, disconnectedOutputControlRefs);
+        if (disconnectedOutputControlRefs.length > 0) {
+          throwDisconnectedReportColumnsError(args.dataMartId, disconnectedOutputControlRefs);
+        }
       }
     }
 
@@ -362,8 +367,6 @@ export class OutputControlsValidatorService {
     for (const error of errors) {
       switch (error.code) {
         case 'FILTER_COLUMN_UNKNOWN':
-          refs.push(this.formatFilterRef(error.column, error.aliasPath));
-          break;
         case 'FILTER_ALIAS_PATH_UNKNOWN':
         case 'FILTER_ALIAS_PATH_NOT_INCLUDED':
           refs.push(this.formatFilterRef(error.column, error.aliasPath));
