@@ -15,7 +15,6 @@ export interface ReportFormActionsProps {
   mode: ReportFormMode;
   isSubmitting: boolean;
   isDirty: boolean;
-  isValid: boolean;
   triggersDirty: boolean;
   ownersDirty?: boolean;
   runAfterSaveRef: RefObject<boolean>;
@@ -27,16 +26,18 @@ export const ReportFormActions = ({
   mode,
   isSubmitting,
   isDirty,
-  isValid,
   triggersDirty,
   ownersDirty = false,
   runAfterSaveRef,
   onSubmit,
   onCancel,
 }: ReportFormActionsProps) => {
+  // In CREATE mode the button stays clickable even while the form is invalid:
+  // submitting runs validation, which opens collapsed sections with errors and
+  // focuses the first invalid field. Disabling on !isValid would leave the user
+  // with no hint about what is missing.
   const disabledPrimary =
-    isSubmitting ||
-    (mode === ReportFormMode.CREATE ? !isValid : !(isDirty || triggersDirty || ownersDirty));
+    isSubmitting || (mode === ReportFormMode.EDIT && !(isDirty || triggersDirty || ownersDirty));
 
   const primaryLabel =
     mode === ReportFormMode.CREATE ? 'Create & Run report' : 'Save changes to report';
