@@ -152,7 +152,8 @@ export class OwoxBetterAuthIdp implements IdpProvider {
       this.auth,
       this.betterAuthSessionService,
       this.magicLinkService,
-      this.config.gtmContainerId
+      this.config.gtmContainerId,
+      this.revokePlatformRefreshTokenFromRequest.bind(this)
     );
     this.authFlowMiddleware = new AuthFlowMiddleware(
       this.pageController,
@@ -619,6 +620,38 @@ export class OwoxBetterAuthIdp implements IdpProvider {
 
   async revokeToken(token: string): Promise<void> {
     await this.tokenFacade.revokeToken(token);
+  }
+
+  /**
+   * Best-effort revocation of the OWOX platform refresh token carried by the
+   * current request (the `refreshToken` cookie), then clears that cookie.
+   *
+   * Used after a password reset so the platform session tied to THIS request
+   * is invalidated at the OWOX Identity level — not only the Better Auth UI
+   * session. Revocation failures are non-fatal (logged, not thrown) so they
+   * never block completing the password flow.
+   *
+   * Scope note: this only revokes the token present in the request (the acting
+   * device). Invalidating a user's OTHER devices would require a
+   * revoke-by-userId capability on OWOX Identity, which does not exist yet.
+   */
+  private async revokePlatformRefreshTokenFromRequest(
+    req: e.Request,
+    res: e.Response
+  ): Promise<void> {
+    const refreshToken = extractRefreshToken(req);
+    if (refreshToken) {
+      try {
+        await this.revokeToken(refreshToken);
+      } catch (error) {
+        this.logger.warn(
+          'Failed to revoke OWOX refresh token during password flow',
+          undefined,
+          error instanceof Error ? error : undefined
+        );
+      }
+    }
+    clearCookie(res, CORE_REFRESH_TOKEN_COOKIE, req);
   }
 
   async accessTokenMiddleware(

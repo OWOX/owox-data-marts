@@ -204,6 +204,18 @@ export class MysqlDatabaseStore implements DatabaseStore {
     }
   }
 
+  async revokeOtherUserSessions(userId: string, exceptSessionToken: string): Promise<void> {
+    const pool = await this.getPool();
+    try {
+      await pool.execute('DELETE FROM session WHERE userId = ? AND token != ?', [
+        userId,
+        exceptSessionToken,
+      ]);
+    } catch {
+      // Non-fatal: sessions might not exist
+    }
+  }
+
   async updateUserName(userId: string, name: string): Promise<void> {
     const pool = await this.getPool();
     const [res] = (await pool.execute('UPDATE user SET name = ? WHERE id = ?', [name, userId])) as [
