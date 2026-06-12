@@ -2,7 +2,7 @@
 
 ## 0.28.0
 
-### Minor Changes
+### Minor Changes 0.28.0
 
 - 8b20d18: # Add output controls for Databricks data marts
 
@@ -22,7 +22,7 @@
 
   The report column picker now also surfaces stale selected columns, filters, and slices in a "Disconnected columns" block at the top of the list (styled like the existing no-access block), so selected stale columns can be unchecked and stale filter/slice rules can be removed to make the report runnable again. Sort-only stale references stay in the Output Controls menu, where stale filters, slices, and sorts are highlighted in red. The Output Controls button now shows the controls count and switches the badge to red when any output control references a disconnected field. Rule popups on disconnected and no-access rows now share one view-and-remove layout that lists the existing filter and slice rules without add or edit controls.
 
-### Patch Changes
+### Patch Changes 0.28.0
 
 - @owox/internal-helpers@0.28.0
 - @owox/idp-protocol@0.28.0
@@ -1830,6 +1830,7 @@
   We're excited to introduce **Time Triggers** - a powerful new feature that allows you to schedule your reports and connectors to run automatically at specified times!
 
   ## Benefits
+
   - ✅ **Save Time**: Automate routine data refreshes without manual intervention
   - 🔄 **Stay Updated**: Keep your data fresh with regular scheduled updates
   - 📊 **Consistent Reporting**: Ensure your reports are generated on a reliable schedule
@@ -1837,6 +1838,7 @@
   - 🔧 **Flexible Scheduling Options**: Choose from daily, weekly, monthly, or interval-based schedules
 
   ## Scheduling Options
+
   - **Daily**: Run your reports or connectors at the same time every day
   - **Weekly**: Select specific days of the week for execution
   - **Monthly**: Schedule runs on specific days of the month
