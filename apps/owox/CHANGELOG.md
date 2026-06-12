@@ -1,5 +1,36 @@
 # owox
 
+## 0.28.0
+
+### Minor Changes 0.28.0
+
+- 8b20d18: # Add output controls for Databricks data marts
+
+  Add report-level output controls (filters, slices, sort, limit) for Databricks data
+  marts. Filter values are inlined as escaped SQL literals (Spark-correct backslash + quote
+  escaping); substring matchers use `contains`/`startswith`/`endswith` and regex uses
+  `RLIKE` so user `%`/`_` stay literal; date/time comparisons are cast to the column type.
+  Works for the web app and the Google Sheets extension.
+
+- f69f0b3: # Escape table and column identifiers in AI Helper sample-data SQL
+
+  Fix AI Helper metadata generation (and the `SAMPLE_TABLE_DATA` AI tool) failing with `Syntax error: Expected end of input but got "-"` for data marts whose fully qualified table name contains dashes (for example `my-project.dataset.my-table-name`). The sample-data SQL now escapes the table reference and column names per storage type via a new `IdentifierEscaperFacade`, following the existing TypeResolver + Facade pattern and reusing the per-storage identifier escaping utilities.
+
+- 113ef2e: # Fail fast on disconnected report columns and output controls
+
+  Fail fast with a clear error when a report references columns that can no longer be resolved against the data mart schema or its joined data marts setup (for example, after a joined data mart alias was renamed, a relationship was removed, a field disappeared from the schema or was hidden for reporting, or a joined field was hidden in the joined data marts setup). Previously such orphaned references leaked into the generated blended SQL as main data mart columns and failed in the storage with a cryptic "Unrecognized name" error — and selecting a field hidden in the blend setup silently dropped it from the final SELECT while report headers still promised it; now the report run and SQL preview reject them upfront, listing the offending columns. Filter, sort, and slice references to disconnected or hidden fields are rejected by the output-controls validation as well.
+
+  The report column picker now also surfaces stale selected columns, filters, and slices in a "Disconnected columns" block at the top of the list (styled like the existing no-access block), so selected stale columns can be unchecked and stale filter/slice rules can be removed to make the report runnable again. Sort-only stale references stay in the Output Controls menu, where stale filters, slices, and sorts are highlighted in red. The Output Controls button now shows the controls count and switches the badge to red when any output control references a disconnected field. Rule popups on disconnected and no-access rows now share one view-and-remove layout that lists the existing filter and slice rules without add or edit controls.
+
+### Patch Changes 0.28.0
+
+- @owox/internal-helpers@0.28.0
+- @owox/idp-protocol@0.28.0
+- @owox/idp-better-auth@0.28.0
+- @owox/idp-owox-better-auth@0.28.0
+- @owox/backend@0.28.0
+- @owox/web@0.28.0
+
 ## 0.27.1
 
 ### Patch Changes 0.27.1
