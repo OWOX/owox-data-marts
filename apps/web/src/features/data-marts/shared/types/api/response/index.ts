@@ -10,3 +10,4 @@ export * from './batch-data-mart-health-status.response.dto';
 export * from './generate-data-mart-metadata.response.dto';
 export * from './ai-helper-trigger.response.dto';
 export * from './data-mart-ai-helper-availability.response.dto';
+export * from './advanced-search-result.response.dto';

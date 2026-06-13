@@ -774,6 +774,7 @@ import { ProjectMemberApiKeysModule } from '../project-member-api-keys/project-m
     HttpDataColumnResolver,
     HttpDataColumnValidator,
   ],
+  exports: [ContextAccessService],
 })
 export class DataMartsModule {
   configure(consumer: MiddlewareConsumer) {

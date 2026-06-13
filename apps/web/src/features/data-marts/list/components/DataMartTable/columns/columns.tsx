@@ -1,4 +1,5 @@
-import { type ColumnDef } from '@tanstack/react-table';
+import { type ColumnDef, type FilterFn } from '@tanstack/react-table';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@owox/ui/components/tooltip';
 import { UserAvatarGroup } from '../../../../../../shared/components/UserAvatarGroup/UserAvatarGroup';
 import { UserReference } from '../../../../../../shared/components/UserReference';
 import type { DataMartListItem } from '../../../model/types';
@@ -15,7 +16,28 @@ import type { ConnectorListItem } from '../../../../../connectors/shared/model/t
 import { RawBase64Icon } from '../../../../../../shared';
 import { SortableHeader, ToggleColumnsHeader } from '../../../../../../shared/components/Table';
 import { ContextBadges } from '../../../../../../features/contexts/components/ContextBadges/ContextBadges';
-import { Check } from 'lucide-react';
+import { Check, Sparkles } from 'lucide-react';
+
+export interface TitleFilterValue {
+  text: string;
+  semanticIds: string[];
+}
+
+export const titleFilterFn: FilterFn<DataMartListItem> = (row, _columnId, filterValue) => {
+  if (!filterValue) return true;
+
+  const { text, semanticIds } = filterValue as TitleFilterValue;
+
+  if (!text && semanticIds.length === 0) return true;
+
+  const title = row.getValue<string>(DataMartColumnKey.TITLE).toLowerCase();
+  const matchesText = text ? title.includes(text.toLowerCase()) : false;
+  const matchesSemantic = semanticIds.includes(row.original.id);
+
+  if (!text) return matchesSemantic;
+
+  return matchesText || matchesSemantic;
+};
 
 interface DataMartTableColumnsProps {
   onDeleteSuccess?: () => void;
@@ -26,6 +48,41 @@ export const getDataMartColumns = ({
   onDeleteSuccess,
   connectors = [],
 }: DataMartTableColumnsProps = {}): ColumnDef<DataMartListItem>[] => [
+  {
+    id: DataMartColumnKey.SEMANTIC_MATCH,
+    size: 40,
+    minSize: 40,
+    maxSize: 40,
+    enableResizing: false,
+    enableSorting: false,
+    enableHiding: false,
+    meta: {
+      title: dataMartColumnLabels[DataMartColumnKey.SEMANTIC_MATCH],
+      showHeaderTitle: false,
+    },
+    header: () => null,
+    cell: ({ row, table }) => {
+      const filterValue = table.getColumn(DataMartColumnKey.TITLE)?.getFilterValue() as
+        | TitleFilterValue
+        | undefined;
+      if (!filterValue?.semanticIds.includes(row.original.id)) return null;
+
+      return (
+        <div className='flex w-full items-center justify-center'>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Sparkles
+                data-testid='semanticMatchIcon'
+                className='text-muted-foreground h-4 w-4 shrink-0 opacity-50'
+                aria-hidden='true'
+              />
+            </TooltipTrigger>
+            <TooltipContent side='top'>Semantic match</TooltipContent>
+          </Tooltip>
+        </div>
+      );
+    },
+  },
   {
     id: DataMartColumnKey.HEALTH_STATUS,
     size: 40,
@@ -42,6 +99,7 @@ export const getDataMartColumns = ({
     accessorKey: DataMartColumnKey.TITLE,
     size: 320,
     minSize: 200,
+    filterFn: titleFilterFn,
     meta: {
       title: dataMartColumnLabels[DataMartColumnKey.TITLE],
     },

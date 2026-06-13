@@ -11,7 +11,7 @@ import {
 import { Button } from '@owox/ui/components/button';
 import { type ColumnDef, type Row } from '@tanstack/react-table';
 import { CircleCheckBig, Import, Plus, Trash2 } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { toast } from 'react-hot-toast';
 import { Link, useParams } from 'react-router-dom';
 import { BulkCreateFromStorageDialog } from '../BulkCreateFromStorageDialog';
@@ -28,8 +28,9 @@ import { applyFiltersToData } from '../../../../../shared/components/TableFilter
 import { DataStorageType } from '../../../../data-storage';
 import { DataMartStatus } from '../../../shared';
 import { useDataMartHealthStatusPrefetch } from '../../model/hooks/useDataMartHealthStatusPrefetch';
+import { useAdvancedDataMartSearch } from '../../model/hooks/useAdvancedDataMartSearch';
 import type { DataMartListItem } from '../../model/types';
-import { DataMartColumnKey } from './columns';
+import { DataMartColumnKey, type TitleFilterValue } from './columns';
 import { EmptyDataMartsState } from './components';
 import { DataMartsTableFilters } from './components/DataMartsTableFilters';
 import {
@@ -91,8 +92,10 @@ export function DataMartTable<TData, TValue>({
   const [showPublishConfirmation, setShowPublishConfirmation] = useState(false);
   const [isPublishing, setIsPublishing] = useState(false);
   const [showBulkCreateFromStorage, setShowBulkCreateFromStorage] = useState(false);
+  const [searchText, setSearchText] = useState('');
 
-  // Show onboarding video if the user has not seen it yet
+  const { semanticIds } = useAdvancedDataMartSearch(searchText);
+
   const shouldShowOnboarding = !isLoading && data.length === 0;
   useOnboardingVideo({
     storageKey: 'data-mart-empty-state-onboarding-video-shown',
@@ -100,7 +103,6 @@ export function DataMartTable<TData, TValue>({
     shouldShow: shouldShowOnboarding,
   });
 
-  // Compose columns with selection column (feature-specific)
   const columnsWithSelection = useMemo<ColumnDef<TData>[]>(
     () => [
       {
@@ -131,12 +133,12 @@ export function DataMartTable<TData, TValue>({
     [columns]
   );
 
-  // Initialize table with shared hook (uses pre-filtered data)
   const { table } = useBaseTable<TData>({
     data: filteredData,
     columns: columnsWithSelection,
     storageKeyPrefix: 'data-mart-list',
     defaultColumnVisibility: {
+      semanticMatch: false,
       triggersCount: false,
       reportsCount: false,
       createdByUser: false,
@@ -147,6 +149,39 @@ export function DataMartTable<TData, TValue>({
     },
     enableRowSelection: true,
   });
+
+  useEffect(() => {
+    const titleColumn = table.getColumn(DataMartColumnKey.TITLE);
+    if (!titleColumn) return;
+
+    const semanticIdsArray = [...semanticIds];
+    const nextFilter: TitleFilterValue | undefined =
+      searchText || semanticIdsArray.length > 0
+        ? { text: searchText, semanticIds: semanticIdsArray }
+        : undefined;
+
+    const current = titleColumn.getFilterValue() as TitleFilterValue | undefined;
+    const textUnchanged = (current?.text ?? '') === (nextFilter?.text ?? '');
+    const idsUnchanged =
+      (current?.semanticIds ?? []).length === semanticIdsArray.length &&
+      semanticIdsArray.every(id => current?.semanticIds.includes(id));
+
+    if (textUnchanged && idsUnchanged) return;
+
+    titleColumn.setFilterValue(nextFilter);
+  }, [searchText, semanticIds, table]);
+
+  useEffect(() => {
+    const shouldShow = semanticIds.size > 0;
+    const column = table.getColumn(DataMartColumnKey.SEMANTIC_MATCH);
+    if (!column || column.getIsVisible() === shouldShow) return;
+
+    // setColumnVisibility bypasses the enableHiding:false gate (which only guards toggle helpers and the columns menu)
+    table.setColumnVisibility(visibility => ({
+      ...visibility,
+      [DataMartColumnKey.SEMANTIC_MATCH]: shouldShow,
+    }));
+  }, [semanticIds, table]);
 
   const selectedRows = table.getSelectedRowModel().flatRows;
   const hasSelectedRows = selectedRows.length > 0;
@@ -220,7 +255,6 @@ export function DataMartTable<TData, TValue>({
     }
   };
 
-  // Row click handler with navigation
   const handleRowClick = (row: Row<TData>, e: React.MouseEvent) => {
     if (
       e.target instanceof HTMLElement &&
@@ -243,15 +277,11 @@ export function DataMartTable<TData, TValue>({
     navigate(url);
   };
 
-  /**
-   * Prefetch health status for visible Data Marts in the table (respects pageSize).
-   */
   useDataMartHealthStatusPrefetch({
     table,
     isLoading,
   });
 
-  // Show loading skeleton
   if (isLoading) {
     return (
       <div>
@@ -260,7 +290,6 @@ export function DataMartTable<TData, TValue>({
     );
   }
 
-  // Show empty state
   if (!data.length) {
     return <EmptyDataMartsState />;
   }
@@ -281,7 +310,6 @@ export function DataMartTable<TData, TValue>({
           ariaLabel='Data Marts table'
           renderToolbarLeft={table => (
             <>
-              {/* BTNs for selected Rows */}
               {hasSelectedRows && (
                 <div className='mr-2 flex items-center gap-2 border-r pr-4'>
                   <Button
@@ -310,7 +338,6 @@ export function DataMartTable<TData, TValue>({
                   </Button>
                 </div>
               )}
-              {/* Filters */}
               <div data-testid='datamartStatusFilter'>
                 <DataMartsTableFilters
                   appliedState={appliedState}
@@ -319,12 +346,13 @@ export function DataMartTable<TData, TValue>({
                   onClear={clear}
                 />
               </div>
-              {/* Search */}
               <div data-testid='datamartSearchInput'>
                 <TableColumnSearch
                   table={table}
                   columnId={DataMartColumnKey.TITLE}
                   placeholder='Search'
+                  value={searchText}
+                  onValueChange={setSearchText}
                 />
               </div>
             </>
@@ -359,7 +387,6 @@ export function DataMartTable<TData, TValue>({
           }}
         />
 
-        {/* Delete Confirmation Dialog */}
         <AlertDialog open={showDeleteConfirmation} onOpenChange={setShowDeleteConfirmation}>
           <AlertDialogContent>
             <AlertDialogHeader>
@@ -402,7 +429,6 @@ export function DataMartTable<TData, TValue>({
           </AlertDialogContent>
         </AlertDialog>
 
-        {/* Publish Confirmation Dialog */}
         <AlertDialog open={showPublishConfirmation} onOpenChange={setShowPublishConfirmation}>
           <AlertDialogContent>
             <AlertDialogHeader>
@@ -428,7 +454,6 @@ export function DataMartTable<TData, TValue>({
         </AlertDialog>
       </div>
 
-      {/* Promo block for importing data marts from BigQuery */}
       {isPromoImportFromBigQuery && (
         <PromoBlock
           icon={GoogleBigQueryIcon}

@@ -56,13 +56,14 @@ export class AgentFlowAgent {
     const rules = this.validationRetryRules.getRules();
     let validationRetryState = createAgentFlowValidationRetryState();
 
-    const tools = toolRegistry.findToolByNames([
+    const coreToolNames = [
       AgentFlowTools.LIST_TEMPLATE_SOURCES,
       AgentFlowTools.GET_TEMPLATE_CONTENT,
       AgentFlowTools.PROPOSE_REMOVE_SOURCE,
       AgentFlowTools.GENERATE_SQL,
       AgentFlowTools.LIST_AVAILABLE_TAGS,
-    ]);
+    ];
+    const tools = toolRegistry.findToolByNames(coreToolNames);
 
     for (let attempt = 0; attempt < 2; attempt++) {
       try {

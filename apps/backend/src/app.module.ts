@@ -17,6 +17,7 @@ import { ClsModule } from 'nestjs-cls';
 import { DataSource } from 'typeorm';
 import { addTransactionalDataSource } from 'typeorm-transactional';
 import { serializeSqliteTransactions } from './config/sqlite-transaction-serializer';
+import { loadEeModule } from './ee-module.loader';
 
 @Module({
   imports: [
@@ -53,6 +54,7 @@ import { serializeSqliteTransactions } from './config/sqlite-transaction-seriali
     IdpModule,
     ProjectMemberApiKeysModule,
     NotificationsModule,
+    loadEeModule(),
   ],
   providers: [
     {

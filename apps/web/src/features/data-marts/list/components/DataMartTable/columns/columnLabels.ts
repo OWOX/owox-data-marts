@@ -1,6 +1,7 @@
 import { DataMartColumnKey } from './columnKeys';
 
 export const dataMartColumnLabels: Record<DataMartColumnKey, string> = {
+  [DataMartColumnKey.SEMANTIC_MATCH]: 'Semantic match',
   [DataMartColumnKey.TITLE]: 'Title',
   [DataMartColumnKey.DEFINITION_TYPE]: 'Input Source',
   [DataMartColumnKey.STORAGE_TYPE]: 'Storage',

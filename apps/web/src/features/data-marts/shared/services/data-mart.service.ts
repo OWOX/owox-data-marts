@@ -17,6 +17,7 @@ import type {
   DataMartAiHelperAvailabilityResponseDto,
   CreateAiHelperTriggerRequestDto,
   AiHelperTriggerResponseDto,
+  AdvancedSearchResultResponseDto,
 } from '../types/api';
 import type { CreateSqlDryRunTaskResponseDto } from '../types/api/response/create-sql-dry-run-task.response.dto.ts';
 import type { TaskStatusResponseDto } from '../types/api/response/task-status.response.dto.ts';
@@ -429,13 +430,22 @@ export class DataMartService extends ApiService {
     );
   }
 
-  /**
-   * Abort an AI helper trigger (e.g. on hook unmount or when the user starts a new run).
-   */
   async abortAiHelperTrigger(id: string, triggerId: string): Promise<void> {
     await this.delete(`/${id}/ai-helper/triggers/${triggerId}`, {
       skipLoadingIndicator: true,
       skipErrorToast: true,
+    } as AxiosRequestConfig);
+  }
+
+  async advancedSearch(
+    query: string,
+    limit = 10,
+    config?: AxiosRequestConfig
+  ): Promise<AdvancedSearchResultResponseDto[]> {
+    return this.get<AdvancedSearchResultResponseDto[]>('/search/advanced', { q: query, limit }, {
+      skipLoadingIndicator: true,
+      skipErrorToast: true,
+      ...config,
     } as AxiosRequestConfig);
   }
 }

@@ -1,4 +1,5 @@
 export enum DataMartColumnKey {
+  SEMANTIC_MATCH = 'semanticMatch',
   TITLE = 'title',
   DEFINITION_TYPE = 'definitionType',
   STORAGE_TYPE = 'storageType',
