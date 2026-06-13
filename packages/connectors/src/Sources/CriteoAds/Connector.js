@@ -78,7 +78,7 @@ var CriteoAdsConnector = class CriteoAdsConnector extends AbstractConnector {
 
       if (data.length || this.config.CreateEmptyTables?.value) {
         const preparedData = data.length ? this.addMissingFieldsToData(data, fields) : data;
-        const storage = await this.getStorageByNode(nodeName);
+        const storage = await this.getStorageByNode(nodeName, fields);
         await storage.saveData(preparedData);
       }
 
@@ -92,9 +92,10 @@ var CriteoAdsConnector = class CriteoAdsConnector extends AbstractConnector {
   /**
    * Get storage instance for a node
    * @param {string} nodeName - Name of the node
+   * @param {Array<string>} fields - Fields selected for this node
    * @returns {Object} Storage instance
    */
-  async getStorageByNode(nodeName) {
+  async getStorageByNode(nodeName, fields = []) {
     if (!("storages" in this)) {
       this.storages = {};
     }
@@ -105,12 +106,10 @@ var CriteoAdsConnector = class CriteoAdsConnector extends AbstractConnector {
       }
 
       const uniqueFields = this.source.fieldsSchema[nodeName].uniqueKeys;
+      const storageConfig = this._buildStorageConfig({ nodeName, fields, uniqueFields });
 
       this.storages[nodeName] = new globalThis[this.storageName](
-        this.config.mergeParameters({
-          DestinationSheetName: { value: this.source.fieldsSchema[nodeName].destinationName },
-          DestinationTableName: { value: this.getDestinationName(nodeName, this.config, this.source.fieldsSchema[nodeName].destinationName) },
-        }),
+        storageConfig,
         uniqueFields,
         this.source.fieldsSchema[nodeName].fields,
         `${this.source.fieldsSchema[nodeName].description} ${this.source.fieldsSchema[nodeName].documentation}`
@@ -120,5 +119,35 @@ var CriteoAdsConnector = class CriteoAdsConnector extends AbstractConnector {
     }
 
     return this.storages[nodeName];
+  }
+
+  /**
+   * Build a storage-specific config without mutating the connector config.
+   * Storage parses Fields itself, so pass only the fields for the current node.
+   * @param {Object} options
+   * @param {string} options.nodeName
+   * @param {Array<string>} options.fields
+   * @param {Array<string>} options.uniqueFields
+   * @returns {Object}
+   * @private
+   */
+  _buildStorageConfig({ nodeName, fields, uniqueFields }) {
+    const scopedFields = [...fields];
+    for (const field of uniqueFields) {
+      if (!scopedFields.includes(field)) {
+        scopedFields.push(field);
+      }
+    }
+
+    const storageConfig = Object.assign(
+      Object.create(Object.getPrototypeOf(this.config)),
+      this.config
+    );
+
+    return storageConfig.mergeParameters({
+      DestinationSheetName: { value: this.source.fieldsSchema[nodeName].destinationName },
+      DestinationTableName: { value: this.getDestinationName(nodeName, this.config, this.source.fieldsSchema[nodeName].destinationName) },
+      Fields: { value: scopedFields.map(field => `${nodeName} ${field}`).join(", ") }
+    });
   }
 };
