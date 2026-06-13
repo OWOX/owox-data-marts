@@ -7,6 +7,7 @@ import { ConnectorSourceCredentialsService } from './connector-source-credential
 import { Core } from '@owox/connectors';
 
 export const SECRET_MASK = '**********' as const;
+const GENERATED_REFRESH_TOKEN_FIELD = 'generated_refresh_token';
 
 @Injectable()
 /**
@@ -167,6 +168,10 @@ export class ConnectorSecretService {
    */
   injectSecretsAtPaths(obj: Record<string, unknown>, secrets: Record<string, unknown>): void {
     for (const [path, value] of Object.entries(secrets)) {
+      if (path === GENERATED_REFRESH_TOKEN_FIELD) {
+        continue;
+      }
+
       const parts = path.split('.');
       let current = obj;
 
@@ -237,6 +242,10 @@ export class ConnectorSecretService {
 
         // Recursively extract secret values with their paths
         const secrets = this.extractSecretsRecursively(configItem, secretFieldNames);
+        const generatedRefreshToken = configItem[GENERATED_REFRESH_TOKEN_FIELD];
+        if (typeof generatedRefreshToken === 'string' && generatedRefreshToken) {
+          secrets[GENERATED_REFRESH_TOKEN_FIELD] = generatedRefreshToken;
+        }
 
         // If no secrets found, return as-is
         if (Object.keys(secrets).length === 0) {
@@ -289,6 +298,7 @@ export class ConnectorSecretService {
 
         // Remove secret values from configuration (recursively)
         this.removeSecretsRecursively(configItem, secretFieldNames);
+        delete configItem[GENERATED_REFRESH_TOKEN_FIELD];
 
         return configItem;
       })
@@ -482,6 +492,10 @@ export class ConnectorSecretService {
    */
   private injectMasksAtPaths(obj: Record<string, unknown>, secrets: Record<string, unknown>): void {
     for (const path of Object.keys(secrets)) {
+      if (path === GENERATED_REFRESH_TOKEN_FIELD) {
+        continue;
+      }
+
       const parts = path.split('.');
 
       // Navigate to the parent object, creating intermediate objects if needed
@@ -670,6 +684,11 @@ export class ConnectorSecretService {
     }
 
     const secretFieldNames = await this.getAllSecretFieldNames(incoming.connector.source.name);
+    const sourceSecretsIds = sourceDefinition.connector.source.configuration
+      .map(item => (item as Record<string, unknown>)._secrets_id as string | undefined)
+      .filter((id): id is string => !!id);
+    const sourceSecretsMap =
+      await this.connectorSourceCredentialsService.getCredentialsByIds(sourceSecretsIds);
 
     const mergedConfiguration = incoming.connector.source.configuration.map(incomingItem => {
       const itemWithMetadata = incomingItem as Record<string, unknown> & {
@@ -693,14 +712,28 @@ export class ConnectorSecretService {
         );
       }
 
+      const sourceConfigWithSecrets = JSON.parse(JSON.stringify(sourceConfig)) as Record<
+        string,
+        unknown
+      >;
+      const secretsId = sourceConfigWithSecrets._secrets_id as string | undefined;
+      const secretsEntity = secretsId ? sourceSecretsMap.get(secretsId) : undefined;
+      const generatedRefreshToken = secretsEntity?.credentials?.[GENERATED_REFRESH_TOKEN_FIELD];
+      if (secretsEntity?.credentials) {
+        this.injectSecretsAtPaths(sourceConfigWithSecrets, secretsEntity.credentials);
+      }
+
       const mergedItem = this.mergeSecretsRecursively(
         incomingItem,
-        sourceConfig,
+        sourceConfigWithSecrets,
         secretFieldNames
       ) as Record<string, unknown>;
 
       delete mergedItem._copiedFrom;
       mergedItem._id = randomUUID();
+      if (typeof generatedRefreshToken === 'string' && generatedRefreshToken) {
+        mergedItem[GENERATED_REFRESH_TOKEN_FIELD] = generatedRefreshToken;
+      }
 
       return mergedItem;
     });

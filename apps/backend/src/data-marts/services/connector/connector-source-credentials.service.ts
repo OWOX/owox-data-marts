@@ -209,7 +209,32 @@ export class ConnectorSourceCredentialsService {
       throw new Error(`Unauthorized: secrets do not belong to this project`);
     }
 
-    existing.credentials = secrets;
+    existing.credentials = {
+      ...secrets,
+      ...(existing.credentials.generated_refresh_token !== undefined &&
+      secrets.generated_refresh_token === undefined
+        ? { generated_refresh_token: existing.credentials.generated_refresh_token }
+        : {}),
+    };
+    return await this.connectorSourceCredentialsRepository.save(existing);
+  }
+
+  async updateCredentialFields(
+    id: string,
+    projectId: string,
+    updates: Record<string, unknown>
+  ): Promise<ConnectorSourceCredentials> {
+    const existing = await this.getCredentialsById(id);
+
+    if (!existing) {
+      throw new Error(`ConnectorSourceCredentials with id ${id} not found`);
+    }
+
+    if (existing.projectId !== projectId) {
+      throw new Error(`Unauthorized: credentials do not belong to this project`);
+    }
+
+    existing.credentials = { ...existing.credentials, ...updates };
     return await this.connectorSourceCredentialsRepository.save(existing);
   }
 
