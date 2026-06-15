@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import toast from 'react-hot-toast';
 import { TaskStatus } from '../../../../shared/types/task-status.enum.ts';
 import { dataMartService } from '../services/data-mart.service';
+import { invalidateDataStorageHealthStatus } from '../../../data-storage/shared/services/data-storage-health-status.service';
 
 interface UseSchemaActualizeTriggerReturn {
   run: () => Promise<void>;
@@ -12,9 +13,18 @@ interface UseSchemaActualizeTriggerReturn {
 
 const POLLING_INTERVAL = 1000;
 
+function isStorageOAuthRefreshMessage(message: string): boolean {
+  return (
+    message.includes('Failed to refresh OAuth tokens') ||
+    message.includes('Google authorization could not be refreshed') ||
+    message.includes('Google access is no longer active')
+  );
+}
+
 export function useSchemaActualizeTrigger(
   dataMartId: string,
-  onSuccess?: () => void
+  onSuccess?: () => void,
+  storageId?: string
 ): UseSchemaActualizeTriggerReturn {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -37,6 +47,9 @@ export function useSchemaActualizeTrigger(
   const handleError = useCallback(
     (e: unknown, triggerId: string) => {
       const errorMessage = e instanceof Error ? e.message : 'Schema actualization failed';
+      if (storageId && isStorageOAuthRefreshMessage(errorMessage)) {
+        invalidateDataStorageHealthStatus(storageId);
+      }
       toast.dismiss(triggerId);
       setSafeError(errorMessage);
       setSafeLoading(false);
@@ -44,7 +57,7 @@ export function useSchemaActualizeTrigger(
       abortControllerRef.current = null;
       toast.error(errorMessage, { duration: undefined, id: triggerId });
     },
-    [setSafeError, setSafeLoading]
+    [setSafeError, setSafeLoading, storageId]
   );
 
   const cancel = useCallback(async (): Promise<void> => {
@@ -93,11 +106,17 @@ export function useSchemaActualizeTrigger(
                 toast.success('Output schema actualized', { duration: undefined, id: triggerId });
               } else {
                 const errorMessage = response.error ?? 'Schema actualization failed';
+                if (storageId && isStorageOAuthRefreshMessage(errorMessage)) {
+                  invalidateDataStorageHealthStatus(storageId);
+                }
                 setSafeError(errorMessage);
                 toast.error(errorMessage, { duration: undefined, id: triggerId });
               }
             } catch (e) {
               const errorMessage = e instanceof Error ? e.message : 'Schema actualization failed';
+              if (storageId && isStorageOAuthRefreshMessage(errorMessage)) {
+                invalidateDataStorageHealthStatus(storageId);
+              }
               toast.dismiss(triggerId);
               setSafeError(errorMessage);
               toast.error(errorMessage, { duration: undefined, id: triggerId });
@@ -115,7 +134,7 @@ export function useSchemaActualizeTrigger(
         }
       }
     },
-    [dataMartId, setSafeError, setSafeLoading, handleError]
+    [dataMartId, setSafeError, setSafeLoading, handleError, storageId]
   );
 
   const run = useCallback(async () => {
@@ -143,9 +162,13 @@ export function useSchemaActualizeTrigger(
       }
     } catch (e) {
       setSafeLoading(false);
-      setSafeError(e instanceof Error ? e.message : 'Failed to start schema actualization');
+      const errorMessage = e instanceof Error ? e.message : 'Failed to start schema actualization';
+      if (storageId && isStorageOAuthRefreshMessage(errorMessage)) {
+        invalidateDataStorageHealthStatus(storageId);
+      }
+      setSafeError(errorMessage);
     }
-  }, [dataMartId, cancel, pollTriggerStatus, setSafeError, setSafeLoading, handleError]);
+  }, [dataMartId, cancel, pollTriggerStatus, setSafeError, setSafeLoading, handleError, storageId]);
 
   useEffect(() => {
     isMountedRef.current = true;

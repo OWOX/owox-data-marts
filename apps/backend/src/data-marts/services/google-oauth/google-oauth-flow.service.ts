@@ -301,7 +301,11 @@ export class GoogleOAuthFlowService {
       this.logger.log(`Refreshed OAuth tokens for ${type} credential ${credentialId}`);
     } catch (error) {
       this.logger.error(`Failed to refresh tokens for ${type} credential ${credentialId}`, error);
-      throw new TokenRefreshFailedException('Failed to refresh OAuth tokens', error);
+      const resourceLabel = type === 'storage' ? 'Storage' : 'Destination';
+      throw new TokenRefreshFailedException(
+        `Google access is no longer active. Reconnect this ${resourceLabel} to restore access.`,
+        error
+      );
     }
   }
 

@@ -11,15 +11,19 @@ export enum DataStorageHealthStatus {
   VALID = 'valid',
   INVALID = 'invalid',
   UNCONFIGURED = 'unconfigured',
+  REAUTH_REQUIRED = 'reauth_required',
 }
 
 /**
- * Must match ValidationResultCode.UNCONFIGURED on the backend.
- * If the backend enum value changes, update this constant accordingly.
+ * Must match ValidationResultCode values on the backend.
+ * If backend enum values change, update these constants accordingly.
  */
 const UNCONFIGURED_CODE: DataStorageValidationCode = 'UNCONFIGURED';
+const OAUTH_REAUTH_REQUIRED_CODE: DataStorageValidationCode = 'OAUTH_REAUTH_REQUIRED';
 
 export const UNCONFIGURED_STATUS_LABEL = 'Complete setup to activate Storage';
+export const OAUTH_REAUTH_REQUIRED_STATUS_LABEL =
+  'Google access is no longer active. Reconnect this Storage to restore access.';
 
 export interface CachedDataStorageHealthStatus {
   status: DataStorageHealthStatus;
@@ -115,6 +119,8 @@ function processQueue(): void {
           status = DataStorageHealthStatus.VALID;
         } else if (response.code === UNCONFIGURED_CODE) {
           status = DataStorageHealthStatus.UNCONFIGURED;
+        } else if (response.code === OAUTH_REAUTH_REQUIRED_CODE) {
+          status = DataStorageHealthStatus.REAUTH_REQUIRED;
         } else {
           status = DataStorageHealthStatus.INVALID;
         }

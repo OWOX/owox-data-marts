@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useRef, useState, type ReactNode } from 'react';
 import type { DataStorage } from '../../../data-storage/shared/model/types/data-storage.ts';
 import {
   DataStorageType,
@@ -12,12 +12,30 @@ import { DataStorageProvider } from '../../../data-storage/shared/model/context'
 import { AlertTriangle } from 'lucide-react';
 import { ExternalAnchor } from '@owox/ui/components/common/external-anchor';
 import { trackEvent } from '../../../../utils';
+import { useDataStorageHealthStatus } from '../../../data-storage/shared/model/hooks/useDataStorageHealthStatus.ts';
+import { DataStorageHealthStatus } from '../../../data-storage/shared/services/data-storage-health-status.service.ts';
+import { DataStorageHealthStatusView } from '../../../data-storage/shared/components/DataStorageHealthIndicator/DataStorageHealthStatusView.tsx';
 
 interface DataMartDataStorageViewProps {
   dataStorage: DataStorage;
   onDataStorageChange?: (updatedStorage: DataStorage) => void;
   onEditSheetClose?: (payload: { hasChanges: boolean }) => void;
 }
+
+interface DataStorageHealthErrorProps {
+  storageId: string;
+}
+
+function DataStorageHealthError({ storageId }: DataStorageHealthErrorProps) {
+  const { status, errorMessage, isFetched } = useDataStorageHealthStatus(storageId);
+
+  if (!isFetched || status === DataStorageHealthStatus.VALID) {
+    return null;
+  }
+
+  return <DataStorageHealthStatusView status={status} errorMessage={errorMessage} />;
+}
+
 export const DataMartDataStorageView = ({
   dataStorage,
   onDataStorageChange,
@@ -51,12 +69,21 @@ export const DataMartDataStorageView = ({
 
     if (!storageIsValid) {
       return (
-        <div className='flex items-center gap-1 text-sm text-red-500'>
-          <AlertTriangle className='h-4 w-4 shrink-0' />
-          <span>Storage configuration is incomplete</span>
+        <div className='flex flex-col gap-2'>
+          <div className='flex items-center gap-1 text-sm text-red-500'>
+            <AlertTriangle className='h-4 w-4 shrink-0' />
+            <span>Storage configuration is incomplete</span>
+          </div>
         </div>
       );
     }
+
+    const withHealthError = (details: ReactNode) => (
+      <div className='flex flex-col gap-2'>
+        {details}
+        <DataStorageHealthError storageId={dataStorage.id} />
+      </div>
+    );
 
     const formatParam = (label: string, value: string) => {
       return (
@@ -89,7 +116,7 @@ export const DataMartDataStorageView = ({
         const projectId = dataStorage.config.projectId;
         const location = dataStorage.config.location;
         const bigQueryConsoleLink = `https://console.cloud.google.com/bigquery?project=${projectId}`;
-        return (
+        return withHealthError(
           <div className='flex flex-wrap gap-2'>
             {formatLinkParam('Project ID', projectId, bigQueryConsoleLink)}
             <span className='text-muted-foreground'>•</span>

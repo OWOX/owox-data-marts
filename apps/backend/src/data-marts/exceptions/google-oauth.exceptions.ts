@@ -70,7 +70,10 @@ export class TokenExchangeFailedException extends GoogleOAuthException {
 }
 
 export class TokenRefreshFailedException extends GoogleOAuthException {
-  constructor(message: string = 'Failed to refresh OAuth tokens', details?: unknown) {
+  constructor(
+    message: string = 'Google access is no longer active. Reconnect this Google account to restore access.',
+    details?: unknown
+  ) {
     super(message, 'TOKEN_REFRESH_FAILED', HttpStatus.INTERNAL_SERVER_ERROR, details);
     this.name = 'TokenRefreshFailedException';
   }

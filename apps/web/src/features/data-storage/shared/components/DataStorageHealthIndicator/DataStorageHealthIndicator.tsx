@@ -14,6 +14,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@owox/ui/components/too
 import { useDataStorageHealthStatus } from '../../model/hooks/useDataStorageHealthStatus';
 import {
   DataStorageHealthStatus,
+  OAUTH_REAUTH_REQUIRED_STATUS_LABEL,
   UNCONFIGURED_STATUS_LABEL,
 } from '../../services/data-storage-health-status.service';
 import { DataStorageHealthStatusView } from './DataStorageHealthStatusView';
@@ -52,6 +53,11 @@ const HEALTH_STATUS_CONFIG: Record<DataStorageHealthStatus, HealthStatusDisplayC
     text: UNCONFIGURED_STATUS_LABEL,
     dotClass: 'bg-neutral-400 dark:bg-neutral-500',
     ringClass: 'ring-neutral-400/50 dark:ring-neutral-500/50',
+  },
+  [DataStorageHealthStatus.REAUTH_REQUIRED]: {
+    text: OAUTH_REAUTH_REQUIRED_STATUS_LABEL,
+    dotClass: 'bg-red-500',
+    ringClass: 'ring-red-500/50',
   },
 };
 const HEALTH_STATUS_NOT_FETCHED: HealthStatusDisplayConfig = {

@@ -19,7 +19,7 @@ interface TaskStatusResponseDto {
   status: TaskStatus;
 }
 
-export type DataStorageValidationCode = 'UNCONFIGURED';
+export type DataStorageValidationCode = 'UNCONFIGURED' | 'OAUTH_REAUTH_REQUIRED';
 
 export interface DataStorageValidationResponseDto {
   valid: boolean;
