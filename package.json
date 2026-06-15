@@ -109,6 +109,7 @@
     "file-type": "^21.3.2",
     "thrift": "^0.23.0",
     "uuid": "^11.1.1",
+    "esbuild": "^0.28.1",
     "googleapis-common": {
       "google-auth-library": "^10.1.0"
     }
