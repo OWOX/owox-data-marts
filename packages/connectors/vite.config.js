@@ -538,6 +538,15 @@ class ConnectorBuilder {
 
 // Export Vite configuration
 export default defineConfig({
+  esbuild: {
+    // esbuild >=0.28 errors when lowering some destructuring patterns for the Safari 14 target
+    // workaround. The bundled connector code targets Node/modern runtimes that support destructuring
+    // natively, so tell esbuild not to transform it. Pinned via the root `esbuild` override
+    // (GHSA-gv7w-rqvm-qjhr).
+    supported: {
+      destructuring: true,
+    },
+  },
   build: {
     lib: {
       entry: {
