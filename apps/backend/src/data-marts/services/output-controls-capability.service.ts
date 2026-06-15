@@ -10,6 +10,7 @@ export class OutputControlsCapabilityService {
     DataStorageType.AWS_ATHENA,
     DataStorageType.AWS_REDSHIFT,
     DataStorageType.DATABRICKS,
+    DataStorageType.SNOWFLAKE,
   ]);
 
   isSupported(type: DataStorageType): boolean {

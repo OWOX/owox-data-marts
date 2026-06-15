@@ -115,6 +115,7 @@ import { SnowflakeReportReader } from './snowflake/services/snowflake-report-rea
 import { SnowflakeSchemaMerger } from './snowflake/services/snowflake-schema-merger';
 import { SnowflakeSqlDryRunExecutor } from './snowflake/services/snowflake-sql-dry-run.executor';
 import { SnowflakeBlendedQueryBuilder } from './snowflake/services/snowflake-blended-query-builder';
+import { SnowflakeClauseRenderer } from './snowflake/services/snowflake-clause-renderer';
 import { SnowflakeSqlRunExecutor } from './snowflake/services/snowflake-sql-run.executor';
 import { SnowflakeStorageErrorMapper } from './snowflake/services/snowflake-storage-error.mapper';
 
@@ -259,6 +260,7 @@ const blendedQueryBuilderProviders = [
   AthenaClauseRenderer,
   RedshiftClauseRenderer,
   DatabricksClauseRenderer,
+  SnowflakeClauseRenderer,
   BigQueryBlendedQueryBuilder,
   SnowflakeBlendedQueryBuilder,
   RedshiftBlendedQueryBuilder,
