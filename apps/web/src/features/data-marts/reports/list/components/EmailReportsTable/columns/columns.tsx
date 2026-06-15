@@ -4,6 +4,7 @@ import RelativeTime from '@owox/ui/components/common/relative-time';
 import { EmailActionsCell } from '../EmailActionsCell';
 import { StatusIcon } from '../../StatusIcon';
 import type { DataMartReport } from '../../../../shared/model/types/data-mart-report';
+import { ReportQuickRunCell } from '../../../../shared';
 import { ReportColumnKey } from './columnKeys';
 import { ReportColumnLabels } from './columnLabels';
 import { UserReference } from '../../../../../../../shared/components/UserReference';
@@ -18,6 +19,14 @@ export const getEmailColumns = ({
   onDeleteSuccess,
   onEditReport,
 }: EmailTableColumnsProps = {}): ColumnDef<DataMartReport>[] => [
+  {
+    id: 'quickRun',
+    size: 50,
+    enableResizing: false,
+    enableSorting: false,
+    header: () => null,
+    cell: ({ row }) => <ReportQuickRunCell report={row.original} />,
+  },
   {
     accessorKey: ReportColumnKey.TITLE,
     size: 320,
@@ -115,7 +124,7 @@ export const getEmailColumns = ({
   },
   {
     id: 'actions',
-    size: 140,
+    size: 130,
     enableResizing: false,
     header: ({ table }) => <ToggleColumnsHeader table={table} />,
     cell: ({ row }) => (
