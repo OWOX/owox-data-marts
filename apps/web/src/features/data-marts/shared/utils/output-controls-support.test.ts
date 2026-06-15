@@ -23,8 +23,11 @@ describe('supportsOutputControls', () => {
     expect(supportsOutputControls(DataStorageType.DATABRICKS)).toBe(true);
   });
 
+  it('returns true for Snowflake', () => {
+    expect(supportsOutputControls(DataStorageType.SNOWFLAKE)).toBe(true);
+  });
+
   it('returns false for not-yet-supported storages', () => {
-    expect(supportsOutputControls(DataStorageType.SNOWFLAKE)).toBe(false);
     expect(supportsOutputControls(DataStorageType.AZURE_SYNAPSE)).toBe(false);
   });
 });

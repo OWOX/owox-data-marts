@@ -168,7 +168,7 @@ export abstract class AbstractBlendedQueryBuilder implements BlendedQueryBuilder
     const selectClause = selectParts.length > 0 ? selectParts.join(',\n  ') : '*';
 
     const body =
-      `SELECT\n  ${selectClause}\nFROM main` +
+      `SELECT\n  ${selectClause}\nFROM ${this.quoteIdentifier('main')}` +
       (joinParts.length > 0 ? '\n' + joinParts.join('\n') : '');
 
     const qualifyColumn = this.buildColumnQualifier(outputAliasToRoot);
@@ -204,7 +204,7 @@ export abstract class AbstractBlendedQueryBuilder implements BlendedQueryBuilder
       if (rootAlias) {
         return `${this.quoteIdentifier(rootAlias)}.${this.quoteIdentifier(column)}`;
       }
-      return `main.${this.quoteFieldRef(column)}`;
+      return `${this.quoteIdentifier('main')}.${this.quoteFieldRef(column)}`;
     };
   }
 
@@ -497,7 +497,7 @@ export abstract class AbstractBlendedQueryBuilder implements BlendedQueryBuilder
       if (rootAlias && !hiddenOutputAliases.has(col)) {
         parts.push(`${this.quoteIdentifier(rootAlias)}.${this.quoteIdentifier(col)}`);
       } else {
-        parts.push(`main.${this.quoteFieldRef(col)}`);
+        parts.push(`${this.quoteIdentifier('main')}.${this.quoteFieldRef(col)}`);
       }
     }
     return parts;

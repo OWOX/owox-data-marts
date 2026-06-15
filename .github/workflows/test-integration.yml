@@ -28,9 +28,11 @@ jobs:
             pattern: athena.integration
           - name: Redshift
             pattern: redshift.integration
+          - name: Snowflake
+            pattern: snowflake.integration
           - name: Databricks
             pattern: databricks.integration
-          - name: HTTP Data (Athena + BigQuery + Redshift + Databricks)
+          - name: HTTP Data (Athena + BigQuery + Redshift + Databricks + Snowflake)
             pattern: http-data-real
           - name: Report read (Athena)
             pattern: report-run-real
@@ -75,6 +77,14 @@ jobs:
           REDSHIFT_REGION: ${{ secrets.REDSHIFT_REGION }}
           REDSHIFT_WORKGROUP_NAME: ${{ secrets.REDSHIFT_WORKGROUP_NAME }}
           REDSHIFT_DATABASE: ${{ secrets.REDSHIFT_DATABASE }}
+          # Snowflake (PASSWORD auth = PAT in the password field; the account needs a
+          # network policy that permits GitHub Actions runners, or the auth will fail)
+          SNOWFLAKE_ACCOUNT: ${{ secrets.SNOWFLAKE_ACCOUNT }}
+          SNOWFLAKE_WAREHOUSE: ${{ secrets.SNOWFLAKE_WAREHOUSE }}
+          SNOWFLAKE_USERNAME: ${{ secrets.SNOWFLAKE_USERNAME }}
+          SNOWFLAKE_PASSWORD: ${{ secrets.SNOWFLAKE_PASSWORD }}
+          SNOWFLAKE_DATABASE: ${{ secrets.SNOWFLAKE_DATABASE }}
+          SNOWFLAKE_SCHEMA: ${{ secrets.SNOWFLAKE_SCHEMA }}
           # Databricks (PERSONAL_ACCESS_TOKEN auth; catalog + schema host the seed table)
           DATABRICKS_HOST: ${{ secrets.DATABRICKS_HOST }}
           DATABRICKS_HTTP_PATH: ${{ secrets.DATABRICKS_HTTP_PATH }}
