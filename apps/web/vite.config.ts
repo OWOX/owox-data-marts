@@ -6,12 +6,21 @@ import basicSsl from '@vitejs/plugin-basic-ssl';
 // https://vite.dev/config/
 export default defineConfig(({ mode }) => ({
   plugins: [react(), tailwindcss(), basicSsl()],
+  // esbuild >=0.28 errors when lowering some destructuring patterns (styled-components, @base-ui/react,
+  // lucide-react, ...) for the Safari 14 target workaround. The target browsers all support destructuring
+  // natively, so tell esbuild not to transform it. This must be set in BOTH passes: `esbuild` covers source
+  // transform + the production build target, while `optimizeDeps.esbuildOptions` covers the dev-server
+  // dependency pre-bundling. Pinned via the root `esbuild` override (GHSA-gv7w-rqvm-qjhr).
   esbuild: {
-    // esbuild >=0.28 errors when lowering some destructuring patterns (e.g. styled-components)
-    // for the Safari 14 target workaround. The target browsers all support destructuring natively,
-    // so tell esbuild not to transform it. Pinned via the root `esbuild` override (GHSA-gv7w-rqvm-qjhr).
     supported: {
       destructuring: true,
+    },
+  },
+  optimizeDeps: {
+    esbuildOptions: {
+      supported: {
+        destructuring: true,
+      },
     },
   },
   build: {
