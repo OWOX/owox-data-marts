@@ -4,14 +4,15 @@ import type { IdpProvider } from '@owox/idp-protocol';
 
 import { Flags } from '@oclif/core';
 import { IdpProtocolMiddleware } from '@owox/idp-protocol';
-import cors, { CorsOptions } from 'cors';
+import cors from 'cors';
 import express from 'express';
 import { existsSync } from 'node:fs';
 
 import { IdpFactory } from '../idp/factory.js';
 import { trackServeStarted } from '../telemetry/index.js';
-import { getPackageInfo } from '../utils/package-info.js';
+import { getPackageInfo } from '../utils/index.js';
 import {
+  buildCorsConfig,
   registerHealthRoutes,
   registerPublicFlagsRoute,
   setupWebStaticAssets,
@@ -107,30 +108,6 @@ export default class Serve extends BaseCommand {
   }
 
   /**
-   * Builds CORS configuration based on environment variables.
-   * @returns CORS middleware options with validated origins
-   * @private
-   */
-  private buildCorsConfig(): CorsOptions {
-    const googleSheetsExtensionOrigin = process.env.GOOGLE_SHEETS_EXTENSION_ORIGIN;
-    const allowedOrigins = googleSheetsExtensionOrigin
-      ? googleSheetsExtensionOrigin
-          .split(',')
-          .map(origin => origin.trim())
-          .filter(origin => origin.length > 0)
-      : [];
-
-    return {
-      allowedHeaders: ['content-Type', 'authorization', 'x-owox-authorization'],
-      credentials: true,
-      maxAge: 86_400,
-      methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-      optionsSuccessStatus: 204,
-      origin: allowedOrigins,
-    };
-  }
-
-  /**
    * Handles graceful shutdown when receiving termination signals.
    *
    * Prevents multiple shutdown attempts, logs the shutdown process, waits for
@@ -223,7 +200,7 @@ export default class Serve extends BaseCommand {
     const expressApp = express();
     expressApp.set('trust proxy', 1);
 
-    const corsConfig = this.buildCorsConfig();
+    const corsConfig = buildCorsConfig();
     expressApp.use(cors(corsConfig));
 
     // Holders for late-bound dependencies used by early health routes
