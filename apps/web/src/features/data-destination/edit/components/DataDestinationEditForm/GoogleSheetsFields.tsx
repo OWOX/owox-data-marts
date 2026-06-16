@@ -7,7 +7,8 @@ import {
   FormLabel,
   FormMessage,
 } from '@owox/ui/components/form';
-import { Textarea } from '@owox/ui/components/textarea';
+import { FileDropTextarea } from '@owox/ui/components/file-drop-textarea';
+import { toast } from 'react-hot-toast';
 import { useState, useEffect } from 'react';
 import { type UseFormReturn } from 'react-hook-form';
 import { type DataDestinationFormData, DataDestinationType } from '../../../shared';
@@ -262,11 +263,20 @@ export function GoogleSheetsFields({ form }: GoogleSheetsFieldsProps) {
                         </button>
                       </div>
                     ) : (
-                      <Textarea
+                      <FileDropTextarea
                         {...field}
                         className='min-h-[150px] font-mono'
                         rows={8}
-                        placeholder='Paste your service account JSON here'
+                        placeholder='Paste your service account JSON here or drag & drop the file'
+                        onFileRead={content => {
+                          form.setValue('credentials.serviceAccount', content, {
+                            shouldDirty: true,
+                            shouldValidate: true,
+                          });
+                        }}
+                        onFileReject={error => {
+                          toast.error(error);
+                        }}
                       />
                     )}
                   </FormControl>
