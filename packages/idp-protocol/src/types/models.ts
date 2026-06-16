@@ -38,16 +38,19 @@ export const PayloadSchema = z
 
 export type Payload = z.infer<typeof PayloadSchema>;
 
-const ProjectSchema = z
+export const ProjectSchema = z
   .object({
     id: z.string(),
     title: z.string(),
     status: ProjectStatusEnum.optional(),
+    roles: z.array(RoleEnum).optional(),
+    createdAt: z.string().optional(),
   })
   .passthrough();
 
 export const ProjectsSchema = z.array(ProjectSchema);
 
+export type Project = z.infer<typeof ProjectSchema>;
 export type Projects = z.infer<typeof ProjectsSchema>;
 
 /**

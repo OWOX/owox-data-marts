@@ -1,4 +1,5 @@
 import 'reflect-metadata';
+import { RequestMethod } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { NestFactory } from '@nestjs/core';
 import { ExpressAdapter, NestExpressApplication } from '@nestjs/platform-express';
@@ -19,6 +20,15 @@ import { loadEnv } from './load-env';
 const logger = createLogger('Bootstrap');
 const PATH_PREFIX = 'api';
 const SWAGGER_PATH = 'swagger-ui';
+const PROTOCOL_ROUTE_EXCLUSIONS = [
+  { path: '.well-known/oauth-protected-resource', method: RequestMethod.ALL },
+  { path: '.well-known/oauth-protected-resource/(.*)', method: RequestMethod.ALL },
+  { path: '.well-known/oauth-authorization-server', method: RequestMethod.ALL },
+  { path: '.well-known/oauth-authorization-server/(.*)', method: RequestMethod.ALL },
+  { path: 'oauth/(.*)', method: RequestMethod.ALL },
+  { path: 'mcp', method: RequestMethod.ALL },
+  { path: 'mcp/(.*)', method: RequestMethod.ALL },
+];
 
 export interface BootstrapOptions {
   express: Express;
@@ -46,7 +56,7 @@ export async function bootstrap(options: BootstrapOptions): Promise<NestExpressA
 
   app.useLogger(createLogger());
   app.useGlobalFilters(new GlobalExceptionFilter(), new BaseExceptionFilter());
-  app.setGlobalPrefix(PATH_PREFIX);
+  app.setGlobalPrefix(PATH_PREFIX, { exclude: PROTOCOL_ROUTE_EXCLUSIONS });
 
   app.use(
     compression({

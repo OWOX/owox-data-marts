@@ -6,6 +6,11 @@ import type {
   DatabaseUser,
   OnboardingAnswer,
 } from '../types/index.js';
+import {
+  parseSerializedAuthFlowParams,
+  serializeAuthFlowParams,
+  type AuthFlowParams,
+} from '../utils/request-utils.js';
 import type { DatabaseStore } from './database-store.js';
 import { StoreResult } from './store-result.js';
 
@@ -238,18 +243,25 @@ export class MysqlDatabaseStore implements DatabaseStore {
     ]);
   }
 
-  async saveAuthState(state: string, codeVerifier: string, expiresAt?: Date | null): Promise<void> {
+  async saveAuthState(
+    state: string,
+    codeVerifier: string,
+    expiresAt?: Date | null,
+    authFlowParams?: AuthFlowParams
+  ): Promise<void> {
     const pool = await this.getPool();
     await this.ensureAuthStatesTable(pool);
     const exp: Date | null = expiresAt ?? null;
+    const serializedAuthFlowParams = serializeAuthFlowParams(authFlowParams);
     await pool.execute(
-      `INSERT INTO auth_states (state, code_verifier, expires_at)
-       VALUES (?, ?, ?)
+      `INSERT INTO auth_states (state, code_verifier, expires_at, platform_params)
+       VALUES (?, ?, ?, ?)
        ON DUPLICATE KEY UPDATE
           code_verifier = VALUES(code_verifier),
           expires_at    = VALUES(expires_at),
+          platform_params = VALUES(platform_params),
           created_at    = CURRENT_TIMESTAMP`,
-      [state, codeVerifier, exp]
+      [state, codeVerifier, exp, serializedAuthFlowParams]
     );
   }
 
@@ -257,13 +269,19 @@ export class MysqlDatabaseStore implements DatabaseStore {
     const pool = await this.getPool();
     await this.ensureAuthStatesTable(pool);
     const [rows] = await pool.execute(
-      `SELECT code_verifier, expires_at FROM auth_states WHERE state = ? LIMIT 1`,
+      `SELECT code_verifier, expires_at, platform_params FROM auth_states WHERE state = ? LIMIT 1`,
       [state]
     );
 
     const row =
       Array.isArray(rows) && rows.length > 0
-        ? (rows as Array<{ code_verifier: string; expires_at: Date | null }>)[0]
+        ? (
+            rows as Array<{
+              code_verifier: string;
+              expires_at: Date | null;
+              platform_params?: string | null;
+            }>
+          )[0]
         : null;
     if (!row) return StoreResult.notFound();
 
@@ -274,7 +292,10 @@ export class MysqlDatabaseStore implements DatabaseStore {
     }
 
     await this.deleteAuthState(state);
-    return StoreResult.withCode(row.code_verifier);
+    return StoreResult.withCode(
+      row.code_verifier,
+      parseSerializedAuthFlowParams(row.platform_params)
+    );
   }
 
   async deleteAuthState(state: string): Promise<void> {
@@ -328,9 +349,15 @@ export class MysqlDatabaseStore implements DatabaseStore {
             state VARCHAR(255) NOT NULL PRIMARY KEY,
             code_verifier VARCHAR(255) NOT NULL,
             created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-            expires_at TIMESTAMP NULL
+            expires_at TIMESTAMP NULL,
+            platform_params TEXT NULL
             )
     `);
+
+    const [columns] = await pool.query(`SHOW COLUMNS FROM auth_states LIKE 'platform_params'`);
+    if (!Array.isArray(columns) || columns.length === 0) {
+      await pool.query(`ALTER TABLE auth_states ADD COLUMN platform_params TEXT NULL`);
+    }
 
     try {
       await pool.query(`CREATE INDEX idx_auth_states_expires_at ON auth_states (expires_at)`);

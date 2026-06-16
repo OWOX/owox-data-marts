@@ -2,6 +2,7 @@ import { IdpProvider } from '../types/provider.js';
 import {
   AuthResult,
   Payload,
+  Project,
   Projects,
   ProjectMember,
   ProjectMemberInvitation,
@@ -14,6 +15,16 @@ import {
   RequestProjectAccessResult,
   CreateNewProjectResult,
 } from '../types/models.js';
+import {
+  McpOAuthProjectMemberContext,
+  McpScope,
+  McpTokenPayload,
+  OAuthAuthorizationCode,
+  OAuthAuthorizationRequest,
+  OAuthJwksResult,
+  OAuthTokenExchangeRequest,
+  OAuthTokenExchangeResult,
+} from '../types/oauth.js';
 import { IdpOperationNotSupportedError } from '../types/errors.js';
 import { Express, Request, Response, NextFunction } from 'express';
 
@@ -65,6 +76,31 @@ export class NullIdpProvider implements IdpProvider {
     return { accessToken };
   }
 
+  async createMcpOAuthAuthorizationCode(
+    _request: OAuthAuthorizationRequest,
+    _projectMember: McpOAuthProjectMemberContext
+  ): Promise<OAuthAuthorizationCode> {
+    throw new IdpOperationNotSupportedError('createMcpOAuthAuthorizationCode');
+  }
+
+  async exchangeMcpOAuthToken(
+    _request: OAuthTokenExchangeRequest
+  ): Promise<OAuthTokenExchangeResult> {
+    throw new IdpOperationNotSupportedError('exchangeMcpOAuthToken');
+  }
+
+  async verifyMcpAccessToken(
+    _token: string,
+    _resource: string,
+    _requiredScopes: McpScope[]
+  ): Promise<McpTokenPayload | null> {
+    return null;
+  }
+
+  async getMcpOAuthJwks(): Promise<OAuthJwksResult> {
+    throw new IdpOperationNotSupportedError('getMcpOAuthJwks');
+  }
+
   signInMiddleware(req: Request, res: Response, _next: NextFunction): Promise<void> {
     return this.setAuthCookieAndRedirect(req, res);
   }
@@ -92,13 +128,28 @@ export class NullIdpProvider implements IdpProvider {
     return Promise.resolve(res.json(this.defaultPayload));
   }
 
-  projectsApiMiddleware(
+  async projectsApiMiddleware(
     _req: Request,
     res: Response,
     _next: NextFunction
   ): Promise<Response<Projects>> {
-    // Always return empty list of projects
-    return Promise.resolve(res.json([]));
+    return res.json(await this.getProjects(''));
+  }
+
+  async getProjects(_accessToken: string): Promise<Projects> {
+    return [];
+  }
+
+  async getProjectForUser(_userId: string, projectId: string): Promise<Project> {
+    return {
+      id: projectId,
+      title:
+        projectId === this.defaultPayload.projectId
+          ? (this.defaultPayload.projectTitle ?? projectId)
+          : projectId,
+      status: 'active',
+      roles: this.defaultPayload.roles,
+    };
   }
 
   registerRoutes(_app: Express): void {

@@ -8,10 +8,10 @@ import {
 import { AUTH_BASE_PATH, parseMagicLinkIntent } from '../core/constants.js';
 import { TemplateService } from '../services/rendering/template-service.js';
 import type { UiAuthProviders } from '../types/index.js';
-import { extractPlatformParams, persistPlatformContext } from '../utils/request-utils.js';
+import { extractAuthFlowParams, persistAuthFlowContext } from '../utils/request-utils.js';
 
 /**
- * Renders static auth pages and persists platform context.
+ * Renders static auth pages and persists auth-flow context.
  */
 export class PageController {
   constructor(
@@ -19,14 +19,14 @@ export class PageController {
     private readonly gtmContainerId?: string
   ) {}
 
-  private persistPlatformContext(req: ExpressRequest, res: ExpressResponse): void {
+  private persistAuthFlowContext(req: ExpressRequest, res: ExpressResponse): void {
     const state = typeof req.query?.state === 'string' ? req.query.state : undefined;
-    const params = extractPlatformParams(req);
-    persistPlatformContext(req, res, { state, params });
+    const params = extractAuthFlowParams(req);
+    persistAuthFlowContext(req, res, { state, params });
   }
 
   async signInPage(req: ExpressRequest, res: ExpressResponse): Promise<void> {
-    this.persistPlatformContext(req, res);
+    this.persistAuthFlowContext(req, res);
     const errorMessage = typeof req.query?.error === 'string' ? req.query.error : undefined;
     const infoMessage = typeof req.query?.info === 'string' ? req.query.info : undefined;
     sendSecureHtml(
@@ -41,7 +41,7 @@ export class PageController {
   }
 
   async signUpPage(req: ExpressRequest, res: ExpressResponse): Promise<void> {
-    this.persistPlatformContext(req, res);
+    this.persistAuthFlowContext(req, res);
     const errorMessage = typeof req.query?.error === 'string' ? req.query.error : undefined;
     const infoMessage = typeof req.query?.info === 'string' ? req.query.info : undefined;
     sendSecureHtml(

@@ -1,4 +1,4 @@
-import { INestApplication } from '@nestjs/common';
+import { INestApplication, RequestMethod } from '@nestjs/common';
 import * as supertest from 'supertest';
 
 /**
@@ -14,7 +14,7 @@ import * as supertest from 'supertest';
  */
 export async function createTestApp(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  overrides?: Array<{ provide: any; useValue: any }>,
+  overrides?: Array<{ provide: any; useValue: any }>
 ): Promise<{
   app: INestApplication;
   agent: supertest.Agent;
@@ -87,10 +87,15 @@ export async function createTestApp(
 
   const moduleRef = await builder.compile();
 
-  const app: INestApplication = moduleRef.createNestApplication(
-    new ExpressAdapter(expressApp)
-  );
-  app.setGlobalPrefix('api');
+  const app: INestApplication = moduleRef.createNestApplication(new ExpressAdapter(expressApp));
+  app.setGlobalPrefix('api', {
+    exclude: [
+      { path: '.well-known/oauth-protected-resource', method: RequestMethod.ALL },
+      { path: '.well-known/oauth-authorization-server', method: RequestMethod.ALL },
+      { path: 'oauth/(.*)', method: RequestMethod.ALL },
+      { path: 'mcp', method: RequestMethod.ALL },
+    ],
+  });
   setupGlobalPipes(app);
   app.useGlobalFilters(new GlobalExceptionFilter(), new BaseExceptionFilter());
 

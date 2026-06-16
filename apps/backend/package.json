@@ -70,6 +70,7 @@
     "@databricks/sql": "^1.12.0",
     "@google-cloud/bigquery": "^8.1.0",
     "@google-cloud/pubsub": "^4.0.7",
+    "@modelcontextprotocol/sdk": "^1.29.0",
     "@nestjs/common": "^11.0.1",
     "@nestjs/config": "^4.0.2",
     "@nestjs/core": "^11.1.2",
@@ -119,6 +120,7 @@
     "@nestjs/testing": "^11.1.2",
     "@owox/eslint-config": "*",
     "@owox/prettier-config": "*",
+    "@owox/test-utils": "*",
     "@swc/cli": "^0.6.0",
     "@swc/core": "^1.10.7",
     "@types/better-sqlite3": "^7.6.13",
@@ -138,8 +140,7 @@
     "ts-loader": "^9.5.2",
     "ts-node": "^10.9.2",
     "tsconfig-paths": "^4.2.0",
-    "typeorm-ts-node-commonjs": "^0.3.20",
-    "@owox/test-utils": "*"
+    "typeorm-ts-node-commonjs": "^0.3.20"
   },
   "jest": {
     "moduleFileExtensions": ["js", "json", "ts"],

@@ -24,6 +24,7 @@ describe('IdpProjectionsFacade — member mutation proxies', () => {
       | 'listMembershipRequests'
       | 'approveMembershipRequest'
       | 'declineMembershipRequest'
+      | 'getProjectForUser'
     >
   >;
   let facade: IdpProjectionsFacade;
@@ -37,6 +38,7 @@ describe('IdpProjectionsFacade — member mutation proxies', () => {
       listMembershipRequests: jest.fn(),
       approveMembershipRequest: jest.fn(),
       declineMembershipRequest: jest.fn(),
+      getProjectForUser: jest.fn(),
     } as unknown as jest.Mocked<
       Pick<
         IdpProjectionsService,
@@ -47,6 +49,7 @@ describe('IdpProjectionsFacade — member mutation proxies', () => {
         | 'listMembershipRequests'
         | 'approveMembershipRequest'
         | 'declineMembershipRequest'
+        | 'getProjectForUser'
       >
     >;
 
@@ -95,6 +98,22 @@ describe('IdpProjectionsFacade — member mutation proxies', () => {
       USER_ID,
       ACTOR_USER_ID
     );
+  });
+
+  it('getProjectForUser — delegates to the service', async () => {
+    const project = {
+      id: 'project-1',
+      title: 'Main Project',
+      status: 'active' as const,
+      roles: ['admin' as const],
+      createdAt: '2026-06-01 12:30:45',
+    };
+    idpProjectionsService.getProjectForUser.mockResolvedValue(project);
+
+    const returned = await facade.getProjectForUser(USER_ID, PROJECT_ID);
+
+    expect(idpProjectionsService.getProjectForUser).toHaveBeenCalledWith(USER_ID, PROJECT_ID);
+    expect(returned).toBe(project);
   });
 
   it('changeMemberRole — delegates with the new role', async () => {
