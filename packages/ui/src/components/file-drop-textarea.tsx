@@ -13,6 +13,16 @@ const FileDropTextarea = React.forwardRef<HTMLTextAreaElement, FileDropTextareaP
   ({ className, onFileRead, onFileReject, allowedExtensions = ['.json'], ...props }, ref) => {
     const [isDragging, setIsDragging] = React.useState(false);
 
+    React.useEffect(() => {
+      const preventDefault = (e: DragEvent) => e.preventDefault();
+      window.addEventListener('dragover', preventDefault);
+      window.addEventListener('drop', preventDefault);
+      return () => {
+        window.removeEventListener('dragover', preventDefault);
+        window.removeEventListener('drop', preventDefault);
+      };
+    }, []);
+
     const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
       e.preventDefault();
       setIsDragging(true);
@@ -20,6 +30,7 @@ const FileDropTextarea = React.forwardRef<HTMLTextAreaElement, FileDropTextareaP
 
     const handleDragLeave = (e: React.DragEvent<HTMLDivElement>) => {
       e.preventDefault();
+      if (e.currentTarget.contains(e.relatedTarget as Node)) return;
       setIsDragging(false);
     };
 
@@ -27,8 +38,23 @@ const FileDropTextarea = React.forwardRef<HTMLTextAreaElement, FileDropTextareaP
       e.preventDefault();
       setIsDragging(false);
 
+      if (e.dataTransfer.files.length > 1) {
+        if (onFileReject) {
+          onFileReject('Only one file can be dropped at a time.');
+        }
+        return;
+      }
+
       const file = e.dataTransfer.files[0];
       if (file) {
+        const maxFileSize = 1 * 1024 * 1024; // 1MB
+        if (file.size > maxFileSize) {
+          if (onFileReject) {
+            onFileReject('File is too large. Max allowed size is 1MB.');
+          }
+          return;
+        }
+
         const fileName = file.name.toLowerCase();
         const isValidExtension = allowedExtensions.some(ext => fileName.endsWith(ext));
 
@@ -37,9 +63,25 @@ const FileDropTextarea = React.forwardRef<HTMLTextAreaElement, FileDropTextareaP
           reader.onload = event => {
             const text = event.target?.result;
             if (typeof text === 'string') {
-              if (fileName.endsWith('.json')) {
+              const checkJson =
+                allowedExtensions.some(ext => ext.toLowerCase() === '.json') &&
+                fileName.endsWith('.json');
+              if (checkJson) {
                 try {
-                  JSON.parse(text);
+                  const parsed = JSON.parse(text);
+                  const isServiceAccount =
+                    parsed &&
+                    parsed.type === 'service_account' &&
+                    parsed.project_id &&
+                    parsed.private_key &&
+                    parsed.client_email;
+
+                  if (!isServiceAccount) {
+                    if (onFileReject) {
+                      onFileReject('File is not a valid Google Service Account JSON');
+                    }
+                    return;
+                  }
                 } catch {
                   if (onFileReject) {
                     onFileReject('File is not a valid JSON');
@@ -74,6 +116,7 @@ const FileDropTextarea = React.forwardRef<HTMLTextAreaElement, FileDropTextareaP
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
+        onDragEnd={() => setIsDragging(false)}
       >
         <Textarea
           ref={ref}
