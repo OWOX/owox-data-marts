@@ -61,6 +61,7 @@ vi.mock('@owox/ui/components/dropdown-menu', () => ({
     onPointerEnter,
     onPointerLeave,
     className,
+    ...props
   }: {
     children: ReactNode;
     disabled?: boolean;
@@ -76,6 +77,7 @@ vi.mock('@owox/ui/components/dropdown-menu', () => ({
       onPointerEnter={onPointerEnter}
       onPointerLeave={onPointerLeave}
       className={className}
+      {...props}
     >
       {children}
     </div>
@@ -252,8 +254,91 @@ describe('SwitchProjectMenu', () => {
     expect(screen.getByText('No projects found')).toBeInTheDocument();
     expect(screen.queryByText('Project 1')).not.toBeInTheDocument();
   });
+
+  it('supports keyboard navigation in restricted mode (excludeCurrentProject)', () => {
+    projectsState.value = {
+      ...projectsState.value,
+      projects: [
+        { id: 'project-1', title: 'Current Project' },
+        { id: 'project-2', title: 'Project 2' },
+        { id: 'project-3', title: 'Project 3' },
+      ],
+      callState: RequestStatus.LOADED,
+    };
+
+    renderSwitchProjectMenu(<SwitchProjectMenu excludeCurrentProject />);
+
+    const projectList = screen.getByTestId('project-list');
+
+    // Simulate ArrowDown to navigate to Project 2 (index 0 in visibleProjects list)
+    fireEvent.keyDown(projectList, { key: 'ArrowDown' });
+
+    // Project 2 should be highlighted
+    const project2Item = screen.getByText('Project 2').closest('[role="option"]');
+    expect(project2Item).toHaveClass('bg-accent');
+
+    // Press Enter to navigate
+    fireEvent.keyDown(projectList, { key: 'Enter' });
+    expect(mockNavigate).toHaveBeenCalledWith('/ui/project-2/');
+  });
+
+  it('navigates to first project on Enter in search field when nothing is highlighted', () => {
+    const testProjects = Array.from({ length: 12 }, (_, i) => ({
+      id: `project-${i + 1}`,
+      title: `Project ${i + 1}`,
+    }));
+    projectsState.value = {
+      ...projectsState.value,
+      projects: testProjects,
+      callState: RequestStatus.LOADED,
+    };
+
+    renderSwitchProjectMenu(<SwitchProjectMenu />);
+
+    const searchInput = screen.getByPlaceholderText('Search project...');
+
+    // Type a query that matches multiple projects
+    fireEvent.change(searchInput, { target: { value: 'Project 1' } });
+
+    // Press Enter directly in the search input
+    fireEvent.keyDown(searchInput, { key: 'Enter' });
+
+    // Should navigate to "Project 1" (which is index 0 in the filtered results)
+    expect(mockNavigate).toHaveBeenCalledWith('/ui/project-1/');
+  });
+
+  it('retains active highlight index when unrelated re-render occurs', () => {
+    const testProjects = Array.from({ length: 3 }, (_, i) => ({
+      id: `project-${i + 1}`,
+      title: `Project ${i + 1}`,
+    }));
+    projectsState.value = {
+      ...projectsState.value,
+      projects: testProjects,
+      callState: RequestStatus.LOADED,
+    };
+
+    const { rerender } = renderSwitchProjectMenu(<SwitchProjectMenu />);
+
+    const projectList = screen.getByTestId('project-list');
+    fireEvent.keyDown(projectList, { key: 'ArrowDown' });
+
+    // First item is highlighted
+    const firstItem = screen.getByText('Project 1').closest('[role="option"]');
+    expect(firstItem).toHaveClass('bg-accent');
+
+    // Re-render
+    rerender(
+      <MemoryRouter>
+        <SwitchProjectMenu />
+      </MemoryRouter>
+    );
+
+    // First item should still be highlighted
+    expect(screen.getByText('Project 1').closest('[role="option"]')).toHaveClass('bg-accent');
+  });
 });
 
 function renderSwitchProjectMenu(children: ReactNode) {
-  render(<MemoryRouter>{children}</MemoryRouter>);
+  return render(<MemoryRouter>{children}</MemoryRouter>);
 }

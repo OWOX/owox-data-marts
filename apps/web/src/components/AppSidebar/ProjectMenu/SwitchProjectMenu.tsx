@@ -33,12 +33,14 @@ function SwitchProjectMenuInner({
   const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState('');
   const [activeIndex, setActiveIndex] = useState<number>(-1);
-  const listRef = useRef<HTMLDivElement>(null);
   const itemRefs = useRef<(HTMLElement | null)[]>([]);
 
-  const visibleProjects = excludeCurrentProject
-    ? projects.filter(project => project.id !== user?.projectId)
-    : projects;
+  const visibleProjects = useMemo(() => {
+    return excludeCurrentProject
+      ? projects.filter(project => project.id !== user?.projectId)
+      : projects;
+  }, [projects, excludeCurrentProject, user?.projectId]);
+
   const isInitialLoad = autoLoad && callState === RequestStatus.IDLE;
 
   useEffect(() => {
@@ -47,7 +49,7 @@ function SwitchProjectMenuInner({
     }
   }, [isInitialLoad, loadProjects]);
 
-  const showSearch = projects.length > 10;
+  const showSearch = visibleProjects.length > 10;
 
   const filteredProjects = useMemo(() => {
     if (!showSearch || !searchQuery.trim()) {
@@ -62,6 +64,11 @@ function SwitchProjectMenuInner({
     setActiveIndex(-1);
   }, [filteredProjects]);
 
+  // Reset itemRefs length or clear it when filtered list changes
+  useEffect(() => {
+    itemRefs.current = [];
+  }, [filteredProjects]);
+
   // Scroll active item into view
   useEffect(() => {
     if (activeIndex >= 0 && itemRefs.current[activeIndex]) {
@@ -71,28 +78,35 @@ function SwitchProjectMenuInner({
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
+      if (!['ArrowDown', 'ArrowUp', 'Enter'].includes(e.key)) return;
+
+      e.preventDefault();
+      e.stopPropagation();
+
       if (!filteredProjects.length) return;
 
       if (e.key === 'ArrowDown') {
-        e.preventDefault();
-        e.stopPropagation();
         setActiveIndex(prev => (prev + 1) % filteredProjects.length);
       } else if (e.key === 'ArrowUp') {
-        e.preventDefault();
-        e.stopPropagation();
         setActiveIndex(prev => (prev <= 0 ? filteredProjects.length - 1 : prev - 1));
-      } else if (e.key === 'Enter' && activeIndex >= 0) {
-        e.preventDefault();
-        e.stopPropagation();
-        const project = filteredProjects[activeIndex];
+      } else if (e.key === 'Enter') {
+        const targetIndex = activeIndex >= 0 ? activeIndex : 0;
+        const project = filteredProjects[targetIndex];
         void navigate(buildProjectPath(encodeURIComponent(project.id), '/'));
       }
     },
     [filteredProjects, activeIndex, navigate]
   );
 
+  const handleOpenChange = useCallback((open: boolean) => {
+    if (!open) {
+      setSearchQuery('');
+      setActiveIndex(-1);
+    }
+  }, []);
+
   return (
-    <DropdownMenuSub>
+    <DropdownMenuSub onOpenChange={handleOpenChange}>
       {showSeparator && <DropdownMenuSeparator />}
       <DropdownMenuSubTrigger className='flex items-center gap-2'>
         <ArrowRightLeft className='h-4 w-4' />
@@ -131,15 +145,25 @@ function SwitchProjectMenuInner({
                 }}
                 className='h-8 text-xs'
                 autoFocus
+                role='combobox'
+                aria-autocomplete='list'
+                aria-controls='project-list'
+                aria-expanded={filteredProjects.length > 0}
+                aria-activedescendant={
+                  activeIndex >= 0 && filteredProjects[activeIndex]
+                    ? `project-item-${filteredProjects[activeIndex].id}`
+                    : undefined
+                }
               />
             </div>
           )}
 
           <div
-            ref={listRef}
+            id='project-list'
+            role='listbox'
+            aria-label='Projects list'
             data-testid='project-list'
             className='max-h-[400px] overflow-y-auto py-1'
-            onKeyDown={!showSearch ? handleKeyDown : undefined}
           >
             {(isLoading || isInitialLoad) && (
               <DropdownMenuItem disabled>
@@ -174,14 +198,17 @@ function SwitchProjectMenuInner({
                 const isActive = index === activeIndex;
                 return (
                   <DropdownMenuItem
+                    ref={el => {
+                      itemRefs.current[index] = el;
+                    }}
                     asChild
                     key={project.id}
+                    id={`project-item-${project.id}`}
+                    role='option'
+                    aria-selected={isActive}
                     className={isActive ? 'bg-accent text-accent-foreground' : ''}
                     onPointerEnter={() => {
                       setActiveIndex(index);
-                    }}
-                    onPointerLeave={() => {
-                      setActiveIndex(-1);
                     }}
                   >
                     <NavLink
