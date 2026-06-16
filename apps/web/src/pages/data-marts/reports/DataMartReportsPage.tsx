@@ -138,6 +138,7 @@ function ProjectReportActionsCell({
   const actionProps = {
     row: { original: report },
     onDeleteSuccess: onReportActionComplete,
+    onRunSuccess: onReportActionComplete,
     onEditReport,
   };
 
@@ -278,6 +279,7 @@ export default function DataMartReportsPage() {
         size: 50,
         enableResizing: false,
         enableSorting: false,
+        enableHiding: false,
         header: () => null,
         cell: ({ row }) => (
           <ReportQuickRunCell report={row.original} onRunSuccess={handleReportActionComplete} />

@@ -24,6 +24,7 @@ export const getEmailColumns = ({
     size: 50,
     enableResizing: false,
     enableSorting: false,
+    enableHiding: false,
     header: () => null,
     cell: ({ row }) => <ReportQuickRunCell report={row.original} />,
   },

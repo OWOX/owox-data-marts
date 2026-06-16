@@ -18,9 +18,15 @@ interface EmailActionsCellProps {
   row: { original: DataMartReport };
   onDeleteSuccess?: () => void;
   onEditReport?: (report: DataMartReport) => void;
+  onRunSuccess?: () => void | Promise<void>;
 }
 
-export function EmailActionsCell({ row, onDeleteSuccess, onEditReport }: EmailActionsCellProps) {
+export function EmailActionsCell({
+  row,
+  onDeleteSuccess,
+  onEditReport,
+  onRunSuccess,
+}: EmailActionsCellProps) {
   const canRun = row.original.canRun;
   const canEditConfig = row.original.canEditConfig;
   const [isRunning, setIsRunning] = useState(
@@ -76,11 +82,12 @@ export function EmailActionsCell({ row, onDeleteSuccess, onEditReport }: EmailAc
     try {
       setIsRunning(true);
       await runReport(row.original.id);
+      await onRunSuccess?.();
     } catch (error) {
       setIsRunning(false);
       console.error('Failed to run report:', error);
     }
-  }, [canRun, runReport, row.original.id]);
+  }, [canRun, onRunSuccess, runReport, row.original.id]);
 
   return (
     <TooltipProvider>

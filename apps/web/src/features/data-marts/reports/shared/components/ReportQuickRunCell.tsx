@@ -43,6 +43,10 @@ export function ReportQuickRunCell({ report, onRunSuccess }: ReportQuickRunCellP
     mountedRef.current = true;
     return () => {
       mountedRef.current = false;
+      if (toastIdRef.current) {
+        toast.dismiss(toastIdRef.current);
+        toastIdRef.current = null;
+      }
     };
   }, []);
 
