@@ -136,7 +136,7 @@ interface IndexedFilterRule {
 
 // Bare index would let React drag deleted-row state onto its neighbour.
 function filterRowKey(rule: FilterRule, index: number): string {
-  return `${rule.placement ?? 'post'}|${rule.aliasPath ?? ''}|${rule.column}|${rule.operator}|${index}`;
+  return `${rule.placement ?? 'post'}|${rule.column}|${rule.operator}|${index}`;
 }
 
 interface FiltersSectionProps {
@@ -213,8 +213,9 @@ interface SlicesSectionProps {
 }
 
 interface PendingSliceColumn {
-  aliasPath: string;
-  column: string;
+  id: string; // unified name, stored on the rule
+  label: string; // raw name, for display
+  aliasPath: string; // for display only
   fieldType: string;
 }
 
@@ -230,13 +231,12 @@ function SlicesSection({
   const fieldTypeMap = new Map<string, string>();
   for (const src of joinedSources) {
     for (const col of src.columns) {
-      fieldTypeMap.set(`${src.aliasPath}\0${col.name}`, col.type);
+      fieldTypeMap.set(col.id, col.type);
     }
   }
 
   function fieldTypeFor(rule: FilterRule): string | null {
-    if (!rule.aliasPath) return null;
-    return fieldTypeMap.get(`${rule.aliasPath}\0${rule.column}`) ?? null;
+    return fieldTypeMap.get(rule.column) ?? null;
   }
 
   return (
@@ -249,12 +249,7 @@ function SlicesSection({
             rule={rule}
             fieldType={fieldTypeFor(rule)}
             onChange={next => {
-              // Re-stamp placement/aliasPath; FilterEditorPopover drops them.
-              onUpdateAt(index, {
-                ...next,
-                placement: 'pre-join',
-                aliasPath: rule.aliasPath,
-              } as FilterRule);
+              onUpdateAt(index, { ...next, placement: 'pre-join' } as FilterRule);
             }}
             onRemove={() => {
               onRemoveAt(index);
@@ -269,20 +264,16 @@ function SlicesSection({
             onOpenChange={isOpen => {
               if (!isOpen) setPending(null);
             }}
-            column={pending.column}
+            column={pending.id}
             fieldType={pending.fieldType}
             onApply={rule => {
-              onAdd({
-                ...rule,
-                placement: 'pre-join',
-                aliasPath: pending.aliasPath,
-              } as FilterRule);
+              onAdd({ ...rule, placement: 'pre-join', column: pending.id } as FilterRule);
               setPending(null);
             }}
             trigger={
               <Button variant='outline' size='sm' className='h-7 text-xs'>
                 <Plus className='mr-1 h-3 w-3' />
-                {pending.aliasPath}.{pending.column}
+                {pending.aliasPath}.{pending.label}
               </Button>
             }
           />
@@ -301,14 +292,13 @@ function AddSlicePicker({
   joinedSources: readonly JoinedSource[];
   onSelect: (pending: PendingSliceColumn) => void;
 }) {
-  // `\0` separator so a `.` in aliasPath/column doesn't collide.
   const items = joinedSources.flatMap(src =>
     src.columns
       .filter(col => isFilterableType(col.type))
       .map(col => ({
-        value: `${src.aliasPath}\0${col.name}`,
+        id: col.id,
+        label: col.name,
         aliasPath: src.aliasPath,
-        column: col.name,
         fieldType: col.type,
       }))
   );
@@ -321,13 +311,9 @@ function AddSlicePicker({
     <Select
       value=''
       onValueChange={val => {
-        const item = items.find(i => i.value === val);
+        const item = items.find(i => i.id === val);
         if (item) {
-          onSelect({
-            aliasPath: item.aliasPath,
-            column: item.column,
-            fieldType: item.fieldType,
-          });
+          onSelect(item);
         }
       }}
     >
@@ -339,9 +325,9 @@ function AddSlicePicker({
       </SelectTrigger>
       <SelectContent>
         {items.map(item => (
-          <SelectItem key={item.value} value={item.value}>
+          <SelectItem key={item.id} value={item.id}>
             <span className='font-mono'>
-              <span className='text-blue-600'>{item.aliasPath}</span>.{item.column}
+              <span className='text-blue-600'>{item.aliasPath}</span>.{item.label}
             </span>
             <span className='text-muted-foreground ml-2 text-xs'>({item.fieldType})</span>
           </SelectItem>

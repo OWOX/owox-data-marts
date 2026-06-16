@@ -99,11 +99,10 @@ beforeEach(() => {
 describe('useEmailReportForm — defaults', () => {
   it('seeds output controls from initialReport (post+pre-join mix)', () => {
     const preJoinRule: FilterRule = {
-      column: 'plan',
+      column: 'orgs__plan',
       operator: 'eq',
       value: 'pro',
       placement: 'pre-join',
-      aliasPath: 'orgs',
     };
     const initial = buildReport({
       filterConfig: [{ column: 'col_a', operator: 'eq', value: 'X' }, preJoinRule],
@@ -132,11 +131,10 @@ describe('useEmailReportForm — submission', () => {
   it('UPDATE: builds CUSTOM_MESSAGE destinationConfig and forwards output controls', async () => {
     const initial = buildReport({ id: 'r-42' });
     const preJoinRule: FilterRule = {
-      column: 'country',
+      column: 'users__country',
       operator: 'neq',
       value: 'UA',
       placement: 'pre-join',
-      aliasPath: 'users',
     };
 
     const { result } = renderHook(() =>

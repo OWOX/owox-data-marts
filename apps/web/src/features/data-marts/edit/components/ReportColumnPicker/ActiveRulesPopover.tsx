@@ -18,7 +18,7 @@ export interface ActiveRulesPopoverProps {
   trigger: ReactNode;
   column: string;
   fieldType: string;
-  aliasPath?: string;
+  /** Unified blended-field name for display when showing slices. */
   sliceColumn?: string;
   filters?: RuleListProps;
   slices?: RuleListProps;
@@ -30,12 +30,11 @@ export function ActiveRulesPopover({
   trigger,
   column,
   fieldType,
-  aliasPath,
   sliceColumn,
   filters,
   slices,
 }: ActiveRulesPopoverProps) {
-  const slicesOnly = !filters?.rules.length && !!slices?.rules.length && aliasPath != null;
+  const slicesOnly = !filters?.rules.length && !!slices?.rules.length && sliceColumn != null;
   return (
     <Popover open={open} onOpenChange={onOpenChange}>
       <PopoverTrigger asChild>{trigger}</PopoverTrigger>
@@ -43,13 +42,7 @@ export function ActiveRulesPopover({
         <div>
           <Label>Column</Label>
           <div className='font-mono text-xs'>
-            {slicesOnly ? (
-              <>
-                <span className='text-blue-600'>{aliasPath}</span>.{sliceColumn ?? column}
-              </>
-            ) : (
-              column
-            )}{' '}
+            {slicesOnly ? sliceColumn : column}{' '}
             <span className='text-muted-foreground'>({fieldType})</span>
           </div>
         </div>

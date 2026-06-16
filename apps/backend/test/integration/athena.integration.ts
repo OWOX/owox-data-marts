@@ -12,6 +12,7 @@ import { TableDefinition } from 'src/data-marts/dto/schemas/data-mart-table-defi
 import { AthenaBlendedQueryBuilder } from 'src/data-marts/data-storage-types/athena/services/athena-blended-query-builder';
 import { BlendedQueryContext } from 'src/data-marts/data-storage-types/interfaces/blended-query-builder.interface';
 import { DataMartRelationship } from 'src/data-marts/entities/data-mart-relationship.entity';
+import { buildBlendedFieldIndex } from 'src/data-marts/services/blended-field-index';
 
 /**
  * Athena Integration Tests
@@ -706,8 +707,9 @@ AS SELECT * FROM (VALUES
 // Blended pre-join SLICE — proves a pre-join filter narrows a JOINED data mart
 // inside its `<alias>_raw` CTE on REAL Athena (separate seed: two tables).
 // ---------------------------------------------------------------------------
-// A "slice" is a FilterRule with placement:'pre-join' + aliasPath, injected as a
-// WHERE INSIDE the joined subsidiary mart's `<alias>_raw` CTE — BEFORE the JOIN.
+// A "slice" is a FilterRule with placement:'pre-join' identified by the unified
+// column name (<aliasPath>__<rawColumn>), injected as a WHERE INSIDE the joined
+// subsidiary mart's `<alias>_raw` CTE — BEFORE the JOIN.
 // This suite seeds two related tables and executes the builder's SQL on real
 // Athena to prove the join result is narrowed exactly as if the joined dimension
 // had been reduced upstream.
@@ -758,6 +760,12 @@ describeIfCredentials(
 
     // Build a BlendedQueryContext pointed at the REAL seeded tables.
     function blendContext(over: Partial<BlendedQueryContext> = {}): BlendedQueryContext {
+      const fieldIndex = buildBlendedFieldIndex({
+        blendedFields: [
+          { name: 'users__role', aliasPath: 'users', originalFieldName: 'role', type: 'STRING' },
+        ],
+        availableSources: [{ aliasPath: 'users', isIncluded: true }],
+      } as never);
       return {
         mainTableReference: `"${database}"."${BLEND_ORDERS_SUFFIX}"`,
         mainDataMartTitle: 'Orders',
@@ -781,6 +789,7 @@ describeIfCredentials(
           },
         ],
         columns: ['order_id', 'role'],
+        fieldIndex,
         ...over,
       };
     }
@@ -917,11 +926,10 @@ AS SELECT * FROM (VALUES
         blendContext({
           filters: [
             {
-              column: 'role',
+              column: 'users__role',
               operator: 'eq',
               value: 'admin',
               placement: 'pre-join',
-              aliasPath: 'users',
             },
           ],
         })
@@ -943,11 +951,10 @@ AS SELECT * FROM (VALUES
         blendContext({
           filters: [
             {
-              column: 'role',
+              column: 'users__role',
               operator: 'eq',
               value: 'admin',
               placement: 'pre-join',
-              aliasPath: 'users',
             },
             { column: 'role', operator: 'is_not_null', placement: 'post-join' },
           ],
@@ -966,11 +973,10 @@ AS SELECT * FROM (VALUES
         blendContext({
           filters: [
             {
-              column: 'role',
+              column: 'users__role',
               operator: 'eq',
               value: 'viewer',
               placement: 'pre-join',
-              aliasPath: 'users',
             },
             { column: 'role', operator: 'is_not_null', placement: 'post-join' },
           ],

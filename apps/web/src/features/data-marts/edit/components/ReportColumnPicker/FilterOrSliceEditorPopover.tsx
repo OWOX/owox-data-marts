@@ -28,7 +28,7 @@ export interface FilterOrSliceEditorPopoverProps {
   trigger: ReactNode;
   column: string;
   fieldType: string;
-  aliasPath?: string;
+  /** Unified blended-field name used as rule.column for pre-join rules. When absent, no slice tab. */
   sliceColumn?: string;
   filterProps: FilterOnlyProps;
   sliceProps?: SliceOnlyProps;
@@ -36,9 +36,9 @@ export interface FilterOrSliceEditorPopoverProps {
 }
 
 export function FilterOrSliceEditorPopover(props: FilterOrSliceEditorPopoverProps) {
-  const { aliasPath, sliceProps } = props;
+  const { sliceColumn, sliceProps } = props;
 
-  if (aliasPath == null || sliceProps == null) {
+  if (sliceColumn == null || sliceProps == null) {
     return (
       <FilterEditorPopover
         open={props.open}
@@ -51,18 +51,10 @@ export function FilterOrSliceEditorPopover(props: FilterOrSliceEditorPopoverProp
     );
   }
 
-  return (
-    <TabbedPopover
-      {...props}
-      aliasPath={aliasPath}
-      sliceProps={sliceProps}
-      sliceColumn={props.sliceColumn ?? props.column}
-    />
-  );
+  return <TabbedPopover {...props} sliceColumn={sliceColumn} sliceProps={sliceProps} />;
 }
 
 interface TabbedPopoverProps extends FilterOrSliceEditorPopoverProps {
-  aliasPath: string;
   sliceProps: SliceOnlyProps;
   sliceColumn: string;
 }
@@ -116,7 +108,7 @@ function TabbedPopover(props: TabbedPopoverProps) {
       const preJoinRule = {
         ...sliceDraft,
         placement: 'pre-join' as const,
-        aliasPath: props.aliasPath,
+        column: props.sliceColumn,
       } as FilterRule;
       props.sliceProps.onApply(preJoinRule);
     }
@@ -143,11 +135,6 @@ function TabbedPopover(props: TabbedPopoverProps) {
         <div>
           <Label>Column</Label>
           <div className='font-mono text-xs'>
-            {tab === 'slice' && (
-              <>
-                <span className='text-blue-600'>{props.aliasPath}</span>.
-              </>
-            )}
             {tab === 'slice' ? props.sliceColumn : props.column}{' '}
             <span className='text-muted-foreground'>({props.fieldType})</span>
           </div>

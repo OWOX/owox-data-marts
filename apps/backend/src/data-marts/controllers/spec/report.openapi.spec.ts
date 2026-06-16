@@ -127,7 +127,10 @@ describe('ReportController OpenAPI', () => {
     );
     expect(filterRule.properties.value.oneOf).toHaveLength(3);
     expect(filterRule.properties.placement.enum).toEqual(['pre-join', 'post-join']);
-    expect(filterRule.properties.aliasPath.description).toContain('slice');
+    expect(filterRule.properties.aliasPath).toBeUndefined();
+    expect(filterRule.properties.column.description).toContain(
+      'category_details__item_event_count'
+    );
 
     expect(updateProperties.sortConfig).toMatchObject({
       type: 'array',

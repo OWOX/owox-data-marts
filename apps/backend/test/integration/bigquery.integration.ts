@@ -13,6 +13,7 @@ import { BlendedQueryContext } from 'src/data-marts/data-storage-types/interface
 import { DataMartRelationship } from 'src/data-marts/entities/data-mart-relationship.entity';
 import { DataStorageCredentialsResolver } from 'src/data-marts/data-storage-types/data-storage-credentials-resolver.service';
 import { TableDefinition } from 'src/data-marts/dto/schemas/data-mart-table-definitions/table-definition.schema';
+import { buildBlendedFieldIndex } from 'src/data-marts/services/blended-field-index';
 
 /**
  * BigQuery Integration Tests
@@ -652,6 +653,12 @@ describeIfCredentials(
     }
 
     function blendContext(over: Partial<BlendedQueryContext> = {}): BlendedQueryContext {
+      const fieldIndex = buildBlendedFieldIndex({
+        blendedFields: [
+          { name: 'users__role', aliasPath: 'users', originalFieldName: 'role', type: 'STRING' },
+        ],
+        availableSources: [{ aliasPath: 'users', isIncluded: true }],
+      } as never);
       return {
         mainTableReference: `\`${ordersFQN}\``,
         mainDataMartTitle: 'Orders',
@@ -675,6 +682,7 @@ describeIfCredentials(
           },
         ],
         columns: ['order_id', 'role'],
+        fieldIndex,
         ...over,
       };
     }
@@ -760,11 +768,10 @@ describeIfCredentials(
         blendContext({
           filters: [
             {
-              column: 'role',
+              column: 'users__role',
               operator: 'eq',
               value: 'admin',
               placement: 'pre-join',
-              aliasPath: 'users',
             },
           ],
         })
@@ -782,11 +789,10 @@ describeIfCredentials(
         blendContext({
           filters: [
             {
-              column: 'role',
+              column: 'users__role',
               operator: 'eq',
               value: 'admin',
               placement: 'pre-join',
-              aliasPath: 'users',
             },
             { column: 'role', operator: 'is_not_null', placement: 'post-join' },
           ],
@@ -801,11 +807,10 @@ describeIfCredentials(
         blendContext({
           filters: [
             {
-              column: 'role',
+              column: 'users__role',
               operator: 'eq',
               value: 'viewer',
               placement: 'pre-join',
-              aliasPath: 'users',
             },
             { column: 'role', operator: 'is_not_null', placement: 'post-join' },
           ],

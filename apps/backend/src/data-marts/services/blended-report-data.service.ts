@@ -31,6 +31,7 @@ import { BusinessViolationException } from '../../common/exceptions/business-vio
 import { buildDataMartUrl } from '../../common/helpers/data-mart-url.helper';
 import { UserProjectionsFetcherService } from './user-projections-fetcher.service';
 import { throwDisconnectedReportColumnsError } from '../errors/disconnected-report-columns.error';
+import { buildBlendedFieldIndex } from './blended-field-index';
 
 @Injectable()
 export class BlendedReportDataService {
@@ -63,16 +64,16 @@ export class BlendedReportDataService {
     });
 
     const postJoinFilterColumns: string[] = [];
-    const preJoinAliasPaths = new Set<string>();
+    const preJoinFilterColumns: string[] = [];
     for (const rule of report.filterConfig ?? []) {
-      if (rule.placement === 'pre-join' && rule.aliasPath) {
-        preJoinAliasPaths.add(rule.aliasPath);
+      if (rule.placement === 'pre-join') {
+        preJoinFilterColumns.push(rule.column);
       } else {
         postJoinFilterColumns.push(rule.column);
       }
     }
     const sortColumns = (report.sortConfig ?? []).map(s => s.column);
-    const hasPreJoinFilters = preJoinAliasPaths.size > 0;
+    const hasPreJoinFilters = preJoinFilterColumns.length > 0;
 
     if (columnConfig === null || columnConfig === undefined) {
       // Without an explicit column config the native projection is "all native
@@ -101,7 +102,7 @@ export class BlendedReportDataService {
         'Cannot build report SQL: blended output controls require an explicit column selection',
         {
           blendedFilterOrSortColumns: blendedRefs,
-          preJoinAliasPaths: Array.from(preJoinAliasPaths),
+          preJoinColumns: preJoinFilterColumns,
         }
       );
     }
@@ -110,6 +111,13 @@ export class BlendedReportDataService {
       dataMart.id,
       dataMart.projectId,
       accessor
+    );
+
+    const fieldIndex = buildBlendedFieldIndex(blendableSchema);
+    const preJoinAliasPaths = new Set<string>(
+      preJoinFilterColumns
+        .map(column => fieldIndex.get(column)?.aliasPath)
+        .filter((p): p is string => p != null)
     );
 
     const blendedFieldsByName = new Map(blendableSchema.blendedFields.map(f => [f.name, f]));
@@ -182,6 +190,7 @@ export class BlendedReportDataService {
         sort: report.sortConfig ?? undefined,
         limit: report.limitConfig ?? undefined,
         columnTypes: this.buildBlendedColumnTypes(blendableSchema),
+        fieldIndex,
       }
     );
     const blendedSql = isQueryBuildResult(blendedResult) ? blendedResult.sql : blendedResult;
@@ -197,26 +206,13 @@ export class BlendedReportDataService {
     };
   }
 
-  // Declared field types for the Athena placeholder casts, matching what the
-  // validator types filters against: post-join columns are home native fields +
-  // blended output aliases; pre-join slices target subsidiary raw columns by aliasPath.
   private buildBlendedColumnTypes(blendableSchema: BlendableSchemaDto): BlendedColumnTypes {
     const postJoin = new Map<string, string>();
     for (const nf of collectSchemaFieldPathTypes(blendableSchema.nativeFields)) {
       postJoin.set(nf.name, nf.type);
     }
     for (const bf of blendableSchema.blendedFields) postJoin.set(bf.name, bf.type);
-
-    const preJoin = new Map<string, Map<string, string>>();
-    for (const bf of blendableSchema.blendedFields) {
-      let cols = preJoin.get(bf.aliasPath);
-      if (!cols) {
-        cols = new Map();
-        preJoin.set(bf.aliasPath, cols);
-      }
-      cols.set(bf.originalFieldName, bf.type);
-    }
-    return { postJoin, preJoin };
+    return { postJoin };
   }
 
   private buildBlendedDataHeaders(
@@ -394,6 +390,27 @@ export class BlendedReportDataService {
     const neededPaths = this.collectNeededAliasPaths(requested, preJoinAliasPaths);
 
     const sourceByPath = new Map(availableSources.map(s => [s.aliasPath, s]));
+
+    // Defence-in-depth: the save-time validator rejects slices on excluded
+    // sources (FILTER_ALIAS_PATH_NOT_INCLUDED), but the run path resolves slices
+    // through a fieldIndex that still includes excluded fields (isIncluded:false).
+    // Refuse to build a slice against an excluded source here too.
+    const excluded: AvailableSourceDto[] = [];
+    for (const path of preJoinAliasPaths) {
+      const src = sourceByPath.get(path);
+      if (src && src.isIncluded === false) excluded.push(src);
+    }
+    if (excluded.length > 0) {
+      const titles = excluded.map(s => `"${s.title}"`).join(', ');
+      throw new BusinessViolationException(
+        `Cannot build report SQL: a pre-join filter targets data marts excluded from reporting: ${titles}`,
+        {
+          excludedDataMartIds: excluded.map(s => s.dataMartId),
+          excludedAliasPaths: excluded.map(s => s.aliasPath),
+        }
+      );
+    }
+
     const denied: AvailableSourceDto[] = [];
     for (const path of neededPaths) {
       const src = sourceByPath.get(path);

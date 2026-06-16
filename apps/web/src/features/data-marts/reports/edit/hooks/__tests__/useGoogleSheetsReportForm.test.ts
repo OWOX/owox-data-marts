@@ -98,11 +98,10 @@ beforeEach(() => {
 describe('useGoogleSheetsReportForm — defaults', () => {
   it('seeds defaults from initialReport (title, columnConfig, all output controls)', () => {
     const preJoinRule: FilterRule = {
-      column: 'userRole',
+      column: 'users__userRole',
       operator: 'eq',
       value: 'admin',
       placement: 'pre-join',
-      aliasPath: 'users',
     };
     const postJoinRule: FilterRule = { column: 'revenue', operator: 'gt', value: 100 };
 
@@ -148,11 +147,10 @@ describe('useGoogleSheetsReportForm — defaults', () => {
 describe('useGoogleSheetsReportForm — submission', () => {
   it('CREATE: passes all output controls (including pre-join rule) to createReport', async () => {
     const preJoinRule: FilterRule = {
-      column: 'country',
+      column: 'users__country',
       operator: 'neq',
       value: 'UA',
       placement: 'pre-join',
-      aliasPath: 'users',
     };
 
     const { result } = renderHook(() =>

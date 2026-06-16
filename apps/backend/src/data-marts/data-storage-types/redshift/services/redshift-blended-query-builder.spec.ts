@@ -8,6 +8,7 @@ import {
 import { RedshiftBlendedQueryBuilder } from './redshift-blended-query-builder';
 import { RedshiftClauseRenderer } from './redshift-clause-renderer';
 import { BlendedQueryContext } from '../../interfaces/blended-query-builder.interface';
+import { buildBlendedFieldIndex } from '../../../services/blended-field-index';
 
 const buildContext = createBuildContext('"myschema"."customers"');
 
@@ -159,19 +160,25 @@ describe('RedshiftBlendedQueryBuilder — output controls', () => {
         { targetFieldName: 'role', outputAlias: 'role', isHidden: true, aggregateFunction: 'MAX' },
       ],
     });
+    const fieldIndex = buildBlendedFieldIndex({
+      blendedFields: [
+        { name: 'users__role', aliasPath: 'users', originalFieldName: 'role', type: 'STRING' },
+      ],
+      availableSources: [{ aliasPath: 'users', isIncluded: true }],
+    } as never);
     const { sql, params } = builder.buildBlendedQuery(
       ctx({
         chains: [chain],
         columns: ['a'],
         filters: [
           {
-            column: 'role',
+            column: 'users__role',
             operator: 'eq',
             value: 'admin',
             placement: 'pre-join',
-            aliasPath: 'users',
           },
         ],
+        fieldIndex,
       })
     );
     // The inlined literal predicate must appear inside the subsidiary raw CTE.

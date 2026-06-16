@@ -62,38 +62,11 @@ const FilterRuleBaseSchema = z.discriminatedUnion('operator', [
   }),
 ]);
 
-const AliasPathSchema = z.string().min(1).max(255).regex(ALIAS_PATH_REGEX);
-
 const PlacementExtrasSchema = z.object({
   placement: z.enum(['pre-join', 'post-join']).optional(),
-  aliasPath: AliasPathSchema.optional(),
 });
 
-export const FilterRuleSchema = z
-  .intersection(FilterRuleBaseSchema, PlacementExtrasSchema)
-  .superRefine((rule, ctx) => {
-    if (rule.placement === 'pre-join') {
-      if (!rule.aliasPath) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          path: ['aliasPath'],
-          message: 'aliasPath is required when placement is "pre-join"',
-        });
-      } else if (rule.aliasPath === 'main') {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          path: ['aliasPath'],
-          message: 'pre-join filter on the home data mart ("main") is not allowed',
-        });
-      }
-    } else if (rule.aliasPath != null) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ['aliasPath'],
-        message: 'aliasPath is only valid when placement is "pre-join"',
-      });
-    }
-  });
+export const FilterRuleSchema = z.intersection(FilterRuleBaseSchema, PlacementExtrasSchema);
 
 export const FilterConfigSchema = z.array(FilterRuleSchema).nullable();
 

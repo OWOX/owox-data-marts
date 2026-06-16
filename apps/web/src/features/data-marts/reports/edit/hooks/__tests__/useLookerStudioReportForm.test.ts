@@ -92,11 +92,10 @@ beforeEach(() => {
 describe('useLookerStudioReportForm — defaults', () => {
   it('seeds output controls from initialReport (post+pre-join mix)', () => {
     const preJoinRule: FilterRule = {
-      column: 'plan',
+      column: 'orgs__plan',
       operator: 'eq',
       value: 'enterprise',
       placement: 'pre-join',
-      aliasPath: 'orgs',
     };
     const initial = buildReport({
       columnConfig: ['col_a', 'col_b'],
@@ -131,11 +130,10 @@ describe('useLookerStudioReportForm — defaults', () => {
 describe('useLookerStudioReportForm — submission', () => {
   it('UPDATE path: forwards output controls including pre-join rule', async () => {
     const preJoinRule: FilterRule = {
-      column: 'country',
+      column: 'users__country',
       operator: 'neq',
       value: 'UA',
       placement: 'pre-join',
-      aliasPath: 'users',
     };
     const initial = buildReport({ id: 'r-42' });
     const { result } = renderHook(() =>

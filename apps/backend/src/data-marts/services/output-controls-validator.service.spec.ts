@@ -5,6 +5,7 @@ import { AthenaFieldType } from '../data-storage-types/athena/enums/athena-field
 import { RedshiftFieldType } from '../data-storage-types/redshift/enums/redshift-field-type.enum';
 import { DataStorageType } from '../data-storage-types/enums/data-storage-type.enum';
 import { BusinessViolationException } from '../../common/exceptions/business-violation.exception';
+import { buildBlendedFieldIndex } from './blended-field-index';
 
 describe('OutputControlsValidatorService', () => {
   const svc = new OutputControlsValidatorService(undefined as never, undefined as never);
@@ -231,141 +232,103 @@ describe('OutputControlsValidatorService', () => {
   });
 
   describe('validateFilters (pre-join)', () => {
-    const homeFieldTypes = new Map<string, string>();
-    const knownPaths = new Map<string, ReadonlyMap<string, string>>([
-      [
-        'users',
-        new Map([
-          ['userRole', BigQueryFieldType.STRING],
-          ['createdAt', BigQueryFieldType.TIMESTAMP],
-        ]),
+    const index = buildBlendedFieldIndex({
+      blendedFields: [
+        { name: 'users__role', aliasPath: 'users', originalFieldName: 'role', type: 'STRING' },
+        { name: 'orders__total', aliasPath: 'orders', originalFieldName: 'total', type: 'NUMERIC' },
       ],
-      ['users.profiles', new Map([['country', BigQueryFieldType.STRING]])],
-    ]);
+      availableSources: [
+        { aliasPath: 'users', isIncluded: true },
+        { aliasPath: 'orders', isIncluded: false },
+      ],
+    } as never);
 
-    it('accepts a known aliasPath + known column + valid operator', () => {
+    it('accepts a pre-join filter by unified name', () => {
       const errors = svc.validateFilters(
-        [
-          {
-            column: 'userRole',
-            operator: 'eq',
-            value: 'admin',
-            placement: 'pre-join',
-            aliasPath: 'users',
-          },
-        ],
-        homeFieldTypes,
-        knownPaths
+        [{ column: 'users__role', operator: 'eq', value: 'admin', placement: 'pre-join' }],
+        new Map(),
+        index
       );
       expect(errors).toEqual([]);
     });
 
-    it('rejects unknown aliasPath', () => {
+    it('reports unknown pre-join column as FILTER_COLUMN_UNKNOWN', () => {
       const errors = svc.validateFilters(
-        [{ column: 'x', operator: 'eq', value: 1, placement: 'pre-join', aliasPath: 'orgs' }],
-        homeFieldTypes,
-        knownPaths
+        [{ column: 'users__missing', operator: 'eq', value: 'x', placement: 'pre-join' }],
+        new Map(),
+        index
+      );
+      expect(errors).toEqual([{ code: 'FILTER_COLUMN_UNKNOWN', column: 'users__missing' }]);
+    });
+
+    it('reports excluded source as FILTER_ALIAS_PATH_NOT_INCLUDED', () => {
+      const errors = svc.validateFilters(
+        [{ column: 'orders__total', operator: 'gt', value: 1, placement: 'pre-join' }],
+        new Map(),
+        index
       );
       expect(errors).toEqual([
-        { code: 'FILTER_ALIAS_PATH_UNKNOWN', aliasPath: 'orgs', column: 'x' },
+        { code: 'FILTER_ALIAS_PATH_NOT_INCLUDED', aliasPath: 'orders', column: 'orders__total' },
       ]);
     });
 
-    it('rejects unknown column inside known aliasPath (includes aliasPath in payload)', () => {
+    it('rejects a home/native field used as a slice (no __ name → unknown)', () => {
       const errors = svc.validateFilters(
-        [
-          {
-            column: 'missing',
-            operator: 'eq',
-            value: 1,
-            placement: 'pre-join',
-            aliasPath: 'users',
-          },
-        ],
-        homeFieldTypes,
-        knownPaths
+        [{ column: 'native_field', operator: 'eq', value: 'x', placement: 'pre-join' }],
+        new Map([['native_field', 'STRING']]),
+        index
       );
-      expect(errors).toEqual([
-        { code: 'FILTER_COLUMN_UNKNOWN', column: 'missing', aliasPath: 'users' },
-      ]);
+      expect(errors).toEqual([{ code: 'FILTER_COLUMN_UNKNOWN', column: 'native_field' }]);
     });
 
-    it('rejects regex on INTEGER inside pre-join filter (carries aliasPath)', () => {
-      const pathsWithInt = new Map<string, ReadonlyMap<string, string>>([
-        ['users', new Map([['amount', BigQueryFieldType.INTEGER]])],
-      ]);
-      const errors = svc.validateFilters(
-        [
+    it('rejects invalid operator for type on pre-join column', () => {
+      const indexWithInt = buildBlendedFieldIndex({
+        blendedFields: [
           {
-            column: 'amount',
-            operator: 'regex',
-            value: '^1',
-            placement: 'pre-join',
+            name: 'users__amount',
             aliasPath: 'users',
+            originalFieldName: 'amount',
+            type: BigQueryFieldType.INTEGER,
           },
         ],
-        homeFieldTypes,
-        pathsWithInt
+        availableSources: [{ aliasPath: 'users', isIncluded: true }],
+      } as never);
+      const errors = svc.validateFilters(
+        [{ column: 'users__amount', operator: 'regex', value: '^1', placement: 'pre-join' }],
+        new Map(),
+        indexWithInt
       );
       expect(errors[0]).toMatchObject({
         code: 'INVALID_OPERATOR_FOR_TYPE',
-        column: 'amount',
+        column: 'users__amount',
         aliasPath: 'users',
       });
     });
 
     it('rejects malformed regex pattern inside pre-join filter (carries aliasPath)', () => {
       const errors = svc.validateFilters(
-        [
-          {
-            column: 'userRole',
-            operator: 'regex',
-            value: '[unclosed',
-            placement: 'pre-join',
-            aliasPath: 'users',
-          },
-        ],
-        homeFieldTypes,
-        knownPaths
+        [{ column: 'users__role', operator: 'regex', value: '[unclosed', placement: 'pre-join' }],
+        new Map(),
+        index
       );
       expect(errors).toEqual([
         {
           code: 'INVALID_REGEX_PATTERN',
-          column: 'userRole',
+          column: 'users__role',
           pattern: '[unclosed',
           aliasPath: 'users',
         },
       ]);
     });
 
-    it('rejects pre-join filter on excluded source', () => {
-      const excluded = new Set(['users']);
-      const errors = svc.validateFilters(
-        [
-          {
-            column: 'userRole',
-            operator: 'eq',
-            value: 'admin',
-            placement: 'pre-join',
-            aliasPath: 'users',
-          },
-        ],
-        homeFieldTypes,
-        new Map(),
-        excluded
-      );
-      expect(errors).toEqual([
-        { code: 'FILTER_ALIAS_PATH_NOT_INCLUDED', aliasPath: 'users', column: 'userRole' },
-      ]);
-    });
-
-    it('post-join rule without placement defaults to post-join lookup (does not need knownPaths)', () => {
+    it('post-join rule without placement defaults to post-join lookup (does not need fieldIndex)', () => {
       const homeTypes = new Map<string, string>([['name', BigQueryFieldType.STRING]]);
       const errors = svc.validateFilters(
         // No placement field — Zod default would set 'post-join'; raw call here
         // simulates a rule that was passed through unparsed.
         [{ column: 'name', operator: 'eq', value: 'X' } as never],
-        homeTypes
+        homeTypes,
+        new Map()
       );
       expect(errors).toEqual([]);
     });
@@ -649,7 +612,7 @@ describe('OutputControlsValidatorService', () => {
       expectDisconnectedColumnsError(caught, ['b__hidden']);
     });
 
-    it('lists hidden blended fields used by pre-join slices as aliasPath.column', async () => {
+    it('lists hidden blended fields used by pre-join slices as the unified column name', async () => {
       const capabilitySvc = makeCapabilityService(true);
       const schemaSvc = makeBlendableSchemaService(
         [{ name: 'date', type: 'DATE', status: 'CONNECTED' }],
@@ -680,14 +643,8 @@ describe('OutputControlsValidatorService', () => {
           projectId: 'proj-1',
           columnConfig: ['date', 'b__visible'],
           filterConfig: [
-            { column: 'hidden', operator: 'eq', value: 'x', placement: 'pre-join', aliasPath: 'b' },
-            {
-              column: 'visible',
-              operator: 'eq',
-              value: 'y',
-              placement: 'pre-join',
-              aliasPath: 'b',
-            },
+            { column: 'b__hidden', operator: 'eq', value: 'x', placement: 'pre-join' },
+            { column: 'b__visible', operator: 'eq', value: 'y', placement: 'pre-join' },
           ],
           sortConfig: null,
           limitConfig: null,
@@ -697,7 +654,7 @@ describe('OutputControlsValidatorService', () => {
         caught = e;
       }
 
-      expectDisconnectedColumnsError(caught, ['b.hidden']);
+      expectDisconnectedColumnsError(caught, ['b__hidden']);
     });
 
     it('lists a DISCONNECTED native field used by sort when columnConfig is null', async () => {
@@ -1039,11 +996,16 @@ describe('OutputControlsValidatorService', () => {
       ).resolves.toBeUndefined();
     });
 
-    it('lists a pre-join filter on an unknown aliasPath as aliasPath.column', async () => {
+    it('lists a pre-join filter on an unknown unified column in the disconnected-columns error', async () => {
       const capabilitySvc = makeCapabilityService(true);
       const schemaSvc = makeBlendableSchemaService([], {
         blendedFields: [
-          { aliasPath: 'users', originalFieldName: 'userRole', type: BigQueryFieldType.STRING },
+          {
+            name: 'users__userRole',
+            aliasPath: 'users',
+            originalFieldName: 'userRole',
+            type: BigQueryFieldType.STRING,
+          },
         ],
         availableSources: [{ aliasPath: 'users' }],
       });
@@ -1059,9 +1021,7 @@ describe('OutputControlsValidatorService', () => {
           dataMartId: 'dm-1',
           projectId: 'proj-1',
           columnConfig: ['some_col'],
-          filterConfig: [
-            { column: 'x', operator: 'eq', value: 1, placement: 'pre-join', aliasPath: 'orgs' },
-          ],
+          filterConfig: [{ column: 'orgs__x', operator: 'eq', value: 1, placement: 'pre-join' }],
           sortConfig: null,
           limitConfig: null,
           accessor: { userId: 'user-1', roles: ['admin'] },
@@ -1070,7 +1030,7 @@ describe('OutputControlsValidatorService', () => {
         caught = e;
       }
 
-      expectDisconnectedColumnsError(caught, ['orgs.x']);
+      expectDisconnectedColumnsError(caught, ['orgs__x']);
     });
 
     it('rejects pre-join filter when columnConfig is null/empty (PRE_JOIN_FILTERS_REQUIRE_COLUMN_CONFIG)', async () => {
@@ -1080,7 +1040,12 @@ describe('OutputControlsValidatorService', () => {
       const capabilitySvc = makeCapabilityService(true);
       const schemaSvc = makeBlendableSchemaService([], {
         blendedFields: [
-          { aliasPath: 'users', originalFieldName: 'userRole', type: BigQueryFieldType.STRING },
+          {
+            name: 'users__userRole',
+            aliasPath: 'users',
+            originalFieldName: 'userRole',
+            type: BigQueryFieldType.STRING,
+          },
         ],
         availableSources: [{ aliasPath: 'users' }],
       });
@@ -1098,11 +1063,10 @@ describe('OutputControlsValidatorService', () => {
           columnConfig: null,
           filterConfig: [
             {
-              column: 'userRole',
+              column: 'users__userRole',
               operator: 'eq',
               value: 'admin',
               placement: 'pre-join',
-              aliasPath: 'users',
             },
           ],
           sortConfig: null,
@@ -1120,11 +1084,51 @@ describe('OutputControlsValidatorService', () => {
       ).toBe(true);
     });
 
-    it('resolves when pre-join filter aliasPath and column are valid', async () => {
+    it('treats a pre-join filter on a NON-actualized schema as disconnected (400, not skipped)', async () => {
+      // Schema not yet actualized (empty native + blended). The pre-join filter
+      // would otherwise be skipped here, then blow up at run time with a 500 in
+      // the builder. Surface it as a disconnected-columns error instead.
+      const capabilitySvc = makeCapabilityService(true);
+      const schemaSvc = makeBlendableSchemaService([], {
+        blendedFields: [],
+        availableSources: [],
+      });
+      const validator = new OutputControlsValidatorService(
+        capabilitySvc as never,
+        schemaSvc as never
+      );
+
+      let caught: unknown;
+      try {
+        await validator.validateForReport({
+          storageType: supportedStorageType,
+          dataMartId: 'dm-1',
+          projectId: 'proj-1',
+          columnConfig: ['some_col'],
+          filterConfig: [
+            { column: 'users__role', operator: 'eq', value: 'admin', placement: 'pre-join' },
+          ],
+          sortConfig: null,
+          limitConfig: null,
+          accessor: { userId: 'user-1', roles: ['admin'] },
+        });
+      } catch (e) {
+        caught = e;
+      }
+
+      expectDisconnectedColumnsError(caught, ['users__role']);
+    });
+
+    it('resolves when pre-join filter unified column is valid', async () => {
       const capabilitySvc = makeCapabilityService(true);
       const schemaSvc = makeBlendableSchemaService([], {
         blendedFields: [
-          { aliasPath: 'users', originalFieldName: 'userRole', type: BigQueryFieldType.STRING },
+          {
+            name: 'users__userRole',
+            aliasPath: 'users',
+            originalFieldName: 'userRole',
+            type: BigQueryFieldType.STRING,
+          },
         ],
         availableSources: [{ aliasPath: 'users' }],
       });
@@ -1141,11 +1145,10 @@ describe('OutputControlsValidatorService', () => {
           columnConfig: ['some_col'],
           filterConfig: [
             {
-              column: 'userRole',
+              column: 'users__userRole',
               operator: 'eq',
               value: 'admin',
               placement: 'pre-join',
-              aliasPath: 'users',
             },
           ],
           sortConfig: null,
@@ -1662,16 +1665,21 @@ describe('OutputControlsValidatorService', () => {
     });
   });
 
-  describe('buildKnownPaths via validateForReport', () => {
+  describe('field index via validateForReport', () => {
     const supportedStorageType = DataStorageType.GOOGLE_BIGQUERY;
 
-    it('lists a pre-join filter on an excluded source as aliasPath.column', async () => {
+    it('lists a pre-join filter on an excluded source as the unified column', async () => {
       const capabilitySvc = { isSupported: jest.fn().mockReturnValue(true) };
       const schemaSvc = {
         computeBlendableSchema: jest.fn().mockResolvedValue({
           nativeFields: [],
           blendedFields: [
-            { aliasPath: 'users', originalFieldName: 'userRole', type: BigQueryFieldType.STRING },
+            {
+              name: 'users__userRole',
+              aliasPath: 'users',
+              originalFieldName: 'userRole',
+              type: BigQueryFieldType.STRING,
+            },
           ],
           availableSources: [{ aliasPath: 'users', isIncluded: false }],
         }),
@@ -1690,11 +1698,10 @@ describe('OutputControlsValidatorService', () => {
           columnConfig: ['some_col'],
           filterConfig: [
             {
-              column: 'userRole',
+              column: 'users__userRole',
               operator: 'eq',
               value: 'admin',
               placement: 'pre-join',
-              aliasPath: 'users',
             },
           ],
           sortConfig: null,
@@ -1705,7 +1712,7 @@ describe('OutputControlsValidatorService', () => {
         caught = e;
       }
 
-      expectDisconnectedColumnsError(caught, ['users.userRole']);
+      expectDisconnectedColumnsError(caught, ['users__userRole']);
     });
 
     it('included sources still accept pre-join filters on their columns (no false positive)', async () => {
@@ -1714,7 +1721,12 @@ describe('OutputControlsValidatorService', () => {
         computeBlendableSchema: jest.fn().mockResolvedValue({
           nativeFields: [],
           blendedFields: [
-            { aliasPath: 'users', originalFieldName: 'userRole', type: BigQueryFieldType.STRING },
+            {
+              name: 'users__userRole',
+              aliasPath: 'users',
+              originalFieldName: 'userRole',
+              type: BigQueryFieldType.STRING,
+            },
           ],
           availableSources: [{ aliasPath: 'users', isIncluded: true }],
         }),
@@ -1732,11 +1744,10 @@ describe('OutputControlsValidatorService', () => {
           columnConfig: ['some_col'],
           filterConfig: [
             {
-              column: 'userRole',
+              column: 'users__userRole',
               operator: 'eq',
               value: 'admin',
               placement: 'pre-join',
-              aliasPath: 'users',
             },
           ],
           sortConfig: null,
