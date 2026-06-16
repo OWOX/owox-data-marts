@@ -73,7 +73,12 @@ export function createDataStorageFormResolver(
         credentials?: unknown;
       };
       void _stripped;
-      return { ...result, values: rest as unknown as DataStorageFormData };
+      // Build the return explicitly to avoid spreading a union (which produces a
+      // type incompatible with ResolverResult's discriminated union).
+      if (Object.keys(result.errors).length === 0) {
+        return { values: rest as unknown as DataStorageFormData, errors: {} };
+      }
+      return { values: {}, errors: result.errors };
     }
     return result;
   };
