@@ -6,6 +6,11 @@ import { TriggerHandler } from '../../common/scheduler/shared/trigger-handler.in
 import { SchemaActualizeTrigger } from '../entities/schema-actualize-trigger.entity';
 import { ActualizeDataMartSchemaService } from '../use-cases/actualize-data-mart-schema.service';
 
+function getErrorCode(error: unknown): string | undefined {
+  const code = (error as { code?: unknown })?.code;
+  return typeof code === 'string' ? code : undefined;
+}
+
 @Injectable()
 export class SchemaActualizeTriggerHandlerService
   implements TriggerHandler<SchemaActualizeTrigger>, OnModuleInit
@@ -41,6 +46,7 @@ export class SchemaActualizeTriggerHandlerService
       trigger.uiResponse = {
         success: false,
         error: e instanceof Error ? e.message : 'Unknown error',
+        code: getErrorCode(e),
       };
       trigger.onError();
       await this.repository.save(trigger);

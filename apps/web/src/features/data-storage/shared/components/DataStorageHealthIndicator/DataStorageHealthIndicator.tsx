@@ -14,7 +14,6 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@owox/ui/components/too
 import { useDataStorageHealthStatus } from '../../model/hooks/useDataStorageHealthStatus';
 import {
   DataStorageHealthStatus,
-  OAUTH_REAUTH_REQUIRED_STATUS_LABEL,
   UNCONFIGURED_STATUS_LABEL,
 } from '../../services/data-storage-health-status.service';
 import { DataStorageHealthStatusView } from './DataStorageHealthStatusView';
@@ -55,7 +54,7 @@ const HEALTH_STATUS_CONFIG: Record<DataStorageHealthStatus, HealthStatusDisplayC
     ringClass: 'ring-neutral-400/50 dark:ring-neutral-500/50',
   },
   [DataStorageHealthStatus.REAUTH_REQUIRED]: {
-    text: OAUTH_REAUTH_REQUIRED_STATUS_LABEL,
+    text: 'Reconnect Storage',
     dotClass: 'bg-red-500',
     ringClass: 'ring-red-500/50',
   },
@@ -66,12 +65,30 @@ const HEALTH_STATUS_NOT_FETCHED: HealthStatusDisplayConfig = {
   ringClass: 'ring-neutral-300/50 dark:ring-neutral-600/50',
 };
 
+const COMPACT_INVALID_STATUS_LABEL = 'Storage access failed. Check Storage settings.';
+const COMPACT_REAUTH_REQUIRED_STATUS_LABEL = 'Reconnect Storage';
+
 function getTooltipText(params: { status: DataStorageHealthStatus; isLoading: boolean }): string {
   const { status, isLoading } = params;
 
   if (isLoading) return 'Validating storage access...';
 
   return HEALTH_STATUS_CONFIG[status].text;
+}
+
+function getCompactStatusMessage(
+  status: DataStorageHealthStatus,
+  errorMessage?: string
+): string | undefined {
+  if (status === DataStorageHealthStatus.INVALID) {
+    return COMPACT_INVALID_STATUS_LABEL;
+  }
+
+  if (status === DataStorageHealthStatus.REAUTH_REQUIRED) {
+    return COMPACT_REAUTH_REQUIRED_STATUS_LABEL;
+  }
+
+  return errorMessage;
 }
 
 export function DataStorageHealthIndicator({
@@ -119,7 +136,10 @@ export function DataStorageHealthIndicator({
             <HoverCardBody>
               <HoverCardItem>
                 <HoverCardItemValue>
-                  <DataStorageHealthStatusView status={status} errorMessage={errorMessage} />
+                  <DataStorageHealthStatusView
+                    status={status}
+                    errorMessage={getCompactStatusMessage(status, errorMessage)}
+                  />
                 </HoverCardItemValue>
               </HoverCardItem>
             </HoverCardBody>

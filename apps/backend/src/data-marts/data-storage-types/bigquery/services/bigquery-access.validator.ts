@@ -14,6 +14,18 @@ import { DataStorageConfig } from '../../data-storage-config.type';
 import { DataStorageCredentials } from '../../data-storage-credentials.type';
 import { BigQueryApiAdapter } from '../adapters/bigquery-api.adapter';
 
+const GOOGLE_OAUTH_REAUTH_MESSAGE =
+  'Google authorization could not be refreshed. Reconnect this Storage to restore access.';
+
+function isInvalidGoogleAuthError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error);
+
+  return (
+    message.includes('Request had invalid authentication credentials') ||
+    message.includes('Expected OAuth 2 access token')
+  );
+}
+
 @Injectable()
 export class BigQueryAccessValidator implements DataStorageAccessValidator {
   readonly logger = new Logger(BigQueryAccessValidator.name);
@@ -41,6 +53,10 @@ export class BigQueryAccessValidator implements DataStorageAccessValidator {
         return new ValidationResult(true);
       } catch (error) {
         this.logger.warn('OAuth access validation failed', error);
+        if (isInvalidGoogleAuthError(error)) {
+          return ValidationResult.oauthReauthRequired(GOOGLE_OAUTH_REAUTH_MESSAGE);
+        }
+
         const errorMessage = error instanceof Error ? error.message : String(error);
         return new ValidationResult(false, errorMessage);
       }

@@ -45,7 +45,27 @@ export function useDataStorageHealthStatus(storageId: string): UseDataStorageHea
 
   // Auto-fetch on mount / storageId change
   useEffect(() => {
-    fetchAndCacheDataStorageHealthStatus(storageId);
+    fetchAndCacheDataStorageHealthStatus(storageId, { force: true });
+  }, [storageId]);
+
+  useEffect(() => {
+    const revalidate = () => {
+      fetchAndCacheDataStorageHealthStatus(storageId, { force: true });
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        revalidate();
+      }
+    };
+
+    window.addEventListener('focus', revalidate);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      window.removeEventListener('focus', revalidate);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
   }, [storageId]);
 
   const isFetched = Boolean(cached);

@@ -41,21 +41,7 @@ import { pushToDataLayer, trackEvent } from '../../../../../utils';
 import { DATA_MART_RUNS_PAGE_SIZE } from '../../constants';
 import { useRefreshSetupProgress } from '../../../../../components/AppSidebar/SetupChecklist/useSetupProgress';
 import { invalidateDataStorageHealthStatus } from '../../../../data-storage/shared/services/data-storage-health-status.service';
-
-const STORAGE_OAUTH_REAUTH_CODES = new Set(['TOKEN_REFRESH_FAILED', 'CREDENTIALS_EXPIRED']);
-
-function isStorageOAuthRefreshError(error: ApiError): boolean {
-  if (error.code && STORAGE_OAUTH_REAUTH_CODES.has(error.code)) {
-    return true;
-  }
-
-  const message = error.message ?? '';
-  return (
-    message.includes('Failed to refresh OAuth tokens') ||
-    message.includes('Google authorization could not be refreshed') ||
-    message.includes('Google access is no longer active')
-  );
-}
+import { isStorageOAuthRefreshError } from '../../../shared/utils/storage-oauth-refresh-error.utils';
 
 function invalidateStorageHealthOnOAuthRefreshError(error: ApiError, storageId?: string): void {
   if (!storageId || !isStorageOAuthRefreshError(error)) {
@@ -426,6 +412,7 @@ export function DataMartProvider({ children }: DataMartProviderProps) {
         });
       } catch (error) {
         const apiError = extractApiError(error);
+        invalidateStorageHealthOnOAuthRefreshError(apiError, state.dataMart?.storage.id);
         dispatch({
           type: 'PUBLISH_DATA_MART_ERROR',
           payload: apiError,
@@ -440,7 +427,7 @@ export function DataMartProvider({ children }: DataMartProviderProps) {
         throw error;
       }
     },
-    [refreshSetupProgress]
+    [refreshSetupProgress, state.dataMart?.storage.id]
   );
 
   /**

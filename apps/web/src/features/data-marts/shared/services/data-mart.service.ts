@@ -265,8 +265,8 @@ export class DataMartService extends ApiService {
   async getSchemaActualizeTriggerResponse(
     id: string,
     triggerId: string
-  ): Promise<{ success: boolean; error?: string }> {
-    return this.get<{ success: boolean; error?: string }>(
+  ): Promise<{ success: boolean; error?: string; code?: string }> {
+    return this.get<{ success: boolean; error?: string; code?: string }>(
       `/${id}/schema-actualize-triggers/${triggerId}`,
       undefined,
       { skipLoadingIndicator: true, skipErrorToast: true } as AxiosRequestConfig

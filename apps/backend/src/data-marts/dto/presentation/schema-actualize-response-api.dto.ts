@@ -12,4 +12,10 @@ export class SchemaActualizeResponseApiDto {
     required: false,
   })
   error?: string;
+
+  @ApiProperty({
+    description: 'Machine-readable error code if failed',
+    required: false,
+  })
+  code?: string;
 }

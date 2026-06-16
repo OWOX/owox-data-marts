@@ -23,11 +23,16 @@ const OAUTH_REAUTH_REQUIRED_CODE: DataStorageValidationCode = 'OAUTH_REAUTH_REQU
 
 export const UNCONFIGURED_STATUS_LABEL = 'Complete setup to activate Storage';
 export const OAUTH_REAUTH_REQUIRED_STATUS_LABEL =
-  'Google access is no longer active. Reconnect this Storage to restore access.';
+  'Google authorization could not be refreshed. Reconnect this Storage to restore access.';
 
 export interface CachedDataStorageHealthStatus {
   status: DataStorageHealthStatus;
   errorMessage?: string;
+}
+
+interface PendingHealthStatusRequest {
+  storageId: string;
+  force: boolean;
 }
 
 /**
@@ -48,7 +53,7 @@ const inFlightRequests = new Set<string>();
 /**
  * Queue of pending storage IDs waiting to be fetched
  */
-const pendingQueue: string[] = [];
+const pendingQueue: PendingHealthStatusRequest[] = [];
 
 /**
  * Number of currently active requests
@@ -94,13 +99,15 @@ export function invalidateDataStorageHealthStatus(storageId: string): void {
  */
 function processQueue(): void {
   while (activeRequestCount < MAX_CONCURRENT_REQUESTS && pendingQueue.length > 0) {
-    const storageId = pendingQueue.shift();
+    const request = pendingQueue.shift();
 
-    if (!storageId) {
+    if (!request) {
       break;
     }
 
-    if (healthStatusCache.has(storageId) || inFlightRequests.has(storageId)) {
+    const { storageId, force } = request;
+
+    if ((!force && healthStatusCache.has(storageId)) || inFlightRequests.has(storageId)) {
       continue;
     }
 
@@ -153,13 +160,21 @@ function processQueue(): void {
  * Enqueues a storage ID for health status fetching.
  * Respects concurrency limit of MAX_CONCURRENT_REQUESTS.
  */
-export function fetchAndCacheDataStorageHealthStatus(storageId: string): void {
-  if (healthStatusCache.has(storageId) || inFlightRequests.has(storageId)) {
+export function fetchAndCacheDataStorageHealthStatus(
+  storageId: string,
+  options: { force?: boolean } = {}
+): void {
+  const force = options.force ?? false;
+
+  if ((!force && healthStatusCache.has(storageId)) || inFlightRequests.has(storageId)) {
     return;
   }
 
-  if (!pendingQueue.includes(storageId)) {
-    pendingQueue.push(storageId);
+  const queuedRequest = pendingQueue.find(request => request.storageId === storageId);
+  if (queuedRequest) {
+    queuedRequest.force ||= force;
+  } else {
+    pendingQueue.push({ storageId, force });
   }
 
   processQueue();
