@@ -20,7 +20,10 @@ vi.mock('../../../../../data-marts/reports/shared/model/hooks/useReport', () => 
 }));
 
 import { useReport } from '../../../../../data-marts/reports/shared/model/hooks/useReport';
-import { useLookerStudioReportForm } from '../useLookerStudioReportForm';
+import {
+  useLookerStudioReportForm,
+  lookerStudioReportFormSchema,
+} from '../useLookerStudioReportForm';
 import { DestinationTypeConfigEnum } from '../../../shared/enums/destination-type-config.enum';
 import { DataStorageType } from '../../../../../data-storage/shared/model/types/data-storage-type.enum';
 import type { DataMartReport } from '../../../shared/model/types/data-mart-report';
@@ -87,6 +90,38 @@ beforeEach(() => {
   setupUseReportMock();
   mockCreateReport.mockResolvedValue(buildReport({ id: 'created-1' }));
   mockUpdateReport.mockResolvedValue(buildReport({ id: 'updated-1' }));
+});
+
+const validLookerStudioFormData = {
+  cacheLifetime: 300,
+  columnConfig: ['col_a'],
+  filterConfig: null,
+  sortConfig: null,
+  limitConfig: null,
+};
+
+describe('lookerStudioReportFormSchema — columnConfig validation', () => {
+  it('rejects an empty array with the expected message', async () => {
+    const result = await lookerStudioReportFormSchema.safeParseAsync({
+      ...validLookerStudioFormData,
+      columnConfig: [],
+    });
+
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      const msg = result.error.issues.find(i => i.path.includes('columnConfig'))?.message;
+      expect(msg).toBe('At least one column must be selected');
+    }
+  });
+
+  it('accepts null (no columns configured yet)', async () => {
+    const result = await lookerStudioReportFormSchema.safeParseAsync({
+      ...validLookerStudioFormData,
+      columnConfig: null,
+    });
+
+    expect(result.success).toBe(true);
+  });
 });
 
 describe('useLookerStudioReportForm — defaults', () => {

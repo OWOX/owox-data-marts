@@ -1,5 +1,6 @@
 import { forwardRef, useEffect, useState, useRef } from 'react';
 import { useOwnerState } from '../../../../../../shared/hooks';
+import { focusFirstInvalidField } from '../../../../../../utils';
 import { UserReference } from '../../../../../../shared/components/UserReference';
 import { useUser } from '../../../../../idp';
 import { Input } from '@owox/ui/components/input';
@@ -154,7 +155,6 @@ export const GoogleSheetsReportEditForm = forwardRef<
 
     const {
       isDirty,
-      isValid,
       reset,
       form,
       isSubmitting,
@@ -242,7 +242,7 @@ export const GoogleSheetsReportEditForm = forwardRef<
           id={formId}
           ref={ref}
           noValidate
-          onSubmit={e => void form.handleSubmit(handleFormSubmit)(e)}
+          onSubmit={e => void form.handleSubmit(handleFormSubmit, focusFirstInvalidField)(e)}
         >
           <FormLayout>
             <FormSection title='General'>
@@ -430,30 +430,54 @@ export const GoogleSheetsReportEditForm = forwardRef<
               title='Report Columns'
               tooltip='Select which columns to include in the report'
               titleAdornment={<ReportColumnsCountBadge count={columnsCount} />}
+              fields={['columnConfig', 'filterConfig', 'sortConfig', 'limitConfig']}
             >
-              {dataMart?.id && (
-                <div className='border-border space-y-3 rounded-md border-b bg-white px-4 py-3 dark:border-transparent dark:bg-white/4'>
-                  <ReportColumnPicker
-                    dataMartId={dataMart.id}
-                    storageType={dataMart.storage.type}
-                    value={form.watch('columnConfig')}
-                    onChange={value => {
-                      form.setValue('columnConfig', value, { shouldDirty: true });
-                    }}
-                    outputConfig={{
-                      filterConfig: form.watch('filterConfig') ?? [],
-                      sortConfig: form.watch('sortConfig') ?? [],
-                      limitConfig: form.watch('limitConfig') ?? null,
-                    }}
-                    onOutputConfigChange={config => {
-                      form.setValue('filterConfig', config.filterConfig, { shouldDirty: true });
-                      form.setValue('sortConfig', config.sortConfig, { shouldDirty: true });
-                      form.setValue('limitConfig', config.limitConfig, { shouldDirty: true });
-                    }}
-                    onCountChange={setColumnsCount}
-                  />
-                </div>
-              )}
+              <FormField
+                control={form.control}
+                name='columnConfig'
+                render={() => (
+                  <FormItem>
+                    {dataMart?.id && (
+                      <FormControl>
+                        <div
+                          className='border-border space-y-3 rounded-md border-b bg-white px-4 py-3 dark:border-transparent dark:bg-white/4'
+                          tabIndex={-1}
+                        >
+                          <ReportColumnPicker
+                            dataMartId={dataMart.id}
+                            storageType={dataMart.storage.type}
+                            value={form.watch('columnConfig')}
+                            onChange={value => {
+                              form.setValue('columnConfig', value, {
+                                shouldDirty: true,
+                                shouldValidate: true,
+                              });
+                            }}
+                            outputConfig={{
+                              filterConfig: form.watch('filterConfig') ?? [],
+                              sortConfig: form.watch('sortConfig') ?? [],
+                              limitConfig: form.watch('limitConfig') ?? null,
+                            }}
+                            onOutputConfigChange={config => {
+                              form.setValue('filterConfig', config.filterConfig, {
+                                shouldDirty: true,
+                              });
+                              form.setValue('sortConfig', config.sortConfig, {
+                                shouldDirty: true,
+                              });
+                              form.setValue('limitConfig', config.limitConfig, {
+                                shouldDirty: true,
+                              });
+                            }}
+                            onCountChange={setColumnsCount}
+                          />
+                        </div>
+                      </FormControl>
+                    )}
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
             </FormSection>
             <FormSection title='Automate Report Runs'>
               {dataMart?.id ? (
@@ -505,11 +529,10 @@ export const GoogleSheetsReportEditForm = forwardRef<
             mode={mode}
             isSubmitting={isSubmitting}
             isDirty={isDirty}
-            isValid={isValid}
             triggersDirty={triggersDirty}
             ownersDirty={ownersDirty}
             runAfterSaveRef={runAfterSaveRef}
-            onSubmit={() => void form.handleSubmit(handleFormSubmit)()}
+            onSubmit={() => void form.handleSubmit(handleFormSubmit, focusFirstInvalidField)()}
             onCancel={onCancel}
           />
         </AppForm>

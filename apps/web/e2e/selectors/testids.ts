@@ -54,6 +54,9 @@ export const TESTIDS = {
   notifToggle: 'notifToggle',
   notifEditSheet: 'notifEditSheet',
 
+  // Form validation
+  formSectionErrorIndicator: 'form-section-error-indicator',
+
   // FloatingPopover domain
   floatingPopoverClose: 'floatingPopoverClose',
 
