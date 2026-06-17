@@ -93,7 +93,6 @@ function SwitchProjectMenuInner({
       } else if (e.key === 'Enter') {
         const targetIndex = activeIndex >= 0 ? activeIndex : 0;
         const project = filteredProjects[targetIndex];
-        if (!project) return;
         void navigate(buildProjectPath(encodeURIComponent(project.id), '/'));
       }
     },
