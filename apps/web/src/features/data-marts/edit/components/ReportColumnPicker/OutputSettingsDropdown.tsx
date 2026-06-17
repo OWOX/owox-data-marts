@@ -1,15 +1,11 @@
-import { useState, type DragEvent } from 'react';
+import { useMemo, useState, type DragEvent } from 'react';
 import { Button } from '@owox/ui/components/button';
 import { Info, Plus } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@owox/ui/components/tooltip';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@owox/ui/components/select';
 import { cn } from '@owox/ui/lib/utils';
+import { FieldSearchPicker, type FieldPickerItem } from './FieldSearchPicker';
+import { fieldDisplayLabel } from './output-controls-display';
+import { makePreJoinKey } from './output-controls-utils';
 import type {
   FilterRule,
   JoinedSource,
@@ -34,7 +30,11 @@ function SectionHeader({ title, info }: { title: string; info: string }) {
             <Info className='size-3.5' aria-label={`About ${title}`} />
           </span>
         </TooltipTrigger>
-        <TooltipContent side='top' className='max-w-xs text-xs whitespace-pre-wrap normal-case'>
+        <TooltipContent
+          side='top'
+          collisionPadding={8}
+          className='max-w-[min(20rem,calc(100vw-1.5rem))] text-xs whitespace-pre-wrap normal-case'
+        >
           {info}
         </TooltipContent>
       </Tooltip>
@@ -56,6 +56,21 @@ const SECTION_INFO = {
 export interface OutputSettingsDropdownColumn {
   name: string;
   type: string;
+  /** Business-readable field name (alias or leaf of name). */
+  label: string;
+  /** Joined data mart name; absent for home-mart fields. */
+  dataMartName?: string;
+  /** Full path segments, shown as a tree on hover. */
+  path?: string[];
+}
+
+function columnToPickerItem(c: OutputSettingsDropdownColumn): FieldPickerItem {
+  return {
+    value: c.name,
+    label: c.label,
+    dataMartName: c.dataMartName,
+    path: c.path,
+  };
 }
 
 interface OutputSettingsDropdownProps {
@@ -114,7 +129,7 @@ export function OutputSettingsDropdown({
       )}
       <SortSection
         sort={value.sortConfig}
-        selectedColumns={selectedColumns.map(c => c.name)}
+        selectedColumns={selectedColumns}
         onChange={s => {
           onChange({ ...value, sortConfig: s });
         }}
@@ -139,6 +154,11 @@ function filterRowKey(rule: FilterRule, index: number): string {
   return `${rule.placement ?? 'post'}|${rule.aliasPath ?? ''}|${rule.column}|${rule.operator}|${index}`;
 }
 
+// FilterEditorPopover strips placement/aliasPath; re-stamp them for a slice.
+function toPreJoin(rule: FilterRule, aliasPath: string | undefined): FilterRule {
+  return { ...rule, placement: 'pre-join', aliasPath };
+}
+
 interface FiltersSectionProps {
   indexedRules: IndexedFilterRule[];
   allColumns: readonly OutputSettingsDropdownColumn[];
@@ -157,6 +177,8 @@ function FiltersSection({
   const [pendingColumn, setPendingColumn] = useState<OutputSettingsDropdownColumn | null>(null);
   const filterableColumns = allColumns.filter(c => isFilterableType(c.type));
   const columnTypeMap = new Map(allColumns.map(c => [c.name, c.type]));
+  const labelByName = new Map(allColumns.map(c => [c.name, c.label]));
+  const dataMartByName = new Map(allColumns.map(c => [c.name, c.dataMartName]));
 
   return (
     <div>
@@ -167,6 +189,8 @@ function FiltersSection({
             key={filterRowKey(rule, index)}
             rule={rule}
             fieldType={columnTypeMap.get(rule.column) ?? null}
+            displayLabel={labelByName.get(rule.column)}
+            dataMartName={dataMartByName.get(rule.column)}
             onChange={next => {
               onUpdateAt(index, next);
             }}
@@ -185,6 +209,8 @@ function FiltersSection({
             }}
             column={pendingColumn.name}
             fieldType={pendingColumn.type}
+            displayLabel={pendingColumn.label}
+            dataMartName={pendingColumn.dataMartName}
             onApply={rule => {
               onAdd(rule);
               setPendingColumn(null);
@@ -192,7 +218,7 @@ function FiltersSection({
             trigger={
               <Button variant='outline' size='sm' className='h-7 text-xs'>
                 <Plus className='mr-1 h-3 w-3' />
-                {pendingColumn.name}
+                {pendingColumn.label}
               </Button>
             }
           />
@@ -216,6 +242,8 @@ interface PendingSliceColumn {
   aliasPath: string;
   column: string;
   fieldType: string;
+  label: string;
+  dataMartName?: string;
 }
 
 function SlicesSection({
@@ -227,16 +255,36 @@ function SlicesSection({
 }: SlicesSectionProps) {
   const [pending, setPending] = useState<PendingSliceColumn | null>(null);
 
-  const fieldTypeMap = new Map<string, string>();
-  for (const src of joinedSources) {
-    for (const col of src.columns) {
-      fieldTypeMap.set(`${src.aliasPath}\0${col.name}`, col.type);
+  const { fieldTypeMap, labelMap, dataMartByAliasPath } = useMemo(() => {
+    const fieldTypeMap = new Map<string, string>();
+    const labelMap = new Map<string, string>();
+    const dataMartByAliasPath = new Map<string, string | undefined>();
+    for (const src of joinedSources) {
+      dataMartByAliasPath.set(src.aliasPath, src.dataMartName);
+      for (const col of src.columns) {
+        fieldTypeMap.set(makePreJoinKey(src.aliasPath, col.name), col.type);
+        labelMap.set(
+          makePreJoinKey(src.aliasPath, col.name),
+          fieldDisplayLabel(col.alias, col.name)
+        );
+      }
     }
-  }
+    return { fieldTypeMap, labelMap, dataMartByAliasPath };
+  }, [joinedSources]);
 
   function fieldTypeFor(rule: FilterRule): string | null {
     if (!rule.aliasPath) return null;
-    return fieldTypeMap.get(`${rule.aliasPath}\0${rule.column}`) ?? null;
+    return fieldTypeMap.get(makePreJoinKey(rule.aliasPath, rule.column)) ?? null;
+  }
+
+  function labelFor(rule: FilterRule): string | undefined {
+    if (!rule.aliasPath) return undefined;
+    return labelMap.get(makePreJoinKey(rule.aliasPath, rule.column));
+  }
+
+  function dataMartFor(rule: FilterRule): string | undefined {
+    if (!rule.aliasPath) return undefined;
+    return dataMartByAliasPath.get(rule.aliasPath);
   }
 
   return (
@@ -248,13 +296,10 @@ function SlicesSection({
             key={filterRowKey(rule, index)}
             rule={rule}
             fieldType={fieldTypeFor(rule)}
+            displayLabel={labelFor(rule)}
+            dataMartName={dataMartFor(rule)}
             onChange={next => {
-              // Re-stamp placement/aliasPath; FilterEditorPopover drops them.
-              onUpdateAt(index, {
-                ...next,
-                placement: 'pre-join',
-                aliasPath: rule.aliasPath,
-              } as FilterRule);
+              onUpdateAt(index, toPreJoin(next, rule.aliasPath));
             }}
             onRemove={() => {
               onRemoveAt(index);
@@ -271,18 +316,16 @@ function SlicesSection({
             }}
             column={pending.column}
             fieldType={pending.fieldType}
+            displayLabel={pending.label}
+            dataMartName={pending.dataMartName}
             onApply={rule => {
-              onAdd({
-                ...rule,
-                placement: 'pre-join',
-                aliasPath: pending.aliasPath,
-              } as FilterRule);
+              onAdd(toPreJoin(rule, pending.aliasPath));
               setPending(null);
             }}
             trigger={
               <Button variant='outline' size='sm' className='h-7 text-xs'>
                 <Plus className='mr-1 h-3 w-3' />
-                {pending.aliasPath}.{pending.column}
+                {pending.aliasPath}.{pending.label}
               </Button>
             }
           />
@@ -301,53 +344,42 @@ function AddSlicePicker({
   joinedSources: readonly JoinedSource[];
   onSelect: (pending: PendingSliceColumn) => void;
 }) {
-  // `\0` separator so a `.` in aliasPath/column doesn't collide.
-  const items = joinedSources.flatMap(src =>
-    src.columns
-      .filter(col => isFilterableType(col.type))
-      .map(col => ({
-        value: `${src.aliasPath}\0${col.name}`,
+  const lookup = new Map<string, PendingSliceColumn>();
+  const items: FieldPickerItem[] = [];
+  for (const src of joinedSources) {
+    for (const col of src.columns) {
+      if (!isFilterableType(col.type)) continue;
+      const value = makePreJoinKey(src.aliasPath, col.name);
+      const label = fieldDisplayLabel(col.alias, col.name);
+      lookup.set(value, {
         aliasPath: src.aliasPath,
         column: col.name,
         fieldType: col.type,
-      }))
-  );
+        label,
+        dataMartName: src.dataMartName,
+      });
+      items.push({
+        value,
+        label,
+        dataMartName: src.dataMartName,
+        path: [...src.aliasPath.split('.'), col.name],
+      });
+    }
+  }
 
   if (items.length === 0) {
     return <span className='text-muted-foreground text-xs'>No filterable joined columns.</span>;
   }
 
   return (
-    <Select
-      value=''
-      onValueChange={val => {
-        const item = items.find(i => i.value === val);
-        if (item) {
-          onSelect({
-            aliasPath: item.aliasPath,
-            column: item.column,
-            fieldType: item.fieldType,
-          });
-        }
+    <FieldSearchPicker
+      items={items}
+      placeholder='Add slice'
+      onSelect={value => {
+        const pending = lookup.get(value);
+        if (pending) onSelect(pending);
       }}
-    >
-      <SelectTrigger className='text-muted-foreground h-7 w-full text-xs'>
-        <span className='flex flex-1 items-center gap-1 text-left'>
-          <Plus className='h-4 w-4' />
-          <SelectValue placeholder='Add slice' />
-        </span>
-      </SelectTrigger>
-      <SelectContent>
-        {items.map(item => (
-          <SelectItem key={item.value} value={item.value}>
-            <span className='font-mono'>
-              <span className='text-blue-600'>{item.aliasPath}</span>.{item.column}
-            </span>
-            <span className='text-muted-foreground ml-2 text-xs'>({item.fieldType})</span>
-          </SelectItem>
-        ))}
-      </SelectContent>
-    </Select>
+    />
   );
 }
 
@@ -355,48 +387,36 @@ function AddFilterPicker({
   columns,
   onSelect,
 }: {
-  columns: OutputSettingsDropdownColumn[];
+  columns: readonly OutputSettingsDropdownColumn[];
   onSelect: (column: OutputSettingsDropdownColumn) => void;
 }) {
   if (columns.length === 0) {
     return <span className='text-muted-foreground text-xs'>No more filterable columns.</span>;
   }
   return (
-    <Select
-      value=''
-      onValueChange={name => {
+    <FieldSearchPicker
+      items={columns.map(columnToPickerItem)}
+      placeholder='Add filter'
+      onSelect={name => {
         const column = columns.find(c => c.name === name);
         if (column) onSelect(column);
       }}
-    >
-      <SelectTrigger className='text-muted-foreground h-7 w-full text-xs'>
-        <span className='flex flex-1 items-center gap-1 text-left'>
-          <Plus className='h-4 w-4' />
-          <SelectValue placeholder='Add filter' />
-        </span>
-      </SelectTrigger>
-      <SelectContent>
-        {columns.map(c => (
-          <SelectItem key={c.name} value={c.name}>
-            <span className='font-mono'>{c.name}</span>
-            <span className='text-muted-foreground ml-2 text-xs'>({c.type})</span>
-          </SelectItem>
-        ))}
-      </SelectContent>
-    </Select>
+    />
   );
 }
 
 interface SortSectionProps {
   sort: SortRule[];
-  selectedColumns: string[];
+  selectedColumns: readonly OutputSettingsDropdownColumn[];
   onChange: (next: SortRule[]) => void;
 }
 
 function SortSection({ sort, selectedColumns, onChange }: SortSectionProps) {
   const sortColumns = new Set(sort.map(s => s.column));
-  const selectedColumnSet = new Set(selectedColumns);
-  const available = selectedColumns.filter(c => !sortColumns.has(c));
+  const selectedColumnSet = new Set(selectedColumns.map(c => c.name));
+  const labelByName = new Map(selectedColumns.map(c => [c.name, c.label]));
+  const dataMartByName = new Map(selectedColumns.map(c => [c.name, c.dataMartName]));
+  const available = selectedColumns.filter(c => !sortColumns.has(c.name));
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
 
@@ -457,6 +477,8 @@ function SortSection({ sort, selectedColumns, onChange }: SortSectionProps) {
               rule={rule}
               index={index}
               isOrphaned={!selectedColumnSet.has(rule.column)}
+              displayLabel={labelByName.get(rule.column)}
+              dataMartName={dataMartByName.get(rule.column)}
               onChange={next => {
                 const updated = [...sort];
                 updated[index] = next;
@@ -475,28 +497,15 @@ function SortSection({ sort, selectedColumns, onChange }: SortSectionProps) {
             All selected columns are already sorted.
           </span>
         ) : (
-          <Select
-            value=''
-            onValueChange={name => {
+          <FieldSearchPicker
+            items={available.map(columnToPickerItem)}
+            placeholder='Add sort by'
+            onSelect={name => {
               if (name && !sortColumns.has(name)) {
                 onChange([...sort, { column: name, direction: 'asc' }]);
               }
             }}
-          >
-            <SelectTrigger className='text-muted-foreground h-7 w-full text-xs'>
-              <span className='flex flex-1 items-center gap-1 text-left'>
-                <Plus className='h-4 w-4' />
-                <SelectValue placeholder='Add sort by' />
-              </span>
-            </SelectTrigger>
-            <SelectContent>
-              {available.map(name => (
-                <SelectItem key={name} value={name}>
-                  <span className='font-mono'>{name}</span>
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          />
         )}
       </div>
     </div>

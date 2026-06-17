@@ -19,12 +19,16 @@ import {
   hasAnyOutputControls,
   type FilterRule,
   type JoinedSource,
+  type JoinedSourceColumn,
   type OutputConfig,
 } from '../../../shared/types/output-config';
 import { supportsOutputControls } from '../../../shared/utils/output-controls-support';
 import { FieldInfoTooltip } from './FieldInfoTooltip';
 import { OutputSettingsButton } from './OutputSettingsButton';
 import { OutputSettingsDropdown } from './OutputSettingsDropdown';
+import type { OutputSettingsDropdownColumn } from './OutputSettingsDropdown';
+import { fieldDisplayLabel } from './output-controls-display';
+import { makePreJoinKey } from './output-controls-utils';
 import { RowFilterIcon } from './RowFilterIcon';
 import { isFilterableType } from './output-controls-operators';
 
@@ -127,20 +131,23 @@ const NativeFieldRow = memo(function NativeFieldRow({
   onReplaceFilterAt,
 }: NativeFieldRowProps) {
   return (
-    <label className='group hover:bg-muted/50 flex cursor-pointer items-center gap-2 rounded px-1 py-1'>
+    <label className='group hover:bg-muted/50 flex min-w-0 cursor-pointer items-center gap-2 rounded px-1 py-1'>
       <Checkbox
         checked={checked}
         onCheckedChange={c => {
           onToggleField(field.name, c === true);
         }}
       />
-      <span className='font-mono text-xs'>{field.alias ?? field.name}</span>
-      {field.type && <span className='text-muted-foreground text-xs'>({field.type})</span>}
+      <span className='min-w-0 truncate font-mono text-xs' title={field.name}>
+        {field.alias ?? field.name}
+      </span>
+      {field.type && <span className='text-muted-foreground shrink-0 text-xs'>({field.type})</span>}
       <FieldInfoTooltip text={field.description} compact />
       {filterableType && onAddFilter && onRemoveFilterAt && (
         <RowFilterIcon
           column={field.name}
           fieldType={filterableType}
+          displayLabel={fieldDisplayLabel(field.alias, field.name)}
           activeRules={columnFilters.rules}
           onAdd={onAddFilter}
           onRemoveAt={localIndex => {
@@ -197,7 +204,7 @@ const BlendedFieldRow = memo(function BlendedFieldRow({
   return (
     <label
       className={cn(
-        'group flex cursor-pointer items-center gap-2 rounded px-1 py-1',
+        'group flex min-w-0 cursor-pointer items-center gap-2 rounded px-1 py-1',
         hoverClassName
       )}
     >
@@ -208,8 +215,10 @@ const BlendedFieldRow = memo(function BlendedFieldRow({
           onToggleField(field.name, c === true);
         }}
       />
-      <span className='font-mono text-xs'>{field.alias || field.originalFieldName}</span>
-      {field.type && <span className='text-muted-foreground text-xs'>({field.type})</span>}
+      <span className='min-w-0 truncate font-mono text-xs' title={field.name}>
+        {field.alias || field.originalFieldName}
+      </span>
+      {field.type && <span className='text-muted-foreground shrink-0 text-xs'>({field.type})</span>}
       <FieldInfoTooltip text={field.description} compact />
       {filterableType &&
         onRemoveFilterAt &&
@@ -219,6 +228,8 @@ const BlendedFieldRow = memo(function BlendedFieldRow({
           <RowFilterIcon
             column={field.name}
             fieldType={filterableType}
+            displayLabel={fieldDisplayLabel(field.alias, field.originalFieldName)}
+            dataMartName={field.outputPrefix.trim() || field.sourceDataMartTitle}
             activeRules={columnFilters.rules}
             onAdd={effectiveAddFilter}
             onRemoveAt={localIndex => {
@@ -313,7 +324,7 @@ function BlendedGroupItem({
       </button>
       <CollapsibleContent>
         {group.visibleFields.map(field => {
-          const sliceKey = `${field.aliasPath}\0${field.originalFieldName}`;
+          const sliceKey = makePreJoinKey(field.aliasPath, field.originalFieldName);
           return (
             <BlendedFieldRow
               key={field.name}
@@ -415,7 +426,7 @@ export function ReportColumnPicker({
   const knownSliceKeys = useMemo(() => {
     const keys = new Set<string>();
     for (const f of schema?.blendedFields ?? []) {
-      if (!f.isHidden) keys.add(`${f.aliasPath}\0${f.originalFieldName}`);
+      if (!f.isHidden) keys.add(makePreJoinKey(f.aliasPath, f.originalFieldName));
     }
     return keys;
   }, [schema]);
@@ -424,14 +435,14 @@ export function ReportColumnPicker({
     if (!schema) return [];
     const typeByKey = new Map<string, string>();
     for (const f of schema.blendedFields) {
-      const key = `${f.aliasPath}\0${f.originalFieldName}`;
+      const key = makePreJoinKey(f.aliasPath, f.originalFieldName);
       if (f.type) typeByKey.set(key, f.type);
     }
     const seen = new Set<string>();
     const result: { aliasPath: string; column: string; fieldType?: string }[] = [];
     for (const rule of effectiveOutputConfig.filterConfig) {
       if (rule.placement !== 'pre-join' || !rule.aliasPath) continue;
-      const key = `${rule.aliasPath}\0${rule.column}`;
+      const key = makePreJoinKey(rule.aliasPath, rule.column);
       if (knownSliceKeys.has(key) || seen.has(key)) continue;
       seen.add(key);
       result.push({
@@ -543,7 +554,7 @@ export function ReportColumnPicker({
     const map = new Map<string, ColumnFilters>();
     effectiveOutputConfig.filterConfig.forEach((rule, idx) => {
       if (rule.placement !== 'pre-join' || !rule.aliasPath) return;
-      const key = `${rule.aliasPath}\0${rule.column}`;
+      const key = makePreJoinKey(rule.aliasPath, rule.column);
       const existing = map.get(key);
       if (existing) {
         existing.rules.push(rule);
@@ -614,7 +625,7 @@ export function ReportColumnPicker({
 
   const joinedSources = useMemo<JoinedSource[]>(() => {
     if (!schema) return [];
-    const byPath = new Map<string, JoinedSource & { columns: { name: string; type: string }[] }>();
+    const byPath = new Map<string, JoinedSource & { columns: JoinedSourceColumn[] }>();
     for (const source of schema.availableSources) {
       if (!source.isIncluded) continue;
       if (!source.isAccessibleForReporting) continue;
@@ -627,7 +638,8 @@ export function ReportColumnPicker({
     for (const field of schema.blendedFields) {
       const entry = byPath.get(field.aliasPath);
       if (!entry || !field.type || field.isHidden) continue;
-      entry.columns.push({ name: field.originalFieldName, type: field.type });
+      entry.dataMartName ??= field.outputPrefix.trim() || field.sourceDataMartTitle;
+      entry.columns.push({ name: field.originalFieldName, type: field.type, alias: field.alias });
     }
     for (const entry of byPath.values()) {
       const seen = new Set<string>();
@@ -640,15 +652,28 @@ export function ReportColumnPicker({
     return Array.from(byPath.values()).filter(s => s.columns.length > 0);
   }, [schema]);
 
-  const dropdownColumns = useMemo(() => {
-    const cols: { name: string; type: string }[] = [];
+  const dropdownColumns = useMemo<OutputSettingsDropdownColumn[]>(() => {
+    const cols: OutputSettingsDropdownColumn[] = [];
     for (const f of nativeFields) {
-      if (f.type) cols.push({ name: f.name, type: f.type });
+      if (f.type) {
+        cols.push({
+          name: f.name,
+          type: f.type,
+          label: fieldDisplayLabel(f.alias, f.name),
+          path: f.name.split('.'),
+        });
+      }
     }
     for (const f of includedBlendedFields) {
       if (!f.type) continue;
       if (!availableSourceByPath.get(f.aliasPath)?.isAccessibleForReporting) continue;
-      cols.push({ name: f.name, type: f.type });
+      cols.push({
+        name: f.name,
+        type: f.type,
+        label: fieldDisplayLabel(f.alias, f.originalFieldName),
+        dataMartName: f.outputPrefix.trim() || f.sourceDataMartTitle,
+        path: [...f.aliasPath.split('.'), f.originalFieldName],
+      });
     }
     return cols;
   }, [nativeFields, includedBlendedFields, availableSourceByPath]);
@@ -669,7 +694,7 @@ export function ReportColumnPicker({
   const hasDisconnectedOutputControls = useMemo(() => {
     for (const rule of effectiveOutputConfig.filterConfig) {
       if (rule.placement === 'pre-join') {
-        if (!rule.aliasPath || !knownSliceKeys.has(`${rule.aliasPath}\0${rule.column}`)) {
+        if (!rule.aliasPath || !knownSliceKeys.has(makePreJoinKey(rule.aliasPath, rule.column))) {
           return true;
         }
       } else if (!knownFieldNames.has(rule.column)) {
@@ -701,7 +726,7 @@ export function ReportColumnPicker({
     const keys = new Set<string>();
     for (const rule of effectiveOutputConfig.filterConfig) {
       if (rule.placement === 'pre-join' && rule.aliasPath) {
-        keys.add(`${rule.aliasPath}\0${rule.column}`);
+        keys.add(makePreJoinKey(rule.aliasPath, rule.column));
       }
     }
     return keys;
@@ -729,7 +754,7 @@ export function ReportColumnPicker({
       const isReferenced =
         isSelected ||
         referencedFieldNames.has(field.name) ||
-        referencedPreJoinKeys.has(`${field.aliasPath}\0${field.originalFieldName}`);
+        referencedPreJoinKeys.has(makePreJoinKey(field.aliasPath, field.originalFieldName));
       if (isSelected) group.selectedCount += 1;
       if (group.isAccessibleForReporting) {
         if (!showSelectedOnly || isReferenced) group.visibleFields.push(field);
@@ -900,7 +925,7 @@ export function ReportColumnPicker({
               );
             })}
             {unresolvedSlices.map(({ aliasPath, column, fieldType }) => {
-              const sliceKey = `${aliasPath}\0${column}`;
+              const sliceKey = makePreJoinKey(aliasPath, column);
               const slices = preJoinByAliasPathColumn.get(sliceKey) ?? EMPTY_COLUMN_FILTERS;
               return (
                 <label
