@@ -1,4 +1,4 @@
-import { INestApplication, RequestMethod } from '@nestjs/common';
+import { INestApplication } from '@nestjs/common';
 import * as supertest from 'supertest';
 
 /**
@@ -66,6 +66,9 @@ export async function createTestApp(
   const { setupGlobalPipes } = await import(
     /* webpackIgnore: true */ '../../../../apps/backend/src/config/global-pipes.config'
   );
+  const { PROTOCOL_ROUTE_EXCLUSIONS } = await import(
+    /* webpackIgnore: true */ '../../../../apps/backend/src/config/protocol-route-exclusions.config'
+  );
 
   // Import exception filters to match production behavior (registered in bootstrap.ts)
   const { GlobalExceptionFilter } = await import(
@@ -89,12 +92,7 @@ export async function createTestApp(
 
   const app: INestApplication = moduleRef.createNestApplication(new ExpressAdapter(expressApp));
   app.setGlobalPrefix('api', {
-    exclude: [
-      { path: '.well-known/oauth-protected-resource', method: RequestMethod.ALL },
-      { path: '.well-known/oauth-authorization-server', method: RequestMethod.ALL },
-      { path: 'oauth/(.*)', method: RequestMethod.ALL },
-      { path: 'mcp', method: RequestMethod.ALL },
-    ],
+    exclude: PROTOCOL_ROUTE_EXCLUSIONS,
   });
   setupGlobalPipes(app);
   app.useGlobalFilters(new GlobalExceptionFilter(), new BaseExceptionFilter());

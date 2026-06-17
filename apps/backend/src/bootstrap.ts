@@ -1,5 +1,4 @@
 import 'reflect-metadata';
-import { RequestMethod } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { NestFactory } from '@nestjs/core';
 import { ExpressAdapter, NestExpressApplication } from '@nestjs/platform-express';
@@ -14,21 +13,13 @@ import { createLogger } from './common/logger/logger.service';
 import { DEFAULT_PORT } from './config/constants';
 import { setupGlobalPipes } from './config/global-pipes.config';
 import { runMigrationsIfNeeded } from './config/migrations.config';
+import { PROTOCOL_ROUTE_EXCLUSIONS } from './config/protocol-route-exclusions.config';
 import { setupSwagger } from './config/swagger.config';
 import { loadEnv } from './load-env';
 
 const logger = createLogger('Bootstrap');
 const PATH_PREFIX = 'api';
 const SWAGGER_PATH = 'swagger-ui';
-const PROTOCOL_ROUTE_EXCLUSIONS = [
-  { path: '.well-known/oauth-protected-resource', method: RequestMethod.ALL },
-  { path: '.well-known/oauth-protected-resource/(.*)', method: RequestMethod.ALL },
-  { path: '.well-known/oauth-authorization-server', method: RequestMethod.ALL },
-  { path: '.well-known/oauth-authorization-server/(.*)', method: RequestMethod.ALL },
-  { path: 'oauth/(.*)', method: RequestMethod.ALL },
-  { path: 'mcp', method: RequestMethod.ALL },
-  { path: 'mcp/(.*)', method: RequestMethod.ALL },
-];
 
 export interface BootstrapOptions {
   express: Express;
