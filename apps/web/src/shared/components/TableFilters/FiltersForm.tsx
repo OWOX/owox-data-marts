@@ -11,7 +11,7 @@ import {
 import { Button } from '@owox/ui/components/button';
 import { Plus, X } from 'lucide-react';
 import type { FilterConfigItem, FilterOperator, FiltersState } from './types';
-import { isFilterRowValid } from './filter-utils';
+import { getDefaultFilterOperator, isFilterRowValid } from './filter-utils';
 import { SelectValueControl, InputValueControl } from './index';
 
 /* ---------------------------------------------------------------------------
@@ -165,15 +165,17 @@ function FilterBlock({
     [config, usedFieldIds, selectedFieldId]
   );
 
-  // Auto-set first operator when field changes
+  // Auto-set the default operator when field changes.
   useEffect(() => {
     if (!selectedFieldId) return;
     const currentOperator = watch(opPath);
     if (currentOperator) return;
 
-    const firstOp = config.find(c => c.id === selectedFieldId)?.operators[0];
-    if (firstOp) {
-      setValue(opPath, firstOp, { shouldDirty: true, shouldTouch: true });
+    const defaultOperator = getDefaultFilterOperator(
+      config.find(c => c.id === selectedFieldId)?.operators ?? []
+    );
+    if (defaultOperator) {
+      setValue(opPath, defaultOperator, { shouldDirty: true, shouldTouch: true });
     }
   }, [selectedFieldId, config, opPath, setValue, watch]);
 
