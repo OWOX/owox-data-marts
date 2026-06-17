@@ -98,6 +98,9 @@ describe('OAuthAuthorizationController', () => {
     } as unknown as jest.Mocked<OAuthClientRegistry>;
     const projectSelectionService = {
       loadProjects: jest.fn().mockResolvedValue([{ id: 'project-1', title: 'Project 1' }]),
+      filterSelectableProjects: jest.fn(projects =>
+        projects.filter(project => project.status !== 'removed')
+      ),
       resolveSelectedProjectMember: jest.fn().mockResolvedValue(projectMember),
       renderSelectionPage: jest.fn().mockReturnValue('<html>Select project</html>'),
     } as unknown as jest.Mocked<OAuthProjectSelectionService>;
