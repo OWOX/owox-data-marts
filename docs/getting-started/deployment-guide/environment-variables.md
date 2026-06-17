@@ -181,6 +181,15 @@ owox serve --env-file custom.env --port 3030
   - Example for Claude web: `https://claude.ai`
   - Default: empty.
 
+## CORS
+
+- **CORS_ALLOWED_HEADERS**: Additional comma-separated request headers allowed by the
+  API CORS configuration.
+  - The values are added to the default allowed headers:
+    `content-type`, `authorization`, `x-owox-authorization`.
+  - Example for local tunnels or proxies:
+    `CORS_ALLOWED_HEADERS=ngrok-skip-browser-warning,x-custom-header`
+
 ## MySQL SSL
 
 `DB_MYSQL_SSL`, `IDP_BETTER_AUTH_MYSQL_SSL`, `IDP_OWOX_MYSQL_SSL`  enable TLS for MySQL (mysql2). Supported formats:
