@@ -95,7 +95,11 @@ export function FieldSearchPicker({
                 <CommandItem
                   key={item.value}
                   value={item.value}
-                  keywords={[item.label, item.dataMartName ?? '', item.value]}
+                  keywords={[
+                    item.label,
+                    item.value,
+                    ...(item.dataMartName ? [item.dataMartName] : []),
+                  ]}
                   // Use the closure value, not cmdk's normalized arg.
                   onSelect={() => {
                     onSelect(item.value);
@@ -103,7 +107,7 @@ export function FieldSearchPicker({
                   }}
                 >
                   {tree ? (
-                    <Tooltip>
+                    <Tooltip delayDuration={600}>
                       <TooltipTrigger asChild>{content}</TooltipTrigger>
                       <TooltipContent
                         side='bottom'
