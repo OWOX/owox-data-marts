@@ -14,6 +14,8 @@ export interface StaticAssetsOptions {
   packageName?: string;
 }
 
+const DEFAULT_EXCLUDED_ROUTES = ['/api', '/.well-known', '/oauth', '/mcp'];
+
 /**
  * Configures Express application to serve static web interface files
  *
@@ -97,7 +99,7 @@ function getWebDistPath(packageName: string): null | string {
  * @param options - Configuration options for routing behavior
  */
 function setupSpaFallback(app: Express, distPath: string, options: StaticAssetsOptions): void {
-  const { excludedRoutes = ['/api'] } = options;
+  const { excludedRoutes = DEFAULT_EXCLUDED_ROUTES } = options;
 
   // SPA fallback middleware - should be the last one!
   app.use((req: Request, res: Response, next: NextFunction) => {

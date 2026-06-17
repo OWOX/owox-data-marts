@@ -9,6 +9,7 @@ import { CommonModule } from './common/common.module';
 import { OwoxEventDispatcherModule } from './common/event-dispatcher/owox-event-dispatcher.module';
 import { ActiveRequestInterceptor } from './common/interceptors/active-request.interceptor';
 import { IdpModule } from './idp/idp.module';
+import { EeModule } from './ee/ee.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { ProjectMemberApiKeysModule } from './project-member-api-keys/project-member-api-keys.module';
 import { createDataSourceOptions } from './config/data-source-options.config';
@@ -51,6 +52,7 @@ import { serializeSqliteTransactions } from './config/sqlite-transaction-seriali
     DataMartsModule,
     CommonModule,
     IdpModule,
+    EeModule,
     ProjectMemberApiKeysModule,
     NotificationsModule,
   ],

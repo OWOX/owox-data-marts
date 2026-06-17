@@ -176,6 +176,11 @@ owox serve --env-file custom.env --port 3030
   - If empty, it falls back to `PUBLIC_ORIGIN`.
   - Example: `https://looker.example.com`
 
+- **MCP_DYNAMIC_CLIENT_ALLOWED_REDIRECT_ORIGINS**: Comma-separated HTTPS origins allowed as OAuth redirect targets for dynamic MCP clients.
+  - Loopback HTTP redirects for desktop/CLI clients are always allowed.
+  - Example for Claude web: `https://claude.ai`
+  - Default: empty.
+
 ## MySQL SSL
 
 `DB_MYSQL_SSL`, `IDP_BETTER_AUTH_MYSQL_SSL`, `IDP_OWOX_MYSQL_SSL`  enable TLS for MySQL (mysql2). Supported formats:

@@ -1,6 +1,7 @@
 import { DatabaseAccount, DatabaseOperationResult, DatabaseUser } from '../types/index.js';
 import type { OnboardingAnswer } from '../types/index.js';
 import type { ProjectMember } from '@owox/idp-protocol';
+import type { AuthFlowParams } from '../utils/request-utils.js';
 import { StoreResult } from './store-result.js';
 
 /**
@@ -52,7 +53,12 @@ export interface DatabaseStore {
   ): Promise<{ id: string; createdAt?: Date | null; expiresAt?: Date | null } | null>;
 
   // PKCE
-  saveAuthState(state: string, codeVerifier: string, expiresAt?: Date | null): Promise<void>;
+  saveAuthState(
+    state: string,
+    codeVerifier: string,
+    expiresAt?: Date | null,
+    authFlowParams?: AuthFlowParams
+  ): Promise<void>;
   getAuthState(state: string): Promise<StoreResult>;
   deleteAuthState(state: string): Promise<void>;
   purgeExpiredAuthStates(): Promise<number>;

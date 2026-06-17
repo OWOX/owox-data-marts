@@ -12,7 +12,7 @@ import {
 } from '../../core/constants.js';
 import { createServiceLogger } from '../../core/logger.js';
 import { convertExpressToFetchRequest } from '../../utils/express-compat.js';
-import { extractPlatformParams, readQueryString } from '../../utils/request-utils.js';
+import { extractAuthFlowParams, readQueryString } from '../../utils/request-utils.js';
 import { PkceFlowOrchestrator } from '../auth/pkce-flow-orchestrator.js';
 
 /**
@@ -139,7 +139,7 @@ export class BetterAuthProxyHandler {
 
     const redirectUrl = await this.pkceFlowOrchestrator.completeWithSocialSessionToken(
       sessionToken,
-      extractPlatformParams(req),
+      extractAuthFlowParams(req),
       req,
       res,
       callbackProviderId

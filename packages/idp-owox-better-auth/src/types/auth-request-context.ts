@@ -1,9 +1,9 @@
 import { type Request } from 'express';
 import {
-  extractPlatformParams,
+  extractAuthFlowParams,
   extractRefreshToken,
   getStateManager,
-  type PlatformParams,
+  type AuthFlowParams,
 } from '../utils/request-utils.js';
 
 /**
@@ -11,7 +11,7 @@ import {
  */
 export interface AuthRequestContext {
   state?: string;
-  platformParams: PlatformParams;
+  authFlowParams: AuthFlowParams;
   refreshToken?: string;
 }
 
@@ -22,7 +22,7 @@ export function buildAuthRequestContext(req: Request): AuthRequestContext {
   const stateManager = getStateManager(req);
   return {
     state: stateManager.extract() || undefined,
-    platformParams: extractPlatformParams(req),
+    authFlowParams: extractAuthFlowParams(req),
     refreshToken: extractRefreshToken(req),
   };
 }
