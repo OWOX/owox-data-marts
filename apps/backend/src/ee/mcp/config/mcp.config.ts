@@ -40,6 +40,18 @@ export class McpConfigService {
     return this.config.get<string>('MCP_SERVER_VERSION') ?? '0.1.0';
   }
 
+  /**
+   * When enabled, the MCP server runs without per-process session state: no
+   * `Mcp-Session-Id` is issued on `initialize` and no transport is retained
+   * between requests. Every request is self-contained, so any replica can serve
+   * any request. Required when running multiple replicas behind a load balancer
+   * without sticky sessions. Defaults to disabled (stateful) for single-process
+   * deployments. Opt in with `MCP_STATELESS=true`.
+   */
+  get stateless(): boolean {
+    return this.config.get<string>('MCP_STATELESS') === 'true';
+  }
+
   private requireConfig(key: 'MCP_PUBLIC_BASE_URL' | 'OWOX_AUTH_PUBLIC_BASE_URL'): string {
     const value = this.config.get<string>(key)?.trim();
     if (!value) {

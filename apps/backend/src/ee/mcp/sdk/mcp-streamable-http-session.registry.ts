@@ -3,6 +3,7 @@ import { Injectable, Logger, NotFoundException, UnauthorizedException } from '@n
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import type { Request, Response } from 'express';
 import type { McpAuthContext } from '../auth/mcp-auth-context';
+import { McpConfigService } from '../config/mcp.config';
 import { McpSdkServerFactory } from './mcp-sdk-server.factory';
 
 const MCP_SESSION_IDLE_TTL_MS = 30 * 60 * 1000;
@@ -18,7 +19,10 @@ export class McpStreamableHttpSessionRegistry {
   private readonly logger = new Logger(McpStreamableHttpSessionRegistry.name);
   private readonly sessions = new Map<string, McpSession>();
 
-  constructor(private readonly serverFactory: McpSdkServerFactory) {}
+  constructor(
+    private readonly serverFactory: McpSdkServerFactory,
+    private readonly mcpConfig: McpConfigService
+  ) {}
 
   async handleRequest(
     request: Request,
@@ -29,6 +33,7 @@ export class McpStreamableHttpSessionRegistry {
     const requestedSessionId = this.getRequestedSessionId(request);
     const contextKey = this.getContextKey(context);
     const isInitialization = this.isInitializationRequest(body);
+    const stateless = this.mcpConfig.stateless;
     const now = Date.now();
 
     this.cleanupExpiredSessions(now);
@@ -52,7 +57,7 @@ export class McpStreamableHttpSessionRegistry {
       return;
     }
 
-    if (requestedSessionId) {
+    if (!stateless && requestedSessionId) {
       const session = this.sessions.get(requestedSessionId);
       if (!session) {
         if (!isInitialization) {
@@ -98,7 +103,7 @@ export class McpStreamableHttpSessionRegistry {
       }
     }
 
-    const isStatelessRequest = !requestedSessionId && !isInitialization;
+    const isStatelessRequest = stateless || (!requestedSessionId && !isInitialization);
     const generatedSessionId = isStatelessRequest ? undefined : randomUUID();
     this.logger.debug('MCP creating SDK transport', {
       method: request.method,

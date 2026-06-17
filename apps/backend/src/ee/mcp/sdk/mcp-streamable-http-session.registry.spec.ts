@@ -1,5 +1,9 @@
 import type { McpAuthContext } from '../auth/mcp-auth-context';
+import type { McpConfigService } from '../config/mcp.config';
 import type { McpSdkServerFactory } from './mcp-sdk-server.factory';
+
+const createConfig = (stateless = false): McpConfigService =>
+  ({ stateless }) as unknown as McpConfigService;
 
 const mockHandleRequest = jest.fn();
 const mockTransportInstances: MockStreamableHTTPServerTransport[] = [];
@@ -69,7 +73,7 @@ describe('McpStreamableHttpSessionRegistry', () => {
     const server = { connect: jest.fn() };
     const factory = { create: jest.fn(() => server) } as unknown as McpSdkServerFactory;
     const McpStreamableHttpSessionRegistry = await loadRegistry();
-    const registry = new McpStreamableHttpSessionRegistry(factory);
+    const registry = new McpStreamableHttpSessionRegistry(factory, createConfig());
     const request = { method: 'POST', headers: {} };
     const response = {};
     const body = { jsonrpc: '2.0', id: 2, method: 'tools/call', params: {} };
@@ -87,7 +91,7 @@ describe('McpStreamableHttpSessionRegistry', () => {
     const server = { connect: jest.fn() };
     const factory = { create: jest.fn(() => server) } as unknown as McpSdkServerFactory;
     const McpStreamableHttpSessionRegistry = await loadRegistry();
-    const registry = new McpStreamableHttpSessionRegistry(factory);
+    const registry = new McpStreamableHttpSessionRegistry(factory, createConfig());
     const request = { method: 'POST', headers: {} };
     const response = {};
     const body = { jsonrpc: '2.0', id: 1, method: 'initialize', params: {} };
@@ -105,7 +109,7 @@ describe('McpStreamableHttpSessionRegistry', () => {
     const server = { connect: jest.fn() };
     const factory = { create: jest.fn(() => server) } as unknown as McpSdkServerFactory;
     const McpStreamableHttpSessionRegistry = await loadRegistry();
-    const registry = new McpStreamableHttpSessionRegistry(factory);
+    const registry = new McpStreamableHttpSessionRegistry(factory, createConfig());
     const response = createResponse();
 
     await registry.handleRequest(
@@ -139,7 +143,7 @@ describe('McpStreamableHttpSessionRegistry', () => {
     const server = { connect: jest.fn() };
     const factory = { create: jest.fn(() => server) } as unknown as McpSdkServerFactory;
     const McpStreamableHttpSessionRegistry = await loadRegistry();
-    const registry = new McpStreamableHttpSessionRegistry(factory);
+    const registry = new McpStreamableHttpSessionRegistry(factory, createConfig());
     const request = { method: 'POST', headers: { 'mcp-session-id': 'stale-session' } };
     const response = {};
     const body = { jsonrpc: '2.0', id: 1, method: 'initialize', params: {} };
@@ -151,11 +155,45 @@ describe('McpStreamableHttpSessionRegistry', () => {
     expect(mockHandleRequest).toHaveBeenCalledWith(request, response, body);
   });
 
+  it('does not issue a session id for initialize requests in stateless mode', async () => {
+    const server = { connect: jest.fn() };
+    const factory = { create: jest.fn(() => server) } as unknown as McpSdkServerFactory;
+    const McpStreamableHttpSessionRegistry = await loadRegistry();
+    const registry = new McpStreamableHttpSessionRegistry(factory, createConfig(true));
+    const request = { method: 'POST', headers: {} };
+    const response = {};
+    const body = { jsonrpc: '2.0', id: 1, method: 'initialize', params: {} };
+
+    await registry.handleRequest(request as never, response as never, body, context);
+
+    expect(factory.create).toHaveBeenCalledWith(context);
+    expect(server.connect).toHaveBeenCalledWith(mockTransportInstances[0]);
+    expect(mockHandleRequest).toHaveBeenCalledWith(request, response, body);
+    expect(mockTransportInstances[0].sessionId).toBeUndefined();
+    expect(mockTransportInstances[0].options.enableJsonResponse).toBe(true);
+  });
+
+  it('ignores a supplied session id in stateless mode instead of rejecting it', async () => {
+    const server = { connect: jest.fn() };
+    const factory = { create: jest.fn(() => server) } as unknown as McpSdkServerFactory;
+    const McpStreamableHttpSessionRegistry = await loadRegistry();
+    const registry = new McpStreamableHttpSessionRegistry(factory, createConfig(true));
+    const request = { method: 'POST', headers: { 'mcp-session-id': 'unknown-session' } };
+    const response = {};
+    const body = { jsonrpc: '2.0', id: 2, method: 'tools/call', params: {} };
+
+    await registry.handleRequest(request as never, response as never, body, context);
+
+    expect(factory.create).toHaveBeenCalledWith(context);
+    expect(mockHandleRequest).toHaveBeenCalledWith(request, response, body);
+    expect(mockTransportInstances[0].sessionId).toBeUndefined();
+  });
+
   it('rejects existing sessions when token project-member context changes', async () => {
     const server = { connect: jest.fn() };
     const factory = { create: jest.fn(() => server) } as unknown as McpSdkServerFactory;
     const McpStreamableHttpSessionRegistry = await loadRegistry();
-    const registry = new McpStreamableHttpSessionRegistry(factory);
+    const registry = new McpStreamableHttpSessionRegistry(factory, createConfig());
     const sessionId = await initializeSession(registry);
 
     await expect(
@@ -175,7 +213,7 @@ describe('McpStreamableHttpSessionRegistry', () => {
     const server = { connect: jest.fn() };
     const factory = { create: jest.fn(() => server) } as unknown as McpSdkServerFactory;
     const McpStreamableHttpSessionRegistry = await loadRegistry();
-    const registry = new McpStreamableHttpSessionRegistry(factory);
+    const registry = new McpStreamableHttpSessionRegistry(factory, createConfig());
     const sessionId = await initializeSession(registry);
 
     await expect(
@@ -195,7 +233,7 @@ describe('McpStreamableHttpSessionRegistry', () => {
     const server = { connect: jest.fn() };
     const factory = { create: jest.fn(() => server) } as unknown as McpSdkServerFactory;
     const McpStreamableHttpSessionRegistry = await loadRegistry();
-    const registry = new McpStreamableHttpSessionRegistry(factory);
+    const registry = new McpStreamableHttpSessionRegistry(factory, createConfig());
     const sessionId = await initializeSession(registry);
 
     await expect(
@@ -215,7 +253,7 @@ describe('McpStreamableHttpSessionRegistry', () => {
     const server = { connect: jest.fn() };
     const factory = { create: jest.fn(() => server) } as unknown as McpSdkServerFactory;
     const McpStreamableHttpSessionRegistry = await loadRegistry();
-    const registry = new McpStreamableHttpSessionRegistry(factory);
+    const registry = new McpStreamableHttpSessionRegistry(factory, createConfig());
     const sessionId = await initializeSession(registry);
 
     await expect(
@@ -236,7 +274,7 @@ describe('McpStreamableHttpSessionRegistry', () => {
     const server = { connect: jest.fn() };
     const factory = { create: jest.fn(() => server) } as unknown as McpSdkServerFactory;
     const McpStreamableHttpSessionRegistry = await loadRegistry();
-    const registry = new McpStreamableHttpSessionRegistry(factory);
+    const registry = new McpStreamableHttpSessionRegistry(factory, createConfig());
     const sessionId = await initializeSession(registry);
 
     nowSpy.mockReturnValue(1_000 + 60 * 60 * 1000);
