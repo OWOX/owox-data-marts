@@ -9,6 +9,7 @@ describe('getDefaultFilterOperator', () => {
   it('keeps the first configured operator when the field does not offer both contains and is', () => {
     expect(getDefaultFilterOperator(['contains', 'not_contains'])).toBe('contains');
     expect(getDefaultFilterOperator(['neq', 'eq'])).toBe('neq');
+    expect(getDefaultFilterOperator(['eq', 'neq'])).toBe('eq');
   });
 
   it('returns undefined when no operators are configured', () => {

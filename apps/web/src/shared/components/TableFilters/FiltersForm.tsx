@@ -217,6 +217,7 @@ function FilterBlock({
                     onValueChange={v => {
                       field.onChange(v);
                       setValue(valPath, []);
+                      setValue(opPath, '');
                     }}
                   >
                     <SelectTrigger className='w-full'>
