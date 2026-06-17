@@ -22,7 +22,10 @@ vi.mock('../../../../../data-marts/reports/shared/model/hooks/useReport', () => 
 }));
 
 import { useReport } from '../../../../../data-marts/reports/shared/model/hooks/useReport';
-import { useGoogleSheetsReportForm } from '../useGoogleSheetsReportForm';
+import {
+  useGoogleSheetsReportForm,
+  GoogleSheetsReportEditFormSchema,
+} from '../useGoogleSheetsReportForm';
 import { ReportFormMode } from '../../../shared';
 import { DestinationTypeConfigEnum } from '../../../shared/enums/destination-type-config.enum';
 import { DataStorageType } from '../../../../../data-storage/shared/model/types/data-storage-type.enum';
@@ -93,6 +96,40 @@ beforeEach(() => {
   setupUseReportMock();
   mockCreateReport.mockResolvedValue(buildReport({ id: 'created-1' }));
   mockUpdateReport.mockResolvedValue(buildReport({ id: 'updated-1' }));
+});
+
+const validGoogleSheetsFormData = {
+  title: 'Test Report',
+  documentUrl: VALID_SHEETS_URL,
+  dataDestinationId: 'dest-1',
+  columnConfig: ['col_a'],
+  filterConfig: null,
+  sortConfig: null,
+  limitConfig: null,
+};
+
+describe('GoogleSheetsReportEditFormSchema — columnConfig validation', () => {
+  it('rejects an empty array with the expected message', async () => {
+    const result = await GoogleSheetsReportEditFormSchema.safeParseAsync({
+      ...validGoogleSheetsFormData,
+      columnConfig: [],
+    });
+
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      const msg = result.error.issues.find(i => i.path.includes('columnConfig'))?.message;
+      expect(msg).toBe('At least one column must be selected');
+    }
+  });
+
+  it('accepts null (no columns configured yet)', async () => {
+    const result = await GoogleSheetsReportEditFormSchema.safeParseAsync({
+      ...validGoogleSheetsFormData,
+      columnConfig: null,
+    });
+
+    expect(result.success).toBe(true);
+  });
 });
 
 describe('useGoogleSheetsReportForm — defaults', () => {

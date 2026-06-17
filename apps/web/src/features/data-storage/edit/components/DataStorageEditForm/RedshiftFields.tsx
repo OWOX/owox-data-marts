@@ -86,63 +86,71 @@ export const RedshiftFields = ({ form }: RedshiftFieldsProps) => {
           )}
         />
 
-        <FormField
-          control={form.control}
-          name='config.connectionType'
-          render={({ field }) => {
-            const connectionType =
-              (field.value as RedshiftConnectionType | undefined) ??
-              RedshiftConnectionType.SERVERLESS;
-            return (
-              <FormItem>
-                <div className='flex items-center justify-between'>
-                  <FormLabel
-                    tooltip={
-                      connectionType === RedshiftConnectionType.SERVERLESS
-                        ? 'Workgroup name for Redshift Serverless'
-                        : 'Cluster identifier for provisioned Redshift cluster'
-                    }
-                  >
-                    {connectionType === RedshiftConnectionType.SERVERLESS
-                      ? 'Workgroup Name'
-                      : 'Cluster Identifier'}
-                  </FormLabel>
-                  <Tabs value={connectionType} onValueChange={field.onChange}>
-                    <TabsList>
-                      <TabsTrigger value={RedshiftConnectionType.SERVERLESS}>
-                        Serverless
-                      </TabsTrigger>
-                      <TabsTrigger value={RedshiftConnectionType.PROVISIONED}>
-                        Provisioned
-                      </TabsTrigger>
-                    </TabsList>
-                  </Tabs>
-                </div>
-                <FormControl>
-                  {connectionType === RedshiftConnectionType.SERVERLESS ? (
-                    <Input
-                      {...form.register('config.workgroupName')}
-                      placeholder='Enter workgroup name'
-                    />
-                  ) : (
-                    <Input
-                      {...form.register('config.clusterIdentifier')}
-                      placeholder='Enter cluster identifier'
-                    />
-                  )}
-                </FormControl>
-                <FormDescription>
-                  {connectionType === RedshiftConnectionType.SERVERLESS ? (
+        {(() => {
+          const connectionType =
+            (form.watch('config.connectionType') as RedshiftConnectionType | undefined) ??
+            RedshiftConnectionType.SERVERLESS;
+          const tabs = (
+            <Tabs
+              value={connectionType}
+              onValueChange={value => {
+                form.setValue('config.connectionType', value as RedshiftConnectionType, {
+                  shouldDirty: true,
+                });
+              }}
+            >
+              <TabsList>
+                <TabsTrigger value={RedshiftConnectionType.SERVERLESS}>Serverless</TabsTrigger>
+                <TabsTrigger value={RedshiftConnectionType.PROVISIONED}>Provisioned</TabsTrigger>
+              </TabsList>
+            </Tabs>
+          );
+          return connectionType === RedshiftConnectionType.SERVERLESS ? (
+            <FormField
+              control={form.control}
+              name='config.workgroupName'
+              render={({ field }) => (
+                <FormItem>
+                  <div className='flex items-center justify-between'>
+                    <FormLabel tooltip='Workgroup name for Redshift Serverless'>
+                      Workgroup Name
+                    </FormLabel>
+                    {tabs}
+                  </div>
+                  <FormControl>
+                    <Input {...field} placeholder='Enter workgroup name' />
+                  </FormControl>
+                  <FormDescription>
                     <RedshiftWorkgroupDescription />
-                  ) : (
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          ) : (
+            <FormField
+              control={form.control}
+              name='config.clusterIdentifier'
+              render={({ field }) => (
+                <FormItem>
+                  <div className='flex items-center justify-between'>
+                    <FormLabel tooltip='Cluster identifier for provisioned Redshift cluster'>
+                      Cluster Identifier
+                    </FormLabel>
+                    {tabs}
+                  </div>
+                  <FormControl>
+                    <Input {...field} placeholder='Enter cluster identifier' />
+                  </FormControl>
+                  <FormDescription>
                     <RedshiftClusterDescription />
-                  )}
-                </FormDescription>
-                <FormMessage />
-              </FormItem>
-            );
-          }}
-        />
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          );
+        })()}
 
         <FormField
           control={form.control}

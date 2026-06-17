@@ -16,7 +16,7 @@ import {
 import { cn } from '@owox/ui/lib/utils';
 import { Label } from '@owox/ui/components/label';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@owox/ui/components/tooltip';
-import { ChevronRight, Info } from 'lucide-react';
+import { ChevronRight, CircleAlert, Info } from 'lucide-react';
 import {
   Collapsible,
   CollapsibleTrigger,
@@ -37,8 +37,16 @@ type FormFieldContextValue<
 
 const FormFieldContext = React.createContext<FormFieldContextValue>({} as FormFieldContextValue);
 
+type FormSectionContextValue = {
+  registerFieldName: (name: string) => void;
+};
+
+const FormSectionContext = React.createContext<FormSectionContextValue | null>(null);
+
 /**
  * FormField wraps react-hook-form Controller and provides field context.
+ * It also reports its field name to the enclosing FormSection so the section
+ * can track validation errors of its fields even while collapsed.
  */
 const FormField = <
   TFieldValues extends FieldValues = FieldValues,
@@ -46,6 +54,13 @@ const FormField = <
 >({
   ...props
 }: ControllerProps<TFieldValues, TName>) => {
+  const sectionContext = React.useContext(FormSectionContext);
+  const { name } = props;
+
+  React.useEffect(() => {
+    sectionContext?.registerFieldName(name);
+  }, [sectionContext, name]);
+
   return (
     <FormFieldContext.Provider value={{ name: props.name }}>
       <Controller {...props} />
@@ -281,6 +296,13 @@ interface FormSectionProps {
   defaultOpen?: boolean;
   collapsible?: boolean;
   name?: string;
+  /**
+   * Form field names whose validation errors belong to this section.
+   * FormFields rendered inside the section register themselves automatically;
+   * pass this only for sections that may start collapsed, since their fields
+   * never mount and cannot self-register.
+   */
+  fields?: string[];
 }
 
 const SECTION_STORAGE_PREFIX = 'form-section-';
@@ -308,6 +330,30 @@ function FormSectionTooltip({ tooltip }: { tooltip: React.ReactNode | string }) 
   );
 }
 
+/**
+ * Subscribes to the validation state of the given fields and reports it to
+ * the enclosing FormSection. Rendered as a separate component so FormSection
+ * itself works outside a react-hook-form context.
+ */
+function FormSectionErrorObserver({
+  fields,
+  onErrorStateChange,
+}: {
+  fields: string[];
+  onErrorStateChange: (hasError: boolean, submitCount: number) => void;
+}) {
+  const { getFieldState } = useFormContext();
+  const formState = useFormState({ name: fields });
+  const hasError = fields.some(field => getFieldState(field, formState).invalid);
+  const { submitCount } = formState;
+
+  React.useEffect(() => {
+    onErrorStateChange(hasError, submitCount);
+  }, [hasError, submitCount, onErrorStateChange]);
+
+  return null;
+}
+
 function FormSection({
   title,
   description,
@@ -318,6 +364,7 @@ function FormSection({
   defaultOpen = true,
   collapsible = true,
   name,
+  fields,
 }: FormSectionProps) {
   const getInitialState = () => {
     if (name) {
@@ -347,7 +394,43 @@ function FormSection({
     [name]
   );
 
-  const content = <div className='flex flex-col gap-2'>{children}</div>;
+  // null outside a react-hook-form context — error tracking is disabled there
+  const formContext = useFormContext() as ReturnType<typeof useFormContext> | null;
+
+  // Names are sticky: a field that mounted at least once keeps counting toward
+  // the section's error state even after the section collapses and unmounts it.
+  const [registeredFieldNames, setRegisteredFieldNames] = React.useState<string[]>([]);
+  const registerFieldName = React.useCallback((fieldName: string) => {
+    setRegisteredFieldNames(prev => (prev.includes(fieldName) ? prev : [...prev, fieldName]));
+  }, []);
+  const sectionContextValue = React.useMemo(() => ({ registerFieldName }), [registerFieldName]);
+
+  const watchedFields = React.useMemo(() => {
+    const merged = [...(fields ?? []), ...registeredFieldNames];
+    return [...new Set(merged)];
+  }, [fields, registeredFieldNames]);
+
+  const [hasError, setHasError] = React.useState(false);
+  const handledSubmitCount = React.useRef(0);
+  const handleErrorStateChange = React.useCallback((nextHasError: boolean, submitCount: number) => {
+    setHasError(nextHasError);
+    if (nextHasError && submitCount > handledSubmitCount.current) {
+      handledSubmitCount.current = submitCount;
+      // Open directly (not via handleOpenChange) so the auto-open does not
+      // overwrite the user's persisted open/closed preference in localStorage.
+      setIsOpen(true);
+    }
+  }, []);
+
+  const errorObserver = formContext && watchedFields.length > 0 && (
+    <FormSectionErrorObserver fields={watchedFields} onErrorStateChange={handleErrorStateChange} />
+  );
+
+  const content = (
+    <FormSectionContext.Provider value={sectionContextValue}>
+      <div className='flex flex-col gap-2'>{children}</div>
+    </FormSectionContext.Provider>
+  );
 
   // Non-collapsible section
   if (!collapsible) {
@@ -382,6 +465,7 @@ function FormSection({
       data-slot='form-section'
       className='flex flex-col gap-2'
     >
+      {errorObserver}
       {title && (
         <div className='group flex items-center justify-between'>
           <CollapsibleTrigger asChild>
@@ -393,6 +477,18 @@ function FormSection({
                 {title}
               </span>
               {titleAdornment}
+              {hasError && (
+                <>
+                  <CircleAlert
+                    data-testid='form-section-error-indicator'
+                    // -mt-px optically centers the icon against the uppercase
+                    // title: caps sit slightly above the line-box center.
+                    className='text-destructive -mt-px size-3.5 shrink-0'
+                    aria-hidden='true'
+                  />
+                  <span className='sr-only'>This section contains validation errors</span>
+                </>
+              )}
               <ChevronRight
                 className={cn(
                   'text-foreground/75 h-3.5 w-3.5 transition-transform duration-200',
