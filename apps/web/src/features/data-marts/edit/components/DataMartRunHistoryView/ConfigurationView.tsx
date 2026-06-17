@@ -66,13 +66,35 @@ export function ConfigurationView({
             </pre>
           </>
         )}
+        {reportDefinition?.executionSqlQuery != null && (
+          <>
+            <div className='mt-3 mb-3 flex items-center justify-between'>
+              <h4 className='text-foreground text-sm font-medium'>Executed SQL:</h4>
+              <CopyButton
+                text={reportDefinition.executionSqlQuery}
+                section='executionSql'
+                variant={CopyButtonVariant.DEFAULT}
+                copiedSection={copiedSection}
+                onCopy={handleCopy}
+              />
+            </div>
+            <pre className='bg-muted text-foreground overflow-x-auto rounded p-3 font-mono text-xs whitespace-pre-wrap dark:bg-white/3'>
+              {reportDefinition.executionSqlQuery}
+            </pre>
+          </>
+        )}
         {definitionRun != null && reportDefinition && (
           <>
             <h4 className='text-foreground mt-3 mb-3 text-sm font-medium'>Report definition:</h4>
             <pre className='bg-muted text-foreground overflow-x-auto rounded p-3 font-mono text-xs whitespace-pre-wrap dark:bg-white/3'>
               {JSON.stringify(
-                // eslint-disable-next-line @typescript-eslint/no-unused-vars
-                (({ outputConfig: _outputConfig, ...rest }) => rest)(reportDefinition),
+                // outputConfig and executionSqlQuery each render in their own block below,
+                // so exclude them from this raw dump to avoid showing them twice.
+                Object.fromEntries(
+                  Object.entries(reportDefinition).filter(
+                    ([key]) => key !== 'outputConfig' && key !== 'executionSqlQuery'
+                  )
+                ),
                 null,
                 2
               )}

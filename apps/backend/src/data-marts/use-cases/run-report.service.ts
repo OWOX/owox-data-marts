@@ -20,6 +20,7 @@ import { DataStorageReportReader } from '../data-storage-types/interfaces/data-s
 import { RunReportCommand } from '../dto/domain/run-report.command';
 import { RunType } from '../../common/scheduler/shared/types';
 import { DataMart } from '../entities/data-mart.entity';
+import { DataMartRun } from '../entities/data-mart-run.entity';
 import { Report } from '../entities/report.entity';
 import { ReportRun } from '../models/report-run.model';
 import { logBlendedSqlIfNeeded } from '../report-run-logging/log-blended-sql';
@@ -212,7 +213,8 @@ export class RunReportService {
     report: Report,
     accessor: BlendableSchemaAccessor,
     signal?: AbortSignal,
-    reportRunLogger?: ReportRunLogger
+    reportRunLogger?: ReportRunLogger,
+    dataMartRun?: DataMartRun
   ): Promise<ReportWriteFinalizeResult | undefined> {
     signal?.throwIfAborted();
     const { dataMart, dataDestination } = report;
@@ -253,6 +255,19 @@ export class RunReportService {
         const composed = await this.reportSqlComposerService.compose(report, accessor);
         sqlOverride = composed.sql;
         sqlOverrideParams = composed.params;
+      }
+
+      // Persist the exact executed SQL (output controls applied, params inlined as
+      // literals — same render as the generated-SQL preview) onto the run record so
+      // Run History can show it. Only when an override exists (output controls or
+      // blending); a plain report's executed SQL == the raw definition sqlQuery.
+      if (sqlOverride && dataMartRun?.reportDefinition) {
+        dataMartRun.reportDefinition.executionSqlQuery =
+          this.reportSqlComposerService.inlineStaticSql(
+            dataMart.storage.type,
+            sqlOverride,
+            sqlOverrideParams
+          );
       }
 
       const reportDataDescription = await reportReader.prepareReportData(report, {
@@ -332,7 +347,8 @@ export class RunReportService {
         reportRun.getReport(),
         accessor,
         signal,
-        reportRunLogger
+        reportRunLogger,
+        reportRun.getDataMartRun()
       );
       const { logs, errors } = reportRunLogger.asArrays();
       await this.handleReportRunSuccess(reportRun, logs, errors, finalizeResult);

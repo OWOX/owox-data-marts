@@ -789,6 +789,53 @@ describe('ReportSqlComposerService', () => {
     });
   });
 
+  describe('inlineStaticSql', () => {
+    const composer = new ReportSqlComposerService(
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never
+    );
+
+    it('returns SQL unchanged when there are no params', () => {
+      expect(composer.inlineStaticSql(DataStorageType.AWS_ATHENA, 'SELECT 1')).toBe('SELECT 1');
+      expect(composer.inlineStaticSql(DataStorageType.GOOGLE_BIGQUERY, 'SELECT 1', [])).toBe(
+        'SELECT 1'
+      );
+    });
+
+    it('inlines positional ? to literals for Athena (quotes escaped)', () => {
+      const sql = composer.inlineStaticSql(
+        DataStorageType.AWS_ATHENA,
+        `SELECT * FROM t WHERE "name" = ? AND "amount" >= ?`,
+        [
+          { name: 'p0', value: "O'Brien" },
+          { name: 'p1', value: 50 },
+        ]
+      );
+      expect(sql).not.toContain('?');
+      expect(sql).toContain(`"name" = 'O''Brien'`);
+      expect(sql).toContain('"amount" >= 50');
+    });
+
+    it('inlines named @p to literals for BigQuery and Legacy BigQuery', () => {
+      const sql = 'SELECT * FROM t WHERE `d` = CAST(@p0 AS DATE)';
+      const params = [{ name: 'p0', value: '2024-01-01' }];
+      const bq = composer.inlineStaticSql(DataStorageType.GOOGLE_BIGQUERY, sql, params);
+      const legacy = composer.inlineStaticSql(DataStorageType.LEGACY_GOOGLE_BIGQUERY, sql, params);
+      expect(bq).toBe("SELECT * FROM t WHERE `d` = CAST('2024-01-01' AS DATE)");
+      expect(legacy).toBe(bq);
+    });
+
+    it('throws BusinessViolationException for a dialect with no inliner when params are present', () => {
+      expect(() =>
+        composer.inlineStaticSql(DataStorageType.SNOWFLAKE, 'SELECT * FROM t WHERE a = ?', [
+          { name: 'p0', value: 1 },
+        ])
+      ).toThrow(BusinessViolationException);
+    });
+  });
+
   describe('composeStatic — non-Athena dialects', () => {
     it('inlines named @params into literals for BigQuery (CAST wrapper makes date literals valid)', async () => {
       const queryBuilderFacade = {

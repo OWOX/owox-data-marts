@@ -57,7 +57,12 @@ export class DataMartRunResponseApiDto {
   reportId: string | null;
 
   @ApiProperty({
-    example: { title: 'Quarterly export', destination: { type: 'GOOGLE_SHEETS' } },
+    example: {
+      title: 'Quarterly export',
+      destination: { type: 'GOOGLE_SHEETS' },
+      executionSqlQuery:
+        "SELECT * FROM (SELECT * FROM `proj.ds.sales`) WHERE created_at >= DATE '2025-01-01'",
+    },
     required: false,
     nullable: true,
   })

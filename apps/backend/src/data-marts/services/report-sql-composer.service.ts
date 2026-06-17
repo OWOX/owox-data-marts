@@ -136,21 +136,32 @@ export class ReportSqlComposerService {
     precomputedDecision?: BlendingDecision
   ): Promise<{ sql: string }> {
     const composed = await this.compose(report, accessor, precomputedDecision);
-    if (!composed.params?.length) return { sql: composed.sql };
-    switch (report.dataMart.storage.type) {
+    return {
+      sql: this.inlineStaticSql(report.dataMart.storage.type, composed.sql, composed.params),
+    };
+  }
+
+  /**
+   * Inlines bound parameters into a self-contained, runnable SQL string for paths
+   * with no parameter-binding channel: copied/persisted SQL, the generated-SQL
+   * preview, and the run-history record. Athena positional `?` and BigQuery named
+   * `@p` become literals (both dialects wrap value placeholders in a CAST so
+   * date/time literals stay valid). No params — sort/limit-only, relative_date, no
+   * controls, or literal-inlining dialects (Redshift/Snowflake/Databricks) — returns
+   * the SQL unchanged.
+   */
+  inlineStaticSql(storageType: DataStorageType, sql: string, params?: SqlParameter[]): string {
+    if (!params?.length) return sql;
+    switch (storageType) {
       case DataStorageType.AWS_ATHENA:
-        return { sql: inlineAthenaPositionalParams(composed.sql, composed.params) };
+        return inlineAthenaPositionalParams(sql, params);
       case DataStorageType.GOOGLE_BIGQUERY:
       case DataStorageType.LEGACY_GOOGLE_BIGQUERY:
-        return { sql: inlineBigQueryNamedParams(composed.sql, composed.params) };
+        return inlineBigQueryNamedParams(sql, params);
       default:
-        // Redshift and Snowflake inline all literals and produce no params (early-returned
-        // above). Athena (positional ?) and BigQuery (named @p) are the only current param
-        // producers. This guard catches a future dialect added with output controls
-        // before its inliner is wired, rather than emit SQL with unbound parameters.
         throw new BusinessViolationException(
           'Generating static SQL for a report with value filters is not supported for this storage type.',
-          { storageType: report.dataMart.storage.type }
+          { storageType }
         );
     }
   }

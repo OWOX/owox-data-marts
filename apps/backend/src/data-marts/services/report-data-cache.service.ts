@@ -112,6 +112,14 @@ export class ReportDataCacheService {
     const now = new Date();
     const { options, decision } = await this.resolvePrepareOptions(report, accessor);
 
+    const executionSqlQuery = options.sqlOverride
+      ? this.reportSqlComposerService.inlineStaticSql(
+          report.dataMart.storage.type,
+          options.sqlOverride,
+          options.sqlOverrideParams
+        )
+      : undefined;
+
     const cachedData = await this.cacheRepository.findOne({
       where: {
         report: { id: report.id },
@@ -130,10 +138,11 @@ export class ReportDataCacheService {
         dataDescription: cachedData.dataDescription,
         fromCache: true,
         blendingDecision: decision,
+        executionSqlQuery,
       };
     }
 
-    return this.createNewCachedReader(report, options, decision);
+    return { ...(await this.createNewCachedReader(report, options, decision)), executionSqlQuery };
   }
 
   private async createNewCachedReader(

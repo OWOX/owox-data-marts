@@ -83,6 +83,11 @@ describe('RunReportService', () => {
       registerEmailBasedReportRunConsumption: jest.fn().mockResolvedValue(undefined),
     };
 
+    const reportSqlComposerService = {
+      compose: jest.fn().mockResolvedValue({ sql: 'SELECT 1' }),
+      inlineStaticSql: jest.fn().mockReturnValue('SELECT 1'),
+    };
+
     const service = new RunReportService(
       reportReaderResolver as never,
       reportWriterResolver as never,
@@ -96,7 +101,7 @@ describe('RunReportService', () => {
       reportRunTriggerService as never,
       reportAccessService as never,
       blendedReportDataService as never,
-      { compose: jest.fn().mockResolvedValue({ sql: 'SELECT 1' }) } as never,
+      reportSqlComposerService as never,
       { getProjectMemberOrThrow: jest.fn().mockResolvedValue({ role: 'admin' }) } as never,
       consumptionTrackingService as never
     );
@@ -114,6 +119,7 @@ describe('RunReportService', () => {
       reportAccessService,
       gracefulShutdownService,
       consumptionTrackingService,
+      reportSqlComposerService,
     };
   };
 
@@ -567,5 +573,190 @@ describe('RunReportService', () => {
     expect(writer.finalize).toHaveBeenCalledWith(undefined, {
       mainRowsTruncationInfo: null,
     });
+  });
+
+  it('stores reportDefinition.executionSqlQuery (inlined SQL) when output controls are present', async () => {
+    const {
+      service,
+      reportReaderResolver,
+      reportWriterResolver,
+      blendedReportDataService,
+      reportSqlComposerService,
+    } = createService();
+    const report = createReport(DataDestinationType.GOOGLE_SHEETS);
+    report.filterConfig = [{ column: 'a', operator: 'eq', value: 1 }] as never;
+    blendedReportDataService.resolveBlendingDecision.mockResolvedValue({ needsBlending: false });
+    reportSqlComposerService.compose.mockResolvedValue({
+      sql: 'SELECT * FROM t WHERE a = @p0',
+      params: [{ name: 'p0', value: 1 }],
+    });
+    reportSqlComposerService.inlineStaticSql.mockReturnValue('SELECT * FROM t WHERE a = 1');
+
+    const reader = createReader();
+    reader.readReportDataBatch.mockResolvedValue(new ReportDataBatch([], undefined));
+    const writer = createWriter(DataDestinationType.GOOGLE_SHEETS);
+    reportReaderResolver.resolve.mockResolvedValue(reader);
+    reportWriterResolver.resolve.mockResolvedValue(writer);
+
+    const dataMartRun = createDataMartRun(report);
+    dataMartRun.reportDefinition = { title: 'Report' } as never;
+
+    await (
+      service as unknown as {
+        executeReport: (
+          report: Report,
+          accessor: { userId: string; roles: string[] },
+          signal?: AbortSignal,
+          logger?: unknown,
+          dataMartRun?: DataMartRun
+        ) => Promise<void>;
+      }
+    ).executeReport(
+      report,
+      { userId: 'user-1', roles: ['admin'] },
+      undefined,
+      undefined,
+      dataMartRun
+    );
+
+    expect(reportSqlComposerService.inlineStaticSql).toHaveBeenCalledWith(
+      DataStorageType.GOOGLE_BIGQUERY,
+      'SELECT * FROM t WHERE a = @p0',
+      [{ name: 'p0', value: 1 }]
+    );
+    expect(dataMartRun.reportDefinition!.executionSqlQuery).toBe('SELECT * FROM t WHERE a = 1');
+  });
+
+  it('persists executionSqlQuery on the run record even when the read fails', async () => {
+    const {
+      service,
+      reportReaderResolver,
+      reportWriterResolver,
+      blendedReportDataService,
+      reportRunService,
+      reportSqlComposerService,
+    } = createService();
+    const report = createReport(DataDestinationType.GOOGLE_SHEETS);
+    report.filterConfig = [{ column: 'a', operator: 'eq', value: 1 }] as never;
+    blendedReportDataService.resolveBlendingDecision.mockResolvedValue({ needsBlending: false });
+    reportSqlComposerService.compose.mockResolvedValue({
+      sql: 'SELECT * FROM t WHERE a = @p0',
+      params: [{ name: 'p0', value: 1 }],
+    });
+    reportSqlComposerService.inlineStaticSql.mockReturnValue('SELECT * FROM t WHERE a = 1');
+
+    const reader = createReader();
+    reader.prepareReportData.mockRejectedValue(new Error('storage 500'));
+    const writer = createWriter(DataDestinationType.GOOGLE_SHEETS);
+    reportReaderResolver.resolve.mockResolvedValue(reader);
+    reportWriterResolver.resolve.mockResolvedValue(writer);
+
+    const dataMartRun = createDataMartRun(report);
+    dataMartRun.reportDefinition = { title: 'Report' } as never;
+    const reportRun = ReportRun.create(report, dataMartRun);
+    reportRunService.loadByDataMartRunId.mockResolvedValue(reportRun);
+
+    await service.executeExistingRun('data-mart-run-1', 'project-1', 'user-1');
+
+    expect(reportRun.getDataMartRun().status).toBe(DataMartRunStatus.FAILED);
+    expect(reportRun.getDataMartRun().reportDefinition!.executionSqlQuery).toBe(
+      'SELECT * FROM t WHERE a = 1'
+    );
+    expect(reportRunService.finish).toHaveBeenCalled();
+  });
+
+  it('sets executionSqlQuery via inlineStaticSql using blendedSql when blending is needed', async () => {
+    const {
+      service,
+      reportReaderResolver,
+      reportWriterResolver,
+      blendedReportDataService,
+      reportSqlComposerService,
+    } = createService();
+    const report = createReport(DataDestinationType.GOOGLE_SHEETS);
+    report.filterConfig = [{ column: 'x', operator: 'eq', value: 'y' }] as never;
+
+    const blendedSql = 'WITH m AS (...) SELECT * FROM m WHERE x = @p0';
+    const params = [{ name: 'p0', value: 'y' }];
+    blendedReportDataService.resolveBlendingDecision.mockResolvedValue({
+      needsBlending: true,
+      blendedSql,
+      params,
+    });
+    reportSqlComposerService.inlineStaticSql.mockReturnValue(
+      "WITH m AS (...) SELECT * FROM m WHERE x = 'y'"
+    );
+
+    const reader = createReader();
+    reader.readReportDataBatch.mockResolvedValue(new ReportDataBatch([], undefined));
+    const writer = createWriter(DataDestinationType.GOOGLE_SHEETS);
+    reportReaderResolver.resolve.mockResolvedValue(reader);
+    reportWriterResolver.resolve.mockResolvedValue(writer);
+
+    const dataMartRun = createDataMartRun(report);
+    dataMartRun.reportDefinition = { title: 'Report' } as never;
+
+    await (
+      service as unknown as {
+        executeReport: (
+          report: Report,
+          accessor: { userId: string; roles: string[] },
+          signal?: AbortSignal,
+          logger?: unknown,
+          dataMartRun?: DataMartRun
+        ) => Promise<void>;
+      }
+    ).executeReport(
+      report,
+      { userId: 'user-1', roles: ['admin'] },
+      undefined,
+      undefined,
+      dataMartRun
+    );
+
+    expect(reportSqlComposerService.inlineStaticSql).toHaveBeenCalledWith(
+      DataStorageType.GOOGLE_BIGQUERY,
+      blendedSql,
+      params
+    );
+    expect(dataMartRun.reportDefinition!.executionSqlQuery).toBe(
+      "WITH m AS (...) SELECT * FROM m WHERE x = 'y'"
+    );
+  });
+
+  it('does not set executionSqlQuery when there are no output controls or blending', async () => {
+    const { service, reportReaderResolver, reportWriterResolver, reportSqlComposerService } =
+      createService();
+    const report = createReport(DataDestinationType.GOOGLE_SHEETS);
+
+    const reader = createReader();
+    reader.readReportDataBatch.mockResolvedValue(new ReportDataBatch([], undefined));
+    const writer = createWriter(DataDestinationType.GOOGLE_SHEETS);
+    reportReaderResolver.resolve.mockResolvedValue(reader);
+    reportWriterResolver.resolve.mockResolvedValue(writer);
+
+    const dataMartRun = createDataMartRun(report);
+    dataMartRun.reportDefinition = { title: 'Report' } as never;
+
+    await (
+      service as unknown as {
+        executeReport: (
+          report: Report,
+          accessor: { userId: string; roles: string[] },
+          signal?: AbortSignal,
+          logger?: unknown,
+          dataMartRun?: DataMartRun
+        ) => Promise<void>;
+      }
+    ).executeReport(
+      report,
+      { userId: 'user-1', roles: ['admin'] },
+      undefined,
+      undefined,
+      dataMartRun
+    );
+
+    expect(reportSqlComposerService.inlineStaticSql).not.toHaveBeenCalled();
+    expect(dataMartRun.reportDefinition!.executionSqlQuery).toBeUndefined();
   });
 });
