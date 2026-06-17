@@ -12,6 +12,7 @@ import type { FilterRule, RelativeDatePreset } from '../../../shared/types/outpu
 import {
   type FilterOperator,
   operatorsForType,
+  defaultOperatorForType,
   isNumberType,
   isDateType,
   isTimeType,
@@ -148,7 +149,7 @@ export function FilterValueEditor({
   onChange,
 }: FilterValueEditorProps) {
   const operators = operatorsForType(fieldType);
-  const fallbackOp = operators[0]?.value ?? 'eq';
+  const fallbackOp = defaultOperatorForType(fieldType);
 
   const [state, setState] = useState<EditorState>(() => getInitialState(initialRule, fallbackOp));
 

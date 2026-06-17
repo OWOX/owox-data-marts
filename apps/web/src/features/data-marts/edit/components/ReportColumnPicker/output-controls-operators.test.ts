@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
+  defaultOperatorForType,
   operatorsForType,
   isFilterableType,
   isNumberType,
@@ -136,5 +137,22 @@ describe('operatorsForType', () => {
       expect(operatorsForType(t)).toEqual([]);
       expect(isFilterableType(t)).toBe(false);
     }
+  });
+});
+
+describe('defaultOperatorForType', () => {
+  it('uses "is" when a string-like type supports both contains and is', () => {
+    for (const t of ['STRING', 'VARCHAR', 'CHAR', 'TEXT', 'BPCHAR']) {
+      expect(defaultOperatorForType(t)).toBe('eq');
+    }
+  });
+
+  it('keeps the first supported operator for types without contains', () => {
+    expect(defaultOperatorForType('INTEGER')).toBe('eq');
+    expect(defaultOperatorForType('BOOLEAN')).toBe('is_true');
+  });
+
+  it('falls back to "is" for unknown unfilterable types', () => {
+    expect(defaultOperatorForType('JSON')).toBe('eq');
   });
 });
