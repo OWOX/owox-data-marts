@@ -156,7 +156,7 @@ function filterRowKey(rule: FilterRule, index: number): string {
 
 // FilterEditorPopover strips placement/aliasPath; re-stamp them for a slice.
 function toPreJoin(rule: FilterRule, aliasPath: string | undefined): FilterRule {
-  return { ...rule, placement: 'pre-join', aliasPath } as FilterRule;
+  return { ...rule, placement: 'pre-join', aliasPath };
 }
 
 interface FiltersSectionProps {
