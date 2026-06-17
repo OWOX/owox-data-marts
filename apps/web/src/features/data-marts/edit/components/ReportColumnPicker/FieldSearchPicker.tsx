@@ -17,7 +17,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@owox/ui/components/too
 // dotted-name search erratic.
 function commandFilter(value: string, search: string, keywords?: string[]): number {
   const target = keywords?.join(' ') ?? value;
-  return target.toLowerCase().includes(search.toLowerCase()) ? 1 : 0;
+  return target.toLowerCase().includes(search.trim().toLowerCase()) ? 1 : 0;
 }
 
 export interface FieldPickerItem {

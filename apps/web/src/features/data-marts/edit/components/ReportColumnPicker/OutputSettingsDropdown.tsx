@@ -1,4 +1,4 @@
-import { useState, type DragEvent } from 'react';
+import { useMemo, useState, type DragEvent } from 'react';
 import { Button } from '@owox/ui/components/button';
 import { Info, Plus } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@owox/ui/components/tooltip';
@@ -255,16 +255,22 @@ function SlicesSection({
 }: SlicesSectionProps) {
   const [pending, setPending] = useState<PendingSliceColumn | null>(null);
 
-  const fieldTypeMap = new Map<string, string>();
-  const labelMap = new Map<string, string>();
-  const dataMartByAliasPath = new Map<string, string | undefined>();
-  for (const src of joinedSources) {
-    dataMartByAliasPath.set(src.aliasPath, src.dataMartName);
-    for (const col of src.columns) {
-      fieldTypeMap.set(makePreJoinKey(src.aliasPath, col.name), col.type);
-      labelMap.set(makePreJoinKey(src.aliasPath, col.name), fieldDisplayLabel(col.alias, col.name));
+  const { fieldTypeMap, labelMap, dataMartByAliasPath } = useMemo(() => {
+    const fieldTypeMap = new Map<string, string>();
+    const labelMap = new Map<string, string>();
+    const dataMartByAliasPath = new Map<string, string | undefined>();
+    for (const src of joinedSources) {
+      dataMartByAliasPath.set(src.aliasPath, src.dataMartName);
+      for (const col of src.columns) {
+        fieldTypeMap.set(makePreJoinKey(src.aliasPath, col.name), col.type);
+        labelMap.set(
+          makePreJoinKey(src.aliasPath, col.name),
+          fieldDisplayLabel(col.alias, col.name)
+        );
+      }
     }
-  }
+    return { fieldTypeMap, labelMap, dataMartByAliasPath };
+  }, [joinedSources]);
 
   function fieldTypeFor(rule: FilterRule): string | null {
     if (!rule.aliasPath) return null;
