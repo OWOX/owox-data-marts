@@ -28,6 +28,10 @@ export interface FilterOrSliceEditorPopoverProps {
   trigger: ReactNode;
   column: string;
   fieldType: string;
+  /** Business-readable field name shown in the header; falls back to `column`. */
+  displayLabel?: string;
+  /** Joined data mart name shown under the field name; absent for home-mart fields. */
+  dataMartName?: string;
   aliasPath?: string;
   sliceColumn?: string;
   filterProps: FilterOnlyProps;
@@ -46,6 +50,8 @@ export function FilterOrSliceEditorPopover(props: FilterOrSliceEditorPopoverProp
         trigger={props.trigger}
         column={props.column}
         fieldType={props.fieldType}
+        displayLabel={props.displayLabel}
+        dataMartName={props.dataMartName}
         {...props.filterProps}
       />
     );
@@ -141,16 +147,12 @@ function TabbedPopover(props: TabbedPopoverProps) {
       <PopoverTrigger asChild>{props.trigger}</PopoverTrigger>
       <PopoverContent className='w-72 space-y-3'>
         <div>
-          <Label>Column</Label>
-          <div className='font-mono text-xs'>
-            {tab === 'slice' && (
-              <>
-                <span className='text-blue-600'>{props.aliasPath}</span>.
-              </>
-            )}
-            {tab === 'slice' ? props.sliceColumn : props.column}{' '}
-            <span className='text-muted-foreground'>({props.fieldType})</span>
+          <div className='text-sm font-medium'>
+            {props.displayLabel ?? (tab === 'slice' ? props.sliceColumn : props.column)}
           </div>
+          {props.dataMartName && (
+            <div className='text-muted-foreground text-[11px]'>{props.dataMartName}</div>
+          )}
         </div>
 
         <TabToggle tab={tab} onChange={setTab} />

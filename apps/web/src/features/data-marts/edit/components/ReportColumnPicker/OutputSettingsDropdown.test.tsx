@@ -1,15 +1,10 @@
 import { render, screen } from '@testing-library/react';
-import { describe, expect, it, vi } from 'vitest';
-import { OutputSettingsDropdown } from './OutputSettingsDropdown';
+import { describe, expect, it } from 'vitest';
+import {
+  OutputSettingsDropdown,
+  type OutputSettingsDropdownColumn,
+} from './OutputSettingsDropdown';
 import type { OutputConfig } from '../../../shared/types/output-config';
-
-vi.mock('@owox/ui/components/select', () => ({
-  Select: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
-  SelectTrigger: ({ children }: { children: React.ReactNode }) => <button>{children}</button>,
-  SelectValue: ({ placeholder }: { placeholder?: string }) => <span>{placeholder}</span>,
-  SelectContent: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
-  SelectItem: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
-}));
 
 describe('OutputSettingsDropdown disconnected controls', () => {
   it('marks stale filters, slices, and sort rules as disconnected rows', () => {
@@ -32,8 +27,8 @@ describe('OutputSettingsDropdown disconnected controls', () => {
       <OutputSettingsDropdown
         value={value}
         onChange={() => {}}
-        allColumns={[{ name: 'native_one', type: 'STRING' }]}
-        selectedColumns={[{ name: 'native_one', type: 'STRING' }]}
+        allColumns={[{ name: 'native_one', type: 'STRING', label: 'native_one' }]}
+        selectedColumns={[{ name: 'native_one', type: 'STRING', label: 'native_one' }]}
         joinedSources={[]}
       />
     );
@@ -73,5 +68,56 @@ describe('OutputSettingsDropdown disconnected controls', () => {
 
     expect(screen.getAllByText('greater than or equal')).toHaveLength(2);
     expect(screen.queryByText('gte')).not.toBeInTheDocument();
+  });
+});
+
+describe('OutputSettingsDropdown readable labels', () => {
+  const productId: OutputSettingsDropdownColumn = {
+    name: 'orders.product_id',
+    type: 'STRING',
+    label: 'Product ID',
+  };
+
+  it('shows the business label on a live filter chip, not the raw column', () => {
+    const value: OutputConfig = {
+      filterConfig: [{ column: 'orders.product_id', operator: 'eq', value: 'x' }],
+      sortConfig: [],
+      limitConfig: null,
+    };
+
+    render(
+      <OutputSettingsDropdown
+        value={value}
+        onChange={() => {}}
+        allColumns={[productId]}
+        selectedColumns={[productId]}
+        joinedSources={[]}
+      />
+    );
+
+    expect(screen.getByText('Product ID')).toBeInTheDocument();
+    // Raw column name stays in the title attribute, not the visible text.
+    expect(screen.queryByText('orders.product_id')).not.toBeInTheDocument();
+  });
+
+  it('shows the business label on a live sort chip, not the raw column', () => {
+    const value: OutputConfig = {
+      filterConfig: [],
+      sortConfig: [{ column: 'orders.product_id', direction: 'asc' }],
+      limitConfig: null,
+    };
+
+    render(
+      <OutputSettingsDropdown
+        value={value}
+        onChange={() => {}}
+        allColumns={[productId]}
+        selectedColumns={[productId]}
+        joinedSources={[]}
+      />
+    );
+
+    expect(screen.getByText('Product ID')).toBeInTheDocument();
+    expect(screen.queryByText('orders.product_id')).not.toBeInTheDocument();
   });
 });

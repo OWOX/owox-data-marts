@@ -108,11 +108,15 @@ export type RelativeDatePreset = z.infer<typeof RelativeDatePresetSchema>;
 export interface JoinedSourceColumn {
   name: string;
   type: string;
+  /** Business-readable name of the joined column (presentation only). */
+  alias?: string;
 }
 
 export interface JoinedSource {
   aliasPath: string;
   title: string;
+  /** Display name of the joined data mart (join alias or its title). */
+  dataMartName?: string;
   columns: readonly JoinedSourceColumn[];
 }
 

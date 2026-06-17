@@ -24,6 +24,10 @@ interface SliceIconProps {
 interface RowFilterIconProps {
   column: string;
   fieldType: string;
+  /** Business-readable field name shown in popover headers; falls back to `column`. */
+  displayLabel?: string;
+  /** Joined data mart name shown under the field name; absent for home-mart fields. */
+  dataMartName?: string;
   activeRules: readonly FilterRule[];
   /** Omit to render the icon in remove-only mode (still shows count and exposes onRemoveAt). */
   onAdd?: (rule: FilterRule) => void;
@@ -35,6 +39,8 @@ interface RowFilterIconProps {
 export function RowFilterIcon({
   column,
   fieldType,
+  displayLabel,
+  dataMartName,
   activeRules,
   onAdd,
   onRemoveAt,
@@ -121,6 +127,8 @@ export function RowFilterIcon({
         trigger={trigger}
         column={column}
         fieldType={fieldType}
+        displayLabel={displayLabel}
+        dataMartName={dataMartName}
         aliasPath={sliceIconProps?.aliasPath}
         sliceColumn={sliceIconProps?.originalFieldName}
         filters={{ rules: activeRules, onRemoveAt }}
@@ -146,6 +154,8 @@ export function RowFilterIcon({
         column={column}
         sliceColumn={sliceIconProps.originalFieldName}
         fieldType={fieldType}
+        displayLabel={displayLabel}
+        dataMartName={dataMartName}
         aliasPath={sliceIconProps.aliasPath}
         defaultTab={defaultTab}
         filterProps={{
@@ -173,6 +183,8 @@ export function RowFilterIcon({
       onOpenChange={setOpen}
       column={column}
       fieldType={fieldType}
+      displayLabel={displayLabel}
+      dataMartName={dataMartName}
       onApply={handleFilterApply}
       initialRule={editFilter}
       existingRules={editFilter ? [] : activeRules}
