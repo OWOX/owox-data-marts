@@ -8,12 +8,30 @@ export function parseCorsAllowedHeaders(value: string | undefined): string[] {
     return [];
   }
 
-  const headers = value
-    .split(',')
-    .map(header => header.trim().toLowerCase())
-    .filter(header => header.length > 0 && CORS_HEADER_NAME_PATTERN.test(header));
+  const rawHeaders = value.split(',').map(header => header.trim());
+  const validHeaders: string[] = [];
+  const invalidHeaders: string[] = [];
 
-  return [...new Set(headers)];
+  for (const rawHeader of rawHeaders) {
+    if (rawHeader.length === 0) {
+      continue;
+    }
+
+    const lowercaseHeader = rawHeader.toLowerCase();
+    if (CORS_HEADER_NAME_PATTERN.test(lowercaseHeader)) {
+      validHeaders.push(lowercaseHeader);
+    } else {
+      invalidHeaders.push(rawHeader);
+    }
+  }
+
+  if (invalidHeaders.length > 0) {
+    console.warn(
+      `Warning: Ignored invalid CORS allowed header name(s): ${invalidHeaders.map(h => `"${h}"`).join(', ')}`
+    );
+  }
+
+  return [...new Set(validHeaders)];
 }
 
 export function buildCorsAllowedHeaders(
