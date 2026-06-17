@@ -69,7 +69,8 @@ function SwitchProjectMenuInner({
     itemRefs.current = [];
   }, [filteredProjects]);
 
-  // Scroll active item into view
+  // Scroll active item into view. `itemRefs` is a ref (stable), so omitting it from deps is intentional —
+  // the clear effect (above) always runs before this one when the list changes, so refs are never stale here.
   useEffect(() => {
     if (activeIndex >= 0 && itemRefs.current[activeIndex]) {
       itemRefs.current[activeIndex]?.scrollIntoView({ block: 'nearest' });
@@ -92,6 +93,7 @@ function SwitchProjectMenuInner({
       } else if (e.key === 'Enter') {
         const targetIndex = activeIndex >= 0 ? activeIndex : 0;
         const project = filteredProjects[targetIndex];
+        if (!project) return;
         void navigate(buildProjectPath(encodeURIComponent(project.id), '/'));
       }
     },
@@ -115,7 +117,7 @@ function SwitchProjectMenuInner({
       <DropdownMenuPortal>
         <DropdownMenuSubContent
           className='flex w-64 flex-col overflow-hidden p-0'
-          onKeyDown={showSearch ? undefined : handleKeyDown}
+          onKeyDown={handleKeyDown}
         >
           {showSearch && (
             <div
