@@ -527,7 +527,7 @@ export const GoogleSheetsReportEditForm = forwardRef<
 
           <ReportFormActions
             mode={mode}
-            isSubmitting={isSubmitting}
+            isSubmitting={isSubmitting || form.formState.isSubmitting}
             isDirty={isDirty}
             triggersDirty={triggersDirty}
             ownersDirty={ownersDirty}

@@ -1013,7 +1013,7 @@ export const EmailReportEditForm = forwardRef<HTMLFormElement, EmailReportEditFo
             </FormLayout>
             <ReportFormActions
               mode={mode}
-              isSubmitting={isSubmitting}
+              isSubmitting={isSubmitting || form.formState.isSubmitting}
               isDirty={isDirty}
               triggersDirty={triggersDirty}
               ownersDirty={ownersDirty}

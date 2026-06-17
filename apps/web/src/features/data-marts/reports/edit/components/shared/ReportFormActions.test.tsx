@@ -60,4 +60,67 @@ describe('ReportFormActions', () => {
 
     expect(onSubmit).toHaveBeenCalledTimes(1);
   });
+
+  it('releases the primary submit guard after an invalid submit cycle', () => {
+    const onSubmit = vi.fn();
+    const runAfterSaveRef = { current: false };
+    const { rerender } = render(
+      <form
+        onSubmit={event => {
+          event.preventDefault();
+          onSubmit();
+        }}
+      >
+        <ReportFormActions
+          mode={ReportFormMode.CREATE}
+          isSubmitting={false}
+          isDirty={false}
+          triggersDirty={false}
+          runAfterSaveRef={runAfterSaveRef}
+          onSubmit={vi.fn()}
+        />
+      </form>
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Create & Run report' }));
+    expect(onSubmit).toHaveBeenCalledTimes(1);
+
+    rerender(
+      <form
+        onSubmit={event => {
+          event.preventDefault();
+          onSubmit();
+        }}
+      >
+        <ReportFormActions
+          mode={ReportFormMode.CREATE}
+          isSubmitting={true}
+          isDirty={false}
+          triggersDirty={false}
+          runAfterSaveRef={runAfterSaveRef}
+          onSubmit={vi.fn()}
+        />
+      </form>
+    );
+    rerender(
+      <form
+        onSubmit={event => {
+          event.preventDefault();
+          onSubmit();
+        }}
+      >
+        <ReportFormActions
+          mode={ReportFormMode.CREATE}
+          isSubmitting={false}
+          isDirty={false}
+          triggersDirty={false}
+          runAfterSaveRef={runAfterSaveRef}
+          onSubmit={vi.fn()}
+        />
+      </form>
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Create & Run report' }));
+    expect(onSubmit).toHaveBeenCalledTimes(2);
+  });
 });
