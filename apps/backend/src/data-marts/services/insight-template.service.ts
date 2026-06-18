@@ -115,7 +115,7 @@ export class InsightTemplateService {
       .createQueryBuilder('insightTemplate')
       .innerJoin('insightTemplate.dataMart', 'dataMart')
       .leftJoinAndSelect('insightTemplate.sourceEntities', 'sourceEntities')
-      .select(['insightTemplate', 'dataMart.id', 'dataMart.title'])
+      .select(['insightTemplate', 'dataMart.id', 'dataMart.title', 'sourceEntities'])
       .where('insightTemplate.id IN (:...insightTemplateIds)', { insightTemplateIds })
       .getMany();
     const insightTemplatesById = new Map(

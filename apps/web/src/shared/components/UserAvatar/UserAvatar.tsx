@@ -12,7 +12,7 @@ export function UserAvatar({
   displayName: string;
   size?: UserAvatarSize;
 }) {
-  const [hasAvatarError, setHasAvatarError] = useState(false);
+  const [failedAvatar, setFailedAvatar] = useState<string | null>(null);
   let wrapperSizeClass, imageSizeClass, initialsSizeClass;
 
   switch (size) {
@@ -36,13 +36,13 @@ export function UserAvatar({
     <div
       className={`${wrapperSizeClass} flex aspect-square items-center justify-center rounded-full border bg-white dark:bg-white/10`}
     >
-      {avatar && !hasAvatarError ? (
+      {avatar && avatar !== failedAvatar ? (
         <img
           src={avatar}
           alt={displayName}
           className={`${imageSizeClass} rounded-full object-cover`}
           onError={() => {
-            setHasAvatarError(true);
+            setFailedAvatar(avatar);
           }}
         />
       ) : (

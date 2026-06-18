@@ -43,6 +43,12 @@ describe('InsightTemplateService', () => {
       'insightTemplate.sourceEntities',
       'sourceEntities'
     );
+    expect(rowsQb.select).toHaveBeenCalledWith([
+      'insightTemplate',
+      'dataMart.id',
+      'dataMart.title',
+      'sourceEntities',
+    ]);
     expect(qb.where).toHaveBeenCalledWith('dataMart.projectId = :projectId', {
       projectId: 'project-1',
     });
