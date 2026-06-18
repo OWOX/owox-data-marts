@@ -112,13 +112,24 @@ export class ReportDataCacheService {
     const now = new Date();
     const { options, decision } = await this.resolvePrepareOptions(report, accessor);
 
-    const executionSqlQuery = options.sqlOverride
-      ? this.reportSqlComposerService.inlineStaticSql(
+    // Best-effort: executionSqlQuery is display-only run-history metadata, so a failure
+    // to render it must never abort the data fetch.
+    let executionSqlQuery: string | undefined;
+    if (options.sqlOverride) {
+      try {
+        executionSqlQuery = this.reportSqlComposerService.inlineStaticSql(
           report.dataMart.storage.type,
           options.sqlOverride,
           options.sqlOverrideParams
-        )
-      : undefined;
+        );
+      } catch (error) {
+        this.logger.warn(
+          `Failed to record executionSqlQuery for report ${report.id}: ${
+            error instanceof Error ? error.message : String(error)
+          }`
+        );
+      }
+    }
 
     const cachedData = await this.cacheRepository.findOne({
       where: {

@@ -261,13 +261,23 @@ export class RunReportService {
       // literals — same render as the generated-SQL preview) onto the run record so
       // Run History can show it. Only when an override exists (output controls or
       // blending); a plain report's executed SQL == the raw definition sqlQuery.
+      // Best-effort: this is display-only run-history metadata, so a failure to render
+      // it must never abort an otherwise-successful run.
       if (sqlOverride && dataMartRun?.reportDefinition) {
-        dataMartRun.reportDefinition.executionSqlQuery =
-          this.reportSqlComposerService.inlineStaticSql(
-            dataMart.storage.type,
-            sqlOverride,
-            sqlOverrideParams
+        try {
+          dataMartRun.reportDefinition.executionSqlQuery =
+            this.reportSqlComposerService.inlineStaticSql(
+              dataMart.storage.type,
+              sqlOverride,
+              sqlOverrideParams
+            );
+        } catch (error) {
+          this.logger.warn(
+            `Failed to record executionSqlQuery for report ${report.id}: ${
+              error instanceof Error ? error.message : String(error)
+            }`
           );
+        }
       }
 
       const reportDataDescription = await reportReader.prepareReportData(report, {

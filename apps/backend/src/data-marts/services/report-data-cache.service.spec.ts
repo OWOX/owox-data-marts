@@ -140,6 +140,28 @@ describe('ReportDataCacheService — output controls on the cached path', () => 
     expect(cached.executionSqlQuery).toBe("SELECT a FROM t WHERE a = 'x'");
   });
 
+  it('does not abort the fetch when recording executionSqlQuery throws (best-effort)', async () => {
+    const composed = { sql: 'SELECT a FROM t WHERE a = ?', params: [{ name: 'p0', value: 'x' }] };
+    const { service, reportSqlComposerService } = setup(
+      { needsBlending: false, columnFilter: ['a'] },
+      composed
+    );
+    reportSqlComposerService.inlineStaticSql.mockImplementation(() => {
+      throw new Error('no inliner for this dialect');
+    });
+    const report = buildReport({
+      filterConfig: [{ column: 'a', operator: 'eq', value: 'x' }],
+    } as never);
+
+    const cached = await service.getOrCreateCachedReader(report, {
+      userId: 'user-1',
+      roles: ['editor'],
+    } as never);
+
+    expect(reportSqlComposerService.inlineStaticSql).toHaveBeenCalled();
+    expect(cached.executionSqlQuery).toBeUndefined();
+  });
+
   it('leaves executionSqlQuery undefined for a plain report with no output controls', async () => {
     const { service, reportSqlComposerService } = setup({
       needsBlending: false,

@@ -627,6 +627,57 @@ describe('RunReportService', () => {
     expect(dataMartRun.reportDefinition!.executionSqlQuery).toBe('SELECT * FROM t WHERE a = 1');
   });
 
+  it('does not abort the run when recording executionSqlQuery throws (best-effort metadata)', async () => {
+    const {
+      service,
+      reportReaderResolver,
+      reportWriterResolver,
+      blendedReportDataService,
+      reportSqlComposerService,
+    } = createService();
+    const report = createReport(DataDestinationType.GOOGLE_SHEETS);
+    report.filterConfig = [{ column: 'a', operator: 'eq', value: 1 }] as never;
+    blendedReportDataService.resolveBlendingDecision.mockResolvedValue({ needsBlending: false });
+    reportSqlComposerService.compose.mockResolvedValue({
+      sql: 'SELECT * FROM t WHERE a = @p0',
+      params: [{ name: 'p0', value: 1 }],
+    });
+    reportSqlComposerService.inlineStaticSql.mockImplementation(() => {
+      throw new Error('no inliner for this dialect');
+    });
+
+    const reader = createReader();
+    reader.readReportDataBatch.mockResolvedValue(new ReportDataBatch([], undefined));
+    const writer = createWriter(DataDestinationType.GOOGLE_SHEETS);
+    reportReaderResolver.resolve.mockResolvedValue(reader);
+    reportWriterResolver.resolve.mockResolvedValue(writer);
+
+    const dataMartRun = createDataMartRun(report);
+    dataMartRun.reportDefinition = { title: 'Report' } as never;
+
+    // Awaiting throws if executeReport rejected — proves the run was NOT aborted.
+    await (
+      service as unknown as {
+        executeReport: (
+          report: Report,
+          accessor: { userId: string; roles: string[] },
+          signal?: AbortSignal,
+          logger?: unknown,
+          dataMartRun?: DataMartRun
+        ) => Promise<void>;
+      }
+    ).executeReport(
+      report,
+      { userId: 'user-1', roles: ['admin'] },
+      undefined,
+      undefined,
+      dataMartRun
+    );
+
+    expect(reader.prepareReportData).toHaveBeenCalled();
+    expect(dataMartRun.reportDefinition!.executionSqlQuery).toBeUndefined();
+  });
+
   it('persists executionSqlQuery on the run record even when the read fails', async () => {
     const {
       service,
