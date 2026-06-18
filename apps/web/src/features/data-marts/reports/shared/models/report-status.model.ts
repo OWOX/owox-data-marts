@@ -1,4 +1,4 @@
-import { CircleCheck, Loader2, XCircle } from 'lucide-react';
+import { CircleCheck, Loader2, XCircle, CircleDashed } from 'lucide-react';
 import type { AppIcon } from '../../../../../shared';
 import { ReportStatusEnum } from '../enums';
 
@@ -44,7 +44,14 @@ export const ReportStatusModel = {
   },
 
   getInfo(status: ReportStatusEnum): ReportStatusInfo {
-    return this.statuses[status];
+    return (
+      (this.statuses as Partial<Record<ReportStatusEnum, ReportStatusInfo>>)[status] ?? {
+        status,
+        displayName: 'Unknown',
+        icon: CircleDashed,
+        color: 'text-muted-foreground',
+      }
+    );
   },
 
   getAllStatuses(): ReportStatusInfo[] {

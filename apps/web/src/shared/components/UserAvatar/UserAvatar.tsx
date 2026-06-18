@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { UserAvatarSize } from './UserAvatar.types.ts';
 
 export function UserAvatar({
@@ -11,6 +12,7 @@ export function UserAvatar({
   displayName: string;
   size?: UserAvatarSize;
 }) {
+  const [failedAvatar, setFailedAvatar] = useState<string | null>(null);
   let wrapperSizeClass, imageSizeClass, initialsSizeClass;
 
   switch (size) {
@@ -34,11 +36,14 @@ export function UserAvatar({
     <div
       className={`${wrapperSizeClass} flex aspect-square items-center justify-center rounded-full border bg-white dark:bg-white/10`}
     >
-      {avatar ? (
+      {avatar && avatar !== failedAvatar ? (
         <img
           src={avatar}
           alt={displayName}
           className={`${imageSizeClass} rounded-full object-cover`}
+          onError={() => {
+            setFailedAvatar(avatar);
+          }}
         />
       ) : (
         <span className={`${initialsSizeClass} text-muted-foreground font-medium`}>{initials}</span>

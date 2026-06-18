@@ -1,26 +1,31 @@
 import { ListReportsByProjectCommand } from '../dto/domain/list-reports-by-project.command';
-import { OwnerFilter } from '../enums/owner-filter.enum';
 import { RoleScope } from '../enums/role-scope.enum';
 import { ListReportsByProjectService } from './list-reports-by-project.service';
 
 describe('ListReportsByProjectService', () => {
-  function createQueryBuilder(reports: unknown[]) {
+  function createQueryBuilder() {
     return {
+      innerJoin: jest.fn().mockReturnThis(),
       leftJoinAndSelect: jest.fn().mockReturnThis(),
       where: jest.fn().mockReturnThis(),
       andWhere: jest.fn().mockReturnThis(),
+      select: jest.fn().mockReturnThis(),
       orderBy: jest.fn().mockReturnThis(),
       addOrderBy: jest.fn().mockReturnThis(),
-      take: jest.fn().mockReturnThis(),
-      skip: jest.fn().mockReturnThis(),
-      getMany: jest.fn().mockResolvedValue(reports),
+      limit: jest.fn().mockReturnThis(),
+      offset: jest.fn().mockReturnThis(),
+      getRawMany: jest.fn(),
+      getMany: jest.fn(),
     };
   }
 
   function createService(reports = [buildReport()]) {
-    const qb = createQueryBuilder(reports);
+    const qb = createQueryBuilder();
+    qb.getRawMany.mockResolvedValue(reports.map(report => ({ id: report.id })));
+    const rowsQb = createQueryBuilder();
+    rowsQb.getMany.mockResolvedValue(reports);
     const reportRepository = {
-      createQueryBuilder: jest.fn().mockReturnValue(qb),
+      createQueryBuilder: jest.fn().mockReturnValueOnce(qb).mockReturnValueOnce(rowsQb),
     };
     const mapper = {
       toDomainDto: jest.fn(report => ({ id: report.id })),
@@ -53,6 +58,7 @@ describe('ListReportsByProjectService', () => {
     return {
       service,
       qb,
+      rowsQb,
       contextAccessService,
       reportAccessService,
       mapper,
@@ -63,12 +69,13 @@ describe('ListReportsByProjectService', () => {
     const { service, qb, contextAccessService, reportAccessService } = createService();
 
     await service.run(
-      new ListReportsByProjectCommand('project-1', 'user-1', ['viewer'], OwnerFilter.ALL, 25, 50)
+      new ListReportsByProjectCommand('project-1', 'user-1', ['viewer'], undefined, 25, 50)
     );
 
     expect(contextAccessService.getRoleScope).toHaveBeenCalledWith('user-1', 'project-1');
-    expect(qb.take).toHaveBeenCalledWith(25);
-    expect(qb.skip).toHaveBeenCalledWith(50);
+    expect(qb.select).toHaveBeenCalledWith('r.id', 'id');
+    expect(qb.limit).toHaveBeenCalledWith(25);
+    expect(qb.offset).toHaveBeenCalledWith(50);
     expect(qb.andWhere).toHaveBeenCalledWith(expect.stringContaining('data_mart_contexts'), {
       userId: 'user-1',
       isTrue: true,
@@ -92,8 +99,8 @@ describe('ListReportsByProjectService', () => {
     );
 
     expect(contextAccessService.getRoleScope).not.toHaveBeenCalled();
-    expect(qb.take).toHaveBeenCalledWith(10);
-    expect(qb.skip).toHaveBeenCalledWith(0);
+    expect(qb.limit).toHaveBeenCalledWith(10);
+    expect(qb.offset).toHaveBeenCalledWith(0);
     expect(qb.andWhere).not.toHaveBeenCalledWith(
       expect.stringContaining('data_mart_contexts'),
       expect.anything()
@@ -105,12 +112,29 @@ describe('ListReportsByProjectService', () => {
 
     await service.run(new ListReportsByProjectCommand('project-1', 'user-1', ['viewer']));
 
-    expect(qb.take).not.toHaveBeenCalled();
-    expect(qb.skip).not.toHaveBeenCalled();
+    expect(qb.limit).not.toHaveBeenCalled();
+    expect(qb.offset).not.toHaveBeenCalled();
+  });
+
+  it('loads wide report relations without SQL ordering and restores page order', async () => {
+    const first = buildReport({ id: 'report-1' });
+    const second = buildReport({ id: 'report-2' });
+    const { service, qb, rowsQb, mapper } = createService([second, first]);
+    qb.getRawMany.mockResolvedValue([{ id: 'report-1' }, { id: 'report-2' }]);
+
+    await service.run(
+      new ListReportsByProjectCommand('project-1', 'admin-1', ['admin'], undefined, 20, 0)
+    );
+
+    expect(rowsQb.where).toHaveBeenCalledWith('r.id IN (:...reportIds)', {
+      reportIds: ['report-1', 'report-2'],
+    });
+    expect(rowsQb.orderBy).not.toHaveBeenCalled();
+    expect(mapper.toDomainDto.mock.calls.map(call => call[0].id)).toEqual(['report-1', 'report-2']);
   });
 });
 
-function buildReport() {
+function buildReport(overrides: Record<string, unknown> = {}) {
   return {
     id: 'report-1',
     createdById: 'creator-1',
@@ -119,5 +143,6 @@ function buildReport() {
       id: 'dm-1',
       projectId: 'project-1',
     },
+    ...overrides,
   };
 }
