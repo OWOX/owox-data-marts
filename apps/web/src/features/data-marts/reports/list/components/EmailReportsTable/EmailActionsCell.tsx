@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect } from 'react';
-import { MoreHorizontal, Pencil, Play, Trash2 } from 'lucide-react';
+import { MoreHorizontal, Pencil, Trash2, Play } from 'lucide-react';
 import { Button } from '@owox/ui/components/button';
 import {
   DropdownMenu,
@@ -8,16 +8,10 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@owox/ui/components/dropdown-menu';
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from '@owox/ui/components/tooltip';
+import { TooltipProvider } from '@owox/ui/components/tooltip';
 import { ConfirmationDialog } from '../../../../../../shared/components/ConfirmationDialog';
 import type { DataMartReport } from '../../../shared/model/types/data-mart-report';
-import { ReportStatusEnum } from '../../../shared/enums';
-import { isGeneratedSqlSupported, useReport } from '../../../shared';
+import { isGeneratedSqlSupported, useReport, ReportStatusEnum } from '../../../shared';
 import { GeneratedSqlViewer } from '../../../../edit/components/ReportColumnPicker/GeneratedSqlViewer';
 
 interface EmailActionsCellProps {
@@ -42,12 +36,11 @@ export function EmailActionsCell({
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const { deleteReport, fetchReportsByDataMartId, runReport } = useReport();
 
-  const actionsMenuId = `actions-menu-${row.original.id}`;
-
-  // Sync isRunning with backend status
   useEffect(() => {
     setIsRunning(row.original.lastRunStatus === ReportStatusEnum.RUNNING);
   }, [row.original.lastRunStatus]);
+
+  const actionsMenuId = `actions-menu-${row.original.id}`;
 
   const handleDelete = useCallback(async () => {
     if (!canEditConfig) return;
@@ -76,6 +69,13 @@ export function EmailActionsCell({
     setMenuOpen(false);
   }, [canEditConfig, onEditReport, row.original]);
 
+  const handleDeleteClick = useCallback(() => {
+    if (!canEditConfig) return;
+
+    setIsDeleteDialogOpen(true);
+    setMenuOpen(false);
+  }, [canEditConfig]);
+
   const handleRun = useCallback(async () => {
     if (!canRun) return;
 
@@ -89,13 +89,6 @@ export function EmailActionsCell({
     }
   }, [canRun, onRunSuccess, runReport, row.original.id]);
 
-  const handleDeleteClick = useCallback(() => {
-    if (!canEditConfig) return;
-
-    setIsDeleteDialogOpen(true);
-    setMenuOpen(false);
-  }, [canEditConfig]);
-
   return (
     <TooltipProvider>
       <div
@@ -104,27 +97,6 @@ export function EmailActionsCell({
           e.stopPropagation();
         }}
       >
-        {/* Run report */}
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button
-              onClick={e => {
-                e.stopPropagation();
-                void handleRun();
-              }}
-              variant='ghost'
-              className='dm-card-table-body-row-actionbtn opacity-0 transition-opacity group-hover:opacity-100 disabled:opacity-0 disabled:group-hover:opacity-50'
-              disabled={isRunning || !canRun}
-              aria-label={isRunning ? 'Running report...' : `Run report: ${row.original.title}`}
-            >
-              <Play className='dm-card-table-body-row-actionbtn-icon' aria-hidden='true' />
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent side='bottom' role='tooltip'>
-            Run report
-          </TooltipContent>
-        </Tooltip>
-
         {/* View SQL */}
         {isGeneratedSqlSupported(
           row.original.dataMart.definitionType,
@@ -158,6 +130,18 @@ export function EmailActionsCell({
           </DropdownMenuTrigger>
 
           <DropdownMenuContent id={actionsMenuId} align='end' role='menu'>
+            <DropdownMenuItem
+              disabled={isRunning || !canRun}
+              onClick={e => {
+                e.stopPropagation();
+                void handleRun();
+              }}
+              role='menuitem'
+            >
+              <Play className='text-foreground h-4 w-4' aria-hidden='true' />
+              {isRunning ? 'Running report...' : 'Run report'}
+            </DropdownMenuItem>
+
             <DropdownMenuItem
               disabled={!canEditConfig}
               onClick={e => {

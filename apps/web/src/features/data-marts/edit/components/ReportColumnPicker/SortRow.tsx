@@ -11,6 +11,10 @@ interface SortRowProps {
   onRemove: () => void;
   dragHandleProps?: HTMLAttributes<HTMLSpanElement>;
   isOrphaned?: boolean;
+  /** Business-readable label; falls back to the raw column when absent. */
+  displayLabel?: string;
+  /** Joined data mart name (muted second line); absent for home-mart fields. */
+  dataMartName?: string;
 }
 
 export function SortRow({
@@ -20,6 +24,8 @@ export function SortRow({
   onRemove,
   dragHandleProps,
   isOrphaned = false,
+  displayLabel,
+  dataMartName,
 }: SortRowProps) {
   const toggleDirection = () => {
     if (isOrphaned) return;
@@ -42,22 +48,27 @@ export function SortRow({
         <GripVertical className='h-4 w-4' />
       </span>
       <span className='text-muted-foreground w-4 text-xs tabular-nums'>{index + 1}</span>
-      <span className='flex min-w-0 flex-1 items-center gap-1 truncate font-mono text-xs'>
-        {isOrphaned && (
+      <span className='flex min-w-0 flex-1 flex-col justify-center truncate font-mono text-xs'>
+        <span className='flex items-center gap-1 truncate'>
+          {isOrphaned && (
+            <span
+              className='inline-flex items-center text-red-600'
+              title='This column is no longer available for sorting. Remove this rule or restore the column.'
+              aria-label='Column not found in schema'
+            >
+              <AlertTriangle className='h-3 w-3' />
+            </span>
+          )}
           <span
-            className='inline-flex items-center text-red-600'
-            title='This column is no longer available for sorting. Remove this rule or restore the column.'
-            aria-label='Column not found in schema'
+            className={cn('truncate', isOrphaned && 'text-red-700 line-through dark:text-red-300')}
+            title={rule.column}
           >
-            <AlertTriangle className='h-3 w-3' />
+            {displayLabel ?? rule.column}
           </span>
-        )}
-        <span
-          className={cn('truncate', isOrphaned && 'text-red-700 line-through dark:text-red-300')}
-          title={rule.column}
-        >
-          {rule.column}
         </span>
+        {!isOrphaned && dataMartName && (
+          <span className='text-muted-foreground truncate text-[11px]'>{dataMartName}</span>
+        )}
       </span>
       <Button
         variant='ghost'

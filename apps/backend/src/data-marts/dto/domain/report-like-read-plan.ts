@@ -15,3 +15,16 @@ export interface ReportLikeReadPlan {
 }
 
 export type ReportLike = Report | ReportLikeReadPlan;
+
+/**
+ * True when the report carries any output control — a filter, sort, or limit.
+ * Single source for this predicate (run / cache / compose / run-record paths) so the
+ * copies cannot drift.
+ */
+export function hasOutputControls(report: ReportLike): boolean {
+  return (
+    (report.filterConfig?.length ?? 0) > 0 ||
+    (report.sortConfig?.length ?? 0) > 0 ||
+    report.limitConfig != null
+  );
+}

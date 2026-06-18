@@ -734,5 +734,55 @@ var adStatisticsFields = {
   'Currency': {
     'description': 'The currency of the advertiser cost.',
     'type': DATA_TYPES.STRING
+  },
+  'Device': {
+    'description': 'The device type on which the ad was served (e.g., Desktop, Tablet, Mobile).',
+    'type': DATA_TYPES.STRING,
+    'fieldType': 'dimension'
+  },
+  'Os': {
+    'description': 'The operating system of the device on which the ad was served.',
+    'type': DATA_TYPES.STRING,
+    'fieldType': 'dimension'
+  },
+  'Channel': {
+    'description': 'The channel name through which the ad was served.',
+    'type': DATA_TYPES.STRING,
+    'fieldType': 'dimension'
+  },
+  'ChannelId': {
+    'description': 'The unique identifier of the channel through which the ad was served.',
+    'type': DATA_TYPES.STRING,
+    'fieldType': 'dimension'
+  },
+  'Category': {
+    'description': 'The product category name.',
+    'type': DATA_TYPES.STRING,
+    'fieldType': 'dimension'
+  },
+  'CategoryId': {
+    'description': 'The unique identifier for the product category.',
+    'type': DATA_TYPES.STRING,
+    'fieldType': 'dimension'
+  },
+  'Coupon': {
+    'description': 'The coupon or promotion name.',
+    'type': DATA_TYPES.STRING,
+    'fieldType': 'dimension'
+  },
+  'CouponId': {
+    'description': 'The unique identifier for the coupon or promotion.',
+    'type': DATA_TYPES.STRING,
+    'fieldType': 'dimension'
+  },
+  'MarketingObjective': {
+    'description': 'The marketing objective name (e.g., awareness, consideration, conversion).',
+    'type': DATA_TYPES.STRING,
+    'fieldType': 'dimension'
+  },
+  'MarketingObjectiveId': {
+    'description': 'The unique identifier for the marketing objective.',
+    'type': DATA_TYPES.STRING,
+    'fieldType': 'dimension'
   }
 };

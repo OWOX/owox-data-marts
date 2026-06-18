@@ -21,6 +21,11 @@ import { TokenService, type TokenServiceConfig } from '../services/core/token-se
 import type { DatabaseStore } from '../store/database-store.js';
 import { StoreReason } from '../store/store-result.js';
 import { buildCookieOptions, clearCookie } from '../utils/cookie-policy.js';
+import type { AuthFlowParams } from '../utils/request-utils.js';
+
+export type TokenResponseWithContext = TokenResponse & {
+  authFlowParams?: AuthFlowParams;
+};
 
 /**
  * Wraps Identity OWOX token operations and refresh-token cookies.
@@ -44,7 +49,7 @@ export class OwoxTokenFacade {
     this.tokenService = new TokenService(this.identityClient, tokenCfg);
   }
 
-  async changeAuthCode(code: string, state: string): Promise<TokenResponse> {
+  async changeAuthCode(code: string, state: string): Promise<TokenResponseWithContext> {
     const res = await this.store.getAuthState(state);
     if (!res.code) {
       if (res.reason == StoreReason.EXPIRED) {
@@ -60,7 +65,11 @@ export class OwoxTokenFacade {
       clientId: this.config.idpConfig.clientId,
     };
 
-    return await this.identityClient.getToken(request);
+    const tokenResponse = await this.identityClient.getToken(request);
+    return {
+      ...tokenResponse,
+      authFlowParams: res.authFlowParams,
+    };
   }
 
   async introspectToken(token: string): Promise<Payload | null> {

@@ -20,7 +20,7 @@ vi.mock('../../../../../data-marts/reports/shared/model/hooks/useReport', () => 
 }));
 
 import { useReport } from '../../../../../data-marts/reports/shared/model/hooks/useReport';
-import { useEmailReportForm } from '../useEmailReportForm';
+import { useEmailReportForm, EmailReportEditFormSchema } from '../useEmailReportForm';
 import { ReportFormMode, TemplateSourceTypeEnum } from '../../../shared';
 import { DestinationTypeConfigEnum } from '../../../shared/enums/destination-type-config.enum';
 import { ReportConditionEnum } from '../../../shared/enums/report-condition.enum';
@@ -94,6 +94,43 @@ beforeEach(() => {
   setupUseReportMock();
   mockCreateReport.mockResolvedValue(buildReport({ id: 'created-1' }));
   mockUpdateReport.mockResolvedValue(buildReport({ id: 'updated-1' }));
+});
+
+const validEmailFormData = {
+  title: 'Test Report',
+  dataDestinationId: 'dest-1',
+  reportCondition: ReportConditionEnum.ALWAYS,
+  subject: 'Weekly',
+  templateSourceType: TemplateSourceTypeEnum.CUSTOM_MESSAGE,
+  messageTemplate: 'Hello',
+  columnConfig: ['col_a'],
+  filterConfig: null,
+  sortConfig: null,
+  limitConfig: null,
+};
+
+describe('EmailReportEditFormSchema — columnConfig validation', () => {
+  it('rejects an empty array with the expected message', async () => {
+    const result = await EmailReportEditFormSchema.safeParseAsync({
+      ...validEmailFormData,
+      columnConfig: [],
+    });
+
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      const msg = result.error.issues.find(i => i.path.includes('columnConfig'))?.message;
+      expect(msg).toBe('At least one column must be selected');
+    }
+  });
+
+  it('accepts null (no columns configured yet)', async () => {
+    const result = await EmailReportEditFormSchema.safeParseAsync({
+      ...validEmailFormData,
+      columnConfig: null,
+    });
+
+    expect(result.success).toBe(true);
+  });
 });
 
 describe('useEmailReportForm — defaults', () => {

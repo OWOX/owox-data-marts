@@ -19,6 +19,7 @@ export const DataMartRunReportDefinitionSchema = z.object({
   }),
   destinationConfig: DataDestinationConfigSchema,
   outputConfig: DataMartRunReportOutputConfigSchema.nullable().optional(),
+  executionSqlQuery: z.string().optional(),
 });
 
 export type DataMartRunReportDefinition = z.infer<typeof DataMartRunReportDefinitionSchema>;

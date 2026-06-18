@@ -1,4 +1,5 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import type { ReactElement } from 'react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { DataDestinationType } from '../../../features/data-destination';
@@ -16,6 +17,12 @@ import { reportService } from '../../../features/data-marts/reports/shared/servi
 import { mapReportDtoToEntity } from '../../../features/data-marts/reports/shared/model/mappers';
 import DataMartReportsPage from './DataMartReportsPage';
 import { mergeReportPagePreservingRows } from './DataMartReportsPage.utils';
+
+const mockToastCustom = vi.hoisted(() => vi.fn().mockReturnValue('mock-toast-id'));
+vi.mock('react-hot-toast', () => ({
+  default: { custom: mockToastCustom, dismiss: vi.fn(), success: vi.fn() },
+  toast: { custom: mockToastCustom, dismiss: vi.fn(), success: vi.fn() },
+}));
 
 const reportServiceMock = vi.hoisted(() => ({
   getReportsByProject: vi.fn(),
@@ -395,9 +402,7 @@ describe('DataMartReportsPage', () => {
       )
     ).toBeInTheDocument();
     expect(
-      screen.getByRole('button', {
-        name: 'Preview SQL: Blended Sheet Report',
-      })
+      screen.getByRole('button', { name: 'Preview SQL: Blended Sheet Report' })
     ).toBeInTheDocument();
 
     fireEvent.pointerDown(
@@ -451,6 +456,18 @@ describe('DataMartReportsPage', () => {
     fireEvent.click(
       await screen.findByRole('button', { name: 'Run report: Blended Sheet Report' })
     );
+
+    // The component uses a grace-period toast; invoke onConfirm to trigger the actual run
+    await waitFor(() => {
+      expect(mockToastCustom).toHaveBeenCalled();
+    });
+    const renderFn = mockToastCustom.mock.calls[0][0] as (t: { id: string }) => ReactElement;
+    const element = renderFn({ id: 'mock-toast-id' });
+    const { onConfirm } = element.props as { onConfirm: () => Promise<void> };
+
+    await act(async () => {
+      await onConfirm();
+    });
 
     await waitFor(() => {
       expect(reportService.runReport).toHaveBeenCalledWith('report-1');

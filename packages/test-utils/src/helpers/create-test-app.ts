@@ -14,7 +14,7 @@ import * as supertest from 'supertest';
  */
 export async function createTestApp(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  overrides?: Array<{ provide: any; useValue: any }>,
+  overrides?: Array<{ provide: any; useValue: any }>
 ): Promise<{
   app: INestApplication;
   agent: supertest.Agent;
@@ -66,6 +66,9 @@ export async function createTestApp(
   const { setupGlobalPipes } = await import(
     /* webpackIgnore: true */ '../../../../apps/backend/src/config/global-pipes.config'
   );
+  const { PROTOCOL_ROUTE_EXCLUSIONS } = await import(
+    /* webpackIgnore: true */ '../../../../apps/backend/src/config/protocol-route-exclusions.config'
+  );
 
   // Import exception filters to match production behavior (registered in bootstrap.ts)
   const { GlobalExceptionFilter } = await import(
@@ -87,10 +90,10 @@ export async function createTestApp(
 
   const moduleRef = await builder.compile();
 
-  const app: INestApplication = moduleRef.createNestApplication(
-    new ExpressAdapter(expressApp)
-  );
-  app.setGlobalPrefix('api');
+  const app: INestApplication = moduleRef.createNestApplication(new ExpressAdapter(expressApp));
+  app.setGlobalPrefix('api', {
+    exclude: PROTOCOL_ROUTE_EXCLUSIONS,
+  });
   setupGlobalPipes(app);
   app.useGlobalFilters(new GlobalExceptionFilter(), new BaseExceptionFilter());
 

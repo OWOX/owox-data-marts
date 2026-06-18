@@ -6,6 +6,7 @@ import {
   IdpProviderRemoveUserCommand,
   IdpProvider,
   Payload,
+  Project,
   Projects,
   ProjectMember,
   ProjectMemberInvitation,
@@ -13,6 +14,14 @@ import {
   ApproveMembershipRequestResult,
   GetProjectMembersOptions,
   IdpOperationNotSupportedError,
+  McpOAuthProjectMemberContext,
+  McpScope,
+  McpTokenPayload,
+  OAuthAuthorizationCode,
+  OAuthAuthorizationRequest,
+  OAuthJwksResult,
+  OAuthTokenExchangeRequest,
+  OAuthTokenExchangeResult,
   Role,
   UserProvisioningSettings,
   UserProvisioningSettingsUpdate,
@@ -159,8 +168,22 @@ export class BetterAuthProvider
     res: Response,
     _next: NextFunction
   ): Promise<Response<Projects>> {
-    // Always return empty list of projects
-    return Promise.resolve(res.json([]));
+    return res.json(await this.getProjects(''));
+  }
+
+  async getProjects(_accessToken: string): Promise<Projects> {
+    return [];
+  }
+
+  async getProjectForUser(userId: string, projectId: string): Promise<Project> {
+    const role = this.toRoleOrViewer(await this.userManagementService.getUserRole(userId));
+
+    return {
+      id: projectId,
+      title: projectId === '0' ? 'OWOX Data Marts' : projectId,
+      status: 'active',
+      roles: [role],
+    };
   }
 
   async initialize(): Promise<void> {
@@ -234,6 +257,31 @@ export class BetterAuthProvider
     _readOnly: boolean
   ): Promise<AuthResult> {
     throw new IdpOperationNotSupportedError('issueAccessTokenForProjectMemberApiKey');
+  }
+
+  async createMcpOAuthAuthorizationCode(
+    _request: OAuthAuthorizationRequest,
+    _projectMember: McpOAuthProjectMemberContext
+  ): Promise<OAuthAuthorizationCode> {
+    throw new IdpOperationNotSupportedError('createMcpOAuthAuthorizationCode');
+  }
+
+  async exchangeMcpOAuthToken(
+    _request: OAuthTokenExchangeRequest
+  ): Promise<OAuthTokenExchangeResult> {
+    throw new IdpOperationNotSupportedError('exchangeMcpOAuthToken');
+  }
+
+  async verifyMcpAccessToken(
+    _token: string,
+    _resource: string,
+    _requiredScopes: McpScope[]
+  ): Promise<McpTokenPayload | null> {
+    return null;
+  }
+
+  async getMcpOAuthJwks(): Promise<OAuthJwksResult> {
+    throw new IdpOperationNotSupportedError('getMcpOAuthJwks');
   }
 
   async revokeToken(token: string): Promise<void> {
@@ -373,5 +421,9 @@ export class BetterAuthProvider
 
   async createNewProject(_userId: string, _integration: string): Promise<CreateNewProjectResult> {
     throw new IdpOperationNotSupportedError('createNewProject');
+  }
+
+  private toRoleOrViewer(role: string | null): Role {
+    return role === 'admin' || role === 'editor' || role === 'viewer' ? role : 'viewer';
   }
 }

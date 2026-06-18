@@ -1,5 +1,6 @@
 import {
   Payload,
+  Project,
   AuthResult,
   Projects,
   ProjectMember,
@@ -13,6 +14,16 @@ import {
   RequestProjectAccessResult,
   CreateNewProjectResult,
 } from './models.js';
+import {
+  McpOAuthProjectMemberContext,
+  McpScope,
+  McpTokenPayload,
+  OAuthAuthorizationCode,
+  OAuthAuthorizationRequest,
+  OAuthJwksResult,
+  OAuthTokenExchangeRequest,
+  OAuthTokenExchangeResult,
+} from './oauth.js';
 import { Express, NextFunction, Request, Response } from 'express';
 
 /**
@@ -77,6 +88,17 @@ export interface IdpProvider {
   ): Promise<Response<Projects>>;
 
   /**
+   * Return projects available to the bearer access token owner.
+   */
+  getProjects(accessToken: string): Promise<Projects>;
+
+  /**
+   * Return one project available to a user. Intended for trusted backend-to-IDP
+   * calls where the caller already has an authenticated user and project context.
+   */
+  getProjectForUser(userId: string, projectId: string): Promise<Project>;
+
+  /**
    * Register routes with the express app.
    * @param app - The express app to register the routes with.
    * @param basePath - The base path to register the routes with.
@@ -117,6 +139,47 @@ export interface IdpProvider {
     role: Role | null,
     readOnly: boolean
   ): Promise<AuthResult>;
+
+  /**
+   * Create an MCP OAuth authorization code for an already authenticated
+   * project-member context.
+   *
+   * Implementations that do not support hosted MCP OAuth should throw
+   * `IdpOperationNotSupportedError`.
+   */
+  createMcpOAuthAuthorizationCode(
+    request: OAuthAuthorizationRequest,
+    projectMember: McpOAuthProjectMemberContext
+  ): Promise<OAuthAuthorizationCode>;
+
+  /**
+   * Exchange an MCP OAuth authorization code or refresh token for an MCP
+   * access token.
+   *
+   * Implementations that do not support hosted MCP OAuth should throw
+   * `IdpOperationNotSupportedError`.
+   */
+  exchangeMcpOAuthToken(request: OAuthTokenExchangeRequest): Promise<OAuthTokenExchangeResult>;
+
+  /**
+   * Verify an MCP access token for a protected resource and required scopes.
+   *
+   * Implementations that do not support MCP token verification should return
+   * `null` so callers can treat the token as invalid for MCP.
+   */
+  verifyMcpAccessToken(
+    token: string,
+    resource: string,
+    requiredScopes: McpScope[]
+  ): Promise<McpTokenPayload | null>;
+
+  /**
+   * Return JWKS used for MCP access-token verification when tokens are JWTs.
+   *
+   * Implementations that do not expose JWKS should throw
+   * `IdpOperationNotSupportedError`.
+   */
+  getMcpOAuthJwks(): Promise<OAuthJwksResult>;
 
   /**
    * Revoke a token. In different IDP implementations, this may have different token types.

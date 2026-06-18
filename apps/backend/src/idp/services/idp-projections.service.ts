@@ -3,6 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import {
   ApproveMembershipRequestResult,
   Payload,
+  Project,
   ProjectMember,
   ProjectMemberInvitation,
   ProjectMembershipRequest,
@@ -51,6 +52,11 @@ export class IdpProjectionsService {
 
   public async getAllUserProjections(): Promise<UserProjection[]> {
     return await this.usersRepository.find();
+  }
+
+  public async getProjectForUser(userId: string, projectId: string): Promise<Project> {
+    const provider = this.idpProviderService.getProviderFromApp();
+    return provider.getProjectForUser(userId, projectId);
   }
 
   public async updateProjectionsFromIdpPayload(authorizationPayload: Payload): Promise<void> {

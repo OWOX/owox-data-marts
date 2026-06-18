@@ -16,6 +16,7 @@ import { ReportDataCache } from '../entities/report-data-cache.entity';
 import { BlendableSchemaAccessor } from './blendable-schema.service';
 import { BlendedReportDataService } from './blended-report-data.service';
 import { BlendingDecision } from '../dto/domain/blending-decision.dto';
+import { hasOutputControls } from '../dto/domain/report-like-read-plan';
 import { ReportSqlComposerService } from './report-sql-composer.service';
 
 /**
@@ -55,7 +56,7 @@ export class ReportDataCacheService {
     // SQL + bound params here, exactly as RunReportService does — otherwise this
     // (Looker Studio) cached-reader path drops them, and Athena's positional `?`
     // placeholders execute unbound.
-    if (!decision.needsBlending && this.hasOutputControls(report)) {
+    if (!decision.needsBlending && hasOutputControls(report)) {
       const composed = await this.reportSqlComposerService.compose(report, accessor, decision);
       sqlOverride = composed.sql;
       sqlOverrideParams = composed.params;
@@ -70,14 +71,6 @@ export class ReportDataCacheService {
       },
       decision,
     };
-  }
-
-  private hasOutputControls(report: Report): boolean {
-    return (
-      (report.filterConfig?.length ?? 0) > 0 ||
-      (report.sortConfig?.length ?? 0) > 0 ||
-      report.limitConfig != null
-    );
   }
 
   /**
@@ -112,6 +105,25 @@ export class ReportDataCacheService {
     const now = new Date();
     const { options, decision } = await this.resolvePrepareOptions(report, accessor);
 
+    // Best-effort: executionSqlQuery is display-only run-history metadata, so a failure
+    // to render it must never abort the data fetch.
+    let executionSqlQuery: string | undefined;
+    if (options.sqlOverride) {
+      try {
+        executionSqlQuery = this.reportSqlComposerService.inlineStaticSql(
+          report.dataMart.storage.type,
+          options.sqlOverride,
+          options.sqlOverrideParams
+        );
+      } catch (error) {
+        this.logger.warn(
+          `Failed to record executionSqlQuery for report ${report.id}: ${
+            error instanceof Error ? error.message : String(error)
+          }`
+        );
+      }
+    }
+
     const cachedData = await this.cacheRepository.findOne({
       where: {
         report: { id: report.id },
@@ -130,10 +142,11 @@ export class ReportDataCacheService {
         dataDescription: cachedData.dataDescription,
         fromCache: true,
         blendingDecision: decision,
+        executionSqlQuery,
       };
     }
 
-    return this.createNewCachedReader(report, options, decision);
+    return { ...(await this.createNewCachedReader(report, options, decision)), executionSqlQuery };
   }
 
   private async createNewCachedReader(

@@ -18,8 +18,10 @@ import { DATA_STORAGE_REPORT_READER_RESOLVER } from '../data-storage-types/data-
 import { DataStorageType } from '../data-storage-types/enums/data-storage-type.enum';
 import { DataStorageReportReader } from '../data-storage-types/interfaces/data-storage-report-reader.interface';
 import { RunReportCommand } from '../dto/domain/run-report.command';
+import { hasOutputControls } from '../dto/domain/report-like-read-plan';
 import { RunType } from '../../common/scheduler/shared/types';
 import { DataMart } from '../entities/data-mart.entity';
+import { DataMartRun } from '../entities/data-mart-run.entity';
 import { Report } from '../entities/report.entity';
 import { ReportRun } from '../models/report-run.model';
 import { logBlendedSqlIfNeeded } from '../report-run-logging/log-blended-sql';
@@ -212,7 +214,8 @@ export class RunReportService {
     report: Report,
     accessor: BlendableSchemaAccessor,
     signal?: AbortSignal,
-    reportRunLogger?: ReportRunLogger
+    reportRunLogger?: ReportRunLogger,
+    dataMartRun?: DataMartRun
   ): Promise<ReportWriteFinalizeResult | undefined> {
     signal?.throwIfAborted();
     const { dataMart, dataDestination } = report;
@@ -243,16 +246,35 @@ export class RunReportService {
       if (blendingDecision.needsBlending) {
         sqlOverride = blendingDecision.blendedSql;
         sqlOverrideParams = blendingDecision.params;
-      } else if (
-        (report.filterConfig?.length ?? 0) > 0 ||
-        (report.sortConfig?.length ?? 0) > 0 ||
-        report.limitConfig != null
-      ) {
+      } else if (hasOutputControls(report)) {
         // Non-blended report with output controls — compose the full SQL + params here so
         // the reader doesn't need to know about output-controls semantics.
         const composed = await this.reportSqlComposerService.compose(report, accessor);
         sqlOverride = composed.sql;
         sqlOverrideParams = composed.params;
+      }
+
+      // Persist the exact executed SQL (output controls applied, params inlined as
+      // literals — same render as the generated-SQL preview) onto the run record so
+      // Run History can show it. Only when an override exists (output controls or
+      // blending); a plain report's executed SQL == the raw definition sqlQuery.
+      // Best-effort: this is display-only run-history metadata, so a failure to render
+      // it must never abort an otherwise-successful run.
+      if (sqlOverride && dataMartRun?.reportDefinition) {
+        try {
+          dataMartRun.reportDefinition.executionSqlQuery =
+            this.reportSqlComposerService.inlineStaticSql(
+              dataMart.storage.type,
+              sqlOverride,
+              sqlOverrideParams
+            );
+        } catch (error) {
+          this.logger.warn(
+            `Failed to record executionSqlQuery for report ${report.id}: ${
+              error instanceof Error ? error.message : String(error)
+            }`
+          );
+        }
       }
 
       const reportDataDescription = await reportReader.prepareReportData(report, {
@@ -332,7 +354,8 @@ export class RunReportService {
         reportRun.getReport(),
         accessor,
         signal,
-        reportRunLogger
+        reportRunLogger,
+        reportRun.getDataMartRun()
       );
       const { logs, errors } = reportRunLogger.asArrays();
       await this.handleReportRunSuccess(reportRun, logs, errors, finalizeResult);

@@ -11,7 +11,8 @@ import {
 } from '@owox/ui/components/form';
 import { Input } from '@owox/ui/components/input';
 import { Tabs, TabsList, TabsTrigger } from '@owox/ui/components/tabs';
-import { Textarea } from '@owox/ui/components/textarea';
+import { FileDropTextarea } from '@owox/ui/components/file-drop-textarea';
+import { toast } from 'react-hot-toast';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@owox/ui/components/tooltip';
 import { useState, useEffect } from 'react';
 import type { UseFormReturn } from 'react-hook-form';
@@ -276,11 +277,20 @@ export const LegacyGoogleBigQueryFields = ({ form }: LegacyGoogleBigQueryFieldsP
                           </TooltipContent>
                         </Tooltip>
                       ) : (
-                        <Textarea
+                        <FileDropTextarea
                           {...field}
                           className='min-h-[150px] font-mono'
                           rows={8}
-                          placeholder='Paste your service account JSON here'
+                          placeholder='Paste your service account JSON here or drag & drop the file'
+                          onFileRead={content => {
+                            form.setValue('credentials.serviceAccount', content, {
+                              shouldDirty: true,
+                              shouldValidate: true,
+                            });
+                          }}
+                          onFileReject={error => {
+                            toast.error(error);
+                          }}
                         />
                       )}
                     </FormControl>

@@ -27,7 +27,11 @@
     setSocialButtonsDisabled(true);
 
     const urlParams = new URLSearchParams(window.location.search);
-    const redirect = urlParams.get('redirect');
+    const redirect =
+      urlParams.get('redirect') ||
+      urlParams.get('redirect-to') ||
+      urlParams.get('redirectTo') ||
+      urlParams.get('app-redirect-to');
     const callbackURL = redirect || '/';
     let navigating = false;
 

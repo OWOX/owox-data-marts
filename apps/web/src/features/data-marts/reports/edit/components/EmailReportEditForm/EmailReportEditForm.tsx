@@ -1,5 +1,6 @@
 import { forwardRef, useEffect, useMemo, useState, useRef } from 'react';
 import { useOwnerState } from '../../../../../../shared/hooks/useOwnerState';
+import { focusFirstInvalidField } from '../../../../../../utils';
 import { UserReference } from '../../../../../../shared/components/UserReference/UserReference';
 import { useUser } from '../../../../../idp/hooks/useAuthState';
 import { useNavigate, Link } from 'react-router-dom';
@@ -220,7 +221,6 @@ export const EmailReportEditForm = forwardRef<HTMLFormElement, EmailReportEditFo
 
     const {
       isDirty,
-      isValid,
       reset,
       form,
       isSubmitting,
@@ -391,7 +391,7 @@ export const EmailReportEditForm = forwardRef<HTMLFormElement, EmailReportEditFo
             ref={ref}
             noValidate
             onSubmit={e => {
-              void form.handleSubmit(handleFormSubmit)(e);
+              void form.handleSubmit(handleFormSubmit, focusFirstInvalidField)(e);
             }}
           >
             <FormLayout>
@@ -911,30 +911,54 @@ export const EmailReportEditForm = forwardRef<HTMLFormElement, EmailReportEditFo
                 title='Report Columns'
                 tooltip='Select which columns to include in the report'
                 titleAdornment={<ReportColumnsCountBadge count={columnsCount} />}
+                fields={['columnConfig', 'filterConfig', 'sortConfig', 'limitConfig']}
               >
-                {dataMart?.id && (
-                  <div className='border-border space-y-3 rounded-md border-b bg-white px-4 py-3 dark:border-transparent dark:bg-white/4'>
-                    <ReportColumnPicker
-                      dataMartId={dataMart.id}
-                      storageType={dataMart.storage.type}
-                      value={form.watch('columnConfig')}
-                      onChange={value => {
-                        form.setValue('columnConfig', value, { shouldDirty: true });
-                      }}
-                      outputConfig={{
-                        filterConfig: form.watch('filterConfig') ?? [],
-                        sortConfig: form.watch('sortConfig') ?? [],
-                        limitConfig: form.watch('limitConfig') ?? null,
-                      }}
-                      onOutputConfigChange={config => {
-                        form.setValue('filterConfig', config.filterConfig, { shouldDirty: true });
-                        form.setValue('sortConfig', config.sortConfig, { shouldDirty: true });
-                        form.setValue('limitConfig', config.limitConfig, { shouldDirty: true });
-                      }}
-                      onCountChange={setColumnsCount}
-                    />
-                  </div>
-                )}
+                <FormField
+                  control={form.control}
+                  name='columnConfig'
+                  render={() => (
+                    <FormItem>
+                      {dataMart?.id && (
+                        <FormControl>
+                          <div
+                            className='border-border space-y-3 rounded-md border-b bg-white px-4 py-3 dark:border-transparent dark:bg-white/4'
+                            tabIndex={-1}
+                          >
+                            <ReportColumnPicker
+                              dataMartId={dataMart.id}
+                              storageType={dataMart.storage.type}
+                              value={form.watch('columnConfig')}
+                              onChange={value => {
+                                form.setValue('columnConfig', value, {
+                                  shouldDirty: true,
+                                  shouldValidate: true,
+                                });
+                              }}
+                              outputConfig={{
+                                filterConfig: form.watch('filterConfig') ?? [],
+                                sortConfig: form.watch('sortConfig') ?? [],
+                                limitConfig: form.watch('limitConfig') ?? null,
+                              }}
+                              onOutputConfigChange={config => {
+                                form.setValue('filterConfig', config.filterConfig, {
+                                  shouldDirty: true,
+                                });
+                                form.setValue('sortConfig', config.sortConfig, {
+                                  shouldDirty: true,
+                                });
+                                form.setValue('limitConfig', config.limitConfig, {
+                                  shouldDirty: true,
+                                });
+                              }}
+                              onCountChange={setColumnsCount}
+                            />
+                          </div>
+                        </FormControl>
+                      )}
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
               </FormSection>
 
               <FormSection title='Automate Report Runs'>
@@ -989,13 +1013,12 @@ export const EmailReportEditForm = forwardRef<HTMLFormElement, EmailReportEditFo
             </FormLayout>
             <ReportFormActions
               mode={mode}
-              isSubmitting={isSubmitting}
+              isSubmitting={isSubmitting || form.formState.isSubmitting}
               isDirty={isDirty}
-              isValid={isValid}
               triggersDirty={triggersDirty}
               ownersDirty={ownersDirty}
               runAfterSaveRef={runAfterSaveRef}
-              onSubmit={() => void form.handleSubmit(handleFormSubmit)()}
+              onSubmit={() => void form.handleSubmit(handleFormSubmit, focusFirstInvalidField)()}
               onCancel={onCancel}
             />
           </AppForm>

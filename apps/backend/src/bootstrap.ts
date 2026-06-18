@@ -13,6 +13,7 @@ import { createLogger } from './common/logger/logger.service';
 import { DEFAULT_PORT } from './config/constants';
 import { setupGlobalPipes } from './config/global-pipes.config';
 import { runMigrationsIfNeeded } from './config/migrations.config';
+import { PROTOCOL_ROUTE_EXCLUSIONS } from './config/protocol-route-exclusions.config';
 import { setupSwagger } from './config/swagger.config';
 import { loadEnv } from './load-env';
 
@@ -46,7 +47,7 @@ export async function bootstrap(options: BootstrapOptions): Promise<NestExpressA
 
   app.useLogger(createLogger());
   app.useGlobalFilters(new GlobalExceptionFilter(), new BaseExceptionFilter());
-  app.setGlobalPrefix(PATH_PREFIX);
+  app.setGlobalPrefix(PATH_PREFIX, { exclude: PROTOCOL_ROUTE_EXCLUSIONS });
 
   app.use(
     compression({

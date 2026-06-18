@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect } from 'react';
-import { MoreHorizontal, Pencil, Play, FileText, Trash2 } from 'lucide-react';
+import { MoreHorizontal, Pencil, FileText, Trash2, Play } from 'lucide-react';
 import { Button } from '@owox/ui/components/button';
 import {
   DropdownMenu,
@@ -20,8 +20,7 @@ import type {
   DataMartReport,
   GoogleSheetsDestinationConfig,
 } from '../../../shared/model/types/data-mart-report';
-import { ReportStatusEnum } from '../../../shared/enums';
-import { useReport } from '../../../shared';
+import { useReport, ReportStatusEnum } from '../../../shared';
 import { GeneratedSqlViewer } from '../../../../edit/components/ReportColumnPicker/GeneratedSqlViewer';
 
 interface GoogleSheetsActionsCellProps {
@@ -110,27 +109,6 @@ export function GoogleSheetsActionsCell({
           e.stopPropagation();
         }}
       >
-        {/* Run report */}
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button
-              onClick={e => {
-                e.stopPropagation();
-                void handleRun();
-              }}
-              variant='ghost'
-              className='dm-card-table-body-row-actionbtn opacity-0 transition-opacity group-hover:opacity-100 disabled:opacity-0 disabled:group-hover:opacity-50'
-              disabled={isRunning || !canRun}
-              aria-label={isRunning ? 'Running report...' : `Run report: ${row.original.title}`}
-            >
-              <Play className='dm-card-table-body-row-actionbtn-icon' aria-hidden='true' />
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent id={`run-report-${row.original.id}`} side='bottom' role='tooltip'>
-            Run report
-          </TooltipContent>
-        </Tooltip>
-
         {/* Open doc */}
         <Tooltip>
           <TooltipTrigger asChild>
@@ -184,6 +162,18 @@ export function GoogleSheetsActionsCell({
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent id={actionsMenuId} align='end' role='menu'>
+            <DropdownMenuItem
+              disabled={isRunning || !canRun}
+              onClick={e => {
+                e.stopPropagation();
+                void handleRun();
+              }}
+              role='menuitem'
+            >
+              <Play className='text-foreground h-4 w-4' aria-hidden='true' />
+              {isRunning ? 'Running report...' : 'Run report'}
+            </DropdownMenuItem>
+
             <DropdownMenuItem
               disabled={!canEditConfig}
               onClick={e => {

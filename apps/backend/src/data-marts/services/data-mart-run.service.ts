@@ -12,6 +12,7 @@ import { DataMart } from '../entities/data-mart.entity';
 import { Insight } from '../entities/insight.entity';
 import { InsightTemplate } from '../entities/insight-template.entity';
 import { Report } from '../entities/report.entity';
+import { hasOutputControls } from '../dto/domain/report-like-read-plan';
 import { DataMartRunStatus } from '../enums/data-mart-run-status.enum';
 import { DataMartRunType } from '../enums/data-mart-run-type.enum';
 import { RoleScope } from '../enums/role-scope.enum';
@@ -142,17 +143,13 @@ export class DataMartRunService {
   public async listVisibleByProject(
     options: ListVisibleProjectRunsOptions
   ): Promise<DataMartRun[]> {
-    const qb = this.dataMartRunRepository
+    const pageQb = this.dataMartRunRepository
       .createQueryBuilder('run')
-      .innerJoinAndSelect('run.dataMart', 'dataMart')
+      .innerJoin('run.dataMart', 'dataMart')
       .where('dataMart.projectId = :projectId', { projectId: options.projectId })
-      .andWhere('dataMart.deletedAt IS NULL')
-      .orderBy('run.createdAt', 'DESC')
-      .addOrderBy('run.id', 'DESC')
-      .take(options.limit ?? 20)
-      .skip(options.offset ?? 0);
+      .andWhere('dataMart.deletedAt IS NULL');
 
-    applyDataMartVisibilityFilter(qb, {
+    applyDataMartVisibilityFilter(pageQb, {
       dataMartAlias: 'dataMart',
       projectId: options.projectId,
       userId: options.userId,
@@ -160,7 +157,33 @@ export class DataMartRunService {
       roleScope: options.roleScope,
     });
 
-    return qb.getMany();
+    // Keep pagination sorting narrow. TypeORM's take/skip with a joined entity otherwise
+    // performs a second, wide ORDER BY over all JSON run and Data Mart columns.
+    const page = await pageQb
+      .select('run.id', 'id')
+      .orderBy('run.createdAt', 'DESC')
+      .addOrderBy('run.id', 'DESC')
+      .limit(options.limit ?? 20)
+      .offset(options.offset ?? 0)
+      .getRawMany<{ id: string }>();
+
+    const runIds = page.map(({ id }) => id);
+    if (runIds.length === 0) {
+      return [];
+    }
+
+    const runs = await this.dataMartRunRepository
+      .createQueryBuilder('run')
+      .innerJoin('run.dataMart', 'dataMart')
+      .select(['run', 'dataMart.id', 'dataMart.title'])
+      .where('run.id IN (:...runIds)', { runIds })
+      .getMany();
+
+    const runsById = new Map(runs.map(run => [run.id, run]));
+    return runIds.flatMap(id => {
+      const run = runsById.get(id);
+      return run ? [run] : [];
+    });
   }
 
   /**
@@ -581,11 +604,7 @@ export class DataMartRunService {
   private createReportRunFromReport(report: Report, context: ReportRunContext): DataMartRun {
     const { id, title, dataMart, destinationConfig, dataDestination } = report;
 
-    const hasOutputControls =
-      (report.filterConfig?.length ?? 0) > 0 ||
-      (report.sortConfig?.length ?? 0) > 0 ||
-      report.limitConfig != null;
-    const outputConfig = hasOutputControls
+    const outputConfig = hasOutputControls(report)
       ? {
           filterConfig: report.filterConfig ?? undefined,
           sortConfig: report.sortConfig ?? undefined,

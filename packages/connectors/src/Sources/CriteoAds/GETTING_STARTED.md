@@ -33,7 +33,11 @@ Before proceeding, please make sure that:
 
 ## Configure Data Import
 
-1. Choose one of the available **endpoints**.  
+1. Choose one of the available **endpoints**:
+    - **statistics** – campaign performance metrics (clicks, displays, cost, sales, ROAS, and more) by advertiser, campaign, adset, ad, and day.
+    - **placements** – performance metrics by publisher placement and environment (Web, Android, iOS).
+    - **placement_categories** – performance metrics by content category. Breakdown by publisher domain is not available in the Criteo `2026-01` API; use **placements** for placement-level detail.
+    - **transactions** – transaction-level data with individual order details attributed to Criteo ads. Returns rows only for periods with attributed conversions.
 2. Select the required **fields**.  
 3. Specify the **dataset** where the data will be stored (or leave the default).  
 4. Click **Finish**, then **Publish Data Mart**.

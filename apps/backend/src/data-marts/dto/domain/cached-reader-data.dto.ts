@@ -22,4 +22,11 @@ export interface CachedReaderData {
    * without re-running metadata lookups.
    */
   blendingDecision: BlendingDecision;
+
+  /**
+   * Executed SQL with output controls applied and params inlined as literals
+   * (same render as the generated-SQL preview). Undefined when the report has no
+   * output controls / blending. Copied onto the run record for Run History.
+   */
+  executionSqlQuery?: string;
 }

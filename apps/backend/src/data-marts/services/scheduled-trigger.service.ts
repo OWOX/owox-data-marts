@@ -63,17 +63,13 @@ export class ScheduledTriggerService {
   async listVisibleByProject(
     options: ListVisibleProjectScheduledTriggersOptions
   ): Promise<DataMartScheduledTrigger[]> {
-    const qb = this.triggerRepository
+    const pageQb = this.triggerRepository
       .createQueryBuilder('scheduledTrigger')
-      .innerJoinAndSelect('scheduledTrigger.dataMart', 'dataMart')
+      .innerJoin('scheduledTrigger.dataMart', 'dataMart')
       .where('dataMart.projectId = :projectId', { projectId: options.projectId })
-      .andWhere('dataMart.deletedAt IS NULL')
-      .orderBy('scheduledTrigger.createdAt', 'DESC')
-      .addOrderBy('scheduledTrigger.id', 'DESC')
-      .take(options.limit ?? 20)
-      .skip(options.offset ?? 0);
+      .andWhere('dataMart.deletedAt IS NULL');
 
-    applyDataMartVisibilityFilter(qb, {
+    applyDataMartVisibilityFilter(pageQb, {
       dataMartAlias: 'dataMart',
       projectId: options.projectId,
       userId: options.userId,
@@ -81,7 +77,30 @@ export class ScheduledTriggerService {
       roleScope: options.roleScope,
     });
 
-    return qb.getMany();
+    const page = await pageQb
+      .select('scheduledTrigger.id', 'id')
+      .orderBy('scheduledTrigger.createdAt', 'DESC')
+      .addOrderBy('scheduledTrigger.id', 'DESC')
+      .limit(options.limit ?? 20)
+      .offset(options.offset ?? 0)
+      .getRawMany<{ id: string }>();
+    const triggerIds = page.map(({ id }) => id);
+    if (triggerIds.length === 0) {
+      return [];
+    }
+
+    const triggers = await this.triggerRepository
+      .createQueryBuilder('scheduledTrigger')
+      .innerJoin('scheduledTrigger.dataMart', 'dataMart')
+      .select(['scheduledTrigger', 'dataMart.id', 'dataMart.title', 'dataMart.definition'])
+      .where('scheduledTrigger.id IN (:...triggerIds)', { triggerIds })
+      .getMany();
+    const triggersById = new Map(triggers.map(trigger => [trigger.id, trigger]));
+
+    return triggerIds.flatMap(id => {
+      const trigger = triggersById.get(id);
+      return trigger ? [trigger] : [];
+    });
   }
 
   async deleteAllByDataMartIdAndProjectId(dataMartId: string, projectId: string): Promise<void> {

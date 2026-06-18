@@ -13,7 +13,7 @@ import {
   clearBetterAuthCookies,
   extractState,
   extractStateFromCookie,
-  type PlatformParams,
+  type AuthFlowParams,
 } from '../../utils/request-utils.js';
 import type { BetterAuthSessionService } from './better-auth-session-service.js';
 import type { UserContextService } from '../core/user-context-service.js';
@@ -61,7 +61,7 @@ export class PkceFlowOrchestrator {
    */
   async completeWithIdentityRefreshToken(
     refreshToken: string,
-    params: PlatformParams,
+    params: AuthFlowParams,
     req: Request,
     res: Response
   ): Promise<URL | null> {
@@ -129,7 +129,7 @@ export class PkceFlowOrchestrator {
    */
   async completeWithSocialSessionToken(
     sessionToken: string,
-    params: PlatformParams,
+    params: AuthFlowParams,
     req: Request,
     res: Response,
     callbackProviderId?: string

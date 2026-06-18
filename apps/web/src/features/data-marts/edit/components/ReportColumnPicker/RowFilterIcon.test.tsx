@@ -58,7 +58,7 @@ describe('RowFilterIcon — remove-only popup', () => {
     expect(screen.queryByRole('button', { name: /^(Apply|Add)$/ })).not.toBeInTheDocument();
     expect(document.querySelector('input[type="text"]')).toBeNull();
     expect(screen.getByText('b__hidden_field')).toBeInTheDocument();
-    expect(screen.getByText('(INTEGER)')).toBeInTheDocument();
+    expect(screen.queryByText('(INTEGER)')).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Close' })).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: 'Remove slice' }));

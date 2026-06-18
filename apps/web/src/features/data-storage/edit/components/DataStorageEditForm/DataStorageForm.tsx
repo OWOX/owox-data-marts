@@ -1,4 +1,3 @@
-import { zodResolver } from '@hookform/resolvers/zod';
 import { Button } from '@owox/ui/components/button';
 import {
   AppForm,
@@ -29,7 +28,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@owox/ui/components/select';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import type { CredentialIdentity } from '../../../../../shared/types/credential-identity';
 import { OwnersSection } from '../../../../../shared/components/OwnersSection/OwnersSection';
@@ -43,14 +42,13 @@ import { useIsAdmin } from '../../../../idp/hooks/useRole';
 import type { UserProjection } from '../../../../../shared/types';
 import { UserReference } from '../../../../../shared/components/UserReference/UserReference';
 import { CopyCredentialContext } from '../../model/context/copy-credential-context';
-import { createFormPayload } from '../../../../../utils/form-utils';
-import { COPY_SOURCE_CREDENTIAL_PLACEHOLDER } from '../../../../../shared/utils/credential-identity-utils';
+import { createDataStorageFormResolver } from '../../model/data-storage-form-resolver';
+import { createFormPayload, focusFirstInvalidField } from '../../../../../utils/form-utils';
 import {
   type DataStorageFormData,
   type GoogleBigQueryFormData,
   type LegacyGoogleBigQueryFormData,
   DataStorageHealthIndicator,
-  dataStorageSchema,
   DataStorageStatus,
   DataStorageType,
 } from '../../../shared';
@@ -92,8 +90,15 @@ export function DataStorageForm({
   onCancel,
   onDirtyChange,
 }: DataStorageFormProps) {
+  // The resolver reads this ref so credential validation is bypassed while
+  // the user copies credentials from another storage (fields are hidden then).
+  const copySourceSelectedRef = useRef(false);
+  const resolver = useMemo(
+    () => createDataStorageFormResolver(() => copySourceSelectedRef.current),
+    []
+  );
   const form = useForm<DataStorageFormData>({
-    resolver: zodResolver(dataStorageSchema),
+    resolver,
     defaultValues: initialData,
   });
 
@@ -148,29 +153,17 @@ export function DataStorageForm({
   const handleSourceSelect = useCallback(
     (id: string, title: string, identity: CredentialIdentity | null) => {
       setSelectedSource({ id, title, identity });
-      // For Google types, set a placeholder credentialId so Zod validation passes.
-      // Non-Google types don't have credentialId in their schemas, so we skip this.
-      // Credentials are copied server-side via sourceStorageId; the placeholder is
-      // stripped from the payload in handleSubmit.
-      const currentType = form.getValues('type');
-      if (
-        currentType === DataStorageType.GOOGLE_BIGQUERY ||
-        currentType === DataStorageType.LEGACY_GOOGLE_BIGQUERY
-      ) {
-        form.setValue('credentials.credentialId', COPY_SOURCE_CREDENTIAL_PLACEHOLDER, {
-          shouldDirty: false,
-          shouldValidate: true,
-        });
-      }
+      copySourceSelectedRef.current = true;
+      // Credentials now come from the source storage; drop stale field errors
+      form.clearErrors('credentials');
     },
     [form]
   );
 
   const handleSourceClear = useCallback(() => {
     setSelectedSource(null);
-    // Restore credential field to its original value from initialData
-    form.resetField('credentials.credentialId');
-  }, [form]);
+    copySourceSelectedRef.current = false;
+  }, []);
 
   const {
     watch,
@@ -231,12 +224,16 @@ export function DataStorageForm({
       <AppForm
         data-testid='storageEditForm'
         onSubmit={e => {
-          void form.handleSubmit(handleSubmit)(e);
+          void form.handleSubmit(handleSubmit, focusFirstInvalidField)(e);
         }}
         noValidate
       >
         <FormLayout>
-          <FormSection title='General' defaultOpen={!isLegacyGoogleBigQuery}>
+          <FormSection
+            title='General'
+            defaultOpen={!isLegacyGoogleBigQuery}
+            fields={['title', 'type']}
+          >
             {storageId && (
               <FormItem>
                 <DataStorageHealthIndicator storageId={storageId} />
