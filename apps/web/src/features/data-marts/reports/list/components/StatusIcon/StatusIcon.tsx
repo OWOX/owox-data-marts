@@ -50,7 +50,10 @@ const fallbackStatusConfig = {
 
 export function StatusIcon({ status, error, className }: StatusIconProps) {
   if (!status) return null;
-  const config = statusConfig[status] ?? fallbackStatusConfig;
+  const config =
+    (statusConfig as Partial<Record<ReportStatusEnum, (typeof statusConfig)[ReportStatusEnum]>>)[
+      status
+    ] ?? fallbackStatusConfig;
   const { icon: Icon, color, label } = config;
 
   // Generate unique ID for tooltip

@@ -1,5 +1,4 @@
 import { ListReportsByProjectCommand } from '../dto/domain/list-reports-by-project.command';
-import { OwnerFilter } from '../enums/owner-filter.enum';
 import { RoleScope } from '../enums/role-scope.enum';
 import { ListReportsByProjectService } from './list-reports-by-project.service';
 

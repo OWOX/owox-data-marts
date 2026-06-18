@@ -45,7 +45,7 @@ export const ReportStatusModel = {
 
   getInfo(status: ReportStatusEnum): ReportStatusInfo {
     return (
-      this.statuses[status] ?? {
+      (this.statuses as Partial<Record<ReportStatusEnum, ReportStatusInfo>>)[status] ?? {
         status,
         displayName: 'Unknown',
         icon: CircleDashed,
