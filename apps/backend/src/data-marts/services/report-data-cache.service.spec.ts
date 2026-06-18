@@ -43,6 +43,7 @@ describe('ReportDataCacheService — output controls on the cached path', () => 
     };
     const reportSqlComposerService = {
       compose: jest.fn().mockResolvedValue(composeResult ?? { sql: 'unused' }),
+      inlineStaticSql: jest.fn((_storageType: unknown, sql: string) => sql),
     };
 
     const service = new ReportDataCacheService(
@@ -88,12 +89,16 @@ describe('ReportDataCacheService — output controls on the cached path', () => 
       filterConfig: [{ column: 'x', operator: 'eq', value: 'y' }],
     } as never);
 
-    await service.getOrCreateCachedReader(report, { userId: 'user-1', roles: ['editor'] } as never);
+    const cached = await service.getOrCreateCachedReader(report, {
+      userId: 'user-1',
+      roles: ['editor'],
+    } as never);
 
     expect(reportSqlComposerService.compose).not.toHaveBeenCalled();
     const opts = optionsPassedToReader(reader);
     expect(opts.sqlOverride).toBe(decision.blendedSql);
     expect(opts.sqlOverrideParams).toEqual(decision.params);
+    expect(cached.executionSqlQuery).toBeDefined();
   });
 
   it('leaves overrides undefined for a plain report with no output controls', async () => {
@@ -109,6 +114,93 @@ describe('ReportDataCacheService — output controls on the cached path', () => 
     const opts = optionsPassedToReader(reader);
     expect(opts.sqlOverride).toBeUndefined();
     expect(opts.sqlOverrideParams).toBeUndefined();
+  });
+
+  it('exposes executionSqlQuery (inlined static SQL) for an output-controls report', async () => {
+    const composed = { sql: 'SELECT a FROM t WHERE a = ?', params: [{ name: 'p0', value: 'x' }] };
+    const { service, reportSqlComposerService } = setup(
+      { needsBlending: false, columnFilter: ['a'] },
+      composed
+    );
+    reportSqlComposerService.inlineStaticSql.mockReturnValue("SELECT a FROM t WHERE a = 'x'");
+    const report = buildReport({
+      filterConfig: [{ column: 'a', operator: 'eq', value: 'x' }],
+    } as never);
+
+    const cached = await service.getOrCreateCachedReader(report, {
+      userId: 'user-1',
+      roles: ['editor'],
+    } as never);
+
+    expect(reportSqlComposerService.inlineStaticSql).toHaveBeenCalledWith(
+      'AWS_ATHENA',
+      composed.sql,
+      composed.params
+    );
+    expect(cached.executionSqlQuery).toBe("SELECT a FROM t WHERE a = 'x'");
+  });
+
+  it('does not abort the fetch when recording executionSqlQuery throws (best-effort)', async () => {
+    const composed = { sql: 'SELECT a FROM t WHERE a = ?', params: [{ name: 'p0', value: 'x' }] };
+    const { service, reportSqlComposerService } = setup(
+      { needsBlending: false, columnFilter: ['a'] },
+      composed
+    );
+    reportSqlComposerService.inlineStaticSql.mockImplementation(() => {
+      throw new Error('no inliner for this dialect');
+    });
+    const report = buildReport({
+      filterConfig: [{ column: 'a', operator: 'eq', value: 'x' }],
+    } as never);
+
+    const cached = await service.getOrCreateCachedReader(report, {
+      userId: 'user-1',
+      roles: ['editor'],
+    } as never);
+
+    expect(reportSqlComposerService.inlineStaticSql).toHaveBeenCalled();
+    expect(cached.executionSqlQuery).toBeUndefined();
+  });
+
+  it('leaves executionSqlQuery undefined for a plain report with no output controls', async () => {
+    const { service, reportSqlComposerService } = setup({
+      needsBlending: false,
+      columnFilter: ['a'],
+    });
+    const report = buildReport(); // no filter/sort/limit
+
+    const cached = await service.getOrCreateCachedReader(report, {
+      userId: 'user-1',
+      roles: ['editor'],
+    } as never);
+
+    expect(reportSqlComposerService.inlineStaticSql).not.toHaveBeenCalled();
+    expect(cached.executionSqlQuery).toBeUndefined();
+  });
+
+  it('exposes inlined executionSqlQuery for a blended report with params', async () => {
+    const blendedSql = 'WITH m AS (...) SELECT * FROM m WHERE x = ?';
+    const params = [{ name: 'p0', value: 'y' }];
+    const decision: BlendingDecision = { needsBlending: true, blendedSql, params };
+    const { service, reportSqlComposerService } = setup(decision);
+    reportSqlComposerService.inlineStaticSql.mockReturnValue(
+      "WITH m AS (...) SELECT * FROM m WHERE x = 'y'"
+    );
+    const report = buildReport({
+      filterConfig: [{ column: 'x', operator: 'eq', value: 'y' }],
+    } as never);
+
+    const cached = await service.getOrCreateCachedReader(report, {
+      userId: 'user-1',
+      roles: ['editor'],
+    } as never);
+
+    expect(reportSqlComposerService.inlineStaticSql).toHaveBeenCalledWith(
+      'AWS_ATHENA',
+      blendedSql,
+      params
+    );
+    expect(cached.executionSqlQuery).toBe("WITH m AS (...) SELECT * FROM m WHERE x = 'y'");
   });
 });
 

@@ -194,6 +194,8 @@ export class LookerStudioConnectorApiService {
       throw new InternalServerErrorException('Failed to create report run');
     }
 
+    this.recordExecutionSqlQuery(reportRun, cachedReader);
+
     const reportRunLogger = createReportRunLogger(this.systemTimeService);
     logBlendedSqlIfNeeded(cachedReader.blendingDecision, reportRunLogger);
 
@@ -368,6 +370,8 @@ export class LookerStudioConnectorApiService {
       throw new InternalServerErrorException('Failed to create report run');
     }
 
+    this.recordExecutionSqlQuery(reportRun, cachedReader);
+
     const reportRunLogger = createReportRunLogger(this.systemTimeService);
     logBlendedSqlIfNeeded(cachedReader.blendingDecision, reportRunLogger);
 
@@ -392,6 +396,25 @@ export class LookerStudioConnectorApiService {
     } catch (e) {
       await this.handleFailedReportRun(reportRun, e, reportRunLogger);
       throw e;
+    }
+  }
+
+  /**
+   * Copies the executed SQL (output controls applied + params inlined) onto the run
+   * record so Run History shows what actually ran. Called before the read in both the
+   * streaming and non-streaming paths so the value persists on success AND failure.
+   * No-op when there are no output controls / blending (executionSqlQuery undefined).
+   */
+  private recordExecutionSqlQuery(
+    reportRun: LookerStudioReportRun,
+    cachedReader: CachedReaderData
+  ): void {
+    if (!cachedReader.executionSqlQuery) {
+      return;
+    }
+    const dmRun = reportRun.getDataMartRun();
+    if (dmRun.reportDefinition) {
+      dmRun.reportDefinition.executionSqlQuery = cachedReader.executionSqlQuery;
     }
   }
 

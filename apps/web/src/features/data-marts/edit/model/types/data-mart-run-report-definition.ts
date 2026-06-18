@@ -12,4 +12,5 @@ export interface DataMartRunReportDefinition {
   };
   destinationConfig: DataMartRunReportDestinationConfigDto;
   outputConfig?: DataMartRunReportOutputConfigDto | null;
+  executionSqlQuery?: string;
 }

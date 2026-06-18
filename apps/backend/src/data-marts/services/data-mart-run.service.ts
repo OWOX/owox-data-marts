@@ -12,6 +12,7 @@ import { DataMart } from '../entities/data-mart.entity';
 import { Insight } from '../entities/insight.entity';
 import { InsightTemplate } from '../entities/insight-template.entity';
 import { Report } from '../entities/report.entity';
+import { hasOutputControls } from '../dto/domain/report-like-read-plan';
 import { DataMartRunStatus } from '../enums/data-mart-run-status.enum';
 import { DataMartRunType } from '../enums/data-mart-run-type.enum';
 import { RoleScope } from '../enums/role-scope.enum';
@@ -603,11 +604,7 @@ export class DataMartRunService {
   private createReportRunFromReport(report: Report, context: ReportRunContext): DataMartRun {
     const { id, title, dataMart, destinationConfig, dataDestination } = report;
 
-    const hasOutputControls =
-      (report.filterConfig?.length ?? 0) > 0 ||
-      (report.sortConfig?.length ?? 0) > 0 ||
-      report.limitConfig != null;
-    const outputConfig = hasOutputControls
+    const outputConfig = hasOutputControls(report)
       ? {
           filterConfig: report.filterConfig ?? undefined,
           sortConfig: report.sortConfig ?? undefined,
