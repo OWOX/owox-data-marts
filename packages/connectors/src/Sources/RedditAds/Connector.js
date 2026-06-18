@@ -19,15 +19,25 @@ var RedditAdsConnector = class RedditAdsConnector extends AbstractConnector {
   async startImportProcess() {
     const fields = RedditAdsHelper.parseFields(this.config.Fields.value);
     const accountIds = RedditAdsHelper.parseAccountIds(this.config.AccountIDs.value);
+    let lastProcessedDate = null;
 
     for (const accountId of accountIds) {
       for (const nodeName in fields) {
-        await this.processNode({
+        const processedDate = await this.processNode({
           nodeName,
           accountId,
-          fields: fields[nodeName] || []
+          fields: fields[nodeName] || [],
+          updateRequestedDate: false
         });
+
+        if (processedDate && (!lastProcessedDate || processedDate > lastProcessedDate)) {
+          lastProcessedDate = processedDate;
+        }
       }
+    }
+
+    if (this.runConfig.type === RUN_CONFIG_TYPE.INCREMENTAL && lastProcessedDate) {
+      this.config.updateLastRequstedDate(lastProcessedDate);
     }
   }
 
@@ -37,13 +47,15 @@ var RedditAdsConnector = class RedditAdsConnector extends AbstractConnector {
    * @param {string} options.nodeName - Name of the node to process
    * @param {string} options.accountId - Account ID
    * @param {Array<string>} options.fields - Array of fields to fetch
+   * @param {boolean} options.updateRequestedDate - Whether to update incremental state per processed day
    */
-  async processNode({ nodeName, accountId, fields }) {
+  async processNode({ nodeName, accountId, fields, updateRequestedDate = true }) {
     if (this.source.fieldsSchema[nodeName].isTimeSeries) {
-      await this.processTimeSeriesNode({
+      return await this.processTimeSeriesNode({
         nodeName,
         accountId,
-        fields
+        fields,
+        updateRequestedDate
       });
     } else {
       await this.processCatalogNode({
@@ -51,6 +63,7 @@ var RedditAdsConnector = class RedditAdsConnector extends AbstractConnector {
         accountId,
         fields
       });
+      return null;
     }
   }
 
@@ -60,25 +73,28 @@ var RedditAdsConnector = class RedditAdsConnector extends AbstractConnector {
    * @param {string} options.nodeName - Name of the node
    * @param {string} options.accountId - Account ID
    * @param {Array<string>} options.fields - Array of fields to fetch
-   * @param {Object} options.storage - Storage instance
+   * @param {boolean} options.updateRequestedDate - Whether to update incremental state per processed day
    */
-  async processTimeSeriesNode({ nodeName, accountId, fields }) {
+  async processTimeSeriesNode({ nodeName, accountId, fields, updateRequestedDate = true }) {
     const [startDate, daysToFetch] = this.getStartDateAndDaysToFetch();
 
     if (daysToFetch <= 0) {
       console.log('No days to fetch for time series data');
-      return;
+      return null;
     }
+
+    let lastProcessedDate = null;
 
     for (let i = 0; i < daysToFetch; i++) {
       const currentDate = new Date(startDate);
       currentDate.setDate(currentDate.getDate() + i);
+      lastProcessedDate = new Date(currentDate);
 
       const formattedDate = DateUtils.formatDate(currentDate);
 
       this.config.logMessage(`Start importing data for ${formattedDate}: ${accountId}/${nodeName}`);
 
-              const data = await this.source.fetchData(nodeName, accountId, fields, currentDate);
+      const data = await this.source.fetchData(nodeName, accountId, fields, currentDate);
 
       this.config.logMessage(data.length ? `${data.length} records were fetched` : `No records have been fetched`);
 
@@ -88,10 +104,13 @@ var RedditAdsConnector = class RedditAdsConnector extends AbstractConnector {
         await storage.saveData(preparedData);
       }
 
-      if (this.runConfig.type === RUN_CONFIG_TYPE.INCREMENTAL) {
+      // Some callers defer the checkpoint until all accounts finish successfully.
+      if (updateRequestedDate && this.runConfig.type === RUN_CONFIG_TYPE.INCREMENTAL) {
         this.config.updateLastRequstedDate(currentDate);
       }
     }
+
+    return lastProcessedDate;
   }
 
   /**

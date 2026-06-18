@@ -269,8 +269,16 @@ export class ConnectorExecutorService {
                   runId,
                   configId,
                 });
-              } else {
+              } else if (this.isSuccessfulConnectorStatus(message.status)) {
                 success = true;
+                addMessageToArray(configLogs, message);
+                this.logger.log(`${message.status}`, {
+                  dataMartId: dataMart.id,
+                  projectId: dataMart.projectId,
+                  runId,
+                  configId,
+                });
+              } else {
                 addMessageToArray(configLogs, message);
                 this.logger.log(`${message.status}`, {
                   dataMartId: dataMart.id,
@@ -338,6 +346,21 @@ export class ConnectorExecutorService {
             configId,
             configIndex,
           });
+        } else if (configErrors.length === 0) {
+          const errorMessage = 'Connector process finished without terminal success status';
+          addMessageToArray(configErrors, {
+            type: ConnectorMessageType.ERROR,
+            at: this.systemTimeService.now().toISOString(),
+            error: errorMessage,
+            toFormattedString: () => `[ERROR] ${errorMessage}`,
+          });
+          this.logger.error(`Configuration ${configIndex + 1} failed: ${errorMessage}`, {
+            dataMartId: dataMart.id,
+            projectId: dataMart.projectId,
+            runId,
+            configId,
+            configIndex,
+          });
         }
       } catch (error) {
         success = false;
@@ -367,6 +390,10 @@ export class ConnectorExecutorService {
     }
 
     return configurationResults;
+  }
+
+  private isSuccessfulConnectorStatus(status: number): boolean {
+    return status === Core.EXECUTION_STATUS.IMPORT_DONE;
   }
 
   private async updateRunStatus(
