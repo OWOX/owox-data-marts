@@ -30,11 +30,6 @@ export interface CachedDataStorageHealthStatus {
   errorMessage?: string;
 }
 
-interface PendingHealthStatusRequest {
-  storageId: string;
-  force: boolean;
-}
-
 /**
  * Maximum number of concurrent validation requests.
  */
@@ -53,7 +48,7 @@ const inFlightRequests = new Set<string>();
 /**
  * Queue of pending storage IDs waiting to be fetched
  */
-const pendingQueue: PendingHealthStatusRequest[] = [];
+const pendingQueue: string[] = [];
 
 /**
  * Number of currently active requests
@@ -100,15 +95,13 @@ export function invalidateDataStorageHealthStatus(storageId: string): void {
  */
 function processQueue(): void {
   while (activeRequestCount < MAX_CONCURRENT_REQUESTS && pendingQueue.length > 0) {
-    const request = pendingQueue.shift();
+    const storageId = pendingQueue.shift();
 
-    if (!request) {
+    if (!storageId) {
       break;
     }
 
-    const { storageId, force } = request;
-
-    if ((!force && healthStatusCache.has(storageId)) || inFlightRequests.has(storageId)) {
+    if (healthStatusCache.has(storageId) || inFlightRequests.has(storageId)) {
       continue;
     }
 
@@ -161,23 +154,15 @@ function processQueue(): void {
  * Enqueues a storage ID for health status fetching.
  * Respects concurrency limit of MAX_CONCURRENT_REQUESTS.
  */
-export function fetchAndCacheDataStorageHealthStatus(
-  storageId: string,
-  options: { force?: boolean } = {}
-): void {
+export function fetchAndCacheDataStorageHealthStatus(storageId: string): void {
   if (!storageId) return;
 
-  const force = options.force ?? false;
-
-  if ((!force && healthStatusCache.has(storageId)) || inFlightRequests.has(storageId)) {
+  if (healthStatusCache.has(storageId) || inFlightRequests.has(storageId)) {
     return;
   }
 
-  const queuedRequest = pendingQueue.find(request => request.storageId === storageId);
-  if (queuedRequest) {
-    queuedRequest.force ||= force;
-  } else {
-    pendingQueue.push({ storageId, force });
+  if (!pendingQueue.includes(storageId)) {
+    pendingQueue.push(storageId);
   }
 
   processQueue();
