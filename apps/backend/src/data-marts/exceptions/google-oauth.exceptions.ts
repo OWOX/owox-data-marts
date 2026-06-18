@@ -97,7 +97,7 @@ export class CredentialsExpiredException extends GoogleOAuthException {
     super(
       `Google authorization could not be refreshed. Reconnect this ${resourceLabel} to restore access.`,
       'CREDENTIALS_EXPIRED',
-      HttpStatus.BAD_REQUEST,
+      HttpStatus.UNAUTHORIZED,
       details ? { entityId, entityType, details } : { entityId, entityType }
     );
     this.name = 'CredentialsExpiredException';

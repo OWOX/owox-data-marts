@@ -4,6 +4,7 @@ import {
   DataStorageHealthStatus,
   fetchAndCacheDataStorageHealthStatus,
   getCachedDataStorageHealthStatus,
+  invalidateDataStorageHealthStatus,
   subscribeToDataStorageHealthStatusUpdates,
 } from '../../services/data-storage-health-status.service';
 
@@ -43,14 +44,15 @@ export function useDataStorageHealthStatus(storageId: string): UseDataStorageHea
     setCached(prev => (prev === next ? prev : next));
   }, [readCached]);
 
-  // Auto-fetch on mount / storageId change
+  // Auto-fetch on mount / storageId change (cache-respecting — avoids redundant requests)
   useEffect(() => {
-    fetchAndCacheDataStorageHealthStatus(storageId, { force: true });
+    fetchAndCacheDataStorageHealthStatus(storageId);
   }, [storageId]);
 
+  // Revalidate when the user returns to the tab; invalidation triggers re-fetch via subscriber
   useEffect(() => {
     const revalidate = () => {
-      fetchAndCacheDataStorageHealthStatus(storageId, { force: true });
+      invalidateDataStorageHealthStatus(storageId);
     };
 
     const handleVisibilityChange = () => {

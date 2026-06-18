@@ -320,10 +320,17 @@ export class GoogleOAuthFlowService {
       throw new TokenRefreshFailedException(undefined, error);
     }
 
+    if (!newTokens.access_token) {
+      this.logger.error(
+        `Refresh response missing access_token for ${type} credential ${credentialId}`
+      );
+      throw new TokenRefreshFailedException();
+    }
+
     const currentTokens = credential.credentials as GoogleOAuthTokens;
     const updatedTokens: GoogleOAuthTokens = {
       ...currentTokens,
-      access_token: newTokens.access_token!,
+      access_token: newTokens.access_token,
       expiry_date: newTokens.expiry_date ?? undefined,
     };
 

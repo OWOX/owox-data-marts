@@ -90,6 +90,7 @@ export function getCachedDataStorageHealthStatus(
  * will trigger a fresh validation request.
  */
 export function invalidateDataStorageHealthStatus(storageId: string): void {
+  if (!storageId) return;
   healthStatusCache.delete(storageId);
   notifySubscribers();
 }
@@ -164,6 +165,8 @@ export function fetchAndCacheDataStorageHealthStatus(
   storageId: string,
   options: { force?: boolean } = {}
 ): void {
+  if (!storageId) return;
+
   const force = options.force ?? false;
 
   if ((!force && healthStatusCache.has(storageId)) || inFlightRequests.has(storageId)) {

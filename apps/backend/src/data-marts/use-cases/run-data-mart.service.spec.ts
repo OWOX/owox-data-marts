@@ -2,12 +2,20 @@ import { ForbiddenException } from '@nestjs/common';
 import { RunDataMartService } from './run-data-mart.service';
 import { RunDataMartCommand } from '../dto/domain/run-data-mart.command';
 import { DataMartDefinitionType } from '../enums/data-mart-definition-type.enum';
+import { ValidationResultCode } from '../data-storage-types/interfaces/data-storage-access-validator.interface';
+import { CredentialsExpiredException } from '../exceptions/google-oauth.exceptions';
 
 describe('RunDataMartService', () => {
   const mockDataMart = {
     id: 'dm-1',
     projectId: 'proj-1',
     definitionType: DataMartDefinitionType.CONNECTOR,
+    storage: {
+      id: 'storage-1',
+      type: 'GOOGLE_BIGQUERY',
+      config: { projectId: 'p' },
+      credentialId: 'cred-1',
+    },
   };
 
   const createService = () => {
@@ -20,14 +28,29 @@ describe('RunDataMartService', () => {
     const accessDecisionService = {
       canAccess: jest.fn().mockResolvedValue(true),
     };
+    const credentialsResolver = {
+      resolve: jest.fn().mockResolvedValue({ type: 'oauth' }),
+    };
+    const validationFacade = {
+      validateAccess: jest.fn().mockResolvedValue({ valid: true }),
+    };
 
     const service = new RunDataMartService(
       dataMartService as never,
       connectorExecutionService as never,
-      accessDecisionService as never
+      accessDecisionService as never,
+      validationFacade as never,
+      credentialsResolver as never
     );
 
-    return { service, dataMartService, connectorExecutionService, accessDecisionService };
+    return {
+      service,
+      dataMartService,
+      connectorExecutionService,
+      accessDecisionService,
+      credentialsResolver,
+      validationFacade,
+    };
   };
 
   it('should allow manual run when user has EDIT access', async () => {
@@ -100,5 +123,68 @@ describe('RunDataMartService', () => {
     expect(result).toBe('run-id-1');
     expect(accessDecisionService.canAccess).not.toHaveBeenCalled();
     expect(connectorExecutionService.run).toHaveBeenCalled();
+  });
+
+  describe('pre-run storage access check', () => {
+    const command = () => new RunDataMartCommand('dm-1', 'proj-1', '', 'scheduled' as never);
+
+    it('blocks the run when validation requires re-authorization', async () => {
+      const { service, validationFacade, connectorExecutionService } = createService();
+      validationFacade.validateAccess.mockResolvedValue({
+        valid: false,
+        code: ValidationResultCode.OAUTH_REAUTH_REQUIRED,
+      });
+
+      await expect(service.run(command())).rejects.toBeInstanceOf(CredentialsExpiredException);
+      expect(connectorExecutionService.run).not.toHaveBeenCalled();
+    });
+
+    it('blocks the run when credential resolution reports expired authorization', async () => {
+      const { service, credentialsResolver, connectorExecutionService } = createService();
+      credentialsResolver.resolve.mockRejectedValue(
+        new CredentialsExpiredException('storage-1', 'storage')
+      );
+
+      await expect(service.run(command())).rejects.toBeInstanceOf(CredentialsExpiredException);
+      expect(connectorExecutionService.run).not.toHaveBeenCalled();
+    });
+
+    it('proceeds when validation fails with a transient/non-reauth error', async () => {
+      const { service, validationFacade, connectorExecutionService } = createService();
+      validationFacade.validateAccess.mockResolvedValue({
+        valid: false,
+        errorMessage: 'Temporary API error',
+      });
+
+      const result = await service.run(command());
+
+      expect(result).toBe('run-id-1');
+      expect(connectorExecutionService.run).toHaveBeenCalled();
+    });
+
+    it('proceeds when credential resolution throws a transient error', async () => {
+      const { service, credentialsResolver, connectorExecutionService } = createService();
+      credentialsResolver.resolve.mockRejectedValue(new Error('network timeout'));
+
+      const result = await service.run(command());
+
+      expect(result).toBe('run-id-1');
+      expect(connectorExecutionService.run).toHaveBeenCalled();
+    });
+
+    it('skips the check for storage without OAuth credentials', async () => {
+      const { service, dataMartService, credentialsResolver, connectorExecutionService } =
+        createService();
+      dataMartService.getByIdAndProjectId.mockResolvedValue({
+        ...mockDataMart,
+        storage: { id: 'storage-2', type: 'AWS_ATHENA', config: { region: 'us' } },
+      });
+
+      const result = await service.run(command());
+
+      expect(result).toBe('run-id-1');
+      expect(credentialsResolver.resolve).not.toHaveBeenCalled();
+      expect(connectorExecutionService.run).toHaveBeenCalled();
+    });
   });
 });
