@@ -4,7 +4,6 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { glob } from 'glob';
 import yaml from 'js-yaml';
-import matter from 'gray-matter';
 import Papa from 'papaparse';
 import { getConfig } from './env-config.js';
 import {
@@ -12,6 +11,35 @@ import {
   normalizePathToKebabCase,
   normalizeSuffixForDirectoryStyleURL,
 } from './utils.js';
+
+const FRONT_MATTER_RE = /^\uFEFF?---\r?\n([\s\S]*?)\r?\n---\r?\n?/;
+
+/**
+ * Parses YAML front matter from markdown content. Drop-in for the gray-matter
+ * subset used here, backed by js-yaml v4 (which exposes `load`/`dump`, not the
+ * removed `safeLoad`/`safeDump`).
+ * @param {string} content - Markdown content, optionally prefixed with front matter
+ * @returns {{ data: Record<string, any>, content: string }} Parsed front matter and the body
+ */
+function matter(content) {
+  const match = FRONT_MATTER_RE.exec(content);
+  if (!match) return { data: {}, content };
+  const data = yaml.load(match[1]) ?? {};
+  return { data: typeof data === 'object' ? data : {}, content: content.slice(match[0].length) };
+}
+
+/**
+ * Serializes a front matter object onto markdown content, replacing any existing
+ * front matter. Mirrors `gray-matter`'s `stringify` output for our usage.
+ * @param {string} content - Markdown content, optionally prefixed with front matter
+ * @param {Record<string, any>} data - Front matter object to serialize
+ * @returns {string} Markdown content with the serialized front matter prepended
+ */
+matter.stringify = function stringifyFrontmatter(content, data) {
+  const body = matter(content).content;
+  const frontMatter = yaml.dump(data, { lineWidth: -1 }).trimEnd();
+  return `---\n${frontMatter}\n---\n${body.endsWith('\n') ? body : `${body}\n`}`;
+};
 
 // CONFIGURATION
 const APP_LOCATION = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
