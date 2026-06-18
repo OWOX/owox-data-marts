@@ -1,5 +1,5 @@
 import { DataMartSchema } from '../data-mart-schema.type';
-import { DataMartSchemaFieldStatus } from '../enums/data-mart-schema-field-status.enum';
+import { isConnected } from '../data-mart-schema.utils';
 import { DataStorageType } from '../enums/data-storage-type.enum';
 import { ReportDataHeader } from '../../dto/domain/report-data-header.dto';
 import { ReportHeadersGenerator } from './report-headers-generator.interface';
@@ -20,10 +20,7 @@ export abstract class FlatReportHeadersGenerator implements ReportHeadersGenerat
     }
 
     return dataMartSchema.fields
-      .filter(
-        field =>
-          field.status !== DataMartSchemaFieldStatus.DISCONNECTED && !field.isHiddenForReporting
-      )
+      .filter(field => isConnected(field) && !field.isHiddenForReporting)
       .map(field => new ReportDataHeader(field.name, field.alias, field.description, field.type));
   }
 }
