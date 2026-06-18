@@ -1,13 +1,13 @@
 import type { McpAuthenticatedRequest } from '../auth/mcp-auth-context';
-import type { McpStreamableHttpSessionRegistry } from '../sdk/mcp-streamable-http-session.registry';
+import type { McpStreamableHttpTransportHandler } from '../sdk/mcp-streamable-http-transport.handler';
 import { McpTransportController } from './mcp-transport.controller';
 
 describe('McpTransportController', () => {
-  it('delegates authenticated HTTP requests to SDK transport registry', async () => {
-    const registry = {
+  it('delegates authenticated HTTP requests to SDK transport handler', async () => {
+    const transportHandler = {
       handleRequest: jest.fn().mockResolvedValue(undefined),
-    } as unknown as McpStreamableHttpSessionRegistry;
-    const controller = new McpTransportController(registry);
+    } as unknown as McpStreamableHttpTransportHandler;
+    const controller = new McpTransportController(transportHandler);
     const request = {
       mcpContext: {
         clientId: 'mcp-client-1',
@@ -24,7 +24,7 @@ describe('McpTransportController', () => {
 
     await controller.handleMcp(request, response as never, body);
 
-    expect(registry.handleRequest).toHaveBeenCalledWith(
+    expect(transportHandler.handleRequest).toHaveBeenCalledWith(
       request,
       response,
       body,
