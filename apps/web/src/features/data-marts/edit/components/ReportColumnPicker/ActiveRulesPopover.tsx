@@ -22,7 +22,7 @@ export interface ActiveRulesPopoverProps {
   displayLabel?: string;
   /** Joined data mart name shown under the field name; absent for home-mart fields. */
   dataMartName?: string;
-  aliasPath?: string;
+  /** Unified blended-field name for display when showing slices. */
   sliceColumn?: string;
   filters?: RuleListProps;
   slices?: RuleListProps;
@@ -36,19 +36,18 @@ export function ActiveRulesPopover({
   fieldType,
   displayLabel,
   dataMartName,
-  aliasPath,
   sliceColumn,
   filters,
   slices,
 }: ActiveRulesPopoverProps) {
-  const slicesOnly = !filters?.rules.length && !!slices?.rules.length && aliasPath != null;
+  const slicesOnly = !filters?.rules.length && !!slices?.rules.length && sliceColumn != null;
   return (
     <Popover open={open} onOpenChange={onOpenChange}>
       <PopoverTrigger asChild>{trigger}</PopoverTrigger>
       <PopoverContent className='w-72 space-y-3'>
         <div>
           <div className='text-sm font-medium'>
-            {displayLabel ?? (slicesOnly ? (sliceColumn ?? column) : column)}
+            {displayLabel ?? (slicesOnly ? sliceColumn : column)}
           </div>
           {dataMartName && <div className='text-muted-foreground text-[11px]'>{dataMartName}</div>}
         </div>

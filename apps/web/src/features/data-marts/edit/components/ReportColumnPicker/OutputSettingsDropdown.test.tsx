@@ -1,5 +1,5 @@
 import { render, screen } from '@testing-library/react';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import {
   OutputSettingsDropdown,
   type OutputSettingsDropdownColumn,
@@ -12,11 +12,10 @@ describe('OutputSettingsDropdown disconnected controls', () => {
       filterConfig: [
         { column: 'ghost_filter', operator: 'eq', value: 'x' },
         {
-          column: 'ghost_slice',
+          column: 'users__ghost_slice',
           operator: 'eq',
           value: 'y',
           placement: 'pre-join',
-          aliasPath: 'old',
         },
       ],
       sortConfig: [{ column: 'ghost_sort', direction: 'asc' }],
@@ -34,8 +33,7 @@ describe('OutputSettingsDropdown disconnected controls', () => {
     );
 
     expect(screen.getByText('ghost_filter')).toHaveClass('line-through');
-    expect(screen.getByText('old.ghost_slice')).toHaveClass('line-through');
-    expect(screen.queryByText('ghost_slice')).not.toBeInTheDocument();
+    expect(screen.getByText('users__ghost_slice')).toHaveClass('line-through');
     expect(screen.getByText('ghost_sort')).toHaveClass('line-through');
     expect(screen.getAllByLabelText('Column not found in schema')).toHaveLength(3);
   });
@@ -45,11 +43,10 @@ describe('OutputSettingsDropdown disconnected controls', () => {
       filterConfig: [
         { column: 'ghost_filter', operator: 'gte', value: 10 },
         {
-          column: 'ghost_slice',
+          column: 'users__ghost_slice',
           operator: 'gte',
           value: 20,
           placement: 'pre-join',
-          aliasPath: 'old',
         },
       ],
       sortConfig: [],
@@ -68,6 +65,37 @@ describe('OutputSettingsDropdown disconnected controls', () => {
 
     expect(screen.getAllByText('greater than or equal')).toHaveLength(2);
     expect(screen.queryByText('gte')).not.toBeInTheDocument();
+  });
+
+  it('renders the Add slice picker when joined sources are available', () => {
+    // Emission contract (pre-join placement, unified column id, no aliasPath) is
+    // asserted in FilterOrSliceEditorPopover.test.tsx ("emits the Slice draft" test).
+    // The Select mock here strips onValueChange, so driving the full add flow would
+    // require a separate mock strategy that duplicates that coverage without adding value.
+    const onChange = vi.fn();
+    const value: OutputConfig = {
+      filterConfig: [],
+      sortConfig: [],
+      limitConfig: null,
+    };
+
+    render(
+      <OutputSettingsDropdown
+        value={value}
+        onChange={onChange}
+        allColumns={[]}
+        selectedColumns={[]}
+        joinedSources={[
+          {
+            aliasPath: 'users',
+            title: 'Users',
+            columns: [{ id: 'users__role', name: 'role', type: 'STRING' }],
+          },
+        ]}
+      />
+    );
+
+    expect(screen.getByText('Add slice')).toBeInTheDocument();
   });
 });
 

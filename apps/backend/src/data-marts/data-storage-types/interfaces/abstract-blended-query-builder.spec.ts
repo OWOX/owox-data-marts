@@ -10,6 +10,7 @@ import { AbstractBlendedQueryBuilder } from './abstract-blended-query-builder';
 import { ResolvedRelationshipChain, BlendedQueryContext } from './blended-query-builder.interface';
 import { SqlClauseRenderer, SqlParameter } from '../utils/sql-clause-renderer';
 import { BigQueryClauseRenderer } from '../bigquery/services/bigquery-clause-renderer';
+import { buildBlendedFieldIndex } from '../../services/blended-field-index';
 
 // Uses backtick quoting and a plain STRING_AGG syntax (no CAST) so that SQL-shape
 // assertions stay readable — dialect-specific CASTs are covered by per-dialect specs.
@@ -1264,17 +1265,28 @@ describe('AbstractBlendedQueryBuilder — output controls', () => {
     }
 
     it('emits WHERE inside a leaf raw CTE for a single pre-join filter', () => {
+      const fieldIndex = buildBlendedFieldIndex({
+        blendedFields: [
+          {
+            name: 'users__userRole',
+            aliasPath: 'users',
+            originalFieldName: 'userRole',
+            type: 'STRING',
+          },
+        ],
+        availableSources: [{ aliasPath: 'users', isIncluded: true }],
+      } as never);
       const ctx: BlendedQueryContext = {
         ...buildContext([makeUsersChain()], ['users_email']),
         filters: [
           {
-            column: 'userRole',
+            column: 'users__userRole',
             operator: 'eq',
             value: 'admin',
             placement: 'pre-join',
-            aliasPath: 'users',
           },
         ],
+        fieldIndex,
       };
       const { sql, params } = builder.buildBlendedQuery(ctx);
       expect(sql).toMatch(/users_raw AS \([\s\S]+?WHERE\s+userRole\s*=\s*@s_users_0/);
@@ -1282,41 +1294,68 @@ describe('AbstractBlendedQueryBuilder — output controls', () => {
     });
 
     it('projects pre-join filter columns into the raw CTE even if not in columnConfig', () => {
+      const fieldIndex = buildBlendedFieldIndex({
+        blendedFields: [
+          {
+            name: 'users__userRole',
+            aliasPath: 'users',
+            originalFieldName: 'userRole',
+            type: 'STRING',
+          },
+        ],
+        availableSources: [{ aliasPath: 'users', isIncluded: true }],
+      } as never);
       const ctx: BlendedQueryContext = {
         ...buildContext([makeUsersChain()], ['users_email']),
         filters: [
           {
-            column: 'userRole',
+            column: 'users__userRole',
             operator: 'eq',
             value: 'admin',
             placement: 'pre-join',
-            aliasPath: 'users',
           },
         ],
+        fieldIndex,
       };
       const { sql } = builder.buildBlendedQuery(ctx);
       expect(sql).toMatch(/users_raw AS \([\s\S]*?userRole[\s\S]*?FROM/);
     });
 
     it('combines multiple pre-join filters on the same CTE with AND', () => {
+      const fieldIndex = buildBlendedFieldIndex({
+        blendedFields: [
+          {
+            name: 'users__userRole',
+            aliasPath: 'users',
+            originalFieldName: 'userRole',
+            type: 'STRING',
+          },
+          {
+            name: 'users__createdAt',
+            aliasPath: 'users',
+            originalFieldName: 'createdAt',
+            type: 'TIMESTAMP',
+          },
+        ],
+        availableSources: [{ aliasPath: 'users', isIncluded: true }],
+      } as never);
       const ctx: BlendedQueryContext = {
         ...buildContext([makeUsersChain()], ['users_email']),
         filters: [
           {
-            column: 'userRole',
+            column: 'users__userRole',
             operator: 'eq',
             value: 'admin',
             placement: 'pre-join',
-            aliasPath: 'users',
           },
           {
-            column: 'createdAt',
+            column: 'users__createdAt',
             operator: 'relative_date',
             value: { kind: 'last_n_days', n: 30 },
             placement: 'pre-join',
-            aliasPath: 'users',
           },
         ],
+        fieldIndex,
       };
       const { sql } = builder.buildBlendedQuery(ctx);
       expect(sql).toMatch(/WHERE[\s\S]+AND[\s\S]+DATE_SUB/);
@@ -1340,25 +1379,39 @@ describe('AbstractBlendedQueryBuilder — output controls', () => {
           },
         ],
       });
+      const fieldIndex = buildBlendedFieldIndex({
+        blendedFields: [
+          {
+            name: 'users__userRole',
+            aliasPath: 'users',
+            originalFieldName: 'userRole',
+            type: 'STRING',
+          },
+          { name: 'orgs__plan', aliasPath: 'orgs', originalFieldName: 'plan', type: 'STRING' },
+        ],
+        availableSources: [
+          { aliasPath: 'users', isIncluded: true },
+          { aliasPath: 'orgs', isIncluded: true },
+        ],
+      } as never);
       const ctx: BlendedQueryContext = {
         ...buildContext([makeUsersChain(), orgsChain], ['users_email', 'orgs_name']),
         filters: [
           { column: 'users_email', operator: 'contains', value: '@owox' },
           {
-            column: 'userRole',
+            column: 'users__userRole',
             operator: 'eq',
             value: 'admin',
             placement: 'pre-join',
-            aliasPath: 'users',
           },
           {
-            column: 'plan',
+            column: 'orgs__plan',
             operator: 'eq',
             value: 'pro',
             placement: 'pre-join',
-            aliasPath: 'orgs',
           },
         ],
+        fieldIndex,
       };
       const { params } = builder.buildBlendedQuery(ctx);
       const names = params.map(p => p.name).sort();
@@ -1366,17 +1419,28 @@ describe('AbstractBlendedQueryBuilder — output controls', () => {
     });
 
     it('quotes each segment of a dotted column (nested struct) in the pre-join WHERE', () => {
+      const fieldIndex = buildBlendedFieldIndex({
+        blendedFields: [
+          {
+            name: 'users__profile.country',
+            aliasPath: 'users',
+            originalFieldName: 'profile.country',
+            type: 'STRING',
+          },
+        ],
+        availableSources: [{ aliasPath: 'users', isIncluded: true }],
+      } as never);
       const ctx: BlendedQueryContext = {
         ...buildContext([makeUsersChain()], ['users_email']),
         filters: [
           {
-            column: 'profile.country',
+            column: 'users__profile.country',
             operator: 'eq',
             value: 'UA',
             placement: 'pre-join',
-            aliasPath: 'users',
           },
         ],
+        fieldIndex,
       };
       const { sql } = builder.buildBlendedQuery(ctx);
       // M1 regression: nested struct paths must traverse as `profile.country`
@@ -1390,35 +1454,52 @@ describe('AbstractBlendedQueryBuilder — output controls', () => {
       expect(sql).not.toContain('`profile.country`');
     });
 
-    it('throws when a pre-join filter aliasPath does not resolve to any chain', () => {
+    it('throws when a pre-join filter column does not resolve in the field index', () => {
+      const fieldIndex = buildBlendedFieldIndex({
+        blendedFields: [
+          { name: 'users__email', aliasPath: 'users', originalFieldName: 'email', type: 'STRING' },
+        ],
+        availableSources: [{ aliasPath: 'users', isIncluded: true }],
+      } as never);
       const ctx: BlendedQueryContext = {
         ...buildContext([makeUsersChain()], ['users_email']),
         filters: [
           {
-            column: 'plan',
+            column: 'orgs__plan',
             operator: 'eq',
             value: 'pro',
             placement: 'pre-join',
-            aliasPath: 'orgs',
           },
         ],
+        fieldIndex,
       };
-      expect(() => builder.buildBlendedQuery(ctx)).toThrow(/aliasPath='orgs'/);
+      expect(() => builder.buildBlendedQuery(ctx)).toThrow(/column='orgs__plan'/);
     });
 
     it("post-join filters use the 'p' prefix so they never collide with pre-join 's_<cte>_' prefixes", () => {
+      const fieldIndex = buildBlendedFieldIndex({
+        blendedFields: [
+          {
+            name: 'users__userRole',
+            aliasPath: 'users',
+            originalFieldName: 'userRole',
+            type: 'STRING',
+          },
+        ],
+        availableSources: [{ aliasPath: 'users', isIncluded: true }],
+      } as never);
       const ctx: BlendedQueryContext = {
         ...buildContext([makeUsersChain()], ['customer_name', 'users_email']),
         filters: [
           { column: 'customer_name', operator: 'eq', value: 'X' },
           {
-            column: 'userRole',
+            column: 'users__userRole',
             operator: 'eq',
             value: 'admin',
             placement: 'pre-join',
-            aliasPath: 'users',
           },
         ],
+        fieldIndex,
       };
       const { sql, params } = builder.buildBlendedQuery(ctx);
       expect(sql).toContain('WHERE main.customer_name = @p0');
@@ -1450,12 +1531,23 @@ describe('AbstractBlendedQueryBuilder — output controls', () => {
       });
     }
 
-    type RuleInput = Omit<FilterRule, 'placement' | 'aliasPath'>;
+    type RuleInput = Omit<FilterRule, 'placement'>;
 
     function runWithRule(rule: RuleInput): { sql: string; params: SqlParameter[] } {
+      // Build a field index that maps the unified name to the users CTE.
+      // Column in rule is the raw field name; unified name = 'users__<column>'.
+      const rawColumn = rule.column;
+      const unifiedName = `users__${rawColumn}`;
+      const fieldIndex = buildBlendedFieldIndex({
+        blendedFields: [
+          { name: unifiedName, aliasPath: 'users', originalFieldName: rawColumn, type: 'STRING' },
+        ],
+        availableSources: [{ aliasPath: 'users', isIncluded: true }],
+      } as never);
       const ctx: BlendedQueryContext = {
         ...buildContext([makeUsersChain()], ['users_email']),
-        filters: [{ ...rule, placement: 'pre-join', aliasPath: 'users' } as FilterRule],
+        filters: [{ ...rule, column: unifiedName, placement: 'pre-join' } as FilterRule],
+        fieldIndex,
       };
       return builder.buildBlendedQuery(ctx);
     }
@@ -1620,17 +1712,23 @@ describe('AbstractBlendedQueryBuilder — pre-join filters on tricky tree shapes
       ],
     });
 
+    const fieldIndex = buildBlendedFieldIndex({
+      blendedFields: [
+        { name: 'b__b_status', aliasPath: 'b', originalFieldName: 'b_status', type: 'STRING' },
+      ],
+      availableSources: [{ aliasPath: 'b', isIncluded: true }],
+    } as never);
     const ctx: BlendedQueryContext = {
       ...buildContext([bChain, cChain], ['b_blend']),
       filters: [
         {
-          column: 'b_status',
+          column: 'b__b_status',
           operator: 'eq',
           value: 'active',
           placement: 'pre-join',
-          aliasPath: 'b',
         } as FilterRule,
       ],
+      fieldIndex,
     };
     const { sql } = builder.buildBlendedQuery(ctx);
 
@@ -1692,17 +1790,28 @@ describe('AbstractBlendedQueryBuilder — pre-join filters on tricky tree shapes
       ],
     });
 
+    const fieldIndex = buildBlendedFieldIndex({
+      blendedFields: [
+        {
+          name: 'a_b_c_d__d_status',
+          aliasPath: 'a.b.c.d',
+          originalFieldName: 'd_status',
+          type: 'STRING',
+        },
+      ],
+      availableSources: [{ aliasPath: 'a.b.c.d', isIncluded: true }],
+    } as never);
     const ctx: BlendedQueryContext = {
       ...buildContext([aChain, bChain, cChain, dChain], ['d_blend']),
       filters: [
         {
-          column: 'd_status',
+          column: 'a_b_c_d__d_status',
           operator: 'eq',
           value: 'live',
           placement: 'pre-join',
-          aliasPath: 'a.b.c.d',
         } as FilterRule,
       ],
+      fieldIndex,
     };
     const { sql } = builder.buildBlendedQuery(ctx);
 
@@ -1773,17 +1882,23 @@ describe('AbstractBlendedQueryBuilder — pre-join filters on tricky tree shapes
       ],
     });
 
+    const fieldIndex = buildBlendedFieldIndex({
+      blendedFields: [
+        { name: 'a_c__c_status', aliasPath: 'a.c', originalFieldName: 'c_status', type: 'STRING' },
+      ],
+      availableSources: [{ aliasPath: 'a.c', isIncluded: true }],
+    } as never);
     const ctx: BlendedQueryContext = {
       ...buildContext([aChain, acChain, bChain, bcChain], ['ac_blend', 'bc_blend']),
       filters: [
         {
-          column: 'c_status',
+          column: 'a_c__c_status',
           operator: 'eq',
           value: 'live',
           placement: 'pre-join',
-          aliasPath: 'a.c',
         } as FilterRule,
       ],
+      fieldIndex,
     };
     const { sql } = builder.buildBlendedQuery(ctx);
 
@@ -1815,16 +1930,27 @@ describe('AbstractBlendedQueryBuilder — pre-join filters on tricky tree shapes
       ],
     });
 
+    const fieldIndex = buildBlendedFieldIndex({
+      blendedFields: [
+        {
+          name: 'users__user_id',
+          aliasPath: 'users',
+          originalFieldName: 'user_id',
+          type: 'STRING',
+        },
+      ],
+      availableSources: [{ aliasPath: 'users', isIncluded: true }],
+    } as never);
     const ctx: BlendedQueryContext = {
       ...buildContext([usersChain], ['users_email']),
       filters: [
         {
-          column: 'user_id',
+          column: 'users__user_id',
           operator: 'is_not_null',
           placement: 'pre-join',
-          aliasPath: 'users',
         } as FilterRule,
       ],
+      fieldIndex,
     };
     const { sql } = builder.buildBlendedQuery(ctx);
 

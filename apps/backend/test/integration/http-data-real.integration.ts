@@ -1061,10 +1061,10 @@ describeIfSnowflakeCredentials('HTTP Data API real-data (live Snowflake)', () =>
     );
     await sfAdapter.executeQuery(
       `INSERT INTO ${sfFullyQualifiedName} ("id", "name", "active", "created_at") VALUES ` +
-        `(1, 'alpha',    TRUE,  TIMESTAMP_NTZ '2024-01-01 00:00:00'), ` +
-        `(2, 'beta',     FALSE, TIMESTAMP_NTZ '2024-02-01 00:00:00'), ` +
-        `(3, 'gamma',    TRUE,  TIMESTAMP_NTZ '2024-03-01 00:00:00'), ` +
-        `(4, 'alphabet', TRUE,  TIMESTAMP_NTZ '2024-04-01 00:00:00')`
+        `(1, 'alpha',    TRUE,  '2024-01-01 00:00:00'::TIMESTAMP_NTZ), ` +
+        `(2, 'beta',     FALSE, '2024-02-01 00:00:00'::TIMESTAMP_NTZ), ` +
+        `(3, 'gamma',    TRUE,  '2024-03-01 00:00:00'::TIMESTAMP_NTZ), ` +
+        `(4, 'alphabet', TRUE,  '2024-04-01 00:00:00'::TIMESTAMP_NTZ)`
     );
 
     // --- Step 3: Create credentialed Snowflake storage via HTTP API ---

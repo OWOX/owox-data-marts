@@ -23,11 +23,10 @@ vi.mock('@owox/ui/components/select', () => ({
 
 const filterRule = { column: 'ghost__col', operator: 'eq', value: 'x' } as FilterRule;
 const sliceRule = {
-  column: 'hidden_field',
+  column: 'b__hidden_field',
   operator: 'eq',
   value: 'y',
   placement: 'pre-join',
-  aliasPath: 'b',
 } as FilterRule;
 
 describe('RowFilterIcon — remove-only popup', () => {
@@ -39,13 +38,12 @@ describe('RowFilterIcon — remove-only popup', () => {
     const onRemoveSliceAt = vi.fn();
     render(
       <RowFilterIcon
-        column='hidden_field'
+        column='b__hidden_field'
         fieldType='INTEGER'
         activeRules={[]}
         onRemoveAt={() => undefined}
         sliceIconProps={{
-          aliasPath: 'b',
-          originalFieldName: 'hidden_field',
+          unifiedFieldName: 'b__hidden_field',
           existingSlices: [sliceRule],
           existingSliceIndices: [3],
           onRemoveSliceAt,
@@ -59,7 +57,7 @@ describe('RowFilterIcon — remove-only popup', () => {
     expect(screen.queryByText('Active filters')).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /^(Apply|Add)$/ })).not.toBeInTheDocument();
     expect(document.querySelector('input[type="text"]')).toBeNull();
-    expect(screen.getByText('hidden_field')).toBeInTheDocument();
+    expect(screen.getByText('b__hidden_field')).toBeInTheDocument();
     expect(screen.queryByText('(INTEGER)')).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Close' })).toBeInTheDocument();
 
@@ -97,8 +95,7 @@ describe('RowFilterIcon — remove-only popup', () => {
         activeRules={[filterRule]}
         onRemoveAt={() => undefined}
         sliceIconProps={{
-          aliasPath: 'b',
-          originalFieldName: 'field',
+          unifiedFieldName: 'b__field',
           existingSlices: [sliceRule],
           existingSliceIndices: [1],
           onRemoveSliceAt: () => undefined,
@@ -122,8 +119,7 @@ describe('RowFilterIcon — remove-only popup', () => {
         onAdd={() => undefined}
         onRemoveAt={() => undefined}
         sliceIconProps={{
-          aliasPath: 'b',
-          originalFieldName: 'field',
+          unifiedFieldName: 'b__field',
           existingSlices: [],
           existingSliceIndices: [],
           onAddSlice: () => undefined,

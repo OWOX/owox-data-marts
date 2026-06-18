@@ -48,9 +48,8 @@ describe('FilterOrSliceEditorPopover — parallel drafts across tab switches', (
         open={true}
         onOpenChange={() => undefined}
         column='users__userRole'
-        sliceColumn='userRole'
+        sliceColumn='users__userRole'
         fieldType='STRING'
-        aliasPath='users'
         defaultTab='filter'
         trigger={<button>trigger</button>}
         filterProps={{
@@ -118,9 +117,8 @@ describe('FilterOrSliceEditorPopover — parallel drafts across tab switches', (
         open={true}
         onOpenChange={() => undefined}
         column='users__userRole'
-        sliceColumn='userRole'
+        sliceColumn='users__userRole'
         fieldType='STRING'
-        aliasPath='users'
         defaultTab='filter'
         trigger={<button>trigger</button>}
         filterProps={{ onApply: filterOnApply, existingRules: [] }}
@@ -144,7 +142,7 @@ describe('FilterOrSliceEditorPopover — parallel drafts across tab switches', (
     expect(sliceOnApply).not.toHaveBeenCalled();
   });
 
-  it('emits the Slice draft with placement="pre-join" + aliasPath injected when applied on Slice tab', () => {
+  it('emits the Slice draft with placement="pre-join" and unified column when applied on Slice tab', () => {
     const filterOnApply = vi.fn();
     const sliceOnApply = vi.fn();
 
@@ -153,9 +151,8 @@ describe('FilterOrSliceEditorPopover — parallel drafts across tab switches', (
         open={true}
         onOpenChange={() => undefined}
         column='users__userRole'
-        sliceColumn='userRole'
+        sliceColumn='users__userRole'
         fieldType='STRING'
-        aliasPath='users'
         defaultTab='slice'
         trigger={<button>trigger</button>}
         filterProps={{ onApply: filterOnApply, existingRules: [] }}
@@ -172,14 +169,14 @@ describe('FilterOrSliceEditorPopover — parallel drafts across tab switches', (
 
     expect(sliceOnApply).toHaveBeenCalledTimes(1);
     const emitted = sliceOnApply.mock.calls[0][0];
-    // Popover must inject placement + aliasPath; column is the raw slice column.
+    // Popover must inject placement and override column with the unified name.
     expect(emitted).toMatchObject({
-      column: 'userRole',
+      column: 'users__userRole',
       operator: 'eq',
       value: 'admin',
       placement: 'pre-join',
-      aliasPath: 'users',
     });
+    expect(emitted.aliasPath).toBeUndefined();
     expect(filterOnApply).not.toHaveBeenCalled();
   });
 });

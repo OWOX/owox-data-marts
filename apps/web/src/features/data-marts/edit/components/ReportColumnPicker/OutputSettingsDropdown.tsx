@@ -5,7 +5,6 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@owox/ui/components/too
 import { cn } from '@owox/ui/lib/utils';
 import { FieldSearchPicker, type FieldPickerItem } from './FieldSearchPicker';
 import { fieldDisplayLabel } from './output-controls-display';
-import { makePreJoinKey } from './output-controls-utils';
 import type {
   FilterRule,
   JoinedSource,
@@ -151,12 +150,12 @@ interface IndexedFilterRule {
 
 // Bare index would let React drag deleted-row state onto its neighbour.
 function filterRowKey(rule: FilterRule, index: number): string {
-  return `${rule.placement ?? 'post'}|${rule.aliasPath ?? ''}|${rule.column}|${rule.operator}|${index}`;
+  return `${rule.placement ?? 'post'}|${rule.column}|${rule.operator}|${index}`;
 }
 
-// FilterEditorPopover strips placement/aliasPath; re-stamp them for a slice.
-function toPreJoin(rule: FilterRule, aliasPath: string | undefined): FilterRule {
-  return { ...rule, placement: 'pre-join', aliasPath };
+// FilterEditorPopover strips placement; re-stamp it (and the unified column id) for a slice.
+function toPreJoin(rule: FilterRule, column: string): FilterRule {
+  return { ...rule, placement: 'pre-join', column };
 }
 
 interface FiltersSectionProps {
@@ -239,10 +238,10 @@ interface SlicesSectionProps {
 }
 
 interface PendingSliceColumn {
-  aliasPath: string;
-  column: string;
+  id: string; // unified name, stored on the rule
+  aliasPath: string; // for display only
   fieldType: string;
-  label: string;
+  label: string; // readable field name, for display
   dataMartName?: string;
 }
 
@@ -255,36 +254,31 @@ function SlicesSection({
 }: SlicesSectionProps) {
   const [pending, setPending] = useState<PendingSliceColumn | null>(null);
 
-  const { fieldTypeMap, labelMap, dataMartByAliasPath } = useMemo(() => {
+  // All slice lookups key off the unified column id (= col.id = rule.column).
+  const { fieldTypeMap, labelMap, dataMartMap } = useMemo(() => {
     const fieldTypeMap = new Map<string, string>();
     const labelMap = new Map<string, string>();
-    const dataMartByAliasPath = new Map<string, string | undefined>();
+    const dataMartMap = new Map<string, string | undefined>();
     for (const src of joinedSources) {
-      dataMartByAliasPath.set(src.aliasPath, src.dataMartName);
       for (const col of src.columns) {
-        fieldTypeMap.set(makePreJoinKey(src.aliasPath, col.name), col.type);
-        labelMap.set(
-          makePreJoinKey(src.aliasPath, col.name),
-          fieldDisplayLabel(col.alias, col.name)
-        );
+        fieldTypeMap.set(col.id, col.type);
+        labelMap.set(col.id, fieldDisplayLabel(col.alias, col.name));
+        dataMartMap.set(col.id, src.dataMartName);
       }
     }
-    return { fieldTypeMap, labelMap, dataMartByAliasPath };
+    return { fieldTypeMap, labelMap, dataMartMap };
   }, [joinedSources]);
 
   function fieldTypeFor(rule: FilterRule): string | null {
-    if (!rule.aliasPath) return null;
-    return fieldTypeMap.get(makePreJoinKey(rule.aliasPath, rule.column)) ?? null;
+    return fieldTypeMap.get(rule.column) ?? null;
   }
 
   function labelFor(rule: FilterRule): string | undefined {
-    if (!rule.aliasPath) return undefined;
-    return labelMap.get(makePreJoinKey(rule.aliasPath, rule.column));
+    return labelMap.get(rule.column);
   }
 
   function dataMartFor(rule: FilterRule): string | undefined {
-    if (!rule.aliasPath) return undefined;
-    return dataMartByAliasPath.get(rule.aliasPath);
+    return dataMartMap.get(rule.column);
   }
 
   return (
@@ -299,7 +293,7 @@ function SlicesSection({
             displayLabel={labelFor(rule)}
             dataMartName={dataMartFor(rule)}
             onChange={next => {
-              onUpdateAt(index, toPreJoin(next, rule.aliasPath));
+              onUpdateAt(index, toPreJoin(next, rule.column));
             }}
             onRemove={() => {
               onRemoveAt(index);
@@ -314,12 +308,12 @@ function SlicesSection({
             onOpenChange={isOpen => {
               if (!isOpen) setPending(null);
             }}
-            column={pending.column}
+            column={pending.id}
             fieldType={pending.fieldType}
             displayLabel={pending.label}
             dataMartName={pending.dataMartName}
             onApply={rule => {
-              onAdd(toPreJoin(rule, pending.aliasPath));
+              onAdd(toPreJoin(rule, pending.id));
               setPending(null);
             }}
             trigger={
@@ -349,11 +343,11 @@ function AddSlicePicker({
   for (const src of joinedSources) {
     for (const col of src.columns) {
       if (!isFilterableType(col.type)) continue;
-      const value = makePreJoinKey(src.aliasPath, col.name);
+      const value = col.id;
       const label = fieldDisplayLabel(col.alias, col.name);
       lookup.set(value, {
+        id: col.id,
         aliasPath: src.aliasPath,
-        column: col.name,
         fieldType: col.type,
         label,
         dataMartName: src.dataMartName,

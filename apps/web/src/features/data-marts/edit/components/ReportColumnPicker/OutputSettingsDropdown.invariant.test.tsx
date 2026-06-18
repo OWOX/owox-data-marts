@@ -86,7 +86,7 @@ describe('OutputSettingsDropdown stored-identifier invariant', () => {
     expect(cfg?.filterConfig[0].column).not.toBe('Product ID');
   });
 
-  it('adding a slice stores the raw aliasPath + column, not the label', () => {
+  it('adding a slice stores the unified column id, not the label', () => {
     const onChange = vi.fn();
     render(
       <OutputSettingsDropdown
@@ -99,20 +99,21 @@ describe('OutputSettingsDropdown stored-identifier invariant', () => {
             aliasPath: 'orders',
             title: 'Orders',
             dataMartName: 'Orders',
-            columns: [{ name: 'product_id', type: 'STRING', alias: 'Product ID' }],
+            columns: [
+              { id: 'orders__product_id', name: 'product_id', type: 'STRING', alias: 'Product ID' },
+            ],
           },
         ]}
       />
     );
 
     fireEvent.click(screen.getByText('Add slice: Product ID'));
-    fireEvent.click(screen.getByText('apply:product_id'));
+    fireEvent.click(screen.getByText('apply:orders__product_id'));
 
     const cfg = onChange.mock.lastCall?.[0] as OutputConfig | undefined;
     expect(cfg?.filterConfig).toHaveLength(1);
     const rule = cfg?.filterConfig[0];
-    expect(rule?.column).toBe('product_id');
-    expect(rule?.aliasPath).toBe('orders');
+    expect(rule?.column).toBe('orders__product_id');
     expect(rule?.placement).toBe('pre-join');
     expect(rule?.column).not.toBe('Product ID');
   });

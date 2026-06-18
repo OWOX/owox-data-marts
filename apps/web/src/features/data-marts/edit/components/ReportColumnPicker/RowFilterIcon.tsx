@@ -7,12 +7,12 @@ import { FilterOrSliceEditorPopover } from './FilterOrSliceEditorPopover';
 import type { FilterRule } from '../../../shared/types/output-config';
 
 interface SliceIconProps {
-  aliasPath: string;
-  originalFieldName: string;
-  /** Pre-join filters already active for this aliasPath+column combination. */
+  /** Unified blended-field name used as rule.column for pre-join rules. */
+  unifiedFieldName: string;
+  /** Pre-join filters already active for this unified column. */
   existingSlices: readonly FilterRule[];
   /**
-   * Add a pre-join FilterRule (placement+aliasPath already set by the popover).
+   * Add a pre-join FilterRule (placement already set by the popover).
    * Omit when adding slices is not allowed.
    */
   onAddSlice?: (rule: FilterRule) => void;
@@ -129,8 +129,7 @@ export function RowFilterIcon({
         fieldType={fieldType}
         displayLabel={displayLabel}
         dataMartName={dataMartName}
-        aliasPath={sliceIconProps?.aliasPath}
-        sliceColumn={sliceIconProps?.originalFieldName}
+        sliceColumn={sliceIconProps?.unifiedFieldName}
         filters={{ rules: activeRules, onRemoveAt }}
         slices={
           sliceIconProps
@@ -152,11 +151,10 @@ export function RowFilterIcon({
         open={open}
         onOpenChange={setOpen}
         column={column}
-        sliceColumn={sliceIconProps.originalFieldName}
+        sliceColumn={sliceIconProps.unifiedFieldName}
         fieldType={fieldType}
         displayLabel={displayLabel}
         dataMartName={dataMartName}
-        aliasPath={sliceIconProps.aliasPath}
         defaultTab={defaultTab}
         filterProps={{
           onApply: handleFilterApply,

@@ -522,20 +522,18 @@ describe('ReportColumnPicker unresolved columns', () => {
         outputConfig={{
           filterConfig: [
             {
-              column: 'hidden_field',
+              column: 'b__hidden_field',
               operator: 'eq',
               value: 'x',
               placement: 'pre-join',
-              aliasPath: 'b',
             },
             {
-              column: 'visible_field',
+              column: 'b__visible_field',
               operator: 'eq',
               value: 'y',
               placement: 'pre-join',
-              aliasPath: 'b',
             },
-          ] as never,
+          ],
           sortConfig: [],
           limitConfig: null,
         }}
@@ -547,7 +545,7 @@ describe('ReportColumnPicker unresolved columns', () => {
     const block = screen.getByText('Disconnected columns').closest('div[class*="border"]');
     expect(block).not.toBeNull();
     const row = within(block as HTMLElement)
-      .getByText('b.hidden_field')
+      .getByText('b__hidden_field')
       .closest('label');
     expect(row).not.toBeNull();
     const checkbox = within(row as HTMLElement).getByRole('checkbox');
@@ -556,7 +554,7 @@ describe('ReportColumnPicker unresolved columns', () => {
     expect(
       within(row as HTMLElement).getByRole('button', { name: 'Manage filters and slices' })
     ).toBeInTheDocument();
-    expect(within(block as HTMLElement).queryByText('b.visible_field')).not.toBeInTheDocument();
+    expect(within(block as HTMLElement).queryByText('b__visible_field')).not.toBeInTheDocument();
     expect(screen.getByLabelText('Disconnected output controls')).toHaveTextContent('2');
   });
 
@@ -588,8 +586,8 @@ describe('ReportColumnPicker unresolved columns', () => {
       outputConfig: {
         filterConfig: [
           { column: 'b__field', operator: 'eq', value: 'x' },
-          { column: 'field', operator: 'eq', value: 'y', placement: 'pre-join', aliasPath: 'b' },
-        ] as never,
+          { column: 'b__field', operator: 'eq', value: 'y', placement: 'pre-join' },
+        ],
         sortConfig: [],
         limitConfig: null,
       },

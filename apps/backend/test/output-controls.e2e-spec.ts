@@ -217,18 +217,17 @@ describe('Output controls API (e2e)', () => {
         columnConfig: ['col_a'],
         filterConfig: [
           {
-            column: 'userRole',
+            column: 'users__userRole',
             operator: 'eq',
             value: 'admin',
             placement: 'pre-join',
-            aliasPath: 'users',
           },
         ],
       });
-    expectDisconnectedColumns(putRes, ['users.userRole']);
+    expectDisconnectedColumns(putRes, ['users__userRole']);
   });
 
-  it('PUT pre-join filter with aliasPath="main" → 400 with Zod shape error', async () => {
+  it('PUT pre-join filter on home mart column → 400 disconnected (home mart not slicable)', async () => {
     const res = await agent
       .put(`/api/reports/${reportId}`)
       .set(AUTH_HEADER)
@@ -237,14 +236,12 @@ describe('Output controls API (e2e)', () => {
         dataDestinationId,
         destinationConfig: { type: 'looker-studio-config', cacheLifetime: 3600 },
         columnConfig: ['col_a'],
-        filterConfig: [
-          { column: 'x', operator: 'eq', value: 1, placement: 'pre-join', aliasPath: 'main' },
-        ],
+        filterConfig: [{ column: 'main__x', operator: 'eq', value: 1, placement: 'pre-join' }],
       });
-    expect(res.status).toBe(400);
-    // Owned by Zod superRefine — FE consumes the schema-level issue, not a validator code.
-    const body = JSON.stringify(res.body);
-    expect(body).toContain('pre-join filter on the home data mart');
+    // No Zod superRefine on aliasPath="main" in the new model — the unified column
+    // name "main__x" is simply not found in the blended field index, so it flows
+    // through as a disconnected column (FILTER_COLUMN_UNKNOWN path).
+    expectDisconnectedColumns(res, ['main__x']);
   });
 
   it('PUT rejects filterConfig with > 50 entries via @ArrayMaxSize(50)', async () => {

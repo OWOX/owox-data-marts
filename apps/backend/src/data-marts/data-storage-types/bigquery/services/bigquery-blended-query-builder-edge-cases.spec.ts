@@ -1,4 +1,5 @@
 import { BlendedQueryContext } from '../../interfaces/blended-query-builder.interface';
+import { buildBlendedFieldIndex } from '../../../services/blended-field-index';
 import {
   makeChain,
   makeRelationship,
@@ -122,6 +123,17 @@ describe('BigQueryBlendedQueryBuilder — SQL safety / quoting', () => {
       ],
     });
 
+    const fieldIndex = buildBlendedFieldIndex({
+      blendedFields: [
+        {
+          name: 'users__first name',
+          aliasPath: 'users',
+          originalFieldName: 'first name',
+          type: 'STRING',
+        },
+      ],
+      availableSources: [{ aliasPath: 'users', isIncluded: true }],
+    } as never);
     const ctx: BlendedQueryContext = {
       mainTableReference: '`project.dataset.events`',
       mainDataMartTitle: 'Events',
@@ -130,12 +142,12 @@ describe('BigQueryBlendedQueryBuilder — SQL safety / quoting', () => {
       columns: ['event_id', 'first_name_agg'],
       filters: [
         {
-          column: 'first name',
+          column: 'users__first name',
           operator: 'is_not_null',
           placement: 'pre-join',
-          aliasPath: 'users',
         },
       ],
+      fieldIndex,
     };
 
     const { sql } = builder.buildBlendedQuery(ctx);

@@ -557,9 +557,14 @@ describe('BlendedReportDataService', () => {
       relationshipService.findBySourceDataMartId.mockResolvedValue([relAB, relAC]);
       tableReferenceService.resolveTableName.mockResolvedValue('table_ref');
 
+      // Two blended fields share the same unified name ('shared_alias') across
+      // distinct aliasPaths — the field-index ambiguity guard now rejects this
+      // first, before the downstream chain outputAlias-collision check.
       await expect(
         service.resolveBlendingDecision(report, { userId: 'user-1', roles: ['admin'] })
-      ).rejects.toThrow(/outputAlias.+shared_alias.+collision|duplicate.+shared_alias/i);
+      ).rejects.toThrow(
+        /Ambiguous blended column name "shared_alias"|outputAlias.+shared_alias.+collision|duplicate.+shared_alias/i
+      );
     });
 
     it('disambiguates CTE names with parent path when two chains share the same targetAlias', async () => {
@@ -1479,6 +1484,58 @@ describe('BlendedReportDataService', () => {
         });
 
         expect(result.needsBlending).toBe(true);
+      });
+
+      it('rejects a pre-join slice targeting an EXCLUDED source on the run path', async () => {
+        // The save-time validator rejects slices on excluded sources, but the run
+        // path resolves slices through a fieldIndex that still includes excluded
+        // fields (isIncluded:false). This locks the run-path guard.
+        const report = makeReport({
+          columnConfig: ['b__field'],
+          filterConfig: [
+            { column: 'excluded__field', operator: 'eq', value: 'x', placement: 'pre-join' },
+          ] as any,
+        });
+
+        blendableSchemaService.computeBlendableSchema.mockResolvedValue({
+          nativeFields: [],
+          availableSources: [
+            makeAccessibleSource({ aliasPath: 'b', isAccessibleForReporting: true }),
+            makeAccessibleSource({
+              aliasPath: 'excluded',
+              title: 'Excluded DM',
+              dataMartId: 'dm-excluded',
+              relationshipId: 'rel-excluded',
+              isAccessibleForReporting: true,
+              isIncluded: false,
+            }),
+          ],
+          blendedFields: [makeField('b__field', 'b'), makeField('excluded__field', 'excluded')],
+        });
+
+        relationshipService.findBySourceDataMartId.mockResolvedValue([
+          {
+            id: 'rel-1',
+            targetAlias: 'b',
+            sourceDataMart: { id: 'dm-1' },
+            targetDataMart: { id: 'dm-target-1', title: 'Joined DM' },
+            joinConditions: [],
+          } as unknown as DataMartRelationship,
+        ]);
+        tableReferenceService.resolveTableName.mockResolvedValue('table_ref');
+        blendedQueryBuilderFacade.buildBlendedQuery.mockResolvedValue('SELECT ...');
+
+        await expect(
+          service.resolveBlendingDecision(report, { userId: 'user-1', roles: ['admin'] })
+        ).rejects.toMatchObject({
+          message: expect.stringContaining('excluded from reporting'),
+          errorDetails: {
+            excludedDataMartIds: ['dm-excluded'],
+            excludedAliasPaths: ['excluded'],
+          },
+        });
+
+        expect(blendedQueryBuilderFacade.buildBlendedQuery).not.toHaveBeenCalled();
       });
     });
 
