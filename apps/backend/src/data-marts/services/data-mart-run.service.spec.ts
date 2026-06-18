@@ -9,6 +9,7 @@ import { Report } from '../entities/report.entity';
 import { DataDestination } from '../entities/data-destination.entity';
 import { DataMartRunStatus } from '../enums/data-mart-run-status.enum';
 import { DataMartRunType } from '../enums/data-mart-run-type.enum';
+import { RoleScope } from '../enums/role-scope.enum';
 import { DataMartRunService, ReportRunContext } from './data-mart-run.service';
 
 function fakeDataMart(overrides: Partial<DataMart> = {}): DataMart {
@@ -73,9 +74,97 @@ function createService() {
   return { service, dataMartRunRepository, systemClock, eventDispatcher, saved };
 }
 
+function createQueryBuilderMock() {
+  const qb = {
+    innerJoin: jest.fn(),
+    where: jest.fn(),
+    andWhere: jest.fn(),
+    select: jest.fn(),
+    orderBy: jest.fn(),
+    addOrderBy: jest.fn(),
+    limit: jest.fn(),
+    offset: jest.fn(),
+    getRawMany: jest.fn(),
+    getMany: jest.fn(),
+  };
+
+  for (const method of [
+    'innerJoin',
+    'where',
+    'andWhere',
+    'select',
+    'orderBy',
+    'addOrderBy',
+    'limit',
+    'offset',
+  ] as const) {
+    qb[method].mockReturnValue(qb);
+  }
+
+  return qb;
+}
+
 const context: ReportRunContext = { createdById: 'user-1', runType: RunType.manual };
 
 describe('DataMartRunService', () => {
+  describe('listVisibleByProject', () => {
+    it('sorts only run IDs, loads full rows without ORDER BY, and restores page order', async () => {
+      const { service, dataMartRunRepository } = createService();
+      const firstRun = { id: 'run-1', dataMart: { id: 'dm-1', title: 'First' } } as DataMartRun;
+      const secondRun = {
+        id: 'run-2',
+        dataMart: { id: 'dm-2', title: 'Second' },
+      } as DataMartRun;
+
+      const pageQb = createQueryBuilderMock();
+      pageQb.getRawMany.mockResolvedValue([{ id: 'run-2' }, { id: 'run-1' }]);
+      const rowsQb = createQueryBuilderMock();
+      rowsQb.getMany.mockResolvedValue([firstRun, secondRun]);
+      (dataMartRunRepository.createQueryBuilder as jest.Mock)
+        .mockReturnValueOnce(pageQb)
+        .mockReturnValueOnce(rowsQb);
+
+      const result = await service.listVisibleByProject({
+        projectId: 'proj-1',
+        userId: 'admin-1',
+        roles: ['admin'],
+        roleScope: RoleScope.ENTIRE_PROJECT,
+        limit: 50,
+        offset: 100,
+      });
+
+      expect(pageQb.select).toHaveBeenCalledWith('run.id', 'id');
+      expect(pageQb.orderBy).toHaveBeenCalledWith('run.createdAt', 'DESC');
+      expect(pageQb.addOrderBy).toHaveBeenCalledWith('run.id', 'DESC');
+      expect(pageQb.limit).toHaveBeenCalledWith(50);
+      expect(pageQb.offset).toHaveBeenCalledWith(100);
+      expect(rowsQb.select).toHaveBeenCalledWith(['run', 'dataMart.id', 'dataMart.title']);
+      expect(rowsQb.where).toHaveBeenCalledWith('run.id IN (:...runIds)', {
+        runIds: ['run-2', 'run-1'],
+      });
+      expect(rowsQb.orderBy).not.toHaveBeenCalled();
+      expect(result).toEqual([secondRun, firstRun]);
+    });
+
+    it('does not issue the full-row query for an empty page', async () => {
+      const { service, dataMartRunRepository } = createService();
+      const pageQb = createQueryBuilderMock();
+      pageQb.getRawMany.mockResolvedValue([]);
+      (dataMartRunRepository.createQueryBuilder as jest.Mock).mockReturnValueOnce(pageQb);
+
+      await expect(
+        service.listVisibleByProject({
+          projectId: 'proj-1',
+          userId: 'admin-1',
+          roles: ['admin'],
+          roleScope: RoleScope.ENTIRE_PROJECT,
+        })
+      ).resolves.toEqual([]);
+
+      expect(dataMartRunRepository.createQueryBuilder).toHaveBeenCalledTimes(1);
+    });
+  });
+
   describe('createAndMarkReportRunAsPending — reportDefinition outputConfig snapshot', () => {
     it('omits outputConfig from reportDefinition when the report has no filter/sort/limit', async () => {
       const { service, dataMartRunRepository } = createService();

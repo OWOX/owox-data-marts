@@ -85,18 +85,13 @@ export class InsightTemplateService {
   async listVisibleByProject(
     options: ListVisibleProjectInsightTemplatesOptions
   ): Promise<InsightTemplate[]> {
-    const qb = this.repository
+    const pageQb = this.repository
       .createQueryBuilder('insightTemplate')
-      .innerJoinAndSelect('insightTemplate.dataMart', 'dataMart')
-      .leftJoinAndSelect('insightTemplate.sourceEntities', 'sourceEntities')
+      .innerJoin('insightTemplate.dataMart', 'dataMart')
       .where('dataMart.projectId = :projectId', { projectId: options.projectId })
-      .andWhere('dataMart.deletedAt IS NULL')
-      .orderBy('insightTemplate.modifiedAt', 'DESC')
-      .addOrderBy('insightTemplate.id', 'DESC')
-      .take(options.limit ?? 100)
-      .skip(options.offset ?? 0);
+      .andWhere('dataMart.deletedAt IS NULL');
 
-    applyDataMartVisibilityFilter(qb, {
+    applyDataMartVisibilityFilter(pageQb, {
       dataMartAlias: 'dataMart',
       projectId: options.projectId,
       userId: options.userId,
@@ -104,7 +99,33 @@ export class InsightTemplateService {
       roleScope: options.roleScope,
     });
 
-    return qb.getMany();
+    const page = await pageQb
+      .select('insightTemplate.id', 'id')
+      .orderBy('insightTemplate.modifiedAt', 'DESC')
+      .addOrderBy('insightTemplate.id', 'DESC')
+      .limit(options.limit ?? 100)
+      .offset(options.offset ?? 0)
+      .getRawMany<{ id: string }>();
+    const insightTemplateIds = page.map(({ id }) => id);
+    if (insightTemplateIds.length === 0) {
+      return [];
+    }
+
+    const insightTemplates = await this.repository
+      .createQueryBuilder('insightTemplate')
+      .innerJoin('insightTemplate.dataMart', 'dataMart')
+      .leftJoinAndSelect('insightTemplate.sourceEntities', 'sourceEntities')
+      .select(['insightTemplate', 'dataMart.id', 'dataMart.title'])
+      .where('insightTemplate.id IN (:...insightTemplateIds)', { insightTemplateIds })
+      .getMany();
+    const insightTemplatesById = new Map(
+      insightTemplates.map(insightTemplate => [insightTemplate.id, insightTemplate])
+    );
+
+    return insightTemplateIds.flatMap(id => {
+      const insightTemplate = insightTemplatesById.get(id);
+      return insightTemplate ? [insightTemplate] : [];
+    });
   }
 
   async updateTitleOnlyIfHasDefaultTitle(

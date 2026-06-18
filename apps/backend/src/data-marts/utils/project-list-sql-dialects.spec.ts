@@ -41,10 +41,7 @@ function buildProjectReportQuery(dataSource: DataSource, ownerFilter?: OwnerFilt
   const qb = dataSource
     .getRepository(Report)
     .createQueryBuilder('r')
-    .leftJoinAndSelect('r.dataMart', 'dataMart')
-    .leftJoinAndSelect('dataMart.storage', 'storage')
-    .leftJoinAndSelect('r.dataDestination', 'dataDestination')
-    .leftJoinAndSelect('r.owners', 'owners')
+    .innerJoin('r.dataMart', 'dataMart')
     .where('dataMart.projectId = :projectId', { projectId: 'project-1' })
     .andWhere('dataMart.deletedAt IS NULL');
 
@@ -56,20 +53,26 @@ function buildProjectReportQuery(dataSource: DataSource, ownerFilter?: OwnerFilt
     qb.andWhere('NOT EXISTS (SELECT 1 FROM report_owners o WHERE o.report_id = r.id)');
   }
 
-  return qb.orderBy('r.createdAt', 'DESC').addOrderBy('r.id', 'DESC').take(100).skip(0);
+  return qb
+    .select('r.id', 'id')
+    .orderBy('r.createdAt', 'DESC')
+    .addOrderBy('r.id', 'DESC')
+    .limit(100)
+    .offset(0);
 }
 
 function buildProjectRunQuery(dataSource: DataSource) {
   const qb = dataSource
     .getRepository(DataMartRun)
     .createQueryBuilder('run')
-    .innerJoinAndSelect('run.dataMart', 'dataMart')
+    .innerJoin('run.dataMart', 'dataMart')
     .where('dataMart.projectId = :projectId', { projectId: 'project-1' })
     .andWhere('dataMart.deletedAt IS NULL')
+    .select('run.id', 'id')
     .orderBy('run.createdAt', 'DESC')
     .addOrderBy('run.id', 'DESC')
-    .take(100)
-    .skip(0);
+    .limit(100)
+    .offset(0);
 
   return applyViewerVisibility(qb);
 }
@@ -78,13 +81,14 @@ function buildProjectScheduledTriggerQuery(dataSource: DataSource) {
   const qb = dataSource
     .getRepository(DataMartScheduledTrigger)
     .createQueryBuilder('scheduledTrigger')
-    .innerJoinAndSelect('scheduledTrigger.dataMart', 'dataMart')
+    .innerJoin('scheduledTrigger.dataMart', 'dataMart')
     .where('dataMart.projectId = :projectId', { projectId: 'project-1' })
     .andWhere('dataMart.deletedAt IS NULL')
+    .select('scheduledTrigger.id', 'id')
     .orderBy('scheduledTrigger.createdAt', 'DESC')
     .addOrderBy('scheduledTrigger.id', 'DESC')
-    .take(100)
-    .skip(0);
+    .limit(100)
+    .offset(0);
 
   return applyViewerVisibility(qb);
 }
@@ -93,14 +97,14 @@ function buildProjectInsightTemplateQuery(dataSource: DataSource) {
   const qb = dataSource
     .getRepository(InsightTemplate)
     .createQueryBuilder('insightTemplate')
-    .innerJoinAndSelect('insightTemplate.dataMart', 'dataMart')
-    .leftJoinAndSelect('insightTemplate.sourceEntities', 'sourceEntities')
+    .innerJoin('insightTemplate.dataMart', 'dataMart')
     .where('dataMart.projectId = :projectId', { projectId: 'project-1' })
     .andWhere('dataMart.deletedAt IS NULL')
+    .select('insightTemplate.id', 'id')
     .orderBy('insightTemplate.modifiedAt', 'DESC')
     .addOrderBy('insightTemplate.id', 'DESC')
-    .take(100)
-    .skip(0);
+    .limit(100)
+    .offset(0);
 
   return applyViewerVisibility(qb);
 }
@@ -134,7 +138,7 @@ describe('project Data Mart list SQL dialects', () => {
         }
       }
 
-      expect(buildProjectInsightTemplateQuery(dataSource).getSql()).toContain('sourceEntities');
+      expect(buildProjectInsightTemplateQuery(dataSource).getSql()).not.toContain('sourceEntities');
     }
   );
 });
