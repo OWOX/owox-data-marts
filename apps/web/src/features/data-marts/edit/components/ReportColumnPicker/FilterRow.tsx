@@ -62,7 +62,9 @@ export function FilterRow({
               title='Pre-join filter (slice)'
             >
               <Layers className='h-3 w-3' />
-              <span className={cn(isOrphaned && 'line-through')}>{displayLabel ?? rule.column}</span>
+              <span className={cn(isOrphaned && 'line-through')}>
+                {displayLabel ?? rule.column}
+              </span>
             </span>
           ) : (
             <span className={cn(isOrphaned && 'text-red-700 line-through dark:text-red-300')}>
