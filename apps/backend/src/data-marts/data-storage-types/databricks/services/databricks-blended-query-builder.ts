@@ -18,7 +18,7 @@ export class DatabricksBlendedQueryBuilder extends AbstractBlendedQueryBuilder {
   }
 
   // Spark is case-insensitive for identifier resolution and backticks do NOT make an
-  // identifier case-sensitive (unlike Snowflake) — so the base's bare return for simple
+  // identifier case-sensitive — so the base's bare return for simple
   // names is safe; no quoteIdentifier override needed.
   protected buildStringAgg(fieldName: string): string {
     return `CONCAT_WS(', ', COLLECT_LIST(CAST(${fieldName} AS STRING)))`;
