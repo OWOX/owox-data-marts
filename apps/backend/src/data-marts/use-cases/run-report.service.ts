@@ -18,6 +18,7 @@ import { DATA_STORAGE_REPORT_READER_RESOLVER } from '../data-storage-types/data-
 import { DataStorageType } from '../data-storage-types/enums/data-storage-type.enum';
 import { DataStorageReportReader } from '../data-storage-types/interfaces/data-storage-report-reader.interface';
 import { RunReportCommand } from '../dto/domain/run-report.command';
+import { hasOutputControls } from '../dto/domain/report-like-read-plan';
 import { RunType } from '../../common/scheduler/shared/types';
 import { DataMart } from '../entities/data-mart.entity';
 import { DataMartRun } from '../entities/data-mart-run.entity';
@@ -245,11 +246,7 @@ export class RunReportService {
       if (blendingDecision.needsBlending) {
         sqlOverride = blendingDecision.blendedSql;
         sqlOverrideParams = blendingDecision.params;
-      } else if (
-        (report.filterConfig?.length ?? 0) > 0 ||
-        (report.sortConfig?.length ?? 0) > 0 ||
-        report.limitConfig != null
-      ) {
+      } else if (hasOutputControls(report)) {
         // Non-blended report with output controls — compose the full SQL + params here so
         // the reader doesn't need to know about output-controls semantics.
         const composed = await this.reportSqlComposerService.compose(report, accessor);

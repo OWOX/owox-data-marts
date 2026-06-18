@@ -16,6 +16,7 @@ import { ReportDataCache } from '../entities/report-data-cache.entity';
 import { BlendableSchemaAccessor } from './blendable-schema.service';
 import { BlendedReportDataService } from './blended-report-data.service';
 import { BlendingDecision } from '../dto/domain/blending-decision.dto';
+import { hasOutputControls } from '../dto/domain/report-like-read-plan';
 import { ReportSqlComposerService } from './report-sql-composer.service';
 
 /**
@@ -55,7 +56,7 @@ export class ReportDataCacheService {
     // SQL + bound params here, exactly as RunReportService does — otherwise this
     // (Looker Studio) cached-reader path drops them, and Athena's positional `?`
     // placeholders execute unbound.
-    if (!decision.needsBlending && this.hasOutputControls(report)) {
+    if (!decision.needsBlending && hasOutputControls(report)) {
       const composed = await this.reportSqlComposerService.compose(report, accessor, decision);
       sqlOverride = composed.sql;
       sqlOverrideParams = composed.params;
@@ -70,14 +71,6 @@ export class ReportDataCacheService {
       },
       decision,
     };
-  }
-
-  private hasOutputControls(report: Report): boolean {
-    return (
-      (report.filterConfig?.length ?? 0) > 0 ||
-      (report.sortConfig?.length ?? 0) > 0 ||
-      report.limitConfig != null
-    );
   }
 
   /**

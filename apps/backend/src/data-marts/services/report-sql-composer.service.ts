@@ -1,7 +1,7 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { DataMartQueryBuilderFacade } from '../data-storage-types/facades/data-mart-query-builder.facade';
 import { BlendingDecision } from '../dto/domain/blending-decision.dto';
-import { ReportLike } from '../dto/domain/report-like-read-plan';
+import { ReportLike, hasOutputControls } from '../dto/domain/report-like-read-plan';
 import { BlendableSchemaAccessor } from './blendable-schema.service';
 import { BlendedReportDataService } from './blended-report-data.service';
 import { isQueryBuildResult } from '../data-storage-types/interfaces/data-mart-query-builder.interface';
@@ -69,12 +69,7 @@ export class ReportSqlComposerService {
       throw new Error('Data Mart definition is not set.');
     }
 
-    const hasOutputControls =
-      (report.filterConfig?.length ?? 0) > 0 ||
-      (report.sortConfig?.length ?? 0) > 0 ||
-      report.limitConfig != null;
-
-    if (hasOutputControls && !this.capabilityService.isSupported(dataMart.storage.type)) {
+    if (hasOutputControls(report) && !this.capabilityService.isSupported(dataMart.storage.type)) {
       throw new BadRequestException({
         message: 'Output controls not yet supported for this storage type',
         details: {
@@ -84,7 +79,7 @@ export class ReportSqlComposerService {
     }
 
     let mainTableReference: string | undefined;
-    if (hasOutputControls) {
+    if (hasOutputControls(report)) {
       mainTableReference = await this.tableReferenceService.resolveTableName(
         dataMart.id,
         dataMart.projectId
