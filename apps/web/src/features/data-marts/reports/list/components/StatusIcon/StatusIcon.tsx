@@ -4,7 +4,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@owox/ui/components/tooltip';
-import { CircleCheck, XCircle, Loader2 } from 'lucide-react';
+import { CircleCheck, XCircle, Loader2, CircleDashed } from 'lucide-react';
 import { cn } from '@owox/ui/lib/utils';
 import { ReportStatusEnum } from '../../../shared/enums/report-status.enum';
 
@@ -42,9 +42,15 @@ const statusConfig = {
   },
 } as const;
 
+const fallbackStatusConfig = {
+  icon: CircleDashed,
+  color: 'text-muted-foreground',
+  label: 'Unknown',
+} as const;
+
 export function StatusIcon({ status, error, className }: StatusIconProps) {
   if (!status) return null;
-  const config = statusConfig[status];
+  const config = statusConfig[status] ?? fallbackStatusConfig;
   const { icon: Icon, color, label } = config;
 
   // Generate unique ID for tooltip
