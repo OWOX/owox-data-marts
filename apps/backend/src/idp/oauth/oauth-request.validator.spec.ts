@@ -94,6 +94,21 @@ describe('OAuthRequestValidator', () => {
     });
   });
 
+  it('uses configured resource for refresh-token requests when resource is omitted', async () => {
+    const result = await validator.validateTokenRequest({
+      grant_type: 'refresh_token',
+      refresh_token: 'refresh-1',
+      client_id: 'mcp_dyn_123',
+    });
+
+    expect(result).toEqual({
+      grantType: 'refresh_token',
+      refreshToken: 'refresh-1',
+      clientId: 'mcp_dyn_123',
+      resource: 'https://mcp.owox.com/mcp',
+    });
+  });
+
   it('requires refresh token for refresh grant', async () => {
     await expect(
       validator.validateTokenRequest({

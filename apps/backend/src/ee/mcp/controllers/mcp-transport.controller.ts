@@ -3,7 +3,7 @@ import type { Response } from 'express';
 import type { McpAuthenticatedRequest } from '../auth/mcp-auth-context';
 import { McpAuthExceptionFilter } from '../auth/mcp-auth.exception-filter';
 import { McpAuthGuard } from '../auth/mcp-auth.guard';
-import { McpStreamableHttpSessionRegistry } from '../sdk/mcp-streamable-http-session.registry';
+import { McpStreamableHttpTransportHandler } from '../sdk/mcp-streamable-http-transport.handler';
 
 @Controller()
 @UseGuards(McpAuthGuard)
@@ -11,7 +11,7 @@ import { McpStreamableHttpSessionRegistry } from '../sdk/mcp-streamable-http-ses
 export class McpTransportController {
   private readonly logger = new Logger(McpTransportController.name);
 
-  constructor(private readonly sessions: McpStreamableHttpSessionRegistry) {}
+  constructor(private readonly transportHandler: McpStreamableHttpTransportHandler) {}
 
   @All('/mcp')
   async handleMcp(
@@ -59,7 +59,7 @@ export class McpTransportController {
       });
     }
 
-    await this.sessions.handleRequest(request, response, body, request.mcpContext);
+    await this.transportHandler.handleRequest(request, response, body, request.mcpContext);
   }
 
   private getRequestedSessionId(request: McpAuthenticatedRequest): string | undefined {

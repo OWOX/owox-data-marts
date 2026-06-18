@@ -9,7 +9,7 @@ import { McpConfigService } from './mcp/config/mcp.config';
 import { McpMetadataController } from './mcp/controllers/mcp-metadata.controller';
 import { McpTransportController } from './mcp/controllers/mcp-transport.controller';
 import { McpSdkServerFactory } from './mcp/sdk/mcp-sdk-server.factory';
-import { McpStreamableHttpSessionRegistry } from './mcp/sdk/mcp-streamable-http-session.registry';
+import { McpStreamableHttpTransportHandler } from './mcp/sdk/mcp-streamable-http-transport.handler';
 import {
   MCP_TOOL_DEFINITIONS_PROVIDER,
   MCP_TOOL_PROVIDER_CLASSES,
@@ -32,7 +32,7 @@ import { McpToolRegistry } from './mcp/tools/mcp-tool.registry';
     MCP_TOOL_DEFINITIONS_PROVIDER,
     McpToolRegistry,
     McpSdkServerFactory,
-    McpStreamableHttpSessionRegistry,
+    McpStreamableHttpTransportHandler,
   ],
   exports: [McpConfigService],
 })

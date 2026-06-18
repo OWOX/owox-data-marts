@@ -19,8 +19,7 @@ export class McpAuthExceptionFilter implements ExceptionFilter {
     const request = typeof http.getRequest === 'function' ? http.getRequest<Request>() : undefined;
     const response = http.getResponse<Response>();
     const message = this.getMessage(exception);
-
-    this.logger.warn('MCP auth rejected', {
+    const metadata = {
       method: request?.method,
       url: request?.originalUrl ?? request?.url,
       requestSessionId: this.getRequestedSessionId(request),
@@ -28,7 +27,13 @@ export class McpAuthExceptionFilter implements ExceptionFilter {
       contentType: request?.headers?.['content-type'],
       hasAuthorization: Boolean(request?.headers?.authorization),
       message,
-    });
+    };
+
+    if (this.isExpectedAnonymousProbe(request, message)) {
+      this.logger.log('MCP auth rejected', metadata);
+    } else {
+      this.logger.warn('MCP auth rejected', metadata);
+    }
 
     response.setHeader('WWW-Authenticate', this.getChallengeHeader());
     response.status(401).json({
@@ -45,6 +50,15 @@ export class McpAuthExceptionFilter implements ExceptionFilter {
 
   private getChallengeHeader(): string {
     return `Bearer resource_metadata="${this.config.protectedResourceMetadataUrl}", scope="${this.config.scopes.join(' ')}"`;
+  }
+
+  private isExpectedAnonymousProbe(request: Request | undefined, message: string): boolean {
+    return (
+      request?.method === 'GET' &&
+      (request.originalUrl ?? request.url) === '/mcp' &&
+      !request.headers?.authorization &&
+      message === 'Missing MCP bearer token'
+    );
   }
 
   private getMessage(exception: UnauthorizedException): string {

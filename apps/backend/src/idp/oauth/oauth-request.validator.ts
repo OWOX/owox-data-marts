@@ -48,14 +48,10 @@ export class OAuthRequestValidator {
   async validateTokenRequest(input: OAuthInput): Promise<OAuthTokenExchangeRequest> {
     const grantType = this.requiredString(input.grant_type, 'grant_type');
     const clientId = this.requiredString(input.client_id, 'client_id');
-    const resource = this.requiredString(input.resource, 'resource');
     const client = await this.getClient(clientId);
 
-    if (resource !== this.config.resource) {
-      throw new BadRequestException('invalid resource');
-    }
-
     if (grantType === 'authorization_code') {
+      const resource = this.requiredResource(input.resource);
       const redirectUri = this.requiredString(input.redirect_uri, 'redirect_uri');
       if (!client.redirectUris.includes(redirectUri)) {
         throw new BadRequestException('redirect_uri is not registered for client');
@@ -71,6 +67,7 @@ export class OAuthRequestValidator {
     }
 
     if (grantType === 'refresh_token') {
+      const resource = this.optionalResourceOrDefault(input.resource);
       return {
         grantType,
         refreshToken: this.requiredString(input.refresh_token, 'refresh_token'),
@@ -106,6 +103,24 @@ export class OAuthRequestValidator {
       throw new BadRequestException(`${field} is required`);
     }
     return value.trim();
+  }
+
+  private requiredResource(value: unknown): string {
+    return this.validateResource(this.requiredString(value, 'resource'));
+  }
+
+  private optionalResourceOrDefault(value: unknown): string {
+    if (value === undefined || value === null) {
+      return this.config.resource;
+    }
+    return this.requiredResource(value);
+  }
+
+  private validateResource(resource: string): string {
+    if (resource !== this.config.resource) {
+      throw new BadRequestException('invalid resource');
+    }
+    return resource;
   }
 
   private requireEquals(value: unknown, expected: string, message: string): void {
