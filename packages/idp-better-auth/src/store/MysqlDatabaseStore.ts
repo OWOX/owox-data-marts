@@ -199,8 +199,11 @@ export class MysqlDatabaseStore implements DatabaseStore {
     const pool = await this.getPool();
     try {
       await pool.execute('DELETE FROM session WHERE userId = ?', [userId]);
-    } catch {
-      // Non-fatal: sessions might not exist
+    } catch (error) {
+      // A zero-row delete does not throw, so this catch only fires on a real DB
+      // failure. A silently failed session revoke is a security-relevant event,
+      // so log it rather than swallowing.
+      this.logger.error('Failed to revoke user sessions', { userId, error });
     }
   }
 
@@ -211,8 +214,8 @@ export class MysqlDatabaseStore implements DatabaseStore {
         userId,
         exceptSessionToken,
       ]);
-    } catch {
-      // Non-fatal: sessions might not exist
+    } catch (error) {
+      this.logger.error('Failed to revoke other user sessions', { userId, error });
     }
   }
 

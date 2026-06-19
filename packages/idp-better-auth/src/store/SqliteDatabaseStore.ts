@@ -167,8 +167,11 @@ export class SqliteDatabaseStore implements DatabaseStore {
     await this.connect();
     try {
       this.getDb().prepare('DELETE FROM session WHERE userId = ?').run(userId);
-    } catch {
-      // Non-fatal: sessions might not exist
+    } catch (error) {
+      // A zero-row delete does not throw, so this catch only fires on a real DB
+      // failure. A silently failed session revoke is a security-relevant event,
+      // so log it rather than swallowing.
+      logger.error('Failed to revoke user sessions', { userId }, error as Error);
     }
   }
 
@@ -178,8 +181,8 @@ export class SqliteDatabaseStore implements DatabaseStore {
       this.getDb()
         .prepare('DELETE FROM session WHERE userId = ? AND token != ?')
         .run(userId, exceptSessionToken);
-    } catch {
-      // Non-fatal: sessions might not exist
+    } catch (error) {
+      logger.error('Failed to revoke other user sessions', { userId }, error as Error);
     }
   }
 

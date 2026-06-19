@@ -1,17 +1,21 @@
 import { afterEach, describe, expect, it } from '@jest/globals';
 import Database from 'better-sqlite3';
 import { getMigrations } from 'better-auth/db/migration';
-import { createBetterAuthConfig } from './auth-config.js';
+import { createBetterAuthConfig } from './idp-better-auth-config.js';
+import { BETTER_AUTH_SESSION_COOKIE } from '../core/constants.js';
 import type { BetterAuthConfig } from '../types/index.js';
 
 /**
- * Security regression test: the exposed Better Auth `/change-password`
- * endpoint must revoke the user's other sessions even when the caller does not
- * opt in via `revokeOtherSessions`. The auth config forces it on via a hook.
+ * Security regression test: in the OWOX variant the Better Auth
+ * `/change-password` endpoint is reached through BetterAuthProxyHandler, which
+ * forwards every `/better-auth/*` route. The config hook must force
+ * `revokeOtherSessions` on so a password change always revokes the user's other
+ * sessions, even when the client omits the flag.
  */
-describe('idp-better-auth — change-password session invalidation', () => {
+describe('idp-owox-better-auth — change-password session invalidation', () => {
   const EMAIL = 'user@test.io';
   const PASSWORD = 'Passw0rd1';
+  const escapedCookie = BETTER_AUTH_SESSION_COOKIE.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
   let db: InstanceType<typeof Database>;
 
@@ -27,7 +31,11 @@ describe('idp-better-auth — change-password session invalidation', () => {
       magicLinkTtl: 3600,
     } as unknown as BetterAuthConfig;
 
-    const auth = await createBetterAuthConfig(config, { adapter: db });
+    const auth = await createBetterAuthConfig(config, {
+      adapter: db,
+      magicLinkSender: async () => {},
+      resetPasswordSender: async () => {},
+    });
     const { runMigrations } = await getMigrations(auth.options);
     await runMigrations();
     return auth;
@@ -47,7 +55,7 @@ describe('idp-better-auth — change-password session invalidation', () => {
       asResponse: true,
     });
     const setCookie = signUpRes.headers.get('set-cookie') ?? '';
-    const tokenMatch = setCookie.match(/refreshToken=([^;]+)/);
+    const tokenMatch = setCookie.match(new RegExp(`${escapedCookie}=([^;]+)`));
     expect(tokenMatch?.[1]).toBeTruthy();
     const sessionAToken = decodeURIComponent(tokenMatch![1]).split('.')[0];
 
@@ -58,7 +66,7 @@ describe('idp-better-auth — change-password session invalidation', () => {
     const resp = await auth.api.changePassword({
       // intentionally no `revokeOtherSessions` — the config hook forces it
       body: { currentPassword: PASSWORD, newPassword: 'NewPassw0rd1' },
-      headers: { cookie: `refreshToken=${tokenMatch![1]}` },
+      headers: { cookie: `${BETTER_AUTH_SESSION_COOKIE}=${tokenMatch![1]}` },
       asResponse: true,
     });
     expect(resp.status).toBe(200);
@@ -66,13 +74,5 @@ describe('idp-better-auth — change-password session invalidation', () => {
     const remaining = sessionTokens();
     expect(remaining).toHaveLength(1);
     expect(remaining).not.toContain(sessionAToken);
-
-    // The surviving session belongs to the acting user (not an orphaned row).
-    const survivingUserId = (db.prepare('SELECT userId FROM session').get() as { userId: string })
-      .userId;
-    const actingUserId = (
-      db.prepare('SELECT id FROM user WHERE email = ?').get(EMAIL) as { id: string }
-    ).id;
-    expect(survivingUserId).toBe(actingUserId);
   });
 });

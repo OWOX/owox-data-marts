@@ -7,13 +7,19 @@ import { SqliteDatabaseStore } from './SqliteDatabaseStore.js';
  */
 describe('SqliteDatabaseStore — session revocation SQL', () => {
   let store: SqliteDatabaseStore;
+  let db: {
+    prepare: (sql: string) => {
+      run: (...args: unknown[]) => unknown;
+      all: () => Array<{ token: string; userId: string }>;
+    };
+  };
 
   beforeEach(async () => {
     store = new SqliteDatabaseStore(':memory:');
     await store.connect();
-    const db = (await store.getAdapter()) as {
-      prepare: (sql: string) => { run: (...args: unknown[]) => unknown };
-    };
+    // Use the public adapter rather than reaching into a private field, so the
+    // test survives internal refactors of the store.
+    db = (await store.getAdapter()) as typeof db;
     db.prepare('CREATE TABLE session (token TEXT PRIMARY KEY, userId TEXT)').run();
     db.prepare('INSERT INTO session (token, userId) VALUES (?, ?)').run('tok-current', 'user-1');
     db.prepare('INSERT INTO session (token, userId) VALUES (?, ?)').run('tok-other', 'user-1');
@@ -25,12 +31,7 @@ describe('SqliteDatabaseStore — session revocation SQL', () => {
   });
 
   function rows(): Array<{ token: string; userId: string }> {
-    const adapter = (
-      store as unknown as {
-        db: { prepare: (sql: string) => { all: () => Array<{ token: string; userId: string }> } };
-      }
-    ).db;
-    return adapter.prepare('SELECT token, userId FROM session').all();
+    return db.prepare('SELECT token, userId FROM session').all();
   }
 
   function tokensFor(userId: string): string[] {

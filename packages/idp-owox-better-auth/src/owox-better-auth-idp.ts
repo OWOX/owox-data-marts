@@ -50,7 +50,7 @@ import { PkceFlowOrchestrator } from './services/auth/pkce-flow-orchestrator.js'
 import { PlatformAuthFlowClient } from './services/auth/platform-auth-flow-client.js';
 import { MembershipRequestsService } from './services/core/membership-requests-service.js';
 import { ProjectMembersService } from './services/core/project-members-service.js';
-import type { ProjectMembersServiceOptions } from './types/project-members.js';
+import type { ProjectMembersServiceOptions } from './types/index.js';
 import { UserAccountResolver } from './services/core/user-account-resolver.js';
 import { UserAuthInfoPersistenceService } from './services/core/user-auth-info-persistence-service.js';
 import { UserContextService } from './services/core/user-context-service.js';
@@ -753,7 +753,7 @@ export class OwoxBetterAuthIdp implements IdpProvider {
       } catch (error) {
         this.logger.warn(
           'Failed to revoke OWOX refresh token during password flow',
-          undefined,
+          { path: req.path },
           error instanceof Error ? error : undefined
         );
       }
