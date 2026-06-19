@@ -51,18 +51,34 @@ export class ConnectorMessageParserService {
   }
 
   private redactCredentialUpdateJson(value: unknown): unknown {
-    if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    if (!value || typeof value !== 'object') {
       return value;
+    }
+
+    if (!this.hasCredentialUpdateContent(value)) {
+      return value;
+    }
+
+    return '[REDACTED updateCredentials message]';
+  }
+
+  private hasCredentialUpdateContent(value: unknown): boolean {
+    if (!value || typeof value !== 'object') {
+      return false;
+    }
+
+    if (Array.isArray(value)) {
+      return value.some(item => this.hasCredentialUpdateContent(item));
     }
 
     const objectValue = value as Record<string, unknown>;
-    if (objectValue.type !== ConnectorMessageType.CREDENTIALS_UPDATE) {
-      return value;
+    if (
+      objectValue.type === ConnectorMessageType.CREDENTIALS_UPDATE ||
+      Object.prototype.hasOwnProperty.call(objectValue, GENERATED_REFRESH_TOKEN_CREDENTIAL_FIELD)
+    ) {
+      return true;
     }
 
-    return {
-      ...objectValue,
-      credentials: '[REDACTED]',
-    };
+    return Object.values(objectValue).some(item => this.hasCredentialUpdateContent(item));
   }
 }

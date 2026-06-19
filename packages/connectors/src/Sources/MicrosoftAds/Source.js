@@ -314,7 +314,10 @@ var MicrosoftAdsSource = class MicrosoftAdsSource extends AbstractSource {
           this.config.logMessage(`Successfully obtained access token with scope (${scope})`);
           return;
         } catch (error) {
-          const isInvalidGrant = error.message?.includes('invalid_grant') || error.message?.includes('70000');
+          const errorMessage = error.message || '';
+          const isInvalidGrant = errorMessage.includes('invalid_grant') || errorMessage.includes('70000');
+          const isInvalidScope = errorMessage.includes('invalid_scope') || errorMessage.includes('70011');
+          const canTryNextScope = isInvalidGrant || isInvalidScope;
           const canTryOriginalRefreshToken = isInvalidGrant &&
             refreshTokenIndex === 0 &&
             generatedRefreshToken &&
@@ -328,8 +331,8 @@ var MicrosoftAdsSource = class MicrosoftAdsSource extends AbstractSource {
             continue;
           }
 
-          // If it's not an invalid_grant error or we're on the last scope, throw the error
-          if (!isInvalidGrant || scope === scopes[scopes.length - 1]) {
+          // If it is not a recoverable token/scope error or we're on the last scope, throw the error
+          if (!canTryNextScope || scope === scopes[scopes.length - 1]) {
             throw error;
           }
           this.config.logMessage(`Scope ${scope} failed, trying next scope...`);
