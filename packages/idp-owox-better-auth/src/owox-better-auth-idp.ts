@@ -738,9 +738,9 @@ export class OwoxBetterAuthIdp implements IdpProvider {
    * session. Revocation failures are non-fatal (logged, not thrown) so they
    * never block completing the password flow.
    *
-   * Scope note: this only revokes the token present in the request (the acting
-   * device). Invalidating a user's OTHER devices would require a
-   * revoke-by-userId capability on OWOX Identity, which does not exist yet.
+   * Scope note: this revokes the platform token carried by the request. Broader
+   * multi-device platform-session revocation is handled by the OWOX Identity
+   * service and tracked separately.
    */
   private async revokePlatformRefreshTokenFromRequest(
     req: e.Request,

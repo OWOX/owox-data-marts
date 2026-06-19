@@ -8,6 +8,4 @@ After a successful password change or reset, the user's other active sessions
 are now revoked while the session performing the change is preserved. The
 exposed Better Auth `/change-password` endpoint always revokes other sessions
 (clients can no longer skip it), and a password reset revokes the user's other
-Better Auth sessions. This closes a gap where a stale session could remain
-valid — and, in the OWOX variant, be used to mint fresh platform tokens — after
-a credential change.
+Better Auth sessions.
