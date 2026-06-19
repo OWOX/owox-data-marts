@@ -7,6 +7,16 @@ import { Injectable } from '@nestjs/common';
 import { DataStoragePublicCredentialsFactory } from './factories/data-storage-public-credentials.factory';
 import { DataStorageCredentialsPublic } from '../dto/presentation/data-storage-response-api.dto';
 
+/**
+ * A field is "connected" when it still exists in the data source — i.e. its status is not
+ * DISCONNECTED (CONNECTED and CONNECTED_WITH_DEFINITION_MISMATCH both mean the column is
+ * present). Keeping this in one place means a future status that also signals "gone from
+ * the source" only needs handling here.
+ */
+export function isConnected(field: DataMartSchemaField): boolean {
+  return field.status !== DataMartSchemaFieldStatus.DISCONNECTED;
+}
+
 // A hidden-for-reporting or DISCONNECTED node prunes its whole subtree; container
 // nodes count as referenceable paths alongside their nested `a.b` leaves.
 export function collectSchemaFieldPaths(
@@ -23,7 +33,7 @@ export function collectSchemaFieldPathTypes(
   const result: { name: string; type: string }[] = [];
   for (const field of fields) {
     if (field.isHiddenForReporting) continue;
-    if (field.status === DataMartSchemaFieldStatus.DISCONNECTED) continue;
+    if (!isConnected(field)) continue;
     const fullName = prefix ? `${prefix}.${field.name}` : field.name;
     result.push({ name: fullName, type: String(field.type) });
     if ('fields' in field && field.fields?.length) {

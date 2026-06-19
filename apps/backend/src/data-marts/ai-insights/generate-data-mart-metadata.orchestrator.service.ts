@@ -5,6 +5,7 @@ import { ToolRegistry } from '../../common/ai-insights/agent/tool-registry';
 import { BusinessViolationException } from '../../common/exceptions/business-violation.exception';
 import { DataMartDefinitionValidatorFacade } from '../data-storage-types/facades/data-mart-definition-validator-facade.service';
 import type { DataMartSchema } from '../data-storage-types/data-mart-schema.type';
+import { isConnected } from '../data-storage-types/data-mart-schema.utils';
 import { DataMartDefinitionType } from '../enums/data-mart-definition-type.enum';
 import { DataMartService } from '../services/data-mart.service';
 import { DataMartSampleDataService } from '../services/data-mart-sample-data.service';
@@ -73,19 +74,26 @@ export class GenerateDataMartMetadataOrchestratorService {
     let sampleColumns: string[] | null = null;
     let sampleRows: QueryRow[] | null = null;
     if (request.useSample) {
-      const schemaColumns = schema.fields.map(f => f.name);
-      const sample = await this.dataMartSampleDataService.sampleColumns(
-        request.dataMartId,
-        request.projectId,
-        schemaColumns,
-        undefined,
-        METADATA_SAMPLE_ROW_LIMIT
-      );
-      sampleColumns = sample.columns;
-      sampleRows = sample.rows.map(row => this.toQueryRow(sample.columns, row));
-      this.logger.log(
-        `Fetched ${sample.rows.length} sample row(s) across ${sample.columns.length} column(s) for data mart ${request.dataMartId}`
-      );
+      // Disconnected fields aren't in the underlying table/view, so selecting them fails the query.
+      const schemaColumns = schema.fields.filter(isConnected).map(f => f.name);
+      if (schemaColumns.length === 0) {
+        this.logger.warn(
+          `Skipping sample fetch for data mart ${request.dataMartId}: no connected schema fields`
+        );
+      } else {
+        const sample = await this.dataMartSampleDataService.sampleColumns(
+          request.dataMartId,
+          request.projectId,
+          schemaColumns,
+          undefined,
+          METADATA_SAMPLE_ROW_LIMIT
+        );
+        sampleColumns = sample.columns;
+        sampleRows = sample.rows.map(row => this.toQueryRow(sample.columns, row));
+        this.logger.log(
+          `Fetched ${sample.rows.length} sample row(s) across ${sample.columns.length} column(s) for data mart ${request.dataMartId}`
+        );
+      }
     }
 
     const sharedContext: SharedAgentContext = {
