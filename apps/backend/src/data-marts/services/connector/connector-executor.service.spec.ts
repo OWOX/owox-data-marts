@@ -439,8 +439,7 @@ describe('ConnectorExecutorService', () => {
       connectorSourceCredentialsService,
       emitMessage,
       emitSuccessMessage,
-    } =
-      createService();
+    } = createService();
     const dataMart = createDataMart();
     getFirstSourceConfig(dataMart)._secrets_id = 'cred-1';
 
@@ -497,8 +496,7 @@ describe('ConnectorExecutorService', () => {
       connectorSourceCredentialsService,
       emitMessage,
       emitSuccessMessage,
-    } =
-      createService();
+    } = createService();
     const dataMart = createDataMart();
     getFirstSourceConfig(dataMart)._secrets_id = 'cred-1';
 
@@ -533,8 +531,7 @@ describe('ConnectorExecutorService', () => {
       connectorSourceCredentialsService,
       emitMessage,
       emitSuccessMessage,
-    } =
-      createService();
+    } = createService();
     const dataMart = createDataMart();
     const sourceConfig = getFirstSourceConfig(dataMart);
     sourceConfig._secrets_id = 'secrets-cred';
@@ -566,8 +563,7 @@ describe('ConnectorExecutorService', () => {
       connectorSourceCredentialsService,
       emitMessage,
       emitSuccessMessage,
-    } =
-      createService();
+    } = createService();
     const dataMart = createDataMart();
     getFirstSourceConfig(dataMart).AuthType = {
       oauth2: { _source_credential_id: 'oauth-cred' },
@@ -636,8 +632,7 @@ describe('ConnectorExecutorService', () => {
       connectorSourceCredentialsService,
       emitMessage,
       emitSuccessMessage,
-    } =
-      createService();
+    } = createService();
     const dataMart = createDataMart();
 
     (processSpawner.spawnConnector as jest.Mock).mockImplementation(() => {
@@ -662,8 +657,7 @@ describe('ConnectorExecutorService', () => {
       connectorSourceCredentialsService,
       emitMessage,
       emitSuccessMessage,
-    } =
-      createService();
+    } = createService();
     const dataMart = createDataMart();
     getFirstSourceConfig(dataMart)._secrets_id = 'cred-1';
 
