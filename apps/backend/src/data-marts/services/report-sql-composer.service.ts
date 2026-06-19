@@ -1,7 +1,7 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { DataMartQueryBuilderFacade } from '../data-storage-types/facades/data-mart-query-builder.facade';
 import { BlendingDecision } from '../dto/domain/blending-decision.dto';
-import { ReportLike } from '../dto/domain/report-like-read-plan';
+import { ReportLike, hasOutputControls } from '../dto/domain/report-like-read-plan';
 import { BlendableSchemaAccessor } from './blendable-schema.service';
 import { BlendedReportDataService } from './blended-report-data.service';
 import { isQueryBuildResult } from '../data-storage-types/interfaces/data-mart-query-builder.interface';
@@ -12,6 +12,7 @@ import { DataStorageType } from '../data-storage-types/enums/data-storage-type.e
 import { inlineAthenaPositionalParams } from '../data-storage-types/athena/adapters/athena-execution-parameters.utils';
 import { inlineBigQueryNamedParams } from '../data-storage-types/bigquery/adapters/bigquery-execution-parameters.utils';
 import { BusinessViolationException } from '../../common/exceptions/business-violation.exception';
+import { collectSchemaFieldPathTypes } from '../data-storage-types/data-mart-schema.utils';
 
 @Injectable()
 export class ReportSqlComposerService {
@@ -68,12 +69,7 @@ export class ReportSqlComposerService {
       throw new Error('Data Mart definition is not set.');
     }
 
-    const hasOutputControls =
-      (report.filterConfig?.length ?? 0) > 0 ||
-      (report.sortConfig?.length ?? 0) > 0 ||
-      report.limitConfig != null;
-
-    if (hasOutputControls && !this.capabilityService.isSupported(dataMart.storage.type)) {
+    if (hasOutputControls(report) && !this.capabilityService.isSupported(dataMart.storage.type)) {
       throw new BadRequestException({
         message: 'Output controls not yet supported for this storage type',
         details: {
@@ -83,7 +79,7 @@ export class ReportSqlComposerService {
     }
 
     let mainTableReference: string | undefined;
-    if (hasOutputControls) {
+    if (hasOutputControls(report)) {
       mainTableReference = await this.tableReferenceService.resolveTableName(
         dataMart.id,
         dataMart.projectId
@@ -94,7 +90,7 @@ export class ReportSqlComposerService {
     // persisted schema (same native fields the validator types against).
     const schemaFields = dataMart.schema?.fields ?? [];
     const columnTypes: ReadonlyMap<string, string> | undefined = schemaFields.length
-      ? new Map(schemaFields.map((f): [string, string] => [f.name, String(f.type)]))
+      ? new Map(collectSchemaFieldPathTypes(schemaFields).map(f => [f.name, f.type]))
       : undefined;
 
     const queryResult = await this.queryBuilderFacade.buildQuery(
@@ -135,19 +131,32 @@ export class ReportSqlComposerService {
     precomputedDecision?: BlendingDecision
   ): Promise<{ sql: string }> {
     const composed = await this.compose(report, accessor, precomputedDecision);
-    if (!composed.params?.length) return { sql: composed.sql };
-    switch (report.dataMart.storage.type) {
+    return {
+      sql: this.inlineStaticSql(report.dataMart.storage.type, composed.sql, composed.params),
+    };
+  }
+
+  /**
+   * Inlines bound parameters into a self-contained, runnable SQL string for paths
+   * with no parameter-binding channel: copied/persisted SQL, the generated-SQL
+   * preview, and the run-history record. Athena positional `?` and BigQuery named
+   * `@p` become literals (both dialects wrap value placeholders in a CAST so
+   * date/time literals stay valid). No params — sort/limit-only, relative_date, no
+   * controls, or literal-inlining dialects (Redshift/Snowflake/Databricks) — returns
+   * the SQL unchanged.
+   */
+  inlineStaticSql(storageType: DataStorageType, sql: string, params?: SqlParameter[]): string {
+    if (!params?.length) return sql;
+    switch (storageType) {
       case DataStorageType.AWS_ATHENA:
-        return { sql: inlineAthenaPositionalParams(composed.sql, composed.params) };
+        return inlineAthenaPositionalParams(sql, params);
       case DataStorageType.GOOGLE_BIGQUERY:
-        return { sql: inlineBigQueryNamedParams(composed.sql, composed.params) };
+      case DataStorageType.LEGACY_GOOGLE_BIGQUERY:
+        return inlineBigQueryNamedParams(sql, params);
       default:
-        // Only Athena + BigQuery support output controls (so only they produce
-        // params); guard the contract for any future dialect added before its
-        // inliner exists, rather than emit SQL with unbound parameters.
         throw new BusinessViolationException(
           'Generating static SQL for a report with value filters is not supported for this storage type.',
-          { storageType: report.dataMart.storage.type }
+          { storageType }
         );
     }
   }

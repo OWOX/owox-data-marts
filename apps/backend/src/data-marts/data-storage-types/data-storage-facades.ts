@@ -8,6 +8,7 @@ import { ReportHeadersGeneratorFacade } from './facades/report-headers-generator
 import { SqlDryRunExecutorFacade } from './facades/sql-dry-run-executor.facade';
 import { SqlRunExecutorFacade } from './facades/sql-run-executor.facade';
 import { CreateViewExecutorFacade } from './facades/create-view-executor.facade';
+import { IdentifierEscaperFacade } from './facades/identifier-escaper.facade';
 
 export const dataStorageFacadesProviders = [
   DataStorageAccessValidatorFacade,
@@ -20,4 +21,5 @@ export const dataStorageFacadesProviders = [
   SqlRunExecutorFacade,
   CreateViewExecutorFacade,
   BlendedQueryBuilderFacade,
+  IdentifierEscaperFacade,
 ];

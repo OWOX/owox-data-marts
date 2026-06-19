@@ -13,13 +13,10 @@ import { CachedReaderData } from '../dto/domain/cached-reader-data.dto';
 import { Report } from '../entities/report.entity';
 import { isLookerStudioConnectorConfig } from '../data-destination-types/data-destination-config.guards';
 import { ReportDataCache } from '../entities/report-data-cache.entity';
-import {
-  BlendableSchemaAccessor,
-  resolveBlendableSchemaAccessor,
-} from './blendable-schema.service';
+import { BlendableSchemaAccessor } from './blendable-schema.service';
 import { BlendedReportDataService } from './blended-report-data.service';
 import { BlendingDecision } from '../dto/domain/blending-decision.dto';
-import { IdpProjectionsFacade } from '../../idp/facades/idp-projections.facade';
+import { hasOutputControls } from '../dto/domain/report-like-read-plan';
 import { ReportSqlComposerService } from './report-sql-composer.service';
 
 /**
@@ -37,7 +34,6 @@ export class ReportDataCacheService {
     @Inject(DATA_STORAGE_REPORT_READER_RESOLVER)
     private readonly readerResolver: TypeResolver<DataStorageType, DataStorageReportReader>,
     private readonly blendedReportDataService: BlendedReportDataService,
-    private readonly idpProjectionsFacade: IdpProjectionsFacade,
     private readonly reportSqlComposerService: ReportSqlComposerService
   ) {}
 
@@ -49,8 +45,7 @@ export class ReportDataCacheService {
    */
   private async resolvePrepareOptions(
     report: Report,
-    accessor: BlendableSchemaAccessor,
-    composeOutputControls = true
+    accessor: BlendableSchemaAccessor
   ): Promise<{ options: PrepareReportDataOptions; decision: BlendingDecision }> {
     const decision = await this.blendedReportDataService.resolveBlendingDecision(report, accessor);
 
@@ -60,8 +55,8 @@ export class ReportDataCacheService {
     // Non-blended reports with output controls must compose their filter/sort/limit
     // SQL + bound params here, exactly as RunReportService does — otherwise this
     // (Looker Studio) cached-reader path drops them, and Athena's positional `?`
-    // placeholders execute unbound. The cleanup path only finalizes, never executes.
-    if (composeOutputControls && !decision.needsBlending && this.hasOutputControls(report)) {
+    // placeholders execute unbound.
+    if (!decision.needsBlending && hasOutputControls(report)) {
       const composed = await this.reportSqlComposerService.compose(report, accessor, decision);
       sqlOverride = composed.sql;
       sqlOverrideParams = composed.params;
@@ -77,35 +72,6 @@ export class ReportDataCacheService {
       decision,
     };
   }
-
-  private hasOutputControls(report: Report): boolean {
-    return (
-      (report.filterConfig?.length ?? 0) > 0 ||
-      (report.sortConfig?.length ?? 0) > 0 ||
-      report.limitConfig != null
-    );
-  }
-
-  private resolveCreatorAccessor(report: Report): Promise<BlendableSchemaAccessor> {
-    return resolveBlendableSchemaAccessor(
-      this.idpProjectionsFacade,
-      report.dataMart.projectId,
-      report.createdById
-    );
-  }
-
-  /**
-   * Sentinel accessor used by the cache-cleanup path only. Reader.finalize
-   * must not be skipped just because the creator was removed from the
-   * project, but we still need a valid BlendableSchemaAccessor to resolve
-   * prepare options. The admin role bypasses USE/SEE checks so resource
-   * cleanup never blocks on user membership; this constant is private to
-   * the cleanup path and never reaches user-driven read flows.
-   */
-  private readonly cleanupAccessor: BlendableSchemaAccessor = {
-    userId: '__cache-cleanup__',
-    roles: ['admin'],
-  };
 
   /**
    * Gets cached reader or creates new one if cache miss
@@ -139,6 +105,25 @@ export class ReportDataCacheService {
     const now = new Date();
     const { options, decision } = await this.resolvePrepareOptions(report, accessor);
 
+    // Best-effort: executionSqlQuery is display-only run-history metadata, so a failure
+    // to render it must never abort the data fetch.
+    let executionSqlQuery: string | undefined;
+    if (options.sqlOverride) {
+      try {
+        executionSqlQuery = this.reportSqlComposerService.inlineStaticSql(
+          report.dataMart.storage.type,
+          options.sqlOverride,
+          options.sqlOverrideParams
+        );
+      } catch (error) {
+        this.logger.warn(
+          `Failed to record executionSqlQuery for report ${report.id}: ${
+            error instanceof Error ? error.message : String(error)
+          }`
+        );
+      }
+    }
+
     const cachedData = await this.cacheRepository.findOne({
       where: {
         report: { id: report.id },
@@ -157,10 +142,11 @@ export class ReportDataCacheService {
         dataDescription: cachedData.dataDescription,
         fromCache: true,
         blendingDecision: decision,
+        executionSqlQuery,
       };
     }
 
-    return this.createNewCachedReader(report, options, decision);
+    return { ...(await this.createNewCachedReader(report, options, decision)), executionSqlQuery };
   }
 
   private async createNewCachedReader(
@@ -235,19 +221,29 @@ export class ReportDataCacheService {
   }
 
   /**
-   * Finalizes expired cache entry by creating reader and calling finalize
+   * Finalizes expired cache entry by creating reader and calling finalize.
+   *
+   * Athena is currently the only reader with external cached artifacts that can be
+   * finalized safely from persisted state (S3 result files). Other readers either
+   * finalize as a no-op or need prepareReportData to start a fresh query/cursor
+   * before initFromState, so cleanup must not restore them just to delete the cache row.
    */
   private async finalizeExpiredCacheEntry(cacheEntry: ReportDataCache): Promise<void> {
     try {
-      if (cacheEntry.readerState) {
-        const { options } = await this.resolvePrepareOptions(
-          cacheEntry.report,
-          this.cleanupAccessor,
-          false
-        );
-        const reader = await this.restoreReaderFromCache(cacheEntry, cacheEntry.report, options);
-        await reader.finalize();
+      if (!cacheEntry.readerState) {
+        this.logger.debug(`No reader state to finalize for cache entry ${cacheEntry.id}`);
+        return;
       }
+
+      if (cacheEntry.storageType !== DataStorageType.AWS_ATHENA) {
+        this.logger.debug(
+          `Skipping reader finalization for cache entry ${cacheEntry.id}: ${cacheEntry.storageType} has no cleanup-safe cached-state finalizer`
+        );
+        return;
+      }
+
+      const reader = await this.restoreReaderFromCache(cacheEntry, cacheEntry.report, {});
+      await reader.finalize();
       this.logger.debug(`Successfully finalized reader for cache entry ${cacheEntry.id}`);
     } catch (error) {
       this.logger.error(
@@ -271,9 +267,9 @@ export class ReportDataCacheService {
   }
 
   /**
-   * Restores reader from cached state. Callers supply pre-resolved prepare
-   * options so the blending resolution is reused between the public-path
-   * (read) and cleanup-path (finalize) without a duplicate lookup.
+   * Restores reader from cached state. The read path supplies resolved prepare
+   * options; the cleanup path passes empty options because the cached state
+   * carries everything finalize needs.
    */
   private async restoreReaderFromCache(
     cachedData: ReportDataCache,

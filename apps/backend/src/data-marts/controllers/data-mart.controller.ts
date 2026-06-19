@@ -339,7 +339,7 @@ export class DataMartController {
   async getRunHistory(
     @AuthContext() context: AuthorizationContext,
     @Param('id') id: string,
-    @Query('limit') limit: number = 20,
+    @Query('limit') limit: number = 100,
     @Query('offset') offset: number = 0
   ): Promise<DataMartRunsResponseApiDto> {
     const command = this.mapper.toGetDataMartRunsCommand(id, context, limit, offset);

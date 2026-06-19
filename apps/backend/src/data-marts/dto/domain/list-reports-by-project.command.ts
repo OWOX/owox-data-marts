@@ -5,6 +5,8 @@ export class ListReportsByProjectCommand {
     public readonly projectId: string,
     public readonly userId: string,
     public readonly roles: string[],
-    public readonly ownerFilter?: OwnerFilter
+    public readonly ownerFilter?: OwnerFilter,
+    public readonly limit?: number,
+    public readonly offset?: number
   ) {}
 }

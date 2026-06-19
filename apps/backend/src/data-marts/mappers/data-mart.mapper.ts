@@ -42,6 +42,8 @@ import { DataMartListItemResponseApiDto } from '../dto/presentation/data-mart-li
 import { DataMartResponseApiDto } from '../dto/presentation/data-mart-response-api.dto';
 import { DataMartRunResponseApiDto } from '../dto/presentation/data-mart-run-response-api.dto';
 import { DataMartRunsResponseApiDto } from '../dto/presentation/data-mart-runs-response-api.dto';
+import { ProjectDataMartRunDto } from '../dto/domain/project-data-mart-run.dto';
+import { ProjectDataMartRunsResponseApiDto } from '../dto/presentation/project-data-mart-runs-response-api.dto';
 import { DataMartValidationResponseApiDto } from '../dto/presentation/data-mart-validation-response-api.dto';
 import { PaginatedDataMartsResponseApiDto } from '../dto/presentation/paginated-data-marts-response-api.dto';
 import { SqlDryRunRequestApiDto } from '../dto/presentation/sql-dry-run-request-api.dto';
@@ -572,6 +574,40 @@ export class DataMartMapper {
           finishedAt: run.finishedAt,
           createdByUser: run.createdByUser,
           additionalParams: this.maskAdditionalParams(run),
+        };
+      })
+    );
+    return { runs: maskedRuns };
+  }
+
+  async toProjectRunsResponse(
+    runs: ProjectDataMartRunDto[]
+  ): Promise<ProjectDataMartRunsResponseApiDto> {
+    const maskedRuns = await Promise.all(
+      runs.map(async item => {
+        const maskedDefinitionRun = await this.maskDefinitionRun(item.run.definitionRun);
+        return {
+          id: item.run.id,
+          status: item.run.status,
+          type: item.run.type,
+          runType: item.run.runType,
+          dataMartId: item.run.dataMartId,
+          dataMart: item.dataMart,
+          definitionRun: maskedDefinitionRun || item.run.definitionRun,
+          reportId: item.run.reportId,
+          reportDefinition: item.run.reportDefinition,
+          insightId: item.run.insightId,
+          insightDefinition: item.run.insightDefinition || null,
+          insightTemplateId: item.run.insightTemplateId,
+          insightTemplateDefinition: item.run.insightTemplateDefinition || null,
+          aiSourceDefinition: item.run.aiSourceDefinition,
+          logs: item.run.logs,
+          errors: item.run.errors,
+          createdAt: item.run.createdAt,
+          startedAt: item.run.startedAt,
+          finishedAt: item.run.finishedAt,
+          createdByUser: item.run.createdByUser,
+          additionalParams: this.maskAdditionalParams(item.run),
         };
       })
     );

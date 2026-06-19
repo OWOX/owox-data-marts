@@ -2,10 +2,28 @@ import { BadRequestException } from '@nestjs/common';
 import { OutputControlsValidatorService } from './output-controls-validator.service';
 import { BigQueryFieldType } from '../data-storage-types/bigquery/enums/bigquery-field-type.enum';
 import { AthenaFieldType } from '../data-storage-types/athena/enums/athena-field-type.enum';
+import { RedshiftFieldType } from '../data-storage-types/redshift/enums/redshift-field-type.enum';
 import { DataStorageType } from '../data-storage-types/enums/data-storage-type.enum';
+import { BusinessViolationException } from '../../common/exceptions/business-violation.exception';
+import { buildBlendedFieldIndex } from './blended-field-index';
 
 describe('OutputControlsValidatorService', () => {
   const svc = new OutputControlsValidatorService(undefined as never, undefined as never);
+
+  const expectDisconnectedColumnsError = (
+    caught: unknown,
+    unknownColumns: string[],
+    dataMartId = 'dm-1'
+  ) => {
+    expect(caught).toBeInstanceOf(BusinessViolationException);
+    const error = caught as BusinessViolationException;
+    expect(error.message).toContain('Cannot build report SQL. Disconnected columns:');
+    expect(error.message).toContain('They are missing from the current Data Mart output schema.');
+    for (const column of unknownColumns) {
+      expect(error.message).toContain(`"${column}"`);
+    }
+    expect(error.errorDetails).toEqual({ unknownColumns, dataMartId });
+  };
 
   describe('validateFilters (post-join)', () => {
     const fieldTypes = new Map<string, string>([
@@ -130,6 +148,46 @@ describe('OutputControlsValidatorService', () => {
       expect(errors).toEqual([]);
     });
 
+    it('treats Databricks INT as a number type (comparison allowed, relative_date rejected)', () => {
+      const types = new Map<string, string>([['n', 'INT']]);
+      expect(
+        svc.validateFilters(
+          [{ column: 'n', operator: 'gte', value: 1, placement: 'post-join' }],
+          types
+        )
+      ).toEqual([]);
+      const bad = svc.validateFilters(
+        [
+          {
+            column: 'n',
+            operator: 'relative_date',
+            value: { kind: 'today' },
+            placement: 'post-join',
+          },
+        ],
+        types
+      );
+      expect(bad).toHaveLength(1);
+      expect(bad[0].code).toBe('INVALID_OPERATOR_FOR_TYPE');
+    });
+
+    it('treats Databricks TIMESTAMP_NTZ as a date type (relative_date allowed)', () => {
+      const types = new Map<string, string>([['t', 'TIMESTAMP_NTZ']]);
+      expect(
+        svc.validateFilters(
+          [
+            {
+              column: 't',
+              operator: 'relative_date',
+              value: { kind: 'today' },
+              placement: 'post-join',
+            },
+          ],
+          types
+        )
+      ).toEqual([]);
+    });
+
     it('accepts gt on NUMERIC types (INTEGER/FLOAT/NUMERIC/BIGNUMERIC)', () => {
       const types = new Map<string, string>([
         ['i', BigQueryFieldType.INTEGER],
@@ -174,137 +232,103 @@ describe('OutputControlsValidatorService', () => {
   });
 
   describe('validateFilters (pre-join)', () => {
-    const homeFieldTypes = new Map<string, string>();
-    const knownPaths = new Map<string, ReadonlyMap<string, string>>([
-      [
-        'users',
-        new Map([
-          ['userRole', BigQueryFieldType.STRING],
-          ['createdAt', BigQueryFieldType.TIMESTAMP],
-        ]),
+    const index = buildBlendedFieldIndex({
+      blendedFields: [
+        { name: 'users__role', aliasPath: 'users', originalFieldName: 'role', type: 'STRING' },
+        { name: 'orders__total', aliasPath: 'orders', originalFieldName: 'total', type: 'NUMERIC' },
       ],
-      ['users.profiles', new Map([['country', BigQueryFieldType.STRING]])],
-    ]);
+      availableSources: [
+        { aliasPath: 'users', isIncluded: true },
+        { aliasPath: 'orders', isIncluded: false },
+      ],
+    } as never);
 
-    it('accepts a known aliasPath + known column + valid operator', () => {
+    it('accepts a pre-join filter by unified name', () => {
       const errors = svc.validateFilters(
-        [
-          {
-            column: 'userRole',
-            operator: 'eq',
-            value: 'admin',
-            placement: 'pre-join',
-            aliasPath: 'users',
-          },
-        ],
-        homeFieldTypes,
-        knownPaths
+        [{ column: 'users__role', operator: 'eq', value: 'admin', placement: 'pre-join' }],
+        new Map(),
+        index
       );
       expect(errors).toEqual([]);
     });
 
-    it('rejects unknown aliasPath', () => {
+    it('reports unknown pre-join column as FILTER_COLUMN_UNKNOWN', () => {
       const errors = svc.validateFilters(
-        [{ column: 'x', operator: 'eq', value: 1, placement: 'pre-join', aliasPath: 'orgs' }],
-        homeFieldTypes,
-        knownPaths
+        [{ column: 'users__missing', operator: 'eq', value: 'x', placement: 'pre-join' }],
+        new Map(),
+        index
       );
-      expect(errors).toEqual([{ code: 'FILTER_ALIAS_PATH_UNKNOWN', aliasPath: 'orgs' }]);
+      expect(errors).toEqual([{ code: 'FILTER_COLUMN_UNKNOWN', column: 'users__missing' }]);
     });
 
-    it('rejects unknown column inside known aliasPath (includes aliasPath in payload)', () => {
+    it('reports excluded source as FILTER_ALIAS_PATH_NOT_INCLUDED', () => {
       const errors = svc.validateFilters(
-        [
-          {
-            column: 'missing',
-            operator: 'eq',
-            value: 1,
-            placement: 'pre-join',
-            aliasPath: 'users',
-          },
-        ],
-        homeFieldTypes,
-        knownPaths
+        [{ column: 'orders__total', operator: 'gt', value: 1, placement: 'pre-join' }],
+        new Map(),
+        index
       );
       expect(errors).toEqual([
-        { code: 'FILTER_COLUMN_UNKNOWN', column: 'missing', aliasPath: 'users' },
+        { code: 'FILTER_ALIAS_PATH_NOT_INCLUDED', aliasPath: 'orders', column: 'orders__total' },
       ]);
     });
 
-    it('rejects regex on INTEGER inside pre-join filter (carries aliasPath)', () => {
-      const pathsWithInt = new Map<string, ReadonlyMap<string, string>>([
-        ['users', new Map([['amount', BigQueryFieldType.INTEGER]])],
-      ]);
+    it('rejects a home/native field used as a slice (no __ name → unknown)', () => {
       const errors = svc.validateFilters(
-        [
+        [{ column: 'native_field', operator: 'eq', value: 'x', placement: 'pre-join' }],
+        new Map([['native_field', 'STRING']]),
+        index
+      );
+      expect(errors).toEqual([{ code: 'FILTER_COLUMN_UNKNOWN', column: 'native_field' }]);
+    });
+
+    it('rejects invalid operator for type on pre-join column', () => {
+      const indexWithInt = buildBlendedFieldIndex({
+        blendedFields: [
           {
-            column: 'amount',
-            operator: 'regex',
-            value: '^1',
-            placement: 'pre-join',
+            name: 'users__amount',
             aliasPath: 'users',
+            originalFieldName: 'amount',
+            type: BigQueryFieldType.INTEGER,
           },
         ],
-        homeFieldTypes,
-        pathsWithInt
+        availableSources: [{ aliasPath: 'users', isIncluded: true }],
+      } as never);
+      const errors = svc.validateFilters(
+        [{ column: 'users__amount', operator: 'regex', value: '^1', placement: 'pre-join' }],
+        new Map(),
+        indexWithInt
       );
       expect(errors[0]).toMatchObject({
         code: 'INVALID_OPERATOR_FOR_TYPE',
-        column: 'amount',
+        column: 'users__amount',
         aliasPath: 'users',
       });
     });
 
     it('rejects malformed regex pattern inside pre-join filter (carries aliasPath)', () => {
       const errors = svc.validateFilters(
-        [
-          {
-            column: 'userRole',
-            operator: 'regex',
-            value: '[unclosed',
-            placement: 'pre-join',
-            aliasPath: 'users',
-          },
-        ],
-        homeFieldTypes,
-        knownPaths
+        [{ column: 'users__role', operator: 'regex', value: '[unclosed', placement: 'pre-join' }],
+        new Map(),
+        index
       );
       expect(errors).toEqual([
         {
           code: 'INVALID_REGEX_PATTERN',
-          column: 'userRole',
+          column: 'users__role',
           pattern: '[unclosed',
           aliasPath: 'users',
         },
       ]);
     });
 
-    it('rejects pre-join filter on excluded source', () => {
-      const excluded = new Set(['users']);
-      const errors = svc.validateFilters(
-        [
-          {
-            column: 'userRole',
-            operator: 'eq',
-            value: 'admin',
-            placement: 'pre-join',
-            aliasPath: 'users',
-          },
-        ],
-        homeFieldTypes,
-        new Map(),
-        excluded
-      );
-      expect(errors).toEqual([{ code: 'FILTER_ALIAS_PATH_NOT_INCLUDED', aliasPath: 'users' }]);
-    });
-
-    it('post-join rule without placement defaults to post-join lookup (does not need knownPaths)', () => {
+    it('post-join rule without placement defaults to post-join lookup (does not need fieldIndex)', () => {
       const homeTypes = new Map<string, string>([['name', BigQueryFieldType.STRING]]);
       const errors = svc.validateFilters(
         // No placement field — Zod default would set 'post-join'; raw call here
         // simulates a rule that was passed through unparsed.
         [{ column: 'name', operator: 'eq', value: 'X' } as never],
-        homeTypes
+        homeTypes,
+        new Map()
       );
       expect(errors).toEqual([]);
     });
@@ -338,14 +362,23 @@ describe('OutputControlsValidatorService', () => {
       isSupported: jest.fn().mockReturnValue(supported),
     });
 
+    type TestNativeField = {
+      name: string;
+      type: string;
+      status?: string;
+      isHiddenForReporting?: boolean;
+      fields?: TestNativeField[];
+    };
+
     const makeBlendableSchemaService = (
-      nativeFields: { name: string; type: string }[] = [],
+      nativeFields: TestNativeField[] = [],
       extras: {
         blendedFields?: {
           name?: string;
           aliasPath?: string;
           originalFieldName?: string;
           type: string;
+          isHidden?: boolean;
         }[];
         availableSources?: { aliasPath: string; isIncluded?: boolean }[];
       } = {}
@@ -406,6 +439,28 @@ describe('OutputControlsValidatorService', () => {
       expect(schemaSvc.computeBlendableSchema).not.toHaveBeenCalled();
     });
 
+    it('does not classify output controls as disconnected before schema actualization', async () => {
+      const capabilitySvc = makeCapabilityService(true);
+      const schemaSvc = makeBlendableSchemaService();
+      const validator = new OutputControlsValidatorService(
+        capabilitySvc as never,
+        schemaSvc as never
+      );
+
+      await expect(
+        validator.validateForReport({
+          storageType: supportedStorageType,
+          dataMartId: 'dm-1',
+          projectId: 'proj-1',
+          columnConfig: ['not_yet_actualized'],
+          filterConfig: [{ column: 'not_yet_actualized', operator: 'eq', value: 'x' }],
+          sortConfig: [{ column: 'not_yet_actualized', direction: 'asc' }],
+          limitConfig: null,
+          accessor: { userId: 'user-1', roles: ['admin'] },
+        })
+      ).resolves.toBeUndefined();
+    });
+
     it('throws BadRequestException with OUTPUT_CONTROLS_NOT_SUPPORTED for unsupported storage', async () => {
       const capabilitySvc = makeCapabilityService(false);
       const schemaSvc = makeBlendableSchemaService();
@@ -459,7 +514,210 @@ describe('OutputControlsValidatorService', () => {
       expect(schemaSvc.computeBlendableSchema).not.toHaveBeenCalled();
     });
 
-    it('throws BadRequestException with FILTER_COLUMN_UNKNOWN for unknown filter column', async () => {
+    it('accepts filters and sorts on visible nested native paths', async () => {
+      const capabilitySvc = makeCapabilityService(true);
+      const schemaSvc = makeBlendableSchemaService([
+        {
+          name: 'user',
+          type: 'RECORD',
+          status: 'CONNECTED',
+          fields: [{ name: 'email', type: 'STRING', status: 'CONNECTED' }],
+        },
+      ]);
+      const validator = new OutputControlsValidatorService(
+        capabilitySvc as never,
+        schemaSvc as never
+      );
+
+      await expect(
+        validator.validateForReport({
+          storageType: supportedStorageType,
+          dataMartId: 'dm-1',
+          projectId: 'proj-1',
+          columnConfig: ['user.email'],
+          filterConfig: [{ column: 'user.email', operator: 'eq', value: 'a@example.com' }],
+          sortConfig: [{ column: 'user.email', direction: 'asc' }],
+          limitConfig: null,
+          accessor: { userId: 'user-1', roles: ['admin'] },
+        })
+      ).resolves.toBeUndefined();
+    });
+
+    it('lists DISCONNECTED native fields used by filters in the disconnected-columns error', async () => {
+      const capabilitySvc = makeCapabilityService(true);
+      const schemaSvc = makeBlendableSchemaService([
+        { name: 'date', type: 'DATE', status: 'CONNECTED' },
+        { name: 'legacy', type: 'STRING', status: 'DISCONNECTED' },
+      ]);
+      const validator = new OutputControlsValidatorService(
+        capabilitySvc as never,
+        schemaSvc as never
+      );
+
+      let caught: unknown;
+      try {
+        await validator.validateForReport({
+          storageType: supportedStorageType,
+          dataMartId: 'dm-1',
+          projectId: 'proj-1',
+          columnConfig: ['date'],
+          filterConfig: [{ column: 'legacy', operator: 'eq', value: 'x' }],
+          sortConfig: null,
+          limitConfig: null,
+          accessor: { userId: 'user-1', roles: ['admin'] },
+        });
+      } catch (e) {
+        caught = e;
+      }
+
+      expectDisconnectedColumnsError(caught, ['legacy']);
+    });
+
+    it('lists hidden blended fields used by post-join filters in the disconnected-columns error', async () => {
+      const capabilitySvc = makeCapabilityService(true);
+      const schemaSvc = makeBlendableSchemaService(
+        [{ name: 'date', type: 'DATE', status: 'CONNECTED' }],
+        {
+          blendedFields: [
+            { name: 'b__visible', aliasPath: 'b', type: 'STRING' },
+            { name: 'b__hidden', aliasPath: 'b', type: 'STRING', isHidden: true },
+          ],
+          availableSources: [{ aliasPath: 'b', isIncluded: true }],
+        }
+      );
+      const validator = new OutputControlsValidatorService(
+        capabilitySvc as never,
+        schemaSvc as never
+      );
+
+      let caught: unknown;
+      try {
+        await validator.validateForReport({
+          storageType: supportedStorageType,
+          dataMartId: 'dm-1',
+          projectId: 'proj-1',
+          columnConfig: ['date', 'b__visible'],
+          filterConfig: [
+            { column: 'b__hidden', operator: 'eq', value: 'x' },
+            { column: 'b__visible', operator: 'eq', value: 'y' },
+          ],
+          sortConfig: null,
+          limitConfig: null,
+          accessor: { userId: 'user-1', roles: ['admin'] },
+        });
+      } catch (e) {
+        caught = e;
+      }
+
+      expectDisconnectedColumnsError(caught, ['b__hidden']);
+    });
+
+    it('lists hidden blended fields used by pre-join slices as the unified column name', async () => {
+      const capabilitySvc = makeCapabilityService(true);
+      const schemaSvc = makeBlendableSchemaService(
+        [{ name: 'date', type: 'DATE', status: 'CONNECTED' }],
+        {
+          blendedFields: [
+            { name: 'b__visible', aliasPath: 'b', originalFieldName: 'visible', type: 'STRING' },
+            {
+              name: 'b__hidden',
+              aliasPath: 'b',
+              originalFieldName: 'hidden',
+              type: 'STRING',
+              isHidden: true,
+            },
+          ],
+          availableSources: [{ aliasPath: 'b', isIncluded: true }],
+        }
+      );
+      const validator = new OutputControlsValidatorService(
+        capabilitySvc as never,
+        schemaSvc as never
+      );
+
+      let caught: unknown;
+      try {
+        await validator.validateForReport({
+          storageType: supportedStorageType,
+          dataMartId: 'dm-1',
+          projectId: 'proj-1',
+          columnConfig: ['date', 'b__visible'],
+          filterConfig: [
+            { column: 'b__hidden', operator: 'eq', value: 'x', placement: 'pre-join' },
+            { column: 'b__visible', operator: 'eq', value: 'y', placement: 'pre-join' },
+          ],
+          sortConfig: null,
+          limitConfig: null,
+          accessor: { userId: 'user-1', roles: ['admin'] },
+        });
+      } catch (e) {
+        caught = e;
+      }
+
+      expectDisconnectedColumnsError(caught, ['b__hidden']);
+    });
+
+    it('lists a DISCONNECTED native field used by sort when columnConfig is null', async () => {
+      const capabilitySvc = makeCapabilityService(true);
+      const schemaSvc = makeBlendableSchemaService([
+        { name: 'date', type: 'DATE', status: 'CONNECTED' },
+        { name: 'legacy', type: 'STRING', status: 'DISCONNECTED' },
+      ]);
+      const validator = new OutputControlsValidatorService(
+        capabilitySvc as never,
+        schemaSvc as never
+      );
+
+      let caught: unknown;
+      try {
+        await validator.validateForReport({
+          storageType: supportedStorageType,
+          dataMartId: 'dm-1',
+          projectId: 'proj-1',
+          columnConfig: null,
+          filterConfig: null,
+          sortConfig: [{ column: 'legacy', direction: 'asc' }],
+          limitConfig: null,
+          accessor: { userId: 'user-1', roles: ['admin'] },
+        });
+      } catch (e) {
+        caught = e;
+      }
+
+      expectDisconnectedColumnsError(caught, ['legacy']);
+    });
+
+    it('lists a DISCONNECTED sort field even when stale columnConfig still selects it', async () => {
+      const capabilitySvc = makeCapabilityService(true);
+      const schemaSvc = makeBlendableSchemaService([
+        { name: 'date', type: 'DATE', status: 'CONNECTED' },
+        { name: 'legacy', type: 'STRING', status: 'DISCONNECTED' },
+      ]);
+      const validator = new OutputControlsValidatorService(
+        capabilitySvc as never,
+        schemaSvc as never
+      );
+
+      let caught: unknown;
+      try {
+        await validator.validateForReport({
+          storageType: supportedStorageType,
+          dataMartId: 'dm-1',
+          projectId: 'proj-1',
+          columnConfig: ['legacy'],
+          filterConfig: null,
+          sortConfig: [{ column: 'legacy', direction: 'asc' }],
+          limitConfig: null,
+          accessor: { userId: 'user-1', roles: ['admin'] },
+        });
+      } catch (e) {
+        caught = e;
+      }
+
+      expectDisconnectedColumnsError(caught, ['legacy']);
+    });
+
+    it('lists an unknown post-join filter column in the disconnected-columns error', async () => {
       const capabilitySvc = makeCapabilityService(true);
       const schemaSvc = makeBlendableSchemaService([
         { name: 'amount', type: BigQueryFieldType.INTEGER },
@@ -469,7 +727,7 @@ describe('OutputControlsValidatorService', () => {
         schemaSvc as never
       );
 
-      let caught: BadRequestException | undefined;
+      let caught: unknown;
       try {
         await validator.validateForReport({
           storageType: supportedStorageType,
@@ -482,12 +740,10 @@ describe('OutputControlsValidatorService', () => {
           accessor: { userId: 'user-1', roles: ['admin'] },
         });
       } catch (e) {
-        caught = e as BadRequestException;
+        caught = e;
       }
 
-      expect(caught).toBeDefined();
-      const response = caught!.getResponse() as { details: { errors: { code: string }[] } };
-      expect(response.details.errors[0].code).toBe('FILTER_COLUMN_UNKNOWN');
+      expectDisconnectedColumnsError(caught, ['missing']);
     });
 
     it('throws BadRequestException with INVALID_OPERATOR_FOR_TYPE for regex on INTEGER', async () => {
@@ -740,11 +996,16 @@ describe('OutputControlsValidatorService', () => {
       ).resolves.toBeUndefined();
     });
 
-    it('throws FILTER_ALIAS_PATH_UNKNOWN when pre-join filter aliasPath is not in blendableSchema', async () => {
+    it('lists a pre-join filter on an unknown unified column in the disconnected-columns error', async () => {
       const capabilitySvc = makeCapabilityService(true);
       const schemaSvc = makeBlendableSchemaService([], {
         blendedFields: [
-          { aliasPath: 'users', originalFieldName: 'userRole', type: BigQueryFieldType.STRING },
+          {
+            name: 'users__userRole',
+            aliasPath: 'users',
+            originalFieldName: 'userRole',
+            type: BigQueryFieldType.STRING,
+          },
         ],
         availableSources: [{ aliasPath: 'users' }],
       });
@@ -753,27 +1014,23 @@ describe('OutputControlsValidatorService', () => {
         schemaSvc as never
       );
 
-      let caught: BadRequestException | undefined;
+      let caught: unknown;
       try {
         await validator.validateForReport({
           storageType: supportedStorageType,
           dataMartId: 'dm-1',
           projectId: 'proj-1',
           columnConfig: ['some_col'],
-          filterConfig: [
-            { column: 'x', operator: 'eq', value: 1, placement: 'pre-join', aliasPath: 'orgs' },
-          ],
+          filterConfig: [{ column: 'orgs__x', operator: 'eq', value: 1, placement: 'pre-join' }],
           sortConfig: null,
           limitConfig: null,
           accessor: { userId: 'user-1', roles: ['admin'] },
         });
       } catch (e) {
-        caught = e as BadRequestException;
+        caught = e;
       }
 
-      expect(caught).toBeDefined();
-      const response = caught!.getResponse() as { details: { errors: { code: string }[] } };
-      expect(response.details.errors[0].code).toBe('FILTER_ALIAS_PATH_UNKNOWN');
+      expectDisconnectedColumnsError(caught, ['orgs__x']);
     });
 
     it('rejects pre-join filter when columnConfig is null/empty (PRE_JOIN_FILTERS_REQUIRE_COLUMN_CONFIG)', async () => {
@@ -783,7 +1040,12 @@ describe('OutputControlsValidatorService', () => {
       const capabilitySvc = makeCapabilityService(true);
       const schemaSvc = makeBlendableSchemaService([], {
         blendedFields: [
-          { aliasPath: 'users', originalFieldName: 'userRole', type: BigQueryFieldType.STRING },
+          {
+            name: 'users__userRole',
+            aliasPath: 'users',
+            originalFieldName: 'userRole',
+            type: BigQueryFieldType.STRING,
+          },
         ],
         availableSources: [{ aliasPath: 'users' }],
       });
@@ -801,11 +1063,10 @@ describe('OutputControlsValidatorService', () => {
           columnConfig: null,
           filterConfig: [
             {
-              column: 'userRole',
+              column: 'users__userRole',
               operator: 'eq',
               value: 'admin',
               placement: 'pre-join',
-              aliasPath: 'users',
             },
           ],
           sortConfig: null,
@@ -823,11 +1084,51 @@ describe('OutputControlsValidatorService', () => {
       ).toBe(true);
     });
 
-    it('resolves when pre-join filter aliasPath and column are valid', async () => {
+    it('treats a pre-join filter on a NON-actualized schema as disconnected (400, not skipped)', async () => {
+      // Schema not yet actualized (empty native + blended). The pre-join filter
+      // would otherwise be skipped here, then blow up at run time with a 500 in
+      // the builder. Surface it as a disconnected-columns error instead.
+      const capabilitySvc = makeCapabilityService(true);
+      const schemaSvc = makeBlendableSchemaService([], {
+        blendedFields: [],
+        availableSources: [],
+      });
+      const validator = new OutputControlsValidatorService(
+        capabilitySvc as never,
+        schemaSvc as never
+      );
+
+      let caught: unknown;
+      try {
+        await validator.validateForReport({
+          storageType: supportedStorageType,
+          dataMartId: 'dm-1',
+          projectId: 'proj-1',
+          columnConfig: ['some_col'],
+          filterConfig: [
+            { column: 'users__role', operator: 'eq', value: 'admin', placement: 'pre-join' },
+          ],
+          sortConfig: null,
+          limitConfig: null,
+          accessor: { userId: 'user-1', roles: ['admin'] },
+        });
+      } catch (e) {
+        caught = e;
+      }
+
+      expectDisconnectedColumnsError(caught, ['users__role']);
+    });
+
+    it('resolves when pre-join filter unified column is valid', async () => {
       const capabilitySvc = makeCapabilityService(true);
       const schemaSvc = makeBlendableSchemaService([], {
         blendedFields: [
-          { aliasPath: 'users', originalFieldName: 'userRole', type: BigQueryFieldType.STRING },
+          {
+            name: 'users__userRole',
+            aliasPath: 'users',
+            originalFieldName: 'userRole',
+            type: BigQueryFieldType.STRING,
+          },
         ],
         availableSources: [{ aliasPath: 'users' }],
       });
@@ -844,11 +1145,10 @@ describe('OutputControlsValidatorService', () => {
           columnConfig: ['some_col'],
           filterConfig: [
             {
-              column: 'userRole',
+              column: 'users__userRole',
               operator: 'eq',
               value: 'admin',
               placement: 'pre-join',
-              aliasPath: 'users',
             },
           ],
           sortConfig: null,
@@ -1365,16 +1665,21 @@ describe('OutputControlsValidatorService', () => {
     });
   });
 
-  describe('buildKnownPaths via validateForReport', () => {
+  describe('field index via validateForReport', () => {
     const supportedStorageType = DataStorageType.GOOGLE_BIGQUERY;
 
-    it('emits FILTER_ALIAS_PATH_NOT_INCLUDED when source.isIncluded === false', async () => {
+    it('lists a pre-join filter on an excluded source as the unified column', async () => {
       const capabilitySvc = { isSupported: jest.fn().mockReturnValue(true) };
       const schemaSvc = {
         computeBlendableSchema: jest.fn().mockResolvedValue({
           nativeFields: [],
           blendedFields: [
-            { aliasPath: 'users', originalFieldName: 'userRole', type: BigQueryFieldType.STRING },
+            {
+              name: 'users__userRole',
+              aliasPath: 'users',
+              originalFieldName: 'userRole',
+              type: BigQueryFieldType.STRING,
+            },
           ],
           availableSources: [{ aliasPath: 'users', isIncluded: false }],
         }),
@@ -1384,7 +1689,7 @@ describe('OutputControlsValidatorService', () => {
         schemaSvc as never
       );
 
-      let caught: BadRequestException | undefined;
+      let caught: unknown;
       try {
         await validator.validateForReport({
           storageType: supportedStorageType,
@@ -1393,11 +1698,10 @@ describe('OutputControlsValidatorService', () => {
           columnConfig: ['some_col'],
           filterConfig: [
             {
-              column: 'userRole',
+              column: 'users__userRole',
               operator: 'eq',
               value: 'admin',
               placement: 'pre-join',
-              aliasPath: 'users',
             },
           ],
           sortConfig: null,
@@ -1405,12 +1709,10 @@ describe('OutputControlsValidatorService', () => {
           accessor: { userId: 'user-1', roles: ['admin'] },
         });
       } catch (e) {
-        caught = e as BadRequestException;
+        caught = e;
       }
 
-      expect(caught).toBeDefined();
-      const response = caught!.getResponse() as { details: { errors: { code: string }[] } };
-      expect(response.details.errors[0].code).toBe('FILTER_ALIAS_PATH_NOT_INCLUDED');
+      expectDisconnectedColumnsError(caught, ['users__userRole']);
     });
 
     it('included sources still accept pre-join filters on their columns (no false positive)', async () => {
@@ -1419,7 +1721,12 @@ describe('OutputControlsValidatorService', () => {
         computeBlendableSchema: jest.fn().mockResolvedValue({
           nativeFields: [],
           blendedFields: [
-            { aliasPath: 'users', originalFieldName: 'userRole', type: BigQueryFieldType.STRING },
+            {
+              name: 'users__userRole',
+              aliasPath: 'users',
+              originalFieldName: 'userRole',
+              type: BigQueryFieldType.STRING,
+            },
           ],
           availableSources: [{ aliasPath: 'users', isIncluded: true }],
         }),
@@ -1437,11 +1744,10 @@ describe('OutputControlsValidatorService', () => {
           columnConfig: ['some_col'],
           filterConfig: [
             {
-              column: 'userRole',
+              column: 'users__userRole',
               operator: 'eq',
               value: 'admin',
               placement: 'pre-join',
-              aliasPath: 'users',
             },
           ],
           sortConfig: null,
@@ -1563,6 +1869,31 @@ describe('OutputControlsValidatorService', () => {
       );
       expect(errors).toHaveLength(1);
       expect(errors[0].code).toBe('INVALID_OPERATOR_FOR_TYPE');
+    });
+  });
+
+  describe('validateFilters — Redshift type names', () => {
+    const ok = (type: string, operator: string, value?: unknown) =>
+      svc.validateFilters([{ column: 'c', operator, value } as never], new Map([['c', type]]));
+
+    it('treats Redshift TEXT/BPCHAR as string types (contains allowed)', () => {
+      expect(ok(RedshiftFieldType.TEXT, 'contains', 'x')).toEqual([]);
+      expect(ok(RedshiftFieldType.BPCHAR, 'contains', 'x')).toEqual([]);
+    });
+
+    it('treats DOUBLE PRECISION as a number type (between allowed)', () => {
+      expect(ok(RedshiftFieldType.DOUBLE_PRECISION, 'between', { from: 1, to: 2 })).toEqual([]);
+    });
+
+    it('treats TIMESTAMPTZ as a date type (relative_date allowed)', () => {
+      expect(ok(RedshiftFieldType.TIMESTAMPTZ, 'relative_date', { kind: 'today' })).toEqual([]);
+    });
+
+    it('treats TIMETZ as a time type (relative_date withheld)', () => {
+      expect(ok(RedshiftFieldType.TIMETZ, 'between', { from: '01:00', to: '02:00' })).toEqual([]);
+      expect(ok(RedshiftFieldType.TIMETZ, 'relative_date', { kind: 'today' })[0]?.code).toBe(
+        'INVALID_OPERATOR_FOR_TYPE'
+      );
     });
   });
 });

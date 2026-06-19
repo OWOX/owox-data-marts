@@ -20,10 +20,11 @@ vi.mock('../../../../../data-marts/reports/shared/model/hooks/useReport', () => 
 }));
 
 import { useReport } from '../../../../../data-marts/reports/shared/model/hooks/useReport';
-import { useEmailReportForm } from '../useEmailReportForm';
+import { useEmailReportForm, EmailReportEditFormSchema } from '../useEmailReportForm';
 import { ReportFormMode, TemplateSourceTypeEnum } from '../../../shared';
 import { DestinationTypeConfigEnum } from '../../../shared/enums/destination-type-config.enum';
 import { ReportConditionEnum } from '../../../shared/enums/report-condition.enum';
+import { DataStorageType } from '../../../../../data-storage/shared/model/types/data-storage-type.enum';
 import type { DataMartReport } from '../../../shared/model/types/data-mart-report';
 import type { FilterRule } from '../../../../shared/types/output-config';
 
@@ -61,7 +62,11 @@ function buildReport(overrides: Partial<DataMartReport> = {}): DataMartReport {
   return {
     id: 'report-1',
     title: 'Email Report',
-    dataMart: { id: 'dm-1' },
+    dataMart: {
+      id: 'dm-1',
+      definitionType: null,
+      storage: { type: DataStorageType.GOOGLE_BIGQUERY },
+    },
     dataDestination: {
       id: 'dest-1',
       type: 'email',
@@ -91,14 +96,50 @@ beforeEach(() => {
   mockUpdateReport.mockResolvedValue(buildReport({ id: 'updated-1' }));
 });
 
+const validEmailFormData = {
+  title: 'Test Report',
+  dataDestinationId: 'dest-1',
+  reportCondition: ReportConditionEnum.ALWAYS,
+  subject: 'Weekly',
+  templateSourceType: TemplateSourceTypeEnum.CUSTOM_MESSAGE,
+  messageTemplate: 'Hello',
+  columnConfig: ['col_a'],
+  filterConfig: null,
+  sortConfig: null,
+  limitConfig: null,
+};
+
+describe('EmailReportEditFormSchema — columnConfig validation', () => {
+  it('rejects an empty array with the expected message', async () => {
+    const result = await EmailReportEditFormSchema.safeParseAsync({
+      ...validEmailFormData,
+      columnConfig: [],
+    });
+
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      const msg = result.error.issues.find(i => i.path.includes('columnConfig'))?.message;
+      expect(msg).toBe('At least one column must be selected');
+    }
+  });
+
+  it('accepts null (no columns configured yet)', async () => {
+    const result = await EmailReportEditFormSchema.safeParseAsync({
+      ...validEmailFormData,
+      columnConfig: null,
+    });
+
+    expect(result.success).toBe(true);
+  });
+});
+
 describe('useEmailReportForm — defaults', () => {
   it('seeds output controls from initialReport (post+pre-join mix)', () => {
     const preJoinRule: FilterRule = {
-      column: 'plan',
+      column: 'orgs__plan',
       operator: 'eq',
       value: 'pro',
       placement: 'pre-join',
-      aliasPath: 'orgs',
     };
     const initial = buildReport({
       filterConfig: [{ column: 'col_a', operator: 'eq', value: 'X' }, preJoinRule],
@@ -127,11 +168,10 @@ describe('useEmailReportForm — submission', () => {
   it('UPDATE: builds CUSTOM_MESSAGE destinationConfig and forwards output controls', async () => {
     const initial = buildReport({ id: 'r-42' });
     const preJoinRule: FilterRule = {
-      column: 'country',
+      column: 'users__country',
       operator: 'neq',
       value: 'UA',
       placement: 'pre-join',
-      aliasPath: 'users',
     };
 
     const { result } = renderHook(() =>

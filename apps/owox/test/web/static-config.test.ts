@@ -131,5 +131,16 @@ describe('setupWebStaticAssets', () => {
         expect(response.headers[name], `unexpected ${name}`).to.be.undefined;
       }
     });
+
+    it('should not serve SPA fallback for protocol endpoints by default', async () => {
+      await Promise.all(
+        ['/mcp', '/oauth/authorize', '/.well-known/oauth-protected-resource'].map(async route => {
+          const response = await request(app).get(route);
+
+          expect(response.status, route).to.equal(404);
+          expect(response.text, route).not.to.contain('<div id="root"></div>');
+        })
+      );
+    });
   });
 });

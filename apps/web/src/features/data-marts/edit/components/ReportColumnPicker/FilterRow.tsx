@@ -13,15 +13,27 @@ interface FilterRowProps {
   fieldType: string | null;
   onChange: (next: FilterRule) => void;
   onRemove: () => void;
+  /** Business-readable label; falls back to the raw column when absent. */
+  displayLabel?: string;
+  /** Joined data mart name (muted second line); absent for home-mart fields. */
+  dataMartName?: string;
 }
 
-export function FilterRow({ rule, fieldType, onChange, onRemove }: FilterRowProps) {
+export function FilterRow({
+  rule,
+  fieldType,
+  onChange,
+  onRemove,
+  displayLabel,
+  dataMartName,
+}: FilterRowProps) {
   const [editing, setEditing] = useState(false);
   const isOrphaned = fieldType === null;
   const resolvedType = fieldType ?? 'STRING';
   const opLabel = operatorLabelFor(rule.operator, resolvedType);
   const valueText = summarizeFilterRule(rule);
-  const isPreJoin = rule.placement === 'pre-join' && !!rule.aliasPath;
+  const isPreJoin = rule.placement === 'pre-join';
+  const displayColumn = rule.column;
 
   return (
     <div
@@ -31,7 +43,7 @@ export function FilterRow({ rule, fieldType, onChange, onRemove }: FilterRowProp
       )}
     >
       <div className='min-w-0 flex-1'>
-        <div className='flex items-center gap-1 truncate font-mono text-xs' title={rule.column}>
+        <div className='flex items-center gap-1 truncate font-mono text-xs' title={displayColumn}>
           {isOrphaned && (
             <span
               className='inline-flex items-center text-red-600'
@@ -41,19 +53,28 @@ export function FilterRow({ rule, fieldType, onChange, onRemove }: FilterRowProp
               <AlertTriangle className='h-3 w-3' />
             </span>
           )}
-          {isPreJoin && (
+          {isPreJoin ? (
             <span
-              className='inline-flex items-center gap-1 text-blue-600'
+              className={cn(
+                'inline-flex items-center gap-1',
+                isOrphaned ? 'text-red-700 dark:text-red-300' : 'text-blue-600'
+              )}
               title='Pre-join filter (slice)'
             >
               <Layers className='h-3 w-3' />
-              <span>{rule.aliasPath}.</span>
+              <span className={cn(isOrphaned && 'line-through')}>
+                {displayLabel ?? rule.column}
+              </span>
+            </span>
+          ) : (
+            <span className={cn(isOrphaned && 'text-red-700 line-through dark:text-red-300')}>
+              {displayLabel ?? rule.column}
             </span>
           )}
-          <span className={cn(isOrphaned && 'text-red-700 line-through dark:text-red-300')}>
-            {rule.column}
-          </span>
         </div>
+        {!isOrphaned && dataMartName && (
+          <div className='text-muted-foreground truncate text-[11px]'>{dataMartName}</div>
+        )}
         <div className='truncate font-mono text-[11px]'>
           <span className='text-foreground/70 font-medium'>{opLabel}</span>
           {valueText && <span className='text-muted-foreground'> {valueText}</span>}
@@ -89,6 +110,8 @@ export function FilterRow({ rule, fieldType, onChange, onRemove }: FilterRowProp
           }
           column={rule.column}
           fieldType={resolvedType}
+          displayLabel={displayLabel}
+          dataMartName={dataMartName}
           initialRule={rule}
           onApply={onChange}
         />

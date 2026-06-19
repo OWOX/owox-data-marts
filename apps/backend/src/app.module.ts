@@ -9,6 +9,7 @@ import { CommonModule } from './common/common.module';
 import { OwoxEventDispatcherModule } from './common/event-dispatcher/owox-event-dispatcher.module';
 import { ActiveRequestInterceptor } from './common/interceptors/active-request.interceptor';
 import { IdpModule } from './idp/idp.module';
+import { EeModule } from './ee/ee.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { ProjectMemberApiKeysModule } from './project-member-api-keys/project-member-api-keys.module';
 import { createDataSourceOptions } from './config/data-source-options.config';
@@ -16,6 +17,7 @@ import { validateConfig } from './config/env-validation.config';
 import { ClsModule } from 'nestjs-cls';
 import { DataSource } from 'typeorm';
 import { addTransactionalDataSource } from 'typeorm-transactional';
+import { serializeSqliteTransactions } from './config/sqlite-transaction-serializer';
 
 @Module({
   imports: [
@@ -40,7 +42,7 @@ import { addTransactionalDataSource } from 'typeorm-transactional';
         }
         const dataSource = new DataSource(options);
         await dataSource.initialize();
-        return addTransactionalDataSource(dataSource);
+        return serializeSqliteTransactions(addTransactionalDataSource(dataSource));
       },
     }),
     ScheduleModule.forRoot(),
@@ -50,6 +52,7 @@ import { addTransactionalDataSource } from 'typeorm-transactional';
     DataMartsModule,
     CommonModule,
     IdpModule,
+    EeModule,
     ProjectMemberApiKeysModule,
     NotificationsModule,
   ],

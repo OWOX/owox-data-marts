@@ -8,6 +8,7 @@ import {
 import { AthenaBlendedQueryBuilder } from './athena-blended-query-builder';
 import { AthenaClauseRenderer } from './athena-clause-renderer';
 import { BlendedQueryContext } from '../../interfaces/blended-query-builder.interface';
+import { buildBlendedFieldIndex } from '../../../services/blended-field-index';
 
 const buildContext = createBuildContext('"mydb"."customers"');
 
@@ -202,20 +203,26 @@ describe('AthenaBlendedQueryBuilder — output controls', () => {
         { targetFieldName: 'role', outputAlias: 'role', isHidden: true, aggregateFunction: 'MAX' },
       ],
     });
+    const fieldIndex = buildBlendedFieldIndex({
+      blendedFields: [
+        { name: 'users__role', aliasPath: 'users', originalFieldName: 'role', type: 'STRING' },
+      ],
+      availableSources: [{ aliasPath: 'users', isIncluded: true }],
+    } as never);
     const { params } = builder.buildBlendedQuery(
       ctx({
         chains: [chain],
         columns: ['a'],
         filters: [
           {
-            column: 'role',
+            column: 'users__role',
             operator: 'eq',
             value: 'admin',
             placement: 'pre-join',
-            aliasPath: 'users',
           },
           { column: 'a', operator: 'eq', value: 'post', placement: 'post-join' },
         ],
+        fieldIndex,
       })
     );
     // pre-join value first (lives inside the users_raw CTE), post-join value last.
@@ -253,20 +260,30 @@ describe('AthenaBlendedQueryBuilder — output controls', () => {
         },
       ],
     });
+    const fieldIndex = buildBlendedFieldIndex({
+      blendedFields: [
+        {
+          name: 'users__signup_date',
+          aliasPath: 'users',
+          originalFieldName: 'signup_date',
+          type: 'DATE',
+        },
+      ],
+      availableSources: [{ aliasPath: 'users', isIncluded: true }],
+    } as never);
     const { sql, params } = builder.buildBlendedQuery(
       ctx({
         chains: [chain],
         columns: ['a'],
         filters: [
           {
-            column: 'signup_date',
+            column: 'users__signup_date',
             operator: 'gte',
             value: '2024-01-01',
             placement: 'pre-join',
-            aliasPath: 'users',
           },
         ],
-        columnTypes: { preJoin: new Map([['users', new Map([['signup_date', 'DATE']])]]) },
+        fieldIndex,
       })
     );
     expect(sql).toContain('signup_date >= CAST(? AS DATE)');

@@ -42,7 +42,7 @@ export class DataMartService {
     });
 
     if (!entity) {
-      throw new NotFoundException(`DataMart with id ${id} and projectId ${projectId} not found`);
+      throw new NotFoundException(`Data Mart with id ${id} and projectId ${projectId} not found`);
     }
 
     return entity;

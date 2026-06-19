@@ -17,6 +17,7 @@ import { useIntercomLauncher } from '../../../../../../shared/hooks/useIntercomL
 interface LookerStudioReportEditSheetProps {
   isOpen: boolean;
   onClose: () => void;
+  onSubmitSuccess?: () => void | Promise<void>;
   initialReport?: DataMartReport;
   mode: ReportFormMode;
   preSelectedDestination?: DataDestination | null;
@@ -25,6 +26,7 @@ interface LookerStudioReportEditSheetProps {
 export function LookerStudioReportEditSheet({
   isOpen,
   onClose,
+  onSubmitSuccess,
   initialReport,
   mode,
   preSelectedDestination,
@@ -65,7 +67,10 @@ export function LookerStudioReportEditSheet({
               initialReport={initialReport}
               mode={mode}
               onDirtyChange={handleFormDirtyChange}
-              onSubmit={handleFormSubmitSuccess}
+              onSubmit={() => {
+                void onSubmitSuccess?.();
+                handleFormSubmitSuccess();
+              }}
               onCancel={handleClose}
               preSelectedDestination={preSelectedDestination}
             />

@@ -6,6 +6,11 @@ import type {
   DatabaseUser,
   OnboardingAnswer,
 } from '../types/index.js';
+import {
+  parseSerializedAuthFlowParams,
+  serializeAuthFlowParams,
+  type AuthFlowParams,
+} from '../utils/request-utils.js';
 import type { DatabaseStore } from './database-store.js';
 import { StoreResult } from './store-result.js';
 
@@ -122,9 +127,16 @@ export class SqliteDatabaseStore implements DatabaseStore {
       state TEXT NOT NULL PRIMARY KEY,
       code_verifier TEXT NOT NULL,
       created_at TEXT NOT NULL DEFAULT (CURRENT_TIMESTAMP),
-      expires_at TEXT NULL
+      expires_at TEXT NULL,
+      platform_params TEXT NULL
     )`
     ).run();
+    const columns = db.prepare('PRAGMA table_info(auth_states)').all() as Array<{
+      name?: string;
+    }>;
+    if (!columns.some(column => column.name === 'platform_params')) {
+      db.prepare('ALTER TABLE auth_states ADD COLUMN platform_params TEXT NULL').run();
+    }
     try {
       db.prepare(`CREATE INDEX idx_auth_states_expires_at ON auth_states (expires_at)`).run();
     } catch {
@@ -248,28 +260,39 @@ export class SqliteDatabaseStore implements DatabaseStore {
       .run(biUserId, userId);
   }
 
-  async saveAuthState(state: string, codeVerifier: string, expiresAt?: Date | null): Promise<void> {
+  async saveAuthState(
+    state: string,
+    codeVerifier: string,
+    expiresAt?: Date | null,
+    authFlowParams?: AuthFlowParams
+  ): Promise<void> {
     await this.connect();
     this.ensureAuthStatesTable();
     const exp: string | null = expiresAt ? expiresAt.toISOString() : null;
+    const serializedAuthFlowParams = serializeAuthFlowParams(authFlowParams);
     this.getDb()
       .prepare(
-        `INSERT INTO auth_states (state, code_verifier, expires_at)
-         VALUES (?, ?, ?)
+        `INSERT INTO auth_states (state, code_verifier, expires_at, platform_params)
+         VALUES (?, ?, ?, ?)
          ON CONFLICT(state) DO UPDATE SET
            code_verifier = excluded.code_verifier,
            expires_at = excluded.expires_at,
+           platform_params = excluded.platform_params,
            created_at = CURRENT_TIMESTAMP`
       )
-      .run(state, codeVerifier, exp);
+      .run(state, codeVerifier, exp, serializedAuthFlowParams);
   }
 
   async getAuthState(state: string): Promise<StoreResult> {
     await this.connect();
     this.ensureAuthStatesTable();
     const row = this.getDb()
-      .prepare('SELECT code_verifier, expires_at FROM auth_states WHERE state = ? LIMIT 1')
-      .get(state) as { code_verifier?: string; expires_at?: string | null } | undefined;
+      .prepare(
+        'SELECT code_verifier, expires_at, platform_params FROM auth_states WHERE state = ? LIMIT 1'
+      )
+      .get(state) as
+      | { code_verifier?: string; expires_at?: string | null; platform_params?: string | null }
+      | undefined;
 
     if (!row || !row.code_verifier) return StoreResult.notFound();
 
@@ -280,7 +303,10 @@ export class SqliteDatabaseStore implements DatabaseStore {
     }
 
     await this.deleteAuthState(state);
-    return StoreResult.withCode(row.code_verifier);
+    return StoreResult.withCode(
+      row.code_verifier,
+      parseSerializedAuthFlowParams(row.platform_params)
+    );
   }
 
   async deleteAuthState(state: string): Promise<void> {

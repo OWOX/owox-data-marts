@@ -61,16 +61,32 @@ describe('FilterConfigSchema', () => {
       ])
     ).toThrow();
   });
+
+  it('rejects a non-finite scalar number value (Infinity → invalid SQL when inlined)', () => {
+    expect(() =>
+      FilterConfigSchema.parse([{ column: 'amount', operator: 'gt', value: Infinity }])
+    ).toThrow();
+    expect(() =>
+      FilterConfigSchema.parse([{ column: 'amount', operator: 'eq', value: -Infinity }])
+    ).toThrow();
+  });
+
+  it('rejects a non-finite bound in a between filter', () => {
+    expect(() =>
+      FilterConfigSchema.parse([
+        { column: 'amount', operator: 'between', value: { from: 1, to: Infinity } },
+      ])
+    ).toThrow();
+  });
 });
 
-describe('FilterRuleSchema placement / aliasPath', () => {
+describe('FilterRuleSchema placement', () => {
   it('keeps placement undefined when omitted (downstream treats absence as post-join)', () => {
     const parsed = FilterRuleSchema.parse({ column: 'x', operator: 'eq', value: 1 });
     expect(parsed.placement).toBeUndefined();
-    expect(parsed.aliasPath).toBeUndefined();
   });
 
-  it('accepts explicit placement="post-join" without aliasPath', () => {
+  it('accepts explicit placement="post-join"', () => {
     const parsed = FilterRuleSchema.parse({
       column: 'x',
       operator: 'eq',
@@ -80,71 +96,37 @@ describe('FilterRuleSchema placement / aliasPath', () => {
     expect(parsed.placement).toBe('post-join');
   });
 
-  it('rejects placement="post-join" with aliasPath set', () => {
-    expect(() =>
-      FilterRuleSchema.parse({
-        column: 'x',
-        operator: 'eq',
-        value: 1,
-        placement: 'post-join',
-        aliasPath: 'users',
-      })
-    ).toThrow();
-  });
-
-  it('accepts placement="pre-join" with single-segment aliasPath and scalar rule', () => {
+  it('accepts placement="pre-join" with a unified column name and scalar rule', () => {
     const parsed = FilterRuleSchema.parse({
-      column: 'userRole',
+      column: 'users__userRole',
       operator: 'eq',
       value: 'admin',
       placement: 'pre-join',
-      aliasPath: 'users',
     });
     expect(parsed.placement).toBe('pre-join');
-    expect(parsed.aliasPath).toBe('users');
+    expect(parsed.column).toBe('users__userRole');
   });
 
-  it('accepts placement="pre-join" with dotted aliasPath and relative_date rule', () => {
+  it('accepts placement="pre-join" with a unified column name and relative_date rule', () => {
     expect(
       FilterRuleSchema.parse({
-        column: 'createdAt',
+        column: 'users_profiles__createdAt',
         operator: 'relative_date',
         value: { kind: 'last_n_days', n: 30 },
         placement: 'pre-join',
-        aliasPath: 'users.profiles',
       })
-    ).toMatchObject({ placement: 'pre-join', aliasPath: 'users.profiles' });
+    ).toMatchObject({ placement: 'pre-join', column: 'users_profiles__createdAt' });
   });
 
-  it('rejects placement="pre-join" without aliasPath', () => {
-    expect(() =>
+  it('accepts placement="pre-join" without additional metadata (validator resolves via index)', () => {
+    expect(
       FilterRuleSchema.parse({
-        column: 'x',
+        column: 'users__x',
         operator: 'eq',
         value: 1,
         placement: 'pre-join',
       })
-    ).toThrow();
-  });
-
-  it('rejects placement="pre-join" with aliasPath="main" (home mart not slicable)', () => {
-    expect(() =>
-      FilterRuleSchema.parse({
-        column: 'x',
-        operator: 'eq',
-        value: 1,
-        placement: 'pre-join',
-        aliasPath: 'main',
-      })
-    ).toThrow();
-  });
-
-  it('rejects aliasPath with uppercase / dashes / leading dot / trailing dot', () => {
-    const base = { column: 'x', operator: 'eq', value: 1, placement: 'pre-join' as const };
-    expect(() => FilterRuleSchema.parse({ ...base, aliasPath: 'Users' })).toThrow();
-    expect(() => FilterRuleSchema.parse({ ...base, aliasPath: 'users-table' })).toThrow();
-    expect(() => FilterRuleSchema.parse({ ...base, aliasPath: '.users' })).toThrow();
-    expect(() => FilterRuleSchema.parse({ ...base, aliasPath: 'users.' })).toThrow();
+    ).toMatchObject({ placement: 'pre-join', column: 'users__x' });
   });
 });
 

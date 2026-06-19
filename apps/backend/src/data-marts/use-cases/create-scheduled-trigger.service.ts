@@ -14,6 +14,7 @@ import { ScheduledTriggerValidatorFacade } from '../scheduled-trigger-types/faca
 import { ReportAccessService } from '../services/report-access.service';
 import { ScheduledTriggerType } from '../scheduled-trigger-types/enums/scheduled-trigger-type.enum';
 import { isScheduledReportRunConfig } from '../scheduled-trigger-types/scheduled-trigger-config.guards';
+import { AccessDecisionService, Action, EntityType } from '../services/access-decision';
 
 @Injectable()
 export class CreateScheduledTriggerService {
@@ -24,7 +25,8 @@ export class CreateScheduledTriggerService {
     private readonly dataMartService: DataMartService,
     private readonly mapper: ScheduledTriggerMapper,
     private readonly eventDispatcher: OwoxEventDispatcher,
-    private readonly reportAccessService: ReportAccessService
+    private readonly reportAccessService: ReportAccessService,
+    private readonly accessDecisionService: AccessDecisionService
   ) {}
 
   async run(command: CreateScheduledTriggerCommand): Promise<ScheduledTriggerDto> {
@@ -95,9 +97,19 @@ export class CreateScheduledTriggerService {
         command.projectId
       );
     } else {
-      // CONNECTOR_RUN requires editor role
-      if (!this.reportAccessService.isTechnicalUser(command.roles)) {
-        throw new ForbiddenException('Only Technical Users can create connector run triggers.');
+      const canManageTriggers = await this.accessDecisionService.canAccess(
+        command.userId,
+        command.roles,
+        EntityType.DATA_MART,
+        command.dataMartId,
+        Action.MANAGE_TRIGGERS,
+        command.projectId
+      );
+
+      if (!canManageTriggers) {
+        throw new ForbiddenException(
+          'You do not have permission to manage triggers for this DataMart.'
+        );
       }
     }
   }

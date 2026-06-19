@@ -464,6 +464,37 @@ describe('BetterAuthProvider', () => {
     });
   });
 
+  describe('getProjectForUser', () => {
+    it('returns local project context with the user role', async () => {
+      const provider = await createProvider();
+      const userMgmt = getUserManagementServiceFromProvider(provider);
+      userMgmt.getUserRole.mockResolvedValue('editor');
+
+      const project = await provider.getProjectForUser('user-1', '0');
+
+      expect(userMgmt.getUserRole).toHaveBeenCalledWith('user-1');
+      expect(project).toEqual({
+        id: '0',
+        title: 'OWOX Data Marts',
+        status: 'active',
+        roles: ['editor'],
+      });
+    });
+
+    it('defaults to viewer for unknown local roles', async () => {
+      const provider = await createProvider();
+      const userMgmt = getUserManagementServiceFromProvider(provider);
+      userMgmt.getUserRole.mockResolvedValue('custom-role');
+
+      await expect(provider.getProjectForUser('user-1', 'project-1')).resolves.toEqual({
+        id: 'project-1',
+        title: 'project-1',
+        status: 'active',
+        roles: ['viewer'],
+      });
+    });
+  });
+
   describe('inviteMember', () => {
     it('returns magic-link invitation with userId from inviteAndCreateStub', async () => {
       const provider = await createProvider();
@@ -523,6 +554,54 @@ describe('BetterAuthProvider', () => {
           defaultRole: 'viewer',
         })
       ).rejects.toBeInstanceOf(IdpOperationNotSupportedError);
+    });
+  });
+
+  describe('MCP OAuth', () => {
+    it('does not support MCP OAuth token issuing', async () => {
+      const provider = await createProvider();
+
+      await expect(
+        provider.createMcpOAuthAuthorizationCode(
+          {
+            clientId: 'client-1',
+            redirectUri: 'https://client.example/callback',
+            resource: 'https://mcp.owox.com/mcp',
+            scopes: ['mcp:read'],
+            state: 'state-1',
+            codeChallenge: 'challenge-1',
+            codeChallengeMethod: 'S256',
+          },
+          {
+            userId: 'user-1',
+            projectId: 'project-1',
+            roles: ['viewer'],
+          }
+        )
+      ).rejects.toBeInstanceOf(IdpOperationNotSupportedError);
+
+      await expect(
+        provider.exchangeMcpOAuthToken({
+          grantType: 'authorization_code',
+          code: 'code-1',
+          clientId: 'client-1',
+          redirectUri: 'https://client.example/callback',
+          resource: 'https://mcp.owox.com/mcp',
+          codeVerifier: 'verifier-1',
+        })
+      ).rejects.toBeInstanceOf(IdpOperationNotSupportedError);
+
+      await expect(provider.getMcpOAuthJwks()).rejects.toBeInstanceOf(
+        IdpOperationNotSupportedError
+      );
+    });
+
+    it('does not verify MCP access tokens', async () => {
+      const provider = await createProvider();
+
+      await expect(
+        provider.verifyMcpAccessToken('token-1', 'https://mcp.owox.com/mcp', ['mcp:read'])
+      ).resolves.toBeNull();
     });
   });
 });

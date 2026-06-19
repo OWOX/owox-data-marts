@@ -40,6 +40,20 @@ export interface InsightTemplateListResponseDto {
   data: InsightTemplateListItemDto[];
 }
 
+export interface ProjectInsightTemplateDataMartRefDto {
+  id: string;
+  title: string;
+}
+
+export interface ProjectInsightTemplateListItemDto extends InsightTemplateListItemDto {
+  dataMart: ProjectInsightTemplateDataMartRefDto;
+  canDelete: boolean;
+}
+
+export interface ProjectInsightTemplateListResponseDto {
+  insights: ProjectInsightTemplateListItemDto[];
+}
+
 export interface CreateInsightTemplateRequestDto {
   title?: string;
   template?: string | null;

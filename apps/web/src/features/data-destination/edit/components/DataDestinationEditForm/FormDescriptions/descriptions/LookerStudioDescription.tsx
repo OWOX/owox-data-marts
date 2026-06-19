@@ -21,7 +21,7 @@ export default function LookerStudioDescription() {
         </p>
         <ExternalAnchor
           className='p-0'
-          href='https://docs.owox.com/docs/destinations/supported-destinations/looker-studio/?utm_source=owox_data_marts&utm_medium=destination_enity&utm_campaign=tooltip'
+          href='https://docs.owox.com/docs/destinations/supported-destinations/data-studio/?utm_source=owox_data_marts&utm_medium=destination_entity&utm_campaign=tooltip'
         >
           Learn more
         </ExternalAnchor>

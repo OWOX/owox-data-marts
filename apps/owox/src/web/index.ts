@@ -5,6 +5,7 @@
  * including static file serving, SPA routing configuration, and helper routes.
  */
 
+export { buildCorsConfig } from './cors.js';
 export { type FlagsRouteOptions, registerPublicFlagsRoute } from './flags-route.js';
 export { registerHealthRoutes } from './health-route.js';
 export { checkReadiness } from './readiness.js';

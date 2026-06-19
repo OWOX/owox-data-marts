@@ -88,7 +88,7 @@ export function DataMartRunHistory() {
           ))}
 
           {hasMoreRunsToLoad && (
-            <div className='flex justify-center pt-4'>
+            <div className='flex justify-center pt-4 pb-6'>
               <Button
                 variant='outline'
                 size='sm'

@@ -241,8 +241,9 @@ describe('UserProvisioningSettings', () => {
 
     render(<UserProvisioningSettings contexts={[]} isAdmin={true} />);
 
+    const manualModeRadio = await screen.findByTestId('radio-require-request');
     await waitFor(() => {
-      expect(screen.getByTestId('radio-require-request')).toBeChecked();
+      expect(manualModeRadio).toBeChecked();
     });
     expect(screen.queryByTestId('change-default-roles-btn')).not.toBeInTheDocument();
   });

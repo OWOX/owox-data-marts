@@ -1,6 +1,5 @@
 import { Logger, NotImplementedException } from '@nestjs/common';
 import {
-  BlendedColumnTypes,
   BlendedQueryBuilder,
   BlendedQueryContext,
   ResolvedRelationshipChain,
@@ -13,7 +12,7 @@ import {
   SqlClauseRenderer,
   SqlParameter,
 } from '../utils/sql-clause-renderer';
-import { FilterRule, aliasPathToCteName } from '../../dto/schemas/filter-config.schema';
+import { FilterRule } from '../../dto/schemas/filter-config.schema';
 
 interface BlendTreeNode {
   chain: ResolvedRelationshipChain;
@@ -89,7 +88,6 @@ export abstract class AbstractBlendedQueryBuilder implements BlendedQueryBuilder
 
   buildBlendedQuery(context: BlendedQueryContext): { sql: string; params: SqlParameter[] } {
     const allFilters = context.filters ?? [];
-    const resolveColumnType = this.buildColumnTypeResolver(context.columnTypes);
 
     // Capability guard first — storages without a clauseRenderer can't honour any controls.
     const hasOutputControls =
@@ -103,26 +101,41 @@ export abstract class AbstractBlendedQueryBuilder implements BlendedQueryBuilder
     const validCteNames = new Set(context.chains.map(c => c.cteName));
     const preJoinByCte = new Map<string, FilterRule[]>();
     const postJoinFilters: FilterRule[] = [];
+    // Maps each resolved pre-join rule object (identity key) to its column type,
+    // so resolveColumnType can serve pre-join casts without a separate type map.
+    const preJoinTypeByRule = new Map<FilterRule, string | undefined>();
     for (const rule of allFilters) {
       if (rule.placement === 'pre-join') {
-        // aliasPath presence and "main" exclusion enforced at schema level.
-        if (!rule.aliasPath) {
-          throw new Error('buildBlendedQuery: pre-join rule missing aliasPath (schema bug)');
-        }
-        const cteName = aliasPathToCteName(rule.aliasPath);
-        if (!validCteNames.has(cteName)) {
+        const f = context.fieldIndex?.get(rule.column);
+        if (!f) {
+          // Invariant: the validator must have rejected an unresolvable pre-join
+          // slice before reaching the builder. Reaching here means the unified
+          // column isn't a known blended field for this schema.
           throw new Error(
-            `buildBlendedQuery: pre-join filter aliasPath='${rule.aliasPath}' ` +
-              `does not resolve to any chain (cteName='${cteName}')`
+            `buildBlendedQuery: pre-join filter column='${rule.column}' is an unresolved blended column ` +
+              `(not present in the field index for this schema)`
           );
         }
-        const list = preJoinByCte.get(cteName) ?? [];
-        list.push(rule);
-        preJoinByCte.set(cteName, list);
+        if (!validCteNames.has(f.cteName)) {
+          throw new Error(
+            `buildBlendedQuery: pre-join filter column='${rule.column}' ` +
+              `resolves to cteName='${f.cteName}' which is not in any chain`
+          );
+        }
+        const internal: FilterRule = { ...rule, column: f.originalFieldName };
+        preJoinTypeByRule.set(internal, f.type);
+        const list = preJoinByCte.get(f.cteName) ?? [];
+        list.push(internal);
+        preJoinByCte.set(f.cteName, list);
       } else {
         postJoinFilters.push(rule);
       }
     }
+
+    const resolveColumnType: ColumnTypeResolver = rule =>
+      preJoinTypeByRule.has(rule)
+        ? preJoinTypeByRule.get(rule)
+        : context.columnTypes?.postJoin?.get(rule.column);
 
     const { mainTableReference, mainDataMartTitle, mainDataMartUrl, chains, columns } = context;
     const columnSet = new Set(columns);
@@ -168,7 +181,7 @@ export abstract class AbstractBlendedQueryBuilder implements BlendedQueryBuilder
     const selectClause = selectParts.length > 0 ? selectParts.join(',\n  ') : '*';
 
     const body =
-      `SELECT\n  ${selectClause}\nFROM main` +
+      `SELECT\n  ${selectClause}\nFROM ${this.quoteIdentifier('main')}` +
       (joinParts.length > 0 ? '\n' + joinParts.join('\n') : '');
 
     const qualifyColumn = this.buildColumnQualifier(outputAliasToRoot);
@@ -186,25 +199,13 @@ export abstract class AbstractBlendedQueryBuilder implements BlendedQueryBuilder
     return { sql, params: [...cteParams, ...where.params, ...orderBy.params, ...limit.params] };
   }
 
-  // Pre-join slices filter a subsidiary's raw columns (keyed by aliasPath); every
-  // other rule filters a final-SELECT column. Mirrors the validator's type lookup.
-  private buildColumnTypeResolver(
-    columnTypes: BlendedColumnTypes | undefined
-  ): ColumnTypeResolver | undefined {
-    if (!columnTypes) return undefined;
-    return rule =>
-      rule.placement === 'pre-join' && rule.aliasPath
-        ? columnTypes.preJoin?.get(rule.aliasPath)?.get(rule.column)
-        : columnTypes.postJoin?.get(rule.column);
-  }
-
   private buildColumnQualifier(outputAliasToRoot: Map<string, string>): ColumnRefResolver {
     return (column: string) => {
       const rootAlias = outputAliasToRoot.get(column);
       if (rootAlias) {
         return `${this.quoteIdentifier(rootAlias)}.${this.quoteIdentifier(column)}`;
       }
-      return `main.${this.quoteFieldRef(column)}`;
+      return `${this.quoteIdentifier('main')}.${this.quoteFieldRef(column)}`;
     };
   }
 
@@ -497,7 +498,7 @@ export abstract class AbstractBlendedQueryBuilder implements BlendedQueryBuilder
       if (rootAlias && !hiddenOutputAliases.has(col)) {
         parts.push(`${this.quoteIdentifier(rootAlias)}.${this.quoteIdentifier(col)}`);
       } else {
-        parts.push(`main.${this.quoteFieldRef(col)}`);
+        parts.push(`${this.quoteIdentifier('main')}.${this.quoteFieldRef(col)}`);
       }
     }
     return parts;

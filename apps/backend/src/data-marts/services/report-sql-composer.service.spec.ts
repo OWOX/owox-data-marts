@@ -7,6 +7,7 @@ import { AthenaQueryBuilder } from '../data-storage-types/athena/services/athena
 import { AthenaClauseRenderer } from '../data-storage-types/athena/services/athena-clause-renderer';
 import { isQueryBuildResult } from '../data-storage-types/interfaces/data-mart-query-builder.interface';
 import { DataStorageType } from '../data-storage-types/enums/data-storage-type.enum';
+import { BusinessViolationException } from '../../common/exceptions/business-violation.exception';
 
 describe('ReportSqlComposerService', () => {
   const buildReport = (overrides: Partial<Report> = {}): Report =>
@@ -201,6 +202,59 @@ describe('ReportSqlComposerService', () => {
       })
     );
     expect(result).toEqual({ sql: 'SELECT 1', params: [{ name: 'p0', value: 1 }] });
+  });
+
+  it('passes recursive native field types to QueryBuilder for nested output controls', async () => {
+    const queryBuilderFacade = {
+      buildQuery: jest.fn().mockResolvedValue({ sql: 'SELECT 1', params: [] }),
+    };
+    const blendedDataService = {
+      resolveBlendingDecision: jest.fn().mockResolvedValue({
+        needsBlending: false,
+        columnFilter: ['user.created_at'],
+      }),
+    };
+    const tableReferenceService = { resolveTableName: jest.fn().mockResolvedValue('p.d.view_x') };
+    const capabilityService = { isSupported: jest.fn().mockReturnValue(true) };
+    const composer = new ReportSqlComposerService(
+      blendedDataService as never,
+      queryBuilderFacade as never,
+      tableReferenceService as never,
+      capabilityService as never
+    );
+    const filterConfig = [
+      {
+        column: 'user.created_at',
+        operator: 'relative_date',
+        value: { kind: 'last_n_days', n: 7 },
+      },
+    ];
+    const report = {
+      filterConfig,
+      sortConfig: [{ column: 'user.created_at', direction: 'asc' }],
+      limitConfig: null,
+      dataMart: {
+        id: 'm',
+        projectId: 'p',
+        storage: { type: 'GOOGLE_BIGQUERY' },
+        definition: { type: 'sql', sqlQuery: 'SELECT 1' },
+        schema: {
+          fields: [
+            {
+              name: 'user',
+              type: 'RECORD',
+              status: 'CONNECTED',
+              fields: [{ name: 'created_at', type: 'TIMESTAMP', status: 'CONNECTED' }],
+            },
+          ],
+        },
+      },
+    } as never;
+
+    await composer.compose(report, { userId: 'user-1', roles: ['admin'] });
+
+    const options = queryBuilderFacade.buildQuery.mock.calls[0][2];
+    expect(options.columnTypes.get('user.created_at')).toBe('TIMESTAMP');
   });
 
   it('does not resolve mainTableReference when no output controls', async () => {
@@ -523,31 +577,29 @@ describe('ReportSqlComposerService', () => {
         },
       }) as never;
 
-    it('filter on a column no longer in the schema (renamed/excluded) surfaces as 400 BadRequestException with FILTER_COLUMN_UNKNOWN', async () => {
+    it('filter on a column no longer in the schema (renamed/excluded) surfaces as 400 BusinessViolationException with unknownColumns', async () => {
       // Simulates: report was saved with a filter on "old_column"; the data mart
       // schema was later updated and "old_column" was renamed / excluded.  The
-      // validator running inside resolveBlendingDecision raises a structured 400.
-      const schemaDriftError = new BadRequestException({
-        message: 'Output controls validation failed',
-        details: {
-          errors: [{ code: 'FILTER_COLUMN_UNKNOWN', column: 'old_column' }],
-        },
-      });
+      // validator running inside resolveBlendingDecision raises the same structured
+      // 400 used for disconnected selected columns.
+      const schemaDriftError = new BusinessViolationException(
+        'Cannot build report SQL. Disconnected columns: "old_column". They are missing from the current Data Mart output schema. Uncheck them to remove them from the report, or contact your analyst to restore the schema.',
+        { unknownColumns: ['old_column'], dataMartId: 'dm-athena' }
+      );
       const service = makeAthenaComposerWithValidationError(schemaDriftError);
 
       const report = athenaReport([{ column: 'old_column', operator: 'eq', value: 'stale' }]);
 
-      // Must re-throw the BadRequestException (400), not a generic Error (500).
+      // Must re-throw the BusinessViolationException (mapped to HTTP 400), not a generic Error (500).
       await expect(service.compose(report, { userId: 'u1', roles: ['viewer'] })).rejects.toThrow(
-        BadRequestException
+        BusinessViolationException
       );
       await expect(
         service.compose(report, { userId: 'u1', roles: ['viewer'] })
       ).rejects.toMatchObject({
-        response: {
-          details: {
-            errors: [{ code: 'FILTER_COLUMN_UNKNOWN', column: 'old_column' }],
-          },
+        errorDetails: {
+          unknownColumns: ['old_column'],
+          dataMartId: 'dm-athena',
         },
       });
     });
@@ -593,10 +645,10 @@ describe('ReportSqlComposerService', () => {
     });
 
     it('queryBuilderFacade is never called when schema-drift validation fails', async () => {
-      const schemaDriftError = new BadRequestException({
-        message: 'Output controls validation failed',
-        details: { errors: [{ code: 'FILTER_COLUMN_UNKNOWN', column: 'stale' }] },
-      });
+      const schemaDriftError = new BusinessViolationException(
+        'Cannot build report SQL. Disconnected columns: "stale". They are missing from the current Data Mart output schema. Uncheck them to remove them from the report, or contact your analyst to restore the schema.',
+        { unknownColumns: ['stale'], dataMartId: 'dm-athena' }
+      );
       const blendedReportDataService = {
         resolveBlendingDecision: jest.fn().mockRejectedValue(schemaDriftError),
       };
@@ -616,7 +668,7 @@ describe('ReportSqlComposerService', () => {
           userId: 'u1',
           roles: ['viewer'],
         })
-      ).rejects.toThrow(BadRequestException);
+      ).rejects.toThrow(BusinessViolationException);
 
       expect(queryBuilderFacade.buildQuery).not.toHaveBeenCalled();
     });
@@ -737,6 +789,53 @@ describe('ReportSqlComposerService', () => {
     });
   });
 
+  describe('inlineStaticSql', () => {
+    const composer = new ReportSqlComposerService(
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never
+    );
+
+    it('returns SQL unchanged when there are no params', () => {
+      expect(composer.inlineStaticSql(DataStorageType.AWS_ATHENA, 'SELECT 1')).toBe('SELECT 1');
+      expect(composer.inlineStaticSql(DataStorageType.GOOGLE_BIGQUERY, 'SELECT 1', [])).toBe(
+        'SELECT 1'
+      );
+    });
+
+    it('inlines positional ? to literals for Athena (quotes escaped)', () => {
+      const sql = composer.inlineStaticSql(
+        DataStorageType.AWS_ATHENA,
+        `SELECT * FROM t WHERE "name" = ? AND "amount" >= ?`,
+        [
+          { name: 'p0', value: "O'Brien" },
+          { name: 'p1', value: 50 },
+        ]
+      );
+      expect(sql).not.toContain('?');
+      expect(sql).toContain(`"name" = 'O''Brien'`);
+      expect(sql).toContain('"amount" >= 50');
+    });
+
+    it('inlines named @p to literals for BigQuery and Legacy BigQuery', () => {
+      const sql = 'SELECT * FROM t WHERE `d` = CAST(@p0 AS DATE)';
+      const params = [{ name: 'p0', value: '2024-01-01' }];
+      const bq = composer.inlineStaticSql(DataStorageType.GOOGLE_BIGQUERY, sql, params);
+      const legacy = composer.inlineStaticSql(DataStorageType.LEGACY_GOOGLE_BIGQUERY, sql, params);
+      expect(bq).toBe("SELECT * FROM t WHERE `d` = CAST('2024-01-01' AS DATE)");
+      expect(legacy).toBe(bq);
+    });
+
+    it('throws BusinessViolationException for a dialect with no inliner when params are present', () => {
+      expect(() =>
+        composer.inlineStaticSql(DataStorageType.SNOWFLAKE, 'SELECT * FROM t WHERE a = ?', [
+          { name: 'p0', value: 1 },
+        ])
+      ).toThrow(BusinessViolationException);
+    });
+  });
+
   describe('composeStatic — non-Athena dialects', () => {
     it('inlines named @params into literals for BigQuery (CAST wrapper makes date literals valid)', async () => {
       const queryBuilderFacade = {
@@ -776,6 +875,39 @@ describe('ReportSqlComposerService', () => {
       expect(sql).toBe(
         "SELECT * FROM t WHERE `name` = 'O\\'Brien' AND `d` = CAST('2024-01-01' AS DATE)"
       );
+    });
+
+    it('inlines named @params into literals for Legacy BigQuery (shares the BigQuery branch)', async () => {
+      const queryBuilderFacade = {
+        buildQuery: jest.fn().mockResolvedValue({
+          sql: 'SELECT * FROM t WHERE `d` = CAST(@p0 AS DATE)',
+          params: [{ name: 'p0', value: '2024-01-01' }],
+        }),
+      };
+      const blendedDataService = {
+        resolveBlendingDecision: jest
+          .fn()
+          .mockResolvedValue({ needsBlending: false, columnFilter: ['d'] }),
+      };
+      const composer = new ReportSqlComposerService(
+        blendedDataService as never,
+        queryBuilderFacade as never,
+        { resolveTableName: jest.fn().mockResolvedValue('p.d.t') } as never,
+        { isSupported: jest.fn().mockReturnValue(true) } as never
+      );
+      const report = {
+        filterConfig: [{ column: 'd', operator: 'gte', value: '2024-01-01' }],
+        dataMart: {
+          id: 'm',
+          projectId: 'p',
+          storage: { type: DataStorageType.LEGACY_GOOGLE_BIGQUERY },
+          definition: { type: 'sql', sqlQuery: 'SELECT * FROM t' },
+        },
+      } as never;
+
+      const { sql } = await composer.composeStatic(report, { userId: 'u1', roles: ['admin'] });
+      expect(sql).not.toContain('@p');
+      expect(sql).toBe("SELECT * FROM t WHERE `d` = CAST('2024-01-01' AS DATE)");
     });
 
     it('returns SQL unchanged when there are no params (sort/limit-only or no controls)', async () => {

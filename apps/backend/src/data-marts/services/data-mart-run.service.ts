@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { In, Repository } from 'typeorm';
 import { OwoxEventDispatcher } from '../../common/event-dispatcher/owox-event-dispatcher';
 import { SystemTimeService } from '../../common/scheduler/services/system-time.service';
 
@@ -12,11 +12,15 @@ import { DataMart } from '../entities/data-mart.entity';
 import { Insight } from '../entities/insight.entity';
 import { InsightTemplate } from '../entities/insight-template.entity';
 import { Report } from '../entities/report.entity';
+import { hasOutputControls } from '../dto/domain/report-like-read-plan';
 import { DataMartRunStatus } from '../enums/data-mart-run-status.enum';
 import { DataMartRunType } from '../enums/data-mart-run-type.enum';
+import { RoleScope } from '../enums/role-scope.enum';
 import { ReportRunCompletedSuccessfullyEvent } from '../events/report-run-completed-successfully.event';
 import { HttpDataRunMetadata } from '../dto/schemas/http-data-run-metadata.schema';
+import { applyDataMartVisibilityFilter } from '../utils/apply-data-mart-visibility-filter';
 import { HTTP_DATA_PARAMS_KEY } from './http-data/http-data.constants';
+import { CANCELLABLE_DATA_MART_RUN_STATUSES } from '../utils/data-mart-run-cancellation';
 
 /**
  * Context for creating a new report run.
@@ -79,6 +83,15 @@ export interface HttpDataRunRecord {
   errors?: string[];
 }
 
+export interface ListVisibleProjectRunsOptions {
+  projectId: string;
+  userId: string;
+  roles: string[];
+  roleScope: RoleScope;
+  limit?: number;
+  offset?: number;
+}
+
 /**
  * Service managing the underlying DataMartRun entity lifecycle.
  *
@@ -121,6 +134,55 @@ export class DataMartRunService {
       order: { createdAt: 'DESC' },
       take: limit,
       skip: offset,
+    });
+  }
+
+  /**
+   * Lists project runs for Data Marts visible to the current user.
+   */
+  public async listVisibleByProject(
+    options: ListVisibleProjectRunsOptions
+  ): Promise<DataMartRun[]> {
+    const pageQb = this.dataMartRunRepository
+      .createQueryBuilder('run')
+      .innerJoin('run.dataMart', 'dataMart')
+      .where('dataMart.projectId = :projectId', { projectId: options.projectId })
+      .andWhere('dataMart.deletedAt IS NULL');
+
+    applyDataMartVisibilityFilter(pageQb, {
+      dataMartAlias: 'dataMart',
+      projectId: options.projectId,
+      userId: options.userId,
+      roles: options.roles,
+      roleScope: options.roleScope,
+    });
+
+    // Keep pagination sorting narrow. TypeORM's take/skip with a joined entity otherwise
+    // performs a second, wide ORDER BY over all JSON run and Data Mart columns.
+    const page = await pageQb
+      .select('run.id', 'id')
+      .orderBy('run.createdAt', 'DESC')
+      .addOrderBy('run.id', 'DESC')
+      .limit(options.limit ?? 20)
+      .offset(options.offset ?? 0)
+      .getRawMany<{ id: string }>();
+
+    const runIds = page.map(({ id }) => id);
+    if (runIds.length === 0) {
+      return [];
+    }
+
+    const runs = await this.dataMartRunRepository
+      .createQueryBuilder('run')
+      .innerJoin('run.dataMart', 'dataMart')
+      .select(['run', 'dataMart.id', 'dataMart.title'])
+      .where('run.id IN (:...runIds)', { runIds })
+      .getMany();
+
+    const runsById = new Map(runs.map(run => [run.id, run]));
+    return runIds.flatMap(id => {
+      const run = runsById.get(id);
+      return run ? [run] : [];
     });
   }
 
@@ -172,9 +234,6 @@ export class DataMartRunService {
     });
   }
 
-  /**
-   * Returns a run by id that belongs to specified Data Mart.
-   */
   public async getByIdAndDataMartId(
     runId: string,
     dataMartId: string
@@ -182,6 +241,21 @@ export class DataMartRunService {
     return this.dataMartRunRepository.findOne({
       where: { id: runId, dataMartId },
     });
+  }
+
+  public async markAsCancelled(dataMartRun: DataMartRun): Promise<boolean> {
+    const result = await this.dataMartRunRepository.update(
+      {
+        id: dataMartRun.id,
+        status: In(CANCELLABLE_DATA_MART_RUN_STATUSES),
+      },
+      {
+        status: DataMartRunStatus.CANCELLED,
+        finishedAt: this.systemClock.now(),
+      }
+    );
+
+    return (result.affected ?? 0) > 0;
   }
 
   /**
@@ -530,11 +604,7 @@ export class DataMartRunService {
   private createReportRunFromReport(report: Report, context: ReportRunContext): DataMartRun {
     const { id, title, dataMart, destinationConfig, dataDestination } = report;
 
-    const hasOutputControls =
-      (report.filterConfig?.length ?? 0) > 0 ||
-      (report.sortConfig?.length ?? 0) > 0 ||
-      report.limitConfig != null;
-    const outputConfig = hasOutputControls
+    const outputConfig = hasOutputControls(report)
       ? {
           filterConfig: report.filterConfig ?? undefined,
           sortConfig: report.sortConfig ?? undefined,

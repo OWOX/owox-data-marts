@@ -4,6 +4,7 @@ import { Repository } from 'typeorm';
 import { ConnectorRunTrigger } from '../../entities/connector-run-trigger.entity';
 import { TriggerStatus } from '../../../common/scheduler/shared/entities/trigger-status';
 import { RunType } from '../../../common/scheduler/shared/types';
+import { stopRunTriggersForRun } from '../../utils/run-trigger-cancellation';
 
 export interface CreateConnectorRunTriggerParams {
   dataMartId: string;
@@ -35,5 +36,9 @@ export class ConnectorRunTriggerService {
 
     const saved = await this.repository.save(trigger);
     return saved.id;
+  }
+
+  async stopTriggersForRun(dataMartRunId: string): Promise<void> {
+    await stopRunTriggersForRun(this.repository, dataMartRunId);
   }
 }

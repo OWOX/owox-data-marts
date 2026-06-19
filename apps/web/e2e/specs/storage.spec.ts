@@ -232,6 +232,48 @@ describeIfCredentials(['AWS_ACCESS_KEY_ID', 'AWS_REGION'], 'Athena Config Save',
 });
 
 // ---------------------------------------------------------------------------
+// STOR-08: Collapsed section with errors auto-opens on failed submit
+// ---------------------------------------------------------------------------
+
+test.describe('Storage Form — Collapsed Section Validation', () => {
+  test('auto-opens collapsed General section and shows error indicator on failed submit', async ({
+    page,
+    apiHelpers,
+  }) => {
+    await apiHelpers.createStorage('GOOGLE_BIGQUERY');
+    await page.goto('/ui/0/data-storages');
+    await expect(page.getByTestId(TESTIDS.storageListPage)).toBeVisible();
+
+    await page.getByRole('button', { name: 'Open menu' }).first().click();
+    await page.getByRole('menuitem', { name: 'Edit' }).click();
+    await expect(page.getByTestId(TESTIDS.storageEditForm)).toBeVisible();
+
+    const form = page.getByTestId(TESTIDS.storageEditForm);
+    const titleInput = form.getByLabel('Title');
+
+    // Clear title to create a validation error inside "General"
+    await titleInput.click();
+    await titleInput.fill('');
+
+    // Collapse the "General" section
+    await form.getByRole('button', { name: /general/i }).click();
+    await expect(titleInput).not.toBeVisible();
+
+    // Submit with a collapsed section that contains errors
+    await page.getByRole('button', { name: 'Save' }).click();
+
+    // Section must auto-open and expose the invalid field
+    await expect(titleInput).toBeVisible({ timeout: 3000 });
+
+    // Error indicator must appear in at least one section header (General, and possibly others)
+    await expect(form.getByTestId(TESTIDS.formSectionErrorIndicator).first()).toBeVisible();
+
+    // Inline validation message must be visible
+    await expect(form.getByText('Title is required')).toBeVisible();
+  });
+});
+
+// ---------------------------------------------------------------------------
 // STOR-06: Delete storage with confirmation dialog
 // ---------------------------------------------------------------------------
 

@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, OptimisticLockVersionMismatchError } from 'typeorm';
+import { In, Repository, OptimisticLockVersionMismatchError } from 'typeorm';
 import { DataDestinationType } from '../data-destination-types/enums/data-destination-type.enum';
 import { LookerStudioConnectorCredentialsType } from '../data-destination-types/looker-studio-connector/schemas/looker-studio-connector-credentials.schema';
 import { Report } from '../entities/report.entity';
@@ -46,6 +46,30 @@ export class ReportService {
     }
 
     return report;
+  }
+
+  /**
+   * Fetches reports by IDs within a project with related entities.
+   */
+  async getByIdsAndProjectIdAndDataMartIds(
+    ids: string[],
+    projectId: string,
+    dataMartIds: string[]
+  ): Promise<Report[]> {
+    if (ids.length === 0 || dataMartIds.length === 0) {
+      return [];
+    }
+
+    return this.repository.find({
+      where: {
+        id: In(ids),
+        dataMart: {
+          id: In(dataMartIds),
+          projectId,
+        },
+      },
+      relations: ['dataMart', 'dataDestination'],
+    });
   }
 
   /**
@@ -159,6 +183,15 @@ export class ReportService {
       lastRunError: error ? error : () => 'NULL',
       runsCount: () => 'runsCount + 1',
     });
+  }
+
+  async markRunAsCancelled(reportId: string): Promise<void> {
+    await this.repository.update(
+      { id: reportId, lastRunStatus: ReportRunStatus.RUNNING },
+      {
+        lastRunStatus: ReportRunStatus.CANCELLED,
+      }
+    );
   }
 
   /**

@@ -3,7 +3,11 @@ import { DataStorageType } from '../../../data-storage/shared/model/types/data-s
 // Mirror of backend OutputControlsCapabilityService — keep in sync.
 const SUPPORTED: ReadonlySet<DataStorageType> = new Set([
   DataStorageType.GOOGLE_BIGQUERY,
+  DataStorageType.LEGACY_GOOGLE_BIGQUERY,
   DataStorageType.AWS_ATHENA,
+  DataStorageType.AWS_REDSHIFT,
+  DataStorageType.DATABRICKS,
+  DataStorageType.SNOWFLAKE,
 ]);
 
 export function supportsOutputControls(type: DataStorageType): boolean {

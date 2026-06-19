@@ -15,7 +15,9 @@ const key: ProjectMemberApiKey = {
 
 vi.mock('@owox/ui/components/common/relative-time', () => ({
   __esModule: true,
-  default: ({ date }: { date: Date }) => <span>{date.toISOString()}</span>,
+  default: ({ date, className }: { date: Date; className?: string }) => (
+    <span className={className}>{date.toISOString()}</span>
+  ),
 }));
 
 vi.mock('@owox/ui/components/tooltip', () => ({
@@ -229,5 +231,38 @@ describe('ApiKeysTable', () => {
       'Future soon',
       'Expired',
     ]);
+  });
+
+  it('lets date text wrap when old narrow widths are saved', () => {
+    localStorage.setItem(
+      'my-api-keys-column-sizing',
+      JSON.stringify({
+        createdAt: 130,
+        lastAuthenticatedAt: 150,
+      })
+    );
+
+    const authenticatedAt = '2026-06-01T09:00:00.000Z';
+
+    render(
+      <ApiKeysTable
+        keys={[{ ...key, lastAuthenticatedAt: authenticatedAt }]}
+        onCreateKey={vi.fn()}
+        onOpenDetails={vi.fn()}
+        onEditName={vi.fn()}
+        onRevoke={vi.fn()}
+      />
+    );
+
+    const createdValue = screen.getByText(key.createdAt);
+    const lastAuthenticatedValue = screen.getByText(authenticatedAt);
+
+    expect(createdValue).toHaveClass('block', 'max-w-full', 'whitespace-normal', 'break-words');
+    expect(lastAuthenticatedValue).toHaveClass(
+      'block',
+      'max-w-full',
+      'whitespace-normal',
+      'break-words'
+    );
   });
 });

@@ -78,3 +78,49 @@ describe('NullIdpProvider project member API keys', () => {
     );
   });
 });
+
+describe('NullIdpProvider MCP OAuth', () => {
+  it('does not issue MCP OAuth authorization codes or tokens', async () => {
+    const provider = new NullIdpProvider();
+
+    await expect(
+      provider.createMcpOAuthAuthorizationCode(
+        {
+          clientId: 'client-1',
+          redirectUri: 'https://client.example/callback',
+          resource: 'https://mcp.owox.com/mcp',
+          scopes: ['mcp:read'],
+          state: 'state-1',
+          codeChallenge: 'challenge',
+          codeChallengeMethod: 'S256',
+        },
+        {
+          userId: 'user-1',
+          projectId: 'project-1',
+          roles: ['viewer'],
+          email: 'user@example.com',
+        }
+      )
+    ).rejects.toBeInstanceOf(IdpOperationNotSupportedError);
+
+    await expect(
+      provider.exchangeMcpOAuthToken({
+        grantType: 'authorization_code',
+        code: 'code-1',
+        clientId: 'client-1',
+        redirectUri: 'https://client.example/callback',
+        resource: 'https://mcp.owox.com/mcp',
+        codeVerifier: 'verifier',
+      })
+    ).rejects.toBeInstanceOf(IdpOperationNotSupportedError);
+  });
+
+  it('does not verify MCP access tokens or expose JWKS', async () => {
+    const provider = new NullIdpProvider();
+
+    await expect(
+      provider.verifyMcpAccessToken('token-1', 'https://mcp.owox.com/mcp', ['mcp:read'])
+    ).resolves.toBeNull();
+    await expect(provider.getMcpOAuthJwks()).rejects.toBeInstanceOf(IdpOperationNotSupportedError);
+  });
+});

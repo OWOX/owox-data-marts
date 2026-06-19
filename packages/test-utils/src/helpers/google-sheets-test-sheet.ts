@@ -23,6 +23,37 @@ const TITLE_MAX_LENGTH = 80;
 const RANDOM_SUFFIX_BYTES = 3;
 
 /**
+ * Retry policy for the test's direct Sheets API calls.
+ *
+ * The whole suite runs as a single service account, so every read/write counts
+ * against one user's per-minute Sheets quota (default 60 read + 60 write per
+ * minute per user). On a fast CI runner the assertion reads bunch up and burst
+ * past that window, surfacing as HTTP 429 `Quota exceeded ... Read requests per
+ * minute per user`. Locally the higher network latency spaces calls out enough
+ * to stay under the limit, which is why this only bites in CI.
+ *
+ * googleapis' default backoff (3 tries, ~1–4s) is far too short to outlast a
+ * per-minute quota window, so we retry 429/5xx more times with a longer capped
+ * delay (~2,4,8,16,30,30s ≈ 90s total) — enough for the sliding window to free
+ * up budget. Only 429/5xx are retried; a 429 is rejected before the request
+ * applies, so retrying writes is safe.
+ */
+const SHEETS_RETRY_CONFIG = {
+  retry: 6,
+  retryDelay: 2000,
+  maxRetryDelay: 30_000,
+  httpMethodsToRetry: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD', 'OPTIONS'],
+  statusCodesToRetry: [
+    [429, 429],
+    [500, 599],
+  ],
+  onRetryAttempt: (err: { message?: string }) => {
+    // eslint-disable-next-line no-console
+    console.warn(`Retrying Sheets API call after error: ${err?.message ?? 'unknown error'}`);
+  },
+};
+
+/**
  * Provisions a brand-new ephemeral sheet inside the shared test spreadsheet.
  *
  * Title shape: `it-{Date.now()}-{rand}-{slug(baseName)}` — the timestamp +
@@ -49,7 +80,7 @@ export async function createTestSheet(
     key: credentials.private_key,
     scopes: ['https://www.googleapis.com/auth/spreadsheets'],
   });
-  const sheets = google.sheets({ version: 'v4', auth });
+  const sheets = google.sheets({ version: 'v4', auth, retryConfig: SHEETS_RETRY_CONFIG });
 
   const sheetTitle = buildSheetTitle(baseName);
   const addRes = await sheets.spreadsheets.batchUpdate({

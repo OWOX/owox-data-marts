@@ -1,19 +1,19 @@
 import { useEffect, useRef, useState } from 'react';
 import { Filter } from 'lucide-react';
 import { cn } from '@owox/ui/lib/utils';
+import { ActiveRulesPopover } from './ActiveRulesPopover';
 import { FilterEditorPopover } from './FilterEditorPopover';
 import { FilterOrSliceEditorPopover } from './FilterOrSliceEditorPopover';
 import type { FilterRule } from '../../../shared/types/output-config';
 
 interface SliceIconProps {
-  aliasPath: string;
-  originalFieldName: string;
-  /** Pre-join filters already active for this aliasPath+column combination. */
+  /** Unified blended-field name used as rule.column for pre-join rules. */
+  unifiedFieldName: string;
+  /** Pre-join filters already active for this unified column. */
   existingSlices: readonly FilterRule[];
   /**
-   * Add a pre-join FilterRule (placement+aliasPath already set by the popover).
-   * Omit for remove-only mode (the slice tab is hidden and existing slices
-   * can only be cleared).
+   * Add a pre-join FilterRule (placement already set by the popover).
+   * Omit when adding slices is not allowed.
    */
   onAddSlice?: (rule: FilterRule) => void;
   onRemoveSliceAt: (globalIndex: number) => void;
@@ -24,6 +24,10 @@ interface SliceIconProps {
 interface RowFilterIconProps {
   column: string;
   fieldType: string;
+  /** Business-readable field name shown in popover headers; falls back to `column`. */
+  displayLabel?: string;
+  /** Joined data mart name shown under the field name; absent for home-mart fields. */
+  dataMartName?: string;
   activeRules: readonly FilterRule[];
   /** Omit to render the icon in remove-only mode (still shows count and exposes onRemoveAt). */
   onAdd?: (rule: FilterRule) => void;
@@ -35,6 +39,8 @@ interface RowFilterIconProps {
 export function RowFilterIcon({
   column,
   fieldType,
+  displayLabel,
+  dataMartName,
   activeRules,
   onAdd,
   onRemoveAt,
@@ -80,9 +86,7 @@ export function RowFilterIcon({
   };
   const replaceSliceAt = sliceIconProps?.onReplaceSliceAt;
   const addSlice = sliceIconProps?.onAddSlice;
-  // Surface the slice tab whenever we can either add a slice or clear an
-  // existing one — otherwise the remove path inside an inaccessible group
-  // disappears together with the add path.
+  const canEdit = !!onAdd || !!onReplaceAt || !!addSlice || !!replaceSliceAt;
   const sliceTabAvailable =
     !!sliceIconProps && (!!addSlice || sliceIconProps.existingSlices.length > 0);
   const handleSliceApply = sliceTabAvailable
@@ -114,15 +118,43 @@ export function RowFilterIcon({
     </button>
   );
 
+  // Nothing editable (disconnected / no-access rows) — stale references can only be cleared.
+  if (!canEdit) {
+    return (
+      <ActiveRulesPopover
+        open={open}
+        onOpenChange={setOpen}
+        trigger={trigger}
+        column={column}
+        fieldType={fieldType}
+        displayLabel={displayLabel}
+        dataMartName={dataMartName}
+        sliceColumn={sliceIconProps?.unifiedFieldName}
+        filters={{ rules: activeRules, onRemoveAt }}
+        slices={
+          sliceIconProps
+            ? {
+                rules: sliceIconProps.existingSlices,
+                onRemoveAt: localIdx => {
+                  sliceIconProps.onRemoveSliceAt(sliceIconProps.existingSliceIndices[localIdx]);
+                },
+              }
+            : undefined
+        }
+      />
+    );
+  }
+
   if (sliceIconProps && handleSliceApply) {
     return (
       <FilterOrSliceEditorPopover
         open={open}
         onOpenChange={setOpen}
         column={column}
-        sliceColumn={sliceIconProps.originalFieldName}
+        sliceColumn={sliceIconProps.unifiedFieldName}
         fieldType={fieldType}
-        aliasPath={sliceIconProps.aliasPath}
+        displayLabel={displayLabel}
+        dataMartName={dataMartName}
         defaultTab={defaultTab}
         filterProps={{
           onApply: handleFilterApply,
@@ -149,6 +181,8 @@ export function RowFilterIcon({
       onOpenChange={setOpen}
       column={column}
       fieldType={fieldType}
+      displayLabel={displayLabel}
+      dataMartName={dataMartName}
       onApply={handleFilterApply}
       initialRule={editFilter}
       existingRules={editFilter ? [] : activeRules}

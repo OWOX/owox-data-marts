@@ -1,7 +1,10 @@
 export type { EventTransport, EventBusConfig } from './types.js';
+export { PostHogTransport } from './transports/posthog-transport.js';
+export { type PostHogConfig, resolvePostHogConfig } from './posthog-config.js';
 export { INTEGRATIONS_TRANSPORTS_ENV, resolveEventBusConfig } from './config.js';
 export { EventBus, createEventBusFromEnv } from './event-bus.js';
 export { BaseEvent } from './base-event.js';
+export { TelemetryEvent, isTelemetryEvent } from './telemetry-event.js';
 export { type OwoxMessage, buildOwoxMessage } from './message-format.js';
 
 import type { BaseEvent } from './base-event.js';

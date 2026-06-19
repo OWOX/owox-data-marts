@@ -14,6 +14,10 @@ export interface FilterEditorPopoverProps {
   trigger: ReactNode;
   column: string;
   fieldType: string;
+  /** Business-readable field name shown in the header; falls back to `column`. */
+  displayLabel?: string;
+  /** Joined data mart name shown under the field name; absent for home-mart fields. */
+  dataMartName?: string;
   initialRule?: FilterRule;
   onApply: (rule: FilterRule) => void;
   onCancel?: () => void;
@@ -69,10 +73,10 @@ export function FilterEditorPopover(props: FilterEditorPopoverProps) {
       <PopoverTrigger asChild>{props.trigger}</PopoverTrigger>
       <PopoverContent className='w-72 space-y-3'>
         <div>
-          <Label>Column</Label>
-          <div className='font-mono text-xs'>
-            {props.column} <span className='text-muted-foreground'>({props.fieldType})</span>
-          </div>
+          <div className='text-sm font-medium'>{props.displayLabel ?? props.column}</div>
+          {props.dataMartName && (
+            <div className='text-muted-foreground text-[11px]'>{props.dataMartName}</div>
+          )}
         </div>
 
         {hasExisting && (

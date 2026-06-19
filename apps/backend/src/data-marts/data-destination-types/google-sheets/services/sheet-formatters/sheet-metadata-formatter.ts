@@ -180,17 +180,22 @@ export class SheetMetadataFormatter {
   }
 
   /**
-   * Builds the short ODM ownership marker written into every imported column
-   * *except* the first one in the range. It signals that the column is managed
-   * by OWOX Data Marts without repeating the full provenance block (timestamp,
-   * data mart title, link) that would otherwise be duplicated across every
-   * header and bury the user's own column descriptions.
+   * Builds the cell note written into every imported column *except* the first
+   * one in the range: the column's own description followed by the short ODM
+   * ownership marker. The marker signals the column is managed by OWOX Data
+   * Marts; the full provenance block (timestamp, data mart title, link) is
+   * reserved for the first column so it is not duplicated across every header.
    *
-   * The first column of the range gets the full note from
-   * {@link buildImportedColumnNote}; non-first columns get only this marker.
+   * The description is placed first (so users see the relevant context
+   * immediately), separated by a blank line from the marker; an empty
+   * description collapses to the bare marker. The first column of the range
+   * gets the full note from {@link buildImportedColumnNote} instead.
    */
-  public buildImportedColumnMarker(isCommunityEdition: boolean): string {
-    return this.buildOdmMarker(isCommunityEdition);
+  public buildImportedColumnMarker(
+    description: string | undefined,
+    isCommunityEdition: boolean
+  ): string {
+    return this.assembleColumnNote(description, this.buildOdmMarker(isCommunityEdition));
   }
 
   /**
@@ -205,8 +210,8 @@ export class SheetMetadataFormatter {
 
   /**
    * Builds the full cell-note text written into the FIRST imported column of
-   * the data mart range (A1 of the range). Non-first columns get the short
-   * marker from {@link buildImportedColumnMarker} instead.
+   * the data mart range (A1 of the range). Non-first columns get the column
+   * description + short marker from {@link buildImportedColumnMarker} instead.
    *
    * The column's own description is placed first (so users see the relevant
    * context immediately), separated by a blank line from the ODM provenance
@@ -227,7 +232,23 @@ export class SheetMetadataFormatter {
       `Imported at ${dateFormatted}\n` +
       `Data Mart: ${dataMartTitle}\n` +
       `Data Mart page: ${dataMartUrl}`;
+    return this.assembleColumnNote(description, odmInfo);
+  }
 
+  /**
+   * Assembles a per-cell note from the user's column description and an ODM
+   * info block: the description first, a blank-line separator, then the block.
+   * Shared by {@link buildImportedColumnNote} (full provenance block) and
+   * {@link buildImportedColumnMarker} (bare marker) so both read identically
+   * and apply the same size limits.
+   *
+   * An empty/undefined description collapses to just the info block (no leading
+   * blank line). The description is truncated at
+   * {@link MAX_DESCRIPTION_LENGTH_IN_NOTE}, and the whole assembled string is
+   * capped at {@link MAX_TOTAL_NOTE_LENGTH} as a final safeguard against an
+   * unbounded `dataMartTitle` embedded in the block.
+   */
+  private assembleColumnNote(description: string | undefined, infoBlock: string): string {
     let safeDescription = description ?? '';
     if (safeDescription.length > MAX_DESCRIPTION_LENGTH_IN_NOTE) {
       this.logger.warn(
@@ -238,7 +259,7 @@ export class SheetMetadataFormatter {
 
     // Blank line between the user's description and the ODM block so the two
     // never read as one paragraph (the marker line provides the visual divider).
-    const assembled = safeDescription ? `${safeDescription}\n\n${odmInfo}` : odmInfo;
+    const assembled = safeDescription ? `${safeDescription}\n\n${infoBlock}` : infoBlock;
 
     // H5 — Even with description truncated, the ODM info block can blow the
     // limit when `dataMartTitle` (user-controlled, unbounded) is huge. Cap

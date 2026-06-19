@@ -126,7 +126,11 @@
 <%- include('../partials/social-auth') %>
 <script>
   const urlParams = new URLSearchParams(window.location.search);
-  const redirect = urlParams.get('redirect');
+  const redirect =
+    urlParams.get('redirect') ||
+    urlParams.get('redirect-to') ||
+    urlParams.get('redirectTo') ||
+    urlParams.get('app-redirect-to');
   const googleButton = document.getElementById('google-signin');
   const microsoftButton = document.getElementById('microsoft-signin');
   const emailForm = document.getElementById('email-signin-form');

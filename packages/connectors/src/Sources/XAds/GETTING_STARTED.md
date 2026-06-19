@@ -1,85 +1,122 @@
 # How to Import Data from X Ads Source
 
-Before proceeding, please make sure that:
+Before you start, verify:
 
-- You have created a [CREDENTIALS](CREDENTIALS): API Key, API Secret, Access Token, Access Token Secret.  
-- You have [set up **OWOX Data Marts**](https://docs.owox.com/docs/getting-started/quick-start/) and created at least one storage in the **Storages** section.
-
-![X Ads Storage](res/x_ads_storage.png)
+- You have [X Ads API credentials](CREDENTIALS.md): Consumer Key, Consumer Secret, Access Token, and Access Token Secret.
+- You have your **Account ID** — find it in your [ads.x.com](https://ads.x.com/) URL (covered in [Set Up the Connector](#set-up-the-connector) below).
+- You have [set up **OWOX Data Marts**](https://docs.owox.com/docs/getting-started/quick-start/). You also need [at least one storage](https://docs.owox.com/docs/storages/manage-storages/) in **Storages** — you can configure it later if needed.
 
 ## Create the Data Mart
 
-- Click **New Data Mart**.
-- Enter a title and select the Storage.
+- Click **New Data Mart** (available from any page in OWOX Data Marts).
+- Enter a title and select the Storage. If you haven't configured a storage yet, click **New Storage** to create one now and configure it later.
 - Click **Create Data Mart**.
 
-![X Ads New Data Mart](res/x_ads_newdatamart.png)
+![Create Data Mart dialog with Title set to "X Ads Data Mart", Storage selected, and the Create Data Mart button](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/7985e452-5a2b-40e3-dd63-1c59c4a8a400/public)
 
 ## Set Up the Connector
 
-1. Select **Connector** as the input source type.  
-2. Click **Set up connector** and choose **X Ads**.  
-3. Fill in the required fields:  
-   - **Consumer Key (API Key)** and **Consumer Secret (API Secret)** – available in the **Consumer Keys** section of your X Ads app.  
-   - **Access Token** and **Access Token Secret** – available in the **Authentication Tokens** section of your X Ads app.  
-   - **Account ID** – you can get this ID on [https://ads.x.com](https://ads.x.com/) and look at the URL of your account. For example, in this link: `https://ads.x.com/campaign_form/18ce55in6wt/campaign/new` the **Account ID** is: `18ce55in6wt`
-4. Leave all other fields as default and proceed to the next step.  
+1. Select **Connector** as the definition type.
+2. Click **Set up connector** and choose **X Ads**.
+3. Fill in the required fields:
+   - **Consumer Key** and **Consumer Secret** – from the **Keys & Tokens** section of your X developer app.
+   - **Access Token** and **Access Token Secret** – final user tokens from the [Credentials Guide](CREDENTIALS.md).
+   - **Account ID** – find it in your [ads.x.com](https://ads.x.com/) URL. For example, in `https://ads.x.com/campaign_form/18ce55in6wt/campaign/new`, the **Account ID** is `18ce55in6wt`. To add multiple accounts, separate them with commas.
+4. Leave all other fields as default.
 
-![X Ads Input Source](res/x_ads_connector.png)
+![Data Setup page showing the Definition Type dropdown with Connector option highlighted](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/ddc42653-e722-407a-6c7f-78c19a15ac00/public)
 
-![X Ads Fill Data](res/x_ads_filldata.png)
+![Set Up Connector panel for X Ads showing fields for Consumer Key, Consumer Secret, Access Token, Access Token Secret, and Account ID](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/fdeac601-0146-4821-1357-2708adbfdc00/public)
 
-![X Ads Account ID](res/x_ads_account.png)
+![X Ads Manager page showing the Account ID highlighted in the URL bar and in the account sidebar](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/301d5eb5-3594-4e47-ccb0-59dffe376900/public)
 
 ## Configure Data Import
 
-1. Choose one of the available **endpoints**.  
-2. Select the required **fields**.  
-3. Specify the **dataset** where the data will be stored (or leave the default).  
-4. Click **Finish**, then **Publish Data Mart**.
+1. Choose one of the available **endpoints**. Start with **Ad Performance** for daily metrics (impressions, clicks, spend).
+2. Select the required **fields** or leave defaults.
+3. Specify the **dataset** name in your storage (for example, a BigQuery dataset). OWOX creates it automatically if it doesn't exist. The table name is auto-generated from the endpoint name (for example, `x_ads_stats`). Leave the default if you're unsure.
+4. Click **Finish**, then **Publish & Run Data Mart**.
 
-![X Ads Publish Data Mart](res/x_ads_publish.png)
+![X Ads Data Mart Data Setup page with the Publish & Run Data Mart button highlighted](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/27e79500-99e8-447a-9b7e-d8d58e619600/public)
 
 ## Run the Data Mart
 
-You now have two options for importing data from X Ads:  
+The first run imports data from the **1st of the previous month** through today.
 
-Option 1: Import Current Day's Data
+The connector does not run again automatically. Set up a trigger to schedule recurring imports.
 
-Choose **Manual run → Incremental load** to load data for the **current day**.
+### Schedule Automatic Runs
 
-![X Ads Import New Data](res/x_ads_incremental.png)
+1. Open the **Triggers** tab of your Data Mart.
+2. Click **+ Add Trigger**.
+3. Set **Trigger Type** to `Connector Run`.
+4. Choose a schedule: **Daily**, **Weekly**, **Monthly**, or **Interval**.
+5. Click **Save**.
 
-![X Ads Incremental Load](res/x_ads_currentday.png)
+For one-off imports, choose one of the following options. Use **Incremental** to refresh recent data. Use **Backfill** to reload a specific historical period — for example, after adding new fields or fixing a data error.
 
-> ℹ️ If you click **Incremental load** again after a successful initial load,  
-> the connector will import: **Current day's data**, plus **Additional days**, based on the value in the **Reimport Lookback Window** field.
+### Option 1: Incremental Load
 
-![X Ads Reimport](res/x_ads_reimportwindow.png)
+Choose **Manual Run → Incremental load**.
 
-Option 2: Manual Backfill for Specific Date Range
+It imports today's data, plus the number of previous days set in **Reimport Lookback Window** (default: 2 days). Change this value in the connector's **Advanced Settings** tab.
 
-Choose **Backfill (custom period)** to load historical data.  
+![Published X Ads Data Mart showing the three-dot menu open with the Manual Run option circled](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/d532a3db-df6b-4f19-646a-cc20c2b45e00/public)
+
+![Manual Run dialog with Incremental load selected, showing the description of adding only new or updated records](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/17cb8336-c759-4d38-aa90-a3c80c2dab00/public)
+
+![Connector Advanced Settings showing the Reimport Lookback Window field set to 2](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/1d89ad0a-9f77-4d8d-d9ac-2f816f729800/public)
+
+### Option 2: Backfill for a Specific Date Range
+
+Choose **Manual Run → Backfill (custom period)** to load historical data.
 
 1. Select the **Start Date** and **End Date**.
-2. Click the **Run** button.
+2. Click **Run**.
 
-![X Ads Backfill](res/x_ads_daterange.png)
+![Manual Run dialog with Backfill (custom period) selected, showing Start Date and End Date fields](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/b8a71ff2-60a1-4b8e-135b-4bf8b30d4600/public)
 
-The process is complete when the **Run history** tab shows the message:  
-**"Success"**  
+The run is complete when the **Run History** tab shows **Success**. A first run typically takes a few minutes for small accounts and longer for accounts with large data volumes.
 
-![C Ads Success](res/x_ads_successrun.png)
+![Run History tab showing a completed run with a Success status](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/88eeb790-e354-4dcb-df12-efcf00f8fb00/public)
 
 ## Access Your Data
 
-Once the run is complete, the data will be written to the dataset you specified earlier.
+Once the run completes, OWOX writes data to the dataset you specified. Open your storage console (for example, BigQuery or Snowflake) and navigate to that dataset. Each endpoint creates a separate table named after it — for example, `x_ads_stats` for Ad Performance data.
 
-![X Ads Import Success](res/xads_gbq.png)
+## Troubleshooting
 
-If you encounter any issues:
+Check the **Run History** tab for error messages. To update credentials or connector settings, open the **Data Setup** tab of your Data Mart, edit the fields, and click **Save**. Common errors and fixes:
 
-1. Check the Run history for specific error messages
-2. Please [visit Q&A](https://github.com/OWOX/owox-data-marts/discussions/categories/q-a) first
-3. If you want to report a bug, please [open an issue](https://github.com/OWOX/owox-data-marts/issues)
-4. Join the [discussion forum](https://github.com/OWOX/owox-data-marts/discussions) to ask questions or propose improvements
+**`[UNKNOWN] HttpRequestException: The client application making this request does not have access to Twitter Ads API`**
+
+X hasn't approved your Ads API access yet. Return to [Step 2: Request Ads API Access](CREDENTIALS.md#step-2-request-ads-api-access) in the Credentials Guide and submit the request.
+
+![Run History tab showing a failed run with the HttpRequestException error about missing Twitter Ads API access](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/d8dee7a1-615b-46df-4631-9851d265f900/public)
+
+**`[UNKNOWN] HttpRequestException: Could not authenticate you.`**
+
+The Consumer Key or Consumer Secret is wrong. Re-enter them from [Step 1](CREDENTIALS.md#step-1-create-a-developer-app) or [Step 3](CREDENTIALS.md#step-3-get-your-consumer-key-and-secret) of the Credentials Guide.
+
+**`[UNKNOWN] HttpRequestException: Invalid or expired token.`**
+
+The Access Token or Access Token Secret in the connector is wrong, revoked, or does not match the other credentials. Redo [Steps 5–7](CREDENTIALS.md#step-5-get-a-temporary-oauth-token) of the Credentials Guide and use the final `oauth_token` and `oauth_token_secret` from Step 7.
+
+Update both values in the **Data Setup** tab. Use the permanent token pair from Step 7, not the temporary token pair from Step 5.
+
+**`[UNKNOWN] HttpRequestException: Account was not found`**
+
+Your X account doesn't have an active Premium or Premium+ subscription required for X Ads Manager. If your subscription is active, double-check the Account ID in your ads.x.com URL and update it in the **Data Setup** tab.
+
+![Run History detail page showing the Raw tab with the JSON error output for the Account was not found error](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/19e04929-020a-450e-8b78-6df1d0073a00/public)
+
+**`[UNKNOWN] HttpRequestException: You are not permitted to perform this action`**
+
+Your X account lacks permission for this endpoint. Re-check your account's access level and try again.
+
+For anything else:
+
+- Join the [Slack Community](https://join.slack.com/t/owox-data-marts/shared_invite/zt-3tnigd08g-f2uU_7oNNwzCyTB2tITnqA) to ask questions and get help from other users.
+- Browse the [Q&A section](https://github.com/OWOX/owox-data-marts/discussions/categories/q-a) — your question might already be answered.
+- Found a bug? [Open an issue](https://github.com/OWOX/owox-data-marts/issues).
+- Join the [discussion forum](https://github.com/OWOX/owox-data-marts/discussions) to ask questions or propose improvements.

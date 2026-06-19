@@ -1,4 +1,5 @@
 import { type Request, type Response } from 'express';
+import { z } from 'zod';
 import {
   BETTER_AUTH_CSRF_COOKIE,
   BETTER_AUTH_SESSION_COOKIE,
@@ -8,25 +9,13 @@ import {
 import { clearCookie, setCookie } from './cookie-policy.js';
 export { setCookie } from './cookie-policy.js';
 
-/**
- * Parameters used for Platform redirects and context persistence.
- */
-export interface PlatformParams {
-  redirectTo?: string;
-  appRedirectTo?: string;
-  source?: string;
-  clientId?: string;
-  codeChallenge?: string;
-  projectId?: string;
-  extraParams?: Record<string, string>;
-}
-
 const AUTH_PARAMS = new Set([
   'state',
   'code',
   'source',
   'app-redirect-to',
   'appRedirectTo',
+  'redirect',
   'redirect-to',
   'redirectTo',
   'clientId',
@@ -41,8 +30,91 @@ const AUTH_PARAMS = new Set([
 ]);
 
 const STATE_COOKIE = 'idp-owox-state';
-const PLATFORM_PARAMS_COOKIE = 'idp-owox-params';
+const AUTH_FLOW_PARAMS_COOKIE = 'idp-owox-params';
 const PROJECT_ID_PATTERN = /^[a-zA-Z0-9_-]+$/;
+
+const optionalStringParam = z.preprocess(
+  value => (typeof value === 'string' ? value : undefined),
+  z.string().optional()
+);
+
+const optionalProjectIdParam = z.preprocess(
+  value => (typeof value === 'string' && PROJECT_ID_PATTERN.test(value) ? value : undefined),
+  z.string().optional()
+);
+
+const optionalExtraParams = z.preprocess(value => {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return undefined;
+  }
+
+  const extraParams = Object.fromEntries(
+    Object.entries(value).filter((entry): entry is [string, string] => typeof entry[1] === 'string')
+  );
+  return Object.keys(extraParams).length > 0 ? extraParams : undefined;
+}, z.record(z.string()).optional());
+
+/**
+ * Parameters used for auth-flow redirects and context persistence.
+ */
+export const AuthFlowParamsSchema = z.object({
+  redirectTo: optionalStringParam,
+  appRedirectTo: optionalStringParam,
+  source: optionalStringParam,
+  clientId: optionalStringParam,
+  codeChallenge: optionalStringParam,
+  projectId: optionalProjectIdParam,
+  extraParams: optionalExtraParams,
+});
+
+export type AuthFlowParams = z.infer<typeof AuthFlowParamsSchema>;
+
+export function parseAuthFlowParams(value: unknown): AuthFlowParams | undefined {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return undefined;
+  }
+
+  const result = AuthFlowParamsSchema.safeParse(value);
+  return result.success ? result.data : undefined;
+}
+
+export function parseSerializedAuthFlowParams(value: unknown): AuthFlowParams | undefined {
+  if (typeof value !== 'string' || !value) {
+    return undefined;
+  }
+
+  const candidates = [value];
+  try {
+    const decoded = decodeURIComponent(value);
+    if (decoded !== value) {
+      candidates.push(decoded);
+    }
+  } catch {
+    // ignore malformed URI encoding
+  }
+
+  for (const candidate of candidates) {
+    try {
+      const parsed = JSON.parse(candidate) as unknown;
+      const params = parseAuthFlowParams(parsed);
+      if (params) {
+        return params;
+      }
+    } catch {
+      // try next candidate
+    }
+  }
+
+  return undefined;
+}
+
+export function serializeAuthFlowParams(params?: AuthFlowParams): string | null {
+  const parsed = parseAuthFlowParams(params);
+  if (!parsed) return null;
+
+  const serialized = JSON.stringify(parsed);
+  return serialized === '{}' ? null : serialized;
+}
 
 function normalizeProjectId(value: string | undefined): string | undefined {
   return value && PROJECT_ID_PATTERN.test(value) ? value : undefined;
@@ -133,11 +205,18 @@ export function readQueryString(req: Request, key: string): string | undefined {
 }
 
 /**
- * Clears Platform flow cookies (state and params).
+ * Clears auth-flow cookies (state and params).
  */
-export function clearPlatformCookies(res: Response, req?: Request): void {
+export function clearAuthFlowCookies(res: Response, req?: Request): void {
   clearCookie(res, STATE_COOKIE, req);
-  clearCookie(res, PLATFORM_PARAMS_COOKIE, req);
+  clearCookie(res, AUTH_FLOW_PARAMS_COOKIE, req);
+}
+
+/**
+ * Clears only the auth-flow PKCE state cookie.
+ */
+export function clearAuthFlowStateCookie(res: Response, req?: Request): void {
+  clearCookie(res, STATE_COOKIE, req);
 }
 
 /**
@@ -164,7 +243,7 @@ export function clearBetterAuthCookies(res: Response, req?: Request): void {
  * Clears all auth-related cookies (Platform + Better Auth).
  */
 export function clearAllAuthCookies(res: Response, req?: Request): void {
-  clearPlatformCookies(res, req);
+  clearAuthFlowCookies(res, req);
   clearBetterAuthCookies(res, req);
 }
 
@@ -199,12 +278,7 @@ export function hasStateMismatch(req: Request): boolean {
 /**
  * Extracts redirect parameters from cookie or query.
  */
-export function extractPlatformParams(req: Request): PlatformParams {
-  const cookiePayload = getCookie(req, PLATFORM_PARAMS_COOKIE);
-  const projectId = normalizeProjectId(
-    typeof req.query?.projectId === 'string' ? req.query.projectId : undefined
-  );
-
+export function extractAuthFlowParams(req: Request): AuthFlowParams {
   const extraParams: Record<string, string> = {};
   for (const [key, value] of Object.entries(req.query)) {
     if (!AUTH_PARAMS.has(key) && typeof value === 'string') {
@@ -213,29 +287,14 @@ export function extractPlatformParams(req: Request): PlatformParams {
   }
   const resolvedExtraParams = Object.keys(extraParams).length > 0 ? extraParams : undefined;
 
-  if (cookiePayload) {
-    try {
-      const parsed = JSON.parse(decodeURIComponent(cookiePayload)) as Record<
-        string,
-        string | undefined
-      >;
-      return {
-        redirectTo: parsed.redirectTo,
-        appRedirectTo: parsed.appRedirectTo,
-        source: parsed.source,
-        clientId: parsed.clientId,
-        codeChallenge: parsed.codeChallenge,
-        projectId: projectId || parsed.projectId,
-        extraParams: resolvedExtraParams,
-      };
-    } catch {
-      // ignore malformed cookie
-    }
-  }
+  let cookieParams: AuthFlowParams = {};
+  const cookiePayload = getCookie(req, AUTH_FLOW_PARAMS_COOKIE);
+  cookieParams = parseSerializedAuthFlowParams(cookiePayload) ?? {};
 
   const redirectTo =
     (typeof req.query?.['redirect-to'] === 'string' && req.query['redirect-to']) ||
     (typeof req.query?.redirectTo === 'string' && req.query.redirectTo) ||
+    (typeof req.query?.redirect === 'string' && req.query.redirect) ||
     undefined;
   const appRedirectTo =
     (typeof req.query?.['app-redirect-to'] === 'string' && req.query['app-redirect-to']) ||
@@ -246,25 +305,30 @@ export function extractPlatformParams(req: Request): PlatformParams {
     (typeof req.query?.codeChallenge === 'string' && req.query.codeChallenge) ||
     (typeof req.query?.codechallenge === 'string' && req.query.codechallenge) ||
     undefined;
+  const projectId = normalizeProjectId(
+    typeof req.query?.projectId === 'string' ? req.query.projectId : undefined
+  );
 
   return {
-    redirectTo,
-    appRedirectTo,
-    source,
-    clientId,
-    codeChallenge,
-    projectId,
-    extraParams: resolvedExtraParams,
+    redirectTo: redirectTo || cookieParams.redirectTo,
+    appRedirectTo: appRedirectTo || cookieParams.appRedirectTo,
+    source: source || cookieParams.source,
+    clientId: clientId || cookieParams.clientId,
+    codeChallenge: codeChallenge || cookieParams.codeChallenge,
+    projectId: projectId || cookieParams.projectId,
+    extraParams: resolvedExtraParams || cookieParams.extraParams,
   };
 }
 
 /**
  * Persists redirect parameters into a cookie.
  */
-export function persistPlatformParams(req: Request, res: Response, params: PlatformParams): void {
+export function persistAuthFlowParams(req: Request, res: Response, params: AuthFlowParams): void {
   try {
-    const serialized = encodeURIComponent(JSON.stringify(params));
-    setCookie(res, req, PLATFORM_PARAMS_COOKIE, serialized);
+    const serializedParams = serializeAuthFlowParams(params);
+    if (!serializedParams) return;
+    const serialized = encodeURIComponent(serializedParams);
+    setCookie(res, req, AUTH_FLOW_PARAMS_COOKIE, serialized);
   } catch {
     // ignore serialization issues
   }
@@ -273,12 +337,12 @@ export function persistPlatformParams(req: Request, res: Response, params: Platf
 /**
  * Persists both state and redirect parameters into cookies.
  */
-export function persistPlatformContext(
+export function persistAuthFlowContext(
   req: Request,
   res: Response,
-  context: { state?: string; params: PlatformParams }
+  context: { state?: string; params: AuthFlowParams }
 ): void {
-  persistPlatformParams(req, res, context.params);
+  persistAuthFlowParams(req, res, context.params);
   if (context.state) {
     persistStateCookie(req, res, context.state);
   }

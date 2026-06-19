@@ -683,15 +683,18 @@ describe('GoogleSheetsReportWriter — preserves user column formats across refr
 });
 
 describe('GoogleSheetsReportWriter — per-column header notes', () => {
-  it('writes the full ODM note only on the first column and the short marker on the rest', async () => {
+  it('writes the full ODM note only on the first column and the description + short marker on the rest', async () => {
     const { writer, report, finalImportedNames, metadataFormatter } = buildWriter({
       availableRowsCount: 11,
     });
 
-    await writer.prepareToWriteReport(
-      report as never,
-      new ReportDataDescription(makeHeaders(...finalImportedNames), 1)
+    // Give every column its own description so we can assert it flows through
+    // to both the first-column note and the non-first markers.
+    const headers = finalImportedNames.map(
+      name => new ReportDataHeader(name, undefined, `${name} description`)
     );
+
+    await writer.prepareToWriteReport(report as never, new ReportDataDescription(headers, 1));
     await writer.writeReportDataBatch(new ReportDataBatch([['A', '10', '2']]));
     await writer.finalize();
 
@@ -700,12 +703,21 @@ describe('GoogleSheetsReportWriter — per-column header notes', () => {
     expect(metadataFormatter.buildImportedColumnMarker).toHaveBeenCalledTimes(
       finalImportedNames.length - 1
     );
-    // The full note belongs to the first column's description ('country').
+    // The full note carries the first column's description ('country').
     expect(metadataFormatter.buildImportedColumnNote).toHaveBeenCalledWith(
-      undefined,
+      'country description',
       'DM',
       expect.any(String),
       expect.any(String),
+      expect.any(Boolean)
+    );
+    // The non-first columns carry their own description ahead of the marker.
+    expect(metadataFormatter.buildImportedColumnMarker).toHaveBeenCalledWith(
+      'clicks description',
+      expect.any(Boolean)
+    );
+    expect(metadataFormatter.buildImportedColumnMarker).toHaveBeenCalledWith(
+      'cost description',
       expect.any(Boolean)
     );
   });

@@ -19,13 +19,23 @@ var GoogleAdsConnector = class GoogleAdsConnector extends AbstractConnector {
   async startImportProcess() {
     const customerIds = FormatUtils.parseIds(this.config.CustomerId.value, { stripCharacters: '-' });
     const fields = FormatUtils.parseFields(this.config.Fields.value);
+    let lastProcessedDate = null;
 
     for (const nodeName in fields) {
-      await this.processNode({
+      const processedDate = await this.processNode({
         nodeName,
         customerIds,
-        fields: fields[nodeName] || []
+        fields: fields[nodeName] || [],
+        updateRequestedDate: false
       });
+
+      if (processedDate && (!lastProcessedDate || processedDate > lastProcessedDate)) {
+        lastProcessedDate = processedDate;
+      }
+    }
+
+    if (this.runConfig.type === RUN_CONFIG_TYPE.INCREMENTAL && lastProcessedDate) {
+      this.config.updateLastRequstedDate(lastProcessedDate);
     }
   }
 
@@ -37,19 +47,26 @@ var GoogleAdsConnector = class GoogleAdsConnector extends AbstractConnector {
    * @param {string} options.nodeName - Name of the node to process
    * @param {Array<string>} options.customerIds - Array of customer IDs to process
    * @param {Array<string>} options.fields - Array of fields to fetch
+   * @param {boolean} options.updateRequestedDate - Whether to update incremental state per processed day
    */
-  async processNode({ nodeName, customerIds, fields }) {
+  async processNode({ nodeName, customerIds, fields, updateRequestedDate = true }) {
     const idsToProcess = this.source.fieldsSchema[nodeName].isGlobalResource
       ? customerIds.slice(0, 1)
       : customerIds;
+    let lastProcessedDate = null;
 
     for (const customerId of idsToProcess) {
       if (this.source.fieldsSchema[nodeName].isTimeSeries) {
-        await this.processTimeSeriesNode({
+        const processedDate = await this.processTimeSeriesNode({
           nodeName,
           customerId,
-          fields
+          fields,
+          updateRequestedDate
         });
+
+        if (processedDate && (!lastProcessedDate || processedDate > lastProcessedDate)) {
+          lastProcessedDate = processedDate;
+        }
       } else {
         await this.processCatalogNode({
           nodeName,
@@ -58,6 +75,8 @@ var GoogleAdsConnector = class GoogleAdsConnector extends AbstractConnector {
         });
       }
     }
+
+    return lastProcessedDate;
   }
 
   /**
@@ -66,18 +85,22 @@ var GoogleAdsConnector = class GoogleAdsConnector extends AbstractConnector {
    * @param {string} options.nodeName - Name of the node
    * @param {string} options.customerId - Customer ID
    * @param {Array<string>} options.fields - Array of fields to fetch
+   * @param {boolean} options.updateRequestedDate - Whether to update incremental state per processed day
    */
-  async processTimeSeriesNode({ nodeName, customerId, fields }) {
+  async processTimeSeriesNode({ nodeName, customerId, fields, updateRequestedDate = true }) {
     const [startDate, daysToFetch] = this.getStartDateAndDaysToFetch();
 
     if (daysToFetch <= 0) {
       console.log('No days to fetch for time series data');
-      return;
+      return null;
     }
+
+    let lastProcessedDate = null;
 
     for (let i = 0; i < daysToFetch; i++) {
       const currentDate = new Date(startDate);
       currentDate.setDate(currentDate.getDate() + i);
+      lastProcessedDate = new Date(currentDate);
 
       const formattedDate = DateUtils.formatDate(currentDate);
 
@@ -91,10 +114,13 @@ var GoogleAdsConnector = class GoogleAdsConnector extends AbstractConnector {
         await storage.saveData(preparedData);
       }
 
-      if (this.runConfig.type === RUN_CONFIG_TYPE.INCREMENTAL) {
+      // Some callers defer the checkpoint until all customers finish successfully.
+      if (updateRequestedDate && this.runConfig.type === RUN_CONFIG_TYPE.INCREMENTAL) {
         this.config.updateLastRequstedDate(currentDate);
       }
     }
+
+    return lastProcessedDate;
   }
 
   /**

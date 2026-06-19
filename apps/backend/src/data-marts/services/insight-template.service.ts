@@ -2,7 +2,18 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { InsightTemplate } from '../entities/insight-template.entity';
+import { RoleScope } from '../enums/role-scope.enum';
+import { applyDataMartVisibilityFilter } from '../utils/apply-data-mart-visibility-filter';
 import { DEFAULT_INSIGHT_TITLE } from '../use-cases/utils/generate-ai-assistant-session-title-from-message.util';
+
+export interface ListVisibleProjectInsightTemplatesOptions {
+  projectId: string;
+  userId: string;
+  roles: string[];
+  roleScope: RoleScope;
+  limit?: number;
+  offset?: number;
+}
 
 @Injectable()
 export class InsightTemplateService {
@@ -68,6 +79,52 @@ export class InsightTemplateService {
       },
       relations: ['dataMart'],
       order: { createdAt: 'DESC' },
+    });
+  }
+
+  async listVisibleByProject(
+    options: ListVisibleProjectInsightTemplatesOptions
+  ): Promise<InsightTemplate[]> {
+    const pageQb = this.repository
+      .createQueryBuilder('insightTemplate')
+      .innerJoin('insightTemplate.dataMart', 'dataMart')
+      .where('dataMart.projectId = :projectId', { projectId: options.projectId })
+      .andWhere('dataMart.deletedAt IS NULL');
+
+    applyDataMartVisibilityFilter(pageQb, {
+      dataMartAlias: 'dataMart',
+      projectId: options.projectId,
+      userId: options.userId,
+      roles: options.roles,
+      roleScope: options.roleScope,
+    });
+
+    const page = await pageQb
+      .select('insightTemplate.id', 'id')
+      .orderBy('insightTemplate.modifiedAt', 'DESC')
+      .addOrderBy('insightTemplate.id', 'DESC')
+      .limit(options.limit ?? 100)
+      .offset(options.offset ?? 0)
+      .getRawMany<{ id: string }>();
+    const insightTemplateIds = page.map(({ id }) => id);
+    if (insightTemplateIds.length === 0) {
+      return [];
+    }
+
+    const insightTemplates = await this.repository
+      .createQueryBuilder('insightTemplate')
+      .innerJoin('insightTemplate.dataMart', 'dataMart')
+      .leftJoinAndSelect('insightTemplate.sourceEntities', 'sourceEntities')
+      .select(['insightTemplate', 'dataMart.id', 'dataMart.title', 'sourceEntities'])
+      .where('insightTemplate.id IN (:...insightTemplateIds)', { insightTemplateIds })
+      .getMany();
+    const insightTemplatesById = new Map(
+      insightTemplates.map(insightTemplate => [insightTemplate.id, insightTemplate])
+    );
+
+    return insightTemplateIds.flatMap(id => {
+      const insightTemplate = insightTemplatesById.get(id);
+      return insightTemplate ? [insightTemplate] : [];
     });
   }
 

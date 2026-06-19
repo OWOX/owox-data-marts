@@ -18,15 +18,25 @@ var CriteoAdsConnector = class CriteoAdsConnector extends AbstractConnector {
   async startImportProcess() {
     const fields = CriteoAdsHelper.parseFields(this.config.Fields?.value || "");
     const advertiserIds = CriteoAdsHelper.parseAdvertiserIds(this.config.AdvertiserIDs?.value || "");
+    let lastProcessedDate = null;
 
     for (const advertiserId of advertiserIds) {
       for (const nodeName in fields) {
-        await this.processNode({
+        const processedDate = await this.processNode({
           nodeName,
           advertiserId,
-          fields: fields[nodeName] || []
+          fields: fields[nodeName] || [],
+          updateRequestedDate: false
         });
+
+        if (processedDate && (!lastProcessedDate || processedDate > lastProcessedDate)) {
+          lastProcessedDate = processedDate;
+        }
       }
+    }
+
+    if (this.runConfig.type === RUN_CONFIG_TYPE.INCREMENTAL && lastProcessedDate) {
+      this.config.updateLastRequstedDate(lastProcessedDate);
     }
   }
 
@@ -36,12 +46,14 @@ var CriteoAdsConnector = class CriteoAdsConnector extends AbstractConnector {
    * @param {string} options.nodeName - Name of the node to process
    * @param {string} options.advertiserId - Advertiser ID
    * @param {Array<string>} options.fields - Array of fields to fetch
+   * @param {boolean} options.updateRequestedDate - Whether to update incremental state per processed day
    */
-  async processNode({ nodeName, advertiserId, fields }) {
-    await this.processTimeSeriesNode({
+  async processNode({ nodeName, advertiserId, fields, updateRequestedDate = true }) {
+    return await this.processTimeSeriesNode({
       nodeName,
       advertiserId,
-      fields
+      fields,
+      updateRequestedDate
     });
   }
 
@@ -51,19 +63,22 @@ var CriteoAdsConnector = class CriteoAdsConnector extends AbstractConnector {
    * @param {string} options.nodeName - Name of the node
    * @param {string} options.advertiserId - Advertiser ID
    * @param {Array<string>} options.fields - Array of fields to fetch
-   * @param {Object} options.storage - Storage instance
+   * @param {boolean} options.updateRequestedDate - Whether to update incremental state per processed day
    */
-  async processTimeSeriesNode({ nodeName, advertiserId, fields }) {
+  async processTimeSeriesNode({ nodeName, advertiserId, fields, updateRequestedDate = true }) {
     const [startDate, daysToFetch] = this.getStartDateAndDaysToFetch();
 
     if (daysToFetch <= 0) {
       console.log('No days to fetch for time series data');
-      return;
+      return null;
     }
+
+    let lastProcessedDate = null;
 
     for (let i = 0; i < daysToFetch; i++) {
       const currentDate = new Date(startDate);
       currentDate.setDate(currentDate.getDate() + i);
+      lastProcessedDate = new Date(currentDate);
 
       const formattedDate = DateUtils.formatDate(currentDate);
 
@@ -78,23 +93,26 @@ var CriteoAdsConnector = class CriteoAdsConnector extends AbstractConnector {
 
       if (data.length || this.config.CreateEmptyTables?.value) {
         const preparedData = data.length ? this.addMissingFieldsToData(data, fields) : data;
-        const storage = await this.getStorageByNode(nodeName);
+        const storage = await this.getStorageByNode(nodeName, fields);
         await storage.saveData(preparedData);
       }
 
-      // Only update LastRequestedDate for incremental runs
-      if (this.runConfig.type === RUN_CONFIG_TYPE.INCREMENTAL) {
+      // Some callers defer the checkpoint until all advertisers finish successfully.
+      if (updateRequestedDate && this.runConfig.type === RUN_CONFIG_TYPE.INCREMENTAL) {
         this.config.updateLastRequstedDate(currentDate);
       }
     }
+
+    return lastProcessedDate;
   }
 
   /**
    * Get storage instance for a node
    * @param {string} nodeName - Name of the node
+   * @param {Array<string>} fields - Fields selected for this node
    * @returns {Object} Storage instance
    */
-  async getStorageByNode(nodeName) {
+  async getStorageByNode(nodeName, fields = []) {
     if (!("storages" in this)) {
       this.storages = {};
     }
@@ -105,12 +123,10 @@ var CriteoAdsConnector = class CriteoAdsConnector extends AbstractConnector {
       }
 
       const uniqueFields = this.source.fieldsSchema[nodeName].uniqueKeys;
+      const storageConfig = this._buildStorageConfig({ nodeName, fields, uniqueFields });
 
       this.storages[nodeName] = new globalThis[this.storageName](
-        this.config.mergeParameters({
-          DestinationSheetName: { value: this.source.fieldsSchema[nodeName].destinationName },
-          DestinationTableName: { value: this.getDestinationName(nodeName, this.config, this.source.fieldsSchema[nodeName].destinationName) },
-        }),
+        storageConfig,
         uniqueFields,
         this.source.fieldsSchema[nodeName].fields,
         `${this.source.fieldsSchema[nodeName].description} ${this.source.fieldsSchema[nodeName].documentation}`
@@ -120,5 +136,35 @@ var CriteoAdsConnector = class CriteoAdsConnector extends AbstractConnector {
     }
 
     return this.storages[nodeName];
+  }
+
+  /**
+   * Build a storage-specific config without mutating the connector config.
+   * Storage parses Fields itself, so pass only the fields for the current node.
+   * @param {Object} options
+   * @param {string} options.nodeName
+   * @param {Array<string>} options.fields
+   * @param {Array<string>} options.uniqueFields
+   * @returns {Object}
+   * @private
+   */
+  _buildStorageConfig({ nodeName, fields, uniqueFields }) {
+    const scopedFields = [...fields];
+    for (const field of uniqueFields) {
+      if (!scopedFields.includes(field)) {
+        scopedFields.push(field);
+      }
+    }
+
+    const storageConfig = Object.assign(
+      Object.create(Object.getPrototypeOf(this.config)),
+      this.config
+    );
+
+    return storageConfig.mergeParameters({
+      DestinationSheetName: { value: this.source.fieldsSchema[nodeName].destinationName },
+      DestinationTableName: { value: this.getDestinationName(nodeName, this.config, this.source.fieldsSchema[nodeName].destinationName) },
+      Fields: { value: scopedFields.map(field => `${nodeName} ${field}`).join(", ") }
+    });
   }
 };

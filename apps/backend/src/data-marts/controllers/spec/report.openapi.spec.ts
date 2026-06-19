@@ -6,9 +6,16 @@ jest.mock('../../../idp', () => ({
   __esModule: true,
   Auth: () => () => undefined,
   AuthContext: () => () => undefined,
+  Role: {
+    viewer: jest.fn(),
+  },
+  Strategy: {
+    PARSE: 'parse',
+  },
 }));
 
 import { ReportController } from '../report.controller';
+import { ProjectReportsController } from '../project-reports.controller';
 import { CopyReportAsDataMartService } from '../../use-cases/copy-report-as-data-mart.service';
 import { CreateReportService } from '../../use-cases/create-report.service';
 import { DeleteReportService } from '../../use-cases/delete-report.service';
@@ -41,7 +48,7 @@ describe('ReportController OpenAPI', () => {
     ].map(provide => ({ provide, useValue: {} }));
 
     const moduleRef = await Test.createTestingModule({
-      controllers: [ReportController],
+      controllers: [ProjectReportsController, ReportController],
       providers,
     }).compile();
 
@@ -120,7 +127,10 @@ describe('ReportController OpenAPI', () => {
     );
     expect(filterRule.properties.value.oneOf).toHaveLength(3);
     expect(filterRule.properties.placement.enum).toEqual(['pre-join', 'post-join']);
-    expect(filterRule.properties.aliasPath.description).toContain('slice');
+    expect(filterRule.properties.aliasPath).toBeUndefined();
+    expect(filterRule.properties.column.description).toContain(
+      'category_details__item_event_count'
+    );
 
     expect(updateProperties.sortConfig).toMatchObject({
       type: 'array',

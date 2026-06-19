@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import type {
   ApproveMembershipRequestResult,
   CreateNewProjectResult,
+  Project,
   ProjectMemberInvitation,
   ProjectMembershipRequest,
   RequestProjectAccessResult,
@@ -45,6 +46,10 @@ export class IdpProjectionsFacade {
   public async getUserProjectionList(userIds: string[]): Promise<UserProjectionsListDto> {
     const projections = await this.idpProjectionsService.getUserProjectionList(userIds);
     return this.mapper.toUserProjectionDtoList(projections);
+  }
+
+  public async getProjectForUser(userId: string, projectId: string): Promise<Project> {
+    return this.idpProjectionsService.getProjectForUser(userId, projectId);
   }
 
   public async getProjectMembers(projectId: string): Promise<ProjectMemberDto[]> {

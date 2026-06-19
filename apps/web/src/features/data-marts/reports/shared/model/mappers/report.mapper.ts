@@ -1,6 +1,7 @@
 import type { DataMartReport, DestinationConfig } from '../types/data-mart-report';
 import type { DestinationConfigDto, ReportResponseDto } from '../../services';
 import { mapDataDestinationFromDto } from '../../../../../data-destination/shared/model/mappers/data-destination.mapper';
+import { mapDataStorageFromDto } from '../../../../../data-storage/shared/model/mappers';
 import { DestinationConfigMapperFactory } from './destination-config-mapper.factory.ts';
 
 /**
@@ -25,7 +26,12 @@ export function mapReportDtoToEntity(reportDto: ReportResponseDto): DataMartRepo
   return {
     id: reportDto.id,
     title: reportDto.title,
-    dataMart: { id: reportDto.dataMart.id },
+    dataMart: {
+      id: reportDto.dataMart.id,
+      title: reportDto.dataMart.title,
+      definitionType: reportDto.dataMart.definitionType ?? null,
+      storage: mapDataStorageFromDto(reportDto.dataMart.storage),
+    },
     dataDestination: mapDataDestinationFromDto(reportDto.dataDestinationAccess),
     destinationConfig,
     columnConfig: reportDto.columnConfig ?? null,

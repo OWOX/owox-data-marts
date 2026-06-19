@@ -529,14 +529,6 @@ export function DataMartProvider({ children }: DataMartProviderProps) {
     async (id: string, runId: string): Promise<void> => {
       try {
         await dataMartService.cancelDataMartRun(id, runId);
-        await getDataMartRuns(id);
-        toast.success('Data Mart run canceled');
-        trackEvent({
-          event: 'data_mart_run_canceled',
-          category: 'DataMart',
-          action: 'CancelRun',
-          label: 'Manual',
-        });
       } catch (error) {
         const apiError = extractApiError(error);
         dispatch({
@@ -548,6 +540,27 @@ export function DataMartProvider({ children }: DataMartProviderProps) {
           category: 'DataMart',
           action: 'CancelRunError',
           error: apiError.message,
+        });
+        throw error;
+      }
+
+      toast.success('Data Mart run canceled');
+      trackEvent({
+        event: 'data_mart_run_canceled',
+        category: 'DataMart',
+        action: 'CancelRun',
+        label: 'Manual',
+      });
+
+      try {
+        await getDataMartRuns(id);
+      } catch (error) {
+        const apiError = extractApiError(error) as { message?: string } | undefined;
+        trackEvent({
+          event: 'data_mart_error',
+          category: 'DataMart',
+          action: 'CancelRunRefreshError',
+          error: apiError?.message ?? 'Failed to refresh Data Mart runs after cancellation',
         });
       }
     },

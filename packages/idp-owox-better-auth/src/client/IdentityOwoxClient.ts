@@ -1,4 +1,4 @@
-import { Projects, ProjectsSchema } from '@owox/idp-protocol';
+import { Project, ProjectSchema, Projects, ProjectsSchema } from '@owox/idp-protocol';
 import { ImpersonatedIdTokenFetcher } from '@owox/internal-helpers';
 import axios, { AxiosInstance } from 'axios';
 import ms from 'ms';
@@ -20,6 +20,17 @@ import {
   IntrospectionResponseSchema,
   JwksResponse,
   JwksResponseSchema,
+  McpOAuthAuthorizationCodeRequest,
+  McpOAuthAuthorizationCodeRequestSchema,
+  McpOAuthAuthorizationCodeResponse,
+  McpOAuthAuthorizationCodeResponseSchema,
+  McpOAuthTokenExchangeRequest,
+  McpOAuthTokenExchangeRequestSchema,
+  McpOAuthTokenExchangeResponse,
+  McpOAuthTokenExchangeResponseSchema,
+  McpOAuthTokenVerificationRequest,
+  McpOAuthTokenVerificationRequestSchema,
+  McpOAuthTokenVerificationResponseSchema,
   OwoxApproveMembershipRequestResponse,
   OwoxApproveMembershipRequestResponseSchema,
   OwoxInviteProjectMemberResponse,
@@ -145,6 +156,79 @@ export class IdentityOwoxClient {
   }
 
   /**
+   * POST /idp/oauth/authorization-code.
+   */
+  async createMcpOAuthAuthorizationCode(
+    req: McpOAuthAuthorizationCodeRequest
+  ): Promise<McpOAuthAuthorizationCodeResponse> {
+    const parsed = McpOAuthAuthorizationCodeRequestSchema.parse(req);
+    const authHeader = await this.getC2cAuthHeader('create MCP OAuth authorization code', {
+      clientId: parsed.request.clientId,
+      projectId: parsed.projectMember.projectId,
+      userId: parsed.projectMember.userId,
+    });
+
+    try {
+      const { data } = await this.http.post<unknown>(
+        `${this.clientBackchannelPrefix}/idp/oauth/authorization-code`,
+        parsed,
+        { headers: authHeader }
+      );
+      return McpOAuthAuthorizationCodeResponseSchema.parse(data);
+    } catch (err) {
+      this.handleAxiosError(err, { req }, 'Failed to create MCP OAuth authorization code');
+    }
+  }
+
+  /**
+   * POST /idp/oauth/token.
+   */
+  async exchangeMcpOAuthToken(
+    req: McpOAuthTokenExchangeRequest
+  ): Promise<McpOAuthTokenExchangeResponse> {
+    const parsed = McpOAuthTokenExchangeRequestSchema.parse(req);
+    const authHeader = await this.getC2cAuthHeader('exchange MCP OAuth token', {
+      grantType: parsed.grantType,
+      clientId: parsed.clientId,
+      resource: parsed.resource,
+    });
+
+    try {
+      const { data } = await this.http.post<unknown>(
+        `${this.clientBackchannelPrefix}/idp/oauth/token`,
+        parsed,
+        { headers: authHeader }
+      );
+      return McpOAuthTokenExchangeResponseSchema.parse(data);
+    } catch (err) {
+      this.handleAxiosError(err, { req }, 'Failed to exchange MCP OAuth token');
+    }
+  }
+
+  /**
+   * POST /idp/oauth/token/verify.
+   */
+  async verifyMcpAccessToken(req: McpOAuthTokenVerificationRequest) {
+    const parsed = McpOAuthTokenVerificationRequestSchema.parse(req);
+    const authHeader = await this.getC2cAuthHeader('verify MCP access token', {
+      resource: parsed.resource,
+      requiredScopes: parsed.requiredScopes,
+    });
+
+    try {
+      const { data } = await this.http.post<unknown>(
+        `${this.clientBackchannelPrefix}/idp/oauth/token/verify`,
+        parsed,
+        { headers: authHeader }
+      );
+      const result = McpOAuthTokenVerificationResponseSchema.parse(data);
+      return result.active ? result.payload : null;
+    } catch (err) {
+      this.handleAxiosError(err, { req }, 'Failed to verify MCP access token');
+    }
+  }
+
+  /**
    * POST /api/idp/revocation
    */
   async revokeToken(req: RevocationRequest): Promise<RevocationResponse> {
@@ -183,6 +267,26 @@ export class IdentityOwoxClient {
     });
 
     return ProjectsSchema.parse(data);
+  }
+
+  /**
+   * GET one project for a user via C2C (component-to-component) authentication.
+   */
+  async getProjectForUser(userId: string, projectId: string): Promise<Project> {
+    const authHeader = await this.getC2cAuthHeader('fetch project for user', {
+      userId,
+      projectId,
+    });
+    const url = `${this.clientBackchannelPrefix}/idp/users/${encodeURIComponent(
+      userId
+    )}/projects/${encodeURIComponent(projectId)}`;
+
+    try {
+      const { data } = await this.http.get<Project>(url, { headers: authHeader });
+      return ProjectSchema.parse(data);
+    } catch (err) {
+      this.handleAxiosError(err, { userId, projectId }, 'Failed to fetch project for user');
+    }
   }
 
   /**

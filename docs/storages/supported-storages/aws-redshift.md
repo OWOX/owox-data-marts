@@ -208,6 +208,13 @@ GRANT ALL ON DATABASE dev TO "IAM:<USERNAME_IN_IAM>";
 GRANT ALL ON DATABASE dev TO "IAM:<USERNAME_IN_IAM>";
 ```
 
+### Filter values and `standard_conforming_strings`
+
+OWOX Data Marts safely escapes report filter values for Redshift by relying on the
+default `standard_conforming_strings = on` setting (a backslash is treated as an
+ordinary character). This is the default for both Redshift Serverless and provisioned
+clusters. Do not set `standard_conforming_strings = off` for the database OWOX connects to.
+
 ## Additional Resources
 
 - [AWS Redshift Documentation](https://docs.aws.amazon.com/redshift/)

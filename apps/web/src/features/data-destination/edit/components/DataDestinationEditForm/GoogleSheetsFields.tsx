@@ -7,7 +7,8 @@ import {
   FormLabel,
   FormMessage,
 } from '@owox/ui/components/form';
-import { Textarea } from '@owox/ui/components/textarea';
+import { FileDropTextarea } from '@owox/ui/components/file-drop-textarea';
+import { toast } from 'react-hot-toast';
 import { useState, useEffect } from 'react';
 import { type UseFormReturn } from 'react-hook-form';
 import { type DataDestinationFormData, DataDestinationType } from '../../../shared';
@@ -89,7 +90,10 @@ export function GoogleSheetsFields({ form }: GoogleSheetsFieldsProps) {
   const handleOAuthStatusChange = (isConnected: boolean, credentialId?: string) => {
     if (isConnected && credentialId) {
       setAuthMethod('oauth');
-      form.setValue('credentials.credentialId', credentialId, { shouldDirty: false });
+      form.setValue('credentials.credentialId', credentialId, {
+        shouldDirty: false,
+        shouldValidate: true,
+      });
       form.setValue('credentials.serviceAccount', '');
     }
   };
@@ -175,30 +179,37 @@ export function GoogleSheetsFields({ form }: GoogleSheetsFieldsProps) {
           )}
 
           {isOAuthAvailable && authMethod === 'oauth' && (
-            <FormItem>
-              <div className='mb-4 flex items-center justify-between'>
-                <FormLabel tooltip='Authorize OWOX to access your Google Sheets'>
-                  Connect with Google OAuth
-                </FormLabel>
-              </div>
-              <GoogleOAuthConnectButton
-                resourceType='destination'
-                resourceId={destinationId}
-                credentialId={credentialIdValue ?? undefined}
-                redirectUri={oauthRedirectUri}
-                onSuccess={handleOAuthSuccess}
-                onStatusChange={handleOAuthStatusChange}
-              />
-              {oauthEmail && (
-                <div className='mt-2 flex flex-col gap-1'>
-                  <FormLabel>Authenticated email</FormLabel>
-                  <CopyableField value={oauthEmail}>{oauthEmail}</CopyableField>
-                </div>
+            <FormField
+              control={form.control}
+              name='credentials.credentialId'
+              render={() => (
+                <FormItem>
+                  <div className='mb-4 flex items-center justify-between'>
+                    <FormLabel tooltip='Authorize OWOX to access your Google Sheets'>
+                      Connect with Google OAuth
+                    </FormLabel>
+                  </div>
+                  <GoogleOAuthConnectButton
+                    resourceType='destination'
+                    resourceId={destinationId}
+                    credentialId={credentialIdValue ?? undefined}
+                    redirectUri={oauthRedirectUri}
+                    onSuccess={handleOAuthSuccess}
+                    onStatusChange={handleOAuthStatusChange}
+                  />
+                  {oauthEmail && (
+                    <div className='mt-2 flex flex-col gap-1'>
+                      <FormLabel>Authenticated email</FormLabel>
+                      <CopyableField value={oauthEmail}>{oauthEmail}</CopyableField>
+                    </div>
+                  )}
+                  <FormDescription>
+                    <GoogleSheetsOAuthDescription />
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
               )}
-              <FormDescription>
-                <GoogleSheetsOAuthDescription />
-              </FormDescription>
-            </FormItem>
+            />
           )}
 
           {authMethod === 'service-account' && (
@@ -252,11 +263,20 @@ export function GoogleSheetsFields({ form }: GoogleSheetsFieldsProps) {
                         </button>
                       </div>
                     ) : (
-                      <Textarea
+                      <FileDropTextarea
                         {...field}
                         className='min-h-[150px] font-mono'
                         rows={8}
-                        placeholder='Paste your service account JSON here'
+                        placeholder='Paste your service account JSON here or drag & drop the file'
+                        onFileRead={content => {
+                          form.setValue('credentials.serviceAccount', content, {
+                            shouldDirty: true,
+                            shouldValidate: true,
+                          });
+                        }}
+                        onFileReject={error => {
+                          toast.error(error);
+                        }}
                       />
                     )}
                   </FormControl>

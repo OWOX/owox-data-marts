@@ -18,6 +18,7 @@ interface ConfirmationDialogProps {
   cancelLabel?: string;
   onConfirm: () => void;
   onCancel?: () => void;
+  confirmDisabled?: boolean;
   variant?: 'destructive' | 'default' | 'brand' | 'outline' | 'secondary' | 'ghost' | 'link';
   children?: ReactNode;
 }
@@ -31,6 +32,7 @@ export const ConfirmationDialog = ({
   cancelLabel,
   onConfirm,
   onCancel,
+  confirmDisabled = false,
   variant = 'destructive',
   children,
 }: ConfirmationDialogProps) => {
@@ -55,7 +57,7 @@ export const ConfirmationDialog = ({
               {cancelLabel}
             </Button>
           )}
-          <Button variant={variant} onClick={onConfirm}>
+          <Button variant={variant} onClick={onConfirm} disabled={confirmDisabled}>
             {confirmLabel}
           </Button>
         </DialogFooter>

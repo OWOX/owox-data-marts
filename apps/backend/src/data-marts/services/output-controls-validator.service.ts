@@ -4,6 +4,10 @@ import { SortConfig, SortConfigSchema, SortRule } from '../dto/schemas/sort-conf
 import { DataStorageType } from '../data-storage-types/enums/data-storage-type.enum';
 import { OutputControlsCapabilityService } from './output-controls-capability.service';
 import { BlendableSchemaAccessor, BlendableSchemaService } from './blendable-schema.service';
+import { throwDisconnectedReportColumnsError } from '../errors/disconnected-report-columns.error';
+import { collectSchemaFieldPathTypes } from '../data-storage-types/data-mart-schema.utils';
+import { buildBlendedFieldIndex } from './blended-field-index';
+import { BlendedFieldEntry } from '../data-storage-types/interfaces/blended-query-builder.interface';
 
 export type ValidationError =
   | { code: 'FILTER_COLUMN_UNKNOWN'; column: string; aliasPath?: string }
@@ -16,28 +20,37 @@ export type ValidationError =
     }
   | { code: 'INVALID_REGEX_PATTERN'; column: string; pattern: string; aliasPath?: string }
   | { code: 'SORT_COLUMN_NOT_SELECTED'; column: string }
-  | { code: 'FILTER_ALIAS_PATH_UNKNOWN'; aliasPath: string }
-  | { code: 'FILTER_ALIAS_PATH_NOT_INCLUDED'; aliasPath: string }
+  | { code: 'FILTER_ALIAS_PATH_UNKNOWN'; aliasPath: string; column: string } // retained for backward compatibility; no longer emitted by validateFilters
+  | { code: 'FILTER_ALIAS_PATH_NOT_INCLUDED'; aliasPath: string; column: string }
   | { code: 'PRE_JOIN_FILTERS_REQUIRE_COLUMN_CONFIG' };
 
-const STRING_TYPES = new Set(['STRING', 'VARCHAR', 'CHAR']);
+const STRING_TYPES = new Set(['STRING', 'VARCHAR', 'CHAR', 'TEXT', 'BPCHAR']);
 const NUMBER_TYPES = new Set([
   'INTEGER',
+  'INT',
   'BIGINT',
   'SMALLINT',
   'TINYINT',
   'FLOAT',
   'REAL',
   'DOUBLE',
+  'DOUBLE PRECISION',
   'NUMERIC',
   'BIGNUMERIC',
   'DECIMAL',
 ]);
-const DATE_TYPES = new Set(['DATE', 'DATETIME', 'TIMESTAMP', 'TIMESTAMP WITH TIME ZONE']);
+const DATE_TYPES = new Set([
+  'DATE',
+  'DATETIME',
+  'TIMESTAMP',
+  'TIMESTAMP WITH TIME ZONE',
+  'TIMESTAMPTZ',
+  'TIMESTAMP_NTZ',
+]);
 // Time-of-day types are kept separate from DATE/TIMESTAMP: relative_date renders
 // `current_date` / `date_add(..., current_date)` predicates that are meaningless
 // (and rejected by Trino) for a column with no date component.
-const TIME_TYPES = new Set(['TIME', 'TIME WITH TIME ZONE']);
+const TIME_TYPES = new Set(['TIME', 'TIME WITH TIME ZONE', 'TIMETZ']);
 const BOOL_TYPES = new Set(['BOOLEAN', 'BOOL']);
 
 // Valid for any column type, including ones not in the sets above.
@@ -111,41 +124,28 @@ export class OutputControlsValidatorService {
     private readonly blendableSchemaService: BlendableSchemaService
   ) {}
 
-  /**
-   * Validates a list of filter rules against the blendable schema.
-   *
-   * - post-join rules (`placement === 'post-join'` or omitted): looked up in
-   *   `homeFieldTypes` (blended output aliases + home native fields).
-   * - pre-join rules (`placement === 'pre-join'`): looked up by `aliasPath` in
-   *   `knownPaths`, then by raw column name inside that path. Pre-join rules
-   *   targeting excluded sources or the home mart are rejected with dedicated
-   *   error codes so the FE can surface the right message.
-   */
   validateFilters(
     filters: FilterRule[],
     homeFieldTypes: Map<string, string>,
-    knownPaths?: ReadonlyMap<string, ReadonlyMap<string, string>>,
-    excludedPaths?: ReadonlySet<string>
+    fieldIndex: ReadonlyMap<string, BlendedFieldEntry> = new Map()
   ): ValidationError[] {
     const errors: ValidationError[] = [];
     for (const rule of filters) {
       if (rule.placement === 'pre-join') {
-        const aliasPath = rule.aliasPath!;
-        if (excludedPaths?.has(aliasPath)) {
-          errors.push({ code: 'FILTER_ALIAS_PATH_NOT_INCLUDED', aliasPath });
+        const f = fieldIndex.get(rule.column);
+        if (!f) {
+          errors.push({ code: 'FILTER_COLUMN_UNKNOWN', column: rule.column });
           continue;
         }
-        const subsidiaryTypes = knownPaths?.get(aliasPath);
-        if (!subsidiaryTypes) {
-          errors.push({ code: 'FILTER_ALIAS_PATH_UNKNOWN', aliasPath });
+        if (!f.isIncluded) {
+          errors.push({
+            code: 'FILTER_ALIAS_PATH_NOT_INCLUDED',
+            aliasPath: f.aliasPath,
+            column: rule.column,
+          });
           continue;
         }
-        const type = subsidiaryTypes.get(rule.column);
-        if (type === undefined) {
-          errors.push({ code: 'FILTER_COLUMN_UNKNOWN', column: rule.column, aliasPath });
-          continue;
-        }
-        this.validateRuleAgainstType(rule, type, aliasPath, errors);
+        this.validateRuleAgainstType(rule, f.type, f.aliasPath, errors);
       } else {
         const type = homeFieldTypes.get(rule.column);
         if (type === undefined) {
@@ -262,30 +262,59 @@ export class OutputControlsValidatorService {
         args.accessor
       );
 
-      const homeFieldTypes = new Map<string, string>();
-      for (const native of blendableSchema.nativeFields) {
-        homeFieldTypes.set(native.name, native.type);
-      }
-      for (const blended of blendableSchema.blendedFields) {
-        homeFieldTypes.set(blended.name, blended.type);
+      const hasActualizedSchema =
+        blendableSchema.nativeFields.length > 0 || blendableSchema.blendedFields.length > 0;
+
+      if (!hasActualizedSchema) {
+        // A pre-join slice on a non-actualized schema can't be validated (no
+        // fields to resolve against) and would otherwise be skipped — the run
+        // path then hands the builder an empty fieldIndex and fails with a 500.
+        // Surface the slice columns as disconnected (a 400) instead.
+        const preJoinRefs = parsedFilters
+          .filter(r => r.placement === 'pre-join')
+          .map(r => r.column);
+        if (preJoinRefs.length > 0) {
+          throwDisconnectedReportColumnsError(args.dataMartId, preJoinRefs);
+        }
       }
 
-      if (parsedFilters.length > 0) {
-        const { knownPaths, excludedPaths } = this.buildKnownPaths(blendableSchema);
-        errors.push(
-          ...this.validateFilters(parsedFilters, homeFieldTypes, knownPaths, excludedPaths)
+      if (hasActualizedSchema) {
+        const homeFieldTypes = new Map<string, string>();
+        const knownOutputColumns = new Set<string>();
+        const connectedNativeNames: string[] = [];
+        for (const native of collectSchemaFieldPathTypes(blendableSchema.nativeFields)) {
+          homeFieldTypes.set(native.name, native.type);
+          knownOutputColumns.add(native.name);
+          connectedNativeNames.push(native.name);
+        }
+        for (const blended of blendableSchema.blendedFields) {
+          if (blended.isHidden) continue;
+          homeFieldTypes.set(blended.name, blended.type);
+          knownOutputColumns.add(blended.name);
+        }
+
+        if (parsedFilters.length > 0) {
+          const fieldIndex = buildBlendedFieldIndex(blendableSchema);
+          errors.push(...this.validateFilters(parsedFilters, homeFieldTypes, fieldIndex));
+        }
+        if (parsedSort.length > 0) {
+          // With no explicit columnConfig the projection is `SELECT *` over the home
+          // mart's NATIVE fields only — blended output aliases are NOT projected, and
+          // the blended run path rejects output controls without an explicit column
+          // selection. Validate sort against that same native-only set so a sort on a
+          // blended column is caught here at save time instead of failing at run time.
+          const selectedSet = new Set(args.columnConfig ?? connectedNativeNames);
+          errors.push(...this.validateSort(parsedSort, selectedSet));
+        }
+
+        const disconnectedOutputControlRefs = this.collectDisconnectedOutputControlRefs(
+          errors,
+          parsedSort,
+          knownOutputColumns
         );
-      }
-      if (parsedSort.length > 0) {
-        // With no explicit columnConfig the projection is `SELECT *` over the home
-        // mart's NATIVE fields only — blended output aliases are NOT projected, and
-        // the blended run path rejects output controls without an explicit column
-        // selection. Validate sort against that same native-only set so a sort on a
-        // blended column is caught here at save time instead of failing at run time.
-        const selectedSet = new Set(
-          args.columnConfig ?? blendableSchema.nativeFields.map(f => f.name)
-        );
-        errors.push(...this.validateSort(parsedSort, selectedSet));
+        if (disconnectedOutputControlRefs.length > 0) {
+          throwDisconnectedReportColumnsError(args.dataMartId, disconnectedOutputControlRefs);
+        }
       }
     }
 
@@ -297,30 +326,36 @@ export class OutputControlsValidatorService {
     }
   }
 
-  private buildKnownPaths(blendableSchema: {
-    availableSources: { aliasPath: string; isIncluded?: boolean }[];
-    blendedFields: { aliasPath: string; originalFieldName: string; type: string }[];
-  }): { knownPaths: Map<string, Map<string, string>>; excludedPaths: Set<string> } {
-    const knownPaths = new Map<string, Map<string, string>>();
-    const excludedPaths = new Set<string>();
-    for (const source of blendableSchema.availableSources) {
-      if (source.isIncluded === false) {
-        excludedPaths.add(source.aliasPath);
-        continue;
-      }
-      if (!knownPaths.has(source.aliasPath)) {
-        knownPaths.set(source.aliasPath, new Map());
+  private collectDisconnectedOutputControlRefs(
+    errors: ValidationError[],
+    sort: SortRule[],
+    knownOutputColumns: ReadonlySet<string>
+  ): string[] {
+    const refs: string[] = [];
+
+    for (const error of errors) {
+      switch (error.code) {
+        case 'FILTER_COLUMN_UNKNOWN':
+        case 'FILTER_ALIAS_PATH_UNKNOWN':
+          refs.push(this.formatFilterRef(error.column, error.aliasPath));
+          break;
+        case 'FILTER_ALIAS_PATH_NOT_INCLUDED':
+          // column is the unified name — use it directly as the disconnected ref.
+          refs.push(error.column);
+          break;
       }
     }
-    for (const field of blendableSchema.blendedFields) {
-      if (excludedPaths.has(field.aliasPath)) continue;
-      let fields = knownPaths.get(field.aliasPath);
-      if (!fields) {
-        fields = new Map();
-        knownPaths.set(field.aliasPath, fields);
+
+    for (const rule of sort) {
+      if (!knownOutputColumns.has(rule.column)) {
+        refs.push(rule.column);
       }
-      fields.set(field.originalFieldName, field.type);
     }
-    return { knownPaths, excludedPaths };
+
+    return Array.from(new Set(refs));
+  }
+
+  private formatFilterRef(column: string, aliasPath?: string): string {
+    return aliasPath ? `${aliasPath}.${column}` : column;
   }
 }

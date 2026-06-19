@@ -27,25 +27,34 @@ export interface OperatorMeta {
 }
 
 // Mirror of backend OutputControlsValidatorService type sets — cover every type
-// name each supported provider emits (BigQuery + Athena), keep the two in sync.
-const STRING_TYPES = new Set(['STRING', 'VARCHAR', 'CHAR']);
+// name each supported provider emits (BigQuery + Athena + Redshift), keep in sync.
+const STRING_TYPES = new Set(['STRING', 'VARCHAR', 'CHAR', 'TEXT', 'BPCHAR']);
 const NUMBER_TYPES = new Set([
   'INTEGER',
+  'INT',
   'BIGINT',
   'SMALLINT',
   'TINYINT',
   'FLOAT',
   'REAL',
   'DOUBLE',
+  'DOUBLE PRECISION',
   'NUMERIC',
   'BIGNUMERIC',
   'DECIMAL',
 ]);
-const DATE_TYPES = new Set(['DATE', 'DATETIME', 'TIMESTAMP', 'TIMESTAMP WITH TIME ZONE']);
+const DATE_TYPES = new Set([
+  'DATE',
+  'DATETIME',
+  'TIMESTAMP',
+  'TIMESTAMP WITH TIME ZONE',
+  'TIMESTAMPTZ',
+  'TIMESTAMP_NTZ',
+]);
 // Time-of-day types are kept out of DATE_TYPES: relative_date presets resolve to
 // calendar dates (current_date / date_add), which are meaningless for a column
 // with no date component and rejected by the backend renderer.
-const TIME_TYPES = new Set(['TIME', 'TIME WITH TIME ZONE']);
+const TIME_TYPES = new Set(['TIME', 'TIME WITH TIME ZONE', 'TIMETZ']);
 const BOOL_TYPES = new Set(['BOOLEAN', 'BOOL']);
 
 const STRING_OPERATORS: OperatorMeta[] = [
@@ -95,8 +104,44 @@ const BOOLEAN_OPERATORS: OperatorMeta[] = [
   { value: 'is_not_null', label: 'is not null', shortLabel: '¬∅' },
 ];
 
+const FALLBACK_OPERATOR_LABELS: Record<FilterOperator, string> = {
+  eq: 'is',
+  neq: 'is not',
+  contains: 'contains',
+  not_contains: "doesn't contain",
+  starts_with: 'starts with',
+  ends_with: 'ends with',
+  is_empty: 'is empty',
+  is_not_empty: 'is not empty',
+  is_null: 'is null',
+  is_not_null: 'is not null',
+  regex: 'matches regex',
+  not_regex: "doesn't match regex",
+  gt: 'greater than',
+  lt: 'less than',
+  gte: 'greater than or equal',
+  lte: 'less than or equal',
+  between: 'between',
+  is_true: 'is true',
+  is_false: 'is false',
+  relative_date: 'relative',
+};
+
 // Same comparison operators as dates minus relative_date (calendar-only presets).
-const TIME_OPERATORS: OperatorMeta[] = DATE_OPERATORS.filter(o => o.value !== 'relative_date');
+// "at"-framed labels read naturally for a time of day, which has no calendar date
+// to be "on" / "on or after".
+const TIME_LABEL_OVERRIDES: Partial<Record<FilterOperator, string>> = {
+  eq: 'at',
+  neq: 'not at',
+  gte: 'at or after',
+  lte: 'at or before',
+};
+const TIME_OPERATORS: OperatorMeta[] = DATE_OPERATORS.filter(o => o.value !== 'relative_date').map(
+  o => {
+    const label = TIME_LABEL_OVERRIDES[o.value];
+    return label ? { ...o, label } : o;
+  }
+);
 
 export function operatorsForType(fieldType: string): OperatorMeta[] {
   if (STRING_TYPES.has(fieldType)) return STRING_OPERATORS;
@@ -128,5 +173,5 @@ export function isTimeType(fieldType: string): boolean {
 
 export function operatorLabelFor(operator: FilterOperator, fieldType: string): string {
   const meta = operatorsForType(fieldType).find(o => o.value === operator);
-  return meta?.label ?? operator;
+  return meta?.label ?? FALLBACK_OPERATOR_LABELS[operator];
 }

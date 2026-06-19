@@ -1,5 +1,6 @@
 import { useCallback, useMemo } from 'react';
-import { ChevronDown } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { Box, ChevronDown } from 'lucide-react';
 import { UserReference } from '../../../../../shared/components/UserReference';
 import { StatusBadge } from './StatusBadge';
 import { LogControls } from './LogControls';
@@ -33,6 +34,11 @@ interface RunItemProps {
   cancelDataMartRun: (id: string, runId: string) => Promise<void>;
   dataMartId?: string;
   dataMartConnectorInfo: ConnectorListItem | null;
+  dataMartRef?: {
+    id: string;
+    title: string;
+    href: string;
+  };
 }
 
 export function RunItem({
@@ -46,6 +52,7 @@ export function RunItem({
   cancelDataMartRun,
   dataMartId,
   dataMartConnectorInfo,
+  dataMartRef,
 }: RunItemProps) {
   const { copiedSection, handleCopy } = useClipboard();
 
@@ -101,56 +108,88 @@ export function RunItem({
   const startedAtValue = getStartedAtDisplay(run);
   const tooltipContent = getTooltipContent(run);
   const [runDescription, reportTitle] = getRunSummaryParts(run, dataMartConnectorInfo?.displayName);
+  const startedAtContent = (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <div className='text-foreground flex shrink-0 items-center font-mono text-sm font-medium whitespace-nowrap'>
+          {startedAtValue}
+        </div>
+      </TooltipTrigger>
+      <TooltipContent>
+        <div className='space-y-1'>
+          <div>Started At: {tooltipContent.startedAt}</div>
+          <div>Finished At: {tooltipContent.finishedAt}</div>
+          {tooltipContent.duration && <div>Duration: {tooltipContent.duration}</div>}
+        </div>
+      </TooltipContent>
+    </Tooltip>
+  );
+  const runSummaryContent = (
+    <div className='text-muted-foreground flex min-w-0 flex-1 items-center gap-2 text-sm'>
+      {getTriggerTypeIcon(run.triggerType)}
+      <div className='inline-flex min-w-0 items-center gap-2'>
+        <span className='shrink-0'>{runDescription}</span>
+        {run.createdByUser && (
+          <>
+            {' by '}
+            <UserReference userProjection={run.createdByUser} />
+          </>
+        )}
+        {reportTitle && (
+          <>
+            {' • '}
+            <span className='truncate'>{reportTitle}</span>
+          </>
+        )}
+      </div>
+    </div>
+  );
+  const mainRowContent = dataMartRef ? (
+    <div className='flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1'>
+      {startedAtContent}
+      {runSummaryContent}
+    </div>
+  ) : (
+    <div className='flex min-w-0 items-center gap-3'>
+      {startedAtContent}
+      {runSummaryContent}
+    </div>
+  );
 
   return (
-    <div className='dm-card-block'>
+    <div className='dm-card-block !gap-1'>
+      {dataMartRef && (
+        <div className='h-4 min-w-0 leading-4'>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Link
+                to={dataMartRef.href}
+                onClick={event => {
+                  event.stopPropagation();
+                }}
+                className='text-muted-foreground hover:text-primary inline-flex h-4 max-w-full items-center gap-1.5 text-xs leading-4 font-medium transition-colors'
+              >
+                <Box className='h-3.5 w-3.5 shrink-0' />
+                <span className='truncate'>{dataMartRef.title}</span>
+              </Link>
+            </TooltipTrigger>
+            <TooltipContent>Open Data Mart</TooltipContent>
+          </Tooltip>
+        </div>
+      )}
+
       <div
-        className='flex cursor-pointer items-center justify-between'
+        className='flex cursor-pointer items-center justify-between gap-4'
         onClick={() => {
           onToggle(run.id);
         }}
       >
-        <div className='flex items-center gap-2'>
-          <div>
-            <TypeIcon type={run.type} base64Icon={dataMartConnectorInfo?.logoBase64} />
-          </div>
-
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <div className='text-foreground align-center mr-12 flex items-center font-mono text-sm font-medium'>
-                {startedAtValue}
-              </div>
-            </TooltipTrigger>
-            <TooltipContent>
-              <div className='space-y-1'>
-                <div>Started At: {tooltipContent.startedAt}</div>
-                <div>Finished At: {tooltipContent.finishedAt}</div>
-                {tooltipContent.duration && <div>Duration: {tooltipContent.duration}</div>}
-              </div>
-            </TooltipContent>
-          </Tooltip>
-
-          <div className='text-muted-foreground flex items-center gap-2 text-sm'>
-            {getTriggerTypeIcon(run.triggerType)}
-            <div className='inline-flex items-center gap-2'>
-              {runDescription}
-              {run.createdByUser && (
-                <>
-                  {' by '}
-                  <UserReference userProjection={run.createdByUser} />
-                </>
-              )}
-              {reportTitle && (
-                <>
-                  {' • '}
-                  {reportTitle}
-                </>
-              )}
-            </div>
-          </div>
+        <div className='flex min-w-0 flex-1 items-center gap-3'>
+          <TypeIcon type={run.type} base64Icon={dataMartConnectorInfo?.logoBase64} />
+          <div className='min-w-0 flex-1'>{mainRowContent}</div>
         </div>
 
-        <div className='flex items-center gap-2'>
+        <div className='flex shrink-0 items-center gap-2'>
           <StatusBadge status={run.status} />
           <ChevronDown
             className={`text-muted-foreground h-4 w-4 transition-transform ${
@@ -161,7 +200,10 @@ export function RunItem({
       </div>
 
       {isExpanded && (
-        <div className='border-border bg-muted/30 space-y-4 border-t p-4' data-testid='runLogView'>
+        <div
+          className='border-border bg-muted/30 mt-4 space-y-4 border-t p-4'
+          data-testid='runLogView'
+        >
           <div className='flex items-center'>
             <h3 className='text-foreground mr-2 font-medium'>Run ID: {run.id}</h3>
             <CopyButton

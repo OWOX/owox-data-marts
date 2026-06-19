@@ -1,12 +1,14 @@
 import { forwardRef, useEffect, useState } from 'react';
-import { useOwnerState } from '../../../../../../shared/hooks/useOwnerState';
-import { UserReference } from '../../../../../../shared/components/UserReference/UserReference';
-import { useUser } from '../../../../../idp/hooks/useAuthState';
+import { useOwnerState } from '../../../../../../shared/hooks';
+import { focusFirstInvalidField } from '../../../../../../utils';
+import { UserReference } from '../../../../../../shared/components/UserReference';
+import { useUser } from '../../../../../idp';
 
 import {
   type DataMartReport,
   isLookerStudioDestinationConfig,
 } from '../../../shared/model/types/data-mart-report.ts';
+import { isGeneratedSqlSupported } from '../../../shared';
 import { useLookerStudioReportForm } from '../../hooks/useLookerStudioReportForm.ts';
 import {
   Form,
@@ -28,8 +30,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@owox/ui/components/select';
-import { useOutletContext } from 'react-router-dom';
-import type { DataMartContextType } from '../../../../edit/model/context/types.ts';
 import { type DataDestination } from '../../../../../data-destination';
 import { ReportFormMode } from '../../../shared';
 import { Button } from '@owox/ui/components/button';
@@ -42,6 +42,7 @@ import {
   type ReportColumnSelectionCount,
 } from '../../../../edit/components/ReportColumnPicker/ReportColumnPicker';
 import { GeneratedSqlViewer } from '../../../../edit/components/ReportColumnPicker/GeneratedSqlViewer';
+import { useDataMartContext } from '../../../../edit/model';
 
 interface LookerStudioReportEditFormProps {
   initialReport?: DataMartReport;
@@ -87,8 +88,7 @@ export const LookerStudioReportEditForm = forwardRef<
   ) => {
     const formId = 'looker-studio-edit-form';
 
-    const { dataMart } = useOutletContext<DataMartContextType>();
-    const [hasBlendedSelection, setHasBlendedSelection] = useState(false);
+    const { dataMart } = useDataMartContext();
     const [columnsCount, setColumnsCount] = useState<ReportColumnSelectionCount>({
       selected: 0,
       total: 0,
@@ -117,7 +117,6 @@ export const LookerStudioReportEditForm = forwardRef<
 
     const {
       isDirty,
-      isValid,
       reset,
       form,
       isSubmitting,
@@ -169,19 +168,13 @@ export const LookerStudioReportEditForm = forwardRef<
       onDirtyChange?.(isDirty || ownersDirty);
     }, [isDirty, ownersDirty, onDirtyChange]);
 
-    const usesSourceDirectly =
-      !hasBlendedSelection &&
-      !form.watch('filterConfig')?.length &&
-      !form.watch('sortConfig')?.length &&
-      form.watch('limitConfig') === null;
-
     return (
       <Form {...form}>
         <AppForm
           id={formId}
           ref={ref}
           noValidate
-          onSubmit={e => void form.handleSubmit(handleFormSubmit)(e)}
+          onSubmit={e => void form.handleSubmit(handleFormSubmit, focusFirstInvalidField)(e)}
         >
           <FormLayout>
             <FormSection title='Cache Configuration'>
@@ -226,41 +219,69 @@ export const LookerStudioReportEditForm = forwardRef<
               title='Report Columns'
               tooltip='Select which columns to include in the report'
               titleAdornment={<ReportColumnsCountBadge count={columnsCount} />}
+              fields={['columnConfig', 'filterConfig', 'sortConfig', 'limitConfig']}
             >
-              {dataMart?.id && (
-                <div className='border-border space-y-3 rounded-md border-b bg-white px-4 py-3 dark:border-transparent dark:bg-white/4'>
-                  <ReportColumnPicker
-                    dataMartId={dataMart.id}
-                    storageType={dataMart.storage.type}
-                    value={form.watch('columnConfig')}
-                    onChange={value => {
-                      form.setValue('columnConfig', value, { shouldDirty: true });
-                    }}
-                    outputConfig={{
-                      filterConfig: form.watch('filterConfig') ?? [],
-                      sortConfig: form.watch('sortConfig') ?? [],
-                      limitConfig: form.watch('limitConfig') ?? null,
-                    }}
-                    onOutputConfigChange={config => {
-                      form.setValue('filterConfig', config.filterConfig, { shouldDirty: true });
-                      form.setValue('sortConfig', config.sortConfig, { shouldDirty: true });
-                      form.setValue('limitConfig', config.limitConfig, { shouldDirty: true });
-                    }}
-                    onBlendedSelectionChange={setHasBlendedSelection}
-                    onCountChange={setColumnsCount}
-                  />
-                  {mode === ReportFormMode.EDIT && initialReport?.id && dataMart.id && (
-                    <div className='pt-1'>
-                      <GeneratedSqlViewer
-                        reportId={initialReport.id}
-                        dataMartId={dataMart.id}
-                        variant='outline-button'
-                        usesSourceDirectly={usesSourceDirectly}
-                      />
-                    </div>
-                  )}
-                </div>
-              )}
+              <FormField
+                control={form.control}
+                name='columnConfig'
+                render={() => (
+                  <FormItem>
+                    {dataMart?.id && (
+                      <FormControl>
+                        <div
+                          className='border-border space-y-3 rounded-md border-b bg-white px-4 py-3 dark:border-transparent dark:bg-white/4'
+                          tabIndex={-1}
+                        >
+                          <ReportColumnPicker
+                            dataMartId={dataMart.id}
+                            storageType={dataMart.storage.type}
+                            value={form.watch('columnConfig')}
+                            onChange={value => {
+                              form.setValue('columnConfig', value, {
+                                shouldDirty: true,
+                                shouldValidate: true,
+                              });
+                            }}
+                            outputConfig={{
+                              filterConfig: form.watch('filterConfig') ?? [],
+                              sortConfig: form.watch('sortConfig') ?? [],
+                              limitConfig: form.watch('limitConfig') ?? null,
+                            }}
+                            onOutputConfigChange={config => {
+                              form.setValue('filterConfig', config.filterConfig, {
+                                shouldDirty: true,
+                              });
+                              form.setValue('sortConfig', config.sortConfig, {
+                                shouldDirty: true,
+                              });
+                              form.setValue('limitConfig', config.limitConfig, {
+                                shouldDirty: true,
+                              });
+                            }}
+                            onCountChange={setColumnsCount}
+                          />
+                          {mode === ReportFormMode.EDIT &&
+                            initialReport?.id &&
+                            dataMart.id &&
+                            isGeneratedSqlSupported(
+                              dataMart.definitionType,
+                              dataMart.storage.type
+                            ) && (
+                              <div className='pt-1'>
+                                <GeneratedSqlViewer
+                                  reportId={initialReport.id}
+                                  dataMartId={dataMart.id}
+                                  variant='outline-button'
+                                />
+                              </div>
+                            )}
+                        </div>
+                      </FormControl>
+                    )}
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
             </FormSection>
 
             <FormSection title='Ownership'>
@@ -301,11 +322,10 @@ export const LookerStudioReportEditForm = forwardRef<
               type='submit'
               className='w-full'
               aria-label={mode === ReportFormMode.CREATE ? 'Create' : 'Save changes'}
-              // `disabled` logic is duplicated intentionally and needs to be synchronized manually
-              disabled={
-                isSubmitting ||
-                (mode === ReportFormMode.CREATE ? !isValid : !isDirty && !ownersDirty)
-              }
+              // In CREATE mode the button stays clickable even while the form is
+              // invalid: submitting surfaces validation errors instead of leaving
+              // the user with a disabled button and no hint about what is missing.
+              disabled={isSubmitting || (mode === ReportFormMode.EDIT && !isDirty && !ownersDirty)}
             >
               {isSubmitting
                 ? mode === ReportFormMode.CREATE

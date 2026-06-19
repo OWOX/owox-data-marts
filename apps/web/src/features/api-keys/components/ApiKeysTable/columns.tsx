@@ -18,6 +18,9 @@ interface ApiKeysColumnsProps {
   onRevoke: (key: ProjectMemberApiKey) => void;
 }
 
+const relativeTimeCellClassName =
+  'text-muted-foreground block max-w-full whitespace-normal break-words';
+
 export const getApiKeysColumns = ({
   onEditName,
   onRevoke,
@@ -69,7 +72,7 @@ export const getApiKeysColumns = ({
     meta: { title: 'Created' },
     header: ({ column }) => <SortableHeader column={column}>Created</SortableHeader>,
     cell: ({ row }) => (
-      <RelativeTime date={new Date(row.original.createdAt)} className='text-muted-foreground' />
+      <RelativeTime date={new Date(row.original.createdAt)} className={relativeTimeCellClassName} />
     ),
   },
   {
@@ -81,7 +84,7 @@ export const getApiKeysColumns = ({
       const { lastAuthenticatedAt } = row.original;
       if (!lastAuthenticatedAt) return <span className='text-muted-foreground'>Never</span>;
       return (
-        <RelativeTime date={new Date(lastAuthenticatedAt)} className='text-muted-foreground' />
+        <RelativeTime date={new Date(lastAuthenticatedAt)} className={relativeTimeCellClassName} />
       );
     },
   },

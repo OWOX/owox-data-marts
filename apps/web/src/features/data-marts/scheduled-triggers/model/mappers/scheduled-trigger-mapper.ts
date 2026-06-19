@@ -1,10 +1,12 @@
 import type {
   CreateScheduledTriggerRequestApiDto,
+  ProjectScheduledTriggerListResponseApiDto,
+  ProjectScheduledTriggerResponseApiDto,
   ScheduledTriggerListResponseApiDto,
   ScheduledTriggerResponseApiDto,
   UpdateScheduledTriggerRequestApiDto,
 } from '../api';
-import type { ScheduledTrigger } from '../scheduled-trigger.model';
+import type { ProjectScheduledTrigger, ScheduledTrigger } from '../scheduled-trigger.model';
 import { TriggerMapperFactory } from './trigger-mapper.factory';
 import { ScheduledTriggerType } from '../../enums';
 import { ReportRunTriggerMapper } from './report-run-trigger.mapper';
@@ -34,6 +36,21 @@ export const ScheduledTriggerMapper = {
    */
   mapFromDtoList(dtoList: ScheduledTriggerListResponseApiDto): ScheduledTrigger[] {
     return dtoList.map(dto => this.mapFromDto(dto));
+  },
+
+  mapProjectFromDto(dto: ProjectScheduledTriggerResponseApiDto): ProjectScheduledTrigger {
+    return {
+      ...this.mapFromDto(dto),
+      dataMart: dto.dataMart,
+      canEdit: dto.canEdit,
+      canDelete: dto.canDelete,
+    };
+  },
+
+  mapProjectFromDtoList(
+    dtoList: ProjectScheduledTriggerListResponseApiDto
+  ): ProjectScheduledTrigger[] {
+    return dtoList.triggers.map(dto => this.mapProjectFromDto(dto));
   },
 
   /**

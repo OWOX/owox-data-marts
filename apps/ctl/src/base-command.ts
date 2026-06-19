@@ -87,4 +87,20 @@ export abstract class BaseCommand extends Command {
     process.stderr.write(`${renderJson({ error: normalizeCliError(error) })}\n`);
     this.exit(1);
   }
+
+  protected async finally(error: Error | undefined): Promise<void> {
+    try {
+      const { trackCommand } = await import('./telemetry/track-command.js');
+      trackCommand({
+        cliVersion: this.config.version,
+        command: this.id ?? 'unknown',
+        // Route the first-run notice to stderr: owox-ctl emits machine-readable
+        // JSON/NDJSON on stdout, so the notice must not pollute that stream.
+        log: (message: string) => process.stderr.write(`${message}\n`),
+      });
+    } catch {
+      // Telemetry must never affect command completion.
+    }
+    return super.finally(error);
+  }
 }

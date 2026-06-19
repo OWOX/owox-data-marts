@@ -8,11 +8,14 @@ import {
   setupBlendedReportPrerequisites,
   type BlendedReportPrerequisites,
 } from '@owox/test-utils';
+import { CreateViewService } from 'src/data-marts/use-cases/create-view.service';
+import { CreateViewCommand } from 'src/data-marts/dto/domain/create-view.command';
 
 // Full-flow e2e: PUT /api/reports/:id → GET /api/reports/:id/generated-sql.
 // Exercises the entire pipeline (DTO → validator → entity persist → composer
 // → BigQuery blended builder) for both post-join filters and pre-join filters
-// (a.k.a. slices, expressed via FilterRule.placement='pre-join'+aliasPath).
+// (a.k.a. slices, expressed via FilterRule.placement='pre-join' with a unified
+// column identifier of the form '<aliasPath>__<rawColumn>').
 //
 // The 7 groups below mirror the contract that protects this feature end-to-end:
 //   1. Baseline — sanity check that an unfiltered report composes a blended-or-simple SELECT
@@ -28,8 +31,21 @@ describe('Blended output controls full-flow (e2e)', () => {
   let agent: supertest.Agent;
   let prereqs: BlendedReportPrerequisites;
 
+  // The /generated-sql path materializes a real BigQuery view for SQL-defined
+  // marts (composer → resolveTableName → ensureSqlViewIsUpToDate → CreateViewService),
+  // which needs live BigQuery credentials. These tests assert SQL *composition*
+  // (CTEs / WHERE), not real BQ execution, so stub CreateViewService to return a
+  // deterministic view name without hitting BigQuery — keeping the suite CI-runnable.
+  const createViewServiceMock = {
+    run: jest.fn(async (command: CreateViewCommand) => ({
+      fullyQualifiedName: `\`blended_test.${command.viewName}\``,
+    })),
+  };
+
   beforeAll(async () => {
-    const testApp = await createTestApp();
+    const testApp = await createTestApp([
+      { provide: CreateViewService, useValue: createViewServiceMock },
+    ]);
     app = testApp.app;
     agent = testApp.agent;
     prereqs = await setupBlendedReportPrerequisites(agent, { withSchemas: true });
@@ -73,6 +89,18 @@ describe('Blended output controls full-flow (e2e)', () => {
     const res = await agent.get(`/api/reports/${prereqs.reportId}`).set(AUTH_HEADER);
     expect(res.status).toBe(200);
     return res.body as Record<string, unknown>;
+  }
+
+  function expectDisconnectedColumns(res: supertest.Response, unknownColumns: string[]): void {
+    expect(res.status).toBe(400);
+    expect(res.body.message).toContain('Disconnected columns:');
+    expect(res.body.message).toContain(
+      'They are missing from the current Data Mart output schema.'
+    );
+    expect(res.body.errorDetails).toEqual({
+      unknownColumns,
+      dataMartId: prereqs.mainDataMartId,
+    });
   }
 
   // ── Group 1: Baseline ─────────────────────────────────────────────────────
@@ -127,11 +155,10 @@ describe('Blended output controls full-flow (e2e)', () => {
         columnConfig: ['event_id'],
         filterConfig: [
           {
-            column: 'role',
+            column: 'users__role',
             operator: 'eq',
             value: 'admin',
             placement: 'pre-join',
-            aliasPath: 'users',
           },
         ],
       });
@@ -143,7 +170,8 @@ describe('Blended output controls full-flow (e2e)', () => {
       expect(sql).toMatch(/users_raw AS \(/);
       const usersRawBody = extractCteBody(sql, 'users_raw');
       // Pre-join filter renders inside the CTE WHERE; its value is inlined.
-      expect(usersRawBody).toMatch(/WHERE[\s\S]+`role`\s*=\s*'admin'/);
+      // Simple identifiers are emitted unquoted (quoteIdentifier skips them).
+      expect(usersRawBody).toMatch(/WHERE[\s\S]+\brole\b\s*=\s*'admin'/);
     });
 
     it('combines multiple pre-join filters on the same CTE with AND', async () => {
@@ -151,17 +179,15 @@ describe('Blended output controls full-flow (e2e)', () => {
         columnConfig: ['event_id'],
         filterConfig: [
           {
-            column: 'role',
+            column: 'users__role',
             operator: 'eq',
             value: 'admin',
             placement: 'pre-join',
-            aliasPath: 'users',
           },
           {
-            column: 'is_active',
+            column: 'users__is_active',
             operator: 'is_true',
             placement: 'pre-join',
-            aliasPath: 'users',
           },
         ],
       });
@@ -170,8 +196,8 @@ describe('Blended output controls full-flow (e2e)', () => {
       const sql = await getGeneratedSql();
       const usersRawBody = extractCteBody(sql, 'users_raw');
       expect(usersRawBody).toMatch(/WHERE[\s\S]+AND/);
-      expect(usersRawBody).toContain('`role`');
-      expect(usersRawBody).toContain('`is_active`');
+      expect(usersRawBody).toContain('role');
+      expect(usersRawBody).toContain('is_active');
     });
 
     it('routes each pre-join filter into its own joined-mart CTE (no cross-CTE leakage)', async () => {
@@ -179,18 +205,16 @@ describe('Blended output controls full-flow (e2e)', () => {
         columnConfig: ['event_id'],
         filterConfig: [
           {
-            column: 'role',
+            column: 'users__role',
             operator: 'eq',
             value: 'admin',
             placement: 'pre-join',
-            aliasPath: 'users',
           },
           {
-            column: 'plan',
+            column: 'orgs__plan',
             operator: 'eq',
             value: 'pro',
             placement: 'pre-join',
-            aliasPath: 'orgs',
           },
         ],
       });
@@ -212,11 +236,10 @@ describe('Blended output controls full-flow (e2e)', () => {
         columnConfig: ['event_id'],
         filterConfig: [
           {
-            column: 'role',
+            column: 'users__role',
             operator: 'eq',
             value: 'admin',
             placement: 'pre-join',
-            aliasPath: 'users',
           },
         ],
       });
@@ -239,11 +262,10 @@ describe('Blended output controls full-flow (e2e)', () => {
         filterConfig: [
           { column: 'amount', operator: 'gt', value: 50 },
           {
-            column: 'role',
+            column: 'users__role',
             operator: 'eq',
             value: 'admin',
             placement: 'pre-join',
-            aliasPath: 'users',
           },
         ],
       });
@@ -265,11 +287,10 @@ describe('Blended output controls full-flow (e2e)', () => {
         filterConfig: [
           { column: 'amount', operator: 'gte', value: 1 },
           {
-            column: 'role',
+            column: 'users__role',
             operator: 'eq',
             value: 'admin',
             placement: 'pre-join',
-            aliasPath: 'users',
           },
         ],
         sortConfig: [{ column: 'amount', direction: 'desc' }],
@@ -287,44 +308,38 @@ describe('Blended output controls full-flow (e2e)', () => {
   // ── Group 5: Validation ──────────────────────────────────────────────────
 
   describe('5. Validation', () => {
-    it('rejects pre-join filter with aliasPath that does not resolve to any chain', async () => {
+    it('rejects pre-join filter with unified column not in any blended source', async () => {
       const res = await putReportConfig({
         columnConfig: ['event_id'],
         filterConfig: [
           {
-            column: 'something',
+            column: 'nonexistent_alias__something',
             operator: 'eq',
             value: 'X',
             placement: 'pre-join',
-            aliasPath: 'nonexistent_alias',
           },
         ],
       });
-      expect(res.status).toBe(400);
-      expect(JSON.stringify(res.body)).toContain('FILTER_ALIAS_PATH_UNKNOWN');
+      // Unknown unified name → FILTER_COLUMN_UNKNOWN → disconnected-columns error.
+      expectDisconnectedColumns(res, ['nonexistent_alias__something']);
     });
 
-    it('rejects pre-join filter with aliasPath="main" (home mart not slicable)', async () => {
+    it('rejects pre-join filter on home mart column (home mart not slicable)', async () => {
       const res = await putReportConfig({
         columnConfig: ['event_id'],
         filterConfig: [
           {
-            column: 'event_id',
+            column: 'main__event_id',
             operator: 'eq',
             value: 'X',
             placement: 'pre-join',
-            aliasPath: 'main',
           },
         ],
       });
-      expect(res.status).toBe(400);
-      // Zod superRefine on FilterRuleSchema catches this BEFORE the validator
-      // service runs, so the response body carries the schema "invalid shape"
-      // path (`aliasPath`) — verified by absence of the schema-level success.
-      const body = JSON.stringify(res.body);
-      expect(
-        body.includes('FILTER_ALIAS_PATH_NOT_ALLOWED_ON_HOME') || body.includes('aliasPath')
-      ).toBe(true);
+      // "main" is not a registered blended source — the unified name is not in the
+      // field index, so the validator emits FILTER_COLUMN_UNKNOWN and the column
+      // is surfaced as disconnected. The home mart remains unslicable.
+      expectDisconnectedColumns(res, ['main__event_id']);
     });
 
     it('rejects pre-join filter with unknown raw column inside known aliasPath', async () => {
@@ -332,17 +347,16 @@ describe('Blended output controls full-flow (e2e)', () => {
         columnConfig: ['event_id'],
         filterConfig: [
           {
-            column: 'no_such_column',
+            column: 'users__no_such_column',
             operator: 'eq',
             value: 'X',
             placement: 'pre-join',
-            aliasPath: 'users',
           },
         ],
       });
-      expect(res.status).toBe(400);
-      const body = JSON.stringify(res.body);
-      expect(body).toContain('FILTER_COLUMN_UNKNOWN');
+      // Unified name not in field index (users source exists but has no "no_such_column")
+      // → FILTER_COLUMN_UNKNOWN → disconnected-columns error.
+      expectDisconnectedColumns(res, ['users__no_such_column']);
     });
 
     it('rejects operator/type mismatch on pre-join (regex on INTEGER native field)', async () => {
@@ -350,11 +364,10 @@ describe('Blended output controls full-flow (e2e)', () => {
         columnConfig: ['event_id'],
         filterConfig: [
           {
-            column: 'employee_count',
+            column: 'orgs__employee_count',
             operator: 'regex',
             value: '^1',
             placement: 'pre-join',
-            aliasPath: 'orgs',
           },
         ],
       });
@@ -372,11 +385,10 @@ describe('Blended output controls full-flow (e2e)', () => {
         columnConfig: ['event_id'],
         filterConfig: [
           {
-            column: 'role',
+            column: 'users__role',
             operator: 'eq',
             value: 'admin',
             placement: 'pre-join',
-            aliasPath: 'users',
           },
         ],
       });
@@ -412,8 +424,7 @@ describe('Blended output controls full-flow (e2e)', () => {
         columnConfig: ['event_id'],
         filterConfig: [{ column: 'no_such_native', operator: 'eq', value: 'X' }],
       });
-      expect(res.status).toBe(400);
-      expect(JSON.stringify(res.body)).toContain('FILTER_COLUMN_UNKNOWN');
+      expectDisconnectedColumns(res, ['no_such_native']);
     });
   });
 
@@ -425,11 +436,10 @@ describe('Blended output controls full-flow (e2e)', () => {
         columnConfig: ['event_id'],
         filterConfig: [
           {
-            column: 'role',
+            column: 'users__role',
             operator: 'regex',
             value: '[unclosed',
             placement: 'pre-join',
-            aliasPath: 'users',
           },
         ],
       });
@@ -479,11 +489,10 @@ describe('Blended output controls full-flow (e2e)', () => {
         columnConfig: ['event_id'],
         filterConfig: [
           {
-            column: 'role',
+            column: 'users__role',
             operator: 'eq',
             value: 'admin',
             placement: 'pre-join',
-            aliasPath: 'users',
           },
         ],
       });
@@ -505,8 +514,9 @@ describe('Blended output controls full-flow (e2e)', () => {
       const sqlRes = await agent
         .get(`/api/reports/${prereqs.reportId}/generated-sql`)
         .set(AUTH_HEADER);
-      expect(sqlRes.status).toBe(400);
-      expect(JSON.stringify(sqlRes.body)).toContain('FILTER_ALIAS_PATH_NOT_INCLUDED');
+      // FILTER_ALIAS_PATH_NOT_INCLUDED pushes error.column (the unified name) as
+      // the disconnected ref — no dot notation in the new model.
+      expectDisconnectedColumns(sqlRes, ['users__role']);
 
       const restore = await agent
         .put(`/api/data-marts/${prereqs.mainDataMartId}/blended-fields-config`)

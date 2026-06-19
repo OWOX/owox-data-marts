@@ -102,6 +102,35 @@ describe('operatorsForType', () => {
     });
   });
 
+  describe('Redshift type names', () => {
+    it('maps Redshift TEXT/BPCHAR to string ops', () => {
+      for (const t of ['TEXT', 'BPCHAR']) expect(opValues(t)).toContain('contains');
+    });
+    it('maps DOUBLE PRECISION to number ops', () => {
+      expect(opValues('DOUBLE PRECISION')).toContain('between');
+    });
+    it('maps TIMESTAMPTZ to date ops with relative_date', () => {
+      expect(opValues('TIMESTAMPTZ')).toContain('relative_date');
+    });
+    it('maps TIMETZ to time ops without relative_date', () => {
+      expect(opValues('TIMETZ')).toContain('between');
+      expect(opValues('TIMETZ')).not.toContain('relative_date');
+    });
+  });
+
+  // Databricks emits INT (not INTEGER) and TIMESTAMP_NTZ, and has no standalone TIME type.
+  describe('Databricks type names', () => {
+    it('maps INT to number ops (comparison + between, no relative_date)', () => {
+      expect(opValues('INT')).toContain('between');
+      expect(opValues('INT')).not.toContain('relative_date');
+      expect(isNumberType('INT')).toBe(true);
+    });
+    it('maps TIMESTAMP_NTZ to date ops with relative_date', () => {
+      expect(opValues('TIMESTAMP_NTZ')).toContain('relative_date');
+      expect(isDateType('TIMESTAMP_NTZ')).toBe(true);
+    });
+  });
+
   it('returns no operators for unrecognised (complex/binary) types', () => {
     for (const t of ['ARRAY', 'MAP', 'STRUCT', 'JSON', 'VARBINARY', 'GEOGRAPHY']) {
       expect(operatorsForType(t)).toEqual([]);

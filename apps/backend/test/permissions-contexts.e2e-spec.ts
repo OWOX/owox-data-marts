@@ -458,7 +458,7 @@ describe('Permissions Model Contexts & Role Scope (e2e)', () => {
         const storageId = await createStorage();
         await expect(
           contextAccess.updateStorageContexts(storageId, PROJECT_ID, [ctx.body.id], '1', ['editor'])
-        ).rejects.toThrow(/Only Storage Owners/);
+        ).rejects.toThrow(/Only Data Storage Owners/);
       });
     });
 
@@ -478,7 +478,7 @@ describe('Permissions Model Contexts & Role Scope (e2e)', () => {
           contextAccess.updateDestinationContexts(destId, PROJECT_ID, [ctx.body.id], '1', [
             'editor',
           ])
-        ).rejects.toThrow(/Only Destination Owners/);
+        ).rejects.toThrow(/Only Data Destination Owners/);
       });
     });
   });

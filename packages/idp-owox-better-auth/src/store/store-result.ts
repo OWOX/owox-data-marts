@@ -1,3 +1,5 @@
+import type { AuthFlowParams } from '../utils/request-utils.js';
+
 export enum StoreReason {
   NOT_FOUND = 'not_found',
   EXPIRED = 'expired',
@@ -9,11 +11,12 @@ export enum StoreReason {
 export class StoreResult {
   private constructor(
     public readonly code: string | null,
-    public readonly reason: StoreReason | null
+    public readonly reason: StoreReason | null,
+    public readonly authFlowParams?: AuthFlowParams
   ) {}
 
-  static withCode(code: string): StoreResult {
-    return new StoreResult(code, null);
+  static withCode(code: string, authFlowParams?: AuthFlowParams): StoreResult {
+    return new StoreResult(code, null, authFlowParams);
   }
   static notFound(): StoreResult {
     return new StoreResult(null, StoreReason.NOT_FOUND);

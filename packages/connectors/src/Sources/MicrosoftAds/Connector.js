@@ -19,18 +19,28 @@ var MicrosoftAdsConnector = class MicrosoftAdsConnector extends AbstractConnecto
   async startImportProcess() {
     const accountIds = FormatUtils.parseAccountIds(this.config.AccountIDs.value);
     const fields = MicrosoftAdsHelper.parseFields(this.config.Fields.value);
+    let lastProcessedDate = null;
 
     for (const rawAccountId of accountIds) {
       const accountId = rawAccountId.trim();
       this.config.logMessage(`Starting import process for Account ID: ${accountId}`);
 
       for (const nodeName in fields) {
-        await this.processNode({
+        const processedDate = await this.processNode({
           nodeName,
           accountId,
-          fields: fields[nodeName] || []
+          fields: fields[nodeName] || [],
+          updateRequestedDate: false
         });
+
+        if (processedDate && (!lastProcessedDate || processedDate > lastProcessedDate)) {
+          lastProcessedDate = processedDate;
+        }
       }
+    }
+
+    if (this.runConfig.type === RUN_CONFIG_TYPE.INCREMENTAL && lastProcessedDate) {
+      this.config.updateLastRequstedDate(lastProcessedDate);
     }
   }
 
@@ -40,13 +50,15 @@ var MicrosoftAdsConnector = class MicrosoftAdsConnector extends AbstractConnecto
    * @param {string} options.nodeName - Name of the node to process
    * @param {string} options.accountId - Account ID
    * @param {Array<string>} options.fields - Array of fields to fetch
+   * @param {boolean} options.updateRequestedDate - Whether to update incremental state per processed day
    */
-  async processNode({ nodeName, accountId, fields }) {
+  async processNode({ nodeName, accountId, fields, updateRequestedDate = true }) {
     if (this.source.fieldsSchema[nodeName].isTimeSeries) {
-      await this.processTimeSeriesNode({
+      return await this.processTimeSeriesNode({
         nodeName,
         accountId,
-        fields
+        fields,
+        updateRequestedDate
       });
     } else {
       await this.processCatalogNode({
@@ -54,6 +66,7 @@ var MicrosoftAdsConnector = class MicrosoftAdsConnector extends AbstractConnecto
         accountId,
         fields
       });
+      return null;
     }
   }
 
@@ -63,20 +76,23 @@ var MicrosoftAdsConnector = class MicrosoftAdsConnector extends AbstractConnecto
    * @param {string} options.nodeName - Name of the node
    * @param {string} options.accountId - Account ID
    * @param {Array<string>} options.fields - Array of fields to fetch
-   * @param {Object} options.storage - Storage instance
+   * @param {boolean} options.updateRequestedDate - Whether to update incremental state per processed day
    */
-  async processTimeSeriesNode({ nodeName, accountId, fields }) {
+  async processTimeSeriesNode({ nodeName, accountId, fields, updateRequestedDate = true }) {
     const [startDate, daysToFetch] = this.getStartDateAndDaysToFetch();
 
     if (daysToFetch <= 0) {
       console.log('No days to fetch for time series data');
-      return;
+      return null;
     }
+
+    let lastProcessedDate = null;
 
     // Process data day by day
     for (let dayOffset = 0; dayOffset < daysToFetch; dayOffset++) {
       const currentDate = new Date(startDate);
       currentDate.setDate(currentDate.getDate() + dayOffset);
+      lastProcessedDate = new Date(currentDate);
 
       const formattedDate = DateUtils.formatDate(currentDate);
 
@@ -99,11 +115,13 @@ var MicrosoftAdsConnector = class MicrosoftAdsConnector extends AbstractConnecto
         data.length && this.config.logMessage(`Successfully saved ${data.length} rows for ${formattedDate}`);
       }
 
-      // Update last requested date after each successful day
-      if (this.runConfig.type === RUN_CONFIG_TYPE.INCREMENTAL) {
+      // Some callers defer the checkpoint until all accounts finish successfully.
+      if (updateRequestedDate && this.runConfig.type === RUN_CONFIG_TYPE.INCREMENTAL) {
         this.config.updateLastRequstedDate(currentDate);
       }
     }
+
+    return lastProcessedDate;
   }
 
   /**

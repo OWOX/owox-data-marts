@@ -20,8 +20,12 @@ vi.mock('../../../../../data-marts/reports/shared/model/hooks/useReport', () => 
 }));
 
 import { useReport } from '../../../../../data-marts/reports/shared/model/hooks/useReport';
-import { useLookerStudioReportForm } from '../useLookerStudioReportForm';
+import {
+  useLookerStudioReportForm,
+  lookerStudioReportFormSchema,
+} from '../useLookerStudioReportForm';
 import { DestinationTypeConfigEnum } from '../../../shared/enums/destination-type-config.enum';
+import { DataStorageType } from '../../../../../data-storage/shared/model/types/data-storage-type.enum';
 import type { DataMartReport } from '../../../shared/model/types/data-mart-report';
 import type { FilterRule } from '../../../../shared/types/output-config';
 
@@ -59,7 +63,11 @@ function buildReport(overrides: Partial<DataMartReport> = {}): DataMartReport {
   return {
     id: 'report-1',
     title: 'Existing',
-    dataMart: { id: 'dm-1' },
+    dataMart: {
+      id: 'dm-1',
+      definitionType: null,
+      storage: { type: DataStorageType.GOOGLE_BIGQUERY },
+    },
     dataDestination: {
       id: 'dest-1',
       type: 'looker-studio',
@@ -84,14 +92,45 @@ beforeEach(() => {
   mockUpdateReport.mockResolvedValue(buildReport({ id: 'updated-1' }));
 });
 
+const validLookerStudioFormData = {
+  cacheLifetime: 300,
+  columnConfig: ['col_a'],
+  filterConfig: null,
+  sortConfig: null,
+  limitConfig: null,
+};
+
+describe('lookerStudioReportFormSchema — columnConfig validation', () => {
+  it('rejects an empty array with the expected message', async () => {
+    const result = await lookerStudioReportFormSchema.safeParseAsync({
+      ...validLookerStudioFormData,
+      columnConfig: [],
+    });
+
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      const msg = result.error.issues.find(i => i.path.includes('columnConfig'))?.message;
+      expect(msg).toBe('At least one column must be selected');
+    }
+  });
+
+  it('accepts null (no columns configured yet)', async () => {
+    const result = await lookerStudioReportFormSchema.safeParseAsync({
+      ...validLookerStudioFormData,
+      columnConfig: null,
+    });
+
+    expect(result.success).toBe(true);
+  });
+});
+
 describe('useLookerStudioReportForm — defaults', () => {
   it('seeds output controls from initialReport (post+pre-join mix)', () => {
     const preJoinRule: FilterRule = {
-      column: 'plan',
+      column: 'orgs__plan',
       operator: 'eq',
       value: 'enterprise',
       placement: 'pre-join',
-      aliasPath: 'orgs',
     };
     const initial = buildReport({
       columnConfig: ['col_a', 'col_b'],
@@ -126,11 +165,10 @@ describe('useLookerStudioReportForm — defaults', () => {
 describe('useLookerStudioReportForm — submission', () => {
   it('UPDATE path: forwards output controls including pre-join rule', async () => {
     const preJoinRule: FilterRule = {
-      column: 'country',
+      column: 'users__country',
       operator: 'neq',
       value: 'UA',
       placement: 'pre-join',
-      aliasPath: 'users',
     };
     const initial = buildReport({ id: 'r-42' });
     const { result } = renderHook(() =>

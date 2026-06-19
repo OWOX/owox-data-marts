@@ -7,8 +7,9 @@ jest.mock('@owox/connectors', () => ({
       Object.assign(this as object, data);
     }),
     EXECUTION_STATUS: {
-      ERROR: 'ERROR',
-      SUCCESS: 'SUCCESS',
+      IMPORT_IN_PROGRESS: 1,
+      IMPORT_DONE: 3,
+      ERROR: 5,
     },
   },
 }));
@@ -38,7 +39,7 @@ describe('ConnectorExecutorService', () => {
       findOne: jest.fn().mockResolvedValue(null),
     } as unknown as Repository<DataMartRun>;
 
-    // Capture the onMessage callback so spawnConnector can invoke it with a success message
+    // Capture the onMessage callback so spawnConnector can emit connector status messages.
     let capturedOnMessage: ((msg: unknown) => void) | null = null;
 
     const outputCaptureService = {
@@ -51,17 +52,32 @@ describe('ConnectorExecutorService', () => {
       }),
     } as unknown as ConnectorOutputCaptureService;
 
+    const emitSuccessMessage = () => {
+      if (capturedOnMessage) {
+        capturedOnMessage({
+          type: ConnectorMessageType.STATUS,
+          status: 3,
+          at: new Date().toISOString(),
+          toFormattedString: () => 'STATUS: IMPORT_DONE',
+        });
+      }
+    };
+
+    const emitInProgressMessage = () => {
+      if (capturedOnMessage) {
+        capturedOnMessage({
+          type: ConnectorMessageType.STATUS,
+          status: 1,
+          at: new Date().toISOString(),
+          toFormattedString: () => 'STATUS: IMPORT_IN_PROGRESS',
+        });
+      }
+    };
+
     const processSpawner = {
       spawnConnector: jest.fn().mockImplementation(() => {
-        // Simulate a successful connector run by triggering a STATUS SUCCESS message
-        if (capturedOnMessage) {
-          capturedOnMessage({
-            type: ConnectorMessageType.STATUS,
-            status: 'SUCCESS',
-            at: new Date().toISOString(),
-            toFormattedString: () => 'STATUS: SUCCESS',
-          });
-        }
+        // Simulate a successful connector run by triggering terminal import status.
+        emitSuccessMessage();
         return Promise.resolve();
       }),
     } as unknown as ConnectorProcessSpawnerService;
@@ -144,6 +160,8 @@ describe('ConnectorExecutorService', () => {
       eventDispatcher,
       projectBalanceService,
       dataMartService,
+      emitSuccessMessage,
+      emitInProgressMessage,
     };
   };
 
@@ -189,6 +207,72 @@ describe('ConnectorExecutorService', () => {
     expect(consumptionTracker.registerConnectorRunConsumption).toHaveBeenCalled();
     expect(eventDispatcher.publishExternal).toHaveBeenCalled();
     expect(dataMartService.actualizeSchema).toHaveBeenCalledWith('dm-1', 'proj-1');
+  });
+
+  it('does not mark a run successful when only import in-progress status is emitted', async () => {
+    const {
+      service,
+      dataMartRunRepository,
+      processSpawner,
+      consumptionTracker,
+      eventDispatcher,
+      emitInProgressMessage,
+    } = createService();
+    (processSpawner.spawnConnector as jest.Mock).mockImplementation(async () => {
+      emitInProgressMessage();
+    });
+
+    await service.executeInBackground(createDataMart(), createRun(), null);
+
+    expect(dataMartRunRepository.update).toHaveBeenLastCalledWith(
+      'run-1',
+      expect.objectContaining({ status: DataMartRunStatus.FAILED })
+    );
+    expect(consumptionTracker.registerConnectorRunConsumption).not.toHaveBeenCalled();
+    expect(eventDispatcher.publishExternal).toHaveBeenCalledWith(
+      expect.objectContaining({
+        payload: expect.objectContaining({ status: 'unsuccessfully' }),
+      })
+    );
+  });
+
+  it('lets normal completion replace a committed cancellation when abort is not delivered', async () => {
+    const {
+      service,
+      dataMartRunRepository,
+      processSpawner,
+      consumptionTracker,
+      eventDispatcher,
+      emitSuccessMessage,
+    } = createService();
+    const statusHistory: DataMartRunStatus[] = [];
+    (dataMartRunRepository.update as jest.Mock).mockImplementation(async (_runId, update) => {
+      if (update.status) {
+        statusHistory.push(update.status);
+      }
+    });
+    (processSpawner.spawnConnector as jest.Mock).mockImplementation(async () => {
+      // Simulate the cancel endpoint committing CANCELLED while this worker keeps running.
+      statusHistory.push(DataMartRunStatus.CANCELLED);
+      emitSuccessMessage();
+    });
+
+    await service.executeInBackground(createDataMart(), createRun(), null);
+
+    expect(statusHistory).toEqual([
+      DataMartRunStatus.RUNNING,
+      DataMartRunStatus.CANCELLED,
+      DataMartRunStatus.SUCCESS,
+    ]);
+    expect(dataMartRunRepository.update).toHaveBeenLastCalledWith(
+      'run-1',
+      expect.objectContaining({ status: DataMartRunStatus.SUCCESS })
+    );
+    expect(consumptionTracker.registerConnectorRunConsumption).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'dm-1' }),
+      'run-1'
+    );
+    expect(eventDispatcher.publishExternal).toHaveBeenCalled();
   });
 
   it('skips execution in shutdown mode', async () => {
@@ -270,5 +354,64 @@ describe('ConnectorExecutorService', () => {
 
     expect(updateCall).toBeDefined();
     expect(updateCall![1]).not.toHaveProperty('startedAt');
+  });
+
+  it('marks an aborted connector run as CANCELLED', async () => {
+    const { service, dataMartRunRepository, processSpawner, eventDispatcher } = createService();
+    const controller = new AbortController();
+    controller.abort();
+    (processSpawner.spawnConnector as jest.Mock).mockRejectedValue(
+      new Error('Connector process was aborted')
+    );
+
+    await service.executeInBackground(createDataMart(), createRun(), null, controller.signal);
+
+    expect(dataMartRunRepository.update).toHaveBeenLastCalledWith(
+      'run-1',
+      expect.objectContaining({ status: DataMartRunStatus.CANCELLED })
+    );
+    expect(eventDispatcher.publishExternal).not.toHaveBeenCalled();
+  });
+
+  it('keeps an aborted connector run CANCELLED during graceful shutdown', async () => {
+    const { service, dataMartRunRepository, gracefulShutdownService } = createService();
+    const controller = new AbortController();
+    controller.abort();
+    (gracefulShutdownService.isInShutdownMode as jest.Mock).mockReturnValue(true);
+
+    await service.executeInBackground(createDataMart(), createRun(), null, controller.signal);
+
+    expect(dataMartRunRepository.update).toHaveBeenLastCalledWith(
+      'run-1',
+      expect.objectContaining({ status: DataMartRunStatus.CANCELLED })
+    );
+  });
+
+  it('registers consumption when abort arrives after a successful connector upload', async () => {
+    const {
+      service,
+      dataMartRunRepository,
+      processSpawner,
+      consumptionTracker,
+      eventDispatcher,
+      emitSuccessMessage,
+    } = createService();
+    const controller = new AbortController();
+    (processSpawner.spawnConnector as jest.Mock).mockImplementation(async () => {
+      emitSuccessMessage();
+      controller.abort();
+    });
+
+    await service.executeInBackground(createDataMart(), createRun(), null, controller.signal);
+
+    expect(dataMartRunRepository.update).toHaveBeenLastCalledWith(
+      'run-1',
+      expect.objectContaining({ status: DataMartRunStatus.SUCCESS })
+    );
+    expect(consumptionTracker.registerConnectorRunConsumption).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'dm-1' }),
+      'run-1'
+    );
+    expect(eventDispatcher.publishExternal).toHaveBeenCalled();
   });
 });

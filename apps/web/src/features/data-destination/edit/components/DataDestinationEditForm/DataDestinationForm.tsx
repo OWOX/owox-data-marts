@@ -39,7 +39,7 @@ import {
   AccordionTrigger,
 } from '@owox/ui/components/accordion';
 
-import { createFormPayload } from '../../../../../utils';
+import { createFormPayload, focusFirstInvalidField } from '../../../../../utils';
 import { COPY_SOURCE_CREDENTIAL_PLACEHOLDER } from '../../../../../shared/utils/credential-identity-utils';
 import {
   DataDestinationType,
@@ -220,7 +220,7 @@ export function DataDestinationForm({
     <Form {...form}>
       <AppForm
         onSubmit={e => {
-          void form.handleSubmit(handleSubmit)(e);
+          void form.handleSubmit(handleSubmit, focusFirstInvalidField)(e);
         }}
       >
         <FormLayout>

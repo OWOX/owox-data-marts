@@ -1,4 +1,4 @@
-import { Repository } from 'typeorm';
+import { In, Repository } from 'typeorm';
 import { ConnectorRunTriggerService } from './connector-run-trigger.service';
 import { ConnectorRunTrigger } from '../../entities/connector-run-trigger.entity';
 import { TriggerStatus } from '../../../common/scheduler/shared/entities/trigger-status';
@@ -9,6 +9,7 @@ describe('ConnectorRunTriggerService', () => {
     const repository = {
       create: jest.fn().mockImplementation(data => data),
       save: jest.fn().mockImplementation(data => Promise.resolve({ ...data, id: 'trigger-1' })),
+      update: jest.fn().mockResolvedValue(undefined),
     } as unknown as Repository<ConnectorRunTrigger>;
 
     const service = new ConnectorRunTriggerService(repository);
@@ -60,6 +61,23 @@ describe('ConnectorRunTriggerService', () => {
         expect.objectContaining({
           payload: null,
         })
+      );
+    });
+  });
+
+  describe('stopTriggersForRun', () => {
+    it('cancels queued triggers and requests active trigger cancellation', async () => {
+      const { service, repository } = createService();
+
+      await service.stopTriggersForRun('run-1');
+
+      expect(repository.update).toHaveBeenCalledWith(
+        { dataMartRunId: 'run-1', status: In([TriggerStatus.IDLE, TriggerStatus.READY]) },
+        { status: TriggerStatus.CANCELLED, isActive: false, version: expect.any(Function) }
+      );
+      expect(repository.update).toHaveBeenCalledWith(
+        { dataMartRunId: 'run-1', status: TriggerStatus.PROCESSING },
+        { status: TriggerStatus.CANCELLING, isActive: false, version: expect.any(Function) }
       );
     });
   });

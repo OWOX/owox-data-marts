@@ -26,7 +26,13 @@ jobs:
             pattern: bigquery.integration
           - name: Athena
             pattern: athena.integration
-          - name: HTTP Data (Athena + BigQuery)
+          - name: Redshift
+            pattern: redshift.integration
+          - name: Snowflake
+            pattern: snowflake.integration
+          - name: Databricks
+            pattern: databricks.integration
+          - name: HTTP Data (Athena + BigQuery + Redshift + Databricks + Snowflake)
             pattern: http-data-real
           - name: Report read (Athena)
             pattern: report-run-real
@@ -37,10 +43,10 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
           node-version: '22'
           cache: 'npm'
@@ -61,12 +67,30 @@ jobs:
           BQ_PROJECT_ID: ${{ secrets.BQ_PROJECT_ID }}
           BQ_DATASET: ${{ secrets.BQ_DATASET }}
           BQ_SERVICE_ACCOUNT_KEY: ${{ secrets.BQ_SERVICE_ACCOUNT_KEY }}
-          # Athena (also used by Redshift later)
+          # Athena
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           ATHENA_REGION: ${{ secrets.ATHENA_REGION }}
           ATHENA_OUTPUT_BUCKET: ${{ secrets.ATHENA_OUTPUT_BUCKET }}
           ATHENA_DATABASE: ${{ secrets.ATHENA_DATABASE }}
+          # Redshift Serverless (AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY shared with Athena)
+          REDSHIFT_REGION: ${{ secrets.REDSHIFT_REGION }}
+          REDSHIFT_WORKGROUP_NAME: ${{ secrets.REDSHIFT_WORKGROUP_NAME }}
+          REDSHIFT_DATABASE: ${{ secrets.REDSHIFT_DATABASE }}
+          # Snowflake (PASSWORD auth = PAT in the password field; the account needs a
+          # network policy that permits GitHub Actions runners, or the auth will fail)
+          SNOWFLAKE_ACCOUNT: ${{ secrets.SNOWFLAKE_ACCOUNT }}
+          SNOWFLAKE_WAREHOUSE: ${{ secrets.SNOWFLAKE_WAREHOUSE }}
+          SNOWFLAKE_USERNAME: ${{ secrets.SNOWFLAKE_USERNAME }}
+          SNOWFLAKE_PASSWORD: ${{ secrets.SNOWFLAKE_PASSWORD }}
+          SNOWFLAKE_DATABASE: ${{ secrets.SNOWFLAKE_DATABASE }}
+          SNOWFLAKE_SCHEMA: ${{ secrets.SNOWFLAKE_SCHEMA }}
+          # Databricks (PERSONAL_ACCESS_TOKEN auth; catalog + schema host the seed table)
+          DATABRICKS_HOST: ${{ secrets.DATABRICKS_HOST }}
+          DATABRICKS_HTTP_PATH: ${{ secrets.DATABRICKS_HTTP_PATH }}
+          DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
+          DATABRICKS_CATALOG: ${{ secrets.DATABRICKS_CATALOG }}
+          DATABRICKS_SCHEMA: ${{ secrets.DATABRICKS_SCHEMA }}
           # Google Sheets
           GOOGLE_SHEETS_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SHEETS_SERVICE_ACCOUNT_JSON }}
           TEST_GOOGLE_SPREADSHEET_ID: ${{ secrets.TEST_GOOGLE_SPREADSHEET_ID }}
@@ -86,7 +110,7 @@ jobs:
       issues: write
     steps:
       - name: Open or update tracking issue
-        uses: actions/github-script@v7
+        uses: actions/github-script@v8
         with:
           script: |
             const label = 'integration-failure';

@@ -21,6 +21,7 @@ import { useIntercomLauncher } from '../../../../../../shared/hooks/useIntercomL
 interface EmailReportEditSheetProps {
   isOpen: boolean;
   onClose: () => void;
+  onSubmitSuccess?: () => void | Promise<void>;
   initialReport?: DataMartReport;
   mode: ReportFormMode;
   preSelectedDestination?: DataDestination | null;
@@ -39,6 +40,7 @@ interface EmailReportEditSheetProps {
 export function EmailReportEditSheet({
   isOpen,
   onClose,
+  onSubmitSuccess,
   initialReport,
   mode,
   preSelectedDestination,
@@ -76,8 +78,9 @@ export function EmailReportEditSheet({
         duration: Infinity,
       });
     }
+    void onSubmitSuccess?.();
     baseHandleFormSubmitSuccess();
-  }, [baseHandleFormSubmitSuccess, projectId, dataMartId, pathname]);
+  }, [baseHandleFormSubmitSuccess, dataMartId, onSubmitSuccess, pathname, projectId]);
 
   useIntercomLauncher(isOpen);
 

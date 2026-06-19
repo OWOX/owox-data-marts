@@ -47,6 +47,10 @@ export class ReportRunTriggerHandlerService extends BaseRunTriggerHandlerService
     options?: { signal?: AbortSignal }
   ): Promise<void> {
     try {
+      if (await this.cancelTriggerIfRunAlreadyCancelled(trigger)) {
+        return;
+      }
+
       await this.claimRunSlotAtomically(trigger.dataMartRunId, trigger.projectId);
 
       this.logger.log(
@@ -59,6 +63,12 @@ export class ReportRunTriggerHandlerService extends BaseRunTriggerHandlerService
         trigger.createdById,
         options?.signal
       );
+      if (options?.signal?.aborted) {
+        await this.markTriggerAsCancelled(
+          trigger,
+          `Cancelled run trigger ${trigger.id}: abort signal received for DataMartRun ${trigger.dataMartRunId}`
+        );
+      }
     } catch (error) {
       if (error instanceof ConcurrencyLimitExceededException) {
         this.logger.warn(
@@ -74,6 +84,13 @@ export class ReportRunTriggerHandlerService extends BaseRunTriggerHandlerService
       if (existingRun?.status === DataMartRunStatus.RUNNING) {
         this.logger.warn(
           `DataMartRun ${trigger.dataMartRunId} is already RUNNING, skipping duplicate trigger ${trigger.id}`
+        );
+        return;
+      }
+      if (existingRun?.status === DataMartRunStatus.CANCELLED) {
+        await this.markTriggerAsCancelled(
+          trigger,
+          `Skipping run trigger ${trigger.id}: DataMartRun ${trigger.dataMartRunId} is already CANCELLED`
         );
         return;
       }

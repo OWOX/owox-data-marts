@@ -127,7 +127,11 @@ export class ReportRelativeDateFilterValueApiDto {
 }
 
 export class ReportFilterRuleApiDto {
-  @ApiProperty({ minLength: 1 })
+  @ApiProperty({
+    minLength: 1,
+    description:
+      'Output column name. For slice filters (placement=pre-join), use the fully qualified blended column identifier, e.g. category_details__item_event_count.',
+  })
   column: string;
 
   @ApiProperty({
@@ -156,14 +160,6 @@ export class ReportFilterRuleApiDto {
     description: 'Use pre-join for slice filters. Omit for normal output filters.',
   })
   placement?: 'pre-join' | 'post-join';
-
-  @ApiPropertyOptional({
-    minLength: 1,
-    maxLength: 255,
-    pattern: '^[a-z0-9_]+(\\.[a-z0-9_]+)*$',
-    description: 'Required for slice filters when placement is pre-join.',
-  })
-  aliasPath?: string;
 }
 
 export class ReportSortRuleApiDto {
@@ -232,7 +228,8 @@ const commonReportRequestProperties = {
     nullable: true,
     maxItems: 50,
     items: { $ref: getSchemaPath(ReportFilterRuleApiDto) },
-    description: 'Output filters. Use placement=pre-join and aliasPath for slice filters.',
+    description:
+      'Output filters. Use placement=pre-join for slice filters (column = unified blended identifier).',
   },
   sortConfig: {
     type: 'array',

@@ -11,6 +11,7 @@ import { CreateScheduledTriggerService } from './create-scheduled-trigger.servic
 import { CreateScheduledTriggerCommand } from '../dto/domain/create-scheduled-trigger.command';
 import { ScheduledTriggerType } from '../scheduled-trigger-types/enums/scheduled-trigger-type.enum';
 import { DataMartStatus } from '../enums/data-mart-status.enum';
+import { Action, EntityType } from '../services/access-decision';
 
 describe('CreateScheduledTriggerService', () => {
   const dataMart = { id: 'dm-1', status: DataMartStatus.PUBLISHED, projectId: 'proj-1' };
@@ -41,6 +42,13 @@ describe('CreateScheduledTriggerService', () => {
           (roles: string[]) => roles.includes('editor') || roles.includes('admin')
         ),
     };
+    const accessDecisionService = {
+      canAccess: jest
+        .fn()
+        .mockImplementation((_userId, roles: string[]) =>
+          Promise.resolve(roles.includes('editor') || roles.includes('admin'))
+        ),
+    };
 
     const eventDispatcher = { publishExternal: jest.fn().mockResolvedValue(undefined) };
 
@@ -50,10 +58,11 @@ describe('CreateScheduledTriggerService', () => {
       dataMartService as never,
       mapper as never,
       eventDispatcher as never,
-      reportAccessService as never
+      reportAccessService as never,
+      accessDecisionService as never
     );
 
-    return { service, reportAccessService, triggerRepository };
+    return { service, reportAccessService, triggerRepository, accessDecisionService };
   };
 
   beforeEach(() => {
@@ -125,7 +134,7 @@ describe('CreateScheduledTriggerService', () => {
   });
 
   it('should allow editor to create CONNECTOR_RUN trigger', async () => {
-    const { service } = createService();
+    const { service, accessDecisionService } = createService();
 
     const command = new CreateScheduledTriggerCommand(
       'proj-1',
@@ -140,6 +149,41 @@ describe('CreateScheduledTriggerService', () => {
     );
 
     await expect(service.run(command)).resolves.toBeDefined();
+    expect(accessDecisionService.canAccess).toHaveBeenCalledWith(
+      'user-1',
+      ['editor'],
+      EntityType.DATA_MART,
+      'dm-1',
+      Action.MANAGE_TRIGGERS,
+      'proj-1'
+    );
+  });
+
+  it('should reject editor creating CONNECTOR_RUN trigger without Data Mart trigger management access', async () => {
+    const { service, accessDecisionService } = createService();
+    accessDecisionService.canAccess.mockResolvedValueOnce(false);
+
+    const command = new CreateScheduledTriggerCommand(
+      'proj-1',
+      'user-1',
+      'dm-1',
+      ScheduledTriggerType.CONNECTOR_RUN,
+      '0 9 * * *',
+      'UTC',
+      true,
+      undefined,
+      ['editor']
+    );
+
+    await expect(service.run(command)).rejects.toThrow(ForbiddenException);
+    expect(accessDecisionService.canAccess).toHaveBeenCalledWith(
+      'user-1',
+      ['editor'],
+      EntityType.DATA_MART,
+      'dm-1',
+      Action.MANAGE_TRIGGERS,
+      'proj-1'
+    );
   });
 
   it('allows viewer who can operate the report (BO DM) to create REPORT_RUN trigger', async () => {

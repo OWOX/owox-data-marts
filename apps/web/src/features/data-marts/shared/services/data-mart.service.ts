@@ -8,6 +8,7 @@ import type {
   DataMartListResponseDto,
   DataMartResponseDto,
   DataMartRunListResponseDto,
+  ProjectDataMartRunListResponseDto,
   SqlValidationResponseDto,
   UpdateDataMartDefinitionRequestDto,
   UpdateDataMartRequestDto,
@@ -158,7 +159,9 @@ export class DataMartService extends ApiService {
    * @returns Promise<void>
    */
   async cancelDataMartRun(id: string, runId: string): Promise<void> {
-    await this.post(`/${id}/runs/${runId}/cancel`);
+    await this.post(`/${id}/runs/${runId}/cancel`, undefined, {
+      skipErrorToast: true,
+    } as AxiosRequestConfig);
   }
 
   /**
@@ -317,6 +320,17 @@ export class DataMartService extends ApiService {
     config?: AxiosRequestConfig
   ): Promise<DataMartRunListResponseDto> {
     return await this.get<DataMartRunListResponseDto>(`/${id}/runs`, { limit, offset }, config);
+  }
+
+  /**
+   * Get run history across all Data Marts visible in the current project.
+   */
+  async getProjectDataMartRuns(
+    limit = 100,
+    offset = 0,
+    config?: AxiosRequestConfig
+  ): Promise<ProjectDataMartRunListResponseDto> {
+    return await this.get<ProjectDataMartRunListResponseDto>('/runs', { limit, offset }, config);
   }
 
   /**

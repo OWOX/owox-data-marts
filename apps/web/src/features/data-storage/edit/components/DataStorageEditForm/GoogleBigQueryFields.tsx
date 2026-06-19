@@ -20,7 +20,8 @@ import GoogleBigQueryLocationDescription from './FormDescriptions/GoogleBigQuery
 import { Tooltip, TooltipContent, TooltipTrigger } from '@owox/ui/components/tooltip';
 import { Button } from '@owox/ui/components/button';
 import { ExternalAnchor } from '@owox/ui/components/common/external-anchor';
-import { Textarea } from '@owox/ui/components/textarea';
+import { FileDropTextarea } from '@owox/ui/components/file-drop-textarea';
+import { toast } from 'react-hot-toast';
 import { useState, useEffect } from 'react';
 import { getServiceAccountLink } from '../../../../../utils/google-cloud-utils';
 import { GoogleOAuthConnectButton, storageOAuthApi } from '../../../../../features/google-oauth';
@@ -71,7 +72,10 @@ export const GoogleBigQueryFields = ({ form }: GoogleBigQueryFieldsProps) => {
   const handleOAuthStatusChange = (isConnected: boolean, credentialId?: string) => {
     if (isConnected && credentialId) {
       setAuthMethod('oauth');
-      form.setValue('credentials.credentialId', credentialId, { shouldDirty: false });
+      form.setValue('credentials.credentialId', credentialId, {
+        shouldDirty: false,
+        shouldValidate: true,
+      });
       form.setValue('credentials.serviceAccount', '');
     }
   };
@@ -206,23 +210,30 @@ export const GoogleBigQueryFields = ({ form }: GoogleBigQueryFieldsProps) => {
             )}
 
             {isOAuthAvailable && authMethod === 'oauth' && storageId && (
-              <FormItem>
-                <div className='mb-4 flex items-center justify-between'>
-                  <FormLabel tooltip='Authorize Owox to access your BigQuery datasets'>
-                    Connect with Google OAuth
-                  </FormLabel>
-                </div>
-                <GoogleOAuthConnectButton
-                  resourceType='storage'
-                  resourceId={storageId}
-                  redirectUri={oauthRedirectUri}
-                  onSuccess={handleOAuthSuccess}
-                  onStatusChange={handleOAuthStatusChange}
-                />
-                <FormDescription>
-                  <GoogleBigQueryOAuthDescription />
-                </FormDescription>
-              </FormItem>
+              <FormField
+                control={form.control}
+                name='credentials.credentialId'
+                render={() => (
+                  <FormItem>
+                    <div className='mb-4 flex items-center justify-between'>
+                      <FormLabel tooltip='Authorize Owox to access your BigQuery datasets'>
+                        Connect with Google OAuth
+                      </FormLabel>
+                    </div>
+                    <GoogleOAuthConnectButton
+                      resourceType='storage'
+                      resourceId={storageId}
+                      redirectUri={oauthRedirectUri}
+                      onSuccess={handleOAuthSuccess}
+                      onStatusChange={handleOAuthStatusChange}
+                    />
+                    <FormDescription>
+                      <GoogleBigQueryOAuthDescription />
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
             )}
 
             {authMethod === 'service-account' && (
@@ -259,11 +270,20 @@ export const GoogleBigQueryFields = ({ form }: GoogleBigQueryFieldsProps) => {
                           </TooltipContent>
                         </Tooltip>
                       ) : (
-                        <Textarea
+                        <FileDropTextarea
                           {...field}
                           className='min-h-[150px] font-mono'
                           rows={8}
-                          placeholder='Paste your service account JSON here'
+                          placeholder='Paste your service account JSON here or drag & drop the file'
+                          onFileRead={content => {
+                            form.setValue('credentials.serviceAccount', content, {
+                              shouldDirty: true,
+                              shouldValidate: true,
+                            });
+                          }}
+                          onFileReject={error => {
+                            toast.error(error);
+                          }}
                         />
                       )}
                     </FormControl>

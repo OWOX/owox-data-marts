@@ -22,9 +22,13 @@ vi.mock('../../../../../data-marts/reports/shared/model/hooks/useReport', () => 
 }));
 
 import { useReport } from '../../../../../data-marts/reports/shared/model/hooks/useReport';
-import { useGoogleSheetsReportForm } from '../useGoogleSheetsReportForm';
+import {
+  useGoogleSheetsReportForm,
+  GoogleSheetsReportEditFormSchema,
+} from '../useGoogleSheetsReportForm';
 import { ReportFormMode } from '../../../shared';
 import { DestinationTypeConfigEnum } from '../../../shared/enums/destination-type-config.enum';
+import { DataStorageType } from '../../../../../data-storage/shared/model/types/data-storage-type.enum';
 import type { DataMartReport } from '../../../shared/model/types/data-mart-report';
 import type { FilterRule } from '../../../../shared/types/output-config';
 
@@ -64,7 +68,11 @@ function buildReport(overrides: Partial<DataMartReport> = {}): DataMartReport {
   return {
     id: 'report-1',
     title: 'My Report',
-    dataMart: { id: 'dm-1' },
+    dataMart: {
+      id: 'dm-1',
+      definitionType: null,
+      storage: { type: DataStorageType.GOOGLE_BIGQUERY },
+    },
     dataDestination: {
       id: 'dest-1',
       type: 'google-sheets',
@@ -90,14 +98,47 @@ beforeEach(() => {
   mockUpdateReport.mockResolvedValue(buildReport({ id: 'updated-1' }));
 });
 
+const validGoogleSheetsFormData = {
+  title: 'Test Report',
+  documentUrl: VALID_SHEETS_URL,
+  dataDestinationId: 'dest-1',
+  columnConfig: ['col_a'],
+  filterConfig: null,
+  sortConfig: null,
+  limitConfig: null,
+};
+
+describe('GoogleSheetsReportEditFormSchema — columnConfig validation', () => {
+  it('rejects an empty array with the expected message', async () => {
+    const result = await GoogleSheetsReportEditFormSchema.safeParseAsync({
+      ...validGoogleSheetsFormData,
+      columnConfig: [],
+    });
+
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      const msg = result.error.issues.find(i => i.path.includes('columnConfig'))?.message;
+      expect(msg).toBe('At least one column must be selected');
+    }
+  });
+
+  it('accepts null (no columns configured yet)', async () => {
+    const result = await GoogleSheetsReportEditFormSchema.safeParseAsync({
+      ...validGoogleSheetsFormData,
+      columnConfig: null,
+    });
+
+    expect(result.success).toBe(true);
+  });
+});
+
 describe('useGoogleSheetsReportForm — defaults', () => {
   it('seeds defaults from initialReport (title, columnConfig, all output controls)', () => {
     const preJoinRule: FilterRule = {
-      column: 'userRole',
+      column: 'users__userRole',
       operator: 'eq',
       value: 'admin',
       placement: 'pre-join',
-      aliasPath: 'users',
     };
     const postJoinRule: FilterRule = { column: 'revenue', operator: 'gt', value: 100 };
 
@@ -143,11 +184,10 @@ describe('useGoogleSheetsReportForm — defaults', () => {
 describe('useGoogleSheetsReportForm — submission', () => {
   it('CREATE: passes all output controls (including pre-join rule) to createReport', async () => {
     const preJoinRule: FilterRule = {
-      column: 'country',
+      column: 'users__country',
       operator: 'neq',
       value: 'UA',
       placement: 'pre-join',
-      aliasPath: 'users',
     };
 
     const { result } = renderHook(() =>
