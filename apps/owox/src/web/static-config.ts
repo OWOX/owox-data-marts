@@ -14,7 +14,15 @@ export interface StaticAssetsOptions {
   packageName?: string;
 }
 
-const DEFAULT_EXCLUDED_ROUTES = ['/api', '/.well-known', '/oauth', '/mcp'];
+const DEFAULT_EXCLUDED_ROUTES = [
+  '/api',
+  '/.well-known',
+  '/oauth/authorize',
+  '/oauth/token',
+  '/oauth/register',
+  '/oauth/jwks',
+  '/mcp',
+];
 
 /**
  * Configures Express application to serve static web interface files
