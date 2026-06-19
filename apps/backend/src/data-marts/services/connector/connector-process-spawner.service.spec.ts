@@ -188,13 +188,77 @@ describe('ConnectorProcessSpawnerService', () => {
       }
     );
 
-    mockProcess.emitStdout('hello stdout');
-    mockProcess.emitStderr('hello stderr');
+    mockProcess.emitStdout('hello stdout\n');
+    mockProcess.emitStderr('hello stderr\n');
 
     expect(onStdout).toHaveBeenCalledWith('hello stdout');
     expect(onStderr).toHaveBeenCalledWith('hello stderr');
 
     mockProcess.emit('close', 0, null);
     await promise;
+  });
+
+  it('buffers stdout chunks until a full line is available', async () => {
+    const { service } = createService();
+    const mockProcess = createMockProcess();
+    (spawn as unknown as jest.Mock).mockReturnValue(mockProcess);
+
+    const onStdout = jest.fn();
+    const configMock = { toObject: () => ({}) };
+    const runConfigMock = { toObject: () => ({}) };
+
+    const promise = service.spawnConnector(
+      'dm-1',
+      'run-1',
+      configMock as unknown,
+      runConfigMock as unknown,
+      {
+        logCapture: { onStdout },
+      }
+    );
+
+    mockProcess.emitStdout('{"type":"updateCred');
+    expect(onStdout).not.toHaveBeenCalled();
+
+    mockProcess.emitStdout('entials","credentials":{"generated_refresh_token":"secret-token"}}\n');
+
+    expect(onStdout).toHaveBeenCalledWith(
+      '{"type":"updateCredentials","credentials":{"generated_refresh_token":"secret-token"}}'
+    );
+
+    mockProcess.emit('close', 0, null);
+    await promise;
+  });
+
+  it('flushes incomplete stdout and stderr lines when process closes', async () => {
+    const { service } = createService();
+    const mockProcess = createMockProcess();
+    (spawn as unknown as jest.Mock).mockReturnValue(mockProcess);
+
+    const onStdout = jest.fn();
+    const onStderr = jest.fn();
+    const configMock = { toObject: () => ({}) };
+    const runConfigMock = { toObject: () => ({}) };
+
+    const promise = service.spawnConnector(
+      'dm-1',
+      'run-1',
+      configMock as unknown,
+      runConfigMock as unknown,
+      {
+        logCapture: { onStdout, onStderr },
+      }
+    );
+
+    mockProcess.emitStdout('tail stdout');
+    mockProcess.emitStderr('tail stderr');
+    expect(onStdout).not.toHaveBeenCalled();
+    expect(onStderr).not.toHaveBeenCalled();
+
+    mockProcess.emit('close', 0, null);
+
+    await promise;
+    expect(onStdout).toHaveBeenCalledWith('tail stdout');
+    expect(onStderr).toHaveBeenCalledWith('tail stderr');
   });
 });

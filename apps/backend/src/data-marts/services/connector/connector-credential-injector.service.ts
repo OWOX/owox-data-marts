@@ -3,8 +3,10 @@ import { Injectable, Logger } from '@nestjs/common';
 import { ConnectorSourceCredentialsService } from './connector-source-credentials.service';
 import { ConnectorService } from './connector.service';
 import { ConnectorSecretService } from './connector-secret.service';
+// @ts-expect-error - Package lacks TypeScript declarations
+import { Core } from '@owox/connectors';
 
-const GENERATED_REFRESH_TOKEN_FIELD = 'generated_refresh_token';
+const { GENERATED_REFRESH_TOKEN_CREDENTIAL_FIELD, GENERATED_REFRESH_TOKEN_CONFIG_FIELD } = Core;
 
 @Injectable()
 export class ConnectorCredentialInjectorService {
@@ -93,13 +95,15 @@ export class ConnectorCredentialInjectorService {
           this.logger.warn(
             `No mapping found for OAuth field ${currentPath}. Using credentials directly.`
           );
-          const { [GENERATED_REFRESH_TOKEN_FIELD]: generatedRefreshToken, ...credentials } =
-            credentialsEntity.credentials;
+          const {
+            [GENERATED_REFRESH_TOKEN_CREDENTIAL_FIELD]: generatedRefreshToken,
+            ...credentials
+          } = credentialsEntity.credentials;
           return {
             ...restObj,
             ...credentials,
             ...(typeof generatedRefreshToken === 'string' && generatedRefreshToken
-              ? { GeneratedRefreshToken: generatedRefreshToken }
+              ? { [GENERATED_REFRESH_TOKEN_CONFIG_FIELD]: { value: generatedRefreshToken } }
               : {}),
           };
         }
@@ -108,9 +112,12 @@ export class ConnectorCredentialInjectorService {
         for (const [key, mappingConfig] of Object.entries(mapping)) {
           resolvedConfig[key] = this.resolveMapping(mappingConfig, credentialsEntity.credentials);
         }
-        const generatedRefreshToken = credentialsEntity.credentials[GENERATED_REFRESH_TOKEN_FIELD];
+        const generatedRefreshToken =
+          credentialsEntity.credentials[GENERATED_REFRESH_TOKEN_CREDENTIAL_FIELD];
         if (typeof generatedRefreshToken === 'string' && generatedRefreshToken) {
-          resolvedConfig.GeneratedRefreshToken = generatedRefreshToken;
+          resolvedConfig[GENERATED_REFRESH_TOKEN_CONFIG_FIELD] = {
+            value: generatedRefreshToken,
+          };
         }
 
         return { ...restObj, ...resolvedConfig };
@@ -219,12 +226,14 @@ export class ConnectorCredentialInjectorService {
 
       const { _secrets_id: _, ...restConfig } = config;
       const result = JSON.parse(JSON.stringify(restConfig)) as Record<string, unknown>;
-      const { [GENERATED_REFRESH_TOKEN_FIELD]: generatedRefreshToken, ...credentials } =
+      const { [GENERATED_REFRESH_TOKEN_CREDENTIAL_FIELD]: generatedRefreshToken, ...credentials } =
         secretsEntity.credentials;
 
       this.connectorSecretService.injectSecretsAtPaths(result, credentials);
       if (typeof generatedRefreshToken === 'string' && generatedRefreshToken) {
-        result.GeneratedRefreshToken = generatedRefreshToken;
+        result[GENERATED_REFRESH_TOKEN_CONFIG_FIELD] = {
+          value: generatedRefreshToken,
+        };
       }
 
       return result;

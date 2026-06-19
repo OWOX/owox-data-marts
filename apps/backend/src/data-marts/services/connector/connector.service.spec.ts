@@ -64,6 +64,8 @@ jest.mock('@owox/connectors', () => ({
     CONFIG_ATTRIBUTES: {
       OAUTH_FLOW: 'OAUTH_FLOW',
     },
+    GENERATED_REFRESH_TOKEN_CREDENTIAL_FIELD: 'generated_refresh_token',
+    GENERATED_REFRESH_TOKEN_CONFIG_FIELD: 'GeneratedRefreshToken',
   },
 }));
 

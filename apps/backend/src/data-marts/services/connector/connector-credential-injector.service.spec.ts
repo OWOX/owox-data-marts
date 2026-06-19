@@ -47,7 +47,10 @@ describe('ConnectorCredentialInjectorService', () => {
         id: 'cred-1',
         projectId: 'proj-1',
         connectorName: 'TestConnector',
-        credentials: { accessToken: 'token123' },
+        credentials: {
+          accessToken: 'token123',
+          generated_refresh_token: 'generated-refresh-token',
+        },
       });
       (connectorSourceCredentialsService.isExpired as jest.Mock).mockResolvedValue(false);
       (connectorService.getItemByFieldPath as jest.Mock).mockResolvedValue({
@@ -59,6 +62,10 @@ describe('ConnectorCredentialInjectorService', () => {
       const authType = result.AuthType as Record<string, Record<string, unknown>>;
       expect(authType.oauth2).not.toHaveProperty('_source_credential_id');
       expect(authType.oauth2.AccessToken).toBe('token123');
+      expect(authType.oauth2.GeneratedRefreshToken).toEqual({
+        value: 'generated-refresh-token',
+      });
+      expect(authType.oauth2).not.toHaveProperty('generated_refresh_token');
     });
 
     it('returns config unchanged when credential not found', async () => {
@@ -96,7 +103,10 @@ describe('ConnectorCredentialInjectorService', () => {
         id: 'cred-1',
         projectId: 'proj-1',
         connectorName: 'TestConnector',
-        credentials: { accessToken: 'token123' },
+        credentials: {
+          accessToken: 'token123',
+          generated_refresh_token: 'generated-refresh-token',
+        },
       });
       (connectorSourceCredentialsService.isExpired as jest.Mock).mockResolvedValue(false);
       (connectorService.getItemByFieldPath as jest.Mock).mockResolvedValue({
@@ -106,6 +116,8 @@ describe('ConnectorCredentialInjectorService', () => {
       const result = await service.injectOAuthCredentials(config, 'TestConnector', 'proj-1');
 
       expect(result.accessToken).toBe('token123');
+      expect(result.GeneratedRefreshToken).toEqual({ value: 'generated-refresh-token' });
+      expect(result).not.toHaveProperty('generated_refresh_token');
       expect(result).not.toHaveProperty('_source_credential_id');
     });
   });
@@ -164,7 +176,7 @@ describe('ConnectorCredentialInjectorService', () => {
 
       const result = await service.injectSecrets(config, 'proj-1');
 
-      expect(result.GeneratedRefreshToken).toBe('generated-refresh-token');
+      expect(result.GeneratedRefreshToken).toEqual({ value: 'generated-refresh-token' });
       expect(result).not.toHaveProperty('generated_refresh_token');
       expect(connectorSecretService.injectSecretsAtPaths).toHaveBeenCalledWith(
         expect.objectContaining({ field1: 'value1' }),

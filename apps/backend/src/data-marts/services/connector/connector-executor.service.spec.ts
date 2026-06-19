@@ -11,6 +11,7 @@ jest.mock('@owox/connectors', () => ({
       IMPORT_DONE: 3,
       ERROR: 5,
     },
+    GENERATED_REFRESH_TOKEN_CREDENTIAL_FIELD: 'generated_refresh_token',
   },
 }));
 
@@ -168,6 +169,8 @@ describe('ConnectorExecutorService', () => {
       dataMartService,
       emitSuccessMessage,
       emitInProgressMessage,
+      connectorSourceCredentialsService,
+      emitMessage: (message: unknown) => capturedOnMessage?.(message),
     };
   };
 
@@ -199,6 +202,14 @@ describe('ConnectorExecutorService', () => {
       runType: 'MANUAL',
       ...overrides,
     }) as unknown as DataMartRun;
+
+  const getFirstSourceConfig = (dataMart: DataMart): Record<string, unknown> => {
+    const definition = dataMart.definition as {
+      connector: { source: { configuration: Array<Record<string, unknown>> } };
+    };
+
+    return definition.connector.source.configuration[0];
+  };
 
   it('executes successfully and updates status to SUCCESS', async () => {
     const { service, dataMartRunRepository, consumptionTracker, eventDispatcher, dataMartService } =
@@ -419,5 +430,316 @@ describe('ConnectorExecutorService', () => {
       'run-1'
     );
     expect(eventDispatcher.publishExternal).toHaveBeenCalled();
+  });
+
+  it('only saves allowed credential updates from connector messages', async () => {
+    const {
+      service,
+      processSpawner,
+      connectorSourceCredentialsService,
+      emitMessage,
+      emitSuccessMessage,
+    } =
+      createService();
+    const dataMart = createDataMart();
+    getFirstSourceConfig(dataMart)._secrets_id = 'cred-1';
+
+    (processSpawner.spawnConnector as jest.Mock).mockImplementation(() => {
+      emitMessage({
+        type: ConnectorMessageType.CREDENTIALS_UPDATE,
+        at: new Date().toISOString(),
+        credentials: {
+          generated_refresh_token: 'generated-refresh-token',
+          'AuthType.oauth2.RefreshToken': 'should-not-be-saved',
+        },
+      });
+      emitSuccessMessage();
+      return Promise.resolve();
+    });
+
+    await service.executeInBackground(dataMart, createRun(), null);
+
+    expect(connectorSourceCredentialsService.updateCredentialFields).toHaveBeenCalledWith(
+      'cred-1',
+      'proj-1',
+      { generated_refresh_token: 'generated-refresh-token' }
+    );
+  });
+
+  it('saves credential updates even when connector run fails after token rotation', async () => {
+    const { service, processSpawner, connectorSourceCredentialsService, emitMessage } =
+      createService();
+    const dataMart = createDataMart();
+    getFirstSourceConfig(dataMart)._secrets_id = 'cred-1';
+
+    (processSpawner.spawnConnector as jest.Mock).mockImplementation(() => {
+      emitMessage({
+        type: ConnectorMessageType.CREDENTIALS_UPDATE,
+        at: new Date().toISOString(),
+        credentials: { generated_refresh_token: 'generated-refresh-token' },
+      });
+      return Promise.reject(new Error('storage failed'));
+    });
+
+    await service.executeInBackground(dataMart, createRun(), null);
+
+    expect(connectorSourceCredentialsService.updateCredentialFields).toHaveBeenCalledWith(
+      'cred-1',
+      'proj-1',
+      { generated_refresh_token: 'generated-refresh-token' }
+    );
+  });
+
+  it('saves the latest accumulated credential update', async () => {
+    const {
+      service,
+      processSpawner,
+      connectorSourceCredentialsService,
+      emitMessage,
+      emitSuccessMessage,
+    } =
+      createService();
+    const dataMart = createDataMart();
+    getFirstSourceConfig(dataMart)._secrets_id = 'cred-1';
+
+    (processSpawner.spawnConnector as jest.Mock).mockImplementation(() => {
+      emitMessage({
+        type: ConnectorMessageType.CREDENTIALS_UPDATE,
+        at: new Date().toISOString(),
+        credentials: { generated_refresh_token: 'first-token' },
+      });
+      emitMessage({
+        type: ConnectorMessageType.CREDENTIALS_UPDATE,
+        at: new Date().toISOString(),
+        credentials: { generated_refresh_token: 'latest-token' },
+      });
+      emitSuccessMessage();
+      return Promise.resolve();
+    });
+
+    await service.executeInBackground(dataMart, createRun(), null);
+
+    expect(connectorSourceCredentialsService.updateCredentialFields).toHaveBeenCalledWith(
+      'cred-1',
+      'proj-1',
+      { generated_refresh_token: 'latest-token' }
+    );
+  });
+
+  it('uses nested _source_credential_id before stale _secrets_id when saving credential updates', async () => {
+    const {
+      service,
+      processSpawner,
+      connectorSourceCredentialsService,
+      emitMessage,
+      emitSuccessMessage,
+    } =
+      createService();
+    const dataMart = createDataMart();
+    const sourceConfig = getFirstSourceConfig(dataMart);
+    sourceConfig._secrets_id = 'secrets-cred';
+    sourceConfig.AuthType = { oauth2: { _source_credential_id: 'oauth-cred' } };
+
+    (processSpawner.spawnConnector as jest.Mock).mockImplementation(() => {
+      emitMessage({
+        type: ConnectorMessageType.CREDENTIALS_UPDATE,
+        at: new Date().toISOString(),
+        credentials: { generated_refresh_token: 'generated-refresh-token' },
+      });
+      emitSuccessMessage();
+      return Promise.resolve();
+    });
+
+    await service.executeInBackground(dataMart, createRun(), null);
+
+    expect(connectorSourceCredentialsService.updateCredentialFields).toHaveBeenCalledWith(
+      'oauth-cred',
+      'proj-1',
+      { generated_refresh_token: 'generated-refresh-token' }
+    );
+  });
+
+  it('uses nested _source_credential_id when _secrets_id is missing', async () => {
+    const {
+      service,
+      processSpawner,
+      connectorSourceCredentialsService,
+      emitMessage,
+      emitSuccessMessage,
+    } =
+      createService();
+    const dataMart = createDataMart();
+    getFirstSourceConfig(dataMart).AuthType = {
+      oauth2: { _source_credential_id: 'oauth-cred' },
+    };
+
+    (processSpawner.spawnConnector as jest.Mock).mockImplementation(() => {
+      emitMessage({
+        type: ConnectorMessageType.CREDENTIALS_UPDATE,
+        at: new Date().toISOString(),
+        credentials: { generated_refresh_token: 'generated-refresh-token' },
+      });
+      emitSuccessMessage();
+      return Promise.resolve();
+    });
+
+    await service.executeInBackground(dataMart, createRun(), null);
+
+    expect(connectorSourceCredentialsService.updateCredentialFields).toHaveBeenCalledWith(
+      'oauth-cred',
+      'proj-1',
+      { generated_refresh_token: 'generated-refresh-token' }
+    );
+  });
+
+  it('uses refreshed credential id when saving credential updates', async () => {
+    const {
+      service,
+      processSpawner,
+      connectorSourceCredentialsService,
+      credentialInjector,
+      emitMessage,
+      emitSuccessMessage,
+    } = createService();
+    const dataMart = createDataMart();
+    getFirstSourceConfig(dataMart).AuthType = {
+      oauth2: { _source_credential_id: 'old-oauth-cred' },
+    };
+    (credentialInjector.refreshCredentialsForConfig as jest.Mock).mockResolvedValue({
+      _id: 'cfg-1',
+      AuthType: { oauth2: { _source_credential_id: 'new-oauth-cred' } },
+    });
+
+    (processSpawner.spawnConnector as jest.Mock).mockImplementation(() => {
+      emitMessage({
+        type: ConnectorMessageType.CREDENTIALS_UPDATE,
+        at: new Date().toISOString(),
+        credentials: { generated_refresh_token: 'generated-refresh-token' },
+      });
+      emitSuccessMessage();
+      return Promise.resolve();
+    });
+
+    await service.executeInBackground(dataMart, createRun(), null);
+
+    expect(connectorSourceCredentialsService.updateCredentialFields).toHaveBeenCalledWith(
+      'new-oauth-cred',
+      'proj-1',
+      { generated_refresh_token: 'generated-refresh-token' }
+    );
+  });
+
+  it('skips credential updates for legacy inline configs without credential reference', async () => {
+    const {
+      service,
+      processSpawner,
+      connectorSourceCredentialsService,
+      emitMessage,
+      emitSuccessMessage,
+    } =
+      createService();
+    const dataMart = createDataMart();
+
+    (processSpawner.spawnConnector as jest.Mock).mockImplementation(() => {
+      emitMessage({
+        type: ConnectorMessageType.CREDENTIALS_UPDATE,
+        at: new Date().toISOString(),
+        credentials: { generated_refresh_token: 'generated-refresh-token' },
+      });
+      emitSuccessMessage();
+      return Promise.resolve();
+    });
+
+    await service.executeInBackground(dataMart, createRun(), null);
+
+    expect(connectorSourceCredentialsService.updateCredentialFields).not.toHaveBeenCalled();
+  });
+
+  it('ignores invalid generated refresh token values from connector messages', async () => {
+    const {
+      service,
+      processSpawner,
+      connectorSourceCredentialsService,
+      emitMessage,
+      emitSuccessMessage,
+    } =
+      createService();
+    const dataMart = createDataMart();
+    getFirstSourceConfig(dataMart)._secrets_id = 'cred-1';
+
+    (processSpawner.spawnConnector as jest.Mock).mockImplementation(() => {
+      emitMessage({
+        type: ConnectorMessageType.CREDENTIALS_UPDATE,
+        at: new Date().toISOString(),
+        credentials: { generated_refresh_token: 'x'.repeat(4097) },
+      });
+      emitSuccessMessage();
+      return Promise.resolve();
+    });
+
+    await service.executeInBackground(dataMart, createRun(), null);
+
+    expect(connectorSourceCredentialsService.updateCredentialFields).not.toHaveBeenCalled();
+  });
+
+  it('marks run failed when saving credential updates fails', async () => {
+    const {
+      service,
+      processSpawner,
+      connectorSourceCredentialsService,
+      emitMessage,
+      emitSuccessMessage,
+      dataMartRunRepository,
+    } = createService();
+    const dataMart = createDataMart();
+    getFirstSourceConfig(dataMart)._secrets_id = 'cred-1';
+    (connectorSourceCredentialsService.updateCredentialFields as jest.Mock).mockRejectedValue(
+      new Error('save failed')
+    );
+
+    (processSpawner.spawnConnector as jest.Mock).mockImplementation(() => {
+      emitMessage({
+        type: ConnectorMessageType.CREDENTIALS_UPDATE,
+        at: new Date().toISOString(),
+        credentials: { generated_refresh_token: 'generated-refresh-token' },
+      });
+      emitSuccessMessage();
+      return Promise.resolve();
+    });
+
+    await service.executeInBackground(dataMart, createRun(), null);
+
+    const finalRunUpdate = (dataMartRunRepository.update as jest.Mock).mock.calls
+      .map(call => call[1])
+      .find(update => update.status === DataMartRunStatus.FAILED);
+
+    expect(finalRunUpdate).toBeDefined();
+    expect(JSON.stringify(finalRunUpdate.errors)).toContain(
+      'Failed to update connector credentials: save failed'
+    );
+  });
+
+  it('does not persist generated refresh token in run logs', async () => {
+    const { service, processSpawner, dataMartRunRepository, emitMessage, emitSuccessMessage } =
+      createService();
+    const dataMart = createDataMart();
+    getFirstSourceConfig(dataMart)._secrets_id = 'cred-1';
+
+    (processSpawner.spawnConnector as jest.Mock).mockImplementation(() => {
+      emitMessage({
+        type: ConnectorMessageType.CREDENTIALS_UPDATE,
+        at: new Date().toISOString(),
+        credentials: { generated_refresh_token: 'secret-token' },
+      });
+      emitSuccessMessage();
+      return Promise.resolve();
+    });
+
+    await service.executeInBackground(dataMart, createRun(), null);
+
+    const persistedRunUpdates = (dataMartRunRepository.update as jest.Mock).mock.calls.map(
+      call => call[1]
+    );
+    expect(JSON.stringify(persistedRunUpdates)).not.toContain('secret-token');
   });
 });

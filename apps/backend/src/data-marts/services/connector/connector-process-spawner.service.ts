@@ -32,6 +32,7 @@ export class ConnectorProcessSpawnerService {
         onStderr?: (message: string) => void;
       } | null = null;
       let onSpawn: ((pid: number | undefined) => void) | null = null;
+      let flushCapturedOutput: (() => void) | null = null;
 
       if (stdio && typeof stdio === 'object' && stdio.logCapture) {
         logCapture = stdio.logCapture;
@@ -72,19 +73,29 @@ export class ConnectorProcessSpawnerService {
       }
 
       if (logCapture && node.stdout && node.stderr) {
+        const stdoutBuffer = this.createLineBuffer(message => logCapture?.onStdout?.(message));
+        const stderrBuffer = this.createLineBuffer(message => logCapture?.onStderr?.(message));
+
         node.stdout.on('data', data => {
-          const message = data.toString();
-          if (logCapture.onStdout) {
-            logCapture.onStdout(message);
-          }
+          stdoutBuffer.push(data.toString());
         });
 
         node.stderr.on('data', data => {
-          const message = data.toString();
-          if (logCapture.onStderr) {
-            logCapture.onStderr(message);
-          }
+          stderrBuffer.push(data.toString());
         });
+
+        node.stdout.on('end', () => {
+          stdoutBuffer.flush();
+        });
+
+        node.stderr.on('end', () => {
+          stderrBuffer.flush();
+        });
+
+        flushCapturedOutput = () => {
+          stdoutBuffer.flush();
+          stderrBuffer.flush();
+        };
       }
 
       if (signal) {
@@ -112,6 +123,8 @@ export class ConnectorProcessSpawnerService {
       }
 
       node.on('close', (code, closeSignal) => {
+        flushCapturedOutput?.();
+
         if (code === 0) {
           resolve();
           return;
@@ -141,5 +154,33 @@ export class ConnectorProcessSpawnerService {
         reject(error);
       });
     });
+  }
+
+  private createLineBuffer(onLine: (message: string) => void): {
+    push: (chunk: string) => void;
+    flush: () => void;
+  } {
+    let buffer = '';
+
+    const emit = (line: string): void => {
+      onLine(line.endsWith('\r') ? line.slice(0, -1) : line);
+    };
+
+    return {
+      push: (chunk: string): void => {
+        buffer += chunk;
+        const lines = buffer.split('\n');
+        buffer = lines.pop() ?? '';
+        lines.forEach(emit);
+      },
+      flush: (): void => {
+        if (!buffer) {
+          return;
+        }
+
+        emit(buffer);
+        buffer = '';
+      },
+    };
   }
 }

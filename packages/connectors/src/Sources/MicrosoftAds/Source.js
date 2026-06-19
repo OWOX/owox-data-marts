@@ -265,71 +265,85 @@ var MicrosoftAdsSource = class MicrosoftAdsSource extends AbstractSource {
       'https://ads.microsoft.com/ads.manage offline_access'    // Old scope
     ];
 
+    const clientId = this.config.AuthType?.items?.ClientId?.value || this.config.ClientID?.value || process.env.OAUTH_MICROSOFT_ADS_CLIENT_ID;
+    const clientSecret = this.config.AuthType?.items?.ClientSecret?.value || this.config.ClientSecret?.value || process.env.OAUTH_MICROSOFT_ADS_CLIENT_SECRET;
+    const originalRefreshToken = this.config.AuthType?.items?.RefreshToken?.value || this.config.RefreshToken?.value;
+    const generatedRefreshToken =
+      this.config[GENERATED_REFRESH_TOKEN_CONFIG_FIELD]?.value ||
+      this.config.AuthType?.items?.[GENERATED_REFRESH_TOKEN_CONFIG_FIELD]?.value;
+    const refreshTokens = generatedRefreshToken && originalRefreshToken && generatedRefreshToken !== originalRefreshToken
+      ? [generatedRefreshToken, originalRefreshToken]
+      : [generatedRefreshToken || originalRefreshToken];
+
     for (const scope of scopes) {
-      try {
-        const clientId = this.config.AuthType?.items?.ClientId?.value || this.config.ClientID?.value || process.env.OAUTH_MICROSOFT_ADS_CLIENT_ID;
-        const clientSecret = this.config.AuthType?.items?.ClientSecret?.value || this.config.ClientSecret?.value || process.env.OAUTH_MICROSOFT_ADS_CLIENT_SECRET;
-        const originalRefreshToken = this.config.AuthType?.items?.RefreshToken?.value || this.config.RefreshToken?.value;
-        const generatedRefreshToken = this.config.AuthType?.items?.GeneratedRefreshToken?.value || this.config.GeneratedRefreshToken?.value;
-        const refreshToken = generatedRefreshToken || originalRefreshToken;
+      for (const [refreshTokenIndex, refreshToken] of refreshTokens.entries()) {
+        try {
+          const form = {
+            client_id: clientId,
+            scope: scope,
+            refresh_token: refreshToken,
+            grant_type: 'refresh_token',
+            client_secret: clientSecret
+          };
 
-        const form = {
-          client_id: clientId,
-          scope: scope,
-          refresh_token: refreshToken,
-          grant_type: 'refresh_token',
-          client_secret: clientSecret
-        };
+          const options = {
+            method: 'post',
+            contentType: 'application/x-www-form-urlencoded',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            payload: form,
+            body: Object.entries(form)
+              .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v)}`)
+              .join('&') // TODO: body is for Node.js; refactor to centralize JSON option creation
+          };
 
-        const options = {
-          method: 'post',
-          contentType: 'application/x-www-form-urlencoded',
-          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-          payload: form,
-          body: Object.entries(form)
-            .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v)}`)
-            .join('&') // TODO: body is for Node.js; refactor to centralize JSON option creation
-        };
+          const resp = await HttpUtils.fetch(tokenUrl, options);
+          const text = await resp.getContentText();
+          const json = JSON.parse(text);
 
-        const resp = await HttpUtils.fetch(tokenUrl, options);
-        const text = await resp.getContentText();
-        const json = JSON.parse(text);
+          if (json.error) {
+            throw new Error(`Token error: ${json.error} - ${json.error_description}`);
+          }
 
-        if (json.error) {
-          throw new Error(`Token error: ${json.error} - ${json.error_description}`);
+          this.config.AccessToken = { value: json.access_token };
+          if (json.refresh_token) {
+            this._setGeneratedRefreshToken(json.refresh_token);
+            this.config.updateCredentials({
+              [GENERATED_REFRESH_TOKEN_CREDENTIAL_FIELD]: json.refresh_token,
+            });
+          }
+          this.config.logMessage(`Successfully obtained access token with scope (${scope})`);
+          return;
+        } catch (error) {
+          const isInvalidGrant = error.message?.includes('invalid_grant') || error.message?.includes('70000');
+          const canTryOriginalRefreshToken = isInvalidGrant &&
+            refreshTokenIndex === 0 &&
+            generatedRefreshToken &&
+            originalRefreshToken &&
+            generatedRefreshToken !== originalRefreshToken;
+
+          if (canTryOriginalRefreshToken) {
+            this.config.logMessage(
+              'Generated Microsoft Ads refresh token failed, trying original refresh token...'
+            );
+            continue;
+          }
+
+          // If it's not an invalid_grant error or we're on the last scope, throw the error
+          if (!isInvalidGrant || scope === scopes[scopes.length - 1]) {
+            throw error;
+          }
+          this.config.logMessage(`Scope ${scope} failed, trying next scope...`);
+          break;
         }
-
-        this.config.AccessToken = { value: json.access_token };
-        if (json.refresh_token) {
-          this._setGeneratedRefreshToken(json.refresh_token);
-          this._updateCredentials({ generated_refresh_token: json.refresh_token });
-        }
-        this.config.logMessage(`Successfully obtained access token with scope (${scope})`);
-        return;
-      } catch (error) {
-        // If it's not an invalid_grant error or we're on the last scope, throw the error
-        if (!error.message?.includes('invalid_grant') && !error.message?.includes('70000') || scope === scopes[scopes.length - 1]) {
-          throw error;
-        }
-        this.config.logMessage(`Scope ${scope} failed, trying next scope...`);
       }
     }
   }
 
   _setGeneratedRefreshToken(refreshToken) {
-    this.config.GeneratedRefreshToken = {
-      ...(this.config.GeneratedRefreshToken || {}),
+    this.config[GENERATED_REFRESH_TOKEN_CONFIG_FIELD] = {
+      ...(this.config[GENERATED_REFRESH_TOKEN_CONFIG_FIELD] || {}),
       value: refreshToken,
     };
-  }
-
-  _updateCredentials(credentials) {
-    const at = new Date();
-    console.log(JSON.stringify({
-      type: 'updateCredentials',
-      at: at.toISOString().split('T')[0] + ' ' + at.toISOString().split('T')[1].split('.')[0],
-      credentials,
-    }));
   }
 
   _getDeveloperToken() {

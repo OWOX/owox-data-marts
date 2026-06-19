@@ -5,8 +5,9 @@ import { Repository } from 'typeorm';
 // @ts-expect-error - Package lacks TypeScript declarations
 import { Core } from '@owox/connectors';
 
-const { ConfigDto } = Core;
+const { ConfigDto, GENERATED_REFRESH_TOKEN_CREDENTIAL_FIELD } = Core;
 type ConfigDto = InstanceType<typeof Core.ConfigDto>;
+const GENERATED_REFRESH_TOKEN_MAX_LENGTH = 4096;
 
 import { ConnectorDefinition as DataMartConnectorDefinition } from '../../dto/schemas/data-mart-table-definitions/connector-definition.schema';
 import { DataMart } from '../../entities/data-mart.entity';
@@ -228,6 +229,7 @@ export class ConnectorExecutorService {
       const configErrors: ConnectorMessage[] = [];
       let success = false;
       let credentialUpdates: Record<string, unknown> | undefined;
+      let configForCredentialUpdates = config as Record<string, unknown>;
 
       const logCaptureConfig = this.connectorOutputCaptureService.createCapture(
         (message: ConnectorMessage) => {
@@ -316,6 +318,7 @@ export class ConnectorExecutorService {
           connector.source.name,
           config as Record<string, unknown>
         );
+        configForCredentialUpdates = refreshedConfig;
 
         const configState = await this.connectorStateService.getState(dataMart.id, configId);
 
@@ -345,16 +348,6 @@ export class ConnectorExecutorService {
         );
 
         if (success) {
-          if (credentialUpdates) {
-            await this.saveConnectorCredentials(
-              config as Record<string, unknown>,
-              credentialUpdates,
-              dataMart,
-              runId,
-              configId
-            );
-          }
-
           this.logger.log(`Configuration ${configIndex + 1} completed successfully`, {
             dataMartId: dataMart.id,
             projectId: dataMart.projectId,
@@ -401,6 +394,27 @@ export class ConnectorExecutorService {
           }
         );
       } finally {
+        if (credentialUpdates) {
+          try {
+            await this.saveConnectorCredentials(
+              configForCredentialUpdates,
+              credentialUpdates,
+              dataMart,
+              runId,
+              configId
+            );
+          } catch (error) {
+            success = false;
+            const errorMessage = error instanceof Error ? error.message : String(error);
+            const credentialErrorMessage = `Failed to update connector credentials: ${errorMessage}`;
+            addMessageToArray(configErrors, {
+              type: ConnectorMessageType.ERROR,
+              at: this.systemTimeService.now().toISOString(),
+              error: credentialErrorMessage,
+              toFormattedString: () => `[ERROR] ${credentialErrorMessage}`,
+            });
+          }
+        }
         configurationResults.push({ configIndex, success, logs: configLogs, errors: configErrors });
       }
     }
@@ -416,9 +430,28 @@ export class ConnectorExecutorService {
     configId: string
   ): Promise<void> {
     try {
+      const credentialUpdates = this.getAllowedCredentialUpdates(credentials);
+      const droppedCredentialKeys = Object.keys(credentials).filter(
+        key => !(key in credentialUpdates)
+      );
+
+      if (droppedCredentialKeys.length > 0) {
+        this.logger.warn(`Dropped unsupported connector credential updates`, {
+          dataMartId: dataMart.id,
+          projectId: dataMart.projectId,
+          runId,
+          configId,
+          credentialKeys: droppedCredentialKeys,
+        });
+      }
+
+      if (Object.keys(credentialUpdates).length === 0) {
+        return;
+      }
+
       const credentialId = this.getCredentialIdForConfig(config);
       if (!credentialId) {
-        this.logger.warn(`Cannot update connector credentials: no credential reference found`, {
+        this.logger.debug(`Skipping connector credential update: no credential reference found`, {
           dataMartId: dataMart.id,
           projectId: dataMart.projectId,
           runId,
@@ -431,7 +464,7 @@ export class ConnectorExecutorService {
       await this.connectorSourceCredentialsService.updateCredentialFields(
         credentialId,
         dataMart.projectId,
-        credentials
+        credentialUpdates
       );
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
@@ -447,16 +480,38 @@ export class ConnectorExecutorService {
           credentialKeys: Object.keys(credentials),
         }
       );
+      throw error;
     }
   }
 
+  private getAllowedCredentialUpdates(
+    credentials: Record<string, unknown>
+  ): Record<string, string> {
+    const generatedRefreshToken = credentials[GENERATED_REFRESH_TOKEN_CREDENTIAL_FIELD];
+
+    if (
+      typeof generatedRefreshToken !== 'string' ||
+      generatedRefreshToken.length === 0 ||
+      generatedRefreshToken.length > GENERATED_REFRESH_TOKEN_MAX_LENGTH
+    ) {
+      return {};
+    }
+
+    return { [GENERATED_REFRESH_TOKEN_CREDENTIAL_FIELD]: generatedRefreshToken };
+  }
+
   private getCredentialIdForConfig(config: Record<string, unknown>): string | undefined {
+    const sourceCredentialId = this.findSourceCredentialId(config);
+    if (sourceCredentialId) {
+      return sourceCredentialId;
+    }
+
     const secretsId = config._secrets_id;
     if (typeof secretsId === 'string' && secretsId) {
       return secretsId;
     }
 
-    return this.findSourceCredentialId(config);
+    return undefined;
   }
 
   private findSourceCredentialId(value: unknown): string | undefined {

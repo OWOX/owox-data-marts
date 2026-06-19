@@ -2,6 +2,11 @@ import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, Repository } from 'typeorm';
 import { ConnectorSourceCredentials } from '../../entities/connector-source-credentials.entity';
+// @ts-expect-error - Package lacks TypeScript declarations
+import { Core } from '@owox/connectors';
+
+const { GENERATED_REFRESH_TOKEN_CREDENTIAL_FIELD } = Core;
+const SECRET_MASK = '**********';
 
 @Injectable()
 export class ConnectorSourceCredentialsService {
@@ -209,14 +214,15 @@ export class ConnectorSourceCredentialsService {
       throw new Error(`Unauthorized: secrets do not belong to this project`);
     }
 
-    existing.credentials = {
-      ...secrets,
-      ...(existing.credentials.generated_refresh_token !== undefined &&
-      secrets.generated_refresh_token === undefined
-        ? { generated_refresh_token: existing.credentials.generated_refresh_token }
-        : {}),
-    };
-    return await this.connectorSourceCredentialsRepository.save(existing);
+    const shouldPreserveGeneratedRefreshToken = this.shouldPreserveGeneratedRefreshToken(
+      existing.credentials,
+      secrets
+    );
+
+    await this.updateCredentialsJson(id, projectId, secrets, shouldPreserveGeneratedRefreshToken);
+    const updated = await this.getCredentialsById(id);
+
+    return updated ?? { ...existing, credentials: secrets };
   }
 
   async updateCredentialFields(
@@ -224,8 +230,14 @@ export class ConnectorSourceCredentialsService {
     projectId: string,
     updates: Record<string, unknown>
   ): Promise<ConnectorSourceCredentials> {
-    const existing = await this.getCredentialsById(id);
+    const generatedRefreshToken = updates[GENERATED_REFRESH_TOKEN_CREDENTIAL_FIELD];
+    if (typeof generatedRefreshToken !== 'string') {
+      throw new Error(
+        `Only ${GENERATED_REFRESH_TOKEN_CREDENTIAL_FIELD} can be updated by field update`
+      );
+    }
 
+    const existing = await this.getCredentialsById(id);
     if (!existing) {
       throw new Error(`ConnectorSourceCredentials with id ${id} not found`);
     }
@@ -234,8 +246,92 @@ export class ConnectorSourceCredentialsService {
       throw new Error(`Unauthorized: credentials do not belong to this project`);
     }
 
-    existing.credentials = { ...existing.credentials, ...updates };
-    return await this.connectorSourceCredentialsRepository.save(existing);
+    await this.connectorSourceCredentialsRepository
+      .createQueryBuilder()
+      .update(ConnectorSourceCredentials)
+      .set({
+        credentials: () => {
+          return `JSON_SET(
+            credentials,
+            '$.${GENERATED_REFRESH_TOKEN_CREDENTIAL_FIELD}',
+            :generatedRefreshToken
+          )`;
+        },
+      })
+      .where('id = :id', { id })
+      .andWhere('projectId = :projectId', { projectId })
+      .setParameters({ generatedRefreshToken })
+      .execute();
+
+    const updated = await this.getCredentialsById(id);
+
+    return (
+      updated ?? {
+        ...existing,
+        credentials: {
+          ...existing.credentials,
+          [GENERATED_REFRESH_TOKEN_CREDENTIAL_FIELD]: generatedRefreshToken,
+        },
+      }
+    );
+  }
+
+  private async updateCredentialsJson(
+    id: string,
+    projectId: string,
+    credentials: Record<string, unknown>,
+    preserveGeneratedRefreshToken: boolean
+  ): Promise<void> {
+    const serializedCredentials = JSON.stringify(credentials);
+    const generatedRefreshTokenPath = `$.${GENERATED_REFRESH_TOKEN_CREDENTIAL_FIELD}`;
+    const credentialsExpression = preserveGeneratedRefreshToken
+      ? `CASE
+          WHEN JSON_EXTRACT(credentials, '${generatedRefreshTokenPath}') IS NOT NULL
+          THEN JSON_SET(
+            :credentials,
+            '${generatedRefreshTokenPath}',
+            JSON_EXTRACT(credentials, '${generatedRefreshTokenPath}')
+          )
+          ELSE :credentials
+        END`
+      : ':credentials';
+
+    await this.connectorSourceCredentialsRepository
+      .createQueryBuilder()
+      .update(ConnectorSourceCredentials)
+      .set({ credentials: () => credentialsExpression })
+      .where('id = :id', { id })
+      .andWhere('projectId = :projectId', { projectId })
+      .setParameters({ credentials: serializedCredentials })
+      .execute();
+  }
+
+  private shouldPreserveGeneratedRefreshToken(
+    existingCredentials: Record<string, unknown>,
+    incomingSecrets: Record<string, unknown>
+  ): boolean {
+    if (incomingSecrets[GENERATED_REFRESH_TOKEN_CREDENTIAL_FIELD] !== undefined) {
+      return false;
+    }
+
+    const incomingRefreshToken = this.getRefreshTokenValue(incomingSecrets);
+    if (!this.isRefreshTokenValue(incomingRefreshToken)) {
+      return true;
+    }
+
+    return incomingRefreshToken === this.getRefreshTokenValue(existingCredentials);
+  }
+
+  private getRefreshTokenValue(credentials: Record<string, unknown>): unknown {
+    const refreshTokenEntry = Object.entries(credentials).find(([key]) => {
+      return key === 'refresh_token' || key === 'RefreshToken' || key.endsWith('.RefreshToken');
+    });
+
+    return refreshTokenEntry?.[1];
+  }
+
+  private isRefreshTokenValue(value: unknown): value is string {
+    return typeof value === 'string' && value !== '' && value !== SECRET_MASK;
   }
 
   /**
