@@ -19,17 +19,27 @@ var XAdsConnector = class XAdsConnector extends AbstractConnector {
   async startImportProcess() {
     const fields = XAdsHelper.parseFields(this.config.Fields.value);
     const accountIds = XAdsHelper.parseAccountIds(this.config.AccountIDs.value);
+    let lastProcessedDate = null;
 
     for (const accountId of accountIds) {
       for (const nodeName in fields) {
-        await this.processNode({
+        const processedDate = await this.processNode({
           nodeName,
           accountId,
-          fields: fields[nodeName] || []
+          fields: fields[nodeName] || [],
+          updateRequestedDate: false
         });
+
+        if (processedDate && (!lastProcessedDate || processedDate > lastProcessedDate)) {
+          lastProcessedDate = processedDate;
+        }
       }
 
       this.source.clearCache(accountId);
+    }
+
+    if (this.runConfig.type === RUN_CONFIG_TYPE.INCREMENTAL && lastProcessedDate) {
+      this.config.updateLastRequstedDate(lastProcessedDate);
     }
   }
 
@@ -39,12 +49,14 @@ var XAdsConnector = class XAdsConnector extends AbstractConnector {
    * @param {string} options.nodeName - Name of the node to process
    * @param {string} options.accountId - Account ID
    * @param {Array<string>} options.fields - Array of fields to fetch
+   * @param {boolean} options.updateRequestedDate - Whether to update incremental state per processed day
    */
-  async processNode({ nodeName, accountId, fields }) {
+  async processNode({ nodeName, accountId, fields, updateRequestedDate = true }) {
     if (this.source.fieldsSchema[nodeName].isTimeSeries) {
-      await this.processTimeSeriesNode({ nodeName, accountId, fields });
+      return await this.processTimeSeriesNode({ nodeName, accountId, fields, updateRequestedDate });
     } else {
       await this.processCatalogNode({ nodeName, accountId, fields });
+      return null;
     }
   }
 
@@ -53,22 +65,29 @@ var XAdsConnector = class XAdsConnector extends AbstractConnector {
    * asyncTimeSeries nodes are routed to processAsyncTimeSeriesNode.
    * All other nodes use the day-by-day fetchData loop.
    */
-  async processTimeSeriesNode({ nodeName, accountId, fields }) {
+  async processTimeSeriesNode({ nodeName, accountId, fields, updateRequestedDate = true }) {
     if (this.source.fieldsSchema[nodeName].asyncTimeSeries) {
-      await this.processAsyncTimeSeriesNode({ nodeName, accountId, fields });
-      return;
+      return await this.processAsyncTimeSeriesNode({
+        nodeName,
+        accountId,
+        fields,
+        updateRequestedDate
+      });
     }
 
     const [startDate, daysToFetch] = this.getStartDateAndDaysToFetch();
 
     if (daysToFetch <= 0) {
       console.log('No days to fetch for time series data');
-      return;
+      return null;
     }
+
+    let lastProcessedDate = null;
 
     for (let i = 0; i < daysToFetch; i++) {
       const currentDate = new Date(startDate);
       currentDate.setUTCDate(currentDate.getUTCDate() + i);
+      lastProcessedDate = new Date(currentDate);
 
       const formattedDate = DateUtils.formatDate(currentDate);
 
@@ -82,10 +101,13 @@ var XAdsConnector = class XAdsConnector extends AbstractConnector {
         await storage.saveData(preparedData);
       }
 
-      if (this.runConfig.type === RUN_CONFIG_TYPE.INCREMENTAL) {
+      // Some callers defer the checkpoint until all accounts finish successfully.
+      if (updateRequestedDate && this.runConfig.type === RUN_CONFIG_TYPE.INCREMENTAL) {
         this.config.updateLastRequstedDate(currentDate);
       }
     }
+
+    return lastProcessedDate;
   }
 
   /**
@@ -93,10 +115,10 @@ var XAdsConnector = class XAdsConnector extends AbstractConnector {
    *
    * Dates are split into fixed-size chunks. For each chunk, the Source processes
    * one job at a time (submit → poll → download) and calls onBatchReady after
-   * each date so the Connector can save to BigQuery and advance the cursor
-   * immediately. If the run fails on date N, dates 1–(N-1) are already persisted.
+   * each date so the Connector can save to BigQuery. The checkpoint can be
+   * deferred by callers until all accounts finish successfully.
    */
-  async processAsyncTimeSeriesNode({ nodeName, accountId, fields }) {
+  async processAsyncTimeSeriesNode({ nodeName, accountId, fields, updateRequestedDate = true }) {
     const uniqueKeys = this.source.fieldsSchema[nodeName].uniqueKeys || [];
     const missingKeys = uniqueKeys.filter(key => !fields.includes(key));
     if (missingKeys.length > 0) {
@@ -107,7 +129,7 @@ var XAdsConnector = class XAdsConnector extends AbstractConnector {
 
     if (daysToFetch <= 0) {
       console.log('No days to fetch for time series data');
-      return;
+      return null;
     }
 
     // Build date list with both forms needed downstream.
@@ -122,6 +144,7 @@ var XAdsConnector = class XAdsConnector extends AbstractConnector {
     const storage = await this.getStorageByNode(nodeName);
     const chunks = XAdsHelper.splitDatesIntoChunks(days.map(d => d.formatted));
     const dayLookup = new Map(days.map(d => [d.formatted, d.date]));
+    let lastProcessedDate = null;
 
     for (const dateChunk of chunks) {
       await this.source.fetchData({
@@ -140,12 +163,20 @@ var XAdsConnector = class XAdsConnector extends AbstractConnector {
             await storage.saveData(preparedData);
           }
 
-          if (this.runConfig.type === RUN_CONFIG_TYPE.INCREMENTAL) {
-            this.config.updateLastRequstedDate(dayLookup.get(formatted));
+          const processedDate = dayLookup.get(formatted);
+          if (processedDate && (!lastProcessedDate || processedDate > lastProcessedDate)) {
+            lastProcessedDate = processedDate;
+          }
+
+          // Some callers defer the checkpoint until all accounts finish successfully.
+          if (updateRequestedDate && this.runConfig.type === RUN_CONFIG_TYPE.INCREMENTAL) {
+            this.config.updateLastRequstedDate(processedDate);
           }
         }
       });
     }
+
+    return lastProcessedDate;
   }
 
   /**
