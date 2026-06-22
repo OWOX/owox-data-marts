@@ -14,7 +14,6 @@ export function isStorageOAuthRefreshError(error: StorageOAuthRefreshError): boo
   return (
     message.includes('Failed to refresh OAuth tokens') ||
     message.includes('Google authorization could not be refreshed') ||
-    message.includes('Google access is no longer active') ||
     message.includes('Google access could not be refreshed')
   );
 }

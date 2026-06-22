@@ -29,7 +29,7 @@ describe('RunDataMartService', () => {
       canAccess: jest.fn().mockResolvedValue(true),
     };
     const credentialsResolver = {
-      resolve: jest.fn().mockResolvedValue({ type: 'oauth' }),
+      resolve: jest.fn().mockResolvedValue({ type: 'bigquery_oauth' }),
     };
     const validationFacade = {
       validateAccess: jest.fn().mockResolvedValue({ valid: true }),
@@ -126,7 +126,7 @@ describe('RunDataMartService', () => {
   });
 
   describe('pre-run storage access check', () => {
-    const command = () => new RunDataMartCommand('dm-1', 'proj-1', '', 'scheduled' as never);
+    const command = () => new RunDataMartCommand('dm-1', 'proj-1', '', 'manual' as never);
 
     it('blocks the run when validation requires re-authorization', async () => {
       const { service, validationFacade, connectorExecutionService } = createService();
@@ -172,7 +172,7 @@ describe('RunDataMartService', () => {
       expect(connectorExecutionService.run).toHaveBeenCalled();
     });
 
-    it('skips the check for storage without OAuth credentials', async () => {
+    it('skips the check for storage without a credentialId', async () => {
       const { service, dataMartService, credentialsResolver, connectorExecutionService } =
         createService();
       dataMartService.getByIdAndProjectId.mockResolvedValue({
@@ -184,6 +184,37 @@ describe('RunDataMartService', () => {
 
       expect(result).toBe('run-id-1');
       expect(credentialsResolver.resolve).not.toHaveBeenCalled();
+      expect(connectorExecutionService.run).toHaveBeenCalled();
+    });
+
+    it('skips validateAccess for non-OAuth credentials (e.g. service account)', async () => {
+      const { service, credentialsResolver, validationFacade, connectorExecutionService } =
+        createService();
+      credentialsResolver.resolve.mockResolvedValue({ type: 'service_account' });
+
+      const result = await service.run(command());
+
+      expect(result).toBe('run-id-1');
+      expect(validationFacade.validateAccess).not.toHaveBeenCalled();
+      expect(connectorExecutionService.run).toHaveBeenCalled();
+    });
+
+    it('skips the check for scheduled runs so they still produce a failed-run record', async () => {
+      const { service, validationFacade, credentialsResolver, connectorExecutionService } =
+        createService();
+      // Even when the storage would require re-authorization, a scheduled run must proceed
+      // (and fail during execution) rather than being silently dropped before any record exists.
+      validationFacade.validateAccess.mockResolvedValue({
+        valid: false,
+        code: ValidationResultCode.OAUTH_REAUTH_REQUIRED,
+      });
+
+      const scheduledCommand = new RunDataMartCommand('dm-1', 'proj-1', '', 'scheduled' as never);
+      const result = await service.run(scheduledCommand);
+
+      expect(result).toBe('run-id-1');
+      expect(credentialsResolver.resolve).not.toHaveBeenCalled();
+      expect(validationFacade.validateAccess).not.toHaveBeenCalled();
       expect(connectorExecutionService.run).toHaveBeenCalled();
     });
   });

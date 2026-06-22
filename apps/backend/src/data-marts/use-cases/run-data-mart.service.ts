@@ -4,11 +4,13 @@ import { DataMartDefinitionType } from '../enums/data-mart-definition-type.enum'
 import { ConnectorExecutionService } from '../services/connector/connector-execution.service';
 import { RunDataMartCommand } from '../dto/domain/run-data-mart.command';
 import { AccessDecisionService, EntityType, Action } from '../services/access-decision';
+import { RunType } from '../../common/scheduler/shared/types';
 import { DataMart } from '../entities/data-mart.entity';
 import { DataStorageAccessValidatorFacade } from '../data-storage-types/facades/data-storage-access-validator-facade.service';
 import { DataStorageCredentialsResolver } from '../data-storage-types/data-storage-credentials-resolver.service';
 import { ValidationResultCode } from '../data-storage-types/interfaces/data-storage-access-validator.interface';
 import { CredentialsExpiredException } from '../exceptions/google-oauth.exceptions';
+import { isBigQueryOAuthCredentials } from '../data-storage-types/data-storage-credentials.guards';
 
 @Injectable()
 export class RunDataMartService {
@@ -45,7 +47,12 @@ export class RunDataMartService {
       throw new Error('Only data marts with connector definition type can be run manually');
     }
 
-    await this.checkStorageAccess(dataMart);
+    // Pre-check is for user-initiated runs only, where it surfaces an immediate, clear error.
+    // Scheduled runs deliberately skip it so they still create a run record and fail during
+    // execution — preserving the visible failed-run history and notifications operators rely on.
+    if (command.runType === RunType.manual) {
+      await this.checkStorageAccess(dataMart);
+    }
 
     return await this.connectorExecutionService.run(
       dataMart,
@@ -74,6 +81,7 @@ export class RunDataMartService {
 
     try {
       const credentials = await this.credentialsResolver.resolve(storage);
+      if (!isBigQueryOAuthCredentials(credentials)) return;
       const result = await this.validationFacade.validateAccess(
         storage.type,
         storage.config,

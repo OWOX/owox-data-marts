@@ -505,37 +505,41 @@ export function DataMartProvider({ children }: DataMartProviderProps) {
   }, []);
 
   // Run a data mart
-  const runDataMart = useCallback(async (request: RunDataMartRequestDto) => {
-    const toastId = toast.loading('Manual run started');
-    try {
-      dispatch({ type: 'RUN_DATA_MART_START' });
-      trackEvent({
-        event: 'data_mart_run_started',
-        category: 'DataMart',
-        action: 'Run',
-        label: 'Manual',
-        context: request.id,
-      });
+  const runDataMart = useCallback(
+    async (request: RunDataMartRequestDto) => {
+      const toastId = toast.loading('Manual run started');
+      try {
+        dispatch({ type: 'RUN_DATA_MART_START' });
+        trackEvent({
+          event: 'data_mart_run_started',
+          category: 'DataMart',
+          action: 'Run',
+          label: 'Manual',
+          context: request.id,
+        });
 
-      await dataMartService.runDataMart(request.id, request.payload);
-      dispatch({ type: 'RUN_DATA_MART_SUCCESS' });
-    } catch (error) {
-      toast.dismiss(toastId);
-      const apiError = extractApiError(error);
-      dispatch({
-        type: 'RUN_DATA_MART_ERROR',
-        payload: apiError,
-      });
-      trackEvent({
-        event: 'data_mart_error',
-        category: 'DataMart',
-        action: 'RunError',
-        label: 'Manual',
-        context: request.id,
-        error: apiError.message,
-      });
-    }
-  }, []);
+        await dataMartService.runDataMart(request.id, request.payload);
+        dispatch({ type: 'RUN_DATA_MART_SUCCESS' });
+      } catch (error) {
+        toast.dismiss(toastId);
+        const apiError = extractApiError(error);
+        invalidateStorageHealthOnOAuthRefreshError(apiError, state.dataMart?.storage.id);
+        dispatch({
+          type: 'RUN_DATA_MART_ERROR',
+          payload: apiError,
+        });
+        trackEvent({
+          event: 'data_mart_error',
+          category: 'DataMart',
+          action: 'RunError',
+          label: 'Manual',
+          context: request.id,
+          error: apiError.message,
+        });
+      }
+    },
+    [state.dataMart?.storage.id]
+  );
 
   const cancelDataMartRun = useCallback(
     async (id: string, runId: string): Promise<void> => {
