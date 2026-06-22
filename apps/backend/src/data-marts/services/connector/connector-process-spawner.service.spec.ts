@@ -76,6 +76,36 @@ describe('ConnectorProcessSpawnerService', () => {
     mockProcess.emit('close', 0, null);
 
     await expect(promise).resolves.toBeUndefined();
+    expect(spawn).toHaveBeenCalledWith(
+      'node',
+      expect.any(Array),
+      expect.objectContaining({ stdio: 'pipe' })
+    );
+  });
+
+  it('drains piped output even without logCapture callbacks', async () => {
+    const { service } = createService();
+    const mockProcess = createMockProcess();
+    (spawn as unknown as jest.Mock).mockReturnValue(mockProcess);
+
+    const configMock = { toObject: () => ({}) };
+    const runConfigMock = { toObject: () => ({}) };
+
+    const promise = service.spawnConnector(
+      'dm-1',
+      'run-1',
+      configMock as unknown,
+      runConfigMock as unknown,
+      {}
+    );
+
+    mockProcess.emitStdout('uncaptured stdout\n');
+    mockProcess.emitStderr('uncaptured stderr\n');
+    mockProcess.emit('close', 0, null);
+
+    await expect(promise).resolves.toBeUndefined();
+    expect(mockProcess.stdout.on).toHaveBeenCalledWith('data', expect.any(Function));
+    expect(mockProcess.stderr.on).toHaveBeenCalledWith('data', expect.any(Function));
   });
 
   it('rejects when process exits with non-zero code', async () => {
@@ -260,5 +290,38 @@ describe('ConnectorProcessSpawnerService', () => {
     await promise;
     expect(onStdout).toHaveBeenCalledWith('tail stdout');
     expect(onStderr).toHaveBeenCalledWith('tail stderr');
+  });
+
+  it('redacts oversized stdout and stderr lines instead of forwarding raw content', async () => {
+    const { service } = createService();
+    const mockProcess = createMockProcess();
+    (spawn as unknown as jest.Mock).mockReturnValue(mockProcess);
+
+    const onStdout = jest.fn();
+    const onStderr = jest.fn();
+    const configMock = { toObject: () => ({}) };
+    const runConfigMock = { toObject: () => ({}) };
+    const oversizedSecretLine = `${'x'.repeat(1024 * 1024)}secret-token`;
+    const truncationMarker = '[TRUNCATED connector output line: exceeded 1048576 bytes]';
+
+    const promise = service.spawnConnector(
+      'dm-1',
+      'run-1',
+      configMock as unknown,
+      runConfigMock as unknown,
+      {
+        logCapture: { onStdout, onStderr },
+      }
+    );
+
+    mockProcess.emitStdout(oversizedSecretLine);
+    mockProcess.emitStderr(oversizedSecretLine);
+    mockProcess.emit('close', 0, null);
+
+    await promise;
+    expect(onStdout).toHaveBeenCalledWith(truncationMarker);
+    expect(onStderr).toHaveBeenCalledWith(truncationMarker);
+    expect(JSON.stringify(onStdout.mock.calls)).not.toContain('secret-token');
+    expect(JSON.stringify(onStderr.mock.calls)).not.toContain('secret-token');
   });
 });

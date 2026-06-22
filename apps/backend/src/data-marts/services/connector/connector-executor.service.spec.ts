@@ -133,6 +133,7 @@ describe('ConnectorExecutorService', () => {
 
     const connectorSourceCredentialsService = {
       updateCredentialFields: jest.fn().mockResolvedValue(undefined),
+      getCredentialsById: jest.fn().mockResolvedValue(null),
     } as unknown as ConnectorSourceCredentialsService;
 
     const service = new ConnectorExecutorService(
@@ -521,6 +522,47 @@ describe('ConnectorExecutorService', () => {
       'cred-1',
       'proj-1',
       { generated_refresh_token: 'latest-token' }
+    );
+  });
+
+  it('passes the pre-run generated refresh token snapshot when saving credential updates', async () => {
+    const {
+      service,
+      processSpawner,
+      connectorSourceCredentialsService,
+      emitMessage,
+      emitSuccessMessage,
+    } = createService();
+    const dataMart = createDataMart();
+    getFirstSourceConfig(dataMart)._secrets_id = 'cred-1';
+    (connectorSourceCredentialsService.getCredentialsById as jest.Mock).mockResolvedValue({
+      id: 'cred-1',
+      projectId: 'proj-1',
+      credentials: { generated_refresh_token: 'old-token' },
+    });
+
+    (processSpawner.spawnConnector as jest.Mock).mockImplementation(() => {
+      emitMessage({
+        type: ConnectorMessageType.CREDENTIALS_UPDATE,
+        at: new Date().toISOString(),
+        credentials: { generated_refresh_token: 'new-token' },
+      });
+      emitSuccessMessage();
+      return Promise.resolve();
+    });
+
+    await service.executeInBackground(dataMart, createRun(), null);
+
+    expect(connectorSourceCredentialsService.getCredentialsById).toHaveBeenCalledWith('cred-1');
+    expect(
+      (connectorSourceCredentialsService.getCredentialsById as jest.Mock).mock
+        .invocationCallOrder[0]
+    ).toBeLessThan((processSpawner.spawnConnector as jest.Mock).mock.invocationCallOrder[0]);
+    expect(connectorSourceCredentialsService.updateCredentialFields).toHaveBeenCalledWith(
+      'cred-1',
+      'proj-1',
+      { generated_refresh_token: 'new-token' },
+      { generated_refresh_token: 'old-token' }
     );
   });
 

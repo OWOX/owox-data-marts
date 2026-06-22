@@ -230,6 +230,7 @@ export class ConnectorExecutorService {
       let success = false;
       let credentialUpdates: Record<string, unknown> | undefined;
       let configForCredentialUpdates = config as Record<string, unknown>;
+      let expectedCredentialValues: Record<string, unknown> | undefined;
 
       const logCaptureConfig = this.connectorOutputCaptureService.createCapture(
         (message: ConnectorMessage) => {
@@ -319,6 +320,12 @@ export class ConnectorExecutorService {
           config as Record<string, unknown>
         );
         configForCredentialUpdates = refreshedConfig;
+        expectedCredentialValues = await this.getExpectedCredentialValues(
+          refreshedConfig,
+          dataMart,
+          runId,
+          configId
+        );
 
         const configState = await this.connectorStateService.getState(dataMart.id, configId);
 
@@ -399,6 +406,7 @@ export class ConnectorExecutorService {
             await this.saveConnectorCredentials(
               configForCredentialUpdates,
               credentialUpdates,
+              expectedCredentialValues,
               dataMart,
               runId,
               configId
@@ -425,6 +433,7 @@ export class ConnectorExecutorService {
   private async saveConnectorCredentials(
     config: Record<string, unknown>,
     credentials: Record<string, unknown>,
+    expectedCredentialValues: Record<string, unknown> | undefined,
     dataMart: DataMart,
     runId: string,
     configId: string
@@ -461,11 +470,20 @@ export class ConnectorExecutorService {
         return;
       }
 
-      await this.connectorSourceCredentialsService.updateCredentialFields(
-        credentialId,
-        dataMart.projectId,
-        credentialUpdates
-      );
+      if (expectedCredentialValues) {
+        await this.connectorSourceCredentialsService.updateCredentialFields(
+          credentialId,
+          dataMart.projectId,
+          credentialUpdates,
+          expectedCredentialValues
+        );
+      } else {
+        await this.connectorSourceCredentialsService.updateCredentialFields(
+          credentialId,
+          dataMart.projectId,
+          credentialUpdates
+        );
+      }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
       this.logger.error(
@@ -481,6 +499,43 @@ export class ConnectorExecutorService {
         }
       );
       throw error;
+    }
+  }
+
+  private async getExpectedCredentialValues(
+    config: Record<string, unknown>,
+    dataMart: DataMart,
+    runId: string,
+    configId: string
+  ): Promise<Record<string, unknown> | undefined> {
+    const credentialId = this.getCredentialIdForConfig(config);
+    if (!credentialId) {
+      return undefined;
+    }
+
+    try {
+      const credentials =
+        await this.connectorSourceCredentialsService.getCredentialsById(credentialId);
+
+      if (!credentials || credentials.projectId !== dataMart.projectId) {
+        return undefined;
+      }
+
+      return {
+        [GENERATED_REFRESH_TOKEN_CREDENTIAL_FIELD]:
+          credentials.credentials?.[GENERATED_REFRESH_TOKEN_CREDENTIAL_FIELD],
+      };
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      this.logger.warn(`Failed to snapshot connector credentials before execution`, {
+        dataMartId: dataMart.id,
+        projectId: dataMart.projectId,
+        runId,
+        configId,
+        credentialId,
+        error: errorMessage,
+      });
+      return undefined;
     }
   }
 

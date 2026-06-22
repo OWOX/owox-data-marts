@@ -228,7 +228,8 @@ export class ConnectorSourceCredentialsService {
   async updateCredentialFields(
     id: string,
     projectId: string,
-    updates: Record<string, unknown>
+    updates: Record<string, unknown>,
+    expectedCurrentValues?: Record<string, unknown>
   ): Promise<ConnectorSourceCredentials> {
     const generatedRefreshToken = updates[GENERATED_REFRESH_TOKEN_CREDENTIAL_FIELD];
     if (typeof generatedRefreshToken !== 'string') {
@@ -246,7 +247,7 @@ export class ConnectorSourceCredentialsService {
       throw new Error(`Unauthorized: credentials do not belong to this project`);
     }
 
-    await this.connectorSourceCredentialsRepository
+    const queryBuilder = this.connectorSourceCredentialsRepository
       .createQueryBuilder()
       .update(ConnectorSourceCredentials)
       .set({
@@ -260,8 +261,35 @@ export class ConnectorSourceCredentialsService {
       })
       .where('id = :id', { id })
       .andWhere('projectId = :projectId', { projectId })
-      .setParameters({ generatedRefreshToken })
-      .execute();
+      .setParameters({ generatedRefreshToken });
+
+    if (
+      expectedCurrentValues &&
+      Object.prototype.hasOwnProperty.call(
+        expectedCurrentValues,
+        GENERATED_REFRESH_TOKEN_CREDENTIAL_FIELD
+      )
+    ) {
+      const expectedGeneratedRefreshToken =
+        expectedCurrentValues[GENERATED_REFRESH_TOKEN_CREDENTIAL_FIELD];
+      const generatedRefreshTokenExpression = this.getJsonExtractTextExpression(
+        'credentials',
+        `$.${GENERATED_REFRESH_TOKEN_CREDENTIAL_FIELD}`
+      );
+
+      if (typeof expectedGeneratedRefreshToken === 'string') {
+        queryBuilder
+          .andWhere(`${generatedRefreshTokenExpression} = :expectedGeneratedRefreshToken`)
+          .setParameters({ expectedGeneratedRefreshToken });
+      } else {
+        queryBuilder.andWhere(`${generatedRefreshTokenExpression} IS NULL`);
+      }
+    }
+
+    const updateResult = await queryBuilder.execute();
+    if (updateResult.affected === 0) {
+      return existing;
+    }
 
     const updated = await this.getCredentialsById(id);
 
@@ -273,6 +301,30 @@ export class ConnectorSourceCredentialsService {
           [GENERATED_REFRESH_TOKEN_CREDENTIAL_FIELD]: generatedRefreshToken,
         },
       }
+    );
+  }
+
+  private getJsonExtractTextExpression(column: string, path: string): string {
+    const databaseType = this.getDatabaseType();
+
+    if (databaseType === 'mysql' || databaseType === 'mariadb') {
+      return `JSON_UNQUOTE(JSON_EXTRACT(${column}, '${path}'))`;
+    }
+
+    return `JSON_EXTRACT(${column}, '${path}')`;
+  }
+
+  private getDatabaseType(): string | undefined {
+    const repository = this
+      .connectorSourceCredentialsRepository as Repository<ConnectorSourceCredentials> & {
+      manager?: {
+        connection?: { options?: { type?: string } };
+        dataSource?: { options?: { type?: string } };
+      };
+    };
+
+    return (
+      repository.manager?.connection?.options?.type ?? repository.manager?.dataSource?.options?.type
     );
   }
 
