@@ -8,6 +8,7 @@ import {
   FormMessage,
 } from '@owox/ui/components/form';
 import { FileDropTextarea } from '@owox/ui/components/file-drop-textarea';
+import { Input } from '@owox/ui/components/input';
 import { toast } from 'react-hot-toast';
 import { useState, useEffect } from 'react';
 import { type UseFormReturn } from 'react-hook-form';
@@ -288,6 +289,32 @@ export function GoogleSheetsFields({ form }: GoogleSheetsFieldsProps) {
               )}
             />
           )}
+
+          <FormField
+            control={form.control}
+            name='config.folderId'
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel tooltip='New Google Sheets created from chat or reports are placed in this Drive folder'>
+                  Drive folder for auto-created Sheets (optional)
+                </FormLabel>
+                <FormControl>
+                  <Input
+                    placeholder='Google Drive folder ID'
+                    {...field}
+                    value={field.value ?? ''}
+                  />
+                </FormControl>
+                <FormDescription>
+                  Used when documents are auto-created (e.g. the “Create GS” button). For a Service
+                  Account, use a Shared Drive folder and share it with the service account email
+                  above (Editor access). Leave empty to create files in the connected account’s
+                  Drive.
+                </FormDescription>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
         </div>
       )}
     </div>

@@ -93,6 +93,36 @@ export class GoogleSheetsApiAdapter {
   }
 
   /**
+   * Creates a new, empty Google Spreadsheet with its single default sheet.
+   *
+   * Used by the "Create GS" auto-creation flow. The first sheet's numeric
+   * `sheetId` is read from the create response — it is NOT assumed to be `0`,
+   * because Google does not guarantee the default sheet's id.
+   *
+   * Requires the `spreadsheets` scope only (no Drive scope) — the file lands in
+   * the authenticated account's Drive root. Folder placement is a later phase.
+   *
+   * @param title - Title for the new spreadsheet
+   * @returns The new spreadsheet ID and its first sheet's numeric ID
+   */
+  public async createSpreadsheet(
+    title: string
+  ): Promise<{ spreadsheetId: string; sheetId: number }> {
+    const resp = await this.executeWithRetry(() =>
+      this.service.spreadsheets.create({
+        requestBody: { properties: { title } },
+        fields: 'spreadsheetId,sheets.properties.sheetId',
+      })
+    );
+    const spreadsheetId = resp.data.spreadsheetId;
+    const sheetId = resp.data.sheets?.[0]?.properties?.sheetId;
+    if (!spreadsheetId || sheetId === undefined || sheetId === null) {
+      throw new Error('Google Sheets API did not return a spreadsheetId or sheetId on create');
+    }
+    return { spreadsheetId, sheetId };
+  }
+
+  /**
    * Retrieves spreadsheet metadata
    *
    * @param spreadsheetId - ID of the spreadsheet to retrieve

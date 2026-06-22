@@ -170,6 +170,9 @@ export class UpdateDataDestinationService {
       if (command.availableForMaintenance !== undefined) {
         entity.availableForMaintenance = command.availableForMaintenance;
       }
+      if (command.config !== undefined) {
+        entity.config = command.config;
+      }
       const updatedEntity = await this.dataDestinationRepository.save(entity);
       if (command.contextIds !== undefined) {
         await this.contextAccessService.updateDestinationContexts(
@@ -274,6 +277,9 @@ export class UpdateDataDestinationService {
     }
     if (command.availableForMaintenance !== undefined) {
       entity.availableForMaintenance = command.availableForMaintenance;
+    }
+    if (command.config !== undefined) {
+      entity.config = command.config;
     }
 
     const updatedEntity = await this.dataDestinationRepository.save(entity);

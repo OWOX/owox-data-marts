@@ -14,6 +14,8 @@ const baseDataDestinationSchema = z.object({
 const googleSheetsDestinationSchema = baseDataDestinationSchema.extend({
   type: z.literal(DataDestinationType.GOOGLE_SHEETS),
   credentials: googleCredentialsWithOAuthSchema,
+  // Optional destination-level config: Drive folder for auto-created Sheets.
+  config: z.object({ folderId: z.string().optional() }).optional(),
 });
 
 // Using the shared schema for Looker Studio credentials

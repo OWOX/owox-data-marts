@@ -305,6 +305,7 @@ import { GetDestinationOAuthStatusService } from './use-cases/google-oauth/get-d
 import { GetDestinationOAuthCredentialStatusService } from './use-cases/google-oauth/get-destination-oauth-credential-status.service';
 import { GenerateDestinationOAuthUrlService } from './use-cases/google-oauth/generate-destination-oauth-url.service';
 import { RevokeDestinationOAuthService } from './use-cases/google-oauth/revoke-destination-oauth.service';
+import { CreateGoogleSheetDocumentService } from './use-cases/google-sheets/create-google-sheet-document.service';
 import { DataStorageCredentialsResolver } from './data-storage-types/data-storage-credentials-resolver.service';
 import { DataDestinationCredentialsResolver } from './data-destination-types/data-destination-credentials-resolver.service';
 import { DataStorageCredential } from './entities/data-storage-credential.entity';
@@ -729,6 +730,7 @@ import { ProjectMemberApiKeysModule } from '../project-member-api-keys/project-m
     GetDestinationOAuthCredentialStatusService,
     GenerateDestinationOAuthUrlService,
     RevokeDestinationOAuthService,
+    CreateGoogleSheetDocumentService,
     ProjectSetupProgressService,
     ProjectSetupProgressListenerService,
     GetProjectSetupProgressService,

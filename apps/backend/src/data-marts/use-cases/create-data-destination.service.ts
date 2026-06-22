@@ -107,6 +107,7 @@ export class CreateDataDestinationService {
         createdById: command.userId,
         availableForUse: true,
         availableForMaintenance: false,
+        config: command.config ?? null,
       });
 
       const savedEntity = await this.repository.save(entity);
@@ -156,6 +157,7 @@ export class CreateDataDestinationService {
         createdById: command.userId,
         availableForUse: true,
         availableForMaintenance: false,
+        config: command.config ?? null,
       });
 
       const savedEntity = await this.repository.save(entity);

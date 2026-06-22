@@ -13,6 +13,10 @@ interface GoogleSheetsFormCredentials {
   credentialId?: string | null;
 }
 
+interface GoogleSheetsFormConfig {
+  folderId?: string;
+}
+
 export class GoogleSheetsMapper implements DestinationMapper {
   mapFromDto(dto: DataDestinationResponseDto): GoogleSheetsDataDestination {
     let serviceAccountJson = '';
@@ -41,6 +45,7 @@ export class GoogleSheetsMapper implements DestinationMapper {
       modifiedAt: new Date(dto.modifiedAt),
       createdByUser: dto.createdByUser,
       ownerUsers: dto.ownerUsers ?? [],
+      config: dto.config?.folderId ? { folderId: dto.config.folderId } : undefined,
     };
   }
 
@@ -66,6 +71,11 @@ export class GoogleSheetsMapper implements DestinationMapper {
       if (creds.credentialId === null) {
         result.credentialId = null;
       }
+    }
+
+    const folderId = (formData as { config?: GoogleSheetsFormConfig }).config?.folderId;
+    if (folderId !== undefined) {
+      result.config = { folderId: folderId.trim() || null };
     }
 
     return result;
@@ -98,6 +108,11 @@ export class GoogleSheetsMapper implements DestinationMapper {
     // Pass pre-created OAuth credential ID if available
     if (creds.credentialId) {
       result.credentialId = creds.credentialId;
+    }
+
+    const folderId = (formData as { config?: GoogleSheetsFormConfig }).config?.folderId?.trim();
+    if (folderId) {
+      result.config = { folderId };
     }
 
     return result;

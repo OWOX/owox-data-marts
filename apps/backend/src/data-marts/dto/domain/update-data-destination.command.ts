@@ -1,4 +1,5 @@
 import { DataDestinationCredentials } from '../../data-destination-types/data-destination-credentials.type';
+import { DestinationConfig } from '../../entities/destination-config.type';
 
 export class UpdateDataDestinationCommand {
   constructor(
@@ -13,7 +14,8 @@ export class UpdateDataDestinationCommand {
     public readonly roles: string[] = [],
     public readonly availableForUse?: boolean,
     public readonly availableForMaintenance?: boolean,
-    public readonly contextIds?: string[]
+    public readonly contextIds?: string[],
+    public readonly config?: DestinationConfig | null
   ) {}
 
   hasCredentials(): boolean {

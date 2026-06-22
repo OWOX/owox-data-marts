@@ -21,6 +21,8 @@ import { ExchangeAuthorizationCodeRequestDto } from '../../dto/presentation/goog
 import { ExchangeAuthorizationCodeResponseDto } from '../../dto/presentation/google-oauth/exchange-authorization-code-response.dto';
 import { GoogleOAuthStatusResponseDto } from '../../dto/presentation/google-oauth/google-oauth-status-response.dto';
 import { GoogleOAuthSettingsResponseDto } from '../../dto/presentation/google-oauth/oauth-settings-response.dto';
+import { CreateGoogleSheetDocumentRequestDto } from '../../dto/presentation/google-sheets/create-google-sheet-document-request.dto';
+import { CreateGoogleSheetDocumentResponseDto } from '../../dto/presentation/google-sheets/create-google-sheet-document-response.dto';
 import { DataDestinationType } from '../../data-destination-types/enums/data-destination-type.enum';
 import { OwnerFilter } from '../../enums/owner-filter.enum';
 
@@ -162,6 +164,25 @@ export function OAuthRevokeSpec() {
     ApiOperation({ summary: 'Revoke Google OAuth credentials for a Data Destination' }),
     ApiParam({ name: 'id', description: 'Data Destination ID' }),
     ApiNoContentResponse({ description: 'OAuth credentials revoked' })
+  );
+}
+
+export function CreateGoogleSheetDocumentSpec() {
+  return applyDecorators(
+    ApiOperation({
+      summary: 'Auto-create a new Google Sheet for a Data Destination (OAuth)',
+    }),
+    ApiParam({ name: 'id', description: 'Data Destination ID' }),
+    ApiBody({ type: CreateGoogleSheetDocumentRequestDto }),
+    ApiOkResponse({
+      type: CreateGoogleSheetDocumentResponseDto,
+      description: 'Identifiers of the newly created Google Sheet',
+    }),
+    ApiResponse({
+      status: 400,
+      description:
+        'Destination has no connected Google account, or is not a Google Sheets destination',
+    })
   );
 }
 

@@ -31,4 +31,7 @@ export interface UpdateDataDestinationRequestDto {
   availableForMaintenance?: boolean;
 
   contextIds?: string[];
+
+  /** Optional destination-level config: Drive folder for auto-created Sheets */
+  config?: { folderId?: string | null };
 }

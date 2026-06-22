@@ -17,6 +17,8 @@ export type CreateDataDestinationRequestDto =
       /** Pre-created OAuth credential ID from standalone OAuth flow */
       credentialId?: string;
       ownerIds?: string[];
+      /** Optional destination-level config: Drive folder for auto-created Sheets */
+      config?: { folderId?: string | null };
     }
   | {
       /** Title of the data destination */

@@ -53,7 +53,8 @@ export class DataDestinationMapper {
       dto.credentialId,
       dto.sourceDestinationId,
       dto.ownerIds,
-      context.roles ?? []
+      context.roles ?? [],
+      dto.config
     );
   }
 
@@ -74,7 +75,8 @@ export class DataDestinationMapper {
       context.roles ?? [],
       dto.availableForUse,
       dto.availableForMaintenance,
-      dto.contextIds
+      dto.contextIds,
+      dto.config
     );
   }
 
@@ -95,7 +97,8 @@ export class DataDestinationMapper {
       ownerUsers,
       dataDestination.availableForUse,
       dataDestination.availableForMaintenance,
-      extractContextSummaries(dataDestination.contexts)
+      extractContextSummaries(dataDestination.contexts),
+      dataDestination.config ?? null
     );
   }
 
@@ -133,6 +136,7 @@ export class DataDestinationMapper {
       availableForUse: dataDestinationDto.availableForUse,
       availableForMaintenance: dataDestinationDto.availableForMaintenance,
       contexts: dataDestinationDto.contexts,
+      config: dataDestinationDto.config,
     };
   }
 

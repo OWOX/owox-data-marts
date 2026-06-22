@@ -32,6 +32,8 @@ export interface GoogleSheetsOAuthCredentials {
 export interface GoogleSheetsDataDestination extends BaseDataDestination<GoogleSheetsOAuthCredentials> {
   type: DataDestinationType.GOOGLE_SHEETS;
   credentials: GoogleSheetsOAuthCredentials;
+  /** Optional destination-level config: Drive folder for auto-created Sheets. */
+  config?: { folderId?: string };
 }
 
 export interface LookerStudioDataDestination extends BaseDataDestination<LookerStudioCredentials> {

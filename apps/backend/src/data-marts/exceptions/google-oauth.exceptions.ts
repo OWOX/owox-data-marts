@@ -118,3 +118,38 @@ export class GoogleApiException extends GoogleOAuthException {
     this.name = 'GoogleApiException';
   }
 }
+
+/**
+ * Raised when a document auto-creation is attempted on a destination that has
+ * no connected Google OAuth account. The frontend keys off the `code` to show a
+ * "Connect Google account" CTA.
+ */
+export class OAuthNotConnectedException extends GoogleOAuthException {
+  constructor(destinationId: string) {
+    super(
+      'Google account is not connected for this destination. Connect a Google account to create documents.',
+      'OAUTH_NOT_CONNECTED',
+      HttpStatus.BAD_REQUEST,
+      { destinationId }
+    );
+    this.name = 'OAuthNotConnectedException';
+  }
+}
+
+/**
+ * Raised when document auto-creation is attempted on a Service Account
+ * destination. SA-based creation requires a shared Drive folder and ships in a
+ * later phase; until then the user should connect a Google account (OAuth) or
+ * paste an existing document URL.
+ */
+export class ServiceAccountRequiresFolderException extends GoogleOAuthException {
+  constructor(destinationId: string) {
+    super(
+      'Auto-creation for Service Account destinations requires a shared Drive folder (coming soon). Connect a Google account or paste an existing document URL.',
+      'SA_REQUIRES_FOLDER',
+      HttpStatus.BAD_REQUEST,
+      { destinationId }
+    );
+    this.name = 'ServiceAccountRequiresFolderException';
+  }
+}
