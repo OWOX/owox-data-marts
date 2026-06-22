@@ -234,18 +234,20 @@ export class MysqlDatabaseStore implements DatabaseStore {
     try {
       try {
         await pool.execute('DELETE FROM session WHERE userId = ?', [userId]);
-      } catch {
-        // Non-fatal cleanup: table may not exist yet or may contain no rows for this user
+      } catch (error) {
+        // Continue the cascade, but a failed session removal is security-relevant
+        // (orphaned sessions could outlive the user) — log rather than swallow.
+        this.logger.error('Failed to delete user sessions during cascade', { userId, error });
       }
       try {
         await pool.execute('DELETE FROM account WHERE userId = ?', [userId]);
-      } catch {
-        // Non-fatal cleanup: table may not exist yet or may contain no rows for this user
+      } catch (error) {
+        this.logger.error('Failed to delete user accounts during cascade', { userId, error });
       }
       try {
         await pool.execute('DELETE FROM member WHERE userId = ?', [userId]);
-      } catch {
-        // Non-fatal cleanup: table may not exist yet or may contain no rows for this user
+      } catch (error) {
+        this.logger.error('Failed to delete user memberships during cascade', { userId, error });
       }
       const [res] = (await pool.execute('DELETE FROM user WHERE id = ?', [userId])) as [
         MysqlExecResult,

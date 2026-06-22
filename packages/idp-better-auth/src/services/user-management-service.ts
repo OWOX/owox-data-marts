@@ -286,9 +286,12 @@ export class UserManagementService {
         await this.store.revokeUserSessions(userId);
       }
 
-      await this.store.clearUserPassword(userId);
-
+      // Generate the magic link before clearing the password so a failure here
+      // can't leave the user password-less and without a way back in — clearing
+      // the credential is kept as the last destructive step.
       const magicLink = await this.magicLinkService.generateMagicLink(user.email, userRole as Role);
+
+      await this.store.clearUserPassword(userId);
 
       logger.info('Password reset initiated', {
         userEmail: user.email,
