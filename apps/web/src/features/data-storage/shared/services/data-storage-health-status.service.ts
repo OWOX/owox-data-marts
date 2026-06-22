@@ -11,15 +11,19 @@ export enum DataStorageHealthStatus {
   VALID = 'valid',
   INVALID = 'invalid',
   UNCONFIGURED = 'unconfigured',
+  REAUTH_REQUIRED = 'reauth_required',
 }
 
 /**
- * Must match ValidationResultCode.UNCONFIGURED on the backend.
- * If the backend enum value changes, update this constant accordingly.
+ * Must match ValidationResultCode values on the backend.
+ * If backend enum values change, update these constants accordingly.
  */
 const UNCONFIGURED_CODE: DataStorageValidationCode = 'UNCONFIGURED';
+const OAUTH_REAUTH_REQUIRED_CODE: DataStorageValidationCode = 'OAUTH_REAUTH_REQUIRED';
 
 export const UNCONFIGURED_STATUS_LABEL = 'Complete setup to activate Storage';
+export const OAUTH_REAUTH_REQUIRED_STATUS_LABEL =
+  'Google authorization could not be refreshed. Reconnect this Storage to restore access.';
 
 export interface CachedDataStorageHealthStatus {
   status: DataStorageHealthStatus;
@@ -81,6 +85,7 @@ export function getCachedDataStorageHealthStatus(
  * will trigger a fresh validation request.
  */
 export function invalidateDataStorageHealthStatus(storageId: string): void {
+  if (!storageId) return;
   healthStatusCache.delete(storageId);
   notifySubscribers();
 }
@@ -115,6 +120,8 @@ function processQueue(): void {
           status = DataStorageHealthStatus.VALID;
         } else if (response.code === UNCONFIGURED_CODE) {
           status = DataStorageHealthStatus.UNCONFIGURED;
+        } else if (response.code === OAUTH_REAUTH_REQUIRED_CODE) {
+          status = DataStorageHealthStatus.REAUTH_REQUIRED;
         } else {
           status = DataStorageHealthStatus.INVALID;
         }
@@ -148,6 +155,8 @@ function processQueue(): void {
  * Respects concurrency limit of MAX_CONCURRENT_REQUESTS.
  */
 export function fetchAndCacheDataStorageHealthStatus(storageId: string): void {
+  if (!storageId) return;
+
   if (healthStatusCache.has(storageId) || inFlightRequests.has(storageId)) {
     return;
   }

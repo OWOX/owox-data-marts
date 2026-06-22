@@ -91,6 +91,7 @@ export function DataMartDetails({ id }: DataMartDetailsProps) {
     definitionType: dataMartDefinitionType = null,
     validationErrors: dataMartValidationErrors = [],
   } = dataMart ?? {};
+  const storageId = dataMart?.storage.id;
 
   const isConnector = dataMartDefinitionType === DataMartDefinitionType.CONNECTOR;
   const isPublished = dataMartStatus.code === DataMartStatus.PUBLISHED;
@@ -102,7 +103,7 @@ export function DataMartDetails({ id }: DataMartDetailsProps) {
   }, [dataMartId, getDataMart]);
 
   const { run: runActualizeSchemaInternal, isLoading: isSchemaActualizationLoading } =
-    useSchemaActualizeTrigger(dataMartId, onActualizeSuccess);
+    useSchemaActualizeTrigger(dataMartId, onActualizeSuccess, storageId);
 
   // Wrap with canActualizeSchema check before running schema actualization
   const runSchemaActualization = useCallback(async () => {

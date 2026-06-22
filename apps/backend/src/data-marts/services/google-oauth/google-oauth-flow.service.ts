@@ -39,6 +39,29 @@ export interface GoogleOAuthTokens {
   expiry_date?: number;
 }
 
+interface GoogleTokenRefreshError {
+  message?: unknown;
+  response?: {
+    data?: {
+      error?: unknown;
+      error_description?: unknown;
+    };
+  };
+}
+
+function isInvalidRefreshTokenError(error: unknown): boolean {
+  const tokenError = error as GoogleTokenRefreshError;
+  const googleError = tokenError.response?.data?.error;
+  const googleErrorDescription = tokenError.response?.data?.error_description;
+
+  return (
+    googleError === 'invalid_grant' ||
+    (typeof googleErrorDescription === 'string' &&
+      googleErrorDescription.includes('invalid_grant')) ||
+    (error instanceof Error && error.message.includes('invalid_grant'))
+  );
+}
+
 export interface GoogleAuthorizationUrlResult {
   authorizationUrl: string;
   state: string;
@@ -264,44 +287,70 @@ export class GoogleOAuthFlowService {
       throw new CredentialsExpiredException(credentialId, type);
     }
 
+    // Use the type-specific client_id/secret so tokens can be refreshed correctly
+    const clientId =
+      type === 'storage'
+        ? this.googleOAuthConfigService.getStorageClientId()
+        : this.googleOAuthConfigService.getDestinationClientId();
+    const clientSecret =
+      type === 'storage'
+        ? this.googleOAuthConfigService.getStorageClientSecret()
+        : this.googleOAuthConfigService.getDestinationClientSecret();
+
+    // Create a per-call transient client to avoid mutating shared singleton state
+    // across concurrent refresh calls, which would cause credential cross-contamination.
+    const refreshClient = new OAuth2Client(
+      clientId,
+      clientSecret,
+      this.googleOAuthConfigService.getRedirectUri()
+    );
+    refreshClient.setCredentials({ refresh_token: refreshToken });
+
+    let newTokens: { access_token?: string | null; expiry_date?: number | null };
     try {
-      // Use the type-specific client_id/secret so tokens can be refreshed correctly
-      const clientId =
-        type === 'storage'
-          ? this.googleOAuthConfigService.getStorageClientId()
-          : this.googleOAuthConfigService.getDestinationClientId();
-      const clientSecret =
-        type === 'storage'
-          ? this.googleOAuthConfigService.getStorageClientSecret()
-          : this.googleOAuthConfigService.getDestinationClientSecret();
+      const tokenResponse = await refreshClient.refreshAccessToken();
+      newTokens = tokenResponse.credentials;
+    } catch (error) {
+      if (isInvalidRefreshTokenError(error)) {
+        this.logger.warn(`Refresh token is no longer valid for ${type} credential ${credentialId}`);
+        throw new CredentialsExpiredException(credentialId, type);
+      }
 
-      // Create a per-call transient client to avoid mutating shared singleton state
-      // across concurrent refresh calls, which would cause credential cross-contamination.
-      const refreshClient = new OAuth2Client(
-        clientId,
-        clientSecret,
-        this.googleOAuthConfigService.getRedirectUri()
+      this.logger.error(`Failed to refresh tokens for ${type} credential ${credentialId}`, error);
+      throw new TokenRefreshFailedException(undefined, error);
+    }
+
+    if (!newTokens.access_token) {
+      this.logger.error(
+        `Refresh response missing access_token for ${type} credential ${credentialId}`
       );
-      refreshClient.setCredentials({ refresh_token: refreshToken });
-      const { credentials: newTokens } = await refreshClient.refreshAccessToken();
+      throw new TokenRefreshFailedException();
+    }
 
-      const currentTokens = credential.credentials as GoogleOAuthTokens;
-      const updatedTokens: GoogleOAuthTokens = {
-        ...currentTokens,
-        access_token: newTokens.access_token!,
-        expiry_date: newTokens.expiry_date ?? undefined,
-      };
+    const currentTokens = credential.credentials as GoogleOAuthTokens;
+    const updatedTokens: GoogleOAuthTokens = {
+      ...currentTokens,
+      access_token: newTokens.access_token,
+      expiry_date: newTokens.expiry_date ?? undefined,
+    };
 
-      const service =
-        type === 'storage'
-          ? this.dataStorageCredentialService
-          : this.dataDestinationCredentialService;
+    const service =
+      type === 'storage'
+        ? this.dataStorageCredentialService
+        : this.dataDestinationCredentialService;
 
+    try {
       await service.update(credential.id, { credentials: updatedTokens });
       this.logger.log(`Refreshed OAuth tokens for ${type} credential ${credentialId}`);
     } catch (error) {
-      this.logger.error(`Failed to refresh tokens for ${type} credential ${credentialId}`, error);
-      throw new TokenRefreshFailedException('Failed to refresh OAuth tokens', error);
+      this.logger.error(
+        `Failed to save refreshed tokens for ${type} credential ${credentialId}`,
+        error
+      );
+      throw new TokenRefreshFailedException(
+        'Google access was refreshed, but the updated tokens could not be saved. Please try again later.',
+        error
+      );
     }
   }
 

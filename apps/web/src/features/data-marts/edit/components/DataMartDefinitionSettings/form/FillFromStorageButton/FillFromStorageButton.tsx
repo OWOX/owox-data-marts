@@ -62,7 +62,8 @@ export function FillFromStorageButton({
   const isUnhealthyStorage =
     healthIsFetched &&
     (healthStatus === DataStorageHealthStatus.UNCONFIGURED ||
-      healthStatus === DataStorageHealthStatus.INVALID);
+      healthStatus === DataStorageHealthStatus.INVALID ||
+      healthStatus === DataStorageHealthStatus.REAUTH_REQUIRED);
 
   const loadNamespaces = useCallback(async () => {
     setNamespacesLoading(true);

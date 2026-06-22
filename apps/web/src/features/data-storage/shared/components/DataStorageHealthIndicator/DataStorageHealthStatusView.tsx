@@ -1,6 +1,7 @@
 import { CircleCheck, CircleDashed, TriangleAlert } from 'lucide-react';
 import {
   DataStorageHealthStatus,
+  OAUTH_REAUTH_REQUIRED_STATUS_LABEL,
   UNCONFIGURED_STATUS_LABEL,
 } from '../../services/data-storage-health-status.service';
 
@@ -34,6 +35,15 @@ export function DataStorageHealthStatusView({ status, errorMessage, isLoading }:
       <div className='text-muted-foreground flex items-center gap-2 text-sm'>
         <CircleDashed className='size-4' />
         <span>{UNCONFIGURED_STATUS_LABEL}</span>
+      </div>
+    );
+  }
+
+  if (status === DataStorageHealthStatus.REAUTH_REQUIRED) {
+    return (
+      <div className='flex items-center gap-2 text-sm text-red-500'>
+        <TriangleAlert className='size-4' />
+        <span>{errorMessage ?? OAUTH_REAUTH_REQUIRED_STATUS_LABEL}</span>
       </div>
     );
   }

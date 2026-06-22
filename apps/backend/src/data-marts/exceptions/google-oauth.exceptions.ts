@@ -70,7 +70,10 @@ export class TokenExchangeFailedException extends GoogleOAuthException {
 }
 
 export class TokenRefreshFailedException extends GoogleOAuthException {
-  constructor(message: string = 'Failed to refresh OAuth tokens', details?: unknown) {
+  constructor(
+    message: string = 'Google access could not be refreshed. Please try again later.',
+    details?: unknown
+  ) {
     super(message, 'TOKEN_REFRESH_FAILED', HttpStatus.INTERNAL_SERVER_ERROR, details);
     this.name = 'TokenRefreshFailedException';
   }
@@ -89,12 +92,13 @@ export class CredentialsNotFoundException extends GoogleOAuthException {
 }
 
 export class CredentialsExpiredException extends GoogleOAuthException {
-  constructor(entityId: string, entityType: 'storage' | 'destination') {
+  constructor(entityId: string, entityType: 'storage' | 'destination', details?: unknown) {
+    const resourceLabel = entityType === 'storage' ? 'Storage' : 'Destination';
     super(
-      `OAuth credentials expired for ${entityType} ID: ${entityId}. Please re-authorize.`,
+      `Google authorization could not be refreshed. Reconnect this ${resourceLabel} to restore access.`,
       'CREDENTIALS_EXPIRED',
       HttpStatus.UNAUTHORIZED,
-      { entityId, entityType }
+      details ? { entityId, entityType, details } : { entityId, entityType }
     );
     this.name = 'CredentialsExpiredException';
   }
