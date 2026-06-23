@@ -17,4 +17,7 @@ jest.unstable_mockModule('@owox/internal-helpers', () => ({
   // and must be present in the mock so Jest ESM can satisfy the named import binding
   disableConditionalCaching: jest.fn(),
   sendSecureHtml: jest.fn(),
+  // LogLevel is imported by auth-config.ts / page-service.ts; provide an
+  // enum-like object so the named import binding resolves under Jest ESM.
+  LogLevel: { ERROR: 'error', WARN: 'warn', INFO: 'info', DEBUG: 'debug' },
 }));

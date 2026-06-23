@@ -28,7 +28,19 @@ export class PasswordFlowController {
     private readonly auth: BetterAuthInstance,
     private readonly sessionService: BetterAuthSessionService,
     private readonly magicLinkService: MagicLinkService,
-    private readonly gtmContainerId?: string
+    private readonly gtmContainerId?: string,
+    /**
+     * Best-effort revocation of the OWOX platform refresh token carried by the
+     * request (the `refreshToken` cookie), invoked after a successful password
+     * reset so the acting device's platform session is revoked at the OWOX
+     * Identity level, not only the Better Auth UI session. No-op when the
+     * request carries no platform refresh token (e.g. reset from a logged-out
+     * browser).
+     */
+    private readonly revokePlatformSession?: (
+      req: ExpressRequest,
+      res: ExpressResponse
+    ) => Promise<void>
   ) {}
 
   async sendMagicLink(req: ExpressRequest, res: ExpressResponse): Promise<void> {
@@ -161,6 +173,10 @@ export class PasswordFlowController {
           body: { newPassword: password, token: resetToken },
           headers: convertExpressHeaders(req),
         });
+        // Revoke the OWOX platform refresh token carried by this request (if
+        // any) so the acting device's platform session is invalidated at the
+        // OWOX Identity level, not only the Better Auth UI session.
+        await this.revokePlatformSession?.(req, res);
         clearBetterAuthCookies(res, req);
         return res.redirect(`${AUTH_BASE_PATH}/password/success`);
       } catch (error) {

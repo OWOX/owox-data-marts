@@ -50,7 +50,7 @@ import { PkceFlowOrchestrator } from './services/auth/pkce-flow-orchestrator.js'
 import { PlatformAuthFlowClient } from './services/auth/platform-auth-flow-client.js';
 import { MembershipRequestsService } from './services/core/membership-requests-service.js';
 import { ProjectMembersService } from './services/core/project-members-service.js';
-import type { ProjectMembersServiceOptions } from './types/project-members.js';
+import type { ProjectMembersServiceOptions } from './types/index.js';
 import { UserAccountResolver } from './services/core/user-account-resolver.js';
 import { UserAuthInfoPersistenceService } from './services/core/user-auth-info-persistence-service.js';
 import { UserContextService } from './services/core/user-context-service.js';
@@ -164,7 +164,8 @@ export class OwoxBetterAuthIdp implements IdpProvider {
       this.auth,
       this.betterAuthSessionService,
       this.magicLinkService,
-      this.config.gtmContainerId
+      this.config.gtmContainerId,
+      this.revokePlatformRefreshTokenFromRequest.bind(this)
     );
     this.authFlowMiddleware = new AuthFlowMiddleware(
       this.pageController,
@@ -726,6 +727,38 @@ export class OwoxBetterAuthIdp implements IdpProvider {
 
   async revokeToken(token: string): Promise<void> {
     await this.tokenFacade.revokeToken(token);
+  }
+
+  /**
+   * Best-effort revocation of the OWOX platform refresh token carried by the
+   * current request (the `refreshToken` cookie), then clears that cookie.
+   *
+   * Used after a password reset so the platform session tied to THIS request
+   * is invalidated at the OWOX Identity level — not only the Better Auth UI
+   * session. Revocation failures are non-fatal (logged, not thrown) so they
+   * never block completing the password flow.
+   *
+   * Scope note: this revokes the platform token carried by the request. Broader
+   * multi-device platform-session revocation is handled by the OWOX Identity
+   * service and tracked separately.
+   */
+  private async revokePlatformRefreshTokenFromRequest(
+    req: e.Request,
+    res: e.Response
+  ): Promise<void> {
+    const refreshToken = extractRefreshToken(req);
+    if (refreshToken) {
+      try {
+        await this.revokeToken(refreshToken);
+      } catch (error) {
+        this.logger.warn(
+          'Failed to revoke OWOX refresh token during password flow',
+          { path: req.path },
+          error instanceof Error ? error : undefined
+        );
+      }
+    }
+    clearCookie(res, CORE_REFRESH_TOKEN_COOKIE, req);
   }
 
   async accessTokenMiddleware(

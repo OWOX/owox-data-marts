@@ -250,8 +250,18 @@ export class UserManagementService {
   /**
    * Reset user password (admin-only operation)
    * Clears existing password, revokes sessions, and generates new magic link
+   *
+   * Session handling:
+   * - Resetting another user's password revokes ALL of that user's sessions.
+   * - Resetting your own password (self-reset) revokes every OTHER session but
+   *   keeps the acting session valid, provided `currentSessionToken` is given.
+   *   Without it we fall back to revoking all sessions to stay fail-safe.
    */
-  async resetUserPassword(userId: string, adminUserId: string): Promise<{ magicLink: string }> {
+  async resetUserPassword(
+    userId: string,
+    adminUserId: string,
+    currentSessionToken?: string
+  ): Promise<{ magicLink: string }> {
     try {
       const adminRole = await this.getUserRole(adminUserId);
       if (adminRole !== 'admin') {
@@ -270,11 +280,18 @@ export class UserManagementService {
 
       if (userId !== adminUserId) {
         await this.store.revokeUserSessions(userId);
+      } else if (currentSessionToken) {
+        await this.store.revokeOtherUserSessions(userId, currentSessionToken);
+      } else {
+        await this.store.revokeUserSessions(userId);
       }
 
-      await this.store.clearUserPassword(userId);
-
+      // Generate the magic link before clearing the password so a failure here
+      // can't leave the user password-less and without a way back in — clearing
+      // the credential is kept as the last destructive step.
       const magicLink = await this.magicLinkService.generateMagicLink(user.email, userRole as Role);
+
+      await this.store.clearUserPassword(userId);
 
       logger.info('Password reset initiated', {
         userEmail: user.email,

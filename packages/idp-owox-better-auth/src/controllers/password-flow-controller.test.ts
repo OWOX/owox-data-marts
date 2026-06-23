@@ -169,6 +169,87 @@ describe('PasswordFlowController.setPassword', () => {
     expect(res.redirect).toHaveBeenCalledWith(`${AUTH_BASE_PATH}/password/success`);
   });
 
+  it('revokes the OWOX platform refresh token after a successful reset', async () => {
+    const resetPassword = jest.fn<(_params: ResetPasswordParams) => Promise<unknown>>(
+      async () => ({})
+    );
+    const auth = {
+      api: {
+        getSession: jest.fn(async () => ({
+          user: { id: 'user-id', email: 'user@example.com' },
+        })),
+        resetPassword,
+        setPassword: jest.fn(),
+        signOut: jest.fn(),
+      },
+    } as unknown as BetterAuthInstance;
+    const revokePlatformSession = jest.fn<(req: Request, res: Response) => Promise<void>>(
+      async () => {}
+    );
+    const service = new PasswordFlowController(
+      auth,
+      {} as BetterAuthSessionService,
+      {} as MagicLinkService,
+      undefined,
+      revokePlatformSession
+    );
+    const req = {
+      body: {
+        password: 'NewPassw0rd',
+        intent: MAGIC_LINK_INTENT.RESET,
+        token: 'reset-token',
+      },
+      headers: baseHeaders,
+    } as unknown as Request;
+    const res = createResponseMock();
+
+    await service.setPassword(req, res);
+
+    expect(resetPassword).toHaveBeenCalled();
+    expect(revokePlatformSession).toHaveBeenCalledWith(req, res);
+    expect(res.redirect).toHaveBeenCalledWith(`${AUTH_BASE_PATH}/password/success`);
+  });
+
+  it('does not revoke the platform refresh token when the reset fails', async () => {
+    const resetPassword = jest.fn<(_params: ResetPasswordParams) => Promise<unknown>>(async () => {
+      throw new Error('invalid token');
+    });
+    const auth = {
+      api: {
+        getSession: jest.fn(async () => ({
+          user: { id: 'user-id', email: 'user@example.com' },
+        })),
+        resetPassword,
+        setPassword: jest.fn(),
+        signOut: jest.fn(),
+      },
+    } as unknown as BetterAuthInstance;
+    const revokePlatformSession = jest.fn<(req: Request, res: Response) => Promise<void>>(
+      async () => {}
+    );
+    const service = new PasswordFlowController(
+      auth,
+      {} as BetterAuthSessionService,
+      {} as MagicLinkService,
+      undefined,
+      revokePlatformSession
+    );
+    const req = {
+      body: {
+        password: 'NewPassw0rd',
+        intent: MAGIC_LINK_INTENT.RESET,
+        token: 'reset-token',
+      },
+      headers: baseHeaders,
+    } as unknown as Request;
+    const res = createResponseMock();
+
+    await service.setPassword(req, res);
+
+    expect(revokePlatformSession).not.toHaveBeenCalled();
+    expect(res.status).toHaveBeenCalledWith(400);
+  });
+
   it('uses resetPassword when token is provided even without intent', async () => {
     const resetPassword = jest.fn<(_params: ResetPasswordParams) => Promise<unknown>>(
       async () => ({})
