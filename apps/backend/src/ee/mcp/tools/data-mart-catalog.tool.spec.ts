@@ -87,6 +87,7 @@ describe('ListDataMartsTool', () => {
         data_marts: expect.any(Object),
       }),
       annotations: {
+        title: 'List Data Marts',
         readOnlyHint: true,
         destructiveHint: false,
         openWorldHint: false,
