@@ -7,25 +7,12 @@ Use the MCP server when you want an AI assistant — such as Claude or ChatGPT �
 ## Prerequisites
 
 - An active OWOX Data Marts project with at least one data mart. New to Data Marts? See how to create a [connector-based](./connector-data-mart.md) or [SQL-based](./sql-data-mart.md) Data Mart.
-- A deployment with the MCP server available. It works on OWOX Cloud, and on self-managed deployments once the MCP environment variables are set (see [Step 1](#step-1-get-the-mcp-server-url)). No special edition or license is required.
 - One of the supported clients: Claude Desktop, Claude web (claude.ai), or ChatGPT. Any other client that supports the MCP Streamable HTTP transport with OAuth 2.0 will also work.
-- A client plan that allows custom MCP connectors. Connecting your own server may require a paid plan in Claude or ChatGPT; check your client's current plan requirements.
+- A client plan that allows custom MCP connectors. Adding a custom MCP server like OWOX may require a paid plan in Claude or ChatGPT; check your client's current plan requirements.
 
-## Step 1: Get the MCP server URL
+## Step 1: Connect your AI assistant
 
-**OWOX Cloud:**
-
-```text
-https://mcp.owox.com/mcp
-```
-
-**Self-managed deployments:** the MCP URL is the value of `MCP_PUBLIC_BASE_URL` with `/mcp` appended. If you set up the instance yourself, add `MCP_PUBLIC_BASE_URL` to your `.env` file if it is not already there — use the same base URL you use to open the app (for example, `http://localhost:3000` for a local deployment). The MCP URL is then `http://localhost:3000/mcp`.
-
-> Self-managed deployments must also set `OWOX_AUTH_PUBLIC_BASE_URL` (the public URL of your OWOX authorization server). The browser sign-in step in [Step 3](#step-3-authorize-access) fails if this value is missing or wrong.
-
-## Step 2: Connect your AI assistant
-
-Set up whichever assistant you use — you only need one. Whichever you choose, the client discovers the OAuth endpoints and registers itself automatically: there is no client ID, secret, or token to copy.
+Set up whichever assistant you use — you only need one. The client discovers the OAuth endpoints and registers itself automatically: there is no client ID, secret, or token to copy.
 
 ### Claude Desktop
 
@@ -39,12 +26,14 @@ Newer versions of Claude Desktop add remote MCP servers through the in-app **Con
    https://mcp.owox.com/mcp
    ```
 
-4. Claude opens a browser window to complete authorization. Follow the steps in [Step 3](#step-3-authorize-access).
+4. Claude opens a browser window to complete authorization. Follow the steps in [Step 2](#step-2-authorize-access).
 
-If your version does not show a **Connectors** screen, add the server to the configuration file instead, then restart Claude Desktop:
+If your version does not show a **Connectors** screen, add the server to the configuration file instead:
 
 - **macOS:** `~/Library/Application Support/Claude/claude_desktop_config.json`
 - **Windows:** `%APPDATA%\Claude\claude_desktop_config.json`
+
+Add the `owox` entry to your existing `mcpServers` (create the file if it does not exist yet — keep any servers already listed):
 
 ```json
 {
@@ -56,25 +45,23 @@ If your version does not show a **Connectors** screen, add the server to the con
 }
 ```
 
-Claude Desktop uses a loopback redirect URI during the OAuth flow, so self-managed deployments need no extra configuration for it.
+Save the file and restart Claude Desktop. On restart, Claude detects the server and opens a browser window to authorize it. Follow the steps in [Step 2](#step-2-authorize-access).
 
 ### Claude web (claude.ai)
 
 1. Open [claude.ai](https://claude.ai) and go to **Settings → Connectors**.
-2. Click **Add custom integration**.
+2. Click **Add custom connector**.
 3. Enter the MCP server URL:
 
    ```text
    https://mcp.owox.com/mcp
    ```
 
-4. Claude will open an authorization flow in the same browser. Follow the steps in [Step 3](#step-3-authorize-access).
+4. Claude will open an authorization flow in the same browser. Follow the steps in [Step 2](#step-2-authorize-access).
 
 ![Claude web Connectors settings with the Add custom integration dialog and the OWOX MCP server URL entered](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/fbdcb18c-4d48-4142-8ee0-a913734a4100/public)
 
 ![The OWOX integration connected and listed in Claude web Connectors settings](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/4521c763-a151-453c-18a7-006ff6536200/public)
-
-> **Self-managed deployments:** Claude web uses an HTTPS redirect URI. Add `https://claude.ai` to `MCP_DYNAMIC_CLIENT_ALLOWED_REDIRECT_ORIGINS` before users connect (see [Environment variables](../deployment-guide/environment-variables.md)).
 
 ### ChatGPT
 
@@ -87,17 +74,15 @@ Claude Desktop uses a loopback redirect URI during the OAuth flow, so self-manag
    https://mcp.owox.com/mcp
    ```
 
-5. ChatGPT opens an authorization window. Follow the steps in [Step 3](#step-3-authorize-access).
+5. ChatGPT opens an authorization window. Follow the steps in [Step 2](#step-2-authorize-access).
 
 ![Enabling Developer mode in ChatGPT Apps advanced settings](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/08e99f82-13b4-4e3a-0d01-819105aba800/public)
 
 ![Creating an app with the OWOX MCP server URL in ChatGPT](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/323a0e41-8043-435c-b6c2-d84dde4d1b00/public)
 
-> **Self-managed deployments:** ChatGPT uses an HTTPS callback URI during the OAuth flow. Add ChatGPT's callback origin to `MCP_DYNAMIC_CLIENT_ALLOWED_REDIRECT_ORIGINS` before users connect. If the origin is missing, registration fails with the error `redirect_uri origin is not allowlisted. Add to MCP_DYNAMIC_CLIENT_ALLOWED_REDIRECT_ORIGINS: <origin>` — use the origin printed there as the value.
+## Step 2: Authorize access
 
-## Step 3: Authorize access
-
-When the MCP client connects for the first time, it registers itself with the OWOX authorization server and opens a browser window to complete the OAuth 2.0 authorization flow (with PKCE). You only complete two interactive steps:
+When the MCP client connects for the first time, it opens a browser window to complete the OAuth 2.0 authorization flow. You only complete two interactive steps:
 
 1. **Sign in** to your OWOX account if you do not already have an active session.
 2. **Select a project** — if you belong to more than one project, a selection screen appears. Choose the project you want this MCP connection to use and click **Next**. If you belong to a single project, this step is skipped automatically.
@@ -106,7 +91,7 @@ There is no separate permissions-consent screen. Once you sign in and select a p
 
 Access tokens are short-lived, and the client refreshes them automatically in the background — you stay connected without signing in again. You only need to reconnect manually if the refresh fails (for example, after your OWOX session is revoked) or when you want to switch projects.
 
-## Step 4: Verify the connection
+## Step 3: Verify the connection
 
 Confirm everything works before relying on it. In your assistant, send:
 
@@ -173,20 +158,14 @@ Once the OWOX server is connected, just ask your assistant in plain language. Yo
 - "Give me a one-line summary of each data mart and what it is for."
 
 > **What these tools can and cannot do:** They let the assistant discover your project and your data marts — titles, descriptions, status, roles, and when each was last updated. They do **not** run queries against the data inside a data mart or return its rows. Use them to find and understand what is available, then open the data mart in OWOX Data Marts to work with the data itself.
+>
+> **What is shared with your AI provider:** To answer your prompts, the metadata above (project and data-mart names, descriptions, status, and your roles) is sent to the AI provider behind your client, such as Anthropic for Claude or OpenAI for ChatGPT. The data stored in your data marts is never sent. Connect OWOX only to clients your organization permits to receive this information.
 
 ## Troubleshooting
 
-### Registration is rejected
-
-| Message | Cause | Fix |
-| --- | --- | --- |
-| `redirect_uri origin is not allowlisted. Add to MCP_DYNAMIC_CLIENT_ALLOWED_REDIRECT_ORIGINS: <origin>` | The client uses an `https` redirect URI whose origin is not allowlisted (self-managed). | Add the exact origin to `MCP_DYNAMIC_CLIENT_ALLOWED_REDIRECT_ORIGINS` and restart the server. |
-| `redirect_uri must be loopback http or allowlisted https origin` | The client uses a non-loopback `http` redirect URI. | Use a loopback URI (`http://127.0.0.1`, `http://localhost`, `[::1]`) or a secure `https` origin that is allowlisted. |
-| `Dynamic Client Registration is disabled` | `MCP_DYNAMIC_CLIENT_REGISTRATION_ENABLED` is set to `false`. | Enable Dynamic Client Registration on the deployment, or register the client through your platform administrator. |
-
 ### Requests return 401 Unauthorized
 
-The MCP server rejects a request with `401` and a `WWW-Authenticate` challenge in these cases:
+The MCP server rejects a request with `401` in these cases. Your AI client may surface these as a generic "couldn't connect" or "authorization expired" message rather than the exact text below:
 
 | Message | Cause | Fix |
 | --- | --- | --- |
@@ -203,4 +182,3 @@ Project selection is fixed at authorization time. See [Switch projects or discon
 
 - [Roles and permissions](../../project/roles-and-permissions.md)
 - [API Keys](../../api/api-keys.md)
-- [Environment variables](../deployment-guide/environment-variables.md)
