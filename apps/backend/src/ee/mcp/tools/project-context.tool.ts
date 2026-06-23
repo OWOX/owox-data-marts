@@ -27,6 +27,7 @@ export class GetProjectContextTool implements McpToolDefinition<GetProjectContex
     project_switching: z.string(),
   };
   readonly annotations = {
+    title: 'Get Project Context',
     readOnlyHint: true,
     destructiveHint: false,
     openWorldHint: false,

@@ -27,6 +27,7 @@ export class ListDataMartsTool implements McpToolDefinition<ListDataMartsInput> 
     ),
   };
   readonly annotations = {
+    title: 'List Data Marts',
     readOnlyHint: true,
     destructiveHint: false,
     openWorldHint: false,

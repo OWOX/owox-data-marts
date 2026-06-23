@@ -84,6 +84,7 @@ describe('GetProjectContextTool', () => {
         project_switching: expect.any(Object),
       }),
       annotations: {
+        title: 'Get Project Context',
         readOnlyHint: true,
         destructiveHint: false,
         openWorldHint: false,
