@@ -156,6 +156,8 @@ describe('UpdateDataDestinationService - credential copy (sourceDestinationId)',
       updateDestinationContexts: jest.fn().mockResolvedValue(undefined),
     };
 
+    const folderValidator = { validateConfiguredFolder: jest.fn().mockResolvedValue(undefined) };
+
     const service = new UpdateDataDestinationService(
       dataDestinationRepository as never,
       dataDestinationService as never,
@@ -170,7 +172,8 @@ describe('UpdateDataDestinationService - credential copy (sourceDestinationId)',
       idpProjectionsFacade as never,
       destinationOwnerRepository as never,
       accessDecisionService as never,
-      contextAccessService as never
+      contextAccessService as never,
+      folderValidator as never
     );
 
     return {

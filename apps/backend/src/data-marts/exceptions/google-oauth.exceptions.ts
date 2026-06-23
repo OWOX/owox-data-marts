@@ -138,18 +138,48 @@ export class OAuthNotConnectedException extends GoogleOAuthException {
 
 /**
  * Raised when document auto-creation is attempted on a Service Account
- * destination. SA-based creation requires a shared Drive folder and ships in a
- * later phase; until then the user should connect a Google account (OAuth) or
- * paste an existing document URL.
+ * destination that has no Drive folder configured. SA-based creation must place
+ * the file in a shared Drive folder (an SA file in My Drive would be invisible),
+ * so a folder is required.
  */
 export class ServiceAccountRequiresFolderException extends GoogleOAuthException {
   constructor(destinationId: string) {
     super(
-      'Auto-creation for Service Account destinations requires a shared Drive folder (coming soon). Connect a Google account or paste an existing document URL.',
+      'This Service Account destination has no Drive folder configured. Set a Shared Drive folder ID on the destination and share it with the service account (Editor) to auto-create documents.',
       'SA_REQUIRES_FOLDER',
       HttpStatus.BAD_REQUEST,
       { destinationId }
     );
     this.name = 'ServiceAccountRequiresFolderException';
+  }
+}
+
+/**
+ * Raised at destination save time when the configured Drive folder is not usable
+ * for service-account auto-creation (missing, not a folder, not in a Shared
+ * Drive, or not shared with the service account). Surfaced to the user so they
+ * can fix the folder before saving.
+ */
+export class DestinationFolderAccessException extends GoogleOAuthException {
+  constructor(message: string, details?: unknown) {
+    super(message, 'DESTINATION_FOLDER_ACCESS', HttpStatus.BAD_REQUEST, details);
+    this.name = 'DestinationFolderAccessException';
+  }
+}
+
+/**
+ * Raised when creating a Google Sheet inside the configured Drive folder fails
+ * (e.g. the folder is not a Shared Drive, or is not shared with the service
+ * account). The underlying error is logged (not sent to the client).
+ */
+export class SheetFolderCreateFailedException extends GoogleOAuthException {
+  constructor(destinationId: string, details?: unknown) {
+    super(
+      'Failed to create the Google Sheet in the configured Drive folder. Make sure it is a Shared Drive folder shared with the service account as Editor.',
+      'SHEET_FOLDER_CREATE_FAILED',
+      HttpStatus.BAD_REQUEST,
+      details ?? { destinationId }
+    );
+    this.name = 'SheetFolderCreateFailedException';
   }
 }

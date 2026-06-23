@@ -1,6 +1,6 @@
 import { Logger } from '@nestjs/common';
 import { JWT, OAuth2Client } from 'google-auth-library';
-import { google, sheets_v4 } from 'googleapis';
+import { google, sheets_v4, drive_v3 } from 'googleapis';
 import { GoogleServiceAccountKey } from '../../../../common/schemas/google-service-account-key.schema';
 import { GOOGLE_SHEETS_METADATA_KEYS } from '../constants/google-sheets-metadata-keys.constants';
 import { GoogleSheetsCredentials } from '../schemas/google-sheets-credentials.schema';
@@ -10,6 +10,18 @@ import { GoogleSheetsCredentials } from '../schemas/google-sheets-credentials.sc
  */
 export class GoogleSheetsApiAdapter {
   private static readonly SHEETS_SCOPE = ['https://www.googleapis.com/auth/spreadsheets'];
+
+  /**
+   * Scopes for the Service-Account Drive-create path (auto-creating a Sheet in a
+   * shared Drive folder). Kept SEPARATE from {@link SHEETS_SCOPE} so existing SA
+   * Sheets operations keep their narrow spreadsheets-only scope and are not
+   * re-minted with a broader Drive scope.
+   */
+  public static readonly SERVICE_ACCOUNT_DRIVE_CREATE_SCOPES = [
+    'https://www.googleapis.com/auth/spreadsheets',
+    'https://www.googleapis.com/auth/drive',
+  ];
+
   private static readonly LOGGER = new Logger(GoogleSheetsApiAdapter.name);
 
   /**
@@ -49,6 +61,8 @@ export class GoogleSheetsApiAdapter {
   ].join(',');
 
   private readonly service: sheets_v4.Sheets;
+  private readonly authClient: OAuth2Client | JWT;
+  private driveService?: drive_v3.Drive;
 
   /**
    * @param credentials - Google Sheets credentials containing service account key. Can be undefined when authClient is provided.
@@ -63,10 +77,19 @@ export class GoogleSheetsApiAdapter {
         'Either an auth client or credentials with a service account key must be provided'
       );
     }
-    this.service = google.sheets({
-      version: 'v4',
-      auth: authClient ?? GoogleSheetsApiAdapter.createAuthClient(credentials!.serviceAccountKey!),
-    });
+    this.authClient =
+      authClient ?? GoogleSheetsApiAdapter.createAuthClient(credentials!.serviceAccountKey!);
+    this.service = google.sheets({ version: 'v4', auth: this.authClient });
+  }
+
+  /**
+   * Lazily builds a Drive API client from the same auth as the Sheets client.
+   * The underlying auth must carry a Drive scope (e.g. the SA Drive-create JWT)
+   * for Drive operations to succeed.
+   */
+  private getDriveService(): drive_v3.Drive {
+    this.driveService ??= google.drive({ version: 'v3', auth: this.authClient });
+    return this.driveService;
   }
 
   /**
@@ -120,6 +143,90 @@ export class GoogleSheetsApiAdapter {
       throw new Error('Google Sheets API did not return a spreadsheetId or sheetId on create');
     }
     return { spreadsheetId, sheetId };
+  }
+
+  /**
+   * Creates a new Google Spreadsheet directly inside a Drive folder via the
+   * Drive API (so the file lands in a shared Drive folder, not the caller's
+   * Drive root). Requires the underlying auth to carry a Drive scope and is used
+   * by the Service-Account auto-creation path.
+   *
+   * `supportsAllDrives` is set so the create works in a Shared Drive. The first
+   * sheet's numeric `sheetId` is fetched from the Sheets API afterwards (Drive
+   * create does not return it) — it is NOT assumed to be `0`.
+   *
+   * @param title - Title for the new spreadsheet
+   * @param folderId - Drive folder ID to create the spreadsheet in
+   * @returns The new spreadsheet ID and its first sheet's numeric ID
+   */
+  public async createSpreadsheetInFolder(
+    title: string,
+    folderId: string
+  ): Promise<{ spreadsheetId: string; sheetId: number }> {
+    const drive = this.getDriveService();
+    const file = await this.executeWithRetry(() =>
+      drive.files.create({
+        requestBody: {
+          name: title,
+          mimeType: 'application/vnd.google-apps.spreadsheet',
+          parents: [folderId],
+        },
+        fields: 'id',
+        supportsAllDrives: true,
+      })
+    );
+    const spreadsheetId = file.data.id;
+    if (!spreadsheetId) {
+      throw new Error('Drive API did not return a file id when creating the spreadsheet');
+    }
+    const ss = await this.executeWithRetry(() =>
+      this.service.spreadsheets.get({ spreadsheetId, fields: 'sheets.properties.sheetId' })
+    );
+    const sheetId = ss.data.sheets?.[0]?.properties?.sheetId;
+    if (sheetId === undefined || sheetId === null) {
+      throw new Error('Could not resolve the sheetId of the newly created spreadsheet');
+    }
+    return { spreadsheetId, sheetId };
+  }
+
+  /**
+   * Reads Drive folder metadata to validate write access for the auto-creation
+   * flow. Returns a structured result instead of throwing, so callers can build
+   * precise messages. A failed lookup (folder missing, not shared, or no access)
+   * returns `accessible: false`. Requires the underlying auth to carry a Drive
+   * scope.
+   *
+   * @param folderId - Drive folder ID to inspect
+   */
+  public async getFolderAccess(folderId: string): Promise<{
+    accessible: boolean;
+    isFolder: boolean;
+    isSharedDrive: boolean;
+    canAddChildren: boolean;
+  }> {
+    const drive = this.getDriveService();
+    try {
+      const res = await this.executeWithRetry(() =>
+        drive.files.get({
+          fileId: folderId,
+          fields: 'id, mimeType, driveId, capabilities/canAddChildren',
+          supportsAllDrives: true,
+        })
+      );
+      const data = res.data;
+      return {
+        accessible: true,
+        isFolder: data.mimeType === 'application/vnd.google-apps.folder',
+        isSharedDrive: !!data.driveId,
+        canAddChildren: data.capabilities?.canAddChildren === true,
+      };
+    } catch (error) {
+      GoogleSheetsApiAdapter.LOGGER.warn(
+        `getFolderAccess: cannot access folder ${folderId}`,
+        error instanceof Error ? error.message : String(error)
+      );
+      return { accessible: false, isFolder: false, isSharedDrive: false, canAddChildren: false };
+    }
   }
 
   /**
@@ -649,6 +756,22 @@ export class GoogleSheetsApiAdapter {
       email: serviceAccountKey.client_email,
       key: serviceAccountKey.private_key,
       scopes: GoogleSheetsApiAdapter.SHEETS_SCOPE,
+    });
+  }
+
+  /**
+   * Builds a Service-Account JWT with explicit scopes. Used to mint a
+   * Drive-capable client for the auto-creation path without widening the global
+   * {@link SHEETS_SCOPE} used by all other SA operations.
+   */
+  public static createServiceAccountClient(
+    serviceAccountKey: GoogleServiceAccountKey,
+    scopes: string[]
+  ): JWT {
+    return new JWT({
+      email: serviceAccountKey.client_email,
+      key: serviceAccountKey.private_key,
+      scopes,
     });
   }
 

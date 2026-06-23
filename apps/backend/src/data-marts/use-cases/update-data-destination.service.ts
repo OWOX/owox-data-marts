@@ -10,6 +10,7 @@ import { UpdateDataDestinationCommand } from '../dto/domain/update-data-destinat
 import { DataDestinationService } from '../services/data-destination.service';
 import { DataDestinationCredentialsValidatorFacade } from '../data-destination-types/facades/data-destination-credentials-validator.facade';
 import { DataDestinationCredentialsProcessorFacade } from '../data-destination-types/facades/data-destination-credentials-processor.facade';
+import { GoogleSheetsFolderValidator } from '../data-destination-types/google-sheets/services/google-sheets-folder-validator.service';
 import { DataDestinationCredentials } from '../data-destination-types/data-destination-credentials.type';
 import { DataDestinationCredentialService } from '../services/data-destination-credential.service';
 import { GoogleOAuthClientService } from '../services/google-oauth/google-oauth-client.service';
@@ -46,7 +47,8 @@ export class UpdateDataDestinationService {
     @InjectRepository(DestinationOwner)
     private readonly destinationOwnerRepository: Repository<DestinationOwner>,
     private readonly accessDecisionService: AccessDecisionService,
-    private readonly contextAccessService: ContextAccessService
+    private readonly contextAccessService: ContextAccessService,
+    private readonly folderValidator: GoogleSheetsFolderValidator
   ) {}
 
   @Transactional()
@@ -301,6 +303,10 @@ export class UpdateDataDestinationService {
     entity: DataDestination,
     ownerIds?: string[]
   ): Promise<DataDestinationDto> {
+    // Fail fast (and roll back) if a configured Drive folder is not usable for
+    // service-account auto-creation.
+    await this.folderValidator.validateConfiguredFolder(entity);
+
     if (ownerIds !== undefined) {
       await syncOwners(
         this.destinationOwnerRepository,

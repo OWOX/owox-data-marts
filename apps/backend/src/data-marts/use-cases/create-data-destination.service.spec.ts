@@ -97,6 +97,8 @@ describe('CreateDataDestinationService', () => {
 
     const eventDispatcher = { publishLocalOnCommit: jest.fn() };
 
+    const folderValidator = { validateConfiguredFolder: jest.fn().mockResolvedValue(undefined) };
+
     const service = new CreateDataDestinationService(
       repository as never,
       mapper as never,
@@ -111,7 +113,8 @@ describe('CreateDataDestinationService', () => {
       destinationOwnerRepository as never,
       idpProjectionsFacade as never,
       accessDecisionService as never,
-      eventDispatcher as never
+      eventDispatcher as never,
+      folderValidator as never
     );
 
     return {

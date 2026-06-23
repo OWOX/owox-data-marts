@@ -11,6 +11,7 @@ import { DataDestinationMapper } from '../mappers/data-destination.mapper';
 import { DataDestinationCreatedEvent } from '../events/data-destination-created.event';
 import { DataDestinationCredentialsValidatorFacade } from '../data-destination-types/facades/data-destination-credentials-validator.facade';
 import { DataDestinationCredentialsProcessorFacade } from '../data-destination-types/facades/data-destination-credentials-processor.facade';
+import { GoogleSheetsFolderValidator } from '../data-destination-types/google-sheets/services/google-sheets-folder-validator.service';
 import { DataDestinationCredentialService } from '../services/data-destination-credential.service';
 import { GoogleOAuthClientService } from '../services/google-oauth/google-oauth-client.service';
 import {
@@ -47,7 +48,8 @@ export class CreateDataDestinationService {
     private readonly destinationOwnerRepository: Repository<DestinationOwner>,
     private readonly idpProjectionsFacade: IdpProjectionsFacade,
     private readonly accessDecisionService: AccessDecisionService,
-    private readonly eventDispatcher: OwoxEventDispatcher
+    private readonly eventDispatcher: OwoxEventDispatcher,
+    private readonly folderValidator: GoogleSheetsFolderValidator
   ) {}
 
   @Transactional()
@@ -212,6 +214,10 @@ export class CreateDataDestinationService {
     savedEntity: DataDestination,
     command: CreateDataDestinationCommand
   ): Promise<DataDestinationDto> {
+    // Fail fast (and roll back) if a configured Drive folder is not usable for
+    // service-account auto-creation.
+    await this.folderValidator.validateConfiguredFolder(savedEntity);
+
     this.eventDispatcher.publishLocalOnCommit(
       new DataDestinationCreatedEvent(
         savedEntity.id,
