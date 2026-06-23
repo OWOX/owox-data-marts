@@ -74,6 +74,7 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
                 'docs/getting-started/setup-guide/joinable-data-marts',
                 'docs/getting-started/setup-guide/connector-triggers',
                 'docs/getting-started/setup-guide/report-triggers',
+                'docs/getting-started/setup-guide/mcp',
                 {
                   label: 'Self-Managed Authentication',
                   collapsed: true,
