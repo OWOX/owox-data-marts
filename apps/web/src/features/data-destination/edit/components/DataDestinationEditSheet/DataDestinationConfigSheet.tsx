@@ -125,41 +125,41 @@ export function DataDestinationConfigSheet({
   }, [isOpen, dataDestination, mode]);
 
   return (
-    <>
-      <Sheet
-        open={isOpen}
-        onOpenChange={open => {
-          if (!open) {
-            handleClose();
-          }
-        }}
-      >
-        <SheetContent data-testid='destEditSheet'>
-          <SheetHeader>
-            <SheetTitle>Configure destination</SheetTitle>
-            <SheetDescription>Customize settings for your destination</SheetDescription>
-          </SheetHeader>
-          <DataDestinationForm
-            initialData={dataDestination ?? initialFormData ?? null}
-            onSubmit={onSave}
-            onCancel={handleClose}
-            onDirtyChange={handleFormDirtyChange}
-            isEditMode={!!dataDestination}
-            allowedDestinationTypes={allowedDestinationTypes}
-            destinationId={dataDestination?.id}
-          />
-        </SheetContent>
-      </Sheet>
-      <ConfirmationDialog
-        open={showUnsavedDialog}
-        onOpenChange={setShowUnsavedDialog}
-        title='Unsaved Changes'
-        description='You have unsaved changes. Exit without saving?'
-        confirmLabel='Yes, leave now'
-        cancelLabel='No, stay here'
-        onConfirm={confirmClose}
-        variant='destructive'
-      />
-    </>
+    <Sheet
+      open={isOpen}
+      onOpenChange={open => {
+        if (!open) {
+          handleClose();
+        }
+      }}
+    >
+      <SheetContent data-testid='destEditSheet'>
+        <SheetHeader>
+          <SheetTitle>Configure destination</SheetTitle>
+          <SheetDescription>Customize settings for your destination</SheetDescription>
+        </SheetHeader>
+        <DataDestinationForm
+          initialData={dataDestination ?? initialFormData ?? null}
+          onSubmit={onSave}
+          onCancel={handleClose}
+          onDirtyChange={handleFormDirtyChange}
+          isEditMode={!!dataDestination}
+          allowedDestinationTypes={allowedDestinationTypes}
+          destinationId={dataDestination?.id}
+        />
+        {/* Rendered inside SheetContent so Radix treats it as a nested dismissable layer;
+              interacting with it then doesn't dismiss the sheet (which caused a re-open loop). */}
+        <ConfirmationDialog
+          open={showUnsavedDialog}
+          onOpenChange={setShowUnsavedDialog}
+          title='Unsaved Changes'
+          description='You have unsaved changes. Exit without saving?'
+          confirmLabel='Yes, leave now'
+          cancelLabel='No, stay here'
+          onConfirm={confirmClose}
+          variant='destructive'
+        />
+      </SheetContent>
+    </Sheet>
   );
 }

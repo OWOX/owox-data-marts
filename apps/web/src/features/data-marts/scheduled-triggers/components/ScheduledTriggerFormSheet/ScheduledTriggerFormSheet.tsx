@@ -121,43 +121,42 @@ export function ScheduledTriggerFormSheet({
   }, [isOpen, isEditMode, selectedTrigger, preSelectedType]);
 
   return (
-    <>
-      <Sheet
-        open={isOpen}
-        onOpenChange={open => {
-          if (!open) {
-            handleClose();
-          }
-        }}
-      >
-        <SheetContent data-testid='triggerEditSheet'>
-          <SheetHeader>
-            <SheetTitle>{isEditMode ? 'Edit' : 'Create'} Scheduled Trigger</SheetTitle>
-            <SheetDescription>
-              Configure automatic runs for your reports or connectors.
-            </SheetDescription>
-          </SheetHeader>
-          <ScheduledTriggerForm
-            preSelectedReportId={preSelectedReportId}
-            preSelectedType={preSelectedType}
-            initialData={initialFormData}
-            onSubmit={handleSubmit}
-            onCancel={handleClose}
-            onDirtyChange={handleFormDirtyChange}
-          />
-        </SheetContent>
-      </Sheet>
-
-      <ConfirmationDialog
-        open={showUnsavedDialog}
-        onOpenChange={setShowUnsavedDialog}
-        title='Unsaved Changes'
-        description='You have unsaved changes. Exit without saving?'
-        confirmLabel='Yes, leave now'
-        cancelLabel='No, stay here'
-        onConfirm={confirmClose}
-        variant='destructive'
-      />
-    </>
+    <Sheet
+      open={isOpen}
+      onOpenChange={open => {
+        if (!open) {
+          handleClose();
+        }
+      }}
+    >
+      <SheetContent data-testid='triggerEditSheet'>
+        <SheetHeader>
+          <SheetTitle>{isEditMode ? 'Edit' : 'Create'} Scheduled Trigger</SheetTitle>
+          <SheetDescription>
+            Configure automatic runs for your reports or connectors.
+          </SheetDescription>
+        </SheetHeader>
+        <ScheduledTriggerForm
+          preSelectedReportId={preSelectedReportId}
+          preSelectedType={preSelectedType}
+          initialData={initialFormData}
+          onSubmit={handleSubmit}
+          onCancel={handleClose}
+          onDirtyChange={handleFormDirtyChange}
+        />
+        {/* Rendered inside SheetContent so Radix treats it as a nested dismissable layer;
+              interacting with it then doesn't dismiss the sheet (which caused a re-open loop). */}
+        <ConfirmationDialog
+          open={showUnsavedDialog}
+          onOpenChange={setShowUnsavedDialog}
+          title='Unsaved Changes'
+          description='You have unsaved changes. Exit without saving?'
+          confirmLabel='Yes, leave now'
+          cancelLabel='No, stay here'
+          onConfirm={confirmClose}
+          variant='destructive'
+        />
+      </SheetContent>
+    </Sheet>
   );
 }

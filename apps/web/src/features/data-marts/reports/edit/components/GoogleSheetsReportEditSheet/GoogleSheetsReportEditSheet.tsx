@@ -43,53 +43,52 @@ export function GoogleSheetsReportEditSheet({
   useIntercomLauncher(isOpen);
 
   return (
-    <>
-      <Sheet
-        open={isOpen}
-        onOpenChange={open => {
-          if (!open) {
-            handleClose();
-          }
-        }}
-      >
-        <SheetContent>
-          <SheetHeader>
-            <SheetTitle>
-              {mode === ReportFormMode.CREATE ? 'Create new report' : 'Edit report'}
-            </SheetTitle>
-            <SheetDescription>
-              {mode === ReportFormMode.CREATE
-                ? 'Fill in the details to create a new Google Sheets report'
-                : 'Update details of an existing Google Sheets report'}
-            </SheetDescription>
-          </SheetHeader>
+    <Sheet
+      open={isOpen}
+      onOpenChange={open => {
+        if (!open) {
+          handleClose();
+        }
+      }}
+    >
+      <SheetContent>
+        <SheetHeader>
+          <SheetTitle>
+            {mode === ReportFormMode.CREATE ? 'Create new report' : 'Edit report'}
+          </SheetTitle>
+          <SheetDescription>
+            {mode === ReportFormMode.CREATE
+              ? 'Fill in the details to create a new Google Sheets report'
+              : 'Update details of an existing Google Sheets report'}
+          </SheetDescription>
+        </SheetHeader>
 
-          <DataDestinationProvider>
-            <GoogleSheetsReportEditForm
-              initialReport={initialReport}
-              mode={mode}
-              onDirtyChange={handleFormDirtyChange}
-              onSubmit={() => {
-                void onSubmitSuccess?.();
-                handleFormSubmitSuccess();
-              }}
-              onCancel={handleClose}
-              preSelectedDestination={preSelectedDestination}
-            />
-          </DataDestinationProvider>
-        </SheetContent>
-      </Sheet>
-
-      <ConfirmationDialog
-        open={showUnsavedDialog}
-        onOpenChange={setShowUnsavedDialog}
-        title='Unsaved Changes'
-        description='You have unsaved changes. Exit without saving?'
-        confirmLabel='Yes, leave now'
-        cancelLabel='No, stay here'
-        onConfirm={confirmClose}
-        variant='destructive'
-      />
-    </>
+        <DataDestinationProvider>
+          <GoogleSheetsReportEditForm
+            initialReport={initialReport}
+            mode={mode}
+            onDirtyChange={handleFormDirtyChange}
+            onSubmit={() => {
+              void onSubmitSuccess?.();
+              handleFormSubmitSuccess();
+            }}
+            onCancel={handleClose}
+            preSelectedDestination={preSelectedDestination}
+          />
+        </DataDestinationProvider>
+        {/* Rendered inside SheetContent so Radix treats it as a nested dismissable layer;
+              interacting with it then doesn't dismiss the sheet (which caused a re-open loop). */}
+        <ConfirmationDialog
+          open={showUnsavedDialog}
+          onOpenChange={setShowUnsavedDialog}
+          title='Unsaved Changes'
+          description='You have unsaved changes. Exit without saving?'
+          confirmLabel='Yes, leave now'
+          cancelLabel='No, stay here'
+          onConfirm={confirmClose}
+          variant='destructive'
+        />
+      </SheetContent>
+    </Sheet>
   );
 }
