@@ -89,7 +89,7 @@ export class DataDestinationIndexableSource implements IndexableSource {
       repo: destinationRepo,
       joinAlias: DESTINATION_JOIN_ALIAS,
       joinSql: indexAlias =>
-        `JOIN data_destination ${DESTINATION_JOIN_ALIAS} ON ${DESTINATION_JOIN_ALIAS}.id = ${indexAlias}.entity_id`,
+        `JOIN data_destination ${DESTINATION_JOIN_ALIAS} ON ${DESTINATION_JOIN_ALIAS}.id = ${indexAlias}.entity_id AND ${DESTINATION_JOIN_ALIAS}.projectId = ${indexAlias}.project_id`,
       extraClauses: [`${DESTINATION_JOIN_ALIAS}.deletedAt IS NULL`],
       applyFilter: (qb, { projectId, userId, roles, roleScope }) =>
         applyDataDestinationVisibilityFilter(qb, {

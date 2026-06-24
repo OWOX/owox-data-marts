@@ -37,6 +37,7 @@ export interface SearchCandidatesOptions {
 }
 
 export interface SearchIndexState {
+  projectId: string;
   docHash: string;
   embeddingStatus: EmbeddingStatus;
 }
@@ -185,10 +186,11 @@ export class SearchIndexRepository {
     for (const idChunk of chunk(ids, MAX_IN_PARAMS)) {
       const rows = await repo.find({
         where: { entityId: In(idChunk) },
-        select: { entityId: true, docHash: true, embeddingStatus: true },
+        select: { entityId: true, projectId: true, docHash: true, embeddingStatus: true },
       });
       for (const r of rows) {
         map.set(r.entityId, {
+          projectId: r.projectId,
           docHash: r.docHash,
           embeddingStatus: r.embeddingStatus === 'READY' ? 'READY' : 'MISSING',
         });
@@ -207,6 +209,7 @@ export class SearchIndexRepository {
         `NOT EXISTS (
            SELECT 1 FROM ${entityTable} e
            WHERE e.id = ${indexTable}.entity_id
+             AND e.projectId = ${indexTable}.project_id
              AND e.deletedAt IS NULL
          )`
       );
@@ -221,6 +224,15 @@ export class SearchIndexRepository {
 
   async deleteByEntityId(entityType: SearchableEntityType, entityId: string): Promise<number> {
     const result = await this.repoFor(entityType).delete({ entityId });
+    return result.affected ?? 0;
+  }
+
+  async deleteByEntityIdAndProjectId(
+    entityType: SearchableEntityType,
+    entityId: string,
+    projectId: string
+  ): Promise<number> {
+    const result = await this.repoFor(entityType).delete({ entityId, projectId });
     return result.affected ?? 0;
   }
 

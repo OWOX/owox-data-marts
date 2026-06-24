@@ -36,10 +36,12 @@ export function scoreEntity(
   const w = config.keywordSlotWeights;
   let totalCredit = 0;
   for (const token of promptTokens) {
-    if (matchesAny(token, titleTokens)) totalCredit += w.title;
-    else if (matchesAny(token, contextTokens)) totalCredit += w.context;
-    else if (matchesAny(token, fieldTokens)) totalCredit += w.field;
-    else if (matchesAny(token, descTokens)) totalCredit += w.description;
+    totalCredit += Math.max(
+      matchesAny(token, titleTokens) ? w.title : 0,
+      matchesAny(token, contextTokens) ? w.context : 0,
+      matchesAny(token, fieldTokens) ? w.field : 0,
+      matchesAny(token, descTokens) ? w.description : 0
+    );
   }
 
   return Math.min(config.maxKeywordScore, Math.round((totalCredit / promptTokens.length) * 100));

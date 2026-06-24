@@ -67,7 +67,7 @@ describe('scoreEntity — slot weights and priority ordering', () => {
     expect(scoreEntity(d, tokens('revenue'), cfg)).toBe(80);
   });
 
-  it('first-match-wins: title wins over context', () => {
+  it('uses strongest matching slot: title wins over context', () => {
     const d = makeDescriptor({
       title: 'Revenue Report',
       richTextSlots: [
@@ -79,7 +79,7 @@ describe('scoreEntity — slot weights and priority ordering', () => {
     expect(scoreEntity(d, tokens('revenue'), cfg)).toBe(100);
   });
 
-  it('first-match-wins: context wins over field (context before field in else-if chain)', () => {
+  it('uses strongest matching slot: field wins over context', () => {
     const d = makeDescriptor({
       title: 'Alpha',
       richTextSlots: [
@@ -89,10 +89,10 @@ describe('scoreEntity — slot weights and priority ordering', () => {
       ],
       atomicTokenSlots: [{ kind: 'field', text: 'revenue' }],
     });
-    expect(scoreEntity(d, tokens('revenue'), cfg)).toBe(60);
+    expect(scoreEntity(d, tokens('revenue'), cfg)).toBe(80);
   });
 
-  it('first-match-wins: field wins over description', () => {
+  it('uses strongest matching slot: field wins over description', () => {
     const d = makeDescriptor({
       title: 'Alpha',
       description: 'contains revenue data',

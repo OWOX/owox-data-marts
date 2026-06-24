@@ -36,8 +36,14 @@ function buildProvider(
 
 describe('LocalTransformersEmbeddingProvider', () => {
   describe('import failure', () => {
-    it('returns nulls for every text, logs exactly one warning, does not re-import on second call', async () => {
-      const importer = jest.fn().mockRejectedValue(new Error('ERR_MODULE_NOT_FOUND'));
+    it('returns nulls for every text and retries loading on the next call', async () => {
+      const fakeVec = new Float32Array(EMBEDDING_DIMENSIONS).fill(0.1);
+      const fakePipe = jest.fn().mockResolvedValue({ data: fakeVec });
+      const fakePipelineFactory = jest.fn().mockResolvedValue(fakePipe);
+      const importer = jest
+        .fn()
+        .mockRejectedValueOnce(new Error('ERR_MODULE_NOT_FOUND'))
+        .mockResolvedValue({ pipeline: fakePipelineFactory, env: {} });
       const provider = buildProvider(importer);
 
       const warnSpy = jest.spyOn(provider['logger'], 'warn').mockImplementation(() => undefined);
@@ -51,9 +57,9 @@ describe('LocalTransformersEmbeddingProvider', () => {
       expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('ERR_MODULE_NOT_FOUND'));
 
       const second = await provider.embed(['foo']);
-      expect(second).toEqual([null]);
+      expect(second[0]).toBeInstanceOf(Float32Array);
 
-      expect(importer).toHaveBeenCalledTimes(1);
+      expect(importer).toHaveBeenCalledTimes(2);
       expect(warnSpy).toHaveBeenCalledTimes(1);
     });
   });

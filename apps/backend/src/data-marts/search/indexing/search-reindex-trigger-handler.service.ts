@@ -88,9 +88,9 @@ abstract class BaseSearchProjectReindexTriggerHandler<
       trigger.projectId,
       options?.signal
     );
-    if (!options?.signal?.aborted && stats.errors > 0) {
+    if (!options?.signal?.aborted && (stats.errors > 0 || stats.embedFailed > 0)) {
       throw new Error(
-        `search project reindex failed for ${this.entityType} project=${trigger.projectId}: errors=${stats.errors}`
+        `search project reindex failed for ${this.entityType} project=${trigger.projectId}: errors=${stats.errors}, embedFailed=${stats.embedFailed}`
       );
     }
   }

@@ -79,6 +79,7 @@ describe('SearchIndexerService', () => {
       | 'upsertMany'
       | 'listIndexStateByIds'
       | 'deleteByEntityId'
+      | 'deleteByEntityIdAndProjectId'
       | 'deleteByEntityIds'
       | 'deleteOrphans'
     >
@@ -114,6 +115,7 @@ describe('SearchIndexerService', () => {
       upsertMany: jest.fn().mockResolvedValue(undefined),
       listIndexStateByIds: jest.fn().mockResolvedValue(new Map()),
       deleteByEntityId: jest.fn().mockResolvedValue(1),
+      deleteByEntityIdAndProjectId: jest.fn().mockResolvedValue(1),
       deleteByEntityIds: jest.fn().mockResolvedValue(1),
       deleteOrphans: jest.fn().mockResolvedValue(0),
     };
@@ -161,7 +163,7 @@ describe('SearchIndexerService', () => {
       );
     });
 
-    it('deletes the existing index row instead of upserting when embedding is unavailable', async () => {
+    it('preserves the existing index row when embedding is unavailable', async () => {
       const descriptor = makeDescriptor();
       source.loadSearchableOne.mockResolvedValue(descriptor);
       provider.embed.mockResolvedValue([null]);
@@ -169,19 +171,21 @@ describe('SearchIndexerService', () => {
       await service.reindexEntity(SearchableEntityType.DATA_MART, 'dm-1');
 
       expect(repository.upsert).not.toHaveBeenCalled();
-      expect(repository.deleteByEntityId).toHaveBeenCalledWith(
-        SearchableEntityType.DATA_MART,
-        'dm-1'
-      );
+      expect(repository.deleteByEntityId).not.toHaveBeenCalled();
     });
 
-    it('skips when the provided projectId does not match the descriptor', async () => {
+    it('deletes only the stale row for the provided project when projectId does not match the descriptor', async () => {
       const descriptor = makeDescriptor({ projectId: 'proj-1' });
       source.loadSearchableOne.mockResolvedValue(descriptor);
 
       await service.reindexEntity(SearchableEntityType.DATA_MART, 'dm-1', 'other-proj');
 
       expect(repository.upsert).not.toHaveBeenCalled();
+      expect(repository.deleteByEntityIdAndProjectId).toHaveBeenCalledWith(
+        SearchableEntityType.DATA_MART,
+        'dm-1',
+        'other-proj'
+      );
     });
 
     it('skips silently when the source is not registered', async () => {
@@ -230,7 +234,7 @@ describe('SearchIndexerService', () => {
       const hash = docHash('test-model', indexSignature(descriptor));
       source.listSearchablePage.mockResolvedValueOnce(makePage([descriptor]));
       repository.listIndexStateByIds.mockResolvedValue(
-        new Map([['dm-1', { docHash: hash, embeddingStatus: 'READY' }]])
+        new Map([['dm-1', { projectId: 'proj-1', docHash: hash, embeddingStatus: 'READY' }]])
       );
 
       const stats = await service.syncTypeProject(SearchableEntityType.DATA_MART, 'proj-1');
@@ -246,7 +250,7 @@ describe('SearchIndexerService', () => {
       const hash = docHash('test-model', indexSignature(descriptor));
       source.listSearchablePage.mockResolvedValueOnce(makePage([descriptor]));
       repository.listIndexStateByIds.mockResolvedValue(
-        new Map([['dm-1', { docHash: hash, embeddingStatus: 'MISSING' }]])
+        new Map([['dm-1', { projectId: 'proj-1', docHash: hash, embeddingStatus: 'MISSING' }]])
       );
 
       const stats = await service.syncTypeProject(SearchableEntityType.DATA_MART, 'proj-1');
@@ -274,7 +278,7 @@ describe('SearchIndexerService', () => {
       );
       source.listSearchablePage.mockResolvedValueOnce(makePage([descriptor]));
       repository.listIndexStateByIds.mockResolvedValue(
-        new Map([['dm-1', { docHash: staleHash, embeddingStatus: 'READY' }]])
+        new Map([['dm-1', { projectId: 'proj-1', docHash: staleHash, embeddingStatus: 'READY' }]])
       );
 
       await service.syncTypeProject(SearchableEntityType.DATA_MART, 'proj-1');
@@ -323,7 +327,22 @@ describe('SearchIndexerService', () => {
       expect(provider.embed).not.toHaveBeenCalled();
     });
 
-    it('deletes entityIds whose embed returns null', async () => {
+    it('re-indexes a descriptor whose stored projectId is stale', async () => {
+      const descriptor = makeDescriptor();
+      const hash = docHash('test-model', indexSignature(descriptor));
+      source.listSearchablePage.mockResolvedValueOnce(makePage([descriptor]));
+      repository.listIndexStateByIds.mockResolvedValue(
+        new Map([['dm-1', { projectId: 'old-proj', docHash: hash, embeddingStatus: 'READY' }]])
+      );
+
+      const stats = await service.syncTypeProject(SearchableEntityType.DATA_MART, 'proj-1');
+
+      expect(provider.embed).toHaveBeenCalledTimes(1);
+      expect(repository.upsertMany).toHaveBeenCalledTimes(1);
+      expect(stats.indexed).toBe(1);
+    });
+
+    it('preserves existing index rows whose embed returns null', async () => {
       const descriptor = makeDescriptor();
       source.listSearchablePage.mockResolvedValueOnce(makePage([descriptor]));
       provider.embed.mockResolvedValue([null]);
@@ -331,9 +350,7 @@ describe('SearchIndexerService', () => {
       const stats = await service.syncTypeProject(SearchableEntityType.DATA_MART, 'proj-1');
 
       expect(repository.upsertMany).not.toHaveBeenCalled();
-      expect(repository.deleteByEntityIds).toHaveBeenCalledWith(SearchableEntityType.DATA_MART, [
-        'dm-1',
-      ]);
+      expect(repository.deleteByEntityIds).not.toHaveBeenCalled();
       expect(stats.embedFailed).toBe(1);
     });
 

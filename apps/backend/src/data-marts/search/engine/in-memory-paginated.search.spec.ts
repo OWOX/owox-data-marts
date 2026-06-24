@@ -239,7 +239,9 @@ describe('InMemoryPaginatedSearch', () => {
       expect(results).toEqual([]);
     });
 
-    it('returns empty without querying candidates when prompt embedding is unavailable', async () => {
+    it('queries candidates without promptVec when prompt embedding is unavailable', async () => {
+      const descriptor = makeDescriptor({ entityId: 'dm-1', title: 'Revenue' });
+      repository.searchCandidates.mockResolvedValue(makeSinglePage([makeIndexRow(descriptor)]));
       const warnSpy = jest.spyOn(search['logger'], 'warn').mockImplementation(() => undefined);
 
       const results = await search.search(
@@ -250,9 +252,24 @@ describe('InMemoryPaginatedSearch', () => {
         DEFAULT_OPTIONS
       );
 
-      expect(results).toEqual([]);
-      expect(repository.searchCandidates).not.toHaveBeenCalled();
-      expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('prompt embedding unavailable'));
+      expect(results).toHaveLength(1);
+      expect(results[0]).toEqual(
+        expect.objectContaining({
+          entityId: 'dm-1',
+          kwScore: 100,
+          vecScore: null,
+          relevance: 100,
+          finalScore: 100,
+        })
+      );
+      expect(repository.searchCandidates).toHaveBeenCalledWith(
+        SearchableEntityType.DATA_MART,
+        'proj-1',
+        NO_PREDICATE,
+        'revenue',
+        expect.objectContaining({ promptVec: null })
+      );
+      expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('using keyword fallback'));
 
       warnSpy.mockRestore();
     });
@@ -280,7 +297,7 @@ describe('InMemoryPaginatedSearch', () => {
       expect(results[0].finalScore).toBe(100 + results[0].extendability);
     });
 
-    it('scores context match at 60 for a single-token prompt (context before field in else-if chain)', async () => {
+    it('uses the strongest matching slot weight for a single-token prompt', async () => {
       const descriptor = makeDescriptor({
         entityId: 'dm-1',
         title: 'Alpha',
@@ -301,7 +318,7 @@ describe('InMemoryPaginatedSearch', () => {
         DEFAULT_OPTIONS
       );
 
-      expect(results[0].kwScore).toBe(60);
+      expect(results[0].kwScore).toBe(80);
     });
 
     it('scores field match at 80 when only field contains the token', async () => {
@@ -406,7 +423,7 @@ describe('InMemoryPaginatedSearch', () => {
       expect(results).toEqual([]);
     });
 
-    it('returns empty when promptVec is null even if rows have embeddings', async () => {
+    it('uses keyword-only relevance when promptVec is null even if rows have embeddings', async () => {
       const descriptor = makeDescriptor({ entityId: 'dm-1', title: 'Revenue' });
       const row = makeIndexRow(descriptor, unitVec([1, 0, 0]));
       repository.searchCandidates.mockResolvedValue(makeSinglePage([row]));
@@ -419,7 +436,34 @@ describe('InMemoryPaginatedSearch', () => {
         DEFAULT_OPTIONS
       );
 
-      expect(results).toEqual([]);
+      expect(results).toHaveLength(1);
+      expect(results[0]).toEqual(
+        expect.objectContaining({
+          entityId: 'dm-1',
+          kwScore: 100,
+          vecScore: null,
+          relevance: 100,
+          finalScore: 100,
+        })
+      );
+    });
+
+    it('clamps negative cosine similarity to zero vecScore', async () => {
+      const descriptor = makeDescriptor({ entityId: 'dm-1', title: 'Revenue' });
+      repository.searchCandidates.mockResolvedValue(
+        makeSinglePage([makeIndexRow(descriptor, unitVec([-1, 0, 0]))])
+      );
+
+      const results = await search.search(
+        SearchableEntityType.DATA_MART,
+        'proj-1',
+        'revenue',
+        unitVec([1, 0, 0]),
+        DEFAULT_OPTIONS
+      );
+
+      expect(results[0].vecScore).toBe(0);
+      expect(results[0].relevance).toBe(Math.round(100 * DATA_MART_SCORING_CONFIG.kwBlendWeight));
     });
 
     it('low cosine similarity produces lower vecScore than perfect match', async () => {

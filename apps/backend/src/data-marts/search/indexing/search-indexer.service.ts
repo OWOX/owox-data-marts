@@ -47,6 +47,7 @@ export class SearchIndexerService {
     }
     if (projectId && descriptor.projectId !== projectId) {
       this.logger.debug(`reindexEntity: ${entityType} ${entityId} project mismatch, skipping`);
+      await this.repository.deleteByEntityIdAndProjectId(entityType, entityId, projectId);
       return;
     }
 
@@ -101,7 +102,12 @@ export class SearchIndexerService {
 
       const stale = prepared.filter(({ descriptor, hash }) => {
         const state = existingState.get(descriptor.entityId);
-        return !state || state.docHash !== hash || state.embeddingStatus !== 'READY';
+        return (
+          !state ||
+          state.projectId !== descriptor.projectId ||
+          state.docHash !== hash ||
+          state.embeddingStatus !== 'READY'
+        );
       });
 
       stats.skipped += prepared.length - stale.length;
@@ -113,13 +119,11 @@ export class SearchIndexerService {
         const vecs = await this.provider.embed(embTexts, { inputType: 'search_document' });
         const now = new Date();
         const rows: SearchIndexRow[] = [];
-        const failed: EntityScoringDescriptor[] = [];
 
         stale.forEach(({ descriptor, document, hash }, j) => {
           const vec = vecs[j] ?? null;
           if (vec === null) {
             stats.embedFailed++;
-            failed.push(descriptor);
             return;
           }
 
@@ -137,12 +141,6 @@ export class SearchIndexerService {
 
         if (rows.length > 0) {
           await this.repository.upsertMany(entityType, rows);
-        }
-        if (failed.length > 0) {
-          await this.repository.deleteByEntityIds(
-            entityType,
-            failed.map(descriptor => descriptor.entityId)
-          );
         }
         stats.indexed += rows.length;
       } catch (err) {
@@ -179,7 +177,6 @@ export class SearchIndexerService {
       this.logger.warn(
         `reindexEntity: ${entityType} ${descriptor.entityId} not indexed because embedding could not be generated`
       );
-      await this.repository.deleteByEntityId(entityType, descriptor.entityId);
       return;
     }
 

@@ -250,8 +250,16 @@ describe('SearchIndexRepository', () => {
       const map = await repo.listIndexStateByIds(DATA_MART, ['dm-1', 'dm-2', 'nope']);
 
       expect(map.size).toBe(2);
-      expect(map.get('dm-1')).toEqual({ docHash: 'h1', embeddingStatus: 'MISSING' });
-      expect(map.get('dm-2')).toEqual({ docHash: 'h2', embeddingStatus: 'READY' });
+      expect(map.get('dm-1')).toEqual({
+        projectId: 'proj-1',
+        docHash: 'h1',
+        embeddingStatus: 'MISSING',
+      });
+      expect(map.get('dm-2')).toEqual({
+        projectId: 'proj-1',
+        docHash: 'h2',
+        embeddingStatus: 'READY',
+      });
       expect(map.has('nope')).toBe(false);
     });
   });
@@ -360,9 +368,46 @@ describe('SearchIndexRepository', () => {
       expect(state.has(savedMart.id)).toBe(true);
     });
 
+    it('removes index rows whose live entity moved to a different project', async () => {
+      const storage = storageRepo.create();
+      storage.type = DataStorageType.GOOGLE_BIGQUERY;
+      storage.projectId = 'proj-2';
+      storage.createdById = 'user-1';
+      const savedStorage = await storageRepo.save(storage);
+
+      const mart = martRepo.create();
+      mart.title = 'Moved Mart';
+      mart.projectId = 'proj-2';
+      mart.status = DataMartStatus.PUBLISHED;
+      mart.createdById = 'user-1';
+      mart.storage = savedStorage;
+      const savedMart = await martRepo.save(mart);
+
+      await repo.upsert(DATA_MART, makeRow({ entityId: savedMart.id, projectId: 'proj-1' }));
+
+      const deleted = await repo.deleteOrphans(DATA_MART, 'proj-1');
+      expect(deleted).toBe(1);
+
+      const state = await repo.listIndexStateByIds(DATA_MART, [savedMart.id]);
+      expect(state.has(savedMart.id)).toBe(false);
+    });
+
     it('returns 0 when the index table is empty', async () => {
       const deleted = await repo.deleteOrphans(DATA_MART);
       expect(deleted).toBe(0);
+    });
+  });
+
+  describe('deleteByEntityIdAndProjectId', () => {
+    it('deletes only the row that matches both entityId and projectId', async () => {
+      await repo.upsert(DATA_MART, makeRow({ entityId: 'dm-1', projectId: 'proj-1' }));
+      await repo.upsert(DATA_MART, makeRow({ entityId: 'dm-2', projectId: 'proj-2' }));
+
+      const deleted = await repo.deleteByEntityIdAndProjectId(DATA_MART, 'dm-1', 'proj-2');
+      expect(deleted).toBe(0);
+
+      const state = await repo.listIndexStateByIds(DATA_MART, ['dm-1', 'dm-2']);
+      expect([...state.keys()]).toEqual(['dm-1', 'dm-2']);
     });
   });
 

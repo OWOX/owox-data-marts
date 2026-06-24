@@ -334,5 +334,19 @@ describe('Search reindex trigger handlers', () => {
         'search project reindex failed'
       );
     });
+
+    it('throws when syncTypeProject reports embedding failures', async () => {
+      indexer.syncTypeProject.mockResolvedValue({
+        indexed: 0,
+        skipped: 0,
+        embedFailed: 2,
+        errors: 0,
+        deletedOrphans: 0,
+      });
+
+      await expect(dataMartProjectHandler.handleTrigger(makeProjectTrigger())).rejects.toThrow(
+        'search project reindex failed'
+      );
+    });
   });
 });

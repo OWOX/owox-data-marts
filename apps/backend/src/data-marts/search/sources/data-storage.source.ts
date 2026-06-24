@@ -81,7 +81,7 @@ export class DataStorageIndexableSource implements IndexableSource {
       repo: dataStorageRepo,
       joinAlias: STORAGE_JOIN_ALIAS,
       joinSql: indexAlias =>
-        `JOIN data_storage ${STORAGE_JOIN_ALIAS} ON ${STORAGE_JOIN_ALIAS}.id = ${indexAlias}.entity_id`,
+        `JOIN data_storage ${STORAGE_JOIN_ALIAS} ON ${STORAGE_JOIN_ALIAS}.id = ${indexAlias}.entity_id AND ${STORAGE_JOIN_ALIAS}.projectId = ${indexAlias}.project_id`,
       extraClauses: [`${STORAGE_JOIN_ALIAS}.deletedAt IS NULL`],
       applyFilter: (qb, { projectId, userId, roles, roleScope }) =>
         applyDataStorageVisibilityFilter(qb, {

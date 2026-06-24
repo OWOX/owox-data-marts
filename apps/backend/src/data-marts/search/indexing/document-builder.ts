@@ -62,7 +62,7 @@ export function indexSignature(
   descriptor: EntityScoringDescriptor,
   document: string = buildDocument(descriptor)
 ): string {
-  return `${document} ${descriptor.fieldCount} ${descriptor.isDraft ? 1 : 0}`;
+  return `${descriptor.projectId} ${document} ${descriptor.fieldCount} ${descriptor.isDraft ? 1 : 0}`;
 }
 
 export function docHash(modelId: string, doc: string): string {

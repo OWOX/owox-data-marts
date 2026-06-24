@@ -139,16 +139,23 @@ describe('AdvancedSearchService', () => {
     expect(results[1].entityId).toBe('dm-b');
   });
 
-  it('returns empty without searching when prompt embedding is unavailable', async () => {
+  it('continues searching with keyword fallback when prompt embedding is unavailable', async () => {
     provider.embed.mockResolvedValue([null]);
     vectorSearch.search.mockResolvedValue([makeScoredEntity('dm-1', 'Revenue')]);
     const warnSpy = jest.spyOn(service['logger'], 'warn').mockImplementation(() => undefined);
 
     const results = await service.search('proj-1', 'revenue', DEFAULT_SEARCH_OPTIONS);
 
-    expect(results).toEqual([]);
-    expect(vectorSearch.search).not.toHaveBeenCalled();
-    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('prompt embedding unavailable'));
+    expect(results).toHaveLength(1);
+    expect(results[0].entityId).toBe('dm-1');
+    expect(vectorSearch.search).toHaveBeenCalledWith(
+      SearchableEntityType.DATA_MART,
+      'proj-1',
+      'revenue',
+      null,
+      expect.any(Object)
+    );
+    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('using keyword fallback'));
 
     warnSpy.mockRestore();
   });

@@ -39,7 +39,7 @@ export class DataMartIndexableSource implements IndexableSource {
       repo: dataMartRepo,
       joinAlias: DATA_MART_JOIN_ALIAS,
       joinSql: indexAlias =>
-        `JOIN data_mart ${DATA_MART_JOIN_ALIAS} ON ${DATA_MART_JOIN_ALIAS}.id = ${indexAlias}.entity_id`,
+        `JOIN data_mart ${DATA_MART_JOIN_ALIAS} ON ${DATA_MART_JOIN_ALIAS}.id = ${indexAlias}.entity_id AND ${DATA_MART_JOIN_ALIAS}.projectId = ${indexAlias}.project_id`,
       extraClauses: [`${DATA_MART_JOIN_ALIAS}.deletedAt IS NULL`],
       extraParameters: {},
       applyFilter: (qb, { projectId, userId, roles, roleScope }) =>

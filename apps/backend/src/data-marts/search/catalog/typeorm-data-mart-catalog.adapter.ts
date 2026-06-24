@@ -163,15 +163,18 @@ export class TypeOrmDataMartCatalogAdapter implements DataMartCatalogPort {
 
   async listOutboundEdgesFor(sourceIds: string[]): Promise<RelationshipEdge[]> {
     if (sourceIds.length === 0) return [];
-    const relationships = await this.relationshipRepo
-      .createQueryBuilder('rel')
-      .innerJoinAndSelect('rel.sourceDataMart', 'src')
-      .innerJoinAndSelect('rel.targetDataMart', 'tgt')
-      .where('src.id IN (:...ids)', { ids: sourceIds })
-      .getMany();
-    return relationships.map(r => ({
-      sourceDataMartId: r.sourceDataMart.id,
-      targetDataMartId: r.targetDataMart.id,
+    const rows: Array<{ sourceDataMartId: string; targetDataMartId: string }> =
+      await this.relationshipRepo
+        .createQueryBuilder('rel')
+        .innerJoin('rel.sourceDataMart', 'src')
+        .innerJoin('rel.targetDataMart', 'tgt')
+        .select('src.id', 'sourceDataMartId')
+        .addSelect('tgt.id', 'targetDataMartId')
+        .where('src.id IN (:...ids)', { ids: sourceIds })
+        .getRawMany();
+    return rows.map(r => ({
+      sourceDataMartId: r.sourceDataMartId,
+      targetDataMartId: r.targetDataMartId,
     }));
   }
 

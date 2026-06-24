@@ -30,7 +30,8 @@ export interface PageCursor {
 }
 
 export function toCursorTimestamp(createdAt: Date): string {
-  return createdAt.toISOString().slice(0, 19).replace('T', ' ');
+  const timestamp = createdAt.toISOString().replace('T', ' ').replace('Z', '');
+  return timestamp.endsWith('.000') ? timestamp.slice(0, 19) : timestamp;
 }
 
 type KeysetRow = { createdAt: Date; id: string };

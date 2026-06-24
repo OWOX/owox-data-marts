@@ -90,7 +90,12 @@ export class LocalTransformersEmbeddingProvider implements EmbeddingProvider {
 
   private resolvePipeline(): Promise<Pipe | null> {
     if (this.pipelinePromise === null) {
-      this.pipelinePromise = this.initPipeline();
+      this.pipelinePromise = this.initPipeline().then(pipe => {
+        if (pipe === null) {
+          this.pipelinePromise = null;
+        }
+        return pipe;
+      });
     }
     return this.pipelinePromise;
   }

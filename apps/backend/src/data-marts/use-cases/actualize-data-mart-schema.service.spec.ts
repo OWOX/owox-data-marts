@@ -20,7 +20,7 @@ describe('ActualizeDataMartSchemaService', () => {
     const dataMartService = {
       getByIdAndProjectId: jest.fn().mockResolvedValue(dataMart),
       actualizeSchemaInEntity: jest.fn().mockResolvedValue(undefined),
-      save: jest.fn().mockResolvedValue(dataMart),
+      saveActualizedSchema: jest.fn().mockResolvedValue(dataMart),
     };
 
     const definitionValidatorFacade = {
@@ -39,16 +39,11 @@ describe('ActualizeDataMartSchemaService', () => {
     const accessDecisionService = {
       canAccess: jest.fn().mockResolvedValue(true),
     };
-    const searchIndexInvalidation = {
-      scheduleDataMartSchemaChanged: jest.fn().mockResolvedValue(undefined),
-    };
-
     const service = new ActualizeDataMartSchemaService(
       dataMartService as any,
       definitionValidatorFacade as any,
       mapper as any,
-      accessDecisionService as any,
-      searchIndexInvalidation as any
+      accessDecisionService as any
     );
 
     return {
@@ -56,7 +51,6 @@ describe('ActualizeDataMartSchemaService', () => {
       dataMartService,
       definitionValidatorFacade,
       dataMart,
-      searchIndexInvalidation,
     };
   };
 
@@ -65,13 +59,7 @@ describe('ActualizeDataMartSchemaService', () => {
   });
 
   it('should actualize schema successfully when storage validation succeeds', async () => {
-    const {
-      service,
-      dataMartService,
-      definitionValidatorFacade,
-      dataMart,
-      searchIndexInvalidation,
-    } = createService({
+    const { service, dataMartService, definitionValidatorFacade, dataMart } = createService({
       isValid: true,
     });
     const command = new ActualizeDataMartSchemaCommand('dm-1', 'proj-1', 'user-1', ['editor']);
@@ -80,11 +68,7 @@ describe('ActualizeDataMartSchemaService', () => {
 
     expect(definitionValidatorFacade.checkIsValid).toHaveBeenCalledWith(dataMart);
     expect(dataMartService.actualizeSchemaInEntity).toHaveBeenCalledWith(dataMart);
-    expect(dataMartService.save).toHaveBeenCalledWith(dataMart);
-    expect(searchIndexInvalidation.scheduleDataMartSchemaChanged).toHaveBeenCalledWith(
-      'dm-1',
-      'proj-1'
-    );
+    expect(dataMartService.saveActualizedSchema).toHaveBeenCalledWith(dataMart);
     expect(result).toEqual({ id: 'dm-1' });
   });
 
@@ -96,6 +80,6 @@ describe('ActualizeDataMartSchemaService', () => {
 
     await expect(service.run(command)).rejects.toThrow(BusinessViolationException);
     expect(dataMartService.actualizeSchemaInEntity).not.toHaveBeenCalled();
-    expect(dataMartService.save).not.toHaveBeenCalled();
+    expect(dataMartService.saveActualizedSchema).not.toHaveBeenCalled();
   });
 });

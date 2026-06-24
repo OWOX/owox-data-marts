@@ -37,9 +37,8 @@ export class AdvancedSearchService implements SearchEngine {
     const promptVec = promptVecs[0] ?? null;
     if (promptVec === null) {
       this.logger.warn(
-        `advanced-search prompt embedding unavailable; search skipped projectId=${projectId}`
+        `advanced-search prompt embedding unavailable; using keyword fallback projectId=${projectId}`
       );
-      return [];
     }
 
     const topK = options.topK ?? this.config.topK;

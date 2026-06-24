@@ -180,6 +180,13 @@ describe('indexSignature — staleness over the full persisted representation', 
     expect(indexSignature(a)).not.toBe(indexSignature(b));
   });
 
+  it('changes when projectId changes even if embeddingText is unchanged', () => {
+    const a = descriptor({ projectId: 'proj-1' });
+    const b = descriptor({ projectId: 'proj-2' });
+    expect(embeddingText(a)).toBe(embeddingText(b));
+    expect(indexSignature(a)).not.toBe(indexSignature(b));
+  });
+
   it('is stable for identical descriptors', () => {
     expect(indexSignature(descriptor())).toBe(indexSignature(descriptor()));
   });

@@ -14,11 +14,10 @@ function scoreRow(
   row: StreamedIndexRow,
   entityType: SearchableEntityType,
   promptTokens: string[],
-  promptVec: Float32Array,
+  promptVec: Float32Array | null,
   config: ScoringConfig
 ): ScoredEntity | null {
   if (!row.document) return null;
-  if (!row.embedding) return null;
 
   let parsed: ReturnType<typeof parseDocument>;
   try {
@@ -44,13 +43,18 @@ function scoreRow(
 
   const kwScore = scoreEntity(descriptor, promptTokens, config);
 
-  const entityVec = bufferToVec(row.embedding);
-  const sim = cosineSim(promptVec, entityVec);
-  if (sim === null) return null;
-  const vecScore = Math.round(sim * 100);
-  const keywordsSimilarity = Math.round(
-    vecScore * config.vecBlendWeight + kwScore * config.kwBlendWeight
-  );
+  let vecScore: number | null = null;
+  let keywordsSimilarity = kwScore;
+  if (promptVec !== null) {
+    if (!row.embedding) return null;
+    const entityVec = bufferToVec(row.embedding);
+    const sim = cosineSim(promptVec, entityVec);
+    if (sim === null) return null;
+    vecScore = Math.round(Math.max(0, sim) * 100);
+    keywordsSimilarity = Math.round(
+      vecScore * config.vecBlendWeight + kwScore * config.kwBlendWeight
+    );
+  }
 
   const fieldCount = row.fieldCount ?? 0;
   const extendability = computeExtendability(fieldCount, config);
@@ -91,12 +95,11 @@ export class InMemoryPaginatedSearch implements VectorSearchPort {
     if (!source) return [];
     if (promptVec === null) {
       this.logger.warn(
-        this.formatLogLine('advanced-search prompt embedding unavailable; search skipped', {
+        this.formatLogLine('advanced-search prompt embedding unavailable; using keyword fallback', {
           entityType,
           projectId,
         })
       );
-      return [];
     }
 
     this.logger.log(
