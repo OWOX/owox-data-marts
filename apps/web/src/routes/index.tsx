@@ -21,6 +21,7 @@ import { ProjectRedirect } from '../components/ProjectRedirect';
 import { oauthRoutes } from './oauth.routes';
 import { RootErrorBoundary, LayoutErrorBoundary } from '../components/errors';
 import { MyApiKeysPage } from '../features/api-keys/pages/MyApiKeysPage';
+import { SearchPage } from '../pages/search/SearchPage';
 
 const routes: RouteObject[] = [
   {
@@ -93,6 +94,11 @@ const routes: RouteObject[] = [
       {
         path: 'data-destinations',
         element: <DataDestinationListPage />,
+        errorElement: <LayoutErrorBoundary />,
+      },
+      {
+        path: 'search',
+        element: <SearchPage />,
         errorElement: <LayoutErrorBoundary />,
       },
       {
