@@ -5,8 +5,9 @@ import { Repository } from 'typeorm';
 // @ts-expect-error - Package lacks TypeScript declarations
 import { Core } from '@owox/connectors';
 
-const { ConfigDto } = Core;
+const { ConfigDto, GENERATED_REFRESH_TOKEN_CREDENTIAL_FIELD } = Core;
 type ConfigDto = InstanceType<typeof Core.ConfigDto>;
+const GENERATED_REFRESH_TOKEN_MAX_LENGTH = 4096;
 
 import { ConnectorDefinition as DataMartConnectorDefinition } from '../../dto/schemas/data-mart-table-definitions/connector-definition.schema';
 import { DataMart } from '../../entities/data-mart.entity';
@@ -29,6 +30,7 @@ import { ConnectorProcessSpawnerService } from './connector-process-spawner.serv
 import { ConnectorStorageConfigService } from './connector-storage-config.service';
 import { ConnectorSourceConfigService } from './connector-source-config.service';
 import { ConnectorCredentialInjectorService } from './connector-credential-injector.service';
+import { ConnectorSourceCredentialsService } from './connector-source-credentials.service';
 import { addMessageToArray } from './connector-message.utils';
 
 interface ConfigurationExecutionResult {
@@ -56,7 +58,8 @@ export class ConnectorExecutorService {
     private readonly systemTimeService: SystemTimeService,
     private readonly eventDispatcher: OwoxEventDispatcher,
     private readonly projectBalanceService: ProjectBalanceService,
-    private readonly dataMartService: DataMartService
+    private readonly dataMartService: DataMartService,
+    private readonly connectorSourceCredentialsService: ConnectorSourceCredentialsService
   ) {}
 
   async executeInBackground(
@@ -225,6 +228,9 @@ export class ConnectorExecutorService {
       const configLogs: ConnectorMessage[] = [];
       const configErrors: ConnectorMessage[] = [];
       let success = false;
+      let credentialUpdates: Record<string, unknown> | undefined;
+      let configForCredentialUpdates = config as Record<string, unknown>;
+      let expectedCredentialValues: Record<string, unknown> | undefined;
 
       const logCaptureConfig = this.connectorOutputCaptureService.createCapture(
         (message: ConnectorMessage) => {
@@ -258,6 +264,9 @@ export class ConnectorExecutorService {
                     }
                   );
                 });
+              break;
+            case ConnectorMessageType.CREDENTIALS_UPDATE:
+              credentialUpdates = { ...(credentialUpdates ?? {}), ...message.credentials };
               break;
             case ConnectorMessageType.STATUS:
               if (message.status === Core.EXECUTION_STATUS.ERROR) {
@@ -309,6 +318,13 @@ export class ConnectorExecutorService {
           dataMart.projectId,
           connector.source.name,
           config as Record<string, unknown>
+        );
+        configForCredentialUpdates = refreshedConfig;
+        expectedCredentialValues = await this.getExpectedCredentialValues(
+          refreshedConfig,
+          dataMart,
+          runId,
+          configId
         );
 
         const configState = await this.connectorStateService.getState(dataMart.id, configId);
@@ -385,11 +401,203 @@ export class ConnectorExecutorService {
           }
         );
       } finally {
+        if (credentialUpdates) {
+          try {
+            await this.saveConnectorCredentials(
+              configForCredentialUpdates,
+              credentialUpdates,
+              expectedCredentialValues,
+              dataMart,
+              runId,
+              configId
+            );
+          } catch (error) {
+            success = false;
+            const errorMessage = error instanceof Error ? error.message : String(error);
+            const credentialErrorMessage = `Failed to update connector credentials: ${errorMessage}`;
+            addMessageToArray(configErrors, {
+              type: ConnectorMessageType.ERROR,
+              at: this.systemTimeService.now().toISOString(),
+              error: credentialErrorMessage,
+              toFormattedString: () => `[ERROR] ${credentialErrorMessage}`,
+            });
+          }
+        }
         configurationResults.push({ configIndex, success, logs: configLogs, errors: configErrors });
       }
     }
 
     return configurationResults;
+  }
+
+  private async saveConnectorCredentials(
+    config: Record<string, unknown>,
+    credentials: Record<string, unknown>,
+    expectedCredentialValues: Record<string, unknown> | undefined,
+    dataMart: DataMart,
+    runId: string,
+    configId: string
+  ): Promise<void> {
+    try {
+      const credentialUpdates = this.getAllowedCredentialUpdates(credentials);
+      const droppedCredentialKeys = Object.keys(credentials).filter(
+        key => !(key in credentialUpdates)
+      );
+
+      if (droppedCredentialKeys.length > 0) {
+        this.logger.warn(`Dropped unsupported connector credential updates`, {
+          dataMartId: dataMart.id,
+          projectId: dataMart.projectId,
+          runId,
+          configId,
+          credentialKeys: droppedCredentialKeys,
+        });
+      }
+
+      if (Object.keys(credentialUpdates).length === 0) {
+        return;
+      }
+
+      const credentialId = this.getCredentialIdForConfig(config);
+      if (!credentialId) {
+        this.logger.debug(`Skipping connector credential update: no credential reference found`, {
+          dataMartId: dataMart.id,
+          projectId: dataMart.projectId,
+          runId,
+          configId,
+          credentialKeys: Object.keys(credentials),
+        });
+        return;
+      }
+
+      if (expectedCredentialValues) {
+        await this.connectorSourceCredentialsService.updateCredentialFields(
+          credentialId,
+          dataMart.projectId,
+          credentialUpdates,
+          expectedCredentialValues
+        );
+      } else {
+        await this.connectorSourceCredentialsService.updateCredentialFields(
+          credentialId,
+          dataMart.projectId,
+          credentialUpdates
+        );
+      }
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      this.logger.error(
+        `Failed to update connector credentials: ${errorMessage}`,
+        (error as Error)?.stack,
+        {
+          dataMartId: dataMart.id,
+          projectId: dataMart.projectId,
+          runId,
+          configId,
+          error: errorMessage,
+          credentialKeys: Object.keys(credentials),
+        }
+      );
+      throw error;
+    }
+  }
+
+  private async getExpectedCredentialValues(
+    config: Record<string, unknown>,
+    dataMart: DataMart,
+    runId: string,
+    configId: string
+  ): Promise<Record<string, unknown> | undefined> {
+    const credentialId = this.getCredentialIdForConfig(config);
+    if (!credentialId) {
+      return undefined;
+    }
+
+    try {
+      const credentials =
+        await this.connectorSourceCredentialsService.getCredentialsById(credentialId);
+
+      if (!credentials || credentials.projectId !== dataMart.projectId) {
+        return undefined;
+      }
+
+      return {
+        [GENERATED_REFRESH_TOKEN_CREDENTIAL_FIELD]:
+          credentials.credentials?.[GENERATED_REFRESH_TOKEN_CREDENTIAL_FIELD],
+      };
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      this.logger.warn(`Failed to snapshot connector credentials before execution`, {
+        dataMartId: dataMart.id,
+        projectId: dataMart.projectId,
+        runId,
+        configId,
+        credentialId,
+        error: errorMessage,
+      });
+      return undefined;
+    }
+  }
+
+  private getAllowedCredentialUpdates(
+    credentials: Record<string, unknown>
+  ): Record<string, string> {
+    const generatedRefreshToken = credentials[GENERATED_REFRESH_TOKEN_CREDENTIAL_FIELD];
+
+    if (
+      typeof generatedRefreshToken !== 'string' ||
+      generatedRefreshToken.length === 0 ||
+      generatedRefreshToken.length > GENERATED_REFRESH_TOKEN_MAX_LENGTH
+    ) {
+      return {};
+    }
+
+    return { [GENERATED_REFRESH_TOKEN_CREDENTIAL_FIELD]: generatedRefreshToken };
+  }
+
+  private getCredentialIdForConfig(config: Record<string, unknown>): string | undefined {
+    const sourceCredentialId = this.findSourceCredentialId(config);
+    if (sourceCredentialId) {
+      return sourceCredentialId;
+    }
+
+    const secretsId = config._secrets_id;
+    if (typeof secretsId === 'string' && secretsId) {
+      return secretsId;
+    }
+
+    return undefined;
+  }
+
+  private findSourceCredentialId(value: unknown): string | undefined {
+    if (!value || typeof value !== 'object') {
+      return undefined;
+    }
+
+    if (Array.isArray(value)) {
+      for (const item of value) {
+        const credentialId = this.findSourceCredentialId(item);
+        if (credentialId) {
+          return credentialId;
+        }
+      }
+      return undefined;
+    }
+
+    const obj = value as Record<string, unknown>;
+    const credentialId = obj._source_credential_id;
+    if (typeof credentialId === 'string' && credentialId) {
+      return credentialId;
+    }
+
+    for (const item of Object.values(obj)) {
+      const nestedCredentialId = this.findSourceCredentialId(item);
+      if (nestedCredentialId) {
+        return nestedCredentialId;
+      }
+    }
+
+    return undefined;
   }
 
   private isSuccessfulConnectorStatus(status: number): boolean {

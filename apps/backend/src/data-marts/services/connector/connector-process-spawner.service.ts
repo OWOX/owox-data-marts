@@ -8,6 +8,9 @@ import { Core } from '@owox/connectors';
 type ConfigDto = InstanceType<typeof Core.ConfigDto>;
 type RunConfigDto = InstanceType<typeof Core.RunConfigDto>;
 
+const MAX_CAPTURED_LINE_LENGTH = 1024 * 1024;
+const TRUNCATED_OUTPUT_LINE = '[TRUNCATED connector output line: exceeded 1048576 bytes]';
+
 @Injectable()
 export class ConnectorProcessSpawnerService {
   private readonly logger = new Logger(ConnectorProcessSpawnerService.name);
@@ -26,19 +29,20 @@ export class ConnectorProcessSpawnerService {
     signal?: AbortSignal
   ): Promise<void> {
     return new Promise((resolve, reject) => {
-      let spawnStdio: 'inherit' | 'pipe' | Array<string | number> = 'inherit';
+      const spawnStdio = 'pipe' as const;
       let logCapture: {
         onStdout?: (message: string) => void;
         onStderr?: (message: string) => void;
       } | null = null;
       let onSpawn: ((pid: number | undefined) => void) | null = null;
+      let flushCapturedOutput: (() => void) | null = null;
 
       if (stdio && typeof stdio === 'object' && stdio.logCapture) {
         logCapture = stdio.logCapture;
-        spawnStdio = 'pipe';
-        if (typeof stdio.onSpawn === 'function') {
-          onSpawn = stdio.onSpawn;
-        }
+      }
+
+      if (stdio && typeof stdio === 'object' && typeof stdio.onSpawn === 'function') {
+        onSpawn = stdio.onSpawn;
       }
 
       const env = {
@@ -71,20 +75,30 @@ export class ConnectorProcessSpawnerService {
         }
       }
 
-      if (logCapture && node.stdout && node.stderr) {
+      if (node.stdout && node.stderr) {
+        const stdoutBuffer = this.createLineBuffer(message => logCapture?.onStdout?.(message));
+        const stderrBuffer = this.createLineBuffer(message => logCapture?.onStderr?.(message));
+
         node.stdout.on('data', data => {
-          const message = data.toString();
-          if (logCapture.onStdout) {
-            logCapture.onStdout(message);
-          }
+          stdoutBuffer.push(data.toString());
         });
 
         node.stderr.on('data', data => {
-          const message = data.toString();
-          if (logCapture.onStderr) {
-            logCapture.onStderr(message);
-          }
+          stderrBuffer.push(data.toString());
         });
+
+        node.stdout.on('end', () => {
+          stdoutBuffer.flush();
+        });
+
+        node.stderr.on('end', () => {
+          stderrBuffer.flush();
+        });
+
+        flushCapturedOutput = () => {
+          stdoutBuffer.flush();
+          stderrBuffer.flush();
+        };
       }
 
       if (signal) {
@@ -112,6 +126,8 @@ export class ConnectorProcessSpawnerService {
       }
 
       node.on('close', (code, closeSignal) => {
+        flushCapturedOutput?.();
+
         if (code === 0) {
           resolve();
           return;
@@ -141,5 +157,63 @@ export class ConnectorProcessSpawnerService {
         reject(error);
       });
     });
+  }
+
+  private createLineBuffer(onLine: (message: string) => void): {
+    push: (chunk: string) => void;
+    flush: () => void;
+  } {
+    let buffer = '';
+    let discardingOversizedLine = false;
+
+    const emit = (line: string): void => {
+      onLine(line.endsWith('\r') ? line.slice(0, -1) : line);
+    };
+
+    return {
+      push: (chunk: string): void => {
+        const parts = chunk.split('\n');
+
+        parts.forEach((part, index) => {
+          const isLastPart = index === parts.length - 1;
+
+          if (discardingOversizedLine) {
+            if (!isLastPart) {
+              discardingOversizedLine = false;
+              buffer = '';
+            }
+            return;
+          }
+
+          if (buffer.length + part.length > MAX_CAPTURED_LINE_LENGTH) {
+            emit(TRUNCATED_OUTPUT_LINE);
+            buffer = '';
+            discardingOversizedLine = isLastPart;
+            return;
+          }
+
+          buffer += part;
+
+          if (!isLastPart) {
+            emit(buffer);
+            buffer = '';
+          }
+        });
+      },
+      flush: (): void => {
+        if (discardingOversizedLine) {
+          discardingOversizedLine = false;
+          buffer = '';
+          return;
+        }
+
+        if (!buffer) {
+          return;
+        }
+
+        emit(buffer);
+        buffer = '';
+      },
+    };
   }
 }

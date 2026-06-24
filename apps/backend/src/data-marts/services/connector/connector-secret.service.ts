@@ -7,6 +7,7 @@ import { ConnectorSourceCredentialsService } from './connector-source-credential
 import { Core } from '@owox/connectors';
 
 export const SECRET_MASK = '**********' as const;
+const { GENERATED_REFRESH_TOKEN_CREDENTIAL_FIELD } = Core;
 
 @Injectable()
 /**
@@ -158,6 +159,75 @@ export class ConnectorSecretService {
     return false;
   }
 
+  private hasGeneratedRefreshTokenRecursively(obj: unknown): boolean {
+    if (!obj || typeof obj !== 'object') {
+      return false;
+    }
+
+    if (Array.isArray(obj)) {
+      return obj.some(item => this.hasGeneratedRefreshTokenRecursively(item));
+    }
+
+    for (const [key, value] of Object.entries(obj as Record<string, unknown>)) {
+      if (key === GENERATED_REFRESH_TOKEN_CREDENTIAL_FIELD) {
+        return true;
+      }
+      if (this.hasGeneratedRefreshTokenRecursively(value)) {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  private getGeneratedRefreshTokenValue(value: unknown): string | undefined {
+    if (!value || typeof value !== 'object') {
+      return undefined;
+    }
+
+    if (Array.isArray(value)) {
+      for (const item of value) {
+        const nestedValue = this.getGeneratedRefreshTokenValue(item);
+        if (nestedValue) {
+          return nestedValue;
+        }
+      }
+      return undefined;
+    }
+
+    for (const [key, nestedValue] of Object.entries(value as Record<string, unknown>)) {
+      if (
+        key === GENERATED_REFRESH_TOKEN_CREDENTIAL_FIELD &&
+        typeof nestedValue === 'string' &&
+        nestedValue
+      ) {
+        return nestedValue;
+      }
+
+      const nestedGeneratedRefreshToken = this.getGeneratedRefreshTokenValue(nestedValue);
+      if (nestedGeneratedRefreshToken) {
+        return nestedGeneratedRefreshToken;
+      }
+    }
+
+    return undefined;
+  }
+
+  private removeGeneratedRefreshTokenRecursively(value: unknown): void {
+    if (!value || typeof value !== 'object') {
+      return;
+    }
+
+    if (Array.isArray(value)) {
+      value.forEach(item => this.removeGeneratedRefreshTokenRecursively(item));
+      return;
+    }
+
+    const obj = value as Record<string, unknown>;
+    delete obj[GENERATED_REFRESH_TOKEN_CREDENTIAL_FIELD];
+    Object.values(obj).forEach(item => this.removeGeneratedRefreshTokenRecursively(item));
+  }
+
   /**
    * Injects secrets back into a configuration object at their original paths.
    * Paths are dot-separated strings like "AuthType.oauth2.RefreshToken".
@@ -167,6 +237,10 @@ export class ConnectorSecretService {
    */
   injectSecretsAtPaths(obj: Record<string, unknown>, secrets: Record<string, unknown>): void {
     for (const [path, value] of Object.entries(secrets)) {
+      if (path === GENERATED_REFRESH_TOKEN_CREDENTIAL_FIELD) {
+        continue;
+      }
+
       const parts = path.split('.');
       let current = obj;
 
@@ -214,9 +288,12 @@ export class ConnectorSecretService {
     userId?: string
   ): Promise<ConnectorDefinition> {
     const secretFieldNames = await this.getAllSecretFieldNames(connectorName);
+    const hasGeneratedRefreshToken = this.hasGeneratedRefreshTokenRecursively(
+      definition.connector.source.configuration
+    );
 
-    // If no secrets in spec, return definition as-is
-    if (secretFieldNames.size === 0) {
+    // If no secrets in spec and no runtime-generated secrets, return definition as-is
+    if (secretFieldNames.size === 0 && !hasGeneratedRefreshToken) {
       return definition;
     }
 
@@ -226,17 +303,24 @@ export class ConnectorSecretService {
         const configId = configItem._id as string;
 
         if (!configId) {
+          this.removeGeneratedRefreshTokenRecursively(configItem);
           return configItem;
         }
 
         // Skip items that use OAuth flow (they have _source_credential_id anywhere)
         // OAuth secrets are managed separately
         if (this.hasSourceCredentialIdRecursively(configItem)) {
+          this.removeGeneratedRefreshTokenRecursively(configItem);
           return configItem;
         }
 
         // Recursively extract secret values with their paths
         const secrets = this.extractSecretsRecursively(configItem, secretFieldNames);
+        const generatedRefreshToken = this.getGeneratedRefreshTokenValue(configItem);
+        if (generatedRefreshToken) {
+          secrets[GENERATED_REFRESH_TOKEN_CREDENTIAL_FIELD] = generatedRefreshToken;
+        }
+        this.removeGeneratedRefreshTokenRecursively(configItem);
 
         // If no secrets found, return as-is
         if (Object.keys(secrets).length === 0) {
@@ -323,6 +407,7 @@ export class ConnectorSecretService {
     }
 
     const maskedItem = { ...(item as Record<string, unknown>) };
+    delete maskedItem[GENERATED_REFRESH_TOKEN_CREDENTIAL_FIELD];
 
     // If this item has _source_credential_id, don't mask OAuth-related fields
     // because the actual secrets are stored separately in ConnectorSourceCredentials
@@ -432,7 +517,10 @@ export class ConnectorSecretService {
     if (!definition) return definition;
 
     const secretFieldNames = await this.getAllSecretFieldNames(definition.connector.source.name);
-    if (secretFieldNames.size === 0) {
+    const hasGeneratedRefreshToken = this.hasGeneratedRefreshTokenRecursively(
+      definition.connector.source.configuration
+    );
+    if (secretFieldNames.size === 0 && !hasGeneratedRefreshToken) {
       return definition;
     }
 
@@ -482,6 +570,10 @@ export class ConnectorSecretService {
    */
   private injectMasksAtPaths(obj: Record<string, unknown>, secrets: Record<string, unknown>): void {
     for (const path of Object.keys(secrets)) {
+      if (path === GENERATED_REFRESH_TOKEN_CREDENTIAL_FIELD) {
+        continue;
+      }
+
       const parts = path.split('.');
 
       // Navigate to the parent object, creating intermediate objects if needed
@@ -516,7 +608,8 @@ export class ConnectorSecretService {
    * If there are no secret fields in the specification — returns the incoming definition as is.
    *
    * If previous item has `_secrets_id`, loads secrets from the credentials table
-   * and merges them with incoming values. The `_secrets_id` is preserved in the result.
+   * and merges them with incoming values. The `_secrets_id` is preserved in the result
+   * unless the incoming item now uses OAuth credentials.
    *
    * @param incoming New definition coming from the client
    * @param previous Previously stored definition used as a source of truth for secrets
@@ -532,6 +625,11 @@ export class ConnectorSecretService {
     const mergedConfiguration = await Promise.all(
       incoming.connector.source.configuration.map(async item => {
         const incomingItem = (item || {}) as Record<string, unknown>;
+        const usesSourceCredentials = this.hasSourceCredentialIdRecursively(incomingItem);
+
+        if (usesSourceCredentials) {
+          delete incomingItem._secrets_id;
+        }
 
         const itemId = incomingItem._id;
         if (typeof itemId !== 'string' || itemId.length === 0) {
@@ -551,7 +649,7 @@ export class ConnectorSecretService {
         // If previous item has externalized secrets, load them for merging
         let previousWithSecrets = previousItem;
         const secretsId = previousItem._secrets_id as string | undefined;
-        if (secretsId) {
+        if (secretsId && !usesSourceCredentials) {
           const secretsEntity =
             await this.connectorSourceCredentialsService.getCredentialsById(secretsId);
           if (secretsEntity) {
@@ -670,6 +768,11 @@ export class ConnectorSecretService {
     }
 
     const secretFieldNames = await this.getAllSecretFieldNames(incoming.connector.source.name);
+    const sourceSecretsIds = sourceDefinition.connector.source.configuration
+      .map(item => (item as Record<string, unknown>)._secrets_id as string | undefined)
+      .filter((id): id is string => !!id);
+    const sourceSecretsMap =
+      await this.connectorSourceCredentialsService.getCredentialsByIds(sourceSecretsIds);
 
     const mergedConfiguration = incoming.connector.source.configuration.map(incomingItem => {
       const itemWithMetadata = incomingItem as Record<string, unknown> & {
@@ -693,14 +796,35 @@ export class ConnectorSecretService {
         );
       }
 
+      const sourceConfigWithSecrets = JSON.parse(JSON.stringify(sourceConfig)) as Record<
+        string,
+        unknown
+      >;
+      const secretsId = sourceConfigWithSecrets._secrets_id as string | undefined;
+      const secretsEntity = secretsId ? sourceSecretsMap.get(secretsId) : undefined;
+      const generatedRefreshToken =
+        secretsEntity?.credentials?.[GENERATED_REFRESH_TOKEN_CREDENTIAL_FIELD];
+      if (secretsEntity?.credentials) {
+        this.injectSecretsAtPaths(sourceConfigWithSecrets, secretsEntity.credentials);
+      }
+
       const mergedItem = this.mergeSecretsRecursively(
         incomingItem,
-        sourceConfig,
+        sourceConfigWithSecrets,
         secretFieldNames
       ) as Record<string, unknown>;
 
       delete mergedItem._copiedFrom;
       mergedItem._id = randomUUID();
+      delete mergedItem[GENERATED_REFRESH_TOKEN_CREDENTIAL_FIELD];
+      if (
+        typeof generatedRefreshToken === 'string' &&
+        generatedRefreshToken &&
+        !this.hasSourceCredentialIdRecursively(mergedItem) &&
+        this.hasSameRefreshToken(sourceConfigWithSecrets, mergedItem)
+      ) {
+        mergedItem[GENERATED_REFRESH_TOKEN_CREDENTIAL_FIELD] = generatedRefreshToken;
+      }
 
       return mergedItem;
     });
@@ -715,5 +839,49 @@ export class ConnectorSecretService {
         },
       },
     } as ConnectorDefinition;
+  }
+
+  private hasSameRefreshToken(
+    sourceConfig: Record<string, unknown>,
+    mergedConfig: unknown
+  ): boolean {
+    const sourceRefreshToken = this.getRefreshTokenValue(sourceConfig);
+    const mergedRefreshToken = this.getRefreshTokenValue(mergedConfig);
+
+    return (
+      typeof sourceRefreshToken === 'string' &&
+      sourceRefreshToken !== '' &&
+      !this.isSecretMask(sourceRefreshToken) &&
+      mergedRefreshToken === sourceRefreshToken
+    );
+  }
+
+  private getRefreshTokenValue(value: unknown): unknown {
+    if (!value || typeof value !== 'object') {
+      return undefined;
+    }
+
+    if (Array.isArray(value)) {
+      for (const item of value) {
+        const nestedValue = this.getRefreshTokenValue(item);
+        if (nestedValue !== undefined) {
+          return nestedValue;
+        }
+      }
+      return undefined;
+    }
+
+    for (const [key, nestedValue] of Object.entries(value as Record<string, unknown>)) {
+      if (key === 'refresh_token' || key === 'RefreshToken' || key.endsWith('.RefreshToken')) {
+        return nestedValue;
+      }
+
+      const nestedRefreshToken = this.getRefreshTokenValue(nestedValue);
+      if (nestedRefreshToken !== undefined) {
+        return nestedRefreshToken;
+      }
+    }
+
+    return undefined;
   }
 }

@@ -129,6 +129,22 @@ class NodeJsConfig extends AbstractConfig {
         })
       );
     }
+
+    /**
+     * Emit runtime credential updates through the Node.js structured transport.
+     *
+     * @param {Object} credentials - Credential fields to update in the host runtime
+     */
+    updateCredentials(credentials) {
+      const at = new Date();
+      console.log(
+        JSON.stringify({
+          type: 'updateCredentials',
+          at: at.toISOString().split('T')[0] + ' ' + at.toISOString().split('T')[1].split('.')[0],
+          credentials,
+        })
+      );
+    }
   
     /**
      * Check if the connector is currently in progress
