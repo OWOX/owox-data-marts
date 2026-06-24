@@ -78,6 +78,7 @@ export class DataMartService {
         'dm.id',
         'dm.title',
         'dm.status',
+        'dm.description',
         'dm.definitionType',
         'dm.createdById',
         'dm.createdAt',

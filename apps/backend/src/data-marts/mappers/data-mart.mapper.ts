@@ -289,6 +289,7 @@ export class DataMartMapper {
       entity.storage.title || toHumanReadable(entity.storage.type),
       entity.createdAt,
       entity.modifiedAt,
+      entity.description ?? null,
       entity.definitionType,
       entity.definition,
       counters.triggersCount,
@@ -308,6 +309,7 @@ export class DataMartMapper {
       title: dto.title,
       status: dto.status,
       storage: { type: dto.storageType, title: dto.storageTitle },
+      description: dto.description,
       definitionType: dto.definitionType,
       connectorSourceName:
         dto.definitionType === DataMartDefinitionType.CONNECTOR && dto.definition

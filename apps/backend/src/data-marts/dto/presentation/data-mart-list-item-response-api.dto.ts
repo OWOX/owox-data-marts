@@ -19,6 +19,9 @@ export class DataMartListItemResponseApiDto {
   @ApiProperty()
   storage: DataMartListItemStorageApiDto;
 
+  @ApiProperty({ example: 'Data mart description', nullable: true })
+  description: string | null;
+
   @ApiProperty({ enum: DataMartDefinitionType, example: DataMartDefinitionType.SQL })
   definitionType?: DataMartDefinitionType;
 
