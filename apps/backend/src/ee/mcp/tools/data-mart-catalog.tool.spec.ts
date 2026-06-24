@@ -95,6 +95,7 @@ describe('ListDataMartsTool', () => {
     });
     expect(MCP_TOOL_PROVIDER_CLASSES.map(tool => tool.name)).toEqual([
       'ListDataMartsTool',
+      'SearchDataMartsTool',
       'GetProjectContextTool',
     ]);
     expect(registry.getTool('list_data_marts')).toBeDefined();
