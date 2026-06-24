@@ -6,6 +6,8 @@ jest.mock('../../../common/ai-insights/agent/tool-registry', () => ({
   ToolRegistry: class ToolRegistryMock {
     register = jest.fn();
 
+    has = jest.fn().mockReturnValue(false);
+
     findToolByNames = jest.fn((names: string[]) =>
       names.map(name => ({
         name,

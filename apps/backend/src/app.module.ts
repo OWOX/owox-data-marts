@@ -12,6 +12,7 @@ import { IdpModule } from './idp/idp.module';
 import { EeModule } from './ee/ee.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { ProjectMemberApiKeysModule } from './project-member-api-keys/project-member-api-keys.module';
+import { SearchModule } from './data-marts/search/search.module';
 import { createDataSourceOptions } from './config/data-source-options.config';
 import { validateConfig } from './config/env-validation.config';
 import { ClsModule } from 'nestjs-cls';
@@ -50,6 +51,7 @@ import { serializeSqliteTransactions } from './config/sqlite-transaction-seriali
     OwoxEventDispatcherModule,
 
     DataMartsModule,
+    SearchModule,
     CommonModule,
     IdpModule,
     EeModule,

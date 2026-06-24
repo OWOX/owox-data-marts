@@ -39,15 +39,25 @@ describe('ActualizeDataMartSchemaService', () => {
     const accessDecisionService = {
       canAccess: jest.fn().mockResolvedValue(true),
     };
+    const searchIndexInvalidation = {
+      scheduleDataMartSchemaChanged: jest.fn().mockResolvedValue(undefined),
+    };
 
     const service = new ActualizeDataMartSchemaService(
       dataMartService as any,
       definitionValidatorFacade as any,
       mapper as any,
-      accessDecisionService as any
+      accessDecisionService as any,
+      searchIndexInvalidation as any
     );
 
-    return { service, dataMartService, definitionValidatorFacade, dataMart };
+    return {
+      service,
+      dataMartService,
+      definitionValidatorFacade,
+      dataMart,
+      searchIndexInvalidation,
+    };
   };
 
   beforeEach(() => {
@@ -55,7 +65,13 @@ describe('ActualizeDataMartSchemaService', () => {
   });
 
   it('should actualize schema successfully when storage validation succeeds', async () => {
-    const { service, dataMartService, definitionValidatorFacade, dataMart } = createService({
+    const {
+      service,
+      dataMartService,
+      definitionValidatorFacade,
+      dataMart,
+      searchIndexInvalidation,
+    } = createService({
       isValid: true,
     });
     const command = new ActualizeDataMartSchemaCommand('dm-1', 'proj-1', 'user-1', ['editor']);
@@ -65,6 +81,10 @@ describe('ActualizeDataMartSchemaService', () => {
     expect(definitionValidatorFacade.checkIsValid).toHaveBeenCalledWith(dataMart);
     expect(dataMartService.actualizeSchemaInEntity).toHaveBeenCalledWith(dataMart);
     expect(dataMartService.save).toHaveBeenCalledWith(dataMart);
+    expect(searchIndexInvalidation.scheduleDataMartSchemaChanged).toHaveBeenCalledWith(
+      'dm-1',
+      'proj-1'
+    );
     expect(result).toEqual({ id: 'dm-1' });
   });
 

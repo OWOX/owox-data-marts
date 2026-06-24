@@ -6,6 +6,8 @@ import { DataMartService } from '../services/data-mart.service';
 import { UpdateDataMartDescriptionCommand } from '../dto/domain/update-data-mart-description.command';
 import { LegacyDataMartsService } from '../services/legacy-data-marts/legacy-data-marts.service';
 import { AccessDecisionService, EntityType, Action } from '../services/access-decision';
+import { AdvancedSearchIndexSyncService } from '../services/advanced-search-index-sync.service';
+import { SearchableEntityType } from '../../common/search/search.facade';
 
 @Injectable()
 export class UpdateDataMartDescriptionService {
@@ -13,7 +15,8 @@ export class UpdateDataMartDescriptionService {
     private readonly dataMartService: DataMartService,
     private readonly mapper: DataMartMapper,
     private readonly legacyDataMartsService: LegacyDataMartsService,
-    private readonly accessDecisionService: AccessDecisionService
+    private readonly accessDecisionService: AccessDecisionService,
+    private readonly advancedSearchIndexSync?: AdvancedSearchIndexSyncService
   ) {}
 
   async run(command: UpdateDataMartDescriptionCommand): Promise<DataMartDto> {
@@ -39,6 +42,11 @@ export class UpdateDataMartDescriptionService {
 
     dataMart.description = command.description;
     await this.dataMartService.save(dataMart);
+    await this.advancedSearchIndexSync?.scheduleReindex(
+      SearchableEntityType.DATA_MART,
+      dataMart.id,
+      command.projectId
+    );
 
     return this.mapper.toDomainDto(dataMart);
   }

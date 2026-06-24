@@ -70,6 +70,7 @@
     "@databricks/sql": "^1.12.0",
     "@google-cloud/bigquery": "^8.1.0",
     "@google-cloud/pubsub": "^4.0.7",
+    "@huggingface/transformers": "^3.0.0",
     "@modelcontextprotocol/sdk": "^1.29.0",
     "@nestjs/common": "^11.0.1",
     "@nestjs/config": "^4.0.2",
@@ -106,7 +107,7 @@
     "rxjs": "^7.8.1",
     "snowflake-sdk": "^2.3.3",
     "swagger-ui-express": "^5.0.1",
-    "typeorm": "0.3.28",
+    "typeorm": "0.3.30",
     "typeorm-transactional": "^0.5.0",
     "zod": "^3.25.64",
     "zod-to-json-schema": "^3.25.0"

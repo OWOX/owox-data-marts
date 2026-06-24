@@ -6,6 +6,7 @@ import { DataMartDto } from '../dto/domain/data-mart.dto';
 import { DataMartMapper } from '../mappers/data-mart.mapper';
 import { DataMartService } from '../services/data-mart.service';
 import { AccessDecisionService, EntityType, Action } from '../services/access-decision';
+import { DataMartSearchIndexInvalidationService } from '../services/data-mart-search-index-invalidation.service';
 
 @Injectable()
 export class ActualizeDataMartSchemaService {
@@ -15,7 +16,8 @@ export class ActualizeDataMartSchemaService {
     private readonly dataMartService: DataMartService,
     private readonly definitionValidatorFacade: DataMartDefinitionValidatorFacade,
     private readonly mapper: DataMartMapper,
-    private readonly accessDecisionService: AccessDecisionService
+    private readonly accessDecisionService: AccessDecisionService,
+    private readonly searchIndexInvalidation?: DataMartSearchIndexInvalidationService
   ) {}
 
   async run(command: ActualizeDataMartSchemaCommand): Promise<DataMartDto> {
@@ -40,6 +42,10 @@ export class ActualizeDataMartSchemaService {
       await this.definitionValidatorFacade.checkIsValid(dataMart);
       await this.dataMartService.actualizeSchemaInEntity(dataMart);
       await this.dataMartService.save(dataMart);
+      await this.searchIndexInvalidation?.scheduleDataMartSchemaChanged(
+        dataMart.id,
+        command.projectId
+      );
     } catch (error) {
       throw new BusinessViolationException(error.message);
     }

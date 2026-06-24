@@ -42,6 +42,7 @@ describe('DataMartRelationshipService', () => {
       find: jest.fn(),
       findOne: jest.fn(),
       remove: jest.fn(),
+      createQueryBuilder: jest.fn(),
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -94,6 +95,36 @@ describe('DataMartRelationshipService', () => {
         order: { createdAt: 'ASC' },
       });
       expect(result).toBe(expected);
+    });
+  });
+
+  describe('findSourceDataMartIdsByTargetDataMartId', () => {
+    it('returns distinct source IDs for the target data mart within the project', async () => {
+      const qb = {
+        select: jest.fn().mockReturnThis(),
+        innerJoin: jest.fn().mockReturnThis(),
+        where: jest.fn().mockReturnThis(),
+        andWhere: jest.fn().mockReturnThis(),
+        getRawMany: jest
+          .fn()
+          .mockResolvedValue([
+            { sourceDataMartId: 'source-1' },
+            { sourceDataMartId: 'source-1' },
+            { sourceDataMartId: 'source-2' },
+          ]),
+      };
+      repository.createQueryBuilder.mockReturnValue(qb as never);
+
+      const result = await service.findSourceDataMartIdsByTargetDataMartId('target-1', 'project-1');
+
+      expect(repository.createQueryBuilder).toHaveBeenCalledWith('relationship');
+      expect(qb.where).toHaveBeenCalledWith('target.id = :targetDataMartId', {
+        targetDataMartId: 'target-1',
+      });
+      expect(qb.andWhere).toHaveBeenCalledWith('relationship.projectId = :projectId', {
+        projectId: 'project-1',
+      });
+      expect(result).toEqual(['source-1', 'source-2']);
     });
   });
 
