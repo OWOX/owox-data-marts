@@ -23,7 +23,7 @@ To configure a new **Destination**:
 
 1. On the **Destinations** page, click **+ New Destination**.
 2. Choose a storage type option on the **Destination Type** dropdown list:
-    - [Google Sheets](supported-destinations/google-spreadsheets.md)
+    - [Google Sheets](supported-destinations/google-sheets.md)
     - [Data Studio](supported-destinations/data-studio.md)
     - [Email](supported-destinations/email.md)
     - [Slack](supported-destinations/slack.md)

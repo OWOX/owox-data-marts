@@ -43,7 +43,7 @@ Whether you're an analyst at an agency, a startup, or in a huge enterprise, this
 
 ---
 
-This is the starting point for data connectivity, but we also have the **OWOX Data Marts** **[🌐 Cloud](https://app.owox.com?utm_source=github&utm_medium=referral&utm_campaign=appscriptreadme)** and **[Self-Hosted](./all-editions.md)** Editions.
+This is the starting point for data connectivity, but we also have the **OWOX Data Marts** **[🌐 Cloud](https://app.owox.com?utm_source=github&utm_medium=referral&utm_campaign=appscriptreadme)** and **[Self-Hosted](./self-managed-editions.md)** Editions.
 
 ## 🧰 How It Works
 
