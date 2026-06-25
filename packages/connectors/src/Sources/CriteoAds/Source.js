@@ -6,6 +6,7 @@
  */
 
 const CRITEO_API_VERSION = "2026-01";
+const CRITEO_TOKEN_REFRESH_BUFFER_MS = 60000;
 // Source: Criteo v2026.01 Campaign Statistics docs, "Currencies" section.
 // Advisory only: membership produces a warning, not an error, because this
 // list drifts as Criteo adds currencies — the API is the authority.
@@ -96,6 +97,8 @@ var CriteoAdsSource = class CriteoAdsSource extends AbstractSource {
     }));
 
     this.fieldsSchema = CriteoAdsFieldsSchema;
+    this._accessTokenExpiresAt = 0;
+    this._accessTokenRefreshAt = 0;
   }
 
   /**
@@ -190,7 +193,6 @@ var CriteoAdsSource = class CriteoAdsSource extends AbstractSource {
    */
   async _fetchStatistics({ accountId, fields, date }) {
     this._validateUniqueKeys('statistics', fields);
-    await this.getAccessToken();
     const requestBody = this._buildStatisticsRequestBody({ accountId, fields, date });
     const apiUrl = `https://api.criteo.com/${CRITEO_API_VERSION}/statistics/report`;
     const response = await this._makeApiRequest(apiUrl, requestBody);
@@ -210,7 +212,6 @@ var CriteoAdsSource = class CriteoAdsSource extends AbstractSource {
    */
   async _fetchPlacements({ accountId, fields, date }) {
     this._validateUniqueKeys('placements', fields);
-    await this.getAccessToken();
     const requestBody = this._buildPlacementsRequestBody({ nodeName: 'placements', accountId, fields, date });
     const apiUrl = `https://api.criteo.com/${CRITEO_API_VERSION}/placements/report`;
     const response = await this._makeApiRequest(apiUrl, requestBody);
@@ -233,7 +234,6 @@ var CriteoAdsSource = class CriteoAdsSource extends AbstractSource {
    */
   async _fetchPlacementCategories({ accountId, fields, date }) {
     this._validateUniqueKeys('placement_categories', fields);
-    await this.getAccessToken();
     const requestBody = this._buildPlacementsRequestBody({ nodeName: 'placement_categories', accountId, fields, date });
     const apiUrl = `https://api.criteo.com/${CRITEO_API_VERSION}/placements/report`;
     const response = await this._makeApiRequest(apiUrl, requestBody);
@@ -253,7 +253,6 @@ var CriteoAdsSource = class CriteoAdsSource extends AbstractSource {
    */
   async _fetchTransactions({ accountId, fields, date }) {
     this._validateUniqueKeys('transactions', fields);
-    await this.getAccessToken();
     const formattedDate = DateUtils.formatDate(date);
     const requestBody = {
       data: [{
@@ -354,6 +353,29 @@ var CriteoAdsSource = class CriteoAdsSource extends AbstractSource {
    * @private
    */
   async _makeApiRequest(url, requestBody) {
+    await this.getAccessToken();
+
+    try {
+      return await this._sendApiRequest(url, requestBody);
+    } catch (error) {
+      if (!this._isAuthorizationTokenExpired(error)) {
+        throw error;
+      }
+
+      this.config.logMessage("Criteo access token expired; refreshing token and retrying request once");
+      await this.getAccessToken({ forceRefresh: true });
+      return await this._sendApiRequest(url, requestBody);
+    }
+  }
+
+  /**
+   * Send an authenticated POST request to a Criteo endpoint.
+   * @param {string} url - Full API endpoint URL
+   * @param {Object} requestBody - Request body
+   * @returns {Object} - HTTP response
+   * @private
+   */
+  async _sendApiRequest(url, requestBody) {
     const options = {
       method: 'post',
       headers: {
@@ -369,11 +391,13 @@ var CriteoAdsSource = class CriteoAdsSource extends AbstractSource {
   }
 
   /**
-   * Get access token from API
+   * Get access token from API.
    * Docs: https://developers.criteo.com/marketing-solutions/docs/authorization-code-setup
+   * @param {Object} options
+   * @param {boolean} [options.forceRefresh=false] - Ignore any cached token
    */
-  async getAccessToken() {
-    if (this.config.AccessToken?.value) {
+  async getAccessToken({ forceRefresh = false } = {}) {
+    if (!forceRefresh && this._hasReusableAccessToken()) {
       return;
     }
 
@@ -402,13 +426,74 @@ var CriteoAdsSource = class CriteoAdsSource extends AbstractSource {
       const responseData = JSON.parse(text);
       const accessToken = responseData["access_token"];
 
-      this.config.AccessToken = {
-        value: accessToken
-      };
+      if (!accessToken) {
+        throw new Error("Token response did not include access_token");
+      }
+
+      this._setAccessToken(accessToken, responseData.expires_in);
     } catch (err) {
       console.log(`Error getting access token: ${err}`);
       throw new Error(`Failed to get access token: ${err}`);
     }
+  }
+
+  /**
+   * Check whether the current access token can be reused without nearing expiry.
+   * Tokens without locally tracked expiry are refreshed so manual or stale values
+   * do not live for the whole connector run.
+   * @returns {boolean}
+   * @private
+   */
+  _hasReusableAccessToken() {
+    return Boolean(
+      this.config.AccessToken?.value &&
+      this._accessTokenRefreshAt &&
+      Date.now() < this._accessTokenRefreshAt
+    );
+  }
+
+  /**
+   * Store a Criteo access token and calculate when it should be refreshed.
+   * @param {string} accessToken
+   * @param {number|string} expiresInSeconds
+   * @private
+   */
+  _setAccessToken(accessToken, expiresInSeconds) {
+    this.config.AccessToken = {
+      value: accessToken
+    };
+
+    const expiresIn = Number(expiresInSeconds);
+    if (!Number.isFinite(expiresIn) || expiresIn <= 0) {
+      this._accessTokenExpiresAt = 0;
+      this._accessTokenRefreshAt = 0;
+      return;
+    }
+
+    const expiresInMs = expiresIn * 1000;
+    const refreshBufferMs = Math.min(CRITEO_TOKEN_REFRESH_BUFFER_MS, Math.floor(expiresInMs / 2));
+    const now = Date.now();
+    this._accessTokenExpiresAt = now + expiresInMs;
+    this._accessTokenRefreshAt = this._accessTokenExpiresAt - refreshBufferMs;
+  }
+
+  /**
+   * Detect Criteo's expired bearer token response.
+   * @param {HttpRequestException} error
+   * @returns {boolean}
+   * @private
+   */
+  _isAuthorizationTokenExpired(error) {
+    if (error?.statusCode !== HTTP_STATUS.UNAUTHORIZED) {
+      return false;
+    }
+
+    const errors = error.payload?.errors;
+    if (Array.isArray(errors) && errors.some(item => item?.code === 'authorization-token-expired')) {
+      return true;
+    }
+
+    return String(error.message || '').includes('authorization-token-expired');
   }
 
   /**
