@@ -239,28 +239,30 @@ export function MembershipRequestSheet({
               </FormActions>
             </AppForm>
           </Form>
+
+          {/* Rendered inside SheetContent so Radix treats it as a nested dismissable layer;
+              interacting with it then doesn't dismiss the sheet (which caused a re-open loop). */}
+          <ConfirmationDialog
+            open={declineConfirm}
+            onOpenChange={open => {
+              if (!open && submitting === null) setDeclineConfirm(false);
+            }}
+            title='Decline membership request'
+            description={
+              <span className='mt-2 block'>
+                Are you sure you want to decline the request from <strong>{request?.email}</strong>?
+                They will be notified the request was rejected.
+              </span>
+            }
+            confirmLabel='Decline'
+            cancelLabel='Cancel'
+            variant='destructive'
+            onConfirm={() => {
+              void handleDecline();
+            }}
+          />
         </SheetContent>
       </Sheet>
-
-      <ConfirmationDialog
-        open={declineConfirm}
-        onOpenChange={open => {
-          if (!open && submitting === null) setDeclineConfirm(false);
-        }}
-        title='Decline membership request'
-        description={
-          <span className='mt-2 block'>
-            Are you sure you want to decline the request from <strong>{request?.email}</strong>?
-            They will be notified the request was rejected.
-          </span>
-        }
-        confirmLabel='Decline'
-        cancelLabel='Cancel'
-        variant='destructive'
-        onConfirm={() => {
-          void handleDecline();
-        }}
-      />
 
       <AddContextSheet
         isOpen={addContextOpen}
