@@ -43,51 +43,50 @@ export function LookerStudioReportEditSheet({
   useIntercomLauncher(isOpen);
 
   return (
-    <>
-      <Sheet
-        open={isOpen}
-        onOpenChange={open => {
-          if (!open) {
-            handleClose();
-          }
-        }}
-      >
-        <SheetContent data-testid='reportEditSheet'>
-          <SheetHeader>
-            <SheetTitle>{preSelectedDestination?.title ?? 'Data Studio'}</SheetTitle>
-            <SheetDescription>
-              {mode === ReportFormMode.CREATE
-                ? 'Set up Data Mart as a data source'
-                : 'Update connection details'}
-            </SheetDescription>
-          </SheetHeader>
+    <Sheet
+      open={isOpen}
+      onOpenChange={open => {
+        if (!open) {
+          handleClose();
+        }
+      }}
+    >
+      <SheetContent data-testid='reportEditSheet'>
+        <SheetHeader>
+          <SheetTitle>{preSelectedDestination?.title ?? 'Data Studio'}</SheetTitle>
+          <SheetDescription>
+            {mode === ReportFormMode.CREATE
+              ? 'Set up Data Mart as a data source'
+              : 'Update connection details'}
+          </SheetDescription>
+        </SheetHeader>
 
-          <DataDestinationProvider>
-            <LookerStudioReportEditForm
-              initialReport={initialReport}
-              mode={mode}
-              onDirtyChange={handleFormDirtyChange}
-              onSubmit={() => {
-                void onSubmitSuccess?.();
-                handleFormSubmitSuccess();
-              }}
-              onCancel={handleClose}
-              preSelectedDestination={preSelectedDestination}
-            />
-          </DataDestinationProvider>
-        </SheetContent>
-      </Sheet>
-
-      <ConfirmationDialog
-        open={showUnsavedDialog}
-        onOpenChange={setShowUnsavedDialog}
-        title='Unsaved Changes'
-        description='You have unsaved changes. Exit without saving?'
-        confirmLabel='Yes, leave now'
-        cancelLabel='No, stay here'
-        onConfirm={confirmClose}
-        variant='destructive'
-      />
-    </>
+        <DataDestinationProvider>
+          <LookerStudioReportEditForm
+            initialReport={initialReport}
+            mode={mode}
+            onDirtyChange={handleFormDirtyChange}
+            onSubmit={() => {
+              void onSubmitSuccess?.();
+              handleFormSubmitSuccess();
+            }}
+            onCancel={handleClose}
+            preSelectedDestination={preSelectedDestination}
+          />
+        </DataDestinationProvider>
+        {/* Rendered inside SheetContent so Radix treats it as a nested dismissable layer;
+              interacting with it then doesn't dismiss the sheet (which caused a re-open loop). */}
+        <ConfirmationDialog
+          open={showUnsavedDialog}
+          onOpenChange={setShowUnsavedDialog}
+          title='Unsaved Changes'
+          description='You have unsaved changes. Exit without saving?'
+          confirmLabel='Yes, leave now'
+          cancelLabel='No, stay here'
+          onConfirm={confirmClose}
+          variant='destructive'
+        />
+      </SheetContent>
+    </Sheet>
   );
 }
