@@ -2,7 +2,7 @@
 
 ## 7.0.0
 
-### Patch Changes
+### Patch Changes 7.0.0
 
 - @owox/idp-protocol@0.28.0
 
