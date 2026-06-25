@@ -4,136 +4,77 @@
 
 ### Minor Changes 0.28.0
 
-- 0165f6b: # Surface validation errors hidden in collapsed form sections
+![OWOX Data Marts – v0.28.0](https://github.com/user-attachments/assets/c9db0633-4566-4c5e-8ac2-3dfcb3a29cfc)
 
-  Improved form validation UX so submitting a form opens collapsed sections that contain invalid fields and focuses the first validation error.
+- 0165f6b: **Google Sheets Extension menu and sidebar updates**
 
-- 0165f6b: # Quick run button for reports
+  - **All Reports** — new menu item lists every report in the current document with its sheet name, last run status, and last run time, with direct access to open any report.
+  - **Create new report** — new menu item creates a new sheet and opens the report creation form in one step.
+  - **Report run failure reason** — hover the last run status icon in the sidebar to see why a run failed.
+  - **Reliable active sheet tracking** — the sidebar correctly follows the active sheet when switching between sheets quickly.
 
-  Added a quick run button directly in the reports table, allowing you to start a report with a single click — no need to open the menu. A brief undo window appears after clicking, giving you a moment to cancel before the run begins.
+- dad37e4: **Executed SQL in Run History**
 
-- 0165f6b: # Add ability to create new Report from Extension menu
+  Report runs now record the exact SQL that ran — with output controls applied and filter parameter values inlined as literals — in a dedicated **Executed SQL** block in Run History. Previously only the raw Data Mart query was stored, which didn't reflect the parameters used at run time. Covers Google Sheets, Email, Slack, Google Chat, Microsoft Teams, and Looker Studio. The block appears only when output controls or blended SQL were applied.
 
-  Added a "Create new report" item to the Google Sheets Extension menu. Selecting it creates a new sheet and opens the report creation form automatically, so you can start building a report in one step.
+- 8b20d18, 2a2efa1: **Output controls for Databricks and Snowflake**
 
-- 0165f6b: # Show report run fail reason in Extension
+  Filters, slices, sort, and limit are now supported on Databricks and Snowflake Data Marts, matching support already available for BigQuery, Athena, Redshift, and Legacy BigQuery. Filter values are correctly escaped per storage type; substring matchers avoid `LIKE` so user `%` and `_` stay literal. Available in the web app and the Google Sheets Extension.
 
-  When a report run fails, you can now hover the last run status icon in the Google Sheets Extension sidebar to see the failure reason.
+- 0165f6b: **Quick run button for reports**
 
-- 0165f6b: # Extension: keep rendered report in sync with active sheet on rapid sheet switching
+  Reports table now has a direct run button. A brief undo window appears before the run begins.
 
-  Improved reliability when switching between sheets quickly: the Google Sheets Extension sidebar now tracks the active sheet more reliably and always shows the report for the sheet you are currently viewing.
+- 0165f6b: **Form validation and UI improvements**
 
-- 0165f6b: Set default table filter operator to `is` for fields supporting both `contains` and `is`. Reset the operator when switching filter fields to ensure the new default takes effect.
-- fddcd83: # Criteo access token refresh on expiry
+  Submitting a form now opens any collapsed sections containing invalid fields and focuses the first error. Table filters now default to the `is` operator for fields that support both `contains` and `is`, and reset when switching filter fields. Project switcher menu received search, scroll-into-view, keyboard navigation, state reset on close, and accessibility improvements.
 
-  Previously, the Criteo connector reused a cached access token for the entire connector run without checking whether it had expired, causing request failures mid-run. Now tokens are proactively refreshed 60 seconds before they expire, and if an API request still gets an expired-token error, the token is refreshed and the request retried automatically. This prevents mid-run authentication failures for long-running Criteo syncs.
+- 113ef2e: **Fail fast on disconnected report columns and output controls**
 
-- 0165f6b: # UX improvements in SwitchProjectMenu
+  Reports now reject orphaned column references upfront — after a joined Data Mart alias is renamed, a relationship is removed, or a field disappears from the schema or is hidden — instead of letting them leak into generated SQL and fail with a cryptic "Unrecognized name" error. The column picker shows a "Disconnected columns" block for stale selections; stale filter/slice rules are highlighted in red in Output Controls; the Output Controls button badge turns red when any control references a disconnected field.
 
-  Improved the project switcher menu UX: limited menu item heights, added search input logic, scroll-into-view fixes, Enter key selection on empty active states, state resets when closing, and accessibility support.
+- 19fbef7: **Readable field names and search in Output Controls**
 
-- 0165f6b: # All Reports in Google Sheets extension
+  Filters, Slices, and Sort pickers now show the field's alias (or leaf column name), with the joined Data Mart name as a muted second line for blended fields, instead of raw nested identifiers. Each picker is now searchable by alias, Data Mart name, or technical field name.
 
-  Added an "All Reports" to the Google Sheets Extension menu. You can now see every report in the current document along with its sheet name, last run status, and last run time, then open any report directly from the list.
+- 25b43f6: **Criteo placement, category, and transaction reporting**
 
-- c110f35: # Skip disconnected fields in AI Helper sample-data query
+  Three new Criteo endpoints: placements, placement categories, and transactions. Added extra statistics dimensions (device, OS, channel) and reporting currency selection. Previously only campaign-level statistics were available.
 
-  Fix AI Helper alias/description generation failing with `Unrecognized name: <field>` when a data mart's Output Schema contains a field marked Disconnected ("Field is not connected to the data source"). The 30-row sample query no longer selects disconnected fields — they exist in the schema but not in the underlying table/view, so the storage rejected the whole query — and the sample fetch is skipped entirely when no connected fields remain. Hidden-for-reporting fields are intentionally kept, since the AI may still generate an alias or description for them.
+- ffd8ef8: **Reliable incremental sync after partial connector run**
 
-- ffd8ef8: # Reliable incremental sync after partial connector run
+  The incremental date checkpoint is now written only after all accounts complete successfully. Previously, a mid-run failure could advance the checkpoint past data that was never fully fetched, silently skipping those dates on the next run. Affects MicrosoftAds, CriteoAds, GoogleAds, RedditAds, and XAds.
 
-  Previously, if a connector run failed partway through multiple accounts, the incremental date checkpoint could advance past data that was never fully fetched — causing those dates to be silently skipped on the next run. Now the checkpoint is written only after all accounts complete successfully, so a failed run always retries from the correct starting point. This affects MicrosoftAds, CriteoAds, GoogleAds, RedditAds, and XAds connectors.
+- fddcd83: **Criteo access token proactive refresh**
 
-- 25b43f6: # Criteo placement, category, and transaction reporting
+  The Criteo connector now refreshes the access token 60 seconds before it expires and retries any request that still returns an expired-token error. Previously the cached token was reused for the entire run without expiry checks, causing mid-run failures on long-running syncs.
 
-  The Criteo connector now supports three new endpoints — placements, placement categories,
-  and transactions — alongside the existing campaign statistics, plus extra statistics
-  dimensions such as device, OS, and channel. You can also choose the reporting currency
-  instead of always getting USD. Previously only campaign-level statistics were available;
-  now you can break performance down by where ads ran and pull individual attributed orders.
+- ec2fd8b: **Reconnect notice when Google Storage authorization expires**
 
-- 8b20d18: # Add output controls for Databricks data marts
+  Expired authorization is now detected before a connector run starts and surfaced as a "Reconnect Storage" prompt, instead of starting the run and failing with an opaque authentication error. The storage health indicator updates automatically when access is lost.
 
-  Add report-level output controls (filters, slices, sort, limit) for Databricks data
-  marts. Filter values are inlined as escaped SQL literals (Spark-correct backslash + quote
-  escaping); substring matchers use `contains`/`startswith`/`endswith` and regex uses
-  `RLIKE` so user `%`/`_` stay literal; date/time comparisons are cast to the column type.
-  Works for the web app and the Google Sheets extension.
+- bbe8e34: **Drag-and-drop for service account JSON**
 
-- f69f0b3: # Escape table and column identifiers in AI Helper sample-data SQL
+  Service account credential textareas now accept dropped JSON files, with JSON validation, file size limits, and error feedback.
 
-  Fix AI Helper metadata generation (and the `SAMPLE_TABLE_DATA` AI tool) failing with `Syntax error: Expected end of input but got "-"` for data marts whose fully qualified table name contains dashes (for example `my-project.dataset.my-table-name`). The sample-data SQL now escapes the table reference and column names per storage type via a new `IdentifierEscaperFacade`, following the existing TypeResolver + Facade pattern and reusing the per-storage identifier escaping utilities.
+- b856d11: **Shopify `totalOutstanding` field**
 
-- 113ef2e: # Fail fast on disconnected report columns and output controls
+  Added `totalOutstanding` to Shopify orders — the total amount not yet transacted for the order.
 
-  Fail fast with a clear error when a report references columns that can no longer be resolved against the data mart schema or its joined data marts setup (for example, after a joined data mart alias was renamed, a relationship was removed, a field disappeared from the schema or was hidden for reporting, or a joined field was hidden in the joined data marts setup). Previously such orphaned references leaked into the generated blended SQL as main data mart columns and failed in the storage with a cryptic "Unrecognized name" error — and selecting a field hidden in the blend setup silently dropped it from the final SELECT while report headers still promised it; now the report run and SQL preview reject them upfront, listing the offending columns. Filter, sort, and slice references to disconnected or hidden fields are rejected by the output-controls validation as well.
+- 39b4254: **Session invalidation on password change and reset**
 
-  The report column picker now also surfaces stale selected columns, filters, and slices in a "Disconnected columns" block at the top of the list (styled like the existing no-access block), so selected stale columns can be unchecked and stale filter/slice rules can be removed to make the report runnable again. Sort-only stale references stay in the Output Controls menu, where stale filters, slices, and sorts are highlighted in red. The Output Controls button now shows the controls count and switches the badge to red when any output control references a disconnected field. Rule popups on disconnected and no-access rows now share one view-and-remove layout that lists the existing filter and slice rules without add or edit controls.
+  After a successful password change or reset, all other active sessions are revoked. The session that performed the change is preserved.
 
-- 39b4254: # Invalidate a user's other sessions on password reset and change
+- e6e9296: **Unified column identifiers for output control slice filters**
 
-  After a successful password change or reset, the user's other active sessions
-  are now revoked while the session performing the change is preserved. The
-  exposed Better Auth `/change-password` endpoint always revokes other sessions
-  (clients can no longer skip it), and a password reset revokes the user's other
-  Better Auth sessions.
+  Slice (pre-join) filters now reference columns by the same fully qualified identifier as regular output filters (e.g. `category_details__item_event_count`) instead of a raw column name plus a separate `aliasPath`. Existing saved reports are migrated automatically.
 
-- a222917: # Microsoft Ads refresh token rotation
-
-  Persist rotated Microsoft Ads refresh tokens returned by Microsoft OAuth responses without overwriting the original user-provided refresh token.
-
-- 1d2e04e: # Reliable OAuth sign-in for ad platform connectors
-
-  Previously, signing in to connectors that use OAuth (such as Microsoft Ads, TikTok, LinkedIn, and Google Ads) could end with a "Not Found" error right after authorizing with the provider, because the connector's callback page was routed to the backend instead of the web app. Now these callback pages load correctly and the sign-in flow completes, so the connector gets connected as expected. This affects both self-hosted and cloud deployments.
-
-- 19fbef7: # Readable field names and search in report Output Controls
-
-  The Filters, Slices, and Sort pickers in a report's Output Controls now show the
-  business-readable field name (its alias, or the column's leaf name), with the joined
-  data mart name as a muted second line for blended fields, instead of only the raw
-  nested column identifier. Hovering a field reveals its full path as a tree. Each picker
-  is now searchable — start typing to filter the list by the readable name, the data mart
-  name, or the technical field name. Long nested field names no longer overflow the
-  sidebar, and the section info tooltips stay within view in narrow sidebars.
-
-- dad37e4: # Run History shows the executed SQL for report runs
-
-  Report runs now record the exact SQL that ran — with output controls (filters, sorting,
-  limit) applied and filter parameter values inlined as literals, matching the generated-SQL
-  preview — and surface it in Run History as a dedicated **Executed SQL** block.
-  Previously the run only stored the raw Data Mart query, so the recorded SQL did not reflect
-  the parameters used at run time. This covers report exports to Google Sheets, Email, Slack,
-  Google Chat, and Microsoft Teams, as well as Looker Studio. The block appears only when the
-  run actually applied output controls or blended SQL.
-
-- bbe8e34: # Drag-and-drop support for service account JSON inputs
-
-  Added drag-and-drop support for service account JSON files on credentials textareas. Users can now drop their credential files directly to populate the field, with JSON validation, file size limits, and user-friendly error feedback.
-
-- b856d11: # Shopify order total outstanding field
-
-  Add the `totalOutstanding` field to Shopify orders, exposing the total amount not yet transacted for the order.
-
-- 4858830: # Show validation error when Google OAuth connection is missing
-
-  Added validation checks and UI feedback to display an error when a Google OAuth connection is required but missing.
-
-- 2a2efa1: # Add output controls for Snowflake data marts
-
-  Add report-level output controls (filters, slices, sort, limit) for Snowflake data marts. Filter values are inlined as escaped SQL literals (Snowflake-correct backslash + quote escaping); substring matchers use CONTAINS/STARTSWITH/ENDSWITH (not LIKE) so user `%`/`_` stay literal, and regex uses `REGEXP_INSTR(...) > 0` for partial matching; date/time comparisons are CAST to the column type. Works for the web app and the Google Sheets extension.
-
-- ec2fd8b: # Clearer reconnect prompt when Google Storage access expires
-
-  Previously, when a storage's Google authorization expired, connector runs would start and then fail with a confusing authentication error, and other actions showed raw "Failed to refresh OAuth tokens" text. Now expired authorization is detected before a run starts and surfaced as a clear "Reconnect Storage" prompt, and the storage health indicator updates automatically when access is lost. This helps users quickly understand they need to reconnect the storage instead of troubleshooting opaque failures.
-
-- e6e9296: # Unified column identifiers for output control filters
-
-  Slice (pre-join) filters now reference a column by the same fully qualified identifier as
-  regular output filters — for example `category_details__item_event_count` — instead of a raw
-  column name plus a separate `aliasPath`. This makes every filter, slice, and sort refer to a
-  column the same way across the API and the Web/Extension report editor. Existing saved reports
-  are migrated automatically, so no manual changes are needed.
+- 1d2e04e: # **Bug fixes and improvements**
+  - 1d2e04e: Fixed OAuth sign-in for ad platform connectors (Microsoft Ads, TikTok, LinkedIn, Google Ads) failing with "Not Found" after the provider authorization step — callback pages were routed to the backend instead of the web app. Affects both self-hosted and cloud deployments.
+  - a222917: Fixed rotated Microsoft Ads refresh tokens not being persisted — OAuth responses returned a new token but it was discarded or overwrote the original user-provided token.
+  - c110f35: Fixed AI Helper failing with `Unrecognized name: <field>` when the Output Schema contains disconnected fields. Disconnected fields are now excluded from the 30-row sample query; the fetch is skipped entirely when no connected fields remain.
+  - f69f0b3: Fixed AI Helper failing with `Syntax error: Expected end of input but got "-"` for Data Marts whose fully qualified table name contains dashes (e.g. `my-project.dataset.my-table-name`). Table references and column names are now escaped per storage type via `IdentifierEscaperFacade`.
+  - 4858830: Fixed missing validation feedback when a Google OAuth connection is required but not present.
 
 ### Patch Changes 0.28.0
 
