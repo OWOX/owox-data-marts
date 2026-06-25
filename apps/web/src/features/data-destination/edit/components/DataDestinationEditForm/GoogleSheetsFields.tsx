@@ -18,8 +18,10 @@ import GoogleSheetsOAuthDescription from './FormDescriptions/GoogleSheetsOAuthDe
 import GoogleSheetsAuthMethodDescription from './FormDescriptions/GoogleSheetsAuthMethodDescription';
 import { CopyableField } from '@owox/ui/components/common/copyable-field';
 import { ExternalAnchor } from '@owox/ui/components/common/external-anchor';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@owox/ui/components/tooltip';
 import { getServiceAccountLink } from '../../../../../utils';
-import { Copy, Check } from 'lucide-react';
+import { Copy, Check, ExternalLink } from 'lucide-react';
+import { isValidGoogleDriveFolderUrl } from '../../../shared/utils/drive-folder-url.utils';
 import { GoogleOAuthConnectButton, destinationOAuthApi } from '../../../../google-oauth';
 import { Tabs, TabsList, TabsTrigger } from '@owox/ui/components/tabs';
 import { AuthenticationSectionHeader } from '../../../../../shared/components/AuthenticationSectionHeader';
@@ -293,27 +295,65 @@ export function GoogleSheetsFields({ form }: GoogleSheetsFieldsProps) {
           {authMethod === 'service-account' && (
             <FormField
               control={form.control}
-              name='config.folderId'
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel tooltip='New Google Sheets created from chat or reports are placed in this Shared Drive folder'>
-                    Drive folder for auto-created Sheets (optional)
-                  </FormLabel>
-                  <FormControl>
-                    <Input
-                      placeholder='Google Drive folder ID'
-                      {...field}
-                      value={field.value ?? ''}
-                    />
-                  </FormControl>
-                  <FormDescription>
-                    Used when documents are auto-created (e.g. the “Create GS” button). Use a Shared
-                    Drive folder and share it with the service account email above (Editor access).
-                    Leave empty to create files in the service account’s Drive.
-                  </FormDescription>
-                  <FormMessage />
-                </FormItem>
-              )}
+              name='config.folderUrl'
+              render={({ field }) => {
+                const folderUrl = (field.value ?? '').trim();
+                const isValidFolderUrl = !!folderUrl && isValidGoogleDriveFolderUrl(folderUrl);
+                return (
+                  <FormItem>
+                    <FormLabel tooltip='New documents created from chat or reports are placed in this Shared Drive folder'>
+                      Drive folder for auto-created documents (optional)
+                    </FormLabel>
+                    <FormControl>
+                      <div className='flex items-center gap-2'>
+                        <Input
+                          placeholder='https://drive.google.com/drive/folders/…'
+                          className='flex-1'
+                          {...field}
+                          value={field.value ?? ''}
+                        />
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <button
+                              type='button'
+                              className={`flex-shrink-0 rounded-md p-2 transition-all duration-200 ${
+                                isValidFolderUrl
+                                  ? 'text-blue-600 hover:bg-blue-50 hover:text-blue-700 dark:text-blue-400 dark:hover:bg-blue-950/20 dark:hover:text-blue-300'
+                                  : 'text-muted-foreground/30 cursor-not-allowed'
+                              }`}
+                              onClick={() => {
+                                if (isValidFolderUrl) {
+                                  window.open(folderUrl, '_blank', 'noopener,noreferrer');
+                                }
+                              }}
+                              disabled={!isValidFolderUrl}
+                              aria-label={
+                                isValidFolderUrl
+                                  ? 'Open folder in new tab'
+                                  : 'Folder link is not valid'
+                              }
+                            >
+                              <ExternalLink className='h-4 w-4' aria-hidden='true' />
+                            </button>
+                          </TooltipTrigger>
+                          <TooltipContent side='top' align='center' role='tooltip'>
+                            {isValidFolderUrl
+                              ? 'Open folder in new tab'
+                              : 'Paste a valid Drive folder URL to enable link'}
+                          </TooltipContent>
+                        </Tooltip>
+                      </div>
+                    </FormControl>
+                    <FormDescription>
+                      Paste a Google Drive folder URL. New documents created with “Create document”
+                      are placed here. Use a Shared Drive folder and add the service account email
+                      above as a member with the Content Manager role. Leave empty to create files
+                      in the service account’s Drive.
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                );
+              }}
             />
           )}
         </div>

@@ -5,8 +5,15 @@
  */
 export interface DestinationConfig {
   /**
-   * Google Drive folder ID where auto-created Google Sheets are placed.
-   * Used by the "Create GS" / auto-creation flow (Google Sheets destinations).
+   * Raw Google Drive folder URL the user pasted (source of truth, kept so the UI
+   * can render a clickable open-in-Drive link). The `folderId` is derived from it.
+   */
+  folderUrl?: string | null;
+
+  /**
+   * Google Drive folder ID where auto-created Google Sheets are placed. Derived
+   * from `folderUrl` at the write boundary; consumed by the validator and the
+   * auto-creation flow (Google Sheets destinations).
    */
   folderId?: string | null;
 }

@@ -118,7 +118,7 @@ export class GoogleSheetsApiAdapter {
   /**
    * Creates a new, empty Google Spreadsheet with its single default sheet.
    *
-   * Used by the "Create GS" auto-creation flow. The first sheet's numeric
+   * Used by the "Create document" auto-creation flow. The first sheet's numeric
    * `sheetId` is read from the create response — it is NOT assumed to be `0`,
    * because Google does not guarantee the default sheet's id.
    *

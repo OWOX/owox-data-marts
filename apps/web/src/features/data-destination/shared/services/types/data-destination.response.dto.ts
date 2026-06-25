@@ -90,5 +90,5 @@ export interface DataDestinationResponseDto {
   /**
    * Optional destination-level config (e.g. Drive folder for auto-created Google Sheets)
    */
-  config?: { folderId?: string | null } | null;
+  config?: { folderId?: string | null; folderUrl?: string | null } | null;
 }

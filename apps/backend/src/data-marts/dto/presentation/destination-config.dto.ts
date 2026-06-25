@@ -9,7 +9,16 @@ export class DestinationConfigDto {
   @ApiPropertyOptional({
     nullable: true,
     description:
-      'Google Drive folder ID for auto-created Google Sheets (Google Sheets destinations). Pass null to clear.',
+      'Google Drive folder URL for auto-created Google Sheets (Google Sheets destinations). The folder ID is derived from it server-side. Pass null/empty to clear.',
+  })
+  @IsOptional()
+  @IsString()
+  folderUrl?: string | null;
+
+  @ApiPropertyOptional({
+    nullable: true,
+    description:
+      'Derived Google Drive folder ID (server-managed; clients should send folderUrl). Pass null to clear.',
   })
   @IsOptional()
   @IsString()

@@ -30,6 +30,9 @@ import { UserProjectionDto } from '../../idp/dto/domain/user-projection.dto';
 import { OwnerFilter } from '../enums/owner-filter.enum';
 import { resolveOwnerUsers } from '../utils/resolve-owner-users';
 import { extractContextSummaries } from '../utils/extract-context-summaries';
+import { DestinationConfig } from '../entities/destination-config.type';
+import { DestinationConfigDto } from '../dto/presentation/destination-config.dto';
+import { extractDriveFolderId } from '../data-destination-types/google-sheets/utils/drive-folder-url.utils';
 
 @Injectable()
 export class DataDestinationMapper {
@@ -54,7 +57,7 @@ export class DataDestinationMapper {
       dto.sourceDestinationId,
       dto.ownerIds,
       context.roles ?? [],
-      dto.config
+      this.normalizeDestinationConfig(dto.config)
     );
   }
 
@@ -76,8 +79,23 @@ export class DataDestinationMapper {
       dto.availableForUse,
       dto.availableForMaintenance,
       dto.contextIds,
-      dto.config
+      this.normalizeDestinationConfig(dto.config)
     );
+  }
+
+  /**
+   * Normalizes destination config from the API: the client sends a Drive folder
+   * URL; we keep it as the source of truth and derive the canonical folderId from
+   * it (so the validator and auto-creation flow keep consuming folderId). Returns
+   * undefined when no config was sent (do not touch); returns nulls to clear.
+   */
+  private normalizeDestinationConfig(config?: DestinationConfigDto): DestinationConfig | undefined {
+    if (config === undefined) {
+      return undefined;
+    }
+    const folderUrl = config.folderUrl?.trim() || null;
+    const folderId = folderUrl ? extractDriveFolderId(folderUrl) : config.folderId?.trim() || null;
+    return { folderUrl, folderId };
   }
 
   toDomainDto(

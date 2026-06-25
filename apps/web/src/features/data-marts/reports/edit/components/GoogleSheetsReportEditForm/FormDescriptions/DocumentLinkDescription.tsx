@@ -15,8 +15,9 @@ export default function DocumentLinkDescription() {
         <AccordionTrigger>How do I get a correct document link?</AccordionTrigger>
         <AccordionContent>
           <p className='mb-2'>
-            Tip: click <strong>Create GS</strong> to auto-create a new Google Sheet in the selected
-            destination — the link is filled in for you. Or paste an existing document URL manually:
+            Tip: click <strong>Create document</strong> to auto-create a new Google Sheet in the
+            selected destination — the link is filled in for you. Or paste an existing document URL
+            manually:
           </p>
           <p className='mb-2'>
             To get the correct Google Sheets document URL with a Sheet ID (GID), follow these steps:

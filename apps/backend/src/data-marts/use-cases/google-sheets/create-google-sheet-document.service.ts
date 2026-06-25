@@ -20,7 +20,7 @@ const DEFAULT_DOCUMENT_TITLE = 'OWOX Report';
 
 /**
  * Auto-creates a new, empty Google Sheet for a Google Sheets destination and
- * returns its identifiers. This is the reusable core behind the "Create GS"
+ * returns its identifiers. This is the reusable core behind the "Create document"
  * button (and, later, the MCP add_report flow).
  *
  * Auth is resolved EXPLICITLY by credential type (not via the SA-first factory)

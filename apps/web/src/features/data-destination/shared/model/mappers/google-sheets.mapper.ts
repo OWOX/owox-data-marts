@@ -7,6 +7,7 @@ import type {
   UpdateDataDestinationRequestDto,
   CreateDataDestinationRequestDto,
 } from '../../services/types';
+import { buildDriveFolderUrl } from '../../utils/drive-folder-url.utils.ts';
 
 interface GoogleSheetsFormCredentials {
   serviceAccount?: string;
@@ -15,6 +16,7 @@ interface GoogleSheetsFormCredentials {
 
 interface GoogleSheetsFormConfig {
   folderId?: string;
+  folderUrl?: string;
 }
 
 export class GoogleSheetsMapper implements DestinationMapper {
@@ -45,7 +47,14 @@ export class GoogleSheetsMapper implements DestinationMapper {
       modifiedAt: new Date(dto.modifiedAt),
       createdByUser: dto.createdByUser,
       ownerUsers: dto.ownerUsers ?? [],
-      config: dto.config?.folderId ? { folderId: dto.config.folderId } : undefined,
+      // Prefer the stored folderUrl; synthesize one from a legacy folderId so the
+      // clickable link still works for destinations created before the URL field.
+      config: (() => {
+        const folderUrl =
+          dto.config?.folderUrl ??
+          (dto.config?.folderId ? buildDriveFolderUrl(dto.config.folderId) : undefined);
+        return folderUrl ? { folderUrl } : undefined;
+      })(),
     };
   }
 
@@ -73,9 +82,9 @@ export class GoogleSheetsMapper implements DestinationMapper {
       }
     }
 
-    const folderId = (formData as { config?: GoogleSheetsFormConfig }).config?.folderId;
-    if (folderId !== undefined) {
-      result.config = { folderId: folderId.trim() || null };
+    const folderUrl = (formData as { config?: GoogleSheetsFormConfig }).config?.folderUrl;
+    if (folderUrl !== undefined) {
+      result.config = { folderUrl: folderUrl.trim() || null };
     }
 
     return result;
@@ -110,9 +119,9 @@ export class GoogleSheetsMapper implements DestinationMapper {
       result.credentialId = creds.credentialId;
     }
 
-    const folderId = (formData as { config?: GoogleSheetsFormConfig }).config?.folderId?.trim();
-    if (folderId) {
-      result.config = { folderId };
+    const folderUrl = (formData as { config?: GoogleSheetsFormConfig }).config?.folderUrl?.trim();
+    if (folderUrl) {
+      result.config = { folderUrl };
     }
 
     return result;

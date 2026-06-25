@@ -47,7 +47,7 @@ export class GoogleSheetsFolderValidator {
 
     if (!access.accessible) {
       throw new DestinationFolderAccessException(
-        `The Drive folder was not found or is not shared with the service account (${saEmail}). Share the folder with this account as Editor.`,
+        `The Drive folder was not found or the service account (${saEmail}) is not a member of it. Add this account as a member of the Shared Drive with the Content Manager role (a sharing link alone is not enough).`,
         { folderId }
       );
     }
@@ -65,7 +65,7 @@ export class GoogleSheetsFolderValidator {
     }
     if (!access.canAddChildren) {
       throw new DestinationFolderAccessException(
-        `The service account (${saEmail}) cannot create files in this folder. Share it as Editor (Content manager).`,
+        `The service account (${saEmail}) cannot create files in this folder. Add it as a Shared Drive member with the Content Manager role (Viewer/Commenter is not enough).`,
         { folderId }
       );
     }

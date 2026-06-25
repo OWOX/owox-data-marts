@@ -10,7 +10,7 @@ import type {
 import type { DataDestinationType } from '../enums';
 
 /**
- * Identifiers of an auto-created Google Sheet, returned by the "Create GS" flow.
+ * Identifiers of an auto-created Google Sheet, returned by the "Create document" flow.
  */
 export interface CreateGoogleSheetDocumentResponseDto {
   spreadsheetId: string;

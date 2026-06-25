@@ -464,7 +464,7 @@ export const GoogleSheetsReportEditForm = forwardRef<
                               {isCreatingSheet ? (
                                 <Loader2 className='h-4 w-4 animate-spin' aria-hidden='true' />
                               ) : null}
-                              Create GS
+                              Create document
                             </Button>
                           </TooltipTrigger>
                           <TooltipContent side='top' align='center' role='tooltip'>
