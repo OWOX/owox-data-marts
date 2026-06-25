@@ -105,7 +105,7 @@
 
 - 3d80135: **OWOX Data Marts API access**
 
-  Added [`owox-ctl`](../docs/api/owox-ctl.md), the OWOX Data Marts Control CLI, and [`@owox/api-client`](../docs/api/api-client.md), a TypeScript/JavaScript API client for custom integrations. `owox-ctl` resolves credentials from environment variables, supports `.env` / `--env-file`, and defaults to OWOX Data Marts Cloud at `https://app.owox.com`.
+  Added [`owox-ctl`](../../docs/api/owox-ctl.md), the OWOX Data Marts Control CLI, and [`@owox/api-client`](../../docs/api/api-client.md), a TypeScript/JavaScript API client for custom integrations. `owox-ctl` resolves credentials from environment variables, supports `.env` / `--env-file`, and defaults to OWOX Data Marts Cloud at `https://app.owox.com`.
 
   Available commands:
   - `owox-ctl status`

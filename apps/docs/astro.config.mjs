@@ -3,6 +3,7 @@ import starlight from '@astrojs/starlight';
 import { defineConfig } from 'astro/config';
 import rehypeExternalLinks from 'rehype-external-links';
 import starlightAutoSidebar from 'starlight-auto-sidebar';
+import starlightLinksValidator from 'starlight-links-validator';
 import { getConfig } from './scripts/env-config.js';
 
 const { site, base, gtmId } = getConfig();
@@ -204,7 +205,18 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
           ],
         },
       ],
-      plugins: [starlightAutoSidebar()],
+      plugins: [
+        starlightAutoSidebar(),
+        // Fails `astro build` on broken internal links and missing heading
+        // anchors, so CI (test-docs.yml) catches dead links before deploy.
+        starlightLinksValidator({
+          // localhost URLs are intentional examples in setup/deployment guides.
+          errorOnLocalLinks: false,
+          // Repo-file links (e.g. workflow YAML) are valid on GitHub but have no
+          // page on the docs site; skip them rather than rewrite to blob URLs.
+          exclude: ['/.github/**'],
+        }),
+      ],
     }),
   ],
   markdown: {
