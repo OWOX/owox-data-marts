@@ -15,13 +15,19 @@ Log into Facebook with account that have access to ad data and confirm access. Y
 
 Next step: fill Account ID to fetch data from. [Where to find Account IDs?](https://docs.owox.com/packages/connectors/src/sources/facebook-marketing/getting-started/#set-up-the-connector)
 
+(OAUTH IMAGE)
+
 ## Access Token
 
 ## Step 1: Sign In to the Meta for Developers Portal
 
-Visit the [Meta for Developers](https://developers.facebook.com/) site and log in with your Facebook account. Navigate to **My Apps** and click the **Create App** button. Enter the **App Name** in the provided field.
+Visit the [Meta for Developers](https://developers.facebook.com/) site and log in with your Facebook account. Navigate to **My Apps** and click the **Create App** button. Enter the **App Name** in the provided field. For example, you can use the name 'OWOX Data Marts App'.
 
-Select **Measure ad performance data with Marketing API** as the use case. Connect your Business Portfolio. Leave all other fields as default and press 'Create app' button on the final step.
+(IMAGE)
+
+Select All on the left 'Filter by' panel and **Measure ad performance data with Marketing API** as the use case. Connect your Business Portfolio. Leave all other fields as default and press 'Create app' button on the final step.
+
+(IMAGE)
 
 ## Step 4: Get the temporary token
 
@@ -29,7 +35,7 @@ Select **Measure ad performance data with Marketing API** as the use case. Conne
 - Copy your **App ID**  
 - Also note your **App Secret** (you’ll need it in the next step)
 
-![Facebook Copy App ID](res/facebook_copyappid.png)
+(IMAGE)
 
 Please, build the authorization URL. Use the template below and replace `YOUR_APP_ID` with your actual **App ID**.  
 
@@ -42,16 +48,19 @@ https://www.facebook.com/v25.0/dialog/oauth?client_id=YOUR_APP_ID&redirect_uri=h
 
 - Open the generated URL in your browser  
 - Make sure you are logged in with the account that has access to the desired ad account  
-- Click **Connect**
+- Click **Continue as...** or **Connect**
+- Click **Save** and **Got it**
 
-![Facebook Connect](res/facebook_reconnect.png)
+(IMAGE)
 
 After authorization, you’ll be redirected to a URL (note the long `code` parameter).
 
 Copy and save the **code** value (everything after `code=` up to `&state=...`).  
 You will need this in the next step.
 
-![Facebook copy code](res/facebook_copycode.png)
+Note: It is okay that this page is shown 'This site cant be reached' error. We nned only the code from the addreess bar, there is now expected that localhost link will open the actual site.
+
+(IMAGE)
 
 ## Step 5: Generate and Save the Access Token
 
