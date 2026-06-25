@@ -20,7 +20,8 @@ describe('McpDataMartsFacadeImpl', () => {
             DataStorageType.GOOGLE_BIGQUERY,
             'BigQuery',
             new Date('2026-06-01T10:00:00.000Z'),
-            new Date('2026-06-10T10:00:00.000Z')
+            new Date('2026-06-10T10:00:00.000Z'),
+            'Mock Description'
           ),
         ],
         total: 1,
@@ -48,7 +49,7 @@ describe('McpDataMartsFacadeImpl', () => {
         {
           id: 'dm_1',
           title: 'Orders',
-          description: null,
+          description: 'Mock Description',
           status: DataMartStatus.PUBLISHED,
           updatedAt: '2026-06-10T10:00:00.000Z',
         },
