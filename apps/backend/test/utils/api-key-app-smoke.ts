@@ -295,6 +295,61 @@ export async function expectApiKeyManagementRejected(
   );
 }
 
+export async function expectProjectMemberAdministrationRejected(
+  origin: string,
+  accessToken: string,
+  apiKeyId: string
+): Promise<void> {
+  const headers = apiKeyAuthHeaders(accessToken, apiKeyId);
+  const jsonHeaders = { ...headers, 'content-type': 'application/json' };
+
+  await expectStatus(`${origin}/api/members`, { headers }, 403);
+  await expectStatus(`${origin}/api/members/user-provisioning-settings`, { headers }, 403);
+  await expectStatus(
+    `${origin}/api/members/invite`,
+    {
+      method: 'POST',
+      headers: jsonHeaders,
+      body: JSON.stringify({ email: 'new-member@example.test', role: 'viewer' }),
+    },
+    403
+  );
+  await expectStatus(
+    `${origin}/api/members/user-provisioning-settings`,
+    {
+      method: 'PUT',
+      headers: jsonHeaders,
+      body: JSON.stringify({ defaultRole: 'viewer' }),
+    },
+    403
+  );
+  await expectStatus(
+    `${origin}/api/members/user-2`,
+    {
+      method: 'PUT',
+      headers: jsonHeaders,
+      body: JSON.stringify({ role: 'viewer' }),
+    },
+    403
+  );
+  await expectStatus(`${origin}/api/members/user-2`, { method: 'DELETE', headers }, 403);
+  await expectStatus(`${origin}/api/members/requests`, { headers }, 403);
+  await expectStatus(
+    `${origin}/api/members/requests/request-1/approve`,
+    {
+      method: 'POST',
+      headers: jsonHeaders,
+      body: JSON.stringify({ role: 'viewer' }),
+    },
+    403
+  );
+  await expectStatus(
+    `${origin}/api/members/requests/request-1/decline`,
+    { method: 'POST', headers },
+    403
+  );
+}
+
 export async function expectDataMartsAccessible(
   origin: string,
   accessToken: string,
