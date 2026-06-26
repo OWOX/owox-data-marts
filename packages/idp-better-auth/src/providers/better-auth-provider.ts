@@ -182,7 +182,7 @@ export class BetterAuthProvider
 
     return {
       id: projectId,
-      title: projectId === '0' ? 'OWOX Data Marts' : projectId,
+      title: this.getProjectTitle(projectId),
       status: 'active',
       roles: [role],
     };
@@ -274,6 +274,7 @@ export class BetterAuthProvider
       email: user.email,
       fullName: user.name || user.email,
       roles: [currentRole],
+      projectTitle: this.getProjectTitle(projectId),
       authFlow: 'api_key',
       apiKeyId,
     });
@@ -449,5 +450,9 @@ export class BetterAuthProvider
 
   private toRoleOrNull(role: string | null): Role | null {
     return role === 'admin' || role === 'editor' || role === 'viewer' ? role : null;
+  }
+
+  private getProjectTitle(projectId: string): string {
+    return projectId === '0' ? 'OWOX Data Marts' : projectId;
   }
 }

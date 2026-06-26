@@ -52,6 +52,7 @@ import {
 
 @Controller('members')
 @ApiTags('Project Members')
+@RejectApiKeyAuth()
 /**
  * Self-protection (admin cannot remove or change-role on themselves) is
  * enforced inside `RemoveProjectMemberService.run` and
@@ -73,7 +74,6 @@ export class ProjectMembersController {
   ) {}
 
   @Auth(Role.viewer(Strategy.PARSE))
-  @RejectApiKeyAuth()
   @Get()
   @ListProjectMembersSpec()
   async list(@AuthContext() context: AuthorizationContext): Promise<ProjectMemberResponseApiDto[]> {
@@ -82,7 +82,6 @@ export class ProjectMembersController {
   }
 
   @Auth(Role.admin(Strategy.INTROSPECT))
-  @RejectApiKeyAuth()
   @Post('invite')
   @HttpCode(202)
   @InviteProjectMemberSpec()
@@ -121,7 +120,6 @@ export class ProjectMembersController {
   }
 
   @Auth(Role.viewer(Strategy.PARSE))
-  @RejectApiKeyAuth()
   @Get('user-provisioning-settings')
   @GetUserProvisioningSettingsSpec()
   async getProvisioningSettings(
@@ -132,7 +130,6 @@ export class ProjectMembersController {
   }
 
   @Auth(Role.admin(Strategy.INTROSPECT))
-  @RejectApiKeyAuth()
   @Put('user-provisioning-settings')
   @UpdateUserProvisioningSettingsSpec()
   async updateProvisioningSettings(
@@ -151,7 +148,6 @@ export class ProjectMembersController {
   }
 
   @Auth(Role.admin(Strategy.INTROSPECT))
-  @RejectApiKeyAuth()
   @Put(':userId')
   @UpdateProjectMemberSpec()
   async update(
@@ -180,7 +176,6 @@ export class ProjectMembersController {
   }
 
   @Auth(Role.admin(Strategy.INTROSPECT))
-  @RejectApiKeyAuth()
   @Delete(':userId')
   @HttpCode(204)
   @RemoveProjectMemberSpec()
@@ -194,7 +189,6 @@ export class ProjectMembersController {
   }
 
   @Auth(Role.admin(Strategy.INTROSPECT))
-  @RejectApiKeyAuth()
   @Get('requests')
   @ListMembershipRequestsSpec()
   async listRequests(
@@ -205,7 +199,6 @@ export class ProjectMembersController {
   }
 
   @Auth(Role.admin(Strategy.INTROSPECT))
-  @RejectApiKeyAuth()
   @Post('requests/:requestId/approve')
   @HttpCode(200)
   @ApproveMembershipRequestSpec()
@@ -233,7 +226,6 @@ export class ProjectMembersController {
   }
 
   @Auth(Role.admin(Strategy.INTROSPECT))
-  @RejectApiKeyAuth()
   @Post('requests/:requestId/decline')
   @HttpCode(204)
   @DeclineMembershipRequestSpec()

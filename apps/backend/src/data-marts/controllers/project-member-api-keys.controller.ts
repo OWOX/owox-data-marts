@@ -22,6 +22,7 @@ import {
 
 @Controller('project-member-api-keys')
 @ApiTags('Project Member API Keys')
+@RejectApiKeyAuth()
 export class ProjectMemberApiKeysController {
   constructor(
     private readonly listKeys: ListProjectMemberApiKeysService,
@@ -32,7 +33,6 @@ export class ProjectMemberApiKeysController {
   ) {}
 
   @Auth(Role.viewer(Strategy.PARSE))
-  @RejectApiKeyAuth()
   @ListProjectMemberApiKeysSpec()
   @Get()
   async list(
@@ -45,7 +45,6 @@ export class ProjectMemberApiKeysController {
   }
 
   @Auth(Role.viewer(Strategy.INTROSPECT))
-  @RejectApiKeyAuth()
   @CreateProjectMemberApiKeySpec()
   @Post()
   @HttpCode(201)
@@ -59,7 +58,6 @@ export class ProjectMemberApiKeysController {
   }
 
   @Auth(Role.viewer(Strategy.INTROSPECT))
-  @RejectApiKeyAuth()
   @UpdateProjectMemberApiKeySpec()
   @Patch(':apiKeyId')
   async update(
@@ -73,7 +71,6 @@ export class ProjectMemberApiKeysController {
   }
 
   @Auth(Role.viewer(Strategy.INTROSPECT))
-  @RejectApiKeyAuth()
   @RevokeProjectMemberApiKeySpec()
   @Delete(':apiKeyId')
   @HttpCode(204)

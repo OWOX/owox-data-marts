@@ -375,6 +375,18 @@ export async function expectUserProvisioningRejected(
   );
 }
 
+export async function expectIntercomJwtRejected(
+  origin: string,
+  accessToken: string,
+  apiKeyId: string
+): Promise<void> {
+  await expectStatus(
+    `${origin}/api/intercom/jwt`,
+    { method: 'POST', headers: apiKeyAuthHeaders(accessToken, apiKeyId) },
+    403
+  );
+}
+
 export async function expectDataMartsAccessible(
   origin: string,
   accessToken: string,

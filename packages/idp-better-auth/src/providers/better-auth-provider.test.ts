@@ -572,6 +572,7 @@ describe('BetterAuthProvider', () => {
       expect(tokenService.issueProjectMemberApiKeyAccessToken).toHaveBeenCalledWith({
         userId: 'user-1',
         projectId: 'project-1',
+        projectTitle: 'project-1',
         email: 'user@example.com',
         fullName: 'User Name',
         roles: ['editor'],
@@ -606,6 +607,7 @@ describe('BetterAuthProvider', () => {
       expect(tokenService.issueProjectMemberApiKeyAccessToken).toHaveBeenCalledWith(
         expect.objectContaining({
           fullName: 'user@example.com',
+          projectTitle: 'project-1',
           roles: ['admin'],
           authFlow: 'api_key',
           apiKeyId: 'pmk_AbCdEfGhIjKlMnOpQrStUv',

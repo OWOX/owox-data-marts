@@ -7,22 +7,7 @@ jest.mock('../../idp', () => ({
 }));
 
 describe('ProjectMembersController', () => {
-  it.each([
-    'list',
-    'invite',
-    'getProvisioningSettings',
-    'updateProvisioningSettings',
-    'update',
-    'remove',
-    'listRequests',
-    'approveRequest',
-    'declineRequest',
-  ] as const)('rejects API-key authentication for %s', methodName => {
-    expect(
-      Reflect.getMetadata(
-        REJECT_API_KEY_AUTH_METADATA,
-        ProjectMembersController.prototype[methodName]
-      )
-    ).toBe(true);
+  it('rejects API-key authentication at the controller level', () => {
+    expect(Reflect.getMetadata(REJECT_API_KEY_AUTH_METADATA, ProjectMembersController)).toBe(true);
   });
 });
