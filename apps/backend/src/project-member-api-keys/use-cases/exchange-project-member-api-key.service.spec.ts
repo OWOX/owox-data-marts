@@ -65,7 +65,10 @@ describe('ExchangeProjectMemberApiKeyService', () => {
       apiKeyId,
       expect.any(Date)
     );
-    expect(result).toEqual({ accessToken: 'regular-odm-access-token' });
+    expect(result).toEqual({
+      accessToken: 'regular-odm-access-token',
+      accessTokenExpiresIn: 900,
+    });
   });
 
   it('does not bind a stored API-key role to the issued IDP token', async () => {

@@ -8,7 +8,7 @@ type AuthContextResponse = AuthorizationContext;
 @Controller('auth/context')
 @ApiTags('Authentication')
 export class AuthContextController {
-  @Auth(Role.viewer(Strategy.PARSE))
+  @Auth(Role.viewer(Strategy.INTROSPECT))
   @Get()
   @ApiOperation({ summary: 'Get the current auth context' })
   @ApiHeader({ name: 'X-OWOX-Authorization', required: true })

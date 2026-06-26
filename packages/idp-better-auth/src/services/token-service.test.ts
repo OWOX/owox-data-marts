@@ -211,11 +211,37 @@ describe('TokenService', () => {
       expect(auth.api.getSession).not.toHaveBeenCalled();
     });
 
+    it('should return unexpired api_key payloads', async () => {
+      const payload = {
+        userId: 'user-1',
+        projectId: 'project-1',
+        email: 'user@example.com',
+        fullName: 'User Name',
+        roles: ['viewer'],
+        authFlow: 'api_key',
+        apiKeyId: 'pmk_AbCdEfGhIjKlMnOpQrStUv',
+        expiresAt: new Date(Date.now() + 60_000).toISOString(),
+      };
+      cryptoService.decrypt.mockResolvedValue(JSON.stringify(payload));
+
+      const auth = createAuthMock();
+      const service = new TokenService(
+        auth as never,
+        cryptoService,
+        userManagementService as never
+      );
+
+      await expect(service.introspectToken('token')).resolves.toEqual(payload);
+    });
+
     it.each([
       ['apiKeyId', { apiKeyId: undefined }],
       ['projectId', { projectId: '' }],
       ['roles', { roles: [] }],
       ['roles', { roles: ['viewer', 'editor'] }],
+      ['expiresAt', { expiresAt: undefined }],
+      ['expiresAt', { expiresAt: 'not-a-date' }],
+      ['expiresAt', { expiresAt: new Date(Date.now() - 60_000).toISOString() }],
     ])('should return null for api_key payloads without valid %s', async (_field, overrides) => {
       cryptoService.decrypt.mockResolvedValue(
         JSON.stringify({
@@ -226,6 +252,7 @@ describe('TokenService', () => {
           roles: ['viewer'],
           authFlow: 'api_key',
           apiKeyId: 'pmk_AbCdEfGhIjKlMnOpQrStUv',
+          expiresAt: new Date(Date.now() + 60_000).toISOString(),
           ...overrides,
         })
       );
@@ -323,18 +350,23 @@ describe('TokenService', () => {
         apiKeyId: 'pmk_AbCdEfGhIjKlMnOpQrStUv',
       });
 
-      expect(cryptoService.encrypt).toHaveBeenCalledWith(
-        JSON.stringify({
-          userId: 'user-1',
-          projectId: 'project-1',
-          email: 'user@example.com',
-          fullName: 'User Name',
-          roles: ['viewer'],
-          authFlow: 'api_key',
-          apiKeyId: 'pmk_AbCdEfGhIjKlMnOpQrStUv',
-        })
-      );
-      expect(result).toEqual({ accessToken: 'encrypted-api-key-token' });
+      expect(cryptoService.encrypt).toHaveBeenCalledTimes(1);
+      const encryptedPayload = JSON.parse(cryptoService.encrypt.mock.calls[0][0]);
+      expect(encryptedPayload).toEqual({
+        userId: 'user-1',
+        projectId: 'project-1',
+        email: 'user@example.com',
+        fullName: 'User Name',
+        roles: ['viewer'],
+        authFlow: 'api_key',
+        apiKeyId: 'pmk_AbCdEfGhIjKlMnOpQrStUv',
+        expiresAt: expect.any(String),
+      });
+      expect(Date.parse(encryptedPayload.expiresAt)).toBeGreaterThan(Date.now());
+      expect(result).toEqual({
+        accessToken: 'encrypted-api-key-token',
+        accessTokenExpiresIn: 900,
+      });
     });
 
     it.each([

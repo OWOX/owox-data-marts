@@ -35,7 +35,12 @@ export class ExchangeProjectMemberApiKeyService {
 
     await this.projectMemberApiKeyService.markAuthenticated(apiKey.apiKeyId, new Date());
 
-    return { accessToken: tokenResult.accessToken };
+    return {
+      accessToken: tokenResult.accessToken,
+      ...(typeof tokenResult.accessTokenExpiresIn === 'number'
+        ? { accessTokenExpiresIn: tokenResult.accessTokenExpiresIn }
+        : {}),
+    };
   }
 
   private invalidCredentials(): AuthenticationError {

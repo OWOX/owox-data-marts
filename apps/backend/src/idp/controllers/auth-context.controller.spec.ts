@@ -1,7 +1,19 @@
 import { AuthContextController } from './auth-context.controller';
+import { Strategy } from '../types';
 
 describe('AuthContextController', () => {
   const controller = new AuthContextController();
+
+  it('uses token introspection so the returned context is current', () => {
+    const getMetadata = (Reflect as unknown as {
+      getMetadata(key: string, target: unknown): unknown;
+    }).getMetadata;
+
+    expect(getMetadata('roleConfig', AuthContextController.prototype.getContext)).toEqual({
+      role: 'viewer',
+      strategy: Strategy.INTROSPECT,
+    });
+  });
 
   it('returns API-key auth context without secrets', () => {
     expect(

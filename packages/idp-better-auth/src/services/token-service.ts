@@ -14,6 +14,10 @@ type ProjectMemberApiKeyPayload = Payload & {
   apiKeyId: string;
 };
 
+type ProjectMemberApiKeyAccessTokenPayload = ProjectMemberApiKeyPayload & {
+  expiresAt: string;
+};
+
 const PROJECT_MEMBER_API_KEY_ROLES: ReadonlySet<Role> = new Set<Role>([
   'admin',
   'editor',
@@ -22,6 +26,7 @@ const PROJECT_MEMBER_API_KEY_ROLES: ReadonlySet<Role> = new Set<Role>([
 
 export class TokenService {
   private static readonly DEFAULT_ORGANIZATION_ID = '0';
+  private static readonly PROJECT_MEMBER_API_KEY_ACCESS_TOKEN_TTL_SECONDS = 15 * 60;
 
   constructor(
     private readonly auth: Awaited<ReturnType<typeof createBetterAuthConfig>>,
@@ -39,7 +44,10 @@ export class TokenService {
         return null;
       }
 
-      if (payload.authFlow === 'api_key' && !this.isProjectMemberApiKeyPayload(payload)) {
+      if (
+        payload.authFlow === 'api_key' &&
+        !this.isProjectMemberApiKeyAccessTokenPayload(payload)
+      ) {
         return null;
       }
 
@@ -60,9 +68,14 @@ export class TokenService {
     this.assertProjectMemberApiKeyPayload(payload);
 
     try {
-      const encryptedToken = await this.cryptoService.encrypt(JSON.stringify(payload));
+      const tokenPayload: ProjectMemberApiKeyAccessTokenPayload = {
+        ...payload,
+        expiresAt: this.getProjectMemberApiKeyAccessTokenExpiresAt(),
+      };
+      const encryptedToken = await this.cryptoService.encrypt(JSON.stringify(tokenPayload));
       return {
         accessToken: encryptedToken,
+        accessTokenExpiresIn: TokenService.PROJECT_MEMBER_API_KEY_ACCESS_TOKEN_TTL_SECONDS,
       };
     } catch (error) {
       logger.error('Project member API key token issuing failed', {}, error as Error);
@@ -76,6 +89,14 @@ export class TokenService {
     if (!this.isProjectMemberApiKeyPayload(payload)) {
       throw new Error('Invalid project member API key token payload');
     }
+  }
+
+  private isProjectMemberApiKeyAccessTokenPayload(
+    payload: Payload
+  ): payload is ProjectMemberApiKeyAccessTokenPayload {
+    return (
+      this.isProjectMemberApiKeyPayload(payload) && this.isFutureDateString(payload.expiresAt)
+    );
   }
 
   private isProjectMemberApiKeyPayload(payload: Payload): payload is ProjectMemberApiKeyPayload {
@@ -92,6 +113,21 @@ export class TokenService {
       role !== undefined &&
       PROJECT_MEMBER_API_KEY_ROLES.has(role)
     );
+  }
+
+  private getProjectMemberApiKeyAccessTokenExpiresAt(): string {
+    return new Date(
+      Date.now() + TokenService.PROJECT_MEMBER_API_KEY_ACCESS_TOKEN_TTL_SECONDS * 1000
+    ).toISOString();
+  }
+
+  private isFutureDateString(value: unknown): value is string {
+    if (typeof value !== 'string') {
+      return false;
+    }
+
+    const timestamp = Date.parse(value);
+    return Number.isFinite(timestamp) && timestamp > Date.now();
   }
 
   private isNonEmptyString(value: unknown): value is string {
