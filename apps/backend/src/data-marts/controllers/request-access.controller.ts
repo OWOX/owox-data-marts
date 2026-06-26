@@ -1,7 +1,14 @@
 import { Body, Controller, Get, HttpCode, Post } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import type { Role as IdpRole } from '@owox/idp-protocol';
-import { Auth, AuthContext, AuthorizationContext, Role, Strategy } from '../../idp';
+import {
+  Auth,
+  AuthContext,
+  AuthorizationContext,
+  RejectApiKeyAuth,
+  Role,
+  Strategy,
+} from '../../idp';
 import {
   CreateNewProjectResponseApiDto,
   RequestAccessContextApiDto,
@@ -27,6 +34,7 @@ export class RequestAccessController {
   ) {}
 
   @Auth(Role.authenticated(Strategy.PARSE))
+  @RejectApiKeyAuth()
   @Get('request-access-context')
   @GetRequestAccessContextSpec()
   async getContext(
@@ -45,6 +53,7 @@ export class RequestAccessController {
   }
 
   @Auth(Role.authenticated(Strategy.INTROSPECT))
+  @RejectApiKeyAuth()
   @Post('request-access')
   @HttpCode(202)
   @RequestProjectAccessSpec()
@@ -61,6 +70,7 @@ export class RequestAccessController {
   }
 
   @Auth(Role.authenticated(Strategy.INTROSPECT))
+  @RejectApiKeyAuth()
   @Post('create-new-project')
   @CreateNewProjectSpec()
   async createNewProject(

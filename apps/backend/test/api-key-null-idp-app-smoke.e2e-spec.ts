@@ -8,6 +8,7 @@ import {
   expectCtlStatus,
   expectDataMartsAccessible,
   expectProjectMemberAdministrationRejected,
+  expectUserProvisioningRejected,
   readBrowserAccessToken,
   signInNullIdp,
   startOwoxApp,
@@ -43,6 +44,7 @@ describe('Null IDP app smoke (e2e)', () => {
         apiKeyAccessToken,
         parsedKey.apiKeyId
       );
+      await expectUserProvisioningRejected(app.origin, apiKeyAccessToken, parsedKey.apiKeyId);
       await expectDataMartsAccessible(app.origin, apiKeyAccessToken, parsedKey.apiKeyId);
       await expectCtlStatus(createdKey.apiKey, parsedKey);
     } finally {
