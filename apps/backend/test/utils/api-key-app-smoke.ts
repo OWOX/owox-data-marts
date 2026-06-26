@@ -384,7 +384,7 @@ export async function expectIntercomJwtRejected(
   );
 }
 
-export async function expectAccessControlMutationsRejected(
+export async function expectDomainManagementAllowed(
   origin: string,
   accessToken: string,
   apiKeyId: string
@@ -392,53 +392,62 @@ export async function expectAccessControlMutationsRejected(
   const headers = apiKeyAuthHeaders(accessToken, apiKeyId);
   const jsonHeaders = { ...headers, 'content-type': 'application/json' };
 
-  await expectStatus(
+  const contextResponse = await fetchJson<JsonRecord>(`${origin}/api/auth/context`, { headers });
+  expect(contextResponse.status).toBe(200);
+  expect(typeof contextResponse.body.userId).toBe('string');
+  const currentUserId = contextResponse.body.userId as string;
+
+  const createdContext = await fetchJson<JsonRecord>(
     `${origin}/api/contexts`,
     {
       method: 'POST',
       headers: jsonHeaders,
-      body: JSON.stringify({ name: 'must-not-create' }),
-    },
-    403
+      body: JSON.stringify({ name: `api-key-smoke-${randomUUID()}` }),
+    }
   );
+  expect(createdContext.status).toBe(201);
+  expect(typeof createdContext.body.id).toBe('string');
+  const contextId = createdContext.body.id as string;
+
   await expectStatus(
-    `${origin}/api/contexts/context-1`,
+    `${origin}/api/contexts/${contextId}`,
     {
       method: 'PUT',
       headers: jsonHeaders,
-      body: JSON.stringify({ name: 'must-not-update' }),
+      body: JSON.stringify({ name: `api-key-smoke-updated-${randomUUID()}` }),
     },
-    403
+    200
   );
-  await expectStatus(`${origin}/api/contexts/context-1`, { method: 'DELETE', headers }, 403);
   await expectStatus(
-    `${origin}/api/contexts/context-1/members`,
+    `${origin}/api/contexts/${contextId}/members`,
     {
       method: 'PUT',
       headers: jsonHeaders,
-      body: JSON.stringify({ assignedUserIds: ['user-1'] }),
+      body: JSON.stringify({ assignedUserIds: [currentUserId] }),
     },
-    403
+    200
   );
-  await expectStatus(
+
+  await expectNotForbidden(
     `${origin}/api/data-marts/data-mart-1/owners`,
     {
       method: 'PUT',
       headers: jsonHeaders,
-      body: JSON.stringify({ businessOwnerIds: ['user-1'], technicalOwnerIds: ['user-1'] }),
-    },
-    403
+      body: JSON.stringify({
+        businessOwnerIds: [currentUserId],
+        technicalOwnerIds: [currentUserId],
+      }),
+    }
   );
-  await expectStatus(
+  await expectNotForbidden(
     `${origin}/api/data-marts/data-mart-1/contexts`,
     {
       method: 'PUT',
       headers: jsonHeaders,
-      body: JSON.stringify({ contextIds: ['context-1'] }),
-    },
-    403
+      body: JSON.stringify({ contextIds: [contextId] }),
+    }
   );
-  await expectStatus(
+  await expectNotForbidden(
     `${origin}/api/data-storages/storage-1`,
     {
       method: 'PUT',
@@ -446,35 +455,32 @@ export async function expectAccessControlMutationsRejected(
       body: JSON.stringify({
         title: 'Storage',
         config: {},
-        ownerIds: ['user-1'],
-        contextIds: ['context-1'],
+        ownerIds: [currentUserId],
+        contextIds: [contextId],
       }),
-    },
-    403
+    }
   );
-  await expectStatus(
+  await expectNotForbidden(
     `${origin}/api/data-storages`,
     {
       method: 'POST',
       headers: jsonHeaders,
-      body: JSON.stringify({ type: 'GOOGLE_BIGQUERY', ownerIds: ['user-1'] }),
-    },
-    403
+      body: JSON.stringify({ type: 'GOOGLE_BIGQUERY', ownerIds: [currentUserId] }),
+    }
   );
-  await expectStatus(
+  await expectNotForbidden(
     `${origin}/api/data-destinations/destination-1`,
     {
       method: 'PUT',
       headers: jsonHeaders,
       body: JSON.stringify({
         title: 'Destination',
-        ownerIds: ['user-1'],
-        contextIds: ['context-1'],
+        ownerIds: [currentUserId],
+        contextIds: [contextId],
       }),
-    },
-    403
+    }
   );
-  await expectStatus(
+  await expectNotForbidden(
     `${origin}/api/data-destinations`,
     {
       method: 'POST',
@@ -482,12 +488,11 @@ export async function expectAccessControlMutationsRejected(
       body: JSON.stringify({
         title: 'Destination',
         type: 'GOOGLE_SHEETS',
-        ownerIds: ['user-1'],
+        ownerIds: [currentUserId],
       }),
-    },
-    403
+    }
   );
-  await expectStatus(
+  await expectNotForbidden(
     `${origin}/api/reports`,
     {
       method: 'POST',
@@ -497,12 +502,11 @@ export async function expectAccessControlMutationsRejected(
         dataMartId: 'data-mart-1',
         dataDestinationId: 'destination-1',
         destinationConfig: {},
-        ownerIds: ['user-1'],
+        ownerIds: [currentUserId],
       }),
-    },
-    403
+    }
   );
-  await expectStatus(
+  await expectNotForbidden(
     `${origin}/api/reports/report-1`,
     {
       method: 'PUT',
@@ -511,11 +515,12 @@ export async function expectAccessControlMutationsRejected(
         title: 'Report',
         dataDestinationId: 'destination-1',
         destinationConfig: {},
-        ownerIds: ['user-1'],
+        ownerIds: [currentUserId],
       }),
-    },
-    403
+    }
   );
+
+  await expectStatus(`${origin}/api/contexts/${contextId}`, { method: 'DELETE', headers }, 204);
 }
 
 export async function expectDataMartsAccessible(
@@ -661,6 +666,11 @@ async function followRedirects(
 async function expectStatus(url: string, init: RequestInit, expectedStatus: number): Promise<void> {
   const response = await fetch(url, init);
   expect(response.status).toBe(expectedStatus);
+}
+
+async function expectNotForbidden(url: string, init: RequestInit): Promise<void> {
+  const response = await fetch(url, init);
+  expect(response.status).not.toBe(403);
 }
 
 async function fetchJson<T>(

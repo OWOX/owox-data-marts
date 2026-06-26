@@ -1,12 +1,8 @@
 jest.mock('../../idp', () => {
   const noop = () => () => undefined;
-  const { RejectApiKeyAuth } = jest.requireActual(
-    '../../idp/decorators/reject-api-key-auth.decorator'
-  );
   return {
     Auth: noop,
     AuthContext: noop,
-    RejectApiKeyAuth,
     Role: { admin: () => 'admin', editor: () => 'editor', viewer: () => 'viewer' },
     Strategy: { INTROSPECT: 'INTROSPECT', PARSE: 'PARSE' },
   };
@@ -17,7 +13,6 @@ jest.mock('../../idp/facades/idp-projections.facade', () => ({
 }));
 
 import { ContextController } from './context.controller';
-import { REJECT_API_KEY_AUTH_METADATA } from '../../idp/decorators/reject-api-key-auth.decorator';
 import type { AuthorizationContext } from '../../idp/types/auth.types';
 import { ContextDto, ContextImpactDto } from '../dto/domain/context.dto';
 
@@ -96,15 +91,6 @@ describe('ContextController', () => {
     null,
     new Date('2026-01-01T00:00:00Z'),
     new Date('2026-01-02T00:00:00Z')
-  );
-
-  it.each(['create', 'update', 'delete', 'setContextMembers'] as const)(
-    'rejects API-key authentication for %s',
-    methodName => {
-      expect(
-        Reflect.getMetadata(REJECT_API_KEY_AUTH_METADATA, ContextController.prototype[methodName])
-      ).toBe(true);
-    }
   );
 
   describe('create', () => {
