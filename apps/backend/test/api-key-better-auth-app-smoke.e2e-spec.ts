@@ -6,7 +6,7 @@ import {
   createProjectMemberApiKey,
   decodeApiKey,
   exchangeApiKey,
-  expectAccessControlMutationsRejected,
+  expectDomainManagementAllowed,
   expectApiKeyManagementRejected,
   expectApiKeyAuthContext,
   expectApiKeyAuthContextStatus,
@@ -59,7 +59,7 @@ describe('Better Auth app smoke (e2e)', () => {
       );
       await expectUserProvisioningRejected(app.origin, apiKeyAccessToken, parsedKey.apiKeyId);
       await expectIntercomJwtRejected(app.origin, apiKeyAccessToken, parsedKey.apiKeyId);
-      await expectAccessControlMutationsRejected(
+      await expectDomainManagementAllowed(
         app.origin,
         apiKeyAccessToken,
         parsedKey.apiKeyId

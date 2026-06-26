@@ -15,7 +15,6 @@ import {
   Auth,
   AuthContext,
   AuthorizationContext,
-  RejectApiKeyAuth,
   Role,
   Strategy,
 } from '../../idp';
@@ -224,7 +223,6 @@ export class DataMartController {
   }
 
   @Auth(Role.editor(Strategy.INTROSPECT))
-  @RejectApiKeyAuth()
   @Put(':id/owners')
   @UpdateDataMartOwnersSpec()
   async updateOwners(
@@ -238,7 +236,6 @@ export class DataMartController {
   }
 
   @Auth(Role.editor(Strategy.INTROSPECT))
-  @RejectApiKeyAuth()
   @Put(':id/contexts')
   @UpdateDataMartContextsSpec()
   async updateContexts(

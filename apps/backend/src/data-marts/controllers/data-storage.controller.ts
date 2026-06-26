@@ -13,7 +13,6 @@ import {
 } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { Auth, AuthContext, AuthorizationContext } from '../../idp';
-import { AuthorizationError } from '@owox/idp-protocol';
 import { Role, Strategy } from '../../idp/types/role-config.types';
 import { CreateDataStorageApiDto } from '../dto/presentation/create-data-storage-api.dto';
 import { DataStorageAccessValidationResponseApiDto } from '../dto/presentation/data-storage-access-validation-response-api.dto';
@@ -107,21 +106,6 @@ export class DataStorageController {
     }
   }
 
-  private rejectApiKeyAuthForAccessControlUpdate(
-    context: AuthorizationContext,
-    dto: Pick<CreateDataStorageApiDto | UpdateDataStorageApiDto, 'ownerIds'> &
-      Partial<Pick<UpdateDataStorageApiDto, 'contextIds'>>
-  ): void {
-    if (
-      context.authFlow === 'api_key' &&
-      (dto.ownerIds !== undefined || dto.contextIds !== undefined)
-    ) {
-      throw new AuthorizationError(
-        'API key authentication is not allowed for access control updates'
-      );
-    }
-  }
-
   @Auth(Role.viewer(Strategy.PARSE))
   @Get()
   @ListDataStoragesSpec()
@@ -143,8 +127,6 @@ export class DataStorageController {
     @Param('id') id: string,
     @Body() dto: UpdateDataStorageApiDto
   ): Promise<DataStorageResponseApiDto> {
-    this.rejectApiKeyAuthForAccessControlUpdate(context, dto);
-
     const command = this.mapper.toUpdateCommand(id, context, dto);
     const dataStorageDto = await this.updateService.run(command);
     return this.mapper.toApiResponse(dataStorageDto);
@@ -157,8 +139,6 @@ export class DataStorageController {
     @AuthContext() context: AuthorizationContext,
     @Body() dto: CreateDataStorageApiDto
   ): Promise<DataStorageResponseApiDto> {
-    this.rejectApiKeyAuthForAccessControlUpdate(context, dto);
-
     const command = this.mapper.toCreateCommand(context, dto);
     const dataStorageDto = await this.createService.run(command);
     return this.mapper.toApiResponse(dataStorageDto);

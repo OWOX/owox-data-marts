@@ -1,6 +1,6 @@
 import {
   cleanupApp,
-  expectAccessControlMutationsRejected,
+  expectDomainManagementAllowed,
   createProjectMemberApiKey,
   decodeApiKey,
   exchangeApiKey,
@@ -51,7 +51,7 @@ describe('Null IDP app smoke (e2e)', () => {
       );
       await expectUserProvisioningRejected(app.origin, apiKeyAccessToken, parsedKey.apiKeyId);
       await expectIntercomJwtRejected(app.origin, apiKeyAccessToken, parsedKey.apiKeyId);
-      await expectAccessControlMutationsRejected(
+      await expectDomainManagementAllowed(
         app.origin,
         apiKeyAccessToken,
         parsedKey.apiKeyId

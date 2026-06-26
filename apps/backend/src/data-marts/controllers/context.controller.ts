@@ -4,7 +4,6 @@ import {
   Auth,
   AuthContext,
   AuthorizationContext,
-  RejectApiKeyAuth,
   Role,
   Strategy,
 } from '../../idp';
@@ -40,7 +39,6 @@ export class ContextController {
   ) {}
 
   @Auth(Role.admin(Strategy.INTROSPECT))
-  @RejectApiKeyAuth()
   @Post()
   @CreateContextSpec()
   async create(
@@ -65,7 +63,6 @@ export class ContextController {
   }
 
   @Auth(Role.admin(Strategy.INTROSPECT))
-  @RejectApiKeyAuth()
   @Put(':id')
   @UpdateContextSpec()
   async update(
@@ -103,7 +100,6 @@ export class ContextController {
   }
 
   @Auth(Role.admin(Strategy.INTROSPECT))
-  @RejectApiKeyAuth()
   @Delete(':id')
   @HttpCode(204)
   @DeleteContextSpec()
@@ -115,7 +111,6 @@ export class ContextController {
   }
 
   @Auth(Role.admin(Strategy.INTROSPECT))
-  @RejectApiKeyAuth()
   @Put(':id/members')
   @SetContextMembersSpec()
   async setContextMembers(
