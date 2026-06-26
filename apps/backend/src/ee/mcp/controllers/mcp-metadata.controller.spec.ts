@@ -1,3 +1,4 @@
+import { NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { McpConfigService } from '../config/mcp.config';
 import { McpMetadataController } from './mcp-metadata.controller';
@@ -32,5 +33,25 @@ describe('McpMetadataController', () => {
       scopes_supported: ['mcp:read', 'mcp:write'],
       resource_documentation: 'https://docs.dev.owox.com/mcp',
     });
+  });
+
+  it('returns the configured OpenAI Apps challenge token verbatim', () => {
+    const config = new McpConfigService({
+      get: jest.fn((key: string) =>
+        key === 'MCP_OPENAI_APPS_CHALLENGE_TOKEN' ? 'test-openai-apps-challenge-token' : undefined
+      ),
+    } as unknown as ConfigService);
+    const controller = new McpMetadataController(config);
+
+    expect(controller.getOpenaiAppsChallenge()).toBe('test-openai-apps-challenge-token');
+  });
+
+  it('responds with 404 when no OpenAI Apps challenge token is configured', () => {
+    const config = new McpConfigService({
+      get: jest.fn(() => undefined),
+    } as unknown as ConfigService);
+    const controller = new McpMetadataController(config);
+
+    expect(() => controller.getOpenaiAppsChallenge()).toThrow(NotFoundException);
   });
 });
