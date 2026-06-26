@@ -1,6 +1,11 @@
 import { beforeEach, describe, expect, it, jest } from '@jest/globals';
-import { IdpOperationNotSupportedError } from '@owox/idp-protocol';
+import {
+  AuthenticationError,
+  AuthorizationError,
+  IdpOperationNotSupportedError,
+} from '@owox/idp-protocol';
 import type { DatabaseStore } from '../store/DatabaseStore.js';
+import type { TokenService } from '../services/token-service.js';
 import type { UserManagementService } from '../services/user-management-service.js';
 import type { DatabaseUser } from '../types/index.js';
 
@@ -85,6 +90,7 @@ jest.unstable_mockModule('../services/token-service.js', () => ({
     parseToken: jest.fn(),
     refreshToken: jest.fn(),
     revokeToken: jest.fn(),
+    issueProjectMemberApiKeyAccessToken: jest.fn(),
   })),
 }));
 
@@ -186,6 +192,12 @@ describe('BetterAuthProvider', () => {
   ): jest.Mocked<UserManagementService> {
     return (provider as unknown as { userManagementService: jest.Mocked<UserManagementService> })
       .userManagementService;
+  }
+
+  function getTokenServiceFromProvider(
+    provider: InstanceType<typeof BetterAuthProvider>
+  ): jest.Mocked<TokenService> {
+    return (provider as unknown as { tokenService: jest.Mocked<TokenService> }).tokenService;
   }
 
   describe('initializePrimaryAdmin', () => {
@@ -529,6 +541,138 @@ describe('BetterAuthProvider', () => {
       await expect(
         provider.inviteMember('proj-1', 'bad@x.io', 'viewer', 'admin-1')
       ).rejects.toThrow('db down');
+    });
+  });
+
+  describe('project member API key token issuing', () => {
+    it('issues an API-key access token with the current member role when key role is inherited', async () => {
+      store.getUserById.mockResolvedValue({
+        id: 'user-1',
+        email: 'user@example.com',
+        name: 'User Name',
+      });
+      const provider = await createProvider();
+      const userMgmt = getUserManagementServiceFromProvider(provider);
+      const tokenService = getTokenServiceFromProvider(provider);
+      userMgmt.getUserRole.mockResolvedValue('editor');
+      tokenService.issueProjectMemberApiKeyAccessToken.mockResolvedValue({
+        accessToken: 'encrypted-api-key-access-token',
+      });
+
+      const result = await provider.issueAccessTokenForProjectMemberApiKey(
+        'pmk_AbCdEfGhIjKlMnOpQrStUv',
+        'user-1',
+        'project-1',
+        null,
+        false
+      );
+
+      expect(store.getUserById).toHaveBeenCalledWith('user-1');
+      expect(userMgmt.getUserRole).toHaveBeenCalledWith('user-1');
+      expect(tokenService.issueProjectMemberApiKeyAccessToken).toHaveBeenCalledWith({
+        userId: 'user-1',
+        projectId: 'project-1',
+        email: 'user@example.com',
+        fullName: 'User Name',
+        roles: ['editor'],
+        authFlow: 'api_key',
+        apiKeyId: 'pmk_AbCdEfGhIjKlMnOpQrStUv',
+      });
+      expect(result).toEqual({ accessToken: 'encrypted-api-key-access-token' });
+    });
+
+    it('uses the current member role instead of a stored API-key role', async () => {
+      store.getUserById.mockResolvedValue({
+        id: 'user-1',
+        email: 'user@example.com',
+        name: '',
+      });
+      const provider = await createProvider();
+      const userMgmt = getUserManagementServiceFromProvider(provider);
+      const tokenService = getTokenServiceFromProvider(provider);
+      userMgmt.getUserRole.mockResolvedValue('admin');
+      tokenService.issueProjectMemberApiKeyAccessToken.mockResolvedValue({
+        accessToken: 'viewer-api-key-access-token',
+      });
+
+      await provider.issueAccessTokenForProjectMemberApiKey(
+        'pmk_AbCdEfGhIjKlMnOpQrStUv',
+        'user-1',
+        'project-1',
+        'viewer',
+        false
+      );
+
+      expect(tokenService.issueProjectMemberApiKeyAccessToken).toHaveBeenCalledWith(
+        expect.objectContaining({
+          fullName: 'user@example.com',
+          roles: ['admin'],
+          authFlow: 'api_key',
+          apiKeyId: 'pmk_AbCdEfGhIjKlMnOpQrStUv',
+        })
+      );
+    });
+
+    it('rejects API-key token issuing when the user no longer exists', async () => {
+      const provider = await createProvider();
+      const tokenService = getTokenServiceFromProvider(provider);
+
+      await expect(
+        provider.issueAccessTokenForProjectMemberApiKey(
+          'pmk_AbCdEfGhIjKlMnOpQrStUv',
+          'user-1',
+          'project-1',
+          null,
+          false
+        )
+      ).rejects.toBeInstanceOf(AuthenticationError);
+      expect(tokenService.issueProjectMemberApiKeyAccessToken).not.toHaveBeenCalled();
+    });
+
+    it('rejects API-key token issuing when the user is not an active project member', async () => {
+      store.getUserById.mockResolvedValue({
+        id: 'user-1',
+        email: 'user@example.com',
+        name: 'User Name',
+      });
+      const provider = await createProvider();
+      const userMgmt = getUserManagementServiceFromProvider(provider);
+      const tokenService = getTokenServiceFromProvider(provider);
+      userMgmt.getUserRole.mockResolvedValue(null);
+
+      await expect(
+        provider.issueAccessTokenForProjectMemberApiKey(
+          'pmk_AbCdEfGhIjKlMnOpQrStUv',
+          'user-1',
+          'project-1',
+          null,
+          false
+        )
+      ).rejects.toBeInstanceOf(AuthorizationError);
+      expect(tokenService.issueProjectMemberApiKeyAccessToken).not.toHaveBeenCalled();
+    });
+
+    it('rejects API-key token issuing when the current project member role is unsupported', async () => {
+      store.getUserById.mockResolvedValue({
+        id: 'user-1',
+        email: 'user@example.com',
+        name: 'User Name',
+      });
+      const provider = await createProvider();
+      const userMgmt = getUserManagementServiceFromProvider(provider);
+      const tokenService = getTokenServiceFromProvider(provider);
+      userMgmt.getUserRole.mockResolvedValue('owner');
+
+      await expect(
+        provider.issueAccessTokenForProjectMemberApiKey(
+          'pmk_AbCdEfGhIjKlMnOpQrStUv',
+          'user-1',
+          'project-1',
+          null,
+          false
+        )
+      ).rejects.toBeInstanceOf(AuthorizationError);
+      expect(tokenService.issueProjectMemberApiKeyAccessToken).not.toHaveBeenCalled();
     });
   });
 

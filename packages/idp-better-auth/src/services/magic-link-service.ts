@@ -24,7 +24,9 @@ export class MagicLinkService {
         : (baseUrlConfig as { fallback?: string } | undefined)?.fallback || 'http://localhost:3000';
     const encodedRole = await this.cryptoService.encrypt(role);
 
-    const callbackURL = `${baseURL}${MagicLinkService.DEFAULT_CALLBACK_URL}?role=${encodedRole}`;
+    const callbackURL = `${baseURL}${MagicLinkService.DEFAULT_CALLBACK_URL}/${encodeURIComponent(
+      encodedRole
+    )}`;
     // Create a mock Request object for Better Auth
     const mockRequest = new Request(`${baseURL}/auth/better-auth/sign-in/magic-link`, {
       method: 'POST',

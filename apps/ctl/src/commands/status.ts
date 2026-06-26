@@ -1,4 +1,10 @@
-import { OWOXApiClient, OWOXApiError, OWOXAuthError, OWOXConfigError } from '@owox/api-client';
+import {
+  OWOXApiClient,
+  OWOXApiError,
+  OWOXAuthError,
+  OWOXConfigError,
+  type OWOXAuthContext,
+} from '@owox/api-client';
 
 import { BaseCommand } from '../base-command.js';
 import { resolveAuthConfig, type AuthConfig } from '../config-store.js';
@@ -15,12 +21,16 @@ type Status = {
   apiKeyId: string | null;
   authenticated: boolean;
   envFile: string | null;
+  project?: OWOXAuthContext['project'];
+  member?: OWOXAuthContext['member'];
   error?: StatusError;
 };
 
 type StatusDeps = {
   createClient: (config: AuthConfig) => {
-    authenticate(): Promise<void>;
+    auth: {
+      getContext(): Promise<OWOXAuthContext>;
+    };
   };
 };
 
@@ -65,8 +75,10 @@ export async function getStatus(
   envFile: string | null,
   deps: StatusDeps = { createClient: clientConfig => new OWOXApiClient(clientConfig) }
 ): Promise<Status> {
+  let context: OWOXAuthContext;
+
   try {
-    await deps.createClient(config).authenticate();
+    context = await deps.createClient(config).auth.getContext();
   } catch (error) {
     return {
       apiOrigin: config.apiOrigin,
@@ -79,9 +91,11 @@ export async function getStatus(
 
   return {
     apiOrigin: config.apiOrigin,
-    apiKeyId: config.apiKeyId,
+    apiKeyId: context.apiKeyId,
     authenticated: true,
     envFile,
+    project: context.project,
+    member: context.member,
   };
 }
 

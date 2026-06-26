@@ -13,6 +13,8 @@ import {
   ProjectMembershipRequest,
   ApproveMembershipRequestResult,
   GetProjectMembersOptions,
+  AuthenticationError,
+  AuthorizationError,
   IdpOperationNotSupportedError,
   McpOAuthProjectMemberContext,
   McpScope,
@@ -250,13 +252,31 @@ export class BetterAuthProvider
   }
 
   async issueAccessTokenForProjectMemberApiKey(
-    _apiKeyId: string,
-    _userId: string,
-    _projectId: string,
+    apiKeyId: string,
+    userId: string,
+    projectId: string,
     _role: Role | null,
     _readOnly: boolean
   ): Promise<AuthResult> {
-    throw new IdpOperationNotSupportedError('issueAccessTokenForProjectMemberApiKey');
+    const user = await this.store.getUserById(userId);
+    if (!user) {
+      throw new AuthenticationError('Project member API key user not found');
+    }
+
+    const currentRole = this.toRoleOrNull(await this.userManagementService.getUserRole(userId));
+    if (!currentRole) {
+      throw new AuthorizationError('Project member API key user is not an active project member');
+    }
+
+    return this.tokenService.issueProjectMemberApiKeyAccessToken({
+      userId,
+      projectId,
+      email: user.email,
+      fullName: user.name || user.email,
+      roles: [currentRole],
+      authFlow: 'api_key',
+      apiKeyId,
+    });
   }
 
   async createMcpOAuthAuthorizationCode(
@@ -425,5 +445,9 @@ export class BetterAuthProvider
 
   private toRoleOrViewer(role: string | null): Role {
     return role === 'admin' || role === 'editor' || role === 'viewer' ? role : 'viewer';
+  }
+
+  private toRoleOrNull(role: string | null): Role | null {
+    return role === 'admin' || role === 'editor' || role === 'viewer' ? role : null;
   }
 }

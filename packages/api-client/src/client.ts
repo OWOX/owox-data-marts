@@ -1,7 +1,7 @@
 import { Agent, type Dispatcher } from 'undici';
 
 import { parseOWOXApiKey } from './api-key.js';
-import { exchangeAccessToken, normalizeApiOrigin, readResponseBody } from './auth.js';
+import { AuthApi, exchangeAccessToken, normalizeApiOrigin, readResponseBody } from './auth.js';
 import { DataMartsApi } from './data-marts.js';
 import { DestinationsApi } from './destinations.js';
 import { createHttpError } from './errors.js';
@@ -19,6 +19,7 @@ type FetchInit = RequestInit & { dispatcher?: Dispatcher };
 const streamFetchDispatcher = new Agent({ bodyTimeout: 0, headersTimeout: 0 });
 
 export class OWOXApiClient {
+  readonly auth: AuthApi;
   readonly dataMarts: DataMartsApi;
   readonly storages: StoragesApi;
   readonly destinations: DestinationsApi;
@@ -36,6 +37,7 @@ export class OWOXApiClient {
     this.apiKeySecret = parsedApiKey.apiKeySecret;
     this.fetchImpl = options.fetchImpl ?? fetch;
 
+    this.auth = new AuthApi(this);
     this.dataMarts = new DataMartsApi(this);
     this.storages = new StoragesApi(this);
     this.destinations = new DestinationsApi(this);

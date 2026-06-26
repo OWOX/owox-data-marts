@@ -121,14 +121,16 @@ export class PageService {
 
       const session = await this.authenticationService.getSession(req);
 
-      if (!session || !session.user || !req.query.role) {
+      const encryptedRole = this.getEncryptedMagicLinkRole(req);
+
+      if (!session || !session.user || !encryptedRole) {
         res.redirect('/auth/sign-in?error=Invalid magic link');
         return;
       }
 
       let role: string;
       try {
-        role = await this.cryptoService.decrypt(req.query.role as string);
+        role = await this.cryptoService.decrypt(encryptedRole);
       } catch (error) {
         logger.error('Failed to decrypt role', {}, error as Error);
         res.redirect('/auth/sign-in?error=Invalid magic link');
@@ -164,10 +166,21 @@ export class PageService {
     }
   }
 
+  private getEncryptedMagicLinkRole(req: ExpressRequest): string {
+    if (typeof req.params?.role === 'string' && req.params.role) {
+      return decodeURIComponent(req.params.role);
+    }
+    if (typeof req.query.role === 'string' && req.query.role) {
+      return req.query.role;
+    }
+    return '';
+  }
+
   registerRoutes(express: Express): void {
     try {
       express.get('/auth/setup-password', this.setupPasswordPage.bind(this));
       express.post('/auth/set-password', this.setPassword.bind(this));
+      express.get('/auth/magic-link-success/:role', this.magicLinkSuccess.bind(this));
       express.get('/auth/magic-link-success', this.magicLinkSuccess.bind(this));
 
       express.get('/auth', (req, res) => {

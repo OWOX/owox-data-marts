@@ -60,7 +60,7 @@ export class NullIdpProvider implements IdpProvider {
     apiKeyId: string,
     userId: string,
     projectId: string,
-    role: Role | null,
+    _role: Role | null,
     _readOnly: boolean
   ): Promise<AuthResult> {
     const accessToken = `apiKeyAccessToken:${apiKeyId}`;
@@ -68,7 +68,7 @@ export class NullIdpProvider implements IdpProvider {
       ...this.defaultPayload,
       userId,
       projectId,
-      roles: [role ?? 'admin'],
+      roles: this.defaultPayload.roles,
       authFlow: 'api_key',
       apiKeyId,
     });

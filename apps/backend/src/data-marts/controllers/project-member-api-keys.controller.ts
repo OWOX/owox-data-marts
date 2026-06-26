@@ -1,6 +1,7 @@
 import { Body, Controller, Delete, Get, HttpCode, Param, Patch, Post, Query } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
-import { Auth, AuthContext, AuthorizationContext, Role, Strategy } from '../../idp';
+import { Auth, AuthContext, RejectApiKeyAuth } from '../../idp/decorators';
+import { AuthorizationContext, Role, Strategy } from '../../idp/types';
 import {
   CreateProjectMemberApiKeyRequestDto,
   CreateProjectMemberApiKeyResponseDto,
@@ -31,6 +32,7 @@ export class ProjectMemberApiKeysController {
   ) {}
 
   @Auth(Role.viewer(Strategy.PARSE))
+  @RejectApiKeyAuth()
   @ListProjectMemberApiKeysSpec()
   @Get()
   async list(
@@ -43,6 +45,7 @@ export class ProjectMemberApiKeysController {
   }
 
   @Auth(Role.viewer(Strategy.INTROSPECT))
+  @RejectApiKeyAuth()
   @CreateProjectMemberApiKeySpec()
   @Post()
   @HttpCode(201)
@@ -56,6 +59,7 @@ export class ProjectMemberApiKeysController {
   }
 
   @Auth(Role.viewer(Strategy.INTROSPECT))
+  @RejectApiKeyAuth()
   @UpdateProjectMemberApiKeySpec()
   @Patch(':apiKeyId')
   async update(
@@ -69,6 +73,7 @@ export class ProjectMemberApiKeysController {
   }
 
   @Auth(Role.viewer(Strategy.INTROSPECT))
+  @RejectApiKeyAuth()
   @RevokeProjectMemberApiKeySpec()
   @Delete(':apiKeyId')
   @HttpCode(204)

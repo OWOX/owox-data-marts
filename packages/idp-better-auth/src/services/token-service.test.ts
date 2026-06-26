@@ -211,6 +211,35 @@ describe('TokenService', () => {
       expect(auth.api.getSession).not.toHaveBeenCalled();
     });
 
+    it.each([
+      ['apiKeyId', { apiKeyId: undefined }],
+      ['projectId', { projectId: '' }],
+      ['roles', { roles: [] }],
+      ['roles', { roles: ['viewer', 'editor'] }],
+    ])('should return null for api_key payloads without valid %s', async (_field, overrides) => {
+      cryptoService.decrypt.mockResolvedValue(
+        JSON.stringify({
+          userId: 'user-1',
+          projectId: 'project-1',
+          email: 'user@example.com',
+          fullName: 'User Name',
+          roles: ['viewer'],
+          authFlow: 'api_key',
+          apiKeyId: 'pmk_AbCdEfGhIjKlMnOpQrStUv',
+          ...overrides,
+        })
+      );
+
+      const auth = createAuthMock();
+      const service = new TokenService(
+        auth as never,
+        cryptoService,
+        userManagementService as never
+      );
+
+      await expect(service.introspectToken('token')).resolves.toBeNull();
+    });
+
     it('should throw on empty string payload', async () => {
       cryptoService.decrypt.mockResolvedValue('');
 
@@ -270,6 +299,70 @@ describe('TokenService', () => {
       const result = await service.parseToken('token');
 
       expect(result).toEqual(payload);
+    });
+  });
+
+  describe('issueProjectMemberApiKeyAccessToken', () => {
+    it('encrypts an API-key auth payload with apiKeyId and authFlow claims', async () => {
+      cryptoService.encrypt.mockResolvedValue('encrypted-api-key-token');
+
+      const auth = createAuthMock();
+      const service = new TokenService(
+        auth as never,
+        cryptoService,
+        userManagementService as never
+      );
+
+      const result = await service.issueProjectMemberApiKeyAccessToken({
+        userId: 'user-1',
+        projectId: 'project-1',
+        email: 'user@example.com',
+        fullName: 'User Name',
+        roles: ['viewer'],
+        authFlow: 'api_key',
+        apiKeyId: 'pmk_AbCdEfGhIjKlMnOpQrStUv',
+      });
+
+      expect(cryptoService.encrypt).toHaveBeenCalledWith(
+        JSON.stringify({
+          userId: 'user-1',
+          projectId: 'project-1',
+          email: 'user@example.com',
+          fullName: 'User Name',
+          roles: ['viewer'],
+          authFlow: 'api_key',
+          apiKeyId: 'pmk_AbCdEfGhIjKlMnOpQrStUv',
+        })
+      );
+      expect(result).toEqual({ accessToken: 'encrypted-api-key-token' });
+    });
+
+    it.each([
+      ['authFlow', { authFlow: 'app_owox', apiKeyId: 'pmk_AbCdEfGhIjKlMnOpQrStUv' }],
+      ['apiKeyId', { authFlow: 'api_key' }],
+      ['userId', { userId: '' }],
+      ['projectId', { projectId: '' }],
+      ['roles', { roles: [] }],
+      ['roles', { roles: ['viewer', 'editor'] }],
+    ])('rejects API-key payloads without valid %s', async (_field, overrides) => {
+      const auth = createAuthMock();
+      const service = new TokenService(
+        auth as never,
+        cryptoService,
+        userManagementService as never
+      );
+
+      await expect(
+        service.issueProjectMemberApiKeyAccessToken({
+          userId: 'user-1',
+          projectId: 'project-1',
+          email: 'user@example.com',
+          fullName: 'User Name',
+          roles: ['viewer'],
+          ...overrides,
+        } as never)
+      ).rejects.toThrow('Invalid project member API key token payload');
+      expect(cryptoService.encrypt).not.toHaveBeenCalled();
     });
   });
 

@@ -13,7 +13,7 @@ describe('status', () => {
     'utf8'
   ).toString('base64url')}`;
 
-  it('includes API key ID, includes envFile, and never prints the secret', async () => {
+  it('includes API key auth context and never prints the secret', async () => {
     const status = await getStatus(
       {
         apiKey,
@@ -23,7 +23,23 @@ describe('status', () => {
       '/work/.env',
       {
         createClient: () => ({
-          authenticate: async () => undefined,
+          auth: {
+            getContext: async () => ({
+              apiKeyId: 'pmk_AbCdEfGhIjKlMnOpQrStUv',
+              authFlow: 'api_key',
+              project: {
+                id: 'project-1',
+                title: 'Demo Project',
+              },
+              member: {
+                userId: 'user-1',
+                email: 'analyst@example.com',
+                fullName: 'Data Analyst',
+                avatar: null,
+                roles: ['admin'],
+              },
+            }),
+          },
         }),
       }
     );
@@ -33,10 +49,22 @@ describe('status', () => {
       apiKeyId: 'pmk_AbCdEfGhIjKlMnOpQrStUv',
       authenticated: true,
       envFile: '/work/.env',
+      project: {
+        id: 'project-1',
+        title: 'Demo Project',
+      },
+      member: {
+        userId: 'user-1',
+        email: 'analyst@example.com',
+        fullName: 'Data Analyst',
+        avatar: null,
+        roles: ['admin'],
+      },
     });
 
     expect(renderJson(status)).not.toContain('secret-value-that-must-not-leak');
     expect(renderJson(status)).not.toContain(apiKey);
+    expect(renderJson(status)).not.toContain('"authFlow"');
   });
 
   it('uses null envFile when no env file was loaded', async () => {
@@ -50,7 +78,23 @@ describe('status', () => {
         null,
         {
           createClient: () => ({
-            authenticate: async () => undefined,
+            auth: {
+              getContext: async () => ({
+                apiKeyId: 'pmk_AbCdEfGhIjKlMnOpQrStUv',
+                authFlow: 'api_key',
+                project: {
+                  id: 'project-1',
+                  title: 'Demo Project',
+                },
+                member: {
+                  userId: 'user-1',
+                  email: 'analyst@example.com',
+                  fullName: 'Data Analyst',
+                  avatar: null,
+                  roles: ['viewer'],
+                },
+              }),
+            },
           }),
         }
       )
@@ -89,8 +133,10 @@ describe('status', () => {
       '/work/.env',
       {
         createClient: () => ({
-          authenticate: async () => {
-            throw new OWOXAuthError('Unauthorized', { status: 401, code: 'INVALID_API_KEY' });
+          auth: {
+            getContext: async () => {
+              throw new OWOXAuthError('Unauthorized', { status: 401, code: 'INVALID_API_KEY' });
+            },
           },
         }),
       }

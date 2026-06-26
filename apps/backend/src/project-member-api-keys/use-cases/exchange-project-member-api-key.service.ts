@@ -29,8 +29,8 @@ export class ExchangeProjectMemberApiKeyService {
         apiKey.apiKeyId,
         apiKey.userId,
         apiKey.projectId,
-        apiKey.role,
-        apiKey.readOnly
+        null,
+        false
       );
 
     await this.projectMemberApiKeyService.markAuthenticated(apiKey.apiKeyId, new Date());
