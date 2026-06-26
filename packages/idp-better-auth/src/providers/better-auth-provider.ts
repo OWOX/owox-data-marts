@@ -236,7 +236,7 @@ export class BetterAuthProvider
   }
 
   async introspectToken(token: string): Promise<Payload | null> {
-    return this.tokenService.introspectToken(token);
+    return this.refreshIntrospectedPayload(await this.tokenService.introspectToken(token));
   }
 
   async parseToken(token: string): Promise<Payload | null> {
@@ -450,6 +450,30 @@ export class BetterAuthProvider
 
   private toRoleOrNull(role: string | null): Role | null {
     return role === 'admin' || role === 'editor' || role === 'viewer' ? role : null;
+  }
+
+  private async refreshIntrospectedPayload(payload: Payload | null): Promise<Payload | null> {
+    if (!payload) {
+      return null;
+    }
+
+    const user = await this.store.getUserById(payload.userId);
+    if (!user) {
+      return null;
+    }
+
+    const currentRole = this.toRoleOrNull(await this.userManagementService.getUserRole(user.id));
+    if (payload.authFlow === 'api_key' && !currentRole) {
+      return null;
+    }
+
+    return {
+      ...payload,
+      email: user.email,
+      fullName: user.name || user.email,
+      roles: currentRole ? [currentRole] : undefined,
+      projectTitle: this.getProjectTitle(payload.projectId),
+    };
   }
 
   private getProjectTitle(projectId: string): string {

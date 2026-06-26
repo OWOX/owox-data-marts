@@ -200,6 +200,67 @@ describe('BetterAuthProvider', () => {
     return (provider as unknown as { tokenService: jest.Mocked<TokenService> }).tokenService;
   }
 
+  describe('introspectToken', () => {
+    it('returns API-key context refreshed from current user and membership state', async () => {
+      store.getUserById.mockResolvedValue({
+        id: 'user-1',
+        email: 'fresh@example.com',
+        name: 'Fresh Name',
+      });
+      const provider = await createProvider();
+      const userMgmt = getUserManagementServiceFromProvider(provider);
+      const tokenService = getTokenServiceFromProvider(provider);
+      userMgmt.getUserRole.mockResolvedValue('admin');
+      tokenService.introspectToken.mockResolvedValue({
+        userId: 'user-1',
+        projectId: 'project-1',
+        email: 'stale@example.com',
+        fullName: 'Stale Name',
+        roles: ['viewer'],
+        projectTitle: 'Stale Project',
+        authFlow: 'api_key',
+        apiKeyId: 'pmk_AbCdEfGhIjKlMnOpQrStUv',
+      });
+
+      await expect(provider.introspectToken('Bearer api-key-token')).resolves.toEqual({
+        userId: 'user-1',
+        projectId: 'project-1',
+        email: 'fresh@example.com',
+        fullName: 'Fresh Name',
+        roles: ['admin'],
+        projectTitle: 'project-1',
+        authFlow: 'api_key',
+        apiKeyId: 'pmk_AbCdEfGhIjKlMnOpQrStUv',
+      });
+      expect(tokenService.introspectToken).toHaveBeenCalledWith('Bearer api-key-token');
+      expect(store.getUserById).toHaveBeenCalledWith('user-1');
+      expect(userMgmt.getUserRole).toHaveBeenCalledWith('user-1');
+    });
+
+    it('returns null for API-key tokens when current membership is gone', async () => {
+      store.getUserById.mockResolvedValue({
+        id: 'user-1',
+        email: 'fresh@example.com',
+        name: 'Fresh Name',
+      });
+      const provider = await createProvider();
+      const userMgmt = getUserManagementServiceFromProvider(provider);
+      const tokenService = getTokenServiceFromProvider(provider);
+      userMgmt.getUserRole.mockResolvedValue(null);
+      tokenService.introspectToken.mockResolvedValue({
+        userId: 'user-1',
+        projectId: 'project-1',
+        email: 'stale@example.com',
+        fullName: 'Stale Name',
+        roles: ['viewer'],
+        authFlow: 'api_key',
+        apiKeyId: 'pmk_AbCdEfGhIjKlMnOpQrStUv',
+      });
+
+      await expect(provider.introspectToken('Bearer api-key-token')).resolves.toBeNull();
+    });
+  });
+
   describe('initializePrimaryAdmin', () => {
     it('should create new user and add to org when user does not exist', async () => {
       const createdUser: DatabaseUser = {
