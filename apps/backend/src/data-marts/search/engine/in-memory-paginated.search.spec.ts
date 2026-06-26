@@ -406,7 +406,7 @@ describe('InMemoryPaginatedSearch', () => {
       expect(r.relevance).toBe(expectedBlend);
     });
 
-    it('skips rows whose embedding buffer is null', async () => {
+    it('uses keyword-only relevance when row embedding is null even if promptVec is available', async () => {
       const descriptor = makeDescriptor({ entityId: 'dm-1', title: 'Revenue' });
       const row = makeIndexRow(descriptor, null);
       repository.searchCandidates.mockResolvedValue(makeSinglePage([row]));
@@ -420,7 +420,16 @@ describe('InMemoryPaginatedSearch', () => {
         DEFAULT_OPTIONS
       );
 
-      expect(results).toEqual([]);
+      expect(results).toHaveLength(1);
+      expect(results[0]).toEqual(
+        expect.objectContaining({
+          entityId: 'dm-1',
+          kwScore: 100,
+          vecScore: null,
+          relevance: 100,
+          finalScore: 100,
+        })
+      );
     });
 
     it('uses keyword-only relevance when promptVec is null even if rows have embeddings', async () => {

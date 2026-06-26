@@ -24,6 +24,7 @@ type TransformersImporter = (specifier: string) => Promise<TransformersModule>;
 const esmImport = new Function('specifier', 'return import(specifier)') as TransformersImporter;
 
 export const TRANSFORMERS_IMPORTER = Symbol('TRANSFORMERS_IMPORTER');
+const LOCAL_PIPELINE_INIT_WARN_AFTER_MS = 10_000;
 
 @Injectable()
 export class LocalTransformersEmbeddingProvider implements EmbeddingProvider {
@@ -101,12 +102,18 @@ export class LocalTransformersEmbeddingProvider implements EmbeddingProvider {
   }
 
   private async initPipeline(): Promise<Pipe | null> {
+    const warnTimer = setTimeout(() => {
+      this.logger.warn(
+        `local embedding pipeline initialization is still running after ${LOCAL_PIPELINE_INIT_WARN_AFTER_MS}ms; model download or ONNX startup may be slow`
+      );
+    }, LOCAL_PIPELINE_INIT_WARN_AFTER_MS);
+
     try {
       const transformers = await this.importer('@huggingface/transformers');
       if (this.config.modelCacheDir) {
         transformers.env.cacheDir = this.config.modelCacheDir;
       }
-      return transformers.pipeline('feature-extraction', EMBEDDING_MODEL, {
+      return await transformers.pipeline('feature-extraction', EMBEDDING_MODEL, {
         dtype: EMBEDDING_DTYPE,
       });
     } catch (err) {
@@ -114,6 +121,8 @@ export class LocalTransformersEmbeddingProvider implements EmbeddingProvider {
         `@huggingface/transformers failed to load — embedding unavailable, search and indexing will fail closed: ${this.formatError(err)}`
       );
       return null;
+    } finally {
+      clearTimeout(warnTimer);
     }
   }
 

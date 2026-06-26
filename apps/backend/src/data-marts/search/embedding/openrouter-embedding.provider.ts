@@ -26,11 +26,11 @@ export class OpenRouterEmbeddingProvider implements EmbeddingProvider {
   ) {}
 
   get modelId(): string {
-    return `openrouter:${this.config.embeddingModel}:${this.config.embeddingDimensions}`;
+    return `openrouter:${this.config.openRouterEmbeddingModel}:${this.config.openRouterEmbeddingDimensions}`;
   }
 
   get dimensions(): number {
-    return this.config.embeddingDimensions;
+    return this.config.openRouterEmbeddingDimensions;
   }
 
   async embed(texts: string[], options?: EmbeddingOptions): Promise<(Float32Array | null)[]> {
@@ -94,9 +94,9 @@ export class OpenRouterEmbeddingProvider implements EmbeddingProvider {
 
   private buildRequestBody(texts: string[], options?: EmbeddingOptions): Record<string, unknown> {
     return {
-      model: this.config.embeddingModel,
+      model: this.config.openRouterEmbeddingModel,
       input: texts,
-      dimensions: this.config.embeddingDimensions,
+      dimensions: this.config.openRouterEmbeddingDimensions,
       encoding_format: 'float',
       ...(options?.inputType ? { input_type: options.inputType } : {}),
       provider: buildOpenRouterProviderConfig({
@@ -142,9 +142,9 @@ export class OpenRouterEmbeddingProvider implements EmbeddingProvider {
       return null;
     }
 
-    if (numbers.length !== this.config.embeddingDimensions) {
+    if (numbers.length !== this.config.openRouterEmbeddingDimensions) {
       this.logger.warn(
-        `OpenRouter embedding ${resultIndex} has dimension ${numbers.length}, expected ${this.config.embeddingDimensions}`
+        `OpenRouter embedding ${resultIndex} has dimension ${numbers.length}, expected ${this.config.openRouterEmbeddingDimensions}`
       );
       return null;
     }

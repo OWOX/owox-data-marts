@@ -49,8 +49,12 @@ function makeConfig(overrides: Partial<AdvancedSearchConfig> = {}): AdvancedSear
     queryMaxLength: 256,
     embeddingConcurrency: 2,
     embeddingProvider: 'local',
-    embeddingModel: 'google/gemini-embedding-2',
-    embeddingDimensions: 768,
+    entityProcessingCron: '*/2 * * * * *',
+    dataMartProjectProcessingCron: '0,30 * * * * *',
+    dataStorageProjectProcessingCron: '10,40 * * * * *',
+    dataDestinationProjectProcessingCron: '20,50 * * * * *',
+    openRouterEmbeddingModel: 'google/gemini-embedding-2',
+    openRouterEmbeddingDimensions: 768,
     openRouterApiKey: null,
     openRouterAllowedProviders: null,
     openRouterDataCollection: 'deny',
@@ -163,14 +167,27 @@ describe('SearchIndexerService', () => {
       );
     });
 
-    it('preserves the existing index row when embedding is unavailable', async () => {
+    it('marks the current document as missing embedding and fails when embedding is unavailable', async () => {
       const descriptor = makeDescriptor();
       source.loadSearchableOne.mockResolvedValue(descriptor);
       provider.embed.mockResolvedValue([null]);
 
-      await service.reindexEntity(SearchableEntityType.DATA_MART, 'dm-1');
+      await expect(service.reindexEntity(SearchableEntityType.DATA_MART, 'dm-1')).rejects.toThrow(
+        'embedding could not be generated'
+      );
 
-      expect(repository.upsert).not.toHaveBeenCalled();
+      expect(repository.upsert).toHaveBeenCalledTimes(1);
+      const [entityType, upsertArg] = (repository.upsert as jest.Mock).mock.calls[0];
+      expect(entityType).toBe(SearchableEntityType.DATA_MART);
+      expect(upsertArg).toEqual(
+        expect.objectContaining({
+          entityId: 'dm-1',
+          projectId: 'proj-1',
+          embedding: null,
+          isDraft: false,
+        })
+      );
+      expect(typeof upsertArg.document).toBe('string');
       expect(repository.deleteByEntityId).not.toHaveBeenCalled();
     });
 
@@ -352,6 +369,60 @@ describe('SearchIndexerService', () => {
       expect(repository.upsertMany).not.toHaveBeenCalled();
       expect(repository.deleteByEntityIds).not.toHaveBeenCalled();
       expect(stats.embedFailed).toBe(1);
+    });
+
+    it('does not overwrite a fresher targeted reindex with a stale project-sync snapshot', async () => {
+      const descriptor = makeDescriptor({
+        title: 'Project Snapshot',
+        richTextSlots: [{ kind: 'title', text: 'Project Snapshot' }],
+        embeddingText: 'Project Snapshot',
+      });
+      source.listSearchablePage.mockResolvedValueOnce(makePage([descriptor]));
+      repository.listIndexStateByIds
+        .mockResolvedValueOnce(
+          new Map([
+            [
+              'dm-1',
+              { projectId: 'proj-1', docHash: 'old-project-hash', embeddingStatus: 'READY' },
+            ],
+          ])
+        )
+        .mockResolvedValueOnce(
+          new Map([
+            [
+              'dm-1',
+              { projectId: 'proj-1', docHash: 'fresh-targeted-hash', embeddingStatus: 'READY' },
+            ],
+          ])
+        );
+
+      const stats = await service.syncTypeProject(SearchableEntityType.DATA_MART, 'proj-1');
+
+      expect(provider.embed).toHaveBeenCalledTimes(1);
+      expect(repository.listIndexStateByIds).toHaveBeenCalledTimes(2);
+      expect(repository.upsertMany).not.toHaveBeenCalled();
+      expect(stats.indexed).toBe(0);
+    });
+
+    it('upserts a project-sync row when index state is unchanged after embedding', async () => {
+      const descriptor = makeDescriptor({
+        title: 'Project Snapshot',
+        richTextSlots: [{ kind: 'title', text: 'Project Snapshot' }],
+        embeddingText: 'Project Snapshot',
+      });
+      const unchangedState = new Map([
+        ['dm-1', { projectId: 'proj-1', docHash: 'old-project-hash', embeddingStatus: 'READY' }],
+      ]);
+      source.listSearchablePage.mockResolvedValueOnce(makePage([descriptor]));
+      repository.listIndexStateByIds
+        .mockResolvedValueOnce(unchangedState)
+        .mockResolvedValueOnce(new Map(unchangedState));
+
+      const stats = await service.syncTypeProject(SearchableEntityType.DATA_MART, 'proj-1');
+
+      expect(repository.listIndexStateByIds).toHaveBeenCalledTimes(2);
+      expect(repository.upsertMany).toHaveBeenCalledTimes(1);
+      expect(stats.indexed).toBe(1);
     });
 
     it('records errors and continues when embed throws', async () => {

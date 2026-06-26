@@ -100,15 +100,19 @@ export class SearchIndexerService {
         };
       });
 
-      const stale = prepared.filter(({ descriptor, hash }) => {
-        const state = existingState.get(descriptor.entityId);
-        return (
-          !state ||
-          state.projectId !== descriptor.projectId ||
-          state.docHash !== hash ||
-          state.embeddingStatus !== 'READY'
-        );
-      });
+      const stale = prepared
+        .map(item => ({
+          ...item,
+          initialState: existingState.get(item.descriptor.entityId),
+        }))
+        .filter(({ descriptor, hash, initialState }) => {
+          return (
+            !initialState ||
+            initialState.projectId !== descriptor.projectId ||
+            initialState.docHash !== hash ||
+            initialState.embeddingStatus !== 'READY'
+          );
+        });
 
       stats.skipped += prepared.length - stale.length;
 
@@ -140,9 +144,20 @@ export class SearchIndexerService {
         });
 
         if (rows.length > 0) {
-          await this.repository.upsertMany(entityType, rows);
+          const currentState = await this.repository.listIndexStateByIds(
+            entityType,
+            rows.map(row => row.entityId)
+          );
+          const rowsStillCurrent = rows.filter(row => {
+            const staleItem = stale.find(item => item.descriptor.entityId === row.entityId);
+            return this.indexStateMatches(staleItem?.initialState, currentState.get(row.entityId));
+          });
+
+          if (rowsStillCurrent.length > 0) {
+            await this.repository.upsertMany(entityType, rowsStillCurrent);
+          }
+          stats.indexed += rowsStillCurrent.length;
         }
-        stats.indexed += rows.length;
       } catch (err) {
         stats.errors += stale.length;
         this.logger.error(
@@ -177,7 +192,19 @@ export class SearchIndexerService {
       this.logger.warn(
         `reindexEntity: ${entityType} ${descriptor.entityId} not indexed because embedding could not be generated`
       );
-      return;
+      await this.repository.upsert(entityType, {
+        entityId: descriptor.entityId,
+        projectId: descriptor.projectId,
+        isDraft: descriptor.isDraft,
+        embedding: null,
+        document,
+        fieldCount: descriptor.fieldCount,
+        docHash: hash,
+        updatedAt: new Date(),
+      });
+      throw new Error(
+        `reindexEntity: ${entityType} ${descriptor.entityId} embedding could not be generated`
+      );
     }
 
     await this.repository.upsert(entityType, {
@@ -190,5 +217,18 @@ export class SearchIndexerService {
       docHash: hash,
       updatedAt: new Date(),
     });
+  }
+
+  private indexStateMatches<
+    T extends { projectId: string; docHash: string; embeddingStatus: string },
+  >(initial: T | undefined, current: T | undefined): boolean {
+    if (!initial || !current) {
+      return initial === current;
+    }
+    return (
+      initial.projectId === current.projectId &&
+      initial.docHash === current.docHash &&
+      initial.embeddingStatus === current.embeddingStatus
+    );
   }
 }

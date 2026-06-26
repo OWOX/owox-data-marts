@@ -15,15 +15,12 @@ import {
   SearchProjectReindexTrigger,
 } from '../../entities/search/search-project-reindex-trigger.entity';
 import { SearchIndexerService } from './search-indexer.service';
+import { ADVANCED_SEARCH_CONFIG, AdvancedSearchConfig } from '../config/advanced-search.config';
 
-const ENTITY_PROCESSING_CRON = '*/2 * * * * *';
 const ENTITY_STUCK_TRIGGER_TIMEOUT_SECONDS = 5 * 60;
 const ENTITY_TRIGGER_TTL_SECONDS = 2 * 60 * 60;
 const ENTITY_PROCESSING_BATCH_LIMIT = 2;
 
-const DATA_MART_PROJECT_PROCESSING_CRON = '0,30 * * * * *';
-const DATA_STORAGE_PROJECT_PROCESSING_CRON = '10,40 * * * * *';
-const DATA_DESTINATION_PROJECT_PROCESSING_CRON = '20,50 * * * * *';
 const PROJECT_STUCK_TRIGGER_TIMEOUT_SECONDS = 60 * 60;
 const PROJECT_TRIGGER_TTL_SECONDS = 24 * 60 * 60;
 const PROJECT_PROCESSING_BATCH_LIMIT = 1;
@@ -36,7 +33,8 @@ abstract class BaseSearchTriggerHandler<
   protected constructor(
     private readonly schedulerFacade: SchedulerFacade,
     private readonly triggerRepo: Repository<TTrigger>,
-    protected readonly indexer: SearchIndexerService
+    protected readonly indexer: SearchIndexerService,
+    protected readonly config: AdvancedSearchConfig
   ) {}
 
   async onModuleInit(): Promise<void> {
@@ -65,9 +63,10 @@ abstract class BaseSearchProjectReindexTriggerHandler<
     schedulerFacade: SchedulerFacade,
     triggerRepo: Repository<TTrigger>,
     indexer: SearchIndexerService,
+    config: AdvancedSearchConfig,
     private readonly entityType: SearchableEntityType
   ) {
-    super(schedulerFacade, triggerRepo, indexer);
+    super(schedulerFacade, triggerRepo, indexer, config);
   }
 
   stuckTriggerTimeoutSeconds(): number {
@@ -102,13 +101,15 @@ export class SearchEntityReindexTriggerHandler extends BaseSearchTriggerHandler<
     @Inject(SCHEDULER_FACADE) schedulerFacade: SchedulerFacade,
     @InjectRepository(SearchReindexTrigger)
     triggerRepo: Repository<SearchReindexTrigger>,
-    indexer: SearchIndexerService
+    indexer: SearchIndexerService,
+    @Inject(ADVANCED_SEARCH_CONFIG)
+    config: AdvancedSearchConfig
   ) {
-    super(schedulerFacade, triggerRepo, indexer);
+    super(schedulerFacade, triggerRepo, indexer, config);
   }
 
   processingCronExpression(): string {
-    return ENTITY_PROCESSING_CRON;
+    return this.config.entityProcessingCron;
   }
 
   stuckTriggerTimeoutSeconds(): number {
@@ -144,13 +145,15 @@ export class SearchDataMartProjectReindexTriggerHandler extends BaseSearchProjec
     @Inject(SCHEDULER_FACADE) schedulerFacade: SchedulerFacade,
     @InjectRepository(SearchDataMartProjectReindexTrigger)
     triggerRepo: Repository<SearchDataMartProjectReindexTrigger>,
-    indexer: SearchIndexerService
+    indexer: SearchIndexerService,
+    @Inject(ADVANCED_SEARCH_CONFIG)
+    config: AdvancedSearchConfig
   ) {
-    super(schedulerFacade, triggerRepo, indexer, SearchableEntityType.DATA_MART);
+    super(schedulerFacade, triggerRepo, indexer, config, SearchableEntityType.DATA_MART);
   }
 
   processingCronExpression(): string {
-    return DATA_MART_PROJECT_PROCESSING_CRON;
+    return this.config.dataMartProjectProcessingCron;
   }
 }
 
@@ -160,13 +163,15 @@ export class SearchDataStorageProjectReindexTriggerHandler extends BaseSearchPro
     @Inject(SCHEDULER_FACADE) schedulerFacade: SchedulerFacade,
     @InjectRepository(SearchDataStorageProjectReindexTrigger)
     triggerRepo: Repository<SearchDataStorageProjectReindexTrigger>,
-    indexer: SearchIndexerService
+    indexer: SearchIndexerService,
+    @Inject(ADVANCED_SEARCH_CONFIG)
+    config: AdvancedSearchConfig
   ) {
-    super(schedulerFacade, triggerRepo, indexer, SearchableEntityType.DATA_STORAGE);
+    super(schedulerFacade, triggerRepo, indexer, config, SearchableEntityType.DATA_STORAGE);
   }
 
   processingCronExpression(): string {
-    return DATA_STORAGE_PROJECT_PROCESSING_CRON;
+    return this.config.dataStorageProjectProcessingCron;
   }
 }
 
@@ -176,12 +181,14 @@ export class SearchDataDestinationProjectReindexTriggerHandler extends BaseSearc
     @Inject(SCHEDULER_FACADE) schedulerFacade: SchedulerFacade,
     @InjectRepository(SearchDataDestinationProjectReindexTrigger)
     triggerRepo: Repository<SearchDataDestinationProjectReindexTrigger>,
-    indexer: SearchIndexerService
+    indexer: SearchIndexerService,
+    @Inject(ADVANCED_SEARCH_CONFIG)
+    config: AdvancedSearchConfig
   ) {
-    super(schedulerFacade, triggerRepo, indexer, SearchableEntityType.DATA_DESTINATION);
+    super(schedulerFacade, triggerRepo, indexer, config, SearchableEntityType.DATA_DESTINATION);
   }
 
   processingCronExpression(): string {
-    return DATA_DESTINATION_PROJECT_PROCESSING_CRON;
+    return this.config.dataDestinationProjectProcessingCron;
   }
 }

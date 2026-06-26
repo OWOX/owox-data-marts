@@ -1,5 +1,5 @@
 import { render, screen, fireEvent } from '@testing-library/react';
-import { MemoryRouter } from 'react-router-dom';
+import { MemoryRouter, useLocation } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { SearchPage } from './SearchPage';
 import type { UseSearchResult } from './useSearch';
@@ -36,10 +36,16 @@ function defaultSearchState(overrides?: Partial<UseSearchResult>): UseSearchResu
   };
 }
 
-function renderPage() {
+function LocationProbe() {
+  const location = useLocation();
+  return <span data-testid='location-search'>{location.search}</span>;
+}
+
+function renderPage(initialEntries = ['/search']) {
   return render(
-    <MemoryRouter>
+    <MemoryRouter initialEntries={initialEntries}>
       <SearchPage />
+      <LocationProbe />
     </MemoryRouter>
   );
 }
@@ -110,7 +116,6 @@ describe('SearchPage', () => {
               finalScore: 0.9,
               kwScore: 0.9,
               vecScore: null,
-              extendability: 0,
             },
           ],
         })
@@ -137,7 +142,6 @@ describe('SearchPage', () => {
               finalScore: 0.9,
               kwScore: 0.9,
               vecScore: null,
-              extendability: 0,
             },
           ],
         })
@@ -160,7 +164,6 @@ describe('SearchPage', () => {
               finalScore: 0.9,
               kwScore: 0.9,
               vecScore: null,
-              extendability: 0,
             },
           ],
         })
@@ -187,7 +190,6 @@ describe('SearchPage', () => {
               finalScore: 0.85,
               kwScore: 0.85,
               vecScore: null,
-              extendability: 0,
             },
           ],
         })
@@ -210,7 +212,6 @@ describe('SearchPage', () => {
               finalScore: 0.85,
               kwScore: 0.85,
               vecScore: null,
-              extendability: 0,
             },
           ],
         })
@@ -237,7 +238,6 @@ describe('SearchPage', () => {
               finalScore: 0.8,
               kwScore: 0.8,
               vecScore: null,
-              extendability: 0,
             },
           ],
         })
@@ -260,7 +260,6 @@ describe('SearchPage', () => {
               finalScore: 0.8,
               kwScore: 0.8,
               vecScore: null,
-              extendability: 0,
             },
           ],
         })
@@ -287,7 +286,6 @@ describe('SearchPage', () => {
               finalScore: 0.5,
               kwScore: 0.5,
               vecScore: null,
-              extendability: 0,
             },
           ],
         })
@@ -312,7 +310,6 @@ describe('SearchPage', () => {
               finalScore: 0.9,
               kwScore: 0.9,
               vecScore: null,
-              extendability: 0,
             },
             {
               entityType: 'DATA_STORAGE',
@@ -322,7 +319,6 @@ describe('SearchPage', () => {
               finalScore: 0.85,
               kwScore: 0.85,
               vecScore: null,
-              extendability: 0,
             },
             {
               entityType: 'DATA_DESTINATION',
@@ -332,7 +328,6 @@ describe('SearchPage', () => {
               finalScore: 0.8,
               kwScore: 0.8,
               vecScore: null,
-              extendability: 0,
             },
           ],
         })
@@ -359,7 +354,6 @@ describe('SearchPage', () => {
               finalScore: 0.9,
               kwScore: 0.9,
               vecScore: null,
-              extendability: 0,
             },
             {
               entityType: 'DATA_STORAGE',
@@ -369,7 +363,6 @@ describe('SearchPage', () => {
               finalScore: 0.85,
               kwScore: 0.85,
               vecScore: null,
-              extendability: 0,
             },
             {
               entityType: 'DATA_DESTINATION',
@@ -379,7 +372,6 @@ describe('SearchPage', () => {
               finalScore: 0.8,
               kwScore: 0.8,
               vecScore: null,
-              extendability: 0,
             },
           ],
         })
@@ -401,7 +393,6 @@ describe('SearchPage', () => {
               finalScore: 0.9,
               kwScore: 0.9,
               vecScore: null,
-              extendability: 0,
             },
             {
               entityType: 'FUTURE_TYPE' as never,
@@ -411,7 +402,6 @@ describe('SearchPage', () => {
               finalScore: 0.7,
               kwScore: 0.7,
               vecScore: null,
-              extendability: 0,
             },
           ],
         })
@@ -424,11 +414,36 @@ describe('SearchPage', () => {
   });
 
   describe('query input wiring', () => {
+    it('hydrates the input and search hook from the q query param', () => {
+      renderPage(['/search?q=revenue']);
+
+      expect(screen.getByRole('textbox', { name: /search/i })).toHaveValue('revenue');
+      expect(mockUseSearch).toHaveBeenLastCalledWith('revenue');
+    });
+
     it('passes the typed query to useSearch', () => {
       renderPage();
       const input = screen.getByRole('textbox', { name: /search/i });
       fireEvent.change(input, { target: { value: 'big' } });
       expect(mockUseSearch).toHaveBeenLastCalledWith('big');
+    });
+
+    it('updates the q query param as the user types', () => {
+      renderPage();
+      const input = screen.getByRole('textbox', { name: /search/i });
+
+      fireEvent.change(input, { target: { value: 'big query' } });
+
+      expect(screen.getByTestId('location-search')).toHaveTextContent('?q=big+query');
+    });
+
+    it('removes q from the URL when the query is cleared', () => {
+      renderPage(['/search?q=revenue']);
+      const input = screen.getByRole('textbox', { name: /search/i });
+
+      fireEvent.change(input, { target: { value: '' } });
+
+      expect(screen.getByTestId('location-search')).toBeEmptyDOMElement();
     });
   });
 });

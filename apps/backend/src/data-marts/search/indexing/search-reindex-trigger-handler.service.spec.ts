@@ -19,6 +19,7 @@ import type {
   SearchDataStorageProjectReindexTrigger,
   SearchProjectReindexTrigger,
 } from '../../entities/search/search-project-reindex-trigger.entity';
+import { ADVANCED_SEARCH_CONFIG, AdvancedSearchConfig } from '../config/advanced-search.config';
 
 type ProjectTrigger =
   | SearchDataMartProjectReindexTrigger
@@ -58,6 +59,35 @@ function makeProjectTrigger(overrides: Partial<SearchProjectReindexTrigger> = {}
   } as unknown as ProjectTrigger;
 }
 
+function makeConfig(overrides: Partial<AdvancedSearchConfig> = {}): AdvancedSearchConfig {
+  return {
+    modelCacheDir: null,
+    driftCron: '*/10 * * * *',
+    topK: 3,
+    indexBatchSize: 20,
+    vectorCandidateMultiplier: 2,
+    minRelevance: 40,
+    candidateLimit: 500,
+    queryMaxLength: 256,
+    embeddingConcurrency: 2,
+    embeddingProvider: 'local',
+    entityProcessingCron: '*/2 * * * * *',
+    dataMartProjectProcessingCron: '0,30 * * * * *',
+    dataStorageProjectProcessingCron: '10,40 * * * * *',
+    dataDestinationProjectProcessingCron: '20,50 * * * * *',
+    openRouterEmbeddingModel: 'google/gemini-embedding-2',
+    openRouterEmbeddingDimensions: 768,
+    openRouterApiKey: null,
+    openRouterAllowedProviders: null,
+    openRouterDataCollection: 'deny',
+    openRouterZdr: true,
+    openRouterBatchingEnabled: false,
+    openRouterBatchSize: 20,
+    openRouterRequestTimeoutMs: 60000,
+    ...overrides,
+  };
+}
+
 describe('Search reindex trigger handlers', () => {
   let entityHandler: SearchEntityReindexTriggerHandler;
   let dataMartProjectHandler: SearchDataMartProjectReindexTriggerHandler;
@@ -71,6 +101,7 @@ describe('Search reindex trigger handlers', () => {
   let dataMartProjectTriggerRepo: { findOne: jest.Mock; save: jest.Mock; create: jest.Mock };
   let dataStorageProjectTriggerRepo: typeof dataMartProjectTriggerRepo;
   let dataDestinationProjectTriggerRepo: typeof dataMartProjectTriggerRepo;
+  let config: AdvancedSearchConfig;
 
   beforeEach(() => {
     indexer = {
@@ -88,6 +119,7 @@ describe('Search reindex trigger handlers', () => {
     schedulerFacade = {
       registerTriggerHandler: jest.fn().mockResolvedValue(undefined),
     };
+    config = makeConfig();
 
     entityTriggerRepo = {
       findOne: jest.fn(),
@@ -120,6 +152,7 @@ describe('Search reindex trigger handlers', () => {
         SearchEntityReindexTriggerHandler,
         { provide: SearchIndexerService, useValue: indexer },
         { provide: SCHEDULER_FACADE, useValue: schedulerFacade },
+        { provide: ADVANCED_SEARCH_CONFIG, useValue: config },
         {
           provide: 'SearchReindexTriggerRepository',
           useValue: entityTriggerRepo,
@@ -141,6 +174,7 @@ describe('Search reindex trigger handlers', () => {
         SearchDataDestinationProjectReindexTriggerHandler,
         { provide: SearchIndexerService, useValue: indexer },
         { provide: SCHEDULER_FACADE, useValue: schedulerFacade },
+        { provide: ADVANCED_SEARCH_CONFIG, useValue: config },
         {
           provide: 'SearchDataMartProjectReindexTriggerRepository',
           useValue: dataMartProjectTriggerRepo,
@@ -206,6 +240,13 @@ describe('Search reindex trigger handlers', () => {
       expect(entityHandler.triggerTtlSeconds()).toBe(2 * 60 * 60);
     });
 
+    it('uses configured entity trigger cron expression', async () => {
+      config = makeConfig({ entityProcessingCron: '*/5 * * * * *' });
+      await compileEntityHandler();
+
+      expect(entityHandler.processingCronExpression()).toBe('*/5 * * * * *');
+    });
+
     it('waits for a batch to finish before starting another one', () => {
       expect(entityHandler.waitForBatchCompletion()).toBe(true);
     });
@@ -235,6 +276,19 @@ describe('Search reindex trigger handlers', () => {
         expect(handler.triggerTtlSeconds()).toBe(24 * 60 * 60);
         expect(handler.waitForBatchCompletion()).toBe(true);
       }
+    });
+
+    it('uses configured project trigger cron expressions', async () => {
+      config = makeConfig({
+        dataMartProjectProcessingCron: '1 * * * * *',
+        dataStorageProjectProcessingCron: '2 * * * * *',
+        dataDestinationProjectProcessingCron: '3 * * * * *',
+      });
+      await compileProjectHandlers();
+
+      expect(dataMartProjectHandler.processingCronExpression()).toBe('1 * * * * *');
+      expect(dataStorageProjectHandler.processingCronExpression()).toBe('2 * * * * *');
+      expect(dataDestinationProjectHandler.processingCronExpression()).toBe('3 * * * * *');
     });
 
     it('each project handler owns a separate trigger repository', () => {

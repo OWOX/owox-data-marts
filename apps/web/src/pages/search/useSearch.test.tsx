@@ -127,7 +127,6 @@ describe('useSearch', () => {
           finalScore: 0.9,
           kwScore: 0.9,
           vecScore: null,
-          extendability: 0,
         },
       ];
       mockSearch.mockResolvedValue(mockResults);
@@ -150,7 +149,6 @@ describe('useSearch', () => {
           finalScore: 0.85,
           kwScore: 0.85,
           vecScore: null,
-          extendability: 0,
         },
       ];
       mockSearch.mockResolvedValue(mockResults);
@@ -173,7 +171,6 @@ describe('useSearch', () => {
           finalScore: 0.8,
           kwScore: 0.8,
           vecScore: null,
-          extendability: 0,
         },
       ];
       mockSearch.mockResolvedValue(mockResults);
@@ -196,7 +193,6 @@ describe('useSearch', () => {
           finalScore: 0.9,
           kwScore: 0.9,
           vecScore: null,
-          extendability: 0,
         },
         {
           entityType: 'DATA_STORAGE' as const,
@@ -206,7 +202,6 @@ describe('useSearch', () => {
           finalScore: 0.85,
           kwScore: 0.85,
           vecScore: null,
-          extendability: 0,
         },
         {
           entityType: 'DATA_DESTINATION' as const,
@@ -216,7 +211,6 @@ describe('useSearch', () => {
           finalScore: 0.8,
           kwScore: 0.8,
           vecScore: null,
-          extendability: 0,
         },
       ];
       mockSearch.mockResolvedValue(mockResults);
@@ -263,7 +257,6 @@ describe('useSearch', () => {
           finalScore: 0.9,
           kwScore: 0.9,
           vecScore: null,
-          extendability: 0,
         },
       ]);
 

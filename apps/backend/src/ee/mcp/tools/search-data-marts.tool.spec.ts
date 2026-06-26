@@ -1,3 +1,4 @@
+import type { PublicOriginService } from '../../../common/config/public-origin.service';
 import type { SearchFacade } from '../../../common/search/search.facade';
 import { SearchableEntityType } from '../../../common/search/search.facade';
 import type { McpAuthContext } from '../auth/mcp-auth-context';
@@ -13,6 +14,9 @@ describe('SearchDataMartsTool', () => {
     scopes: ['mcp:read'],
     authFlow: 'mcp',
   };
+  const publicOrigin = {
+    getPublicOrigin: jest.fn(() => 'https://app.owox.com'),
+  } as unknown as jest.Mocked<PublicOriginService>;
 
   it('searches only non-draft data marts visible to the MCP project member', async () => {
     const facade = {
@@ -25,11 +29,10 @@ describe('SearchDataMartsTool', () => {
           finalScore: 91,
           kwScore: 74,
           vecScore: 83,
-          extendability: 8,
         },
       ]),
     } as unknown as jest.Mocked<SearchFacade>;
-    const tool = new SearchDataMartsTool(facade);
+    const tool = new SearchDataMartsTool(facade, publicOrigin);
 
     await expect(tool.handler({ prompt: 'orders revenue', limit: 5 }, context)).resolves.toEqual({
       structuredContent: {
@@ -38,6 +41,7 @@ describe('SearchDataMartsTool', () => {
             id: 'dm_1',
             title: 'Orders',
             description: '',
+            url: 'https://app.owox.com/ui/project-1/data-marts/dm_1/data-setup',
             relevance_score: 91,
           },
         ],
@@ -52,6 +56,7 @@ describe('SearchDataMartsTool', () => {
                   id: 'dm_1',
                   title: 'Orders',
                   description: '',
+                  url: 'https://app.owox.com/ui/project-1/data-marts/dm_1/data-setup',
                   relevance_score: 91,
                 },
               ],
@@ -77,7 +82,7 @@ describe('SearchDataMartsTool', () => {
     const facade = {
       search: jest.fn().mockResolvedValue([]),
     } as unknown as jest.Mocked<SearchFacade>;
-    const tool = new SearchDataMartsTool(facade);
+    const tool = new SearchDataMartsTool(facade, publicOrigin);
 
     await tool.handler({ prompt: 'orders' }, context);
 
@@ -89,7 +94,7 @@ describe('SearchDataMartsTool', () => {
   });
 
   it('rejects explicit project_id, legacy query, and too-wide limits', () => {
-    const tool = new SearchDataMartsTool({} as SearchFacade);
+    const tool = new SearchDataMartsTool({} as SearchFacade, publicOrigin);
 
     expect(() => tool.parseInput({ prompt: 'orders', project_id: 'another-project' })).toThrow();
     expect(() => tool.parseInput({ query: 'orders' })).toThrow();
@@ -97,7 +102,7 @@ describe('SearchDataMartsTool', () => {
   });
 
   it('describes that it only searches non-draft data marts', () => {
-    const tool = new SearchDataMartsTool({} as SearchFacade);
+    const tool = new SearchDataMartsTool({} as SearchFacade, publicOrigin);
 
     expect(tool).toMatchObject({
       name: 'get_relevant_data_marts_by_prompt',

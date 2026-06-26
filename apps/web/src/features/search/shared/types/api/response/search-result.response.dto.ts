@@ -6,5 +6,4 @@ export interface SearchResultResponseDto {
   finalScore: number;
   kwScore: number;
   vecScore: number | null;
-  extendability: number;
 }

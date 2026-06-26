@@ -525,7 +525,7 @@ describe('SearchIndexRepository', () => {
       expect(page.rows[0]?.entityId).toMatch(/^dm-[12]$/);
     });
 
-    it('excludes matching rows that do not have embeddings', async () => {
+    it('includes matching rows without embeddings in keyword fallback search', async () => {
       const revenueDocument = JSON.stringify({
         title: 'Revenue Overview',
         description: 'Finance metrics',
@@ -560,7 +560,7 @@ describe('SearchIndexRepository', () => {
         }
       );
 
-      expect(page.rows.map(row => row.entityId)).toEqual(['dm-ready']);
+      expect(page.rows.map(row => row.entityId).sort()).toEqual(['dm-missing', 'dm-ready']);
     });
 
     it('uses persisted search_text so updated rows stop matching stale terms', async () => {
@@ -687,7 +687,9 @@ describe('SearchIndexRepository', () => {
           expect.stringContaining('advanced-search database candidate SQL query')
         );
         expect(logSpy).toHaveBeenCalledWith(expect.stringContaining('idx.search_text LIKE ?'));
-        expect(logSpy).toHaveBeenCalledWith(expect.stringContaining('idx.embedding IS NOT NULL'));
+        expect(logSpy).not.toHaveBeenCalledWith(
+          expect.stringContaining('idx.embedding IS NOT NULL')
+        );
         expect(logSpy).not.toHaveBeenCalledWith('[object Object]');
       } finally {
         logSpy.mockRestore();
@@ -733,7 +735,9 @@ describe('SearchIndexRepository', () => {
         expect(logSpy).toHaveBeenCalledWith(
           expect.stringContaining('MATCH(idx.search_text) AGAINST (? IN BOOLEAN MODE)')
         );
-        expect(logSpy).toHaveBeenCalledWith(expect.stringContaining('idx.embedding IS NOT NULL'));
+        expect(logSpy).not.toHaveBeenCalledWith(
+          expect.stringContaining('idx.embedding IS NOT NULL')
+        );
         expect(logSpy).not.toHaveBeenCalledWith('[object Object]');
       } finally {
         logSpy.mockRestore();
@@ -793,6 +797,7 @@ describe('SearchIndexRepository', () => {
         expect(logSpy).toHaveBeenCalledWith(
           expect.stringContaining('COSINE_DISTANCE(idx.embedding, ?)')
         );
+        expect(logSpy).toHaveBeenCalledWith(expect.stringContaining('idx.embedding IS NOT NULL'));
         expect(logSpy).toHaveBeenCalledWith(
           expect.stringContaining('advanced-search database candidate query result')
         );
@@ -826,6 +831,78 @@ describe('SearchIndexRepository', () => {
       );
       expect(vectorCall).toBeDefined();
       expect(vectorCall[1]).toContain(10);
+    });
+
+    it('retries mysql vector search after the vector error cooldown expires', async () => {
+      jest.useFakeTimers().setSystemTime(new Date('2026-01-01T00:00:00.000Z'));
+      const promptVec = new Float32Array([1, 0]);
+      const queryMock = jest.fn().mockImplementation(async (sql: string) => {
+        if (sql.includes("SHOW VARIABLES LIKE 'cloudsql_vector'")) {
+          return [{ Variable_name: 'cloudsql_vector', Value: 'ON' }];
+        }
+        if (sql.includes('COSINE_DISTANCE(idx.embedding, ?)')) {
+          const vectorCalls = queryMock.mock.calls.filter(([callSql]) =>
+            String(callSql).includes('COSINE_DISTANCE')
+          ).length;
+          if (vectorCalls === 1) {
+            throw new Error('dimension mismatch');
+          }
+          return [
+            {
+              entity_id: 'dm-1',
+              project_id: 'proj-1',
+              is_draft: 0,
+              embedding: Buffer.from(promptVec.buffer),
+              document: null,
+              field_count: 1,
+              doc_hash: 'h1',
+              updated_at: '2024-01-01 00:00:00',
+            },
+          ];
+        }
+        return [];
+      });
+      const mysqlDs = {
+        options: { type: 'mysql' },
+        query: queryMock,
+      } as unknown as DataSource;
+      const mysqlRepo = new SearchIndexRepository(mysqlDs);
+
+      try {
+        await mysqlRepo.searchCandidates(DATA_MART, 'proj-1', PASSTHROUGH_PREDICATE, 'revenue', {
+          candidateLimit: 10,
+          promptVec,
+        });
+        await mysqlRepo.searchCandidates(DATA_MART, 'proj-1', PASSTHROUGH_PREDICATE, 'revenue', {
+          candidateLimit: 10,
+          promptVec,
+        });
+
+        let vectorCalls = (mysqlDs.query as jest.Mock).mock.calls.filter(([sql]) =>
+          String(sql).includes('COSINE_DISTANCE')
+        );
+        expect(vectorCalls).toHaveLength(1);
+
+        jest.advanceTimersByTime(60_001);
+        const page = await mysqlRepo.searchCandidates(
+          DATA_MART,
+          'proj-1',
+          PASSTHROUGH_PREDICATE,
+          'revenue',
+          {
+            candidateLimit: 10,
+            promptVec,
+          }
+        );
+
+        vectorCalls = (mysqlDs.query as jest.Mock).mock.calls.filter(([sql]) =>
+          String(sql).includes('COSINE_DISTANCE')
+        );
+        expect(vectorCalls).toHaveLength(2);
+        expect(page.rows.map(row => row.entityId)).toEqual(['dm-1']);
+      } finally {
+        jest.useRealTimers();
+      }
     });
 
     it('falls back to LIKE search when mysql FULLTEXT query fails', async () => {

@@ -68,6 +68,7 @@ type RawRow = {
 };
 
 type CandidateStrategy = 'vector' | 'fulltext' | 'like';
+const VECTOR_QUERY_ERROR_COOLDOWN_MS = 60_000;
 
 interface CandidateSearchLogContext {
   mode: CandidateStrategy;
@@ -136,6 +137,7 @@ export class SearchIndexRepository {
   private readonly logger = new Logger(SearchIndexRepository.name);
   private readonly fullTextAvailableByTable = new Map<string, boolean>();
   private vectorAvailable: boolean | undefined;
+  private vectorUnavailableUntil = 0;
 
   constructor(@InjectDataSource() private readonly dataSource: DataSource) {}
 
@@ -309,7 +311,6 @@ export class SearchIndexRepository {
             WHERE idx.project_id = :projectId
               ${accessPredicate.whereSql ? `AND ${accessPredicate.whereSql}` : ''}
               ${draftFilter}
-              AND idx.embedding IS NOT NULL
               AND MATCH(idx.search_text) AGAINST (:booleanQuery IN BOOLEAN MODE) > 0
             ORDER BY MATCH(idx.search_text) AGAINST (:booleanQuery IN BOOLEAN MODE) DESC,
                      idx.entity_id ASC
@@ -415,7 +416,6 @@ export class SearchIndexRepository {
       WHERE idx.project_id = :projectId
         ${predicate.whereSql ? `AND ${predicate.whereSql}` : ''}
         ${draftFilter}
-        AND idx.embedding IS NOT NULL
         ${filters.length > 0 ? `AND ${filters.join(' AND ')}` : ''}
       ORDER BY idx.updated_at DESC, idx.entity_id ASC
       LIMIT :candidateLimit
@@ -487,8 +487,20 @@ export class SearchIndexRepository {
   }
 
   private async supportsVector(): Promise<boolean> {
-    if (this.vectorAvailable !== undefined) {
-      return this.vectorAvailable;
+    if (this.vectorAvailable === false) {
+      if (this.vectorUnavailableUntil > 0) {
+        if (Date.now() < this.vectorUnavailableUntil) {
+          return false;
+        }
+        this.vectorAvailable = undefined;
+        this.vectorUnavailableUntil = 0;
+      } else {
+        return false;
+      }
+    }
+
+    if (this.vectorAvailable === true) {
+      return true;
     }
 
     try {
@@ -534,6 +546,7 @@ export class SearchIndexRepository {
 
   private markVectorUnavailable(message: string, err: unknown): void {
     this.vectorAvailable = false;
+    this.vectorUnavailableUntil = Date.now() + VECTOR_QUERY_ERROR_COOLDOWN_MS;
     this.logger.warn(`${message}: ${this.formatError(err)}`);
   }
 

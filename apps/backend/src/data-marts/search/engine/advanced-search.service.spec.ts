@@ -22,8 +22,12 @@ function makeConfig(overrides: Partial<AdvancedSearchConfig> = {}): AdvancedSear
     queryMaxLength: 256,
     embeddingConcurrency: 2,
     embeddingProvider: 'local',
-    embeddingModel: 'google/gemini-embedding-2',
-    embeddingDimensions: 768,
+    entityProcessingCron: '*/2 * * * * *',
+    dataMartProjectProcessingCron: '0,30 * * * * *',
+    dataStorageProjectProcessingCron: '10,40 * * * * *',
+    dataDestinationProjectProcessingCron: '20,50 * * * * *',
+    openRouterEmbeddingModel: 'google/gemini-embedding-2',
+    openRouterEmbeddingDimensions: 768,
     openRouterApiKey: null,
     openRouterAllowedProviders: null,
     openRouterDataCollection: 'deny',
@@ -127,6 +131,23 @@ describe('AdvancedSearchService', () => {
     );
   });
 
+  it('deduplicates requested entity types before searching', async () => {
+    await service.search('proj-1', 'revenue', {
+      ...DEFAULT_SEARCH_OPTIONS,
+      entityTypes: [SearchableEntityType.DATA_MART, SearchableEntityType.DATA_MART],
+    });
+
+    expect(vectorSearch.search).toHaveBeenCalledTimes(1);
+  });
+
+  it('returns empty without embedding or searching when prompt has no searchable tokens', async () => {
+    const results = await service.search('proj-1', '!!!', DEFAULT_SEARCH_OPTIONS);
+
+    expect(results).toEqual([]);
+    expect(provider.embed).not.toHaveBeenCalled();
+    expect(vectorSearch.search).not.toHaveBeenCalled();
+  });
+
   it('ordering: highest finalScore result first', async () => {
     vectorSearch.search.mockResolvedValue([
       makeScoredEntity('dm-b', 'Beta', 40),
@@ -203,6 +224,7 @@ describe('AdvancedSearchService', () => {
 
     expect(results[0].entityType).toBe(SearchableEntityType.DATA_MART);
     expect(results[0].entityId).toBe('dm-1');
+    expect(results[0]).not.toHaveProperty('extendability');
   });
 
   it('passes minRelevance from config to vectorSearch', async () => {

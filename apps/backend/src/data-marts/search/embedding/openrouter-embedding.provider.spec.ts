@@ -20,8 +20,12 @@ function makeConfig(overrides: Partial<AdvancedSearchConfig> = {}): AdvancedSear
     queryMaxLength: 256,
     embeddingConcurrency: 2,
     embeddingProvider: 'openrouter',
-    embeddingModel: 'google/gemini-embedding-2',
-    embeddingDimensions: 768,
+    entityProcessingCron: '*/2 * * * * *',
+    dataMartProjectProcessingCron: '0,30 * * * * *',
+    dataStorageProjectProcessingCron: '10,40 * * * * *',
+    dataDestinationProjectProcessingCron: '20,50 * * * * *',
+    openRouterEmbeddingModel: 'google/gemini-embedding-2',
+    openRouterEmbeddingDimensions: 768,
     openRouterApiKey: 'test-key',
     openRouterAllowedProviders: ['google-vertex'],
     openRouterDataCollection: 'deny',
@@ -73,7 +77,7 @@ describe('OpenRouterEmbeddingProvider', () => {
     );
 
     const provider = new OpenRouterEmbeddingProvider(
-      makeConfig({ embeddingDimensions: 3, openRouterBatchingEnabled: true })
+      makeConfig({ openRouterEmbeddingDimensions: 3, openRouterBatchingEnabled: true })
     );
 
     const result = await provider.embed(['first', 'second'], { inputType: 'search_document' });
@@ -117,7 +121,7 @@ describe('OpenRouterEmbeddingProvider', () => {
       .mockResolvedValueOnce(okResponse({ data: [{ index: 0, embedding: [0, 1] }] }));
 
     const provider = new OpenRouterEmbeddingProvider(
-      makeConfig({ embeddingDimensions: 2, openRouterBatchSize: 2 })
+      makeConfig({ openRouterEmbeddingDimensions: 2, openRouterBatchSize: 2 })
     );
 
     const result = await provider.embed(['first', 'second']);
@@ -143,7 +147,7 @@ describe('OpenRouterEmbeddingProvider', () => {
 
     const provider = new OpenRouterEmbeddingProvider(
       makeConfig({
-        embeddingDimensions: 2,
+        openRouterEmbeddingDimensions: 2,
         openRouterBatchingEnabled: true,
         openRouterBatchSize: 1,
       })
@@ -163,7 +167,9 @@ describe('OpenRouterEmbeddingProvider', () => {
       })
     );
 
-    const provider = new OpenRouterEmbeddingProvider(makeConfig({ embeddingDimensions: 2 }));
+    const provider = new OpenRouterEmbeddingProvider(
+      makeConfig({ openRouterEmbeddingDimensions: 2 })
+    );
     const warnSpy = jest.spyOn(provider['logger'], 'warn').mockImplementation(() => undefined);
 
     const result = await provider.embed(['bad-dim']);
@@ -197,7 +203,7 @@ describe('OpenRouterEmbeddingProvider', () => {
 
   it('includes provider, model, and dimension in modelId', () => {
     const provider = new OpenRouterEmbeddingProvider(
-      makeConfig({ embeddingModel: 'google/custom', embeddingDimensions: 1536 })
+      makeConfig({ openRouterEmbeddingModel: 'google/custom', openRouterEmbeddingDimensions: 1536 })
     );
 
     expect(provider.modelId).toBe('openrouter:google/custom:1536');

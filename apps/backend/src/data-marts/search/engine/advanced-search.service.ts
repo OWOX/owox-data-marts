@@ -3,6 +3,7 @@ import { EMBEDDING_PROVIDER, EmbeddingProvider } from '../embedding/embedding-pr
 import { ADVANCED_SEARCH_CONFIG, AdvancedSearchConfig } from '../config/advanced-search.config';
 import { IndexableSourceRegistry } from '../sources/indexable-source.registry';
 import { VECTOR_SEARCH_PORT, VectorSearchPort } from './vector-search.port';
+import { tokenize } from './tokenizer';
 import {
   SearchableEntityType,
   type SearchEngine,
@@ -29,7 +30,10 @@ export class AdvancedSearchService implements SearchEngine {
     const start = performance.now();
 
     const requestedTypes = options.entityTypes ?? Object.values(SearchableEntityType);
-    const activeTypes = requestedTypes.filter(t => this.registry.has(t));
+    if (Array.from(tokenize(prompt)).length === 0) return [];
+
+    const uniqueRequestedTypes = Array.from(new Set(requestedTypes));
+    const activeTypes = uniqueRequestedTypes.filter(t => this.registry.has(t));
 
     if (activeTypes.length === 0) return [];
 
@@ -89,7 +93,6 @@ export class AdvancedSearchService implements SearchEngine {
       finalScore: r.finalScore,
       kwScore: r.kwScore,
       vecScore: r.vecScore,
-      extendability: r.extendability,
     }));
   }
 }

@@ -12,8 +12,12 @@ export interface AdvancedSearchConfig {
   queryMaxLength: number;
   embeddingConcurrency: number;
   embeddingProvider: 'local' | 'openrouter';
-  embeddingModel: string;
-  embeddingDimensions: number;
+  entityProcessingCron: string;
+  dataMartProjectProcessingCron: string;
+  dataStorageProjectProcessingCron: string;
+  dataDestinationProjectProcessingCron: string;
+  openRouterEmbeddingModel: string;
+  openRouterEmbeddingDimensions: number;
   openRouterApiKey: string | null;
   openRouterAllowedProviders: string[] | null;
   openRouterDataCollection: 'allow' | 'deny';
@@ -79,8 +83,12 @@ export function loadAdvancedSearchConfig(
       queryMaxLength: positiveIntFromString(String(DEFAULT_ADVANCED_SEARCH_QUERY_MAX_LENGTH)),
       embeddingConcurrency: positiveIntFromString('2'),
       embeddingProvider: z.enum(['local', 'openrouter']).optional().default('local'),
-      embeddingModel: z.string().optional().default('google/gemini-embedding-2'),
-      embeddingDimensions: positiveIntFromString('768'),
+      entityProcessingCron: z.string().optional().default('*/2 * * * * *'),
+      dataMartProjectProcessingCron: z.string().optional().default('0,30 * * * * *'),
+      dataStorageProjectProcessingCron: z.string().optional().default('10,40 * * * * *'),
+      dataDestinationProjectProcessingCron: z.string().optional().default('20,50 * * * * *'),
+      openRouterEmbeddingModel: z.string().optional().default('google/gemini-embedding-2'),
+      openRouterEmbeddingDimensions: positiveIntFromString('768'),
       openRouterApiKey: z.string().nullable().default(null),
       openRouterAllowedProviders: commaSeparatedList,
       openRouterDataCollection: z.enum(['allow', 'deny']).optional().default('deny'),
@@ -110,14 +118,19 @@ export function loadAdvancedSearchConfig(
     queryMaxLength: env['ADVANCED_SEARCH_QUERY_MAX_LENGTH'],
     embeddingConcurrency: env['ADVANCED_SEARCH_EMBEDDING_CONCURRENCY'],
     embeddingProvider: env['ADVANCED_SEARCH_EMBEDDING_PROVIDER'],
-    embeddingModel: env['ADVANCED_SEARCH_EMBEDDING_MODEL'],
-    embeddingDimensions:
-      env['ADVANCED_SEARCH_EMBEDDING_DIMENSIONS'] ?? env['ADVANCED_SEARCH_EMBEDDING_DIM'],
+    entityProcessingCron: env['ADVANCED_SEARCH_ENTITY_PROCESSING_CRON'],
+    dataMartProjectProcessingCron: env['ADVANCED_SEARCH_DATA_MART_PROJECT_PROCESSING_CRON'],
+    dataStorageProjectProcessingCron: env['ADVANCED_SEARCH_DATA_STORAGE_PROJECT_PROCESSING_CRON'],
+    dataDestinationProjectProcessingCron:
+      env['ADVANCED_SEARCH_DATA_DESTINATION_PROJECT_PROCESSING_CRON'],
+    openRouterEmbeddingModel: env['ADVANCED_SEARCH_OPENROUTER_EMBEDDING_MODEL'],
+    openRouterEmbeddingDimensions: env['ADVANCED_SEARCH_OPENROUTER_EMBEDDING_DIMENSIONS'],
     openRouterApiKey: nonBlankOrNull(env['ADVANCED_SEARCH_OPENROUTER_API_KEY']),
     openRouterAllowedProviders:
       env['ADVANCED_SEARCH_OPENROUTER_ALLOWED_PROVIDERS'] ?? env['AI_ALLOWED_PROVIDERS'],
-    openRouterDataCollection: env['ADVANCED_SEARCH_OPENROUTER_DATA_COLLECTION'],
-    openRouterZdr: env['ADVANCED_SEARCH_OPENROUTER_ZDR'],
+    openRouterDataCollection:
+      env['ADVANCED_SEARCH_OPENROUTER_DATA_COLLECTION'] ?? env['AI_DATA_COLLECTION'],
+    openRouterZdr: env['ADVANCED_SEARCH_OPENROUTER_ZDR'] ?? env['AI_ZDR'],
     openRouterBatchingEnabled: env['ADVANCED_SEARCH_OPENROUTER_BATCHING_ENABLED'],
     openRouterBatchSize: env['ADVANCED_SEARCH_OPENROUTER_BATCH_SIZE'],
     openRouterRequestTimeoutMs: env['ADVANCED_SEARCH_OPENROUTER_REQUEST_TIMEOUT_MS'],

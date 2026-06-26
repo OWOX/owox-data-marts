@@ -15,7 +15,6 @@ export interface SearchResult {
   finalScore: number;
   kwScore: number;
   vecScore: number | null;
-  extendability: number;
 }
 
 export interface SearchAccessScope {

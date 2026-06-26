@@ -14,8 +14,12 @@ function makeConfig(overrides: Partial<AdvancedSearchConfig> = {}): AdvancedSear
     queryMaxLength: 256,
     embeddingConcurrency: 2,
     embeddingProvider: 'local',
-    embeddingModel: 'google/gemini-embedding-2',
-    embeddingDimensions: 768,
+    entityProcessingCron: '*/2 * * * * *',
+    dataMartProjectProcessingCron: '0,30 * * * * *',
+    dataStorageProjectProcessingCron: '10,40 * * * * *',
+    dataDestinationProjectProcessingCron: '20,50 * * * * *',
+    openRouterEmbeddingModel: 'google/gemini-embedding-2',
+    openRouterEmbeddingDimensions: 768,
     openRouterApiKey: null,
     openRouterAllowedProviders: null,
     openRouterDataCollection: 'deny',
@@ -120,6 +124,45 @@ describe('LocalTransformersEmbeddingProvider', () => {
       expect(fakePipelineFactory).toHaveBeenCalledWith('feature-extraction', EMBEDDING_MODEL, {
         dtype: EMBEDDING_DTYPE,
       });
+    });
+
+    it('logs a warning when pipeline initialization is still pending after the warning threshold', async () => {
+      jest.useFakeTimers();
+      let resolvePipeline!: (pipe: jest.Mock) => void;
+      const fakePipe = jest
+        .fn()
+        .mockResolvedValue({ data: new Float32Array(EMBEDDING_DIMENSIONS).fill(0.1) });
+      const fakePipelineFactory = jest.fn(
+        () =>
+          new Promise<typeof fakePipe>(resolve => {
+            resolvePipeline = resolve;
+          })
+      );
+      const importer = jest.fn().mockResolvedValue({
+        pipeline: fakePipelineFactory,
+        env: {},
+      });
+
+      const provider = buildProvider(importer);
+      const warnSpy = jest.spyOn(provider['logger'], 'warn').mockImplementation(() => undefined);
+
+      try {
+        const resultPromise = provider.embed(['test']);
+        await Promise.resolve();
+        await Promise.resolve();
+
+        await jest.advanceTimersByTimeAsync(10_000);
+
+        expect(warnSpy).toHaveBeenCalledWith(
+          expect.stringContaining('local embedding pipeline initialization is still running')
+        );
+
+        resolvePipeline(fakePipe);
+        await resultPromise;
+      } finally {
+        warnSpy.mockRestore();
+        jest.useRealTimers();
+      }
     });
 
     it('sets cacheDir on env when modelCacheDir is configured', async () => {

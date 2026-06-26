@@ -38,7 +38,6 @@ function buildController() {
       finalScore: 15,
       kwScore: 10,
       vecScore: null,
-      extendability: 0,
     },
   ];
 
@@ -95,23 +94,19 @@ describe('SearchController', () => {
     });
   });
 
-  it('trims the query before validating and searching', async () => {
+  it('uses the DTO-provided query value without extra controller trimming', async () => {
     const { controller, facade } = buildController();
 
     await controller.search(makeContext(), { q: '  revenue  ' });
 
-    expect(facade.search).toHaveBeenCalledWith('proj-1', 'revenue', expect.any(Object));
+    expect(facade.search).toHaveBeenCalledWith('proj-1', '  revenue  ', expect.any(Object));
   });
 
-  it('rejects queries shorter than the configured minimum after trimming', async () => {
+  it('rejects queries shorter than the configured minimum', async () => {
     const { controller, facade } = buildController();
 
-    await expect(controller.search(makeContext(), { q: ' r ' })).rejects.toThrow(
-      BadRequestException
-    );
-    await expect(controller.search(makeContext(), { q: '   ' })).rejects.toThrow(
-      BadRequestException
-    );
+    await expect(controller.search(makeContext(), { q: 'r' })).rejects.toThrow(BadRequestException);
+    await expect(controller.search(makeContext(), { q: '' })).rejects.toThrow(BadRequestException);
 
     expect(facade.search).not.toHaveBeenCalled();
   });

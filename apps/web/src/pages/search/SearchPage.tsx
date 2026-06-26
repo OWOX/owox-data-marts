@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { ArchiveRestore, Box, ChevronRight, DatabaseIcon, Loader2, Search } from 'lucide-react';
 import { Input } from '@owox/ui/components/input';
 import { useProjectRoute } from '../../shared/hooks';
@@ -27,13 +27,19 @@ const ENTITY_TYPE_META: Partial<
 };
 
 export function SearchPage() {
-  const [query, setQuery] = useState('');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const queryParam = searchParams.get('q') ?? '';
+  const [query, setQuery] = useState(queryParam);
   const inputRef = useRef<HTMLInputElement>(null);
   const { results, isFetching, hasQuery, isError, retry, isDebouncing } = useSearch(query);
   const { scope } = useProjectRoute();
   const visibleResults = results.filter(result => Boolean(ENTITY_TYPE_META[result.entityType]));
   const unsupportedCount = results.length - visibleResults.length;
   const showLoading = isFetching || isDebouncing;
+
+  useEffect(() => {
+    setQuery(queryParam);
+  }, [queryParam]);
 
   useEffect(() => {
     const focusSearchInput = () => {
@@ -59,7 +65,20 @@ export function SearchPage() {
           autoFocus
           value={query}
           onChange={event => {
-            setQuery(event.target.value);
+            const nextQuery = event.target.value;
+            setQuery(nextQuery);
+            setSearchParams(
+              current => {
+                const next = new URLSearchParams(current);
+                if (nextQuery.length > 0) {
+                  next.set('q', nextQuery);
+                } else {
+                  next.delete('q');
+                }
+                return next;
+              },
+              { replace: true }
+            );
           }}
           placeholder='Search…'
           aria-label='Search'

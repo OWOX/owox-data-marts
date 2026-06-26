@@ -23,7 +23,7 @@ export class SearchController {
     @AuthContext() context: AuthorizationContext,
     @Query() query: SearchQueryDto
   ): Promise<SearchResultResponseApiDto[]> {
-    const normalizedQuery = query.q.trim();
+    const normalizedQuery = query.q;
 
     if (normalizedQuery.length < this.config.queryMinLength) {
       throw new BadRequestException(

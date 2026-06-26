@@ -13,8 +13,12 @@ describe('loadAdvancedSearchConfig', () => {
     expect(config.queryMaxLength).toBe(256);
     expect(config.embeddingConcurrency).toBe(2);
     expect(config.embeddingProvider).toBe('local');
-    expect(config.embeddingModel).toBe('google/gemini-embedding-2');
-    expect(config.embeddingDimensions).toBe(768);
+    expect(config.entityProcessingCron).toBe('*/2 * * * * *');
+    expect(config.dataMartProjectProcessingCron).toBe('0,30 * * * * *');
+    expect(config.dataStorageProjectProcessingCron).toBe('10,40 * * * * *');
+    expect(config.dataDestinationProjectProcessingCron).toBe('20,50 * * * * *');
+    expect(config.openRouterEmbeddingModel).toBe('google/gemini-embedding-2');
+    expect(config.openRouterEmbeddingDimensions).toBe(768);
     expect(config.openRouterApiKey).toBeNull();
     expect(config.openRouterAllowedProviders).toBeNull();
     expect(config.openRouterDataCollection).toBe('deny');
@@ -77,8 +81,8 @@ describe('loadAdvancedSearchConfig', () => {
   it('applies OpenRouter embedding configuration', () => {
     const config = loadAdvancedSearchConfig({
       ADVANCED_SEARCH_EMBEDDING_PROVIDER: 'openrouter',
-      ADVANCED_SEARCH_EMBEDDING_MODEL: 'google/custom-embedding',
-      ADVANCED_SEARCH_EMBEDDING_DIMENSIONS: '1536',
+      ADVANCED_SEARCH_OPENROUTER_EMBEDDING_MODEL: 'google/custom-embedding',
+      ADVANCED_SEARCH_OPENROUTER_EMBEDDING_DIMENSIONS: '1536',
       ADVANCED_SEARCH_OPENROUTER_API_KEY: 'advanced-key',
       ADVANCED_SEARCH_OPENROUTER_ALLOWED_PROVIDERS: 'google-vertex, openai',
       ADVANCED_SEARCH_OPENROUTER_DATA_COLLECTION: 'allow',
@@ -89,8 +93,8 @@ describe('loadAdvancedSearchConfig', () => {
     });
 
     expect(config.embeddingProvider).toBe('openrouter');
-    expect(config.embeddingModel).toBe('google/custom-embedding');
-    expect(config.embeddingDimensions).toBe(1536);
+    expect(config.openRouterEmbeddingModel).toBe('google/custom-embedding');
+    expect(config.openRouterEmbeddingDimensions).toBe(1536);
     expect(config.openRouterApiKey).toBe('advanced-key');
     expect(config.openRouterAllowedProviders).toEqual(['google-vertex', 'openai']);
     expect(config.openRouterDataCollection).toBe('allow');
@@ -98,6 +102,31 @@ describe('loadAdvancedSearchConfig', () => {
     expect(config.openRouterBatchingEnabled).toBe(true);
     expect(config.openRouterBatchSize).toBe(7);
     expect(config.openRouterRequestTimeoutMs).toBe(12345);
+  });
+
+  it('ignores legacy provider-agnostic embedding model and dimension env names', () => {
+    const config = loadAdvancedSearchConfig({
+      ADVANCED_SEARCH_EMBEDDING_MODEL: 'google/legacy-name',
+      ADVANCED_SEARCH_EMBEDDING_DIMENSIONS: '1536',
+      ADVANCED_SEARCH_EMBEDDING_DIM: '1536',
+    });
+
+    expect(config.openRouterEmbeddingModel).toBe('google/gemini-embedding-2');
+    expect(config.openRouterEmbeddingDimensions).toBe(768);
+  });
+
+  it('applies custom trigger cron expressions', () => {
+    const config = loadAdvancedSearchConfig({
+      ADVANCED_SEARCH_ENTITY_PROCESSING_CRON: '*/5 * * * * *',
+      ADVANCED_SEARCH_DATA_MART_PROJECT_PROCESSING_CRON: '1 * * * * *',
+      ADVANCED_SEARCH_DATA_STORAGE_PROJECT_PROCESSING_CRON: '2 * * * * *',
+      ADVANCED_SEARCH_DATA_DESTINATION_PROJECT_PROCESSING_CRON: '3 * * * * *',
+    });
+
+    expect(config.entityProcessingCron).toBe('*/5 * * * * *');
+    expect(config.dataMartProjectProcessingCron).toBe('1 * * * * *');
+    expect(config.dataStorageProjectProcessingCron).toBe('2 * * * * *');
+    expect(config.dataDestinationProjectProcessingCron).toBe('3 * * * * *');
   });
 
   it('reuses common OpenRouter provider routing when embedding-specific providers are not set', () => {
@@ -119,6 +148,32 @@ describe('loadAdvancedSearchConfig', () => {
     });
 
     expect(config.openRouterAllowedProviders).toEqual(['google-ai-studio']);
+  });
+
+  it('falls back to common OpenRouter privacy settings when embedding-specific values are not set', () => {
+    const config = loadAdvancedSearchConfig({
+      ADVANCED_SEARCH_EMBEDDING_PROVIDER: 'openrouter',
+      ADVANCED_SEARCH_OPENROUTER_API_KEY: 'advanced-key',
+      AI_DATA_COLLECTION: 'allow',
+      AI_ZDR: 'false',
+    });
+
+    expect(config.openRouterDataCollection).toBe('allow');
+    expect(config.openRouterZdr).toBe(false);
+  });
+
+  it('prefers embedding-specific OpenRouter privacy settings over common AI settings', () => {
+    const config = loadAdvancedSearchConfig({
+      ADVANCED_SEARCH_EMBEDDING_PROVIDER: 'openrouter',
+      ADVANCED_SEARCH_OPENROUTER_API_KEY: 'advanced-key',
+      ADVANCED_SEARCH_OPENROUTER_DATA_COLLECTION: 'deny',
+      ADVANCED_SEARCH_OPENROUTER_ZDR: 'true',
+      AI_DATA_COLLECTION: 'allow',
+      AI_ZDR: 'false',
+    });
+
+    expect(config.openRouterDataCollection).toBe('deny');
+    expect(config.openRouterZdr).toBe(true);
   });
 
   it('rejects openrouter provider without an embedding API key', () => {
@@ -174,7 +229,9 @@ describe('loadAdvancedSearchConfig', () => {
     ).toThrow();
   });
 
-  it('rejects zero embedding dimensions', () => {
-    expect(() => loadAdvancedSearchConfig({ ADVANCED_SEARCH_EMBEDDING_DIMENSIONS: '0' })).toThrow();
+  it('rejects zero OpenRouter embedding dimensions', () => {
+    expect(() =>
+      loadAdvancedSearchConfig({ ADVANCED_SEARCH_OPENROUTER_EMBEDDING_DIMENSIONS: '0' })
+    ).toThrow();
   });
 });

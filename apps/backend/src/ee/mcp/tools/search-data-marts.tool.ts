@@ -6,8 +6,10 @@ import {
   type SearchFacade,
   SearchableEntityType,
 } from '../../../common/search/search.facade';
+import { PublicOriginService } from '../../../common/config/public-origin.service';
 import type { McpAuthContext } from '../auth/mcp-auth-context';
 import type { McpToolDefinition, McpToolResult } from './mcp-tool.definition';
+import { buildDataMartUiPath, joinPublicOrigin } from './data-mart-ui-path';
 
 const DEFAULT_LIMIT = 10;
 const MAX_LIMIT = 25;
@@ -33,6 +35,7 @@ export class SearchDataMartsTool implements McpToolDefinition<SearchDataMartsInp
         id: z.string(),
         title: z.string(),
         description: z.string(),
+        url: z.string(),
         relevance_score: z.number(),
       })
     ),
@@ -46,7 +49,8 @@ export class SearchDataMartsTool implements McpToolDefinition<SearchDataMartsInp
 
   constructor(
     @Inject(SEARCH_FACADE)
-    private readonly searchFacade: SearchFacade
+    private readonly searchFacade: SearchFacade,
+    private readonly publicOriginService: PublicOriginService
   ) {}
 
   parseInput(input: unknown): SearchDataMartsInput {
@@ -65,6 +69,7 @@ export class SearchDataMartsTool implements McpToolDefinition<SearchDataMartsInp
       },
     });
 
+    const publicOrigin = this.publicOriginService.getPublicOrigin();
     const structuredContent = {
       data_marts: results
         .filter(result => result.entityType === SearchableEntityType.DATA_MART)
@@ -72,6 +77,10 @@ export class SearchDataMartsTool implements McpToolDefinition<SearchDataMartsInp
           id: result.entityId,
           title: result.title,
           description: result.description ?? '',
+          url: joinPublicOrigin(
+            publicOrigin,
+            buildDataMartUiPath(context.projectId, result.entityId)
+          ),
           relevance_score: result.finalScore,
         })),
     };

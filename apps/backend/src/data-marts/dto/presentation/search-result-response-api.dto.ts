@@ -31,7 +31,4 @@ export class SearchResultResponseApiDto {
     description: 'Vector similarity score; null when no vector score contributed to the result',
   })
   vecScore: number | null;
-
-  @ApiProperty({ example: 0, description: 'Semantic engine extendability bonus' })
-  extendability: number;
 }

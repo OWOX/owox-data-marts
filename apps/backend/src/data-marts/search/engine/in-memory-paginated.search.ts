@@ -45,8 +45,7 @@ function scoreRow(
 
   let vecScore: number | null = null;
   let keywordsSimilarity = kwScore;
-  if (promptVec !== null) {
-    if (!row.embedding) return null;
+  if (promptVec !== null && row.embedding) {
     const entityVec = bufferToVec(row.embedding);
     const sim = cosineSim(promptVec, entityVec);
     if (sim === null) return null;
