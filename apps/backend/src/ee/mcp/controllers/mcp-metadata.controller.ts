@@ -32,6 +32,7 @@ export class McpMetadataController {
    */
   @Get(OPENAI_APPS_CHALLENGE_PATH)
   @Header('Content-Type', 'text/plain; charset=utf-8')
+  @Header('Cache-Control', 'no-store')
   getOpenaiAppsChallenge(): string {
     const token = this.config.openaiAppsChallengeToken;
     if (!token) {

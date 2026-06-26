@@ -101,6 +101,7 @@ describe('MCP OAuth discovery (e2e)', () => {
 
     expect(response.status).toBe(200);
     expect(response.headers['content-type']).toContain('text/plain');
+    expect(response.headers['cache-control']).toBe('no-store');
     expect(response.text).toBe(challengeToken);
   });
 
