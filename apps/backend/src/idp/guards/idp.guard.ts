@@ -66,8 +66,8 @@ export class IdpGuard implements CanActivate {
 
     try {
       const tokenPayload = await this.authenticateUser(request, roleConfig.strategy);
-      this.checkApiKeyHeaderBinding(request, tokenPayload);
       this.checkApiKeyUsageRestrictions(tokenPayload, Boolean(rejectApiKeyAuth));
+      this.checkApiKeyHeaderBinding(request, tokenPayload);
 
       request.idpContext = {
         userId: tokenPayload.userId,
@@ -94,11 +94,7 @@ export class IdpGuard implements CanActivate {
         void this.idpProjectionsService.updateProjectionsFromIdpPayload(tokenPayload);
       }
     } catch (error) {
-      if (
-        error instanceof UnauthorizedException ||
-        error instanceof AuthenticationError ||
-        error instanceof AuthorizationError
-      ) {
+      if (error instanceof UnauthorizedException || error instanceof AuthorizationError) {
         throw error;
       }
       throw new AuthenticationError('Authentication failed');

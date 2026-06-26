@@ -68,3 +68,4 @@ test-results/
 packages/.npmrc
 
 apps/owox/npm-shrinkwrap.json
+apps/ctl/oclif.manifest.json

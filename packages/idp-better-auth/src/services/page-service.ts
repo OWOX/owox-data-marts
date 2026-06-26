@@ -168,7 +168,7 @@ export class PageService {
 
   private getEncryptedMagicLinkRole(req: ExpressRequest): string {
     if (typeof req.params?.role === 'string' && req.params.role) {
-      return decodeURIComponent(req.params.role);
+      return req.params.role;
     }
     if (typeof req.query.role === 'string' && req.query.role) {
       return req.query.role;

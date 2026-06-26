@@ -1,6 +1,7 @@
 import { Controller, Get, Post, Put, Body, Param, Delete } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { AuthContext, AuthorizationContext, Auth } from '../../idp';
+import { AuthorizationError } from '@owox/idp-protocol';
 import { Role, Strategy } from '../../idp/types/role-config.types';
 import { ReportMapper } from '../mappers/report.mapper';
 import { CreateReportRequestApiDto } from '../dto/presentation/create-report-request-api.dto';
@@ -43,6 +44,17 @@ export class ReportController {
     private readonly mapper: ReportMapper
   ) {}
 
+  private rejectApiKeyAuthForOwnerChange(
+    context: AuthorizationContext,
+    dto: Pick<CreateReportRequestApiDto | UpdateReportRequestApiDto, 'ownerIds'>
+  ): void {
+    if (context.authFlow === 'api_key' && dto.ownerIds !== undefined) {
+      throw new AuthorizationError(
+        'API key authentication is not allowed for access control updates'
+      );
+    }
+  }
+
   @Auth(Role.viewer(Strategy.INTROSPECT))
   @Post()
   @CreateReportSpec()
@@ -50,6 +62,8 @@ export class ReportController {
     @AuthContext() context: AuthorizationContext,
     @Body() dto: CreateReportRequestApiDto
   ): Promise<ReportResponseApiDto> {
+    this.rejectApiKeyAuthForOwnerChange(context, dto);
+
     const command = this.mapper.toCreateDomainCommand(context, dto);
     const report = await this.createReportService.run(command);
     return this.mapper.toResponse(report);
@@ -126,6 +140,8 @@ export class ReportController {
     @Param('id') id: string,
     @Body() dto: UpdateReportRequestApiDto
   ): Promise<ReportResponseApiDto> {
+    this.rejectApiKeyAuthForOwnerChange(context, dto);
+
     const command = this.mapper.toUpdateDomainCommand(id, context, dto);
     const report = await this.updateReportService.run(command);
     return this.mapper.toResponse(report);

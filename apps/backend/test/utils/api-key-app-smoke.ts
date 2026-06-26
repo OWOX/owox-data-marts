@@ -1,9 +1,10 @@
-import { spawn, spawnSync } from 'node:child_process';
+import { spawn } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
-import { existsSync, mkdtempSync, rmSync } from 'node:fs';
+import { mkdtempSync, rmSync } from 'node:fs';
 import { createServer } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
+import { assertCliManifestsPrepared } from './cli-manifest-setup';
 
 type JsonRecord = Record<string, unknown>;
 
@@ -33,14 +34,12 @@ const owoxRoot = resolve(repoRoot, 'apps/owox');
 const ctlRoot = resolve(repoRoot, 'apps/ctl');
 const maxLogChars = 120_000;
 const appSecret = 'test-secret-for-better-auth-e2e-32-characters';
-let cliManifestsEnsured = false;
-const generatedCliManifestPaths = new Set<string>();
 
 export async function startOwoxApp(
   idpProvider: 'none' | 'better-auth',
   envOverrides: NodeJS.ProcessEnv = {}
 ): Promise<StartedApp> {
-  ensureCliManifests();
+  assertCliManifestsPrepared();
 
   const port = await getAvailablePort();
   const origin = `http://127.0.0.1:${port}`;
@@ -136,7 +135,6 @@ export async function startOwoxApp(
   } catch (error) {
     await stop();
     rmSync(tempDir, { force: true, recursive: true });
-    cleanupGeneratedCliManifests();
     throw error;
   }
 
@@ -146,7 +144,6 @@ export async function startOwoxApp(
 export async function cleanupApp(app: StartedApp): Promise<void> {
   await app.stop();
   rmSync(app.tempDir, { force: true, recursive: true });
-  cleanupGeneratedCliManifests();
 }
 
 export async function signInNullIdp(origin: string): Promise<CookieJar> {
@@ -387,6 +384,140 @@ export async function expectIntercomJwtRejected(
   );
 }
 
+export async function expectAccessControlMutationsRejected(
+  origin: string,
+  accessToken: string,
+  apiKeyId: string
+): Promise<void> {
+  const headers = apiKeyAuthHeaders(accessToken, apiKeyId);
+  const jsonHeaders = { ...headers, 'content-type': 'application/json' };
+
+  await expectStatus(
+    `${origin}/api/contexts`,
+    {
+      method: 'POST',
+      headers: jsonHeaders,
+      body: JSON.stringify({ name: 'must-not-create' }),
+    },
+    403
+  );
+  await expectStatus(
+    `${origin}/api/contexts/context-1`,
+    {
+      method: 'PUT',
+      headers: jsonHeaders,
+      body: JSON.stringify({ name: 'must-not-update' }),
+    },
+    403
+  );
+  await expectStatus(`${origin}/api/contexts/context-1`, { method: 'DELETE', headers }, 403);
+  await expectStatus(
+    `${origin}/api/contexts/context-1/members`,
+    {
+      method: 'PUT',
+      headers: jsonHeaders,
+      body: JSON.stringify({ assignedUserIds: ['user-1'] }),
+    },
+    403
+  );
+  await expectStatus(
+    `${origin}/api/data-marts/data-mart-1/owners`,
+    {
+      method: 'PUT',
+      headers: jsonHeaders,
+      body: JSON.stringify({ businessOwnerIds: ['user-1'], technicalOwnerIds: ['user-1'] }),
+    },
+    403
+  );
+  await expectStatus(
+    `${origin}/api/data-marts/data-mart-1/contexts`,
+    {
+      method: 'PUT',
+      headers: jsonHeaders,
+      body: JSON.stringify({ contextIds: ['context-1'] }),
+    },
+    403
+  );
+  await expectStatus(
+    `${origin}/api/data-storages/storage-1`,
+    {
+      method: 'PUT',
+      headers: jsonHeaders,
+      body: JSON.stringify({
+        title: 'Storage',
+        config: {},
+        ownerIds: ['user-1'],
+        contextIds: ['context-1'],
+      }),
+    },
+    403
+  );
+  await expectStatus(
+    `${origin}/api/data-storages`,
+    {
+      method: 'POST',
+      headers: jsonHeaders,
+      body: JSON.stringify({ type: 'GOOGLE_BIGQUERY', ownerIds: ['user-1'] }),
+    },
+    403
+  );
+  await expectStatus(
+    `${origin}/api/data-destinations/destination-1`,
+    {
+      method: 'PUT',
+      headers: jsonHeaders,
+      body: JSON.stringify({
+        title: 'Destination',
+        ownerIds: ['user-1'],
+        contextIds: ['context-1'],
+      }),
+    },
+    403
+  );
+  await expectStatus(
+    `${origin}/api/data-destinations`,
+    {
+      method: 'POST',
+      headers: jsonHeaders,
+      body: JSON.stringify({
+        title: 'Destination',
+        type: 'GOOGLE_SHEETS',
+        ownerIds: ['user-1'],
+      }),
+    },
+    403
+  );
+  await expectStatus(
+    `${origin}/api/reports`,
+    {
+      method: 'POST',
+      headers: jsonHeaders,
+      body: JSON.stringify({
+        title: 'Report',
+        dataMartId: 'data-mart-1',
+        dataDestinationId: 'destination-1',
+        destinationConfig: {},
+        ownerIds: ['user-1'],
+      }),
+    },
+    403
+  );
+  await expectStatus(
+    `${origin}/api/reports/report-1`,
+    {
+      method: 'PUT',
+      headers: jsonHeaders,
+      body: JSON.stringify({
+        title: 'Report',
+        dataDestinationId: 'destination-1',
+        destinationConfig: {},
+        ownerIds: ['user-1'],
+      }),
+    },
+    403
+  );
+}
+
 export async function expectDataMartsAccessible(
   origin: string,
   accessToken: string,
@@ -416,11 +547,11 @@ export async function expectCtlStatus(
   expect(status.apiKeyId).toBe(parsedApiKey.apiKeyId);
   expect(status.project).toEqual(expect.any(Object));
   expect(status.member).toEqual(expect.any(Object));
+  expectJsonValueNotToHaveKey(status, 'authFlow');
 
   const renderedStatus = JSON.stringify(status);
   expect(renderedStatus.includes(fullApiKey)).toBe(false);
   expect(renderedStatus.includes(parsedApiKey.apiKeySecret)).toBe(false);
-  expect(renderedStatus.includes('"authFlow"')).toBe(false);
 }
 
 export function decodeApiKey(apiKey: string): ParsedApiKey {
@@ -443,7 +574,7 @@ async function runCtlStatus(apiKey: string): Promise<{
   stdout: string;
   stderr: string;
 }> {
-  ensureCliManifests();
+  assertCliManifestsPrepared();
 
   return new Promise(resolveRun => {
     const child = spawn(process.execPath, ['./bin/run.js', 'status'], {
@@ -468,42 +599,22 @@ async function runCtlStatus(apiKey: string): Promise<{
   });
 }
 
-function ensureCliManifests(): void {
-  if (cliManifestsEnsured) {
+function expectJsonValueNotToHaveKey(value: unknown, key: string): void {
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      expectJsonValueNotToHaveKey(item, key);
+    }
     return;
   }
 
-  for (const packageRoot of [owoxRoot, ctlRoot]) {
-    const manifestPath = join(packageRoot, 'oclif.manifest.json');
-    if (existsSync(manifestPath)) {
-      continue;
-    }
-
-    const result = spawnSync('npm', ['run', 'prepack'], {
-      cwd: packageRoot,
-      encoding: 'utf8',
-      env: { ...process.env, NODE_ENV: 'test' },
-    });
-
-    if (result.error || result.status !== 0) {
-      throw new Error(
-        `Failed to generate Oclif manifest in ${packageRoot}\nstdout:\n${result.stdout}\nstderr:\n${result.stderr}`,
-        { cause: result.error }
-      );
-    }
-
-    generatedCliManifestPaths.add(manifestPath);
+  if (!value || typeof value !== 'object') {
+    return;
   }
 
-  cliManifestsEnsured = true;
-}
-
-function cleanupGeneratedCliManifests(): void {
-  for (const manifestPath of generatedCliManifestPaths) {
-    rmSync(manifestPath, { force: true });
+  for (const [entryKey, entryValue] of Object.entries(value as JsonRecord)) {
+    expect(entryKey).not.toBe(key);
+    expectJsonValueNotToHaveKey(entryValue, key);
   }
-  generatedCliManifestPaths.clear();
-  cliManifestsEnsured = false;
 }
 
 function extractMagicLinkVerifyUrl(html: string): string {
