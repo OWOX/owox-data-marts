@@ -350,6 +350,31 @@ export async function expectProjectMemberAdministrationRejected(
   );
 }
 
+export async function expectUserProvisioningRejected(
+  origin: string,
+  accessToken: string,
+  apiKeyId: string
+): Promise<void> {
+  const headers = apiKeyAuthHeaders(accessToken, apiKeyId);
+  const jsonHeaders = { ...headers, 'content-type': 'application/json' };
+
+  await expectStatus(`${origin}/api/user-provisioning/request-access-context`, { headers }, 403);
+  await expectStatus(
+    `${origin}/api/user-provisioning/request-access`,
+    {
+      method: 'POST',
+      headers: jsonHeaders,
+      body: JSON.stringify({ role: 'viewer' }),
+    },
+    403
+  );
+  await expectStatus(
+    `${origin}/api/user-provisioning/create-new-project`,
+    { method: 'POST', headers },
+    403
+  );
+}
+
 export async function expectDataMartsAccessible(
   origin: string,
   accessToken: string,
