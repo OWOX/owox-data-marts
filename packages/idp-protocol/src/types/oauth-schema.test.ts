@@ -85,6 +85,23 @@ describe('MCP OAuth protocol schemas', () => {
     ).toThrow();
   });
 
+  it('accepts a null avatar from the identity service and normalizes it to undefined', () => {
+    const payload = McpTokenPayloadSchema.parse({
+      clientId: 'mcp-client-1',
+      userId: 'user-1',
+      projectId: 'project-1',
+      email: 'user@example.com',
+      avatar: null,
+      roles: ['viewer'],
+      resource: 'https://mcp.owox.com/mcp',
+      scopes: ['mcp:read'],
+      authFlow: 'mcp',
+    });
+
+    expect(payload.avatar).toBeUndefined();
+    expect(payload.projectId).toBe('project-1');
+  });
+
   it('requires project-member context before issuing an authorization code', () => {
     const context = McpOAuthProjectMemberContextSchema.parse({
       userId: 'user-1',
