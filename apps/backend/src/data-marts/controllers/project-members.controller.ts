@@ -1,6 +1,13 @@
 import { Body, Controller, Delete, Get, HttpCode, Param, Post, Put } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
-import { Auth, AuthContext, AuthorizationContext, Role, Strategy } from '../../idp';
+import {
+  Auth,
+  AuthContext,
+  AuthorizationContext,
+  RejectApiKeyAuth,
+  Role,
+  Strategy,
+} from '../../idp';
 import {
   ApproveMembershipRequestApiDto,
   ApproveMembershipRequestResponseApiDto,
@@ -66,6 +73,7 @@ export class ProjectMembersController {
   ) {}
 
   @Auth(Role.viewer(Strategy.PARSE))
+  @RejectApiKeyAuth()
   @Get()
   @ListProjectMembersSpec()
   async list(@AuthContext() context: AuthorizationContext): Promise<ProjectMemberResponseApiDto[]> {
@@ -74,6 +82,7 @@ export class ProjectMembersController {
   }
 
   @Auth(Role.admin(Strategy.INTROSPECT))
+  @RejectApiKeyAuth()
   @Post('invite')
   @HttpCode(202)
   @InviteProjectMemberSpec()
@@ -112,6 +121,7 @@ export class ProjectMembersController {
   }
 
   @Auth(Role.viewer(Strategy.PARSE))
+  @RejectApiKeyAuth()
   @Get('user-provisioning-settings')
   @GetUserProvisioningSettingsSpec()
   async getProvisioningSettings(
@@ -122,6 +132,7 @@ export class ProjectMembersController {
   }
 
   @Auth(Role.admin(Strategy.INTROSPECT))
+  @RejectApiKeyAuth()
   @Put('user-provisioning-settings')
   @UpdateUserProvisioningSettingsSpec()
   async updateProvisioningSettings(
@@ -140,6 +151,7 @@ export class ProjectMembersController {
   }
 
   @Auth(Role.admin(Strategy.INTROSPECT))
+  @RejectApiKeyAuth()
   @Put(':userId')
   @UpdateProjectMemberSpec()
   async update(
@@ -168,6 +180,7 @@ export class ProjectMembersController {
   }
 
   @Auth(Role.admin(Strategy.INTROSPECT))
+  @RejectApiKeyAuth()
   @Delete(':userId')
   @HttpCode(204)
   @RemoveProjectMemberSpec()
@@ -181,6 +194,7 @@ export class ProjectMembersController {
   }
 
   @Auth(Role.admin(Strategy.INTROSPECT))
+  @RejectApiKeyAuth()
   @Get('requests')
   @ListMembershipRequestsSpec()
   async listRequests(
@@ -191,6 +205,7 @@ export class ProjectMembersController {
   }
 
   @Auth(Role.admin(Strategy.INTROSPECT))
+  @RejectApiKeyAuth()
   @Post('requests/:requestId/approve')
   @HttpCode(200)
   @ApproveMembershipRequestSpec()
@@ -218,6 +233,7 @@ export class ProjectMembersController {
   }
 
   @Auth(Role.admin(Strategy.INTROSPECT))
+  @RejectApiKeyAuth()
   @Post('requests/:requestId/decline')
   @HttpCode(204)
   @DeclineMembershipRequestSpec()

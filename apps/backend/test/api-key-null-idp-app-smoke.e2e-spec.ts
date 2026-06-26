@@ -7,6 +7,7 @@ import {
   expectApiKeyAuthContextStatus,
   expectCtlStatus,
   expectDataMartsAccessible,
+  expectProjectMemberAdministrationRejected,
   readBrowserAccessToken,
   signInNullIdp,
   startOwoxApp,
@@ -36,6 +37,11 @@ describe('Null IDP app smoke (e2e)', () => {
         apiKeyAccessToken,
         `${parsedKey.apiKeyId}-other`,
         403
+      );
+      await expectProjectMemberAdministrationRejected(
+        app.origin,
+        apiKeyAccessToken,
+        parsedKey.apiKeyId
       );
       await expectDataMartsAccessible(app.origin, apiKeyAccessToken, parsedKey.apiKeyId);
       await expectCtlStatus(createdKey.apiKey, parsedKey);

@@ -27,10 +27,13 @@ type Status = {
 };
 
 type StatusDeps = {
-  createClient: (config: AuthConfig) => {
-    auth: {
-      getContext(): Promise<OWOXAuthContext>;
-    };
+  createClient: (config: AuthConfig) => StatusClient;
+};
+
+type StatusClient = {
+  authenticate(): Promise<void>;
+  auth: {
+    getContext(): Promise<OWOXAuthContext>;
   };
 };
 
@@ -56,6 +59,51 @@ function normalizeStatusError(error: unknown): StatusError {
   };
 }
 
+function isMissingAuthContextEndpoint(error: unknown): boolean {
+  return error instanceof OWOXApiError && !(error instanceof OWOXAuthError) && error.status === 404;
+}
+
+function getAuthenticatedStatus(
+  config: AuthConfig,
+  envFile: string | null,
+  context?: OWOXAuthContext
+): Status {
+  return {
+    apiOrigin: config.apiOrigin,
+    apiKeyId: config.apiKeyId,
+    authenticated: true,
+    envFile,
+    ...(context ? { project: context.project, member: context.member } : {}),
+  };
+}
+
+function getAuthenticationFailureStatus(
+  config: AuthConfig,
+  envFile: string | null,
+  error: unknown
+): Status {
+  return {
+    apiOrigin: config.apiOrigin,
+    apiKeyId: config.apiKeyId,
+    authenticated: false,
+    envFile,
+    error: normalizeStatusError(error),
+  };
+}
+
+async function getExchangeOnlyStatus(
+  client: StatusClient,
+  config: AuthConfig,
+  envFile: string | null
+): Promise<Status> {
+  try {
+    await client.authenticate();
+    return getAuthenticatedStatus(config, envFile);
+  } catch (error) {
+    return getAuthenticationFailureStatus(config, envFile, error);
+  }
+}
+
 export function getMissingConfigStatus(
   env: NodeJS.ProcessEnv,
   envFile: string | null,
@@ -75,28 +123,17 @@ export async function getStatus(
   envFile: string | null,
   deps: StatusDeps = { createClient: clientConfig => new OWOXApiClient(clientConfig) }
 ): Promise<Status> {
-  let context: OWOXAuthContext;
+  const client = deps.createClient(config);
 
   try {
-    context = await deps.createClient(config).auth.getContext();
+    return getAuthenticatedStatus(config, envFile, await client.auth.getContext());
   } catch (error) {
-    return {
-      apiOrigin: config.apiOrigin,
-      apiKeyId: config.apiKeyId,
-      authenticated: false,
-      envFile,
-      error: normalizeStatusError(error),
-    };
-  }
+    if (isMissingAuthContextEndpoint(error)) {
+      return getExchangeOnlyStatus(client, config, envFile);
+    }
 
-  return {
-    apiOrigin: config.apiOrigin,
-    apiKeyId: context.apiKeyId,
-    authenticated: true,
-    envFile,
-    project: context.project,
-    member: context.member,
-  };
+    return getAuthenticationFailureStatus(config, envFile, error);
+  }
 }
 
 export default class StatusCommand extends BaseCommand {

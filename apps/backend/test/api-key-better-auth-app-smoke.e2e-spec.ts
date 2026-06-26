@@ -11,6 +11,7 @@ import {
   expectApiKeyAuthContextStatus,
   expectCtlStatus,
   expectDataMartsAccessible,
+  expectProjectMemberAdministrationRejected,
   readBrowserAccessToken,
   startOwoxApp,
   type StartedApp,
@@ -45,6 +46,11 @@ describe('Better Auth app smoke (e2e)', () => {
       );
       await expectApiKeyAuthContextStatus(app.origin, undefined, parsedKey.apiKeyId, 401);
       await expectApiKeyManagementRejected(app.origin, apiKeyAccessToken, parsedKey.apiKeyId);
+      await expectProjectMemberAdministrationRejected(
+        app.origin,
+        apiKeyAccessToken,
+        parsedKey.apiKeyId
+      );
       await expectDataMartsAccessible(app.origin, apiKeyAccessToken, parsedKey.apiKeyId);
       await expectCtlStatus(createdKey.apiKey, parsedKey);
     } finally {
