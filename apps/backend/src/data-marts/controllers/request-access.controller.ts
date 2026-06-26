@@ -26,6 +26,7 @@ import {
 
 @Controller('user-provisioning')
 @ApiTags('User Provisioning')
+@RejectApiKeyAuth()
 export class RequestAccessController {
   constructor(
     private readonly getRequestAccessContext: GetRequestAccessContextService,
@@ -34,7 +35,6 @@ export class RequestAccessController {
   ) {}
 
   @Auth(Role.authenticated(Strategy.PARSE))
-  @RejectApiKeyAuth()
   @Get('request-access-context')
   @GetRequestAccessContextSpec()
   async getContext(
@@ -53,7 +53,6 @@ export class RequestAccessController {
   }
 
   @Auth(Role.authenticated(Strategy.INTROSPECT))
-  @RejectApiKeyAuth()
   @Post('request-access')
   @HttpCode(202)
   @RequestProjectAccessSpec()
@@ -70,7 +69,6 @@ export class RequestAccessController {
   }
 
   @Auth(Role.authenticated(Strategy.INTROSPECT))
-  @RejectApiKeyAuth()
   @Post('create-new-project')
   @CreateNewProjectSpec()
   async createNewProject(
