@@ -273,7 +273,7 @@ export class SearchIndexRepository {
 
     if (options.promptVec && (await this.supportsVector())) {
       try {
-        return await this.executeSearchCandidatesQuery(
+        const vectorPage = await this.executeSearchCandidatesQuery(
           `
             SELECT ${selectColumns},
                    COSINE_DISTANCE(idx.embedding, :promptVec) AS vector_distance
@@ -296,6 +296,24 @@ export class SearchIndexRepository {
           },
           { ...baseLogContext, candidateLimit: vectorLimit, mode: 'vector' }
         );
+
+        if (query.tokens.length === 0) return vectorPage;
+
+        const missingEmbeddingKeywordPage = await this.executeFallbackCandidateQuery(
+          table,
+          entityType,
+          projectId,
+          accessPredicate,
+          query.tokens,
+          options,
+          {
+            ...baseLogContext,
+            mode: 'like',
+          },
+          "AND idx.embedding_status = 'MISSING'"
+        );
+
+        return this.mergeCandidatePages(vectorPage, missingEmbeddingKeywordPage);
       } catch (err) {
         this.markVectorUnavailable('native vector query failed; using keyword fallback', err);
       }
@@ -392,7 +410,8 @@ export class SearchIndexRepository {
     predicate: AccessPredicate,
     tokens: string[],
     options: SearchCandidatesOptions,
-    logContext: CandidateSearchLogContext
+    logContext: CandidateSearchLogContext,
+    additionalWhereSql = ''
   ): Promise<StreamPage> {
     const namedParams: Record<string, unknown> = {
       projectId,
@@ -416,12 +435,28 @@ export class SearchIndexRepository {
       WHERE idx.project_id = :projectId
         ${predicate.whereSql ? `AND ${predicate.whereSql}` : ''}
         ${draftFilter}
+        ${additionalWhereSql}
         ${filters.length > 0 ? `AND ${filters.join(' AND ')}` : ''}
       ORDER BY idx.updated_at DESC, idx.entity_id ASC
       LIMIT :candidateLimit
     `;
 
     return this.executeSearchCandidatesQuery(rawSql, namedParams, logContext);
+  }
+
+  private mergeCandidatePages(primary: StreamPage, supplemental: StreamPage): StreamPage {
+    const seen = new Set<string>();
+    const rows: StreamedIndexRow[] = [];
+    for (const row of [...primary.rows, ...supplemental.rows]) {
+      if (seen.has(row.entityId)) continue;
+      seen.add(row.entityId);
+      rows.push(row);
+    }
+
+    return {
+      rows,
+      nextCursor: null,
+    };
   }
 
   private searchCandidateSelectColumns(entityType: SearchableEntityType, alias: string): string {

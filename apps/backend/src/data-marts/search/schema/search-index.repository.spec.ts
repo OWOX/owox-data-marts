@@ -807,6 +807,68 @@ describe('SearchIndexRepository', () => {
       }
     });
 
+    it('merges missing-embedding keyword candidates with mysql vector candidates', async () => {
+      const promptVec = new Float32Array([1, 0]);
+      const mysqlDs = {
+        options: { type: 'mysql' },
+        query: jest.fn().mockImplementation(async (sql: string) => {
+          if (sql.includes("SHOW VARIABLES LIKE 'cloudsql_vector'")) {
+            return [{ Variable_name: 'cloudsql_vector', Value: 'ON' }];
+          }
+          if (sql.includes('COSINE_DISTANCE(idx.embedding, ?)')) {
+            return [
+              {
+                entity_id: 'dm-vector',
+                project_id: 'proj-1',
+                is_draft: 0,
+                embedding: Buffer.from(promptVec.buffer),
+                document: null,
+                field_count: 1,
+                doc_hash: 'h-vector',
+                updated_at: '2024-01-01 00:00:00',
+              },
+            ];
+          }
+          if (
+            sql.includes("idx.embedding_status = 'MISSING'") &&
+            sql.includes('idx.search_text LIKE')
+          ) {
+            return [
+              {
+                entity_id: 'dm-missing',
+                project_id: 'proj-1',
+                is_draft: 0,
+                embedding: null,
+                document: null,
+                field_count: 1,
+                doc_hash: 'h-missing',
+                updated_at: '2024-01-02 00:00:00',
+              },
+            ];
+          }
+          return [];
+        }),
+      } as unknown as DataSource;
+      const mysqlRepo = new SearchIndexRepository(mysqlDs);
+
+      const page = await mysqlRepo.searchCandidates(
+        DATA_MART,
+        'proj-1',
+        PASSTHROUGH_PREDICATE,
+        'revenue',
+        {
+          candidateLimit: 10,
+          promptVec,
+        }
+      );
+
+      expect(page.rows.map(row => row.entityId)).toEqual(['dm-vector', 'dm-missing']);
+      expect(mysqlDs.query).toHaveBeenCalledWith(
+        expect.stringContaining("idx.embedding_status = 'MISSING'"),
+        expect.anything()
+      );
+    });
+
     it('passes vectorCandidateLimit to the mysql vector branch query', async () => {
       const promptVec = new Float32Array([1, 0]);
       const mysqlDs = {

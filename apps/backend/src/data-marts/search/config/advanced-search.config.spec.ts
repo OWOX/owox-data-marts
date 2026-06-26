@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { loadAdvancedSearchConfig } from './advanced-search.config';
 
 describe('loadAdvancedSearchConfig', () => {
@@ -233,5 +235,40 @@ describe('loadAdvancedSearchConfig', () => {
     expect(() =>
       loadAdvancedSearchConfig({ ADVANCED_SEARCH_OPENROUTER_EMBEDDING_DIMENSIONS: '0' })
     ).toThrow();
+  });
+
+  it('documents all active advanced search env vars in .env.example', () => {
+    const envExample = readFileSync(resolve(__dirname, '../../../../../../.env.example'), 'utf8');
+    const expectedAdvancedSearchEnvVars = [
+      'ADVANCED_SEARCH_MODEL_CACHE_DIR',
+      'ADVANCED_SEARCH_EMBEDDING_PROVIDER',
+      'ADVANCED_SEARCH_OPENROUTER_EMBEDDING_MODEL',
+      'ADVANCED_SEARCH_OPENROUTER_EMBEDDING_DIMENSIONS',
+      'ADVANCED_SEARCH_OPENROUTER_API_KEY',
+      'ADVANCED_SEARCH_OPENROUTER_ALLOWED_PROVIDERS',
+      'ADVANCED_SEARCH_OPENROUTER_DATA_COLLECTION',
+      'ADVANCED_SEARCH_OPENROUTER_ZDR',
+      'ADVANCED_SEARCH_OPENROUTER_REQUEST_TIMEOUT_MS',
+      'ADVANCED_SEARCH_OPENROUTER_BATCHING_ENABLED',
+      'ADVANCED_SEARCH_OPENROUTER_BATCH_SIZE',
+      'ADVANCED_SEARCH_DRIFT_CRON',
+      'ADVANCED_SEARCH_ENTITY_PROCESSING_CRON',
+      'ADVANCED_SEARCH_DATA_MART_PROJECT_PROCESSING_CRON',
+      'ADVANCED_SEARCH_DATA_STORAGE_PROJECT_PROCESSING_CRON',
+      'ADVANCED_SEARCH_DATA_DESTINATION_PROJECT_PROCESSING_CRON',
+      'ADVANCED_SEARCH_VECTOR_CANDIDATE_MULTIPLIER',
+      'ADVANCED_SEARCH_TOP_K',
+      'ADVANCED_SEARCH_INDEX_BATCH_SIZE',
+      'ADVANCED_SEARCH_CANDIDATE_LIMIT',
+      'ADVANCED_SEARCH_QUERY_MAX_LENGTH',
+      'ADVANCED_SEARCH_EMBEDDING_CONCURRENCY',
+      'ADVANCED_SEARCH_MIN_RELEVANCE',
+    ];
+
+    for (const envName of expectedAdvancedSearchEnvVars) {
+      expect(envExample).toContain(`# ${envName}=`);
+    }
+    expect(envExample).not.toContain('ADVANCED_SEARCH_EMBEDDING_MODEL=');
+    expect(envExample).not.toContain('ADVANCED_SEARCH_EMBEDDING_DIMENSIONS=');
   });
 });
