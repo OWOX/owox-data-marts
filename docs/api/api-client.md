@@ -36,6 +36,19 @@ const dataMarts = await client.dataMarts.list();
 console.log(dataMarts);
 ```
 
+## Get auth context
+
+Use `auth.getContext()` to validate the configured API key and return the project and member context
+resolved from the exchanged access token.
+
+```ts
+const context = await client.auth.getContext();
+
+console.log(context.project.id);
+console.log(context.project.title);
+console.log(context.member.email);
+```
+
 ## List data marts
 
 ```ts

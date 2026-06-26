@@ -68,7 +68,7 @@ describe('ExchangeProjectMemberApiKeyService', () => {
     expect(result).toEqual({ accessToken: 'regular-odm-access-token' });
   });
 
-  it('sends an explicit key role to the IDP provider when the key has one', async () => {
+  it('does not bind a stored API-key role to the issued IDP token', async () => {
     const { service, projectMemberApiKeyService, idpProvider } = createService();
     projectMemberApiKeyService.verifyCredential.mockResolvedValue(
       createVerifiedKey({ role: 'viewer' })
@@ -83,7 +83,7 @@ describe('ExchangeProjectMemberApiKeyService', () => {
       apiKeyId,
       'user-1',
       'project-1',
-      'viewer',
+      null,
       false
     );
   });

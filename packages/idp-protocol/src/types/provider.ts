@@ -129,8 +129,9 @@ export interface IdpProvider {
   /**
    * Issue an ODM access token after the backend has validated a project member API key.
    *
-   * `role` is nullable in the first iteration. Null means the IDP should issue
-   * the token with the member's current project role.
+   * `role` and `readOnly` are compatibility parameters and are not used by the
+   * current exchange flow. Providers should issue tokens from the current
+   * project membership, not from API-key metadata.
    */
   issueAccessTokenForProjectMemberApiKey(
     apiKeyId: string,

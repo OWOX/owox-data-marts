@@ -12,6 +12,7 @@ import type { RoleConfig } from '../types';
 import { Reflector } from '@nestjs/core';
 import { IdpProviderService } from '../services/idp-provider.service';
 import { ClsService } from 'nestjs-cls';
+import { REJECT_API_KEY_AUTH_METADATA } from '../decorators/reject-api-key-auth.decorator';
 
 export interface AuthenticatedRequest extends Request {
   idpContext: {
@@ -48,6 +49,10 @@ export class IdpGuard implements CanActivate {
       context.getHandler(),
       context.getClass(),
     ]);
+    const rejectApiKeyAuth = this.reflector.getAllAndOverride<boolean>(
+      REJECT_API_KEY_AUTH_METADATA,
+      [context.getHandler(), context.getClass()]
+    );
 
     if (!roleConfig) {
       throw new AuthenticationError('No role configuration found');
@@ -62,6 +67,7 @@ export class IdpGuard implements CanActivate {
     try {
       const tokenPayload = await this.authenticateUser(request, roleConfig.strategy);
       this.checkApiKeyHeaderBinding(request, tokenPayload);
+      this.checkApiKeyUsageRestrictions(tokenPayload, Boolean(rejectApiKeyAuth));
 
       request.idpContext = {
         userId: tokenPayload.userId,
@@ -88,7 +94,11 @@ export class IdpGuard implements CanActivate {
         void this.idpProjectionsService.updateProjectionsFromIdpPayload(tokenPayload);
       }
     } catch (error) {
-      if (error instanceof UnauthorizedException || error instanceof AuthorizationError) {
+      if (
+        error instanceof UnauthorizedException ||
+        error instanceof AuthenticationError ||
+        error instanceof AuthorizationError
+      ) {
         throw error;
       }
       throw new AuthenticationError('Authentication failed');
@@ -130,6 +140,16 @@ export class IdpGuard implements CanActivate {
 
     if (!apiKeyId || !tokenPayload.apiKeyId || apiKeyId !== tokenPayload.apiKeyId) {
       throw new AuthorizationError('Access denied by api key');
+    }
+  }
+
+  private checkApiKeyUsageRestrictions(tokenPayload: Payload, rejectApiKeyAuth: boolean): void {
+    if (tokenPayload.authFlow !== 'api_key') {
+      return;
+    }
+
+    if (rejectApiKeyAuth) {
+      throw new AuthorizationError('API key authentication is not allowed for this endpoint');
     }
   }
 
