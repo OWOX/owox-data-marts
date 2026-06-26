@@ -32,6 +32,16 @@ export class McpConfigService {
     );
   }
 
+  /**
+   * Verification token for OpenAI Apps domain verification, served verbatim as
+   * `text/plain` at `/.well-known/openai-apps-challenge`. Provided by OpenAI when
+   * submitting the MCP app; configured via env so it can be rotated without a code
+   * change. Returns `undefined` when unset, in which case the endpoint responds 404.
+   */
+  get openaiAppsChallengeToken(): string | undefined {
+    return this.config.get<string>('MCP_OPENAI_APPS_CHALLENGE_TOKEN')?.trim() || undefined;
+  }
+
   get serverName(): string {
     return this.config.get<string>('MCP_SERVER_NAME') ?? 'owox-mcp';
   }
