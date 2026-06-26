@@ -3,17 +3,7 @@ import { ApiHeader, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger
 import { Auth, AuthContext } from '../decorators';
 import { AuthorizationContext, Role, Strategy } from '../types';
 
-type AuthContextResponse = {
-  userId: string;
-  projectId: string;
-  email?: string;
-  fullName?: string;
-  avatar?: string;
-  roles?: string[];
-  projectTitle?: string;
-  authFlow?: string;
-  apiKeyId?: string;
-};
+type AuthContextResponse = AuthorizationContext;
 
 @Controller('auth/context')
 @ApiTags('Authentication')

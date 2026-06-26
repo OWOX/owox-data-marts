@@ -1,6 +1,10 @@
-import { Logger, UnauthorizedException } from '@nestjs/common';
+import { Logger } from '@nestjs/common';
 import type { Request, Response } from 'express';
-import type { McpOAuthProjectMemberContext, Payload } from '@owox/idp-protocol';
+import {
+  AuthorizationError,
+  type McpOAuthProjectMemberContext,
+  type Payload,
+} from '@owox/idp-protocol';
 import { IdpProviderService } from '../../services/idp-provider.service';
 import { OAuthClientRegistry } from '../oauth-client.registry';
 import { OAuthIdpPort } from '../oauth-idp.port';
@@ -218,7 +222,7 @@ describe('OAuthAuthorizationController', () => {
 
     await expect(
       controller.authorize({}, request, response as unknown as Response)
-    ).rejects.toThrow(UnauthorizedException);
+    ).rejects.toThrow(AuthorizationError);
     expect(oauthIdp.createAuthorizationCode).not.toHaveBeenCalled();
   });
 

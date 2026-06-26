@@ -6,10 +6,9 @@ import {
   Query,
   Req,
   Res,
-  UnauthorizedException,
 } from '@nestjs/common';
 import type { Request, Response } from 'express';
-import type { AuthResult, Payload } from '@owox/idp-protocol';
+import { AuthorizationError, type AuthResult, type Payload } from '@owox/idp-protocol';
 import type { AuthorizationContext } from '../../index';
 import { IdpProviderService } from '../../services/idp-provider.service';
 import { OAuthClientRegistry } from '../oauth-client.registry';
@@ -195,7 +194,7 @@ export class OAuthAuthorizationController {
 
   private toAuthorizationContext(payload: Payload): AuthorizationContext {
     if (payload.authFlow === 'api_key') {
-      throw new UnauthorizedException(
+      throw new AuthorizationError(
         'API key authentication is not allowed for OAuth authorization'
       );
     }

@@ -11,7 +11,14 @@ import {
   Query,
 } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
-import { Auth, AuthContext, AuthorizationContext, Role, Strategy } from '../../idp';
+import {
+  Auth,
+  AuthContext,
+  AuthorizationContext,
+  RejectApiKeyAuth,
+  Role,
+  Strategy,
+} from '../../idp';
 import { BlendableSchemaDto } from '../dto/domain/blendable-schema.dto';
 import { BatchDataMartHealthStatusRequestApiDto } from '../dto/presentation/batch-data-mart-health-status-request-api.dto';
 import { BatchDataMartHealthStatusResponseApiDto } from '../dto/presentation/batch-data-mart-health-status-response-api.dto';
@@ -217,6 +224,7 @@ export class DataMartController {
   }
 
   @Auth(Role.editor(Strategy.INTROSPECT))
+  @RejectApiKeyAuth()
   @Put(':id/owners')
   @UpdateDataMartOwnersSpec()
   async updateOwners(
@@ -230,6 +238,7 @@ export class DataMartController {
   }
 
   @Auth(Role.editor(Strategy.INTROSPECT))
+  @RejectApiKeyAuth()
   @Put(':id/contexts')
   @UpdateDataMartContextsSpec()
   async updateContexts(

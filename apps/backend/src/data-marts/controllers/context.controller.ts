@@ -1,6 +1,13 @@
 import { Body, Controller, Delete, Get, HttpCode, Param, Post, Put } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
-import { Auth, AuthContext, AuthorizationContext, Role, Strategy } from '../../idp';
+import {
+  Auth,
+  AuthContext,
+  AuthorizationContext,
+  RejectApiKeyAuth,
+  Role,
+  Strategy,
+} from '../../idp';
 import {
   ContextImpactResponseApiDto,
   ContextResponseApiDto,
@@ -33,6 +40,7 @@ export class ContextController {
   ) {}
 
   @Auth(Role.admin(Strategy.INTROSPECT))
+  @RejectApiKeyAuth()
   @Post()
   @CreateContextSpec()
   async create(
@@ -57,6 +65,7 @@ export class ContextController {
   }
 
   @Auth(Role.admin(Strategy.INTROSPECT))
+  @RejectApiKeyAuth()
   @Put(':id')
   @UpdateContextSpec()
   async update(
@@ -94,6 +103,7 @@ export class ContextController {
   }
 
   @Auth(Role.admin(Strategy.INTROSPECT))
+  @RejectApiKeyAuth()
   @Delete(':id')
   @HttpCode(204)
   @DeleteContextSpec()
@@ -105,6 +115,7 @@ export class ContextController {
   }
 
   @Auth(Role.admin(Strategy.INTROSPECT))
+  @RejectApiKeyAuth()
   @Put(':id/members')
   @SetContextMembersSpec()
   async setContextMembers(

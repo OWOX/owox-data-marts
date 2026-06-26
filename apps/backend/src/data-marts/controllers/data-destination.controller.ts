@@ -25,6 +25,7 @@ import { DataDestinationByTypeResponseApiDto } from '../dto/presentation/data-de
 import { ListDataDestinationsByTypeCommand } from '../dto/domain/list-data-destinations-by-type.command';
 import { DataDestinationType } from '../data-destination-types/enums/data-destination-type.enum';
 import { Auth, AuthContext, AuthorizationContext } from '../../idp';
+import { AuthorizationError } from '@owox/idp-protocol';
 import { Role, Strategy } from '../../idp/types/role-config.types';
 import { GenerateAuthorizationUrlRequestDto } from '../dto/presentation/google-oauth/generate-authorization-url-request.dto';
 import { GenerateAuthorizationUrlResponseDto } from '../dto/presentation/google-oauth/generate-authorization-url-response.dto';
@@ -107,6 +108,21 @@ export class DataDestinationController {
     }
   }
 
+  private rejectApiKeyAuthForAccessControlUpdate(
+    context: AuthorizationContext,
+    dto: Pick<CreateDataDestinationApiDto | UpdateDataDestinationApiDto, 'ownerIds'> &
+      Partial<Pick<UpdateDataDestinationApiDto, 'contextIds'>>
+  ): void {
+    if (
+      context.authFlow === 'api_key' &&
+      (dto.ownerIds !== undefined || dto.contextIds !== undefined)
+    ) {
+      throw new AuthorizationError(
+        'API key authentication is not allowed for access control updates'
+      );
+    }
+  }
+
   @Auth(Role.viewer(Strategy.INTROSPECT))
   @Post()
   @CreateDataDestinationSpec()
@@ -114,6 +130,8 @@ export class DataDestinationController {
     @AuthContext() context: AuthorizationContext,
     @Body() dto: CreateDataDestinationApiDto
   ): Promise<DataDestinationResponseApiDto> {
+    this.rejectApiKeyAuthForAccessControlUpdate(context, dto);
+
     const command = this.mapper.toCreateCommand(context, dto);
     const dataDestinationDto = await this.createService.run(command);
     return await this.mapper.toApiResponse(dataDestinationDto);
@@ -139,6 +157,8 @@ export class DataDestinationController {
     @Param('id') id: string,
     @Body() dto: UpdateDataDestinationApiDto
   ): Promise<DataDestinationResponseApiDto> {
+    this.rejectApiKeyAuthForAccessControlUpdate(context, dto);
+
     const command = this.mapper.toUpdateCommand(id, context, dto);
     const dataDestinationDto = await this.updateService.run(command);
     return await this.mapper.toApiResponse(dataDestinationDto);

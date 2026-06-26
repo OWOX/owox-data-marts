@@ -6,6 +6,7 @@ import {
   createProjectMemberApiKey,
   decodeApiKey,
   exchangeApiKey,
+  expectAccessControlMutationsRejected,
   expectApiKeyManagementRejected,
   expectApiKeyAuthContext,
   expectApiKeyAuthContextStatus,
@@ -18,11 +19,14 @@ import {
   startOwoxApp,
   type StartedApp,
 } from './utils/api-key-app-smoke';
+import { useCliManifests } from './utils/cli-manifest-setup';
 
 // Kept separate from the Null IDP smoke so Jest --shard can split the app boots across runners.
 jest.setTimeout(180_000);
 
 describe('Better Auth app smoke (e2e)', () => {
+  useCliManifests();
+
   it('creates an API key, exchanges it, binds the token, and works with owox-ctl status', async () => {
     const primaryAdminEmail = `admin-${randomUUID()}@example.test`;
     let app: StartedApp | undefined;
@@ -55,6 +59,11 @@ describe('Better Auth app smoke (e2e)', () => {
       );
       await expectUserProvisioningRejected(app.origin, apiKeyAccessToken, parsedKey.apiKeyId);
       await expectIntercomJwtRejected(app.origin, apiKeyAccessToken, parsedKey.apiKeyId);
+      await expectAccessControlMutationsRejected(
+        app.origin,
+        apiKeyAccessToken,
+        parsedKey.apiKeyId
+      );
       await expectDataMartsAccessible(app.origin, apiKeyAccessToken, parsedKey.apiKeyId);
       await expectCtlStatus(createdKey.apiKey, parsedKey);
     } finally {
