@@ -161,6 +161,33 @@ describe('IdentityOwoxClient MCP OAuth flow', () => {
     expect(result?.clientId).toBe('mcp-client');
   });
 
+  it('verifies an MCP access token whose payload has a null avatar', async () => {
+    httpMock.post.mockResolvedValue({
+      data: {
+        active: true,
+        payload: {
+          clientId: 'mcp-client',
+          userId: 'user-1',
+          projectId: 'project-1',
+          roles: ['viewer'],
+          avatar: null,
+          resource: 'https://mcp.owox.com/mcp',
+          scopes: ['mcp:read'],
+          authFlow: 'mcp',
+        },
+      },
+    });
+
+    const result = await createClient().verifyMcpAccessToken({
+      token: 'access-token',
+      resource: 'https://mcp.owox.com/mcp',
+      requiredScopes: ['mcp:read'],
+    });
+
+    expect(result?.projectId).toBe('project-1');
+    expect(result?.avatar).toBeUndefined();
+  });
+
   it('gets one project for a user through C2C backchannel', async () => {
     httpMock.get.mockResolvedValue({
       data: {

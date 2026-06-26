@@ -33,7 +33,14 @@ export const McpOAuthProjectMemberContextSchema = z.object({
   projectId: z.string().min(1),
   email: z.string().email().optional(),
   fullName: z.string().optional(),
-  avatar: z.string().url().optional(),
+  // The identity service sends `null` when the user has no avatar (or has
+  // restricted it); accept it and normalize to `undefined` so downstream
+  // consumers keep a `string | undefined` shape.
+  avatar: z
+    .string()
+    .url()
+    .nullish()
+    .transform(value => value ?? undefined),
   roles: z.array(RoleEnum).min(1),
 });
 export type McpOAuthProjectMemberContext = z.infer<typeof McpOAuthProjectMemberContextSchema>;
