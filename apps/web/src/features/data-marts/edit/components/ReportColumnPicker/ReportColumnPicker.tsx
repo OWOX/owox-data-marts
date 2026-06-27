@@ -30,16 +30,7 @@ import type { OutputSettingsDropdownColumn } from './OutputSettingsDropdown';
 import { fieldDisplayLabel } from './output-controls-display';
 import { RowFilterIcon } from './RowFilterIcon';
 import { isFilterableType } from './output-controls-operators';
-
-interface NativeField {
-  name: string;
-  type?: string;
-  alias?: string;
-  description?: string;
-  isHiddenForReporting?: boolean;
-  status?: string;
-  fields?: NativeField[];
-}
+import type { NativeField, BlendedGroup } from './report-column-picker.types';
 
 // Must stay in sync with the backend collectSchemaFieldPaths walker: hidden and
 // DISCONNECTED nodes (with their subtrees) are unavailable for reporting, so they
@@ -60,16 +51,6 @@ function flattenNativeFields(fields: NativeField[], prefix = ''): NativeField[] 
     }
   }
   return result;
-}
-
-interface BlendedGroup {
-  aliasPath: string;
-  title: string;
-  alias: string;
-  description?: string;
-  isAccessibleForReporting: boolean;
-  visibleFields: BlendedField[];
-  selectedCount: number;
 }
 
 export interface ReportColumnSelectionCount {
