@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { IsNull, Repository } from 'typeorm';
+import { In, IsNull, Repository } from 'typeorm';
 import { SearchableEntityType } from '../../../common/search/search.facade';
 import { DataStorage } from '../../entities/data-storage.entity';
 import {
@@ -102,15 +102,41 @@ export class DataStorageIndexableSource implements IndexableSource {
   ): Promise<SearchablePage> {
     const where = buildKeysetWhere<DataStorage>({ projectId, deletedAt: IsNull() }, cursor);
 
-    const storages = await this.dataStorageRepo.find({
+    const pageRows = await this.dataStorageRepo.find({
       where,
-      relations: { credential: true },
+      select: { id: true, createdAt: true },
+      loadEagerRelations: false,
       order: { createdAt: 'ASC', id: 'ASC' },
       take: limit,
     });
-    const descriptors = storages.map(toDescriptor);
+    if (pageRows.length === 0) return { descriptors: [], nextCursor: null };
 
-    return { descriptors, nextCursor: nextPageCursor(storages, limit) };
+    const pageIds = pageRows.map(storage => storage.id);
+    const storages = await this.dataStorageRepo.find({
+      // Re-check scope in case a storage changes between page selection and hydration.
+      where: { id: In(pageIds), projectId, deletedAt: IsNull() },
+      select: {
+        id: true,
+        type: true,
+        projectId: true,
+        title: true,
+        credentialId: true,
+        modifiedAt: true,
+        credential: {
+          id: true,
+          identity: true,
+        },
+      },
+      relations: { credential: true },
+      loadEagerRelations: false,
+    });
+    const storageById = new Map(storages.map(storage => [storage.id, storage]));
+    const descriptors = pageIds
+      .map(id => storageById.get(id))
+      .filter((storage): storage is DataStorage => storage !== undefined)
+      .map(toDescriptor);
+
+    return { descriptors, nextCursor: nextPageCursor(pageRows, limit) };
   }
 
   async listProjectIds(): Promise<string[]> {

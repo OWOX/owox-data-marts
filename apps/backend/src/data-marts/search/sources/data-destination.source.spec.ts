@@ -462,6 +462,39 @@ describe('DataDestinationIndexableSource', () => {
       const allIds = [first.descriptors[0].entityId, second.descriptors[0].entityId];
       expect(new Set(allIds)).toEqual(new Set([d1.id, d2.id]));
     });
+
+    it('loads the keyset page before joining credential data', async () => {
+      await seedDestination({ title: 'D1' });
+      await seedDestination({ title: 'D2' });
+
+      const findSpy = jest.spyOn(destinationRepo, 'find');
+
+      try {
+        await source.listSearchablePage('proj-1', null, 1);
+
+        expect(findSpy).toHaveBeenNthCalledWith(
+          1,
+          expect.objectContaining({
+            select: { id: true, createdAt: true },
+            loadEagerRelations: false,
+            order: { createdAt: 'ASC', id: 'ASC' },
+            take: 1,
+          })
+        );
+        expect(findSpy.mock.calls[0][0]).not.toHaveProperty('relations');
+        expect(findSpy).toHaveBeenNthCalledWith(
+          2,
+          expect.objectContaining({
+            relations: { credential: true },
+            loadEagerRelations: false,
+          })
+        );
+        expect(findSpy.mock.calls[1][0]).not.toHaveProperty('take');
+        expect(findSpy.mock.calls[1][0]).not.toHaveProperty('order');
+      } finally {
+        findSpy.mockRestore();
+      }
+    });
   });
 
   describe('listProjectIds', () => {
