@@ -206,7 +206,7 @@ describe('TypeOrmDataMartCatalogAdapter', () => {
       expect(page2.nextCursor).toBeNull();
     });
 
-    it('keeps the keyset page query narrow by disabling eager relation loading', async () => {
+    it('loads the keyset page before hydrating searchable mart fields', async () => {
       const storage = await seedStorage();
       await seedMart(storage, { title: 'A', status: DataMartStatus.PUBLISHED });
       await seedMart(storage, { title: 'B', status: DataMartStatus.PUBLISHED });
@@ -216,7 +216,18 @@ describe('TypeOrmDataMartCatalogAdapter', () => {
       try {
         await adapter.listSearchablePage('proj-1', null, 1);
 
-        expect(findSpy).toHaveBeenCalledWith(
+        expect(findSpy).toHaveBeenNthCalledWith(
+          1,
+          expect.objectContaining({
+            select: { id: true, createdAt: true },
+            loadEagerRelations: false,
+            order: { createdAt: 'DESC', id: 'ASC' },
+            take: 1,
+          })
+        );
+        expect(findSpy.mock.calls[0][0]).not.toHaveProperty('relations');
+        expect(findSpy).toHaveBeenNthCalledWith(
+          2,
           expect.objectContaining({
             select: expect.objectContaining({
               id: true,
@@ -225,15 +236,17 @@ describe('TypeOrmDataMartCatalogAdapter', () => {
               description: true,
               schema: true,
               status: true,
-              createdAt: true,
               modifiedAt: true,
             }),
             loadEagerRelations: false,
-            order: { createdAt: 'DESC', id: 'ASC' },
-            take: 1,
           })
         );
-        expect(findSpy.mock.calls[0][0]).not.toHaveProperty('relations');
+        expect(findSpy.mock.calls[1][0]).not.toHaveProperty('take');
+        expect(findSpy.mock.calls[1][0]).not.toHaveProperty('order');
+        expect(findSpy.mock.calls[1][0]).not.toHaveProperty('relations');
+        expect(findSpy.mock.calls[1][0].where).toEqual(
+          expect.objectContaining({ projectId: 'proj-1' })
+        );
       } finally {
         findSpy.mockRestore();
       }

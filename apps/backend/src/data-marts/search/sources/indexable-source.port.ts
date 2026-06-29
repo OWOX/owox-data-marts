@@ -35,14 +35,23 @@ export function toCursorTimestamp(createdAt: Date): string {
 }
 
 type KeysetRow = { createdAt: Date; id: string };
+type CreatedAtSortDirection = 'ASC' | 'DESC';
 
 export function buildKeysetWhere<T extends KeysetRow>(
   baseWhere: FindOptionsWhere<T>,
-  cursor: PageCursor | null
+  cursor: PageCursor | null,
+  createdAtDirection: CreatedAtSortDirection = 'ASC'
 ): FindOptionsWhere<T> | FindOptionsWhere<T>[] {
   if (!cursor) return baseWhere;
+  const createdAtComparison = createdAtDirection === 'DESC' ? '<' : '>';
+
   return [
-    { ...baseWhere, createdAt: Raw(alias => `${alias} > :cAfter`, { cAfter: cursor.createdAt }) },
+    {
+      ...baseWhere,
+      createdAt: Raw(alias => `${alias} ${createdAtComparison} :cBoundary`, {
+        cBoundary: cursor.createdAt,
+      }),
+    },
     {
       ...baseWhere,
       createdAt: Raw(alias => `${alias} = :cAt`, { cAt: cursor.createdAt }),

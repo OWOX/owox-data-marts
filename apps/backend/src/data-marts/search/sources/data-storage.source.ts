@@ -113,6 +113,7 @@ export class DataStorageIndexableSource implements IndexableSource {
 
     const pageIds = pageRows.map(storage => storage.id);
     const storages = await this.dataStorageRepo.find({
+      // Re-check scope in case a storage changes between page selection and hydration.
       where: { id: In(pageIds), projectId, deletedAt: IsNull() },
       select: {
         id: true,

@@ -121,6 +121,7 @@ export class DataDestinationIndexableSource implements IndexableSource {
 
     const pageIds = pageRows.map(destination => destination.id);
     const destinations = await this.destinationRepo.find({
+      // Re-check scope in case a destination changes between page selection and hydration.
       where: { id: In(pageIds), projectId, deletedAt: IsNull() },
       select: {
         id: true,
