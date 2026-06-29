@@ -11,6 +11,10 @@ import type {
   OutputConfig,
   SortRule,
 } from '../../../shared/types/output-config';
+import type {
+  AggregationRole,
+  ReportAggregateFunction,
+} from '../../../shared/types/relationship.types';
 import { FilterRow } from './FilterRow';
 import { SortRow } from './SortRow';
 import { LimitInput } from './LimitInput';
@@ -61,6 +65,11 @@ export interface OutputSettingsDropdownColumn {
   dataMartName?: string;
   /** Full path segments, shown as a tree on hover. */
   path?: string[];
+  /** Aggregation governance (optional; absent → type-derived defaults). */
+  aggregationRole?: AggregationRole;
+  allowedAggregations?: ReportAggregateFunction[];
+  /** DM-level post-join allowed aggregation set; present only on joined fields. */
+  postJoinAggregations?: ReportAggregateFunction[];
 }
 
 function columnToPickerItem(c: OutputSettingsDropdownColumn): FieldPickerItem {

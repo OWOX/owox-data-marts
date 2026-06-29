@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { RenderedClause, SqlClauseRenderer } from '../../utils/sql-clause-renderer';
 import { FilterRule } from '../../../dto/schemas/filter-config.schema';
+import { DateTruncUnit } from '../../../dto/schemas/date-trunc-config.schema';
 import { escapeAthenaIdentifier } from '../utils/athena-identifier.utils';
 
 /**
@@ -28,6 +29,10 @@ export function countPositionalPlaceholders(sql: string): number {
 export class AthenaClauseRenderer extends SqlClauseRenderer {
   protected quoteIdentifier(name: string): string {
     return escapeAthenaIdentifier(name);
+  }
+
+  protected override textCastType(): string {
+    return 'VARCHAR';
   }
 
   // Positional binding maps params to `?` by order, so a fragment that emits a
@@ -59,6 +64,32 @@ export class AthenaClauseRenderer extends SqlClauseRenderer {
     return columnType && AthenaClauseRenderer.DATE_CAST_TYPES.has(columnType)
       ? `CAST(? AS ${columnType})`
       : '?';
+  }
+
+  protected override renderPercentile(p: 25 | 50 | 75 | 95, columnRef: string): string {
+    return `APPROX_PERCENTILE(${columnRef}, ${p / 100})`;
+  }
+
+  // CAST to VARCHAR so array_agg/array_join is valid on a non-string column (e.g. a DATE).
+  protected override renderStringAgg(columnRef: string): string {
+    return `array_join(array_agg(CAST(${columnRef} AS VARCHAR)), ', ')`;
+  }
+
+  // Trino does not guarantee ANY_VALUE across engine versions; arbitrary() is the all-version-safe form.
+  protected override renderAnyValue(columnRef: string): string {
+    return `arbitrary(${columnRef})`;
+  }
+
+  // Trino date_trunc takes a lowercase, single-quoted unit. With a time zone, the
+  // column is shifted via `AT TIME ZONE 'tz'` before truncation.
+  protected override renderDateTrunc(
+    columnRef: string,
+    unit: DateTruncUnit,
+    timeZone?: string
+  ): string {
+    this.assertSafeDateTrunc(unit, timeZone);
+    const expr = timeZone ? `${columnRef} AT TIME ZONE '${timeZone}'` : columnRef;
+    return `date_trunc('${unit.toLowerCase()}', ${expr})`;
   }
 
   protected renderFilterFragment(

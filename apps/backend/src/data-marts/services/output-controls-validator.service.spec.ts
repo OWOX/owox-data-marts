@@ -1084,6 +1084,76 @@ describe('OutputControlsValidatorService', () => {
       ).toBe(true);
     });
 
+    it('throws AGGREGATION_REQUIRES_COLUMN_CONFIG when aggregations are set without a column projection', async () => {
+      // renderAggregatedSelect only emits a metric for a column listed in the projection;
+      // a null columnConfig would silently drop SUM(revenue) and desync the headers.
+      const capabilitySvc = makeCapabilityService(true);
+      const schemaSvc = makeBlendableSchemaService([{ name: 'revenue', type: 'INTEGER' }]);
+      const validator = new OutputControlsValidatorService(
+        capabilitySvc as never,
+        schemaSvc as never
+      );
+
+      let caught: BadRequestException | undefined;
+      try {
+        await validator.validateForReport({
+          storageType: supportedStorageType,
+          dataMartId: 'dm-1',
+          projectId: 'proj-1',
+          columnConfig: null,
+          filterConfig: null,
+          sortConfig: null,
+          limitConfig: null,
+          aggregationConfig: [{ column: 'revenue', function: 'SUM' }],
+          accessor: { userId: 'user-1', roles: ['admin'] },
+        });
+      } catch (e) {
+        caught = e as BadRequestException;
+      }
+
+      expect(caught).toBeDefined();
+      const response = caught!.getResponse() as { details: { errors: { code: string }[] } };
+      expect(
+        response.details.errors.some(e => e.code === 'AGGREGATION_REQUIRES_COLUMN_CONFIG')
+      ).toBe(true);
+    });
+
+    it('does NOT require a column projection for a uniqueCount-only report', async () => {
+      // Unique Count is a synthetic metric with no projected dimension, so it must never
+      // trip the aggregation-projection guard (it may still fail for other reasons, e.g. no PK).
+      const capabilitySvc = makeCapabilityService(true);
+      const schemaSvc = makeBlendableSchemaService([{ name: 'id', type: 'INTEGER' }]);
+      const validator = new OutputControlsValidatorService(
+        capabilitySvc as never,
+        schemaSvc as never
+      );
+
+      let caught: BadRequestException | undefined;
+      try {
+        await validator.validateForReport({
+          storageType: supportedStorageType,
+          dataMartId: 'dm-1',
+          projectId: 'proj-1',
+          columnConfig: null,
+          filterConfig: null,
+          sortConfig: null,
+          limitConfig: null,
+          aggregationConfig: null,
+          uniqueCountConfig: true,
+          accessor: { userId: 'user-1', roles: ['admin'] },
+        });
+      } catch (e) {
+        caught = e as BadRequestException;
+      }
+
+      if (caught) {
+        const response = caught.getResponse() as { details: { errors: { code: string }[] } };
+        expect(
+          response.details.errors.every(e => e.code !== 'AGGREGATION_REQUIRES_COLUMN_CONFIG')
+        ).toBe(true);
+      }
+    });
+
     it('treats a pre-join filter on a NON-actualized schema as disconnected (400, not skipped)', async () => {
       // Schema not yet actualized (empty native + blended). The pre-join filter
       // would otherwise be skipped here, then blow up at run time with a 500 in
@@ -1153,6 +1223,296 @@ describe('OutputControlsValidatorService', () => {
           ],
           sortConfig: null,
           limitConfig: null,
+          accessor: { userId: 'user-1', roles: ['admin'] },
+        })
+      ).resolves.toBeUndefined();
+    });
+
+    // Post-join aggregation on a blended report is now supported: a type-allowed
+    // function over a native column with a blended column also selected passes.
+    it('accepts aggregationConfig with a blended column selected when the function is type-allowed', async () => {
+      const capabilitySvc = makeCapabilityService(true);
+      const schemaSvc = makeBlendableSchemaService(
+        [{ name: 'revenue', type: BigQueryFieldType.INTEGER }],
+        {
+          blendedFields: [
+            {
+              name: 'partner__cost',
+              aliasPath: 'partner',
+              originalFieldName: 'cost',
+              type: BigQueryFieldType.INTEGER,
+            },
+          ],
+          availableSources: [{ aliasPath: 'partner', isIncluded: true }],
+        }
+      );
+      const validator = new OutputControlsValidatorService(
+        capabilitySvc as never,
+        schemaSvc as never
+      );
+
+      await expect(
+        validator.validateForReport({
+          storageType: supportedStorageType,
+          dataMartId: 'dm-1',
+          projectId: 'proj-1',
+          columnConfig: ['revenue', 'partner__cost'],
+          filterConfig: null,
+          sortConfig: null,
+          limitConfig: null,
+          aggregationConfig: [{ column: 'revenue', function: 'SUM' }],
+          accessor: { userId: 'user-1', roles: ['admin'] },
+        })
+      ).resolves.toBeUndefined();
+    });
+
+    it('aggregates a blended metric column directly when the function is allowed for its type', async () => {
+      const capabilitySvc = makeCapabilityService(true);
+      const schemaSvc = makeBlendableSchemaService(
+        [{ name: 'channel', type: BigQueryFieldType.STRING }],
+        {
+          blendedFields: [
+            {
+              name: 'partner__cost',
+              aliasPath: 'partner',
+              originalFieldName: 'cost',
+              type: BigQueryFieldType.INTEGER,
+            },
+          ],
+          availableSources: [{ aliasPath: 'partner', isIncluded: true }],
+        }
+      );
+      const validator = new OutputControlsValidatorService(
+        capabilitySvc as never,
+        schemaSvc as never
+      );
+
+      await expect(
+        validator.validateForReport({
+          storageType: supportedStorageType,
+          dataMartId: 'dm-1',
+          projectId: 'proj-1',
+          columnConfig: ['channel', 'partner__cost'],
+          filterConfig: null,
+          sortConfig: null,
+          limitConfig: null,
+          aggregationConfig: [{ column: 'partner__cost', function: 'SUM' }],
+          accessor: { userId: 'user-1', roles: ['admin'] },
+        })
+      ).resolves.toBeUndefined();
+    });
+
+    it('rejects an aggregation function not allowed for a blended STRING field (AGGREGATION_FUNCTION_NOT_ALLOWED_FOR_FIELD)', async () => {
+      const capabilitySvc = makeCapabilityService(true);
+      const schemaSvc = makeBlendableSchemaService(
+        [{ name: 'channel', type: BigQueryFieldType.STRING }],
+        {
+          blendedFields: [
+            {
+              name: 'partner__name',
+              aliasPath: 'partner',
+              originalFieldName: 'name',
+              type: BigQueryFieldType.STRING,
+            },
+          ],
+          availableSources: [{ aliasPath: 'partner', isIncluded: true }],
+        }
+      );
+      const validator = new OutputControlsValidatorService(
+        capabilitySvc as never,
+        schemaSvc as never
+      );
+
+      let caught: BadRequestException | undefined;
+      try {
+        await validator.validateForReport({
+          storageType: supportedStorageType,
+          dataMartId: 'dm-1',
+          projectId: 'proj-1',
+          columnConfig: ['channel', 'partner__name'],
+          filterConfig: null,
+          sortConfig: null,
+          limitConfig: null,
+          // MIN is not in the STRING governance allowed-set, and is not a SUM/AVG
+          // type-floor case, so it surfaces as a field-governance violation.
+          aggregationConfig: [{ column: 'partner__name', function: 'MIN' }],
+          accessor: { userId: 'user-1', roles: ['admin'] },
+        });
+      } catch (e) {
+        caught = e as BadRequestException;
+      }
+
+      expect(caught).toBeDefined();
+      const response = caught!.getResponse() as { details: { errors: { code: string }[] } };
+      expect(
+        response.details.errors.some(e => e.code === 'AGGREGATION_FUNCTION_NOT_ALLOWED_FOR_FIELD')
+      ).toBe(true);
+    });
+
+    it('rejects aggregation on an unselected blended column (AGGREGATION_COLUMN_NOT_SELECTED)', async () => {
+      const capabilitySvc = makeCapabilityService(true);
+      const schemaSvc = makeBlendableSchemaService(
+        [{ name: 'channel', type: BigQueryFieldType.STRING }],
+        {
+          blendedFields: [
+            {
+              name: 'partner__cost',
+              aliasPath: 'partner',
+              originalFieldName: 'cost',
+              type: BigQueryFieldType.INTEGER,
+            },
+          ],
+          availableSources: [{ aliasPath: 'partner', isIncluded: true }],
+        }
+      );
+      const validator = new OutputControlsValidatorService(
+        capabilitySvc as never,
+        schemaSvc as never
+      );
+
+      let caught: BadRequestException | undefined;
+      try {
+        await validator.validateForReport({
+          storageType: supportedStorageType,
+          dataMartId: 'dm-1',
+          projectId: 'proj-1',
+          // partner__cost is NOT in columnConfig.
+          columnConfig: ['channel'],
+          filterConfig: null,
+          sortConfig: null,
+          limitConfig: null,
+          aggregationConfig: [{ column: 'partner__cost', function: 'SUM' }],
+          accessor: { userId: 'user-1', roles: ['admin'] },
+        });
+      } catch (e) {
+        caught = e as BadRequestException;
+      }
+
+      expect(caught).toBeDefined();
+      const response = caught!.getResponse() as { details: { errors: { code: string }[] } };
+      expect(response.details.errors.some(e => e.code === 'AGGREGATION_COLUMN_NOT_SELECTED')).toBe(
+        true
+      );
+    });
+
+    it('does not reject aggregationConfig when columnConfig contains only native columns (no blended)', async () => {
+      const capabilitySvc = makeCapabilityService(true);
+      const schemaSvc = makeBlendableSchemaService(
+        [
+          { name: 'channel', type: BigQueryFieldType.STRING },
+          { name: 'revenue', type: BigQueryFieldType.INTEGER },
+        ],
+        {
+          blendedFields: [
+            {
+              name: 'partner__cost',
+              aliasPath: 'partner',
+              originalFieldName: 'cost',
+              type: BigQueryFieldType.INTEGER,
+            },
+          ],
+          availableSources: [{ aliasPath: 'partner', isIncluded: true }],
+        }
+      );
+      const validator = new OutputControlsValidatorService(
+        capabilitySvc as never,
+        schemaSvc as never
+      );
+
+      await expect(
+        validator.validateForReport({
+          storageType: supportedStorageType,
+          dataMartId: 'dm-1',
+          projectId: 'proj-1',
+          columnConfig: ['channel', 'revenue'],
+          filterConfig: null,
+          sortConfig: null,
+          limitConfig: null,
+          aggregationConfig: [{ column: 'revenue', function: 'SUM' }],
+          accessor: { userId: 'user-1', roles: ['admin'] },
+        })
+      ).resolves.toBeUndefined();
+    });
+
+    it('rejects a function outside postJoinAggregations for a blended STRING field (AGGREGATION_FUNCTION_NOT_ALLOWED_FOR_FIELD)', async () => {
+      const capabilitySvc = makeCapabilityService(true);
+      const schemaSvc = makeBlendableSchemaService(
+        [{ name: 'channel', type: BigQueryFieldType.STRING }],
+        {
+          blendedFields: [
+            {
+              name: 'partner__name',
+              aliasPath: 'partner',
+              originalFieldName: 'name',
+              type: BigQueryFieldType.STRING,
+              postJoinAggregations: ['COUNT'],
+            },
+          ],
+          availableSources: [{ aliasPath: 'partner', isIncluded: true }],
+        }
+      );
+      const validator = new OutputControlsValidatorService(
+        capabilitySvc as never,
+        schemaSvc as never
+      );
+
+      let caught: BadRequestException | undefined;
+      try {
+        await validator.validateForReport({
+          storageType: supportedStorageType,
+          dataMartId: 'dm-1',
+          projectId: 'proj-1',
+          columnConfig: ['channel', 'partner__name'],
+          filterConfig: null,
+          sortConfig: null,
+          limitConfig: null,
+          // STRING_AGG is in the type-derived default for STRING but NOT in postJoinAggregations
+          aggregationConfig: [{ column: 'partner__name', function: 'STRING_AGG' }],
+          accessor: { userId: 'user-1', roles: ['admin'] },
+        });
+      } catch (e) {
+        caught = e as BadRequestException;
+      }
+
+      expect(caught).toBeDefined();
+      const response = caught!.getResponse() as { details: { errors: { code: string }[] } };
+      expect(
+        response.details.errors.some(e => e.code === 'AGGREGATION_FUNCTION_NOT_ALLOWED_FOR_FIELD')
+      ).toBe(true);
+    });
+
+    it('accepts a function within postJoinAggregations for a blended STRING field', async () => {
+      const capabilitySvc = makeCapabilityService(true);
+      const schemaSvc = makeBlendableSchemaService(
+        [{ name: 'channel', type: BigQueryFieldType.STRING }],
+        {
+          blendedFields: [
+            {
+              name: 'partner__name',
+              aliasPath: 'partner',
+              originalFieldName: 'name',
+              type: BigQueryFieldType.STRING,
+              postJoinAggregations: ['COUNT'],
+            },
+          ],
+          availableSources: [{ aliasPath: 'partner', isIncluded: true }],
+        }
+      );
+      const validator = new OutputControlsValidatorService(
+        capabilitySvc as never,
+        schemaSvc as never
+      );
+
+      await expect(
+        validator.validateForReport({
+          storageType: supportedStorageType,
+          dataMartId: 'dm-1',
+          projectId: 'proj-1',
+          columnConfig: ['channel', 'partner__name'],
+          filterConfig: null,
+          sortConfig: null,
+          limitConfig: null,
+          aggregationConfig: [{ column: 'partner__name', function: 'COUNT' }],
           accessor: { userId: 'user-1', roles: ['admin'] },
         })
       ).resolves.toBeUndefined();
@@ -1894,6 +2254,1124 @@ describe('OutputControlsValidatorService', () => {
       expect(ok(RedshiftFieldType.TIMETZ, 'relative_date', { kind: 'today' })[0]?.code).toBe(
         'INVALID_OPERATOR_FOR_TYPE'
       );
+    });
+  });
+
+  describe('validateAggregations', () => {
+    const numericCol = 'amount';
+    const stringCol = 'name';
+    const selectedColumns = new Set([numericCol, stringCol, 'date']);
+    const fieldTypes = new Map<string, string>([
+      [numericCol, 'INTEGER'],
+      [stringCol, 'STRING'],
+      ['date', 'DATE'],
+    ]);
+    const resolveType = (col: string) => fieldTypes.get(col);
+
+    it('accepts valid aggregation on a numeric column (SUM)', () => {
+      const errors = svc.validateAggregations(
+        [{ column: numericCol, function: 'SUM' }],
+        selectedColumns,
+        resolveType
+      );
+      expect(errors).toEqual([]);
+    });
+
+    it('rejects SUM on a string column → AGGREGATION_FUNCTION_NOT_ALLOWED_FOR_TYPE', () => {
+      const errors = svc.validateAggregations(
+        [{ column: stringCol, function: 'SUM' }],
+        selectedColumns,
+        resolveType
+      );
+      expect(errors).toEqual([
+        {
+          code: 'AGGREGATION_FUNCTION_NOT_ALLOWED_FOR_TYPE',
+          column: stringCol,
+          function: 'SUM',
+          type: 'STRING',
+        },
+      ]);
+    });
+
+    it('rejects AVG on a string column → AGGREGATION_FUNCTION_NOT_ALLOWED_FOR_TYPE', () => {
+      const errors = svc.validateAggregations(
+        [{ column: stringCol, function: 'AVG' }],
+        selectedColumns,
+        resolveType
+      );
+      expect(errors[0]).toMatchObject({ code: 'AGGREGATION_FUNCTION_NOT_ALLOWED_FOR_TYPE' });
+    });
+
+    it('rejects aggregation on an unselected column → AGGREGATION_COLUMN_NOT_SELECTED', () => {
+      const errors = svc.validateAggregations(
+        [{ column: 'missing_col', function: 'SUM' }],
+        selectedColumns,
+        resolveType
+      );
+      expect(errors).toEqual([{ code: 'AGGREGATION_COLUMN_NOT_SELECTED', column: 'missing_col' }]);
+    });
+
+    it('allows COUNT on a string column (type-agnostic function)', () => {
+      const errors = svc.validateAggregations(
+        [{ column: stringCol, function: 'COUNT' }],
+        selectedColumns,
+        resolveType
+      );
+      expect(errors).toEqual([]);
+    });
+
+    it('allows MIN on a string column (type-agnostic function)', () => {
+      const errors = svc.validateAggregations(
+        [{ column: stringCol, function: 'MIN' }],
+        selectedColumns,
+        resolveType
+      );
+      expect(errors).toEqual([]);
+    });
+
+    it('allows COUNT_DISTINCT on a string column', () => {
+      const errors = svc.validateAggregations(
+        [{ column: stringCol, function: 'COUNT_DISTINCT' }],
+        selectedColumns,
+        resolveType
+      );
+      expect(errors).toEqual([]);
+    });
+
+    it('allows ANY_VALUE on a string column', () => {
+      const errors = svc.validateAggregations(
+        [{ column: stringCol, function: 'ANY_VALUE' }],
+        selectedColumns,
+        resolveType
+      );
+      expect(errors).toEqual([]);
+    });
+
+    it('allows STRING_AGG on a string column', () => {
+      const errors = svc.validateAggregations(
+        [{ column: stringCol, function: 'STRING_AGG' }],
+        selectedColumns,
+        resolveType
+      );
+      expect(errors).toEqual([]);
+    });
+
+    it('accepts two DIFFERENT functions on one column (each becomes its own output column)', () => {
+      const errors = svc.validateAggregations(
+        [
+          { column: numericCol, function: 'SUM' },
+          { column: numericCol, function: 'AVG' },
+        ],
+        selectedColumns,
+        resolveType
+      );
+      expect(errors).toEqual([]);
+    });
+
+    it('rejects a repeated (column, function) pair → DUPLICATE_AGGREGATION (alias collision)', () => {
+      const errors = svc.validateAggregations(
+        [
+          { column: numericCol, function: 'SUM' },
+          { column: numericCol, function: 'SUM' },
+        ],
+        selectedColumns,
+        resolveType
+      );
+      expect(errors).toEqual([
+        { code: 'DUPLICATE_AGGREGATION', column: numericCol, function: 'SUM' },
+      ]);
+    });
+  });
+
+  describe('validateAggregations — field governance (allowed functions per field)', () => {
+    const metricCol = 'amount';
+    const rateCol = 'conversion_rate';
+    const labelCol = 'name';
+    const selectedColumns = new Set([metricCol, rateCol, labelCol]);
+    const types = new Map<string, string>([
+      [metricCol, 'INTEGER'],
+      [rateCol, 'FLOAT'],
+      [labelCol, 'STRING'],
+    ]);
+    const resolveType = (col: string) => types.get(col);
+    // A numeric metric whose allowed set was overridden to drop SUM (e.g. a % rate),
+    // and a metric whose allowed set is empty (no aggregation permitted at all).
+    const allowed = new Map<string, string[]>([
+      [metricCol, ['SUM', 'AVG', 'MIN', 'MAX', 'COUNT', 'COUNT_DISTINCT']],
+      [rateCol, ['AVG']],
+      [labelCol, ['COUNT', 'COUNT_DISTINCT', 'STRING_AGG']],
+    ]);
+    const resolveAllowed = (col: string) => allowed.get(col);
+
+    it('rejects a function not in the field allowed set → AGGREGATION_FUNCTION_NOT_ALLOWED_FOR_FIELD', () => {
+      const errors = svc.validateAggregations(
+        [{ column: rateCol, function: 'SUM' }],
+        selectedColumns,
+        resolveType,
+        resolveAllowed
+      );
+      expect(errors).toEqual([
+        {
+          code: 'AGGREGATION_FUNCTION_NOT_ALLOWED_FOR_FIELD',
+          column: rateCol,
+          function: 'SUM',
+        },
+      ]);
+    });
+
+    it('rejects ANY aggregation when the field allowed set is empty', () => {
+      const emptyAllowed = (col: string) => (col === metricCol ? [] : allowed.get(col));
+      const errors = svc.validateAggregations(
+        [{ column: metricCol, function: 'SUM' }],
+        selectedColumns,
+        resolveType,
+        emptyAllowed
+      );
+      expect(errors).toEqual([
+        {
+          code: 'AGGREGATION_FUNCTION_NOT_ALLOWED_FOR_FIELD',
+          column: metricCol,
+          function: 'SUM',
+        },
+      ]);
+    });
+
+    it('accepts an allowed function on a numeric metric', () => {
+      const errors = svc.validateAggregations(
+        [{ column: metricCol, function: 'AVG' }],
+        selectedColumns,
+        resolveType,
+        resolveAllowed
+      );
+      expect(errors).toEqual([]);
+    });
+
+    it('still rejects SUM on a string via the type floor even if an override (wrongly) allows it', () => {
+      const overAllowed = (col: string) =>
+        col === labelCol ? ['SUM', 'COUNT', 'COUNT_DISTINCT', 'STRING_AGG'] : allowed.get(col);
+      const errors = svc.validateAggregations(
+        [{ column: labelCol, function: 'SUM' }],
+        selectedColumns,
+        resolveType,
+        overAllowed
+      );
+      expect(errors).toEqual([
+        {
+          code: 'AGGREGATION_FUNCTION_NOT_ALLOWED_FOR_TYPE',
+          column: labelCol,
+          function: 'SUM',
+          type: 'STRING',
+        },
+      ]);
+    });
+
+    it('without a resolveAllowed callback, only the type floor applies (governance skipped)', () => {
+      const errors = svc.validateAggregations(
+        [{ column: rateCol, function: 'SUM' }],
+        selectedColumns,
+        resolveType
+      );
+      expect(errors).toEqual([]);
+    });
+  });
+
+  describe('validateDateTruncs', () => {
+    const selectedColumns = new Set(['date', 'ts', 'name', 'amount']);
+    const fieldTypes = new Map<string, string>([
+      ['date', 'DATE'],
+      ['ts', 'TIMESTAMP'],
+      ['name', 'STRING'],
+      ['amount', 'INTEGER'],
+    ]);
+    const resolveType = (col: string) => fieldTypes.get(col);
+
+    it('accepts a date-trunc on a selected DATE dimension', () => {
+      const errors = svc.validateDateTruncs(
+        [{ column: 'date', unit: 'MONTH' }],
+        selectedColumns,
+        resolveType,
+        new Set()
+      );
+      expect(errors).toEqual([]);
+    });
+
+    it('accepts a date-trunc on a TIMESTAMP dimension', () => {
+      const errors = svc.validateDateTruncs(
+        [{ column: 'ts', unit: 'WEEK' }],
+        selectedColumns,
+        resolveType,
+        new Set()
+      );
+      expect(errors).toEqual([]);
+    });
+
+    it('rejects a column not in the selected set → DATE_TRUNC_COLUMN_NOT_SELECTED', () => {
+      const errors = svc.validateDateTruncs(
+        [{ column: 'missing', unit: 'MONTH' }],
+        selectedColumns,
+        resolveType,
+        new Set()
+      );
+      expect(errors).toEqual([{ code: 'DATE_TRUNC_COLUMN_NOT_SELECTED', column: 'missing' }]);
+    });
+
+    it('rejects a non-date column → DATE_TRUNC_REQUIRES_DATE_COLUMN with column + type', () => {
+      const errors = svc.validateDateTruncs(
+        [{ column: 'name', unit: 'MONTH' }],
+        selectedColumns,
+        resolveType,
+        new Set()
+      );
+      expect(errors).toEqual([
+        { code: 'DATE_TRUNC_REQUIRES_DATE_COLUMN', column: 'name', type: 'STRING' },
+      ]);
+    });
+
+    it('rejects a column that also has a metric aggregation → DATE_TRUNC_COLUMN_IS_AGGREGATED', () => {
+      const errors = svc.validateDateTruncs(
+        [{ column: 'date', unit: 'MONTH' }],
+        selectedColumns,
+        resolveType,
+        new Set(['date'])
+      );
+      expect(errors).toEqual([{ code: 'DATE_TRUNC_COLUMN_IS_AGGREGATED', column: 'date' }]);
+    });
+
+    it('accepts a valid IANA timeZone on a TIMESTAMP column', () => {
+      const errors = svc.validateDateTruncs(
+        [{ column: 'ts', unit: 'MONTH', timeZone: 'America/New_York' }],
+        selectedColumns,
+        resolveType,
+        new Set()
+      );
+      expect(errors).toEqual([]);
+    });
+
+    // The tz is inlined into SQL — a malformed value must surface a column-scoped error.
+    it('rejects a SQL-injection timeZone → DATE_TRUNC_INVALID_TIMEZONE', () => {
+      const timeZone = "Foo'; DROP TABLE reports; --";
+      const errors = svc.validateDateTruncs(
+        [{ column: 'ts', unit: 'MONTH', timeZone }],
+        selectedColumns,
+        resolveType,
+        new Set()
+      );
+      expect(errors).toEqual([{ code: 'DATE_TRUNC_INVALID_TIMEZONE', column: 'ts', timeZone }]);
+    });
+
+    it('rejects a valid IANA timeZone on a pure DATE column → DATE_TRUNC_TIMEZONE_REQUIRES_TIMESTAMP', () => {
+      const errors = svc.validateDateTruncs(
+        [{ column: 'date', unit: 'MONTH', timeZone: 'America/New_York' }],
+        selectedColumns,
+        resolveType,
+        new Set()
+      );
+      expect(errors).toEqual([
+        {
+          code: 'DATE_TRUNC_TIMEZONE_REQUIRES_TIMESTAMP',
+          column: 'date',
+          type: 'DATE',
+        },
+      ]);
+    });
+
+    it('accepts a valid IANA timeZone on a TIMESTAMP column (has sub-day component)', () => {
+      const errors = svc.validateDateTruncs(
+        [{ column: 'ts', unit: 'MONTH', timeZone: 'America/New_York' }],
+        selectedColumns,
+        resolveType,
+        new Set()
+      );
+      expect(errors).toEqual([]);
+    });
+
+    it('accepts date-trunc on a pure DATE column with no timeZone (bucketing without tz is fine)', () => {
+      const errors = svc.validateDateTruncs(
+        [{ column: 'date', unit: 'MONTH' }],
+        selectedColumns,
+        resolveType,
+        new Set()
+      );
+      expect(errors).toEqual([]);
+    });
+
+    // L3: an unconfirmable column type can't be guaranteed to be a date/timestamp, so a
+    // date-trunc on it would otherwise fail loudly at run time (Trino/Athena varchar↔date
+    // coercion). Reject at save time with the date-scoped code instead.
+    it('rejects a date-trunc on a column whose type cannot be confirmed → DATE_TRUNC_REQUIRES_DATE_COLUMN', () => {
+      const resolveUnknown = (_col: string) => undefined;
+      const errors = svc.validateDateTruncs(
+        [{ column: 'date', unit: 'MONTH' }],
+        selectedColumns,
+        resolveUnknown,
+        new Set()
+      );
+      expect(errors).toEqual([
+        { code: 'DATE_TRUNC_REQUIRES_DATE_COLUMN', column: 'date', type: 'unknown' },
+      ]);
+    });
+  });
+
+  // L2: the projected output column names (dimensions + aggregated labels + Row Count +
+  // Unique Count) must be unique — a collision means a duplicate alias on BigQuery or a
+  // silent clobber on name-keyed readers.
+  describe('validateOutputColumnNames', () => {
+    it('rejects a real column aliased exactly "Row Count" in an aggregated report', () => {
+      const errors = svc.validateOutputColumnNames(
+        ['Row Count', 'revenue'],
+        [{ column: 'revenue', function: 'SUM' }],
+        true,
+        false
+      );
+      expect(errors).toEqual([{ code: 'OUTPUT_COLUMN_NAME_COLLISION', label: 'Row Count' }]);
+    });
+
+    it('rejects a column whose name equals an aggregated label "<x> | SUM"', () => {
+      const errors = svc.validateOutputColumnNames(
+        ['revenue | SUM', 'revenue'],
+        [{ column: 'revenue', function: 'SUM' }],
+        true,
+        false
+      );
+      expect(errors).toEqual([{ code: 'OUTPUT_COLUMN_NAME_COLLISION', label: 'revenue | SUM' }]);
+    });
+
+    it('rejects a real column aliased exactly "Unique Count" when uniqueCount is on', () => {
+      const errors = svc.validateOutputColumnNames(['Unique Count', 'channel'], [], false, true);
+      expect(errors).toEqual([{ code: 'OUTPUT_COLUMN_NAME_COLLISION', label: 'Unique Count' }]);
+    });
+
+    it('passes a normal aggregated report with no collisions', () => {
+      const errors = svc.validateOutputColumnNames(
+        ['channel', 'revenue'],
+        [{ column: 'revenue', function: 'SUM' }],
+        true,
+        false
+      );
+      expect(errors).toEqual([]);
+    });
+
+    it('passes a plain (non-aggregated) report with distinct dimension names', () => {
+      const errors = svc.validateOutputColumnNames(['channel', 'revenue'], [], false, false);
+      expect(errors).toEqual([]);
+    });
+  });
+
+  describe('validateForReport — aggregationConfig', () => {
+    const supportedStorageType = DataStorageType.GOOGLE_BIGQUERY;
+
+    const makeCapabilityService = (supported: boolean) => ({
+      isSupported: jest.fn().mockReturnValue(supported),
+    });
+
+    const makeBlendableSchemaService = (nativeFields: { name: string; type: string }[] = []) => ({
+      computeBlendableSchema: jest.fn().mockResolvedValue({
+        nativeFields,
+        blendedFields: [],
+        availableSources: [],
+      }),
+    });
+
+    it('throws BadRequestException with OUTPUT_CONTROLS_NOT_SUPPORTED when aggregationConfig has rules on unsupported storage', async () => {
+      const capabilitySvc = makeCapabilityService(false);
+      const schemaSvc = makeBlendableSchemaService();
+      const validator = new OutputControlsValidatorService(
+        capabilitySvc as never,
+        schemaSvc as never
+      );
+
+      let caught: BadRequestException | undefined;
+      try {
+        await validator.validateForReport({
+          storageType: DataStorageType.AWS_ATHENA,
+          dataMartId: 'dm-1',
+          projectId: 'proj-1',
+          columnConfig: null,
+          filterConfig: null,
+          sortConfig: null,
+          limitConfig: null,
+          aggregationConfig: [{ column: 'amount', function: 'SUM' }],
+          accessor: { userId: 'user-1', roles: ['admin'] },
+        });
+      } catch (e) {
+        caught = e as BadRequestException;
+      }
+
+      expect(caught).toBeDefined();
+      expect(caught).toBeInstanceOf(BadRequestException);
+      const response = caught!.getResponse() as { details: { errors: { code: string }[] } };
+      expect(response.details.errors[0].code).toBe('OUTPUT_CONTROLS_NOT_SUPPORTED');
+      expect(capabilitySvc.isSupported).toHaveBeenCalledWith(DataStorageType.AWS_ATHENA);
+    });
+
+    it('triggers capability check when aggregationConfig has rules', async () => {
+      const capabilitySvc = makeCapabilityService(true);
+      const schemaSvc = makeBlendableSchemaService([{ name: 'amount', type: 'INTEGER' }]);
+      const validator = new OutputControlsValidatorService(
+        capabilitySvc as never,
+        schemaSvc as never
+      );
+
+      await expect(
+        validator.validateForReport({
+          storageType: supportedStorageType,
+          dataMartId: 'dm-1',
+          projectId: 'proj-1',
+          columnConfig: ['amount'],
+          filterConfig: null,
+          sortConfig: null,
+          limitConfig: null,
+          aggregationConfig: [{ column: 'amount', function: 'SUM' }],
+          accessor: { userId: 'user-1', roles: ['admin'] },
+        })
+      ).resolves.toBeUndefined();
+
+      expect(capabilitySvc.isSupported).toHaveBeenCalledWith(supportedStorageType);
+    });
+
+    // L2: a real dimension column literally named "Row Count" collides with the synthetic
+    // Row Count column the aggregated report appends → duplicate alias on BigQuery.
+    it('throws OUTPUT_COLUMN_NAME_COLLISION when a dimension column is named "Row Count"', async () => {
+      const capabilitySvc = makeCapabilityService(true);
+      const schemaSvc = makeBlendableSchemaService([
+        { name: 'Row Count', type: 'STRING' },
+        { name: 'amount', type: 'INTEGER' },
+      ]);
+      const validator = new OutputControlsValidatorService(
+        capabilitySvc as never,
+        schemaSvc as never
+      );
+
+      let caught: BadRequestException | undefined;
+      try {
+        await validator.validateForReport({
+          storageType: supportedStorageType,
+          dataMartId: 'dm-1',
+          projectId: 'proj-1',
+          columnConfig: ['Row Count', 'amount'],
+          filterConfig: null,
+          sortConfig: null,
+          limitConfig: null,
+          aggregationConfig: [{ column: 'amount', function: 'SUM' }],
+          accessor: { userId: 'user-1', roles: ['admin'] },
+        });
+      } catch (e) {
+        caught = e as BadRequestException;
+      }
+
+      expect(caught).toBeDefined();
+      const response = caught!.getResponse() as { details: { errors: { code: string }[] } };
+      expect(response.details.errors.some(e => e.code === 'OUTPUT_COLUMN_NAME_COLLISION')).toBe(
+        true
+      );
+    });
+
+    it('throws BadRequestException with invalid aggregation shape (Zod)', async () => {
+      const capabilitySvc = makeCapabilityService(true);
+      const schemaSvc = makeBlendableSchemaService([{ name: 'amount', type: 'INTEGER' }]);
+      const validator = new OutputControlsValidatorService(
+        capabilitySvc as never,
+        schemaSvc as never
+      );
+
+      await expect(
+        validator.validateForReport({
+          storageType: supportedStorageType,
+          dataMartId: 'dm-1',
+          projectId: 'proj-1',
+          columnConfig: ['amount'],
+          filterConfig: null,
+          sortConfig: null,
+          limitConfig: null,
+          aggregationConfig: [{ column: 'amount', function: 'INVALID_FN' }] as never,
+          accessor: { userId: 'user-1', roles: ['admin'] },
+        })
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('throws BadRequestException with AGGREGATION_FUNCTION_NOT_ALLOWED_FOR_TYPE for SUM on string', async () => {
+      const capabilitySvc = makeCapabilityService(true);
+      const schemaSvc = makeBlendableSchemaService([
+        { name: 'name', type: 'STRING' },
+        { name: 'amount', type: 'INTEGER' },
+      ]);
+      const validator = new OutputControlsValidatorService(
+        capabilitySvc as never,
+        schemaSvc as never
+      );
+
+      let caught: BadRequestException | undefined;
+      try {
+        await validator.validateForReport({
+          storageType: supportedStorageType,
+          dataMartId: 'dm-1',
+          projectId: 'proj-1',
+          columnConfig: ['name', 'amount'],
+          filterConfig: null,
+          sortConfig: null,
+          limitConfig: null,
+          aggregationConfig: [{ column: 'name', function: 'SUM' }],
+          accessor: { userId: 'user-1', roles: ['admin'] },
+        });
+      } catch (e) {
+        caught = e as BadRequestException;
+      }
+
+      expect(caught).toBeDefined();
+      const response = caught!.getResponse() as { details: { errors: { code: string }[] } };
+      expect(response.details.errors[0].code).toBe('AGGREGATION_FUNCTION_NOT_ALLOWED_FOR_TYPE');
+    });
+
+    it('throws BadRequestException with AGGREGATION_COLUMN_NOT_SELECTED when column not in schema', async () => {
+      const capabilitySvc = makeCapabilityService(true);
+      const schemaSvc = makeBlendableSchemaService([{ name: 'amount', type: 'INTEGER' }]);
+      const validator = new OutputControlsValidatorService(
+        capabilitySvc as never,
+        schemaSvc as never
+      );
+
+      let caught: BadRequestException | undefined;
+      try {
+        await validator.validateForReport({
+          storageType: supportedStorageType,
+          dataMartId: 'dm-1',
+          projectId: 'proj-1',
+          columnConfig: ['amount'],
+          filterConfig: null,
+          sortConfig: null,
+          limitConfig: null,
+          aggregationConfig: [{ column: 'missing', function: 'SUM' }],
+          accessor: { userId: 'user-1', roles: ['admin'] },
+        });
+      } catch (e) {
+        caught = e as BadRequestException;
+      }
+
+      expect(caught).toBeDefined();
+      const response = caught!.getResponse() as { details: { errors: { code: string }[] } };
+      expect(response.details.errors[0].code).toBe('AGGREGATION_COLUMN_NOT_SELECTED');
+    });
+
+    it('passes with valid aggregation on a numeric column', async () => {
+      const capabilitySvc = makeCapabilityService(true);
+      const schemaSvc = makeBlendableSchemaService([
+        { name: 'name', type: 'STRING' },
+        { name: 'amount', type: 'INTEGER' },
+      ]);
+      const validator = new OutputControlsValidatorService(
+        capabilitySvc as never,
+        schemaSvc as never
+      );
+
+      await expect(
+        validator.validateForReport({
+          storageType: supportedStorageType,
+          dataMartId: 'dm-1',
+          projectId: 'proj-1',
+          columnConfig: ['name', 'amount'],
+          filterConfig: null,
+          sortConfig: null,
+          limitConfig: null,
+          aggregationConfig: [{ column: 'amount', function: 'SUM' }],
+          accessor: { userId: 'user-1', roles: ['admin'] },
+        })
+      ).resolves.toBeUndefined();
+    });
+  });
+
+  describe('validateForReport — dateTruncConfig', () => {
+    const supportedStorageType = DataStorageType.GOOGLE_BIGQUERY;
+
+    const makeCapabilityService = (supported: boolean) => ({
+      isSupported: jest.fn().mockReturnValue(supported),
+    });
+
+    const makeBlendableSchemaService = (nativeFields: { name: string; type: string }[] = []) => ({
+      computeBlendableSchema: jest.fn().mockResolvedValue({
+        nativeFields,
+        blendedFields: [],
+        availableSources: [],
+      }),
+    });
+
+    it('triggers capability check when only dateTruncConfig has rules', async () => {
+      const capabilitySvc = makeCapabilityService(true);
+      const schemaSvc = makeBlendableSchemaService([{ name: 'date', type: 'DATE' }]);
+      const validator = new OutputControlsValidatorService(
+        capabilitySvc as never,
+        schemaSvc as never
+      );
+
+      await expect(
+        validator.validateForReport({
+          storageType: supportedStorageType,
+          dataMartId: 'dm-1',
+          projectId: 'proj-1',
+          columnConfig: ['date'],
+          filterConfig: null,
+          sortConfig: null,
+          limitConfig: null,
+          aggregationConfig: null,
+          dateTruncConfig: [{ column: 'date', unit: 'MONTH' }],
+          accessor: { userId: 'user-1', roles: ['admin'] },
+        })
+      ).resolves.toBeUndefined();
+
+      expect(capabilitySvc.isSupported).toHaveBeenCalledWith(supportedStorageType);
+    });
+
+    it('throws BadRequestException with invalid date-trunc shape (Zod)', async () => {
+      const capabilitySvc = makeCapabilityService(true);
+      const schemaSvc = makeBlendableSchemaService([{ name: 'date', type: 'DATE' }]);
+      const validator = new OutputControlsValidatorService(
+        capabilitySvc as never,
+        schemaSvc as never
+      );
+
+      await expect(
+        validator.validateForReport({
+          storageType: supportedStorageType,
+          dataMartId: 'dm-1',
+          projectId: 'proj-1',
+          columnConfig: ['date'],
+          filterConfig: null,
+          sortConfig: null,
+          limitConfig: null,
+          aggregationConfig: null,
+          dateTruncConfig: [{ column: 'date', unit: 'HOUR' }] as never,
+          accessor: { userId: 'user-1', roles: ['admin'] },
+        })
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('throws DATE_TRUNC_REQUIRES_DATE_COLUMN for a string column', async () => {
+      const capabilitySvc = makeCapabilityService(true);
+      const schemaSvc = makeBlendableSchemaService([{ name: 'name', type: 'STRING' }]);
+      const validator = new OutputControlsValidatorService(
+        capabilitySvc as never,
+        schemaSvc as never
+      );
+
+      let caught: BadRequestException | undefined;
+      try {
+        await validator.validateForReport({
+          storageType: supportedStorageType,
+          dataMartId: 'dm-1',
+          projectId: 'proj-1',
+          columnConfig: ['name'],
+          filterConfig: null,
+          sortConfig: null,
+          limitConfig: null,
+          aggregationConfig: null,
+          dateTruncConfig: [{ column: 'name', unit: 'MONTH' }],
+          accessor: { userId: 'user-1', roles: ['admin'] },
+        });
+      } catch (e) {
+        caught = e as BadRequestException;
+      }
+
+      expect(caught).toBeDefined();
+      const response = caught!.getResponse() as { details: { errors: { code: string }[] } };
+      expect(response.details.errors[0].code).toBe('DATE_TRUNC_REQUIRES_DATE_COLUMN');
+    });
+
+    it('throws DATE_TRUNC_COLUMN_IS_AGGREGATED when a column is both truncated and aggregated', async () => {
+      const capabilitySvc = makeCapabilityService(true);
+      const schemaSvc = makeBlendableSchemaService([{ name: 'date', type: 'DATE' }]);
+      const validator = new OutputControlsValidatorService(
+        capabilitySvc as never,
+        schemaSvc as never
+      );
+
+      let caught: BadRequestException | undefined;
+      try {
+        await validator.validateForReport({
+          storageType: supportedStorageType,
+          dataMartId: 'dm-1',
+          projectId: 'proj-1',
+          columnConfig: ['date'],
+          filterConfig: null,
+          sortConfig: null,
+          limitConfig: null,
+          aggregationConfig: [{ column: 'date', function: 'MAX' }],
+          dateTruncConfig: [{ column: 'date', unit: 'MONTH' }],
+          accessor: { userId: 'user-1', roles: ['admin'] },
+        });
+      } catch (e) {
+        caught = e as BadRequestException;
+      }
+
+      expect(caught).toBeDefined();
+      const response = caught!.getResponse() as { details: { errors: { code: string }[] } };
+      expect(response.details.errors.some(e => e.code === 'DATE_TRUNC_COLUMN_IS_AGGREGATED')).toBe(
+        true
+      );
+    });
+
+    it('accepts dateTruncConfig on a native DATE dimension with a blended column also selected', async () => {
+      const capabilitySvc = makeCapabilityService(true);
+      const schemaSvc = {
+        computeBlendableSchema: jest.fn().mockResolvedValue({
+          nativeFields: [{ name: 'date', type: BigQueryFieldType.DATE }],
+          blendedFields: [
+            {
+              name: 'partner__cost',
+              aliasPath: 'partner',
+              originalFieldName: 'cost',
+              type: BigQueryFieldType.INTEGER,
+              isHidden: false,
+            },
+          ],
+          availableSources: [{ aliasPath: 'partner', isIncluded: true }],
+        }),
+      };
+      const validator = new OutputControlsValidatorService(
+        capabilitySvc as never,
+        schemaSvc as never
+      );
+
+      await expect(
+        validator.validateForReport({
+          storageType: supportedStorageType,
+          dataMartId: 'dm-1',
+          projectId: 'proj-1',
+          columnConfig: ['date', 'partner__cost'],
+          filterConfig: null,
+          sortConfig: null,
+          limitConfig: null,
+          aggregationConfig: null,
+          dateTruncConfig: [{ column: 'date', unit: 'MONTH' }],
+          accessor: { userId: 'user-1', roles: ['admin'] },
+        })
+      ).resolves.toBeUndefined();
+    });
+
+    it('passes with a valid date-trunc on a selected DATE dimension', async () => {
+      const capabilitySvc = makeCapabilityService(true);
+      const schemaSvc = makeBlendableSchemaService([
+        { name: 'date', type: 'DATE' },
+        { name: 'revenue', type: 'INTEGER' },
+      ]);
+      const validator = new OutputControlsValidatorService(
+        capabilitySvc as never,
+        schemaSvc as never
+      );
+
+      await expect(
+        validator.validateForReport({
+          storageType: supportedStorageType,
+          dataMartId: 'dm-1',
+          projectId: 'proj-1',
+          columnConfig: ['date', 'revenue'],
+          filterConfig: null,
+          sortConfig: null,
+          limitConfig: null,
+          aggregationConfig: [{ column: 'revenue', function: 'SUM' }],
+          dateTruncConfig: [{ column: 'date', unit: 'MONTH' }],
+          accessor: { userId: 'user-1', roles: ['admin'] },
+        })
+      ).resolves.toBeUndefined();
+    });
+  });
+
+  describe('validateForReport — uniqueCountConfig', () => {
+    const supportedStorageType = DataStorageType.GOOGLE_BIGQUERY;
+
+    const makeCapabilityService = (supported: boolean) => ({
+      isSupported: jest.fn().mockReturnValue(supported),
+    });
+
+    const makeBlendableSchemaService = (
+      nativeFields: { name: string; type: string; isPrimaryKey?: boolean }[] = []
+    ) => ({
+      computeBlendableSchema: jest.fn().mockResolvedValue({
+        nativeFields,
+        blendedFields: [],
+        availableSources: [],
+      }),
+    });
+
+    it('is treated as having output controls when uniqueCountConfig is true (capability check runs)', async () => {
+      const capabilitySvc = makeCapabilityService(false);
+      const schemaSvc = makeBlendableSchemaService([
+        { name: 'id', type: 'INTEGER', isPrimaryKey: true },
+      ]);
+      const validator = new OutputControlsValidatorService(
+        capabilitySvc as never,
+        schemaSvc as never
+      );
+
+      await expect(
+        validator.validateForReport({
+          storageType: supportedStorageType,
+          dataMartId: 'dm-1',
+          projectId: 'proj-1',
+          columnConfig: null,
+          filterConfig: null,
+          sortConfig: null,
+          limitConfig: null,
+          uniqueCountConfig: true,
+          accessor: { userId: 'user-1', roles: ['admin'] },
+        })
+      ).rejects.toThrow(BadRequestException);
+
+      expect(capabilitySvc.isSupported).toHaveBeenCalled();
+    });
+
+    it('does not treat uniqueCountConfig: false as having output controls', async () => {
+      const capabilitySvc = makeCapabilityService(false);
+      const schemaSvc = makeBlendableSchemaService();
+      const validator = new OutputControlsValidatorService(
+        capabilitySvc as never,
+        schemaSvc as never
+      );
+
+      await expect(
+        validator.validateForReport({
+          storageType: supportedStorageType,
+          dataMartId: 'dm-1',
+          projectId: 'proj-1',
+          columnConfig: null,
+          filterConfig: null,
+          sortConfig: null,
+          limitConfig: null,
+          uniqueCountConfig: false,
+          accessor: { userId: 'user-1', roles: ['admin'] },
+        })
+      ).resolves.toBeUndefined();
+
+      expect(capabilitySvc.isSupported).not.toHaveBeenCalled();
+    });
+
+    it('does not treat uniqueCountConfig: null as having output controls', async () => {
+      const capabilitySvc = makeCapabilityService(false);
+      const schemaSvc = makeBlendableSchemaService();
+      const validator = new OutputControlsValidatorService(
+        capabilitySvc as never,
+        schemaSvc as never
+      );
+
+      await expect(
+        validator.validateForReport({
+          storageType: supportedStorageType,
+          dataMartId: 'dm-1',
+          projectId: 'proj-1',
+          columnConfig: null,
+          filterConfig: null,
+          sortConfig: null,
+          limitConfig: null,
+          uniqueCountConfig: null,
+          accessor: { userId: 'user-1', roles: ['admin'] },
+        })
+      ).resolves.toBeUndefined();
+
+      expect(capabilitySvc.isSupported).not.toHaveBeenCalled();
+    });
+
+    it('accepts uniqueCountConfig: true when the data mart has a single primary-key field', async () => {
+      const capabilitySvc = makeCapabilityService(true);
+      const schemaSvc = makeBlendableSchemaService([
+        { name: 'id', type: 'INTEGER', isPrimaryKey: true },
+        { name: 'name', type: 'STRING' },
+      ]);
+      const validator = new OutputControlsValidatorService(
+        capabilitySvc as never,
+        schemaSvc as never
+      );
+
+      await expect(
+        validator.validateForReport({
+          storageType: supportedStorageType,
+          dataMartId: 'dm-1',
+          projectId: 'proj-1',
+          columnConfig: null,
+          filterConfig: null,
+          sortConfig: null,
+          limitConfig: null,
+          uniqueCountConfig: true,
+          accessor: { userId: 'user-1', roles: ['admin'] },
+        })
+      ).resolves.toBeUndefined();
+    });
+
+    it('accepts uniqueCountConfig: true when the data mart has a composite primary key', async () => {
+      const capabilitySvc = makeCapabilityService(true);
+      const schemaSvc = makeBlendableSchemaService([
+        { name: 'user_id', type: 'INTEGER', isPrimaryKey: true },
+        { name: 'session_id', type: 'STRING', isPrimaryKey: true },
+        { name: 'name', type: 'STRING' },
+      ]);
+      const validator = new OutputControlsValidatorService(
+        capabilitySvc as never,
+        schemaSvc as never
+      );
+
+      await expect(
+        validator.validateForReport({
+          storageType: supportedStorageType,
+          dataMartId: 'dm-1',
+          projectId: 'proj-1',
+          columnConfig: null,
+          filterConfig: null,
+          sortConfig: null,
+          limitConfig: null,
+          uniqueCountConfig: true,
+          accessor: { userId: 'user-1', roles: ['admin'] },
+        })
+      ).resolves.toBeUndefined();
+    });
+
+    it('rejects uniqueCountConfig: true when the data mart has NO primary-key fields → UNIQUE_COUNT_REQUIRES_PRIMARY_KEY', async () => {
+      const capabilitySvc = makeCapabilityService(true);
+      const schemaSvc = makeBlendableSchemaService([
+        { name: 'name', type: 'STRING' },
+        { name: 'amount', type: 'INTEGER' },
+      ]);
+      const validator = new OutputControlsValidatorService(
+        capabilitySvc as never,
+        schemaSvc as never
+      );
+
+      let caught: BadRequestException | undefined;
+      try {
+        await validator.validateForReport({
+          storageType: supportedStorageType,
+          dataMartId: 'dm-1',
+          projectId: 'proj-1',
+          columnConfig: null,
+          filterConfig: null,
+          sortConfig: null,
+          limitConfig: null,
+          uniqueCountConfig: true,
+          accessor: { userId: 'user-1', roles: ['admin'] },
+        });
+      } catch (e) {
+        caught = e as BadRequestException;
+      }
+
+      expect(caught).toBeDefined();
+      expect(caught).toBeInstanceOf(BadRequestException);
+      const response = caught!.getResponse() as { details: { errors: { code: string }[] } };
+      expect(
+        response.details.errors.some(e => e.code === 'UNIQUE_COUNT_REQUIRES_PRIMARY_KEY')
+      ).toBe(true);
+    });
+
+    it('does not emit UNIQUE_COUNT_REQUIRES_PRIMARY_KEY when uniqueCountConfig is false and no PK', async () => {
+      const capabilitySvc = makeCapabilityService(true);
+      const schemaSvc = makeBlendableSchemaService([{ name: 'name', type: 'STRING' }]);
+      const validator = new OutputControlsValidatorService(
+        capabilitySvc as never,
+        schemaSvc as never
+      );
+
+      await expect(
+        validator.validateForReport({
+          storageType: supportedStorageType,
+          dataMartId: 'dm-1',
+          projectId: 'proj-1',
+          columnConfig: null,
+          filterConfig: null,
+          sortConfig: null,
+          limitConfig: null,
+          uniqueCountConfig: false,
+          accessor: { userId: 'user-1', roles: ['admin'] },
+        })
+      ).resolves.toBeUndefined();
+    });
+
+    it('does not emit UNIQUE_COUNT_REQUIRES_PRIMARY_KEY when uniqueCountConfig is null and no PK', async () => {
+      const capabilitySvc = makeCapabilityService(true);
+      const schemaSvc = makeBlendableSchemaService([{ name: 'name', type: 'STRING' }]);
+      const validator = new OutputControlsValidatorService(
+        capabilitySvc as never,
+        schemaSvc as never
+      );
+
+      await expect(
+        validator.validateForReport({
+          storageType: supportedStorageType,
+          dataMartId: 'dm-1',
+          projectId: 'proj-1',
+          columnConfig: null,
+          filterConfig: null,
+          sortConfig: null,
+          limitConfig: null,
+          uniqueCountConfig: null,
+          accessor: { userId: 'user-1', roles: ['admin'] },
+        })
+      ).resolves.toBeUndefined();
+    });
+  });
+
+  describe('validateHavingFilters (post-aggregation)', () => {
+    const aggregations = [
+      { column: 'amount', function: 'SUM' as const },
+      { column: 'name', function: 'COUNT' as const },
+    ];
+    const resolveType = (c: string): string | undefined =>
+      ({ amount: 'INTEGER', name: 'STRING' })[c];
+
+    it('accepts a HAVING rule whose (column, function) matches a configured aggregation', () => {
+      const errors = svc.validateHavingFilters(
+        [{ column: 'amount', function: 'SUM', operator: 'gt', value: 1000 }],
+        aggregations,
+        resolveType,
+        DataStorageType.GOOGLE_BIGQUERY
+      );
+      expect(errors).toEqual([]);
+    });
+
+    it('rejects a HAVING rule whose (column, function) is not a configured aggregation', () => {
+      const errors = svc.validateHavingFilters(
+        [{ column: 'amount', function: 'AVG', operator: 'gt', value: 1 }],
+        aggregations,
+        resolveType,
+        DataStorageType.GOOGLE_BIGQUERY
+      );
+      expect(errors).toEqual([
+        { code: 'HAVING_FILTER_NOT_AGGREGATED', column: 'amount', function: 'AVG' },
+      ]);
+    });
+
+    it('validates the operator against the aggregate EFFECTIVE type (COUNT(string) > n is OK)', () => {
+      const errors = svc.validateHavingFilters(
+        [{ column: 'name', function: 'COUNT', operator: 'gt', value: 5 }],
+        aggregations,
+        resolveType,
+        DataStorageType.GOOGLE_BIGQUERY
+      );
+      // COUNT(name) is INTEGER, so a numeric comparison is valid even though `name` is STRING.
+      expect(errors).toEqual([]);
+    });
+
+    it('rejects an operator that is invalid for the aggregate EFFECTIVE type (contains on SUM→INTEGER)', () => {
+      const errors = svc.validateHavingFilters(
+        [{ column: 'amount', function: 'SUM', operator: 'contains', value: 'x' }],
+        aggregations,
+        resolveType,
+        DataStorageType.GOOGLE_BIGQUERY
+      );
+      // SUM(amount) keeps the raw INTEGER type; `contains` is a string-only operator,
+      // so it is invalid for the aggregate's effective numeric type.
+      expect(errors).toEqual([
+        {
+          code: 'INVALID_OPERATOR_FOR_TYPE',
+          column: 'amount',
+          type: 'INTEGER',
+          operator: 'contains',
+        },
+      ]);
+    });
+
+    it('ignores rules without a function (those are WHERE rules)', () => {
+      const errors = svc.validateHavingFilters(
+        [{ column: 'amount', operator: 'gt', value: 1 }],
+        aggregations,
+        resolveType,
+        DataStorageType.GOOGLE_BIGQUERY
+      );
+      expect(errors).toEqual([]);
     });
   });
 });

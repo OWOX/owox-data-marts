@@ -98,6 +98,9 @@ const validLookerStudioFormData = {
   filterConfig: null,
   sortConfig: null,
   limitConfig: null,
+  aggregationConfig: null,
+  dateTruncConfig: null,
+  uniqueCountConfig: false,
 };
 
 describe('lookerStudioReportFormSchema — columnConfig validation', () => {

@@ -202,6 +202,9 @@ describe('CreateReportService', () => {
       filterConfig: [{ column: 'name', operator: 'eq', value: 'X' }],
       sortConfig: [{ column: 'name', direction: 'asc' }],
       limitConfig: 100,
+      aggregationConfig: null,
+      dateTruncConfig: null,
+      uniqueCountConfig: null,
       accessor: { userId: 'user-0', roles: [] },
     });
   });
@@ -252,6 +255,60 @@ describe('CreateReportService', () => {
         filterConfig: [{ column: 'name', operator: 'eq', value: 'X' }],
         sortConfig: [{ column: 'name', direction: 'asc' }],
         limitConfig: 50,
+      })
+    );
+  });
+
+  it('should pass aggregationConfig to outputControlsValidator.validateForReport', async () => {
+    const { service, outputControlsValidator } = createService();
+    const command = new CreateReportCommand(
+      'proj-1',
+      'user-0',
+      'Test',
+      'dm-1',
+      'dest-1',
+      { type: 'looker-studio-config', cacheLifetime: 3600 } as never,
+      undefined,
+      [],
+      undefined,
+      null,
+      null,
+      null,
+      [{ column: 'amount', function: 'SUM' }]
+    );
+
+    await service.run(command);
+
+    expect(outputControlsValidator.validateForReport).toHaveBeenCalledWith(
+      expect.objectContaining({
+        aggregationConfig: [{ column: 'amount', function: 'SUM' }],
+      })
+    );
+  });
+
+  it('should pass aggregationConfig to reportRepository.create', async () => {
+    const { service, reportRepository } = createService();
+    const command = new CreateReportCommand(
+      'proj-1',
+      'user-0',
+      'Test',
+      'dm-1',
+      'dest-1',
+      { type: 'looker-studio-config', cacheLifetime: 3600 } as never,
+      undefined,
+      [],
+      undefined,
+      null,
+      null,
+      null,
+      [{ column: 'amount', function: 'SUM' }]
+    );
+
+    await service.run(command);
+
+    expect(reportRepository.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        aggregationConfig: [{ column: 'amount', function: 'SUM' }],
       })
     );
   });

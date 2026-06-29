@@ -213,6 +213,9 @@ export const GoogleSheetsReportEditForm = forwardRef<
           filterConfig: initialReport.filterConfig ?? null,
           sortConfig: initialReport.sortConfig ?? null,
           limitConfig: initialReport.limitConfig ?? null,
+          aggregationConfig: initialReport.aggregationConfig ?? null,
+          dateTruncConfig: initialReport.dateTruncConfig ?? null,
+          uniqueCountConfig: initialReport.uniqueCountConfig,
         });
       } else if (mode === ReportFormMode.CREATE) {
         // Pre-select destination if provided
@@ -225,6 +228,9 @@ export const GoogleSheetsReportEditForm = forwardRef<
           filterConfig: null,
           sortConfig: null,
           limitConfig: null,
+          aggregationConfig: null,
+          dateTruncConfig: null,
+          uniqueCountConfig: false,
         });
       }
     }, [initialReport, mode, reset, preSelectedDestination]);
@@ -430,7 +436,14 @@ export const GoogleSheetsReportEditForm = forwardRef<
               title='Report Columns'
               tooltip='Select which columns to include in the report'
               titleAdornment={<ReportColumnsCountBadge count={columnsCount} />}
-              fields={['columnConfig', 'filterConfig', 'sortConfig', 'limitConfig']}
+              fields={[
+                'columnConfig',
+                'filterConfig',
+                'sortConfig',
+                'limitConfig',
+                'aggregationConfig',
+                'dateTruncConfig',
+              ]}
             >
               <FormField
                 control={form.control}
@@ -457,6 +470,9 @@ export const GoogleSheetsReportEditForm = forwardRef<
                               filterConfig: form.watch('filterConfig') ?? [],
                               sortConfig: form.watch('sortConfig') ?? [],
                               limitConfig: form.watch('limitConfig') ?? null,
+                              aggregationConfig: form.watch('aggregationConfig') ?? [],
+                              dateTruncConfig: form.watch('dateTruncConfig') ?? [],
+                              uniqueCountConfig: form.watch('uniqueCountConfig'),
                             }}
                             onOutputConfigChange={config => {
                               form.setValue('filterConfig', config.filterConfig, {
@@ -466,6 +482,15 @@ export const GoogleSheetsReportEditForm = forwardRef<
                                 shouldDirty: true,
                               });
                               form.setValue('limitConfig', config.limitConfig, {
+                                shouldDirty: true,
+                              });
+                              form.setValue('aggregationConfig', config.aggregationConfig, {
+                                shouldDirty: true,
+                              });
+                              form.setValue('dateTruncConfig', config.dateTruncConfig, {
+                                shouldDirty: true,
+                              });
+                              form.setValue('uniqueCountConfig', config.uniqueCountConfig, {
                                 shouldDirty: true,
                               });
                             }}

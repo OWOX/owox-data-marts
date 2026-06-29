@@ -53,7 +53,7 @@ describe('BigQueryQueryBuilder', () => {
   describe('buildQuery (without columns option)', () => {
     it('returns SELECT * for a table definition', async () => {
       const sql = await builder.buildQuery(tableDefinition('proj.dataset.tbl'));
-      expect(sql).toBe('SELECT * FROM `proj`.`dataset`.`tbl`');
+      expect(sql).toBe('SELECT *\nFROM `proj`.`dataset`.`tbl`');
     });
 
     it('returns user SQL untouched for a SQL definition', async () => {
@@ -67,28 +67,28 @@ describe('BigQueryQueryBuilder', () => {
       const sql = await builder.buildQuery(tableDefinition('proj.dataset.tbl'), {
         columns: ['campaign_name', 'date_column'],
       });
-      expect(sql).toBe('SELECT `campaign_name`, `date_column` FROM `proj`.`dataset`.`tbl`');
+      expect(sql).toBe('SELECT\n  `campaign_name`,\n  `date_column`\nFROM `proj`.`dataset`.`tbl`');
     });
 
     it('escapes nested RECORD paths as backtick-separated parts', async () => {
       const sql = await builder.buildQuery(tableDefinition('proj.dataset.tbl'), {
         columns: ['address.city', 'user_id'],
       });
-      expect(sql).toBe('SELECT `address`.`city`, `user_id` FROM `proj`.`dataset`.`tbl`');
+      expect(sql).toBe('SELECT\n  `address`.`city`,\n  `user_id`\nFROM `proj`.`dataset`.`tbl`');
     });
 
     it('wraps SQL definition queries when columns are provided', async () => {
       const sql = await builder.buildQuery(sqlDefinition('SELECT a, b, c FROM t;'), {
         columns: ['a', 'c'],
       });
-      expect(sql).toBe('SELECT `a`, `c` FROM (SELECT a, b, c FROM t)');
+      expect(sql).toBe('SELECT\n  `a`,\n  `c`\nFROM (SELECT a, b, c FROM t)');
     });
 
     it('ignores empty columns list and falls back to SELECT *', async () => {
       const sql = await builder.buildQuery(tableDefinition('proj.dataset.tbl'), {
         columns: [],
       });
-      expect(sql).toBe('SELECT * FROM `proj`.`dataset`.`tbl`');
+      expect(sql).toBe('SELECT *\nFROM `proj`.`dataset`.`tbl`');
     });
   });
 
@@ -100,7 +100,7 @@ describe('BigQueryQueryBuilder', () => {
       });
       expect(isQueryBuildResult(result)).toBe(true);
       if (!isQueryBuildResult(result)) throw new Error('expected QueryBuildResult');
-      expect(result.sql).toContain('SELECT `a`, `b`');
+      expect(result.sql).toContain('`a`,\n  `b`');
       expect(result.sql).toContain('FROM `proj`.`dataset`.`tbl`');
       expect(result.sql).toContain('WHERE `a` = @p0');
       expect(result.params).toEqual([{ name: 'p0', value: 1 }]);
@@ -117,7 +117,7 @@ describe('BigQueryQueryBuilder', () => {
       const sql = result.sql;
       expect(sql.indexOf('WHERE')).toBeLessThan(sql.indexOf('ORDER BY'));
       expect(sql.indexOf('ORDER BY')).toBeLessThan(sql.indexOf('LIMIT'));
-      expect(sql).toContain('ORDER BY `a` ASC');
+      expect(sql).toContain('ORDER BY\n  `a` ASC');
       expect(sql).toContain('LIMIT 10');
     });
 
@@ -126,7 +126,7 @@ describe('BigQueryQueryBuilder', () => {
         columns: ['a'],
       });
       expect(typeof result).toBe('string');
-      expect(result).toBe('SELECT `a` FROM `proj`.`dataset`.`tbl`');
+      expect(result).toBe('SELECT\n  `a`\nFROM `proj`.`dataset`.`tbl`');
     });
 
     it('uses mainTableReference for SQL-def with output controls', async () => {

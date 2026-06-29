@@ -15,6 +15,9 @@ export interface DataMartRunReportOutputConfigDto {
   filterConfig?: unknown;
   sortConfig?: unknown;
   limitConfig?: number | null;
+  aggregationConfig?: unknown;
+  dateTruncConfig?: unknown;
+  uniqueCountConfig?: boolean | null;
 }
 
 export interface DataMartRunReportDefinitionDto {

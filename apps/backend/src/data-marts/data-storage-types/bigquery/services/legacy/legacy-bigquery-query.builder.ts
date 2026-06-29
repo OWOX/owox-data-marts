@@ -7,6 +7,7 @@ import {
   QueryBuildResult,
 } from '../../../interfaces/data-mart-query-builder.interface';
 import { escapeBigQueryIdentifier } from '../../utils/bigquery-identifier.utils';
+import { composeSelectFromClause } from '../../../utils/sql-clause-renderer';
 import { BigQueryClauseRenderer } from '../bigquery-clause-renderer';
 import { BigQueryQueryBuilder } from '../bigquery-query.builder';
 import { LegacyBigQuerySqlPreprocessor } from './legacy-bigquery-sql-preprocessor.service';
@@ -51,7 +52,7 @@ export class LegacyBigQueryQueryBuilder extends BigQueryQueryBuilder {
       return preparedSql;
     }
     const cleanQuery = preparedSql.trim().replace(/;\s*$/, '');
-    const selectList = queryOptions.columns.map(col => escapeBigQueryIdentifier(col)).join(', ');
-    return `SELECT ${selectList} FROM (${cleanQuery})`;
+    const selectList = queryOptions.columns.map(col => escapeBigQueryIdentifier(col)).join(',\n  ');
+    return composeSelectFromClause(selectList, `(${cleanQuery})`);
   }
 }

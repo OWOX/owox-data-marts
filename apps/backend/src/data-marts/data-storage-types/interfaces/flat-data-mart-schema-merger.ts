@@ -11,6 +11,8 @@ interface MergeableField {
   description?: string;
   isPrimaryKey?: boolean;
   isHiddenForReporting?: boolean;
+  aggregationRole?: string;
+  allowedAggregations?: string[];
   status?: DataMartSchemaFieldStatus;
 }
 
@@ -75,6 +77,8 @@ function mergeFlatSchemaFields(
       description: existingField.description ?? newField.description,
       isPrimaryKey: existingField.isPrimaryKey ?? newField.isPrimaryKey ?? false,
       isHiddenForReporting: existingField.isHiddenForReporting ?? false,
+      aggregationRole: existingField.aggregationRole ?? newField.aggregationRole,
+      allowedAggregations: existingField.allowedAggregations ?? newField.allowedAggregations,
       status: hasTypeMismatch
         ? DataMartSchemaFieldStatus.CONNECTED_WITH_DEFINITION_MISMATCH
         : DataMartSchemaFieldStatus.CONNECTED,

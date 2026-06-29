@@ -107,6 +107,9 @@ const validEmailFormData = {
   filterConfig: null,
   sortConfig: null,
   limitConfig: null,
+  aggregationConfig: null,
+  dateTruncConfig: null,
+  uniqueCountConfig: false,
 };
 
 describe('EmailReportEditFormSchema — columnConfig validation', () => {

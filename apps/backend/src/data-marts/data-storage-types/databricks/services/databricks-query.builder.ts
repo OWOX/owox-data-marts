@@ -17,7 +17,9 @@ import {
   escapeDatabricksIdentifier,
   escapeFullyQualifiedIdentifier,
 } from '../utils/databricks-identifier.utils';
+import { buildDateTruncUnitMap, buildTimeZoneMap } from '../../utils/date-trunc-maps.utils';
 import { DatabricksClauseRenderer } from './databricks-clause-renderer';
+import { composeSelectFromClause } from '../../utils/sql-clause-renderer';
 
 @Injectable()
 export class DatabricksQueryBuilder implements DataMartQueryBuilder {
@@ -26,9 +28,17 @@ export class DatabricksQueryBuilder implements DataMartQueryBuilder {
   constructor(private readonly clauseRenderer: DatabricksClauseRenderer) {}
 
   buildQuery(definition: DataMartDefinition, queryOptions?: DataMartQueryOptions): string {
+    const aggregations = queryOptions?.aggregations ?? [];
+    const dateTruncs = queryOptions?.dateTruncs ?? [];
+    const rowCount = queryOptions?.rowCount === true;
+    const uniqueCount = queryOptions?.uniqueCount === true;
     const hasOutputControls =
       (queryOptions?.filters?.length ?? 0) > 0 ||
       (queryOptions?.sort?.length ?? 0) > 0 ||
+      aggregations.length > 0 ||
+      dateTruncs.length > 0 ||
+      rowCount ||
+      uniqueCount ||
       queryOptions?.limit != null;
 
     const selectList = this.buildSelectList(queryOptions?.columns);
@@ -60,7 +70,34 @@ export class DatabricksQueryBuilder implements DataMartQueryBuilder {
       );
     }
 
-    return `SELECT ${selectList} FROM ${fromClause}${where.sql}${orderBy.sql}${limit.sql}`;
+    if (aggregations.length > 0 || dateTruncs.length > 0 || rowCount || uniqueCount) {
+      const agg = this.clauseRenderer.renderAggregatedSelect(
+        queryOptions?.columns ?? [],
+        aggregations,
+        buildDateTruncUnitMap(dateTruncs),
+        {
+          includeRowCount: rowCount,
+          includeUniqueCount: uniqueCount,
+          primaryKeyColumns: queryOptions?.primaryKeyColumns,
+          timeZoneByColumn: buildTimeZoneMap(dateTruncs),
+        }
+      );
+      // ORDER BY must reference the output alias — a bare aggregated column is not in GROUP BY.
+      const aggOrderBy = this.clauseRenderer.renderOrderBy(
+        queryOptions?.sort ?? [],
+        this.clauseRenderer.buildAggregatedAliasResolver(agg.aliasByColumn)
+      );
+      // Databricks inlines literals, so HAVING carries no bound params (same as WHERE above).
+      const having = this.clauseRenderer.renderHaving(
+        queryOptions?.filters ?? [],
+        undefined,
+        'h',
+        resolveColumnType
+      );
+      return `${composeSelectFromClause(agg.selectSql, fromClause)}${where.sql}${agg.groupBySql}${having.sql}${aggOrderBy.sql}${limit.sql}`;
+    }
+
+    return `${composeSelectFromClause(selectList, fromClause)}${where.sql}${orderBy.sql}${limit.sql}`;
   }
 
   private buildPlainQuery(
@@ -70,16 +107,16 @@ export class DatabricksQueryBuilder implements DataMartQueryBuilder {
   ): string {
     if (isTableDefinition(definition) || isViewDefinition(definition)) {
       const parts = definition.fullyQualifiedName.split('.');
-      return `SELECT ${selectList} FROM ${escapeFullyQualifiedIdentifier(parts)}`;
+      return composeSelectFromClause(selectList, escapeFullyQualifiedIdentifier(parts));
     }
     if (isConnectorDefinition(definition)) {
       const parts = definition.connector.storage.fullyQualifiedName.split('.');
-      return `SELECT ${selectList} FROM ${escapeFullyQualifiedIdentifier(parts)}`;
+      return composeSelectFromClause(selectList, escapeFullyQualifiedIdentifier(parts));
     }
     if (isSqlDefinition(definition)) {
       if (queryOptions?.columns?.length) {
         const cleanQuery = definition.sqlQuery.trim().replace(/;\s*$/, '');
-        return `SELECT ${selectList} FROM (${cleanQuery}) AS subq`;
+        return composeSelectFromClause(selectList, `(${cleanQuery}) AS subq`);
       }
       return definition.sqlQuery.trim();
     }
@@ -122,6 +159,6 @@ export class DatabricksQueryBuilder implements DataMartQueryBuilder {
     if (!columns || columns.length === 0) {
       return '*';
     }
-    return columns.map(col => escapeDatabricksIdentifier(col)).join(', ');
+    return columns.map(col => escapeDatabricksIdentifier(col)).join(',\n  ');
   }
 }

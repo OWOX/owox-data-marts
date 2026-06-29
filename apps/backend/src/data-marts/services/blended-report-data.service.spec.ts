@@ -79,6 +79,7 @@ describe('BlendedReportDataService', () => {
   let tableReferenceService: jest.Mocked<DataMartTableReferenceService>;
   let blendedQueryBuilderFacade: jest.Mocked<BlendedQueryBuilderFacade>;
   let userProjectionsFetcher: jest.Mocked<UserProjectionsFetcherService>;
+  let outputControlsValidator: jest.Mocked<OutputControlsValidatorService>;
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
@@ -141,6 +142,7 @@ describe('BlendedReportDataService', () => {
     tableReferenceService = module.get(DataMartTableReferenceService);
     blendedQueryBuilderFacade = module.get(BlendedQueryBuilderFacade);
     userProjectionsFetcher = module.get(UserProjectionsFetcherService);
+    outputControlsValidator = module.get(OutputControlsValidatorService);
   });
 
   describe('resolveBlendingDecision', () => {
@@ -1903,6 +1905,235 @@ describe('BlendedReportDataService', () => {
         });
 
         expect(result.needsBlending).toBe(true);
+      });
+    });
+
+    describe('rowCount driven by aggregationConfig (blended path)', () => {
+      async function resolveAndCaptureRowCount(
+        overrides: Partial<Report>
+      ): Promise<boolean | undefined> {
+        const report = makeReport({ columnConfig: ['blended_field'], ...overrides });
+
+        const blendedField = new BlendedFieldDto();
+        blendedField.name = 'blended_field';
+        blendedField.sourceRelationshipId = 'rel-1';
+        blendedField.sourceDataMartId = 'dm-target-1';
+        blendedField.sourceDataMartTitle = 'Target DM';
+        blendedField.targetAlias = 'target_alias';
+        blendedField.originalFieldName = 'field';
+        blendedField.type = 'INTEGER';
+        blendedField.isHidden = false;
+        blendedField.aggregateFunction = 'SUM';
+        blendedField.transitiveDepth = 1;
+        blendedField.aliasPath = 'target_alias';
+        blendedField.outputPrefix = 'target_alias';
+
+        blendableSchemaService.computeBlendableSchema.mockResolvedValue({
+          nativeFields: [],
+          availableSources: [
+            {
+              aliasPath: 'target_alias',
+              title: 'Target DM',
+              defaultAlias: 'target_alias',
+              depth: 1,
+              fieldCount: 1,
+              isIncluded: true,
+              isAccessibleForReporting: true,
+              relationshipId: 'rel-1',
+              dataMartId: 'dm-target-1',
+            },
+          ],
+          blendedFields: [blendedField],
+        });
+
+        const mockRelationship = {
+          id: 'rel-1',
+          targetAlias: 'target_alias',
+          sourceDataMart: { id: 'dm-1' },
+          targetDataMart: { id: 'dm-target-1' },
+          joinConditions: [],
+        } as unknown as DataMartRelationship;
+
+        relationshipService.findBySourceDataMartId.mockResolvedValue([mockRelationship]);
+        tableReferenceService.resolveTableName.mockResolvedValue('table_ref');
+        blendedQueryBuilderFacade.buildBlendedQuery.mockResolvedValue('SELECT ...');
+
+        await service.resolveBlendingDecision(report, { userId: 'user-1', roles: ['admin'] });
+
+        const [, context] = blendedQueryBuilderFacade.buildBlendedQuery.mock.calls[0];
+        return context?.rowCount;
+      }
+
+      it('passes rowCount=true to buildBlendedQuery when aggregationConfig is non-empty', async () => {
+        const rowCount = await resolveAndCaptureRowCount({
+          aggregationConfig: [{ column: 'field', function: 'SUM' }] as any,
+        });
+        expect(rowCount).toBe(true);
+      });
+
+      it('passes rowCount=false to buildBlendedQuery when aggregationConfig is empty', async () => {
+        const rowCount = await resolveAndCaptureRowCount({
+          aggregationConfig: [],
+        });
+        expect(rowCount).toBe(false);
+      });
+
+      it('passes rowCount=false when aggregationConfig is absent', async () => {
+        const rowCount = await resolveAndCaptureRowCount({
+          aggregationConfig: undefined,
+        });
+        expect(rowCount).toBe(false);
+      });
+    });
+
+    describe('uniqueCount and primaryKeyColumns passed to buildBlendedQuery', () => {
+      function makeBlendedFieldForUniqueCount(): BlendedFieldDto {
+        const blendedField = new BlendedFieldDto();
+        blendedField.name = 'blended_field';
+        blendedField.sourceRelationshipId = 'rel-1';
+        blendedField.sourceDataMartId = 'dm-target-1';
+        blendedField.sourceDataMartTitle = 'Target DM';
+        blendedField.targetAlias = 'target_alias';
+        blendedField.originalFieldName = 'field';
+        blendedField.type = 'INTEGER';
+        blendedField.isHidden = false;
+        blendedField.aggregateFunction = 'SUM';
+        blendedField.transitiveDepth = 1;
+        blendedField.aliasPath = 'target_alias';
+        blendedField.outputPrefix = 'target_alias';
+        return blendedField;
+      }
+
+      async function resolveAndCaptureUniqueCountContext(
+        overrides: Partial<Report>,
+        schemaFields?: object[]
+      ): Promise<{ uniqueCount: unknown; primaryKeyColumns: unknown }> {
+        const storage = { id: 'storage-1', type: DataStorageType.GOOGLE_BIGQUERY } as DataStorage;
+        const dataMart = {
+          id: 'dm-1',
+          title: 'Main DM',
+          projectId: 'project-1',
+          storage,
+          definition: { sqlQuery: 'SELECT 1' },
+          schema: schemaFields ? { fields: schemaFields } : undefined,
+        } as unknown as DataMart;
+
+        const report = {
+          id: 'report-1',
+          title: 'Test Report',
+          dataMart,
+          columnConfig: ['blended_field'],
+          ...overrides,
+        } as Report;
+
+        blendableSchemaService.computeBlendableSchema.mockResolvedValue({
+          nativeFields: [],
+          availableSources: [
+            {
+              aliasPath: 'target_alias',
+              title: 'Target DM',
+              defaultAlias: 'target_alias',
+              depth: 1,
+              fieldCount: 1,
+              isIncluded: true,
+              isAccessibleForReporting: true,
+              relationshipId: 'rel-1',
+              dataMartId: 'dm-target-1',
+            },
+          ],
+          blendedFields: [makeBlendedFieldForUniqueCount()],
+        });
+
+        const mockRelationship = {
+          id: 'rel-1',
+          targetAlias: 'target_alias',
+          sourceDataMart: { id: 'dm-1' },
+          targetDataMart: { id: 'dm-target-1' },
+          joinConditions: [],
+        } as unknown as DataMartRelationship;
+
+        relationshipService.findBySourceDataMartId.mockResolvedValue([mockRelationship]);
+        tableReferenceService.resolveTableName.mockResolvedValue('table_ref');
+        blendedQueryBuilderFacade.buildBlendedQuery.mockResolvedValue('SELECT ...');
+
+        await service.resolveBlendingDecision(report, { userId: 'user-1', roles: ['admin'] });
+
+        const [, context] = blendedQueryBuilderFacade.buildBlendedQuery.mock.calls[0];
+        return {
+          uniqueCount: context?.uniqueCount,
+          primaryKeyColumns: context?.primaryKeyColumns,
+        };
+      }
+
+      it('passes uniqueCount=true when uniqueCountConfig is true', async () => {
+        const { uniqueCount } = await resolveAndCaptureUniqueCountContext({
+          uniqueCountConfig: true,
+        });
+        expect(uniqueCount).toBe(true);
+      });
+
+      it('passes uniqueCount=false when uniqueCountConfig is false', async () => {
+        const { uniqueCount } = await resolveAndCaptureUniqueCountContext({
+          uniqueCountConfig: false,
+        });
+        expect(uniqueCount).toBe(false);
+      });
+
+      it('passes uniqueCount=false when uniqueCountConfig is absent', async () => {
+        const { uniqueCount } = await resolveAndCaptureUniqueCountContext({
+          uniqueCountConfig: undefined,
+        });
+        expect(uniqueCount).toBe(false);
+      });
+
+      it('passes primaryKeyColumns from the main DM schema PK fields', async () => {
+        const schemaFields = [
+          { name: 'user_id', type: 'STRING', isPrimaryKey: true },
+          { name: 'date', type: 'DATE', isPrimaryKey: false },
+        ];
+        const { primaryKeyColumns } = await resolveAndCaptureUniqueCountContext(
+          { uniqueCountConfig: true },
+          schemaFields
+        );
+        expect(primaryKeyColumns).toEqual(['user_id']);
+      });
+
+      it('passes empty primaryKeyColumns when schema has no PK fields', async () => {
+        const schemaFields = [
+          { name: 'user_id', type: 'STRING', isPrimaryKey: false },
+          { name: 'date', type: 'DATE', isPrimaryKey: false },
+        ];
+        const { primaryKeyColumns } = await resolveAndCaptureUniqueCountContext(
+          { uniqueCountConfig: true },
+          schemaFields
+        );
+        expect(primaryKeyColumns).toEqual([]);
+      });
+
+      it('passes composite primaryKeyColumns for multi-field PK', async () => {
+        const schemaFields = [
+          { name: 'project_id', type: 'STRING', isPrimaryKey: true },
+          { name: 'user_id', type: 'STRING', isPrimaryKey: true },
+        ];
+        const { primaryKeyColumns } = await resolveAndCaptureUniqueCountContext(
+          { uniqueCountConfig: true },
+          schemaFields
+        );
+        expect(primaryKeyColumns).toEqual(['project_id', 'user_id']);
+      });
+    });
+
+    describe('validateForReport chokepoint (schema-drift)', () => {
+      it('forwards uniqueCountConfig so the run path re-validates the PK gate', async () => {
+        const report = makeReport({ columnConfig: ['native_field'], uniqueCountConfig: true });
+
+        blendableSchemaService.computeBlendableSchema.mockResolvedValue(makeBlendableSchema([]));
+
+        await service.resolveBlendingDecision(report, { userId: 'user-1', roles: ['admin'] });
+
+        expect(outputControlsValidator.validateForReport).toHaveBeenCalledWith(
+          expect.objectContaining({ uniqueCountConfig: true })
+        );
       });
     });
   });

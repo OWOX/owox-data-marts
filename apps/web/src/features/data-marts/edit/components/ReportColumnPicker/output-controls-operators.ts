@@ -167,8 +167,25 @@ export function isDateType(fieldType: string): boolean {
   return DATE_TYPES.has(fieldType);
 }
 
+// Subset of DATE_TYPES that carry a time-of-day component. Used to gate the
+// timezone control in the bucket popover: a pure DATE column cannot accept a
+// timezone conversion (e.g. BigQuery DATE(col, 'tz') requires TIMESTAMP).
+const TIMESTAMP_TYPES = new Set([...DATE_TYPES].filter(t => t !== 'DATE'));
+
+export function isTimestampType(fieldType: string): boolean {
+  return TIMESTAMP_TYPES.has(fieldType);
+}
+
 export function isTimeType(fieldType: string): boolean {
   return TIME_TYPES.has(fieldType);
+}
+
+export function isStringType(fieldType: string): boolean {
+  return STRING_TYPES.has(fieldType);
+}
+
+export function isBoolType(fieldType: string): boolean {
+  return BOOL_TYPES.has(fieldType);
 }
 
 export function operatorLabelFor(operator: FilterOperator, fieldType: string): string {

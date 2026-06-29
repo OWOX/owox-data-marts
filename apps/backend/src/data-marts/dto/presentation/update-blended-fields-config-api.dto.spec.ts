@@ -258,4 +258,89 @@ describe('UpdateBlendedFieldsConfigApiDto validation', () => {
     });
     expect(errors).toHaveLength(0);
   });
+
+  it('accepts postJoinAggregations with valid functions', async () => {
+    const errors = await validateDto({
+      blendedFieldsConfig: {
+        sources: [
+          {
+            path: 'orders',
+            alias: 'Orders',
+            fields: {
+              revenue: { postJoinAggregations: ['MIN', 'AVG'] },
+            },
+          },
+        ],
+      },
+    });
+    expect(errors).toHaveLength(0);
+  });
+
+  it('accepts postJoinAggregations with a percentile function (superset)', async () => {
+    const errors = await validateDto({
+      blendedFieldsConfig: {
+        sources: [
+          {
+            path: 'orders',
+            alias: 'Orders',
+            fields: {
+              revenue: { postJoinAggregations: ['P75'] },
+            },
+          },
+        ],
+      },
+    });
+    expect(errors).toHaveLength(0);
+  });
+
+  it('rejects postJoinAggregations with an unknown function', async () => {
+    const errors = await validateDto({
+      blendedFieldsConfig: {
+        sources: [
+          {
+            path: 'orders',
+            alias: 'Orders',
+            fields: {
+              revenue: { postJoinAggregations: ['BOGUS'] },
+            },
+          },
+        ],
+      },
+    });
+    expect(errors.length).toBeGreaterThan(0);
+  });
+
+  it('accepts a field override without postJoinAggregations (optional)', async () => {
+    const errors = await validateDto({
+      blendedFieldsConfig: {
+        sources: [
+          {
+            path: 'orders',
+            alias: 'Orders',
+            fields: {
+              revenue: { aggregateFunction: 'SUM' },
+            },
+          },
+        ],
+      },
+    });
+    expect(errors).toHaveLength(0);
+  });
+
+  it('rejects a non-array value for postJoinAggregations', async () => {
+    const errors = await validateDto({
+      blendedFieldsConfig: {
+        sources: [
+          {
+            path: 'orders',
+            alias: 'Orders',
+            fields: {
+              revenue: { postJoinAggregations: 'MIN' },
+            },
+          },
+        ],
+      },
+    });
+    expect(errors.length).toBeGreaterThan(0);
+  });
 });

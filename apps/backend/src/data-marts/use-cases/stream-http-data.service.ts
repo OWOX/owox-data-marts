@@ -31,6 +31,7 @@ import { ConsumptionTrackingService } from '../services/consumption-tracking.ser
 import { DataMartService } from '../services/data-mart.service';
 import { ProjectBalanceService } from '../services/project-balance.service';
 import { ReportSqlComposerService } from '../services/report-sql-composer.service';
+import { ReportTotals, ReportTotalsService } from '../services/report-totals.service';
 import { HttpDataColumnResolver } from '../services/http-data/http-data-column-resolver.service';
 import { HttpDataColumnValidator } from '../services/http-data/http-data-column-validator.service';
 import {
@@ -83,7 +84,8 @@ export class StreamHttpDataService {
     @Inject(DATA_STORAGE_REPORT_READER_RESOLVER)
     private readonly readerResolver: TypeResolver<DataStorageType, DataStorageReportReader>,
     @Inject(DATA_STORAGE_ERROR_MAPPER_RESOLVER)
-    private readonly errorMapperResolver: TypeResolver<DataStorageType, DataStorageErrorMapper>
+    private readonly errorMapperResolver: TypeResolver<DataStorageType, DataStorageErrorMapper>,
+    private readonly reportTotalsService: ReportTotalsService
   ) {}
 
   async stream(command: StreamHttpDataCommand, res: Response): Promise<void> {
@@ -172,7 +174,13 @@ export class StreamHttpDataService {
         sqlOverrideParams,
         columnFilter: decision.columnFilter,
         blendedDataHeaders: decision.blendedDataHeaders,
+        aggregationConfig: readPlan.aggregationConfig ?? undefined,
       });
+
+      // Grand totals are a SEPARATE DWH query bridged to the client via x-owox-run-id
+      // (no extra header in v1). Computed BEFORE streamRows: NDJSON headers cannot change
+      // once the first chunk is flushed. BEST-EFFORT — a failure must never break the stream.
+      const totals = await this.computeTotalsBestEffort(readPlan, accessor, dataMart);
 
       const { rowCount, bytesWritten } = await this.streamRows(
         res,
@@ -188,6 +196,7 @@ export class StreamHttpDataService {
         rowCount,
         bytesWritten,
         completed: true,
+        ...(totals ? { totals } : {}),
       });
 
       res.end();
@@ -228,6 +237,25 @@ export class StreamHttpDataService {
 
     const mapper = await this.errorMapperResolver.resolve(dataMart.storage.type);
     return mapper.toStorageReadError(error, { force: forceStorageReadError || reader !== null });
+  }
+
+  private async computeTotalsBestEffort(
+    readPlan: ReportLikeReadPlan,
+    accessor: BlendableSchemaAccessor,
+    dataMart: DataMart
+  ): Promise<ReportTotals | null> {
+    try {
+      return await this.reportTotalsService.computeTotals(
+        readPlan,
+        accessor,
+        dataMart.storage.type
+      );
+    } catch (err) {
+      this.logger.warn(
+        `Failed to compute totals for Data Mart ${dataMart.id}: ${err instanceof Error ? err.message : String(err)}`
+      );
+      return null;
+    }
   }
 
   private async recordSuccessfulRun(

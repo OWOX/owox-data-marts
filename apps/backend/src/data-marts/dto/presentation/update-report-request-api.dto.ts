@@ -1,5 +1,6 @@
 import {
   ArrayMaxSize,
+  IsBoolean,
   IsNotEmpty,
   IsString,
   IsObject,
@@ -14,6 +15,9 @@ import { DataDestinationConfig } from '../../data-destination-types/data-destina
 import { ReportColumnConfig } from '../schemas/report-column-config.schema';
 import { FilterConfig } from '../schemas/filter-config.schema';
 import { SortConfig } from '../schemas/sort-config.schema';
+import { AggregationConfig } from '../schemas/aggregation-config.schema';
+import { DateTruncConfig } from '../schemas/date-trunc-config.schema';
+import { UniqueCountConfig } from '../schemas/unique-count-config.schema';
 
 export class UpdateReportRequestApiDto {
   @ApiProperty({ example: 'My Report' })
@@ -91,4 +95,38 @@ export class UpdateReportRequestApiDto {
   @IsPositive()
   @Max(10_000_000)
   limitConfig?: number | null;
+
+  @ApiProperty({
+    description: 'Aggregation rules applied to output columns',
+    nullable: true,
+    required: false,
+    type: 'array',
+    items: { type: 'object' },
+  })
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(50)
+  aggregationConfig?: AggregationConfig | null;
+
+  @ApiProperty({
+    description: 'Date-trunc rules: bucket a date/timestamp dimension by a calendar unit',
+    nullable: true,
+    required: false,
+    type: 'array',
+    items: { type: 'object' },
+  })
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(50)
+  dateTruncConfig?: DateTruncConfig | null;
+
+  @ApiProperty({
+    description: 'Unique Count config: count distinct primary-key tuples instead of all rows',
+    nullable: true,
+    required: false,
+    type: Boolean,
+  })
+  @IsOptional()
+  @IsBoolean()
+  uniqueCountConfig?: UniqueCountConfig;
 }

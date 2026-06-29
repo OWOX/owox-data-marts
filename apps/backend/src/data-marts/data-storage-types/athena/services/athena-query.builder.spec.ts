@@ -36,7 +36,7 @@ describe('AthenaQueryBuilder output controls', () => {
     expect(typeof out).toBe('object');
     if (typeof out === 'string') throw new Error('expected QueryBuildResult');
     expect(out.sql).toContain('WHERE "status" = ?');
-    expect(out.sql).toContain('ORDER BY "created_at" DESC');
+    expect(out.sql).toContain('ORDER BY\n  "created_at" DESC');
     expect(out.sql).toContain('LIMIT 50');
     expect(out.params).toEqual([{ name: 'p0', value: 'paid' }]);
   });
@@ -72,7 +72,7 @@ describe('AthenaQueryBuilder output controls', () => {
 
   it('returns plain string for table definition without output controls', () => {
     const out = builder.buildQuery(tableDefinition('db.schema.tbl'));
-    expect(out).toBe('SELECT * FROM "db"."schema"."tbl"');
+    expect(out).toBe('SELECT *\nFROM "db"."schema"."tbl"');
   });
 
   it('returns plain string for sql definition without columns', () => {
@@ -84,7 +84,7 @@ describe('AthenaQueryBuilder output controls', () => {
     const out = builder.buildQuery(sqlDefinition('SELECT a, b FROM t;'), {
       columns: ['a'],
     });
-    expect(out).toBe('SELECT "a" FROM (SELECT a, b FROM t)');
+    expect(out).toBe('SELECT\n  "a"\nFROM (SELECT a, b FROM t)');
   });
 
   it('composes WHERE + ORDER BY + LIMIT in correct order', () => {
@@ -97,7 +97,7 @@ describe('AthenaQueryBuilder output controls', () => {
     const sql = out.sql;
     expect(sql.indexOf('WHERE')).toBeLessThan(sql.indexOf('ORDER BY'));
     expect(sql.indexOf('ORDER BY')).toBeLessThan(sql.indexOf('LIMIT'));
-    expect(sql).toContain('ORDER BY "a" ASC');
+    expect(sql).toContain('ORDER BY\n  "a" ASC');
     expect(sql).toContain('LIMIT 10');
   });
 
@@ -126,7 +126,7 @@ describe('AthenaQueryBuilder output controls', () => {
     const sqlDef = { sqlQuery: 'SELECT a, b FROM t' } as unknown as DataMartDefinition;
     const out = builder.buildQuery(sqlDef, { limit: 0 });
     if (typeof out === 'string') throw new Error('expected QueryBuildResult');
-    expect(out.sql).toBe('SELECT * FROM (SELECT a, b FROM t)\nLIMIT 0');
+    expect(out.sql).toBe('SELECT *\nFROM (SELECT a, b FROM t)\nLIMIT 0');
     expect(out.params).toEqual([]);
   });
 
@@ -164,7 +164,7 @@ describe('AthenaQueryBuilder output controls', () => {
       ],
     });
     if (typeof out === 'string') throw new Error('expected QueryBuildResult');
-    expect(out.sql).toContain('WHERE "name" = ? AND "id" > ?');
+    expect(out.sql).toContain('WHERE "name" = ?\n  AND "id" > ?');
     expect(out.params).toEqual([
       { name: 'p0', value: 'alice' },
       { name: 'p1', value: 42 },
@@ -179,7 +179,7 @@ describe('AthenaQueryBuilder output controls', () => {
       ],
     });
     if (typeof out === 'string') throw new Error('expected QueryBuildResult');
-    expect(out.sql).toContain('WHERE "id" >= ? AND "id" <= ?');
+    expect(out.sql).toContain('WHERE "id" >= ?\n  AND "id" <= ?');
     expect((out.params ?? []).map(p => p.value)).toEqual([2, 9]);
   });
 
@@ -193,7 +193,7 @@ describe('AthenaQueryBuilder output controls', () => {
     });
     if (typeof out === 'string') throw new Error('expected QueryBuildResult');
     // SELECT must only include the two explicitly requested columns
-    expect(out.sql).toContain('"name", "amount"');
+    expect(out.sql).toContain('"name",\n  "amount"');
     expect(out.sql).not.toMatch(/SELECT.*"hidden_col"/);
     // WHERE must still reference the filter column
     expect(out.sql).toContain('WHERE "hidden_col" = ?');

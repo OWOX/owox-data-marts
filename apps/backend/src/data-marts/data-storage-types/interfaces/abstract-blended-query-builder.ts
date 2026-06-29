@@ -13,6 +13,8 @@ import {
   SqlParameter,
 } from '../utils/sql-clause-renderer';
 import { FilterRule } from '../../dto/schemas/filter-config.schema';
+import { DateTruncUnit } from '../../dto/schemas/date-trunc-config.schema';
+import { buildTimeZoneMap } from '../utils/date-trunc-maps.utils';
 
 interface BlendTreeNode {
   chain: ResolvedRelationshipChain;
@@ -88,10 +90,18 @@ export abstract class AbstractBlendedQueryBuilder implements BlendedQueryBuilder
 
   buildBlendedQuery(context: BlendedQueryContext): { sql: string; params: SqlParameter[] } {
     const allFilters = context.filters ?? [];
+    const aggregated =
+      (context.aggregations?.length ?? 0) > 0 ||
+      (context.dateTruncs?.length ?? 0) > 0 ||
+      context.rowCount === true ||
+      (context.uniqueCount === true && (context.primaryKeyColumns?.length ?? 0) > 0);
 
     // Capability guard first — storages without a clauseRenderer can't honour any controls.
     const hasOutputControls =
-      allFilters.length > 0 || (context.sort?.length ?? 0) > 0 || (context.limit ?? null) !== null;
+      allFilters.length > 0 ||
+      (context.sort?.length ?? 0) > 0 ||
+      (context.limit ?? null) !== null ||
+      aggregated;
     if (hasOutputControls && this.clauseRenderer === null) {
       throw new NotImplementedException(
         `Output controls not yet supported for storage type ${this.type}`
@@ -176,16 +186,61 @@ export abstract class AbstractBlendedQueryBuilder implements BlendedQueryBuilder
 
     const withClause = `WITH\n${cteBlocks.join(',\n\n')}`;
 
-    const selectParts = this.buildSelectParts(columnSet, outputAliasToRoot, hiddenOutputAliases);
     const joinParts = this.buildJoinParts(roots);
+    const qualifyColumn = this.buildColumnQualifier(outputAliasToRoot);
+    const renderer = this.clauseRenderer;
+
+    // Post-join aggregation: an outer GROUP BY over the flat blended result. The
+    // bottom-up join guarantees that result has at most one row per main-mart row,
+    // so this aggregates those per-main values across the group (the two-level
+    // semantics). The CTE machinery and pre-join rollup are unchanged.
+    if (aggregated && renderer) {
+      const agg = renderer.renderAggregatedSelect(
+        context.columns,
+        context.aggregations ?? [],
+        this.buildDateTruncMap(context.dateTruncs),
+        {
+          includeRowCount: context.rowCount === true,
+          includeUniqueCount: context.uniqueCount === true,
+          primaryKeyColumns: context.primaryKeyColumns,
+          qualifyColumn,
+          timeZoneByColumn: buildTimeZoneMap(context.dateTruncs ?? []),
+        }
+      );
+      const body =
+        `SELECT\n  ${agg.selectSql}\nFROM ${this.quoteIdentifier('main')}` +
+        (joinParts.length > 0 ? '\n' + joinParts.join('\n') : '');
+      const where = renderer.renderWhere(postJoinFilters, qualifyColumn, 'p', resolveColumnType);
+      // Post-aggregation filters (rules carrying a `function`) become HAVING, using the
+      // SAME qualified aggregate expression the SELECT emits. WHERE skips them above.
+      const having = renderer.renderHaving(postJoinFilters, qualifyColumn, 'h', resolveColumnType);
+      // A bare aggregated column is not in GROUP BY, so ORDER BY references the
+      // output alias instead of the plain qualified column.
+      const orderBy = renderer.renderOrderBy(
+        context.sort ?? [],
+        renderer.buildAggregatedAliasResolver(agg.aliasByColumn)
+      );
+      const limit = renderer.renderLimit(context.limit ?? null);
+      const sql = `${withClause}\n\n${body}${where.sql}${agg.groupBySql}${having.sql}${orderBy.sql}${limit.sql}`;
+      return {
+        sql,
+        params: [
+          ...cteParams,
+          ...where.params,
+          ...having.params,
+          ...orderBy.params,
+          ...limit.params,
+        ],
+      };
+    }
+
+    const selectParts = this.buildSelectParts(columnSet, outputAliasToRoot, hiddenOutputAliases);
     const selectClause = selectParts.length > 0 ? selectParts.join(',\n  ') : '*';
 
     const body =
       `SELECT\n  ${selectClause}\nFROM ${this.quoteIdentifier('main')}` +
       (joinParts.length > 0 ? '\n' + joinParts.join('\n') : '');
 
-    const qualifyColumn = this.buildColumnQualifier(outputAliasToRoot);
-    const renderer = this.clauseRenderer;
     const where = renderer
       ? renderer.renderWhere(postJoinFilters, qualifyColumn, 'p', resolveColumnType)
       : { sql: '', params: [] as SqlParameter[] };
@@ -197,6 +252,13 @@ export abstract class AbstractBlendedQueryBuilder implements BlendedQueryBuilder
       : { sql: '', params: [] as SqlParameter[] };
     const sql = `${withClause}\n\n${body}${where.sql}${orderBy.sql}${limit.sql}`;
     return { sql, params: [...cteParams, ...where.params, ...orderBy.params, ...limit.params] };
+  }
+
+  private buildDateTruncMap(
+    dateTruncs: BlendedQueryContext['dateTruncs']
+  ): ReadonlyMap<string, DateTruncUnit> | undefined {
+    if (!dateTruncs?.length) return undefined;
+    return new Map(dateTruncs.map(d => [d.column, d.unit]));
   }
 
   private buildColumnQualifier(outputAliasToRoot: Map<string, string>): ColumnRefResolver {
@@ -405,7 +467,9 @@ export abstract class AbstractBlendedQueryBuilder implements BlendedQueryBuilder
         ? renderer.renderWhere(preJoinFilters, qualifyForRawCte, paramPrefix, resolveColumnType)
         : { sql: '', params: [] as SqlParameter[] };
 
-    const indentedWhere = where.sql ? where.sql.replace(/^\n/, '\n    ') : '';
+    // Re-indent every line of the WHERE (it can be multi-line: `WHERE …\n  AND …`)
+    // so it nests under this CTE's 4-space SELECT/FROM block.
+    const indentedWhere = where.sql ? where.sql.replace(/\n/g, '\n    ') : '';
 
     const body = safeForExplicitProjection
       ? `${header}    SELECT\n      ${columns.map(c => this.quoteIdentifier(c)).join(',\n      ')}\n    FROM ${tableReference}`
@@ -543,6 +607,7 @@ export abstract class AbstractBlendedQueryBuilder implements BlendedQueryBuilder
       case 'ANY_VALUE':
         return 'MAX';
       default:
+        // TODO(#6680 joined-DM aggregation): AVG re-aggregation is incorrect (avg of avgs); handle when joined-DM aggregation lands.
         return aggregateFunction;
     }
   }
@@ -555,9 +620,15 @@ export abstract class AbstractBlendedQueryBuilder implements BlendedQueryBuilder
         return `COUNT(${fieldName})`;
       case 'COUNT_DISTINCT':
         return `COUNT(DISTINCT ${fieldName})`;
+      case 'ANY_VALUE':
+        return this.buildAnyValue(fieldName);
       default:
         return `${aggregateFunction}(${fieldName})`;
     }
+  }
+
+  protected buildAnyValue(fieldName: string): string {
+    return `ANY_VALUE(${fieldName})`;
   }
 
   protected abstract buildStringAgg(fieldName: string): string;

@@ -88,6 +88,27 @@ describe('BigQueryBlendedQueryBuilder', () => {
     expect(sql).toContain('COUNT(order_id) AS order_count');
   });
 
+  it('uses ANY_VALUE(field) for ANY_VALUE leaf aggregation (natively supported)', () => {
+    const chain = makeChain({
+      relationship: makeRelationship(),
+      targetTableReference: '`project`.`dataset`.`orders`',
+      parentAlias: 'main',
+      blendedFields: [
+        {
+          targetFieldName: 'order_name',
+          outputAlias: 'sample_name',
+          isHidden: false,
+          aggregateFunction: 'ANY_VALUE',
+        },
+      ],
+    });
+
+    const { sql } = builder.buildBlendedQuery(buildContext([chain], ['sample_name']));
+
+    expect(sql).toContain('ANY_VALUE(order_name) AS sample_name');
+    expect(sql).not.toContain('arbitrary');
+  });
+
   it('uses COUNT(DISTINCT field) for COUNT_DISTINCT aggregation', () => {
     const chain = makeChain({
       relationship: makeRelationship(),
@@ -106,5 +127,46 @@ describe('BigQueryBlendedQueryBuilder', () => {
     const { sql } = builder.buildBlendedQuery(buildContext([chain], ['unique_customers']));
 
     expect(sql).toContain('COUNT(DISTINCT customer_id) AS unique_customers');
+  });
+
+  describe('post-join aggregation', () => {
+    function orderChain() {
+      return makeChain({
+        relationship: makeRelationship(),
+        targetTableReference: '`project`.`dataset`.`orders`',
+        parentAlias: 'main',
+        blendedFields: [
+          {
+            targetFieldName: 'amount',
+            outputAlias: 'order_amount',
+            isHidden: false,
+            aggregateFunction: 'SUM',
+          },
+        ],
+      });
+    }
+
+    it('emits an outer GROUP BY over the blended result with the dialect SUM expression', () => {
+      const { sql } = builder.buildBlendedQuery({
+        ...buildContext([orderChain()], ['channel', 'order_amount']),
+        aggregations: [{ column: 'order_amount', function: 'SUM' }],
+      });
+
+      expect(sql).toContain('main.channel AS `channel`');
+      expect(sql).toContain('SUM(orders.order_amount) AS `order_amount | SUM`');
+      expect(sql).toContain('GROUP BY\n  main.channel');
+    });
+
+    it('routes a P95 metric through the BigQuery dialect percentile expression', () => {
+      const { sql } = builder.buildBlendedQuery({
+        ...buildContext([orderChain()], ['channel', 'order_amount']),
+        aggregations: [{ column: 'order_amount', function: 'P95' }],
+      });
+
+      expect(sql).toContain(
+        'APPROX_QUANTILES(orders.order_amount, 100)[OFFSET(95)] AS `order_amount | P95`'
+      );
+      expect(sql).toContain('GROUP BY\n  main.channel');
+    });
   });
 });

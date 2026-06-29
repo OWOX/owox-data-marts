@@ -36,6 +36,7 @@ import type {
   RelationshipGraph,
 } from '../../../shared/types/relationship.types';
 
+import { cleanBlendedFieldOverride } from './blended-field-override.utils';
 import type { SourceEntry } from './RelationshipAccordionItem';
 import { RelationshipAccordionItem } from './RelationshipAccordionItem';
 import { TargetDataMartPicker } from './TargetDataMartPicker';
@@ -84,7 +85,10 @@ function buildSourceList(
     const overrideCount = configSource?.fields
       ? Object.values(configSource.fields).filter(
           v =>
-            v.isHidden !== undefined || v.aggregateFunction !== undefined || v.alias !== undefined
+            v.isHidden !== undefined ||
+            v.aggregateFunction !== undefined ||
+            v.alias !== undefined ||
+            v.postJoinAggregations !== undefined
         ).length
       : 0;
 
@@ -370,12 +374,7 @@ export function DataMartRelationshipsContent({
           ...override,
         };
 
-        const cleanOverride: BlendedFieldOverride = {};
-        if (merged.alias !== undefined && merged.alias !== '') cleanOverride.alias = merged.alias;
-        if (merged.isHidden !== undefined) cleanOverride.isHidden = merged.isHidden;
-        if (merged.aggregateFunction !== undefined) {
-          cleanOverride.aggregateFunction = merged.aggregateFunction;
-        }
+        const cleanOverride = cleanBlendedFieldOverride(merged);
 
         const newFields: Record<string, BlendedFieldOverride> = {};
         for (const [key, val] of Object.entries(currentFields)) {

@@ -2,6 +2,8 @@ import { DataStorageType } from '../enums/data-storage-type.enum';
 import { DataMartDefinition } from '../../dto/schemas/data-mart-table-definitions/data-mart-definition';
 import { FilterRule } from '../../dto/schemas/filter-config.schema';
 import { SortRule } from '../../dto/schemas/sort-config.schema';
+import { AggregationRule } from '../../dto/schemas/aggregation-config.schema';
+import { DateTruncRule } from '../../dto/schemas/date-trunc-config.schema';
 import { SqlParameter } from '../utils/sql-clause-renderer';
 
 export interface DataMartQueryOptions {
@@ -15,6 +17,41 @@ export interface DataMartQueryOptions {
 
   /** Output filters (Task 7+) — applied as WHERE on the final SELECT. */
   filters?: FilterRule[];
+
+  /**
+   * Aggregations applied to projected `columns`. Group-by is implied: any column
+   * in `columns` without a rule becomes a grouping key. Rendered as
+   * `SELECT <dims>, FN(<metric>) AS <metric> ... GROUP BY <dims>`.
+   */
+  aggregations?: AggregationRule[];
+
+  /**
+   * Date-trunc rules attaching a calendar bucket (DAY/WEEK/MONTH/QUARTER/YEAR) to a
+   * dimension column. The truncated expression becomes both the projected column
+   * (aliased to the column name) and its GROUP BY key. Triggers the aggregated path
+   * even with zero metric aggregations.
+   */
+  dateTruncs?: DateTruncRule[];
+
+  /**
+   * When true, append a synthetic `COUNT(*) AS "Row Count"` metric to the aggregated
+   * SELECT (no extra GROUP BY key). Triggers the aggregated path even with zero metric
+   * aggregations and zero date-trunc rules.
+   */
+  rowCount?: boolean;
+
+  /**
+   * When true, append a synthetic `COUNT(DISTINCT <pk-tuple>) AS "Unique Count"` metric
+   * to the aggregated SELECT (no extra GROUP BY key). Requires `primaryKeyColumns` to be
+   * non-empty. Triggers the aggregated path even with zero metric aggregations.
+   */
+  uniqueCount?: boolean;
+
+  /**
+   * Primary-key column names used to build the COUNT(DISTINCT …) expression for the
+   * Unique Count metric. Required when `uniqueCount` is true; ignored otherwise.
+   */
+  primaryKeyColumns?: string[];
 
   /** Output sort (Task 7+) — applied as ORDER BY on the final SELECT. */
   sort?: SortRule[];

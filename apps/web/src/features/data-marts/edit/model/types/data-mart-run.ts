@@ -27,6 +27,8 @@ export interface DataMartRunItem {
   aiAssistantDefinition: DataMartRunAiAssistantDefinition | null;
   createdByUser: UserProjection | null;
   additionalParams: Record<string, unknown> | null;
+  /** Grand-totals summary (numeric fields × allowed aggregations); null when none. */
+  totals: Record<string, number | string | boolean | null> | null;
 }
 
 export interface DataMartRunDataMartRef {

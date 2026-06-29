@@ -126,6 +126,9 @@ export class UpdateReportService {
       filterConfig: command.filterConfig ?? null,
       sortConfig: command.sortConfig ?? null,
       limitConfig: command.limitConfig ?? null,
+      aggregationConfig: command.aggregationConfig ?? null,
+      dateTruncConfig: command.dateTruncConfig ?? null,
+      uniqueCountConfig: command.uniqueCountConfig ?? null,
       accessor: { userId: command.userId, roles: command.roles },
     });
 
@@ -148,6 +151,20 @@ export class UpdateReportService {
     const nextLimitConfig = command.limitConfig ?? null;
     const limitChanged = previousLimitConfig !== nextLimitConfig;
 
+    const previousAggregationConfig = report.aggregationConfig ?? null;
+    const nextAggregationConfig = command.aggregationConfig ?? null;
+    const aggregationChanged =
+      JSON.stringify(previousAggregationConfig) !== JSON.stringify(nextAggregationConfig);
+
+    const previousDateTruncConfig = report.dateTruncConfig ?? null;
+    const nextDateTruncConfig = command.dateTruncConfig ?? null;
+    const dateTruncChanged =
+      JSON.stringify(previousDateTruncConfig) !== JSON.stringify(nextDateTruncConfig);
+
+    const previousUniqueCountConfig = report.uniqueCountConfig ?? null;
+    const nextUniqueCountConfig = command.uniqueCountConfig ?? null;
+    const uniqueCountChanged = previousUniqueCountConfig !== nextUniqueCountConfig;
+
     report.title = command.title;
     report.dataDestination = dataDestination;
     report.destinationConfig = command.destinationConfig;
@@ -155,6 +172,9 @@ export class UpdateReportService {
     report.filterConfig = nextFilterConfig;
     report.sortConfig = nextSortConfig;
     report.limitConfig = nextLimitConfig;
+    report.aggregationConfig = nextAggregationConfig;
+    report.dateTruncConfig = nextDateTruncConfig;
+    report.uniqueCountConfig = nextUniqueCountConfig;
 
     const updatedReport = await this.reportRepository.save(report);
 
@@ -175,7 +195,15 @@ export class UpdateReportService {
       );
     }
 
-    if (columnConfigChanged || filterChanged || sortChanged || limitChanged) {
+    if (
+      columnConfigChanged ||
+      filterChanged ||
+      sortChanged ||
+      limitChanged ||
+      aggregationChanged ||
+      dateTruncChanged ||
+      uniqueCountChanged
+    ) {
       await this.reportDataCacheService.invalidateByReportId(updatedReport.id);
     }
 

@@ -64,7 +64,12 @@ export type DestinationConfigDto =
   | LookerStudioDestinationConfigDto
   | EmailDestinationConfigDto;
 
-import type { FilterRule, SortRule } from '../../../../shared/types/output-config';
+import type {
+  AggregationRule,
+  DateTruncRule,
+  FilterRule,
+  SortRule,
+} from '../../../../shared/types/output-config';
 
 /**
  * DTO for updating an existing report
@@ -78,4 +83,7 @@ export interface UpdateReportRequestDto {
   filterConfig?: FilterRule[] | null;
   sortConfig?: SortRule[] | null;
   limitConfig?: number | null;
+  aggregationConfig?: AggregationRule[] | null;
+  dateTruncConfig?: DateTruncRule[] | null;
+  uniqueCountConfig?: boolean | null;
 }

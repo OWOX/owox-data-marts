@@ -39,12 +39,14 @@ describe('ReportSqlComposerService', () => {
     const capabilityService = {
       isSupported: jest.fn().mockReturnValue(capabilitySupported),
     };
+    const blendableSchemaService = { computeBlendableSchema: jest.fn() };
 
     const service = new ReportSqlComposerService(
       blendedReportDataService as never,
       queryBuilderFacade as never,
       tableReferenceService as never,
-      capabilityService as never
+      capabilityService as never,
+      blendableSchemaService as never
     );
 
     return {
@@ -71,10 +73,11 @@ describe('ReportSqlComposerService', () => {
     await service.compose(report, { userId: 'user-1', roles: ['admin'] });
 
     expect(blendedReportDataService.resolveBlendingDecision).toHaveBeenCalledTimes(1);
-    expect(blendedReportDataService.resolveBlendingDecision).toHaveBeenCalledWith(report, {
-      userId: 'user-1',
-      roles: ['admin'],
-    });
+    expect(blendedReportDataService.resolveBlendingDecision).toHaveBeenCalledWith(
+      report,
+      { userId: 'user-1', roles: ['admin'] },
+      undefined
+    );
   });
 
   it('propagates validator rejection thrown by resolveBlendingDecision', async () => {
@@ -170,11 +173,13 @@ describe('ReportSqlComposerService', () => {
     };
     const tableReferenceService = { resolveTableName: jest.fn().mockResolvedValue('p.d.view_x') };
     const capabilityService = { isSupported: jest.fn().mockReturnValue(true) };
+    const blendableSchemaService = { computeBlendableSchema: jest.fn() };
     const composer = new ReportSqlComposerService(
       blendedDataService as never,
       queryBuilderFacade as never,
       tableReferenceService as never,
-      capabilityService as never
+      capabilityService as never,
+      blendableSchemaService as never
     );
     const filterConfig = [{ column: 'a', operator: 'eq', value: 1 }];
     const sortConfig = [{ column: 'a', direction: 'asc' }];
@@ -216,11 +221,13 @@ describe('ReportSqlComposerService', () => {
     };
     const tableReferenceService = { resolveTableName: jest.fn().mockResolvedValue('p.d.view_x') };
     const capabilityService = { isSupported: jest.fn().mockReturnValue(true) };
+    const blendableSchemaService = { computeBlendableSchema: jest.fn() };
     const composer = new ReportSqlComposerService(
       blendedDataService as never,
       queryBuilderFacade as never,
       tableReferenceService as never,
-      capabilityService as never
+      capabilityService as never,
+      blendableSchemaService as never
     );
     const filterConfig = [
       {
@@ -266,11 +273,13 @@ describe('ReportSqlComposerService', () => {
         .mockResolvedValue({ needsBlending: false, columnFilter: ['a'] }),
     };
     const capabilityService = { isSupported: jest.fn().mockReturnValue(true) };
+    const blendableSchemaService = { computeBlendableSchema: jest.fn() };
     const composer = new ReportSqlComposerService(
       blendedDataService as never,
       queryBuilderFacade as never,
       tableReferenceService as never,
-      capabilityService as never
+      capabilityService as never,
+      blendableSchemaService as never
     );
     const report = {
       dataMart: {
@@ -297,7 +306,8 @@ describe('ReportSqlComposerService', () => {
       blendedDataService as never,
       {} as never,
       {} as never,
-      { isSupported: jest.fn() } as never
+      { isSupported: jest.fn() } as never,
+      { computeBlendableSchema: jest.fn() } as never
     );
     const result = await composer.compose(
       {
@@ -441,12 +451,14 @@ describe('ReportSqlComposerService', () => {
         resolveTableName: jest.fn().mockResolvedValue('`proj`.`ds`.`view_x`'),
       };
       const capabilityService = { isSupported: jest.fn().mockReturnValue(true) };
+      const blendableSchemaService = { computeBlendableSchema: jest.fn() };
 
       return new ReportSqlComposerService(
         blendedDataService as never,
         facade as never,
         tableReferenceService as never,
-        capabilityService as never
+        capabilityService as never,
+        blendableSchemaService as never
       );
     }
 
@@ -469,11 +481,11 @@ describe('ReportSqlComposerService', () => {
 
       const result = await composer.compose(report, { userId: 'user-1', roles: ['admin'] });
 
-      expect(result.sql).toContain('SELECT `name`, `amount`');
+      expect(result.sql).toContain('SELECT\n  `name`,\n  `amount`');
       expect(result.sql).toContain('FROM `proj`.`ds`.`tbl`');
       expect(result.sql).toContain('WHERE `name` = @p0');
       expect(result.sql).toContain('AND `amount` BETWEEN @p1 AND @p2');
-      expect(result.sql).toContain('ORDER BY `amount` DESC');
+      expect(result.sql).toContain('ORDER BY\n  `amount` DESC');
       expect(result.sql).toContain('LIMIT 50');
 
       // The full param array — proves no string interpolation of user values.
@@ -554,12 +566,14 @@ describe('ReportSqlComposerService', () => {
       const queryBuilderFacade = { buildQuery: jest.fn() };
       const tableReferenceService = { resolveTableName: jest.fn() };
       const capabilityService = { isSupported: jest.fn().mockReturnValue(true) };
+      const blendableSchemaService = { computeBlendableSchema: jest.fn() };
 
       return new ReportSqlComposerService(
         blendedReportDataService as never,
         queryBuilderFacade as never,
         tableReferenceService as never,
-        capabilityService as never
+        capabilityService as never,
+        blendableSchemaService as never
       );
     }
 
@@ -655,12 +669,14 @@ describe('ReportSqlComposerService', () => {
       const queryBuilderFacade = { buildQuery: jest.fn() };
       const tableReferenceService = { resolveTableName: jest.fn() };
       const capabilityService = { isSupported: jest.fn().mockReturnValue(true) };
+      const blendableSchemaService = { computeBlendableSchema: jest.fn() };
 
       const service = new ReportSqlComposerService(
         blendedReportDataService as never,
         queryBuilderFacade as never,
         tableReferenceService as never,
-        capabilityService as never
+        capabilityService as never,
+        blendableSchemaService as never
       );
 
       await expect(
@@ -698,12 +714,14 @@ describe('ReportSqlComposerService', () => {
         resolveTableName: jest.fn().mockResolvedValue('"mydb"."myschema"."orders"'),
       };
       const capabilityService = { isSupported: jest.fn().mockReturnValue(true) };
+      const blendableSchemaService = { computeBlendableSchema: jest.fn() };
 
       return new ReportSqlComposerService(
         blendedDataService as never,
         facade as never,
         tableReferenceService as never,
-        capabilityService as never
+        capabilityService as never,
+        blendableSchemaService as never
       );
     }
 
@@ -726,11 +744,11 @@ describe('ReportSqlComposerService', () => {
 
       const result = await composer.compose(report, { userId: 'u1', roles: ['viewer'] });
 
-      expect(result.sql).toContain('SELECT "name", "amount"');
+      expect(result.sql).toContain('SELECT\n  "name",\n  "amount"');
       expect(result.sql).toContain('FROM "mydb"."myschema"."orders"');
       // Athena uses positional ? (not named @p0)
-      expect(result.sql).toContain('WHERE "name" = ? AND "amount" >= ?');
-      expect(result.sql).toContain('ORDER BY "amount" DESC');
+      expect(result.sql).toContain('WHERE "name" = ?\n  AND "amount" >= ?');
+      expect(result.sql).toContain('ORDER BY\n  "amount" DESC');
       expect(result.sql).toContain('LIMIT 100');
       expect(result.params).toEqual([
         { name: 'p0', value: 'Alice' },
@@ -785,12 +803,13 @@ describe('ReportSqlComposerService', () => {
 
       // No unbound placeholders survive; values are inlined (quotes escaped).
       expect(sql).not.toContain('?');
-      expect(sql).toContain(`WHERE "name" = 'O''Brien' AND "amount" >= 50`);
+      expect(sql).toContain(`WHERE "name" = 'O''Brien'\n  AND "amount" >= 50`);
     });
   });
 
   describe('inlineStaticSql', () => {
     const composer = new ReportSqlComposerService(
+      {} as never,
       {} as never,
       {} as never,
       {} as never,
@@ -854,11 +873,13 @@ describe('ReportSqlComposerService', () => {
       };
       const tableReferenceService = { resolveTableName: jest.fn().mockResolvedValue('p.d.t') };
       const capabilityService = { isSupported: jest.fn().mockReturnValue(true) };
+      const blendableSchemaService = { computeBlendableSchema: jest.fn() };
       const composer = new ReportSqlComposerService(
         blendedDataService as never,
         queryBuilderFacade as never,
         tableReferenceService as never,
-        capabilityService as never
+        capabilityService as never,
+        blendableSchemaService as never
       );
       const report = {
         filterConfig: [{ column: 'name', operator: 'eq', value: "O'Brien" }],
@@ -893,7 +914,8 @@ describe('ReportSqlComposerService', () => {
         blendedDataService as never,
         queryBuilderFacade as never,
         { resolveTableName: jest.fn().mockResolvedValue('p.d.t') } as never,
-        { isSupported: jest.fn().mockReturnValue(true) } as never
+        { isSupported: jest.fn().mockReturnValue(true) } as never,
+        { computeBlendableSchema: jest.fn() } as never
       );
       const report = {
         filterConfig: [{ column: 'd', operator: 'gte', value: '2024-01-01' }],
@@ -921,7 +943,8 @@ describe('ReportSqlComposerService', () => {
         blendedDataService as never,
         queryBuilderFacade as never,
         { resolveTableName: jest.fn() } as never,
-        { isSupported: jest.fn().mockReturnValue(true) } as never
+        { isSupported: jest.fn().mockReturnValue(true) } as never,
+        { computeBlendableSchema: jest.fn() } as never
       );
       const report = {
         dataMart: {

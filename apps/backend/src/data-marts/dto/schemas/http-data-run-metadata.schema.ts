@@ -21,6 +21,9 @@ export const HttpDataRunMetadataSchema = z.object({
   rowCount: z.number().int().nonnegative().optional(),
   bytesWritten: z.number().int().nonnegative().optional(),
   completed: z.boolean().optional(),
+  // Grand-total row (one scalar per aggregated metric + Row Count), keyed by output-column
+  // name. Present only for aggregated reports; computed as a separate query at run time.
+  totals: z.record(z.union([z.number(), z.string(), z.boolean(), z.null()])).optional(),
 });
 
 export type HttpDataRunMetadata = z.infer<typeof HttpDataRunMetadataSchema>;

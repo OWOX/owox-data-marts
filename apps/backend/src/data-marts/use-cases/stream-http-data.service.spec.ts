@@ -28,6 +28,7 @@ import { DataMartRunService } from '../services/data-mart-run.service';
 import { DataMartService } from '../services/data-mart.service';
 import { ProjectBalanceService } from '../services/project-balance.service';
 import { ReportSqlComposerService } from '../services/report-sql-composer.service';
+import { ReportTotalsService } from '../services/report-totals.service';
 import { HttpDataColumnResolver } from '../services/http-data/http-data-column-resolver.service';
 import { HttpDataColumnValidator } from '../services/http-data/http-data-column-validator.service';
 import { HttpDataRequestValidator } from '../services/http-data/http-data-request-validator.service';
@@ -184,6 +185,7 @@ describe('StreamHttpDataService', () => {
   let readerResolver: jest.Mocked<TypeResolver<DataStorageType, DataStorageReportReader>>;
   let errorMapper: jest.Mocked<DataStorageErrorMapper>;
   let errorMapperResolver: jest.Mocked<TypeResolver<DataStorageType, DataStorageErrorMapper>>;
+  let reportTotals: jest.Mocked<ReportTotalsService>;
   let service: StreamHttpDataService;
 
   beforeEach(() => {
@@ -293,6 +295,11 @@ describe('StreamHttpDataService', () => {
       resolve: jest.fn(async () => errorMapper),
     } as unknown as jest.Mocked<TypeResolver<DataStorageType, DataStorageErrorMapper>>;
 
+    reportTotals = {
+      // Default: not aggregated -> no totals.
+      computeTotals: jest.fn(async () => null),
+    } as unknown as jest.Mocked<ReportTotalsService>;
+
     service = new StreamHttpDataService(
       requestValidator,
       columnResolver,
@@ -309,7 +316,8 @@ describe('StreamHttpDataService', () => {
       gracefulShutdown,
       systemTime,
       readerResolver,
-      errorMapperResolver
+      errorMapperResolver,
+      reportTotals
     );
   });
 
@@ -331,6 +339,49 @@ describe('StreamHttpDataService', () => {
     );
     expect(consumption.registerHttpDataRunConsumption).toHaveBeenCalled();
     expect(reader.finalize).toHaveBeenCalled();
+  });
+
+  it('computes totals before streaming and persists them under the run metadata', async () => {
+    const totals = { 'revenue | SUM': 93, 'Row Count': 2 };
+    reportTotals.computeTotals.mockResolvedValueOnce(totals);
+    const res = mockResponse();
+
+    await service.stream(fakeCommand(), res);
+
+    // Totals are computed before any row is streamed (headers/body flushed).
+    const totalsOrder = (reportTotals.computeTotals as jest.Mock).mock.invocationCallOrder[0];
+    const firstReadOrder = (reader.readReportDataBatch as jest.Mock).mock.invocationCallOrder[0];
+    expect(totalsOrder).toBeLessThan(firstReadOrder);
+
+    expect(dataMartRunService.recordHttpDataRun).toHaveBeenCalledWith(
+      expect.objectContaining({
+        status: DataMartRunStatus.SUCCESS,
+        metadata: expect.objectContaining({ totals }),
+      })
+    );
+  });
+
+  it('still sets x-owox-run-id and streams when totals computation throws (best-effort)', async () => {
+    reportTotals.computeTotals.mockRejectedValueOnce(new Error('totals query exploded'));
+    const res = mockResponse();
+
+    await service.stream(fakeCommand(), res);
+
+    // Stream is unaffected: both rows are written and a SUCCESS run is recorded.
+    expect(res._writes).toEqual([
+      '{"date":"2026-05-01","revenue":42}\n',
+      '{"date":"2026-05-02","revenue":51}\n',
+    ]);
+    const setRunIdHeader = (res.setHeader as jest.Mock).mock.calls.find(
+      ([name]) => String(name).toLowerCase() === 'x-owox-run-id'
+    );
+    expect(setRunIdHeader).toBeDefined();
+    expect(dataMartRunService.recordHttpDataRun).toHaveBeenCalledWith(
+      expect.objectContaining({
+        status: DataMartRunStatus.SUCCESS,
+        metadata: expect.not.objectContaining({ totals: expect.anything() }),
+      })
+    );
   });
 
   it('emits no NDJSON envelope (no type/meta/done/error markers)', async () => {

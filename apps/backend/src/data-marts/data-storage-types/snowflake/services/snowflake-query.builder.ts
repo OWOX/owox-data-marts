@@ -14,8 +14,10 @@ import {
 } from '../../interfaces/data-mart-query-builder.interface';
 import { FilterRule } from '../../../dto/schemas/filter-config.schema';
 import { createIdentifierEscaper } from '../../utils/identifier-escaper.utils';
+import { buildDateTruncUnitMap, buildTimeZoneMap } from '../../utils/date-trunc-maps.utils';
 import { escapeSnowflakeIdentifier } from '../utils/snowflake-identifier.utils';
 import { SnowflakeClauseRenderer } from './snowflake-clause-renderer';
+import { composeSelectFromClause } from '../../utils/sql-clause-renderer';
 
 // User-controlled output-control column names use the robust shared escaper (quotes every
 // dotted part, doubles inner quotes). Table FQNs in FROM keep escapeSnowflakeIdentifier
@@ -29,9 +31,17 @@ export class SnowflakeQueryBuilder implements DataMartQueryBuilder {
   constructor(private readonly clauseRenderer: SnowflakeClauseRenderer) {}
 
   buildQuery(definition: DataMartDefinition, queryOptions?: DataMartQueryOptions): string {
+    const aggregations = queryOptions?.aggregations ?? [];
+    const dateTruncs = queryOptions?.dateTruncs ?? [];
+    const rowCount = queryOptions?.rowCount === true;
+    const uniqueCount = queryOptions?.uniqueCount === true;
     const hasOutputControls =
       (queryOptions?.filters?.length ?? 0) > 0 ||
       (queryOptions?.sort?.length ?? 0) > 0 ||
+      aggregations.length > 0 ||
+      dateTruncs.length > 0 ||
+      rowCount ||
+      uniqueCount ||
       queryOptions?.limit != null;
 
     const selectList = this.buildSelectList(queryOptions?.columns);
@@ -63,7 +73,34 @@ export class SnowflakeQueryBuilder implements DataMartQueryBuilder {
       );
     }
 
-    return `SELECT ${selectList} FROM ${fromClause}${where.sql}${orderBy.sql}${limit.sql}`;
+    if (aggregations.length > 0 || dateTruncs.length > 0 || rowCount || uniqueCount) {
+      const agg = this.clauseRenderer.renderAggregatedSelect(
+        queryOptions?.columns ?? [],
+        aggregations,
+        buildDateTruncUnitMap(dateTruncs),
+        {
+          includeRowCount: rowCount,
+          includeUniqueCount: uniqueCount,
+          primaryKeyColumns: queryOptions?.primaryKeyColumns,
+          timeZoneByColumn: buildTimeZoneMap(dateTruncs),
+        }
+      );
+      // ORDER BY must reference the output alias — a bare aggregated column is not in GROUP BY.
+      const aggOrderBy = this.clauseRenderer.renderOrderBy(
+        queryOptions?.sort ?? [],
+        this.clauseRenderer.buildAggregatedAliasResolver(agg.aliasByColumn)
+      );
+      // Snowflake inlines literals, so HAVING carries no bound params (same as WHERE above).
+      const having = this.clauseRenderer.renderHaving(
+        queryOptions?.filters ?? [],
+        undefined,
+        'h',
+        resolveColumnType
+      );
+      return `${composeSelectFromClause(agg.selectSql, fromClause)}${where.sql}${agg.groupBySql}${having.sql}${aggOrderBy.sql}${limit.sql}`;
+    }
+
+    return `${composeSelectFromClause(selectList, fromClause)}${where.sql}${orderBy.sql}${limit.sql}`;
   }
 
   private buildPlainQuery(
@@ -72,15 +109,21 @@ export class SnowflakeQueryBuilder implements DataMartQueryBuilder {
     queryOptions?: DataMartQueryOptions
   ): string {
     if (isTableDefinition(definition) || isViewDefinition(definition)) {
-      return `SELECT ${selectList} FROM ${escapeSnowflakeIdentifier(definition.fullyQualifiedName)}`;
+      return composeSelectFromClause(
+        selectList,
+        escapeSnowflakeIdentifier(definition.fullyQualifiedName)
+      );
     }
     if (isConnectorDefinition(definition)) {
-      return `SELECT ${selectList} FROM ${escapeSnowflakeIdentifier(definition.connector.storage.fullyQualifiedName)}`;
+      return composeSelectFromClause(
+        selectList,
+        escapeSnowflakeIdentifier(definition.connector.storage.fullyQualifiedName)
+      );
     }
     if (isSqlDefinition(definition)) {
       if (queryOptions?.columns?.length) {
         const cleanQuery = definition.sqlQuery.trim().replace(/;\s*$/, '');
-        return `SELECT ${selectList} FROM (${cleanQuery})`;
+        return composeSelectFromClause(selectList, `(${cleanQuery})`);
       }
       return definition.sqlQuery;
     }
@@ -119,6 +162,6 @@ export class SnowflakeQueryBuilder implements DataMartQueryBuilder {
     if (!columns || columns.length === 0) {
       return '*';
     }
-    return columns.map(col => escapeColumnIdentifier(col)).join(', ');
+    return columns.map(col => escapeColumnIdentifier(col)).join(',\n  ');
   }
 }

@@ -1,4 +1,4 @@
-import { computeEffectiveType } from './field-aggregation';
+import { computeEffectiveType, integerTypeFor } from './field-aggregation';
 import { DataStorageType } from './enums/data-storage-type.enum';
 import { BigQueryFieldType } from './bigquery/enums/bigquery-field-type.enum';
 import { AthenaFieldType } from './athena/enums/athena-field-type.enum';
@@ -68,6 +68,19 @@ describe('computeEffectiveType', () => {
     });
   });
 
+  describe('AVG yields storage-specific float type (average of integers is fractional)', () => {
+    it.each([
+      [DataStorageType.GOOGLE_BIGQUERY, BigQueryFieldType.INTEGER, BigQueryFieldType.FLOAT],
+      [DataStorageType.LEGACY_GOOGLE_BIGQUERY, BigQueryFieldType.INTEGER, BigQueryFieldType.FLOAT],
+      [DataStorageType.AWS_ATHENA, AthenaFieldType.INTEGER, AthenaFieldType.DOUBLE],
+      [DataStorageType.SNOWFLAKE, SnowflakeFieldType.INTEGER, SnowflakeFieldType.FLOAT],
+      [DataStorageType.AWS_REDSHIFT, RedshiftFieldType.INTEGER, RedshiftFieldType.DOUBLE_PRECISION],
+      [DataStorageType.DATABRICKS, DatabricksFieldType.INT, DatabricksFieldType.DOUBLE],
+    ])('AVG in %s → %s', (storageType, rawType, expected) => {
+      expect(computeEffectiveType(rawType, 'AVG', storageType)).toBe(expected);
+    });
+  });
+
   describe('STRING_AGG yields storage-specific string type', () => {
     it.each([
       [DataStorageType.GOOGLE_BIGQUERY, BigQueryFieldType.STRING, BigQueryFieldType.STRING],
@@ -79,5 +92,67 @@ describe('computeEffectiveType', () => {
     ])('STRING_AGG in %s → %s', (storageType, rawType, expected) => {
       expect(computeEffectiveType(rawType, 'STRING_AGG', storageType)).toBe(expected);
     });
+  });
+
+  describe('percentile aggregations yield storage-specific float type', () => {
+    it.each([
+      [DataStorageType.GOOGLE_BIGQUERY, BigQueryFieldType.INTEGER, BigQueryFieldType.FLOAT],
+      [DataStorageType.LEGACY_GOOGLE_BIGQUERY, BigQueryFieldType.INTEGER, BigQueryFieldType.FLOAT],
+      [DataStorageType.AWS_ATHENA, AthenaFieldType.INTEGER, AthenaFieldType.DOUBLE],
+      [DataStorageType.SNOWFLAKE, SnowflakeFieldType.INTEGER, SnowflakeFieldType.FLOAT],
+      [DataStorageType.AWS_REDSHIFT, RedshiftFieldType.INTEGER, RedshiftFieldType.DOUBLE_PRECISION],
+      [DataStorageType.DATABRICKS, DatabricksFieldType.INT, DatabricksFieldType.DOUBLE],
+    ])('P50 in %s → %s', (storageType, rawType, expected) => {
+      expect(computeEffectiveType(rawType, 'P50', storageType)).toBe(expected);
+    });
+
+    it('P25 in BigQuery → FLOAT', () => {
+      expect(
+        computeEffectiveType(BigQueryFieldType.INTEGER, 'P25', DataStorageType.GOOGLE_BIGQUERY)
+      ).toBe(BigQueryFieldType.FLOAT);
+    });
+    it('P75 in BigQuery → FLOAT', () => {
+      expect(
+        computeEffectiveType(BigQueryFieldType.INTEGER, 'P75', DataStorageType.GOOGLE_BIGQUERY)
+      ).toBe(BigQueryFieldType.FLOAT);
+    });
+    it('P95 in BigQuery → FLOAT', () => {
+      expect(
+        computeEffectiveType(BigQueryFieldType.INTEGER, 'P95', DataStorageType.GOOGLE_BIGQUERY)
+      ).toBe(BigQueryFieldType.FLOAT);
+    });
+  });
+});
+
+// AVG/percentile widen to the storage float type via the (private) getFloatType switch.
+// It must be exhaustive: every current storage type resolves a defined float type, and an
+// unhandled (future) storage type must fail loudly, not silently return undefined.
+describe('float-type resolution is exhaustive (getFloatType via AVG)', () => {
+  it.each(Object.values(DataStorageType))('returns a defined float type for %s', storageType => {
+    const result = computeEffectiveType(
+      BigQueryFieldType.INTEGER,
+      'AVG',
+      storageType as DataStorageType
+    );
+    expect(result).toBeDefined();
+  });
+
+  it('throws for an unhandled storage type instead of returning undefined', () => {
+    expect(() =>
+      computeEffectiveType(BigQueryFieldType.INTEGER, 'AVG', 'NOT_A_STORAGE' as DataStorageType)
+    ).toThrow();
+  });
+});
+
+describe('integerTypeFor (Row Count header type)', () => {
+  it.each([
+    [DataStorageType.GOOGLE_BIGQUERY, BigQueryFieldType.INTEGER],
+    [DataStorageType.LEGACY_GOOGLE_BIGQUERY, BigQueryFieldType.INTEGER],
+    [DataStorageType.AWS_ATHENA, AthenaFieldType.INTEGER],
+    [DataStorageType.SNOWFLAKE, SnowflakeFieldType.INTEGER],
+    [DataStorageType.AWS_REDSHIFT, RedshiftFieldType.INTEGER],
+    [DataStorageType.DATABRICKS, DatabricksFieldType.INT],
+  ])('returns the integer type for %s', (storageType, expected) => {
+    expect(integerTypeFor(storageType)).toBe(expected);
   });
 });

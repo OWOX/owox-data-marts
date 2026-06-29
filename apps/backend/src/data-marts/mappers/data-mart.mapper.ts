@@ -610,6 +610,7 @@ export class DataMartMapper {
           finishedAt: item.run.finishedAt,
           createdByUser: item.run.createdByUser,
           additionalParams: this.maskAdditionalParams(item.run),
+          totals: this.extractTotals(item.run),
         };
       })
     );
@@ -659,6 +660,7 @@ export class DataMartMapper {
       startedAt: run.startedAt,
       finishedAt: run.finishedAt,
       additionalParams: this.maskAdditionalParams(run),
+      totals: this.extractTotals(run),
     };
   }
 
@@ -688,10 +690,35 @@ export class DataMartMapper {
   }
 
   private maskAdditionalParams(run: DataMartRunDto): Record<string, unknown> | null {
-    if (run.type !== DataMartRunType.HTTP_DATA) {
-      return null;
+    // Whitelist only what is safe to expose; every other key (internal run params) is
+    // dropped. `totals` are surfaced at the TOP LEVEL of the response (see extractTotals),
+    // so they are removed here: HTTP_DATA runs expose their `httpData` subtree minus totals;
+    // report runs expose nothing (their only safe-to-expose key was `totals`).
+    if (run.type === DataMartRunType.HTTP_DATA) {
+      const httpData = run.additionalParams?.[HTTP_DATA_PARAMS_KEY] as
+        | Record<string, unknown>
+        | undefined;
+      if (!httpData) {
+        return null;
+      }
+      const { totals: _totals, ...rest } = httpData;
+      return { [HTTP_DATA_PARAMS_KEY]: rest };
     }
-    const httpData = run.additionalParams?.[HTTP_DATA_PARAMS_KEY];
-    return httpData ? { [HTTP_DATA_PARAMS_KEY]: httpData } : null;
+    return null;
+  }
+
+  /**
+   * Grand-totals summary, surfaced at the top level of the run response. Report runs persist
+   * it as `additionalParams.totals`; HTTP_DATA runs nest it inside the `httpData` subtree.
+   */
+  private extractTotals(
+    run: DataMartRunDto
+  ): Record<string, number | string | boolean | null> | null {
+    const totals =
+      run.type === DataMartRunType.HTTP_DATA
+        ? (run.additionalParams?.[HTTP_DATA_PARAMS_KEY] as Record<string, unknown> | undefined)
+            ?.totals
+        : run.additionalParams?.totals;
+    return (totals as Record<string, number | string | boolean | null> | undefined) ?? null;
   }
 }

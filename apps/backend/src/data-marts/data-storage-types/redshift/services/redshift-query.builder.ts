@@ -13,7 +13,9 @@ import {
   isTablePatternDefinition,
 } from '../../../dto/schemas/data-mart-table-definitions/data-mart-definition.guards';
 import { escapeRedshiftIdentifier } from '../utils/redshift-identifier.utils';
+import { buildDateTruncUnitMap, buildTimeZoneMap } from '../../utils/date-trunc-maps.utils';
 import { RedshiftClauseRenderer } from './redshift-clause-renderer';
+import { composeSelectFromClause } from '../../utils/sql-clause-renderer';
 
 @Injectable()
 export class RedshiftQueryBuilder implements DataMartQueryBuilder {
@@ -22,9 +24,17 @@ export class RedshiftQueryBuilder implements DataMartQueryBuilder {
   constructor(private readonly clauseRenderer: RedshiftClauseRenderer) {}
 
   buildQuery(definition: DataMartDefinition, queryOptions?: DataMartQueryOptions): string {
+    const aggregations = queryOptions?.aggregations ?? [];
+    const dateTruncs = queryOptions?.dateTruncs ?? [];
+    const rowCount = queryOptions?.rowCount === true;
+    const uniqueCount = queryOptions?.uniqueCount === true;
     const hasOutputControls =
       (queryOptions?.filters?.length ?? 0) > 0 ||
       (queryOptions?.sort?.length ?? 0) > 0 ||
+      aggregations.length > 0 ||
+      dateTruncs.length > 0 ||
+      rowCount ||
+      uniqueCount ||
       queryOptions?.limit != null;
 
     const selectList = this.buildSelectList(queryOptions?.columns);
@@ -47,7 +57,29 @@ export class RedshiftQueryBuilder implements DataMartQueryBuilder {
       );
     }
 
-    return `SELECT ${selectList} FROM ${fromClause}${where.sql}${orderBy.sql}${limit.sql}`;
+    if (aggregations.length > 0 || dateTruncs.length > 0 || rowCount || uniqueCount) {
+      const agg = this.clauseRenderer.renderAggregatedSelect(
+        queryOptions?.columns ?? [],
+        aggregations,
+        buildDateTruncUnitMap(dateTruncs),
+        {
+          includeRowCount: rowCount,
+          includeUniqueCount: uniqueCount,
+          primaryKeyColumns: queryOptions?.primaryKeyColumns,
+          timeZoneByColumn: buildTimeZoneMap(dateTruncs),
+        }
+      );
+      // ORDER BY must reference the output alias — a bare aggregated column is not in GROUP BY.
+      const aggOrderBy = this.clauseRenderer.renderOrderBy(
+        queryOptions?.sort ?? [],
+        this.clauseRenderer.buildAggregatedAliasResolver(agg.aliasByColumn)
+      );
+      // Redshift inlines literals, so HAVING carries no bound params (same as WHERE above).
+      const having = this.clauseRenderer.renderHaving(queryOptions?.filters ?? []);
+      return `${composeSelectFromClause(agg.selectSql, fromClause)}${where.sql}${agg.groupBySql}${having.sql}${aggOrderBy.sql}${limit.sql}`;
+    }
+
+    return `${composeSelectFromClause(selectList, fromClause)}${where.sql}${orderBy.sql}${limit.sql}`;
   }
 
   private buildPlainQuery(
@@ -56,15 +88,21 @@ export class RedshiftQueryBuilder implements DataMartQueryBuilder {
     queryOptions?: DataMartQueryOptions
   ): string {
     if (isTableDefinition(definition) || isViewDefinition(definition)) {
-      return `SELECT ${selectList} FROM ${escapeRedshiftIdentifier(definition.fullyQualifiedName)}`;
+      return composeSelectFromClause(
+        selectList,
+        escapeRedshiftIdentifier(definition.fullyQualifiedName)
+      );
     }
     if (isConnectorDefinition(definition)) {
-      return `SELECT ${selectList} FROM ${escapeRedshiftIdentifier(definition.connector.storage.fullyQualifiedName)}`;
+      return composeSelectFromClause(
+        selectList,
+        escapeRedshiftIdentifier(definition.connector.storage.fullyQualifiedName)
+      );
     }
     if (isSqlDefinition(definition)) {
       if (queryOptions?.columns?.length) {
         const cleanQuery = definition.sqlQuery.trim().replace(/;\s*$/, '');
-        return `SELECT ${selectList} FROM (${cleanQuery}) AS subq`;
+        return composeSelectFromClause(selectList, `(${cleanQuery}) AS subq`);
       }
       return definition.sqlQuery.trim();
     }
@@ -101,6 +139,6 @@ export class RedshiftQueryBuilder implements DataMartQueryBuilder {
     if (!columns || columns.length === 0) {
       return '*';
     }
-    return columns.map(col => escapeRedshiftIdentifier(col)).join(', ');
+    return columns.map(col => escapeRedshiftIdentifier(col)).join(',\n  ');
   }
 }

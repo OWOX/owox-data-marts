@@ -99,7 +99,7 @@ describe('RedshiftClauseRenderer', () => {
         { column: 'name', operator: 'eq', value: "O'Brien" },
         { column: 'age', operator: 'gt', value: 30 },
       ]);
-      expect(out.sql).toBe(`\nWHERE "name" = 'O''Brien' AND "age" > 30`);
+      expect(out.sql).toBe(`\nWHERE "name" = 'O''Brien'\n  AND "age" > 30`);
       expect(out.params).toEqual([]);
     });
   });
@@ -193,7 +193,7 @@ describe('RedshiftClauseRenderer', () => {
         '\nWHERE main."a" = 1'
       );
       expect(r.renderOrderBy([{ column: 'a', direction: 'asc' }], qualify).sql).toBe(
-        '\nORDER BY main."a" ASC'
+        '\nORDER BY\n  main."a" ASC'
       );
     });
   });

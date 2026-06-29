@@ -13,7 +13,12 @@ import {
 } from '../../shared';
 import type { DataDestination } from '../../../../data-destination/shared/model/types';
 import { DEFAULT_REPORT_TITLE } from '../../shared';
-import { FilterRuleSchema, SortRuleSchema } from '../../../shared/types/output-config';
+import {
+  AggregationRuleSchema,
+  DateTruncRuleSchema,
+  FilterRuleSchema,
+  SortRuleSchema,
+} from '../../../shared/types/output-config';
 
 export const GoogleSheetsReportEditFormSchema = z.object({
   title: z.string().min(1, 'Title is required'),
@@ -26,6 +31,9 @@ export const GoogleSheetsReportEditFormSchema = z.object({
   filterConfig: z.array(FilterRuleSchema).nullable(),
   sortConfig: z.array(SortRuleSchema).nullable(),
   limitConfig: z.number().int().positive().max(10_000_000).nullable(),
+  aggregationConfig: z.array(AggregationRuleSchema).nullable(),
+  dateTruncConfig: z.array(DateTruncRuleSchema).nullable(),
+  uniqueCountConfig: z.boolean(),
 });
 
 export type GoogleSheetsReportEditFormValues = z.infer<typeof GoogleSheetsReportEditFormSchema>;
@@ -74,6 +82,9 @@ export function useGoogleSheetsReportForm({
       filterConfig: initialReport?.filterConfig ?? null,
       sortConfig: initialReport?.sortConfig ?? null,
       limitConfig: initialReport?.limitConfig ?? null,
+      aggregationConfig: initialReport?.aggregationConfig ?? null,
+      dateTruncConfig: initialReport?.dateTruncConfig ?? null,
+      uniqueCountConfig: initialReport?.uniqueCountConfig ?? false,
     },
     mode: 'onTouched',
   });
@@ -115,6 +126,9 @@ export function useGoogleSheetsReportForm({
             filterConfig: data.filterConfig,
             sortConfig: data.sortConfig,
             limitConfig: data.limitConfig,
+            aggregationConfig: data.aggregationConfig,
+            dateTruncConfig: data.dateTruncConfig,
+            uniqueCountConfig: data.uniqueCountConfig,
           });
         } else {
           if (!initialReport) {
@@ -136,6 +150,9 @@ export function useGoogleSheetsReportForm({
             filterConfig: data.filterConfig,
             sortConfig: data.sortConfig,
             limitConfig: data.limitConfig,
+            aggregationConfig: data.aggregationConfig,
+            dateTruncConfig: data.dateTruncConfig,
+            uniqueCountConfig: data.uniqueCountConfig,
           });
         }
 

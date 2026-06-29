@@ -6,6 +6,15 @@ import {
 } from './OutputSettingsDropdown';
 import type { OutputConfig } from '../../../shared/types/output-config';
 
+const EMPTY_CONFIG: OutputConfig = {
+  filterConfig: [],
+  sortConfig: [],
+  limitConfig: null,
+  aggregationConfig: [],
+  dateTruncConfig: [],
+  uniqueCountConfig: false,
+};
+
 describe('OutputSettingsDropdown disconnected controls', () => {
   it('marks stale filters, slices, and sort rules as disconnected rows', () => {
     const value: OutputConfig = {
@@ -20,6 +29,9 @@ describe('OutputSettingsDropdown disconnected controls', () => {
       ],
       sortConfig: [{ column: 'ghost_sort', direction: 'asc' }],
       limitConfig: null,
+      aggregationConfig: [],
+      dateTruncConfig: [],
+      uniqueCountConfig: false,
     };
 
     render(
@@ -51,6 +63,9 @@ describe('OutputSettingsDropdown disconnected controls', () => {
       ],
       sortConfig: [],
       limitConfig: null,
+      aggregationConfig: [],
+      dateTruncConfig: [],
+      uniqueCountConfig: false,
     };
 
     render(
@@ -77,6 +92,9 @@ describe('OutputSettingsDropdown disconnected controls', () => {
       filterConfig: [],
       sortConfig: [],
       limitConfig: null,
+      aggregationConfig: [],
+      dateTruncConfig: [],
+      uniqueCountConfig: false,
     };
 
     render(
@@ -111,6 +129,9 @@ describe('OutputSettingsDropdown readable labels', () => {
       filterConfig: [{ column: 'orders.product_id', operator: 'eq', value: 'x' }],
       sortConfig: [],
       limitConfig: null,
+      aggregationConfig: [],
+      dateTruncConfig: [],
+      uniqueCountConfig: false,
     };
 
     render(
@@ -133,6 +154,9 @@ describe('OutputSettingsDropdown readable labels', () => {
       filterConfig: [],
       sortConfig: [{ column: 'orders.product_id', direction: 'asc' }],
       limitConfig: null,
+      aggregationConfig: [],
+      dateTruncConfig: [],
+      uniqueCountConfig: false,
     };
 
     render(
@@ -147,5 +171,36 @@ describe('OutputSettingsDropdown readable labels', () => {
 
     expect(screen.getByText('Product ID')).toBeInTheDocument();
     expect(screen.queryByText('orders.product_id')).not.toBeInTheDocument();
+  });
+});
+
+describe('OutputSettingsDropdown no longer hosts aggregation controls', () => {
+  const revenue: OutputSettingsDropdownColumn = {
+    name: 'orders.revenue',
+    type: 'INTEGER',
+    label: 'Revenue',
+  };
+
+  it('renders neither the aggregation add-picker nor the row-count toggle', () => {
+    const value: OutputConfig = {
+      ...EMPTY_CONFIG,
+      aggregationConfig: [{ column: 'orders.revenue', function: 'SUM' }],
+      dateTruncConfig: [{ column: 'orders.ordered_at', unit: 'WEEK' }],
+    };
+
+    render(
+      <OutputSettingsDropdown
+        value={value}
+        onChange={() => {}}
+        allColumns={[revenue]}
+        selectedColumns={[revenue]}
+        joinedSources={[]}
+      />
+    );
+
+    expect(screen.queryByText('Add aggregation')).not.toBeInTheDocument();
+    expect(screen.queryByText('Add date grouping')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Add a Row Count metric')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Remove aggregation')).not.toBeInTheDocument();
   });
 });

@@ -200,7 +200,7 @@ describe('RedshiftBlendedQueryBuilder — output controls', () => {
     const { sql } = builder.buildBlendedQuery(
       ctx({ sort: [{ column: 'a', direction: 'desc' }], limit: 10 })
     );
-    expect(sql).toContain('ORDER BY main.a DESC');
+    expect(sql).toContain('ORDER BY\n  main.a DESC');
     expect(sql).toContain('LIMIT 10');
   });
 
@@ -214,7 +214,7 @@ describe('RedshiftBlendedQueryBuilder — output controls', () => {
         ],
       })
     );
-    expect(sql).toContain("WHERE main.a = 'x' AND main.a <> 'y'");
+    expect(sql).toContain("WHERE main.a = 'x'\n  AND main.a <> 'y'");
     expect(params).toEqual([]);
   });
 });

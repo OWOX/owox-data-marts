@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { SqlClauseRenderer, RenderedClause } from '../../utils/sql-clause-renderer';
 import { FilterRule } from '../../../dto/schemas/filter-config.schema';
+import { DateTruncUnit } from '../../../dto/schemas/date-trunc-config.schema';
 import { escapeBigQueryIdentifier } from '../utils/bigquery-identifier.utils';
 
 @Injectable()
@@ -28,6 +29,27 @@ export class BigQueryClauseRenderer extends SqlClauseRenderer {
     return columnType && BigQueryClauseRenderer.DATE_CAST_TYPES.has(columnType)
       ? `CAST(@${paramName} AS ${columnType})`
       : `@${paramName}`;
+  }
+
+  protected override renderPercentile(p: 25 | 50 | 75 | 95, columnRef: string): string {
+    return `APPROX_QUANTILES(${columnRef}, 100)[OFFSET(${p})]`;
+  }
+
+  // CAST to STRING so STRING_AGG is valid on a non-string column (e.g. a DATE).
+  protected override renderStringAgg(columnRef: string): string {
+    return `STRING_AGG(CAST(${columnRef} AS STRING), ', ')`;
+  }
+
+  // DATE() coerces TIMESTAMP/DATETIME to DATE so one form covers all date/time types.
+  // With a time zone, DATE(timestamp, tz) converts to the date in that zone first.
+  protected override renderDateTrunc(
+    columnRef: string,
+    unit: DateTruncUnit,
+    timeZone?: string
+  ): string {
+    this.assertSafeDateTrunc(unit, timeZone);
+    const dateExpr = timeZone ? `DATE(${columnRef}, '${timeZone}')` : `DATE(${columnRef})`;
+    return `DATE_TRUNC(${dateExpr}, ${unit})`;
   }
 
   protected renderFilterFragment(

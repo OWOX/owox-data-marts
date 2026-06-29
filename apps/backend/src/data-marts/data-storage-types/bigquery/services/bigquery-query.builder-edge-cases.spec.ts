@@ -119,7 +119,7 @@ describe('BigQueryQueryBuilder — simple-path edge cases', () => {
     expect(sql.indexOf('WHERE')).toBeLessThan(sql.indexOf('ORDER BY'));
 
     // ORDER BY must appear before LIMIT
-    expect(sql).toContain('ORDER BY `revenue` DESC');
+    expect(sql).toContain('ORDER BY\n  `revenue` DESC');
     expect(sql.indexOf('ORDER BY')).toBeLessThan(sql.indexOf('LIMIT'));
 
     // LIMIT at the end

@@ -11,15 +11,15 @@ function build() {
 
 describe('DatabricksQueryBuilder', () => {
   it('builds a plain SELECT with no output controls', () => {
-    expect(build().buildQuery(tableDef, {})).toBe('SELECT * FROM `cat`.`sch`.`events`');
+    expect(build().buildQuery(tableDef, {})).toBe('SELECT *\nFROM `cat`.`sch`.`events`');
   });
 
   it('wraps a SQL definition with limit (legacy schema-probe path), trailing semicolon stripped', () => {
     expect(build().buildQuery(sqlDef, { limit: 0 })).toBe(
-      'SELECT * FROM (SELECT 1) AS subq\nLIMIT 0'
+      'SELECT *\nFROM (SELECT 1) AS subq\nLIMIT 0'
     );
     expect(build().buildQuery(sqlDef, { limit: 10 })).toBe(
-      'SELECT * FROM (SELECT 1) AS subq\nLIMIT 10'
+      'SELECT *\nFROM (SELECT 1) AS subq\nLIMIT 10'
     );
   });
 
@@ -39,9 +39,9 @@ describe('DatabricksQueryBuilder', () => {
       limit: 100,
       columnTypes: new Map([['created_at', 'TIMESTAMP']]),
     });
-    expect(sql).toContain('SELECT `id`, `created_at` FROM `cat`.`sch`.`events`');
+    expect(sql).toContain('SELECT\n  `id`,\n  `created_at`\nFROM `cat`.`sch`.`events`');
     expect(sql).toContain("WHERE `created_at` >= CAST('2024-01-01' AS TIMESTAMP)");
-    expect(sql).toContain('ORDER BY `id` DESC');
+    expect(sql).toContain('ORDER BY\n  `id` DESC');
     expect(sql).toContain('LIMIT 100');
   });
 

@@ -6,6 +6,9 @@ import { DataDestinationConfig } from '../../data-destination-types/data-destina
 import { ReportColumnConfig } from '../schemas/report-column-config.schema';
 import { FilterConfig } from '../schemas/filter-config.schema';
 import { SortConfig } from '../schemas/sort-config.schema';
+import { AggregationConfig } from '../schemas/aggregation-config.schema';
+import { DateTruncConfig } from '../schemas/date-trunc-config.schema';
+import { UniqueCountConfig } from '../schemas/unique-count-config.schema';
 import { UserProjectionDto } from '../../../idp/dto/domain/user-projection.dto';
 
 export class ReportResponseApiDto {
@@ -56,6 +59,32 @@ export class ReportResponseApiDto {
     type: 'integer',
   })
   limitConfig?: number | null;
+
+  @ApiProperty({
+    nullable: true,
+    required: false,
+    description: 'Aggregation rules',
+    type: 'array',
+    items: { type: 'object' },
+  })
+  aggregationConfig?: AggregationConfig | null;
+
+  @ApiProperty({
+    nullable: true,
+    required: false,
+    description: 'Date-trunc rules',
+    type: 'array',
+    items: { type: 'object' },
+  })
+  dateTruncConfig?: DateTruncConfig | null;
+
+  @ApiProperty({
+    nullable: true,
+    required: false,
+    description: 'Unique Count config',
+    type: Boolean,
+  })
+  uniqueCountConfig?: UniqueCountConfig;
 
   @ApiProperty({ nullable: true })
   lastRunAt?: Date;

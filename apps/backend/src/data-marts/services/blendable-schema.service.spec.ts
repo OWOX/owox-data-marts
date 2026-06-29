@@ -444,6 +444,58 @@ describe('BlendableSchemaService', () => {
       expect(noOverrideField.alias).toBe('');
     });
 
+    it('resolves postJoinAggregations across all three override states', async () => {
+      const config: BlendedFieldsConfig = {
+        sources: [
+          {
+            path: 'orders',
+            alias: 'ord',
+            fields: {
+              // explicit subset override
+              revenue: { aggregateFunction: 'SUM', postJoinAggregations: ['MIN', 'MAX'] },
+              // explicit empty array = analyst cleared all (none allowed), distinct from unset
+              notes: { postJoinAggregations: [] },
+            },
+          },
+        ],
+      };
+
+      dataMartService.getByIdAndProjectId.mockResolvedValue(
+        makeDataMart({ id: 'dm-1', blendedFieldsConfig: config })
+      );
+
+      const relationship = makeRelationship({
+        id: 'rel-1',
+        targetAlias: 'orders',
+        targetDataMart: makeDataMart({
+          id: 'dm-2',
+          title: 'Orders',
+          schema: makeSchema([
+            { name: 'revenue', type: 'FLOAT' },
+            { name: 'status', type: 'STRING' },
+            { name: 'notes', type: 'STRING' },
+          ]),
+        }),
+      });
+
+      relationshipService.findByStorageId.mockResolvedValue([relationship]);
+
+      const result = await service.computeBlendableSchema('dm-1', 'project-1', defaultAccessor);
+
+      // explicit subset → kept verbatim
+      const revenueField = result.blendedFields.find(f => f.originalFieldName === 'revenue')!;
+      expect(revenueField.postJoinAggregations).toEqual(['MIN', 'MAX']);
+
+      // no override → type-derived governance default (STRING) = [COUNT, COUNT_DISTINCT]
+      // (STRING_AGG is supported but off by default per the 2026-06-29 meeting).
+      const statusField = result.blendedFields.find(f => f.originalFieldName === 'status')!;
+      expect(statusField.postJoinAggregations).toEqual(['COUNT', 'COUNT_DISTINCT']);
+
+      // explicit empty array → none allowed (NOT the default)
+      const notesField = result.blendedFields.find(f => f.originalFieldName === 'notes')!;
+      expect(notesField.postJoinAggregations).toEqual([]);
+    });
+
     it('throws a clear error when a relationship targets a soft-deleted data mart', async () => {
       // Scenario: A→B exists, but B has been soft-deleted. TypeORM eager join leaves
       // rel.targetDataMart undefined. We should fail loud with a message that names

@@ -7,16 +7,22 @@ import { Checkbox } from '@owox/ui/components/checkbox';
 import { Collapsible, CollapsibleContent } from '@owox/ui/components/collapsible';
 import { Switch } from '@owox/ui/components/switch';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@owox/ui/components/tooltip';
-import { AlertTriangle, ChevronDown, ChevronRight, TriangleAlert } from 'lucide-react';
+import { AlertTriangle, ChevronDown, ChevronRight, Sigma, TriangleAlert } from 'lucide-react';
 import { Skeleton } from '@owox/ui/components/skeleton';
 import { NoAccessIndicator } from '../DataMartRelationships/NoAccessIndicator';
 import { dataMartRelationshipService } from '../../../shared/services/data-mart-relationship.service';
 import { BLENDABLE_SCHEMA_QUERY_KEY } from '../../../shared/hooks/blendable-schema-query-key';
-import type { AvailableSource, BlendedField } from '../../../shared/types/relationship.types';
+import type {
+  AggregationRole,
+  AvailableSource,
+  BlendedField,
+  ReportAggregateFunction,
+} from '../../../shared/types/relationship.types';
 import { DataStorageType } from '../../../../data-storage/shared/model/types/data-storage-type.enum';
 import {
   EMPTY_OUTPUT_CONFIG,
   hasAnyOutputControls,
+  type DateTruncUnit,
   type FilterRule,
   type JoinedSource,
   type JoinedSourceColumn,
@@ -27,9 +33,20 @@ import { FieldInfoTooltip } from './FieldInfoTooltip';
 import { OutputSettingsButton } from './OutputSettingsButton';
 import { OutputSettingsDropdown } from './OutputSettingsDropdown';
 import type { OutputSettingsDropdownColumn } from './OutputSettingsDropdown';
+import { AggregationSettingsButton } from './AggregationSettingsButton';
+import { AggregationSettingsDropdown } from './AggregationSettingsDropdown';
 import { fieldDisplayLabel } from './output-controls-display';
 import { RowFilterIcon } from './RowFilterIcon';
+import { RowAggregationIcon } from './RowAggregationIcon';
 import { isFilterableType } from './output-controls-operators';
+import { resolveColumnAllowedAggregations } from '../../../shared/utils/aggregation-governance';
+import type { AggregationDraft } from './AggregationEditorPopover';
+import {
+  applyAggregationDraft,
+  bucketForColumn,
+  functionsForColumn,
+  timeZoneForColumn,
+} from './aggregation-config';
 
 interface NativeField {
   name: string;
@@ -39,6 +56,10 @@ interface NativeField {
   isHiddenForReporting?: boolean;
   status?: string;
   fields?: NativeField[];
+  isPrimaryKey?: boolean;
+  // Aggregation governance (optional; absent → type-derived defaults on the web).
+  aggregationRole?: AggregationRole;
+  allowedAggregations?: ReportAggregateFunction[];
 }
 
 // Must stay in sync with the backend collectSchemaFieldPaths walker: hidden and
@@ -54,6 +75,9 @@ function flattenNativeFields(fields: NativeField[], prefix = ''): NativeField[] 
       type: field.type,
       alias: field.alias,
       description: field.description,
+      isPrimaryKey: field.isPrimaryKey,
+      aggregationRole: field.aggregationRole,
+      allowedAggregations: field.allowedAggregations,
     });
     if (field.fields && Array.isArray(field.fields)) {
       result.push(...flattenNativeFields(field.fields, fullName));
@@ -100,6 +124,7 @@ type ToggleFieldFn = (name: string, checked: boolean) => void;
 type AddFilterFn = (rule: FilterRule) => void;
 type RemoveFilterAtFn = (globalIndex: number) => void;
 type ReplaceFilterAtFn = (globalIndex: number, rule: FilterRule) => void;
+type ApplyAggregationFn = (column: string, draft: AggregationDraft) => void;
 
 interface ColumnFilters {
   rules: FilterRule[];
@@ -107,6 +132,43 @@ interface ColumnFilters {
 }
 
 const EMPTY_COLUMN_FILTERS: ColumnFilters = { rules: [], indices: [] };
+
+/**
+ * Per-row aggregation state: the resolved allowed-set plus what's currently assigned.
+ * `allowed` empty → the AGG icon is hidden (nothing can be aggregated/grouped).
+ */
+interface ColumnAggregation {
+  allowed: readonly ReportAggregateFunction[];
+  functions: readonly ReportAggregateFunction[];
+  bucket: DateTruncUnit | null;
+  timeZone: string | null;
+}
+
+function renderRowAggregationIcon(
+  fieldName: string,
+  fieldType: string | undefined,
+  displayLabel: string,
+  dataMartName: string | undefined,
+  agg: ColumnAggregation | undefined,
+  onApplyAggregation?: ApplyAggregationFn
+) {
+  if (!onApplyAggregation || !fieldType || !agg || agg.allowed.length === 0) return null;
+  return (
+    <RowAggregationIcon
+      column={fieldName}
+      fieldType={fieldType}
+      displayLabel={displayLabel}
+      dataMartName={dataMartName}
+      allowedAggregations={agg.allowed}
+      activeFunctions={agg.functions}
+      activeBucket={agg.bucket}
+      activeTimeZone={agg.timeZone}
+      onApplyDraft={draft => {
+        onApplyAggregation(fieldName, draft);
+      }}
+    />
+  );
+}
 
 interface NativeFieldRowProps {
   field: NativeField;
@@ -117,6 +179,8 @@ interface NativeFieldRowProps {
   onAddFilter?: AddFilterFn;
   onRemoveFilterAt?: RemoveFilterAtFn;
   onReplaceFilterAt?: ReplaceFilterAtFn;
+  aggregation?: ColumnAggregation;
+  onApplyAggregation?: ApplyAggregationFn;
 }
 
 const NativeFieldRow = memo(function NativeFieldRow({
@@ -128,9 +192,40 @@ const NativeFieldRow = memo(function NativeFieldRow({
   onAddFilter,
   onRemoveFilterAt,
   onReplaceFilterAt,
+  aggregation,
+  onApplyAggregation,
 }: NativeFieldRowProps) {
+  const aggIcon =
+    checked &&
+    renderRowAggregationIcon(
+      field.name,
+      field.type,
+      fieldDisplayLabel(field.alias, field.name),
+      undefined,
+      aggregation,
+      onApplyAggregation
+    );
+  const filterIcon = filterableType && onAddFilter && onRemoveFilterAt && (
+    <RowFilterIcon
+      column={field.name}
+      fieldType={filterableType}
+      displayLabel={fieldDisplayLabel(field.alias, field.name)}
+      activeRules={columnFilters.rules}
+      onAdd={onAddFilter}
+      onRemoveAt={localIndex => {
+        onRemoveFilterAt(columnFilters.indices[localIndex]);
+      }}
+      onReplaceAt={
+        onReplaceFilterAt
+          ? (localIndex, rule) => {
+              onReplaceFilterAt(columnFilters.indices[localIndex], rule);
+            }
+          : undefined
+      }
+    />
+  );
   return (
-    <label className='group hover:bg-muted/50 flex min-w-0 cursor-pointer items-center gap-2 rounded px-1 py-1'>
+    <label className='group/row group hover:bg-muted/50 flex min-w-0 cursor-pointer items-center gap-2 rounded px-1 py-1'>
       <Checkbox
         checked={checked}
         onCheckedChange={c => {
@@ -142,25 +237,10 @@ const NativeFieldRow = memo(function NativeFieldRow({
       </span>
       {field.type && <span className='text-muted-foreground shrink-0 text-xs'>({field.type})</span>}
       <FieldInfoTooltip text={field.description} compact />
-      {filterableType && onAddFilter && onRemoveFilterAt && (
-        <RowFilterIcon
-          column={field.name}
-          fieldType={filterableType}
-          displayLabel={fieldDisplayLabel(field.alias, field.name)}
-          activeRules={columnFilters.rules}
-          onAdd={onAddFilter}
-          onRemoveAt={localIndex => {
-            onRemoveFilterAt(columnFilters.indices[localIndex]);
-          }}
-          onReplaceAt={
-            onReplaceFilterAt
-              ? (localIndex, rule) => {
-                  onReplaceFilterAt(columnFilters.indices[localIndex], rule);
-                }
-              : undefined
-          }
-        />
-      )}
+      <span className='ml-auto flex items-center'>
+        {aggIcon}
+        {filterIcon}
+      </span>
     </label>
   );
 });
@@ -175,6 +255,8 @@ interface BlendedFieldRowProps {
   onRemoveFilterAt?: RemoveFilterAtFn;
   onReplaceFilterAt?: ReplaceFilterAtFn;
   preJoinSlices: ColumnFilters;
+  aggregation?: ColumnAggregation;
+  onApplyAggregation?: ApplyAggregationFn;
   hoverClassName?: string;
   /**
    * If true, the row only exposes paths that remove existing references —
@@ -195,15 +277,66 @@ const BlendedFieldRow = memo(function BlendedFieldRow({
   onRemoveFilterAt,
   onReplaceFilterAt,
   preJoinSlices,
+  aggregation,
+  onApplyAggregation,
   hoverClassName = 'hover:bg-muted/50',
   removeOnly = false,
 }: BlendedFieldRowProps) {
   const effectiveAddFilter = removeOnly ? undefined : onAddFilter;
   const effectiveReplaceFilter = removeOnly ? undefined : onReplaceFilterAt;
+  const dataMartName = field.outputPrefix.trim() || field.sourceDataMartTitle;
+  const aggIcon =
+    checked &&
+    !removeOnly &&
+    renderRowAggregationIcon(
+      field.name,
+      field.type,
+      fieldDisplayLabel(field.alias, field.originalFieldName),
+      dataMartName,
+      aggregation,
+      onApplyAggregation
+    );
+  const filterIcon =
+    filterableType &&
+    onRemoveFilterAt &&
+    (effectiveAddFilter !== undefined ||
+      columnFilters.rules.length > 0 ||
+      preJoinSlices.rules.length > 0) ? (
+      <RowFilterIcon
+        column={field.name}
+        fieldType={filterableType}
+        displayLabel={fieldDisplayLabel(field.alias, field.originalFieldName)}
+        dataMartName={dataMartName}
+        activeRules={columnFilters.rules}
+        onAdd={effectiveAddFilter}
+        onRemoveAt={localIndex => {
+          onRemoveFilterAt(columnFilters.indices[localIndex]);
+        }}
+        onReplaceAt={
+          effectiveReplaceFilter
+            ? (localIndex, rule) => {
+                effectiveReplaceFilter(columnFilters.indices[localIndex], rule);
+              }
+            : undefined
+        }
+        sliceIconProps={{
+          unifiedFieldName: field.name,
+          existingSlices: preJoinSlices.rules,
+          existingSliceIndices: preJoinSlices.indices,
+          onAddSlice: effectiveAddFilter,
+          onRemoveSliceAt: onRemoveFilterAt,
+          onReplaceSliceAt: effectiveReplaceFilter
+            ? (localIndex, rule) => {
+                effectiveReplaceFilter(preJoinSlices.indices[localIndex], rule);
+              }
+            : undefined,
+        }}
+      />
+    ) : null;
   return (
     <label
       className={cn(
-        'group flex min-w-0 cursor-pointer items-center gap-2 rounded px-1 py-1',
+        'group/row group flex min-w-0 cursor-pointer items-center gap-2 rounded px-1 py-1',
         hoverClassName
       )}
     >
@@ -219,42 +352,10 @@ const BlendedFieldRow = memo(function BlendedFieldRow({
       </span>
       {field.type && <span className='text-muted-foreground shrink-0 text-xs'>({field.type})</span>}
       <FieldInfoTooltip text={field.description} compact />
-      {filterableType &&
-        onRemoveFilterAt &&
-        (effectiveAddFilter !== undefined ||
-          columnFilters.rules.length > 0 ||
-          preJoinSlices.rules.length > 0) && (
-          <RowFilterIcon
-            column={field.name}
-            fieldType={filterableType}
-            displayLabel={fieldDisplayLabel(field.alias, field.originalFieldName)}
-            dataMartName={field.outputPrefix.trim() || field.sourceDataMartTitle}
-            activeRules={columnFilters.rules}
-            onAdd={effectiveAddFilter}
-            onRemoveAt={localIndex => {
-              onRemoveFilterAt(columnFilters.indices[localIndex]);
-            }}
-            onReplaceAt={
-              effectiveReplaceFilter
-                ? (localIndex, rule) => {
-                    effectiveReplaceFilter(columnFilters.indices[localIndex], rule);
-                  }
-                : undefined
-            }
-            sliceIconProps={{
-              unifiedFieldName: field.name,
-              existingSlices: preJoinSlices.rules,
-              existingSliceIndices: preJoinSlices.indices,
-              onAddSlice: effectiveAddFilter,
-              onRemoveSliceAt: onRemoveFilterAt,
-              onReplaceSliceAt: effectiveReplaceFilter
-                ? (localIndex, rule) => {
-                    effectiveReplaceFilter(preJoinSlices.indices[localIndex], rule);
-                  }
-                : undefined,
-            }}
-          />
-        )}
+      <span className='ml-auto flex items-center'>
+        {aggIcon}
+        {filterIcon}
+      </span>
     </label>
   );
 });
@@ -269,6 +370,8 @@ interface BlendedGroupItemProps {
   onRemoveFilterAt?: RemoveFilterAtFn;
   onReplaceFilterAt?: ReplaceFilterAtFn;
   preJoinByAliasPathColumn?: Map<string, ColumnFilters>;
+  aggregationByColumn?: Map<string, ColumnAggregation>;
+  onApplyAggregation?: ApplyAggregationFn;
 }
 
 function BlendedGroupItem({
@@ -281,6 +384,8 @@ function BlendedGroupItem({
   onRemoveFilterAt,
   onReplaceFilterAt,
   preJoinByAliasPathColumn,
+  aggregationByColumn,
+  onApplyAggregation,
 }: BlendedGroupItemProps) {
   const [isOpen, setIsOpen] = useState(() => group.selectedCount > 0);
   const inaccessible = !group.isAccessibleForReporting;
@@ -334,6 +439,8 @@ function BlendedGroupItem({
               onRemoveFilterAt={onRemoveFilterAt}
               onReplaceFilterAt={onReplaceFilterAt}
               preJoinSlices={preJoinByAliasPathColumn?.get(field.name) ?? EMPTY_COLUMN_FILTERS}
+              aggregation={aggregationByColumn?.get(field.name)}
+              onApplyAggregation={onApplyAggregation}
               hoverClassName={inaccessible ? 'hover:bg-destructive/20' : undefined}
               removeOnly={inaccessible}
             />
@@ -357,6 +464,7 @@ export function ReportColumnPicker({
   const outputControlsAvailable: boolean = outputControlsSupported && !!onOutputConfigChange;
   const effectiveOutputConfig: OutputConfig = outputConfig ?? EMPTY_OUTPUT_CONFIG;
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [aggSettingsOpen, setAggSettingsOpen] = useState(false);
   const { data: schema, isLoading } = useQuery({
     queryKey: [BLENDABLE_SCHEMA_QUERY_KEY, dataMartId],
     queryFn: () => dataMartRelationshipService.getBlendableSchema(dataMartId),
@@ -366,6 +474,11 @@ export function ReportColumnPicker({
   const nativeFields = useMemo<NativeField[]>(
     () => (schema ? flattenNativeFields(schema.nativeFields as NativeField[]) : []),
     [schema]
+  );
+
+  const hasPrimaryKey = useMemo(
+    () => nativeFields.some(f => f.isPrimaryKey === true),
+    [nativeFields]
   );
 
   const includedPaths = useMemo(() => {
@@ -451,19 +564,6 @@ export function ReportColumnPicker({
   const valueRef = useRef(effectiveValue);
   valueRef.current = effectiveValue;
 
-  const toggleField = useCallback<ToggleFieldFn>(
-    (fieldName, checked) => {
-      const current = valueRef.current;
-      if (checked) {
-        if (current.includes(fieldName)) return;
-        onChange([...current, fieldName]);
-      } else {
-        onChange(current.filter(name => name !== fieldName));
-      }
-    },
-    [onChange]
-  );
-
   const availableSourceByPath = useMemo(() => {
     const map = new Map<string, AvailableSource>();
     for (const source of schema?.availableSources ?? []) {
@@ -483,6 +583,33 @@ export function ReportColumnPicker({
   const selectableFieldNames = useMemo(
     () => [...nativeFields.map(f => f.name), ...accessibleBlendedFieldNames],
     [nativeFields, accessibleBlendedFieldNames]
+  );
+
+  // Order a selection by the picker's DISPLAY order (selectable fields in schema/group order,
+  // then any preserved non-selectable names) so the report's column order matches what the
+  // user sees top-to-bottom — not the order fields were toggled on.
+  const orderBySelectable = useCallback(
+    (names: string[]): string[] => {
+      const wanted = new Set(names);
+      const selectableSet = new Set(selectableFieldNames);
+      const ordered = selectableFieldNames.filter(name => wanted.has(name));
+      const preserved = names.filter(name => !selectableSet.has(name));
+      return [...ordered, ...preserved];
+    },
+    [selectableFieldNames]
+  );
+
+  const toggleField = useCallback<ToggleFieldFn>(
+    (fieldName, checked) => {
+      const current = valueRef.current;
+      if (checked) {
+        if (current.includes(fieldName)) return;
+        onChange(orderBySelectable([...current, fieldName]));
+      } else {
+        onChange(orderBySelectable(current.filter(name => name !== fieldName)));
+      }
+    },
+    [onChange, orderBySelectable]
   );
 
   function selectAll() {
@@ -660,6 +787,8 @@ export function ReportColumnPicker({
           type: f.type,
           label: fieldDisplayLabel(f.alias, f.name),
           path: f.name.split('.'),
+          aggregationRole: f.aggregationRole,
+          allowedAggregations: f.allowedAggregations,
         });
       }
     }
@@ -672,6 +801,9 @@ export function ReportColumnPicker({
         label: fieldDisplayLabel(f.alias, f.originalFieldName),
         dataMartName: f.outputPrefix.trim() || f.sourceDataMartTitle,
         path: [...f.aliasPath.split('.'), f.originalFieldName],
+        aggregationRole: f.aggregationRole,
+        allowedAggregations: f.allowedAggregations,
+        postJoinAggregations: f.postJoinAggregations,
       });
     }
     return cols;
@@ -689,6 +821,67 @@ export function ReportColumnPicker({
       (effectiveOutputConfig.limitConfig != null ? 1 : 0)
     );
   }, [effectiveOutputConfig]);
+
+  // Badge = aggregation rules + date-trunc rules. Row Count is automatic for
+  // aggregated reports and no longer has an opt-in toggle.
+  const aggregationCount = useMemo(() => {
+    return (
+      effectiveOutputConfig.aggregationConfig.length + effectiveOutputConfig.dateTruncConfig.length
+    );
+  }, [effectiveOutputConfig]);
+
+  const hasAnyAggregation = aggregationCount > 0;
+
+  const handleApplyAggregation = useCallback<ApplyAggregationFn>(
+    (column, draft) => {
+      if (!onOutputConfigChange) return;
+      const next = applyAggregationDraft(
+        column,
+        draft,
+        effectiveOutputConfig.aggregationConfig,
+        effectiveOutputConfig.dateTruncConfig
+      );
+      onOutputConfigChange({
+        ...effectiveOutputConfig,
+        aggregationConfig: next.aggregationConfig,
+        dateTruncConfig: next.dateTruncConfig,
+      });
+      // Aggregated / date-bucketed reports require an EXPLICIT column projection: the backend
+      // rejects a null columnConfig with aggregations (renderAggregatedSelect iterates the
+      // column list). While columns are still implicit ("all selected" = null), materialize
+      // them to the current explicit selection so the report stays saveable.
+      if (
+        (next.aggregationConfig.length > 0 || next.dateTruncConfig.length > 0) &&
+        value === null
+      ) {
+        onChange(effectiveValue);
+      }
+    },
+    [effectiveOutputConfig, onOutputConfigChange, value, onChange, effectiveValue]
+  );
+
+  // Resolved allowed-set + currently-assigned functions/bucket, keyed by column name.
+  // Only selected, aggregatable columns get an entry — drives per-row AGG icon visibility.
+  const aggregationByColumn = useMemo<Map<string, ColumnAggregation>>(() => {
+    const map = new Map<string, ColumnAggregation>();
+    for (const col of dropdownColumns) {
+      if (!effectiveValueSet.has(col.name)) continue;
+      const allowed = resolveColumnAllowedAggregations(col);
+      if (allowed.length === 0) continue;
+      map.set(col.name, {
+        allowed,
+        functions: functionsForColumn(col.name, effectiveOutputConfig.aggregationConfig),
+        bucket: bucketForColumn(col.name, effectiveOutputConfig.dateTruncConfig),
+        timeZone: timeZoneForColumn(col.name, effectiveOutputConfig.dateTruncConfig),
+      });
+    }
+    return map;
+  }, [
+    dropdownColumns,
+    effectiveValueSet,
+    effectiveOutputConfig.aggregationConfig,
+    effectiveOutputConfig.dateTruncConfig,
+  ]);
 
   const hasDisconnectedOutputControls = useMemo(() => {
     for (const rule of effectiveOutputConfig.filterConfig) {
@@ -813,13 +1006,25 @@ export function ReportColumnPicker({
             <Switch checked={showSelectedOnly} onCheckedChange={setShowSelectedOnly} />
           </label>
           {outputControlsAvailable && (
+            <AggregationSettingsButton
+              active={hasAnyAggregation}
+              count={aggregationCount}
+              open={aggSettingsOpen}
+              onClick={() => {
+                setAggSettingsOpen(o => !o);
+                setSettingsOpen(false);
+              }}
+            />
+          )}
+          {outputControlsAvailable && (
             <OutputSettingsButton
-              active={hasAnyOutputControls(effectiveOutputConfig)}
+              active={controlsCount > 0}
               count={controlsCount}
               hasDisconnectedControls={hasDisconnectedOutputControls}
               open={settingsOpen}
               onClick={() => {
                 setSettingsOpen(o => !o);
+                setAggSettingsOpen(false);
               }}
             />
           )}
@@ -834,6 +1039,16 @@ export function ReportColumnPicker({
             selectedColumns={selectedDropdownColumns}
             allColumns={dropdownColumns}
             joinedSources={joinedSources}
+          />
+        </div>
+      )}
+
+      {aggSettingsOpen && onOutputConfigChange && outputControlsSupported && (
+        <div className='rounded-md border'>
+          <AggregationSettingsDropdown
+            value={effectiveOutputConfig}
+            onChange={onOutputConfigChange}
+            selectedColumns={selectedDropdownColumns}
           />
         </div>
       )}
@@ -898,7 +1113,7 @@ export function ReportColumnPicker({
               return (
                 <label
                   key={name}
-                  className='group hover:bg-destructive/20 flex cursor-pointer items-center gap-2 rounded px-1 py-1'
+                  className='group/row group hover:bg-destructive/20 flex cursor-pointer items-center gap-2 rounded px-1 py-1'
                 >
                   <Checkbox
                     checked={selected}
@@ -926,7 +1141,7 @@ export function ReportColumnPicker({
               return (
                 <label
                   key={column}
-                  className='group hover:bg-destructive/20 flex cursor-pointer items-center gap-2 rounded px-1 py-1'
+                  className='group/row group hover:bg-destructive/20 flex cursor-pointer items-center gap-2 rounded px-1 py-1'
                 >
                   <Checkbox checked={false} disabled />
                   <span className='font-mono text-xs'>{column}</span>
@@ -963,8 +1178,41 @@ export function ReportColumnPicker({
             onAddFilter={outputControlsAvailable ? handleAddFilter : undefined}
             onRemoveFilterAt={outputControlsAvailable ? handleRemoveFilterAt : undefined}
             onReplaceFilterAt={outputControlsAvailable ? handleReplaceFilterAt : undefined}
+            aggregation={aggregationByColumn.get(field.name)}
+            onApplyAggregation={outputControlsAvailable ? handleApplyAggregation : undefined}
           />
         ))}
+
+        {hasPrimaryKey && outputControlsAvailable && (
+          <label className='group hover:bg-muted/50 flex min-w-0 cursor-pointer items-center gap-2 rounded px-1 py-1'>
+            <Checkbox
+              checked={effectiveOutputConfig.uniqueCountConfig}
+              onCheckedChange={checked => {
+                onOutputConfigChange?.({
+                  ...effectiveOutputConfig,
+                  uniqueCountConfig: checked === true,
+                });
+              }}
+            />
+            <span className='min-w-0 truncate text-xs'>Unique count</span>
+            {effectiveOutputConfig.uniqueCountConfig && (
+              <span className='ml-auto flex items-center'>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <span className='flex h-6 w-6 cursor-default items-center justify-center rounded text-blue-500'>
+                      <Sigma className='h-4 w-4' />
+                    </span>
+                  </TooltipTrigger>
+                  <TooltipContent side='top' className='max-w-xs'>
+                    Auto-generated column — counts the distinct values of the primary key.
+                  </TooltipContent>
+                </Tooltip>
+                {/* Spacer matching the field rows' filter-icon slot so this Σ aligns with native rows. */}
+                <span className='h-6 w-6' aria-hidden='true' />
+              </span>
+            )}
+          </label>
+        )}
 
         {groupedBlendedFields.map(group => (
           <BlendedGroupItem
@@ -978,6 +1226,8 @@ export function ReportColumnPicker({
             onRemoveFilterAt={outputControlsAvailable ? handleRemoveFilterAt : undefined}
             onReplaceFilterAt={outputControlsAvailable ? handleReplaceFilterAt : undefined}
             preJoinByAliasPathColumn={preJoinByAliasPathColumn}
+            aggregationByColumn={aggregationByColumn}
+            onApplyAggregation={outputControlsAvailable ? handleApplyAggregation : undefined}
           />
         ))}
       </div>

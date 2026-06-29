@@ -117,6 +117,28 @@ describe('AthenaBlendedQueryBuilder', () => {
 
     expect(sql).toContain('COUNT(order_id) AS order_count');
   });
+
+  // Trino does not guarantee ANY_VALUE across engine versions; the leaf rollup must use arbitrary().
+  it('uses arbitrary(field) for ANY_VALUE leaf aggregation (not ANY_VALUE)', () => {
+    const chain = makeChain({
+      relationship: makeRelationship(),
+      targetTableReference: '"mydb"."orders"',
+      parentAlias: 'main',
+      blendedFields: [
+        {
+          targetFieldName: 'order_name',
+          outputAlias: 'sample_name',
+          isHidden: false,
+          aggregateFunction: 'ANY_VALUE',
+        },
+      ],
+    });
+
+    const { sql } = builder.buildBlendedQuery(buildContext([chain], ['sample_name']));
+
+    expect(sql).toContain('arbitrary(order_name) AS sample_name');
+    expect(sql).not.toContain('ANY_VALUE');
+  });
 });
 
 describe('AthenaBlendedQueryBuilder — output controls', () => {
@@ -152,7 +174,7 @@ describe('AthenaBlendedQueryBuilder — output controls', () => {
     const { sql } = builder.buildBlendedQuery(
       ctx({ sort: [{ column: 'a', direction: 'desc' }], limit: 10 })
     );
-    expect(sql).toContain('ORDER BY main.a DESC');
+    expect(sql).toContain('ORDER BY\n  main.a DESC');
     expect(sql).toContain('LIMIT 10');
   });
 
@@ -187,7 +209,7 @@ describe('AthenaBlendedQueryBuilder — output controls', () => {
         ],
       })
     );
-    expect(sql).toContain('WHERE main.a = ? AND main.a != ?');
+    expect(sql).toContain('WHERE main.a = ?\n  AND main.a != ?');
     expect(params.map(p => p.value)).toEqual(['x', 'y']);
   });
 

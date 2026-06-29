@@ -96,7 +96,7 @@ describe('BigQueryClauseRenderer', () => {
         { column: 'amount', operator: 'between', value: { from: 1, to: 100 } },
         { column: 'name', operator: 'eq', value: 'X' },
       ]);
-      expect(out.sql).toBe('\nWHERE `amount` BETWEEN @p0 AND @p1 AND `name` = @p2');
+      expect(out.sql).toBe('\nWHERE `amount` BETWEEN @p0 AND @p1\n  AND `name` = @p2');
       expect(out.params).toEqual([
         { name: 'p0', value: 1 },
         { name: 'p1', value: 100 },
@@ -351,7 +351,7 @@ describe('BigQueryClauseRenderer', () => {
 
     it('honours the resolver in ORDER BY', () => {
       expect(r.renderOrderBy([{ column: 'a', direction: 'asc' }], qualify).sql).toBe(
-        '\nORDER BY main.`a` ASC'
+        '\nORDER BY\n  main.`a` ASC'
       );
     });
 
@@ -366,7 +366,7 @@ describe('BigQueryClauseRenderer', () => {
           ],
           routed
         ).sql
-      ).toBe('\nWHERE main.`a` = @p0 AND orders.`b` > @p1');
+      ).toBe('\nWHERE main.`a` = @p0\n  AND orders.`b` > @p1');
     });
   });
 
@@ -393,6 +393,59 @@ describe('BigQueryClauseRenderer', () => {
         's_users_'
       );
       expect(out.params.map(p => p.name)).toEqual(['s_users_0', 's_users_1', 's_users_2']);
+    });
+  });
+
+  describe('HAVING (post-aggregation filters)', () => {
+    it('renders a HAVING comparison on the aggregate EXPRESSION (not the output alias)', () => {
+      const out = r.renderHaving([
+        { column: 'amount', function: 'SUM', operator: 'gt', value: 1000 },
+      ]);
+      expect(out.sql).toBe('\nHAVING SUM(`amount`) > @h0');
+      expect(out.params).toEqual([{ name: 'h0', value: 1000 }]);
+    });
+
+    it('uses COUNT(DISTINCT ...) for a COUNT_DISTINCT HAVING rule', () => {
+      const out = r.renderHaving([
+        { column: 'id', function: 'COUNT_DISTINCT', operator: 'gte', value: 5 },
+      ]);
+      expect(out.sql).toBe('\nHAVING COUNT(DISTINCT `id`) >= @h0');
+    });
+
+    it('joins multiple HAVING rules with AND, each on its own line', () => {
+      const out = r.renderHaving([
+        { column: 'amount', function: 'SUM', operator: 'gt', value: 100 },
+        { column: 'amount', function: 'AVG', operator: 'lt', value: 50 },
+      ]);
+      expect(out.sql).toBe('\nHAVING SUM(`amount`) > @h0\n  AND AVG(`amount`) < @h1');
+      expect(out.params.map(p => p.name)).toEqual(['h0', 'h1']);
+    });
+
+    it('qualifies the aggregate argument via the resolver (matches the SELECT)', () => {
+      const qualify: ColumnRefResolver = column => `main.\`${column}\``;
+      expect(
+        r.renderHaving([{ column: 'amount', function: 'SUM', operator: 'gt', value: 1 }], qualify)
+          .sql
+      ).toBe('\nHAVING SUM(main.`amount`) > @h0');
+    });
+
+    it('renderHaving takes ONLY function rules; renderWhere skips them (mixed list)', () => {
+      expect(
+        r.renderHaving([
+          { column: 'country', operator: 'eq', value: 'US' },
+          { column: 'amount', function: 'SUM', operator: 'gt', value: 100 },
+        ]).sql
+      ).toBe('\nHAVING SUM(`amount`) > @h0');
+      expect(
+        r.renderWhere([
+          { column: 'country', operator: 'eq', value: 'US' },
+          { column: 'amount', function: 'SUM', operator: 'gt', value: 100 },
+        ]).sql
+      ).toBe('\nWHERE `country` = @p0');
+    });
+
+    it('returns empty SQL when no rule carries a function', () => {
+      expect(r.renderHaving([{ column: 'a', operator: 'eq', value: 1 }]).sql).toBe('');
     });
   });
 });

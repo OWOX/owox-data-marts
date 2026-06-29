@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { RenderedClause, SqlClauseRenderer } from '../../utils/sql-clause-renderer';
 import { FilterRule } from '../../../dto/schemas/filter-config.schema';
+import { DateTruncUnit } from '../../../dto/schemas/date-trunc-config.schema';
 import { escapeDatabricksIdentifier } from '../utils/databricks-identifier.utils';
 
 /**
@@ -52,6 +53,26 @@ export class DatabricksClauseRenderer extends SqlClauseRenderer {
     return columnType && DatabricksClauseRenderer.DATE_CAST_TYPES.has(columnType)
       ? `CAST(${l} AS ${columnType})`
       : l;
+  }
+
+  protected override renderPercentile(p: 25 | 50 | 75 | 95, columnRef: string): string {
+    return `PERCENTILE_CONT(${p / 100}) WITHIN GROUP (ORDER BY ${columnRef})`;
+  }
+
+  // CAST to STRING so collect_list/array_join is valid on a non-string column (e.g. a DATE).
+  protected override renderStringAgg(columnRef: string): string {
+    return `array_join(collect_list(CAST(${columnRef} AS STRING)), ', ')`;
+  }
+
+  // With a time zone, FROM_UTC_TIMESTAMP(col, 'tz') shifts the value before truncation.
+  protected override renderDateTrunc(
+    columnRef: string,
+    unit: DateTruncUnit,
+    timeZone?: string
+  ): string {
+    this.assertSafeDateTrunc(unit, timeZone);
+    const expr = timeZone ? `FROM_UTC_TIMESTAMP(${columnRef}, '${timeZone}')` : columnRef;
+    return `DATE_TRUNC('${unit}', ${expr})`;
   }
 
   protected renderFilterFragment(

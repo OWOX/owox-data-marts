@@ -344,6 +344,7 @@ import { OutputControlsValidatorService } from './services/output-controls-valid
 import { BigQueryClauseRenderer } from './data-storage-types/bigquery/services/bigquery-clause-renderer';
 import { BlendedReportDataService } from './services/blended-report-data.service';
 import { ReportSqlComposerService } from './services/report-sql-composer.service';
+import { ReportTotalsService } from './services/report-totals.service';
 import { RelationshipMapper } from './mappers/relationship.mapper';
 import { CreateDataMartRelationshipService } from './use-cases/create-data-mart-relationship.service';
 import { UpdateDataMartRelationshipService } from './use-cases/update-data-mart-relationship.service';
@@ -754,6 +755,7 @@ import { ProjectMemberApiKeysModule } from '../project-member-api-keys/project-m
     BigQueryClauseRenderer,
     BlendedReportDataService,
     ReportSqlComposerService,
+    ReportTotalsService,
     RelationshipMapper,
     CreateDataMartRelationshipService,
     UpdateDataMartRelationshipService,

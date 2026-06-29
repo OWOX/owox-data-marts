@@ -22,6 +22,15 @@ import {
 } from '../dto/schemas/report-column-config.schema';
 import { FilterConfig, FilterConfigSchema } from '../dto/schemas/filter-config.schema';
 import { SortConfig, SortConfigSchema } from '../dto/schemas/sort-config.schema';
+import {
+  AggregationConfig,
+  AggregationConfigSchema,
+} from '../dto/schemas/aggregation-config.schema';
+import { DateTruncConfig, DateTruncConfigSchema } from '../dto/schemas/date-trunc-config.schema';
+import {
+  UniqueCountConfig,
+  UniqueCountConfigSchema,
+} from '../dto/schemas/unique-count-config.schema';
 import { DataDestinationType } from '../data-destination-types/enums/data-destination-type.enum';
 import { ReportRunStatus } from '../enums/report-run-status.enum';
 import { CreatorAwareEntity } from './creator-aware-entity.interface';
@@ -83,6 +92,30 @@ export class Report implements CreatorAwareEntity {
     default: null,
   })
   limitConfig?: number | null;
+
+  @Column({
+    type: 'json',
+    nullable: true,
+    default: null,
+    transformer: createZodTransformer<AggregationConfig>(AggregationConfigSchema, false),
+  })
+  aggregationConfig?: AggregationConfig;
+
+  @Column({
+    type: 'json',
+    nullable: true,
+    default: null,
+    transformer: createZodTransformer<DateTruncConfig>(DateTruncConfigSchema, false),
+  })
+  dateTruncConfig?: DateTruncConfig;
+
+  @Column({
+    type: 'json',
+    nullable: true,
+    default: null,
+    transformer: createZodTransformer<UniqueCountConfig>(UniqueCountConfigSchema, false),
+  })
+  uniqueCountConfig?: UniqueCountConfig;
 
   @Column({ nullable: true })
   lastRunAt?: Date;
