@@ -1,11 +1,15 @@
 const mockCreateSpreadsheet = jest.fn();
+const mockCreateSpreadsheetViaDrive = jest.fn();
 const mockCreateSpreadsheetInFolder = jest.fn();
 const mockCreateServiceAccountClient = jest.fn(() => ({}));
+const mockShareFileWithUser = jest.fn();
 
 jest.mock('../../data-destination-types/google-sheets/adapters/google-sheets-api.adapter', () => {
   const ctor = jest.fn().mockImplementation(() => ({
     createSpreadsheet: (...args: unknown[]) => mockCreateSpreadsheet(...args),
+    createSpreadsheetViaDrive: (...args: unknown[]) => mockCreateSpreadsheetViaDrive(...args),
     createSpreadsheetInFolder: (...args: unknown[]) => mockCreateSpreadsheetInFolder(...args),
+    shareFileWithUser: (...args: unknown[]) => mockShareFileWithUser(...args),
   }));
   (ctor as unknown as Record<string, unknown>).createServiceAccountClient = (...args: unknown[]) =>
     mockCreateServiceAccountClient(...args);
@@ -38,18 +42,29 @@ const VALID_SA_KEY = {
   client_x509_cert_url: 'https://example.com/cert',
 };
 
+const OAUTH_SCOPE_WITH_DRIVE_FILE =
+  'https://www.googleapis.com/auth/spreadsheets https://www.googleapis.com/auth/drive.file';
+const OAUTH_SCOPE_NO_DRIVE = 'https://www.googleapis.com/auth/spreadsheets';
+
 describe('CreateGoogleSheetDocumentService', () => {
   const buildDestination = (
     credentialType?: DestinationCredentialType,
-    config?: { folderId?: string }
+    config?: { folderId?: string },
+    oauthScope?: string
   ) => ({
     id: 'dest-1',
     type: DataDestinationType.GOOGLE_SHEETS,
-    credential: credentialType ? { id: 'cred-1', type: credentialType } : null,
+    credential: credentialType
+      ? {
+          id: 'cred-1',
+          type: credentialType,
+          credentials: oauthScope !== undefined ? { scope: oauthScope } : {},
+        }
+      : null,
     config: config ?? null,
   });
 
-  const createService = (destination: unknown, resolverValue?: unknown) => {
+  const createService = (destination: unknown, resolverValue?: unknown, idpUserEmail?: string) => {
     const dataDestinationService = {
       getByIdAndProjectId: jest.fn().mockResolvedValue(destination),
     };
@@ -59,19 +74,33 @@ describe('CreateGoogleSheetDocumentService', () => {
     const credentialsResolver = {
       resolve: jest.fn().mockResolvedValue(resolverValue),
     };
+    const idpProjectionsFacade = {
+      getUserProjection: jest
+        .fn()
+        .mockResolvedValue(idpUserEmail ? { email: idpUserEmail } : undefined),
+    };
     const service = new CreateGoogleSheetDocumentService(
       dataDestinationService as never,
       googleOAuthClientService as never,
-      credentialsResolver as never
+      credentialsResolver as never,
+      idpProjectionsFacade as never
     );
-    return { service, dataDestinationService, googleOAuthClientService, credentialsResolver };
+    return {
+      service,
+      dataDestinationService,
+      googleOAuthClientService,
+      credentialsResolver,
+      idpProjectionsFacade,
+    };
   };
 
   beforeEach(() => {
     jest.clearAllMocks();
     mockCreateSpreadsheet.mockResolvedValue({ spreadsheetId: 'sheet-id', sheetId: 0 });
+    mockCreateSpreadsheetViaDrive.mockResolvedValue({ spreadsheetId: 'sheet-id', sheetId: 0 });
     mockCreateSpreadsheetInFolder.mockResolvedValue({ spreadsheetId: 'sa-sheet-id', sheetId: 0 });
     mockCreateServiceAccountClient.mockReturnValue({});
+    mockShareFileWithUser.mockResolvedValue(undefined);
   });
 
   it('creates a sheet via the OAuth client for an OAuth destination', async () => {
@@ -85,6 +114,7 @@ describe('CreateGoogleSheetDocumentService', () => {
 
     expect(googleOAuthClientService.getDestinationOAuth2Client).toHaveBeenCalledWith('dest-1');
     expect(mockCreateSpreadsheet).toHaveBeenCalledWith('Revenue');
+    expect(mockCreateSpreadsheetViaDrive).not.toHaveBeenCalled();
     expect(mockCreateSpreadsheetInFolder).not.toHaveBeenCalled();
     expect(result).toEqual({ spreadsheetId: 'sheet-id', sheetId: 0 });
   });
@@ -111,6 +141,103 @@ describe('CreateGoogleSheetDocumentService', () => {
     expect(mockCreateServiceAccountClient).toHaveBeenCalled();
     expect(mockCreateSpreadsheetInFolder).toHaveBeenCalledWith('Report', 'folder-1');
     expect(result).toEqual({ spreadsheetId: 'sa-sheet-id', sheetId: 0 });
+  });
+
+  it('shares the created sheet with the requester (OAuth with drive.file scope)', async () => {
+    const { service } = createService(
+      buildDestination(
+        DestinationCredentialType.GOOGLE_OAUTH,
+        undefined,
+        OAUTH_SCOPE_WITH_DRIVE_FILE
+      )
+    );
+
+    await service.run(
+      new CreateGoogleSheetDocumentCommand('dest-1', 'proj-1', 'R', 'user-2', 'bu@example.com')
+    );
+
+    expect(mockCreateSpreadsheetViaDrive).toHaveBeenCalledWith('R');
+    expect(mockShareFileWithUser).toHaveBeenCalledWith('sheet-id', 'bu@example.com', 'writer');
+  });
+
+  it('creates in the picked folder via OAuth (drive.file) and shares it', async () => {
+    const { service } = createService(
+      buildDestination(
+        DestinationCredentialType.GOOGLE_OAUTH,
+        { folderId: 'folder-1' },
+        OAUTH_SCOPE_WITH_DRIVE_FILE
+      )
+    );
+
+    await service.run(
+      new CreateGoogleSheetDocumentCommand('dest-1', 'proj-1', 'R', 'user-2', 'bu@example.com')
+    );
+
+    expect(mockCreateSpreadsheetInFolder).toHaveBeenCalledWith('R', 'folder-1');
+    expect(mockCreateSpreadsheetViaDrive).not.toHaveBeenCalled();
+    expect(mockShareFileWithUser).toHaveBeenCalledWith('sa-sheet-id', 'bu@example.com', 'writer');
+  });
+
+  it('skips sharing (but still creates) when the OAuth token lacks a Drive scope', async () => {
+    const { service } = createService(
+      buildDestination(DestinationCredentialType.GOOGLE_OAUTH, undefined, OAUTH_SCOPE_NO_DRIVE)
+    );
+
+    const result = await service.run(
+      new CreateGoogleSheetDocumentCommand('dest-1', 'proj-1', 'R', 'user-2', 'bu@example.com')
+    );
+
+    expect(result).toEqual({ spreadsheetId: 'sheet-id', sheetId: 0 });
+    expect(mockCreateSpreadsheet).toHaveBeenCalled();
+    expect(mockCreateSpreadsheetViaDrive).not.toHaveBeenCalled();
+    expect(mockShareFileWithUser).not.toHaveBeenCalled();
+  });
+
+  it('shares the SA-created sheet with the requester (SA always has Drive scope)', async () => {
+    const { service } = createService(
+      buildDestination(DestinationCredentialType.GOOGLE_SERVICE_ACCOUNT, { folderId: 'folder-1' }),
+      { type: 'google-sheets-credentials', serviceAccountKey: VALID_SA_KEY }
+    );
+
+    await service.run(
+      new CreateGoogleSheetDocumentCommand('dest-1', 'proj-1', 'R', 'user-2', 'bu@example.com')
+    );
+
+    expect(mockShareFileWithUser).toHaveBeenCalledWith('sa-sheet-id', 'bu@example.com', 'writer');
+  });
+
+  it('resolves the requester email via the IDP when the command has none', async () => {
+    const { service, idpProjectionsFacade } = createService(
+      buildDestination(
+        DestinationCredentialType.GOOGLE_OAUTH,
+        undefined,
+        OAUTH_SCOPE_WITH_DRIVE_FILE
+      ),
+      undefined,
+      'idp@example.com'
+    );
+
+    await service.run(new CreateGoogleSheetDocumentCommand('dest-1', 'proj-1', 'R', 'user-2'));
+
+    expect(idpProjectionsFacade.getUserProjection).toHaveBeenCalledWith('user-2');
+    expect(mockShareFileWithUser).toHaveBeenCalledWith('sheet-id', 'idp@example.com', 'writer');
+  });
+
+  it('does not fail creation when sharing fails (best-effort)', async () => {
+    const { service } = createService(
+      buildDestination(
+        DestinationCredentialType.GOOGLE_OAUTH,
+        undefined,
+        OAUTH_SCOPE_WITH_DRIVE_FILE
+      )
+    );
+    mockShareFileWithUser.mockRejectedValue(new Error('permission denied'));
+
+    const result = await service.run(
+      new CreateGoogleSheetDocumentCommand('dest-1', 'proj-1', 'R', 'user-2', 'bu@example.com')
+    );
+
+    expect(result).toEqual({ spreadsheetId: 'sheet-id', sheetId: 0 });
   });
 
   it('rejects a Service Account destination with no folder configured', async () => {

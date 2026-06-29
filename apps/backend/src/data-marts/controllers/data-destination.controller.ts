@@ -332,7 +332,13 @@ export class DataDestinationController {
     @Body() dto: CreateGoogleSheetDocumentRequestDto
   ): Promise<CreateGoogleSheetDocumentResponseDto> {
     await this.checkDestinationAccess(id, context, Action.USE);
-    const command = new CreateGoogleSheetDocumentCommand(id, context.projectId, dto.title);
+    const command = new CreateGoogleSheetDocumentCommand(
+      id,
+      context.projectId,
+      dto.title,
+      context.userId,
+      context.email
+    );
     return this.createGoogleSheetDocumentService.run(command);
   }
 }

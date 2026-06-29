@@ -55,6 +55,8 @@ export interface GoogleOAuthSettingsResult {
   clientId?: string;
   redirectUri?: string;
   availableScopes?: string[];
+  /** Drive Picker API key (destination only) — lets the FE open the folder picker. */
+  pickerApiKey?: string;
 }
 
 interface StateTokenPayload {
@@ -131,6 +133,7 @@ export class GoogleOAuthFlowService {
         clientId: this.googleOAuthConfigService.getDestinationClientId(),
         redirectUri: this.googleOAuthConfigService.getRedirectUri(),
         availableScopes: this.googleOAuthConfigService.getSheetsScopes(),
+        pickerApiKey: this.googleOAuthConfigService.getPickerApiKey(),
       };
     }
   }

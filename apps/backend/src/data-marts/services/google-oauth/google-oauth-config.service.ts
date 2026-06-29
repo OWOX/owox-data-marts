@@ -20,9 +20,17 @@ const GoogleOAuthSharedSchema = z.object({
   bigQueryScopes: z
     .array(z.string())
     .default(['https://www.googleapis.com/auth/bigquery', 'openid', 'email', 'profile']),
-  sheetsScopes: z
-    .array(z.string())
-    .default(['https://www.googleapis.com/auth/spreadsheets', 'openid', 'email', 'profile']),
+  sheetsScopes: z.array(z.string()).default([
+    'https://www.googleapis.com/auth/spreadsheets',
+    // drive.file is NON-restricted (no CASA assessment). It lets the app manage
+    // (incl. share via permissions.create) the files it CREATES — used to grant
+    // the requesting user access to an auto-created Sheet. Existing tokens need
+    // re-consent to gain it.
+    'https://www.googleapis.com/auth/drive.file',
+    'openid',
+    'email',
+    'profile',
+  ]),
 });
 
 export type GoogleOAuthClientConfig = z.infer<typeof GoogleOAuthClientSchema>;
@@ -171,6 +179,15 @@ export class GoogleOAuthConfigService {
   getSheetsScopes(): string[] {
     this.ensureDestinationConfigured();
     return this.sharedConfig!.sheetsScopes;
+  }
+
+  /**
+   * Google API key (developerKey) for the Drive Picker, exposed to the frontend
+   * so users can pick a target folder for OAuth destinations. Independent of the
+   * OAuth client config. Returns undefined when not set.
+   */
+  getPickerApiKey(): string | undefined {
+    return this.configService.get<string>('GOOGLE_PICKER_API_KEY') || undefined;
   }
 
   private ensureStorageConfigured(): void {

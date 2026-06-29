@@ -21,7 +21,11 @@ import { ExternalAnchor } from '@owox/ui/components/common/external-anchor';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@owox/ui/components/tooltip';
 import { getServiceAccountLink } from '../../../../../utils';
 import { Copy, Check, ExternalLink } from 'lucide-react';
-import { isValidGoogleDriveFolderUrl } from '../../../shared/utils/drive-folder-url.utils';
+import {
+  isValidGoogleDriveFolderUrl,
+  buildDriveFolderUrl,
+} from '../../../shared/utils/drive-folder-url.utils';
+import { useGoogleDrivePicker } from '../../../shared/hooks/useGoogleDrivePicker';
 import { GoogleOAuthConnectButton, destinationOAuthApi } from '../../../../google-oauth';
 import { Tabs, TabsList, TabsTrigger } from '@owox/ui/components/tabs';
 import { AuthenticationSectionHeader } from '../../../../../shared/components/AuthenticationSectionHeader';
@@ -52,6 +56,10 @@ export function GoogleSheetsFields({ form }: GoogleSheetsFieldsProps) {
   );
   const [oauthEmail, setOauthEmail] = useState<string | null>(null);
   const [saCopied, setSaCopied] = useState(false);
+  const [oauthClientId, setOauthClientId] = useState<string | undefined>(undefined);
+  const [pickerApiKey, setPickerApiKey] = useState<string | undefined>(undefined);
+  const [isPickingFolder, setIsPickingFolder] = useState(false);
+  const { openPicker } = useGoogleDrivePicker();
 
   useEffect(() => {
     destinationOAuthApi
@@ -59,6 +67,8 @@ export function GoogleSheetsFields({ form }: GoogleSheetsFieldsProps) {
       .then(s => {
         setIsOAuthAvailable(s.available);
         setOauthRedirectUri(s.redirectUri);
+        setOauthClientId(s.clientId);
+        setPickerApiKey(s.pickerApiKey);
         if (!s.available) {
           setAuthMethod('service-account');
         }
@@ -143,6 +153,33 @@ export function GoogleSheetsFields({ form }: GoogleSheetsFieldsProps) {
     setAuthMethod(value);
   };
 
+  const folderUrl = form.watch('config.folderUrl');
+  const isFolderConfigured = !!folderUrl?.trim() && isValidGoogleDriveFolderUrl(folderUrl.trim());
+  const canPickFolder = !!pickerApiKey && !!oauthClientId;
+
+  const handlePickFolder = () => {
+    if (!pickerApiKey || !oauthClientId) {
+      return;
+    }
+    setIsPickingFolder(true);
+    void openPicker({
+      apiKey: pickerApiKey,
+      clientId: oauthClientId,
+      hintEmail: oauthEmail ?? undefined,
+      onPicked: folder => {
+        form.setValue('config.folderUrl', buildDriveFolderUrl(folder.id), {
+          shouldDirty: true,
+          shouldValidate: true,
+        });
+      },
+      onError: message => {
+        toast.error(message);
+      },
+    }).finally(() => {
+      setIsPickingFolder(false);
+    });
+  };
+
   return (
     <div className='mb-4 flex flex-col gap-2'>
       <AuthenticationSectionHeader
@@ -213,6 +250,52 @@ export function GoogleSheetsFields({ form }: GoogleSheetsFieldsProps) {
                 </FormItem>
               )}
             />
+          )}
+
+          {isOAuthAvailable && authMethod === 'oauth' && credentialIdValue && canPickFolder && (
+            <FormItem>
+              <FormLabel tooltip='New documents created from chat or reports are placed in this Drive folder'>
+                Drive folder for auto-created documents (optional)
+              </FormLabel>
+              <div className='flex items-center gap-2'>
+                <Button
+                  type='button'
+                  variant='outline'
+                  onClick={handlePickFolder}
+                  disabled={isPickingFolder}
+                >
+                  {isFolderConfigured ? 'Change folder' : 'Choose folder'}
+                </Button>
+                {isFolderConfigured && folderUrl && (
+                  <ExternalAnchor
+                    href={folderUrl.trim()}
+                    variant='field'
+                    className='flex-1 truncate'
+                  >
+                    {folderUrl.trim()}
+                  </ExternalAnchor>
+                )}
+                {isFolderConfigured && (
+                  <Button
+                    type='button'
+                    variant='ghost'
+                    size='sm'
+                    onClick={() => {
+                      form.setValue('config.folderUrl', '', {
+                        shouldDirty: true,
+                        shouldValidate: true,
+                      });
+                    }}
+                  >
+                    Clear
+                  </Button>
+                )}
+              </div>
+              <FormDescription>
+                New documents created with “Create document” are placed in this Google Drive folder.
+                Leave empty to create them in your Drive root.
+              </FormDescription>
+            </FormItem>
           )}
 
           {authMethod === 'service-account' && (

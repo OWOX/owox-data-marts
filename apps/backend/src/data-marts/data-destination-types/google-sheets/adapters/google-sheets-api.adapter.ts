@@ -146,14 +146,27 @@ export class GoogleSheetsApiAdapter {
   }
 
   /**
+   * Creates a new Google Spreadsheet via the **Drive API** in the caller's Drive
+   * root. Used by the OAuth path when the token carries a Drive scope, so the
+   * file is created by the app (`isAppAuthorized: true`) and is therefore
+   * manageable under `drive.file` — including sharing via `permissions.create`.
+   * A file created via the Sheets API (`createSpreadsheet`) is NOT reliably
+   * app-authorized for `drive.file`, so sharing it would fail.
+   *
+   * @param title - Title for the new spreadsheet
+   * @returns The new spreadsheet ID and its first sheet's numeric ID
+   */
+  public async createSpreadsheetViaDrive(
+    title: string
+  ): Promise<{ spreadsheetId: string; sheetId: number }> {
+    return this.driveCreateSpreadsheet(title);
+  }
+
+  /**
    * Creates a new Google Spreadsheet directly inside a Drive folder via the
    * Drive API (so the file lands in a shared Drive folder, not the caller's
-   * Drive root). Requires the underlying auth to carry a Drive scope and is used
-   * by the Service-Account auto-creation path.
-   *
-   * `supportsAllDrives` is set so the create works in a Shared Drive. The first
-   * sheet's numeric `sheetId` is fetched from the Sheets API afterwards (Drive
-   * create does not return it) — it is NOT assumed to be `0`.
+   * Drive root). Requires the underlying auth to carry a Drive scope; used by the
+   * Service-Account auto-creation path.
    *
    * @param title - Title for the new spreadsheet
    * @param folderId - Drive folder ID to create the spreadsheet in
@@ -163,13 +176,25 @@ export class GoogleSheetsApiAdapter {
     title: string,
     folderId: string
   ): Promise<{ spreadsheetId: string; sheetId: number }> {
+    return this.driveCreateSpreadsheet(title, [folderId]);
+  }
+
+  /**
+   * Shared Drive-API create. `supportsAllDrives` is set so it works in a Shared
+   * Drive. The first sheet's numeric `sheetId` is fetched from the Sheets API
+   * afterwards (Drive create does not return it) — it is NOT assumed to be `0`.
+   */
+  private async driveCreateSpreadsheet(
+    title: string,
+    parents?: string[]
+  ): Promise<{ spreadsheetId: string; sheetId: number }> {
     const drive = this.getDriveService();
     const file = await this.executeWithRetry(() =>
       drive.files.create({
         requestBody: {
           name: title,
           mimeType: 'application/vnd.google-apps.spreadsheet',
-          parents: [folderId],
+          ...(parents ? { parents } : {}),
         },
         fields: 'id',
         supportsAllDrives: true,
@@ -187,6 +212,36 @@ export class GoogleSheetsApiAdapter {
       throw new Error('Could not resolve the sheetId of the newly created spreadsheet');
     }
     return { spreadsheetId, sheetId };
+  }
+
+  /**
+   * Shares a file with a user by email (Drive `permissions.create`). Used to grant
+   * the requesting user access to an auto-created Sheet.
+   *
+   * Authorized by `drive.file` for app-created files (no restricted scope needed).
+   * `sendNotificationEmail` defaults to false to avoid notifying the user.
+   *
+   * @param fileId - the file to share
+   * @param emailAddress - the grantee's email
+   * @param role - permission role (default 'writer')
+   * @param sendNotificationEmail - whether Google emails the grantee (default false)
+   */
+  public async shareFileWithUser(
+    fileId: string,
+    emailAddress: string,
+    role: 'writer' | 'reader' = 'writer',
+    sendNotificationEmail = false
+  ): Promise<void> {
+    const drive = this.getDriveService();
+    await this.executeWithRetry(() =>
+      drive.permissions.create({
+        fileId,
+        requestBody: { type: 'user', role, emailAddress },
+        sendNotificationEmail,
+        supportsAllDrives: true,
+        fields: 'id',
+      })
+    );
   }
 
   /**
