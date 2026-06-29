@@ -3,6 +3,8 @@ import { useQuery } from '@tanstack/react-query';
 import { cn } from '@owox/ui/lib/utils';
 import { Badge } from '@owox/ui/components/badge';
 import { Button } from '@owox/ui/components/button';
+import { Input } from '@owox/ui/components/input';
+import { Search, X } from 'lucide-react';
 import { Checkbox } from '@owox/ui/components/checkbox';
 import { Collapsible, CollapsibleContent } from '@owox/ui/components/collapsible';
 import { Switch } from '@owox/ui/components/switch';
@@ -31,6 +33,7 @@ import { fieldDisplayLabel } from './output-controls-display';
 import { RowFilterIcon } from './RowFilterIcon';
 import { isFilterableType } from './output-controls-operators';
 import type { NativeField, BlendedGroup } from './report-column-picker.types';
+import { buildColumnSearchResult } from './report-column-search';
 
 // Must stay in sync with the backend collectSchemaFieldPaths walker: hidden and
 // DISCONNECTED nodes (with their subtrees) are unavailable for reporting, so they
@@ -751,6 +754,28 @@ export function ReportColumnPicker({
     referencedPreJoinKeys,
   ]);
 
+  // Search query state and derived search results.
+  const [searchQuery, setSearchQuery] = useState('');
+  const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const searchInputRef = useRef<HTMLInputElement>(null);
+
+  const { visibleNativeFields: searchedNativeFields, visibleBlendedGroups: searchedBlendedGroups } =
+    useMemo(
+      () => buildColumnSearchResult(visibleNativeFields, groupedBlendedFields, searchQuery),
+      [visibleNativeFields, groupedBlendedFields, searchQuery]
+    );
+
+  const toggleSearch = () => {
+    if (isSearchOpen) {
+      setSearchQuery('');
+      setIsSearchOpen(false);
+    } else {
+      setIsSearchOpen(true);
+    }
+  };
+
+  const hasVisibleColumns = searchedNativeFields.length > 0 || searchedBlendedGroups.length > 0;
+
   if (isLoading) {
     return (
       <div className='space-y-2'>
@@ -765,8 +790,6 @@ export function ReportColumnPicker({
   const allSelected =
     selectableFieldNames.length > 0 &&
     selectableFieldNames.every(name => effectiveValueSet.has(name));
-  const toggleLabelClass =
-    'text-muted-foreground hover:text-foreground flex cursor-pointer items-center gap-2 text-xs transition-colors';
 
   const showCapabilityFallback =
     !outputControlsSupported &&
@@ -777,22 +800,29 @@ export function ReportColumnPicker({
   return (
     <div className='space-y-2'>
       <div className='flex items-center justify-between px-2'>
-        <label className={toggleLabelClass}>
-          <Checkbox
-            checked={allSelected}
-            onCheckedChange={checked => {
-              if (checked === true) selectAll();
-              else deselectAll();
-            }}
-            aria-label={allSelected ? 'Deselect all fields' : 'Select all fields'}
-          />
-          Select all
-        </label>
-        <div className='flex items-center gap-3'>
-          <label className={toggleLabelClass}>
-            Show selected only
-            <Switch checked={showSelectedOnly} onCheckedChange={setShowSelectedOnly} />
+        <div className='flex items-center gap-2'>
+          <label className='text-muted-foreground hover:text-foreground border-border flex cursor-pointer items-center gap-2 border-r pr-3 text-xs transition-colors'>
+            <Checkbox
+              checked={allSelected}
+              onCheckedChange={checked => {
+                if (checked === true) selectAll();
+                else deselectAll();
+              }}
+              aria-label={allSelected ? 'Deselect all fields' : 'Select all fields'}
+            />
+            Select all
           </label>
+          <label className='text-muted-foreground hover:text-foreground flex cursor-pointer items-center gap-1 text-xs transition-colors'>
+            <Switch
+              className='scale-75'
+              checked={showSelectedOnly}
+              onCheckedChange={setShowSelectedOnly}
+            />
+            Show selected only
+          </label>
+        </div>
+
+        <div className='flex items-center gap-1'>
           {outputControlsAvailable && (
             <OutputSettingsButton
               active={hasAnyOutputControls(effectiveOutputConfig)}
@@ -804,8 +834,45 @@ export function ReportColumnPicker({
               }}
             />
           )}
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                type='button'
+                variant='ghost'
+                size='icon'
+                className='h-7 w-7'
+                aria-label={isSearchOpen ? 'Close search' : 'Search columns'}
+                onClick={toggleSearch}
+              >
+                {isSearchOpen ? <X className='h-4 w-4' /> : <Search className='h-4 w-4' />}
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>{isSearchOpen ? 'Close search' : 'Search columns'}</TooltipContent>
+          </Tooltip>
         </div>
       </div>
+
+      {isSearchOpen && (
+        <div className='relative' role='search'>
+          <Search className='text-muted-foreground pointer-events-none absolute top-1/2 left-2.5 h-4 w-4 -translate-y-1/2' />
+          <Input
+            ref={searchInputRef}
+            autoFocus
+            value={searchQuery}
+            placeholder='Search columns...'
+            className='pl-8'
+            onChange={event => {
+              setSearchQuery(event.target.value);
+            }}
+            onKeyDown={event => {
+              if (event.key === 'Escape') {
+                setSearchQuery('');
+                setIsSearchOpen(false);
+              }
+            }}
+          />
+        </div>
+      )}
 
       {settingsOpen && onOutputConfigChange && outputControlsSupported && (
         <div className='rounded-md border'>
@@ -930,10 +997,12 @@ export function ReportColumnPicker({
             })}
           </div>
         )}
-        {visibleNativeFields.length === 0 && (
-          <p className='text-muted-foreground px-1 text-xs'>No fields available.</p>
+        {!hasVisibleColumns && (
+          <p className='text-muted-foreground px-2 py-6 text-center text-sm'>
+            {searchQuery ? 'No matching columns found.' : 'No fields available.'}
+          </p>
         )}
-        {visibleNativeFields.map(field => (
+        {searchedNativeFields.map(field => (
           <NativeFieldRow
             key={field.name}
             field={field}
@@ -947,7 +1016,7 @@ export function ReportColumnPicker({
           />
         ))}
 
-        {groupedBlendedFields.map(group => (
+        {searchedBlendedGroups.map(group => (
           <BlendedGroupItem
             key={group.aliasPath}
             group={group}
