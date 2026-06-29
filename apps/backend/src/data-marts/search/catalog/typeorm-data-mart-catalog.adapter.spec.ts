@@ -172,6 +172,72 @@ describe('TypeOrmDataMartCatalogAdapter', () => {
       expect(page.descriptors).toHaveLength(2);
       expect(page.nextCursor).not.toBeNull();
     });
+
+    it('paginates by createdAt DESC and id ASC to match the existing data_mart index', async () => {
+      const storage = await seedStorage();
+      const firstTie = await seedMart(storage, {
+        title: 'First Tie',
+        status: DataMartStatus.PUBLISHED,
+      });
+      const secondTie = await seedMart(storage, {
+        title: 'Second Tie',
+        status: DataMartStatus.PUBLISHED,
+      });
+      const older = await seedMart(storage, { title: 'Older', status: DataMartStatus.PUBLISHED });
+
+      await martRepo.query('UPDATE data_mart SET createdAt = ? WHERE id IN (?, ?)', [
+        '2024-01-02 00:00:00',
+        firstTie.id,
+        secondTie.id,
+      ]);
+      await martRepo.query('UPDATE data_mart SET createdAt = ? WHERE id = ?', [
+        '2024-01-01 00:00:00',
+        older.id,
+      ]);
+
+      const sameTimestampIds = [firstTie.id, secondTie.id].sort();
+
+      const page1 = await adapter.listSearchablePage('proj-1', null, 2);
+      expect(page1.descriptors.map(d => d.entityId)).toEqual(sameTimestampIds);
+      expect(page1.nextCursor).not.toBeNull();
+
+      const page2 = await adapter.listSearchablePage('proj-1', page1.nextCursor, 2);
+      expect(page2.descriptors.map(d => d.entityId)).toEqual([older.id]);
+      expect(page2.nextCursor).toBeNull();
+    });
+
+    it('keeps the keyset page query narrow by disabling eager relation loading', async () => {
+      const storage = await seedStorage();
+      await seedMart(storage, { title: 'A', status: DataMartStatus.PUBLISHED });
+      await seedMart(storage, { title: 'B', status: DataMartStatus.PUBLISHED });
+
+      const findSpy = jest.spyOn(martRepo, 'find');
+
+      try {
+        await adapter.listSearchablePage('proj-1', null, 1);
+
+        expect(findSpy).toHaveBeenCalledWith(
+          expect.objectContaining({
+            select: expect.objectContaining({
+              id: true,
+              projectId: true,
+              title: true,
+              description: true,
+              schema: true,
+              status: true,
+              createdAt: true,
+              modifiedAt: true,
+            }),
+            loadEagerRelations: false,
+            order: { createdAt: 'DESC', id: 'ASC' },
+            take: 1,
+          })
+        );
+        expect(findSpy.mock.calls[0][0]).not.toHaveProperty('relations');
+      } finally {
+        findSpy.mockRestore();
+      }
+    });
   });
 
   describe('loadSearchable', () => {

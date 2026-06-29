@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { IsNull, Repository } from 'typeorm';
+import { In, IsNull, Repository } from 'typeorm';
 import { SearchableEntityType } from '../../../common/search/search.facade';
 import { DataDestination } from '../../entities/data-destination.entity';
 import {
@@ -110,15 +110,41 @@ export class DataDestinationIndexableSource implements IndexableSource {
   ): Promise<SearchablePage> {
     const where = buildKeysetWhere<DataDestination>({ projectId, deletedAt: IsNull() }, cursor);
 
-    const destinations = await this.destinationRepo.find({
+    const pageRows = await this.destinationRepo.find({
       where,
-      relations: { credential: true },
+      select: { id: true, createdAt: true },
+      loadEagerRelations: false,
       order: { createdAt: 'ASC', id: 'ASC' },
       take: limit,
     });
-    const descriptors = destinations.map(d => toDescriptor(d));
+    if (pageRows.length === 0) return { descriptors: [], nextCursor: null };
 
-    return { descriptors, nextCursor: nextPageCursor(destinations, limit) };
+    const pageIds = pageRows.map(destination => destination.id);
+    const destinations = await this.destinationRepo.find({
+      where: { id: In(pageIds), projectId, deletedAt: IsNull() },
+      select: {
+        id: true,
+        title: true,
+        type: true,
+        projectId: true,
+        credentialId: true,
+        modifiedAt: true,
+        credential: {
+          id: true,
+          identity: true,
+          credentials: true,
+        },
+      },
+      relations: { credential: true },
+      loadEagerRelations: false,
+    });
+    const destinationById = new Map(destinations.map(destination => [destination.id, destination]));
+    const descriptors = pageIds
+      .map(id => destinationById.get(id))
+      .filter((destination): destination is DataDestination => destination !== undefined)
+      .map(toDescriptor);
+
+    return { descriptors, nextCursor: nextPageCursor(pageRows, limit) };
   }
 
   async listProjectIds(): Promise<string[]> {

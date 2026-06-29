@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { IsNull, Repository } from 'typeorm';
+import { FindOptionsWhere, IsNull, MoreThan, Raw, Repository } from 'typeorm';
 import { DataMart } from '../../entities/data-mart.entity';
 import { DataMartRelationship } from '../../entities/data-mart-relationship.entity';
 import { DataMartStatus } from '../../enums/data-mart-status.enum';
@@ -12,7 +12,7 @@ import type {
   SearchableDataMart,
 } from './data-mart-catalog.port';
 import type { PageCursor, SearchablePage } from '../sources/indexable-source.port';
-import { buildKeysetWhere, nextPageCursor } from '../sources/indexable-source.port';
+import { nextPageCursor } from '../sources/indexable-source.port';
 import { buildDataMartScoringDescriptor } from './data-mart-scoring-descriptor.builder';
 
 type SchemaFieldLike = {
@@ -23,6 +23,46 @@ type SchemaFieldLike = {
   isHiddenForReporting?: boolean;
   fields?: SchemaFieldLike[];
 };
+
+type SearchableDataMartProjection = Pick<
+  DataMart,
+  'id' | 'projectId' | 'title' | 'description' | 'schema' | 'status' | 'modifiedAt'
+>;
+
+type SearchableDataMartPageRow = SearchableDataMartProjection & Pick<DataMart, 'createdAt'>;
+
+const DATA_MART_SEARCHABLE_PAGE_SELECT = {
+  id: true,
+  projectId: true,
+  title: true,
+  description: true,
+  schema: true,
+  status: true,
+  createdAt: true,
+  modifiedAt: true,
+} satisfies Record<keyof SearchableDataMartPageRow, true>;
+
+function buildDataMartSearchPageWhere(
+  projectId: string,
+  cursor: PageCursor | null
+): FindOptionsWhere<DataMart> | FindOptionsWhere<DataMart>[] {
+  const baseWhere: FindOptionsWhere<DataMart> = { projectId, deletedAt: IsNull() };
+  if (!cursor) return baseWhere;
+
+  return [
+    {
+      ...baseWhere,
+      createdAt: Raw(alias => `${alias} < :createdBefore`, {
+        createdBefore: cursor.createdAt,
+      }),
+    },
+    {
+      ...baseWhere,
+      createdAt: Raw(alias => `${alias} = :createdAt`, { createdAt: cursor.createdAt }),
+      id: MoreThan(cursor.id),
+    },
+  ];
+}
 
 function collectFieldLabels(fields: SchemaFieldLike[]): string[] {
   const labels: string[] = [];
@@ -77,11 +117,13 @@ export class TypeOrmDataMartCatalogAdapter implements DataMartCatalogPort {
     cursor: PageCursor | null,
     limit: number
   ): Promise<SearchablePage> {
-    const where = buildKeysetWhere<DataMart>({ projectId, deletedAt: IsNull() }, cursor);
+    const where = buildDataMartSearchPageWhere(projectId, cursor);
 
-    const marts = await this.dataMartRepo.find({
+    const marts: SearchableDataMartPageRow[] = await this.dataMartRepo.find({
       where,
-      order: { createdAt: 'ASC', id: 'ASC' },
+      select: DATA_MART_SEARCHABLE_PAGE_SELECT,
+      loadEagerRelations: false,
+      order: { createdAt: 'DESC', id: 'ASC' },
       take: limit,
     });
     if (marts.length === 0) return { descriptors: [], nextCursor: null };
@@ -134,7 +176,7 @@ export class TypeOrmDataMartCatalogAdapter implements DataMartCatalogPort {
     return this.toSearchable(mart);
   }
 
-  private toSearchable(mart: DataMart): SearchableDataMart {
+  private toSearchable(mart: SearchableDataMartProjection): SearchableDataMart {
     return {
       id: mart.id,
       projectId: mart.projectId,
