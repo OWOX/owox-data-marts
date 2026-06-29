@@ -136,8 +136,13 @@ The following actions can be granted or restricted by the combination of ownersh
 | Who | Not shared | Shared for use | Shared for maintenance | Shared for both |
 |---|---|---|---|---|
 | **Owner (Technical User)** | All actions | All actions | All actions | All actions |
-| **Non-owner Technical User** | No access | See, Use | See, Use, Copy Credentials, Edit, Delete | See, Use, Copy Credentials, Edit, Delete |
-| **Any Business User** | No access | No access | No access | No access |
+| **Owner (Business User)** | No access [1] | No access [1] | No access [1] | No access [1] |
+| **Non-owner Technical User** | No access | See, Use [2] | See, Use, Copy Credentials, Edit, Delete [2] | See, Use, Copy Credentials, Edit, Delete [2] |
+| **Any Business User (non-owner)** | No access | No access | No access | No access |
+
+[1] A Business User assigned as Storage Owner has no access until their role changes to Technical User. A warning appears on the [Notification Settings](../notifications/notification-settings.md) page.
+
+[2] Under `Selected contexts only` scope, these actions require a context overlap between the member and the Storage.
 
 > ☝️ Business Users do not have direct access to Storages. They interact with data through Data Marts and Destinations shared with them.
 
@@ -191,16 +196,20 @@ Relationships between Data Marts have no dedicated ownership. They belong to the
 
 **Editing or deleting a relationship** requires `Edit` access on the source Data Mart only.
 
-**Using joined fields in a report** does not require maintenance access. Any member who sees the source Data Mart can pick joined fields in the Report Columns picker. Two conditions apply:
+**Using joined fields in a report** does not require maintenance access. Any member who sees the source Data Mart can pick joined fields in the Report Columns picker. Two access conditions apply:
 
 - The target Data Mart is also visible to them, through ownership or sharing.
 - The relationship is complete: it has at least one join condition, and the target Data Mart is published (not a draft).
+
+Access alone does not guarantee a field appears. The relationship must keep **Allow for reporting** on, and the field must not be hidden through **Hide from reports**. See [Joinable Data Marts](../getting-started/setup-guide/joinable-data-marts.md) for these field-exposure controls.
 
 | Who | Can see relationships | Can create | Can edit or delete |
 |---|---|---|---|
 | **Technical Owner (Technical User)** of source Data Mart | Yes | Yes, if also has `Edit` on target Data Mart | Yes |
 | **Technical Owner (Business User)** of source Data Mart | Yes | No | No |
-| **Business Owner (any role)** of source Data Mart | Yes | No | No |
+| **Business Owner (Technical User)** of source Data Mart *Shared for maintenance* | Yes | Yes via non-owner path, if also has `Edit` on target Data Mart [1] | Yes via non-owner path [1] |
+| **Business Owner (Technical User)** of source Data Mart not shared for maintenance | Yes | No | No |
+| **Business Owner (Business User)** of source Data Mart | Yes | No | No |
 | **Non-owner Technical User** (source Data Mart shared for maintenance) | Yes [1] | Yes, if also has `Edit` on target Data Mart [1] | Yes [1] |
 | **Non-owner Technical User** (source Data Mart shared for reporting only) | Yes [1] | No | No |
 | **Non-owner Business User** (source Data Mart visible) | Yes [1] | No | No |

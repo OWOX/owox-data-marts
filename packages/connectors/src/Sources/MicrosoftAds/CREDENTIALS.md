@@ -72,11 +72,11 @@ Open the **Body** tab. Set the body type to **x-www-form-urlencoded**. In ReqBin
 > **Note:** You'll get the **Authorization Code** from the URL in Step 4. Prepare the request now. The code is short-lived, so a ready request lets you paste and send right away.
 
 ``` code
-client_id=YOUR_CLIENT_ID&  
-client_secret=YOUR_CLIENT_SECRET&  
-grant_type=authorization_code& 
-code=YOUR_AUTHORIZATION_CODE&  
-redirect_uri=http://localhost:8080&  
+client_id=YOUR_CLIENT_ID&
+client_secret=YOUR_CLIENT_SECRET&
+grant_type=authorization_code&
+code=YOUR_AUTHORIZATION_CODE&
+redirect_uri=http://localhost:8080&
 scope=https://ads.microsoft.com/msads.manage offline_access
 ```
 
@@ -95,6 +95,8 @@ https://login.microsoftonline.com/common/oauth2/v2.0/authorize?client_id=CLIENTI
 Open the URL in your browser. Log in and authorize the app by clicking **Accept**. After authorization, you will be redirected to:  
 `http://localhost:8080/?code=YOUR_AUTHORIZATION_CODE`  
 
+> ⚠️ **Important:** Sign in with the Microsoft Advertising user that can access the **Account ID** and **Customer ID** you collect in Step 6. The Refresh Token represents this signed-in user, so the connector can only import accounts that this user can reach.
+
 Copy the `code` value from the URL.
 
 > Example:  
@@ -111,7 +113,7 @@ In ReqBin or Postman, paste the authorization code from Step 4. Click **Send**. 
 
 ## Step 6: Get Account ID and Customer ID
 
-1. Go to [https://ads.microsoft.com/](https://ads.microsoft.com/) and log in to your Microsoft Ads account.  
+1. Go to [https://ads.microsoft.com/](https://ads.microsoft.com/) and log in to your Microsoft Ads account.
 2. Switch to the account you want to import and open the Campaigns page.
 3. Copy the numeric IDs from the browser URL:
    - Use the `aid` value as **Account ID**.
@@ -123,11 +125,11 @@ In ReqBin or Postman, paste the authorization code from Step 4. Click **Send**. 
 
 ## Step 7: Get Your Developer Token
 
-In the Microsoft Ads interface, go to **Settings → Developer Settings**.  
+In the Microsoft Ads interface, go to **Settings → Developer Settings**.
 
 ![Microsoft Developer](res/microsoft_developer.png)
 
-Click **Request Token**, and copy the generated **Developer Token**.  
+Click **Request Token**, and copy the generated **Developer Token**.
 
 ![Microsoft Request](res/microsoft_request.png)
 

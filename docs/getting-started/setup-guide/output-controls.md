@@ -172,7 +172,7 @@ Open **Edit report**. The column picker groups the missing columns under a red *
 
 You have two options:
 
-- **Uncheck the disconnected columns** — this drops them from the report and removes any filter, slice, or sort rule that uses them. The report then runs on the remaining valid columns.
+- **Uncheck the disconnected columns** — this removes them from the report selection only. It does not clear filter, slice, or sort rules that reference them. Open the Filters, Slices, and Sort sections, delete those rules too, then save.
 - **Restore the schema** — does the column still belong? Ask whoever manages the Data Mart to add it back. Then reopen the report.
 
 ![Edit report panel with a red "Disconnected columns" group at the top of the column list, containing order_date with a checked checkbox. A tooltip is open showing "They are missing from the current Data Mart output schema. Uncheck them to remove them from the report, or contact your analyst to restore the schema." The remaining columns (order_id, customer_id, order_timestamp, product_id, product_name, category, customer_name, country) are listed below and appear valid.](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/6616af2b-e216-406b-b11a-e876b17df900/public)

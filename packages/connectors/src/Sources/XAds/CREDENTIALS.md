@@ -121,6 +121,8 @@ Fill in the fields that appear on the right:
 | **Consumer Key** | your Consumer Key from [Step 1](#step-1-create-a-developer-app) or [Step 3](#step-3-get-your-consumer-key-and-secret) |
 | **Consumer Secret** | your Secret Key from [Step 1](#step-1-create-a-developer-app) or [Step 3](#step-3-get-your-consumer-key-and-secret) |
 
+> ℹ️ This request works because the app you created in Step 1 has OAuth 1.0a user authentication enabled. If it fails with a callback error, or Step 5 shows no PIN, open your app's **User authentication settings**, turn on **OAuth 1.0a**, and set any callback URL. In Postman, you can also add `oauth_callback` = `oob` under the OAuth 1.0 advanced parameters.
+
 Click **Send**. The response appears in the panel at the bottom of the screen. It looks like:
 
 ```text
