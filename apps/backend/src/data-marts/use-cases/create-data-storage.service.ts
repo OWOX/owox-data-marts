@@ -15,6 +15,8 @@ import { UserProjectionsFetcherService } from '../services/user-projections-fetc
 import { syncOwners } from '../utils/sync-owners';
 import { resolveOwnerUsers } from '../utils/resolve-owner-users';
 import { IdpProjectionsFacade } from '../../idp/facades/idp-projections.facade';
+import { AdvancedSearchIndexSyncService } from '../services/advanced-search-index-sync.service';
+import { SearchableEntityType } from '../../common/search/search.facade';
 
 @Injectable()
 export class CreateDataStorageService {
@@ -28,7 +30,8 @@ export class CreateDataStorageService {
     private readonly dataStorageMapper: DataStorageMapper,
     private readonly userProjectionsFetcherService: UserProjectionsFetcherService,
     private readonly idpProjectionsFacade: IdpProjectionsFacade,
-    private readonly eventDispatcher: OwoxEventDispatcher
+    private readonly eventDispatcher: OwoxEventDispatcher,
+    private readonly advancedSearchIndexSync?: AdvancedSearchIndexSyncService
   ) {}
 
   @Transactional()
@@ -49,8 +52,12 @@ export class CreateDataStorageService {
 
     const savedEntity = await this.dataStorageRepository.save(entity);
 
-    // Safe inside @Transactional(): the local emit is discarded if the
-    // surrounding transaction rolls back.
+    await this.advancedSearchIndexSync?.scheduleReindex(
+      SearchableEntityType.DATA_STORAGE,
+      savedEntity.id,
+      command.projectId
+    );
+
     this.eventDispatcher.publishLocalOnCommit(
       new DataStorageCreatedEvent(savedEntity.id, command.projectId, command.userId)
     );

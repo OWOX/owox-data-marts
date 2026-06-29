@@ -52,6 +52,7 @@ describe('RunReportService', () => {
     };
     const dataMartService = {
       actualizeSchemaInEntity: jest.fn().mockResolvedValue(undefined),
+      saveActualizedSchema: jest.fn().mockResolvedValue(undefined),
       save: jest.fn().mockResolvedValue(undefined),
     };
     const availableDestinationTypesService = {

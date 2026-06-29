@@ -5,6 +5,7 @@ import { UpdateDataMartSchemaCommand } from '../dto/domain/update-data-mart-sche
 import { DataMartMapper } from '../mappers/data-mart.mapper';
 import { DataMartService } from '../services/data-mart.service';
 import { AccessDecisionService, EntityType, Action } from '../services/access-decision';
+import { DataMartSearchIndexInvalidationService } from '../services/data-mart-search-index-invalidation.service';
 
 @Injectable()
 export class UpdateDataMartSchemaService {
@@ -14,7 +15,8 @@ export class UpdateDataMartSchemaService {
     private readonly dataMartService: DataMartService,
     private readonly schemaParserFacade: DataMartSchemaParserFacade,
     private readonly mapper: DataMartMapper,
-    private readonly accessDecisionService: AccessDecisionService
+    private readonly accessDecisionService: AccessDecisionService,
+    private readonly searchIndexInvalidation?: DataMartSearchIndexInvalidationService
   ) {}
 
   async run(command: UpdateDataMartSchemaCommand): Promise<DataMartDto> {
@@ -40,6 +42,10 @@ export class UpdateDataMartSchemaService {
       dataMart.storage.type
     );
     await this.dataMartService.save(dataMart);
+    await this.searchIndexInvalidation?.scheduleDataMartSchemaChanged(
+      dataMart.id,
+      command.projectId
+    );
 
     this.logger.debug(`Data mart ${command.id} schema updated`);
     return this.mapper.toDomainDto(dataMart);

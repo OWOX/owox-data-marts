@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { CommonModule } from '../common/common.module';
 import { DataMartsModule } from '../data-marts/data-marts.module';
 import { IdpModule } from '../idp/idp.module';
 import { IdpMcpAuthAdapter } from './mcp/auth/idp-mcp-auth.adapter';
@@ -17,7 +18,7 @@ import {
 import { McpToolRegistry } from './mcp/tools/mcp-tool.registry';
 
 @Module({
-  imports: [IdpModule, DataMartsModule],
+  imports: [IdpModule, DataMartsModule, CommonModule],
   controllers: [McpMetadataController, McpTransportController],
   providers: [
     McpConfigService,

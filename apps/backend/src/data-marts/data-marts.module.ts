@@ -5,6 +5,14 @@ import { DataStorageController } from './controllers/data-storage.controller';
 import { DataDestinationController } from './controllers/data-destination.controller';
 import { ReportAccessService } from './services/report-access.service';
 import { AccessDecisionService } from './services/access-decision';
+import { AdvancedSearchIndexSyncService } from './services/advanced-search-index-sync.service';
+import { DataMartSearchIndexInvalidationService } from './services/data-mart-search-index-invalidation.service';
+import { SearchReindexTrigger } from './entities/search/search-reindex-trigger.entity';
+import {
+  SearchDataDestinationProjectReindexTrigger,
+  SearchDataMartProjectReindexTrigger,
+  SearchDataStorageProjectReindexTrigger,
+} from './entities/search/search-project-reindex-trigger.entity';
 import { UpdateAvailabilityService } from './use-cases/update-availability.service';
 import { MemberOwnershipWarningsService } from './services/member-ownership-warnings.service';
 import { LookerStudioConnectorController } from './controllers/external/looker-studio-connector.controller';
@@ -389,6 +397,10 @@ import { ProjectMemberApiKeysModule } from '../project-member-api-keys/project-m
   imports: [
     ProjectMemberApiKeysModule,
     TypeOrmModule.forFeature([
+      SearchReindexTrigger,
+      SearchDataMartProjectReindexTrigger,
+      SearchDataStorageProjectReindexTrigger,
+      SearchDataDestinationProjectReindexTrigger,
       DataMart,
       DataMartBusinessOwner,
       DataMartTechnicalOwner,
@@ -638,6 +650,8 @@ import { ProjectMemberApiKeysModule } from '../project-member-api-keys/project-m
     ReportService,
     ReportAccessService,
     AccessDecisionService,
+    AdvancedSearchIndexSyncService,
+    DataMartSearchIndexInvalidationService,
     UpdateAvailabilityService,
     MemberOwnershipWarningsService,
     ReportDataCacheService,
@@ -780,7 +794,7 @@ import { ProjectMemberApiKeysModule } from '../project-member-api-keys/project-m
     HttpDataColumnResolver,
     HttpDataColumnValidator,
   ],
-  exports: [MCP_DATA_MARTS_FACADE],
+  exports: [MCP_DATA_MARTS_FACADE, ContextAccessService, AdvancedSearchIndexSyncService],
 })
 export class DataMartsModule {
   configure(consumer: MiddlewareConsumer) {

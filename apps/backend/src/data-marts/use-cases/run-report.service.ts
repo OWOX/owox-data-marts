@@ -458,7 +458,7 @@ export class RunReportService {
    */
   private async actualizeSchemaInDataMart(dataMart: DataMart): Promise<void> {
     await this.dataMartService.actualizeSchemaInEntity(dataMart);
-    await this.dataMartService.save(dataMart);
+    await this.dataMartService.saveActualizedSchema(dataMart);
   }
 
   /**

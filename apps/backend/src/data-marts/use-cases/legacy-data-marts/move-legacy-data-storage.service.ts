@@ -1,6 +1,7 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Optional } from '@nestjs/common';
 import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
+import { SearchableEntityType } from '../../../common/search/search.facade';
 import { DataMartRun } from '../../entities/data-mart-run.entity';
 import { DataMartScheduledTrigger } from '../../entities/data-mart-scheduled-trigger.entity';
 import { DataMart } from '../../entities/data-mart.entity';
@@ -9,6 +10,7 @@ import { DataStorage } from '../../entities/data-storage.entity';
 import { Report } from '../../entities/report.entity';
 import { ConnectorRunTrigger } from '../../entities/connector-run-trigger.entity';
 import { ReportRunTrigger } from '../../entities/report-run-trigger.entity';
+import { AdvancedSearchIndexSyncService } from '../../services/advanced-search-index-sync.service';
 import { LegacyDataStorageService } from '../../services/legacy-data-marts/legacy-data-storage.service';
 
 @Injectable()
@@ -17,7 +19,9 @@ export class MoveLegacyDataStorageService {
 
   constructor(
     private readonly legacyDataStorageService: LegacyDataStorageService,
-    @InjectDataSource() private readonly dataSource: DataSource
+    @InjectDataSource() private readonly dataSource: DataSource,
+    @Optional()
+    private readonly searchIndexSync?: AdvancedSearchIndexSyncService
   ) {}
 
   async run(storage: DataStorage, newProjectId: string): Promise<DataStorage> {
@@ -27,7 +31,7 @@ export class MoveLegacyDataStorageService {
 
     this.legacyDataStorageService.validateSyncPermissionForProject(newProjectId);
 
-    return await this.dataSource.transaction(async manager => {
+    const result = await this.dataSource.transaction(async manager => {
       const subQueryParams = { storageId: storage.id, oldProjectId };
 
       const dataMartSubQuery = manager
@@ -45,6 +49,13 @@ export class MoveLegacyDataStorageService {
         .from(Report, 'r')
         .where(`r.dataMartId IN ${dataMartSubQuery}`)
         .getQuery();
+
+      const movedDataMartRows: Array<{ id: string }> = await manager
+        .createQueryBuilder(DataMart, 'dm')
+        .select('dm.id', 'id')
+        .where('dm.storageId = :storageId AND dm.projectId = :oldProjectId', subQueryParams)
+        .getRawMany();
+      const movedDataMartIds = movedDataMartRows.map(row => row.id);
 
       // Delete ReportRunTriggers first (references reportId)
       const reportTriggerResult = await manager
@@ -108,10 +119,47 @@ export class MoveLegacyDataStorageService {
           `${runResult.affected ?? 0} runs; updated ${dataMartResult.affected ?? 0} data marts`
       );
 
-      return await manager.findOneOrFail(DataStorage, {
+      const movedStorage = await manager.findOneOrFail(DataStorage, {
         where: { id: storage.id },
         relations: ['credential'],
       });
+      return { movedStorage, movedDataMartIds };
     });
+
+    await this.scheduleSearchIndexUpdates(storage.id, result.movedDataMartIds, newProjectId);
+
+    return result.movedStorage;
+  }
+
+  private async scheduleSearchIndexUpdates(
+    storageId: string,
+    dataMartIds: string[],
+    newProjectId: string
+  ): Promise<void> {
+    if (!this.searchIndexSync) return;
+
+    await this.runSearchIndexUpdate(() =>
+      this.searchIndexSync!.scheduleReindex(
+        SearchableEntityType.DATA_STORAGE,
+        storageId,
+        newProjectId
+      )
+    );
+    await this.runSearchIndexUpdate(() =>
+      this.searchIndexSync!.scheduleReindexMany(
+        SearchableEntityType.DATA_MART,
+        dataMartIds,
+        newProjectId
+      )
+    );
+  }
+
+  private async runSearchIndexUpdate(fn: () => Promise<void>): Promise<void> {
+    try {
+      await fn();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      this.logger.warn(`Failed to schedule search index update after storage move: ${message}`);
+    }
   }
 }

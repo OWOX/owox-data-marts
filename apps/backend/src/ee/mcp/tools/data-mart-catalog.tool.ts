@@ -1,12 +1,14 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { z } from 'zod';
 import type { McpScope } from '@owox/idp-protocol';
+import { PublicOriginService } from '../../../common/config/public-origin.service';
 import {
   MCP_DATA_MARTS_FACADE,
   type McpDataMartsFacade,
 } from '../../../data-marts/facades/mcp-data-marts.facade';
 import type { McpAuthContext } from '../auth/mcp-auth-context';
 import type { McpToolDefinition, McpToolResult } from './mcp-tool.definition';
+import { buildDataMartUiPath, joinPublicOrigin } from './data-mart-ui-path';
 
 type ListDataMartsInput = Record<string, never>;
 
@@ -21,6 +23,7 @@ export class ListDataMartsTool implements McpToolDefinition<ListDataMartsInput> 
         id: z.string(),
         title: z.string(),
         description: z.string(),
+        url: z.string(),
         status: z.string(),
         updated_at: z.string(),
       })
@@ -38,7 +41,8 @@ export class ListDataMartsTool implements McpToolDefinition<ListDataMartsInput> 
 
   constructor(
     @Inject(MCP_DATA_MARTS_FACADE)
-    private readonly dataMarts: McpDataMartsFacade
+    private readonly dataMarts: McpDataMartsFacade,
+    private readonly publicOriginService: PublicOriginService
   ) {}
 
   parseInput(input: unknown): ListDataMartsInput {
@@ -54,11 +58,13 @@ export class ListDataMartsTool implements McpToolDefinition<ListDataMartsInput> 
       roles: context.roles,
     });
 
+    const publicOrigin = this.publicOriginService.getPublicOrigin();
     const structuredContent = {
       data_marts: result.dataMarts.map(dataMart => ({
         id: dataMart.id,
         title: dataMart.title,
         description: dataMart.description ?? '',
+        url: joinPublicOrigin(publicOrigin, buildDataMartUiPath(context.projectId, dataMart.id)),
         status: dataMart.status,
         updated_at: dataMart.updatedAt,
       })),

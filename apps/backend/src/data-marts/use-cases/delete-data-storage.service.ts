@@ -8,6 +8,8 @@ import { DataStorage } from '../entities/data-storage.entity';
 import { DataMartService } from '../services/data-mart.service';
 import { DataStorageService } from '../services/data-storage.service';
 import { AccessDecisionService, EntityType, Action } from '../services/access-decision';
+import { AdvancedSearchIndexSyncService } from '../services/advanced-search-index-sync.service';
+import { SearchableEntityType } from '../../common/search/search.facade';
 
 @Injectable()
 export class DeleteDataStorageService {
@@ -16,7 +18,8 @@ export class DeleteDataStorageService {
     private readonly dataStorageRepository: Repository<DataStorage>,
     private readonly dataStorageService: DataStorageService,
     private readonly dataMartService: DataMartService,
-    private readonly accessDecisionService: AccessDecisionService
+    private readonly accessDecisionService: AccessDecisionService,
+    private readonly advancedSearchIndexSync?: AdvancedSearchIndexSyncService
   ) {}
 
   async run(command: DeleteDataStorageCommand): Promise<void> {
@@ -58,5 +61,10 @@ export class DeleteDataStorageService {
       id: command.id,
       projectId: command.projectId,
     });
+    await this.advancedSearchIndexSync?.scheduleDelete(
+      SearchableEntityType.DATA_STORAGE,
+      command.id,
+      command.projectId
+    );
   }
 }

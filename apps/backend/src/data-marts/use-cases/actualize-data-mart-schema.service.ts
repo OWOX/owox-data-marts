@@ -39,7 +39,7 @@ export class ActualizeDataMartSchemaService {
     try {
       await this.definitionValidatorFacade.checkIsValid(dataMart);
       await this.dataMartService.actualizeSchemaInEntity(dataMart);
-      await this.dataMartService.save(dataMart);
+      await this.dataMartService.saveActualizedSchema(dataMart);
     } catch (error) {
       throw new BusinessViolationException(error.message);
     }

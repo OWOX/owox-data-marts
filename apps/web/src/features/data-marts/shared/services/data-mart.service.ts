@@ -429,9 +429,6 @@ export class DataMartService extends ApiService {
     );
   }
 
-  /**
-   * Abort an AI helper trigger (e.g. on hook unmount or when the user starts a new run).
-   */
   async abortAiHelperTrigger(id: string, triggerId: string): Promise<void> {
     await this.delete(`/${id}/ai-helper/triggers/${triggerId}`, {
       skipLoadingIndicator: true,

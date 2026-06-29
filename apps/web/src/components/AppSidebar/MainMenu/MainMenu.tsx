@@ -9,6 +9,7 @@ import {
 } from '@owox/ui/components/sidebar';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@owox/ui/components/tooltip';
 import { useProjectRoute } from '../../../shared/hooks';
+import { getActiveMenuItemClassName, isSameOrNestedPath } from '../menu-item-active';
 import { MainMenuItems } from './items';
 import type { MainMenuItem } from './types';
 
@@ -115,12 +116,6 @@ function MainMenuBranch({ item, pathname, scope }: MainMenuItemProps) {
   );
 }
 
-function getActiveMenuItemClassName(isActive: boolean): string {
-  return isActive
-    ? 'bg-sidebar-active text-sidebar-active-foreground font-medium shadow-sm hover:bg-transparent'
-    : '';
-}
-
 function isMenuItemActive(
   itemUrl: string,
   pathname: string,
@@ -137,8 +132,4 @@ function isMenuItemActive(
   }
 
   return isSameOrNestedPath(pathname, scope(itemUrl));
-}
-
-function isSameOrNestedPath(pathname: string, targetPath: string): boolean {
-  return pathname === targetPath || pathname.startsWith(`${targetPath}/`);
 }

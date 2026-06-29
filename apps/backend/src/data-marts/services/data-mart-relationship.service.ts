@@ -47,6 +47,22 @@ export class DataMartRelationshipService {
     });
   }
 
+  async findSourceDataMartIdsByTargetDataMartId(
+    targetDataMartId: string,
+    projectId: string
+  ): Promise<string[]> {
+    const rows: { sourceDataMartId: string }[] = await this.repository
+      .createQueryBuilder('relationship')
+      .select('source.id', 'sourceDataMartId')
+      .innerJoin('relationship.sourceDataMart', 'source')
+      .innerJoin('relationship.targetDataMart', 'target')
+      .where('target.id = :targetDataMartId', { targetDataMartId })
+      .andWhere('relationship.projectId = :projectId', { projectId })
+      .getRawMany();
+
+    return [...new Set(rows.map(row => row.sourceDataMartId))];
+  }
+
   async findByStorageId(storageId: string, projectId: string): Promise<DataMartRelationship[]> {
     return this.repository.find({
       where: { dataStorage: { id: storageId }, projectId },
