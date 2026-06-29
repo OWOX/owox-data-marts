@@ -32,12 +32,15 @@ describe('UpdateDataDestinationService - credential copy (sourceDestinationId)',
   const targetId = 'dest-target';
   const sourceId = 'dest-source';
 
+  type DestinationConfigOverride = { folderId?: string | null; folderUrl?: string | null } | null;
+
   const makeCommand = (
     overrides: {
       id?: string;
       credentials?: Record<string, string>;
       credentialId?: string | null;
       sourceDestinationId?: string;
+      config?: DestinationConfigOverride;
     } = {}
   ): UpdateDataDestinationCommand => {
     return new UpdateDataDestinationCommand(
@@ -46,7 +49,14 @@ describe('UpdateDataDestinationService - credential copy (sourceDestinationId)',
       'Target Destination',
       overrides.credentials as never,
       overrides.credentialId,
-      overrides.sourceDestinationId
+      overrides.sourceDestinationId,
+      undefined, // ownerIds
+      undefined, // userId
+      undefined, // roles
+      undefined, // availableForUse
+      undefined, // availableForMaintenance
+      undefined, // contextIds
+      overrides.config
     );
   };
 
@@ -55,6 +65,7 @@ describe('UpdateDataDestinationService - credential copy (sourceDestinationId)',
       credentialId?: string | null;
       type?: DataDestinationType;
       credential?: object | null;
+      config?: DestinationConfigOverride;
     } = {}
   ) => ({
     id: targetId,
@@ -62,6 +73,7 @@ describe('UpdateDataDestinationService - credential copy (sourceDestinationId)',
     projectId,
     credentialId: 'credentialId' in overrides ? overrides.credentialId : null,
     credential: 'credential' in overrides ? overrides.credential : null,
+    config: 'config' in overrides ? overrides.config : null,
     title: 'Target Destination',
     createdById: null,
     ownerIds: [],
@@ -186,6 +198,7 @@ describe('UpdateDataDestinationService - credential copy (sourceDestinationId)',
       availableDestinationTypesService,
       dataDestinationCredentialService,
       googleOAuthClientService,
+      folderValidator,
     };
   };
 
@@ -395,5 +408,83 @@ describe('UpdateDataDestinationService - credential copy (sourceDestinationId)',
     await expect(service.run(command)).rejects.toThrow(
       /Cannot provide both sourceDestinationId and credentialId/
     );
+  });
+
+  describe('Drive folder validation (only on folder change)', () => {
+    it('skips folder validation when config is not provided (folder untouched)', async () => {
+      const { service, dataDestinationRepository, dataDestinationService, folderValidator } =
+        createService();
+
+      const targetDestination = makeTargetDestination({ config: { folderId: 'folder-x' } });
+      dataDestinationService.getByIdAndProjectId.mockResolvedValue(targetDestination);
+      dataDestinationRepository.save.mockResolvedValue(targetDestination);
+
+      // No config on the command => availability/rename-style update.
+      await service.run(makeCommand());
+
+      expect(folderValidator.validateConfiguredFolder).not.toHaveBeenCalled();
+    });
+
+    it('skips folder validation when the configured folderId is unchanged', async () => {
+      const { service, dataDestinationRepository, dataDestinationService, folderValidator } =
+        createService();
+
+      const targetDestination = makeTargetDestination({
+        config: { folderId: 'folder-x', folderUrl: 'https://drive/x' },
+      });
+      dataDestinationService.getByIdAndProjectId.mockResolvedValue(targetDestination);
+      dataDestinationRepository.save.mockResolvedValue(targetDestination);
+
+      // Same folderId, only the (derived) folderUrl differs — no Drive round-trip.
+      await service.run(makeCommand({ config: { folderId: 'folder-x', folderUrl: 'https://x' } }));
+
+      expect(folderValidator.validateConfiguredFolder).not.toHaveBeenCalled();
+    });
+
+    it('validates the folder when the configured folderId changes', async () => {
+      const { service, dataDestinationRepository, dataDestinationService, folderValidator } =
+        createService();
+
+      const targetDestination = makeTargetDestination({ config: { folderId: 'folder-old' } });
+      const savedEntity = { ...targetDestination, config: { folderId: 'folder-new' } };
+      dataDestinationService.getByIdAndProjectId.mockResolvedValue(targetDestination);
+      dataDestinationRepository.save.mockResolvedValue(savedEntity);
+
+      await service.run(makeCommand({ config: { folderId: 'folder-new' } }));
+
+      expect(folderValidator.validateConfiguredFolder).toHaveBeenCalledTimes(1);
+      expect(folderValidator.validateConfiguredFolder).toHaveBeenCalledWith(savedEntity);
+    });
+
+    it('validates the folder when one is newly configured on a destination that had none', async () => {
+      const { service, dataDestinationRepository, dataDestinationService, folderValidator } =
+        createService();
+
+      const targetDestination = makeTargetDestination({ config: null });
+      const savedEntity = { ...targetDestination, config: { folderId: 'folder-new' } };
+      dataDestinationService.getByIdAndProjectId.mockResolvedValue(targetDestination);
+      dataDestinationRepository.save.mockResolvedValue(savedEntity);
+
+      await service.run(makeCommand({ config: { folderId: 'folder-new' } }));
+
+      expect(folderValidator.validateConfiguredFolder).toHaveBeenCalledTimes(1);
+    });
+
+    it('fails fast (rolls back) when the changed folder is not usable', async () => {
+      const { service, dataDestinationRepository, dataDestinationService, folderValidator } =
+        createService();
+
+      const targetDestination = makeTargetDestination({ config: { folderId: 'folder-old' } });
+      const savedEntity = { ...targetDestination, config: { folderId: 'folder-bad' } };
+      dataDestinationService.getByIdAndProjectId.mockResolvedValue(targetDestination);
+      dataDestinationRepository.save.mockResolvedValue(savedEntity);
+      folderValidator.validateConfiguredFolder.mockRejectedValue(
+        new Error('folder not accessible')
+      );
+
+      await expect(
+        service.run(makeCommand({ config: { folderId: 'folder-bad' } }))
+      ).rejects.toThrow('folder not accessible');
+    });
   });
 });

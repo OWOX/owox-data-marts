@@ -3,7 +3,12 @@ import { IsOptional, IsString } from 'class-validator';
 
 /**
  * Destination-level configuration accepted on create/update.
- * Optional and type-specific (currently only Google Sheets uses `folderId`).
+ * Optional and type-specific (currently only Google Sheets uses the Drive folder).
+ *
+ * Only `folderUrl` is client-supplied; the canonical `folderId` is derived from
+ * it server-side (see DataDestinationMapper.normalizeDestinationConfig). The
+ * folderId is intentionally NOT accepted from the client so it cannot bypass the
+ * Drive-folder-URL validation.
  */
 export class DestinationConfigDto {
   @ApiPropertyOptional({
@@ -14,13 +19,4 @@ export class DestinationConfigDto {
   @IsOptional()
   @IsString()
   folderUrl?: string | null;
-
-  @ApiPropertyOptional({
-    nullable: true,
-    description:
-      'Derived Google Drive folder ID (server-managed; clients should send folderUrl). Pass null to clear.',
-  })
-  @IsOptional()
-  @IsString()
-  folderId?: string | null;
 }

@@ -91,6 +91,18 @@ export class UpdateDataDestinationService {
       command.projectId
     );
 
+    // Only re-validate the Drive folder (a live Drive API round-trip inside the
+    // transaction) when the configured folder actually changes. Updates that
+    // leave the folder untouched — e.g. toggling availability or renaming the
+    // destination — skip the network call. Computed before `entity.config` is
+    // mutated below so it reflects the previously persisted folder.
+    const existingFolderId = entity.config?.folderId?.trim() || undefined;
+    const incomingFolderId =
+      command.config !== undefined
+        ? command.config?.folderId?.trim() || undefined
+        : existingFolderId;
+    const folderChanged = incomingFolderId !== existingFolderId;
+
     // Permissions Model: verify user has EDIT access to this Destination
     if (command.userId) {
       const canEdit = await this.accessDecisionService.canAccess(
@@ -185,7 +197,7 @@ export class UpdateDataDestinationService {
           command.roles
         );
       }
-      return this.replaceOwnersAndBuildResponse(updatedEntity, command.ownerIds);
+      return this.replaceOwnersAndBuildResponse(updatedEntity, command.ownerIds, folderChanged);
     }
 
     // Handle OAuth credentialId disconnect (null = revoke)
@@ -296,16 +308,20 @@ export class UpdateDataDestinationService {
       );
     }
 
-    return this.replaceOwnersAndBuildResponse(updatedEntity, command.ownerIds);
+    return this.replaceOwnersAndBuildResponse(updatedEntity, command.ownerIds, folderChanged);
   }
 
   private async replaceOwnersAndBuildResponse(
     entity: DataDestination,
-    ownerIds?: string[]
+    ownerIds?: string[],
+    folderChanged = true
   ): Promise<DataDestinationDto> {
-    // Fail fast (and roll back) if a configured Drive folder is not usable for
-    // service-account auto-creation.
-    await this.folderValidator.validateConfiguredFolder(entity);
+    // Fail fast (and roll back) if a newly configured Drive folder is not usable
+    // for service-account auto-creation. Skipped when the folder did not change,
+    // to avoid a redundant live Drive API call on unrelated updates.
+    if (folderChanged) {
+      await this.folderValidator.validateConfiguredFolder(entity);
+    }
 
     if (ownerIds !== undefined) {
       await syncOwners(

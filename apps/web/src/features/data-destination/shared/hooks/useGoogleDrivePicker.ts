@@ -105,6 +105,10 @@ function loadScript(src: string): Promise<void> {
       resolve();
     };
     script.onerror = () => {
+      // Drop the cached (rejected) promise and remove the dead tag so a later
+      // attempt re-injects the script instead of replaying the failure forever.
+      scriptPromises.delete(src);
+      script.remove();
       reject(new Error(`Failed to load ${src}`));
     };
     document.head.appendChild(script);

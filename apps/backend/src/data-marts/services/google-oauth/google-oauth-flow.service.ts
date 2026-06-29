@@ -345,7 +345,13 @@ export class GoogleOAuthFlowService {
       throw new CredentialsNotFoundException(destinationId, 'destination');
     }
     await this.revokeCredential(destination.credentialId, 'destination');
-    await this.dataDestinationRepository.update({ id: destinationId }, { credentialId: null });
+    // Also clear the Drive folder config: an OAuth-selected folder's drive.file
+    // grant was tied to the now-revoked account, so it would be stale (and could
+    // point at a folder the next-connected account cannot access).
+    await this.dataDestinationRepository.update(
+      { id: destinationId },
+      { credentialId: null, config: null }
+    );
     this.logger.log(`Revoked OAuth credentials for destination ${destinationId}`);
   }
 

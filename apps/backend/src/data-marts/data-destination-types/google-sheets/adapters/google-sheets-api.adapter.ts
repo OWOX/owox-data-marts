@@ -276,12 +276,35 @@ export class GoogleSheetsApiAdapter {
         canAddChildren: data.capabilities?.canAddChildren === true,
       };
     } catch (error) {
-      GoogleSheetsApiAdapter.LOGGER.warn(
-        `getFolderAccess: cannot access folder ${folderId}`,
+      // Only treat genuine "not found / no permission" responses as inaccessible.
+      // Transient errors (quota/429, 5xx, network) must propagate, otherwise a
+      // temporary Google outage would be reported to the user as "folder not found
+      // or service account is not a member", blocking an otherwise-valid save.
+      const status = GoogleSheetsApiAdapter.httpStatusOf(error);
+      if (status === 403 || status === 404) {
+        GoogleSheetsApiAdapter.LOGGER.warn(
+          `getFolderAccess: cannot access folder ${folderId}`,
+          error instanceof Error ? error.message : String(error)
+        );
+        return { accessible: false, isFolder: false, isSharedDrive: false, canAddChildren: false };
+      }
+      GoogleSheetsApiAdapter.LOGGER.error(
+        `getFolderAccess: transient/unexpected error inspecting folder ${folderId}`,
         error instanceof Error ? error.message : String(error)
       );
-      return { accessible: false, isFolder: false, isSharedDrive: false, canAddChildren: false };
+      throw error;
     }
+  }
+
+  /** Best-effort extraction of the HTTP status from a Google/Gaxios error. */
+  private static httpStatusOf(error: unknown): number | undefined {
+    const e = error as { code?: unknown; status?: unknown; response?: { status?: unknown } };
+    const candidates = [e?.response?.status, e?.status, e?.code];
+    for (const c of candidates) {
+      if (typeof c === 'number') return c;
+      if (typeof c === 'string' && /^\d+$/.test(c)) return Number(c);
+    }
+    return undefined;
   }
 
   /**

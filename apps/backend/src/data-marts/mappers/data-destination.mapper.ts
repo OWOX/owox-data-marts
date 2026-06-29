@@ -94,7 +94,9 @@ export class DataDestinationMapper {
       return undefined;
     }
     const folderUrl = config.folderUrl?.trim() || null;
-    const folderId = folderUrl ? extractDriveFolderId(folderUrl) : config.folderId?.trim() || null;
+    // folderId is server-derived only — never taken from the client payload —
+    // so it always reflects a validated folder URL (or null when cleared).
+    const folderId = folderUrl ? extractDriveFolderId(folderUrl) : null;
     return { folderUrl, folderId };
   }
 

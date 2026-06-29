@@ -173,9 +173,14 @@ export class DestinationFolderAccessException extends GoogleOAuthException {
  * account). The underlying error is logged (not sent to the client).
  */
 export class SheetFolderCreateFailedException extends GoogleOAuthException {
-  constructor(destinationId: string, details?: unknown) {
+  /**
+   * @param hint - path-specific remediation appended to the message. The OAuth
+   *   and Service Account paths fail for different reasons, so the caller passes
+   *   the guidance that actually applies (no "service account" advice for OAuth).
+   */
+  constructor(destinationId: string, details?: unknown, hint?: string) {
     super(
-      'Failed to create the Google Sheet in the configured Drive folder. Make sure it is a Shared Drive folder shared with the service account as Editor.',
+      `Failed to create the Google Sheet in the configured Drive folder.${hint ? ` ${hint}` : ''}`,
       'SHEET_FOLDER_CREATE_FAILED',
       HttpStatus.BAD_REQUEST,
       details ?? { destinationId }

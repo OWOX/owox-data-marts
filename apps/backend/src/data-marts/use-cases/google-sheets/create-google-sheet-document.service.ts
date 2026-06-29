@@ -106,7 +106,11 @@ export class CreateGoogleSheetDocumentService {
       try {
         result = await adapter.createSpreadsheetInFolder(title, folderId);
       } catch (error) {
-        throw new SheetFolderCreateFailedException(destination.id, error);
+        throw new SheetFolderCreateFailedException(
+          destination.id,
+          error,
+          'The selected Drive folder is not accessible with the connected Google account. Re-pick the folder while signed in with the connected account, or clear it to create the document in your Drive root.'
+        );
       }
     } else {
       result = canShare
@@ -138,7 +142,10 @@ export class CreateGoogleSheetDocumentService {
       throw new ServiceAccountRequiresFolderException(destination.id);
     }
 
-    const resolved = await this.credentialsResolver.resolve(destination).catch(() => undefined);
+    // Do NOT swallow resolver errors: a decryption/store failure is an
+    // infrastructure fault and must surface, not be misreported as "not
+    // configured". A wrong/missing key is still caught by the safeParse below.
+    const resolved = await this.credentialsResolver.resolve(destination);
     const parsed = GoogleSheetsCredentialsSchema.safeParse(resolved);
     if (!parsed.success || !parsed.data.serviceAccountKey) {
       throw new BadRequestException(
@@ -156,7 +163,11 @@ export class CreateGoogleSheetDocumentService {
     try {
       result = await adapter.createSpreadsheetInFolder(title, folderId);
     } catch (error) {
-      throw new SheetFolderCreateFailedException(destination.id, error);
+      throw new SheetFolderCreateFailedException(
+        destination.id,
+        error,
+        'Make sure it is a Shared Drive folder shared with the service account as Editor.'
+      );
     }
     this.logger.log(
       `Auto-created Google Sheet ${result.spreadsheetId} via Service Account in folder ${folderId} for destination ${destination.id}`
