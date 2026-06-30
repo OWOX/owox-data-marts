@@ -55,6 +55,13 @@ if (!REDSHIFT_CREDENTIALS_AVAILABLE) {
 
 const describeIfCredentials = REDSHIFT_CREDENTIALS_AVAILABLE ? describe : describe.skip;
 
+// The Serverless workgroup runs on minimal Base RPU (cost cap) and is hit
+// concurrently by the parallel http-data-real suite, so individual Data API
+// queries occasionally spike to ~30s+ under contention. Per-test timeouts now
+// inherit the global 60s (jest-integration.json) instead of a hardcoded 30s, and
+// we retry once so a single transient latency spike doesn't fail the whole run.
+jest.retryTimes(1, { logErrorsBeforeRetry: true });
+
 // ---------------------------------------------------------------------------
 // Access validation + dry-run
 // ---------------------------------------------------------------------------
@@ -83,7 +90,7 @@ describeIfCredentials('Redshift Integration Tests', () => {
   describe('Access Validation', () => {
     it('should accept valid credentials', async () => {
       await expect(adapter.checkAccess()).resolves.not.toThrow();
-    }, 30000);
+    });
 
     it('should reject invalid credentials', async () => {
       const invalidAdapter = new RedshiftApiAdapter(
@@ -91,17 +98,17 @@ describeIfCredentials('Redshift Integration Tests', () => {
         config
       );
       await expect(invalidAdapter.checkAccess()).rejects.toThrow();
-    }, 30000);
+    });
   });
 
   describe('SQL Dry Run', () => {
     it('should validate correct query via EXPLAIN', async () => {
       await expect(adapter.executeDryRunQuery('SELECT 1')).resolves.not.toThrow();
-    }, 30000);
+    });
 
     it('should reject invalid SQL syntax', async () => {
       await expect(adapter.executeDryRunQuery('SELEKT * FORM invalid')).rejects.toThrow();
-    }, 30000);
+    });
   });
 });
 
@@ -261,7 +268,7 @@ describeIfCredentials(
       // Asserts the seeded `a\b` row matched: backslash is literal (standard_conforming_strings
       // effectively ON), so `'`→`''` escaping is airtight. FAILS if a future cluster has scs=off.
       expect(rows.length).toBe(1);
-    }, 30000);
+    });
 
     // -------------------------------------------------------------------------
     // Design decision 2: date/time coercion (bare literal, no CAST)
@@ -278,7 +285,7 @@ describeIfCredentials(
       });
       console.log(`[COERCION] DATE gte bare string → ${rows.length} rows, no error`);
       expect(rows.length).toBeGreaterThan(0);
-    }, 30000);
+    });
 
     it('DATE: between bare string literals executes without error', async () => {
       const rows = await runFilter({
@@ -292,7 +299,7 @@ describeIfCredentials(
       });
       console.log(`[COERCION] DATE between bare strings → ${rows.length} rows, no error`);
       expect(rows.length).toBeGreaterThan(0);
-    }, 30000);
+    });
 
     it('TIMESTAMP: gte bare string literal executes without error', async () => {
       const rows = await runFilter({
@@ -300,7 +307,7 @@ describeIfCredentials(
       });
       console.log(`[COERCION] TIMESTAMP gte bare string → ${rows.length} rows, no error`);
       expect(rows.length).toBeGreaterThan(0);
-    }, 30000);
+    });
 
     it('TIMESTAMP: between bare string literals executes without error', async () => {
       const rows = await runFilter({
@@ -314,7 +321,7 @@ describeIfCredentials(
       });
       console.log(`[COERCION] TIMESTAMP between bare strings → ${rows.length} rows, no error`);
       expect(rows.length).toBeGreaterThan(0);
-    }, 30000);
+    });
 
     it('TIMESTAMPTZ: gte bare string literal executes without error', async () => {
       const rows = await runFilter({
@@ -322,7 +329,7 @@ describeIfCredentials(
       });
       console.log(`[COERCION] TIMESTAMPTZ gte bare string → ${rows.length} rows, no error`);
       expect(rows.length).toBeGreaterThan(0);
-    }, 30000);
+    });
 
     it('TIMESTAMPTZ: between bare string literals executes without error', async () => {
       const rows = await runFilter({
@@ -336,7 +343,7 @@ describeIfCredentials(
       });
       console.log(`[COERCION] TIMESTAMPTZ between bare strings → ${rows.length} rows, no error`);
       expect(rows.length).toBeGreaterThan(0);
-    }, 30000);
+    });
 
     it('TIME: gte bare string literal executes without error', async () => {
       const rows = await runFilter({
@@ -344,7 +351,7 @@ describeIfCredentials(
       });
       console.log(`[COERCION] TIME gte bare string → ${rows.length} rows, no error`);
       expect(rows.length).toBeGreaterThan(0);
-    }, 30000);
+    });
 
     it('TIME: between bare string literals executes without error', async () => {
       const rows = await runFilter({
@@ -358,7 +365,7 @@ describeIfCredentials(
       });
       console.log(`[COERCION] TIME between bare strings → ${rows.length} rows, no error`);
       expect(rows.length).toBeGreaterThan(0);
-    }, 30000);
+    });
 
     it('TIMETZ: gte bare string literal executes without error', async () => {
       const rows = await runFilter({
@@ -366,7 +373,7 @@ describeIfCredentials(
       });
       console.log(`[COERCION] TIMETZ gte bare string → ${rows.length} rows, no error`);
       expect(rows.length).toBeGreaterThan(0);
-    }, 30000);
+    });
 
     it('TIMETZ: between bare string literals executes without error', async () => {
       const rows = await runFilter({
@@ -380,7 +387,7 @@ describeIfCredentials(
       });
       console.log(`[COERCION] TIMETZ between bare strings → ${rows.length} rows, no error`);
       expect(rows.length).toBeGreaterThan(0);
-    }, 30000);
+    });
 
     // -------------------------------------------------------------------------
     // relative_date today on non-midnight TIMESTAMP column
@@ -394,14 +401,14 @@ describeIfCredentials(
         filters: [{ column: 'ts_col', operator: 'relative_date', value: { kind: 'today' } }],
       });
       expect(ids(rows)).toEqual(['1', '6']);
-    }, 30000);
+    });
 
     it('relative_date today on date_col → rows 1,6', async () => {
       const rows = await runFilter({
         filters: [{ column: 'date_col', operator: 'relative_date', value: { kind: 'today' } }],
       });
       expect(ids(rows)).toEqual(['1', '6']);
-    }, 30000);
+    });
 
     // -------------------------------------------------------------------------
     // this_year / this_month upper-bound exclusion
@@ -422,7 +429,7 @@ describeIfCredentials(
       expect(resultIds).toContain('1');
       expect(resultIds).toContain('6');
       console.log(`[this_year] rows returned: [${resultIds.join(',')}]`);
-    }, 30000);
+    });
 
     it('relative_date this_month excludes future-dated row 5', async () => {
       const rows = await runFilter({
@@ -431,7 +438,7 @@ describeIfCredentials(
       const resultIds = ids(rows);
       expect(resultIds).not.toContain('5');
       console.log(`[this_month] rows returned: [${resultIds.join(',')}]`);
-    }, 30000);
+    });
 
     // -------------------------------------------------------------------------
     // Operator matrix: every operator runs without error, returns sensible rows
@@ -443,49 +450,49 @@ describeIfCredentials(
         filters: [{ column: 'name', operator: 'eq', value: 'alpha' }],
       });
       expect(ids(rows)).toEqual(['1']);
-    }, 30000);
+    });
 
     it('neq on status: not "active" → rows 2,4 (inactive)', async () => {
       const rows = await runFilter({
         filters: [{ column: 'status', operator: 'neq', value: 'active' }],
       });
       expect(ids(rows)).toEqual(['2', '4']);
-    }, 30000);
+    });
 
     it('gt: amount > 20 → rows 3,4,5 (30,40,50)', async () => {
       const rows = await runFilter({
         filters: [{ column: 'amount', operator: 'gt', value: 20 }],
       });
       expect(ids(rows)).toEqual(['3', '4', '5']);
-    }, 30000);
+    });
 
     it('lt: amount < 20 → rows 1,6 (10,0)', async () => {
       const rows = await runFilter({
         filters: [{ column: 'amount', operator: 'lt', value: 20 }],
       });
       expect(ids(rows)).toEqual(['1', '6']);
-    }, 30000);
+    });
 
     it('gte: amount >= 20 → rows 2,3,4,5 (20,30,40,50)', async () => {
       const rows = await runFilter({
         filters: [{ column: 'amount', operator: 'gte', value: 20 }],
       });
       expect(ids(rows)).toEqual(['2', '3', '4', '5']);
-    }, 30000);
+    });
 
     it('lte: amount <= 20 → rows 1,2,6 (10,20,0)', async () => {
       const rows = await runFilter({
         filters: [{ column: 'amount', operator: 'lte', value: 20 }],
       });
       expect(ids(rows)).toEqual(['1', '2', '6']);
-    }, 30000);
+    });
 
     it('contains "alph" on name → row 1 (alpha)', async () => {
       const rows = await runFilter({
         filters: [{ column: 'name', operator: 'contains', value: 'alph' }],
       });
       expect(ids(rows)).toEqual(['1']);
-    }, 30000);
+    });
 
     it('not_contains "eta" on name → rows 1,3,4,5,6 (all except beta)', async () => {
       // beta(2) contains 'eta'; others do not
@@ -493,70 +500,70 @@ describeIfCredentials(
         filters: [{ column: 'name', operator: 'not_contains', value: 'eta' }],
       });
       expect(ids(rows)).toEqual(['1', '3', '4', '5', '6']);
-    }, 30000);
+    });
 
     it('starts_with "al" on name → row 1 (alpha)', async () => {
       const rows = await runFilter({
         filters: [{ column: 'name', operator: 'starts_with', value: 'al' }],
       });
       expect(ids(rows)).toEqual(['1']);
-    }, 30000);
+    });
 
     it('ends_with "a" on name → rows 1,2,6 (alpha,beta,gamma all end in "a")', async () => {
       const rows = await runFilter({
         filters: [{ column: 'name', operator: 'ends_with', value: 'a' }],
       });
       expect(ids(rows)).toEqual(['1', '2', '6']);
-    }, 30000);
+    });
 
     it('regex: name ~ "^alp" → row 1', async () => {
       const rows = await runFilter({
         filters: [{ column: 'name', operator: 'regex', value: '^alp' }],
       });
       expect(ids(rows)).toEqual(['1']);
-    }, 30000);
+    });
 
     it('not_regex: name !~ "^alp" → rows 2,3,4,5,6', async () => {
       const rows = await runFilter({
         filters: [{ column: 'name', operator: 'not_regex', value: '^alp' }],
       });
       expect(ids(rows)).toEqual(['2', '3', '4', '5', '6']);
-    }, 30000);
+    });
 
     it('is_empty: no empty-name rows → 0 rows', async () => {
       const rows = await runFilter({
         filters: [{ column: 'name', operator: 'is_empty' }],
       });
       expect(rows).toHaveLength(0);
-    }, 30000);
+    });
 
     it('is_not_empty: all 6 rows have non-empty names', async () => {
       const rows = await runFilter({
         filters: [{ column: 'name', operator: 'is_not_empty' }],
       });
       expect(rows).toHaveLength(6);
-    }, 30000);
+    });
 
     it('is_null: no NULLs in seed → 0 rows', async () => {
       const rows = await runFilter({
         filters: [{ column: 'name', operator: 'is_null' }],
       });
       expect(rows).toHaveLength(0);
-    }, 30000);
+    });
 
     it('is_not_null: all 6 rows', async () => {
       const rows = await runFilter({
         filters: [{ column: 'name', operator: 'is_not_null' }],
       });
       expect(rows).toHaveLength(6);
-    }, 30000);
+    });
 
     it('between: amount BETWEEN 20 AND 30 → rows 2,3', async () => {
       const rows = await runFilter({
         filters: [{ column: 'amount', operator: 'between', value: { from: 20, to: 30 } }],
       });
       expect(ids(rows)).toEqual(['2', '3']);
-    }, 30000);
+    });
 
     it('relative_date last_n_days(7): rows 1,2,6 (upper bound excludes future row 5)', async () => {
       const rows = await runFilter({
@@ -566,7 +573,7 @@ describeIfCredentials(
       });
       // last_n_days is bounded `< tomorrow`: future-dated row 5 (+13 months) is excluded.
       expect(ids(rows)).toEqual(['1', '2', '6']);
-    }, 30000);
+    });
 
     it('relative_date last_n_months(3): rows 1,2,3,6 (upper bound excludes future row 5)', async () => {
       const rows = await runFilter({
@@ -580,7 +587,7 @@ describeIfCredentials(
       });
       // last_n_months is bounded `< tomorrow`: future-dated row 5 is excluded; row 3 (-40d) stays.
       expect(ids(rows)).toEqual(['1', '2', '3', '6']);
-    }, 30000);
+    });
 
     // -------------------------------------------------------------------------
     // Wildcard-literal safety
@@ -591,14 +598,14 @@ describeIfCredentials(
         filters: [{ column: 'name', operator: 'contains', value: '100%' }],
       });
       expect(ids(rows)).toEqual(['4']);
-    }, 30000);
+    });
 
     it('SAFETY eq "O\'Brien" → row 3 (single-quote doubling round-trip)', async () => {
       const rows = await runFilter({
         filters: [{ column: 'name', operator: 'eq', value: "O'Brien" }],
       });
       expect(ids(rows)).toEqual(['3']);
-    }, 30000);
+    });
 
     // -------------------------------------------------------------------------
     // Sort + limit
@@ -610,6 +617,6 @@ describeIfCredentials(
         limit: 2,
       });
       expect(rows.map(r => r.id)).toEqual(['5', '4']);
-    }, 30000);
+    });
   }
 );
