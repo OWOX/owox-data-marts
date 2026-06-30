@@ -42,7 +42,6 @@ import {
 } from './report-execution-policy.resolver';
 import { ReportAccessService } from '../services/report-access.service';
 import { ReportSqlComposerService } from '../services/report-sql-composer.service';
-import { ReportTotalsService } from '../services/report-totals.service';
 import { SqlParameter } from '../data-storage-types/utils/sql-clause-renderer';
 import { ConsumptionTrackingService } from '../services/consumption-tracking.service';
 
@@ -111,8 +110,7 @@ export class RunReportService {
     private readonly blendedReportDataService: BlendedReportDataService,
     private readonly reportSqlComposerService: ReportSqlComposerService,
     private readonly idpProjectionsFacade: IdpProjectionsFacade,
-    private readonly consumptionTrackingService: ConsumptionTrackingService,
-    private readonly reportTotalsService: ReportTotalsService
+    private readonly consumptionTrackingService: ConsumptionTrackingService
   ) {}
 
   /**
@@ -289,20 +287,6 @@ export class RunReportService {
       });
       this.logger.debug(`Report data prepared for ${report.id}:`, reportDataDescription);
 
-      // Grand totals are a SEPARATE DWH query, independent of the row stream, and
-      // BEST-EFFORT: a failure here must never abort an otherwise-successful run.
-      // Only compute them for destinations that surface them. The push destinations on
-      // this path — Google Sheets and the message-based ones (Email/Slack/Teams/Chat) —
-      // write only the row stream and never emit a totals block, so the extra
-      // full-dataset scan would just burn warehouse cost for output no one sees. (The
-      // Looker Studio connector and HTTP Data API read totals on their own paths.)
-      const destinationConsumesTotals =
-        dataDestination.type !== DataDestinationType.GOOGLE_SHEETS &&
-        !isEmailBasedDataDestinationType(dataDestination.type);
-      if (destinationConsumesTotals) {
-        await this.persistTotalsBestEffort(report, accessor, dataMartRun);
-      }
-
       reportWriter.setExecutionContext?.({
         runId: report.id,
         logger: reportRunLogger!,
@@ -333,39 +317,6 @@ export class RunReportService {
       }
     }
     return finalizeResult;
-  }
-
-  /**
-   * Computes the report's grand-total row as a SEPARATE DWH query and stashes it on
-   * `dataMartRun.additionalParams.totals` so the finish path persists it. Returns early
-   * when the report has no metrics (`computeTotals` → null). BEST-EFFORT: any failure is
-   * logged and swallowed — totals are auxiliary run metadata, never the primary deliverable,
-   * and must not abort an otherwise-successful run.
-   */
-  private async persistTotalsBestEffort(
-    report: Report,
-    accessor: BlendableSchemaAccessor,
-    dataMartRun?: DataMartRun
-  ): Promise<void> {
-    if (!dataMartRun) {
-      return;
-    }
-    try {
-      const totals = await this.reportTotalsService.computeTotals(
-        report,
-        accessor,
-        report.dataMart.storage.type
-      );
-      if (totals) {
-        dataMartRun.additionalParams = { ...(dataMartRun.additionalParams ?? {}), totals };
-      }
-    } catch (error) {
-      this.logger.warn(
-        `Failed to compute totals for report ${report.id}: ${
-          error instanceof Error ? error.message : String(error)
-        }`
-      );
-    }
   }
 
   /**

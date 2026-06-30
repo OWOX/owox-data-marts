@@ -89,11 +89,6 @@ describe('RunReportService', () => {
       inlineStaticSql: jest.fn().mockReturnValue('SELECT 1'),
     };
 
-    const reportTotalsService = {
-      // Default: report is not aggregated -> no totals.
-      computeTotals: jest.fn().mockResolvedValue(null),
-    };
-
     const service = new RunReportService(
       reportReaderResolver as never,
       reportWriterResolver as never,
@@ -109,8 +104,7 @@ describe('RunReportService', () => {
       blendedReportDataService as never,
       reportSqlComposerService as never,
       { getProjectMemberOrThrow: jest.fn().mockResolvedValue({ role: 'admin' }) } as never,
-      consumptionTrackingService as never,
-      reportTotalsService as never
+      consumptionTrackingService as never
     );
 
     return {
@@ -127,7 +121,6 @@ describe('RunReportService', () => {
       gracefulShutdownService,
       consumptionTrackingService,
       reportSqlComposerService,
-      reportTotalsService,
     };
   };
 
@@ -817,152 +810,6 @@ describe('RunReportService', () => {
 
     expect(reportSqlComposerService.inlineStaticSql).not.toHaveBeenCalled();
     expect(dataMartRun.reportDefinition!.executionSqlQuery).toBeUndefined();
-  });
-
-  it('persists computed totals for a totals-consuming destination (Looker Studio)', async () => {
-    const { service, reportReaderResolver, reportWriterResolver, reportTotalsService } =
-      createService();
-    const report = createReport(DataDestinationType.LOOKER_STUDIO);
-    const reader = createReader();
-    reader.readReportDataBatch.mockResolvedValue(new ReportDataBatch([], undefined));
-    const writer = createWriter(DataDestinationType.LOOKER_STUDIO);
-    reportReaderResolver.resolve.mockResolvedValue(reader);
-    reportWriterResolver.resolve.mockResolvedValue(writer);
-
-    const totals = { 'revenue | SUM': 999, 'Row Count': 7 };
-    reportTotalsService.computeTotals.mockResolvedValue(totals);
-
-    const dataMartRun = createDataMartRun(report);
-
-    await (
-      service as unknown as {
-        executeReport: (
-          report: Report,
-          accessor: { userId: string; roles: string[] },
-          signal?: AbortSignal,
-          logger?: unknown,
-          dataMartRun?: DataMartRun
-        ) => Promise<void>;
-      }
-    ).executeReport(
-      report,
-      { userId: 'user-1', roles: ['admin'] },
-      undefined,
-      undefined,
-      dataMartRun
-    );
-
-    expect(reportTotalsService.computeTotals).toHaveBeenCalledTimes(1);
-    expect(dataMartRun.additionalParams).toEqual({ totals });
-  });
-
-  it('skips the totals query for a Google Sheets destination (totals are not surfaced there)', async () => {
-    const { service, reportReaderResolver, reportWriterResolver, reportTotalsService } =
-      createService();
-    const report = createReport(DataDestinationType.GOOGLE_SHEETS);
-    const reader = createReader();
-    reader.readReportDataBatch.mockResolvedValue(new ReportDataBatch([], undefined));
-    const writer = createWriter(DataDestinationType.GOOGLE_SHEETS);
-    reportReaderResolver.resolve.mockResolvedValue(reader);
-    reportWriterResolver.resolve.mockResolvedValue(writer);
-
-    const dataMartRun = createDataMartRun(report);
-
-    await (
-      service as unknown as {
-        executeReport: (
-          report: Report,
-          accessor: { userId: string; roles: string[] },
-          signal?: AbortSignal,
-          logger?: unknown,
-          dataMartRun?: DataMartRun
-        ) => Promise<void>;
-      }
-    ).executeReport(
-      report,
-      { userId: 'user-1', roles: ['admin'] },
-      undefined,
-      undefined,
-      dataMartRun
-    );
-
-    // The push destination writes only rows; the extra full-dataset totals scan is skipped.
-    expect(reportTotalsService.computeTotals).not.toHaveBeenCalled();
-    expect(dataMartRun.additionalParams?.totals).toBeUndefined();
-  });
-
-  it('does NOT fail the run when totals computation throws (totals omitted, rows still succeed)', async () => {
-    const { service, reportReaderResolver, reportWriterResolver, reportTotalsService } =
-      createService();
-    const report = createReport(DataDestinationType.LOOKER_STUDIO);
-    const reader = createReader();
-    reader.readReportDataBatch.mockResolvedValue(new ReportDataBatch([], undefined));
-    const writer = createWriter(DataDestinationType.LOOKER_STUDIO);
-    reportReaderResolver.resolve.mockResolvedValue(reader);
-    reportWriterResolver.resolve.mockResolvedValue(writer);
-
-    reportTotalsService.computeTotals.mockRejectedValue(new Error('totals query exploded'));
-
-    const dataMartRun = createDataMartRun(report);
-
-    await expect(
-      (
-        service as unknown as {
-          executeReport: (
-            report: Report,
-            accessor: { userId: string; roles: string[] },
-            signal?: AbortSignal,
-            logger?: unknown,
-            dataMartRun?: DataMartRun
-          ) => Promise<void>;
-        }
-      ).executeReport(
-        report,
-        { userId: 'user-1', roles: ['admin'] },
-        undefined,
-        undefined,
-        dataMartRun
-      )
-    ).resolves.not.toThrow();
-
-    // Rows still written; totals quietly omitted.
-    expect(writer.prepareToWriteReport).toHaveBeenCalled();
-    expect(dataMartRun.additionalParams?.totals).toBeUndefined();
-  });
-
-  it('leaves additionalParams unset for a non-aggregated run (computeTotals → null)', async () => {
-    const { service, reportReaderResolver, reportWriterResolver, reportTotalsService } =
-      createService();
-    const report = createReport(DataDestinationType.LOOKER_STUDIO);
-    const reader = createReader();
-    reader.readReportDataBatch.mockResolvedValue(new ReportDataBatch([], undefined));
-    const writer = createWriter(DataDestinationType.LOOKER_STUDIO);
-    reportReaderResolver.resolve.mockResolvedValue(reader);
-    reportWriterResolver.resolve.mockResolvedValue(writer);
-
-    reportTotalsService.computeTotals.mockResolvedValue(null);
-
-    const dataMartRun = createDataMartRun(report);
-
-    await (
-      service as unknown as {
-        executeReport: (
-          report: Report,
-          accessor: { userId: string; roles: string[] },
-          signal?: AbortSignal,
-          logger?: unknown,
-          dataMartRun?: DataMartRun
-        ) => Promise<void>;
-      }
-    ).executeReport(
-      report,
-      { userId: 'user-1', roles: ['admin'] },
-      undefined,
-      undefined,
-      dataMartRun
-    );
-
-    expect(dataMartRun.additionalParams?.totals).toBeUndefined();
   });
 
   // Finding B: prepareReportData must receive uniqueCount: true when the report has
