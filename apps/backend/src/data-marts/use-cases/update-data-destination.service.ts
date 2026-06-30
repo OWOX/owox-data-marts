@@ -50,8 +50,8 @@ export class UpdateDataDestinationService {
     private readonly destinationOwnerRepository: Repository<DestinationOwner>,
     private readonly accessDecisionService: AccessDecisionService,
     private readonly contextAccessService: ContextAccessService,
+    private readonly folderValidator: GoogleSheetsFolderValidator,
     private readonly advancedSearchIndexSync?: AdvancedSearchIndexSyncService
-    private readonly folderValidator: GoogleSheetsFolderValidator
   ) {}
 
   @Transactional()
