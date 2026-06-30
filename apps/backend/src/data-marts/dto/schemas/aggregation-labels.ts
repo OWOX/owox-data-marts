@@ -54,12 +54,25 @@ export function aggregateFunctionLabel(fn: ReportAggregateFunction): string {
   return REPORT_AGGREGATE_FUNCTION_LABELS[fn];
 }
 
+/**
+ * Sanitizes a column path for use in an OUTPUT column name. A nested/struct path like
+ * `metrics.revenue` must not keep its dots: BigQuery rejects a dot in an output alias
+ * entirely — verified on real BigQuery, even a fully back-tick-quoted `` `a.b` `` alias is
+ * rejected — and a dotted header would not match the alias on name-keyed readers. The dot
+ * is replaced with `_`; the aggregate ARGUMENT still uses the real dotted reference (struct
+ * access), only the output NAME is sanitized. Any resulting name collision is caught by the
+ * OUTPUT_COLUMN_NAME_COLLISION validator (the same labels feed that check).
+ */
+export function sanitizeOutputColumn(column: string): string {
+  return column.replace(/\./g, '_');
+}
+
 export function aggregatedColumnLabel(column: string, fn: ReportAggregateFunction): string {
-  // `<column> | <TOKEN>`: the `|` separator is verified-legal in BigQuery output column
-  // names (real-BQ probe accepted `revenue | SUM`), whereas parentheses are NOT (`revenue
-  // (Sum)` was rejected). KNOWN LIMITATION: if `column` itself contains BigQuery-illegal
-  // characters (e.g. a dotted nested-struct path), the resulting alias is still illegal.
-  return `${column} | ${REPORT_AGGREGATE_FUNCTION_TOKENS[fn]}`;
+  // `<column> | <TOKEN>`: the `|` separator is verified-legal in BigQuery output column names
+  // (real-BQ probe accepted `revenue | SUM`), whereas parentheses are NOT (`revenue (Sum)`
+  // was rejected). The column path is sanitized (dots → `_`) so a nested-struct metric still
+  // yields a legal single-token alias and a matching header.
+  return `${sanitizeOutputColumn(column)} | ${REPORT_AGGREGATE_FUNCTION_TOKENS[fn]}`;
 }
 
 /**

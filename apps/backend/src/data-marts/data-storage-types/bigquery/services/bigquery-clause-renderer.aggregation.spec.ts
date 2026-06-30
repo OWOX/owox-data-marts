@@ -37,6 +37,17 @@ describe('BigQueryClauseRenderer — aggregated select + group by', () => {
     expect(out.groupBySql).toBe('');
   });
 
+  // A nested/struct column: the aggregate argument keeps the dotted struct reference, but the
+  // output ALIAS sanitizes the dots (BigQuery rejects a dot in an alias). Header comes from
+  // the same label, so they match.
+  it('nested/struct metric → struct-ref argument, dot-free single-token alias', () => {
+    const out = r.renderAggregatedSelect(
+      ['metrics.revenue'],
+      [{ column: 'metrics.revenue', function: 'SUM' }]
+    );
+    expect(out.selectSql).toBe('SUM(`metrics`.`revenue`) AS `metrics_revenue | SUM`');
+  });
+
   // Grand-total shape (what composeTotals produces): all-metrics, no dimensions, Row Count
   // appended → a single all-aggregated row, so there is NO GROUP BY.
   it('all metrics, no dimensions, with Row Count → no GROUP BY clause', () => {
