@@ -7,10 +7,13 @@ describe('MCP OAuth discovery (e2e)', () => {
   let agent: supertest.Agent;
   const originalMcpPublicBaseUrl = process.env.MCP_PUBLIC_BASE_URL;
   const originalOwoxAuthPublicBaseUrl = process.env.OWOX_AUTH_PUBLIC_BASE_URL;
+  const originalOpenaiAppsChallengeToken = process.env.MCP_OPENAI_APPS_CHALLENGE_TOKEN;
+  const challengeToken = 'test-openai-apps-challenge-token';
 
   beforeAll(async () => {
     process.env.MCP_PUBLIC_BASE_URL = 'https://mcp.owox.com';
     process.env.OWOX_AUTH_PUBLIC_BASE_URL = 'https://app.owox.com';
+    process.env.MCP_OPENAI_APPS_CHALLENGE_TOKEN = challengeToken;
     const testApp = await createTestApp();
     app = testApp.app;
     agent = testApp.agent;
@@ -29,6 +32,11 @@ describe('MCP OAuth discovery (e2e)', () => {
       delete process.env.OWOX_AUTH_PUBLIC_BASE_URL;
     } else {
       process.env.OWOX_AUTH_PUBLIC_BASE_URL = originalOwoxAuthPublicBaseUrl;
+    }
+    if (originalOpenaiAppsChallengeToken === undefined) {
+      delete process.env.MCP_OPENAI_APPS_CHALLENGE_TOKEN;
+    } else {
+      process.env.MCP_OPENAI_APPS_CHALLENGE_TOKEN = originalOpenaiAppsChallengeToken;
     }
   });
 
@@ -86,6 +94,21 @@ describe('MCP OAuth discovery (e2e)', () => {
         registration_endpoint: 'https://app.owox.com/oauth/register',
       });
     }
+  });
+
+  it('serves the OpenAI Apps domain-verification challenge token as text/plain at the origin-root well-known path', async () => {
+    const response = await agent.get('/.well-known/openai-apps-challenge');
+
+    expect(response.status).toBe(200);
+    expect(response.headers['content-type']).toContain('text/plain');
+    expect(response.headers['cache-control']).toBe('no-store');
+    expect(response.text).toBe(challengeToken);
+  });
+
+  it('does not expose the OpenAI Apps challenge under the /api prefix', async () => {
+    const response = await agent.get('/api/.well-known/openai-apps-challenge');
+
+    expect(response.status).toBe(404);
   });
 
   it('challenges unauthenticated MCP requests with protected resource metadata', async () => {

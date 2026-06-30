@@ -26,7 +26,7 @@ export class LookerStudioConnectorApiSchemaService {
 
     // Actualize data mart schema
     await this.dataMartService.actualizeSchemaInEntity(report.dataMart);
-    await this.dataMartService.save(report.dataMart);
+    await this.dataMartService.saveActualizedSchema(report.dataMart);
 
     // Use headers from cached data description
     const reportDataHeaders = cachedReader.dataDescription.dataHeaders;

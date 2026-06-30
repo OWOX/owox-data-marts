@@ -20,7 +20,7 @@ export class McpDataMartsFacadeImpl implements McpDataMartsFacade {
       dataMarts: result.items.map(item => ({
         id: item.id,
         title: item.title,
-        description: null,
+        description: item.description,
         status: item.status,
         updatedAt: item.modifiedAt.toISOString(),
       })),

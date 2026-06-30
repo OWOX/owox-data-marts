@@ -28,6 +28,8 @@ import { syncOwners } from '../utils/sync-owners';
 import { IdpProjectionsFacade } from '../../idp/facades/idp-projections.facade';
 import { AccessDecisionService, EntityType, Action } from '../services/access-decision';
 import { ContextAccessService } from '../services/context/context-access.service';
+import { AdvancedSearchIndexSyncService } from '../services/advanced-search-index-sync.service';
+import { SearchableEntityType } from '../../common/search/search.facade';
 
 @Injectable()
 export class UpdateDataDestinationService {
@@ -48,6 +50,7 @@ export class UpdateDataDestinationService {
     private readonly destinationOwnerRepository: Repository<DestinationOwner>,
     private readonly accessDecisionService: AccessDecisionService,
     private readonly contextAccessService: ContextAccessService,
+    private readonly advancedSearchIndexSync?: AdvancedSearchIndexSyncService
     private readonly folderValidator: GoogleSheetsFolderValidator
   ) {}
 
@@ -208,6 +211,11 @@ export class UpdateDataDestinationService {
           command.roles
         );
       }
+      await this.advancedSearchIndexSync?.scheduleReindex(
+        SearchableEntityType.DATA_DESTINATION,
+        updatedEntity.id,
+        command.projectId
+      );
       return this.replaceOwnersAndBuildResponse(
         updatedEntity,
         command.ownerIds,
@@ -329,6 +337,12 @@ export class UpdateDataDestinationService {
         command.roles
       );
     }
+
+    await this.advancedSearchIndexSync?.scheduleReindex(
+      SearchableEntityType.DATA_DESTINATION,
+      updatedEntity.id,
+      command.projectId
+    );
 
     return this.replaceOwnersAndBuildResponse(
       updatedEntity,

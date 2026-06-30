@@ -2,6 +2,11 @@ import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, Repository } from 'typeorm';
 import { ConnectorSourceCredentials } from '../../entities/connector-source-credentials.entity';
+// @ts-expect-error - Package lacks TypeScript declarations
+import { Core } from '@owox/connectors';
+
+const { GENERATED_REFRESH_TOKEN_CREDENTIAL_FIELD } = Core;
+const SECRET_MASK = '**********';
 
 @Injectable()
 export class ConnectorSourceCredentialsService {
@@ -209,8 +214,176 @@ export class ConnectorSourceCredentialsService {
       throw new Error(`Unauthorized: secrets do not belong to this project`);
     }
 
-    existing.credentials = secrets;
-    return await this.connectorSourceCredentialsRepository.save(existing);
+    const shouldPreserveGeneratedRefreshToken = this.shouldPreserveGeneratedRefreshToken(
+      existing.credentials,
+      secrets
+    );
+
+    await this.updateCredentialsJson(id, projectId, secrets, shouldPreserveGeneratedRefreshToken);
+    const updated = await this.getCredentialsById(id);
+
+    return updated ?? { ...existing, credentials: secrets };
+  }
+
+  async updateCredentialFields(
+    id: string,
+    projectId: string,
+    updates: Record<string, unknown>,
+    expectedCurrentValues?: Record<string, unknown>
+  ): Promise<ConnectorSourceCredentials> {
+    const generatedRefreshToken = updates[GENERATED_REFRESH_TOKEN_CREDENTIAL_FIELD];
+    if (typeof generatedRefreshToken !== 'string') {
+      throw new Error(
+        `Only ${GENERATED_REFRESH_TOKEN_CREDENTIAL_FIELD} can be updated by field update`
+      );
+    }
+
+    const existing = await this.getCredentialsById(id);
+    if (!existing) {
+      throw new Error(`ConnectorSourceCredentials with id ${id} not found`);
+    }
+
+    if (existing.projectId !== projectId) {
+      throw new Error(`Unauthorized: credentials do not belong to this project`);
+    }
+
+    const queryBuilder = this.connectorSourceCredentialsRepository
+      .createQueryBuilder()
+      .update(ConnectorSourceCredentials)
+      .set({
+        credentials: () => {
+          return `JSON_SET(
+            credentials,
+            '$.${GENERATED_REFRESH_TOKEN_CREDENTIAL_FIELD}',
+            :generatedRefreshToken
+          )`;
+        },
+      })
+      .where('id = :id', { id })
+      .andWhere('projectId = :projectId', { projectId })
+      .setParameters({ generatedRefreshToken });
+
+    if (
+      expectedCurrentValues &&
+      Object.prototype.hasOwnProperty.call(
+        expectedCurrentValues,
+        GENERATED_REFRESH_TOKEN_CREDENTIAL_FIELD
+      )
+    ) {
+      const expectedGeneratedRefreshToken =
+        expectedCurrentValues[GENERATED_REFRESH_TOKEN_CREDENTIAL_FIELD];
+      const generatedRefreshTokenExpression = this.getJsonExtractTextExpression(
+        'credentials',
+        `$.${GENERATED_REFRESH_TOKEN_CREDENTIAL_FIELD}`
+      );
+
+      if (typeof expectedGeneratedRefreshToken === 'string') {
+        queryBuilder
+          .andWhere(`${generatedRefreshTokenExpression} = :expectedGeneratedRefreshToken`)
+          .setParameters({ expectedGeneratedRefreshToken });
+      } else {
+        queryBuilder.andWhere(`${generatedRefreshTokenExpression} IS NULL`);
+      }
+    }
+
+    const updateResult = await queryBuilder.execute();
+    if (updateResult.affected === 0) {
+      return existing;
+    }
+
+    const updated = await this.getCredentialsById(id);
+
+    return (
+      updated ?? {
+        ...existing,
+        credentials: {
+          ...existing.credentials,
+          [GENERATED_REFRESH_TOKEN_CREDENTIAL_FIELD]: generatedRefreshToken,
+        },
+      }
+    );
+  }
+
+  private getJsonExtractTextExpression(column: string, path: string): string {
+    const databaseType = this.getDatabaseType();
+
+    if (databaseType === 'mysql' || databaseType === 'mariadb') {
+      return `JSON_UNQUOTE(JSON_EXTRACT(${column}, '${path}'))`;
+    }
+
+    return `JSON_EXTRACT(${column}, '${path}')`;
+  }
+
+  private getDatabaseType(): string | undefined {
+    const repository = this
+      .connectorSourceCredentialsRepository as Repository<ConnectorSourceCredentials> & {
+      manager?: {
+        connection?: { options?: { type?: string } };
+        dataSource?: { options?: { type?: string } };
+      };
+    };
+
+    return (
+      repository.manager?.connection?.options?.type ?? repository.manager?.dataSource?.options?.type
+    );
+  }
+
+  private async updateCredentialsJson(
+    id: string,
+    projectId: string,
+    credentials: Record<string, unknown>,
+    preserveGeneratedRefreshToken: boolean
+  ): Promise<void> {
+    const serializedCredentials = JSON.stringify(credentials);
+    const generatedRefreshTokenPath = `$.${GENERATED_REFRESH_TOKEN_CREDENTIAL_FIELD}`;
+    const credentialsExpression = preserveGeneratedRefreshToken
+      ? `CASE
+          WHEN JSON_EXTRACT(credentials, '${generatedRefreshTokenPath}') IS NOT NULL
+          THEN JSON_SET(
+            :credentials,
+            '${generatedRefreshTokenPath}',
+            JSON_EXTRACT(credentials, '${generatedRefreshTokenPath}')
+          )
+          ELSE :credentials
+        END`
+      : ':credentials';
+
+    await this.connectorSourceCredentialsRepository
+      .createQueryBuilder()
+      .update(ConnectorSourceCredentials)
+      .set({ credentials: () => credentialsExpression })
+      .where('id = :id', { id })
+      .andWhere('projectId = :projectId', { projectId })
+      .setParameters({ credentials: serializedCredentials })
+      .execute();
+  }
+
+  private shouldPreserveGeneratedRefreshToken(
+    existingCredentials: Record<string, unknown>,
+    incomingSecrets: Record<string, unknown>
+  ): boolean {
+    if (incomingSecrets[GENERATED_REFRESH_TOKEN_CREDENTIAL_FIELD] !== undefined) {
+      return false;
+    }
+
+    const incomingRefreshToken = this.getRefreshTokenValue(incomingSecrets);
+    if (!this.isRefreshTokenValue(incomingRefreshToken)) {
+      return true;
+    }
+
+    return incomingRefreshToken === this.getRefreshTokenValue(existingCredentials);
+  }
+
+  private getRefreshTokenValue(credentials: Record<string, unknown>): unknown {
+    const refreshTokenEntry = Object.entries(credentials).find(([key]) => {
+      return key === 'refresh_token' || key === 'RefreshToken' || key.endsWith('.RefreshToken');
+    });
+
+    return refreshTokenEntry?.[1];
+  }
+
+  private isRefreshTokenValue(value: unknown): value is string {
+    return typeof value === 'string' && value !== '' && value !== SECRET_MASK;
   }
 
   /**

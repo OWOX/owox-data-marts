@@ -3,19 +3,30 @@ import { ConnectorSourceCredentialsService } from './connector-source-credential
 import { ConnectorSourceCredentials } from '../../entities/connector-source-credentials.entity';
 
 describe('ConnectorSourceCredentialsService', () => {
-  const createService = () => {
+  const createService = (databaseType = 'better-sqlite3') => {
+    const queryBuilder = {
+      update: jest.fn().mockReturnThis(),
+      set: jest.fn().mockReturnThis(),
+      where: jest.fn().mockReturnThis(),
+      andWhere: jest.fn().mockReturnThis(),
+      setParameters: jest.fn().mockReturnThis(),
+      execute: jest.fn().mockResolvedValue({ affected: 1 }),
+    };
     const repository = {
       create: jest.fn().mockImplementation(data => data),
       save: jest.fn().mockImplementation(data => Promise.resolve({ ...data, id: 'cred-1' })),
       findOne: jest.fn(),
       find: jest.fn(),
       softDelete: jest.fn().mockResolvedValue(undefined),
-      createQueryBuilder: jest.fn(),
+      createQueryBuilder: jest.fn().mockReturnValue(queryBuilder),
+      manager: {
+        connection: { options: { type: databaseType } },
+      },
     } as unknown as Repository<ConnectorSourceCredentials>;
 
     const service = new ConnectorSourceCredentialsService(repository);
 
-    return { service, repository };
+    return { service, repository, queryBuilder };
   };
 
   describe('createCredentials', () => {
@@ -127,14 +138,13 @@ describe('ConnectorSourceCredentialsService', () => {
 
   describe('updateSecretsForConfig', () => {
     it('updates credentials when found and projectId matches', async () => {
-      const { service, repository } = createService();
+      const { service, repository, queryBuilder } = createService();
       const existing = {
         id: 'cred-1',
         projectId: 'proj-1',
         credentials: { oldKey: 'oldValue' },
       } as unknown as ConnectorSourceCredentials;
-      (repository.findOne as jest.Mock).mockResolvedValue(existing);
-      (repository.save as jest.Mock).mockResolvedValue({
+      (repository.findOne as jest.Mock).mockResolvedValueOnce(existing).mockResolvedValueOnce({
         ...existing,
         credentials: { newKey: 'newValue' },
       });
@@ -143,10 +153,69 @@ describe('ConnectorSourceCredentialsService', () => {
         newKey: 'newValue',
       });
 
-      expect(repository.save).toHaveBeenCalledWith(
-        expect.objectContaining({ credentials: { newKey: 'newValue' } })
+      expect(queryBuilder.set).toHaveBeenCalledWith({ credentials: expect.any(Function) });
+      expect(queryBuilder.setParameters).toHaveBeenCalledWith(
+        expect.objectContaining({ credentials: JSON.stringify({ newKey: 'newValue' }) })
       );
+      expect(repository.save).not.toHaveBeenCalled();
       expect(result.credentials).toEqual({ newKey: 'newValue' });
+    });
+
+    it('keeps generated refresh token when regular secrets are updated', async () => {
+      const { service, repository, queryBuilder } = createService();
+      const existing = {
+        id: 'cred-1',
+        projectId: 'proj-1',
+        credentials: {
+          'AuthType.oauth2.RefreshToken': 'old-refresh-token',
+          generated_refresh_token: 'generated-refresh-token',
+        },
+      } as unknown as ConnectorSourceCredentials;
+      (repository.findOne as jest.Mock).mockResolvedValueOnce(existing).mockResolvedValueOnce({
+        ...existing,
+        credentials: {
+          'AuthType.oauth2.RefreshToken': 'old-refresh-token',
+          generated_refresh_token: 'generated-refresh-token',
+        },
+      });
+
+      await service.updateSecretsForConfig('cred-1', 'proj-1', {
+        'AuthType.oauth2.RefreshToken': 'old-refresh-token',
+      });
+
+      const credentialsExpression = (
+        queryBuilder.set as jest.Mock
+      ).mock.calls[0][0].credentials() as string;
+      expect(credentialsExpression).toContain('JSON_EXTRACT(credentials');
+      expect(repository.save).not.toHaveBeenCalled();
+    });
+
+    it('drops generated refresh token when original refresh token changes', async () => {
+      const { service, repository, queryBuilder } = createService();
+      const existing = {
+        id: 'cred-1',
+        projectId: 'proj-1',
+        credentials: {
+          'AuthType.oauth2.RefreshToken': 'old-refresh-token',
+          generated_refresh_token: 'generated-refresh-token',
+        },
+      } as unknown as ConnectorSourceCredentials;
+      (repository.findOne as jest.Mock).mockResolvedValueOnce(existing).mockResolvedValueOnce({
+        ...existing,
+        credentials: {
+          'AuthType.oauth2.RefreshToken': 'new-refresh-token',
+        },
+      });
+
+      await service.updateSecretsForConfig('cred-1', 'proj-1', {
+        'AuthType.oauth2.RefreshToken': 'new-refresh-token',
+      });
+
+      const credentialsExpression = (
+        queryBuilder.set as jest.Mock
+      ).mock.calls[0][0].credentials() as string;
+      expect(credentialsExpression).toBe(':credentials');
+      expect(repository.save).not.toHaveBeenCalled();
     });
 
     it('throws when entity not found', async () => {
@@ -170,6 +239,133 @@ describe('ConnectorSourceCredentialsService', () => {
       await expect(
         service.updateSecretsForConfig('cred-1', 'proj-1', { key: 'val' })
       ).rejects.toThrow('Unauthorized: secrets do not belong to this project');
+    });
+  });
+
+  describe('updateCredentialFields', () => {
+    it('adds generated refresh token without changing original refresh token fields', async () => {
+      const { service, repository, queryBuilder } = createService();
+      const existing = {
+        id: 'cred-1',
+        projectId: 'proj-1',
+        credentials: {
+          'AuthType.oauth2.RefreshToken': 'old-refresh-token',
+          'AuthType.oauth2.ClientSecret': 'client-secret',
+        },
+      } as unknown as ConnectorSourceCredentials;
+      (repository.findOne as jest.Mock).mockResolvedValueOnce(existing).mockResolvedValueOnce({
+        ...existing,
+        credentials: {
+          ...existing.credentials,
+          generated_refresh_token: 'generated-refresh-token',
+        },
+      });
+
+      await service.updateCredentialFields('cred-1', 'proj-1', {
+        generated_refresh_token: 'generated-refresh-token',
+      });
+
+      expect(queryBuilder.set).toHaveBeenCalledWith({ credentials: expect.any(Function) });
+      expect(queryBuilder.setParameters).toHaveBeenCalledWith(
+        expect.objectContaining({ generatedRefreshToken: 'generated-refresh-token' })
+      );
+      expect(repository.save).not.toHaveBeenCalled();
+    });
+
+    it('guards generated refresh token updates using sqlite JSON extraction', async () => {
+      const { service, repository, queryBuilder } = createService('better-sqlite3');
+      const existing = {
+        id: 'cred-1',
+        projectId: 'proj-1',
+        credentials: { generated_refresh_token: 'old-token' },
+      } as unknown as ConnectorSourceCredentials;
+      (repository.findOne as jest.Mock).mockResolvedValueOnce(existing).mockResolvedValueOnce({
+        ...existing,
+        credentials: { generated_refresh_token: 'new-token' },
+      });
+
+      await service.updateCredentialFields(
+        'cred-1',
+        'proj-1',
+        { generated_refresh_token: 'new-token' },
+        { generated_refresh_token: 'old-token' }
+      );
+
+      expect(queryBuilder.andWhere).toHaveBeenCalledWith(
+        "JSON_EXTRACT(credentials, '$.generated_refresh_token') = :expectedGeneratedRefreshToken"
+      );
+      expect(queryBuilder.setParameters).toHaveBeenCalledWith(
+        expect.objectContaining({ expectedGeneratedRefreshToken: 'old-token' })
+      );
+    });
+
+    it('guards generated refresh token updates using mysql JSON extraction', async () => {
+      const { service, repository, queryBuilder } = createService('mysql');
+      const existing = {
+        id: 'cred-1',
+        projectId: 'proj-1',
+        credentials: { generated_refresh_token: 'old-token' },
+      } as unknown as ConnectorSourceCredentials;
+      (repository.findOne as jest.Mock).mockResolvedValueOnce(existing).mockResolvedValueOnce({
+        ...existing,
+        credentials: { generated_refresh_token: 'new-token' },
+      });
+
+      await service.updateCredentialFields(
+        'cred-1',
+        'proj-1',
+        { generated_refresh_token: 'new-token' },
+        { generated_refresh_token: 'old-token' }
+      );
+
+      expect(queryBuilder.andWhere).toHaveBeenCalledWith(
+        "JSON_UNQUOTE(JSON_EXTRACT(credentials, '$.generated_refresh_token')) = :expectedGeneratedRefreshToken"
+      );
+    });
+
+    it('returns existing credentials without failing when guarded update is stale', async () => {
+      const { service, repository, queryBuilder } = createService();
+      const existing = {
+        id: 'cred-1',
+        projectId: 'proj-1',
+        credentials: { generated_refresh_token: 'newer-token' },
+      } as unknown as ConnectorSourceCredentials;
+      (queryBuilder.execute as jest.Mock).mockResolvedValueOnce({ affected: 0 });
+      (repository.findOne as jest.Mock).mockResolvedValueOnce(existing);
+
+      const result = await service.updateCredentialFields(
+        'cred-1',
+        'proj-1',
+        { generated_refresh_token: 'older-token' },
+        { generated_refresh_token: 'old-token' }
+      );
+
+      expect(result).toBe(existing);
+      expect(repository.findOne).toHaveBeenCalledTimes(1);
+    });
+
+    it('guards generated refresh token updates against an absent current value', async () => {
+      const { service, repository, queryBuilder } = createService();
+      const existing = {
+        id: 'cred-1',
+        projectId: 'proj-1',
+        credentials: {},
+      } as unknown as ConnectorSourceCredentials;
+      (repository.findOne as jest.Mock).mockResolvedValueOnce(existing).mockResolvedValueOnce({
+        ...existing,
+        credentials: { generated_refresh_token: 'new-token' },
+      });
+
+      await service.updateCredentialFields(
+        'cred-1',
+        'proj-1',
+        { generated_refresh_token: 'new-token' },
+        { generated_refresh_token: undefined }
+      );
+
+      expect(queryBuilder.andWhere).toHaveBeenCalledWith(
+        "JSON_EXTRACT(credentials, '$.generated_refresh_token') IS NULL"
+      );
     });
   });
 

@@ -265,8 +265,8 @@ export class DataMartService extends ApiService {
   async getSchemaActualizeTriggerResponse(
     id: string,
     triggerId: string
-  ): Promise<{ success: boolean; error?: string }> {
-    return this.get<{ success: boolean; error?: string }>(
+  ): Promise<{ success: boolean; error?: string; code?: string }> {
+    return this.get<{ success: boolean; error?: string; code?: string }>(
       `/${id}/schema-actualize-triggers/${triggerId}`,
       undefined,
       { skipLoadingIndicator: true, skipErrorToast: true } as AxiosRequestConfig
@@ -429,9 +429,6 @@ export class DataMartService extends ApiService {
     );
   }
 
-  /**
-   * Abort an AI helper trigger (e.g. on hook unmount or when the user starts a new run).
-   */
   async abortAiHelperTrigger(id: string, triggerId: string): Promise<void> {
     await this.delete(`/${id}/ai-helper/triggers/${triggerId}`, {
       skipLoadingIndicator: true,

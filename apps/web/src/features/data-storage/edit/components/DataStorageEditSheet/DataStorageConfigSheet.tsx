@@ -77,38 +77,38 @@ export function DataStorageConfigSheet({
   }, [isOpen, dataStorage]);
 
   return (
-    <>
-      <Sheet
-        open={isOpen}
-        onOpenChange={open => {
-          if (!open) {
-            handleClose();
-          }
-        }}
-      >
-        <SheetContent data-testid='storageConfigSheet'>
-          <SheetHeader>
-            <SheetTitle>Configure Storage Provider</SheetTitle>
-            <SheetDescription>Customize settings for your storage provider</SheetDescription>
-          </SheetHeader>
-          <DataStorageForm
-            initialData={dataStorage ?? undefined}
-            onSubmit={onSave}
-            onCancel={handleClose}
-            onDirtyChange={handleFormDirtyChange}
-          />
-        </SheetContent>
-      </Sheet>
-      <ConfirmationDialog
-        open={showUnsavedDialog}
-        onOpenChange={setShowUnsavedDialog}
-        title='Unsaved Changes'
-        description='You have unsaved changes. Exit without saving?'
-        confirmLabel='Yes, leave now'
-        cancelLabel='No, stay here'
-        onConfirm={confirmClose}
-        variant='destructive'
-      />
-    </>
+    <Sheet
+      open={isOpen}
+      onOpenChange={open => {
+        if (!open) {
+          handleClose();
+        }
+      }}
+    >
+      <SheetContent data-testid='storageConfigSheet'>
+        <SheetHeader>
+          <SheetTitle>Configure Storage Provider</SheetTitle>
+          <SheetDescription>Customize settings for your storage provider</SheetDescription>
+        </SheetHeader>
+        <DataStorageForm
+          initialData={dataStorage ?? undefined}
+          onSubmit={onSave}
+          onCancel={handleClose}
+          onDirtyChange={handleFormDirtyChange}
+        />
+        {/* Rendered inside SheetContent so Radix treats it as a nested dismissable layer;
+              interacting with it then doesn't dismiss the sheet (which caused a re-open loop). */}
+        <ConfirmationDialog
+          open={showUnsavedDialog}
+          onOpenChange={setShowUnsavedDialog}
+          title='Unsaved Changes'
+          description='You have unsaved changes. Exit without saving?'
+          confirmLabel='Yes, leave now'
+          cancelLabel='No, stay here'
+          onConfirm={confirmClose}
+          variant='destructive'
+        />
+      </SheetContent>
+    </Sheet>
   );
 }

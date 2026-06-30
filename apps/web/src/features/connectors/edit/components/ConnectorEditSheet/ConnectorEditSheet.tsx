@@ -47,57 +47,57 @@ export function ConnectorEditSheet({
   useIntercomLauncher(isOpen);
 
   return (
-    <>
-      <Sheet
-        open={isOpen}
-        onOpenChange={open => {
-          if (!open) {
-            handleClose();
-          }
-        }}
-      >
-        <SheetContent>
-          <SheetHeader>
-            <SheetTitle>
-              {mode === 'fields-only'
-                ? 'Connector Fields'
-                : existingConnector?.source.name
-                  ? `Edit Connector`
-                  : 'Set Up Connector'}
-            </SheetTitle>
-            <SheetDescription>
-              {mode === 'fields-only'
-                ? 'Select fields for your Data Mart'
-                : existingConnector?.source.name
-                  ? 'Update configuration'
-                  : 'Follow these steps to set it up'}
-            </SheetDescription>
-          </SheetHeader>
-          <ConnectorEditForm
-            onSubmit={configuredConnector => {
-              onSubmit(configuredConnector);
-              handleFormSubmitSuccess();
-            }}
-            dataStorageType={dataStorageType}
-            configurationOnly={configurationOnly || mode === 'configuration-only'}
-            existingConnector={existingConnector}
-            mode={mode}
-            initialStep={initialStep}
-            preselectedConnector={preselectedConnector}
-            onDirtyChange={handleFormDirtyChange}
-          />
-        </SheetContent>
-      </Sheet>
-      <ConfirmationDialog
-        open={showUnsavedDialog}
-        onOpenChange={setShowUnsavedDialog}
-        title='Unsaved Changes'
-        description='You have unsaved changes. Exit without saving?'
-        confirmLabel='Yes, leave now'
-        cancelLabel='No, stay here'
-        onConfirm={confirmClose}
-        variant='destructive'
-      />
-    </>
+    <Sheet
+      open={isOpen}
+      onOpenChange={open => {
+        if (!open) {
+          handleClose();
+        }
+      }}
+    >
+      <SheetContent>
+        <SheetHeader>
+          <SheetTitle>
+            {mode === 'fields-only'
+              ? 'Connector Fields'
+              : existingConnector?.source.name
+                ? `Edit Connector`
+                : 'Set Up Connector'}
+          </SheetTitle>
+          <SheetDescription>
+            {mode === 'fields-only'
+              ? 'Select fields for your Data Mart'
+              : existingConnector?.source.name
+                ? 'Update configuration'
+                : 'Follow these steps to set it up'}
+          </SheetDescription>
+        </SheetHeader>
+        <ConnectorEditForm
+          onSubmit={configuredConnector => {
+            onSubmit(configuredConnector);
+            handleFormSubmitSuccess();
+          }}
+          dataStorageType={dataStorageType}
+          configurationOnly={configurationOnly || mode === 'configuration-only'}
+          existingConnector={existingConnector}
+          mode={mode}
+          initialStep={initialStep}
+          preselectedConnector={preselectedConnector}
+          onDirtyChange={handleFormDirtyChange}
+        />
+        {/* Rendered inside SheetContent so Radix treats it as a nested dismissable layer;
+              interacting with it then doesn't dismiss the sheet (which caused a re-open loop). */}
+        <ConfirmationDialog
+          open={showUnsavedDialog}
+          onOpenChange={setShowUnsavedDialog}
+          title='Unsaved Changes'
+          description='You have unsaved changes. Exit without saving?'
+          confirmLabel='Yes, leave now'
+          cancelLabel='No, stay here'
+          onConfirm={confirmClose}
+          variant='destructive'
+        />
+      </SheetContent>
+    </Sheet>
   );
 }

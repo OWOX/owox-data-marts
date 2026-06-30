@@ -81,6 +81,22 @@ describe('ConnectorSecretService', () => {
       const masked = await service.mask(def);
       expect(masked).toBe(def);
     });
+
+    it('removes generated refresh token even when it is not a spec secret field', async () => {
+      const { service } = createService([]);
+      const def = makeDefinition([
+        {
+          _id: 'a',
+          AccountIDs: '33',
+          generated_refresh_token: 'generated-refresh-token',
+        },
+      ]);
+
+      const masked = await service.mask(def);
+      const cfg = masked!.connector.source.configuration as Array<Record<string, unknown>>;
+
+      expect(cfg[0]).not.toHaveProperty('generated_refresh_token');
+    });
   });
 
   describe('mergeDefinitionSecrets', () => {
@@ -143,6 +159,27 @@ describe('ConnectorSecretService', () => {
       const cfg = merged.connector.source.configuration as Array<Record<string, unknown>>;
       expect(cfg[0].AccessToken).toBe(SECRET_MASK);
       expect(cfg[0]._id).toBe('y');
+    });
+
+    it('drops stale _secrets_id when an item switches to OAuth credentials', async () => {
+      const { service, credentialsService } = createService(['RefreshToken']);
+      const previous = makeDefinition([
+        { _id: 'a', _secrets_id: 'manual-secrets-id', RefreshToken: SECRET_MASK },
+      ]);
+      const incoming = makeDefinition([
+        {
+          _id: 'a',
+          AuthType: { oauth2: { _source_credential_id: 'oauth-cred' } },
+        },
+      ]);
+
+      const merged = await service.mergeDefinitionSecrets(incoming, previous);
+      const cfg = merged.connector.source.configuration as Array<Record<string, unknown>>;
+      const authType = cfg[0].AuthType as Record<string, Record<string, unknown>>;
+
+      expect(cfg[0]).not.toHaveProperty('_secrets_id');
+      expect(authType.oauth2._source_credential_id).toBe('oauth-cred');
+      expect(credentialsService.getCredentialsById).not.toHaveBeenCalled();
     });
   });
 
@@ -405,6 +442,61 @@ describe('ConnectorSecretService', () => {
     });
   });
 
+  describe('extractAndSaveSecrets', () => {
+    it('externalizes and removes generated refresh token even when connector has no secret fields', async () => {
+      const { service, credentialsService } = createService([]);
+      const definition = makeDefinition([
+        {
+          _id: 'config-1',
+          AccountIDs: '123',
+          generated_refresh_token: 'generated-refresh-token',
+        },
+      ]);
+
+      const processed = await service.extractAndSaveSecrets(
+        'dm-1',
+        'proj-1',
+        'FacebookMarketing',
+        definition,
+        'user-1'
+      );
+      const cfg = processed.connector.source.configuration as Array<Record<string, unknown>>;
+
+      expect(credentialsService.createSecretsForConfig).toHaveBeenCalledWith(
+        'proj-1',
+        'FacebookMarketing',
+        'dm-1',
+        'config-1',
+        { generated_refresh_token: 'generated-refresh-token' },
+        'user-1'
+      );
+      expect(cfg[0]).not.toHaveProperty('generated_refresh_token');
+      expect(cfg[0]._secrets_id).toBe('mock-secrets-id');
+    });
+
+    it('removes generated refresh token from OAuth configs skipped by secret extraction', async () => {
+      const { service } = createService(['RefreshToken']);
+      const definition = makeDefinition([
+        {
+          _id: 'config-1',
+          AuthType: { oauth2: { _source_credential_id: 'oauth-cred' } },
+          generated_refresh_token: 'generated-refresh-token',
+        },
+      ]);
+
+      const processed = await service.extractAndSaveSecrets(
+        'dm-1',
+        'proj-1',
+        'FacebookMarketing',
+        definition,
+        'user-1'
+      );
+      const cfg = processed.connector.source.configuration as Array<Record<string, unknown>>;
+
+      expect(cfg[0]).not.toHaveProperty('generated_refresh_token');
+    });
+  });
+
   describe('mergeDefinitionSecretsFromSource', () => {
     it('copies secrets from correct source configurations using _copiedFrom.configId metadata', async () => {
       const { service } = createService(['AccessToken']);
@@ -442,6 +534,119 @@ describe('ConnectorSecretService', () => {
       expect(cfg[1]._copiedFrom).toBeUndefined();
       expect(typeof cfg[1]._id).toBe('string');
       expect(cfg[1]._id).not.toBe('source-id-3');
+    });
+
+    it('copies source secrets from externalized secrets', async () => {
+      const { service, credentialsService } = createService(['RefreshToken']);
+
+      (credentialsService.getCredentialsByIds as jest.Mock).mockResolvedValue(
+        new Map([
+          [
+            'secrets-1',
+            {
+              id: 'secrets-1',
+              credentials: {
+                'AuthType.oauth2.RefreshToken': 'stored-refresh-token',
+                generated_refresh_token: 'generated-refresh-token',
+              },
+            },
+          ],
+        ])
+      );
+
+      const sourceDefinition = makeDefinition([
+        { _id: 'source-id-1', _secrets_id: 'secrets-1', AuthType: { oauth2: {} } },
+      ]);
+
+      const incoming = makeDefinition([
+        {
+          AuthType: { oauth2: { RefreshToken: SECRET_MASK } },
+          _copiedFrom: { configId: 'source-id-1' },
+        },
+      ]);
+
+      const merged = await service.mergeDefinitionSecretsFromSource(incoming, sourceDefinition);
+      const cfg = merged.connector.source.configuration as Array<Record<string, unknown>>;
+      const authType = cfg[0].AuthType as Record<string, Record<string, unknown>>;
+
+      expect(authType.oauth2.RefreshToken).toBe('stored-refresh-token');
+      expect(cfg[0].generated_refresh_token).toBe('generated-refresh-token');
+    });
+
+    it('does not copy source generated refresh token when incoming copied refresh token changes', async () => {
+      const { service, credentialsService } = createService(['RefreshToken']);
+
+      (credentialsService.getCredentialsByIds as jest.Mock).mockResolvedValue(
+        new Map([
+          [
+            'secrets-1',
+            {
+              id: 'secrets-1',
+              credentials: {
+                'AuthType.oauth2.RefreshToken': 'stored-refresh-token',
+                generated_refresh_token: 'generated-refresh-token',
+              },
+            },
+          ],
+        ])
+      );
+
+      const sourceDefinition = makeDefinition([
+        { _id: 'source-id-1', _secrets_id: 'secrets-1', AuthType: { oauth2: {} } },
+      ]);
+
+      const incoming = makeDefinition([
+        {
+          AuthType: { oauth2: { RefreshToken: 'new-refresh-token' } },
+          _copiedFrom: { configId: 'source-id-1' },
+        },
+      ]);
+
+      const merged = await service.mergeDefinitionSecretsFromSource(incoming, sourceDefinition);
+      const cfg = merged.connector.source.configuration as Array<Record<string, unknown>>;
+      const authType = cfg[0].AuthType as Record<string, Record<string, unknown>>;
+
+      expect(authType.oauth2.RefreshToken).toBe('new-refresh-token');
+      expect(cfg[0]).not.toHaveProperty('generated_refresh_token');
+    });
+
+    it('does not inline generated refresh token into copied OAuth configs', async () => {
+      const { service, credentialsService } = createService(['RefreshToken']);
+
+      (credentialsService.getCredentialsByIds as jest.Mock).mockResolvedValue(
+        new Map([
+          [
+            'secrets-1',
+            {
+              id: 'secrets-1',
+              credentials: {
+                'AuthType.oauth2.RefreshToken': 'stored-refresh-token',
+                generated_refresh_token: 'generated-refresh-token',
+              },
+            },
+          ],
+        ])
+      );
+
+      const sourceDefinition = makeDefinition([
+        {
+          _id: 'source-id-1',
+          _secrets_id: 'secrets-1',
+          AuthType: { oauth2: { _source_credential_id: 'oauth-cred' } },
+        },
+      ]);
+
+      const incoming = makeDefinition([
+        {
+          AuthType: { oauth2: { _source_credential_id: 'oauth-cred' } },
+          _copiedFrom: { configId: 'source-id-1' },
+        },
+      ]);
+
+      const merged = await service.mergeDefinitionSecretsFromSource(incoming, sourceDefinition);
+      const cfg = merged.connector.source.configuration as Array<Record<string, unknown>>;
+
+      expect(cfg[0]).not.toHaveProperty('generated_refresh_token');
     });
 
     it('throws error when connector types do not match', async () => {

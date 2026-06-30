@@ -1,6 +1,6 @@
 {
   "name": "@owox/test-utils",
-  "version": "6.0.0",
+  "version": "7.0.0",
   "private": true,
   "description": "Shared test utilities for OWOX Data Marts",
   "author": "OWOX",
@@ -18,7 +18,7 @@
     "@owox/idp-protocol": "*",
     "express": "^5",
     "supertest": "^7.0.0",
-    "typeorm": "0.3.28",
+    "typeorm": "0.3.30",
     "typeorm-transactional": "^0.5.0"
   },
   "devDependencies": {

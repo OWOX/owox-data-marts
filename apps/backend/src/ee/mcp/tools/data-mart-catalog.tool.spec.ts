@@ -1,3 +1,4 @@
+import type { PublicOriginService } from '../../../common/config/public-origin.service';
 import type { McpDataMartsFacade } from '../../../data-marts/facades/mcp-data-marts.facade';
 import type { McpAuthContext } from '../auth/mcp-auth-context';
 import { McpToolRegistry } from './mcp-tool.registry';
@@ -14,6 +15,9 @@ describe('ListDataMartsTool', () => {
     scopes: ['mcp:read'],
     authFlow: 'mcp',
   };
+  const publicOrigin = {
+    getPublicOrigin: jest.fn(() => 'https://app.owox.com'),
+  } as unknown as jest.Mocked<PublicOriginService>;
 
   it('lists data marts using token project-member context', async () => {
     const facade = {
@@ -29,7 +33,7 @@ describe('ListDataMartsTool', () => {
         ],
       }),
     } as unknown as jest.Mocked<McpDataMartsFacade>;
-    const tool = new ListDataMartsTool(facade);
+    const tool = new ListDataMartsTool(facade, publicOrigin);
 
     await expect(tool.handler({}, context)).resolves.toEqual({
       structuredContent: {
@@ -38,6 +42,7 @@ describe('ListDataMartsTool', () => {
             id: 'dm_1',
             title: 'Orders',
             description: '',
+            url: 'https://app.owox.com/ui/project-1/data-marts/dm_1/data-setup',
             status: 'published',
             updated_at: '2026-06-10T10:00:00.000Z',
           },
@@ -53,6 +58,7 @@ describe('ListDataMartsTool', () => {
                   id: 'dm_1',
                   title: 'Orders',
                   description: '',
+                  url: 'https://app.owox.com/ui/project-1/data-marts/dm_1/data-setup',
                   status: 'published',
                   updated_at: '2026-06-10T10:00:00.000Z',
                 },
@@ -72,21 +78,24 @@ describe('ListDataMartsTool', () => {
   });
 
   it('rejects explicit project_id input', async () => {
-    const tool = new ListDataMartsTool({} as McpDataMartsFacade);
+    const tool = new ListDataMartsTool({} as McpDataMartsFacade, publicOrigin);
 
     expect(() => tool.parseInput({ project_id: 'another-project' })).toThrow();
   });
 
   it('registers list data marts while keeping unimplemented RFC tools out of providers', () => {
-    const registry = new McpToolRegistry([new ListDataMartsTool({} as McpDataMartsFacade)]);
+    const registry = new McpToolRegistry([
+      new ListDataMartsTool({} as McpDataMartsFacade, publicOrigin),
+    ]);
 
-    expect(new ListDataMartsTool({} as McpDataMartsFacade)).toMatchObject({
+    expect(new ListDataMartsTool({} as McpDataMartsFacade, publicOrigin)).toMatchObject({
       name: 'list_data_marts',
       requiredScopes: ['mcp:read'],
       outputSchema: expect.objectContaining({
         data_marts: expect.any(Object),
       }),
       annotations: {
+        title: 'List Data Marts',
         readOnlyHint: true,
         destructiveHint: false,
         openWorldHint: false,
@@ -94,6 +103,7 @@ describe('ListDataMartsTool', () => {
     });
     expect(MCP_TOOL_PROVIDER_CLASSES.map(tool => tool.name)).toEqual([
       'ListDataMartsTool',
+      'SearchDataMartsTool',
       'GetProjectContextTool',
     ]);
     expect(registry.getTool('list_data_marts')).toBeDefined();

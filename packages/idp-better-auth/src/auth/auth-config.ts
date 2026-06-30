@@ -1,8 +1,29 @@
 import { betterAuth } from 'better-auth';
+import { createAuthMiddleware } from 'better-auth/api';
 import { magicLink, organization } from 'better-auth/plugins';
 import { BetterAuthConfig } from '../types/index.js';
 import { createAccessControl } from 'better-auth/plugins/access';
 import { LoggerFactory, LogLevel } from '@owox/internal-helpers';
+
+/**
+ * Better Auth `before` hook handler: forces `revokeOtherSessions: true` onto the
+ * `/change-password` request body so a password change always revokes the user's
+ * other sessions (the acting session keeps a freshly issued token). Other paths
+ * pass through unchanged. Extracted from the config for unit testing.
+ */
+export function forceRevokeOtherSessionsOnChangePassword(ctx: {
+  path: string;
+  body?: unknown;
+}): { context: { body: Record<string, unknown> } } | undefined {
+  if (ctx.path === '/change-password') {
+    return {
+      context: {
+        body: { ...(ctx.body as Record<string, unknown> | undefined), revokeOtherSessions: true },
+      },
+    };
+  }
+  return undefined;
+}
 
 export async function createBetterAuthConfig(
   config: BetterAuthConfig,
@@ -109,6 +130,15 @@ export async function createBetterAuthConfig(
     emailAndPassword: {
       enabled: true,
       requireEmailVerification: false,
+    },
+    hooks: {
+      // Security: the Better Auth `/change-password` endpoint is exposed through
+      // the request handler. By default it only revokes other sessions when the
+      // caller opts in via `revokeOtherSessions`. Force it on so a password
+      // change always invalidates the user's other sessions while Better Auth
+      // issues a fresh session for the current one. Logic extracted to
+      // forceRevokeOtherSessionsOnChangePassword for unit testing.
+      before: createAuthMiddleware(async ctx => forceRevokeOtherSessionsOnChangePassword(ctx)),
     },
     advanced: {
       cookies: {

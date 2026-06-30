@@ -27,6 +27,8 @@ import { DestinationOwner } from '../entities/destination-owner.entity';
 import { syncOwners } from '../utils/sync-owners';
 import { resolveOwnerUsers } from '../utils/resolve-owner-users';
 import { IdpProjectionsFacade } from '../../idp/facades/idp-projections.facade';
+import { AdvancedSearchIndexSyncService } from '../services/advanced-search-index-sync.service';
+import { SearchableEntityType } from '../../common/search/search.facade';
 
 @Injectable()
 export class CreateDataDestinationService {
@@ -49,7 +51,8 @@ export class CreateDataDestinationService {
     private readonly idpProjectionsFacade: IdpProjectionsFacade,
     private readonly accessDecisionService: AccessDecisionService,
     private readonly eventDispatcher: OwoxEventDispatcher,
-    private readonly folderValidator: GoogleSheetsFolderValidator
+    private readonly folderValidator: GoogleSheetsFolderValidator,
+    private readonly advancedSearchIndexSync?: AdvancedSearchIndexSyncService
   ) {}
 
   @Transactional()
@@ -215,6 +218,12 @@ export class CreateDataDestinationService {
     savedEntity: DataDestination,
     command: CreateDataDestinationCommand
   ): Promise<DataDestinationDto> {
+    await this.advancedSearchIndexSync?.scheduleReindex(
+      SearchableEntityType.DATA_DESTINATION,
+      savedEntity.id,
+      command.projectId
+    );
+
     // Fail fast (and roll back) if a configured Drive folder is not usable for
     // service-account auto-creation.
     await this.folderValidator.validateConfiguredFolder(savedEntity);

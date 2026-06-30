@@ -14,6 +14,7 @@ export class DataMartListItemDto {
     public readonly storageTitle: string,
     public readonly createdAt: Date,
     public readonly modifiedAt: Date,
+    public readonly description: string | null = null,
     public readonly definitionType?: DataMartDefinitionType,
     public readonly definition?: DataMartDefinition,
     public readonly triggersCount: number = 0,

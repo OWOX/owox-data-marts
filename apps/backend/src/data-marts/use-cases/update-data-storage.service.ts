@@ -31,6 +31,8 @@ import { syncOwners } from '../utils/sync-owners';
 import { IdpProjectionsFacade } from '../../idp/facades/idp-projections.facade';
 import { AccessDecisionService, EntityType, Action } from '../services/access-decision';
 import { ContextAccessService } from '../services/context/context-access.service';
+import { AdvancedSearchIndexSyncService } from '../services/advanced-search-index-sync.service';
+import { SearchableEntityType } from '../../common/search/search.facade';
 
 @Injectable()
 export class UpdateDataStorageService {
@@ -48,7 +50,8 @@ export class UpdateDataStorageService {
     private readonly storageOwnerRepository: Repository<StorageOwner>,
     private readonly eventDispatcher: OwoxEventDispatcher,
     private readonly accessDecisionService: AccessDecisionService,
-    private readonly contextAccessService: ContextAccessService
+    private readonly contextAccessService: ContextAccessService,
+    private readonly advancedSearchIndexSync?: AdvancedSearchIndexSyncService
   ) {}
 
   @Transactional()
@@ -196,6 +199,12 @@ export class UpdateDataStorageService {
         );
       }
 
+      await this.advancedSearchIndexSync?.scheduleReindex(
+        SearchableEntityType.DATA_STORAGE,
+        updatedDataStorageEntity.id,
+        command.projectId
+      );
+
       return this.replaceOwnersAndBuildResponse(updatedDataStorageEntity, command.ownerIds);
     }
 
@@ -317,6 +326,12 @@ export class UpdateDataStorageService {
         command.roles
       );
     }
+
+    await this.advancedSearchIndexSync?.scheduleReindex(
+      SearchableEntityType.DATA_STORAGE,
+      updatedDataStorageEntity.id,
+      command.projectId
+    );
 
     return this.replaceOwnersAndBuildResponse(updatedDataStorageEntity, command.ownerIds);
   }

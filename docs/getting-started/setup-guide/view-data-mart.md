@@ -94,7 +94,7 @@ You can also open the **Run History** tab to view execution logs, status, and ti
 
 - [Scheduling Reports Updates →](report-triggers.md)
 - [Adding More Report Destinations →](../../destinations/manage-destinations.md)
-- [Create Connector-Based Data Mart →](onnector-data-mart.md)
+- [Create Connector-Based Data Mart →](connector-data-mart.md)
 - [Create SQL-Based Data Mart →](sql-data-mart.md)
 - [Create Table-Based Data Mart →](table-data-mart.md)
 - [Create Pattern-Based Data Mart →](pattern-data-mart.md)

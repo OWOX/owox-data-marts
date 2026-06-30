@@ -273,6 +273,12 @@ class AbstractConfig {
     }
     //----------------------------------------------------------------
 
+  //---- updateCredentials -------------------------------------------
+    updateCredentials() {
+      // No-op by default: only runtimes with a structured transport need to emit this.
+    }
+    //----------------------------------------------------------------
+
   //---- trimValue ---------------------------------------------------
     /**
      * Automatically trim whitespace for string values

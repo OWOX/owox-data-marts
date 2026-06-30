@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { MessageLogSchema } from './types/message-log.schema';
 import { MessageStatusSchema } from './types/message-status.schema';
 import { MessageStateSchema } from './types/message-state.schema';
+import { MessageCredentialsUpdateSchema } from './types/message-credentials-update.schema';
 import { MessageRequestedDateSchema } from './types/message-requested-date.schema';
 import { MessageWarningSchema } from './types/message-warning.schema';
 import { MessageUnknownSchema } from './types/message-unknown.schema';
@@ -14,6 +15,7 @@ export const ConnectorMessageSchema = z
     MessageLogSchema,
     MessageStatusSchema,
     MessageStateSchema,
+    MessageCredentialsUpdateSchema,
     MessageRequestedDateSchema,
     MessageWarningSchema,
     MessageUnknownSchema,
@@ -31,6 +33,10 @@ export const ConnectorMessageSchema = z
 
         case ConnectorMessageType.STATE: {
           return `[STATE] ${data.date}`;
+        }
+
+        case ConnectorMessageType.CREDENTIALS_UPDATE: {
+          return `[CREDENTIALS] ${Object.keys(data.credentials).join(', ')}`;
         }
 
         case ConnectorMessageType.REQUESTED_DATE: {

@@ -8,7 +8,7 @@ import { ListDataDestinationsCommand } from '../dto/domain/list-data-destination
 import { OwnerFilter } from '../enums/owner-filter.enum';
 import { RoleScope } from '../enums/role-scope.enum';
 import { ContextAccessService } from '../services/context/context-access.service';
-import { buildContextGateSql } from '../utils/build-context-gate-sql';
+import { applyDataDestinationVisibilityFilter } from '../utils/apply-data-destination-visibility-filter';
 import { UserProjectionsFetcherService } from '../services/user-projections-fetcher.service';
 
 @Injectable()
@@ -35,30 +35,13 @@ export class ListDataDestinationsService {
       .where('d.projectId = :projectId', { projectId: command.projectId })
       .andWhere('d.deletedAt IS NULL');
 
-    if (!isAdmin) {
-      // Non-admin: own OR (shared access with context gate)
-      const contextGate = buildContextGateSql({
-        joinTable: 'destination_contexts',
-        entityIdColumn: 'destination_id',
-        entityAlias: 'd',
-      });
-      qb = qb.andWhere(
-        `(
-          EXISTS (SELECT 1 FROM destination_owners o WHERE o.destination_id = d.id AND o.user_id = :userId)
-          OR (
-            (d.availableForUse = :isTrue OR d.availableForMaintenance = :isTrue)
-            AND ${contextGate}
-          )
-        )`,
-        {
-          userId: command.userId,
-          isTrue: true,
-          roleScope,
-          entireProjectScope: RoleScope.ENTIRE_PROJECT,
-          projectId: command.projectId,
-        }
-      );
-    }
+    qb = applyDataDestinationVisibilityFilter(qb, {
+      destinationAlias: 'd',
+      projectId: command.projectId,
+      userId: command.userId,
+      roles: command.roles,
+      roleScope,
+    });
 
     if (command.ownerFilter === OwnerFilter.HAS_OWNERS) {
       qb = qb.andWhere('EXISTS (SELECT 1 FROM destination_owners o WHERE o.destination_id = d.id)');

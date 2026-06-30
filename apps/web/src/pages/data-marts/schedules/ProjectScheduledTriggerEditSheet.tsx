@@ -93,44 +93,43 @@ export function ProjectScheduledTriggerEditSheet({
   }
 
   return (
-    <>
-      <Sheet
-        open={isOpen}
-        onOpenChange={open => {
-          if (!open) {
-            handleClose();
-          }
-        }}
-      >
-        <SheetContent data-testid='projectTriggerEditSheet'>
-          <SheetHeader>
-            <SheetTitle>Edit Scheduled Trigger</SheetTitle>
-            <SheetDescription>
-              Configure automatic runs for your reports or connectors.
-            </SheetDescription>
-          </SheetHeader>
+    <Sheet
+      open={isOpen}
+      onOpenChange={open => {
+        if (!open) {
+          handleClose();
+        }
+      }}
+    >
+      <SheetContent data-testid='projectTriggerEditSheet'>
+        <SheetHeader>
+          <SheetTitle>Edit Scheduled Trigger</SheetTitle>
+          <SheetDescription>
+            Configure automatic runs for your reports or connectors.
+          </SheetDescription>
+        </SheetHeader>
 
-          <DataMartContext.Provider value={dataMartContextValue}>
-            <ScheduledTriggerForm
-              initialData={initialFormData}
-              onSubmit={handleSubmit}
-              onCancel={handleClose}
-              onDirtyChange={handleFormDirtyChange}
-            />
-          </DataMartContext.Provider>
-        </SheetContent>
-      </Sheet>
-
-      <ConfirmationDialog
-        open={showUnsavedDialog}
-        onOpenChange={setShowUnsavedDialog}
-        title='Unsaved Changes'
-        description='You have unsaved changes. Exit without saving?'
-        confirmLabel='Yes, leave now'
-        cancelLabel='No, stay here'
-        onConfirm={confirmClose}
-        variant='destructive'
-      />
-    </>
+        <DataMartContext.Provider value={dataMartContextValue}>
+          <ScheduledTriggerForm
+            initialData={initialFormData}
+            onSubmit={handleSubmit}
+            onCancel={handleClose}
+            onDirtyChange={handleFormDirtyChange}
+          />
+        </DataMartContext.Provider>
+        {/* Rendered inside SheetContent so Radix treats it as a nested dismissable layer;
+              interacting with it then doesn't dismiss the sheet (which caused a re-open loop). */}
+        <ConfirmationDialog
+          open={showUnsavedDialog}
+          onOpenChange={setShowUnsavedDialog}
+          title='Unsaved Changes'
+          description='You have unsaved changes. Exit without saving?'
+          confirmLabel='Yes, leave now'
+          cancelLabel='No, stay here'
+          onConfirm={confirmClose}
+          variant='destructive'
+        />
+      </SheetContent>
+    </Sheet>
   );
 }

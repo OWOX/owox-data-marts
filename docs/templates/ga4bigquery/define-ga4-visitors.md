@@ -13,7 +13,7 @@ This script standardizes visitor definition logic into a **single, reusable Data
 - First date seen
 - Last date seen
 - Count of total events
-- Geo, location, device, consent - are not included, as they are the part of the [sessions data mart](./ga4bigquery/define-GA4-sessions.md)
+- Geo, location, device, consent - are not included, as they are the part of the [sessions data mart](./define-GA4-sessions.md)
 
 Use this as the foundation for reporting in:
 

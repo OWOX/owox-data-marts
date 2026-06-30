@@ -20,7 +20,7 @@ describe('ActualizeDataMartSchemaService', () => {
     const dataMartService = {
       getByIdAndProjectId: jest.fn().mockResolvedValue(dataMart),
       actualizeSchemaInEntity: jest.fn().mockResolvedValue(undefined),
-      save: jest.fn().mockResolvedValue(dataMart),
+      saveActualizedSchema: jest.fn().mockResolvedValue(dataMart),
     };
 
     const definitionValidatorFacade = {
@@ -39,7 +39,6 @@ describe('ActualizeDataMartSchemaService', () => {
     const accessDecisionService = {
       canAccess: jest.fn().mockResolvedValue(true),
     };
-
     const service = new ActualizeDataMartSchemaService(
       dataMartService as any,
       definitionValidatorFacade as any,
@@ -47,7 +46,12 @@ describe('ActualizeDataMartSchemaService', () => {
       accessDecisionService as any
     );
 
-    return { service, dataMartService, definitionValidatorFacade, dataMart };
+    return {
+      service,
+      dataMartService,
+      definitionValidatorFacade,
+      dataMart,
+    };
   };
 
   beforeEach(() => {
@@ -64,7 +68,7 @@ describe('ActualizeDataMartSchemaService', () => {
 
     expect(definitionValidatorFacade.checkIsValid).toHaveBeenCalledWith(dataMart);
     expect(dataMartService.actualizeSchemaInEntity).toHaveBeenCalledWith(dataMart);
-    expect(dataMartService.save).toHaveBeenCalledWith(dataMart);
+    expect(dataMartService.saveActualizedSchema).toHaveBeenCalledWith(dataMart);
     expect(result).toEqual({ id: 'dm-1' });
   });
 
@@ -76,6 +80,6 @@ describe('ActualizeDataMartSchemaService', () => {
 
     await expect(service.run(command)).rejects.toThrow(BusinessViolationException);
     expect(dataMartService.actualizeSchemaInEntity).not.toHaveBeenCalled();
-    expect(dataMartService.save).not.toHaveBeenCalled();
+    expect(dataMartService.saveActualizedSchema).not.toHaveBeenCalled();
   });
 });

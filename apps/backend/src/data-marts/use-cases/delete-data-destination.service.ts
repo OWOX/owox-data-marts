@@ -7,6 +7,8 @@ import { DeleteDataDestinationCommand } from '../dto/domain/delete-data-destinat
 import { DataDestinationService } from '../services/data-destination.service';
 import { BusinessViolationException } from '../../common/exceptions/business-violation.exception';
 import { AccessDecisionService, EntityType, Action } from '../services/access-decision';
+import { AdvancedSearchIndexSyncService } from '../services/advanced-search-index-sync.service';
+import { SearchableEntityType } from '../../common/search/search.facade';
 
 @Injectable()
 export class DeleteDataDestinationService {
@@ -16,7 +18,8 @@ export class DeleteDataDestinationService {
     @InjectRepository(Report)
     private readonly reportRepository: Repository<Report>,
     private readonly dataDestinationService: DataDestinationService,
-    private readonly accessDecisionService: AccessDecisionService
+    private readonly accessDecisionService: AccessDecisionService,
+    private readonly advancedSearchIndexSync?: AdvancedSearchIndexSyncService
   ) {}
 
   async run(command: DeleteDataDestinationCommand): Promise<void> {
@@ -57,5 +60,10 @@ export class DeleteDataDestinationService {
       id: command.id,
       projectId: command.projectId,
     });
+    await this.advancedSearchIndexSync?.scheduleDelete(
+      SearchableEntityType.DATA_DESTINATION,
+      command.id,
+      command.projectId
+    );
   }
 }

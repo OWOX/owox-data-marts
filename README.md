@@ -5,7 +5,7 @@
 Stop shipping reports. Hire a reporting data analyst for each of the team members.
 OWOX Data Marts automates what reporting data analysts do — governed by data teams, consumed by business users with NO AI Hallycinations.
 
-[![npm installs](https://img.shields.io/npm/dm/owox?label=npm%20installs)](https://www.npmjs.com/package/owox) [![Connectors: MIT](https://img.shields.io/badge/connectors-MIT-green)](https://github.com/OWOX/owox-data-marts/blob/main/licenses/MIT.md) [![Platform: ELv2](https://img.shields.io/badge/platform-ELv2-blue)](https://github.com/OWOX/owox-data-marts/blob/main/licenses/Elasticv2.md) [![Slack](https://img.shields.io/badge/Slack-community-4A154B?logo=slack)](https://join.slack.com/t/owox-data-marts/shared_invite/zt-3tnigd08g-f2uU_7oNNwzCyTB2tITnqA)
+[**📘 Quick Start Guide**](./docs/getting-started/quick-start.md) · [**📚 Docs**](https://docs.owox.com?utm_source=github&utm_medium=referral&utm_campaign=readme) · [**🌐 Website**](https://www.owox.com?utm_source=github&utm_medium=referral&utm_campaign=readme) · [**💬 Slack**](https://join.slack.com/t/owox-data-marts/shared_invite/zt-3tnigd08g-f2uU_7oNNwzCyTB2tITnqA) · [**🆘 Issues**](https://github.com/OWOX/owox-data-marts/issues)
 
 ## ✨ Why We Built This
 
@@ -21,8 +21,6 @@ At OWOX, we value both:
 At OWOX, we believe data analysts shouldn’t have to waste time on CSV files and one-off dashboards. Business users shouldn’t have to be forced to use complex BI tools either.
 
 <https://github.com/user-attachments/assets/d2d9d913-a6fc-4949-a8e8-d697abd1631a>
-
-[**📘 Quick Start Guide**](./docs/getting-started/quick-start.md) · [**📚 Docs**](https://docs.owox.com?utm_source=github&utm_medium=referral&utm_campaign=readme) · [**🌐 Website**](https://www.owox.com?utm_source=github&utm_medium=referral&utm_campaign=readme) · [**💬 Slack**](https://join.slack.com/t/owox-data-marts/shared_invite/zt-3tnigd08g-f2uU_7oNNwzCyTB2tITnqA) · [**🆘 Issues**](https://github.com/OWOX/owox-data-marts/issues)
 
 ## The Reporting Skills OWOX Automates
 

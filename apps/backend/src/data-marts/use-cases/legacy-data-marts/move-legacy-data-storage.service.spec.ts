@@ -4,12 +4,17 @@ import { DataSource } from 'typeorm';
 import { getDataSourceToken } from '@nestjs/typeorm';
 import { DataStorage } from '../../entities/data-storage.entity';
 import { LegacyDataStorageService } from '../../services/legacy-data-marts/legacy-data-storage.service';
+import { AdvancedSearchIndexSyncService } from '../../services/advanced-search-index-sync.service';
 import { MoveLegacyDataStorageService } from './move-legacy-data-storage.service';
+import { SearchableEntityType } from '../../../common/search/search.facade';
 
 describe('MoveLegacyDataStorageService', () => {
   let service: MoveLegacyDataStorageService;
   let legacyDataStorageService: jest.Mocked<LegacyDataStorageService>;
   let dataSource: jest.Mocked<DataSource>;
+  let searchIndexSync: jest.Mocked<
+    Pick<AdvancedSearchIndexSyncService, 'scheduleReindex' | 'scheduleReindexMany'>
+  >;
   let mockQueryBuilder: Record<string, jest.Mock>;
   let mockManager: Record<string, jest.Mock>;
 
@@ -26,6 +31,8 @@ describe('MoveLegacyDataStorageService', () => {
     };
 
     mockQueryBuilder = {
+      select: jest.fn().mockReturnThis(),
+      addSelect: jest.fn().mockReturnThis(),
       delete: jest.fn().mockReturnThis(),
       update: jest.fn().mockReturnThis(),
       from: jest.fn().mockReturnThis(),
@@ -38,6 +45,7 @@ describe('MoveLegacyDataStorageService', () => {
       }),
       subQuery: jest.fn().mockReturnValue(mockSubQueryBuilder),
       execute: jest.fn().mockResolvedValue({ affected: 1 }),
+      getRawMany: jest.fn().mockResolvedValue([{ id: 'dm-1' }, { id: 'dm-2' }]),
     };
 
     mockManager = {
@@ -54,10 +62,16 @@ describe('MoveLegacyDataStorageService', () => {
       transaction: jest.fn().mockImplementation(async cb => cb(mockManager)),
     } as unknown as jest.Mocked<DataSource>;
 
+    searchIndexSync = {
+      scheduleReindex: jest.fn().mockResolvedValue(undefined),
+      scheduleReindexMany: jest.fn().mockResolvedValue(undefined),
+    };
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         MoveLegacyDataStorageService,
         { provide: LegacyDataStorageService, useValue: legacyDataStorageService },
+        { provide: AdvancedSearchIndexSyncService, useValue: searchIndexSync },
         { provide: DataSource, useValue: dataSource },
         { provide: getDataSourceToken(), useValue: dataSource },
       ],
@@ -87,6 +101,23 @@ describe('MoveLegacyDataStorageService', () => {
     expect(dataSource.transaction).toHaveBeenCalled();
     expect(storage.projectId).toBe('old_project'); // input object should NOT be mutated
     expect(result.projectId).toBe(newProjectId);
+  });
+
+  it('schedules search reindex for the new project after a successful move', async () => {
+    const storage = { id: 'st1', projectId: 'old_project' } as DataStorage;
+
+    await service.run(storage, 'new_project');
+
+    expect(searchIndexSync.scheduleReindex).toHaveBeenCalledWith(
+      SearchableEntityType.DATA_STORAGE,
+      'st1',
+      'new_project'
+    );
+    expect(searchIndexSync.scheduleReindexMany).toHaveBeenCalledWith(
+      SearchableEntityType.DATA_MART,
+      ['dm-1', 'dm-2'],
+      'new_project'
+    );
   });
 
   it('should perform 5 delete queries and 1 update query inside transaction', async () => {

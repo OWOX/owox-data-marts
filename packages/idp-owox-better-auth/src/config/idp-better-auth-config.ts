@@ -1,5 +1,6 @@
 import { LogLevel } from '@owox/internal-helpers';
 import { betterAuth } from 'better-auth';
+import { createAuthMiddleware } from 'better-auth/api';
 import { magicLink } from 'better-auth/plugins';
 import {
   AUTH_BASE_PATH,
@@ -25,6 +26,26 @@ type AuthOptions = {
   resetPasswordSender?: ResetPasswordSender;
 };
 
+/**
+ * Better Auth `before` hook handler: forces `revokeOtherSessions: true` onto the
+ * `/change-password` request body so a password change always revokes the user's
+ * other sessions (the acting session keeps a freshly issued token). Other paths
+ * pass through unchanged. Extracted from the config for unit testing.
+ */
+export function forceRevokeOtherSessionsOnChangePassword(ctx: {
+  path: string;
+  body?: unknown;
+}): { context: { body: Record<string, unknown> } } | undefined {
+  if (ctx.path === '/change-password') {
+    return {
+      context: {
+        body: { ...(ctx.body as Record<string, unknown> | undefined), revokeOtherSessions: true },
+      },
+    };
+  }
+  return undefined;
+}
+
 export async function createBetterAuthConfig(
   config: BetterAuthConfig,
   options?: AuthOptions
@@ -35,6 +56,11 @@ export async function createBetterAuthConfig(
   const emailAndPasswordConfig: Record<string, unknown> = {
     enabled: true,
     requireEmailVerification: false,
+    // Security: on a successful password reset, delete the user's OTHER Better
+    // Auth sessions so a stale session can't be used to mint fresh platform
+    // tokens after a credential change. The acting reset flow clears its own
+    // cookies right after, so revoking all sessions here is safe.
+    revokeSessionsOnPasswordReset: true,
   };
 
   if (options?.resetPasswordSender) {
@@ -73,6 +99,16 @@ export async function createBetterAuthConfig(
     baseURL: config.baseURL,
     secret: config.secret,
     emailAndPassword: emailAndPasswordConfig,
+    hooks: {
+      // Security: the Better Auth `/change-password` endpoint is proxied here
+      // through BetterAuthProxyHandler, which forwards every `/better-auth/*`
+      // route. By default change-password only revokes other sessions when the
+      // caller opts in via `revokeOtherSessions`. Force it on so a password
+      // change always invalidates the user's other sessions while Better Auth
+      // issues a fresh session for the current one. Logic extracted to
+      // forceRevokeOtherSessionsOnChangePassword for unit testing.
+      before: createAuthMiddleware(async ctx => forceRevokeOtherSessionsOnChangePassword(ctx)),
+    },
     databaseHooks: {
       user: {
         create: {

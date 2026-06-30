@@ -12,6 +12,8 @@ import { DataMartService } from '../services/data-mart.service';
 import { AccessDecisionService, EntityType, Action } from '../services/access-decision';
 import { RunType } from '../../common/scheduler/shared/types';
 import { ConnectorExecutionService } from '../services/connector/connector-execution.service';
+import { AdvancedSearchIndexSyncService } from '../services/advanced-search-index-sync.service';
+import { SearchableEntityType } from '../../common/search/search.facade';
 
 @Injectable()
 export class PublishDataMartService {
@@ -23,7 +25,8 @@ export class PublishDataMartService {
     private readonly mapper: DataMartMapper,
     private readonly eventDispatcher: OwoxEventDispatcher,
     private readonly accessDecisionService: AccessDecisionService,
-    private readonly connectorExecutionService: ConnectorExecutionService
+    private readonly connectorExecutionService: ConnectorExecutionService,
+    private readonly advancedSearchIndexSync?: AdvancedSearchIndexSyncService
   ) {}
 
   async run(command: PublishDataMartCommand): Promise<DataMartDto> {
@@ -59,6 +62,11 @@ export class PublishDataMartService {
     dataMart.status = DataMartStatus.PUBLISHED;
 
     await this.dataMartService.save(dataMart);
+    await this.advancedSearchIndexSync?.scheduleReindex(
+      SearchableEntityType.DATA_MART,
+      dataMart.id,
+      command.projectId
+    );
 
     const event = new DataMartPublishedEvent(
       dataMart.id,

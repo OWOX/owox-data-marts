@@ -50,16 +50,27 @@ describe('PublishDataMartService', () => {
       run: jest.fn().mockResolvedValue(undefined),
     };
 
-    const service = new PublishDataMartService(
+    const advancedSearchIndexSync = {
+      scheduleReindex: jest.fn().mockResolvedValue(undefined),
+    };
+
+    const service = new (PublishDataMartService as any)(
       dataMartService as any,
       definitionValidatorFacade as any,
       mapper as any,
       eventDispatcher as any,
       accessDecisionService as any,
-      connectorExecutionService as any
+      connectorExecutionService as any,
+      advancedSearchIndexSync
     );
 
-    return { service, dataMartService, definitionValidatorFacade, dataMart };
+    return {
+      service: service as PublishDataMartService,
+      dataMartService,
+      definitionValidatorFacade,
+      dataMart,
+      advancedSearchIndexSync,
+    };
   };
 
   beforeEach(() => {
@@ -80,13 +91,27 @@ describe('PublishDataMartService', () => {
     expect(result.status).toBe(DataMartStatus.PUBLISHED);
   });
 
+  it('schedules search reindex after successful publish', async () => {
+    const { service, advancedSearchIndexSync } = createService({ isValid: true });
+    const command = new PublishDataMartCommand('dm-1', 'proj-1', 'user-1', ['editor'], 'user-1');
+
+    await service.run(command);
+
+    expect(advancedSearchIndexSync.scheduleReindex).toHaveBeenCalledWith(
+      'DATA_MART',
+      'dm-1',
+      'proj-1'
+    );
+  });
+
   it('should reject publish when storage validation fails', async () => {
-    const { service, dataMartService } = createService({
+    const { service, dataMartService, advancedSearchIndexSync } = createService({
       isValid: false,
     });
     const command = new PublishDataMartCommand('dm-1', 'proj-1', 'user-1', ['editor'], 'user-1');
 
     await expect(service.run(command)).rejects.toThrow(BusinessViolationException);
     expect(dataMartService.save).not.toHaveBeenCalled();
+    expect(advancedSearchIndexSync.scheduleReindex).not.toHaveBeenCalled();
   });
 });

@@ -442,7 +442,8 @@ export class PageService {
 
       const result = await this.userManagementService.resetUserPassword(
         validation.userId,
-        session.user.id
+        session.user.id,
+        session.session?.token
       );
 
       res.json({

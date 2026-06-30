@@ -5,6 +5,7 @@ import { DataStorageCredentials } from '../data-storage-credentials.type';
 
 export enum ValidationResultCode {
   UNCONFIGURED = 'UNCONFIGURED',
+  OAUTH_REAUTH_REQUIRED = 'OAUTH_REAUTH_REQUIRED',
 }
 
 export interface DataStorageAccessValidator extends TypedComponent<DataStorageType> {
@@ -32,5 +33,14 @@ export class ValidationResult {
 
   static unconfigured(errorMessage: string): ValidationResult {
     return new ValidationResult(false, errorMessage, undefined, ValidationResultCode.UNCONFIGURED);
+  }
+
+  static oauthReauthRequired(errorMessage: string): ValidationResult {
+    return new ValidationResult(
+      false,
+      errorMessage,
+      undefined,
+      ValidationResultCode.OAUTH_REAUTH_REQUIRED
+    );
   }
 }

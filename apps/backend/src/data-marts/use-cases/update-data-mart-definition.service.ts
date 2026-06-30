@@ -14,6 +14,8 @@ import { ConnectorSecretService } from '../services/connector/connector-secret.s
 import { DataMartService } from '../services/data-mart.service';
 import { LegacyDataMartsService } from '../services/legacy-data-marts/legacy-data-marts.service';
 import { AccessDecisionService, EntityType, Action } from '../services/access-decision';
+import { AdvancedSearchIndexSyncService } from '../services/advanced-search-index-sync.service';
+import { SearchableEntityType } from '../../common/search/search.facade';
 
 @Injectable()
 export class UpdateDataMartDefinitionService {
@@ -23,7 +25,8 @@ export class UpdateDataMartDefinitionService {
     private readonly connectorSecretService: ConnectorSecretService,
     private readonly legacyDataMartsService: LegacyDataMartsService,
     private readonly accessDecisionService: AccessDecisionService,
-    private readonly eventDispatcher: OwoxEventDispatcher
+    private readonly eventDispatcher: OwoxEventDispatcher,
+    private readonly advancedSearchIndexSync?: AdvancedSearchIndexSyncService
   ) {}
 
   async run(command: UpdateDataMartDefinitionCommand): Promise<DataMartDto> {
@@ -149,6 +152,12 @@ export class UpdateDataMartDefinitionService {
         )
       );
     }
+
+    await this.advancedSearchIndexSync?.scheduleReindex(
+      SearchableEntityType.DATA_MART,
+      dataMart.id,
+      command.projectId
+    );
 
     return this.mapper.toDomainDto(dataMart);
   }
