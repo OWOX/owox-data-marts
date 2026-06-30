@@ -56,7 +56,7 @@ export function DataMartDefinitionSettings({
   setDefinitionType,
   sqlRevalidateVersion,
 }: DataMartDefinitionSettingsProps) {
-  const { dataMart, updateDataMartDefinition, runSchemaActualization } =
+  const { dataMart, updateDataMartDefinition, runSchemaActualization, runGuarded } =
     useOutletContext<DataMartContextType>();
   const preset = useDataMartPreset();
 
@@ -177,9 +177,21 @@ export function DataMartDefinitionSettings({
   const handleFormSubmit = useCallback(
     (e?: React.SyntheticEvent<HTMLFormElement>) => {
       e?.preventDefault();
-      void handleSubmit(onSubmit)(e);
+      const submit = () => {
+        void handleSubmit(onSubmit)();
+      };
+      if (runGuarded) {
+        runGuarded(
+          () => {
+            submit();
+          },
+          { intent: 'definition' }
+        );
+      } else {
+        submit();
+      }
     },
-    [handleSubmit, onSubmit]
+    [handleSubmit, onSubmit, runGuarded]
   );
 
   const handleReset = useCallback(() => {

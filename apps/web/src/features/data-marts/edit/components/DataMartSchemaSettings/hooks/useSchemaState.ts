@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type {
   AthenaSchemaField,
   BigQuerySchemaField,
@@ -43,13 +43,29 @@ export function useSchemaState(initialSchema: DataMartSchema | null | undefined)
   const clonedInitialSchema = deepCloneSchema(initialSchema);
   const [schema, setSchema] = useState<DataMartSchema | null | undefined>(clonedInitialSchema);
   const [isDirty, setIsDirty] = useState(false);
+  const skipNextInitialSchemaResetRef = useRef(false);
 
   // Reset schema when initialSchema changes
   useEffect(() => {
+    if (skipNextInitialSchemaResetRef.current) {
+      skipNextInitialSchemaResetRef.current = false;
+      return;
+    }
     const clonedSchema = deepCloneSchema(initialSchema);
     setSchema(clonedSchema);
     setIsDirty(false);
   }, [initialSchema]);
+
+  /**
+   * Marks the current schema as persisted. The matching context update will
+   * provide the same schema as a new initialSchema; skip that reset so changes
+   * made by a guarded follow-up action are not overwritten by its effect.
+   */
+  const markSchemaSaved = useCallback((savedSchema: DataMartSchema) => {
+    skipNextInitialSchemaResetRef.current = true;
+    setSchema(deepCloneSchema(savedSchema));
+    setIsDirty(false);
+  }, []);
 
   /**
    * Updates the schema with new fields.
@@ -152,6 +168,7 @@ export function useSchemaState(initialSchema: DataMartSchema | null | undefined)
     isDirty,
     updateSchema,
     resetSchema,
+    markSchemaSaved,
     setIsDirty,
   };
 }

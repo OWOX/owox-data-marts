@@ -32,6 +32,8 @@ import {
 } from '../../shared';
 import { useSchemaActualizeTrigger } from '../../shared/hooks/useSchemaActualizeTrigger';
 import { PromoStep, useDataMartNextStepPromo } from '../hooks/useDataMartNextStepPromo';
+import { useSchemaUnsavedGuard } from '../model/hooks';
+import { SchemaUnsavedChangesDialog } from './SchemaUnsavedChangesDialog';
 import { useDataMart } from '../model';
 import { useAiHelper, useAiHelperAvailability } from '../model';
 import { DataMartMetadataScope } from '../../shared';
@@ -112,6 +114,8 @@ export function DataMartDetails({ id }: DataMartDetailsProps) {
     }
     await runActualizeSchemaInternal();
   }, [canActualizeSchema, runActualizeSchemaInternal]);
+
+  const schemaGuard = useSchemaUnsavedGuard();
 
   const shouldShowInsights = checkVisible('INSIGHTS_ENABLED', 'true', flags);
 
@@ -430,7 +434,7 @@ export function DataMartDetails({ id }: DataMartDetailsProps) {
                     <Button
                       variant='default'
                       onClick={() => {
-                        void handlePublish();
+                        schemaGuard.runGuarded(() => handlePublish(), { intent: 'publish' });
                       }}
                       disabled={isPublishing || !canPublish}
                       className={cn(
@@ -571,6 +575,8 @@ export function DataMartDetails({ id }: DataMartDetailsProps) {
             getDataMart,
             runSchemaActualization,
             isSchemaActualizationLoading,
+            registerSchemaGuard: schemaGuard.registerSchemaGuard,
+            runGuarded: schemaGuard.runGuarded,
             projectId,
           }}
         />
@@ -602,16 +608,27 @@ export function DataMartDetails({ id }: DataMartDetailsProps) {
         cancelLabel='Cancel'
         variant='destructive'
         onConfirm={() => {
-          void (async () => {
-            try {
-              await deleteDataMart(dataMartId);
-              setIsDeleteDialogOpen(false);
-              navigate('/data-marts');
-            } catch (error) {
-              console.error('Failed to delete Data Mart:', error);
-            }
-          })();
+          schemaGuard.runGuarded(
+            async () => {
+              try {
+                await deleteDataMart(dataMartId);
+                setIsDeleteDialogOpen(false);
+                navigate('/data-marts');
+              } catch (error) {
+                console.error('Failed to delete Data Mart:', error);
+              }
+            },
+            { intent: 'navigation' }
+          );
         }}
+      />
+      <SchemaUnsavedChangesDialog
+        open={schemaGuard.dialog.open}
+        intent={schemaGuard.dialog.intent}
+        isSaving={schemaGuard.dialog.isSaving}
+        onSaveAndContinue={schemaGuard.dialog.onSaveAndContinue}
+        onDiscardAndContinue={schemaGuard.dialog.onDiscardAndContinue}
+        onCancel={schemaGuard.dialog.onCancel}
       />
     </div>
   );
