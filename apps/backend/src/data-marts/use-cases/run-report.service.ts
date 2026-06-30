@@ -291,7 +291,17 @@ export class RunReportService {
 
       // Grand totals are a SEPARATE DWH query, independent of the row stream, and
       // BEST-EFFORT: a failure here must never abort an otherwise-successful run.
-      await this.persistTotalsBestEffort(report, accessor, dataMartRun);
+      // Only compute them for destinations that surface them. The push destinations on
+      // this path — Google Sheets and the message-based ones (Email/Slack/Teams/Chat) —
+      // write only the row stream and never emit a totals block, so the extra
+      // full-dataset scan would just burn warehouse cost for output no one sees. (The
+      // Looker Studio connector and HTTP Data API read totals on their own paths.)
+      const destinationConsumesTotals =
+        dataDestination.type !== DataDestinationType.GOOGLE_SHEETS &&
+        !isEmailBasedDataDestinationType(dataDestination.type);
+      if (destinationConsumesTotals) {
+        await this.persistTotalsBestEffort(report, accessor, dataMartRun);
+      }
 
       reportWriter.setExecutionContext?.({
         runId: report.id,

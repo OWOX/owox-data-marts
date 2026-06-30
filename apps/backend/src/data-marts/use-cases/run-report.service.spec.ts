@@ -819,13 +819,13 @@ describe('RunReportService', () => {
     expect(dataMartRun.reportDefinition!.executionSqlQuery).toBeUndefined();
   });
 
-  it('persists computed totals onto dataMartRun.additionalParams.totals for an aggregated run', async () => {
+  it('persists computed totals for a totals-consuming destination (Looker Studio)', async () => {
     const { service, reportReaderResolver, reportWriterResolver, reportTotalsService } =
       createService();
-    const report = createReport(DataDestinationType.GOOGLE_SHEETS);
+    const report = createReport(DataDestinationType.LOOKER_STUDIO);
     const reader = createReader();
     reader.readReportDataBatch.mockResolvedValue(new ReportDataBatch([], undefined));
-    const writer = createWriter(DataDestinationType.GOOGLE_SHEETS);
+    const writer = createWriter(DataDestinationType.LOOKER_STUDIO);
     reportReaderResolver.resolve.mockResolvedValue(reader);
     reportWriterResolver.resolve.mockResolvedValue(writer);
 
@@ -856,13 +856,48 @@ describe('RunReportService', () => {
     expect(dataMartRun.additionalParams).toEqual({ totals });
   });
 
-  it('does NOT fail the run when totals computation throws (totals omitted, rows still succeed)', async () => {
+  it('skips the totals query for a Google Sheets destination (totals are not surfaced there)', async () => {
     const { service, reportReaderResolver, reportWriterResolver, reportTotalsService } =
       createService();
     const report = createReport(DataDestinationType.GOOGLE_SHEETS);
     const reader = createReader();
     reader.readReportDataBatch.mockResolvedValue(new ReportDataBatch([], undefined));
     const writer = createWriter(DataDestinationType.GOOGLE_SHEETS);
+    reportReaderResolver.resolve.mockResolvedValue(reader);
+    reportWriterResolver.resolve.mockResolvedValue(writer);
+
+    const dataMartRun = createDataMartRun(report);
+
+    await (
+      service as unknown as {
+        executeReport: (
+          report: Report,
+          accessor: { userId: string; roles: string[] },
+          signal?: AbortSignal,
+          logger?: unknown,
+          dataMartRun?: DataMartRun
+        ) => Promise<void>;
+      }
+    ).executeReport(
+      report,
+      { userId: 'user-1', roles: ['admin'] },
+      undefined,
+      undefined,
+      dataMartRun
+    );
+
+    // The push destination writes only rows; the extra full-dataset totals scan is skipped.
+    expect(reportTotalsService.computeTotals).not.toHaveBeenCalled();
+    expect(dataMartRun.additionalParams?.totals).toBeUndefined();
+  });
+
+  it('does NOT fail the run when totals computation throws (totals omitted, rows still succeed)', async () => {
+    const { service, reportReaderResolver, reportWriterResolver, reportTotalsService } =
+      createService();
+    const report = createReport(DataDestinationType.LOOKER_STUDIO);
+    const reader = createReader();
+    reader.readReportDataBatch.mockResolvedValue(new ReportDataBatch([], undefined));
+    const writer = createWriter(DataDestinationType.LOOKER_STUDIO);
     reportReaderResolver.resolve.mockResolvedValue(reader);
     reportWriterResolver.resolve.mockResolvedValue(writer);
 
@@ -898,10 +933,10 @@ describe('RunReportService', () => {
   it('leaves additionalParams unset for a non-aggregated run (computeTotals → null)', async () => {
     const { service, reportReaderResolver, reportWriterResolver, reportTotalsService } =
       createService();
-    const report = createReport(DataDestinationType.GOOGLE_SHEETS);
+    const report = createReport(DataDestinationType.LOOKER_STUDIO);
     const reader = createReader();
     reader.readReportDataBatch.mockResolvedValue(new ReportDataBatch([], undefined));
-    const writer = createWriter(DataDestinationType.GOOGLE_SHEETS);
+    const writer = createWriter(DataDestinationType.LOOKER_STUDIO);
     reportReaderResolver.resolve.mockResolvedValue(reader);
     reportWriterResolver.resolve.mockResolvedValue(writer);
 

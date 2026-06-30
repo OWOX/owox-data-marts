@@ -331,7 +331,10 @@ describe('Run report end-to-end: aggregation produces aggregated columns + top-l
       },
     } as never;
     const dataDestination = new DataDestination();
-    dataDestination.type = DataDestinationType.GOOGLE_SHEETS;
+    // Totals are computed only for totals-consuming destinations (push destinations like
+    // Google Sheets / Email skip the extra scan). Use Looker Studio so the totals
+    // computation + run-response contract below are exercised.
+    dataDestination.type = DataDestinationType.LOOKER_STUDIO;
     report.dataDestination = dataDestination;
     return report;
   };
@@ -342,7 +345,7 @@ describe('Run report end-to-end: aggregation produces aggregated columns + top-l
     run.dataMartId = report.dataMart.id;
     run.reportId = report.id;
     run.status = DataMartRunStatus.PENDING;
-    run.type = DataMartRunType.GOOGLE_SHEETS_EXPORT;
+    run.type = DataMartRunType.LOOKER_STUDIO;
     run.runType = RunType.manual;
     run.createdById = report.createdById;
     run.definitionRun = {} as never;
