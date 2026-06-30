@@ -3,21 +3,20 @@
 You need four credentials to connect the X Ads connector:
 
 - **Consumer Key** and **Consumer Secret** — identify your developer app (Steps 1–3)
-- **Access Token** and **Access Token Secret** — prove your app can access your ad account (Steps 4–7)
+- **Access Token** and **Access Token Secret** — prove your app can access your ad account (Steps 4–6)
 
-Steps 5–7 use OAuth 1.0a — a secure handshake that lets OWOX read your X Ads data without storing your X password.
+Steps 4–6 use OAuth 1.0a — a secure handshake that lets OWOX read your X Ads data without storing your X password.
 
-**Before you start:** Sign up for [Postman](https://web.postman.co/) if you don't have an account yet. It's a free tool for sending API requests. You'll use it in Steps 5 and 7.
+**Before you start:** Sign up for [Postman](https://web.postman.co/) if you don't have an account yet. It's a free tool for sending API requests. You'll use it in Steps 4 and 6.
 
 ## Steps
 
 - [Step 1: Create a Developer App](#step-1-create-a-developer-app)
 - [Step 2: Request Ads API Access](#step-2-request-ads-api-access)
 - [Step 3: Get Your Consumer Key and Secret](#step-3-get-your-consumer-key-and-secret)
-- [Step 4: Generate Access Token and Token Secret](#step-4-generate-access-token-and-token-secret)
-- [Step 5: Get a Temporary OAuth Token](#step-5-get-a-temporary-oauth-token)
-- [Step 6: Authorize the App](#step-6-authorize-the-app)
-- [Step 7: Exchange for Permanent Tokens](#step-7-exchange-for-permanent-tokens)
+- [Step 4: Get a Temporary OAuth Token](#step-4-get-a-temporary-oauth-token)
+- [Step 5: Authorize the App](#step-5-authorize-the-app)
+- [Step 6: Exchange for Permanent Tokens](#step-6-exchange-for-permanent-tokens)
 
 ---
 
@@ -100,19 +99,7 @@ Copy and save both values in a password manager:
 
 ---
 
-## Step 4: Generate Access Token and Token Secret
-
-Stay on the **Keys & Tokens** tab (or return to it via your app's detail page).
-
-Scroll down to the **Access Token** section. Click **Generate**.
-
-A dialog shows your **Access Token** and **Access Token Secret**. Copy both and save them in your password manager.
-
-![Keys & Tokens tab showing the Access Token section with the Generate button](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/c62cbc00-4161-4140-4065-10ff6bee6e00/public)
-
----
-
-## Step 5: Get a Temporary OAuth Token
+## Step 4: Get a Temporary OAuth Token
 
 Open [Postman](https://web.postman.co/). Click the **+** button to open a new tab.
 
@@ -133,8 +120,8 @@ Fill in the fields that appear on the right:
 | **Signature Method** | HMAC-SHA1 |
 | **Consumer Key** | your Consumer Key from [Step 1](#step-1-create-a-developer-app) or [Step 3](#step-3-get-your-consumer-key-and-secret) |
 | **Consumer Secret** | your Secret Key from [Step 1](#step-1-create-a-developer-app) or [Step 3](#step-3-get-your-consumer-key-and-secret) |
-| **Access Token** | your Access Token from [Step 4](#step-4-generate-access-token-and-token-secret) |
-| **Token Secret** | your Access Token Secret from [Step 4](#step-4-generate-access-token-and-token-secret) |
+
+> ℹ️ This request works because the app you created in Step 1 has OAuth 1.0a user authentication enabled. If it fails with a callback error, or Step 5 shows no PIN, open your app's **User authentication settings**, turn on **OAuth 1.0a**, and set any callback URL. In Postman, you can also add `oauth_callback` = `oob` under the OAuth 1.0 advanced parameters.
 
 Click **Send**. The response appears in the panel at the bottom of the screen. It looks like:
 
@@ -147,18 +134,20 @@ This is a single string with values separated by `&`. Extract both values and ke
 - `oauth_token` — the value between `oauth_token=` and `&oauth_token_secret`. In the example above: `E4MQKQAAAAAB1yCFAAABl2OHH80`
 - `oauth_token_secret` — the value between `oauth_token_secret=` and `&oauth_callback_confirmed`. In the example above: `UlDQaqOoJHj1VvLQ8fQH6Iq686rEFww2`
 
-![Postman showing POST request to oauth/request_token with OAuth 1.0 selected, all fields filled, and the 200 OK response containing oauth_token and oauth_token_secret](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/0065f031-a718-41db-ceae-a5951d862f00/public)
+![Postman showing POST request to oauth/request_token with OAuth 1.0 selected, all fields filled, and the 200 OK response containing oauth_token and oauth_token_secret](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/5f022030-e93b-45c0-cd89-831180b19f00/public)
 
 **Possible errors:**
 
-- **"Invalid or expired token."** — Your Access Token or Token Secret is wrong or expired. [Regenerate them in Step 4](#step-4-generate-access-token-and-token-secret) and try again.
-- **"Could not authenticate you."** — Your Consumer Key or Consumer Secret is incorrect. Re-enter them and try again.
+This request sends only your Consumer Key and Consumer Secret. So an authentication error points to one of those two values:
+
+- **"Could not authenticate you."** — Your Consumer Key or Consumer Secret is wrong. Re-enter them carefully and try again.
+- Still failing after re-entering? [Regenerate the keys in Step 3](#step-3-get-your-consumer-key-and-secret), then use the new values.
 
 ---
 
-## Step 6: Authorize the App
+## Step 5: Authorize the App
 
-Replace `YOUR_OAUTH_TOKEN` in the URL below with the `oauth_token` value you saved in Step 5:
+Replace `YOUR_OAUTH_TOKEN` in the URL below with the `oauth_token` value you saved in Step 4:
 
 ```text
 https://api.x.com/oauth/authorize?oauth_token=YOUR_OAUTH_TOKEN
@@ -174,21 +163,21 @@ Open the URL in your browser. An authorization page appears. Click **Authorize a
 
 ![X authorization page in the browser showing the Authorize app button circled, with the oauth_token visible in the URL bar](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/9c0193cf-c076-480c-6732-b883cbd6a700/public)
 
-After you click Authorize app, X shows a page with a **numeric PIN**. Copy the PIN and save it — you'll enter it in Step 7.
+After you click Authorize app, X shows a page with a **numeric PIN**. Copy the PIN and save it — you'll enter it in Step 6.
 
-> ℹ️ If X redirects you to a website instead of showing a PIN, look at the URL bar. Copy the `oauth_verifier` value from it — that value serves the same purpose as the PIN. Use it as the **Verifier** in Step 7.
+> ℹ️ If X redirects you to a website instead of showing a PIN, look at the URL bar. Copy the `oauth_verifier` value from it — that value serves the same purpose as the PIN. Use it as the **Verifier** in Step 6.
 
 **Possible errors:**
 
-- **"The request token for this page is invalid."** — The `oauth_token` expired. Temporary tokens are short-lived. Go back to [Step 5](#step-5-get-a-temporary-oauth-token), request a new one, and complete Steps 6–7 without delay.
+- **"The request token for this page is invalid."** — The `oauth_token` expired. Temporary tokens are short-lived. Go back to [Step 4](#step-4-get-a-temporary-oauth-token), request a new one, and complete Steps 5–6 without delay.
 
 ![X error page showing "Whoa there! The request token for this page is invalid" message](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/f42faf43-bf63-4ae4-0f7a-a8bf32de4600/public)
 
 ---
 
-## Step 7: Exchange for Permanent Tokens
+## Step 6: Exchange for Permanent Tokens
 
-In [Postman](https://web.postman.co/), open a **new tab** (click **+**) to keep this request separate from the one in Step 5.
+In [Postman](https://web.postman.co/), open a **new tab** (click **+**) to keep this request separate from the one in Step 4.
 
 1. Change the method to **POST**
 2. Paste this URL:
@@ -199,16 +188,16 @@ In [Postman](https://web.postman.co/), open a **new tab** (click **+**) to keep 
 
 3. Click the **Authorization** tab and select **OAuth 1.0**
 
-Fill in the fields. Note: the **Access Token** and **Access Token Secret** here are the *temporary* values from Step 5 — not the ones from Step 4.
+Fill in the fields. Note: the **Access Token** and **Access Token Secret** here are the *temporary* values from Step 4.
 
 | Field | Value |
 |-------|-------|
 | **Signature Method** | HMAC-SHA1 |
 | **Consumer Key** | your Consumer Key from [Step 1](#step-1-create-a-developer-app) or [Step 3](#step-3-get-your-consumer-key-and-secret) |
 | **Consumer Secret** | your Secret Key from [Step 1](#step-1-create-a-developer-app) or [Step 3](#step-3-get-your-consumer-key-and-secret) |
-| **Access Token** | `oauth_token` from [Step 5](#step-5-get-a-temporary-oauth-token) (temporary) |
-| **Access Token Secret** | `oauth_token_secret` from [Step 5](#step-5-get-a-temporary-oauth-token) (temporary) |
-| **Verifier** | the PIN from [Step 6](#step-6-authorize-the-app) |
+| **Access Token** | `oauth_token` from [Step 4](#step-4-get-a-temporary-oauth-token) (temporary) |
+| **Access Token Secret** | `oauth_token_secret` from [Step 4](#step-4-get-a-temporary-oauth-token) (temporary) |
+| **Verifier** | the PIN from [Step 5](#step-5-authorize-the-app) |
 
 Click **Send**. The response appears in the bottom panel:
 
@@ -233,8 +222,8 @@ You now have all four credentials for the connector:
 |------------|-----------------|---------------------|
 | Consumer Key | Consumer Key | [Step 1](#step-1-create-a-developer-app) or [Step 3](#step-3-get-your-consumer-key-and-secret) |
 | Consumer Secret | Secret Key | [Step 1](#step-1-create-a-developer-app) or [Step 3](#step-3-get-your-consumer-key-and-secret) |
-| Access Token | `oauth_token` | [Step 7](#step-7-exchange-for-permanent-tokens) response |
-| Access Token Secret | `oauth_token_secret` | [Step 7](#step-7-exchange-for-permanent-tokens) response |
+| Access Token | `oauth_token` | [Step 6](#step-6-exchange-for-permanent-tokens) response |
+| Access Token Secret | `oauth_token_secret` | [Step 6](#step-6-exchange-for-permanent-tokens) response |
 
 Go to the [Getting Started Guide](GETTING_STARTED.md) to complete the setup.
 

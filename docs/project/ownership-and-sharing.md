@@ -136,8 +136,13 @@ The following actions can be granted or restricted by the combination of ownersh
 | Who | Not shared | Shared for use | Shared for maintenance | Shared for both |
 |---|---|---|---|---|
 | **Owner (Technical User)** | All actions | All actions | All actions | All actions |
-| **Non-owner Technical User** | No access | See, Use | See, Use, Copy Credentials, Edit, Delete | See, Use, Copy Credentials, Edit, Delete |
-| **Any Business User** | No access | No access | No access | No access |
+| **Owner (Business User)** | No access [1] | No access [1] | No access [1] | No access [1] |
+| **Non-owner Technical User** | No access | See, Use [2] | See, Use, Copy Credentials, Edit, Delete [2] | See, Use, Copy Credentials, Edit, Delete [2] |
+| **Any Business User (non-owner)** | No access | No access | No access | No access |
+
+[1] A Business User assigned as Storage Owner has no access until their role changes to Technical User. A warning appears on the [Notification Settings](../notifications/notification-settings.md) page.
+
+[2] Under `Selected contexts only` scope, these actions require a context overlap between the member and the Storage.
 
 > ☝️ Business Users do not have direct access to Storages. They interact with data through Data Marts and Destinations shared with them.
 
@@ -173,13 +178,45 @@ Data Mart Triggers have no dedicated ownership. Who can see them and who can man
 | **Business Owner (Technical User)** of parent Data Mart shared for maintenance | Yes | Yes, via non-owner path [1] |
 | **Business Owner (Technical User)** of parent Data Mart not shared for maintenance | Yes | No |
 | **Business Owner (Business User)** of parent Data Mart | Yes | No |
-| **Non-owner Technical User** (DM shared for maintenance) | Yes [2] | Yes [2] |
-| **Non-owner Technical User** (DM shared for reporting only) | Yes [2] | No |
-| **Non-owner Business User** (DM visible) | Yes [2] | No |
+| **Non-owner Technical User** (Data Mart shared for maintenance) | Yes [2] | Yes [2] |
+| **Non-owner Technical User** (Data Mart shared for reporting only) | Yes [2] | No |
+| **Non-owner Business User** (Data Mart visible) | Yes [2] | No |
 
 [1] Under `Selected contexts only` scope this requires a context overlap between the member and the parent Data Mart.
 
 [2] Under `Selected contexts only` scope this requires a context overlap between the member and the parent Data Mart.
+
+---
+
+### Joinable Data Mart
+
+Relationships between Data Marts have no dedicated ownership. They belong to the source Data Mart and follow its access rules. See [Joinable Data Marts](../getting-started/setup-guide/joinable-data-marts.md) to configure them.
+
+**Creating a relationship** requires `Edit` access on both the source and target Data Marts. The user needs maintenance access on each Data Mart, through one of two paths. First: a Technical Owner with the Technical User role. Second: a Technical User on a Data Mart *Shared for maintenance*.
+
+**Editing or deleting a relationship** requires `Edit` access on the source Data Mart only.
+
+**Using joined fields in a report** does not require maintenance access. Any member who sees the source Data Mart can pick joined fields in the Report Columns picker. Two access conditions apply:
+
+- The target Data Mart is also visible to them, through ownership or sharing.
+- The relationship is complete: it has at least one join condition, and the target Data Mart is published (not a draft).
+
+Access alone does not guarantee a field appears. The relationship must keep **Allow for reporting** on, and the field must not be hidden through **Hide from reports**. See [Joinable Data Marts](../getting-started/setup-guide/joinable-data-marts.md) for these field-exposure controls.
+
+| Who | Can see relationships | Can create | Can edit or delete |
+|---|---|---|---|
+| **Technical Owner (Technical User)** of source Data Mart | Yes | Yes, if also has `Edit` on target Data Mart | Yes |
+| **Technical Owner (Business User)** of source Data Mart | Yes | No | No |
+| **Business Owner (Technical User)** of source Data Mart *Shared for maintenance* | Yes | Yes via non-owner path, if also has `Edit` on target Data Mart [1] | Yes via non-owner path [1] |
+| **Business Owner (Technical User)** of source Data Mart not shared for maintenance | Yes | No | No |
+| **Business Owner (Business User)** of source Data Mart | Yes | No | No |
+| **Non-owner Technical User** (source Data Mart shared for maintenance) | Yes [1] | Yes, if also has `Edit` on target Data Mart [1] | Yes [1] |
+| **Non-owner Technical User** (source Data Mart shared for reporting only) | Yes [1] | No | No |
+| **Non-owner Business User** (source Data Mart visible) | Yes [1] | No | No |
+
+[1] Under `Selected contexts only` scope this requires a context overlap between the member and the source Data Mart.
+
+> ☝️ Business Users cannot create or manage relationships, whatever the sharing settings. On Data Marts they get only See and Use. They can build reports on joined fields, but they cannot configure the join itself.
 
 ---
 
@@ -206,7 +243,7 @@ Access to edit, delete, or run a Report requires one of two conditions:
 | **Has Data Mart maintenance access** [1] | Yes | Yes — for all Reports on that Data Mart |
 | **Report Owner** (Destination exists) | Yes | Yes |
 | **Report Owner** (Destination deleted) | Yes | No — read-only until Destination is restored or replaced |
-| **DM visible without maintenance access** | Yes | No |
+| **Data Mart visible without maintenance access** | Yes | No |
 
 [1] "Has Data Mart maintenance access" means the user receives `Edit` on the parent Data Mart through any path defined in the [Data Mart access table](#data-mart) — that is, Technical Owner with Technical User role, or Technical User (including a Business Owner who is a Technical User) receiving maintenance through the non-owner sharing path on a Data Mart that is *Shared for maintenance*. The non-owner sharing path is gated by role scope and contexts; the Report-level decision inherits that gate.
 
@@ -223,6 +260,6 @@ Access to edit, delete, or run a Report requires one of two conditions:
 | **Has Data Mart maintenance access** [1] | Yes | Yes — for all Report Triggers on that Data Mart |
 | **Report Owner** (Destination exists) | Yes | Yes — for own Report's triggers only |
 | **Report Owner** (Destination deleted) | Yes | No |
-| **DM visible without maintenance access** | Yes | No |
+| **Data Mart visible without maintenance access** | Yes | No |
 
 [1] Defined under [Report](#report) above — includes any path that grants `Edit` on the parent Data Mart, with the same role scope / context gating.

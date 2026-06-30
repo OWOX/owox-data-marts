@@ -9,6 +9,8 @@ During this process, you will obtain the following credentials required for the 
 - **Client Secret**  
 - **Refresh Token**
 
+**Before you start:** Sign up for [ReqBin](https://reqbin.com/) or [Postman](https://www.postman.com/) if you don't have an account yet. Both are free tools for sending API requests. You'll use one of them in Steps 3–5 to obtain the Refresh Token.
+
 ## Step 1: Register an App in Microsoft Azure
 
 If you haven't already, [sign up for Microsoft Azure](https://azure.microsoft.com/) and log in to the [Azure Portal](https://portal.azure.com/).
@@ -57,31 +59,34 @@ At this point, you have:
 - **Client Secret**
 - **Redirect URI**: `http://localhost:8080`
 
-## Step 3: Get Account ID and Customer ID
+## Step 3: Prepare for Authentication
 
-1. Go to [https://ads.microsoft.com/](https://ads.microsoft.com/) and log in to your Microsoft Ads account.  
-2. Switch to the account you want to import and open the Campaigns page.
-3. Copy the numeric IDs from the browser URL:
-   - Use the `aid` value as **Account ID**.
-   - Use the `cid` value as **Customer ID**.
+Use [ReqBin](https://reqbin.com/) or **Postman** to build a POST request. This request exchanges the authorization code for a refresh token. Send it to:
 
-> Important: Microsoft Ads also shows account/customer numbers in some places. Those values can be alphanumeric, for example `A00000A0AA`, and should not be used here. The connector requires the numeric API IDs from `aid` and `cid`.
+``` code
+https://login.microsoftonline.com/common/oauth2/v2.0/token
+```
 
-![Microsoft Add Account](res/microsoft_addaccount.png)
+Open the **Body** tab. Set the body type to **x-www-form-urlencoded**. In ReqBin, choose **Form** as the content type. Add these parameters, replacing _YOUR_CLIENT_ID_, _YOUR_CLIENT_SECRET_, and _YOUR_AUTHORIZATION_CODE_ with real values:
 
-## Step 4: Get Your Developer Token
+> **Note:** You'll get the **Authorization Code** from the URL in Step 4. Prepare the request now. The code is short-lived, so a ready request lets you paste and send right away.
 
-In the Microsoft Ads interface, go to **Settings → Developer Settings**.  
+``` code
+client_id=YOUR_CLIENT_ID&
+client_secret=YOUR_CLIENT_SECRET&
+grant_type=authorization_code&
+code=YOUR_AUTHORIZATION_CODE&
+redirect_uri=http://localhost:8080&
+scope=https://ads.microsoft.com/msads.manage offline_access
+```
 
-![Microsoft Developer](res/microsoft_developer.png)
+![Microsoft Make Query](res/microsoft_makequery.png)
 
-Click **Request Token**, and copy the generated **Developer Token**.  
+![Microsoft Ampersand](res/microsoft_ampersand.png)
 
-![Microsoft Request](res/microsoft_request.png)
+## Step 4: Get the Authorization Code
 
-## Step 5: Generate an Authorization Code
-
-Great! Create a URL by replacing `CLIENTID` with your **Client ID**:
+Create a URL by replacing `CLIENTID` with your **Client ID**:
 
 ``` code
 https://login.microsoftonline.com/common/oauth2/v2.0/authorize?client_id=CLIENTID&response_type=code&redirect_uri=http://localhost:8080&scope=https://ads.microsoft.com/msads.manage offline_access
@@ -89,6 +94,8 @@ https://login.microsoftonline.com/common/oauth2/v2.0/authorize?client_id=CLIENTI
 
 Open the URL in your browser. Log in and authorize the app by clicking **Accept**. After authorization, you will be redirected to:  
 `http://localhost:8080/?code=YOUR_AUTHORIZATION_CODE`  
+
+> ⚠️ **Important:** Sign in with the Microsoft Advertising user that can access the **Account ID** and **Customer ID** you collect in Step 6. The Refresh Token represents this signed-in user, so the connector can only import accounts that this user can reach.
 
 Copy the `code` value from the URL.
 
@@ -98,32 +105,33 @@ Copy the `code` value from the URL.
 >Your **Authorization Code** is:  
 >`M.C519_BAY.2.U.0a895e39-774a-e677-b4bb-8589ce3e0beb`
 
-## Step 6: Exchange Authorization Code for a Refresh Token
+## Step 5: Exchange the Authorization Code for a Refresh Token
 
-Use [ReqBin](https://reqbin.com/) or **Postman** to exchange this code for a refresh token by making a **POST** request to
-
-``` code
-https://login.microsoftonline.com/common/oauth2/v2.0/token
-```
-
-with the following parameters in the **Body** tab (replace _YOUR_CLIENT_ID_, _YOUR_CLIENT_SECRET_ and _YOUR_AUTHORIZATION_CODE_ with actual values):
-
-``` code
-client_id=YOUR_CLIENT_ID&  
-client_secret=YOUR_CLIENT_SECRET&  
-grant_type=authorization_code& 
-code=YOUR_AUTHORIZATION_CODE&  
-redirect_uri=http://localhost:8080&  
-scope=https://ads.microsoft.com/msads.manage offline_access
-```
-
-![Microsoft Make Query](res/microsoft_makequery.png)
-
-![Microsoft Ampersand](res/microsoft_ampersand.png)
-
-Clicks **Send** button. After a successful request, you will receive a **Refresh Token** in the response. Store it securely — this token will be used to authenticate API requests.
+In ReqBin or Postman, paste the authorization code from Step 4. Click **Send**. A successful request returns a **Refresh Token** in the response. Store it securely — you'll use it to authenticate API requests.
 
 ![Microsoft Refresh](res/microsoft_refresh.png)
+
+## Step 6: Get Account ID and Customer ID
+
+1. Go to [https://ads.microsoft.com/](https://ads.microsoft.com/) and log in to your Microsoft Ads account.
+2. Switch to the account you want to import and open the Campaigns page.
+3. Copy the numeric IDs from the browser URL:
+   - Use the `aid` value as **Account ID**.
+   - Use the `cid` value as **Customer ID**.
+
+> Important: Microsoft Ads also shows account and customer numbers in some places. Those values can be alphanumeric, like `A00000A0AA`. Don't use them here. The connector needs the numeric API IDs from `aid` and `cid`.
+
+![Microsoft Add Account](res/microsoft_addaccount.png)
+
+## Step 7: Get Your Developer Token
+
+In the Microsoft Ads interface, go to **Settings → Developer Settings**.
+
+![Microsoft Developer](res/microsoft_developer.png)
+
+Click **Request Token**, and copy the generated **Developer Token**.
+
+![Microsoft Request](res/microsoft_request.png)
 
 ## ✅ Final Summary
 
@@ -162,7 +170,7 @@ The temporary authorization code has expired.
 Microsoft (and other platforms) issue short-lived authorization codes that must be exchanged for tokens within a limited time window (usually just a few minutes).
 
 **Solution:**  
-Repeat **Step 5** to obtain a new temporary authorization code and retry the request.
+Repeat **Step 4** to obtain a new temporary authorization code and retry the request.
 
 ---
 
