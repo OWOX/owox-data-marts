@@ -4,9 +4,10 @@ Follow these steps to connect the Facebook Ads API and start importing data.
 
 There are two ways to get access to the Facebook data in Data Mart:
 
-1. [**OAuth**](#oauth) — recommended for most users. It is the easiest path, and OWOX refreshes the token for you, so nothing expires.
+1. [**OAuth**](#oauth) — recommended for most users. It is the easiest path, and OWOX renews supported OAuth credentials while Meta keeps the authorization grant valid.
 2. [**Access Token**](#access-token) — for advanced or manual setups. You generate the token yourself and refresh it every ~60 days.
 
+> **Self-hosted deployments:** Use the **Access Token** method. Self-hosted deployments can use only manual credentials.  
 > **Before you start:** Whichever method you choose, sign in with a Facebook account that has a role on the target ad account. Accepted roles: Admin, Advertiser, or Analyst. Without access, the connector returns empty results or a permissions error.
 
 ## OAuth
@@ -15,7 +16,9 @@ Press the **Continue with Facebook** button in Data Mart Configure Settings.
 
 Log in with an account that can access the ad data, then confirm access. The button shows 'Authenticated as…' once you sign in successfully.
 
-Then enter the Account ID you want to fetch data from. [Where to find Account IDs?](https://docs.owox.com/packages/connectors/src/sources/facebook-marketing/getting-started/#set-up-the-connector)
+Reconnect with Facebook if the user revokes app access, Meta invalidates the grant, required permissions are removed or changed, or the authorized user loses access to the selected ad account or business assets.
+
+Then enter the numeric Account ID you want to fetch data from, without the `act_` prefix. To import data from multiple ad accounts, separate IDs with commas or semicolons. [Where to find Account IDs?](https://docs.owox.com/packages/connectors/src/sources/facebook-marketing/getting-started/#set-up-the-connector)
 
 ![OWOX Facebook connector settings showing the Continue with Facebook button and the Account ID field](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/6e96957f-29cf-4e21-b45d-a05c746d4e00/public)
 
@@ -25,7 +28,7 @@ Next, open the **Configure Data Import** step in the connector settings to choos
 
 Create your own Meta app and run the OAuth code flow to get an Access Token.
 
-> **Before you start:** Step 3 uses an API client to exchange your authorization code for the token. Sign up for [ReqBin](https://reqbin.com/) or [Postman](https://www.postman.com/) first if you don't have one. Both are free tools for sending API requests.
+> **Before you start:** Step 3 sends your **App Secret**, authorization **code**, and returned **Access Token**. For better security, use a local tool such as [Postman Desktop](https://www.postman.com/downloads/) or `curl`. If you use a web API client such as [ReqBin](https://reqbin.com/), avoid shared computers, do not save the request publicly, and delete the request or history after copying the token.
 
 ## Step 1: Sign In to the Meta for Developers Portal
 
@@ -49,16 +52,22 @@ In the Use Cases section, in the left **Filter by** panel, select **All**. Choos
 
 ![App Settings Basic page showing the App ID and App Secret fields](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/a488338c-60e6-423c-6ea0-0d8c6824aa00/public)
 
-Build the authorization URL from the template below. Replace `YOUR_APP_ID` with your actual **App ID**.
+Build the authorization URL from the template below. Replace only `YOUR_APP_ID` with your actual **App ID**.
 
-The connector needs two permissions — `ads_read` and `ads_management` — so the URL requests both in the `scope` parameter.
+The connector requests both permissions because different OWOX endpoints read different parts of the Marketing API:
+
+- `ads_read` is used for reporting endpoints: `ad-account/insights` and the `ad-account/insights-by-*` breakdown endpoints.
+- `ads_management` is used for ad account and ad object endpoints: `ad-account`, `ad-account-user`, `ad-account/ads`, `ad-account/adcreatives`, and `ad-group`.
+
+OWOX only reads data from these endpoints. The `ads_management` permission is included so the same token can read supported ad account and ad object data; the connector does not create or change ads.
+
+The URL requests both permissions in the `scope` parameter:
 
 ``` code
-https://www.facebook.com/v25.0/dialog/oauth?client_id=YOUR_APP_ID&redirect_uri=http://localhost:8080/&response_type=code&scope=ads_read,ads_management&state=abc123
+https://www.facebook.com/v25.0/dialog/oauth?client_id=YOUR_APP_ID&redirect_uri=http://localhost:8080/&response_type=code&scope=ads_read,ads_management&state=owox_fb_auth
 ```
 
-> **Example**:
-> `https://www.facebook.com/v25.0/dialog/oauth?client_id=665881219608750&redirect_uri=http://localhost:8080/&response_type=code&scope=ads_read,ads_management&state=abc123`
+The `state` value is a safety check for this authorization request. You can leave `owox_fb_auth` as is, or replace it with any random text.
 
 - Open the URL in your browser
 - Confirm you're logged in with the account that can access the ad account
@@ -67,9 +76,11 @@ https://www.facebook.com/v25.0/dialog/oauth?client_id=YOUR_APP_ID&redirect_uri=h
 
 ![Facebook authorization dialog in the browser with the Continue and Save buttons](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/ee11eeca-966e-460d-dd8d-857fdcc25500/public)
 
-After you authorize, the browser redirects to a URL with a long `code` parameter.
+After you authorize, the browser redirects to a URL with long `code` and `state` parameters.
 
-Copy and save the **code** value (everything after `code=` up to `&state=...`). You need it in the next step.
+Confirm the `state` value in the redirected URL matches the `state` value in your authorization URL. If it does not match, stop and repeat **Step 2**.
+
+Then copy and save the **code** value (everything after `code=` up to `&state=...`). You need it in the next step.
 
 > **Note:** It's normal to see a 'This site can't be reached' error on this page. You only need the `code` from the address bar — the localhost link is not meant to open a real site.
 
@@ -77,20 +88,21 @@ Copy and save the **code** value (everything after `code=` up to `&state=...`). 
 
 ## Step 3: Generate and Save the Access Token
 
-Exchange the authorization code for an **Access Token**. Open [ReqBin](https://app.reqbin.com/) or **Postman** and send a `POST` request to:
+Exchange the authorization code for an **Access Token**. Use [Postman Desktop](https://www.postman.com/downloads/), `curl`, or [ReqBin](https://reqbin.com/) and send a `POST` request to:
 
 ``` code
 https://graph.facebook.com/v25.0/oauth/access_token
 ```
 
-Open the **Body** tab and set the body type to **x-www-form-urlencoded** (in ReqBin, choose **Form**). Add the following parameters:
+Open the **Body** tab and set the body type to **x-www-form-urlencoded** (in ReqBin, choose **Form**). In ReqBin, paste the body as one line, replacing the placeholder values first:
 
 ``` code
-client_id=YOUR_APP_ID&
-client_secret=YOUR_APP_SECRET&
-redirect_uri=http://localhost:8080/&
-code=CODE_FROM_THE_PREVIOUS_STEP
+client_id=YOUR_APP_ID&client_secret=YOUR_APP_SECRET&redirect_uri=http://localhost:8080/&code=CODE_FROM_THE_PREVIOUS_STEP
 ```
+
+The `&` characters separate parameters in ReqBin. Do not add an extra `&` after the `code` value.
+
+If you use Postman Desktop, you can enter the same values as separate **Body → x-www-form-urlencoded** key/value rows: `client_id`, `client_secret`, `redirect_uri`, and `code`.
 
 ![API client POST request to the Facebook oauth/access_token endpoint](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/0ac09525-a564-437d-9356-01b66aeb4500/public)
 ![API client Body tab set to form-encoded with client_id, client_secret, redirect_uri, and code parameters](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/a0fd3462-03ff-495a-cfbf-e220a5fe3500/public)
@@ -100,17 +112,19 @@ Click **Send**. The response contains your **Access Token**.
 
 ![API client response panel showing the returned access_token value](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/79df572a-9f78-4b0f-dad9-fa7626908d00/public)
 
-Copy and securely save the **Access Token**. You need it to authenticate your API requests.
+Copy and securely save the **Access Token**. You need it together with the **App ID** and **App Secret** to create a long-lived token in OWOX.
 
-> ⚠️ **This Access Token expires in about 60 days.** You can keep using it, but refresh it before then — repeat Steps 2–3 to generate a new one. If it expires, scheduled imports stop. To skip manual refreshes, use the [**OAuth**](#oauth) method instead (OWOX refreshes the token for you). Or generate a non-expiring token under Meta [**Business Settings → Users → System Users**](https://business.facebook.com/latest/settings/system_users).
+> ⚠️ **Facebook access tokens can expire in about 60 days.** OWOX uses the **App ID** and **App Secret** to exchange and refresh the token. If Facebook invalidates the token or permissions change, reconnect by repeating Steps 2–3 to generate a new access token.
 
-## Step 4: Use the Access Token
+## Step 4: Use the Credentials
 
-With the access token ready, follow the [Getting Started guide](GETTING_STARTED.md) to use it.
+At this moment, you have the **App ID**, **App Secret**, and **Access Token**. OWOX needs all three credentials to create and refresh a long-lived token.
 
-## Troubleshooting Access Token Errors
+With the credentials ready, follow the [Getting Started guide](GETTING_STARTED.md) for a detailed tutorial on filling in the Data Mart configuration fields.
 
-Hit an error while getting the access token? Check the causes and fixes below.
+## Troubleshooting Credential Setup
+
+Hit an error while getting the access token or exchanging the authorization code? Check the causes and fixes below.
 
 ### Error: `This authorization code has been used`
 
@@ -144,14 +158,25 @@ The temporary authorization code expired. Facebook issues short-lived codes, so 
 **Solution:**
 Repeat **Step 2** to obtain a new temporary code and retry the request.
 
+### Error: `redirect_uri` mismatch or invalid redirect URI
+
+**Cause:**
+Meta rejected the redirect URL used in the authorization request.
+
+**Solution:**
+Add `http://localhost:8080/` as a **Valid OAuth Redirect URI** in your Meta app's **Facebook Login** settings, then repeat **Step 2**.
+
 ---
 
 > ✅ **Tip:** Generate the authorization code and use it right away, before it expires.
+
+For errors after credentials are saved, see [Troubleshooting Facebook Ads imports](TROUBLESHOOTING.md).
 
 ## Troubleshooting and Support
 
 If you run into other issues:
 
-1. [Visit Q&A](https://github.com/OWOX/owox-data-marts/discussions/categories/q-a) first — your question may already be answered.
-2. Found a bug? [Open an issue](https://github.com/OWOX/owox-data-marts/issues).
-3. Join the [discussion forum](https://github.com/OWOX/owox-data-marts/discussions) to ask questions or propose improvements.
+1. Check [Troubleshooting Facebook Ads imports](TROUBLESHOOTING.md) for Data Mart run, permission, and account access errors.
+2. [Visit Q&A](https://github.com/OWOX/owox-data-marts/discussions/categories/q-a) first — your question may already be answered.
+3. Found a bug? [Open an issue](https://github.com/OWOX/owox-data-marts/issues).
+4. Join the [discussion forum](https://github.com/OWOX/owox-data-marts/discussions) to ask questions or propose improvements.
