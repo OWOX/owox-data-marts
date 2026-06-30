@@ -29,7 +29,7 @@ export function OutputSettingsButton({
           aria-label='Output controls'
           aria-expanded={open}
           onClick={onClick}
-          className='relative h-6 w-6 p-0'
+          className='relative h-7 w-7'
         >
           <SlidersHorizontal className={cn('h-3.5 w-3.5', active && 'text-blue-500')} />
           {typeof count === 'number' && count > 0 && (
