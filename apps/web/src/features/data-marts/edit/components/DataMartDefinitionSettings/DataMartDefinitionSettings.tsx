@@ -174,24 +174,29 @@ export function DataMartDefinitionSettings({
     }
   }, [shouldActualizeSchema, runSchemaActualization]);
 
+  const guardedSubmit = useCallback<SubmitHandler<DataMartDefinitionFormData>>(
+    data => {
+      const runSubmit = () => {
+        void onSubmit(data);
+      };
+      if (runGuarded) {
+        runGuarded(runSubmit, { intent: 'definition' });
+      } else {
+        runSubmit();
+      }
+    },
+    [onSubmit, runGuarded]
+  );
+
   const handleFormSubmit = useCallback(
     (e?: React.SyntheticEvent<HTMLFormElement>) => {
       e?.preventDefault();
-      const submit = () => {
-        void handleSubmit(onSubmit)();
-      };
-      if (runGuarded) {
-        runGuarded(
-          () => {
-            submit();
-          },
-          { intent: 'definition' }
-        );
-      } else {
-        submit();
-      }
+      // Validate the definition form BEFORE involving the schema guard. Only a
+      // valid submission opens the guard dialog, so we never save/discard schema
+      // edits for a definition change that fails validation and never fires.
+      void handleSubmit(guardedSubmit)();
     },
-    [handleSubmit, onSubmit, runGuarded]
+    [handleSubmit, guardedSubmit]
   );
 
   const handleReset = useCallback(() => {

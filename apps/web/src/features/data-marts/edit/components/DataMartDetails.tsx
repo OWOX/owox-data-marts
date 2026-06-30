@@ -32,7 +32,7 @@ import {
 } from '../../shared';
 import { useSchemaActualizeTrigger } from '../../shared/hooks/useSchemaActualizeTrigger';
 import { PromoStep, useDataMartNextStepPromo } from '../hooks/useDataMartNextStepPromo';
-import { useSchemaUnsavedGuard } from '../model/hooks';
+import { useSchemaUnsavedGuard } from '../model';
 import { SchemaUnsavedChangesDialog } from './SchemaUnsavedChangesDialog';
 import { useDataMart } from '../model';
 import { useAiHelper, useAiHelperAvailability } from '../model';
@@ -608,18 +608,21 @@ export function DataMartDetails({ id }: DataMartDetailsProps) {
         cancelLabel='Cancel'
         variant='destructive'
         onConfirm={() => {
-          schemaGuard.runGuarded(
-            async () => {
-              try {
-                await deleteDataMart(dataMartId);
-                setIsDeleteDialogOpen(false);
-                navigate('/data-marts');
-              } catch (error) {
-                console.error('Failed to delete Data Mart:', error);
-              }
-            },
-            { intent: 'navigation' }
-          );
+          // Deleting destroys the whole data mart (schema included), so guarding
+          // unsaved schema edits here is moot — it only stacks a second dialog and
+          // could block the delete if a doomed schema save fails. Run delete
+          // directly, and drop the schema guard registration first so the
+          // post-delete navigation isn't intercepted by the dirty-schema blocker.
+          void (async () => {
+            try {
+              await deleteDataMart(dataMartId);
+              schemaGuard.registerSchemaGuard(null);
+              setIsDeleteDialogOpen(false);
+              navigate('/data-marts');
+            } catch (error) {
+              console.error('Failed to delete Data Mart:', error);
+            }
+          })();
         }}
       />
       <SchemaUnsavedChangesDialog

@@ -8,7 +8,7 @@ import {
   AlertDialogTitle,
 } from '@owox/ui/components/alert-dialog';
 import { Button } from '@owox/ui/components/button';
-import type { SchemaGuardIntent } from '../../model/hooks';
+import type { SchemaGuardIntent } from '../../model';
 
 interface SchemaUnsavedChangesDialogProps {
   open: boolean;
@@ -20,12 +20,15 @@ interface SchemaUnsavedChangesDialogProps {
 }
 
 const DESCRIPTIONS: Record<SchemaGuardIntent, string> = {
-  ai: 'AI metadata is generated against the saved schema, so your unsaved changes would be ignored.',
-  refresh: 'Refreshing reloads the schema from the source. Your unsaved changes would be lost.',
-  publish: 'Publishing refreshes the schema. Your unsaved changes would be lost.',
+  ai: 'AI metadata is generated from the saved schema. Save to include your changes, or discard to ignore them.',
+  refresh:
+    'Refreshing reloads the schema from the source. Save to keep your changes, or discard to lose them.',
+  publish:
+    'Publishing refreshes the schema from the source. Save to keep your changes, or discard to lose them.',
   definition:
-    'Saving the input source refreshes the schema. Your unsaved schema changes would be lost.',
-  navigation: 'You have unsaved schema changes. Leaving this page will discard them.',
+    'Saving the input source refreshes the schema. Save to keep your schema changes, or discard to lose them.',
+  navigation:
+    'You have unsaved schema changes. Save to keep them, or discard them to leave this page.',
 };
 
 export function SchemaUnsavedChangesDialog({
@@ -41,7 +44,10 @@ export function SchemaUnsavedChangesDialog({
     <AlertDialog
       open={open}
       onOpenChange={isOpen => {
-        if (!isOpen) {
+        // While a save is in flight the buttons are disabled; keep Escape /
+        // outside-click from cancelling too, which would drop the pending
+        // follow-up action even though the schema is being persisted.
+        if (!isOpen && !isSaving) {
           onCancel();
         }
       }}

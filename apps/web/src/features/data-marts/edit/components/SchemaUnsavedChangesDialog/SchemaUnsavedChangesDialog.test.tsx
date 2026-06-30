@@ -47,4 +47,25 @@ describe('SchemaUnsavedChangesDialog', () => {
     expect(onDiscardAndContinue).toHaveBeenCalledTimes(1);
     expect(baseProps.onCancel).not.toHaveBeenCalled();
   });
+
+  it('cancels on Escape when not saving', () => {
+    const onCancel = vi.fn();
+    render(<SchemaUnsavedChangesDialog {...baseProps} intent='refresh' onCancel={onCancel} />);
+    fireEvent.keyDown(document, { key: 'Escape', code: 'Escape' });
+    expect(onCancel).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not cancel on Escape while saving', () => {
+    const onCancel = vi.fn();
+    render(
+      <SchemaUnsavedChangesDialog
+        {...baseProps}
+        intent='refresh'
+        isSaving={true}
+        onCancel={onCancel}
+      />
+    );
+    fireEvent.keyDown(document, { key: 'Escape', code: 'Escape' });
+    expect(onCancel).not.toHaveBeenCalled();
+  });
 });
