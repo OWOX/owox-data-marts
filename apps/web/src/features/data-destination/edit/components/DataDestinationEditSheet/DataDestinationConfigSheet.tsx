@@ -166,23 +166,23 @@ export function DataDestinationConfigSheet({
       }}
     >
       <SheetContent
-          data-testid='destEditSheet'
-          onPointerDownOutside={event => {
-            if (shouldKeepOpenForPicker(event.detail.originalEvent.target)) {
-              event.preventDefault();
-            }
-          }}
-          onFocusOutside={event => {
-            if (shouldKeepOpenForPicker(event.detail.originalEvent.target)) {
-              event.preventDefault();
-            }
-          }}
-          onInteractOutside={event => {
-            if (shouldKeepOpenForPicker(event.detail.originalEvent.target)) {
-              event.preventDefault();
-            }
-          }}
-        >
+        data-testid='destEditSheet'
+        onPointerDownOutside={event => {
+          if (shouldKeepOpenForPicker(event.detail.originalEvent.target)) {
+            event.preventDefault();
+          }
+        }}
+        onFocusOutside={event => {
+          if (shouldKeepOpenForPicker(event.detail.originalEvent.target)) {
+            event.preventDefault();
+          }
+        }}
+        onInteractOutside={event => {
+          if (shouldKeepOpenForPicker(event.detail.originalEvent.target)) {
+            event.preventDefault();
+          }
+        }}
+      >
         <SheetHeader>
           <SheetTitle>Configure destination</SheetTitle>
           <SheetDescription>Customize settings for your destination</SheetDescription>
