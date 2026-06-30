@@ -158,6 +158,9 @@ export abstract class AbstractBlendedQueryBuilder implements BlendedQueryBuilder
       ...columns,
       ...postJoinFilters.map(f => f.column),
       ...(context.sort ?? []).map(s => s.column),
+      // Unique Count emits COUNT(DISTINCT main.<pk>) in the outer select, so the main CTE
+      // must project the PK columns even when they aren't a selected/filtered/sorted column.
+      ...(context.uniqueCount === true ? (context.primaryKeyColumns ?? []) : []),
     ]);
 
     const roots = this.buildTree(chains);
@@ -608,7 +611,14 @@ export abstract class AbstractBlendedQueryBuilder implements BlendedQueryBuilder
   protected getReAggregateFunction(aggregateFunction: AggregateFunction): AggregateFunction {
     switch (aggregateFunction) {
       case 'COUNT':
+        // Correct: summing per-child-group row counts yields the total count.
+        return 'SUM';
       case 'COUNT_DISTINCT':
+        // KNOWN LIMITATION (#6680 joined-DM aggregation): re-aggregating as SUM adds up the
+        // per-child-group distinct counts, so on a 2+ level (transitive) blend a value present
+        // in more than one child group is over-counted — this is NOT a true global distinct
+        // count. Same class as the AVG avg-of-avgs case below; a correct transitive distinct
+        // needs the raw values at the parent level (handle when joined-DM aggregation lands).
         return 'SUM';
       case 'ANY_VALUE':
         return 'MAX';

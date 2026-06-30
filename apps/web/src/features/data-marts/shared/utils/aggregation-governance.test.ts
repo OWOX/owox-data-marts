@@ -46,11 +46,13 @@ describe('resolveFieldGovernance — type-derived defaults (on-by-default subset
     }
   });
 
-  it('unknown/complex types fall back to dimension with COUNT/COUNT_DISTINCT', () => {
+  it('unknown/complex types fall back to dimension with COUNT only (no COUNT_DISTINCT)', () => {
+    // Non-groupable types: COUNT_DISTINCT fails at run time / is rejected by the backend
+    // validator, so it is not offered — only COUNT.
     for (const t of ['ARRAY', 'STRUCT', 'JSON', 'GEOGRAPHY']) {
       const { role, allowedAggregations } = resolveFieldGovernance(t);
       expect(role).toBe('dimension');
-      expect(allowedAggregations).toEqual(['COUNT', 'COUNT_DISTINCT']);
+      expect(allowedAggregations).toEqual(['COUNT']);
     }
   });
 });
@@ -195,13 +197,17 @@ describe('supportedAggregationsForType — the full menu a field type permits', 
     }
   });
 
-  it('boolean / unknown support COUNT/COUNT_DISTINCT/ANY_VALUE', () => {
+  it('boolean supports COUNT/COUNT_DISTINCT/ANY_VALUE', () => {
     expect(supportedAggregationsForType('BOOLEAN')).toEqual([
       'COUNT',
       'COUNT_DISTINCT',
       'ANY_VALUE',
     ]);
-    expect(supportedAggregationsForType('JSON')).toEqual(['COUNT', 'COUNT_DISTINCT', 'ANY_VALUE']);
+  });
+
+  // `other` (non-groupable) excludes COUNT_DISTINCT — only COUNT/ANY_VALUE.
+  it('unknown / other supports COUNT/ANY_VALUE only', () => {
+    expect(supportedAggregationsForType('JSON')).toEqual(['COUNT', 'ANY_VALUE']);
   });
 
   it('every default is a subset of the supported set', () => {

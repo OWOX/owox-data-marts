@@ -873,6 +873,24 @@ export function ReportColumnPicker({
     [effectiveOutputConfig, onOutputConfigChange, value, onChange, effectiveValue]
   );
 
+  // The Aggregations panel edits the same config but bypasses handleApplyAggregation, so it
+  // needs the identical column-projection materialization: an aggregated / date-bucketed
+  // report requires an explicit columnConfig, else the backend rejects a null one with
+  // AGGREGATION_REQUIRES_COLUMN_CONFIG (most visible on a brand-new report, columns still null).
+  const handleAggregationPanelChange = useCallback(
+    (config: OutputConfig) => {
+      if (!onOutputConfigChange) return;
+      onOutputConfigChange(config);
+      if (
+        (config.aggregationConfig.length > 0 || config.dateTruncConfig.length > 0) &&
+        value === null
+      ) {
+        onChange(effectiveValue);
+      }
+    },
+    [onOutputConfigChange, value, onChange, effectiveValue]
+  );
+
   // Resolved allowed-set + currently-assigned functions/bucket, keyed by column name.
   // Only selected, aggregatable columns get an entry — drives per-row AGG icon visibility.
   const aggregationByColumn = useMemo<Map<string, ColumnAggregation>>(() => {
@@ -1060,7 +1078,7 @@ export function ReportColumnPicker({
         <div className='rounded-md border'>
           <AggregationSettingsDropdown
             value={effectiveOutputConfig}
-            onChange={onOutputConfigChange}
+            onChange={handleAggregationPanelChange}
             selectedColumns={selectedDropdownColumns}
           />
         </div>

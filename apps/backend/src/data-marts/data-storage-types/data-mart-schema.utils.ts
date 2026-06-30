@@ -56,19 +56,16 @@ export function collectSchemaFieldPathDescriptors(
   return result;
 }
 
-// Returns the subset of fields (recursively through nested containers) where
-// isPrimaryKey is true. Mirrors the traversal in collectSchemaFieldPathDescriptors.
-export function getPrimaryKeyFields(fields: readonly DataMartSchemaField[]): DataMartSchemaField[] {
-  const result: DataMartSchemaField[] = [];
-  for (const field of fields) {
-    if (field.isPrimaryKey) {
-      result.push(field);
-    }
-    if ('fields' in field && field.fields?.length) {
-      result.push(...getPrimaryKeyFields(field.fields as DataMartSchemaField[]));
-    }
-  }
-  return result;
+// Primary-key fields as `{ name (dotted path), type, field }`, reusing the SAME pruned
+// traversal as collectSchemaFieldPathDescriptors. This matters because the result feeds
+// `primaryKeyColumns` for `COUNT(DISTINCT …)`: a disconnected/hidden PK is dropped (so it
+// can't reference a column the query no longer projects) and a NESTED PK keeps its full
+// `parent.child` path (so the reference targets the right column, not just the leaf name).
+// Callers read `.name` (the column reference) and `.length`.
+export function getPrimaryKeyFields(
+  fields: readonly DataMartSchemaField[]
+): { name: string; type: string; field: DataMartSchemaField }[] {
+  return collectSchemaFieldPathDescriptors(fields).filter(d => d.field.isPrimaryKey);
 }
 
 export function createBaseFieldSchemaForType<T extends z.ZodTypeAny>(schemaFieldType: T) {

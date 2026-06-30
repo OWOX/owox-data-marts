@@ -26,7 +26,10 @@ const SUPPORTED_BY_CATEGORY: Record<FieldTypeCategory, ReportAggregateFunction[]
   date: ['MIN', 'MAX', 'ANY_VALUE', 'COUNT', 'COUNT_DISTINCT', 'STRING_AGG'],
   time: ['MIN', 'MAX', 'ANY_VALUE', 'COUNT', 'COUNT_DISTINCT', 'STRING_AGG'],
   boolean: ['COUNT', 'COUNT_DISTINCT', 'ANY_VALUE'],
-  other: ['COUNT', 'COUNT_DISTINCT', 'ANY_VALUE'],
+  // `other` = non-groupable, non-text-castable types (JSON, geography, array, struct,
+  // super, variant). COUNT_DISTINCT / STRING_AGG fail at run time on these (and the
+  // validator type-floor rejects them), so they are NOT offered — only COUNT and ANY_VALUE.
+  other: ['COUNT', 'ANY_VALUE'],
 };
 
 /**
@@ -41,7 +44,7 @@ const DEFAULTS_BY_CATEGORY: Record<FieldTypeCategory, CategoryDefault> = {
   date: { role: 'dimension', allowedAggregations: ['MIN', 'MAX'] },
   time: { role: 'dimension', allowedAggregations: ['MIN', 'MAX'] },
   boolean: { role: 'dimension', allowedAggregations: ['COUNT', 'COUNT_DISTINCT'] },
-  other: { role: 'dimension', allowedAggregations: ['COUNT', 'COUNT_DISTINCT'] },
+  other: { role: 'dimension', allowedAggregations: ['COUNT'] },
 };
 
 /**

@@ -802,7 +802,7 @@ describe('AbstractBlendedQueryBuilder', () => {
       expect(sql).toContain('SUM(item_count) AS item_count');
     });
 
-    it('re-aggregation: COUNT_DISTINCT becomes SUM at parent level', () => {
+    it('re-aggregation: COUNT_DISTINCT becomes SUM at parent level (known over-count limitation)', () => {
       const ab = makeChain({
         relationship: makeRelationship({
           id: 'rel-ab',
@@ -835,6 +835,10 @@ describe('AbstractBlendedQueryBuilder', () => {
         buildContext([ab, bc], ['customer_name', 'unique_items'])
       );
 
+      // KNOWN LIMITATION (documented in getReAggregateFunction): on a 2+ level blend this
+      // SUMs per-child-group distinct counts, which over-counts a value present in more than
+      // one group — it is NOT a true global distinct. Asserting the current SQL, not a claim
+      // of semantic correctness.
       expect(sql).toContain('COUNT(DISTINCT item_id) AS unique_items');
       expect(sql).toContain('SUM(unique_items) AS unique_items');
     });

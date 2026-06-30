@@ -113,7 +113,11 @@ export interface BlendedField {
   /** Aggregation governance — absent fields fall back to type-derived defaults. */
   aggregationRole?: AggregationRole;
   allowedAggregations?: ReportAggregateFunction[];
-  /** Analyst-allowed post-join aggregation set. Empty means no restriction. */
+  /**
+   * Analyst-allowed post-join aggregation set. An explicit empty array `[]` means NONE are
+   * allowed; `undefined` (absent) means fall back to the field type's default aggregations —
+   * consistent with `resolveColumnAllowedAggregations` and `cleanBlendedFieldOverride`.
+   */
   postJoinAggregations?: ReportAggregateFunction[];
 }
 

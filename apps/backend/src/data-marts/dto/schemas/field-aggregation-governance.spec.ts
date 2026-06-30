@@ -38,15 +38,17 @@ describe('resolveFieldGovernance — default allowed aggregations (no explicit o
     });
   });
 
-  it('boolean / unknown → dimension with [COUNT, COUNT_DISTINCT]', () => {
+  it('boolean → dimension with [COUNT, COUNT_DISTINCT]', () => {
     expect(resolveFieldGovernance('BOOLEAN').allowedAggregations).toEqual([
       'COUNT',
       'COUNT_DISTINCT',
     ]);
-    expect(resolveFieldGovernance('GEOGRAPHY').allowedAggregations).toEqual([
-      'COUNT',
-      'COUNT_DISTINCT',
-    ]);
+  });
+
+  // `other` (non-groupable: GEOGRAPHY/JSON/ARRAY/STRUCT/…) drops COUNT_DISTINCT — it fails
+  // at run time and the validator type-floor rejects it, so it is not offered.
+  it('unknown / other → dimension with [COUNT] only (no COUNT_DISTINCT)', () => {
+    expect(resolveFieldGovernance('GEOGRAPHY').allowedAggregations).toEqual(['COUNT']);
   });
 
   it('no type defaults to a percentile or plain COUNT for non-numeric, nor SUM/AVG for non-numeric', () => {
@@ -107,17 +109,17 @@ describe('supportedAggregationsForType — the full menu a field type permits (p
     ]);
   });
 
-  it('boolean / unknown support COUNT/COUNT_DISTINCT/ANY_VALUE', () => {
+  it('boolean supports COUNT/COUNT_DISTINCT/ANY_VALUE', () => {
     expect(supportedAggregationsForType('BOOLEAN')).toEqual([
       'COUNT',
       'COUNT_DISTINCT',
       'ANY_VALUE',
     ]);
-    expect(supportedAggregationsForType('GEOGRAPHY')).toEqual([
-      'COUNT',
-      'COUNT_DISTINCT',
-      'ANY_VALUE',
-    ]);
+  });
+
+  // `other` excludes COUNT_DISTINCT (non-groupable type) — only COUNT/ANY_VALUE are supported.
+  it('unknown / other supports COUNT/ANY_VALUE only (no COUNT_DISTINCT)', () => {
+    expect(supportedAggregationsForType('GEOGRAPHY')).toEqual(['COUNT', 'ANY_VALUE']);
   });
 
   it('every default is a subset of the supported set (invariant)', () => {

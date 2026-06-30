@@ -107,7 +107,7 @@ describe('getPrimaryKeyFields', () => {
     expect(result.map(f => f.name)).toEqual(['user_id', 'event_id']);
   });
 
-  it('finds primary-key fields nested inside a container field (recursive)', () => {
+  it('finds a nested primary key and keeps its full dotted path (not just the leaf)', () => {
     const nested = mkField('inner_pk', true);
     const container = {
       ...mkField('category', false),
@@ -116,7 +116,23 @@ describe('getPrimaryKeyFields', () => {
     const fields: DataMartSchemaField[] = [mkField('top_non_pk', false), container];
     const result = getPrimaryKeyFields(fields);
     expect(result).toHaveLength(1);
-    expect(result[0].name).toBe('inner_pk');
+    expect(result[0].name).toBe('category.inner_pk');
+  });
+
+  it('excludes a DISCONNECTED primary-key field (its column is gone from the source)', () => {
+    const fields: DataMartSchemaField[] = [
+      mkField('id', true, { status: DataMartSchemaFieldStatus.DISCONNECTED }),
+      mkField('event_id', true),
+    ];
+    expect(getPrimaryKeyFields(fields).map(f => f.name)).toEqual(['event_id']);
+  });
+
+  it('excludes a primary-key field hidden for reporting', () => {
+    const fields: DataMartSchemaField[] = [
+      mkField('id', true, { isHiddenForReporting: true }),
+      mkField('event_id', true),
+    ];
+    expect(getPrimaryKeyFields(fields).map(f => f.name)).toEqual(['event_id']);
   });
 
   it('returns empty array when fields list is empty', () => {
