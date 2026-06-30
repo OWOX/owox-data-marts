@@ -481,6 +481,19 @@ export function ReportColumnPicker({
     [nativeFields]
   );
 
+  // Unique Count requires a primary key. If the mart's PK is later removed, the toggle
+  // (rendered only under hasPrimaryKey) disappears, yet a stored `true` keeps
+  // round-tripping on every save and the backend rejects it — a trap the user cannot
+  // escape through the UI. Once the schema has loaded WITHOUT a PK, auto-clear the
+  // stranded flag so the report stays editable. Gated on `schema` so the empty
+  // pre-load field list never clears a legitimately PK-backed config.
+  useEffect(() => {
+    if (!schema || hasPrimaryKey || !onOutputConfigChange) return;
+    if (effectiveOutputConfig.uniqueCountConfig) {
+      onOutputConfigChange({ ...effectiveOutputConfig, uniqueCountConfig: false });
+    }
+  }, [schema, hasPrimaryKey, onOutputConfigChange, effectiveOutputConfig]);
+
   const includedPaths = useMemo(() => {
     if (!schema?.availableSources) return new Set<string>();
     return new Set(schema.availableSources.filter(s => s.isIncluded).map(s => s.aliasPath));

@@ -18,6 +18,7 @@ import { buildDateTruncUnitMap, buildTimeZoneMap } from '../../utils/date-trunc-
 import { AthenaClauseRenderer } from './athena-clause-renderer';
 import { composeSelectFromClause } from '../../utils/sql-clause-renderer';
 import { FilterRule } from '../../../dto/schemas/filter-config.schema';
+import { effectiveComparisonType } from '../../field-aggregation';
 
 @Injectable()
 export class AthenaQueryBuilder implements DataMartQueryBuilder {
@@ -51,7 +52,7 @@ export class AthenaQueryBuilder implements DataMartQueryBuilder {
     const fromClause = this.resolveFromClauseWithOutputControls(definition, queryOptions);
     const columnTypes = queryOptions?.columnTypes;
     const resolveColumnType = columnTypes
-      ? (rule: FilterRule) => columnTypes.get(rule.column)
+      ? (rule: FilterRule) => effectiveComparisonType(columnTypes.get(rule.column), rule, this.type)
       : undefined;
     const where = this.clauseRenderer.renderWhere(
       queryOptions?.filters ?? [],
@@ -72,6 +73,7 @@ export class AthenaQueryBuilder implements DataMartQueryBuilder {
           includeUniqueCount: uniqueCount,
           primaryKeyColumns: queryOptions?.primaryKeyColumns,
           timeZoneByColumn: buildTimeZoneMap(dateTruncs),
+          typeByColumn: columnTypes,
         }
       );
       // ORDER BY must reference the output alias — a bare aggregated column is not in GROUP BY.

@@ -6,6 +6,7 @@ import { RedshiftFieldType } from './redshift/enums/redshift-field-type.enum';
 import { SnowflakeFieldType } from './snowflake/enums/snowflake-field-type.enum';
 import { ReportAggregateFunction } from '../dto/schemas/aggregate-function.schema';
 import { StorageFieldType } from '../dto/domain/storage-field-type';
+import { FilterRule } from '../dto/schemas/filter-config.schema';
 
 export function computeEffectiveType(
   rawType: StorageFieldType,
@@ -37,6 +38,22 @@ export function computeEffectiveType(
       return _exhaustive;
     }
   }
+}
+
+/**
+ * The comparison type a filter value should be cast to. For a plain WHERE rule it is the
+ * raw column type; for a HAVING rule (one carrying an aggregate `function`) the comparison
+ * is against the AGGREGATE's value, so it is the aggregate's EFFECTIVE type. Without this,
+ * e.g. `COUNT(DISTINCT date_col) >= 5` would cast the RHS to the raw DATE type
+ * (`>= CAST(@h AS TIMESTAMP)`) and the warehouse rejects integer-vs-date at run time.
+ */
+export function effectiveComparisonType(
+  rawType: string | undefined,
+  rule: FilterRule,
+  storageType: DataStorageType
+): string | undefined {
+  if (rawType === undefined || !rule.function) return rawType;
+  return computeEffectiveType(rawType as StorageFieldType, rule.function, storageType);
 }
 
 /**

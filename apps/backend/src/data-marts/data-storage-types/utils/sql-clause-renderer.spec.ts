@@ -379,8 +379,10 @@ describe('SqlClauseRenderer', () => {
         includeUniqueCount: true,
         primaryKeyColumns: ['c1', 'c2'],
       });
-      // Capture the literal sitting between the two COALESCE parts: `), '<sep>', COALESCE`.
-      const m = out.selectSql.match(/\), '([^']*)', COALESCE/);
+      // Capture the literal between the two COALESCE parts. It sits in a CONCAT arg list
+      // (`''), '<sep>', COALESCE`) on most dialects, or in a `||` chain
+      // (`'') || '<sep>' || COALESCE`) on Redshift — match either join form.
+      const m = out.selectSql.match(/''\)(?:, | \|\| )'([^']*)'(?:, | \|\| )COALESCE/);
       if (!m) throw new Error(`no composite-PK separator found in: ${out.selectSql}`);
       return m[1];
     };

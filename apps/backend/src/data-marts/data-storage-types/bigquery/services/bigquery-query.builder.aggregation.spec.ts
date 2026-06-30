@@ -193,4 +193,30 @@ describe('BigQueryQueryBuilder — aggregations', () => {
       { name: 'h0', value: 1000 },
     ]);
   });
+
+  // The HAVING value is cast to the AGGREGATE's effective type, not the raw column type.
+  // COUNT_DISTINCT(date) returns an integer, so the value compares as an integer (bare
+  // param). Verified on real BigQuery — the old raw-DATE cast errored (integer vs date).
+  it('HAVING on COUNT_DISTINCT(date) compares as integer (no DATE cast on the value)', async () => {
+    const result = await builder.buildQuery(tableDefinition('p.d.t'), {
+      columns: ['order_date'],
+      aggregations: [{ column: 'order_date', function: 'COUNT_DISTINCT' }],
+      filters: [{ column: 'order_date', function: 'COUNT_DISTINCT', operator: 'gte', value: 5 }],
+      columnTypes: new Map([['order_date', 'DATE']]),
+    });
+    const sql = await sqlOf(result);
+    expect(sql).toContain('HAVING COUNT(DISTINCT `order_date`) >= @h0');
+    expect(sql).not.toContain('CAST(@h0 AS DATE)');
+  });
+
+  it('HAVING on MIN(date) keeps the DATE cast (effective type equals the original type)', async () => {
+    const result = await builder.buildQuery(tableDefinition('p.d.t'), {
+      columns: ['channel', 'order_date'],
+      aggregations: [{ column: 'order_date', function: 'MIN' }],
+      filters: [{ column: 'order_date', function: 'MIN', operator: 'gte', value: '2024-01-01' }],
+      columnTypes: new Map([['order_date', 'DATE']]),
+    });
+    const sql = await sqlOf(result);
+    expect(sql).toContain('HAVING MIN(`order_date`) >= CAST(@h0 AS DATE)');
+  });
 });

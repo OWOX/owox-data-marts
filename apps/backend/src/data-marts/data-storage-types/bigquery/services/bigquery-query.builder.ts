@@ -18,6 +18,7 @@ import { buildDateTruncUnitMap, buildTimeZoneMap } from '../../utils/date-trunc-
 import { BigQueryClauseRenderer } from './bigquery-clause-renderer';
 import { composeSelectFromClause } from '../../utils/sql-clause-renderer';
 import { FilterRule } from '../../../dto/schemas/filter-config.schema';
+import { effectiveComparisonType } from '../../field-aggregation';
 
 @Injectable()
 export class BigQueryQueryBuilder implements DataMartQueryBuilderAsync {
@@ -61,7 +62,7 @@ export class BigQueryQueryBuilder implements DataMartQueryBuilderAsync {
     // DATE comparison is a type error in BigQuery).
     const columnTypes = queryOptions?.columnTypes;
     const resolveColumnType = columnTypes
-      ? (rule: FilterRule) => columnTypes.get(rule.column)
+      ? (rule: FilterRule) => effectiveComparisonType(columnTypes.get(rule.column), rule, this.type)
       : undefined;
     const where = this.clauseRenderer.renderWhere(
       queryOptions?.filters ?? [],
@@ -84,6 +85,7 @@ export class BigQueryQueryBuilder implements DataMartQueryBuilderAsync {
           includeUniqueCount: uniqueCount,
           primaryKeyColumns: queryOptions?.primaryKeyColumns,
           timeZoneByColumn: buildTimeZoneMap(dateTruncs),
+          typeByColumn: columnTypes,
         }
       );
       // ORDER BY must reference the output alias — a bare aggregated column is not in GROUP BY.

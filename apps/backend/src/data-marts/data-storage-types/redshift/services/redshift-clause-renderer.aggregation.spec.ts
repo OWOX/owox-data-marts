@@ -139,13 +139,15 @@ describe('RedshiftClauseRenderer — percentile and STRING_AGG aggregations', ()
       expect(out.selectSql).toContain(`COUNT(DISTINCT "session_id") AS "${UNIQUE_COUNT_LABEL}"`);
     });
 
-    it('composite PK → CONCAT with VARCHAR cast type, double-quote quotes', () => {
+    // Redshift CONCAT is binary-only; a composite PK must use the `||` operator, not
+    // an N-ary CONCAT (verified live against real Redshift — see PR #1373 review).
+    it('composite PK → `||` concat with VARCHAR cast type, double-quote quotes', () => {
       const out = r.renderAggregatedSelect(['channel'], [], undefined, {
         includeUniqueCount: true,
         primaryKeyColumns: ['c1', 'c2'],
       });
       expect(out.selectSql).toContain(
-        `COUNT(DISTINCT CONCAT(COALESCE(CAST("c1" AS VARCHAR), ''), '␟', COALESCE(CAST("c2" AS VARCHAR), ''))) AS "${UNIQUE_COUNT_LABEL}"`
+        `COUNT(DISTINCT COALESCE(CAST("c1" AS VARCHAR), '') || '␟' || COALESCE(CAST("c2" AS VARCHAR), '')) AS "${UNIQUE_COUNT_LABEL}"`
       );
     });
   });

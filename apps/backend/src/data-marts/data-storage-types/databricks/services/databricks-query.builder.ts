@@ -13,6 +13,7 @@ import {
   DataMartQueryOptions,
 } from '../../interfaces/data-mart-query-builder.interface';
 import { FilterRule } from '../../../dto/schemas/filter-config.schema';
+import { effectiveComparisonType } from '../../field-aggregation';
 import {
   escapeDatabricksIdentifier,
   escapeFullyQualifiedIdentifier,
@@ -50,7 +51,7 @@ export class DatabricksQueryBuilder implements DataMartQueryBuilder {
     const fromClause = this.resolveFromClauseWithOutputControls(definition, queryOptions);
     const columnTypes = queryOptions?.columnTypes;
     const resolveColumnType = columnTypes
-      ? (rule: FilterRule) => columnTypes.get(rule.column)
+      ? (rule: FilterRule) => effectiveComparisonType(columnTypes.get(rule.column), rule, this.type)
       : undefined;
     const where = this.clauseRenderer.renderWhere(
       queryOptions?.filters ?? [],
@@ -80,6 +81,7 @@ export class DatabricksQueryBuilder implements DataMartQueryBuilder {
           includeUniqueCount: uniqueCount,
           primaryKeyColumns: queryOptions?.primaryKeyColumns,
           timeZoneByColumn: buildTimeZoneMap(dateTruncs),
+          typeByColumn: columnTypes,
         }
       );
       // ORDER BY must reference the output alias — a bare aggregated column is not in GROUP BY.

@@ -15,6 +15,7 @@ import {
 import { FilterRule } from '../../dto/schemas/filter-config.schema';
 import { DateTruncUnit } from '../../dto/schemas/date-trunc-config.schema';
 import { buildTimeZoneMap } from '../utils/date-trunc-maps.utils';
+import { effectiveComparisonType } from '../field-aggregation';
 
 interface BlendTreeNode {
   chain: ResolvedRelationshipChain;
@@ -142,10 +143,14 @@ export abstract class AbstractBlendedQueryBuilder implements BlendedQueryBuilder
       }
     }
 
-    const resolveColumnType: ColumnTypeResolver = rule =>
-      preJoinTypeByRule.has(rule)
+    const resolveColumnType: ColumnTypeResolver = rule => {
+      const raw = preJoinTypeByRule.has(rule)
         ? preJoinTypeByRule.get(rule)
         : context.columnTypes?.postJoin?.get(rule.column);
+      // A post-join HAVING rule (carries a function) compares against the aggregate's
+      // value, so cast to the aggregate's effective type rather than the raw field type.
+      return effectiveComparisonType(raw, rule, this.type);
+    };
 
     const { mainTableReference, mainDataMartTitle, mainDataMartUrl, chains, columns } = context;
     const columnSet = new Set(columns);
@@ -205,6 +210,7 @@ export abstract class AbstractBlendedQueryBuilder implements BlendedQueryBuilder
           primaryKeyColumns: context.primaryKeyColumns,
           qualifyColumn,
           timeZoneByColumn: buildTimeZoneMap(context.dateTruncs ?? []),
+          typeByColumn: context.columnTypes?.postJoin,
         }
       );
       const body =

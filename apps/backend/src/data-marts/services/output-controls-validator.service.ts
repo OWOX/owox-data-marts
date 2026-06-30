@@ -30,6 +30,7 @@ import {
   DATE_TYPES,
   TIME_TYPES,
   BOOL_TYPES,
+  categorizeFieldType,
 } from '../dto/schemas/field-type-category';
 import {
   resolveFieldGovernance,
@@ -86,6 +87,10 @@ export type ValidationError =
   // A HAVING filter (rule carries `function`) must target a configured aggregation —
   // i.e. the (column, function) pair must exist in aggregationConfig.
   | { code: 'HAVING_FILTER_NOT_AGGREGATED'; column: string; function: string }
+  // A HAVING filter (rule carries `function`) is inherently post-aggregation and cannot be
+  // pushed pre-join: the blended builder routes a pre-join rule to a CTE where
+  // function-carrying rules are dropped, so the constraint would apply NOWHERE.
+  | { code: 'HAVING_FILTER_INVALID_PLACEMENT'; column: string; function: string }
   // An aggregated / date-trunc report needs an explicit column projection: the SELECT
   // builder only emits a metric/date-trunc column when it is listed in columnConfig, so a
   // null/empty columnConfig would silently drop every metric (and produce a header set that
@@ -222,6 +227,17 @@ export class OutputControlsValidatorService {
     const aggregatedPairs = new Set(aggregations.map(a => `${a.column}\u241F${a.function}`));
     for (const rule of filters) {
       if (!rule.function) continue;
+      // A HAVING is post-aggregation; it cannot be pushed pre-join. On the blended path a
+      // pre-join rule is routed to a CTE where function-carrying rules are dropped, so the
+      // constraint would apply nowhere (silent wrong rows). Reject the combo outright.
+      if (rule.placement === 'pre-join') {
+        errors.push({
+          code: 'HAVING_FILTER_INVALID_PLACEMENT',
+          column: rule.column,
+          function: rule.function,
+        });
+        continue;
+      }
       if (!aggregatedPairs.has(`${rule.column}\u241F${rule.function}`)) {
         errors.push({
           code: 'HAVING_FILTER_NOT_AGGREGATED',
@@ -316,6 +332,22 @@ export class OutputControlsValidatorService {
       if (rule.function === 'SUM' || rule.function === 'AVG') {
         const type = resolveType(rule.column);
         if (type !== undefined && !NUMBER_TYPES.has(type)) {
+          errors.push({
+            code: 'AGGREGATION_FUNCTION_NOT_ALLOWED_FOR_TYPE',
+            column: rule.column,
+            function: rule.function,
+            type,
+          });
+          continue;
+        }
+      }
+      // Type floor (cont.): COUNT_DISTINCT / STRING_AGG need a value that is groupable
+      // (DISTINCT) or text-castable. The `other` category — JSON, GEOGRAPHY, ARRAY,
+      // STRUCT, SUPER, VARIANT — is neither, so every warehouse rejects it at run time.
+      // Reject at save (a clean 400) rather than letting a save-clean config 500 on run.
+      if (rule.function === 'COUNT_DISTINCT' || rule.function === 'STRING_AGG') {
+        const type = resolveType(rule.column);
+        if (type !== undefined && categorizeFieldType(type) === 'other') {
           errors.push({
             code: 'AGGREGATION_FUNCTION_NOT_ALLOWED_FOR_TYPE',
             column: rule.column,

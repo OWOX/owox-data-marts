@@ -40,15 +40,30 @@ export class BigQueryClauseRenderer extends SqlClauseRenderer {
     return `STRING_AGG(CAST(${columnRef} AS STRING), ', ')`;
   }
 
-  // DATE() coerces TIMESTAMP/DATETIME to DATE so one form covers all date/time types.
-  // With a time zone, DATE(timestamp, tz) converts to the date in that zone first.
+  // Reduces a date/time column to a DATE bucket. The wrap depends on the column type
+  // (verified on real BigQuery):
+  //   - DATE: DATE_TRUNC accepts a DATE directly; the DATE() wrap is redundant (and a
+  //     DATE column never carries a tz — the validator rejects that upstream).
+  //   - TIMESTAMP (± tz) / DATETIME without tz: DATE(col[, tz]) covers these directly.
+  //   - DATETIME WITH tz: there is no DATE(DATETIME, tz) overload, so interpret the
+  //     tz-naive wall clock in the target zone via TIMESTAMP(datetime, tz) first, then
+  //     read the date back in that zone.
   protected override renderDateTrunc(
     columnRef: string,
     unit: DateTruncUnit,
-    timeZone?: string
+    timeZone?: string,
+    columnType?: string
   ): string {
     this.assertSafeDateTrunc(unit, timeZone);
-    const dateExpr = timeZone ? `DATE(${columnRef}, '${timeZone}')` : `DATE(${columnRef})`;
+    const type = columnType?.trim().toUpperCase();
+    let dateExpr: string;
+    if (type === 'DATE') {
+      dateExpr = columnRef;
+    } else if (timeZone && type === 'DATETIME') {
+      dateExpr = `DATE(TIMESTAMP(${columnRef}, '${timeZone}'), '${timeZone}')`;
+    } else {
+      dateExpr = timeZone ? `DATE(${columnRef}, '${timeZone}')` : `DATE(${columnRef})`;
+    }
     return `DATE_TRUNC(${dateExpr}, ${unit})`;
   }
 

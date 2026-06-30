@@ -173,19 +173,39 @@ describe('BigQueryClauseRenderer — aggregated select + group by', () => {
   });
 
   // FE only offers a tz for sub-day types, and the validator rejects tz-on-DATE upstream
-  // (DATE_TRUNC_TIMEZONE_REQUIRES_TIMESTAMP). The renderer is type-blind, so lock the SQL it
-  // emits either way: DATE(col, 'tz') for a tz, plain DATE_TRUNC for the no-tz DATE-column case.
-  describe('date-trunc tz vs column type (renderer is type-blind)', () => {
-    it('no tz on a DATE-typed column → plain DATE_TRUNC(DATE(col)), valid SQL', () => {
-      const out = r.renderAggregatedSelect(['date'], [], new Map([['date', 'MONTH']]));
-      expect(out.selectSql).toBe('DATE_TRUNC(DATE(`date`), MONTH) AS `date`');
+  // The renderer is type-aware (verified on real BigQuery — see PR #1373 review): a DATE
+  // column needs no DATE() wrap (DATE_TRUNC takes a DATE directly), TIMESTAMP / tz-less
+  // DATETIME wrap in DATE(), and a tz-naive DATETIME WITH tz routes through TIMESTAMP()
+  // because DATE(DATETIME, tz) has no overload. With no type info it falls back to DATE(col).
+  describe('date-trunc tz vs column type (type-aware)', () => {
+    it('DATE-typed column → DATE_TRUNC(col) with no redundant DATE() wrap', () => {
+      const out = r.renderAggregatedSelect(['date'], [], new Map([['date', 'MONTH']]), {
+        typeByColumn: new Map([['date', 'DATE']]),
+      });
+      expect(out.selectSql).toBe('DATE_TRUNC(`date`, MONTH) AS `date`');
     });
 
     it('tz on a TIMESTAMP-typed column → DATE(col, tz) converts before truncating', () => {
       const out = r.renderAggregatedSelect(['ts'], [], new Map([['ts', 'DAY']]), {
         timeZoneByColumn: new Map([['ts', 'America/New_York']]),
+        typeByColumn: new Map([['ts', 'TIMESTAMP']]),
       });
       expect(out.selectSql).toBe("DATE_TRUNC(DATE(`ts`, 'America/New_York'), DAY) AS `ts`");
+    });
+
+    it('tz on a tz-naive DATETIME column → normalized via TIMESTAMP()', () => {
+      const out = r.renderAggregatedSelect(['dt'], [], new Map([['dt', 'MONTH']]), {
+        timeZoneByColumn: new Map([['dt', 'America/New_York']]),
+        typeByColumn: new Map([['dt', 'DATETIME']]),
+      });
+      expect(out.selectSql).toBe(
+        "DATE_TRUNC(DATE(TIMESTAMP(`dt`, 'America/New_York'), 'America/New_York'), MONTH) AS `dt`"
+      );
+    });
+
+    it('no type info → DATE(col) fallback (valid for TIMESTAMP / tz-less DATETIME)', () => {
+      const out = r.renderAggregatedSelect(['date'], [], new Map([['date', 'MONTH']]));
+      expect(out.selectSql).toBe('DATE_TRUNC(DATE(`date`), MONTH) AS `date`');
     });
   });
 

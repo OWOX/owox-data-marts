@@ -121,6 +121,7 @@ The SQL OWOX builds for an aggregated report is fully transparent — preview it
 - A field is either a dimension or an aggregated metric within a single report — not both.
 - Aggregated and date-bucketed reports require an explicit column selection (the columns to group by and aggregate).
 - Conditional aggregation (`COUNT(DISTINCT … WHERE …)`) and pivoting values into columns are not supported — model these as pre-aggregated Data Marts instead.
+- `Count Unique` (`COUNT_DISTINCT`) and `Combined` (`STRING_AGG`) are not available for complex column types (JSON, geography, array, struct, and similar) — those values are neither comparable nor reliably text-convertible across warehouses, so only `Count` and `Sample` apply.
 - A date bucket's time zone affects only the bucketing. Date **filters** on the same field are evaluated in the warehouse's session time zone, so rows near midnight can land on different sides of a bucket boundary than of a filter boundary. Keep this in mind when combining a non-session time-zone bucket with a date filter on the same field.
 - Percentiles (`P25`/`P50`/`P75`/`P95`) are **approximate** on BigQuery and Athena and **exact** (continuous-interpolated) on Redshift, Snowflake, and Databricks, so the same percentile can differ slightly between storages.
 - For joined Data Marts, report-level aggregation is applied **on top of** the join roll-up; see [Joinable Data Marts](./joinable-data-marts.md).

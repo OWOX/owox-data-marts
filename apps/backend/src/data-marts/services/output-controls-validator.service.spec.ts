@@ -2347,6 +2347,48 @@ describe('OutputControlsValidatorService', () => {
       expect(errors).toEqual([]);
     });
 
+    // `other`-category types (JSON, GEOGRAPHY, ARRAY, STRUCT, SUPER, VARIANT) are neither
+    // groupable nor reliably text-castable → COUNT_DISTINCT / STRING_AGG 500 at run time.
+    it('rejects COUNT_DISTINCT on an `other`-category column (JSON) via the type floor', () => {
+      const errors = svc.validateAggregations(
+        [{ column: 'payload', function: 'COUNT_DISTINCT' }],
+        new Set(['payload']),
+        () => 'JSON'
+      );
+      expect(errors).toEqual([
+        {
+          code: 'AGGREGATION_FUNCTION_NOT_ALLOWED_FOR_TYPE',
+          column: 'payload',
+          function: 'COUNT_DISTINCT',
+          type: 'JSON',
+        },
+      ]);
+    });
+
+    it('rejects STRING_AGG on an `other`-category column (GEOGRAPHY) via the type floor', () => {
+      const errors = svc.validateAggregations(
+        [{ column: 'geo', function: 'STRING_AGG' }],
+        new Set(['geo']),
+        () => 'GEOGRAPHY'
+      );
+      expect(errors[0]).toMatchObject({
+        code: 'AGGREGATION_FUNCTION_NOT_ALLOWED_FOR_TYPE',
+        function: 'STRING_AGG',
+      });
+    });
+
+    it('still allows COUNT and ANY_VALUE on an `other`-category column', () => {
+      const errors = svc.validateAggregations(
+        [
+          { column: 'payload', function: 'COUNT' },
+          { column: 'payload', function: 'ANY_VALUE' },
+        ],
+        new Set(['payload']),
+        () => 'JSON'
+      );
+      expect(errors).toEqual([]);
+    });
+
     it('allows STRING_AGG on a string column', () => {
       const errors = svc.validateAggregations(
         [{ column: stringCol, function: 'STRING_AGG' }],
@@ -3372,6 +3414,26 @@ describe('OutputControlsValidatorService', () => {
         DataStorageType.GOOGLE_BIGQUERY
       );
       expect(errors).toEqual([]);
+    });
+
+    it('rejects a HAVING rule pushed pre-join (function + placement:pre-join)', () => {
+      const errors = svc.validateHavingFilters(
+        [
+          {
+            column: 'amount',
+            function: 'SUM',
+            operator: 'gt',
+            value: 1000,
+            placement: 'pre-join',
+          },
+        ],
+        aggregations,
+        resolveType,
+        DataStorageType.GOOGLE_BIGQUERY
+      );
+      expect(errors).toEqual([
+        { code: 'HAVING_FILTER_INVALID_PLACEMENT', column: 'amount', function: 'SUM' },
+      ]);
     });
   });
 });

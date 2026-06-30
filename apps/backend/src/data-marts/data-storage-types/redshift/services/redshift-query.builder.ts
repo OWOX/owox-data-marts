@@ -67,6 +67,7 @@ export class RedshiftQueryBuilder implements DataMartQueryBuilder {
           includeUniqueCount: uniqueCount,
           primaryKeyColumns: queryOptions?.primaryKeyColumns,
           timeZoneByColumn: buildTimeZoneMap(dateTruncs),
+          typeByColumn: queryOptions?.columnTypes,
         }
       );
       // ORDER BY must reference the output alias — a bare aggregated column is not in GROUP BY.

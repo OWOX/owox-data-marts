@@ -220,10 +220,14 @@ export abstract class SqlClauseRenderer {
       qualifyColumn?: ColumnRefResolver;
       // column → validated IANA time zone for date-trunc rules that carry one.
       timeZoneByColumn?: ReadonlyMap<string, string>;
+      // column → storage field type, so a dialect can render date-trunc type-aware
+      // (e.g. BigQuery must treat a tz-naive DATETIME differently from a TIMESTAMP).
+      typeByColumn?: ReadonlyMap<string, string>;
     }
   ): { selectSql: string; groupBySql: string; aliasByColumn: ReadonlyMap<string, string> } {
     const qualify = opts?.qualifyColumn;
     const timeZoneByColumn = opts?.timeZoneByColumn;
+    const typeByColumn = opts?.typeByColumn;
     const aliasByColumn = new Map<string, string>();
     const groupByParts: string[] = [];
     const selectParts = columns.flatMap(c => {
@@ -243,7 +247,12 @@ export abstract class SqlClauseRenderer {
       const outputAlias = this.quoteIdentifier(c);
       const unit = dateTruncByColumn?.get(c);
       if (unit) {
-        const truncated = this.renderDateTrunc(ref, unit, timeZoneByColumn?.get(c));
+        const truncated = this.renderDateTrunc(
+          ref,
+          unit,
+          timeZoneByColumn?.get(c),
+          typeByColumn?.get(c)
+        );
         groupByParts.push(truncated);
         aliasByColumn.set(c, outputAlias);
         return [`${truncated} AS ${outputAlias}`];
@@ -283,7 +292,12 @@ export abstract class SqlClauseRenderer {
    * Every dialect MUST override this — the base implementation only guards against a
    * missing override.
    */
-  protected renderDateTrunc(_columnRef: string, _unit: DateTruncUnit, _timeZone?: string): string {
+  protected renderDateTrunc(
+    _columnRef: string,
+    _unit: DateTruncUnit,
+    _timeZone?: string,
+    _columnType?: string
+  ): string {
     throw new Error('renderDateTrunc not implemented for this dialect');
   }
 
