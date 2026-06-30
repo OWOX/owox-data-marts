@@ -192,6 +192,7 @@ export function DataMartProvider({ children }: DataMartProviderProps) {
         label: id,
         error: apiError.message,
       });
+      throw error;
     }
   }, []);
 
@@ -654,6 +655,7 @@ export function DataMartProvider({ children }: DataMartProviderProps) {
         action: 'UpdateSchemaError',
         error: apiError.message,
       });
+      throw error;
     }
   }, []);
 

@@ -32,6 +32,8 @@ import {
 } from '../../shared';
 import { useSchemaActualizeTrigger } from '../../shared/hooks/useSchemaActualizeTrigger';
 import { PromoStep, useDataMartNextStepPromo } from '../hooks/useDataMartNextStepPromo';
+import { useSchemaUnsavedGuard } from '../model';
+import { SchemaUnsavedChangesDialog } from './SchemaUnsavedChangesDialog';
 import { useDataMart } from '../model';
 import { useAiHelper, useAiHelperAvailability } from '../model';
 import { DataMartMetadataScope } from '../../shared';
@@ -112,6 +114,8 @@ export function DataMartDetails({ id }: DataMartDetailsProps) {
     }
     await runActualizeSchemaInternal();
   }, [canActualizeSchema, runActualizeSchemaInternal]);
+
+  const schemaGuard = useSchemaUnsavedGuard();
 
   const shouldShowInsights = checkVisible('INSIGHTS_ENABLED', 'true', flags);
 
@@ -430,7 +434,7 @@ export function DataMartDetails({ id }: DataMartDetailsProps) {
                     <Button
                       variant='default'
                       onClick={() => {
-                        void handlePublish();
+                        schemaGuard.runGuarded(() => handlePublish(), { intent: 'publish' });
                       }}
                       disabled={isPublishing || !canPublish}
                       className={cn(
@@ -571,6 +575,8 @@ export function DataMartDetails({ id }: DataMartDetailsProps) {
             getDataMart,
             runSchemaActualization,
             isSchemaActualizationLoading,
+            registerSchemaGuard: schemaGuard.registerSchemaGuard,
+            runGuarded: schemaGuard.runGuarded,
             projectId,
           }}
         />
@@ -602,9 +608,15 @@ export function DataMartDetails({ id }: DataMartDetailsProps) {
         cancelLabel='Cancel'
         variant='destructive'
         onConfirm={() => {
+          // Deleting destroys the whole data mart (schema included), so guarding
+          // unsaved schema edits here is moot — it only stacks a second dialog and
+          // could block the delete if a doomed schema save fails. Run delete
+          // directly, and drop the schema guard registration first so the
+          // post-delete navigation isn't intercepted by the dirty-schema blocker.
           void (async () => {
             try {
               await deleteDataMart(dataMartId);
+              schemaGuard.registerSchemaGuard(null);
               setIsDeleteDialogOpen(false);
               navigate('/data-marts');
             } catch (error) {
@@ -612,6 +624,14 @@ export function DataMartDetails({ id }: DataMartDetailsProps) {
             }
           })();
         }}
+      />
+      <SchemaUnsavedChangesDialog
+        open={schemaGuard.dialog.open}
+        intent={schemaGuard.dialog.intent}
+        isSaving={schemaGuard.dialog.isSaving}
+        onSaveAndContinue={schemaGuard.dialog.onSaveAndContinue}
+        onDiscardAndContinue={schemaGuard.dialog.onDiscardAndContinue}
+        onCancel={schemaGuard.dialog.onCancel}
       />
     </div>
   );

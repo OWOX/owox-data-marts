@@ -7,7 +7,7 @@ import {
 } from '@owox/ui/components/dropdown-menu';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@owox/ui/components/tooltip';
 import { Loader2, Sparkles } from 'lucide-react';
-import { useCallback, useEffect } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import type {
   AthenaSchemaField,
@@ -21,10 +21,18 @@ import { useOperationState, useSchemaState } from './hooks';
 import { SchemaContent } from './SchemaContent';
 import { DataMartDefinitionType, DataMartMetadataScope } from '../../../shared/index.ts';
 import { useAiHelper, useAiHelperAvailability } from '../../model/hooks';
+import type { ResolvedSchema } from '../../model/hooks';
 
 interface DataMartSchemaSettingsProps {
   definitionType: DataMartDefinitionType | null;
 }
+
+/** Scopes generated from the "Generate field metadata with AI" dropdown. */
+type BulkAiScope =
+  | DataMartMetadataScope.ALL_FIELD_METADATA
+  | DataMartMetadataScope.ALL_FIELD_DESCRIPTIONS
+  | DataMartMetadataScope.ALL_FIELD_ALIASES;
+
 /**
  * Main component for editing data mart schema settings
  * Uses custom hooks for state management and the SchemaContent component for rendering
@@ -37,12 +45,18 @@ export function DataMartSchemaSettings({ definitionType }: DataMartSchemaSetting
     error,
     runSchemaActualization,
     isSchemaActualizationLoading,
+    registerSchemaGuard,
+    runGuarded,
   } = useOutletContext<DataMartContextType>();
 
   const { id: dataMartId = '', schema: initialSchema } = dataMart ?? {};
 
-  const { schema, isDirty, updateSchema, resetSchema } = useSchemaState(initialSchema);
+  const { schema, isDirty, updateSchema, resetSchema, markSchemaSaved } =
+    useSchemaState(initialSchema);
   const { operationStatus, startSaveOperation } = useOperationState(isLoading, error);
+
+  const schemaRef = useRef(schema);
+  schemaRef.current = schema;
 
   const { enabled: isAiHelperEnabled } = useAiHelperAvailability();
   const {
@@ -84,16 +98,48 @@ export function DataMartSchemaSettings({ definitionType }: DataMartSchemaSetting
   const handleSave = useCallback(() => {
     if (dataMartId && schema) {
       startSaveOperation();
-      void updateDataMartSchema(dataMartId, schema).then(() => {
-        void runSchemaActualization?.();
-      });
+      void updateDataMartSchema(dataMartId, schema)
+        .then(() => {
+          void runSchemaActualization?.();
+        })
+        .catch(() => {
+          // The context stores and displays the API error.
+        });
     }
   }, [dataMartId, schema, startSaveOperation, updateDataMartSchema, runSchemaActualization]);
 
+  // Registered with the shared unsaved-changes guard. `guardSave` persists the
+  // current schema WITHOUT triggering actualization (the guarded action may run
+  // its own actualization/publish afterwards). `guardDiscard` reverts to the
+  // saved schema and returns it so the guarded action maps onto the right fields.
+  const guardSave = useCallback(async (): Promise<ResolvedSchema> => {
+    const current = schemaRef.current;
+    if (dataMartId && current) {
+      await updateDataMartSchema(dataMartId, current);
+      markSchemaSaved(current);
+    }
+    return current;
+  }, [dataMartId, updateDataMartSchema, markSchemaSaved]);
+
+  const guardDiscard = useCallback((): ResolvedSchema => {
+    resetSchema();
+    return initialSchema;
+  }, [resetSchema, initialSchema]);
+
+  useEffect(() => {
+    registerSchemaGuard?.({
+      isDirty: () => isDirty,
+      getSchema: () => schemaRef.current,
+      save: guardSave,
+      discard: guardDiscard,
+    });
+    return () => registerSchemaGuard?.(null);
+  }, [isDirty, registerSchemaGuard, guardSave, guardDiscard]);
+
   // Handle actualize
   const handleActualize = useCallback(() => {
-    void runSchemaActualization?.();
-  }, [runSchemaActualization]);
+    runGuarded?.(() => runSchemaActualization?.(), { intent: 'refresh' });
+  }, [runGuarded, runSchemaActualization]);
 
   // Handle discard
   const handleDiscard = useCallback(() => {
@@ -122,47 +168,80 @@ export function DataMartSchemaSettings({ definitionType }: DataMartSchemaSetting
 
   const isFilled = (value: string | undefined): boolean => !!value && value.trim() !== '';
 
-  const handleGenerateAllFieldDescriptions = useCallback(async () => {
-    if (!dataMartId || !schema) return;
-    const generated = await generateAllFieldDescriptions(dataMartId);
-    if (!generated) return;
-    const byName = new Map(generated.map(field => [field.name, field.description]));
-    const updated = schema.fields.map(field => {
-      if (isFilled(field.description)) return field;
-      const description = byName.get(field.name);
-      return description ? { ...field, description } : field;
-    });
-    updateSchema(updated as typeof schema.fields);
-  }, [dataMartId, schema, generateAllFieldDescriptions, updateSchema]);
+  const handleGenerateAllFieldDescriptions = useCallback(
+    async (targetSchema: ResolvedSchema) => {
+      if (!dataMartId || !targetSchema) return;
+      const generated = await generateAllFieldDescriptions(dataMartId);
+      if (!generated) return;
+      const byName = new Map(generated.map(field => [field.name, field.description]));
+      const updated = targetSchema.fields.map(field => {
+        if (isFilled(field.description)) return field;
+        const description = byName.get(field.name);
+        return description ? { ...field, description } : field;
+      });
+      updateSchema(updated as typeof targetSchema.fields);
+    },
+    [dataMartId, generateAllFieldDescriptions, updateSchema]
+  );
 
-  const handleGenerateAllFieldAliases = useCallback(async () => {
-    if (!dataMartId || !schema) return;
-    const generated = await generateAllFieldAliases(dataMartId);
-    if (!generated) return;
-    const byName = new Map(generated.map(field => [field.name, field.alias]));
-    const updated = schema.fields.map(field => {
-      if (isFilled(field.alias)) return field;
-      const alias = byName.get(field.name);
-      return alias ? { ...field, alias } : field;
-    });
-    updateSchema(updated as typeof schema.fields);
-  }, [dataMartId, schema, generateAllFieldAliases, updateSchema]);
+  const handleGenerateAllFieldAliases = useCallback(
+    async (targetSchema: ResolvedSchema) => {
+      if (!dataMartId || !targetSchema) return;
+      const generated = await generateAllFieldAliases(dataMartId);
+      if (!generated) return;
+      const byName = new Map(generated.map(field => [field.name, field.alias]));
+      const updated = targetSchema.fields.map(field => {
+        if (isFilled(field.alias)) return field;
+        const alias = byName.get(field.name);
+        return alias ? { ...field, alias } : field;
+      });
+      updateSchema(updated as typeof targetSchema.fields);
+    },
+    [dataMartId, generateAllFieldAliases, updateSchema]
+  );
 
-  const handleGenerateAllFieldMetadata = useCallback(async () => {
-    if (!dataMartId || !schema) return;
-    const generated = await generateAllFieldMetadata(dataMartId);
-    if (!generated) return;
-    const byName = new Map(generated.map(field => [field.name, field]));
-    const updated = schema.fields.map(field => {
-      const gen = byName.get(field.name);
-      if (!gen) return field;
-      const next = { ...field };
-      if (!isFilled(field.alias) && gen.alias) next.alias = gen.alias;
-      if (!isFilled(field.description) && gen.description) next.description = gen.description;
-      return next;
-    });
-    updateSchema(updated as typeof schema.fields);
-  }, [dataMartId, schema, generateAllFieldMetadata, updateSchema]);
+  const handleGenerateAllFieldMetadata = useCallback(
+    async (targetSchema: ResolvedSchema) => {
+      if (!dataMartId || !targetSchema) return;
+      const generated = await generateAllFieldMetadata(dataMartId);
+      if (!generated) return;
+      const byName = new Map(generated.map(field => [field.name, field]));
+      const updated = targetSchema.fields.map(field => {
+        const gen = byName.get(field.name);
+        if (!gen) return field;
+        const next = { ...field };
+        if (!isFilled(field.alias) && gen.alias) next.alias = gen.alias;
+        if (!isFilled(field.description) && gen.description) next.description = gen.description;
+        return next;
+      });
+      updateSchema(updated as typeof targetSchema.fields);
+    },
+    [dataMartId, generateAllFieldMetadata, updateSchema]
+  );
+
+  // Bulk AI maps generated metadata onto the resolved schema (saved or discarded)
+  // provided by the unsaved-changes guard, so unsaved edits are never silently used
+  // against a stale field set.
+  const runBulkAi = useCallback(
+    async (scope: BulkAiScope, targetSchema: ResolvedSchema): Promise<void> => {
+      switch (scope) {
+        case DataMartMetadataScope.ALL_FIELD_METADATA:
+          await handleGenerateAllFieldMetadata(targetSchema);
+          break;
+        case DataMartMetadataScope.ALL_FIELD_DESCRIPTIONS:
+          await handleGenerateAllFieldDescriptions(targetSchema);
+          break;
+        case DataMartMetadataScope.ALL_FIELD_ALIASES:
+          await handleGenerateAllFieldAliases(targetSchema);
+          break;
+      }
+    },
+    [
+      handleGenerateAllFieldMetadata,
+      handleGenerateAllFieldDescriptions,
+      handleGenerateAllFieldAliases,
+    ]
+  );
 
   // Disable buttons during schema operations (save or actualization)
   const isSchemaOperationInProgress = isLoading || isSchemaActualizationLoading;
@@ -240,7 +319,12 @@ export function DataMartSchemaSettings({ definitionType }: DataMartSchemaSetting
                   className='cursor-pointer'
                   disabled={!hasFields || isAiBusy}
                   onClick={() => {
-                    void handleGenerateAllFieldMetadata();
+                    runGuarded?.(
+                      resolved => runBulkAi(DataMartMetadataScope.ALL_FIELD_METADATA, resolved),
+                      {
+                        intent: 'ai',
+                      }
+                    );
                   }}
                 >
                   <Sparkles className='mr-2 h-4 w-4' />
@@ -250,7 +334,12 @@ export function DataMartSchemaSettings({ definitionType }: DataMartSchemaSetting
                   className='cursor-pointer'
                   disabled={!hasFields || isAiBusy}
                   onClick={() => {
-                    void handleGenerateAllFieldDescriptions();
+                    runGuarded?.(
+                      resolved => runBulkAi(DataMartMetadataScope.ALL_FIELD_DESCRIPTIONS, resolved),
+                      {
+                        intent: 'ai',
+                      }
+                    );
                   }}
                 >
                   <Sparkles className='mr-2 h-4 w-4' />
@@ -260,7 +349,12 @@ export function DataMartSchemaSettings({ definitionType }: DataMartSchemaSetting
                   className='cursor-pointer'
                   disabled={!hasFields || isAiBusy}
                   onClick={() => {
-                    void handleGenerateAllFieldAliases();
+                    runGuarded?.(
+                      resolved => runBulkAi(DataMartMetadataScope.ALL_FIELD_ALIASES, resolved),
+                      {
+                        intent: 'ai',
+                      }
+                    );
                   }}
                 >
                   <Sparkles className='mr-2 h-4 w-4' />

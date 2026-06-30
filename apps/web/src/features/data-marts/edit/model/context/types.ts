@@ -4,6 +4,11 @@ import type {
   RunDataMartRequestDto,
   UpdateDataMartRequestDto,
 } from '../../../shared/types/api';
+import type {
+  SchemaGuardRegistration,
+  GuardedAction,
+  SchemaGuardIntent,
+} from '../hooks/use-schema-unsaved-guard';
 import type { DataMartResponseDto } from '../../../shared/types/api/response/data-mart.response.dto';
 import type { DataMartDefinitionType } from '../../../shared';
 import type { DataMartDefinitionConfig } from '../types';
@@ -107,6 +112,8 @@ export interface DataMartContextType extends DataMartState {
   ) => Promise<void>;
   runSchemaActualization?: () => Promise<void>;
   isSchemaActualizationLoading?: boolean;
+  registerSchemaGuard?: (registration: SchemaGuardRegistration | null) => void;
+  runGuarded?: (action: GuardedAction, opts: { intent: SchemaGuardIntent }) => void;
   error: ApiError | null;
   getErrorMessage: () => string | null;
   resetManualRunTriggered: () => void;
