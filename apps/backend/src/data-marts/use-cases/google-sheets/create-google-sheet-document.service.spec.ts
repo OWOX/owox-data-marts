@@ -126,7 +126,12 @@ describe('CreateGoogleSheetDocumentService', () => {
     expect(mockCreateSpreadsheet).toHaveBeenCalledWith('Revenue');
     expect(mockCreateSpreadsheetViaDrive).not.toHaveBeenCalled();
     expect(mockCreateSpreadsheetInFolder).not.toHaveBeenCalled();
-    expect(result).toEqual({ spreadsheetId: 'sheet-id', sheetId: 0 });
+    expect(result).toEqual({
+      spreadsheetId: 'sheet-id',
+      sheetId: 0,
+      placedInRoot: false,
+      sharedWithRequester: false,
+    });
   });
 
   it('falls back to a default title when none is provided', async () => {
@@ -150,7 +155,12 @@ describe('CreateGoogleSheetDocumentService', () => {
     expect(googleOAuthClientService.getDestinationOAuth2Client).not.toHaveBeenCalled();
     expect(mockCreateServiceAccountClient).toHaveBeenCalled();
     expect(mockCreateSpreadsheetInFolder).toHaveBeenCalledWith('Report', 'folder-1');
-    expect(result).toEqual({ spreadsheetId: 'sa-sheet-id', sheetId: 0 });
+    expect(result).toEqual({
+      spreadsheetId: 'sa-sheet-id',
+      sheetId: 0,
+      placedInRoot: false,
+      sharedWithRequester: false,
+    });
   });
 
   it('shares the created sheet with the requester (OAuth with drive.file scope)', async () => {
@@ -179,13 +189,19 @@ describe('CreateGoogleSheetDocumentService', () => {
       )
     );
 
-    await service.run(
+    const result = await service.run(
       new CreateGoogleSheetDocumentCommand('dest-1', 'proj-1', 'R', 'user-2', 'bu@example.com')
     );
 
     expect(mockCreateSpreadsheetInFolder).toHaveBeenCalledWith('R', 'folder-1');
     expect(mockCreateSpreadsheetViaDrive).not.toHaveBeenCalled();
     expect(mockShareFileWithUser).toHaveBeenCalledWith('sa-sheet-id', 'bu@example.com', 'writer');
+    expect(result).toEqual({
+      spreadsheetId: 'sa-sheet-id',
+      sheetId: 0,
+      placedInRoot: false,
+      sharedWithRequester: true,
+    });
   });
 
   it('skips sharing (but still creates) when the OAuth token lacks a Drive scope', async () => {
@@ -197,10 +213,40 @@ describe('CreateGoogleSheetDocumentService', () => {
       new CreateGoogleSheetDocumentCommand('dest-1', 'proj-1', 'R', 'user-2', 'bu@example.com')
     );
 
-    expect(result).toEqual({ spreadsheetId: 'sheet-id', sheetId: 0 });
+    expect(result).toEqual({
+      spreadsheetId: 'sheet-id',
+      sheetId: 0,
+      placedInRoot: false,
+      sharedWithRequester: false,
+    });
     expect(mockCreateSpreadsheet).toHaveBeenCalled();
     expect(mockCreateSpreadsheetViaDrive).not.toHaveBeenCalled();
     expect(mockShareFileWithUser).not.toHaveBeenCalled();
+  });
+
+  it('reports placedInRoot when a folder is configured but the token lacks a Drive scope', async () => {
+    const { service } = createService(
+      buildDestination(
+        DestinationCredentialType.GOOGLE_OAUTH,
+        { folderId: 'folder-1' },
+        OAUTH_SCOPE_NO_DRIVE
+      )
+    );
+
+    const result = await service.run(
+      new CreateGoogleSheetDocumentCommand('dest-1', 'proj-1', 'R', 'user-2', 'bu@example.com')
+    );
+
+    // The folder choice is dropped (created in the Drive root via the Sheets API)
+    // and sharing is skipped — the response flags this so the form can warn.
+    expect(mockCreateSpreadsheet).toHaveBeenCalledWith('R');
+    expect(mockCreateSpreadsheetInFolder).not.toHaveBeenCalled();
+    expect(result).toEqual({
+      spreadsheetId: 'sheet-id',
+      sheetId: 0,
+      placedInRoot: true,
+      sharedWithRequester: false,
+    });
   });
 
   it('shares the SA-created sheet with the requester (SA always has Drive scope)', async () => {
@@ -247,7 +293,12 @@ describe('CreateGoogleSheetDocumentService', () => {
       new CreateGoogleSheetDocumentCommand('dest-1', 'proj-1', 'R', 'user-2', 'bu@example.com')
     );
 
-    expect(result).toEqual({ spreadsheetId: 'sheet-id', sheetId: 0 });
+    expect(result).toEqual({
+      spreadsheetId: 'sheet-id',
+      sheetId: 0,
+      placedInRoot: false,
+      sharedWithRequester: false,
+    });
   });
 
   it('rejects a Service Account destination with no folder configured', async () => {

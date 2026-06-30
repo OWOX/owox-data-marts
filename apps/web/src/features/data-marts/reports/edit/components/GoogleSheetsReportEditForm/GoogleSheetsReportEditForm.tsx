@@ -256,15 +256,35 @@ export const GoogleSheetsReportEditForm = forwardRef<
           : (dataMart?.title ?? reportTitle);
       setIsCreatingSheet(true);
       try {
-        const { spreadsheetId, sheetId } = await dataDestinationService.createGoogleSheetDocument(
-          selectedDestinationId,
-          { title: sheetTitle }
-        );
+        const { spreadsheetId, sheetId, placedInRoot, sharedWithRequester } =
+          await dataDestinationService.createGoogleSheetDocument(selectedDestinationId, {
+            title: sheetTitle,
+          });
         form.setValue('documentUrl', getGoogleSheetTabUrl(spreadsheetId, sheetId), {
           shouldDirty: true,
           shouldValidate: true,
         });
-        toast.success('Google Sheet created');
+        // The backend explicitly flags a downgrade (folder dropped / not shared)
+        // when the connected OAuth token lacks a Drive scope. Older backends omit
+        // these flags (undefined), so only warn on an explicit true/false.
+        if (placedInRoot === true || sharedWithRequester === false) {
+          const issues: string[] = [];
+          if (placedInRoot === true) {
+            issues.push(
+              'the selected Drive folder was not used (it was created in your Drive root)'
+            );
+          }
+          if (sharedWithRequester === false) {
+            issues.push('it was not shared with you');
+          }
+          toast(
+            `Google Sheet created, but ${issues.join(', and ')}. Reconnect the destination’s ` +
+              'Google account with Drive access to fix this.',
+            { icon: '⚠️', duration: 8000 }
+          );
+        } else {
+          toast.success('Google Sheet created');
+        }
       } catch (error) {
         showApiErrorToast(error, 'Failed to create Google Sheet');
       } finally {

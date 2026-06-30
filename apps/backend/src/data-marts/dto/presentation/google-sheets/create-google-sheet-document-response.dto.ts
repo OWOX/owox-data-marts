@@ -1,4 +1,4 @@
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 /**
  * Identifiers of a freshly auto-created Google Sheet. The frontend builds the
@@ -17,4 +17,21 @@ export class CreateGoogleSheetDocumentResponseDto {
     description: 'Numeric ID (gid) of the first sheet in the new spreadsheet',
   })
   sheetId: number;
+
+  @ApiPropertyOptional({
+    example: false,
+    description:
+      'True when a Drive folder was configured but the document was created in the Drive root ' +
+      'instead (the connected OAuth token lacks a Drive scope). The user should reconnect the ' +
+      'Google account to honor the chosen folder.',
+  })
+  placedInRoot?: boolean;
+
+  @ApiPropertyOptional({
+    example: true,
+    description:
+      'Whether the document was shared with the requesting user. False when sharing was skipped ' +
+      '(token lacks a Drive scope, or the requester email could not be resolved) or failed.',
+  })
+  sharedWithRequester?: boolean;
 }

@@ -106,6 +106,7 @@ export class CreateGoogleSheetDocumentService {
     const canShare = this.oauthTokenHasDriveScope(destination);
     // Folder placement is possible only with a Drive scope and a folder the user
     // granted via the Picker (drive.file gives access to picker-selected folders).
+    const folderRequested = !!destination.config?.folderId?.trim();
     const folderId = canShare ? destination.config?.folderId?.trim() : undefined;
     let result: CreateGoogleSheetDocumentResponseDto;
     if (folderId) {
@@ -127,11 +128,16 @@ export class CreateGoogleSheetDocumentService {
       `Auto-created Google Sheet ${result.spreadsheetId} via OAuth (driveCreate=${canShare}, folder=${folderId ?? 'root'}) for destination ${destination.id}`
     );
 
-    await this.shareWithRequester(adapter, result.spreadsheetId, requesterEmail, {
-      destinationId: destination.id,
-      canShare,
-    });
-    return result;
+    const sharedWithRequester = await this.shareWithRequester(
+      adapter,
+      result.spreadsheetId,
+      requesterEmail,
+      { destinationId: destination.id, canShare }
+    );
+    // A folder was configured but we had to fall back to the Drive root because
+    // the stored token lacks a Drive scope — surface it so the form can warn.
+    const placedInRoot = folderRequested && !folderId;
+    return { ...result, placedInRoot, sharedWithRequester };
   }
 
   /**
@@ -180,11 +186,14 @@ export class CreateGoogleSheetDocumentService {
     );
 
     // SA JWT always carries the Drive scope, so sharing is always possible.
-    await this.shareWithRequester(adapter, result.spreadsheetId, requesterEmail, {
-      destinationId: destination.id,
-      canShare: true,
-    });
-    return result;
+    const sharedWithRequester = await this.shareWithRequester(
+      adapter,
+      result.spreadsheetId,
+      requesterEmail,
+      { destinationId: destination.id, canShare: true }
+    );
+    // SA always places the file in the configured Shared Drive folder (or throws).
+    return { ...result, placedInRoot: false, sharedWithRequester };
   }
 
   /**
@@ -209,35 +218,38 @@ export class CreateGoogleSheetDocumentService {
 
   /**
    * Grants the requesting user writer access to the created document. Best-effort:
-   * a sharing failure must NOT fail the (already successful) creation.
+   * a sharing failure must NOT fail the (already successful) creation. Returns
+   * whether the document was actually shared, so the response can tell the user.
    */
   private async shareWithRequester(
     adapter: GoogleSheetsApiAdapter,
     spreadsheetId: string,
     email: string | undefined,
     opts: { destinationId: string; canShare: boolean }
-  ): Promise<void> {
+  ): Promise<boolean> {
     if (!email) {
       this.logger.warn(
         `Skipping share of ${spreadsheetId} (destination ${opts.destinationId}): could not resolve the requesting user's email.`
       );
-      return;
+      return false;
     }
     if (!opts.canShare) {
       this.logger.warn(
         `Skipping share of ${spreadsheetId} (destination ${opts.destinationId}) with ${email}: OAuth token lacks the drive.file scope. Reconnect the Google account to enable sharing.`
       );
-      return;
+      return false;
     }
     try {
       await adapter.shareFileWithUser(spreadsheetId, email, 'writer');
       this.logger.log(`Shared ${spreadsheetId} with ${email} (writer).`);
+      return true;
     } catch (error) {
       this.logger.warn(
         `Best-effort share of ${spreadsheetId} with ${email} failed: ${
           error instanceof Error ? error.message : String(error)
         }`
       );
+      return false;
     }
   }
 

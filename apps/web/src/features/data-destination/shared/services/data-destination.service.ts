@@ -15,6 +15,13 @@ import type { DataDestinationType } from '../enums';
 export interface CreateGoogleSheetDocumentResponseDto {
   spreadsheetId: string;
   sheetId: number;
+  /**
+   * True when a Drive folder was configured but the document was created in the
+   * Drive root instead (the connected OAuth token lacks a Drive scope).
+   */
+  placedInRoot?: boolean;
+  /** Whether the document was shared with the requesting user. */
+  sharedWithRequester?: boolean;
 }
 
 /**
