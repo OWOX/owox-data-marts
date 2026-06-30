@@ -204,14 +204,29 @@ export class GoogleSheetsApiAdapter {
     if (!spreadsheetId) {
       throw new Error('Drive API did not return a file id when creating the spreadsheet');
     }
-    const ss = await this.executeWithRetry(() =>
-      this.service.spreadsheets.get({ spreadsheetId, fields: 'sheets.properties.sheetId' })
-    );
-    const sheetId = ss.data.sheets?.[0]?.properties?.sheetId;
-    if (sheetId === undefined || sheetId === null) {
-      throw new Error('Could not resolve the sheetId of the newly created spreadsheet');
+    try {
+      const ss = await this.executeWithRetry(() =>
+        this.service.spreadsheets.get({ spreadsheetId, fields: 'sheets.properties.sheetId' })
+      );
+      const sheetId = ss.data.sheets?.[0]?.properties?.sheetId;
+      if (sheetId === undefined || sheetId === null) {
+        throw new Error('Could not resolve the sheetId of the newly created spreadsheet');
+      }
+      return { spreadsheetId, sheetId };
+    } catch (error) {
+      // The file already exists; failing here without cleanup would orphan an
+      // empty spreadsheet. Best-effort delete it before rethrowing — do not
+      // retry, and never let a delete failure mask the original error.
+      try {
+        await drive.files.delete({ fileId: spreadsheetId, supportsAllDrives: true });
+      } catch (cleanupError) {
+        GoogleSheetsApiAdapter.LOGGER.warn(
+          `Failed to clean up orphaned spreadsheet ${spreadsheetId} after a post-create error`,
+          cleanupError instanceof Error ? cleanupError.message : String(cleanupError)
+        );
+      }
+      throw error;
     }
-    return { spreadsheetId, sheetId };
   }
 
   /**
@@ -260,13 +275,20 @@ export class GoogleSheetsApiAdapter {
     canAddChildren: boolean;
   }> {
     const drive = this.getDriveService();
+    // Bound the round-trip: folder validation runs inside the destination-save
+    // transaction, so a hung Drive call must not hold the DB connection/locks
+    // open indefinitely (the worst case without this is ~31s of retry backoff).
+    const timeout = 10_000;
     try {
       const res = await this.executeWithRetry(() =>
-        drive.files.get({
-          fileId: folderId,
-          fields: 'id, mimeType, driveId, capabilities/canAddChildren',
-          supportsAllDrives: true,
-        })
+        drive.files.get(
+          {
+            fileId: folderId,
+            fields: 'id, mimeType, driveId, capabilities/canAddChildren',
+            supportsAllDrives: true,
+          },
+          { timeout }
+        )
       );
       const data = res.data;
       return {

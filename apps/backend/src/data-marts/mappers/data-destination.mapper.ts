@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import { AuthorizationContext } from '../../idp';
 import { UserProjectionsListDto } from '../../idp/dto/domain/user-projections-list.dto';
 import { CreateDataDestinationCommand } from '../dto/domain/create-data-destination.command';
@@ -97,6 +97,14 @@ export class DataDestinationMapper {
     // folderId is server-derived only — never taken from the client payload —
     // so it always reflects a validated folder URL (or null when cleared).
     const folderId = folderUrl ? extractDriveFolderId(folderUrl) : null;
+    // Reject a non-empty URL we cannot parse into a folder id, instead of
+    // persisting a half-configured destination that only fails at create time.
+    if (folderUrl && !folderId) {
+      throw new BadRequestException(
+        'The Google Drive folder URL is not valid. Paste a folder link like ' +
+          'https://drive.google.com/drive/folders/<id>.'
+      );
+    }
     return { folderUrl, folderId };
   }
 
