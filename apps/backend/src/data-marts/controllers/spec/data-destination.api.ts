@@ -170,7 +170,7 @@ export function OAuthRevokeSpec() {
 export function CreateGoogleSheetDocumentSpec() {
   return applyDecorators(
     ApiOperation({
-      summary: 'Auto-create a new Google Sheet for a Data Destination (OAuth)',
+      summary: 'Auto-create a new Google Sheet for a Data Destination (Google Sheets)',
     }),
     ApiParam({ name: 'id', description: 'Data Destination ID' }),
     ApiBody({ type: CreateGoogleSheetDocumentRequestDto }),

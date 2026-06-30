@@ -17,6 +17,15 @@ jest.mock('../../data-destination-types/google-sheets/adapters/google-sheets-api
     'https://www.googleapis.com/auth/spreadsheets',
     'https://www.googleapis.com/auth/drive',
   ];
+  // Mirror the real static helper so the service can classify folder-create errors.
+  (ctor as unknown as Record<string, unknown>).httpStatusOf = (error: unknown) => {
+    const e = error as { code?: unknown; status?: unknown; response?: { status?: unknown } };
+    for (const c of [e?.response?.status, e?.status, e?.code]) {
+      if (typeof c === 'number') return c;
+      if (typeof c === 'string' && /^\d+$/.test(c)) return Number(c);
+    }
+    return undefined;
+  };
   return { GoogleSheetsApiAdapter: ctor };
 });
 
@@ -27,6 +36,7 @@ import { DataDestinationType } from '../../data-destination-types/enums/data-des
 import { DestinationCredentialType } from '../../enums/destination-credential-type.enum';
 import {
   CredentialsNotFoundException,
+  GoogleApiException,
   OAuthNotConnectedException,
   ServiceAccountRequiresFolderException,
   SheetFolderCreateFailedException,
@@ -261,6 +271,21 @@ describe('CreateGoogleSheetDocumentService', () => {
     await expect(
       service.run(new CreateGoogleSheetDocumentCommand('dest-1', 'proj-1', 'X'))
     ).rejects.toThrow(SheetFolderCreateFailedException);
+  });
+
+  it('surfaces a transient Drive error as GoogleApiException, not a folder error', async () => {
+    const { service } = createService(
+      buildDestination(DestinationCredentialType.GOOGLE_SERVICE_ACCOUNT, { folderId: 'folder-1' }),
+      { type: 'google-sheets-credentials', serviceAccountKey: VALID_SA_KEY }
+    );
+    // Gaxios-shaped transient error (503) — must NOT be reported as a folder problem.
+    mockCreateSpreadsheetInFolder.mockRejectedValue(
+      Object.assign(new Error('backend error'), { response: { status: 503 } })
+    );
+
+    await expect(
+      service.run(new CreateGoogleSheetDocumentCommand('dest-1', 'proj-1', 'X'))
+    ).rejects.toThrow(GoogleApiException);
   });
 
   it('rejects a Service Account destination whose SA key is missing/invalid', async () => {

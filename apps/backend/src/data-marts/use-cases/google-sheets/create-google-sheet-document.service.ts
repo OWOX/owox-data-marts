@@ -10,8 +10,10 @@ import { DataDestination } from '../../entities/data-destination.entity';
 import { DataDestinationType } from '../../data-destination-types/enums/data-destination-type.enum';
 import { DestinationCredentialType } from '../../enums/destination-credential-type.enum';
 import { IdpProjectionsFacade } from '../../../idp/facades/idp-projections.facade';
+import type { GoogleOAuthTokens } from '../../services/google-oauth/google-oauth-flow.service';
 import {
   CredentialsNotFoundException,
+  GoogleApiException,
   OAuthNotConnectedException,
   ServiceAccountRequiresFolderException,
   SheetFolderCreateFailedException,
@@ -27,7 +29,9 @@ const DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive';
  * button (and, later, the MCP add_report flow).
  *
  * Auth is resolved EXPLICITLY by credential type (not via the SA-first factory):
- * - OAuth: the file is created in the connected user's Drive (root).
+ * - OAuth: the file is created in the connected user's Drive. When the token has
+ *   a Drive scope it can be placed in a folder the user picked via the Drive
+ *   Picker (drive.file); otherwise it lands in the Drive root.
  * - Service Account: the file is created inside the destination's configured
  *   shared Drive folder, using a separate Drive-scoped SA JWT.
  *
@@ -71,9 +75,11 @@ export class CreateGoogleSheetDocumentService {
   }
 
   /**
-   * OAuth path: creates the file in the connected user's Drive root, then shares
-   * it with the requester so they can open it. Folder placement is NOT supported
-   * for OAuth (would require a restricted Drive scope or the Drive Picker).
+   * OAuth path: creates the file in the connected user's Drive, then shares it
+   * with the requester so they can open it. Folder placement IS supported when
+   * the token has a Drive scope and a folder was selected via the Drive Picker
+   * (drive.file grants access to picker-selected folders); without a Drive scope
+   * the file is created in the Drive root.
    *
    * When the token has the Drive scope, the file is created via the Drive API so
    * it is app-authorized and therefore shareable under drive.file; otherwise it
@@ -106,7 +112,7 @@ export class CreateGoogleSheetDocumentService {
       try {
         result = await adapter.createSpreadsheetInFolder(title, folderId);
       } catch (error) {
-        throw new SheetFolderCreateFailedException(
+        this.throwFolderCreateError(
           destination.id,
           error,
           'The selected Drive folder is not accessible with the connected Google account. Re-pick the folder while signed in with the connected account, or clear it to create the document in your Drive root.'
@@ -163,10 +169,10 @@ export class CreateGoogleSheetDocumentService {
     try {
       result = await adapter.createSpreadsheetInFolder(title, folderId);
     } catch (error) {
-      throw new SheetFolderCreateFailedException(
+      this.throwFolderCreateError(
         destination.id,
         error,
-        'Make sure it is a Shared Drive folder shared with the service account as Editor.'
+        'Make sure it is a Shared Drive folder shared with the service account as a Content Manager.'
       );
     }
     this.logger.log(
@@ -237,8 +243,27 @@ export class CreateGoogleSheetDocumentService {
 
   /** True when the destination's stored OAuth token already includes a Drive scope. */
   private oauthTokenHasDriveScope(destination: DataDestination): boolean {
-    const credentials = destination.credential?.credentials as { scope?: string } | undefined;
+    const credentials = destination.credential?.credentials as GoogleOAuthTokens | undefined;
     const scopes = credentials?.scope?.split(' ') ?? [];
     return scopes.includes(DRIVE_FILE_SCOPE) || scopes.includes(DRIVE_SCOPE);
+  }
+
+  /**
+   * Reports a folder-create failure. A genuine access problem (403/404) or an
+   * unknown status is surfaced as a 400 folder-config error with the path's
+   * remediation hint. A transient Google fault (429/5xx) is surfaced as a 502
+   * instead, so a temporary outage is not misreported as a misconfigured folder.
+   * The original error is logged by the exception constructor either way.
+   */
+  private throwFolderCreateError(destinationId: string, error: unknown, hint: string): never {
+    const status = GoogleSheetsApiAdapter.httpStatusOf(error);
+    const isTransient = status === 429 || (status !== undefined && status >= 500);
+    if (isTransient) {
+      throw new GoogleApiException(
+        'Google Drive is temporarily unavailable while creating the document. Please try again.',
+        error
+      );
+    }
+    throw new SheetFolderCreateFailedException(destinationId, error, hint);
   }
 }

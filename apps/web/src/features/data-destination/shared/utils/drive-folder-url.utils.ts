@@ -13,12 +13,6 @@ export function isValidGoogleDriveFolderUrl(url: string): boolean {
   return driveFolderUrlRegex.test(url.trim());
 }
 
-/** Extracts the folder ID from a Drive folder URL, or '' when not found. */
-export function extractDriveFolderId(url: string): string {
-  const match = driveFolderUrlRegex.exec(url.trim());
-  return match ? match[1] : '';
-}
-
 /** Builds a canonical Drive folder URL from a folder ID (for legacy rows that stored only an ID). */
 export function buildDriveFolderUrl(folderId: string): string {
   return `https://drive.google.com/drive/folders/${folderId}`;

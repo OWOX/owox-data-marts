@@ -178,19 +178,30 @@ export function useGoogleDrivePicker() {
         .setIncludeFolders(true)
         .setMimeTypes('application/vnd.google-apps.folder');
 
-      const built = new picker.PickerBuilder()
-        .setOAuthToken(token)
-        .setDeveloperKey(apiKey)
-        .addView(view)
-        .enableFeature(picker.Feature.SUPPORT_DRIVES)
-        .setCallback((response: PickerResponse) => {
-          const doc = response.action === picker.Action.PICKED ? response.docs?.[0] : undefined;
-          if (doc) {
-            onPicked({ id: doc.id, name: doc.name, url: doc.url });
-          }
-        })
-        .build();
-      built.setVisible(true);
+      // Resolve only when the dialog actually closes (PICKED or CANCEL), so the
+      // caller's `isPickingFolder` guard stays set while the Picker is open and a
+      // second open / token request cannot be triggered. Intermediate actions
+      // (e.g. 'loaded') are ignored.
+      await new Promise<void>(resolve => {
+        const built = new picker.PickerBuilder()
+          .setOAuthToken(token)
+          .setDeveloperKey(apiKey)
+          .addView(view)
+          .enableFeature(picker.Feature.SUPPORT_DRIVES)
+          .setCallback((response: PickerResponse) => {
+            if (response.action === picker.Action.PICKED) {
+              const doc = response.docs?.[0];
+              if (doc) {
+                onPicked({ id: doc.id, name: doc.name, url: doc.url });
+              }
+              resolve();
+            } else if (response.action === picker.Action.CANCEL) {
+              resolve();
+            }
+          })
+          .build();
+        built.setVisible(true);
+      });
     } catch (error) {
       onError?.(error instanceof Error ? error.message : 'Failed to open the Google folder picker');
     }

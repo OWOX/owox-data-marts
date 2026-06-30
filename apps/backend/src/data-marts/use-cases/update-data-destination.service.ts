@@ -103,6 +103,14 @@ export class UpdateDataDestinationService {
         : existingFolderId;
     const folderChanged = incomingFolderId !== existingFolderId;
 
+    // Folder validation depends on the EFFECTIVE credential, not only the folder
+    // id: replacing/copying credentials or switching credential type while
+    // keeping the same folder must re-validate (a new service account may not be
+    // able to write there). Set when a branch below actually mutates credential
+    // data; the validator itself no-ops for non-Service-Account credentials, so
+    // OAuth credential changes do not incur a Drive round-trip.
+    let credentialChanged = false;
+
     // Permissions Model: verify user has EDIT access to this Destination
     if (command.userId) {
       const canEdit = await this.accessDecisionService.canAccess(
@@ -171,6 +179,9 @@ export class UpdateDataDestinationService {
         entity.credentialId ?? null,
         source.credential
       );
+      // Credential content was replaced (even when copied in place into the same
+      // credential id), so the configured folder must be re-validated below.
+      credentialChanged = true;
       if (newCredId) {
         entity.credentialId = newCredId;
         entity.credential = null;
@@ -197,7 +208,11 @@ export class UpdateDataDestinationService {
           command.roles
         );
       }
-      return this.replaceOwnersAndBuildResponse(updatedEntity, command.ownerIds, folderChanged);
+      return this.replaceOwnersAndBuildResponse(
+        updatedEntity,
+        command.ownerIds,
+        folderChanged || credentialChanged
+      );
     }
 
     // Handle OAuth credentialId disconnect (null = revoke)
@@ -207,6 +222,11 @@ export class UpdateDataDestinationService {
       // Clear the eagerly-loaded relation so TypeORM save() does not
       // overwrite credentialId with the stale (soft-deleted) relation id.
       entity.credential = null;
+      // Clear the Drive folder config too: an OAuth-picked folder's drive.file
+      // grant was tied to the now-disconnected account, so it would be stale.
+      // Mirrors the standalone revoke path. An explicit command.config (handled
+      // below) still wins.
+      entity.config = null;
     }
 
     if (command.credentialId) {
@@ -226,10 +246,12 @@ export class UpdateDataDestinationService {
       }
       entity.credentialId = command.credentialId;
       entity.credential = null;
+      credentialChanged = true;
     } else if (command.hasCredentials()) {
       // Service account credentials — validate, process, and store
       // Non-null assertion safe: guarded by hasCredentials() above
       const credentials = command.credentials!;
+      credentialChanged = true;
       await this.credentialsValidator.checkCredentials(entity.type, credentials);
 
       // Process credentials with existing data to preserve backend-managed fields
@@ -308,7 +330,11 @@ export class UpdateDataDestinationService {
       );
     }
 
-    return this.replaceOwnersAndBuildResponse(updatedEntity, command.ownerIds, folderChanged);
+    return this.replaceOwnersAndBuildResponse(
+      updatedEntity,
+      command.ownerIds,
+      folderChanged || credentialChanged
+    );
   }
 
   private async replaceOwnersAndBuildResponse(

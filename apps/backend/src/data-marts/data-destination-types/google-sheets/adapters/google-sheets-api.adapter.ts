@@ -297,7 +297,7 @@ export class GoogleSheetsApiAdapter {
   }
 
   /** Best-effort extraction of the HTTP status from a Google/Gaxios error. */
-  private static httpStatusOf(error: unknown): number | undefined {
+  static httpStatusOf(error: unknown): number | undefined {
     const e = error as { code?: unknown; status?: unknown; response?: { status?: unknown } };
     const candidates = [e?.response?.status, e?.status, e?.code];
     for (const c of candidates) {

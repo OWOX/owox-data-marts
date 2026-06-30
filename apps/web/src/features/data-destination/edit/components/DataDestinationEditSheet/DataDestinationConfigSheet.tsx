@@ -110,11 +110,30 @@ export function DataDestinationConfigSheet({
   // present (matched by the event target OR by any Picker node in the DOM).
   const PICKER_SELECTOR =
     '.picker-dialog, .picker-dialog-bg, .picker, .pac-container, iframe[src*="docs.google.com/picker"]';
+  // The Picker does not always remove every node when it closes (a hidden
+  // `.picker-dialog-bg` / iframe can linger). A blanket presence check would
+  // then permanently keep the Sheet open on outside-click / focus-out, so only
+  // a node that is actually visible counts.
+  const isPickerNodeVisible = (el: Element): boolean => {
+    if (!(el instanceof HTMLElement)) {
+      return true;
+    }
+    const checkVisibility = (el as unknown as { checkVisibility?: (opts?: unknown) => boolean })
+      .checkVisibility;
+    if (
+      typeof checkVisibility === 'function' &&
+      !checkVisibility.call(el, { visibilityProperty: true, opacityProperty: true })
+    ) {
+      return false;
+    }
+    const rect = el.getBoundingClientRect();
+    return rect.width > 0 && rect.height > 0;
+  };
   const shouldKeepOpenForPicker = (target: EventTarget | null): boolean => {
     if (target instanceof Element && target.closest(PICKER_SELECTOR)) {
       return true;
     }
-    return !!document.querySelector(PICKER_SELECTOR);
+    return Array.from(document.querySelectorAll(PICKER_SELECTOR)).some(isPickerNodeVisible);
   };
 
   useEffect(() => {

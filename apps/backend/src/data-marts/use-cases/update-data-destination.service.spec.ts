@@ -487,4 +487,61 @@ describe('UpdateDataDestinationService - credential copy (sourceDestinationId)',
       ).rejects.toThrow('folder not accessible');
     });
   });
+
+  describe('Drive folder validation (on credential change)', () => {
+    it('validates the folder when credentials are copied in place (same folder, new credential)', async () => {
+      const {
+        service,
+        dataDestinationRepository,
+        dataDestinationService,
+        dataDestinationCredentialService,
+        folderValidator,
+      } = createService();
+
+      const targetDestination = makeTargetDestination({
+        credentialId: 'cred-existing',
+        config: { folderId: 'folder-x' },
+      });
+      const sourceDestination = makeSourceDestination();
+
+      dataDestinationService.getByIdAndProjectId
+        .mockResolvedValueOnce(targetDestination)
+        .mockResolvedValueOnce(sourceDestination)
+        .mockResolvedValueOnce(targetDestination); // reload in buildResponse
+      dataDestinationCredentialService.update.mockResolvedValue(undefined);
+      dataDestinationRepository.save.mockResolvedValue(targetDestination);
+
+      // Folder id is unchanged, but the service account behind it was replaced —
+      // the new credential may not be able to write there, so validation must run.
+      await service.run(makeCommand({ sourceDestinationId: sourceId }));
+
+      expect(folderValidator.validateConfiguredFolder).toHaveBeenCalledTimes(1);
+    });
+
+    it('clears the Drive folder config when the OAuth credential is disconnected', async () => {
+      const {
+        service,
+        dataDestinationRepository,
+        dataDestinationService,
+        dataDestinationCredentialService,
+      } = createService();
+
+      const targetDestination = makeTargetDestination({
+        credentialId: 'cred-oauth',
+        config: { folderId: 'folder-x', folderUrl: 'https://drive/x' },
+      });
+      dataDestinationService.getByIdAndProjectId
+        .mockResolvedValueOnce(targetDestination)
+        .mockResolvedValueOnce(targetDestination); // reload in buildResponse
+      dataDestinationCredentialService.softDelete.mockResolvedValue(undefined);
+      dataDestinationRepository.save.mockImplementation((entity: unknown) =>
+        Promise.resolve(entity)
+      );
+
+      await service.run(makeCommand({ credentialId: null }));
+
+      expect(dataDestinationCredentialService.softDelete).toHaveBeenCalledWith('cred-oauth');
+      expect(targetDestination.config).toBeNull();
+    });
+  });
 });

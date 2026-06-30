@@ -145,7 +145,7 @@ export class OAuthNotConnectedException extends GoogleOAuthException {
 export class ServiceAccountRequiresFolderException extends GoogleOAuthException {
   constructor(destinationId: string) {
     super(
-      'This Service Account destination has no Drive folder configured. Set a Shared Drive folder ID on the destination and share it with the service account (Editor) to auto-create documents.',
+      'This Service Account destination has no Drive folder configured. Set a Shared Drive folder ID on the destination and share it with the service account (Content Manager) to auto-create documents.',
       'SA_REQUIRES_FOLDER',
       HttpStatus.BAD_REQUEST,
       { destinationId }

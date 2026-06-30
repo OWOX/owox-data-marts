@@ -385,7 +385,7 @@ export function GoogleSheetsFields({ form }: GoogleSheetsFieldsProps) {
                 return (
                   <FormItem>
                     <FormLabel tooltip='New documents created from chat or reports are placed in this Shared Drive folder'>
-                      Drive folder for auto-created documents (optional)
+                      Drive folder for auto-created documents (required)
                     </FormLabel>
                     <FormControl>
                       <div className='flex items-center gap-2'>
@@ -429,9 +429,8 @@ export function GoogleSheetsFields({ form }: GoogleSheetsFieldsProps) {
                     </FormControl>
                     <FormDescription>
                       Paste a Google Drive folder URL. New documents created with “Create document”
-                      are placed here. Use a Shared Drive folder and add the service account email
-                      above as a member with the Content Manager role. Leave empty to create files
-                      in the service account’s Drive.
+                      are placed here. A Shared Drive folder is required — add the service account
+                      email above as a member with the Content Manager role.
                     </FormDescription>
                     <FormMessage />
                   </FormItem>
