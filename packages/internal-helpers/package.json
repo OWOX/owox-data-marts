@@ -32,7 +32,7 @@
     "lint:md:fix": "markdownlint-cli2 --config ../../.markdownlint-cli2.mjs --fix",
     "prebuild": "npm run build:clean",
     "prepublishOnly": "npm run lint && npm run typecheck",
-    "test": "NODE_OPTIONS=--experimental-vm-modules jest --passWithNoTests",
+    "test": "cross-env NODE_OPTIONS=--experimental-vm-modules jest --passWithNoTests",
     "typecheck": "tsc --noEmit -p tsconfig.build.json"
   },
   "keywords": [

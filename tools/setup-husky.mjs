@@ -7,7 +7,7 @@
  * and sets up the necessary files for pre-commit validation.
  */
 
-import { chmodSync, existsSync, mkdirSync, writeFileSync } from 'fs';
+import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs';
 import { platform } from 'os';
 import { dirname, join } from 'path';
 import { fileURLToPath } from 'url';
@@ -42,36 +42,24 @@ function makeExecutable(filePath) {
 }
 
 /**
- * Generate cross-platform hook content
+ * Generate hook content
  * @param {string} command - Command to run in the hook
  * @returns {string} Hook content
+ *
+ * Git runs hooks through sh on every OS (including the sh.exe bundled with
+ * Git for Windows), so a hook is always a POSIX shell script — never a Windows
+ * batch file. Husky v9+ hooks contain only the command; the old
+ * `#!/usr/bin/env sh` + `. "$(dirname -- "$0")/_/husky.sh"` boilerplate is
+ * deprecated and is removed in husky v10.
  */
 function generateHookContent(command) {
-  if (isWindows) {
-    // Windows batch script style
-    return `@echo off
-:: Husky hook for Windows
-cd /d "%~dp0"
-call husky.cmd
-${command}
-`;
-  } else {
-    // Unix shell script style
-    return `#!/usr/bin/env sh
-. "$(dirname -- "$0")/_/husky.sh"
-
-# ${command.split('\n')[0].replace('# ', '')}
-${command}
-`;
-  }
+  return `${command}\n`;
 }
 
 /**
  * Create pre-commit hook
  */
 function createPreCommitHook() {
-  console.log('🪝 Creating pre-commit hook...');
-
   const huskyDir = join(repoRoot, '.husky');
   if (!existsSync(huskyDir)) {
     mkdirSync(huskyDir, { recursive: true });
@@ -81,10 +69,20 @@ function createPreCommitHook() {
   const hookContent = generateHookContent(command);
   const hookPath = join(huskyDir, 'pre-commit');
 
+  // Self-healing: only (re)write when the hook is missing or stale, so a hook
+  // left over from an older setup (the broken Windows batch file or the
+  // deprecated husky v9 boilerplate) is repaired on the next install.
+  if (existsSync(hookPath) && readFileSync(hookPath, 'utf8') === hookContent) {
+    console.log('ℹ️  Pre-commit hook is already up to date.');
+    return false;
+  }
+
+  console.log('🪝 Writing pre-commit hook...');
   writeFileSync(hookPath, hookContent);
   makeExecutable(hookPath);
 
   console.log('✅ Pre-commit hook has been activated.');
+  return true;
 }
 
 /**
@@ -92,18 +90,15 @@ function createPreCommitHook() {
  */
 function main() {
   try {
-    const hookPath = join(repoRoot, '.husky', 'pre-commit');
-    if (existsSync(hookPath)) {
-      console.log(
-        'ℹ️  Pre-commit hook already exists. Skipping setup. To re-run setup, delete the `.husky/pre-commit` file and run `npm run setup:husky`.'
-      );
-      return;
-    }
-
     console.log('🚀 Setting up OWOX Data Marts husky configuration...');
     console.log(`📱 Platform: ${platform()}`);
 
-    createPreCommitHook();
+    const changed = createPreCommitHook();
+
+    // Hook already correct — nothing else to do, stay quiet on routine installs.
+    if (!changed) {
+      return;
+    }
 
     console.log('');
     console.log('🎉 Setup completed successfully.');
