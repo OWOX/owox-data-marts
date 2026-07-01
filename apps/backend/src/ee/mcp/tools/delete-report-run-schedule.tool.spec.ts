@@ -9,7 +9,7 @@ describe('DeleteReportRunScheduleTool', () => {
     projectId: 'project-1',
     roles: ['editor'],
     resource: 'https://mcp.owox.com/mcp',
-    scopes: ['mcp:write'],
+    scopes: ['mcp:read', 'mcp:write'],
     authFlow: 'mcp',
   };
 
@@ -73,5 +73,6 @@ describe('DeleteReportRunScheduleTool', () => {
     });
     expect(tool.description).toContain('trigger_id');
     expect(tool.description).toContain('left intact');
+    expect(context.scopes).toEqual(tool.requiredScopes);
   });
 });

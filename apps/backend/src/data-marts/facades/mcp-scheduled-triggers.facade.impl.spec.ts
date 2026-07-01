@@ -178,6 +178,22 @@ describe('McpScheduledTriggersFacadeImpl', () => {
       });
     });
 
+    it('uses an empty report reference when a report-run trigger has invalid config', async () => {
+      const reportRunDto = makeProjectScheduledTriggerDto(ScheduledTriggerType.REPORT_RUN, {
+        type: ScheduledReportRunConfigType,
+      } as unknown as ScheduledTriggerDto['triggerConfig']);
+
+      const facade = buildFacade({
+        listProjectScheduledTriggersService: {
+          run: jest.fn().mockResolvedValue([reportRunDto]),
+        },
+      });
+
+      const result = await facade.listReportRunSchedules(CTX);
+
+      expect(result[0].report).toEqual({ id: '', title: '' });
+    });
+
     it('passes correct command to list service', async () => {
       const listRun = jest.fn().mockResolvedValue([]);
       const facade = buildFacade({
@@ -435,6 +451,31 @@ describe('McpScheduledTriggersFacadeImpl', () => {
       expect(updateRun).not.toHaveBeenCalled();
     });
 
+    it('throws BadRequestException when report-run config has no report id', async () => {
+      const updateRun = jest.fn();
+      const trigger = makeEntityTrigger();
+      trigger.triggerConfig = {
+        type: ScheduledReportRunConfigType,
+      } as unknown as DataMartScheduledTrigger['triggerConfig'];
+      const facade = buildFacade({
+        scheduledTriggerService: {
+          getByIdAndProjectId: jest.fn().mockResolvedValue(trigger),
+        },
+        updateScheduledTriggerService: { run: updateRun },
+      });
+
+      await expect(
+        facade.updateReportRunSchedule(CTX, {
+          triggerId: 'trigger-1',
+          cronExpression: '0 9 * * 1',
+          timeZone: 'UTC',
+          isActive: true,
+        })
+      ).rejects.toThrow(BadRequestException);
+
+      expect(updateRun).not.toHaveBeenCalled();
+    });
+
     it('updates the schedule identified by trigger_id without looking up schedules by report', async () => {
       const getExisting = jest.fn();
       const updateRun = jest.fn().mockResolvedValue(makeTriggerDto());
@@ -510,6 +551,26 @@ describe('McpScheduledTriggersFacadeImpl', () => {
       );
 
       expect(result).toEqual({ triggerId: 'trigger-1', reportId: 'report-1' });
+    });
+
+    it('returns null reportId when report-run config has no report id', async () => {
+      const trigger = makeEntityTrigger();
+      trigger.triggerConfig = {
+        type: ScheduledReportRunConfigType,
+      } as unknown as DataMartScheduledTrigger['triggerConfig'];
+      const facade = buildFacade({
+        scheduledTriggerService: {
+          getByIdAndProjectId: jest.fn().mockResolvedValue(trigger),
+        },
+        deleteScheduledTriggerService: { run: jest.fn().mockResolvedValue(undefined) },
+      });
+
+      await expect(
+        facade.deleteReportRunSchedule(CTX, { triggerId: 'trigger-1' })
+      ).resolves.toEqual({
+        triggerId: 'trigger-1',
+        reportId: null,
+      });
     });
   });
 });
