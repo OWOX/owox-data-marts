@@ -29,7 +29,7 @@ const DataMartFieldSchema = z
 export class GetDataMartDetailsTool implements McpToolDefinition<GetDataMartDetailsInput> {
   readonly name = 'get_data_mart_details_by_id';
   readonly description =
-    'Returns full details for a specific OWOX Data Mart, including its full output schema fields prepared for LLM use. Call before every query_data_mart unless the schema is already in context.';
+    'Returns the full output schema for a Data Mart. Includes sample values for categorical fields to enable accurate filter construction by the LLM. Call before every query_data_mart unless the schema is already in context.';
   readonly zodSchema = inputSchema.shape;
   readonly outputSchema = {
     id: z.string(),

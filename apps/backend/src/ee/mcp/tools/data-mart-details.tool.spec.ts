@@ -118,6 +118,7 @@ describe('GetDataMartDetailsTool', () => {
       },
     });
     expect(tool.description).toContain('full output schema');
+    expect(tool.description).toContain('Includes sample values for categorical fields');
     expect(tool.description).toContain('Call before every query_data_mart');
   });
 });
