@@ -6,6 +6,10 @@ export interface McpListDataMartsRequest {
   roles: string[];
 }
 
+export interface McpGetDataMartDetailsRequest extends McpListDataMartsRequest {
+  dataMartId: string;
+}
+
 export interface McpDataMartListItem {
   id: string;
   title: string;
@@ -18,6 +22,14 @@ export interface McpListDataMartsResponse {
   dataMarts: McpDataMartListItem[];
 }
 
+export interface McpDataMartDetailsResponse {
+  id: string;
+  name: string;
+  description: string;
+  fields: Array<Record<string, unknown>>;
+}
+
 export interface McpDataMartsFacade {
   listDataMarts(request: McpListDataMartsRequest): Promise<McpListDataMartsResponse>;
+  getDataMartDetails(request: McpGetDataMartDetailsRequest): Promise<McpDataMartDetailsResponse>;
 }
