@@ -1,56 +1,69 @@
 # Facebook Marketing Supported Endpoints and Fields
 
-This page lists the Facebook Marketing endpoints and fields currently supported by the OWOX Data Marts Facebook Ads connector. It is intended to be easy for both people and AI tools to parse.
+This page lists the Facebook Marketing endpoints and fields in the Facebook Ads connector.
 
-Source of truth: active entries in `MarketingAPIReference/FieldsSchema.js`, the fetch cases in `Source.js`, and the official Meta Marketing API references linked below. Commented-out schema entries are not supported by the connector yet.
+Use it to choose an endpoint and fields.
 
-Graph API version used by the connector: `v25.0`.
+Each endpoint lists its destination table, unique keys, and Meta reference.
+
+OWOX requests Meta Graph API version `v25.0`.
+
+## Which Endpoint Should I Choose?
+
+- For performance reporting such as spend, impressions, clicks, reach, conversions, and ROAS, start with **Ad Account Insights**.
+- For reporting split by audience, placement, geography, product, or URL asset, use one of the **Ad Account Insights by ...** breakdown endpoints.
+- For ad account metadata, use **Ad Account**.
+- For ad names, statuses, campaign IDs, ad set IDs, and creative IDs, use **Ad Account Ads**.
+- For creative metadata such as body text, image URL, object story ID, URL tags, or thumbnails, use **Ad Account Ad Creatives**.
+- For users assigned to the ad account, use **Ad Account User**.
 
 ## Supported Endpoints
 
-| OWOX endpoint | Meta API request shape | Fields | Time series | Breakdowns | Unique keys | Destination table | Official Meta reference |
-| --- | --- | ---: | --- | --- | --- | --- | --- |
-| `ad-account-user` | `act_{account_id}/?fields={fields}` | 2 | no | - | `id` | `facebook_ads_ad_account_user` | [Meta docs](https://developers.facebook.com/docs/marketing-api/reference/ad-account-user) |
-| `ad-account` | `act_{account_id}?fields={fields}` | 61 | no | - | `id`, `account_id` | `facebook_ads_ad_account` | [Meta docs](https://developers.facebook.com/docs/marketing-api/reference/ad-account/) |
-| `ad-account/adcreatives` | `act_{account_id}/adcreatives?fields={fields}&limit={limit}` | 63 | no | - | `id` | `facebook_ads_ad_account_adcreatives` | [Meta docs](https://developers.facebook.com/docs/marketing-api/reference/ad-account/adcreatives) |
-| `ad-account/ads` | `act_{account_id}/ads?fields={fields}&limit={limit}` | 24 | no | - | `id` | `facebook_ads_ad_account_ads` | [Meta docs](https://developers.facebook.com/docs/marketing-api/reference/ad-account/ads) |
-| `ad-account/insights` | `act_{account_id}/insights?level=ad&period=day&time_range={time_range}&fields={fields}&limit={limit}` | 100 | yes | - | `ad_id`, `date_start`, `date_stop` | `facebook_ads_ad_account_insights` | [Meta docs](https://developers.facebook.com/docs/marketing-api/reference/ad-account/insights) |
-| `ad-account/insights-by-age-and-gender` | `act_{account_id}/insights?level=ad&period=day&time_range={time_range}&fields={fields}&breakdowns=age,gender&limit={limit}` | 102 | yes | `age`, `gender` | `ad_id`, `date_start`, `date_stop`, `age`, `gender` | `facebook_ads_ad_account_insights_by_age_and_gender` | [Meta docs](https://developers.facebook.com/docs/marketing-api/reference/ad-account/insights) |
-| `ad-account/insights-by-country` | `act_{account_id}/insights?level=ad&period=day&time_range={time_range}&fields={fields}&breakdowns=country&limit={limit}` | 101 | yes | `country` | `ad_id`, `date_start`, `date_stop`, `country` | `facebook_ads_ad_account_insights_by_country` | [Meta docs](https://developers.facebook.com/docs/marketing-api/reference/ad-account/insights) |
-| `ad-account/insights-by-device-platform` | `act_{account_id}/insights?level=ad&period=day&time_range={time_range}&fields={fields}&breakdowns=device_platform&limit={limit}` | 101 | yes | `device_platform` | `ad_id`, `date_start`, `date_stop`, `device_platform` | `facebook_ads_ad_account_insights_by_device_platform` | [Meta docs](https://developers.facebook.com/docs/marketing-api/reference/ad-account/insights) |
-| `ad-account/insights-by-link-url-asset` | `act_{account_id}/insights?level=ad&period=day&time_range={time_range}&fields={fields}&breakdowns=link_url_asset&limit={limit}` | 101 | yes | `link_url_asset` | `ad_id`, `date_start`, `date_stop` | `facebook_ads_ad_account_insights_by_link_url_asset` | [Meta docs](https://developers.facebook.com/docs/marketing-api/reference/ad-account/insights) |
-| `ad-account/insights-by-product-id` | `act_{account_id}/insights?level=ad&period=day&time_range={time_range}&fields={fields}&breakdowns=product_id&limit={limit}` | 101 | yes | `product_id` | `ad_id`, `date_start`, `date_stop`, `product_id` | `facebook_ads_ad_account_insights_by_product_id` | [Meta docs](https://developers.facebook.com/docs/marketing-api/reference/ad-account/insights) |
-| `ad-account/insights-by-publisher-platform-and-position` | `act_{account_id}/insights?level=ad&period=day&time_range={time_range}&fields={fields}&breakdowns=publisher_platform,platform_position&limit={limit}` | 102 | yes | `publisher_platform`, `platform_position` | `ad_id`, `date_start`, `date_stop`, `publisher_platform`, `platform_position` | `facebook_ads_ad_account_insights_by_publisher_platform_and_position` | [Meta docs](https://developers.facebook.com/docs/marketing-api/reference/ad-account/insights) |
-| `ad-account/insights-by-region` | `act_{account_id}/insights?level=ad&period=day&time_range={time_range}&fields={fields}&breakdowns=region&limit={limit}` | 101 | yes | `region` | `ad_id`, `date_start`, `date_stop`, `region` | `facebook_ads_ad_account_insights_by_region` | [Meta docs](https://developers.facebook.com/docs/marketing-api/reference/ad-account/insights) |
-| `ad-group` | `act_{account_id}/ads?fields={fields}&limit={limit}` | 32 | no | - | `id` | `facebook_ads_ad_group` | [Meta docs](https://developers.facebook.com/docs/marketing-api/reference/adgroup/) |
+| Endpoint | Use it for | Fields | Unique keys | Default destination table | Meta reference |
+| --- | --- | ---: | --- | --- | --- |
+| **Ad Account User** (`ad-account-user`) | Users assigned to the ad account. | 2 | `id` | `facebook_ads_ad_account_user` | [Ad Account User](https://developers.facebook.com/docs/marketing-api/reference/ad-account-user) |
+| **Ad Account** (`ad-account`) | Ad account settings, billing, status, timezone, currency, and business metadata. | 61 | `id`, `account_id` | `facebook_ads_ad_account` | [Ad Account](https://developers.facebook.com/docs/marketing-api/reference/ad-account/) |
+| **Ad Account Ad Creatives** (`ad-account/adcreatives`) | Creative metadata such as body text, images, object story IDs, URL tags, and thumbnails. | 63 | `id` | `facebook_ads_ad_account_adcreatives` | [Ad Account Ad Creatives](https://developers.facebook.com/docs/marketing-api/reference/ad-account/adcreatives) |
+| **Ad Account Ads** (`ad-account/ads`) | Ad metadata such as name, status, campaign ID, ad set ID, creative ID, and update time. | 24 | `id` | `facebook_ads_ad_account_ads` | [Ad Account Ads](https://developers.facebook.com/docs/marketing-api/reference/ad-account/ads) |
+| **Ad Account Insights** (`ad-account/insights`) | Daily ad-level performance metrics without an additional breakdown. | 100 | `ad_id`, `date_start`, `date_stop` | `facebook_ads_ad_account_insights` | [Ad Account Insights](https://developers.facebook.com/docs/marketing-api/reference/ad-account/insights) |
+| **Ad Account Insights by Age and Gender** (`ad-account/insights-by-age-and-gender`) | Daily ad-level performance split by audience age and gender. | 102 | `ad_id`, `date_start`, `date_stop`, `age`, `gender` | `facebook_ads_ad_account_insights_by_age_and_gender` | [Ad Account Insights](https://developers.facebook.com/docs/marketing-api/reference/ad-account/insights) |
+| **Ad Account Insights by Country** (`ad-account/insights-by-country`) | Daily ad-level performance split by country. | 101 | `ad_id`, `date_start`, `date_stop`, `country` | `facebook_ads_ad_account_insights_by_country` | [Ad Account Insights](https://developers.facebook.com/docs/marketing-api/reference/ad-account/insights) |
+| **Ad Account Insights by Device Platform** (`ad-account/insights-by-device-platform`) | Daily ad-level performance split by device platform. | 101 | `ad_id`, `date_start`, `date_stop`, `device_platform` | `facebook_ads_ad_account_insights_by_device_platform` | [Ad Account Insights](https://developers.facebook.com/docs/marketing-api/reference/ad-account/insights) |
+| **Ad Account Insights by Link URL Asset** (`ad-account/insights-by-link-url-asset`) | Daily ad-level performance split by link URL asset. | 101 | `ad_id`, `date_start`, `date_stop` | `facebook_ads_ad_account_insights_by_link_url_asset` | [Ad Account Insights](https://developers.facebook.com/docs/marketing-api/reference/ad-account/insights) |
+| **Ad Account Insights by Product ID** (`ad-account/insights-by-product-id`) | Daily ad-level performance split by product ID. | 101 | `ad_id`, `date_start`, `date_stop`, `product_id` | `facebook_ads_ad_account_insights_by_product_id` | [Ad Account Insights](https://developers.facebook.com/docs/marketing-api/reference/ad-account/insights) |
+| **Ad Account Insights by Publisher Platform and Position** (`ad-account/insights-by-publisher-platform-and-position`) | Daily ad-level performance split by Meta platform and placement position. | 102 | `ad_id`, `date_start`, `date_stop`, `publisher_platform`, `platform_position` | `facebook_ads_ad_account_insights_by_publisher_platform_and_position` | [Ad Account Insights](https://developers.facebook.com/docs/marketing-api/reference/ad-account/insights) |
+| **Ad Account Insights by Region** (`ad-account/insights-by-region`) | Daily ad-level performance split by region. | 101 | `ad_id`, `date_start`, `date_stop`, `region` | `facebook_ads_ad_account_insights_by_region` | [Ad Account Insights](https://developers.facebook.com/docs/marketing-api/reference/ad-account/insights) |
+| **Ad Object (formerly Ad Group)** (`ad-group`) | Legacy ad object fields. Prefer **Ad Account Ads** unless you specifically need fields listed only in this endpoint. | 32 | `id` | `facebook_ads_ad_group` | [Ad Group](https://developers.facebook.com/docs/marketing-api/reference/adgroup/) |
 
 ## Field Table Notes
 
-- **OWOX field** is the field name shown by the connector and written to the destination table.
-- **Meta API field** is the field expression requested from Meta. It matches the OWOX field unless a nested API field is required, for example `creative.id`.
-- **Type** is the connector data type from the local field schema.
-- Insights breakdown endpoints support all base Insights fields plus their listed breakdown fields.
+- **Connector field** shows the field name in OWOX.
+- OWOX writes the connector field to the destination table.
+- **Meta API field** shows the field expression that OWOX requests from Meta.
+- Nested fields use expressions such as `creative.id`.
+- **Data type** shows the type that OWOX uses in the destination schema.
+- OWOX uses **Unique keys** to match rows during loading.
+- OWOX adds these unique keys to every request automatically.
+- You do not need to select them as fields.
+- Insights endpoints return daily ad-level rows.
+- Breakdown endpoints add the listed breakdown fields.
 
-## Non-Insights Endpoint Fields
+## Account and Ad Object Fields
 
-### ad-account-user
+### Ad Account User (`ad-account-user`)
 
-Official reference: [https://developers.facebook.com/docs/marketing-api/reference/ad-account-user](https://developers.facebook.com/docs/marketing-api/reference/ad-account-user)
+Official Meta reference: [Ad Account User](https://developers.facebook.com/docs/marketing-api/reference/ad-account-user)
 
-Source file: `MarketingAPIReference/ad-account-user-fields.js`
-
-| OWOX field | Meta API field | Type | Description |
+| Connector field | Meta API field | Data type | Description |
 | --- | --- | --- | --- |
 | `id` | `id` | `STRING` | ID of the App Scoped User |
 | `name` | `name` | `STRING` | User public full name |
 
-### ad-account
+### Ad Account (`ad-account`)
 
-Official reference: [https://developers.facebook.com/docs/marketing-api/reference/ad-account/](https://developers.facebook.com/docs/marketing-api/reference/ad-account/)
+Official Meta reference: [Ad Account](https://developers.facebook.com/docs/marketing-api/reference/ad-account/)
 
-Source file: `MarketingAPIReference/ad-account-fields.js`
-
-| OWOX field | Meta API field | Type | Description |
+| Connector field | Meta API field | Data type | Description |
 | --- | --- | --- | --- |
 | `id` | `id` | `STRING` | The string act_{ad_account_id}. |
 | `account_id` | `account_id` | `STRING` | The ID of the Ad Account. |
@@ -114,13 +127,11 @@ Source file: `MarketingAPIReference/ad-account-fields.js`
 | `user_tasks` | `user_tasks` | `ARRAY` | user_tasks |
 | `user_tos_accepted` | `user_tos_accepted` | `OBJECT` | Checks if a user has signed the Terms of Service contracts related to the Business that contains a specific ad account. Must include user's access token to get information. This verification is not valid for system users. |
 
-### ad-account/adcreatives
+### Ad Account Ad Creatives (`ad-account/adcreatives`)
 
-Official reference: [https://developers.facebook.com/docs/marketing-api/reference/ad-account/adcreatives](https://developers.facebook.com/docs/marketing-api/reference/ad-account/adcreatives)
+Official Meta reference: [Ad Account Ad Creatives](https://developers.facebook.com/docs/marketing-api/reference/ad-account/adcreatives)
 
-Source file: `MarketingAPIReference/ad-account-creatives.js`
-
-| OWOX field | Meta API field | Type | Description |
+| Connector field | Meta API field | Data type | Description |
 | --- | --- | --- | --- |
 | `id` | `id` | `STRING` | Unique ID for an ad creative, numeric string. |
 | `account_id` | `account_id` | `STRING` | Ad account ID for the account this ad creative belongs to. |
@@ -186,13 +197,11 @@ Source file: `MarketingAPIReference/ad-account-creatives.js`
 | `use_page_actor_override` | `use_page_actor_override` | `BOOLEAN` | Used for App Ads. If true, we display the Facebook page associated with the app ads. |
 | `video_id` | `video_id` | `STRING` |  |
 
-### ad-account/ads
+### Ad Account Ads (`ad-account/ads`)
 
-Official reference: [https://developers.facebook.com/docs/marketing-api/reference/ad-account/ads](https://developers.facebook.com/docs/marketing-api/reference/ad-account/ads)
+Official Meta reference: [Ad Account Ads](https://developers.facebook.com/docs/marketing-api/reference/ad-account/ads)
 
-Source file: `MarketingAPIReference/ad-account-ads.js`
-
-| OWOX field | Meta API field | Type | Description |
+| Connector field | Meta API field | Data type | Description |
 | --- | --- | --- | --- |
 | `id` | `id` | `STRING` | The ID of this ad |
 | `account_id` | `account_id` | `STRING` | The ID of the ad account that this ad belongs to |
@@ -219,13 +228,11 @@ Source file: `MarketingAPIReference/ad-account-ads.js`
 | `status` | `status` | `STRING` | The configured status of the ad |
 | `updated_time` | `updated_time` | `DATETIME` | Time when this ad was updated |
 
-### ad-group
+### Ad Object (formerly Ad Group) (`ad-group`)
 
-Official reference: [https://developers.facebook.com/docs/marketing-api/reference/adgroup/](https://developers.facebook.com/docs/marketing-api/reference/adgroup/)
+Official Meta reference: [Ad Group](https://developers.facebook.com/docs/marketing-api/reference/adgroup/)
 
-Source file: `MarketingAPIReference/ad-group-fields.js`
-
-| OWOX field | Meta API field | Type | Description |
+| Connector field | Meta API field | Data type | Description |
 | --- | --- | --- | --- |
 | `id` | `id` | `STRING` | The ID of this ad. |
 | `account_id` | `account_id` | `STRING` | The ID of the ad account that this ad belongs to. |
@@ -262,28 +269,26 @@ Source file: `MarketingAPIReference/ad-group-fields.js`
 
 ## Insights Endpoint Fields
 
-The connector implements `ad-account/insights` at `level=ad` with `period=day`. The breakdown endpoints below use the same base field set and add one or two breakdown fields.
+Insights endpoints return daily ad-level performance data. Use **Ad Account Insights** for the standard report, or choose a breakdown endpoint when you need the same metrics split by audience, geography, device, URL asset, product, platform, or region.
 
-| OWOX endpoint | Breakdowns request parameter | Extra fields added to base Insights fields | Unique keys | Destination table | Official Meta reference |
+| Endpoint | Adds breakdown by | Extra fields | Unique keys | Default destination table | Meta reference |
 | --- | --- | --- | --- | --- | --- |
-| `ad-account/insights` | - | - | `ad_id`, `date_start`, `date_stop` | `facebook_ads_ad_account_insights` | [Meta docs](https://developers.facebook.com/docs/marketing-api/reference/ad-account/insights) |
-| `ad-account/insights-by-age-and-gender` | `age`, `gender` | `age`, `gender` | `ad_id`, `date_start`, `date_stop`, `age`, `gender` | `facebook_ads_ad_account_insights_by_age_and_gender` | [Meta docs](https://developers.facebook.com/docs/marketing-api/reference/ad-account/insights) |
-| `ad-account/insights-by-country` | `country` | `country` | `ad_id`, `date_start`, `date_stop`, `country` | `facebook_ads_ad_account_insights_by_country` | [Meta docs](https://developers.facebook.com/docs/marketing-api/reference/ad-account/insights) |
-| `ad-account/insights-by-device-platform` | `device_platform` | `device_platform` | `ad_id`, `date_start`, `date_stop`, `device_platform` | `facebook_ads_ad_account_insights_by_device_platform` | [Meta docs](https://developers.facebook.com/docs/marketing-api/reference/ad-account/insights) |
-| `ad-account/insights-by-link-url-asset` | `link_url_asset` | `link_url_asset` | `ad_id`, `date_start`, `date_stop` | `facebook_ads_ad_account_insights_by_link_url_asset` | [Meta docs](https://developers.facebook.com/docs/marketing-api/reference/ad-account/insights) |
-| `ad-account/insights-by-product-id` | `product_id` | `product_id` | `ad_id`, `date_start`, `date_stop`, `product_id` | `facebook_ads_ad_account_insights_by_product_id` | [Meta docs](https://developers.facebook.com/docs/marketing-api/reference/ad-account/insights) |
-| `ad-account/insights-by-publisher-platform-and-position` | `publisher_platform`, `platform_position` | `platform_position`, `publisher_platform` | `ad_id`, `date_start`, `date_stop`, `publisher_platform`, `platform_position` | `facebook_ads_ad_account_insights_by_publisher_platform_and_position` | [Meta docs](https://developers.facebook.com/docs/marketing-api/reference/ad-account/insights) |
-| `ad-account/insights-by-region` | `region` | `region` | `ad_id`, `date_start`, `date_stop`, `region` | `facebook_ads_ad_account_insights_by_region` | [Meta docs](https://developers.facebook.com/docs/marketing-api/reference/ad-account/insights) |
+| **Ad Account Insights** (`ad-account/insights`) | None | None | `ad_id`, `date_start`, `date_stop` | `facebook_ads_ad_account_insights` | [Ad Account Insights](https://developers.facebook.com/docs/marketing-api/reference/ad-account/insights) |
+| **Ad Account Insights by Age and Gender** (`ad-account/insights-by-age-and-gender`) | Age and gender | `age`, `gender` | `ad_id`, `date_start`, `date_stop`, `age`, `gender` | `facebook_ads_ad_account_insights_by_age_and_gender` | [Ad Account Insights](https://developers.facebook.com/docs/marketing-api/reference/ad-account/insights) |
+| **Ad Account Insights by Country** (`ad-account/insights-by-country`) | Country | `country` | `ad_id`, `date_start`, `date_stop`, `country` | `facebook_ads_ad_account_insights_by_country` | [Ad Account Insights](https://developers.facebook.com/docs/marketing-api/reference/ad-account/insights) |
+| **Ad Account Insights by Device Platform** (`ad-account/insights-by-device-platform`) | Device platform | `device_platform` | `ad_id`, `date_start`, `date_stop`, `device_platform` | `facebook_ads_ad_account_insights_by_device_platform` | [Ad Account Insights](https://developers.facebook.com/docs/marketing-api/reference/ad-account/insights) |
+| **Ad Account Insights by Link URL Asset** (`ad-account/insights-by-link-url-asset`) | Link URL asset | `link_url_asset` | `ad_id`, `date_start`, `date_stop` | `facebook_ads_ad_account_insights_by_link_url_asset` | [Ad Account Insights](https://developers.facebook.com/docs/marketing-api/reference/ad-account/insights) |
+| **Ad Account Insights by Product ID** (`ad-account/insights-by-product-id`) | Product ID | `product_id` | `ad_id`, `date_start`, `date_stop`, `product_id` | `facebook_ads_ad_account_insights_by_product_id` | [Ad Account Insights](https://developers.facebook.com/docs/marketing-api/reference/ad-account/insights) |
+| **Ad Account Insights by Publisher Platform and Position** (`ad-account/insights-by-publisher-platform-and-position`) | Publisher platform and placement position | `platform_position`, `publisher_platform` | `ad_id`, `date_start`, `date_stop`, `publisher_platform`, `platform_position` | `facebook_ads_ad_account_insights_by_publisher_platform_and_position` | [Ad Account Insights](https://developers.facebook.com/docs/marketing-api/reference/ad-account/insights) |
+| **Ad Account Insights by Region** (`ad-account/insights-by-region`) | Region | `region` | `ad_id`, `date_start`, `date_stop`, `region` | `facebook_ads_ad_account_insights_by_region` | [Ad Account Insights](https://developers.facebook.com/docs/marketing-api/reference/ad-account/insights) |
 
-### Base Insights fields
+### Ad Account Insights Fields
 
-These fields are available for `ad-account/insights` and every `ad-account/insights-by-*` endpoint.
+Use these fields with `ad-account/insights` and every `ad-account/insights-by-*` endpoint.
 
-Official reference: [https://developers.facebook.com/docs/marketing-api/reference/ad-account/insights](https://developers.facebook.com/docs/marketing-api/reference/ad-account/insights)
+Official Meta reference: [Ad Account Insights](https://developers.facebook.com/docs/marketing-api/reference/ad-account/insights)
 
-Source file: `MarketingAPIReference/ad-account-insights-fields.js`
-
-| OWOX field | Meta API field | Type | Description |
+| Connector field | Meta API field | Data type | Description |
 | --- | --- | --- | --- |
 | `account_currency` | `account_currency` | `STRING` | Currency that is used by your ad account. |
 | `account_id` | `account_id` | `STRING` | The ID number of your ad account, which groups your advertising activity. Your ad account includes your campaigns, ads and billing. |
@@ -386,22 +391,16 @@ Source file: `MarketingAPIReference/ad-account-insights-fields.js`
 | `website_purchase_roas` | `website_purchase_roas` | `ARRAY` | The total return on ad spend (ROAS) from website purchases. This is based on the value of all conversions recorded by the Facebook pixel on your website and attributed to your ads. |
 | `wish_bid` | `wish_bid` | `NUMBER` | wish_bid |
 
-### Breakdown-only fields
+### Breakdown Fields
 
-| OWOX endpoint | Additional OWOX field | Meta API field | Type | Description |
+| Endpoint | Additional connector field | Meta API field | Data type | Description |
 | --- | --- | --- | --- | --- |
-| `ad-account/insights-by-age-and-gender` | `age` | `age` | `STRING` | The age range of the people who saw your ad. This is based on the age people have listed in their Facebook profiles. |
-| `ad-account/insights-by-age-and-gender` | `gender` | `gender` | `STRING` | The gender of the people who saw your ad. This is based on the gender people have listed in their Facebook profiles. |
-| `ad-account/insights-by-country` | `country` | `country` | `STRING` | The country where the people you've reached are located. This is based on information, such as a person's hometown, their current city, and the geographical location where they tend to be when they visit Meta. |
-| `ad-account/insights-by-device-platform` | `device_platform` | `device_platform` | `STRING` | device_platform |
-| `ad-account/insights-by-link-url-asset` | `link_url_asset` | `link_url_asset` | `OBJECT` | The ID of the URL asset involved in impression, click or action. |
-| `ad-account/insights-by-product-id` | `product_id` | `product_id` | `STRING` | The ID of the product associated with the ad. |
-| `ad-account/insights-by-publisher-platform-and-position` | `platform_position` | `platform_position` | `STRING` | platform_position |
-| `ad-account/insights-by-publisher-platform-and-position` | `publisher_platform` | `publisher_platform` | `STRING` | Which platform your ad was shown, for example on Facebook, Instagram, or Audience Network. |
-| `ad-account/insights-by-region` | `region` | `region` | `STRING` | The region where your ads were shown. |
-
-## Local Source Files
-
-- `Source.js` defines the implemented API request cases and uses Meta Graph API `v25.0`.
-- `MarketingAPIReference/FieldsSchema.js` defines the active OWOX endpoint IDs, destination table names, unique keys, time-series flags, breakdowns, and official Meta reference links.
-- `MarketingAPIReference/*-fields.js` defines the connector-supported fields listed on this page.
+| **Ad Account Insights by Age and Gender** (`ad-account/insights-by-age-and-gender`) | `age` | `age` | `STRING` | The age range of the people who saw your ad. This is based on the age people have listed in their Facebook profiles. |
+| **Ad Account Insights by Age and Gender** (`ad-account/insights-by-age-and-gender`) | `gender` | `gender` | `STRING` | The gender of the people who saw your ad. This is based on the gender people have listed in their Facebook profiles. |
+| **Ad Account Insights by Country** (`ad-account/insights-by-country`) | `country` | `country` | `STRING` | The country where the people you've reached are located. This is based on information, such as a person's hometown, their current city, and the geographical location where they tend to be when they visit Meta. |
+| **Ad Account Insights by Device Platform** (`ad-account/insights-by-device-platform`) | `device_platform` | `device_platform` | `STRING` | The device platform where your ad was shown, such as desktop or mobile. |
+| **Ad Account Insights by Link URL Asset** (`ad-account/insights-by-link-url-asset`) | `link_url_asset` | `link_url_asset` | `OBJECT` | The ID of the URL asset involved in impression, click, or action. |
+| **Ad Account Insights by Product ID** (`ad-account/insights-by-product-id`) | `product_id` | `product_id` | `STRING` | The ID of the product associated with the ad. |
+| **Ad Account Insights by Publisher Platform and Position** (`ad-account/insights-by-publisher-platform-and-position`) | `platform_position` | `platform_position` | `STRING` | The placement position where your ad was shown. |
+| **Ad Account Insights by Publisher Platform and Position** (`ad-account/insights-by-publisher-platform-and-position`) | `publisher_platform` | `publisher_platform` | `STRING` | Which platform your ad was shown, for example Facebook, Instagram, or Audience Network. |
+| **Ad Account Insights by Region** (`ad-account/insights-by-region`) | `region` | `region` | `STRING` | The region where your ads were shown. |
