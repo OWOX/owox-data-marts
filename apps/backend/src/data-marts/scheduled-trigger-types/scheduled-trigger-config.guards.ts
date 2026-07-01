@@ -1,6 +1,6 @@
 import {
   ScheduledReportRunConfig,
-  ScheduledReportRunConfigType,
+  ScheduledReportRunConfigSchema,
 } from './scheduled-report-run/schemas/scheduled-report-run-config.schema';
 import {
   ScheduledTriggerConfig,
@@ -16,5 +16,5 @@ export function isValidScheduledTriggerConfig(
 export function isScheduledReportRunConfig(
   triggerConfig: ScheduledTriggerConfig | undefined
 ): triggerConfig is ScheduledReportRunConfig {
-  return triggerConfig != null && triggerConfig.type === ScheduledReportRunConfigType;
+  return ScheduledReportRunConfigSchema.safeParse(triggerConfig).success;
 }
