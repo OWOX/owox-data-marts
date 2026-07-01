@@ -82,11 +82,21 @@ export interface GoogleOAuthSettingsResult {
   pickerApiKey?: string;
 }
 
-interface StateTokenPayload {
+export interface StateTokenPayload {
   projectId: string;
   resourceId?: string;
   type: OAuthResourceType;
   redirectUri: string;
+  /** Present only for MCP-initiated destination setup flows (no OWOX web session). */
+  mcpUserId?: string;
+  mcpRedirectBack?: string;
+  mcpTitle?: string;
+}
+
+export interface McpAuthorizationUrlExtras {
+  mcpUserId: string;
+  mcpRedirectBack?: string;
+  mcpTitle?: string;
 }
 
 @Injectable()
@@ -165,7 +175,8 @@ export class GoogleOAuthFlowService {
     type: OAuthResourceType,
     projectId: string,
     resourceId: string | undefined,
-    redirectUri: string
+    redirectUri: string,
+    mcpExtras?: McpAuthorizationUrlExtras
   ): Promise<GoogleAuthorizationUrlResult> {
     const configuredRedirectUri = this.googleOAuthConfigService.getRedirectUri();
     if (redirectUri !== configuredRedirectUri) {
@@ -174,7 +185,7 @@ export class GoogleOAuthFlowService {
       );
     }
 
-    const state = this.generateStateToken({ projectId, resourceId, type, redirectUri });
+    const state = this.generateStateToken({ projectId, resourceId, type, redirectUri, ...mcpExtras });
 
     const scopes =
       type === 'storage'
@@ -492,7 +503,7 @@ export class GoogleOAuthFlowService {
     return jwt.sign(payload, jwtSecret, { expiresIn: 600 });
   }
 
-  private validateStateToken(state: string): StateTokenPayload {
+  validateStateToken(state: string): StateTokenPayload {
     try {
       const jwtSecret = this.googleOAuthConfigService.getJwtSecret();
       return jwt.verify(state, jwtSecret) as StateTokenPayload;

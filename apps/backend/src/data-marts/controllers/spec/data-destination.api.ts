@@ -19,6 +19,8 @@ import { GenerateAuthorizationUrlRequestDto } from '../../dto/presentation/googl
 import { GenerateAuthorizationUrlResponseDto } from '../../dto/presentation/google-oauth/generate-authorization-url-response.dto';
 import { ExchangeAuthorizationCodeRequestDto } from '../../dto/presentation/google-oauth/exchange-authorization-code-request.dto';
 import { ExchangeAuthorizationCodeResponseDto } from '../../dto/presentation/google-oauth/exchange-authorization-code-response.dto';
+import { FinishMcpGoogleSheetsSetupRequestDto } from '../../dto/presentation/google-oauth/finish-mcp-google-sheets-setup-request.dto';
+import { FinishMcpGoogleSheetsSetupResponseDto } from '../../dto/presentation/google-oauth/finish-mcp-google-sheets-setup-response.dto';
 import { GoogleOAuthStatusResponseDto } from '../../dto/presentation/google-oauth/google-oauth-status-response.dto';
 import { GoogleOAuthSettingsResponseDto } from '../../dto/presentation/google-oauth/oauth-settings-response.dto';
 import { CreateGoogleSheetDocumentRequestDto } from '../../dto/presentation/google-sheets/create-google-sheet-document-request.dto';
@@ -139,6 +141,32 @@ export function OAuthExchangeSpec() {
     ApiResponse({ status: 400, description: 'Invalid authorization code or state' }),
     ApiResponse({ status: 403, description: 'OAuth state does not belong to your project' }),
     ApiResponse({ status: 503, description: 'Google OAuth is not configured' })
+  );
+}
+
+export function McpGoogleSheetsSetupStartSpec() {
+  return applyDecorators(
+    ApiOperation({
+      summary:
+        'Start an MCP-initiated Google Sheets destination setup (redirects straight to Google)',
+    }),
+    ApiQuery({ name: 'token', description: 'Short-lived signed MCP destination setup token' }),
+    ApiResponse({ status: 302, description: 'Redirect to Google OAuth consent screen' }),
+    ApiResponse({ status: 400, description: 'Invalid or expired setup token' })
+  );
+}
+
+export function McpGoogleSheetsSetupFinishSpec() {
+  return applyDecorators(
+    ApiOperation({
+      summary: 'Finish an MCP-initiated Google Sheets destination setup',
+    }),
+    ApiBody({ type: FinishMcpGoogleSheetsSetupRequestDto }),
+    ApiOkResponse({
+      type: FinishMcpGoogleSheetsSetupResponseDto,
+      description: 'Destination created successfully',
+    }),
+    ApiResponse({ status: 400, description: 'Invalid authorization code or state' })
   );
 }
 

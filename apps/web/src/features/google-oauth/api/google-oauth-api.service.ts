@@ -36,6 +36,11 @@ export interface OAuthStatus {
   };
 }
 
+export interface McpGoogleSheetsSetupResult {
+  destinationId: string;
+  redirectTo?: string;
+}
+
 class StorageOAuthApiService extends ApiService {
   constructor() {
     super('/data-storages');
@@ -85,6 +90,13 @@ class DestinationOAuthApiService extends ApiService {
 
   getCredentialStatus(credentialId: string, config?: AxiosRequestConfig): Promise<OAuthStatus> {
     return this.get<OAuthStatus>(`/oauth/credential-status/${credentialId}`, undefined, config);
+  }
+
+  finishMcpGoogleSheetsSetup(code: string, state: string): Promise<McpGoogleSheetsSetupResult> {
+    return this.post<McpGoogleSheetsSetupResult>('/oauth/mcp/google-sheets/finish', {
+      code,
+      state,
+    });
   }
 }
 

@@ -30,10 +30,44 @@ export interface McpDestinationListItem {
   owner: string | null;
 }
 
+export interface McpCreateDestinationRequest {
+  projectId: string;
+  userId: string;
+  roles: string[];
+  type: McpDestinationType;
+  title?: string;
+  emails?: string[];
+}
+
+export interface McpCreateDestinationResponse {
+  id: string;
+  name: string;
+  lookerStudioCredentials?: {
+    destinationId: string;
+    destinationSecretKey: string;
+    deploymentUrl: string;
+  };
+}
+
 export interface McpListDestinationsResponse {
   destinations: McpDestinationListItem[];
 }
 
+export interface McpBeginGoogleSheetsSetupRequest {
+  projectId: string;
+  userId: string;
+  title?: string;
+  redirectBack?: string;
+}
+
+export interface McpBeginGoogleSheetsSetupResponse {
+  setupUrl: string;
+}
+
 export interface McpDataDestinationsFacade {
   listDestinations(request: McpListDestinationsRequest): Promise<McpListDestinationsResponse>;
+  createDestination(request: McpCreateDestinationRequest): Promise<McpCreateDestinationResponse>;
+  beginGoogleSheetsSetup(
+    request: McpBeginGoogleSheetsSetupRequest
+  ): Promise<McpBeginGoogleSheetsSetupResponse>;
 }

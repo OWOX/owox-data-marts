@@ -326,6 +326,10 @@ import { CopyCredentialService } from './services/copy-credential.service';
 import { GoogleOAuthFlowService } from './services/google-oauth/google-oauth-flow.service';
 import { GoogleOAuthClientService } from './services/google-oauth/google-oauth-client.service';
 import { GoogleOAuthConfigService } from './services/google-oauth/google-oauth-config.service';
+import { RedirectBackAllowlistService } from './services/google-oauth/redirect-back-allowlist.service';
+import { McpDestinationSetupTokenService } from './services/google-oauth/mcp-destination-setup-token.service';
+import { BeginMcpGoogleSheetsSetupService } from './use-cases/google-oauth/begin-mcp-google-sheets-setup.service';
+import { FinishMcpGoogleSheetsSetupService } from './use-cases/google-oauth/finish-mcp-google-sheets-setup.service';
 import { ConnectorRunTrigger } from './entities/connector-run-trigger.entity';
 import { ConnectorRunTriggerService } from './services/connector/connector-run-trigger.service';
 import { ConnectorRunTriggerHandlerService } from './services/connector/connector-run-trigger-handler.service';
@@ -743,6 +747,10 @@ import { ProjectMemberApiKeysModule } from '../project-member-api-keys/project-m
     GoogleOAuthFlowService,
     GoogleOAuthClientService,
     GoogleOAuthConfigService,
+    RedirectBackAllowlistService,
+    McpDestinationSetupTokenService,
+    BeginMcpGoogleSheetsSetupService,
+    FinishMcpGoogleSheetsSetupService,
     GetStorageOAuthStatusService,
     GenerateStorageOAuthUrlService,
     RevokeStorageOAuthService,

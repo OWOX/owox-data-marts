@@ -6,7 +6,23 @@ import { DataDestinationType } from '../data-destination-types/enums/data-destin
 import { DataDestinationDto } from '../dto/domain/data-destination.dto';
 import { UserProjectionDto } from '../../idp/dto/domain/user-projection.dto';
 import type { ListDataDestinationsService } from '../use-cases/list-data-destinations.service';
+import type { CreateDataDestinationService } from '../use-cases/create-data-destination.service';
+import type { DataDestinationCredentialService } from '../services/data-destination-credential.service';
+import type { PublicOriginService } from '../../common/config/public-origin.service';
+import type { BeginMcpGoogleSheetsSetupService } from '../use-cases/google-oauth/begin-mcp-google-sheets-setup.service';
 import { McpDataDestinationsFacadeImpl } from './mcp-data-destinations.facade.impl';
+
+function createFacade(
+  listDataDestinationsService: Pick<ListDataDestinationsService, 'run'>
+): McpDataDestinationsFacadeImpl {
+  return new McpDataDestinationsFacadeImpl(
+    listDataDestinationsService as unknown as ListDataDestinationsService,
+    {} as unknown as CreateDataDestinationService,
+    {} as unknown as DataDestinationCredentialService,
+    {} as unknown as PublicOriginService,
+    {} as unknown as BeginMcpGoogleSheetsSetupService
+  );
+}
 
 function buildDestination(overrides: {
   id: string;
@@ -49,7 +65,7 @@ describe('McpDataDestinationsFacadeImpl', () => {
       ]),
     } as unknown as jest.Mocked<ListDataDestinationsService>;
 
-    const facade = new McpDataDestinationsFacadeImpl(listDataDestinationsService);
+    const facade = createFacade(listDataDestinationsService);
 
     const result = await facade.listDestinations({
       projectId: 'project-1',
@@ -86,7 +102,7 @@ describe('McpDataDestinationsFacadeImpl', () => {
         ]),
     } as unknown as jest.Mocked<ListDataDestinationsService>;
 
-    const facade = new McpDataDestinationsFacadeImpl(listDataDestinationsService);
+    const facade = createFacade(listDataDestinationsService);
 
     const result = await facade.listDestinations({
       projectId: 'project-1',
@@ -122,7 +138,7 @@ describe('McpDataDestinationsFacadeImpl', () => {
       ]),
     } as unknown as jest.Mocked<ListDataDestinationsService>;
 
-    const facade = new McpDataDestinationsFacadeImpl(listDataDestinationsService);
+    const facade = createFacade(listDataDestinationsService);
 
     const result = await facade.listDestinations({
       projectId: 'project-1',
@@ -153,7 +169,7 @@ describe('McpDataDestinationsFacadeImpl', () => {
       ]),
     } as unknown as jest.Mocked<ListDataDestinationsService>;
 
-    const facade = new McpDataDestinationsFacadeImpl(listDataDestinationsService);
+    const facade = createFacade(listDataDestinationsService);
 
     const result = await facade.listDestinations({
       projectId: 'project-1',
@@ -162,5 +178,30 @@ describe('McpDataDestinationsFacadeImpl', () => {
     });
 
     expect(result.destinations.map(d => d.owner)).toEqual(['creator@owox.com', null]);
+  });
+
+  it('delegates beginGoogleSheetsSetup to BeginMcpGoogleSheetsSetupService', async () => {
+    const listDataDestinationsService = { run: jest.fn() } as unknown as jest.Mocked<
+      Pick<ListDataDestinationsService, 'run'>
+    >;
+    const beginMcpGoogleSheetsSetupService = {
+      run: jest.fn().mockReturnValue({ setupUrl: 'https://app.owox.com/data-destinations/oauth/mcp/google-sheets/start?token=abc' }),
+    };
+
+    const facade = new McpDataDestinationsFacadeImpl(
+      listDataDestinationsService as unknown as ListDataDestinationsService,
+      {} as unknown as CreateDataDestinationService,
+      {} as unknown as DataDestinationCredentialService,
+      {} as unknown as PublicOriginService,
+      beginMcpGoogleSheetsSetupService as unknown as BeginMcpGoogleSheetsSetupService
+    );
+
+    const request = { projectId: 'project-1', userId: 'user-1', title: 'My Sheets' };
+    const result = await facade.beginGoogleSheetsSetup(request);
+
+    expect(beginMcpGoogleSheetsSetupService.run).toHaveBeenCalledWith(request);
+    expect(result.setupUrl).toBe(
+      'https://app.owox.com/data-destinations/oauth/mcp/google-sheets/start?token=abc'
+    );
   });
 });

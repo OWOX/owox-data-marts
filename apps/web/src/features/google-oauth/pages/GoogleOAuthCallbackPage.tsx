@@ -54,6 +54,31 @@ export function GoogleOAuthCallbackPage() {
         // Client-side state check (tab-scoped via sessionStorage).
         // The real CSRF protection is the server-side JWT signature in the state token.
         const storedState = sessionStorage.getItem('oauth_state');
+        const storedResourceType = sessionStorage.getItem('oauth_resource_type');
+
+        // No in-app popup session at all (fresh tab, nothing set in sessionStorage) —
+        // this is likely an MCP-originated setup link opened directly. Try the
+        // dedicated MCP finish endpoint before falling back to the CSRF-mismatch path.
+        if (storedState === null && storedResourceType === null) {
+          try {
+            const result = await destinationOAuthApi.finishMcpGoogleSheetsSetup(code, state);
+            if (result.redirectTo) {
+              window.location.href = result.redirectTo;
+              return;
+            }
+            setFallbackMessage(
+              'Your Google Sheets destination has been created. You can close this tab now.'
+            );
+          } catch (err) {
+            const message =
+              err instanceof Error ? err.message : 'Failed to connect your Google account';
+            setFallbackMessage(
+              `Authentication failed: ${message}. You can close this window and try again.`
+            );
+          }
+          return;
+        }
+
         if (state !== storedState) {
           clearOAuthSessionData();
           if (
@@ -67,7 +92,7 @@ export function GoogleOAuthCallbackPage() {
           return;
         }
 
-        const resourceType = sessionStorage.getItem('oauth_resource_type');
+        const resourceType = storedResourceType;
 
         if (!resourceType || (resourceType !== 'storage' && resourceType !== 'destination')) {
           clearOAuthSessionData();

@@ -10,7 +10,9 @@ import {
   Post,
   Put,
   Query,
+  Res,
 } from '@nestjs/common';
+import type { Response } from 'express';
 import { OwnerFilter } from '../enums/owner-filter.enum';
 import { CreateDataDestinationApiDto } from '../dto/presentation/create-data-destination-api.dto';
 import { CreateDataDestinationService } from '../use-cases/create-data-destination.service';
@@ -32,6 +34,8 @@ import { ExchangeAuthorizationCodeRequestDto } from '../dto/presentation/google-
 import { ExchangeAuthorizationCodeResponseDto } from '../dto/presentation/google-oauth/exchange-authorization-code-response.dto';
 import { GoogleOAuthStatusResponseDto } from '../dto/presentation/google-oauth/google-oauth-status-response.dto';
 import { GoogleOAuthSettingsResponseDto } from '../dto/presentation/google-oauth/oauth-settings-response.dto';
+import { FinishMcpGoogleSheetsSetupRequestDto } from '../dto/presentation/google-oauth/finish-mcp-google-sheets-setup-request.dto';
+import { FinishMcpGoogleSheetsSetupResponseDto } from '../dto/presentation/google-oauth/finish-mcp-google-sheets-setup-response.dto';
 
 import {
   CreateDataDestinationSpec,
@@ -50,6 +54,8 @@ import {
   OAuthRevokeSpec,
   UpdateDataDestinationAvailabilitySpec,
   CreateGoogleSheetDocumentSpec,
+  McpGoogleSheetsSetupStartSpec,
+  McpGoogleSheetsSetupFinishSpec,
 } from './spec/data-destination.api';
 import { ApiTags } from '@nestjs/swagger';
 import { DeleteDataDestinationService } from '../use-cases/delete-data-destination.service';
@@ -69,6 +75,9 @@ import { CreateGoogleSheetDocumentService } from '../use-cases/google-sheets/cre
 import { CreateGoogleSheetDocumentCommand } from '../dto/domain/google-sheets/create-google-sheet-document.command';
 import { CreateGoogleSheetDocumentRequestDto } from '../dto/presentation/google-sheets/create-google-sheet-document-request.dto';
 import { CreateGoogleSheetDocumentResponseDto } from '../dto/presentation/google-sheets/create-google-sheet-document-response.dto';
+import { GoogleOAuthConfigService } from '../services/google-oauth/google-oauth-config.service';
+import { McpDestinationSetupTokenService } from '../services/google-oauth/mcp-destination-setup-token.service';
+import { FinishMcpGoogleSheetsSetupService } from '../use-cases/google-oauth/finish-mcp-google-sheets-setup.service';
 
 @Controller('data-destinations')
 @ApiTags('DataDestinations')
@@ -91,7 +100,10 @@ export class DataDestinationController {
     private readonly listByTypeService: ListDataDestinationsByTypeService,
     private readonly updateAvailabilityService: UpdateAvailabilityService,
     private readonly accessDecisionService: AccessDecisionService,
-    private readonly createGoogleSheetDocumentService: CreateGoogleSheetDocumentService
+    private readonly createGoogleSheetDocumentService: CreateGoogleSheetDocumentService,
+    private readonly googleOAuthConfigService: GoogleOAuthConfigService,
+    private readonly mcpDestinationSetupTokenService: McpDestinationSetupTokenService,
+    private readonly finishMcpGoogleSheetsSetupService: FinishMcpGoogleSheetsSetupService
   ) {}
 
   private async checkDestinationAccess(
@@ -205,6 +217,42 @@ export class DataDestinationController {
   ): Promise<ExchangeAuthorizationCodeResponseDto> {
     const command = this.mapper.toExchangeOAuthCodeCommand(context, body);
     return this.exchangeOAuthCodeService.run(command);
+  }
+
+  // --- MCP-native Google Sheets destination setup: NO @Auth() by design.
+  // The signed setup/state token IS the authorization — same pattern already used by
+  // OAuthTokenController.token (idp/oauth/controllers/oauth-token.controller.ts). ---
+
+  // eslint-disable-next-line local/require-auth-decorator -- intentionally unauthenticated: the signed setup token verified inside is the authorization
+  @Get('oauth/mcp/google-sheets/start')
+  @McpGoogleSheetsSetupStartSpec()
+  async startMcpGoogleSheetsSetup(
+    @Query('token') token: string,
+    @Res() res: Response
+  ): Promise<void> {
+    const payload = this.mcpDestinationSetupTokenService.verify(token);
+    const { authorizationUrl } = await this.googleOAuthFlowService.generateAuthorizationUrl(
+      'destination',
+      payload.projectId,
+      undefined,
+      this.googleOAuthConfigService.getRedirectUri(),
+      {
+        mcpUserId: payload.userId,
+        mcpRedirectBack: payload.redirectBack,
+        mcpTitle: payload.title,
+      }
+    );
+    res.redirect(302, authorizationUrl);
+  }
+
+  // eslint-disable-next-line local/require-auth-decorator -- intentionally unauthenticated: the signed state token verified inside is the authorization
+  @Post('oauth/mcp/google-sheets/finish')
+  @HttpCode(200)
+  @McpGoogleSheetsSetupFinishSpec()
+  async finishMcpGoogleSheetsSetup(
+    @Body() body: FinishMcpGoogleSheetsSetupRequestDto
+  ): Promise<FinishMcpGoogleSheetsSetupResponseDto> {
+    return this.finishMcpGoogleSheetsSetupService.run(body.code, body.state);
   }
 
   // --- Parameterized :id routes ---
