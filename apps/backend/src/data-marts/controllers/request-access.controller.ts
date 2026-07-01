@@ -1,7 +1,14 @@
 import { Body, Controller, Get, HttpCode, Post } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import type { Role as IdpRole } from '@owox/idp-protocol';
-import { Auth, AuthContext, AuthorizationContext, Role, Strategy } from '../../idp';
+import {
+  Auth,
+  AuthContext,
+  AuthorizationContext,
+  RejectApiKeyAuth,
+  Role,
+  Strategy,
+} from '../../idp';
 import {
   CreateNewProjectResponseApiDto,
   RequestAccessContextApiDto,
@@ -19,6 +26,7 @@ import {
 
 @Controller('user-provisioning')
 @ApiTags('User Provisioning')
+@RejectApiKeyAuth()
 export class RequestAccessController {
   constructor(
     private readonly getRequestAccessContext: GetRequestAccessContextService,

@@ -1,6 +1,7 @@
 import { Body, Controller, Delete, Get, HttpCode, Param, Patch, Post, Query } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
-import { Auth, AuthContext, AuthorizationContext, Role, Strategy } from '../../idp';
+import { Auth, AuthContext, RejectApiKeyAuth } from '../../idp/decorators';
+import { AuthorizationContext, Role, Strategy } from '../../idp/types';
 import {
   CreateProjectMemberApiKeyRequestDto,
   CreateProjectMemberApiKeyResponseDto,
@@ -21,6 +22,7 @@ import {
 
 @Controller('project-member-api-keys')
 @ApiTags('Project Member API Keys')
+@RejectApiKeyAuth()
 export class ProjectMemberApiKeysController {
   constructor(
     private readonly listKeys: ListProjectMemberApiKeysService,

@@ -1,6 +1,29 @@
 import { describe, expect, it } from '@jest/globals';
+import type { NextFunction, Request, Response } from 'express';
 import { IdpOperationNotSupportedError } from '../types/errors.js';
+import type { Payload } from '../types/models.js';
 import { NullIdpProvider } from './null-provider.js';
+
+type CapturedResponse = Response<Payload> & {
+  body: unknown;
+};
+
+function createJsonResponse(): CapturedResponse {
+  const res = {
+    statusCode: 200,
+    body: undefined as unknown,
+    status(code: number) {
+      this.statusCode = code;
+      return this;
+    },
+    json(body: unknown) {
+      this.body = body;
+      return this;
+    },
+  };
+
+  return res as CapturedResponse;
+}
 
 describe('NullIdpProvider user provisioning settings', () => {
   it('returns not applicable settings', async () => {
@@ -62,7 +85,7 @@ describe('NullIdpProvider project member API keys', () => {
     );
   });
 
-  it('uses the explicit key role when one is provided', async () => {
+  it('uses the development member role instead of a stored API-key role', async () => {
     const provider = new NullIdpProvider();
 
     const result = await provider.issueAccessTokenForProjectMemberApiKey(
@@ -74,8 +97,49 @@ describe('NullIdpProvider project member API keys', () => {
     );
 
     await expect(provider.introspectToken(result.accessToken)).resolves.toEqual(
-      expect.objectContaining({ roles: ['viewer'] })
+      expect.objectContaining({ roles: ['admin'] })
     );
+  });
+
+  it('falls back to refresh-token cookies when authorization header is not an issued API-key token', async () => {
+    const provider = new NullIdpProvider();
+    const req = {
+      cookies: {
+        refreshToken: 'refreshToken',
+      },
+      headers: {
+        'x-owox-authorization': 'Bearer unknown-token',
+      },
+    } as unknown as Request;
+    const res = createJsonResponse();
+
+    await provider.userApiMiddleware(req, res, (() => undefined) as NextFunction);
+
+    expect(res.statusCode).toBe(200);
+    expect(res.body).toEqual(
+      expect.objectContaining({
+        userId: '0',
+        projectId: '0',
+        roles: ['admin'],
+      })
+    );
+    expect(res.body).not.toEqual(expect.objectContaining({ authFlow: 'api_key' }));
+  });
+
+  it('rejects an authorization header that is not an issued API-key token', async () => {
+    const provider = new NullIdpProvider();
+    const req = {
+      cookies: {},
+      headers: {
+        'x-owox-authorization': 'Bearer unknown-token',
+      },
+    } as unknown as Request;
+    const res = createJsonResponse();
+
+    await provider.userApiMiddleware(req, res, (() => undefined) as NextFunction);
+
+    expect(res.statusCode).toBe(401);
+    expect(res.body).toEqual({ message: 'Unauthorized' });
   });
 });
 

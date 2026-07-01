@@ -18,18 +18,24 @@ export const AuthContext = createParamDecorator(
   (data: unknown, ctx: ExecutionContext): AuthorizationContext => {
     const request = ctx.switchToHttp().getRequest<AuthenticatedRequest>();
 
-    if (request.idpContext) {
-      return {
-        projectId: request.idpContext.projectId,
-        userId: request.idpContext.userId,
-        fullName: request.idpContext.fullName,
-        avatar: request.idpContext.avatar,
-        email: request.idpContext.email,
-        roles: request.idpContext.roles,
-        projectTitle: request.idpContext.projectTitle,
-      };
-    }
-
-    throw new BadRequestException('Invalid authentication context');
+    return getAuthorizationContext(request);
   }
 );
+
+export function getAuthorizationContext(request: AuthenticatedRequest): AuthorizationContext {
+  if (request.idpContext) {
+    return {
+      projectId: request.idpContext.projectId,
+      userId: request.idpContext.userId,
+      fullName: request.idpContext.fullName,
+      avatar: request.idpContext.avatar,
+      email: request.idpContext.email,
+      roles: request.idpContext.roles,
+      projectTitle: request.idpContext.projectTitle,
+      authFlow: request.idpContext.authFlow,
+      apiKeyId: request.idpContext.apiKeyId,
+    };
+  }
+
+  throw new BadRequestException('Invalid authentication context');
+}

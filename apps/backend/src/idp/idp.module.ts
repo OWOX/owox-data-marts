@@ -13,13 +13,14 @@ import { IdpProjectionsService } from './services/idp-projections.service';
 import { IdpProviderService } from './services/idp-provider.service';
 import { TenantGuardService } from './services/tenant-guard.service';
 import { IntercomController } from './controllers/intercom.controller';
+import { AuthContextController } from './controllers/auth-context.controller';
 import { IssueIntercomJwtService } from './use-cases/issue-intercom-jwt.service';
 import { IntercomMapper } from './mappers/intercom.mapper';
 import { OAuthModule } from './oauth/oauth.module';
 
 @Module({
   imports: [TypeOrmModule.forFeature([UserProjection, ProjectProjection]), OAuthModule],
-  controllers: [IntercomController],
+  controllers: [IntercomController, AuthContextController],
   providers: [
     IdpProviderService,
     IdpProjectionsService,

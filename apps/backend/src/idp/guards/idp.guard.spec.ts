@@ -1,14 +1,16 @@
 import { ExecutionContext } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
-import { AuthorizationError, type Payload } from '@owox/idp-protocol';
+import { AuthenticationError, AuthorizationError, type Payload } from '@owox/idp-protocol';
 import { ClsService } from 'nestjs-cls';
 import { IdpProviderService } from '../services/idp-provider.service';
 import { IdpProjectionsService } from '../services/idp-projections.service';
 import { Role, Strategy, type RoleConfig } from '../types';
+import { REJECT_API_KEY_AUTH_METADATA } from '../decorators/reject-api-key-auth.decorator';
 import { AuthenticatedRequest, AUTH_CONTEXT, IdpGuard } from './idp.guard';
 
 describe('IdpGuard', () => {
   let roleConfig: RoleConfig;
+  let rejectApiKeyAuth: boolean;
   let request: AuthenticatedRequest;
   let idpProvider: {
     parseToken: jest.Mock<Promise<Payload | null>, [string]>;
@@ -22,6 +24,7 @@ describe('IdpGuard', () => {
 
   beforeEach(() => {
     roleConfig = Role.authenticated(Strategy.PARSE);
+    rejectApiKeyAuth = false;
     request = {
       headers: {
         'x-owox-authorization': 'Bearer access-token',
@@ -43,7 +46,17 @@ describe('IdpGuard', () => {
     };
 
     guard = new IdpGuard(
-      { getAllAndOverride: jest.fn(() => roleConfig) } as unknown as Reflector,
+      {
+        getAllAndOverride: jest.fn((metadataKey: string) => {
+          if (metadataKey === 'roleConfig') {
+            return roleConfig;
+          }
+          if (metadataKey === REJECT_API_KEY_AUTH_METADATA) {
+            return rejectApiKeyAuth;
+          }
+          return undefined;
+        }),
+      } as unknown as Reflector,
       { getProvider: jest.fn(() => idpProvider) } as unknown as IdpProviderService,
       clsService as unknown as ClsService,
       idpProjectionsService as unknown as IdpProjectionsService
@@ -126,6 +139,81 @@ describe('IdpGuard', () => {
     );
 
     await expect(guard.canActivate(context())).rejects.toBeInstanceOf(AuthorizationError);
+  });
+
+  it('rejects api_key tokens on routes that disallow API key authentication', async () => {
+    roleConfig = Role.viewer(Strategy.INTROSPECT);
+    rejectApiKeyAuth = true;
+    idpProvider.introspectToken.mockResolvedValue(
+      payload(['viewer'], {
+        authFlow: 'api_key',
+        apiKeyId: 'pmk_AbCdEfGhIjKlMnOpQrStUv',
+      })
+    );
+    request.headers = {
+      'x-owox-authorization': 'Bearer access-token',
+      'x-owox-api-key-id': 'pmk_AbCdEfGhIjKlMnOpQrStUv',
+    };
+
+    await expect(guard.canActivate(context())).rejects.toBeInstanceOf(AuthorizationError);
+  });
+
+  it('rejects api_key tokens on disallowed routes before checking API-key header binding', async () => {
+    roleConfig = Role.viewer(Strategy.INTROSPECT);
+    rejectApiKeyAuth = true;
+    idpProvider.introspectToken.mockResolvedValue(
+      payload(['viewer'], {
+        authFlow: 'api_key',
+        apiKeyId: 'pmk_AbCdEfGhIjKlMnOpQrStUv',
+      })
+    );
+
+    await expect(guard.canActivate(context())).rejects.toThrow(
+      'API key authentication is not allowed for this endpoint'
+    );
+  });
+
+  it('wraps failed authentication with the generic authentication error message', async () => {
+    idpProvider.parseToken.mockResolvedValue(null);
+
+    let error: unknown;
+    try {
+      await guard.canActivate(context());
+    } catch (caughtError) {
+      error = caughtError;
+    }
+
+    expect(error).toBeInstanceOf(AuthenticationError);
+    expect((error as Error).message).toBe('Authentication failed');
+  });
+
+  it('allows normal user tokens on routes that disallow API key authentication', async () => {
+    roleConfig = Role.viewer(Strategy.INTROSPECT);
+    rejectApiKeyAuth = true;
+    idpProvider.introspectToken.mockResolvedValue(
+      payload(['viewer'], {
+        authFlow: 'app_owox',
+      })
+    );
+
+    await expect(guard.canActivate(context())).resolves.toBe(true);
+  });
+
+  it('allows api_key tokens on state-changing requests when the route allows API key authentication', async () => {
+    roleConfig = Role.viewer(Strategy.PARSE);
+    idpProvider.parseToken.mockResolvedValue(
+      payload(['viewer'], {
+        authFlow: 'api_key',
+        apiKeyId: 'pmk_AbCdEfGhIjKlMnOpQrStUv',
+      })
+    );
+    request.method = 'POST';
+    request.headers = {
+      'x-owox-authorization': 'Bearer access-token',
+      'x-owox-api-key-id': 'pmk_AbCdEfGhIjKlMnOpQrStUv',
+    };
+
+    await expect(guard.canActivate(context())).resolves.toBe(true);
   });
 
   it('allows normal user tokens without X-OWOX-Api-Key-Id', async () => {

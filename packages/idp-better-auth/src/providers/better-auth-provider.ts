@@ -13,6 +13,8 @@ import {
   ProjectMembershipRequest,
   ApproveMembershipRequestResult,
   GetProjectMembersOptions,
+  AuthenticationError,
+  AuthorizationError,
   IdpOperationNotSupportedError,
   McpOAuthProjectMemberContext,
   McpScope,
@@ -180,7 +182,7 @@ export class BetterAuthProvider
 
     return {
       id: projectId,
-      title: projectId === '0' ? 'OWOX Data Marts' : projectId,
+      title: this.getProjectTitle(projectId),
       status: 'active',
       roles: [role],
     };
@@ -234,7 +236,7 @@ export class BetterAuthProvider
   }
 
   async introspectToken(token: string): Promise<Payload | null> {
-    return this.tokenService.introspectToken(token);
+    return this.refreshIntrospectedPayload(await this.tokenService.introspectToken(token));
   }
 
   async parseToken(token: string): Promise<Payload | null> {
@@ -250,13 +252,32 @@ export class BetterAuthProvider
   }
 
   async issueAccessTokenForProjectMemberApiKey(
-    _apiKeyId: string,
-    _userId: string,
-    _projectId: string,
+    apiKeyId: string,
+    userId: string,
+    projectId: string,
     _role: Role | null,
     _readOnly: boolean
   ): Promise<AuthResult> {
-    throw new IdpOperationNotSupportedError('issueAccessTokenForProjectMemberApiKey');
+    const user = await this.store.getUserById(userId);
+    if (!user) {
+      throw new AuthenticationError('Project member API key user not found');
+    }
+
+    const currentRole = this.toRoleOrNull(await this.userManagementService.getUserRole(userId));
+    if (!currentRole) {
+      throw new AuthorizationError('Project member API key user is not an active project member');
+    }
+
+    return this.tokenService.issueProjectMemberApiKeyAccessToken({
+      userId,
+      projectId,
+      email: user.email,
+      fullName: user.name || user.email,
+      roles: [currentRole],
+      projectTitle: this.getProjectTitle(projectId),
+      authFlow: 'api_key',
+      apiKeyId,
+    });
   }
 
   async createMcpOAuthAuthorizationCode(
@@ -425,5 +446,37 @@ export class BetterAuthProvider
 
   private toRoleOrViewer(role: string | null): Role {
     return role === 'admin' || role === 'editor' || role === 'viewer' ? role : 'viewer';
+  }
+
+  private toRoleOrNull(role: string | null): Role | null {
+    return role === 'admin' || role === 'editor' || role === 'viewer' ? role : null;
+  }
+
+  private async refreshIntrospectedPayload(payload: Payload | null): Promise<Payload | null> {
+    if (!payload) {
+      return null;
+    }
+
+    const user = await this.store.getUserById(payload.userId);
+    if (!user) {
+      return null;
+    }
+
+    const currentRole = this.toRoleOrNull(await this.userManagementService.getUserRole(user.id));
+    if (payload.authFlow === 'api_key' && !currentRole) {
+      return null;
+    }
+
+    return {
+      ...payload,
+      email: user.email,
+      fullName: user.name || user.email,
+      roles: currentRole ? [currentRole] : undefined,
+      projectTitle: this.getProjectTitle(payload.projectId),
+    };
+  }
+
+  private getProjectTitle(projectId: string): string {
+    return projectId === '0' ? 'OWOX Data Marts' : projectId;
   }
 }

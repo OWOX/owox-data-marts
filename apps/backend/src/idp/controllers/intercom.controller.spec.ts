@@ -4,6 +4,7 @@ import type { AuthorizationContext } from '../types';
 import { IssueIntercomJwtService } from '../use-cases/issue-intercom-jwt.service';
 import { IntercomMapper } from '../mappers/intercom.mapper';
 import { IssueIntercomJwtCommand } from '../dto/domain/issue-intercom-jwt.command';
+import { REJECT_API_KEY_AUTH_METADATA } from '../decorators/reject-api-key-auth.decorator';
 
 jest.mock('../decorators/auth.decorator', () => ({
   __esModule: true,
@@ -46,6 +47,10 @@ describe('IntercomController', () => {
     controller = new IntercomController(useCase, mapper);
 
     jest.clearAllMocks();
+  });
+
+  it('rejects API-key authentication at the controller level', () => {
+    expect(Reflect.getMetadata(REJECT_API_KEY_AUTH_METADATA, IntercomController)).toBe(true);
   });
 
   it('should propagate BadRequestException from use-case', async () => {

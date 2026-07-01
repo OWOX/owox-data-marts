@@ -191,6 +191,86 @@ describe('OWOXApiClient', () => {
     await client.dataMarts.list();
   });
 
+  it('gets the API key auth context without exposing the API key secret', async () => {
+    const context = {
+      apiKeyId,
+      authFlow: 'api_key',
+      project: {
+        id: 'project-1',
+        title: 'Demo Project',
+      },
+      member: {
+        userId: 'user-1',
+        email: 'user@example.com',
+        fullName: 'User Example',
+        avatar: 'https://img.example.com/user.png',
+        roles: ['viewer'],
+      },
+    };
+    const fetchMock = createFetchMock(request => {
+      if (request.method === 'POST' && request.url === '/api/auth/api-keys/exchange') {
+        return createJsonResponse(200, { accessToken: 'access-token-1' });
+      }
+
+      if (request.method === 'GET' && request.url === '/api/auth/context') {
+        expect(request.headers['x-owox-authorization']).toBe('Bearer access-token-1');
+        expect(request.headers['x-owox-api-key-id']).toBe(apiKeyId);
+        return createJsonResponse(200, {
+          userId: 'user-1',
+          projectId: 'project-1',
+          email: 'user@example.com',
+          fullName: 'User Example',
+          avatar: 'https://img.example.com/user.png',
+          roles: ['viewer'],
+          projectTitle: 'Demo Project',
+          authFlow: 'api_key',
+          apiKeyId,
+          onboarding: {},
+        });
+      }
+
+      return createJsonResponse(404, { message: 'Not found' });
+    });
+
+    const client = new OWOXApiClient({
+      apiKey,
+      fetchImpl: fetchMock.fetchImpl,
+    });
+
+    await expect(client.auth.getContext()).resolves.toEqual(context);
+    expect(JSON.stringify(await client.auth.getContext())).not.toContain(apiKeySecret);
+  });
+
+  it('rejects an unexpected auth context response shape', async () => {
+    const fetchMock = createFetchMock(request => {
+      if (request.method === 'POST' && request.url === '/api/auth/api-keys/exchange') {
+        return createJsonResponse(200, { accessToken: 'access-token-1' });
+      }
+
+      if (request.method === 'GET' && request.url === '/api/auth/context') {
+        return createJsonResponse(200, {
+          userId: 'user-1',
+          projectId: 'project-1',
+          projectTitle: 'Demo Project',
+          authFlow: 'api_key',
+          apiKeyId,
+        });
+      }
+
+      return createJsonResponse(404, { message: 'Not found' });
+    });
+
+    const client = new OWOXApiClient({
+      apiKey,
+      fetchImpl: fetchMock.fetchImpl,
+    });
+
+    await expect(client.auth.getContext()).rejects.toMatchObject({
+      name: 'OWOXApiError',
+      message: 'OWOX auth context API returned an unexpected response shape',
+    });
+  });
+
   it('refreshes the cached access token once after an authenticated request returns 401', async () => {
     let exchangeCount = 0;
     const seenAuthorizationHeaders: unknown[] = [];

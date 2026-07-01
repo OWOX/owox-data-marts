@@ -1,4 +1,10 @@
-import { OWOXApiClient, OWOXApiError, OWOXAuthError, OWOXConfigError } from '@owox/api-client';
+import {
+  OWOXApiClient,
+  OWOXApiError,
+  OWOXAuthError,
+  OWOXConfigError,
+  type OWOXAuthContext,
+} from '@owox/api-client';
 
 import { BaseCommand } from '../base-command.js';
 import { resolveAuthConfig, type AuthConfig } from '../config-store.js';
@@ -15,12 +21,19 @@ type Status = {
   apiKeyId: string | null;
   authenticated: boolean;
   envFile: string | null;
+  project?: OWOXAuthContext['project'];
+  member?: OWOXAuthContext['member'];
   error?: StatusError;
 };
 
 type StatusDeps = {
-  createClient: (config: AuthConfig) => {
-    authenticate(): Promise<void>;
+  createClient: (config: AuthConfig) => StatusClient;
+};
+
+type StatusClient = {
+  authenticate(): Promise<void>;
+  auth: {
+    getContext(): Promise<OWOXAuthContext>;
   };
 };
 
@@ -46,6 +59,51 @@ function normalizeStatusError(error: unknown): StatusError {
   };
 }
 
+function isMissingAuthContextEndpoint(error: unknown): boolean {
+  return error instanceof OWOXApiError && !(error instanceof OWOXAuthError) && error.status === 404;
+}
+
+function getAuthenticatedStatus(
+  config: AuthConfig,
+  envFile: string | null,
+  context?: OWOXAuthContext
+): Status {
+  return {
+    apiOrigin: config.apiOrigin,
+    apiKeyId: config.apiKeyId,
+    authenticated: true,
+    envFile,
+    ...(context ? { project: context.project, member: context.member } : {}),
+  };
+}
+
+function getAuthenticationFailureStatus(
+  config: AuthConfig,
+  envFile: string | null,
+  error: unknown
+): Status {
+  return {
+    apiOrigin: config.apiOrigin,
+    apiKeyId: config.apiKeyId,
+    authenticated: false,
+    envFile,
+    error: normalizeStatusError(error),
+  };
+}
+
+async function getExchangeOnlyStatus(
+  client: StatusClient,
+  config: AuthConfig,
+  envFile: string | null
+): Promise<Status> {
+  try {
+    await client.authenticate();
+    return getAuthenticatedStatus(config, envFile);
+  } catch (error) {
+    return getAuthenticationFailureStatus(config, envFile, error);
+  }
+}
+
 export function getMissingConfigStatus(
   env: NodeJS.ProcessEnv,
   envFile: string | null,
@@ -65,24 +123,17 @@ export async function getStatus(
   envFile: string | null,
   deps: StatusDeps = { createClient: clientConfig => new OWOXApiClient(clientConfig) }
 ): Promise<Status> {
-  try {
-    await deps.createClient(config).authenticate();
-  } catch (error) {
-    return {
-      apiOrigin: config.apiOrigin,
-      apiKeyId: config.apiKeyId,
-      authenticated: false,
-      envFile,
-      error: normalizeStatusError(error),
-    };
-  }
+  const client = deps.createClient(config);
 
-  return {
-    apiOrigin: config.apiOrigin,
-    apiKeyId: config.apiKeyId,
-    authenticated: true,
-    envFile,
-  };
+  try {
+    return getAuthenticatedStatus(config, envFile, await client.auth.getContext());
+  } catch (error) {
+    if (isMissingAuthContextEndpoint(error)) {
+      return getExchangeOnlyStatus(client, config, envFile);
+    }
+
+    return getAuthenticationFailureStatus(config, envFile, error);
+  }
 }
 
 export default class StatusCommand extends BaseCommand {
