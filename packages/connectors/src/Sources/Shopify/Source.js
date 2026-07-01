@@ -358,9 +358,4 @@ var ShopifySource = class ShopifySource extends AbstractSource {
     };
   }
 
-  isValidToRetry(error) {
-    return !error?.statusCode
-      || error.statusCode >= HTTP_STATUS.SERVER_ERROR_MIN
-      || [HTTP_STATUS.TOO_MANY_REQUESTS, HTTP_STATUS.SERVICE_UNAVAILABLE, HTTP_STATUS.GATEWAY_TIMEOUT].includes(error.statusCode);
-  }
 };

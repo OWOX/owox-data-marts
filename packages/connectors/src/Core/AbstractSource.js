@@ -137,7 +137,11 @@ var AbstractSource = class AbstractSource {
           parsedJson?.message || 
           parsedJson?.errorMessage || 
           parsedJson?.error_message ||
-          (parsedJson?.errors && Array.isArray(parsedJson.errors) && parsedJson.errors[0]?.message) || 
+          (parsedJson?.errors && Array.isArray(parsedJson.errors) && (
+            parsedJson.errors[0]?.message ||
+            parsedJson.errors[0]?.title ||
+            parsedJson.errors[0]?.detail
+          )) ||
           text;
       } catch (parseErr) {
         console.log(`Response is not valid JSON: ${parseErr.message}`);
@@ -194,17 +198,20 @@ var AbstractSource = class AbstractSource {
 
   //---- isValidToRetry ----------------------------------------------
     /**
-     * Determines if an error is valid for retry
-     * This is a default implementation that always returns false
-     * Source implementations should override this method for service-specific error handling
-     * 
+     * Determines if an error is valid for retry.
+     * Default: retry on 5xx server errors, 429 rate limits, and network-level
+     * errors (no statusCode). Source implementations should override this
+     * method only for provider-specific exceptions to that policy (e.g.
+     * retrying - or explicitly not retrying - 401 depending on how token
+     * refresh is handled, or inspecting a provider's error payload).
+     *
      * @param {HttpRequestException} error - The error to check
      * @return {boolean} True if the error should trigger a retry, false otherwise
      */
     isValidToRetry(error) {
-      // By default, don't retry any errors
-      // Each connector should implement its own retry logic
-      return false;
+      return !error?.statusCode
+        || error.statusCode >= HTTP_STATUS.SERVER_ERROR_MIN
+        || error.statusCode === HTTP_STATUS.TOO_MANY_REQUESTS;
     }
     //----------------------------------------------------------------
 
