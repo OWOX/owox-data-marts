@@ -1,23 +1,165 @@
-import { Injectable } from '@nestjs/common';
+import { ForbiddenException, Injectable } from '@nestjs/common';
+import { BusinessViolationException } from '../../common/exceptions/business-violation.exception';
 import { DataMartScheduledTrigger } from '../entities/data-mart-scheduled-trigger.entity';
+import { DataMartStatus } from '../enums/data-mart-status.enum';
 import { ScheduledTriggerType } from '../scheduled-trigger-types/enums/scheduled-trigger-type.enum';
+import { GoogleSheetsConfigType } from '../data-destination-types/google-sheets/schemas/google-sheets-config.schema';
 import { ListReportsByDataMartCommand } from '../dto/domain/list-reports-by-data-mart.command';
+import { CreateReportCommand } from '../dto/domain/create-report.command';
+import { CreateGoogleSheetDocumentCommand } from '../dto/domain/google-sheets/create-google-sheet-document.command';
+import { ReportColumnConfig } from '../dto/schemas/report-column-config.schema';
 import { ListReportsByDataMartService } from '../use-cases/list-reports-by-data-mart.service';
+import { CreateReportService } from '../use-cases/create-report.service';
+import { CreateGoogleSheetDocumentService } from '../use-cases/google-sheets/create-google-sheet-document.service';
+import { AccessDecisionService, Action, EntityType } from '../services/access-decision';
+import { DataMartService } from '../services/data-mart.service';
+import { OutputControlsValidatorService } from '../services/output-controls-validator.service';
 import { ScheduledTriggerService } from '../services/scheduled-trigger.service';
 import { toMcpDestinationType } from './mcp-destination-type';
 import {
+  McpAddReportRequest,
+  McpAddReportResult,
   McpGetDataMartReportsRequest,
   McpGetDataMartReportsResponse,
   McpReportScheduleItem,
   McpReportsFacade,
 } from './mcp-reports.facade';
 
+/**
+ * Builds the shareable Google Sheets URL for a spreadsheet tab.
+ * Keep the format in sync with `getGoogleSheetTabUrl` in
+ * apps/web/src/features/data-marts/reports/shared/utils/google-sheets-url.utils.ts.
+ */
+function buildGoogleSheetUrl(spreadsheetId: string, sheetId: number): string {
+  return `https://docs.google.com/spreadsheets/d/${spreadsheetId}/edit#gid=${sheetId}`;
+}
+
 @Injectable()
 export class McpReportsFacadeImpl implements McpReportsFacade {
   constructor(
     private readonly listReportsByDataMartService: ListReportsByDataMartService,
-    private readonly scheduledTriggerService: ScheduledTriggerService
+    private readonly scheduledTriggerService: ScheduledTriggerService,
+    private readonly createReportService: CreateReportService,
+    private readonly createGoogleSheetDocumentService: CreateGoogleSheetDocumentService,
+    private readonly dataMartService: DataMartService,
+    private readonly accessDecisionService: AccessDecisionService,
+    private readonly outputControlsValidator: OutputControlsValidatorService
   ) {}
+
+  async addReport(request: McpAddReportRequest): Promise<McpAddReportResult> {
+    const columnConfig = this.toColumnConfig(request.fields);
+
+    // 1. Validate everything CreateReportService would reject BEFORE the
+    //    external side effect: sheet creation is not transactional, so a
+    //    failure after it would leave an orphaned document, and an
+    //    unauthorized caller must not be able to trigger it at all.
+    await this.assertCanCreateReport(request, columnConfig);
+
+    // 2. Auto-create the Google Sheet. This also validates that the destination
+    //    is a Google Sheets destination (it throws otherwise), so it doubles as
+    //    the guard against unsupported destination types.
+    const sheet = await this.createGoogleSheetDocumentService.run(
+      new CreateGoogleSheetDocumentCommand(
+        request.destinationId,
+        request.projectId,
+        request.name,
+        request.userId,
+        request.userEmail
+      )
+    );
+
+    // 3. Create the report pointing at the freshly-created sheet. Omitting
+    //    ownerIds makes the service default ownership to the requesting user.
+    const report = await this.createReportService.run(
+      new CreateReportCommand(
+        request.projectId,
+        request.userId,
+        request.name,
+        request.dataMartId,
+        request.destinationId,
+        {
+          type: GoogleSheetsConfigType,
+          spreadsheetId: sheet.spreadsheetId,
+          sheetId: sheet.sheetId,
+        },
+        undefined,
+        request.roles,
+        columnConfig
+      )
+    );
+
+    return {
+      report_id: report.id,
+      owner: report.createdByUser?.email ?? null,
+      status: 'created',
+      sheet_url: buildGoogleSheetUrl(sheet.spreadsheetId, sheet.sheetId),
+      placed_in_root: sheet.placedInRoot,
+      shared_with_requester: sheet.sharedWithRequester,
+    };
+  }
+
+  /**
+   * Pre-flight for addReport, mirroring the checks CreateReportService.run
+   * performs inside its transaction (kept deliberately in sync): the service
+   * re-validates afterwards, but by then the sheet already exists.
+   */
+  private async assertCanCreateReport(
+    request: McpAddReportRequest,
+    columnConfig: ReportColumnConfig
+  ): Promise<void> {
+    const dataMart = await this.dataMartService.getByIdAndProjectId(
+      request.dataMartId,
+      request.projectId
+    );
+    if (dataMart.status !== DataMartStatus.PUBLISHED) {
+      throw new BusinessViolationException(
+        `Cannot create report for data mart with status ${dataMart.status}. Data mart must be in PUBLISHED status.`
+      );
+    }
+
+    const canUseDataMart = await this.accessDecisionService.canAccess(
+      request.userId,
+      request.roles,
+      EntityType.DATA_MART,
+      request.dataMartId,
+      Action.USE,
+      request.projectId
+    );
+    if (!canUseDataMart) {
+      throw new ForbiddenException('You do not have access to the DataMart for this report');
+    }
+
+    const canUseDestination = await this.accessDecisionService.canAccess(
+      request.userId,
+      request.roles,
+      EntityType.DESTINATION,
+      request.destinationId,
+      Action.USE,
+      request.projectId
+    );
+    if (!canUseDestination) {
+      throw new ForbiddenException('You do not have access to the Destination for this report');
+    }
+
+    await this.outputControlsValidator.validateForReport({
+      storageType: dataMart.storage.type,
+      dataMartId: dataMart.id,
+      projectId: request.projectId,
+      columnConfig,
+      filterConfig: null,
+      sortConfig: null,
+      limitConfig: null,
+      aggregationConfig: null,
+      dateTruncConfig: null,
+      uniqueCountConfig: null,
+      accessor: { userId: request.userId, roles: request.roles },
+    });
+  }
+
+  /** `['*']` (or any list containing `'*'`) means "all fields" → no column projection. */
+  private toColumnConfig(fields: string[]): ReportColumnConfig {
+    return fields.includes('*') ? null : fields;
+  }
 
   async getDataMartReports(
     request: McpGetDataMartReportsRequest

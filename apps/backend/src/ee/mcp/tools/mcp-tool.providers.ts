@@ -1,4 +1,5 @@
 import type { Provider, Type } from '@nestjs/common';
+import { AddReportTool } from './add-report.tool';
 import { ListDataMartsTool } from './data-mart-catalog.tool';
 import { GetDataMartDetailsTool } from './data-mart-details.tool';
 import { GetDataMartReportsTool } from './get-data-mart-reports.tool';
@@ -14,6 +15,7 @@ export const MCP_TOOL_PROVIDER_CLASSES: Array<Type<McpToolDefinition>> = [
   GetProjectContextTool,
   ListDestinationsTool,
   GetDataMartReportsTool,
+  AddReportTool,
 ];
 
 export const MCP_TOOL_DEFINITIONS_PROVIDER: Provider = {
