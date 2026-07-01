@@ -52,6 +52,8 @@ import { SyncLegacyGcpStoragesForProjectService } from './use-cases/legacy-data-
 import { ListDataMartsService } from './use-cases/list-data-marts.service';
 import { MCP_DATA_MARTS_FACADE } from './facades/mcp-data-marts.facade';
 import { McpDataMartsFacadeImpl } from './facades/mcp-data-marts.facade.impl';
+import { MCP_DATA_DESTINATIONS_FACADE } from './facades/mcp-data-destinations.facade';
+import { McpDataDestinationsFacadeImpl } from './facades/mcp-data-destinations.facade.impl';
 import { ListDataMartsByConnectorNameService } from './use-cases/list-data-marts-by-connector-name.service';
 import { ListProjectDataMartRunsService } from './use-cases/list-project-data-mart-runs.service';
 import { ListProjectInsightTemplatesService } from './use-cases/list-project-insight-templates.service';
@@ -504,6 +506,10 @@ import { ProjectMemberApiKeysModule } from '../project-member-api-keys/project-m
       provide: MCP_DATA_MARTS_FACADE,
       useClass: McpDataMartsFacadeImpl,
     },
+    {
+      provide: MCP_DATA_DESTINATIONS_FACADE,
+      useClass: McpDataDestinationsFacadeImpl,
+    },
     ListDataMartsByConnectorNameService,
     GetDataMartService,
     ListDataMartRunsService,
@@ -798,7 +804,12 @@ import { ProjectMemberApiKeysModule } from '../project-member-api-keys/project-m
     HttpDataColumnResolver,
     HttpDataColumnValidator,
   ],
-  exports: [MCP_DATA_MARTS_FACADE, ContextAccessService, AdvancedSearchIndexSyncService],
+  exports: [
+    MCP_DATA_MARTS_FACADE,
+    MCP_DATA_DESTINATIONS_FACADE,
+    ContextAccessService,
+    AdvancedSearchIndexSyncService,
+  ],
 })
 export class DataMartsModule {
   configure(consumer: MiddlewareConsumer) {

@@ -110,7 +110,7 @@ To switch projects, disconnect, then reconnect and sign in again, choosing the p
 
 ## Available tools
 
-Once connected, the MCP server exposes two read-only tools. Both require the `mcp:read` scope, which the client requests during authorization.
+Once connected, the MCP server exposes four read-only tools. They all require the `mcp:read` scope, which the client requests during authorization.
 
 ### `get_project_context`
 
@@ -147,6 +147,37 @@ Use this tool to discover available data marts before running queries or buildin
 
 The list reflects your access: it includes only the data marts your [project role](../../project/roles-and-permissions.md) permits you to see. If a data mart you expect is missing, check your role in that project.
 
+### `get_relevant_data_marts_by_prompt`
+
+Finds the data marts most relevant to a natural-language question, ranked by relevance. Use it to discover which data marts can answer a specific question without listing the whole project.
+
+**Returns** an array of matching data mart objects:
+
+| Field | Description |
+| --- | --- |
+| `id` | Data mart identifier |
+| `title` | Data mart name |
+| `description` | Data mart description |
+| `url` | Link to open the data mart in OWOX Data Marts |
+| `relevance_score` | How closely the data mart matches your question |
+
+Only non-draft data marts visible to your [project role](../../project/roles-and-permissions.md) are returned.
+
+### `list_destinations`
+
+Lists the destinations in the current project — such as Google Sheets, Looker Studio, or messaging destinations — so the assistant knows where a report could be sent.
+
+**Returns** an array of destination objects:
+
+| Field | Description |
+| --- | --- |
+| `id` | Destination identifier |
+| `name` | Destination name |
+| `type` | Destination type (for example `google_sheets`, `looker_studio`, `slack`, `email`, `teams`, `google_chat`) |
+| `owner` | The user who created the destination |
+
+The list reflects your access: it includes only the destinations your [project role](../../project/roles-and-permissions.md) permits you to use.
+
 ## How to use it: example prompts
 
 Once the OWOX server is connected, just ask your assistant in plain language. You do not need to name the tools — the assistant calls them for you. Try prompts like:
@@ -156,8 +187,9 @@ Once the OWOX server is connected, just ask your assistant in plain language. Yo
 - "Which of my data marts were updated most recently?"
 - "Do I have any data marts about Facebook Ads? Show their descriptions."
 - "Give me a one-line summary of each data mart and what it is for."
+- "Which destinations can I send a report to?"
 
-> **What these tools can and cannot do:** They let the assistant discover your project and your data marts — titles, descriptions, status, roles, and when each was last updated. They do **not** run queries against the data inside a data mart or return its rows. Use them to find and understand what is available, then open the data mart in OWOX Data Marts to work with the data itself.
+> **What these tools can and cannot do:** They let the assistant discover your project, your data marts (titles, descriptions, status, and when each was last updated), and the destinations available for reports. They do **not** run queries against the data inside a data mart or return its rows. Use them to find and understand what is available, then open the data mart in OWOX Data Marts to work with the data itself.
 >
 > **What is shared with your AI provider:** To answer your prompts, the metadata above (project and data-mart names, descriptions, status, and your roles) is sent to the AI provider behind your client, such as Anthropic for Claude or OpenAI for ChatGPT. The data stored in your data marts is never sent. Connect OWOX only to clients your organization permits to receive this information.
 
