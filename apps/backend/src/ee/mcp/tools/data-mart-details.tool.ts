@@ -6,7 +6,7 @@ import {
   type McpDataMartsFacade,
 } from '../../../data-marts/facades/mcp-data-marts.facade';
 import type { McpAuthContext } from '../auth/mcp-auth-context';
-import type { McpToolDefinition, McpToolResult } from './mcp-tool.definition';
+import { jsonToolResult, type McpToolDefinition, type McpToolResult } from './mcp-tool.definition';
 
 const inputSchema = z
   .object({
@@ -70,14 +70,6 @@ export class GetDataMartDetailsTool implements McpToolDefinition<GetDataMartDeta
       fields: result.fields,
     };
 
-    return {
-      structuredContent,
-      content: [
-        {
-          type: 'text',
-          text: JSON.stringify(structuredContent, null, 2),
-        },
-      ],
-    };
+    return jsonToolResult(structuredContent);
   }
 }
