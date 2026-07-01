@@ -7,6 +7,13 @@ export const MCP_TOOL_DEFINITIONS = Symbol('MCP_TOOL_DEFINITIONS');
 
 export type McpToolResult = CallToolResult;
 
+export function jsonToolResult(structuredContent: Record<string, unknown>): McpToolResult {
+  return {
+    structuredContent,
+    content: [{ type: 'text', text: JSON.stringify(structuredContent, null, 2) }],
+  };
+}
+
 export interface McpToolDefinition<TInput = unknown> {
   readonly name: string;
   readonly description: string;

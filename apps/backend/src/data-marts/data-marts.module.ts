@@ -54,6 +54,8 @@ import { MCP_DATA_MARTS_FACADE } from './facades/mcp-data-marts.facade';
 import { McpDataMartsFacadeImpl } from './facades/mcp-data-marts.facade.impl';
 import { MCP_DATA_DESTINATIONS_FACADE } from './facades/mcp-data-destinations.facade';
 import { McpDataDestinationsFacadeImpl } from './facades/mcp-data-destinations.facade.impl';
+import { MCP_SCHEDULED_TRIGGERS_FACADE } from './facades/mcp-scheduled-triggers.facade';
+import { McpScheduledTriggersFacadeImpl } from './facades/mcp-scheduled-triggers.facade.impl';
 import { ListDataMartsByConnectorNameService } from './use-cases/list-data-marts-by-connector-name.service';
 import { ListProjectDataMartRunsService } from './use-cases/list-project-data-mart-runs.service';
 import { ListProjectInsightTemplatesService } from './use-cases/list-project-insight-templates.service';
@@ -510,6 +512,10 @@ import { ProjectMemberApiKeysModule } from '../project-member-api-keys/project-m
       provide: MCP_DATA_DESTINATIONS_FACADE,
       useClass: McpDataDestinationsFacadeImpl,
     },
+    {
+      provide: MCP_SCHEDULED_TRIGGERS_FACADE,
+      useClass: McpScheduledTriggersFacadeImpl,
+    },
     ListDataMartsByConnectorNameService,
     GetDataMartService,
     ListDataMartRunsService,
@@ -807,6 +813,7 @@ import { ProjectMemberApiKeysModule } from '../project-member-api-keys/project-m
   exports: [
     MCP_DATA_MARTS_FACADE,
     MCP_DATA_DESTINATIONS_FACADE,
+    MCP_SCHEDULED_TRIGGERS_FACADE,
     ContextAccessService,
     AdvancedSearchIndexSyncService,
   ],

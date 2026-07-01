@@ -104,6 +104,19 @@ export class ReportService {
     return report;
   }
 
+  async getByIdAndProjectId(id: string, projectId: string): Promise<Report> {
+    const report = await this.repository.findOne({
+      where: { id, dataMart: { projectId } },
+      relations: ['dataMart'],
+    });
+
+    if (!report) {
+      throw new NotFoundException(`Report with id ${id} not found`);
+    }
+
+    return report;
+  }
+
   /**
    * Fetches all Looker Studio reports for destination with secret validation.
    *
