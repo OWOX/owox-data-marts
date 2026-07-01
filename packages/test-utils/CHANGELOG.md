@@ -2,7 +2,7 @@
 
 ## 8.0.0
 
-### Patch Changes
+### Patch Changes 8.0.0
 
 - @owox/idp-protocol@0.29.0
 

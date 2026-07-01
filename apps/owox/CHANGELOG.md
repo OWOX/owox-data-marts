@@ -2,7 +2,7 @@
 
 ## 0.29.0
 
-### Minor Changes
+### Minor Changes 0.29.0
 
 - 964d886: # Protect unsaved Output Schema changes from being lost
 
@@ -56,7 +56,7 @@
 
   Serve the OpenAI Apps verification token as `text/plain` (HTTP 200) at the origin-root well-known path `GET /.well-known/openai-apps-challenge`, so the OWOX MCP server can pass OpenAI's domain verification during app submission. The endpoint is public (no auth, served at the host root rather than under `/api`) and returns 404 until the token is configured via the new `MCP_OPENAI_APPS_CHALLENGE_TOKEN` environment variable.
 
-### Patch Changes
+### Patch Changes 0.29.0
 
 - @owox/internal-helpers@0.29.0
 - @owox/idp-protocol@0.29.0
@@ -1948,6 +1948,7 @@
   We're excited to introduce **Time Triggers** - a powerful new feature that allows you to schedule your reports and connectors to run automatically at specified times!
 
   ## Benefits
+
   - ✅ **Save Time**: Automate routine data refreshes without manual intervention
   - 🔄 **Stay Updated**: Keep your data fresh with regular scheduled updates
   - 📊 **Consistent Reporting**: Ensure your reports are generated on a reliable schedule
@@ -1955,6 +1956,7 @@
   - 🔧 **Flexible Scheduling Options**: Choose from daily, weekly, monthly, or interval-based schedules
 
   ## Scheduling Options
+
   - **Daily**: Run your reports or connectors at the same time every day
   - **Weekly**: Select specific days of the week for execution
   - **Monthly**: Schedule runs on specific days of the month
