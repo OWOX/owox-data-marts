@@ -1,5 +1,70 @@
 # owox
 
+## 0.29.0
+
+### Minor Changes 0.29.0
+
+- 964d886: # Protect unsaved Output Schema changes from being lost
+
+  When a data mart's Output Schema has unsaved changes, you're now asked how you'd like to proceed before any action that would replace the schema — so your edits are never discarded without warning.
+
+  You'll see a clear prompt with three choices — **Save & continue**, **Discard & continue**, or **Cancel** — when you have unsaved schema changes and you:
+  - generate field aliases or descriptions with AI,
+  - refresh the schema,
+  - publish the data mart,
+  - update the input source, or
+  - leave the page.
+
+  This makes it obvious what will happen to your changes and lets you keep your work instead of losing it.
+
+- 627880f: # Auto-create Google Sheets documents for reports
+
+  Add a "Create document" action to the Google Sheets report form that auto-creates a new spreadsheet for the selected destination and fills in its link — so users no longer have to manually create and share a sheet. It works for both authentication methods: OAuth (the document is created in the connected account's Drive and shared with the requesting user) and Service Account (the document is created in a configured Shared Drive folder).
+
+  Destinations can target a Drive folder for auto-created documents: paste a folder URL for Service Account destinations (validated on save — it must be a Shared Drive folder the service account can write to), or pick one with the Google Drive Picker for OAuth destinations. The Picker requires a new `GOOGLE_PICKER_API_KEY` environment variable, and the OAuth destination flow now also requests the non-sensitive `drive.file` scope (existing OAuth destinations must reconnect to grant it before folder placement and sharing work).
+
+- 5f7dbcf: # Add a list_destinations MCP tool
+
+  AI assistants connected to OWOX over MCP can now list the destinations available in your active project. Each entry includes its name, type (Google Sheets, Looker Studio, Slack, Email, Microsoft Teams, or Google Chat), and owner — so the assistant can pick the right target before creating a report on your behalf.
+
+  Only destinations you can access are returned, and destinations that aren't currently usable are omitted.
+
+- e575e99: # Add search functionality
+
+  Add search functionality for finding project data marts, storages, and destinations from the project search index.
+
+- 36fb4d3: # Data Mart report aggregations
+
+  Reports can now aggregate Data Mart data server-side, across all supported storages (BigQuery, Athena, Snowflake, Redshift, Databricks):
+  - **Group-by + metric functions** — `SUM`, `AVG`, `MIN`, `MAX`, `COUNT`, `COUNT_DISTINCT`, `STRING_AGG`, and percentiles `P25`/`P50`/`P75`/`P95`, rendered with the correct per-dialect SQL. Group-by is implied: every selected column without an aggregation rule becomes a grouping key.
+  - **Date bucketing (`dateTruncConfig`)** — group a date/timestamp dimension by `DAY`/`WEEK`/`MONTH`/`QUARTER`/`YEAR` (e.g. "revenue by month"), with an optional per-rule IANA `timeZone` so the value is converted to that zone before truncation (absent = no conversion). Rendered with the correct per-dialect SQL.
+  - **Aggregated column naming** — aggregated outputs are named `<column> | <TOKEN>` (an uppercase, spreadsheet-style function token, e.g. `revenue | SUM`, `customer_id | COUNTUNIQUE`) and carry the function's effective type.
+  - **Multiple aggregations per column** — a column can carry several functions, each rendered as its own output column (e.g. `SUM` and `AVG` of `amount`).
+  - **Auto Row Count** — aggregated reports automatically include a `Row Count` (`COUNT(*)`) column (no toggle).
+  - **Unique Count (`uniqueCountConfig`)** — an opt-in `COUNT(DISTINCT <primary key>)` metric (composite primary keys supported via per-dialect concatenation), rejected at save time when the Data Mart has no primary key.
+  - **Post-aggregation filtering (`HAVING`)** — a filter targeting an aggregated output column (a filter rule that carries its aggregate function) is applied as `HAVING` over the aggregate expression, auto-routed apart from row-level `WHERE` filters; the `(column, function)` pair must match a configured aggregation.
+  - **Joined (blended) Data Marts** — post-join aggregation over the joined result (an outer `GROUP BY`), in addition to the existing pre-join join-rollup.
+  - **Totals** — a per-column summary computed over the full filtered dataset (no grouping) as a DWH-side **separate query**: every selected numeric field is aggregated by all of its allowed functions (e.g. `SUM`/`AVG`/`MIN`/`MAX` of `cost`). Surfaced through the **HTTP Data API** (nested in its run subtree, never merged into the row stream); push destinations (Google Sheets, Email/Slack/Teams/Chat) don't compute totals. Row Count and Unique Count are not part of totals.
+  - **Data-mart-level governance** — each schema field carries a dimension/metric role plus a type-derived set of **supported** aggregations (the menu the field may use — e.g. percentiles only for numerics) and an **on-by-default** subset, with a per-field override; reports may only aggregate with a function the field allows.
+  - **Report aggregation UI** — a dedicated **AGG** control (next to output controls) plus a per-field AGG icon configure grouping, multi-aggregation, date bucketing, and timezone.
+
+  Backend changes: three additive nullable report columns (`aggregationConfig`, `dateTruncConfig`, `uniqueCountConfig`), request/response API + OpenAPI contract, and save-time validation (column projection required for aggregated/date-trunc reports, function allowed for the field and numeric where required, date-trunc requires a date column, HAVING filters must target a configured aggregation and may not be pushed pre-join, `COUNT_DISTINCT`/`STRING_AGG` rejected on non-groupable `other`-category types, Unique Count requires a primary key).
+
+  **Deployment ordering:** the aggregate-function list is mirrored by the separate `google-sheets-extension` report picker, which has no compile-time guard against drift. The API change is additive and safe new-server / old-client, so **deploy the backend (this package) before** shipping an extension build that exposes new aggregation options — that avoids a new client requesting a function an old server doesn't yet accept.
+
+- 19a666c: # Add OpenAI Apps domain-verification endpoint for the MCP host
+
+  Serve the OpenAI Apps verification token as `text/plain` (HTTP 200) at the origin-root well-known path `GET /.well-known/openai-apps-challenge`, so the OWOX MCP server can pass OpenAI's domain verification during app submission. The endpoint is public (no auth, served at the host root rather than under `/api`) and returns 404 until the token is configured via the new `MCP_OPENAI_APPS_CHALLENGE_TOKEN` environment variable.
+
+### Patch Changes 0.29.0
+
+- @owox/internal-helpers@0.29.0
+- @owox/idp-protocol@0.29.0
+- @owox/idp-better-auth@0.29.0
+- @owox/idp-owox-better-auth@0.29.0
+- @owox/backend@0.29.0
+- @owox/web@0.29.0
+
 ## 0.28.0
 
 ### Minor Changes 0.28.0
@@ -7,7 +72,6 @@
 ![OWOX Data Marts – v0.28.0](https://github.com/user-attachments/assets/c9db0633-4566-4c5e-8ac2-3dfcb3a29cfc)
 
 - 0165f6b: **Google Sheets Extension menu and sidebar updates**
-
   - **All Reports** — new menu item lists every report in the current document with its sheet name, last run status, and last run time, with direct access to open any report.
   - **Create new report** — new menu item creates a new sheet and opens the report creation form in one step.
   - **Report run failure reason** — hover the last run status icon in the sidebar to see why a run failed.
