@@ -1,4 +1,6 @@
+import { NotFoundException } from '@nestjs/common';
 import { RoleScope } from '../enums/role-scope.enum';
+import { ScheduledTriggerType } from '../scheduled-trigger-types/enums/scheduled-trigger-type.enum';
 import { ScheduledTriggerService } from './scheduled-trigger.service';
 
 function createQueryBuilder() {
@@ -65,5 +67,61 @@ describe('ScheduledTriggerService', () => {
     ).resolves.toEqual([]);
 
     expect(repository.createQueryBuilder).toHaveBeenCalledTimes(1);
+  });
+
+  it('applies the trigger type filter when a type is provided', async () => {
+    const pageQb = createQueryBuilder();
+    pageQb.getRawMany.mockResolvedValue([]);
+    const repository = { createQueryBuilder: jest.fn().mockReturnValue(pageQb) };
+    const service = new ScheduledTriggerService(repository as never);
+
+    await service.listVisibleByProject({
+      projectId: 'project-1',
+      userId: 'admin-1',
+      roles: ['admin'],
+      roleScope: RoleScope.ENTIRE_PROJECT,
+      type: ScheduledTriggerType.REPORT_RUN,
+    });
+
+    expect(pageQb.andWhere).toHaveBeenCalledWith('scheduledTrigger.type = :type', {
+      type: ScheduledTriggerType.REPORT_RUN,
+    });
+  });
+
+  it('does not filter by type when none is provided', async () => {
+    const pageQb = createQueryBuilder();
+    pageQb.getRawMany.mockResolvedValue([]);
+    const repository = { createQueryBuilder: jest.fn().mockReturnValue(pageQb) };
+    const service = new ScheduledTriggerService(repository as never);
+
+    await service.listVisibleByProject({
+      projectId: 'project-1',
+      userId: 'admin-1',
+      roles: ['admin'],
+      roleScope: RoleScope.ENTIRE_PROJECT,
+    });
+
+    expect(pageQb.andWhere).not.toHaveBeenCalledWith(
+      'scheduledTrigger.type = :type',
+      expect.anything()
+    );
+  });
+
+  it('loads a trigger scoped by project and throws when it is missing', async () => {
+    const found = { id: 'trigger-1' };
+    const repository = {
+      findOne: jest.fn().mockResolvedValueOnce(found).mockResolvedValueOnce(null),
+    };
+    const service = new ScheduledTriggerService(repository as never);
+
+    await expect(service.getByIdAndProjectId('trigger-1', 'project-1')).resolves.toBe(found);
+    expect(repository.findOne).toHaveBeenCalledWith({
+      where: { id: 'trigger-1', dataMart: { projectId: 'project-1' } },
+      relations: ['dataMart'],
+    });
+
+    await expect(service.getByIdAndProjectId('missing', 'project-1')).rejects.toThrow(
+      NotFoundException
+    );
   });
 });
