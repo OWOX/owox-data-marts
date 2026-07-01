@@ -97,6 +97,8 @@ describe('CreateDataDestinationService', () => {
 
     const eventDispatcher = { publishLocalOnCommit: jest.fn() };
 
+    const folderValidator = { validateConfiguredFolder: jest.fn().mockResolvedValue(undefined) };
+
     const service = new CreateDataDestinationService(
       repository as never,
       mapper as never,
@@ -111,7 +113,8 @@ describe('CreateDataDestinationService', () => {
       destinationOwnerRepository as never,
       idpProjectionsFacade as never,
       accessDecisionService as never,
-      eventDispatcher as never
+      eventDispatcher as never,
+      folderValidator as never
     );
 
     return {
@@ -120,6 +123,7 @@ describe('CreateDataDestinationService', () => {
       googleOAuthClientService,
       repository,
       accessDecisionService,
+      folderValidator,
     };
   };
 
@@ -169,6 +173,22 @@ describe('CreateDataDestinationService', () => {
         availableForMaintenance: false,
       })
     );
+  });
+
+  it('always validates the configured folder on create (a new folder is always "changed")', async () => {
+    const { service, folderValidator } = createService();
+    const command = new CreateDataDestinationCommand(
+      'proj-1',
+      'Test Dest',
+      DataDestinationType.LOOKER_STUDIO,
+      'user-0',
+      { type: 'looker-studio-credentials' } as never
+    );
+
+    await service.run(command);
+
+    expect(folderValidator.validateConfiguredFolder).toHaveBeenCalledTimes(1);
+    expect(folderValidator.validateConfiguredFolder).toHaveBeenCalledWith(savedEntity);
   });
 
   it('should call syncOwners with provided ownerIds', async () => {

@@ -10,6 +10,7 @@ import { UpdateDataDestinationCommand } from '../dto/domain/update-data-destinat
 import { DataDestinationService } from '../services/data-destination.service';
 import { DataDestinationCredentialsValidatorFacade } from '../data-destination-types/facades/data-destination-credentials-validator.facade';
 import { DataDestinationCredentialsProcessorFacade } from '../data-destination-types/facades/data-destination-credentials-processor.facade';
+import { GoogleSheetsFolderValidator } from '../data-destination-types/google-sheets/services/google-sheets-folder-validator.service';
 import { DataDestinationCredentials } from '../data-destination-types/data-destination-credentials.type';
 import { DataDestinationCredentialService } from '../services/data-destination-credential.service';
 import { GoogleOAuthClientService } from '../services/google-oauth/google-oauth-client.service';
@@ -49,6 +50,7 @@ export class UpdateDataDestinationService {
     private readonly destinationOwnerRepository: Repository<DestinationOwner>,
     private readonly accessDecisionService: AccessDecisionService,
     private readonly contextAccessService: ContextAccessService,
+    private readonly folderValidator: GoogleSheetsFolderValidator,
     private readonly advancedSearchIndexSync?: AdvancedSearchIndexSyncService
   ) {}
 
@@ -91,6 +93,26 @@ export class UpdateDataDestinationService {
       command.id,
       command.projectId
     );
+
+    // Only re-validate the Drive folder (a live Drive API round-trip inside the
+    // transaction) when the configured folder actually changes. Updates that
+    // leave the folder untouched — e.g. toggling availability or renaming the
+    // destination — skip the network call. Computed before `entity.config` is
+    // mutated below so it reflects the previously persisted folder.
+    const existingFolderId = entity.config?.folderId?.trim() || undefined;
+    const incomingFolderId =
+      command.config !== undefined
+        ? command.config?.folderId?.trim() || undefined
+        : existingFolderId;
+    const folderChanged = incomingFolderId !== existingFolderId;
+
+    // Folder validation depends on the EFFECTIVE credential, not only the folder
+    // id: replacing/copying credentials or switching credential type while
+    // keeping the same folder must re-validate (a new service account may not be
+    // able to write there). Set when a branch below actually mutates credential
+    // data; the validator itself no-ops for non-Service-Account credentials, so
+    // OAuth credential changes do not incur a Drive round-trip.
+    let credentialChanged = false;
 
     // Permissions Model: verify user has EDIT access to this Destination
     if (command.userId) {
@@ -160,6 +182,9 @@ export class UpdateDataDestinationService {
         entity.credentialId ?? null,
         source.credential
       );
+      // Credential content was replaced (even when copied in place into the same
+      // credential id), so the configured folder must be re-validated below.
+      credentialChanged = true;
       if (newCredId) {
         entity.credentialId = newCredId;
         entity.credential = null;
@@ -172,6 +197,9 @@ export class UpdateDataDestinationService {
       }
       if (command.availableForMaintenance !== undefined) {
         entity.availableForMaintenance = command.availableForMaintenance;
+      }
+      if (command.config !== undefined) {
+        entity.config = command.config;
       }
       const updatedEntity = await this.dataDestinationRepository.save(entity);
       if (command.contextIds !== undefined) {
@@ -188,7 +216,11 @@ export class UpdateDataDestinationService {
         updatedEntity.id,
         command.projectId
       );
-      return this.replaceOwnersAndBuildResponse(updatedEntity, command.ownerIds);
+      return this.replaceOwnersAndBuildResponse(
+        updatedEntity,
+        command.ownerIds,
+        folderChanged || credentialChanged
+      );
     }
 
     // Handle OAuth credentialId disconnect (null = revoke)
@@ -198,6 +230,11 @@ export class UpdateDataDestinationService {
       // Clear the eagerly-loaded relation so TypeORM save() does not
       // overwrite credentialId with the stale (soft-deleted) relation id.
       entity.credential = null;
+      // Clear the Drive folder config too: an OAuth-picked folder's drive.file
+      // grant was tied to the now-disconnected account, so it would be stale.
+      // Mirrors the standalone revoke path. An explicit command.config (handled
+      // below) still wins.
+      entity.config = null;
     }
 
     if (command.credentialId) {
@@ -217,10 +254,12 @@ export class UpdateDataDestinationService {
       }
       entity.credentialId = command.credentialId;
       entity.credential = null;
+      credentialChanged = true;
     } else if (command.hasCredentials()) {
       // Service account credentials — validate, process, and store
       // Non-null assertion safe: guarded by hasCredentials() above
       const credentials = command.credentials!;
+      credentialChanged = true;
       await this.credentialsValidator.checkCredentials(entity.type, credentials);
 
       // Process credentials with existing data to preserve backend-managed fields
@@ -283,6 +322,9 @@ export class UpdateDataDestinationService {
     if (command.availableForMaintenance !== undefined) {
       entity.availableForMaintenance = command.availableForMaintenance;
     }
+    if (command.config !== undefined) {
+      entity.config = command.config;
+    }
 
     const updatedEntity = await this.dataDestinationRepository.save(entity);
 
@@ -302,13 +344,25 @@ export class UpdateDataDestinationService {
       command.projectId
     );
 
-    return this.replaceOwnersAndBuildResponse(updatedEntity, command.ownerIds);
+    return this.replaceOwnersAndBuildResponse(
+      updatedEntity,
+      command.ownerIds,
+      folderChanged || credentialChanged
+    );
   }
 
   private async replaceOwnersAndBuildResponse(
     entity: DataDestination,
-    ownerIds?: string[]
+    ownerIds?: string[],
+    folderChanged = true
   ): Promise<DataDestinationDto> {
+    // Fail fast (and roll back) if a newly configured Drive folder is not usable
+    // for service-account auto-creation. Skipped when the folder did not change,
+    // to avoid a redundant live Drive API call on unrelated updates.
+    if (folderChanged) {
+      await this.folderValidator.validateConfiguredFolder(entity);
+    }
+
     if (ownerIds !== undefined) {
       await syncOwners(
         this.destinationOwnerRepository,

@@ -1,4 +1,4 @@
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import {
   ArrayMaxSize,
   IsNotEmpty,
@@ -8,8 +8,11 @@ import {
   IsUUID,
   IsArray,
   IsBoolean,
+  ValidateNested,
 } from 'class-validator';
+import { Type } from 'class-transformer';
 import { DataDestinationCredentials } from '../../data-destination-types/data-destination-credentials.type';
+import { DestinationConfigDto } from './destination-config.dto';
 
 export class UpdateDataDestinationApiDto {
   @ApiProperty({ example: 'My Updated Google Sheets Destination' })
@@ -80,4 +83,13 @@ export class UpdateDataDestinationApiDto {
   @IsString({ each: true })
   @IsNotEmpty({ each: true })
   contextIds?: string[];
+
+  @ApiPropertyOptional({
+    type: DestinationConfigDto,
+    description: 'Optional destination-level config (e.g. Google Drive folder for Google Sheets)',
+  })
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => DestinationConfigDto)
+  config?: DestinationConfigDto;
 }

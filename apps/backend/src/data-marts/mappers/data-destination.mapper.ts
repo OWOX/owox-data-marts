@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import { AuthorizationContext } from '../../idp';
 import { UserProjectionsListDto } from '../../idp/dto/domain/user-projections-list.dto';
 import { CreateDataDestinationCommand } from '../dto/domain/create-data-destination.command';
@@ -30,6 +30,9 @@ import { UserProjectionDto } from '../../idp/dto/domain/user-projection.dto';
 import { OwnerFilter } from '../enums/owner-filter.enum';
 import { resolveOwnerUsers } from '../utils/resolve-owner-users';
 import { extractContextSummaries } from '../utils/extract-context-summaries';
+import { DestinationConfig } from '../entities/destination-config.type';
+import { DestinationConfigDto } from '../dto/presentation/destination-config.dto';
+import { extractDriveFolderId } from '../data-destination-types/google-sheets/utils/drive-folder-url.utils';
 
 @Injectable()
 export class DataDestinationMapper {
@@ -53,7 +56,8 @@ export class DataDestinationMapper {
       dto.credentialId,
       dto.sourceDestinationId,
       dto.ownerIds,
-      context.roles ?? []
+      context.roles ?? [],
+      this.normalizeDestinationConfig(dto.config)
     );
   }
 
@@ -74,8 +78,34 @@ export class DataDestinationMapper {
       context.roles ?? [],
       dto.availableForUse,
       dto.availableForMaintenance,
-      dto.contextIds
+      dto.contextIds,
+      this.normalizeDestinationConfig(dto.config)
     );
+  }
+
+  /**
+   * Normalizes destination config from the API: the client sends a Drive folder
+   * URL; we keep it as the source of truth and derive the canonical folderId from
+   * it (so the validator and auto-creation flow keep consuming folderId). Returns
+   * undefined when no config was sent (do not touch); returns nulls to clear.
+   */
+  private normalizeDestinationConfig(config?: DestinationConfigDto): DestinationConfig | undefined {
+    if (config === undefined) {
+      return undefined;
+    }
+    const folderUrl = config.folderUrl?.trim() || null;
+    // folderId is server-derived only — never taken from the client payload —
+    // so it always reflects a validated folder URL (or null when cleared).
+    const folderId = folderUrl ? extractDriveFolderId(folderUrl) : null;
+    // Reject a non-empty URL we cannot parse into a folder id, instead of
+    // persisting a half-configured destination that only fails at create time.
+    if (folderUrl && !folderId) {
+      throw new BadRequestException(
+        'The Google Drive folder URL is not valid. Paste a folder link like ' +
+          'https://drive.google.com/drive/folders/<id>.'
+      );
+    }
+    return { folderUrl, folderId };
   }
 
   toDomainDto(
@@ -95,7 +125,8 @@ export class DataDestinationMapper {
       ownerUsers,
       dataDestination.availableForUse,
       dataDestination.availableForMaintenance,
-      extractContextSummaries(dataDestination.contexts)
+      extractContextSummaries(dataDestination.contexts),
+      dataDestination.config ?? null
     );
   }
 
@@ -133,6 +164,7 @@ export class DataDestinationMapper {
       availableForUse: dataDestinationDto.availableForUse,
       availableForMaintenance: dataDestinationDto.availableForMaintenance,
       contexts: dataDestinationDto.contexts,
+      config: dataDestinationDto.config,
     };
   }
 

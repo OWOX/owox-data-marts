@@ -289,7 +289,13 @@ describe('UserProvisioningSettings', () => {
     await screen.findByTestId('radio-auto-join');
     fireEvent.click(screen.getByTestId('radio-require-request'));
 
-    expect(screen.getByTestId('radio-require-request')).toBeChecked();
+    // The radio is controlled by async React state (checked={mode === 'manual'}),
+    // so wait for it to settle instead of asserting synchronously — matches the
+    // waitFor pattern used for the same radio elsewhere in this file and avoids a
+    // flake under load (the assertion can run before the state update flushes).
+    await waitFor(() => {
+      expect(screen.getByTestId('radio-require-request')).toBeChecked();
+    });
     expect(screen.queryByTestId('change-default-roles-btn')).not.toBeInTheDocument();
   });
 });

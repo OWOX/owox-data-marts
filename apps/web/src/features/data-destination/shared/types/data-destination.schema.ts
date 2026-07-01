@@ -3,6 +3,7 @@ import { DataDestinationType } from '../enums';
 import { googleCredentialsWithOAuthSchema } from '../../../../shared';
 import { lookerStudioCredentialsSchema } from './looker-studio-credentials.schema.ts';
 import { emailCredentialsSchema } from './email-credentials.schema.ts';
+import { isValidGoogleDriveFolderUrl } from '../utils/drive-folder-url.utils.ts';
 
 // Base schema for all data destinations
 const baseDataDestinationSchema = z.object({
@@ -14,6 +15,17 @@ const baseDataDestinationSchema = z.object({
 const googleSheetsDestinationSchema = baseDataDestinationSchema.extend({
   type: z.literal(DataDestinationType.GOOGLE_SHEETS),
   credentials: googleCredentialsWithOAuthSchema,
+  // Optional destination-level config: Drive folder (by URL) for auto-created Sheets.
+  config: z
+    .object({
+      folderId: z.string().optional(),
+      folderUrl: z.string().optional(),
+    })
+    .refine(c => !c.folderUrl?.trim() || isValidGoogleDriveFolderUrl(c.folderUrl), {
+      message: 'Enter a valid Google Drive folder URL',
+      path: ['folderUrl'],
+    })
+    .optional(),
 });
 
 // Using the shared schema for Looker Studio credentials

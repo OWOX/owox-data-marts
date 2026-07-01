@@ -7,6 +7,8 @@ export interface OAuthSettings {
   clientId?: string;
   redirectUri?: string;
   availableScopes?: string[];
+  /** Drive Picker API key (destination only) — enables the folder picker. */
+  pickerApiKey?: string;
 }
 
 export interface OAuthAuthorizationUrl {

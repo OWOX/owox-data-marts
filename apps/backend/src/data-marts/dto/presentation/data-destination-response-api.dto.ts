@@ -1,9 +1,10 @@
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { DataDestinationCredentials } from '../../data-destination-types/data-destination-credentials.type';
 import { DataDestinationType } from '../../data-destination-types/enums/data-destination-type.enum';
 import { UserProjectionDto } from '../../../idp/dto/domain/user-projection.dto';
 import { CredentialIdentity } from '../../entities/credential-identity.type';
 import { ContextSummary } from '../../utils/extract-context-summaries';
+import { DestinationConfig } from '../../entities/destination-config.type';
 
 export type DataDestinationCredentialsPublic = {
   type: 'google-sheets-credentials';
@@ -66,4 +67,12 @@ export class DataDestinationResponseApiDto {
 
   @ApiProperty({ type: [Object] })
   contexts: ContextSummary[];
+
+  @ApiPropertyOptional({
+    type: 'object',
+    nullable: true,
+    additionalProperties: true,
+    description: 'Optional destination-level config (e.g. Google Drive folder for Google Sheets)',
+  })
+  config?: DestinationConfig | null;
 }

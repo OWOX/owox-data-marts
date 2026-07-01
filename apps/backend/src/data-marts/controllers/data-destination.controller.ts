@@ -49,6 +49,7 @@ import {
   OAuthStatusSpec,
   OAuthRevokeSpec,
   UpdateDataDestinationAvailabilitySpec,
+  CreateGoogleSheetDocumentSpec,
 } from './spec/data-destination.api';
 import { ApiTags } from '@nestjs/swagger';
 import { DeleteDataDestinationService } from '../use-cases/delete-data-destination.service';
@@ -64,6 +65,10 @@ import { ExchangeOAuthCodeService } from '../use-cases/google-oauth/exchange-oau
 import { UpdateAvailabilityService } from '../use-cases/update-availability.service';
 import { UpdateDestinationAvailabilityApiDto } from '../dto/presentation/update-availability-api.dto';
 import { AccessDecisionService, EntityType, Action } from '../services/access-decision';
+import { CreateGoogleSheetDocumentService } from '../use-cases/google-sheets/create-google-sheet-document.service';
+import { CreateGoogleSheetDocumentCommand } from '../dto/domain/google-sheets/create-google-sheet-document.command';
+import { CreateGoogleSheetDocumentRequestDto } from '../dto/presentation/google-sheets/create-google-sheet-document-request.dto';
+import { CreateGoogleSheetDocumentResponseDto } from '../dto/presentation/google-sheets/create-google-sheet-document-response.dto';
 
 @Controller('data-destinations')
 @ApiTags('DataDestinations')
@@ -85,7 +90,8 @@ export class DataDestinationController {
     private readonly exchangeOAuthCodeService: ExchangeOAuthCodeService,
     private readonly listByTypeService: ListDataDestinationsByTypeService,
     private readonly updateAvailabilityService: UpdateAvailabilityService,
-    private readonly accessDecisionService: AccessDecisionService
+    private readonly accessDecisionService: AccessDecisionService,
+    private readonly createGoogleSheetDocumentService: CreateGoogleSheetDocumentService
   ) {}
 
   private async checkDestinationAccess(
@@ -314,5 +320,25 @@ export class DataDestinationController {
       dto.availableForUse,
       dto.availableForMaintenance
     );
+  }
+
+  @Auth(Role.viewer(Strategy.INTROSPECT))
+  @Post(':id/google-sheets/documents')
+  @HttpCode(200)
+  @CreateGoogleSheetDocumentSpec()
+  async createGoogleSheetDocument(
+    @AuthContext() context: AuthorizationContext,
+    @Param('id') id: string,
+    @Body() dto: CreateGoogleSheetDocumentRequestDto
+  ): Promise<CreateGoogleSheetDocumentResponseDto> {
+    await this.checkDestinationAccess(id, context, Action.USE);
+    const command = new CreateGoogleSheetDocumentCommand(
+      id,
+      context.projectId,
+      dto.title,
+      context.userId,
+      context.email
+    );
+    return this.createGoogleSheetDocumentService.run(command);
   }
 }

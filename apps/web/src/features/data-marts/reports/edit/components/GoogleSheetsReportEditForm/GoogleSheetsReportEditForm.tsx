@@ -34,12 +34,16 @@ import {
   DataDestinationType,
   DataDestinationTypeModel,
   useDataDestination,
+  dataDestinationService,
 } from '../../../../../data-destination';
 import { Link } from 'react-router-dom';
 import { useProjectRoute } from '../../../../../../shared/hooks';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@owox/ui/components/tooltip';
 import { Alert, AlertDescription, AlertTitle } from '@owox/ui/components/alert';
-import { AlertCircle, ExternalLink } from 'lucide-react';
+import { Button } from '@owox/ui/components/button';
+import { AlertCircle, ExternalLink, Loader2 } from 'lucide-react';
+import toast from 'react-hot-toast';
+import { showApiErrorToast } from '../../../../../../shared/utils/showApiErrorToast';
 import {
   getGoogleSheetTabUrl,
   getGoogleSheetsDestinationEmail,
@@ -242,6 +246,58 @@ export const GoogleSheetsReportEditForm = forwardRef<
     const documentUrl = form.watch('documentUrl');
     const isValidDocumentUrl = documentUrl && isValidGoogleSheetsUrl(documentUrl.trim());
 
+    const selectedDestinationId = form.watch('dataDestinationId');
+    const [isCreatingSheet, setIsCreatingSheet] = useState(false);
+
+    const handleCreateGoogleSheet = async () => {
+      if (!selectedDestinationId || isCreatingSheet) {
+        return;
+      }
+      // The report has no title yet at creation time (defaults to DEFAULT_REPORT_TITLE),
+      // so fall back to the Data Mart title; use the report title once the user set one.
+      const reportTitle = form.getValues('title').trim();
+      const sheetTitle =
+        reportTitle && reportTitle !== DEFAULT_REPORT_TITLE
+          ? reportTitle
+          : (dataMart?.title ?? reportTitle);
+      setIsCreatingSheet(true);
+      try {
+        const { spreadsheetId, sheetId, placedInRoot, sharedWithRequester } =
+          await dataDestinationService.createGoogleSheetDocument(selectedDestinationId, {
+            title: sheetTitle,
+          });
+        form.setValue('documentUrl', getGoogleSheetTabUrl(spreadsheetId, sheetId), {
+          shouldDirty: true,
+          shouldValidate: true,
+        });
+        // The backend explicitly flags a downgrade (folder dropped / not shared)
+        // when the connected OAuth token lacks a Drive scope. Older backends omit
+        // these flags (undefined), so only warn on an explicit true/false.
+        if (placedInRoot === true || sharedWithRequester === false) {
+          const issues: string[] = [];
+          if (placedInRoot === true) {
+            issues.push(
+              'the selected Drive folder was not used (it was created in your Drive root)'
+            );
+          }
+          if (sharedWithRequester === false) {
+            issues.push('it was not shared with you');
+          }
+          toast(
+            `Google Sheet created, but ${issues.join(', and ')}. Reconnect the destination’s ` +
+              'Google account with Drive access to fix this.',
+            { icon: '⚠️', duration: 8000 }
+          );
+        } else {
+          toast.success('Google Sheet created');
+        }
+      } catch (error) {
+        showApiErrorToast(error, 'Failed to create Google Sheet');
+      } finally {
+        setIsCreatingSheet(false);
+      }
+    };
+
     return (
       <Form {...form}>
         <AppForm
@@ -420,6 +476,27 @@ export const GoogleSheetsReportEditForm = forwardRef<
                             {isValidDocumentUrl
                               ? 'Open document in new tab'
                               : 'Enter a valid URL to enable link'}
+                          </TooltipContent>
+                        </Tooltip>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button
+                              type='button'
+                              variant='outline'
+                              className='flex-shrink-0'
+                              disabled={!selectedDestinationId || isCreatingSheet}
+                              onClick={() => void handleCreateGoogleSheet()}
+                            >
+                              {isCreatingSheet ? (
+                                <Loader2 className='h-4 w-4 animate-spin' aria-hidden='true' />
+                              ) : null}
+                              Create document
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent side='top' align='center' role='tooltip'>
+                            {selectedDestinationId
+                              ? 'Create a new Google Sheet in the selected destination and fill the link above'
+                              : 'Select a destination first'}
                           </TooltipContent>
                         </Tooltip>
                       </div>

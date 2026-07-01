@@ -86,4 +86,9 @@ export interface DataDestinationResponseDto {
   availableForUse?: boolean;
   availableForMaintenance?: boolean;
   contexts?: { id: string; name: string }[];
+
+  /**
+   * Optional destination-level config (e.g. Drive folder for auto-created Google Sheets)
+   */
+  config?: { folderId?: string | null; folderUrl?: string | null } | null;
 }

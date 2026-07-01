@@ -8,6 +8,7 @@ import {
   FormMessage,
 } from '@owox/ui/components/form';
 import { FileDropTextarea } from '@owox/ui/components/file-drop-textarea';
+import { Input } from '@owox/ui/components/input';
 import { toast } from 'react-hot-toast';
 import { useState, useEffect } from 'react';
 import { type UseFormReturn } from 'react-hook-form';
@@ -17,8 +18,14 @@ import GoogleSheetsOAuthDescription from './FormDescriptions/GoogleSheetsOAuthDe
 import GoogleSheetsAuthMethodDescription from './FormDescriptions/GoogleSheetsAuthMethodDescription';
 import { CopyableField } from '@owox/ui/components/common/copyable-field';
 import { ExternalAnchor } from '@owox/ui/components/common/external-anchor';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@owox/ui/components/tooltip';
 import { getServiceAccountLink } from '../../../../../utils';
-import { Copy, Check } from 'lucide-react';
+import { Copy, Check, ExternalLink } from 'lucide-react';
+import {
+  isValidGoogleDriveFolderUrl,
+  buildDriveFolderUrl,
+} from '../../../shared/utils/drive-folder-url.utils';
+import { useGoogleDrivePicker } from '../../../shared/hooks/useGoogleDrivePicker';
 import { GoogleOAuthConnectButton, destinationOAuthApi } from '../../../../google-oauth';
 import { Tabs, TabsList, TabsTrigger } from '@owox/ui/components/tabs';
 import { AuthenticationSectionHeader } from '../../../../../shared/components/AuthenticationSectionHeader';
@@ -49,6 +56,10 @@ export function GoogleSheetsFields({ form }: GoogleSheetsFieldsProps) {
   );
   const [oauthEmail, setOauthEmail] = useState<string | null>(null);
   const [saCopied, setSaCopied] = useState(false);
+  const [oauthClientId, setOauthClientId] = useState<string | undefined>(undefined);
+  const [pickerApiKey, setPickerApiKey] = useState<string | undefined>(undefined);
+  const [isPickingFolder, setIsPickingFolder] = useState(false);
+  const { openPicker } = useGoogleDrivePicker();
 
   useEffect(() => {
     destinationOAuthApi
@@ -56,6 +67,8 @@ export function GoogleSheetsFields({ form }: GoogleSheetsFieldsProps) {
       .then(s => {
         setIsOAuthAvailable(s.available);
         setOauthRedirectUri(s.redirectUri);
+        setOauthClientId(s.clientId);
+        setPickerApiKey(s.pickerApiKey);
         if (!s.available) {
           setAuthMethod('service-account');
         }
@@ -140,6 +153,33 @@ export function GoogleSheetsFields({ form }: GoogleSheetsFieldsProps) {
     setAuthMethod(value);
   };
 
+  const folderUrl = form.watch('config.folderUrl');
+  const isFolderConfigured = !!folderUrl?.trim() && isValidGoogleDriveFolderUrl(folderUrl.trim());
+  const canPickFolder = !!pickerApiKey && !!oauthClientId;
+
+  const handlePickFolder = () => {
+    if (!pickerApiKey || !oauthClientId) {
+      return;
+    }
+    setIsPickingFolder(true);
+    void openPicker({
+      apiKey: pickerApiKey,
+      clientId: oauthClientId,
+      hintEmail: oauthEmail ?? undefined,
+      onPicked: folder => {
+        form.setValue('config.folderUrl', buildDriveFolderUrl(folder.id), {
+          shouldDirty: true,
+          shouldValidate: true,
+        });
+      },
+      onError: message => {
+        toast.error(message);
+      },
+    }).finally(() => {
+      setIsPickingFolder(false);
+    });
+  };
+
   return (
     <div className='mb-4 flex flex-col gap-2'>
       <AuthenticationSectionHeader
@@ -210,6 +250,52 @@ export function GoogleSheetsFields({ form }: GoogleSheetsFieldsProps) {
                 </FormItem>
               )}
             />
+          )}
+
+          {isOAuthAvailable && authMethod === 'oauth' && credentialIdValue && canPickFolder && (
+            <FormItem>
+              <FormLabel tooltip='New documents created from chat or reports are placed in this Drive folder'>
+                Drive folder for auto-created documents (optional)
+              </FormLabel>
+              <div className='flex items-center gap-2'>
+                <Button
+                  type='button'
+                  variant='outline'
+                  onClick={handlePickFolder}
+                  disabled={isPickingFolder}
+                >
+                  {isFolderConfigured ? 'Change folder' : 'Choose folder'}
+                </Button>
+                {isFolderConfigured && folderUrl && (
+                  <ExternalAnchor
+                    href={folderUrl.trim()}
+                    variant='field'
+                    className='flex-1 truncate'
+                  >
+                    {folderUrl.trim()}
+                  </ExternalAnchor>
+                )}
+                {isFolderConfigured && (
+                  <Button
+                    type='button'
+                    variant='ghost'
+                    size='sm'
+                    onClick={() => {
+                      form.setValue('config.folderUrl', '', {
+                        shouldDirty: true,
+                        shouldValidate: true,
+                      });
+                    }}
+                  >
+                    Clear
+                  </Button>
+                )}
+              </div>
+              <FormDescription>
+                New documents created with “Create document” are placed in this Google Drive folder.
+                Leave empty to create them in your Drive root.
+              </FormDescription>
+            </FormItem>
           )}
 
           {authMethod === 'service-account' && (
@@ -286,6 +372,70 @@ export function GoogleSheetsFields({ form }: GoogleSheetsFieldsProps) {
                   <FormMessage />
                 </FormItem>
               )}
+            />
+          )}
+
+          {authMethod === 'service-account' && (
+            <FormField
+              control={form.control}
+              name='config.folderUrl'
+              render={({ field }) => {
+                const folderUrl = (field.value ?? '').trim();
+                const isValidFolderUrl = !!folderUrl && isValidGoogleDriveFolderUrl(folderUrl);
+                return (
+                  <FormItem>
+                    <FormLabel tooltip='New documents created from chat or reports are placed in this Shared Drive folder'>
+                      Drive folder for auto-created documents (required)
+                    </FormLabel>
+                    <FormControl>
+                      <div className='flex items-center gap-2'>
+                        <Input
+                          placeholder='https://drive.google.com/drive/folders/…'
+                          className='flex-1'
+                          {...field}
+                          value={field.value ?? ''}
+                        />
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <button
+                              type='button'
+                              className={`flex-shrink-0 rounded-md p-2 transition-all duration-200 ${
+                                isValidFolderUrl
+                                  ? 'text-blue-600 hover:bg-blue-50 hover:text-blue-700 dark:text-blue-400 dark:hover:bg-blue-950/20 dark:hover:text-blue-300'
+                                  : 'text-muted-foreground/30 cursor-not-allowed'
+                              }`}
+                              onClick={() => {
+                                if (isValidFolderUrl) {
+                                  window.open(folderUrl, '_blank', 'noopener,noreferrer');
+                                }
+                              }}
+                              disabled={!isValidFolderUrl}
+                              aria-label={
+                                isValidFolderUrl
+                                  ? 'Open folder in new tab'
+                                  : 'Folder link is not valid'
+                              }
+                            >
+                              <ExternalLink className='h-4 w-4' aria-hidden='true' />
+                            </button>
+                          </TooltipTrigger>
+                          <TooltipContent side='top' align='center' role='tooltip'>
+                            {isValidFolderUrl
+                              ? 'Open folder in new tab'
+                              : 'Paste a valid Drive folder URL to enable link'}
+                          </TooltipContent>
+                        </Tooltip>
+                      </div>
+                    </FormControl>
+                    <FormDescription>
+                      Paste a Google Drive folder URL. New documents created with “Create document”
+                      are placed here. A Shared Drive folder is required — add the service account
+                      email above as a member with the Content Manager role.
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                );
+              }}
             />
           )}
         </div>

@@ -40,4 +40,11 @@ export class GoogleOAuthSettingsResponseDto {
     required: false,
   })
   availableScopes?: string[];
+
+  @ApiProperty({
+    example: 'AIzaSy...',
+    description: 'Google API key for the Drive Picker (destination only; public, safe to expose)',
+    required: false,
+  })
+  pickerApiKey?: string;
 }
