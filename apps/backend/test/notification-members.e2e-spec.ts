@@ -55,8 +55,7 @@ const mockIdpProjectionsFacade = {
 };
 
 // ---------------------------------------------------------------------------
-const PROJECT_ID = '0';
-const BASE_URL = `/api/projects/${PROJECT_ID}/notification-settings`;
+const BASE_URL = `/api/projects/notification-settings`;
 
 describe('Notification Settings — Multi-Member (e2e)', () => {
   let app: INestApplication;

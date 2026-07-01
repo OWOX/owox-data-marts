@@ -515,6 +515,7 @@ type AppWizardStepCardItemProps = {
   name: string;
   value?: string;
   label?: React.ReactNode;
+  subtitle?: React.ReactNode;
   checked?: boolean;
   selected?: boolean;
   disabled?: boolean;
@@ -529,6 +530,7 @@ function AppWizardStepCardItem({
   name,
   value,
   label,
+  subtitle,
   checked,
   selected = false,
   disabled = false,
@@ -564,7 +566,8 @@ function AppWizardStepCardItem({
         }
       }}
       className={cn(
-        'group flex items-center gap-2 rounded-sm px-4 py-3 transition-shadow duration-200 select-none',
+        'group flex gap-2 rounded-sm px-4 py-3 transition-shadow duration-200 select-none',
+        subtitle ? 'items-start' : 'items-center',
         disabled ? 'cursor-not-allowed' : 'hover:bg-accent cursor-pointer dark:hover:bg-white/4',
         selected ? 'bg-primary/8 hover:bg-primary/8 dark:bg-white/8 dark:hover:bg-white/8' : '',
         className
@@ -585,19 +588,25 @@ function AppWizardStepCardItem({
           // Radios/checkboxes are compact, text inputs expand
           type === 'radio' || type === 'checkbox'
             ? 'accent-primary dark:accent-primary h-4 w-4'
-            : 'h-8 w-full rounded-md border px-2'
+            : 'h-8 w-full rounded-md border px-2',
+          subtitle && 'mt-0.5'
         )}
         {...props}
       />
 
-      {/* Label next to the input (uses AppWizardStepLabel for consistency) */}
-      {label && (
-        <AppWizardStepLabel
-          htmlFor={id}
-          className={cn('cursor-pointer', disabled && 'cursor-not-allowed')}
-        >
-          {label}
-        </AppWizardStepLabel>
+      {/* Label + optional subtitle */}
+      {(label || subtitle) && (
+        <div className='flex min-w-0 flex-1 flex-col'>
+          {label && (
+            <AppWizardStepLabel
+              htmlFor={id}
+              className={cn('cursor-pointer', disabled && 'cursor-not-allowed')}
+            >
+              {label}
+            </AppWizardStepLabel>
+          )}
+          {subtitle && <p className='text-muted-foreground text-xs font-normal'>{subtitle}</p>}
+        </div>
       )}
 
       {/* Right side container (tooltip + rightIcon) */}

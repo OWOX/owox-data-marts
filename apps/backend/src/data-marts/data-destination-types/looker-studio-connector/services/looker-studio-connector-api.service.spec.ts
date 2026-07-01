@@ -97,7 +97,8 @@ describe('LookerStudioConnectorApiService', () => {
       reportRunService,
       projectBalanceService,
       blendedReportDataService,
-      systemTimeService
+      systemTimeService,
+      { getProjectMemberOrThrow: jest.fn().mockResolvedValue({ role: 'admin' }) } as never
     );
 
     (service as any).logger = {
@@ -284,6 +285,107 @@ describe('LookerStudioConnectorApiService', () => {
         expect(consumptionTrackingService.registerLookerReportRunConsumption).toHaveBeenCalled();
         expect(eventDispatcher.publishExternal).toHaveBeenCalled();
       });
+
+      it('should not register consumption when final success is not persisted (non-streaming)', async () => {
+        delete process.env.LOOKER_STREAMING_ENABLED;
+        cacheService.getOrCreateCachedReader.mockResolvedValue({
+          fromCache: false,
+          reader: {},
+          dataDescription: { dataHeaders: [] },
+        } as any);
+        const request = createMockRequest(false);
+        const res = createMockResponse();
+        const mockResult = { schema: [], rows: [], filtersApplied: [] };
+        const mockReportRun = {
+          markAsSuccess: jest.fn(),
+          markAsUnsuccessful: jest.fn(),
+          getReport: jest.fn().mockReturnValue(createMockReport()),
+          getReportId: jest.fn().mockReturnValue('report-1'),
+        };
+
+        reportRunService.create.mockResolvedValue(mockReportRun as any);
+        reportRunService.finish.mockRejectedValueOnce(new Error('db unavailable'));
+        dataService.getData.mockResolvedValue({
+          response: mockResult,
+          meta: { limitExceeded: false, rowsSent: 0, bytesSent: undefined, limitReason: undefined },
+        } as any);
+
+        await service.getDataStreaming(request, res as Response);
+
+        expect(mockReportRun.markAsSuccess).toHaveBeenCalled();
+        expect(reportRunService.finish).toHaveBeenCalled();
+        expect(
+          consumptionTrackingService.registerLookerReportRunConsumption
+        ).not.toHaveBeenCalled();
+        expect(eventDispatcher.publishExternal).not.toHaveBeenCalled();
+      });
+
+      it('records executionSqlQuery on the run when the cached reader provides it', async () => {
+        delete process.env.LOOKER_STREAMING_ENABLED;
+        const request = createMockRequest(false);
+        const res = createMockResponse();
+        const mockResult = { schema: [], rows: [], filtersApplied: [] };
+        const dataMartRun = { reportDefinition: { title: 'r' } as Record<string, unknown> };
+        const mockReportRun = {
+          markAsSuccess: jest.fn(),
+          markAsUnsuccessful: jest.fn(),
+          getReport: jest.fn().mockReturnValue(createMockReport()),
+          getReportId: jest.fn().mockReturnValue('report-1'),
+          getDataMartRun: jest.fn().mockReturnValue(dataMartRun),
+        };
+
+        reportRunService.create.mockResolvedValue(mockReportRun as any);
+        cacheService.getOrCreateCachedReader.mockResolvedValue({
+          fromCache: false,
+          reader: {},
+          dataDescription: { dataHeaders: [] },
+          executionSqlQuery: "SELECT a FROM t WHERE a = 'x'",
+        } as any);
+        dataService.getData.mockResolvedValue({
+          response: mockResult,
+          meta: { limitExceeded: false, rowsSent: 0, bytesSent: undefined, limitReason: undefined },
+        } as any);
+
+        await service.getDataStreaming(request, res as Response);
+
+        expect(dataMartRun.reportDefinition.executionSqlQuery).toBe(
+          "SELECT a FROM t WHERE a = 'x'"
+        );
+      });
+
+      it('carries executionSqlQuery on the run when limitExceeded causes markAsUnsuccessful', async () => {
+        delete process.env.LOOKER_STREAMING_ENABLED;
+        const request = createMockRequest(false);
+        const res = createMockResponse();
+        const mockResult = { schema: [], rows: [], filtersApplied: [] };
+        const dataMartRun = { reportDefinition: { title: 'r' } as Record<string, unknown> };
+        const mockReportRun = {
+          markAsSuccess: jest.fn(),
+          markAsUnsuccessful: jest.fn(),
+          getReport: jest.fn().mockReturnValue(createMockReport()),
+          getReportId: jest.fn().mockReturnValue('report-1'),
+          getDataMartRun: jest.fn().mockReturnValue(dataMartRun),
+        };
+
+        reportRunService.create.mockResolvedValue(mockReportRun as any);
+        cacheService.getOrCreateCachedReader.mockResolvedValue({
+          fromCache: false,
+          reader: {},
+          dataDescription: { dataHeaders: [] },
+          executionSqlQuery: "SELECT a FROM t WHERE a = 'x'",
+        } as any);
+        dataService.getData.mockResolvedValue({
+          response: mockResult,
+          meta: { limitExceeded: true, rowsSent: 1000000, bytesSent: 5, limitReason: 'row cap' },
+        } as any);
+
+        await service.getDataStreaming(request, res as Response);
+
+        expect(mockReportRun.markAsUnsuccessful).toHaveBeenCalled();
+        expect(dataMartRun.reportDefinition.executionSqlQuery).toBe(
+          "SELECT a FROM t WHERE a = 'x'"
+        );
+      });
     });
 
     describe('full extraction with streaming enabled', () => {
@@ -377,6 +479,117 @@ describe('LookerStudioConnectorApiService', () => {
         expect(reportRunService.finish).toHaveBeenCalled();
         expect(consumptionTrackingService.registerLookerReportRunConsumption).toHaveBeenCalled();
         expect(eventDispatcher.publishExternal).toHaveBeenCalled();
+      });
+
+      it('should keep successful run when consumption registration fails', async () => {
+        process.env.LOOKER_STREAMING_ENABLED = 'true';
+        cacheService.getOrCreateCachedReader.mockResolvedValue({
+          fromCache: false,
+          reader: {},
+          dataDescription: { dataHeaders: [] },
+        } as any);
+        const request = createMockRequest(false);
+        const res = createMockResponse();
+        const mockReportRun = {
+          markAsSuccess: jest.fn(),
+          markAsUnsuccessful: jest.fn(),
+          getReport: jest.fn().mockReturnValue(createMockReport()),
+          getReportId: jest.fn().mockReturnValue('report-1'),
+        };
+
+        reportRunService.create.mockResolvedValue(mockReportRun as any);
+        dataService.prepareStreamingContext.mockResolvedValue({} as any);
+        dataService.streamData.mockResolvedValue({
+          rowCount: 100,
+          limitExceeded: false,
+          bytesWritten: 10,
+          limitReason: undefined,
+        } as any);
+        consumptionTrackingService.registerLookerReportRunConsumption.mockRejectedValueOnce(
+          new Error('pubsub unavailable')
+        );
+
+        await service.getDataStreaming(request, res as Response);
+
+        expect(mockReportRun.markAsSuccess).toHaveBeenCalled();
+        expect(mockReportRun.markAsUnsuccessful).not.toHaveBeenCalled();
+        expect(reportRunService.finish).toHaveBeenCalled();
+        expect(consumptionTrackingService.registerLookerReportRunConsumption).toHaveBeenCalled();
+        expect(eventDispatcher.publishExternal).toHaveBeenCalled();
+        expect((service as any).logger.warn).toHaveBeenCalledWith(
+          'Failed to register Looker report consumption for report-1: pubsub unavailable'
+        );
+      });
+
+      it('should not register consumption when final success is not persisted', async () => {
+        process.env.LOOKER_STREAMING_ENABLED = 'true';
+        cacheService.getOrCreateCachedReader.mockResolvedValue({
+          fromCache: false,
+          reader: {},
+          dataDescription: { dataHeaders: [] },
+        } as any);
+        const request = createMockRequest(false);
+        const res = createMockResponse();
+        const mockReportRun = {
+          markAsSuccess: jest.fn(),
+          markAsUnsuccessful: jest.fn(),
+          getReport: jest.fn().mockReturnValue(createMockReport()),
+          getReportId: jest.fn().mockReturnValue('report-1'),
+        };
+
+        reportRunService.create.mockResolvedValue(mockReportRun as any);
+        reportRunService.finish.mockRejectedValueOnce(new Error('db unavailable'));
+        dataService.prepareStreamingContext.mockResolvedValue({} as any);
+        dataService.streamData.mockResolvedValue({
+          rowCount: 100,
+          limitExceeded: false,
+          bytesWritten: 10,
+          limitReason: undefined,
+        } as any);
+
+        await service.getDataStreaming(request, res as Response);
+
+        expect(mockReportRun.markAsSuccess).toHaveBeenCalled();
+        expect(reportRunService.finish).toHaveBeenCalled();
+        expect(
+          consumptionTrackingService.registerLookerReportRunConsumption
+        ).not.toHaveBeenCalled();
+        expect(eventDispatcher.publishExternal).not.toHaveBeenCalled();
+      });
+
+      it('records executionSqlQuery on the run when the cached reader provides it', async () => {
+        process.env.LOOKER_STREAMING_ENABLED = 'true';
+        const request = createMockRequest(false);
+        const res = createMockResponse();
+        const dataMartRun = { reportDefinition: { title: 'r' } as Record<string, unknown> };
+        const mockReportRun = {
+          markAsSuccess: jest.fn(),
+          markAsUnsuccessful: jest.fn(),
+          getReport: jest.fn().mockReturnValue(createMockReport()),
+          getReportId: jest.fn().mockReturnValue('report-1'),
+          getDataMartRun: jest.fn().mockReturnValue(dataMartRun),
+        };
+
+        reportRunService.create.mockResolvedValue(mockReportRun as any);
+        cacheService.getOrCreateCachedReader.mockResolvedValue({
+          fromCache: false,
+          reader: {},
+          dataDescription: { dataHeaders: [] },
+          executionSqlQuery: "SELECT a FROM t WHERE a = 'x'",
+        } as any);
+        dataService.prepareStreamingContext.mockResolvedValue({} as any);
+        dataService.streamData.mockResolvedValue({
+          rowCount: 100,
+          limitExceeded: false,
+          bytesWritten: 10,
+          limitReason: undefined,
+        } as any);
+
+        await service.getDataStreaming(request, res as Response);
+
+        expect(dataMartRun.reportDefinition.executionSqlQuery).toBe(
+          "SELECT a FROM t WHERE a = 'x'"
+        );
       });
 
       it('should handle errors before streaming starts', async () => {

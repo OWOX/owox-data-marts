@@ -38,6 +38,12 @@ export function none(): RoleConfig {
   };
 }
 
+export function authenticated(strategy: Strategy = Strategy.INTROSPECT): RoleConfig {
+  return {
+    strategy,
+  };
+}
+
 export function viewer(strategy: Strategy = Strategy.INTROSPECT): RoleConfig {
   return {
     role: 'viewer',
@@ -64,6 +70,7 @@ export function admin(strategy: Strategy = Strategy.INTROSPECT): RoleConfig {
  */
 export const Role = {
   none,
+  authenticated,
   viewer,
   editor,
   admin,

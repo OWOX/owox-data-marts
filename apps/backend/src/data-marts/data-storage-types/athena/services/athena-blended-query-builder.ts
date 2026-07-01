@@ -1,28 +1,28 @@
-import { Injectable, NotImplementedException } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { DataStorageType } from '../../enums/data-storage-type.enum';
 import { AbstractBlendedQueryBuilder } from '../../interfaces/abstract-blended-query-builder';
-import { BlendedQueryContext } from '../../interfaces/blended-query-builder.interface';
 import { SqlClauseRenderer } from '../../utils/sql-clause-renderer';
+import { AthenaClauseRenderer } from './athena-clause-renderer';
 
 @Injectable()
 export class AthenaBlendedQueryBuilder extends AbstractBlendedQueryBuilder {
   readonly type = DataStorageType.AWS_ATHENA;
   protected readonly identifierQuoteChar = '"';
 
-  protected get clauseRenderer(): SqlClauseRenderer | null {
-    return null;
+  constructor(private readonly _renderer: AthenaClauseRenderer) {
+    super();
+  }
+
+  protected get clauseRenderer(): SqlClauseRenderer {
+    return this._renderer;
   }
 
   protected buildStringAgg(fieldName: string): string {
     return `ARRAY_JOIN(ARRAY_AGG(CAST(${fieldName} AS VARCHAR)), ', ')`;
   }
 
-  buildBlendedQuery(context: BlendedQueryContext) {
-    if ((context.filters?.length ?? 0) > 0 || (context.sort?.length ?? 0) > 0) {
-      throw new NotImplementedException(
-        `Output controls not yet supported for storage type ${this.type}`
-      );
-    }
-    return super.buildBlendedQuery(context);
+  // Trino does not guarantee ANY_VALUE across engine versions; arbitrary() is the all-version-safe form.
+  protected override buildAnyValue(fieldName: string): string {
+    return `arbitrary(${fieldName})`;
   }
 }

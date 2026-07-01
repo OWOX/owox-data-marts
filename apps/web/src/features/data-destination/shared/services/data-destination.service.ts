@@ -10,6 +10,21 @@ import type {
 import type { DataDestinationType } from '../enums';
 
 /**
+ * Identifiers of an auto-created Google Sheet, returned by the "Create document" flow.
+ */
+export interface CreateGoogleSheetDocumentResponseDto {
+  spreadsheetId: string;
+  sheetId: number;
+  /**
+   * True when a Drive folder was configured but the document was created in the
+   * Drive root instead (the connected OAuth token lacks a Drive scope).
+   */
+  placedInRoot?: boolean;
+  /** Whether the document was shared with the requesting user. */
+  sharedWithRequester?: boolean;
+}
+
+/**
  * Data Destination Service
  * Specializes in data destination operations using the generic ApiService
  */
@@ -97,6 +112,19 @@ export class DataDestinationService extends ApiService {
     type: DataDestinationType
   ): Promise<DataDestinationByTypeResponseDto> {
     return this.get<DataDestinationByTypeResponseDto>(`/by-type/${type}`);
+  }
+
+  /**
+   * Auto-create a new Google Sheet for a Google Sheets destination (OAuth).
+   * Returns the new spreadsheet/sheet identifiers; the caller builds the URL.
+   * @param id Data destination ID
+   * @param data Optional title for the new sheet
+   */
+  async createGoogleSheetDocument(
+    id: string,
+    data: { title?: string }
+  ): Promise<CreateGoogleSheetDocumentResponseDto> {
+    return this.post<CreateGoogleSheetDocumentResponseDto>(`/${id}/google-sheets/documents`, data);
   }
 }
 

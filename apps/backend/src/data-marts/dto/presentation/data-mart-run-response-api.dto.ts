@@ -57,7 +57,12 @@ export class DataMartRunResponseApiDto {
   reportId: string | null;
 
   @ApiProperty({
-    example: { title: 'Quarterly export', destination: { type: 'GOOGLE_SHEETS' } },
+    example: {
+      title: 'Quarterly export',
+      destination: { type: 'GOOGLE_SHEETS' },
+      executionSqlQuery:
+        "SELECT * FROM (SELECT * FROM `proj.ds.sales`) WHERE created_at >= DATE '2025-01-01'",
+    },
     required: false,
     nullable: true,
   })
@@ -131,4 +136,28 @@ export class DataMartRunResponseApiDto {
 
   @ApiProperty({ example: '2025-10-09T15:20:06.930Z', required: false, nullable: true })
   finishedAt: string | Date | null;
+
+  @ApiProperty({
+    example: { httpData: { format: 'ndjson', columns: ['date'], rowCount: 10, completed: true } },
+    description:
+      'Run-type-specific metadata captured by the use case (e.g. `httpData` for HTTP Data API runs)',
+    required: false,
+    nullable: true,
+  })
+  additionalParams: Record<string, unknown> | null;
+
+  @ApiProperty({
+    example: {
+      'revenue | SUM': 1575.93,
+      'revenue | AVG': 157.593,
+      'revenue | MIN': 12.5,
+      'revenue | MAX': 450,
+    },
+    description:
+      'Grand-totals summary: every selected numeric field aggregated by its allowed functions ' +
+      'over the full filtered dataset (no grouping). Null when the run produced no totals.',
+    required: false,
+    nullable: true,
+  })
+  totals: Record<string, number | string | boolean | null> | null;
 }

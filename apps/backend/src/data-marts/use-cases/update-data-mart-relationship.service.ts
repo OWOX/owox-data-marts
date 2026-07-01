@@ -13,6 +13,8 @@ import { DataMartRelationshipService } from '../services/data-mart-relationship.
 import { DataMartService } from '../services/data-mart.service';
 import { ReportDataCacheService } from '../services/report-data-cache.service';
 import { UserProjectionsFetcherService } from '../services/user-projections-fetcher.service';
+import { AdvancedSearchIndexSyncService } from '../services/advanced-search-index-sync.service';
+import { SearchableEntityType } from '../../common/search/search.facade';
 
 @Injectable()
 export class UpdateDataMartRelationshipService {
@@ -22,7 +24,8 @@ export class UpdateDataMartRelationshipService {
     private readonly userProjectionsFetcherService: UserProjectionsFetcherService,
     private readonly reportDataCacheService: ReportDataCacheService,
     private readonly mapper: RelationshipMapper,
-    private readonly accessDecisionService: AccessDecisionService
+    private readonly accessDecisionService: AccessDecisionService,
+    private readonly advancedSearchIndexSync?: AdvancedSearchIndexSyncService
   ) {}
 
   @Transactional()
@@ -81,8 +84,28 @@ export class UpdateDataMartRelationshipService {
 
     await this.reportDataCacheService.invalidateByDataMartId(command.sourceDataMartId);
 
-    const createdByUser = await this.userProjectionsFetcherService.fetchCreatedByUser(updated);
-    return this.mapper.toDomainDto(updated, createdByUser);
+    await this.advancedSearchIndexSync?.scheduleReindex(
+      SearchableEntityType.DATA_MART,
+      command.sourceDataMartId,
+      command.projectId
+    );
+
+    const [createdByUser, targetHasAccess] = await Promise.all([
+      this.userProjectionsFetcherService.fetchCreatedByUser(updated),
+      this.accessDecisionService.canAccess(
+        command.userId,
+        command.roles,
+        EntityType.DATA_MART,
+        updated.targetDataMart.id,
+        Action.SEE,
+        command.projectId
+      ),
+    ]);
+    const accessByDataMartId = new Map<string, boolean>([
+      [updated.sourceDataMart.id, true],
+      [updated.targetDataMart.id, targetHasAccess],
+    ]);
+    return this.mapper.toDomainDto(updated, createdByUser, accessByDataMartId);
   }
 
   private async cascadeAliasRename(

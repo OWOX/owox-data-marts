@@ -54,7 +54,7 @@ const storageIcons = {
   }
 </style>
 
-<div class="relative min-w-[300px] max-w-lg w-full">
+<div id="onboarding-container" class="relative min-w-[300px] max-w-lg w-full transition-all duration-300">
   <!-- Header -->
   <h1 class="text-2xl font-bold text-foreground mb-1">Help us personalize your experience</h1>
   <p class="text-sm text-muted-foreground mb-8">Answer 4 quick questions so we can tailor Data Marts to your workflow.</p>
@@ -131,25 +131,208 @@ const storageIcons = {
   </div>
 
   <!-- Question 4: Primary Storage (single-select) -->
-  <div class="question-slide slide-hidden" data-question="3">
-    <h2 class="text-xl font-semibold text-foreground mb-1">Where should OWOX process your data?</h2>
-    <p class="text-sm text-muted-foreground mb-5">Pick your Data Warehouse — or let OWOX host it for you</p>
-    <div class="space-y-2" id="q-primary-storage">
-      <% primaryStorageOptions.forEach(function(opt) { %>
-      <label class="option-card flex items-center gap-3 rounded-md border border-border px-4 py-3 text-sm text-foreground">
-        <input type="radio" name="primary_storage" value="<%= opt.value %>"<% if (opt.value === 'other') { %> id="storage-other-rb"<% } %> class="accent-[oklch(var(--primary))] w-4 h-4" />
-        <% if (storageIcons[opt.value]) { %><%- storageIcons[opt.value] %><% } %>
-        <span><%= opt.label %></span>
-      </label>
-      <% }); %>
-      <div class="other-text-input" id="storage-other-wrap">
-        <input
-          type="text"
-          id="storage-other-text"
-          maxlength="500"
-          placeholder="Tell us which storage..."
-          class="w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
-        />
+  <div class="question-slide slide-hidden w-full" data-question="3">
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-8 items-stretch w-full">
+      <!-- Left Column: Form Options -->
+      <div class="lg:col-span-6 w-full flex flex-col justify-between">
+        <div>
+          <h2 class="text-xl font-semibold text-foreground mb-1">Which data warehouse is used in the organization?</h2>
+          <p class="text-sm text-muted-foreground mb-5">Pick your Data Warehouse — or let OWOX host it for you</p>
+          <div class="space-y-2" id="q-primary-storage">
+            <% primaryStorageOptions.forEach(function(opt) { %>
+            <label class="option-card flex items-center gap-3 rounded-md border border-border px-4 py-3 text-sm text-foreground">
+              <input type="radio" name="primary_storage" value="<%= opt.value %>"<% if (opt.value === 'other') { %> id="storage-other-rb"<% } %> class="accent-[oklch(var(--primary))] w-4 h-4" />
+              <% if (storageIcons[opt.value]) { %><%- storageIcons[opt.value] %><% } %>
+              <span><%= opt.label %></span>
+            </label>
+            <% }); %>
+            <div class="other-text-input" id="storage-other-wrap">
+              <input
+                type="text"
+                id="storage-other-text"
+                maxlength="500"
+                placeholder="Tell us which storage..."
+                class="w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
+              />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Right Column: DWH Visualization -->
+      <div class="lg:col-span-6 hidden lg:flex flex-col justify-center bg-slate-50/30 border border-border/60 rounded-2xl p-6 min-h-[350px] shadow-sm relative overflow-hidden">
+        <div class="text-center mb-6">
+          <span class="text-xs font-semibold tracking-wider text-primary uppercase bg-primary/10 px-2.5 py-1 rounded-full">Role of a Data Warehouse</span>
+        </div>
+        
+        <div class="relative flex flex-col gap-6 items-center">
+          <!-- Row 1: Marketing Platforms (Sources) -->
+          <div class="flex flex-wrap items-center justify-center gap-2 w-full">
+            <!-- FB Ads Icon -->
+            <div class="flex items-center gap-1.5 px-2.5 py-1.5 bg-white border border-border rounded-lg shadow-[0_1px_2px_rgba(0,0,0,0.05)] transition-transform hover:-translate-y-0.5">
+              <svg role="img" viewBox="0 0 24 24" width="14" height="14" xmlns="http://www.w3.org/2000/svg" fill="none">
+                <path d="M24 12C24 5.37308 18.6269 0 12 0C5.37308 0 0 5.37308 0 12C0 17.989 4.38757 22.9537 10.1252 23.8549V15.4696H7.07749V12H10.1252V9.35565C10.1252 6.34847 11.9173 4.68626 14.6579 4.68626C15.9707 4.68626 17.3444 4.92083 17.3444 4.92083V7.874H15.8307C14.3406 7.874 13.8748 8.79876 13.8748 9.74884V12H17.2026L16.6711 15.4696H13.8748V23.8549C19.6124 22.9554 24 17.9907 24 12Z" fill="#1977F3" />
+                <path d="M16.6717 15.4708L17.2033 12.0012H13.8755V9.75008C13.8755 8.80169 14.3396 7.87524 15.8313 7.87524H17.345V4.92207C17.345 4.92207 15.9714 4.6875 14.6585 4.6875C11.918 4.6875 10.1258 6.34803 10.1258 9.35689V12.0012H7.07812V15.4708H10.1258V23.8561C10.7367 23.9523 11.3628 24.0012 12.0006 24.0012C12.6385 24.0012 13.2646 23.9506 13.8755 23.8561V15.4708H16.6717Z" fill="#FEFEFE" />
+              </svg>
+              <span class="text-[10px] font-semibold text-foreground leading-none">Facebook</span>
+            </div>
+            
+            <!-- TikTok Icon -->
+            <div class="flex items-center gap-1.5 px-2.5 py-1.5 bg-white border border-border rounded-lg shadow-[0_1px_2px_rgba(0,0,0,0.05)] transition-transform hover:-translate-y-0.5">
+              <svg role="img" viewBox="0 0 24 24" width="14" height="14" xmlns="http://www.w3.org/2000/svg" fill="none">
+                <path d="M2.4 0H21.6C22.9256 0 24 1.07443 24 2.4V21.6C24 22.9256 22.9256 24 21.6 24H2.4C1.07443 24 0 22.9256 0 21.6V2.4C0 1.07443 1.07443 0 2.4 0Z" fill="#010101" />
+                <path d="M16.0971 9.46492C17.3375 10.3511 18.8571 10.8725 20.4981 10.8725V7.71605C20.1875 7.71617 19.8778 7.68377 19.5739 7.61937V10.104C17.9329 10.104 16.4136 9.58256 15.1729 8.69639V15.1378C15.1729 18.3601 12.5594 20.9721 9.33558 20.9721C8.13276 20.9721 7.01472 20.6087 6.08594 19.9853C7.14596 21.0686 8.62418 21.7407 10.2596 21.7407C13.4836 21.7407 16.0972 19.1286 16.0972 15.9062V9.46492H16.0971ZM17.2373 6.28044C16.6034 5.5883 16.1872 4.69375 16.0971 3.70479V3.29883H15.2213C15.4417 4.55571 16.1937 5.62956 17.2373 6.28044ZM8.12494 17.5127C7.77082 17.0486 7.5794 16.4808 7.58026 15.897C7.58026 14.4232 8.77571 13.2283 10.2505 13.2283C10.5254 13.2281 10.7986 13.2703 11.0605 13.3533V10.1263C10.7544 10.0844 10.4455 10.0666 10.1366 10.0732V12.5849C9.87454 12.5019 9.60122 12.4597 9.32629 12.4599C7.85147 12.4599 6.65612 13.6548 6.65612 15.1287C6.65612 16.1708 7.25362 17.0732 8.12494 17.5127Z" fill="#EE1D52" />
+                <path d="M15.1726 8.69639C16.4133 9.58256 17.9326 10.104 19.5736 10.104V7.61937C18.6576 7.42444 17.8467 6.94594 17.237 6.28044C16.1934 5.62956 15.4414 4.55571 15.221 3.29883H12.9204V15.9061C12.9152 17.3758 11.7218 18.5658 10.2501 18.5658C9.38288 18.5658 8.61243 18.1527 8.12452 17.5127C7.2532 17.0732 6.6557 16.1708 6.6557 15.1287C6.6557 13.6548 7.85104 12.4599 9.32587 12.4599C9.60841 12.4599 9.88075 12.5039 10.1362 12.5849V10.0732C6.96907 10.1386 4.42188 12.7251 4.42188 15.9062C4.42188 17.4941 5.05621 18.9337 6.08563 19.9854C7.01441 20.6088 8.13245 20.9722 9.33528 20.9722C12.5591 20.9722 15.1726 18.3601 15.1726 15.1379V8.69639Z" fill="white" />
+                <path d="M19.5758 7.6202V6.94836C18.7498 6.9496 17.9401 6.71839 17.2392 6.28116C17.8596 6.96001 18.6765 7.42815 19.5758 7.6202ZM15.2232 3.29966C15.2022 3.17955 15.186 3.05864 15.1748 2.93721V2.53125H11.9983V15.1386C11.9932 16.6082 10.7999 17.7982 9.32812 17.7982C8.89598 17.7982 8.48809 17.6958 8.12678 17.5135C8.61468 18.1535 9.38513 18.5666 10.2524 18.5666C11.7239 18.5666 12.9174 17.3766 12.9226 15.9069V3.29966H15.2232ZM10.1386 10.074V9.35876C9.87315 9.32247 9.60555 9.30433 9.33764 9.30447C6.1135 9.30447 3.5 11.9166 3.5 15.1386C3.5 17.1587 4.52715 18.9389 6.088 19.9862C5.05858 18.9344 4.42424 17.4948 4.42424 15.9069C4.42424 12.7259 6.97133 10.1394 10.1386 10.074Z" fill="#69C9D0" />
+              </svg>
+              <span class="text-[10px] font-semibold text-foreground leading-none">TikTok</span>
+            </div>
+            
+            <!-- LinkedIn Icon -->
+            <div class="flex items-center gap-1.5 px-2.5 py-1.5 bg-white border border-border rounded-lg shadow-[0_1px_2px_rgba(0,0,0,0.05)] transition-transform hover:-translate-y-0.5">
+              <svg role="img" viewBox="0 0 24 24" width="14" height="14" xmlns="http://www.w3.org/2000/svg" fill="none">
+                <rect x="2" y="2" width="20" height="20" fill="white" />
+                <path d="M20.4491 20.4496H16.8931V14.8805C16.8931 13.5525 16.8694 11.8429 15.0436 11.8429C13.1915 11.8429 12.9081 13.2899 12.9081 14.7838V20.4492H9.35203V8.99689H12.7658V10.562H12.8136C13.1553 9.97782 13.649 9.49726 14.2421 9.17149C14.8352 8.84572 15.5056 8.68693 16.1819 8.71203C19.7861 8.71203 20.4506 11.0828 20.4506 14.167L20.4491 20.4496ZM5.33963 7.43144C4.93148 7.43151 4.53247 7.31055 4.19307 7.08385C3.85367 6.85715 3.58913 6.53489 3.43287 6.15783C3.27661 5.78077 3.23566 5.36584 3.31521 4.96551C3.39477 4.56517 3.59125 4.19743 3.8798 3.90876C4.16835 3.6201 4.53602 3.42348 4.93631 3.34378C5.3366 3.26408 5.75152 3.30488 6.12863 3.46101C6.50573 3.61713 6.82807 3.88158 7.05489 4.22091C7.2817 4.56025 7.40281 4.95922 7.40288 5.36738C7.40293 5.63839 7.34959 5.90675 7.24593 6.15715C7.14227 6.40754 6.99032 6.63507 6.79873 6.82674C6.60714 7.0184 6.37966 7.17045 6.1293 7.27421C5.87895 7.37796 5.61062 7.43139 5.33963 7.43144ZM7.11765 20.4496H3.5579V8.99689H7.11765V20.4496ZM22.222 0.00163516H1.77099C1.30681 -0.00360329 0.859518 0.175663 0.52744 0.500042C0.195362 0.824421 0.00566506 1.26737 0 1.73156V22.2681C0.00547117 22.7325 0.195057 23.1758 0.527123 23.5005C0.85919 23.8252 1.30658 24.0048 1.77099 23.9999H22.222C22.6873 24.0057 23.1359 23.8266 23.4693 23.5019C23.8027 23.1772 23.9936 22.7334 24 22.2681V1.73008C23.9934 1.26497 23.8024 0.821515 23.469 0.497144C23.1356 0.172773 22.6871 -0.00598143 22.222 0.000152822" fill="#0A66C2" />
+              </svg>
+              <span class="text-[10px] font-semibold text-foreground leading-none">LinkedIn</span>
+            </div>
+            
+            <!-- Microsoft Ads Icon -->
+            <div class="flex items-center gap-1.5 px-2.5 py-1.5 bg-white border border-border rounded-lg shadow-[0_1px_2px_rgba(0,0,0,0.05)] transition-transform hover:-translate-y-0.5">
+              <svg role="img" viewBox="0 0 24 24" width="14" height="14" xmlns="http://www.w3.org/2000/svg" fill="none">
+                <path d="M2 2H11.5V11.5H2V2Z" fill="#F25022" />
+                <path d="M12.5 2H22V11.5H12.5V2Z" fill="#7FBA00" />
+                <path d="M2 12.5H11.5V22H2V12.5Z" fill="#00A4EF" />
+                <path d="M12.5 12.5H22V22H12.5V12.5Z" fill="#FFB900" />
+              </svg>
+              <span class="text-[10px] font-semibold text-foreground leading-none">Microsoft</span>
+            </div>
+          </div>
+          
+          <!-- Flow arrow down -->
+          <div class="flex flex-col items-center">
+            <svg class="w-4 h-4 text-muted-foreground/60 animate-bounce" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 14l-7 7m0 0l-7-7m7 7V3" />
+            </svg>
+            <span class="text-[9px] font-bold text-muted-foreground/60 uppercase tracking-widest mt-1">Processed by OWOX</span>
+          </div>
+          <!-- Row 2: Data Warehouse (Central Storage with SQL Tables) -->
+          <div class="w-full max-w-[340px] bg-white text-slate-900 rounded-xl p-4 border border-border shadow-sm relative overflow-hidden transition-transform hover:scale-[1.02] duration-300">
+            <!-- Background glowing effect -->
+            <div class="absolute -right-12 -top-12 w-28 h-28 bg-primary/5 rounded-full blur-xl pointer-events-none"></div>
+            
+            <div class="flex items-center gap-2.5 mb-3">
+              <svg class="w-5 h-5 text-primary shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4" />
+              </svg>
+              <div>
+                <h4 class="text-xs font-bold tracking-tight text-slate-800">Your Data Warehouse</h4>
+                <p class="text-[9px] text-slate-500">Stores structured business data</p>
+              </div>
+            </div>
+
+            <!-- Grid of actual warehouse logos from product -->
+            <div class="grid grid-cols-6 gap-2.5 mb-3 bg-slate-50 p-2.5 rounded-xl border border-slate-100 items-center justify-items-center [&_svg]:w-7 [&_svg]:h-7">
+              <div class="p-1 bg-white border border-slate-100 rounded-lg shadow-[0_1px_1.5px_rgba(0,0,0,0.04)] transition-all hover:scale-110 hover:shadow-sm" title="Google BigQuery"><%- storageIcons.gbq %></div>
+              <div class="p-1 bg-white border border-slate-100 rounded-lg shadow-[0_1px_1.5px_rgba(0,0,0,0.04)] transition-all hover:scale-110 hover:shadow-sm" title="Snowflake"><%- storageIcons.snowflake %></div>
+              <div class="p-1 bg-white border border-slate-100 rounded-lg shadow-[0_1px_1.5px_rgba(0,0,0,0.04)] transition-all hover:scale-110 hover:shadow-sm" title="AWS Redshift"><%- storageIcons.aws_redshift %></div>
+              <div class="p-1 bg-white border border-slate-100 rounded-lg shadow-[0_1px_1.5px_rgba(0,0,0,0.04)] transition-all hover:scale-110 hover:shadow-sm" title="Databricks"><%- storageIcons.databricks %></div>
+              <div class="p-1 bg-white border border-slate-100 rounded-lg shadow-[0_1px_1.5px_rgba(0,0,0,0.04)] transition-all hover:scale-110 hover:shadow-sm" title="AWS Athena"><%- storageIcons.aws_athena %></div>
+              <div class="p-1 bg-white border border-slate-100 rounded-lg shadow-[0_1px_1.5px_rgba(0,0,0,0.04)] transition-all hover:scale-110 hover:shadow-sm" title="Azure Synapse"><%- storageIcons.azure_synapse %></div>
+            </div>
+            
+            <!-- List: SQL/table first! -->
+            <div class="space-y-1.5">
+              <div class="flex items-center gap-2 bg-emerald-50/50 border border-emerald-100/80 rounded-lg p-2">
+                <!-- SQL / Table icon -->
+                <svg class="w-4 h-4 text-emerald-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M3 14h18m-9-4v8m-7 0h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                </svg>
+                <div class="leading-none">
+                  <span class="text-[11px] font-bold text-slate-800 block">SQL / Tables</span>
+                  <span class="text-[8px] text-slate-500">Governed, query-ready models</span>
+                </div>
+              </div>
+              
+              <div class="flex items-center gap-2 bg-slate-50/50 border border-slate-100/80 rounded-lg p-2 opacity-60">
+                <!-- Schema / Views icon -->
+                <svg class="w-4 h-4 text-slate-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
+                </svg>
+                <div class="leading-none">
+                  <span class="text-[11px] font-semibold text-slate-700 block">Database Views</span>
+                  <span class="text-[8px] text-slate-500">Virtual subsets of data</span>
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          <!-- Flow arrow down -->
+          <div class="flex flex-col items-center">
+            <svg class="w-4 h-4 text-muted-foreground/60 animate-bounce" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 14l-7 7m0 0l-7-7m7 7V3" />
+            </svg>
+            <span class="text-[9px] font-bold text-muted-foreground/60 uppercase tracking-widest mt-1">Connected to</span>
+          </div>
+          
+          <!-- Row 3: BI / Analytics Tools -->
+          <div class="flex flex-wrap items-center justify-center gap-2 w-full">
+            <!-- Google Sheets -->
+            <div class="flex items-center gap-1.5 px-2.5 py-1.5 bg-white border border-border rounded-lg shadow-[0_1px_2px_rgba(0,0,0,0.05)] transition-transform hover:-translate-y-0.5">
+              <svg width="14" height="14" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg" class="shrink-0">
+                <path fill-rule="evenodd" clip-rule="evenodd" d="M28 0C19.7661 0 12 0 10 0C8.19719 0 6 2.18498 6 4V44C6 45.815 8.18947 47.9993 10 47.9993H38C39.8105 47.9993 42 45.815 42 44C42 44 42 25.6447 42 14L28 0Z" fill="#00A65F" />
+                <path fill-rule="evenodd" clip-rule="evenodd" d="M28 14H42V24L28 14Z" fill="#007944" />
+                <path fill-rule="evenodd" clip-rule="evenodd" d="M28 0V13.9683L42 14L28 0Z" fill="#64C3A7" />
+                <path fill-rule="evenodd" clip-rule="evenodd" d="M12 42L12.0563 22H36V42H12ZM34 24H14V40H34V24Z" fill="white" />
+                <path fill-rule="evenodd" clip-rule="evenodd" d="M20 22H22V42H20V22Z" fill="white" />
+                <path fill-rule="evenodd" clip-rule="evenodd" d="M36 28V30H12V28H36Z" fill="white" />
+                <path fill-rule="evenodd" clip-rule="evenodd" d="M36 34V36H12V34H36Z" fill="white" />
+              </svg>
+              <span class="text-[10px] font-semibold text-foreground leading-none">Sheets</span>
+            </div>
+            
+            <!-- Excel -->
+            <div class="flex items-center gap-1.5 px-2.5 py-1.5 bg-white border border-border rounded-lg shadow-[0_1px_2px_rgba(0,0,0,0.05)] transition-transform hover:-translate-y-0.5">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <rect x="3" y="3" width="18" height="18" rx="2" fill="#107C41" />
+                <path d="M7 7h4v4H7V7zm6 0h4v4h-4V7zm-6 6h4v4H7v-4zm6 0h4v4h-4v-4z" fill="#FFF" opacity="0.3" />
+                <path d="M9 8l6 8M15 8l-6 8" stroke="#FFF" stroke-width="2" stroke-linecap="round" />
+              </svg>
+              <span class="text-[10px] font-semibold text-foreground leading-none">Excel</span>
+            </div>
+            
+            <!-- Email -->
+            <div class="flex items-center gap-1.5 px-2.5 py-1.5 bg-white border border-border rounded-lg shadow-[0_1px_2px_rgba(0,0,0,0.05)] transition-transform hover:-translate-y-0.5">
+              <svg role="img" viewBox="0 0 24 24" width="14" height="14" xmlns="http://www.w3.org/2000/svg" fill="none" stroke="#1E88E5" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="m22 7-8.991 5.727a2 2 0 0 1-2.009 0L2 7" />
+                <rect x="2" y="4" width="20" height="16" rx="2" />
+              </svg>
+              <span class="text-[10px] font-semibold text-foreground leading-none">Email</span>
+            </div>
+            
+            <!-- Slack -->
+            <div class="flex items-center gap-1.5 px-2.5 py-1.5 bg-white border border-border rounded-lg shadow-[0_1px_2px_rgba(0,0,0,0.05)] transition-transform hover:-translate-y-0.5">
+              <svg role="img" viewBox="0 0 24 24" width="14" height="14" xmlns="http://www.w3.org/2000/svg">
+                <path d="M5.14132 15.1175C5.14132 16.4971 4.02636 17.612 2.64683 17.612C1.2673 17.612 0.152344 16.4971 0.152344 15.1175C0.152344 13.738 1.2673 12.623 2.64683 12.623H5.14132V15.1175ZM6.38856 15.1175C6.38856 13.738 7.50352 12.623 8.88305 12.623C10.2626 12.623 11.3775 13.738 11.3775 15.1175V21.3538C11.3775 22.7333 10.2626 23.8482 8.88305 23.8482C7.50352 23.8482 6.38856 22.7333 6.38856 21.3538V15.1175Z" fill="#E01E5A" />
+                <path d="M8.88242 5.10226C7.50289 5.10226 6.38793 3.9873 6.38793 2.60777C6.38793 1.22824 7.50289 0.113281 8.88242 0.113281C10.2619 0.113281 11.3769 1.22824 11.3769 2.60777V5.10226H8.88242ZM8.88242 6.3684C10.2619 6.3684 11.3769 7.48336 11.3769 8.86289C11.3769 10.2424 10.2619 11.3574 8.88242 11.3574H2.6273C1.24777 11.3574 0.132812 10.2424 0.132812 8.86289C0.132812 7.48336 1.24777 6.3684 2.6273 6.3684H8.88242Z" fill="#36C5F0" />
+                <path d="M18.8768 8.86289C18.8768 7.48336 19.9918 6.3684 21.3713 6.3684C22.7509 6.3684 23.8658 7.48336 23.8658 8.86289C23.8658 10.2424 22.7509 11.3574 21.3713 11.3574H18.8768V8.86289ZM17.6296 8.86289C17.6296 10.2424 16.5146 11.3574 15.1351 11.3574C13.7556 11.3574 12.6406 10.2424 12.6406 8.86289V2.60777C12.6406 1.22824 13.7556 0.113281 15.1351 0.113281C16.5146 0.113281 17.6296 1.22824 17.6296 2.60777V8.86289Z" fill="#2EB67D" />
+                <path d="M15.1351 18.8593C16.5146 18.8593 17.6296 19.9742 17.6296 21.3538C17.6296 22.7333 16.5146 23.8482 15.1351 23.8482C13.7556 23.8482 12.6406 22.7333 12.6406 21.3538V18.8593H15.1351ZM15.1351 17.612C13.7556 17.612 12.6406 16.4971 12.6406 15.1175C12.6406 13.738 13.7556 12.623 15.1351 12.623H21.3902C22.7698 12.623 23.8847 13.738 23.8847 15.1175C23.8847 16.4971 22.7698 17.612 21.3902 17.612H15.1351Z" fill="#ECB22E" />
+              </svg>
+              <span class="text-[10px] font-semibold text-foreground leading-none">Slack</span>
+            </div>
+            
+            <!-- Looker Studio -->
+            <div class="flex items-center gap-1.5 px-2.5 py-1.5 bg-white border border-border rounded-lg shadow-[0_1px_2px_rgba(0,0,0,0.05)] transition-transform hover:-translate-y-0.5">
+              <svg width="14" height="14" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg" class="shrink-0">
+                <path d="M23.7876 0C22.2395 0 20.8149 0.856389 20.0821 2.22332C19.3574 3.59024 19.4398 5.25361 20.3044 6.5382L22.0995 4.75131C22.0419 4.57015 22.009 4.38899 22.009 4.1996C22.009 3.21969 22.7995 2.42918 23.7794 2.42918C24.7593 2.42918 25.5498 3.21969 25.5498 4.1996C25.5498 5.1795 24.7593 5.97002 23.7794 5.97002C23.59 5.97002 23.4088 5.93708 23.2277 5.87944L21.4325 7.66632C22.923 8.67917 24.891 8.62153 26.3238 7.53457C27.7566 6.44762 28.3331 4.56192 27.7566 2.85737C27.1885 1.1446 25.5827 0 23.7876 0Z" fill="#34A853" />
+                <path d="M22.1161 12.2282C22.1161 10.8118 21.6632 9.42842 20.8068 8.30029L18.4846 10.6224C19.2093 11.9564 18.954 13.6033 17.8506 14.6491L19.1187 17.737C20.9797 16.5266 22.1161 14.4515 22.1161 12.2282Z" fill="#FBBC04" />
+                <path d="M15.6108 15.5637H15.5531C14.1286 15.5637 12.8604 14.6579 12.3993 13.3075C11.9382 11.957 12.3828 10.4666 13.511 9.58547C14.6391 8.70438 16.1954 8.64674 17.3894 9.43725L19.6951 7.13159C17.4553 5.31176 14.2932 5.17177 11.897 6.78574C9.50076 8.3997 8.44675 11.3806 9.28667 14.1392C10.1266 16.8977 12.671 18.7834 15.5531 18.7834C15.9978 18.7834 16.4425 18.7422 16.8789 18.6517L15.6108 15.5637Z" fill="#EA4335" />
+                <path d="M23.87 18.231C22.4125 18.231 20.9632 18.4451 19.5716 18.8568L21.4161 23.3611C22.2148 23.1634 23.0383 23.0646 23.87 23.0646C28.6625 23.0646 32.7797 26.449 33.7184 31.1509C34.6489 35.8528 32.1374 40.5547 27.7155 42.3828C23.2936 44.2108 18.1882 42.6627 15.5284 38.6855C12.8687 34.7082 13.3792 29.3969 16.7636 26.0043C17.4718 25.2962 18.2787 24.7033 19.1598 24.2339L17.34 19.7461C10.5465 23.0728 7.32686 30.9697 9.86308 38.1008C12.3993 45.2319 19.8762 49.3244 27.2461 47.6117C34.616 45.9071 39.532 38.9407 38.6756 31.4226C37.8192 23.9045 31.454 18.231 23.8864 18.231H23.87Z" fill="#4285F4" />
+              </svg>
+              <span class="text-[10px] font-semibold text-foreground leading-none">Looker Studio</span>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   </div>
@@ -287,6 +470,17 @@ const storageIcons = {
   const redirectUrl = (rawRedirect.startsWith('/') && !rawRedirect.startsWith('//')) ? rawRedirect : '/';
 
   function showStep(step) {
+    const container = document.getElementById('onboarding-container');
+    if (container) {
+      if (step === 3) {
+        container.classList.remove('max-w-lg');
+        container.classList.add('max-w-4xl');
+      } else {
+        container.classList.remove('max-w-4xl');
+        container.classList.add('max-w-lg');
+      }
+    }
+
     slides.forEach((slide, i) => {
       slide.classList.remove('slide-hidden', 'slide-hidden-left');
       if (i < step) slide.classList.add('slide-hidden-left');

@@ -6,8 +6,12 @@ import {
   type GroupStatus,
   type GroupProgress,
   type ProjectSetupProgress,
+  type SetupGroup,
+  type SetupStep,
 } from './types';
 import { useProjectId } from '../../../shared/hooks/useProjectId';
+import { useUser } from '../../../features/idp/hooks/useAuthState';
+import type { User } from '../../../features/idp/types';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { setupProgressService } from './setup-progress.service';
 
@@ -31,10 +35,34 @@ const EMPTY_PROGRESS: ProjectSetupProgress = {
   [ProgressKey.HAS_REPORT]: { done: false, completedAt: null },
   [ProgressKey.HAS_REPORT_RUN]: { done: false, completedAt: null },
   [ProgressKey.HAS_TEAMMATES_INVITED]: { done: false, completedAt: null },
+  [ProgressKey.HAS_GOOGLE_SHEETS_DESTINATION]: { done: false, completedAt: null },
+  [ProgressKey.HAS_GOOGLE_SHEETS_EXTENSION]: { done: false, completedAt: null },
+  [ProgressKey.HAS_GOOGLE_SHEETS_REPORT_RUN]: { done: false, completedAt: null },
 };
 
-function calculateGroupProgress(progress: ProjectSetupProgress): GroupProgress[] {
-  return SETUP_GROUPS.map(group => {
+/**
+ * Filter groups based on their showCondition
+ */
+function getVisibleGroups(groups: SetupGroup[], user: User | null): SetupGroup[] {
+  return groups.filter(group => {
+    if (!group.isConditional || !group.showCondition) return true;
+    return group.showCondition(user);
+  });
+}
+
+/**
+ * Get steps that belong to visible groups
+ */
+function getVisibleSteps(steps: SetupStep[], visibleGroups: SetupGroup[]): SetupStep[] {
+  const visibleStepIds = new Set(visibleGroups.flatMap(g => g.stepIds));
+  return steps.filter(step => visibleStepIds.has(step.id));
+}
+
+function calculateGroupProgress(
+  progress: ProjectSetupProgress,
+  visibleGroups: SetupGroup[]
+): GroupProgress[] {
+  return visibleGroups.map(group => {
     const stepIdsSet = new Set(group.stepIds);
     const steps = SETUP_STEPS.filter(step => stepIdsSet.has(step.id));
     const completedSteps = steps.filter(step => progress[step.progressKey].done);
@@ -91,6 +119,7 @@ export async function fetchSetupProgress(): Promise<ProjectSetupProgress> {
  */
 export function useSetupProgress(): SetupProgressResult {
   const projectId = useProjectId();
+  const user = useUser();
 
   const {
     data: progress = EMPTY_PROGRESS,
@@ -103,18 +132,27 @@ export function useSetupProgress(): SetupProgressResult {
     staleTime: 5 * 60 * 1000, // 5 minutes
   });
 
+  // Filter groups based on user onboarding (conditional groups)
+  const visibleGroups = useMemo(() => getVisibleGroups(SETUP_GROUPS, user), [user]);
+
+  // Get steps that belong to visible groups
+  const visibleSteps = useMemo(() => getVisibleSteps(SETUP_STEPS, visibleGroups), [visibleGroups]);
+
   const completedStepIds: string[] = [];
 
-  for (const step of SETUP_STEPS) {
+  for (const step of visibleSteps) {
     if (progress[step.progressKey].done) {
       completedStepIds.push(step.id);
     }
   }
 
   const completedCount = completedStepIds.length;
-  const totalCount = SETUP_STEPS.length;
+  const totalCount = visibleSteps.length;
   const percentage = totalCount === 0 ? 0 : Math.round((completedCount / totalCount) * 100);
-  const groupProgresses = useMemo(() => calculateGroupProgress(progress), [progress]);
+  const groupProgresses = useMemo(
+    () => calculateGroupProgress(progress, visibleGroups),
+    [progress, visibleGroups]
+  );
   const isAllComplete = completedCount >= totalCount;
 
   return {

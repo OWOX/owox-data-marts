@@ -10,3 +10,6 @@ export * from './tokenDto.js';
 export * from './tokenType.js';
 export * from './projectMembersDto.js';
 export * from './userProvisioningDto.js';
+export * from './membershipRequestsDto.js';
+export * from './projectMemberApiKeyAuthFlowDto.js';
+export * from './oauthDto.js';

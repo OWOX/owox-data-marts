@@ -26,4 +26,16 @@ export interface DataMartRunItem {
   insightTemplateId: string | null;
   aiAssistantDefinition: DataMartRunAiAssistantDefinition | null;
   createdByUser: UserProjection | null;
+  additionalParams: Record<string, unknown> | null;
+  /** Grand-totals summary (numeric fields × allowed aggregations); null when none. */
+  totals: Record<string, number | string | boolean | null> | null;
+}
+
+export interface DataMartRunDataMartRef {
+  id: string;
+  title: string;
+}
+
+export interface ProjectDataMartRunItem extends DataMartRunItem {
+  dataMart: DataMartRunDataMartRef;
 }

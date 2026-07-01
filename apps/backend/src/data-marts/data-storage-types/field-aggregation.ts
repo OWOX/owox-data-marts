@@ -4,26 +4,35 @@ import { DatabricksFieldType } from './databricks/enums/databricks-field-type.en
 import { DataStorageType } from './enums/data-storage-type.enum';
 import { RedshiftFieldType } from './redshift/enums/redshift-field-type.enum';
 import { SnowflakeFieldType } from './snowflake/enums/snowflake-field-type.enum';
-import { AggregateFunction } from '../dto/schemas/aggregate-function.schema';
+import { ReportAggregateFunction } from '../dto/schemas/aggregate-function.schema';
 import { StorageFieldType } from '../dto/domain/storage-field-type';
+import { FilterRule } from '../dto/schemas/filter-config.schema';
 
 export function computeEffectiveType(
   rawType: StorageFieldType,
-  aggFunc: AggregateFunction | undefined,
+  aggFunc: ReportAggregateFunction | undefined,
   storageType: DataStorageType
 ): StorageFieldType {
   if (!aggFunc) return rawType;
   switch (aggFunc) {
     case 'COUNT':
     case 'COUNT_DISTINCT':
-      return getIntegerType(storageType);
+      return integerTypeFor(storageType);
     case 'STRING_AGG':
       return getStringType(storageType);
+    // The average of integers is fractional, so AVG widens to the storage's float type.
+    case 'AVG':
+      return getFloatType(storageType);
     case 'SUM':
     case 'MIN':
     case 'MAX':
     case 'ANY_VALUE':
       return rawType;
+    case 'P25':
+    case 'P50':
+    case 'P75':
+    case 'P95':
+      return getFloatType(storageType);
     default: {
       const _exhaustive: never = aggFunc;
       return _exhaustive;
@@ -31,7 +40,27 @@ export function computeEffectiveType(
   }
 }
 
-function getIntegerType(storageType: DataStorageType): StorageFieldType {
+/**
+ * The comparison type a filter value should be cast to. For a plain WHERE rule it is the
+ * raw column type; for a HAVING rule (one carrying an aggregate `function`) the comparison
+ * is against the AGGREGATE's value, so it is the aggregate's EFFECTIVE type. Without this,
+ * e.g. `COUNT(DISTINCT date_col) >= 5` would cast the RHS to the raw DATE type
+ * (`>= CAST(@h AS TIMESTAMP)`) and the warehouse rejects integer-vs-date at run time.
+ */
+export function effectiveComparisonType(
+  rawType: string | undefined,
+  rule: FilterRule,
+  storageType: DataStorageType
+): string | undefined {
+  if (rawType === undefined || !rule.function) return rawType;
+  return computeEffectiveType(rawType as StorageFieldType, rule.function, storageType);
+}
+
+/**
+ * Storage-specific integer type. Used for COUNT/COUNT_DISTINCT effective types and
+ * for the synthetic Row Count header (COUNT(*)).
+ */
+export function integerTypeFor(storageType: DataStorageType): StorageFieldType {
   switch (storageType) {
     case DataStorageType.GOOGLE_BIGQUERY:
     case DataStorageType.LEGACY_GOOGLE_BIGQUERY:
@@ -44,6 +73,28 @@ function getIntegerType(storageType: DataStorageType): StorageFieldType {
       return RedshiftFieldType.INTEGER;
     case DataStorageType.DATABRICKS:
       return DatabricksFieldType.INT;
+  }
+}
+
+function getFloatType(storageType: DataStorageType): StorageFieldType {
+  switch (storageType) {
+    case DataStorageType.GOOGLE_BIGQUERY:
+    case DataStorageType.LEGACY_GOOGLE_BIGQUERY:
+      return BigQueryFieldType.FLOAT;
+    case DataStorageType.AWS_ATHENA:
+      return AthenaFieldType.DOUBLE;
+    case DataStorageType.SNOWFLAKE:
+      return SnowflakeFieldType.FLOAT;
+    case DataStorageType.AWS_REDSHIFT:
+      return RedshiftFieldType.DOUBLE_PRECISION;
+    case DataStorageType.DATABRICKS:
+      return DatabricksFieldType.DOUBLE;
+    default: {
+      // Compile-time exhaustiveness + runtime guard: a future storage type must fail loudly,
+      // never silently return undefined.
+      const _exhaustive: never = storageType;
+      throw new Error(`getFloatType: unhandled storage type ${String(_exhaustive)}`);
+    }
   }
 }
 

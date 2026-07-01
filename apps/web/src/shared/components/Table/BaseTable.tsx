@@ -79,7 +79,7 @@ export function BaseTable<TData>({
   const isActionsColumn = (columnId: string) => columnId === ACTIONS_COLUMN_ID;
 
   const baseHeaderClass =
-    'relative [&:has([role=checkbox])]:pl-6 [&>[role=checkbox]]:translate-y-[2px]';
+    'relative [&:has([role=checkbox])]:pl-2 [&>[role=checkbox]]:translate-y-[1px]';
 
   const actionsHeaderClass = cn(
     'sticky right-0 z-20',
@@ -92,21 +92,22 @@ export function BaseTable<TData>({
   const isHealthStatus = (columnId: string) => columnId === 'healthStatus';
 
   const baseCellClass =
-    'px-6 pr-0 break-words whitespace-normal transition-colors duration-200 ease-out ' +
+    'px-6 [&:has([role=checkbox])]:pl-2 pr-0 break-words whitespace-normal transition-colors duration-200 ease-out ' +
     'after:transition-opacity after:duration-150 after:ease-out ' +
-    '[&>[role=checkbox]]:translate-y-[2px]';
+    '[&>[role=checkbox]]:translate-y-[1px]';
 
   const actionsCellClass = cn(
     'sticky right-0 z-10 px-2',
     'bg-table-tbody-sticky-bg group-hover:bg-table-tbody-sticky-hover-bg transition-colors duration-200 ease-out',
     'after:pointer-events-none after:absolute after:inset-y-0 after:left-[-24px] after:w-[24px]',
-    'after:bg-gradient-to-r after:from-transparent after:to-table-tbody-sticky-hover-bg',
-    'after:opacity-0 after:transition-opacity after:duration-200',
-    'group-hover:after:opacity-100'
+    'after:bg-gradient-to-r after:from-transparent after:to-table-tbody-sticky-bg',
+    'group-data-[state=selected]:bg-table-tbody-sticky-hover-bg group-data-[state=selected]:after:to-table-tbody-sticky-hover-bg',
+    'after:transition-colors after:duration-200',
+    'group-hover:after:to-table-tbody-sticky-hover-bg'
   );
 
   const createdAtClass = 'whitespace-nowrap';
-  const healthStatusClass = 'pl-5';
+  const healthStatusClass = 'pl-4';
 
   return (
     <>
@@ -115,7 +116,7 @@ export function BaseTable<TData>({
         <div className='mb-4 flex items-center justify-between gap-2 last:mb-0'>
           {/* LEFT Column */}
           {renderToolbarLeft && (
-            <div className='flex items-center gap-2'>{renderToolbarLeft(table)}</div>
+            <div className='flex min-w-0 flex-1 items-center gap-2'>{renderToolbarLeft(table)}</div>
           )}
 
           {/* RIGHT Column */}
@@ -174,7 +175,12 @@ export function BaseTable<TData>({
                 <TableRow
                   key={row.id}
                   data-state={row.getIsSelected() && 'selected'}
-                  className='group cursor-pointer transition-colors duration-200 hover:bg-black/4 dark:border-white/4 dark:bg-transparent dark:hover:bg-white/4'
+                  className={cn(
+                    'group transition-colors duration-200 dark:border-white/4 dark:bg-transparent',
+                    onRowClick
+                      ? 'cursor-pointer hover:bg-black/4 dark:hover:bg-white/4'
+                      : 'cursor-default'
+                  )}
                   onClick={
                     onRowClick
                       ? e => {

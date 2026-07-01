@@ -34,12 +34,22 @@ import type {
   TablePatternDefinitionConfig,
   ViewDefinitionConfig,
 } from '../types';
-import { extractApiError } from '../../../../../app/api';
+import { extractApiError, type ApiError } from '../../../../../app/api';
 import type { DataMartSchema } from '../../../shared/types/data-mart-schema.types';
 import toast from 'react-hot-toast';
 import { pushToDataLayer, trackEvent } from '../../../../../utils';
 import { DATA_MART_RUNS_PAGE_SIZE } from '../../constants';
 import { useRefreshSetupProgress } from '../../../../../components/AppSidebar/SetupChecklist/useSetupProgress';
+import { invalidateDataStorageHealthStatus } from '../../../../data-storage/shared/services/data-storage-health-status.service';
+import { isStorageOAuthRefreshError } from '../../../shared/utils/storage-oauth-refresh-error.utils';
+
+function invalidateStorageHealthOnOAuthRefreshError(error: ApiError, storageId?: string): void {
+  if (!storageId || !isStorageOAuthRefreshError(error)) {
+    return;
+  }
+
+  invalidateDataStorageHealthStatus(storageId);
+}
 
 // Props interface
 interface DataMartProviderProps {
@@ -182,6 +192,7 @@ export function DataMartProvider({ children }: DataMartProviderProps) {
         label: id,
         error: apiError.message,
       });
+      throw error;
     }
   }, []);
 
@@ -363,6 +374,7 @@ export function DataMartProvider({ children }: DataMartProviderProps) {
         });
       } catch (error) {
         const apiError = extractApiError(error);
+        invalidateStorageHealthOnOAuthRefreshError(apiError, state.dataMart?.storage.id);
         dispatch({
           type: 'UPDATE_DATA_MART_DEFINITION_ERROR',
           payload: apiError,
@@ -377,7 +389,7 @@ export function DataMartProvider({ children }: DataMartProviderProps) {
         });
       }
     },
-    []
+    [state.dataMart?.storage.id]
   );
 
   // Publish a data mart
@@ -401,6 +413,7 @@ export function DataMartProvider({ children }: DataMartProviderProps) {
         });
       } catch (error) {
         const apiError = extractApiError(error);
+        invalidateStorageHealthOnOAuthRefreshError(apiError, state.dataMart?.storage.id);
         dispatch({
           type: 'PUBLISH_DATA_MART_ERROR',
           payload: apiError,
@@ -415,7 +428,7 @@ export function DataMartProvider({ children }: DataMartProviderProps) {
         throw error;
       }
     },
-    [refreshSetupProgress]
+    [refreshSetupProgress, state.dataMart?.storage.id]
   );
 
   /**
@@ -493,50 +506,46 @@ export function DataMartProvider({ children }: DataMartProviderProps) {
   }, []);
 
   // Run a data mart
-  const runDataMart = useCallback(async (request: RunDataMartRequestDto) => {
-    const toastId = toast.loading('Manual run started');
-    try {
-      dispatch({ type: 'RUN_DATA_MART_START' });
-      trackEvent({
-        event: 'data_mart_run_started',
-        category: 'DataMart',
-        action: 'Run',
-        label: 'Manual',
-        context: request.id,
-      });
+  const runDataMart = useCallback(
+    async (request: RunDataMartRequestDto) => {
+      const toastId = toast.loading('Manual run started');
+      try {
+        dispatch({ type: 'RUN_DATA_MART_START' });
+        trackEvent({
+          event: 'data_mart_run_started',
+          category: 'DataMart',
+          action: 'Run',
+          label: 'Manual',
+          context: request.id,
+        });
 
-      await dataMartService.runDataMart(request.id, request.payload);
-      dispatch({ type: 'RUN_DATA_MART_SUCCESS' });
-    } catch (error) {
-      toast.dismiss(toastId);
-      const apiError = extractApiError(error);
-      dispatch({
-        type: 'RUN_DATA_MART_ERROR',
-        payload: apiError,
-      });
-      trackEvent({
-        event: 'data_mart_error',
-        category: 'DataMart',
-        action: 'RunError',
-        label: 'Manual',
-        context: request.id,
-        error: apiError.message,
-      });
-    }
-  }, []);
+        await dataMartService.runDataMart(request.id, request.payload);
+        dispatch({ type: 'RUN_DATA_MART_SUCCESS' });
+      } catch (error) {
+        toast.dismiss(toastId);
+        const apiError = extractApiError(error);
+        invalidateStorageHealthOnOAuthRefreshError(apiError, state.dataMart?.storage.id);
+        dispatch({
+          type: 'RUN_DATA_MART_ERROR',
+          payload: apiError,
+        });
+        trackEvent({
+          event: 'data_mart_error',
+          category: 'DataMart',
+          action: 'RunError',
+          label: 'Manual',
+          context: request.id,
+          error: apiError.message,
+        });
+      }
+    },
+    [state.dataMart?.storage.id]
+  );
 
   const cancelDataMartRun = useCallback(
     async (id: string, runId: string): Promise<void> => {
       try {
         await dataMartService.cancelDataMartRun(id, runId);
-        await getDataMartRuns(id);
-        toast.success('Data Mart run canceled');
-        trackEvent({
-          event: 'data_mart_run_canceled',
-          category: 'DataMart',
-          action: 'CancelRun',
-          label: 'Manual',
-        });
       } catch (error) {
         const apiError = extractApiError(error);
         dispatch({
@@ -548,6 +557,27 @@ export function DataMartProvider({ children }: DataMartProviderProps) {
           category: 'DataMart',
           action: 'CancelRunError',
           error: apiError.message,
+        });
+        throw error;
+      }
+
+      toast.success('Data Mart run canceled');
+      trackEvent({
+        event: 'data_mart_run_canceled',
+        category: 'DataMart',
+        action: 'CancelRun',
+        label: 'Manual',
+      });
+
+      try {
+        await getDataMartRuns(id);
+      } catch (error) {
+        const apiError = extractApiError(error) as { message?: string } | undefined;
+        trackEvent({
+          event: 'data_mart_error',
+          category: 'DataMart',
+          action: 'CancelRunRefreshError',
+          error: apiError?.message ?? 'Failed to refresh Data Mart runs after cancellation',
         });
       }
     },
@@ -625,6 +655,7 @@ export function DataMartProvider({ children }: DataMartProviderProps) {
         action: 'UpdateSchemaError',
         error: apiError.message,
       });
+      throw error;
     }
   }, []);
 

@@ -8,10 +8,10 @@ import { ReportDto } from '../dto/domain/report.dto';
 import { OwnerFilter } from '../enums/owner-filter.enum';
 import { RoleScope } from '../enums/role-scope.enum';
 import { ContextAccessService } from '../services/context/context-access.service';
-import { buildContextGateSql } from '../utils/build-context-gate-sql';
 import { UserProjectionsFetcherService } from '../services/user-projections-fetcher.service';
 import { ReportAccessService } from '../services/report-access.service';
 import { resolveOwnerUsers } from '../utils/resolve-owner-users';
+import { applyDataMartVisibilityFilter } from '../utils/apply-data-mart-visibility-filter';
 
 @Injectable()
 export class ListReportsByProjectService {
@@ -26,59 +26,64 @@ export class ListReportsByProjectService {
 
   async run(command: ListReportsByProjectCommand): Promise<ReportDto[]> {
     const isAdmin = command.roles.includes('admin');
-    const isTu = command.roles.includes('editor') || isAdmin;
     const roleScope: RoleScope = isAdmin
       ? RoleScope.ENTIRE_PROJECT
       : await this.contextAccessService.getRoleScope(command.userId, command.projectId);
 
-    // Get all data reports for the project — filtered by DM visibility
-    let qb = this.reportRepository
+    // Select the ordered page without joining wide report relations or one-to-many owners.
+    let pageQb = this.reportRepository
+      .createQueryBuilder('r')
+      .innerJoin('r.dataMart', 'dataMart')
+      .where('dataMart.projectId = :projectId', { projectId: command.projectId })
+      .andWhere('dataMart.deletedAt IS NULL');
+
+    applyDataMartVisibilityFilter(pageQb, {
+      dataMartAlias: 'dataMart',
+      projectId: command.projectId,
+      userId: command.userId,
+      roles: command.roles,
+      roleScope,
+    });
+
+    if (command.ownerFilter === OwnerFilter.HAS_OWNERS) {
+      pageQb = pageQb.andWhere('EXISTS (SELECT 1 FROM report_owners o WHERE o.report_id = r.id)');
+    } else if (command.ownerFilter === OwnerFilter.NO_OWNERS) {
+      pageQb = pageQb.andWhere(
+        'NOT EXISTS (SELECT 1 FROM report_owners o WHERE o.report_id = r.id)'
+      );
+    }
+
+    pageQb = pageQb.select('r.id', 'id').orderBy('r.createdAt', 'DESC').addOrderBy('r.id', 'DESC');
+
+    if (command.limit !== undefined) {
+      pageQb = pageQb.limit(command.limit);
+    }
+
+    if (command.offset !== undefined) {
+      pageQb = pageQb.offset(command.offset);
+    }
+
+    const page = await pageQb.getRawMany<{ id: string }>();
+    const reportIds = page.map(({ id }) => id);
+    if (reportIds.length === 0) {
+      return [];
+    }
+
+    const reports = await this.reportRepository
       .createQueryBuilder('r')
       .leftJoinAndSelect('r.dataMart', 'dataMart')
       .leftJoinAndSelect('dataMart.storage', 'storage')
       .leftJoinAndSelect('r.dataDestination', 'dataDestination')
       .leftJoinAndSelect('r.owners', 'owners')
-      .where('dataMart.projectId = :projectId', { projectId: command.projectId })
-      .andWhere('dataMart.deletedAt IS NULL');
+      .where('r.id IN (:...reportIds)', { reportIds })
+      .getMany();
+    const reportsById = new Map(reports.map(report => [report.id, report]));
+    const orderedReports = reportIds.flatMap(id => {
+      const report = reportsById.get(id);
+      return report ? [report] : [];
+    });
 
-    // Reports inherit DM visibility: only show reports on visible DataMarts
-    if (!isAdmin) {
-      const contextGate = buildContextGateSql({
-        joinTable: 'data_mart_contexts',
-        entityIdColumn: 'data_mart_id',
-        entityAlias: 'dataMart',
-      });
-      const sharedClause = isTu
-        ? `(dataMart.availableForReporting = :isTrue OR dataMart.availableForMaintenance = :isTrue)`
-        : `dataMart.availableForReporting = :isTrue`;
-      qb = qb.andWhere(
-        `(
-          EXISTS (SELECT 1 FROM data_mart_technical_owners t WHERE t.data_mart_id = dataMart.id AND t.user_id = :userId)
-          OR EXISTS (SELECT 1 FROM data_mart_business_owners b WHERE b.data_mart_id = dataMart.id AND b.user_id = :userId)
-          OR (
-            ${sharedClause}
-            AND ${contextGate}
-          )
-        )`,
-        {
-          userId: command.userId,
-          isTrue: true,
-          roleScope,
-          entireProjectScope: RoleScope.ENTIRE_PROJECT,
-          projectId: command.projectId,
-        }
-      );
-    }
-
-    if (command.ownerFilter === OwnerFilter.HAS_OWNERS) {
-      qb = qb.andWhere('EXISTS (SELECT 1 FROM report_owners o WHERE o.report_id = r.id)');
-    } else if (command.ownerFilter === OwnerFilter.NO_OWNERS) {
-      qb = qb.andWhere('NOT EXISTS (SELECT 1 FROM report_owners o WHERE o.report_id = r.id)');
-    }
-
-    const reports = await qb.getMany();
-
-    const allUserIds = reports.flatMap(r => [
+    const allUserIds = orderedReports.flatMap(r => [
       ...(r.createdById ? [r.createdById] : []),
       ...r.ownerIds,
     ]);
@@ -86,7 +91,7 @@ export class ListReportsByProjectService {
       await this.userProjectionsFetcherService.fetchUserProjectionsList(allUserIds);
 
     const reportsWithCaps = await Promise.all(
-      reports.map(async report => {
+      orderedReports.map(async report => {
         const capabilities = await this.reportAccessService.computeCapabilitiesForReport(
           command.userId,
           command.roles,

@@ -28,6 +28,7 @@ export class DataMartRunDto {
     public readonly createdAt: Date,
     public readonly startedAt: Date | null,
     public readonly finishedAt: Date | null,
-    public readonly createdByUser: UserProjectionDto | null
+    public readonly createdByUser: UserProjectionDto | null,
+    public readonly additionalParams: Record<string, unknown> | null
   ) {}
 }

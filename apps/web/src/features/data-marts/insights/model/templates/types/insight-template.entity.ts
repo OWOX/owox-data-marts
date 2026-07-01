@@ -15,3 +15,11 @@ export interface InsightTemplateEntity {
   modifiedAt: Date;
   createdByUser?: import('../../../../../../shared/types').UserProjection | null;
 }
+
+export interface ProjectInsightTemplateEntity extends InsightTemplateEntity {
+  dataMart: {
+    id: string;
+    title: string;
+  };
+  canDelete: boolean;
+}

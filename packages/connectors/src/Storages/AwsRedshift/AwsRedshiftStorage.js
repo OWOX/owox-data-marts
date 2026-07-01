@@ -5,6 +5,10 @@
  * file that was distributed with this source code.
  */
 
+function stripQuotes(value) {
+  return value ? value.replace(/^"|"$/g, '') : value;
+}
+
 var AwsRedshiftStorage = class AwsRedshiftStorage extends AbstractStorage {
   //---- constructor -------------------------------------------------
   /**
@@ -73,6 +77,125 @@ var AwsRedshiftStorage = class AwsRedshiftStorage extends AbstractStorage {
   async init() {
     await this.checkConnection();
     this.config.logMessage('Connection to Redshift established');
+    await this.loadTableSchema();
+  }
+  //----------------------------------------------------------------
+
+  //---- loadTableSchema --------------------------------------------
+  async loadTableSchema() {
+    this.existingColumns = await this.getAListOfExistingColumns();
+
+    // Only add new columns here — createTable() is intentionally deferred to
+    // saveData() so it only fires when data is actually written, preserving
+    // the CreateEmptyTables semantics enforced at the connector level.
+    if (Object.keys(this.existingColumns).length > 0) {
+      const selectedFields = this.getSelectedFields();
+      const newFields = selectedFields.filter(col => !(col in this.existingColumns));
+      if (newFields.length > 0) {
+        await this.addNewColumns(newFields);
+      }
+    }
+  }
+  //----------------------------------------------------------------
+
+  //---- getAListOfExistingColumns ----------------------------------
+  async getAListOfExistingColumns() {
+    // Strip surrounding double-quotes that may be present in config values.
+    // Prefer exact matching first because quoted Redshift identifiers can be
+    // case-sensitive; fall back to LOWER() for clusters that fold identifiers.
+    const rawSchema = stripQuotes(this.config.Schema.value);
+    const rawTable = stripQuotes(this.config.DestinationTableName.value);
+
+    const exactSql = `SELECT column_name, data_type
+      FROM information_schema.columns
+      WHERE table_schema = '${rawSchema}'
+        AND table_name = '${rawTable}'
+      ORDER BY ordinal_position`;
+
+    const fallbackSql = `SELECT column_name, data_type
+      FROM information_schema.columns
+      WHERE LOWER(table_schema) = LOWER('${rawSchema}')
+        AND LOWER(table_name) = LOWER('${rawTable}')
+      ORDER BY ordinal_position`;
+
+    let rows;
+    try {
+      rows = await this.executeQueryWithResults(exactSql);
+      if (rows.length === 0) {
+        rows = await this.executeQueryWithResults(fallbackSql);
+      }
+    } catch (error) {
+      if (error.message && error.message.includes('does not exist')) {
+        return {};
+      }
+      throw error;
+    }
+
+    // Redshift folds even quoted identifiers to lowercase by default, so a column
+    // created as "CampaignId" comes back as campaignid. Map info_schema names back
+    // to the configured schema key (case-insensitively) whenever the returned name
+    // doesn't already match a key exactly, so existingColumns keys line up with
+    // getSelectedFields() and loadTableSchema() doesn't re-add existing columns.
+    // An exact name always wins (handles case-sensitive clusters untouched).
+    const schemaKeyByLower = {};
+    for (const key of Object.keys(this.schema || {})) {
+      schemaKeyByLower[key.toLowerCase()] = key;
+    }
+
+    const columns = {};
+    for (const row of rows) {
+      const columnName = row.column_name;
+      const schemaKey = (this.schema && columnName in this.schema)
+        ? columnName
+        : (schemaKeyByLower[columnName.toLowerCase()] || columnName);
+      columns[schemaKey] = (this.schema && schemaKey in this.schema)
+        ? this.getColumnType(schemaKey)
+        : row.data_type;
+    }
+    return columns;
+  }
+  //----------------------------------------------------------------
+
+  //---- executeQueryWithResults ------------------------------------
+  async executeQueryWithResults(sql) {
+    const params = {
+      Sql: sql,
+      Database: this.config.Database.value
+    };
+    if (this.config.WorkgroupName.value) {
+      params.WorkgroupName = this.config.WorkgroupName.value;
+    } else if (this.config.ClusterIdentifier.value) {
+      params.ClusterIdentifier = this.config.ClusterIdentifier.value;
+    }
+
+    const command = new ExecuteStatementCommand(params);
+    const response = await this.redshiftDataClient.send(command);
+    await this.waitForQueryCompletion(response.Id);
+
+    const rows = [];
+    let nextToken;
+    do {
+      const resultParams = { Id: response.Id };
+      if (nextToken) resultParams.NextToken = nextToken;
+      const result = await this.redshiftDataClient.send(new GetStatementResultCommand(resultParams));
+      const columnNames = (result.ColumnMetadata || []).map(col => col.name);
+      for (const record of (result.Records || [])) {
+        const row = {};
+        columnNames.forEach((colName, i) => {
+          const field = record[i];
+          if (field.isNull) row[colName] = null;
+          else if ('stringValue' in field) row[colName] = field.stringValue;
+          else if ('longValue' in field) row[colName] = Number(field.longValue);
+          else if ('doubleValue' in field) row[colName] = field.doubleValue;
+          else if ('booleanValue' in field) row[colName] = field.booleanValue;
+          else row[colName] = null;
+        });
+        rows.push(row);
+      }
+      nextToken = result.NextToken;
+    } while (nextToken);
+
+    return rows;
   }
   //----------------------------------------------------------------
 
@@ -245,7 +368,7 @@ var AwsRedshiftStorage = class AwsRedshiftStorage extends AbstractStorage {
    * @returns {Promise}
    */
   async createSchemaIfNotExist() {
-    const schemaName = this.config.Schema.value;
+    const schemaName = stripQuotes(this.config.Schema.value);
     if (!schemaName) {
       throw new Error('Schema name is required but not provided');
     }
@@ -289,15 +412,17 @@ var AwsRedshiftStorage = class AwsRedshiftStorage extends AbstractStorage {
     // Build primary key constraint
     const pkColumns = this.uniqueKeyColumns.map(col => `"${col}"`).join(', ');
 
+    const schemaName = stripQuotes(this.config.Schema.value);
+    const tableName = stripQuotes(this.config.DestinationTableName.value);
     const query = `
-      CREATE TABLE IF NOT EXISTS "${this.config.Schema.value}"."${this.config.DestinationTableName.value}" (
+      CREATE TABLE IF NOT EXISTS "${schemaName}"."${tableName}" (
         ${columnDefinitions.join(',\n        ')},
         PRIMARY KEY (${pkColumns})
       )
     `;
 
     await this.executeQuery(query, 'ddl');
-    this.config.logMessage(`Table "${this.config.Schema.value}"."${this.config.DestinationTableName.value}" created`);
+    this.config.logMessage(`Table "${schemaName}"."${tableName}" created`);
     await this.applyColumnComments(Object.keys(existingColumns));
     this.existingColumns = existingColumns;
 
@@ -323,13 +448,11 @@ var AwsRedshiftStorage = class AwsRedshiftStorage extends AbstractStorage {
     }
 
     if (columnsToAdd.length > 0) {
-      const query = `
-        ALTER TABLE "${this.config.Schema.value}"."${this.config.DestinationTableName.value}"
-        ADD COLUMN ${columnsToAdd.join(', ADD COLUMN ')}
-      `;
-
-      await this.executeQuery(query, 'ddl');
-      this.config.logMessage(`Columns '${newColumns.join(',')}' were added to "${this.config.Schema.value}"."${this.config.DestinationTableName.value}" table`);
+      const tableRef = `"${stripQuotes(this.config.Schema.value)}"."${stripQuotes(this.config.DestinationTableName.value)}"`;
+      for (const columnDef of columnsToAdd) {
+        await this.executeQuery(`ALTER TABLE ${tableRef} ADD COLUMN ${columnDef}`, 'ddl');
+      }
+      this.config.logMessage(`Columns '${newColumns.join(',')}' were added to ${tableRef}`);
 
       await this.applyColumnComments(newColumns);
       return newColumns;
@@ -345,8 +468,8 @@ var AwsRedshiftStorage = class AwsRedshiftStorage extends AbstractStorage {
    * @param {Array<string>} columns - columns to process
    */
   async applyColumnComments(columns) {
-    const schemaName = this.config.Schema.value;
-    const tableName = this.config.DestinationTableName.value;
+    const schemaName = stripQuotes(this.config.Schema.value);
+    const tableName = stripQuotes(this.config.DestinationTableName.value);
 
     for (let columnName of columns) {
       const field = this.schema[columnName];
@@ -390,15 +513,20 @@ var AwsRedshiftStorage = class AwsRedshiftStorage extends AbstractStorage {
    */
   async saveData(data) {
     if (!data || data.length === 0) {
+      // Only create the table for an empty batch when explicitly requested —
+      // some connectors pass empty batches without checking CreateEmptyTables first.
+      if (Object.keys(this.existingColumns).length === 0 && this.config.CreateEmptyTables?.value) {
+        await this.createTable();
+      }
       return Promise.resolve();
     }
 
-    // Create table if it doesn't exist
+    // Create table on first write with actual data
     if (Object.keys(this.existingColumns).length === 0) {
       await this.createTable();
     }
 
-    // Check for new columns and add them
+    // Check for new columns in incoming data not yet in the table
     const dataKeys = Object.keys(data[0]);
     const newColumns = dataKeys.filter(key => !(key in this.existingColumns));
 
@@ -411,8 +539,8 @@ var AwsRedshiftStorage = class AwsRedshiftStorage extends AbstractStorage {
     const columnsToInsert = dataKeys.filter(key => selectedFields.includes(key));
 
     // Build MERGE statement
-    const tempTableName = `temp_${this.config.DestinationTableName.value}_${Date.now()}`;
-    const schemaName = this.config.Schema.value;
+    const tempTableName = `temp_${stripQuotes(this.config.DestinationTableName.value)}_${Date.now()}`;
+    const schemaName = stripQuotes(this.config.Schema.value);
 
     if (!schemaName) {
       throw new Error('Schema name is required but not provided');
@@ -508,7 +636,7 @@ var AwsRedshiftStorage = class AwsRedshiftStorage extends AbstractStorage {
     const columnList = columns.map(col => `"${col}"`).join(', ');
 
     const query = `
-      INSERT INTO "${this.config.Schema.value}"."${tableName}" (${columnList})
+      INSERT INTO "${stripQuotes(this.config.Schema.value)}"."${tableName}" (${columnList})
       VALUES ${values}
     `;
 
@@ -524,8 +652,8 @@ var AwsRedshiftStorage = class AwsRedshiftStorage extends AbstractStorage {
    * @returns {Promise}
    */
   async mergeTempTable(tempTableName, columns) {
-    const targetTable = `"${this.config.Schema.value}"."${this.config.DestinationTableName.value}"`;
-    const sourceTable = `"${this.config.Schema.value}"."${tempTableName}"`;
+    const targetTable = `"${stripQuotes(this.config.Schema.value)}"."${stripQuotes(this.config.DestinationTableName.value)}"`;
+    const sourceTable = `"${stripQuotes(this.config.Schema.value)}"."${tempTableName}"`;
 
     // Build ON clause for matching
     const onClause = this.uniqueKeyColumns.map(col =>

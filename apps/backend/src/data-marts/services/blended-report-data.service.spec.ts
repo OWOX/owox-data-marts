@@ -3,6 +3,7 @@ import { BlendedReportDataService } from './blended-report-data.service';
 import { BlendableSchemaService } from './blendable-schema.service';
 import { DataMartRelationshipService } from './data-mart-relationship.service';
 import { DataMartTableReferenceService } from './data-mart-table-reference.service';
+import { OutputControlsValidatorService } from './output-controls-validator.service';
 import { BlendedQueryBuilderFacade } from '../data-storage-types/facades/blended-query-builder.facade';
 import { DataMartQueryBuilderFacade } from '../data-storage-types/facades/data-mart-query-builder.facade';
 import { Report } from '../entities/report.entity';
@@ -10,8 +11,14 @@ import { DataMart } from '../entities/data-mart.entity';
 import { DataStorage } from '../entities/data-storage.entity';
 import { DataStorageType } from '../data-storage-types/enums/data-storage-type.enum';
 import { DataMartRelationship } from '../entities/data-mart-relationship.entity';
-import { BlendableSchemaDto, BlendedFieldDto } from '../dto/domain/blendable-schema.dto';
+import {
+  AvailableSourceDto,
+  BlendableSchemaDto,
+  BlendedFieldDto,
+} from '../dto/domain/blendable-schema.dto';
 import { PublicOriginService } from '../../common/config/public-origin.service';
+import { UserProjectionsFetcherService } from './user-projections-fetcher.service';
+import { UserProjectionDto } from '../../idp/dto/domain/user-projection.dto';
 
 function makeReport(overrides: Partial<Report> = {}): Report {
   const storage = { id: 'storage-1', type: DataStorageType.GOOGLE_BIGQUERY } as DataStorage;
@@ -42,6 +49,7 @@ function makeBlendableSchema(blendedFieldNames: string[] = []): BlendableSchemaD
       depth: 1,
       fieldCount: 1,
       isIncluded: true,
+      isAccessibleForReporting: true,
       relationshipId: `rel-${i}`,
       dataMartId: `dm-target-${i}`,
     })),
@@ -70,6 +78,8 @@ describe('BlendedReportDataService', () => {
   let relationshipService: jest.Mocked<DataMartRelationshipService>;
   let tableReferenceService: jest.Mocked<DataMartTableReferenceService>;
   let blendedQueryBuilderFacade: jest.Mocked<BlendedQueryBuilderFacade>;
+  let userProjectionsFetcher: jest.Mocked<UserProjectionsFetcherService>;
+  let outputControlsValidator: jest.Mocked<OutputControlsValidatorService>;
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
@@ -113,6 +123,16 @@ describe('BlendedReportDataService', () => {
             getPublicOrigin: jest.fn().mockReturnValue('https://app.example.com'),
           },
         },
+        {
+          provide: OutputControlsValidatorService,
+          useValue: { validateForReport: jest.fn().mockResolvedValue(undefined) },
+        },
+        {
+          provide: UserProjectionsFetcherService,
+          useValue: {
+            fetchUserProjection: jest.fn().mockResolvedValue(undefined),
+          },
+        },
       ],
     }).compile();
 
@@ -121,13 +141,18 @@ describe('BlendedReportDataService', () => {
     relationshipService = module.get(DataMartRelationshipService);
     tableReferenceService = module.get(DataMartTableReferenceService);
     blendedQueryBuilderFacade = module.get(BlendedQueryBuilderFacade);
+    userProjectionsFetcher = module.get(UserProjectionsFetcherService);
+    outputControlsValidator = module.get(OutputControlsValidatorService);
   });
 
   describe('resolveBlendingDecision', () => {
     it('returns needsBlending=false when columnConfig is null', async () => {
       const report = makeReport({ columnConfig: null });
 
-      const result = await service.resolveBlendingDecision(report);
+      const result = await service.resolveBlendingDecision(report, {
+        userId: 'user-1',
+        roles: ['admin'],
+      });
 
       expect(result).toEqual({ needsBlending: false });
       expect(blendableSchemaService.computeBlendableSchema).not.toHaveBeenCalled();
@@ -136,7 +161,10 @@ describe('BlendedReportDataService', () => {
     it('returns needsBlending=false when columnConfig is undefined', async () => {
       const report = makeReport({ columnConfig: undefined });
 
-      const result = await service.resolveBlendingDecision(report);
+      const result = await service.resolveBlendingDecision(report, {
+        userId: 'user-1',
+        roles: ['admin'],
+      });
 
       expect(result).toEqual({ needsBlending: false });
     });
@@ -149,7 +177,10 @@ describe('BlendedReportDataService', () => {
         makeBlendableSchema(['blended_field'])
       );
 
-      const result = await service.resolveBlendingDecision(report);
+      const result = await service.resolveBlendingDecision(report, {
+        userId: 'user-1',
+        roles: ['admin'],
+      });
 
       expect(result).toEqual({
         needsBlending: false,
@@ -158,7 +189,8 @@ describe('BlendedReportDataService', () => {
       });
       expect(blendableSchemaService.computeBlendableSchema).toHaveBeenCalledWith(
         'dm-1',
-        'project-1'
+        'project-1',
+        { userId: 'user-1', roles: ['admin'] }
       );
     });
 
@@ -190,6 +222,7 @@ describe('BlendedReportDataService', () => {
             depth: 1,
             fieldCount: 1,
             isIncluded: true,
+            isAccessibleForReporting: true,
             relationshipId: 'rel-1',
             dataMartId: 'dm-target-1',
           },
@@ -214,7 +247,10 @@ describe('BlendedReportDataService', () => {
         'SELECT native_field, blended_field FROM ...'
       );
 
-      const result = await service.resolveBlendingDecision(report);
+      const result = await service.resolveBlendingDecision(report, {
+        userId: 'user-1',
+        roles: ['admin'],
+      });
 
       expect(result.needsBlending).toBe(true);
       expect(result.blendedSql).toBe('SELECT native_field, blended_field FROM ...');
@@ -266,6 +302,7 @@ describe('BlendedReportDataService', () => {
             depth: 1,
             fieldCount: 1,
             isIncluded: true,
+            isAccessibleForReporting: true,
             relationshipId: 'rel-1',
             dataMartId: 'dm-target',
           },
@@ -285,7 +322,10 @@ describe('BlendedReportDataService', () => {
       tableReferenceService.resolveTableName.mockResolvedValue('table_ref');
       blendedQueryBuilderFacade.buildBlendedQuery.mockResolvedValue('SELECT ...');
 
-      const result = await service.resolveBlendingDecision(report);
+      const result = await service.resolveBlendingDecision(report, {
+        userId: 'user-1',
+        roles: ['admin'],
+      });
 
       // Only the blended column gets a header; native columns are resolved
       // by the reader's own headers generator.
@@ -327,6 +367,7 @@ describe('BlendedReportDataService', () => {
               depth: 1,
               fieldCount: 1,
               isIncluded: true,
+              isAccessibleForReporting: true,
               relationshipId: 'rel-1',
               dataMartId: 'dm-target',
             },
@@ -356,7 +397,10 @@ describe('BlendedReportDataService', () => {
         blendedQueryBuilderFacade.buildBlendedQuery.mockResolvedValue('SELECT ...');
 
         const report = makeReport({ columnConfig: [fieldName] });
-        const result = await service.resolveBlendingDecision(report);
+        const result = await service.resolveBlendingDecision(report, {
+          userId: 'user-1',
+          roles: ['admin'],
+        });
         return result.blendedDataHeaders?.[0];
       }
 
@@ -413,6 +457,7 @@ describe('BlendedReportDataService', () => {
             depth: 1,
             fieldCount: 1,
             isIncluded: true,
+            isAccessibleForReporting: true,
             relationshipId: 'rel-1',
             dataMartId: 'dm-target',
           },
@@ -432,7 +477,7 @@ describe('BlendedReportDataService', () => {
       tableReferenceService.resolveTableName.mockResolvedValue('table_ref');
       blendedQueryBuilderFacade.buildBlendedQuery.mockResolvedValue('SELECT ...');
 
-      await service.resolveBlendingDecision(report);
+      await service.resolveBlendingDecision(report, { userId: 'user-1', roles: ['admin'] });
 
       const [, context] = blendedQueryBuilderFacade.buildBlendedQuery.mock.calls[0];
       expect(context?.chains[0].parentAlias).toBe('main');
@@ -478,6 +523,7 @@ describe('BlendedReportDataService', () => {
             depth: 1,
             fieldCount: 1,
             isIncluded: true,
+            isAccessibleForReporting: true,
             relationshipId: 'rel-ab',
             dataMartId: 'dm-b',
           },
@@ -488,6 +534,7 @@ describe('BlendedReportDataService', () => {
             depth: 1,
             fieldCount: 1,
             isIncluded: true,
+            isAccessibleForReporting: true,
             relationshipId: 'rel-ac',
             dataMartId: 'dm-c',
           },
@@ -512,8 +559,13 @@ describe('BlendedReportDataService', () => {
       relationshipService.findBySourceDataMartId.mockResolvedValue([relAB, relAC]);
       tableReferenceService.resolveTableName.mockResolvedValue('table_ref');
 
-      await expect(service.resolveBlendingDecision(report)).rejects.toThrow(
-        /outputAlias.+shared_alias.+collision|duplicate.+shared_alias/i
+      // Two blended fields share the same unified name ('shared_alias') across
+      // distinct aliasPaths — the field-index ambiguity guard now rejects this
+      // first, before the downstream chain outputAlias-collision check.
+      await expect(
+        service.resolveBlendingDecision(report, { userId: 'user-1', roles: ['admin'] })
+      ).rejects.toThrow(
+        /Ambiguous blended column name "shared_alias"|outputAlias.+shared_alias.+collision|duplicate.+shared_alias/i
       );
     });
 
@@ -561,6 +613,7 @@ describe('BlendedReportDataService', () => {
             depth: 1,
             fieldCount: 1,
             isIncluded: true,
+            isAccessibleForReporting: true,
             relationshipId: 'rel-ab',
             dataMartId: 'dm-b',
           },
@@ -571,6 +624,7 @@ describe('BlendedReportDataService', () => {
             depth: 2,
             fieldCount: 1,
             isIncluded: true,
+            isAccessibleForReporting: true,
             relationshipId: 'rel-bc',
             dataMartId: 'dm-c',
           },
@@ -603,7 +657,7 @@ describe('BlendedReportDataService', () => {
       tableReferenceService.resolveTableName.mockResolvedValue('table_ref');
       blendedQueryBuilderFacade.buildBlendedQuery.mockResolvedValue('SELECT ...');
 
-      await service.resolveBlendingDecision(report);
+      await service.resolveBlendingDecision(report, { userId: 'user-1', roles: ['admin'] });
 
       const [, context] = blendedQueryBuilderFacade.buildBlendedQuery.mock.calls[0];
       expect(context!.chains).toHaveLength(2);
@@ -663,6 +717,7 @@ describe('BlendedReportDataService', () => {
             depth: 1,
             fieldCount: 1,
             isIncluded: true,
+            isAccessibleForReporting: true,
             relationshipId: 'rel-ab-direct',
             dataMartId: 'dm-ab',
           },
@@ -673,6 +728,7 @@ describe('BlendedReportDataService', () => {
             depth: 1,
             fieldCount: 0,
             isIncluded: true,
+            isAccessibleForReporting: true,
             relationshipId: 'rel-main-a',
             dataMartId: 'dm-a',
           },
@@ -683,6 +739,7 @@ describe('BlendedReportDataService', () => {
             depth: 2,
             fieldCount: 1,
             isIncluded: true,
+            isAccessibleForReporting: true,
             relationshipId: 'rel-a-b',
             dataMartId: 'dm-b',
           },
@@ -723,9 +780,9 @@ describe('BlendedReportDataService', () => {
       });
       tableReferenceService.resolveTableName.mockResolvedValue('table_ref');
 
-      await expect(service.resolveBlendingDecision(report)).rejects.toThrow(
-        /cteName "a_b" is produced by multiple/
-      );
+      await expect(
+        service.resolveBlendingDecision(report, { userId: 'user-1', roles: ['admin'] })
+      ).rejects.toThrow(/cteName "a_b" is produced by multiple/);
     });
 
     it('disambiguates CTE names in a diamond pattern (two paths reaching same target with same targetAlias)', async () => {
@@ -771,6 +828,7 @@ describe('BlendedReportDataService', () => {
             depth: 1,
             fieldCount: 0,
             isIncluded: true,
+            isAccessibleForReporting: true,
             relationshipId: 'rel-main-left',
             dataMartId: 'dm-left',
           },
@@ -781,6 +839,7 @@ describe('BlendedReportDataService', () => {
             depth: 1,
             fieldCount: 0,
             isIncluded: true,
+            isAccessibleForReporting: true,
             relationshipId: 'rel-main-right',
             dataMartId: 'dm-right',
           },
@@ -791,6 +850,7 @@ describe('BlendedReportDataService', () => {
             depth: 2,
             fieldCount: 1,
             isIncluded: true,
+            isAccessibleForReporting: true,
             relationshipId: 'rel-left-shared',
             dataMartId: 'dm-shared',
           },
@@ -801,6 +861,7 @@ describe('BlendedReportDataService', () => {
             depth: 2,
             fieldCount: 1,
             isIncluded: true,
+            isAccessibleForReporting: true,
             relationshipId: 'rel-right-shared',
             dataMartId: 'dm-shared',
           },
@@ -850,7 +911,7 @@ describe('BlendedReportDataService', () => {
       tableReferenceService.resolveTableName.mockResolvedValue('table_ref');
       blendedQueryBuilderFacade.buildBlendedQuery.mockResolvedValue('SELECT ...');
 
-      await service.resolveBlendingDecision(report);
+      await service.resolveBlendingDecision(report, { userId: 'user-1', roles: ['admin'] });
 
       const [, context] = blendedQueryBuilderFacade.buildBlendedQuery.mock.calls[0];
       const cteNames = context!.chains.map(c => c.cteName).sort();
@@ -906,6 +967,7 @@ describe('BlendedReportDataService', () => {
         depth: 1,
         fieldCount: 1,
         isIncluded: true,
+        isAccessibleForReporting: true,
         relationshipId: 'rel-ab',
         dataMartId: 'dm-b',
       };
@@ -916,6 +978,7 @@ describe('BlendedReportDataService', () => {
         depth: 2,
         fieldCount: 1,
         isIncluded: true,
+        isAccessibleForReporting: true,
         relationshipId: 'rel-bc',
         dataMartId: 'dm-c',
       };
@@ -957,7 +1020,7 @@ describe('BlendedReportDataService', () => {
       });
       blendedQueryBuilderFacade.buildBlendedQuery.mockResolvedValue('SELECT ...');
 
-      await service.resolveBlendingDecision(report);
+      await service.resolveBlendingDecision(report, { userId: 'user-1', roles: ['admin'] });
 
       const [, context] = blendedQueryBuilderFacade.buildBlendedQuery.mock.calls[0];
       expect(context).toBeDefined();
@@ -1022,6 +1085,7 @@ describe('BlendedReportDataService', () => {
             depth: 1,
             fieldCount: 0,
             isIncluded: true,
+            isAccessibleForReporting: true,
             relationshipId: 'rel-campaigns-orders',
             dataMartId: 'dm-orders',
           },
@@ -1032,6 +1096,7 @@ describe('BlendedReportDataService', () => {
             depth: 1,
             fieldCount: 0,
             isIncluded: true,
+            isAccessibleForReporting: true,
             relationshipId: 'rel-campaigns-orders-2',
             dataMartId: 'dm-orders',
           },
@@ -1042,6 +1107,7 @@ describe('BlendedReportDataService', () => {
             depth: 2,
             fieldCount: 1,
             isIncluded: true,
+            isAccessibleForReporting: true,
             relationshipId: 'rel-orders-products',
             dataMartId: 'dm-products',
           },
@@ -1052,6 +1118,7 @@ describe('BlendedReportDataService', () => {
             depth: 2,
             fieldCount: 1,
             isIncluded: true,
+            isAccessibleForReporting: true,
             relationshipId: 'rel-orders-products',
             dataMartId: 'dm-products',
           },
@@ -1096,7 +1163,7 @@ describe('BlendedReportDataService', () => {
       tableReferenceService.resolveTableName.mockResolvedValue('table_ref');
       blendedQueryBuilderFacade.buildBlendedQuery.mockResolvedValue('SELECT ...');
 
-      await service.resolveBlendingDecision(report);
+      await service.resolveBlendingDecision(report, { userId: 'user-1', roles: ['admin'] });
 
       const [, context] = blendedQueryBuilderFacade.buildBlendedQuery.mock.calls[0];
       expect(context!.chains).toHaveLength(4);
@@ -1112,6 +1179,366 @@ describe('BlendedReportDataService', () => {
       expect(orders2ProductsChain.blendedFields[0].outputAlias).toBe(
         'orders_2_products__product_price'
       );
+    });
+
+    describe('access denial', () => {
+      function makeAccessibleSource(
+        overrides: Partial<AvailableSourceDto> = {}
+      ): AvailableSourceDto {
+        return {
+          aliasPath: 'b',
+          title: 'Joined DM',
+          defaultAlias: 'b',
+          depth: 1,
+          fieldCount: 1,
+          isIncluded: true,
+          isAccessibleForReporting: true,
+          relationshipId: 'rel-1',
+          dataMartId: 'dm-target-1',
+          ...overrides,
+        };
+      }
+
+      function makeField(name: string, aliasPath: string): BlendedFieldDto {
+        const segments = aliasPath.split('.');
+        const f = new BlendedFieldDto();
+        f.name = name;
+        f.targetAlias = segments[segments.length - 1];
+        f.originalFieldName = name;
+        f.type = 'STRING';
+        f.isHidden = false;
+        f.aggregateFunction = 'STRING_AGG';
+        f.transitiveDepth = segments.length;
+        f.aliasPath = aliasPath;
+        f.outputPrefix = segments.join('_');
+        return f;
+      }
+
+      it('throws BusinessViolationException listing the user and inaccessible DM title', async () => {
+        const report = makeReport({ columnConfig: ['b__field'] });
+
+        blendableSchemaService.computeBlendableSchema.mockResolvedValue({
+          nativeFields: [],
+          availableSources: [
+            makeAccessibleSource({
+              aliasPath: 'b',
+              title: 'Inaccessible DM',
+              dataMartId: 'dm-secret',
+              isAccessibleForReporting: false,
+            }),
+          ],
+          blendedFields: [makeField('b__field', 'b')],
+        });
+        userProjectionsFetcher.fetchUserProjection.mockResolvedValue(
+          new UserProjectionDto('user-1', 'Alice Example', 'alice@example.com')
+        );
+
+        await expect(
+          service.resolveBlendingDecision(report, { userId: 'user-1', roles: ['admin'] })
+        ).rejects.toMatchObject({
+          message:
+            'Cannot build report SQL, user "Alice Example" is missing access to data marts: "Inaccessible DM"',
+          errorDetails: {
+            userId: 'user-1',
+            deniedDataMartIds: ['dm-secret'],
+            deniedAliasPaths: ['b'],
+          },
+        });
+
+        expect(blendedQueryBuilderFacade.buildBlendedQuery).not.toHaveBeenCalled();
+        expect(tableReferenceService.resolveTableName).not.toHaveBeenCalled();
+        expect(userProjectionsFetcher.fetchUserProjection).toHaveBeenCalledWith('user-1');
+      });
+
+      it('falls back to email when fullName is missing', async () => {
+        const report = makeReport({ columnConfig: ['b__field'] });
+
+        blendableSchemaService.computeBlendableSchema.mockResolvedValue({
+          nativeFields: [],
+          availableSources: [
+            makeAccessibleSource({
+              aliasPath: 'b',
+              title: 'Inaccessible DM',
+              dataMartId: 'dm-secret',
+              isAccessibleForReporting: false,
+            }),
+          ],
+          blendedFields: [makeField('b__field', 'b')],
+        });
+        userProjectionsFetcher.fetchUserProjection.mockResolvedValue(
+          new UserProjectionDto('user-1', null, 'alice@example.com')
+        );
+
+        await expect(
+          service.resolveBlendingDecision(report, { userId: 'user-1', roles: ['admin'] })
+        ).rejects.toMatchObject({
+          message:
+            'Cannot build report SQL, user "alice@example.com" is missing access to data marts: "Inaccessible DM"',
+        });
+      });
+
+      it('falls back to userId when no user projection is available', async () => {
+        const report = makeReport({ columnConfig: ['b__field'] });
+
+        blendableSchemaService.computeBlendableSchema.mockResolvedValue({
+          nativeFields: [],
+          availableSources: [
+            makeAccessibleSource({
+              aliasPath: 'b',
+              title: 'Inaccessible DM',
+              dataMartId: 'dm-secret',
+              isAccessibleForReporting: false,
+            }),
+          ],
+          blendedFields: [makeField('b__field', 'b')],
+        });
+        userProjectionsFetcher.fetchUserProjection.mockResolvedValue(undefined);
+
+        await expect(
+          service.resolveBlendingDecision(report, { userId: 'user-1', roles: ['admin'] })
+        ).rejects.toMatchObject({
+          message:
+            'Cannot build report SQL, user "user-1" is missing access to data marts: "Inaccessible DM"',
+        });
+      });
+
+      it('throws when only an ancestor on the aliasPath is inaccessible (cascade)', async () => {
+        const report = makeReport({ columnConfig: ['b_c__field'] });
+
+        blendableSchemaService.computeBlendableSchema.mockResolvedValue({
+          nativeFields: [],
+          availableSources: [
+            makeAccessibleSource({
+              aliasPath: 'b',
+              title: 'Parent DM',
+              dataMartId: 'dm-b',
+              isAccessibleForReporting: false,
+            }),
+            makeAccessibleSource({
+              aliasPath: 'b.c',
+              title: 'Child DM',
+              defaultAlias: 'b_c',
+              depth: 2,
+              dataMartId: 'dm-c',
+              relationshipId: 'rel-bc',
+              isAccessibleForReporting: false,
+            }),
+          ],
+          blendedFields: [makeField('b_c__field', 'b.c')],
+        });
+        userProjectionsFetcher.fetchUserProjection.mockResolvedValue(
+          new UserProjectionDto('user-1', 'Alice Example', 'alice@example.com')
+        );
+
+        await expect(
+          service.resolveBlendingDecision(report, { userId: 'user-1', roles: ['admin'] })
+        ).rejects.toMatchObject({
+          message:
+            'Cannot build report SQL, user "Alice Example" is missing access to data marts: "Parent DM", "Child DM"',
+          errorDetails: {
+            userId: 'user-1',
+            deniedDataMartIds: ['dm-b', 'dm-c'],
+            deniedAliasPaths: ['b', 'b.c'],
+          },
+        });
+      });
+
+      it('lists multiple inaccessible DMs comma-separated when several chains are denied', async () => {
+        const report = makeReport({ columnConfig: ['b__x', 'c__y'] });
+
+        blendableSchemaService.computeBlendableSchema.mockResolvedValue({
+          nativeFields: [],
+          availableSources: [
+            makeAccessibleSource({
+              aliasPath: 'b',
+              title: 'DM Bravo',
+              dataMartId: 'dm-bravo',
+              relationshipId: 'rel-b',
+              isAccessibleForReporting: false,
+            }),
+            makeAccessibleSource({
+              aliasPath: 'c',
+              title: 'DM Charlie',
+              defaultAlias: 'c',
+              dataMartId: 'dm-charlie',
+              relationshipId: 'rel-c',
+              isAccessibleForReporting: false,
+            }),
+          ],
+          blendedFields: [makeField('b__x', 'b'), makeField('c__y', 'c')],
+        });
+        userProjectionsFetcher.fetchUserProjection.mockResolvedValue(
+          new UserProjectionDto('user-1', 'Alice Example', 'alice@example.com')
+        );
+
+        await expect(
+          service.resolveBlendingDecision(report, { userId: 'user-1', roles: ['admin'] })
+        ).rejects.toMatchObject({
+          message:
+            'Cannot build report SQL, user "Alice Example" is missing access to data marts: "DM Bravo", "DM Charlie"',
+          errorDetails: {
+            userId: 'user-1',
+            deniedDataMartIds: ['dm-bravo', 'dm-charlie'],
+            deniedAliasPaths: ['b', 'c'],
+          },
+        });
+      });
+
+      it('does not throw when all requested sources are accessible (regression guard)', async () => {
+        const report = makeReport({ columnConfig: ['b__field'] });
+
+        blendableSchemaService.computeBlendableSchema.mockResolvedValue({
+          nativeFields: [],
+          availableSources: [
+            makeAccessibleSource({
+              aliasPath: 'b',
+              isAccessibleForReporting: true,
+            }),
+          ],
+          blendedFields: [makeField('b__field', 'b')],
+        });
+
+        relationshipService.findBySourceDataMartId.mockResolvedValue([
+          {
+            id: 'rel-1',
+            targetAlias: 'b',
+            sourceDataMart: { id: 'dm-1' },
+            targetDataMart: { id: 'dm-target-1', title: 'Joined DM' },
+            joinConditions: [],
+          } as unknown as DataMartRelationship,
+        ]);
+        tableReferenceService.resolveTableName.mockResolvedValue('table_ref');
+        blendedQueryBuilderFacade.buildBlendedQuery.mockResolvedValue('SELECT ...');
+
+        const result = await service.resolveBlendingDecision(report, {
+          userId: 'user-1',
+          roles: ['admin'],
+        });
+
+        expect(result.needsBlending).toBe(true);
+        expect(blendedQueryBuilderFacade.buildBlendedQuery).toHaveBeenCalled();
+      });
+
+      it('does not throw when no blended columns are referenced (native-only report)', async () => {
+        const report = makeReport({ columnConfig: ['native_only'] });
+
+        blendableSchemaService.computeBlendableSchema.mockResolvedValue({
+          nativeFields: [],
+          availableSources: [
+            makeAccessibleSource({
+              aliasPath: 'b',
+              title: 'Inaccessible',
+              isAccessibleForReporting: false,
+            }),
+          ],
+          blendedFields: [makeField('b__field', 'b')],
+        });
+
+        const result = await service.resolveBlendingDecision(report, {
+          userId: 'user-1',
+          roles: ['admin'],
+        });
+
+        expect(result).toEqual({
+          needsBlending: false,
+          columnFilter: ['native_only'],
+          blendedDataHeaders: [],
+        });
+        expect(blendedQueryBuilderFacade.buildBlendedQuery).not.toHaveBeenCalled();
+      });
+
+      it('does not throw when an inaccessible source exists but is not in the join chain', async () => {
+        const report = makeReport({ columnConfig: ['b__field'] });
+
+        blendableSchemaService.computeBlendableSchema.mockResolvedValue({
+          nativeFields: [],
+          availableSources: [
+            makeAccessibleSource({
+              aliasPath: 'b',
+              isAccessibleForReporting: true,
+            }),
+            makeAccessibleSource({
+              aliasPath: 'z',
+              title: 'Unused Inaccessible',
+              dataMartId: 'dm-z',
+              relationshipId: 'rel-z',
+              isAccessibleForReporting: false,
+            }),
+          ],
+          blendedFields: [makeField('b__field', 'b'), makeField('z__other', 'z')],
+        });
+
+        relationshipService.findBySourceDataMartId.mockResolvedValue([
+          {
+            id: 'rel-1',
+            targetAlias: 'b',
+            sourceDataMart: { id: 'dm-1' },
+            targetDataMart: { id: 'dm-target-1', title: 'Joined DM' },
+            joinConditions: [],
+          } as unknown as DataMartRelationship,
+        ]);
+        tableReferenceService.resolveTableName.mockResolvedValue('table_ref');
+        blendedQueryBuilderFacade.buildBlendedQuery.mockResolvedValue('SELECT ...');
+
+        const result = await service.resolveBlendingDecision(report, {
+          userId: 'user-1',
+          roles: ['admin'],
+        });
+
+        expect(result.needsBlending).toBe(true);
+      });
+
+      it('rejects a pre-join slice targeting an EXCLUDED source on the run path', async () => {
+        // The save-time validator rejects slices on excluded sources, but the run
+        // path resolves slices through a fieldIndex that still includes excluded
+        // fields (isIncluded:false). This locks the run-path guard.
+        const report = makeReport({
+          columnConfig: ['b__field'],
+          filterConfig: [
+            { column: 'excluded__field', operator: 'eq', value: 'x', placement: 'pre-join' },
+          ] as any,
+        });
+
+        blendableSchemaService.computeBlendableSchema.mockResolvedValue({
+          nativeFields: [],
+          availableSources: [
+            makeAccessibleSource({ aliasPath: 'b', isAccessibleForReporting: true }),
+            makeAccessibleSource({
+              aliasPath: 'excluded',
+              title: 'Excluded DM',
+              dataMartId: 'dm-excluded',
+              relationshipId: 'rel-excluded',
+              isAccessibleForReporting: true,
+              isIncluded: false,
+            }),
+          ],
+          blendedFields: [makeField('b__field', 'b'), makeField('excluded__field', 'excluded')],
+        });
+
+        relationshipService.findBySourceDataMartId.mockResolvedValue([
+          {
+            id: 'rel-1',
+            targetAlias: 'b',
+            sourceDataMart: { id: 'dm-1' },
+            targetDataMart: { id: 'dm-target-1', title: 'Joined DM' },
+            joinConditions: [],
+          } as unknown as DataMartRelationship,
+        ]);
+        tableReferenceService.resolveTableName.mockResolvedValue('table_ref');
+        blendedQueryBuilderFacade.buildBlendedQuery.mockResolvedValue('SELECT ...');
+
+        await expect(
+          service.resolveBlendingDecision(report, { userId: 'user-1', roles: ['admin'] })
+        ).rejects.toMatchObject({
+          message: expect.stringContaining('excluded from reporting'),
+          errorDetails: {
+            excludedDataMartIds: ['dm-excluded'],
+            excludedAliasPaths: ['excluded'],
+          },
+        });
+
+        expect(blendedQueryBuilderFacade.buildBlendedQuery).not.toHaveBeenCalled();
+      });
     });
 
     describe('resolveBlendingDecision — filter on non-selected blended column', () => {
@@ -1147,6 +1574,7 @@ describe('BlendedReportDataService', () => {
               depth: 1,
               fieldCount: 1,
               isIncluded: true,
+              isAccessibleForReporting: true,
               relationshipId: 'rel-1',
               dataMartId: 'dm-target-1',
             },
@@ -1168,7 +1596,10 @@ describe('BlendedReportDataService', () => {
           .mockResolvedValueOnce('`project.dataset.target_table`');
         blendedQueryBuilderFacade.buildBlendedQuery.mockResolvedValue('SELECT ...');
 
-        const result = await service.resolveBlendingDecision(report);
+        const result = await service.resolveBlendingDecision(report, {
+          userId: 'user-1',
+          roles: ['admin'],
+        });
 
         // hasBlendedColumns must be true because filter references a blended column
         expect(result.needsBlending).toBe(true);
@@ -1197,7 +1628,10 @@ describe('BlendedReportDataService', () => {
           makeBlendableSchema(['blended_field'])
         );
 
-        const result = await service.resolveBlendingDecision(report);
+        const result = await service.resolveBlendingDecision(report, {
+          userId: 'user-1',
+          roles: ['admin'],
+        });
 
         // Neither columnConfig nor filterConfig references a blended column
         expect(result.needsBlending).toBe(false);
@@ -1235,6 +1669,7 @@ describe('BlendedReportDataService', () => {
               depth: 1,
               fieldCount: 1,
               isIncluded: true,
+              isAccessibleForReporting: true,
               relationshipId: 'rel-1',
               dataMartId: 'dm-target-1',
             },
@@ -1254,7 +1689,10 @@ describe('BlendedReportDataService', () => {
         tableReferenceService.resolveTableName.mockResolvedValue('table_ref');
         blendedQueryBuilderFacade.buildBlendedQuery.mockResolvedValue('SELECT ...');
 
-        const result = await service.resolveBlendingDecision(report);
+        const result = await service.resolveBlendingDecision(report, {
+          userId: 'user-1',
+          roles: ['admin'],
+        });
 
         expect(result.needsBlending).toBe(true);
 
@@ -1264,6 +1702,438 @@ describe('BlendedReportDataService', () => {
         expect(field.outputAlias).toBe('blended_b');
         // Present in columnConfig → must NOT be hidden
         expect(field.isHidden).toBe(false);
+      });
+    });
+
+    describe('resolveBlendingDecision — orphaned column references', () => {
+      function makeMainSchema(fields: object[]): DataMart['schema'] {
+        return {
+          type: 'bigquery-data-mart-schema',
+          fields,
+        } as unknown as DataMart['schema'];
+      }
+
+      function nativeField(name: string, overrides: object = {}): object {
+        return { name, type: 'STRING', status: 'CONNECTED', ...overrides };
+      }
+
+      function mockChains(): void {
+        relationshipService.findBySourceDataMartId.mockResolvedValue([
+          {
+            id: 'rel-0',
+            targetAlias: 'alias_0',
+            sourceDataMart: { id: 'dm-1' },
+            targetDataMart: { id: 'dm-target-0', title: 'Target DM 0' },
+            joinConditions: [],
+          } as unknown as DataMartRelationship,
+        ]);
+        tableReferenceService.resolveTableName.mockResolvedValue('table_ref');
+        blendedQueryBuilderFacade.buildBlendedQuery.mockResolvedValue('SELECT ...');
+      }
+
+      it('throws BusinessViolationException listing columns missing from both native schema and blended fields', async () => {
+        const report = makeReport({
+          columnConfig: ['date', 'page__pageGroup', 'page_hash__pageGroup', 'page_hash__pagePath'],
+        });
+        report.dataMart.schema = makeMainSchema([nativeField('date'), nativeField('sessionId')]);
+
+        blendableSchemaService.computeBlendableSchema.mockResolvedValue(
+          makeBlendableSchema(['page__pageGroup'])
+        );
+
+        await expect(
+          service.resolveBlendingDecision(report, { userId: 'user-1', roles: ['admin'] })
+        ).rejects.toMatchObject({
+          message: expect.stringContaining('"page_hash__pageGroup", "page_hash__pagePath"'),
+          errorDetails: {
+            unknownColumns: ['page_hash__pageGroup', 'page_hash__pagePath'],
+            dataMartId: 'dm-1',
+          },
+        });
+
+        expect(blendedQueryBuilderFacade.buildBlendedQuery).not.toHaveBeenCalled();
+      });
+
+      it('throws for orphaned references even when no valid blended column is selected (native path)', async () => {
+        const report = makeReport({ columnConfig: ['date', 'page_hash__pageGroup'] });
+        report.dataMart.schema = makeMainSchema([nativeField('date')]);
+
+        blendableSchemaService.computeBlendableSchema.mockResolvedValue(
+          makeBlendableSchema(['page__pageGroup'])
+        );
+
+        await expect(
+          service.resolveBlendingDecision(report, { userId: 'user-1', roles: ['admin'] })
+        ).rejects.toMatchObject({
+          errorDetails: { unknownColumns: ['page_hash__pageGroup'] },
+        });
+      });
+
+      it('accepts nested struct paths and struct containers', async () => {
+        const report = makeReport({
+          columnConfig: ['date', 'user', 'user.email', 'blended_field'],
+        });
+        report.dataMart.schema = makeMainSchema([
+          nativeField('date'),
+          nativeField('user', { type: 'RECORD', fields: [nativeField('email')] }),
+        ]);
+
+        blendableSchemaService.computeBlendableSchema.mockResolvedValue(
+          makeBlendableSchema(['blended_field'])
+        );
+        mockChains();
+
+        const result = await service.resolveBlendingDecision(report, {
+          userId: 'user-1',
+          roles: ['admin'],
+        });
+
+        expect(result.needsBlending).toBe(true);
+        expect(blendedQueryBuilderFacade.buildBlendedQuery).toHaveBeenCalled();
+      });
+
+      it('passes recursive native field types to the blended query builder for nested post-join controls', async () => {
+        const report = makeReport({
+          columnConfig: ['user.created_at', 'blended_field'],
+          filterConfig: [
+            {
+              column: 'user.created_at',
+              operator: 'relative_date',
+              value: { kind: 'last_n_days', n: 7 },
+            },
+          ],
+          sortConfig: [{ column: 'user.created_at', direction: 'asc' }],
+        });
+        report.dataMart.schema = makeMainSchema([
+          nativeField('user', { type: 'RECORD', fields: [nativeField('created_at')] }),
+        ]);
+
+        const schema = makeBlendableSchema(['blended_field']);
+        schema.nativeFields = [
+          {
+            name: 'user',
+            type: 'RECORD',
+            status: 'CONNECTED',
+            fields: [{ name: 'created_at', type: 'TIMESTAMP', status: 'CONNECTED' }],
+          },
+        ] as never;
+        blendableSchemaService.computeBlendableSchema.mockResolvedValue(schema);
+        mockChains();
+
+        await service.resolveBlendingDecision(report, {
+          userId: 'user-1',
+          roles: ['admin'],
+        });
+
+        const [, context] = blendedQueryBuilderFacade.buildBlendedQuery.mock.calls[0];
+        expect(context!.columnTypes?.postJoin?.get('user.created_at')).toBe('TIMESTAMP');
+      });
+
+      it('treats hidden-for-reporting native fields as no longer available', async () => {
+        const report = makeReport({
+          columnConfig: ['date', 'secret', 'user.hidden_child', 'blended_field'],
+        });
+        report.dataMart.schema = makeMainSchema([
+          nativeField('date'),
+          nativeField('secret', { isHiddenForReporting: true }),
+          nativeField('user', {
+            type: 'RECORD',
+            fields: [nativeField('hidden_child', { isHiddenForReporting: true })],
+          }),
+        ]);
+
+        blendableSchemaService.computeBlendableSchema.mockResolvedValue(
+          makeBlendableSchema(['blended_field'])
+        );
+
+        await expect(
+          service.resolveBlendingDecision(report, { userId: 'user-1', roles: ['admin'] })
+        ).rejects.toMatchObject({
+          errorDetails: { unknownColumns: ['secret', 'user.hidden_child'] },
+        });
+      });
+
+      it('treats blended fields hidden in the joined data marts setup as no longer available', async () => {
+        const report = makeReport({
+          columnConfig: ['date', 'alias__hidden_field', 'blended_field'],
+        });
+        report.dataMart.schema = makeMainSchema([nativeField('date')]);
+
+        const schema = makeBlendableSchema(['blended_field', 'alias__hidden_field']);
+        schema.blendedFields[1].isHidden = true;
+        blendableSchemaService.computeBlendableSchema.mockResolvedValue(schema);
+        mockChains();
+
+        await expect(
+          service.resolveBlendingDecision(report, { userId: 'user-1', roles: ['admin'] })
+        ).rejects.toMatchObject({
+          errorDetails: { unknownColumns: ['alias__hidden_field'] },
+        });
+
+        expect(blendedQueryBuilderFacade.buildBlendedQuery).not.toHaveBeenCalled();
+      });
+
+      it('treats DISCONNECTED native fields as no longer available', async () => {
+        const report = makeReport({ columnConfig: ['date', 'legacy', 'blended_field'] });
+        report.dataMart.schema = makeMainSchema([
+          nativeField('date'),
+          nativeField('legacy', { status: 'DISCONNECTED' }),
+        ]);
+
+        blendableSchemaService.computeBlendableSchema.mockResolvedValue(
+          makeBlendableSchema(['blended_field'])
+        );
+
+        await expect(
+          service.resolveBlendingDecision(report, { userId: 'user-1', roles: ['admin'] })
+        ).rejects.toMatchObject({
+          errorDetails: { unknownColumns: ['legacy'] },
+        });
+      });
+
+      it('skips the check when the data mart schema is not actualized', async () => {
+        const report = makeReport({ columnConfig: ['whatever_unknown', 'blended_field'] });
+
+        blendableSchemaService.computeBlendableSchema.mockResolvedValue(
+          makeBlendableSchema(['blended_field'])
+        );
+        mockChains();
+
+        const result = await service.resolveBlendingDecision(report, {
+          userId: 'user-1',
+          roles: ['admin'],
+        });
+
+        expect(result.needsBlending).toBe(true);
+      });
+    });
+
+    describe('rowCount driven by aggregationConfig (blended path)', () => {
+      async function resolveAndCaptureRowCount(
+        overrides: Partial<Report>
+      ): Promise<boolean | undefined> {
+        const report = makeReport({ columnConfig: ['blended_field'], ...overrides });
+
+        const blendedField = new BlendedFieldDto();
+        blendedField.name = 'blended_field';
+        blendedField.sourceRelationshipId = 'rel-1';
+        blendedField.sourceDataMartId = 'dm-target-1';
+        blendedField.sourceDataMartTitle = 'Target DM';
+        blendedField.targetAlias = 'target_alias';
+        blendedField.originalFieldName = 'field';
+        blendedField.type = 'INTEGER';
+        blendedField.isHidden = false;
+        blendedField.aggregateFunction = 'SUM';
+        blendedField.transitiveDepth = 1;
+        blendedField.aliasPath = 'target_alias';
+        blendedField.outputPrefix = 'target_alias';
+
+        blendableSchemaService.computeBlendableSchema.mockResolvedValue({
+          nativeFields: [],
+          availableSources: [
+            {
+              aliasPath: 'target_alias',
+              title: 'Target DM',
+              defaultAlias: 'target_alias',
+              depth: 1,
+              fieldCount: 1,
+              isIncluded: true,
+              isAccessibleForReporting: true,
+              relationshipId: 'rel-1',
+              dataMartId: 'dm-target-1',
+            },
+          ],
+          blendedFields: [blendedField],
+        });
+
+        const mockRelationship = {
+          id: 'rel-1',
+          targetAlias: 'target_alias',
+          sourceDataMart: { id: 'dm-1' },
+          targetDataMart: { id: 'dm-target-1' },
+          joinConditions: [],
+        } as unknown as DataMartRelationship;
+
+        relationshipService.findBySourceDataMartId.mockResolvedValue([mockRelationship]);
+        tableReferenceService.resolveTableName.mockResolvedValue('table_ref');
+        blendedQueryBuilderFacade.buildBlendedQuery.mockResolvedValue('SELECT ...');
+
+        await service.resolveBlendingDecision(report, { userId: 'user-1', roles: ['admin'] });
+
+        const [, context] = blendedQueryBuilderFacade.buildBlendedQuery.mock.calls[0];
+        return context?.rowCount;
+      }
+
+      it('passes rowCount=true to buildBlendedQuery when aggregationConfig is non-empty', async () => {
+        const rowCount = await resolveAndCaptureRowCount({
+          aggregationConfig: [{ column: 'field', function: 'SUM' }] as any,
+        });
+        expect(rowCount).toBe(true);
+      });
+
+      it('passes rowCount=false to buildBlendedQuery when aggregationConfig is empty', async () => {
+        const rowCount = await resolveAndCaptureRowCount({
+          aggregationConfig: [],
+        });
+        expect(rowCount).toBe(false);
+      });
+
+      it('passes rowCount=false when aggregationConfig is absent', async () => {
+        const rowCount = await resolveAndCaptureRowCount({
+          aggregationConfig: undefined,
+        });
+        expect(rowCount).toBe(false);
+      });
+    });
+
+    describe('uniqueCount and primaryKeyColumns passed to buildBlendedQuery', () => {
+      function makeBlendedFieldForUniqueCount(): BlendedFieldDto {
+        const blendedField = new BlendedFieldDto();
+        blendedField.name = 'blended_field';
+        blendedField.sourceRelationshipId = 'rel-1';
+        blendedField.sourceDataMartId = 'dm-target-1';
+        blendedField.sourceDataMartTitle = 'Target DM';
+        blendedField.targetAlias = 'target_alias';
+        blendedField.originalFieldName = 'field';
+        blendedField.type = 'INTEGER';
+        blendedField.isHidden = false;
+        blendedField.aggregateFunction = 'SUM';
+        blendedField.transitiveDepth = 1;
+        blendedField.aliasPath = 'target_alias';
+        blendedField.outputPrefix = 'target_alias';
+        return blendedField;
+      }
+
+      async function resolveAndCaptureUniqueCountContext(
+        overrides: Partial<Report>,
+        schemaFields?: object[]
+      ): Promise<{ uniqueCount: unknown; primaryKeyColumns: unknown }> {
+        const storage = { id: 'storage-1', type: DataStorageType.GOOGLE_BIGQUERY } as DataStorage;
+        const dataMart = {
+          id: 'dm-1',
+          title: 'Main DM',
+          projectId: 'project-1',
+          storage,
+          definition: { sqlQuery: 'SELECT 1' },
+          schema: schemaFields ? { fields: schemaFields } : undefined,
+        } as unknown as DataMart;
+
+        const report = {
+          id: 'report-1',
+          title: 'Test Report',
+          dataMart,
+          columnConfig: ['blended_field'],
+          ...overrides,
+        } as Report;
+
+        blendableSchemaService.computeBlendableSchema.mockResolvedValue({
+          nativeFields: [],
+          availableSources: [
+            {
+              aliasPath: 'target_alias',
+              title: 'Target DM',
+              defaultAlias: 'target_alias',
+              depth: 1,
+              fieldCount: 1,
+              isIncluded: true,
+              isAccessibleForReporting: true,
+              relationshipId: 'rel-1',
+              dataMartId: 'dm-target-1',
+            },
+          ],
+          blendedFields: [makeBlendedFieldForUniqueCount()],
+        });
+
+        const mockRelationship = {
+          id: 'rel-1',
+          targetAlias: 'target_alias',
+          sourceDataMart: { id: 'dm-1' },
+          targetDataMart: { id: 'dm-target-1' },
+          joinConditions: [],
+        } as unknown as DataMartRelationship;
+
+        relationshipService.findBySourceDataMartId.mockResolvedValue([mockRelationship]);
+        tableReferenceService.resolveTableName.mockResolvedValue('table_ref');
+        blendedQueryBuilderFacade.buildBlendedQuery.mockResolvedValue('SELECT ...');
+
+        await service.resolveBlendingDecision(report, { userId: 'user-1', roles: ['admin'] });
+
+        const [, context] = blendedQueryBuilderFacade.buildBlendedQuery.mock.calls[0];
+        return {
+          uniqueCount: context?.uniqueCount,
+          primaryKeyColumns: context?.primaryKeyColumns,
+        };
+      }
+
+      it('passes uniqueCount=true when uniqueCountConfig is true', async () => {
+        const { uniqueCount } = await resolveAndCaptureUniqueCountContext({
+          uniqueCountConfig: true,
+        });
+        expect(uniqueCount).toBe(true);
+      });
+
+      it('passes uniqueCount=false when uniqueCountConfig is false', async () => {
+        const { uniqueCount } = await resolveAndCaptureUniqueCountContext({
+          uniqueCountConfig: false,
+        });
+        expect(uniqueCount).toBe(false);
+      });
+
+      it('passes uniqueCount=false when uniqueCountConfig is absent', async () => {
+        const { uniqueCount } = await resolveAndCaptureUniqueCountContext({
+          uniqueCountConfig: undefined,
+        });
+        expect(uniqueCount).toBe(false);
+      });
+
+      it('passes primaryKeyColumns from the main DM schema PK fields', async () => {
+        const schemaFields = [
+          { name: 'user_id', type: 'STRING', isPrimaryKey: true },
+          { name: 'date', type: 'DATE', isPrimaryKey: false },
+        ];
+        const { primaryKeyColumns } = await resolveAndCaptureUniqueCountContext(
+          { uniqueCountConfig: true },
+          schemaFields
+        );
+        expect(primaryKeyColumns).toEqual(['user_id']);
+      });
+
+      it('passes empty primaryKeyColumns when schema has no PK fields', async () => {
+        const schemaFields = [
+          { name: 'user_id', type: 'STRING', isPrimaryKey: false },
+          { name: 'date', type: 'DATE', isPrimaryKey: false },
+        ];
+        const { primaryKeyColumns } = await resolveAndCaptureUniqueCountContext(
+          { uniqueCountConfig: true },
+          schemaFields
+        );
+        expect(primaryKeyColumns).toEqual([]);
+      });
+
+      it('passes composite primaryKeyColumns for multi-field PK', async () => {
+        const schemaFields = [
+          { name: 'project_id', type: 'STRING', isPrimaryKey: true },
+          { name: 'user_id', type: 'STRING', isPrimaryKey: true },
+        ];
+        const { primaryKeyColumns } = await resolveAndCaptureUniqueCountContext(
+          { uniqueCountConfig: true },
+          schemaFields
+        );
+        expect(primaryKeyColumns).toEqual(['project_id', 'user_id']);
+      });
+    });
+
+    describe('validateForReport chokepoint (schema-drift)', () => {
+      it('forwards uniqueCountConfig so the run path re-validates the PK gate', async () => {
+        const report = makeReport({ columnConfig: ['native_field'], uniqueCountConfig: true });
+
+        blendableSchemaService.computeBlendableSchema.mockResolvedValue(makeBlendableSchema([]));
+
+        await service.resolveBlendingDecision(report, { userId: 'user-1', roles: ['admin'] });
+
+        expect(outputControlsValidator.validateForReport).toHaveBeenCalledWith(
+          expect.objectContaining({ uniqueCountConfig: true })
+        );
       });
     });
   });

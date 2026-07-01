@@ -50,6 +50,10 @@ export class ToolRegistry {
     return { name: name, content: result };
   }
 
+  has(name: ToolNameBase): boolean {
+    return this.tools.has(name);
+  }
+
   findToolByNames(toolNames: ToolNameBase[]): ToolDefinition[] {
     const result: ToolDefinition[] = [];
 

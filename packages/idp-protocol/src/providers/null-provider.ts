@@ -2,13 +2,29 @@ import { IdpProvider } from '../types/provider.js';
 import {
   AuthResult,
   Payload,
+  Project,
   Projects,
   ProjectMember,
   ProjectMemberInvitation,
+  ProjectMembershipRequest,
+  ApproveMembershipRequestResult,
   Role,
   UserProvisioningSettings,
   UserProvisioningSettingsUpdate,
+  UserProvisioningRequestAccessContext,
+  RequestProjectAccessResult,
+  CreateNewProjectResult,
 } from '../types/models.js';
+import {
+  McpOAuthProjectMemberContext,
+  McpScope,
+  McpTokenPayload,
+  OAuthAuthorizationCode,
+  OAuthAuthorizationRequest,
+  OAuthJwksResult,
+  OAuthTokenExchangeRequest,
+  OAuthTokenExchangeResult,
+} from '../types/oauth.js';
 import { IdpOperationNotSupportedError } from '../types/errors.js';
 import { Express, Request, Response, NextFunction } from 'express';
 
@@ -20,6 +36,7 @@ export class NullIdpProvider implements IdpProvider {
   private defaultPayload: Payload;
   private defaultAccessToken: string;
   private defaultRefreshToken: string;
+  private readonly issuedAccessTokens = new Map<string, Payload>();
 
   constructor() {
     this.defaultPayload = {
@@ -37,6 +54,51 @@ export class NullIdpProvider implements IdpProvider {
     return {
       accessToken: this.defaultAccessToken,
     };
+  }
+
+  async issueAccessTokenForProjectMemberApiKey(
+    apiKeyId: string,
+    userId: string,
+    projectId: string,
+    role: Role | null,
+    _readOnly: boolean
+  ): Promise<AuthResult> {
+    const accessToken = `apiKeyAccessToken:${apiKeyId}`;
+    this.issuedAccessTokens.set(accessToken, {
+      ...this.defaultPayload,
+      userId,
+      projectId,
+      roles: [role ?? 'admin'],
+      authFlow: 'api_key',
+      apiKeyId,
+    });
+
+    return { accessToken };
+  }
+
+  async createMcpOAuthAuthorizationCode(
+    _request: OAuthAuthorizationRequest,
+    _projectMember: McpOAuthProjectMemberContext
+  ): Promise<OAuthAuthorizationCode> {
+    throw new IdpOperationNotSupportedError('createMcpOAuthAuthorizationCode');
+  }
+
+  async exchangeMcpOAuthToken(
+    _request: OAuthTokenExchangeRequest
+  ): Promise<OAuthTokenExchangeResult> {
+    throw new IdpOperationNotSupportedError('exchangeMcpOAuthToken');
+  }
+
+  async verifyMcpAccessToken(
+    _token: string,
+    _resource: string,
+    _requiredScopes: McpScope[]
+  ): Promise<McpTokenPayload | null> {
+    return null;
+  }
+
+  async getMcpOAuthJwks(): Promise<OAuthJwksResult> {
+    throw new IdpOperationNotSupportedError('getMcpOAuthJwks');
   }
 
   signInMiddleware(req: Request, res: Response, _next: NextFunction): Promise<void> {
@@ -66,13 +128,28 @@ export class NullIdpProvider implements IdpProvider {
     return Promise.resolve(res.json(this.defaultPayload));
   }
 
-  projectsApiMiddleware(
+  async projectsApiMiddleware(
     _req: Request,
     res: Response,
     _next: NextFunction
   ): Promise<Response<Projects>> {
-    // Always return empty list of projects
-    return Promise.resolve(res.json([]));
+    return res.json(await this.getProjects(''));
+  }
+
+  async getProjects(_accessToken: string): Promise<Projects> {
+    return [];
+  }
+
+  async getProjectForUser(_userId: string, projectId: string): Promise<Project> {
+    return {
+      id: projectId,
+      title:
+        projectId === this.defaultPayload.projectId
+          ? (this.defaultPayload.projectTitle ?? projectId)
+          : projectId,
+      status: 'active',
+      roles: this.defaultPayload.roles,
+    };
   }
 
   registerRoutes(_app: Express): void {
@@ -92,12 +169,12 @@ export class NullIdpProvider implements IdpProvider {
     // Nothing to cleanup
   }
 
-  async introspectToken(_token: string): Promise<Payload | null> {
-    return this.defaultPayload;
+  async introspectToken(token: string): Promise<Payload | null> {
+    return this.issuedAccessTokens.get(this.normalizeBearer(token)) ?? this.defaultPayload;
   }
 
-  async parseToken(_token: string): Promise<Payload | null> {
-    return this.defaultPayload;
+  async parseToken(token: string): Promise<Payload | null> {
+    return this.issuedAccessTokens.get(this.normalizeBearer(token)) ?? this.defaultPayload;
   }
 
   async revokeToken(_token: string): Promise<void> {
@@ -160,6 +237,50 @@ export class NullIdpProvider implements IdpProvider {
     throw new IdpOperationNotSupportedError('updateUserProvisioningSettings');
   }
 
+  async listMembershipRequests(
+    _projectId: string,
+    _actorUserId: string,
+    _options?: { forceFresh?: boolean }
+  ): Promise<ProjectMembershipRequest[]> {
+    return [];
+  }
+
+  async approveMembershipRequest(
+    _projectId: string,
+    _requestId: string,
+    _role: Role,
+    _actorUserId: string
+  ): Promise<ApproveMembershipRequestResult> {
+    throw new IdpOperationNotSupportedError('approveMembershipRequest');
+  }
+
+  async declineMembershipRequest(
+    _projectId: string,
+    _requestId: string,
+    _actorUserId: string
+  ): Promise<void> {
+    throw new IdpOperationNotSupportedError('declineMembershipRequest');
+  }
+
+  async getUserProvisioningRequestAccessContext(
+    _userId: string,
+    _projectId: string
+  ): Promise<UserProvisioningRequestAccessContext> {
+    throw new IdpOperationNotSupportedError('getUserProvisioningRequestAccessContext');
+  }
+
+  async requestProjectAccess(
+    _userId: string,
+    _projectId: string,
+    _role: Role
+  ): Promise<RequestProjectAccessResult> {
+    throw new IdpOperationNotSupportedError('requestProjectAccess');
+  }
+
+  async createNewProject(_userId: string, _integration: string): Promise<CreateNewProjectResult> {
+    throw new IdpOperationNotSupportedError('createNewProject');
+  }
+
   /**
    * Sets the authentication cookie in the response and redirects the user to the root path.
    *
@@ -178,5 +299,10 @@ export class NullIdpProvider implements IdpProvider {
       maxAge: 60 * 60 * 24 * 30 * 1000,
     });
     return Promise.resolve(res.redirect('/'));
+  }
+
+  private normalizeBearer(rawToken: string): string {
+    const token = rawToken.trim();
+    return token.toLowerCase().startsWith('bearer ') ? token.slice(7).trim() : token;
   }
 }

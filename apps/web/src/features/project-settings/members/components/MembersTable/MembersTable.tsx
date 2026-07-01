@@ -9,12 +9,11 @@ import {
 } from '../../../../../shared/components/Table';
 import { useBaseTable } from '../../../../../shared/hooks/useBaseTable';
 import { getMembersColumns, MembersColumnKey, type MembersTableItem } from './columns';
+import { ADMIN_ONLY_MEMBERS_HINT } from '../../constants';
 import type {
   ContextDto,
   MemberWithScopeDto,
 } from '../../../../../features/contexts/types/context.types';
-
-const ADMIN_ONLY_HINT = 'You need the Project Admin role to manage members.';
 
 interface MembersTableProps {
   members: MemberWithScopeDto[];
@@ -109,7 +108,7 @@ export function MembersTable({
                     <TooltipTrigger asChild>
                       <span className='inline-block'>{button}</span>
                     </TooltipTrigger>
-                    <TooltipContent>{ADMIN_ONLY_HINT}</TooltipContent>
+                    <TooltipContent>{ADMIN_ONLY_MEMBERS_HINT}</TooltipContent>
                   </Tooltip>
                 );
               }

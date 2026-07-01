@@ -5,6 +5,10 @@ import { ValidationResult } from '../data-storage-types/interfaces/data-storage-
 import { ValidateDataStorageAccessCommand } from '../dto/domain/validate-data-storage-access.command';
 import { DataStorageService } from '../services/data-storage.service';
 import { AccessDecisionService, EntityType, Action } from '../services/access-decision';
+import { CredentialsExpiredException } from '../exceptions/google-oauth.exceptions';
+
+const GOOGLE_OAUTH_REAUTH_MESSAGE =
+  'Google authorization could not be refreshed. Reconnect this Storage to restore access.';
 
 @Injectable()
 export class ValidateDataStorageAccessService {
@@ -51,6 +55,9 @@ export class ValidateDataStorageAccessService {
         );
       } catch (error) {
         this.logger.warn(`Failed to resolve credentials for storage ${dataStorage.id}`, error);
+        if (error instanceof CredentialsExpiredException) {
+          return ValidationResult.oauthReauthRequired(GOOGLE_OAUTH_REAUTH_MESSAGE);
+        }
         return ValidationResult.failure(
           error instanceof Error ? error.message : 'Failed to resolve credentials'
         );

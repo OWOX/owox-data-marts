@@ -1,4 +1,3 @@
-import { zodResolver } from '@hookform/resolvers/zod';
 import { Button } from '@owox/ui/components/button';
 import {
   AppForm,
@@ -29,7 +28,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@owox/ui/components/select';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import type { CredentialIdentity } from '../../../../../shared/types/credential-identity';
 import { OwnersSection } from '../../../../../shared/components/OwnersSection/OwnersSection';
@@ -43,14 +42,13 @@ import { useIsAdmin } from '../../../../idp/hooks/useRole';
 import type { UserProjection } from '../../../../../shared/types';
 import { UserReference } from '../../../../../shared/components/UserReference/UserReference';
 import { CopyCredentialContext } from '../../model/context/copy-credential-context';
-import { createFormPayload } from '../../../../../utils/form-utils';
-import { COPY_SOURCE_CREDENTIAL_PLACEHOLDER } from '../../../../../shared/utils/credential-identity-utils';
+import { createDataStorageFormResolver } from '../../model/data-storage-form-resolver';
+import { createFormPayload, focusFirstInvalidField } from '../../../../../utils/form-utils';
 import {
   type DataStorageFormData,
   type GoogleBigQueryFormData,
   type LegacyGoogleBigQueryFormData,
   DataStorageHealthIndicator,
-  dataStorageSchema,
   DataStorageStatus,
   DataStorageType,
 } from '../../../shared';
@@ -92,8 +90,15 @@ export function DataStorageForm({
   onCancel,
   onDirtyChange,
 }: DataStorageFormProps) {
+  // The resolver reads this ref so credential validation is bypassed while
+  // the user copies credentials from another storage (fields are hidden then).
+  const copySourceSelectedRef = useRef(false);
+  const resolver = useMemo(
+    () => createDataStorageFormResolver(() => copySourceSelectedRef.current),
+    []
+  );
   const form = useForm<DataStorageFormData>({
-    resolver: zodResolver(dataStorageSchema),
+    resolver,
     defaultValues: initialData,
   });
 
@@ -148,29 +153,17 @@ export function DataStorageForm({
   const handleSourceSelect = useCallback(
     (id: string, title: string, identity: CredentialIdentity | null) => {
       setSelectedSource({ id, title, identity });
-      // For Google types, set a placeholder credentialId so Zod validation passes.
-      // Non-Google types don't have credentialId in their schemas, so we skip this.
-      // Credentials are copied server-side via sourceStorageId; the placeholder is
-      // stripped from the payload in handleSubmit.
-      const currentType = form.getValues('type');
-      if (
-        currentType === DataStorageType.GOOGLE_BIGQUERY ||
-        currentType === DataStorageType.LEGACY_GOOGLE_BIGQUERY
-      ) {
-        form.setValue('credentials.credentialId', COPY_SOURCE_CREDENTIAL_PLACEHOLDER, {
-          shouldDirty: false,
-          shouldValidate: true,
-        });
-      }
+      copySourceSelectedRef.current = true;
+      // Credentials now come from the source storage; drop stale field errors
+      form.clearErrors('credentials');
     },
     [form]
   );
 
   const handleSourceClear = useCallback(() => {
     setSelectedSource(null);
-    // Restore credential field to its original value from initialData
-    form.resetField('credentials.credentialId');
-  }, [form]);
+    copySourceSelectedRef.current = false;
+  }, []);
 
   const {
     watch,
@@ -231,12 +224,16 @@ export function DataStorageForm({
       <AppForm
         data-testid='storageEditForm'
         onSubmit={e => {
-          void form.handleSubmit(handleSubmit)(e);
+          void form.handleSubmit(handleSubmit, focusFirstInvalidField)(e);
         }}
         noValidate
       >
         <FormLayout>
-          <FormSection title='General' defaultOpen={!isLegacyGoogleBigQuery}>
+          <FormSection
+            title='General'
+            defaultOpen={!isLegacyGoogleBigQuery}
+            fields={['title', 'type']}
+          >
             {storageId && (
               <FormItem>
                 <DataStorageHealthIndicator storageId={storageId} />
@@ -353,10 +350,9 @@ export function DataStorageForm({
                       <p>
                         Storage Owner is direct technical ownership of this Storage. When the
                         owner&apos;s role is Technical User or Project Admin, they may view, edit,
-                        delete, configure Availability, and copy credentials from this Storage —
-                        regardless of Availability settings. Assigning Owner to a Business User
-                        stores the assignment but grants no maintenance permissions until the role
-                        changes.
+                        delete, configure Sharing, and copy credentials from this Storage —
+                        regardless of Sharing settings. Assigning Owner to a Business User stores
+                        the assignment but grants no maintenance permissions until the role changes.
                       </p>
                     </AccordionContent>
                   </AccordionItem>
@@ -398,10 +394,10 @@ export function DataStorageForm({
           )}
 
           {initialData?.id && (
-            <FormSection title='Availability' defaultOpen={false} name='storage-availability'>
+            <FormSection title='Sharing' defaultOpen={false} name='storage-availability'>
               <FormItem>
                 <div className='flex items-center justify-between gap-4'>
-                  <FormLabel>Available for use</FormLabel>
+                  <FormLabel>Shared for use</FormLabel>
                   <Switch
                     checked={sharingState.availableForUse}
                     onCheckedChange={v => {
@@ -416,7 +412,7 @@ export function DataStorageForm({
                   <Accordion variant='common' type='single' collapsible>
                     <AccordionItem value='sharing-use-help'>
                       <AccordionTrigger>
-                        What does &quot;Available for use&quot; mean?
+                        What does &quot;Shared for use&quot; mean?
                       </AccordionTrigger>
                       <AccordionContent>
                         <p>
@@ -431,7 +427,7 @@ export function DataStorageForm({
               </FormItem>
               <FormItem>
                 <div className='flex items-center justify-between gap-4'>
-                  <FormLabel>Available for maintenance</FormLabel>
+                  <FormLabel>Shared for maintenance</FormLabel>
                   <Switch
                     checked={sharingState.availableForMaintenance}
                     onCheckedChange={v => {
@@ -446,7 +442,7 @@ export function DataStorageForm({
                   <Accordion variant='common' type='single' collapsible>
                     <AccordionItem value='sharing-maintenance-help'>
                       <AccordionTrigger>
-                        What does &quot;Available for maintenance&quot; mean?
+                        What does &quot;Shared for maintenance&quot; mean?
                       </AccordionTrigger>
                       <AccordionContent>
                         <p>

@@ -232,6 +232,8 @@ export interface BaseSchemaField {
   isPrimaryKey: boolean;
   isHiddenForReporting?: boolean;
   status: DataMartSchemaFieldStatus;
+  aggregationRole?: 'dimension' | 'metric';
+  allowedAggregations?: import('./relationship.types').ReportAggregateFunction[];
 }
 
 /**

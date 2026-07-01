@@ -19,3 +19,20 @@
     @apply bg-background text-foreground;
   }
 }
+
+/*
+ * Google Drive Picker renders its modal in <body>. Radix modal dialogs (our
+ * destination Sheet) set `pointer-events: none` on <body> while open, which
+ * would make the Picker unclickable. Re-enable interaction on the Picker nodes
+ * and keep them above the dialog. The Sheet's onInteractOutside guard prevents
+ * it from closing on Picker clicks.
+ */
+.picker-dialog-bg {
+  pointer-events: auto !important;
+  z-index: 9999 !important;
+}
+
+.picker-dialog {
+  pointer-events: auto !important;
+  z-index: 10000 !important;
+}

@@ -15,11 +15,11 @@ export interface DataMartListItemResponseDto {
   triggersCount: number;
   reportsCount: number;
   createdByUser: UserProjectionDto | null;
-  businessOwnerUsers: UserProjectionDto[];
-  technicalOwnerUsers: UserProjectionDto[];
+  businessOwnerUsers?: UserProjectionDto[];
+  technicalOwnerUsers?: UserProjectionDto[];
   createdAt: Date;
   modifiedAt: Date;
-  contexts: { id: string; name: string }[];
+  contexts?: { id: string; name: string }[];
   availableForReporting?: boolean;
   availableForMaintenance?: boolean;
 }

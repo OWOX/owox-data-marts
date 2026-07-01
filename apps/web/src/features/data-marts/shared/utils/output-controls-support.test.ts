@@ -7,15 +7,27 @@ describe('supportsOutputControls', () => {
     expect(supportsOutputControls(DataStorageType.GOOGLE_BIGQUERY)).toBe(true);
   });
 
-  it('returns false for legacy BigQuery', () => {
-    expect(supportsOutputControls(DataStorageType.LEGACY_GOOGLE_BIGQUERY)).toBe(false);
+  it('returns true for Athena', () => {
+    expect(supportsOutputControls(DataStorageType.AWS_ATHENA)).toBe(true);
   });
 
-  it('returns false for non-BQ storages', () => {
-    expect(supportsOutputControls(DataStorageType.AWS_ATHENA)).toBe(false);
-    expect(supportsOutputControls(DataStorageType.SNOWFLAKE)).toBe(false);
-    expect(supportsOutputControls(DataStorageType.AWS_REDSHIFT)).toBe(false);
-    expect(supportsOutputControls(DataStorageType.DATABRICKS)).toBe(false);
+  it('returns true for legacy BigQuery', () => {
+    expect(supportsOutputControls(DataStorageType.LEGACY_GOOGLE_BIGQUERY)).toBe(true);
+  });
+
+  it('returns true for Redshift', () => {
+    expect(supportsOutputControls(DataStorageType.AWS_REDSHIFT)).toBe(true);
+  });
+
+  it('returns true for Databricks', () => {
+    expect(supportsOutputControls(DataStorageType.DATABRICKS)).toBe(true);
+  });
+
+  it('returns true for Snowflake', () => {
+    expect(supportsOutputControls(DataStorageType.SNOWFLAKE)).toBe(true);
+  });
+
+  it('returns false for not-yet-supported storages', () => {
     expect(supportsOutputControls(DataStorageType.AZURE_SYNAPSE)).toBe(false);
   });
 });

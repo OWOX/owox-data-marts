@@ -22,10 +22,6 @@ export class ConnectorExecutionService {
     return this.connectorRunService.run(dataMart, createdById, runType, payload);
   }
 
-  async cancelRun(dataMartId: string, runId: string): Promise<void> {
-    return this.connectorRunService.cancelRun(dataMartId, runId);
-  }
-
   async executeExistingRun(
     dataMart: DataMart,
     run: DataMartRun,

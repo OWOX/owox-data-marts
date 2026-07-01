@@ -1,12 +1,11 @@
 # OWOX Data Marts
 
-## 🏷 Self-Service Analytics Platform
+## Your AI Reporting Data Analyst — Open Source
 
-OWOX Data Marts is your way to create a data mart library and empower business users with spreadsheet reports and dashboards — in minutes.
+Stop shipping reports. Hire a reporting data analyst for each of the team members.
+OWOX Data Marts automates what reporting data analysts do — governed by data teams, consumed by business users with NO AI Hallycinations.
 
-[📘 Quick Start Guide](./docs/getting-started/quick-start.md) | [📚 Documentation](https://docs.owox.com?utm_source=github&utm_medium=referral&utm_campaign=readme) | [🌐 Website](https://www.owox.com?utm_source=github&utm_medium=referral&utm_campaign=readme) | [💬 Slack Community](https://join.slack.com/t/owox-data-marts/shared_invite/zt-3tnigd08g-f2uU_7oNNwzCyTB2tITnqA) | [🆘 Create an Issue](https://github.com/OWOX/owox-data-marts/issues)
-
-![OWOX Data Marts - Open-Source Self-Service Analytics Platform](./docs/res/owox-data-marts-schema.svg)
+[**📘 Quick Start Guide**](./docs/getting-started/quick-start.md) · [**📚 Docs**](https://docs.owox.com?utm_source=github&utm_medium=referral&utm_campaign=readme) · [**🌐 Website**](https://www.owox.com?utm_source=github&utm_medium=referral&utm_campaign=readme) · [**💬 Slack**](https://join.slack.com/t/owox-data-marts/shared_invite/zt-3tnigd08g-f2uU_7oNNwzCyTB2tITnqA) · [**🆘 Issues**](https://github.com/OWOX/owox-data-marts/issues)
 
 ## ✨ Why We Built This
 
@@ -21,76 +20,113 @@ At OWOX, we value both:
 
 At OWOX, we believe data analysts shouldn’t have to waste time on CSV files and one-off dashboards. Business users shouldn’t have to be forced to use complex BI tools either.
 
----
-
 <https://github.com/user-attachments/assets/d2d9d913-a6fc-4949-a8e8-d697abd1631a>
 
----
+## The Reporting Skills OWOX Automates
 
-## 🚀 What You Can Do with OWOX Data Marts
+We analyzed **1,438 job postings** for reporting data analysts at US ecommerce SMBs. Here's what companies pay $70–120k/yr for — and what OWOX handles out of the box:
 
-### 📘 Create a Data Mart Library
+| Skill | % of Job Listings | How OWOX Handles It |
+|-------|:-----------------:|---------------------|
+| Writing & maintaining SQL queries | ~95% | Create data marts from SQL, tables, views, or patterns — version-controlled and reusable |
+| Integrating data from multiple sources | ~85% | Open-source connectors (Facebook Ads, Google Ads, TikTok, Shopify, etc.) with zero data engineering |
+| Building & maintaining dashboards and reports | ~80% | Publish data marts to Google Sheets, Looker Studio, Slack, email — one source, many outputs |
+| Scheduling refreshes and timely delivery | ~70% | Built-in scheduler for data marts and exports — set once, runs forever |
+| Enabling stakeholder self-service | ~65% | Business users browse the data mart library in Google Sheets, pick columns, apply filters — no tickets |
+| Managing data access and permissions | ~40% | Ownership, context-based access, technical and business owners on every data mart |
 
-Bring together data from your warehouse (BigQuery, Snowflake, etc.), APIs, or spreadsheets – and turn it into fast, reusable artifacts that you can manage & share:
+**What stays with your analysts** (and becomes more valuable): data integrity validation, business logic mapping, variance diagnosis, metric definitions and standardization, stakeholder requests translation, and orchestrating AI-assisted workflows.
 
-- Connectors to any marketing, financial, or CRM data that you can collect into **AWS Athena** or **Google BigQuery** (more supported DWHs are being developed as you read this)
-- Custom SQL
-- Tables & views
-- Table patterns (eg, events_2025\*)
+## Why Teams Choose OWOX Over Alternatives
 
-### 📤 Deliver Trusted Data Anywhere
+### 1. No AI Hallucinations. Ever
 
-Connect your Data Marts to Google Sheets, Data Studio, or Excel – empowering business teams with reports they need to make decisions.
+> *"Even one hallucination is too many in this line of work."*
+> — u/Cynot88, r/dataengineering
 
-### 🧾 Define a Semantic Layer
+Most "AI analytics" tools generate numbers from LLM guesses. OWOX AI Insights run **pre-approved SQL your analyst manages**. AI helps with narrative prose, not the numbers. Every value is the result of a deterministic SQL query — not a prediction. Backed by [patented technology](https://www.owox.com?utm_source=github&utm_medium=referral&utm_campaign=readme).
 
-Document KPIs and metrics once, and keep every dashboard, pivot table, and report in sync with the same numbers & logic behind calculations – no matter the tool.
+**Why it matters:**
 
-### 📅 Automate Everything
+- Specialized legal AI tools hallucinate 17%+ of the time; general-purpose chatbots hit 58–82% ([Stanford HAI, 2025](https://mitsloanedtech.mit.edu/ai/basics/addressing-ai-hallucinations-and-bias/))
+- 46% of developers actively distrust AI tool accuracy (Stack Overflow Developer Survey, 2025)
+- EU AI Act (effective August 2025) mandates traceable logic on every AI insight used in significant decisions — fines up to €35M
 
-Use the advanced scheduler to refresh both Data Marts and exports at any time, fully automated and managed from a single place
+### 2. No Semantic Layer Required
 
-## 🛠 Installation Guide
+> *"The semantic layer is fragmented between tools, suffers from vendor lock-in and requires duplicate encoding of business logic that is costly to maintain... making adoption economically unviable for many firms."*
+> — Semantic Layer Substack
+
+Skip the 6–12 month semantic layer implementation. Plug in your existing SQL and ship. Business users get self-service in minutes, not quarters.
+
+**Why it matters:**
+
+- Production-ready semantic layer typically take 6–12 months for enterprise teams ([Datacoves, 2026](https://datacoves.com/post/dbt-core-key-differences))
+- Only 27% of teams plan to increase semantic layer investment ([dbt Labs State of Analytics Engineering, 2025](https://www.getdbt.com/resources/state-of-analytics-engineering-2025))
+- Of the 30% using AI to consume data via natural language, two-thirds do so with vanilla SQL generation — not via a semantic layer
+
+### 3. Data Stays in Your Warehouse
+
+> *"I didn't get an error message — instead I got a column that is entirely blank. No zeroes, just blank all the way down."*
+> — Supermetrics customer, Community Forum, July 2025 (after Meta cut historical data access)
+
+Your data never leaves your infrastructure. Once normalized into your warehouse, it stays — immune to upstream API deprecations. Open-source core means no vendor lock-in.
+
+**Why it matters:**
+
+- Meta cut historical data on unique-count fields to 13 months and removed 7/28-day attribution windows entirely ([Supermetrics docs, Jan 2026](https://docs.supermetrics.com/docs/facebook-ads-new-historical-limitations-attribution-window-and-metric-removals-january-12-2026))
+- 53.7% of CDOs serve less than 3 years; boards hold data leaders personally accountable for compliance and vendor risk ([MIT Sloan, 2025](https://sloanreview.mit.edu/article/the-chief-data-officer-role-whats-next/))
+
+## Who Is OWOX For?
+
+| | Data Analysts | Business Users | C-Suite |
+|---|---|---|---|
+| **Problem** | Buried in a reporting backlog — tickets, CSVs, one-off dashboards | Wait days for "just one more column" or trust ChatGPT with company numbers | Need AI-era throughput but can't afford hallucinated numbers at board level |
+| **OWOX gives you** | Define once, publish everywhere. Full SQL audit trail. Stay in control. | Self-serve from a governed data mart library in Google Sheets — no SQL, no tickets | Visible value in weeks. Auditable accuracy. No vendor lock-in. Open-source core. |
+
+## 🚀 What You Can Do
+
+- **Create a Data Mart Library** — Bring together data from your warehouse (BigQuery, Snowflake, Redshift, Athena, Databricks), APIs, or spreadsheets into fast, reusable artifacts
+- **Deliver Trusted Data Anywhere** — One published data mart feeds Google Sheets, Looker Studio, Slack, email, and more — simultaneously, same numbers everywhere
+- **Automate Everything** — Advanced scheduler refreshes both data marts and exports, fully automated from a single place
+- **Get AI Insights Without Hallucinations** — AI drafts narrative reports from your analyst-approved SQL. Every number is traceable. Delivered to Slack, Teams, or email.
+
+## 🛠 Quick Start
 
 **OWOX Data Marts** can be run just about anywhere in minutes.  
 Here’s how to get started locally on your machine:
 
-1. **Install Node.js** (version 22.16.0 or higher)
+(1) **Install Node.js** 22.16.0+ [download](https://nodejs.org)
 
-   If it’s not installed yet, [download it here](https://nodejs.org/en/download)
+(2) **Install OWOX Data Marts**
 
-2. **Open your terminal** and run:
+```bash
+npm install -g owox
+```
 
-   ```bash
-   npm install -g owox
-   ```
+(3) Start locally
 
-   (You may see warnings - they’re safe to ignore)
+```bash
+owox serve
+```
 
-3. **Start OWOX Data Marts** locally
+(4) **Open** <http://localhost:3000> 🎉
 
-   ```bash
-   owox serve
-   ```
+Live in under 5 minutes.
+For **Docker** and **cloud deployment options**, see the [Quick Start Guide](./docs/getting-started/quick-start.md).
 
-   (You should see something like:
-   🚀 Starting OWOX Data Marts...
-   📦 Starting server on port 3000...)
+## 🗣️ What People Are Saying
 
-4. **Open your browser** and go to **<http://localhost:3000>** to explore! 🎉
-
-For more details on the types of deployment in your infrastructure, check out our [Quick Start Guide](./docs/getting-started/quick-start.md)
+> *"Connected BigQuery, set up 37 data marts, built a data model and had live reports in Sheets in under 15 minutes.
+My team thought I was joking when I showed them how they can now get live reports right in their sheets."*
+> *"We migrated 200+ reports from Looker to OWOX Data Marts. Our team now self-serves without filing a single Jira ticket.
+Easily the best infrastructure decision we made this year."*
+> *"75% of CDAOs who fail to demonstrate AI's positive impact will be reassigned or removed from the C-suite by 2027."*
+> — Gartner, via TechRadar, November 2025
 
 ## 🔌 Available Connectors
 
-**OWOX Data Marts** includes growing library of **data connectors** that:
-
-- Pull data from **any APIs** like Facebook Marketing, TikTok Ads, LinkedIn Ads, etc.
-- Require **zero external tools** or sharing credentials
-- Don't require **ANY data engineering resources**
-- Free, open-source, and **customizable**
-- Give full control over the logic
-- Works with [BigQuery](packages/connectors/src/Storages/GoogleBigQuery/README.md) and [AWS Athena](packages/connectors/src/Storages/AwsAthena/README.md)
+Open-source data connectors that pull from any API — zero external tools, no credential sharing, fully customizable.
 
 ### Data Sources
 
@@ -110,11 +146,10 @@ For more details on the types of deployment in your infrastructure, check out ou
 | Shopify                         | 🟢 Public        | [Get started](packages/connectors/src/Sources/Shopify/GETTING_STARTED.md)           |
 | TikTok Ads                      | 🟢 Public        | [Get started](packages/connectors/src/Sources/TikTokAds/GETTING_STARTED.md)         |
 | X Ads (former Twitter Ads)      | 🟢 Public        | [Get started](packages/connectors/src/Sources/XAds/GETTING_STARTED.md)              |
-| Shopify                         | 🟢 Public        | [Get started](packages/connectors/src/Sources/Shopify/GETTING_STARTED.md)           |
-| Shopify Ads                     | ⚪️ In Development|                                                                                     |
+| Hotline                         | ⚪️ In Discussion | [Discussion](https://github.com/OWOX/owox-data-marts/discussions/55)                |
 | Google Business Profile         | ⚪️ In Discussion | [Discussion](https://github.com/OWOX/owox-data-marts/discussions/61)                |
 
-### Data Storages
+### Data Warehouses
 
 | Name            | Status    | Links                                                               |
 | --------------- | --------- | ------------------------------------------------------------------- |
@@ -124,36 +159,36 @@ For more details on the types of deployment in your infrastructure, check out ou
 | Snowflake       | 🟢 Public | [Readme](docs/storages/supported-storages/snowflake.md)             |
 | Databricks      | 🟢 Public | [Readme](docs/storages/supported-storages/databricks.md)            |
 
-If you find an integration missing, you can share your use case and request it in the [discussions](https://github.com/OWOX/owox-data-marts/discussions)
+If you find an integration missing, you can share your use case and request it in the [discussions](https://github.com/OWOX/owox-data-marts/discussions) or [build your own](packages/connectors/CONTRIBUTING.md).
+
+## How it works
+
+1. **Analysts define** data marts using SQL, existing tables/views, or connectors
+2. **OWOX governs** — ownership, descriptions, aliases, join keys, access controls, and scheduling
+3. **Business users consume** — browse the data mart library in Google Sheets, pick columns, apply filters, get live data
+4. **AI Insights narrate** — pre-approved SQL generates numbers; AI writes the prose; delivered to Slack, Teams, email
 
 ## 🧑‍💻 Contribute
 
-Want to build a connector? We'd love your help.
-
-**To contribute to existing integrations or create a new one:**
+We're building this **with the community**, not just for it.
 
 - Read the [Contributor Guide](packages/connectors/CONTRIBUTING.md)
-- Check [Issues](https://github.com/OWOX/owox-data-marts/issues)
+- Check [open Issues](https://github.com/OWOX/owox-data-marts/issues)
 - Join [Discussions](https://github.com/OWOX/owox-data-marts/discussions)
-- Join [Slack Community](https://join.slack.com/t/owox-data-marts/shared_invite/zt-3tnigd08g-f2uU_7oNNwzCyTB2tITnqA)
+- Join our [Slack Community](https://join.slack.com/t/owox-data-marts/shared_invite/zt-3tnigd08g-f2uU_7oNNwzCyTB2tITnqA)
 
-Whether you're adding a new platform, tweaking an existing connector, or improving docs, we'll support and **spotlight you**.
-
-We're building this **with the community**, not just for it.
+Whether you're adding a new connector, improving docs, or fixing a bug — we'll support and spotlight you.
 
 ## 📌 License
 
-Except for Enterprise-grade features, OWOX Data Marts is free for internal or client use,
-not for resale in a competing product. The project uses a dual-license model:
+OWOX Data Marts is free for internal or client use, not for resale in a competing product. Dual-license model:
 
-- **Connectors** (`packages/connectors`) are distributed under the [MIT License](licenses/MIT.md)
-- **Platform** (all other files and directories) is distributed under the [ELv2 License](licenses/Elasticv2.md)
+- **Connectors** (`packages/connectors`) — [MIT License](licenses/MIT.md)
+- **Platform** (all other files) — [ELv2 License](licenses/Elasticv2.md)
+- **Enterprise features** — [Enterprise License](licenses/ee.md) (files in `apps/backend/src/data-marts/data-destination-types/ee` or containing `.ee.` in the filename)
 
-**Enterprise features** are licensed under the [Enterprise License](licenses/ee.md) and are located
-in the `apps/backend/src/data-marts/data-destination-types/ee` directory
-or source code files that contain `.ee.` in their file name.
-Pricing for Enterprise features is available on [our pricing page](https://www.owox.com/pricing).
+Enterprise pricing: [owox.com/pricing](https://www.owox.com/pricing?utm_source=github&utm_medium=referral&utm_campaign=readme)
 
 ---
 
-⭐ **Like this project?** [Star our awesome repo »](https://github.com/OWOX/owox-data-marts)
+[**Star this repo**](https://github.com/OWOX/owox-data-marts) if OWOX saves your team from the reporting backlog.

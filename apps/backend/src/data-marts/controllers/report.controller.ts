@@ -1,14 +1,4 @@
-import {
-  Controller,
-  Get,
-  Post,
-  Put,
-  Body,
-  Param,
-  Delete,
-  ParseEnumPipe,
-  Query,
-} from '@nestjs/common';
+import { Controller, Get, Post, Put, Body, Param, Delete } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { AuthContext, AuthorizationContext, Auth } from '../../idp';
 import { Role, Strategy } from '../../idp/types/role-config.types';
@@ -19,7 +9,6 @@ import { ReportResponseApiDto } from '../dto/presentation/report-response-api.dt
 import { CreateReportService } from '../use-cases/create-report.service';
 import { GetReportService } from '../use-cases/get-report.service';
 import { ListReportsByDataMartService } from '../use-cases/list-reports-by-data-mart.service';
-import { ListReportsByProjectService } from '../use-cases/list-reports-by-project.service';
 import { ListReportsByInsightTemplateService } from '../use-cases/list-reports-by-insight-template.service';
 import { DeleteReportService } from '../use-cases/delete-report.service';
 import { RunReportService } from '../use-cases/run-report.service';
@@ -30,7 +19,6 @@ import {
   CreateReportSpec,
   GetReportSpec,
   ListReportsByDataMartSpec,
-  ListReportsByProjectSpec,
   DeleteReportSpec,
   RunReportSpec,
   UpdateReportSpec,
@@ -38,7 +26,6 @@ import {
   GetReportGeneratedSqlSpec,
   CopyReportAsDataMartSpec,
 } from './spec/report.api';
-import { OwnerFilter } from '../enums/owner-filter.enum';
 
 @Controller('reports')
 @ApiTags('Reports')
@@ -47,7 +34,6 @@ export class ReportController {
     private readonly createReportService: CreateReportService,
     private readonly getReportService: GetReportService,
     private readonly listReportsByDataMartService: ListReportsByDataMartService,
-    private readonly listReportsByProjectService: ListReportsByProjectService,
     private readonly listReportsByInsightTemplateService: ListReportsByInsightTemplateService,
     private readonly deleteReportService: DeleteReportService,
     private readonly runReportService: RunReportService,
@@ -107,19 +93,6 @@ export class ReportController {
       context
     );
     const reports = await this.listReportsByInsightTemplateService.run(command);
-    return this.mapper.toResponseList(reports);
-  }
-
-  @Auth(Role.viewer(Strategy.PARSE))
-  @Get()
-  @ListReportsByProjectSpec()
-  async listByProject(
-    @AuthContext() context: AuthorizationContext,
-    @Query('ownerFilter', new ParseEnumPipe(OwnerFilter, { optional: true }))
-    ownerFilter?: OwnerFilter
-  ): Promise<ReportResponseApiDto[]> {
-    const command = this.mapper.toListByProjectCommand(context, ownerFilter);
-    const reports = await this.listReportsByProjectService.run(command);
     return this.mapper.toResponseList(reports);
   }
 

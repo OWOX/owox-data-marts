@@ -274,10 +274,10 @@ export function buildDataMartsTableFilters(
     },
     buildAvailabilityFilter<DataMartFilterKey>({
       id: AdditionalFilterKeys.AVAILABILITY,
-      firstLabel: 'Available for reporting',
-      maintenanceLabel: 'Available for maintenance',
-      bothLabel: 'Available for reporting and maintenance',
-      noneLabel: 'Not available',
+      firstLabel: 'Shared for reporting',
+      maintenanceLabel: 'Shared for maintenance',
+      bothLabel: 'Shared for reporting and maintenance',
+      noneLabel: 'Not shared',
     }),
   ];
 }

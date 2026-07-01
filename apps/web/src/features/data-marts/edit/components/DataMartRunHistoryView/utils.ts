@@ -161,6 +161,9 @@ export const getRunSummaryParts = (
       title = run.aiAssistantDefinition?.route ?? '';
       runType = 'ai assistant';
       break;
+    case DataMartRunType.HTTP_DATA:
+      runType = 'HTTP Data';
+      break;
     default:
       break;
   }

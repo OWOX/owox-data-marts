@@ -3,17 +3,25 @@ import MainLayout from '../layouts/MainLayout';
 import About from '../pages/About';
 import NotFound from '../pages/NotFound';
 import DataMartsPage from '../pages/data-marts/list/DataMartsPage.tsx';
+import DataMartInsightsPage from '../pages/data-marts/insights/DataMartInsightsPage.tsx';
+import DataMartReportsPage from '../pages/data-marts/reports/DataMartReportsPage.tsx';
+import DataMartRunsPage from '../pages/data-marts/runs/DataMartRunsPage.tsx';
+import DataMartSchedulesPage from '../pages/data-marts/schedules/DataMartSchedulesPage.tsx';
 import { DataMartDetailsPage } from '../pages/data-marts/edit';
 import CreateDataMartPage from '../pages/data-marts/create/CreateDataMartPage.tsx';
 import { DataStorageListPage } from '../pages/data-storage';
 import { DataDestinationListPage } from '../pages/data-destination/DataDestinationListPage';
 import { ProjectSettingsPage } from '../pages/project-settings/ProjectSettingsPage';
 import { ProjectNotificationsPage } from '../pages/notifications/project';
+import { RequestAccessPage } from '../pages/request-access/RequestAccessPage';
+import { LegacyRequestAccessRedirect } from '../pages/request-access/LegacyRequestAccessRedirect';
 import { dataMartDetailsRoutes } from './data-marts/routes';
 import { projectSettingsRoutes } from './project-settings/routes';
 import { ProjectRedirect } from '../components/ProjectRedirect';
 import { oauthRoutes } from './oauth.routes';
 import { RootErrorBoundary, LayoutErrorBoundary } from '../components/errors';
+import { MyApiKeysPage } from '../features/api-keys/pages/MyApiKeysPage';
+import { SearchPage } from '../pages/search/SearchPage';
 
 const routes: RouteObject[] = [
   {
@@ -27,6 +35,11 @@ const routes: RouteObject[] = [
     element: <MainLayout />,
     errorElement: <RootErrorBoundary />,
     children: [
+      {
+        path: 'request-access',
+        element: <RequestAccessPage />,
+        errorElement: <LayoutErrorBoundary />,
+      },
       {
         path: 'about',
         element: <About />,
@@ -48,6 +61,26 @@ const routes: RouteObject[] = [
         errorElement: <LayoutErrorBoundary />,
       },
       {
+        path: 'data-marts/runs',
+        element: <DataMartRunsPage />,
+        errorElement: <LayoutErrorBoundary />,
+      },
+      {
+        path: 'data-marts/schedules',
+        element: <DataMartSchedulesPage />,
+        errorElement: <LayoutErrorBoundary />,
+      },
+      {
+        path: 'data-marts/reports',
+        element: <DataMartReportsPage />,
+        errorElement: <LayoutErrorBoundary />,
+      },
+      {
+        path: 'data-marts/insights',
+        element: <DataMartInsightsPage />,
+        errorElement: <LayoutErrorBoundary />,
+      },
+      {
         path: 'data-marts/:id',
         element: <DataMartDetailsPage />,
         errorElement: <LayoutErrorBoundary />,
@@ -61,6 +94,11 @@ const routes: RouteObject[] = [
       {
         path: 'data-destinations',
         element: <DataDestinationListPage />,
+        errorElement: <LayoutErrorBoundary />,
+      },
+      {
+        path: 'search',
+        element: <SearchPage />,
         errorElement: <LayoutErrorBoundary />,
       },
       {
@@ -83,6 +121,11 @@ const routes: RouteObject[] = [
         errorElement: <LayoutErrorBoundary />,
       },
       {
+        path: 'me/api-keys',
+        element: <MyApiKeysPage />,
+        errorElement: <LayoutErrorBoundary />,
+      },
+      {
         path: 'notifications',
         element: <ProjectNotificationsPage />,
         errorElement: <LayoutErrorBoundary />,
@@ -95,6 +138,11 @@ const routes: RouteObject[] = [
   },
   {
     ...oauthRoutes,
+    errorElement: <RootErrorBoundary />,
+  },
+  {
+    path: '/request-access',
+    element: <LegacyRequestAccessRedirect />,
     errorElement: <RootErrorBoundary />,
   },
   {

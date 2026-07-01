@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect } from 'react';
-import { MoreHorizontal, Pencil, Play, FileText, Trash2 } from 'lucide-react';
+import { MoreHorizontal, Pencil, FileText, Trash2, Play } from 'lucide-react';
 import { Button } from '@owox/ui/components/button';
 import {
   DropdownMenu,
@@ -15,38 +15,35 @@ import {
   TooltipTrigger,
 } from '@owox/ui/components/tooltip';
 import { ConfirmationDialog } from '../../../../../../shared/components/ConfirmationDialog';
-import { getGoogleSheetTabUrl, reportHasBlending } from '../../../shared';
+import { getGoogleSheetTabUrl, isGeneratedSqlSupported } from '../../../shared';
 import type {
   DataMartReport,
   GoogleSheetsDestinationConfig,
 } from '../../../shared/model/types/data-mart-report';
-import { ReportStatusEnum } from '../../../shared/enums';
-import { useReport } from '../../../shared';
-import { useBlendedFieldNames } from '../../../../shared/hooks/useBlendedFieldNames';
+import { useReport, ReportStatusEnum } from '../../../shared';
 import { GeneratedSqlViewer } from '../../../../edit/components/ReportColumnPicker/GeneratedSqlViewer';
 
 interface GoogleSheetsActionsCellProps {
   row: { original: DataMartReport };
   onDeleteSuccess?: () => void;
   onEditReport?: (report: DataMartReport) => void;
+  onRunSuccess?: () => void | Promise<void>;
 }
 
 export function GoogleSheetsActionsCell({
   row,
   onDeleteSuccess,
   onEditReport,
+  onRunSuccess,
 }: GoogleSheetsActionsCellProps) {
+  const canRun = row.original.canRun;
+  const canEditConfig = row.original.canEditConfig;
   const [isRunning, setIsRunning] = useState(
     row.original.lastRunStatus === ReportStatusEnum.RUNNING
   );
   const [menuOpen, setMenuOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const { deleteReport, fetchReportsByDataMartId, runReport } = useReport();
-
-  // Show the "View SQL" icon only when the report actually produces blended output.
-  // The hook is safe to call per-row: React Query dedupes concurrent requests by key.
-  const blendedFieldNames = useBlendedFieldNames(row.original.dataMart.id);
-  const hasBlending = reportHasBlending(row.original, blendedFieldNames);
 
   // Generate unique ID for the actions menu
   const actionsMenuId = `actions-menu-${row.original.id}`;
@@ -58,6 +55,8 @@ export function GoogleSheetsActionsCell({
 
   // Memoize delete handler to avoid unnecessary re-renders
   const handleDelete = useCallback(async () => {
+    if (!canEditConfig) return;
+
     try {
       await deleteReport(row.original.id);
       await fetchReportsByDataMartId(row.original.dataMart.id);
@@ -69,30 +68,38 @@ export function GoogleSheetsActionsCell({
   }, [
     deleteReport,
     fetchReportsByDataMartId,
+    canEditConfig,
     onDeleteSuccess,
     row.original.id,
     row.original.dataMart.id,
   ]);
 
   const handleEdit = useCallback(() => {
+    if (!canEditConfig) return;
+
     onEditReport?.(row.original);
     setMenuOpen(false);
-  }, [onEditReport, row.original]);
+  }, [canEditConfig, onEditReport, row.original]);
 
   const handleRun = useCallback(async () => {
+    if (!canRun) return;
+
     try {
       setIsRunning(true);
       await runReport(row.original.id);
+      await onRunSuccess?.();
     } catch (error) {
       setIsRunning(false);
       console.error('Failed to run report:', error);
     }
-  }, [runReport, row.original.id]);
+  }, [canRun, onRunSuccess, runReport, row.original.id]);
 
   const handleDeleteClick = useCallback(() => {
+    if (!canEditConfig) return;
+
     setIsDeleteDialogOpen(true);
     setMenuOpen(false);
-  }, []);
+  }, [canEditConfig]);
 
   return (
     <TooltipProvider>
@@ -102,27 +109,6 @@ export function GoogleSheetsActionsCell({
           e.stopPropagation();
         }}
       >
-        {/* Run report */}
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button
-              onClick={e => {
-                e.stopPropagation();
-                void handleRun();
-              }}
-              variant='ghost'
-              className='dm-card-table-body-row-actionbtn opacity-0 transition-opacity group-hover:opacity-100 disabled:opacity-0 disabled:group-hover:opacity-50'
-              disabled={isRunning}
-              aria-label={isRunning ? 'Running report...' : `Run report: ${row.original.title}`}
-            >
-              <Play className='dm-card-table-body-row-actionbtn-icon' aria-hidden='true' />
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent id={`run-report-${row.original.id}`} side='bottom' role='tooltip'>
-            Run report
-          </TooltipContent>
-        </Tooltip>
-
         {/* Open doc */}
         <Tooltip>
           <TooltipTrigger asChild>
@@ -146,8 +132,11 @@ export function GoogleSheetsActionsCell({
           </TooltipContent>
         </Tooltip>
 
-        {/* View SQL (only when report uses blending) */}
-        {hasBlending && (
+        {/* View SQL */}
+        {isGeneratedSqlSupported(
+          row.original.dataMart.definitionType,
+          row.original.dataMart.storage.type
+        ) && (
           <GeneratedSqlViewer
             reportId={row.original.id}
             dataMartId={row.original.dataMart.id}
@@ -174,6 +163,19 @@ export function GoogleSheetsActionsCell({
           </DropdownMenuTrigger>
           <DropdownMenuContent id={actionsMenuId} align='end' role='menu'>
             <DropdownMenuItem
+              disabled={isRunning || !canRun}
+              onClick={e => {
+                e.stopPropagation();
+                void handleRun();
+              }}
+              role='menuitem'
+            >
+              <Play className='text-foreground h-4 w-4' aria-hidden='true' />
+              {isRunning ? 'Running report...' : 'Run report'}
+            </DropdownMenuItem>
+
+            <DropdownMenuItem
+              disabled={!canEditConfig}
               onClick={e => {
                 e.stopPropagation();
                 handleEdit();
@@ -185,6 +187,7 @@ export function GoogleSheetsActionsCell({
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem
+              disabled={!canEditConfig}
               onClick={e => {
                 e.stopPropagation();
                 handleDeleteClick();

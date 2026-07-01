@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   ForbiddenException,
   Injectable,
   NotFoundException,
@@ -10,6 +11,8 @@ import { GetReportGeneratedSqlCommand } from '../dto/domain/get-report-generated
 import { Report } from '../entities/report.entity';
 import { AccessDecisionService, Action, EntityType } from '../services/access-decision';
 import { ReportSqlComposerService } from '../services/report-sql-composer.service';
+import { DataMartDefinitionType } from '../enums/data-mart-definition-type.enum';
+import { DataStorageType } from '../data-storage-types/enums/data-storage-type.enum';
 
 @Injectable()
 export class GetReportGeneratedSqlService {
@@ -51,7 +54,23 @@ export class GetReportGeneratedSqlService {
       );
     }
 
-    const { sql } = await this.reportSqlComposerService.compose(report);
+    if (report.dataMart.definitionType === DataMartDefinitionType.TABLE_PATTERN) {
+      const storageType = report.dataMart.storage.type;
+      if (storageType !== DataStorageType.GOOGLE_BIGQUERY) {
+        throw new BadRequestException({
+          message:
+            'Generated SQL preview is not supported for table pattern definitions on this storage',
+          details: {
+            errors: [{ code: 'GENERATED_SQL_NOT_SUPPORTED', storageType }],
+          },
+        });
+      }
+    }
+
+    const { sql } = await this.reportSqlComposerService.composeStatic(report, {
+      userId: command.userId,
+      roles: command.roles,
+    });
     return { sql };
   }
 }

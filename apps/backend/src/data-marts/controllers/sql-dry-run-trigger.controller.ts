@@ -75,18 +75,20 @@ export class SqlDryRunTriggerController extends UiTriggerController<SqlDryRunRes
   @Auth(Role.viewer(Strategy.PARSE))
   @Get('/:triggerId/status')
   public override async getTriggerStatus(
-    @Param('triggerId') triggerId: string
+    @Param('triggerId') triggerId: string,
+    @AuthContext() context: AuthorizationContext
   ): Promise<{ status: TriggerStatus }> {
-    return super.getTriggerStatus(triggerId);
+    return super.getTriggerStatus(triggerId, context);
   }
 
   @GetSqlDryRunTriggerResponseSpec()
   @Auth(Role.viewer(Strategy.PARSE))
   @Get('/:triggerId')
   public override async getTriggerResponse(
-    @Param('triggerId') triggerId: string
+    @Param('triggerId') triggerId: string,
+    @AuthContext() context: AuthorizationContext
   ): Promise<SqlDryRunResponseApiDto> {
-    return super.getTriggerResponse(triggerId);
+    return super.getTriggerResponse(triggerId, context);
   }
 
   @CancelSqlDryRunTriggerSpec()

@@ -6,20 +6,33 @@ import { GracefulShutdownService } from '../../common/scheduler/services/gracefu
 import { SystemTimeService } from '../../common/scheduler/services/system-time.service';
 import { AvailableDestinationTypesService } from '../data-destination-types/available-destination-types.service';
 import { DATA_DESTINATION_REPORT_WRITER_RESOLVER } from '../data-destination-types/data-destination-providers';
-import { DataDestinationType } from '../data-destination-types/enums/data-destination-type.enum';
-import { DataDestinationReportWriter } from '../data-destination-types/interfaces/data-destination-report-writer.interface';
+import {
+  DataDestinationType,
+  isEmailBasedDataDestinationType,
+} from '../data-destination-types/enums/data-destination-type.enum';
+import {
+  DataDestinationReportWriter,
+  ReportWriteFinalizeResult,
+} from '../data-destination-types/interfaces/data-destination-report-writer.interface';
 import { DATA_STORAGE_REPORT_READER_RESOLVER } from '../data-storage-types/data-storage-providers';
 import { DataStorageType } from '../data-storage-types/enums/data-storage-type.enum';
 import { DataStorageReportReader } from '../data-storage-types/interfaces/data-storage-report-reader.interface';
 import { RunReportCommand } from '../dto/domain/run-report.command';
+import { hasOutputControls } from '../dto/domain/report-like-read-plan';
 import { RunType } from '../../common/scheduler/shared/types';
 import { DataMart } from '../entities/data-mart.entity';
+import { DataMartRun } from '../entities/data-mart-run.entity';
 import { Report } from '../entities/report.entity';
 import { ReportRun } from '../models/report-run.model';
 import { logBlendedSqlIfNeeded } from '../report-run-logging/log-blended-sql';
 import { createReportRunLogger, ReportRunLogger } from '../report-run-logging/report-run-logger';
+import {
+  BlendableSchemaAccessor,
+  resolveBlendableSchemaAccessor,
+} from '../services/blendable-schema.service';
 import { BlendedReportDataService } from '../services/blended-report-data.service';
 import { DataMartService } from '../services/data-mart.service';
+import { IdpProjectionsFacade } from '../../idp/facades/idp-projections.facade';
 import { ProjectBalanceService } from '../services/project-balance.service';
 import { ReportRunService } from '../services/report-run.service';
 import { ReportRunTriggerService } from '../services/report-run-trigger.service';
@@ -30,6 +43,7 @@ import {
 import { ReportAccessService } from '../services/report-access.service';
 import { ReportSqlComposerService } from '../services/report-sql-composer.service';
 import { SqlParameter } from '../data-storage-types/utils/sql-clause-renderer';
+import { ConsumptionTrackingService } from '../services/consumption-tracking.service';
 
 const ERROR_NAMES = {
   ABORT: 'AbortError',
@@ -94,7 +108,9 @@ export class RunReportService {
     private readonly reportRunTriggerService: ReportRunTriggerService,
     private readonly reportAccessService: ReportAccessService,
     private readonly blendedReportDataService: BlendedReportDataService,
-    private readonly reportSqlComposerService: ReportSqlComposerService
+    private readonly reportSqlComposerService: ReportSqlComposerService,
+    private readonly idpProjectionsFacade: IdpProjectionsFacade,
+    private readonly consumptionTrackingService: ConsumptionTrackingService
   ) {}
 
   /**
@@ -153,6 +169,7 @@ export class RunReportService {
   async executeExistingRun(
     dataMartRunId: string,
     expectedProjectId: string,
+    runByUserId: string,
     signal?: AbortSignal
   ): Promise<void> {
     const reportRun = await this.reportRunService.loadByDataMartRunId(dataMartRunId);
@@ -168,7 +185,11 @@ export class RunReportService {
       );
     }
 
-    await this.executeReportRunWithCleanup(reportRun, signal);
+    await this.executeReportRunWithCleanup(reportRun, runByUserId, signal);
+  }
+
+  private resolveAccessor(userId: string, projectId: string): Promise<BlendableSchemaAccessor> {
+    return resolveBlendableSchemaAccessor(this.idpProjectionsFacade, projectId, userId);
   }
 
   /**
@@ -191,14 +212,17 @@ export class RunReportService {
    */
   private async executeReport(
     report: Report,
+    accessor: BlendableSchemaAccessor,
     signal?: AbortSignal,
-    reportRunLogger?: ReportRunLogger
-  ): Promise<void> {
+    reportRunLogger?: ReportRunLogger,
+    dataMartRun?: DataMartRun
+  ): Promise<ReportWriteFinalizeResult | undefined> {
     signal?.throwIfAborted();
     const { dataMart, dataDestination } = report;
-    const reportReader = await this.reportReaderResolver.resolve(dataMart.storage.type);
-    const reportWriter = await this.reportWriterResolver.resolve(dataDestination.type);
     const executionPolicy = this.reportExecutionPolicyResolver.resolve(report);
+    let reportReader: DataStorageReportReader | null = null;
+    let reportWriter: DataDestinationReportWriter | null = null;
+    let finalizeResult: ReportWriteFinalizeResult | undefined;
     let processingError: Error | undefined = undefined;
     try {
       signal?.throwIfAborted();
@@ -208,24 +232,49 @@ export class RunReportService {
       // config, this produces either a pre-built blended SQL (for cross-DM
       // joins) or a column filter (for native-only projections). Readers
       // receive the result via PrepareReportDataOptions.
-      const blendingDecision = await this.blendedReportDataService.resolveBlendingDecision(report);
+      const blendingDecision = await this.blendedReportDataService.resolveBlendingDecision(
+        report,
+        accessor
+      );
       logBlendedSqlIfNeeded(blendingDecision, reportRunLogger);
+
+      reportReader = await this.reportReaderResolver.resolve(dataMart.storage.type);
+      reportWriter = await this.reportWriterResolver.resolve(dataDestination.type);
 
       let sqlOverride: string | undefined;
       let sqlOverrideParams: SqlParameter[] | undefined;
       if (blendingDecision.needsBlending) {
         sqlOverride = blendingDecision.blendedSql;
         sqlOverrideParams = blendingDecision.params;
-      } else if (
-        (report.filterConfig?.length ?? 0) > 0 ||
-        (report.sortConfig?.length ?? 0) > 0 ||
-        report.limitConfig != null
-      ) {
+      } else if (hasOutputControls(report)) {
         // Non-blended report with output controls — compose the full SQL + params here so
         // the reader doesn't need to know about output-controls semantics.
-        const composed = await this.reportSqlComposerService.compose(report);
+        const composed = await this.reportSqlComposerService.compose(report, accessor);
         sqlOverride = composed.sql;
         sqlOverrideParams = composed.params;
+      }
+
+      // Persist the exact executed SQL (output controls applied, params inlined as
+      // literals — same render as the generated-SQL preview) onto the run record so
+      // Run History can show it. Only when an override exists (output controls or
+      // blending); a plain report's executed SQL == the raw definition sqlQuery.
+      // Best-effort: this is display-only run-history metadata, so a failure to render
+      // it must never abort an otherwise-successful run.
+      if (sqlOverride && dataMartRun?.reportDefinition) {
+        try {
+          dataMartRun.reportDefinition.executionSqlQuery =
+            this.reportSqlComposerService.inlineStaticSql(
+              dataMart.storage.type,
+              sqlOverride,
+              sqlOverrideParams
+            );
+        } catch (error) {
+          this.logger.warn(
+            `Failed to record executionSqlQuery for report ${report.id}: ${
+              error instanceof Error ? error.message : String(error)
+            }`
+          );
+        }
       }
 
       const reportDataDescription = await reportReader.prepareReportData(report, {
@@ -233,8 +282,11 @@ export class RunReportService {
         sqlOverrideParams,
         columnFilter: blendingDecision.columnFilter,
         blendedDataHeaders: blendingDecision.blendedDataHeaders,
+        aggregationConfig: report.aggregationConfig ?? undefined,
+        uniqueCount: report.uniqueCountConfig ?? undefined,
       });
       this.logger.debug(`Report data prepared for ${report.id}:`, reportDataDescription);
+
       reportWriter.setExecutionContext?.({
         runId: report.id,
         logger: reportRunLogger!,
@@ -254,11 +306,17 @@ export class RunReportService {
       processingError = error;
       throw error;
     } finally {
-      await reportWriter.finalize(processingError, {
-        mainRowsTruncationInfo: executionPolicy.getRowsTruncationInfo(),
-      });
-      await reportReader.finalize();
+      if (reportWriter) {
+        finalizeResult =
+          (await reportWriter.finalize(processingError, {
+            mainRowsTruncationInfo: executionPolicy.getRowsTruncationInfo(),
+          })) ?? undefined;
+      }
+      if (reportReader) {
+        await reportReader.finalize();
+      }
     }
+    return finalizeResult;
   }
 
   /**
@@ -280,6 +338,7 @@ export class RunReportService {
    */
   private async executeReportRunWithCleanup(
     reportRun: ReportRun,
+    runByUserId: string,
     signal?: AbortSignal
   ): Promise<void> {
     const processId = this.generateProcessId(reportRun.getReportId());
@@ -287,15 +346,22 @@ export class RunReportService {
 
     try {
       this.gracefulShutdownService.registerActiveProcess(processId);
+      const accessor = await this.resolveAccessor(runByUserId, reportRun.getDataMart().projectId);
       this.availableDestinationTypesService.verifyIsAllowed(
         reportRun.getReport().dataDestination.type
       );
       await this.actualizeSchemaInDataMart(reportRun.getDataMart());
       await this.reportRunService.markAsStarted(reportRun);
       this.logger.log(`Report ${reportRun.getReportId()} execution started`);
-      await this.executeReport(reportRun.getReport(), signal, reportRunLogger);
+      const finalizeResult = await this.executeReport(
+        reportRun.getReport(),
+        accessor,
+        signal,
+        reportRunLogger,
+        reportRun.getDataMartRun()
+      );
       const { logs, errors } = reportRunLogger.asArrays();
-      await this.handleReportRunSuccess(reportRun, logs, errors);
+      await this.handleReportRunSuccess(reportRun, logs, errors, finalizeResult);
     } catch (error) {
       const { logs, errors } = reportRunLogger.asArrays();
       await this.handleReportRunError(reportRun, error as Error, logs, errors);
@@ -395,7 +461,7 @@ export class RunReportService {
    */
   private async actualizeSchemaInDataMart(dataMart: DataMart): Promise<void> {
     await this.dataMartService.actualizeSchemaInEntity(dataMart);
-    await this.dataMartService.save(dataMart);
+    await this.dataMartService.saveActualizedSchema(dataMart);
   }
 
   /**
@@ -409,13 +475,50 @@ export class RunReportService {
   private async handleReportRunSuccess(
     reportRun: ReportRun,
     logs: string[] = [],
-    errors: string[] = []
+    errors: string[] = [],
+    finalizeResult?: ReportWriteFinalizeResult
   ): Promise<void> {
     reportRun.markAsSuccess();
 
     const saved = await this.saveReportRunResultSafely(reportRun, logs, errors);
-    if (saved) {
-      this.logger.log(`Report ${reportRun.getReportId()} completed successfully`);
+    if (!saved) {
+      return;
+    }
+
+    this.logger.log(`Report ${reportRun.getReportId()} completed successfully`);
+    await this.registerReportRunConsumption(reportRun.getReport(), finalizeResult);
+  }
+
+  private async registerReportRunConsumption(
+    report: Report,
+    finalizeResult?: ReportWriteFinalizeResult
+  ): Promise<void> {
+    try {
+      if (report.dataDestination.type === DataDestinationType.GOOGLE_SHEETS) {
+        const sheetsDetails = finalizeResult?.consumption?.googleSheets;
+        if (!sheetsDetails) {
+          this.logger.warn(
+            `Skipping Google Sheets report consumption for ${report.id}: missing finalize metadata`
+          );
+          return;
+        }
+
+        await this.consumptionTrackingService.registerSheetsReportRunConsumption(
+          report,
+          sheetsDetails
+        );
+        return;
+      }
+
+      if (isEmailBasedDataDestinationType(report.dataDestination.type)) {
+        await this.consumptionTrackingService.registerEmailBasedReportRunConsumption(report);
+      }
+    } catch (error) {
+      this.logger.warn(
+        `Failed to register report consumption for ${report.id}: ${
+          error instanceof Error ? error.message : String(error)
+        }`
+      );
     }
   }
 

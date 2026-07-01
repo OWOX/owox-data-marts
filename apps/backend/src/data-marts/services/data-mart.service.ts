@@ -1,4 +1,4 @@
-import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException, Optional } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { DataMartSchemaMergerFacade } from '../data-storage-types/facades/data-mart-schema-merger.facade';
@@ -11,6 +11,7 @@ import { DataMartStatus } from '../enums/data-mart-status.enum';
 import { OwnerFilter } from '../enums/owner-filter.enum';
 import { RoleScope } from '../enums/role-scope.enum';
 import { buildContextGateSql } from '../utils/build-context-gate-sql';
+import { DataMartSearchIndexInvalidationService } from './data-mart-search-index-invalidation.service';
 
 @Injectable()
 export class DataMartService {
@@ -20,7 +21,9 @@ export class DataMartService {
     @InjectRepository(DataMart)
     private readonly dataMartRepository: Repository<DataMart>,
     private readonly dataMartSchemaProviderFacade: DataMartSchemaProviderFacade,
-    private readonly dataMartSchemaMergerFacade: DataMartSchemaMergerFacade
+    private readonly dataMartSchemaMergerFacade: DataMartSchemaMergerFacade,
+    @Optional()
+    private readonly searchIndexInvalidation?: DataMartSearchIndexInvalidationService
   ) {}
 
   create(data: Partial<DataMart>): DataMart {
@@ -42,7 +45,7 @@ export class DataMartService {
     });
 
     if (!entity) {
-      throw new NotFoundException(`DataMart with id ${id} and projectId ${projectId} not found`);
+      throw new NotFoundException(`Data Mart with id ${id} and projectId ${projectId} not found`);
     }
 
     return entity;
@@ -78,6 +81,7 @@ export class DataMartService {
         'dm.id',
         'dm.title',
         'dm.status',
+        'dm.description',
         'dm.definitionType',
         'dm.createdById',
         'dm.createdAt',
@@ -147,10 +151,10 @@ export class DataMartService {
 
     qb.orderBy('dm.createdAt', 'DESC')
       .addOrderBy('dm.id', 'ASC')
-      .limit(options?.limit)
-      .offset(options?.offset);
+      .take(options?.limit)
+      .skip(options?.offset);
 
-    const countQb = qb.clone().limit(undefined).offset(undefined);
+    const countQb = qb.clone().take(undefined).skip(undefined);
     const [total, { raw, entities }] = await Promise.all([
       countQb.getCount(),
       qb.getRawAndEntities(),
@@ -226,8 +230,7 @@ export class DataMartService {
   async actualizeSchema(id: string, projectId: string): Promise<DataMart> {
     const dataMart = await this.getByIdAndProjectId(id, projectId);
     await this.actualizeSchemaInEntity(dataMart);
-    await this.dataMartRepository.save(dataMart);
-    return dataMart;
+    return this.saveActualizedSchema(dataMart);
   }
 
   async actualizeSchemaIfExpired(
@@ -241,8 +244,18 @@ export class DataMartService {
     }
 
     await this.actualizeSchemaInEntity(dataMart);
-    await this.dataMartRepository.save(dataMart);
-    return dataMart;
+    return this.saveActualizedSchema(dataMart);
+  }
+
+  async actualizeSchemaInEntityIfExpired(
+    dataMart: DataMart,
+    expiresAfterMs: number
+  ): Promise<DataMart> {
+    if (!this.isSchemaExpired(dataMart, expiresAfterMs)) {
+      return dataMart;
+    }
+    await this.actualizeSchemaInEntity(dataMart);
+    return this.saveActualizedSchema(dataMart);
   }
 
   async actualizeSchemaInEntity(dataMart: DataMart): Promise<DataMart> {
@@ -270,5 +283,25 @@ export class DataMartService {
 
   async save(dataMart: DataMart): Promise<DataMart> {
     return this.dataMartRepository.save(dataMart);
+  }
+
+  async saveActualizedSchema(dataMart: DataMart): Promise<DataMart> {
+    const saved = await this.dataMartRepository.save(dataMart);
+    await this.scheduleSchemaSearchInvalidation(saved);
+    return saved;
+  }
+
+  private async scheduleSchemaSearchInvalidation(dataMart: DataMart): Promise<void> {
+    try {
+      await this.searchIndexInvalidation?.scheduleDataMartSchemaChanged(
+        dataMart.id,
+        dataMart.projectId
+      );
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      this.logger.warn(
+        `Failed to schedule search index invalidation for data mart ${dataMart.id}: ${message}`
+      );
+    }
   }
 }

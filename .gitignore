@@ -8,6 +8,7 @@ dist/
 /out
 /owox-bundle.js
 /owox-test-bundle.js
+*.tsbuildinfo
 
 # Logs
 logs
@@ -26,6 +27,7 @@ yarn-error.log*
 .vscode/
 .cursor/
 .claude/
+.codex/
 .superpowers/
 docs/superpowers/
 .cursorignore

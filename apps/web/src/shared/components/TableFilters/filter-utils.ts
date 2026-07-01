@@ -1,6 +1,16 @@
-import type { FiltersState } from './types';
+import type { FilterOperator, FiltersState } from './types';
 
 export type FilterAccessors<K extends string, T> = Record<K, (row: T) => unknown>;
+
+export function getDefaultFilterOperator(
+  operators: readonly FilterOperator[]
+): FilterOperator | undefined {
+  if (operators.includes('contains') && operators.includes('eq')) {
+    return 'eq';
+  }
+
+  return operators[0];
+}
 
 /**
  * A filter row is valid when all three fields are filled and at least one value

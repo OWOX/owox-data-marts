@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { NavLink, Outlet } from 'react-router-dom';
 import { cn } from '@owox/ui/lib/utils';
 import { Alert, AlertDescription, AlertTitle } from '@owox/ui/components/alert';
@@ -9,9 +9,12 @@ import { checkVisible } from '../../utils/check-visible';
 import { contextService } from '../../features/contexts/services/context.service';
 import { projectMembersService } from '../../features/project-members/services/project-members.service';
 import type { ContextDto, MemberWithScopeDto } from '../../features/contexts/types/context.types';
+import type { MembershipRequestDto } from '../../features/project-members/types';
 import { InviteMemberSheet } from '../../features/project-settings/members/components/InviteMemberSheet/InviteMemberSheet';
 import { AddContextSheet } from '../../features/contexts/components/AddContextSheet/AddContextSheet';
 import { MembersSettingsProvider } from '../../features/project-settings/members/model/MembersSettingsProvider';
+import { MembershipRequestSheet } from '../../features/project-settings/members/components/MembershipRequestSheet/MembershipRequestSheet';
+import { useTombstonedCollection } from '../../features/project-settings/members/model/useTombstonedCollection';
 
 interface TabLink {
   name: string;
@@ -40,30 +43,35 @@ export function ProjectSettingsPage() {
   const [error, setError] = useState<string | null>(null);
   const [inviteOpen, setInviteOpen] = useState(false);
   const [addContextOpen, setAddContextOpen] = useState(false);
+  const [pendingRequests, setPendingRequests] = useState<MembershipRequestDto[]>([]);
+  const [loadingRequests, setLoadingRequests] = useState(false);
+  const [requestSheetTarget, setRequestSheetTarget] = useState<MembershipRequestDto | null>(null);
 
-  // Legacy upstream is eventually consistent — getMembers() can echo a member
-  // we just deleted for several seconds. We tombstone removed userIds locally
-  // so refresh() does not bring them back, and self-evict each tombstone the
-  // moment upstream stops returning it.
-  const removedTombstones = useRef(new Set<string>());
+  const memberIdOf = useCallback((m: MemberWithScopeDto) => m.userId, []);
+  const requestIdOf = useCallback((r: MembershipRequestDto) => r.requestId, []);
+  const memberTombstones = useTombstonedCollection<MemberWithScopeDto>(memberIdOf);
+  const requestTombstones = useTombstonedCollection<MembershipRequestDto>(requestIdOf);
 
   const loadData = useCallback(async () => {
     setLoading(true);
+    setLoadingRequests(isAdmin);
     setError(null);
+
+    const requestsPromise = isAdmin
+      ? projectMembersService.getMembershipRequests().catch((err: unknown) => {
+          console.warn('Failed to load membership requests', err);
+          return [] as MembershipRequestDto[];
+        })
+      : Promise.resolve<MembershipRequestDto[]>([]);
     try {
-      const [ctxs, mems] = await Promise.all([
+      const [ctxs, mems, reqs] = await Promise.all([
         contextService.getContexts(),
         projectMembersService.getMembers(),
+        requestsPromise,
       ]);
       setContexts(ctxs);
-      const tombstones = removedTombstones.current;
-      if (tombstones.size > 0) {
-        const upstreamIds = new Set(mems.map(m => m.userId));
-        for (const id of [...tombstones]) {
-          if (!upstreamIds.has(id)) tombstones.delete(id);
-        }
-      }
-      setMembers(tombstones.size > 0 ? mems.filter(m => !tombstones.has(m.userId)) : mems);
+      setMembers(memberTombstones.reconcile(mems));
+      setPendingRequests(requestTombstones.reconcile(reqs));
     } catch (err) {
       // Without a catch the page renders empty arrays + loading=false, which
       // is indistinguishable from "this project really has no members /
@@ -71,8 +79,9 @@ export function ProjectSettingsPage() {
       setError(err instanceof Error ? err.message : 'Failed to load project data');
     } finally {
       setLoading(false);
+      setLoadingRequests(false);
     }
-  }, []);
+  }, [isAdmin, memberTombstones, requestTombstones]);
 
   useEffect(() => {
     void loadData();
@@ -84,9 +93,24 @@ export function ProjectSettingsPage() {
   const openAddContextSheet = useCallback(() => {
     setAddContextOpen(true);
   }, []);
-  const optimisticRemoveMember = useCallback((userId: string) => {
-    removedTombstones.current.add(userId);
-    setMembers(prev => prev.filter(m => m.userId !== userId));
+  const optimisticRemoveMember = useCallback(
+    (userId: string) => {
+      memberTombstones.tombstone(userId);
+      setMembers(prev => prev.filter(m => m.userId !== userId));
+    },
+    [memberTombstones]
+  );
+
+  const optimisticRemoveRequest = useCallback(
+    (requestId: string) => {
+      requestTombstones.tombstone(requestId);
+      setPendingRequests(prev => prev.filter(r => r.requestId !== requestId));
+    },
+    [requestTombstones]
+  );
+
+  const openMembershipRequestSheet = useCallback((request: MembershipRequestDto) => {
+    setRequestSheetTarget(request);
   }, []);
 
   const navigation: TabLink[] = [
@@ -109,22 +133,32 @@ export function ProjectSettingsPage() {
     () => ({
       contexts,
       members,
+      pendingRequests,
       loading,
+      loadingRequests,
+      hasLoadError: error !== null,
       refresh: loadData,
       optimisticRemoveMember,
+      optimisticRemoveRequest,
       isAdmin,
       openInviteSheet,
       openAddContextSheet,
+      openMembershipRequestSheet,
     }),
     [
       contexts,
       members,
+      pendingRequests,
       loading,
+      loadingRequests,
+      error,
       loadData,
       optimisticRemoveMember,
+      optimisticRemoveRequest,
       isAdmin,
       openInviteSheet,
       openAddContextSheet,
+      openMembershipRequestSheet,
     ]
   );
 
@@ -192,6 +226,19 @@ export function ProjectSettingsPage() {
           onCreated={() => {
             setAddContextOpen(false);
             void loadData();
+          }}
+        />
+
+        <MembershipRequestSheet
+          isOpen={requestSheetTarget !== null}
+          request={requestSheetTarget}
+          contexts={contexts}
+          onClose={() => {
+            setRequestSheetTarget(null);
+          }}
+          onResolved={resolved => {
+            setRequestSheetTarget(null);
+            if (resolved) void loadData();
           }}
         />
       </div>

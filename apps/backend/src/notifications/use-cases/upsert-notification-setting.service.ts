@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { IdpProjectionsService } from '../../idp/services/idp-projections.service';
+import { TenantGuardService } from '../../idp/services/tenant-guard.service';
 import { ProjectNotificationSettingsService } from '../services/project-notification-settings.service';
 import { NotificationSettingsMapper } from '../mappers/notification-settings.mapper';
 import { UpsertNotificationSettingCommand } from '../dto/domain/upsert-notification-setting.command';
@@ -10,12 +11,14 @@ export class UpsertNotificationSettingService {
   constructor(
     private readonly settingsService: ProjectNotificationSettingsService,
     private readonly idpProjectionsService: IdpProjectionsService,
-    private readonly mapper: NotificationSettingsMapper
+    private readonly mapper: NotificationSettingsMapper,
+    private readonly tenantGuard: TenantGuardService
   ) {}
 
   async run(
     command: UpsertNotificationSettingCommand
   ): Promise<NotificationSettingsItemResponseApiDto> {
+    this.tenantGuard.assertProject(command.projectId);
     const settings = await this.settingsService.upsert(
       command.projectId,
       command.notificationType,

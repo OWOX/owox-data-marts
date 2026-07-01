@@ -1,4 +1,7 @@
-import type { DataMartRunReportDestinationConfigDto } from '../../../shared/types/api/shared';
+import type {
+  DataMartRunReportDestinationConfigDto,
+  DataMartRunReportOutputConfigDto,
+} from '../../../shared/types/api/shared';
 
 export interface DataMartRunReportDefinition {
   title: string;
@@ -8,4 +11,6 @@ export interface DataMartRunReportDefinition {
     type: string;
   };
   destinationConfig: DataMartRunReportDestinationConfigDto;
+  outputConfig?: DataMartRunReportOutputConfigDto | null;
+  executionSqlQuery?: string;
 }

@@ -6,6 +6,9 @@ import { DataDestinationConfig } from '../../data-destination-types/data-destina
 import { ReportColumnConfig } from '../schemas/report-column-config.schema';
 import { FilterConfig } from '../schemas/filter-config.schema';
 import { SortConfig } from '../schemas/sort-config.schema';
+import { AggregationConfig } from '../schemas/aggregation-config.schema';
+import { DateTruncConfig } from '../schemas/date-trunc-config.schema';
+import { UniqueCountConfig } from '../schemas/unique-count-config.schema';
 import { UserProjectionDto } from '../../../idp/dto/domain/user-projection.dto';
 
 export class ReportResponseApiDto {
@@ -21,20 +24,67 @@ export class ReportResponseApiDto {
   @ApiProperty()
   dataDestinationAccess: DataDestinationResponseApiDto;
 
-  @ApiProperty()
+  @ApiProperty({
+    type: 'object',
+    additionalProperties: true,
+    description: 'Configuration for the data destination',
+  })
   destinationConfig: DataDestinationConfig;
 
   @ApiProperty({ nullable: true, required: false, type: [String] })
   columnConfig?: ReportColumnConfig;
 
-  @ApiProperty({ nullable: true, required: false, description: 'Filter rules' })
+  @ApiProperty({
+    nullable: true,
+    required: false,
+    description: 'Filter rules',
+    type: 'array',
+    items: { type: 'object' },
+  })
   filterConfig?: FilterConfig | null;
 
-  @ApiProperty({ nullable: true, required: false, description: 'Sort rules' })
+  @ApiProperty({
+    nullable: true,
+    required: false,
+    description: 'Sort rules',
+    type: 'array',
+    items: { type: 'object' },
+  })
   sortConfig?: SortConfig | null;
 
-  @ApiProperty({ nullable: true, required: false, description: 'Row limit', type: Number })
+  @ApiProperty({
+    nullable: true,
+    required: false,
+    description: 'Row limit',
+    type: 'integer',
+  })
   limitConfig?: number | null;
+
+  @ApiProperty({
+    nullable: true,
+    required: false,
+    description: 'Aggregation rules',
+    type: 'array',
+    items: { type: 'object' },
+  })
+  aggregationConfig?: AggregationConfig | null;
+
+  @ApiProperty({
+    nullable: true,
+    required: false,
+    description: 'Date-trunc rules',
+    type: 'array',
+    items: { type: 'object' },
+  })
+  dateTruncConfig?: DateTruncConfig | null;
+
+  @ApiProperty({
+    nullable: true,
+    required: false,
+    description: 'Unique Count config',
+    type: Boolean,
+  })
+  uniqueCountConfig?: UniqueCountConfig;
 
   @ApiProperty({ nullable: true })
   lastRunAt?: Date;

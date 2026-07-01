@@ -8,7 +8,7 @@ Each project member has one of three roles.
 |---|---|
 | **Project Admin** | Full access across all entities |
 | **Technical User** | Build and maintain data resources; can edit any Report they have access to |
-| **Business User** | Self-service reporting on Data Marts available to them; manage own Reports and Destinations |
+| **Business User** | Self-service reporting on Data Marts shared with them; manage own Reports and Destinations |
 
 ## Project Admin
 
@@ -21,7 +21,7 @@ Assigned to members who manage the project team and need full access to all reso
 **Data access:**
 
 - Create, edit, and delete any Data Mart, Storage, Destination, Report, and Trigger
-- Full owner and availability management
+- Full owner and sharing management
 
 **Notifications:**
 
@@ -37,7 +37,7 @@ Assigned to members who build and maintain the data infrastructure — creating 
 
 - Create and manage Data Marts, Storages, and Destinations
 - Create Reports using Data Marts and Destinations they have access to
-- What they can do with a specific resource depends on their ownership status and the resource's availability settings (see [Ownership and Availability](ownership-and-availability.md))
+- What they can do with a specific resource depends on their ownership status and the resource's sharing settings (see [Ownership and Sharing](ownership-and-sharing.md))
 - Manage scheduled triggers for Data Marts they have maintenance access to
 - Edit, delete, run, and manage owners of Reports they have access to — either through maintenance access to the parent Data Mart, or as the Report owner
 
@@ -53,8 +53,8 @@ Assigned to members who create and run reports on data prepared by Technical Use
 
 **Data access:**
 
-- View Data Marts and their scheduled triggers made available to them
-- Create Reports on Data Marts available for reporting, using Destinations they have access to
+- View Data Marts and their scheduled triggers shared with them
+- Create Reports on Data Marts shared for reporting, using Destinations they have access to
 - Edit, delete, and run Reports they own
 - Create and manage Destinations they own or have maintenance access to
 - Cannot create, edit, or delete Data Marts, Storages, or Data Mart scheduled triggers

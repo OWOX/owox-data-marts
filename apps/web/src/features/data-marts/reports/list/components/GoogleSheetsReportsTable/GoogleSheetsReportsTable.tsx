@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import { getGoogleSheetsColumns } from './columns';
 import type { Row } from '@tanstack/react-table';
 import type { DataMartReport } from '../../../shared/model/types/data-mart-report';
@@ -9,6 +9,8 @@ import { useBaseTable } from '../../../../../../shared/hooks';
 import { BaseTable } from '../../../../../../shared/components/Table';
 import { AddReportButton } from '../DestinationCard/AddReportButton';
 import type { DataMartStatusInfo } from '../../../../shared/types/data-mart-status.model';
+import { useRefreshSetupProgress } from '../../../../../../components/AppSidebar/SetupChecklist/useSetupProgress';
+import { ReportStatusEnum } from '../../../shared/enums';
 
 interface GoogleSheetsReportsTableProps {
   destination: DataDestination;
@@ -48,6 +50,21 @@ export function GoogleSheetsReportsTable({
       regularPollingIntervalMs: 5000, // 5 seconds
     });
   }, [setPollingConfig]);
+
+  // Refresh setup progress when a successful report is found
+  const refreshSetupProgress = useRefreshSetupProgress();
+  const hasRefreshedRef = useRef(false);
+  useEffect(() => {
+    if (hasRefreshedRef.current) return;
+    const hasSuccessfulReport = googleSheetsReports.some(
+      report => report.lastRunStatus === ReportStatusEnum.SUCCESS
+    );
+
+    if (hasSuccessfulReport) {
+      hasRefreshedRef.current = true;
+      refreshSetupProgress();
+    }
+  }, [googleSheetsReports, refreshSetupProgress]);
 
   // Define table columns
   const columns = useMemo(

@@ -79,9 +79,9 @@ export default function DataMartOverviewContent() {
           availableForReporting: reporting,
           availableForMaintenance: maintenance,
         });
-        toast.success('Availability updated');
+        toast.success('Sharing updated');
       } catch (error) {
-        toast.error(error instanceof Error ? error.message : 'Failed to update availability');
+        toast.error(error instanceof Error ? error.message : 'Failed to update sharing');
       } finally {
         void getDataMart(dataMart.id);
       }
@@ -183,9 +183,8 @@ export default function DataMartOverviewContent() {
                     <p>Technical Owner is direct maintenance ownership of this Data Mart.</p>
                     <p>
                       When the owner&apos;s role is Technical User or Project Admin, they may edit
-                      and delete the Data Mart, configure its Availability, and maintain its
-                      Triggers, Reports and nested Report Triggers — regardless of Availability
-                      settings.
+                      and delete the Data Mart, configure its Sharing, and maintain its Triggers,
+                      Reports and nested Report Triggers — regardless of Sharing settings.
                     </p>
                     <p>
                       Assigning Technical Owner to a Business User stores the assignment but grants
@@ -236,7 +235,7 @@ export default function DataMartOverviewContent() {
                     <p>
                       Business Owners may see the Data Mart in the catalog, open it, use it for
                       reporting, and see its Triggers, Reports and nested Report Triggers —
-                      regardless of Availability settings.
+                      regardless of Sharing settings.
                     </p>
                     <p>
                       This role does not grant editing, deleting, Sharing management, Trigger
@@ -257,7 +256,7 @@ export default function DataMartOverviewContent() {
             icon={availableForReporting || availableForMaintenance ? Globe : Lock}
             tooltip='Control who can see and work with this Data Mart'
           >
-            Availability
+            Sharing
           </CollapsibleCardHeaderTitle>
         </CollapsibleCardHeader>
         <CollapsibleCardContent>
@@ -276,7 +275,7 @@ export default function DataMartOverviewContent() {
                   htmlFor='available-for-maintenance'
                   className='text-foreground cursor-pointer text-sm font-medium select-none'
                 >
-                  Available for maintenance
+                  Shared for maintenance
                 </label>
               </div>
               <p className='text-muted-foreground text-xs'>
@@ -285,7 +284,7 @@ export default function DataMartOverviewContent() {
               <Accordion variant='common' type='single' collapsible>
                 <AccordionItem value='maintenance-help'>
                   <AccordionTrigger>
-                    What does &quot;Available for maintenance&quot; mean?
+                    What does &quot;Shared for maintenance&quot; mean?
                   </AccordionTrigger>
                   <AccordionContent>
                     <p>
@@ -311,7 +310,7 @@ export default function DataMartOverviewContent() {
                   htmlFor='available-for-reporting'
                   className='text-foreground cursor-pointer text-sm font-medium select-none'
                 >
-                  Available for reporting
+                  Shared for reporting
                 </label>
               </div>
               <p className='text-muted-foreground text-xs'>
@@ -320,7 +319,7 @@ export default function DataMartOverviewContent() {
               <Accordion variant='common' type='single' collapsible>
                 <AccordionItem value='reporting-help'>
                   <AccordionTrigger>
-                    What does &quot;Available for reporting&quot; mean?
+                    What does &quot;Shared for reporting&quot; mean?
                   </AccordionTrigger>
                   <AccordionContent>
                     <p>

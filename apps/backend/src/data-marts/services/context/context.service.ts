@@ -15,6 +15,7 @@ import { StorageContext } from '../../entities/storage-context.entity';
 import { DestinationContext } from '../../entities/destination-context.entity';
 import { MemberRoleContext } from '../../entities/member-role-context.entity';
 import { MemberRoleScope } from '../../entities/member-role-scope.entity';
+import { UserProvisioningContextSettingsContext } from '../../entities/user-provisioning-context-settings-context.entity';
 import { ContextMapper } from '../../mappers/context.mapper';
 import { UserProjectionsFetcherService } from '../user-projections-fetcher.service';
 
@@ -55,6 +56,8 @@ export class ContextService {
     private readonly memberRoleContextRepository: Repository<MemberRoleContext>,
     @InjectRepository(MemberRoleScope)
     private readonly memberRoleScopeRepository: Repository<MemberRoleScope>,
+    @InjectRepository(UserProvisioningContextSettingsContext)
+    private readonly userProvisioningContextSettingsContextRepository: Repository<UserProvisioningContextSettingsContext>,
     private readonly contextMapper: ContextMapper,
     private readonly userProjectionsFetcherService: UserProjectionsFetcherService
   ) {}
@@ -142,11 +145,18 @@ export class ContextService {
   async getImpact(contextId: string, projectId: string): Promise<ContextImpactDto> {
     const entity = await this.getByIdAndProject(contextId, projectId);
 
-    const [dataMartCount, storageCount, destinationCount, memberCount] = await Promise.all([
+    const [
+      dataMartCount,
+      storageCount,
+      destinationCount,
+      memberCount,
+      userProvisioningDefaultsCount,
+    ] = await Promise.all([
       this.dataMartContextRepository.count({ where: { contextId } }),
       this.storageContextRepository.count({ where: { contextId } }),
       this.destinationContextRepository.count({ where: { contextId } }),
       this.memberRoleContextRepository.count({ where: { contextId } }),
+      this.userProvisioningContextSettingsContextRepository.count({ where: { contextId } }),
     ]);
 
     // Find members with selected_contexts scope whose only context is the one being deleted
@@ -174,6 +184,7 @@ export class ContextService {
       storageCount,
       destinationCount,
       memberCount,
+      userProvisioningDefaultsCount,
       affectedMemberIds
     );
   }
@@ -189,21 +200,36 @@ export class ContextService {
   async delete(contextId: string, projectId: string): Promise<void> {
     const entity = await this.getByIdAndProject(contextId, projectId);
 
-    const [dataMartCount, storageCount, destinationCount, memberCount] = await Promise.all([
+    const [
+      dataMartCount,
+      storageCount,
+      destinationCount,
+      memberCount,
+      userProvisioningDefaultsCount,
+    ] = await Promise.all([
       this.dataMartContextRepository.count({ where: { contextId } }),
       this.storageContextRepository.count({ where: { contextId } }),
       this.destinationContextRepository.count({ where: { contextId } }),
       this.memberRoleContextRepository.count({ where: { contextId } }),
+      this.userProvisioningContextSettingsContextRepository.count({ where: { contextId } }),
     ]);
 
-    if (dataMartCount + storageCount + destinationCount + memberCount > 0) {
+    if (
+      dataMartCount +
+        storageCount +
+        destinationCount +
+        memberCount +
+        userProvisioningDefaultsCount >
+      0
+    ) {
       throw new ConflictException({
         message:
-          'Context is attached to resources or members. Detach it from all Data Marts, Storages, Destinations and Members before deleting.',
+          'Context is attached to resources, members, or user provisioning defaults. Detach it from all Data Marts, Storages, Destinations, Members and User Provisioning settings before deleting.',
         dataMartCount,
         storageCount,
         destinationCount,
         memberCount,
+        userProvisioningDefaultsCount,
       });
     }
 

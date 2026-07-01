@@ -1,6 +1,14 @@
 import { ApiService } from '../../../services/api-service';
 import type { MemberWithScopeDto } from '../../contexts/types/context.types';
-import type { Role, RoleScope } from '../types';
+import type {
+  ApproveMembershipRequestPayload,
+  ApproveMembershipRequestResult,
+  MembershipRequestDto,
+  Role,
+  RoleScope,
+  UpdateUserProvisioningSettingsPayload,
+  UserProvisioningSettingsResponse,
+} from '../types';
 
 /**
  * Discriminated union mirroring `InviteMemberResponseApiDto` from backend.
@@ -70,6 +78,31 @@ class ProjectMembersApiService extends ApiService {
 
   async removeMember(userId: string): Promise<void> {
     return this.delete(`/${userId}`);
+  }
+
+  async getMembershipRequests(): Promise<MembershipRequestDto[]> {
+    return this.get<MembershipRequestDto[]>('/requests');
+  }
+
+  async approveMembershipRequest(
+    requestId: string,
+    payload: ApproveMembershipRequestPayload
+  ): Promise<ApproveMembershipRequestResult> {
+    return this.post(`/requests/${requestId}/approve`, payload);
+  }
+
+  async declineMembershipRequest(requestId: string): Promise<void> {
+    return this.post(`/requests/${requestId}/decline`, {});
+  }
+
+  async getUserProvisioningSettings(): Promise<UserProvisioningSettingsResponse> {
+    return this.get<UserProvisioningSettingsResponse>('/user-provisioning-settings');
+  }
+
+  async updateUserProvisioningSettings(
+    payload: UpdateUserProvisioningSettingsPayload
+  ): Promise<UserProvisioningSettingsResponse> {
+    return this.put<UserProvisioningSettingsResponse>('/user-provisioning-settings', payload);
   }
 }
 

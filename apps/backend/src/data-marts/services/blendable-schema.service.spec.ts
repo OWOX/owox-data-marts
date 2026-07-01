@@ -1,11 +1,20 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { BlendableSchemaService } from './blendable-schema.service';
+import {
+  BlendableSchemaAccessor,
+  BlendableSchemaService,
+  resolveBlendableSchemaAccessor,
+} from './blendable-schema.service';
 import { DataMartRelationshipService } from './data-mart-relationship.service';
 import { DataMartService } from './data-mart.service';
+import { AccessDecisionService } from './access-decision';
 import { DataMart } from '../entities/data-mart.entity';
 import { DataMartRelationship } from '../entities/data-mart-relationship.entity';
 import { BlendedFieldsConfig } from '../dto/schemas/blended-fields-config.schema';
 import { DataMartStatus } from '../enums/data-mart-status.enum';
+import { BusinessViolationException } from '../../common/exceptions/business-violation.exception';
+import { IdpProjectionsFacade } from '../../idp/facades/idp-projections.facade';
+
+const defaultAccessor: BlendableSchemaAccessor = { userId: 'user-1', roles: ['admin'] };
 
 function makeDataMart(overrides: Partial<DataMart> = {}): DataMart {
   return {
@@ -69,6 +78,14 @@ describe('BlendableSchemaService', () => {
             getByIdAndProjectId: jest.fn(),
           },
         },
+        {
+          provide: AccessDecisionService,
+          useValue: {
+            canAccessMany: jest.fn(async (_uid, _roles, _type, ids: string[]) => {
+              return new Map(ids.map(id => [id, true]));
+            }),
+          },
+        },
       ],
     }).compile();
 
@@ -88,7 +105,7 @@ describe('BlendableSchemaService', () => {
       );
       relationshipService.findByStorageId.mockResolvedValue([]);
 
-      const result = await service.computeBlendableSchema('dm-1', 'project-1');
+      const result = await service.computeBlendableSchema('dm-1', 'project-1', defaultAccessor);
 
       expect(result.nativeFields).toEqual(nativeSchemaFields);
       expect(result.blendedFields).toEqual([]);
@@ -98,7 +115,7 @@ describe('BlendableSchemaService', () => {
       dataMartService.getByIdAndProjectId.mockResolvedValue(makeDataMart({ schema: undefined }));
       relationshipService.findByStorageId.mockResolvedValue([]);
 
-      const result = await service.computeBlendableSchema('dm-1', 'project-1');
+      const result = await service.computeBlendableSchema('dm-1', 'project-1', defaultAccessor);
 
       expect(result.nativeFields).toEqual([]);
       expect(result.blendedFields).toEqual([]);
@@ -123,7 +140,7 @@ describe('BlendableSchemaService', () => {
 
       relationshipService.findByStorageId.mockResolvedValue([unconfigured]);
 
-      const result = await service.computeBlendableSchema('dm-a', 'project-1');
+      const result = await service.computeBlendableSchema('dm-a', 'project-1', defaultAccessor);
 
       expect(result.availableSources).toEqual([]);
       expect(result.blendedFields).toEqual([]);
@@ -154,7 +171,7 @@ describe('BlendableSchemaService', () => {
 
       relationshipService.findByStorageId.mockResolvedValue([relAtoB, relBtoC]);
 
-      const result = await service.computeBlendableSchema('dm-a', 'project-1');
+      const result = await service.computeBlendableSchema('dm-a', 'project-1', defaultAccessor);
 
       expect(result.availableSources).toEqual([]);
       expect(result.blendedFields).toEqual([]);
@@ -180,7 +197,7 @@ describe('BlendableSchemaService', () => {
       });
       relationshipService.findByStorageId.mockResolvedValue([relationship]);
 
-      const result = await service.computeBlendableSchema('dm-root', 'project-1');
+      const result = await service.computeBlendableSchema('dm-root', 'project-1', defaultAccessor);
 
       expect(result.nativeFields).toHaveLength(1);
       expect(result.blendedFields).toHaveLength(1);
@@ -207,7 +224,7 @@ describe('BlendableSchemaService', () => {
 
       relationshipService.findByStorageId.mockResolvedValue([relationship]);
 
-      const result = await service.computeBlendableSchema('dm-1', 'project-1');
+      const result = await service.computeBlendableSchema('dm-1', 'project-1', defaultAccessor);
 
       expect(result.blendedFields).toHaveLength(2);
 
@@ -265,7 +282,7 @@ describe('BlendableSchemaService', () => {
 
       relationshipService.findByStorageId.mockResolvedValue([relationship]);
 
-      const result = await service.computeBlendableSchema('dm-1', 'project-1');
+      const result = await service.computeBlendableSchema('dm-1', 'project-1', defaultAccessor);
       const field = result.blendedFields.find(f => f.originalFieldName === 'val')!;
       expect(field.aggregateFunction).toBe('SUM');
     });
@@ -296,7 +313,7 @@ describe('BlendableSchemaService', () => {
 
       relationshipService.findByStorageId.mockResolvedValue([relationship]);
 
-      const result = await service.computeBlendableSchema('dm-1', 'project-1');
+      const result = await service.computeBlendableSchema('dm-1', 'project-1', defaultAccessor);
       const field = result.blendedFields.find(f => f.originalFieldName === 'val')!;
       expect(field.aggregateFunction).toBe('MAX');
     });
@@ -320,7 +337,7 @@ describe('BlendableSchemaService', () => {
 
         relationshipService.findByStorageId.mockResolvedValue([relationship]);
 
-        const result = await service.computeBlendableSchema('dm-1', 'project-1');
+        const result = await service.computeBlendableSchema('dm-1', 'project-1', defaultAccessor);
         const field = result.blendedFields.find(f => f.originalFieldName === 'val')!;
         expect(field.aggregateFunction).toBe('STRING_AGG');
       }
@@ -360,7 +377,7 @@ describe('BlendableSchemaService', () => {
 
       relationshipService.findByStorageId.mockResolvedValue([relationship]);
 
-      const result = await service.computeBlendableSchema('dm-1', 'project-1');
+      const result = await service.computeBlendableSchema('dm-1', 'project-1', defaultAccessor);
 
       expect(result.blendedFields).toHaveLength(3);
 
@@ -412,7 +429,7 @@ describe('BlendableSchemaService', () => {
 
       relationshipService.findByStorageId.mockResolvedValue([relationship]);
 
-      const result = await service.computeBlendableSchema('dm-1', 'project-1');
+      const result = await service.computeBlendableSchema('dm-1', 'project-1', defaultAccessor);
 
       const revenueField = result.blendedFields.find(f => f.originalFieldName === 'revenue')!;
       expect(revenueField.alias).toBe('Total Revenue');
@@ -425,6 +442,58 @@ describe('BlendableSchemaService', () => {
         f => f.originalFieldName === 'no_override'
       )!;
       expect(noOverrideField.alias).toBe('');
+    });
+
+    it('resolves postJoinAggregations across all three override states', async () => {
+      const config: BlendedFieldsConfig = {
+        sources: [
+          {
+            path: 'orders',
+            alias: 'ord',
+            fields: {
+              // explicit subset override
+              revenue: { aggregateFunction: 'SUM', postJoinAggregations: ['MIN', 'MAX'] },
+              // explicit empty array = analyst cleared all (none allowed), distinct from unset
+              notes: { postJoinAggregations: [] },
+            },
+          },
+        ],
+      };
+
+      dataMartService.getByIdAndProjectId.mockResolvedValue(
+        makeDataMart({ id: 'dm-1', blendedFieldsConfig: config })
+      );
+
+      const relationship = makeRelationship({
+        id: 'rel-1',
+        targetAlias: 'orders',
+        targetDataMart: makeDataMart({
+          id: 'dm-2',
+          title: 'Orders',
+          schema: makeSchema([
+            { name: 'revenue', type: 'FLOAT' },
+            { name: 'status', type: 'STRING' },
+            { name: 'notes', type: 'STRING' },
+          ]),
+        }),
+      });
+
+      relationshipService.findByStorageId.mockResolvedValue([relationship]);
+
+      const result = await service.computeBlendableSchema('dm-1', 'project-1', defaultAccessor);
+
+      // explicit subset → kept verbatim
+      const revenueField = result.blendedFields.find(f => f.originalFieldName === 'revenue')!;
+      expect(revenueField.postJoinAggregations).toEqual(['MIN', 'MAX']);
+
+      // no override → type-derived governance default (STRING) = [COUNT, COUNT_DISTINCT]
+      // (STRING_AGG is supported but off by default per the 2026-06-29 meeting).
+      const statusField = result.blendedFields.find(f => f.originalFieldName === 'status')!;
+      expect(statusField.postJoinAggregations).toEqual(['COUNT', 'COUNT_DISTINCT']);
+
+      // explicit empty array → none allowed (NOT the default)
+      const notesField = result.blendedFields.find(f => f.originalFieldName === 'notes')!;
+      expect(notesField.postJoinAggregations).toEqual([]);
     });
 
     it('throws a clear error when a relationship targets a soft-deleted data mart', async () => {
@@ -442,9 +511,9 @@ describe('BlendableSchemaService', () => {
       } as unknown as DataMartRelationship;
       relationshipService.findByStorageId.mockResolvedValue([orphanRel]);
 
-      await expect(service.computeBlendableSchema('dm-a', 'project-1')).rejects.toThrow(
-        /relationship.+rel-broken.+deleted/i
-      );
+      await expect(
+        service.computeBlendableSchema('dm-a', 'project-1', defaultAccessor)
+      ).rejects.toThrow(/relationship.+rel-broken.+deleted/i);
     });
 
     it('should resolve transitive relationships (A→B→C) with depth=2', async () => {
@@ -474,7 +543,7 @@ describe('BlendableSchemaService', () => {
 
       relationshipService.findByStorageId.mockResolvedValue([relAtoB, relBtoC]);
 
-      const result = await service.computeBlendableSchema('dm-a', 'project-1');
+      const result = await service.computeBlendableSchema('dm-a', 'project-1', defaultAccessor);
 
       expect(result.blendedFields).toHaveLength(2);
 
@@ -509,7 +578,7 @@ describe('BlendableSchemaService', () => {
 
       relationshipService.findByStorageId.mockResolvedValue([relAtoB, relBtoA]);
 
-      const result = await service.computeBlendableSchema('dm-a', 'project-1');
+      const result = await service.computeBlendableSchema('dm-a', 'project-1', defaultAccessor);
 
       const aliasPathsFound = result.availableSources.map(s => s.aliasPath);
       expect(aliasPathsFound).toContain('b_alias');
@@ -548,7 +617,7 @@ describe('BlendableSchemaService', () => {
 
       relationshipService.findByStorageId.mockResolvedValue([relAtoB, relBtoA]);
 
-      const result = await service.computeBlendableSchema('dm-a', 'project-1');
+      const result = await service.computeBlendableSchema('dm-a', 'project-1', defaultAccessor);
 
       expect(result.availableSources).toHaveLength(1);
       expect(result.availableSources[0].aliasPath).toBe('b');
@@ -586,7 +655,7 @@ describe('BlendableSchemaService', () => {
 
       relationshipService.findByStorageId.mockResolvedValue([relAtoB, relBtoC, relCtoA]);
 
-      const result = await service.computeBlendableSchema('dm-a', 'project-1');
+      const result = await service.computeBlendableSchema('dm-a', 'project-1', defaultAccessor);
 
       const aliasPathsFound = result.availableSources.map(s => s.aliasPath);
       expect(aliasPathsFound).toContain('b');
@@ -619,7 +688,7 @@ describe('BlendableSchemaService', () => {
 
       relationshipService.findByStorageId.mockResolvedValue(rels);
 
-      const result = await service.computeBlendableSchema('dm-0', 'project-1');
+      const result = await service.computeBlendableSchema('dm-0', 'project-1', defaultAccessor);
 
       expect(result.availableSources).toHaveLength(chainLength - 1);
       const lastSource = result.availableSources[chainLength - 2];
@@ -674,7 +743,7 @@ describe('BlendableSchemaService', () => {
         relRightToShared,
       ]);
 
-      const result = await service.computeBlendableSchema('dm-root', 'project-1');
+      const result = await service.computeBlendableSchema('dm-root', 'project-1', defaultAccessor);
 
       // Should have fields from both paths: left.shared and right.shared
       const leftSharedFields = result.blendedFields.filter(f => f.aliasPath === 'left.shared');
@@ -710,7 +779,7 @@ describe('BlendableSchemaService', () => {
 
       relationshipService.findByStorageId.mockResolvedValue([relationship]);
 
-      const result = await service.computeBlendableSchema('dm-1', 'project-1');
+      const result = await service.computeBlendableSchema('dm-1', 'project-1', defaultAccessor);
 
       // Should not throw — orphaned 'nonexistent_path' is silently ignored
       expect(result.blendedFields).toHaveLength(1);
@@ -735,7 +804,7 @@ describe('BlendableSchemaService', () => {
 
       relationshipService.findByStorageId.mockResolvedValue([relationship]);
 
-      const result = await service.computeBlendableSchema('dm-1', 'project-1');
+      const result = await service.computeBlendableSchema('dm-1', 'project-1', defaultAccessor);
 
       expect(result.blendedFields).toHaveLength(1);
       expect(result.blendedFields[0].originalFieldName).toBe('visible');
@@ -762,7 +831,7 @@ describe('BlendableSchemaService', () => {
 
       relationshipService.findByStorageId.mockResolvedValue([relationship]);
 
-      const result = await service.computeBlendableSchema('dm-1', 'project-1');
+      const result = await service.computeBlendableSchema('dm-1', 'project-1', defaultAccessor);
 
       expect(result.nativeDescription).toBe('Root data mart description');
       expect(result.availableSources).toHaveLength(1);
@@ -784,7 +853,7 @@ describe('BlendableSchemaService', () => {
 
       relationshipService.findByStorageId.mockResolvedValue([relationship]);
 
-      const result = await service.computeBlendableSchema('dm-1', 'project-1');
+      const result = await service.computeBlendableSchema('dm-1', 'project-1', defaultAccessor);
 
       expect(result.nativeDescription).toBeUndefined();
       expect(result.availableSources[0].description).toBeUndefined();
@@ -817,7 +886,7 @@ describe('BlendableSchemaService', () => {
 
       relationshipService.findByStorageId.mockResolvedValue([rel1, rel2]);
 
-      const result = await service.computeBlendableSchema('dm-1', 'project-1');
+      const result = await service.computeBlendableSchema('dm-1', 'project-1', defaultAccessor);
 
       // Both aliases should produce fields independently
       expect(result.blendedFields).toHaveLength(4);
@@ -826,5 +895,114 @@ describe('BlendableSchemaService', () => {
       expect(result.blendedFields[2].name).toBe('orders_v2__revenue');
       expect(result.blendedFields[3].name).toBe('orders_v2__country');
     });
+
+    describe('reporting access cascade', () => {
+      // Tree: A → B, A → D, B → C. USE access denied on dm-b only.
+      // Expected: b=false (direct deny), b.c=false (cascade), d=true (sibling unaffected).
+      let result: Awaited<ReturnType<typeof service.computeBlendableSchema>>;
+
+      beforeEach(async () => {
+        dataMartService.getByIdAndProjectId.mockResolvedValue(makeDataMart({ id: 'dm-a' }));
+
+        const relAtoB = makeRelationship({
+          id: 'rel-ab',
+          targetAlias: 'b',
+          sourceDataMart: makeDataMart({ id: 'dm-a' }),
+          targetDataMart: makeDataMart({
+            id: 'dm-b',
+            schema: makeSchema([{ name: 'b_field', type: 'STRING' }]),
+          }),
+        });
+        const relBtoC = makeRelationship({
+          id: 'rel-bc',
+          targetAlias: 'c',
+          sourceDataMart: makeDataMart({ id: 'dm-b' }),
+          targetDataMart: makeDataMart({
+            id: 'dm-c',
+            schema: makeSchema([{ name: 'c_field', type: 'STRING' }]),
+          }),
+        });
+        const relAtoD = makeRelationship({
+          id: 'rel-ad',
+          targetAlias: 'd',
+          sourceDataMart: makeDataMart({ id: 'dm-a' }),
+          targetDataMart: makeDataMart({
+            id: 'dm-d',
+            schema: makeSchema([{ name: 'd_field', type: 'STRING' }]),
+          }),
+        });
+        relationshipService.findByStorageId.mockResolvedValue([relAtoB, relBtoC, relAtoD]);
+
+        const accessDecisionService = (
+          service as unknown as {
+            accessDecisionService: jest.Mocked<{ canAccessMany: jest.Mock }>;
+          }
+        ).accessDecisionService;
+        accessDecisionService.canAccessMany.mockImplementationOnce(
+          async (_uid, _roles, _type, ids: string[]) => {
+            const denied = new Set(['dm-b']);
+            return new Map(ids.map(id => [id, !denied.has(id)]));
+          }
+        );
+
+        result = await service.computeBlendableSchema('dm-a', 'project-1', defaultAccessor);
+      });
+
+      function flag(aliasPath: string): boolean | undefined {
+        return result.availableSources.find(s => s.aliasPath === aliasPath)
+          ?.isAccessibleForReporting;
+      }
+
+      it('denies the directly-inaccessible ancestor', () => {
+        expect(flag('b')).toBe(false);
+      });
+
+      it('cascades denial onto the descendant subtree', () => {
+        expect(flag('b.c')).toBe(false);
+      });
+
+      it('leaves a sibling branch with its own access untouched', () => {
+        expect(flag('d')).toBe(true);
+      });
+    });
+  });
+});
+
+describe('resolveBlendableSchemaAccessor', () => {
+  function makeFacade(getProjectMemberOrThrowImpl: jest.Mock): IdpProjectionsFacade {
+    return {
+      getProjectMemberOrThrow: getProjectMemberOrThrowImpl,
+    } as unknown as IdpProjectionsFacade;
+  }
+
+  it('returns the resolved role when the user is still a project member', async () => {
+    const facade = makeFacade(jest.fn().mockResolvedValue({ userId: 'user-1', role: 'editor' }));
+
+    const accessor = await resolveBlendableSchemaAccessor(facade, 'project-1', 'user-1');
+
+    expect(accessor).toEqual({ userId: 'user-1', roles: ['editor'] });
+  });
+
+  it('throws BusinessViolationException when the user is no longer a project member', async () => {
+    const facade = makeFacade(jest.fn().mockResolvedValue(undefined));
+
+    await expect(
+      resolveBlendableSchemaAccessor(facade, 'project-1', 'removed-user')
+    ).rejects.toBeInstanceOf(BusinessViolationException);
+  });
+
+  it('includes userId and projectId in the exception details', async () => {
+    const facade = makeFacade(jest.fn().mockResolvedValue(undefined));
+
+    try {
+      await resolveBlendableSchemaAccessor(facade, 'project-1', 'removed-user');
+      fail('expected throw');
+    } catch (err) {
+      expect(err).toBeInstanceOf(BusinessViolationException);
+      expect((err as BusinessViolationException).errorDetails).toMatchObject({
+        userId: 'removed-user',
+        projectId: 'project-1',
+      });
+    }
   });
 });

@@ -131,5 +131,77 @@ describe('setupWebStaticAssets', () => {
         expect(response.headers[name], `unexpected ${name}`).to.be.undefined;
       }
     });
+
+    it('should not serve SPA fallback for protocol endpoints by default', async () => {
+      await Promise.all(
+        ['/mcp', '/oauth/authorize', '/.well-known/oauth-protected-resource'].map(async route => {
+          const response = await request(app).get(route);
+
+          expect(response.status, route).to.equal(404);
+          expect(response.text, route).not.to.contain('<div id="root"></div>');
+        })
+      );
+    });
+  });
+
+  // Guards the split between backend OAuth endpoints (MCP/IDP authorization
+  // server + discovery) and front-end OAuth connector callback pages. Both
+  // live under `/oauth/*`, so the exclude list must be specific enough to keep
+  // the backend endpoints routed to NestJS while letting connector callback
+  // pages fall through to the SPA. Re-broadening the excludes to `/oauth` (the
+  // regression this guards) breaks every connector sign-in; dropping a backend
+  // endpoint from the list breaks MCP OAuth.
+  describe('OAuth route exclusions (MCP/IDP backend vs connector callbacks)', () => {
+    beforeEach(() => {
+      // No backend handlers are registered here, so if the SPA fallback wrongly
+      // catches a backend route it returns index.html (200) instead of a 404.
+      const configured = setupWebStaticAssets(app);
+      expect(configured, '@owox/web must be built for these tests').to.be.true;
+    });
+
+    // Must stay routed to the NestJS backend (never served the SPA shell).
+    // Mirrors apps/backend/src/idp/oauth + ee/mcp metadata controllers.
+    const backendOnlyRoutes = [
+      '/oauth/authorize',
+      '/oauth/token',
+      '/oauth/register',
+      '/oauth/jwks',
+      '/.well-known/oauth-protected-resource',
+      '/.well-known/oauth-authorization-server',
+      '/.well-known/openid-configuration',
+      '/mcp',
+      '/mcp/.well-known/oauth-protected-resource',
+    ];
+
+    for (const route of backendOnlyRoutes) {
+      it(`must NOT serve the SPA shell for backend route ${route}`, async () => {
+        const response = await request(app).get(route);
+
+        expect(response.status, route).to.equal(404);
+        expect(response.text, route).not.to.contain('<div id="root"></div>');
+      });
+    }
+
+    // Connector OAuth callback pages are front-end routes and MUST be served
+    // the SPA shell so React Router can capture the auth code. Mirrors
+    // apps/web/src/routes/oauth.routes.tsx.
+    const connectorCallbackRoutes = [
+      '/oauth/microsoft-ads/callback',
+      '/oauth/google/callback',
+      '/oauth/google-ads/callback',
+      '/oauth/tiktok/callback',
+      '/oauth/linkedin-ads/callback',
+      '/oauth/linkedin-pages/callback',
+    ];
+
+    for (const route of connectorCallbackRoutes) {
+      it(`must serve the SPA shell for connector callback ${route}`, async () => {
+        const response = await request(app).get(route);
+
+        expect(response.status, route).to.equal(200);
+        expect(response.headers['content-type'], route).to.match(/text\/html/);
+        expect(response.text, route).to.contain('<div id="root"></div>');
+      });
+    }
   });
 });

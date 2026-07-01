@@ -1,13 +1,29 @@
 import {
   Payload,
+  Project,
   AuthResult,
   Projects,
   ProjectMember,
   ProjectMemberInvitation,
+  ProjectMembershipRequest,
+  ApproveMembershipRequestResult,
   Role,
   UserProvisioningSettings,
   UserProvisioningSettingsUpdate,
+  UserProvisioningRequestAccessContext,
+  RequestProjectAccessResult,
+  CreateNewProjectResult,
 } from './models.js';
+import {
+  McpOAuthProjectMemberContext,
+  McpScope,
+  McpTokenPayload,
+  OAuthAuthorizationCode,
+  OAuthAuthorizationRequest,
+  OAuthJwksResult,
+  OAuthTokenExchangeRequest,
+  OAuthTokenExchangeResult,
+} from './oauth.js';
 import { Express, NextFunction, Request, Response } from 'express';
 
 /**
@@ -72,6 +88,17 @@ export interface IdpProvider {
   ): Promise<Response<Projects>>;
 
   /**
+   * Return projects available to the bearer access token owner.
+   */
+  getProjects(accessToken: string): Promise<Projects>;
+
+  /**
+   * Return one project available to a user. Intended for trusted backend-to-IDP
+   * calls where the caller already has an authenticated user and project context.
+   */
+  getProjectForUser(userId: string, projectId: string): Promise<Project>;
+
+  /**
    * Register routes with the express app.
    * @param app - The express app to register the routes with.
    * @param basePath - The base path to register the routes with.
@@ -98,6 +125,61 @@ export interface IdpProvider {
    * @returns The authentication result
    */
   refreshToken(refreshToken: string): Promise<AuthResult>;
+
+  /**
+   * Issue an ODM access token after the backend has validated a project member API key.
+   *
+   * `role` is nullable in the first iteration. Null means the IDP should issue
+   * the token with the member's current project role.
+   */
+  issueAccessTokenForProjectMemberApiKey(
+    apiKeyId: string,
+    userId: string,
+    projectId: string,
+    role: Role | null,
+    readOnly: boolean
+  ): Promise<AuthResult>;
+
+  /**
+   * Create an MCP OAuth authorization code for an already authenticated
+   * project-member context.
+   *
+   * Implementations that do not support hosted MCP OAuth should throw
+   * `IdpOperationNotSupportedError`.
+   */
+  createMcpOAuthAuthorizationCode(
+    request: OAuthAuthorizationRequest,
+    projectMember: McpOAuthProjectMemberContext
+  ): Promise<OAuthAuthorizationCode>;
+
+  /**
+   * Exchange an MCP OAuth authorization code or refresh token for an MCP
+   * access token.
+   *
+   * Implementations that do not support hosted MCP OAuth should throw
+   * `IdpOperationNotSupportedError`.
+   */
+  exchangeMcpOAuthToken(request: OAuthTokenExchangeRequest): Promise<OAuthTokenExchangeResult>;
+
+  /**
+   * Verify an MCP access token for a protected resource and required scopes.
+   *
+   * Implementations that do not support MCP token verification should return
+   * `null` so callers can treat the token as invalid for MCP.
+   */
+  verifyMcpAccessToken(
+    token: string,
+    resource: string,
+    requiredScopes: McpScope[]
+  ): Promise<McpTokenPayload | null>;
+
+  /**
+   * Return JWKS used for MCP access-token verification when tokens are JWTs.
+   *
+   * Implementations that do not expose JWKS should throw
+   * `IdpOperationNotSupportedError`.
+   */
+  getMcpOAuthJwks(): Promise<OAuthJwksResult>;
 
   /**
    * Revoke a token. In different IDP implementations, this may have different token types.
@@ -201,4 +283,78 @@ export interface IdpProvider {
     actorUserId: string,
     settings: UserProvisioningSettingsUpdate
   ): Promise<UserProvisioningSettings>;
+
+  /**
+   * List pending membership requests for a project.
+   *
+   * `actorUserId` is the BI uid of the admin performing the listing — the
+   * remote IDP needs it for audit / authorization (Java sends it as the
+   * `biUserId` query parameter on
+   * `GET /internal-api/idp/bi-project/{biProjectId}/membership-requests`).
+   *
+   * Local-only providers (null, better-auth) ignore `actorUserId` and return
+   * `[]` rather than throw — an empty list is a valid steady state.
+   */
+  listMembershipRequests(
+    projectId: string,
+    actorUserId: string,
+    options?: { forceFresh?: boolean }
+  ): Promise<ProjectMembershipRequest[]>;
+
+  /**
+   * Approve a pending membership request and add the requester to the project
+   * with the given role. Must return the resolved `userId` so the caller can
+   * apply scope/contexts locally. Implementations that do not support this
+   * should throw `IdpOperationNotSupportedError`.
+   */
+  approveMembershipRequest(
+    projectId: string,
+    requestId: string,
+    role: Role,
+    actorUserId: string
+  ): Promise<ApproveMembershipRequestResult>;
+
+  /**
+   * Decline a pending membership request. Idempotent where possible; if the
+   * request is already gone, implementations should still complete
+   * successfully. Implementations that do not support this should throw
+   * `IdpOperationNotSupportedError`.
+   */
+  declineMembershipRequest(
+    projectId: string,
+    requestId: string,
+    actorUserId: string
+  ): Promise<void>;
+
+  /**
+   * Get request-access context for the authenticated user and target project.
+   *
+   * Implementations that do not support OWOX-managed user provisioning should
+   * throw `IdpOperationNotSupportedError`.
+   */
+  getUserProvisioningRequestAccessContext(
+    userId: string,
+    projectId: string
+  ): Promise<UserProvisioningRequestAccessContext>;
+
+  /**
+   * Request access to the project for a user authenticated
+   * without project roles.
+   *
+   * Implementations that do not support OWOX-managed user provisioning should
+   * throw `IdpOperationNotSupportedError`.
+   */
+  requestProjectAccess(
+    userId: string,
+    projectId: string,
+    role: Role
+  ): Promise<RequestProjectAccessResult>;
+
+  /**
+   * Create a new project for the user from request-access flow.
+   *
+   * Implementations that do not support OWOX-managed user provisioning should
+   * throw `IdpOperationNotSupportedError`.
+   */
+  createNewProject(userId: string, integration: string): Promise<CreateNewProjectResult>;
 }

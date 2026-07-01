@@ -23,7 +23,12 @@ vi.mock('../../services/data-mart.service', () => {
   };
 });
 
+vi.mock('../../../../data-storage/shared/services/data-storage-health-status.service', () => ({
+  invalidateDataStorageHealthStatus: vi.fn(),
+}));
+
 import { dataMartService } from '../../services/data-mart.service';
+import { invalidateDataStorageHealthStatus } from '../../../../data-storage/shared/services/data-storage-health-status.service';
 import { useSchemaActualizeTrigger } from '../useSchemaActualizeTrigger';
 
 describe('useSchemaActualizeTrigger', () => {
@@ -94,6 +99,39 @@ describe('useSchemaActualizeTrigger', () => {
       expect(hook.current.isLoading).toBe(false);
       expect(hook.current.error).toBe('Network failed');
     });
+  });
+
+  it('invalidates storage health when trigger response returns OAuth refresh code', async () => {
+    (dataMartService.createSchemaActualizeTrigger as any).mockResolvedValue({ triggerId: 's6' });
+    (dataMartService.getSchemaActualizeTriggerStatus as any).mockResolvedValueOnce(
+      TaskStatus.ERROR
+    );
+    (dataMartService.getSchemaActualizeTriggerResponse as any).mockRejectedValueOnce({
+      response: {
+        data: {
+          code: 'CREDENTIALS_EXPIRED',
+          error:
+            'Google authorization could not be refreshed. Reconnect this Storage to restore access.',
+        },
+      },
+    });
+
+    const { result: hook } = renderHook(() =>
+      useSchemaActualizeTrigger('dm-6', undefined, 'storage-1')
+    );
+
+    await act(async () => {
+      await hook.current.run();
+    });
+
+    await waitFor(() => {
+      expect(hook.current.isLoading).toBe(false);
+      expect(hook.current.error).toBe(
+        'Google authorization could not be refreshed. Reconnect this Storage to restore access.'
+      );
+    });
+
+    expect(invalidateDataStorageHealthStatus).toHaveBeenCalledWith('storage-1');
   });
 
   it('cancels an ongoing run and calls abort on the service', async () => {

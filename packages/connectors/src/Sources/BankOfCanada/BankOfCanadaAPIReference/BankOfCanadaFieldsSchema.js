@@ -12,6 +12,7 @@ var BankOfCanadaFieldsSchema = {
     documentation: "https://www.bankofcanada.ca/valet/docs",
     fields: observationsFields,
     uniqueKeys: ["date", "label"],
+    defaultFields: ["date", "label", "rate"],
     destinationName: "bank_of_canada_exchange_rates",
     isTimeSeries: true
   }

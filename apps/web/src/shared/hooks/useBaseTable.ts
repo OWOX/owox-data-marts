@@ -27,6 +27,8 @@ export interface UseBaseTableConfig<TData> {
   defaultColumnVisibility?: VisibilityState;
   /** Default column ID for initial sorting */
   defaultSortingColumn?: string;
+  /** Default table page size */
+  defaultPageSize?: number;
   /** Enable row selection functionality */
   enableRowSelection?: boolean;
 }
@@ -70,6 +72,7 @@ export function useBaseTable<TData>({
   storageKeyPrefix,
   defaultColumnVisibility,
   defaultSortingColumn,
+  defaultPageSize,
   enableRowSelection = false,
 }: UseBaseTableConfig<TData>): UseBaseTableReturn<TData> {
   // Initialize table storage (sorting, visibility, pagination, sizing)
@@ -87,6 +90,7 @@ export function useBaseTable<TData>({
     storageKeyPrefix,
     defaultColumnVisibility,
     defaultSortingColumn,
+    defaultPageSize,
   });
 
   // Local state for column filters and row selection

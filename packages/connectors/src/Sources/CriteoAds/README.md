@@ -2,6 +2,19 @@
 
 The **Criteo Source** allows you to transfer raw data from Criteo advertising services. Use this data for in-depth analysis and reporting.
 
+## Available Endpoints
+
+| Endpoint | Description |
+| --- | --- |
+| `statistics` | Campaign performance metrics (clicks, displays, cost, sales, ROAS, and more) broken down by advertiser, campaign, adset, ad, day, and optional dimensions such as device, OS, and channel. |
+| `placements` | Performance metrics broken down by publisher placement and environment (Web, Android, iOS). |
+| `placement_categories` | Performance metrics broken down by content category. |
+| `transactions` | Transaction-level data with individual order details attributed to Criteo ads. |
+
+> **Note:** Breakdown by publisher **domain** is not available in the Criteo `2026-01` API.
+> For the closest equivalent, use the `placements` endpoint, which breaks performance down
+> by individual placement.
+
 ## Getting Started
 
 To begin, check out [**GETTING STARTED.md**](GETTING_STARTED.md) for step-by-step instructions.

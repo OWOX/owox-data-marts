@@ -1,4 +1,4 @@
-import { Projects, ProjectsSchema } from '@owox/idp-protocol';
+import { Project, ProjectSchema, Projects, ProjectsSchema } from '@owox/idp-protocol';
 import { ImpersonatedIdTokenFetcher } from '@owox/internal-helpers';
 import axios, { AxiosInstance } from 'axios';
 import ms from 'ms';
@@ -20,12 +20,36 @@ import {
   IntrospectionResponseSchema,
   JwksResponse,
   JwksResponseSchema,
+  McpOAuthAuthorizationCodeRequest,
+  McpOAuthAuthorizationCodeRequestSchema,
+  McpOAuthAuthorizationCodeResponse,
+  McpOAuthAuthorizationCodeResponseSchema,
+  McpOAuthTokenExchangeRequest,
+  McpOAuthTokenExchangeRequestSchema,
+  McpOAuthTokenExchangeResponse,
+  McpOAuthTokenExchangeResponseSchema,
+  McpOAuthTokenVerificationRequest,
+  McpOAuthTokenVerificationRequestSchema,
+  McpOAuthTokenVerificationResponseSchema,
+  OwoxApproveMembershipRequestResponse,
+  OwoxApproveMembershipRequestResponseSchema,
   OwoxInviteProjectMemberResponse,
   OwoxInviteProjectMemberResponseSchema,
+  OwoxListMembershipRequestsResponse,
+  OwoxListMembershipRequestsResponseSchema,
   OwoxProjectMembersResponse,
   OwoxProjectMembersResponseSchema,
+  ProjectMemberApiKeyAuthFlowRequest,
+  ProjectMemberApiKeyAuthFlowRequestSchema,
+  OwoxCreateNewProjectResponse,
+  OwoxCreateNewProjectResponseSchema,
+  OwoxRequestProjectAccessRequestSchema,
+  OwoxRequestProjectAccessResponse,
+  OwoxRequestProjectAccessResponseSchema,
   OwoxUpdateUserProvisioningSettingsRequest,
   OwoxUpdateUserProvisioningSettingsRequestSchema,
+  OwoxUserProvisioningRequestAccessContextResponse,
+  OwoxUserProvisioningRequestAccessContextResponseSchema,
   OwoxUserProvisioningSettingsResponse,
   OwoxUserProvisioningSettingsResponseSchema,
   RevocationRequest,
@@ -58,7 +82,7 @@ export class IdentityOwoxClient {
       },
     });
 
-    this.clientBackchannelPrefix = config.clientBackchannelPrefix;
+    this.clientBackchannelPrefix = config.clientBackchannelPrefix.replace(/\/+$/, '');
 
     // Initialize service account authentication if configured
     if (config.c2cServiceAccountEmail && config.c2cTargetAudience) {
@@ -84,36 +108,123 @@ export class IdentityOwoxClient {
    * POST auth-flow/extension/identity
    */
   async exchangeGoogleIdentityToken(req: GoogleIdentityExchangeRequest): Promise<TokenResponse> {
-    if (
-      !this.impersonatedIdTokenFetcher ||
-      !this.c2cServiceAccountEmail ||
-      !this.c2cTargetAudience ||
-      !this.clientBackchannelPrefix
-    ) {
-      throw new IdpFailedException(
-        'C2C authentication is not configured. Cannot exchange Google identity token.',
-        { context: { req } }
-      );
-    }
+    const authHeader = await this.getC2cAuthHeader('exchange Google identity token', { req });
 
     try {
-      const idToken = await this.impersonatedIdTokenFetcher.getIdToken(
-        this.c2cServiceAccountEmail,
-        this.c2cTargetAudience
-      );
-
       const { data } = await this.http.post<TokenResponse>(
         `${this.clientBackchannelPrefix}/idp/auth-flow/extension/identity`,
         req,
-        {
-          headers: {
-            Authorization: `Bearer ${idToken}`,
-          },
-        }
+        { headers: authHeader }
       );
       return TokenResponseSchema.parse(data);
     } catch (err) {
       this.handleAxiosError(err, { req }, 'Failed to exchange Google identity token');
+    }
+  }
+
+  /**
+   * POST /idp/auth-flow/project-member-api-key
+   */
+  async issueAccessTokenForProjectMemberApiKey(
+    req: ProjectMemberApiKeyAuthFlowRequest
+  ): Promise<TokenResponse> {
+    const parsed = ProjectMemberApiKeyAuthFlowRequestSchema.parse(req);
+    const authHeader = await this.getC2cAuthHeader('issue project member API key token', {
+      projectId: parsed.projectId,
+      userId: parsed.userId,
+      apiKeyId: parsed.apiKeyId,
+      hasRole: parsed.role !== null,
+    });
+    const body = {
+      projectId: parsed.projectId,
+      userId: parsed.userId,
+      ...(parsed.role === null ? {} : { roles: [parsed.role] }),
+      readOnly: parsed.readOnly,
+      apiKeyId: parsed.apiKeyId,
+    };
+
+    try {
+      const { data } = await this.http.post<TokenResponse>(
+        `${this.clientBackchannelPrefix}/idp/auth-flow/project-member-api-key`,
+        body,
+        { headers: authHeader }
+      );
+      return TokenResponseSchema.parse(data);
+    } catch (err) {
+      this.handleAxiosError(err, { req }, 'Failed to issue project member API key token');
+    }
+  }
+
+  /**
+   * POST /idp/oauth/authorization-code.
+   */
+  async createMcpOAuthAuthorizationCode(
+    req: McpOAuthAuthorizationCodeRequest
+  ): Promise<McpOAuthAuthorizationCodeResponse> {
+    const parsed = McpOAuthAuthorizationCodeRequestSchema.parse(req);
+    const authHeader = await this.getC2cAuthHeader('create MCP OAuth authorization code', {
+      clientId: parsed.request.clientId,
+      projectId: parsed.projectMember.projectId,
+      userId: parsed.projectMember.userId,
+    });
+
+    try {
+      const { data } = await this.http.post<unknown>(
+        `${this.clientBackchannelPrefix}/idp/oauth/authorization-code`,
+        parsed,
+        { headers: authHeader }
+      );
+      return McpOAuthAuthorizationCodeResponseSchema.parse(data);
+    } catch (err) {
+      this.handleAxiosError(err, { req }, 'Failed to create MCP OAuth authorization code');
+    }
+  }
+
+  /**
+   * POST /idp/oauth/token.
+   */
+  async exchangeMcpOAuthToken(
+    req: McpOAuthTokenExchangeRequest
+  ): Promise<McpOAuthTokenExchangeResponse> {
+    const parsed = McpOAuthTokenExchangeRequestSchema.parse(req);
+    const authHeader = await this.getC2cAuthHeader('exchange MCP OAuth token', {
+      grantType: parsed.grantType,
+      clientId: parsed.clientId,
+      resource: parsed.resource,
+    });
+
+    try {
+      const { data } = await this.http.post<unknown>(
+        `${this.clientBackchannelPrefix}/idp/oauth/token`,
+        parsed,
+        { headers: authHeader }
+      );
+      return McpOAuthTokenExchangeResponseSchema.parse(data);
+    } catch (err) {
+      this.handleAxiosError(err, { req }, 'Failed to exchange MCP OAuth token');
+    }
+  }
+
+  /**
+   * POST /idp/oauth/token/verify.
+   */
+  async verifyMcpAccessToken(req: McpOAuthTokenVerificationRequest) {
+    const parsed = McpOAuthTokenVerificationRequestSchema.parse(req);
+    const authHeader = await this.getC2cAuthHeader('verify MCP access token', {
+      resource: parsed.resource,
+      requiredScopes: parsed.requiredScopes,
+    });
+
+    try {
+      const { data } = await this.http.post<unknown>(
+        `${this.clientBackchannelPrefix}/idp/oauth/token/verify`,
+        parsed,
+        { headers: authHeader }
+      );
+      const result = McpOAuthTokenVerificationResponseSchema.parse(data);
+      return result.active ? result.payload : null;
+    } catch (err) {
+      this.handleAxiosError(err, { req }, 'Failed to verify MCP access token');
     }
   }
 
@@ -159,6 +270,26 @@ export class IdentityOwoxClient {
   }
 
   /**
+   * GET one project for a user via C2C (component-to-component) authentication.
+   */
+  async getProjectForUser(userId: string, projectId: string): Promise<Project> {
+    const authHeader = await this.getC2cAuthHeader('fetch project for user', {
+      userId,
+      projectId,
+    });
+    const url = `${this.clientBackchannelPrefix}/idp/users/${encodeURIComponent(
+      userId
+    )}/projects/${encodeURIComponent(projectId)}`;
+
+    try {
+      const { data } = await this.http.get<Project>(url, { headers: authHeader });
+      return ProjectSchema.parse(data);
+    } catch (err) {
+      this.handleAxiosError(err, { userId, projectId }, 'Failed to fetch project for user');
+    }
+  }
+
+  /**
    * GET /api/idp/.well-known/jwks.json
    */
   async getJwks(): Promise<JwksResponse> {
@@ -171,34 +302,16 @@ export class IdentityOwoxClient {
    * Requires service account authentication for the private internal endpoint.
    */
   async completeAuthFlow(request: AuthFlowRequest): Promise<AuthFlowResponse> {
-    if (
-      !this.impersonatedIdTokenFetcher ||
-      !this.c2cServiceAccountEmail ||
-      !this.c2cTargetAudience
-    ) {
-      throw new IdpFailedException(
-        'Service account authentication is not configured. Cannot complete auth flow.',
-        { context: { hasRequest: Boolean(request) } }
-      );
-    }
+    const authHeader = await this.getC2cAuthHeader('complete auth flow', {
+      hasRequest: Boolean(request),
+    });
 
     try {
-      const idToken = await this.impersonatedIdTokenFetcher.getIdToken(
-        this.c2cServiceAccountEmail,
-        this.c2cTargetAudience
-      );
-
       const { data } = await this.http.post<AuthFlowResponse>(
         `${this.clientBackchannelPrefix}/idp/auth-flow/complete`,
         request,
-        {
-          headers: {
-            Authorization: `Bearer ${idToken}`,
-          },
-        }
+        { headers: authHeader }
       );
-
-      // Validate and return response
       return AuthFlowResponseSchema.parse(data);
     } catch (err) {
       this.handleAxiosError(err, { request }, 'Failed to complete auth flow');
@@ -209,31 +322,12 @@ export class IdentityOwoxClient {
    * GET project members via C2C (component-to-component) authentication.
    */
   async getProjectMembers(projectId: string): Promise<OwoxProjectMembersResponse> {
-    if (
-      !this.impersonatedIdTokenFetcher ||
-      !this.c2cServiceAccountEmail ||
-      !this.c2cTargetAudience ||
-      !this.clientBackchannelPrefix
-    ) {
-      throw new IdpFailedException(
-        'C2C authentication is not configured. Cannot fetch project members.',
-        { context: { projectId } }
-      );
-    }
-
-    const idToken = await this.impersonatedIdTokenFetcher.getIdToken(
-      this.c2cServiceAccountEmail,
-      this.c2cTargetAudience
-    );
+    const authHeader = await this.getC2cAuthHeader('fetch project members', { projectId });
 
     try {
       const { data } = await this.http.get<unknown>(
         `${this.clientBackchannelPrefix}/idp/bi-project/${projectId}/members`,
-        {
-          headers: {
-            Authorization: `Bearer ${idToken}`,
-          },
-        }
+        { headers: authHeader }
       );
       return OwoxProjectMembersResponseSchema.parse(data);
     } catch (err) {
@@ -258,31 +352,18 @@ export class IdentityOwoxClient {
     role: string,
     actorUserId: string
   ): Promise<OwoxInviteProjectMemberResponse> {
-    if (
-      !this.impersonatedIdTokenFetcher ||
-      !this.c2cServiceAccountEmail ||
-      !this.c2cTargetAudience ||
-      !this.clientBackchannelPrefix
-    ) {
-      throw new IdpFailedException(
-        'C2C authentication is not configured. Cannot invite project member.',
-        { context: { projectId, email, role, actorUserId } }
-      );
-    }
+    const authHeader = await this.getC2cAuthHeader('invite project member', {
+      projectId,
+      email,
+      role,
+      actorUserId,
+    });
 
-    const idToken = await this.impersonatedIdTokenFetcher.getIdToken(
-      this.c2cServiceAccountEmail,
-      this.c2cTargetAudience
-    );
     const url = `${this.clientBackchannelPrefix}/idp/bi-project/${projectId}/members`;
     const body = { biUserId: actorUserId, inviteeEmail: email, role };
 
     try {
-      const { data } = await this.http.post<unknown>(url, body, {
-        headers: {
-          Authorization: `Bearer ${idToken}`,
-        },
-      });
+      const { data } = await this.http.post<unknown>(url, body, { headers: authHeader });
       return OwoxInviteProjectMemberResponseSchema.parse(data);
     } catch (err) {
       this.handleAxiosError(err, { projectId, email, role }, 'Failed to invite project member');
@@ -294,34 +375,18 @@ export class IdentityOwoxClient {
    * See `inviteProjectMember` for path rationale.
    */
   async removeProjectMember(projectId: string, userId: string, actorUserId: string): Promise<void> {
-    if (
-      !this.impersonatedIdTokenFetcher ||
-      !this.c2cServiceAccountEmail ||
-      !this.c2cTargetAudience ||
-      !this.clientBackchannelPrefix
-    ) {
-      throw new IdpFailedException(
-        'C2C authentication is not configured. Cannot remove project member.',
-        { context: { projectId, userId, actorUserId } }
-      );
-    }
-
-    const idToken = await this.impersonatedIdTokenFetcher.getIdToken(
-      this.c2cServiceAccountEmail,
-      this.c2cTargetAudience
-    );
+    const authHeader = await this.getC2cAuthHeader('remove project member', {
+      projectId,
+      userId,
+      actorUserId,
+    });
     const url = `${this.clientBackchannelPrefix}/idp/bi-project/${projectId}/members/${userId}`;
     const body = { biUserId: actorUserId };
 
     try {
       // Java contract requires `biUserId` in the request body even for DELETE —
       // axios forwards it via the `data` option.
-      await this.http.delete(url, {
-        headers: {
-          Authorization: `Bearer ${idToken}`,
-        },
-        data: body,
-      });
+      await this.http.delete(url, { headers: authHeader, data: body });
     } catch (err) {
       this.handleAxiosError(
         err,
@@ -341,31 +406,17 @@ export class IdentityOwoxClient {
     newRole: string,
     actorUserId: string
   ): Promise<void> {
-    if (
-      !this.impersonatedIdTokenFetcher ||
-      !this.c2cServiceAccountEmail ||
-      !this.c2cTargetAudience ||
-      !this.clientBackchannelPrefix
-    ) {
-      throw new IdpFailedException(
-        'C2C authentication is not configured. Cannot change project member role.',
-        { context: { projectId, userId, newRole, actorUserId } }
-      );
-    }
-
-    const idToken = await this.impersonatedIdTokenFetcher.getIdToken(
-      this.c2cServiceAccountEmail,
-      this.c2cTargetAudience
-    );
+    const authHeader = await this.getC2cAuthHeader('change project member role', {
+      projectId,
+      userId,
+      newRole,
+      actorUserId,
+    });
     const url = `${this.clientBackchannelPrefix}/idp/bi-project/${projectId}/members/${userId}/role`;
     const body = { biUserId: actorUserId, role: newRole };
 
     try {
-      await this.http.put(url, body, {
-        headers: {
-          Authorization: `Bearer ${idToken}`,
-        },
-      });
+      await this.http.put(url, body, { headers: authHeader });
     } catch (err) {
       this.handleAxiosError(
         err,
@@ -383,32 +434,16 @@ export class IdentityOwoxClient {
     projectId: string,
     actorUserId: string
   ): Promise<OwoxUserProvisioningSettingsResponse> {
-    if (
-      !this.impersonatedIdTokenFetcher ||
-      !this.c2cServiceAccountEmail ||
-      !this.c2cTargetAudience ||
-      !this.clientBackchannelPrefix
-    ) {
-      throw new IdpFailedException(
-        'C2C authentication is not configured. Cannot fetch user provisioning settings.',
-        { context: { projectId, actorUserId } }
-      );
-    }
-
-    const idToken = await this.impersonatedIdTokenFetcher.getIdToken(
-      this.c2cServiceAccountEmail,
-      this.c2cTargetAudience
-    );
+    const authHeader = await this.getC2cAuthHeader('fetch user provisioning settings', {
+      projectId,
+      actorUserId,
+    });
     const url = `${this.clientBackchannelPrefix}/idp/bi-project/${projectId}/user-provisioning-settings`;
 
     try {
       const { data } = await this.http.get<unknown>(url, {
-        headers: {
-          Authorization: `Bearer ${idToken}`,
-        },
-        params: {
-          biUserId: actorUserId,
-        },
+        headers: authHeader,
+        params: { biUserId: actorUserId },
       });
       return OwoxUserProvisioningSettingsResponseSchema.parse(data);
     } catch (err) {
@@ -429,32 +464,17 @@ export class IdentityOwoxClient {
     actorUserId: string,
     settings: OwoxUpdateUserProvisioningSettingsRequest
   ): Promise<OwoxUserProvisioningSettingsResponse> {
-    if (
-      !this.impersonatedIdTokenFetcher ||
-      !this.c2cServiceAccountEmail ||
-      !this.c2cTargetAudience ||
-      !this.clientBackchannelPrefix
-    ) {
-      throw new IdpFailedException(
-        'C2C authentication is not configured. Cannot update user provisioning settings.',
-        { context: { projectId, actorUserId, settings } }
-      );
-    }
-
-    const idToken = await this.impersonatedIdTokenFetcher.getIdToken(
-      this.c2cServiceAccountEmail,
-      this.c2cTargetAudience
-    );
+    const authHeader = await this.getC2cAuthHeader('update user provisioning settings', {
+      projectId,
+      actorUserId,
+      settings,
+    });
     const url = `${this.clientBackchannelPrefix}/idp/bi-project/${projectId}/user-provisioning-settings`;
     const parsedSettings = OwoxUpdateUserProvisioningSettingsRequestSchema.parse(settings);
     const body = { biUserId: actorUserId, ...parsedSettings };
 
     try {
-      const { data } = await this.http.put<unknown>(url, body, {
-        headers: {
-          Authorization: `Bearer ${idToken}`,
-        },
-      });
+      const { data } = await this.http.put<unknown>(url, body, { headers: authHeader });
       return OwoxUserProvisioningSettingsResponseSchema.parse(data);
     } catch (err) {
       this.handleAxiosError(
@@ -463,6 +483,200 @@ export class IdentityOwoxClient {
         'Failed to update user provisioning settings'
       );
     }
+  }
+
+  /**
+   * GET /idp/bi-project/:projectId/membership-requests — list pending requests.
+   *
+   * `actorUserId` is forwarded as the `biUserId` query parameter as required
+   * by the Java contract.
+   */
+  async listProjectMembershipRequests(
+    projectId: string,
+    actorUserId: string
+  ): Promise<OwoxListMembershipRequestsResponse> {
+    const authHeader = await this.getC2cAuthHeader('list project membership requests', {
+      projectId,
+      actorUserId,
+    });
+    const url = `${this.clientBackchannelPrefix}/idp/bi-project/${projectId}/membership-requests`;
+    try {
+      const { data } = await this.http.get<unknown>(url, {
+        headers: authHeader,
+        params: { biUserId: actorUserId },
+      });
+      return OwoxListMembershipRequestsResponseSchema.parse(data);
+    } catch (err) {
+      this.handleAxiosError(
+        err,
+        { projectId, actorUserId },
+        'Failed to list project membership requests'
+      );
+    }
+  }
+
+  /**
+   * POST /idp/bi-project/:projectId/membership-requests/:requestId/approve.
+   *
+   * Response: 200 OK with body `{ userUid: string }` — the resolved user uid
+   * of the approved requester. `MembershipRequestsService` maps `userUid → userId`
+   * on `ApproveMembershipRequestResult`.
+   */
+  async approveProjectMembershipRequest(
+    projectId: string,
+    requestId: string,
+    role: string,
+    actorUserId: string
+  ): Promise<OwoxApproveMembershipRequestResponse> {
+    const authHeader = await this.getC2cAuthHeader('approve project membership request', {
+      projectId,
+      requestId,
+      role,
+      actorUserId,
+    });
+    const url = `${this.clientBackchannelPrefix}/idp/bi-project/${projectId}/membership-requests/${requestId}/approve`;
+    const body = { biUserId: actorUserId, role };
+    try {
+      const { data } = await this.http.post<unknown>(url, body, { headers: authHeader });
+      return OwoxApproveMembershipRequestResponseSchema.parse(data);
+    } catch (err) {
+      this.handleAxiosError(
+        err,
+        { projectId, requestId, role },
+        'Failed to approve project membership request'
+      );
+    }
+  }
+
+  /**
+   * POST /idp/bi-project/:projectId/membership-requests/:requestId/decline.
+   * See `listProjectMembershipRequests` for wiring status.
+   */
+  async declineProjectMembershipRequest(
+    projectId: string,
+    requestId: string,
+    actorUserId: string
+  ): Promise<void> {
+    const authHeader = await this.getC2cAuthHeader('decline project membership request', {
+      projectId,
+      requestId,
+      actorUserId,
+    });
+    const url = `${this.clientBackchannelPrefix}/idp/bi-project/${projectId}/membership-requests/${requestId}/decline`;
+    const body = { biUserId: actorUserId };
+    try {
+      await this.http.post(url, body, { headers: authHeader });
+    } catch (err) {
+      this.handleAxiosError(
+        err,
+        { projectId, requestId, actorUserId },
+        'Failed to decline project membership request'
+      );
+    }
+  }
+
+  /**
+   * GET /idp/bi-project/:projectId/user-provisioning/request-access-context.
+   */
+  async getUserProvisioningRequestAccessContext(
+    userUid: string,
+    projectId: string
+  ): Promise<OwoxUserProvisioningRequestAccessContextResponse> {
+    const authHeader = await this.getC2cAuthHeader('get user provisioning request-access context', {
+      userUid,
+      projectId,
+    });
+    const url = `${this.clientBackchannelPrefix}/idp/bi-project/${projectId}/user-provisioning/request-access-context`;
+
+    try {
+      const { data } = await this.http.get<unknown>(url, {
+        headers: authHeader,
+        params: {
+          biUserId: userUid,
+        },
+      });
+      return OwoxUserProvisioningRequestAccessContextResponseSchema.parse(data);
+    } catch (err) {
+      this.handleAxiosError(
+        err,
+        { userUid, projectId },
+        'Failed to get user provisioning request-access context'
+      );
+    }
+  }
+
+  /**
+   * POST /idp/bi-project/:projectId/user-provisioning/request-access.
+   */
+  async requestProjectAccess(
+    userUid: string,
+    projectId: string,
+    role: string
+  ): Promise<OwoxRequestProjectAccessResponse> {
+    const authHeader = await this.getC2cAuthHeader('request project access', {
+      userUid,
+      projectId,
+      role,
+    });
+    const url = `${this.clientBackchannelPrefix}/idp/bi-project/${projectId}/user-provisioning/request-access`;
+    const body = OwoxRequestProjectAccessRequestSchema.parse({ biUserId: userUid, role });
+
+    try {
+      const { data } = await this.http.post<unknown>(url, body, { headers: authHeader });
+      return OwoxRequestProjectAccessResponseSchema.parse(data);
+    } catch (err) {
+      this.handleAxiosError(err, { userUid, projectId, role }, 'Failed to request project access');
+    }
+  }
+
+  /**
+   * POST /idp/user-provisioning/create-new-project.
+   */
+  async createNewProject(
+    userUid: string,
+    integration: string
+  ): Promise<OwoxCreateNewProjectResponse> {
+    const authHeader = await this.getC2cAuthHeader('create new project', {
+      userUid,
+      integration,
+    });
+    const url = `${this.clientBackchannelPrefix}/idp/user-provisioning/create-new-project`;
+    const body = { biUserId: userUid, integration };
+
+    try {
+      const { data } = await this.http.post<unknown>(url, body, { headers: authHeader });
+      return OwoxCreateNewProjectResponseSchema.parse(data);
+    } catch (err) {
+      this.handleAxiosError(err, { userUid, integration }, 'Failed to create new project');
+    }
+  }
+
+  /**
+   * Validate the C2C configuration and mint an `Authorization` header for a
+   * single backchannel call. Used by every method that hits the OWOX Identity
+   * service over service-to-service auth — keeps the preflight (check + token
+   * fetch) in one place so future additions to the C2C config surface in one
+   * spot, not nine.
+   */
+  private async getC2cAuthHeader(
+    operationLabel: string,
+    context: Record<string, unknown>
+  ): Promise<{ Authorization: string }> {
+    if (
+      !this.impersonatedIdTokenFetcher ||
+      !this.c2cServiceAccountEmail ||
+      !this.c2cTargetAudience
+    ) {
+      throw new IdpFailedException(
+        `C2C authentication is not configured. Cannot ${operationLabel}.`,
+        { context }
+      );
+    }
+    const idToken = await this.impersonatedIdTokenFetcher.getIdToken(
+      this.c2cServiceAccountEmail,
+      this.c2cTargetAudience
+    );
+    return { Authorization: `Bearer ${idToken}` };
   }
 
   private handleAxiosError(

@@ -1,7 +1,8 @@
 import { forwardRef, useEffect, useState, useRef } from 'react';
-import { useOwnerState } from '../../../../../../shared/hooks/useOwnerState';
-import { UserReference } from '../../../../../../shared/components/UserReference/UserReference';
-import { useUser } from '../../../../../idp/hooks/useAuthState';
+import { useOwnerState } from '../../../../../../shared/hooks';
+import { focusFirstInvalidField } from '../../../../../../utils';
+import { UserReference } from '../../../../../../shared/components/UserReference';
+import { useUser } from '../../../../../idp';
 import { Input } from '@owox/ui/components/input';
 import { useAutoFocus } from '../../../../../../hooks/useAutoFocus.ts';
 import {
@@ -33,16 +34,19 @@ import {
   DataDestinationType,
   DataDestinationTypeModel,
   useDataDestination,
+  dataDestinationService,
 } from '../../../../../data-destination';
-import { Link, useOutletContext } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { useProjectRoute } from '../../../../../../shared/hooks';
-import type { DataMartContextType } from '../../../../edit/model/context/types.ts';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@owox/ui/components/tooltip';
 import { Alert, AlertDescription, AlertTitle } from '@owox/ui/components/alert';
-import { AlertCircle, ExternalLink } from 'lucide-react';
+import { Button } from '@owox/ui/components/button';
+import { AlertCircle, ExternalLink, Loader2 } from 'lucide-react';
+import toast from 'react-hot-toast';
+import { showApiErrorToast } from '../../../../../../shared/utils/showApiErrorToast';
 import {
-  extractServiceAccountEmail,
   getGoogleSheetTabUrl,
+  getGoogleSheetsDestinationEmail,
   isValidGoogleSheetsUrl,
   ReportFormMode,
 } from '../../../shared';
@@ -52,7 +56,6 @@ import {
   type ReportSchedulesInlineListHandle,
 } from '../../../../scheduled-triggers/components/ReportSchedulesInlineList/ReportSchedulesInlineList';
 import DocumentLinkDescription from './FormDescriptions/DocumentLinkDescription.tsx';
-import { isGoogleServiceAccountCredentials } from '../../../../../../shared/types';
 import { CopyableField } from '@owox/ui/components/common/copyable-field';
 import { useReport } from '../../../shared';
 import { ReportFormActions } from '../shared/ReportFormActions';
@@ -64,6 +67,7 @@ import {
   type ReportColumnSelectionCount,
 } from '../../../../edit/components/ReportColumnPicker/ReportColumnPicker';
 import { DEFAULT_REPORT_TITLE } from '../../../shared';
+import { useDataMartContext } from '../../../../edit/model';
 
 interface GoogleSheetsReportEditFormProps {
   initialReport?: DataMartReport;
@@ -97,7 +101,7 @@ export const GoogleSheetsReportEditForm = forwardRef<
     const documentUrlInputId = 'google-sheets-document-url-input';
     const dataDestinationSelectId = 'google-sheets-data-destination-select';
 
-    const { dataMart } = useOutletContext<DataMartContextType>();
+    const { dataMart } = useDataMartContext();
     const { scope } = useProjectRoute();
     const {
       dataDestinations,
@@ -155,7 +159,6 @@ export const GoogleSheetsReportEditForm = forwardRef<
 
     const {
       isDirty,
-      isValid,
       reset,
       form,
       isSubmitting,
@@ -214,6 +217,9 @@ export const GoogleSheetsReportEditForm = forwardRef<
           filterConfig: initialReport.filterConfig ?? null,
           sortConfig: initialReport.sortConfig ?? null,
           limitConfig: initialReport.limitConfig ?? null,
+          aggregationConfig: initialReport.aggregationConfig ?? null,
+          dateTruncConfig: initialReport.dateTruncConfig ?? null,
+          uniqueCountConfig: initialReport.uniqueCountConfig,
         });
       } else if (mode === ReportFormMode.CREATE) {
         // Pre-select destination if provided
@@ -226,6 +232,9 @@ export const GoogleSheetsReportEditForm = forwardRef<
           filterConfig: null,
           sortConfig: null,
           limitConfig: null,
+          aggregationConfig: null,
+          dateTruncConfig: null,
+          uniqueCountConfig: false,
         });
       }
     }, [initialReport, mode, reset, preSelectedDestination]);
@@ -237,13 +246,65 @@ export const GoogleSheetsReportEditForm = forwardRef<
     const documentUrl = form.watch('documentUrl');
     const isValidDocumentUrl = documentUrl && isValidGoogleSheetsUrl(documentUrl.trim());
 
+    const selectedDestinationId = form.watch('dataDestinationId');
+    const [isCreatingSheet, setIsCreatingSheet] = useState(false);
+
+    const handleCreateGoogleSheet = async () => {
+      if (!selectedDestinationId || isCreatingSheet) {
+        return;
+      }
+      // The report has no title yet at creation time (defaults to DEFAULT_REPORT_TITLE),
+      // so fall back to the Data Mart title; use the report title once the user set one.
+      const reportTitle = form.getValues('title').trim();
+      const sheetTitle =
+        reportTitle && reportTitle !== DEFAULT_REPORT_TITLE
+          ? reportTitle
+          : (dataMart?.title ?? reportTitle);
+      setIsCreatingSheet(true);
+      try {
+        const { spreadsheetId, sheetId, placedInRoot, sharedWithRequester } =
+          await dataDestinationService.createGoogleSheetDocument(selectedDestinationId, {
+            title: sheetTitle,
+          });
+        form.setValue('documentUrl', getGoogleSheetTabUrl(spreadsheetId, sheetId), {
+          shouldDirty: true,
+          shouldValidate: true,
+        });
+        // The backend explicitly flags a downgrade (folder dropped / not shared)
+        // when the connected OAuth token lacks a Drive scope. Older backends omit
+        // these flags (undefined), so only warn on an explicit true/false.
+        if (placedInRoot === true || sharedWithRequester === false) {
+          const issues: string[] = [];
+          if (placedInRoot === true) {
+            issues.push(
+              'the selected Drive folder was not used (it was created in your Drive root)'
+            );
+          }
+          if (sharedWithRequester === false) {
+            issues.push('it was not shared with you');
+          }
+          toast(
+            `Google Sheet created, but ${issues.join(', and ')}. Reconnect the destination’s ` +
+              'Google account with Drive access to fix this.',
+            { icon: '⚠️', duration: 8000 }
+          );
+        } else {
+          toast.success('Google Sheet created');
+        }
+      } catch (error) {
+        showApiErrorToast(error, 'Failed to create Google Sheet');
+      } finally {
+        setIsCreatingSheet(false);
+      }
+    };
+
     return (
       <Form {...form}>
         <AppForm
           id={formId}
           ref={ref}
           noValidate
-          onSubmit={e => void form.handleSubmit(handleFormSubmit)(e)}
+          onSubmit={e => void form.handleSubmit(handleFormSubmit, focusFirstInvalidField)(e)}
         >
           <FormLayout>
             <FormSection title='General'>
@@ -312,18 +373,16 @@ export const GoogleSheetsReportEditForm = forwardRef<
                         {filteredDestinations.map(destination => {
                           const typeInfo = DataDestinationTypeModel.getInfo(destination.type);
                           const IconComponent = typeInfo.icon;
-                          const saEmail = isGoogleServiceAccountCredentials(destination.credentials)
-                            ? extractServiceAccountEmail(destination.credentials.serviceAccount)
-                            : null;
+                          const accessEmail = getGoogleSheetsDestinationEmail(destination);
                           return (
                             <SelectItem key={destination.id} value={destination.id}>
                               <div className='flex w-full min-w-0 items-center gap-2'>
                                 <IconComponent className='flex-shrink-0' size={18} />
                                 <div className='flex min-w-0 flex-col'>
                                   <span className='truncate'>{destination.title}</span>
-                                  {saEmail && (
+                                  {accessEmail && (
                                     <span className='text-muted-foreground truncate text-xs'>
-                                      {saEmail}
+                                      {accessEmail}
                                     </span>
                                   )}
                                 </div>
@@ -355,18 +414,14 @@ export const GoogleSheetsReportEditForm = forwardRef<
                           destination => destination.id === field.value
                         );
                         if (selectedDestination) {
-                          const saEmail = isGoogleServiceAccountCredentials(
-                            selectedDestination.credentials
-                          )
-                            ? extractServiceAccountEmail(
-                                selectedDestination.credentials.serviceAccount
-                              )
-                            : null;
-                          if (!saEmail) return null;
+                          const accessEmail = getGoogleSheetsDestinationEmail(selectedDestination);
+                          if (!accessEmail) return null;
                           return (
                             <div className='mt-2 flex flex-col gap-1'>
-                              <FormLabel>Service Account Email</FormLabel>
-                              <CopyableField value={saEmail}>{saEmail}</CopyableField>
+                              <FormLabel tooltip='Share the Google Sheet with this email to allow writing'>
+                                Share document with
+                              </FormLabel>
+                              <CopyableField value={accessEmail}>{accessEmail}</CopyableField>
                             </div>
                           );
                         }
@@ -423,6 +478,27 @@ export const GoogleSheetsReportEditForm = forwardRef<
                               : 'Enter a valid URL to enable link'}
                           </TooltipContent>
                         </Tooltip>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button
+                              type='button'
+                              variant='outline'
+                              className='flex-shrink-0'
+                              disabled={!selectedDestinationId || isCreatingSheet}
+                              onClick={() => void handleCreateGoogleSheet()}
+                            >
+                              {isCreatingSheet ? (
+                                <Loader2 className='h-4 w-4 animate-spin' aria-hidden='true' />
+                              ) : null}
+                              Create document
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent side='top' align='center' role='tooltip'>
+                            {selectedDestinationId
+                              ? 'Create a new Google Sheet in the selected destination and fill the link above'
+                              : 'Select a destination first'}
+                          </TooltipContent>
+                        </Tooltip>
                       </div>
                     </FormControl>
                     <FormDescription>
@@ -437,30 +513,73 @@ export const GoogleSheetsReportEditForm = forwardRef<
               title='Report Columns'
               tooltip='Select which columns to include in the report'
               titleAdornment={<ReportColumnsCountBadge count={columnsCount} />}
+              fields={[
+                'columnConfig',
+                'filterConfig',
+                'sortConfig',
+                'limitConfig',
+                'aggregationConfig',
+                'dateTruncConfig',
+              ]}
             >
-              {dataMart?.id && (
-                <div className='border-border space-y-3 rounded-md border-b bg-white px-4 py-3 dark:border-transparent dark:bg-white/4'>
-                  <ReportColumnPicker
-                    dataMartId={dataMart.id}
-                    storageType={dataMart.storage.type}
-                    value={form.watch('columnConfig')}
-                    onChange={value => {
-                      form.setValue('columnConfig', value, { shouldDirty: true });
-                    }}
-                    outputConfig={{
-                      filterConfig: form.watch('filterConfig') ?? [],
-                      sortConfig: form.watch('sortConfig') ?? [],
-                      limitConfig: form.watch('limitConfig') ?? null,
-                    }}
-                    onOutputConfigChange={config => {
-                      form.setValue('filterConfig', config.filterConfig, { shouldDirty: true });
-                      form.setValue('sortConfig', config.sortConfig, { shouldDirty: true });
-                      form.setValue('limitConfig', config.limitConfig, { shouldDirty: true });
-                    }}
-                    onCountChange={setColumnsCount}
-                  />
-                </div>
-              )}
+              <FormField
+                control={form.control}
+                name='columnConfig'
+                render={() => (
+                  <FormItem>
+                    {dataMart?.id && (
+                      <FormControl>
+                        <div
+                          className='border-border space-y-3 rounded-md border-b bg-white px-4 py-3 dark:border-transparent dark:bg-white/4'
+                          tabIndex={-1}
+                        >
+                          <ReportColumnPicker
+                            dataMartId={dataMart.id}
+                            storageType={dataMart.storage.type}
+                            value={form.watch('columnConfig')}
+                            onChange={value => {
+                              form.setValue('columnConfig', value, {
+                                shouldDirty: true,
+                                shouldValidate: true,
+                              });
+                            }}
+                            outputConfig={{
+                              filterConfig: form.watch('filterConfig') ?? [],
+                              sortConfig: form.watch('sortConfig') ?? [],
+                              limitConfig: form.watch('limitConfig') ?? null,
+                              aggregationConfig: form.watch('aggregationConfig') ?? [],
+                              dateTruncConfig: form.watch('dateTruncConfig') ?? [],
+                              uniqueCountConfig: form.watch('uniqueCountConfig'),
+                            }}
+                            onOutputConfigChange={config => {
+                              form.setValue('filterConfig', config.filterConfig, {
+                                shouldDirty: true,
+                              });
+                              form.setValue('sortConfig', config.sortConfig, {
+                                shouldDirty: true,
+                              });
+                              form.setValue('limitConfig', config.limitConfig, {
+                                shouldDirty: true,
+                              });
+                              form.setValue('aggregationConfig', config.aggregationConfig, {
+                                shouldDirty: true,
+                              });
+                              form.setValue('dateTruncConfig', config.dateTruncConfig, {
+                                shouldDirty: true,
+                              });
+                              form.setValue('uniqueCountConfig', config.uniqueCountConfig, {
+                                shouldDirty: true,
+                              });
+                            }}
+                            onCountChange={setColumnsCount}
+                          />
+                        </div>
+                      </FormControl>
+                    )}
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
             </FormSection>
             <FormSection title='Automate Report Runs'>
               {dataMart?.id ? (
@@ -510,13 +629,12 @@ export const GoogleSheetsReportEditForm = forwardRef<
 
           <ReportFormActions
             mode={mode}
-            isSubmitting={isSubmitting}
+            isSubmitting={isSubmitting || form.formState.isSubmitting}
             isDirty={isDirty}
-            isValid={isValid}
             triggersDirty={triggersDirty}
             ownersDirty={ownersDirty}
             runAfterSaveRef={runAfterSaveRef}
-            onSubmit={() => void form.handleSubmit(handleFormSubmit)()}
+            onSubmit={() => void form.handleSubmit(handleFormSubmit, focusFirstInvalidField)()}
             onCancel={onCancel}
           />
         </AppForm>

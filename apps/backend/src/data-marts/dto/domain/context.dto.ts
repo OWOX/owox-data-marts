@@ -21,6 +21,7 @@ export class ContextImpactDto {
     public readonly storageCount: number,
     public readonly destinationCount: number,
     public readonly memberCount: number,
+    public readonly userProvisioningDefaultsCount: number,
     public readonly affectedMemberIds: string[]
   ) {}
 }

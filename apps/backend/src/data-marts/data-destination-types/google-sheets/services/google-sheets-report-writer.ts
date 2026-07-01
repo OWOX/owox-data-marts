@@ -1,9 +1,9 @@
 import { ReportDataHeader } from '../../../dto/domain/report-data-header.dto';
 import { ColumnPlan, PreviousImportedColumn } from '../../../dto/domain/column-plan.dto';
-import { ConsumptionTrackingService } from '../../../services/consumption-tracking.service';
 import {
   DataDestinationReportWriter,
   ReportWriteFinalizeMeta,
+  ReportWriteFinalizeResult,
 } from '../../interfaces/data-destination-report-writer.interface';
 import { DataDestinationType } from '../../enums/data-destination-type.enum';
 import { Injectable, Logger, Scope } from '@nestjs/common';
@@ -64,6 +64,18 @@ export class GoogleSheetsReportWriter implements DataDestinationReportWriter {
    * saw it. See {@link applyDeferredSheetMutations}.
    */
   private structuralOpsApplied = false;
+  /**
+   * User-applied cell formats captured from the imported columns *before* the
+   * destructive write, keyed by canonical column name. Holds the full
+   * `userEnteredFormat` (number/date/currency format, background & text colors,
+   * bold/italic, alignment, borders, wrap), restored over the freshly written
+   * data rows in {@link finalize} so the formatting the user set in the Sheets
+   * UI survives a refresh — Sheets re-derives a cell's number format from the
+   * value on every `USER_ENTERED` write, which would otherwise discard it, and
+   * restoring the whole format keeps the contract consistent. Empty on the
+   * first run (nothing imported yet) and for columns the user never formatted.
+   */
+  private capturedColumnFormats = new Map<string, sheets_v4.Schema$CellFormat>();
   private spreadsheetTimeZone: string;
   private spreadsheetTitle: string;
   private sheetTitle: string;
@@ -78,7 +90,6 @@ export class GoogleSheetsReportWriter implements DataDestinationReportWriter {
     private readonly valuesFormatter: SheetValuesFormatter,
     private readonly columnPlanBuilder: ColumnPlanBuilder,
     private readonly adapterFactory: GoogleSheetsApiAdapterFactory,
-    private readonly consumptionTrackingService: ConsumptionTrackingService,
     private readonly appEditionConfig: AppEditionConfig,
     private readonly publicOriginService: PublicOriginService,
     private readonly eventDispatcher: OwoxEventDispatcher
@@ -182,37 +193,131 @@ export class GoogleSheetsReportWriter implements DataDestinationReportWriter {
           `deletes=${this.columnPlan.ops.filter(op => op.kind === 'delete').length}`
       );
 
-      // Pre-allocate row capacity. `appendDimension('ROWS')` only grows the
-      // grid at the bottom — it does not mutate the user's imported content
-      // or column structure, so it is safe to do here even though the
-      // destructive operations are deferred.
-      if (reportDataDescription.estimatedDataRowsCount) {
-        await this.ensureRowsAvailable(reportDataDescription.estimatedDataRowsCount + 1); // +1 for headers
-      }
+      // Run two independent prep steps concurrently:
+      //   - Capture the user's per-column cell formats while the previous
+      //     refresh's data is still in place (a read; restored in `finalize`
+      //     so dates / numbers / currencies keep the user's formatting). It
+      //     reads row 2..N, which `appendDimension('ROWS')` below never
+      //     touches (rows are added at the bottom), so the two cannot race.
+      //   - Pre-allocate row capacity. `appendDimension('ROWS')` only grows
+      //     the grid at the bottom — it does not mutate the user's imported
+      //     content or column structure, so it is safe here even though the
+      //     destructive operations are deferred.
+      // Overlapping them avoids an extra sequential round-trip on every
+      // refresh. Capture is best-effort and never rejects; only a row-
+      // allocation failure can reject this `Promise.all`.
+      await Promise.all([
+        this.captureUserColumnFormats(),
+        reportDataDescription.estimatedDataRowsCount
+          ? this.ensureRowsAvailable(reportDataDescription.estimatedDataRowsCount + 1) // +1 for headers
+          : Promise.resolve(),
+      ]);
     }, 'Preparing Google Sheets document for report');
   }
 
   /**
    * Issues the destructive part of the refresh — grow column count,
-   * apply column insert/delete, write headers — as a one-shot block.
-   * Invoked lazily from the first {@link writeReportDataBatch} call so
-   * that any failure before data starts flowing leaves the sheet
-   * untouched. Subsequent batch calls return immediately because the
-   * `structuralOpsApplied` flag is already set.
+   * apply column insert/delete, write headers, pre-clear the imported
+   * rectangle — as a one-shot block. Invoked lazily from the first
+   * {@link writeReportDataBatch} call so that any failure before data
+   * starts flowing leaves the sheet untouched. Subsequent batch calls
+   * return immediately because the `structuralOpsApplied` flag is set.
+   *
+   * The pre-clear step (`values.clear` on `A2..lastImportedColA1:availableRows`)
+   * is what gives the writer its "ODM owns the imported rectangle" contract:
+   * after it runs, every cell in the imported rectangle is empty, and the
+   * subsequent `writeReportDataBatch` calls fill only the cells SQL produced
+   * a value for. Cells where SQL returned NULL stay empty (no manual user
+   * edit bleeds across refresh); cells beyond the last written row stay
+   * empty too (so shrunk datasets don't leave stale trailing data).
    *
    * If the reader produces zero batches but completes without error,
    * {@link finalize} calls this method itself to bring the sheet layout
-   * up to date even though no data rows were written.
+   * up to date and wipe stale data even on an empty result set.
    */
   private async applyDeferredSheetMutations(): Promise<void> {
     if (this.structuralOpsApplied) {
       return;
     }
-    await this.prepareSheetColumns(this.columnPlan.finalImportedNames.length);
-    await this.applyStructuralColumnOps();
+
+    const finalCount = this.columnPlan.finalImportedNames.length;
+    const insertCount = this.columnPlan.ops.filter(op => op.kind === 'insert').length;
+    const prevWidth = this.columnPlan.prevLastImportedColIndex + 1;
+
+    // Column sizing rests on a single invariant: every `insertDimension` op
+    // CREATES a column and every `deleteDimension` op REMOVES one, so a refresh
+    // that has structural ops already reaches `finalImportedNames.length`
+    // columns on its own — `availableColumnsCount + insertCount - deleteCount`.
+    // Pre-allocating the grid to the final width on top of that would
+    // double-count the inserts and strand `insertCount - deleteCount` empty
+    // orphan columns to the right of the imported rectangle on every
+    // net-growing refresh (breaking the "ODM owns the imported rectangle"
+    // contract and corrupting the slack detection used on the next refresh).
+    //
+    // So we pre-allocate columns only when the ops cannot size the grid
+    // themselves:
+    //   1. No structural ops (first run, or an unchanged schema): there are no
+    //      inserts to grow the grid, so grow it directly to the final width.
+    //   2. Otherwise, append a single SENTINEL column iff the imported range
+    //      fills the grid to its right edge (no user/slack column beyond it)
+    //      AND the plan inserts at least one column. Without a slack column the
+    //      first `insertDimension { inheritFromBefore: false }` lands on
+    //      `startIndex == survivors.length == gridSize`, which Sheets rejects
+    //      ("range.startIndex must be less than the grid size"). One spare keeps
+    //      the grid one wider than `survivors.length` so the first insert fits;
+    //      every subsequent insert grows the grid by one on its own. The spare
+    //      is removed inside the SAME structural batch (see
+    //      {@link applyStructuralColumnOps}), so the final width is exact.
+    //
+    // When a user/slack column already sits to the right the first insert is
+    // in range without a sentinel, and pre-allocating there would risk
+    // clobbering that user content — so we leave the grid to the ops alone.
+    const hasStructuralOps = this.columnPlan.ops.length > 0;
+    const noColumnsRightOfImported = this.availableColumnsCount <= prevWidth;
+    const needsSentinel = hasStructuralOps && insertCount > 0 && noColumnsRightOfImported;
+
+    if (!hasStructuralOps) {
+      await this.prepareSheetColumns(finalCount);
+    } else if (needsSentinel) {
+      await this.prepareSheetColumns(this.availableColumnsCount + 1);
+    }
+
+    await this.applyStructuralColumnOps(needsSentinel);
     await this.writeHeaders();
+    await this.preClearImportedRectangle();
     this.writtenRowsCount = 1;
     this.structuralOpsApplied = true;
+  }
+
+  /**
+   * Clears values in the imported rectangle's data area
+   * (`A2..lastImportedColA1:availableRowsCount`) so that subsequent
+   * `writeReportDataBatch` calls operate on a clean slate. Empties cells in
+   * imported columns only — user content right of the imported range stays
+   * untouched (DoD A of the column-preservation refactor).
+   *
+   * No-op when the imported rectangle has zero columns or zero data rows in
+   * the current grid (e.g. a brand-new sheet trimmed to one row).
+   */
+  private async preClearImportedRectangle(): Promise<void> {
+    // Defensive: should be unreachable given `prepareToWriteReport` rejects
+    // empty data headers up-front. Kept as a silent no-op so that any
+    // future invariant break here surfaces as a missing pre-clear rather
+    // than a malformed Sheets API range.
+    if (this.columnPlan.finalImportedNames.length === 0) {
+      return;
+    }
+    const rowFrom = 2; // row 1 holds the headers we just wrote
+    const rowTo = this.availableRowsCount;
+    if (rowFrom > rowTo) {
+      return;
+    }
+    const lastA1 = GoogleSheetsApiAdapter.colToA1(this.columnPlan.finalImportedNames.length);
+    const range = `'${this.sheetTitle}'!A${rowFrom}:${lastA1}${rowTo}`;
+    return this.executeWithErrorHandling(
+      () => this.adapter.clearValuesInRange(this.destination.spreadsheetId, range),
+      'Pre-clearing imported rectangle before writing new data'
+    );
   }
 
   /**
@@ -222,6 +327,11 @@ export class GoogleSheetsReportWriter implements DataDestinationReportWriter {
    * captured in `this.columnPlan.nameToFinalIndex`, then written into the
    * imported rectangle (`A{rowFrom}:{lastA1}{rowTo}`). Cells outside this
    * rectangle are not touched.
+   *
+   * The first call triggers {@link applyDeferredSheetMutations}, which
+   * pre-clears the imported rectangle. As a consequence, nullish values in
+   * the batch payload land on cells that are already empty — the writer
+   * does not need to normalize NULL into "" to overwrite stale content.
    *
    * @param reportDataBatch - Batch of data to write to the sheet
    * @throws Error if writing fails
@@ -263,8 +373,9 @@ export class GoogleSheetsReportWriter implements DataDestinationReportWriter {
   /**
    * Finalizes the report:
    *   - if the reader completed successfully but produced zero batches,
-   *     applies the deferred structural ops + headers so the layout is
-   *     refreshed even on an empty result set;
+   *     applies the deferred structural ops + headers + pre-clear so the
+   *     layout is refreshed and stale data is wiped even on an empty
+   *     result set;
    *   - sets tab color and freezes the header row;
    *   - persists `OWOX_REPORT_META` (one per sheet) and `OWOX_COLUMNS`
    *     (the imported-range column list for next refresh);
@@ -275,23 +386,18 @@ export class GoogleSheetsReportWriter implements DataDestinationReportWriter {
    * data, and the design contract is that such failures must leave the
    * sheet exactly as the user last saw it.
    */
-  public async finalize(processingError?: Error, _meta?: ReportWriteFinalizeMeta): Promise<void> {
+  public async finalize(
+    processingError?: Error,
+    _meta?: ReportWriteFinalizeMeta
+  ): Promise<ReportWriteFinalizeResult | void> {
     await this.executeWithErrorHandling(async () => {
       // Zero-batch happy path: the reader finished cleanly but had nothing
       // to write. Bring the sheet layout up to date so column changes do
-      // not stall indefinitely on legitimately empty data marts.
+      // not stall indefinitely on legitimately empty data marts. The
+      // pre-clear inside `applyDeferredSheetMutations` also wipes stale
+      // data rows from any previous refresh.
       if (!processingError && !this.structuralOpsApplied && this.reportDataHeaders?.length > 0) {
         await this.applyDeferredSheetMutations();
-      }
-
-      // Drop stale rows from a previous (larger) refresh that fell outside
-      // the new imported rectangle. Must run BEFORE the metadata batch so
-      // that a truncate failure aborts `finalize` without advancing
-      // `OWOX_COLUMNS` past a half-applied state. Skipped on the error path
-      // — the contract is "failed refresh leaves the sheet exactly as it
-      // was".
-      if (!processingError && this.writtenRowsCount > 0) {
-        await this.truncateTrailingImportedRows();
       }
 
       if (this.writtenRowsCount > 0 && this.reportDataHeaders?.[0]) {
@@ -429,21 +535,27 @@ export class GoogleSheetsReportWriter implements DataDestinationReportWriter {
           requests.push(...fillDownRequests);
         }
 
+        // Restore the user's per-column cell formats over the freshly
+        // written data rows, in the same atomic batch. This must come after
+        // the value write (which `USER_ENTERED` may have re-derived a format
+        // from) so the user's captured format is the one that sticks. See
+        // `captureUserColumnFormats`.
+        const restoreFormatRequests = this.buildRestoreColumnFormatRequests();
+        if (restoreFormatRequests.length > 0) {
+          requests.push(...restoreFormatRequests);
+        }
+
         await this.adapter.batchUpdate(this.destination.spreadsheetId, requests);
 
         this.logger.debug(
           `Developer metadata written for report ${this.report.id} ` +
             `(project: ${dataMart.projectId}, datamart: ${dataMart.id}); ` +
-            `fillDownRequests=${fillDownRequests.length}`
+            `fillDownRequests=${fillDownRequests.length}; ` +
+            `restoreFormatRequests=${restoreFormatRequests.length}`
         );
       }
     }, 'Finalizing report with metadata and formatting');
     if (!processingError) {
-      await this.consumptionTrackingService.registerSheetsReportRunConsumption(this.report, {
-        googleSheetsDocumentTitle: this.spreadsheetTitle,
-        googleSheetsListTitle: this.sheetTitle,
-      });
-
       const dataMart = this.report.dataMart;
       await this.eventDispatcher.publishExternal(
         new SheetsReportRunEvent(
@@ -454,6 +566,14 @@ export class GoogleSheetsReportWriter implements DataDestinationReportWriter {
           'successfully'
         )
       );
+      return {
+        consumption: {
+          googleSheets: {
+            googleSheetsDocumentTitle: this.spreadsheetTitle,
+            googleSheetsListTitle: this.sheetTitle,
+          },
+        },
+      };
     } else {
       const dataMart = this.report.dataMart;
       await this.eventDispatcher.publishExternal(
@@ -569,36 +689,6 @@ export class GoogleSheetsReportWriter implements DataDestinationReportWriter {
   }
 
   /**
-   * Clears values in rows below the last data row of the current run so a
-   * smaller dataset (e.g. when Report `limitConfig` / filters shrink output)
-   * does not leave stale rows from the previous refresh in the imported
-   * column rectangle. Touches ONLY columns `A..lastImportedCol` — user
-   * content right of the imported range is preserved (DoD A of the
-   * column-preservation refactor).
-   *
-   * No-op when:
-   *   - structural ops were never applied (no headers/data written this run);
-   *   - the imported range has zero columns;
-   *   - the sheet has no rows below the last written row.
-   */
-  private async truncateTrailingImportedRows(): Promise<void> {
-    if (!this.structuralOpsApplied || this.columnPlan.finalImportedNames.length === 0) {
-      return;
-    }
-    const rowFrom = this.writtenRowsCount + 1; // 1-based, first row past new data
-    const rowTo = this.availableRowsCount; // 1-based inclusive
-    if (rowFrom > rowTo) {
-      return;
-    }
-    const lastA1 = GoogleSheetsApiAdapter.colToA1(this.columnPlan.finalImportedNames.length);
-    const range = `'${this.sheetTitle}'!A${rowFrom}:${lastA1}${rowTo}`;
-    return this.executeWithErrorHandling(
-      () => this.adapter.clearValuesInRange(this.destination.spreadsheetId, range),
-      'Truncating stale rows below new data'
-    );
-  }
-
-  /**
    * Reads the current state of the destination sheet that drives the diff:
    *   - row 1 values (current header layout — source of truth for ordering);
    *   - `OWOX_COLUMNS` developer metadata from the previous refresh.
@@ -645,6 +735,110 @@ export class GoogleSheetsReportWriter implements DataDestinationReportWriter {
 
       return { existingHeaders, previousOwoxColumns };
     }, 'Reading sheet state for column diff');
+  }
+
+  /**
+   * Captures the cell formatting a user applied to each imported column so it
+   * can be restored after the value write (see
+   * {@link buildRestoreColumnFormatRequests}).
+   *
+   * Why this is needed: the data write uses `valueInputOption: 'USER_ENTERED'`,
+   * which makes Sheets re-derive each cell's number format from the value it
+   * parses — discarding any date / number / currency format the user set in
+   * the UI on every refresh. The old OWOX Sheets extension never re-derived
+   * formats (it wrote typed values via `setValues`); we reproduce that
+   * "preserve the user's column formatting" behaviour by snapshotting the full
+   * `userEnteredFormat` (number format + background/text colors + alignment +
+   * borders + wrap) here and re-applying it in `finalize`.
+   *
+   * Strategy: sample a bounded window of data rows (rows 2..N, capped) and
+   * take the first explicit format found per column. A format the user applies
+   * to a whole column sits on every cell — including blank ones — so row 2
+   * alone usually suffices; the window additionally recovers the case where
+   * row 2 is unformatted but the rest of the column carries the user's format.
+   * The result is keyed by the column's canonical *name* (not position) so a
+   * later `delete` op that shifts the column to a new final index still
+   * restores the right format. Columns the user never formatted, and the
+   * first run (nothing imported yet), produce no entries.
+   *
+   * Best-effort by contract: capturing formats is cosmetic and must never fail
+   * the export. Any error (transient `spreadsheets.get` failure, malformed
+   * response) is logged and swallowed — the refresh proceeds and simply does
+   * not restore formats this run, rather than turning a successful data export
+   * into a failed run.
+   */
+  private async captureUserColumnFormats(): Promise<void> {
+    // Number of data rows to scan for an explicit per-column format. Bounded so
+    // the grid-data response stays small regardless of dataset size.
+    const SAMPLE_ROWS = 100;
+
+    this.capturedColumnFormats.clear();
+    const currentNames = this.columnPlan.currentImportedNames;
+    if (currentNames.length === 0) {
+      return;
+    }
+    try {
+      const formats = await this.adapter.getColumnFormats(
+        this.destination.spreadsheetId,
+        this.destination.sheetId,
+        this.sheetTitle,
+        2, // first data row
+        Math.min(this.availableRowsCount, 2 + SAMPLE_ROWS - 1),
+        1,
+        currentNames.length
+      );
+      currentNames.forEach((name, idx) => {
+        const fmt = formats[idx];
+        // Capture any explicit, non-empty cell format. Default ("Automatic")
+        // cells report no userEnteredFormat, so we never re-impose a format
+        // on a column the user left untouched.
+        if (name && fmt && Object.keys(fmt).length > 0) {
+          this.capturedColumnFormats.set(name, fmt);
+        }
+      });
+      this.logger.debug(
+        `Captured ${this.capturedColumnFormats.size}/${currentNames.length} user column ` +
+          `formats on sheet ${this.destination.sheetId}`
+      );
+    } catch (error) {
+      // Cosmetic capture must not break the export — see method contract.
+      this.capturedColumnFormats.clear();
+      this.logger.warn(
+        `Capturing user column formats failed on sheet ${this.destination.sheetId}; ` +
+          `proceeding without restoring formats this refresh. Cause: ${(error as Error).message}`
+      );
+    }
+  }
+
+  /**
+   * Builds requests that re-apply the captured user cell formats
+   * ({@link capturedColumnFormats}) over the freshly written data rows
+   * (`rows 2..writtenRowsCount`). Each captured column is mapped from its
+   * canonical name to its final index in the post-ops layout; columns dropped
+   * from the export (no longer in `nameToFinalIndex`) are skipped. Returns an
+   * empty array when there is nothing to restore or no data rows were written.
+   */
+  private buildRestoreColumnFormatRequests(): sheets_v4.Schema$Request[] {
+    if (this.capturedColumnFormats.size === 0 || this.writtenRowsCount < 2) {
+      return [];
+    }
+    const requests: sheets_v4.Schema$Request[] = [];
+    for (const [name, format] of this.capturedColumnFormats) {
+      const finalIdx = this.columnPlan.nameToFinalIndex.get(name);
+      if (finalIdx === undefined) {
+        continue; // column was removed from the export — nothing to restore
+      }
+      requests.push(
+        this.adapter.buildSetColumnFormatRequest(
+          this.destination.sheetId,
+          finalIdx,
+          1, // 0-based row 2 — first data row
+          this.writtenRowsCount, // exclusive end == last written row
+          format
+        )
+      );
+    }
+    return requests;
   }
 
   /**
@@ -703,8 +897,17 @@ export class GoogleSheetsReportWriter implements DataDestinationReportWriter {
    * Applies structural column ops (`insertDimension`/`deleteDimension`) from
    * the column plan in a single `batchUpdate`. No-op on first run or when the
    * plan reports no changes.
+   *
+   * @param sentinelAllocated - `true` when {@link applyDeferredSheetMutations}
+   *   pre-appended one spare column at the right edge of the grid to keep the
+   *   first `insertDimension` in range (see that method for the why). When set,
+   *   a final `deleteDimension` is appended to the SAME batch to drop the spare
+   *   from the grid's right edge, so the resulting width is exactly
+   *   `finalImportedNames.length`. The delete+insert ops on the imported range
+   *   shift everything to the spare's right as one block, leaving the spare the
+   *   grid's last column — so it is always at `gridAfterMainOps - 1`.
    */
-  private async applyStructuralColumnOps(): Promise<void> {
+  private async applyStructuralColumnOps(sentinelAllocated = false): Promise<void> {
     if (this.columnPlan.ops.length === 0) {
       return;
     }
@@ -714,11 +917,23 @@ export class GoogleSheetsReportWriter implements DataDestinationReportWriter {
           ? this.adapter.buildDeleteColumnRequest(this.destination.sheetId, op.atIndex)
           : this.adapter.buildInsertColumnRequest(this.destination.sheetId, op.atIndex)
       );
-      await this.adapter.batchUpdate(this.destination.spreadsheetId, requests);
 
       const inserts = this.columnPlan.ops.filter(op => op.kind === 'insert').length;
       const deletes = this.columnPlan.ops.length - inserts;
-      this.availableColumnsCount += inserts - deletes;
+
+      if (sentinelAllocated) {
+        // Target the grid's last column by computed position rather than an
+        // absolute index, so the spare — and only the spare — is removed
+        // regardless of how the imported-range ops reshuffled the grid.
+        const gridAfterMainOps = this.availableColumnsCount + inserts - deletes;
+        requests.push(
+          this.adapter.buildDeleteColumnRequest(this.destination.sheetId, gridAfterMainOps - 1)
+        );
+      }
+
+      await this.adapter.batchUpdate(this.destination.spreadsheetId, requests);
+
+      this.availableColumnsCount += inserts - deletes - (sentinelAllocated ? 1 : 0);
     }, 'Applying structural column changes');
   }
 
@@ -750,9 +965,17 @@ export class GoogleSheetsReportWriter implements DataDestinationReportWriter {
         headerRow,
       ]);
 
-      // Per-column note: description first, ODM info second. Every imported
-      // column carries the ODM provenance block so users can see ownership at
-      // a glance on any header — not just A1.
+      // Per-column note: every imported column carries its own description.
+      // Only the FIRST column of the range (index 0, i.e. A1) additionally
+      // carries the full provenance block — the ODM metadata (import time,
+      // data mart title, link). Every other imported column gets its
+      // description followed by just a short `--- Imported via OWOX Data
+      // Marts ---` marker, so the per-column description is preserved without
+      // repeating the same provenance metadata across every header.
+      //
+      // `dataMart` is always the main/home data mart — columns pulled in from
+      // joinable data marts only change the column alias, never this note — so
+      // A1 already references the right (original) data mart for blended marts.
       const dateNow = DateTime.now().setZone(this.spreadsheetTimeZone);
       const dateNowFormatted = `${dateNow.toFormat('yyyy LLL d, HH:mm:ss')} ${dateNow.zoneName}`;
       const dataMart = this.report.dataMart;
@@ -767,13 +990,20 @@ export class GoogleSheetsReportWriter implements DataDestinationReportWriter {
 
       const noteRequests = this.reportDataHeaders.map(header => {
         const idx = this.columnPlan.nameToFinalIndex.get(header.name)!;
-        const note = this.metadataFormatter.buildImportedColumnNote(
-          header.description,
-          this.dataMartTitle,
-          dataMartUrl,
-          dateNowFormatted,
-          isCommunityEdition
-        );
+        // The range always starts at column A, so index 0 is the first column.
+        const note =
+          idx === 0
+            ? this.metadataFormatter.buildImportedColumnNote(
+                header.description,
+                this.dataMartTitle,
+                dataMartUrl,
+                dateNowFormatted,
+                isCommunityEdition
+              )
+            : this.metadataFormatter.buildImportedColumnMarker(
+                header.description,
+                isCommunityEdition
+              );
         return this.metadataFormatter.createNoteRequest(sheetId, note, 0, idx);
       });
 

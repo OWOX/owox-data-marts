@@ -8,6 +8,9 @@ export * from './provider.js';
 // Domain models
 export * from './models.js';
 
+// OAuth / MCP contracts
+export * from './oauth.js';
+
 // Configuration
 export * from './config.js';
 

@@ -160,7 +160,7 @@ describe('ContextController', () => {
   describe('getImpact', () => {
     it('returns full impact dto', async () => {
       const { controller, contextService } = createController();
-      const impact = new ContextImpactDto(CONTEXT_ID, 'Marketing', 2, 1, 0, 3, ['u1', 'u2']);
+      const impact = new ContextImpactDto(CONTEXT_ID, 'Marketing', 2, 1, 0, 3, 1, ['u1', 'u2']);
       contextService.getImpact.mockResolvedValue(impact);
 
       const result = await controller.getImpact(makeAuthContext(), CONTEXT_ID);

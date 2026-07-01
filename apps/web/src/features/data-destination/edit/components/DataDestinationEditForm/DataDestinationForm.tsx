@@ -39,7 +39,7 @@ import {
   AccordionTrigger,
 } from '@owox/ui/components/accordion';
 
-import { createFormPayload } from '../../../../../utils';
+import { createFormPayload, focusFirstInvalidField } from '../../../../../utils';
 import { COPY_SOURCE_CREDENTIAL_PLACEHOLDER } from '../../../../../shared/utils/credential-identity-utils';
 import {
   DataDestinationType,
@@ -220,7 +220,7 @@ export function DataDestinationForm({
     <Form {...form}>
       <AppForm
         onSubmit={e => {
-          void form.handleSubmit(handleSubmit)(e);
+          void form.handleSubmit(handleSubmit, focusFirstInvalidField)(e);
         }}
       >
         <FormLayout>
@@ -287,10 +287,9 @@ export function DataDestinationForm({
                       <p>
                         Destination Owner is direct ownership of this Destination. When the
                         owner&apos;s role is Technical User or Project Admin, they may view, edit,
-                        delete, configure Availability, and copy credentials from this Destination —
-                        regardless of Availability settings. Assigning Owner to a Business User
-                        stores the assignment but grants no maintenance permissions until the role
-                        changes.
+                        delete, configure Sharing, and copy credentials from this Destination —
+                        regardless of Sharing settings. Assigning Owner to a Business User stores
+                        the assignment but grants no maintenance permissions until the role changes.
                       </p>
                     </AccordionContent>
                   </AccordionItem>
@@ -332,10 +331,10 @@ export function DataDestinationForm({
           )}
 
           {isEditMode && (
-            <FormSection title='Availability' defaultOpen={false} name='destination-availability'>
+            <FormSection title='Sharing' defaultOpen={false} name='destination-availability'>
               <FormItem>
                 <div className='flex items-center justify-between gap-4'>
-                  <FormLabel>Available for use</FormLabel>
+                  <FormLabel>Shared for use</FormLabel>
                   <Switch
                     checked={sharingState.availableForUse}
                     onCheckedChange={v => {
@@ -349,7 +348,7 @@ export function DataDestinationForm({
                 <FormDescription>
                   <Accordion variant='common' type='single' collapsible>
                     <AccordionItem value='sharing-use-help'>
-                      <AccordionTrigger>What does "Available for use" mean?</AccordionTrigger>
+                      <AccordionTrigger>What does "Shared for use" mean?</AccordionTrigger>
                       <AccordionContent>
                         <p>
                           When enabled, project members can select this destination when configuring
@@ -362,7 +361,7 @@ export function DataDestinationForm({
               </FormItem>
               <FormItem>
                 <div className='flex items-center justify-between gap-4'>
-                  <FormLabel>Available for maintenance</FormLabel>
+                  <FormLabel>Shared for maintenance</FormLabel>
                   <Switch
                     checked={sharingState.availableForMaintenance}
                     onCheckedChange={v => {
@@ -377,9 +376,7 @@ export function DataDestinationForm({
                 <FormDescription>
                   <Accordion variant='common' type='single' collapsible>
                     <AccordionItem value='sharing-maintenance-help'>
-                      <AccordionTrigger>
-                        What does "Available for maintenance" mean?
-                      </AccordionTrigger>
+                      <AccordionTrigger>What does "Shared for maintenance" mean?</AccordionTrigger>
                       <AccordionContent>
                         <p>
                           When enabled, project members can copy credentials from this destination,

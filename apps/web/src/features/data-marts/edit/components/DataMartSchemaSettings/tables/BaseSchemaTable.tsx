@@ -1,6 +1,6 @@
 import { Tooltip, TooltipContent, TooltipTrigger } from '@owox/ui/components/tooltip';
 import type { ColumnDef, Row, Table } from '@tanstack/react-table';
-import { EyeOff } from 'lucide-react';
+import { EyeOff, Sigma } from 'lucide-react';
 import type { ComponentType } from 'react';
 import { useCallback, useMemo } from 'react';
 import type { SortingStrategy } from '@dnd-kit/sortable';
@@ -16,6 +16,8 @@ import { asString } from '../utils';
 import { SchemaTable } from './SchemaTable';
 import type { SchemaAiHelper } from '../types/ai-helper';
 import { renderFieldAliasAi, renderFieldDescriptionAi } from '../utils/render-field-ai';
+import { AllowedAggregationsSelect } from '../AllowedAggregationsSelect';
+import { resolveFieldGovernance } from '../../../../shared/utils/aggregation-governance';
 
 // Extended column definition with optional columnIndex property
 export type ExtendedColumnDef<T extends BaseSchemaField> = ColumnDef<T> & {
@@ -238,6 +240,38 @@ export function BaseSchemaTable<T extends BaseSchemaField>({
           );
         },
         enableHiding: false,
+      },
+      {
+        id: 'allowedAggregations',
+        header: () => (
+          <Tooltip>
+            <TooltipTrigger
+              className='flex cursor-default items-center gap-1'
+              aria-label='Available aggregations'
+            >
+              <Sigma className='h-3.5 w-3.5' />
+              available
+            </TooltipTrigger>
+            <TooltipContent>
+              Available aggregations — functions a report may apply to this field. Defaults by type;
+              clear all to disallow aggregating it.
+            </TooltipContent>
+          </Tooltip>
+        ),
+        size: 120,
+        cell: ({ row }) => (
+          <AllowedAggregationsSelect
+            value={
+              row.original.allowedAggregations ??
+              resolveFieldGovernance(row.original.type).allowedAggregations
+            }
+            fieldType={row.original.type}
+            onChange={next => {
+              updateField(row.index, { allowedAggregations: next } as Partial<T>);
+            }}
+            ariaLabel={`Aggregations for ${asString(row.getValue('name'))}`}
+          />
+        ),
       },
       {
         accessorKey: 'alias',

@@ -29,4 +29,16 @@ export interface DataMartRunResponseDto {
   insightTemplateId: string | null;
   aiSourceDefinition: DataMartRunAiSourceDefinitionDto | null;
   createdByUser: UserProjectionDto | null;
+  additionalParams: Record<string, unknown> | null;
+  /** Grand-totals summary (numeric fields × allowed aggregations); null/absent when none. */
+  totals?: Record<string, number | string | boolean | null> | null;
+}
+
+export interface ProjectDataMartRunRefResponseDto {
+  id: string;
+  title: string;
+}
+
+export interface ProjectDataMartRunResponseDto extends DataMartRunResponseDto {
+  dataMart: ProjectDataMartRunRefResponseDto;
 }

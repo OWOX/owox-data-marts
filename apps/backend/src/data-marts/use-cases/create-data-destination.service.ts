@@ -11,6 +11,7 @@ import { DataDestinationMapper } from '../mappers/data-destination.mapper';
 import { DataDestinationCreatedEvent } from '../events/data-destination-created.event';
 import { DataDestinationCredentialsValidatorFacade } from '../data-destination-types/facades/data-destination-credentials-validator.facade';
 import { DataDestinationCredentialsProcessorFacade } from '../data-destination-types/facades/data-destination-credentials-processor.facade';
+import { GoogleSheetsFolderValidator } from '../data-destination-types/google-sheets/services/google-sheets-folder-validator.service';
 import { DataDestinationCredentialService } from '../services/data-destination-credential.service';
 import { GoogleOAuthClientService } from '../services/google-oauth/google-oauth-client.service';
 import {
@@ -26,6 +27,8 @@ import { DestinationOwner } from '../entities/destination-owner.entity';
 import { syncOwners } from '../utils/sync-owners';
 import { resolveOwnerUsers } from '../utils/resolve-owner-users';
 import { IdpProjectionsFacade } from '../../idp/facades/idp-projections.facade';
+import { AdvancedSearchIndexSyncService } from '../services/advanced-search-index-sync.service';
+import { SearchableEntityType } from '../../common/search/search.facade';
 
 @Injectable()
 export class CreateDataDestinationService {
@@ -47,7 +50,9 @@ export class CreateDataDestinationService {
     private readonly destinationOwnerRepository: Repository<DestinationOwner>,
     private readonly idpProjectionsFacade: IdpProjectionsFacade,
     private readonly accessDecisionService: AccessDecisionService,
-    private readonly eventDispatcher: OwoxEventDispatcher
+    private readonly eventDispatcher: OwoxEventDispatcher,
+    private readonly folderValidator: GoogleSheetsFolderValidator,
+    private readonly advancedSearchIndexSync?: AdvancedSearchIndexSyncService
   ) {}
 
   @Transactional()
@@ -107,6 +112,7 @@ export class CreateDataDestinationService {
         createdById: command.userId,
         availableForUse: true,
         availableForMaintenance: false,
+        config: command.config ?? null,
       });
 
       const savedEntity = await this.repository.save(entity);
@@ -156,6 +162,7 @@ export class CreateDataDestinationService {
         createdById: command.userId,
         availableForUse: true,
         availableForMaintenance: false,
+        config: command.config ?? null,
       });
 
       const savedEntity = await this.repository.save(entity);
@@ -199,6 +206,7 @@ export class CreateDataDestinationService {
       createdById: command.userId,
       availableForUse: true,
       availableForMaintenance: false,
+      config: command.config ?? null,
     });
 
     const savedEntity = await this.repository.save(entity);
@@ -210,8 +218,23 @@ export class CreateDataDestinationService {
     savedEntity: DataDestination,
     command: CreateDataDestinationCommand
   ): Promise<DataDestinationDto> {
+    await this.advancedSearchIndexSync?.scheduleReindex(
+      SearchableEntityType.DATA_DESTINATION,
+      savedEntity.id,
+      command.projectId
+    );
+
+    // Fail fast (and roll back) if a configured Drive folder is not usable for
+    // service-account auto-creation.
+    await this.folderValidator.validateConfiguredFolder(savedEntity);
+
     this.eventDispatcher.publishLocalOnCommit(
-      new DataDestinationCreatedEvent(savedEntity.id, command.projectId, command.userId)
+      new DataDestinationCreatedEvent(
+        savedEntity.id,
+        command.projectId,
+        command.userId,
+        savedEntity.type
+      )
     );
 
     const ownerIdsToSave = command.ownerIds ?? [command.userId];

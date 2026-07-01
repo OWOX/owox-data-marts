@@ -58,6 +58,12 @@ export class SheetValuesFormatter {
    * the destination sheet, so positional alignment with the SQL output schema
    * no longer holds.
    *
+   * Nullish cells (SQL `NULL` → JavaScript `null`/`undefined`) pass through
+   * unchanged. The writer pre-clears the imported rectangle before writing
+   * data, so any cell the payload does not explicitly overwrite is already
+   * empty — `null`-in-payload (which Sheets `values.update` treats as
+   * "skip this cell") therefore leaves the cell in its pre-cleared state.
+   *
    * @param orderedRows - Rows already reordered to align with `finalNames`
    * @param finalNames - Column names in the order they appear in the sheet
    * @param headersByName - SQL output schema indexed by column name

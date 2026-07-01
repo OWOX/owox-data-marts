@@ -1,11 +1,12 @@
 import { TypedComponent } from '../../../common/resolver/typed-component.resolver';
 import { ReportDataHeader } from '../../dto/domain/report-data-header.dto';
 import { DataStorageType } from '../enums/data-storage-type.enum';
-import { Report } from '../../entities/report.entity';
+import { ReportLike } from '../../dto/domain/report-like-read-plan';
 import { ReportDataDescription } from '../../dto/domain/report-data-description.dto';
 import { ReportDataBatch } from '../../dto/domain/report-data-batch.dto';
 import { DataStorageReportReaderState } from './data-storage-report-reader-state.interface';
 import { SqlParameter } from '../utils/sql-clause-renderer';
+import { AggregationRule } from '../../dto/schemas/aggregation-config.schema';
 
 /**
  * Optional runtime hints for report data preparation.
@@ -34,6 +35,26 @@ export interface PrepareReportDataOptions {
    * producing a correct ordered header list for destinations.
    */
   blendedDataHeaders?: ReportDataHeader[];
+
+  /**
+   * Aggregation rules from the report. `resolveReportDataHeaders` uses these to rename
+   * each aggregated column's header to its suffixed output label and recompute its
+   * effective type — keeping the header name equal to the SQL output alias.
+   */
+  aggregationConfig?: AggregationRule[];
+
+  /**
+   * When true, a synthetic `Unique Count` header is appended after `Row Count`.
+   * Set by callers that pass `uniqueCount: true` to the query builder.
+   */
+  uniqueCount?: boolean;
+
+  /**
+   * Explicit opt-out of the automatic `Row Count` header. When unset, Row Count is on for
+   * any non-empty `aggregationConfig`. The Totals reader sets this to `false` so the totals
+   * row carries only the metric aggregates (Row Count is a per-group column, not a total).
+   */
+  rowCount?: boolean;
 }
 
 /**
@@ -44,7 +65,7 @@ export interface DataStorageReportReader extends TypedComponent<DataStorageType>
    * Prepares report data for reading
    */
   prepareReportData(
-    report: Report,
+    report: ReportLike,
     options?: PrepareReportDataOptions
   ): Promise<ReportDataDescription>;
 

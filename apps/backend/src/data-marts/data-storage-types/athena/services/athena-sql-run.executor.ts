@@ -9,6 +9,7 @@ import { AthenaApiAdapterFactory } from '../adapters/athena-api-adapter.factory'
 import { S3ApiAdapterFactory } from '../adapters/s3-api-adapter.factory';
 import { SqlRunBatch } from '../../../dto/domain/sql-run-batch.dto';
 import { DataMartDefinition } from '../../../dto/schemas/data-mart-table-definitions/data-mart-definition';
+import { isQueryBuildResult } from '../../interfaces/data-mart-query-builder.interface';
 import { AthenaQueryBuilder } from './athena-query.builder';
 
 @Injectable()
@@ -45,7 +46,8 @@ export class AthenaSqlRunExecutor implements SqlRunExecutor {
     let queryExecutionId: string | undefined;
     try {
       if (!sql) {
-        sql = this.queryBuilder.buildQuery(definition);
+        const built = this.queryBuilder.buildQuery(definition);
+        sql = isQueryBuildResult(built) ? built.sql : built;
       }
 
       const res = await athena.executeQuery(sql, outputBucket, outputPrefix);

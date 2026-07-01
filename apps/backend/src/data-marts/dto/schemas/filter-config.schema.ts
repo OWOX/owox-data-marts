@@ -1,6 +1,11 @@
 import { z } from 'zod';
+import { ALIAS_PATH_REGEX } from './blended-fields-config.schema';
+import { REPORT_AGGREGATE_FUNCTIONS } from './aggregate-function.schema';
 
-const ScalarValueSchema = z.union([z.string(), z.number(), z.boolean()]);
+// .finite() rejects Infinity/-Infinity/NaN: a numeric filter value reaches the SQL
+// either as a bound param or inlined as a literal, and `String(Infinity)` would render
+// `> Infinity` (invalid SQL), not a safe rejection.
+const ScalarValueSchema = z.union([z.string(), z.number().finite(), z.boolean()]);
 
 const RelativeDatePresetSchema = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('today') }),
@@ -36,7 +41,7 @@ const NoValueOperatorEnum = z.enum([
   'is_false',
 ]);
 
-export const FilterRuleSchema = z.discriminatedUnion('operator', [
+const FilterRuleBaseSchema = z.discriminatedUnion('operator', [
   z.object({
     column: z.string().min(1),
     operator: ScalarOperatorEnum,
@@ -58,6 +63,17 @@ export const FilterRuleSchema = z.discriminatedUnion('operator', [
   }),
 ]);
 
+const PlacementExtrasSchema = z.object({
+  placement: z.enum(['pre-join', 'post-join']).optional(),
+  // When set, the rule filters the AGGREGATED value of `column` after grouping —
+  // `HAVING <function>(column) <op> <value>` — instead of the raw rows (`WHERE`).
+  // The (column, function) pair must match a configured report aggregation. A bare
+  // dimension filter omits `function` and stays a WHERE rule.
+  function: z.enum(REPORT_AGGREGATE_FUNCTIONS).optional(),
+});
+
+export const FilterRuleSchema = z.intersection(FilterRuleBaseSchema, PlacementExtrasSchema);
+
 export const FilterConfigSchema = z.array(FilterRuleSchema).nullable();
 
 export type FilterRule = z.infer<typeof FilterRuleSchema>;
@@ -65,3 +81,10 @@ export type FilterConfig = z.infer<typeof FilterConfigSchema>;
 export type RelativeDatePreset = z.infer<typeof RelativeDatePresetSchema>;
 export const FILTER_SCALAR_OPERATORS = ScalarOperatorEnum.options;
 export const FILTER_NO_VALUE_OPERATORS = NoValueOperatorEnum.options;
+
+export function aliasPathToCteName(aliasPath: string): string {
+  if (!ALIAS_PATH_REGEX.test(aliasPath)) {
+    throw new Error(`Invalid aliasPath: ${aliasPath}`);
+  }
+  return aliasPath.replace(/\./g, '_');
+}

@@ -7,6 +7,8 @@ import { DataMartRelationshipService } from '../services/data-mart-relationship.
 import { DataMartService } from '../services/data-mart.service';
 import { UserProjectionsFetcherService } from '../services/user-projections-fetcher.service';
 import { AccessDecisionService, EntityType, Action } from '../services/access-decision';
+import { AdvancedSearchIndexSyncService } from '../services/advanced-search-index-sync.service';
+import { SearchableEntityType } from '../../common/search/search.facade';
 
 @Injectable()
 export class CreateDataMartRelationshipService {
@@ -15,7 +17,8 @@ export class CreateDataMartRelationshipService {
     private readonly dataMartService: DataMartService,
     private readonly userProjectionsFetcherService: UserProjectionsFetcherService,
     private readonly mapper: RelationshipMapper,
-    private readonly accessDecisionService: AccessDecisionService
+    private readonly accessDecisionService: AccessDecisionService,
+    private readonly advancedSearchIndexSync?: AdvancedSearchIndexSyncService
   ) {}
 
   @Transactional()
@@ -79,7 +82,17 @@ export class CreateDataMartRelationshipService {
       sourceDataMart,
       targetDataMart
     );
+    await this.advancedSearchIndexSync?.scheduleReindex(
+      SearchableEntityType.DATA_MART,
+      command.sourceDataMartId,
+      command.projectId
+    );
+
     const createdByUser = await this.userProjectionsFetcherService.fetchCreatedByUser(relationship);
-    return this.mapper.toDomainDto(relationship, createdByUser);
+    const accessByDataMartId = new Map<string, boolean>([
+      [command.sourceDataMartId, true],
+      [command.targetDataMartId, true],
+    ]);
+    return this.mapper.toDomainDto(relationship, createdByUser, accessByDataMartId);
   }
 }

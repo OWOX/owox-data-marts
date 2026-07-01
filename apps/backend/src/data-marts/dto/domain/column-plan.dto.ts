@@ -106,6 +106,20 @@ export class ColumnPlan {
      * first run. Used to delineate "user content right of imported range"
      * for fill-down formula capture.
      */
-    public readonly prevLastImportedColIndex: number
+    public readonly prevLastImportedColIndex: number,
+
+    /**
+     * Canonical column names occupying the imported row-1 cells
+     * `[0..prevLastImportedColIndex]` BEFORE {@link ops} are applied, in their
+     * current sheet order (aliases already resolved back to names). Length
+     * equals `previousOwoxColumns.length`; empty on the first run.
+     *
+     * The writer uses this to key the per-column number formats it captures
+     * from the sheet before the write back to canonical names, so that a
+     * user's date/number/currency format is re-applied to the *same* logical
+     * column after the data write — even when a `delete` op shifts that column
+     * to a new final index. See `GoogleSheetsReportWriter.captureUserColumnFormats`.
+     */
+    public readonly currentImportedNames: string[] = []
   ) {}
 }

@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { DataMartSchemaFieldStatus } from '../../enums/data-mart-schema-field-status.enum';
+import { isConnected } from '../../data-mart-schema.utils';
 import { DataStorageType } from '../../enums/data-storage-type.enum';
 import { ReportHeadersGenerator } from '../../interfaces/report-headers-generator.interface';
 import { DataMartSchema } from '../../data-mart-schema.type';
@@ -41,7 +41,7 @@ export class BigQueryReportHeadersGenerator implements ReportHeadersGenerator {
     const fieldHeaders: ReportDataHeader[] = [];
     const fullPath = parentPath ? `${parentPath}.${field.name}` : field.name;
 
-    if (field.status === DataMartSchemaFieldStatus.DISCONNECTED) {
+    if (!isConnected(field)) {
       return fieldHeaders;
     }
 

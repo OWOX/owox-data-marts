@@ -64,6 +64,8 @@ jest.mock('@owox/connectors', () => ({
     CONFIG_ATTRIBUTES: {
       OAUTH_FLOW: 'OAUTH_FLOW',
     },
+    GENERATED_REFRESH_TOKEN_CREDENTIAL_FIELD: 'generated_refresh_token',
+    GENERATED_REFRESH_TOKEN_CONFIG_FIELD: 'GeneratedRefreshToken',
   },
 }));
 
@@ -135,6 +137,66 @@ describe('ConnectorService', () => {
 
       expect(Array.isArray(result)).toBe(true);
       expect(result[0]).toMatchObject({ name: 'ads', destinationName: 'ads' });
+    });
+  });
+
+  describe('refreshCredentials', () => {
+    it('refreshes a credential that belongs to the same project', async () => {
+      const { service, connectorSourceCredentialsService } = createService();
+
+      (connectorSourceCredentialsService.getCredentialsById as jest.Mock).mockResolvedValue({
+        id: 'cred-1',
+        projectId: 'proj-1',
+        connectorName: 'TestConnector',
+        credentials: {},
+        expiresAt: null,
+        userId: 'user-1',
+      });
+
+      // The connector source mock's refreshCredentials returns undefined (no rotation),
+      // so the existing credential id is returned unchanged.
+      const result = await service.refreshCredentials('proj-1', 'TestConnector', {}, 'cred-1');
+
+      expect(result).toBe('cred-1');
+      expect(connectorSourceCredentialsService.createCredentials).not.toHaveBeenCalled();
+    });
+
+    it('rejects a credential that belongs to another project', async () => {
+      const { service, connectorSourceCredentialsService } = createService();
+
+      (connectorSourceCredentialsService.getCredentialsById as jest.Mock).mockResolvedValue({
+        id: 'cred-1',
+        projectId: 'other-proj',
+        connectorName: 'TestConnector',
+        credentials: { refresh_token: 'secret' },
+        expiresAt: null,
+        userId: 'user-2',
+      });
+
+      await expect(
+        service.refreshCredentials('proj-1', 'TestConnector', {}, 'cred-1')
+      ).rejects.toThrow('Credential with ID cred-1 not found');
+      // A cross-project credential must never be copied into the caller's project.
+      expect(connectorSourceCredentialsService.createCredentials).not.toHaveBeenCalled();
+    });
+
+    it('rejects a credential issued for a different connector', async () => {
+      const { service, connectorSourceCredentialsService } = createService();
+
+      (connectorSourceCredentialsService.getCredentialsById as jest.Mock).mockResolvedValue({
+        id: 'cred-1',
+        projectId: 'proj-1',
+        connectorName: 'OtherConnector',
+        credentials: { refresh_token: 'secret' },
+        expiresAt: null,
+        userId: 'user-1',
+      });
+
+      await expect(
+        service.refreshCredentials('proj-1', 'TestConnector', {}, 'cred-1')
+      ).rejects.toThrow('Credential belongs to connector OtherConnector, not TestConnector');
+      // Tokens of one connector must never be rotated under another connector name.
+      expect(connectorSourceCredentialsService.createCredentials).not.toHaveBeenCalled();
     });
   });
 });

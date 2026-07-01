@@ -48,7 +48,7 @@ export class RedshiftApiAdapter {
       params.ClusterIdentifier = this.config.clusterIdentifier;
     }
 
-    this.logger.debug(`Executing query: ${query}`);
+    this.logger.debug(`Executing query (${query.length} chars)`);
 
     const command = new ExecuteStatementCommand(params);
     const response = await this.redshiftDataClient.send(command);

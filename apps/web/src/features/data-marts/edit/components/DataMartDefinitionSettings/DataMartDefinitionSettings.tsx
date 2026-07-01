@@ -56,7 +56,7 @@ export function DataMartDefinitionSettings({
   setDefinitionType,
   sqlRevalidateVersion,
 }: DataMartDefinitionSettingsProps) {
-  const { dataMart, updateDataMartDefinition, runSchemaActualization } =
+  const { dataMart, updateDataMartDefinition, runSchemaActualization, runGuarded } =
     useOutletContext<DataMartContextType>();
   const preset = useDataMartPreset();
 
@@ -174,12 +174,29 @@ export function DataMartDefinitionSettings({
     }
   }, [shouldActualizeSchema, runSchemaActualization]);
 
+  const guardedSubmit = useCallback<SubmitHandler<DataMartDefinitionFormData>>(
+    data => {
+      const runSubmit = () => {
+        void onSubmit(data);
+      };
+      if (runGuarded) {
+        runGuarded(runSubmit, { intent: 'definition' });
+      } else {
+        runSubmit();
+      }
+    },
+    [onSubmit, runGuarded]
+  );
+
   const handleFormSubmit = useCallback(
     (e?: React.SyntheticEvent<HTMLFormElement>) => {
       e?.preventDefault();
-      void handleSubmit(onSubmit)(e);
+      // Validate the definition form BEFORE involving the schema guard. Only a
+      // valid submission opens the guard dialog, so we never save/discard schema
+      // edits for a definition change that fails validation and never fires.
+      void handleSubmit(guardedSubmit)();
     },
-    [handleSubmit, onSubmit]
+    [handleSubmit, guardedSubmit]
   );
 
   const handleReset = useCallback(() => {
@@ -212,7 +229,7 @@ export function DataMartDefinitionSettings({
             {/* SQL Validator for SQL definition type */}
             {definitionType === DataMartDefinitionType.SQL && sqlCode && (
               <>
-                <div className='h-6 w-px bg-gray-300'></div>
+                <div className='bg-muted h-6 w-px'></div>
                 <SqlValidator
                   // We remount validator by key when storage-change token increments,
                   // so SQL dry-run is re-triggered after storage edit sheet closes.

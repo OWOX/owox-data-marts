@@ -38,27 +38,44 @@ export enum AthenaFieldType {
   // Add any other types that might be needed
 }
 
+// Precision/scale/length args on scalar types: decimal(10,2), varchar(255),
+// char(3), timestamp(3), time(6). Stripped so parameterized spellings still
+// match the base enum value. Athena's GetQueryResults metadata usually returns
+// base names, but computed/cast columns and engine v3 can emit the full form.
+const SCALAR_PRECISION_PATTERN = /\(\s*\d+\s*(?:,\s*\d+\s*)?\)/g;
+
 export function parseAthenaFieldType(athenaNativeType: string): AthenaFieldType | null {
-  // Normalize the input to uppercase
-  const normalizedType = athenaNativeType.toUpperCase();
+  // Normalize to uppercase and drop scalar precision/scale so e.g.
+  // "decimal(10,2)" -> "DECIMAL" and "timestamp(3) with time zone" ->
+  // "TIMESTAMP WITH TIME ZONE" still match the enum exactly.
+  const normalizedType = athenaNativeType
+    .toUpperCase()
+    .replace(SCALAR_PRECISION_PATTERN, '')
+    .trim();
 
   // Handle basic types that match exactly with enum values
   if (Object.values(AthenaFieldType).includes(normalizedType as AthenaFieldType)) {
     return normalizedType as AthenaFieldType;
   }
 
-  if (athenaNativeType.toLowerCase().startsWith('map<')) {
-    return AthenaFieldType.MAP;
+  // Complex/parametric types carry their element types in <...> (Hive spelling)
+  // or (...) (Trino spelling), e.g. array<int>, map(varchar,int), row(...).
+  // Classify by the head token only — element types don't change filter
+  // capability, and mapping them here (rather than falling back to STRING)
+  // keeps the validator fail-closed: complex columns then allow only
+  // is_null/is_not_null instead of being mistaken for filterable strings.
+  const head = normalizedType.split(/[<(]/, 1)[0].trim();
+  switch (head) {
+    case 'ARRAY':
+      return AthenaFieldType.ARRAY;
+    case 'MAP':
+      return AthenaFieldType.MAP;
+    case 'STRUCT':
+      return AthenaFieldType.STRUCT;
+    case 'ROW':
+      return AthenaFieldType.ROW;
+    default:
+      // If we get here, the type is not supported
+      return null;
   }
-
-  if (athenaNativeType.toLowerCase().startsWith('struct<')) {
-    return AthenaFieldType.STRUCT;
-  }
-
-  if (athenaNativeType.toLowerCase().startsWith('row<')) {
-    return AthenaFieldType.ROW;
-  }
-
-  // If we get here, the type is not supported
-  return null;
 }

@@ -4,7 +4,7 @@ import {
   PrepareReportDataOptions,
 } from '../../interfaces/data-storage-report-reader.interface';
 import { DataStorageType } from '../../enums/data-storage-type.enum';
-import { Report } from '../../../entities/report.entity';
+import { ReportLike } from '../../../dto/domain/report-like-read-plan';
 import { ReportDataDescription } from '../../../dto/domain/report-data-description.dto';
 import { ReportDataBatch } from '../../../dto/domain/report-data-batch.dto';
 import { ReportDataHeader } from '../../../dto/domain/report-data-header.dto';
@@ -40,13 +40,17 @@ export class RedshiftReportReader implements DataStorageReportReader {
   ) {}
 
   async prepareReportData(
-    report: Report,
+    report: ReportLike,
     options?: PrepareReportDataOptions
   ): Promise<ReportDataDescription> {
     const { storage, definition, schema } = report.dataMart;
 
     if (!storage || !definition) {
       throw new Error('Data Mart is not properly configured');
+    }
+
+    if (options?.sqlOverrideParams?.length) {
+      throw new Error('Redshift report reader does not support parameterized sqlOverride');
     }
 
     if (!schema || !isRedshiftDataMartSchema(schema)) {
@@ -56,7 +60,8 @@ export class RedshiftReportReader implements DataStorageReportReader {
     this.reportConfig = { storage, definition };
     this.reportDataHeaders = resolveReportDataHeaders(
       this.headersGenerator.generateHeaders(schema),
-      options
+      options,
+      this.type
     );
     this.pendingQuery =
       options?.sqlOverride ??

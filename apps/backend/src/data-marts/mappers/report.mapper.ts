@@ -1,4 +1,5 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, BadRequestException } from '@nestjs/common';
+import { z } from 'zod';
 import { Report } from '../entities/report.entity';
 import { ReportDto } from '../dto/domain/report.dto';
 import { CreateReportCommand } from '../dto/domain/create-report.command';
@@ -20,6 +21,11 @@ import { DataDestinationMapper } from './data-destination.mapper';
 import { RunType } from '../../common/scheduler/shared/types';
 import { UserProjectionDto } from '../../idp/dto/domain/user-projection.dto';
 import { OwnerFilter } from '../enums/owner-filter.enum';
+import { ReportColumnConfigSchema } from '../dto/schemas/report-column-config.schema';
+import { FilterConfigSchema } from '../dto/schemas/filter-config.schema';
+import { SortConfigSchema } from '../dto/schemas/sort-config.schema';
+import { AggregationConfigSchema } from '../dto/schemas/aggregation-config.schema';
+import { DateTruncConfigSchema } from '../dto/schemas/date-trunc-config.schema';
 
 @Injectable()
 export class ReportMapper {
@@ -27,6 +33,21 @@ export class ReportMapper {
     private readonly dataMartMapper: DataMartMapper,
     private readonly dataDestinationMapper: DataDestinationMapper
   ) {}
+
+  // Shape-check configs here (request→domain seam) so a malformed config is a clean 400,
+  // not a Zod throw inside the @Transactional service surfacing as a 500. Absent stays
+  // undefined (preserve original pass-through, never coerced to null).
+  private parseConfig<T>(schema: z.ZodType<T>, value: unknown, field: string): T | undefined {
+    if (value === undefined) return undefined;
+    const result = schema.safeParse(value);
+    if (!result.success) {
+      throw new BadRequestException({
+        message: `${field} has invalid shape`,
+        details: { errors: result.error.issues },
+      });
+    }
+    return result.data;
+  }
 
   toCreateDomainCommand(
     context: AuthorizationContext,
@@ -41,10 +62,13 @@ export class ReportMapper {
       dto.destinationConfig,
       dto.ownerIds,
       context.roles ?? [],
-      dto.columnConfig,
-      dto.filterConfig ?? null,
-      dto.sortConfig ?? null,
-      dto.limitConfig ?? null
+      this.parseConfig(ReportColumnConfigSchema, dto.columnConfig, 'columnConfig'),
+      this.parseConfig(FilterConfigSchema, dto.filterConfig, 'filterConfig') ?? null,
+      this.parseConfig(SortConfigSchema, dto.sortConfig, 'sortConfig') ?? null,
+      dto.limitConfig ?? null,
+      this.parseConfig(AggregationConfigSchema, dto.aggregationConfig, 'aggregationConfig') ?? null,
+      this.parseConfig(DateTruncConfigSchema, dto.dateTruncConfig, 'dateTruncConfig') ?? null,
+      dto.uniqueCountConfig ?? null
     );
   }
 
@@ -78,7 +102,10 @@ export class ReportMapper {
       entity.limitConfig ?? null,
       capabilities.canRun,
       capabilities.canManageTriggers,
-      capabilities.canEditConfig
+      capabilities.canEditConfig,
+      entity.aggregationConfig ?? null,
+      entity.dateTruncConfig ?? null,
+      entity.uniqueCountConfig ?? null
     );
   }
 
@@ -95,6 +122,9 @@ export class ReportMapper {
       filterConfig: dto.filterConfig ?? null,
       sortConfig: dto.sortConfig ?? null,
       limitConfig: dto.limitConfig ?? null,
+      aggregationConfig: dto.aggregationConfig ?? null,
+      dateTruncConfig: dto.dateTruncConfig ?? null,
+      uniqueCountConfig: dto.uniqueCountConfig ?? null,
       lastRunAt: dto.lastRunAt,
       lastRunStatus: dto.lastRunStatus,
       lastRunError: dto.lastRunError,
@@ -149,13 +179,17 @@ export class ReportMapper {
 
   toListByProjectCommand(
     context: AuthorizationContext,
-    ownerFilter?: OwnerFilter
+    ownerFilter?: OwnerFilter,
+    limit?: number,
+    offset?: number
   ): ListReportsByProjectCommand {
     return new ListReportsByProjectCommand(
       context.projectId,
       context.userId,
       context.roles ?? [],
-      ownerFilter
+      ownerFilter,
+      limit,
+      offset
     );
   }
 
@@ -183,10 +217,13 @@ export class ReportMapper {
       dto.dataDestinationId,
       dto.destinationConfig,
       dto.ownerIds,
-      dto.columnConfig,
-      dto.filterConfig ?? null,
-      dto.sortConfig ?? null,
-      dto.limitConfig ?? null
+      this.parseConfig(ReportColumnConfigSchema, dto.columnConfig, 'columnConfig'),
+      this.parseConfig(FilterConfigSchema, dto.filterConfig, 'filterConfig') ?? null,
+      this.parseConfig(SortConfigSchema, dto.sortConfig, 'sortConfig') ?? null,
+      dto.limitConfig ?? null,
+      this.parseConfig(AggregationConfigSchema, dto.aggregationConfig, 'aggregationConfig') ?? null,
+      this.parseConfig(DateTruncConfigSchema, dto.dateTruncConfig, 'dateTruncConfig') ?? null,
+      dto.uniqueCountConfig ?? null
     );
   }
 

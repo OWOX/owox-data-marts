@@ -9,7 +9,7 @@ export class DataStorageAccessValidationResponseApiDto {
 
   @ApiProperty({
     required: false,
-    enum: ['UNCONFIGURED'],
+    enum: ['UNCONFIGURED', 'OAUTH_REAUTH_REQUIRED'],
     description: 'Machine-readable validation result code',
   })
   code?: string;

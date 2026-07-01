@@ -51,14 +51,21 @@ export const googleCredentialsWithOAuthSchema = z
     serviceAccount: z.string().optional(),
     credentialId: z.string().uuid('Invalid credential ID').nullable().optional(),
   })
-  .refine(
-    data => {
-      const hasServiceAccount = !!data.serviceAccount && data.serviceAccount.trim().length > 0;
-      const hasCredentialId = !!data.credentialId && data.credentialId.trim().length > 0;
-      return hasServiceAccount || hasCredentialId;
-    },
-    {
+  .superRefine((data, ctx) => {
+    const hasServiceAccount = !!data.serviceAccount && data.serviceAccount.trim().length > 0;
+    const hasCredentialId = !!data.credentialId && data.credentialId.trim().length > 0;
+    if (hasServiceAccount || hasCredentialId) return;
+
+    // The form renders only one auth method at a time, so the issue is
+    // addressed to both fields — whichever is mounted will display it.
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
       message: 'Either Service Account or OAuth connection must be provided',
       path: ['serviceAccount'],
-    }
-  );
+    });
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'Connect your Google account or provide a Service Account to save',
+      path: ['credentialId'],
+    });
+  });

@@ -36,7 +36,11 @@ export function ContextsTab() {
     try {
       const impact = await contextService.getContextImpact(contextId);
       const total =
-        impact.dataMartCount + impact.storageCount + impact.destinationCount + impact.memberCount;
+        impact.dataMartCount +
+        impact.storageCount +
+        impact.destinationCount +
+        impact.memberCount +
+        impact.userProvisioningDefaultsCount;
       if (total > 0) {
         setBlocked({ context: ctx, impact });
       } else {
@@ -85,8 +89,13 @@ export function ContextsTab() {
         label: `${String(impact.memberCount)} Member${impact.memberCount === 1 ? '' : 's'}`,
         to: scope('/project-settings/members'),
       });
+    if (impact.userProvisioningDefaultsCount > 0)
+      parts.push({
+        label: `${String(impact.userProvisioningDefaultsCount)} User Provisioning Default${impact.userProvisioningDefaultsCount === 1 ? '' : 's'}`,
+        to: scope('/project-settings/members'),
+      });
     return parts.map((part, index) => (
-      <span key={part.to}>
+      <span key={`${part.to}-${part.label}`}>
         {index > 0 && ', '}
         <Link
           to={part.to}
@@ -165,7 +174,8 @@ export function ContextsTab() {
                 {renderAttachments(blocked.context.id, blocked.impact)}.
               </span>
               <span className='text-muted-foreground block'>
-                Detach it from all Data Marts, Storages, Destinations and Members before deleting.
+                Detach it from all Data Marts, Storages, Destinations, Members and User Provisioning
+                defaults before deleting.
               </span>
             </span>
           ) : null

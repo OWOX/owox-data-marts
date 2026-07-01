@@ -1,4 +1,4 @@
-import { PlatformParams } from './request-utils.js';
+import type { AuthFlowParams } from './request-utils.js';
 import { tryNormalizeOrigin } from './url-utils.js';
 
 export interface PlatformRedirectOptions {
@@ -6,14 +6,14 @@ export interface PlatformRedirectOptions {
   signInUrl?: string | null;
   code: string;
   state: string;
-  params?: PlatformParams;
+  params?: AuthFlowParams;
   defaultSource?: string;
   allowedRedirectOrigins?: string[];
 }
 
 export interface PlatformEntryOptions {
   authUrl: string;
-  params?: PlatformParams;
+  params?: AuthFlowParams;
   defaultSource?: string;
   allowedRedirectOrigins?: string[];
 }
@@ -38,9 +38,9 @@ export function sanitizeRedirectParam(
   return allowedRedirectOrigins.includes(origin) ? trimmed : undefined;
 }
 
-function applyPlatformParams(
+function applyAuthFlowParams(
   url: URL,
-  params: PlatformParams | undefined,
+  params: AuthFlowParams | undefined,
   options: { defaultSource?: string; allowedRedirectOrigins?: string[] }
 ): void {
   const source = params?.source || options.defaultSource;
@@ -88,7 +88,7 @@ export function buildPlatformRedirectUrl(options: PlatformRedirectOptions): URL 
   url.searchParams.set('code', options.code);
   url.searchParams.set('state', options.state);
 
-  applyPlatformParams(url, options.params, {
+  applyAuthFlowParams(url, options.params, {
     defaultSource: options.defaultSource,
     allowedRedirectOrigins: options.allowedRedirectOrigins,
   });
@@ -101,7 +101,7 @@ export function buildPlatformRedirectUrl(options: PlatformRedirectOptions): URL 
  */
 export function buildPlatformEntryUrl(options: PlatformEntryOptions): URL {
   const url = new URL(options.authUrl);
-  applyPlatformParams(url, options.params, {
+  applyAuthFlowParams(url, options.params, {
     defaultSource: options.defaultSource,
     allowedRedirectOrigins: options.allowedRedirectOrigins,
   });

@@ -31,7 +31,6 @@ import {
   ReportRunExecutionContext,
   ReportRunLogger,
 } from '../../../../report-run-logging/report-run-logger';
-import { ConsumptionTrackingService } from '../../../../services/consumption-tracking.service';
 import { InsightTemplateSourceDataService } from '../../../../services/insight-template-source-data.service';
 import { InsightTemplateService } from '../../../../services/insight-template.service';
 import { InsightTemplateSourceUsageService } from '../../../../services/insight-template-source-usage.service';
@@ -43,6 +42,7 @@ import { TemplateSourceTypeEnum } from '../../../../enums/template-source-type.e
 import { ReportCondition } from '../../../enums/report-condition.enum';
 import {
   DataDestinationReportWriter,
+  ReportWriteFinalizeResult,
   ReportWriteFinalizeMeta,
 } from '../../../interfaces/data-destination-report-writer.interface';
 import { RowsTruncationInfo } from '../../../../use-cases/report-execution-policy.resolver';
@@ -83,7 +83,6 @@ abstract class BaseEmailReportWriter implements DataDestinationReportWriter {
     private readonly markdownParser: MarkdownParser,
     private readonly publicOriginService: PublicOriginService,
     private readonly insightTemplateFacade: DataMartInsightTemplateFacadeImpl,
-    private readonly consumptionTrackingService: ConsumptionTrackingService,
     private readonly eventDispatcher: OwoxEventDispatcher,
     private readonly credentialsResolver: DataDestinationCredentialsResolver,
     private readonly sourceDataService: InsightTemplateSourceDataService,
@@ -119,7 +118,10 @@ abstract class BaseEmailReportWriter implements DataDestinationReportWriter {
     this.reportDataRows.push(...reportDataBatch.dataRows);
   }
 
-  public async finalize(processingError?: Error, meta?: ReportWriteFinalizeMeta): Promise<void> {
+  public async finalize(
+    processingError?: Error,
+    meta?: ReportWriteFinalizeMeta
+  ): Promise<ReportWriteFinalizeResult | void> {
     this.mainRowsTruncationInfo = meta?.mainRowsTruncationInfo ?? null;
 
     if (processingError) {
@@ -139,7 +141,6 @@ abstract class BaseEmailReportWriter implements DataDestinationReportWriter {
       await this.sendEmail(emailHtml);
     }
 
-    await this.consumptionTrackingService.registerEmailBasedReportRunConsumption(this.report);
     await this.produceRunEvent('successfully');
   }
 
@@ -420,7 +421,6 @@ export class EmailReportWriter extends BaseEmailReportWriter {
     markdownParser: MarkdownParser,
     publicOriginService: PublicOriginService,
     insightTemplateFacade: DataMartInsightTemplateFacadeImpl,
-    consumptionTrackingService: ConsumptionTrackingService,
     eventDispatcher: OwoxEventDispatcher,
     credentialsResolver: DataDestinationCredentialsResolver,
     sourceDataService: InsightTemplateSourceDataService,
@@ -432,7 +432,6 @@ export class EmailReportWriter extends BaseEmailReportWriter {
       markdownParser,
       publicOriginService,
       insightTemplateFacade,
-      consumptionTrackingService,
       eventDispatcher,
       credentialsResolver,
       sourceDataService,
@@ -452,7 +451,6 @@ export class SlackReportWriter extends BaseEmailReportWriter {
     markdownParser: MarkdownParser,
     publicOriginService: PublicOriginService,
     insightTemplateFacade: DataMartInsightTemplateFacadeImpl,
-    consumptionTrackingService: ConsumptionTrackingService,
     eventDispatcher: OwoxEventDispatcher,
     credentialsResolver: DataDestinationCredentialsResolver,
     sourceDataService: InsightTemplateSourceDataService,
@@ -464,7 +462,6 @@ export class SlackReportWriter extends BaseEmailReportWriter {
       markdownParser,
       publicOriginService,
       insightTemplateFacade,
-      consumptionTrackingService,
       eventDispatcher,
       credentialsResolver,
       sourceDataService,
@@ -484,7 +481,6 @@ export class MsTeamsReportWriter extends BaseEmailReportWriter {
     markdownParser: MarkdownParser,
     publicOriginService: PublicOriginService,
     insightTemplateFacade: DataMartInsightTemplateFacadeImpl,
-    consumptionTrackingService: ConsumptionTrackingService,
     eventDispatcher: OwoxEventDispatcher,
     credentialsResolver: DataDestinationCredentialsResolver,
     sourceDataService: InsightTemplateSourceDataService,
@@ -496,7 +492,6 @@ export class MsTeamsReportWriter extends BaseEmailReportWriter {
       markdownParser,
       publicOriginService,
       insightTemplateFacade,
-      consumptionTrackingService,
       eventDispatcher,
       credentialsResolver,
       sourceDataService,
@@ -516,7 +511,6 @@ export class GoogleChatReportWriter extends BaseEmailReportWriter {
     markdownParser: MarkdownParser,
     publicOriginService: PublicOriginService,
     insightTemplateFacade: DataMartInsightTemplateFacadeImpl,
-    consumptionTrackingService: ConsumptionTrackingService,
     eventDispatcher: OwoxEventDispatcher,
     credentialsResolver: DataDestinationCredentialsResolver,
     sourceDataService: InsightTemplateSourceDataService,
@@ -528,7 +522,6 @@ export class GoogleChatReportWriter extends BaseEmailReportWriter {
       markdownParser,
       publicOriginService,
       insightTemplateFacade,
-      consumptionTrackingService,
       eventDispatcher,
       credentialsResolver,
       sourceDataService,

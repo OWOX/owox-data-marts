@@ -31,7 +31,7 @@ export function classifyAvailability(
 
 interface BuildAvailabilityFilterArgs<K extends string> {
   id: K;
-  /** Label for the "first flag" only option (e.g. "Available for reporting"). */
+  /** Label for the "first flag" only option (e.g. "Shared for reporting"). */
   firstLabel: string;
   /** Label for the maintenance-only option. */
   maintenanceLabel?: string;
@@ -49,10 +49,10 @@ export function buildAvailabilityFilter<K extends string>(
   const {
     id,
     firstLabel,
-    maintenanceLabel = 'Available for maintenance',
+    maintenanceLabel = 'Shared for maintenance',
     bothLabel = `${firstLabel} + maintenance`,
-    noneLabel = 'Not available',
-    label = 'Availability',
+    noneLabel = 'Not shared',
+    label = 'Sharing',
   } = args;
   return {
     id,

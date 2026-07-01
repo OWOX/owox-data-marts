@@ -1,4 +1,4 @@
-import { AggregateFunction } from '../schemas/aggregate-function.schema';
+import { ReportAggregateFunction } from '../schemas/aggregate-function.schema';
 import { StorageFieldType } from './storage-field-type';
 
 /**
@@ -29,6 +29,6 @@ export class ReportDataHeader {
     /**
      * The aggregate function applied to the field (if any)
      */
-    public readonly aggregateFunction?: AggregateFunction
+    public readonly aggregateFunction?: ReportAggregateFunction
   ) {}
 }

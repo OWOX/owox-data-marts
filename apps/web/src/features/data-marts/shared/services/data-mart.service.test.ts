@@ -90,6 +90,20 @@ describe('DataMartService', () => {
     });
   });
 
+  describe('getProjectDataMartRuns', () => {
+    it('should fetch project-wide data mart runs', async () => {
+      const response = { runs: [] };
+      (apiClient.get as any).mockResolvedValueOnce({ data: response });
+
+      const result = await service.getProjectDataMartRuns(20, 40);
+
+      expect(apiClient.get).toHaveBeenCalledWith('/data-marts/runs', {
+        params: { limit: 20, offset: 40 },
+      });
+      expect(result).toEqual(response);
+    });
+  });
+
   describe('createDataMart', () => {
     it('should create a new data mart', async () => {
       (apiClient.post as any).mockResolvedValueOnce({ data: mockDataMartResponse });
@@ -123,6 +137,18 @@ describe('DataMartService', () => {
       await service.deleteDataMart(mockDataMartId);
 
       expect(apiClient.delete).toHaveBeenCalledWith(`/data-marts/${mockDataMartId}`, undefined);
+    });
+  });
+
+  describe('cancelDataMartRun', () => {
+    it('should suppress the global error toast so the run history button can show the specific message', async () => {
+      await service.cancelDataMartRun(mockDataMartId, 'run-1');
+
+      expect(apiClient.post).toHaveBeenCalledWith(
+        `/data-marts/${mockDataMartId}/runs/run-1/cancel`,
+        undefined,
+        { skipErrorToast: true }
+      );
     });
   });
 

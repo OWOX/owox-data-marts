@@ -20,6 +20,12 @@ export interface DatabaseStore {
   userHasPassword(userId: string): Promise<boolean>;
   clearUserPassword(userId: string): Promise<void>;
   revokeUserSessions(userId: string): Promise<void>;
+  /**
+   * Revoke every session for the user except the one identified by
+   * `exceptSessionToken`. Used for self-service password resets where the
+   * acting session must stay valid while all other sessions are invalidated.
+   */
+  revokeOtherUserSessions(userId: string, exceptSessionToken: string): Promise<void>;
 
   /**
    * Pre-provision a user record for a pending invitation. If a user with the

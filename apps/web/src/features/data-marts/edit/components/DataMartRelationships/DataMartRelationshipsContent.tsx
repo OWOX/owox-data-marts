@@ -15,7 +15,7 @@ import { toast } from 'react-hot-toast';
 import { useQueryClient } from '@tanstack/react-query';
 import { useDataMartContext } from '../../model/context/useDataMartContext';
 import { useDebounce } from '../../../../../hooks/useDebounce';
-import { BLENDABLE_SCHEMA_QUERY_KEY } from '../../../shared/hooks/useBlendedFieldNames';
+import { BLENDABLE_SCHEMA_QUERY_KEY } from '../../../shared/hooks/blendable-schema-query-key';
 import { Button } from '../../../../../shared/components/Button';
 import {
   CollapsibleCard,
@@ -33,8 +33,10 @@ import type {
   BlendedFieldsConfig,
   BlendedSource,
   DataMartRelationship,
+  RelationshipGraph,
 } from '../../../shared/types/relationship.types';
 
+import { cleanBlendedFieldOverride } from './blended-field-override.utils';
 import type { SourceEntry } from './RelationshipAccordionItem';
 import { RelationshipAccordionItem } from './RelationshipAccordionItem';
 import { TargetDataMartPicker } from './TargetDataMartPicker';
@@ -83,7 +85,10 @@ function buildSourceList(
     const overrideCount = configSource?.fields
       ? Object.values(configSource.fields).filter(
           v =>
-            v.isHidden !== undefined || v.aggregateFunction !== undefined || v.alias !== undefined
+            v.isHidden !== undefined ||
+            v.aggregateFunction !== undefined ||
+            v.alias !== undefined ||
+            v.postJoinAggregations !== undefined
         ).length
       : 0;
 
@@ -111,8 +116,8 @@ export function DataMartRelationshipsContent({
     void queryClient.invalidateQueries({ queryKey: [BLENDABLE_SCHEMA_QUERY_KEY] });
   }, [queryClient]);
 
-  const [relationships, setRelationships] = useState<DataMartRelationship[]>([]);
-  const relationshipsRef = useRef<DataMartRelationship[]>([]);
+  const [relationshipGraph, setRelationshipGraph] = useState<RelationshipGraph | null>(null);
+  const loadRelationshipsRequestIdRef = useRef(0);
   const [isLoading, setIsLoading] = useState(false);
   const [isAddingNew, setIsAddingNew] = useState(false);
   const [newlyCreatedId, setNewlyCreatedId] = useState<string | null>(null);
@@ -123,7 +128,6 @@ export function DataMartRelationshipsContent({
     const stored = localStorage.getItem(VIEW_MODE_KEY);
     return stored === 'graph' ? 'graph' : 'table';
   });
-  const showTransient = true;
   const [isFullscreen, setIsFullscreen] = useState(false);
 
   const dataMartId = dataMart?.id ?? '';
@@ -142,40 +146,43 @@ export function DataMartRelationshipsContent({
   }, [dataMart?.blendedFieldsConfig]);
 
   useEffect(() => {
-    relationshipsRef.current = relationships;
-  }, [relationships]);
-
-  useEffect(() => {
     localStorage.setItem(VIEW_MODE_KEY, viewMode);
   }, [viewMode]);
 
   const loadRelationships = useCallback(async () => {
     if (!dataMartId) return;
+    const requestId = ++loadRelationshipsRequestIdRef.current;
+    setRelationshipGraph(null);
     setIsLoading(true);
     try {
-      const data = await dataMartRelationshipService.getRelationships(dataMartId, {
+      const graph = await dataMartRelationshipService.getRelationshipGraph(dataMartId, {
         skipLoadingIndicator: true,
       });
-      // Sort by createdAt ASC — oldest on top, newest at bottom
-      const sorted = [...data].sort(
-        (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
-      );
-      setRelationships(sorted);
+      if (loadRelationshipsRequestIdRef.current !== requestId) return;
+      setRelationshipGraph(graph);
     } catch {
+      if (loadRelationshipsRequestIdRef.current !== requestId) return;
       toast.error('Failed to load relationships');
     } finally {
-      setIsLoading(false);
+      if (loadRelationshipsRequestIdRef.current === requestId) setIsLoading(false);
     }
   }, [dataMartId]);
+
+  const relationships = useMemo<DataMartRelationship[]>(() => {
+    if (!relationshipGraph) return [];
+    const direct = relationshipGraph.nodes
+      .filter(node => node.depth === 1)
+      .map(node => node.relationship);
+    return [...direct].sort(
+      (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+    );
+  }, [relationshipGraph]);
 
   useEffect(() => {
     void loadRelationships();
   }, [loadRelationships]);
 
   const [blendableSchema, setBlendableSchema] = useState<BlendableSchema | null>(null);
-  // Create + setRelationships can race: both trigger a schema fetch and a slow
-  // first response could overwrite a newer one. Discard anything that isn't
-  // the latest in-flight request.
   const schemaRequestIdRef = useRef(0);
 
   const fetchBlendableSchema = useCallback(
@@ -224,13 +231,8 @@ export function DataMartRelationshipsContent({
     return counts;
   }, [blendableSchema]);
 
-  const { rows: transientRows, isLoading: isLoadingTransient } = useTransientRelationships(
-    dataMartId,
-    dataMart?.title ?? '',
-    dataMart?.status.code ?? '',
-    relationships,
-    showTransient
-  );
+  const { rows: transientRows, isLoading: isLoadingTransient } =
+    useTransientRelationships(relationshipGraph);
 
   const filteredRows = useMemo(() => {
     if (!searchQuery) return transientRows;
@@ -268,29 +270,36 @@ export function DataMartRelationshipsContent({
           skipLoadingIndicator: true,
         });
         toast.success('Relationship deleted');
-        setRelationships(prev => prev.filter(r => r.id !== id));
+        void loadRelationships();
         invalidateBlendableSchema();
         onRelationshipsChanged?.();
       } catch {
         toast.error('Failed to delete relationship');
       }
     },
-    [dataMartId, invalidateBlendableSchema, onRelationshipsChanged]
+    [dataMartId, loadRelationships, invalidateBlendableSchema, onRelationshipsChanged]
   );
 
   const handleRelationshipUpdated = useCallback(
     (updated: DataMartRelationship) => {
       toast.success('Relationship updated');
-      const prevTargetAlias = relationshipsRef.current.find(r => r.id === updated.id)?.targetAlias;
-      setRelationships(prev => prev.map(r => (r.id === updated.id ? updated : r)));
+      const prevTargetAlias = relationships.find(r => r.id === updated.id)?.targetAlias;
       // Rename cascades paths in blendedFieldsConfig server-side; refetch to avoid overwriting it on next save.
       if (prevTargetAlias !== undefined && prevTargetAlias !== updated.targetAlias) {
         void refreshDataMart(dataMartId);
       }
+      void loadRelationships();
       invalidateBlendableSchema();
       onRelationshipsChanged?.();
     },
-    [dataMartId, refreshDataMart, invalidateBlendableSchema, onRelationshipsChanged]
+    [
+      dataMartId,
+      relationships,
+      loadRelationships,
+      refreshDataMart,
+      invalidateBlendableSchema,
+      onRelationshipsChanged,
+    ]
   );
 
   const saveConfigAndRefresh = useCallback(
@@ -312,11 +321,11 @@ export function DataMartRelationshipsContent({
       toast.success('Relationship added');
       setNewlyCreatedId(newRelationship.id);
       setIsAddingNew(false);
-      setRelationships(prev => [...prev, newRelationship]);
+      void loadRelationships();
       invalidateBlendableSchema();
       onRelationshipsChanged?.();
     },
-    [invalidateBlendableSchema, onRelationshipsChanged]
+    [loadRelationships, invalidateBlendableSchema, onRelationshipsChanged]
   );
 
   const updateSourceConfig = useCallback(
@@ -365,12 +374,7 @@ export function DataMartRelationshipsContent({
           ...override,
         };
 
-        const cleanOverride: BlendedFieldOverride = {};
-        if (merged.alias !== undefined && merged.alias !== '') cleanOverride.alias = merged.alias;
-        if (merged.isHidden !== undefined) cleanOverride.isHidden = merged.isHidden;
-        if (merged.aggregateFunction !== undefined) {
-          cleanOverride.aggregateFunction = merged.aggregateFunction;
-        }
+        const cleanOverride = cleanBlendedFieldOverride(merged);
 
         const newFields: Record<string, BlendedFieldOverride> = {};
         for (const [key, val] of Object.entries(currentFields)) {
@@ -448,9 +452,9 @@ export function DataMartRelationshipsContent({
             dataMartDescription={dmDescription}
             dataMartStatus={dmStatusCode}
             relationships={relationships}
+            relationshipGraph={relationshipGraph}
             connectedFieldCounts={connectedFieldCounts}
             searchQuery={searchQuery}
-            showTransient={showTransient}
             onRequestFullscreen={() => {
               setIsFullscreen(true);
             }}
@@ -627,9 +631,9 @@ export function DataMartRelationshipsContent({
                 dataMartDescription={dataMart.description}
                 dataMartStatus={dataMart.status.code}
                 relationships={relationships}
+                relationshipGraph={relationshipGraph}
                 connectedFieldCounts={connectedFieldCounts}
                 searchQuery={searchQuery}
-                showTransient={showTransient}
                 className='rounded-none border-0'
                 style={{ width: '100%', height: '100%' }}
               />

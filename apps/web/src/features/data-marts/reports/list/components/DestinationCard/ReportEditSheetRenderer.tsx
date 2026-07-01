@@ -10,6 +10,7 @@ interface ReportEditSheetRendererProps {
   destination: DataDestination;
   isOpen: boolean;
   onClose: () => void;
+  onSubmitSuccess?: () => void | Promise<void>;
   mode: ReportFormMode;
   initialReport?: DataMartReport | null;
 }
@@ -22,6 +23,7 @@ export function ReportEditSheetRenderer({
   destination,
   isOpen,
   onClose,
+  onSubmitSuccess,
   mode,
   initialReport,
 }: ReportEditSheetRendererProps) {
@@ -31,6 +33,7 @@ export function ReportEditSheetRenderer({
         <GoogleSheetsReportEditSheet
           isOpen={isOpen}
           onClose={onClose}
+          onSubmitSuccess={onSubmitSuccess}
           mode={mode}
           preSelectedDestination={destination}
           initialReport={initialReport ?? undefined}
@@ -41,6 +44,7 @@ export function ReportEditSheetRenderer({
         <LookerStudioReportEditSheet
           isOpen={isOpen}
           onClose={onClose}
+          onSubmitSuccess={onSubmitSuccess}
           mode={mode}
           preSelectedDestination={destination}
           initialReport={initialReport ?? undefined}
@@ -54,6 +58,7 @@ export function ReportEditSheetRenderer({
         <EmailReportEditSheet
           isOpen={isOpen}
           onClose={onClose}
+          onSubmitSuccess={onSubmitSuccess}
           mode={mode}
           preSelectedDestination={destination}
           initialReport={initialReport ?? undefined}

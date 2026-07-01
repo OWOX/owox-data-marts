@@ -8,10 +8,12 @@ import { DeleteInsightTemplateCommand } from '../dto/domain/delete-insight-templ
 import { GetInsightTemplateCommand } from '../dto/domain/get-insight-template.command';
 import { InsightTemplateDto } from '../dto/domain/insight-template.dto';
 import { ListInsightTemplatesCommand } from '../dto/domain/list-insight-templates.command';
+import { ProjectInsightTemplateDto } from '../dto/domain/project-insight-template.dto';
 import { UpdateInsightTemplateCommand } from '../dto/domain/update-insight-template.command';
 import { UpdateInsightTemplateTitleCommand } from '../dto/domain/update-insight-template-title.command';
 import { CreateInsightTemplateRequestApiDto } from '../dto/presentation/create-insight-template-request-api.dto';
 import { InsightTemplateListItemResponseApiDto } from '../dto/presentation/insight-template-list-item-response-api.dto';
+import { ProjectInsightTemplatesResponseApiDto } from '../dto/presentation/project-insight-templates-response-api.dto';
 import { InsightTemplateResponseApiDto } from '../dto/presentation/insight-template-response-api.dto';
 import { UpdateInsightTemplateRequestApiDto } from '../dto/presentation/update-insight-template-request-api.dto';
 import { UpdateInsightTemplateTitleApiDto } from '../dto/presentation/update-insight-template-title-api.dto';
@@ -112,6 +114,16 @@ export class InsightTemplateMapper {
 
   toListItemResponseList(dtos: InsightTemplateDto[]): InsightTemplateListItemResponseApiDto[] {
     return dtos.map(dto => this.toListItemResponse(dto));
+  }
+
+  toProjectResponseList(dtos: ProjectInsightTemplateDto[]): ProjectInsightTemplatesResponseApiDto {
+    return {
+      insights: dtos.map(dto => ({
+        ...this.toListItemResponse(dto.insightTemplate),
+        dataMart: dto.dataMart,
+        canDelete: dto.canDelete,
+      })),
+    };
   }
 
   toGetCommand(

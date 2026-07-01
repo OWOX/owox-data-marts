@@ -3,8 +3,14 @@ import { DataStorageType } from '../data-storage-types/enums/data-storage-type.e
 
 @Injectable()
 export class OutputControlsCapabilityService {
+  // Source of truth — keep frontend mirrors (web + extension output-controls-support.ts) in sync.
   private readonly supported: ReadonlySet<DataStorageType> = new Set([
     DataStorageType.GOOGLE_BIGQUERY,
+    DataStorageType.LEGACY_GOOGLE_BIGQUERY,
+    DataStorageType.AWS_ATHENA,
+    DataStorageType.AWS_REDSHIFT,
+    DataStorageType.DATABRICKS,
+    DataStorageType.SNOWFLAKE,
   ]);
 
   isSupported(type: DataStorageType): boolean {

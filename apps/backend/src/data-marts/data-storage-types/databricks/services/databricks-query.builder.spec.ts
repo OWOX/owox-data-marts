@@ -1,59 +1,65 @@
-import { NotImplementedException } from '@nestjs/common';
 import { DatabricksQueryBuilder } from './databricks-query.builder';
+import { DatabricksClauseRenderer } from './databricks-clause-renderer';
+import { DataMartDefinition } from '../../../dto/schemas/data-mart-table-definitions/data-mart-definition';
+
+const sqlDef = { sqlQuery: 'SELECT 1;' } as unknown as DataMartDefinition;
+const tableDef = { fullyQualifiedName: 'cat.sch.events' } as unknown as DataMartDefinition;
+
+function build() {
+  return new DatabricksQueryBuilder(new DatabricksClauseRenderer());
+}
 
 describe('DatabricksQueryBuilder', () => {
-  const builder = new DatabricksQueryBuilder();
+  it('builds a plain SELECT with no output controls', () => {
+    expect(build().buildQuery(tableDef, {})).toBe('SELECT *\nFROM `cat`.`sch`.`events`');
+  });
 
-  it('wraps SQL definitions with limit and strips trailing semicolon', () => {
-    const query = builder.buildQuery(
-      {
-        type: 'SQL',
-        sqlQuery: 'SELECT 1;',
-      } as never,
-      { limit: 0 }
+  it('wraps a SQL definition with limit (legacy schema-probe path), trailing semicolon stripped', () => {
+    expect(build().buildQuery(sqlDef, { limit: 0 })).toBe(
+      'SELECT *\nFROM (SELECT 1) AS subq\nLIMIT 0'
     );
-
-    expect(query).toBe('SELECT * FROM (SELECT 1) LIMIT 0');
-  });
-
-  it('wraps SQL definitions with limit without changing valid queries', () => {
-    const query = builder.buildQuery(
-      {
-        type: 'SQL',
-        sqlQuery: 'SELECT 1',
-      } as never,
-      { limit: 10 }
+    expect(build().buildQuery(sqlDef, { limit: 10 })).toBe(
+      'SELECT *\nFROM (SELECT 1) AS subq\nLIMIT 10'
     );
-
-    expect(query).toBe('SELECT * FROM (SELECT 1) LIMIT 10');
-  });
-});
-
-describe('DatabricksQueryBuilder — output controls guard', () => {
-  const builder = new DatabricksQueryBuilder();
-  const tableDef = { type: 'table', fullyQualifiedName: 'catalog.schema.tbl' } as any;
-
-  it('throws NotImplemented when filters are non-empty', () => {
-    expect(() =>
-      builder.buildQuery(tableDef, {
-        filters: [{ column: 'a', operator: 'eq', value: 1 }],
-      })
-    ).toThrow(NotImplementedException);
   });
 
-  it('throws NotImplemented when sort is non-empty', () => {
-    expect(() =>
-      builder.buildQuery(tableDef, {
-        sort: [{ column: 'a', direction: 'asc' }],
-      })
-    ).toThrow(NotImplementedException);
+  it('wraps the raw SQL as an aliased subquery when no mainTableReference is supplied (SQL def + filters)', () => {
+    const sql = build().buildQuery(sqlDef, {
+      filters: [{ column: 'a', operator: 'eq', value: 1 }],
+    });
+    expect(sql).toContain('FROM (SELECT 1) AS subq');
+    expect(sql).toContain('WHERE `a` = 1');
   });
 
-  it('still works without output controls (limit-only legacy path)', () => {
-    expect(builder.buildQuery(tableDef, { limit: 0 })).toBeDefined();
+  it('applies filters, sort and limit via the clause renderer', () => {
+    const sql = build().buildQuery(tableDef, {
+      columns: ['id', 'created_at'],
+      filters: [{ column: 'created_at', operator: 'gte', value: '2024-01-01' }],
+      sort: [{ column: 'id', direction: 'desc' }],
+      limit: 100,
+      columnTypes: new Map([['created_at', 'TIMESTAMP']]),
+    });
+    expect(sql).toContain('SELECT\n  `id`,\n  `created_at`\nFROM `cat`.`sch`.`events`');
+    expect(sql).toContain("WHERE `created_at` >= CAST('2024-01-01' AS TIMESTAMP)");
+    expect(sql).toContain('ORDER BY\n  `id` DESC');
+    expect(sql).toContain('LIMIT 100');
+  });
+
+  it('prefers mainTableReference as the FROM for SQL definitions under output controls', () => {
+    const sql = build().buildQuery(sqlDef, {
+      filters: [{ column: 'a', operator: 'eq', value: 1 }],
+      mainTableReference: 'cat.sch.my_view',
+    });
+    expect(sql).toContain('FROM cat.sch.my_view');
+    expect(sql).toContain('WHERE `a` = 1');
   });
 
   it('still works without options', () => {
-    expect(builder.buildQuery(tableDef)).toBeDefined();
+    expect(build().buildQuery(tableDef)).toBeDefined();
+  });
+
+  it('throws for table-pattern definitions under output controls', () => {
+    const patternDef = { pattern: 'ev_' } as unknown as DataMartDefinition;
+    expect(() => build().buildQuery(patternDef, { limit: 1 })).toThrow();
   });
 });

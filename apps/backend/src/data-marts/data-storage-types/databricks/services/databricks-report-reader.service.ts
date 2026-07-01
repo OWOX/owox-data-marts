@@ -8,7 +8,7 @@ import {
 import { ReportDataBatch } from '../../../dto/domain/report-data-batch.dto';
 import { ReportDataDescription } from '../../../dto/domain/report-data-description.dto';
 import { ReportDataHeader } from '../../../dto/domain/report-data-header.dto';
-import { Report } from '../../../entities/report.entity';
+import { ReportLike } from '../../../dto/domain/report-like-read-plan';
 import { DataMartDefinition } from '../../../dto/schemas/data-mart-table-definitions/data-mart-definition';
 import { DataStorageReportReaderState } from '../../interfaces/data-storage-report-reader-state.interface';
 import { DataStorage } from '../../../entities/data-storage.entity';
@@ -44,12 +44,16 @@ export class DatabricksReportReader implements DataStorageReportReader {
   ) {}
 
   async prepareReportData(
-    report: Report,
+    report: ReportLike,
     options?: PrepareReportDataOptions
   ): Promise<ReportDataDescription> {
     const { storage, definition, schema } = report.dataMart;
     if (!storage || !definition) {
       throw new Error('Data Mart is not properly configured');
+    }
+
+    if (options?.sqlOverrideParams?.length) {
+      throw new Error('Databricks report reader does not support parameterized sqlOverride');
     }
 
     if (!schema) {
@@ -63,7 +67,8 @@ export class DatabricksReportReader implements DataStorageReportReader {
     this.reportConfig = { storage, definition };
     this.reportDataHeaders = resolveReportDataHeaders(
       this.headersGenerator.generateHeaders(schema),
-      options
+      options,
+      this.type
     );
 
     this.adapter = await this.adapterFactory.createFromStorage(storage);

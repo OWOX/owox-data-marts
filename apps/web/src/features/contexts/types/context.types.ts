@@ -17,6 +17,7 @@ export interface ContextImpactDto {
   storageCount: number;
   destinationCount: number;
   memberCount: number;
+  userProvisioningDefaultsCount: number;
   affectedMemberIds: string[];
 }
 

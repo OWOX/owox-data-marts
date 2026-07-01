@@ -7,6 +7,11 @@ import { useCallback, useState } from 'react';
  * - intercept close and show confirmation dialog
  * - confirm close and reset state
  * - handle successful submit (reset + close)
+ *
+ * Note: render the unsaved-changes `ConfirmationDialog` *inside* the sheet's `SheetContent`
+ * (not as a sibling of `Sheet`). That makes Radix treat it as a nested dismissable layer, so
+ * interacting with the dialog does not dismiss the host sheet — which previously re-opened the
+ * dialog and trapped the user in a loop.
  */
 export function useUnsavedGuard(onClose: () => void) {
   const [showUnsavedDialog, setShowUnsavedDialog] = useState(false);

@@ -1,4 +1,4 @@
-import { Injectable, NotImplementedException } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { DataMartDefinition } from '../../../dto/schemas/data-mart-table-definitions/data-mart-definition';
 import {
   isConnectorDefinition,
@@ -12,55 +12,158 @@ import {
   DataMartQueryBuilder,
   DataMartQueryOptions,
 } from '../../interfaces/data-mart-query-builder.interface';
+import { FilterRule } from '../../../dto/schemas/filter-config.schema';
+import { effectiveComparisonType } from '../../field-aggregation';
+import { createIdentifierEscaper } from '../../utils/identifier-escaper.utils';
+import { buildDateTruncUnitMap, buildTimeZoneMap } from '../../utils/date-trunc-maps.utils';
 import { escapeSnowflakeIdentifier } from '../utils/snowflake-identifier.utils';
+import { SnowflakeClauseRenderer } from './snowflake-clause-renderer';
+import { composeSelectFromClause } from '../../utils/sql-clause-renderer';
+
+// User-controlled output-control column names use the robust shared escaper (quotes every
+// dotted part, doubles inner quotes). Table FQNs in FROM keep escapeSnowflakeIdentifier
+// (Snowflake leaves the database part unquoted).
+const escapeColumnIdentifier = createIdentifierEscaper({ quoteChar: '"' });
 
 @Injectable()
 export class SnowflakeQueryBuilder implements DataMartQueryBuilder {
   readonly type = DataStorageType.SNOWFLAKE;
 
+  constructor(private readonly clauseRenderer: SnowflakeClauseRenderer) {}
+
   buildQuery(definition: DataMartDefinition, queryOptions?: DataMartQueryOptions): string {
-    if ((queryOptions?.filters?.length ?? 0) > 0 || (queryOptions?.sort?.length ?? 0) > 0) {
-      throw new NotImplementedException(
-        `Output controls not yet supported for storage type ${this.type}`
+    const aggregations = queryOptions?.aggregations ?? [];
+    const dateTruncs = queryOptions?.dateTruncs ?? [];
+    const rowCount = queryOptions?.rowCount === true;
+    const uniqueCount = queryOptions?.uniqueCount === true;
+    const hasOutputControls =
+      (queryOptions?.filters?.length ?? 0) > 0 ||
+      (queryOptions?.sort?.length ?? 0) > 0 ||
+      aggregations.length > 0 ||
+      dateTruncs.length > 0 ||
+      rowCount ||
+      uniqueCount ||
+      queryOptions?.limit != null;
+
+    const selectList = this.buildSelectList(queryOptions?.columns);
+
+    if (!hasOutputControls) {
+      return this.buildPlainQuery(definition, selectList, queryOptions);
+    }
+
+    const fromClause = this.resolveFromClauseWithOutputControls(definition, queryOptions);
+    const columnTypes = queryOptions?.columnTypes;
+    const resolveColumnType = columnTypes
+      ? (rule: FilterRule) => effectiveComparisonType(columnTypes.get(rule.column), rule, this.type)
+      : undefined;
+    const where = this.clauseRenderer.renderWhere(
+      queryOptions?.filters ?? [],
+      undefined,
+      'p',
+      resolveColumnType
+    );
+    const orderBy = this.clauseRenderer.renderOrderBy(queryOptions?.sort ?? []);
+    const limit = this.clauseRenderer.renderLimit(queryOptions?.limit ?? null);
+
+    // Snowflake inlines every literal — no path carries bound params. Fail fast if a
+    // fragment ever emitted one (the reader rejects parameterized sqlOverride).
+    const paramCount = where.params.length + orderBy.params.length + limit.params.length;
+    if (paramCount > 0) {
+      throw new Error(
+        `SnowflakeQueryBuilder expected zero bound params (literals are inlined) but got ${paramCount}`
       );
     }
-    const selectList = this.buildSelectList(queryOptions?.columns);
-    let query: string;
 
+    if (aggregations.length > 0 || dateTruncs.length > 0 || rowCount || uniqueCount) {
+      const agg = this.clauseRenderer.renderAggregatedSelect(
+        queryOptions?.columns ?? [],
+        aggregations,
+        buildDateTruncUnitMap(dateTruncs),
+        {
+          includeRowCount: rowCount,
+          includeUniqueCount: uniqueCount,
+          primaryKeyColumns: queryOptions?.primaryKeyColumns,
+          timeZoneByColumn: buildTimeZoneMap(dateTruncs),
+          typeByColumn: columnTypes,
+        }
+      );
+      // ORDER BY must reference the output alias — a bare aggregated column is not in GROUP BY.
+      const aggOrderBy = this.clauseRenderer.renderOrderBy(
+        queryOptions?.sort ?? [],
+        this.clauseRenderer.buildAggregatedAliasResolver(agg.aliasByColumn)
+      );
+      // Snowflake inlines literals, so HAVING carries no bound params (same as WHERE above).
+      const having = this.clauseRenderer.renderHaving(
+        queryOptions?.filters ?? [],
+        undefined,
+        'h',
+        resolveColumnType
+      );
+      return `${composeSelectFromClause(agg.selectSql, fromClause)}${where.sql}${agg.groupBySql}${having.sql}${aggOrderBy.sql}${limit.sql}`;
+    }
+
+    return `${composeSelectFromClause(selectList, fromClause)}${where.sql}${orderBy.sql}${limit.sql}`;
+  }
+
+  private buildPlainQuery(
+    definition: DataMartDefinition,
+    selectList: string,
+    queryOptions?: DataMartQueryOptions
+  ): string {
     if (isTableDefinition(definition) || isViewDefinition(definition)) {
-      query = `SELECT ${selectList} FROM ${escapeSnowflakeIdentifier(definition.fullyQualifiedName)}`;
-    } else if (isConnectorDefinition(definition)) {
-      query = `SELECT ${selectList} FROM ${escapeSnowflakeIdentifier(definition.connector.storage.fullyQualifiedName)}`;
-    } else if (isSqlDefinition(definition)) {
+      return composeSelectFromClause(
+        selectList,
+        escapeSnowflakeIdentifier(definition.fullyQualifiedName)
+      );
+    }
+    if (isConnectorDefinition(definition)) {
+      return composeSelectFromClause(
+        selectList,
+        escapeSnowflakeIdentifier(definition.connector.storage.fullyQualifiedName)
+      );
+    }
+    if (isSqlDefinition(definition)) {
       if (queryOptions?.columns?.length) {
         const cleanQuery = definition.sqlQuery.trim().replace(/;\s*$/, '');
-        query = `SELECT ${selectList} FROM (${cleanQuery})`;
-      } else {
-        query = definition.sqlQuery;
+        return composeSelectFromClause(selectList, `(${cleanQuery})`);
       }
-    } else if (isTablePatternDefinition(definition)) {
-      // Snowflake doesn't support table patterns like BigQuery
-      // This would need to be implemented differently, possibly using INFORMATION_SCHEMA
+      return definition.sqlQuery;
+    }
+    if (isTablePatternDefinition(definition)) {
       throw new Error('Table pattern definitions are not supported for Snowflake');
-    } else {
-      throw new Error('Invalid data mart definition');
     }
+    throw new Error('Invalid data mart definition');
+  }
 
-    if (queryOptions?.limit !== undefined && queryOptions.limit !== null) {
-      if (!Number.isInteger(queryOptions.limit) || queryOptions.limit < 0) {
-        throw new Error(`Invalid LIMIT value: ${String(queryOptions.limit)}`);
+  private resolveFromClauseWithOutputControls(
+    definition: DataMartDefinition,
+    options?: DataMartQueryOptions
+  ): string {
+    if (isTableDefinition(definition) || isViewDefinition(definition)) {
+      return escapeSnowflakeIdentifier(definition.fullyQualifiedName);
+    }
+    if (isConnectorDefinition(definition)) {
+      return escapeSnowflakeIdentifier(definition.connector.storage.fullyQualifiedName);
+    }
+    if (isSqlDefinition(definition)) {
+      // Prefer the pre-materialized view the composer resolves (mirrors Redshift); fall
+      // back to wrapping the raw SQL when no reference was supplied.
+      if (options?.mainTableReference) {
+        return options.mainTableReference;
       }
-      const cleanQuery = query.trim().endsWith(';') ? query.trim().slice(0, -1) : query.trim();
-      query = `SELECT * FROM (${cleanQuery}) LIMIT ${queryOptions.limit}`;
+      const cleanQuery = definition.sqlQuery.trim().replace(/;\s*$/, '');
+      return `(${cleanQuery})`;
     }
-
-    return query;
+    if (isTablePatternDefinition(definition)) {
+      throw new Error('Table pattern definitions are not supported for Snowflake');
+    }
+    throw new Error('Invalid data mart definition');
   }
 
   private buildSelectList(columns?: string[]): string {
     if (!columns || columns.length === 0) {
       return '*';
     }
-    return columns.map(col => escapeSnowflakeIdentifier(col)).join(', ');
+    return columns.map(col => escapeColumnIdentifier(col)).join(',\n  ');
   }
 }

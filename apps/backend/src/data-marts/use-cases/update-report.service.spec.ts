@@ -257,6 +257,10 @@ describe('UpdateReportService', () => {
       filterConfig: [{ column: 'name', operator: 'eq', value: 'X' }],
       sortConfig: [{ column: 'name', direction: 'asc' }],
       limitConfig: 100,
+      aggregationConfig: null,
+      dateTruncConfig: null,
+      uniqueCountConfig: null,
+      accessor: { userId: 'user-1', roles: ['editor'] },
     });
   });
 
@@ -370,6 +374,58 @@ describe('UpdateReportService', () => {
     await service.run(command);
 
     expect(reportDataCacheService.invalidateByReportId).not.toHaveBeenCalled();
+  });
+
+  it('should pass aggregationConfig to outputControlsValidator.validateForReport', async () => {
+    const { service, outputControlsValidator } = createService();
+
+    const command = new UpdateReportCommand(
+      'report-1',
+      'proj-1',
+      'user-1',
+      ['editor'],
+      'New Title',
+      'dest-1',
+      {} as never,
+      undefined,
+      undefined,
+      null,
+      null,
+      null,
+      [{ column: 'amount', function: 'SUM' }]
+    );
+
+    await service.run(command);
+
+    expect(outputControlsValidator.validateForReport).toHaveBeenCalledWith(
+      expect.objectContaining({
+        aggregationConfig: [{ column: 'amount', function: 'SUM' }],
+      })
+    );
+  });
+
+  it('should invalidate cache when aggregationConfig changes', async () => {
+    const { service, reportDataCacheService } = createService();
+
+    const command = new UpdateReportCommand(
+      'report-1',
+      'proj-1',
+      'user-1',
+      ['editor'],
+      'New Title',
+      'dest-1',
+      {} as never,
+      undefined,
+      undefined,
+      null,
+      null,
+      null,
+      [{ column: 'amount', function: 'SUM' }]
+    );
+
+    await service.run(command);
+
+    expect(reportDataCacheService.invalidateByReportId).toHaveBeenCalledWith('report-1');
   });
 
   it('should return DTO carrying capabilities computed for the updater', async () => {

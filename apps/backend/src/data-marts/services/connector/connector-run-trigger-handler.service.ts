@@ -46,6 +46,10 @@ export class ConnectorRunTriggerHandlerService extends BaseRunTriggerHandlerServ
     let run: DataMartRun;
 
     try {
+      if (await this.cancelTriggerIfRunAlreadyCancelled(trigger)) {
+        return;
+      }
+
       dataMart = await this.dataMartService.getByIdAndProjectId(
         trigger.dataMartId,
         trigger.projectId
@@ -61,6 +65,12 @@ export class ConnectorRunTriggerHandlerService extends BaseRunTriggerHandlerServ
         trigger.payload,
         options?.signal
       );
+      if (options?.signal?.aborted) {
+        await this.markTriggerAsCancelled(
+          trigger,
+          `Cancelled run trigger ${trigger.id}: abort signal received for DataMartRun ${trigger.dataMartRunId}`
+        );
+      }
     } catch (error) {
       if (error instanceof ConcurrencyLimitExceededException) {
         this.logger.log(
@@ -76,6 +86,13 @@ export class ConnectorRunTriggerHandlerService extends BaseRunTriggerHandlerServ
       if (existingRun?.status === DataMartRunStatus.RUNNING) {
         this.logger.warn(
           `DataMartRun ${trigger.dataMartRunId} is already RUNNING, skipping duplicate trigger ${trigger.id}`
+        );
+        return;
+      }
+      if (existingRun?.status === DataMartRunStatus.CANCELLED) {
+        await this.markTriggerAsCancelled(
+          trigger,
+          `Skipping run trigger ${trigger.id}: DataMartRun ${trigger.dataMartRunId} is already CANCELLED`
         );
         return;
       }

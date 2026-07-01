@@ -2,6 +2,8 @@ import type { EventTransport } from './types.js';
 import type { BaseEvent } from './base-event.js';
 import { LoggerFactory } from '../../logging/logger-factory.js';
 import { LoggerTransport } from './transports/logger-transport.js';
+import { PostHogTransport } from './transports/posthog-transport.js';
+import { resolvePostHogConfig } from './posthog-config.js';
 import { resolveEventBusConfig } from './config.js';
 import { castError } from '../../utils/castError.js';
 
@@ -64,6 +66,9 @@ export function createEventBusFromEnv(env: NodeJS.ProcessEnv = process.env): Eve
     switch (name) {
       case 'logger':
         transports.push(new LoggerTransport(LoggerFactory.createNamedLogger('EventBus')));
+        break;
+      case 'posthog':
+        transports.push(new PostHogTransport(resolvePostHogConfig(env)));
         break;
       default:
         throw new Error(`Unknown event transport: ${name}`);

@@ -11,7 +11,7 @@ import {
 } from '../interfaces/athena-reader-state.interface';
 import { Injectable, Logger, Scope } from '@nestjs/common';
 import { DataStorageType } from '../../enums/data-storage-type.enum';
-import { Report } from '../../../entities/report.entity';
+import { ReportLike } from '../../../dto/domain/report-like-read-plan';
 import { ReportDataDescription } from '../../../dto/domain/report-data-description.dto';
 import { ReportDataBatch } from '../../../dto/domain/report-data-batch.dto';
 import { DataMartDefinition } from '../../../dto/schemas/data-mart-table-definitions/data-mart-definition';
@@ -21,9 +21,12 @@ import { AthenaApiAdapterFactory } from '../adapters/athena-api-adapter.factory'
 import { S3ApiAdapter } from '../adapters/s3-api.adapter';
 import { S3ApiAdapterFactory } from '../adapters/s3-api-adapter.factory';
 import { isAthenaConfig } from '../../data-storage-config.guards';
+import { isQueryBuildResult } from '../../interfaces/data-mart-query-builder.interface';
 import { AthenaQueryBuilder } from './athena-query.builder';
 import { AthenaReportHeadersGenerator } from './athena-report-headers-generator.service';
 import { resolveReportDataHeaders } from '../../utils/report-data-headers.utils';
+import { SqlParameter } from '../../utils/sql-clause-renderer';
+
 @Injectable({ scope: Scope.TRANSIENT })
 export class AthenaReportReader implements DataStorageReportReader {
   private readonly logger = new Logger(AthenaReportReader.name);
@@ -37,6 +40,7 @@ export class AthenaReportReader implements DataStorageReportReader {
   private reportDataHeaders: ReportDataHeader[];
   private reportConfig: { storage: DataStorage; definition: DataMartDefinition };
   private pendingQuery?: string;
+  private pendingParams?: SqlParameter[];
 
   constructor(
     private readonly athenaAdapterFactory: AthenaApiAdapterFactory,
@@ -46,7 +50,7 @@ export class AthenaReportReader implements DataStorageReportReader {
   ) {}
 
   async prepareReportData(
-    report: Report,
+    report: ReportLike,
     options?: PrepareReportDataOptions
   ): Promise<ReportDataDescription> {
     const { storage, definition, schema } = report.dataMart;
@@ -66,11 +70,15 @@ export class AthenaReportReader implements DataStorageReportReader {
 
     this.reportDataHeaders = resolveReportDataHeaders(
       this.headersGenerator.generateHeaders(schema),
-      options
+      options,
+      this.type
     );
+    const builtQuery = this.athenaQueryBuilder.buildQuery(definition, {
+      columns: options?.columnFilter,
+    });
     this.pendingQuery =
-      options?.sqlOverride ??
-      this.athenaQueryBuilder.buildQuery(definition, { columns: options?.columnFilter });
+      options?.sqlOverride ?? (isQueryBuildResult(builtQuery) ? builtQuery.sql : builtQuery);
+    this.pendingParams = options?.sqlOverrideParams;
 
     await this.prepareApiAdapters(storage);
 
@@ -180,22 +188,26 @@ export class AthenaReportReader implements DataStorageReportReader {
   private async prepareQueryExecution(dataMartDefinition: DataMartDefinition): Promise<void> {
     this.logger.debug('Preparing query execution', dataMartDefinition);
     try {
-      const query = this.pendingQuery ?? this.athenaQueryBuilder.buildQuery(dataMartDefinition);
-      await this.executeQuery(query);
+      const builtFallback = this.athenaQueryBuilder.buildQuery(dataMartDefinition);
+      const query =
+        this.pendingQuery ??
+        (isQueryBuildResult(builtFallback) ? builtFallback.sql : builtFallback);
+      await this.executeQuery(query, this.pendingParams);
     } catch (error) {
       this.logger.error('Failed to prepare query execution', error);
       throw error;
     }
   }
 
-  private async executeQuery(query: string): Promise<void> {
+  private async executeQuery(query: string, params?: SqlParameter[]): Promise<void> {
     // Generate a unique output location prefix
     this.outputPrefix = `owox-data-marts/${Date.now()}-${Math.random().toString(36).substring(2, 15)}`;
 
     const result = await this.athenaAdapter.executeQuery(
       query,
       this.outputBucket,
-      this.outputPrefix
+      this.outputPrefix,
+      params
     );
 
     this.queryExecutionId = result.queryExecutionId;

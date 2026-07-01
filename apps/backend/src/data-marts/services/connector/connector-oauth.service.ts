@@ -66,12 +66,15 @@ export class ConnectorOauthService {
 
   async getCredentialStatus(
     connectorName: string,
-    credentialId: string
+    credentialId: string,
+    projectId: string
   ): Promise<ConnectorOAuthStatusSchema> {
     const credential =
       await this.connectorSourceCredentialsService.getCredentialsById(credentialId);
 
-    if (!credential) {
+    // A credential from another project is treated as non-existent so callers
+    // cannot probe credential status across the tenant boundary.
+    if (!credential || credential.projectId !== projectId) {
       throw new Error(`Credential with ID ${credentialId} not found`);
     }
 

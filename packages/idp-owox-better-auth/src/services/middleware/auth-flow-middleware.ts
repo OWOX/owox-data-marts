@@ -8,7 +8,7 @@ import { generatePkce, generateState } from '../../core/pkce.js';
 import type { DatabaseStore } from '../../store/database-store.js';
 import { buildAuthRequestContext } from '../../types/auth-request-context.js';
 import { buildPlatformEntryUrl } from '../../utils/platform-redirect-builder.js';
-import { extractPlatformParams } from '../../utils/request-utils.js';
+import { extractAuthFlowParams, persistAuthFlowParams } from '../../utils/request-utils.js';
 import { PkceFlowOrchestrator } from '../auth/pkce-flow-orchestrator.js';
 
 /**
@@ -30,9 +30,11 @@ export class AuthFlowMiddleware {
       const { codeVerifier, codeChallenge } = await generatePkce();
       const state = generateState();
       const expiresAt = new Date(Date.now() + ms('1m'));
-      await this.store.saveAuthState(state, codeVerifier, expiresAt);
+      const authFlowParams = extractAuthFlowParams(req);
+      await this.store.saveAuthState(state, codeVerifier, expiresAt, authFlowParams);
 
-      const { redirectTo, appRedirectTo, projectId, extraParams } = extractPlatformParams(req);
+      const { redirectTo, appRedirectTo, projectId, extraParams } = authFlowParams;
+      persistAuthFlowParams(req, res, authFlowParams);
 
       const platformUrl = buildPlatformEntryUrl({
         authUrl: this.idpOwoxConfig.idpConfig.platformSignInUrl,
@@ -43,6 +45,14 @@ export class AuthFlowMiddleware {
       platformUrl.searchParams.set('state', state);
       platformUrl.searchParams.set('codeChallenge', codeChallenge);
       platformUrl.searchParams.set('clientId', this.idpOwoxConfig.idpConfig.clientId);
+      this.logger.info('Starting IDP auth flow', {
+        path: req.path,
+        redirectTo,
+        appRedirectTo,
+        projectId,
+        extraParamKeys: extraParams ? Object.keys(extraParams) : [],
+        platformUrl: platformUrl.toString(),
+      });
 
       return res.redirect(platformUrl.toString());
     } catch (error) {
@@ -64,7 +74,7 @@ export class AuthFlowMiddleware {
     if (context.state && context.refreshToken) {
       const fastRedirect = await this.pkceFlowOrchestrator.completeWithIdentityRefreshToken(
         context.refreshToken,
-        context.platformParams,
+        context.authFlowParams,
         req,
         res
       );

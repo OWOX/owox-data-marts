@@ -1,4 +1,5 @@
-import { ApiService } from '../../../services/api-service';
+import { ApiService } from '../../../services';
+import type { AxiosRequestConfig } from 'axios';
 
 export interface OAuthSettings {
   available: boolean;
@@ -6,6 +7,8 @@ export interface OAuthSettings {
   clientId?: string;
   redirectUri?: string;
   availableScopes?: string[];
+  /** Drive Picker API key (destination only) — enables the folder picker. */
+  pickerApiKey?: string;
 }
 
 export interface OAuthAuthorizationUrl {
@@ -80,8 +83,8 @@ class DestinationOAuthApiService extends ApiService {
     return this.get<OAuthStatus>(`/${destinationId}/oauth/status`);
   }
 
-  getCredentialStatus(credentialId: string): Promise<OAuthStatus> {
-    return this.get<OAuthStatus>(`/oauth/credential-status/${credentialId}`);
+  getCredentialStatus(credentialId: string, config?: AxiosRequestConfig): Promise<OAuthStatus> {
+    return this.get<OAuthStatus>(`/oauth/credential-status/${credentialId}`, undefined, config);
   }
 }
 

@@ -1,4 +1,6 @@
 import { DataStorageType } from '../enums/data-storage-type.enum';
+import { extractCteBody } from '@owox/test-utils';
+import type { FilterRule } from '../../dto/schemas/filter-config.schema';
 import {
   createBuildContext,
   makeChain,
@@ -6,8 +8,9 @@ import {
 } from './__fixtures__/blended-query-builder-fixtures';
 import { AbstractBlendedQueryBuilder } from './abstract-blended-query-builder';
 import { ResolvedRelationshipChain, BlendedQueryContext } from './blended-query-builder.interface';
-import { SqlClauseRenderer } from '../utils/sql-clause-renderer';
+import { SqlClauseRenderer, SqlParameter } from '../utils/sql-clause-renderer';
 import { BigQueryClauseRenderer } from '../bigquery/services/bigquery-clause-renderer';
+import { buildBlendedFieldIndex } from '../../services/blended-field-index';
 
 // Uses backtick quoting and a plain STRING_AGG syntax (no CAST) so that SQL-shape
 // assertions stay readable — dialect-specific CASTs are covered by per-dialect specs.
@@ -799,7 +802,7 @@ describe('AbstractBlendedQueryBuilder', () => {
       expect(sql).toContain('SUM(item_count) AS item_count');
     });
 
-    it('re-aggregation: COUNT_DISTINCT becomes SUM at parent level', () => {
+    it('re-aggregation: COUNT_DISTINCT becomes SUM at parent level (known over-count limitation)', () => {
       const ab = makeChain({
         relationship: makeRelationship({
           id: 'rel-ab',
@@ -832,6 +835,10 @@ describe('AbstractBlendedQueryBuilder', () => {
         buildContext([ab, bc], ['customer_name', 'unique_items'])
       );
 
+      // KNOWN LIMITATION (documented in getReAggregateFunction): on a 2+ level blend this
+      // SUMs per-child-group distinct counts, which over-counts a value present in more than
+      // one group — it is NOT a true global distinct. Asserting the current SQL, not a claim
+      // of semantic correctness.
       expect(sql).toContain('COUNT(DISTINCT item_id) AS unique_items');
       expect(sql).toContain('SUM(unique_items) AS unique_items');
     });
@@ -1044,7 +1051,7 @@ describe('AbstractBlendedQueryBuilder — output controls', () => {
     builder = new TestBlendedWithRenderer();
   });
 
-  it('appends WHERE on final SELECT', () => {
+  it('qualifies WHERE on a native main column with the main alias', () => {
     const chain = makeChain({
       relationship: makeRelationship(),
       targetTableReference: 'orders_table',
@@ -1063,11 +1070,63 @@ describe('AbstractBlendedQueryBuilder — output controls', () => {
       filters: [{ column: 'customer_name', operator: 'eq', value: 'X' }],
     };
     const { sql, params } = builder.buildBlendedQuery(ctx);
-    expect(sql).toContain('WHERE `customer_name` = @p0');
+    expect(sql).toContain('WHERE main.customer_name = @p0');
     expect(params).toEqual([{ name: 'p0', value: 'X' }]);
   });
 
-  it('appends ORDER BY and LIMIT in correct order after WHERE', () => {
+  it('qualifies WHERE on a blended outputAlias with its root CTE alias', () => {
+    const chain = makeChain({
+      relationship: makeRelationship(),
+      targetTableReference: 'orders_table',
+      parentAlias: 'main',
+      blendedFields: [
+        {
+          targetFieldName: 'order_name',
+          outputAlias: 'order_names',
+          isHidden: false,
+          aggregateFunction: 'STRING_AGG',
+        },
+      ],
+    });
+    const { sql } = builder.buildBlendedQuery({
+      ...buildContext([chain], ['customer_name', 'order_names']),
+      filters: [{ column: 'order_names', operator: 'eq', value: 'X' }],
+    });
+    expect(sql).toContain('WHERE orders.order_names = @p0');
+  });
+
+  it('qualifies WHERE on a hidden blended outputAlias and keeps it out of SELECT', () => {
+    const chain = makeChain({
+      relationship: makeRelationship(),
+      targetTableReference: 'orders_table',
+      parentAlias: 'main',
+      blendedFields: [
+        {
+          targetFieldName: 'order_name',
+          outputAlias: 'order_names',
+          isHidden: false,
+          aggregateFunction: 'STRING_AGG',
+        },
+        {
+          targetFieldName: 'total',
+          outputAlias: 'orders__total',
+          isHidden: true,
+          aggregateFunction: 'SUM',
+        },
+      ],
+    });
+    const { sql } = builder.buildBlendedQuery({
+      ...buildContext([chain], ['customer_name', 'order_names']),
+      filters: [{ column: 'orders__total', operator: 'gt', value: 100 }],
+    });
+    expect(sql).toContain('WHERE orders.orders__total > @p0');
+    expect(sql).toContain('SUM(total) AS orders__total');
+    const selectSection = sql.split('FROM main\n')[0];
+    expect(selectSection).not.toContain('orders.orders__total,');
+    expect(selectSection.match(/orders\.orders__total\b/g)).toBeNull();
+  });
+
+  it('appends ORDER BY and LIMIT in correct order after WHERE with qualified references', () => {
     const chain = makeChain({
       relationship: makeRelationship(),
       targetTableReference: 'orders_table',
@@ -1089,8 +1148,93 @@ describe('AbstractBlendedQueryBuilder — output controls', () => {
     });
     expect(sql.indexOf('WHERE')).toBeLessThan(sql.indexOf('ORDER BY'));
     expect(sql.indexOf('ORDER BY')).toBeLessThan(sql.indexOf('LIMIT'));
-    expect(sql).toContain('ORDER BY `customer_name` DESC');
+    expect(sql).toContain('ORDER BY\n  main.customer_name DESC');
     expect(sql).toContain('LIMIT 50');
+  });
+
+  it('projects native main columns referenced only by filter/sort into the main raw CTE', () => {
+    const chain = makeChain({
+      relationship: makeRelationship(),
+      targetTableReference: 'orders_table',
+      parentAlias: 'main',
+      blendedFields: [
+        {
+          targetFieldName: 'order_name',
+          outputAlias: 'order_names',
+          isHidden: false,
+          aggregateFunction: 'STRING_AGG',
+        },
+      ],
+    });
+    const { sql } = builder.buildBlendedQuery({
+      ...buildContext([chain], ['order_names']),
+      filters: [{ column: 'customer_name', operator: 'eq', value: 'X' }],
+      sort: [{ column: 'signup_date', direction: 'desc' }],
+    });
+    expect(sql).toMatch(
+      /main AS \(\s*SELECT\s+customer_name,\s+id,\s+signup_date\s+FROM main_table/
+    );
+    expect(sql).toContain('WHERE main.customer_name = @p0');
+    expect(sql).toContain('ORDER BY\n  main.signup_date DESC');
+  });
+
+  it('routes a depth-2 blended outputAlias to its root CTE in WHERE', () => {
+    const ab = makeChain({
+      relationship: makeRelationship({
+        id: 'rel-ab',
+        targetAlias: 'orders',
+        joinConditions: [{ sourceFieldName: 'id', targetFieldName: 'customer_id' }],
+      }),
+      targetTableReference: 'orders_table',
+      parentAlias: 'main',
+      blendedFields: [],
+    });
+    const bc = makeChain({
+      relationship: makeRelationship({
+        id: 'rel-bc',
+        targetAlias: 'items',
+        joinConditions: [{ sourceFieldName: 'order_id', targetFieldName: 'order_id' }],
+      }),
+      targetTableReference: 'items_table',
+      parentAlias: 'orders',
+      blendedFields: [
+        {
+          targetFieldName: 'item_id',
+          outputAlias: 'orders_items__count',
+          isHidden: false,
+          aggregateFunction: 'COUNT',
+        },
+      ],
+    });
+    const { sql } = builder.buildBlendedQuery({
+      ...buildContext([ab, bc], ['customer_name', 'orders_items__count']),
+      filters: [{ column: 'orders_items__count', operator: 'gt', value: 0 }],
+    });
+    expect(sql).toContain('WHERE orders.orders_items__count > @p0');
+  });
+
+  it('emits segment-aware quoting for dotted native main columns', () => {
+    const chain = makeChain({
+      relationship: makeRelationship(),
+      targetTableReference: 'orders_table',
+      parentAlias: 'main',
+      blendedFields: [
+        {
+          targetFieldName: 'order_name',
+          outputAlias: 'order_names',
+          isHidden: false,
+          aggregateFunction: 'STRING_AGG',
+        },
+      ],
+    });
+    const { sql } = builder.buildBlendedQuery({
+      ...buildContext([chain], ['order_names']),
+      filters: [{ column: 'user.email', operator: 'eq', value: 'a@b' }],
+      sort: [{ column: 'user.email', direction: 'asc' }],
+    });
+    expect(sql).toContain('WHERE main.user.email = @p0');
+    expect(sql).toContain('ORDER BY\n  main.user.email ASC');
+    expect(sql).not.toContain('main.`user.email`');
   });
 
   it('returns empty params when no filters', () => {
@@ -1102,5 +1246,993 @@ describe('AbstractBlendedQueryBuilder — output controls', () => {
     });
     const { params } = builder.buildBlendedQuery(buildContext([chain], ['customer_name']));
     expect(params).toEqual([]);
+  });
+
+  describe('with pre-join filters', () => {
+    function makeUsersChain() {
+      return makeChain({
+        relationship: makeRelationship({
+          targetAlias: 'users',
+          joinConditions: [{ sourceFieldName: 'id', targetFieldName: 'user_id' }],
+        }),
+        targetTableReference: 'users_table',
+        parentAlias: 'main',
+        blendedFields: [
+          {
+            targetFieldName: 'email',
+            outputAlias: 'users_email',
+            isHidden: false,
+            aggregateFunction: 'STRING_AGG',
+          },
+        ],
+      });
+    }
+
+    it('emits WHERE inside a leaf raw CTE for a single pre-join filter', () => {
+      const fieldIndex = buildBlendedFieldIndex({
+        blendedFields: [
+          {
+            name: 'users__userRole',
+            aliasPath: 'users',
+            originalFieldName: 'userRole',
+            type: 'STRING',
+          },
+        ],
+        availableSources: [{ aliasPath: 'users', isIncluded: true }],
+      } as never);
+      const ctx: BlendedQueryContext = {
+        ...buildContext([makeUsersChain()], ['users_email']),
+        filters: [
+          {
+            column: 'users__userRole',
+            operator: 'eq',
+            value: 'admin',
+            placement: 'pre-join',
+          },
+        ],
+        fieldIndex,
+      };
+      const { sql, params } = builder.buildBlendedQuery(ctx);
+      expect(sql).toMatch(/users_raw AS \([\s\S]+?WHERE\s+userRole\s*=\s*@s_users_0/);
+      expect(params.find(p => p.name === 's_users_0')?.value).toBe('admin');
+    });
+
+    it('projects pre-join filter columns into the raw CTE even if not in columnConfig', () => {
+      const fieldIndex = buildBlendedFieldIndex({
+        blendedFields: [
+          {
+            name: 'users__userRole',
+            aliasPath: 'users',
+            originalFieldName: 'userRole',
+            type: 'STRING',
+          },
+        ],
+        availableSources: [{ aliasPath: 'users', isIncluded: true }],
+      } as never);
+      const ctx: BlendedQueryContext = {
+        ...buildContext([makeUsersChain()], ['users_email']),
+        filters: [
+          {
+            column: 'users__userRole',
+            operator: 'eq',
+            value: 'admin',
+            placement: 'pre-join',
+          },
+        ],
+        fieldIndex,
+      };
+      const { sql } = builder.buildBlendedQuery(ctx);
+      expect(sql).toMatch(/users_raw AS \([\s\S]*?userRole[\s\S]*?FROM/);
+    });
+
+    it('combines multiple pre-join filters on the same CTE with AND', () => {
+      const fieldIndex = buildBlendedFieldIndex({
+        blendedFields: [
+          {
+            name: 'users__userRole',
+            aliasPath: 'users',
+            originalFieldName: 'userRole',
+            type: 'STRING',
+          },
+          {
+            name: 'users__createdAt',
+            aliasPath: 'users',
+            originalFieldName: 'createdAt',
+            type: 'TIMESTAMP',
+          },
+        ],
+        availableSources: [{ aliasPath: 'users', isIncluded: true }],
+      } as never);
+      const ctx: BlendedQueryContext = {
+        ...buildContext([makeUsersChain()], ['users_email']),
+        filters: [
+          {
+            column: 'users__userRole',
+            operator: 'eq',
+            value: 'admin',
+            placement: 'pre-join',
+          },
+          {
+            column: 'users__createdAt',
+            operator: 'relative_date',
+            value: { kind: 'last_n_days', n: 30 },
+            placement: 'pre-join',
+          },
+        ],
+        fieldIndex,
+      };
+      const { sql } = builder.buildBlendedQuery(ctx);
+      expect(sql).toMatch(/WHERE[\s\S]+AND[\s\S]+DATE_SUB/);
+    });
+
+    it('uses unique param prefixes across CTEs to avoid @p0 collision', () => {
+      const orgsChain = makeChain({
+        relationship: makeRelationship({
+          id: 'rel-orgs',
+          targetAlias: 'orgs',
+          joinConditions: [{ sourceFieldName: 'org_id', targetFieldName: 'org_id' }],
+        }),
+        targetTableReference: 'orgs_table',
+        parentAlias: 'main',
+        blendedFields: [
+          {
+            targetFieldName: 'name',
+            outputAlias: 'orgs_name',
+            isHidden: false,
+            aggregateFunction: 'STRING_AGG',
+          },
+        ],
+      });
+      const fieldIndex = buildBlendedFieldIndex({
+        blendedFields: [
+          {
+            name: 'users__userRole',
+            aliasPath: 'users',
+            originalFieldName: 'userRole',
+            type: 'STRING',
+          },
+          { name: 'orgs__plan', aliasPath: 'orgs', originalFieldName: 'plan', type: 'STRING' },
+        ],
+        availableSources: [
+          { aliasPath: 'users', isIncluded: true },
+          { aliasPath: 'orgs', isIncluded: true },
+        ],
+      } as never);
+      const ctx: BlendedQueryContext = {
+        ...buildContext([makeUsersChain(), orgsChain], ['users_email', 'orgs_name']),
+        filters: [
+          { column: 'users_email', operator: 'contains', value: '@owox' },
+          {
+            column: 'users__userRole',
+            operator: 'eq',
+            value: 'admin',
+            placement: 'pre-join',
+          },
+          {
+            column: 'orgs__plan',
+            operator: 'eq',
+            value: 'pro',
+            placement: 'pre-join',
+          },
+        ],
+        fieldIndex,
+      };
+      const { params } = builder.buildBlendedQuery(ctx);
+      const names = params.map(p => p.name).sort();
+      expect(new Set(names).size).toBe(names.length);
+    });
+
+    it('quotes each segment of a dotted column (nested struct) in the pre-join WHERE', () => {
+      const fieldIndex = buildBlendedFieldIndex({
+        blendedFields: [
+          {
+            name: 'users__profile.country',
+            aliasPath: 'users',
+            originalFieldName: 'profile.country',
+            type: 'STRING',
+          },
+        ],
+        availableSources: [{ aliasPath: 'users', isIncluded: true }],
+      } as never);
+      const ctx: BlendedQueryContext = {
+        ...buildContext([makeUsersChain()], ['users_email']),
+        filters: [
+          {
+            column: 'users__profile.country',
+            operator: 'eq',
+            value: 'UA',
+            placement: 'pre-join',
+          },
+        ],
+        fieldIndex,
+      };
+      const { sql } = builder.buildBlendedQuery(ctx);
+      // M1 regression: nested struct paths must traverse as `profile.country`
+      // (a STRUCT field access in BigQuery), never as a single backticked
+      // identifier `profile.country` (which BigQuery would resolve as a
+      // column literally named "profile.country" → unknown column error).
+      // The TestBlendedWithRenderer leaves safe-pattern segments unquoted, so
+      // the emitted form is `profile.country` itself; the negative assertion
+      // pins the absence of the wrongly-fused form.
+      expect(sql).toContain('WHERE profile.country = @s_users_0');
+      expect(sql).not.toContain('`profile.country`');
+    });
+
+    it('throws when a pre-join filter column does not resolve in the field index', () => {
+      const fieldIndex = buildBlendedFieldIndex({
+        blendedFields: [
+          { name: 'users__email', aliasPath: 'users', originalFieldName: 'email', type: 'STRING' },
+        ],
+        availableSources: [{ aliasPath: 'users', isIncluded: true }],
+      } as never);
+      const ctx: BlendedQueryContext = {
+        ...buildContext([makeUsersChain()], ['users_email']),
+        filters: [
+          {
+            column: 'orgs__plan',
+            operator: 'eq',
+            value: 'pro',
+            placement: 'pre-join',
+          },
+        ],
+        fieldIndex,
+      };
+      expect(() => builder.buildBlendedQuery(ctx)).toThrow(/column='orgs__plan'/);
+    });
+
+    it("post-join filters use the 'p' prefix so they never collide with pre-join 's_<cte>_' prefixes", () => {
+      const fieldIndex = buildBlendedFieldIndex({
+        blendedFields: [
+          {
+            name: 'users__userRole',
+            aliasPath: 'users',
+            originalFieldName: 'userRole',
+            type: 'STRING',
+          },
+        ],
+        availableSources: [{ aliasPath: 'users', isIncluded: true }],
+      } as never);
+      const ctx: BlendedQueryContext = {
+        ...buildContext([makeUsersChain()], ['customer_name', 'users_email']),
+        filters: [
+          { column: 'customer_name', operator: 'eq', value: 'X' },
+          {
+            column: 'users__userRole',
+            operator: 'eq',
+            value: 'admin',
+            placement: 'pre-join',
+          },
+        ],
+        fieldIndex,
+      };
+      const { sql, params } = builder.buildBlendedQuery(ctx);
+      expect(sql).toContain('WHERE main.customer_name = @p0');
+      expect(sql).toContain('WHERE userRole = @s_users_0');
+      const names = params.map(p => p.name);
+      expect(new Set(names).size).toBe(names.length);
+      expect(names).toContain('p0');
+      expect(names).toContain('s_users_0');
+    });
+  });
+
+  describe('with pre-join filters — operator matrix', () => {
+    function makeUsersChain() {
+      return makeChain({
+        relationship: makeRelationship({
+          targetAlias: 'users',
+          joinConditions: [{ sourceFieldName: 'id', targetFieldName: 'user_id' }],
+        }),
+        targetTableReference: 'users_table',
+        parentAlias: 'main',
+        blendedFields: [
+          {
+            targetFieldName: 'email',
+            outputAlias: 'users_email',
+            isHidden: false,
+            aggregateFunction: 'STRING_AGG',
+          },
+        ],
+      });
+    }
+
+    type RuleInput = Omit<FilterRule, 'placement'>;
+
+    function runWithRule(rule: RuleInput): { sql: string; params: SqlParameter[] } {
+      // Build a field index that maps the unified name to the users CTE.
+      // Column in rule is the raw field name; unified name = 'users__<column>'.
+      const rawColumn = rule.column;
+      const unifiedName = `users__${rawColumn}`;
+      const fieldIndex = buildBlendedFieldIndex({
+        blendedFields: [
+          { name: unifiedName, aliasPath: 'users', originalFieldName: rawColumn, type: 'STRING' },
+        ],
+        availableSources: [{ aliasPath: 'users', isIncluded: true }],
+      } as never);
+      const ctx: BlendedQueryContext = {
+        ...buildContext([makeUsersChain()], ['users_email']),
+        filters: [{ ...rule, column: unifiedName, placement: 'pre-join' } as FilterRule],
+        fieldIndex,
+      };
+      return builder.buildBlendedQuery(ctx);
+    }
+
+    // ── Scalar comparison operators (each consumes 1 param) ────────────────
+
+    it.each([
+      ['eq', '=', 'admin' as string | number],
+      ['neq', '!=', 'admin'],
+      ['gt', '>', 5],
+      ['lt', '<', 5],
+      ['gte', '>=', 5],
+      ['lte', '<=', 5],
+    ] as const)('%s renders as `%s` with 1 param @s_users_0', (op, sqlOp, value) => {
+      const { sql, params } = runWithRule({
+        column: 'attr',
+        operator: op,
+        value,
+      } as RuleInput);
+      const usersRawBody = extractCteBody(sql, 'users_raw');
+      const escaped = sqlOp.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      // TestBlendedWithRenderer leaves safe-pattern identifiers unquoted; the
+      // shape of the emitted predicate is what matters, not the quoting.
+      expect(usersRawBody).toMatch(new RegExp(`attr\\s*${escaped}\\s*@s_users_0`));
+      expect(params.filter(p => p.name.startsWith('s_users_'))).toHaveLength(1);
+      expect(params.find(p => p.name === 's_users_0')?.value).toBe(value);
+    });
+
+    // ── Substring / affix matchers use BigQuery built-ins, not LIKE ────────
+
+    it.each([
+      ['contains', 'STRPOS(name, @s_users_0) > 0'],
+      ['not_contains', 'STRPOS(name, @s_users_0) = 0'],
+      ['starts_with', 'STARTS_WITH(name, @s_users_0)'],
+      ['ends_with', 'ENDS_WITH(name, @s_users_0)'],
+    ] as const)('%s renders as `%s` with 1 param', (op, fragment) => {
+      const { sql, params } = runWithRule({
+        column: 'name',
+        operator: op,
+        value: 'foo',
+      } as RuleInput);
+      const usersRawBody = extractCteBody(sql, 'users_raw');
+      expect(usersRawBody).toContain(fragment);
+      expect(params.filter(p => p.name.startsWith('s_users_'))).toHaveLength(1);
+    });
+
+    // ── No-value operators consume 0 params ────────────────────────────────
+
+    it.each([
+      ['is_null', 'flag IS NULL'],
+      ['is_not_null', 'flag IS NOT NULL'],
+      ['is_empty', "(flag IS NULL OR flag = '')"],
+      ['is_not_empty', "(flag IS NOT NULL AND flag != '')"],
+      ['is_true', 'flag = TRUE'],
+      ['is_false', 'flag = FALSE'],
+    ] as const)('%s renders as `%s` with 0 params', (op, fragment) => {
+      const { sql, params } = runWithRule({
+        column: 'flag',
+        operator: op,
+      } as RuleInput);
+      const usersRawBody = extractCteBody(sql, 'users_raw');
+      expect(usersRawBody).toContain(fragment);
+      expect(params.filter(p => p.name.startsWith('s_users_'))).toHaveLength(0);
+    });
+
+    // ── Regex operators (each consumes 1 param) ─────────────────────────────
+
+    it.each([
+      ['regex', 'REGEXP_CONTAINS'],
+      ['not_regex', 'NOT REGEXP_CONTAINS'],
+    ] as const)('%s renders via %s with 1 param @s_users_0', (op, fragment) => {
+      const { sql, params } = runWithRule({
+        column: 'name',
+        operator: op,
+        value: '^a',
+      } as RuleInput);
+      const usersRawBody = extractCteBody(sql, 'users_raw');
+      expect(usersRawBody).toContain(fragment);
+      expect(usersRawBody).toContain('@s_users_0');
+      expect(params.filter(p => p.name.startsWith('s_users_'))).toHaveLength(1);
+    });
+
+    // ── Range / relative-date operators ────────────────────────────────────
+
+    it('between renders as `>= AND <=` with 2 params @s_users_0/@s_users_1', () => {
+      const { sql, params } = runWithRule({
+        column: 'amount',
+        operator: 'between',
+        value: { from: 10, to: 20 },
+      } as RuleInput);
+      const usersRawBody = extractCteBody(sql, 'users_raw');
+      expect(usersRawBody).toMatch(/amount\s+BETWEEN\s+@s_users_0\s+AND\s+@s_users_1/);
+      expect(params.filter(p => p.name.startsWith('s_users_'))).toHaveLength(2);
+    });
+
+    it('relative_date `today` renders as `= CURRENT_DATE()` with 0 params', () => {
+      const { sql, params } = runWithRule({
+        column: 'created_at',
+        operator: 'relative_date',
+        value: { kind: 'today' },
+      } as RuleInput);
+      const usersRawBody = extractCteBody(sql, 'users_raw');
+      expect(usersRawBody).toContain('created_at = CURRENT_DATE()');
+      expect(params.filter(p => p.name.startsWith('s_users_'))).toHaveLength(0);
+    });
+
+    it('relative_date `last_n_days` embeds `n` as a literal INTERVAL with 0 params', () => {
+      const { sql, params } = runWithRule({
+        column: 'created_at',
+        operator: 'relative_date',
+        value: { kind: 'last_n_days', n: 30 },
+      } as RuleInput);
+      const usersRawBody = extractCteBody(sql, 'users_raw');
+      expect(usersRawBody).toContain('DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)');
+      expect(params.filter(p => p.name.startsWith('s_users_'))).toHaveLength(0);
+    });
+  });
+});
+
+describe('AbstractBlendedQueryBuilder — pre-join filters on tricky tree shapes', () => {
+  let builder: TestBlendedWithRenderer;
+  const buildContext = createBuildContext('main_table');
+
+  beforeEach(() => {
+    builder = new TestBlendedWithRenderer();
+  });
+
+  it('pre-join filter on an intermediate (non-leaf) chain: WHERE lands in b_raw, not b_joined', () => {
+    // Tree: main → b → c. Pre-join filter on aliasPath='b'.
+    const bChain = makeChain({
+      relationship: makeRelationship({
+        id: 'rel-b',
+        targetAlias: 'b',
+        joinConditions: [{ sourceFieldName: 'b_id', targetFieldName: 'b_id' }],
+      }),
+      targetTableReference: 'b_table',
+      parentAlias: 'main',
+      blendedFields: [
+        {
+          targetFieldName: 'b_field',
+          outputAlias: 'b_blend',
+          isHidden: false,
+          aggregateFunction: 'STRING_AGG',
+        },
+      ],
+    });
+    const cChain = makeChain({
+      relationship: makeRelationship({
+        id: 'rel-c',
+        targetAlias: 'c',
+        joinConditions: [{ sourceFieldName: 'c_id', targetFieldName: 'c_id' }],
+      }),
+      targetTableReference: 'c_table',
+      parentAlias: 'b',
+      blendedFields: [
+        {
+          targetFieldName: 'c_field',
+          outputAlias: 'c_blend',
+          isHidden: false,
+          aggregateFunction: 'STRING_AGG',
+        },
+      ],
+    });
+
+    const fieldIndex = buildBlendedFieldIndex({
+      blendedFields: [
+        { name: 'b__b_status', aliasPath: 'b', originalFieldName: 'b_status', type: 'STRING' },
+      ],
+      availableSources: [{ aliasPath: 'b', isIncluded: true }],
+    } as never);
+    const ctx: BlendedQueryContext = {
+      ...buildContext([bChain, cChain], ['b_blend']),
+      filters: [
+        {
+          column: 'b__b_status',
+          operator: 'eq',
+          value: 'active',
+          placement: 'pre-join',
+        } as FilterRule,
+      ],
+      fieldIndex,
+    };
+    const { sql } = builder.buildBlendedQuery(ctx);
+
+    const bRaw = extractCteBody(sql, 'b_raw');
+    expect(bRaw).toMatch(/WHERE\s+b_status\s*=\s*@s_b_0/);
+
+    // b_joined CTE must NOT carry the WHERE — the pre-join WHERE belongs to
+    // the raw CTE that wraps the table, never to the join-projection CTE.
+    const bJoined = extractCteBody(sql, 'b_joined');
+    expect(bJoined).not.toMatch(/WHERE/);
+  });
+
+  it('pre-join filter on a deep chain (a→b→c→d): WHERE lands in deepest _raw CTE', () => {
+    const aChain = makeChain({
+      relationship: makeRelationship({
+        id: 'rel-a',
+        targetAlias: 'a',
+        joinConditions: [{ sourceFieldName: 'a_id', targetFieldName: 'a_id' }],
+      }),
+      targetTableReference: 'a_table',
+      parentAlias: 'main',
+      blendedFields: [],
+    });
+    const bChain = makeChain({
+      relationship: makeRelationship({
+        id: 'rel-b',
+        targetAlias: 'b',
+        joinConditions: [{ sourceFieldName: 'b_id', targetFieldName: 'b_id' }],
+      }),
+      targetTableReference: 'b_table',
+      parentAlias: 'a',
+      blendedFields: [],
+    });
+    const cChain = makeChain({
+      relationship: makeRelationship({
+        id: 'rel-c',
+        targetAlias: 'c',
+        joinConditions: [{ sourceFieldName: 'c_id', targetFieldName: 'c_id' }],
+      }),
+      targetTableReference: 'c_table',
+      parentAlias: 'a_b',
+      blendedFields: [],
+    });
+    const dChain = makeChain({
+      relationship: makeRelationship({
+        id: 'rel-d',
+        targetAlias: 'd',
+        joinConditions: [{ sourceFieldName: 'd_id', targetFieldName: 'd_id' }],
+      }),
+      targetTableReference: 'd_table',
+      parentAlias: 'a_b_c',
+      blendedFields: [
+        {
+          targetFieldName: 'd_field',
+          outputAlias: 'd_blend',
+          isHidden: false,
+          aggregateFunction: 'STRING_AGG',
+        },
+      ],
+    });
+
+    const fieldIndex = buildBlendedFieldIndex({
+      blendedFields: [
+        {
+          name: 'a_b_c_d__d_status',
+          aliasPath: 'a.b.c.d',
+          originalFieldName: 'd_status',
+          type: 'STRING',
+        },
+      ],
+      availableSources: [{ aliasPath: 'a.b.c.d', isIncluded: true }],
+    } as never);
+    const ctx: BlendedQueryContext = {
+      ...buildContext([aChain, bChain, cChain, dChain], ['d_blend']),
+      filters: [
+        {
+          column: 'a_b_c_d__d_status',
+          operator: 'eq',
+          value: 'live',
+          placement: 'pre-join',
+        } as FilterRule,
+      ],
+      fieldIndex,
+    };
+    const { sql } = builder.buildBlendedQuery(ctx);
+
+    const dRaw = extractCteBody(sql, 'a_b_c_d_raw');
+    expect(dRaw).toMatch(/WHERE\s+d_status\s*=\s*@s_a_b_c_d_0/);
+
+    // Sibling _raw CTEs further up the tree must NOT carry the WHERE.
+    expect(extractCteBody(sql, 'a_raw')).not.toMatch(/WHERE/);
+    expect(extractCteBody(sql, 'a_b_raw')).not.toMatch(/WHERE/);
+    expect(extractCteBody(sql, 'a_b_c_raw')).not.toMatch(/WHERE/);
+  });
+
+  it('diamond pattern: pre-join filter lands only in the sliced path, not in the other branch', () => {
+    // Two distinct chains both targeting alias "c" via different parents
+    // (path "a.c" vs "b.c"). Filter on aliasPath="a.c" must only touch a_c_raw.
+    const aChain = makeChain({
+      relationship: makeRelationship({
+        id: 'rel-a',
+        targetAlias: 'a',
+        joinConditions: [{ sourceFieldName: 'a_id', targetFieldName: 'a_id' }],
+      }),
+      targetTableReference: 'a_table',
+      parentAlias: 'main',
+      blendedFields: [],
+    });
+    const acChain = makeChain({
+      relationship: makeRelationship({
+        id: 'rel-ac',
+        targetAlias: 'c',
+        joinConditions: [{ sourceFieldName: 'c_id', targetFieldName: 'c_id' }],
+      }),
+      targetTableReference: 'c_table',
+      parentAlias: 'a',
+      blendedFields: [
+        {
+          targetFieldName: 'c_field',
+          outputAlias: 'ac_blend',
+          isHidden: false,
+          aggregateFunction: 'STRING_AGG',
+        },
+      ],
+    });
+    const bChain = makeChain({
+      relationship: makeRelationship({
+        id: 'rel-b',
+        targetAlias: 'b',
+        joinConditions: [{ sourceFieldName: 'b_id', targetFieldName: 'b_id' }],
+      }),
+      targetTableReference: 'b_table',
+      parentAlias: 'main',
+      blendedFields: [],
+    });
+    const bcChain = makeChain({
+      relationship: makeRelationship({
+        id: 'rel-bc',
+        targetAlias: 'c',
+        joinConditions: [{ sourceFieldName: 'c_id', targetFieldName: 'c_id' }],
+      }),
+      targetTableReference: 'c_table',
+      parentAlias: 'b',
+      blendedFields: [
+        {
+          targetFieldName: 'c_field',
+          outputAlias: 'bc_blend',
+          isHidden: false,
+          aggregateFunction: 'STRING_AGG',
+        },
+      ],
+    });
+
+    const fieldIndex = buildBlendedFieldIndex({
+      blendedFields: [
+        { name: 'a_c__c_status', aliasPath: 'a.c', originalFieldName: 'c_status', type: 'STRING' },
+      ],
+      availableSources: [{ aliasPath: 'a.c', isIncluded: true }],
+    } as never);
+    const ctx: BlendedQueryContext = {
+      ...buildContext([aChain, acChain, bChain, bcChain], ['ac_blend', 'bc_blend']),
+      filters: [
+        {
+          column: 'a_c__c_status',
+          operator: 'eq',
+          value: 'live',
+          placement: 'pre-join',
+        } as FilterRule,
+      ],
+      fieldIndex,
+    };
+    const { sql } = builder.buildBlendedQuery(ctx);
+
+    const acRaw = extractCteBody(sql, 'a_c_raw');
+    expect(acRaw).toMatch(/WHERE\s+c_status\s*=\s*@s_a_c_0/);
+
+    const bcRaw = extractCteBody(sql, 'b_c_raw');
+    expect(bcRaw).not.toMatch(/WHERE/);
+  });
+
+  it('pre-join column equal to a join key: projected at most once in the raw CTE SELECT', () => {
+    // joinConditions targetFieldName='user_id' is both the join key (always
+    // projected into the raw CTE) and the pre-join WHERE column. The
+    // collectSubsidiaryReferences dedup must avoid emitting it twice.
+    const usersChain = makeChain({
+      relationship: makeRelationship({
+        targetAlias: 'users',
+        joinConditions: [{ sourceFieldName: 'id', targetFieldName: 'user_id' }],
+      }),
+      targetTableReference: 'users_table',
+      parentAlias: 'main',
+      blendedFields: [
+        {
+          targetFieldName: 'email',
+          outputAlias: 'users_email',
+          isHidden: false,
+          aggregateFunction: 'STRING_AGG',
+        },
+      ],
+    });
+
+    const fieldIndex = buildBlendedFieldIndex({
+      blendedFields: [
+        {
+          name: 'users__user_id',
+          aliasPath: 'users',
+          originalFieldName: 'user_id',
+          type: 'STRING',
+        },
+      ],
+      availableSources: [{ aliasPath: 'users', isIncluded: true }],
+    } as never);
+    const ctx: BlendedQueryContext = {
+      ...buildContext([usersChain], ['users_email']),
+      filters: [
+        {
+          column: 'users__user_id',
+          operator: 'is_not_null',
+          placement: 'pre-join',
+        } as FilterRule,
+      ],
+      fieldIndex,
+    };
+    const { sql } = builder.buildBlendedQuery(ctx);
+
+    const usersRaw = extractCteBody(sql, 'users_raw');
+    // Count occurrences of `user_id` inside the SELECT projection of users_raw
+    // (between AS ( and FROM). Each match is a SELECT-list item; >1 means dup.
+    const selectMatch = /SELECT\s+([\s\S]+?)\s+FROM/m.exec(usersRaw);
+    expect(selectMatch).not.toBeNull();
+    const selectList = selectMatch![1];
+    // TestBlendedWithRenderer leaves safe identifiers unquoted, so count bare
+    // `user_id` occurrences. Use a word-boundary match to avoid catching it
+    // as a substring of a longer alphanumeric identifier.
+    const userIdMatches = selectList.match(/\buser_id\b/g) ?? [];
+    expect(userIdMatches.length).toBe(1);
+
+    // WHERE still applies on user_id IS NOT NULL.
+    expect(usersRaw).toMatch(/WHERE\s+user_id\s+IS NOT NULL/);
+  });
+});
+
+describe('AbstractBlendedQueryBuilder — post-join aggregation', () => {
+  let builder: TestBlendedWithRenderer;
+  const buildContext = createBuildContext('main_table');
+
+  beforeEach(() => {
+    builder = new TestBlendedWithRenderer();
+  });
+
+  function spendChain() {
+    return makeChain({
+      relationship: makeRelationship({
+        targetAlias: 'spend',
+        joinConditions: [{ sourceFieldName: 'date', targetFieldName: 'date' }],
+      }),
+      targetTableReference: 'spend_table',
+      parentAlias: 'main',
+      blendedFields: [
+        {
+          targetFieldName: 'cost',
+          outputAlias: 'spend__cost',
+          isHidden: false,
+          aggregateFunction: 'SUM',
+        },
+      ],
+    });
+  }
+
+  it('groups by a native dimension and aggregates a blended metric across the group', () => {
+    const { sql } = builder.buildBlendedQuery({
+      ...buildContext([spendChain()], ['channel', 'spend__cost']),
+      aggregations: [{ column: 'spend__cost', function: 'SUM' }],
+    });
+
+    // BigQuery's renderer always backticks the output alias, but the builder's own
+    // qualifier leaves safe identifiers unquoted — hence `main.channel AS `channel``.
+    expect(sql).toContain('main.channel AS `channel`');
+    expect(sql).toContain('SUM(spend.spend__cost) AS `spend__cost | SUM`');
+    expect(sql).toContain('GROUP BY\n  main.channel');
+    // The outer GROUP BY lands after the final FROM/JOIN (the inner CTE GROUP BY date
+    // is unrelated — anchor on the qualified outer key).
+    expect(sql.indexOf('LEFT JOIN spend')).toBeLessThan(sql.indexOf('GROUP BY\n  main.channel'));
+  });
+
+  it('orders by an aggregated blended metric via its output alias, not the bare column', () => {
+    const { sql } = builder.buildBlendedQuery({
+      ...buildContext([spendChain()], ['channel', 'spend__cost']),
+      aggregations: [{ column: 'spend__cost', function: 'SUM' }],
+      sort: [{ column: 'spend__cost', direction: 'desc' }],
+    });
+
+    expect(sql).toContain('ORDER BY\n  `spend__cost | SUM` DESC');
+    expect(sql.indexOf('GROUP BY')).toBeLessThan(sql.indexOf('ORDER BY'));
+  });
+
+  it('emits two aggregated SELECT items when one blended metric carries two functions', () => {
+    const { sql } = builder.buildBlendedQuery({
+      ...buildContext([spendChain()], ['channel', 'spend__cost']),
+      aggregations: [
+        { column: 'spend__cost', function: 'SUM' },
+        { column: 'spend__cost', function: 'AVG' },
+      ],
+    });
+
+    expect(sql).toContain('SUM(spend.spend__cost) AS `spend__cost | SUM`');
+    expect(sql).toContain('AVG(spend.spend__cost) AS `spend__cost | AVG`');
+    expect(sql).toContain('GROUP BY\n  main.channel');
+  });
+
+  it('keeps a post-join filter before the GROUP BY (filters rows pre-aggregation)', () => {
+    const { sql } = builder.buildBlendedQuery({
+      ...buildContext([spendChain()], ['channel', 'spend__cost']),
+      aggregations: [{ column: 'spend__cost', function: 'SUM' }],
+      filters: [{ column: 'channel', operator: 'eq', value: 'cpc' }],
+    });
+
+    expect(sql).toContain('WHERE main.channel = @p0');
+    expect(sql.indexOf('WHERE')).toBeLessThan(sql.indexOf('GROUP BY\n  main.channel'));
+  });
+
+  it('truncates a date dimension and groups by the truncated qualified expression', () => {
+    const { sql } = builder.buildBlendedQuery({
+      ...buildContext([spendChain()], ['date', 'spend__cost']),
+      aggregations: [{ column: 'spend__cost', function: 'SUM' }],
+      dateTruncs: [{ column: 'date', unit: 'MONTH' }],
+    });
+
+    expect(sql).toContain('DATE_TRUNC(DATE(main.date), MONTH) AS `date`');
+    expect(sql).toContain('GROUP BY\n  DATE_TRUNC(DATE(main.date), MONTH)');
+  });
+
+  it('appends COUNT(*) Row Count as the last select item when rowCount is set', () => {
+    const { sql } = builder.buildBlendedQuery({
+      ...buildContext([spendChain()], ['channel', 'spend__cost']),
+      aggregations: [{ column: 'spend__cost', function: 'SUM' }],
+      rowCount: true,
+    });
+
+    expect(sql).toContain('COUNT(*) AS `Row Count`');
+  });
+
+  it('does not aggregate when no aggregation/date-trunc/row-count is requested', () => {
+    const { sql } = builder.buildBlendedQuery(
+      buildContext([spendChain()], ['channel', 'spend__cost'])
+    );
+
+    expect(sql).not.toContain('GROUP BY main.');
+    expect(sql).not.toContain(' | ');
+    expect(sql).toContain('main.channel');
+    expect(sql).toContain('spend.spend__cost');
+  });
+
+  it('emits COUNT(DISTINCT pk) Unique Count when uniqueCount=true with a single PK', () => {
+    const { sql } = builder.buildBlendedQuery({
+      ...buildContext([spendChain()], ['channel', 'spend__cost']),
+      aggregations: [{ column: 'spend__cost', function: 'SUM' }],
+      uniqueCount: true,
+      primaryKeyColumns: ['user_id'],
+    });
+
+    expect(sql).toContain('COUNT(DISTINCT main.user_id) AS `Unique Count`');
+  });
+
+  it('emits COUNT(DISTINCT CONCAT(...)) Unique Count when uniqueCount=true with composite PK', () => {
+    const { sql } = builder.buildBlendedQuery({
+      ...buildContext([spendChain()], ['channel', 'spend__cost']),
+      aggregations: [{ column: 'spend__cost', function: 'SUM' }],
+      uniqueCount: true,
+      primaryKeyColumns: ['project_id', 'user_id'],
+    });
+
+    expect(sql).toContain('COUNT(DISTINCT CONCAT(');
+    expect(sql).toContain("COALESCE(CAST(main.project_id AS STRING), '')");
+    expect(sql).toContain("COALESCE(CAST(main.user_id AS STRING), '')");
+    expect(sql).toContain('AS `Unique Count`');
+  });
+
+  it('does not emit Unique Count when uniqueCount=false', () => {
+    const { sql } = builder.buildBlendedQuery({
+      ...buildContext([spendChain()], ['channel', 'spend__cost']),
+      aggregations: [{ column: 'spend__cost', function: 'SUM' }],
+      uniqueCount: false,
+      primaryKeyColumns: ['user_id'],
+    });
+
+    expect(sql).not.toContain('Unique Count');
+  });
+
+  it('does not emit Unique Count when primaryKeyColumns is empty', () => {
+    const { sql } = builder.buildBlendedQuery({
+      ...buildContext([spendChain()], ['channel', 'spend__cost']),
+      aggregations: [{ column: 'spend__cost', function: 'SUM' }],
+      uniqueCount: true,
+      primaryKeyColumns: [],
+    });
+
+    expect(sql).not.toContain('Unique Count');
+  });
+
+  it('triggers aggregation path when only uniqueCount+PK is set (no aggregationConfig)', () => {
+    const { sql } = builder.buildBlendedQuery({
+      ...buildContext([spendChain()], ['channel', 'spend__cost']),
+      uniqueCount: true,
+      primaryKeyColumns: ['user_id'],
+    });
+
+    expect(sql).toContain('COUNT(DISTINCT main.user_id) AS `Unique Count`');
+    expect(sql).toContain('GROUP BY');
+  });
+});
+
+describe('AbstractBlendedQueryBuilder — regression: ambiguous column in WHERE/ORDER BY', () => {
+  let builder: TestBlendedWithRenderer;
+
+  beforeEach(() => {
+    builder = new TestBlendedWithRenderer();
+  });
+
+  it('qualifies every WHERE / ORDER BY reference when columns are shared across CTEs', () => {
+    const visitors = makeChain({
+      relationship: makeRelationship({
+        id: 'rel-visitors',
+        targetAlias: 'visitors_e_commerce',
+        joinConditions: [{ sourceFieldName: 'visitor_id', targetFieldName: 'visitor_id' }],
+      }),
+      targetTableReference: 'visitors_table',
+      parentAlias: 'main',
+      blendedFields: [
+        {
+          targetFieldName: 'total_sessions',
+          outputAlias: 'visitors_e_commerce__total_sessions',
+          isHidden: true,
+          aggregateFunction: 'SUM',
+        },
+      ],
+    });
+    const unifiedAdSpend = makeChain({
+      relationship: makeRelationship({
+        id: 'rel-ad-spend',
+        targetAlias: 'unified_ad_spend_e_commerce',
+        joinConditions: [
+          { sourceFieldName: 'date', targetFieldName: 'date' },
+          { sourceFieldName: 'source', targetFieldName: 'source' },
+          { sourceFieldName: 'medium', targetFieldName: 'medium' },
+        ],
+      }),
+      targetTableReference: 'unified_ad_spend_table',
+      parentAlias: 'main',
+      blendedFields: [
+        {
+          targetFieldName: 'spend',
+          outputAlias: 'unified_ad_spend_e_commerce__spend',
+          isHidden: false,
+          aggregateFunction: 'SUM',
+        },
+      ],
+    });
+
+    const { sql, params } = builder.buildBlendedQuery({
+      ...buildContext(
+        [visitors, unifiedAdSpend],
+        [
+          'date',
+          'customer_id',
+          'device_category',
+          'is_conversion',
+          'source',
+          'medium',
+          'unified_ad_spend_e_commerce__spend',
+        ]
+      ),
+      filters: [
+        {
+          column: 'date',
+          operator: 'between',
+          value: { from: '2025-01-01', to: '2025-01-31' },
+        },
+        { column: 'visitors_e_commerce__total_sessions', operator: 'gt', value: 5 },
+      ],
+      sort: [{ column: 'source', direction: 'asc' }],
+      limit: 1000,
+    });
+
+    expect(sql).toContain('WHERE main.date BETWEEN @p0 AND @p1');
+    expect(sql).toContain('AND visitors_e_commerce.visitors_e_commerce__total_sessions > @p2');
+    expect(sql).toContain('ORDER BY\n  main.source ASC');
+    expect(sql).toContain('LIMIT 1000');
+
+    const tail = sql.slice(sql.indexOf('\nWHERE'));
+    expect(tail).not.toMatch(/WHERE\s+`?date`?\s/);
+    expect(tail).not.toMatch(/AND\s+`?date`?\s/);
+    expect(tail).not.toMatch(/ORDER BY\s+`?source`?\s/);
+    expect(tail).not.toMatch(/AND\s+`?source`?\s/);
+    expect(tail).not.toMatch(/WHERE\s+`?visitors_e_commerce__total_sessions`?\s/);
+
+    expect(params).toEqual([
+      { name: 'p0', value: '2025-01-01' },
+      { name: 'p1', value: '2025-01-31' },
+      { name: 'p2', value: 5 },
+    ]);
   });
 });

@@ -19,7 +19,7 @@ export interface ScheduledReportRunConfig {
   /**
    * Represents a report object containing data from a DataMart.
    */
-  report: DataMartReport;
+  report?: DataMartReport;
 }
 
 /**
@@ -27,7 +27,7 @@ export interface ScheduledReportRunConfig {
  */
 export interface ScheduledConnectorRunConfig {
   type: typeof TRIGGER_CONFIG_TYPES.SCHEDULED_CONNECTOR_RUN;
-  connector: ConnectorDefinitionConfig;
+  connector?: ConnectorDefinitionConfig;
 }
 
 /**

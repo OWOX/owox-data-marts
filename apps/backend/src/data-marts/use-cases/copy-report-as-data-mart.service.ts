@@ -78,7 +78,10 @@ export class CopyReportAsDataMartService {
       );
     }
 
-    const { sql } = await this.reportSqlComposerService.compose(report);
+    const { sql } = await this.reportSqlComposerService.composeStatic(report, {
+      userId: command.userId,
+      roles: command.roles,
+    });
 
     if (!sql.trim()) {
       throw new BusinessViolationException(

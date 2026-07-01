@@ -10,6 +10,8 @@ import { DataMartRelationshipService } from '../services/data-mart-relationship.
 import { DataMartService } from '../services/data-mart.service';
 import { ReportDataCacheService } from '../services/report-data-cache.service';
 import { AccessDecisionService, EntityType, Action } from '../services/access-decision';
+import { AdvancedSearchIndexSyncService } from '../services/advanced-search-index-sync.service';
+import { SearchableEntityType } from '../../common/search/search.facade';
 
 @Injectable()
 export class DeleteDataMartRelationshipService {
@@ -17,7 +19,8 @@ export class DeleteDataMartRelationshipService {
     private readonly relationshipService: DataMartRelationshipService,
     private readonly dataMartService: DataMartService,
     private readonly reportDataCacheService: ReportDataCacheService,
-    private readonly accessDecisionService: AccessDecisionService
+    private readonly accessDecisionService: AccessDecisionService,
+    private readonly advancedSearchIndexSync?: AdvancedSearchIndexSyncService
   ) {}
 
   @Transactional()
@@ -52,5 +55,11 @@ export class DeleteDataMartRelationshipService {
 
     await this.relationshipService.delete(relationship);
     await this.reportDataCacheService.invalidateByDataMartId(command.sourceDataMartId);
+
+    await this.advancedSearchIndexSync?.scheduleReindex(
+      SearchableEntityType.DATA_MART,
+      command.sourceDataMartId,
+      command.projectId
+    );
   }
 }

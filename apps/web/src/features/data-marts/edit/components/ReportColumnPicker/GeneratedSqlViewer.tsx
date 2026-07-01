@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Editor } from '@monaco-editor/react';
 import { useTheme } from 'next-themes';
-import { Copy, Loader2, Network } from 'lucide-react';
+import { Copy, FileCode2, Loader2 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { Button } from '@owox/ui/components/button';
 import {
@@ -30,22 +30,20 @@ interface GeneratedSqlViewerProps {
   /**
    * Visual variant of the trigger:
    * - 'action-icon' (default): ghost icon button with tooltip, intended for
-   *   table row action cells. Uses hover-reveal styling that matches sibling
-   *   row actions.
-   * - 'outline-button': outline button with "View joined Data Marts SQL" text,
-   *   intended for use inside forms where a full button label makes sense.
+   *   table row action cells.
+   * - 'outline-button': outline button with label text, intended for use
+   *   inside forms.
    */
   variant?: GeneratedSqlViewerVariant;
   /**
    * Optional report title, used to build a descriptive aria-label for the
-   * action icon variant (e.g. "View joined Data Marts SQL: Test Report").
+   * action icon variant.
    */
   reportTitle?: string;
 }
 
 /**
  * Button that opens a dialog with the generated SQL for a report.
- * Provides copy-to-clipboard and copy-as-data-mart actions.
  */
 export function GeneratedSqlViewer({
   reportId,
@@ -110,9 +108,7 @@ export function GeneratedSqlViewer({
     }
   }
 
-  const ariaLabel = reportTitle
-    ? `View joined Data Marts SQL: ${reportTitle}`
-    : 'View joined Data Marts SQL';
+  const ariaLabel = reportTitle ? `Preview SQL: ${reportTitle}` : 'Preview SQL';
 
   return (
     <Dialog open={isOpen} onOpenChange={handleOpenChange}>
@@ -123,32 +119,32 @@ export function GeneratedSqlViewer({
               <Button
                 type='button'
                 variant='ghost'
-                className='dm-card-table-body-row-actionbtn opacity-0 transition-opacity group-hover:opacity-100'
+                className='dm-card-table-body-row-actionbtn cursor-pointer opacity-0 transition-opacity group-hover:opacity-100'
                 aria-label={ariaLabel}
                 onClick={e => {
                   e.stopPropagation();
                 }}
               >
-                <Network className='dm-card-table-body-row-actionbtn-icon' aria-hidden='true' />
+                <FileCode2 className='dm-card-table-body-row-actionbtn-icon' aria-hidden='true' />
               </Button>
             </DialogTrigger>
           </TooltipTrigger>
           <TooltipContent side='bottom' role='tooltip'>
-            View joined Data Marts SQL
+            Preview SQL
           </TooltipContent>
         </Tooltip>
       ) : (
         <DialogTrigger asChild>
           <Button type='button' variant='outline' size='sm'>
-            <Network className='mr-2 h-4 w-4' />
-            View joined Data Marts SQL
+            <FileCode2 className='mr-2 h-4 w-4' />
+            Preview SQL
           </Button>
         </DialogTrigger>
       )}
 
       <DialogContent className='flex flex-col gap-4 sm:max-w-[80vw]'>
         <DialogHeader>
-          <DialogTitle>Joined Data Marts SQL</DialogTitle>
+          <DialogTitle>Report SQL</DialogTitle>
         </DialogHeader>
 
         <div className='min-h-[600px]'>

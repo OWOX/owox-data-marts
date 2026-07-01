@@ -8,14 +8,15 @@ import type {
   DataMartListResponseDto,
   DataMartResponseDto,
   DataMartRunListResponseDto,
+  ProjectDataMartRunListResponseDto,
   SqlValidationResponseDto,
   UpdateDataMartDefinitionRequestDto,
   UpdateDataMartRequestDto,
   UpdateDataMartSchemaRequestDto,
   BatchDataMartHealthStatusResponseDto,
-  GenerateDataMartMetadataRequestDto,
-  GenerateDataMartMetadataResponseDto,
   DataMartAiHelperAvailabilityResponseDto,
+  CreateAiHelperTriggerRequestDto,
+  AiHelperTriggerResponseDto,
 } from '../types/api';
 import type { CreateSqlDryRunTaskResponseDto } from '../types/api/response/create-sql-dry-run-task.response.dto.ts';
 import type { TaskStatusResponseDto } from '../types/api/response/task-status.response.dto.ts';
@@ -158,7 +159,9 @@ export class DataMartService extends ApiService {
    * @returns Promise<void>
    */
   async cancelDataMartRun(id: string, runId: string): Promise<void> {
-    await this.post(`/${id}/runs/${runId}/cancel`);
+    await this.post(`/${id}/runs/${runId}/cancel`, undefined, {
+      skipErrorToast: true,
+    } as AxiosRequestConfig);
   }
 
   /**
@@ -262,8 +265,8 @@ export class DataMartService extends ApiService {
   async getSchemaActualizeTriggerResponse(
     id: string,
     triggerId: string
-  ): Promise<{ success: boolean; error?: string }> {
-    return this.get<{ success: boolean; error?: string }>(
+  ): Promise<{ success: boolean; error?: string; code?: string }> {
+    return this.get<{ success: boolean; error?: string; code?: string }>(
       `/${id}/schema-actualize-triggers/${triggerId}`,
       undefined,
       { skipLoadingIndicator: true, skipErrorToast: true } as AxiosRequestConfig
@@ -320,6 +323,17 @@ export class DataMartService extends ApiService {
   }
 
   /**
+   * Get run history across all Data Marts visible in the current project.
+   */
+  async getProjectDataMartRuns(
+    limit = 100,
+    offset = 0,
+    config?: AxiosRequestConfig
+  ): Promise<ProjectDataMartRunListResponseDto> {
+    return await this.get<ProjectDataMartRunListResponseDto>('/runs', { limit, offset }, config);
+  }
+
+  /**
    * Get a specific data mart run details by IDs
    */
   async getDataMartRunById(
@@ -371,22 +385,55 @@ export class DataMartService extends ApiService {
   }
 
   /**
-   * Request AI-generated metadata for a data mart.
-   * Returns a suggestion only — the caller must apply it via the appropriate update endpoint.
+   * Create an AI helper trigger for asynchronous metadata generation.
+   * The trigger runs in the background; poll status, then fetch the response.
+   *
    * @param id Data mart ID
-   * @param data Generation request (scope, useSample, optional fieldName)
+   * @param data Trigger request (scope, useSample, optional fieldName)
+   * @returns Promise with the created trigger ID
    */
-  async generateDataMartMetadata(
+  async createAiHelperTrigger(
     id: string,
-    data: GenerateDataMartMetadataRequestDto
-  ): Promise<GenerateDataMartMetadataResponseDto> {
-    return this.post<GenerateDataMartMetadataResponseDto>(
-      `/${id}/ai-helper/generate-metadata`,
-      data,
-      {
-        timeout: 120000,
-      }
+    data: CreateAiHelperTriggerRequestDto
+  ): Promise<{ triggerId: string }> {
+    return this.post<{ triggerId: string }>(`/${id}/ai-helper/triggers`, data, {
+      skipLoadingIndicator: true,
+      skipErrorToast: true,
+    } as AxiosRequestConfig);
+  }
+
+  /**
+   * Get the current status of an AI helper trigger.
+   */
+  async getAiHelperTriggerStatus(id: string, triggerId: string): Promise<TaskStatus> {
+    const response = await this.get<TaskStatusResponseDto>(
+      `/${id}/ai-helper/triggers/${triggerId}/status`,
+      undefined,
+      { skipLoadingIndicator: true, skipErrorToast: true } as AxiosRequestConfig
     );
+    return response.status;
+  }
+
+  /**
+   * Fetch the trigger response when generation is complete.
+   * Backend returns HTTP 400 with `{ error }` if the trigger errored.
+   */
+  async getAiHelperTriggerResponse(
+    id: string,
+    triggerId: string
+  ): Promise<AiHelperTriggerResponseDto> {
+    return this.get<AiHelperTriggerResponseDto>(
+      `/${id}/ai-helper/triggers/${triggerId}`,
+      undefined,
+      { skipLoadingIndicator: true, skipErrorToast: true } as AxiosRequestConfig
+    );
+  }
+
+  async abortAiHelperTrigger(id: string, triggerId: string): Promise<void> {
+    await this.delete(`/${id}/ai-helper/triggers/${triggerId}`, {
+      skipLoadingIndicator: true,
+      skipErrorToast: true,
+    } as AxiosRequestConfig);
   }
 }
 export const dataMartService = new DataMartService();

@@ -1,5 +1,5 @@
 import { DataDestinationCredentialsType, DataDestinationType } from '../../enums';
-import type { GoogleServiceAccount } from '../../../../../shared/types';
+import type { CredentialIdentity, GoogleServiceAccount } from '../../../../../shared/types';
 
 /**
  * Google Sheets credentials response
@@ -21,6 +21,7 @@ export interface LookerStudioCredentialsResponse {
 
 export interface GoogleSheetsOAuthCredentialsResponse {
   type: DataDestinationCredentialsType.GOOGLE_SHEETS_OAUTH_CREDENTIALS;
+  identity: CredentialIdentity | null;
 }
 
 export interface EmailCredentialsResponse {
@@ -85,4 +86,9 @@ export interface DataDestinationResponseDto {
   availableForUse?: boolean;
   availableForMaintenance?: boolean;
   contexts?: { id: string; name: string }[];
+
+  /**
+   * Optional destination-level config (e.g. Drive folder for auto-created Google Sheets)
+   */
+  config?: { folderId?: string | null; folderUrl?: string | null } | null;
 }

@@ -10,6 +10,7 @@ import {
 import { SidebarProjectMenu } from './ProjectMenu';
 import { UserMenu } from './UserMenu';
 import { ActionButton } from './ActionButton';
+import { SearchButton } from './SearchButton';
 import { MainMenu } from './MainMenu';
 import { HelpMenu } from './HelpMenu';
 import { Separator } from '@owox/ui/components/separator';
@@ -30,8 +31,9 @@ export function AppSidebar({ variant = 'inset', collapsible = 'icon' }: AppSideb
       </SidebarHeader>
 
       <SidebarContent>
-        <SidebarGroup>
-          <SidebarGroupContent>
+        <SidebarGroup className='pt-0'>
+          <SidebarGroupContent className='flex flex-col gap-2'>
+            <SearchButton />
             <ActionButton />
           </SidebarGroupContent>
         </SidebarGroup>

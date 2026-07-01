@@ -1,4 +1,4 @@
-import { Injectable, ForbiddenException, Logger } from '@nestjs/common';
+import { Injectable, ForbiddenException, BadRequestException, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Transactional } from 'typeorm-transactional';
@@ -16,6 +16,9 @@ import { DataMartService } from '../services/data-mart.service';
 import { DataStorageService } from '../services/data-storage.service';
 import { LegacyDataMartsService } from '../services/legacy-data-marts/legacy-data-marts.service';
 import { AccessDecisionService, EntityType, Action } from '../services/access-decision';
+import { AdvancedSearchIndexSyncService } from '../services/advanced-search-index-sync.service';
+import { SearchableEntityType } from '../../common/search/search.facade';
+import { containsNonBmpCharacters } from '../utils/contains-non-bmp-characters';
 
 const LEGACY_DATA_MART_INITIAL_QUERY = 'SELECT 1';
 
@@ -31,7 +34,8 @@ export class CreateDataMartService {
     @InjectRepository(DataMartTechnicalOwner)
     private readonly technicalOwnerRepository: Repository<DataMartTechnicalOwner>,
     private readonly accessDecisionService: AccessDecisionService,
-    private readonly eventDispatcher: OwoxEventDispatcher
+    private readonly eventDispatcher: OwoxEventDispatcher,
+    private readonly advancedSearchIndexSync?: AdvancedSearchIndexSyncService
   ) {}
 
   @Transactional()
@@ -60,6 +64,11 @@ export class CreateDataMartService {
 
     let legacyDataMartId: string | undefined = undefined;
     const isLegacyDataMart = dataStorage.type === DataStorageType.LEGACY_GOOGLE_BIGQUERY;
+    if (isLegacyDataMart && containsNonBmpCharacters(command.title)) {
+      throw new BadRequestException(
+        'Title contains unsupported characters (e.g. emoji). Legacy BigQuery storage does not support these characters.'
+      );
+    }
     if (isLegacyDataMart) {
       const newLegacyDataMart = await this.legacyDataMartService.createDataMart({
         title: command.title,
@@ -95,8 +104,12 @@ export class CreateDataMartService {
     newDataMart.technicalOwners = [technicalOwner];
     newDataMart.businessOwners = [];
 
-    // Safe inside @Transactional(): the local emit is discarded if the
-    // surrounding transaction rolls back.
+    await this.advancedSearchIndexSync?.scheduleReindex(
+      SearchableEntityType.DATA_MART,
+      newDataMart.id,
+      command.projectId
+    );
+
     this.eventDispatcher.publishLocalOnCommit(
       new DataMartCreatedEvent(newDataMart.id, command.projectId, command.userId)
     );

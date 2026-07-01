@@ -1,6 +1,19 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Payload, ProjectMember, ProjectMemberInvitation, Role } from '@owox/idp-protocol';
+import {
+  ApproveMembershipRequestResult,
+  Payload,
+  Project,
+  ProjectMember,
+  ProjectMemberInvitation,
+  ProjectMembershipRequest,
+  Role,
+  UserProvisioningRequestAccessContext,
+  RequestProjectAccessResult,
+  CreateNewProjectResult,
+  UserProvisioningSettings,
+  UserProvisioningSettingsUpdate,
+} from '@owox/idp-protocol';
 import { In, Repository } from 'typeorm';
 import { ProjectProjection } from '../entities/project-projection.entity';
 import { UserProjection } from '../entities/user-projection.entity';
@@ -39,6 +52,11 @@ export class IdpProjectionsService {
 
   public async getAllUserProjections(): Promise<UserProjection[]> {
     return await this.usersRepository.find();
+  }
+
+  public async getProjectForUser(userId: string, projectId: string): Promise<Project> {
+    const provider = this.idpProviderService.getProviderFromApp();
+    return provider.getProjectForUser(userId, projectId);
   }
 
   public async updateProjectionsFromIdpPayload(authorizationPayload: Payload): Promise<void> {
@@ -160,6 +178,75 @@ export class IdpProjectionsService {
   ): Promise<void> {
     const provider = this.idpProviderService.getProviderFromApp();
     await provider.changeMemberRole(projectId, userId, newRole, actorUserId);
+  }
+
+  public async listMembershipRequests(
+    projectId: string,
+    actorUserId: string
+  ): Promise<ProjectMembershipRequest[]> {
+    const provider = this.idpProviderService.getProviderFromApp();
+    return provider.listMembershipRequests(projectId, actorUserId);
+  }
+
+  public async approveMembershipRequest(
+    projectId: string,
+    requestId: string,
+    role: Role,
+    actorUserId: string
+  ): Promise<ApproveMembershipRequestResult> {
+    const provider = this.idpProviderService.getProviderFromApp();
+    return provider.approveMembershipRequest(projectId, requestId, role, actorUserId);
+  }
+
+  public async declineMembershipRequest(
+    projectId: string,
+    requestId: string,
+    actorUserId: string
+  ): Promise<void> {
+    const provider = this.idpProviderService.getProviderFromApp();
+    await provider.declineMembershipRequest(projectId, requestId, actorUserId);
+  }
+
+  public async getUserProvisioningSettings(
+    projectId: string,
+    actorUserId: string
+  ): Promise<UserProvisioningSettings> {
+    const provider = this.idpProviderService.getProviderFromApp();
+    return provider.getUserProvisioningSettings(projectId, actorUserId);
+  }
+
+  public async updateUserProvisioningSettings(
+    projectId: string,
+    actorUserId: string,
+    settings: UserProvisioningSettingsUpdate
+  ): Promise<UserProvisioningSettings> {
+    const provider = this.idpProviderService.getProviderFromApp();
+    return provider.updateUserProvisioningSettings(projectId, actorUserId, settings);
+  }
+
+  public async getUserProvisioningRequestAccessContext(
+    userId: string,
+    projectId: string
+  ): Promise<UserProvisioningRequestAccessContext> {
+    const provider = this.idpProviderService.getProviderFromApp();
+    return provider.getUserProvisioningRequestAccessContext(userId, projectId);
+  }
+
+  public async requestProjectAccess(
+    userId: string,
+    projectId: string,
+    role: Role
+  ): Promise<RequestProjectAccessResult> {
+    const provider = this.idpProviderService.getProviderFromApp();
+    return provider.requestProjectAccess(userId, projectId, role);
+  }
+
+  public async createNewProject(
+    userId: string,
+    integration: string
+  ): Promise<CreateNewProjectResult> {
+    const provider = this.idpProviderService.getProviderFromApp();
+    return provider.createNewProject(userId, integration);
   }
 
   /**

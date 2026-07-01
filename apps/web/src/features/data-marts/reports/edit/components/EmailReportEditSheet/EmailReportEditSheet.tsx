@@ -21,6 +21,7 @@ import { useIntercomLauncher } from '../../../../../../shared/hooks/useIntercomL
 interface EmailReportEditSheetProps {
   isOpen: boolean;
   onClose: () => void;
+  onSubmitSuccess?: () => void | Promise<void>;
   initialReport?: DataMartReport;
   mode: ReportFormMode;
   preSelectedDestination?: DataDestination | null;
@@ -39,6 +40,7 @@ interface EmailReportEditSheetProps {
 export function EmailReportEditSheet({
   isOpen,
   onClose,
+  onSubmitSuccess,
   initialReport,
   mode,
   preSelectedDestination,
@@ -76,61 +78,61 @@ export function EmailReportEditSheet({
         duration: Infinity,
       });
     }
+    void onSubmitSuccess?.();
     baseHandleFormSubmitSuccess();
-  }, [baseHandleFormSubmitSuccess, projectId, dataMartId, pathname]);
+  }, [baseHandleFormSubmitSuccess, dataMartId, onSubmitSuccess, pathname, projectId]);
 
   useIntercomLauncher(isOpen);
 
   return (
-    <>
-      <Sheet
-        open={isOpen}
-        onOpenChange={open => {
-          if (!open) {
-            handleClose();
-          }
-        }}
-      >
-        <SheetContent>
-          <SheetHeader>
-            <SheetTitle>
-              {preSelectedDestination?.title ??
-                (mode === ReportFormMode.CREATE ? 'Create Report' : 'Report')}
-            </SheetTitle>
-            <SheetDescription>
-              {mode === ReportFormMode.CREATE
-                ? 'Fill in the details to create a new report'
-                : 'Update details of an existing report'}
-            </SheetDescription>
-          </SheetHeader>
+    <Sheet
+      open={isOpen}
+      onOpenChange={open => {
+        if (!open) {
+          handleClose();
+        }
+      }}
+    >
+      <SheetContent>
+        <SheetHeader>
+          <SheetTitle>
+            {preSelectedDestination?.title ??
+              (mode === ReportFormMode.CREATE ? 'Create Report' : 'Report')}
+          </SheetTitle>
+          <SheetDescription>
+            {mode === ReportFormMode.CREATE
+              ? 'Fill in the details to create a new report'
+              : 'Update details of an existing report'}
+          </SheetDescription>
+        </SheetHeader>
 
-          <DataDestinationProvider>
-            <EmailReportEditForm
-              initialReport={initialReport}
-              mode={mode}
-              onDirtyChange={handleFormDirtyChange}
-              onSubmit={handleFormSubmitSuccess}
-              onCancel={handleClose}
-              preSelectedDestination={preSelectedDestination}
-              prefill={prefill}
-              allowedDestinationTypes={allowedDestinationTypes}
-              isInsightContext={isInsightContext}
-              isReadOnly={isReadOnly}
-            />
-          </DataDestinationProvider>
-        </SheetContent>
-      </Sheet>
-
-      <ConfirmationDialog
-        open={showUnsavedDialog}
-        onOpenChange={setShowUnsavedDialog}
-        title='Unsaved Changes'
-        description='You have unsaved changes. Exit without saving?'
-        confirmLabel='Yes, leave now'
-        cancelLabel='No, stay here'
-        onConfirm={confirmClose}
-        variant='destructive'
-      />
-    </>
+        <DataDestinationProvider>
+          <EmailReportEditForm
+            initialReport={initialReport}
+            mode={mode}
+            onDirtyChange={handleFormDirtyChange}
+            onSubmit={handleFormSubmitSuccess}
+            onCancel={handleClose}
+            preSelectedDestination={preSelectedDestination}
+            prefill={prefill}
+            allowedDestinationTypes={allowedDestinationTypes}
+            isInsightContext={isInsightContext}
+            isReadOnly={isReadOnly}
+          />
+        </DataDestinationProvider>
+        {/* Rendered inside SheetContent so Radix treats it as a nested dismissable layer;
+              interacting with it then doesn't dismiss the sheet (which caused a re-open loop). */}
+        <ConfirmationDialog
+          open={showUnsavedDialog}
+          onOpenChange={setShowUnsavedDialog}
+          title='Unsaved Changes'
+          description='You have unsaved changes. Exit without saving?'
+          confirmLabel='Yes, leave now'
+          cancelLabel='No, stay here'
+          onConfirm={confirmClose}
+          variant='destructive'
+        />
+      </SheetContent>
+    </Sheet>
   );
 }

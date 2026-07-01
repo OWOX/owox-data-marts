@@ -8,7 +8,6 @@ describe('ConnectorExecutionService (facade)', () => {
   const createService = () => {
     const connectorRunService = {
       run: jest.fn().mockResolvedValue('run-1'),
-      cancelRun: jest.fn().mockResolvedValue(undefined),
       executeExistingRun: jest.fn().mockResolvedValue(undefined),
       executeInterruptedRuns: jest.fn().mockResolvedValue(undefined),
       getDataMartConnectorRunsByStatus: jest.fn().mockResolvedValue([]),
@@ -27,14 +26,6 @@ describe('ConnectorExecutionService (facade)', () => {
 
     expect(result).toBe('run-1');
     expect(connectorRunService.run).toHaveBeenCalledWith(dm, 'user-1', 'MANUAL', {});
-  });
-
-  it('delegates cancelRun to ConnectorRunService', async () => {
-    const { service, connectorRunService } = createService();
-
-    await service.cancelRun('dm-1', 'run-1');
-
-    expect(connectorRunService.cancelRun).toHaveBeenCalledWith('dm-1', 'run-1');
   });
 
   it('delegates executeExistingRun to ConnectorRunService', async () => {

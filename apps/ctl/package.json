@@ -1,0 +1,75 @@
+{
+  "name": "@owox/ctl",
+  "description": "OWOX Data Marts Control CLI",
+  "version": "0.28.0",
+  "type": "module",
+  "author": "OWOX",
+  "license": "ELv2",
+  "publishConfig": {
+    "access": "public"
+  },
+  "bin": {
+    "owox-ctl": "./bin/run.js"
+  },
+  "bugs": "https://github.com/OWOX/owox-data-marts/issues",
+  "dependencies": {
+    "@oclif/core": "^4",
+    "@oclif/plugin-help": "^6",
+    "@owox/api-client": "*",
+    "@owox/internal-helpers": "*"
+  },
+  "devDependencies": {
+    "@owox/eslint-config": "*",
+    "@owox/prettier-config": "*",
+    "@types/jest": "29.5.14",
+    "@types/node": "^22.10.7",
+    "jest": "^30.2.0",
+    "shx": "^0.4.0",
+    "ts-jest": "^29.4.6"
+  },
+  "engines": {
+    "node": ">=22.16.0"
+  },
+  "files": [
+    "./README.md",
+    "./bin",
+    "./dist/**/*.d.ts",
+    "./dist/**/*.js",
+    "./oclif.manifest.json"
+  ],
+  "homepage": "https://github.com/OWOX/owox-data-marts",
+  "keywords": [
+    "owox",
+    "data-marts",
+    "cli",
+    "automation"
+  ],
+  "main": "dist/index.js",
+  "oclif": {
+    "bin": "owox-ctl",
+    "dirname": "owox-ctl",
+    "commands": "./dist/commands",
+    "plugins": [
+      "@oclif/plugin-help"
+    ],
+    "topicSeparator": " "
+  },
+  "repository": "OWOX/owox-data-marts",
+  "scripts": {
+    "build": "tsc",
+    "build:clean": "shx rm -rf dist oclif.manifest.json tsconfig.tsbuildinfo",
+    "build:dep": "npm run build -w @owox/internal-helpers --prefix ../.. && npm run build -w @owox/api-client --prefix ../..",
+    "clean": "npm run build:clean",
+    "format": "prettier --write \"**/*.{ts,js,json}\" --ignore-path ../../.prettierignore",
+    "format:check": "prettier --check \"**/*.{ts,js,json}\" --ignore-path ../../.prettierignore",
+    "lint": "eslint . --config ./eslint.config.js",
+    "lint:fix": "eslint . --fix --config ./eslint.config.js",
+    "prebuild": "npm run build:clean && npm run build:dep",
+    "prepack": "oclif manifest",
+    "prepublishOnly": "npm run lint && npm run typecheck",
+    "pretest": "npm run build:dep",
+    "test": "NODE_OPTIONS=--experimental-vm-modules jest --passWithNoTests",
+    "typecheck": "tsc --noEmit"
+  },
+  "types": "dist/index.d.ts"
+}

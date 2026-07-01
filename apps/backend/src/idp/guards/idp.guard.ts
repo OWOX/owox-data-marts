@@ -25,6 +25,8 @@ export interface AuthenticatedRequest extends Request {
     roles?: RoleType[];
 
     projectTitle?: string;
+    authFlow?: string;
+    apiKeyId?: string;
   };
 }
 
@@ -59,6 +61,7 @@ export class IdpGuard implements CanActivate {
 
     try {
       const tokenPayload = await this.authenticateUser(request, roleConfig.strategy);
+      this.checkApiKeyHeaderBinding(request, tokenPayload);
 
       request.idpContext = {
         userId: tokenPayload.userId,
@@ -68,12 +71,16 @@ export class IdpGuard implements CanActivate {
         avatar: tokenPayload.avatar,
         roles: tokenPayload.roles,
         projectTitle: tokenPayload.projectTitle,
+        authFlow: tokenPayload.authFlow,
+        apiKeyId: tokenPayload.apiKeyId,
       };
 
       this.cls.set(AUTH_CONTEXT, {
         userId: tokenPayload.userId,
         projectId: tokenPayload.projectId,
         roles: tokenPayload.roles,
+        authFlow: tokenPayload.authFlow,
+        apiKeyId: tokenPayload.apiKeyId,
       });
 
       if (request && STATE_CHANGING_METHODS.includes(request.method)) {
@@ -81,7 +88,7 @@ export class IdpGuard implements CanActivate {
         void this.idpProjectionsService.updateProjectionsFromIdpPayload(tokenPayload);
       }
     } catch (error) {
-      if (error instanceof UnauthorizedException) {
+      if (error instanceof UnauthorizedException || error instanceof AuthorizationError) {
         throw error;
       }
       throw new AuthenticationError('Authentication failed');
@@ -111,6 +118,19 @@ export class IdpGuard implements CanActivate {
     }
 
     return tokenPayload;
+  }
+
+  private checkApiKeyHeaderBinding(request: AuthenticatedRequest, tokenPayload: Payload): void {
+    if (tokenPayload.authFlow !== 'api_key') {
+      return;
+    }
+
+    const headerValue = request.headers['x-owox-api-key-id'];
+    const apiKeyId = Array.isArray(headerValue) ? null : headerValue;
+
+    if (!apiKeyId || !tokenPayload.apiKeyId || apiKeyId !== tokenPayload.apiKeyId) {
+      throw new AuthorizationError('Access denied by api key');
+    }
   }
 
   private static readonly ROLE_DISPLAY_NAMES: Record<string, string> = {

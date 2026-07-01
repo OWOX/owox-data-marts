@@ -1,6 +1,6 @@
 {
   "name": "@owox/idp-better-auth",
-  "version": "0.25.0",
+  "version": "0.28.0",
   "type": "module",
   "author": "OWOX",
   "license": "ELv2",
@@ -33,7 +33,7 @@
   "dependencies": {
     "@owox/idp-protocol": "*",
     "@owox/internal-helpers": "*",
-    "better-auth": "1.5.3",
+    "better-auth": "1.6.13",
     "better-sqlite3": "^12.2.0",
     "cookie-parser": "^1.4.7",
     "env-paths": "^3.0.0",

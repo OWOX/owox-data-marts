@@ -4,11 +4,14 @@ import type {
   CreateInsightTemplateRequestDto,
   InsightTemplateExecutionStatusResponseDto,
   InsightTemplateListResponseDto,
+  ProjectInsightTemplateListResponseDto,
   InsightTemplateResponseDto,
   InsightTemplateRunTriggersListResponseDto,
   StartInsightTemplateExecutionRequestDto,
   UpdateInsightTemplateRequestDto,
 } from '../types/insight-templates.dto';
+
+const PROJECT_INSIGHT_TEMPLATES_FETCH_PAGE_SIZE = 100;
 
 export class InsightTemplatesService extends ApiService {
   constructor() {
@@ -17,6 +20,37 @@ export class InsightTemplatesService extends ApiService {
 
   async getInsightTemplates(dataMartId: string): Promise<InsightTemplateListResponseDto> {
     return this.get<InsightTemplateListResponseDto>(`/${dataMartId}/insight-templates`);
+  }
+
+  async getProjectInsightTemplates(
+    limit?: number,
+    offset?: number
+  ): Promise<ProjectInsightTemplateListResponseDto> {
+    if (limit === undefined && offset === undefined) {
+      const insights: ProjectInsightTemplateListResponseDto['insights'] = [];
+      let nextOffset = 0;
+      let fetchedCount: number;
+
+      do {
+        const response = await this.get<ProjectInsightTemplateListResponseDto>(
+          '/insight-templates',
+          {
+            limit: PROJECT_INSIGHT_TEMPLATES_FETCH_PAGE_SIZE,
+            offset: nextOffset,
+          }
+        );
+        insights.push(...response.insights);
+        fetchedCount = response.insights.length;
+        nextOffset += PROJECT_INSIGHT_TEMPLATES_FETCH_PAGE_SIZE;
+      } while (fetchedCount === PROJECT_INSIGHT_TEMPLATES_FETCH_PAGE_SIZE);
+
+      return { insights };
+    }
+
+    return this.get<ProjectInsightTemplateListResponseDto>('/insight-templates', {
+      limit: limit ?? PROJECT_INSIGHT_TEMPLATES_FETCH_PAGE_SIZE,
+      offset: offset ?? 0,
+    });
   }
 
   async getInsightTemplateById(

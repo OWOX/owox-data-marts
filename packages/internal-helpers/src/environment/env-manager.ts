@@ -38,6 +38,8 @@ export interface EnvSetupConfig {
  * Result object returned by environment setup operations
  */
 export interface EnvSetupResult {
+  /** Absolute path to the environment file successfully loaded, or null when none was loaded */
+  envFilePath: string | null;
   /** Log messages from the setting process with levels */
   messages: LogMessage[];
   /** Whether the operation was successful */
@@ -112,6 +114,7 @@ export class EnvManager {
    * Reset at the start of each setupEnvironment() call
    */
   private static operationLog: LogMessage[] = [];
+  private static envFilePath: string | null = null;
 
   /**
    * Setup environment variables from multiple sources with priority system
@@ -147,6 +150,7 @@ export class EnvManager {
 
     if (isEnvSet) {
       return {
+        envFilePath: this.envFilePath,
         messages: [...this.operationLog],
         success: true,
       };
@@ -156,7 +160,7 @@ export class EnvManager {
     const success = this.executeOperations(operations);
 
     isEnvSet = true;
-    return { messages: [...this.operationLog], success };
+    return { envFilePath: this.envFilePath, messages: [...this.operationLog], success };
   }
 
   /**
@@ -215,6 +219,7 @@ export class EnvManager {
 
     const result = this.loadFromFile(resolvedPath, envFileOverride);
     if (result.success) {
+      this.envFilePath = resolvedPath;
       this.logOperationDetails(result);
       this.logDebug(this.MESSAGES.FILE_SUCCESS);
     } else {
@@ -405,8 +410,9 @@ export class EnvManager {
     const sanitizedPath = filePath.trim();
 
     if (sanitizedPath) {
-      this.logDebug(this.formatMessage(this.MESSAGES.FILE_PATH_SPECIFIED, { file: sanitizedPath }));
-      return sanitizedPath;
+      const specifiedPath = path.resolve(process.cwd(), sanitizedPath);
+      this.logDebug(this.formatMessage(this.MESSAGES.FILE_PATH_SPECIFIED, { file: specifiedPath }));
+      return specifiedPath;
     }
 
     const defaultPath = path.resolve(process.cwd(), '.env');

@@ -2,7 +2,6 @@ import { Injectable, ForbiddenException } from '@nestjs/common';
 import { BusinessViolationException } from '../../common/exceptions/business-violation.exception';
 import { OwoxEventDispatcher } from '../../common/event-dispatcher/owox-event-dispatcher';
 import { DataStorageType } from '../data-storage-types/enums/data-storage-type.enum';
-import { DataMartDefinitionValidatorFacade } from '../data-storage-types/facades/data-mart-definition-validator-facade.service';
 import { DataMartDto } from '../dto/domain/data-mart.dto';
 import { UpdateDataMartDefinitionCommand } from '../dto/domain/update-data-mart-definition.command';
 import { ConnectorDefinition } from '../dto/schemas/data-mart-table-definitions/connector-definition.schema';
@@ -15,17 +14,19 @@ import { ConnectorSecretService } from '../services/connector/connector-secret.s
 import { DataMartService } from '../services/data-mart.service';
 import { LegacyDataMartsService } from '../services/legacy-data-marts/legacy-data-marts.service';
 import { AccessDecisionService, EntityType, Action } from '../services/access-decision';
+import { AdvancedSearchIndexSyncService } from '../services/advanced-search-index-sync.service';
+import { SearchableEntityType } from '../../common/search/search.facade';
 
 @Injectable()
 export class UpdateDataMartDefinitionService {
   constructor(
     private readonly dataMartService: DataMartService,
-    private readonly definitionValidatorFacade: DataMartDefinitionValidatorFacade,
     private readonly mapper: DataMartMapper,
     private readonly connectorSecretService: ConnectorSecretService,
     private readonly legacyDataMartsService: LegacyDataMartsService,
     private readonly accessDecisionService: AccessDecisionService,
-    private readonly eventDispatcher: OwoxEventDispatcher
+    private readonly eventDispatcher: OwoxEventDispatcher,
+    private readonly advancedSearchIndexSync?: AdvancedSearchIndexSyncService
   ) {}
 
   async run(command: UpdateDataMartDefinitionCommand): Promise<DataMartDto> {
@@ -128,10 +129,6 @@ export class UpdateDataMartDefinitionService {
       dataMart.definition = command.definition;
     }
 
-    if (dataMart.definitionType !== DataMartDefinitionType.SQL) {
-      await this.definitionValidatorFacade.checkIsValid(dataMart);
-    }
-
     await this.dataMartService.save(dataMart);
 
     if (definitionTypeWasEmpty && dataMart.definitionType) {
@@ -155,6 +152,12 @@ export class UpdateDataMartDefinitionService {
         )
       );
     }
+
+    await this.advancedSearchIndexSync?.scheduleReindex(
+      SearchableEntityType.DATA_MART,
+      dataMart.id,
+      command.projectId
+    );
 
     return this.mapper.toDomainDto(dataMart);
   }

@@ -104,6 +104,38 @@ export function DataDestinationConfigSheet({
   const mode = dataDestination ? 'edit' : 'create';
   const wasOpenRef = useRef(false);
 
+  // The Google Drive Picker renders its modal in document.body (outside this
+  // Sheet's DOM), so interacting with it would be treated as an outside
+  // interaction and close the Sheet. Keep the Sheet open while a Picker is
+  // present (matched by the event target OR by any Picker node in the DOM).
+  const PICKER_SELECTOR =
+    '.picker-dialog, .picker-dialog-bg, .picker, .pac-container, iframe[src*="docs.google.com/picker"]';
+  // The Picker does not always remove every node when it closes (a hidden
+  // `.picker-dialog-bg` / iframe can linger). A blanket presence check would
+  // then permanently keep the Sheet open on outside-click / focus-out, so only
+  // a node that is actually visible counts.
+  const isPickerNodeVisible = (el: Element): boolean => {
+    if (!(el instanceof HTMLElement)) {
+      return true;
+    }
+    const checkVisibility = (el as unknown as { checkVisibility?: (opts?: unknown) => boolean })
+      .checkVisibility;
+    if (
+      typeof checkVisibility === 'function' &&
+      !checkVisibility.call(el, { visibilityProperty: true, opacityProperty: true })
+    ) {
+      return false;
+    }
+    const rect = el.getBoundingClientRect();
+    return rect.width > 0 && rect.height > 0;
+  };
+  const shouldKeepOpenForPicker = (target: EventTarget | null): boolean => {
+    if (target instanceof Element && target.closest(PICKER_SELECTOR)) {
+      return true;
+    }
+    return Array.from(document.querySelectorAll(PICKER_SELECTOR)).some(isPickerNodeVisible);
+  };
+
   useEffect(() => {
     if (isOpen && !wasOpenRef.current) {
       trackEvent({
@@ -125,41 +157,58 @@ export function DataDestinationConfigSheet({
   }, [isOpen, dataDestination, mode]);
 
   return (
-    <>
-      <Sheet
-        open={isOpen}
-        onOpenChange={open => {
-          if (!open) {
-            handleClose();
+    <Sheet
+      open={isOpen}
+      onOpenChange={open => {
+        if (!open) {
+          handleClose();
+        }
+      }}
+    >
+      <SheetContent
+        data-testid='destEditSheet'
+        onPointerDownOutside={event => {
+          if (shouldKeepOpenForPicker(event.detail.originalEvent.target)) {
+            event.preventDefault();
+          }
+        }}
+        onFocusOutside={event => {
+          if (shouldKeepOpenForPicker(event.detail.originalEvent.target)) {
+            event.preventDefault();
+          }
+        }}
+        onInteractOutside={event => {
+          if (shouldKeepOpenForPicker(event.detail.originalEvent.target)) {
+            event.preventDefault();
           }
         }}
       >
-        <SheetContent data-testid='destEditSheet'>
-          <SheetHeader>
-            <SheetTitle>Configure destination</SheetTitle>
-            <SheetDescription>Customize settings for your destination</SheetDescription>
-          </SheetHeader>
-          <DataDestinationForm
-            initialData={dataDestination ?? initialFormData ?? null}
-            onSubmit={onSave}
-            onCancel={handleClose}
-            onDirtyChange={handleFormDirtyChange}
-            isEditMode={!!dataDestination}
-            allowedDestinationTypes={allowedDestinationTypes}
-            destinationId={dataDestination?.id}
-          />
-        </SheetContent>
-      </Sheet>
-      <ConfirmationDialog
-        open={showUnsavedDialog}
-        onOpenChange={setShowUnsavedDialog}
-        title='Unsaved Changes'
-        description='You have unsaved changes. Exit without saving?'
-        confirmLabel='Yes, leave now'
-        cancelLabel='No, stay here'
-        onConfirm={confirmClose}
-        variant='destructive'
-      />
-    </>
+        <SheetHeader>
+          <SheetTitle>Configure destination</SheetTitle>
+          <SheetDescription>Customize settings for your destination</SheetDescription>
+        </SheetHeader>
+        <DataDestinationForm
+          initialData={dataDestination ?? initialFormData ?? null}
+          onSubmit={onSave}
+          onCancel={handleClose}
+          onDirtyChange={handleFormDirtyChange}
+          isEditMode={!!dataDestination}
+          allowedDestinationTypes={allowedDestinationTypes}
+          destinationId={dataDestination?.id}
+        />
+        {/* Rendered inside SheetContent so Radix treats it as a nested dismissable layer;
+              interacting with it then doesn't dismiss the sheet (which caused a re-open loop). */}
+        <ConfirmationDialog
+          open={showUnsavedDialog}
+          onOpenChange={setShowUnsavedDialog}
+          title='Unsaved Changes'
+          description='You have unsaved changes. Exit without saving?'
+          confirmLabel='Yes, leave now'
+          cancelLabel='No, stay here'
+          onConfirm={confirmClose}
+          variant='destructive'
+        />
+      </SheetContent>
+    </Sheet>
   );
 }

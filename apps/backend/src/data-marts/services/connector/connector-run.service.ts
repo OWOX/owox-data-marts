@@ -11,7 +11,6 @@ import { DataMartStatus } from '../../enums/data-mart-status.enum';
 import { DataMartRunType } from '../../enums/data-mart-run-type.enum';
 import { ConnectorExecutionError } from '../../errors/connector-execution.error';
 import { RunType } from '../../../common/scheduler/shared/types';
-import { SystemTimeService } from '../../../common/scheduler/services/system-time.service';
 import { ConnectorRunTriggerService } from './connector-run-trigger.service';
 import { ConnectorExecutorService } from './connector-executor.service';
 
@@ -23,46 +22,8 @@ export class ConnectorRunService {
     @InjectRepository(DataMartRun)
     private readonly dataMartRunRepository: Repository<DataMartRun>,
     private readonly connectorRunTriggerService: ConnectorRunTriggerService,
-    private readonly connectorExecutorService: ConnectorExecutorService,
-    private readonly systemTimeService: SystemTimeService
+    private readonly connectorExecutorService: ConnectorExecutorService
   ) {}
-
-  async cancelRun(dataMartId: string, runId: string): Promise<void> {
-    const run = await this.dataMartRunRepository.findOne({
-      where: { id: runId, dataMartId },
-      relations: ['dataMart'],
-    });
-
-    if (!run) {
-      throw new ConnectorExecutionError('Data mart run not found', undefined, {
-        dataMartId,
-        runId,
-      });
-    }
-
-    if (run.status === DataMartRunStatus.SUCCESS || run.status === DataMartRunStatus.FAILED) {
-      throw new ConnectorExecutionError('Cannot cancel completed data mart run', undefined, {
-        dataMartId,
-        runId,
-        projectId: run?.dataMart?.projectId,
-      });
-    }
-
-    if (run.status === DataMartRunStatus.CANCELLED) {
-      throw new ConnectorExecutionError('Data mart run is already cancelled', undefined, {
-        dataMartId,
-        runId,
-        projectId: run?.dataMart?.projectId,
-      });
-    }
-
-    if (run.status === DataMartRunStatus.PENDING || run.status === DataMartRunStatus.RUNNING) {
-      await this.dataMartRunRepository.update(runId, {
-        status: DataMartRunStatus.CANCELLED,
-        finishedAt: this.systemTimeService.now(),
-      });
-    }
-  }
 
   @Transactional()
   async run(

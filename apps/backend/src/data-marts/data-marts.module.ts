@@ -5,10 +5,29 @@ import { DataStorageController } from './controllers/data-storage.controller';
 import { DataDestinationController } from './controllers/data-destination.controller';
 import { ReportAccessService } from './services/report-access.service';
 import { AccessDecisionService } from './services/access-decision';
+import { AdvancedSearchIndexSyncService } from './services/advanced-search-index-sync.service';
+import { DataMartSearchIndexInvalidationService } from './services/data-mart-search-index-invalidation.service';
+import { SearchReindexTrigger } from './entities/search/search-reindex-trigger.entity';
+import {
+  SearchDataDestinationProjectReindexTrigger,
+  SearchDataMartProjectReindexTrigger,
+  SearchDataStorageProjectReindexTrigger,
+} from './entities/search/search-project-reindex-trigger.entity';
 import { UpdateAvailabilityService } from './use-cases/update-availability.service';
 import { MemberOwnershipWarningsService } from './services/member-ownership-warnings.service';
 import { LookerStudioConnectorController } from './controllers/external/looker-studio-connector.controller';
+import { HttpDataController } from './controllers/external/http-data.controller';
+import { HttpDataMapper } from './mappers/http-data.mapper';
+import { StreamHttpDataService } from './use-cases/stream-http-data.service';
+import { HttpDataStreamWriter } from './services/http-data/http-data-stream-writer.service';
+import { HttpDataRequestValidator } from './services/http-data/http-data-request-validator.service';
+import { HttpDataColumnResolver } from './services/http-data/http-data-column-resolver.service';
+import { HttpDataColumnValidator } from './services/http-data/http-data-column-validator.service';
 import { MarkdownParserController } from './controllers/markdown-parser.controller';
+import { ProjectDataMartRunsController } from './controllers/project-data-mart-runs.controller';
+import { ProjectInsightTemplatesController } from './controllers/project-insight-templates.controller';
+import { ProjectReportsController } from './controllers/project-reports.controller';
+import { ProjectScheduledTriggersController } from './controllers/project-scheduled-triggers.controller';
 import { ReportController } from './controllers/report.controller';
 import { InsightController } from './controllers/insight.controller';
 import { AiAssistantController } from './controllers/ai-assistant.controller';
@@ -31,7 +50,14 @@ import { DeleteLegacyDataMartService } from './use-cases/legacy-data-marts/delet
 import { MoveLegacyDataStorageService } from './use-cases/legacy-data-marts/move-legacy-data-storage.service';
 import { SyncLegacyGcpStoragesForProjectService } from './use-cases/legacy-data-marts/sync-legacy-gcp-storages-for-project.service';
 import { ListDataMartsService } from './use-cases/list-data-marts.service';
+import { MCP_DATA_MARTS_FACADE } from './facades/mcp-data-marts.facade';
+import { McpDataMartsFacadeImpl } from './facades/mcp-data-marts.facade.impl';
+import { MCP_DATA_DESTINATIONS_FACADE } from './facades/mcp-data-destinations.facade';
+import { McpDataDestinationsFacadeImpl } from './facades/mcp-data-destinations.facade.impl';
 import { ListDataMartsByConnectorNameService } from './use-cases/list-data-marts-by-connector-name.service';
+import { ListProjectDataMartRunsService } from './use-cases/list-project-data-mart-runs.service';
+import { ListProjectInsightTemplatesService } from './use-cases/list-project-insight-templates.service';
+import { ListProjectScheduledTriggersService } from './use-cases/list-project-scheduled-triggers.service';
 import { GetDataMartService } from './use-cases/get-data-mart.service';
 import { DataMartMapper } from './mappers/data-mart.mapper';
 import { ScheduledTriggerMapper } from './mappers/scheduled-trigger.mapper';
@@ -164,6 +190,10 @@ import { PublishDraftsTrigger } from './entities/publish-drafts-trigger.entity';
 import { PublishDraftsTriggerService } from './services/publish-drafts-trigger.service';
 import { PublishDraftsTriggerHandlerService } from './services/publish-drafts-trigger-handler.service';
 import { PublishDraftsTriggerController } from './controllers/publish-drafts-trigger.controller';
+import { AiHelperTrigger } from './entities/ai-helper-trigger.entity';
+import { AiHelperTriggerService } from './services/ai-helper-trigger.service';
+import { AiHelperTriggerHandlerService } from './services/ai-helper-trigger-handler.service';
+import { AiHelperTriggerController } from './controllers/ai-helper-trigger.controller';
 import { ReportRunService } from './services/report-run.service';
 import { LookerStudioReportRunService } from './services/looker-studio-report-run.service';
 import { InsightMapper } from './mappers/insight.mapper';
@@ -285,6 +315,7 @@ import { GetDestinationOAuthStatusService } from './use-cases/google-oauth/get-d
 import { GetDestinationOAuthCredentialStatusService } from './use-cases/google-oauth/get-destination-oauth-credential-status.service';
 import { GenerateDestinationOAuthUrlService } from './use-cases/google-oauth/generate-destination-oauth-url.service';
 import { RevokeDestinationOAuthService } from './use-cases/google-oauth/revoke-destination-oauth.service';
+import { CreateGoogleSheetDocumentService } from './use-cases/google-sheets/create-google-sheet-document.service';
 import { DataStorageCredentialsResolver } from './data-storage-types/data-storage-credentials-resolver.service';
 import { DataDestinationCredentialsResolver } from './data-destination-types/data-destination-credentials-resolver.service';
 import { DataStorageCredential } from './entities/data-storage-credential.entity';
@@ -316,13 +347,13 @@ import { OutputControlsValidatorService } from './services/output-controls-valid
 import { BigQueryClauseRenderer } from './data-storage-types/bigquery/services/bigquery-clause-renderer';
 import { BlendedReportDataService } from './services/blended-report-data.service';
 import { ReportSqlComposerService } from './services/report-sql-composer.service';
+import { ReportTotalsService } from './services/report-totals.service';
 import { RelationshipMapper } from './mappers/relationship.mapper';
 import { CreateDataMartRelationshipService } from './use-cases/create-data-mart-relationship.service';
 import { UpdateDataMartRelationshipService } from './use-cases/update-data-mart-relationship.service';
 import { DeleteDataMartRelationshipService } from './use-cases/delete-data-mart-relationship.service';
-import { ListDataMartRelationshipsService } from './use-cases/list-data-mart-relationships.service';
 import { ListRelationshipsByStorageService } from './use-cases/list-relationships-by-storage.service';
-import { GetDataMartRelationshipService } from './use-cases/get-data-mart-relationship.service';
+import { GetDataMartRelationshipGraphService } from './use-cases/get-data-mart-relationship-graph.service';
 import { GetBlendableSchemaService } from './use-cases/get-blendable-schema.service';
 import { GetReportGeneratedSqlService } from './use-cases/get-report-generated-sql.service';
 import { CopyReportAsDataMartService } from './use-cases/copy-report-as-data-mart.service';
@@ -334,21 +365,46 @@ import { StorageContext } from './entities/storage-context.entity';
 import { DestinationContext } from './entities/destination-context.entity';
 import { MemberRoleScope } from './entities/member-role-scope.entity';
 import { MemberRoleContext } from './entities/member-role-context.entity';
+import { UserProvisioningContextSettings } from './entities/user-provisioning-context-settings.entity';
+import { UserProvisioningContextSettingsContext } from './entities/user-provisioning-context-settings-context.entity';
 import { ContextService } from './services/context/context.service';
 import { ContextAccessService } from './services/context/context-access.service';
+import { UserProvisioningContextSettingsService } from './services/context/user-provisioning-context-settings.service';
+import { ApplyUserProvisioningContextDefaultsService } from './services/context/apply-user-provisioning-context-defaults.service';
 import { ContextMapper } from './mappers/context.mapper';
 import { ProjectMembersMapper } from './mappers/project-members.mapper';
 import { ContextController } from './controllers/context.controller';
 import { ProjectMembersController } from './controllers/project-members.controller';
+import { RequestAccessController } from './controllers/request-access.controller';
 import { ListProjectMembersService } from './use-cases/project-members/list-project-members.service';
 import { InviteProjectMemberService } from './use-cases/project-members/invite-project-member.service';
 import { UpdateProjectMemberService } from './use-cases/project-members/update-project-member.service';
 import { RemoveProjectMemberService } from './use-cases/project-members/remove-project-member.service';
+import { GetUserProvisioningSettingsService } from './use-cases/project-members/get-user-provisioning-settings.service';
+import { UpdateUserProvisioningSettingsService } from './use-cases/project-members/update-user-provisioning-settings.service';
+import { GetRequestAccessContextService } from './use-cases/project-members/get-request-access-context.service';
+import { RequestProjectAccessService } from './use-cases/project-members/request-project-access.service';
+import { CreateNewProjectService } from './use-cases/project-members/create-new-project.service';
+import { ListMembershipRequestsService } from './use-cases/project-members/list-membership-requests.service';
+import { ApproveMembershipRequestService } from './use-cases/project-members/approve-membership-request.service';
+import { DeclineMembershipRequestService } from './use-cases/project-members/decline-membership-request.service';
 import { SetContextMembersService } from './use-cases/contexts/set-context-members.service';
+import { ProjectMemberApiKeysController } from './controllers/project-member-api-keys.controller';
+import { ListProjectMemberApiKeysService } from './use-cases/project-member-api-keys/list-project-member-api-keys.service';
+import { CreateProjectMemberApiKeyService } from './use-cases/project-member-api-keys/create-project-member-api-key.service';
+import { UpdateProjectMemberApiKeyService } from './use-cases/project-member-api-keys/update-project-member-api-key.service';
+import { RevokeProjectMemberApiKeyService } from './use-cases/project-member-api-keys/revoke-project-member-api-key.service';
+import { ProjectMemberApiKeysMapper } from './mappers/project-member-api-keys.mapper';
+import { ProjectMemberApiKeysModule } from '../project-member-api-keys/project-member-api-keys.module';
 
 @Module({
   imports: [
+    ProjectMemberApiKeysModule,
     TypeOrmModule.forFeature([
+      SearchReindexTrigger,
+      SearchDataMartProjectReindexTrigger,
+      SearchDataStorageProjectReindexTrigger,
+      SearchDataDestinationProjectReindexTrigger,
       DataMart,
       DataMartBusinessOwner,
       DataMartTechnicalOwner,
@@ -370,6 +426,7 @@ import { SetContextMembersService } from './use-cases/contexts/set-context-membe
       SqlDryRunTrigger,
       SchemaActualizeTrigger,
       PublishDraftsTrigger,
+      AiHelperTrigger,
       InsightRunTrigger,
       InsightTemplateRunTrigger,
       ConnectorSourceCredentials,
@@ -393,11 +450,17 @@ import { SetContextMembersService } from './use-cases/contexts/set-context-membe
       DestinationContext,
       MemberRoleScope,
       MemberRoleContext,
+      UserProvisioningContextSettings,
+      UserProvisioningContextSettingsContext,
     ]),
     CommonModule,
     IdpModule,
   ],
   controllers: [
+    ProjectDataMartRunsController,
+    ProjectScheduledTriggersController,
+    ProjectInsightTemplatesController,
+    ProjectReportsController,
     DataMartController,
     DataStorageController,
     DataDestinationController,
@@ -414,6 +477,7 @@ import { SetContextMembersService } from './use-cases/contexts/set-context-membe
     SqlDryRunTriggerController,
     SchemaActualizeTriggerController,
     PublishDraftsTriggerController,
+    AiHelperTriggerController,
     InsightRunTriggerController,
     InsightTemplateRunTriggerController,
     MarkdownParserController,
@@ -423,6 +487,9 @@ import { SetContextMembersService } from './use-cases/contexts/set-context-membe
     DataStorageRelationshipController,
     ContextController,
     ProjectMembersController,
+    ProjectMemberApiKeysController,
+    HttpDataController,
+    RequestAccessController,
   ],
   providers: [
     ...dataStorageResolverProviders,
@@ -435,9 +502,20 @@ import { SetContextMembersService } from './use-cases/contexts/set-context-membe
     DataMartService,
     CreateDataMartService,
     ListDataMartsService,
+    {
+      provide: MCP_DATA_MARTS_FACADE,
+      useClass: McpDataMartsFacadeImpl,
+    },
+    {
+      provide: MCP_DATA_DESTINATIONS_FACADE,
+      useClass: McpDataDestinationsFacadeImpl,
+    },
     ListDataMartsByConnectorNameService,
     GetDataMartService,
     ListDataMartRunsService,
+    ListProjectDataMartRunsService,
+    ListProjectInsightTemplatesService,
+    ListProjectScheduledTriggersService,
     UpdateDataMartDefinitionService,
     PublishDataMartService,
     UpdateBlendedFieldsConfigService,
@@ -567,6 +645,8 @@ import { SetContextMembersService } from './use-cases/contexts/set-context-membe
     SchemaActualizeTriggerHandlerService,
     PublishDraftsTriggerService,
     PublishDraftsTriggerHandlerService,
+    AiHelperTriggerService,
+    AiHelperTriggerHandlerService,
     RetryInterruptedConnectorRunsProcessor,
     ScheduledTriggerService,
     ScheduledTriggerMapper,
@@ -578,6 +658,8 @@ import { SetContextMembersService } from './use-cases/contexts/set-context-membe
     ReportService,
     ReportAccessService,
     AccessDecisionService,
+    AdvancedSearchIndexSyncService,
+    DataMartSearchIndexInvalidationService,
     UpdateAvailabilityService,
     MemberOwnershipWarningsService,
     ReportDataCacheService,
@@ -669,6 +751,7 @@ import { SetContextMembersService } from './use-cases/contexts/set-context-membe
     GetDestinationOAuthCredentialStatusService,
     GenerateDestinationOAuthUrlService,
     RevokeDestinationOAuthService,
+    CreateGoogleSheetDocumentService,
     ProjectSetupProgressService,
     ProjectSetupProgressListenerService,
     GetProjectSetupProgressService,
@@ -680,25 +763,52 @@ import { SetContextMembersService } from './use-cases/contexts/set-context-membe
     BigQueryClauseRenderer,
     BlendedReportDataService,
     ReportSqlComposerService,
+    ReportTotalsService,
     RelationshipMapper,
     CreateDataMartRelationshipService,
     UpdateDataMartRelationshipService,
     DeleteDataMartRelationshipService,
-    ListDataMartRelationshipsService,
     ListRelationshipsByStorageService,
-    GetDataMartRelationshipService,
+    GetDataMartRelationshipGraphService,
     GetBlendableSchemaService,
     GetReportGeneratedSqlService,
     CopyReportAsDataMartService,
     ContextService,
     ContextAccessService,
+    UserProvisioningContextSettingsService,
+    ApplyUserProvisioningContextDefaultsService,
     ContextMapper,
     ProjectMembersMapper,
     ListProjectMembersService,
     InviteProjectMemberService,
     UpdateProjectMemberService,
     RemoveProjectMemberService,
+    GetUserProvisioningSettingsService,
+    UpdateUserProvisioningSettingsService,
+    GetRequestAccessContextService,
+    RequestProjectAccessService,
+    CreateNewProjectService,
+    ListMembershipRequestsService,
+    ApproveMembershipRequestService,
+    DeclineMembershipRequestService,
     SetContextMembersService,
+    ListProjectMemberApiKeysService,
+    CreateProjectMemberApiKeyService,
+    UpdateProjectMemberApiKeyService,
+    RevokeProjectMemberApiKeyService,
+    ProjectMemberApiKeysMapper,
+    HttpDataMapper,
+    StreamHttpDataService,
+    HttpDataStreamWriter,
+    HttpDataRequestValidator,
+    HttpDataColumnResolver,
+    HttpDataColumnValidator,
+  ],
+  exports: [
+    MCP_DATA_MARTS_FACADE,
+    MCP_DATA_DESTINATIONS_FACADE,
+    ContextAccessService,
+    AdvancedSearchIndexSyncService,
   ],
 })
 export class DataMartsModule {

@@ -6,7 +6,7 @@ import { BigQueryClauseRenderer } from './bigquery-clause-renderer';
 
 @Injectable()
 export class BigQueryBlendedQueryBuilder extends AbstractBlendedQueryBuilder {
-  readonly type = DataStorageType.GOOGLE_BIGQUERY;
+  readonly type: DataStorageType = DataStorageType.GOOGLE_BIGQUERY;
   protected readonly identifierQuoteChar = '`';
 
   constructor(private readonly _renderer: BigQueryClauseRenderer) {

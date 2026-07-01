@@ -1,5 +1,16 @@
 import { Injectable } from '@nestjs/common';
-import type { ProjectMemberInvitation, Role } from '@owox/idp-protocol';
+import type {
+  ApproveMembershipRequestResult,
+  CreateNewProjectResult,
+  Project,
+  ProjectMemberInvitation,
+  ProjectMembershipRequest,
+  RequestProjectAccessResult,
+  Role,
+  UserProvisioningRequestAccessContext,
+  UserProvisioningSettings,
+  UserProvisioningSettingsUpdate,
+} from '@owox/idp-protocol';
 import { ProjectProjectionDto } from '../dto/domain/project-projection.dto';
 import { UserProjectionDto } from '../dto/domain/user-projection.dto';
 import { UserProjectionsListDto } from '../dto/domain/user-projections-list.dto';
@@ -37,6 +48,10 @@ export class IdpProjectionsFacade {
     return this.mapper.toUserProjectionDtoList(projections);
   }
 
+  public async getProjectForUser(userId: string, projectId: string): Promise<Project> {
+    return this.idpProjectionsService.getProjectForUser(userId, projectId);
+  }
+
   public async getProjectMembers(projectId: string): Promise<ProjectMemberDto[]> {
     return this.idpProjectionsService.getProjectMembers(projectId);
   }
@@ -63,6 +78,20 @@ export class IdpProjectionsFacade {
     userId: string
   ): Promise<ProjectMemberDto | undefined> {
     const members = await this.getProjectMembers(projectId);
+    return members.find(m => m.userId === userId);
+  }
+
+  /**
+   * Strict variant of `getProjectMember` — propagates IDP failures instead
+   * of silently treating them as "user removed". Use on run-accessor paths
+   * where a transient IDP outage must not get persisted as a membership-loss
+   * business violation.
+   */
+  public async getProjectMemberOrThrow(
+    projectId: string,
+    userId: string
+  ): Promise<ProjectMemberDto | undefined> {
+    const members = await this.getProjectMembersOrThrow(projectId);
     return members.find(m => m.userId === userId);
   }
 
@@ -96,5 +125,75 @@ export class IdpProjectionsFacade {
     actorUserId: string
   ): Promise<void> {
     return this.idpProjectionsService.changeMemberRole(projectId, userId, newRole, actorUserId);
+  }
+
+  public async listMembershipRequests(
+    projectId: string,
+    actorUserId: string
+  ): Promise<ProjectMembershipRequest[]> {
+    return this.idpProjectionsService.listMembershipRequests(projectId, actorUserId);
+  }
+
+  public async approveMembershipRequest(
+    projectId: string,
+    requestId: string,
+    role: Role,
+    actorUserId: string
+  ): Promise<ApproveMembershipRequestResult> {
+    return this.idpProjectionsService.approveMembershipRequest(
+      projectId,
+      requestId,
+      role,
+      actorUserId
+    );
+  }
+
+  public async declineMembershipRequest(
+    projectId: string,
+    requestId: string,
+    actorUserId: string
+  ): Promise<void> {
+    await this.idpProjectionsService.declineMembershipRequest(projectId, requestId, actorUserId);
+  }
+
+  public async getUserProvisioningSettings(
+    projectId: string,
+    actorUserId: string
+  ): Promise<UserProvisioningSettings> {
+    return this.idpProjectionsService.getUserProvisioningSettings(projectId, actorUserId);
+  }
+
+  public async updateUserProvisioningSettings(
+    projectId: string,
+    actorUserId: string,
+    settings: UserProvisioningSettingsUpdate
+  ): Promise<UserProvisioningSettings> {
+    return this.idpProjectionsService.updateUserProvisioningSettings(
+      projectId,
+      actorUserId,
+      settings
+    );
+  }
+
+  public async getUserProvisioningRequestAccessContext(
+    userId: string,
+    projectId: string
+  ): Promise<UserProvisioningRequestAccessContext> {
+    return this.idpProjectionsService.getUserProvisioningRequestAccessContext(userId, projectId);
+  }
+
+  public async requestProjectAccess(
+    userId: string,
+    projectId: string,
+    role: Role
+  ): Promise<RequestProjectAccessResult> {
+    return this.idpProjectionsService.requestProjectAccess(userId, projectId, role);
+  }
+
+  public async createNewProject(
+    userId: string,
+    integration: string
+  ): Promise<CreateNewProjectResult> {
+    return this.idpProjectionsService.createNewProject(userId, integration);
   }
 }

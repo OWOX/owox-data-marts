@@ -16,7 +16,7 @@ import {
 import { cn } from '@owox/ui/lib/utils';
 import { Label } from '@owox/ui/components/label';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@owox/ui/components/tooltip';
-import { ChevronRight, Info } from 'lucide-react';
+import { ChevronRight, CircleAlert, Info } from 'lucide-react';
 import {
   Collapsible,
   CollapsibleTrigger,
@@ -37,8 +37,16 @@ type FormFieldContextValue<
 
 const FormFieldContext = React.createContext<FormFieldContextValue>({} as FormFieldContextValue);
 
+type FormSectionContextValue = {
+  registerFieldName: (name: string) => void;
+};
+
+const FormSectionContext = React.createContext<FormSectionContextValue | null>(null);
+
 /**
  * FormField wraps react-hook-form Controller and provides field context.
+ * It also reports its field name to the enclosing FormSection so the section
+ * can track validation errors of its fields even while collapsed.
  */
 const FormField = <
   TFieldValues extends FieldValues = FieldValues,
@@ -46,6 +54,13 @@ const FormField = <
 >({
   ...props
 }: ControllerProps<TFieldValues, TName>) => {
+  const sectionContext = React.useContext(FormSectionContext);
+  const { name } = props;
+
+  React.useEffect(() => {
+    sectionContext?.registerFieldName(name);
+  }, [sectionContext, name]);
+
   return (
     <FormFieldContext.Provider value={{ name: props.name }}>
       <Controller {...props} />
@@ -281,6 +296,13 @@ interface FormSectionProps {
   defaultOpen?: boolean;
   collapsible?: boolean;
   name?: string;
+  /**
+   * Form field names whose validation errors belong to this section.
+   * FormFields rendered inside the section register themselves automatically;
+   * pass this only for sections that may start collapsed, since their fields
+   * never mount and cannot self-register.
+   */
+  fields?: string[];
 }
 
 const SECTION_STORAGE_PREFIX = 'form-section-';
@@ -308,6 +330,30 @@ function FormSectionTooltip({ tooltip }: { tooltip: React.ReactNode | string }) 
   );
 }
 
+/**
+ * Subscribes to the validation state of the given fields and reports it to
+ * the enclosing FormSection. Rendered as a separate component so FormSection
+ * itself works outside a react-hook-form context.
+ */
+function FormSectionErrorObserver({
+  fields,
+  onErrorStateChange,
+}: {
+  fields: string[];
+  onErrorStateChange: (hasError: boolean, submitCount: number) => void;
+}) {
+  const { getFieldState } = useFormContext();
+  const formState = useFormState({ name: fields });
+  const hasError = fields.some(field => getFieldState(field, formState).invalid);
+  const { submitCount } = formState;
+
+  React.useEffect(() => {
+    onErrorStateChange(hasError, submitCount);
+  }, [hasError, submitCount, onErrorStateChange]);
+
+  return null;
+}
+
 function FormSection({
   title,
   description,
@@ -318,6 +364,7 @@ function FormSection({
   defaultOpen = true,
   collapsible = true,
   name,
+  fields,
 }: FormSectionProps) {
   const getInitialState = () => {
     if (name) {
@@ -347,12 +394,48 @@ function FormSection({
     [name]
   );
 
-  const content = <div className='flex flex-col gap-2'>{children}</div>;
+  // null outside a react-hook-form context — error tracking is disabled there
+  const formContext = useFormContext() as ReturnType<typeof useFormContext> | null;
+
+  // Names are sticky: a field that mounted at least once keeps counting toward
+  // the section's error state even after the section collapses and unmounts it.
+  const [registeredFieldNames, setRegisteredFieldNames] = React.useState<string[]>([]);
+  const registerFieldName = React.useCallback((fieldName: string) => {
+    setRegisteredFieldNames(prev => (prev.includes(fieldName) ? prev : [...prev, fieldName]));
+  }, []);
+  const sectionContextValue = React.useMemo(() => ({ registerFieldName }), [registerFieldName]);
+
+  const watchedFields = React.useMemo(() => {
+    const merged = [...(fields ?? []), ...registeredFieldNames];
+    return [...new Set(merged)];
+  }, [fields, registeredFieldNames]);
+
+  const [hasError, setHasError] = React.useState(false);
+  const handledSubmitCount = React.useRef(0);
+  const handleErrorStateChange = React.useCallback((nextHasError: boolean, submitCount: number) => {
+    setHasError(nextHasError);
+    if (nextHasError && submitCount > handledSubmitCount.current) {
+      handledSubmitCount.current = submitCount;
+      // Open directly (not via handleOpenChange) so the auto-open does not
+      // overwrite the user's persisted open/closed preference in localStorage.
+      setIsOpen(true);
+    }
+  }, []);
+
+  const errorObserver = formContext && watchedFields.length > 0 && (
+    <FormSectionErrorObserver fields={watchedFields} onErrorStateChange={handleErrorStateChange} />
+  );
+
+  const content = (
+    <FormSectionContext.Provider value={sectionContextValue}>
+      <div className='flex flex-col gap-2'>{children}</div>
+    </FormSectionContext.Provider>
+  );
 
   // Non-collapsible section
   if (!collapsible) {
     return (
-      <div data-slot='form-section' className='mb-4'>
+      <div data-slot='form-section' className='flex flex-col gap-2'>
         {title && (
           <div className='group flex items-center justify-between'>
             <div className='flex items-center gap-2'>
@@ -380,8 +463,9 @@ function FormSection({
       open={isOpen}
       onOpenChange={handleOpenChange}
       data-slot='form-section'
-      className='mb-4 flex flex-col gap-2'
+      className='flex flex-col gap-2'
     >
+      {errorObserver}
       {title && (
         <div className='group flex items-center justify-between'>
           <CollapsibleTrigger asChild>
@@ -393,6 +477,18 @@ function FormSection({
                 {title}
               </span>
               {titleAdornment}
+              {hasError && (
+                <>
+                  <CircleAlert
+                    data-testid='form-section-error-indicator'
+                    // -mt-px optically centers the icon against the uppercase
+                    // title: caps sit slightly above the line-box center.
+                    className='text-destructive -mt-px size-3.5 shrink-0'
+                    aria-hidden='true'
+                  />
+                  <span className='sr-only'>This section contains validation errors</span>
+                </>
+              )}
               <ChevronRight
                 className={cn(
                   'text-foreground/75 h-3.5 w-3.5 transition-transform duration-200',
@@ -529,6 +625,84 @@ function FormRadioGroup({
 }
 
 /**
+ * Card-style radio option. Renders a bordered card with a radio input, label,
+ * optional description, and optional children slot for extra content.
+ */
+
+interface FormRadioCardProps {
+  value: string;
+  label: string;
+  description?: string;
+  checked: boolean;
+  onChange: (value: string) => void;
+  disabled?: boolean;
+  children?: React.ReactNode;
+  className?: string;
+  'data-testid'?: string;
+}
+
+function FormRadioCard({
+  value,
+  label,
+  description,
+  checked,
+  onChange,
+  disabled = false,
+  children,
+  className,
+  'data-testid': dataTestId,
+}: FormRadioCardProps) {
+  return (
+    <label
+      className={cn(
+        'border-border flex cursor-pointer items-start gap-3 rounded-md border-b bg-white px-6 py-4 transition-shadow duration-200 select-none hover:shadow-xs dark:border-white/4 dark:bg-white/4 dark:hover:bg-white/8',
+        disabled && 'cursor-not-allowed opacity-50',
+        className
+      )}
+    >
+      <input
+        type='radio'
+        value={value}
+        checked={checked}
+        onChange={() => onChange(value)}
+        disabled={disabled}
+        data-testid={dataTestId}
+        className={cn(
+          'accent-primary mt-1 h-4 w-4 shrink-0',
+          'focus-visible:ring-ring focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2',
+          'disabled:cursor-not-allowed disabled:opacity-50'
+        )}
+      />
+      <div className='flex min-w-0 flex-1 flex-col gap-2'>
+        <div className='flex flex-col gap-1'>
+          <div className='text-md font-medium'>{label}</div>
+          {description && <div className='text-muted-foreground pb-1 text-sm'>{description}</div>}
+        </div>
+        {children}
+      </div>
+    </label>
+  );
+}
+
+/**
+ * Grid wrapper for FormRadioCard options.
+ * Renders 1 column on mobile, 2 columns on sm+ breakpoint.
+ */
+
+interface FormRadioCardGroupProps {
+  children: React.ReactNode;
+  className?: string;
+}
+
+function FormRadioCardGroup({ children, className }: FormRadioCardGroupProps) {
+  return (
+    <div className={cn('grid grid-cols-1 gap-2 sm:grid-cols-2 sm:gap-4', className)}>
+      {children}
+    </div>
+  );
+}
+
+/**
  * AppForm — base wrapper for all forms.
  * Applies standard layout classes to the <form> element.
  * Use this instead of a raw <form> to avoid style duplication.
@@ -563,4 +737,6 @@ export {
   FormSection,
   FormRadioGroup,
   FormRadio,
+  FormRadioCard,
+  FormRadioCardGroup,
 };

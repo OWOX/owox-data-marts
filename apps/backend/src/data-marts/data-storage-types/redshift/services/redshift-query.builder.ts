@@ -1,4 +1,4 @@
-import { Injectable, NotImplementedException } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import {
   DataMartQueryBuilder,
   DataMartQueryOptions,
@@ -13,52 +13,133 @@ import {
   isTablePatternDefinition,
 } from '../../../dto/schemas/data-mart-table-definitions/data-mart-definition.guards';
 import { escapeRedshiftIdentifier } from '../utils/redshift-identifier.utils';
+import { buildDateTruncUnitMap, buildTimeZoneMap } from '../../utils/date-trunc-maps.utils';
+import { RedshiftClauseRenderer } from './redshift-clause-renderer';
+import { composeSelectFromClause } from '../../utils/sql-clause-renderer';
 
 @Injectable()
 export class RedshiftQueryBuilder implements DataMartQueryBuilder {
   readonly type = DataStorageType.AWS_REDSHIFT;
 
+  constructor(private readonly clauseRenderer: RedshiftClauseRenderer) {}
+
   buildQuery(definition: DataMartDefinition, queryOptions?: DataMartQueryOptions): string {
-    if ((queryOptions?.filters?.length ?? 0) > 0 || (queryOptions?.sort?.length ?? 0) > 0) {
-      throw new NotImplementedException(
-        `Output controls not yet supported for storage type ${this.type}`
+    const aggregations = queryOptions?.aggregations ?? [];
+    const dateTruncs = queryOptions?.dateTruncs ?? [];
+    const rowCount = queryOptions?.rowCount === true;
+    const uniqueCount = queryOptions?.uniqueCount === true;
+    const hasOutputControls =
+      (queryOptions?.filters?.length ?? 0) > 0 ||
+      (queryOptions?.sort?.length ?? 0) > 0 ||
+      aggregations.length > 0 ||
+      dateTruncs.length > 0 ||
+      rowCount ||
+      uniqueCount ||
+      queryOptions?.limit != null;
+
+    const selectList = this.buildSelectList(queryOptions?.columns);
+
+    if (!hasOutputControls) {
+      return this.buildPlainQuery(definition, selectList, queryOptions);
+    }
+
+    const fromClause = this.resolveFromClauseWithOutputControls(definition, queryOptions);
+    const where = this.clauseRenderer.renderWhere(queryOptions?.filters ?? []);
+    const orderBy = this.clauseRenderer.renderOrderBy(queryOptions?.sort ?? []);
+    const limit = this.clauseRenderer.renderLimit(queryOptions?.limit ?? null);
+
+    // Redshift inlines every literal, so no path carries bound params. Fail fast
+    // if a fragment ever produced one (the executor has no channel to bind it).
+    const paramCount = where.params.length + orderBy.params.length + limit.params.length;
+    if (paramCount > 0) {
+      throw new Error(
+        `RedshiftQueryBuilder expected zero bound params (literals are inlined) but got ${paramCount}`
       );
     }
-    const selectList = this.buildSelectList(queryOptions?.columns);
-    let query: string;
 
+    if (aggregations.length > 0 || dateTruncs.length > 0 || rowCount || uniqueCount) {
+      const agg = this.clauseRenderer.renderAggregatedSelect(
+        queryOptions?.columns ?? [],
+        aggregations,
+        buildDateTruncUnitMap(dateTruncs),
+        {
+          includeRowCount: rowCount,
+          includeUniqueCount: uniqueCount,
+          primaryKeyColumns: queryOptions?.primaryKeyColumns,
+          timeZoneByColumn: buildTimeZoneMap(dateTruncs),
+          typeByColumn: queryOptions?.columnTypes,
+        }
+      );
+      // ORDER BY must reference the output alias — a bare aggregated column is not in GROUP BY.
+      const aggOrderBy = this.clauseRenderer.renderOrderBy(
+        queryOptions?.sort ?? [],
+        this.clauseRenderer.buildAggregatedAliasResolver(agg.aliasByColumn)
+      );
+      // Redshift inlines literals, so HAVING carries no bound params (same as WHERE above).
+      const having = this.clauseRenderer.renderHaving(queryOptions?.filters ?? []);
+      return `${composeSelectFromClause(agg.selectSql, fromClause)}${where.sql}${agg.groupBySql}${having.sql}${aggOrderBy.sql}${limit.sql}`;
+    }
+
+    return `${composeSelectFromClause(selectList, fromClause)}${where.sql}${orderBy.sql}${limit.sql}`;
+  }
+
+  private buildPlainQuery(
+    definition: DataMartDefinition,
+    selectList: string,
+    queryOptions?: DataMartQueryOptions
+  ): string {
     if (isTableDefinition(definition) || isViewDefinition(definition)) {
-      query = `SELECT ${selectList} FROM ${escapeRedshiftIdentifier(definition.fullyQualifiedName)}`;
-    } else if (isConnectorDefinition(definition)) {
-      query = `SELECT ${selectList} FROM ${escapeRedshiftIdentifier(definition.connector.storage.fullyQualifiedName)}`;
-    } else if (isSqlDefinition(definition)) {
+      return composeSelectFromClause(
+        selectList,
+        escapeRedshiftIdentifier(definition.fullyQualifiedName)
+      );
+    }
+    if (isConnectorDefinition(definition)) {
+      return composeSelectFromClause(
+        selectList,
+        escapeRedshiftIdentifier(definition.connector.storage.fullyQualifiedName)
+      );
+    }
+    if (isSqlDefinition(definition)) {
       if (queryOptions?.columns?.length) {
         const cleanQuery = definition.sqlQuery.trim().replace(/;\s*$/, '');
-        query = `SELECT ${selectList} FROM (${cleanQuery})`;
-      } else {
-        query = definition.sqlQuery.trim();
+        return composeSelectFromClause(selectList, `(${cleanQuery}) AS subq`);
       }
-    } else if (isTablePatternDefinition(definition)) {
+      return definition.sqlQuery.trim();
+    }
+    if (isTablePatternDefinition(definition)) {
       throw new Error('Table pattern queries are not supported in Redshift');
-    } else {
-      throw new Error('Invalid data mart definition');
     }
+    throw new Error('Invalid data mart definition');
+  }
 
-    if (queryOptions?.limit !== undefined && queryOptions.limit !== null) {
-      if (!Number.isInteger(queryOptions.limit) || queryOptions.limit < 0) {
-        throw new Error(`Invalid LIMIT value: ${String(queryOptions.limit)}`);
+  private resolveFromClauseWithOutputControls(
+    definition: DataMartDefinition,
+    options: DataMartQueryOptions | undefined
+  ): string {
+    if (isTableDefinition(definition) || isViewDefinition(definition)) {
+      return escapeRedshiftIdentifier(definition.fullyQualifiedName);
+    }
+    if (isConnectorDefinition(definition)) {
+      return escapeRedshiftIdentifier(definition.connector.storage.fullyQualifiedName);
+    }
+    if (isTablePatternDefinition(definition)) {
+      throw new Error('Table pattern queries are not supported in Redshift');
+    }
+    if (isSqlDefinition(definition)) {
+      if (options?.mainTableReference) {
+        return options.mainTableReference;
       }
-      const cleanQuery = query.endsWith(';') ? query.slice(0, -1) : query;
-      query = `SELECT * FROM (${cleanQuery}) LIMIT ${queryOptions.limit}`;
+      const cleanQuery = definition.sqlQuery.trim().replace(/;\s*$/, '');
+      return `(${cleanQuery}) AS subq`;
     }
-
-    return query;
+    throw new Error('Invalid data mart definition');
   }
 
   private buildSelectList(columns?: string[]): string {
     if (!columns || columns.length === 0) {
       return '*';
     }
-    return columns.map(col => escapeRedshiftIdentifier(col)).join(', ');
+    return columns.map(col => escapeRedshiftIdentifier(col)).join(',\n  ');
   }
 }

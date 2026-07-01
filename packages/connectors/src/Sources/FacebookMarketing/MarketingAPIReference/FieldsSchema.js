@@ -9,27 +9,31 @@
 var FacebookMarketingFieldsSchema = {
     "ad-account-user": {
         "overview": "Ad Account User",
-        "description": "Someone on Facebook who creates ads. Each ad user can have a role on several ad accounts",
+        "description": "Users with access to an ad account and their assigned roles.",
         "documentation": "https://developers.facebook.com/docs/marketing-api/reference/ad-account-user",
         "fields": adAccountUserFields,
         'uniqueKeys': ["id"],
+        'defaultFields': ["name"],
         "isTimeSeries": false,
         "destinationName": "facebook_ads_ad_account_user"
     },
     "ad-account": {
         "overview": "Ad Account",
-        "description": "Represents the business entity managing ads.",
+        "description": "Your ad account settings, status, currency, and billing details.",
         "documentation": "https://developers.facebook.com/docs/marketing-api/reference/ad-account/",
         "fields": adAccountFields,
         'uniqueKeys': ["id", "account_id"],
+        'defaultFields': ["name", "account_status", "currency", "timezone_name", "business_name", "created_time"],
         "isTimeSeries": false,
         "destinationName": "facebook_ads_ad_account"
     },
     "ad-account/adcreatives": {
-        "description": "Defines your ad's appearance and content.",
+        "overview": "Ad Creatives",
+        "description": "The images, videos, text, and other visual elements used in your ads.",
         "documentation": "https://developers.facebook.com/docs/marketing-api/reference/ad-account/adcreatives",
         "fields": adAccountCreativesFields,
         'uniqueKeys': ["id"],
+        'defaultFields': ["name", "account_id", "status", "body", "title", "call_to_action_type", "object_type", "effective_object_story_id"],
         "isTimeSeries": false,
         "destinationName": "facebook_ads_ad_account_adcreatives"
     },
@@ -39,11 +43,12 @@ var FacebookMarketingFieldsSchema = {
     //     "destinationName": "facebook_ads_ad_account_adimages"
     // },
     "ad-account/ads": {
-        "description": "Data for an ad, such as creative elements and measurement information.",
+        "overview": "Ads",
+        "description": "Individual ads with their status, creative, and campaign hierarchy.",
         "documentation": "https://developers.facebook.com/docs/marketing-api/reference/ad-account/ads",
         "fields": adAccountAdsFields,
         'uniqueKeys': ["id"],
-        'defaultFields': ["id", "name", "status", "effective_status", "adset_id", "campaign_id", "created_time", "updated_time"],
+        'defaultFields': ["name", "account_id", "status", "effective_status", "adset_id", "campaign_id", "creative_id", "created_time", "updated_time"],
         "isTimeSeries": false,
         "destinationName": "facebook_ads_ad_account_ads"
     },
@@ -68,82 +73,121 @@ var FacebookMarketingFieldsSchema = {
     //     "destinationName": "facebook_ads_ad_account_customaudiences"
     // },
     "ad-account/insights": {
-        "description": "Interface for insights. De-dupes results across child objects, provides sorting, and async reports.",
+        "overview": "Ad Insights",
+        "description": "Daily performance metrics for each ad — impressions, clicks, spend, and conversions.",
         "documentation": "https://developers.facebook.com/docs/marketing-api/reference/ad-account/insights",
         "fields": adAccountInsightsFields,
         'uniqueKeys': ["ad_id", "date_start", "date_stop"],
+        'defaultFields': ["account_id", "account_name", "campaign_id", "campaign_name", "adset_id", "adset_name", "ad_name", "impressions", "reach", "clicks", "spend", "cpc", "cpm", "ctr", "frequency", "actions", "action_values"],
         "isTimeSeries": true,
         "destinationName": "facebook_ads_ad_account_insights"
     },
     "ad-account/insights-by-age-and-gender": {
-        "description": "Interface for insights with breakdown by age and gender.",
+        "overview": "Ad Insights by Age and Gender",
+        "description": "Daily ad performance broken down by audience age range and gender.",
         "documentation": "https://developers.facebook.com/docs/marketing-api/reference/ad-account/insights",
         "fields": adAccountInsightsFieldsByAgeAndGender,
         "breakdowns": ["age", "gender"],
         'uniqueKeys': ["ad_id", "date_start", "date_stop", "age", "gender"],
+        'defaultFields': ["account_id", "account_name", "campaign_id", "campaign_name", "adset_id", "adset_name", "ad_name", "impressions", "reach", "clicks", "spend", "cpc", "cpm", "ctr", "frequency", "actions", "action_values"],
         "isTimeSeries": true,
         "destinationName": "facebook_ads_ad_account_insights_by_age_and_gender"
     },
     "ad-account/insights-by-country": {
-        "description": "Interface for insights with breakdown by country.",
+        "overview": "Ad Insights by Country",
+        "description": "Daily ad performance broken down by the country where your audience is located.",
         "documentation": "https://developers.facebook.com/docs/marketing-api/reference/ad-account/insights",
         "fields": adAccountInsightsFieldsByCountry,
         "breakdowns": ["country"],
         'uniqueKeys': ["ad_id", "date_start", "date_stop", "country"],
+        'defaultFields': ["account_currency", "account_id", "account_name", "ad_name", "adset_id", "adset_name", "campaign_id", "campaign_name", "clicks", "impressions", "inline_link_clicks", "reach", "spend"],
         "isTimeSeries": true,
         "destinationName": "facebook_ads_ad_account_insights_by_country"
     },
     "ad-account/insights-by-device-platform": {
-        "description": "Interface for insights with breakdown by device platform.",
+        "overview": "Ad Insights by Device Platform",
+        "description": "Daily ad performance broken down by the device type your audience used.",
         "documentation": "https://developers.facebook.com/docs/marketing-api/reference/ad-account/insights",
         "fields": adAccountInsightsFieldsByDevicePlatform,
         "breakdowns": ["device_platform"],
         'uniqueKeys': ["ad_id", "date_start", "date_stop", "device_platform"],
+        'defaultFields': ["account_id", "account_name", "campaign_id", "campaign_name", "adset_id", "adset_name", "ad_name", "impressions", "reach", "clicks", "spend", "cpc", "cpm", "ctr", "frequency", "actions", "action_values"],
         "isTimeSeries": true,
         "destinationName": "facebook_ads_ad_account_insights_by_device_platform"
     },
     "ad-account/insights-by-link-url-asset": {
-        "description": "Interface for insights with breakdown by link URL asset.",
+        "overview": "Ad Insights by Link URL Asset",
+        "description": "Daily ad performance broken down by the link URL shown in your ads.",
         "documentation": "https://developers.facebook.com/docs/marketing-api/reference/ad-account/insights",
         "fields": adAccountInsightsFieldsByLinkUrlAsset,
         "breakdowns": ["link_url_asset"],
         'uniqueKeys': ["ad_id", "date_start", "date_stop"],
+        'defaultFields': ["account_id", "account_name", "campaign_id", "campaign_name", "adset_id", "adset_name", "ad_name", "impressions", "reach", "clicks", "spend", "cpc", "cpm", "ctr", "frequency", "actions", "action_values"],
         "isTimeSeries": true,
         "destinationName": "facebook_ads_ad_account_insights_by_link_url_asset"
     },
     "ad-account/insights-by-product-id": {
-        "description": "Interface for insights with breakdown by product ID.",
+        "overview": "Ad Insights by Product ID",
+        "description": "Daily ad performance broken down by individual product from your catalog.",
         "documentation": "https://developers.facebook.com/docs/marketing-api/reference/ad-account/insights",
         "fields": adAccountInsightsFieldsByProductId,
         "breakdowns": ["product_id"],
         'uniqueKeys': ["ad_id", "date_start", "date_stop", "product_id"],
+        'defaultFields': ["account_id", "account_name", "campaign_id", "campaign_name", "adset_id", "adset_name", "ad_name", "impressions", "reach", "clicks", "spend", "cpc", "cpm", "ctr", "frequency", "actions", "action_values"],
         "isTimeSeries": true,
         "destinationName": "facebook_ads_ad_account_insights_by_product_id"
     },
     "ad-account/insights-by-publisher-platform-and-position": {
-        "description": "Interface for insights with breakdown by publisher platform and position.",
+        "overview": "Ad Insights by Publisher Platform and Position",
+        "description": "Daily ad performance broken down by where your ads appeared — platform and placement position.",
         "documentation": "https://developers.facebook.com/docs/marketing-api/reference/ad-account/insights",
         "fields": adAccountInsightsFieldsByPublisherPlatformAndPosition,
         "breakdowns": ["publisher_platform", "platform_position"],
         'uniqueKeys': ["ad_id", "date_start", "date_stop", "publisher_platform", "platform_position"],
+        'defaultFields': ["account_id", "account_name", "campaign_id", "campaign_name", "adset_id", "adset_name", "ad_name", "impressions", "reach", "clicks", "spend", "cpc", "cpm", "ctr", "frequency", "actions", "action_values"],
         "isTimeSeries": true,
         "destinationName": "facebook_ads_ad_account_insights_by_publisher_platform_and_position"
     },
     "ad-account/insights-by-region": {
-        "description": "Interface for insights with breakdown by region.",
+        "overview": "Ad Insights by Region",
+        "description": "Daily ad performance broken down by the region where your audience is located.",
         "documentation": "https://developers.facebook.com/docs/marketing-api/reference/ad-account/insights",
         "fields": adAccountInsightsFieldsByRegion,
         "breakdowns": ["region"],
         'uniqueKeys': ["ad_id", "date_start", "date_stop", "region"],
+        'defaultFields': ["account_id", "account_name", "campaign_id", "campaign_name", "adset_id", "adset_name", "ad_name", "impressions", "reach", "clicks", "spend", "cpc", "cpm", "ctr", "frequency", "actions", "action_values"],
         "isTimeSeries": true,
         "destinationName": "facebook_ads_ad_account_insights_by_region"
     },
+    "ad-account/insights-by-adset": {
+        "overview": "Ad Insights by Ad Set",
+        "description": "Daily ad set performance with reach deduplicated to match Meta Ads Manager.",
+        "documentation": "https://developers.facebook.com/docs/marketing-api/reference/ad-account/insights",
+        "fields": adAccountInsightsFieldsByAdset,
+        "level": "adset",
+        'uniqueKeys': ["adset_id", "date_start", "date_stop"],
+        'defaultFields': ["account_id", "account_name", "campaign_id", "campaign_name", "adset_id", "adset_name", "impressions", "reach", "frequency", "clicks", "spend", "cpc", "cpm", "cpp", "ctr", "actions", "action_values"],
+        "isTimeSeries": true,
+        "destinationName": "facebook_ads_ad_account_insights_by_adset"
+    },
+    "ad-account/insights-by-campaign": {
+        "overview": "Ad Insights by Campaign",
+        "description": "Daily campaign performance with reach deduplicated to match Meta Ads Manager.",
+        "documentation": "https://developers.facebook.com/docs/marketing-api/reference/ad-account/insights",
+        "fields": adAccountInsightsFieldsByCampaign,
+        "level": "campaign",
+        "uniqueKeys": ["campaign_id", "date_start", "date_stop"],
+        "defaultFields": ["account_id", "campaign_id", "campaign_name", "impressions", "reach", "frequency", "clicks", "spend", "cpm", "cpp"],
+        "isTimeSeries": true,
+        "destinationName": "facebook_ads_ad_account_insights_by_campaign"
+    },
     "ad-group": {
-        "overview": "Ad Object (formerly Ad Group)",
-        "description": "Represents an Ad object (historically called 'Ad Group'). This is the entity for individual ads in Facebook's API.",
+        "overview": "Ad",
+        "description": "Individual ads with their creative, status, and links to their campaign and ad set.",
         "documentation": "https://developers.facebook.com/docs/marketing-api/reference/adgroup/",
         "fields": adGroupFields,
         'uniqueKeys': ["id"],
+        'defaultFields': ["account_id", "creative_effective_object_story_id", "creative_name", "creative_object_story_spec", "creative_url_tags", "creative_asset_groups_spec", "name"],
         "isTimeSeries": false,
         "destinationName": "facebook_ads_ad_group"
     },

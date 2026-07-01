@@ -19,8 +19,6 @@ import { BlendableSchemaDto } from '../../dto/domain/blendable-schema.dto';
 import { UpdateBlendedFieldsConfigApiDto } from '../../dto/presentation/update-blended-fields-config-api.dto';
 import { UpdateDataMartDefinitionApiDto } from '../../dto/presentation/update-data-mart-definition-api.dto';
 import { UpdateDataMartSchemaApiDto } from '../../dto/presentation/update-data-mart-schema-api.dto';
-import { GenerateDataMartMetadataRequestApiDto } from '../../dto/presentation/generate-data-mart-metadata-request-api.dto';
-import { GenerateDataMartMetadataResponseApiDto } from '../../dto/presentation/generate-data-mart-metadata-response-api.dto';
 import { DataMartAiHelperAvailabilityResponseApiDto } from '../../dto/presentation/data-mart-ai-helper-availability-response-api.dto';
 import { DataMartValidationResponseApiDto } from '../../dto/presentation/data-mart-validation-response-api.dto';
 import { DataMartRunsResponseApiDto } from '../../dto/presentation/data-mart-runs-response-api.dto';
@@ -195,8 +193,8 @@ export function GetDataMartRunsSpec() {
       name: 'limit',
       required: false,
       type: Number,
-      example: 20,
-      description: 'Maximum number of runs to return',
+      example: 100,
+      description: 'Maximum number of runs to return. Defaults to 100.',
     }),
     ApiQuery({
       name: 'offset',
@@ -289,20 +287,6 @@ export function GetBlendableSchemaSpec() {
     }),
     ApiParam({ name: 'id', description: 'DataMart ID' }),
     ApiOkResponse({ type: BlendableSchemaDto })
-  );
-}
-
-export function GenerateDataMartMetadataSpec() {
-  return applyDecorators(
-    ApiOperation({
-      summary: 'Generate AI-powered metadata suggestions for a DataMart',
-      description:
-        'Returns AI-generated suggestions for DataMart title, description, a single field alias, a single field description, or descriptions for every field at once. The result is a suggestion only — it is NOT persisted. Apply via PUT /:id/title, /:id/description, /:id/schema after user confirmation. Returns 503 when AI is not configured on this deployment.',
-    }),
-    ApiParam({ name: 'id', description: 'DataMart ID' }),
-    ApiBody({ type: GenerateDataMartMetadataRequestApiDto }),
-    ApiOkResponse({ type: GenerateDataMartMetadataResponseApiDto }),
-    ApiResponse({ status: 503, description: 'AI helper is not configured on this deployment' })
   );
 }
 

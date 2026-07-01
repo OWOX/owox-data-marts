@@ -20,6 +20,7 @@ import { DataStorage } from './data-storage.entity';
 })
 @Index('IDX_dmr_dataStorage', ['dataStorage'])
 @Index('IDX_dmr_targetDataMart', ['targetDataMart'])
+@Index('IDX_dmr_project_target_source', ['projectId', 'targetDataMart', 'sourceDataMart'])
 export class DataMartRelationship implements CreatorAwareEntity {
   @PrimaryGeneratedColumn('uuid')
   id: string;

@@ -1,5 +1,5 @@
 import { DataMartSchema } from '../../data-storage-types/data-mart-schema.type';
-import { AggregateFunction } from '../schemas/aggregate-function.schema';
+import { AggregateFunction, ReportAggregateFunction } from '../schemas/aggregate-function.schema';
 
 export class BlendedFieldDto {
   name: string;
@@ -13,6 +13,7 @@ export class BlendedFieldDto {
   description: string;
   isHidden: boolean;
   aggregateFunction: AggregateFunction;
+  postJoinAggregations?: ReportAggregateFunction[];
   transitiveDepth: number;
   aliasPath: string;
   outputPrefix: string;
@@ -28,6 +29,7 @@ export class AvailableSourceDto {
   isIncluded: boolean;
   relationshipId: string;
   dataMartId: string;
+  isAccessibleForReporting: boolean;
 }
 
 export class BlendableSchemaDto {

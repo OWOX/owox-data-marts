@@ -5,8 +5,16 @@ export const AGGREGATE_FUNCTIONS = [
   'MAX',
   'MIN',
   'SUM',
+  'AVG',
   'COUNT',
   'COUNT_DISTINCT',
   'ANY_VALUE',
 ] as const;
 export type AggregateFunction = (typeof AGGREGATE_FUNCTIONS)[number];
+
+export const PERCENTILE_FUNCTIONS = ['P25', 'P50', 'P75', 'P95'] as const;
+export const REPORT_AGGREGATE_FUNCTIONS = [
+  ...AGGREGATE_FUNCTIONS,
+  ...PERCENTILE_FUNCTIONS,
+] as const;
+export type ReportAggregateFunction = (typeof REPORT_AGGREGATE_FUNCTIONS)[number];

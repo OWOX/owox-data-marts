@@ -107,6 +107,41 @@ describe('SheetMetadataFormatter', () => {
     });
   });
 
+  describe('buildImportedColumnMarker', () => {
+    it('places the column description first, separated by a blank line from the marker', () => {
+      expect(formatter.buildImportedColumnMarker('Revenue per campaign', false)).toBe(
+        'Revenue per campaign\n\n--- Imported via OWOX Data Marts ---'
+      );
+    });
+
+    it('returns only the short ODM ownership marker when there is no description', () => {
+      expect(formatter.buildImportedColumnMarker(undefined, false)).toBe(
+        '--- Imported via OWOX Data Marts ---'
+      );
+    });
+
+    it('collapses an empty-string description to the bare marker (no leading blank line)', () => {
+      expect(formatter.buildImportedColumnMarker('', false)).toBe(
+        '--- Imported via OWOX Data Marts ---'
+      );
+    });
+
+    it('includes the Community Edition suffix inside the marker', () => {
+      expect(formatter.buildImportedColumnMarker(undefined, true)).toBe(
+        '--- Imported via OWOX Data Marts Community Edition ---'
+      );
+    });
+
+    it('truncates an oversize description before composing the marker note', () => {
+      const oversize = 'x'.repeat(46_000);
+      const note = formatter.buildImportedColumnMarker(oversize, false);
+
+      // Description truncated to 45,000 chars + ellipsis, then the marker.
+      expect(note.length).toBeLessThan(50_000);
+      expect(note).toContain('…\n\n--- Imported via OWOX Data Marts ---');
+    });
+  });
+
   describe('buildImportedColumnNote', () => {
     const baseArgs = {
       title: 'Test Data Mart',
@@ -114,7 +149,7 @@ describe('SheetMetadataFormatter', () => {
       date: '2026-04-02 12:00:00 UTC',
     };
 
-    it('places description first followed by the ODM info block', () => {
+    it('places description first, separated by a blank line from the ODM info block', () => {
       const note = formatter.buildImportedColumnNote(
         'Total revenue per campaign per day',
         baseArgs.title,
@@ -124,16 +159,17 @@ describe('SheetMetadataFormatter', () => {
       );
 
       const lines = note.split('\n');
-      // Description on the first line; ODM info begins after the `---` separator.
+      // Description on the first line; ODM info begins after a blank line led
+      // by the `--- Imported via OWOX Data Marts ---` marker.
       expect(lines[0]).toBe('Total revenue per campaign per day');
-      expect(note).toContain('\n---\n');
-      expect(note).toContain('Imported via OWOX Data Marts at 2026-04-02 12:00:00 UTC');
+      expect(note).toContain('\n\n--- Imported via OWOX Data Marts ---\n');
+      expect(note).toContain('Imported at 2026-04-02 12:00:00 UTC');
       expect(note).toContain(`Data Mart: ${baseArgs.title}`);
       expect(note).toContain(`Data Mart page: ${baseArgs.url}`);
-      expect(note.indexOf('Imported via')).toBeGreaterThan(note.indexOf('---'));
+      expect(note.indexOf('Imported at')).toBeGreaterThan(note.indexOf('---'));
     });
 
-    it('omits description and separator when description is undefined', () => {
+    it('starts with the marker and omits the blank-line separator when description is undefined', () => {
       const note = formatter.buildImportedColumnNote(
         undefined,
         baseArgs.title,
@@ -142,11 +178,11 @@ describe('SheetMetadataFormatter', () => {
         false
       );
 
-      expect(note.startsWith('Imported via OWOX Data Marts')).toBe(true);
-      expect(note).not.toContain('---');
+      expect(note.startsWith('--- Imported via OWOX Data Marts ---')).toBe(true);
+      expect(note).not.toContain('\n\n');
     });
 
-    it('appends Community Edition suffix to ODM info', () => {
+    it('appends Community Edition suffix to the marker', () => {
       const note = formatter.buildImportedColumnNote(
         'desc',
         baseArgs.title,
@@ -154,7 +190,7 @@ describe('SheetMetadataFormatter', () => {
         baseArgs.date,
         true
       );
-      expect(note).toContain('OWOX Data Marts Community Edition');
+      expect(note).toContain('--- Imported via OWOX Data Marts Community Edition ---');
     });
 
     it('truncates oversize descriptions before composing the note', () => {
@@ -169,8 +205,8 @@ describe('SheetMetadataFormatter', () => {
 
       // Truncated to 45,000 chars + ellipsis; ODM info block still fits.
       expect(note.length).toBeLessThan(50_000);
-      expect(note).toContain('…\n---\n');
-      expect(note).toContain('Imported via OWOX Data Marts');
+      expect(note).toContain('…\n\n--- Imported via OWOX Data Marts ---');
+      expect(note).toContain('Imported at');
     });
 
     it('also truncates the assembled note when ODM info alone blows the size cap (H5)', () => {

@@ -1,6 +1,15 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { BookOpenIcon, Check, ChartNoAxesColumn, ExternalLink, Settings } from 'lucide-react';
+import {
+  BookOpenIcon,
+  Check,
+  ChartNoAxesColumn,
+  CircleAlert,
+  CircleHelp,
+  CircleMinus,
+  ExternalLink,
+  Settings,
+} from 'lucide-react';
 import { Button } from '@owox/ui/components/button';
 import {
   CollapsibleCard,
@@ -21,6 +30,9 @@ import { contextService } from '../../features/contexts/services/context.service
 import { Box, Database, ArchiveRestore, Tags, Users as UsersIcon } from 'lucide-react';
 import { CopyButton, CopyButtonVariant } from '@owox/ui/components/common/copy-button';
 import { useClipboard } from '../../hooks/useClipboard';
+import { useProjects } from '../../features/idp/hooks/useProjects';
+import { RequestStatus } from '../../shared/types/request-status';
+import type { ProjectStatus } from '../../features/idp/types';
 
 interface Stats {
   dataMarts: number | null;
@@ -62,6 +74,7 @@ function humaniseDestinationType(type: string): string {
 
 export function OverviewTab() {
   const user = useUser();
+  const { projects, callState, loadProjects } = useProjects();
   const { flags } = useFlags();
   const isOwoxIdpProvider = checkVisible('IDP_PROVIDER', ['owox-better-auth'], flags);
   const { scope } = useProjectRoute();
@@ -73,6 +86,12 @@ export function OverviewTab() {
     destinations: null,
     contexts: null,
   });
+
+  useEffect(() => {
+    if (callState === RequestStatus.IDLE) {
+      void loadProjects();
+    }
+  }, [callState, loadProjects]);
 
   useEffect(() => {
     // Mutable flag wrapped in an object so TS/ESLint cannot narrow it to the
@@ -120,6 +139,13 @@ export function OverviewTab() {
   }, []);
 
   const projectId = user?.projectId ?? '';
+  const projectStatus = useMemo<ProjectStatus | undefined>(() => {
+    if (!projectId) {
+      return undefined;
+    }
+
+    return projects.find(project => project.id === projectId)?.status;
+  }, [projectId, projects]);
 
   const adminCount = members.filter(m => m.role === 'admin').length;
   const editorCount = members.filter(m => m.role === 'editor').length;
@@ -164,10 +190,11 @@ export function OverviewTab() {
             <DescriptionCard
               label='Status'
               value={
-                <span className='inline-flex items-center gap-1 rounded-full border border-green-200 bg-green-50 px-2.5 py-0.5 text-xs font-medium text-green-700 dark:border-green-900 dark:bg-green-950 dark:text-green-300'>
-                  <Check className='h-3 w-3' />
-                  Active
-                </span>
+                callState === RequestStatus.LOADED ? (
+                  <ProjectStatusBadge status={projectStatus} />
+                ) : (
+                  '—'
+                )
               }
             />
           </div>
@@ -262,6 +289,57 @@ export function OverviewTab() {
       )}
     </div>
   );
+}
+
+function ProjectStatusBadge({ status }: { status?: ProjectStatus }) {
+  const config = getProjectStatusConfig(status);
+  const Icon = config.icon;
+
+  return (
+    <span
+      className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs font-medium ${config.className}`}
+    >
+      <Icon className='h-3 w-3' />
+      {config.label}
+    </span>
+  );
+}
+
+function getProjectStatusConfig(status?: ProjectStatus): {
+  label: string;
+  icon: React.ComponentType<{ className?: string }>;
+  className: string;
+} {
+  switch (status) {
+    case 'active':
+      return {
+        label: 'Active',
+        icon: Check,
+        className:
+          'border-green-200 bg-green-50 text-green-700 dark:border-green-900 dark:bg-green-950 dark:text-green-300',
+      };
+    case 'blocked':
+      return {
+        label: 'Blocked',
+        icon: CircleAlert,
+        className:
+          'border-red-200 bg-red-50 text-red-700 dark:border-red-900 dark:bg-red-950 dark:text-red-300',
+      };
+    case 'removed':
+      return {
+        label: 'Removed',
+        icon: CircleMinus,
+        className:
+          'border-gray-200 bg-gray-50 text-gray-700 dark:border-gray-800 dark:bg-gray-950 dark:text-gray-300',
+      };
+    default:
+      return {
+        label: 'Unknown',
+        icon: CircleHelp,
+        className:
+          'border-gray-200 bg-gray-50 text-gray-700 dark:border-gray-800 dark:bg-gray-950 dark:text-gray-300',
+      };
+  }
 }
 
 function DescriptionCard({ label, value }: { label: string; value: React.ReactNode }) {

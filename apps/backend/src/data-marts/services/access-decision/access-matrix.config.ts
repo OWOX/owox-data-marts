@@ -193,7 +193,7 @@ const dmTechOwnerBuRules: AccessRule[] = dmActions.flatMap(action => {
   );
 });
 
-// Biz Owner (any role, using editor) = SEE + USE only
+// Biz Owner (editor) = SEE + USE only — maintenance comes from the non-owner sharing path
 const dmBizOwnerEditorRules: AccessRule[] = dmActions.flatMap(action => {
   const allowed = action === Action.SEE || action === Action.USE;
   return expandSharingStates(

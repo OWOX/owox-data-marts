@@ -14,6 +14,7 @@ import { GoogleSheetsReportDeletedListener } from './google-sheets/listeners/goo
 import { ColumnPlanBuilder } from './google-sheets/services/column-plan-builder';
 import { GoogleSheetsAccessValidator } from './google-sheets/services/google-sheets-access-validator';
 import { GoogleSheetsCredentialsValidator } from './google-sheets/services/google-sheets-credentials-validator';
+import { GoogleSheetsFolderValidator } from './google-sheets/services/google-sheets-folder-validator.service';
 import { GoogleSheetsReportWriter } from './google-sheets/services/google-sheets-report-writer';
 import { SheetHeaderFormatter } from './google-sheets/services/sheet-formatters/sheet-header-formatter';
 import { SheetMetadataFormatter } from './google-sheets/services/sheet-formatters/sheet-metadata-formatter';
@@ -96,6 +97,7 @@ const googleSheetsUtilityProviders = [
   ColumnPlanBuilder,
   GoogleSheetsReportCreatedListener,
   GoogleSheetsReportDeletedListener,
+  GoogleSheetsFolderValidator,
 ];
 const publicCredentialsProviders = [
   DataDestinationPublicCredentialsFactory,

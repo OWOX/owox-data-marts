@@ -21,7 +21,7 @@ import {
   TestWebhookSpec,
 } from './spec/notification-settings.api';
 
-@Controller('projects/:projectId/notification-settings')
+@Controller('projects/notification-settings')
 @ApiTags('ProjectNotificationSettings')
 export class ProjectNotificationSettingsController {
   constructor(
@@ -35,20 +35,20 @@ export class ProjectNotificationSettingsController {
   @Get()
   @GetNotificationSettingsSpec()
   async getSettings(
-    @AuthContext() _context: AuthorizationContext,
-    @Param('projectId') projectId: string
+    @AuthContext() context: AuthorizationContext
   ): Promise<NotificationSettingsResponseApiDto> {
-    return this.getNotificationSettingsService.run(new GetNotificationSettingsCommand(projectId));
+    return this.getNotificationSettingsService.run(
+      new GetNotificationSettingsCommand(context.projectId)
+    );
   }
 
   @Auth(Role.viewer(Strategy.PARSE))
   @Get('members')
   @GetProjectMembersSpec()
   async getProjectMembers(
-    @AuthContext() _context: AuthorizationContext,
-    @Param('projectId') projectId: string
+    @AuthContext() context: AuthorizationContext
   ): Promise<ProjectMembersResponseApiDto> {
-    const members = await this.getProjectMembersService.run(projectId);
+    const members = await this.getProjectMembersService.run(context.projectId);
     return { members };
   }
 
@@ -56,15 +56,14 @@ export class ProjectNotificationSettingsController {
   @Put(':notificationType')
   @UpdateNotificationSettingSpec()
   async updateSetting(
-    @AuthContext() _context: AuthorizationContext,
-    @Param('projectId') projectId: string,
+    @AuthContext() context: AuthorizationContext,
     @Param('notificationType', new ParseEnumPipe(NotificationType))
     notificationType: NotificationType,
     @Body() dto: UpdateNotificationSettingApiDto
   ): Promise<NotificationSettingsItemResponseApiDto> {
     return this.upsertNotificationSettingService.run(
       new UpsertNotificationSettingCommand(
-        projectId,
+        context.projectId,
         notificationType,
         dto.enabled,
         dto.receivers,
@@ -78,19 +77,18 @@ export class ProjectNotificationSettingsController {
   @Post(':notificationType/test-webhook')
   @TestWebhookSpec()
   async testWebhook(
-    @AuthContext() _context: AuthorizationContext,
-    @Param('projectId') projectId: string,
+    @AuthContext() context: AuthorizationContext,
     @Param('notificationType', new ParseEnumPipe(NotificationType))
     notificationType: NotificationType,
     @Body() body: { webhookUrl?: string }
   ): Promise<{ message: string }> {
     await this.testNotificationWebhookService.run(
       new TestNotificationWebhookCommand(
-        projectId,
+        context.projectId,
         notificationType,
         body.webhookUrl,
-        _context.userId,
-        _context.projectTitle
+        context.userId,
+        context.projectTitle
       )
     );
     return { message: 'Test webhook sent successfully' };

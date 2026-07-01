@@ -1,6 +1,6 @@
 {
   "name": "@owox/internal-helpers",
-  "version": "0.25.0",
+  "version": "0.28.0",
   "description": "Internal helpers used by core OWOX packages",
   "type": "module",
   "author": "OWOX",
@@ -22,16 +22,18 @@
     "build:cjs": "tsc -p tsconfig.cjs.json",
     "build:cjs:pkg": "shx cp cjs-package.json dist-cjs/package.json",
     "build:clean": "shx rm -rf dist dist-cjs tsconfig.tsbuildinfo",
-    "build:esm": "tsc -p tsconfig.json",
+    "build:esm": "tsc -p tsconfig.build.json",
     "format": "prettier --write \"**/*.{ts,js,json}\" --ignore-path ../../.prettierignore",
     "format:check": "prettier --check \"**/*.{ts,js,json}\" --ignore-path ../../.prettierignore",
+    "inject-posthog-key": "node scripts/inject-posthog-key.mjs",
     "lint": "eslint . --config ./eslint.config.js",
     "lint:fix": "eslint . --fix --config ./eslint.config.js",
     "lint:md": "markdownlint-cli2 --config ../../.markdownlint-cli2.mjs",
     "lint:md:fix": "markdownlint-cli2 --config ../../.markdownlint-cli2.mjs --fix",
     "prebuild": "npm run build:clean",
     "prepublishOnly": "npm run lint && npm run typecheck",
-    "typecheck": "tsc --noEmit"
+    "test": "NODE_OPTIONS=--experimental-vm-modules jest --passWithNoTests",
+    "typecheck": "tsc --noEmit -p tsconfig.build.json"
   },
   "keywords": [
     "owox-internal-helpers",
@@ -42,6 +44,7 @@
     "@google-cloud/pino-logging-gcp-config": "^1.2.0",
     "@sendgrid/mail": "^8.1.6",
     "dotenv": "^16.4.7",
+    "env-paths": "^3.0.0",
     "google-auth-library": "^9.14.3",
     "jsonwebtoken": "^9.0.0",
     "pino": "^9.11.0",
@@ -51,7 +54,10 @@
   "devDependencies": {
     "@owox/eslint-config": "*",
     "@owox/prettier-config": "*",
-    "@types/node": "^22.10.7"
+    "@types/jest": "^29.5.14",
+    "@types/node": "^22.10.7",
+    "jest": "^30.2.0",
+    "ts-jest": "^29.4.6"
   },
   "files": [
     "dist",

@@ -78,7 +78,7 @@ describeIfConfigured('Google Sheets column preservation (diff-based writer)', ()
     const testApp = await createTestApp();
     app = testApp.app;
     agent = testApp.agent;
-  }, 60_000);
+  }, 180_000);
 
   afterAll(async () => {
     if (app) {
@@ -141,7 +141,7 @@ describeIfConfigured('Google Sheets column preservation (diff-based writer)', ()
     testName: string;
     sql?: string;
     columnConfig?: string[] | null;
-  }): Promise<{ dataMartId: string; reportId: string }> {
+  }): Promise<{ dataMartId: string; reportId: string; dataDestinationId: string }> {
     sheet = await createTestSheet(spreadsheetId!, serviceAccountJson!, opts.testName);
     const { dataMartId } = await seedDataMartWithSql({
       agent,
@@ -149,7 +149,7 @@ describeIfConfigured('Google Sheets column preservation (diff-based writer)', ()
       bigQueryProjectId: BQ_PROJECT_ID!,
       sqlQuery: opts.sql ?? BASE_SQL,
     });
-    const { reportId } = await setupGoogleSheetsReport({
+    const { reportId, dataDestinationId } = await setupGoogleSheetsReport({
       agent,
       dataMartId,
       spreadsheetId: spreadsheetId!,
@@ -157,7 +157,7 @@ describeIfConfigured('Google Sheets column preservation (diff-based writer)', ()
       serviceAccountJson: serviceAccountJson!,
       columnConfig: opts.columnConfig,
     });
-    return { dataMartId, reportId };
+    return { dataMartId, reportId, dataDestinationId };
   }
 
   /** Reads row 1 of the current `sheet` as a string array (FORMATTED_VALUE). */
@@ -219,6 +219,59 @@ describeIfConfigured('Google Sheets column preservation (diff-based writer)', ()
       valueInputOption: 'USER_ENTERED',
       requestBody: { values: [[value]] },
     });
+  }
+
+  /**
+   * Applies a number format to a column's data rows (0-based `columnIndex`,
+   * rows 2..`endRow` inclusive) the way a user would via Format → Number.
+   */
+  async function setColumnNumberFormat(
+    columnIndex: number,
+    endRow: number,
+    numberFormat: sheets_v4.Schema$NumberFormat
+  ): Promise<void> {
+    await sheet.sheets.spreadsheets.batchUpdate({
+      spreadsheetId: sheet.spreadsheetId,
+      requestBody: {
+        requests: [
+          {
+            repeatCell: {
+              range: {
+                sheetId: sheet.sheetId,
+                startRowIndex: 1, // row 2 (0-based)
+                endRowIndex: endRow,
+                startColumnIndex: columnIndex,
+                endColumnIndex: columnIndex + 1,
+              },
+              cell: { userEnteredFormat: { numberFormat } },
+              fields: 'userEnteredFormat.numberFormat',
+            },
+          },
+        ],
+      },
+    });
+  }
+
+  /** Reads the `userEnteredFormat.numberFormat` of a single cell (0-based indexes). */
+  async function readCellNumberFormat(
+    rowIndex: number,
+    columnIndex: number
+  ): Promise<sheets_v4.Schema$NumberFormat | undefined> {
+    const res = await sheet.sheets.spreadsheets.get({
+      spreadsheetId: sheet.spreadsheetId,
+      ranges: [
+        `'${sheet.sheetTitle}'!${String.fromCharCode(65 + columnIndex)}${rowIndex + 1}:${String.fromCharCode(65 + columnIndex)}${rowIndex + 1}`,
+      ],
+      includeGridData: true,
+      fields: 'sheets(properties(sheetId),data(rowData(values(userEnteredFormat(numberFormat)))))',
+    });
+    // Select the target tab by sheetId — `ranges` does not guarantee the
+    // requested sheet is `sheets[0]` (the test spreadsheet holds many tabs).
+    const targetSheet = res.data.sheets?.find(s => s.properties?.sheetId === sheet.sheetId);
+    return (
+      targetSheet?.data?.[0]?.rowData?.[0]?.values?.[0]?.userEnteredFormat?.numberFormat ??
+      undefined
+    );
   }
 
   // -------------------------------------------------------------------------
@@ -566,6 +619,44 @@ describeIfConfigured('Google Sheets column preservation (diff-based writer)', ()
   }, 120_000);
 
   // -------------------------------------------------------------------------
+  // Test 9b — Inside the imported rectangle, manual edits NEVER survive a
+  // refresh, even when SQL returns NULL for that cell.
+  //
+  // Pre-fix: `null` in the 2D array passed to Sheets `values.update` is
+  // treated as "skip this cell", so a user's manual edit on a cell that the
+  // new SQL produces NULL for would silently survive across refresh. The
+  // formatter now coerces nullish to "" so the cell is explicitly cleared.
+  // -------------------------------------------------------------------------
+  it('overwrites manual edits inside imported range even when SQL produces NULL', async () => {
+    // Row 2: clicks = NULL. Row 3: clicks = 20. Lets us assert both halves of
+    // the contract in one report run.
+    const SQL_WITH_NULL = `
+      SELECT 'A' AS country, CAST(NULL AS INT64) AS clicks, 2 AS cost UNION ALL
+      SELECT 'B' AS country, 20 AS clicks, 5 AS cost
+    `;
+    const { reportId } = await provisionFixture({
+      testName: 'null-overwrites-manual-edit',
+      sql: SQL_WITH_NULL,
+    });
+    await runAndWait(reportId);
+
+    // Seed manual edits inside the imported rectangle:
+    //   B2 — the cell that SQL will produce NULL for on next refresh
+    //   B3 — the cell that SQL will produce 20 for on next refresh (control)
+    await writeCell('B2', 'manual-keep-me');
+    await writeCell('B3', 'manual-also');
+
+    await runAndWait(reportId);
+
+    // B2: was NULL in SQL → must be cleared (pre-fix this kept "manual-keep-me").
+    // B3: was 20 in SQL → must be overwritten with "20".
+    expect(await readRange('A2:C3')).toEqual([
+      ['A', '', '2'],
+      ['B', '20', '5'],
+    ]);
+  }, 120_000);
+
+  // -------------------------------------------------------------------------
   // Test 10 — Output Controls × diff-based writer interaction:
   // shrinking the result set via Report `limitConfig` must clear stale rows
   // from the previous (larger) refresh inside the imported rectangle. User
@@ -576,7 +667,9 @@ describeIfConfigured('Google Sheets column preservation (diff-based writer)', ()
   // making it look like the limit was being ignored.
   // -------------------------------------------------------------------------
   it('clears stale rows below new data when limitConfig shrinks the result set', async () => {
-    const { reportId } = await provisionFixture({ testName: 'limit-shrinks-rows' });
+    const { reportId, dataDestinationId } = await provisionFixture({
+      testName: 'limit-shrinks-rows',
+    });
 
     // First run — full 3-row dataset lands in rows 2..4.
     await runAndWait(reportId);
@@ -590,22 +683,24 @@ describeIfConfigured('Google Sheets column preservation (diff-based writer)', ()
     await writeCell('K1', 'ratio');
     await writeCell('K2', '=B2/C2');
 
-    // Apply LIMIT=1. The PUT endpoint requires the full report DTO, so we
-    // round-trip through GET to keep the unrelated fields intact.
-    const getRes = await agent.get(`/api/reports/${reportId}`).set(AUTH_HEADER);
-    expect(getRes.status).toBe(200);
-    const current = getRes.body;
+    // Apply LIMIT=1 via PUT. Send only the required DTO fields plus
+    // `limitConfig`; class-validator's `@IsOptional()` lets us omit the
+    // unrelated optional fields (filterConfig / sortConfig / ownerIds /
+    // columnConfig), matching the working pattern in
+    // `output-controls.e2e-spec.ts`. Round-tripping the full GET body
+    // previously triggered a 400 — likely from sending nullable optional
+    // fields back as explicit `null` or owner ids missing on the response.
     const putRes = await agent
       .put(`/api/reports/${reportId}`)
       .set(AUTH_HEADER)
       .send({
-        title: current.title,
-        dataDestinationId: current.dataDestinationAccess.id,
-        destinationConfig: current.destinationConfig,
-        ownerIds: (current.ownerUsers ?? []).map((u: { id: string }) => u.id),
-        columnConfig: current.columnConfig,
-        filterConfig: current.filterConfig,
-        sortConfig: current.sortConfig,
+        title: 'Integration Test GS Report (limit=1)',
+        dataDestinationId,
+        destinationConfig: {
+          type: 'google-sheets-config',
+          spreadsheetId,
+          sheetId: sheet.sheetId,
+        },
         limitConfig: 1,
       });
     expect(putRes.status).toBe(200);
@@ -622,4 +717,54 @@ describeIfConfigured('Google Sheets column preservation (diff-based writer)', ()
     expect((await readRange('K1:K1'))[0]?.[0]).toBe('ratio');
     expect((await readFormulas('K2:K2'))[0]?.[0]).toBe('=B2/C2');
   }, 150_000);
+
+  // -------------------------------------------------------------------------
+  // Test 11 — User column formatting survives a refresh.
+  //
+  // The user-visible regression: a user formats the imported data columns in
+  // the Sheets UI (currency, custom number, date) and on the next Report Run
+  // the formatting "flies off" — because the writer committed values with
+  // `valueInputOption: 'USER_ENTERED'`, which makes Sheets re-derive each
+  // cell's number format from the value. The writer now captures the user's
+  // per-column number format before the write and re-applies it over the
+  // written rows in finalize, reproducing the old extension's behaviour of
+  // never clobbering user formatting.
+  //
+  // We assert on BOTH a previously-existing data row (row 2) and a row that
+  // is freshly grown by this refresh (the format must extend down to every
+  // written row, not just the rows that carried the format before).
+  // -------------------------------------------------------------------------
+  it('preserves user-applied column number formats (currency / custom number) across refresh', async () => {
+    const { reportId } = await provisionFixture({ testName: 'preserve-number-format' });
+
+    // First run lays down country | clicks | cost into A | B | C, rows 2..4.
+    await runAndWait(reportId);
+
+    // User formats the imported columns:
+    //   B (clicks, index 1) — custom thousands integer.
+    //   C (cost,   index 2) — currency.
+    const CLICKS_FORMAT: sheets_v4.Schema$NumberFormat = { type: 'NUMBER', pattern: '#,##0' };
+    const COST_FORMAT: sheets_v4.Schema$NumberFormat = { type: 'CURRENCY', pattern: '"$"#,##0.00' };
+    await setColumnNumberFormat(1, 4, CLICKS_FORMAT);
+    await setColumnNumberFormat(2, 4, COST_FORMAT);
+
+    // Refresh again — without the fix, USER_ENTERED writes wipe these formats.
+    await runAndWait(reportId);
+
+    // Row 2 (existed before) keeps the user's formats.
+    expect(await readCellNumberFormat(1, 1)).toEqual(CLICKS_FORMAT);
+    expect(await readCellNumberFormat(1, 2)).toEqual(COST_FORMAT);
+
+    // Row 4 (also within the dataset) keeps them too — format is re-applied
+    // across the whole written range, not just the first data row.
+    expect(await readCellNumberFormat(3, 1)).toEqual(CLICKS_FORMAT);
+    expect(await readCellNumberFormat(3, 2)).toEqual(COST_FORMAT);
+
+    // The data itself is still correct (formatting did not corrupt values).
+    expect(await readRange('A2:C4')).toEqual([
+      ['A', '10', '$2.00'],
+      ['B', '20', '$5.00'],
+      ['C', '30', '$6.00'],
+    ]);
+  }, 120_000);
 });

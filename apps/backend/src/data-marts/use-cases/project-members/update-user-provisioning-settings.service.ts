@@ -1,0 +1,111 @@
+import { ForbiddenException, Injectable } from '@nestjs/common';
+import type { Role as IdpRole } from '@owox/idp-protocol';
+import { IdpProjectionsFacade } from '../../../idp/facades/idp-projections.facade';
+import {
+  UpdateUserProvisioningSettingsCommand,
+  UserProvisioningSettingsDto,
+} from '../../dto/domain/user-provisioning-settings.dto';
+import { ProjectRole } from '../../enums/project-role.enum';
+import { RoleScope } from '../../enums/role-scope.enum';
+import { ApplyUserProvisioningContextDefaultsService } from '../../services/context/apply-user-provisioning-context-defaults.service';
+import { UserProvisioningContextSettingsService } from '../../services/context/user-provisioning-context-settings.service';
+
+@Injectable()
+export class UpdateUserProvisioningSettingsService {
+  constructor(
+    private readonly idpProjectionsFacade: IdpProjectionsFacade,
+    private readonly contextSettingsService: UserProvisioningContextSettingsService,
+    private readonly applyDefaultsService: ApplyUserProvisioningContextDefaultsService
+  ) {}
+
+  async run(command: UpdateUserProvisioningSettingsCommand): Promise<UserProvisioningSettingsDto> {
+    const { projectId, actorUserId, mode, defaultRole, roleScope, contextIds } = command;
+    const currentSettings = await this.idpProjectionsFacade.getUserProvisioningSettings(
+      projectId,
+      actorUserId
+    );
+
+    if (
+      !currentSettings.isApplicable ||
+      !currentSettings.organization ||
+      !currentSettings.settings
+    ) {
+      return {
+        isApplicable: false,
+        isMainProject: false,
+        organization: null,
+        settings: null,
+      };
+    }
+
+    const mainProjectId = currentSettings.organization?.mainProjectName ?? null;
+    if (mainProjectId !== projectId) {
+      throw new ForbiddenException(
+        'User provisioning settings can be managed only from the organization main project.'
+      );
+    }
+
+    const contextDefaults = await this.contextSettingsService.normalizeAndValidate(
+      projectId,
+      defaultRole,
+      roleScope,
+      contextIds
+    );
+
+    const existingMemberIds =
+      contextDefaults.roleScope === RoleScope.SELECTED_CONTEXTS
+        ? (await this.idpProjectionsFacade.getProjectMembersOrThrow(projectId)).map(
+            member => member.userId
+          )
+        : [];
+
+    const idpSettings = await this.idpProjectionsFacade.updateUserProvisioningSettings(
+      projectId,
+      actorUserId,
+      {
+        mode,
+        defaultRole: defaultRole as IdpRole,
+      }
+    );
+
+    if (!idpSettings.isApplicable || !idpSettings.settings) {
+      return {
+        isApplicable: false,
+        isMainProject: false,
+        organization: null,
+        settings: null,
+      };
+    }
+
+    if (contextDefaults.roleScope === RoleScope.SELECTED_CONTEXTS) {
+      await this.applyDefaultsService.preserveExistingMembersAsEntireProject(
+        projectId,
+        existingMemberIds
+      );
+    }
+
+    const effectiveContextDefaults = await this.contextSettingsService.saveDefaultSettings(
+      projectId,
+      contextDefaults
+    );
+    const savedDefaultRole = idpSettings.settings.defaultRole as ProjectRole;
+
+    return {
+      isApplicable: true,
+      isMainProject: true,
+      organization: idpSettings.organization
+        ? {
+            name: idpSettings.organization.name,
+            mainProjectId: idpSettings.organization.mainProjectName ?? null,
+            mainProjectTitle: idpSettings.organization.mainProjectTitle ?? null,
+          }
+        : null,
+      settings: {
+        mode: idpSettings.settings.mode,
+        defaultRole: savedDefaultRole,
+        roleScope: effectiveContextDefaults.roleScope,
+        contextIds: effectiveContextDefaults.contextIds,
+      },
+    };
+  }
+}

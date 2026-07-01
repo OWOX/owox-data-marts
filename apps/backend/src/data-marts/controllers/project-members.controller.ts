@@ -2,12 +2,21 @@ import { Body, Controller, Delete, Get, HttpCode, Param, Post, Put } from '@nest
 import { ApiTags } from '@nestjs/swagger';
 import { Auth, AuthContext, AuthorizationContext, Role, Strategy } from '../../idp';
 import {
+  ApproveMembershipRequestApiDto,
+  ApproveMembershipRequestResponseApiDto,
   InviteMemberRequestApiDto,
   InviteMemberResponseApiDto,
+  MembershipRequestApiDto,
   ProjectMemberResponseApiDto,
   UpdateMemberRequestApiDto,
   UpdateMemberResponseApiDto,
 } from '../dto/presentation/context-api.dto';
+import { ApproveMembershipRequestCommand } from '../dto/domain/approve-membership-request.command';
+import { DeclineMembershipRequestCommand } from '../dto/domain/decline-membership-request.command';
+import {
+  UpdateUserProvisioningSettingsRequestApiDto,
+  UserProvisioningSettingsResponseApiDto,
+} from '../dto/presentation/user-provisioning-settings-api.dto';
 import { InviteProjectMemberCommand } from '../dto/domain/invite-project-member.command';
 import { RemoveProjectMemberCommand } from '../dto/domain/remove-project-member.command';
 import { UpdateProjectMemberCommand } from '../dto/domain/update-project-member.command';
@@ -17,11 +26,21 @@ import { ListProjectMembersService } from '../use-cases/project-members/list-pro
 import { InviteProjectMemberService } from '../use-cases/project-members/invite-project-member.service';
 import { UpdateProjectMemberService } from '../use-cases/project-members/update-project-member.service';
 import { RemoveProjectMemberService } from '../use-cases/project-members/remove-project-member.service';
+import { ListMembershipRequestsService } from '../use-cases/project-members/list-membership-requests.service';
+import { ApproveMembershipRequestService } from '../use-cases/project-members/approve-membership-request.service';
+import { DeclineMembershipRequestService } from '../use-cases/project-members/decline-membership-request.service';
+import { GetUserProvisioningSettingsService } from '../use-cases/project-members/get-user-provisioning-settings.service';
+import { UpdateUserProvisioningSettingsService } from '../use-cases/project-members/update-user-provisioning-settings.service';
 import {
+  ApproveMembershipRequestSpec,
+  DeclineMembershipRequestSpec,
+  GetUserProvisioningSettingsSpec,
   InviteProjectMemberSpec,
+  ListMembershipRequestsSpec,
   ListProjectMembersSpec,
   RemoveProjectMemberSpec,
   UpdateProjectMemberSpec,
+  UpdateUserProvisioningSettingsSpec,
 } from './spec/project-members.api';
 
 @Controller('members')
@@ -38,6 +57,11 @@ export class ProjectMembersController {
     private readonly inviteProjectMember: InviteProjectMemberService,
     private readonly updateProjectMember: UpdateProjectMemberService,
     private readonly removeProjectMember: RemoveProjectMemberService,
+    private readonly listMembershipRequests: ListMembershipRequestsService,
+    private readonly approveMembershipRequest: ApproveMembershipRequestService,
+    private readonly declineMembershipRequest: DeclineMembershipRequestService,
+    private readonly getUserProvisioningSettings: GetUserProvisioningSettingsService,
+    private readonly updateUserProvisioningSettings: UpdateUserProvisioningSettingsService,
     private readonly projectMembersMapper: ProjectMembersMapper
   ) {}
 
@@ -87,6 +111,34 @@ export class ProjectMembersController {
     return { ...base, kind: 'email-sent' };
   }
 
+  @Auth(Role.viewer(Strategy.PARSE))
+  @Get('user-provisioning-settings')
+  @GetUserProvisioningSettingsSpec()
+  async getProvisioningSettings(
+    @AuthContext() context: AuthorizationContext
+  ): Promise<UserProvisioningSettingsResponseApiDto> {
+    const settings = await this.getUserProvisioningSettings.run(context.projectId, context.userId);
+    return this.projectMembersMapper.toUserProvisioningSettingsApiResponse(settings);
+  }
+
+  @Auth(Role.admin(Strategy.INTROSPECT))
+  @Put('user-provisioning-settings')
+  @UpdateUserProvisioningSettingsSpec()
+  async updateProvisioningSettings(
+    @AuthContext() context: AuthorizationContext,
+    @Body() dto: UpdateUserProvisioningSettingsRequestApiDto
+  ): Promise<UserProvisioningSettingsResponseApiDto> {
+    const settings = await this.updateUserProvisioningSettings.run(
+      this.projectMembersMapper.toUpdateUserProvisioningSettingsCommand(
+        context.projectId,
+        context.userId,
+        dto
+      )
+    );
+
+    return this.projectMembersMapper.toUserProvisioningSettingsApiResponse(settings);
+  }
+
   @Auth(Role.admin(Strategy.INTROSPECT))
   @Put(':userId')
   @UpdateProjectMemberSpec()
@@ -125,6 +177,56 @@ export class ProjectMembersController {
   ): Promise<void> {
     await this.removeProjectMember.run(
       new RemoveProjectMemberCommand(context.projectId, context.userId, targetUserId)
+    );
+  }
+
+  @Auth(Role.admin(Strategy.INTROSPECT))
+  @Get('requests')
+  @ListMembershipRequestsSpec()
+  async listRequests(
+    @AuthContext() context: AuthorizationContext
+  ): Promise<MembershipRequestApiDto[]> {
+    const requests = await this.listMembershipRequests.run(context.projectId, context.userId);
+    return this.projectMembersMapper.toMembershipRequestApiList(requests);
+  }
+
+  @Auth(Role.admin(Strategy.INTROSPECT))
+  @Post('requests/:requestId/approve')
+  @HttpCode(200)
+  @ApproveMembershipRequestSpec()
+  async approveRequest(
+    @AuthContext() context: AuthorizationContext,
+    @Param('requestId') requestId: string,
+    @Body() dto: ApproveMembershipRequestApiDto
+  ): Promise<ApproveMembershipRequestResponseApiDto> {
+    const result = await this.approveMembershipRequest.run(
+      new ApproveMembershipRequestCommand(
+        context.projectId,
+        context.userId,
+        requestId,
+        dto.role,
+        dto.roleScope,
+        dto.contextIds ?? []
+      )
+    );
+    return {
+      userId: result.userId,
+      role: result.role,
+      roleScope: result.roleScope,
+      contextIds: result.contextIds,
+    };
+  }
+
+  @Auth(Role.admin(Strategy.INTROSPECT))
+  @Post('requests/:requestId/decline')
+  @HttpCode(204)
+  @DeclineMembershipRequestSpec()
+  async declineRequest(
+    @AuthContext() context: AuthorizationContext,
+    @Param('requestId') requestId: string
+  ): Promise<void> {
+    await this.declineMembershipRequest.run(
+      new DeclineMembershipRequestCommand(context.projectId, context.userId, requestId)
     );
   }
 }

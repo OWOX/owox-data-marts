@@ -8,19 +8,17 @@ import {
   AUTH_HEADER,
 } from '@owox/test-utils';
 
-// e2e coverage for the output-controls feature on the report API surface.
+// e2e coverage for the output-controls feature on the report API surface
+// (limit/filter/sort persistence + class-validator and validator-service
+// rejection paths). SQL-emission paths are covered by unit tests in
+// abstract-blended-query-builder.spec.ts and bigquery-clause-renderer.spec.ts.
 //
-// Tasks 22 (SQL execution) and 23 (blended e2e) require a real BigQuery
-// project and view-creation roundtrip. They are covered by unit tests:
-//   - bigquery-clause-renderer.spec.ts (operator → SQL fragment matrix)
-//   - bigquery-query.builder.spec.ts (WHERE/ORDER BY/LIMIT composition)
-//   - abstract-blended-query-builder.spec.ts (output controls on blended)
-//   - blended-report-data.service.spec.ts (filter-on-non-selected chain)
-//
-// What this file covers (Task 24 + DTO surface):
-//   - happy-path persistence/retrieval of limit-only output controls
-//   - validator-service rejection: SORT_COLUMN_NOT_SELECTED, FILTER_COLUMN_UNKNOWN
-//   - class-validator rejections: limit <= 0, limit > 10_000_000, sortConfig length > 10
+// Athena output-controls SQL emission is covered by unit specs
+// (athena-clause-renderer.spec.ts, athena-query.builder.spec.ts,
+// athena-blended-query-builder.spec.ts). Capability acceptance is asserted in
+// output-controls-capability.service.spec.ts. No live-warehouse e2e by design:
+// the /generated-sql path for SQL-defined data marts calls CreateViewService
+// which requires real storage credentials — unavailable in the SQLite test harness.
 
 describe('Output controls API (e2e)', () => {
   let app: INestApplication;
@@ -28,6 +26,15 @@ describe('Output controls API (e2e)', () => {
   let dataMartId: string;
   let dataDestinationId: string;
   let reportId: string;
+
+  function expectDisconnectedColumns(res: supertest.Response, unknownColumns: string[]): void {
+    expect(res.status).toBe(400);
+    expect(res.body.message).toContain('Disconnected columns:');
+    expect(res.body.message).toContain(
+      'They are missing from the current Data Mart output schema.'
+    );
+    expect(res.body.errorDetails).toEqual({ unknownColumns, dataMartId });
+  }
 
   beforeAll(async () => {
     const testApp = await createTestApp();
@@ -37,6 +44,20 @@ describe('Output controls API (e2e)', () => {
     const prereqs = await setupReportPrerequisites(agent);
     dataMartId = prereqs.dataMartId;
     dataDestinationId = prereqs.dataDestinationId;
+
+    const schemaRes = await agent
+      .put(`/api/data-marts/${dataMartId}/schema`)
+      .set(AUTH_HEADER)
+      .send({
+        schema: {
+          type: 'bigquery-data-mart-schema',
+          fields: [
+            { name: 'col_a', type: 'STRING', mode: 'NULLABLE', status: 'CONNECTED' },
+            { name: 'col_b', type: 'STRING', mode: 'NULLABLE', status: 'CONNECTED' },
+          ],
+        },
+      });
+    expect(schemaRes.status).toBe(200);
 
     // Seed baseline report. LOOKER_STUDIO destinations use a deterministic
     // UUID v5 derived from (dataMartId, dataDestinationId), so there can be
@@ -84,7 +105,7 @@ describe('Output controls API (e2e)', () => {
     });
   });
 
-  it('PUT rejects sort on non-selected column with SORT_COLUMN_NOT_SELECTED', async () => {
+  it('PUT rejects sort on existing non-selected column with SORT_COLUMN_NOT_SELECTED', async () => {
     const res = await agent
       .put(`/api/reports/${reportId}`)
       .set(AUTH_HEADER)
@@ -93,17 +114,14 @@ describe('Output controls API (e2e)', () => {
         dataDestinationId,
         destinationConfig: { type: 'looker-studio-config', cacheLifetime: 3600 },
         columnConfig: ['col_a'],
-        sortConfig: [{ column: 'not_in_columns', direction: 'asc' }],
+        sortConfig: [{ column: 'col_b', direction: 'asc' }],
       });
 
     expect(res.status).toBe(400);
     expect(JSON.stringify(res.body)).toContain('SORT_COLUMN_NOT_SELECTED');
   });
 
-  it('PUT with filter on a column missing from the data mart schema reports FILTER_COLUMN_UNKNOWN', async () => {
-    // The seeded data mart has no schema actualized, so every filter column
-    // is unknown to BlendableSchemaService — this exercises the structured
-    // error path of the validator end-to-end.
+  it('PUT with filter on a column missing from the data mart schema reports disconnected columns', async () => {
     const res = await agent
       .put(`/api/reports/${reportId}`)
       .set(AUTH_HEADER)
@@ -115,8 +133,7 @@ describe('Output controls API (e2e)', () => {
         filterConfig: [{ column: 'definitely_does_not_exist', operator: 'is_empty' }],
       });
 
-    expect(res.status).toBe(400);
-    expect(JSON.stringify(res.body)).toContain('FILTER_COLUMN_UNKNOWN');
+    expectDisconnectedColumns(res, ['definitely_does_not_exist']);
   });
 
   it('PUT rejects limitConfig <= 0 via class-validator @IsPositive', async () => {
@@ -187,5 +204,62 @@ describe('Output controls API (e2e)', () => {
     expect(getRes.body.filterConfig).toBeNull();
     expect(getRes.body.sortConfig).toBeNull();
     expect(getRes.body.limitConfig).toBeNull();
+  });
+
+  it('PUT pre-join filter on simple report reports disconnected columns', async () => {
+    const putRes = await agent
+      .put(`/api/reports/${reportId}`)
+      .set(AUTH_HEADER)
+      .send({
+        title: 'Pre-join on simple',
+        dataDestinationId,
+        destinationConfig: { type: 'looker-studio-config', cacheLifetime: 3600 },
+        columnConfig: ['col_a'],
+        filterConfig: [
+          {
+            column: 'users__userRole',
+            operator: 'eq',
+            value: 'admin',
+            placement: 'pre-join',
+          },
+        ],
+      });
+    expectDisconnectedColumns(putRes, ['users__userRole']);
+  });
+
+  it('PUT pre-join filter on home mart column → 400 disconnected (home mart not slicable)', async () => {
+    const res = await agent
+      .put(`/api/reports/${reportId}`)
+      .set(AUTH_HEADER)
+      .send({
+        title: 'Pre-join on home',
+        dataDestinationId,
+        destinationConfig: { type: 'looker-studio-config', cacheLifetime: 3600 },
+        columnConfig: ['col_a'],
+        filterConfig: [{ column: 'main__x', operator: 'eq', value: 1, placement: 'pre-join' }],
+      });
+    // No Zod superRefine on aliasPath="main" in the new model — the unified column
+    // name "main__x" is simply not found in the blended field index, so it flows
+    // through as a disconnected column (FILTER_COLUMN_UNKNOWN path).
+    expectDisconnectedColumns(res, ['main__x']);
+  });
+
+  it('PUT rejects filterConfig with > 50 entries via @ArrayMaxSize(50)', async () => {
+    const tooMany = Array.from({ length: 51 }, (_, i) => ({
+      column: 'col_a',
+      operator: 'eq',
+      value: `v${i}`,
+    }));
+    const res = await agent
+      .put(`/api/reports/${reportId}`)
+      .set(AUTH_HEADER)
+      .send({
+        title: 'Too many filters',
+        dataDestinationId,
+        destinationConfig: { type: 'looker-studio-config', cacheLifetime: 3600 },
+        columnConfig: ['col_a'],
+        filterConfig: tooMany,
+      });
+    expect(res.status).toBe(400);
   });
 });

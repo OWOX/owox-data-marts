@@ -1,7 +1,7 @@
 import type { UserProjection } from '../../../../shared/types';
 
 // Keep this list in sync with `AGGREGATE_FUNCTIONS` on the backend side
-// (`apps/backend/src/data-marts/dto/schemas/relationship-schemas.ts`).
+// (`apps/backend/src/data-marts/dto/schemas/aggregate-function.schema.ts`).
 // The two declarations mirror each other so the blended SQL builder and
 // the UI expose identical options.
 export const AGGREGATE_FUNCTIONS = [
@@ -9,11 +9,24 @@ export const AGGREGATE_FUNCTIONS = [
   'MAX',
   'MIN',
   'SUM',
+  'AVG',
   'COUNT',
   'COUNT_DISTINCT',
   'ANY_VALUE',
 ] as const;
 export type AggregateFunction = (typeof AGGREGATE_FUNCTIONS)[number];
+
+// Report-level aggregate functions add the percentile set on top of the blend list.
+// Mirror of the backend `REPORT_AGGREGATE_FUNCTIONS`. Lives here (not output-config.ts)
+// so `BlendedField` can carry `allowedAggregations` without a circular import.
+export const PERCENTILE_FUNCTIONS = ['P25', 'P50', 'P75', 'P95'] as const;
+export const REPORT_AGGREGATE_FUNCTIONS = [
+  ...AGGREGATE_FUNCTIONS,
+  ...PERCENTILE_FUNCTIONS,
+] as const;
+export type ReportAggregateFunction = (typeof REPORT_AGGREGATE_FUNCTIONS)[number];
+
+export type AggregationRole = 'dimension' | 'metric';
 
 export interface JoinCondition {
   sourceFieldName: string;
@@ -25,6 +38,7 @@ export interface RelatedDataMart {
   title: string;
   description?: string;
   status: string;
+  userHasAccess: boolean;
 }
 
 export interface DataMartRelationship {
@@ -49,6 +63,19 @@ export interface CreateRelationshipRequest {
 export interface UpdateRelationshipRequest {
   targetAlias?: string;
   joinConditions?: JoinCondition[];
+}
+
+export interface RelationshipGraphNode {
+  relationship: DataMartRelationship;
+  aliasPath: string;
+  depth: number;
+  isCycleStub: boolean;
+  isBlocked: boolean;
+}
+
+export interface RelationshipGraph {
+  rootDataMartId: string;
+  nodes: RelationshipGraphNode[];
 }
 
 export interface TransientRelationshipRow {
@@ -83,6 +110,15 @@ export interface BlendedField {
   transitiveDepth: number;
   aliasPath: string;
   outputPrefix: string;
+  /** Aggregation governance — absent fields fall back to type-derived defaults. */
+  aggregationRole?: AggregationRole;
+  allowedAggregations?: ReportAggregateFunction[];
+  /**
+   * Analyst-allowed post-join aggregation set. An explicit empty array `[]` means NONE are
+   * allowed; `undefined` (absent) means fall back to the field type's default aggregations —
+   * consistent with `resolveColumnAllowedAggregations` and `cleanBlendedFieldOverride`.
+   */
+  postJoinAggregations?: ReportAggregateFunction[];
 }
 
 export interface AvailableSource {
@@ -95,6 +131,7 @@ export interface AvailableSource {
   isIncluded: boolean;
   relationshipId: string;
   dataMartId: string;
+  isAccessibleForReporting: boolean;
 }
 
 export interface BlendableSchema {
@@ -108,6 +145,7 @@ export interface BlendedFieldOverride {
   alias?: string;
   isHidden?: boolean;
   aggregateFunction?: AggregateFunction;
+  postJoinAggregations?: ReportAggregateFunction[];
 }
 
 export interface BlendedSource {

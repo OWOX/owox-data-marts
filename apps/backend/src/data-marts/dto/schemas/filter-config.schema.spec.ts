@@ -1,4 +1,4 @@
-import { FilterConfigSchema } from './filter-config.schema';
+import { FilterConfigSchema, FilterRuleSchema, aliasPathToCteName } from './filter-config.schema';
 
 describe('FilterConfigSchema', () => {
   it('accepts null', () => {
@@ -60,5 +60,84 @@ describe('FilterConfigSchema', () => {
         { column: 'd', operator: 'relative_date', value: { kind: 'last_n_days', n: -1 } },
       ])
     ).toThrow();
+  });
+
+  it('rejects a non-finite scalar number value (Infinity → invalid SQL when inlined)', () => {
+    expect(() =>
+      FilterConfigSchema.parse([{ column: 'amount', operator: 'gt', value: Infinity }])
+    ).toThrow();
+    expect(() =>
+      FilterConfigSchema.parse([{ column: 'amount', operator: 'eq', value: -Infinity }])
+    ).toThrow();
+  });
+
+  it('rejects a non-finite bound in a between filter', () => {
+    expect(() =>
+      FilterConfigSchema.parse([
+        { column: 'amount', operator: 'between', value: { from: 1, to: Infinity } },
+      ])
+    ).toThrow();
+  });
+});
+
+describe('FilterRuleSchema placement', () => {
+  it('keeps placement undefined when omitted (downstream treats absence as post-join)', () => {
+    const parsed = FilterRuleSchema.parse({ column: 'x', operator: 'eq', value: 1 });
+    expect(parsed.placement).toBeUndefined();
+  });
+
+  it('accepts explicit placement="post-join"', () => {
+    const parsed = FilterRuleSchema.parse({
+      column: 'x',
+      operator: 'eq',
+      value: 1,
+      placement: 'post-join',
+    });
+    expect(parsed.placement).toBe('post-join');
+  });
+
+  it('accepts placement="pre-join" with a unified column name and scalar rule', () => {
+    const parsed = FilterRuleSchema.parse({
+      column: 'users__userRole',
+      operator: 'eq',
+      value: 'admin',
+      placement: 'pre-join',
+    });
+    expect(parsed.placement).toBe('pre-join');
+    expect(parsed.column).toBe('users__userRole');
+  });
+
+  it('accepts placement="pre-join" with a unified column name and relative_date rule', () => {
+    expect(
+      FilterRuleSchema.parse({
+        column: 'users_profiles__createdAt',
+        operator: 'relative_date',
+        value: { kind: 'last_n_days', n: 30 },
+        placement: 'pre-join',
+      })
+    ).toMatchObject({ placement: 'pre-join', column: 'users_profiles__createdAt' });
+  });
+
+  it('accepts placement="pre-join" without additional metadata (validator resolves via index)', () => {
+    expect(
+      FilterRuleSchema.parse({
+        column: 'users__x',
+        operator: 'eq',
+        value: 1,
+        placement: 'pre-join',
+      })
+    ).toMatchObject({ placement: 'pre-join', column: 'users__x' });
+  });
+});
+
+describe('aliasPathToCteName', () => {
+  it('maps a single-segment path to itself', () => {
+    expect(aliasPathToCteName('users')).toBe('users');
+  });
+  it('replaces dots with underscores', () => {
+    expect(aliasPathToCteName('users.profiles.country')).toBe('users_profiles_country');
+  });
+  it('throws on invalid path', () => {
+    expect(() => aliasPathToCteName('Users')).toThrow();
   });
 });

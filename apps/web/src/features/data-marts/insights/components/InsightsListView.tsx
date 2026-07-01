@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { MoreHorizontal, Plus, Sparkles, Trash2 } from 'lucide-react';
+import { Plus, Sparkles } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { Button } from '@owox/ui/components/button';
 import type { ColumnDef } from '@tanstack/react-table';
@@ -12,12 +12,6 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from '@owox/ui/components/empty';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@owox/ui/components/dropdown-menu';
 import {
   CollapsibleCard,
   CollapsibleCardContent,
@@ -44,6 +38,7 @@ import {
   mapInsightTemplateFromDto,
   mapInsightTemplateListFromDto,
 } from '../model';
+import { InsightRowActionsCell } from './InsightRowActionsCell';
 
 interface InsightTableItem {
   id: string;
@@ -52,59 +47,6 @@ interface InsightTableItem {
   modifiedAt: Date;
   createdById: string;
   createdByUser?: import('../../../../shared/types').UserProjection | null;
-}
-
-interface RowActionsProps {
-  id: string;
-  canDelete: boolean;
-  onDelete: (id: string) => void;
-}
-
-function RowActions({ id, canDelete, onDelete }: RowActionsProps) {
-  const [isMenuOpen, setIsMenuOpen] = useState(false);
-
-  return (
-    <div
-      className='text-right'
-      onClick={e => {
-        e.stopPropagation();
-      }}
-    >
-      <DropdownMenu open={isMenuOpen} onOpenChange={setIsMenuOpen}>
-        <DropdownMenuTrigger asChild>
-          <Button
-            variant='ghost'
-            className={`dm-card-table-body-row-actionbtn opacity-0 transition-opacity ${
-              isMenuOpen ? 'opacity-100' : 'group-hover:opacity-100'
-            }`}
-            aria-label='Insight actions'
-          >
-            <MoreHorizontal className='dm-card-table-body-row-actionbtn-icon' />
-          </Button>
-        </DropdownMenuTrigger>
-
-        <DropdownMenuContent align='end'>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <div className='w-full'>
-                <DropdownMenuItem
-                  className='text-destructive'
-                  onClick={() => {
-                    onDelete(id);
-                  }}
-                  disabled={!canDelete}
-                >
-                  <Trash2 className='h-4 w-4 text-red-600' />
-                  <span className='text-red-600'>Delete insight</span>
-                </DropdownMenuItem>
-              </div>
-            </TooltipTrigger>
-            {!canDelete && <TooltipContent side='left'>{NO_PERMISSION_MESSAGE}</TooltipContent>}
-          </Tooltip>
-        </DropdownMenuContent>
-      </DropdownMenu>
-    </div>
-  );
 }
 
 export default function InsightsListView() {
@@ -187,7 +129,7 @@ export default function InsightsListView() {
         enableResizing: false,
         header: ({ table }) => <ToggleColumnsHeader table={table} />,
         cell: ({ row }) => (
-          <RowActions
+          <InsightRowActionsCell
             id={row.original.id}
             canDelete={canDelete}
             onDelete={id => {

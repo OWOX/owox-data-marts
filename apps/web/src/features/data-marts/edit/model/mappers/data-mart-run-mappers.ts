@@ -1,5 +1,8 @@
-import type { DataMartRunItem } from '../types';
-import type { DataMartRunResponseDto } from '../../../shared/types/api';
+import type { DataMartRunItem, ProjectDataMartRunItem } from '../types';
+import type {
+  DataMartRunResponseDto,
+  ProjectDataMartRunResponseDto,
+} from '../../../shared/types/api';
 import type {
   DataMartRunAiAssistantDefinition,
   DataMartDefinitionConfig,
@@ -8,6 +11,7 @@ import type {
 } from '../types';
 import type { DataMartRunTriggerType, DataMartRunType } from '../../../shared';
 import type { DataMartRunListResponseDto } from '../../../shared/types/api';
+import type { ProjectDataMartRunListResponseDto } from '../../../shared/types/api';
 
 export const mapDataMartRunResponseDtoToEntity = (
   dto: DataMartRunResponseDto
@@ -36,10 +40,25 @@ export const mapDataMartRunResponseDtoToEntity = (
     ? (dto.aiSourceDefinition as DataMartRunAiAssistantDefinition)
     : null,
   createdByUser: dto.createdByUser,
+  additionalParams: dto.additionalParams ?? null,
+  totals: dto.totals ?? null,
 });
 
 export const mapDataMartRunListResponseDtoToEntity = (
   dto: DataMartRunListResponseDto
 ): DataMartRunItem[] => {
   return dto.runs.map(mapDataMartRunResponseDtoToEntity);
+};
+
+export const mapProjectDataMartRunResponseDtoToEntity = (
+  dto: ProjectDataMartRunResponseDto
+): ProjectDataMartRunItem => ({
+  ...mapDataMartRunResponseDtoToEntity(dto),
+  dataMart: dto.dataMart,
+});
+
+export const mapProjectDataMartRunListResponseDtoToEntity = (
+  dto: ProjectDataMartRunListResponseDto
+): ProjectDataMartRunItem[] => {
+  return dto.runs.map(mapProjectDataMartRunResponseDtoToEntity);
 };

@@ -108,6 +108,10 @@ export class CreateReportService {
       filterConfig: command.filterConfig ?? null,
       sortConfig: command.sortConfig ?? null,
       limitConfig: command.limitConfig ?? null,
+      aggregationConfig: command.aggregationConfig ?? null,
+      dateTruncConfig: command.dateTruncConfig ?? null,
+      uniqueCountConfig: command.uniqueCountConfig ?? null,
+      accessor: { userId: command.userId, roles: command.roles },
     });
 
     // Create and save the report
@@ -121,6 +125,9 @@ export class CreateReportService {
       filterConfig: command.filterConfig ?? null,
       sortConfig: command.sortConfig ?? null,
       limitConfig: command.limitConfig ?? null,
+      aggregationConfig: command.aggregationConfig ?? null,
+      dateTruncConfig: command.dateTruncConfig ?? null,
+      uniqueCountConfig: command.uniqueCountConfig ?? null,
     });
 
     const newReport = await this.reportRepository.save(report);

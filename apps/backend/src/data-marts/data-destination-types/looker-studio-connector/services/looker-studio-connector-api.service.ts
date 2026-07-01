@@ -13,7 +13,9 @@ import {
   createReportRunLogger,
   ReportRunLogger,
 } from '../../../report-run-logging/report-run-logger';
+import { resolveBlendableSchemaAccessor } from '../../../services/blendable-schema.service';
 import { BlendedReportDataService } from '../../../services/blended-report-data.service';
+import { IdpProjectionsFacade } from '../../../../idp/facades/idp-projections.facade';
 import { ConsumptionTrackingService } from '../../../services/consumption-tracking.service';
 import { LookerStudioReportRunService } from '../../../services/looker-studio-report-run.service';
 import { ProjectBalanceService } from '../../../services/project-balance.service';
@@ -78,7 +80,8 @@ export class LookerStudioConnectorApiService {
     private readonly lookerStudioReportRunService: LookerStudioReportRunService,
     private readonly projectBalanceService: ProjectBalanceService,
     private readonly blendedReportDataService: BlendedReportDataService,
-    private readonly systemTimeService: SystemTimeService
+    private readonly systemTimeService: SystemTimeService,
+    private readonly idpProjectionsFacade: IdpProjectionsFacade
   ) {}
 
   /**
@@ -191,6 +194,8 @@ export class LookerStudioConnectorApiService {
       throw new InternalServerErrorException('Failed to create report run');
     }
 
+    this.recordExecutionSqlQuery(reportRun, cachedReader);
+
     const reportRunLogger = createReportRunLogger(this.systemTimeService);
     logBlendedSqlIfNeeded(cachedReader.blendingDecision, reportRunLogger);
 
@@ -259,8 +264,13 @@ export class LookerStudioConnectorApiService {
       throw new BusinessViolationException('No report found for the provided secret and reportId');
     }
 
-    // Get cached reader
-    const cachedReader = await this.cacheService.getOrCreateCachedReader(report);
+    const accessor = await resolveBlendableSchemaAccessor(
+      this.idpProjectionsFacade,
+      report.dataMart.projectId,
+      report.createdById
+    );
+
+    const cachedReader = await this.cacheService.getOrCreateCachedReader(report, accessor);
 
     return { report, cachedReader };
   }
@@ -360,6 +370,8 @@ export class LookerStudioConnectorApiService {
       throw new InternalServerErrorException('Failed to create report run');
     }
 
+    this.recordExecutionSqlQuery(reportRun, cachedReader);
+
     const reportRunLogger = createReportRunLogger(this.systemTimeService);
     logBlendedSqlIfNeeded(cachedReader.blendingDecision, reportRunLogger);
 
@@ -388,6 +400,25 @@ export class LookerStudioConnectorApiService {
   }
 
   /**
+   * Copies the executed SQL (output controls applied + params inlined) onto the run
+   * record so Run History shows what actually ran. Called before the read in both the
+   * streaming and non-streaming paths so the value persists on success AND failure.
+   * No-op when there are no output controls / blending (executionSqlQuery undefined).
+   */
+  private recordExecutionSqlQuery(
+    reportRun: LookerStudioReportRun,
+    cachedReader: CachedReaderData
+  ): void {
+    if (!cachedReader.executionSqlQuery) {
+      return;
+    }
+    const dmRun = reportRun.getDataMartRun();
+    if (dmRun.reportDefinition) {
+      dmRun.reportDefinition.executionSqlQuery = cachedReader.executionSqlQuery;
+    }
+  }
+
+  /**
    * Handles successful report run completion.
    *
    * Steps:
@@ -407,13 +438,23 @@ export class LookerStudioConnectorApiService {
     reportRun.markAsSuccess();
 
     const saved = await this.saveReportRunResultSafely(reportRun, reportRunLogger);
-    if (saved) {
-      this.logger.log(`Report ${reportRun.getReportId()} completed successfully`);
+    if (!saved) {
+      return;
     }
+
+    this.logger.log(`Report ${reportRun.getReportId()} completed successfully`);
 
     const report = reportRun.getReport();
     if (!cachedReader.fromCache) {
-      await this.consumptionTrackingService.registerLookerReportRunConsumption(report);
+      try {
+        await this.consumptionTrackingService.registerLookerReportRunConsumption(report);
+      } catch (error) {
+        this.logger.warn(
+          `Failed to register Looker report consumption for ${report.id}: ${
+            error instanceof Error ? error.message : String(error)
+          }`
+        );
+      }
     }
 
     const {

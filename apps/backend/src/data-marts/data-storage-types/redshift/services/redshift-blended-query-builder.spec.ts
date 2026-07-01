@@ -1,5 +1,4 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { NotImplementedException } from '@nestjs/common';
 import { DataStorageType } from '../../enums/data-storage-type.enum';
 import {
   createBuildContext,
@@ -7,7 +6,9 @@ import {
   makeRelationship,
 } from '../../interfaces/__fixtures__/blended-query-builder-fixtures';
 import { RedshiftBlendedQueryBuilder } from './redshift-blended-query-builder';
+import { RedshiftClauseRenderer } from './redshift-clause-renderer';
 import { BlendedQueryContext } from '../../interfaces/blended-query-builder.interface';
+import { buildBlendedFieldIndex } from '../../../services/blended-field-index';
 
 const buildContext = createBuildContext('"myschema"."customers"');
 
@@ -16,7 +17,7 @@ describe('RedshiftBlendedQueryBuilder', () => {
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
-      providers: [RedshiftBlendedQueryBuilder],
+      providers: [RedshiftBlendedQueryBuilder, RedshiftClauseRenderer],
     }).compile();
 
     builder = module.get(RedshiftBlendedQueryBuilder);
@@ -118,31 +119,102 @@ describe('RedshiftBlendedQueryBuilder', () => {
   });
 });
 
-describe('RedshiftBlendedQueryBuilder — output controls guard', () => {
-  const builder = new RedshiftBlendedQueryBuilder();
-  const baseContext: BlendedQueryContext = {
-    mainTableReference: '"myschema"."customers"',
-    mainDataMartTitle: 'M',
-    mainDataMartUrl: 'http://x',
-    chains: [],
-    columns: ['a'],
-  };
+describe('RedshiftBlendedQueryBuilder — output controls', () => {
+  let builder: RedshiftBlendedQueryBuilder;
 
-  it('throws NotImplemented when filters are non-empty', () => {
-    expect(() =>
-      builder.buildBlendedQuery({
-        ...baseContext,
-        filters: [{ column: 'a', operator: 'eq', value: 1 }],
-      })
-    ).toThrow(NotImplementedException);
+  beforeEach(async () => {
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [RedshiftBlendedQueryBuilder, RedshiftClauseRenderer],
+    }).compile();
+    builder = module.get(RedshiftBlendedQueryBuilder);
   });
 
-  it('throws NotImplemented when sort is non-empty', () => {
-    expect(() =>
-      builder.buildBlendedQuery({
-        ...baseContext,
-        sort: [{ column: 'a', direction: 'asc' }],
+  function ctx(over: Partial<BlendedQueryContext>): BlendedQueryContext {
+    return {
+      mainTableReference: '"myschema"."customers"',
+      mainDataMartTitle: 'M',
+      mainDataMartUrl: 'http://x',
+      chains: [],
+      columns: ['a'],
+      ...over,
+    };
+  }
+
+  it('applies a post-join filter as an inlined literal predicate with no params (implicit placement defaults to post-join)', () => {
+    const { sql, params } = builder.buildBlendedQuery(
+      ctx({ filters: [{ column: 'a', operator: 'eq', value: 1 }] })
+    );
+    expect(sql).toContain('WHERE main.a = 1');
+    expect(params).toEqual([]);
+  });
+
+  it('inlines a pre-join slice filter as a literal inside the subsidiary raw CTE with no params', () => {
+    const chain = makeChain({
+      relationship: makeRelationship({
+        targetAlias: 'users',
+        joinConditions: [{ sourceFieldName: 'user_id', targetFieldName: 'user_id' }],
+      }),
+      targetTableReference: '"myschema"."users"',
+      parentAlias: 'main',
+      blendedFields: [
+        { targetFieldName: 'role', outputAlias: 'role', isHidden: true, aggregateFunction: 'MAX' },
+      ],
+    });
+    const fieldIndex = buildBlendedFieldIndex({
+      blendedFields: [
+        { name: 'users__role', aliasPath: 'users', originalFieldName: 'role', type: 'STRING' },
+      ],
+      availableSources: [{ aliasPath: 'users', isIncluded: true }],
+    } as never);
+    const { sql, params } = builder.buildBlendedQuery(
+      ctx({
+        chains: [chain],
+        columns: ['a'],
+        filters: [
+          {
+            column: 'users__role',
+            operator: 'eq',
+            value: 'admin',
+            placement: 'pre-join',
+          },
+        ],
+        fieldIndex,
       })
-    ).toThrow(NotImplementedException);
+    );
+    // The inlined literal predicate must appear inside the subsidiary raw CTE.
+    // Verify structural ordering: "users_raw AS (" comes before "role = 'admin'",
+    // which itself comes before the outer SELECT (proving it's in the raw CTE, not outer WHERE).
+    const rawCteStart = sql.indexOf('users_raw AS (');
+    const predicatePos = sql.indexOf("role = 'admin'");
+    const outerSelectPos = sql.lastIndexOf('\nSELECT\n');
+    expect(rawCteStart).toBeGreaterThanOrEqual(0);
+    expect(predicatePos).toBeGreaterThan(rawCteStart);
+    expect(predicatePos).toBeLessThan(outerSelectPos);
+    // The outer WHERE must not reference the pre-join column
+    expect(sql).not.toContain('WHERE main.role');
+    // Redshift uses inlined literals — no bound params
+    expect(params).toEqual([]);
+  });
+
+  it('renders ORDER BY and LIMIT', () => {
+    const { sql } = builder.buildBlendedQuery(
+      ctx({ sort: [{ column: 'a', direction: 'desc' }], limit: 10 })
+    );
+    expect(sql).toContain('ORDER BY\n  main.a DESC');
+    expect(sql).toContain('LIMIT 10');
+  });
+
+  it('multiple post-join filters combine with AND (inlined, no params)', () => {
+    const { sql, params } = builder.buildBlendedQuery(
+      ctx({
+        columns: ['a'],
+        filters: [
+          { column: 'a', operator: 'eq', value: 'x', placement: 'post-join' },
+          { column: 'a', operator: 'neq', value: 'y', placement: 'post-join' },
+        ],
+      })
+    );
+    expect(sql).toContain("WHERE main.a = 'x'\n  AND main.a <> 'y'");
+    expect(params).toEqual([]);
   });
 });

@@ -49,18 +49,18 @@ function getAvailabilityFields(
       {
         key: 'availableForReporting',
         sectionTitle: 'Reporting',
-        label: 'Available for reporting',
+        label: 'Shared for reporting',
         description: 'All project members can see this Data Mart and build reports on it',
-        helpTitle: 'What does "Available for reporting" mean?',
+        helpTitle: 'What does "Shared for reporting" mean?',
         helpContent:
           'When enabled, all project members (both Technical and Business Users) can see this Data Mart in the catalog and use it to create reports. Owners always have access regardless of this setting. Disable this to restrict visibility to owners only.',
       },
       {
         key: 'availableForMaintenance',
         sectionTitle: 'Maintenance',
-        label: 'Available for maintenance',
+        label: 'Shared for maintenance',
         description: 'Technical users can edit, delete, and manage triggers for this Data Mart',
-        helpTitle: 'What does "Available for maintenance" mean?',
+        helpTitle: 'What does "Shared for maintenance" mean?',
         helpContent:
           'When enabled, Technical Users who are not owners can edit the Data Mart definition, delete it, and manage its scheduled triggers. Business Users are not affected by this setting — they cannot perform maintenance actions regardless. Use this when you want other Technical Users on your team to help manage this Data Mart.',
       },
@@ -73,12 +73,12 @@ function getAvailabilityFields(
     {
       key: 'availableForUse',
       sectionTitle: 'Usage',
-      label: 'Available for use',
+      label: 'Shared for use',
       description:
         entityType === 'storage'
           ? 'Technical users can use this storage when creating Data Marts'
           : 'Project members can use this destination in their reports',
-      helpTitle: `What does "Available for use" mean?`,
+      helpTitle: `What does "Shared for use" mean?`,
       helpContent:
         entityType === 'storage'
           ? 'When enabled, Technical Users who are not owners can select this storage when creating new Data Marts. Without this, only storage owners and admins can use it. Enable this when multiple team members need to build Data Marts on the same storage.'
@@ -87,9 +87,9 @@ function getAvailabilityFields(
     {
       key: 'availableForMaintenance',
       sectionTitle: 'Maintenance',
-      label: 'Available for maintenance',
+      label: 'Shared for maintenance',
       description: `Project members with access can copy credentials, edit, and delete this ${entityName}`,
-      helpTitle: 'What does "Available for maintenance" mean?',
+      helpTitle: 'What does "Shared for maintenance" mean?',
       helpContent: `When enabled, project members can copy credentials from this ${entityName}, edit its configuration, and delete it. This is useful when multiple team members need to manage shared infrastructure. Without this, only owners and admins can perform these actions.`,
     },
   ];

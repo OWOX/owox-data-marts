@@ -22,6 +22,7 @@ import {
   AthenaDataMartSchema,
   AthenaDataMartSchemaType,
 } from '../schemas/athena-data-mart-schema.schema';
+import { isQueryBuildResult } from '../../interfaces/data-mart-query-builder.interface';
 import { AthenaQueryBuilder } from './athena-query.builder';
 
 @Injectable()
@@ -61,7 +62,8 @@ export class AthenaDataMartSchemaProvider implements DataMartSchemaProvider {
     }
 
     // Build the query with LIMIT 0 to get schema without retrieving data
-    const query = this.athenaQueryBuilder.buildQuery(dataMartDefinition, { limit: 0 });
+    const built = this.athenaQueryBuilder.buildQuery(dataMartDefinition, { limit: 0 });
+    const query = isQueryBuildResult(built) ? built.sql : built;
     const adapter = this.adapterFactory.create(credentials, config);
     const s3Adapter = this.s3AdapterFactory.create(credentials, config);
     const outputPrefix = this.getOutputPrefix();
@@ -161,7 +163,9 @@ export class AthenaDataMartSchemaProvider implements DataMartSchemaProvider {
     }
 
     try {
-      const commentsQuery = `SELECT column_name, comment FROM information_schema.columns WHERE table_schema = '${tableInfo.schema}' AND table_name = '${tableInfo.table}' AND comment IS NOT NULL`;
+      const schemaLiteral = tableInfo.schema.split("'").join("''");
+      const tableLiteral = tableInfo.table.split("'").join("''");
+      const commentsQuery = `SELECT column_name, comment FROM information_schema.columns WHERE table_schema = '${schemaLiteral}' AND table_name = '${tableLiteral}' AND comment IS NOT NULL`;
       const { queryExecutionId } = await adapter.executeQuery(
         commentsQuery,
         outputBucket,

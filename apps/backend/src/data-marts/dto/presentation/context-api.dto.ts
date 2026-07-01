@@ -82,6 +82,9 @@ export class ContextImpactResponseApiDto {
   @ApiProperty()
   memberCount: number;
 
+  @ApiProperty()
+  userProvisioningDefaultsCount: number;
+
   @ApiProperty({ type: [String] })
   affectedMemberIds: string[];
 }
@@ -240,4 +243,60 @@ export class InviteMemberResponseApiDto {
       'Pre-provisioned user id from the IDP. Present when the backend could attach authorization scope immediately. Absent for IDPs that only materialise the user on first sign-in.',
   })
   userId?: string;
+}
+
+export class MembershipRequestApiDto {
+  @ApiProperty()
+  requestId: string;
+
+  @ApiProperty()
+  email: string;
+
+  @ApiPropertyOptional()
+  fullName?: string;
+
+  @ApiPropertyOptional()
+  avatar?: string;
+
+  @ApiPropertyOptional()
+  userId?: string;
+
+  @ApiProperty({ enum: ProjectRole })
+  requestedRole: ProjectRole;
+
+  @ApiProperty()
+  createdAt: string;
+}
+
+export class ApproveMembershipRequestApiDto {
+  @ApiProperty({ enum: ProjectRole })
+  @IsEnum(ProjectRole)
+  role: ProjectRole;
+
+  @ApiPropertyOptional({ enum: RoleScope })
+  @IsOptional()
+  @IsEnum(RoleScope)
+  roleScope?: RoleScope;
+
+  @ApiPropertyOptional({ type: [String] })
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(100)
+  @IsString({ each: true })
+  @IsNotEmpty({ each: true })
+  contextIds?: string[];
+}
+
+export class ApproveMembershipRequestResponseApiDto {
+  @ApiProperty()
+  userId: string;
+
+  @ApiProperty({ enum: ProjectRole })
+  role: ProjectRole;
+
+  @ApiProperty({ enum: RoleScope })
+  roleScope: RoleScope;
+
+  @ApiProperty({ type: [String] })
+  contextIds: string[];
 }

@@ -1,6 +1,6 @@
 {
   "name": "@owox/backend",
-  "version": "0.25.0",
+  "version": "0.28.0",
   "description": "OWOX Data Marts Backend - Full-stack data orchestration platform",
   "author": "OWOX",
   "license": "ELv2",
@@ -70,6 +70,8 @@
     "@databricks/sql": "^1.12.0",
     "@google-cloud/bigquery": "^8.1.0",
     "@google-cloud/pubsub": "^4.0.7",
+    "@huggingface/transformers": "^3.0.0",
+    "@modelcontextprotocol/sdk": "^1.29.0",
     "@nestjs/common": "^11.0.1",
     "@nestjs/config": "^4.0.2",
     "@nestjs/core": "^11.1.2",
@@ -105,7 +107,7 @@
     "rxjs": "^7.8.1",
     "snowflake-sdk": "^2.3.3",
     "swagger-ui-express": "^5.0.1",
-    "typeorm": "0.3.28",
+    "typeorm": "0.3.30",
     "typeorm-transactional": "^0.5.0",
     "zod": "^3.25.64",
     "zod-to-json-schema": "^3.25.0"
@@ -119,6 +121,7 @@
     "@nestjs/testing": "^11.1.2",
     "@owox/eslint-config": "*",
     "@owox/prettier-config": "*",
+    "@owox/test-utils": "*",
     "@swc/cli": "^0.6.0",
     "@swc/core": "^1.10.7",
     "@types/better-sqlite3": "^7.6.13",
@@ -138,8 +141,7 @@
     "ts-loader": "^9.5.2",
     "ts-node": "^10.9.2",
     "tsconfig-paths": "^4.2.0",
-    "typeorm-ts-node-commonjs": "^0.3.20",
-    "@owox/test-utils": "*"
+    "typeorm-ts-node-commonjs": "^0.3.20"
   },
   "jest": {
     "moduleFileExtensions": ["js", "json", "ts"],

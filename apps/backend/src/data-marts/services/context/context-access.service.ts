@@ -12,6 +12,7 @@ import { RoleScope } from '../../enums/role-scope.enum';
 import { ContextService } from './context.service';
 import { AccessDecisionService } from '../access-decision/access-decision.service';
 import { EntityType, OwnerStatus } from '../access-decision/access-decision.types';
+import { UserProvisioningContextSettingsService } from './user-provisioning-context-settings.service';
 
 @Injectable()
 export class ContextAccessService {
@@ -27,6 +28,7 @@ export class ContextAccessService {
     @InjectRepository(MemberRoleContext)
     private readonly memberRoleContextRepository: Repository<MemberRoleContext>,
     private readonly contextService: ContextService,
+    private readonly userProvisioningContextSettingsService: UserProvisioningContextSettingsService,
     @Inject(forwardRef(() => AccessDecisionService))
     private readonly accessDecisionService: AccessDecisionService
   ) {}
@@ -53,7 +55,7 @@ export class ContextAccessService {
 
       if (!isTechOwnerWithEditorRole) {
         throw new ForbiddenException(
-          'Only DM Technical Owners with editor role or admins can manage data mart contexts'
+          'Only Data Mart Technical Owners with Technical User role or Project Admins can manage Data Mart contexts'
         );
       }
     }
@@ -88,7 +90,7 @@ export class ContextAccessService {
 
       if (!isOwnerWithEditorRole) {
         throw new ForbiddenException(
-          'Only Storage Owners with editor role or admins can manage storage contexts'
+          'Only Data Storage Owners with Technical User role or Project Admins can manage Data Storage contexts'
         );
       }
     }
@@ -121,7 +123,7 @@ export class ContextAccessService {
 
       if (ownerStatus !== OwnerStatus.OWNER) {
         throw new ForbiddenException(
-          'Only Destination Owners or admins can manage destination contexts'
+          'Only Data Destination Owners or Project Admins can manage Data Destination contexts'
         );
       }
     }
@@ -140,7 +142,11 @@ export class ContextAccessService {
       where: { userId, projectId },
     });
 
-    return record?.roleScope ?? RoleScope.ENTIRE_PROJECT;
+    if (record) {
+      return record.roleScope;
+    }
+
+    return this.userProvisioningContextSettingsService.applyDefaultScopeToMember(userId, projectId);
   }
 
   async getMemberContextIds(userId: string, projectId: string): Promise<string[]> {

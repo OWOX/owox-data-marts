@@ -6,6 +6,7 @@ import {
 } from '../dto/domain/blendable-schema.dto';
 import { DataMartRelationshipService } from './data-mart-relationship.service';
 import { DataMartService } from './data-mart.service';
+import { AccessDecisionService, Action, EntityType } from './access-decision';
 import { DataMartSchema } from '../data-storage-types/data-mart-schema.type';
 import { DataMartSchemaFieldStatus } from '../data-storage-types/enums/data-mart-schema-field-status.enum';
 import {
@@ -14,9 +15,31 @@ import {
 } from '../data-storage-types/field-type-compatibility';
 import { BlendedFieldsConfig, BlendedSource } from '../dto/schemas/blended-fields-config.schema';
 import { AggregateFunction } from '../dto/schemas/aggregate-function.schema';
+import { resolveFieldGovernance } from '../dto/schemas/field-aggregation-governance';
 import { BusinessViolationException } from '../../common/exceptions/business-violation.exception';
 import { DataMartRelationship } from '../entities/data-mart-relationship.entity';
 import { DataMartStatus } from '../enums/data-mart-status.enum';
+import { IdpProjectionsFacade } from '../../idp/facades/idp-projections.facade';
+
+export interface BlendableSchemaAccessor {
+  userId: string;
+  roles: string[];
+}
+
+export async function resolveBlendableSchemaAccessor(
+  idpProjectionsFacade: IdpProjectionsFacade,
+  projectId: string,
+  userId: string
+): Promise<BlendableSchemaAccessor> {
+  const member = await idpProjectionsFacade.getProjectMemberOrThrow(projectId, userId);
+  if (!member) {
+    throw new BusinessViolationException(
+      `User is no longer a member of this project; report cannot run on their behalf.`,
+      { userId, projectId }
+    );
+  }
+  return { userId, roles: [member.role] };
+}
 
 const DEFAULT_CONFIG: BlendedFieldsConfig = {
   sources: [],
@@ -78,10 +101,15 @@ interface CollectContext {
 export class BlendableSchemaService {
   constructor(
     private readonly relationshipService: DataMartRelationshipService,
-    private readonly dataMartService: DataMartService
+    private readonly dataMartService: DataMartService,
+    private readonly accessDecisionService: AccessDecisionService
   ) {}
 
-  async computeBlendableSchema(dataMartId: string, projectId: string): Promise<BlendableSchemaDto> {
+  async computeBlendableSchema(
+    dataMartId: string,
+    projectId: string,
+    accessor: BlendableSchemaAccessor
+  ): Promise<BlendableSchemaDto> {
     const dataMart = await this.dataMartService.getByIdAndProjectId(dataMartId, projectId);
     const nativeFields = (dataMart.schema?.fields ?? []).filter(
       f => !f.isHiddenForReporting
@@ -116,12 +144,46 @@ export class BlendableSchemaService {
       depth: 1,
     });
 
+    await this.applyReportingAccess(availableSources, projectId, accessor);
+
     return {
       nativeFields,
       nativeDescription: dataMart.description ?? undefined,
       blendedFields,
       availableSources,
     };
+  }
+
+  private async applyReportingAccess(
+    availableSources: AvailableSourceDto[],
+    projectId: string,
+    accessor: BlendableSchemaAccessor
+  ): Promise<void> {
+    if (availableSources.length === 0) return;
+
+    const targetDataMartIds = Array.from(new Set(availableSources.map(s => s.dataMartId)));
+    const directAccess = await this.accessDecisionService.canAccessMany(
+      accessor.userId,
+      accessor.roles,
+      EntityType.DATA_MART,
+      targetDataMartIds,
+      Action.USE,
+      projectId
+    );
+
+    const accessibleByAliasPath = new Map<string, boolean>();
+    const sortedByDepth = [...availableSources].sort((a, b) => a.depth - b.depth);
+    for (const source of sortedByDepth) {
+      const lastDot = source.aliasPath.lastIndexOf('.');
+      const parentPath = lastDot === -1 ? '' : source.aliasPath.slice(0, lastDot);
+      const parentAccessible =
+        parentPath === '' ? true : (accessibleByAliasPath.get(parentPath) ?? false);
+      const directOk = directAccess.get(source.dataMartId) ?? false;
+      accessibleByAliasPath.set(source.aliasPath, parentAccessible && directOk);
+    }
+    for (const source of availableSources) {
+      source.isAccessibleForReporting = accessibleByAliasPath.get(source.aliasPath) ?? false;
+    }
   }
 
   private collectBlendedFields(ctx: CollectContext): void {
@@ -199,6 +261,10 @@ export class BlendableSchemaService {
         dto.isHidden = fieldOverride?.isHidden ?? false;
         dto.aggregateFunction =
           fieldOverride?.aggregateFunction ?? getDefaultAggregateFunction(field.type);
+        // No override → type-derived allowed set (governance default); explicit `[]` = none allowed.
+        dto.postJoinAggregations =
+          fieldOverride?.postJoinAggregations ??
+          resolveFieldGovernance(field.type).allowedAggregations;
         dto.transitiveDepth = ctx.depth;
 
         ctx.result.push(dto);

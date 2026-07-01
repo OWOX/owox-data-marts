@@ -42,6 +42,8 @@ import { DataMartListItemResponseApiDto } from '../dto/presentation/data-mart-li
 import { DataMartResponseApiDto } from '../dto/presentation/data-mart-response-api.dto';
 import { DataMartRunResponseApiDto } from '../dto/presentation/data-mart-run-response-api.dto';
 import { DataMartRunsResponseApiDto } from '../dto/presentation/data-mart-runs-response-api.dto';
+import { ProjectDataMartRunDto } from '../dto/domain/project-data-mart-run.dto';
+import { ProjectDataMartRunsResponseApiDto } from '../dto/presentation/project-data-mart-runs-response-api.dto';
 import { DataMartValidationResponseApiDto } from '../dto/presentation/data-mart-validation-response-api.dto';
 import { PaginatedDataMartsResponseApiDto } from '../dto/presentation/paginated-data-marts-response-api.dto';
 import { SqlDryRunRequestApiDto } from '../dto/presentation/sql-dry-run-request-api.dto';
@@ -51,13 +53,6 @@ import { UpdateBlendedFieldsConfigApiDto } from '../dto/presentation/update-blen
 import { UpdateDataMartDescriptionApiDto } from '../dto/presentation/update-data-mart-description-api.dto';
 import { UpdateDataMartSchemaApiDto } from '../dto/presentation/update-data-mart-schema-api.dto';
 import { UpdateDataMartTitleApiDto } from '../dto/presentation/update-data-mart-title-api.dto';
-import { GenerateDataMartMetadataCommand } from '../dto/domain/generate-data-mart-metadata.command';
-import { GenerateDataMartMetadataRequestApiDto } from '../dto/presentation/generate-data-mart-metadata-request-api.dto';
-import {
-  GenerateDataMartMetadataResponseApiDto,
-  GeneratedFieldMetadataApiDto,
-} from '../dto/presentation/generate-data-mart-metadata-response-api.dto';
-import { GenerateDataMartMetadataResponse } from '../ai-insights/ai-insights-types';
 import { ConnectorDefinition } from '../dto/schemas/data-mart-table-definitions/connector-definition.schema';
 import { DataMartDefinition } from '../dto/schemas/data-mart-table-definitions/data-mart-definition';
 import { isConnectorDefinition } from '../dto/schemas/data-mart-table-definitions/data-mart-definition.guards';
@@ -71,6 +66,7 @@ import { UpdateDataMartOwnersApiDto } from '../dto/presentation/update-data-mart
 import { UpdateDataMartOwnersCommand } from '../dto/domain/update-data-mart-owners.command';
 import { DataStorageMapper } from './data-storage.mapper';
 import { extractContextSummaries } from '../utils/extract-context-summaries';
+import { HTTP_DATA_PARAMS_KEY } from '../services/http-data/http-data.constants';
 
 @Injectable()
 export class DataMartMapper {
@@ -293,6 +289,7 @@ export class DataMartMapper {
       entity.storage.title || toHumanReadable(entity.storage.type),
       entity.createdAt,
       entity.modifiedAt,
+      entity.description ?? null,
       entity.definitionType,
       entity.definition,
       counters.triggersCount,
@@ -312,6 +309,7 @@ export class DataMartMapper {
       title: dto.title,
       status: dto.status,
       storage: { type: dto.storageType, title: dto.storageTitle },
+      description: dto.description,
       definitionType: dto.definitionType,
       connectorSourceName:
         dto.definitionType === DataMartDefinitionType.CONNECTOR && dto.definition
@@ -365,38 +363,6 @@ export class DataMartMapper {
       context.userId,
       context.roles ?? []
     );
-  }
-
-  toGenerateMetadataCommand(
-    id: string,
-    context: AuthorizationContext,
-    dto: GenerateDataMartMetadataRequestApiDto
-  ): GenerateDataMartMetadataCommand {
-    return new GenerateDataMartMetadataCommand(
-      id,
-      context.projectId,
-      dto.scope,
-      dto.useSample,
-      dto.fieldName?.trim() ? dto.fieldName.trim() : undefined,
-      context.userId,
-      context.roles ?? []
-    );
-  }
-
-  toGenerateMetadataResponse(
-    domain: GenerateDataMartMetadataResponse
-  ): GenerateDataMartMetadataResponseApiDto {
-    const response = new GenerateDataMartMetadataResponseApiDto();
-    response.title = domain.title;
-    response.description = domain.description;
-    response.fields = domain.fields?.map(field => {
-      const item = new GeneratedFieldMetadataApiDto();
-      item.name = field.name;
-      item.alias = field.alias;
-      item.description = field.description;
-      return item;
-    });
-    return response;
   }
 
   toGetBlendableSchemaCommand(
@@ -568,7 +534,8 @@ export class DataMartMapper {
       entity.createdAt,
       entity.startedAt || null,
       entity.finishedAt || null,
-      userProjection
+      userProjection,
+      entity.additionalParams ?? null
     );
   }
 
@@ -608,6 +575,42 @@ export class DataMartMapper {
           startedAt: run.startedAt,
           finishedAt: run.finishedAt,
           createdByUser: run.createdByUser,
+          additionalParams: this.maskAdditionalParams(run),
+        };
+      })
+    );
+    return { runs: maskedRuns };
+  }
+
+  async toProjectRunsResponse(
+    runs: ProjectDataMartRunDto[]
+  ): Promise<ProjectDataMartRunsResponseApiDto> {
+    const maskedRuns = await Promise.all(
+      runs.map(async item => {
+        const maskedDefinitionRun = await this.maskDefinitionRun(item.run.definitionRun);
+        return {
+          id: item.run.id,
+          status: item.run.status,
+          type: item.run.type,
+          runType: item.run.runType,
+          dataMartId: item.run.dataMartId,
+          dataMart: item.dataMart,
+          definitionRun: maskedDefinitionRun || item.run.definitionRun,
+          reportId: item.run.reportId,
+          reportDefinition: item.run.reportDefinition,
+          insightId: item.run.insightId,
+          insightDefinition: item.run.insightDefinition || null,
+          insightTemplateId: item.run.insightTemplateId,
+          insightTemplateDefinition: item.run.insightTemplateDefinition || null,
+          aiSourceDefinition: item.run.aiSourceDefinition,
+          logs: item.run.logs,
+          errors: item.run.errors,
+          createdAt: item.run.createdAt,
+          startedAt: item.run.startedAt,
+          finishedAt: item.run.finishedAt,
+          createdByUser: item.run.createdByUser,
+          additionalParams: this.maskAdditionalParams(item.run),
+          totals: this.extractTotals(item.run),
         };
       })
     );
@@ -656,6 +659,8 @@ export class DataMartMapper {
       createdAt: run.createdAt,
       startedAt: run.startedAt,
       finishedAt: run.finishedAt,
+      additionalParams: this.maskAdditionalParams(run),
+      totals: this.extractTotals(run),
     };
   }
 
@@ -682,5 +687,38 @@ export class DataMartMapper {
     }
 
     return undefined;
+  }
+
+  private maskAdditionalParams(run: DataMartRunDto): Record<string, unknown> | null {
+    // Whitelist only what is safe to expose; every other key (internal run params) is
+    // dropped. `totals` are surfaced at the TOP LEVEL of the response (see extractTotals),
+    // so they are removed here: HTTP_DATA runs expose their `httpData` subtree minus totals;
+    // report runs expose nothing (their only safe-to-expose key was `totals`).
+    if (run.type === DataMartRunType.HTTP_DATA) {
+      const httpData = run.additionalParams?.[HTTP_DATA_PARAMS_KEY] as
+        | Record<string, unknown>
+        | undefined;
+      if (!httpData) {
+        return null;
+      }
+      const { totals: _totals, ...rest } = httpData;
+      return { [HTTP_DATA_PARAMS_KEY]: rest };
+    }
+    return null;
+  }
+
+  /**
+   * Grand-totals summary, surfaced at the top level of the run response. Report runs persist
+   * it as `additionalParams.totals`; HTTP_DATA runs nest it inside the `httpData` subtree.
+   */
+  private extractTotals(
+    run: DataMartRunDto
+  ): Record<string, number | string | boolean | null> | null {
+    const totals =
+      run.type === DataMartRunType.HTTP_DATA
+        ? (run.additionalParams?.[HTTP_DATA_PARAMS_KEY] as Record<string, unknown> | undefined)
+            ?.totals
+        : run.additionalParams?.totals;
+    return (totals as Record<string, number | string | boolean | null> | undefined) ?? null;
   }
 }

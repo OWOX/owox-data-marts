@@ -7,10 +7,16 @@ import type {
   UpdateDataDestinationRequestDto,
   CreateDataDestinationRequestDto,
 } from '../../services/types';
+import { buildDriveFolderUrl } from '../../utils/drive-folder-url.utils.ts';
 
 interface GoogleSheetsFormCredentials {
   serviceAccount?: string;
   credentialId?: string | null;
+}
+
+interface GoogleSheetsFormConfig {
+  folderId?: string;
+  folderUrl?: string;
 }
 
 export class GoogleSheetsMapper implements DestinationMapper {
@@ -32,11 +38,23 @@ export class GoogleSheetsMapper implements DestinationMapper {
       credentials: {
         serviceAccount: serviceAccountJson,
         credentialId: dto.credentialId,
+        identity:
+          dto.credentials.type === DataDestinationCredentialsType.GOOGLE_SHEETS_OAUTH_CREDENTIALS
+            ? dto.credentials.identity
+            : null,
       },
       createdAt: new Date(dto.createdAt),
       modifiedAt: new Date(dto.modifiedAt),
       createdByUser: dto.createdByUser,
       ownerUsers: dto.ownerUsers ?? [],
+      // Prefer the stored folderUrl; synthesize one from a legacy folderId so the
+      // clickable link still works for destinations created before the URL field.
+      config: (() => {
+        const folderUrl =
+          dto.config?.folderUrl ??
+          (dto.config?.folderId ? buildDriveFolderUrl(dto.config.folderId) : undefined);
+        return folderUrl ? { folderUrl } : undefined;
+      })(),
     };
   }
 
@@ -62,6 +80,11 @@ export class GoogleSheetsMapper implements DestinationMapper {
       if (creds.credentialId === null) {
         result.credentialId = null;
       }
+    }
+
+    const folderUrl = (formData as { config?: GoogleSheetsFormConfig }).config?.folderUrl;
+    if (folderUrl !== undefined) {
+      result.config = { folderUrl: folderUrl.trim() || null };
     }
 
     return result;
@@ -94,6 +117,11 @@ export class GoogleSheetsMapper implements DestinationMapper {
     // Pass pre-created OAuth credential ID if available
     if (creds.credentialId) {
       result.credentialId = creds.credentialId;
+    }
+
+    const folderUrl = (formData as { config?: GoogleSheetsFormConfig }).config?.folderUrl?.trim();
+    if (folderUrl) {
+      result.config = { folderUrl };
     }
 
     return result;

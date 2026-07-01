@@ -6,8 +6,9 @@ import type {
   ScheduledTriggerResponseApiDto,
   UpdateScheduledTriggerRequestApiDto,
 } from '../api';
-import { reportService } from '../../../reports/shared';
 import { mapReportDtoToEntity } from '../../../reports/shared/model/mappers';
+import type { ReportResponseDto } from '../../../reports/shared/services';
+import { reportService } from '../../../reports/shared';
 import type { ScheduledReportRunConfig } from '../trigger-config.types.ts';
 
 /**
@@ -26,7 +27,7 @@ export class ReportRunTriggerMapper implements TriggerMapper {
       isActive: dto.isActive,
       nextRun: dto.nextRunTimestamp ? new Date(dto.nextRunTimestamp) : null,
       lastRun: dto.lastRunTimestamp ? new Date(dto.lastRunTimestamp) : null,
-      triggerConfig: dto.triggerConfig,
+      triggerConfig: mapReportRunConfigFromDto(dto.triggerConfig),
       createdById: dto.createdById,
       createdAt: new Date(dto.createdAt),
       modifiedAt: new Date(dto.modifiedAt),
@@ -98,4 +99,19 @@ export class ReportRunTriggerMapper implements TriggerMapper {
       isActive: model.isActive,
     };
   }
+}
+
+function mapReportRunConfigFromDto(
+  config: ScheduledTriggerResponseApiDto['triggerConfig']
+): ScheduledReportRunConfig {
+  const reportConfig = config as ScheduledReportRunConfig;
+  const report = (reportConfig as { report?: unknown }).report;
+  if (report && typeof report === 'object' && 'dataDestinationAccess' in report) {
+    return {
+      ...reportConfig,
+      report: mapReportDtoToEntity(report as ReportResponseDto),
+    };
+  }
+
+  return reportConfig;
 }

@@ -13,7 +13,12 @@ import {
   ValidateNested,
 } from 'class-validator';
 import { ALIAS_PATH_REGEX, ALIAS_SEGMENT_ERROR } from '../schemas/blended-fields-config.schema';
-import { AGGREGATE_FUNCTIONS, AggregateFunction } from '../schemas/aggregate-function.schema';
+import {
+  AGGREGATE_FUNCTIONS,
+  AggregateFunction,
+  REPORT_AGGREGATE_FUNCTIONS,
+  ReportAggregateFunction,
+} from '../schemas/aggregate-function.schema';
 import { ValidateRecordValues } from '../../../common/validators/validate-record-values.validator';
 
 const PATH_MESSAGE = `path must be a dot-separated chain where each segment ${ALIAS_SEGMENT_ERROR}`;
@@ -37,6 +42,12 @@ export class BlendedFieldOverrideApiDto {
   @IsOptional()
   @IsIn(AGGREGATE_FUNCTIONS as readonly string[])
   aggregateFunction?: AggregateFunction;
+
+  @ApiPropertyOptional({ enum: REPORT_AGGREGATE_FUNCTIONS, isArray: true })
+  @IsOptional()
+  @IsArray()
+  @IsIn(REPORT_AGGREGATE_FUNCTIONS as readonly string[], { each: true })
+  postJoinAggregations?: ReportAggregateFunction[];
 }
 
 @ApiExtraModels(BlendedFieldOverrideApiDto)

@@ -12,11 +12,18 @@ var CriteoAdsHelper = {
    * @return {Object} Object with node names as keys and arrays of field names as values
    */
   parseFields(fieldsString) {
-    return fieldsString.split(", ").reduce((acc, pair) => {
-      let [key, value] = pair.split(" ");
-      (acc[key] = acc[key] || []).push(value.trim());
-      return acc;
-    }, {});
+    return String(fieldsString)
+      .split(',')
+      .map(pair => pair.trim())
+      .filter(Boolean)
+      .reduce((acc, pair) => {
+        const [key, value] = pair.split(/\s+/);
+        if (!key || !value) {
+          return acc;
+        }
+        (acc[key] = acc[key] || []).push(value.trim());
+        return acc;
+      }, {});
   },
 
   /**
@@ -27,6 +34,7 @@ var CriteoAdsHelper = {
   parseAdvertiserIds(advertiserIdsString) {
     return String(advertiserIdsString)
       .split(/[,;]\s*/)
-      .map(id => id.trim());
+      .map(id => id.trim())
+      .filter(Boolean);
   }
 };

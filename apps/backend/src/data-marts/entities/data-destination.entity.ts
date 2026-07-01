@@ -17,6 +17,7 @@ import { DataDestinationCredential } from './data-destination-credential.entity'
 import { CreatorAwareEntity } from './creator-aware-entity.interface';
 import { DestinationOwner } from './destination-owner.entity';
 import { DestinationContext } from './destination-context.entity';
+import type { DestinationConfig } from './destination-config.type';
 
 @Entity()
 export class DataDestination implements CreatorAwareEntity {
@@ -38,6 +39,10 @@ export class DataDestination implements CreatorAwareEntity {
   @OneToOne(() => DataDestinationCredential, { nullable: true, eager: true })
   @JoinColumn({ name: 'credentialId' })
   credential?: DataDestinationCredential | null;
+
+  /** Optional destination-level config (e.g. Google Drive folder for auto-created Sheets). */
+  @Column({ type: 'json', nullable: true })
+  config?: DestinationConfig | null;
 
   @Column({ type: 'boolean', default: true })
   availableForUse: boolean;

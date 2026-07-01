@@ -167,8 +167,22 @@ export class SqliteDatabaseStore implements DatabaseStore {
     await this.connect();
     try {
       this.getDb().prepare('DELETE FROM session WHERE userId = ?').run(userId);
-    } catch {
-      // Non-fatal: sessions might not exist
+    } catch (error) {
+      // A zero-row delete does not throw, so this catch only fires on a real DB
+      // failure. A silently failed session revoke is a security-relevant event,
+      // so log it rather than swallowing.
+      logger.error('Failed to revoke user sessions', { userId }, error as Error);
+    }
+  }
+
+  async revokeOtherUserSessions(userId: string, exceptSessionToken: string): Promise<void> {
+    await this.connect();
+    try {
+      this.getDb()
+        .prepare('DELETE FROM session WHERE userId = ? AND token != ?')
+        .run(userId, exceptSessionToken);
+    } catch (error) {
+      logger.error('Failed to revoke other user sessions', { userId }, error as Error);
     }
   }
 
@@ -184,18 +198,24 @@ export class SqliteDatabaseStore implements DatabaseStore {
     try {
       try {
         this.getDb().prepare('DELETE FROM session WHERE userId = ?').run(userId);
-      } catch {
-        // Non-fatal cleanup: table may not exist yet or may contain no rows for this user
+      } catch (error) {
+        // Continue the cascade, but a failed session removal is security-relevant
+        // (orphaned sessions could outlive the user) — log rather than swallow.
+        logger.error('Failed to delete user sessions during cascade', { userId }, error as Error);
       }
       try {
         this.getDb().prepare('DELETE FROM account WHERE userId = ?').run(userId);
-      } catch {
-        // Non-fatal cleanup: table may not exist yet or may contain no rows for this user
+      } catch (error) {
+        logger.error('Failed to delete user accounts during cascade', { userId }, error as Error);
       }
       try {
         this.getDb().prepare('DELETE FROM member WHERE userId = ?').run(userId);
-      } catch {
-        // Non-fatal cleanup: table may not exist yet or may contain no rows for this user
+      } catch (error) {
+        logger.error(
+          'Failed to delete user memberships during cascade',
+          { userId },
+          error as Error
+        );
       }
       const res = this.getDb().prepare('DELETE FROM user WHERE id = ?').run(userId);
       if (!res.changes) throw new Error(`User ${userId} not found`);

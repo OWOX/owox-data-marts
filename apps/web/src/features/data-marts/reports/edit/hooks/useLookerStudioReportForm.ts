@@ -9,10 +9,15 @@ import type {
 import { isLookerStudioDestinationConfig } from '../../shared/model/types/data-mart-report.ts';
 import { DEFAULT_REPORT_TITLE, DestinationTypeConfigEnum, useReport } from '../../shared';
 import type { DataDestination } from '../../../../data-destination/shared/model/types';
-import { FilterRuleSchema, SortRuleSchema } from '../../../shared/types/output-config';
+import {
+  AggregationRuleSchema,
+  DateTruncRuleSchema,
+  FilterRuleSchema,
+  SortRuleSchema,
+} from '../../../shared/types/output-config';
 
 // Define the form schema - simplified for editing existing reports
-const lookerStudioReportFormSchema = z.object({
+export const lookerStudioReportFormSchema = z.object({
   cacheLifetime: z.number().min(300, 'Cache time must be at least 5 minutes (300 seconds)'),
   columnConfig: z
     .array(z.string())
@@ -21,6 +26,9 @@ const lookerStudioReportFormSchema = z.object({
   filterConfig: z.array(FilterRuleSchema).nullable(),
   sortConfig: z.array(SortRuleSchema).nullable(),
   limitConfig: z.number().int().positive().max(10_000_000).nullable(),
+  aggregationConfig: z.array(AggregationRuleSchema).nullable(),
+  dateTruncConfig: z.array(DateTruncRuleSchema).nullable(),
+  uniqueCountConfig: z.boolean(),
 });
 
 // Define the form data type
@@ -56,6 +64,9 @@ export function useLookerStudioReportForm({
       filterConfig: initialReport?.filterConfig ?? null,
       sortConfig: initialReport?.sortConfig ?? null,
       limitConfig: initialReport?.limitConfig ?? null,
+      aggregationConfig: initialReport?.aggregationConfig ?? null,
+      dateTruncConfig: initialReport?.dateTruncConfig ?? null,
+      uniqueCountConfig: initialReport?.uniqueCountConfig ?? false,
     },
     mode: 'onTouched',
   });
@@ -84,6 +95,9 @@ export function useLookerStudioReportForm({
           filterConfig: data.filterConfig,
           sortConfig: data.sortConfig,
           limitConfig: data.limitConfig,
+          aggregationConfig: data.aggregationConfig,
+          dateTruncConfig: data.dateTruncConfig,
+          uniqueCountConfig: data.uniqueCountConfig,
         });
       } else {
         // This shouldn't happen in our use case, but keeping for compatibility
@@ -97,6 +111,9 @@ export function useLookerStudioReportForm({
           filterConfig: data.filterConfig,
           sortConfig: data.sortConfig,
           limitConfig: data.limitConfig,
+          aggregationConfig: data.aggregationConfig,
+          dateTruncConfig: data.dateTruncConfig,
+          uniqueCountConfig: data.uniqueCountConfig,
         });
       }
       onSuccess?.();

@@ -8,7 +8,7 @@ import {
 import { Skeleton } from '@owox/ui/components/skeleton';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@owox/ui/components/tooltip';
 import { cn } from '@owox/ui/lib/utils';
-import { ArrowLeft, CircleCheckBig, MoreVertical, Play, Trash2 } from 'lucide-react';
+import { ArrowLeft, CircleCheckBig, Loader2, MoreVertical, Play, Trash2 } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { toast } from 'react-hot-toast';
 import { NavLink, Outlet } from 'react-router-dom';
@@ -32,10 +32,13 @@ import {
 } from '../../shared';
 import { useSchemaActualizeTrigger } from '../../shared/hooks/useSchemaActualizeTrigger';
 import { PromoStep, useDataMartNextStepPromo } from '../hooks/useDataMartNextStepPromo';
+import { useSchemaUnsavedGuard } from '../model';
+import { SchemaUnsavedChangesDialog } from './SchemaUnsavedChangesDialog';
 import { useDataMart } from '../model';
-import { useAiHelper, useAiHelperAvailability } from '../model/hooks';
+import { useAiHelper, useAiHelperAvailability } from '../model';
 import { DataMartMetadataScope } from '../../shared';
 import { AiHelperButton } from './AiHelperButton';
+import { containsNonBmpCharacters, LEGACY_TITLE_ERROR } from '../../shared';
 import NotFound from '../../../../pages/NotFound.tsx';
 import NoAccess from '../../../../pages/NoAccess.tsx';
 
@@ -77,6 +80,7 @@ export function DataMartDetails({ id }: DataMartDetailsProps) {
 
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [isPublishing, setIsPublishing] = useState(false);
+  const [isConnectorRunSheetOpen, setIsConnectorRunSheetOpen] = useState(false);
   const lastRunIdRef = useRef<string | null>(null);
 
   const {
@@ -89,6 +93,7 @@ export function DataMartDetails({ id }: DataMartDetailsProps) {
     definitionType: dataMartDefinitionType = null,
     validationErrors: dataMartValidationErrors = [],
   } = dataMart ?? {};
+  const storageId = dataMart?.storage.id;
 
   const isConnector = dataMartDefinitionType === DataMartDefinitionType.CONNECTOR;
   const isPublished = dataMartStatus.code === DataMartStatus.PUBLISHED;
@@ -100,7 +105,7 @@ export function DataMartDetails({ id }: DataMartDetailsProps) {
   }, [dataMartId, getDataMart]);
 
   const { run: runActualizeSchemaInternal, isLoading: isSchemaActualizationLoading } =
-    useSchemaActualizeTrigger(dataMartId, onActualizeSuccess);
+    useSchemaActualizeTrigger(dataMartId, onActualizeSuccess, storageId);
 
   // Wrap with canActualizeSchema check before running schema actualization
   const runSchemaActualization = useCallback(async () => {
@@ -109,6 +114,8 @@ export function DataMartDetails({ id }: DataMartDetailsProps) {
     }
     await runActualizeSchemaInternal();
   }, [canActualizeSchema, runActualizeSchemaInternal]);
+
+  const schemaGuard = useSchemaUnsavedGuard();
 
   const shouldShowInsights = checkVisible('INSIGHTS_ENABLED', 'true', flags);
 
@@ -149,9 +156,16 @@ export function DataMartDetails({ id }: DataMartDetailsProps) {
   const handleTitleUpdate = useCallback(
     async (newTitle: string) => {
       if (!dataMartId) return;
+      if (
+        dataMart?.storage.type === DataStorageType.LEGACY_GOOGLE_BIGQUERY &&
+        containsNonBmpCharacters(newTitle)
+      ) {
+        toast.error(LEGACY_TITLE_ERROR);
+        throw new Error(LEGACY_TITLE_ERROR);
+      }
       await updateDataMartTitle(dataMartId, newTitle);
     },
-    [dataMartId, updateDataMartTitle]
+    [dataMartId, dataMart?.storage.type, updateDataMartTitle]
   );
 
   const { enabled: isAiHelperEnabled } = useAiHelperAvailability();
@@ -166,6 +180,11 @@ export function DataMartDetails({ id }: DataMartDetailsProps) {
     try {
       await publishDataMart(dataMartId);
       void runSchemaActualization();
+
+      // Load runs for connector data marts
+      if (isConnector) {
+        void getDataMartRuns(dataMartId);
+      }
 
       // Show promo toast based on a data mart type
       showPromo({
@@ -185,6 +204,7 @@ export function DataMartDetails({ id }: DataMartDetailsProps) {
     isConnector,
     publishDataMart,
     runSchemaActualization,
+    getDataMartRuns,
     showPromo,
     projectId,
     shouldShowInsights,
@@ -293,6 +313,21 @@ export function DataMartDetails({ id }: DataMartDetailsProps) {
       : 'Publish to enable reports and scheduled runs',
   };
 
+  // Config for connector run sheet
+  const connectorRunSheet = (
+    <ConnectorRunView
+      open={isConnectorRunSheetOpen}
+      onOpenChange={setIsConnectorRunSheetOpen}
+      configuration={dataMartDefinition ?? null}
+      onManualRun={data => {
+        void handleManualRun({
+          runType: data.runType,
+          data: data.data,
+        });
+      }}
+    />
+  );
+
   return (
     <div
       className='min-w-[600px] px-4 py-6 md:min-w-0 md:px-8 md:py-4 lg:px-12 xl:px-16'
@@ -346,23 +381,52 @@ export function DataMartDetails({ id }: DataMartDetailsProps) {
           )}
         >
           <div className='flex min-w-0 shrink-0 items-center gap-4'>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <div className={cn('shrink-0', !canPublish ? 'md:pt-1' : '')}>
-                  <StatusLabel
-                    type={isPublished ? StatusTypeEnum.SUCCESS : StatusTypeEnum.NEUTRAL}
-                    variant='subtle'
-                  >
-                    {dataMartStatus.displayName}
-                  </StatusLabel>
+            <div className={cn('flex shrink-0 items-center gap-4', !canPublish ? 'md:pt-1' : '')}>
+              <div
+                className={cn(
+                  'border-border flex items-center gap-2 overflow-hidden border-r motion-safe:transition-all motion-safe:duration-300 motion-safe:ease-out',
+                  hasActiveRuns
+                    ? 'max-w-[320px] pr-4 opacity-100'
+                    : 'max-w-0 border-r-0 pr-0 opacity-0'
+                )}
+              >
+                <div
+                  role='status'
+                  aria-live='polite'
+                  className='text-muted-foreground flex items-center gap-1 text-sm whitespace-nowrap'
+                >
+                  <Loader2 className='h-4 w-4 animate-spin' aria-hidden='true' />
+                  <span>Updating data</span>
                 </div>
-              </TooltipTrigger>
-              <TooltipContent side='bottom'>
-                {isPublished
-                  ? 'Your published Data Mart is ready for scheduled runs'
-                  : 'Draft Data Mart is not available for scheduled runs. Publish it to activate scheduling.'}
-              </TooltipContent>
-            </Tooltip>
+
+                <Button
+                  variant='outline'
+                  size='sm'
+                  onClick={() => {
+                    navigate(`/data-marts/${dataMartId}/run-history`);
+                  }}
+                >
+                  View runs
+                </Button>
+              </div>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <div>
+                    <StatusLabel
+                      type={isPublished ? StatusTypeEnum.SUCCESS : StatusTypeEnum.NEUTRAL}
+                      variant='subtle'
+                    >
+                      {dataMartStatus.displayName}
+                    </StatusLabel>
+                  </div>
+                </TooltipTrigger>
+                <TooltipContent side='bottom'>
+                  {isPublished
+                    ? 'Your published Data Mart is ready for scheduled runs'
+                    : 'Draft Data Mart is not available for scheduled runs. Publish it to activate scheduling.'}
+                </TooltipContent>
+              </Tooltip>
+            </div>
             {isDraft && (
               <Tooltip>
                 <TooltipTrigger asChild>
@@ -370,7 +434,7 @@ export function DataMartDetails({ id }: DataMartDetailsProps) {
                     <Button
                       variant='default'
                       onClick={() => {
-                        void handlePublish();
+                        schemaGuard.runGuarded(() => handlePublish(), { intent: 'publish' });
                       }}
                       disabled={isPublishing || !canPublish}
                       className={cn(
@@ -418,24 +482,30 @@ export function DataMartDetails({ id }: DataMartDetailsProps) {
             <DropdownMenuContent align='end'>
               {isConnector && (
                 <>
-                  <ConnectorRunView
-                    configuration={dataMartDefinition ?? null}
-                    onManualRun={data => {
-                      void handleManualRun({
-                        runType: data.runType,
-                        data: data.data,
-                      });
-                    }}
-                  >
-                    <DropdownMenuItem
-                      onClick={e => {
-                        e.preventDefault();
-                      }}
-                    >
-                      <Play className='text-foreground h-4 w-4' />
-                      <span>Manual Run...</span>
-                    </DropdownMenuItem>
-                  </ConnectorRunView>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <div>
+                        <DropdownMenuItem
+                          disabled={hasActiveRuns || isDraft}
+                          onClick={() => {
+                            if (hasActiveRuns || isDraft) return;
+
+                            setIsConnectorRunSheetOpen(true);
+                          }}
+                        >
+                          <Play className='text-foreground h-4 w-4' />
+                          <span>Manual Run...</span>
+                        </DropdownMenuItem>
+                      </div>
+                    </TooltipTrigger>
+                    {(hasActiveRuns || isDraft) && (
+                      <TooltipContent side='left'>
+                        {hasActiveRuns
+                          ? 'Please wait for the current run to complete.'
+                          : 'Manual run is available only for published Data Marts.'}
+                      </TooltipContent>
+                    )}
+                  </Tooltip>
                   <DropdownMenuSeparator />
                 </>
               )}
@@ -505,10 +575,14 @@ export function DataMartDetails({ id }: DataMartDetailsProps) {
             getDataMart,
             runSchemaActualization,
             isSchemaActualizationLoading,
+            registerSchemaGuard: schemaGuard.registerSchemaGuard,
+            runGuarded: schemaGuard.runGuarded,
             projectId,
           }}
         />
       </div>
+
+      {isConnector && connectorRunSheet}
 
       <ConfirmationDialog
         open={isDeleteDialogOpen}
@@ -534,9 +608,15 @@ export function DataMartDetails({ id }: DataMartDetailsProps) {
         cancelLabel='Cancel'
         variant='destructive'
         onConfirm={() => {
+          // Deleting destroys the whole data mart (schema included), so guarding
+          // unsaved schema edits here is moot — it only stacks a second dialog and
+          // could block the delete if a doomed schema save fails. Run delete
+          // directly, and drop the schema guard registration first so the
+          // post-delete navigation isn't intercepted by the dirty-schema blocker.
           void (async () => {
             try {
               await deleteDataMart(dataMartId);
+              schemaGuard.registerSchemaGuard(null);
               setIsDeleteDialogOpen(false);
               navigate('/data-marts');
             } catch (error) {
@@ -544,6 +624,14 @@ export function DataMartDetails({ id }: DataMartDetailsProps) {
             }
           })();
         }}
+      />
+      <SchemaUnsavedChangesDialog
+        open={schemaGuard.dialog.open}
+        intent={schemaGuard.dialog.intent}
+        isSaving={schemaGuard.dialog.isSaving}
+        onSaveAndContinue={schemaGuard.dialog.onSaveAndContinue}
+        onDiscardAndContinue={schemaGuard.dialog.onDiscardAndContinue}
+        onCancel={schemaGuard.dialog.onCancel}
       />
     </div>
   );

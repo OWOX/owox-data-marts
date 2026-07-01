@@ -1,10 +1,13 @@
 import { ApiService } from '../../../../services';
 import type {
   CreateScheduledTriggerRequestApiDto,
+  ProjectScheduledTriggerListResponseApiDto,
   ScheduledTriggerListResponseApiDto,
   ScheduledTriggerResponseApiDto,
   UpdateScheduledTriggerRequestApiDto,
 } from '../model/api';
+
+const PROJECT_SCHEDULED_TRIGGERS_FETCH_PAGE_SIZE = 100;
 
 /**
  * Scheduled Trigger Service
@@ -25,6 +28,40 @@ export class ScheduledTriggerService extends ApiService {
    */
   async getScheduledTriggers(dataMartId: string): Promise<ScheduledTriggerListResponseApiDto> {
     return this.get<ScheduledTriggerListResponseApiDto>(`/${dataMartId}/scheduled-triggers`);
+  }
+
+  /**
+   * Fetch scheduled triggers across all accessible data marts in the current project.
+   */
+  async getProjectScheduledTriggers(
+    limit?: number,
+    offset?: number
+  ): Promise<ProjectScheduledTriggerListResponseApiDto> {
+    if (limit === undefined && offset === undefined) {
+      const triggers: ProjectScheduledTriggerListResponseApiDto['triggers'] = [];
+      let nextOffset = 0;
+      let fetchedCount: number;
+
+      do {
+        const response = await this.get<ProjectScheduledTriggerListResponseApiDto>(
+          '/scheduled-triggers',
+          {
+            limit: PROJECT_SCHEDULED_TRIGGERS_FETCH_PAGE_SIZE,
+            offset: nextOffset,
+          }
+        );
+        triggers.push(...response.triggers);
+        fetchedCount = response.triggers.length;
+        nextOffset += PROJECT_SCHEDULED_TRIGGERS_FETCH_PAGE_SIZE;
+      } while (fetchedCount === PROJECT_SCHEDULED_TRIGGERS_FETCH_PAGE_SIZE);
+
+      return { triggers };
+    }
+
+    return this.get<ProjectScheduledTriggerListResponseApiDto>('/scheduled-triggers', {
+      limit: limit ?? PROJECT_SCHEDULED_TRIGGERS_FETCH_PAGE_SIZE,
+      offset: offset ?? 0,
+    });
   }
 
   /**

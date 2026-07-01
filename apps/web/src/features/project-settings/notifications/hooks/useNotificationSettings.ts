@@ -33,7 +33,7 @@ export function useNotificationSettings(projectId: string | null): UseNotificati
     setError(null);
 
     try {
-      const response = await notificationSettingsService.getSettings(projectId);
+      const response = await notificationSettingsService.getSettings();
       setSettings(response.settings);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load notification settings');
@@ -48,11 +48,7 @@ export function useNotificationSettings(projectId: string | null): UseNotificati
         throw new Error('Project ID is required');
       }
 
-      const updatedItem = await notificationSettingsService.updateSetting(
-        projectId,
-        notificationType,
-        data
-      );
+      const updatedItem = await notificationSettingsService.updateSetting(notificationType, data);
       // Update only the changed setting in the array
       setSettings(prev =>
         prev.map(s => (s.notificationType === notificationType ? updatedItem : s))
@@ -96,7 +92,7 @@ export function useProjectMembers(projectId: string | null): UseProjectMembersRe
     setError(null);
 
     try {
-      const response = await notificationSettingsService.getProjectMembers(projectId);
+      const response = await notificationSettingsService.getProjectMembers();
       setMembers(response.members);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load project members');
@@ -133,7 +129,7 @@ export function useTestWebhook(projectId: string | null): UseTestWebhookReturn {
 
       setIsTesting(true);
       try {
-        await notificationSettingsService.testWebhook(projectId, notificationType, webhookUrl);
+        await notificationSettingsService.testWebhook(notificationType, webhookUrl);
       } finally {
         setIsTesting(false);
       }

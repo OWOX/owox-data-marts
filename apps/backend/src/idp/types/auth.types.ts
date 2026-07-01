@@ -11,4 +11,6 @@ export interface AuthorizationContext {
   email?: string;
   roles?: RoleType[];
   projectTitle?: string;
+  authFlow?: string;
+  apiKeyId?: string;
 }

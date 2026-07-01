@@ -56,12 +56,18 @@ export interface OnboardingOption {
 }
 
 export const USE_CASE_OPTIONS: OnboardingOption[] = [
-  { value: USE_CASE_ANSWER.SYNC_DWH_SHEETS, label: 'Sync live DWH data into Sheets' },
-  { value: USE_CASE_ANSWER.SYNC_DWH_LOOKER, label: 'Sync live DWH data to Looker Studio' },
+  {
+    value: USE_CASE_ANSWER.SYNC_DWH_SHEETS,
+    label: 'Sync live data from the organization’s warehouse into Sheets',
+  },
+  {
+    value: USE_CASE_ANSWER.SYNC_DWH_LOOKER,
+    label: 'Sync live data from the organization’s warehouse to Data Studio',
+  },
   { value: USE_CASE_ANSWER.AI_INSIGHTS, label: 'Deliver AI Insights to Slack / Teams / Email' },
   {
     value: USE_CASE_ANSWER.IMPORT_EXTERNAL_DWH,
-    label: 'Import external data into our data warehouse',
+    label: 'Import external data into the organization’s data warehouse',
   },
   {
     value: USE_CASE_ANSWER.IMPORT_EXTERNAL_SHEETS,

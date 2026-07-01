@@ -54,6 +54,13 @@ export const TESTIDS = {
   notifToggle: 'notifToggle',
   notifEditSheet: 'notifEditSheet',
 
+  // Form validation
+  formSectionErrorIndicator: 'form-section-error-indicator',
+
   // FloatingPopover domain
   floatingPopoverClose: 'floatingPopoverClose',
+
+  // Membership Requests domain
+  pendingRequestsSection: 'pendingRequestsSection',
+  membershipRequestSheet: 'membershipRequestSheet',
 } as const;

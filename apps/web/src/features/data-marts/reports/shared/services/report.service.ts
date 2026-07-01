@@ -2,6 +2,8 @@ import { ApiService } from '../../../../../services';
 import type { CreateReportRequestDto, ReportResponseDto, UpdateReportRequestDto } from './types';
 import type { AxiosRequestConfig } from '../../../../../app/api';
 
+const PROJECT_REPORTS_FETCH_PAGE_SIZE = 100;
+
 /**
  * Report Service
  * Specializes in report operations using the generic ApiService
@@ -68,8 +70,35 @@ export class ReportService extends ApiService {
    * List reports by project
    * @returns Promise with list of reports
    */
-  async getReportsByProject(): Promise<ReportResponseDto[]> {
-    return this.get<ReportResponseDto[]>('/');
+  async getReportsByProject(limit?: number, offset?: number): Promise<ReportResponseDto[]> {
+    if (limit === undefined && offset === undefined) {
+      const reports: ReportResponseDto[] = [];
+      let nextOffset = 0;
+      let fetchedCount: number;
+
+      do {
+        const response = await this.get<ReportResponseDto[]>('/', {
+          limit: PROJECT_REPORTS_FETCH_PAGE_SIZE,
+          offset: nextOffset,
+        });
+        reports.push(...response);
+        fetchedCount = response.length;
+        nextOffset += PROJECT_REPORTS_FETCH_PAGE_SIZE;
+      } while (fetchedCount === PROJECT_REPORTS_FETCH_PAGE_SIZE);
+
+      return reports;
+    }
+
+    const params = {
+      ...(limit !== undefined
+        ? { limit }
+        : offset !== undefined
+          ? { limit: PROJECT_REPORTS_FETCH_PAGE_SIZE }
+          : {}),
+      ...(offset !== undefined ? { offset } : {}),
+    };
+
+    return this.get<ReportResponseDto[]>('/', params);
   }
 
   /**

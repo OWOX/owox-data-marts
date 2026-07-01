@@ -3,6 +3,7 @@ import starlight from '@astrojs/starlight';
 import { defineConfig } from 'astro/config';
 import rehypeExternalLinks from 'rehype-external-links';
 import starlightAutoSidebar from 'starlight-auto-sidebar';
+import starlightLinksValidator from 'starlight-links-validator';
 import { getConfig } from './scripts/env-config.js';
 
 const { site, base, gtmId } = getConfig();
@@ -55,11 +56,11 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
             },
             {
               label: 'Billing',
-              autogenerate: { directory: 'docs/getting-started/billing' },
+              items: [{ autogenerate: { directory: 'docs/getting-started/billing' } }],
             },
             {
               label: 'Deployment Guide',
-              autogenerate: { directory: 'docs/getting-started/deployment-guide' },
+              items: [{ autogenerate: { directory: 'docs/getting-started/deployment-guide' } }],
             },
             {
               label: 'Setup Guide',
@@ -72,14 +73,21 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
                 'docs/getting-started/setup-guide/view-data-mart',
                 'docs/getting-started/setup-guide/pattern-data-mart',
                 'docs/getting-started/setup-guide/joinable-data-marts',
+                'docs/getting-started/setup-guide/output-controls',
+                'docs/getting-started/setup-guide/report-aggregations',
                 'docs/getting-started/setup-guide/connector-triggers',
                 'docs/getting-started/setup-guide/report-triggers',
+                'docs/getting-started/setup-guide/mcp',
                 {
                   label: 'Self-Managed Authentication',
-                  autogenerate: {
-                    directory: 'docs/getting-started/setup-guide/members-management',
-                  },
                   collapsed: true,
+                  items: [
+                    {
+                      autogenerate: {
+                        directory: 'docs/getting-started/setup-guide/members-management',
+                      },
+                    },
+                  ],
                 },
               ],
             },
@@ -93,7 +101,7 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
               items: [
                 'docs/project/members',
                 'docs/project/roles-and-permissions',
-                'docs/project/ownership-and-availability',
+                'docs/project/ownership-and-sharing',
                 'docs/project/contexts',
               ],
             },
@@ -113,7 +121,7 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
             'docs/destinations/manage-destinations',
             {
               label: 'Supported Destinations',
-              autogenerate: { directory: 'docs/destinations/supported-destinations' },
+              items: [{ autogenerate: { directory: 'docs/destinations/supported-destinations' } }],
             },
           ],
         },
@@ -123,20 +131,30 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
             'docs/storages/manage-storages',
             {
               label: 'Supported Storages',
-              autogenerate: { directory: 'docs/storages/supported-storages' },
+              items: [{ autogenerate: { directory: 'docs/storages/supported-storages' } }],
             },
           ],
         },
         {
           label: 'Sources',
-          autogenerate: { directory: 'packages/connectors/src/sources' },
+          items: [{ autogenerate: { directory: 'packages/connectors/src/sources' } }],
+        },
+        {
+          label: 'API',
+          items: [
+            'docs/api',
+            'docs/api/api-keys',
+            'docs/api/owox-ctl',
+            'docs/api/api-client',
+            'docs/api/openapi',
+          ],
         },
         {
           label: 'Contributing',
           items: [
             {
               label: 'Repository',
-              autogenerate: { directory: 'docs/contributing/repository' },
+              items: [{ autogenerate: { directory: 'docs/contributing/repository' } }],
               collapsed: true,
             },
             {
@@ -148,7 +166,11 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
               ],
               collapsed: true,
             },
-            { label: 'Documentation', autogenerate: { directory: 'apps/docs' }, collapsed: true },
+            {
+              label: 'Documentation',
+              items: [{ autogenerate: { directory: 'apps/docs' } }],
+              collapsed: true,
+            },
             {
               label: 'CLI Application',
               items: [
@@ -159,7 +181,11 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
               ],
               collapsed: true,
             },
-            { label: 'Web Application', autogenerate: { directory: 'apps/web' }, collapsed: true },
+            {
+              label: 'Web Application',
+              items: [{ autogenerate: { directory: 'apps/web' } }],
+              collapsed: true,
+            },
             {
               label: 'Backend Application',
               items: [
@@ -171,12 +197,27 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
               ],
               collapsed: true,
             },
-            { label: 'Licenses', autogenerate: { directory: 'licenses' }, collapsed: true },
+            {
+              label: 'Licenses',
+              items: [{ autogenerate: { directory: 'licenses' } }],
+              collapsed: true,
+            },
             'docs/changelog',
           ],
         },
       ],
-      plugins: [starlightAutoSidebar()],
+      plugins: [
+        starlightAutoSidebar(),
+        // Fails `astro build` on broken internal links and missing heading
+        // anchors, so CI (test-docs.yml) catches dead links before deploy.
+        starlightLinksValidator({
+          // localhost URLs are intentional examples in setup/deployment guides.
+          errorOnLocalLinks: false,
+          // Repo-file links (e.g. workflow YAML) are valid on GitHub but have no
+          // page on the docs site; skip them rather than rewrite to blob URLs.
+          exclude: ['/.github/**'],
+        }),
+      ],
     }),
   ],
   markdown: {

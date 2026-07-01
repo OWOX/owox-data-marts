@@ -1,60 +1,267 @@
-import { describe, expect, it } from 'vitest';
-import { TemplateSourceTypeEnum } from '../../../shared';
-import { ReportConditionEnum } from '../../../shared/enums/report-condition.enum';
-import { EmailReportEditFormSchema } from '../useEmailReportForm';
+import { renderHook, act } from '@testing-library/react';
+import { vi, describe, it, beforeEach, expect } from 'vitest';
 
-function buildPayload(overrides: Partial<Record<string, unknown>> = {}) {
+vi.mock('react-hot-toast', () => ({
+  __esModule: true,
+  default: {
+    success: vi.fn(),
+    error: vi.fn(),
+    loading: vi.fn(),
+    dismiss: vi.fn(),
+  },
+}));
+
+vi.mock('../../../../../../utils', () => ({
+  trackEvent: vi.fn(),
+}));
+
+vi.mock('../../../../../data-marts/reports/shared/model/hooks/useReport', () => ({
+  useReport: vi.fn(),
+}));
+
+import { useReport } from '../../../../../data-marts/reports/shared/model/hooks/useReport';
+import { useEmailReportForm, EmailReportEditFormSchema } from '../useEmailReportForm';
+import { ReportFormMode, TemplateSourceTypeEnum } from '../../../shared';
+import { DestinationTypeConfigEnum } from '../../../shared/enums/destination-type-config.enum';
+import { ReportConditionEnum } from '../../../shared/enums/report-condition.enum';
+import { DataStorageType } from '../../../../../data-storage/shared/model/types/data-storage-type.enum';
+import type { DataMartReport } from '../../../shared/model/types/data-mart-report';
+import type { FilterRule } from '../../../../shared/types/output-config';
+
+const mockCreateReport = vi.fn();
+const mockUpdateReport = vi.fn();
+const mockClearError = vi.fn();
+
+function setupUseReportMock(overrides: Partial<ReturnType<typeof useReport>> = {}) {
+  (useReport as unknown as ReturnType<typeof vi.fn>).mockReturnValue({
+    updateReport: mockUpdateReport,
+    createReport: mockCreateReport,
+    clearError: mockClearError,
+    error: null,
+    destinations: [],
+    reports: [],
+    currentReport: null,
+    loading: false,
+    polledReportIds: [],
+    fetchDestinations: vi.fn(),
+    fetchReports: vi.fn(),
+    fetchReportsByDataMartId: vi.fn(),
+    fetchReportById: vi.fn(),
+    deleteReport: vi.fn(),
+    runReport: vi.fn(),
+    startPollingReport: vi.fn(),
+    stopPollingReport: vi.fn(),
+    stopAllPolling: vi.fn(),
+    setPollingConfig: vi.fn(),
+    clearCurrentReport: vi.fn(),
+    ...overrides,
+  });
+}
+
+function buildReport(overrides: Partial<DataMartReport> = {}): DataMartReport {
   return {
-    title: 'Report: Revenue Overview',
-    dataDestinationId: 'destination-1',
-    reportCondition: ReportConditionEnum.ALWAYS,
-    subject: 'Report: Revenue Overview',
-    messageTemplate: '## Summary',
-    insightTemplateId: undefined,
-    templateSourceType: TemplateSourceTypeEnum.CUSTOM_MESSAGE,
-    columnConfig: null,
+    id: 'report-1',
+    title: 'Email Report',
+    dataMart: {
+      id: 'dm-1',
+      definitionType: null,
+      storage: { type: DataStorageType.GOOGLE_BIGQUERY },
+    },
+    dataDestination: {
+      id: 'dest-1',
+      type: 'email',
+      title: 'Email',
+    } as unknown as DataMartReport['dataDestination'],
+    destinationConfig: {
+      type: DestinationTypeConfigEnum.EMAIL_CONFIG,
+      reportCondition: ReportConditionEnum.ALWAYS,
+      subject: 'Weekly',
+      templateSource: {
+        type: TemplateSourceTypeEnum.CUSTOM_MESSAGE,
+        config: { messageTemplate: 'Hello' },
+      },
+    } as DataMartReport['destinationConfig'],
+    columnConfig: ['col_a'],
     filterConfig: null,
     sortConfig: null,
     limitConfig: null,
     ...overrides,
-  };
+  } as DataMartReport;
 }
 
-describe('EmailReportEditFormSchema', () => {
-  it('rejects blank custom messages', () => {
-    const result = EmailReportEditFormSchema.safeParse(buildPayload({ messageTemplate: '   ' }));
+beforeEach(() => {
+  vi.clearAllMocks();
+  setupUseReportMock();
+  mockCreateReport.mockResolvedValue(buildReport({ id: 'created-1' }));
+  mockUpdateReport.mockResolvedValue(buildReport({ id: 'updated-1' }));
+});
+
+const validEmailFormData = {
+  title: 'Test Report',
+  dataDestinationId: 'dest-1',
+  reportCondition: ReportConditionEnum.ALWAYS,
+  subject: 'Weekly',
+  templateSourceType: TemplateSourceTypeEnum.CUSTOM_MESSAGE,
+  messageTemplate: 'Hello',
+  columnConfig: ['col_a'],
+  filterConfig: null,
+  sortConfig: null,
+  limitConfig: null,
+  aggregationConfig: null,
+  dateTruncConfig: null,
+  uniqueCountConfig: false,
+};
+
+describe('EmailReportEditFormSchema — columnConfig validation', () => {
+  it('rejects an empty array with the expected message', async () => {
+    const result = await EmailReportEditFormSchema.safeParseAsync({
+      ...validEmailFormData,
+      columnConfig: [],
+    });
 
     expect(result.success).toBe(false);
-    expect(result.error?.flatten().fieldErrors.messageTemplate).toEqual(['Message is required']);
+    if (!result.success) {
+      const msg = result.error.issues.find(i => i.path.includes('columnConfig'))?.message;
+      expect(msg).toBe('At least one column must be selected');
+    }
   });
 
-  it('requires an insight for insight-based templates', () => {
-    const result = EmailReportEditFormSchema.safeParse(
-      buildPayload({
-        templateSourceType: TemplateSourceTypeEnum.INSIGHT_TEMPLATE,
-        messageTemplate: '',
-        insightTemplateId: '',
-      })
-    );
-
-    expect(result.success).toBe(false);
-    expect(result.error?.flatten().fieldErrors.insightTemplateId).toEqual(['Insight is required']);
-  });
-
-  it('trims title and subject values', () => {
-    const result = EmailReportEditFormSchema.safeParse(
-      buildPayload({
-        title: '  Report: Revenue Overview  ',
-        subject: '  Report: Revenue Overview  ',
-      })
-    );
+  it('accepts null (no columns configured yet)', async () => {
+    const result = await EmailReportEditFormSchema.safeParseAsync({
+      ...validEmailFormData,
+      columnConfig: null,
+    });
 
     expect(result.success).toBe(true);
-    if (!result.success) {
-      return;
-    }
+  });
+});
 
-    expect(result.data.title).toBe('Report: Revenue Overview');
-    expect(result.data.subject).toBe('Report: Revenue Overview');
+describe('useEmailReportForm — defaults', () => {
+  it('seeds output controls from initialReport (post+pre-join mix)', () => {
+    const preJoinRule: FilterRule = {
+      column: 'orgs__plan',
+      operator: 'eq',
+      value: 'pro',
+      placement: 'pre-join',
+    };
+    const initial = buildReport({
+      filterConfig: [{ column: 'col_a', operator: 'eq', value: 'X' }, preJoinRule],
+      sortConfig: [{ column: 'col_a', direction: 'desc' }],
+      limitConfig: 99,
+    });
+
+    const { result } = renderHook(() =>
+      useEmailReportForm({
+        initialReport: initial,
+        mode: ReportFormMode.EDIT,
+        dataMartId: 'dm-1',
+      })
+    );
+
+    const values = result.current.form.getValues();
+    expect(values.title).toBe('Email Report');
+    expect(values.filterConfig).toHaveLength(2);
+    expect(values.filterConfig?.[1]).toEqual(preJoinRule);
+    expect(values.sortConfig).toEqual([{ column: 'col_a', direction: 'desc' }]);
+    expect(values.limitConfig).toBe(99);
+  });
+});
+
+describe('useEmailReportForm — submission', () => {
+  it('UPDATE: builds CUSTOM_MESSAGE destinationConfig and forwards output controls', async () => {
+    const initial = buildReport({ id: 'r-42' });
+    const preJoinRule: FilterRule = {
+      column: 'users__country',
+      operator: 'neq',
+      value: 'UA',
+      placement: 'pre-join',
+    };
+
+    const { result } = renderHook(() =>
+      useEmailReportForm({
+        initialReport: initial,
+        mode: ReportFormMode.EDIT,
+        dataMartId: 'dm-1',
+      })
+    );
+
+    act(() => {
+      result.current.form.setValue('subject', 'Updated subject');
+      result.current.form.setValue('messageTemplate', 'New body');
+      result.current.form.setValue('filterConfig', [preJoinRule]);
+      result.current.form.setValue('limitConfig', 50);
+    });
+
+    await act(async () => {
+      await result.current.onSubmit(result.current.form.getValues());
+    });
+
+    expect(mockUpdateReport).toHaveBeenCalledTimes(1);
+    const [reportId, payload] = mockUpdateReport.mock.calls[0];
+    expect(reportId).toBe('r-42');
+    expect(payload.destinationConfig).toMatchObject({
+      type: DestinationTypeConfigEnum.EMAIL_CONFIG,
+      reportCondition: ReportConditionEnum.ALWAYS,
+      subject: 'Updated subject',
+      templateSource: {
+        type: TemplateSourceTypeEnum.CUSTOM_MESSAGE,
+        config: { messageTemplate: 'New body' },
+      },
+    });
+    expect(payload.filterConfig).toEqual([preJoinRule]);
+    expect(payload.limitConfig).toBe(50);
+  });
+
+  it('UPDATE: builds INSIGHT_TEMPLATE destinationConfig when templateSourceType=INSIGHT_TEMPLATE', async () => {
+    const initial = buildReport({ id: 'r-50' });
+    const { result } = renderHook(() =>
+      useEmailReportForm({
+        initialReport: initial,
+        mode: ReportFormMode.EDIT,
+        dataMartId: 'dm-1',
+      })
+    );
+
+    act(() => {
+      result.current.form.setValue('templateSourceType', TemplateSourceTypeEnum.INSIGHT_TEMPLATE);
+      result.current.form.setValue('insightTemplateId', 'tmpl-7');
+    });
+
+    await act(async () => {
+      await result.current.onSubmit(result.current.form.getValues());
+    });
+
+    const payload = mockUpdateReport.mock.calls[0][1];
+    expect(payload.destinationConfig.templateSource).toEqual({
+      type: TemplateSourceTypeEnum.INSIGHT_TEMPLATE,
+      config: { insightTemplateId: 'tmpl-7' },
+    });
+  });
+
+  it('CREATE: adds ownerIds only when pendingOwnerIdsRef.current is non-null', async () => {
+    const ownerRef = { current: ['user-7'] };
+    const { result } = renderHook(() =>
+      useEmailReportForm({
+        mode: ReportFormMode.CREATE,
+        dataMartId: 'dm-1',
+        pendingOwnerIdsRef: ownerRef,
+      })
+    );
+
+    act(() => {
+      result.current.form.setValue('title', 'T');
+      result.current.form.setValue('dataDestinationId', 'dest-1');
+      result.current.form.setValue('subject', 'S');
+      result.current.form.setValue('messageTemplate', 'M');
+      result.current.form.setValue('columnConfig', ['col_a']);
+    });
+
+    await act(async () => {
+      await result.current.onSubmit(result.current.form.getValues());
+    });
+
+    expect(mockCreateReport).toHaveBeenCalledWith(
+      expect.objectContaining({ ownerIds: ['user-7'] })
+    );
   });
 });

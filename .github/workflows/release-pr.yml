@@ -15,12 +15,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           fetch-depth: 0 # Required for changesets to work properly
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
           node-version: 22
           cache: 'npm'
@@ -53,4 +53,4 @@ jobs:
           git config --global user.name "github-actions[bot]"
           git add .
           git commit -m "chore: fix changelog headings and update package-lock.json"
-          git push
+          git push origin HEAD
